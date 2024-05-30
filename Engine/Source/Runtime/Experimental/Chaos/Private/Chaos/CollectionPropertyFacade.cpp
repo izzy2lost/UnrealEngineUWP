@@ -160,10 +160,7 @@ namespace Chaos::Softs
 				{
 					continue;
 				}
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				// TODO: GetFlags needs to return an ECollectionPropertyFlags, not an uint8, but the uint8 getter needs to be deprecated first
-				SetFlags(PropertyIndex, (ECollectionPropertyFlags)InPropertyFacade.GetFlags(InKeyIndex));
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				SetFlags(PropertyIndex, InPropertyFacade.GetFlags(InKeyIndex));
 				// Setting as FVector3f since that is the underlying type
 				SetLowValue(PropertyIndex, InPropertyFacade.GetLowValue<FVector3f>(InKeyIndex));
 				SetHighValue(PropertyIndex, InPropertyFacade.GetHighValue<FVector3f>(InKeyIndex));
@@ -254,15 +251,8 @@ namespace Chaos::Softs
 	}
 
 	void FCollectionPropertyMutableFacade::Append(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection, bool bUpdateExistingProperties)
-	{
-		
+	{		
 		Update(InManagedArrayCollection, ECollectionPropertyUpdateFlags::AppendNewProperties | (bUpdateExistingProperties ? ECollectionPropertyUpdateFlags::UpdateExistingProperties : ECollectionPropertyUpdateFlags::None));
-	}
-
-	void FCollectionPropertyMutableFacade::Append(const FManagedArrayCollection& InManagedArrayCollection)
-	{
-		constexpr ECollectionPropertyUpdateFlags UpdateFlagsAppendNewOnly = ECollectionPropertyUpdateFlags::AppendNewProperties;
-		Update(MakeShared<const FManagedArrayCollection>(InManagedArrayCollection), UpdateFlagsAppendNewOnly);
 	}
 
 	void FCollectionPropertyMutableFacade::Copy(const FManagedArrayCollection& InManagedArrayCollection)
@@ -308,10 +298,7 @@ namespace Chaos::Softs
 				for (int32 InKeyIndex = 0; InKeyIndex < NumInKeys; ++InKeyIndex)
 				{
 					const FString& PropertyName = InPropertyFacade.GetKey(InKeyIndex);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					// TODO: GetFlags needs to return an ECollectionPropertyFlags, not an uint8, but the uint8 getter needs to be deprecated first
-					const ECollectionPropertyFlags PropertyFlags = (ECollectionPropertyFlags)InPropertyFacade.GetFlags(InKeyIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					const ECollectionPropertyFlags PropertyFlags = InPropertyFacade.GetFlags(InKeyIndex);
 					int32 NewPropertyIndex = GetKeyIndex(PropertyName);
 					if (NewPropertyIndex == INDEX_NONE)
 					{

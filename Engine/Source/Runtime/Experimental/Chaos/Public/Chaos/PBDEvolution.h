@@ -34,10 +34,6 @@ class FPBDEvolution : public TArrayCollection
 	~FPBDEvolution() {}
 
 	// Advance one time step. Filter the input time step if specified.
-	UE_DEPRECATED(5.1, "Use AdvanceOneTimeStep(const FSolverReal Dt) instead.")
-	void AdvanceOneTimeStep(const FSolverReal Dt, const bool bSmoothDt) { AdvanceOneTimeStep(Dt); }
-
-	// Advance one time step. Filter the input time step if specified.
 	CHAOS_API void AdvanceOneTimeStep(const FSolverReal Dt);
 
 	// Remove all particles, will also reset all rules
@@ -152,16 +148,6 @@ class FPBDEvolution : public TArrayCollection
 	FVelocityAndPressureField& GetVelocityAndPressureField(const uint32 GroupId = 0) { check(GroupId < TArrayCollection::Size()); return MGroupVelocityAndPressureFields[GroupId]; }
 	const FVelocityAndPressureField& GetVelocityAndPressureField(const uint32 GroupId = 0) const { check(GroupId < TArrayCollection::Size()); return MGroupVelocityAndPressureFields[GroupId]; }
 
-	UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.")
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FVelocityField& GetVelocityField(const uint32 GroupId = 0) { return GetVelocityAndPressureField(GroupId); }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.")
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const FVelocityField& GetVelocityField(const uint32 GroupId = 0) const { return GetVelocityAndPressureField(GroupId); }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-
 	int32 GetIterations() const { return MNumIterations; }
 	void SetIterations(const int32 Iterations) { MNumIterations = Iterations; }
 
@@ -182,10 +168,6 @@ class FPBDEvolution : public TArrayCollection
 
 	FSolverReal GetParticleDamping(const uint32 ParticleIndex = 0) const { check(ParticleIndex < this->Particles().Size() && bUsePerParticleDamping); return MParticleDampings[ParticleIndex]; }
 	void SetParticleDamping(const FSolverReal Damping, const uint32 ParticleIndex = 0) { check(ParticleIndex < this->Particles().Size()); if (bUsePerParticleDamping) { MParticleDampings[ParticleIndex] = Damping; } }
-
-
-	UE_DEPRECATED(4.27, "Use GetCollisionStatus() instead")
-	const bool Collided(int32 index) { return MCollided[index]; }
 
 	const TArray<bool>& GetCollisionStatus() { return MCollided; }
 	const TArray<FSolverVec3>& GetCollisionContacts() const { return MCollisionContacts; }

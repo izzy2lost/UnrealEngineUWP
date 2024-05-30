@@ -71,10 +71,6 @@ public:
 	inline void ApplyPBDValues(const FSolverReal Dt, const int32 NumIterations);
 
 	/** Update the weight map table with the current simulation parameters. */
-	UE_DEPRECATED(5.2, "Use ApplyPBDValues() instead.")
-	void ApplyValues(const FSolverReal Dt, const int32 NumIterations) { ApplyPBDValues(Dt, NumIterations); }
-
-	/** Update the weight map table with the current simulation parameters. */
 	inline void ApplyXPBDValues(const FSolverReal MaxStiffnesss);
 
 private:

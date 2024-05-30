@@ -63,31 +63,6 @@ public:
 		, TetherScaleIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDLongRangeConstraints(
-		const FSolverParticles& Particles,
-		const int32 InParticleOffset,
-		const int32 InParticleCount,
-		const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& InTethers,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& ScaleMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		FSolverReal MeshScale)
-		: FPBDLongRangeConstraintsBase(
-			Particles,
-			InParticleOffset,
-			InParticleCount,
-			InTethers,
-			StiffnessMultipliers,
-			ScaleMultipliers,
-			FSolverVec2(GetWeightedFloatTetherStiffness(PropertyCollection, 1.f)),
-			FSolverVec2(GetWeightedFloatTetherScale(PropertyCollection, 1.f)),  // Scale clamping done in constructor
-			FPBDStiffness::DefaultPBDMaxStiffness,
-			MeshScale)
-		, TetherStiffnessIndex(PropertyCollection)
-		, TetherScaleIndex(PropertyCollection)
-	{}
-
 	FPBDLongRangeConstraints(
 		const FSolverParticles& Particles,
 		const int32 InParticleOffset,
@@ -120,12 +95,6 @@ public:
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		FSolverReal MeshScale);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), (FSolverReal)1.);
-	}
 
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const;

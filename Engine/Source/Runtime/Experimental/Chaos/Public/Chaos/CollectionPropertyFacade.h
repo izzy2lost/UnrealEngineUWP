@@ -10,17 +10,6 @@ struct FManagedArrayCollection;
 
 namespace Chaos::Softs
 {
-	enum class UE_DEPRECATED(5.3, "Use ECollectionPropertyFlags instead.") ECollectionPropertyFlag : uint8
-	{
-		None,
-		Enabled = 1 << 0,
-		Animatable = 1 << 1,
-		Dirty = 1 << 7
-	};
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	ENUM_CLASS_FLAGS(ECollectionPropertyFlag)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/** Property flags, whether properties are enabled, animatable, ...etc. */
 	enum class ECollectionPropertyFlags : uint8
 	{
@@ -89,11 +78,8 @@ namespace Chaos::Softs
 		T GetValue(int32 KeyIndex) const { return GetLowValue<T>(KeyIndex); }
 
 		const FString& GetStringValue(int32 KeyIndex) const { return GetValue<const FString&>(KeyIndex, StringValueArray); }
-		UE_DEPRECATED(5.3, "Use GetStringValue(int32) or GetStringValue(const FString&, const FString&, int32*) instead.")
-		const FString& GetStringValue(int32 KeyIndex, const FString& Default) const { return GetValue<const FString&>(KeyIndex, StringValueArray); }
 
-		UE_DEPRECATED(5.3, "uint8 GetFlags(int32) is deprecated and will soon be replaced by ECollectionPropertyFlags GetFlags(int32).")
-		uint8 GetFlags(int32 KeyIndex) const { return FlagsArray[KeyIndex]; }
+		ECollectionPropertyFlags GetFlags(int32 KeyIndex) const { return (ECollectionPropertyFlags)FlagsArray[KeyIndex]; }
 
 		bool IsEnabled(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Enabled); }
 		bool IsAnimatable(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Animatable) && !HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Intrinsic); }
@@ -143,12 +129,9 @@ namespace Chaos::Softs
 			return SafeGet(Key, [this](int32 KeyIndex)->FString { return GetStringValue(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		UE_DEPRECATED(5.3, "uint8 GetFlags(const FString&, uint8, int32*) is deprecated and will soon be replaced by ECollectionPropertyFlags GetFlags(const FString&, uint8, int32*).")
-		uint8 GetFlags(const FString& Key, uint8 Default = 0, int32* OutKeyIndex = nullptr) const
+		ECollectionPropertyFlags GetFlags(const FString& Key, uint8 Default = 0, int32* OutKeyIndex = nullptr) const
 		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return SafeGet(Key, [this](int32 KeyIndex)->uint8 { return GetFlags(KeyIndex); }, Default, OutKeyIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			return SafeGet(Key, [this](int32 KeyIndex)->ECollectionPropertyFlags { return GetFlags(KeyIndex); }, (ECollectionPropertyFlags)Default, OutKeyIndex);
 		}
 
 		bool IsEnabled(const FString& Key, bool bDefault = false, int32* OutKeyIndex = nullptr) const
@@ -290,8 +273,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** SetFlags cannot be used to remove Dirty, StringDirty, Interpolable or Intrinsic flags. Use ClearDirtyFlags to remove dirty flags. */
 		CHAOS_API void SetFlags(int32 KeyIndex, ECollectionPropertyFlags Flags);
-		UE_DEPRECATED(5.3, "Use SetFlags(int32, ECollectionPropertyFlags) instead.")
-		void SetFlags(int32 KeyIndex, uint8 Flags) { return SetFlags(KeyIndex, (ECollectionPropertyFlags)Flags); }
 
 		void SetEnabled(int32 KeyIndex, bool bEnabled) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Enabled, bEnabled); }
 		void SetAnimatable(int32 KeyIndex, bool bAnimatable) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Animatable, bAnimatable); }
@@ -300,8 +281,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		/** Set the intrinsic flag for this property. This flag cannot be removed and implies non Animatable. */
 		void SetIntrinsic(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Intrinsic, true); }
 		void SetDirty(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Dirty, true); }
-		UE_DEPRECATED(5.3, "SetDirty can only be set, to unset use ClearDirtyFlags instead.")
-		void SetDirty(int32 KeyIndex, bool bDirty) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Dirty, bDirty); }
 		void SetStringDirty(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::StringDirty, true); }
 		void SetInterpolable(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Interpolable, true); }
 
@@ -344,8 +323,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			return SafeSet(Key, [this, Flags](int32 KeyIndex) { SetFlags(KeyIndex, Flags); });
 		}
-		UE_DEPRECATED(5.3, "Use SetFlags(const FString&, ECollectionPropertyFlags) instead.")
-		int32 SetFlags(const FString& Key, uint8 Flags) { return SetFlags(Key, (ECollectionPropertyFlags)Flags); }
 
 		int32 SetEnabled(const FString& Key, bool bEnabled)
 		{
@@ -366,14 +343,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 SetIntrinsic(const FString& Key)
 		{
 			return SafeSet(Key, [this](int32 KeyIndex) { SetIntrinsic(KeyIndex); });
-		}
-
-		UE_DEPRECATED(5.3, "SetDirty can only be set, to unset use ClearDirtyFlags instead.")
-		int32 SetDirty(const FString& Key, bool bDirty)
-		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return SafeSet(Key, [this, bDirty](int32 KeyIndex) { SetDirty(KeyIndex, bDirty); });
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		int32 SetDirty(const FString& Key)
@@ -479,9 +448,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		 */
 		CHAOS_API void Append(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection, bool bUpdateExistingProperties);
 
-		UE_DEPRECATED(5.3, "Use SharedPtr version of Append to avoid additional copy.")
-		CHAOS_API void Append(const FManagedArrayCollection& InManagedArrayCollection);
-
 		/**
 		 * Copy all properties and values from an existing collection to this property collection.
 		 * Dirty flags will be copied directly.
@@ -545,8 +511,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 // Use this macro to add shorthands for property getters without a key index
 #define UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
 	inline static const FName PropertyName##Name = TEXT(#PropertyName); \
-	UE_DEPRECATED(5.3, "PropertyName##String is to be removed as to not be confused with GetPropertyName##String().") \
-	static FString PropertyName##String() { return PropertyName##Name.ToString(); } \
 	static bool Is##PropertyName##Enabled(const FCollectionPropertyConstFacade& InPropertyCollection, bool bDefault) \
 	{ \
 		return InPropertyCollection.IsEnabled(PropertyName##Name.ToString(), bDefault); \
@@ -583,13 +547,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{ \
 		return InPropertyCollection.GetStringValue(PropertyName##Name.ToString(), Default); \
 	} \
-	UE_DEPRECATED(5.3, "GetFlags is being phased out to promote correct dirtying operations.") \
-	uint8 Get##PropertyName##Flags(const FCollectionPropertyConstFacade& InPropertyCollection, uint8 Default) \
-	{ \
-PRAGMA_DISABLE_DEPRECATION_WARNINGS \
-		return InPropertyCollection.GetFlags(PropertyName##Name.ToString(), Default); \
-PRAGMA_ENABLE_DEPRECATION_WARNINGS \
-	}
 
 // Use this macro to add shorthands for property getters and direct access through the declared key index
 #define UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
@@ -629,15 +586,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 		checkSlow(PropertyName##Index == PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())); \
 		checkf(PropertyName##Index != INDEX_NONE, TEXT("The default value getter that sets the property index must be called once prior to calling this function.")); \
 		return PropertyCollection.GetStringValue(PropertyName##Index); \
-	} \
-	UE_DEPRECATED(5.3, "GetFlags is being phased out to promote correct dirtying operations.") \
-	uint8 Get##PropertyName##Flags(const FCollectionPropertyConstFacade& PropertyCollection) const \
-	{ \
-		checkSlow(PropertyName##Index == PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())); \
-		checkf(PropertyName##Index != INDEX_NONE, TEXT("The default value getter that sets the property index must be called once prior to calling this function.")); \
-PRAGMA_DISABLE_DEPRECATION_WARNINGS \
-		return PropertyCollection.GetFlags(PropertyName##Index); \
-PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 	} \
 	bool Is##PropertyName##Enabled(const FCollectionPropertyConstFacade& PropertyCollection) const \
 	{ \

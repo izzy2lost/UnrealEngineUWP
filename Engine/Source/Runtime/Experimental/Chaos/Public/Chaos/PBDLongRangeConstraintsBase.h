@@ -21,17 +21,6 @@ public:
 	static constexpr FSolverReal MinTetherScale = (FSolverReal)0.01;
 	static constexpr FSolverReal MaxTetherScale = (FSolverReal)10.;
 
-	enum class UE_DEPRECATED(5.3, "Tether EMode has been replaced with bUseGeodesicTethers.") EMode : uint8
-	{
-		Euclidean,
-		Geodesic,
-
-		// Deprecated modes
-		FastTetherFastLength = Euclidean,
-		AccurateTetherFastLength = Geodesic,
-		AccurateTetherAccurateLength = Geodesic
-	};
-
 	typedef TTuple<int32, int32, FRealSingle> FTether;
 
 	CHAOS_API FPBDLongRangeConstraintsBase(
@@ -70,14 +59,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TetherScale.SetWeightedValue(InTetherScale.ClampAxes(MinTetherScale, MaxTetherScale) * MeshScale);
 	}
 
-	// Set the stiffness input values used by the constraint
-	UE_DEPRECATED(5.2, "Use SetProperties instead.")
-	void SetStiffness(const FSolverVec2& InStiffness) { Stiffness.SetWeightedValue(InStiffness); }
-
-	// Set the scale low and high value of the scale weight map
-	UE_DEPRECATED(5.2, "Use SetProperties instead.")
-	void SetScale(const FSolverVec2& InScale) { TetherScale.SetWeightedValue(InScale.ClampAxes(MinTetherScale, MaxTetherScale)); }
-
 	// Set stiffness offset and range, as well as the simulation stiffness exponent
 	void ApplyProperties(const FSolverReal Dt, const int32 NumIterations)
 	{
@@ -112,14 +93,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 	// Return the minimum number of long range tethers in a batch to process in parallel
 	static CHAOS_API int32 GetMinParallelBatchSize();
-
-	// Return whether the constraint has been setup with a weightmap to interpolate between two low and high values of scales
-	UE_DEPRECATED(5.2, "Use TetherScale.HasWeightMap() instead")
-	bool HasScaleWeightMap() const { return TetherScale.HasWeightMap(); }
-
-	// Part of ApplyProperties to update ScaleTable.
-	UE_DEPRECATED(5.2, "Use TetherScale.ApplyValues() instead")
-	void ApplyScale() { TetherScale.ApplyValues(); }
 
 	// Return a vector representing the amount of segment required for the tether to shrink back to its maximum target length constraint, or zero if the constraint is already met
 	template<typename SolverParticlesOrRange>
@@ -157,12 +130,5 @@ protected:
 	const int32 ParticleCount;
 	FPBDStiffness Stiffness;  // Stiffness weightmap lookup table
 	FPBDWeightMap TetherScale;  // Scale weightmap lookup table
-
-	UE_DEPRECATED(5.2, "Use TetherScale instead")
-	TArray<uint8> ScaleIndices;
-	UE_DEPRECATED(5.2, "Use TetherScale instead")
-	TArray<FSolverReal> ScaleTable;
-	UE_DEPRECATED(5.2, "Use TetherScale instead")
-	FSolverVec2 Scale;
 };
 }  // End namespace Chaos::Softs

@@ -10,12 +10,6 @@ DECLARE_CYCLE_STAT(TEXT("Chaos XPBD Axial Spring Constraint"), STAT_XPBD_AxialSp
 namespace Chaos::Softs
 {
 
-// Stiffness is in kg/s^2
-UE_DEPRECATED(5.2, "Use FXPBDAxialSpringConstraints::MinStiffness instead.")
-static const FSolverReal XPBDAxialSpringMinStiffness = (FSolverReal)1e-4; // Stiffness below this will be considered 0 since all of our calculations are actually based on 1 / stiffness.
-UE_DEPRECATED(5.2, "Use FXPBDAxialSpringConstraints::MaxStiffness instead.")
-static const FSolverReal XPBDAxialSpringMaxStiffness = (FSolverReal)1e7;
-
 class FXPBDAxialSpringConstraints : public FPBDAxialSpringConstraintsBase
 {
 	typedef FPBDAxialSpringConstraintsBase Base;
@@ -228,26 +222,6 @@ public:
 		, XPBDAreaSpringStiffnessIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FXPBDAreaSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec3<int32>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FXPBDAxialSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			FSolverVec2(GetWeightedFloatXPBDAreaSpringStiffness(PropertyCollection, MaxStiffness)),
-			bTrimKinematicConstraints)
-		, XPBDAreaSpringStiffnessIndex(PropertyCollection)
-	{}
-
 	virtual ~FXPBDAreaSpringConstraints() override = default;
 
 	void SetProperties(
@@ -275,12 +249,6 @@ public:
 				Stiffness.SetWeightedValue(WeightedValue, MaxStiffness);
 			}
 		}
-	}
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
 	}
 
 private:

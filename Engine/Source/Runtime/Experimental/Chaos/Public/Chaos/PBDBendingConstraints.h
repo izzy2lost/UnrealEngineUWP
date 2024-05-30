@@ -77,40 +77,6 @@ public:
 		InitColor(InParticles);
 	}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDBendingConstraints(const FSolverParticles& InParticles,
-		int32 InParticleOffset,
-		int32 InParticleCount,
-		TArray<TVec4<int32>>&& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints = false)
-		: Base(
-			InParticles,
-			InParticleOffset,
-			InParticleCount,
-			MoveTemp(InConstraints),
-			StiffnessMultipliers,
-			TConstArrayView<FRealSingle>(),
-			BucklingStiffnessMultipliers,
-			TConstArrayView<FRealSingle>(),
-			FSolverVec2(GetWeightedFloatBendingElementStiffness(PropertyCollection, 1.f)),
-			FSolverVec2(GetWeightedFloatBucklingRatio(PropertyCollection, 0.f)),  // BucklingRatio is clamped in base class
-			FSolverVec2(GetWeightedFloatBucklingStiffness(PropertyCollection, 1.f)),
-			FSolverVec2((FSolverReal)0.f),
-			ERestAngleConstructionType::Use3DRestAngles,
-			bTrimKinematicConstraints) 
-		, BendingElementStiffnessIndex(PropertyCollection)
-		, BucklingRatioIndex(PropertyCollection)
-		, BucklingStiffnessIndex(PropertyCollection)
-		, FlatnessRatioIndex(PropertyCollection)
-		, RestAngleIndex(PropertyCollection)
-		, RestAngleTypeIndex(PropertyCollection)
-	{
-		InitColor(InParticles);
-	}
-
 	FPBDBendingConstraints(const FSolverParticles& InParticles,
 		int32 ParticleOffset,
 		int32 ParticleCount,
@@ -185,12 +151,6 @@ public:
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
-	}
 
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;

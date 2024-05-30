@@ -200,25 +200,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ERestAngleConstructionType::Use3DRestAngles, bTrimKinematicConstraints, MaxStiffness)
 	{}
 
-	UE_DEPRECATED(5.2, "Use one of the other constructors instead.")
-	FPBDBendingConstraintsBase(const FSolverParticles& InParticles, TArray<TVec4<int32>>&& InConstraints, const FSolverReal InStiffness = (FSolverReal)1.)
-		: FPBDBendingConstraintsBase(
-			InParticles,
-			0, 
-			InParticles.Size(),
-			MoveTemp(InConstraints),
-			TConstArrayView<FRealSingle>(),
-			TConstArrayView<FRealSingle>(),
-			TConstArrayView<FRealSingle>(),
-			TConstArrayView<FRealSingle>(),
-			FSolverVec2(InStiffness),
-			FSolverVec2((FSolverReal)0.f),
-			FSolverVec2(InStiffness),
-			FSolverVec2((FSolverReal)0.f),
-			ERestAngleConstructionType::Use3DRestAngles)
-	{
-	}
-
 	virtual ~FPBDBendingConstraintsBase() {}
 
 	// Update stiffness values
@@ -278,21 +259,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		constexpr FSolverReal SingleStepAngleLimit = (FSolverReal)(UE_PI * .25f); // this constraint is very non-linear. taking large steps is not accurate
 		const FSolverReal Delta = FMath::Clamp(StiffnessValue * (Angle - RestAngles[i]), -SingleStepAngleLimit, SingleStepAngleLimit);
 		return SafeDivide(Delta, Denom);
-	}
-
-	UE_DEPRECATED(5.1, "Use GetScalingFactor(const FSolverParticles& InParticles, const int32 i, const TStaticArray<FSolverVec3, 4>& Grads, const FSolverReal ExpStiffnessValue, const FSolverReal BucklingRatio, const FSolverReal ExpBucklingValue) instead.")
-	FSolverReal GetScalingFactor(const FSolverParticles& InParticles, const int32 i, const TArray<FSolverVec3>& Grads) const
-	{
-		TStaticArray<FSolverVec3, 4> GradsStaticArray;
-		GradsStaticArray[0] = Grads[0];
-		GradsStaticArray[1] = Grads[1];
-		GradsStaticArray[2] = Grads[2];
-		GradsStaticArray[3] = Grads[3];
-		if (!Stiffness.HasWeightMap())
-		{
-			return GetScalingFactor(InParticles, i, GradsStaticArray, (FSolverReal)Stiffness, (FSolverReal)BucklingStiffness);
-		}
-		return GetScalingFactor(InParticles, i, GradsStaticArray, Stiffness[i], BucklingStiffness[i]);
 	}
 
 	static FSolverReal CalcAngle(const FSolverVec3& P1, const FSolverVec3& P2, const FSolverVec3& P3, const FSolverVec3& P4)

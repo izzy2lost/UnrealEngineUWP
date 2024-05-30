@@ -119,13 +119,6 @@ public:
 		bool bEnableAerodynamics,
 		const FSolverVec3& SolverWind);
 
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal, bool) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection, FSolverReal WorldScale)
-	{
-		constexpr bool bEnableAerodynamics = true;
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), WorldScale, bEnableAerodynamics);
-	}
-
 	CHAOS_API void SetProperties(
 		const FSolverVec2& Drag,
 		const FSolverVec2& Lift,
@@ -271,8 +264,6 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(Pressure, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(WindVelocity, FVector3f);
 };
-
-using FVelocityField UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.") = FVelocityAndPressureField;
 
 }  // End namespace Chaos::Softs
 

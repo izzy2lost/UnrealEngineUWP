@@ -11,11 +11,6 @@ DECLARE_CYCLE_STAT(TEXT("Chaos XPBD Long Range Constraint"), STAT_XPBD_LongRange
 namespace Chaos::Softs
 {
 
-UE_DEPRECATED(5.2, "Use FXPBDLongRangeConstraints::MinStiffness instead.")
-static const FSolverReal XPBDLongRangeMinStiffness = (FSolverReal)1e-1;
-UE_DEPRECATED(5.2, "Use FXPBDLongRangeConstraints::MaxStiffness instead.")
-static const FSolverReal XPBDLongRangeMaxStiffness = (FSolverReal)1e7;
-
 class FXPBDLongRangeConstraints final : public FPBDLongRangeConstraintsBase
 {
 public:
@@ -44,36 +39,6 @@ public:
 			FSolverVec2(GetWeightedFloatXPBDTetherScale(PropertyCollection, 1.f)),  // Scale clamping done in constructor
 			MaxStiffness,
 			MeshScale)
-		, XPBDTetherStiffnessIndex(PropertyCollection)
-		, XPBDTetherScaleIndex(PropertyCollection)
-	{
-		NumTethers = 0;
-		for (const TConstArrayView<FTether>& TetherBatch : Tethers)
-		{
-			NumTethers += TetherBatch.Num();
-		}
-		Lambdas.Reserve(NumTethers);
-	}
-
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FXPBDLongRangeConstraints(
-		const FSolverParticles& Particles,
-		const int32 InParticleOffset,
-		const int32 InParticleCount,
-		const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& InTethers,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& ScaleMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection)
-	    : FPBDLongRangeConstraintsBase(
-			Particles,
-			InParticleOffset,
-			InParticleCount,
-			InTethers,
-			StiffnessMultipliers,
-			ScaleMultipliers,
-			FSolverVec2(GetWeightedFloatXPBDTetherStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDTetherScale(PropertyCollection, 1.f)),  // Scale clamping done in constructor
-			MaxStiffness)
 		, XPBDTetherStiffnessIndex(PropertyCollection)
 		, XPBDTetherScaleIndex(PropertyCollection)
 	{
@@ -154,12 +119,6 @@ public:
 				TetherScale.SetWeightedValue(WeightedValue);
 			}
 		}
-	}
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection, FSolverReal MeshScale)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), MeshScale);
 	}
 
 	// Set the stiffness and scale values used by the constraint

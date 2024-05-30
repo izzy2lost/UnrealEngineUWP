@@ -6,6 +6,7 @@
 #include "Chaos/Framework/Parallel.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 #include "Chaos/PBDStiffness.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "ChaosStats.h"
@@ -42,33 +43,6 @@ namespace Chaos::Softs
 			, Damping(
 				FSolverVec2(GetWeightedFloatAnimDriveDamping(PropertyCollection, 1.f)),
 				WeightMaps.FindRef(GetAnimDriveDampingString(PropertyCollection, AnimDriveDampingName.ToString())),
-				InParticleCount)
-			, AnimDriveStiffnessIndex(PropertyCollection)
-			, AnimDriveDampingIndex(PropertyCollection)
-		{
-		}
-
-		UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-		FPBDAnimDriveConstraint(
-			const int32 InParticleOffset,
-			const int32 InParticleCount,
-			const TArray<FSolverVec3>& InAnimationPositions,  // Use global indexation (will need adding ParticleOffset)
-			const TArray<FSolverVec3>& InAnimationVelocities,  // Use global indexation (will need adding ParticleOffset)
-			const TConstArrayView<FRealSingle>& StiffnessMultipliers,  // Use local indexation
-			const TConstArrayView<FRealSingle>& DampingMultipliers,  // Use local indexation
-			const FCollectionPropertyConstFacade& PropertyCollection
-		)
-			: AnimationPositions(InAnimationPositions)
-			, AnimationVelocities(InAnimationVelocities)
-			, ParticleOffset(InParticleOffset)
-			, ParticleCount(InParticleCount)
-			, Stiffness(
-				FSolverVec2(GetWeightedFloatAnimDriveStiffness(PropertyCollection, 1.f)),
-				StiffnessMultipliers,
-				InParticleCount)
-			, Damping(
-				FSolverVec2(GetWeightedFloatAnimDriveDamping(PropertyCollection, 1.f)),
-				DampingMultipliers,
 				InParticleCount)
 			, AnimDriveStiffnessIndex(PropertyCollection)
 			, AnimDriveDampingIndex(PropertyCollection)
@@ -133,12 +107,6 @@ namespace Chaos::Softs
 					Damping.SetWeightedValue(WeightedValue);
 				}
 			}
-		}
-
-		UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-		void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-		{
-			SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
 		}
 
 		inline void SetProperties(const FSolverVec2& InStiffness, const FSolverVec2& InDamping)
