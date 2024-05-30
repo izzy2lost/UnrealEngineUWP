@@ -18,7 +18,7 @@ FChaosClothAssetSelectionToIntMapNode::FChaosClothAssetSelectionToIntMapNode(con
 	RegisterOutputConnection(&Collection, &Collection);
 	RegisterInputConnection(&SelectionName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&IntMapName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
-	RegisterOutputConnection(&IntMapName.StringValue, &IntMapName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
+	RegisterOutputConnection(&IntMapName.StringValue, &IntMapName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
 }
 
 void FChaosClothAssetSelectionToIntMapNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const

@@ -9,11 +9,9 @@ FChaosClothAssetSimulationMaxDistanceConfigNode::FChaosClothAssetSimulationMaxDi
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	if (FDataflowInput* const Input = RegisterInputConnection(&MaxDistance.WeightMap))
-	{
-		Input->SetCanHidePin(true);
-		Input->SetPinIsHidden(true);
-	}
+	RegisterInputConnection(&MaxDistance.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 }
 
 void FChaosClothAssetSimulationMaxDistanceConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

@@ -7,6 +7,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowConnection)
 
+const Dataflow::FConnectionKey Dataflow::FConnectionKey::Invalid = { (uint32)INDEX_NONE, INDEX_NONE, (uint32)INDEX_NONE };
+const Dataflow::FPin Dataflow::FPin::InvalidPin = { Dataflow::FPin::EDirection::NONE, NAME_None, NAME_None };
+
 FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection, FName InType, FName InName, FDataflowNode* InOwningNode, const FProperty* InProperty, FGuid InGuid)
 	: Type(InType)
 	, Name(InName)

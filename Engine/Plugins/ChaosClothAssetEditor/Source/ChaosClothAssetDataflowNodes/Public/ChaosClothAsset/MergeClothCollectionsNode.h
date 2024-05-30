@@ -8,6 +8,38 @@
 
 /** Merge multiple cloth collections into a single cloth collection of multiple patterns. */
 USTRUCT(Meta = (DataflowCloth))
+struct FChaosClothAssetMergeClothCollectionsNode_v2 : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetMergeClothCollectionsNode_v2, "MergeClothCollections", "Cloth", "Cloth Merge Collection")
+
+public:
+	UPROPERTY()
+	TArray<FManagedArrayCollection> Collections;
+
+	UPROPERTY(Meta = (DataflowOutput, DataflowPassthrough = "Collections[0]"))
+	FManagedArrayCollection Collection;
+
+	FChaosClothAssetMergeClothCollectionsNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+private:
+	//~ Begin FDataflowNode interface
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual TArray<Dataflow::FPin> AddPins() override;
+	virtual bool CanAddPin() const override { return true; }
+	virtual bool CanRemovePin() const override { return Collections.Num() > 2; }
+	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
+	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
+	virtual void Serialize(FArchive& Ar) override;
+	//~ End FDataflowNode interface
+
+	Dataflow::TConnectionReference<FManagedArrayCollection> GetConnectionReference(int32 Index) const;
+};
+
+
+
+/** Merge multiple cloth collections into a single cloth collection of multiple patterns. */
+USTRUCT(Meta = (DataflowCloth, Deprecated="5.5"))
 struct FChaosClothAssetMergeClothCollectionsNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -43,10 +75,10 @@ public:
 private:
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual Dataflow::FPin AddPin() override;
+	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return NumInputs < MaxInputs; }
 	virtual bool CanRemovePin() const override { return NumInputs > 1; }
-	virtual Dataflow::FPin GetPinToRemove() const override;
+	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface

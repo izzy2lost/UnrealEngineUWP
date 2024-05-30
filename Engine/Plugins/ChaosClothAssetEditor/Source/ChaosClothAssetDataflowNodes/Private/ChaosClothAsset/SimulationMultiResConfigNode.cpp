@@ -9,16 +9,12 @@ FChaosClothAssetSimulationMultiResConfigNode::FChaosClothAssetSimulationMultiRes
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	if (FDataflowInput* const Input = RegisterInputConnection(&MultiResStiffness.WeightMap))
-	{
-		Input->SetCanHidePin(true);
-		Input->SetPinIsHidden(true);
-	}
-	if (FDataflowInput* const Input = RegisterInputConnection(&MultiResVelocityTargetStiffness.WeightMap))
-	{
-		Input->SetCanHidePin(true);
-		Input->SetPinIsHidden(true);
-	}
+	RegisterInputConnection(&MultiResStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&MultiResVelocityTargetStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 }
 
 void FChaosClothAssetSimulationMultiResConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

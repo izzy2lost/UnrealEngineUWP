@@ -25,6 +25,15 @@ namespace Dataflow
 			: FConnectionParameters(InType, InName, InOwner, InProperty, InOffset, InGuid)
 		{}
 	};
+
+	struct FArrayInputParameters : public FInputParameters
+	{
+		FArrayInputParameters()
+			: FInputParameters()
+		{}
+		const FArrayProperty* ArrayProperty = nullptr;
+		uint32 InnerOffset = INDEX_NONE;
+	};
 }
 
 USTRUCT()
@@ -80,6 +89,25 @@ public:
 	virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
 };
 
+USTRUCT()
+struct FDataflowArrayInput : public FDataflowInput
+{
+	GENERATED_USTRUCT_BODY()
+
+private:
+	int32 Index;
+	uint32 ElementOffset; // Offset to Property inside an array element
+	const FArrayProperty* ArrayProperty = nullptr;
+	// uint32 Offset; // On base class. This is the Offset to ArrayProperty from OwningNode.
+
+public:
+	explicit FDataflowArrayInput(int32 InIndex = INDEX_NONE, const Dataflow::FArrayInputParameters& Param = {});
+
+	DATAFLOWCORE_API virtual void* RealAddress() const override;
+	virtual int32 GetContainerIndex() const override { return Index; }
+	virtual uint32 GetContainerElementOffset() const override { return ElementOffset; }
+};
+
 //
 // Output
 //
@@ -92,6 +120,7 @@ namespace Dataflow
 		{}
 	};
 }
+
 USTRUCT()
 struct FDataflowOutput : public FDataflowConnection
 {
@@ -101,7 +130,10 @@ struct FDataflowOutput : public FDataflowConnection
 	
 	TArray< FDataflowInput* > Connections;
 
+	UE_DEPRECATED(5.5, "Use PassthroughKey instead")
 	uint32 PassthroughOffset = INDEX_NONE;
+
+	Dataflow::FConnectionKey PassthroughKey;
 
 protected:
 	friend struct FDataflowInput;
@@ -117,6 +149,14 @@ public:
 
 	DATAFLOWCORE_API FDataflowOutput(const Dataflow::FOutputParameters& Param = {});
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	~FDataflowOutput() = default;
+	FDataflowOutput(const FDataflowOutput&) = delete; 
+	FDataflowOutput(FDataflowOutput&&) = delete;
+	FDataflowOutput& operator=(const FDataflowOutput&) = delete;
+	FDataflowOutput& operator=(FDataflowOutput&&) = delete;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	DATAFLOWCORE_API TArray<FDataflowInput*>& GetConnections();
 	DATAFLOWCORE_API const TArray<FDataflowInput*>& GetConnections() const;
 	bool HasAnyConnections() const { return !Connections.IsEmpty(); }
@@ -128,16 +168,22 @@ public:
 
 	DATAFLOWCORE_API virtual bool RemoveConnection(FDataflowConnection* InInput) override;
 
-	virtual FORCEINLINE void SetPassthroughOffset(const uint32 InPassthroughOffset)
+	UE_DEPRECATED(5.5, "Use SetPassthroughInput instead")
+	virtual void SetPassthroughOffset(const uint32 InPassthroughOffset)
 	{
-		PassthroughOffset = InPassthroughOffset;
+		SetPassthroughInput(Dataflow::FConnectionKey(InPassthroughOffset, INDEX_NONE, INDEX_NONE));
 	}
+
+	DATAFLOWCORE_API FDataflowOutput& SetPassthroughInput(const Dataflow::FConnectionReference& Reference);
+	DATAFLOWCORE_API FDataflowOutput& SetPassthroughInput(const Dataflow::FConnectionKey& Key);
+
+	DATAFLOWCORE_API const FDataflowInput* GetPassthroughInput() const;
 
 	virtual FORCEINLINE void* GetPassthroughRealAddress() const
 	{
-		if(PassthroughOffset != INDEX_NONE)
+		if(const FDataflowInput* const PassthroughInput = GetPassthroughInput())
 		{
-			return (void*)((size_t)OwningNode + (size_t)PassthroughOffset);
+			return PassthroughInput->RealAddress();
 		}
 		return nullptr;
 	}
@@ -182,7 +228,9 @@ public:
 
 	// there's no need for a templatized version as the parameter will not be used
 	// the method do check if the type of the input is the same as the output type though 
-	DATAFLOWCORE_API void ForwardInput(const void* InputReference, Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API void ForwardInput(const Dataflow::FConnectionReference& InputReference, Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API void ForwardInput(const FDataflowInput* Input, Dataflow::FContext& Context) const;
+
 
 	DATAFLOWCORE_API bool EvaluateImpl(Dataflow::FContext& Context) const;
 	
@@ -193,7 +241,15 @@ public:
 	DATAFLOWCORE_API virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
 
 private:
-	DATAFLOWCORE_API const FDataflowInput* GetPassthroughInput() const;
+};
+
+template<>
+struct TStructOpsTypeTraits<FDataflowOutput> : public  TStructOpsTypeTraitsBase2<FDataflowOutput>
+{
+	enum
+	{
+		WithCopy = false,
+	};
 };
 
 template<typename T>

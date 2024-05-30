@@ -19,6 +19,52 @@ struct FChaosClothAssetTerminalNodeRefreshAsset
 
 /** Cloth terminal node to generate a cloth asset from a cloth collection. */
 USTRUCT(Meta = (DataflowCloth, DataflowTerminal))
+struct FChaosClothAssetTerminalNode_v2 : public FDataflowTerminalNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetTerminalNode_v2, "ClothAssetTerminal", "Cloth", "Cloth Terminal")  // TODO: Should the category be Terminal instead like all other terminal nodes
+
+public:
+	UPROPERTY()
+	TArray<FManagedArrayCollection> CollectionLods;
+
+	/**
+	 * Refresh the asset even if the ClothCollection hasn't changed.
+	 * Note that it is not required to manually refresh the cloth asset, this is done automatically when there is a change in the Dataflow.
+	 * This function is a developper utility used for debugging.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Cloth Asset Terminal")
+	mutable FChaosClothAssetTerminalNodeRefreshAsset RefreshAsset;
+
+	FChaosClothAssetTerminalNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+private:
+	//~ Begin FDataflowNode interface
+	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override {}
+	virtual TArray<Dataflow::FPin> AddPins() override;
+	virtual bool CanAddPin() const override { return true; }
+	virtual bool CanRemovePin() const override { return CollectionLods.Num() > 1; }
+	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
+	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
+	virtual void Serialize(FArchive& Ar) override;
+	//~ End FDataflowNode interface
+
+	TArray<TSharedRef<FManagedArrayCollection>> GetCleanedCollectionLodValues(Dataflow::FContext& Context) const;
+	Dataflow::TConnectionReference<FManagedArrayCollection> GetConnectionReference(int32 Index) const;
+
+	UPROPERTY()
+	mutable TArray<FChaosClothAssetLodTransitionDataCache> LODTransitionDataCache;
+
+	// This is for runtime only--used to determine if only properties need to be updated.
+	mutable bool bClothCollectionChecksumValid = false;
+	mutable uint32 ClothColllectionChecksum = 0;
+};
+
+
+
+/** Cloth terminal node to generate a cloth asset from a cloth collection. */
+USTRUCT(Meta = (DataflowCloth, DataflowTerminal, Deprecated = 5.5))
 struct FChaosClothAssetTerminalNode : public FDataflowTerminalNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -62,10 +108,10 @@ private:
 	//~ Begin FDataflowNode interface
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override {}
-	virtual Dataflow::FPin AddPin() override;
+	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return NumLods < MaxLods; }
 	virtual bool CanRemovePin() const override { return NumLods > 1; }
-	virtual Dataflow::FPin GetPinToRemove() const override;
+	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface

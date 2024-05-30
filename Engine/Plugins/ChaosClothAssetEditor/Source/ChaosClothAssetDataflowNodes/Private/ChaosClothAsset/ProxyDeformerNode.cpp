@@ -159,7 +159,7 @@ namespace UE::Chaos::ClothAsset::Private
 		return FPointWeightMap(ClothFacade.GetNumSimVertices3D(), SelectedValue);
 	}
 
-	static TArray<ClothingMeshUtils::FMeshToMeshFilterSet> SelectionsToMeshToMeshFilterSets(const FCollectionClothConstFacade& ClothFacade, const FCollectionClothSelectionConstFacade& SelectionFacade, const TArray<FName>& SelectionNames)
+	static TArray<ClothingMeshUtils::FMeshToMeshFilterSet> SelectionsToMeshToMeshFilterSets_v2(const FCollectionClothConstFacade& ClothFacade, const FCollectionClothSelectionConstFacade& SelectionFacade, const TArray<TPair<FName, FName>>& SelectionNames)
 	{
 		auto GetSimFaceSelection = [&ClothFacade](const FName& SelectionGroup, const TSet<int32>& SelectionSet) -> TSet<int32>
 			{
@@ -233,6 +233,118 @@ namespace UE::Chaos::ClothAsset::Private
 		{
 			MeshToMeshFilterSets.Reserve(SelectionNames.Num());
 
+			for (const TPair<FName,FName>& SelectionName : SelectionNames)
+			{
+				if (const TSet<int32>* RenderSelectionSet = SelectionFacade.FindSelectionSet(SelectionName.Get<0>()))
+				{
+					if (const TSet<int32>* SimSelectionSet = SelectionFacade.FindSelectionSet(SelectionName.Get<1>()))
+					{
+						if (RenderSelectionSet->Num() && SimSelectionSet->Num())
+						{
+							const FName RenderSelectionGroup = SelectionFacade.GetSelectionGroup(SelectionName.Get<0>());
+							const FName SimSelectionGroup = SelectionFacade.GetSelectionGroup(SelectionName.Get<1>());
+
+							// Retrieve the sim face selection
+							TSet<int32> SimFaceSelection = GetSimFaceSelection(SimSelectionGroup, *SimSelectionSet);
+							if (!SimFaceSelection.Num())
+							{
+								continue;  // Nothing selected on the simulation side
+							}
+
+							// Retrieve the render vertex selection
+							TSet<int32> RenderVertexSelection = GetRenderVertexSelection(RenderSelectionGroup, *RenderSelectionSet);
+							if (!RenderVertexSelection.Num())
+							{
+								continue;  // Nothing selected on the render side
+							}
+
+							ClothingMeshUtils::FMeshToMeshFilterSet& MeshToMeshFilterSet = MeshToMeshFilterSets.AddDefaulted_GetRef();
+							MeshToMeshFilterSet.SourceTriangles = MoveTemp(SimFaceSelection);
+							MeshToMeshFilterSet.TargetVertices = MoveTemp(RenderVertexSelection);
+						}
+					}
+				}
+			}
+		}
+
+		return MeshToMeshFilterSets;
+	}
+	
+	
+	static TArray<ClothingMeshUtils::FMeshToMeshFilterSet> SelectionsToMeshToMeshFilterSets(const FCollectionClothConstFacade& ClothFacade, const FCollectionClothSelectionConstFacade& SelectionFacade, const TArray<FName>& SelectionNames)
+	{
+		auto GetSimFaceSelection = [&ClothFacade](const FName& SelectionGroup, const TSet<int32>& SelectionSet) -> TSet<int32>
+		{
+			TSet<int32> SimFaceSelection;
+			if (SelectionGroup == ClothCollectionGroup::SimVertices2D)
+			{
+				const TConstArrayView<FIntVector3> SimIndices2D = ClothFacade.GetSimIndices2D();
+				SimFaceSelection.Reserve(SelectionSet.Num());
+
+				for (int32 FaceIndex = 0; FaceIndex < SimIndices2D.Num(); ++FaceIndex)
+				{
+					const FIntVector3& Indices = SimIndices2D[FaceIndex];
+
+					if (SelectionSet.Contains(Indices[0]) &&
+						SelectionSet.Contains(Indices[1]) &&
+						SelectionSet.Contains(Indices[2]))
+					{
+						SimFaceSelection.Add(FaceIndex);
+					}
+				}
+			}
+			else if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
+			{
+				const TConstArrayView<FIntVector3> SimIndices3D = ClothFacade.GetSimIndices3D();
+				SimFaceSelection.Reserve(SelectionSet.Num());
+
+				for (int32 FaceIndex = 0; FaceIndex < SimIndices3D.Num(); ++FaceIndex)
+				{
+					const FIntVector3& Indices = SimIndices3D[FaceIndex];
+
+					if (SelectionSet.Contains(Indices[0]) &&
+						SelectionSet.Contains(Indices[1]) &&
+						SelectionSet.Contains(Indices[2]))
+					{
+						SimFaceSelection.Add(FaceIndex);
+					}
+				}
+			}
+			else if (SelectionGroup == ClothCollectionGroup::SimFaces)
+			{
+				SimFaceSelection = SelectionSet;
+			}
+			return SimFaceSelection;
+		};
+
+		auto GetRenderVertexSelection = [&ClothFacade](const FName& SelectionGroup, const TSet<int32>& SelectionSet) -> TSet<int32>
+		{
+			TSet<int32> RenderVertexSelection;
+			if (SelectionGroup == ClothCollectionGroup::RenderVertices)
+			{
+				RenderVertexSelection = SelectionSet;
+			}
+			else if (SelectionGroup == ClothCollectionGroup::RenderFaces)
+			{
+				RenderVertexSelection.Reserve(SelectionSet.Num() * 3);
+				const TConstArrayView<FIntVector3> RenderIndices = ClothFacade.GetRenderIndices();
+				for (const int32 FaceIndex : SelectionSet)
+				{
+					RenderVertexSelection.Add(RenderIndices[FaceIndex][0]);
+					RenderVertexSelection.Add(RenderIndices[FaceIndex][1]);
+					RenderVertexSelection.Add(RenderIndices[FaceIndex][2]);
+				}
+			}
+			return RenderVertexSelection;
+		};
+
+		// Fill up the MeshToMeshFilterSets
+		TArray<ClothingMeshUtils::FMeshToMeshFilterSet> MeshToMeshFilterSets;
+
+		if (SelectionFacade.IsValid())
+		{
+			MeshToMeshFilterSets.Reserve(SelectionNames.Num());
+
 			for (const FName& SelectionName : SelectionNames)
 			{
 				if (const TSet<int32>* SelectionSet = SelectionFacade.FindSelectionSet(SelectionName))
@@ -280,6 +392,188 @@ namespace UE::Chaos::ClothAsset::Private
 
 }  // End namespace UE::Chaos::ClothAsset::Private
 
+FChaosClothAssetProxyDeformerNode_v2::FChaosClothAssetProxyDeformerNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowNode(InParam, InGuid)
+{
+	using namespace UE::Chaos::ClothAsset;
+	SimVertexSelection.StringValue = FString();  // An empty selection is an accepted input, but a non existing one isn't
+	SkinningBlendName = ClothCollectionAttribute::RenderDeformerSkinningBlend.ToString();
+
+	RegisterInputConnection(&Collection);
+	RegisterInputConnection(&SimVertexSelection.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+	RegisterOutputConnection(&Collection)
+		.SetPassthroughInput(&Collection);
+	RegisterOutputConnection(&SkinningBlendName);
+
+	// Start with one set of option pins.
+	AddPins();
+}
+
+void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection))
+	{
+		using namespace UE::Chaos::ClothAsset;
+
+		// Update the selection names override
+		SimVertexSelection.StringValue_Override = GetValue<FString>(Context, &SimVertexSelection.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+		for (int32 FilterSetIndex = 0; FilterSetIndex < SelectionFilterSets.Num(); ++FilterSetIndex)
+		{
+			SelectionFilterSets[FilterSetIndex].RenderSelection.StringValue_Override = GetValue<FString>(Context, GetRenderConnectionReference(FilterSetIndex), UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+			SelectionFilterSets[FilterSetIndex].SimSelection.StringValue_Override = GetValue<FString>(Context, GetSimConnectionReference(FilterSetIndex), UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+		}
+
+		// Evaluate in collection
+		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
+
+		// Always check for a valid cloth collection/facade/sim mesh to avoid processing non cloth collections or pure render mesh cloth assets
+		FCollectionClothFacade ClothFacade(ClothCollection);
+		if (ClothFacade.IsValid() && ClothFacade.HasValidData())
+		{
+			FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
+
+			// Retrieve the SimVertexSelection name
+			FName SimVertexSelectionName = FName(*GetValue<FString>(Context, &SimVertexSelection.StringValue));
+			if (SimVertexSelectionName != NAME_None && (!SelectionFacade.IsValid() || !SelectionFacade.FindSelectionSet(SimVertexSelectionName)))
+			{
+				FClothDataflowTools::LogAndToastWarning(*this,
+					LOCTEXT("HasSimVertexSelectionHeadline", "Unknown SimVertexSelection."),
+					LOCTEXT("HasSimVertexSelectionDetails", "The specified SimVertexSelection does't exist within the input Cloth Collection."));
+				SimVertexSelectionName = NAME_None;
+			}
+
+			// Add the optional render deformer schema
+			if (!ClothFacade.IsValid(EClothCollectionOptionalSchemas::RenderDeformer))
+			{
+				ClothFacade.DefineSchema(EClothCollectionOptionalSchemas::RenderDeformer);
+			}
+
+			// Create the render weight map for storing the skinning blend weights
+			Private::FDeformerMappingDataGenerator DeformerMappingDataGenerator;
+			DeformerMappingDataGenerator.SimPositions = ClothFacade.GetSimPosition3D();
+			DeformerMappingDataGenerator.SimIndices = ClothFacade.GetSimIndices3D();
+			DeformerMappingDataGenerator.RenderPositions = ClothFacade.GetRenderPosition();
+			DeformerMappingDataGenerator.RenderNormals = ClothFacade.GetRenderNormal();
+			DeformerMappingDataGenerator.RenderIndices = ClothFacade.GetRenderIndices();
+			DeformerMappingDataGenerator.PointWeightMap = Private::SelectionToPointWeightMap(ClothFacade, SelectionFacade, SimVertexSelectionName);
+			DeformerMappingDataGenerator.MeshToMeshFilterSet = Private::SelectionsToMeshToMeshFilterSets_v2(ClothFacade, SelectionFacade, GetSelectionFilterNames(Context));
+			DeformerMappingDataGenerator.RenderDeformerPositionBaryCoordsAndDist = ClothFacade.GetRenderDeformerPositionBaryCoordsAndDist();
+			DeformerMappingDataGenerator.RenderDeformerNormalBaryCoordsAndDist = ClothFacade.GetRenderDeformerNormalBaryCoordsAndDist();
+			DeformerMappingDataGenerator.RenderDeformerTangentBaryCoordsAndDist = ClothFacade.GetRenderDeformerTangentBaryCoordsAndDist();
+			DeformerMappingDataGenerator.RenderDeformerSimIndices3D = ClothFacade.GetRenderDeformerSimIndices3D();
+			DeformerMappingDataGenerator.RenderDeformerWeight = ClothFacade.GetRenderDeformerWeight();
+			DeformerMappingDataGenerator.RenderDeformerSkinningBlend = ClothFacade.GetRenderDeformerSkinningBlend();
+
+			const int32 NumInfluences = DeformerMappingDataGenerator.Generate(bUseSmoothTransition, bUseMultipleInfluences, InfluenceRadius);
+
+			for (int32 RenderPatternIndex = 0; RenderPatternIndex < ClothFacade.GetNumRenderPatterns(); ++RenderPatternIndex)
+			{
+				FCollectionClothRenderPatternFacade RenderPatternFacade = ClothFacade.GetRenderPattern(RenderPatternIndex);
+				RenderPatternFacade.SetRenderDeformerNumInfluences(NumInfluences);
+			}
+		}
+
+		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+	}
+	else if (Out->IsA<FString>(&SkinningBlendName))
+	{
+		SetValue(Context, SkinningBlendName, &SkinningBlendName);
+	}
+}
+
+TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode_v2::AddPins()
+{
+	const int32 Index = SelectionFilterSets.AddDefaulted();
+	TArray<Dataflow::FPin> Pins;
+	Pins.Reserve(2);
+	{
+		const FDataflowInput& Input = RegisterInputArrayConnection(GetRenderConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+		Pins.Emplace(Dataflow::FPin{ Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() });
+	}
+	{
+		const FDataflowInput& Input = RegisterInputArrayConnection(GetSimConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+		Pins.Emplace(Dataflow::FPin{ Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() });
+	}
+	return Pins;
+}
+
+TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode_v2::GetPinsToRemove() const
+{
+	const int32 Index = SelectionFilterSets.Num() - 1;
+	check(SelectionFilterSets.IsValidIndex(Index));
+	TArray<Dataflow::FPin> Pins;
+	Pins.Reserve(2);
+	if (const FDataflowInput* const Input = FindInput(GetRenderConnectionReference(Index)))
+	{
+		Pins.Emplace(Dataflow::FPin{ Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() });
+	}
+	if (const FDataflowInput* const Input = FindInput(GetSimConnectionReference(Index)))
+	{
+		Pins.Emplace(Dataflow::FPin{ Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() });
+	}
+	return Pins;
+}
+
+void FChaosClothAssetProxyDeformerNode_v2::OnPinRemoved(const Dataflow::FPin& Pin)
+{
+	const int32 Index = SelectionFilterSets.Num() - 1;
+	check(SelectionFilterSets.IsValidIndex(Index));
+	const FDataflowInput* const FirstInput = FindInput(GetRenderConnectionReference(Index));
+	const FDataflowInput* const SecondInput = FindInput(GetSimConnectionReference(Index));
+	check(FirstInput || SecondInput);
+	const bool bIsFirstInput = FirstInput && FirstInput->GetName() == Pin.Name;
+	const bool bIsSecondInput = SecondInput && SecondInput->GetName() == Pin.Name;
+	if (bIsFirstInput && !SecondInput || bIsSecondInput && !FirstInput)
+	{
+		// Both inputs removed. Remove array index.
+		SelectionFilterSets.SetNum(Index);
+	}
+	return Super::OnPinRemoved(Pin);
+}
+
+void FChaosClothAssetProxyDeformerNode_v2::Serialize(FArchive& Ar)
+{
+	// Restore the pins when re-loading so they can get properly reconnected
+	if (Ar.IsLoading())
+	{
+		check(SelectionFilterSets.Num() > 0);
+		check(FindInput(GetRenderConnectionReference(0)));
+		check(FindInput(GetSimConnectionReference(0)));
+
+		for (int32 Index = 1; Index < SelectionFilterSets.Num(); ++Index)
+		{
+			RegisterInputArrayConnection(GetRenderConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+			RegisterInputArrayConnection(GetSimConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+		}
+	}
+}
+
+TArray<TPair<FName, FName>> FChaosClothAssetProxyDeformerNode_v2::GetSelectionFilterNames(Dataflow::FContext& Context) const
+{
+	TArray<TPair<FName, FName>> SelectionFilterNames;
+	SelectionFilterNames.SetNumUninitialized(SelectionFilterSets.Num());
+
+	for (int32 Index = 0; Index < SelectionFilterSets.Num(); ++Index)
+	{
+		SelectionFilterNames[Index] = MakeTuple<FName, FName>(
+			FName(*GetValue(Context, GetRenderConnectionReference(Index))),
+			FName(*GetValue(Context, GetSimConnectionReference(Index))));
+	}
+	return SelectionFilterNames;
+}
+
+Dataflow::TConnectionReference<FString> FChaosClothAssetProxyDeformerNode_v2::GetRenderConnectionReference(int32 Index) const
+{
+	return { &SelectionFilterSets[Index].RenderSelection.StringValue, Index, &SelectionFilterSets };
+}
+
+Dataflow::TConnectionReference<FString> FChaosClothAssetProxyDeformerNode_v2::GetSimConnectionReference(int32 Index) const
+{
+	return { &SelectionFilterSets[Index].SimSelection.StringValue, Index, &SelectionFilterSets };
+}
+
+
 FChaosClothAssetProxyDeformerNode::FChaosClothAssetProxyDeformerNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
@@ -290,7 +584,8 @@ FChaosClothAssetProxyDeformerNode::FChaosClothAssetProxyDeformerNode(const Dataf
 	RegisterInputConnection(&Collection);
 	RegisterInputConnection(&SimVertexSelection.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&SelectionFilterSet0.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
-	RegisterOutputConnection(&Collection, &Collection);
+	RegisterOutputConnection(&Collection)
+		.SetPassthroughInput(&Collection);
 	RegisterOutputConnection(&SkinningBlendName);
 }
 
@@ -369,7 +664,7 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-Dataflow::FPin FChaosClothAssetProxyDeformerNode::AddPin()
+TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode::AddPins()
 {
 	check(NumFilterSets > 0);
 	const FChaosClothAssetConnectableStringValue* const SelectionFilterSet = Get1To9SelectionFilterSets()[NumFilterSets - 1];
@@ -378,16 +673,16 @@ Dataflow::FPin FChaosClothAssetProxyDeformerNode::AddPin()
 	++NumFilterSets;
 	const FDataflowInput* const Input = FindInput(SelectionFilterSet);
 	check(Input);
-	return { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() };
+	return { { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 }
 
-Dataflow::FPin FChaosClothAssetProxyDeformerNode::GetPinToRemove() const
+TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode::GetPinsToRemove() const
 {
 	check(NumFilterSets > 1);
 	const FChaosClothAssetConnectableStringValue* const SelectionFilterSet = Get1To9SelectionFilterSets()[NumFilterSets - 2];
 	const FDataflowInput* const Input = FindInput(SelectionFilterSet);
 	check(Input);
-	return { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() };
+	return { { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 }
 
 void FChaosClothAssetProxyDeformerNode::OnPinRemoved(const Dataflow::FPin& Pin)
@@ -414,7 +709,7 @@ void FChaosClothAssetProxyDeformerNode::Serialize(FArchive& Ar)
 		NumFilterSets = 1;  // Reset to default, add pin will increment it again 
 		for (int32 Index = 0; Index < NumFilterSetsToAdd; ++Index)
 		{
-			AddPin();
+			AddPins();
 		}
 		ensure(NumFilterSetsToAdd == (NumFilterSets - 1));
 	}

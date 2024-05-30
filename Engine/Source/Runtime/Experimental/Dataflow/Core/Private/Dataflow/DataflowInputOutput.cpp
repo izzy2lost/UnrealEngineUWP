@@ -102,6 +102,28 @@ void FDataflowInput::FixAndPropagateType(FName InType)
 	}
 }
 
+FDataflowArrayInput::FDataflowArrayInput(int32 InIndex, const Dataflow::FArrayInputParameters& Param)
+	: FDataflowInput(Param)
+	, Index(InIndex)
+	, ElementOffset(Param.InnerOffset)
+	, ArrayProperty(Param.ArrayProperty)
+{}
+
+void* FDataflowArrayInput::RealAddress() const
+{
+	if (void* ContainerRealAddress = Super::RealAddress())
+	{
+		if (ArrayProperty)
+		{
+			if (const void* const AddressAtIndex = ArrayProperty->GetValueAddressAtIndex_Direct(ArrayProperty->Inner, ContainerRealAddress, Index))
+			{
+				return (void*)((size_t)AddressAtIndex + (size_t)ElementOffset);
+			}
+		}
+	}
+	return nullptr;
+}
+
 //
 //
 //  Output
@@ -163,6 +185,27 @@ bool FDataflowOutput::RemoveConnection(FDataflowConnection* InInput)
 	Connections.RemoveSwap((FDataflowInput*)InInput); return true;
 }
 
+FDataflowOutput& FDataflowOutput::SetPassthroughInput(const Dataflow::FConnectionReference& Reference)
+{
+	check(OwningNode);
+	const FDataflowInput* const PassthroughInput = OwningNode->FindInput(Reference);
+	check(PassthroughInput);
+	PassthroughKey = PassthroughInput->GetConnectionKey();
+	return *this;
+}
+
+FDataflowOutput& FDataflowOutput::SetPassthroughInput(const Dataflow::FConnectionKey& Key)
+{
+	check(Key == Dataflow::FConnectionKey::Invalid || !OwningNode || OwningNode->FindInput(Key));
+	PassthroughKey = Key;
+	return *this;
+}
+
+const FDataflowInput* FDataflowOutput::GetPassthroughInput() const
+{
+	return OwningNode ? OwningNode->FindInput(PassthroughKey) : nullptr;
+}
+
 void FDataflowOutput::Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp)
 {
 	for (FDataflowConnection* Con : GetConnections())
@@ -179,9 +222,9 @@ bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
 	{
 		return Context.Evaluate(*this);
 	}
-	else if (const FDataflowInput* PassthroughInput = GetPassthroughInput())
+	else if (const FDataflowInput* const PassthroughInput = GetPassthroughInput())
 	{
-		ForwardInput(PassthroughInput->RealAddress(), Context);
+		ForwardInput(PassthroughInput, Context);
 		return true;
 	}
 
@@ -219,23 +262,27 @@ TFuture<bool> FDataflowOutput::EvaluateParallel(Dataflow::FContext& Context) con
 	return Async(EAsyncExecution::TaskGraph, [&]() -> bool { return this->Evaluate(Context); });
 }
 
-const FDataflowInput* FDataflowOutput::GetPassthroughInput() const
-{
-	return OwningNode ? OwningNode->FindInput(GetPassthroughRealAddress()) : nullptr;
-}
 
-void FDataflowOutput::ForwardInput(const void* InputReference, Dataflow::FContext& Context) const
+void FDataflowOutput::ForwardInput(const Dataflow::FConnectionReference& InputReference, Dataflow::FContext& Context) const
 {
 	if (Property && OwningNode)
 	{
 		const FDataflowInput* InputToForward = OwningNode->FindInput(InputReference);
-		if (InputToForward->GetConnectedOutputs().Num())
+		ForwardInput(InputToForward, Context);
+	}
+}
+
+void FDataflowOutput::ForwardInput(const FDataflowInput* Input, Dataflow::FContext& Context) const
+{
+	if (Property && OwningNode)
+	{
+		if (Input->GetConnectedOutputs().Num())
 		{
-			ensure(InputToForward->GetType() == GetType());
-			ensure(InputToForward->GetConnectedOutputs().Num() == 1);
-			if (const FDataflowOutput* ConnectionOut = InputToForward->GetConnection())
+			ensure(Input->GetType() == GetType());
+			ensure(Input->GetConnectedOutputs().Num() == 1);
+			if (const FDataflowOutput* ConnectionOut = Input->GetConnection())
 			{
-				InputToForward->PullValue(Context);
+				Input->PullValue(Context);
 				Context.SetDataReference(CacheKey(), Property, ConnectionOut->CacheKey());
 			}
 		}

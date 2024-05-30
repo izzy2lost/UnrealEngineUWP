@@ -928,11 +928,11 @@ void FFloatMathExpressionDataflowNode::Evaluate(Dataflow::FContext& Context, con
 FMathExpressionDataflowNode::FMathExpressionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
-	FDataflowInput* InputA = RegisterInputConnection(&A);
-	FDataflowInput* InputB = RegisterInputConnection(&B);
-	FDataflowInput* InputC = RegisterInputConnection(&C);
-	FDataflowInput* InputD = RegisterInputConnection(&D);
-	FDataflowOutput* Output = RegisterOutputConnection(&ReturnValue);
+	RegisterInputConnection(&A);
+	RegisterInputConnection(&B);
+	RegisterInputConnection(&C);
+	RegisterInputConnection(&D);
+	RegisterOutputConnection(&ReturnValue);
 }
 
 void FMathExpressionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const

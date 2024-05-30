@@ -15,6 +15,8 @@
 
 class FProperty;
 struct FDataflowNode;
+struct FDataflowInput;
+struct FDataflowOutput;
 
 namespace Dataflow
 {
@@ -33,6 +35,13 @@ namespace Dataflow
 		FName Type;
 		FName Name;
 		bool bHidden = false;
+
+		bool operator==(const FPin& Other) const
+		{
+			return Direction == Other.Direction && Type == Other.Type && Name == Other.Name && bHidden == Other.bHidden;
+		}
+		
+		DATAFLOWCORE_API static const FPin InvalidPin;
 	};
 
 	struct FConnectionParameters
@@ -52,6 +61,63 @@ namespace Dataflow
 		const FProperty* Property = nullptr;
 		uint32 Offset = INDEX_NONE;
 		FGuid Guid;
+	};
+
+
+	// Do not hold onto FConnectionReference when Reference is dynamically allocated (e.g., when using array inputs).
+	// Use FConnectionKey instead.
+	struct FConnectionReference
+	{
+		const void* Reference;
+		int32 Index = INDEX_NONE;
+		const void* ContainerReference = nullptr;
+
+		FConnectionReference(const void* InReference, int32 InIndex = INDEX_NONE, const void* InContainerReference = nullptr)
+			: Reference(InReference)
+			, Index(InIndex)
+			, ContainerReference(InContainerReference)
+		{}
+	};
+
+	template<typename T>
+	struct TConnectionReference : public FConnectionReference
+	{
+		TConnectionReference(const T* InReference, int32 InIndex = INDEX_NONE, const void* InContainerReference = nullptr)
+			: FConnectionReference(InReference, InIndex, InContainerReference)
+		{}
+	};
+
+	class FConnectionKey
+	{
+	public:
+		FConnectionKey() = default;
+
+		bool operator==(const FConnectionKey& Other) const
+		{
+			return Offset == Other.Offset && ContainerIndex == Other.ContainerIndex && ContainerElementOffset == Other.ContainerElementOffset;
+		}
+
+		friend uint32 GetTypeHash(const FConnectionKey& Key)
+		{
+			return HashCombineFast(HashCombineFast(GetTypeHash(Key.Offset), GetTypeHash(Key.ContainerIndex)), GetTypeHash(Key.ContainerElementOffset));
+		}
+
+		static const FConnectionKey Invalid;
+
+	private:
+		friend struct ::FDataflowConnection;
+		friend struct ::FDataflowInput;
+		friend struct ::FDataflowOutput;
+		friend struct ::FDataflowNode;
+		FConnectionKey(uint32 InOffset, int32 InContainerIndex, uint32 InContainerElementOffset)
+			: Offset(InOffset)
+			, ContainerIndex(InContainerIndex)
+			, ContainerElementOffset(InContainerElementOffset)
+		{}
+
+		uint32 Offset = INDEX_NONE;
+		int32 ContainerIndex = INDEX_NONE;
+		uint32 ContainerElementOffset = INDEX_NONE;
 	};
 
 	class FGraph;
@@ -116,16 +182,22 @@ public:
 
 	Dataflow::FPin::EDirection GetDirection() const { return Direction; }
 	uint32 GetOffset() const { return Offset; }
+	virtual int32 GetContainerIndex() const { return INDEX_NONE; }
+	virtual uint32 GetContainerElementOffset() const { return INDEX_NONE; }
+	Dataflow::FConnectionKey GetConnectionKey() const 
+	{		
+		return Dataflow::FConnectionKey(GetOffset(), GetContainerIndex(), GetContainerElementOffset());
+	}
 
 	FName GetType() const { return Type; }
 
 	FGuid GetGuid() const { return Guid; }
 	void SetGuid(FGuid InGuid) { Guid = InGuid; }
-
+	
 	FName GetName() const { return Name; }
 	void SetName(FName InName) { Name = InName; }
 
-	void* RealAddress() const { ensure(OwningNode);  return (void*)((size_t)OwningNode + (size_t)GetOffset()); };
+	virtual void* RealAddress() const { ensure(OwningNode);  return (void*)((size_t)OwningNode + (size_t)GetOffset()); };
 	Dataflow::FContextCacheKey CacheKey() const { return GetTypeHash(Guid); };
 
 	virtual bool AddConnection(FDataflowConnection* In) { return false; };
@@ -140,15 +212,23 @@ public:
 	template<class T>
 	bool IsA(const T* InVar) const
 	{
-		return (size_t)OwningNode + (size_t)GetOffset() == (size_t)InVar;
+		return (size_t)RealAddress() == (size_t)InVar;
 	}
 
 	virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) {};
 
 	bool GetCanHidePin() const { return bCanHidePin; }
 	bool GetPinIsHidden() const { return bCanHidePin && bPinIsHidden; }
-	void SetCanHidePin(bool bInCanHidePin) { bCanHidePin = bInCanHidePin; }
-	void SetPinIsHidden(bool bInPinIsHidden) { bPinIsHidden = bInPinIsHidden; }
+	FDataflowConnection& SetCanHidePin(bool bInCanHidePin) 
+	{
+		bCanHidePin = bInCanHidePin; 
+		return *this; 
+	}
+	FDataflowConnection& SetPinIsHidden(bool bInPinIsHidden)
+	{
+		bPinIsHidden = bInPinIsHidden;
+		return *this;
+	}
 
 private:
 	void InitFromType();

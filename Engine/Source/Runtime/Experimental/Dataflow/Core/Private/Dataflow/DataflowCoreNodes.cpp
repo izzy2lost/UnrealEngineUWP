@@ -18,7 +18,8 @@ FDataflowReRouteNode::FDataflowReRouteNode(const Dataflow::FNodeParameters& Para
 	: Super(Param, InGuid)
 {
 	RegisterInputConnection(&Value);
-	RegisterOutputConnection(&Value, &Value);
+	RegisterOutputConnection(&Value)
+		.SetPassthroughInput(&Value);
 }
 
 void FDataflowReRouteNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
