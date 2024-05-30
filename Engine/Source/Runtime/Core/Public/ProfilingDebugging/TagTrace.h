@@ -21,6 +21,8 @@ CORE_API int32	MemoryTrace_AnnounceCustomTag(int32 Tag, int32 ParentTag, const T
 CORE_API int32	MemoryTrace_AnnounceFNameTag(const class FName& TagName);
 CORE_API int32	MemoryTrace_GetActiveTag();
 
+inline constexpr int32 TRACE_TAG = 257;
+
 ////////////////////////////////////////////////////////////////////////////////
 #if !defined(UE_MEMORY_TAGS_TRACE_ENABLED)
 	#define UE_MEMORY_TAGS_TRACE_ENABLED 0
@@ -83,9 +85,6 @@ public:
 private:
 	UE::Trace::Private::FScopedLogScope Inner;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-inline constexpr int32 TRACE_TAG = 257;
 
 ////////////////////////////////////////////////////////////////////////////////
 #define UE_MEMSCOPE(InTag)					FMemScope PREPROCESSOR_JOIN(MemScope,__LINE__)(InTag);
