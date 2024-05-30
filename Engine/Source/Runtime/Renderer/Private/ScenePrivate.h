@@ -1817,6 +1817,10 @@ public:
 	int32 NumBoxCaptures;
 	int32 NumSphereCaptures;
 
+	// Uniforms buffers with a sorted captures
+	TUniformBufferRef<FReflectionCaptureShaderData> ReflectionCaptureUniformBuffer;
+	TUniformBufferRef<FMobileReflectionCaptureShaderData> MobileReflectionCaptureUniformBuffer;
+
 	/** 
 	 * Game thread list of reflection components that have been allocated in the cubemap array. 
 	 * These are not necessarily all visible or being rendered, but their scene state is stored in the cubemap array.

@@ -5691,39 +5691,9 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	PostVisibilityFrameSetup(TaskDatas.ILCUpdatePrim);
 }
 
-template<class T>
-void CreateReflectionCaptureUniformBuffer(const TArray<FReflectionCaptureSortData>& SortedCaptures, TUniformBufferRef<T>& OutReflectionCaptureUniformBuffer)
-{
-	T SamplePositionsBuffer;
-	for (int32 CaptureIndex = 0; CaptureIndex < SortedCaptures.Num(); CaptureIndex++)
-	{
-		SamplePositionsBuffer.PositionHighAndRadius[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].Position.High, SortedCaptures[CaptureIndex].Radius);
-		SamplePositionsBuffer.PositionLow[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].Position.Low, 0);
-
-		SamplePositionsBuffer.CaptureProperties[CaptureIndex] = SortedCaptures[CaptureIndex].CaptureProperties;
-		SamplePositionsBuffer.CaptureOffsetAndAverageBrightness[CaptureIndex] = SortedCaptures[CaptureIndex].CaptureOffsetAndAverageBrightness;
-		SamplePositionsBuffer.BoxTransform[CaptureIndex] = SortedCaptures[CaptureIndex].BoxTransform;
-		SamplePositionsBuffer.BoxScales[CaptureIndex] = SortedCaptures[CaptureIndex].BoxScales;
-	}
-
-	OutReflectionCaptureUniformBuffer = TUniformBufferRef<T>::CreateUniformBufferImmediate(SamplePositionsBuffer, UniformBuffer_SingleFrame);
-}
-
 void FSceneRenderer::SetupSceneReflectionCaptureBuffer(FRHICommandListImmediate& RHICmdList)
 {
 	const TArray<FReflectionCaptureSortData>& SortedCaptures = Scene->ReflectionSceneData.SortedCaptures;
-
-	TUniformBufferRef<FMobileReflectionCaptureShaderData> MobileReflectionCaptureUniformBuffer;
-	TUniformBufferRef<FReflectionCaptureShaderData> ReflectionCaptureUniformBuffer;
-
-	if (IsMobilePlatform(ShaderPlatform))
-	{
-		CreateReflectionCaptureUniformBuffer(SortedCaptures, MobileReflectionCaptureUniformBuffer);
-	}
-	else
-	{
-		CreateReflectionCaptureUniformBuffer(SortedCaptures, ReflectionCaptureUniformBuffer);
-	}
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
@@ -5731,11 +5701,11 @@ void FSceneRenderer::SetupSceneReflectionCaptureBuffer(FRHICommandListImmediate&
 
 		if (IsMobilePlatform(ShaderPlatform))
 		{
-			View.MobileReflectionCaptureUniformBuffer = MobileReflectionCaptureUniformBuffer;
+			View.MobileReflectionCaptureUniformBuffer = Scene->ReflectionSceneData.MobileReflectionCaptureUniformBuffer;
 		}
 		else
 		{
-			View.ReflectionCaptureUniformBuffer = ReflectionCaptureUniformBuffer;
+			View.ReflectionCaptureUniformBuffer = Scene->ReflectionSceneData.ReflectionCaptureUniformBuffer;
 		}
 		
 		View.NumBoxReflectionCaptures = 0;

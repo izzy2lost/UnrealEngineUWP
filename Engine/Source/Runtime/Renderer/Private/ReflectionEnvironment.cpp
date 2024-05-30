@@ -517,6 +517,9 @@ void FReflectionEnvironmentSceneData::Reset(FScene* Scene)
 			bRegisteredReflectionCapturesHasChanged = true;
 			AllocatedReflectionCaptureStateHasChanged = false;
 
+			ReflectionCaptureUniformBuffer.SafeRelease();
+			MobileReflectionCaptureUniformBuffer.SafeRelease();
+
 			RegisteredReflectionCaptures.Empty();
 			RegisteredReflectionCapturePositionAndRadius.Empty();
 			CubemapArray.Reset();

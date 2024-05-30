@@ -5373,6 +5373,24 @@ FLightSceneChangeSet FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
 	return FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds };
 }
 
+template<class T>
+static void CreateReflectionCaptureUniformBuffer(const TArray<FReflectionCaptureSortData>& SortedCaptures, TUniformBufferRef<T>& OutReflectionCaptureUniformBuffer)
+{
+	T SamplePositionsBuffer;
+	for (int32 CaptureIndex = 0; CaptureIndex < SortedCaptures.Num(); CaptureIndex++)
+	{
+		SamplePositionsBuffer.PositionHighAndRadius[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].Position.High, SortedCaptures[CaptureIndex].Radius);
+		SamplePositionsBuffer.PositionLow[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].Position.Low, 0);
+
+		SamplePositionsBuffer.CaptureProperties[CaptureIndex] = SortedCaptures[CaptureIndex].CaptureProperties;
+		SamplePositionsBuffer.CaptureOffsetAndAverageBrightness[CaptureIndex] = SortedCaptures[CaptureIndex].CaptureOffsetAndAverageBrightness;
+		SamplePositionsBuffer.BoxTransform[CaptureIndex] = SortedCaptures[CaptureIndex].BoxTransform;
+		SamplePositionsBuffer.BoxScales[CaptureIndex] = SortedCaptures[CaptureIndex].BoxScales;
+	}
+
+	OutReflectionCaptureUniformBuffer = TUniformBufferRef<T>::CreateUniformBufferImmediate(SamplePositionsBuffer, UniformBuffer_MultiFrame);
+}
+
 void UpdateReflectionSceneData(FScene* Scene)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateReflectionSceneData)
@@ -5451,18 +5469,37 @@ void UpdateReflectionSceneData(FScene* Scene)
 		ReflectionSceneData.SortedCaptures[CaptureIndex].CaptureProxy->SortedCaptureIndex = CaptureIndex;
 	}
 
+	// Create uniform buffers with a sorted captures
+	if (ReflectionSceneData.bRegisteredReflectionCapturesHasChanged || 
+		ReflectionSceneData.AllocatedReflectionCaptureStateHasChanged)
+	{
+		ReflectionSceneData.ReflectionCaptureUniformBuffer.SafeRelease();
+		ReflectionSceneData.MobileReflectionCaptureUniformBuffer.SafeRelease();
+
+		if (IsMobilePlatform(Scene->GetShaderPlatform()))
+		{
+			CreateReflectionCaptureUniformBuffer(ReflectionSceneData.SortedCaptures, ReflectionSceneData.MobileReflectionCaptureUniformBuffer);
+		}
+		else
+		{
+			CreateReflectionCaptureUniformBuffer(ReflectionSceneData.SortedCaptures, ReflectionSceneData.ReflectionCaptureUniformBuffer);
+		}
+	}
 
 	// If SortedCaptures change, then in case of forward renderer all scene primitives need to be updated, as they 
 	// store index into sorted reflection capture uniform buffer for the forward renderer.
-	if (IsForwardShadingEnabled(Scene->GetShaderPlatform()) && ReflectionSceneData.AllocatedReflectionCaptureStateHasChanged)
+	if (ReflectionSceneData.AllocatedReflectionCaptureStateHasChanged)
 	{
-		const int32 NumPrimitives = Scene->Primitives.Num();
-		for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
+		if (IsForwardShadingEnabled(Scene->GetShaderPlatform()))
 		{
-			Scene->PrimitivesNeedingUniformBufferUpdate[PrimitiveIndex] = true;
-		}
+			const int32 NumPrimitives = Scene->Primitives.Num();
+			for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
+			{
+				Scene->PrimitivesNeedingUniformBufferUpdate[PrimitiveIndex] = true;
+			}
 
-		Scene->GPUScene.bUpdateAllPrimitives = true;
+			Scene->GPUScene.bUpdateAllPrimitives = true;
+		}
 		ReflectionSceneData.AllocatedReflectionCaptureStateHasChanged = false;
 	}
 
