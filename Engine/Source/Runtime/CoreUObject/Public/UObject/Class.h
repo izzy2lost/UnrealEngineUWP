@@ -4198,6 +4198,11 @@ template<> struct TBaseStructure<FIntVector>
 	static COREUOBJECT_API UScriptStruct* Get(); 
 };
 
+template<> struct TBaseStructure<FInt64Vector2>
+{
+	static COREUOBJECT_API UScriptStruct* Get();
+};
+
 template<> struct TBaseStructure<FIntVector4>
 {
 	static COREUOBJECT_API UScriptStruct* Get();

@@ -7413,6 +7413,12 @@ UScriptStruct* TBaseStructure<FIntVector>::Get()
 	return ScriptStruct;
 }
 
+UScriptStruct* TBaseStructure<FInt64Vector2>::Get()
+{
+	static UScriptStruct* ScriptStruct = StaticGetBaseStructureInternal(TEXT("Int64Vector2"));
+	return ScriptStruct;
+}
+
 UScriptStruct* TBaseStructure<FIntVector4>::Get()
 {
 	static UScriptStruct* ScriptStruct = StaticGetBaseStructureInternal(TEXT("IntVector4"));
