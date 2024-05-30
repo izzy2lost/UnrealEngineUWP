@@ -692,6 +692,20 @@ void FLinkerLoad::InvalidateExport(UObject* OldObject)
 		FObjectExport& ObjExport = OldObjectLinker->ExportMap[CachedLinkerIndex];
 		ObjExport.bExportLoadFailed = true;
 	}
+
+	ForEachObjectWithOuter(OldObject, [OldObjectLinker](UObject* SubObject)
+		{
+			FLinkerLoad* OldSubObjectLinker = SubObject->GetLinker();
+			if (OldSubObjectLinker == OldObjectLinker)
+			{
+				const int32 SubObjectCachedLinkerIndex = SubObject->GetLinkerIndex();
+				if (OldObjectLinker->ExportMap.IsValidIndex(SubObjectCachedLinkerIndex))
+				{
+					FObjectExport& ObjExport = OldObjectLinker->ExportMap[SubObjectCachedLinkerIndex];
+					ObjExport.bExportLoadFailed = true;
+				}
+			}
+		});
 }
 
 /**
