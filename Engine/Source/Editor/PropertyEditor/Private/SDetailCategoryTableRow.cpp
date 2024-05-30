@@ -483,9 +483,9 @@ bool SDetailCategoryTableRow::CanPasteCategory()
 	const bool bHasEditables = Algo::AnyOf(PropertyNodes, [](const TSharedPtr<FPropertyNode>& InPropertyNode)
 	{
 		constexpr bool bIncludeEditConditionForConstCheck = false;
-		return InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
+		return !InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
 	});
-	
+
 	// No editable properties to write to
 	if (!bHasEditables)
 	{

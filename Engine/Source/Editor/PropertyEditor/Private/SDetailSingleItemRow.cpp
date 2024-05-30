@@ -994,7 +994,7 @@ bool SDetailSingleItemRow::CanPasteGroup()
 	const bool bHasEditables = Algo::AnyOf(GroupPropertyNodes, [](const TSharedPtr<FPropertyNode>& InPropertyNode)
 	{
 		constexpr bool bIncludeEditConditionForConstCheck = false;
-		return InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
+		return !InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
 	});
 
 	// No editable properties to write to
