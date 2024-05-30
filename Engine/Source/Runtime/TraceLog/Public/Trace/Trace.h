@@ -89,6 +89,7 @@ enum class EMessageType : uint8
 	EstablishError,
 	FileOpenError,
 	WriterError,
+	Info				= 0xff,
 };
 	
 struct FMessageEvent

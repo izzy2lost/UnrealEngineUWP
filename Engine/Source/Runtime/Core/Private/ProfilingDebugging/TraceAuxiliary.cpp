@@ -842,14 +842,32 @@ void OnConnectionCallback()
 void OnMessageCallback(const UE::Trace::FMessageEvent& Message)
 {
 	const auto TypeStr = StringCast<TCHAR>(Message.TypeStr);
-	if (Message.Description != nullptr)
+	switch(Message.Type)
 	{
-		const auto Description = StringCast<TCHAR>(Message.Description);
-		UE_LOG(LogTrace, Error, TEXT("%s %s"), TypeStr.Get(), Description.Get());
-	}
-	else
-	{
-		UE_LOG(LogTrace, Error, TEXT("%s"), TypeStr.Get());
+	// Information to the user
+	case UE::Trace::EMessageType::Info:
+		{
+			if (Message.Description != nullptr)
+			{
+				const auto Description = StringCast<TCHAR>(Message.Description);
+				UE_LOG(LogTrace, Display, TEXT("%s"), Description.Get());
+			}
+		}
+		break;
+	// By default treated as errors	
+	default:
+		{
+			if (Message.Description != nullptr)
+			{
+				const auto Description = StringCast<TCHAR>(Message.Description);
+				UE_LOG(LogTrace, Error, TEXT("%s %s"), TypeStr.Get(), Description.Get());
+			}
+			else
+			{
+				UE_LOG(LogTrace, Error, TEXT("%s"), TypeStr.Get());
+			}
+		}
+		break;
 	}
 }
 
