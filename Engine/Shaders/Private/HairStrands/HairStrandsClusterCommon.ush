@@ -237,7 +237,7 @@ uint GetHairControlPointMinLOD(uint InPointIndex, Buffer<uint> InPointLODBuffer)
 
 bool IsHairControlPointActive(uint InMinLOD, float InLODIndex)
 {
-	return floor(InLODIndex) <= InMinLOD;
+	return uint(floor(InLODIndex)) <= InMinLOD;
 }
 
 bool IsHairControlPointActive(uint InPointIndex, Buffer<uint> InPointLODBuffer, float InLODIndex)

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "../Common.ush"
+#include "../Common.ush" 
 #include "../MonteCarlo.ush"
 
 #include "HairStrandsVisibilityCommon.ush"
@@ -18,6 +18,28 @@
 #error Max cards texture count is != 6. This codes needs to be updated.
 #endif
 
+void AssignValue1(inout float4 OutTexture, uint ChannelIndex, float Value)
+{
+	switch (ChannelIndex)
+	{
+		case 0: OutTexture.x = Value; break;
+		case 1: OutTexture.y = Value; break;
+		case 2: OutTexture.z = Value; break;
+		case 3: OutTexture.w = Value; break;
+		default: break;
+	}
+}
+
+void AssignValue2(inout float4 OutTexture, uint ChannelIndex, float2 Value)
+{
+	switch (ChannelIndex)
+	{
+		case 0: OutTexture.xy = Value; break;
+		case 1: OutTexture.zw = Value; break;
+		default: break;
+	}
+}
+
 #define WriteValue1(InLayout, InAttribute, In)\
 { \
 	if (IsHairCardTextureIndexValid(InLayout, InAttribute))\
@@ -25,13 +47,13 @@
 		const uint TexIndex = GetHairCardTextureIndex(InLayout, InAttribute);\
 		const uint ChannelIndex = GetHairCardChannelIndex(InLayout, InAttribute);\
 		switch (TexIndex)\
-		{\
-			case 0: ChannelIndex == 0 ? OutTexture0.x = In : (ChannelIndex == 1 ? OutTexture0.y = In : (ChannelIndex == 2 ? OutTexture0.z = In : OutTexture0.w = In)); break;\
-			case 1: ChannelIndex == 0 ? OutTexture1.x = In : (ChannelIndex == 1 ? OutTexture1.y = In : (ChannelIndex == 2 ? OutTexture1.z = In : OutTexture1.w = In)); break;\
-			case 2: ChannelIndex == 0 ? OutTexture2.x = In : (ChannelIndex == 1 ? OutTexture2.y = In : (ChannelIndex == 2 ? OutTexture2.z = In : OutTexture2.w = In)); break;\
-			case 3: ChannelIndex == 0 ? OutTexture3.x = In : (ChannelIndex == 1 ? OutTexture3.y = In : (ChannelIndex == 2 ? OutTexture3.z = In : OutTexture3.w = In)); break;\
-			case 4: ChannelIndex == 0 ? OutTexture4.x = In : (ChannelIndex == 1 ? OutTexture4.y = In : (ChannelIndex == 2 ? OutTexture4.z = In : OutTexture4.w = In)); break;\
-			case 5: ChannelIndex == 0 ? OutTexture5.x = In : (ChannelIndex == 1 ? OutTexture5.y = In : (ChannelIndex == 2 ? OutTexture5.z = In : OutTexture5.w = In)); break;\
+		{ \
+			case 0: AssignValue1(OutTexture0, ChannelIndex, In); break;\
+			case 1: AssignValue1(OutTexture1, ChannelIndex, In); break;\
+			case 2: AssignValue1(OutTexture2, ChannelIndex, In); break;\
+			case 3: AssignValue1(OutTexture3, ChannelIndex, In); break;\
+			case 4: AssignValue1(OutTexture4, ChannelIndex, In); break;\
+			case 5: AssignValue1(OutTexture5, ChannelIndex, In); break;\
 		}\
 	}\
 }
@@ -43,12 +65,12 @@
 		const uint ChannelIndex = GetHairCardChannelIndex(InLayout, InAttribute);\
 		switch (TexIndex)\
 		{\
-			case 0: ChannelIndex < 2 ? OutTexture0.xy = In : OutTexture0.zw = In; break;\
-			case 1: ChannelIndex < 2 ? OutTexture1.xy = In : OutTexture1.zw = In; break;\
-			case 2: ChannelIndex < 2 ? OutTexture2.xy = In : OutTexture2.zw = In; break;\
-			case 3: ChannelIndex < 2 ? OutTexture3.xy = In : OutTexture3.zw = In; break;\
-			case 4: ChannelIndex < 2 ? OutTexture4.xy = In : OutTexture4.zw = In; break;\
-			case 5: ChannelIndex < 2 ? OutTexture5.xy = In : OutTexture5.zw = In; break;\
+			case 0: AssignValue2(OutTexture0, ChannelIndex, In); break;\
+			case 1: AssignValue2(OutTexture1, ChannelIndex, In); break;\
+			case 2: AssignValue2(OutTexture2, ChannelIndex, In); break;\
+			case 3: AssignValue2(OutTexture3, ChannelIndex, In); break;\
+			case 4: AssignValue2(OutTexture4, ChannelIndex, In); break;\
+			case 5: AssignValue2(OutTexture5, ChannelIndex, In); break;\
 		}\
 	}\
 }
@@ -615,7 +637,7 @@ RWTexture2DArray<float4> TargetTexture;
 void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint2 PixelCoord = DispatchThreadId.xy;
-	if (any(PixelCoord >= Resolution))
+	if (any(PixelCoord >= uint2(Resolution)))
 	{
 		return;
 	}

@@ -60,7 +60,7 @@ FHairMeshTriangle GetHairMeshTriangle(uint TriangleIndex, Buffer<float> InPositi
 	const uint VId1 = BaseVertexId + 1;
 	const uint VId2 = BaseVertexId + 2;
 
-	FHairMeshTriangle Out;
+	FHairMeshTriangle Out = (FHairMeshTriangle)0;
 	Out.P0 = GetVertexPosition(VId0, InPositionBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount);
 	Out.P1 = GetVertexPosition(VId1, InPositionBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount);
 	Out.P2 = GetVertexPosition(VId2, InPositionBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount);

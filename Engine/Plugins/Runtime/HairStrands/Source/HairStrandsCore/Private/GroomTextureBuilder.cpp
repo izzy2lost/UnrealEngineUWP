@@ -10,6 +10,7 @@
 #include "RenderGraphUtils.h"
 #include "RHI.h"
 #include "RHIStaticStates.h"
+#include "ShaderCompilerCore.h"
 #include "ShaderParameterStruct.h"
 #include "GlobalShader.h"
 //#include "ShaderPrint.h"
@@ -480,6 +481,11 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		// Work around issues with HLSLcc by switching to DXC
+		if (IsHlslccShaderPlatform(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
 		OutEnvironment.SetDefine(TEXT("SHADER_TEXTURE_CLEAR"), 1);
 	}
 };
@@ -780,6 +786,11 @@ class FHairStrandsTextureCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		// Work around issues with HLSLcc by switching to DXC
+		if (IsHlslccShaderPlatform(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
 		OutEnvironment.SetDefine(TEXT("SHADER_COMPUTE"), 1);
 	}
 };

@@ -258,7 +258,7 @@ void MarkValid_PrepareCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 void MarkValid_PrepareCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint4 PageIndexResolutionAndOffset = PageIndexResolutionAndOffsetBuffer.Load(MacroGroupId);
-	const int3 PageIndexResolution = PageIndexResolutionAndOffset.xyz;
+	const uint3 PageIndexResolution = PageIndexResolutionAndOffset.xyz;
 	const uint PageIndexOffset = PageIndexResolutionAndOffset.w;
 
 	const uint3 Coord = DispatchThreadId;
@@ -560,7 +560,7 @@ void FeedbackCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	// but the voxel size does not match the (more precise) target).
 	// In this case, we add a threshold/margin to to the target, so that there is no oscillation.
 	const float VolumeRatio_Thres = float(GPUAllocatedPageCount) / float(CPUAllocatedPageCount * AdaptiveCorrectionThreshold);
-	const float LinearRatio_Thres = pow(VolumeRatio_Thres, 1.f / 3.f);
+	const float LinearRatio_Thres = pow(max(VolumeRatio_Thres, 0.f), 1.f / 3.f);
 
 	// If the page pool is not large enough increase voxel size
 	float NextVoxelWorldSize = CPUMinVoxelWorldSize;
