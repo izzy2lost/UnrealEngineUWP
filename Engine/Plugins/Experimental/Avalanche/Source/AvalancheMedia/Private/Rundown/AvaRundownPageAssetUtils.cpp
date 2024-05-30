@@ -74,7 +74,7 @@ const UAvaTransitionTree* FAvaRundownPageAssetUtils::FindTransitionTree(const IA
 	static FString AvaTransitionBehaviorActor(TEXT("AvaTransitionBehaviorActor"));
 	for (const AActor* Actor : SceneLevel->Actors)
 	{
-		const UClass* ActorClass = Actor->GetClass();
+		const UClass* ActorClass = IsValid(Actor) ? Actor->GetClass() : nullptr;
 		if (ActorClass && ActorClass->GetName() == AvaTransitionBehaviorActor)
 		{
 			const FObjectPropertyBase* const Property = FindFProperty<FObjectPropertyBase>(ActorClass, TEXT("TransitionTree"));

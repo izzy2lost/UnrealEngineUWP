@@ -311,6 +311,11 @@ EAvaBroadcastChannelState FAvaBroadcastOutputChannel::RefreshState()
 
 EAvaBroadcastIssueSeverity FAvaBroadcastOutputChannel::GetMediaOutputIssueSeverity(EAvaBroadcastOutputState InOutputState, const UMediaOutput* InMediaOutput) const
 {
+	if (!IsValid(InMediaOutput))
+	{
+		return EAvaBroadcastIssueSeverity::Errors;
+	}
+	
 	if (InOutputState == EAvaBroadcastOutputState::Live || InOutputState == EAvaBroadcastOutputState::Preparing)
 	{
 		// If the output is broadcasting remote, fetch the status from the playback client (which is proxying that output's status).
@@ -341,25 +346,32 @@ EAvaBroadcastIssueSeverity FAvaBroadcastOutputChannel::GetMediaOutputIssueSeveri
 
 const TArray<FString>& FAvaBroadcastOutputChannel::GetMediaOutputIssueMessages(const UMediaOutput* InMediaOutput) const
 {
-	if (IAvaMediaModule::Get().IsPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
+	if (IsValid(InMediaOutput))
 	{
-		const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
-		const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
-		return PlaybackClient.GetMediaOutputIssueMessages(GetMediaOutputServerName(InMediaOutput), GetChannelName().ToString(), OutputInfo.Guid);
-	}
-	else
-	{
+		if (IAvaMediaModule::Get().IsPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
+		{
+			const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
+			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
+			return PlaybackClient.GetMediaOutputIssueMessages(GetMediaOutputServerName(InMediaOutput), GetChannelName().ToString(), OutputInfo.Guid);
+		}
+		
 		if (const FLocalMediaOutputStatus* LocalMediaOutputStatus = LocalMediaOutputStatuses.Find(InMediaOutput))
 		{
 			return LocalMediaOutputStatus->Messages;
 		}
 	}
+
 	static const TArray<FString> EmptyStringArray;
 	return EmptyStringArray;
 }
 
 EAvaBroadcastOutputState FAvaBroadcastOutputChannel::GetMediaOutputState(const UMediaOutput* InMediaOutput) const
 {
+	if (!IsValid(InMediaOutput))
+	{
+		return EAvaBroadcastOutputState::Invalid;
+	}
+	
 	if (IsMediaOutputRemote(InMediaOutput))
 	{
 		if (IAvaMediaModule::Get().IsPlaybackClientStarted())
