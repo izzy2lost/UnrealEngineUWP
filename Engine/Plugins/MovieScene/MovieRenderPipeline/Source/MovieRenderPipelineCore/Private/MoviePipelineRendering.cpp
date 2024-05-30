@@ -49,7 +49,8 @@ static TAutoConsoleVariable<bool> CVarMoviePipelineDisableShaderFlushing(
 static TAutoConsoleVariable<int> CVarMoviePipelineThrottleFrameCount(
 	TEXT("MoviePipeline.ThrottleFrameCount"), 2,
 	TEXT("Number of rendered frames that can be submitted to the rendering thread before waiting. A value of 0 will allow the CPU to submit all work without waiting on the GPU.\n")
-	TEXT("The default value of 2 tries to balance between performance and memory usage. The maximum value is 4."),
+	TEXT("The default value of 2 tries to balance between performance and memory usage. The maximum value is 4.\n")
+	TEXT("This option only applies to path traced renders, as deferred rendering is synchronized through pixel readbacks.\n"),
 	ECVF_Default);
 
 #define LOCTEXT_NAMESPACE "MoviePipeline"
@@ -297,7 +298,15 @@ void UMoviePipeline::RenderFrame()
 #endif
 
 	constexpr int FenceBufferMax = 4;
-	const int FrameThrotteCount = FMath::Clamp(CVarMoviePipelineThrottleFrameCount.GetValueOnGameThread(), 0, FenceBufferMax);
+	int FrameThrotteCount = 0;
+	for (const UMoviePipelineRenderPass* RenderPass : InputBuffers)
+	{
+		if (RenderPass->NeedsFrameThrottle())
+		{
+			FrameThrotteCount = FMath::Clamp(CVarMoviePipelineThrottleFrameCount.GetValueOnGameThread(), 0, FenceBufferMax);
+			break;
+		}
+	}
 	FGPUFenceRHIRef MRQThrottleFence[FenceBufferMax];
 	int FenceIndex = 0;
 	

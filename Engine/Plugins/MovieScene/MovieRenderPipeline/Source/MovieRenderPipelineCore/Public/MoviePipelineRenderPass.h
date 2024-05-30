@@ -44,6 +44,8 @@ public:
 		return IsAlphaInTonemapperRequiredImpl();
 	}
 
+	virtual bool NeedsFrameThrottle() const { return false; }
+
 
 protected:
 	virtual bool IsValidOnShots() const override { return true; }
