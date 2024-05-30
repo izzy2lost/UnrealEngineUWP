@@ -21,7 +21,7 @@ enum class EParticleComponent
 	NormalizedAge,
 	PreviousAge,
 	PreviousNormalizedAge,
-	RandomSeed,
+	UniqueIndex,
 	Num
 };
 
@@ -50,13 +50,14 @@ public:
 	float* GetParticleNormalizedAge() { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::NormalizedAge)]); }
 	float* GetParticlePreviousAge() { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::PreviousAge)]); }
 	float* GetParticlePreviousNormalizedAge() { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::PreviousNormalizedAge)]); }
-	//FUintVector4* GetParticleRandomSeed() { return static_cast<FUintVector4*>(RequiredComponents[int32(EParticleComponent::RandomSeed)]); }
+	int32* GetParticleUniqueIndex() { return static_cast<int32*>(RequiredComponents[int32(EParticleComponent::UniqueIndex)]); }
 
-	float* GetParticleLifetime() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::Lifetime)]); }
-	float* GetParticleAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::Age)]); }
-	float* GetParticleNormalizedAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::NormalizedAge)]); }
-	float* GetParticlePreviousAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::PreviousAge)]); }
-	float* GetParticlePreviousNormalizedAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::PreviousNormalizedAge)]); }
+	const float* GetParticleLifetime() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::Lifetime)]); }
+	const float* GetParticleAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::Age)]); }
+	const float* GetParticleNormalizedAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::NormalizedAge)]); }
+	const float* GetParticlePreviousAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::PreviousAge)]); }
+	const float* GetParticlePreviousNormalizedAge() const { return static_cast<float*>(RequiredComponents[int32(EParticleComponent::PreviousNormalizedAge)]); }
+	const int32* GetParticleUniqueIndex() const { return static_cast<int32*>(RequiredComponents[int32(EParticleComponent::UniqueIndex)]); }
 
 	// Get a pointer to an optional particle component (i.e. one not required in the data set)
 	float* GetParticleVariableFloat(int32 iVariable) const { return iVariable >= 0 ? reinterpret_cast<float*>(VariableComponents[iVariable]) : nullptr; }
@@ -120,47 +121,42 @@ public:
 	FVector4f		Lerp(const FVector4f& Lhs, const FVector4f& Rhs, const FVector4f& U, bool bUniform) const { const FVector4f V = FMath::Lerp(Lhs, Rhs, U); return bUniform ? FVector4f(V.X, V.X, V.X, V.X) : V; }
 
 	template<typename TType>
-	TType					TRandomFloat(uint32 iInstance) const;
-	template<> float		TRandomFloat<float>(uint32 iInstance) const { return RandomFloat(iInstance); }
-	template<> FVector2f	TRandomFloat<FVector2f>(uint32 iInstance) const { return RandomFloat2(iInstance); }
-	template<> FVector3f	TRandomFloat<FVector3f>(uint32 iInstance) const { return RandomFloat3(iInstance); }
-	template<> FVector4f	TRandomFloat<FVector4f>(uint32 iInstance) const { return RandomFloat4(iInstance); }
-	template<> FLinearColor	TRandomFloat<FLinearColor>(uint32 iInstance) const { return FLinearColor(RandomFloat4(iInstance)); }
+	TType					TRandomFloat(uint32 iInstance, uint32 RandomSeedOffset) const;
+	template<> float		TRandomFloat<float>(uint32 iInstance, uint32 RandomSeedOffset) const { return RandomFloat(iInstance, RandomSeedOffset); }
+	template<> FVector2f	TRandomFloat<FVector2f>(uint32 iInstance, uint32 RandomSeedOffset) const { return RandomFloat2(iInstance, RandomSeedOffset); }
+	template<> FVector3f	TRandomFloat<FVector3f>(uint32 iInstance, uint32 RandomSeedOffset) const { return RandomFloat3(iInstance, RandomSeedOffset); }
+	template<> FVector4f	TRandomFloat<FVector4f>(uint32 iInstance, uint32 RandomSeedOffset) const { return RandomFloat4(iInstance, RandomSeedOffset); }
+	template<> FLinearColor	TRandomFloat<FLinearColor>(uint32 iInstance, uint32 RandomSeedOffset) const { return FLinearColor(RandomFloat4(iInstance, RandomSeedOffset)); }
 
-	uint32			RandomUInt(uint32 iInstance) const;
-	FUintVector2	RandomUInt2(uint32 iInstance) const;
-	FUintVector3	RandomUInt3(uint32 iInstance) const;
-	FUintVector4	RandomUInt4(uint32 iInstance) const;
+	uint32			RandomUInt(uint32 iInstance, uint32 RandomSeedOffset) const;
+	FUintVector2	RandomUInt2(uint32 iInstance, uint32 RandomSeedOffset) const;
+	FUintVector3	RandomUInt3(uint32 iInstance, uint32 RandomSeedOffset) const;
+	FUintVector4	RandomUInt4(uint32 iInstance, uint32 RandomSeedOffset) const;
 
-	float			RandomFloat(uint32 iInstance) const;
-	FVector2f		RandomFloat2(uint32 iInstance) const;
-	FVector3f		RandomFloat3(uint32 iInstance) const;
-	FVector4f		RandomFloat4(uint32 iInstance) const;
+	float			RandomFloat(uint32 iInstance, uint32 RandomSeedOffset) const;
+	FVector2f		RandomFloat2(uint32 iInstance, uint32 RandomSeedOffset) const;
+	FVector3f		RandomFloat3(uint32 iInstance, uint32 RandomSeedOffset) const;
+	FVector4f		RandomFloat4(uint32 iInstance, uint32 RandomSeedOffset) const;
 
-	float			RandomScaleBiasFloat(uint32 iInstance, const float Scale, const float Bias) const { return Bias + (RandomFloat(iInstance) * Scale); }
-	FVector2f		RandomScaleBiasFloat(uint32 iInstance, const FVector2f& Scale, const FVector2f& Bias) const { return Bias + (RandomFloat(iInstance) * Scale); }
-	FVector3f		RandomScaleBiasFloat(uint32 iInstance, const FVector3f& Scale, const FVector3f& Bias) const { return Bias + (RandomFloat(iInstance) * Scale); }
-	FVector4f		RandomScaleBiasFloat(uint32 iInstance, const FVector4f& Scale, const FVector4f& Bias) const { return Bias + (RandomFloat(iInstance) * Scale); }
+	float			RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const float Scale, const float Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
+	FVector2f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector2f& Scale, const FVector2f& Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
+	FVector3f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector3f& Scale, const FVector3f& Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
+	FVector4f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector4f& Scale, const FVector4f& Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
 
-	float			RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeFloat& Range) const { return Range.Min + (RandomFloat(iInstance) * Range.GetScale()); }
-	FVector2f		RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeVector2& Range) const { return Range.Min + (RandomFloat2(iInstance) * Range.GetScale()); }
-	FVector3f		RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeVector3& Range) const { return Range.Min + (RandomFloat3(iInstance) * Range.GetScale()); }
-	FVector4f		RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeVector4& Range) const { return Range.Min + (RandomFloat4(iInstance) * Range.GetScale()); }
-	FLinearColor	RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeColor& Range) const { return Range.Min + (RandomFloat4(iInstance) * Range.GetScale()); }
+	float			RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeFloat& Range) const { return Range.Min + (RandomFloat(iInstance, RandomSeedOffset) * Range.GetScale()); }
+	FVector2f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector2& Range) const { return Range.Min + (RandomFloat2(iInstance, RandomSeedOffset) * Range.GetScale()); }
+	FVector3f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector3& Range) const { return Range.Min + (RandomFloat3(iInstance, RandomSeedOffset) * Range.GetScale()); }
+	FVector4f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector4& Range) const { return Range.Min + (RandomFloat4(iInstance, RandomSeedOffset) * Range.GetScale()); }
+	FLinearColor	RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeColor& Range) const { return Range.Min + (RandomFloat4(iInstance, RandomSeedOffset) * Range.GetScale()); }
 
-	float			RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeFloat& Range, bool bUniform) const { return RandomScaleBiasFloat(iInstance, Range); }
-	FVector2f		RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeVector2& Range, bool bUniform) const { const FVector2f Random = RandomScaleBiasFloat(iInstance, Range); return bUniform ? FVector2f(Random.X, Random.X) : Random; }
-	FVector3f		RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeVector3& Range, bool bUniform) const { const FVector3f Random = RandomScaleBiasFloat(iInstance, Range); return bUniform ? FVector3f(Random.X, Random.X, Random.X) : Random; }
-	FVector4f		RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeVector4& Range, bool bUniform) const { const FVector4f Random = RandomScaleBiasFloat(iInstance, Range); return bUniform ? FVector4f(Random.X, Random.X, Random.X, Random.X) : Random; }
-	FLinearColor	RandomScaleBiasFloat(uint32 iInstance, const FNiagaraStatelessRangeColor& Range, bool bUniform) const { const FLinearColor Random = RandomScaleBiasFloat(iInstance, Range); return bUniform ? FLinearColor(Random.R, Random.R, Random.R, Random.R) : Random; }
+	float			RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeFloat& Range, bool bUniform) const { return RandomScaleBiasFloat(iInstance, RandomSeedOffset, Range); }
+	FVector2f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector2& Range, bool bUniform) const { const FVector2f Random = RandomScaleBiasFloat(iInstance, RandomSeedOffset, Range); return bUniform ? FVector2f(Random.X, Random.X) : Random; }
+	FVector3f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector3& Range, bool bUniform) const { const FVector3f Random = RandomScaleBiasFloat(iInstance, RandomSeedOffset, Range); return bUniform ? FVector3f(Random.X, Random.X, Random.X) : Random; }
+	FVector4f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector4& Range, bool bUniform) const { const FVector4f Random = RandomScaleBiasFloat(iInstance, RandomSeedOffset, Range); return bUniform ? FVector4f(Random.X, Random.X, Random.X, Random.X) : Random; }
+	FLinearColor	RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeColor& Range, bool bUniform) const { const FLinearColor Random = RandomScaleBiasFloat(iInstance, RandomSeedOffset, Range); return bUniform ? FLinearColor(Random.R, Random.R, Random.R, Random.R) : Random; }
 
-	FVector2f		RandomUnitFloat2(uint32 iInstance) const { return SafeNormalize(RandomFloat2(iInstance) - 0.5f); }
-	FVector3f		RandomUnitFloat3(uint32 iInstance) const { return SafeNormalize(RandomFloat3(iInstance) - 0.5f); }
-
-	float			RandomSeedOffsetFloat(uint32 iInstance, uint32 SeedOffset) const;
-	FVector2f		RandomSeedOffsetFloat2(uint32 iInstance, uint32 SeedOffset) const;
-	FVector3f		RandomSeedOffsetFloat3(uint32 iInstance, uint32 SeedOffset) const;
-	FVector4f		RandomSeedOffsetFloat4(uint32 iInstance, uint32 SeedOffset) const;
+	FVector2f		RandomUnitFloat2(uint32 iInstance, uint32 RandomSeedOffset) const { return SafeNormalize(RandomFloat2(iInstance, RandomSeedOffset) - 0.5f); }
+	FVector3f		RandomUnitFloat3(uint32 iInstance, uint32 RandomSeedOffset) const { return SafeNormalize(RandomFloat3(iInstance, RandomSeedOffset) - 0.5f); }
 
 	FVector2f		SafeNormalize(const FVector2f& v, const FVector2f& Fallback) const { const float l2 = v.SquaredLength(); return l2 < UE_KINDA_SMALL_NUMBER ? Fallback : v * (1.0f / FMath::Sqrt(l2)); }
 	FVector3f		SafeNormalize(const FVector3f& v, const FVector3f& Fallback) const { const float l2 = v.SquaredLength(); return l2 < UE_KINDA_SMALL_NUMBER ? Fallback : v * (1.0f / FMath::Sqrt(l2)); }
@@ -197,13 +193,13 @@ public:
 	}
 
 private:
-	FUintVector4* GetParticleRandomSeed() const { return static_cast<FUintVector4*>(RequiredComponents[int32(EParticleComponent::RandomSeed)]); }
-
-private:
 	const FNiagaraStatelessEmitterData*		EmitterData = nullptr;
 	uint32									NumInstances = 0;
 	float									DeltaTime = 0.0f;
 	float									InvDeltaTime = 0.0f;
+
+	uint32									EmitterRandomSeed = 0;
+	uint32									ModuleRandomSeed = 0;
 
 	uint32									BufferStride = 0;
 	uint8*									BufferFloatData = nullptr;
@@ -221,12 +217,12 @@ private:
 template<typename TType>
 struct FStatelessDistributionSampler
 {
-	explicit FStatelessDistributionSampler(const FParticleSimulationContext& ParticleSimulationContext, const FUintVector3& InParameters, int32 iInstance)
+	explicit FStatelessDistributionSampler(const FParticleSimulationContext& ParticleSimulationContext, const FUintVector3& InParameters, int32 iInstance, uint32 RandomSeedOffset)
 		: Parameters(InParameters)
 	{
 		if ((Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Random)) != 0)
 		{
-			RandomOffset = ParticleSimulationContext.TRandomFloat<TType>(iInstance);
+			RandomOffset = ParticleSimulationContext.TRandomFloat<TType>(iInstance, RandomSeedOffset);
 		}
 	}
 

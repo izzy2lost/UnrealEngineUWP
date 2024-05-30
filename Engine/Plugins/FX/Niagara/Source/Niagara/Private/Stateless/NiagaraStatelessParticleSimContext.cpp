@@ -16,9 +16,9 @@ namespace NiagaraStateless
 		3,	// float		- NormalizedAge
 		4,	// float		- PreviousAge
 		5,	// float		- PreviousNormalizedAge
-		6,	// FUintVector4	- RandomSeed
+		6,	// int32		- UniqueIndex
 	};
-	constexpr uint32 ParticleComponentTotalSize = 10;
+	constexpr uint32 ParticleComponentTotalSize = 7;
 
 	FUintVector4 Rand4DPCG32(FUintVector4 v)
 	{
@@ -58,12 +58,12 @@ namespace NiagaraStateless
 		check(EmitterData->ParticleSimExecData);
 	}
 
-	void FParticleSimulationContext::Simulate(int32 EmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
+	void FParticleSimulationContext::Simulate(int32 InEmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
 	{
 		NumInstances = 0;
 
 		FSpawnInfoShaderParameters SpawnParameters;
-		const uint32 ActiveParticles = EmitterData->CalculateActiveParticles(EmitterRandomSeed, SpawnInfos, EmitterAge, &SpawnParameters);
+		const uint32 ActiveParticles = EmitterData->CalculateActiveParticles(InEmitterRandomSeed, SpawnInfos, EmitterAge, &SpawnParameters);
 		if (ActiveParticles > 0)
 		{
 			// Setup data buffer pointers
@@ -73,19 +73,19 @@ namespace NiagaraStateless
 			BufferInt32Data	= DestinationData->GetComponentPtrInt32(0);
 
 			// Run Simulation
-			SimulateInternal(EmitterRandomSeed, EmitterAge, InDeltaTime, SpawnParameters, ActiveParticles);
+			SimulateInternal(InEmitterRandomSeed, EmitterAge, InDeltaTime, SpawnParameters, ActiveParticles);
 		}
 
 		// Set instance count
 		DestinationData->SetNumInstances(NumInstances);
 	}
 
-	void FParticleSimulationContext::SimulateGPU(FRHICommandList& RHICmdList, int32 EmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
+	void FParticleSimulationContext::SimulateGPU(FRHICommandList& RHICmdList, int32 InEmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
 	{
 		NumInstances = 0;
 
 		FSpawnInfoShaderParameters SpawnParameters;
-		const uint32 ActiveParticles = EmitterData->CalculateActiveParticles(EmitterRandomSeed, SpawnInfos, EmitterAge, &SpawnParameters);
+		const uint32 ActiveParticles = EmitterData->CalculateActiveParticles(InEmitterRandomSeed, SpawnInfos, EmitterAge, &SpawnParameters);
 		if (ActiveParticles > 0)
 		{
 			check(DestinationData->GetNumInstancesAllocated() <= ActiveParticles);
@@ -99,7 +99,7 @@ namespace NiagaraStateless
 			BufferInt32Data	= Int32Buffer.NumBytes > 0 ? reinterpret_cast<uint8*>(RHICmdList.LockBuffer(Int32Buffer.Buffer, 0, Int32Buffer.NumBytes, RLM_WriteOnly)) : nullptr;
 
 			// Run Simulation
-			SimulateInternal(EmitterRandomSeed, EmitterAge, InDeltaTime, SpawnParameters, ActiveParticles);
+			SimulateInternal(InEmitterRandomSeed, EmitterAge, InDeltaTime, SpawnParameters, ActiveParticles);
 
 			// Unlock buffers
 			if (BufferFloatData)
@@ -116,12 +116,14 @@ namespace NiagaraStateless
 		DestinationData->SetNumInstances(NumInstances);
 	}
 
-	void FParticleSimulationContext::SimulateInternal(int32 EmitterRandomSeed, float EmitterAge, float InDeltaTime, FSpawnInfoShaderParameters& SpawnParameters, uint32 ActiveParticles)
+	void FParticleSimulationContext::SimulateInternal(int32 InEmitterRandomSeed, float EmitterAge, float InDeltaTime, FSpawnInfoShaderParameters& SpawnParameters, uint32 ActiveParticles)
 	{
 		// Setup simulation	
 		NumInstances = 0;
 		DeltaTime = InDeltaTime;
 		InvDeltaTime = DeltaTime > 0.0f ? 1.0f / DeltaTime : 0.0f;
+		EmitterRandomSeed = InEmitterRandomSeed;
+		ModuleRandomSeed = 6405u;
 
 		// Setup Required Components
 		{
@@ -185,16 +187,10 @@ namespace NiagaraStateless
 				}
 			}
 
-			FUintVector4 RandomSeed;
-			RandomSeed.X = 7123u;
-			RandomSeed.Y = EmitterRandomSeed;
-			RandomSeed.Z = Particle_UniqueIndex * 3581u;
-			RandomSeed.W = 0;
+			// Write unique index as it's needed for the random operation
+			GetParticleUniqueIndex()[NumInstances] = Particle_UniqueIndex;
 
-			// Write random seed here so we can use our random functions
-			GetParticleRandomSeed()[NumInstances] = RandomSeed;
-
-			float Particle_Lifetime = RandomScaleBiasFloat(NumInstances, EmitterData->LifetimeRange);
+			float Particle_Lifetime = RandomScaleBiasFloat(NumInstances, 0, EmitterData->LifetimeRange);
 			if (Particle_Lifetime <= 0.0f || Particle_Age >= Particle_Lifetime)
 			{
 				return;
@@ -222,68 +218,61 @@ namespace NiagaraStateless
 		for (const auto& Callback : ExecData->SimulateFunctions)
 		{
 			BuiltDataOffset = Callback.BuiltDataOffset;
+			ModuleRandomSeed = Callback.RandomSeedOffset * 6405u;
 			Callback.Function(*this);
 		}
 	}
 
-	uint32 FParticleSimulationContext::RandomUInt(uint32 iInstance) const
+	uint32 FParticleSimulationContext::RandomUInt(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
-		++RandomSeed.X;
-		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
+		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return RandomValue.X;
 	}
 
-	FUintVector2 FParticleSimulationContext::RandomUInt2(uint32 iInstance) const
+	FUintVector2 FParticleSimulationContext::RandomUInt2(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
-		++RandomSeed.X;
-		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
+		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return FUintVector2(RandomValue.X, RandomValue.Y);
 	}
 
-	FUintVector3 FParticleSimulationContext::RandomUInt3(uint32 iInstance) const
+	FUintVector3 FParticleSimulationContext::RandomUInt3(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
-		++RandomSeed.X;
-		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
+		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return FUintVector3(RandomValue.X, RandomValue.Y, RandomValue.Z);
 	}
 
-	FUintVector4 FParticleSimulationContext::RandomUInt4(uint32 iInstance) const
+	FUintVector4 FParticleSimulationContext::RandomUInt4(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		FUintVector4& RandomSeed = GetParticleRandomSeed()[iInstance];
-		++RandomSeed.X;
-		RandomSeed.W = RandomSeed.X ^ RandomSeed.Y;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
+		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
+		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return RandomValue;
 	}
 
-	float FParticleSimulationContext::RandomFloat(uint32 iInstance) const
+	float FParticleSimulationContext::RandomFloat(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		const uint32 V = RandomUInt(iInstance);
+		const uint32 V = RandomUInt(iInstance, RandomSeedOffset);
 		return float((V >> 8) & 0x00ffffff) / 16777216.0f;
 	}
 
-	FVector2f FParticleSimulationContext::RandomFloat2(uint32 iInstance) const
+	FVector2f FParticleSimulationContext::RandomFloat2(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		const FUintVector2 V = RandomUInt2(iInstance);
+		const FUintVector2 V = RandomUInt2(iInstance, RandomSeedOffset);
 		return FVector2f(
 			float((V.X >> 8) & 0x00ffffff) / 16777216.0f,
 			float((V.Y >> 8) & 0x00ffffff) / 16777216.0f
 		);
 	}
 
-	FVector3f FParticleSimulationContext::RandomFloat3(uint32 iInstance) const
+	FVector3f FParticleSimulationContext::RandomFloat3(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		const FUintVector3 V = RandomUInt3(iInstance);
+		const FUintVector3 V = RandomUInt3(iInstance, RandomSeedOffset);
 		return FVector3f(
 			float((V.X >> 8) & 0x00ffffff) / 16777216.0f,
 			float((V.Y >> 8) & 0x00ffffff) / 16777216.0f,
@@ -291,62 +280,14 @@ namespace NiagaraStateless
 		);
 	}
 
-	FVector4f FParticleSimulationContext::RandomFloat4(uint32 iInstance) const
+	FVector4f FParticleSimulationContext::RandomFloat4(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
-		const FUintVector4 V = RandomUInt4(iInstance);
+		const FUintVector4 V = RandomUInt4(iInstance, RandomSeedOffset);
 		return FVector4f(
 			float((V.X >> 8) & 0x00ffffff) / 16777216.0f,
 			float((V.Y >> 8) & 0x00ffffff) / 16777216.0f,
 			float((V.Z >> 8) & 0x00ffffff) / 16777216.0f,
 			float((V.W >> 8) & 0x00ffffff) / 16777216.0f
-		);
-	}
-
-	float FParticleSimulationContext::RandomSeedOffsetFloat(uint32 iInstance, uint32 SeedOffset) const
-	{
-		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
-		RandomSeed.X += SeedOffset;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
-		return float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f;
-	}
-
-	FVector2f FParticleSimulationContext::RandomSeedOffsetFloat2(uint32 iInstance, uint32 SeedOffset) const
-	{
-		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
-		RandomSeed.X += SeedOffset;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
-		return FVector2f(
-			float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f,
-			float((RandomValue.Y >> 8) & 0x00ffffff) / 16777216.0f
-		);
-	}
-
-	FVector3f FParticleSimulationContext::RandomSeedOffsetFloat3(uint32 iInstance, uint32 SeedOffset) const
-	{
-		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
-		RandomSeed.X += SeedOffset;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
-		return FVector3f(
-			float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f,
-			float((RandomValue.Y >> 8) & 0x00ffffff) / 16777216.0f,
-			float((RandomValue.Z >> 8) & 0x00ffffff) / 16777216.0f
-		);
-	}
-
-	FVector4f FParticleSimulationContext::RandomSeedOffsetFloat4(uint32 iInstance, uint32 SeedOffset) const
-	{
-		FUintVector4 RandomSeed = GetParticleRandomSeed()[iInstance];
-		RandomSeed.X += SeedOffset;
-
-		FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
-		return FVector4f(
-			float((RandomValue.X >> 8) & 0x00ffffff) / 16777216.0f,
-			float((RandomValue.Y >> 8) & 0x00ffffff) / 16777216.0f,
-			float((RandomValue.Z >> 8) & 0x00ffffff) / 16777216.0f,
-			float((RandomValue.W >> 8) & 0x00ffffff) / 16777216.0f
 		);
 	}
 } //namespace NiagaraStateless

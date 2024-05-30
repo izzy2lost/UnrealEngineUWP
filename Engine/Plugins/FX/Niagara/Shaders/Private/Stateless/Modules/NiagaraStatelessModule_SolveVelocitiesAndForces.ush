@@ -59,22 +59,22 @@ void SolveVelocitiesAndForces_Simulate(inout FStatelessParticle Particle)
 {
 	// Initialize shared parameters
 	FStatelessModule_SolveVelocitiesAndForces ModuleData;
-	ModuleData.Mass = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_MassScale, SolveVelocitiesAndForces_MassBias);
-	ModuleData.Drag = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_DragScale, SolveVelocitiesAndForces_DragBias);
-	ModuleData.Velocity = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_VelocityScale, SolveVelocitiesAndForces_VelocityBias);
-	ModuleData.Wind = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_WindScale, SolveVelocitiesAndForces_WindBias);
-	ModuleData.Acceleration = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_AccelerationScale, SolveVelocitiesAndForces_AccelerationBias);
+	ModuleData.Mass = RandomScaleBiasFloat(0, SolveVelocitiesAndForces_MassScale, SolveVelocitiesAndForces_MassBias);
+	ModuleData.Drag = RandomScaleBiasFloat(1, SolveVelocitiesAndForces_DragScale, SolveVelocitiesAndForces_DragBias);
+	ModuleData.Velocity = RandomScaleBiasFloat(2, SolveVelocitiesAndForces_VelocityScale, SolveVelocitiesAndForces_VelocityBias);
+	ModuleData.Wind = RandomScaleBiasFloat(3, SolveVelocitiesAndForces_WindScale, SolveVelocitiesAndForces_WindBias);
+	ModuleData.Acceleration = RandomScaleBiasFloat(4, SolveVelocitiesAndForces_AccelerationScale, SolveVelocitiesAndForces_AccelerationBias);
 
 	if ( SolveVelocitiesAndForces_ConeVelocityEnabled != 0 )
 	{
-		const float ConeAngle = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_ConeAngleScale, SolveVelocitiesAndForces_ConeAngleBias);
-		const float ConeRotation = RandomFloat(Particle) * UE_TWO_PI;
+		const float ConeAngle = RandomScaleBiasFloat(5, SolveVelocitiesAndForces_ConeAngleScale, SolveVelocitiesAndForces_ConeAngleBias);
+		const float ConeRotation = RandomFloat(6) * UE_TWO_PI;
 			
 		float2 scAng = SinCos(ConeAngle);
 		float2 scRot = SinCos(ConeRotation);
 		const float3 Direction = float3(scRot.x * scAng.x, scRot.y * scAng.x, scAng.y);
 		
-		float VelocityScale = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_ConeVelocityScale, SolveVelocitiesAndForces_ConeVelocityBias);
+		float VelocityScale = RandomScaleBiasFloat(7, SolveVelocitiesAndForces_ConeVelocityScale, SolveVelocitiesAndForces_ConeVelocityBias);
 		if ( SolveVelocitiesAndForces_ConeVelocityFalloff > 0.0f )
 		{
 			const float pf = pow(saturate(scAng.y), SolveVelocitiesAndForces_ConeVelocityFalloff * 10.0f);
@@ -86,18 +86,18 @@ void SolveVelocitiesAndForces_Simulate(inout FStatelessParticle Particle)
 
 	if ( SolveVelocitiesAndForces_PontVelocityEnabled != 0 )
 	{
-		const float3 FallbackDir = RandomUnitFloat3(Particle);
+		const float3 FallbackDir = RandomUnitFloat3(8);
 		const float3 Delta = Particle.Position - SolveVelocitiesAndForces_PointOrigin;
 		const float3 Dir = SafeNormalize(Delta, FallbackDir);
 			
-		const float VelocityScale = RandomScaleBiasFloat(Particle, SolveVelocitiesAndForces_PointVelocityScale, SolveVelocitiesAndForces_PointVelocityBias);
+		const float VelocityScale = RandomScaleBiasFloat(9, SolveVelocitiesAndForces_PointVelocityScale, SolveVelocitiesAndForces_PointVelocityBias);
 			
 		ModuleData.Velocity += Dir * VelocityScale;
 	}
 
 	if ( SolveVelocitiesAndForces_NoiseEnabled  != 0 )
 	{
-		const float3 NoiseOffset = RandomFloat3(Particle);
+		const float3 NoiseOffset = RandomFloat3(10);
 		float3 NoiseValue = 0;
 		if ( SolveVelocitiesAndForces_NoiseMode == 0 )
 		{
@@ -114,8 +114,8 @@ void SolveVelocitiesAndForces_Simulate(inout FStatelessParticle Particle)
 		}
 		else if ( SolveVelocitiesAndForces_NoiseMode == 2 )
 		{
-			const uint3 ChannelIndex = RandomUInt3(Particle) % SolveVelocitiesAndForces_NoiseLUTNumChannel;
-			const float3 ChannelLerp = (Particle.Age * SolveVelocitiesAndForces_NoiseFrequency) + RandomFloat(Particle);
+			const uint3 ChannelIndex = RandomUInt3(11) % SolveVelocitiesAndForces_NoiseLUTNumChannel;
+			const float3 ChannelLerp = (Particle.Age * SolveVelocitiesAndForces_NoiseFrequency) + RandomFloat(12);
 			const uint3 ChannelLUTOffsetA = (ChannelIndex * SolveVelocitiesAndForces_NoiseLUTChannelWidth) + min(floor(ChannelLerp) + 0, SolveVelocitiesAndForces_NoiseLUTChannelWidth - 1);
 			const uint3 ChannelLUTOffsetB = (ChannelIndex * SolveVelocitiesAndForces_NoiseLUTChannelWidth) + min(floor(ChannelLerp) + 1, SolveVelocitiesAndForces_NoiseLUTChannelWidth - 1);
 				
@@ -133,8 +133,8 @@ void SolveVelocitiesAndForces_Simulate(inout FStatelessParticle Particle)
 		}
 		else if ( SolveVelocitiesAndForces_NoiseMode == 3 )
 		{
-			const uint3 ChannelIndex = RandomUInt3(Particle) % SolveVelocitiesAndForces_NoiseLUTNumChannel;
-			const float ChannelLerp = (Particle.Age * SolveVelocitiesAndForces_NoiseFrequency.x) + RandomFloat(Particle);
+			const uint3 ChannelIndex = RandomUInt3(13) % SolveVelocitiesAndForces_NoiseLUTNumChannel;
+			const float ChannelLerp = (Particle.Age * SolveVelocitiesAndForces_NoiseFrequency.x) + RandomFloat(14);
 			const uint3 ChannelLUTOffsetA = (ChannelIndex * SolveVelocitiesAndForces_NoiseLUTChannelWidth) + min(floor(ChannelLerp) + 0, SolveVelocitiesAndForces_NoiseLUTChannelWidth - 1);
 			const uint3 ChannelLUTOffsetB = (ChannelIndex * SolveVelocitiesAndForces_NoiseLUTChannelWidth) + min(floor(ChannelLerp) + 1, SolveVelocitiesAndForces_NoiseLUTChannelWidth - 1);
 			const uint3 ChannelLUTOffsetC = (ChannelIndex * SolveVelocitiesAndForces_NoiseLUTChannelWidth) + min(floor(ChannelLerp) + 2, SolveVelocitiesAndForces_NoiseLUTChannelWidth - 1);

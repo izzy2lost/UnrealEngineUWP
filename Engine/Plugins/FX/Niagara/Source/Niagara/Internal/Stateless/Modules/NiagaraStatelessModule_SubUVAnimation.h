@@ -152,7 +152,7 @@ public:
 			const float Particle_NormalizedAge = ParticleNormalizedAges[i];
 
 			const uint32 SeedOffset = uint32(Particle_Age * ModuleBuiltData->InitialFrameRateChange);
-			float Frame = ParticleSimulationContext.RandomSeedOffsetFloat(i, SeedOffset) * ModuleBuiltData->InitialFrameScale + ModuleBuiltData->InitialFrameBias;
+			float Frame = ParticleSimulationContext.RandomFloat(i, SeedOffset) * ModuleBuiltData->InitialFrameScale + ModuleBuiltData->InitialFrameBias;
 
 			if (ModuleBuiltData->Mode == 0)
 			{

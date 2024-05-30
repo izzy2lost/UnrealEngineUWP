@@ -67,7 +67,7 @@ public:
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const float RotationRate = ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->RotationRange);
+			const float RotationRate = ParticleSimulationContext.RandomScaleBiasFloat(i, 0, ModuleBuiltData->RotationRange);
 
 			float SpriteRotation = ParticleSimulationContext.ReadParticleVariable(ModuleBuiltData->SpriteRotationVariableOffset, i, 0.0f);
 			float PreviousSpriteRotation = ParticleSimulationContext.ReadParticleVariable(ModuleBuiltData->PreviousSpriteRotationVariableOffset, i, 0.0f);

@@ -16,14 +16,16 @@ public:
 	struct FCallback
 	{
 		FCallback() = default;
-		explicit FCallback(TFunction<void(const FParticleSimulationContext&)> InFunc, int32 InBuiltDataOffset)
+		explicit FCallback(TFunction<void(const FParticleSimulationContext&)> InFunc, int32 InBuiltDataOffset, uint32 InRandomSeedOffset)
 			: Function(MoveTemp(InFunc))
 			, BuiltDataOffset(InBuiltDataOffset)
+			, RandomSeedOffset(InRandomSeedOffset)
 		{
 		}
 
 		TFunction<void(const FParticleSimulationContext&)>	Function;
-		int32												BuiltDataOffset = 0;
+		int32	BuiltDataOffset = 0;
+		uint32	RandomSeedOffset = 0;
 	};
 
 	struct FVariableOffset

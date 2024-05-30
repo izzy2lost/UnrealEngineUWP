@@ -7,7 +7,7 @@ uint3	ScaleColor_Distribution;
 void ScaleColor_Simulate(inout FStatelessParticle Particle)
 {
 	FStatelessDistributionSamplerFloat4 ScaleDistribution;
-	ScaleDistribution.Init(Particle, ScaleColor_Distribution);
+	ScaleDistribution.Init(0, ScaleColor_Distribution);
 	if (ScaleDistribution.IsValid())
 	{
 		Particle.Color *= ScaleDistribution.GetValue(Particle.NormalizedAge);

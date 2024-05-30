@@ -136,6 +136,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "General")
 	bool bDeterministic = false;
 
+	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay, meta = (Bitmask, BitMaskEnum = "/Script/Niagara.ENiagaraStatelessFeatureMask"))
+	uint32 AllowedFeatureMask = uint32(ENiagaraStatelessFeatureMask::All);
+
 	UPROPERTY(EditAnywhere, Category = "General")
 	int32 RandomSeed = 0;
 

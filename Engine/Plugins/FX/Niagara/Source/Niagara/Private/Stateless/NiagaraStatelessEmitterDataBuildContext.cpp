@@ -11,6 +11,7 @@
 void FNiagaraStatelessEmitterDataBuildContext::PreModuleBuild()
 {
 	ModuleBuiltDataOffset = BuiltData.Num();
+	++RandomSeedOffest;
 }
 
 uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<float> FloatData) const
@@ -104,7 +105,7 @@ void FNiagaraStatelessEmitterDataBuildContext::AddParticleSimulationExecSimulate
 		return;
 	}
 
-	ParticleExecData->SimulateFunctions.Emplace(MoveTemp(Func), ModuleBuiltDataOffset);
+	ParticleExecData->SimulateFunctions.Emplace(MoveTemp(Func), ModuleBuiltDataOffset, RandomSeedOffest);
 }
 
 int32 FNiagaraStatelessEmitterDataBuildContext::FindParticleVariableIndex(const FNiagaraVariableBase& Variable) const

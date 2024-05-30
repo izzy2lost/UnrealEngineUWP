@@ -163,6 +163,8 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 		RDG_EVENT_NAME("FNiagaraStatelessComputeManager::OnPostPreRender"),
 		[DataToGenerate=MoveTemp(GPUDataToGenerate), ComputeInterface=GetOwnerInterface()](FRHICommandListImmediate& RHICmdList)
 		{
+			SCOPED_DRAW_EVENT(RHICmdList, FNiagaraStatelessComputeManager_OnPostPreRender);
+	
 			const int32 NumJobs = DataToGenerate.Num();
 
 			// Get Count Buffer

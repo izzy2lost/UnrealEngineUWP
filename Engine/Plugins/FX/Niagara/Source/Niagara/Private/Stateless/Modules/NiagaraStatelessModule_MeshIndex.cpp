@@ -63,7 +63,7 @@ namespace NSMMeshIndexPrivate
 		{
 			for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 			{
-				const FVector2f Rand = ParticleSimulationContext.RandomFloat2(i);
+				const FVector2f Rand = ParticleSimulationContext.RandomFloat2(i, 0);
 				MeshIndex = FMath::RoundToInt(Rand.X * float(ModuleBuiltData->TableNumElements));
 				const float Probability = ParticleSimulationContext.GetStaticFloat<float>(ModuleBuiltData->TableOffset, (MeshIndex * 2) + 0);
 				if (Rand.Y > Probability)

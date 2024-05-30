@@ -317,6 +317,8 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	if (StatelessEmitterData->bCanEverExecute)
 	{
 		StatelessEmitterData->FeatureMask = FNiagaraStatelessGlobals::Get().FeatureMask;
+		StatelessEmitterData->FeatureMask &= ENiagaraStatelessFeatureMask(AllowedFeatureMask);
+
 		for (const UNiagaraStatelessModule* Module : Modules)
 		{
 			if (Module->IsModuleEnabled())

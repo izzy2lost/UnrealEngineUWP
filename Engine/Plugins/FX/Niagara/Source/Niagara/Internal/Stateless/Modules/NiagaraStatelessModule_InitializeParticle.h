@@ -133,14 +133,14 @@ public:
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const FStatelessDistributionSampler<FVector3f> PositionSampler(ParticleSimulationContext, ModuleBuiltData->InitialPosition, i);
+			const FStatelessDistributionSampler<FVector3f> PositionSampler(ParticleSimulationContext, ModuleBuiltData->InitialPosition, i, 0);
 
 			const FVector3f		Position	= PositionSampler.GetValue(ParticleSimulationContext, 0.0f);
-			const FLinearColor	Color		= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->ColorRange);
-			const float			RibbonWidth	= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->RibbonWidthRange);
-			const FVector2f		SpriteSize	= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->SpriteSizeRange);
-			const float			SpriteRot	= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->SpriteRotationRange);
-			const FVector3f		Scale		= ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->MeshScaleRange);
+			const FLinearColor	Color		= ParticleSimulationContext.RandomScaleBiasFloat(i, 1 ,ModuleBuiltData->ColorRange);
+			const float			RibbonWidth	= ParticleSimulationContext.RandomScaleBiasFloat(i, 2, ModuleBuiltData->RibbonWidthRange);
+			const FVector2f		SpriteSize	= ParticleSimulationContext.RandomScaleBiasFloat(i, 3, ModuleBuiltData->SpriteSizeRange);
+			const float			SpriteRot	= ParticleSimulationContext.RandomScaleBiasFloat(i, 4, ModuleBuiltData->SpriteRotationRange);
+			const FVector3f		Scale		= ParticleSimulationContext.RandomScaleBiasFloat(i, 5, ModuleBuiltData->MeshScaleRange);
 
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PositionVariableOffset,				i, Position);
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->ColorVariableOffset,					i, Color);

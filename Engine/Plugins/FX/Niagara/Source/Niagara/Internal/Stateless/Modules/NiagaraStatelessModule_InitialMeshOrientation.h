@@ -67,7 +67,7 @@ public:
 		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const FVector3f	Rotation = ModuleBuiltData->Rotation + (ParticleSimulationContext.RandomFloat3(i) * ModuleBuiltData->RandomRotationRange);
+			const FVector3f	Rotation = ModuleBuiltData->Rotation + (ParticleSimulationContext.RandomFloat3(i, 0) * ModuleBuiltData->RandomRotationRange);
 			const FQuat4f Quat = ParticleSimulationContext.RotatorToQuat(Rotation);
 
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->MeshOrientationVariableOffset, i, Quat);

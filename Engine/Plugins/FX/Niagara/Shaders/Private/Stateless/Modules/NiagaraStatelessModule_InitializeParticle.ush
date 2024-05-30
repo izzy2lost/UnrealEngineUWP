@@ -26,15 +26,15 @@ void InitializeParticle_Simulate(inout FStatelessParticle Particle)
 	const bool bUniformMeshScale  = (InitializeParticle_ModuleFlags & EInitializeParticleModuleFlag_UniformMeshScale) != 0;
 
 	FStatelessDistributionSamplerFloat3 InitialPosition;
-	InitialPosition.Init(Particle, InitializeParticle_InitialPosition);
+	InitialPosition.Init(0, InitializeParticle_InitialPosition);
 		
 	Particle.UniqueID		= Particle.UniqueIndex;
 	Particle.Position		= InitialPosition.GetValue(0.0f);
-	Particle.Color			= RandomScaleBiasFloat(Particle, InitializeParticle_ColorScale, InitializeParticle_ColorBias);
-	Particle.RibbonWidth	= RandomScaleBiasFloat(Particle, InitializeParticle_RibbonWidthScale, InitializeParticle_RibbonWidthBias);
-	Particle.SpriteSize		= RandomScaleBiasFloat(Particle, InitializeParticle_SpriteSizeScale, InitializeParticle_SpriteSizeBias, bUniformSpriteSize);
-	Particle.SpriteRotation	= RandomScaleBiasFloat(Particle, InitializeParticle_SpriteRotationScale, InitializeParticle_SpriteRotationBias);
-	Particle.Scale			= RandomScaleBiasFloat(Particle, InitializeParticle_MeshScaleScale, InitializeParticle_MeshScaleBias, bUniformMeshScale);
+	Particle.Color			= RandomScaleBiasFloat(1, InitializeParticle_ColorScale, InitializeParticle_ColorBias);
+	Particle.RibbonWidth	= RandomScaleBiasFloat(2, InitializeParticle_RibbonWidthScale, InitializeParticle_RibbonWidthBias);
+	Particle.SpriteSize		= RandomScaleBiasFloat(3, InitializeParticle_SpriteSizeScale, InitializeParticle_SpriteSizeBias, bUniformSpriteSize);
+	Particle.SpriteRotation	= RandomScaleBiasFloat(4, InitializeParticle_SpriteRotationScale, InitializeParticle_SpriteRotationBias);
+	Particle.Scale			= RandomScaleBiasFloat(5, InitializeParticle_MeshScaleScale, InitializeParticle_MeshScaleBias, bUniformMeshScale);
 
 	Particle.PreviousPosition		= Particle.Position;
 	Particle.PreviousRibbonWidth	= Particle.RibbonWidth;

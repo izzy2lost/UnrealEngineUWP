@@ -36,10 +36,18 @@
 
 // Defines modules and order of execution
 #define PARTICLE_MODULES \
+	/* Initializer Modules */ \
 	PARTICLE_MODULE(InitializeParticle) \
 	PARTICLE_MODULE(InitialMeshOrientation) \
 	PARTICLE_MODULE(ShapeLocation) \
+	/* Before Solve */ \
+	PARTICLE_MODULE(Null) /* AddVelocity */ \
+	PARTICLE_MODULE(Null) /* AccelerationForce */ \
+	PARTICLE_MODULE(Null) /* CurlNoiseForce */ \
+	PARTICLE_MODULE(Null) /* Drag */ \
+	PARTICLE_MODULE(Null) /* GravityForce */ \
 	PARTICLE_MODULE(SolveVelocitiesAndForces) \
+	/* Post Solve */ \
 	PARTICLE_MODULE(CameraOffset) \
 	PARTICLE_MODULE(DynamicMaterialParameters) \
 	PARTICLE_MODULE(MeshIndex) \

@@ -63,7 +63,7 @@ public:
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const FStatelessDistributionSampler<float> CameraOffsetSampler(ParticleSimulationContext, ModuleBuiltData->DistributionParameters, i);
+			const FStatelessDistributionSampler<float> CameraOffsetSampler(ParticleSimulationContext, ModuleBuiltData->DistributionParameters, i, 0);
 
 			const float NormalizedAge			= NormalizedAgeData[i];
 			const float PreviousNormalizedAge	= PreviousNormalizedAgeData[i];

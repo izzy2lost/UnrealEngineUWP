@@ -14,7 +14,7 @@ float	SubUVAnimation_RateScale;
 void SubUVAnimation_Simulate(inout FStatelessParticle Particle)
 {
 	const uint SeedOffset = uint(Particle.Age * SubUVAnimation_InitialFrameRateChange);
-	float Frame = RandomSeedOffsetFloat(Particle, SeedOffset) * SubUVAnimation_InitialFrameScale + SubUVAnimation_InitialFrameBias;
+	float Frame = RandomFloat(SeedOffset) * SubUVAnimation_InitialFrameScale + SubUVAnimation_InitialFrameBias;
 
 	if ( SubUVAnimation_Mode == 0 )
 	{

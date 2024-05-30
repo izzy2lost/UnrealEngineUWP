@@ -4,15 +4,17 @@
 
 #include "NiagaraCommon.h"
 
+UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class ENiagaraStatelessFeatureMask : uint8
 {
-	None			= 0,
+	// We can execute on the GPU (Might be broken down into GPUCompute | GPUGraphics | GPUAsyncCompute in future but this will remain the master mask)
+	ExecuteGPU		= 1 << 0,
+	// We can execute on the CPU
+	ExecuteCPU		= 1 << 1,
 
-	ExecuteGPU		= 1 << 0,					// We can execute on the GPU (Might be broken down into GPUCompute | GPUGraphics | GPUAsyncCompute in future but this will remain the master mask)
-	ExecuteCPU		= 1 << 1,					// We can execute on the CPU
-	ExecuteAll		= ExecuteGPU | ExecuteCPU,	// We can execute on both the CPU & GPU
-
-	All				= ExecuteAll,				// We support all features
+	None			= 0							UMETA(Hidden),
+	ExecuteAll		= ExecuteGPU | ExecuteCPU	UMETA(Hidden),
+	All				= ExecuteAll				UMETA(Hidden),
 };
 ENUM_CLASS_FLAGS(ENiagaraStatelessFeatureMask);
 

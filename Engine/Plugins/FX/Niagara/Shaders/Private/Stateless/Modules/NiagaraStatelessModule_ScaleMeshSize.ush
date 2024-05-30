@@ -9,7 +9,7 @@ int		ScaleMeshSize_CurveScaleOffset;
 void ScaleMeshSize_Simulate(inout FStatelessParticle Particle)
 {
 	FStatelessDistributionSamplerFloat3 MeshSizeDistribution;
-	MeshSizeDistribution.Init(Particle, ScaleMeshSize_Distribution);
+	MeshSizeDistribution.Init(0, ScaleMeshSize_Distribution);
 
 	if (MeshSizeDistribution.IsValid())
 	{

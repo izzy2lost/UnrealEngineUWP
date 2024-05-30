@@ -8,7 +8,7 @@ float2	ScaleSpriteSize_CurveScale;
 void ScaleSpriteSize_Simulate(inout FStatelessParticle Particle)
 {
 	FStatelessDistributionSamplerFloat2 ScaleDistribution;
-	ScaleDistribution.Init(Particle, ScaleSpriteSize_Distribution);
+	ScaleDistribution.Init(0, ScaleSpriteSize_Distribution);
 
 	if (ScaleDistribution.IsValid())
 	{

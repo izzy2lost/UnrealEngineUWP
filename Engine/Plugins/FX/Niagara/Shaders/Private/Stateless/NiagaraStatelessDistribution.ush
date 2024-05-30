@@ -8,13 +8,13 @@
 #define DefineStatelessDistributionSampler(HLSLTYPE, NAMETYPE) \
 	struct FStatelessDistributionSampler##NAMETYPE \
 	{ \
-		void Init(inout FStatelessParticle Particle, uint3 InParameters) \
+		void Init(uint RandomSeedOffset, uint3 InParameters) \
 		{ \
 			Parameters = InParameters; \
 			RandomOffset = 0.0f; \
 			if ( (Parameters.x & StatelessDistributionFlag_Random) != 0) \
 			{ \
-				RandomOffset = Random##NAMETYPE##(Particle); \
+				RandomOffset = Random##NAMETYPE##(RandomSeedOffset); \
 			} \
 		} \
 		\

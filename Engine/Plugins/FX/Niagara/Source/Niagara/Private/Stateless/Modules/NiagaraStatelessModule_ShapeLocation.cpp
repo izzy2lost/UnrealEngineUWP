@@ -26,15 +26,15 @@ namespace NSMShapeLocationPrivate
 			const FVector3f BoxScale = FVector3f(ModuleBuiltData->Parameters0);
 			const FVector3f BoxBias = FVector3f(ModuleBuiltData->Parameters1);
 			const bool bOnSurface = ModuleBuiltData->Mode.Y == 1;
-			const float SurfaceScale = ModuleBuiltData->Parameters0.X;
+			const float SurfaceScale = ModuleBuiltData->Parameters0.W;
 			const float SurfaceBias = ModuleBuiltData->Parameters1.W;
 	
-			const FVector3f P0 = ParticleSimulationContext.RandomFloat3(iInstance);
+			const FVector3f P0 = ParticleSimulationContext.RandomFloat3(iInstance, 0);
 			if (bOnSurface)
 			{
 				//-TODO: This isn't quite what we want
 				const FVector3f L0(FMath::RoundToFloat(P0.X), FMath::RoundToFloat(P0.Y), FMath::RoundToFloat(P0.Z));
-				const uint32 S = ParticleSimulationContext.RandomUInt(iInstance) % 3;
+				const uint32 S = ParticleSimulationContext.RandomUInt(iInstance, 1) % 3;
 				FVector3f Location;
 				Location.X = S != 0 ? P0.X : L0.X;
 				Location.Y = S != 1 ? P0.Y : L0.Y;
@@ -50,7 +50,7 @@ namespace NSMShapeLocationPrivate
 		// ENSM_ShapePrimitive::Cylinder:
 		if ( ModuleBuiltData->Mode.X == 1 )
 		{
-			const FVector4f Random = ParticleSimulationContext.RandomFloat4(iInstance);
+			const FVector4f Random = ParticleSimulationContext.RandomFloat4(iInstance, 0);
 			const float HeightScale = ModuleBuiltData->Parameters0.X;
 			const float HeightBias = ModuleBuiltData->Parameters0.Y;
 			const float Radius = ModuleBuiltData->Parameters0.Z;
@@ -71,8 +71,8 @@ namespace NSMShapeLocationPrivate
 			const float UDistributionScale = ModuleBuiltData->Parameters0.Z;
 			const float UDistributionBias = ModuleBuiltData->Parameters0.W;
 	
-			const float Radius = ParticleSimulationContext.RandomScaleBiasFloat(iInstance, RadiusScale, RadiusBias);
-			const float U = ParticleSimulationContext.RandomScaleBiasFloat(iInstance, UDistributionScale, UDistributionBias);
+			const float Radius = ParticleSimulationContext.RandomScaleBiasFloat(iInstance, 0, RadiusScale, RadiusBias);
+			const float U = ParticleSimulationContext.RandomScaleBiasFloat(iInstance, 1, UDistributionScale, UDistributionBias);
 	
 			return FVector3f(cos(U) * Radius, sin(U) * Radius, 0.0f);
 		}
@@ -82,8 +82,8 @@ namespace NSMShapeLocationPrivate
 			const float SphereScale	= ModuleBuiltData->Parameters0.X;
 			const float SphereBias	= ModuleBuiltData->Parameters0.Y;
 	
-			const FVector3f Vector = ParticleSimulationContext.RandomUnitFloat3(iInstance);
-			return Vector * ParticleSimulationContext.RandomScaleBiasFloat(iInstance, SphereScale, SphereBias);
+			const FVector3f Vector = ParticleSimulationContext.RandomUnitFloat3(iInstance, 0);
+			return Vector * ParticleSimulationContext.RandomScaleBiasFloat(iInstance, 1, SphereScale, SphereBias);
 		}
 	}
 

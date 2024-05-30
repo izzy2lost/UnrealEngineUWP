@@ -69,7 +69,7 @@ public:
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
-			const FVector3f RotationRate = ParticleSimulationContext.RandomScaleBiasFloat(i, ModuleBuiltData->RotationRange);
+			const FVector3f RotationRate = ParticleSimulationContext.RandomScaleBiasFloat(i, 0, ModuleBuiltData->RotationRange);
 			const float Age = AgeData[i];
 			const float PreviousAge = PreviousAgeData[i];
 

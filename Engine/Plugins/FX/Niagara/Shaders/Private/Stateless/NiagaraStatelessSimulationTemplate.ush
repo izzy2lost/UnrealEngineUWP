@@ -54,6 +54,12 @@ DECLARE_SCALAR_ARRAY(float,	SpawnInfo_Rate, NIAGARA_MAX_GPU_SPAWN_INFOS);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void Null_Simulate(inout FStatelessParticle Particle)
+{
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void StatelessMain(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIndex)
 {
@@ -91,12 +97,9 @@ void StatelessMain(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIn
 	}
 	
 	// Initialize variables / determine lifetime / etc
-	Particle.RandomSeed.x = 7123u;
-	Particle.RandomSeed.y = Common_RandomSeed;
-	Particle.RandomSeed.z = Particle.UniqueIndex * 3581u;
-	Particle.RandomSeed.w = 0;
+	GRandomSeedInternal = uint4(7123u, Common_RandomSeed, Particle.UniqueIndex * 3581u, 6405u);
 
-	Particle.Lifetime = RandomScaleBiasFloat(Particle, Common_LifetimeScaleBias.x, Common_LifetimeScaleBias.y);
+	Particle.Lifetime = RandomScaleBiasFloat(0, Common_LifetimeScaleBias.x, Common_LifetimeScaleBias.y);
 	if ( Particle.Lifetime <= 0.0f || Particle.Age >= Particle.Lifetime )
 	{
 		return;
@@ -112,8 +115,12 @@ void StatelessMain(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIn
 	Particle.bAlive = true;
 	
 	// Run Particle Simulate
-	#define PARTICLE_MODULE(NAME) ##NAME##_Simulate(Particle);
+	#define PARTICLE_MODULE(NAME) \
+		GRandomSeedInternal.w += 6405u;\
+		##NAME##_Simulate(Particle);
+
 		PARTICLE_MODULES
+
 	#undef PARTICLE_MODULE
 
 	if ( !Particle.bAlive )

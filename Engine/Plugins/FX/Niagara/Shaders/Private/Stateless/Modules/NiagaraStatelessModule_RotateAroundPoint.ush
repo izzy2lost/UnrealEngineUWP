@@ -29,9 +29,9 @@ void RotateAroundPoint_IntegratePosition(in FStatelessModule_RotateAroundPoint M
 void RotateAroundPoint_Simulate(inout FStatelessParticle Particle)
 {
 	FStatelessModule_RotateAroundPoint ModuleData;
-	ModuleData.Rate			= RandomScaleBiasFloat(Particle, RotateAroundPoint_RateScale, RotateAroundPoint_RateBias);
-	ModuleData.Radius		= RandomScaleBiasFloat(Particle, RotateAroundPoint_RadiusScale, RotateAroundPoint_RadiusBias);
-	ModuleData.InitialPhase	= RandomScaleBiasFloat(Particle, RotateAroundPoint_InitialPhaseScale, RotateAroundPoint_InitialPhaseBias);
+	ModuleData.Rate			= RandomScaleBiasFloat(0, RotateAroundPoint_RateScale, RotateAroundPoint_RateBias);
+	ModuleData.Radius		= RandomScaleBiasFloat(1, RotateAroundPoint_RadiusScale, RotateAroundPoint_RadiusBias);
+	ModuleData.InitialPhase	= RandomScaleBiasFloat(2, RotateAroundPoint_InitialPhaseScale, RotateAroundPoint_InitialPhaseBias);
 		
 	RotateAroundPoint_IntegratePosition(ModuleData, Particle.NormalizedAge, Particle.Position);
 	RotateAroundPoint_IntegratePosition(ModuleData, Particle.PreviousNormalizedAge, Particle.PreviousPosition);

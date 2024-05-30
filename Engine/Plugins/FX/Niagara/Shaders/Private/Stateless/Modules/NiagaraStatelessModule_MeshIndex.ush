@@ -19,7 +19,7 @@ void MeshIndex_Simulate(inout FStatelessParticle Particle)
 	{
 		if ( MeshIndex_TableNumElements > 0 )
 		{
-			const float2 Rand = RandomFloat2(Particle);
+			const float2 Rand = RandomFloat2(0);
 			MeshIndex = round(Rand.x * float(MeshIndex_TableNumElements));
 			const float Probability = GetStaticFloat(MeshIndex_TableOffset, (MeshIndex * 2) + 0);
 			if (Rand.y > Probability)

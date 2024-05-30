@@ -7,7 +7,7 @@ float3	InitialMeshOrientation_RandomRangeScale;
 
 void InitialMeshOrientation_Simulate(inout FStatelessParticle Particle)
 {
-	const float3 InitialRotation = InitialMeshOrientation_Rotation + (RandomFloat3(Particle) * InitialMeshOrientation_RandomRangeScale);
+	const float3 InitialRotation = InitialMeshOrientation_Rotation + (RandomFloat3(0) * InitialMeshOrientation_RandomRangeScale);
 	Particle.MeshOrientation			= RotatorToQuat(InitialRotation);
 	Particle.PreviousMeshOrientation	= Particle.MeshOrientation;
 }

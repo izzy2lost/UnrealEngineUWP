@@ -153,6 +153,7 @@ private:
 	NiagaraStateless::FParticleSimulationExecData*	ParticleExecData = nullptr;
 
 	int32											ModuleBuiltDataOffset = 0;
+	int32											RandomSeedOffest = 1;
 
 	struct FTransientObject
 	{
