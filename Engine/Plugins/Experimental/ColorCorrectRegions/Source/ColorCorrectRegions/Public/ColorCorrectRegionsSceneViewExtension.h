@@ -8,10 +8,10 @@ class UColorCorrectRegionsSubsystem;
 class UMaterialInterface;
 class FRDGTexture;
 
-class FColorCorrectRegionsSceneViewExtension : public FSceneViewExtensionBase
+class FColorCorrectRegionsSceneViewExtension : public FWorldSceneViewExtension
 {
 public:
-	FColorCorrectRegionsSceneViewExtension(const FAutoRegister& AutoRegister, UColorCorrectRegionsSubsystem* InWorldSubsystem);
+	FColorCorrectRegionsSceneViewExtension(const FAutoRegister& AutoRegister, UWorld* InWorld, UColorCorrectRegionsSubsystem* InWorldSubsystem);
 	
 	//~ Begin FSceneViewExtensionBase Interface
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {};

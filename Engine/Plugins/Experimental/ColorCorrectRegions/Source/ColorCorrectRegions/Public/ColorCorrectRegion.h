@@ -62,8 +62,18 @@ public:
 /** A state to store a copy of CCR properties to be used on render thread. */
 struct FColorCorrectRenderProxy
 {
-	EColorCorrectRegionsType Type;
-	EColorCorrectWindowType WindowType;
+	enum EProxyType
+	{
+		PriorityBased,
+		DistanceBased
+	};
+
+	EProxyType ProxyType;
+
+	union {
+		EColorCorrectRegionsType Type;
+		EColorCorrectWindowType WindowType;
+	};
 
 	/** CCR Properties */
 	int32 Priority;
@@ -103,11 +113,8 @@ typedef TSharedPtr<FColorCorrectRenderProxy, ESPMode::ThreadSafe> FColorCorrectR
 
 /**
  * An instance of Color Correction Region. Used to aggregate all active regions.
- * This actor is aggregated by ColorCorrectRegionsSubsystem which handles:
- *   - Level Loaded, Undo/Redo, Added to level, Removed from level events. 
+ * This actor is aggregated by ColorCorrectRegionsSubsystem on Tick. 
  * AActor class itself is not aware of when it is added/removed, Undo/Redo etc in the Editor. 
- * AColorCorrectRegion reaches out to UColorCorrectRegionsSubsystem when its priority is changed, requesting regions to be sorted 
- * or during BeginPlay/EndPlay to register itself. 
  * More information in ColorCorrectRegionsSubsytem.h
  */
 UCLASS(Blueprintable, NotPlaceable, Abstract)
@@ -212,30 +219,21 @@ public:
 	UPROPERTY()
 	TObjectPtr<UColorCorrectionInvisibleComponent> IdentityComponent;
 
-	/** To handle play in Editor, PIE and Standalone. These methods aggregate objects in play mode similarly to 
-	* Editor methods in FColorCorrectRegionsSubsystem
-	*/
-	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-	virtual void BeginDestroy() override;
-
-	virtual void TickActor(float DeltaTime, enum ELevelTick TickType, FActorTickFunction& ThisTickFunction);
 	virtual bool ShouldTickIfViewportsOnly() const;
 
+public:
+
 	/**
-	* Gets a full state for rendering. 
+	* Gets a full state for rendering.
 	*/
-	FColorCorrectRenderProxyPtr GetCCProxy_RenderThread()
-	{
-		check(IsInRenderingThread());
-		return ColorCorrectRenderProxy;
-	};
+	UE_DEPRECATED(5.5, "State management is now done by subsystem.")
+	FColorCorrectRenderProxyPtr GetCCProxy_RenderThread() { return nullptr; };
 
 	/**
 	* Copy state required for rendering to be consumed by Scene view extension.
 	*/
-	void TransferState();
+	UE_DEPRECATED(5.5, "State management is now done by subsystem.")
+	void TransferState() {};
 
 protected:
 
@@ -317,12 +315,6 @@ protected:
 
 private:
 
-#if WITH_METADATA
-	/** Creates an icon for CCR/CCW to be clicked on in Editor. */
-	void CreateIcon();
-
-#endif // WITH_METADATA
-
 	/**
 	* AffectedActors property change could potentially invoke a Dialog Window, which should be displayed on Game Thread.
 	* ActorListChangeType represents EPropertyChangeType
@@ -402,18 +394,6 @@ protected:
 
 	/** Update the transform when a positional setter is called. */
 	bool bNotifyOnParamSetter = true;
-	
-private:
-	TWeakObjectPtr<UColorCorrectRegionsSubsystem> ColorCorrectRegionsSubsystem;
-
-	/** A copy of all properties required by render thread to process this CCR. */
-	FColorCorrectRenderProxyPtr ColorCorrectRenderProxy;
-
-	FCriticalSection StateCopyCriticalSecion;
-
-	// This is for optimization purposes that would let us check assigned actors component's stencil ids ever few once in a while.
-	float TimeWaited = 0;
-
 };
 
 /** 
@@ -440,6 +420,12 @@ protected:
 protected:
 	virtual void ChangeShapeVisibilityForActorType() override;
 
+private:
+#if WITH_METADATA
+	/** Creates an icon for CCR/CCW to be clicked on in Editor. */
+	void CreateIcon();
+
+#endif // WITH_METADATA
 };
 
 
