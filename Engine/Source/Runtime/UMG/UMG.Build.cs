@@ -57,7 +57,5 @@ public class UMG : ModuleRules
 				}
 			);
 		}
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }
