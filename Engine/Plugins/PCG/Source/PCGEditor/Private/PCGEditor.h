@@ -134,6 +134,8 @@ private:
 	bool CanToggleInspected() const;
 	/** Whether selected nodes are inspected or not */
 	ECheckBoxState GetInspectedCheckState() const;
+
+	void UpdateAfterInspectedStackChanged();
 	
 	/** Toggle node enabled state for selected nodes */
 	void OnToggleEnabled();
@@ -372,5 +374,7 @@ private:
 	UPCGEditorGraph* PCGEditorGraph = nullptr;
 
 	TWeakObjectPtr<UPCGComponent> PCGComponentBeingInspected;
+	// Implementation note: we'll keep the last valid component inspected so we don't un-inspect on spurious selection changes
+	TWeakObjectPtr<UPCGComponent> LastValidPCGComponentBeingInspected;
 	FPCGStack StackBeingInspected;
 };

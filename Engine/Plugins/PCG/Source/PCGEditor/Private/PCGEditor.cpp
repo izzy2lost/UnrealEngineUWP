@@ -244,44 +244,55 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 		return;
 	}
 
-	UPCGComponent* OldComponent = PCGComponentBeingInspected.Get();
+	UPCGComponent* LastComponent = LastValidPCGComponentBeingInspected.Get();
 	UPCGComponent* NewComponent = const_cast<UPCGComponent*>(FullStack.GetRootComponent());
-	const bool bComponentChanged = (NewComponent != OldComponent);
 
-	if (OldComponent)
+	if (NewComponent && NewComponent != LastComponent)
 	{
-		if (bComponentChanged)
+		if (LastComponent && LastComponent->IsInspecting())
 		{
-			OldComponent->DisableInspection();
+			LastComponent->DisableInspection();
 		}
 
-		if (PCGGraphBeingEdited)
+		LastValidPCGComponentBeingInspected = NewComponent;
+	}
+
+	if (PCGGraphBeingEdited)
+	{
+		if (PCGGraphBeingEdited->IsInspecting())
 		{
 			PCGGraphBeingEdited->DisableInspection();
 		}
-	}
 
-	const bool bNewComponentStartedInspecting = NewComponent && !NewComponent->IsInspecting();
+		PCGGraphBeingEdited->EnableInspection(StackBeingInspected);
+	}
 
 	PCGComponentBeingInspected = NewComponent;
 
 	StackBeingInspected = FullStack;
 	OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
 
-	if (NewComponent)
-	{
-		if (bComponentChanged)
-		{
-			PCGComponentBeingInspected->EnableInspection();
-		}
+	UpdateAfterInspectedStackChanged();
+}
 
-		if (PCGGraphBeingEdited)
+void FPCGEditor::UpdateAfterInspectedStackChanged()
+{
+	UPCGComponent* Component = PCGComponentBeingInspected.Get();
+
+	if (Component)
+	{
+		// Implementation note: if we're inspecting and have not pre-run the graph, then it probably makes sense to enable inspection by default. 
+		// TODO This could be selected with a cvar though.
+		const bool bHasBeenGeneratedThisSession = Component->bGenerated && Component->WasGeneratedThisSession();
+		const bool bWasInspecting = Component->IsInspecting();
+		const bool bNeedsInspection = Algo::AnyOf(AttributesWidgets, [](const TSharedPtr<SPCGEditorGraphAttributeListView>& ALV) { return ALV->GetNodeBeingInspected() != nullptr; });
+
+		if (!bHasBeenGeneratedThisSession || (bNeedsInspection && !bWasInspecting))
 		{
-			PCGGraphBeingEdited->EnableInspection(StackBeingInspected);
+			Component->EnableInspection();
+			UpdateDebugAfterComponentSelection(Component, Component, true);
 		}
 	}
-
-	UpdateDebugAfterComponentSelection(OldComponent, NewComponent, bNewComponentStartedInspecting);
 
 	check(PCGEditorGraph);
 	for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
@@ -290,7 +301,7 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 		{
 			// Update now that component has changed. Will fire OnNodeChanged if necessary.
 			EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
-			ChangeType |= PCGNode->UpdateStructuralVisualization(NewComponent, &StackBeingInspected);
+			ChangeType |= PCGNode->UpdateStructuralVisualization(Component, &StackBeingInspected);
 
 			if (ChangeType != EPCGChangeType::None)
 			{
@@ -310,7 +321,7 @@ void FPCGEditor::ClearStackBeingInspected()
 
 void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponent, UPCGComponent* InNewComponent, bool bInNewComponentStartedInspecting)
 {
-	if (!ensure(PCGGraphBeingEdited) || (InOldComponent == InNewComponent))
+	if (!ensure(PCGGraphBeingEdited))
 	{
 		return;
 	}
@@ -366,7 +377,7 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 		});
 
 		// Regenerate to clear debug info if switching components, or if changing from a component to null.
-		if (InNewComponent || bDebugFlagSetOnAnyNode)
+		if (InNewComponent != InOldComponent && (InNewComponent || bDebugFlagSetOnAnyNode))
 		{
 			// Use original component - debug can be displayed both by the local component and parent local components.
 			RefreshComponent(InOldComponent->GetOriginalComponent());
@@ -1944,6 +1955,9 @@ void FPCGEditor::OnToggleInspected()
 	{
 		DebugObjectTreeWidget->SetNodeBeingInspected(nullptr);
 	}
+
+	// Turn on "inspecting" on graph if we now have at least one inspected node and had none before
+	UpdateAfterInspectedStackChanged();
 }
 
 bool FPCGEditor::CanToggleInspected() const
@@ -2821,15 +2835,23 @@ void FPCGEditor::OnClose()
 		{
 			PCGComponentBeingInspected->DisableInspection();
 		}
+	}
 
-		if (PCGGraphBeingEdited && PCGGraphBeingEdited->IsInspecting())
+	if (LastValidPCGComponentBeingInspected.IsValid())
+	{
+		if (LastValidPCGComponentBeingInspected->IsInspecting())
 		{
-			PCGGraphBeingEdited->DisableInspection();
+			LastValidPCGComponentBeingInspected->DisableInspection();
 		}
 	}
 
 	if (PCGGraphBeingEdited)
 	{
+		if (PCGGraphBeingEdited->IsInspecting())
+		{
+			PCGGraphBeingEdited->DisableInspection();
+		}
+
 		if (PCGGraphBeingEdited->NotificationsForEditorArePausedByUser())
 		{
 			PCGGraphBeingEdited->ToggleUserPausedNotificationsForEditor();

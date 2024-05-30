@@ -801,7 +801,7 @@ bool FPCGEditorConnectionDrawingPolicy::UpdateParamsIfDebugging(UEdGraphPin* Out
 	const FPCGStack* PCGStack = Editor ? Editor->GetStackBeingInspected() : nullptr;
 	UPCGComponent* PCGComponent = Editor ? Editor->GetPCGComponentBeingInspected() : nullptr;
 
-	if (!Editor || !PCGStack || !PCGComponent)
+	if (!Editor || !PCGStack || !PCGComponent || !PCGComponent->IsInspecting())
 	{
 		return false;
 	}

@@ -340,6 +340,7 @@ public:
 	void ResetLastGeneratedBounds();
 
 	/** Functions for managing the node inspection cache */
+	bool WasGeneratedThisSession() const { return bWasGeneratedThisSession; }
 	bool IsInspecting() const;
 	void EnableInspection();
 	void DisableInspection();
@@ -623,6 +624,7 @@ private:
 	bool bIsComponentLocal = false;
 
 #if WITH_EDITOR
+	bool bWasGeneratedThisSession = false;
 	int32 InspectionCounter = 0;
 	FBox LastGeneratedBoundsPriorToUndo = FBox(EForceInit::ForceInit);
 #endif

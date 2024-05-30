@@ -549,6 +549,9 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	if (bInGenerated)
 	{
 		bGenerated = true;
+#if WITH_EDITOR
+		bWasGeneratedThisSession = true;
+#endif
 
 		CurrentGenerationTask = InvalidPCGTaskId;
 
