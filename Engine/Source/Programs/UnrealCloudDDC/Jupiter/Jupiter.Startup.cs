@@ -94,6 +94,8 @@ namespace Jupiter
 
 			services.AddOptions<NginxSettings>().Bind(Configuration.GetSection("Nginx")).ValidateDataAnnotations();
 
+			services.AddOptions<SymbolsSettings>().Bind(Configuration.GetSection("Symbols")).ValidateDataAnnotations();
+
 			services.AddOptions<ConsistencyCheckSettings>().Bind(Configuration.GetSection("ConsistencyCheck")).ValidateDataAnnotations();
 
 			services.AddOptions<BufferedPayloadOptions>().Bind(Configuration.GetSection("PayloadBuffering")).ValidateDataAnnotations();
