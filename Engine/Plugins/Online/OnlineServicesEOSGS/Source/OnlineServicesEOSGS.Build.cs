@@ -42,5 +42,7 @@ public class OnlineServicesEOSGS : ModuleRules
 			PublicWeakFrameworks.Add("AuthenticationServices");
 			PrivateDependencyModuleNames.Add("ApplicationCore");
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

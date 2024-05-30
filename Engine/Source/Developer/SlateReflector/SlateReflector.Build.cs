@@ -95,5 +95,7 @@ public class SlateReflector : ModuleRules
 		}
 
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

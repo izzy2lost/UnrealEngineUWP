@@ -53,5 +53,7 @@ public class SlateCore : ModuleRules
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "XInput");
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

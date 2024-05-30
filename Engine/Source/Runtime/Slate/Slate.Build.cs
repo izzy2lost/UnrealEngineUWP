@@ -60,5 +60,7 @@ public class Slate : ModuleRules
         }
 
 		PrivateIncludePaths.Add(System.IO.Path.Combine(EngineDirectory,"Source/ThirdParty/AHEasing/AHEasing-1.3.2"));
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

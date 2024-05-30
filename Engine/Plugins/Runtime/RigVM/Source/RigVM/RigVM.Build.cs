@@ -33,5 +33,7 @@ public class RigVM : ModuleRules
 				}
             );
         }
+
+		bDisableAutoRTFMInstrumentation = true;
     }
 }

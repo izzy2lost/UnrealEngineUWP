@@ -44,5 +44,7 @@ public class AudioWidgets : ModuleRules
 				}
 			);
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

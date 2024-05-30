@@ -27,6 +27,8 @@ namespace UnrealBuildTool.Rules
 					"XmlParser",
 				}
 			);
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

@@ -25,6 +25,8 @@ namespace UnrealBuildTool.Rules
 			);
 
 			PublicDefinitions.Add("WITH_METASOUND_FRONTEND=1");
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

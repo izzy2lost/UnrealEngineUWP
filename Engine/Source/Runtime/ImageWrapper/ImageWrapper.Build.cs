@@ -78,5 +78,7 @@ public class ImageWrapper : ModuleRules
 
 		// Enable exceptions to allow error handling
 		bEnableExceptions = true;
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

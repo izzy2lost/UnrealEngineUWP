@@ -27,6 +27,8 @@ namespace UnrealBuildTool.Rules
 				"TraceLog"
 				}
 			);
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

@@ -38,5 +38,7 @@ public class GeometryAlgorithms : ModuleRules
 				"IntelTBB"
 			);
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

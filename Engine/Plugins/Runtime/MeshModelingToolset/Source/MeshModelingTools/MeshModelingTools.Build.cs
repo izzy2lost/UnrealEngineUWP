@@ -35,5 +35,7 @@ public class MeshModelingTools : ModuleRules
 				// ... add private dependencies that you statically link with here ...
 			}
 		);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

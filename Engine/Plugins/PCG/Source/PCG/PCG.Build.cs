@@ -43,6 +43,8 @@ namespace UnrealBuildTool.Rules
 					}
 				);
 			}
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

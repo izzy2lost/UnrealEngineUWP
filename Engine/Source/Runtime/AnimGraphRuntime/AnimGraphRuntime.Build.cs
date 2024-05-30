@@ -34,5 +34,7 @@ public class AnimGraphRuntime : ModuleRules
 				"GeometryCollectionEngine",
             }
         );
+
+		bDisableAutoRTFMInstrumentation = true;
     }
 }

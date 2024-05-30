@@ -64,6 +64,8 @@ namespace UnrealBuildTool.Rules
 			{
 				PublicDefinitions.Add("WITH_AUDIOMODULATION_METASOUND_SUPPORT=0");
 			}
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

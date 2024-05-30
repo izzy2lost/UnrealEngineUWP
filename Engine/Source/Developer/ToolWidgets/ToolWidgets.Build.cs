@@ -27,5 +27,7 @@ public class ToolWidgets : ModuleRules
 				"ApplicationCore"
 			}
 		);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

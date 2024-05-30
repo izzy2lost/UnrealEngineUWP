@@ -44,6 +44,8 @@ namespace UnrealBuildTool.Rules
 					"WaveTable"
 				}
 			);
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

@@ -28,5 +28,7 @@ public class AdvancedWidgets : ModuleRules
 		{
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

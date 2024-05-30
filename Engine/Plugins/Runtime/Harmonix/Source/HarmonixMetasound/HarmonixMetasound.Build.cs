@@ -41,5 +41,7 @@ public class HarmonixMetasound : ModuleRules
 			PrivateDependencyModuleNames.Add("AssetRegistry");
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

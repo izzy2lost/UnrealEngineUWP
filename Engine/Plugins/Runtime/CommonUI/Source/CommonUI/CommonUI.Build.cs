@@ -47,6 +47,8 @@ public class CommonUI : ModuleRules
         }
 		PrivateDefinitions.Add("UE_COMMONUI_PLATFORM_KBM_REQUIRES_ATTACHED_MOUSE=" + (bPlatformKBMRequiresAttachedMouse ? "1" : "0"));
 		PrivateDefinitions.Add("UE_COMMONUI_PLATFORM_REQUIRES_CURSOR_HIDDEN_FOR_TOUCH=" + (bPlatformRequiresCursorHiddenForTouch ? "1" : "0"));
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 
 	protected virtual bool bPlatformKBMRequiresAttachedMouse { get { return false; } }
