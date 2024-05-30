@@ -136,7 +136,7 @@ public:
 	/** Checks whether or not a row is in use. This is true even if the row has only been reserved. */
 	virtual bool IsRowAvailable(TypedElementRowHandle Row) const = 0;
 	/** Checks whether or not a row has been reserved but not yet assigned to a table. */
-	virtual bool HasRowBeenAssigned(TypedElementRowHandle Row) const = 0;
+	virtual bool IsRowAssigned(TypedElementRowHandle Row) const = 0;
 
 	
 	/**

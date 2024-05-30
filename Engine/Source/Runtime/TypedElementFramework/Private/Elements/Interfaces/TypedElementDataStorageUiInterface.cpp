@@ -53,7 +53,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 	
 	if (const FTypedElementRowReferenceColumn* RowReference = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row))
 	{
-		bool bConstructWidget = DataStorage->HasRowBeenAssigned(RowReference->Row);
+		bool bConstructWidget = DataStorage->IsRowAssigned(RowReference->Row);
 
 		// If the original row matches this widgets query conditions currently, create the actual internal widget
 		if (QueryConditions)

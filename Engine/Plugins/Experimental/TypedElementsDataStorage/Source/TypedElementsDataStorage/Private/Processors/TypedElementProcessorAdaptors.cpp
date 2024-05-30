@@ -177,7 +177,7 @@ public:
 		return Environment.GetMassEntityManager().IsEntityValid(FMassEntityHandle::FromNumber(Row));
 	}
 
-	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const
+	bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const
 	{
 		return Environment.GetMassEntityManager().IsEntityActive(FMassEntityHandle::FromNumber(Row));
 	}
@@ -471,7 +471,7 @@ struct FMassSubqueryContextForwarder  : public ITypedElementDataStorageInterface
 	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 	uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
 	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
-	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.HasRowBeenAssigned(Row); }
+	bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAssigned(Row); }
 	void ActivateQueries(FName ActivationName) override  { return Implementation.ActivateQueries(ActivationName); }
 	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override  { return Implementation.AddRow(Table); }
 	void RemoveRow(TypedElementDataStorage::RowHandle Row) override { return Implementation.RemoveRow(Row); }
@@ -609,7 +609,7 @@ struct FMassContextForwarder final : public ITypedElementDataStorageInterface::I
 	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 	uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
 	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
-	bool HasRowBeenAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.HasRowBeenAssigned(Row); }
+	bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAssigned(Row); }
 	void ActivateQueries(FName ActivationName) override  { return Implementation.ActivateQueries(ActivationName); }
 	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override  { return Implementation.AddRow(Table); }
 	void RemoveRow(TypedElementDataStorage::RowHandle Row) override { return Implementation.RemoveRow(Row); }

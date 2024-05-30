@@ -419,7 +419,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 		
 	TypedElementRowHandle ItemRowHandle = TEDSTreeItem->GetRowHandle();
 
-	if (!Storage->HasRowBeenAssigned(ItemRowHandle))
+	if(!Storage->IsRowAssigned(ItemRowHandle))
 	{
 		return;
 	}

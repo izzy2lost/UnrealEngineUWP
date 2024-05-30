@@ -104,7 +104,7 @@ namespace TypedElementDataStorage
 		/** Checks whether or not a row is in use. This is true even if the row has only been reserved. */
 		virtual bool IsRowAvailable(RowHandle Row) const = 0;
 		/** Checks whether or not a row has been reserved but not yet assigned to a table. */
-		virtual bool HasRowBeenAssigned(RowHandle Row) const = 0;
+		virtual bool IsRowAssigned(RowHandle Row) const = 0;
 
 		/**
 		 * Triggers all queries registered under the activation name to run for one update cycle. The activatable queries will be activated at

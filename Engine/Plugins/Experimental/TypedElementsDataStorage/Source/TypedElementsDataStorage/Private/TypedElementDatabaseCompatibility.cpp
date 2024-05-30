@@ -173,7 +173,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 	if (Storage->IsRowAvailable(Row))
 	{
 		const FTypedElementScriptStructTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
-		if (Storage->HasRowBeenAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed void* object at ptr 0x%p"), Object))
+		if (Storage->IsRowAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed void* object at ptr 0x%p"), Object))
 		{
 			OnPreObjectRemoved(Object, TypeInfoColumn->TypeInfo.Get(), Row);
 		}
@@ -373,7 +373,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 		TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
 	
 	const FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(ObjectRow);
-	if (Storage->HasRowBeenAssigned(ObjectRow) &&
+	if (Storage->IsRowAssigned(ObjectRow) &&
 		ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed UObject at ptr 0x%p [%s]"), Object, *Object->GetName()))
 	{
 		OnPreObjectRemoved(Object, TypeInfoColumn->TypeInfo.Get(), ObjectRow);

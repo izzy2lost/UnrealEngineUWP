@@ -94,7 +94,7 @@ public:
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
 	void RemoveRow(TypedElementRowHandle Row) override;
 	bool IsRowAvailable(TypedElementRowHandle Row) const override;
-	bool HasRowBeenAssigned(TypedElementRowHandle Row) const override;
+	bool IsRowAssigned(TypedElementRowHandle Row) const override;
 
 	void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
 	void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,

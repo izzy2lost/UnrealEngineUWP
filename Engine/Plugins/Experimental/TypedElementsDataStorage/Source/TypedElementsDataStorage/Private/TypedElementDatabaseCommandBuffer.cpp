@@ -177,7 +177,7 @@ bool FTypedElementDatabaseCommandBuffer::Execute_IsRowAvailable(const FMassEntit
 	return MassEntityManager.IsEntityValid(FMassEntityHandle::FromNumber(Row));
 }
 
-bool FTypedElementDatabaseCommandBuffer::Execute_HasRowBeenAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row)
+bool FTypedElementDatabaseCommandBuffer::Execute_IsRowAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row)
 {
 	if (Row == TypedElementInvalidRowHandle)
 	{
@@ -302,7 +302,7 @@ void FTypedElementDatabaseCommandBuffer::ProcessCommands()
 	FProcessor Processor{ .EntityManager = Environment.GetMassEntityManager() };
 	for (FCommand& Command : Commands)
 	{
-		if (Execute_HasRowBeenAssigned(Environment.GetMassEntityManager(), Command.Row))
+		if (Execute_IsRowAssigned(Environment.GetMassEntityManager(), Command.Row))
 		{
 			Processor.Row = Command.Row;
 			Visit(Processor, Command.Data);

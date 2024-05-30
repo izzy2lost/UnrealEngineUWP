@@ -472,7 +472,7 @@ public:
 			RowWidget = FallbackColumn->ConstructRowWidget(TreeItem, Row);
 		}
 
-		if(Storage.HasRowBeenAssigned(RowHandle))
+		if(Storage.IsRowAssigned(RowHandle))
 		{
 			TypedElementRowHandle UiRowHandle = Storage.AddRow(Storage.FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
 

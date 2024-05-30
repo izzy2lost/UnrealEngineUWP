@@ -321,7 +321,7 @@ TypedElementRowHandle UTypedElementDatabase::AddRow(TypedElementTableHandle Tabl
 
 bool UTypedElementDatabase::AddRow(TypedElementRowHandle ReservedRow, TypedElementTableHandle Table)
 {
-	checkf(!HasRowBeenAssigned(ReservedRow), TEXT("Attempting to assign a table to row that already has a table assigned."));
+	checkf(!IsRowAssigned(ReservedRow), TEXT("Attempting to assign a table to row that already has a table assigned."));
 	checkf(Table < Tables.Num(), TEXT("Attempting to add a row to a non-existing table."));
 	if (ActiveEditorEntityManager)
 	{
@@ -367,7 +367,7 @@ bool UTypedElementDatabase::BatchAddRow(TypedElementTableHandle Table, TConstArr
 		FMassEntityHandle* CurrentEntityHandle = Entities.GetData();
 		for (TypedElementRowHandle RowHandle : ReservedHandles)
 		{
-			checkf(!HasRowBeenAssigned(RowHandle), TEXT("Attempting to assign a table to row that already has a table assigned."));
+			checkf(!IsRowAssigned(RowHandle), TEXT("Attempting to assign a table to row that already has a table assigned."));
 			Entities.Add(FMassEntityHandle::FromNumber(RowHandle));
 		}
 		
@@ -408,16 +408,16 @@ bool UTypedElementDatabase::IsRowAvailable(TypedElementRowHandle Row) const
 	return ActiveEditorEntityManager ? FTypedElementDatabaseCommandBuffer::Execute_IsRowAvailable(*ActiveEditorEntityManager, Row) : false;
 }
 
-bool UTypedElementDatabase::HasRowBeenAssigned(TypedElementRowHandle Row) const
+bool UTypedElementDatabase::IsRowAssigned(TypedElementRowHandle Row) const
 {
-	return ActiveEditorEntityManager ? FTypedElementDatabaseCommandBuffer::Execute_HasRowBeenAssigned(*ActiveEditorEntityManager, Row) : false;
+	return ActiveEditorEntityManager ? FTypedElementDatabaseCommandBuffer::Execute_IsRowAssigned(*ActiveEditorEntityManager, Row) : false;
 }
 
 void UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
 	if (ColumnType && ActiveEditorEntityManager)
 	{
-		if (HasRowBeenAssigned(Row))
+		if (IsRowAssigned(Row))
 		{
 			FTypedElementDatabaseCommandBuffer::Execute_AddColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
 		}
@@ -434,7 +434,7 @@ void UTypedElementDatabase::AddColumnData(TypedElementRowHandle Row, const UScri
 {
 	if (ActiveEditorEntityManager && ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
 	{
-		if (HasRowBeenAssigned(Row))
+		if (IsRowAssigned(Row))
 		{
 			FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
@@ -459,7 +459,7 @@ void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UScrip
 {
 	if (ColumnType && ActiveEditorEntityManager)
 	{
-		if (HasRowBeenAssigned(Row))
+		if (IsRowAssigned(Row))
 		{
 			FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
 		}

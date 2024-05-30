@@ -113,9 +113,9 @@ namespace TypedElementDataStorageTests
 			for (TypedElementRowHandle RowHandle : CreatedRows)
 			{
 				TestTrue("Expected row to have been available", TedsInterface->IsRowAvailable(RowHandle));
-				TestTrue("Expected row to have been assigned to a table", TedsInterface->HasRowBeenAssigned(RowHandle));
+				TestTrue("Expected row to have been assigned to a table", TedsInterface->IsRowAssigned(RowHandle));
 				TedsInterface->RemoveRow(RowHandle);
-				TestFalse("Expected row to have been unassigned a table", TedsInterface->HasRowBeenAssigned(RowHandle));
+				TestFalse("Expected row to have been unassigned a table", TedsInterface->IsRowAssigned(RowHandle));
 				TestFalse("Expected row to be not available", TedsInterface->IsRowAvailable(RowHandle));
 			}
 			CreatedRows.Empty();

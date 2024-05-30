@@ -43,7 +43,7 @@ public:
 	 */
 	
 	static bool Execute_IsRowAvailable(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row);
-	static bool Execute_HasRowBeenAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row);
+	static bool Execute_IsRowAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row);
 
 	static void Execute_AddColumnCommand(
 		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
