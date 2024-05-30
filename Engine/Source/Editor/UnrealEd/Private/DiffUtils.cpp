@@ -489,6 +489,8 @@ FPropertyPath FPropertySoftPath::ResolvePath(const UObject* Object) const
 				if (SparseClassDataStruct && SparseClassDataStruct->IsChildOf(RootTypeHint))
 				{
 					ResolvedProperty = UEDiffUtils_Private::Resolve(RootTypeHint, PropertyIdentifier);
+					// return if null won't mutate...
+					ContainerAddress = const_cast<UClass*>(AsClass)->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull);
 				}
 			}
 		}
