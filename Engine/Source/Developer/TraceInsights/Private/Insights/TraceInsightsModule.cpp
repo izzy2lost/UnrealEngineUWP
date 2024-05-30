@@ -175,6 +175,13 @@ void FTraceInsightsModule::UnregisterComponent(TSharedPtr<IInsightsComponent> Co
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+TSharedPtr<Insights::IInsightsManager> FTraceInsightsModule::GetInsightsManager()
+{
+	return FInsightsManager::Get();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FTraceInsightsModule::CreateDefaultStore()
 {
 	ConnectToStore(TEXT("127.0.0.1"));

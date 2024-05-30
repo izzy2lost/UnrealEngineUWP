@@ -7,6 +7,11 @@
 #include "Framework/Docking/TabManager.h"
 #include "Trace/StoreService.h"
 
+namespace Insights
+{
+	class IInsightsManager;
+}
+
 namespace TraceServices
 {
 	class IAnalysisService;
@@ -50,6 +55,8 @@ public:
 
 	virtual void RegisterComponent(TSharedPtr<IInsightsComponent> Component) override;
 	virtual void UnregisterComponent(TSharedPtr<IInsightsComponent> Component) override;
+
+	virtual TSharedPtr<Insights::IInsightsManager> GetInsightsManager() override;
 
 	virtual void RegisterMajorTabConfig(const FName& InMajorTabId, const FInsightsMajorTabConfig& InConfig) override;
 	virtual void UnregisterMajorTabConfig(const FName& InMajorTabId) override;

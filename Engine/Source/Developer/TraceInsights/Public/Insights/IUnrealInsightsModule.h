@@ -19,6 +19,11 @@ namespace Trace
 }
 }
 
+namespace Insights
+{
+	class IInsightsManager;
+}
+
 namespace TraceServices
 {
 	class IAnalysisSession;
@@ -198,6 +203,13 @@ public:
 	 * @return If connected succesfully or not.
 	 */
 	virtual bool ConnectToStore(const TCHAR* InStoreHost, uint32 InStorePort=0) = 0;
+
+	//////////////////////////////////////////////////
+
+	/**
+	 * Gets the Insights manager.
+	*/
+	virtual TSharedPtr<Insights::IInsightsManager> GetInsightsManager() = 0;
 
 	//////////////////////////////////////////////////
 

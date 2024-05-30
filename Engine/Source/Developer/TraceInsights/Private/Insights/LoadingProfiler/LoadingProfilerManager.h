@@ -139,7 +139,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	FAvailabilityCheck AvailabilityCheck;
+	Insights::FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;

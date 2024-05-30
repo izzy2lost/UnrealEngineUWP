@@ -8,7 +8,9 @@
 #include "Input/DragAndDrop.h"
 
 // Insights
+#include "Insights/Common/AvailabilityCheck.h"
 #include "Insights/Common/Stopwatch.h"
+#include "Insights/IInsightsManager.h"
 #include "Insights/InsightsCommands.h"
 #include "Insights/InsightsSettings.h"
 #include "Insights/InsightsSessionBrowserSettings.h"
@@ -38,26 +40,6 @@ class FInsightsTestRunner;
 class FInsightsMenuBuilder;
 
 /**
- * Utility class used by profiler managers to limit how often they check for availability conditions.
- */
-class FAvailabilityCheck
-{
-public:
-	/** Returns true if managers are allowed to do (slow) availability check during this tick. */
-	bool Tick();
-
-	/** Disables the "availability check" (i.e. Tick() calls will return false when disabled). */
-	void Disable();
-
-	/** Enables the "availability check" with a specified initial delay. */
-	void Enable(double InWaitTime);
-
-private:
-	double WaitTime = 0.0;
-	uint64 NextTimestamp = (uint64)-1;
-};
-
-/**
  * Struct that holds data about in progress async operations
  */
 struct FAsyncTaskData
@@ -78,7 +60,7 @@ struct FAsyncTaskData
  *     Connecting/disconnecting to source trace
  *     Global Unreal Insights application state and settings
  */
-class FInsightsManager : public TSharedFromThis<FInsightsManager>, public IInsightsComponent
+class FInsightsManager : public TSharedFromThis<FInsightsManager>, public Insights::IInsightsManager
 {
 	friend class FInsightsActionManager;
 
@@ -340,22 +322,20 @@ public:
 
 public:
 	/** The event to execute when the session has changed. */
-	DECLARE_EVENT(FTimingProfilerManager, FSessionChangedEvent);
-	FSessionChangedEvent& GetSessionChangedEvent() { return SessionChangedEvent; }
+	virtual Insights::IInsightsManager::FSessionChangedEvent& GetSessionChangedEvent() override { return SessionChangedEvent; }
 private:
 	/** The event to execute when the session has changed. */
-	FSessionChangedEvent SessionChangedEvent;
+	Insights::IInsightsManager::FSessionChangedEvent SessionChangedEvent;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// SessionAnalysisCompletedEvent
 
 public:
 	/** The event to execute when session analysis is complete. */
-	DECLARE_EVENT(FTimingProfilerManager, FSessionAnalysisCompletedEvent);
-	FSessionAnalysisCompletedEvent& GetSessionAnalysisCompletedEvent() { return SessionAnalysisCompletedEvent; }
+	virtual Insights::IInsightsManager::FSessionAnalysisCompletedEvent& GetSessionAnalysisCompletedEvent() override { return SessionAnalysisCompletedEvent; }
 private:
 	/** The event to execute when session analysis is completed. */
-	FSessionAnalysisCompletedEvent SessionAnalysisCompletedEvent;
+	Insights::IInsightsManager::FSessionAnalysisCompletedEvent SessionAnalysisCompletedEvent;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
