@@ -27,12 +27,11 @@ namespace Horde.Server
 {
 	static class LoggerExtensions
 	{
-		public class ServerVersionLogEnricher : Serilog.Core.ILogEventEnricher
+		class DatadogVersionLogEnricher : Serilog.Core.ILogEventEnricher
 		{
-			/// <inheritdoc />
 			public void Enrich(Serilog.Events.LogEvent logEvent, Serilog.Core.ILogEventPropertyFactory propertyFactory)
 			{
-				logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("service.version", ServerApp.Version));
+				logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("dd.version", ServerApp.Version));
 			}
 		}
 
@@ -59,10 +58,9 @@ namespace Horde.Server
 
 		public static LoggerConfiguration WithHordeConfig(this LoggerConfiguration configuration, ServerSettings settings)
 		{
-			configuration.Enrich.With<ServerVersionLogEnricher>();
-
 			if (settings.OpenTelemetry.EnableDatadogCompatibility)
 			{
+				configuration = configuration.Enrich.With<DatadogVersionLogEnricher>();
 				configuration = configuration.Enrich.With<OpenTelemetryDatadogLogEnricher>();
 			}
 
