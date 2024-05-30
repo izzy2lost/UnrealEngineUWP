@@ -176,42 +176,6 @@ namespace UE
 		MutexType* Mutex;
 	};
 
-	// RAII-style scope locking of a synchronisation primitive. Same
-	// as TScopeLock except taking the lock is conditional
-	template<typename MutexType>
-	class TConditionalScopeLock
-	{
-	public:
-		UE_NONCOPYABLE(TConditionalScopeLock);
-
-		UE_NODISCARD_CTOR TConditionalScopeLock(MutexType& InMutex, bool bShouldLock)
-			: Mutex(bShouldLock ? &InMutex : nullptr)
-		{
-			if (bShouldLock)
-			{
-				check(Mutex);
-				Mutex->Lock();
-			}
-		}
-
-		~TConditionalScopeLock()
-		{
-			Unlock();
-		}
-
-		void Unlock()
-		{
-			if (Mutex)
-			{
-				Mutex->Unlock();
-				Mutex = nullptr;
-			}
-		}
-
-	private:
-		MutexType* Mutex;
-	};
-
 	// RAII-style scope unlocking of a synchronisation primitive
 	// `MutexType` is required to implement `Lock` and `Unlock` methods
 	// Example:
