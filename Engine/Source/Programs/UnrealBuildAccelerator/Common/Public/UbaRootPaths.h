@@ -11,19 +11,19 @@ namespace uba
 	{
 	public:
 
-		bool RegisterRoot(Logger& logger, const tchar* rootPath, bool includeInKey = true);
-		bool RegisterSystemRoots(Logger& logger);
+		bool RegisterRoot(Logger& logger, const tchar* rootPath, bool includeInKey = true, u8 id = 0);
+		bool RegisterSystemRoots(Logger& logger, u8 startId = 0);
 
 		struct Root
 		{
 			TString path;
 			StringKey shortestPathKey;
-			u32 index;
+			u8 index;
 			bool includeInKey;
 		};
 
 		const Root* FindRoot(const StringBufferBase& path) const;
-		const Root& GetRoot(u32 index) const;
+		const TString& GetRoot(u32 index) const;
 
 		template<typename CharType, typename Func>
 		bool NormalizeString(Logger& logger, const CharType* str, u64 strLen, const Func& func, const tchar* hint, const tchar* hint2 = TC("")) const;

@@ -417,18 +417,18 @@ extern "C"
 		return new uba::RootPathsWithLogger(writer);
 	}
 
-	bool RootPaths_RegisterRoot(uba::RootPaths* rootPaths, const uba::tchar* path, bool includeInKey)
+	bool RootPaths_RegisterRoot(uba::RootPaths* rootPaths, const uba::tchar* path, bool includeInKey, uba::u8 id)
 	{
 		using namespace uba;
 		auto rp = (uba::RootPathsWithLogger*)rootPaths;
-		return rp->RegisterRoot(rp->logger, path, includeInKey);
+		return rp->RegisterRoot(rp->logger, path, includeInKey, id);
 	}
 
-	bool RootPaths_RegisterSystemRoots(uba::RootPaths* rootPaths)
+	bool RootPaths_RegisterSystemRoots(uba::RootPaths* rootPaths, uba::u8 startId)
 	{
 		using namespace uba;
 		auto rp = (uba::RootPathsWithLogger*)rootPaths;
-		return rp->RegisterSystemRoots(rp->logger);
+		return rp->RegisterSystemRoots(rp->logger, startId);
 	}
 
 	void RootPaths_Destroy(uba::RootPaths* rootPaths)

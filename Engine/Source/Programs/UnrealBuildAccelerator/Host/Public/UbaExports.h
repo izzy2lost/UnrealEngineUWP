@@ -61,8 +61,8 @@ extern "C"
 
 	// RootPaths
 	UBA_API uba::RootPaths* RootPaths_Create(uba::LogWriter& writer);
-	UBA_API bool RootPaths_RegisterRoot(uba::RootPaths* rootPaths, const uba::tchar* path, bool includeInKey);
-	UBA_API bool RootPaths_RegisterSystemRoots(uba::RootPaths* rootPaths);
+	UBA_API bool RootPaths_RegisterRoot(uba::RootPaths* rootPaths, const uba::tchar* path, bool includeInKey, uba::u8 id = 0);
+	UBA_API bool RootPaths_RegisterSystemRoots(uba::RootPaths* rootPaths, uba::u8 startId = 0);
 	UBA_API void RootPaths_Destroy(uba::RootPaths* rootPaths);
 
 	// ProcessStartInfo

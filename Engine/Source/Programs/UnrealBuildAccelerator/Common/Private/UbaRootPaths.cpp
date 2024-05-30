@@ -9,7 +9,7 @@
 
 namespace uba
 {
-	bool RootPaths::RegisterRoot(Logger& logger, const tchar* rootPath, bool includeInKey)
+	bool RootPaths::RegisterRoot(Logger& logger, const tchar* rootPath, bool includeInKey, u8 id)
 	{
 		// Register rootPath both with single path separators and double path separators on windows because text files store them with double path separators
 		#if PLATFORM_WINDOWS
@@ -28,11 +28,19 @@ namespace uba
 
 		for (const tchar* rp : rootPaths)
 		{
-			u32 index = u32(m_roots.size());
+			u8 index = id;
+			if (index == 0)
+				index = u8(m_roots.size());
 			if (index == '~' - ' ') // This is not really true.. as long as value is under 256 we're good
-				return logger.Error(TC("Too many roots added (%llu)"), index);
+				return logger.Error(TC("Too many roots added (%u)"), index);
 
-			auto& root = m_roots.emplace_back();
+			if (index >= m_roots.size())
+				m_roots.resize(index+1);
+
+			auto& root = m_roots[index];
+			if (!root.path.empty())
+				return logger.Error(TC("Root at index %u already added (existing as %s, added as %s)"), root.path.c_str(), rp);
+
 			root.index = index;
 			root.path = rp;
 
@@ -55,26 +63,28 @@ namespace uba
 		return true;
 	}
 
-	bool RootPaths::RegisterSystemRoots(Logger& logger)
+	bool RootPaths::RegisterSystemRoots(Logger& logger, u8 startId)
 	{
 		#if PLATFORM_WINDOWS
+		u8 id = startId;
+		auto GetId = [&]() { u8 res = id; if (id) id += 2; return res; };
 		StringBuffer<MaxPath> dir;
 		dir.count = GetSystemDirectory(dir.data, dir.capacity);
-		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, false); // Ignore files from here.. we do expect them not to affect the output of a process
+		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, false, GetId()); // Ignore files from here.. we do expect them not to affect the output of a process
 		
 		dir.count = GetEnvironmentVariable(TC("ProgramW6432"), dir.Clear().data, dir.capacity);
-		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, true);
+		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, true, GetId());
 
 		dir.count = GetEnvironmentVariable(TC("ProgramFiles(x86)"), dir.Clear().data, dir.capacity);
-		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, true);
+		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, true, GetId());
 
 		dir.count = GetEnvironmentVariable(TC("ProgramFiles(x86)"), dir.Clear().data, dir.capacity);
-		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, true);
+		RegisterRoot(logger, dir.EnsureEndsWithSlash().data, true, GetId());
 
 		PWSTR path;
 		if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, NULL, &path)))
 			return false;
-		RegisterRoot(logger, dir.Clear().Append(path).EnsureEndsWithSlash().data, true);
+		RegisterRoot(logger, dir.Clear().Append(path).EnsureEndsWithSlash().data, true, GetId());
 		CoTaskMemFree(path);
 
 		#else
@@ -106,9 +116,13 @@ namespace uba
 		return nullptr;
 	}
 
-	const RootPaths::Root& RootPaths::GetRoot(u32 index) const
+	static const TString EmptyString;
+
+	const TString& RootPaths::GetRoot(u32 index) const
 	{
-		return m_roots[index];
+		if (m_roots.size() <= index)
+			return EmptyString;
+		return m_roots[index].path;
 	}
 
 	CasKey RootPaths::NormalizeAndHashFile(Logger& logger, const tchar* filename) const

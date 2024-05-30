@@ -490,16 +490,18 @@ namespace uba
 							if (u64 toWrite = rootOffset - lastWritten)
 								memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
 							u8 rootIndex = fileStart[rootOffset] - RootPaths::RootStartByte;
-							auto& root = rootPaths.GetRoot(rootIndex);
+							const TString& root = rootPaths.GetRoot(rootIndex);
+							if (root.empty())
+								return logger.Error(TC("Cache entry uses root path index %u which is not set for this startupinfo (%s)"), rootIndex, info.description);
 
 							#if PLATFORM_WINDOWS
 							StringBuffer<> pathTemp;
-							pathTemp.Append(root.path);
+							pathTemp.Append(root);
 							char rootPath[512];
 							u32 rootPathLen = pathTemp.Parse(rootPath, sizeof_array(rootPath));
 							#else
-							const char* rootPath = root.path.data();
-							u32 rootPathLen = root.path.size();
+							const char* rootPath = root.data();
+							u32 rootPathLen = root.size();
 							#endif
 
 							if (u32 toWrite = rootPathLen - 1)
@@ -948,10 +950,10 @@ namespace uba
 		UBA_ASSERT(normalizedPath.count);
 
 		u32 rootIndex = normalizedPath[0] - RootPaths::RootStartByte;
-		auto& root = rootPaths.GetRoot(rootIndex);
+		const TString& root = rootPaths.GetRoot(rootIndex);
 
 		StringBuffer<MaxPath> path;
-		outPath.Append(root.path).Append(normalizedPath.data + 1);
+		outPath.Append(root).Append(normalizedPath.data + 1);
 		return true;
 	}
 
