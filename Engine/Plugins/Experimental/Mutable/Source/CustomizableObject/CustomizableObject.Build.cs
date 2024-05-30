@@ -41,8 +41,6 @@ public class CustomizableObject : ModuleRules
 			"StructUtils"
 		});
 
-		bAllowAutoRTFMInstrumentation = true;
-
 		if (TargetRules.bBuildEditor == true)
         {
             PublicDependencyModuleNames.Add("UnrealEd");	// @todo api: Only public because of WITH_EDITOR

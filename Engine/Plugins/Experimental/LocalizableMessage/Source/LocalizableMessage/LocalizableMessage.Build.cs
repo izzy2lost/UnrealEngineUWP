@@ -16,8 +16,6 @@ namespace UnrealBuildTool.Rules
 				new string[] {
 					"StructUtils" // used in header
 				});
-
-			bAllowAutoRTFMInstrumentation = true;
 		}
 	}
 }

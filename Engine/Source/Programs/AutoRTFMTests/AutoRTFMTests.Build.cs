@@ -25,8 +25,6 @@ public class AutoRTFMTests : ModuleRules
 			);
 		}
 
-		bAllowAutoRTFMInstrumentation = true;
-
 		PrivateIncludePaths.AddRange(
 			new string[]
 			{

@@ -43,7 +43,5 @@ public class LevelSequence : ModuleRules
 				}
 			);
 		}
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

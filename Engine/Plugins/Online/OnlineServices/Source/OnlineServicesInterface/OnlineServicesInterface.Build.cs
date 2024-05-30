@@ -21,7 +21,5 @@ public class OnlineServicesInterface : ModuleRules
 				"Core",
 			}
 		);
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

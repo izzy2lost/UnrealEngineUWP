@@ -57,7 +57,5 @@ public class Renderer : ModuleRules
 		DynamicallyLoadedModuleNames.AddRange(new string[] { "EyeTracker" });
 
 		RuntimeDependencies.Add("$(EngineDir)/Content/Renderer/TessellationTable.bin");
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

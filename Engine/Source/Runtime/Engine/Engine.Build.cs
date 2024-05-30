@@ -480,7 +480,5 @@ public class Engine : ModuleRules
 		SetupIrisSupport(Target, bIrisAddAsPublicDepedency);
 
 		PrivateDefinitions.Add("UE_DEPRECATE_LEGACY_MATH_CONSTANT_MACRO_NAMES=1");
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

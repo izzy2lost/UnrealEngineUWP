@@ -50,7 +50,6 @@ namespace UnrealBuildTool.Rules
             }
 
             SetupGameplayDebuggerSupport(Target);
-            bAllowAutoRTFMInstrumentation = true;
         }
     }
 }

@@ -68,7 +68,5 @@ public class Water : ModuleRules
 		}
 		// Add a feature define instead of relying on the generic WITH_EDITOR define
 		PublicDefinitions.Add("WITH_WATER_SELECTION_SUPPORT=" + (bWithWaterSelectionSupport ? 1 : 0));
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

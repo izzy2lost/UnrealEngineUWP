@@ -11,7 +11,5 @@ public class PakFile : ModuleRules
 		PrivateDependencyModuleNames.Add("CoreUObject");
 		PrivateDependencyModuleNames.Add("TraceLog");
 		PublicDependencyModuleNames.Add("RSA");
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }
