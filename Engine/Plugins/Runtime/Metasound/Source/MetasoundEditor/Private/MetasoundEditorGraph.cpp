@@ -419,7 +419,7 @@ bool UMetasoundEditorGraphVertex::IsInterfaceMember(FMetasoundFrontendInterface*
 	Audio::FParameterPath::SplitName(MemberName, InterfaceNamespace, ParamName);
 
 	FMetasoundFrontendInterface InterfaceToValidate;
-	if (InterfaceNamespace.IsNone() && ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNamespace, InterfaceToValidate))
+	if (!InterfaceNamespace.IsNone() && ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNamespace, InterfaceToValidate))
 	{
 		if (OutInterface)
 		{
