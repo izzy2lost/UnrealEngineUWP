@@ -16,13 +16,15 @@ namespace UE::ConcertSyncClient::Replication
 		TPromise<FJoinReplicatedSessionResult> JoinSessionPromise,
 		TSharedRef<IConcertClientSession> LiveSession,
 		IConcertClientReplicationBridge& ReplicationBridge,
-		FReplicationManager& Owner
+		FReplicationManager& Owner,
+		EConcertSyncSessionFlags SessionFlags
 		)
 		: FReplicationManagerState(Owner)
 		, RequestArgs(MoveTemp(RequestArgs))
 		, JoinSessionPromise(MoveTemp(JoinSessionPromise))
 		, LiveSession(MoveTemp(LiveSession))
 		, ReplicationBridge(ReplicationBridge)
+		, SessionFlags(SessionFlags)
 	{}
 
 	FReplicationManagerState_Handshaking::~FReplicationManagerState_Handshaking()
@@ -62,7 +64,9 @@ namespace UE::ConcertSyncClient::Replication
 				if (Response.JoinErrorCode == EJoinReplicationErrorCode::Success)
 				{
 					This->ChangeState(
-						MakeShared<FReplicationManagerState_Connected>(This->LiveSession, This->ReplicationBridge, This->GetOwner(), MoveTemp(This->RequestArgs.Streams), Response.SyncControl)
+						MakeShared<FReplicationManagerState_Connected>(
+							This->LiveSession, This->ReplicationBridge, This->GetOwner(), This->SessionFlags, MoveTemp(This->RequestArgs.Streams), Response.SyncControl
+							)
 						);
 				}
 				else
@@ -78,7 +82,7 @@ namespace UE::ConcertSyncClient::Replication
 	void FReplicationManagerState_Handshaking::ReturnToDisconnectedState()
 	{
 		ChangeState(
-			MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner())
+			MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner(), SessionFlags)
 			);
 	}
 }

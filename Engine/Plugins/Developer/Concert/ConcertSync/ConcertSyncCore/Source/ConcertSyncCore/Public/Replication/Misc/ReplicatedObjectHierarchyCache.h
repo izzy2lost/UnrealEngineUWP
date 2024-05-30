@@ -46,7 +46,7 @@ namespace UE::ConcertSyncCore
 
 		// Validated network events that modify the known hierarchy of objects.
 		void OnJoin(const FGuid& ClientId, const FConcertReplication_Join_Request& Request);
-		void OnPreClientLeft(const FGuid& ClientId, TConstArrayView<FConcertReplicationStream> Streams);
+		void OnPostClientLeft(const FGuid& ClientId, TConstArrayView<FConcertReplicationStream> Streams);
 		void OnChangeStreams(const FGuid& ClientId, TConstArrayView<FConcertObjectInStreamID> AddedObjects, TConstArrayView<FConcertObjectInStreamID> RemovedObjects);
 
 	private:

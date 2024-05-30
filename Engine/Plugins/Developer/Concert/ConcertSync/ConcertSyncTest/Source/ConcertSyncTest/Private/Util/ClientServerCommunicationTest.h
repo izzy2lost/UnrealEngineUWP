@@ -287,10 +287,6 @@ namespace UE::ConcertSyncTests
 					// Dispatch the response.
 					ResponseHandler->HandleResponse(ResponsePayload.GetStructMemory());
 				}
-				else
-				{
-					check(false); // The test suite is not expected to fire any other result than Success or Failed.
-				}
 			}
 			else 
 			{

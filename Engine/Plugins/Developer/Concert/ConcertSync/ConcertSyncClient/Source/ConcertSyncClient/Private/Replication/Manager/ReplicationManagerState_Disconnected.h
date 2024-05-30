@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "ConcertSyncSessionFlags.h"
 #include "ReplicationManagerState.h"
-#include "ReplicationManagerUtils.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 
 class IConcertClientSession;
@@ -18,7 +18,8 @@ namespace UE::ConcertSyncClient::Replication
 		FReplicationManagerState_Disconnected(
 			TSharedRef<IConcertClientSession> LiveSession,
 			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
-			FReplicationManager& Owner UE_LIFETIMEBOUND
+			FReplicationManager& Owner UE_LIFETIMEBOUND,
+			EConcertSyncSessionFlags SessionFlags
 			);
 
 		//~ Begin IConcertClientReplicationManager Interface
@@ -34,5 +35,7 @@ namespace UE::ConcertSyncClient::Replication
 		TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Handshaking */
 		IConcertClientReplicationBridge& ReplicationBridge;
+		/** Passed to FReplicationManagerState_Handshaking */
+		const EConcertSyncSessionFlags SessionFlags;
 	};
 }

@@ -189,7 +189,7 @@ void FConcertSyncClient::RegisterConcertSyncHandlers(TSharedRef<IConcertClientSe
 		// Create Replication Manager
 		if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::EnableReplication) && ensure(Bridges.ReplicationBridge))
 		{
-			ReplicationManager = MakeUnique<UE::ConcertSyncClient::Replication::FReplicationManager>(InSession, *Bridges.ReplicationBridge);
+			ReplicationManager = MakeUnique<UE::ConcertSyncClient::Replication::FReplicationManager>(InSession, *Bridges.ReplicationBridge, LiveSession->GetSessionFlags());
 			ReplicationManager->StartAcceptingJoinRequests();
 		}
 

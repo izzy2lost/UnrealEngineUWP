@@ -37,6 +37,8 @@ namespace UE::ConcertSyncTests::Replication
 		FReplicationClient& Sender;
 		FReplicationServer& Server;
 		FReplicationClient& Receiver;
+		/** Helps debug failing tests. */
+		const TCHAR* ContextName = nullptr;
 	};
 	
 	/**
@@ -61,9 +63,10 @@ namespace UE::ConcertSyncTests::Replication
 
 		FObjectTestReplicator() = default;
 		explicit FObjectTestReplicator(UTestReflectionObject* TestObject) : TestObject(TestObject) {}
+		explicit FObjectTestReplicator(const FName BaseName) : TestObject(NewObject<UTestReflectionObject>(GetTransientPackage(), MakeUniqueObjectName(GetTransientPackage(), UTestReflectionObject::StaticClass(), BaseName))) {}
 
 		/** Create a subobject of TestObject, assigns it to TestObject->InstancedSubobject, and returns a replicator for replicating it. */
-		TSharedRef<FObjectTestReplicator> CreateSubobjectReplicator() const;
+		TSharedRef<FObjectTestReplicator> CreateSubobjectReplicator(const FName BaseName = NAME_None) const;
 
 		/** Util for creating join args for replicating TestObject. */
 		ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateSenderArgs(
@@ -93,10 +96,14 @@ namespace UE::ConcertSyncTests::Replication
 		/** Sets the specified properties to values different from the test values */
 		void SetDifferentValues(EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All) const;
 
+		
 		/** Tests that the specified properties are equal to their test values */
-		void TestValuesWereReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All) const;
+		void TestValuesWereReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All, const TCHAR* Context = nullptr) const;
 		/** Tests that the specified properties are equal to the values different from the test values (i.e. the values SetDifferentValues sets). */
-		void TestValuesWereNotReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All) const;
+		void TestValuesWereNotReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All, const TCHAR* Context = nullptr) const;
+		
+		void TestValuesWereReplicated(FAutomationTestBase& Test, const TCHAR* Context, EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All) const { TestValuesWereReplicated(Test, PropertyFlags, Context); }
+		void TestValuesWereNotReplicated(FAutomationTestBase& Test, const TCHAR* Context, EPropertyReplicationFlags PropertyFlags = EPropertyReplicationFlags::All) const { TestValuesWereNotReplicated(Test, PropertyFlags, Context); }
 	};
 }
 

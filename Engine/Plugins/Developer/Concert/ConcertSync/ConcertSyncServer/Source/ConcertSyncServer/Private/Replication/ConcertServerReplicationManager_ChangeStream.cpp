@@ -157,15 +157,29 @@ namespace UE::ConcertSyncServer::Replication
 		const TUniquePtr<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);
 		if (SendingClient && Private::ShouldAcceptRequest(Request, *SendingClient->Get(), AuthorityManager, Response))
 		{
+			const TArray<FConcertReplicationStream>& StreamsBeforeChange = SendingClient->Get()->GetStreamDescriptions();
+
+			TArray<FConcertObjectInStreamID> AddedObjects;
+			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachAddedObject(Request, StreamsBeforeChange, [&AddedObjects](const FConcertObjectInStreamID& Object)
+			{
+				AddedObjects.Add(Object);
+				return EBreakBehavior::Continue;
+			});
 			// If the client had authority over any objects that were removed by this request, authority must be cleaned up
-			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachObjectLosingAuthority(Request, SendingClient->Get()->GetStreamDescriptions(),
-				[this, &SendingClientId](const FConcertObjectInStreamID& RemovedObject)
+			TArray<FConcertObjectInStreamID> RemovedObjects;
+			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachRemovedObject(Request, StreamsBeforeChange,
+				[this, &SendingClientId, &RemovedObjects](const FConcertObjectInStreamID& RemovedObject)
 				{
 					AuthorityManager.RemoveAuthority({ RemovedObject, SendingClientId});
+					RemovedObjects.Add(RemovedObject);
 					return EBreakBehavior::Continue;
 				});
 			
+			// This needs to happen last since all of the above use ChangeStreamUtils::ForEachRemovedObject to determine the diff of changes.
 			SendingClient->Get()->ApplyValidatedRequest(Request);
+			
+			ServerObjectCache.OnChangeStreams(SendingClientId, AddedObjects, RemovedObjects);
+			MuteManager.PostApplyStreamChange(SendingClientId, AddedObjects, RemovedObjects);
 		}
 		else
 		{

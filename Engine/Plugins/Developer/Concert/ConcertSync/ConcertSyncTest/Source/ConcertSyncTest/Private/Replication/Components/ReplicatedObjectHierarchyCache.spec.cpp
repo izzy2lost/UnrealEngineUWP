@@ -86,7 +86,7 @@ namespace UE::ConcertSyncTests::Replication
 				JoinRequest.Streams.Add(JoinStream);
 				
 				Cache.OnJoin(ClientId_One, JoinRequest);
-				Cache.OnPreClientLeft(ClientId_One, { JoinStream });
+				Cache.OnPostClientLeft(ClientId_One, { JoinStream });
 				
 				TestTrue(TEXT("IsEmpty"), Cache.IsEmpty());
 			});
@@ -102,7 +102,7 @@ namespace UE::ConcertSyncTests::Replication
 				
 				Cache.OnJoin(ClientId_One, JoinRequest);
 				Cache.OnJoin(ClientId_Two, JoinRequest);
-				Cache.OnPreClientLeft(ClientId_One, { JoinStream });
+				Cache.OnPostClientLeft(ClientId_One, { JoinStream });
 				
 				TestObjectInCache();
 			});
@@ -115,8 +115,8 @@ namespace UE::ConcertSyncTests::Replication
 				
 				Cache.OnJoin(ClientId_One, JoinRequest);
 				Cache.OnJoin(ClientId_Two, JoinRequest);
-				Cache.OnPreClientLeft(ClientId_One, { JoinStream });
-				Cache.OnPreClientLeft(ClientId_Two, { JoinStream });
+				Cache.OnPostClientLeft(ClientId_One, { JoinStream });
+				Cache.OnPostClientLeft(ClientId_Two, { JoinStream });
 				
 				TestTrue(TEXT("IsEmpty"), Cache.IsEmpty());
 			});

@@ -17,10 +17,10 @@ namespace UE::ConcertSyncTests::Replication
 
 	TFuture<ConcertSyncClient::Replication::FJoinReplicatedSessionResult> FReplicationClient::JoinReplication(
 		ConcertSyncClient::Replication::FJoinReplicatedSessionArgs Args,
-		EReplicationClientFlags Flags
+		EReplicationClientFlags TestFlags
 		)
 	{
-		if (EnumHasAnyFlags(Flags, EReplicationClientFlags::UseRealReplicationBridge))
+		if (EnumHasAnyFlags(TestFlags, EReplicationClientFlags::UseRealReplicationBridge))
 		{
 			BridgeUsed = ConcertSyncClient::TestInterface::CreateClientReplicationBridge();
 		}
@@ -29,7 +29,7 @@ namespace UE::ConcertSyncTests::Replication
 			BridgeMock =  MakeShared<FConcertClientReplicationBridgeMock>();
 			BridgeUsed = BridgeMock;
 		}
-		ClientReplicationManager = ConcertSyncClient::TestInterface::CreateClientReplicationManager(ClientSessionMock, *BridgeUsed);
+		ClientReplicationManager = ConcertSyncClient::TestInterface::CreateClientReplicationManager(ClientSessionMock, *BridgeUsed, SessionFlags);
 		
 		// 1.1 Sender offers to send all UTestReflectionObject properties
 		bool bSuccess = false;
@@ -40,7 +40,7 @@ namespace UE::ConcertSyncTests::Replication
 				return Result;
 			});
 
-		if (!EnumHasAnyFlags(Flags, EReplicationClientFlags::SkipJoinTest))
+		if (!EnumHasAnyFlags(TestFlags, EReplicationClientFlags::SkipJoinTest))
 		{
 			TestContext.TestTrue(TEXT("Replication joined successfully"), bSuccess);
 		}

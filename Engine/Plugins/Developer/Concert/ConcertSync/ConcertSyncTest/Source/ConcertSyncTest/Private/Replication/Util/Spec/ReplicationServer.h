@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "ConcertSyncSessionFlags.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Util/ClientServerCommunicationTest.h"
+
 #include "Templates/UnrealTemplate.h"
 
 class FAutomationTestBase;
@@ -17,7 +19,7 @@ namespace UE::ConcertSyncTests::Replication
 	{
 	public:
 
-		FReplicationServer(FAutomationTestBase& TestContext);
+		FReplicationServer(FAutomationTestBase& TestContext, EConcertSyncSessionFlags InSessionFlags = EConcertSyncSessionFlags::Default_MultiUserSession);
 
 		/** Connects a client to the server. */
 		FReplicationClient& ConnectClient();
@@ -28,6 +30,9 @@ namespace UE::ConcertSyncTests::Replication
 		const TSharedRef<FConcertServerSessionMock>& GetServerSessionMock() const { return ServerSessionMock; }
 	
 	private:
+
+		/** Relevant to some requests. Passed to ServerReplicationManager and clients upon creation. */
+		const EConcertSyncSessionFlags SessionFlags;
 
 		/** Used to test "obvious" cases that should never fail in any test. */
 		FAutomationTestBase& TestContext;

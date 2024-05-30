@@ -3,10 +3,11 @@
 #pragma once
 
 #include "Misc/EBreakBehavior.h"
-#include "Replication/Messages/Handshake.h"
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
+#include "Replication/Messages/Handshake.h"
+#include "Replication/Messages/Muting.h"
 
 template<typename ResultType>
 class TFuture;
@@ -82,9 +83,9 @@ public:
 	 */
 	virtual TFuture<FConcertReplication_ChangeAuthority_Response> RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args) = 0;
 	/** Util function that will request authority for all streams for the given objects. */
-	TFuture<FConcertReplication_ChangeAuthority_Response> TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects);
+	TFuture<FConcertReplication_ChangeAuthority_Response> TakeAuthorityOver(TConstArrayView<FSoftObjectPath> Objects);
 	/** Util function that will let go over all authority of the given objects. */
-	TFuture<FConcertReplication_ChangeAuthority_Response> ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects);
+	TFuture<FConcertReplication_ChangeAuthority_Response> ReleaseAuthorityOf(TConstArrayView<FSoftObjectPath> Objects);
 
 	enum class EAuthorityEnumerationResult { NoAuthorityAvailable, Iterated };
 	/**
@@ -118,6 +119,19 @@ public:
 	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
 	virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) = 0;
+
+	/**
+	 * Requests to change the global mute state of objects.
+	 * Can only be done if the session has the EConcertSyncSessionFlags::ShouldAllowGlobalMuting flag.
+	 */
+	virtual TFuture<FConcertReplication_ChangeMuteState_Response> ChangeMuteState(FConcertReplication_ChangeMuteState_Request Request) = 0;
+	/** Util function that will mute all of Objects. */
+	TFuture<FConcertReplication_ChangeMuteState_Response> MuteObjects(TConstArrayView<FSoftObjectPath> Objects, EConcertReplicationMuteOption Flags = EConcertReplicationMuteOption::ObjectAndSubobjects);
+	/** Util function that will unmute all of Objects. */
+	TFuture<FConcertReplication_ChangeMuteState_Response> UnmuteObjects(TSet<FSoftObjectPath> Objects, EConcertReplicationMuteOption Flags = EConcertReplicationMuteOption::ObjectAndSubobjects);
+	/** Gets the global mute state. */
+	virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request = {}) = 0;
+	TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(TSet<FSoftObjectPath> Objects);
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreStreamsChanged,
 		const FConcertReplication_ChangeStream_Request&,

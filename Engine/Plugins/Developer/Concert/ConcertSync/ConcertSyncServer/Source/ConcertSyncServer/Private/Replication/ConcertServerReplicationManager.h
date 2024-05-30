@@ -6,9 +6,11 @@
 #include "ConcertMessages.h"
 #include "ConcertReplicationClient.h"
 #include "Enumeration/IRegistrationEnumerator.h"
+#include "MuteManager.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Messages/Handshake.h"
+#include "Replication/Misc/ReplicatedObjectHierarchyCache.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Replication/Processing/ServerObjectReplicationReceiver.h"
 #include "SyncControlManager.h"
@@ -20,6 +22,7 @@
 class IConcertClientReplicationBridge;
 class IConcertServerSession;
 
+enum class EConcertSyncSessionFlags : uint32;
 enum class EConcertQueryClientStreamFlags : uint8;
 
 struct FConcertReplication_ChangeStream_Response;
@@ -50,7 +53,7 @@ namespace UE::ConcertSyncServer::Replication
 	{
 	public:
 
-		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
+		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession, EConcertSyncSessionFlags SessionFlags);
 		virtual ~FConcertServerReplicationManager() override;
 
 		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager; }
@@ -71,8 +74,18 @@ namespace UE::ConcertSyncServer::Replication
 		/** Responsible for analysing received replication data. */
 		TUniquePtr<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
 
+		/**
+		 * Holds the outer hierarchy of all objects registered in any stream.
+		 * 
+		 * This receives join, leave, and change stream events.
+		 * The events are processed after the mute manager does.
+		 */
+		ConcertSyncCore::FReplicatedObjectHierarchyCache ServerObjectCache;
+
 		/** Responds to client requests to changing authority and can be asked whether an object change is valid to take place. */
 		FAuthorityManager AuthorityManager;
+		/** Responds to client mute requests and stores the mute states. */
+		FMuteManager MuteManager;
 		/** Decides whether clients should be replicating. Clients may replicate when they have authority and there are other clients listening for that data. */
 		FSyncControlManager SyncControlManager;
 		

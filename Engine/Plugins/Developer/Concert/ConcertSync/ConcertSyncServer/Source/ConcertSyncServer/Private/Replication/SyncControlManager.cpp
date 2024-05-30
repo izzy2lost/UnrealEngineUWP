@@ -3,6 +3,7 @@
 #include "SyncControlManager.h"
 
 #include "AuthorityManager.h"
+#include "MuteManager.h"
 #include "ConcertServer/Private/ConcertServerSession.h"
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/SyncControl.h"
@@ -12,19 +13,35 @@ namespace UE::ConcertSyncServer::Replication
 	FSyncControlManager::FSyncControlManager(
 		IConcertServerSession& Session,
 		FAuthorityManager& AuthorityManager,
+		FMuteManager& MuteManager,
 		const IRegistrationEnumerator& Getters
 		)
 		: Session(Session)
 		, AuthorityManager(AuthorityManager)
+		, MuteManager(MuteManager)
 		, Getters(Getters)
 	{
 		AuthorityManager.OnGenerateSyncControl().BindRaw(this, &FSyncControlManager::OnGenerateSyncControlForAuthorityResponse);
+		MuteManager.OnUpdateSyncControlForIndirectMuteChange().BindRaw(this, &FSyncControlManager::OnUpdateSyncControlForIndirectMuteChange);
+		MuteManager.OnGenerateSyncControlForMuteChange().BindRaw(this, &FSyncControlManager::OnGenerateSyncControlForClientMuteChange);
 	}
 
 	FSyncControlManager::~FSyncControlManager()
 	{
 		Session.OnSessionClientChanged().RemoveAll(this);
-		AuthorityManager.OnGenerateSyncControl().Unbind();
+		
+		if (ensure(AuthorityManager.OnGenerateSyncControl().IsBoundToObject(this)))
+		{
+			AuthorityManager.OnGenerateSyncControl().Unbind();
+		}
+		if (ensure(MuteManager.OnUpdateSyncControlForIndirectMuteChange().IsBoundToObject(this)))
+		{
+			MuteManager.OnUpdateSyncControlForIndirectMuteChange().Unbind();
+		}
+		if (ensure(MuteManager.OnGenerateSyncControlForMuteChange().IsBoundToObject(this)))
+		{
+			MuteManager.OnGenerateSyncControlForMuteChange().Unbind();
+		}
 	}
 
 	bool FSyncControlManager::HasSyncControl(const FConcertReplicatedObjectId& Object) const
@@ -42,12 +59,24 @@ namespace UE::ConcertSyncServer::Replication
 	FConcertReplication_ChangeSyncControl FSyncControlManager::OnGenerateSyncControlForAuthorityResponse(const FGuid& ClientId)
 	{
 		RefreshAndSendToAllClientsExcept(ClientId);
-
 		const auto ShouldSkipInControlMessage = [](const FConcertObjectInStreamID&, bool bNewState)
 		{
 			// We skip including states that disable sync control to save on network bandwidth.
 			// The receiving client can already predict the objects that lose sync control based on their request.
 			// See FConcertReplication_ChangeSyncControl and FConcertReplication_ChangeAuthority_Response::SyncControl documentation.
+			return !bNewState;
+		};
+		return RefreshClientSyncControl(ClientId, ShouldSkipInControlMessage);
+	}
+
+	FConcertReplication_ChangeSyncControl FSyncControlManager::OnGenerateSyncControlForClientMuteChange(const FGuid& ClientId)
+	{
+		RefreshAndSendToAllClientsExcept(ClientId);
+		const auto ShouldSkipInControlMessage = [](const FConcertObjectInStreamID&, bool bNewState)
+		{
+			// We skip including states that disable sync control to save on network bandwidth.
+			// The receiving client can already predict the objects that lose sync control based on their request.
+			// See FConcertReplication_ChangeMuteState_Request and FConcertReplication_ChangeMuteState_Response::SyncControl documentation.
 			return !bNewState;
 		};
 		return RefreshClientSyncControl(ClientId, ShouldSkipInControlMessage);
@@ -91,6 +120,7 @@ namespace UE::ConcertSyncServer::Replication
 					const FConcertReplicatedObjectId ReplicatedObjectId { ObjectId, ClientId };
 					const bool bIsValidForSending = Pair.Value.IsValidForSendingToServer()
 						&& AuthorityManager.HasAuthorityToChange(ReplicatedObjectId)
+						&& !MuteManager.IsMuted(ReplicatedObjectId.Object)
 						&& IsAnyoneInterestedIn(ReplicatedObjectId);
 					
 					const bool bIsSameAsBefore = ClientData.ObjectsWithSyncControl.Contains(ObjectId) == bIsValidForSending;

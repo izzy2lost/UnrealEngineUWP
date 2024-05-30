@@ -9,9 +9,24 @@
 
 namespace UE::ConcertSyncTests::Replication
 {
-	TSharedRef<FObjectTestReplicator> FObjectTestReplicator::CreateSubobjectReplicator() const
+	namespace Private
 	{
-		UTestReflectionObject* Subobject = NewObject<UTestReflectionObject>(TestObject);
+		FString TestName(const TCHAR* BaseName, const TCHAR* Context)
+		{
+			return Context
+				? FString::Printf(TEXT("%s: %s"), Context, BaseName)
+				: BaseName;
+		}
+		
+		FString TestName(const TCHAR* BaseName, const FObjectReplicationContext& Context)
+		{
+			return TestName(BaseName, Context.ContextName);
+		}
+	}
+
+	TSharedRef<FObjectTestReplicator> FObjectTestReplicator::CreateSubobjectReplicator(const FName BaseName) const
+	{
+		UTestReflectionObject* Subobject = NewObject<UTestReflectionObject>(TestObject, BaseName);
 		TestObject->InstancedSubobject = Subobject;
 		return MakeShared<FObjectTestReplicator>(Subobject);
 	}
@@ -52,29 +67,30 @@ namespace UE::ConcertSyncTests::Replication
 		EPropertyReplicationFlags PropertyFlags
 		) const
 	{
-		auto TestReplicationData_Server = [this, &Test, &SenderStreams, &OnServerReceive](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
+		using namespace Private;
+		const auto TestReplicationData_Server = [this, &Test, &Context, &SenderStreams, &OnServerReceive](const FConcertSessionContext& SessionContext, const FConcertReplication_BatchReplicationEvent& Event)
 		{
-			Test.TestEqual(TEXT("Server received right number of streams"), Event.Streams.Num(), SenderStreams.Num());
+			Test.TestEqual(TestName(TEXT("Server received right number of streams"), Context), Event.Streams.Num(), SenderStreams.Num());
 			for (int32 i = 0; i < Event.Streams.Num(); ++i)
 			{
-				Test.TestEqual(TEXT("Server received 1 object"), Event.Streams[i].ReplicatedObjects.Num() , 1);
-				Test.TestTrue(TEXT("Server received from correct stream"), SenderStreams.Contains(Event.Streams[i].StreamId));
+				Test.TestEqual(TestName(TEXT("Server received 1 object"), Context), Event.Streams[i].ReplicatedObjects.Num() , 1);
+				Test.TestTrue(TestName(TEXT("Server received from correct stream"), Context), SenderStreams.Contains(Event.Streams[i].StreamId));
 				const FSoftObjectPath ObjectPath = Event.Streams[i].ReplicatedObjects.IsEmpty() ? FSoftObjectPath{} : Event.Streams[i].ReplicatedObjects[0].ReplicatedObject;
-				Test.TestEqual(TEXT("Server's received object has correct path"), ObjectPath, FSoftObjectPath(TestObject));
+				Test.TestEqual(TestName(TEXT("Server's received object has correct path"), Context), ObjectPath, FSoftObjectPath(TestObject));
 			}
-			OnServerReceive(Context, Event);
+			OnServerReceive(SessionContext, Event);
 		};
-		auto TestReplicationData_Client_Receiver = [this, &Test, &SenderStreams, &OnReceiverClientReceive](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
+		const auto TestReplicationData_Client_Receiver = [this, &Test, &Context, &SenderStreams, &OnReceiverClientReceive](const FConcertSessionContext& SessionContext, const FConcertReplication_BatchReplicationEvent& Event)
 		{
-			Test.TestEqual(TEXT("Client 2 received right number of streams"), Event.Streams.Num(), SenderStreams.Num());
+			Test.TestEqual(TestName(TEXT("Client 2 received right number of streams"), Context), Event.Streams.Num(), SenderStreams.Num());
 			for (int32 i = 0; i < Event.Streams.Num(); ++i)
 			{
-				Test.TestEqual(TEXT("Client 2 received 1 object"), Event.Streams[i].ReplicatedObjects.Num() , 1);
-				Test.TestTrue(TEXT("Client 2 received from correct stream"), SenderStreams.Contains(Event.Streams[i].StreamId));
+				Test.TestEqual(TestName(TEXT("Client 2 received 1 object"), Context), Event.Streams[i].ReplicatedObjects.Num() , 1);
+				Test.TestTrue(TestName(TEXT("Client 2 received from correct stream"), Context), SenderStreams.Contains(Event.Streams[i].StreamId));
 				const FSoftObjectPath ObjectPath = Event.Streams[i].ReplicatedObjects.IsEmpty() ? FSoftObjectPath{} : Event.Streams[i].ReplicatedObjects[0].ReplicatedObject;
-				Test.TestEqual(TEXT("Client 2's received object has correct path"), ObjectPath, FSoftObjectPath(TestObject));
+				Test.TestEqual(TestName(TEXT("Client 2's received object has correct path"), Context), ObjectPath, FSoftObjectPath(TestObject));
 			}
-			OnReceiverClientReceive(Context, Event);
+			OnReceiverClientReceive(SessionContext, Event);
 		};
 		const FDelegateHandle ServerHandle = Context.Server.GetServerSessionMock()->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Server);
 		const FDelegateHandle ClientHandle = Context.Receiver.GetClientSessionMock()->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Client_Receiver);
@@ -122,34 +138,38 @@ namespace UE::ConcertSyncTests::Replication
 		}
 	}
 
-	void FObjectTestReplicator::TestValuesWereReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags) const
+	void FObjectTestReplicator::TestValuesWereReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags, const TCHAR* Context) const
 	{
+		using namespace Private;
+		
 		const bool bSendCDOValues = EnumHasAnyFlags(PropertyFlags, EPropertyReplicationFlags::SendCDOValues);
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyReplicationFlags::Float))
 		{
 			const float ExpectedValue = bSendCDOValues ? GetMutableDefault<UTestReflectionObject>()->Float : SentFloat;
-			const bool bWasReplicated = Test.TestEqual(TEXT("Float"), TestObject->Float, ExpectedValue);
-			Test.AddErrorIfFalse(bWasReplicated, TEXT("Failed to replicate \"Float\" property"));
+			const bool bWasReplicated = Test.TestEqual(TestName(TEXT("Float"), Context), TestObject->Float, ExpectedValue);
+			Test.AddErrorIfFalse(bWasReplicated, TestName(TEXT("Failed to replicate \"Float\" property"), Context));
 		}
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyReplicationFlags::Vector))
 		{
 			const FVector ExpectedValue = bSendCDOValues ? GetMutableDefault<UTestReflectionObject>()->Vector : SentVector;
-			const bool bWasReplicated = Test.TestEqual(TEXT("Vector"), TestObject->Vector, ExpectedValue);
-			Test.AddErrorIfFalse(bWasReplicated, TEXT("Failed to replicate \"Vector\" property"));
+			const bool bWasReplicated = Test.TestEqual(TestName(TEXT("Vector"), Context), TestObject->Vector, ExpectedValue);
+			Test.AddErrorIfFalse(bWasReplicated, TestName(TEXT("Failed to replicate \"Vector\" property"), Context));
 		}
 	}
 
-	void FObjectTestReplicator::TestValuesWereNotReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags) const
+	void FObjectTestReplicator::TestValuesWereNotReplicated(FAutomationTestBase& Test, EPropertyReplicationFlags PropertyFlags, const TCHAR* Context) const
 	{
+		using namespace Private;
+		
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyReplicationFlags::Float))
 		{
-			const bool bWasNotReplicated = Test.TestEqual(TEXT("Float"), TestObject->Float, DifferentFloat);
-			Test.AddErrorIfFalse(bWasNotReplicated, TEXT("Probably \"Float\" property was replicated even though it was not supposed to be!"));
+			const bool bWasNotReplicated = Test.TestEqual(TestName(TEXT("Float"), Context), TestObject->Float, DifferentFloat);
+			Test.AddErrorIfFalse(bWasNotReplicated, TestName(TEXT("Probably \"Float\" property was replicated even though it was not supposed to be!"), Context));
 		}
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyReplicationFlags::Vector))
 		{
-			const bool bWasNotReplicated = Test.TestEqual(TEXT("Vector"), TestObject->Vector, DifferentVector);
-			Test.AddErrorIfFalse(bWasNotReplicated, TEXT("Probably \"Vector\" property was replicated even though it was not supposed to be!"));
+			const bool bWasNotReplicated = Test.TestEqual(TestName(TEXT("Vector"), Context), TestObject->Vector, DifferentVector);
+			Test.AddErrorIfFalse(bWasNotReplicated, TestName(TEXT("Probably \"Vector\" property was replicated even though it was not supposed to be!"), Context));
 		}
 	}
 }

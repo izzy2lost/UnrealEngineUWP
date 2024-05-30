@@ -5,11 +5,12 @@
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Messages/ChangeStream.h"
-#include "Replication/Messages/ObjectReplication.h"
+
+#include "Algo/NoneOf.h"
 
 namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 {
-	void ForEachObjectLosingAuthority(
+	void ForEachRemovedObject(
 		const FConcertReplication_ChangeStream_Request& Request,
 		const TArray<FConcertReplicationStream>& ExistingStreams,
 		TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID&)> Callback
@@ -38,6 +39,36 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			if (Callback(ObjectToRemove) == EBreakBehavior::Break)
 			{
 				return;
+			}
+		}
+	}
+
+	void ForEachAddedObject(
+		const FConcertReplication_ChangeStream_Request& Request,
+		const TArray<FConcertReplicationStream>& ExistingStreams,
+		TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID&)> Callback
+		)
+	{
+		for (const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
+		{
+			const bool bIsNewObject = Algo::NoneOf(ExistingStreams, [&PutObject](const FConcertReplicationStream& Stream)
+			{
+				return Stream.BaseDescription.ReplicationMap.HasProperties(PutObject.Key.Object);
+			});
+			if (bIsNewObject && Callback(PutObject.Key) == EBreakBehavior::Break)
+			{
+				return;
+			}
+		}
+		
+		for (const FConcertReplicationStream& AddedStream : Request.StreamsToAdd)
+		{
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ObjectInfo : AddedStream.BaseDescription.ReplicationMap.ReplicatedObjects)
+			{
+				if (Callback({ AddedStream.BaseDescription.Identifier, ObjectInfo.Key }) == EBreakBehavior::Break)
+				{
+					return;
+				}
 			}
 		}
 	}

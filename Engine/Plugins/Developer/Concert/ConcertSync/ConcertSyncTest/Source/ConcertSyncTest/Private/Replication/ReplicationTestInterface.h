@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertSyncSessionFlags.h"
 #include "Templates/SharedPointer.h"
 
 class IConcertClientSession;
@@ -18,7 +19,8 @@ namespace UE::ConcertSyncClient::TestInterface
 {
 	extern CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationManager> CreateClientReplicationManager(
 		TSharedRef<IConcertClientSession> InLiveSession,
-		IConcertClientReplicationBridge& InBridge UE_LIFETIMEBOUND
+		IConcertClientReplicationBridge& InBridge UE_LIFETIMEBOUND,
+		EConcertSyncSessionFlags SessionFlags = EConcertSyncSessionFlags::Default_MultiUserSession
 		);
 
 	extern CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationBridge> CreateClientReplicationBridge();
@@ -27,6 +29,7 @@ namespace UE::ConcertSyncClient::TestInterface
 namespace UE::ConcertSyncServer::TestInterface
 {
 	extern CONCERTSYNCSERVER_API TSharedRef<Replication::IConcertServerReplicationManager> CreateServerReplicationManager(
-		TSharedRef<IConcertServerSession> InLiveSession
+		TSharedRef<IConcertServerSession> InLiveSession,
+		EConcertSyncSessionFlags InSessionFlags = EConcertSyncSessionFlags::Default_MultiUserSession
 		);
 }

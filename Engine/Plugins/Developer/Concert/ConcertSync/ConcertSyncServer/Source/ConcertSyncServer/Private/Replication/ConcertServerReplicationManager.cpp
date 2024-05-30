@@ -23,11 +23,15 @@ namespace UE::ConcertSyncServer::Replication
 		TEXT("Whether to log changes to authority.")
 		);
 	
-	FConcertServerReplicationManager::FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
+	FConcertServerReplicationManager::FConcertServerReplicationManager(
+		TSharedRef<IConcertServerSession> InLiveSession,
+		EConcertSyncSessionFlags SessionFlags
+		)
 		: Session(MoveTemp(InLiveSession))
 		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
 		, AuthorityManager(*this, Session)
-		, SyncControlManager(*Session, AuthorityManager, *this)
+		, MuteManager(*Session, ServerObjectCache, SessionFlags)
+		, SyncControlManager(*Session, AuthorityManager, MuteManager, *this)
 		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
 		, ReplicationDataReceiver(AuthorityManager, SyncControlManager, *Session, *ReplicationCache)
 	{
@@ -95,6 +99,7 @@ namespace UE::ConcertSyncServer::Replication
 		if (bSuccess)
 		{
 			Response.SyncControl = SyncControlManager.OnGenerateSyncControlForClientJoin(ClientId);
+			ServerObjectCache.OnJoin(ClientId, Request);
 		}
 		
 		UE_CLOG(bSuccess, LogConcert, Log, TEXT("Accepted replication join request"));
@@ -248,9 +253,24 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FConcertServerReplicationManager::OnClientLeftReplication(const FGuid& EndpointId)
 	{
-		Clients.Remove(EndpointId);
-		AuthorityManager.OnClientLeft(EndpointId);
-		SyncControlManager.OnClientLeft(EndpointId);
+		if (!Clients.Contains(EndpointId))
+		{
+			return;
+		}
+		
+		TUniquePtr<FConcertReplicationClient> RemovedClient;
+		const bool bRemoved = Clients.RemoveAndCopyValue(EndpointId, RemovedClient);
+		check(bRemoved);
+
+		// ServerObjectCache should be updated before anyone else that may rely on its state.
+		ServerObjectCache.OnPostClientLeft(EndpointId, RemovedClient->GetStreamDescriptions());
+		
+		// There is some inefficiency here: FMuteManager::OnMuteStateChanged may broadcast, which causes SyncControlManager to rebuild ...
+		MuteManager.OnPostClientLeft(RemovedClient->GetStreamDescriptions());
+		AuthorityManager.OnPostClientLeft(EndpointId);
+		
+		// ... and then the sync control manager rebuilds again.
+		SyncControlManager.OnPostClientLeft(EndpointId);
 	}
 
 	void FConcertServerReplicationManager::Tick(IConcertServerSession& InSession, float InDeltaTime)

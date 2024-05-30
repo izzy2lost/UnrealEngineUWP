@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertSyncSessionFlags.h"
 #include "ReplicationManagerState.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/Misc/LocalSyncControl.h"
@@ -33,6 +34,7 @@ namespace UE::ConcertSyncClient::Replication
 			TSharedRef<IConcertClientSession> InLiveSession,
 			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
 			FReplicationManager& Owner UE_LIFETIMEBOUND,
+			EConcertSyncSessionFlags SessionFlags,
 			TArray<FConcertReplicationStream> InitialStreams,
 			const FConcertReplication_ChangeSyncControl& InitialSyncControl
 			);
@@ -52,6 +54,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const override;
 		virtual uint32 NumSyncControlledObjects() const override { return SyncControl.Num(); }
 		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override { return SyncControl.IsObjectAllowed(Object); }
+		virtual TFuture<FConcertReplication_ChangeMuteState_Response> ChangeMuteState(FConcertReplication_ChangeMuteState_Request) override;
+		virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request) override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
@@ -60,6 +64,8 @@ namespace UE::ConcertSyncClient::Replication
 		const TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Disconnected */
 		IConcertClientReplicationBridge& ReplicationBridge;
+		/** Passed to FReplicationManagerState_Disconnected and used to determine whether certain operations are supported by the server. */
+		const EConcertSyncSessionFlags SessionFlags;
 		/** The streams this client has registered with the server. */
 		TArray<FConcertReplicationStream> RegisteredStreams;
 		

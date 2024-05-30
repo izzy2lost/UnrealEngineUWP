@@ -526,15 +526,19 @@ void FConcertSyncServer::DestroySequencerManager(const TSharedRef<FConcertSyncSe
 	LiveSessionSequencerManagers.Remove(InLiveSession->GetSession().GetId());
 }
 
-void FConcertSyncServer::CreateReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
+void FConcertSyncServer::CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, EConcertSyncSessionFlags InSessionFlags)
 {
-	DestroyReplicationManager(InLiveSession);
-	LiveSessionReplicationManagers.Add(InLiveSession->GetId(), MakeShared<UE::ConcertSyncServer::Replication::FConcertServerReplicationManager>(MoveTemp(InLiveSession)));
+	const FGuid& SessionId = InSession->GetId(); 
+	DestroyReplicationManager(SessionId);
+	LiveSessionReplicationManagers.Add(
+		SessionId,
+		MakeShared<UE::ConcertSyncServer::Replication::FConcertServerReplicationManager>(InSession, InSessionFlags)
+		);
 }
 
-void FConcertSyncServer::DestroyReplicationManager(const TSharedRef<IConcertServerSession>& InLiveSession)
+void FConcertSyncServer::DestroyReplicationManager(const FGuid& SessionId)
 {
-	LiveSessionReplicationManagers.Remove(InLiveSession->GetId());
+	LiveSessionReplicationManagers.Remove(SessionId);
 }
 
 bool FConcertSyncServer::CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams)
@@ -554,7 +558,7 @@ bool FConcertSyncServer::CreateLiveSession(const TSharedRef<IConcertServerSessio
 		// Create Replication Manager
 		if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::EnableReplication))
 		{
-			CreateReplicationManager(InSession);
+			CreateReplicationManager(InSession, LiveSession->GetSessionFlags());
 		}
 
 		// We needn't call OnActivityProduced().Remove(...) because the subscription needs to stay for the lifetime of FConcertSyncServerLiveSession::SessionDatabase

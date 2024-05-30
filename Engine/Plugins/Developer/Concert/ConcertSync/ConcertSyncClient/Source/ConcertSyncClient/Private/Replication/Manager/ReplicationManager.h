@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertSyncSessionFlags.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/Messages/Handshake.h"
 #include "Templates/SharedPointer.h"
@@ -18,7 +19,11 @@ namespace UE::ConcertSyncClient::Replication
 		friend FReplicationManagerState; 
 	public:
 		
-		FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge& InBridge UE_LIFETIMEBOUND);
+		FReplicationManager(
+			TSharedRef<IConcertClientSession> InLiveSession,
+			IConcertClientReplicationBridge& InBridge UE_LIFETIMEBOUND,
+			EConcertSyncSessionFlags SessionFlags
+			);
 		virtual ~FReplicationManager() override;
 
 		/** Starts accepting join requests. Must be called separately from constructor because of TSharedFromThis asserting if SharedThis is called in constructor. */
@@ -38,6 +43,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const override;
 		virtual uint32 NumSyncControlledObjects() const override;
 		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override;
+		virtual TFuture<FConcertReplication_ChangeMuteState_Response> ChangeMuteState(FConcertReplication_ChangeMuteState_Request Request) override;
+		virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request) override;
 		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override;
 		virtual FOnPostStreamsChanged& OnPostStreamsChanged() override;
 		virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() override;
@@ -52,6 +59,8 @@ namespace UE::ConcertSyncClient::Replication
 		TSharedRef<IConcertClientSession> Session;
 		/** The replication bridge is responsible for applying received data and generating data to send. */
 		IConcertClientReplicationBridge& Bridge;
+		/** These flags are passed along to all the states. */
+		const EConcertSyncSessionFlags SessionFlags;
 
 		/** The current state this manager is in, e.g. waiting for connection request, connecting, connected, etc. */
 		TSharedPtr<FReplicationManagerState> CurrentState;

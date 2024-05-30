@@ -74,7 +74,7 @@ namespace UE::ConcertSyncServer::Replication
 		bool CanTakeAuthority(const FConcertReplicatedObjectId& Object) const;
 
 		/** Notifies this manager that the client has left, which means all their authority is now gone. */
-		void OnClientLeft(const FClientId& ClientEndpointId);
+		void OnPostClientLeft(const FClientId& ClientEndpointId);
 		/** Takes away authority from the given client from the given object. */
 		void RemoveAuthority(const FConcertReplicatedObjectId& Object);
 		

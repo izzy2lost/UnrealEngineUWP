@@ -61,8 +61,8 @@ private:
 	void CreateSequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroySequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	
-	void CreateReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
-	void DestroyReplicationManager(const TSharedRef<IConcertServerSession>& InLiveSession); 
+	void CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, EConcertSyncSessionFlags InSessionFlags);
+	void DestroyReplicationManager(const FGuid& SessionId); 
 
 	bool CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams);
 	void DestroyLiveSession(const TSharedRef<IConcertServerSession>& InSession);

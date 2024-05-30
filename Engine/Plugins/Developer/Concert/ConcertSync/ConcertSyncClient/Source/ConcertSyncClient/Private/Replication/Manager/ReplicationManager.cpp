@@ -10,9 +10,14 @@
 
 namespace UE::ConcertSyncClient::Replication
 {
-	FReplicationManager::FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge& InBridge)
+	FReplicationManager::FReplicationManager(
+		TSharedRef<IConcertClientSession> InLiveSession,
+		IConcertClientReplicationBridge& InBridge,
+		EConcertSyncSessionFlags SessionFlags
+		)
 		: Session(MoveTemp(InLiveSession))
 		, Bridge(InBridge)
+		, SessionFlags(SessionFlags)
 	{}
 
 	FReplicationManager::~FReplicationManager()
@@ -21,7 +26,7 @@ namespace UE::ConcertSyncClient::Replication
 	void FReplicationManager::StartAcceptingJoinRequests()
 	{
 		checkSlow(!CurrentState.IsValid());
-		CurrentState = MakeShared<FReplicationManagerState_Disconnected>(Session, Bridge, *this);
+		CurrentState = MakeShared<FReplicationManagerState_Disconnected>(Session, Bridge, *this, SessionFlags);
 	}
 
 	TFuture<FJoinReplicatedSessionResult> FReplicationManager::JoinReplicationSession(FJoinReplicatedSessionArgs Args)
@@ -119,6 +124,20 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
 			&& CurrentState->HasSyncControl(Object);
+	}
+
+	TFuture<FConcertReplication_ChangeMuteState_Response> FReplicationManager::ChangeMuteState(FConcertReplication_ChangeMuteState_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->ChangeMuteState(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_ChangeMuteState_Response>().GetFuture(); 
+	}
+
+	TFuture<FConcertReplication_QueryMuteState_Response> FReplicationManager::QueryMuteState(FConcertReplication_QueryMuteState_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->QueryMuteState(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_QueryMuteState_Response>().GetFuture(); 
 	}
 
 	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()

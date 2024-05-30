@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Algo/AnyOf.h"
 #include "Replication/Data/ObjectIds.h"
 #include "SyncControl.generated.h"
 
@@ -41,4 +42,7 @@ struct FConcertReplication_ChangeSyncControl
 	TMap<FConcertObjectInStreamID, bool> NewControlStates;
 
 	bool IsEmpty() const { return NewControlStates.IsEmpty(); }
+	
+	bool DoesAtLeastOneObjectGainSyncControl() const { return Algo::AnyOf(NewControlStates, [](const TPair<FConcertObjectInStreamID, bool>& Pair){ return Pair.Value; }); }
+	bool DoesAtLeastOneObjectLoseSyncControl() const { return Algo::AnyOf(NewControlStates, [](const TPair<FConcertObjectInStreamID, bool>& Pair){ return !Pair.Value; }); }
 };

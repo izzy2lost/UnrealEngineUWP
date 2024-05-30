@@ -138,7 +138,7 @@ namespace UE::ConcertSyncServer::Replication
 		return EnumerateAuthorityConflicts(Object) == EAuthorityResult::Allowed;
 	}
 
-	void FAuthorityManager::OnClientLeft(const FClientId& ClientEndpointId)
+	void FAuthorityManager::OnPostClientLeft(const FClientId& ClientEndpointId)
 	{
 		ClientAuthorityData.Remove(ClientEndpointId);
 	}

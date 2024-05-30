@@ -2,12 +2,16 @@
 
 #pragma once
 
-#include "ConcertMessageData.h"
 #include "Replication/Data/ObjectIds.h"
 
 #include "HAL/Platform.h"
 #include "Replication/Messages/SyncControl.h"
 #include "Templates/UnrealTemplate.h"
+
+namespace UE::ConcertSyncServer::Replication
+{
+	class FMuteManager;
+}
 
 class IConcertServerSession;
 enum class EConcertClientStatus : uint8;
@@ -32,6 +36,7 @@ namespace UE::ConcertSyncServer::Replication
 		FSyncControlManager(
 			IConcertServerSession& Session UE_LIFETIMEBOUND,
 			FAuthorityManager& AuthorityManager UE_LIFETIMEBOUND,
+			FMuteManager& MuteManager UE_LIFETIMEBOUND,
 			const IRegistrationEnumerator& Getters UE_LIFETIMEBOUND
 			);
 		~FSyncControlManager();
@@ -43,7 +48,7 @@ namespace UE::ConcertSyncServer::Replication
 		FConcertReplication_ChangeSyncControl OnGenerateSyncControlForClientJoin(const FGuid& ClientId);
 		
 		/** Called by FConcertServerReplicationManager when client completes leaves replication. */
-		void OnClientLeft(const FGuid& ClientId) { HandleClientLeave(ClientId); }
+		void OnPostClientLeft(const FGuid& ClientId) { HandleClientLeave(ClientId); }
 
 	private:
 
@@ -51,6 +56,8 @@ namespace UE::ConcertSyncServer::Replication
 		IConcertServerSession& Session;
 		/** Used to detect whether a client has authority. */
 		FAuthorityManager& AuthorityManager;
+		/** Used to detect whether objects are globally muted. */
+		FMuteManager& MuteManager;
 
 		/** Callbacks for retrieving more info about client replication registration. */
 		const IRegistrationEnumerator& Getters;
@@ -66,6 +73,23 @@ namespace UE::ConcertSyncServer::Replication
 		/** Generates new sync control for client that is explicitly changing their authority. */
 		FConcertReplication_ChangeSyncControl OnGenerateSyncControlForAuthorityResponse(const FGuid& ClientId);
 
+		/**
+		 * Called when a client has caused mute state to change (e.g. due to removing object from stream, or explicitly muting it).
+		 * Called via delegate by FMuteManager.
+		 */
+		void OnUpdateSyncControlForIndirectMuteChange(const FGuid& ClientId)
+		{
+			// Do not send any update to this client (because they can infer the change themselves) but do update the sync control state.
+			RefreshClientSyncControl(ClientId);
+			// The other clients need to be notified in case an object was added which is now implicitly muted.
+			RefreshAndSendToAllClientsExcept(ClientId);
+		}
+		/** 
+		 * Updates sync control for all clients, sends an update to all clients but ClientId, and returns the sync control to embed into the mute response.
+		 * Called via delegate by FMuteManager.
+		 */
+		FConcertReplication_ChangeSyncControl OnGenerateSyncControlForClientMuteChange(const FGuid& ClientId);
+		
 		/** Cleans up the associated client data and updates sync control for all other clients. */
 		void HandleClientLeave(const FGuid& LeftClientId);
 

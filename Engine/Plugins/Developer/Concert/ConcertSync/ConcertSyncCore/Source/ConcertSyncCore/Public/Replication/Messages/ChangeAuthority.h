@@ -67,7 +67,7 @@ struct FConcertReplication_ChangeAuthority_Response
 
 	/**
 	 * Contains the new sync control for objects you requested authority over; objects you released authority over are not contained because they can
-	 * be implicitly determined using FSyncControlState::Aggregate.
+	 * be implicitly determined using FSyncControlState::AppendChanges.
 	 * 
 	 * @see FSyncControlState::Aggregate.
 	 * @see FConcertReplication_ChangeSyncControl

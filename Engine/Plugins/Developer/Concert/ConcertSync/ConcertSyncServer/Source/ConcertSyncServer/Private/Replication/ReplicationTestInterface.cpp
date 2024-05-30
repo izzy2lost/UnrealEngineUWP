@@ -14,9 +14,10 @@ class IConcertServerSession;
 namespace UE::ConcertSyncServer::TestInterface
 {
 	CONCERTSYNCSERVER_API TSharedRef<Replication::IConcertServerReplicationManager> CreateServerReplicationManager(
-		TSharedRef<IConcertServerSession> InLiveSession
+		TSharedRef<IConcertServerSession> InLiveSession,
+		EConcertSyncSessionFlags InSessionFlags
 		)
 	{
-		return MakeShared<Replication::FConcertServerReplicationManager>(MoveTemp(InLiveSession));
+		return MakeShared<Replication::FConcertServerReplicationManager>(MoveTemp(InLiveSession), InSessionFlags);
 	}
 }

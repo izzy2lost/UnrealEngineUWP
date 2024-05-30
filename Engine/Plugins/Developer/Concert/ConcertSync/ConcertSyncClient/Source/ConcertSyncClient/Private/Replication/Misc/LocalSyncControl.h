@@ -38,6 +38,7 @@ namespace UE::ConcertSyncClient::Replication
 		using FSyncControlState::Num;
 		using FSyncControlState::EnumerateAllowedObjects;
 		using FSyncControlState::EnumerateChanges;
+		using FPredictedObjectRemoval = FSyncControlState::FPredictedObjectRemoval;
 		// No using for FSyncControlState::Aggregate because we want to limit usage to below ProcessXChange functions
 
 		/** Stores the given change in this data structure. */
@@ -65,6 +66,47 @@ namespace UE::ConcertSyncClient::Replication
 			OnPreSyncControlChangedDelegate.Broadcast();
 			AppendChanges(Request);
 			OnPostSyncControlChangedDelegate.Broadcast();
+		}
+
+		/**
+		 * Applies the implicit changes made by the request assuming the request will be accepted.
+		 * @return The removed objects to be passed to ApplyOrRevertMuteResponse.
+		 */
+		FPredictedObjectRemoval PredictAndApplyMuteChanges(const FConcertReplication_ChangeMuteState_Request& Request)
+		{
+			bool bMadeChange = false;
+			FPredictedObjectRemoval Predicition = AppendChanges(Request, [this, &bMadeChange](const FConcertObjectInStreamID&)
+			{
+				if (!bMadeChange)
+				{
+					OnPreSyncControlChangedDelegate.Broadcast();
+				}
+				bMadeChange = true;
+			});
+			if (bMadeChange)
+			{
+				OnPostSyncControlChangedDelegate.Broadcast();
+			}
+
+			return Predicition;
+		}
+
+		/** Either reverts previous changes made if the request was rejected, or applies the sync control returned by the server otherwise. */
+		void ApplyOrRevertMuteResponse(const FPredictedObjectRemoval& RemovedByRequest, const FConcertReplication_ChangeMuteState_Response& Response)
+		{
+			bool bMadeChange = false;
+			AppendChanges(RemovedByRequest, Response, [this, &bMadeChange](const FConcertObjectInStreamID&)
+			{
+				if (!bMadeChange)
+				{
+					OnPreSyncControlChangedDelegate.Broadcast();
+				}
+				bMadeChange = true;
+			});
+			if (bMadeChange)
+			{
+				OnPostSyncControlChangedDelegate.Broadcast();
+			}
 		}
 		
 		DECLARE_MULTICAST_DELEGATE(FSyncControlChanged);

@@ -42,6 +42,11 @@ namespace UE::ConcertSyncClient::Replication
 		false,
 		TEXT("Whether the client should pretend that authority change requests were rejected.")
 		);
+	TAutoConsoleVariable<bool> CVarSimulateMuteRequestRejection(
+		TEXT("Concert.Replication.SimulateMuteRejection"),
+		false,
+		TEXT("Whether the client should pretend that mute change requests were rejected.")
+		);
 
 	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponsesOnClient(
 		TEXT("Concert.Replication.LogStreamRequestsAndResponsesOnClient"),
@@ -52,6 +57,11 @@ namespace UE::ConcertSyncClient::Replication
 		TEXT("Concert.Replication.LogAuthorityRequestsAndResponsesOnClient"),
 		false,
 		TEXT("Whether to log changes to authority.")
+		);
+	TAutoConsoleVariable<bool> CVarLogMuteRequestsAndResponsesOnClient(
+		TEXT("Concert.Replication.LogMuteRequestsAndResponsesOnClient"),
+		false,
+		TEXT("Whether to log changes to the mute state.")
 		);
 
 	namespace Private
@@ -72,12 +82,14 @@ namespace UE::ConcertSyncClient::Replication
 		TSharedRef<IConcertClientSession> InLiveSession,
 		IConcertClientReplicationBridge& ReplicationBridge,
 		FReplicationManager& Owner,
+		EConcertSyncSessionFlags SessionFlags,
 		TArray<FConcertReplicationStream> InitialStreams,
 		const FConcertReplication_ChangeSyncControl& InitialSyncControl
 		)
 		: FReplicationManagerState(Owner)
 		, LiveSession(InLiveSession)
 		, ReplicationBridge(ReplicationBridge)
+		, SessionFlags(SessionFlags)
 		, RegisteredStreams(MoveTemp(InitialStreams))
 		// TODO DP: Use config to determine which replication format to use
 		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
@@ -121,7 +133,7 @@ namespace UE::ConcertSyncClient::Replication
 	void FReplicationManagerState_Connected::LeaveReplicationSession()
 	{
 		LiveSession->SendCustomEvent(FConcertReplication_LeaveEvent{}, LiveSession->GetSessionServerEndpointId(), EConcertMessageFlags::ReliableOrdered);
-		ChangeState(MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner()));
+		ChangeState(MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner(), SessionFlags));
 	}
 
 	IConcertClientReplicationManager::EStreamEnumerationResult FReplicationManagerState_Connected::ForEachRegisteredStream(
@@ -264,6 +276,43 @@ namespace UE::ConcertSyncClient::Replication
 		return SyncControl.EnumerateAllowedObjects(Callback)
 			? ESyncControlEnumerationResult::Iterated
 			: ESyncControlEnumerationResult::NoneAvailable;
+	}
+
+	TFuture<FConcertReplication_ChangeMuteState_Response> FReplicationManagerState_Connected::ChangeMuteState(FConcertReplication_ChangeMuteState_Request Request)
+	{
+		if (!EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldAllowGlobalMuting) || CVarSimulateMuteRequestRejection.GetValueOnAnyThread())
+		{
+			return MakeFulfilledPromise<FConcertReplication_ChangeMuteState_Response>(FConcertReplication_ChangeMuteState_Response{ EConcertReplicationMuteErrorCode::Rejected }).GetFuture();
+		}
+
+		FLocalSyncControl::FPredictedObjectRemoval PredictedChanges = SyncControl.PredictAndApplyMuteChanges(Request);
+		
+		Private::LogNetworkMessage(CVarLogMuteRequestsAndResponsesOnClient, Request);
+		return LiveSession->SendCustomRequest<FConcertReplication_ChangeMuteState_Request, FConcertReplication_ChangeMuteState_Response>(Request, LiveSession->GetSessionServerEndpointId())
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), PredictedChanges = MoveTemp(PredictedChanges)](FConcertReplication_ChangeMuteState_Response&& Response)
+			{
+				Private::LogNetworkMessage(CVarLogMuteRequestsAndResponsesOnClient, Response);
+				
+				if (const TSharedPtr<FReplicationManagerState_Connected> This = WeakThis.Pin())
+				{
+					This->SyncControl.ApplyOrRevertMuteResponse(PredictedChanges, Response);
+				}
+				
+				return Response;
+			});
+	}
+
+	TFuture<FConcertReplication_QueryMuteState_Response> FReplicationManagerState_Connected::QueryMuteState(FConcertReplication_QueryMuteState_Request Request)
+	{
+		if (!EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldAllowGlobalMuting))
+		{
+			return MakeFulfilledPromise<FConcertReplication_QueryMuteState_Response>().GetFuture();
+		}
+		
+		return LiveSession->SendCustomRequest<FConcertReplication_QueryMuteState_Request, FConcertReplication_QueryMuteState_Response>(
+			Request,
+			LiveSession->GetSessionServerEndpointId()
+			);
 	}
 
 	void FReplicationManagerState_Connected::OnEnterState()

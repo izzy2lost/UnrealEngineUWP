@@ -13,6 +13,8 @@
 
 #include <type_traits>
 
+#include "Messages/Muting.h"
+
 namespace UE::ConcertSyncCore::Replication
 {
 	template<typename T>
@@ -27,6 +29,12 @@ namespace UE::ConcertSyncCore::Replication
 	class FSyncControlState
 	{
 	public:
+
+		class FPredictedObjectRemoval
+		{
+			friend class FSyncControlState;
+			TSet<FConcertObjectInStreamID> Objects;
+		};
 
 		FSyncControlState() = default;
 		
@@ -65,6 +73,24 @@ namespace UE::ConcertSyncCore::Replication
 		template<CObjectInStreamInvocable TOnDisallowed>
 		void AppendChanges(const FConcertReplication_ChangeStream_Request& Request, TOnDisallowed&& OnDisallowed);
 		void AppendChanges(const FConcertReplication_ChangeStream_Request& Request);
+
+		/**
+		 * Combines implicit sync control changes caused by the local client sending a mute event.
+		 * @return The objects that were predictively removed by the request. Pass this back into AppendChanges once you get the response.
+		 */
+		template<CObjectInStreamInvocable TOnDisallowed>
+		FPredictedObjectRemoval AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request, TOnDisallowed&& OnDisallowed);
+		FPredictedObjectRemoval AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request);
+
+		/**
+		 * Looks at the response:
+		 * - if the change failed, reverts the predictively removed sync control
+		 * - if the change succeeded, appends the contained sync control
+		 */
+		template<CObjectInStreamInvocable TOnAllowed>
+		void AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response, TOnAllowed&& OnAllowed);
+		void AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response);
+		
 		
 		friend bool operator==(const FSyncControlState& Left, const FSyncControlState& Right)
 		{
@@ -184,6 +210,78 @@ namespace UE::ConcertSyncCore::Replication
 	inline void FSyncControlState::AppendChanges(const FConcertReplication_ChangeStream_Request& Request)
 	{
 		AppendChanges(Request, [](const FConcertObjectInStreamID&){});
+	}
+
+	template <CObjectInStreamInvocable TOnDisallowed>
+	FSyncControlState::FPredictedObjectRemoval FSyncControlState::AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request, TOnDisallowed&& OnDisallowed)
+	{
+		FPredictedObjectRemoval RemovedObjects;
+		const auto Remove = [&OnDisallowed, &RemovedObjects](TSet<FConcertObjectInStreamID>::TIterator& It)
+		{
+			const FConcertObjectInStreamID Object = *It;
+			It.RemoveCurrent();
+						
+			RemovedObjects.Objects.Add(Object);
+			OnDisallowed(Object);
+		};
+		
+		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& ObjectInfo : Request.ObjectsToMute)
+		{
+			const FSoftObjectPath& MutedObject = ObjectInfo.Key;
+			const EConcertReplicationMuteOption MuteOption = ObjectInfo.Value.Flags;
+			
+			if (AffectSubobjects(MuteOption))
+			{
+				const FString MutedAsString = MutedObject.ToString();
+				for (auto It = AllowedObjects.CreateIterator(); It; ++It)
+				{
+					const bool bRemove = It->Object.ToString().Contains(MutedObject.ToString());
+					if (bRemove)
+					{
+						Remove(It);
+					}
+				}
+			}
+			else
+			{
+				for (auto It = AllowedObjects.CreateIterator(); It; ++It)
+				{
+					if (It->Object == MutedObject)
+					{
+						Remove(It);
+					}
+				}
+			}
+		}
+		return RemovedObjects;
+	}
+
+	inline FSyncControlState::FPredictedObjectRemoval FSyncControlState::AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request)
+	{
+		return AppendChanges(Request, [](const FConcertObjectInStreamID&){});
+	}
+
+	template <CObjectInStreamInvocable TOnAllowed>
+	void FSyncControlState::AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response, TOnAllowed&& OnAllowed)
+	{
+		if (Response.IsSuccess())
+		{
+			AppendChanges(Response.SyncControl,
+				OnAllowed,
+				[](const FConcertObjectInStreamID&)
+				{
+					ensureAlwaysMsgf(false, TEXT("By contract, objects losing sync control are not supposed to be listed here. FConcertReplication_ChangeMuteState_Response::SyncControl docoumentation."));
+				});
+		}
+		else
+		{
+			AllowedObjects.Append(ObjectsRemovedInRequest.Objects);
+		}
+	}
+
+	inline void FSyncControlState::AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response)
+	{
+		AppendChanges(ObjectsRemovedInRequest, Response, [](const FConcertObjectInStreamID&){});
 	}
 }
 

@@ -37,7 +37,7 @@ namespace UE::ConcertSyncCore
 		}
 	}
 
-	void FReplicatedObjectHierarchyCache::OnPreClientLeft(const FGuid& ClientId, TConstArrayView<FConcertReplicationStream> Streams)
+	void FReplicatedObjectHierarchyCache::OnPostClientLeft(const FGuid& ClientId, TConstArrayView<FConcertReplicationStream> Streams)
 	{
 		for (const FConcertReplicationStream& Stream : Streams)
 		{

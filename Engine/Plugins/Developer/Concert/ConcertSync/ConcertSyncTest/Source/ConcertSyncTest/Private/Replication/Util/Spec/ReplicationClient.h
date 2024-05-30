@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertSyncSessionFlags.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Util/ClientServerCommunicationTest.h"
 #include "Templates/UnrealTemplate.h"
@@ -33,8 +34,9 @@ namespace UE::ConcertSyncTests::Replication
 	{
 	public:
 		
-		FReplicationClient(const FGuid& ClientEndPointId, FConcertServerSessionMock& Server, FAutomationTestBase& TestContext)
-			: TestContext(TestContext)
+		FReplicationClient(const FGuid& ClientEndPointId, EConcertSyncSessionFlags SessionFlags, FConcertServerSessionMock& Server, FAutomationTestBase& TestContext)
+			: SessionFlags(SessionFlags)
+			, TestContext(TestContext)
 			, ClientSessionMock(MakeShared<FConcertClientSessionMock>(ClientEndPointId, Server))
 		{}
 		
@@ -44,7 +46,7 @@ namespace UE::ConcertSyncTests::Replication
 		/** Joins the client into replication allowing them to participate in replication */
 		TFuture<ConcertSyncClient::Replication::FJoinReplicatedSessionResult> JoinReplication(
 			ConcertSyncClient::Replication::FJoinReplicatedSessionArgs Args = {},
-			EReplicationClientFlags Flags = EReplicationClientFlags::None
+			EReplicationClientFlags TestFlags = EReplicationClientFlags::None
 			);
 		/** This overload joins replication and injects the objects into the FConcertClientReplicationBridgeMock so they can be received. */
 		TFuture<ConcertSyncClient::Replication::FJoinReplicatedSessionResult> JoinReplicationAsListener(
@@ -53,10 +55,13 @@ namespace UE::ConcertSyncTests::Replication
 
 		TSharedRef<FConcertClientSessionBaseMock> GetClientSessionMock() const { return ClientSessionMock; }
 
-		FConcertClientReplicationBridgeMock& GetBridgeMock() const { return *BridgeMock; }
-		IConcertClientReplicationManager& GetClientReplicationManager() const { return *ClientReplicationManager; }
+		FConcertClientReplicationBridgeMock& GetBridgeMock() const { checkf(BridgeMock, TEXT("You forgot to call JoinReplication")); return *BridgeMock; }
+		IConcertClientReplicationManager& GetClientReplicationManager() const { checkf(ClientReplicationManager, TEXT("You forgot to call JoinReplication")); return *ClientReplicationManager; }
 
 	private:
+
+		/** Relevant for certain requests. Passed to ClientReplicationManager upon creation. */
+		const EConcertSyncSessionFlags SessionFlags;
 
 		/** Used to test "obvious" cases that should never fail in any test. */
 		FAutomationTestBase& TestContext;
