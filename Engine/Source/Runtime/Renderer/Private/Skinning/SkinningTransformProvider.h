@@ -13,7 +13,7 @@
 
 class FSkinningTransformProvider : public ISceneExtension
 {
-	DECLARE_SCENE_EXTENSION(FSkinningTransformProvider);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FSkinningTransformProvider);
 
 public:
 	typedef FGuid FProviderId;

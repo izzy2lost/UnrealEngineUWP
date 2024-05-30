@@ -21,7 +21,7 @@ namespace Nanite
 class FSkinnedSceneProxy;
 class FSkinningSceneExtension : public ISceneExtension
 {
-	DECLARE_SCENE_EXTENSION(FSkinningSceneExtension);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FSkinningSceneExtension);
 
 public:
 	class FUpdater : public ISceneExtensionUpdater

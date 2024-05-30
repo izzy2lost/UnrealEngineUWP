@@ -33,7 +33,7 @@ class FSplineMeshSceneExtension : public ISceneExtension
 	friend class FSplineMeshSceneUpdater;
 	friend class FSplineMeshSceneRenderer;
 
-	DECLARE_SCENE_EXTENSION(FSplineMeshSceneExtension);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FSplineMeshSceneExtension);
 
 public:
 	static bool ShouldCreateExtension(FScene& InScene);

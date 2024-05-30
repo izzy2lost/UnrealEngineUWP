@@ -75,14 +75,14 @@ private:
 class FSceneExtensionRegistry
 {
 public:
-	static FSceneExtensionRegistry& Get()
+	RENDERER_API static FSceneExtensionRegistry& Get()
 	{
 		InitRegistry();
 		return *GlobalRegistry;
 	}
 
 	int32 GetMaxRegistrationID() const { return Factories.Num() - 1; }
-	void Register(ISceneExtensionFactory& Factory);
+	RENDERER_API void Register(ISceneExtensionFactory& Factory);
 	TSparseArray<ISceneExtension*> CreateExtensions(FScene& Scene);
 
 private:
@@ -278,11 +278,11 @@ public:
 };
 
 /** Use these macros in the class definitions of your extension. */
-#define DECLARE_SCENE_EXTENSION(ClassName) \
+#define DECLARE_SCENE_EXTENSION(ModuleExport, ClassName) \
 	public: \
-		RENDERER_API static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
+		ModuleExport static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
 	private: \
-		RENDERER_API static TSceneExtensionRegistration<ClassName> ExtensionRegistration
+		ModuleExport static TSceneExtensionRegistration<ClassName> ExtensionRegistration
 
 #define DECLARE_SCENE_EXTENSION_UPDATER(ClassName, SceneExtensionClassName) \
 	public: \

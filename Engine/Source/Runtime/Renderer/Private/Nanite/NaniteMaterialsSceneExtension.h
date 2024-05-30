@@ -18,7 +18,7 @@ namespace Nanite
 
 class FMaterialsSceneExtension : public ISceneExtension
 {
-	DECLARE_SCENE_EXTENSION(FMaterialsSceneExtension);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FMaterialsSceneExtension);
 
 public:
 	class FUpdater : public ISceneExtensionUpdater

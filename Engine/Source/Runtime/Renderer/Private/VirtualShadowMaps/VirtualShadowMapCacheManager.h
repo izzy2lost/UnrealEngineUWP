@@ -212,7 +212,7 @@ inline uint32 GetTypeHash(FVirtualShadowMapCacheKey Key)
 class FVirtualShadowMapArrayCacheManager : public ISceneExtension
 {
 	friend class FVirtualShadowMapInvalidationSceneUpdater;
-	DECLARE_SCENE_EXTENSION(FVirtualShadowMapArrayCacheManager);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FVirtualShadowMapArrayCacheManager);
 
 public:
 	using FEntryMap = TMap< FVirtualShadowMapCacheKey, TSharedPtr<FVirtualShadowMapPerLightCacheEntry> >;
