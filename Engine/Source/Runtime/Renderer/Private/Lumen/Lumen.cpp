@@ -129,7 +129,7 @@ bool Lumen::ShouldHandleSkyLight(const FScene* Scene, const FSceneViewFamily& Vi
 bool ShouldRenderLumenForViewFamily(const FScene* Scene, const FSceneViewFamily& ViewFamily, bool bSkipProjectCheck)
 {
 	return Scene
-		&& Scene->GetLumenSceneData(*ViewFamily.Views[0])
+		&& Scene->DefaultLumenSceneData != nullptr
 		&& (ViewFamily.Views.Num() <= LUMEN_MAX_VIEWS || ViewFamily.Views[0]->bIsSceneCaptureCube)
 		&& DoesPlatformSupportLumenGI(Scene->GetShaderPlatform(), bSkipProjectCheck);
 }
