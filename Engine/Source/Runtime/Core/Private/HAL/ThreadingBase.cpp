@@ -1426,6 +1426,7 @@ FQueuedThread::Run()
 /*-----------------------------------------------------------------------------
 	FThreadSingletonInitializer
 -----------------------------------------------------------------------------*/
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 FTlsAutoCleanup* FThreadSingletonInitializer::Get( TFunctionRef<FTlsAutoCleanup*()> CreateInstance, uint32& InOutTlsSlot )
 {
@@ -1493,6 +1494,8 @@ FTlsAutoCleanup* FThreadSingletonInitializer::Inject(FTlsAutoCleanup* Instance, 
 	FPlatformTLS::SetTlsValue(TlsSlot, Instance);
 	return ThreadSingleton;
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FTlsAutoCleanup::Register()
 {
