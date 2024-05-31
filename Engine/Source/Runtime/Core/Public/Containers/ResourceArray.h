@@ -42,7 +42,7 @@ struct FResourceArrayUploadArrayView : public FResourceArrayUploadInterface
 	}
 
 	template<typename ElementType, typename AllocatorType>
-	FResourceArrayUploadArrayView(TArray<ElementType, AllocatorType> InArray)
+	FResourceArrayUploadArrayView(const TArray<ElementType, AllocatorType>& InArray)
 		: FResourceArrayUploadArrayView(MakeArrayView(InArray))
 	{
 	}
