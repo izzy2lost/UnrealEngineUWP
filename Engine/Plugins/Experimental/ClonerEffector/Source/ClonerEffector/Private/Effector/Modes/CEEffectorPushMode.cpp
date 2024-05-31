@@ -32,7 +32,7 @@ void UCEEffectorPushMode::OnExtensionParametersChanged(UCEEffectorComponent* InC
 
 	FCEClonerEffectorChannelData& ChannelData = InComponent->GetChannelData();
 	ChannelData.LocationDelta = PushStrength;
-	ChannelData.RotationDelta = FQuat::Identity;
+	ChannelData.RotationDelta = FVector::ZeroVector;
 	ChannelData.ScaleDelta = FVector::OneVector;
 	ChannelData.Pan = FVector(0, static_cast<float>(PushDirection), 0);
 }

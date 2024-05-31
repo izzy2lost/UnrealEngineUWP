@@ -385,6 +385,9 @@ struct FCEClonerEffectorChannelData
 	static constexpr const TCHAR* AttractionForceStrengthName = TEXT("AttractionForceStrength");
 	static constexpr const TCHAR* AttractionForceFalloffName = TEXT("AttractionForceFalloff");
 	static constexpr const TCHAR* GravityForceAccelerationName = TEXT("GravityForceAcceleration");
+	static constexpr const TCHAR* DragForceLinearName = TEXT("DragForceLinear");
+	static constexpr const TCHAR* DragForceRotationalName = TEXT("DragForceRotational");
+	static constexpr const TCHAR* VectorNoiseForceAmountName = TEXT("VectorNoiseForceAmount");
 
 	int32 GetIdentifier() const
 	{
@@ -399,7 +402,7 @@ struct FCEClonerEffectorChannelData
 	FVector InnerExtent = FVector::ZeroVector;
 	FVector OuterExtent = FVector::ZeroVector;
 	FVector LocationDelta = FVector::ZeroVector;
-	FQuat RotationDelta = FQuat::Identity;
+	FVector RotationDelta = FVector::ZeroVector;
 	FVector ScaleDelta = FVector::OneVector;
 	FVector Location = FVector::ZeroVector;
 	FQuat Rotation = FQuat::Identity;
@@ -419,6 +422,9 @@ struct FCEClonerEffectorChannelData
 	float AttractionForceStrength = 0.f;
 	float AttractionForceFalloff = 0.f;
 	FVector GravityForceAcceleration = FVector::ZeroVector;
+	float DragForceLinear = 0.f;
+	float DragForceRotational = 0.f;
+	float VectorNoiseForceAmount = 0.f;
 
 protected:
 	/** Cached effector identifier to detect a change and update cloners DI */

@@ -62,7 +62,7 @@ protected:
 	FVector Offset = FVector::ZeroVector;
 
 	/** Rotation applied on affected clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="-180", ClampMax="180", UIMin="-180", UIMax="180"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
 	FRotator Rotation = FRotator::ZeroRotator;
 
 	/** Scale applied on affected clones */

@@ -168,6 +168,51 @@ public:
 		return GravityForceAcceleration;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetDragForceEnabled(bool bInEnabled);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	bool GetDragForceEnabled() const
+	{
+		return bDragForceEnabled;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetDragForceLinear(float InStrength);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetDragForceLinear() const
+	{
+		return DragForceLinear;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetDragForceRotational(float InStrength);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetDragForceRotational() const
+	{
+		return DragForceRotational;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetVectorNoiseForceEnabled(bool bInEnabled);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	bool GetVectorNoiseForceEnabled() const
+	{
+		return bVectorNoiseForceEnabled;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetVectorNoiseForceAmount(float InAmount);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetVectorNoiseForceAmount() const
+	{
+		return VectorNoiseForceAmount;
+	}
+
 protected:
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -203,7 +248,7 @@ protected:
 	bool bVortexForceEnabled = false;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bVortexForceEnabled", EditConditionHides))
-	float VortexForceAmount = 10000.f;
+	float VortexForceAmount = 100.f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bVortexForceEnabled", EditConditionHides))
 	FVector VortexForceAxis = FVector::ZAxisVector;
@@ -213,7 +258,7 @@ protected:
 	bool bCurlNoiseForceEnabled = false;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bCurlNoiseForceEnabled", EditConditionHides))
-	float CurlNoiseForceStrength = 1000.f;
+	float CurlNoiseForceStrength = 100.f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bCurlNoiseForceEnabled", EditConditionHides))
 	float CurlNoiseForceFrequency = 10.f;
@@ -223,7 +268,7 @@ protected:
 	bool bAttractionForceEnabled = false;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bAttractionForceEnabled", EditConditionHides))
-	float AttractionForceStrength = 1000.f;
+	float AttractionForceStrength = 100.f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bAttractionForceEnabled", EditConditionHides))
 	float AttractionForceFalloff = 0.1f;
@@ -234,6 +279,23 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bGravityForceEnabled", EditConditionHides))
 	FVector GravityForceAcceleration = FVector(0, 0, -980.f);
+
+	/** Enable drag force to decrease particles velocity */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDragForceEnabled", Getter="GetDragForceEnabled", Category="Force", meta=(EditCondition="bForcesEnabled", EditConditionHides))
+	bool bDragForceEnabled = false;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bDragForceEnabled", EditConditionHides))
+	float DragForceLinear = 0.f;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bDragForceEnabled", EditConditionHides))
+	float DragForceRotational = 0.f;
+
+	/** Enable vector random noise force to add variation to clones behavior */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetVectorNoiseForceEnabled", Getter="GetVectorNoiseForceEnabled", Category="Force", meta=(EditCondition="bForcesEnabled", EditConditionHides))
+	bool bVectorNoiseForceEnabled = false;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bForcesEnabled && bVectorNoiseForceEnabled", EditConditionHides))
+	float VectorNoiseForceAmount = 100.f;
 
 private:
 #if WITH_EDITOR

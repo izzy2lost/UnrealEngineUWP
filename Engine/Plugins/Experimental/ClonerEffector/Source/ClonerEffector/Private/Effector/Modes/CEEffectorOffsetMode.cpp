@@ -57,9 +57,9 @@ void UCEEffectorOffsetMode::OnExtensionParametersChanged(UCEEffectorComponent* I
 	Super::OnExtensionParametersChanged(InComponent);
 
 	FCEClonerEffectorChannelData& ChannelData = InComponent->GetChannelData();
-	ChannelData.LocationDelta = GetOffset();
-	ChannelData.RotationDelta = GetRotation().Quaternion();
-	ChannelData.ScaleDelta = GetScale().ComponentMax(FVector(UE_KINDA_SMALL_NUMBER));
+	ChannelData.LocationDelta = Offset;
+	ChannelData.RotationDelta = FVector(Rotation.Yaw, Rotation.Pitch, Rotation.Roll);
+	ChannelData.ScaleDelta = Scale.ComponentMax(FVector(UE_KINDA_SMALL_NUMBER));
 }
 
 #if WITH_EDITOR

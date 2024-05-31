@@ -87,7 +87,7 @@ void UCEEffectorTargetMode::OnExtensionParametersChanged(UCEEffectorComponent* I
 	{
 		FCEClonerEffectorChannelData& ChannelData = InComponent->GetChannelData();
 		ChannelData.LocationDelta = InternalTargetActor->GetActorLocation();
-		ChannelData.RotationDelta = FQuat::Identity;
+		ChannelData.RotationDelta = FVector::ZeroVector;
 		ChannelData.ScaleDelta = FVector::OneVector;
 	}
 }

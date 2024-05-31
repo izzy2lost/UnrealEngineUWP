@@ -39,7 +39,7 @@ void FCEClonerEffectorChannelData::Write(UNiagaraDataChannelWriter* InWriter) co
 	InWriter->WriteVector(InnerExtentName, Identifier, InnerExtent);
 	InWriter->WriteVector(OuterExtentName, Identifier, OuterExtent);
 	InWriter->WriteVector(LocationDeltaName, Identifier, LocationDelta);
-	InWriter->WriteQuat(RotationDeltaName, Identifier, RotationDelta);
+	InWriter->WriteVector(RotationDeltaName, Identifier, RotationDelta);
 	InWriter->WriteVector(ScaleDeltaName, Identifier, ScaleDelta);
 	InWriter->WritePosition(LocationName, Identifier, Location);
 	InWriter->WriteQuat(RotationName, Identifier, Rotation);
@@ -59,6 +59,9 @@ void FCEClonerEffectorChannelData::Write(UNiagaraDataChannelWriter* InWriter) co
 	InWriter->WriteFloat(AttractionForceStrengthName, Identifier, AttractionForceStrength);
 	InWriter->WriteFloat(AttractionForceFalloffName, Identifier, AttractionForceFalloff);
 	InWriter->WriteVector(GravityForceAccelerationName, Identifier, GravityForceAcceleration);
+	InWriter->WriteFloat(DragForceLinearName, Identifier, DragForceLinear);
+	InWriter->WriteFloat(DragForceRotationalName, Identifier, DragForceRotational);
+	InWriter->WriteFloat(VectorNoiseForceAmountName, Identifier, VectorNoiseForceAmount);
 }
 
 void FCEClonerEffectorChannelData::Read(const UNiagaraDataChannelReader* InReader)
@@ -77,7 +80,7 @@ void FCEClonerEffectorChannelData::Read(const UNiagaraDataChannelReader* InReade
 	InnerExtent = InReader->ReadVector(InnerExtentName, Identifier, bIsValid);
 	OuterExtent = InReader->ReadVector(OuterExtentName, Identifier, bIsValid);
 	LocationDelta = InReader->ReadVector(LocationDeltaName, Identifier, bIsValid);
-	RotationDelta = InReader->ReadQuat(RotationDeltaName, Identifier, bIsValid);
+	RotationDelta = InReader->ReadVector(RotationDeltaName, Identifier, bIsValid);
 	ScaleDelta = InReader->ReadVector(ScaleDeltaName, Identifier, bIsValid);
 	Location = InReader->ReadPosition(LocationName, Identifier, bIsValid);
 	Rotation = InReader->ReadQuat(RotationName, Identifier, bIsValid);
@@ -97,6 +100,9 @@ void FCEClonerEffectorChannelData::Read(const UNiagaraDataChannelReader* InReade
 	AttractionForceStrength = InReader->ReadFloat(AttractionForceStrengthName, Identifier, bIsValid);
 	AttractionForceFalloff = InReader->ReadFloat(AttractionForceFalloffName, Identifier, bIsValid);
 	GravityForceAcceleration = InReader->ReadVector(GravityForceAccelerationName, Identifier, bIsValid);
+	DragForceLinear = InReader->ReadFloat(DragForceLinearName, Identifier, bIsValid);
+	DragForceRotational = InReader->ReadFloat(DragForceRotationalName, Identifier, bIsValid);
+	VectorNoiseForceAmount = InReader->ReadFloat(VectorNoiseForceAmountName, Identifier, bIsValid);
 }
 
 FCEClonerEffectorDataInterfaces::FCEClonerEffectorDataInterfaces(const UNiagaraSystem* InSystem)

@@ -60,6 +60,61 @@ void UCEEffectorForceExtension::SetGravityForceAcceleration(const FVector& InAcc
 	UpdateExtensionParameters();
 }
 
+void UCEEffectorForceExtension::SetDragForceEnabled(bool bInEnabled)
+{
+	if (bDragForceEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bDragForceEnabled = bInEnabled;
+	UpdateExtensionParameters(/** UpdateCloners */ true);
+}
+
+void UCEEffectorForceExtension::SetDragForceLinear(float InStrength)
+{
+	if (FMath::IsNearlyEqual(DragForceLinear, InStrength))
+	{
+		return;
+	}
+
+	DragForceLinear = InStrength;
+	UpdateExtensionParameters();
+}
+
+void UCEEffectorForceExtension::SetDragForceRotational(float InStrength)
+{
+	if (FMath::IsNearlyEqual(DragForceRotational, InStrength))
+	{
+		return;
+	}
+
+	DragForceRotational = InStrength;
+	UpdateExtensionParameters();
+}
+
+void UCEEffectorForceExtension::SetVectorNoiseForceEnabled(bool bInEnabled)
+{
+	if (bVectorNoiseForceEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bVectorNoiseForceEnabled = bInEnabled;
+	UpdateExtensionParameters(/** UpdateCloners */ true);
+}
+
+void UCEEffectorForceExtension::SetVectorNoiseForceAmount(float InAmount)
+{
+	if (FMath::IsNearlyEqual(VectorNoiseForceAmount, InAmount))
+	{
+		return;
+	}
+
+	VectorNoiseForceAmount = InAmount;
+	UpdateExtensionParameters();
+}
+
 void UCEEffectorForceExtension::SetOrientationForceEnabled(bool bInForceEnabled)
 {
 	if (bOrientationForceEnabled == bInForceEnabled)
@@ -241,6 +296,26 @@ void UCEEffectorForceExtension::OnExtensionParametersChanged(UCEEffectorComponen
 	{
 		ChannelData.GravityForceAcceleration = FVector::ZeroVector;
 	}
+
+	if (bForcesEnabled && bDragForceEnabled)
+	{
+		ChannelData.DragForceLinear = DragForceLinear;
+		ChannelData.DragForceRotational = DragForceRotational;
+	}
+	else
+	{
+		ChannelData.DragForceLinear = 0.f;
+		ChannelData.DragForceRotational = 0.f;
+	}
+
+	if (bForcesEnabled && bVectorNoiseForceEnabled)
+	{
+		ChannelData.VectorNoiseForceAmount = VectorNoiseForceAmount;
+	}
+	else
+	{
+		ChannelData.VectorNoiseForceAmount = 0.f;
+	}
 }
 
 void UCEEffectorForceExtension::OnForceOptionsChanged()
@@ -268,6 +343,11 @@ const TCEPropertyChangeDispatcher<UCEEffectorForceExtension> UCEEffectorForceExt
 	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, AttractionForceFalloff), &UCEEffectorForceExtension::OnForceOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, bGravityForceEnabled), &UCEEffectorForceExtension::OnForceOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, GravityForceAcceleration), &UCEEffectorForceExtension::OnForceOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, bDragForceEnabled), &UCEEffectorForceExtension::OnForceOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, DragForceLinear), &UCEEffectorForceExtension::OnForceOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, DragForceRotational), &UCEEffectorForceExtension::OnForceOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, bVectorNoiseForceEnabled), &UCEEffectorForceExtension::OnForceOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEEffectorForceExtension, VectorNoiseForceAmount), &UCEEffectorForceExtension::OnForceOptionsChanged },
 };
 
 void UCEEffectorForceExtension::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)

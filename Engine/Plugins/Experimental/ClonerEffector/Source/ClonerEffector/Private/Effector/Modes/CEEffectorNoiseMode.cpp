@@ -68,7 +68,7 @@ void UCEEffectorNoiseMode::OnExtensionParametersChanged(UCEEffectorComponent* In
 
 	FCEClonerEffectorChannelData& ChannelData = InComponent->GetChannelData();
 	ChannelData.LocationDelta = LocationStrength;
-	ChannelData.RotationDelta = RotationStrength.Quaternion();
+	ChannelData.RotationDelta = FVector(RotationStrength.Yaw, RotationStrength.Pitch, RotationStrength.Roll);
 	ChannelData.ScaleDelta = ScaleStrength;
 	ChannelData.Frequency = Frequency;
 	ChannelData.Pan = Pan;

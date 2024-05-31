@@ -41,8 +41,8 @@ void UCEEffectorSphereType::OnExtensionParametersChanged(UCEEffectorComponent* I
 	OuterRadius = FMath::Max(OuterRadius, InnerRadius);
 
 	FCEClonerEffectorChannelData& ChannelData = InComponent->GetChannelData();
-	ChannelData.InnerExtent = FVector(InnerRadius);
-	ChannelData.OuterExtent = FVector(OuterRadius);
+	ChannelData.InnerExtent = FVector::ZeroVector;
+	ChannelData.OuterExtent = FVector(InnerRadius, OuterRadius, 0.f);
 }
 
 void UCEEffectorSphereType::OnExtensionVisualizerDirty(int32 InDirtyFlags)
