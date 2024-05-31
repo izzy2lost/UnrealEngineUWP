@@ -262,7 +262,7 @@ static FRDGBufferRef AddHairStrandsVoxelTransmittanceMaskPass(
 		Parameters->VirtualShadowMap = VirtualShadowMapArray->GetSamplingParameters(GraphBuilder);
 		Parameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 		Parameters->RayMarchMaskTexture = nullptr;
-		Parameters->ShadowMaskBitsTexture = ShadowMaskTexture;
+		Parameters->ShadowMaskBitsTexture = ShadowMaskTexture ? ShadowMaskTexture : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 	}
 	else
 	{
