@@ -204,7 +204,7 @@ namespace AutomationTool.Tasks
 								LicenseConfig config = JsonSerializer.Deserialize<LicenseConfig>(data, new JsonSerializerOptions { PropertyNameCaseInsensitive = true, AllowTrailingCommas = true, ReadCommentHandling = JsonCommentHandling.Skip });
 								licenseUrls.UnionWith(config.Urls);
 							}
-							else if (file.HasExtension(".txt") || file.HasExtension(".html"))
+							else if (file.HasExtension(".txt") || file.HasExtension(".html") || file.HasExtension(".md"))
 							{
 								string text = await FileReference.ReadAllTextAsync(file);
 								LicenseInfo license = FindOrAddLicense(licenses, text, file.GetFileNameWithoutExtension());
