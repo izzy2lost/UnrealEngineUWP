@@ -42,6 +42,7 @@
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Engine/PackageMapClient.h"
+#include "Engine/World.h"
 #include "Net/DataReplication.h"
 #include "Engine/ActorChannel.h"
 #include "GameFramework/PlayerController.h"
@@ -333,6 +334,28 @@ UReplicationGraph::UReplicationGraph()
 		};
 	}
 #endif
+
+	// Report any actors that were not removed from networking
+	PostWorldCleanupCheckDelegateHandle = FWorldDelegates::OnPostWorldCleanup.AddWeakLambda(
+		this,
+		[&ActiveActors = this->ActiveNetworkActors](UWorld*, bool, bool)
+		{
+			if (!ActiveActors.IsEmpty())
+			{
+				UE_LOG(LogReplicationGraph, Warning, TEXT("%d actors were not removed from ReplicationGraph"), ActiveActors.Num());
+
+				for (AActor* Actor : ActiveActors)
+				{
+					UE_LOG(LogReplicationGraph, Log, TEXT("  Leaked actor: %s"), *GetFullNameSafe(Actor));
+				}
+			}
+		});
+}
+
+UReplicationGraph::~UReplicationGraph()
+{
+	FWorldDelegates::OnPostWorldCleanup.Remove(PostWorldCleanupCheckDelegateHandle);
+	PostWorldCleanupCheckDelegateHandle.Reset();
 }
 
 extern void CountReplicationGraphSharedBytes_Private(FArchive& Ar);
@@ -773,39 +796,66 @@ void UReplicationGraph::RemoveNetworkActor(AActor* Actor)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_RemoveNetworkActor);
 
-#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-	UE_CLOG(
-		Actor->IsPendingKillPending(),
-		LogReplicationGraph,
-		Verbose,
-		TEXT("Removing Actor that is already pending kill or invalid, please remove it before destroying it. Actor=%s"),
-		*Actor->GetActorNameOrLabel());
-#endif
-
-	if (ActiveNetworkActors.Remove(Actor) == 0)
+	if (UNLIKELY(!IsValid(Actor)))
 	{
-		// Guarding against double removes
-		return;
-	}
+		UE_LOG(
+			LogReplicationGraph,
+			Warning,
+			TEXT("Actor should still be valid during removal from networking: %s"),
+			*GetFullNameSafe(Actor));
 
-	// Tear off actors have already been removed from the nodes, so we don't need to route them again.
-	if (Actor->GetTearOff() == false)
-	{
-		UE_CLOG(CVar_RepGraph_LogActorRemove > 0, LogReplicationGraph, Display, TEXT("UReplicationGraph::RemoveNetworkActor %s"), *Actor->GetFullName());
-		RouteRemoveNetworkActorToNodes(FNewReplicatedActorInfo(Actor));
-	}
-
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_RemoveNetworkActor_FromConnectionsMap);
-
-		for (UNetReplicationGraphConnection* ConnectionManager : Connections)
+		if (!Actor)
 		{
-			ConnectionManager->ActorInfoMap.RemoveActor(Actor);
-			ConnectionManager->RemoveActorFromAllPrevDormantActorLists(Actor);
+			return;
 		}
 	}
 
-	GlobalActorReplicationInfoMap.Remove(Actor);
+	const bool bWasInActiveSet = ActiveNetworkActors.Remove(Actor) > 0;
+	if (UNLIKELY(!bWasInActiveSet))
+	{
+		UE_LOG(
+			LogReplicationGraph,
+			Verbose,
+			TEXT("Removing Actor that was not in the active set: %s"),
+			*GetFullNameSafe(Actor));
+	}
+	else
+	{
+		// Tear off actors have already been removed from the nodes, so we don't need to route them again.
+		if (Actor->GetTearOff() == false)
+		{
+			UE_CLOG(
+				CVar_RepGraph_LogActorRemove > 0,
+				LogReplicationGraph,
+				Display,
+				TEXT("UReplicationGraph::RemoveNetworkActor %s"),
+				*GetFullNameSafe(Actor));
+			RouteRemoveNetworkActorToNodes(FNewReplicatedActorInfo(Actor));
+		}
+
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_RemoveNetworkActor_FromConnectionsMap);
+
+			for (UNetReplicationGraphConnection* ConnectionManager : Connections)
+			{
+				ConnectionManager->ActorInfoMap.RemoveActor(Actor);
+				ConnectionManager->RemoveActorFromAllPrevDormantActorLists(Actor);
+			}
+		}
+	}
+
+	const bool bWasInReplicationInfoMap = GlobalActorReplicationInfoMap.Remove(Actor) > 0;
+
+	if (UNLIKELY(!bWasInActiveSet && bWasInReplicationInfoMap))
+	{
+		// Actor info found for an actor that was not in the active set, likely to crash if the actor is garbage collected while there is still a
+		// record of it. Perhaps a replication node inadvertently created the record via GlobalActorReplicationInfoMap.Get().
+		UE_LOG(
+			LogReplicationGraph,
+			Warning,
+			TEXT("Actor replication info found for actor that was not in the active set: %s"),
+			*GetFullNameSafe(Actor));
+	}
 }
 
 void UReplicationGraph::RouteRemoveNetworkActorToNodes(const FNewReplicatedActorInfo& ActorInfo)

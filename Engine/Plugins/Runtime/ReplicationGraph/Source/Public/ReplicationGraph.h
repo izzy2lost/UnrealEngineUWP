@@ -922,6 +922,7 @@ class REPLICATIONGRAPH_API UReplicationGraph : public UReplicationDriver
 public:
 
 	UReplicationGraph();
+	virtual ~UReplicationGraph();
 
 	/** The per-connection manager class to instantiate. This will be read off the instantiated UNetReplicationManager. */
 	UPROPERTY(Config)
@@ -1137,6 +1138,7 @@ protected:
 	FGlobalActorReplicationInfoMap GlobalActorReplicationInfoMap;
 
 	/** The authoritative set of "what actors are in the graph" */
+	UPROPERTY()
 	TSet<AActor*> ActiveNetworkActors;
 
 	/** Special case handling of specific RPCs. Currently supports immediate send/flush for multicasts */
@@ -1220,6 +1222,9 @@ private:
 	UNetReplicationGraphConnection* CreateClientConnectionManagerInternal(UNetConnection* Connection);
 
 	friend class AReplicationGraphDebugActor;
+
+	/** Delegate that runs after world cleanup to report any actors that were not explicitly removed from Replication Graph and could be leaks. */
+	FDelegateHandle PostWorldCleanupCheckDelegateHandle;
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
