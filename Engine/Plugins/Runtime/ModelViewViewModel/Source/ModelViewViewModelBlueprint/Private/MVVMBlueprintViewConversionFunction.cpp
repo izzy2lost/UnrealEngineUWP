@@ -115,7 +115,24 @@ bool UMVVMBlueprintViewConversionFunction::NeedsWrapperGraphInternal(const UClas
 		const UFunction* Function = ConversionFunction.GetFunction(SkeletalSelfContext);
 		if (ensure(Function))
 		{
-			return SavedPins.Num() > 1 || !UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(Function);
+			bool bNeedsWrapper = SavedPins.Num() > 1 || !UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(Function);
+			if (!bNeedsWrapper)
+			{
+				// Confirms there are no autocast/autopromote node
+				if (ensure(CachedWrapperGraph))
+				{
+					for (UEdGraphNode* Node : CachedWrapperGraph->Nodes)
+					{
+						if (UE::MVVM::ConversionFunctionHelper::IsAutoPromoteNode(Node))
+						{
+							bNeedsWrapper = true;
+							break;
+						}
+					}
+				}
+			}
+
+			return bNeedsWrapper;
 		}
 	}
 	else if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)

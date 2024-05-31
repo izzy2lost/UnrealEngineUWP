@@ -86,6 +86,12 @@ namespace UE::MVVM::ConversionFunctionHelper
 
 	/** Add metadata to the Graph/Function. */
 	MODELVIEWVIEWMODELBLUEPRINT_API void SetMetaData(UEdGraph* NewGraph, FName MetaData, FStringView Value);
+
+	/** Mark the node a auto promote. We try to hide those node in the editor. */
+	MODELVIEWVIEWMODELBLUEPRINT_API void MarkNodeAsAutoPromote(UEdGraphNode* Node);
+
+	/** Is the node an auto promote node. */
+	MODELVIEWVIEWMODELBLUEPRINT_API bool IsAutoPromoteNode(const UEdGraphNode* Node);
 } //namespace
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

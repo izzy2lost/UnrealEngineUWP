@@ -6,7 +6,6 @@
 
 #include "MVVMConversionFunctionGraphSchema.generated.h"
 
-
 /**
  *
  */
@@ -16,13 +15,5 @@ class UMVVMConversionFunctionGraphSchema : public UEdGraphSchema_K2
 	GENERATED_BODY()
 
 public:
-	virtual const FPinConnectionResponse CanCreateConnection(const UEdGraphPin* A, const UEdGraphPin* B) const override
-	{
-		FPinConnectionResponse ConnectionResponse = Super::CanCreateConnection(A, B);
-		if (ConnectionResponse.Response == CONNECT_RESPONSE_MAKE_WITH_CONVERSION_NODE || ConnectionResponse.Response == CONNECT_RESPONSE_MAKE_WITH_PROMOTION)
-		{
-			ConnectionResponse.Response = CONNECT_RESPONSE_DISALLOW;
-		}
-		return ConnectionResponse;
-	}
+	virtual bool TryCreateConnection(UEdGraphPin* A, UEdGraphPin* B) const override;
 };

@@ -29,6 +29,7 @@ namespace UE::MVVM::ConversionFunctionHelper
 namespace Private
 {
 	static const FLazyName ConversionFunctionMetadataKey = "ConversionFunction";
+	static const FStringView AutoPromoteFunctionMetadataKey = TEXT("AutoPromoteFunction");
 	static const FLazyName ConversionFunctionCategory = "Conversion Functions";
 
 	UMVVMBlueprintView* GetView(const UBlueprint* Blueprint)
@@ -170,7 +171,10 @@ namespace Private
 				if (Private::IsSystemInputPin(Pin) && Pin->LinkedTo.Num() == 1)
 				{
 					Result = Pin->LinkedTo[0]->GetOwningNode();
-					NodesInPath.Emplace(Result, Pin->LinkedTo[0]);
+					if (Result && !IsAutoPromoteNode(Result))
+					{
+						NodesInPath.Emplace(Result, Pin->LinkedTo[0]);
+					}
 				}
 				return Result;
 			};
@@ -1306,6 +1310,19 @@ void SetMetaData(UEdGraph* NewGraph, FName MetaData, FStringView Value)
 	{
 		FunctionEntry->MetaData.SetMetaData(MetaData, Value);
 	}
+}
+
+void MarkNodeAsAutoPromote(UEdGraphNode* Node)
+{
+	if (Node && !Node->NodeComment.Contains(Private::AutoPromoteFunctionMetadataKey))
+	{
+		Node->NodeComment.Append(Private::AutoPromoteFunctionMetadataKey);
+	}
+}
+
+bool IsAutoPromoteNode(const UEdGraphNode* Node)
+{
+	return Node && Node->NodeComment.Contains(Private::AutoPromoteFunctionMetadataKey);
 }
 
 } // UE::MVVM::ConversionFunctionHelper
