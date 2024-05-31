@@ -2225,7 +2225,7 @@ void FRHICommandList::RayTraceDispatch(
 	FRayTracingPipelineState* Pipeline,
 	FRHIRayTracingShader* RayGenShader,
 	FRHIShaderBindingTable* SBT,
-	const FRHIBatchedShaderParameters& GlobalResourceBindings,
+	FRHIBatchedShaderParameters& GlobalResourceBindings,
 	uint32 Width, uint32 Height)
 {
 #if RHI_RAYTRACING
@@ -2238,13 +2238,15 @@ void FRHICommandList::RayTraceDispatch(
 	checkNoEntry();
 
 #endif // RHI_RAYTRACING
+
+	GlobalResourceBindings.Reset();
 }
 
 void FRHICommandList::RayTraceDispatchIndirect(
 	FRayTracingPipelineState* Pipeline,
 	FRHIRayTracingShader* RayGenShader,
 	FRHIShaderBindingTable* SBT,
-	const FRHIBatchedShaderParameters& GlobalResourceBindings,
+	FRHIBatchedShaderParameters& GlobalResourceBindings,
 	FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 {
 #if RHI_RAYTRACING
@@ -2257,6 +2259,8 @@ void FRHICommandList::RayTraceDispatchIndirect(
 	checkNoEntry();
 
 #endif // RHI_RAYTRACING
+
+	GlobalResourceBindings.Reset();
 }
 
 

@@ -186,10 +186,10 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 		FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 		FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 
-		FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
-		SetShaderParameters(ShaderParameters, RayGenShader, *PassParameters);
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
+		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, ShaderParameters, RayTracingResolution.X, RayTracingResolution.Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 	});
 }
 

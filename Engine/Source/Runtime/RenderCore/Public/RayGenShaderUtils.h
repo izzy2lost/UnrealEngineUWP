@@ -34,7 +34,7 @@ struct FRayGenShaderUtils
 			ERDGPassFlags::Compute,
 			[RayGenerationShader, Parameters, Resolution](FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
 			FRayTracingPipelineStateInitializer Initializer;

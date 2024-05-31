@@ -157,7 +157,7 @@ void RenderHardwareRayTracingShortRangeAO(
 			ERDGPassFlags::Compute,
 			[&View, RayGenerationShader, PassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
 			{
-				FRayTracingShaderBindingsWriter GlobalResources;
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 				bool bBentNormalEnableMaterials = false;

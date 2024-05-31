@@ -621,7 +621,11 @@ void BindLightFunctionShaders(
 template< typename ShaderClass>
 static int32 BindParameters(const TShaderRef<ShaderClass>& Shader, typename ShaderClass::FParameters & Parameters, int32 MaxParams, const FRHIUniformBuffer **OutUniformBuffers)
 {
+	// Allow FRayTracingShaderBindingsWriter
+	// #yuriy-todo: ResourceBinder here appears to only be used to fill OutUniformBuffers. Add a dedicated helper for this? 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRayTracingShaderBindingsWriter ResourceBinder;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	auto &ParameterMap = Shader->ParameterMapInfo;
 
@@ -670,7 +674,12 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightingMissShader(FRHIComman
 	MissParameters.ViewUniformBuffer = View.ViewUniformBuffer;
 	MissParameters.LightDataPacked = View.RayTracingLightGridUniformBuffer;
 
+	// Allow FRayTracingShaderBindingsWriter
+	// #yuriy-todo: ResourceBinder here appears to only be used to fill OutUniformBuffers. Add a dedicated helper for this? 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	static constexpr uint32 MaxUniformBuffers = UE_ARRAY_COUNT(FRayTracingShaderBindings::UniformBuffers);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	const FRHIUniformBuffer* MissData[MaxUniformBuffers] = {};
 	auto MissShader = View.ShaderMap->GetShader<FRayTracingLightingMS>();
 

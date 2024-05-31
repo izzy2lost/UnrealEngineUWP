@@ -846,7 +846,7 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 		ERDGPassFlags::Compute,
 		[RayGenParameters, RayGenShader, &View, PickingSBT, PickingPipeline](FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 			BindRayTracingDebugCHSMaterialBindings(RHICmdList, PickingSBT, View, RayGenParameters->SceneUniformBuffer->GetRHI(), PickingPipeline);
@@ -1102,7 +1102,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 		ERDGPassFlags::Compute,
 		[RayGenParameters, RayGenShader, &View, HitStatsSBT, HitStatsPerPrimitivePipeline, ViewRect](FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 			BindRayTracingDebugHitStatsCHSMaterialBindings(RHICmdList, HitStatsSBT, View, RayGenParameters->SceneUniformBuffer->GetRHI(), DebugHitStatsUniformBuffer->GetRHI(), HitStatsPerPrimitivePipeline);
@@ -1587,7 +1587,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		ERDGPassFlags::Compute,
 		[this, RayGenParameters, RayGenShader, &View, Pipeline, SBT, ViewRect, bRequiresBindings](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 		if (bRequiresBindings)

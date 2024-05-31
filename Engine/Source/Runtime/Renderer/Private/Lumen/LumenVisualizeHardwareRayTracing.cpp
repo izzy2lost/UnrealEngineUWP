@@ -876,7 +876,7 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 			ERDGPassFlags::Compute,
 			[PassParameters, &View, RayGenerationShader, DispatchResolution](FRHICommandList& RHICmdList)
 			{
-				FRayTracingShaderBindingsWriter GlobalResources;
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 				FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;

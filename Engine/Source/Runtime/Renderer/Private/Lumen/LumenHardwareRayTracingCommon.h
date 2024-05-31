@@ -191,7 +191,7 @@ static void AddLumenRayTraceDispatchPass(
 		ERDGPassFlags::Compute,
 		[Parameters, &View, RayGenerationShader, bUseMinimalPayload, Resolution](FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
@@ -230,7 +230,7 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		{
 			IndirectArgsBuffer->MarkResourceAsUsed();
 
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;

@@ -186,7 +186,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 		ERDGPassFlags::Compute,
 		[PassParameters, this, &View, RayGenerationShader, RayTracingResolution, &RayTracingScene](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 		// TODO: Provide material support for opacity mask

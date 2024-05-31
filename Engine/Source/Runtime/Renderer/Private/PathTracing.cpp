@@ -3055,7 +3055,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			ERDGPassFlags::Compute,
 			[PassParameters, RayGenShader, &View](FRHICommandList& RHICmdList)
 			{
-				FRayTracingShaderBindingsWriter GlobalResources;
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 				RHICmdList.RayTraceDispatch(
@@ -3615,7 +3615,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 								ERDGPassFlags::Compute,
 								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHICommandList& RHICmdList)
 								{
-									FRayTracingShaderBindingsWriter GlobalResources;
+									FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 									SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 									if (bUseIndirectDispatch && PassParameters->Bounce > 0)
 									{

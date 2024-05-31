@@ -846,6 +846,7 @@ void SetShaderParameters(
 }
 
 #if RHI_RAYTRACING
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow FRayTracingShaderBindingsWriter
 void SetShaderParameters(
 	FRayTracingShaderBindingsWriter& RTBindingsWriter,
 	const FShaderParameterBindings& Bindings,
@@ -954,6 +955,7 @@ void SetShaderParameters(
 		RTBindingsWriter.SetUniformBuffer(Bindings.RootParameterBufferIndex, RTBindingsWriter.RootUniformBuffer);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FRayTracingShaderBindings ConvertRayTracingShaderBindings(const FRHIBatchedShaderParameters& BatchedParameters)
 {
@@ -967,8 +969,6 @@ FRayTracingShaderBindings ConvertRayTracingShaderBindings(const FRHIBatchedShade
 	TArrayView<FRHIUnorderedAccessView*> UAVs = Result.UAVs;
 
 	checkf(BatchedParameters.Parameters.IsEmpty(), TEXT("FRHIShaderParameter is not supported by FRayTracingShaderBindings"));
-
-	// TODO: Handle FRHIBatchedShaderParameters::BindlessParameters once supported in FRayTracingShaderBindings
 
 	for (const FRHIShaderParameterResource& It : BatchedParameters.ResourceParameters)
 	{
@@ -997,6 +997,8 @@ FRayTracingShaderBindings ConvertRayTracingShaderBindings(const FRHIBatchedShade
 				checkNoEntry();
 		}
 	}
+
+	Result.BindlessParameters = BatchedParameters.BindlessParameters;
 
 	return Result;
 }
@@ -1036,7 +1038,10 @@ void SetRayTracingShaderParameters(
 
 #if DO_CHECK
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow FRayTracingShaderBindingsWriter
 		FRayTracingShaderBindingsWriter RTBindingsWriter;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		SetShaderParameters(RTBindingsWriter, Bindings, ParametersMetadata, InParametersData);
 
 		FRayTracingShaderBindings ConvertedBindings = ConvertRayTracingShaderBindings(BatchedParameters);
@@ -1073,6 +1078,14 @@ void SetRayTracingShaderParameters(
 			for (int32 i = 0; i < UE_ARRAY_COUNT(ConvertedBindings.UAVs); ++i)
 			{
 				check(RTBindingsWriter.UAVs[i] == ConvertedBindings.UAVs[i]);
+			}
+
+			check(RTBindingsWriter.BindlessParameters.Num() == ConvertedBindings.BindlessParameters.Num());
+			for (int32 i = 0; i < ConvertedBindings.BindlessParameters.Num(); ++i)
+			{
+				const FRHIShaderParameterResource& A = RTBindingsWriter.BindlessParameters[i];
+				const FRHIShaderParameterResource& B = ConvertedBindings.BindlessParameters[i];
+				check(FMemory::Memcmp(&A, &B, sizeof(A)) == 0);
 			}
 		}
 	}

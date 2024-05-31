@@ -471,7 +471,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 			ERDGPassFlags::Compute,
 			[PassParameters, this, &View, RayGenerationShader, RayTracingResolution, &RayTracingScene](FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;

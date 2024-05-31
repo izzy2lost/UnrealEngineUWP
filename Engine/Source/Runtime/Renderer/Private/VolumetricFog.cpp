@@ -502,7 +502,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 			ERDGPassFlags::Compute,
 			[&View, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
 			{
-				FRayTracingShaderBindingsWriter GlobalResources;
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 				RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, DispatchSize, 1);
@@ -907,7 +907,7 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 					ERDGPassFlags::Compute,
 					[this, &View, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
 					{
-						FRayTracingShaderBindingsWriter GlobalResources;
+						FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 						SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, DispatchSize, 1);

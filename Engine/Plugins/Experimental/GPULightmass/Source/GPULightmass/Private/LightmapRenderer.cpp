@@ -2480,7 +2480,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 										ERDGPassFlags::Compute,
 										[PassParameters, this, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution, GPUIndex](FRHICommandList& RHICmdList)
 									{
-										FRayTracingShaderBindingsWriter GlobalResources;
+										FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 										SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 										check(RHICmdList.GetGPUMask().HasSingleIndex());
@@ -2823,7 +2823,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 							ERDGPassFlags::Compute,
 							[PassParameters, this, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
 						{
-							FRayTracingShaderBindingsWriter GlobalResources;
+							FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 							SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 							RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);

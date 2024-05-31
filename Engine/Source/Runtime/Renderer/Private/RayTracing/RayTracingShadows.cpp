@@ -527,7 +527,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				ERDGPassFlags::Compute,
 				[this, &View, RayGenerationShader, CommonPassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
 				{
-					FRayTracingShaderBindingsWriter GlobalResources;
+					FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);
 
 					if (GRayTracingShadowsEnableMaterials)

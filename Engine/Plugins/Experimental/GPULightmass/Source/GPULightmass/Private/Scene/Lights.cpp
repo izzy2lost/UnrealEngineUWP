@@ -455,7 +455,7 @@ void FDirectionalLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImm
 		ERDGPassFlags::Compute,
 		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
@@ -567,7 +567,7 @@ void FSpotLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate&
 		ERDGPassFlags::Compute,
 		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
@@ -670,7 +670,7 @@ void FPointLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate
 		ERDGPassFlags::Compute,
 		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
@@ -764,7 +764,7 @@ void FRectLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate&
 		ERDGPassFlags::Compute,
 		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);

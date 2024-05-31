@@ -73,7 +73,7 @@ void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIShaderResourceV
 	OcclusionParameters.Rays = RayBufferView;
 	OcclusionParameters.OcclusionOutput = ResultView;
 
-	FRayTracingShaderBindingsWriter GlobalResources;
+	FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 	SetShaderParameters(GlobalResources, RayTracingPipeline.OcclusionRGS, OcclusionParameters);
 	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.OcclusionRGS.GetRayTracingShader(), SBT, GlobalResources, NumRays, 1);
 }
@@ -98,7 +98,7 @@ void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIShaderResour
 	OcclusionParameters.Rays = RayBufferView;
 	OcclusionParameters.IntersectionOutput = ResultView;
 
-	FRayTracingShaderBindingsWriter GlobalResources;
+	FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 	SetShaderParameters(GlobalResources, RayTracingPipeline.IntersectionRGS, OcclusionParameters);
 	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.IntersectionRGS.GetRayTracingShader(), SBT, GlobalResources, NumRays, 1);
 }

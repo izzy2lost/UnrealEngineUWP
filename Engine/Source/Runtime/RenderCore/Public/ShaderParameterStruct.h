@@ -315,6 +315,8 @@ RENDERCORE_API void SetRayTracingShaderParameters(
 	const FShaderParametersMetadata* ParametersMetadata,
 	const void* ParametersData);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow FRayTracingShaderBindingsWriter
+
 RENDERCORE_API void SetShaderParameters(
 	FRayTracingShaderBindingsWriter& RTBindingsWriter,
 	const FShaderParameterBindings& Bindings,
@@ -333,5 +335,7 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 
 	SetShaderParameters(RTBindingsWriter, Shader->Bindings, ParametersMetadata, &Parameters);
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // RHI_RAYTRACING

@@ -684,7 +684,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 		](FRHICommandList& RHICmdList)
 		{
 			// Set ray-gen bindings
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 			// Create pipeline
@@ -855,7 +855,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 		](FRHICommandList& RHICmdList)
 		{
 			// Set ray-gen bindings
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 			// Create pipeline

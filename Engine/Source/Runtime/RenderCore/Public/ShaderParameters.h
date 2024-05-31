@@ -166,7 +166,8 @@ public:
 };
 
 #if RHI_RAYTRACING
-struct FRayTracingShaderBindingsWriter : FRayTracingShaderBindings
+
+struct UE_DEPRECATED(5.5, "Use FRHIBatchedShaderParameters and SetShaderParameters() instead.") FRayTracingShaderBindingsWriter : FRayTracingShaderBindings
 {
 	FUniformBufferRHIRef RootUniformBuffer;
 

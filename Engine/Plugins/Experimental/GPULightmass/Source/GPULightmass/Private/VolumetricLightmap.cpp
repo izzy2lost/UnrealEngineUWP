@@ -851,7 +851,7 @@ void FVolumetricLightmapRenderer::BackgroundTick()
 					BricksToCalcThisFrame
 				](FRHICommandList& RHICmdList)
 				{
-					FRayTracingShaderBindingsWriter GlobalResources;
+					FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 					SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 					RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources,
