@@ -4,6 +4,7 @@
 
 #include "MetasoundDataTypeRegistrationMacro.h"
 
+REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMusicTransportEvent, "MusicTransportEvent")
 REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMusicTransportEventStream, "MusicTransport")
 
 namespace HarmonixMetasound

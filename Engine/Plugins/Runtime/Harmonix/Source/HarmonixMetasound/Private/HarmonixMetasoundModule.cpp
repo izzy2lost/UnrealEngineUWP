@@ -9,6 +9,7 @@
 #include "HarmonixMetasound/Analysis/MidiClockVertexAnalyzer.h"
 #include "HarmonixMetasound/Analysis/MidiSongPosVertexAnalyzer.h"
 #include "HarmonixMetasound/Analysis/MidiStreamVertexAnalyzer.h"
+#include "HarmonixMetasound/Analysis/MusicTransportEventStreamVertexAnalyzer.h"
 #include "HarmonixMetasound/Analysis/FFTAnalyzerResultVertexAnalyzer.h"
 #include "HarmonixMetasound/DataTypes/FFTAnalyzerResult.h"
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
@@ -34,6 +35,10 @@ void FHarmonixMetasoundModule::StartupModule()
 		HarmonixMetasound::Analysis::FMidiClockVertexAnalyzer::GetAnalyzerName(),
 		HarmonixMetasound::Analysis::FMidiClockVertexAnalyzer::FOutputs::GetValue().Name);
 	UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
+		GetMetasoundDataTypeName<HarmonixMetasound::FMusicTransportEventStream>(),
+		HarmonixMetasound::Analysis::FMusicTransportEventStreamVertexAnalyzer::GetAnalyzerName(),
+		HarmonixMetasound::Analysis::FMusicTransportEventStreamVertexAnalyzer::FOutputs::GetValue().Name);
+	UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
 		GetMetasoundDataTypeName<FHarmonixFFTAnalyzerResults>(),
 		HarmonixMetasound::Analysis::FFFTAnalyzerResultVertexAnalyzer::GetAnalyzerName(),
 		HarmonixMetasound::Analysis::FFFTAnalyzerResultVertexAnalyzer::FOutputs::GetValue().Name);
@@ -42,6 +47,7 @@ void FHarmonixMetasoundModule::StartupModule()
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMidiStreamVertexAnalyzer)
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMidiClockVertexAnalyzer)
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMidiSongPosVertexAnalyzer)
+	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMusicTransportEventStreamVertexAnalyzer)
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FFFTAnalyzerResultVertexAnalyzer)
 
 	// The first redirect for thie module
