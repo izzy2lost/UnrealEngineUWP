@@ -2109,18 +2109,18 @@ namespace UnrealBuildTool
 
 			if (Result.OptimizationLevel != Rules.OptimizationLevel)
 			{
-				Logger.LogInformation("Module {0} - Optimization level changed for module due to override. Old: {1} New: {2}", Name, Result.OptimizationLevel, Rules.OptimizationLevel);
+				Logger.LogInformation("Module {Name} - Optimization level changed for module due to override. Old: {OldOptimizationLevel} New: {NewOptimizationLevel}", Name, Result.OptimizationLevel, Rules.OptimizationLevel);
 				if (Rules.PrivatePCHHeaderFile == null)
 				{
 					if (Rules.PCHUsage != ModuleRules.PCHUsageMode.NoPCHs)
 					{
-						Logger.LogInformation("  Overriding OptimizationLevel requires a private PCH. Disabling PCH usage for {0}", Name);
+						Logger.LogInformation("  Overriding OptimizationLevel requires a private PCH. Disabling PCH usage for {Name}", Name);
 						Rules.PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
 					}
 				}
 				else if (Rules.PCHUsage == ModuleRules.PCHUsageMode.UseSharedPCHs)
 				{
-					Logger.LogInformation("  Overriding OptimizationLevel requires a private PCH. A private PCH exists but UseSharedPCHs was specified. Overriding to NoSharedPCHs for {0}", Name);
+					Logger.LogInformation("  Overriding OptimizationLevel requires a private PCH. A private PCH exists but UseSharedPCHs was specified. Overriding to NoSharedPCHs for {Name}", Name);
 					Rules.PCHUsage = ModuleRules.PCHUsageMode.NoSharedPCHs;
 				}
 				Result.OptimizationLevel = Rules.OptimizationLevel;
@@ -2132,13 +2132,13 @@ namespace UnrealBuildTool
 				{
 					if (Rules.PCHUsage != ModuleRules.PCHUsageMode.NoPCHs)
 					{
-						Logger.LogInformation($"  Overriding FPSemantics requires a private PCH. Disabling PCH usage for {Name}");
+						Logger.LogInformation("  Overriding FPSemantics requires a private PCH. Disabling PCH usage for {Name}", Name);
 						Rules.PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
 					}
 				}
 				else if (Rules.PCHUsage == ModuleRules.PCHUsageMode.UseSharedPCHs)
 				{
-					Logger.LogInformation($"  Overriding FPSemantics requires a private PCH. A private PCH exists but UseSharedPCHs was specified. Overriding to NoSharedPCHs for {Name}");
+					Logger.LogInformation("  Overriding FPSemantics requires a private PCH. A private PCH exists but UseSharedPCHs was specified. Overriding to NoSharedPCHs for {Name}", Name);
 					Rules.PCHUsage = ModuleRules.PCHUsageMode.NoSharedPCHs;
 				}
 				Result.FPSemantics = Rules.FPSemantics;
@@ -2158,6 +2158,29 @@ namespace UnrealBuildTool
 			if (Target.bEnableCppModules && Result.CppStandard < CppStandardVersion.Cpp20)
 			{
 				Result.CppStandard = CppStandardVersion.Cpp20;
+			}
+
+			if (Result.CppStandard < Result.CppStandardEngine)
+			{
+				// SharedPCH is disallowed for modules that compile against an older CppStandard than the engine
+				if (Rules.PCHUsage == ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs)
+				{
+					if (Rules.PrivatePCHHeaderFile != null)
+					{
+						Logger.LogDebug("  CppStandard {CppStandard} cannot use PCHUsage {PCHUsage}, however PrivatePCHHeaderFile is set. Overriding to NoSharedPCHs for {Name}", Result.CppStandard, Rules.PCHUsage, Name);
+						Rules.PCHUsage = ModuleRules.PCHUsageMode.NoSharedPCHs;
+					}
+					else
+					{
+						Logger.LogDebug("  CppStandard {CppStandard} cannot use PCHUsage {PCHUsage}. Overriding to NoPCHs for {Name}", Result.CppStandard, Rules.PCHUsage, Name);
+						Rules.PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
+					}
+				}
+				else if (Rules.PCHUsage == ModuleRules.PCHUsageMode.UseSharedPCHs)
+				{
+					Logger.LogDebug("  CppStandard {CppStandard} cannot use PCHUsage {PCHUsage}. Overriding to NoPCHs for {Name}", Result.CppStandard, Rules.PCHUsage, Name);
+					Rules.PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
+				}
 			}
 
 			// If the module overrides the C language version, override it on the compile environment
