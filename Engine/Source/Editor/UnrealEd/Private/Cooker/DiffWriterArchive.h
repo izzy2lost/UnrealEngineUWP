@@ -101,8 +101,20 @@ public:
 	/** Offset and callstack pair */
 	struct FCallstackAtOffset
 	{
-		/** Offset of a Serialize call */
+		/**
+		 * Offset of a block written by Serialize call. Equal to SerializeCallOffset unless the block was split by a
+		 * separate Serialize call.
+		 */
 		int64 Offset = -1;
+		/**
+		 * Length of a block written by Serialize call. Equal to SerializeCallLength unless the block was split by a
+		 * separate Serialize call.
+		 */
+		int64 Length = -1;
+		/** The offset written to by the Serialize call. */
+		int64 SerializeCallOffset = -1;
+		/** The length written by the Serialize call. */
+		int64 SerializeCallLength = -1;
 		/** Callstack CRC for the Serialize call */
 		uint32 Callstack = 0;
 		/** Collected inside of a scope that indicates diff should be recorded but logging should be suppressed */
@@ -180,19 +192,6 @@ public:
 	const FCallstackData& GetCallstackData(const FCallstackAtOffset& CallstackOffset) const
 	{
 		return UniqueCallstacks[CallstackOffset.Callstack];
-	}
-
-	/** Returns the size of serialized data at the specified offset. */
-	int64 GetSerializedDataSizeForOffsetIndex(int32 InOffsetIndex) const
-	{
-		if (InOffsetIndex < CallstackAtOffsetMap.Num() - 1)
-		{
-			return CallstackAtOffsetMap[InOffsetIndex + 1].Offset - CallstackAtOffsetMap[InOffsetIndex].Offset;
-		}
-		else
-		{
-			return EndOffset - CallstackAtOffsetMap[InOffsetIndex].Offset;
-		}
 	}
 
 	int64 GetEndOffset() const
