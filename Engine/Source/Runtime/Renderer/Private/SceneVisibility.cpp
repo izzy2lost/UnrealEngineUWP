@@ -2191,6 +2191,7 @@ void FComputeAndMarkRelevance::Finalize()
 				const FPrimitiveViewRelevance& CombinedRelevance = ShadingPipelines.CombinedRelevance;
 
 				WriteView.ShadingModelMaskInView |= CombinedRelevance.ShadingModelMask;
+				WriteView.bUsesGlobalDistanceField |= CombinedRelevance.bUsesGlobalDistanceField;
 				WriteView.bUsesLightingChannels |= CombinedRelevance.bUsesLightingChannels;
 				WriteView.bSceneHasSkyMaterial |= CombinedRelevance.bUsesSkyMaterial;
 				WriteView.bHasDistortionPrimitives |= CombinedRelevance.bDistortion;
