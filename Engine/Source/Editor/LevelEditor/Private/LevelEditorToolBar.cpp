@@ -1755,22 +1755,9 @@ void FLevelEditorToolBar::RegisterQuickSettingsMenu()
 
 	{
 		FToolMenuSection& Section = Menu->AddSection("LevelEditorAudio", LOCTEXT("AudioHeading", "Real Time Audio") );
-		TSharedRef<SWidget> VolumeItem = SNew(SHorizontalBox)
-											+SHorizontalBox::Slot()
-											.FillWidth(0.9f)
-											.Padding( FMargin(2.0f, 0.0f, 0.0f, 0.0f) )
-											[
-												SNew(SVolumeControl)
-												.ToolTipText_Static(&FLevelEditorActionCallbacks::GetAudioVolumeToolTip)
-												.Volume_Static(&FLevelEditorActionCallbacks::GetAudioVolume)
-												.OnVolumeChanged_Static(&FLevelEditorActionCallbacks::OnAudioVolumeChanged)
-												.Muted_Static(&FLevelEditorActionCallbacks::GetAudioMuted)
-												.OnMuteChanged_Static(&FLevelEditorActionCallbacks::OnAudioMutedChanged)
-											]
-											+SHorizontalBox::Slot()
-											.FillWidth(0.1f);
 
-		Section.AddEntry(FToolMenuEntry::InitWidget("Volume", VolumeItem, LOCTEXT("VolumeControlLabel","Volume")));
+		Section.AddEntry(FToolMenuEntry::InitWidget(
+			"Volume", UE::LevelEditor::BuildVolumeControlCustomWidget(), LOCTEXT("VolumeControlLabel", "Volume")));
 	}
 
 	{

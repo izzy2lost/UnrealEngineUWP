@@ -6,6 +6,7 @@
 
 class FLevelEditorViewportClient;
 class SLevelViewport;
+class SWidget;
 class UToolMenu;
 struct FToolMenuSection;
 
@@ -21,6 +22,7 @@ void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
 void AddViewportToolbarPerformanceAndScalabilitySubmenu(FToolMenuSection& InSection);
 
 void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport);
-void AddLevelEditorViewportToolbarSettingsSection(FToolMenuSection& InSection);
+TSharedRef<SWidget> BuildVolumeControlCustomWidget();
+void AddLevelEditorViewportToolbarSettingsSubmenu(FToolMenuSection& InSection);
 
 } // namespace UE::LevelEditor

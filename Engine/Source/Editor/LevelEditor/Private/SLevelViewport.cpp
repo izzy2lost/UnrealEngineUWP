@@ -1934,7 +1934,7 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			{
 				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
 				UE::LevelEditor::AddViewportToolbarPerformanceAndScalabilitySubmenu(RightSection);
-				UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSection(RightSection);
+				UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSubmenu(RightSection);
 			}
 		}
 	}

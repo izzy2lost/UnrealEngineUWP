@@ -12,6 +12,8 @@
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Widgets/Input/SVolumeControl.h"
+#include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "LevelEditorViewportToolbar"
 
@@ -381,18 +383,64 @@ void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport>
 	}
 }
 
-void AddLevelEditorViewportToolbarSettingsSection(FToolMenuSection& InSection)
+TSharedRef<SWidget> BuildVolumeControlCustomWidget()
+{
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.FillWidth(0.9f)
+		.Padding(FMargin(2.0f, 0.0f, 0.0f, 0.0f))
+		[
+		SNew(SVolumeControl)
+			.ToolTipText_Static(&FLevelEditorActionCallbacks::GetAudioVolumeToolTip)
+			.Volume_Static(&FLevelEditorActionCallbacks::GetAudioVolume)
+			.OnVolumeChanged_Static(&FLevelEditorActionCallbacks::OnAudioVolumeChanged)
+			.Muted_Static(&FLevelEditorActionCallbacks::GetAudioMuted)
+			.OnMuteChanged_Static(&FLevelEditorActionCallbacks::OnAudioMutedChanged)
+		]
+		+ SHorizontalBox::Slot()
+		.FillWidth(0.1f);
+}
+
+void AddLevelEditorViewportToolbarSettingsSubmenu(FToolMenuSection& InSection)
 {
 	InSection.AddSubMenu("Settings", LOCTEXT("SettingsSubmenuLabel", "Settings"),
 		LOCTEXT("SettingsSubmenuTooltip", "Viewport-related settings"),
 		FNewToolMenuDelegate::CreateLambda([](UToolMenu* Submenu) -> void {
-			FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
-
-			// Add maximize/restore viewport button.
 			{
-				FToolUIAction MaximizeRestoreAction;
-				MaximizeRestoreAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
-					[](const FToolMenuContext& Context) {
+				FToolMenuSection& ViewportControlsSection = Submenu->FindOrAddSection(
+					"ViewportControls", LOCTEXT("ViewportControlsSectionLabel", "Viewport Controls"));
+
+				ViewportControlsSection.AddSubMenu("ViewportLayouts", LOCTEXT("ViewportLayoutsLabel", "Layouts"),
+					LOCTEXT("ViewportLayoutsTooltip", "Configure the layouts of the viewport windows"),
+					FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu) {
+						ULevelViewportContext* const LevelViewportContext = InMenu->FindContext<ULevelViewportContext>();
+						if (!LevelViewportContext)
+						{
+							return;
+						}
+
+						if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+						{
+							GenerateViewportLayoutsMenu(InMenu, LevelViewport);
+						}
+					}),
+					false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Layout"));
+			}
+
+			{
+				FToolMenuSection& SettingsSection = Submenu->FindOrAddSection(
+					"Settings", LOCTEXT("SettingsSectionLabel", "Settings"));
+
+				SettingsSection.AddEntry(FToolMenuEntry::InitWidget(
+					"Volume", BuildVolumeControlCustomWidget(), LOCTEXT("VolumeControlLabel", "Volume")));
+
+				SettingsSection.AddSeparator("ViewportSizeSeparator");
+
+				SettingsSection.AddMenuEntry(FLevelViewportCommands::Get().ToggleImmersive);
+
+				{
+					FToolUIAction MaximizeRestoreAction;
+					MaximizeRestoreAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda([](const FToolMenuContext& Context) {
 						ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>();
 						if (!LevelViewportContext)
 						{
@@ -404,48 +452,38 @@ void AddLevelEditorViewportToolbarSettingsSection(FToolMenuSection& InSection)
 							LevelViewport->OnToggleMaximize();
 						}
 					});
-				MaximizeRestoreAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
-					[](const FToolMenuContext& Context) -> ECheckBoxState {
-						ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>();
-						if (!LevelViewportContext)
-						{
+					MaximizeRestoreAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+						[](const FToolMenuContext& Context) -> ECheckBoxState {
+							ULevelViewportContext* const LevelViewportContext =
+								Context.FindContext<ULevelViewportContext>();
+							if (!LevelViewportContext)
+							{
+								return ECheckBoxState::Undetermined;
+							}
+
+							if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+							{
+								return LevelViewport->IsMaximized() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+							}
+
 							return ECheckBoxState::Undetermined;
-						}
+						});
 
-						if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-						{
-							return LevelViewport->IsMaximized() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-						}
+					SettingsSection
+						.AddMenuEntry("MaximizeRestore", LOCTEXT("MaximizeRestoreLabel", "Maximize Viewport"),
+							LOCTEXT("MaximizeRestoreTooltip", "Maximizes or restores this viewport"),
+							FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Normal"),
+							MaximizeRestoreAction, EUserInterfaceActionType::ToggleButton)
+						.SetShowInToolbarTopLevel(true);
+				}
 
-						return ECheckBoxState::Undetermined;
-					});
+				SettingsSection.AddSeparator("AdvancedSeparator");
 
-				UnnamedSection
-					.AddMenuEntry("MaximizeRestore", LOCTEXT("MaximizeRestoreLabel", "Maximize/restore"),
-						LOCTEXT("MaximizeRestoreTooltip", "Maximizes or restores this viewport"),
-						FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Normal"),
-						MaximizeRestoreAction, EUserInterfaceActionType::ToggleButton)
-					.SetShowInToolbarTopLevel(true);
+				{
+					const FLevelViewportCommands& LevelViewportActions = FLevelViewportCommands::Get();
+					SettingsSection.AddMenuEntry(LevelViewportActions.AdvancedSettings);
+				}
 			}
-
-			// Add immersive mode toggle.
-			UnnamedSection.AddMenuEntry(FLevelViewportCommands::Get().ToggleImmersive);
-
-			UnnamedSection.AddSubMenu("ViewportLayouts", LOCTEXT("ViewportLayoutsLabel", "Layouts"),
-				LOCTEXT("ViewportLayoutsTooltip", "Configure the layouts of the viewport windows"),
-				FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu) {
-					ULevelViewportContext* const LevelViewportContext = InMenu->FindContext<ULevelViewportContext>();
-					if (!LevelViewportContext)
-					{
-						return;
-					}
-
-					if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-					{
-						GenerateViewportLayoutsMenu(InMenu, LevelViewport);
-					}
-				}),
-				false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Layout"));
 		}));
 }
 
