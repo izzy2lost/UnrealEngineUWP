@@ -3303,6 +3303,22 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(
 				{
 					SubObjectClass = *NewSubObjectClass;
 				}
+				else if (OldSubObjectClass->HasAnyClassFlags(CLASS_NewerVersionExists))
+				{
+					// The old subobject class is a compiler artifact, with no reinstanced counterpart. Its source may have been renamed (or deleted) and thus it could not be recompiled.
+					// In this case, if property bag features are enabled, we attempt to redirect to a placeholder type so we can serialize to a property bag in order to preserve its data.
+					if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled())
+					{
+						FTopLevelAssetPath OldSubObjectClassPath = OldSubObjectClass->GetReinstancedClassPathName();
+						if (OldSubObjectClassPath.IsValid())
+						{
+							if (UPackage* OldSubObjectClassPackage = FindPackage(nullptr, *OldSubObjectClassPath.GetPackageName().ToString()))
+							{
+								SubObjectClass = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(OldSubObjectClassPackage, OldSubObjectClass->GetClass(), OldSubObjectClassPath.GetAssetName(), OldSubObjectClass->GetFlags() & ~RF_Transient);
+							}
+						}
+					}
+				}
 
 				// Only pre-create object where the class does not have newer version of the it
 				if(!SubObjectClass->HasAnyClassFlags(CLASS_NewerVersionExists))

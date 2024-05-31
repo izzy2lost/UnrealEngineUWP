@@ -3658,6 +3658,14 @@ public:
 	 */
 	static COREUOBJECT_API bool IsSafeToSerializeToStructuredArchives(UClass* InClass);
 
+#if WITH_EDITOR
+	/**
+	 * If this class was recompiled, returns the path to where we should find the new (i.e. reinstanced) class.
+	 * Note: If this is not a recompiled class, this will return a NULL path and should be handled appropriately.
+	 */
+	COREUOBJECT_API FTopLevelAssetPath GetReinstancedClassPathName() const;
+#endif
+
 private:
 	/** 
 	 * This signature intentionally hides the method declared in UObjectBaseUtility to make it private.
@@ -3708,6 +3716,14 @@ protected:
 	 * @return		the CDO for this class
 	 **/
 	COREUOBJECT_API virtual UObject* CreateDefaultObject();
+
+#if WITH_EDITOR
+	/**
+	 * Internal helper method for GetReinstancedClassPathName(). Subclasses can choose to override the default
+	 * implementation to return a valid class path for recompiled class objects based on how reinstancing is handled.
+	 */
+	virtual FTopLevelAssetPath GetReinstancedClassPathName_Impl() const { return nullptr; }
+#endif
 };
 
 /**

@@ -5454,6 +5454,18 @@ bool UClass::IsSafeToSerializeToStructuredArchives(UClass* InClass)
 	return true;
 }
 
+#if WITH_EDITOR
+FTopLevelAssetPath UClass::GetReinstancedClassPathName() const
+{
+	if (HasAnyClassFlags(CLASS_NewerVersionExists))
+	{
+		return GetReinstancedClassPathName_Impl();
+	}
+
+	return nullptr;
+}
+#endif
+
 #if USTRUCT_FAST_ISCHILDOF_IMPL == USTRUCT_ISCHILDOF_STRUCTARRAY
 
 	FStructBaseChain::FStructBaseChain()
