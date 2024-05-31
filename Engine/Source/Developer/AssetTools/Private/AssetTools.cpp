@@ -2791,10 +2791,11 @@ TMap<FString, FString> UAssetToolsImpl::GetMappingsForRootPackageRename(
 	const FString& SrcRoot,
 	const FString& DstRoot,
 	const FString& SrcBaseDir,
-	const TArray<TPair<FString, FString>>& SourceAndDestFiles) const
+	const TArray<TPair<FString, FString>>& SourceAndDestFiles,
+	const TMap<FString, FString>& MountPointReplacements) const
 {
 	TMap<FString, FString> Result;
-	Result.Reserve(6 + SourceAndDestFiles.Num()); // usually only 3, +6 just in case
+	Result.Reserve(6 + SourceAndDestFiles.Num() + MountPointReplacements.Num()); // usually only 3, +6 just in case
 
 	{	// Plugin name patterns
 		FString SrcPath = FPaths::Combine(TEXT("/"), SrcRoot, SrcRoot);
@@ -2841,6 +2842,16 @@ TMap<FString, FString> UAssetToolsImpl::GetMappingsForRootPackageRename(
 				}
 			}
 		}
+	}
+
+	// Mount point replacements.
+	// In the case where a project has multiple plugins, they are represented as different package roots (mountpoints)
+	// So a Package my reference an asset, or object in a different mount point.
+	// We tag this information with '<Mountpoint>' so the header patcher can do a partial replacement (instead of the normal complete replacement)
+	// if the mount point is detected.
+	for (const TPair<FString, FString>& MountPair : MountPointReplacements)
+	{
+		Result.Add(TEXT("<Mountpoint>") + MountPair.Key, MountPair.Value);
 	}
 
 	return Result;

@@ -606,6 +606,33 @@ bool FAssetHeaderPatcherInner::DoPatch(FString& InOutString)
 		}
 	}
 
+	{
+		// Patching embedded mount points.
+		// 
+		FStringView InView = InOutString;
+		FStringView MountPoint = FPathViews::GetMountPointNameFromPath(InView);
+		if (MountPoint.Len())
+		{
+			TStringBuilder<NAME_SIZE> Tmp;
+			Tmp.Append(TEXT("<Mountpoint>"));
+			Tmp.Append(MountPoint);
+			FStringView MaybeReplacement = Find(SearchAndReplace, FStringView(Tmp));
+			if (!MaybeReplacement.IsEmpty())
+			{
+				int32 Left = UE_PTRDIFF_TO_INT32(MountPoint.GetData() - InView.GetData());
+				int32 Right = Left + MountPoint.Len();
+
+				Tmp.Reset();
+				Tmp.Append(InView.Left(Left));
+				Tmp.Append(MaybeReplacement);
+				Tmp.Append(InView.RightChop(Right));
+
+				InOutString = Tmp;
+				return true;
+			}
+		}
+	}
+
 	return false;
 }
 
