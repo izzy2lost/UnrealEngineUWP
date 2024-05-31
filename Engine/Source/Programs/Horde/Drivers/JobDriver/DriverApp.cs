@@ -52,7 +52,7 @@ namespace JobDriver
 			services.AddSingleton<IJobExecutorFactory, LocalExecutorFactory>();
 			services.AddSingleton<IJobExecutorFactory, TestExecutorFactory>();
 
-			services.AddSingleton<IWorkspaceMaterializerFactory, WorkspaceMaterializerFactory>();
+			services.AddSingleton<IWorkspaceMaterializerFactory, ManagedWorkspaceMaterializerFactory>();
 
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 		}

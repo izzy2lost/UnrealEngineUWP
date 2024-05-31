@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
 using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace JobDriver.Execution;
 
@@ -153,5 +154,30 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		scope.Span.SetTag("UseCacheFile", _useCacheFile);
 		scope.Span.SetTag("CleanDuringFinalize", _cleanDuringFinalize);
 		return scope;
+	}
+}
+
+class ManagedWorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
+{
+	readonly IServiceProvider _serviceProvider;
+
+	public ManagedWorkspaceMaterializerFactory(IServiceProvider serviceProvider)
+		=> _serviceProvider = serviceProvider;
+
+	/// <inheritdoc/>
+	public async Task<IWorkspaceMaterializer?> CreateMaterializerAsync(string name, RpcAgentWorkspace workspaceInfo, DirectoryReference workspaceDir, bool forAutoSdk, CancellationToken cancellationToken)
+	{
+		if (name.Equals(ManagedWorkspaceMaterializer.Name, StringComparison.OrdinalIgnoreCase))
+		{
+			if (forAutoSdk)
+			{
+				return await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, workspaceDir, true, false, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken);
+			}
+			else
+			{
+				return await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, workspaceDir, false, true, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken);
+			}
+		}
+		return null;
 	}
 }
