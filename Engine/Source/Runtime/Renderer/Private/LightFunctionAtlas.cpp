@@ -766,7 +766,7 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 void FLightFunctionAtlas::RenderDebugInfo(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views)
 {
 #if !UE_BUILD_SHIPPING
-	if (!IsLightFunctionAtlasEnabled())
+	if (!IsLightFunctionAtlasEnabled() || !GAreScreenMessagesEnabled)
 	{
 		return;
 	}
