@@ -8,6 +8,7 @@
 #include "EdGraph/EdGraph.h"
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkeletalMeshLODSettings.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/Skeleton.h"
 #include "Engine/AssetUserData.h"
@@ -2698,6 +2699,9 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
 		FString AssetPath = Data.SoftSkeletalMesh.ToString();
 		Ar << AssetPath;
 
+		AssetPath = TSoftObjectPtr<USkeletalMeshLODSettings>(Data.SkeletalMeshLODSettings).ToString();
+		Ar << AssetPath;
+
 		AssetPath = TSoftObjectPtr<USkeleton>(Data.Skeleton).ToString();
 		Ar << AssetPath;
 
@@ -2716,6 +2720,10 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
 		FString SkeletalMeshAssetPath;
 		Ar << SkeletalMeshAssetPath;
 		Data.SoftSkeletalMesh = SkeletalMeshAssetPath;
+
+		FString SkeletalMeshLODSettingsAssetPath;
+		Ar << SkeletalMeshLODSettingsAssetPath;
+		Data.SkeletalMeshLODSettings = TSoftObjectPtr<USkeletalMeshLODSettings>(SkeletalMeshLODSettingsAssetPath).LoadSynchronous();
 
 		FString SkeletonAssetPath;
 		Ar << SkeletonAssetPath;

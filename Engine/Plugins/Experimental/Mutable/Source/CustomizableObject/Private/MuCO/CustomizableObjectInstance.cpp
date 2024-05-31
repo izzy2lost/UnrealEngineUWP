@@ -3590,6 +3590,16 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		}
 	}
 
+	if (RefSkeletalMeshData.SkeletalMeshLODSettings)
+	{
+#if WITH_EDITORONLY_DATA
+		SkeletalMesh->SetLODSettings(RefSkeletalMeshData.SkeletalMeshLODSettings);
+#else
+		// This is the part from the above SkeletalMesh->SetLODSettings that's available in-game
+		RefSkeletalMeshData.SkeletalMeshLODSettings->SetLODSettingsToMesh(SkeletalMesh);
+#endif
+	}
+
 	// Set up unreal's default material, will be replaced when building materials
 	{
 		MUTABLE_CPUPROFILER_SCOPE(InitSkeletalMesh_AddDefaultMaterial);

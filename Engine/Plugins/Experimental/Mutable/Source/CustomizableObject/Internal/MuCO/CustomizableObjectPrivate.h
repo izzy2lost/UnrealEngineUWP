@@ -32,6 +32,7 @@ class UTexture;
 class UAnimInstance;
 class UAssetUserData;
 class UCustomizableObject;
+class USkeletalMeshLODSettings;
 
 
 FGuid CUSTOMIZABLEOBJECT_API GenerateIdentifier(const UCustomizableObject& CustomizableObject);
@@ -384,6 +385,10 @@ struct CUSTOMIZABLEOBJECT_API FMutableRefSkeletalMeshData
 	// Path to load the ReferenceSkeletalMesh
 	UPROPERTY()
 	TSoftObjectPtr<USkeletalMesh> SoftSkeletalMesh;
+
+	// Optional USkeletalMeshLODSettings
+	UPROPERTY()
+	TObjectPtr<USkeletalMeshLODSettings> SkeletalMeshLODSettings;
 
 	// LOD info
 	UPROPERTY()
@@ -1061,6 +1066,8 @@ public:
 		ImproveMemoryUsageForStreamableBlocks,
 
 		FixClipMeshWithMeshCrash,
+
+		SkeletalMeshLODSettingsSupport,
 
 		LastCustomizableObjectVersion
 	};

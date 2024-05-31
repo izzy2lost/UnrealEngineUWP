@@ -870,6 +870,15 @@ bool BakeCustomizableObjectInstance(
 				}
 			}
 
+			// Copy LODSettings from the Reference Skeletal Mesh
+			{
+				if (InstanceCO && InstanceCO->GetPrivate()->GetModelResources().ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+				{
+					USkeletalMeshLODSettings* LODSettings = InstanceCO->GetPrivate()->GetModelResources().ReferenceSkeletalMeshesData[ComponentIndex].SkeletalMeshLODSettings;
+					SkeletalMesh->SetLODSettings(LODSettings);
+				}
+			}
+
 			// Generate render data
 			SkeletalMesh->Build();
 		}

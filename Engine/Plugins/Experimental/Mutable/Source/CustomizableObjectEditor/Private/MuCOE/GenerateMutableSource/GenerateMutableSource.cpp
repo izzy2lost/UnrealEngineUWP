@@ -1634,6 +1634,9 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 		Data.SkeletalMesh = TObjectPtr<USkeletalMesh>(RefSkeletalMesh);
 		Data.SoftSkeletalMesh = RefSkeletalMesh;
 
+		// Set the optional USkeletalMeshLODSettings that will be applied to the generated transient meshes or the baked meshes
+		Data.SkeletalMeshLODSettings = RefSkeletalMesh->GetLODSettings();
+
 		// Gather LODData, this may include per LOD settings such as render data config or LODDataInfoArray
 		Data.LODData.AddDefaulted(GenerationContext.NumLODsInRoot);
 		
