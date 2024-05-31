@@ -12,10 +12,14 @@ struct FToolMenuSection;
 namespace UE::LevelEditor
 {
 
-void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
 bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
-void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
+
+void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
+
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
+void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
+void AddViewportToolbarPerformanceAndScalabilitySubmenu(FToolMenuSection& InSection);
+
 void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport);
 void AddLevelEditorViewportToolbarSettingsSection(FToolMenuSection& InSection);
 
