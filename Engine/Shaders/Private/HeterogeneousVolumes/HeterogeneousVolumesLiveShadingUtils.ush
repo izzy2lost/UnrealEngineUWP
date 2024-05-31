@@ -14,8 +14,8 @@ FPrimitiveSceneData GetPrimitiveData(
 	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(PrimitiveId);
 
 	// Replace local-space transforms..
-	PrimitiveData.LocalToWorld = MakeDFMatrix(PrimitiveData.PositionHigh, LocalToWorld);
-	PrimitiveData.WorldToLocal = MakeDFInverseMatrix(PrimitiveData.PositionHigh, WorldToLocal);
+	PrimitiveData.LocalToWorld = DFPromote(LocalToWorld);
+	PrimitiveData.WorldToLocal = DFPromoteInverse(WorldToLocal);
 	PrimitiveData.LocalObjectBoundsMin = LocalBoundsOrigin - LocalBoundsExtent;
 	PrimitiveData.LocalObjectBoundsMax = LocalBoundsOrigin + LocalBoundsExtent;
 
