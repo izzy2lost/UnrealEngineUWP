@@ -580,7 +580,7 @@ FGuid ALandscapeProxy::GetNaniteContentId() const
 		}
 
 		// Bump if changes to ULandscapeNaniteComponent::InitializeForLandscape() need to be enforced.
-		static FGuid ExportRawMeshGuid("36208D9A475B4D93B33BF84FFEDA1536");
+		static FGuid ExportRawMeshGuid("BF9FCA7C7A6948659695641CA727E9F2");
 		ContentStateAr << ExportRawMeshGuid;
 
 		FGuid HeightmapGuid = Component->GetHeightmap()->Source.GetId();
