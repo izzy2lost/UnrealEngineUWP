@@ -1054,10 +1054,11 @@ private:
 	 */
 	TSharedRef<SDockTab> SpawnConcertBrowserTab(const FSpawnTabArgs& SpawnTabArgs)
 	{
-		const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-			.TabRole(NomadTab);
-		DockTab->SetContent(SNew(SConcertBrowser, DockTab, MultiUserClient.ToSharedRef(), ReplicationManager.ToSharedRef()));
-		return DockTab;
+		return SNew(SDockTab)
+			.TabRole(NomadTab)
+			[
+				SNew(SConcertBrowser, MultiUserClient.ToSharedRef(), ReplicationManager.ToSharedRef())
+			];
 	}
 
 	static FString GetConfiguredMultiUserServerExePathname()

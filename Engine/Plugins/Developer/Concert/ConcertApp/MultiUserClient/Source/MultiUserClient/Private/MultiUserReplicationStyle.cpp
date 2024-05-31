@@ -68,12 +68,11 @@ namespace UE::MultiUserClient
 		// Timing
 		StyleSet->Set("AllClients.Reassignment.DisplayThrobberAfterSeconds", 0.2f);
 
-
+		// Muting
 		FSlateImageBrush* PlayBrush = new IMAGE_PLUGIN_BRUSH("generic_play_16x", Icon16x16);
 		FSlateImageBrush* PauseBrush = new IMAGE_PLUGIN_BRUSH("generic_pause_16x", Icon16x16);
 		StyleSet->Set("MultiUser.Icons.Play", PlayBrush);
 		StyleSet->Set("MultiUser.Icons.Pause", PauseBrush);
-
 		StyleSet->Set("AllClients.MuteToggle.Style", FCheckBoxStyle()		
 			.SetCheckBoxType(ESlateCheckBoxType::CheckBox)
 			.SetUncheckedImage(IMAGE_PLUGIN_BRUSH("generic_pause_16x", Icon16x16, FStyleColors::Foreground))

@@ -19,7 +19,6 @@
 
 void SConcertBrowser::Construct(
 	const FArguments& InArgs,
-	TSharedRef<SDockTab> InConstructUnderMajorTab,
 	TSharedRef<IConcertSyncClient> InSyncClient,
 	TSharedRef<UE::MultiUserClient::FMultiUserReplicationManager> InReplicationManager)
 {
@@ -37,7 +36,6 @@ void SConcertBrowser::Construct(
 
 	WeakConcertSyncClient = InSyncClient;
 	WeakReplicationManager = InReplicationManager;
-	ConstructedUnderMajorTab = MoveTemp(InConstructUnderMajorTab);
 	if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin())
 	{
 		SearchedText = MakeShared<FText>(); // Will keep in memory the session browser search text between join/leave UI transitions.
@@ -59,12 +57,6 @@ void SConcertBrowser::HandleSessionConnectionChanged(IConcertClientSession& InSe
 
 void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatus)
 {
-	const TSharedPtr<SDockTab> OwningMajorTab = ConstructedUnderMajorTab.Pin();
-	if (!ensure(OwningMajorTab))
-	{
-		return;
-	}
-	
 	if (const TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin()
 		; ensure(ConcertSyncClient))
 	{
@@ -75,7 +67,6 @@ void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatu
 			{
 				ChildSlot.AttachWidget(
 					SNew(UE::MultiUserClient::SActiveSessionRoot,
-						OwningMajorTab.ToSharedRef(),
 						ConcertSyncClient,
 						ReplicationManager.ToSharedRef()
 						)

@@ -33,11 +33,10 @@ public:
 	* Constructs the Browser.
 	*
 	* @param InArgs The Slate argument list.
-	* @param InConstructUnderMajorTab The major tab which will contain the session front-end.
-	* @param InConstructUnderWindow The window in which this widget is being constructed.
 	* @param InSyncClient The sync client.
+	* @param InReplicationManager Used to create replication UI when in an active session
 	*/
-	void Construct(const FArguments& InArgs, TSharedRef<SDockTab> InConstructUnderMajorTab, TSharedRef<IConcertSyncClient> InSyncClient, TSharedRef<UE::MultiUserClient::FMultiUserReplicationManager> InReplicationManager);
+	void Construct(const FArguments& InArgs, TSharedRef<IConcertSyncClient> InSyncClient, TSharedRef<UE::MultiUserClient::FMultiUserReplicationManager> InReplicationManager);
 
 private:
 
@@ -45,12 +44,6 @@ private:
 	TWeakPtr<IConcertSyncClient> WeakConcertSyncClient;
 	/** Interacts with the replication system on behalf of Multi-User. */
 	TWeakPtr<UE::MultiUserClient::FMultiUserReplicationManager> WeakReplicationManager;
-
-	/**
-	 * Kept so it can be passed on to SActiveSessionRoot.
-	 * Important: since this a pointer to the top-level widget that contains us, we must keep a weak ptr or we'll cause a memory leak.
-	 */
-	TWeakPtr<SDockTab> ConstructedUnderMajorTab;
 
 	/** Keeps the session browser searched text in memory to reapply it when a user leaves a session and goes back to the session browser. */
 	TSharedPtr<FText> SearchedText;

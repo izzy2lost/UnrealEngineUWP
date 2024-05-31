@@ -12,6 +12,8 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -71,6 +73,7 @@ namespace UE::MultiUserClient
 
 			// Status Message
 			+SHorizontalBox::Slot()
+			.AutoWidth()
 			.VAlign(VAlign_Center)
 			.Padding(FMargin(4.0f, 1.0f))
 			[
@@ -84,6 +87,38 @@ namespace UE::MultiUserClient
 					.Text(this, &SActiveSessionToolbar::GetConnectionStatusText)
 				]
 			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4, 3)
+			[
+				SNew(SSeparator)
+				.Orientation(Orient_Vertical)
+			]
+
+			// Tab area
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				InArgs._TabArea.Widget
+			]
+			
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4, 3)
+			[
+				SNew(SSeparator)
+				.Orientation(Orient_Vertical)
+			]
+
+			// Move all the other content to the right if the panel is big
+			+SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			[
+				SNew(SSpacer)
+			]
+			
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)

@@ -1,14 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ConcertFrontendStyle.h"
+
 #include "Brushes/SlateBoxBrush.h"
-#include "Styling/SlateStyleRegistry.h"
 #include "Brushes/SlateImageBrush.h"
-#include "Styling/SlateTypes.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include "Styling/StarshipCoreStyle.h"
+#include "Styling/SlateTypes.h"
 #include "Styling/SlateStyle.h"
+#include "Styling/SlateStyleRegistry.h"
+#include "Styling/SlateTypes.h"
+#include "Styling/StyleColors.h"
 
 LLM_DEFINE_TAG(Concert_ConcertFrontendStyle);
 
@@ -105,7 +108,15 @@ void FConcertFrontendStyle::Initialize()
 	StyleSet->Set("Concert.JumpToLocation",     new IMAGE_PLUGIN_BRUSH("Icons/icon_PresenceLocation_32x",   Icon16x16, IconColorAndOpacity));
 	StyleSet->Set("Concert.HidePresence",       new IMAGE_PLUGIN_BRUSH("Icons/icon_PresenceEyeOff_32x",     Icon16x16, IconColorAndOpacity));
 	StyleSet->Set("Concert.ShowPresence",       new IMAGE_PLUGIN_BRUSH("Icons/icon_PresenceEyeOn_32x",      Icon16x16, IconColorAndOpacity));
-
+	// Tab section of ActiveSession
+	FCheckBoxStyle BaseCheckBoxStyle = FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox");
+	StyleSet->Set( "Concert.TabButton", BaseCheckBoxStyle
+		.SetCheckedImage(FSlateRoundedBoxBrush(FStyleColors::Primary, 4.0f, FStyleColors::Primary, 1.0f))
+		.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.0f, FStyleColors::PrimaryHover, 1.0f))
+		.SetCheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.0f, FStyleColors::PrimaryHover, 1.0f))
+		.SetPadding(FMargin(16, 6))
+	);
+	
 	// Multi-user archived session browser
 	StyleSet->Set("Concert.MuteActivities",     new IMAGE_PLUGIN_BRUSH("Icons/icon_PresenceEyeOff_32x",      Icon16x16, IconColorAndOpacity));
 	StyleSet->Set("Concert.UnmuteActivities",     new IMAGE_PLUGIN_BRUSH("Icons/icon_PresenceEyeOn_32x",      Icon16x16, IconColorAndOpacity));

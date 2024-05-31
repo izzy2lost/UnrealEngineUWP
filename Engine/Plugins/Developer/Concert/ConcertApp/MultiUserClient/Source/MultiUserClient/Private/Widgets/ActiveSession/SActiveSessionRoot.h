@@ -10,6 +10,7 @@ class FTabManager;
 class FWorkspaceItem;
 class IConcertSyncClient;
 class SDockTab;
+class SWidgetSwitcher;
 class SWindow;
 
 namespace UE::MultiUserClient
@@ -31,17 +32,14 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		void Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
 
 	private:
 
-		TSharedPtr<IConcertSyncClient> ConcertSyncClient;
-		/** Holds the child content: SActiveSessionOverviewTab and SReplicationControlsTab. */
-		TSharedPtr<FTabManager> TabManager;
-		
-		void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FWorkspaceItem>& AppMenuGroup, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
-		TSharedRef<SDockTab> SpawnTab_SessionOverview(const FSpawnTabArgs& Args);
-		TSharedRef<SDockTab> SpawnTab_ReplicationControls(const FSpawnTabArgs& Args, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		/** This switches "tabs" when a button in the "tab" area is changed. */
+		TSharedPtr<SWidgetSwitcher> TabSwitcher;
+
+		TSharedRef<SWidget> CreateTabArea();
 	};
 }
 
