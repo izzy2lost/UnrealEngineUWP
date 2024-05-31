@@ -551,6 +551,16 @@ void FOpenColorIOShaderMap::GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& 
 	GetContent()->GetShaderList(*this, FSHAHash(), OutShaders);
 }
 
+void FOpenColorIOShaderMap::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FOpenColorIOShaderMap::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 /**
  * Registers a OpenColorIO shader map in the global map.
  */

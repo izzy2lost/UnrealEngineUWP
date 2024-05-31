@@ -596,6 +596,16 @@ void FComputeKernelShaderMap::GetShaderList(TMap<FShaderId, TShaderRef<FShader>>
 	GetContent()->GetShaderList(*this, FSHAHash(), OutShaders);
 }
 
+void FComputeKernelShaderMap::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FComputeKernelShaderMap::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 /**
  * Registers a ComputeKernel shader map in the global map.
  */

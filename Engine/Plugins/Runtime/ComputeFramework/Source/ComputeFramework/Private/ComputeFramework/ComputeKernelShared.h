@@ -194,7 +194,9 @@ public:
 #endif // WITH_EDITOR
 
 	/** Builds a list of the shaders in a shader map. */
-	 void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
+	void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
+	virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
+	virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 
 	/** Registers a ComputeKernel shader map in the global map so it can be used. */
 	void Register(EShaderPlatform InShaderPlatform);

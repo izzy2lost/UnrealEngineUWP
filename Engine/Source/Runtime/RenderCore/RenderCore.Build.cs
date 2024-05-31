@@ -53,5 +53,10 @@ public class RenderCore : ModuleRules
 			// For IOpenGLDynamicRHI::RHIGenerateMips
 			PublicIncludePathModuleNames.Add("OpenGLDrv");
 		}
+
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateDefinitions.Add("ALLOW_SHADERMAP_TRACKING=1");
+		}
     }
 }

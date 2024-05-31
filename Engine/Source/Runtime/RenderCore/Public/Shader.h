@@ -558,6 +558,7 @@ public:
 	// FShaderMapResource interface
 	RENDERCORE_API virtual FSHAHash GetShaderHash(int32 ShaderIndex) override;
 	RENDERCORE_API virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) override;
+	RENDERCORE_API virtual FString GetFriendlyName() const override { return TEXT("InlineCode"); }
 	virtual uint32 GetSizeBytes() const override;
 
 	TRefCountPtr<FShaderMapResourceCode> Code;
@@ -2370,6 +2371,9 @@ public:
 		UnfreezeContent();
 		return Content.Object;
 	}
+	/** Builds a list of the shaders in a shader map. Key is FShaderType::TypeName */
+	RENDERCORE_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const = 0;
+	RENDERCORE_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const = 0;
 
 	inline EShaderPlatform GetShaderPlatform() const { return Content.Object ? Content.Object->GetShaderPlatform() : SP_NumPlatforms; }
 	inline uint32 GetFrozenContentSize() const { return Content.FrozenSize; }

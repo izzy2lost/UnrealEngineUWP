@@ -563,6 +563,16 @@ FShaderPipelineRef FGlobalShaderMapSection::GetShaderPipeline(const FShaderPipel
 	return Pipeline ? FShaderPipelineRef(Pipeline, *this) : FShaderPipelineRef();
 }
 
+void FGlobalShaderMapSection::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FGlobalShaderMapSection::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 FGlobalShaderMap::FGlobalShaderMap(EShaderPlatform InPlatform)
 	: Platform(InPlatform)
 {

@@ -70,10 +70,6 @@ namespace NiagaraShaderCookStats
 //
 FCriticalSection GIdToNiagaraShaderMapCS;
 TMap<FNiagaraShaderMapId, FNiagaraShaderMap*> FNiagaraShaderMap::GIdToNiagaraShaderMap[SP_NumPlatforms];
-#if ALLOW_SHADERMAP_DEBUG_DATA
-TArray<FNiagaraShaderMap*> FNiagaraShaderMap::AllNiagaraShaderMaps;
-FCriticalSection FNiagaraShaderMap::AllNiagaraShaderMapsGuard;
-#endif
 
 #if WITH_EDITOR
 TMap<FNiagaraShaderMapRef, TArray<FNiagaraShaderScript*>> FNiagaraShaderMap::NiagaraShaderMapsBeingCompiled;
@@ -962,6 +958,16 @@ void FNiagaraShaderMap::GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutS
 	GetContent()->GetShaderList(*this, FSHAHash(), OutShaders);
 }
 
+void FNiagaraShaderMap::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FNiagaraShaderMap::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 /**
  * Registers a Niagara shader map in the global map so it can be used by scripts.
  */
@@ -1028,10 +1034,6 @@ FNiagaraShaderMap::FNiagaraShaderMap() :
 	bIsPersistent(true) 
 {
 	checkSlow(IsInGameThread() || IsAsyncLoading());
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
-	AllNiagaraShaderMaps.Add(this);
-#endif
 }
 
 #if WITH_EDITOR
@@ -1044,10 +1046,6 @@ FNiagaraShaderMap::FNiagaraShaderMap(EWorkerThread)
 	, bCompiledSuccessfully(true)
 	, bIsPersistent(true) 
 {
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
-	AllNiagaraShaderMaps.Add(this);
-#endif
 }
 #endif // WITH_EDITOR
 
@@ -1056,10 +1054,6 @@ FNiagaraShaderMap::~FNiagaraShaderMap()
 	checkSlow(IsInGameThread() || IsAsyncLoading());
 	check(bDeletedThroughDeferredCleanup);
 	check(!bRegistered);
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
-	AllNiagaraShaderMaps.RemoveSwap(this);
-#endif
 }
 
 bool FNiagaraShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial)

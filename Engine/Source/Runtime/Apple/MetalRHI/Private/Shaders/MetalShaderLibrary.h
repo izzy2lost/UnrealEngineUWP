@@ -31,6 +31,7 @@ public:
 
 	virtual int32 GetNumShaders() const override;
 	virtual int32 GetNumShaderMaps() const override;
+	virtual uint32 GetSizeBytes() const override;
 	virtual int32 GetNumShadersForShaderMap(int32 ShaderMapIndex) const override;
 	virtual int32 GetShaderIndex(int32 ShaderMapIndex, int32 i) const override;
 

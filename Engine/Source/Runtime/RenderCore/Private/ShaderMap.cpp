@@ -13,6 +13,7 @@
 #include "ShaderCore.h"
 #include "Misc/ScopeLock.h"
 #include "UObject/RenderingObjectVersion.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
@@ -25,11 +26,88 @@ static EShaderPermutationFlags GetCurrentShaderPermutationFlags()
 	return Result;
 }
 
+#ifndef ALLOW_SHADERMAP_TRACKING
+#define ALLOW_SHADERMAP_TRACKING 0
+#endif
+
+#if ALLOW_SHADERMAP_TRACKING
+static TArray<FShaderMapBase*> GAllShaderMaps;
+static FCriticalSection GAllShaderMapsGuard;
+
+TAutoConsoleVariable<bool> CVarEnableShaderMapTracking(
+	TEXT("r.TrackShaderMaps"),
+	WITH_EDITOR,
+	TEXT("Enables the tracking of every shadermap instantiated. Required to run ListShaderMaps command."),
+	ECVF_ReadOnly);
+
+FAutoConsoleCommandWithArgsAndOutputDevice GListShaderMapsCmd(
+	TEXT("ListShaderMaps"),
+	TEXT("Spits out a csv table containing stats of all shadermaps"),
+	FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateStatic(
+		[](const TArray<FString>& Params, FOutputDevice& Out)
+		{
+			if (!CVarEnableShaderMapTracking.GetValueOnGameThread())
+			{
+				UE_LOG(LogShaders, Warning, TEXT("Enable r.TrackShaderMaps in ini config to enable the functionality"));
+				return;
+			}
+			Out.Logf(TEXT("ShaderMapName,OwnerName,NumShaders,NumPipelines,SizeKb,bUsedForRendering"));
+			FScopeLock SMAccess(&GAllShaderMapsGuard);
+			for (FShaderMapBase* ShaderMap : GAllShaderMaps)
+			{
+				FString FriendlyName = TEXT("Unknown");
+				FString OwnerName = TEXT("Unknown");
+				uint32 CodeSize = ShaderMap->GetFrozenContentSize();
+				bool bUseForRendering = false;
+
+				if (const FShaderMapResource* Resource = ShaderMap->GetResource())
+				{
+					FriendlyName = Resource->GetFriendlyName();
+					OwnerName = Resource->GetOwnerName().ToString();
+					CodeSize += Resource->GetSizeBytes();
+					bUseForRendering = Resource->ContainsAtLeastOneRHIShaderCreated();
+				}
+
+				TMap<FHashedName, TShaderRef<FShader>> Shaders;
+				ShaderMap->GetShaderList(Shaders);
+				TArray<FShaderPipelineRef> Pipelines;
+				ShaderMap->GetShaderPipelineList(Pipelines);
+
+				// Editor doesn't have the size baked, so grab it from shaders themselves.
+				if (CodeSize == 0)
+				{
+					for (auto& [Hash, Shader] : Shaders)
+					{
+						CodeSize += Shader->GetCodeSize();
+					}
+				}
+
+				Out.Logf(TEXT("%s,%s,%d,%d,%.3f,%s"),
+					*FriendlyName,
+					*OwnerName,
+					Shaders.Num(),
+					Pipelines.Num(),
+					CodeSize / 1024.f,
+					bUseForRendering ? TEXT("YES") : TEXT("NO")
+				);
+			}
+		}));
+#endif // ALLOW_SHADERMAP_TRACKING
+
 FShaderMapBase::FShaderMapBase()
 	: PointerTable(nullptr)
 	, NumFrozenShaders(0u)
 {
 	PermutationFlags = GetCurrentShaderPermutationFlags();
+
+#if ALLOW_SHADERMAP_TRACKING
+	if (CVarEnableShaderMapTracking.GetValueOnAnyThread())
+	{
+		LLM_SCOPE_BYNAME(TEXT("Debug/ShaderMapsTracking"));
+		FScopeLock SMAccess(&GAllShaderMapsGuard);
+		GAllShaderMaps.Add(this);
+	}
+#endif // ALLOW_SHADERMAP_TRACKING
 }
 
 FShaderMapBase::~FShaderMapBase()
@@ -39,6 +117,14 @@ FShaderMapBase::~FShaderMapBase()
 	{
 		delete PointerTable;
 	}
+
+#if ALLOW_SHADERMAP_TRACKING
+	if (CVarEnableShaderMapTracking.GetValueOnAnyThread())
+	{
+		FScopeLock SMAccess(&GAllShaderMapsGuard);
+		GAllShaderMaps.RemoveSingleSwap(this, EAllowShrinking::No);
+	}
+#endif // ALLOW_SHADERMAP_TRACKING
 }
 
 FShaderMapResourceCode* FShaderMapBase::GetResourceCode()

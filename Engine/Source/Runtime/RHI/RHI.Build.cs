@@ -20,10 +20,11 @@ public class RHI : ModuleRules
 
 			if (Target.Type != TargetRules.TargetType.Server)   // Dedicated servers should skip loading everything but NullDrv
 			{
-				if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
-                {
+				// Always disable for Shipping, always enable for Development, let the user decide to use for Test and DebugGame
+				if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.bTrackRHIResourceInfo || Target.Configuration == UnrealTargetConfiguration.Development)
+				{
 					PublicDefinitions.Add("RHI_WANT_RESOURCE_INFO=1");
-                }
+				}
 
 				// UEBuildAndroid.cs adds VulkanRHI for Android builds if it is enabled
 				if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))

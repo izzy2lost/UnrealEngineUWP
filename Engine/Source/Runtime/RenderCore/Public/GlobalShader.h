@@ -181,6 +181,8 @@ public:
 	RENDERCORE_API static FGlobalShaderMapSection* CreateFromArchive(FArchive& Ar);
 
 	RENDERCORE_API bool Serialize(FArchive& Ar);
+	RENDERCORE_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
+	RENDERCORE_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 private:
 	inline FGlobalShaderMapSection() 
 	{ 

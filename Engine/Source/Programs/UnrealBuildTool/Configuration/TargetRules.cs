@@ -1016,6 +1016,13 @@ namespace UnrealBuildTool
 		public bool bUseIris { get; set; } = true;
 
 		/// <summary>
+		/// Whether to track owner (asset name) of RHI resource for non Shipping configurations.
+		/// Useful for ListShaderMaps and ListShaderLibraries commands.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bTrackRHIResourceInfo { get; set; } = false;
+
+		/// <summary>
 		/// Whether we are compiling editor code or not. Prefer the more explicit bCompileAgainstEditor instead.
 		/// </summary>
 		public bool bBuildEditor

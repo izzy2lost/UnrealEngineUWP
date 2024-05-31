@@ -24,6 +24,7 @@ public:
 	virtual int32 GetNumShaders() const = 0;
 	virtual int32 GetNumShadersForShaderMap(int32 ShaderMapIndex) const = 0;
 	virtual int32 GetShaderIndex(int32 ShaderMapIndex, int32 i) const = 0;
+	virtual uint32 GetSizeBytes() const = 0;
 	virtual FSHAHash GetShaderHash(int32 ShaderMapIndex, int32 ShaderIndex) = 0;
 	virtual int32 FindShaderMapIndex(const FSHAHash& Hash) = 0;
 	virtual int32 FindShaderIndex(const FSHAHash& Hash) = 0;

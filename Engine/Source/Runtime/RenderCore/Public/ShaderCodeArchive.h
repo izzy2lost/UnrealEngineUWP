@@ -320,7 +320,7 @@ public:
 
 	virtual bool IsNativeLibrary() const override { return false; }
 
-	int64 GetSizeBytes() const
+	virtual uint32 GetSizeBytes() const override
 	{
 		return sizeof(*this) +
 			SerializedShaders.GetAllocatedSize() +
@@ -580,7 +580,7 @@ public:
 
 	virtual bool IsNativeLibrary() const override { return false; }
 
-	uint64 GetSizeBytes() const
+	virtual uint32 GetSizeBytes() const override
 	{
 		return sizeof(*this) +
 			Header.GetAllocatedSize() +

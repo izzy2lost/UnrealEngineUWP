@@ -576,10 +576,9 @@ public:
 #endif // WITH_EDITOR
 
 	/** Builds a list of the shaders in a shader map. */
-	NIAGARASHADER_API  void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
-
-	/** Builds a list of the shader pipelines in a shader map. */
-	//ENGINE_API void GetShaderPipelineList(TArray<FShaderPipeline*>& OutShaderPipelines) const;
+	NIAGARASHADER_API void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
+	NIAGARASHADER_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
+	NIAGARASHADER_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 
 	/** Registers a niagara shader map in the global map so it can be used by Niagara scripts. */
 	void Register(EShaderPlatform InShaderPlatform);
@@ -643,17 +642,6 @@ private:
 	* No ref counting needed as these are removed on destruction of the shader map.
 	*/
 	static TMap<FNiagaraShaderMapId, FNiagaraShaderMap*> GIdToNiagaraShaderMap[SP_NumPlatforms];
-
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	/**
-	* All script shader maps in memory.
-	* No ref counting needed as these are removed on destruction of the shader map.
-	*/
-	static TArray<FNiagaraShaderMap*> AllNiagaraShaderMaps;
-
-	/** Guards access to AllNiagaraShaderMaps, which can be written to from an async loading thread. */
-	static FCriticalSection AllNiagaraShaderMapsGuard;
-#endif
 
 #if WITH_EDITOR
 	/** Tracks resources and their shader maps that need to be compiled but whose compilation is being deferred. */

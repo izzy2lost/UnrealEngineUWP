@@ -283,6 +283,7 @@ public:
 	virtual void ReleasePreloadedShaderCode(int32 ShaderIndex) override;
 	virtual bool TryRelease() override;
 	virtual uint32 GetSizeBytes() const override { return sizeof(*this) + GetAllocatedSize(); }
+	virtual FString GetFriendlyName() const override;
 
 	class FShaderLibraryInstance* LibraryInstance;
 	int32 ShaderMapIndex;
@@ -977,6 +978,20 @@ public:
 		return sizeof(*this) + ShaderBucketsSize + Resources.GetAllocatedSize();
 	}
 
+	uint32 GetShaderMapsSizeBytes()
+	{
+		uint32 ShaderMapsSize = 0;
+		FRWScopeLock Locker(ResourceLock, SLT_ReadOnly);
+		for (FShaderMapResource_SharedCode* Resource : Resources)
+		{
+			if (Resource)
+			{
+				ShaderMapsSize += Resource->GetSizeBytes();
+			}
+		}
+		return ShaderMapsSize;
+	}
+
 	const int32 GetNumShadersForShaderMap(int32 ShaderMapIndex) const
 	{
 		return Library->GetNumShadersForShaderMap(ShaderMapIndex);
@@ -1284,6 +1299,11 @@ bool FShaderMapResource_SharedCode::TryRelease()
 	}
 
 	return false;
+}
+
+FString FShaderMapResource_SharedCode::GetFriendlyName() const
+{
+	return LibraryInstance->Library->GetName();
 }
 
 #if WITH_EDITOR
@@ -3428,6 +3448,15 @@ public:
 		}
 	}
 
+	template<typename F>
+	void IterateNamedShaderLibrariesSafe(F&& Func)
+	{
+		FRWScopeLock NamedReadLock(NamedLibrariesMutex, SLT_ReadOnly);
+		for (auto& [LogicalName, NamedShaderLibrary] : NamedLibrariesStack)
+		{
+			Invoke(Forward<F>(Func), LogicalName, *NamedShaderLibrary);
+		}
+	}
 };
 
 static FSharedShaderCodeRequest OnSharedShaderCodeRequest;
@@ -4264,3 +4293,48 @@ void UE::ShaderLibrary::Private::FNamedShaderLibrary::DumpLibraryContents(const 
 	}
 }
 #endif
+
+FAutoConsoleCommandWithArgsAndOutputDevice GListShaderLibrariesCmd(
+	TEXT("ListShaderLibraries"),
+	TEXT("Spits out a csv table containing stats of all shader libraries"),
+	FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateStatic(
+		[](const TArray<FString>& Params, FOutputDevice& Out)
+		{
+			auto Iter = [&](const FString& LogicalName, UE::ShaderLibrary::Private::FNamedShaderLibrary& NamedShaderLibrary)
+			{
+				FRWScopeLock ComponentReadLock(NamedShaderLibrary.ComponentsMutex, SLT_ReadOnly);
+				for (const TUniquePtr<FShaderLibraryInstance>& ShaderLibrary : NamedShaderLibrary.Components)
+				{
+					const FString& Name = ShaderLibrary->Library->GetName();
+					const FString OwnerName = ShaderLibrary->Library->GetOwnerName().ToString();
+					uint32 Id = ShaderLibrary->Library->GetId();
+					int32 NumShaders = ShaderLibrary->GetNumShaders();
+					int32 NumShaderMaps = ShaderLibrary->GetNumResources();
+					uint32 LibrarySize = ShaderLibrary->GetSizeBytes();
+					uint32 RHILibrarySize = ShaderLibrary->Library->GetSizeBytes();
+					uint32 MapsSize = ShaderLibrary->GetShaderMapsSizeBytes();
+
+					Out.Logf(TEXT("%s,%s,%s,%x,%d,%d,%.3f,%.3f"),
+						*Name,
+						*LogicalName,
+						*OwnerName,
+						Id,
+						NumShaders,
+						NumShaderMaps,
+						LibrarySize / 1024.f,
+						RHILibrarySize / 1024.f,
+						MapsSize / 1024.f
+					);
+				}
+			};
+
+			if (FShaderLibrariesCollection* Collection = FShaderLibrariesCollection::Impl)
+			{
+				Out.Logf(TEXT("ShaderLibraryName,LogicalName,OwnerName,Id,NumShaders,NumShaderMaps,LibrarySizeKb,RHILibrarySizeKb,ShaderMapsSizeKb"));
+				Collection->IterateNamedShaderLibrariesSafe(Iter);
+			}
+			else
+			{
+				UE_LOG(LogShaderLibrary, Warning, TEXT("ShaderLibrariesCollection is not available."));
+			}
+		}));

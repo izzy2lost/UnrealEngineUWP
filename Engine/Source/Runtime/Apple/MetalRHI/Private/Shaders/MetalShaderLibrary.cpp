@@ -96,6 +96,11 @@ int32 FMetalShaderLibrary::GetNumShaderMaps() const
 	return SerializedShaders.ShaderMapEntries.Num();
 }
 
+uint32 FMetalShaderLibrary::GetSizeBytes() const
+{
+	return SerializedShaders.GetAllocatedSize() + ShaderCode.GetAllocatedSize();
+}
+
 int32 FMetalShaderLibrary::GetNumShadersForShaderMap(int32 ShaderMapIndex) const
 {
 	return SerializedShaders.ShaderMapEntries[ShaderMapIndex].NumShaders;
