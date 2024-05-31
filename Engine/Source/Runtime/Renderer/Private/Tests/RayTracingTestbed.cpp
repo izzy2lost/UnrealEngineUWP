@@ -293,11 +293,11 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 
 	RHICmdList.Transition(FRHITransitionInfo(RayTracingScene.Scene.GetReference(), ERHIAccess::BVHWrite, ERHIAccess::BVHRead));
 
-	FShaderResourceViewInitializer RayTracingSceneViewInitializer(SceneBuffer, RayTracingScene.Scene->GetLayerBufferOffset(0), 0);
+	FShaderResourceViewInitializer RayTracingSceneViewInitializer(SceneBuffer, RayTracingScene.Scene, 0);
 	FShaderResourceViewRHIRef RayTracingSceneView = RHICmdList.CreateShaderResourceView(RayTracingSceneViewInitializer);
 
-	DispatchBasicOcclusionRays(RHICmdList, RayTracingScene.Scene, RayTracingSceneView, Geometry, RayBufferView, OcclusionResultBufferView, NumRays);
-	DispatchBasicIntersectionRays(RHICmdList, RayTracingScene.Scene, RayTracingSceneView, Geometry, RayBufferView, IntersectionResultBufferView, NumRays);
+	DispatchBasicOcclusionRays(RHICmdList, RayTracingSceneView, Geometry, RayBufferView, OcclusionResultBufferView, NumRays);
+	DispatchBasicIntersectionRays(RHICmdList, RayTracingSceneView, Geometry, RayBufferView, IntersectionResultBufferView, NumRays);
 
 	const bool bValidateResults = true;
 	bool bOcclusionTestOK = false;

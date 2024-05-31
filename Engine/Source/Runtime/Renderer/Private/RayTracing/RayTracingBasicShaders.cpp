@@ -53,7 +53,7 @@ FBasicRayTracingPipeline GetBasicRayTracingPipeline(FRHICommandList& RHICmdList,
 	return Result;
 }
 
-void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
+void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
 {
 	FBasicRayTracingPipeline RayTracingPipeline = GetBasicRayTracingPipeline(RHICmdList, GMaxRHIFeatureLevel);
 
@@ -65,7 +65,6 @@ void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene
 
 	FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
 
-	RHICmdList.SetRayTracingHitGroup(SBT, 0, Geometry, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0, nullptr, 0);
 	RHICmdList.SetRayTracingMissShader(SBT, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0);
 	RHICmdList.CommitShaderBindingTable(SBT);
 
@@ -79,7 +78,7 @@ void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene
 	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.OcclusionRGS.GetRayTracingShader(), SBT, GlobalResources, NumRays, 1);
 }
 
-void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
+void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
 {
 	FBasicRayTracingPipeline RayTracingPipeline = GetBasicRayTracingPipeline(RHICmdList, GMaxRHIFeatureLevel);
 
@@ -91,7 +90,6 @@ void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIRayTracingSc
 
 	FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
 
-	RHICmdList.SetRayTracingHitGroup(SBT, 0, Geometry, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0, nullptr, 0);
 	RHICmdList.SetRayTracingMissShader(SBT, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0);
 	RHICmdList.CommitShaderBindingTable(SBT);
 
