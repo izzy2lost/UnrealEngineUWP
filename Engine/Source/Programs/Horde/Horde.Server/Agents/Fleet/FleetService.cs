@@ -64,7 +64,7 @@ namespace Horde.Server.Agents.Fleet
 		/// </summary>
 		private const int MaxParallelTasks = 10;
 
-		private readonly IAgentCollection _agentCollection;
+		private readonly AgentService _agentService;
 		private readonly IGraphCollection _graphCollection;
 		private readonly IJobCollection _jobCollection;
 		private readonly ILeaseCollection _leaseCollection;
@@ -89,7 +89,7 @@ namespace Horde.Server.Agents.Fleet
 		/// Constructor
 		/// </summary>
 		public FleetService(
-			IAgentCollection agentCollection,
+			AgentService agentService,
 			IGraphCollection graphCollection,
 			IJobCollection jobCollection,
 			ILeaseCollection leaseCollection,
@@ -106,7 +106,7 @@ namespace Horde.Server.Agents.Fleet
 			Tracer tracer,
 			ILogger<FleetService> logger)
 		{
-			_agentCollection = agentCollection;
+			_agentService = agentService;
 			_graphCollection = graphCollection;
 			_jobCollection = jobCollection;
 			_leaseCollection = leaseCollection;
@@ -202,7 +202,9 @@ namespace Horde.Server.Agents.Fleet
 
 		internal async Task<List<PoolWithAgents>> GetPoolsWithAgentsAsync(CancellationToken cancellationToken = default)
 		{
-			List<IAgent> agents = (await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true, cancellationToken: cancellationToken)).Where(x => !x.RequestShutdown).ToList();
+			List<IAgent> agents = (await _agentService.GetCachedAgentsAsync(cancellationToken))
+				.Where(x => x is { Status: AgentStatus.Ok, Enabled: true, RequestShutdown: false }).ToList();
+			
 			List<IAgent> GetAgentsInPool(PoolId poolId) => agents.FindAll(a => a.Pools.Any(p => p == poolId));
 			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
 
@@ -396,7 +398,7 @@ namespace Horde.Server.Agents.Fleet
 
 							case PoolSizeStrategy.LeaseUtilization:
 								LeaseUtilizationSettings luSettings = DeserializeConfig<LeaseUtilizationSettings>(info.Config);
-								LeaseUtilizationStrategy luStrategy = new(_agentCollection, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
+								LeaseUtilizationStrategy luStrategy = new(_agentService, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
 								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(luStrategy, info.ExtraAgentCount) : luStrategy;
 
 							case PoolSizeStrategy.ComputeQueueAwsMetric:
@@ -434,7 +436,7 @@ namespace Horde.Server.Agents.Fleet
 					{
 						luSettings.NumReserveAgents = pool.NumReserveAgents.Value;
 					}
-					return new LeaseUtilizationStrategy(_agentCollection, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
+					return new LeaseUtilizationStrategy(_agentService, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
 				case PoolSizeStrategy.NoOp:
 					return new NoOpPoolSizeStrategy();
 				default:
@@ -455,7 +457,11 @@ namespace Horde.Server.Agents.Fleet
 		/// <returns>Number of pending shutdown cancelled</returns>
 		private async Task<int> CancelPendingShutdownsAsync(IPool pool, int count, CancellationToken cancellationToken)
 		{
-			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true, poolId: pool.Id, cancellationToken: cancellationToken);
+			IReadOnlyList<IAgent> agents = (await _agentService.GetCachedAgentsAsync(cancellationToken))
+				.Where(x => x is { Status: AgentStatus.Ok, Enabled: true })
+				.Where(x => x.Pools.Contains(pool.Id))
+				.ToList();
+			
 			int numShutdownsCancelled = 0;
 			foreach (IAgent agent in agents)
 			{

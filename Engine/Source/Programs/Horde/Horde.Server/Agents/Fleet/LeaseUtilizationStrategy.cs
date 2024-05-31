@@ -127,7 +127,7 @@ namespace Horde.Server.Agents.Fleet
 
 		internal LeaseUtilizationSettings Settings { get; }
 
-		private readonly IAgentCollection _agentCollection;
+		private readonly AgentService _agentService;
 		private readonly IPoolCollection _poolCollection;
 		private readonly ILeaseCollection _leaseCollection;
 		private readonly IClock _clock;
@@ -136,15 +136,15 @@ namespace Horde.Server.Agents.Fleet
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="agentCollection"></param>
+		/// <param name="agentService"></param>
 		/// <param name="poolCollection"></param>
 		/// <param name="leaseCollection"></param>
 		/// <param name="clock"></param>
 		/// <param name="cache"></param>
 		/// <param name="settings"></param>
-		public LeaseUtilizationStrategy(IAgentCollection agentCollection, IPoolCollection poolCollection, ILeaseCollection leaseCollection, IClock clock, IMemoryCache cache, LeaseUtilizationSettings settings)
+		public LeaseUtilizationStrategy(AgentService agentService, IPoolCollection poolCollection, ILeaseCollection leaseCollection, IClock clock, IMemoryCache cache, LeaseUtilizationSettings settings)
 		{
-			_agentCollection = agentCollection;
+			_agentService = agentService;
 			_poolCollection = poolCollection;
 			_leaseCollection = leaseCollection;
 			_clock = clock;
@@ -157,7 +157,7 @@ namespace Horde.Server.Agents.Fleet
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationStrategy)}.{nameof(GetAgentDataAsync)}");
 
 			// Find all the current agents
-			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok, cancellationToken: cancellationToken);
+			IReadOnlyList<IAgent> agents = (await _agentService.GetCachedAgentsAsync(cancellationToken)).Where(x => x.Status == AgentStatus.Ok).ToList();
 
 			// Query leases in last interval
 			DateTime maxTime = _clock.UtcNow;
