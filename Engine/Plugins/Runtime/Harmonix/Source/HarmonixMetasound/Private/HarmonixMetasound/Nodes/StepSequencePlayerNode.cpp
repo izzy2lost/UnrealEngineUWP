@@ -377,15 +377,13 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 							{
 								AdvanceThruTick(Event.BlockFrameIndex, AsAdvance->LastTickToProcess());
 							}
-/*
-							else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekThru>())
-							{
-								SeekThruTick(Event.BlockFrameIndex, Event.Msg.Get<MidiClockMessageTypes::FSeekThru>().ThruTick);
-							}
-*/
 							else if (const FSeek* AsSeekTo = Event.TryGet<FSeek>())
 							{
 								SeekToTick(Event.BlockFrameIndex, AsSeekTo->NewNextTick);
+							}
+							else if (const FLoop* AsLoop = Event.TryGet<FLoop>())
+							{
+								SeekToTick(Event.BlockFrameIndex, AsLoop->FirstTickInLoop);
 							}
 						}
 					}
@@ -822,7 +820,7 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 				}
 			}
 
-			if (CellInRow != CurrentCellIndex || CurrentMaxColumns == 1)
+			if (CellInRow != CurrentCellIndex/* || CurrentMaxColumns == 1*/)
 			{	
 				for (int32 i = 0; i < CurrentPage->Rows.Num(); ++i)
 				{
