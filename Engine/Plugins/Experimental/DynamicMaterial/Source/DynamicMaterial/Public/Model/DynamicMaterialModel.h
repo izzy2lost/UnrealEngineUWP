@@ -43,30 +43,32 @@ class DYNAMICMATERIAL_API UDynamicMaterialModel : public UObject
 public:
 	static const FString ValuesPathToken;
 	static const FString ParametersPathToken;
-	static const FName GlobalOpacityValueName;
-	static const FName GlobalOpacityParameterName;
-	static const FName GlobalMetallicValueName;
-	static const FName GlobalMetallicParameterName;
-	static const FName GlobalRoughnessValueName;
-	static const FName GlobalRoughnessParameterName;
-	static const FName GlobalSpecularValueName;
-	static const FName GlobalSpecularParameterName;
-	static const FName GlobalAnisotropyValueName;
-	static const FName GlobalAnisotropyParameterName;
-	static const FName GlobalWorldPositionOffsetValueName;
-	static const FName GlobalWorldPositionOffsetParameterName;
-	static const FName GlobalAmbientOcclusionValueName;
-	static const FName GlobalAmbientOcclusionParameterName;
-	static const FName GlobalRefractionValueName;
-	static const FName GlobalRefractionParameterName;
-	static const FName GlobalPixelDepthOffsetValueName;
-	static const FName GlobalPixelDepthOffsetParameterName;
-	static const FName GlobalOffsetValueName;
-	static const FName GlobalOffsetParameterName;
-	static const FName GlobalTilingValueName;
-	static const FName GlobalTilingParameterName;
-	static const FName GlobalRotationValueName;
-	static const FName GlobalRotationParameterName;
+	static const FLazyName GlobalOpacityValueName;
+	static const FLazyName GlobalOpacityParameterName;
+	static const FLazyName GlobalMetallicValueName;
+	static const FLazyName GlobalMetallicParameterName;
+	static const FLazyName GlobalRoughnessValueName;
+	static const FLazyName GlobalRoughnessParameterName;
+	static const FLazyName GlobalNormalValueName;
+	static const FLazyName GlobalNormalParameterName;
+	static const FLazyName GlobalSpecularValueName;
+	static const FLazyName GlobalSpecularParameterName;
+	static const FLazyName GlobalAnisotropyValueName;
+	static const FLazyName GlobalAnisotropyParameterName;
+	static const FLazyName GlobalWorldPositionOffsetValueName;
+	static const FLazyName GlobalWorldPositionOffsetParameterName;
+	static const FLazyName GlobalAmbientOcclusionValueName;
+	static const FLazyName GlobalAmbientOcclusionParameterName;
+	static const FLazyName GlobalRefractionValueName;
+	static const FLazyName GlobalRefractionParameterName;
+	static const FLazyName GlobalPixelDepthOffsetValueName;
+	static const FLazyName GlobalPixelDepthOffsetParameterName;
+	static const FLazyName GlobalOffsetValueName;
+	static const FLazyName GlobalOffsetParameterName;
+	static const FLazyName GlobalTilingValueName;
+	static const FLazyName GlobalTilingParameterName;
+	static const FLazyName GlobalRotationValueName;
+	static const FLazyName GlobalRotationParameterName;
 
 	UDynamicMaterialModel();
 
@@ -163,7 +165,9 @@ public:
 	void ResetData();
 
 	//~ Begin UObject
+#endif
 	virtual void PostLoad() override;
+#if WITH_EDITOR
 	virtual void PostEditUndo() override;
 	virtual void PostEditImport() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
@@ -197,6 +201,12 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> EditorOnlyDataSI;
 #endif
+
+	/**
+	 * Because they are not assigned to individual properties, the global parameter values end up being their archetype versions
+	 * for versions of the object from before the change. This needs to be fixed on post load.
+	 */
+	void FixGlobalParameterValues();
 
 #if WITH_EDITOR
 	FName CreateUniqueParameterName(FName InBaseName);

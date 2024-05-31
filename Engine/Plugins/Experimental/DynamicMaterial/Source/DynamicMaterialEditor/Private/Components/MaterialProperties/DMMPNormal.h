@@ -24,5 +24,10 @@ public:
 	 * Adds the SafeNormalize function as an extra output processor.
 	 */
 	virtual void AddOutputProcessor(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+
+	/**
+	 * Replaces the regular multiply node with a custom one that doesn't affect the Z axis.
+	 */
+	virtual void AddAlphaMultiplier(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	//~ End UDMMaterialProperty
 };

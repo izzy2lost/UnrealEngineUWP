@@ -8,41 +8,43 @@
 #include "DMComponentPath.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
+#include "DynamicMaterialModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 
 #if WITH_EDITOR
 #include "Components/DMTextureUV.h"
-#include "DynamicMaterialModule.h"
 #include "Materials/Material.h"
 #endif
 
 const FString UDynamicMaterialModel::ValuesPathToken = FString(TEXT("Values"));
 const FString UDynamicMaterialModel::ParametersPathToken = FString(TEXT("Parameters"));
-const FName UDynamicMaterialModel::GlobalOpacityValueName = FName(TEXT("GlobalOpacityValue"));
-const FName UDynamicMaterialModel::GlobalOpacityParameterName = FName(TEXT("GlobalOpacity"));
-const FName UDynamicMaterialModel::GlobalMetallicValueName = FName(TEXT("GlobalMetallicValue"));
-const FName UDynamicMaterialModel::GlobalMetallicParameterName = FName(TEXT("GlobalMetallic"));
-const FName UDynamicMaterialModel::GlobalSpecularValueName = FName(TEXT("GlobalSpecularValue"));
-const FName UDynamicMaterialModel::GlobalSpecularParameterName = FName(TEXT("GlobalSpecular"));
-const FName UDynamicMaterialModel::GlobalRoughnessValueName = FName(TEXT("GlobalRoughnessValue"));
-const FName UDynamicMaterialModel::GlobalRoughnessParameterName = FName(TEXT("GlobalRoughness"));
-const FName UDynamicMaterialModel::GlobalAnisotropyValueName = FName(TEXT("GlobalAnisotropyValue"));
-const FName UDynamicMaterialModel::GlobalAnisotropyParameterName = FName(TEXT("GlobalAnisotropy"));
-const FName UDynamicMaterialModel::GlobalWorldPositionOffsetValueName = FName(TEXT("GlobalWorldPositionOffsetValue"));
-const FName UDynamicMaterialModel::GlobalWorldPositionOffsetParameterName = FName(TEXT("GlobalWorldPositionOffset"));
-const FName UDynamicMaterialModel::GlobalAmbientOcclusionValueName = FName(TEXT("GlobalAmbientOcclusionValue"));
-const FName UDynamicMaterialModel::GlobalAmbientOcclusionParameterName = FName(TEXT("GlobalAmbientOcclusion"));
-const FName UDynamicMaterialModel::GlobalRefractionValueName = FName(TEXT("GlobalRefractionValue"));
-const FName UDynamicMaterialModel::GlobalRefractionParameterName = FName(TEXT("GlobalRefraction"));
-const FName UDynamicMaterialModel::GlobalPixelDepthOffsetValueName = FName(TEXT("GlobalPixelDepthOffsetValue"));
-const FName UDynamicMaterialModel::GlobalPixelDepthOffsetParameterName = FName(TEXT("GlobalPixelDepthOffset"));
-const FName UDynamicMaterialModel::GlobalOffsetValueName = FName(TEXT("GlobalOffsetValue"));
-const FName UDynamicMaterialModel::GlobalOffsetParameterName = FName(TEXT("GlobalOffset"));
-const FName UDynamicMaterialModel::GlobalTilingValueName = FName(TEXT("GlobalTilingValue"));
-const FName UDynamicMaterialModel::GlobalTilingParameterName = FName(TEXT("GlobalTiling"));
-const FName UDynamicMaterialModel::GlobalRotationValueName = FName(TEXT("GlobalRotationValue"));
-const FName UDynamicMaterialModel::GlobalRotationParameterName = FName(TEXT("GlobalRotation"));
+const FLazyName UDynamicMaterialModel::GlobalOpacityValueName = FLazyName(TEXT("GlobalOpacityValue"));
+const FLazyName UDynamicMaterialModel::GlobalOpacityParameterName = FLazyName(TEXT("GlobalOpacity"));
+const FLazyName UDynamicMaterialModel::GlobalMetallicValueName = FLazyName(TEXT("GlobalMetallicValue"));
+const FLazyName UDynamicMaterialModel::GlobalMetallicParameterName = FLazyName(TEXT("GlobalMetallic"));
+const FLazyName UDynamicMaterialModel::GlobalSpecularValueName = FLazyName(TEXT("GlobalSpecularValue"));
+const FLazyName UDynamicMaterialModel::GlobalSpecularParameterName = FLazyName(TEXT("GlobalSpecular"));
+const FLazyName UDynamicMaterialModel::GlobalRoughnessValueName = FLazyName(TEXT("GlobalRoughnessValue"));
+const FLazyName UDynamicMaterialModel::GlobalRoughnessParameterName = FLazyName(TEXT("GlobalRoughness"));
+const FLazyName UDynamicMaterialModel::GlobalNormalValueName = FLazyName(TEXT("GlobalNormalValue"));
+const FLazyName UDynamicMaterialModel::GlobalNormalParameterName = FLazyName(TEXT("GlobalNormal"));
+const FLazyName UDynamicMaterialModel::GlobalAnisotropyValueName = FLazyName(TEXT("GlobalAnisotropyValue"));
+const FLazyName UDynamicMaterialModel::GlobalAnisotropyParameterName = FLazyName(TEXT("GlobalAnisotropy"));
+const FLazyName UDynamicMaterialModel::GlobalWorldPositionOffsetValueName = FLazyName(TEXT("GlobalWorldPositionOffsetValue"));
+const FLazyName UDynamicMaterialModel::GlobalWorldPositionOffsetParameterName = FLazyName(TEXT("GlobalWorldPositionOffset"));
+const FLazyName UDynamicMaterialModel::GlobalAmbientOcclusionValueName = FLazyName(TEXT("GlobalAmbientOcclusionValue"));
+const FLazyName UDynamicMaterialModel::GlobalAmbientOcclusionParameterName = FLazyName(TEXT("GlobalAmbientOcclusion"));
+const FLazyName UDynamicMaterialModel::GlobalRefractionValueName = FLazyName(TEXT("GlobalRefractionValue"));
+const FLazyName UDynamicMaterialModel::GlobalRefractionParameterName = FLazyName(TEXT("GlobalRefraction"));
+const FLazyName UDynamicMaterialModel::GlobalPixelDepthOffsetValueName = FLazyName(TEXT("GlobalPixelDepthOffsetValue"));
+const FLazyName UDynamicMaterialModel::GlobalPixelDepthOffsetParameterName = FLazyName(TEXT("GlobalPixelDepthOffset"));
+const FLazyName UDynamicMaterialModel::GlobalOffsetValueName = FLazyName(TEXT("GlobalOffsetValue"));
+const FLazyName UDynamicMaterialModel::GlobalOffsetParameterName = FLazyName(TEXT("GlobalOffset"));
+const FLazyName UDynamicMaterialModel::GlobalTilingValueName = FLazyName(TEXT("GlobalTilingValue"));
+const FLazyName UDynamicMaterialModel::GlobalTilingParameterName = FLazyName(TEXT("GlobalTiling"));
+const FLazyName UDynamicMaterialModel::GlobalRotationValueName = FLazyName(TEXT("GlobalRotationValue"));
+const FLazyName UDynamicMaterialModel::GlobalRotationParameterName = FLazyName(TEXT("GlobalRotation"));
 
 UDynamicMaterialModel::UDynamicMaterialModel()
 {
@@ -96,6 +98,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	AddFloatParameter(GlobalMetallicValueName, GlobalMetallicParameterName);
 	AddFloatParameter(GlobalSpecularValueName, GlobalSpecularParameterName);
 	AddFloatParameter(GlobalRoughnessValueName, GlobalRoughnessParameterName);
+	AddFloatParameter(GlobalNormalValueName, GlobalNormalParameterName);
 	AddFloatParameter(GlobalAnisotropyValueName, GlobalAnisotropyParameterName);
 	AddFloatParameter(GlobalWorldPositionOffsetValueName, GlobalWorldPositionOffsetParameterName);
 	AddFloatParameter(GlobalAmbientOcclusionValueName, GlobalAmbientOcclusionParameterName);
@@ -418,11 +421,15 @@ void UDynamicMaterialModel::ResetData()
 		ModelEditorOnlyData->ResetData();
 	}
 }
+#endif
 
 void UDynamicMaterialModel::PostLoad()
 {
 	Super::PostLoad();
 
+	FixGlobalParameterValues();
+
+#if WITH_EDITOR
 	SetFlags(RF_Transactional);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -448,8 +455,10 @@ void UDynamicMaterialModel::PostLoad()
 	}
 
 	ReinitComponents();
+#endif
 }
 
+#if WITH_EDITOR
 void UDynamicMaterialModel::PostEditUndo()
 {
 	Super::PostEditUndo();
@@ -528,7 +537,32 @@ void UDynamicMaterialModel::PostEditorDuplicate()
 		ModelEditorOnlyData->PostEditorDuplicate();
 	}
 }
+#endif
 
+void UDynamicMaterialModel::FixGlobalParameterValues()
+{
+	for (TPair<FName, TObjectPtr<UDMMaterialValue>>& ParameterPair : GlobalParameterValues)
+	{
+		if (!ParameterPair.Value || !ParameterPair.Value->HasAnyFlags(RF_ArchetypeObject))
+		{
+			continue;
+		}
+
+		const FName Name = ParameterPair.Value->GetFName();
+
+		UDMMaterialValue* Local = FindObjectFast<UDMMaterialValue>(this, Name, /* Exact class */ false);
+
+		if (!Local)
+		{
+			UE_LOG(LogDynamicMaterial, Error, TEXT("Archtype global parameter found and could not find local one. [%s]"), *Name.ToString());
+			continue;
+		}
+
+		ParameterPair.Value = Local;
+	}
+}
+
+#if WITH_EDITOR
 void UDynamicMaterialModel::ReinitComponents()
 {
 	if (IsValid(DynamicMaterial))
@@ -636,6 +670,7 @@ void UDynamicMaterialModel::FixGlobalVars()
 
 	FixGlobalVar(GlobalOpacityValueName, GlobalOpacityParameterName);
 	FixGlobalVar(GlobalRoughnessValueName, GlobalRoughnessParameterName);
+	FixGlobalVar(GlobalNormalValueName, GlobalNormalParameterName);
 	FixGlobalVar(GlobalSpecularValueName, GlobalSpecularParameterName);
 	FixGlobalVar(GlobalMetallicValueName, GlobalMetallicParameterName);
 	FixGlobalVar(GlobalAnisotropyValueName, GlobalAnisotropyParameterName);
