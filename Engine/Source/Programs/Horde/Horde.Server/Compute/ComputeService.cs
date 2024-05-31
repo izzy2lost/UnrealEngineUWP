@@ -384,7 +384,7 @@ namespace Horde.Server.Compute
 			try
 			{
 				PoolId? poolId = arp.Requirements.Pool != null ? new PoolId(arp.Requirements.Pool) : null;
-				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(poolId, cancellationToken: cancellationToken);
+				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(poolId, consistentRead: false, cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
