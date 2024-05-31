@@ -4,6 +4,7 @@
 
 #include "Net/Serialization/FastArraySerializer.h"
 #include "Types/UIFWidgetId.h"
+#include "UObject/ObjectKey.h"
 
 #include "UIFWidgetTree.generated.h"
 
