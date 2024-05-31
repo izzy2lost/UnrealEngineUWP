@@ -29,6 +29,7 @@ VShape::VShape(FAllocationContext Context, FieldsMap&& InFields)
 			case EFieldType::Offset:
 				Pair.Value.Index = CurrentIndex++;
 				break;
+			case EFieldType::FProperty:
 			case EFieldType::Constant:
 			default:
 				break;
@@ -51,6 +52,7 @@ void VShape::VisitReferencesImpl(TVisitor& Visitor)
 			switch (It->Value.Type)
 			{
 				case EFieldType::Offset:
+				case EFieldType::FProperty:
 					break;
 				case EFieldType::Constant:
 					Visitor.Visit(It->Value.Value, TEXT("Value"));
@@ -68,6 +70,7 @@ void VShape::VisitReferencesImpl(TVisitor& Visitor)
 			switch (It->Value.Type)
 			{
 				case EFieldType::Offset:
+				case EFieldType::FProperty:
 					break;
 				case EFieldType::Constant:
 					Visitor.Visit(It->Value.Value, TEXT("Value"));
@@ -87,6 +90,7 @@ VShape* VShape::New(FAllocationContext Context, FieldsMap&& InFields)
 VShape& VShape::CopyToMeltedShape(FAllocationContext Context)
 {
 	FieldsMap NewFields;
+	NewFields.Reserve(Fields.Num());
 	for (auto It = Fields.CreateIterator(); It; ++It)
 	{
 		NewFields.Add(It->Key, VEntry::Offset());

@@ -14,10 +14,10 @@
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMMapInline.h"
 #include "VerseVM/Inline/VVMMutableArrayInline.h"
-#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMUClassInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
 #include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMArrayBase.h"
@@ -1623,21 +1623,18 @@ class FInterpreter
 		VUniqueStringSet& ArchetypeFields = *Op.Fields.Get();
 
 		// UObject or VObject?
-		bool bUObject = Class.IsNative();
-		if (!bUObject)
+		bool bUObject = false;
+		if (!Class.IsStruct())
 		{
-			// TODO: Implement native structs: SOL-6281
-			if (!Class.IsStruct())
+			bUObject = Class.IsNative();
+			if (!bUObject)
 			{
-				const float UObjectProbablity = CVarUObjectProbablity.GetValueOnAnyThread();
-				bUObject = UObjectProbablity > 0.0f && (UObjectProbablity > RandomUObjectProbablity.FRand());
+				const float UObjectProbability = CVarUObjectProbability.GetValueOnAnyThread();
+				bUObject = UObjectProbability > 0.0f && (UObjectProbability > RandomUObjectProbability.FRand());
 			}
 		}
 		if (bUObject)
 		{
-			// TODO: Implement native structs: SOL-6281
-			V_DIE_IF(Class.IsStruct());
-
 			V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *FString(Class.GetName())));
 
 			NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
@@ -1664,16 +1661,18 @@ class FInterpreter
 			const VEmergentType* EmergentType = Object->GetEmergentType();
 			VShape* Shape = EmergentType->Shape.Get();
 			V_DIE_IF(Shape == nullptr);
-			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
+			const VShape::VEntry* Field = Shape->GetField(FieldName);
 			V_DIE_IF(Field == nullptr);
 			switch (Field->Type)
 			{
 				case EFieldType::Offset:
-					V_DIE_IF(EmergentType->CppClassInfo == nullptr);
-					FieldValue = Object->GetData(*EmergentType->CppClassInfo)[Field->Index].Get(Context);
+					FieldValue = Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index].Get(Context);
 					break;
 				case EFieldType::Constant:
 					FieldValue = Field->Value.Get();
+					break;
+				case EFieldType::FProperty:
+					FieldValue = Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo))->Get(Context);
 					break;
 				default:
 					V_DIE("Field: %s has an unsupported type; cannot load!", *FieldName.AsString());
@@ -1719,16 +1718,18 @@ class FInterpreter
 			const VEmergentType* EmergentType = Object->GetEmergentType();
 			VShape* Shape = EmergentType->Shape.Get();
 			V_DIE_IF(Shape == nullptr);
-			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
+			const VShape::VEntry* Field = Shape->GetField(FieldName);
 			V_DIE_IF(Field == nullptr);
 			switch (Field->Type)
 			{
 				case EFieldType::Offset:
-					V_DIE_IF(EmergentType->CppClassInfo == nullptr);
-					bSucceeded = Def(Object->GetData(*EmergentType->CppClassInfo)[Field->Index], ValueOperand);
+					bSucceeded = Def(Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index], ValueOperand);
 					break;
 				case EFieldType::Constant:
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
+					break;
+				case EFieldType::FProperty:
+					bSucceeded = Def(*Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo)), ValueOperand);
 					break;
 				default:
 					V_DIE("Field: %s has an unsupported type; cannot unify!", *Op.Name.Get()->AsString());
@@ -1768,10 +1769,10 @@ class FInterpreter
 		{
 			const VEmergentType* EmergentType = Object->GetEmergentType();
 			VShape* Shape = EmergentType->Shape.Get();
-			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
+			const VShape::VEntry* Field = Shape->GetField(FieldName);
 			// Right now, this is only used for setting fields on mutable structs. So it has to be an offset.
 			V_DIE_UNLESS(Field->Type == EFieldType::Offset);
-			Object->GetData(*EmergentType->CppClassInfo)[Field->Index].SetTransactionally(Context, *Object, Value);
+			Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index].SetTransactionally(Context, *Object, Value);
 		}
 		else if (ObjectOperand.IsUObject())
 		{

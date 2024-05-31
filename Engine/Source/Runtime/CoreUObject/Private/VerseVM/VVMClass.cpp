@@ -10,9 +10,9 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
-#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/VVMEngineEnvironment.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/VVMPackage.h"
@@ -149,8 +149,8 @@ void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& 
 VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
 	// Combine the class and archetype to determine which fields will live in the object.
-	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VObject::StaticCppClassInfo);
-	VObject& NewObject = VObject::NewUninitialized(Context, NewEmergentType);
+	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VValueObject::StaticCppClassInfo);
+	VObject& NewObject = VValueObject::NewUninitialized(Context, NewEmergentType);
 
 	if (Kind == EKind::Struct)
 	{
@@ -184,7 +184,7 @@ UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& Archet
 
 	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
 	{
-		const VShape::VEntry* Field = ObjectUClass->Shape->GetField(Context, *It->Get());
+		const VShape::VEntry* Field = ObjectUClass->Shape->GetField(*It->Get());
 		checkSlow(Field && Field->Type == EFieldType::FProperty);
 		VValue Value = ArchetypeValues[It.GetId().AsInteger()];
 		Field->UProperty->ContainerPtrToValuePtr<VRestValue>(NewObject)->Set(Context, Value);
@@ -225,11 +225,15 @@ void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProce
 
 VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo)
 {
+	// Limit archetype instantiation to VObject-derived types for now
+	V_DIE_UNLESS(CppClassInfo->IsA(&VValueObject::StaticCppClassInfo));
+
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
 
 	// TODO: This in the future shouldn't even require a hash table lookup when we introduce inline caching for this.
-	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(GetTypeHash(ArchetypeFieldNames), ArchetypeFieldNames))
+	const uint32 ArcheTypeHash = GetTypeHash(ArchetypeFieldNames);
+	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(ArcheTypeHash, ArchetypeFieldNames))
 	{
 		return *ExistingEmergentType->Get();
 	}
@@ -239,9 +243,6 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	VShape::FieldsMap Fields;
 	for (const TWriteBarrier<VUniqueString>& Field : ArchetypeFieldNames)
 	{
-		// Only VObjects have space for fields in the object rather than the shape.
-		V_DIE_UNLESS(CppClassInfo == &VObject::StaticCppClassInfo);
-
 		// Always store fields from the archetype in the object.
 		Fields.Add({Context, Field.Get()}, VShape::VEntry::Offset());
 	}
@@ -252,9 +253,6 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 		{
 			if (Entry.bDynamic)
 			{
-				// Only VObjects have space for fields in the object rather than the shape.
-				V_DIE_UNLESS(CppClassInfo == &VObject::StaticCppClassInfo);
-
 				// Store dynamically-initialized and uninitialized fields in the object.
 				Fields.FindOrAdd({Context, FieldName}, VShape::VEntry::Offset());
 			}
@@ -273,7 +271,7 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 
 	// This new type will then be kept alive in the cache to re-vend if ever the exact same set of fields are used for
 	// archetype instantiation of a different object.
-	EmergentTypesCache.Add({Context, ArchetypeFieldNames}, {Context, *NewEmergentType});
+	EmergentTypesCache.AddByHash(ArcheTypeHash, {Context, ArchetypeFieldNames}, {Context, *NewEmergentType});
 
 	return *NewEmergentType;
 }

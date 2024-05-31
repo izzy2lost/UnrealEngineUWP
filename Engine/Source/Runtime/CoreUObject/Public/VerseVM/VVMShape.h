@@ -92,7 +92,7 @@ struct VShape : VCell
 	/// indices as part of the new shape created.
 	COREUOBJECT_API static VShape* New(FAllocationContext Context, FieldsMap&& InFields);
 
-	const VEntry* GetField(FAllocationContext Context, const VUniqueString& Name) const;
+	const VEntry* GetField(const VUniqueString& Name) const;
 
 	uint64 GetNumFields() const;
 
@@ -118,6 +118,7 @@ private:
 	friend class ::FVerseVMEngineEnvironment;
 	friend struct VClass;
 	friend struct VObject;
+	friend struct VValueObject;
 	friend struct VEmergentType;
 };
 

@@ -82,7 +82,7 @@ inline uint32 VShape::FFieldsMapKeyFuncs::GetKeyHash(const VUniqueString& Key)
 	return GetTypeHash(Key);
 }
 
-inline const VShape::VEntry* VShape::GetField(FAllocationContext Context, const VUniqueString& Name) const
+inline const VShape::VEntry* VShape::GetField(const VUniqueString& Name) const
 {
 	return Fields.FindByHash(GetTypeHash(Name), Name);
 }

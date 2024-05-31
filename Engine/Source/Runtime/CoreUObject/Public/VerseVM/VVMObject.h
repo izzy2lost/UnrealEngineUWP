@@ -3,24 +3,19 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
-#include "VerseVM/VVMRestValue.h"
+#include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMShape.h"
 
 namespace Verse
 {
-struct VClass;
-struct VProcedure;
 struct VUniqueString;
 
-/// A Verse object that may store fields and associated values for those fields on it.
+/// Base class for Verse objects that may store fields and associated values for those fields on it.
 /// An object points to an emergent type, which in turn points to a "shape".
 /// A "shape" is a dynamic memory layout of fields and their offsets.
 struct VObject : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
-
-	/// Allocate a new object with the given shape, populated with placeholders
-	static VObject& NewUninitialized(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	const VValue LoadField(FAllocationContext Context, VUniqueString& Name);
 
@@ -34,19 +29,14 @@ struct VObject : VHeapValue
 	void SetIsStruct() { SetIsDeeplyMutable(); };
 
 protected:
-	COREUOBJECT_API bool EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
-	COREUOBJECT_API uint32 GetTypeHashImpl();
+	friend class FInterpreter;
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
 
-	friend class FInterpreter;
+	static constexpr const size_t DataAlignment = alignof(VRestValue);
 
-	static size_t FieldsOffset(const VCppClassInfo& CppClassInfo);
-
-	static std::byte* AllocateFastCell(FAllocationContext Context, VEmergentType& EmergentType);
-
-	VValue MeltImpl(FAllocationContext Context);
-	VValue FreezeImpl(FAllocationContext Context);
+	const VValue LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field);
+	static size_t DataOffset(const VCppClassInfo& CppClassInfo);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.
@@ -67,7 +57,8 @@ protected:
 	 * caches for retrieving fields on objects. It also helps reduce memory usage because multiple objects can share
 	 * the same hash table that describes their layouts.
 	 */
-	VRestValue* GetData(const VCppClassInfo& CppClassInfo);
+	FORCEINLINE void* GetData(const VCppClassInfo& CppClassInfo);
+	FORCEINLINE VRestValue* GetFieldData(const VCppClassInfo& CppClassInfo);
 };
 } // namespace Verse
 #endif // WITH_VERSE_VM

@@ -4,14 +4,15 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMGlobalProgram.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/VVMNativeFunction.h"
-#include "VerseVM/VVMObject.h"
 #include "VerseVM/VVMReturnSlot.h"
 #include "VerseVM/VVMTree.h"
+#include "VerseVM/VVMValueObject.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
@@ -19,10 +20,10 @@ namespace Verse
 struct FOp;
 struct VFailureContext;
 
-struct VTask : VObject
+struct VTask : VValueObject
 	, TIntrusiveTree<VTask>
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VObject);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VValueObject);
 	COREUOBJECT_API static TGlobalDefaultedObjectEmergentTypePtr<&StaticCppClassInfo> EmergentType;
 
 	// A task is "running" when it is associated with a frame on the native stack.
@@ -68,7 +69,7 @@ struct VTask : VObject
 	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
 	{
 		VEmergentType& TaskEmergentType = EmergentType.Get(Context);
-		return *new (AllocateFastCell(Context, TaskEmergentType)) VTask(Context, TaskEmergentType, YieldPC, YieldFrame, YieldTask, Parent);
+		return *new (AllocateCell(Context, TaskEmergentType)) VTask(Context, TaskEmergentType, YieldPC, YieldFrame, YieldTask, Parent);
 	}
 
 	COREUOBJECT_API void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument);
@@ -133,7 +134,7 @@ struct VTask : VObject
 
 private:
 	VTask(FAllocationContext Context, VEmergentType& TaskEmergentType, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
-		: VObject(Context, TaskEmergentType)
+		: VValueObject(Context, TaskEmergentType)
 		, TIntrusiveTree(Context, Parent)
 		, ResumeSlot(Context, nullptr)
 		, YieldPC(YieldPC)

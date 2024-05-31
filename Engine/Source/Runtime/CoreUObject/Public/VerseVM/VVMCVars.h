@@ -12,8 +12,8 @@ namespace Verse
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarTraceExecution;
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarSingleStepTraceExecution;
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarDumpBytecode;
-extern COREUOBJECT_API TAutoConsoleVariable<float> CVarUObjectProbablity;
-extern COREUOBJECT_API FRandomStream RandomUObjectProbablity;
+extern COREUOBJECT_API TAutoConsoleVariable<float> CVarUObjectProbability;
+extern COREUOBJECT_API FRandomStream RandomUObjectProbability;
 } // namespace Verse
 
 #endif // WITH_VERSE_VM
