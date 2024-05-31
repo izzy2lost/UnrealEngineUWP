@@ -8,6 +8,7 @@
 #include "Internationalization/TextKey.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"
 #include "Misc/RuntimeErrors.h"
+#include "UObject/EnumProperty.h"
 
 #define LOCTEXT_NAMESPACE "Kismet"
 
@@ -421,6 +422,64 @@ DEFINE_FUNCTION(UKismetTextLibrary::execEditTextSourceString)
 		{
 			*(bool*)RESULT_PARAM = true;
 			Text = TextProperty->GetPropertyValue_InContainer(TextOwner);
+		}
+	}
+	P_NATIVE_END;
+}
+
+FText UKismetTextLibrary::Conv_NumericPropertyToText(const int32& Value)
+{
+	// We should never hit this! Stubbed to avoid NoExport on the class.
+	check(0);
+	return FText::GetEmpty();
+}
+
+DEFINE_FUNCTION(UKismetTextLibrary::execConv_NumericPropertyToText)
+{
+	Stack.StepCompiledIn<FProperty>(nullptr);
+	const FProperty* SourceProperty = Stack.MostRecentProperty;
+	void* SourceValuePtr = Stack.MostRecentPropertyAddress;
+
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+	{
+		*(FText*)RESULT_PARAM = FText::GetEmpty();
+
+		if (SourceProperty == nullptr || SourceValuePtr == nullptr)
+		{
+			LogRuntimeWarning(LOCTEXT("GenericToText.Warning.NullProperty", "The property is invalid!"));
+			return;
+		}
+
+
+		if (const FNumericProperty* NumericProperty = CastField<FNumericProperty>(SourceProperty))
+		{
+			if (NumericProperty->IsFloatingPoint())
+			{
+				double Value = NumericProperty->GetFloatingPointPropertyValue(SourceValuePtr);
+				*(FText*)RESULT_PARAM = FText::AsNumber(Value);
+			}
+			else if (UEnum* Enum = NumericProperty->GetIntPropertyEnum())
+			{
+				int64 Value = NumericProperty->GetSignedIntPropertyValue(SourceValuePtr);
+				*(FText*)RESULT_PARAM = Enum->GetDisplayNameTextByValue(Value);
+			}
+			else if (NumericProperty->IsInteger())
+			{
+				// Value from BP are always signed.
+				int64 Value = NumericProperty->GetSignedIntPropertyValue(SourceValuePtr);
+				*(FText*)RESULT_PARAM = FText::AsNumber(Value);
+			}
+		}
+		else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(SourceProperty))
+		{
+			const int64 Value = EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(SourceValuePtr);
+			*(FText*)RESULT_PARAM = EnumProperty->GetEnum()->GetDisplayNameTextByValue(Value);
+		}
+		else
+		{
+			LogRuntimeWarning(LOCTEXT("GenericToText.Warning.NotSupported", "The property not supported"));
 		}
 	}
 	P_NATIVE_END;

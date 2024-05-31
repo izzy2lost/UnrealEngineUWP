@@ -340,4 +340,9 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, CustomThunk, Category="Utilities|Text", meta=(DefaultToSelf="TextOwner"))
 	static ENGINE_API bool EditTextSourceString(UObject* TextOwner, UPARAM(ref) FText& Text, const FString& SourceString);
 	DECLARE_FUNCTION(execEditTextSourceString);
+
+	/** Converts a generic value to localized formatted text using the user culture. */
+	UFUNCTION(BlueprintPure, CustomThunk, DisplayName = "To Text", Category = "Utilities|Text", meta = (CustomStructureParam = "Value", BlueprintInternalUseOnly = "true"))
+	static ENGINE_API FText Conv_NumericPropertyToText(UPARAM(ref) const int32& Value);
+	DECLARE_FUNCTION(execConv_NumericPropertyToText);
 };
