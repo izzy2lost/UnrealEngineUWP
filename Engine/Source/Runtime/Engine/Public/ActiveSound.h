@@ -716,7 +716,7 @@ public:
 	 * This function forces the Destination's routing method to Union.
 	 * To replace existing modulators or set a different routing method, use SetNewModulationRouting.
 	 */
-	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
+	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated = true);
 
 	/* Removes given Modulators from the ActiveSound, if possible. */
 	ENGINE_API void RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);

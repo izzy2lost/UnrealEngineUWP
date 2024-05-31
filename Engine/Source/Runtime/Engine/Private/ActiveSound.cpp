@@ -501,7 +501,7 @@ void FActiveSound::SetNewModulationRouting(const FSoundModulationDefaultRoutingS
 	bModulationRoutingUpdated = true;
 }
 
-void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
+void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated)
 {
 	switch (Destination)
 	{
@@ -529,7 +529,7 @@ void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBas
 		}
 	}
 	
-	bModulationRoutingUpdated = true;
+	bModulationRoutingUpdated = bShouldModulationRoutingBeUpdated;
 }
 
 void FActiveSound::RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)

@@ -1885,7 +1885,7 @@ void UAudioComponent::SetModulationRouting(const TSet<USoundModulatorBase*>& Mod
 
 }
 
-void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination)
+void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated)
 {
 	FAudioDevice* AudioDevice = GetAudioDevice();
 	if (!AudioDevice)
@@ -1926,9 +1926,9 @@ void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Mod
 	}
 
 	// Tell the active sounds on the component to use the new Modulation Routing
-	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewModulators = ConvertedModulators, Destination](FActiveSound& ActiveSound)
+	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewModulators = ConvertedModulators, Destination, bShouldModulationRoutingBeUpdated](FActiveSound& ActiveSound)
 	{
-		ActiveSound.AddModulationRouting(NewModulators, Destination);
+		ActiveSound.AddModulationRouting(NewModulators, Destination, bShouldModulationRoutingBeUpdated);
 	});
 }
 

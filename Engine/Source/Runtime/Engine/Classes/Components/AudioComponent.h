@@ -735,9 +735,10 @@ public:
 	* To completely overwrite existing Modulation settings, use SetModulationRouting.
 	* @param Modulators The set of modulators to add to the given destination on the component.
 	* @param Destination The destination to add the modulators to.
+	* @param bShouldModulationRoutingBeUpdated Whether we should get the ActiveSound to update the modulator on its next update call
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Audio|Components|Audio", DisplayName = "Add Modulation Routing")
-	ENGINE_API void AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination);
+	ENGINE_API void AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination, const bool bShouldModulationRoutingBeUpdated = true);
 
 	/**
 	* Removes the given set of Modulators to the modulators currently set on the Audio Component. This performs a logical subtraction of the sets, so modulators that are not in the given set will stay.
