@@ -1166,7 +1166,7 @@ namespace Horde.Server.Agents
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(RefreshCachedAgentsAsync)}");
 			Dictionary<AgentId, IAgent> agents = new();
-			IReadOnlyList<IAgent> agentList = await Agents.FindAsync(cancellationToken: cancellationToken);
+			IReadOnlyList<IAgent> agentList = await Agents.FindAsync(consistentRead: false, cancellationToken: cancellationToken);
 			foreach (IAgent agent in agentList)
 			{
 				agents[agent.Id] = agent;
