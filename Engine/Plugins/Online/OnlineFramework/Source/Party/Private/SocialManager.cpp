@@ -266,7 +266,7 @@ USocialToolkit& USocialManager::GetSocialToolkit(const ULocalPlayer& LocalPlayer
 	USocialToolkit* FoundToolkit = nullptr;
 	for (USocialToolkit* Toolkit : SocialToolkits)
 	{
-		if (&LocalPlayer == &Toolkit->GetOwningLocalPlayer())
+		if (&LocalPlayer == Toolkit->GetOwningLocalPlayerPtr())
 		{
 			FoundToolkit = Toolkit;
 			break;
@@ -293,7 +293,8 @@ USocialToolkit* USocialManager::GetSocialToolkit(FUniqueNetIdRepl LocalUserId) c
 {
 	for (USocialToolkit* Toolkit : SocialToolkits)
 	{
-		if (Toolkit->GetOwningLocalPlayer().GetPreferredUniqueNetId() == LocalUserId)
+		const ULocalPlayer* LocalPlayer = Toolkit->GetOwningLocalPlayerPtr();
+		if (LocalPlayer && LocalPlayer->GetPreferredUniqueNetId() == LocalUserId)
 		{
 			return Toolkit;
 		}
@@ -740,7 +741,7 @@ USocialToolkit& USocialManager::CreateSocialToolkit(ULocalPlayer& OwningLocalPla
 {
 	for (USocialToolkit* ExistingToolkit : SocialToolkits)
 	{
-		check(&OwningLocalPlayer != &ExistingToolkit->GetOwningLocalPlayer());
+		check(&OwningLocalPlayer != ExistingToolkit->GetOwningLocalPlayerPtr());
 	}
 	check(ToolkitClass);
 

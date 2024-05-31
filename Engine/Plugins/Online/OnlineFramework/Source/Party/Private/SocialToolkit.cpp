@@ -248,7 +248,16 @@ FUniqueNetIdRepl USocialToolkit::GetLocalUserNetId(ESocialSubsystem SubsystemTyp
 
 int32 USocialToolkit::GetLocalUserNum() const
 {
-	return GetOwningLocalPlayer().GetControllerId();
+	if (const ULocalPlayer* LocalPlayer = GetOwningLocalPlayerPtr())
+	{
+		return LocalPlayer->GetControllerId();
+	}
+	else
+	{
+		UE_LOG(LogParty, Verbose, TEXT("%hs - OwningLocalPlayer is nullptr. Likely the player has logged out."), __FUNCTION__);
+
+		return INVALID_CONTROLLERID;
+	}
 }
 
 const FOnlineUserPresence* USocialToolkit::GetPresenceInfo(ESocialSubsystem SubsystemType) const
@@ -320,8 +329,21 @@ USocialManager& USocialToolkit::GetSocialManager() const
 
 ULocalPlayer& USocialToolkit::GetOwningLocalPlayer() const
 {
-	check(LocalPlayerOwner.IsValid());
-	return *LocalPlayerOwner.Get();
+	// This is deprecated as it is unsafe.
+	// LocalPlayerOwner is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.
+	if (ULocalPlayer* LocalPlayer = GetOwningLocalPlayerPtr())
+	{
+		return *LocalPlayer;
+	}
+	else
+	{
+		return *NewObject<ULocalPlayer>();
+	}
+}
+
+ULocalPlayer* USocialToolkit::GetOwningLocalPlayerPtr() const
+{
+	return LocalPlayerOwner.Get();
 }
 
 USocialUser* USocialToolkit::FindUser(const FUniqueNetIdRepl& UserId) const

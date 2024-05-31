@@ -197,9 +197,9 @@ bool FSocialInteraction_LeaveParty::CanExecute(const USocialUser& User)
 {
 	if (User.IsLocalUser())
 	{
-		USocialToolkit& OwningToolkit = User.GetOwningToolkit();
-		ULocalPlayer& LocalPlayer = OwningToolkit.GetOwningLocalPlayer();
-		if (!LocalPlayer.IsPrimaryPlayer())
+		const USocialToolkit& OwningToolkit = User.GetOwningToolkit();
+		const ULocalPlayer* LocalPlayer = OwningToolkit.GetOwningLocalPlayerPtr();
+		if (!LocalPlayer || !LocalPlayer->IsPrimaryPlayer())
 		{
 			return false;
 		}

@@ -78,8 +78,12 @@ public:
 	void SetLocalUserOnlineState(EOnlinePresenceState::Type OnlineState);
 	void AddLocalUserOnlineProperties(FPresenceProperties OnlineProperties);
 
-	USocialManager& GetSocialManager() const;
+	UE_DEPRECATED(5.6, "GetOwningLocalPlayer returns LocalPlayerOwner which is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.")
 	ULocalPlayer& GetOwningLocalPlayer() const;
+
+	ULocalPlayer* GetOwningLocalPlayerPtr() const;
+	USocialManager& GetSocialManager() const;
+
 	const TArray<USocialUser*>& GetAllUsers() const { return AllUsers; }
 
 	/** Finds a SocialUser given a unique net ID from any OSS */

@@ -129,7 +129,10 @@ public:
 
 	bool ContainsUser(const USocialUser& User) const;
 
+	UE_DEPRECATED(5.6, "GetOwningLocalPlayer returns the Toolkit's LocalPlayerOwner which is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.")
 	ULocalPlayer& GetOwningLocalPlayer() const;
+
+	ULocalPlayer* GetOwningLocalPlayerPtr() const;
 	const FUniqueNetIdRepl& GetOwningLocalUserId() const { return OwningLocalUserId; }
 	const FUniqueNetIdRepl& GetPartyLeaderId() const { return CurrentLeaderId; }
 	bool IsLocalPlayerPartyLeader() const;

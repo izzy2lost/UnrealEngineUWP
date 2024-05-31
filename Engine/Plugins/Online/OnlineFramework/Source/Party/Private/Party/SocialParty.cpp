@@ -354,7 +354,10 @@ bool USocialParty::TryInviteUser(const USocialUser& UserToInvite, const ESocialP
 				{
 					if (const IOnlineIdentityPtr PlatformIdentityInterface = Online::GetIdentityInterface(GetWorld(), SocialOssName))
 					{
-						LocalUserPlatformId = PlatformIdentityInterface->GetUniquePlayerId(GetOwningLocalPlayer().GetControllerId());
+						if (const ULocalPlayer* LocalPlayer = GetOwningLocalPlayerPtr())
+						{
+							LocalUserPlatformId = PlatformIdentityInterface->GetUniquePlayerId(LocalPlayer->GetControllerId());
+						}
 					}
 				}
 
@@ -1379,8 +1382,22 @@ bool USocialParty::ContainsUser(const USocialUser& User) const
 
 ULocalPlayer& USocialParty::GetOwningLocalPlayer() const
 {
+	// This is deprecated as it was unsafe.
+	// The Toolkit's LocalPlayerOwner is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.
+	if (ULocalPlayer* LocalPlayer = GetOwningLocalPlayerPtr())
+	{
+		return *LocalPlayer;
+	}
+	else
+	{
+		return *NewObject<ULocalPlayer>();
+	}
+}
+
+ULocalPlayer* USocialParty::GetOwningLocalPlayerPtr() const
+{
 	//@todo DanH Party: This is a wee bit heavy - should be able to do this in fewer steps
-	return GetOwningLocalMember().GetSocialUser().GetOwningToolkit().GetOwningLocalPlayer();
+	return GetOwningLocalMember().GetSocialUser().GetOwningToolkit().GetOwningLocalPlayerPtr();
 }
 
 bool USocialParty::IsLocalPlayerPartyLeader() const
@@ -1710,7 +1727,8 @@ void USocialParty::CleanupSpectatorBeacon()
 
 FName USocialParty::GetGameSessionName() const
 {
-	const APlayerController* OwnerPC = GetOwningLocalPlayer().GetPlayerController(GetWorld());
+	const ULocalPlayer* LocalPlayer = GetOwningLocalPlayerPtr();
+	const APlayerController* OwnerPC = LocalPlayer ? LocalPlayer->GetPlayerController(GetWorld()) : nullptr;
 	if (OwnerPC && OwnerPC->PlayerState)
 	{
 		return OwnerPC->PlayerState->SessionName;
