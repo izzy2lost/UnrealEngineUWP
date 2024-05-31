@@ -574,6 +574,7 @@ namespace EpicGames.Horde.Jobs
 	/// <param name="Type">Artifact type</param>
 	/// <param name="Description">Description to display for the artifact on the dashboard</param>
 	/// <param name="Keys">Keys for the artifact</param>
+	/// <param name="Metadata">Metadata for the artifact</param>
 	/// <param name="StepId">Step producing the artifact</param>
 	public record class GetJobArtifactResponse
 	(
@@ -582,6 +583,7 @@ namespace EpicGames.Horde.Jobs
 		ArtifactType Type,
 		string? Description,
 		List<string> Keys,
+		List<string> Metadata,
 		JobStepId StepId
 	);
 
