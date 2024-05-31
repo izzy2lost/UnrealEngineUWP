@@ -3,6 +3,7 @@
 #include "AvaSequencePlaybackActor.h"
 #include "AvaSequencePlayer.h"
 #include "AvaSequenceSubsystem.h"
+#include "AvaTag.h"
 #include "Engine/World.h"
 #include "IAvaSequenceProvider.h"
 #include "MovieSceneSequenceTickManager.h"
