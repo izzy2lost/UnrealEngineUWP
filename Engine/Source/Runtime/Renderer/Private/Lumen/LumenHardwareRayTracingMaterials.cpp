@@ -127,7 +127,6 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData);
 
-	const FRayTracingSceneInitializer2& SceneInitializer = Scene->RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer();
 	const uint32 NumTotalSegments = FMath::Max(Scene->RayTracingScene.GetTotalNumSegments(), 1u);
 
 	FRDGUploadData<Lumen::FHitGroupRootConstants> HitGroupData(GraphBuilder, NumTotalSegments);
@@ -149,7 +148,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 			const FVisibleRayTracingMeshCommand* MeshCommands = View.VisibleRayTracingMeshCommands.GetData() + FirstTaskCommandIndex;
 			const uint32 NumCommands = FMath::Min(NumCommandsPerTask, NumTotalMeshCommands - FirstTaskCommandIndex);
 
-			GraphBuilder.AddSetupTask([MeshCommands, NumCommands, HitGroupData, &SceneInitializer]()
+			GraphBuilder.AddSetupTask([MeshCommands, NumCommands, HitGroupData]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingHitGroupDataTask);
 
