@@ -39,6 +39,7 @@ void FWorldPartitionHLODDetailsCustomization::CustomizeDetails(IDetailLayoutBuil
 			SNew(SButton)
 			.Text(LOCTEXT("BuildHLODButtonText", "Build HLOD"))
 			.OnClicked(this, &FWorldPartitionHLODDetailsCustomization::OnBuildHLOD)
+			.IsEnabled(this, &FWorldPartitionHLODDetailsCustomization::CanBuildHLOD)
 		]
 	];
 }
@@ -53,6 +54,31 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODDetailsCustomization::GetSelecte
 	Algo::TransformIf(SelectedObjects, SelectedHLODActors, IsA_WPHLOD, Cast_WPHLOD);
 
 	return SelectedHLODActors;
+}
+
+bool FWorldPartitionHLODDetailsCustomization::CanBuildHLOD() const
+{
+	TArray<AWorldPartitionHLOD*> SelectedHLODActors = GetSelectedHLODActors();
+
+	for (AWorldPartitionHLOD* HLODActor : SelectedHLODActors)
+	{
+		if (HLODActor == nullptr)
+		{
+			return false;
+		}
+
+		if (HLODActor->IsTemplate())
+		{
+			return false;
+		}
+
+		if (HLODActor->GetSourceActors() == nullptr)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 FReply FWorldPartitionHLODDetailsCustomization::OnBuildHLOD()

@@ -19,6 +19,7 @@ protected:
 	FWorldPartitionHLODDetailsCustomization()
 	{}
 
+	bool CanBuildHLOD() const;
 	FReply OnBuildHLOD();
 
 private:
