@@ -46,10 +46,12 @@ struct FThreadingOptions
 };
 
 /** Settings used to configure NNERuntimeORT */
-UCLASS(Config = Engine, meta = (DisplayName = "NNERuntimeORT"))
-class NNERUNTIMEORT_API UNNERuntimeORTSettings : public UDeveloperSettings
+UCLASS(config = Engine, defaultconfig, meta = (DisplayName = "NNERuntimeORT"))
+class UNNERuntimeORTSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
+
+	UNNERuntimeORTSettings(const FObjectInitializer& ObjectInitlaizer);
 
 public:
 
@@ -60,5 +62,12 @@ public:
 	/** Threading options in Non-Editor (Game, Program, ...) targets */
 	UPROPERTY(Config, EditAnywhere, Category = "ONNX Runtime", meta = (DisplayName = "Game threading options", ToolTip = "Threading options in Non-Editor (Game, Program, ...) targets", ConfigRestartRequired = true))
 	FThreadingOptions GameThreadingOptions{false, 1, 1, EExecutionMode::SEQUENTIAL};
+
+	// Begin UDeveloperSettings Interface
+	NNERUNTIMEORT_API virtual FName GetCategoryName() const override;
+#if WITH_EDITOR
+	NNERUNTIMEORT_API virtual FText GetSectionText() const override;
+	// END UDeveloperSettings Interface
+#endif
 
 };
