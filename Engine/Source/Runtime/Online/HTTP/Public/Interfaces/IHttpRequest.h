@@ -95,9 +95,17 @@ using FHttpRequestWillRetryDelegate = TTSDelegate<void(FHttpRequestPtr /*Request
 using FHttpRequestStreamDelegate = TTSDelegate<bool(void*/*Ptr*/, int64/*Length*/)>;
 
 /**
+ * Delegate called when an Http request will send/recv data through stream
+ *
+ * @param Ptr - The buffer ptr to read/write
+ * @param InOutLength - The int64 reference length of buffer to read/write, if there is any error when serialize set it to 0
+ */
+using FHttpRequestStreamDelegateV2 = TTSDelegate<void(void*/*Ptr*/, int64&/*InOutLength*/)>;
+
+/**
  * Delegate version of FArchive, for streaming interface
  */
-class FArchiveWithDelegate final : public FArchive
+class UE_DEPRECATED(5.5, "FArchiveWithDelegate is deprecated and will be moved to internal") FArchiveWithDelegate final : public FArchive
 {
 public:
 	FArchiveWithDelegate(FHttpRequestStreamDelegate InStreamDelegate)
@@ -203,7 +211,8 @@ public:
 	 * @param StreamDelegate - delegate from which the payload should be streamed.
 	 * @return True if the delegate can be used to stream the request. False otherwise.
 	 */
-	bool SetContentFromStreamDelegate(FHttpRequestStreamDelegate StreamDelegate) { return SetContentFromStream(MakeShared<FArchiveWithDelegate>(StreamDelegate)); }
+	UE_DEPRECATED(5.5, "SetContentFromStreamDelegate has been deprecated and will not be supported because there is no seek support through delegate. Implement your own FArchive instead.")
+	bool SetContentFromStreamDelegate(FHttpRequestStreamDelegate StreamDelegate);
 
 	/**
 	 * Sets the stream to receive the response body. Make sure to handle the cleanup of stream when
@@ -230,7 +239,20 @@ public:
 	 * @param StreamDelegate - will be used to receive the response body
 	 * @return True if the delegate can be used. False otherwise.
 	 */
-	bool SetResponseBodyReceiveStreamDelegate(FHttpRequestStreamDelegate StreamDelegate) { return SetResponseBodyReceiveStream(MakeShared<FArchiveWithDelegate>(StreamDelegate)); }
+	HTTP_API bool SetResponseBodyReceiveStreamDelegate(FHttpRequestStreamDelegate StreamDelegate);
+
+	/**
+	 * Sets the delegate to receive the response body. Make sure to handle the cleanup of received data when
+	 * failed to process the data(StreamDelegate return false), this http request will fail and quit.
+	 *
+	 * NOTE: Once set, the data will no longer be cached in response, IHttpResponse::GetContent() and
+	 * IHttpResponse::GetContentAsString() will return empty result. The delegate will be called from
+	 * another thread other than the game thread
+	 *
+	 * @param StreamDelegate - will be used to receive the response body
+	 * @return True if the delegate can be used. False otherwise.
+	 */
+	HTTP_API bool SetResponseBodyReceiveStreamDelegateV2(FHttpRequestStreamDelegateV2 StreamDelegate);
 
 	/**
 	 * Sets optional header info.
