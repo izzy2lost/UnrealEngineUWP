@@ -95,6 +95,7 @@ public:
 	UMVVMBlueprintViewExtension* CreateBlueprintWidgetExtension(TSubclassOf<UMVVMBlueprintViewExtension> ExtensionClass, FName WidgetName);
 	void RemoveBlueprintWidgetExtension(UMVVMBlueprintViewExtension* ExtensionToRemove, FName WidgetName);
 	TArray<UMVVMBlueprintViewExtension*> GetBlueprintExtensionsForWidget(FName WidgetName) const;
+	TArray<UMVVMBlueprintViewExtension*> GetAllBlueprintExtensions() const;
 
 	void SetFilterSettings(FMVVMViewBindingFilterSettings InFilterSettings);
 	FMVVMViewBindingFilterSettings GetFilterSettings() const

@@ -38,6 +38,7 @@ public:
 	virtual void Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class) override;
 	virtual void Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension) override;
 	virtual bool WidgetRenamed(FName OldName, FName NewName) override;
+	virtual void OnPreviewContentChanged(TSharedRef<SWidget> NewContent) override;
 	//~ End UMVVMBlueprintViewExtension overrides
 
 	FGuid GetEntryViewModelId() const
@@ -47,6 +48,8 @@ public:
 
 private:
 	const UMVVMBlueprintView* GetEntryWidgetBlueprintView(const UUserWidget* EntryUserWidget) const;
+
+	static void RefreshDesignerPreviewEntries(UPanelWidget* PanelWidget, TSubclassOf<UUserWidget> EntryWidgetClass, UPanelSlot* SlotTemplate, int32 NumDesignerPreviewEntries, bool bFullRebuild);
 
 private:
 	UPROPERTY()
@@ -58,8 +61,11 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "EntryClass", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UUserWidget> EntryWidgetClass;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category="Slot", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Slot", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UPanelSlot> SlotObj;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NumDesignerPreviewEntries", meta = (AllowPrivateAccess = "true", ClampMin = 0, ClampMax = 20))
+	int32 NumDesignerPreviewEntries = 3;
 
 	UPROPERTY()
 	FName PanelPropertyName;

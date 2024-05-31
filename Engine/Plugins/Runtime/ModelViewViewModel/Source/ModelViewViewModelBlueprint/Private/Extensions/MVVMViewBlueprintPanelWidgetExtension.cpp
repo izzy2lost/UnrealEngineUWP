@@ -11,6 +11,7 @@
 #include "MVVMBlueprintViewModelContext.h"
 #include "MVVMPropertyPath.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
+#include "Slate/SObjectWidget.h"
 #include "Templates/ValueOrError.h"
 #include "UObject/UnrealType.h"
 #include "View/MVVMViewClass.h"
@@ -243,6 +244,42 @@ const UMVVMBlueprintView* UMVVMBlueprintViewExtension_PanelWidget::GetEntryWidge
 	return nullptr;
 }
 
+void UMVVMBlueprintViewExtension_PanelWidget::RefreshDesignerPreviewEntries(UPanelWidget* PanelWidget, TSubclassOf<UUserWidget> EntryWidgetClass, UPanelSlot* SlotTemplate, int32 NumDesignerPreviewEntries, bool bFullRebuild)
+{
+	if (ensure(PanelWidget))
+	{
+		if (bFullRebuild || !EntryWidgetClass)
+		{
+			PanelWidget->ClearChildren();
+
+			if (EntryWidgetClass)
+			{
+				for (int32 EntryIndex = 0; EntryIndex < NumDesignerPreviewEntries; ++EntryIndex)
+				{
+					if (UUserWidget* EntryWidget = UUserWidget::CreateWidgetInstance(*PanelWidget, EntryWidgetClass, NAME_None))
+					{
+						PanelWidget->AddChild(EntryWidget, SlotTemplate);
+					}
+				}
+			}
+		}
+		else if (NumDesignerPreviewEntries > PanelWidget->GetChildrenCount())
+		{
+			for (int32 NumToAdd = NumDesignerPreviewEntries - PanelWidget->GetChildrenCount(); NumToAdd > 0; --NumToAdd)
+			{
+				PanelWidget->AddChild(UUserWidget::CreateWidgetInstance(*PanelWidget, EntryWidgetClass, NAME_None), SlotTemplate);
+			}
+		}
+		else if (ensure(NumDesignerPreviewEntries >= 0) && NumDesignerPreviewEntries < PanelWidget->GetChildrenCount())
+		{
+			for (int32 NumToRemove = PanelWidget->GetChildrenCount() - NumDesignerPreviewEntries; NumToRemove > 0; --NumToRemove)
+			{
+				PanelWidget->RemoveChildAt(PanelWidget->GetChildrenCount() - 1);
+			}
+		}
+	}
+}
+
 bool UMVVMBlueprintViewExtension_PanelWidget::WidgetRenamed(FName OldName, FName NewName)
 {
 	if (WidgetName == OldName)
@@ -252,6 +289,18 @@ bool UMVVMBlueprintViewExtension_PanelWidget::WidgetRenamed(FName OldName, FName
 		return true;
 	}
 	return false;
+}
+
+void UMVVMBlueprintViewExtension_PanelWidget::OnPreviewContentChanged(TSharedRef<SWidget> NewContent)
+{
+	const SObjectWidget* ObjectWidget = StaticCastSharedPtr<SObjectWidget>(NewContent.ToSharedPtr()).Get();
+	const UUserWidget* PreviewRoot = ObjectWidget ? ObjectWidget->GetWidgetObject() : nullptr;
+
+	if (UPanelWidget* PreviewWidget = PreviewRoot ? Cast<UPanelWidget>(PreviewRoot->GetWidgetFromName(WidgetName)) : nullptr)
+	{
+		constexpr bool bFullRebuild = false;
+		RefreshDesignerPreviewEntries(PreviewWidget, EntryWidgetClass, SlotObj, NumDesignerPreviewEntries, bFullRebuild);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

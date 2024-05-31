@@ -40,11 +40,20 @@ private:
 	/** Update the cached variables when the entry class property changes. */
 	void HandleEntryClassChanged(bool bIsInit);
 
+	/** Called when a child property on the slot property changes. */
+	void HandleSlotChildPropertyChanged();
+
+	/** Called when the "Num Designer Preview Entries" property changes. */
+	void HandleNumDesignerPreviewEntriesChanged();
+
 	/** Update the cached variables when the number of grid columns changes. */
 	void HandleNumGridColumns();
 
 	/** Create a new MVVMViewBlueprintPanelWidgetExtension for this widget in the blueprint view class. */
 	void CreatePanelWidgetViewExtensionIfNotExisting();
+
+	/** Create preview entries for the selected panel widget. */
+	void RefreshDesignerPreviewEntries(bool bFullRebuild);
 
 	/** Get the MVVMViewBlueprintPanelWidgetExtension for this widget in the blueprint view class. */
 	UMVVMBlueprintViewExtension_PanelWidget* GetPanelWidgetExtension() const;

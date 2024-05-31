@@ -38,4 +38,6 @@ public:
 	{ 
 		return false; 
 	}
+
+	virtual void OnPreviewContentChanged(TSharedRef<SWidget> NewContent) {}
 };

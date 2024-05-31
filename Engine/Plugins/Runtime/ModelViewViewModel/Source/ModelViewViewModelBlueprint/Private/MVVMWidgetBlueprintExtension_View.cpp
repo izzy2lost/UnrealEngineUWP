@@ -110,6 +110,23 @@ TArray<UMVVMBlueprintViewExtension*> UMVVMWidgetBlueprintExtension_View::GetBlue
 	return ThisWidgetExtensions;
 }
 
+TArray<UMVVMBlueprintViewExtension*> UMVVMWidgetBlueprintExtension_View::GetAllBlueprintExtensions() const
+{
+	TArray<UMVVMBlueprintViewExtension*> AllExtensions;
+	AllExtensions.Reset(BlueprintExtensions.Num());
+	
+	for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
+	{
+		if (Extension.ExtensionObj)
+		{
+			AllExtensions.Add(Extension.ExtensionObj);
+		}
+	}
+
+	AllExtensions.Shrink();
+	return AllExtensions;
+}
+
 void UMVVMWidgetBlueprintExtension_View::VerifyWidgetExtensions()
 {
 	if (const UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprint())

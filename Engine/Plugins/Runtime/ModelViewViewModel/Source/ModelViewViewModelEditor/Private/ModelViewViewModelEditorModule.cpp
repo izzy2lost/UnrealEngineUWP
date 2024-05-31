@@ -5,9 +5,10 @@
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "BlueprintModes/WidgetBlueprintApplicationMode.h"
 #include "BlueprintModes/WidgetBlueprintApplicationModes.h"
+#include "Customizations/MVVMBlueprintViewDesignerExtension.h"
 #include "Customizations/MVVMBlueprintViewModelContextCustomization.h"
-#include "Customizations/MVVMListViewBaseExtensionCustomizationExtender.h"
 #include "Customizations/MVVMClipboardExtension.h"
+#include "Customizations/MVVMListViewBaseExtensionCustomizationExtender.h"
 #include "Customizations/MVVMPanelWidgetExtensionCustomizationExtender.h"
 #include "Customizations/MVVMPropertyBindingExtension.h"
 #include "Extensions/MVVMBlueprintViewExtension.h"
@@ -26,8 +27,8 @@
 #include "Tabs/MVVMPreviewSourceSummoner.h"
 #include "Tabs/MVVMViewModelSummoner.h"
 #include "ToolMenus.h"
-#include "UObject/AssetRegistryTagsContext.h"
 #include "UMGEditorModule.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "WidgetBlueprintEditor.h"
 #include "WidgetDrawerConfig.h"
 #include "Widgets/SMVVMViewBindingPanel.h"
@@ -56,6 +57,9 @@ void FModelViewViewModelEditorModule::StartupModule()
 
 	PanelWidgetCustomizationExtender = UE::MVVM::FMVVMPanelWidgetExtensionCustomizationExtender::MakeInstance();
 	UMGEditorModule.AddWidgetCustomizationExtender(PanelWidgetCustomizationExtender.ToSharedRef());
+
+	BlueprintViewDesignerExtensionFactory = MakeShared<UE::MVVM::FBlueprintViewDesignerExtensionFactory>();
+	UMGEditorModule.GetDesignerExtensibilityManager()->AddDesignerExtensionFactory(BlueprintViewDesignerExtensionFactory.ToSharedRef());
 
 	UMGEditorModule.RegisterInstancedCustomPropertyTypeLayout(
 		FMVVMBlueprintViewModelContext::StaticStruct()->GetStructPathName()
@@ -96,9 +100,11 @@ void FModelViewViewModelEditorModule::ShutdownModule()
 
 	if (IUMGEditorModule* UMGEditorModule = FModuleManager::GetModulePtr<IUMGEditorModule>("UMGEditor"))
 	{
+		UMGEditorModule->GetDesignerExtensibilityManager()->RemoveDesignerExtensionFactory(BlueprintViewDesignerExtensionFactory.ToSharedRef());
 		UMGEditorModule->OnRegisterTabsForEditor().RemoveAll(this);
 		UMGEditorModule->GetClipboardExtensibilityManager()->RemoveExtension(ClipboardExtension.ToSharedRef());
 		UMGEditorModule->GetPropertyBindingExtensibilityManager()->RemoveExtension(PropertyBindingExtension.ToSharedRef());
+
 		if (UObjectInitialized())
 		{
 			UMGEditorModule->UnregisterInstancedCustomPropertyTypeLayout(FMVVMBlueprintViewModelContext::StaticStruct()->GetStructPathName());

@@ -6,6 +6,7 @@
 #include "Components/PanelWidget.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
+#include "Dialogs/Dialogs.h"
 #include "Extensions/MVVMViewBlueprintPanelWidgetExtension.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -17,6 +18,7 @@
 #include "ScopedTransaction.h"
 #include "WidgetBlueprint.h"
 #include "WidgetBlueprintEditor.h"
+#include "WidgetBlueprintEditorUtils.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -149,6 +151,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 							);
 
 							TSharedPtr<IPropertyHandle> SlotPropertyHandle = SlotDetailRow->GetPropertyHandle();
+							SlotPropertyHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMVVMPanelWidgetExtensionCustomizationExtender::HandleSlotChildPropertyChanged));
 
 							SlotDetailRow->CustomWidget(true)
 								.NameContent()
@@ -175,6 +178,11 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 										})
 									)
 							);
+
+							// "Num Designer Preview Entries" property row
+							TSharedPtr<IPropertyHandle> NumDesignerPreviewEntriesHandle = PanelExtensionObjectHandle->GetChildHandle("NumDesignerPreviewEntries");
+							NumDesignerPreviewEntriesHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMVVMPanelWidgetExtensionCustomizationExtender::HandleNumDesignerPreviewEntriesChanged));
+							MVVMCategory.AddProperty(NumDesignerPreviewEntriesHandle);
 						}
 					}
 				}
@@ -185,19 +193,70 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 
 FReply FMVVMPanelWidgetExtensionCustomizationExtender::ModifyExtension()
 {
+	UPanelWidget* WidgetPtr = Widget.Get();
+
 	if (UMVVMBlueprintViewExtension_PanelWidget* PanelExtension = GetPanelWidgetExtension())
 	{
-		if (UPanelWidget* WidgetPtr = Widget.Get())
+		if (WidgetPtr)
 		{
 			GetExtensionViewForSelectedWidgetBlueprint()->RemoveBlueprintWidgetExtension(PanelExtension, WidgetPtr->GetFName());
 			bIsExtensionAdded = false;
+			WidgetPtr->ClearChildren();
 		}
 	}
 	else
 	{
+		// Warn the user that this may result in data loss
+		if (WidgetPtr && WidgetPtr->GetChildrenCount() > 0)
+		{
+			FString ChildNames;
+
+			for (UWidget* ChildWidget : WidgetPtr->GetAllChildren())
+			{
+				if (ensure(ChildWidget))
+				{
+					ChildNames += FString::Printf(TEXT("%s"), *ChildWidget->GetFName().ToString());
+					ChildNames += ChildWidget == WidgetPtr->GetAllChildren().Last() ? TEXT(".") : TEXT(", ");
+				}
+			}
+
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("WidgetName"), FText::FromName(WidgetPtr->GetFName()));
+			Args.Add(TEXT("NumChildren"), FText::AsNumber(WidgetPtr->GetChildrenCount()));
+			Args.Add(TEXT("ChildNames"), FText::FromString(ChildNames));
+			const FText ConfirmDelete = FText::Format(LOCTEXT("ConfirmReplaceWidgetWithVariableInUse", "Adding a viewmodel extension to {WidgetName} will erase its {NumChildren}|plural(one=child, other=children):\n\n{ChildNames}\n\nDo you wish to continue?"), Args);
+
+			FSuppressableWarningDialog::FSetupInfo Info(ConfirmDelete, LOCTEXT("DeletePanelWidgetChildren", "Delete children"), "DeletePanelWidgetChildren_Warning");
+			Info.ConfirmText = LOCTEXT("DeleteChildren_Continue", "Continue");
+			Info.CancelText = LOCTEXT("DeleteChildren_Cancel", "Cancel");
+
+			const FSuppressableWarningDialog DeletePanelWidgetChildren(Info);
+
+			if (DeletePanelWidgetChildren.ShowModal() == FSuppressableWarningDialog::Cancel)
+			{
+				return FReply::Handled();
+			}
+
+			if (const TSharedPtr<FWidgetBlueprintEditor> BPEditor = WidgetBlueprintEditor.Pin())
+			{
+				if (UWidgetBlueprint* Blueprint = BPEditor->GetWidgetBlueprintObj())
+				{
+					TSet<FWidgetReference> ChildWidgets;
+
+					for (UWidget* Child : WidgetPtr->GetAllChildren())
+					{
+						ChildWidgets.Add(BPEditor->GetReferenceFromPreview(Child));
+					}
+
+					FWidgetBlueprintEditorUtils::DeleteWidgets(BPEditor.ToSharedRef(), Blueprint, ChildWidgets);
+				}
+			}
+		}
+
 		CreatePanelWidgetViewExtensionIfNotExisting();
 		bIsExtensionAdded = true;
 	}
+
 	return FReply::Handled();
 }
 
@@ -219,6 +278,17 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CreatePanelWidgetViewExtens
 				NewPanelWidgetExtension->SlotObj = SlotObj;
 			}
 		}
+	}
+}
+
+void FMVVMPanelWidgetExtensionCustomizationExtender::RefreshDesignerPreviewEntries(bool bFullRebuild)
+{
+	if (UPanelWidget* PanelWidget = Widget.Get())
+	{
+		UMVVMBlueprintViewExtension_PanelWidget* PanelWidgetExtension = GetPanelWidgetExtension();
+		UPanelSlot* SlotTemplate = PanelWidgetExtension ? PanelWidgetExtension->SlotObj : nullptr;
+		const int32 NumDesignerPreviewEntries = PanelWidgetExtension ? PanelWidgetExtension->NumDesignerPreviewEntries : 0;
+		UMVVMBlueprintViewExtension_PanelWidget::RefreshDesignerPreviewEntries(PanelWidget, EntryClass, SlotTemplate, NumDesignerPreviewEntries, bFullRebuild);
 	}
 }
 
@@ -278,9 +348,9 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::HandleEntryClassChanged(boo
 	EntryClass = EntryClassValue ? *EntryClassValue : nullptr;
 
 	// Update other values that depend on the entry class (only if the cached value actually changed)
-	if (bEntryClassChanged && EntryClass)
+	if (bEntryClassChanged)
 	{
-		if (UUserWidget* EntryCDO = Cast<UUserWidget>(EntryClass->ClassDefaultObject))
+		if (UUserWidget* EntryCDO = EntryClass ? Cast<UUserWidget>(EntryClass->ClassDefaultObject) : nullptr)
 		{
 			EntryWidgetBlueprint = Cast<UWidgetBlueprint>(EntryCDO->GetClass()->ClassGeneratedBy);
 		}
@@ -289,8 +359,22 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::HandleEntryClassChanged(boo
 		if (!bIsInit)
 		{
 			SetEntryViewModel(FGuid(), false);
+			constexpr bool bFullRebuild = true;
+			RefreshDesignerPreviewEntries(bFullRebuild);
 		}
 	}
+}
+
+void FMVVMPanelWidgetExtensionCustomizationExtender::HandleSlotChildPropertyChanged()
+{
+	constexpr bool bFullRebuild = true;
+	RefreshDesignerPreviewEntries(bFullRebuild);
+}
+
+void FMVVMPanelWidgetExtensionCustomizationExtender::HandleNumDesignerPreviewEntriesChanged()
+{
+	constexpr bool bFullRebuild = false;
+	RefreshDesignerPreviewEntries(bFullRebuild);
 }
 
 FText FMVVMPanelWidgetExtensionCustomizationExtender::OnGetSelectedViewModel() const
