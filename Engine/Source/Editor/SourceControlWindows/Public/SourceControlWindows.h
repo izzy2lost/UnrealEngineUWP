@@ -122,6 +122,28 @@ public:
 	static bool PromptForCheckin(bool bUseSourceControlStateCache, const TArray<FString>& InPackageNames, const TArray<FString>& InPendingDeletePaths = TArray<FString>(), const TArray<FString>& InConfigFiles = TArray<FString>());
 
 	/**
+	 * Display checked out dialog for the specified filenames
+	 * @param	bUseSourceControlStateCache		Whether to use the cached source control status, or force the status to be updated
+	 * @param	InFileNames						Filenames of files that are checked out
+	 * @param	InSetupInfo						Config options
+	 * 
+	 * @return	true - if the dialog was closed with the optional checkbox checked
+	 */
+	struct FCheckedOutSetupInfo
+	{
+		FText TitleText;
+		FText MessageText;
+		FText CloseText;
+		FText CheckboxText;
+
+		bool bShowColumnAssetName = true;
+		bool bShowColumnAssetClass = true;
+		bool bShowColumnUserName = true;
+	};
+
+	static bool PromptForCheckedOut(bool bUseSourceControlStateCache, TArray<FString>& InFileNames, FCheckedOutSetupInfo& InSetupInfo);
+
+	/**
 	 * Display file revision history for the provided packages
 	 *
 	 * @param	InPackageNames	Names of packages to display file revision history for
@@ -171,8 +193,6 @@ protected:
 	/** Delegate called when the user has decided to cancel the check in process */
 	static void ChoosePackagesToCheckInCancelled(FSourceControlOperationRef InOperation);
 
-	/** Delegate called when the user clicks submit.  if the return value is true the submit dialog is closed.  Otherwise it is left open for further corrections */
-	static bool OnSubmitClicked(TSharedRef<class SSourceControlSubmitWidget> SourceControlWidget);
 private:
 	/** The notification in place while we choose packages to check in */
 	static TWeakPtr<class SNotificationItem> ChoosePackagesToCheckInNotification;

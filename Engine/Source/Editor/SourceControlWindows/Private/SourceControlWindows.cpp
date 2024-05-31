@@ -2,6 +2,7 @@
 
 #include "SourceControlWindows.h"
 #include "SSourceControlSubmit.h"
+#include "SSourceControlCheckedOutDialog.h"
 #include "AssetViewUtils.h"
 #include "FileHelpers.h"
 #include "ISourceControlModule.h"
@@ -541,6 +542,48 @@ bool FSourceControlWindows::PromptForCheckin(bool bUseSourceControlStateCache, c
 	return PromptForCheckin(ResultInfo, InPackageNames, InPendingDeletePaths, InConfigFiles, bUseSourceControlStateCache);
 }
 
+bool FSourceControlWindows::PromptForCheckedOut(bool bUseSourceControlStateCache, TArray<FString>& InFileNames, FCheckedOutSetupInfo& InSetupInfo)
+{
+	TArray<FSourceControlStateRef> Items;
+
+	if (InFileNames.Num() > 0)
+	{
+		ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+
+		if (!bUseSourceControlStateCache)
+		{
+			SourceControlProvider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), InFileNames);
+		}
+
+		SourceControlProvider.GetState(InFileNames, Items, EStateCacheUsage::Use);
+	}
+
+	TSharedRef<SWindow> Window = SNew(SWindow)
+		.SizingRule(ESizingRule::Autosized)
+		.ClientSize(FVector2D(800, 600))
+		.SupportsMaximize(false)
+		.SupportsMinimize(false);
+
+	TSharedRef<SSourceControlCheckedOutDialog> Widget =
+		SNew(SSourceControlCheckedOutDialog)
+		.ParentWindow(Window)
+		.Items(Items)
+		.ShowColumnAssetName(InSetupInfo.bShowColumnAssetName)
+		.ShowColumnAssetClass(InSetupInfo.bShowColumnAssetClass)
+		.ShowColumnUserName(InSetupInfo.bShowColumnUserName)
+		.MessageText(InSetupInfo.MessageText)
+		.CloseText(InSetupInfo.CloseText)
+		.CheckBoxText(InSetupInfo.CheckboxText);
+
+	Window->SetTitle(InSetupInfo.TitleText);
+	Window->SetContent(
+		Widget
+	);
+
+	FSlateApplication::Get().AddModalWindow(Window, NULL);
+
+	return Widget->IsCheckBoxChecked();
+}
 
 // Note that:
 // - FSourceControlWindows::DisplayRevisionHistory() is defined in SSourceControlHistory.cpp
