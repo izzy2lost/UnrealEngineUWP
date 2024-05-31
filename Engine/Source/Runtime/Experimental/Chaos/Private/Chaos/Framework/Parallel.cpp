@@ -67,7 +67,7 @@ void Chaos::PhysicsParallelFor(int32 InNum, TFunctionRef<void(int32)> InCallable
 #endif
 
 #if CHAOS_DEBUG_DRAW
-	const ChaosDD::Private::FChaosDDContext& ParentDDContext = ChaosDD::Private::FChaosDDContext::Get();
+	const ChaosDD::Private::FChaosDDTaskParentContext ParentDDContext;
 #else
 	int32 ParentDDContext = 0;
 #endif

@@ -22,9 +22,10 @@ namespace ChaosDD::Private
 	class FChaosDDFrameWriter;
 	class FChaosDDGlobalFrame;
 	class FChaosDDScene;
+	class FChaosDDTaskContext;
+	class FChaosDDTaskParentContext;
 	class FChaosDDTimeline;
 	class FChaosDDTimelineContext;
-	class FChaosDDTaskContext;
 
 	class IChaosDDRenderer;
 

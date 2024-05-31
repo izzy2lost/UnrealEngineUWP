@@ -29,8 +29,9 @@ namespace ChaosDD::Private
 
 	private:
 		friend class FChaosDDScene;
-		friend class FChaosDDTimelineContext;
 		friend class FChaosDDTaskContext;
+		friend class FChaosDDTaskParentContext;
+		friend class FChaosDDTimelineContext;
 
 		const FChaosDDFramePtr& GetFrame() const
 		{
@@ -64,6 +65,10 @@ namespace ChaosDD::Private
 
 	//
 	// Initializes the FChaosDDContext for a thread that owns a timeline
+	// 
+	// This starts a new frame (debug draw buffer) and sets up the FChaosDDContext for this thread.
+	// The active context should be accessed via FChaosDDContext::GetWriter(). FChaosDDTimelineContext
+	// is not directly used other than to instantiate.
 	//
 	class CHAOS_API FChaosDDTimelineContext
 	{
@@ -73,7 +78,7 @@ namespace ChaosDD::Private
 
 	private:
 		FChaosDDTimelinePtr Timeline;
-		FChaosDDFramePtr ParentFrame;
+		FChaosDDFramePtr PreviousFrame;
 	};
 
 	//
@@ -90,19 +95,45 @@ namespace ChaosDD::Private
 	};
 
 	//
-	// Initializes the FChaosDDContext for a task.
+	// Used to propagate a debug draw context to a child thread.
+	// To use: 
+	//		- put a FChaosDDTaskParentContext on the stack on the parent thread
+	//		- pass the FChaosDDTaskParentContext to the child thread
+	//		- put FChaosDDScopeTaskContext(ParentContext) on the child thread
+	// (Search for FChaosDDScopeTaskContext for examples.)
+	//
+	class CHAOS_API FChaosDDTaskParentContext
+	{
+	public:
+		FChaosDDTaskParentContext();
+	private:
+		friend class FChaosDDTaskContext;
+		FChaosDDFramePtr Frame;
+	};
+
+	//
+	// Initializes the FChaosDDContext for a task thread.
 	// Assumes that the task is kicked off from a thread that has an active debug draw context,
 	// which should be passed into this context. Any debug draws from the task will go to the 
 	// same frame as the parent context.
+	// 
+	// The active context is accessed via FChaosDDContext::GetWriter() (and not this object).
+	// 
+	// NOTE: This is only intended to be used for tasks which will be awaited before the end
+	// of the frame (truly asynchronous tasks would need their own timeline, or just set up
+	// a context that writes to the global frame)
+	// 
+	// @todo(chaos): ChaosDDFrame should track how many contexts it is referenced by and
+	// assert that it is not active when we end the frame.
 	//
 	class CHAOS_API FChaosDDTaskContext
 	{
 	public:
-		void BeginThread(const FChaosDDContext& InParentDDContext);
+		void BeginThread(const FChaosDDTaskParentContext& InParentDDContext);
 		void EndThread();
 
 	private:
-		FChaosDDFramePtr ParentFrame;
+		FChaosDDFramePtr PreviousFrame;
 	};
 
 	//
@@ -111,7 +142,7 @@ namespace ChaosDD::Private
 	class CHAOS_API FChaosDDScopeTaskContext
 	{
 	public:
-		FChaosDDScopeTaskContext(const FChaosDDContext& InParentDDContext);
+		FChaosDDScopeTaskContext(const FChaosDDTaskParentContext& InParentDDContext);
 		~FChaosDDScopeTaskContext();
 
 	private:

@@ -29,7 +29,7 @@ namespace ChaosDD::Private
 	void FChaosDDTimelineContext::BeginFrame(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
 	{
 		FChaosDDContext& Context = FChaosDDContext::Get();
-		ParentFrame = Context.Frame;
+		PreviousFrame = Context.Frame;
 
 		if (InTimeline.IsValid())
 		{
@@ -52,8 +52,8 @@ namespace ChaosDD::Private
 		}
 
 		FChaosDDContext& Context = FChaosDDContext::Get();
-		Context.Frame = ParentFrame;
-		ParentFrame.Reset();
+		Context.Frame = PreviousFrame;
+		PreviousFrame.Reset();
 	}
 
 	FChaosDDScopeTimelineContext::FChaosDDScopeTimelineContext(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
@@ -72,29 +72,31 @@ namespace ChaosDD::Private
 	//
 	//
 
-	void FChaosDDTaskContext::BeginThread(const FChaosDDContext& InParentDDContext)
+	FChaosDDTaskParentContext::FChaosDDTaskParentContext()
+		: Frame(FChaosDDContext::Get().Frame)
 	{
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		ParentFrame = Context.Frame;
+	}
 
-		if (InParentDDContext.Frame.IsValid())
-		{
-			Context.Frame = InParentDDContext.Frame;
-		}
-		else
-		{
-			Context.Frame.Reset();
-		}
+	void FChaosDDTaskContext::BeginThread(const FChaosDDTaskParentContext& InParentDDContext)
+	{
+		// NOTE: (UE-216178) We used to pass a reference to the parent FChaosDDContext directly to the
+		// child thread and pulled the FramePointer from it in BeginThread. That is not safe because 
+		// the parent thread may also be helping with tasks and so the Frame on that context will be 
+		// getting set/unset. Instead we copy the Frame pointer on the parent thread and pass it in.
+
+		FChaosDDContext& Context = FChaosDDContext::Get();
+		PreviousFrame = Context.Frame;
+		Context.Frame = InParentDDContext.Frame;
 	}
 
 	void FChaosDDTaskContext::EndThread()
 	{
 		FChaosDDContext& Context = FChaosDDContext::Get();
-		Context.Frame = ParentFrame;
-		ParentFrame.Reset();
+		Context.Frame = PreviousFrame;
+		PreviousFrame.Reset();
 	}
 
-	FChaosDDScopeTaskContext::FChaosDDScopeTaskContext(const FChaosDDContext& InParentDDContext)
+	FChaosDDScopeTaskContext::FChaosDDScopeTaskContext(const FChaosDDTaskParentContext& InParentDDContext)
 	{
 		Context.BeginThread(InParentDDContext);
 	}
