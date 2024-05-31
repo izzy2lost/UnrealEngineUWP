@@ -597,12 +597,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 	if (!bAnyRayTracingPassEnabled)
 	{
 		return false;
-	}
-
-	if (!GRHISupportsRayTracingShaders)
-	{
-		return false;
-	}
+	}	
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates);
 
@@ -621,6 +616,11 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		}
 
 		ReferenceView.AddRayTracingMeshBatchTaskList.Empty();
+	}
+
+	if (!GRHISupportsRayTracingShaders)
+	{
+		return false;
 	}
 
 	const bool bIsPathTracing = ViewFamily.EngineShowFlags.PathTracing;
