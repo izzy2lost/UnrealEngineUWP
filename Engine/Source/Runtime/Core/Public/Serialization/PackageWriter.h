@@ -248,6 +248,13 @@ public:
 		/** If true, the cooker will assume no packages are written and will skip writing non-package data. */
 		bool bReadOnly = false;
 
+		/**
+		 * If true, the PackageWriter can override which packages are iteratively skipped in
+		 * UpdatePackageModificationStatus, and the cooker will therefore avoid assumptions about what is
+		 * iteratively skipped
+		 */
+		bool bOverridesPackageModificationStatus = false;
+
 		/** What header format is produced as output by this writer. */
 		EPackageHeaderFormat HeaderFormat = EPackageHeaderFormat::PackageFileSummary;
 	};

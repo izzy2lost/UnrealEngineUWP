@@ -10539,15 +10539,36 @@ void UCookOnTheFlyServer::PrintFinishStats()
 		UE_LOG(LogCook, Display, TEXT("CookWorker total time %f"), TotalCookTime);
 	}
 
+	// Suppress NumPackagesIterativelySkipped display if the PackageWriter is modifying what gets skipped
+	bool bReportIterativeSkips = true;
+	int32 ReportedNumPackagesIterativelySkipped = DetailedCookStats::NumPackagesIterativelySkipped;
+	const ITargetPlatform* FirstTargetPlatform = PlatformManager->GetSessionPlatforms().IsEmpty() ? nullptr :
+		PlatformManager->GetSessionPlatforms()[0];
+	if (FirstTargetPlatform)
+	{
+		if (FindOrCreateSaveContext(FirstTargetPlatform).PackageWriterCapabilities.bOverridesPackageModificationStatus)
+		{
+			bReportIterativeSkips = false;
+			ReportedNumPackagesIterativelySkipped = 0;
+		}
+	}
+	int32 ReportedNumCooked = PackageDatas->GetNumCooked(ECookResult::Succeeded)
+		- ReportedNumPackagesIterativelySkipped - PackageDataFromBaseGameNum;
+	int32 ReportedTotalPackages = PackageDatas->GetNumCooked()
+		- PackageDatas->GetNumCooked(ECookResult::NeverCookPlaceholder) - PackageDataFromBaseGameNum;
 
 	const FPlatformMemoryStats MemStats = FPlatformMemory::GetStats();
 	UE_LOG(LogCook, Display, TEXT("Peak Used virtual %u MiB Peak Used physical %u MiB"), MemStats.PeakUsedVirtual / 1024 / 1024, MemStats.PeakUsedPhysical / 1024 / 1024);
 
-	COOK_STAT(UE_LOG(LogCook, Display, TEXT("Packages Cooked: %d, Packages Iteratively Skipped: %d, Packages Skipped by Platform: %d, Total Packages: %d"),
-		PackageDatas->GetNumCooked(ECookResult::Succeeded) - DetailedCookStats::NumPackagesIterativelySkipped - PackageDataFromBaseGameNum,
-		DetailedCookStats::NumPackagesIterativelySkipped,
+	COOK_STAT(UE_LOG(LogCook, Display,
+		TEXT("Packages Cooked: %d,%s Packages Skipped by Platform: %d, Total Packages: %d"),
+		ReportedNumCooked,
+		(bReportIterativeSkips
+			? *FString::Printf(TEXT(" Packages Iteratively Skipped: %d,"), ReportedNumPackagesIterativelySkipped)
+			: TEXT("")),
 		PackageDatas->GetNumCooked(ECookResult::Failed),
-		PackageDatas->GetNumCooked() - PackageDatas->GetNumCooked(ECookResult::NeverCookPlaceholder) - PackageDataFromBaseGameNum));
+		ReportedTotalPackages
+	));
 }
 
 void UCookOnTheFlyServer::PrintDetailedCookStats()

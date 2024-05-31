@@ -513,6 +513,7 @@ ICookedPackageWriter::FCookCapabilities FIterativeValidatePackageWriter::GetCook
 {
 	FCookCapabilities Result = Super::GetCookCapabilities();
 	Result.bReadOnly = bReadOnly;
+	Result.bOverridesPackageModificationStatus = true;
 	return Result;
 }
 
@@ -687,13 +688,17 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 	{
 	case EPhase::AllInOnePhase:
 	{
+		int32 DetectedUnmodified = StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive];
 		UE_LOG(LogIterativeValidate, Display,
 			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeSkipFalsePositive: %d."),
 			StatusCounts[EPackageStatus::DeclaredModified_WillNotVerify], 
-			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified] + StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive],
+			DetectedUnmodified,
 			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified],
 			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
-		FString Message = FString::Printf(TEXT("IterativeSkipFalsePositive: %d."), StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
+		FString Message = FString::Printf(TEXT("Packages Iteratively Skipped: %d: IterativeSkipFalsePositive: %d."),
+			DetectedUnmodified,
+			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
 		if (StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive] > 0)
 		{
 			UE_LOG(LogIterativeValidate, Error, TEXT("%s"), *Message);
@@ -705,25 +710,35 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 		break;
 	}
 	case EPhase::Phase1:
+	{
+		int32 DetectedUnmodified = StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive];
 		UE_LOG(LogIterativeValidate, Display,
 			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeSkipFalsePositiveOrIndeterminism: %d."),
 			StatusCounts[EPackageStatus::DeclaredModified_WillNotVerify],
-			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified] 
-			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive],
+			DetectedUnmodified,
 			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified],
 			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive]);
 		Save();
 		break;
+	}
 	case EPhase::Phase2:
 	{
+		int32 DetectedUnmodified = StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_Indeterminism]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive];
 		UE_LOG(LogIterativeValidate, Display,
-			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. Indeterminism: %d."),
+			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. Indeterminism: %d. IterativeSkipFalsePositive: %d."),
 			StatusCounts[EPackageStatus::DeclaredModified_WillNotVerify],
-			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified] 
-			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive],
+			DetectedUnmodified,
 			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified],
-			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_Indeterminism]);
-		FString Message = FString::Printf(TEXT("IterativeSkipFalsePositive: %d."), StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
+			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_Indeterminism],
+			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]
+			);
+		FString Message = FString::Printf(TEXT("Packages Iteratively Skipped: %d: IterativeSkipFalsePositive: %d."),
+			DetectedUnmodified,
+			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
 		if (StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive] > 0)
 		{
 			UE_LOG(LogIterativeValidate, Error, TEXT("%s"), *Message);
