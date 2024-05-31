@@ -654,10 +654,22 @@ struct FStaticMeshVertexFactories
 	* @param	InParentMesh					Parent static mesh
 	* @param	bInOverrideColorVertexBuffer	If true, make a vertex factory ready for per-instance colors
 	*/
-	ENGINE_API void InitVertexFactory(const FStaticMeshLODResources& LodResources, FLocalVertexFactory& InOutVertexFactory, uint32 LODIndex, const UStaticMesh* InParentMesh, bool bInOverrideColorVertexBuffer);
+	ENGINE_API void InitVertexFactory(const FStaticMeshVertexBuffers& VertexBuffers, FLocalVertexFactory& InOutVertexFactory, uint32 LODIndex, const UStaticMesh* InParentMesh, bool bInOverrideColorVertexBuffer);
+
+	UE_DEPRECATED(5.5, "Provide FStaticMeshVertexBuffers instead of FStaticMeshLODResources")
+	ENGINE_API void InitVertexFactory(const FStaticMeshLODResources& LodResources, FLocalVertexFactory& InOutVertexFactory, uint32 LODIndex, const UStaticMesh* InParentMesh, bool bInOverrideColorVertexBuffer)
+	{
+		InitVertexFactory(LodResources.VertexBuffers, InOutVertexFactory, LODIndex, InParentMesh, bInOverrideColorVertexBuffer);
+	}
 
 	/** Initializes all rendering resources. */
-	ENGINE_API void InitResources(const FStaticMeshLODResources& LodResources, uint32 LODIndex, const UStaticMesh* Parent);
+	ENGINE_API void InitResources(const FStaticMeshVertexBuffers& VertexBuffers, uint32 LODIndex, const UStaticMesh* Parent);
+
+	UE_DEPRECATED(5.5, "Provide FStaticMeshVertexBuffers instead of FStaticMeshLODResources")
+	ENGINE_API void InitResources(const FStaticMeshLODResources& LodResources, uint32 LODIndex, const UStaticMesh* Parent)
+	{
+		InitResources(LodResources.VertexBuffers, LODIndex, Parent);
+	}
 
 	/** Releases all rendering resources. */
 	ENGINE_API void ReleaseResources();
