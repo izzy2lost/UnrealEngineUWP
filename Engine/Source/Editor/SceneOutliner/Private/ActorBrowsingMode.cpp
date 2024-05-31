@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ActorBrowsingMode.h"
+
+#include "ActorBrowsingModeCommands.h"
 #include "Engine/Blueprint.h"
 #include "SceneOutlinerFilters.h"
 #include "SceneOutlinerModule.h"
@@ -52,6 +54,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementHandle.h"
+#include "Framework/Commands/GenericCommands.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorBrowser, Log, All);
 
@@ -1284,76 +1287,24 @@ void FActorBrowsingMode::OnItemPassesFilters(const ISceneOutlinerTreeItem& Item)
 FReply FActorBrowsingMode::OnKeyDown(const FKeyEvent& InKeyEvent)
 {
 	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
+	const FInputChord CheckChord( InKeyEvent.GetKey(), EModifierKey::FromBools(ModifierKeys.IsControlDown(), ModifierKeys.IsAltDown(), ModifierKeys.IsShiftDown(), ModifierKeys.IsCommandDown()) );
 
-	// Rename key: Rename selected actors (not rebindable, because it doesn't make much sense to bind.)
-	if (InKeyEvent.GetKey() == EKeys::F2)
+	// Use the keyboard shortcut bound to 'Focus Viewport To Selection'
+	if (FEditorViewportCommands::Get().FocusViewportToSelection->HasActiveChord(CheckChord))
 	{
 		if (Selection.Num() == 1)
 		{
-			FSceneOutlinerTreeItemPtr ItemToRename = Selection.SelectedItems[0].Pin();
+			FSceneOutlinerTreeItemPtr ItemToFocus = Selection.SelectedItems[0].Pin();
 
-			if (ItemToRename.IsValid() && CanRenameItem(*ItemToRename) && ItemToRename->CanInteract())
+			if (ItemToFocus.IsValid())
 			{
-				SceneOutliner->SetPendingRenameItem(ItemToRename);
-				SceneOutliner->ScrollItemIntoView(ItemToRename);
-			}
-
-			return FReply::Handled();
-		}
-	}
-
-	// F5 forces a full refresh
-	else if (InKeyEvent.GetKey() == EKeys::F5)
-	{
-		SceneOutliner->FullRefresh();
-		return FReply::Handled();
-	}
-
-	// Delete key: Delete selected actors (not rebindable, because it doesn't make much sense to bind.)
-	// Use Delete and Backspace instead of Platform_Delete because the LevelEditor default Edit Delete is bound to both
-	else if (InKeyEvent.GetKey() == EKeys::Delete || InKeyEvent.GetKey() == EKeys::BackSpace)
-	{
-		if (SceneOutliner->GetSharedData().CustomDelete.IsBound())
-		{
-			SceneOutliner->GetSharedData().CustomDelete.Execute(Selection.SelectedItems);
-		}
-		else
-		{
-			if (RepresentingWorld.IsValid())
-			{
-				GUnrealEd->Exec(RepresentingWorld.Get(), TEXT("DELETE"));
-			}
-		}
-		return FReply::Handled();
-
-	}
-
-	/* Allow the user to scroll to the current selection (and expand if needed) by pressing the key bound to
-	 * FEditorViewportCommands::Get().FocusViewportToSelection (Default: 'F')
-	 */
-	else
-	{
-		const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
-		const FInputChord CheckChord( InKeyEvent.GetKey(), EModifierKey::FromBools(ModifierKeys.IsControlDown(), ModifierKeys.IsAltDown(), ModifierKeys.IsShiftDown(), ModifierKeys.IsCommandDown()) );
-
-		// Use the keyboard shortcut bound to 'Focus Viewport To Selection'
-		if (FEditorViewportCommands::Get().FocusViewportToSelection->HasActiveChord(CheckChord))
-		{
-			if (Selection.Num() == 1)
-			{
-				FSceneOutlinerTreeItemPtr ItemToFocus = Selection.SelectedItems[0].Pin();
-
-				if (ItemToFocus.IsValid())
-				{
-					SceneOutliner->ScrollItemIntoView(ItemToFocus);
-				}
-
-				// Return Unhandled here so that the level editor viewport can handle this event and focus the selected item
-				return FReply::Unhandled();
+				SceneOutliner->ScrollItemIntoView(ItemToFocus);
 			}
 		}
 	}
 
+	// Always return Unhandled here even if it entered the previous if so that the level editor viewport can handle the FocusViewport command as well
 	return FReply::Unhandled();
 }
 
@@ -1504,6 +1455,25 @@ void FActorBrowsingMode::RepairErrors() const
 	}
 }
 
+void FActorBrowsingMode::BindCommands(const TSharedRef<FUICommandList>& OutCommandList)
+{
+	OutCommandList->MapAction(
+		FGenericCommands::Get().Rename,
+		FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnExecuteRename ),
+		FCanExecuteAction::CreateRaw(this, &FActorBrowsingMode::CanExecuteRename));
+
+	OutCommandList->MapAction(
+		FGenericCommands::Get().Delete,
+		FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnExecuteDelete),
+		FCanExecuteAction::CreateRaw(this, &FActorBrowsingMode::CanDelete));
+	
+	OutCommandList->MapAction(
+		FActorBrowsingModeCommands::Get().Refresh,
+		FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnExecuteRefresh));
+
+	FInputBindingManager::Get().RegisterCommandList(FActorBrowsingModeCommands::Get().GetContextName(), OutCommandList);
+}
+
 bool FActorBrowsingMode::CanPasteFoldersOnlyFromClipboard() const
 {
 	// Intentionally not checking if the level is locked/hidden here, as it's better feedback for the user if they attempt to paste
@@ -1511,6 +1481,53 @@ bool FActorBrowsingMode::CanPasteFoldersOnlyFromClipboard() const
 	FString PasteString;
 	FPlatformApplicationMisc::ClipboardPaste(PasteString);
 	return PasteString.StartsWith("BEGIN FOLDERLIST");
+}
+
+void FActorBrowsingMode::OnExecuteDelete()
+{
+	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	if (SceneOutliner->GetSharedData().CustomDelete.IsBound())
+	{
+		SceneOutliner->GetSharedData().CustomDelete.Execute(Selection.SelectedItems);
+	}
+	else
+	{
+		if (RepresentingWorld.IsValid())
+		{
+			GUnrealEd->Exec(RepresentingWorld.Get(), TEXT("DELETE"));
+		}
+	}
+}
+
+void FActorBrowsingMode::OnExecuteRefresh()
+{
+	SceneOutliner->FullRefresh();
+}
+
+void FActorBrowsingMode::OnExecuteRename()
+{
+	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	if (Selection.Num() == 1)
+	{
+		FSceneOutlinerTreeItemPtr ItemToRename = Selection.SelectedItems[0].Pin();
+
+		if (ItemToRename.IsValid() && CanRenameItem(*ItemToRename) && ItemToRename->CanInteract())
+		{
+			SceneOutliner->SetPendingRenameItem(ItemToRename);
+			SceneOutliner->ScrollItemIntoView(ItemToRename);
+		}
+	}
+}
+
+bool FActorBrowsingMode::CanExecuteRename()
+{
+	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	if (Selection.Num() == 1)
+	{
+		FSceneOutlinerTreeItemPtr ItemToRename = Selection.SelectedItems[0].Pin();
+		return ItemToRename.IsValid() && CanRenameItem(*ItemToRename) && ItemToRename->CanInteract();
+	}
+	return false;
 }
 
 void FActorBrowsingMode::SynchronizeSelectedActorDescs()

@@ -106,7 +106,10 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 
 	// @todo outliner: Should probably save this in layout!
 	// @todo outliner: Should save spacing for list view in layout
-	
+
+	// Setup Commands
+	BindCommands();
+
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 	SceneOutlinerModule.OnColumnPermissionListChanged().AddSP(this, &SSceneOutliner::OnColumnPermissionListChanged);
 
@@ -2160,6 +2163,14 @@ void SSceneOutliner::OnItemLabelChanged(FSceneOutlinerTreeItemPtr ChangedItem)
 	}
 }
 
+void SSceneOutliner::BindCommands()
+{
+	CommandList = MakeShared<FUICommandList>();
+
+	// Bind Mode Commands
+	Mode->BindCommands(CommandList.ToSharedRef());
+}
+
 void SSceneOutliner::OnAssetReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
 {
 	if (InPackageReloadPhase == EPackageReloadPhase::PostBatchPostGC)
@@ -2294,7 +2305,15 @@ bool SSceneOutliner::SupportsKeyboardFocus() const
 
 FReply SSceneOutliner::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent )
 {
-	// @todo outliner: Use command system for these for discoverability? (allow bindings?)
+	if (CommandList.IsValid())
+	{
+		if (CommandList->ProcessCommandBindings(InKeyEvent))
+		{
+			return FReply::Handled();
+		}
+	}
+
+	// Fallback to the Mode OnKeyDown to check if it's handled there
 	return Mode->OnKeyDown(InKeyEvent);
 }
 

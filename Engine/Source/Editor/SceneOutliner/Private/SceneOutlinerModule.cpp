@@ -18,6 +18,7 @@
 
 #include "ActorPickingMode.h"
 #include "ActorBrowsingMode.h"
+#include "ActorBrowsingModeCommands.h"
 #include "ActorTreeItem.h"
 #include "ActorFolderTreeItem.h"
 #include "ComponentTreeItem.h"
@@ -59,6 +60,9 @@ void FSceneOutlinerModule::StartupModule()
 	RegisterColumnType<FSceneOutlinerSourceControlColumn>();
 	RegisterColumnType<FSceneOutlinerPinnedColumn>();
 	RegisterColumnType<FSceneOutlinerActorUnsavedColumn>();
+
+	// Register Commands
+	FActorBrowsingModeCommands::Register();
 }
 
 
@@ -70,6 +74,9 @@ void FSceneOutlinerModule::ShutdownModule()
 	UnRegisterColumnType<FSceneOutlinerSourceControlColumn>();
 	UnRegisterColumnType<FSceneOutlinerPinnedColumn>();
 	UnRegisterColumnType<FSceneOutlinerActorUnsavedColumn>();
+
+	// Un-Register Commands
+	FActorBrowsingModeCommands::Unregister();
 }
 
 TSharedRef<ISceneOutliner> FSceneOutlinerModule::CreateSceneOutliner(const FSceneOutlinerInitializationOptions& InitOptions) const

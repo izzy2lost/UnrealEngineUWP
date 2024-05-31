@@ -657,6 +657,9 @@ private:
 	void OnItemLabelChanged(FSceneOutlinerTreeItemPtr ChangedItem);
 private:
 
+	/** BindCommands for this Outliner */
+	void BindCommands();
+
 	/** Map of columns that are shown on this outliner. */
 	TMap<FName, TSharedPtr<ISceneOutlinerColumn>> Columns;
 
@@ -894,6 +897,9 @@ private:
 
 	/** The button that displays view options */
 	TSharedPtr<SComboButton> ViewOptionsComboButton;
+
+	/** Command list to be processed during the OnKeyDown, extended by derived Mode through BindCommands */
+	TSharedPtr<FUICommandList> CommandList;
 
 private:
 

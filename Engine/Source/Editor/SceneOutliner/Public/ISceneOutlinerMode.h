@@ -11,6 +11,8 @@
 #include "SceneOutlinerDragDrop.h"
 #include "Folder.h"
 
+class FUICommandList;
+
 class ISceneOutlinerMode
 {
 public:
@@ -149,6 +151,9 @@ public:
 
 	/** Repair errors*/
 	virtual void RepairErrors() const {}
+
+	/** Bind commands for this mode to the given CommandList */
+	virtual void BindCommands(const TSharedRef<FUICommandList>& OutCommandList) {}
 
 public:
 	/* Folder management */
