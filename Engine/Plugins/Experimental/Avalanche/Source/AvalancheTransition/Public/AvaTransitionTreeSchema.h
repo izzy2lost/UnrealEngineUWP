@@ -17,6 +17,7 @@ public:
 protected:
 	//~ Begin UStateTreeSchema
 	virtual bool IsStructAllowed(const UScriptStruct* InScriptStruct) const override;
+	virtual bool IsClassAllowed(const UClass* InClass) const override;
 	virtual bool IsExternalItemAllowed(const UStruct& InStruct) const override;
 #if WITH_EDITOR
 	virtual bool AllowEnterConditions() const override { return true; }
