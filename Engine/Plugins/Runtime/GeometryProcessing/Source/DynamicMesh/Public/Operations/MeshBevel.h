@@ -166,12 +166,20 @@ public:
 	// at the vertices on either end of the span. Each mesh-edge of the bevel-edge will become a quad
 	struct FBevelEdge
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FBevelEdge() = default;
+		FBevelEdge(const FBevelEdge&) = default;
+		FBevelEdge(FBevelEdge&&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		// initial topological information that defines what happens in unlink/displace/mesh steps
 		int32 EdgeIndex;				// index of this BevelEdge in Edges array
 		TArray<int32> MeshVertices;		// sequential list of mesh vertex IDs along edge
 		TArray<int32> MeshEdges;		// sequential list of mesh edge IDs along edge
 		TArray<FIndex2i> MeshEdgeTris;	// the one or two triangles associated w/ each MeshEdges element in the input mesh
+		UE_DEPRECATED(5.5, "Mapping back to source topology is not used.")
 		int32 GroupEdgeID;				// ID of this edge in external topology (eg FGroupTopology)
+		UE_DEPRECATED(5.5, "Mapping back to source topology is not used.")
 		FIndex2i GroupIDs;				// topological IDs of groups on either side of topological edge
 		bool bEndpointBoundaryFlag[2];	// flag defining whether vertex at start/end of MeshVertices was a boundary vertex
 		TArray<FVector3d> InitialPositions;		// initial vertex positions
@@ -232,11 +240,19 @@ public:
 	// A FBevelVertex may be expanded out into a polygon or just an edge, depending on its Type
 	struct FBevelVertex
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FBevelVertex() = default;
+		FBevelVertex(const FBevelVertex&) = default;
+		FBevelVertex(FBevelVertex&&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		int32 VertexID;												// Initial Mesh Vertex ID for the Bevel Vertex
+		UE_DEPRECATED(5.5, "Mapping back to source topology is not used.")
 		int32 CornerID;												// Initial Group Topology Corner ID for the Bevel Vertex (if exists)
 		EBevelVertexType VertexType = EBevelVertexType::Unknown;	// Type of the Bevel Vertex
 
 		TArray<int32> IncomingBevelMeshEdges;						// Set of (unsorted) Mesh Edges that are destined to be Beveled, coming into the vertex
+		UE_DEPRECATED(5.5, "Mapping back to source topology is not used.")
 		TArray<int32> IncomingBevelTopoEdges;						// Set of (unsorted) Group Topology Edges that are to be Beveled, coming into the vertex
 		TArray<int32> IncomingBevelEdgeIndices;						// Set of (unsorted) indices of FBevelEdge, coming into the vertex
 
@@ -256,7 +272,7 @@ public:
 
 
 
-public:
+protected:
 	TMap<int32, int32> VertexIDToIndexMap;		// map of mesh-vertex-IDs to indices into Vertices list
 	TArray<FBevelVertex> Vertices;				// list of FBevelVertex data structures for mesh vertices that need beveling
 
@@ -328,6 +344,14 @@ protected:
 	void ComputeNormals(FDynamicMesh3& Mesh);
 	void ComputeUVs(FDynamicMesh3& Mesh);
 	void ComputeMaterialIDs(FDynamicMesh3& Mesh);
+
+private:
+	// Detect and fix any bowtie vertices in the bevel operation set
+	// Called by "Apply" (because the setup methods all operate on a const Mesh) before the actual bevel operation
+	void FixBowties(FDynamicMesh3& Mesh, FDynamicMeshChangeTracker* ChangeTracker);
+
+	void InitVertexSet(const FDynamicMesh3& Mesh, FBevelVertex& Vertex);
+	void FinalizeTerminatorVertex(const FDynamicMesh3& Mesh, FBevelVertex& Vertex);
 };
 
 
