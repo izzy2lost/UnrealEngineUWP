@@ -314,6 +314,10 @@ namespace UnrealBuildTool
 			foreach (FileItem SourceFile in InputFiles)
 			{
 				Action CompileAction = CompileCPPFile(CompileEnvironment, SourceFile, OutputDir, ModuleName, Graph, GlobalArguments, Result);
+				if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
+				{
+					CompileAction.bCanExecuteInUBA = false;
+				}
 				CompileAction.PrerequisiteItems.UnionWith(FrameworkTokenFiles);
 			}
 			return Result;
