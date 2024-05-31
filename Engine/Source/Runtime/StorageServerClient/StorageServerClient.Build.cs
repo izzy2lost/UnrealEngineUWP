@@ -10,7 +10,7 @@ public class StorageServerClient : ModuleRules
             new string[] {
                 "Core",
                 "CoreUObject",
-				"Engine",        // only for on-screen debug messages
+                "Engine",        // only for on-screen debug messages
                 "Sockets",
                 "CookOnTheFly",
                 "Json"
