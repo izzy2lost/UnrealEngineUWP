@@ -4579,7 +4579,7 @@ protected:
 				}
 				else
 				{
-					Message = FText::Format(LOCTEXT("ShadowCVarUsage_Deprecated", "Using a shadowed CVar '{ThisName}'. It is recommended to change all uses to '{ShadowName}' instead."), Arguments);
+					Message = FText::Format(LOCTEXT("ShadowCVarUsage", "Using a shadowed CVar '{ThisName}'. It is recommended to change all uses to '{ShadowName}' instead."), Arguments);
 				}
 				switch (UsageBehavior)
 				{
