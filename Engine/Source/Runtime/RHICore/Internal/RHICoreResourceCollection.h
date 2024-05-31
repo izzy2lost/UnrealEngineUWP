@@ -68,7 +68,7 @@ namespace UE::RHICore
 		return Result;
 	}
 
-	struct FResourceCollectionUpload : public FResourceArrayInterface
+	struct FResourceCollectionUpload : public FResourceArrayUploadInterface
 	{
 		FResourceCollectionUpload(TConstArrayView<FRHIResourceCollectionMember> InMembers)
 			: Memory(CreateResourceCollectionArray(InMembers))
@@ -85,17 +85,6 @@ namespace UE::RHICore
 		virtual void Discard() final
 		{
 			Memory.Reset();
-		}
-		virtual bool IsStatic() const final
-		{
-			return true;
-		}
-		virtual bool GetAllowCPUAccess() const final
-		{
-			return false;
-		}
-		virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess) final
-		{
 		}
 
 		TArray<uint32> Memory;

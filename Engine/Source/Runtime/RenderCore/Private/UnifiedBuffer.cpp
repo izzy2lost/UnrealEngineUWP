@@ -1687,28 +1687,6 @@ void FScatterUploadBuffer::InitPreSized(uint32 NumElements, uint32 InNumBytesPer
 	NumScatters = NumElements;
 }
 
-// Helper type used to initialize the buffer data on creation
-struct FScatterUploadBufferResourceArray : public FResourceArrayInterface
-{
-	const void* const DataPtr;
-	const int32 DataSize;
-
-	FScatterUploadBufferResourceArray(void* InDataPtr, int32 InDataSize)
-		: DataPtr(InDataPtr)
-		, DataSize(InDataSize)
-	{
-	}
-
-	const void* GetResourceData() const override { return DataPtr; }
-	uint32 GetResourceDataSize() const override { return DataSize; }
-
-	// Not necessary for our purposes
-	void Discard() override { }
-	bool IsStatic() const override { return false; }
-	bool GetAllowCPUAccess() const override { return true; }
-	void SetAllowCPUAccess(bool bInNeedsCPUAccess) override { }
-};
-
 template<typename ResourceType>
 void FScatterUploadBuffer::ResourceUploadTo(FRHICommandList& RHICmdList, const ResourceType& DstBuffer, bool bFlush)
 {
@@ -1726,13 +1704,13 @@ void FScatterUploadBuffer::ResourceUploadTo(FRHICommandList& RHICmdList, const R
 		const EBufferUsageFlags Usage = bFloat4Buffer ? BUF_None : BUF_ByteAddressBuffer;
 
 		{
-			FScatterUploadBufferResourceArray ScatterResourceArray(ScatterData, ScatterDataSize);
+			FResourceArrayUploadArrayView ScatterResourceArray(ScatterData, ScatterDataSize);
 			FRHIResourceCreateInfo CreateInfo(TEXT("ScatterResourceArray"), &ScatterResourceArray);
 			ScatterBuffer.Buffer = RHICmdList.CreateStructuredBuffer(sizeof(uint32), ScatterDataSize, BUF_ShaderResource | BUF_Volatile | Usage, CreateInfo);
 			ScatterBuffer.SRV = RHICmdList.CreateShaderResourceView(ScatterBuffer.Buffer);
 		}
 		{
-			FScatterUploadBufferResourceArray UploadResourceArray(UploadData, UploadDataSize);
+			FResourceArrayUploadArrayView UploadResourceArray(UploadData, UploadDataSize);
 			FRHIResourceCreateInfo CreateInfo(TEXT("ScatterUploadBuffer"), &UploadResourceArray);
 			UploadBuffer.Buffer = RHICmdList.CreateStructuredBuffer(TypeSize, UploadDataSize, BUF_ShaderResource | BUF_Volatile | Usage, CreateInfo);
 			UploadBuffer.SRV = RHICmdList.CreateShaderResourceView(UploadBuffer.Buffer);

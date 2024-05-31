@@ -5,28 +5,72 @@
 #include "CoreTypes.h"
 #include "Serialization/MemoryLayout.h"
 
-/**
- * An element type independent interface to the resource array.
- */
-class FResourceArrayInterface
+/** An element type independent interface for uploading an array of resource data. */
+struct FResourceArrayUploadInterface
 {
-	DECLARE_EXPORTED_TYPE_LAYOUT(FResourceArrayInterface, CORE_API, Abstract);
-public:
+	virtual ~FResourceArrayUploadInterface() {}
 
-	virtual ~FResourceArrayInterface() {}
-
-	/**
-	 * @return A pointer to the resource data.
-	 */
+	/** Returns a pointer to the resource data. */
 	virtual const void* GetResourceData() const = 0;
 
-	/**
-	 * @return size of resource data allocation
-	 */
+	/** Returns size of resource data allocation */
 	virtual uint32 GetResourceDataSize() const = 0;
 
 	/** Called on non-UMA systems after the RHI has copied the resource data, and no longer needs the CPU's copy. */
 	virtual void Discard() = 0;
+};
+
+/** Utility to do a simple upload of data from an array managed by the caller. */
+struct FResourceArrayUploadArrayView : public FResourceArrayUploadInterface
+{
+	const void* const Data;
+	const uint32 SizeInBytes;
+
+	FResourceArrayUploadArrayView() = delete;
+
+	FResourceArrayUploadArrayView(const void* InData, uint32 InSizeInBytes)
+		: Data(InData)
+		, SizeInBytes(InSizeInBytes)
+	{
+	}
+
+	template<typename ElementType>
+	FResourceArrayUploadArrayView(TConstArrayView<ElementType> View)
+		: Data(View.GetData())
+		, SizeInBytes(View.Num() * View.GetTypeSize())
+	{
+	}
+
+	template<typename ElementType, typename AllocatorType>
+	FResourceArrayUploadArrayView(TArray<ElementType, AllocatorType> InArray)
+		: FResourceArrayUploadArrayView(MakeArrayView(InArray))
+	{
+	}
+
+	// FResourceArrayUploadInterface
+	virtual const void* GetResourceData() const final
+	{
+		return Data;
+	}
+
+	virtual uint32 GetResourceDataSize() const final
+	{
+		return SizeInBytes;
+	}
+
+	virtual void Discard() final
+	{
+		// do nothing
+	}
+};
+
+/**
+ * An element type independent interface to the resource array.
+ */
+class FResourceArrayInterface : public FResourceArrayUploadInterface
+{
+	DECLARE_EXPORTED_TYPE_LAYOUT(FResourceArrayInterface, CORE_API, Abstract);
+public:
 
 	/**
 	 * @return true if the resource array is static and shouldn't be modified

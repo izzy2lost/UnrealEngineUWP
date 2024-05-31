@@ -63,7 +63,7 @@ void FSubUVBoundingGeometryBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 
 	if (SizeInBytes > 0)
 	{
-		FSubUVVertexResourceArray ResourceArray(Vertices->GetData(), SizeInBytes);
+		FResourceArrayUploadArrayView ResourceArray(Vertices->GetData(), SizeInBytes);
 		FRHIResourceCreateInfo CreateInfo(TEXT("FSubUVBoundingGeometryBuffer"), &ResourceArray);
 		VertexBufferRHI = RHICmdList.CreateVertexBuffer(SizeInBytes, BUF_ShaderResource | BUF_Static, CreateInfo);
 		ShaderResourceView = RHICmdList.CreateShaderResourceView(VertexBufferRHI, sizeof(FVector2f), PF_G32R32F);

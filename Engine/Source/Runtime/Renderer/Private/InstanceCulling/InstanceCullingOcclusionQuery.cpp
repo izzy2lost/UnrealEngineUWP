@@ -33,31 +33,10 @@ struct FInstanceCullingOcclusionQueryDeferredContext;
 namespace
 {
 
-// YURIY_TODO: Put the helpers somewhere in the common RHI code
-struct FResourceArrayView : public FResourceArrayInterface
-{
-	const void* Data = nullptr;
-	uint32 SizeInBytes = 0;
-
-	template <typename T>
-	FResourceArrayView(TArrayView<T> View)
-		: Data(View.GetData())
-		, SizeInBytes(View.Num() * View.GetTypeSize())
-	{}
-
-	// FResourceArrayInterface
-	virtual const void* GetResourceData() const override final { return Data; }
-	virtual uint32 GetResourceDataSize() const override final { return SizeInBytes; }
-	virtual void Discard() override final {};
-	virtual bool IsStatic() const override final { return true; }
-	virtual bool GetAllowCPUAccess() const override final { return false; };
-	virtual void SetAllowCPUAccess(bool /*bInNeedsCPUAccess*/) override final {};
-};
-
 template <typename T>
 static FBufferRHIRef CreateBufferWithData(FRHICommandListBase& RHICmdList, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
 {
-	FResourceArrayView DataView(Data);
+	FResourceArrayUploadArrayView DataView(Data);
 	FRHIResourceCreateInfo CreateInfo(Name);
 	CreateInfo.ResourceArray = &DataView;
 	return RHICmdList.CreateBuffer(DataView.SizeInBytes, UsageFlags, Data.GetTypeSize(), ResourceState, CreateInfo);

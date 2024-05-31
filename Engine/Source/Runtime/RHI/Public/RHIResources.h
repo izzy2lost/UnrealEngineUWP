@@ -31,6 +31,9 @@ class FRHIComputeCommandList;
 class FRHICommandListImmediate;
 class FRHITextureReference;
 class FRHIShaderBindingLayout;
+class FResourceBulkDataInterface;
+class FResourceArrayInterface;
+struct FResourceArrayUploadInterface;
 
 struct FClearValueBinding;
 struct FRHIResourceInfo;
@@ -348,9 +351,6 @@ struct FClearValueBinding
 	static RHI_API const FClearValueBinding DefaultNormal8Bit;
 };
 
-class FResourceBulkDataInterface;
-class FResourceArrayInterface;
-
 struct FRHIResourceCreateInfo
 {
 	FRHIResourceCreateInfo(const TCHAR* InDebugName)
@@ -373,7 +373,7 @@ struct FRHIResourceCreateInfo
 	}
 
 	// for CreateBuffer calls
-	FRHIResourceCreateInfo(const TCHAR* InDebugName, FResourceArrayInterface* InResourceArray)
+	FRHIResourceCreateInfo(const TCHAR* InDebugName, FResourceArrayUploadInterface* InResourceArray)
 		: FRHIResourceCreateInfo(InDebugName)
 	{
 		ResourceArray = InResourceArray;
@@ -397,7 +397,7 @@ struct FRHIResourceCreateInfo
 	FResourceBulkDataInterface* BulkData;
 
 	// for CreateBuffer calls
-	FResourceArrayInterface* ResourceArray;
+	FResourceArrayUploadInterface* ResourceArray;
 
 	// for binding clear colors to render targets.
 	FClearValueBinding ClearValueBinding;
@@ -3152,7 +3152,7 @@ public:
 	TArray<FRayTracingGeometrySegment> Segments;
 
 	// Offline built geometry data. If null, the geometry will be built by the RHI at runtime.
-	FResourceArrayInterface* OfflineData = nullptr;
+	FResourceArrayUploadInterface* OfflineData = nullptr;
 
 	// Pointer to an existing ray tracing geometry which the new geometry is built from.
 	FRHIRayTracingGeometry* SourceGeometry = nullptr;
