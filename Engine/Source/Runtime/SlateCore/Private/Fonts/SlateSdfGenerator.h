@@ -31,8 +31,8 @@ public:
 	{
 		/** Simple single-channel signed distance field based on true Euclidean distance (1 channel/pixel) */
 		Simple,
-		/** Single-channel signed distance field based on the "pseudodistance" metric, which is always orthogonal to an edge, and produces mitered rather than rounded outlines (1 channel/pixel) */
-		Pseudodistance,
+		/** Single-channel signed distance field based on the perpendicular distance metric, which is always orthogonal to an edge, and produces mitered rather than rounded outlines (1 channel/pixel) */
+		Perpendicular,
 		/** Multi-channel signed distance field with simple (true) signed distance field in additional channel (4 channels/pixel, also known as MTSDF) */
 		MultichannelAndSimple
 	};

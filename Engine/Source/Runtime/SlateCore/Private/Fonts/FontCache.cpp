@@ -1745,7 +1745,7 @@ void FSlateFontCache::UpdateCache()
 				switch (InRequestDescriptor.SdfType)
 				{
 					case FSlateSdfGenerator::ESdfType::Simple:
-					case FSlateSdfGenerator::ESdfType::Pseudodistance:
+					case FSlateSdfGenerator::ESdfType::Perpendicular:
 						AtlasType = ESlateFontAtlasContentType::Alpha;
 						break;
 					case FSlateSdfGenerator::ESdfType::MultichannelAndSimple:
