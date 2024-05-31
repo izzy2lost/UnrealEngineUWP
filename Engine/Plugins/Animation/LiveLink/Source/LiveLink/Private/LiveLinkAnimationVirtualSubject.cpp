@@ -2,6 +2,7 @@
 
 #include "LiveLinkAnimationVirtualSubject.h"
 
+#include "Algo/TopologicalSort.h"
 #include "ILiveLinkClient.h"
 #include "Roles/LiveLinkAnimationRole.h"
 #include "Roles/LiveLinkAnimationTypes.h"
@@ -11,7 +12,7 @@
 
 namespace LiveLinkAnimationVirtualSubjectUtils
 {
-	void AddToBoneNames(TArray<FName>& BoneNames, const TArray<FName>& NewBoneNames, const FName Prefix)
+	void AddToBoneNames(TArray<FName>& BoneNames, const TArray<FName>& NewBoneNames, const FName Prefix, TMap<int32, FName>& NamesToOverride)
 	{
 		FString NameFormat;
 		if (Prefix != NAME_None)
@@ -23,6 +24,13 @@ namespace LiveLinkAnimationVirtualSubjectUtils
 
 		for (const FName& NewBoneName : NewBoneNames)
 		{
+			int32 Index = BoneNames.IndexOfByKey(NewBoneName);
+			if (Index != INDEX_NONE)
+			{
+				FString OverridenName = TEXT("__REPLACED_BONE_") + NewBoneName.ToString();
+				NamesToOverride.Add(Index, *OverridenName);
+			}
+
 			BoneNames.Add(*(NameFormat + NewBoneName.ToString()));
 		}
 	}
@@ -60,19 +68,35 @@ ULiveLinkAnimationVirtualSubject::ULiveLinkAnimationVirtualSubject()
 
 void ULiveLinkAnimationVirtualSubject::Update()
 {
-	Super::Update();
+	// Invalid the snapshot
+	InvalidateFrameData();
+
+	UpdateTranslatorsForThisFrame();
 
 	TArray<FLiveLinkSubjectKey> ActiveSubjects = LiveLinkClient->GetSubjects(false, false);
 
 	if (AreSubjectsValid(ActiveSubjects))
 	{
 		TArray<FLiveLinkSubjectFrameData> SubjectSnapshot;
+
+		if (bSubjectsNeedSorting)
+		{
+			SortSubjects();
+		}
+
 		if (BuildSubjectSnapshot(SubjectSnapshot))
 		{
 			BuildSkeleton(SubjectSnapshot);
 			BuildFrame(SubjectSnapshot);
 		}
-
+	}
+	else
+	{
+		for (const FLiveLinkVirtualSubjectBoneAttachment& Attachment : Attachments)
+		{
+			// Update error messages on the attachments.
+			Attachment.IsValid(Subjects);
+		}
 	}
 }
 
@@ -126,23 +150,43 @@ void ULiveLinkAnimationVirtualSubject::BuildSkeleton(const TArray<FLiveLinkSubje
 {
 	if (DoesSkeletonNeedRebuilding())
 	{
+		ChildBonesInfo.Reset();
+		BoneNameToIndex.Reset();
+
 		FLiveLinkStaticDataStruct StaticData(FLiveLinkSkeletonStaticData::StaticStruct());
 		FLiveLinkSkeletonStaticData* SkeletonData = StaticData.Cast<FLiveLinkSkeletonStaticData>();
 
-		TArray<FName> BoneNames{ TEXT("Root") };
-		TArray<int32> BoneParents{ INDEX_NONE };
-
 		check(InSubjectSnapshots.Num() == Subjects.Num());
-		for (int32 i = 0; i < InSubjectSnapshots.Num(); ++i)
+
+		TArray<FName> BoneNames{ };
+		TArray<int32> BoneParents{ };
+
+		TMap<int32, FName> NamesToOverride;
+
+		for (int32 Index = 0; Index < InSubjectSnapshots.Num(); ++Index)
 		{
-			const FLiveLinkSubjectFrameData& SubjectSnapShotData = InSubjectSnapshots[i];
+			const FLiveLinkSubjectFrameData& SubjectSnapShotData = InSubjectSnapshots[Index];
 			check(SubjectSnapShotData.StaticData.IsValid());
 			const FLiveLinkSkeletonStaticData* SubjectSkeletonData = SubjectSnapShotData.StaticData.Cast<FLiveLinkSkeletonStaticData>();
 
-			const FName BonePrefix = bAppendSubjectNameToBones ? Subjects[i] : NAME_None;
-			LiveLinkAnimationVirtualSubjectUtils::AddToBoneNames(BoneNames, SubjectSkeletonData->GetBoneNames(), BonePrefix);
+			const FName BonePrefix = bAppendSubjectNameToBones ? Subjects[Index] : NAME_None;
+
+			LiveLinkAnimationVirtualSubjectUtils::AddToBoneNames(BoneNames, SubjectSkeletonData->GetBoneNames(), BonePrefix, NamesToOverride);
 			LiveLinkAnimationVirtualSubjectUtils::AddToBoneParents(BoneParents, SubjectSkeletonData->GetBoneParents());
-			SkeletonData->PropertyNames.Append(SubjectSkeletonData->PropertyNames);
+
+			// Cache bone names to bone index, we need to use both the subject and bone names to make sure
+			// that we can find a parent bone even if it's in a name conflict.
+			for (int32 BoneIndex = 0; BoneIndex < BoneNames.Num(); BoneIndex++)
+			{
+				BoneNameToIndex.FindOrAdd({ Subjects[Index], BoneNames[BoneIndex] }) = BoneIndex;
+			}
+		}
+
+		ProcessAttachmentsForStaticData(BoneParents);
+
+		for (const TPair<int32, FName>& Names : NamesToOverride)
+		{
+			BoneNames[Names.Key] = Names.Value;
 		}
 
 		SkeletonData->SetBoneNames(BoneNames);
@@ -151,6 +195,8 @@ void ULiveLinkAnimationVirtualSubject::BuildSkeleton(const TArray<FLiveLinkSubje
 		UpdateStaticDataSnapshot(MoveTemp(StaticData));
 
 		bInvalidate = false;
+
+		PostSkeletonRebuild();
 	}
 }
 
@@ -161,14 +207,13 @@ void ULiveLinkAnimationVirtualSubject::BuildFrame(const TArray<FLiveLinkSubjectF
 	FLiveLinkAnimationFrameData* NewSnapshotFrameData = NewFrameData.Cast<FLiveLinkAnimationFrameData>();
 
 	NewSnapshotFrameData->Transforms.Reset(SnapshotSkeletonData->GetBoneNames().Num());
-	NewSnapshotFrameData->Transforms.Add(FTransform::Identity);
 	NewSnapshotFrameData->MetaData.StringMetaData.Empty();
 
 	//Go over each subject snapshot and take transforms and curves
 	check(InSubjectSnapshots.Num() == Subjects.Num());
-	for (int32 i = 0; i < InSubjectSnapshots.Num(); ++i)
+	for (int32 Index = 0; Index < InSubjectSnapshots.Num(); ++Index)
 	{
-		const FLiveLinkSubjectFrameData& SubjectSnapShotData = InSubjectSnapshots[i];
+		const FLiveLinkSubjectFrameData& SubjectSnapShotData = InSubjectSnapshots[Index];
 		check(SubjectSnapShotData.FrameData.IsValid());
 		const FLiveLinkAnimationFrameData* SubjectFrameData = SubjectSnapShotData.FrameData.Cast<FLiveLinkAnimationFrameData>();
 
@@ -176,17 +221,162 @@ void ULiveLinkAnimationVirtualSubject::BuildFrame(const TArray<FLiveLinkSubjectF
 		NewSnapshotFrameData->PropertyValues.Append(SubjectFrameData->PropertyValues);
 		for (const auto& MetaDatum : SubjectFrameData->MetaData.StringMetaData)
 		{
-			const FName QualifiedKey = FName(*(Subjects[i].ToString() + MetaDatum.Key.ToString()));
-			NewSnapshotFrameData->MetaData.StringMetaData.Emplace(Subjects[i], MetaDatum.Value);
+			NewSnapshotFrameData->MetaData.StringMetaData.Emplace(Subjects[Index], MetaDatum.Value);
 		}
 	}
+
+	ProcessAttachmentsForFrameData(NewSnapshotFrameData);
 
 	UpdateFrameDataSnapshot(MoveTemp(NewFrameData));
 }
 
+
+void ULiveLinkAnimationVirtualSubject::SortSubjects()
+{
+	if (Attachments.Num() == 0)
+	{
+		return;
+	}
+
+	bool bOneValidAttachment = false;
+	for (const FLiveLinkVirtualSubjectBoneAttachment& Attachment : Attachments)
+	{
+		if (Attachment.IsValid(Subjects))
+		{
+			bOneValidAttachment = true;
+			break;
+		}
+	}
+
+	if (!bOneValidAttachment)
+	{
+		return;
+	}
+
+	TMap<FLiveLinkSubjectName, TArray<FLiveLinkSubjectName>> ParentToChildren;
+	for (const FLiveLinkVirtualSubjectBoneAttachment& Attachment : Attachments)
+	{
+		if (Attachment.ChildSubject != FName(NAME_None))
+		{
+			ParentToChildren.FindOrAdd(Attachment.ParentSubject).Add(Attachment.ChildSubject);
+		}
+	}
+
+	auto FindDependencies = [&ParentToChildren](FLiveLinkSubjectName SubjectName) -> TArray<FLiveLinkSubjectName>
+	{
+		if (TArray<FLiveLinkSubjectName>* Children = ParentToChildren.Find(SubjectName))
+		{
+			return *Children;
+		}
+
+		return {};
+	};
+
+	if (!Algo::TopologicalSort(Subjects, FindDependencies))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Circular dependency present in attachments."));
+	}
+
+	Algo::Reverse(Subjects);
+
+	bSubjectsNeedSorting = false;
+}
+
+void ULiveLinkAnimationVirtualSubject::ProcessAttachmentsForStaticData(TArray<int32>& InOutBoneParents)
+{
+	// Compute the bone parents from the attachments and modify the bone array.
+	int32 GlobalParentIndex = INDEX_NONE; // The global index of the parent bone.
+	int32 GlobalChildIndex = INDEX_NONE; // The global index of the bone that will be attached to the parent bone.
+	TSet<FLiveLinkSubjectName> SubjectsRequiredByAttachments;
+	for (const FLiveLinkVirtualSubjectBoneAttachment& Attachment : Attachments)
+	{
+		if (Attachment.IsValid(Subjects))
+		{
+			SubjectsRequiredByAttachments.Add(Attachment.ChildSubject);
+			SubjectsRequiredByAttachments.Add(Attachment.ParentSubject);
+
+			// 1. Find global bone index for parent and child bone
+			if (int32* ParentIndex = BoneNameToIndex.Find({ Attachment.ParentSubject, Attachment.ParentBone }))
+			{
+				GlobalParentIndex = *ParentIndex;
+			}
+
+			if (int32* ChildIndex = BoneNameToIndex.Find({ Attachment.ChildSubject, Attachment.ChildBone }))
+			{
+				GlobalChildIndex = *ChildIndex;
+			}
+
+			if (GlobalParentIndex == INDEX_NONE || GlobalChildIndex == INDEX_NONE)
+			{
+				// Skip this attachment if we couldn't find either the parent or child bone.
+				continue;
+			}
+
+			// 2. Override the bone parents according to the attachments
+			InOutBoneParents[GlobalChildIndex] = GlobalParentIndex;
+
+			// 3. Store the info for the attachment child.
+			FTransform Offset = FTransform::Identity;
+			Offset.SetTranslation(Attachment.LocationOffset);
+			Offset.SetRotation(Attachment.RotationOffset.Quaternion());
+
+			FChildBoneInfo ChildBoneInfo;
+			ChildBoneInfo.Offset = Offset;
+			ChildBoneInfo.ParentBone = GlobalParentIndex;
+			ChildBoneInfo.bIgnoreParentLocation = Attachment.bIgnoreParentLocation;
+			ChildBoneInfo.bIgnoreParentRotation = Attachment.bIgnoreParentRotation;
+
+			ChildBonesInfo.Add(GlobalChildIndex, MoveTemp(ChildBoneInfo));
+		}
+	}
+
+}
+
+void ULiveLinkAnimationVirtualSubject::ProcessAttachmentsForFrameData(FLiveLinkAnimationFrameData* SnapshotFrameData)
+{
+	// Apply transformations specified by the attachments.
+	for (const TPair<int32, FChildBoneInfo>& ChildInfo : ChildBonesInfo)
+	{
+		// Apply offsets specified by the attachments.
+		FTransform Offset = ChildInfo.Value.Offset;
+
+		const FChildBoneInfo& ChildBoneInfo = ChildInfo.Value;
+
+		FTransform ParentTransform = SnapshotFrameData->Transforms[ChildBoneInfo.ParentBone];
+		FTransform ModifiedParentTransform = FTransform::Identity;
+		if (!ChildBoneInfo.bIgnoreParentLocation)
+		{
+			ModifiedParentTransform.SetLocation(ParentTransform.GetLocation());
+		}
+		if (!ChildBoneInfo.bIgnoreParentRotation)
+		{
+			ModifiedParentTransform.SetRotation(ParentTransform.GetRotation());
+		}
+
+		ModifiedParentTransform.SetScale3D(ParentTransform.GetScale3D());
+
+		// Also apply an offset from the attach target to the child bone.
+		Offset = Offset * ModifiedParentTransform;
+
+		SnapshotFrameData->Transforms[ChildInfo.Key] = SnapshotFrameData->Transforms[ChildInfo.Key] * Offset;
+	}
+}
+
 bool ULiveLinkAnimationVirtualSubject::DoesSkeletonNeedRebuilding() const
 {
-	return !HasValidStaticData() || bInvalidate;
+	if (!HasValidStaticData())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No static data"));
+		return true;
+	}
+
+	if (bInvalidate)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Invalidate"));
+		return true;
+	}
+
+	return false;
 }
 
 #if WITH_EDITOR
@@ -194,8 +384,24 @@ void ULiveLinkAnimationVirtualSubject::PostEditChangeProperty(struct FPropertyCh
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	//If our properties have changed, force a skeleton rebuild for next frame
+	// When modifying an attachment, we only want to invalidate the static data if we modify a parent/child bone or subject.
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(ULiveLinkAnimationVirtualSubject, Attachments))
+	{
+		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkVirtualSubjectBoneAttachment, ParentBone)
+		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkVirtualSubjectBoneAttachment, ChildBone)
+		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkVirtualSubjectBoneAttachment, ParentSubject)
+		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkVirtualSubjectBoneAttachment, ChildSubject))
+		{
+			bSubjectsNeedSorting = true;
+			InvalidateStaticData();
+		}
+	}
+	else
+	{
+		InvalidateStaticData();
+	}
+
+
 	bInvalidate = true;
 }
 #endif //WITH_EDITOR
-
