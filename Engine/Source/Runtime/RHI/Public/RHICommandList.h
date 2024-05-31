@@ -245,6 +245,7 @@ struct FRayTracingShaderBindings
 	FRHISamplerState* Samplers[32] = {};
 	FRHIUnorderedAccessView* UAVs[16] = {};
 
+	TArray<FRHIShaderParameterResource> BindlessParameters;
 	FUniformBufferStaticBindings StaticUniformBuffers;
 };
 

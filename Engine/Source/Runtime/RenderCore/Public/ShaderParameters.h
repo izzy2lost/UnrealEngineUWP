@@ -170,6 +170,11 @@ struct FRayTracingShaderBindingsWriter : FRayTracingShaderBindings
 {
 	FUniformBufferRHIRef RootUniformBuffer;
 
+	void AddBindlessParameter(const FRHIShaderParameterResource& Parameter)
+	{
+		BindlessParameters.Add(Parameter);
+	}
+
 	void Set(const FShaderResourceParameter& Param, FRHITexture* Value)
 	{
 		if (Param.IsBound())

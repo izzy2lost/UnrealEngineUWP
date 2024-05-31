@@ -854,6 +854,17 @@ void SetShaderParameters(
 {
 	const FShaderParameterReader Reader(ParametersData, ParametersMetadata->GetSize());
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (int32 NumBindings = Bindings.BindlessResourceParameters.Num())
+	{
+		for (const FShaderParameterBindings::FBindlessResourceParameter& Parameter : Bindings.BindlessResourceParameters)
+		{
+			const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+			RTBindingsWriter.AddBindlessParameter(ShaderParameterResource);
+		}
+	}
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
+
 	for (const FShaderParameterBindings::FResourceParameter& Parameter : Bindings.ResourceParameters)
 	{
 		const EUniformBufferBaseType BaseType = static_cast<EUniformBufferBaseType>(Parameter.BaseType);
