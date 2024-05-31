@@ -273,7 +273,7 @@ void FAvaEditorModule::RegisterCustomLayouts()
 		&FAvaMeshesDetailCustomization::MakeInstance));
 
 	PropertyModule.RegisterCustomClassLayout(UAvaSceneSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(
-		&FAvaSceneSettingsCustomization::MakeInstance));
+		&FAvaSceneSettingsCustomization::MakeDefaultInstance));
 
 	const TSharedRef<FAvaVectorPropertyTypeIdentifier> VectorPropertyTypeIdentifier = MakeShared<FAvaVectorPropertyTypeIdentifier>();
 

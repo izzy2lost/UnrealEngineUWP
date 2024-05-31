@@ -15,6 +15,7 @@ class FAvaEditorSelection;
 class FEditorModeTools;
 class FLayoutExtender;
 class FUICommandList;
+class IDetailCategoryBuilder;
 class IToolkitHost;
 class UToolMenu;
 class UWorld;
@@ -57,6 +58,22 @@ public:
 
 	/** Extend the Level Editor Layout (only called when instancing for Level Editor) */
 	virtual void ExtendLevelEditorLayout(FLayoutExtender& InExtender) const {}
+
+	/**
+	 * Name of the category this Extension belongs in.
+	 * Used in places like Setting Details Category
+	 */
+	virtual FName GetCategoryName() const
+	{
+		return NAME_None;
+	}
+
+	/**
+	 * Extend the Settings Category by adding External Objects or Properties.
+	 * Must have a valid category name to proceed.
+	 * @see IAvaEditorExtension::GetCategoryName
+	 */
+	virtual void ExtendSettingsCategory(IDetailCategoryBuilder& InCategoryBuilder) {}
 
 	virtual void Save() {}
 

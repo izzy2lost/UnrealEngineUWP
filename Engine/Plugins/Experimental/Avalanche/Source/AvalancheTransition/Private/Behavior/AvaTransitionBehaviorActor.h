@@ -49,6 +49,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAvaTransitionTree> TransitionTree;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category="Transition Logic")
 	FStateTreeReference StateTreeReference;
 };

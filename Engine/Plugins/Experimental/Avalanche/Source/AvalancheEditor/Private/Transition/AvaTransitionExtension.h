@@ -21,6 +21,8 @@ public:
 	virtual void Construct(const TSharedRef<IAvaEditor>& InEditor) override;
 	virtual void Activate() override;
 	virtual void Deactivate() override;
+	virtual FName GetCategoryName() const override;
+	virtual void ExtendSettingsCategory(IDetailCategoryBuilder& InCategoryBuilder) override;
 	virtual void ExtendToolbarMenu(UToolMenu& InMenu) override;
 	//~ End IAvaEditorExtension
 

@@ -10,6 +10,7 @@
 #include "Behavior/IAvaTransitionBehavior.h"
 #include "Conditions/AvaTransitionSceneMatchCondition.h"
 #include "Conditions/AvaTransitionTypeMatchCondition.h"
+#include "DetailCategoryBuilder.h"
 #include "Editor.h"
 #include "IAvaTransitionEditorModule.h"
 #include "IRemoteControlUIModule.h"
@@ -121,6 +122,20 @@ void FAvaTransitionExtension::Activate()
 void FAvaTransitionExtension::Deactivate()
 {
 	CloseTransitionEditor();
+}
+
+FName FAvaTransitionExtension::GetCategoryName() const
+{
+	return TEXT("TransitionLogic");
+}
+
+void FAvaTransitionExtension::ExtendSettingsCategory(IDetailCategoryBuilder& InCategoryBuilder)
+{
+	if (IAvaTransitionBehavior* TransitionBehavior = GetTransitionBehavior())
+	{
+		InCategoryBuilder.SetDisplayName(LOCTEXT("CategoryDisplayName", "Transition Logic"));
+		InCategoryBuilder.AddExternalObjectProperty({ &TransitionBehavior->AsUObject() }, TEXT("StateTreeReference"));
+	}
 }
 
 void FAvaTransitionExtension::ExtendToolbarMenu(UToolMenu& InMenu)
