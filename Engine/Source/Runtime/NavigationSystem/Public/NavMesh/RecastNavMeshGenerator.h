@@ -176,7 +176,7 @@ struct FRecastGeometryCache
 	int32* Indices;
 
 	FRecastGeometryCache() {}
-	FRecastGeometryCache(const uint8* Memory);
+	NAVIGATIONSYSTEM_API FRecastGeometryCache(const uint8* Memory);
 
 	static bool IsValid(const uint8* Memory, int32 MemorySize);
 };
