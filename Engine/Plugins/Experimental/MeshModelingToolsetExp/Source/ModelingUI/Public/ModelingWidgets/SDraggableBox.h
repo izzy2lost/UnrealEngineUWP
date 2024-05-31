@@ -11,7 +11,7 @@
  * Class that can be used to place a draggable box into a viewport or some other large widget as an
  * overlay. Just place the widget that you want to be draggable as the contents of SDraggableBoxOverlay.
  */
-class MODELINGEDITORUI_API SDraggableBoxOverlay : public SCompoundWidget
+class MODELINGUI_API SDraggableBoxOverlay : public SCompoundWidget
 {
 public:
 
@@ -52,7 +52,7 @@ protected:
  * which will put its contents into a draggable box and properly handle the dragging without the
  * user having to set it up.
  */
-class MODELINGEDITORUI_API SDraggableBox : public SCompoundWidget
+class MODELINGUI_API SDraggableBox : public SCompoundWidget
 {
 public:
 
@@ -85,7 +85,7 @@ protected:
  * OnDragComplete delegate, it just triggers on any drop. This makes it possible to use it in any
  * viewports, not just the level editor.
  */
-class MODELINGEDITORUI_API FDraggableBoxUIDragOperation : public FDragDropOperation
+class MODELINGUI_API FDraggableBoxUIDragOperation : public FDragDropOperation
 {
 public:
 

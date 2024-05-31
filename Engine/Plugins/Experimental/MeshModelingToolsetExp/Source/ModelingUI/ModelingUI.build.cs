@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class ModelingEditorUI : ModuleRules
+public class ModelingUI : ModuleRules
 {
-	public ModelingEditorUI(ReadOnlyTargetRules Target) : base(Target)
+	public ModelingUI(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -25,22 +25,7 @@ public class ModelingEditorUI : ModuleRules
                 "Slate",
                 "SlateCore",
                 "Engine",
-                "InputCore",
-				"EditorFramework",
-				"UnrealEd",
-                "ContentBrowser",
-				"ContentBrowserData",
-				"InteractiveToolsFramework",
-                "LevelEditor",
-				"ModelingComponents", // FTransformGizmoDataBinder
-				"StatusBar",
-                "Projects",
-				"ToolWidgets",
-				"EditorWidgets",
-				"DeveloperSettings",
-				"Persona",
-				"ModelingUI",
-				"MeshModelingToolsEditorOnlyExp"
+                "InputCore"
 			}
 			);
 

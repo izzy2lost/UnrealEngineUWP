@@ -37,6 +37,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "ModelingUI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "SkeletalMeshModifiers",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
