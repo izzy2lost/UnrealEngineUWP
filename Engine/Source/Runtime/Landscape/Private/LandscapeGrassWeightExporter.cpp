@@ -46,6 +46,8 @@ public:
 	FVector2f RenderOffset;
 };
 
+extern int32 GGrassEnable;
+
 static bool ShouldCacheLandscapeGrassShaders(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
 	const bool bIsEditorPlatform = 
