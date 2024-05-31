@@ -3,8 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
+
+#include "Math/Float16Color.h"
+#include "CoreMinimal.h"
+#include "Engine/EngineTypes.h"
+#include "NiagaraBakerOutput.h"
+#include "NiagaraBakerSettings.h"
+#include "NiagaraSystem.h"
+#include "UObject/GCObject.h"
 #include "ShallowWaterRiverActor.generated.h"
 
 class UNiagaraComponent;
@@ -48,6 +57,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Shallow Water")
 	TObjectPtr<UTexture2D> BakedWaterSurfaceTexture;
 
+	UPROPERTY(EditAnywhere, Category = "Collisions")
+	TArray<TObjectPtr<AActor>> BottomContourActors;
+
 	virtual void PostLoad() override;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -79,6 +91,18 @@ protected:
 private:
 	bool bIsInitialized;	
 	bool bTickInitialize;
+
+	UPROPERTY()
+	TSet < TObjectPtr<AWaterBody>> AllWaterBodies;
+
+	UPROPERTY()
+	FVector2D WorldGridSize;
+
+	UPROPERTY()
+	FVector SystemPos;
+
+	UPROPERTY()
+	TArray<FVector4> ShallowWaterSimArrayValues;
 };
 
 UCLASS(BlueprintType, HideCategories = (Physics, Replication, Input, Collision))

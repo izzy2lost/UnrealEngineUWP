@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.IO;
 using UnrealBuildTool;
 
 public class WaterAdvanced : ModuleRules
@@ -10,7 +11,7 @@ public class WaterAdvanced : ModuleRules
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
-				// ... add public include paths required here ...
+				 System.IO.Path.Combine(GetModuleDirectory("Niagara"), "Private"),				 
 			}
 			);
 				
