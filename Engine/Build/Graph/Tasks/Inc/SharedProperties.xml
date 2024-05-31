@@ -16,6 +16,8 @@
 	<Option Name="AdbKeysPath" DefaultValue="" Description="Path to adbkeys location (for Android)"/>
 	<!-- Network path that can be used for storing snapshot descriptors -->
 	<Property Name="NetworkSnapshotDescFileRoot" Value=""/>
+	<!-- Automation report website -->
+	<Property Name="AutomationReportURLBase" Value=""/>
 	<!-- Get custom shared properties -->
 	<Do If="Exists('$(RootDir)/$(SharedPropertiesFile)')">
 		<Include Script="$(RootDir)/$(SharedPropertiesFile)"/>
