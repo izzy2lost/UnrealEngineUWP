@@ -122,13 +122,16 @@ void DeselectActorsAndActorComponents(const TArray<AActor*>& DeletedActors, cons
 #endif
 }
 
-ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FTransactionFilterDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage)
+ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FOnFilterTransactionDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage, const FTransactionObjectEvent& InTransactionEvent)
 {
+	ensure(InObject && InChangedPackage);
+	const FConcertTransactionFilterArgs FilterArgs{ InObject, InChangedPackage, InTransactionEvent };
+	
 	for (const auto& Item : CustomFilters)
 	{
-		if(Item.Value.IsBound())
+		if (Item.Value.IsBound())
 		{
-			ETransactionFilterResult Result = Item.Value.Execute(InObject, InChangedPackage);
+			ETransactionFilterResult Result = Item.Value.Execute(FilterArgs);
 			if (Result != ETransactionFilterResult::UseDefault)
 			{
 				return Result;
@@ -138,7 +141,7 @@ ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FTransactionFilterD
 	return ETransactionFilterResult::UseDefault;
 }
 
-ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FTransactionFilterDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage)
+ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FOnFilterTransactionDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage, const FTransactionObjectEvent& InTransactionEvent)
 {
 	// An object is persistent if neither it nor any of its outers are transient
 	auto IsObjectPersistent = [](const UObject* Obj)
@@ -153,7 +156,7 @@ ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FTransactionF
 		return true;
 	};
 
-	ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyCustomFilter(CustomFilters, InObject, InChangedPackage);
+	const ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyCustomFilter(CustomFilters, InObject, InChangedPackage, InTransactionEvent);
 	if (FilterResult != ETransactionFilterResult::UseDefault)
 	{
 		return FilterResult;
@@ -1171,7 +1174,7 @@ void FConcertClientTransactionBridge::HandleObjectTransacted(UObject* InObject, 
 	}
 
 	UPackage* ChangedPackage = InObject->GetOutermost();
-	ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyTransactionFilters(TransactionFilters, InObject, ChangedPackage);
+	const ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyTransactionFilters(TransactionFilters, InObject, ChangedPackage, InTransactionEvent);
 	FOngoingTransaction* TrackedTransaction = OngoingTransactions.Find(InTransactionEvent.GetOperationId());
 
 	// TODO: This needs to send both editor-only and non-editor-only payload
@@ -1321,13 +1324,11 @@ void FConcertClientTransactionBridge::OnEndFrame()
 	}
 }
 
-void FConcertClientTransactionBridge::RegisterTransactionFilter(FName FilterName, FTransactionFilterDelegate FilterHandle)
+void FConcertClientTransactionBridge::RegisterTransactionFilter(FName FilterName, FOnFilterTransactionDelegate FilterDelegate)
 {
 	LLM_SCOPE_BYTAG(Concert_ConcertClientTransactionBridge);
-
 	check(TransactionFilters.Find(FilterName) == nullptr);
-
-	TransactionFilters.Add(FilterName) = MoveTemp(FilterHandle);
+	TransactionFilters.Add(FilterName, MoveTemp(FilterDelegate));
 }
 
 void FConcertClientTransactionBridge::UnregisterTransactionFilter(FName FilterName)

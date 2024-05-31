@@ -6,6 +6,8 @@
 #include "ConcertTransactionEvents.h"
 #include "IConcertClientTransactionBridge.h"
 
+struct FConcertTransactionFilterArgs;
+
 /**
  * Manager for handling multi user transactions in nDisplay.
  */
@@ -17,5 +19,5 @@ public:
 
 private:
 	void OnApplyRemoteTransaction(ETransactionNotification Notification, const bool bIsSnapshot);
-	ETransactionFilterResult ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage);
+	ETransactionFilterResult ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs);
 };

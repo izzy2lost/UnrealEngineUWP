@@ -76,8 +76,17 @@ struct FConcertConflictDescriptionBase
 	};
 };
 
+struct FConcertTransactionFilterArgs
+{
+	UObject* ObjectToFilter;
+	UPackage* Package;
+	const FTransactionObjectEvent& TransactionEvent;
+};
+
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnApplyTransaction, ETransactionNotification, const bool bIsSnapshot);
+UE_DEPRECATED(5.5, "Use FOnFilterTransactionDelegate instead.")
 DECLARE_DELEGATE_RetVal_TwoParams(ETransactionFilterResult, FTransactionFilterDelegate, UObject*, UPackage*);
+DECLARE_DELEGATE_RetVal_OneParam(ETransactionFilterResult, FOnFilterTransactionDelegate, const FConcertTransactionFilterArgs&);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnConcertClientLocalTransactionSnapshot, const FConcertClientLocalTransactionCommonData&, const FConcertClientLocalTransactionSnapshotData&);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnConcertClientLocalTransactionFinalized, const FConcertClientLocalTransactionCommonData&, const FConcertClientLocalTransactionFinalizedData&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnConcertConflictResolutionForPendingSend, const FConcertConflictDescriptionBase& ConflictDescription);
@@ -174,7 +183,15 @@ public:
 	virtual void ApplyRemoteTransaction(const FConcertTransactionEventBase& InEvent, const FConcertSessionVersionInfo* InVersionInfo, const TArray<FName>& InPackagesToProcess, const FConcertLocalIdentifierTable* InLocalIdentifierTablePtr, const bool bIsSnapshot, const class FConcertSyncWorldRemapper& ConcertSyncWorldRemapper) = 0;
 
 	/** Callback to register delegate for handling transaction events */
-	virtual void RegisterTransactionFilter(FName FilterName, FTransactionFilterDelegate FilterHandle) = 0;
+	UE_DEPRECATED(5.5, "Use the version of RegisterTransactionFilter accepting FOnFilterTransactionDelegate instead.")
+	void RegisterTransactionFilter(
+		FName FilterName,
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FTransactionFilterDelegate FilterHandle
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		);
+	/** Callback to register delegate for handling transaction events */
+	virtual void RegisterTransactionFilter(FName FilterName, FOnFilterTransactionDelegate FilterDelegate) = 0;
 
 	/** Callback to register delegate for handling transaction events */
 	virtual void UnregisterTransactionFilter(FName FilterName) = 0;
@@ -185,3 +202,16 @@ protected:
 	 */
 	virtual bool& GetIgnoreLocalTransactionsRef() = 0;
 };
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+inline void IConcertClientTransactionBridge::RegisterTransactionFilter(
+	FName FilterName,
+	FTransactionFilterDelegate FilterHandle
+	)
+{
+	RegisterTransactionFilter(FilterName, FOnFilterTransactionDelegate::CreateLambda([FilterHandle = MoveTemp(FilterHandle)](const FConcertTransactionFilterArgs& FilterArgs)
+	{
+		return FilterHandle.Execute(FilterArgs.ObjectToFilter, FilterArgs.Package);
+	}));
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
