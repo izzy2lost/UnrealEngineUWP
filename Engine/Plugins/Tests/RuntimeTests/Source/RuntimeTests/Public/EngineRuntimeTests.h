@@ -21,9 +21,16 @@ public:
 	/** Number of times this has ticked since reset */
 	UPROPERTY(BlueprintReadOnly, Category=Default)
 	int32 TickCount;
+	
+	/** Indicates when this was ticked in a frame, with 1 being first */
+	UPROPERTY(BlueprintReadOnly, Category = Default)
+	int32 TickOrder;
+
+	/** Used to set TickOrder, reset to 1 at the start of every frame */
+	static int32 CurrentTickOrder;
 
 	/** If it should actually increase tick count */
-	UPROPERTY(BlueprintReadOnly, Category=Default)
+	UPROPERTY(BlueprintReadOnly, Category = Default)
 	bool bShouldIncrementTickCount;
 
 	/** If it should perform other busy work */
