@@ -41,7 +41,7 @@ protected:
 
 	void RetrieveAndStoreStartupChannels();
 
-	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType);
+	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands);
 
 protected:
 	TSharedPtr<ITraceController> TraceController;

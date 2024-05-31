@@ -5,8 +5,13 @@
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "Delegates/Delegate.h"
+#include "ITraceControllerCommands.h"
 #include "Misc/Guid.h"
 
+
+/**
+ * Describes the state of a single remote instance with Trace.
+ */
 struct FTraceStatus
 {
 	/**
@@ -33,10 +38,16 @@ struct FTraceStatus
 
 	struct FChannel
 	{
+		/** Channel name */
 		FString Name;
+		/** Description string */
 		FString Description;
+		/** Remote system id. This may be unique per machine. */
 		uint32 Id;
+		/** If channel is currently enabled */
 		bool bEnabled;
+		/** If it's possible to toggle channel. Read only channels
+		 * must be set on process start using command line arguments. */
 		bool bReadOnly;
 	};
 
@@ -82,93 +93,37 @@ struct FTraceStatus
 
 ENUM_CLASS_FLAGS(FTraceStatus::EUpdateType);
 
+
 /**
- * Interface to control other sessions tracing.
+ * Interface for monitoring known trace service instances. ITraceController is a singleton which tracks
+ * all known instances and provides callback for status updates and interfaces to issue commands to one
+ * or more remote instances.
+ *
+ * Example usage:
+ * ```
+ * // I've found the session that we want to control
+ * FGuid SessionId = ...;
+ * // Get the controller
+ * TSharedPtr<ITraceController> TraceController = SessionServicesModule.GetTraceController();
+ * 
+ * // To control just a single instance use the session id.
+ * TraceController->WithInstance(SessionId, [](ITraceControllerCommands& Commands){
+ *		Commands.Send("localhost", "audio,audiomixer,bookmark,log");
+ *		Commands.Bookmark("My remote bookmark");
+ * });
+ *
+ * // We can also use the "selection" feature in session manager
+ * TraceController->WithSelectedInstances([](ITraceControllerCommands& Commands){
+ *		Commands.SnapshotSend("localhost");
+ * });
+ * ```
+ * 
  */
 class ITraceController
 {
 public:
 	
 	virtual ~ITraceController() = default;
-
-	/**
-	 * Enables or disables channels by name
-	 * @param ChannelsToEnable  List of channels to enable
-	 * @param ChannelsToDisable List of channels to disable
-	 */
-	virtual void SetChannels(TConstArrayView<FStringView> ChannelsToEnable, TConstArrayView<FStringView> ChannelsToDisable) = 0;
-
-	/**
-	 * Enables or disables channels by name
-	 * @param ChannelsToEnable  List of channels to enable
-	 * @param ChannelsToDisable List of channels to disable
-	 */
-	virtual void SetChannels(TConstArrayView<FString> ChannelsToEnable, TConstArrayView<FString> ChannelsToDisable) = 0;
-	
-	/**
-	 * Start a trace on selected instances to the provided host, using a set of channels.
-	 * @param Host Host to send the trace to
-	 * @param Channels Comma separated list of channels to enable
-	 * @param bExcludeTail If the tail (circular buffer of recent events) should be included
-	 */
-	virtual void Send(FStringView Host, FStringView Channels, bool bExcludeTail = false) = 0;
-
-	/**
-	 * Start a trace on selected instances to a file on the instance, using a set of channels.
-	 * @param File Path on the instance. ".utrace" will be appended
-	 * @param Channels Comma separated list of channels to enable
-	 * @param bExcludeTail If the tail (circular buffer of recent events) should be included
-	 * @param bTruncateFile If the file should be truncated (if already exists)
-	 */
-	virtual void File(FStringView File, FStringView Channels, bool bExcludeTail = false, bool bTruncateFile = false) = 0;
-
-	/**
-	 * On selected instances, make a snapshot of the tail (circular buffer of recent events)
-	 * and send to the provided host.
-	 * @param Host Host to send the trace to
-	 */
-	virtual void SnapshotSend(FStringView Host) = 0;
-	
-	/**
-	 * On selected instances, make a snapshot of the tail (circular buffer of recent events)
-	 * and save to a file.
-	 * @param File Path on the instance. ".utrace" will be appended
-	 */
-	virtual void SnapshotFile(FStringView File) = 0;
-
-	/**
-	 * Pause tracing by muting all (non-readonly) channels.
-	 */
-	virtual void Pause() = 0;
-
-	/**
-	 * Resume tracing (from paused) by enabling the previously enabled channels.
-	 */
-	virtual void Resume() = 0;
-
-	/**
-	 * Stop active trace.
-	 */
-	virtual void Stop() = 0;
-
-	/**
-	 * Insert bookmark into the trace.
-	 * @param Label Label of bookmark
-	 */
-	virtual void Bookmark(FStringView Label) = 0;
-
-	/**
-	 * Insert screenshot into the trace.
-	 * @param Name Name of the screenshot
-	 * @param bShowUI If the UI should be visible in the image
-	 */
-	virtual void Screenshot(FStringView Name, bool bShowUI) = 0;
-
-	/**
-	 * Set the StatNamedEvents flag.
-	 * @param bEnabled The value to assign to the StatNamedEvents flag.
-	 */
-	virtual void SetStatNamedEventsEnabled(bool bEnabled) = 0;
 
 	/**
 	 * Request update of the status from all sessions and instances.
@@ -188,17 +143,39 @@ public:
 	/**
 	 * Generic event for updates of status
 	 */
-	DECLARE_EVENT_TwoParams(ITraceController, FStatusRecievedEvent, const FTraceStatus&, FTraceStatus::EUpdateType);
+	DECLARE_EVENT_ThreeParams(ITraceController, FStatusRecievedEvent, const FTraceStatus&, FTraceStatus::EUpdateType, ITraceControllerCommands&);
 
 	/**
-	 * Event triggered whenever the FTraceStatus for the selected instance (in session manager)
-	 * is updated. A reference to the status and what has changed is provided.
+	 * Event triggered whenever status is updated for any known session. 
+	 * A reference to the status and what has changed is provided along with a 
+	 * structure to issue commands.
 	 */
 	virtual FStatusRecievedEvent& OnStatusReceived() = 0;
+
+	/**
+	 * Event triggered whenever the status for the selected instance (in session manager)
+	 * is updated. A reference to the status and what has changed is provided along with a 
+	 * structure to issue commands.
+	 */
+	virtual FStatusRecievedEvent& OnSelectedSessionStatusReceived() = 0;
 
 	/**
 	 * Return true if a selected instance exists and has been discovered.
 	 */
 	virtual bool HasAvailableSelectedInstance() = 0;
-	
+
+
+	typedef TFunction<void(ITraceControllerCommands&)> FCallback;
+	/**
+	 * Execute a function for each instance selected in the session manager.
+	 * @param Func Functor to execute
+	 */
+	virtual void WithSelectedInstances(FCallback Func) = 0;
+
+	/**
+	 * Execute a function on a specific session.
+	 * @param InstanceId InstanceId to issue command to
+	 * @param Func Functor to execute
+	 */
+	virtual void WithInstance(FGuid InstanceId, FCallback Func) = 0;
 };

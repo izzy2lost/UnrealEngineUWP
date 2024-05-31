@@ -44,7 +44,7 @@ private:
 	FText GetTraceTargetTooltipText() const;
 	FSlateIcon GetTraceTargetIcon() const;
 
-	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType);
+	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands);
 	void InitializeSettings();
 
 	bool SetTraceTarget_CanExecute() const;

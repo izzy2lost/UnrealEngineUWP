@@ -8,6 +8,7 @@
 #include "MessageEndpointBuilder.h"
 #include "TraceControlMessages.h"
 
+
 FTraceController::FTraceController(const TSharedRef<IMessageBus>& InMessageBus)
 	: MessageBus(InMessageBus)
 {
@@ -38,136 +39,6 @@ FTraceController::~FTraceController()
 	}
 }
 
-template<typename StringType>
-TArray<uint32> ResolveChannelNames(TConstArrayView<StringType> ChannelNames, const TMap<uint32, FTraceStatus::FChannel> Channels)
-{
-	TArray<uint32> Ids;
-	if (ChannelNames.Num() > 0)
-	{
-		for (const auto& [Id, Channel] : Channels)
-		{
-			if (ChannelNames.Contains(Channel.Name))
-			{
-				Ids.Add(Channel.Id);
-			}
-		}
-	}
-	return MoveTemp(Ids);
-}
-
-void FTraceController::SetChannels(TConstArrayView<FStringView> ChannelsToEnable, TConstArrayView<FStringView> ChannelsToDisable)
-{
-	FReadScopeLock _(InstancesLock);
-
-	// Since each session might have different notion about channel ids
-	// we need to send a specific message to each instance using their unique
-	// channel mappings.
-	for (const auto& Instance : SessionManager->GetSelectedInstances())
-	{
-		if (const auto Address = InstanceToAddress.Find(Instance->GetInstanceId()))
-		{
-			const auto& InstanceStatus = Instances[*Address];
-			const auto Message = FMessageEndpoint::MakeMessage<FTraceControlChannelsSet>();
-			Message->ChannelIdsToEnable = ResolveChannelNames(ChannelsToEnable, InstanceStatus.Channels);
-			Message->ChannelIdsToDisable = ResolveChannelNames(ChannelsToDisable, InstanceStatus.Channels);
-			MessageEndpoint->Send(Message, *Address);
-		}
-	}
-}
-
-void FTraceController::SetChannels(TConstArrayView<FString> ChannelsToEnable, TConstArrayView<FString> ChannelsToDisable)
-{
-	FReadScopeLock _(InstancesLock);
-	
-	for (const auto& Instance : SessionManager->GetSelectedInstances())
-	{
-		if (const auto Address = InstanceToAddress.Find(Instance->GetInstanceId()))
-		{
-			const auto& InstanceStatus = Instances[*Address];
-			const auto Message = FMessageEndpoint::MakeMessage<FTraceControlChannelsSet>();
-			Message->ChannelIdsToEnable = ResolveChannelNames(ChannelsToEnable, InstanceStatus.Channels);
-			Message->ChannelIdsToDisable = ResolveChannelNames(ChannelsToDisable, InstanceStatus.Channels);
-			MessageEndpoint->Send(Message, *Address);
-		}
-	}
-}
-
-void FTraceController::Send(FStringView Host, FStringView Channels, bool bExcludeTail)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlSend>();
-	Message->Host = Host;
-	Message->Channels = Channels;
-	Message->bExcludeTail = bExcludeTail;
-
-	SendToSelectedSessions(Message);
-}
-
-void FTraceController::File(FStringView File, FStringView Channels, bool bExcludeTail, bool bTruncateFile)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlFile>();
-	Message->File = File;
-	Message->Channels = Channels;
-	Message->bExcludeTail = bExcludeTail;
-	Message->bTruncateFile = bTruncateFile;
-
-	SendToSelectedSessions(Message);
-}
-
-void FTraceController::Stop()
-{
-	SendToSelectedSessions(FMessageEndpoint::MakeMessage<FTraceControlStop>());
-}
-
-void FTraceController::SnapshotSend(FStringView Host)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlSnapshotSend>();
-	Message->Host = Host;
-
-	SendToSelectedSessions(Message);
-}
-
-void FTraceController::SnapshotFile(FStringView File)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlSnapshotFile>();
-	Message->File = File;
-
-	SendToSelectedSessions(Message);
-}
-
-void FTraceController::Pause()
-{
-	SendToSelectedSessions(FMessageEndpoint::MakeMessage<FTraceControlPause>());
-}
-
-void FTraceController::Resume()
-{
-	SendToSelectedSessions(FMessageEndpoint::MakeMessage<FTraceControlResume>());
-}
-
-void FTraceController::Bookmark(FStringView Label)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlBookmark>();
-	Message->Label = Label;
-	
-	SendToSelectedSessions(Message);
-}
-
-void FTraceController::Screenshot(FStringView Name, bool bShowUI)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlScreenshot>();
-	Message->Name = Name;
-	Message->bShowUI = bShowUI;
-	
-	SendToSelectedSessions(Message);
-}
-
-void FTraceController::SetStatNamedEventsEnabled(bool bEnabled)
-{
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlSetStatNamedEvents>();
-	Message->bEnabled = bEnabled;
-
-	SendToSelectedSessions(Message);
-}
 
 void FTraceController::SendStatusUpdateRequest()
 {
@@ -186,24 +57,26 @@ void FTraceController::SendChannelUpdateRequest()
 	for (const auto& Instance : Instances)
 	{
 		const auto Message = FMessageEndpoint::MakeMessage<FTraceControlChannelsPing>();
-		Message->KnownChannelCount = uint32(Instance.Value.Channels.Num());
+		Message->KnownChannelCount = uint32(Instance.Value.Status.Channels.Num());
 		MessageEndpoint->Send(Message, Instance.Key);
 	}
 }
 
 void FTraceController::SendSettingsUpdateRequest()
 {
-	MessageEndpoint->Publish(FMessageEndpoint::MakeMessage<FTraceControlSettingsPing>());
+	for (const auto& Instance : Instances)
+	{
+		MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FTraceControlSettingsPing>(), Instance.Key);
+	}
 }
 
 void FTraceController::OnNotification(const FMessageBusNotification& Event)
 {
-	FWriteScopeLock _(InstancesLock);
-	
 	if (Event.NotificationType == EMessageBusNotification::Unregistered)
 	{
 		// Many endpoints may be removed from one instance, look for the
 		// one we have registered.
+		FWriteScopeLock _(InstancesLock);
 		if(Instances.Remove(Event.RegistrationAddress) > 0)
 		{
 			InstanceToAddress = InstanceToAddress.FilterByPredicate([&](auto It) { return It.Value != Event.RegistrationAddress; } );
@@ -214,19 +87,34 @@ void FTraceController::OnNotification(const FMessageBusNotification& Event)
 void FTraceController::OnDiscoveryResponse(const FTraceControlDiscovery& Message, const TSharedRef<IMessageContext>& Context)
 {
 	FWriteScopeLock _(InstancesLock);
-	
-	FTraceStatus& Status = Instances.FindOrAdd(Context->GetSender());
-	InstanceToAddress.FindOrAdd(Message.InstanceId, Context->GetSender());
-	
-	UpdateStatus(Message, Status);
-	// This is the application session id, which is not necessarily the
-	// same as trace session (may be overridden by commandline)
-	Status.SessionId = Message.SessionId;
-	Status.InstanceId = Message.InstanceId;
 
-	if (SelectedInstanceId == Message.InstanceId)
+	// If the message bus is no longer available there is no point in registering
+	// more sessions.
+	TSharedPtr<IMessageBus> Bus = MessageBus.Pin();
+	if (!Bus)
 	{
-		StatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::All);
+		return;
+	}
+
+	FTracingInstance* Instance = Instances.Find(Context->GetSender());
+	if (!Instance)
+	{
+		// Create a new instance with default status
+		Instance = &Instances.Emplace(Context->GetSender(), {Bus.ToSharedRef(), Context->GetSender()});
+		InstanceToAddress.Add(Message.InstanceId, Context->GetSender());
+	}
+	
+	UpdateStatus(Message, Instance->Status);
+	
+	// This is the application session id, which is not necessarily the
+	// same as trace session (maybe overridden by commandline)
+	Instance->Status.SessionId = Message.SessionId;
+	Instance->Status.InstanceId = Message.InstanceId;
+
+	StatusReceivedEvent.Broadcast(Instance->Status, FTraceStatus::EUpdateType::All, Instance->Commands);
+	if (SelectedInstanceIds.Contains(Message.InstanceId))
+	{
+		SelectedSessionStatusReceivedEvent.Broadcast(Instance->Status, FTraceStatus::EUpdateType::All, Instance->Commands);
 	}
 }
 
@@ -234,67 +122,75 @@ void FTraceController::OnStatus(const FTraceControlStatus& Message, const TShare
 {
 	FWriteScopeLock _(InstancesLock);
 	
-	if (FTraceStatus* Status = Instances.Find(Context->GetSender()))
+	if (FTracingInstance* Instance = Instances.Find(Context->GetSender()))
 	{
-		UpdateStatus(Message, *Status);
+		FTraceStatus& Status = Instance->Status;
+		UpdateStatus(Message, Status);
 		
-		if (SelectedInstanceId == Status->InstanceId)
+		StatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::Status, Instance->Commands);
+		if (SelectedInstanceIds.Contains(Status.InstanceId))
 		{
-			StatusReceivedEvent.Broadcast(*Status, FTraceStatus::EUpdateType::Status);
+			SelectedSessionStatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::Status, Instance->Commands);
 		}
 	}
-	
 }
 
 void FTraceController::OnChannelsDesc(const FTraceControlChannelsDesc& Message, const TSharedRef<IMessageContext>& Context)
 {
 	FWriteScopeLock _(InstancesLock);
 	
-	const auto Status = Instances.Find(Context->GetSender());
+	const auto Instance = Instances.Find(Context->GetSender());
 	
-	if (!Status)
+	if (!Instance)
 	{
 		return;
 	}
-	
+
+	FTraceStatus& Status = Instance->Status;
 	check(Message.Channels.Num() == Message.Ids.Num() && Message.Channels.Num() == Message.Descriptions.Num());
 	const int32 Count = Message.Channels.Num();
 	for(int32 Index = 0; Index < Count; ++Index)
 	{
 		const uint32 Id = Message.Ids[Index];
-		if (Status->Channels.Contains(Id))
+		if (Status.Channels.Contains(Id))
 		{
 			continue;
 		}
 
-		FTraceStatus::FChannel& NewChannel = Status->Channels.Add(Id);
+		FTraceStatus::FChannel& NewChannel = Status.Channels.Add(Id);
 		NewChannel.Name = Message.Channels[Index];
 		NewChannel.Description = Message.Descriptions[Index];
 		NewChannel.Id = Id;
 		NewChannel.bEnabled = false;
 		NewChannel.bReadOnly = Message.ReadOnlyIds.Contains(Id);
 		
-		if (SelectedInstanceId == Status->InstanceId)
+		StatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::ChannelsDesc, Instance->Commands);
+		if (SelectedInstanceIds.Contains(Status.InstanceId))
 		{
-			StatusReceivedEvent.Broadcast(*Status, FTraceStatus::EUpdateType::ChannelsDesc);
+			SelectedSessionStatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::ChannelsDesc, Instance->Commands);
 		}
 	}
+
+	// Allow the commands instance to update its list of channels
+	Instance->Commands.OnChannelsDesc(Message);
 }
 
 void FTraceController::OnChannelsStatus(const FTraceControlChannelsStatus& Message, const TSharedRef<IMessageContext>& Context)
 {
 	FWriteScopeLock _(InstancesLock);
 	
-	if (const auto Status = Instances.Find(Context->GetSender()))
+	if (const auto Instance = Instances.Find(Context->GetSender()))
 	{
-		for (auto& [Id, Channel] : Status->Channels)
+		FTraceStatus& Status = Instance->Status;
+		for (auto& [Id, Channel] : Status.Channels)
 		{
 			Channel.bEnabled = Message.EnabledIds.Contains(Id);
 		}
 		
-		if (SelectedInstanceId == Status->InstanceId)
+		StatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::ChannelsStatus, Instance->Commands);
+		if (SelectedInstanceIds.Contains(Status.InstanceId))
 		{
-			StatusReceivedEvent.Broadcast(*Status, FTraceStatus::EUpdateType::ChannelsStatus);
+			SelectedSessionStatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::ChannelsStatus, Instance->Commands);
 		}
 	}
 }
@@ -303,68 +199,60 @@ void FTraceController::OnSettings(const FTraceControlSettings& Message, const TS
 {
 	FWriteScopeLock _(InstancesLock);
 	
-	if (const auto Status = Instances.Find(Context->GetSender()))
+	if (const auto Instance = Instances.Find(Context->GetSender()))
 	{
-		FTraceStatus::FSettings& Settings = Status->Settings;
+		FTraceStatus& Status = Instance->Status;
+		FTraceStatus::FSettings& Settings = Status.Settings;
 		Settings.bUseImportantCache = Message.bUseImportantCache;
 		Settings.bUseWorkerThread = Message.bUseWorkerThread;
 		Settings.TailSizeBytes = Message.TailSizeBytes;
 		
-		if (SelectedInstanceId == Status->InstanceId)
+		StatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::Settings, Instance->Commands);
+		if (SelectedInstanceIds.Contains(Status.InstanceId))
 		{
-			StatusReceivedEvent.Broadcast(*Status, FTraceStatus::EUpdateType::Settings);
+			SelectedSessionStatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::Settings, Instance->Commands);
 		}
 	}
 }
 
 bool FTraceController::HasAvailableSelectedInstance()
 {
-	if (SelectedInstanceId.IsValid())
+	// Return true if at least one of the selected instances is known
+	for (const FGuid& SelectedInstanceId : SelectedInstanceIds)
 	{
-		return InstanceToAddress.Find(SelectedInstanceId) != nullptr;
+		if (InstanceToAddress.Contains(SelectedInstanceId))
+		{
+			return true;
+		}
 	}
-
 	return false;
 }
 
-void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInstanceInfo>& Instance, bool bSelected)
+void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInstanceInfo>& InstanceInfo, bool bSelected)
 {
 	FReadScopeLock _(InstancesLock);
 	
 	if (bSelected)
 	{
-		SelectedInstanceId = Instance->GetInstanceId();
+		SelectedInstanceIds.Add(InstanceInfo->GetInstanceId());
 	}
 	else
 	{
-		SelectedInstanceId.Invalidate();
+		SelectedInstanceIds.Remove(InstanceInfo->GetInstanceId());
 	}
 
-	if (const auto Address = InstanceToAddress.Find(Instance->GetInstanceId()))
+	if (const auto Address = InstanceToAddress.Find(InstanceInfo->GetInstanceId()))
 	{
-		if (const auto Status = Instances.Find(*Address))
+		if (const auto Instance = Instances.Find(*Address))
 		{
-			StatusReceivedEvent.Broadcast(*Status, FTraceStatus::EUpdateType::All);
+			FTraceStatus& Status = Instance->Status;
+			SelectedSessionStatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::All, Instance->Commands);
 		}
 	}
 	else
 	{
-		SendDiscoveryPing(Instance);
+		SendDiscoveryPing(InstanceInfo);
 	}
-}
-
-TArray<FMessageAddress> FTraceController::GetSelectedSessionAddresses()
-{
-	TArray<FMessageAddress> Selected;
-	auto SelectedInstances = SessionManager->GetSelectedInstances();
-	for (const auto& Instance : SelectedInstances)
-	{
-		if (const auto Address = InstanceToAddress.Find(Instance->GetInstanceId()))
-		{
-			Selected.Add(*Address);
-		}
-	}
-	return MoveTemp(Selected);
 }
 
 void FTraceController::UpdateStatus(const FTraceControlStatus& Message, FTraceStatus& Status)
@@ -382,31 +270,60 @@ void FTraceController::UpdateStatus(const FTraceControlStatus& Message, FTraceSt
 	Status.Stats.CacheWaste = Message.CacheWaste;
 }
 
-bool FTraceController::RediscoverSelectedSession()
+void FTraceController::WithSelectedInstances(FCallback Func)
 {
-	if (SelectedInstanceId.IsValid() && !InstanceToAddress.Contains(SelectedInstanceId))
+	FReadScopeLock _(InstancesLock);
+	for (auto& SelectedInstance : SessionManager->GetSelectedInstances())
 	{
-		auto& SelectedInstances = SessionManager->GetSelectedInstances();
-		for (auto& Instance : SelectedInstances)
+		if(const auto& InstanceAddress = InstanceToAddress.Find(SelectedInstance->GetInstanceId()))
 		{
-			if (Instance->GetInstanceId() == SelectedInstanceId)
+			if(auto* Instance = Instances.Find(*InstanceAddress))
 			{
-				SendDiscoveryPing(Instance);
-				return true;
+				Func(Instance->Commands);
 			}
 		}
 	}
+}
 
+void FTraceController::WithInstance(FGuid InstanceId, FCallback Func)
+{
+	FReadScopeLock _(InstancesLock);
+	if(const auto& InstanceAddress = InstanceToAddress.Find(InstanceId))
+	{
+		if(auto* Instance = Instances.Find(*InstanceAddress))
+		{
+			Func(Instance->Commands);
+		}
+	}
+}
+
+bool FTraceController::RediscoverSelectedSession() const
+{
+	auto& SelectedInstances = SessionManager->GetSelectedInstances();
+	for (auto& SelectedInstance : SelectedInstances)
+	{
+		if (!InstanceToAddress.Contains(SelectedInstance->GetInstanceId()))
+		{
+			SendDiscoveryPing(SelectedInstance);
+			return true;
+		}
+	}
 	return false;
 }
 
-void FTraceController::SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance)
+void FTraceController::SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance) const
 {
 	// We haven't discovered this instance yet, send a discovery message specifically
 	// to that instance.
-
 	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlDiscoveryPing>();
 	Message->SessionId = Instance->GetOwnerSession()->GetSessionId();
 	Message->InstanceId = Instance->GetInstanceId();
 	MessageEndpoint->Publish<FTraceControlDiscoveryPing>(Message);
 }
+
+FTraceController::FTracingInstance::FTracingInstance(const TSharedRef<IMessageBus>& InMessageBus, FMessageAddress InService)
+	: Status()
+	, Commands(InMessageBus, InService)
+{
+}
+

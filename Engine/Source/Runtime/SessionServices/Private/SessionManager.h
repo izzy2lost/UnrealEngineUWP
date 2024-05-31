@@ -112,6 +112,8 @@ private:
 	/** Callback for ticks from the ticker. */
 	bool HandleTicker(float DeltaTime);
 
+	virtual TSharedPtr<ISessionInstanceInfo> GetInstance(const FGuid& Id) const override;
+
 private:
 
 	/** The address of the automation controller to where we can forward any automation workers found. */

@@ -6,6 +6,7 @@
 #include "ISessionManager.h"
 #include "ITraceController.h"
 #include "MessageEndpoint.h"
+#include "TraceControllerCommands.h"
 #include "TraceControlMessages.h"
 
 struct FTraceControlSettings;
@@ -25,30 +26,22 @@ public:
 	virtual ~FTraceController() override;
 
 private:
-	/* ITraceController interface */
-	virtual void SetChannels(TConstArrayView<FStringView> ChannelsToEnable, TConstArrayView<FStringView> ChannelsToDisable) override;
-	virtual void SetChannels(TConstArrayView<FString> ChannelsToEnable, TConstArrayView<FString> ChannelsToDisable) override;
-	virtual void Send(FStringView Host, FStringView Channels, bool bExcludeTail) override;
-	virtual void File(FStringView File, FStringView Channels, bool bExcludeTail, bool bTruncateFile) override;
-	virtual void Stop() override;
-	virtual void SnapshotSend(FStringView Host) override;
-	virtual void SnapshotFile(FStringView File) override;
-	virtual void Pause() override;
-	virtual void Resume() override;
-	virtual void Bookmark(FStringView Label) override;
-	virtual void Screenshot(FStringView Name, bool bShowUI) override;
-	virtual void SetStatNamedEventsEnabled(bool bEnabled) override;
-
 	virtual void SendStatusUpdateRequest() override;
 	virtual void SendChannelUpdateRequest() override;
 	virtual void SendSettingsUpdateRequest() override;
-
 	virtual bool HasAvailableSelectedInstance() override;
+	virtual void WithSelectedInstances(FCallback Func) override;
+	virtual void WithInstance(FGuid InstanceId, FCallback Func) override;
 	
 	DECLARE_DERIVED_EVENT(FTraceController, ITraceController::FStatusRecievedEvent, FStatusRecievedEvent);
 	virtual FStatusRecievedEvent& OnStatusReceived() override
 	{
 		return StatusReceivedEvent;
+	}
+
+	virtual FStatusRecievedEvent& OnSelectedSessionStatusReceived() override
+	{
+		return SelectedSessionStatusReceivedEvent;
 	}
 
 	/* Message handlers */
@@ -63,23 +56,30 @@ private:
 	/* Events from SessionManager handlers */
 	void OnInstanceSelectionChanged(const TSharedPtr<class ISessionInstanceInfo>&, bool);
 
-	/** Utility for sending a message to all selected sessions */
-	template <class MessageType>
-	void SendToSelectedSessions(MessageType* Message);
-
-	TArray<FMessageAddress> GetSelectedSessionAddresses();
-
 	/* A selected instance can end up not discovered, either because the FTraceControlDiscoveryPong was lost
 	*  or because the selected session has been unregistered. Attempt to discover it again.
 	*  Returns true if a discovery ping was sent. 
 	*/
-	bool RediscoverSelectedSession();
+	bool RediscoverSelectedSession() const;
 
-	void SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance);
-
-public:
+	/* Send a discovery ping to a specific instance rather than broadcast a request. */
+	void SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance) const;
 
 private:
+	
+	struct FTracingInstance
+	{
+		FTraceStatus Status;
+		FTraceControllerCommands Commands;
+
+		FTracingInstance(const TSharedRef<IMessageBus>& InMessageBus, FMessageAddress Service);
+		FTracingInstance() = delete;
+	};
+
+	/**
+	 * Needed to create command instances when new sessions are discovered. We don't need a ref counted
+	 * pointer to the message bus.
+	 */
 	TWeakPtr<IMessageBus> MessageBus;
 
 	/** Our own endpoint for messages */
@@ -91,36 +91,21 @@ private:
 	/** Address of the runtime endpoint for trace controls */
 	FMessageAddress TraceControlAddress;
 
+	/** Event for status updates on any session */
 	FStatusRecievedEvent StatusReceivedEvent;
+
+	/** Event for status updates on a selected session */
+	FStatusRecievedEvent SelectedSessionStatusReceivedEvent;
 
 	/** Lock to protect access to Instances list */
 	FRWLock InstancesLock;
 
-	/** Map of instances and their respective last reported status */
-	TMap<FMessageAddress, FTraceStatus> Instances;
+	/** Known instances with an active trace service */
+	TMap<FMessageAddress, FTracingInstance> Instances;
 
 	/** Secondary lookup from instance -> address */
 	TMap<FGuid, FMessageAddress> InstanceToAddress;
 
 	/** Currently selected instance */
-	FGuid SelectedInstanceId;
+	TSet<FGuid> SelectedInstanceIds;
 };
-
-template <typename MessageType>
-void FTraceController::SendToSelectedSessions(MessageType* Message)
-{
-	TArray<FMessageAddress> Recipients;
-	auto SelectedInstances = SessionManager->GetSelectedInstances();
-	for (const auto& Instance : SelectedInstances)
-	{
-		if (const auto Address = InstanceToAddress.Find(Instance->GetInstanceId()))
-		{
-			Recipients.Add(*Address);
-		}
-	}
-
-	if (!Recipients.IsEmpty())
-	{
-		MessageEndpoint->Send(Message, Recipients);
-	}
-}

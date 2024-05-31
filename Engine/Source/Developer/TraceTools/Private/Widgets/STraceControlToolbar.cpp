@@ -24,7 +24,7 @@ STraceControlToolbar::STraceControlToolbar()
 
 STraceControlToolbar::~STraceControlToolbar()
 {
-	TraceController->OnStatusReceived().Remove(OnStatusReceivedDelegate);
+	TraceController->OnSelectedSessionStatusReceived().Remove(OnStatusReceivedDelegate);
 }
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -175,14 +175,17 @@ bool STraceControlToolbar::StartTrace_CanExecute() const
 
 void STraceControlToolbar::StartTrace_Execute()
 {
-	if (TraceTarget == ETraceTarget::Server)
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
 	{
-		TraceController->Send(TraceHostAddr, TEXT(""));
-	}
-	else if (TraceTarget == ETraceTarget::File)
-	{
-		TraceController->File(TEXT(""), TEXT(""));
-	}
+		if (TraceTarget == ETraceTarget::Server)
+		{
+			Commands.Send(TraceHostAddr, TEXT(""));
+		}
+		else if (TraceTarget == ETraceTarget::File)
+		{
+			Commands.File(TEXT(""), TEXT(""));
+		}
+	});
 	bIsTracing = true;
 }
 
@@ -193,7 +196,10 @@ bool STraceControlToolbar::StopTrace_CanExecute() const
 
 void STraceControlToolbar::StopTrace_Execute()
 {
-	TraceController->Stop();
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+	{
+		Commands.Stop();
+	});
 	bIsTracing = false;
 }
 
@@ -204,14 +210,17 @@ bool STraceControlToolbar::TraceSnapshot_CanExecute() const
 
 void STraceControlToolbar::TraceSnapshot_Execute()
 {
-	if (TraceTarget == ETraceTarget::Server)
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
 	{
-		TraceController->SnapshotSend(TraceHostAddr);
-	}
-	else if (TraceTarget == ETraceTarget::File)
-	{
-		TraceController->SnapshotFile(TEXT(""));
-	}
+		if (TraceTarget == ETraceTarget::Server)
+		{
+			Commands.SnapshotSend(TraceHostAddr);
+		}
+		else if (TraceTarget == ETraceTarget::File)
+		{
+			Commands.SnapshotFile(TEXT(""));
+		}
+	});
 }
 
 bool STraceControlToolbar::PauseTrace_CanExecute() const
@@ -221,7 +230,10 @@ bool STraceControlToolbar::PauseTrace_CanExecute() const
 
 void STraceControlToolbar::PauseTrace_Execute()
 {
-	TraceController->Pause();
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+	{
+		Commands.Pause();
+	});
 	bIsPaused = true;
 }
 
@@ -232,7 +244,10 @@ bool STraceControlToolbar::ResumeTrace_CanExecute() const
 
 void STraceControlToolbar::ResumeTrace_Execute()
 {
-	TraceController->Resume();
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+	{
+		Commands.Resume();
+	});
 	bIsPaused = false;
 }
 
@@ -244,7 +259,10 @@ bool STraceControlToolbar::TraceBookmark_CanExecute() const
 void STraceControlToolbar::TraceBookmark_Execute()
 {
 	const FString BookmarkName = FDateTime::Now().ToString(TEXT("Bookmark_%Y%m%d_%H%M%S"));
-	TraceController->Bookmark(BookmarkName);
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+	{
+		Commands.Bookmark(BookmarkName);
+	});
 }
 
 bool STraceControlToolbar::TraceScreenshot_CanExecute() const
@@ -254,7 +272,10 @@ bool STraceControlToolbar::TraceScreenshot_CanExecute() const
 
 void STraceControlToolbar::TraceScreenshot_Execute()
 {
-	TraceController->Screenshot(TEXT(""), false);
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+	{
+		Commands.Screenshot(TEXT(""), false);
+	});
 }
 
 bool STraceControlToolbar::ToggleStatNamedEvents_CanExecute() const
@@ -270,7 +291,10 @@ bool STraceControlToolbar::ToggleStatNamedEvents_IsChecked() const
 void STraceControlToolbar::ToggleStatNamedEvents_Execute()
 {
 	bAreStatNamedEventsEnabled = !bAreStatNamedEventsEnabled;
-	TraceController->SetStatNamedEventsEnabled(bAreStatNamedEventsEnabled);
+	TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+	{
+		Commands.SetStatNamedEventsEnabled(bAreStatNamedEventsEnabled);
+	});
 }
 
 FText STraceControlToolbar::GetTraceTargetLabelText() const
@@ -303,7 +327,7 @@ FSlateIcon STraceControlToolbar::GetTraceTargetIcon() const
 	return FSlateIcon(FTraceToolsStyle::GetStyleSetName(), "TraceControl.SetTraceTargetFile");
 }
 
-void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType)
+void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands)
 {
 	bIsTracing = InStatus.bIsTracing;
 	bIsPaused = InStatus.bIsPaused;

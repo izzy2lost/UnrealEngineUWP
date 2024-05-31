@@ -13,14 +13,14 @@ FSessionTraceControllerFilterService::FSessionTraceControllerFilterService(TShar
 	FCoreDelegates::OnEndFrame.AddRaw(this, &FSessionTraceControllerFilterService::OnApplyChannelChanges);
 
 	TraceController = InTraceController;
-	TraceController->OnStatusReceived().AddRaw(this, &FSessionTraceControllerFilterService::OnTraceStatusUpdated);
+	TraceController->OnSelectedSessionStatusReceived().AddRaw(this, &FSessionTraceControllerFilterService::OnTraceStatusUpdated);
 }
 
 FSessionTraceControllerFilterService::~FSessionTraceControllerFilterService()
 {
 	FCoreDelegates::OnEndFrame.RemoveAll(this);
 
-	TraceController->OnStatusReceived().RemoveAll(this);
+	TraceController->OnSelectedSessionStatusReceived().RemoveAll(this);
 }
 
 void FSessionTraceControllerFilterService::GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const
@@ -74,7 +74,7 @@ void FSessionTraceControllerFilterService::DisableAllChannels()
 	}
 }
 
-void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType)
+void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands)
 {
 	if (!TraceController->HasAvailableSelectedInstance())
 	{
@@ -109,7 +109,10 @@ void FSessionTraceControllerFilterService::OnApplyChannelChanges()
 {
 	if (FrameEnabledChannels.Num() || FrameDisabledChannels.Num())
 	{
-		TraceController->SetChannels(FrameEnabledChannels, FrameDisabledChannels);
+		TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+		{
+			Commands.SetChannels(FrameEnabledChannels, FrameDisabledChannels);
+		});
 		FrameEnabledChannels.Empty();
 		FrameDisabledChannels.Empty();
 	}

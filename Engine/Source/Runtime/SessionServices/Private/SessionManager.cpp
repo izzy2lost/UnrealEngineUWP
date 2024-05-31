@@ -338,3 +338,21 @@ bool FSessionManager::HandleTicker(float DeltaTime)
 
 	return true;
 }
+
+TSharedPtr<ISessionInstanceInfo> FSessionManager::GetInstance(const FGuid& Id) const
+{
+	for (const auto& SessionPair : Sessions)
+	{
+		const auto& Session = SessionPair.Value;
+		TArray<TSharedPtr<ISessionInstanceInfo>> Instances;
+		Session->GetInstances(Instances);
+		for (const auto& Instance : Instances)
+		{
+			if (Instance->GetInstanceId() == Id)
+			{
+				return Instance;
+			}
+		}
+	}
+	return nullptr;
+}
