@@ -10,15 +10,21 @@ class FNiagaraCompilationNodeEmitter;
 class FNiagaraCompilationNodeFunctionCall;
 class FNiagaraFixedConstantResolver;
 
+#define WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME (UE_BUILD_DEBUG)
+
 struct FNiagaraTraversalStackEntry
 {
 	FGuid NodeGuid;
 	uint32 FullStackHash;
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
 	FString FriendlyName;
+#endif
 };
 
 struct FNiagaraTraversalStateContext
 {
+	void BeginContext(const FNiagaraCompilationGraph* ParentGraph, const FNiagaraFixedConstantResolver& ConstantResolver);
+
 	void PushFunction(const FNiagaraCompilationNodeFunctionCall* FunctionCall, const FNiagaraFixedConstantResolver& ConstantResolver);
 	void PopFunction(const FNiagaraCompilationNodeFunctionCall* FunctionCall);
 
@@ -28,6 +34,8 @@ struct FNiagaraTraversalStateContext
 	bool GetStaticSwitchValue(const FGuid& NodeGuid, int32& StaticSwitchValue) const;
 	bool GetFunctionDefaultValue(const FGuid& NodeGuid, FName PinName, FString& FunctionDefaultValue) const;
 	bool GetFunctionDebugState(const FGuid& NodeGuid, ENiagaraFunctionDebugState& DebugState) const;
+
+	bool GetCurrentDebugState(ENiagaraFunctionDebugState& DebugState) const;
 
 	TArray<FNiagaraTraversalStackEntry> TraversalStack;
 

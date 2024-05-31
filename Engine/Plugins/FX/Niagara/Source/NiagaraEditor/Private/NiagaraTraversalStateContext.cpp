@@ -44,7 +44,7 @@ void FNiagaraTraversalStateContext::PushGraphInternal(const FNiagaraCompilationN
 					}
 				}
 			}
-			else if (!StaticSwitchNode->bSetByCompiler)
+			else if (!StaticSwitchNode->bSetByCompiler && CallingNode)
 			{
 				for (const FNiagaraCompilationInputPin& InputPin : CallingNode->InputPins)
 				{
@@ -79,40 +79,56 @@ void FNiagaraTraversalStateContext::PushGraphInternal(const FNiagaraCompilationN
 
 			// based on the original code bInheritDebugState drives whether we use the system value vs NoDebug.  Note
 			// that the serialized Debugstate is never used.
-			ENiagaraFunctionDebugState CachedDebugState = InnerFunctionNode->bInheritDebugState
+			ENiagaraFunctionDebugState CachedDebugState = (CallingNode && InnerFunctionNode->bInheritDebugState)
 				? ConstantResolver.GetDebugState()
-				: ENiagaraFunctionDebugState::NoDebug;
+				: InnerFunctionNode->DebugState;
 
 			if (ensure(!FunctionDebugStateMap.Contains(InnerFunctionNodeHash)))
 			{
 				FunctionDebugStateMap.Add(InnerFunctionNodeHash, CachedDebugState);
 			}
 
-			for (const FNiagaraCompilationNodeFunctionCall::FTaggedVariable& TaggedVariable : InnerFunctionNode->PropagatedStaticSwitchParameters)
+			if (CallingNode)
 			{
-				const FNiagaraCompilationInputPin* ValuePin = InnerFunctionNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
+				for (const FNiagaraCompilationNodeFunctionCall::FTaggedVariable& TaggedVariable : InnerFunctionNode->PropagatedStaticSwitchParameters)
+				{
+					const FNiagaraCompilationInputPin* ValuePin = InnerFunctionNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
 					{
 						return InputPin.PinName == TaggedVariable.Key.GetName();
 					});
 
-				if (ValuePin)
-				{
-					const FNiagaraCompilationInputPin* CallerInputPin = CallingNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
+					if (ValuePin)
+					{
+						const FNiagaraCompilationInputPin* CallerInputPin = CallingNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
 						{
 							return InputPin.PinName == TaggedVariable.Value;
 						});
 
-					if (CallerInputPin)
-					{
-						const uint32 FunctionPinNodeHash = HashCombine(InnerFunctionNodeHash, GetTypeHash(ValuePin->PinName));
-						if (ensure(!FunctionDefaultValueMap.Contains(FunctionPinNodeHash)))
+						if (CallerInputPin)
 						{
-							FunctionDefaultValueMap.Add(FunctionPinNodeHash, CallerInputPin->DefaultValue);
+							const uint32 FunctionPinNodeHash = HashCombine(InnerFunctionNodeHash, GetTypeHash(ValuePin->PinName));
+							if (ensure(!FunctionDefaultValueMap.Contains(FunctionPinNodeHash)))
+							{
+								FunctionDefaultValueMap.Add(FunctionPinNodeHash, CallerInputPin->DefaultValue);
+							}
 						}
 					}
 				}
 			}
 		}
+	}
+}
+
+void FNiagaraTraversalStateContext::BeginContext(const FNiagaraCompilationGraph* ParentGraph, const FNiagaraFixedConstantResolver& ConstantResolver)
+{
+	if (ParentGraph)
+	{
+		FNiagaraTraversalStackEntry& StackTop = TraversalStack.AddDefaulted_GetRef();
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
+		StackTop.FriendlyName = TEXT("Root");
+#endif
+
+		PushGraphInternal(nullptr, ParentGraph, ConstantResolver);
 	}
 }
 
@@ -125,11 +141,13 @@ void FNiagaraTraversalStateContext::PushFunction(const FNiagaraCompilationNodeFu
 	}
 
 	FNiagaraTraversalStackEntry& StackTop = TraversalStack.AddDefaulted_GetRef();
-	StackTop.FriendlyName = FString::Printf(TEXT("FuncionName - %s | FullName - %s | FullTitle - %s | NodeType - %d"),
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
+	StackTop.FriendlyName = FString::Printf(TEXT("FunctionName - %s | FullName - %s | FullTitle - %s | NodeType - %d"),
 		*FunctionCall->FunctionName,
 		*FunctionCall->FullName,
 		*FunctionCall->FullTitle,
 		(int32)FunctionCall->NodeType);
+#endif
 
 	StackTop.NodeGuid = FunctionCall->NodeGuid;
 	const uint32 NodeGuidHash = GetTypeHash(StackTop.NodeGuid);
@@ -152,11 +170,13 @@ void FNiagaraTraversalStateContext::PushEmitter(const FNiagaraCompilationNodeEmi
 	}
 
 	FNiagaraTraversalStackEntry& StackTop = TraversalStack.AddDefaulted_GetRef();
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
 	StackTop.FriendlyName = FString::Printf(TEXT("EmitterName - %s | FullName - %s | FullTitle - %s | NodeType - %d"),
 		*Emitter->EmitterUniqueName,
 		*Emitter->FullName,
 		*Emitter->FullTitle,
 		(int32)Emitter->NodeType);
+#endif
 
 	StackTop.NodeGuid = Emitter->NodeGuid;
 	const uint32 NodeGuidHash = GetTypeHash(StackTop.NodeGuid);
@@ -211,6 +231,19 @@ bool FNiagaraTraversalStateContext::GetFunctionDebugState(const FGuid& NodeGuid,
 	{
 		const uint32 NodeHash = HashCombine(TraversalStack.Top().FullStackHash, GetTypeHash(NodeGuid));
 		if (const ENiagaraFunctionDebugState* ValuePtr = FunctionDebugStateMap.Find(NodeHash))
+		{
+			DebugState = *ValuePtr;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FNiagaraTraversalStateContext::GetCurrentDebugState(ENiagaraFunctionDebugState& DebugState) const
+{
+	if (!TraversalStack.IsEmpty())
+	{
+		if (const ENiagaraFunctionDebugState* ValuePtr = FunctionDebugStateMap.Find(TraversalStack.Top().FullStackHash))
 		{
 			DebugState = *ValuePtr;
 			return true;

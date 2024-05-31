@@ -712,6 +712,7 @@ public:
 
 	bool bSetByCompiler;
 	bool bSetByPin;
+	bool bDebugStateSwitch;
 	ENiagaraStaticSwitchType SwitchType;
 	FNiagaraTypeDefinition InputType;
 	int32 SwitchBranchCount;

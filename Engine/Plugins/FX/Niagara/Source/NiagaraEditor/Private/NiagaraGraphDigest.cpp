@@ -79,11 +79,12 @@ struct FNiagaraCompilationGraphDuplicateContext
 
 struct FNiagaraCompilationGraphInstanceContext
 {
-	FNiagaraCompilationGraphInstanceContext(const FNiagaraFixedConstantResolver& InConstantResolver, const FNiagaraPrecompileData* InPrecompileData)
+	FNiagaraCompilationGraphInstanceContext(const FNiagaraFixedConstantResolver& InConstantResolver, const FNiagaraCompilationGraph* InCompilationGraph, const FNiagaraPrecompileData* InPrecompileData)
 		: ConstantResolver(InConstantResolver)
 		, PrecompileData(InPrecompileData)
 	{
-
+		bDisableDebugSwitches = InPrecompileData ? InPrecompileData->bDisableDebugSwitches : false;
+		TraversalContext.BeginContext(InCompilationGraph, ConstantResolver);
 	}
 	FNiagaraCompilationGraphInstanceContext() = delete;
 
@@ -93,6 +94,7 @@ struct FNiagaraCompilationGraphInstanceContext
 	FGraphTraversalHandle GraphTraversalHandle;
 	TArray<const FNiagaraCompilationNodeFunctionCall*> FunctionStack;
 	bool bForceNumericResolution = false;
+	bool bDisableDebugSwitches = false;
 
 	void EnterFunction(const FNiagaraCompilationNodeFunctionCall* InCallingNode)
 	{
@@ -1261,7 +1263,7 @@ void FNiagaraCompilationGraphInstanced::StripUnconnectedPins(FNiagaraCompilation
 
 void FNiagaraCompilationGraphInstanced::InheritDebugState(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode)
 {
-	FunctionCallNode.DebugState = FunctionCallNode.bInheritDebugState ? Context.ConstantResolver.GetDebugState() : ENiagaraFunctionDebugState::NoDebug;
+	FunctionCallNode.DebugState = FunctionCallNode.bInheritDebugState ? Context.ConstantResolver.GetDebugState() : FunctionCallNode.DebugState;
 }
 
 void FNiagaraCompilationGraphInstanced::PropagateDefaultValues(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode)
@@ -1311,7 +1313,7 @@ TSharedPtr<FNiagaraCompilationGraphInstanced, ESPMode::ThreadSafe> FNiagaraCompi
 
 	// initialize the traversal context with the data that was pulled from the parameter map history done during the
 	// precompile
-	FNiagaraCompilationGraphInstanceContext InstantiationContext(ConstantResolver, PrecompileData);
+	FNiagaraCompilationGraphInstanceContext InstantiationContext(ConstantResolver, InstantiatedGraph.Get(), PrecompileData);
 
 	if (ensure(InstantiatedGraph))
 	{
@@ -2982,7 +2984,7 @@ void FNiagaraCompilationNodeFunctionCall::MultiFindParameterMapDefaultValues(ENi
 	{
 		FNiagaraCompilationBranchMap Branches;
 
-		FNiagaraCompilationGraphInstanceContext DummyContext(ConstantResolver, nullptr);
+		FNiagaraCompilationGraphInstanceContext DummyContext(ConstantResolver, nullptr, nullptr);
 		DummyContext.EnterFunction(this);
 		CalledGraph->EvaluateStaticBranches(DummyContext, Branches);
 	
@@ -4068,6 +4070,7 @@ FNiagaraCompilationNodeStaticSwitch::FNiagaraCompilationNodeStaticSwitch(const U
 {
 	bSetByCompiler = InNode->IsSetByCompiler();
 	bSetByPin = InNode->IsSetByPin();
+	bDebugStateSwitch = InNode->IsDebugSwitch();
 	SwitchType = InNode->SwitchTypeData.SwitchType;
 	SwitchBranchCount = InNode->GetOptionValues().Num();
 	InputParameterName = InNode->InputParameterName;
@@ -4307,7 +4310,7 @@ const FNiagaraCompilationOutputPin* FNiagaraCompilationNodeStaticSwitch::TraceOu
 
 TArray<const FNiagaraCompilationInputPin*> FNiagaraCompilationNodeStaticSwitch::EvaluateBranches(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationBranchMap& Branches) const
 {
-	if (bSetByCompiler)
+	if (bSetByCompiler && !bDebugStateSwitch)
 	{
 		return FNiagaraCompilationNode::EvaluateBranches(Context, Branches);
 	}
@@ -4315,7 +4318,18 @@ TArray<const FNiagaraCompilationInputPin*> FNiagaraCompilationNodeStaticSwitch::
 	int32 SwitchValue = INDEX_NONE;
 	bool IsValueSet = false;
 
-	if (bSetByPin)
+	if (bDebugStateSwitch)
+	{
+		ENiagaraFunctionDebugState FunctionDebugState = ENiagaraFunctionDebugState::NoDebug;
+		if (!Context.bDisableDebugSwitches)
+		{
+			Context.TraversalContext.GetCurrentDebugState(FunctionDebugState);
+		}
+
+		IsValueSet = true;
+		SwitchValue = static_cast<int32>(FunctionDebugState);
+	}
+	else if (bSetByPin)
 	{
 		auto EvaluateVariableSwitchValue = [this](const FNiagaraVariable& ConstantVariable, int32& OutSwitchValue) -> bool
 		{
