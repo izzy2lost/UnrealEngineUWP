@@ -835,7 +835,7 @@ namespace uba
 	}
 
 
-	bool StorageImpl::AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation, bool fileIsCompressed)
+	bool StorageImpl::AddCasFile(StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, bool deferCreation, bool fileIsCompressed)
 	{
 		UBA_ASSERTF(IsCompressed(casKey) == m_storeCompressed, TC("CasKey compress mode must match storage compress mode (%s)"), fileName);
 		SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
@@ -872,8 +872,8 @@ namespace uba
 				DeferedCasCreation& dcc = res.first->second;
 				dcc.fileName = fileName;
 				dcc.fileIsCompressed = fileIsCompressed;
-				auto res2 = m_deferredCasCreationLookupByName.try_emplace(dcc.fileName.c_str(), casKey);
-				UBA_ASSERT(res2.second); (void)res2;
+				auto res2 = m_deferredCasCreationLookupByName.try_emplace(fileNameKey, casKey);
+				UBA_ASSERTF(res2.second, TC("%s - existing: %s added: %s"), dcc.fileName.c_str(), CasKeyString(res2.first->second).str, CasKeyString(casKey).str); (void)res2;
 			}
 			return true;
 		}
@@ -1564,6 +1564,9 @@ namespace uba
 					}
 #endif
 
+					if (writer.GetCapacityLeft() < entrySize + sizeof(CasKey))
+						return m_logger.Error(TC("This should not happen, somehow there are more valid entries in access list than lookup. (Lookup has %llu entries)"), m_casLookup.size());
+
 					UBA_ASSERT(entry.key != CasKeyZero);
 					writer.WriteCasKey(entry.key);
 					writer.WriteU64(entry.size);
@@ -1875,7 +1878,7 @@ namespace uba
 			if (fileEntry.casKey != CasKeyZero)
 			{
 				UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 			}
 			out = fileEntry.casKey;
@@ -1909,14 +1912,14 @@ namespace uba
 			if (casKeyOverride != CasKeyZero && casKeyOverride != fileEntry.casKey)
 			{
 				fileEntry.casKey = casKeyOverride;
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 				out = fileEntry.casKey;
 				return true;
 			}
 			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten)
 			{
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 				out = fileEntry.casKey;
 				return true;
@@ -1950,7 +1953,96 @@ namespace uba
 		if (fileEntry.casKey == CasKeyZero)
 			return false;
 
-		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+		if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+			return false;
+
+		out = fileEntry.casKey;
+		return true;
+	}
+
+	bool StorageImpl::StoreCasKey(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed)
+	{
+		StringBuffer<> forKey;
+		forKey.Append(fileName);
+		if (CaseInsensitiveFs)
+			forKey.MakeLower();
+		StringKey fileNameKey = ToStringKey(forKey);
+
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
+		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
+		FileEntry& fileEntry = insres.first->second;
+		lookupLock.Leave();
+
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+	
+		if (fileEntry.verified)
+		{
+			out = fileEntry.casKey;
+			return true;
+		}
+		fileEntry.verified = true;
+
+		u64 fileSize = 0;
+		u32 attributes = 0;
+		u64 lastWritten = 0;
+
+		if (!FileExists(m_logger, fileName, &fileSize, &attributes, &lastWritten))
+		{
+			fileEntry.casKey = CasKeyZero;
+			u32 lastError = GetLastError();
+			if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
+				return m_logger.Error(TC("FileExists failed on %s (%s)"), fileName, LastErrorToText(lastError).data);
+			out = CasKeyZero;
+			return true;
+		}
+
+		if (IsDirectory(attributes))
+		{
+			fileEntry.casKey = CasKeyZero;
+			out = CasKeyZero;
+			return true;
+		}
+
+		if (fileEntry.casKey != CasKeyZero)
+		{
+			if (casKeyOverride != CasKeyZero && casKeyOverride != fileEntry.casKey)
+			{
+				fileEntry.casKey = casKeyOverride;
+				out = fileEntry.casKey;
+				return true;
+			}
+			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten)
+			{
+				out = fileEntry.casKey;
+				return true;
+			}
+		}
+
+		fileEntry.size = fileSize;
+		fileEntry.lastWritten = lastWritten;
+		if (casKeyOverride == CasKeyZero)
+		{
+			FileHandle fileHandle;
+			if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
+				return false;
+			auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
+
+			if (fileIsCompressed)
+			{
+				CompressedObjFileHeader header(CasKeyZero);
+				if (!ReadFile(m_logger, fileName, fileHandle, &header, sizeof(header)))
+					return m_logger.Error(TC("Failed to read header of compressed file %s (%s)"), fileName, LastErrorToText().data);
+				fileEntry.casKey = AsCompressed(header.casKey, m_storeCompressed);
+			}
+			else
+			{
+				fileEntry.casKey = CalculateCasKey(fileName, fileHandle, fileSize, m_storeCompressed);
+			}
+		}
+		else
+			fileEntry.casKey = casKeyOverride;
+
+		if (fileEntry.casKey == CasKeyZero)
 			return false;
 
 		out = fileEntry.casKey;
@@ -1985,9 +2077,10 @@ namespace uba
 		if (findIt == m_deferredCasCreationLookup.end())
 			return false;
 		casEntry.verified = true;
+		StringKey fileNameKey = findIt->second.fileNameKey;
 		StringBuffer<> deferredCreation(findIt->second.fileName);
 		bool fileIsCompressed = findIt->second.fileIsCompressed;
-		m_deferredCasCreationLookupByName.erase(deferredCreation.data);
+		m_deferredCasCreationLookupByName.erase(fileNameKey);
 		m_deferredCasCreationLookup.erase(findIt);
 		deferredLock.Leave();
 		WriteResult res;
@@ -2434,11 +2527,11 @@ namespace uba
 		return true;
 	}
 
-	void StorageImpl::ReportFileWrite(const tchar* fileName)
+	void StorageImpl::ReportFileWrite(StringKey fileNameKey, const tchar* fileName)
 	{
 		// If a defered cas creation is queued up while the source file is about to be modified we need to flush out the cas creation before modifying the file
 		SCOPED_READ_LOCK(m_deferredCasCreationLookupLock, deferredLock);
-		auto findIt = m_deferredCasCreationLookupByName.find(fileName);
+		auto findIt = m_deferredCasCreationLookupByName.find(fileNameKey);
 		if (findIt == m_deferredCasCreationLookupByName.end())
 			return;
 		deferredLock.Leave();

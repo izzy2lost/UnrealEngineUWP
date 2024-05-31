@@ -482,6 +482,7 @@ namespace uba
 			{
 				if (i->second.verified && !i->second.exists)
 				{
+					m_storage.DetachEntry(i->second);
 					++removedNonExisting;
 					i = m_storage.m_casLookup.erase(i);
 					e = m_storage.m_casLookup.end();

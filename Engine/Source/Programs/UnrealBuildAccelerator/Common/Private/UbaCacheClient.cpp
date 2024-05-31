@@ -15,6 +15,8 @@
 #define UBA_LOG_WRITE_CACHE_INFO 0 // 0 = Disabled, 1 = Normal, 2 = Detailed
 #define UBA_LOG_FETCH_CACHE_INFO 0 // 0 = Disabled, 1 = Misses, 2 = Both misses and hits
 
+#define UBA_OLD_TEST 0
+
 namespace uba
 {
 	u64 MakeId(u32 bucketId) { return u64(bucketId) | ((u64(!CaseInsensitiveFs) + (RootPathsVersion << 1)) << 32); }
@@ -232,8 +234,17 @@ namespace uba
 			{
 				bool deferCreation = true;
 				bool fileIsCompressed = IsFileCompressed(info, path);
-				if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
-					return false;
+				if (isOutput)
+				{
+					if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
+						return false;
+				}
+				else
+				{
+					if (!m_storage.StoreCasKey(casKey, path.data, CasKeyZero, fileIsCompressed))
+						return false;
+				}
+
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
 				{
 					//m_logger.Warning(TC("Can't find file %s"), path.data); 
@@ -339,12 +350,12 @@ namespace uba
 				return false;
 		}
 
-
-		UnorderedMap<u32, bool> offsetIsMatch;
-
 		// Traverse entries and test inputs against local machine
-		CacheEntriesTraverser traverser(reader);
-		u32 entryCount = traverser.entryCount;
+#if UBA_OLD_TEST
+		BinaryReader traverserReader(reader.GetPositionData(), 0, reader.GetLeft());
+#endif
+
+		u32 entryCount = reader.ReadU16();
 
 		#if UBA_LOG_FETCH_CACHE_INFO
 		auto mg = MakeGuard([&]()
@@ -354,105 +365,249 @@ namespace uba
 			});
 		#endif
 
+		if (!entryCount)
+			return false;
+
 		struct MissInfo { TString path; u32 entryIndex; CasKey cache; CasKey local; };
 		Vector<MissInfo> misses;
 
 		UnorderedMap<StringKey, CasKey> normalizedCasKeys;
+		UnorderedMap<u32, bool> isCasKeyMatchCache;
 
-		u32 entryIndex = 0;
-		for (; entryIndex!=entryCount; ++entryIndex)
-		{
+		auto IsCasKeyMatch = [&](bool& outIsMatch, u32 casKeyOffset, u32 entryIndex, bool useLookup)
 			{
-				TimerScope ts(cacheStats.testEntry);
-				bool isMatch = true;
+				outIsMatch = false;
+				StringBuffer<MaxPath> path;
 
-				bool result = traverser.TraverseEntryInputs([&](u32 casKeyOffset)
+				CasKey cacheCasKey;
+				CasKey localCasKey;
+
+				bool* cachedIsMatch = nullptr;
+				if (useLookup)
+				{
+					auto insres = isCasKeyMatchCache.try_emplace(casKeyOffset);
+					if (!insres.second)
 					{
-						StringBuffer<MaxPath> path;
-
-						CasKey cacheCasKey;
-						CasKey localCasKey;
-
-						auto insres = offsetIsMatch.try_emplace(casKeyOffset);
-						if (insres.second)
-						{
-							if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
-								return false;
-
-							if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
-								return false;
-							UBA_ASSERTF(IsCompressed(cacheCasKey), TC("Cache entry for %s has uncompressed cache key for path %s (%s)"), info.description, path.data, CasKeyString(cacheCasKey).str);
-
-							if (IsNormalized(cacheCasKey)) // Need to normalize caskey for these files since they contain absolute paths
-							{
-								auto insres2 = normalizedCasKeys.try_emplace(ToStringKeyNoCheck(path.data, path.count));
-								if (insres2.second)
-								{
-									TimerScope ts(cacheStats.normalizeFile);
-									localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
-									if (localCasKey != CasKeyZero)
-										localCasKey = AsCompressed(localCasKey, true);
-									insres2.first->second = localCasKey;
-								}
-								else
-									localCasKey = insres2.first->second;
-
-							}
-							else
-							{
-								bool deferCreation = true;
-								bool fileIsCompressed = IsFileCompressed(info, path);
-								m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation, fileIsCompressed);
-								UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
-							}
-
-							insres.first->second = localCasKey == cacheCasKey;
-						}
-
-						if (!insres.first->second)
-						{
-							isMatch = false;
-							if (m_reportMissReason && path.count) // if empty this has already been reported
-								misses.push_back({TString(path.data), entryIndex, cacheCasKey, localCasKey });
-							return false;
-						}
+						outIsMatch = insres.first->second;
 						return true;
-					});
+					}
+					cachedIsMatch = &insres.first->second;
+				}
 
-				if (isMatch && !result) // Returned false before setting isMatch, something went wrong
+				if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
 					return false;
 
-				// No match, test next entry
-				if (!isMatch)
+				if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
+					return false;
+				UBA_ASSERTF(IsCompressed(cacheCasKey), TC("Cache entry for %s has uncompressed cache key for path %s (%s)"), info.description, path.data, CasKeyString(cacheCasKey).str);
+
+				if (IsNormalized(cacheCasKey)) // Need to normalize caskey for these files since they contain absolute paths
 				{
-					traverser.SkipEntryOutputs();
-					continue;
+					auto insres2 = normalizedCasKeys.try_emplace(ToStringKeyNoCheck(path.data, path.count));
+					if (insres2.second)
+					{
+						TimerScope ts(cacheStats.normalizeFile);
+						localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
+						if (localCasKey != CasKeyZero)
+							localCasKey = AsCompressed(localCasKey, true);
+						insres2.first->second = localCasKey;
+					}
+					else
+						localCasKey = insres2.first->second;
+
 				}
-			}
+				else
+				{
+					bool fileIsCompressed = IsFileCompressed(info, path);
+					m_storage.StoreCasKey(localCasKey, path.data, CasKeyZero, fileIsCompressed);
+					UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+				}
 
-			{
-				StackBinaryWriter<128> writer;
-				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_ReportUsedEntry, writer);
-				writer.Write7BitEncoded(MakeId(bucket.id));
-				writer.WriteCasKey(cmdKey);
-				writer.Write7BitEncoded(traverser.lastId);
-				msg.Send();
-			}
+				outIsMatch = localCasKey == cacheCasKey;
+				if (useLookup)
+					*cachedIsMatch = outIsMatch;
 
-			// Fetch output files from cache (and some files need to be "denormalized" before written to disk
-
-			struct DowngradedLogger : public LoggerWithWriter
-			{
-				DowngradedLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
-				virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { LoggerWithWriter::Log(Max(type, LogEntryType_Info), str, strLen); }
+				if (!outIsMatch)
+					if (m_reportMissReason && path.count) // if empty this has already been reported
+						misses.push_back({TString(path.data), entryIndex, cacheCasKey, localCasKey });
+				return true;
 			};
 
-			bool result = traverser.TraverseEntryOutputs([&](u32 casKeyOffset)
+
+#if UBA_OLD_TEST
+		bool testIsMatch = false;
+		u32 matchingId = ~0u;
+		{
+			CacheEntriesTraverser traverser(traverserReader);
+			u32 entryIndex = 0;
+			for (; entryIndex!=entryCount; ++entryIndex)
+			{
 				{
+					bool isMatch = true;
+					bool result = traverser.TraverseEntryInputs([&](u32 casKeyOffset)
+						{
+							bool entryMatch;
+							if (!IsCasKeyMatch(entryMatch, casKeyOffset, entryIndex, true))
+								return false;
+							isMatch &= entryMatch;
+							return true;
+						});
+
+					if (isMatch && !result) // Returned false before setting isMatch, something went wrong
+						return false;
+
+					// No match, test next entry
+					if (!isMatch)
+					{
+						traverser.SkipEntryOutputs();
+						continue;
+					}
+				}
+
+				testIsMatch = true;
+				matchingId = traverser.lastId;
+			}
+		}
+#endif
+
+
+
+
+		struct Range
+		{
+			u32 begin;
+			u32 end;
+		};
+		Vector<Range> sharedMatchingRanges;
+
+
+		// Create ranges out of shared offsets that matches local state
+		{
+			TimerScope ts(cacheStats.testEntry);
+			u64 sharedSize = reader.Read7BitEncoded();
+
+			BinaryReader sharedReader(reader.GetPositionData(), 0, sharedSize);
+			reader.Skip(sharedSize);
+
+			u32 rangeBegin = 0;
+
+			auto addRange = [&](u32 rangeEnd)
+				{
+					if (rangeBegin != rangeEnd)
+					{
+						auto& range = sharedMatchingRanges.emplace_back();
+						range.begin = rangeBegin;
+						range.end = rangeEnd;
+					}
+				};
+			while (sharedReader.GetLeft())
+			{
+				u32 position = u32(sharedReader.GetPosition());
+				bool isMatch;
+				if (!IsCasKeyMatch(isMatch, u32(sharedReader.Read7BitEncoded()), 0, false))
+					return false;
+
+				if (isMatch)
+				{
+					if (rangeBegin != ~0u)
+						continue;
+					rangeBegin = position;
+				}
+				else
+				{
+					if (rangeBegin == ~0u)
+						continue;
+					addRange(position);
+					rangeBegin = ~0u;
+				}
+			}
+			if (rangeBegin != ~0u)
+				addRange(u32(sharedReader.GetPosition()));
+			UBA_ASSERT(!sharedMatchingRanges.empty());
+		}
+
+		// Read entries
+		{
+			--cacheStats.testEntry.count; // Remove the shared one
+
+			BinaryReader entryReader(reader.GetPositionData(), 0, reader.GetLeft());
+			u32 entryIndex = 0;
+			for (; entryIndex!=entryCount; ++entryIndex)
+			{
+				u32 entryId = u32(reader.Read7BitEncoded());
+				u64 extraSize = reader.Read7BitEncoded();
+				BinaryReader extraReader(reader.GetPositionData(), 0, extraSize);
+				reader.Skip(extraSize);
+				u64 rangeSize = reader.Read7BitEncoded();
+				BinaryReader rangeReader(reader.GetPositionData(), 0, rangeSize);
+				reader.Skip(rangeSize);
+				u64 outSize = reader.Read7BitEncoded();
+				BinaryReader outputsReader(reader.GetPositionData(), 0, outSize);
+				reader.Skip(outSize);
+
+				{
+					TimerScope ts(cacheStats.testEntry);
+
+					bool isMatch = true;
+
+					// Check ranges first
+					auto sharedRangeIt = sharedMatchingRanges.begin();
+					while (isMatch && rangeReader.GetLeft())
+					{
+						u64 begin = rangeReader.Read7BitEncoded();
+						u64 end = rangeReader.Read7BitEncoded();
+					
+						Range matchingRange = *sharedRangeIt;
+
+						while (matchingRange.end <= begin)
+						{
+							++sharedRangeIt;
+							if (sharedRangeIt == sharedMatchingRanges.end())
+								break;
+							matchingRange = *sharedRangeIt;
+						}
+
+						isMatch = matchingRange.begin <= begin && matchingRange.end >= end;
+					}
+
+					// Check extra keys after
+					while (isMatch && extraReader.GetLeft())
+						if (!IsCasKeyMatch(isMatch, u32(extraReader.Read7BitEncoded()), entryIndex, true))
+							return false;
+
+					if (!isMatch)
+						continue;
+				}
+
+#if UBA_OLD_TEST
+				UBA_ASSERTF(testIsMatch, TC("%s"), info.description);
+				UBA_ASSERTF(matchingId == entryId, TC("%u vs %u"), matchingId, entryId);
+#endif
+
+				{
+					StackBinaryWriter<128> writer;
+					NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_ReportUsedEntry, writer);
+					writer.Write7BitEncoded(MakeId(bucket.id));
+					writer.WriteCasKey(cmdKey);
+					writer.Write7BitEncoded(entryId);
+					msg.Send();
+				}
+
+				// Fetch output files from cache (and some files need to be "denormalized" before written to disk
+
+				struct DowngradedLogger : public LoggerWithWriter
+				{
+					DowngradedLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
+					virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { LoggerWithWriter::Log(Max(type, LogEntryType_Info), str, strLen); }
+				};
+
+				while (outputsReader.GetLeft())
+				{
+					u32 casKeyOffset = u32(outputsReader.Read7BitEncoded());
 					if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
 						return false;
 
-					TimerScope ts(cacheStats.fetchOutput);
+					TimerScope fts(cacheStats.fetchOutput);
 
 					StringBuffer<MaxPath> path;
 					CasKey casKey;
@@ -536,15 +691,15 @@ namespace uba
 						return false;
 					if (!m_session.RegisterNewFile(path.data))
 						return false;
-					return true;
-				});
-
-			if (!result)
-				return false;
-
-			success = true;
-			return true;
+				}
+				success = true;
+				return true;
+			}
 		}
+
+#if UBA_OLD_TEST
+		UBA_ASSERTF(!testIsMatch, TC("%s"), info.description);
+#endif
 
 		for (auto& miss : misses)
 			m_logger.Info(TC("Cache miss on %s because of mismatch of %s (entry: %u, local: %s cache: %s)"), info.description, miss.path.data(), miss.entryIndex, CasKeyString(miss.local).str, CasKeyString(miss.cache).str);
@@ -888,9 +1043,8 @@ namespace uba
 		{
 			// Add hash of application binary to key
 			CasKey applicationCasKey;
-			bool deferCreation = true;
 			bool fileIsCompressed = false;
-			if (!m_storage.StoreCasFile(applicationCasKey, info.application, CasKeyZero, deferCreation, fileIsCompressed))
+			if (!m_storage.StoreCasKey(applicationCasKey, info.application, CasKeyZero, fileIsCompressed))
 				return CasKeyZero;
 			hasher.Update(&applicationCasKey, sizeof(CasKey));
 		}

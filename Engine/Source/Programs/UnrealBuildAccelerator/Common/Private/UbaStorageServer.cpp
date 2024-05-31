@@ -213,7 +213,7 @@ namespace uba
 		externalFileLock.Leave();
 
 		bool fileIsCompressed = false;
-		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+		if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 			return false;
 
 		return true;
@@ -403,9 +403,9 @@ namespace uba
 						// Last resort.. use hint to load file into cas (hint should be renamed since it is now a critical parameter)
 						// We better check the caskey first to make sure it is matching on the server
 
+						StringKey fileNameKey = CaseInsensitiveFs ? ToStringKeyLower(hint) : ToStringKey(hint);
 						CasKey checkedCasKey;
 						{
-							StringKey fileNameKey = CaseInsensitiveFs ? ToStringKeyLower(hint) : ToStringKey(hint);
 							SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
 							auto findIt = m_fileTableLookup.find(fileNameKey);
 							if (findIt != m_fileTableLookup.end())
@@ -437,7 +437,7 @@ namespace uba
 
 						bool deferCreation = false;
 						bool fileIsCompressed = false;
-						if (!AddCasFile(hint.data, casKey, deferCreation, fileIsCompressed))
+						if (!AddCasFile(fileNameKey, hint.data, casKey, deferCreation, fileIsCompressed))
 						{
 							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't add cas file to database"), CasKeyString(casKey).str, hint.data);
 							writer.WriteU16(0);

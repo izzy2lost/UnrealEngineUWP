@@ -57,7 +57,7 @@ namespace uba
 		virtual MappedView MapView(const CasKey& casKey, const tchar* hint) = 0;
 		virtual void UnmapView(const MappedView& view, const tchar* hint) = 0;
 
-		virtual void ReportFileWrite(const tchar* fileName) = 0;
+		virtual void ReportFileWrite(StringKey fileNameKey, const tchar* fileName) = 0;
 		
 		virtual StorageStats& Stats() = 0;
 		virtual void AddStats(StorageStats& stats) = 0;
@@ -135,7 +135,7 @@ namespace uba
 		virtual MappedView MapView(const CasKey& casKey, const tchar* hint) override;
 		virtual void UnmapView(const MappedView& view, const tchar* hint) override;
 
-		virtual void ReportFileWrite(const tchar* fileName) override;
+		virtual void ReportFileWrite(StringKey fileNameKey, const tchar* fileName) override;
 		
 		virtual StorageStats& Stats() final;
 		virtual void AddStats(StorageStats& stats) override;
@@ -146,6 +146,7 @@ namespace uba
 		bool EnsureCasFile(const CasKey& casKey, const tchar* fileName);
 		CasKey CalculateCasKey(const tchar* fileName, FileHandle fileHandle, u64 fileSize, bool storeCompressed);
 		CasKey CalculateCasKey(u8* fileMem, u64 fileSize, bool storeCompressed);
+		bool StoreCasKey(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed);
 
 		virtual bool WriteCompressed(WriteResult& out, const tchar* from, const tchar* toFile);
 		virtual bool WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* toFile, const void* header, u64 headerSize) final;
@@ -153,7 +154,7 @@ namespace uba
 		bool WriteCasFileNoCheck(WriteResult& out, const tchar* fileName, bool fileIsCompressed, const tchar* casFile, bool storeCompressed);
 		bool WriteCasFile(WriteResult& out, const tchar* fileName, bool fileIsCompressed, const CasKey& casKey);
 		bool VerifyExisting(bool& outReturnValue, ScopedWriteLock& entryLock, const CasKey& casKey, CasEntry& casEntry, StringBufferBase& casFile);
-		bool AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation, bool fileIsCompressed);
+		bool AddCasFile(StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, bool deferCreation, bool fileIsCompressed);
 		void CasEntryAccessed(const CasKey& casKey);
 		virtual bool IsDisallowedPath(const tchar* fileName);
 		virtual bool DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint) override;
@@ -227,9 +228,9 @@ namespace uba
 		FileMappingBuffer m_casDataBuffer;
 
 		ReaderWriterLock m_deferredCasCreationLookupLock;
-		struct DeferedCasCreation { TString fileName; bool fileIsCompressed; };
+		struct DeferedCasCreation { StringKey fileNameKey; TString fileName; bool fileIsCompressed; };
 		UnorderedMap<CasKey, DeferedCasCreation> m_deferredCasCreationLookup;
-		UnorderedMap<const tchar*, CasKey, HashString, EqualString> m_deferredCasCreationLookupByName;
+		UnorderedMap<StringKey, CasKey> m_deferredCasCreationLookupByName;
 
 		DirectoryCache m_dirCache;
 

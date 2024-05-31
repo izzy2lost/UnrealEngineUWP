@@ -291,6 +291,7 @@ namespace uba
 		{
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
 			m_connections.clear();
+			m_connectionsIt = m_connections.end();
 		}
 
 		FlushWork();

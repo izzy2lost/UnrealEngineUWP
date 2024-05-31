@@ -1804,7 +1804,7 @@ namespace uba
 		}
 		
 		// if ((message.Access & FileAccess.Write) != 0)
-		m_storage.ReportFileWrite(fileName.data);
+		m_storage.ReportFileWrite(fileNameKey, fileName.data);
 
 		if (m_runningRemote && !fileName.StartsWith(m_tempPath.data))
 		{
