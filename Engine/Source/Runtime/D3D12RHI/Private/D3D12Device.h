@@ -124,7 +124,6 @@ public:
 		}		
 	} PendingSubmission, PendingInterrupt;
 
-	TArray<FD3D12Payload*>  PayloadsToSubmit;
 	FD3D12Payload*          PayloadToSubmit  = nullptr;
 	FD3D12CommandAllocator* BarrierAllocator = nullptr;
 	FD3D12QueryAllocator    BarrierTimestamps;
@@ -154,9 +153,6 @@ public:
 
 	// Batches the current payload's command lists, returning the latest fence value signaled for this queue.
 	uint64 FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToHandDown);
-
-	// Ensures all prior batched command lists have reached the driver ID3D12Queue object.
-	void FlushBatchedPayloads();
 
 	// Call the underlying ID3D12Queue::ExecuteCommandLists function
 	void ExecuteCommandLists(TArrayView<ID3D12CommandList*> D3DCommandLists

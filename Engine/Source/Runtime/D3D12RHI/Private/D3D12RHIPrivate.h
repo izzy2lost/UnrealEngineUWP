@@ -210,6 +210,9 @@ private:
 
 	TQueue<TArray<FD3D12Payload*>*, EQueueMode::Mpsc> PendingPayloadsForSubmission;
 
+	// Ensures all prior batched command lists have reached the driver ID3D12Queue object.
+	void FlushBatchedPayloads(TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToHandDown);
+
 	FCriticalSection SubmissionCS;
 	FCriticalSection InterruptCS;
 

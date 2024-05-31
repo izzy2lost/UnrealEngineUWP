@@ -497,16 +497,8 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 	if (PayloadsToHandDown.Num())
 	{
 		Result.Status |= EQueueStatus::Processed;
-		for (FD3D12Payload* Payload : PayloadsToHandDown)
-		{
-			Payload->Queue.PendingInterrupt.Enqueue(Payload);
-		}
+		FlushBatchedPayloads(PayloadsToHandDown);
 	}
-
-	ForEachQueue([&](FD3D12Queue& CurrentQueue)
-	{
-		CurrentQueue.FlushBatchedPayloads();
-	});
 
 	if (InterruptThread && EnumHasAnyFlags(Result.Status, EQueueStatus::Processed))
 	{
@@ -818,35 +810,37 @@ uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*,
 		SyncPoint->ResolvedFence.Emplace(Fence, PayloadToSubmit->CompletionFenceValue);
 	}
 
-	PayloadsToSubmit.Add(PayloadToSubmit);
 	PayloadsToHandDown.Add(PayloadToSubmit);
-
 	PayloadToSubmit = nullptr;
 
 	return Fence.NextCompletionValue;
 }
 
-void FD3D12Queue::FlushBatchedPayloads()
+void FD3D12DynamicRHI::FlushBatchedPayloads(TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToSubmit)
 {
 	uint32 FirstPayload = 0, LastPayload = 0;
 
 	auto Wait = [this](FD3D12Payload* Payload)
 	{
+		FD3D12Queue& Queue = Payload->Queue;
+
 		// Wait for queue fences
 		for (auto& [LocalFence, Value] : Payload->QueueFencesToWait)
 		{
-			VERIFYD3D12RESULT(D3DCommandQueue->Wait(LocalFence.D3DFence, Value));
+			VERIFYD3D12RESULT(Queue.D3DCommandQueue->Wait(LocalFence.D3DFence, Value));
 		}
 
 		// Wait for manual fences
 		for (auto& [LocalFence, Value] : Payload->ManualFencesToWait)
 		{
-			VERIFYD3D12RESULT(D3DCommandQueue->Wait(LocalFence, Value));
+			VERIFYD3D12RESULT(Queue.D3DCommandQueue->Wait(LocalFence, Value));
 		}
 	};
 
 	auto UpdateReservedResources = [this](FD3D12Payload* Payload)
 	{
+		FD3D12Queue& Queue = Payload->Queue;
+
 		// On some devices, some queues cannot perform tile remapping operations.
 		// We can work around this limitation by running the remapping in lockstep on another queue:
 		// - tile mapping queue waits for commands on this queue to finish
@@ -854,15 +848,15 @@ void FD3D12Queue::FlushBatchedPayloads()
 		// - this queue waits for tile mapping queue to finish
 		// The extra sync is not required when the current queue is capable of the remapping operations.
 
-		ID3D12CommandQueue* TileMappingQueue = (bSupportsTileMapping ? D3DCommandQueue : Device->TileMappingQueue).GetReference();
-		FD3D12Fence& TileMappingFence = Device->TileMappingFence;
+		ID3D12CommandQueue* TileMappingQueue = (Queue.bSupportsTileMapping ? Queue.D3DCommandQueue : Queue.Device->TileMappingQueue).GetReference();
+		FD3D12Fence& TileMappingFence = Queue.Device->TileMappingFence;
 
-		const bool bCrossQueueSyncRequired = TileMappingQueue != D3DCommandQueue.GetReference();
+		const bool bCrossQueueSyncRequired = TileMappingQueue != Queue.D3DCommandQueue.GetReference();
 
 		if (bCrossQueueSyncRequired)
 		{
 			// tile mapping queue waits for commands on this queue to finish
-			D3DCommandQueue->Signal(TileMappingFence.D3DFence, ++TileMappingFence.LastSignaledValue);
+			Queue.D3DCommandQueue->Signal(TileMappingFence.D3DFence, ++TileMappingFence.LastSignaledValue);
 			TileMappingQueue->Wait(TileMappingFence.D3DFence, TileMappingFence.LastSignaledValue);
 		}
 
@@ -875,7 +869,7 @@ void FD3D12Queue::FlushBatchedPayloads()
 		{
 			// this queue waits for tile mapping operations to finish
 			TileMappingQueue->Signal(TileMappingFence.D3DFence, ++TileMappingFence.LastSignaledValue);
-			D3DCommandQueue->Wait(TileMappingFence.D3DFence, TileMappingFence.LastSignaledValue);
+			Queue.D3DCommandQueue->Wait(TileMappingFence.D3DFence, TileMappingFence.LastSignaledValue);
 		}
 	};
 
@@ -883,6 +877,8 @@ void FD3D12Queue::FlushBatchedPayloads()
 	{
 		if (FirstPayload == LastPayload)
 			return;
+
+		FD3D12Queue& Queue = PayloadsToSubmit[FirstPayload]->Queue;
 
 		// Build SOA layout needed to call ExecuteCommandLists().
 		TArray<FD3D12CommandList*, TInlineAllocator<128>> CommandLists;
@@ -895,6 +891,7 @@ void FD3D12Queue::FlushBatchedPayloads()
 		for (uint32 Index = FirstPayload; Index < LastPayload; ++Index)
 		{
 			FD3D12Payload* Payload = PayloadsToSubmit[Index];
+			check(&Payload->Queue == &Queue);
 
 			for (FD3D12CommandList* CommandList : Payload->CommandListsToExecute)
 			{
@@ -929,7 +926,7 @@ void FD3D12Queue::FlushBatchedPayloads()
 				DispatchNum = Index;
 			}
 
-			ExecuteCommandLists(
+			Queue.ExecuteCommandLists(
 				MakeArrayView<ID3D12CommandList*>(&D3DCommandLists[Offset], DispatchNum)
 #if ENABLE_RESIDENCY_MANAGEMENT
 				, MakeArrayView<FD3D12ResidencySet*>(&ResidencySets[Offset], DispatchNum)
@@ -952,19 +949,21 @@ void FD3D12Queue::FlushBatchedPayloads()
 
 	auto Signal = [this](FD3D12Payload* Payload)
 	{
+		FD3D12Queue& Queue = Payload->Queue;
+
 		// Signal any manual fences
 		for (auto& [ManualFence, Value] : Payload->ManualFencesToSignal)
 		{
-			VERIFYD3D12RESULT(D3DCommandQueue->Signal(ManualFence, Value));
+			VERIFYD3D12RESULT(Queue.D3DCommandQueue->Signal(ManualFence, Value));
 		}
 
 		// Signal the queue fence
 		if (Payload->RequiresQueueFenceSignal())
 		{
-			check(Fence.LastSignaledValue < Payload->CompletionFenceValue);
+			check(Queue.Fence.LastSignaledValue < Payload->CompletionFenceValue);
 
-			VERIFYD3D12RESULT(D3DCommandQueue->Signal(Fence.D3DFence, Payload->CompletionFenceValue));
-			Fence.LastSignaledValue.store(Payload->CompletionFenceValue, std::memory_order_release);
+			VERIFYD3D12RESULT(Queue.D3DCommandQueue->Signal(Queue.Fence.D3DFence, Payload->CompletionFenceValue));
+			Queue.Fence.LastSignaledValue.store(Payload->CompletionFenceValue, std::memory_order_release);
 		}
 
 		// Submission of this payload is completed. Signal the submission event if one was provided.
@@ -974,8 +973,17 @@ void FD3D12Queue::FlushBatchedPayloads()
 		}
 	};
 
+	FD3D12Queue* PrevQueue = nullptr;
 	for (FD3D12Payload* Payload : PayloadsToSubmit)
 	{
+		if (PrevQueue != &Payload->Queue)
+		{
+			Flush();
+			PrevQueue = &Payload->Queue;
+		}
+
+		Payload->Queue.PendingInterrupt.Enqueue(Payload);
+
 #if RHI_NEW_GPU_PROFILER
 		if (Payload->Timing.IsSet())
 		{
