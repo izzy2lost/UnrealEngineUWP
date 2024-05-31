@@ -243,6 +243,9 @@ protected:
 	virtual void RequestActorSave(AActor* Actor) {}
 
 	//~ Begin AActor Overrides
+#if UE_WITH_IRIS
+	virtual void BeginReplication() override;
+#endif
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual bool IsHLODRelevant() const override;
