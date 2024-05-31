@@ -39,6 +39,7 @@ namespace JobDriver
 			// Read the driver config
 			IConfiguration configuration = new ConfigurationBuilder()
 				.AddJsonFile("appsettings.json", optional: false)
+				.AddJsonFile("appsettings.Epic.json", optional: true)
 				.AddEnvironmentVariables()
 				.Build();
 
