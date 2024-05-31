@@ -6,6 +6,7 @@
 #include "Chaos/ObjectPool.h"
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/Particle/ParticleUtilities.h"
+#include "Chaos/Framework/ChunkedArray.h"
 
 #include "Containers/Array.h"
 #include "Containers/Map.h"
@@ -40,7 +41,7 @@ namespace Chaos
 		static const int32 BodyArrayChunkSize = NumBodiesPerChunk * sizeof(FSolverBody);
 
 	public:
-		using FSolverBodyArray = TChunkedArray<FSolverBody, BodyArrayChunkSize>;
+		using FSolverBodyArray = Private::TChaosChunkedArray<FSolverBody, BodyArrayChunkSize>;
 
 		FSolverBodyContainer()
 			: bLocked(true)
@@ -51,8 +52,8 @@ namespace Chaos
 		// @param MaxBodies The number of bodies that will get added to the container. The container asserts if we attempt to add more than this.
 		inline void Reset(int MaxBodies)
 		{
-			SolverBodies.Empty(MaxBodies);
-			Particles.Empty(MaxBodies);
+			SolverBodies.Reset();
+			Particles.Reset(MaxBodies);
 			ParticleToIndexMap.Reset();
 			bLocked = false;
 		}
