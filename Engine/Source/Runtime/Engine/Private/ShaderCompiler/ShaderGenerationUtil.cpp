@@ -2306,7 +2306,7 @@ FGBufferParams FShaderCompileUtilities::FetchGBufferParamsRuntime(EShaderPlatfor
 	Ret.LegacyFormatIndex = CVarFormat->GetValueOnAnyThread();
 
 	// This should match with SINGLE_LAYER_WATER_SEPARATED_MAIN_LIGHT
-	Ret.bHasSingleLayerWaterSeparatedMainLight = IsWaterDistanceFieldShadowEnabled(Platform) || IsWaterVirtualShadowMapFilteringEnabled(Platform);
+	Ret.bHasSingleLayerWaterSeparatedMainLight = IsWaterSeparateMainDirLightEnabled(Platform);
 
 	return Ret;
 }

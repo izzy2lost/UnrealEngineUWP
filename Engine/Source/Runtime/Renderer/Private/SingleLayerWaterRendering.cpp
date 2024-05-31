@@ -234,11 +234,6 @@ bool IsWaterVirtualShadowMapFilteringEnabled_Runtime(const FStaticShaderPlatform
 	return IsWaterVirtualShadowMapFilteringEnabled(Platform) && UseVirtualShadowMaps(Platform, GetMaxSupportedFeatureLevel(Platform)) && CVarWaterSingleLayerVSMFiltering.GetValueOnRenderThread() > 0;
 }
 
-bool NeedsSeparatedMainDirectionalLightTexture(const FStaticShaderPlatform Platform)
-{
-	return IsWaterDistanceFieldShadowEnabled(Platform) || IsWaterVirtualShadowMapFilteringEnabled(Platform);
-}
-
 bool NeedsSeparatedMainDirectionalLightTexture_Runtime(const FStaticShaderPlatform Platform)
 {
 	return IsWaterDistanceFieldShadowEnabled_Runtime(Platform) || IsWaterVirtualShadowMapFilteringEnabled_Runtime(Platform);
@@ -1250,7 +1245,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 
 	TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures);
-	if(NeedsSeparatedMainDirectionalLightTexture(Scene->GetShaderPlatform()))
+	if(IsWaterSeparateMainDirLightEnabled(Scene->GetShaderPlatform()))
 	{
 		const bool bNeverClear = true;
 		BasePassTextures[BasePassTextureCount++] = FTextureRenderTargetBinding(SceneWithoutWaterTextures.SeparatedMainDirLightTexture, bNeverClear);
@@ -1528,7 +1523,7 @@ void FSingleLayerWaterPassMeshProcessor::CollectPSOInitializers(const FSceneText
 
 		FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 		SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
-		if (NeedsSeparatedMainDirectionalLightTexture(GMaxRHIShaderPlatform))
+		if (IsWaterSeparateMainDirLightEnabled(GMaxRHIShaderPlatform))
 		{
 			AddRenderTargetInfo(PF_FloatR11G11B10, TexCreate_ShaderResource | TexCreate_RenderTargetable, RenderTargetsInfo);
 		}

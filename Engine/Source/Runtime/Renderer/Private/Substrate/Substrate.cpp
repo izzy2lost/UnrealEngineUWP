@@ -1292,7 +1292,9 @@ void SetBasePassRenderTargetOutputFormat(const EShaderPlatform Platform, const F
 		// If it is not a water material, we force bHasSingleLayerWaterSeparatedMainLight to false, in order to 
 		// ensure non-used MRTs are not inserted in BufferInfo. Otherwise this would offset Substrate MRTs, causing 
 		// MRTs' format to be incorrect
-		if (!MaterialParameters.bIsUsedWithWater)
+		const bool bIsSingleLayerWater = MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater);
+		const bool bNeedsSeparateMainDirLightTexture = IsWaterSeparateMainDirLightEnabled(Platform);
+		if (!bIsSingleLayerWater || !bNeedsSeparateMainDirLightTexture)
 		{
 			GBufferParams.bHasSingleLayerWaterSeparatedMainLight = false;
 		}

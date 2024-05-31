@@ -359,6 +359,9 @@ RENDERCORE_API bool IsUsingDistanceFields(const FStaticShaderPlatform Platform);
 /** Returns if water should render distance field shadow a second time for the water surface. This is for a platofrm so can be used at cook time. */
 RENDERCORE_API bool IsWaterDistanceFieldShadowEnabled(const FStaticShaderPlatform Platform);
 
+/** Returns if water needs a separate main directional light texture. This is for a platofrm so can be used at cook time or at runtime. */
+RENDERCORE_API bool IsWaterSeparateMainDirLightEnabled(const FStaticShaderPlatform Platform);
+
 RENDERCORE_API bool UseGPUScene(const FStaticShaderPlatform Platform, const FStaticFeatureLevel FeatureLevel);
 
 RENDERCORE_API bool UseGPUScene(const FStaticShaderPlatform Platform);

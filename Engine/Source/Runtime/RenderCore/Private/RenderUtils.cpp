@@ -1496,6 +1496,11 @@ bool IsWaterDistanceFieldShadowEnabled(const FStaticShaderPlatform Platform)
 	return !IsForwardShadingEnabled(Platform) && IsUsingDistanceFields(Platform) && bWaterSingleLayerShaderSupportDistanceFieldShadow;
 }
 
+bool IsWaterSeparateMainDirLightEnabled(const FStaticShaderPlatform Platform)
+{
+	return IsWaterDistanceFieldShadowEnabled(Platform) || IsWaterVirtualShadowMapFilteringEnabled(Platform);
+}
+
 bool UseGPUScene(const FStaticShaderPlatform Platform, const FStaticFeatureLevel FeatureLevel)
 {
 	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
