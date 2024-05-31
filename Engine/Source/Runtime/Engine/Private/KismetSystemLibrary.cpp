@@ -1163,24 +1163,28 @@ void UKismetSystemLibrary::SetBoolPropertyByName(UObject* Object, FName Property
 
 void UKismetSystemLibrary::SetObjectPropertyByName(UObject* Object, FName PropertyName, UObject* Value)
 {
-	if(Object != NULL && Value != NULL)
+	if (Object)
 	{
-		FObjectPropertyBase* ObjectProp = FindFProperty<FObjectPropertyBase>(Object->GetClass(), PropertyName);
-		if(ObjectProp != NULL && Value->IsA(ObjectProp->PropertyClass)) // check it's the right type
+		if (FObjectPropertyBase* ObjectProp = FindFProperty<FObjectPropertyBase>(Object->GetClass(), PropertyName))
 		{
-			ObjectProp->SetObjectPropertyValue_InContainer(Object, Value);
-		}		
+			if (!Value || Value->IsA(ObjectProp->PropertyClass)) // check it's the right type
+			{
+				ObjectProp->SetObjectPropertyValue_InContainer(Object, Value);
+			}
+		}
 	}
 }
 
 void UKismetSystemLibrary::SetClassPropertyByName(UObject* Object, FName PropertyName, TSubclassOf<UObject> Value)
 {
-	if (Object && *Value)
+	if (Object)
 	{
-		FClassProperty* ClassProp = FindFProperty<FClassProperty>(Object->GetClass(), PropertyName);
-		if (ClassProp != NULL && Value->IsChildOf(ClassProp->MetaClass)) // check it's the right type
+		if (FClassProperty* ClassProp = FindFProperty<FClassProperty>(Object->GetClass(), PropertyName))
 		{
-			ClassProp->SetObjectPropertyValue_InContainer(Object, *Value);
+			if (!*Value || Value->IsChildOf(ClassProp->MetaClass)) // check it's the right type
+			{
+				ClassProp->SetObjectPropertyValue_InContainer(Object, *Value);
+			}
 		}
 	}
 }
