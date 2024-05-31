@@ -24,7 +24,7 @@ FDisplayClusterMultiUserManager::FDisplayClusterMultiUserManager()
 		check(Bridge != nullptr);
 
 		Bridge->RegisterTransactionFilter(NDISPLAY_MULTIUSER_TRANSACTION_FILTER,
-			FOnFilterTransactionDelegate::CreateRaw(this, &FDisplayClusterMultiUserManager::ShouldObjectBeTransacted));
+			FTransactionFilterDelegate::CreateRaw(this, &FDisplayClusterMultiUserManager::ShouldObjectBeTransacted));
 		Bridge->OnApplyTransaction().AddRaw(this, &FDisplayClusterMultiUserManager::OnApplyRemoteTransaction);
 	}
 }
@@ -55,16 +55,18 @@ void FDisplayClusterMultiUserManager::OnApplyRemoteTransaction(ETransactionNotif
 	}
 }
 
-ETransactionFilterResult FDisplayClusterMultiUserManager::ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs)
+ETransactionFilterResult FDisplayClusterMultiUserManager::ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage)
 {
-	if (const UObject* ObjectToFilter = FilterArgs.ObjectToFilter)
+	if (InObject)
 	{
-		const bool bIsValidObjectType = ObjectToFilter->IsA<UDisplayClusterConfigurationData_Base>() || ObjectToFilter->IsA<UDataLayerInstance>();
-		const bool bIsPersistent = !ObjectToFilter->IsTemplate() && !ObjectToFilter->HasAnyFlags(RF_Transient) && FilterArgs.Package != GetTransientPackage();
-		if ((bIsValidObjectType && bIsPersistent)
-			|| ObjectToFilter->GetClass()->HasMetaData(TEXT("DisplayClusterMultiUserInclude")))
+		const bool bIsValidObjectType = InObject->IsA<UDisplayClusterConfigurationData_Base>()
+		|| InObject->IsA<UDataLayerInstance>();
+
+		if (((bIsValidObjectType && !InObject->IsTemplate() && !InObject->HasAnyFlags(RF_Transient)
+			&& InPackage != GetTransientPackage())
+			|| InObject->GetClass()->HasMetaData(TEXT("DisplayClusterMultiUserInclude"))))
 		{
-			UE_LOG(LogDisplayClusterMultiUser, Log, TEXT("FDisplayClusterMultiUser transaction for object: %s"), *ObjectToFilter->GetName());
+			UE_LOG(LogDisplayClusterMultiUser, Log, TEXT("FDisplayClusterMultiUser transaction for object: %s"), *InObject->GetName());
 			return ETransactionFilterResult::IncludeObject;
 		}
 	}

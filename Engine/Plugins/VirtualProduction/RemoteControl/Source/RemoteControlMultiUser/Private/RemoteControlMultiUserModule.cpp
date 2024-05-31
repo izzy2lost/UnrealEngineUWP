@@ -10,11 +10,10 @@
 
 namespace RemoteControlMultiUserUtils
 {
-	ETransactionFilterResult HandleTransactionFiltering(const FConcertTransactionFilterArgs& FilterArgs)
+	ETransactionFilterResult HandleTransactionFiltering(UObject* ObjectToFilter, UPackage* ObjectsPackage)
 	{
 		//Always allow RemoteControlPresets and RemoteControlExposeRegistry
 		static const FName ExposeRegistryName = "RemoteControlExposeRegistry";
-		UObject* ObjectToFilter = FilterArgs.ObjectToFilter;
 		if (Cast<URemoteControlPreset>(ObjectToFilter) != nullptr
 			|| (ObjectToFilter && ObjectToFilter->GetClass()->GetFName() == ExposeRegistryName)
 			|| (ObjectToFilter && ObjectToFilter->IsA<URemoteControlBinding>()))
@@ -31,7 +30,7 @@ void FRemoteControlMultiUserModule::StartupModule()
 	if (IConcertSyncClientModule::IsAvailable())
 	{
 		IConcertClientTransactionBridge& TransactionBridge = IConcertSyncClientModule::Get().GetTransactionBridge();
-		TransactionBridge.RegisterTransactionFilter( TEXT("RemoteControlTransactionFilter"), FOnFilterTransactionDelegate::CreateStatic(&RemoteControlMultiUserUtils::HandleTransactionFiltering));
+		TransactionBridge.RegisterTransactionFilter( TEXT("RemoteControlTransactionFilter"), FTransactionFilterDelegate::CreateStatic(&RemoteControlMultiUserUtils::HandleTransactionFiltering));
 	}
 }
 

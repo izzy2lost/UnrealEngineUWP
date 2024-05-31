@@ -10,12 +10,15 @@
 
 namespace LiveLinkMultiUserUtils
 {
-	ETransactionFilterResult HandleTransactionFiltering(const FConcertTransactionFilterArgs& FilterArgs)
+	ETransactionFilterResult HandleTransactionFiltering(UObject* ObjectToFilter, UPackage* ObjectsPackage)
 	{
-		const UObject* ObjectToFilter = FilterArgs.ObjectToFilter;
-		return ObjectToFilter && ObjectToFilter->IsA<ULiveLinkControllerBase>()
-			? ETransactionFilterResult::IncludeObject
-			: ETransactionFilterResult::UseDefault;
+		//Always allow LiveLink controllers base class
+		if(Cast<ULiveLinkControllerBase>(ObjectToFilter) != nullptr)
+		{
+			return ETransactionFilterResult::IncludeObject;
+		}
+
+		return ETransactionFilterResult::UseDefault;
 	}
 }
 
@@ -24,7 +27,7 @@ void FLiveLinkMultiUserModule::StartupModule()
 	if (IConcertSyncClientModule::IsAvailable())
 	{
 		IConcertClientTransactionBridge& TransactionBridge = IConcertSyncClientModule::Get().GetTransactionBridge();
-		TransactionBridge.RegisterTransactionFilter( TEXT("LiveLinkTransactionFilter"), FOnFilterTransactionDelegate::CreateStatic(&LiveLinkMultiUserUtils::HandleTransactionFiltering));
+		TransactionBridge.RegisterTransactionFilter( TEXT("LiveLinkTransactionFilter"), FTransactionFilterDelegate::CreateStatic(&LiveLinkMultiUserUtils::HandleTransactionFiltering));
 	}
 }
 

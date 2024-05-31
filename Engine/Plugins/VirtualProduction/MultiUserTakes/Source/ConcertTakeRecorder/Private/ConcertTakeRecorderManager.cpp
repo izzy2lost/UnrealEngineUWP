@@ -243,7 +243,7 @@ void FConcertTakeRecorderManager::RegisterExtensions()
 			IConcertClientTransactionBridge* TransactionBridge = ConcertSyncClient->GetTransactionBridge();
 			check(TransactionBridge != nullptr);
 
-			TransactionBridge->RegisterTransactionFilter(TEXT("ConcertTakes"), FOnFilterTransactionDelegate::CreateRaw(this, &FConcertTakeRecorderManager::ShouldObjectBeTransacted));
+			TransactionBridge->RegisterTransactionFilter(TEXT("ConcertTakes"), FTransactionFilterDelegate::CreateRaw(this, &FConcertTakeRecorderManager::ShouldObjectBeTransacted));
 
 			IConcertClientPackageBridge* PackageBridge = ConcertSyncClient->GetPackageBridge();
 			check(PackageBridge);
@@ -982,16 +982,17 @@ bool FConcertTakeRecorderManager::CanSkipHotReload(const FConcertPackageInfo& In
 	return false;
 }
 
-ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs)
+ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage)
 {
 	UConcertSessionRecordSettings const* RecordSettings = GetDefault<UConcertSessionRecordSettings>();
 
+	ITakeRecorderModule& TakeRecorderModule = FModuleManager::LoadModuleChecked<ITakeRecorderModule>("TakeRecorder");
 	UTakePreset* TakePreset = Preset;
 	if (WeakSession.IsValid()
+		&& InPackage
 		&& TakePreset
 		&& RecordSettings->LocalSettings.bTransactSources
-		&& FilterArgs.Package
-		&& TakePreset->GetOutermost()->GetFName() == FilterArgs.Package->GetFName())
+		&& TakePreset->GetOutermost()->GetFName() == InPackage->GetFName())
 	{
 		return ETransactionFilterResult::IncludeObject;
 	}
@@ -999,8 +1000,8 @@ ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(c
 	UConcertTakeSynchronization const* TakeSync	= GetDefault<UConcertTakeSynchronization>();
 	if (WeakSession.IsValid()
 		&& TakeSync->bTransactTakeMetadata
-		&& FilterArgs.ObjectToFilter
-		&& FilterArgs.ObjectToFilter->IsA<UTakeMetaData>())
+		&& InObject
+		&& InObject->IsA<UTakeMetaData>())
 	{
 		return ETransactionFilterResult::IncludeObject;
 	}

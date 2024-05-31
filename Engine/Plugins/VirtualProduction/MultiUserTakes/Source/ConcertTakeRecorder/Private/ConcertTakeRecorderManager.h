@@ -7,8 +7,8 @@
 #include "UObject/GCObject.h"
 
 class FConcertTakeRecorderClientSessionCustomization;
-class IConcertClientSession;
 class IConcertSyncClient;
+class IConcertClientSession;
 class ULevelSequence;
 class UTakePreset;
 class UTakeRecorder;
@@ -17,12 +17,12 @@ class SWidget;
 enum class ECheckBoxState : uint8;
 enum class EConcertClientStatus : uint8;
 enum class EConcertConnectionStatus : uint8;
-enum class EPackageFilterResult : uint8;
 enum class ETransactionFilterResult : uint8;
+enum class EPackageFilterResult : uint8;
 
+struct EVisibility;
 struct FConcertClientRecordSetting;
 struct FConcertMultiUserSyncChangeEvent;
-struct FConcertPackageInfo;
 struct FConcertRecordSettingsChangeEvent;
 struct FConcertRecordingCancelledEvent;
 struct FConcertRecordingFinishedEvent;
@@ -30,11 +30,10 @@ struct FConcertRecordingNamedLevelSequenceEvent;
 struct FConcertSessionContext;
 struct FConcertSessionClientInfo;
 struct FConcertTakeInitializedEvent;
-struct FConcertTransactionFilterArgs;
+struct FConcertPackageInfo;
 struct FFrameNumber;
 struct FTakeRecorderParameters;
 struct FTakeRecordSettings;
-struct EVisibility;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogConcertTakeRecorder, Log, All);
 
@@ -119,7 +118,7 @@ private:
 	void DisconnectFromSession();
 	void ConnectToSession(IConcertClientSession&);
 
-	ETransactionFilterResult ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs);
+	ETransactionFilterResult ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage);
 	EPackageFilterResult ShouldPackageBeFiltered(const FConcertPackageInfo& InPackage);
 	bool CanSkipHotReload(const FConcertPackageInfo& InPackage);
 private:
