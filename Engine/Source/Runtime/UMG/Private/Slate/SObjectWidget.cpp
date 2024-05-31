@@ -7,6 +7,8 @@
 #include "Slate/UMGDragDropOp.h"
 #include "SlateGlobals.h"
 
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(SLATECORE_API, Slate);
+
 void SObjectWidget::Construct(const FArguments& InArgs, UUserWidget* InWidgetObject)
 {
 	WidgetObject = InWidgetObject;
@@ -109,8 +111,10 @@ void SObjectWidget::SetPadding(const TAttribute<FMargin>& InMargin)
 
 void SObjectWidget::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 {
+	// Note: This tick will not execute unless the UserWidget itself ticks.
 #if SLATE_VERBOSE_NAMED_EVENTS
 	SCOPED_NAMED_EVENT_FSTRING(DebugTickEventName, FColor::Turquoise);
+	CSV_SCOPED_TIMING_STAT(Slate, SObjectWidget_Tick);
 #endif
 
 #if WITH_VERY_VERBOSE_SLATE_STATS

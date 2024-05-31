@@ -66,6 +66,8 @@ DECLARE_CYCLE_STAT(TEXT("Total Render Thread time including dependent waits"), S
 
 CSV_DEFINE_CATEGORY(RenderThreadIdle, true);
 
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(SLATECORE_API, Slate);
+
 DECLARE_GPU_DRAWCALL_STAT_NAMED(SlateUI, TEXT("Slate UI"));
 
 // Defines the maximum size that a slate viewport will create
@@ -1693,6 +1695,7 @@ void FSlateRHIRenderer::PrepareToTakeHDRScreenshot(const FIntRect& Rect, TArray<
 void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 {
 	checkSlow(IsThreadSafeForSlateRendering());
+	CSV_SCOPED_TIMING_STAT(Slate, DrawWindows_Private);
 
 	if (bUpdateHDRDisplayInformation && IsHDRAllowed() && IsInGameThread())
 	{

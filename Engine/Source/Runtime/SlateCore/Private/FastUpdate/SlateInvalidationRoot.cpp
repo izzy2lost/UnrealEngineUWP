@@ -718,6 +718,7 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 bool FSlateInvalidationRoot::PaintFastPath(const FSlateInvalidationContext& Context)
 {
 	SCOPED_NAMED_EVENT(SWidget_FastPathUpdate, FColor::Green);
+	CSV_SCOPED_TIMING_STAT(Slate, PaintFastPath);
 
 	check(!bNeedsSlowPath);
 
