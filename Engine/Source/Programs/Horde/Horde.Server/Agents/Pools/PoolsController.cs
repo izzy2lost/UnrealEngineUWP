@@ -27,8 +27,8 @@ namespace Horde.Server.Agents.Pools
 	[Route("[controller]")]
 	public class PoolsController : HordeControllerBase
 	{
+		readonly AgentService _agentService;
 		readonly IPoolCollection _poolCollection;
-		readonly IAgentCollection _agentCollection;
 		readonly IUtilizationDataCollection _utilizationDataCollection;
 		readonly IClock _clock;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
@@ -36,10 +36,10 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolsController(IPoolCollection poolCollection, IAgentCollection agentCollection, IUtilizationDataCollection utilizationDataCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public PoolsController(AgentService agentService, IPoolCollection poolCollection, IUtilizationDataCollection utilizationDataCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
+			_agentService = agentService;
 			_poolCollection = poolCollection;
-			_agentCollection = agentCollection;
 			_utilizationDataCollection = utilizationDataCollection;
 			_clock = clock;
 			_globalConfig = globalConfig;
@@ -148,7 +148,7 @@ namespace Horde.Server.Agents.Pools
 
 				if (stats || numAgents > 0)
 				{
-					IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+					IReadOnlyList<IAgent> agents = await _agentService.GetCachedAgentsAsync(cancellationToken);
 					foreach (IAgent agent in agents)
 					{
 						foreach (PoolId poolId in agent.Pools)

@@ -71,10 +71,20 @@ namespace Horde.Server.Agents
 			{
 				return Forbid(AgentAclAction.ListAgents);
 			}
+			
+			IEnumerable<IAgent> agents = (await _agentService.GetCachedAgentsAsync(HttpContext.RequestAborted))
+				.Where(x => poolId == null || x.Pools.Contains(poolId.Value))
+				.Where(x => modifiedAfter == null || modifiedAfter.Value.UtcDateTime >= x.UpdateTime);
 
-			IReadOnlyList<IAgent> agents = await _agentService.FindAgentsAsync(poolId, modifiedAfter?.UtcDateTime, null, includeDeleted, index, count, HttpContext.RequestAborted);
+			if (!includeDeleted)
+			{
+				agents = agents.Where(x => !x.Deleted);
+			}
+			
+			agents = index != null ? agents.Skip(index.Value) : agents;
+			agents = count != null ? agents.Take(count.Value) : agents;
 
-			List<object> responses = new List<object>();
+			List<object> responses = [];
 			foreach (IAgent agent in agents)
 			{
 				if (condition == null || agent.SatisfiesCondition(condition))
