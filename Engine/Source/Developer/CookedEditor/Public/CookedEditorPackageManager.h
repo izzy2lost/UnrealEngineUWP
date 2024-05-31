@@ -167,6 +167,9 @@ public:
 
 	FIniCookedEditorPackageManager(bool bIsCookedCooker);
 
+	// gets an array from two sections, depending on bIsCookedCooker setting
+	static TArray<FString> GetConfigArray(const TCHAR* Key, bool bIsCookedCooker);
+
 	virtual void FilterGatheredPackages(TArray<FName>& PackageNames) const override;
 	virtual void GetEnginePackagesToCook(TArray<FName>& PackagesToCook) const override;
 	virtual void GetProjectPackagesToCook(TArray<FName>& PackagesToCook) const override;

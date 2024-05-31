@@ -119,6 +119,11 @@ FIniCookedEditorPackageManager::FIniCookedEditorPackageManager(bool bInIsCookedC
 
 TArray<FString> FIniCookedEditorPackageManager::GetConfigArray(const TCHAR* Key) const
 {
+	return GetConfigArray(Key, bIsCookedCooker);
+}
+
+TArray<FString> FIniCookedEditorPackageManager::GetConfigArray(const TCHAR* Key, bool bIsCookedCooker)
+{
 	const TCHAR* SharedIniSection = TEXT("CookedEditorSettings");
 	const TCHAR* SpecificiIniSection = bIsCookedCooker ? TEXT("CookedEditorSettings_CookedCooker") : TEXT("CookedEditorSettings_CookedEditor");
 
