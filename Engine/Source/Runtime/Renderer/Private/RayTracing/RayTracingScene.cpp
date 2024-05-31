@@ -43,18 +43,13 @@ FRayTracingScene::~FRayTracingScene()
 	ReleaseReadbackBuffers();
 }
 
-FRayTracingSceneWithGeometryInstances FRayTracingScene::BuildInitializationData() const
+void FRayTracingScene::BuildInitializationData()
 {
 	ERayTracingAccelerationStructureFlags BuildFlags = CVarRayTracingSceneBuildMode.GetValueOnRenderThread()
 		? ERayTracingAccelerationStructureFlags::FastTrace
 		: ERayTracingAccelerationStructureFlags::FastBuild;
 
-	return CreateRayTracingSceneWithGeometryInstances(Instances, uint8(ERayTracingSceneLayer::NUM), BuildFlags);
-}
-
-void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene)
-{
-	CreateWithInitializationData(GraphBuilder, View, GPUScene, BuildInitializationData(), ERDGPassFlags::Compute);
+	InitializationData = CreateRayTracingSceneWithGeometryInstances(Instances, uint8(ERayTracingSceneLayer::NUM), BuildFlags);
 }
 
 void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
@@ -62,10 +57,10 @@ void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
 	PreViewTranslation = ViewMatrices.GetPreViewTranslation();
 }
 
-void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances, ERDGPassFlags ComputePassFlags)
+void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, ERDGPassFlags ComputePassFlags)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingScene::CreateWithInitializationData);
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_RayTracingScene_CreateWithInitializationData);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingScene::Create);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_RayTracingScene_Create);
 
 	// Round up buffer sizes to some multiple to avoid pathological growth reallocations.
 	static constexpr uint32 AllocationGranularity = 8 * 1024;
@@ -77,17 +72,22 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 
 	static const uint8 NumLayers = uint8(ERayTracingSceneLayer::NUM);
 
-	checkf(SceneWithGeometryInstances.Scene.IsValid(), 
-		TEXT("Ray tracing scene RHI object is expected to have been created by BuildInitializationData() or CreateRayTracingSceneWithGeometryInstances()"));
+	if (!InitializationData.Scene.IsValid())
+	{
+		BuildInitializationData();
+	}
 
-	RayTracingSceneRHI = SceneWithGeometryInstances.Scene;
-	check(NumSegments == SceneWithGeometryInstances.TotalNumSegments);
+	checkf(InitializationData.Scene.IsValid(), 
+		TEXT("Ray tracing scene RHI object is expected to have been created by BuildInitializationData()"));
+
+	RayTracingSceneRHI = InitializationData.Scene;
+	check(NumSegments == InitializationData.TotalNumSegments);
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingSceneRHI->GetInitializer();
 
-	const uint32 NumNativeInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances + SceneWithGeometryInstances.NumNativeCPUInstances;
+	const uint32 NumNativeInstances = InitializationData.NumNativeGPUSceneInstances + InitializationData.NumNativeCPUInstances;
 	const uint32 NumNativeInstancesAligned = FMath::DivideAndRoundUp(FMath::Max(NumNativeInstances, 1U), AllocationGranularity) * AllocationGranularity;
-	const uint32 NumTransformsAligned = FMath::DivideAndRoundUp(FMath::Max(SceneWithGeometryInstances.NumNativeCPUInstances, 1U), AllocationGranularity) * AllocationGranularity;
+	const uint32 NumTransformsAligned = FMath::DivideAndRoundUp(FMath::Max(InitializationData.NumNativeCPUInstances, 1U), AllocationGranularity) * AllocationGranularity;
 
 	FRayTracingAccelerationStructureSize SizeInfo = RayTracingSceneRHI->GetSizeInfo();
 	SizeInfo.ResultSize = FMath::DivideAndRoundUp(FMath::Max(SizeInfo.ResultSize, 1ull), BufferAllocationGranularity) * BufferAllocationGranularity;
@@ -208,10 +208,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			LayerBaseIndices[LayerIndex] = LayerBaseIndices[LayerIndex - 1] + SceneInitializer.NumNativeInstancesPerLayer[LayerIndex - 1];
 		}
 
-		// make a copy of SceneWithGeometryInstances.BaseInstancePrefixSum that can be passed to the RDG setup tasks below
-		TArray<uint32, SceneRenderingAllocator> BaseInstancePrefixSum = GraphBuilder.AllocArray<uint32>();
-		BaseInstancePrefixSum = SceneWithGeometryInstances.BaseInstancePrefixSum;
-
 		FRDGUploadData<FRayTracingInstanceDebugData> UploadData(GraphBuilder, NumNativeInstances);
 
 		{
@@ -230,7 +226,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 
 				TConstArrayView<FRayTracingGeometryInstance> TaskInstancesData(Instances.GetData() + TaskFirstItemIndex, TaskNumItems);
 				TConstArrayView<FRayTracingInstanceDebugData> TaskInstancesDebugData(InstancesDebugData.GetData() + TaskFirstItemIndex, TaskNumItems);
-				TConstArrayView<uint32> TaskBaseInstancePrefixSum(BaseInstancePrefixSum.GetData() + TaskFirstItemIndex, TaskNumItems);
+				TConstArrayView<uint32> TaskBaseInstancePrefixSum(InitializationData.BaseInstancePrefixSum.GetData() + TaskFirstItemIndex, TaskNumItems);
 
 				GraphBuilder.AddSetupTask([UploadData, TaskInstancesDebugData, TaskInstancesData, TaskBaseInstancePrefixSum, LayerBaseIndices]()
 					{
@@ -258,7 +254,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 	if (NumNativeInstances > 0)
 	{
 		const uint32 InstanceUploadBytes = NumNativeInstances * sizeof(FRayTracingInstanceDescriptorInput);
-		const uint32 TransformUploadBytes = SceneWithGeometryInstances.NumNativeCPUInstances * 3 * sizeof(FVector4f);
+		const uint32 TransformUploadBytes = InitializationData.NumNativeCPUInstances * 3 * sizeof(FVector4f);
 
 		FRayTracingInstanceDescriptorInput* InstanceUploadData = (FRayTracingInstanceDescriptorInput*)RHICmdList.LockBuffer(InstanceUploadBuffer, 0, InstanceUploadBytes, RLM_WriteOnly);
 		FVector4f* TransformUploadData = (TransformUploadBytes > 0) ? (FVector4f*)RHICmdList.LockBuffer(TransformUploadBuffer, 0, TransformUploadBytes, RLM_WriteOnly) : nullptr;
@@ -266,13 +262,13 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		// Fill instance upload buffer on separate thread since results are only needed in RHI thread
 		GraphBuilder.AddSetupTask(
 			[InstanceUploadData = MakeArrayView(InstanceUploadData, NumNativeInstances),
-			TransformUploadData = MakeArrayView(TransformUploadData, SceneWithGeometryInstances.NumNativeCPUInstances * 3),
-			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
-			NumNativeCPUInstances = SceneWithGeometryInstances.NumNativeCPUInstances,
+			TransformUploadData = MakeArrayView(TransformUploadData, InitializationData.NumNativeCPUInstances * 3),
+			NumNativeGPUSceneInstances = InitializationData.NumNativeGPUSceneInstances,
+			NumNativeCPUInstances = InitializationData.NumNativeCPUInstances,
 			Instances = MakeArrayView(Instances),
-			InstanceGeometryIndices = MoveTemp(SceneWithGeometryInstances.InstanceGeometryIndices),
-			BaseUploadBufferOffsets = MoveTemp(SceneWithGeometryInstances.BaseUploadBufferOffsets),
-			BaseInstancePrefixSum = MoveTemp(SceneWithGeometryInstances.BaseInstancePrefixSum),
+			InstanceGeometryIndices = MakeArrayView(InitializationData.InstanceGeometryIndices),
+			BaseUploadBufferOffsets = MakeArrayView(InitializationData.BaseUploadBufferOffsets),
+			BaseInstancePrefixSum = MakeArrayView(InitializationData.BaseInstancePrefixSum),
 			RayTracingSceneRHI = RayTracingSceneRHI,
 			PreViewTranslation = this->PreViewTranslation]()
 		{
@@ -307,8 +303,8 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			this,
 			GPUScene,
 			&SceneInitializer,
-			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
-			NumNativeCPUInstances = SceneWithGeometryInstances.NumNativeCPUInstances,
+			NumNativeGPUSceneInstances = InitializationData.NumNativeGPUSceneInstances,
+			NumNativeCPUInstances = InitializationData.NumNativeCPUInstances,
 			CullingParameters = View.RayTracingCullingParameters
 			](FRHICommandList& RHICmdList)
 			{

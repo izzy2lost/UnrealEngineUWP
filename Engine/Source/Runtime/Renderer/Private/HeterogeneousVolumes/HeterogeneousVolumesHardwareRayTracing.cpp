@@ -256,7 +256,7 @@ void GenerateRayTracingScene(
 
 	// Create RayTracingScene
 	const FGPUScene* EmptyGPUScene = nullptr;
-	RayTracingScene.Create(GraphBuilder, View, EmptyGPUScene);
+	RayTracingScene.Create(GraphBuilder, View, EmptyGPUScene, ERDGPassFlags::Compute);
 
 	const bool bRayTracingAsyncBuild = false;//CVarRayTracingAsyncBuild.GetValueOnRenderThread() != 0 && GRHISupportsRayTracingAsyncBuildAccelerationStructure;
 	const ERDGPassFlags ComputePassFlags = bRayTracingAsyncBuild ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;

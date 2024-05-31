@@ -1263,9 +1263,7 @@ public:
 
 	FRayTracingCullingParameters RayTracingCullingParameters;
 
-	// Data required for FRayTracingScene, depends on RT instance culling tasks
-	FRayTracingSceneWithGeometryInstances RayTracingSceneInitData;
-	FGraphEventRef RayTracingSceneInitTask; // Task to asynchronously create RayTracingSceneInitData
+	FGraphEventRef RayTracingSceneInitTask; // Task to asynchronously call RayTracingScene.BuildInitializationData()
 
 	FGraphEventArray AddRayTracingMeshBatchTaskList;
 	TArray<FRayTracingMeshCommandOneFrameArray*, SceneRenderingAllocator> VisibleRayTracingMeshCommandsPerTask;

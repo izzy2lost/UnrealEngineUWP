@@ -94,15 +94,12 @@ public:
 	void SetInstance(FInstanceRange InstanceRange, uint32 InstanceIndexInRange, FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy = nullptr, bool bDynamic = false);
 
 	// Allocates RayTracingSceneRHI and builds various metadata required to create the final scene.
-	FRayTracingSceneWithGeometryInstances BuildInitializationData() const;
+	void BuildInitializationData();
 
 	// Allocates GPU memory to fit at least the current number of instances.
 	// Kicks off instance buffer build to parallel thread along with RDG pass.
 	// NOTE: SceneWithGeometryInstances is passed in by value because ownership of the internal data is taken over. Use MoveTemp at call site, if possible.
-	void CreateWithInitializationData(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances, ERDGPassFlags ComputePassFlags);
-
-	// Backwards-compatible version of Create() which internally calls CreateRayTracingSceneWithGeometryInstances().
-	void Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene);
+	void Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, ERDGPassFlags ComputePassFlags);
 
 	void Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef DynamicGeometryScratchBuffer);
 
@@ -147,6 +144,8 @@ public:
 
 	uint32 GetTotalNumSegments() const { return NumSegments; }
 
+	uint32 GetNumNativeInstances() const { return InitializationData.NumNativeCPUInstances + InitializationData.NumNativeGPUSceneInstances; }
+
 	void InitPreViewTranslation(const FViewMatrices& ViewMatrices);
 
 public:
@@ -177,6 +176,8 @@ public:
 	FVector PreViewTranslation {};
 private:
 	void ReleaseReadbackBuffers();
+
+	FRayTracingSceneWithGeometryInstances InitializationData;
 
 	FRDGBufferRef InstanceBuffer;
 	FRDGBufferRef BuildScratchBuffer;

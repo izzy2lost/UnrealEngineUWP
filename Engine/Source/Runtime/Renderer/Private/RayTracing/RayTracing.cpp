@@ -1617,7 +1617,7 @@ namespace RayTracing
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingSceneInitTask);
-				View.RayTracingSceneInitData = RayTracingScene.BuildInitializationData();
+				RayTracingScene.BuildInitializationData();
 			},
 			TStatId(), AddStaticInstancesTask, ENamedThreads::AnyThread);
 
