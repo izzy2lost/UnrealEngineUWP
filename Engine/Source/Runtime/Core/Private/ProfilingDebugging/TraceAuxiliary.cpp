@@ -36,6 +36,10 @@
 #include "Misc/Paths.h"
 #endif
 
+const FTraceAuxiliary::FChannelPreset GDefaultChannels(TEXT("Default"), TEXT("cpu,gpu,frame,log,bookmark,screenshot,region"), false);
+const FTraceAuxiliary::FChannelPreset GMemoryChannels(TEXT("Memory"), TEXT("memtag,memalloc,callstack,module"), true);
+const FTraceAuxiliary::FChannelPreset GMemoryLightChannels(TEXT("Memory_Light"), TEXT("memtag,memalloc"), true);
+
 #if UE_TRACE_ENABLED
 
 #include <atomic>
@@ -67,9 +71,7 @@
 #include "Trace/Trace.inl"
 
 ////////////////////////////////////////////////////////////////////////////////
-const TCHAR* GDefaultChannels = TEXT("cpu,gpu,frame,log,bookmark,screenshot,region");
-const TCHAR* GMemoryChannels = TEXT("memtag,memalloc,callstack,module");
-const TCHAR* GMemoryLightChannels = TEXT("memtag,memalloc");
+
 const TCHAR* GTraceConfigSection = TEXT("Trace.Config");
 static UE::Trace::FInitializeDesc GInitializeDesc;
 
@@ -277,17 +279,17 @@ void FTraceAuxiliaryImpl::ForEachChannel(const TCHAR* ChannelList, bool bResolve
 		{
 			FString Value;
 			// Check against hard coded presets
-			if (FCString::Stricmp(Name, TEXT("default")) == 0)
+			if (FCString::Stricmp(Name, GDefaultChannels.Name) == 0)
 			{
-				ForEachChannel(GDefaultChannels, false, LogCategory, Callable);
+				ForEachChannel(GDefaultChannels.Channels, false, LogCategory, Callable);
 			}
-			else if (FCString::Stricmp(Name, TEXT("memory")) == 0)
+			else if (FCString::Stricmp(Name,GMemoryChannels.Name) == 0)
 			{
-				ForEachChannel(GMemoryChannels, false, LogCategory, Callable);
+				ForEachChannel(GMemoryChannels.Channels, false, LogCategory, Callable);
 			}
-			else if (FCString::Stricmp(Name, TEXT("memory_light")) == 0)
+			else if (FCString::Stricmp(Name, GMemoryLightChannels.Name) == 0)
 			{
-				ForEachChannel(GMemoryLightChannels, false, LogCategory, Callable);
+				ForEachChannel(GMemoryLightChannels.Channels, false, LogCategory, Callable);
 			}
 			// Check against data driven presets (if available)
 			else if (GConfig && GConfig->GetString(TEXT("Trace.ChannelPresets"), Name, Value, GEngineIni))
@@ -1315,12 +1317,12 @@ static bool StartFromCommandlineArguments(const TCHAR* CommandLine, bool& bOutSt
 	}
 	else if (FParse::Param(CommandLine, TEXT("trace")))
 	{
-		Channels = GDefaultChannels;
+		Channels = GDefaultChannels.Channels;
 	}
 #if WITH_EDITOR
 	else
 	{
-		Channels = GDefaultChannels;
+		Channels = GDefaultChannels.Channels;
 	}
 #endif
 
@@ -1373,7 +1375,7 @@ static bool StartFromCommandlineArguments(const TCHAR* CommandLine, bool& bOutSt
 	// If user has defined a connection type but not specified channels, use the default channel set.
 	if (Type != FTraceAuxiliary::EConnectionType::None && Channels.IsEmpty())
 	{
-		Channels = GDefaultChannels;
+		Channels = GDefaultChannels.Channels;
 	}
 
 	if (Channels.IsEmpty())
@@ -1834,6 +1836,13 @@ UE::Trace::FInitializeDesc const* FTraceAuxiliary::GetInitializeDesc()
 #else
 	return nullptr;
 #endif
+}
+
+void FTraceAuxiliary::GetFixedChannelPresets(TArray<FChannelPreset>& OutPresets)
+{
+	OutPresets.Emplace(GDefaultChannels);
+	OutPresets.Emplace(GMemoryChannels);
+	OutPresets.Emplace(GMemoryLightChannels);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,14 +28,14 @@ void SFilterPresetList::Construct( const FArguments& InArgs )
 	OnSavePreset = InArgs._OnSavePreset;
 	OnHighlightPreset = InArgs._OnHighlightPreset;
 
-	FilterBox = SNew(SWrapBox);
+	FilterBox = SNew(SWrapBox)
+				.UseAllottedSize(true);
 
 	LoadSettings(FTraceToolsModule::TraceFiltersIni);
 	
 	PresetContainer = GetMutableDefault<ULocalTraceFilterPresetContainer>();
 	SharedPresetContainer = GetMutableDefault<USharedTraceFilterPresetContainer>();
-	EnginePresetContainer = GetMutableDefault<UEngineTraceFilterPresetContainer>();
-	
+
 	RefreshFilterPresets();
 
 	ChildSlot
@@ -77,9 +77,9 @@ void SFilterPresetList::RefreshFilterPresets()
 	SharedUserFilterPresets.Empty();
 	AllFilterPresets.Empty();
 
+	LoadEnginePresets();
+	
 	PresetContainer->GetUserPresets(UserFilterPresets);
-
-	EnginePresetContainer->GetEnginePresets(EngineFilterPresets);
 	SharedPresetContainer->GetSharedUserPresets(SharedUserFilterPresets);
 
 	AllFilterPresets.Append(EngineFilterPresets);
@@ -126,7 +126,7 @@ FReply SFilterPresetList::OnMouseButtonUp( const FGeometry& MyGeometry, const FP
 
 void SFilterPresetList::SaveSettings(const FString& IniFilename) const
 {
-	FStringView IniSectionName = TEXTVIEW("FilterPresetList");
+	FStringView IniSectionName = TEXTVIEW("Trace.FilterPresetList");
 	FStringView IniActivePresetsKey = TEXTVIEW("ActivePresets");
 	FStringView IniEnabledPresetsKey = TEXTVIEW("EnabledPresets");
 
@@ -158,7 +158,7 @@ void SFilterPresetList::SaveSettings(const FString& IniFilename) const
 
 void SFilterPresetList::LoadSettings(const FString& IniFilename)
 {
-	FStringView IniSectionName = TEXTVIEW("FilterPresetList");
+	FStringView IniSectionName = TEXTVIEW("Trace.FilterPresetList");
 	FStringView IniActivePresetsKey = TEXT("ActivePresets");
 	FStringView IniEnabledPresetsKey = TEXT("EnabledPresets");
 
@@ -532,6 +532,36 @@ void SFilterPresetList::GetAllEnabledPresets(TArray<TSharedPtr<ITraceFilterPrese
 TSharedRef<SWidget> SFilterPresetList::ExternalMakeFilterPresetsMenu()
 {
 	return MakeFilterPresetsMenu();
+}
+
+void SFilterPresetList::LoadEnginePresets()
+{
+	TArray<FString> PresetStrings;
+	GConfig->GetSection(TEXT("Trace.ChannelPresets"), PresetStrings, GEngineIni);
+
+	for (const FString& Item : PresetStrings)
+	{
+		FString Key, Value;
+		Item.Split(TEXT("="), &Key, &Value);
+
+		TArray<FString> AllowListedNames;
+		Value.ParseIntoArray(AllowListedNames, TEXT(","));
+		EngineFilterPresets.Add(MakeShared<FEngineFilterPreset>(Key, AllowListedNames));
+	}
+
+	TArray<FTraceAuxiliary::FChannelPreset> EnginePresets;
+	FTraceAuxiliary::GetFixedChannelPresets(EnginePresets);
+
+	for (auto& Item : EnginePresets)
+	{
+		if (!Item.bIsReadOnly)
+		{
+			TArray<FString> AllowListedNames;
+			FString Channels = Item.Channels;
+			Channels.ParseIntoArray(AllowListedNames, TEXT(","));
+			EngineFilterPresets.Add(MakeShared<FEngineFilterPreset>(Item.Name, AllowListedNames));
+		}
+	}
 }
 
 } // namespace UE::TraceTools

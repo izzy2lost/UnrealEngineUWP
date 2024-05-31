@@ -19,6 +19,25 @@
 class FTraceAuxiliary
 {
 public:
+	struct FChannelPreset
+	{
+		FChannelPreset(const TCHAR* InName, const TCHAR* InChannels, bool bInIsReadOnly)
+			: Name(InName)
+			, Channels(InChannels)
+			, bIsReadOnly(bInIsReadOnly)
+		{
+		}
+
+		const TCHAR* Name;
+		const TCHAR* Channels;
+
+		/**
+		* A preset should be read-only if it contains any read-only channels. 
+		* A read-only preset can only be enabled using the command line when starting the application.
+		*/
+		bool bIsReadOnly = false;
+	};
+
 	// In no logging configurations all log categories are of type FNoLoggingCategory, which has no relation with
 	// FLogCategoryBase. In order to not need to conditionally set the argument alias the type here.
 #if NO_LOGGING
@@ -215,6 +234,11 @@ public:
 	 * Get the settings used to initialize TraceLog
 	 */
 	static CORE_API struct UE::Trace::FInitializeDesc const* GetInitializeDesc();
+
+	/**
+	* Get the channel presets that are defined in code.
+	*/
+	static CORE_API void GetFixedChannelPresets(TArray<FChannelPreset>& OutPresets);
 
 	/**
 	 * Delegate that triggers when a connection is established. Gives subscribers a chance to trace events that appear

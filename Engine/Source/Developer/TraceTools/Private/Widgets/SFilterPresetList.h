@@ -9,7 +9,6 @@ class SWrapBox;
 
 class ULocalTraceFilterPresetContainer;
 class USharedTraceFilterPresetContainer;
-class UEngineTraceFilterPresetContainer;
 
 namespace UE::TraceTools
 {
@@ -94,6 +93,9 @@ private:
 	/** Save the preset object contained by the widget */
 	void SavePreset(const TSharedRef<SFilterPreset>& PresetToSave);	
 
+	/** Engine presets have a custom loading so they can be shared with the console commands from FTraceAuxiliary. */
+	void LoadEnginePresets();
+
 private:
 	/** The horizontal box which contains all the Presets */
 	TSharedPtr<SWrapBox> FilterBox;
@@ -114,7 +116,6 @@ private:
 	/** Weak pointers to filter preset containers */
 	TWeakObjectPtr<ULocalTraceFilterPresetContainer> PresetContainer;
 	TWeakObjectPtr<USharedTraceFilterPresetContainer> SharedPresetContainer;
-	TWeakObjectPtr<UEngineTraceFilterPresetContainer> EnginePresetContainer;
 
 	/** Delegate for when Presets have changed */
 	FOnPresetChanged OnPresetChanged;

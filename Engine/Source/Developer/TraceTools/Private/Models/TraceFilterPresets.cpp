@@ -4,6 +4,7 @@
 
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
+#include "Misc/StringBuilder.h"
 
 // TraceTools
 #include "ITraceObject.h"
@@ -36,14 +37,6 @@ void USharedTraceFilterPresetContainer::Save()
 {
 	USharedTraceFilterPresetContainer* SharedPresetsContainer = GetMutableDefault<USharedTraceFilterPresetContainer>();
 	SharedPresetsContainer->TryUpdateDefaultConfigFile();
-}
-
-void UEngineTraceFilterPresetContainer::GetEnginePresets(TArray<TSharedPtr<UE::TraceTools::ITraceFilterPreset>>& OutPresets)
-{
-	for (FTraceFilterData& FilterData : EnginePresets)
-	{
-		OutPresets.Add(MakeShared<UE::TraceTools::FEngineFilterPreset>(FilterData.Name, FilterData));
-	}
 }
 
 void ULocalTraceFilterPresetContainer::GetUserPresets(TArray<TSharedPtr<UE::TraceTools::ITraceFilterPreset>>& OutPresets)
@@ -231,9 +224,24 @@ FText FFilterPreset::GetDisplayText() const
 	return FText::FromString(Name);
 }
 
-FText FFilterPreset::GetDescription() const
+FText FFilterPresetBase::GetDescription() const
 {
-	return FText::FormatOrdered(LOCTEXT("FilterPresetDescriptionFormat", "Name: {0}\nType: {1}"), FText::FromString(Name), CanDelete() ? (IsLocal() ? LOCTEXT("LocalPreset", "Local") : LOCTEXT("SharedPreset", "Shared")) : LOCTEXT("EnginePreset", "Engine"));
+	TStringBuilder<256> NamesList;
+	TArray<FString> Names;
+	GetAllowlistedNames(Names);
+
+	for (const FString& NameEntry : Names)
+	{
+		NamesList.Append(NameEntry);
+		NamesList.Append(TEXT(", "));
+	}
+	
+	if (NamesList.Len() > 1)
+	{
+		NamesList.RemoveSuffix(2);
+	}
+
+	return FText::FormatOrdered(LOCTEXT("FilterPresetDescriptionFormat", "Name: {0}\nType: {1}\nAllowlist: {2}"), FText::FromString(Name), CanDelete() ? (IsLocal() ? LOCTEXT("LocalPreset", "Local") : LOCTEXT("SharedPreset", "Shared")) : LOCTEXT("EnginePreset", "Engine"), FText::FromString(NamesList.ToString()));
 }
 
 void FFilterPreset::GetAllowlistedNames(TArray<FString>& OutNames) const
@@ -272,6 +280,11 @@ bool FFilterPreset::MakeLocal()
 bool FFilterPreset::IsLocal() const
 {
 	return false;
+}
+
+void FEngineFilterPreset::GetAllowlistedNames(TArray<FString>& OutNames) const
+{
+	OutNames.Insert(AllowListedNames, 0);
 }
 
 } // namespace UE::TraceTools

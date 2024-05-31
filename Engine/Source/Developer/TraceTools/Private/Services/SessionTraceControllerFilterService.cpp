@@ -59,10 +59,20 @@ void FSessionTraceControllerFilterService::UpdateFilterPreset(const TSharedPtr<I
 	if (IsEnabled)
 	{
 		FrameEnabledChannels.Append(Names);
+
+		for (const FString& Name : Names)
+		{
+			FrameDisabledChannels.Remove(Name);
+		}
 	}
 	else
 	{
 		FrameDisabledChannels.Append(Names);
+
+		for (const FString& Name : Names)
+		{
+			FrameEnabledChannels.Remove(Name);
+		}
 	}
 }
 
@@ -94,6 +104,11 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 	const TMap<uint32, FTraceStatus::FChannel> Channels = InStatus.Channels;
 	Objects.Empty(Channels.Num());
 
+	if (Channels.Num())
+	{
+		bChannelsReceived = true;
+	}
+
 	for (auto& Entry : Channels)
 	{
 		FTraceObjectInfo& EventInfo = Objects.AddDefaulted_GetRef();
@@ -107,15 +122,21 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 
 void FSessionTraceControllerFilterService::OnApplyChannelChanges()
 {
+	if (!TraceController->HasAvailableSelectedInstance() || !bChannelsReceived)
+	{
+		return;
+	}
+
 	if (FrameEnabledChannels.Num() || FrameDisabledChannels.Num())
 	{
 		TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
 		{
-			Commands.SetChannels(FrameEnabledChannels, FrameDisabledChannels);
+			Commands.SetChannels(FrameEnabledChannels.Array(), FrameDisabledChannels.Array());
 		});
+
 		FrameEnabledChannels.Empty();
 		FrameDisabledChannels.Empty();
 	}
-}
+} 
 
 } // namespace UE::TraceTools

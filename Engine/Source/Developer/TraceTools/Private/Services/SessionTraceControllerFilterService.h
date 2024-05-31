@@ -49,11 +49,13 @@ protected:
 	TArray<FTraceObjectInfo> Objects;
 
 	/** Names of channels that were either enabled or disabled during the duration of this frame */
-	TArray<FString> FrameEnabledChannels;
-	TArray<FString> FrameDisabledChannels;
+	TSet<FString> FrameEnabledChannels;
+	TSet<FString> FrameDisabledChannels;
 
 	/** Timestamp at which contained data (including provider) was last updated */
-	FDateTime TimeStamp;	
+	FDateTime TimeStamp;
+
+	bool bChannelsReceived = false;
 };
 
 } // namespace UE::TraceTools
