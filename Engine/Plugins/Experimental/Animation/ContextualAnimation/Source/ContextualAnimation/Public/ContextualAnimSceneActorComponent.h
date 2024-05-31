@@ -176,6 +176,7 @@ public:
 
 	virtual void AddIKGoals_Implementation(TMap<FName, FIKRigGoal>& OutGoals) override;
 
+	UFUNCTION(BlueprintPure, Category = "Contextual Anim|Scene Actor Component")
 	const FContextualAnimSceneBindings& GetBindings() const { return Bindings; };
 
 	UFUNCTION(BlueprintPure, Category = "Contextual Anim|Scene Actor Component")
