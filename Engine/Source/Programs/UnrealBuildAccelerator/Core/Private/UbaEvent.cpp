@@ -10,9 +10,30 @@
 #include <new>
 #endif
 
+#define UBA_TEST_WAIT_QUALITY 0
+#define UBA_USE_TIME_OF_DAY_CONDITION 1//PLATFORM_MAC
+
 namespace uba
 {
 #if !PLATFORM_WINDOWS
+
+	u64 GetMonoticTimeNs();
+
+	#if UBA_USE_TIME_OF_DAY_CONDITION
+	static u64 GetTimeOfDayOffset = []()
+		{
+			timeval tv;
+			gettimeofday(&tv, NULL);
+				
+			u64 tsNs = GetMonoticTimeNs();
+			u64 tvNs = u64(tv.tv_sec)*1'000'000'000 + tv.tv_usec * 1'000;
+
+			return tvNs - tsNs;
+		}();
+	#else
+	static constexpr u64 GetTimeOfDayOffset = 0;
+	#endif
+
 	struct EventImpl
 	{
 		EventImpl() = default;
@@ -63,6 +84,14 @@ namespace uba
 				UBA_ASSERTF(false, "pthread_condattr_init failed");
 				return false;
 			}
+
+			#if !UBA_USE_TIME_OF_DAY_CONDITION
+			if (pthread_condattr_setclock(&attrcond, CLOCK_MONOTONIC) != 0)
+			{
+				UBA_ASSERTF(false, "pthread_condattr_setclock failed");
+				return false;
+			}
+			#endif
 
 			if (shared)
 			{
@@ -139,18 +168,49 @@ namespace uba
 			UnlockEventMutex();
 		}
 
+		inline u64 ToNanoSeconds(const struct timespec& ts)
+		{
+			return u64(ts.tv_sec)*1'000'000'000 + ts.tv_nsec;
+		}
+
+		inline struct timespec ToTimeSpec(u64 nanoSeconds)
+		{
+			struct timespec ts;
+			ts.tv_sec = nanoSeconds / 1'000'000'000;
+			ts.tv_nsec = nanoSeconds % 1'000'000'000;
+			return ts;
+		}
+
 		bool IsSet(u32 timeoutMs = ~0u)
 		{
 			if (!m_initialized)
 				return false;
 
-			struct timeval startTime;
+			u64 startTimeNs = 0;
 
 			// We need to know the start time if we're going to do a timed wait.
 			if ((timeoutMs > 0) && (timeoutMs != ~0u))  // not polling and not infinite wait.
-				gettimeofday(&startTime, NULL);
+				startTimeNs = GetMonoticTimeNs();
+
+			u64 timeoutNs = u64(timeoutMs) * 1'000'000;
+
+			#if UBA_TEST_WAIT_QUALITY
+			u32 loop = 0;
+			bool timedOut = false;
+			u64 initialStartTimeNs = startTimeNs;
+			u64 initialTimeoutNs = timeoutNs;
+			auto qg = MakeGuard([&]()
+				{
+					if (startTimeNs && timedOut)
+					{
+						u64 overtimeNs = GetMonoticTimeNs() - initialStartTimeNs - initialTimeoutNs;
+						printf("Loops: %u TimeOut: %ums Over-wait: %lluus\n", loop, timeoutMs, overtimeNs/1000);
+					}
+				});
+			#endif
 
 			LockEventMutex();
+			auto unlock = MakeGuard([this]() { UnlockEventMutex(); });
 
 			// loop in case we fall through the Condition signal but someone else claims the event.
 			do
@@ -158,18 +218,16 @@ namespace uba
 				if (m_triggered == TriggerType_One)
 				{
 					m_triggered = TriggerType_None;
-					UnlockEventMutex();
 					return true;
 				}
 
 				if (m_triggered == TriggerType_All)
 				{
-					UnlockEventMutex();
 					return true;
 				}
 
 				// No event signalled yet.
-				if (timeoutMs != 0)  // not just polling, wait on the condition variable.
+				if (timeoutNs != 0)  // not just polling, wait on the condition variable.
 				{
 					++m_waitingThreads;
 					if (timeoutMs == ~0u) // infinite wait?
@@ -179,28 +237,29 @@ namespace uba
 					}
 					else  // timed wait.
 					{
-						struct timespec TimeOut;
-						const int ms = int(startTime.tv_usec / 1000) + int(timeoutMs);
-						TimeOut.tv_sec = (startTime.tv_sec) + (ms / 1000);
-						TimeOut.tv_nsec = (ms % 1000) * 1000000;  // remainder of milliseconds converted to nanoseconds.
-						int rc = pthread_cond_timedwait(&m_condition, &m_mutex, &TimeOut);    // unlocks Mutex while blocking...
+						struct timespec timeout = ToTimeSpec(startTimeNs + timeoutNs + GetTimeOfDayOffset);
+						int rc = pthread_cond_timedwait(&m_condition, &m_mutex, &timeout);    // unlocks Mutex while blocking...
 						UBA_ASSERTF((rc == 0) || (rc == ETIMEDOUT), "pthread_cond_timedwait failed"); (void)rc;
 
-						// Update timeoutMs and startTime in case we have to go again...
-						struct timeval now, difference;
-						gettimeofday(&now, NULL);
-						SubtractTimevals(&now, &startTime, &difference);
-						const u32 differenceMS = ((u32(difference.tv_sec) * 1000) + (u32(difference.tv_usec) / 1000));
-						timeoutMs = ((differenceMS >= timeoutMs) ? 0 : (timeoutMs - differenceMS));
-						startTime = now;
+						#if UBA_TEST_WAIT_QUALITY
+						++loop;
+						#endif
+
+						u64 nowNs = GetMonoticTimeNs();
+						u64 diffNs = nowNs - startTimeNs;
+
+						timeoutNs = diffNs >= timeoutNs ? 0 : (timeoutNs - diffNs);
+						startTimeNs = nowNs;
 					}
 					--m_waitingThreads;
 					UBA_ASSERTF(m_waitingThreads >= 0, "m_waitingThreads less than 0");
 				}
 
-			} while (timeoutMs != 0);
+			} while (timeoutNs != 0);
 
-			UnlockEventMutex();
+			#if UBA_TEST_WAIT_QUALITY
+			timedOut = true;
+			#endif
 			return false;
 		}
 
@@ -224,26 +283,6 @@ namespace uba
 		{
 			int res = pthread_mutex_unlock(&m_mutex);
 			UBA_ASSERTF(res == 0, "pthread_mutex_unlock failed (error code %i)", res);
-		}
-
-		static inline void SubtractTimevals(const struct timeval* FromThis, struct timeval* SubThis, struct timeval* Difference)
-		{
-			if (FromThis->tv_usec < SubThis->tv_usec)
-			{
-				int nsec = int((SubThis->tv_usec - FromThis->tv_usec) / 1000000) + 1;
-				SubThis->tv_usec -= 1000000 * nsec;
-				SubThis->tv_sec += nsec;
-			}
-
-			if (FromThis->tv_usec - SubThis->tv_usec > 1000000)
-			{
-				int nsec = int((FromThis->tv_usec - SubThis->tv_usec) / 1000000);
-				SubThis->tv_usec += 1000000 * nsec;
-				SubThis->tv_sec -= nsec;
-			}
-
-			Difference->tv_sec = FromThis->tv_sec - SubThis->tv_sec;
-			Difference->tv_usec = FromThis->tv_usec - SubThis->tv_usec;
 		}
 	};
 #endif

@@ -54,29 +54,47 @@ namespace uba
 
 	bool TestEvents(Logger& logger, const StringBufferBase& rootDir)
 	{
-		Event ev(true);
-		Thread t([&]()
-			{
-				Sleep(500);
-				//logger.Info(TC("Setting event"));
-				ev.Set();
-				Sleep(500);
-				return true;
-			});
+		for (uint i=0; i!=2; ++i)
+		{
+			Event ev;
+			if (!ev.Create(true, i == 1))
+				return logger.Error(TC("Failed to create event"));
 
-		if (ev.IsSet(0))
-			return false;
+			Thread t([&]()
+				{
+					Sleep(500);
+					//logger.Info(TC("Setting event"));
+					ev.Set();
+					Sleep(500);
+					return true;
+				});
 
-		//logger.Info(TC("Waiting for event"));
-		if (!ev.IsSet(10000))
-			return false;
-		//logger.Info(TC("Event was set"));
+			if (ev.IsSet(1))
+				return logger.Error(TC("Event was set after 1ms timeout where it should take 500ms"));
 
-		if (t.Wait(0))
-			return false;
+			if (ev.IsSet(0))
+				return logger.Error(TC("Event was set after no timeout where it should take 500ms"));
 
-		if (!t.Wait(2000))
-			return false;
+			//logger.Info(TC("Waiting for event"));
+			if (!ev.IsSet(2000))
+				return logger.Error(TC("Event was not set after 2000ms where it should take 500ms"));
+			//logger.Info(TC("Event was set"));
+
+			if (t.Wait(0))
+				return logger.Error(TC("Thread wait timed out. Should already be done after 2000ms"));
+
+			if (!t.Wait(2000))
+				return logger.Error(TC("Thread wait did not timed out should be done after 2000ms"));
+
+			#if 0 // Long time test... disabled by default
+			u64 time = GetTime();
+			Event ev2(true);
+			ev2.IsSet(10 * 60 * 1000);
+			if (TimeToMs((GetTime() - time) < 9 * 60 * 1000))
+				return logger.Error(TC("Event timeout was way too fast"));
+			#endif
+		}
+
 		return true;
 	}
 

@@ -17,8 +17,6 @@ namespace uba
 	DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD cchBuffer);
 	#endif
 
-	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...);
-
 	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession, bool isError);
 	void Rpc_WriteLogf(const tchar* format, ...);
 

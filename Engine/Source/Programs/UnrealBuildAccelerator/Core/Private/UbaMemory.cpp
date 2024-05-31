@@ -5,9 +5,6 @@
 
 namespace uba
 {
-	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...);
-
-
 	MemoryBlock::MemoryBlock(u64 reserveSize_, void* baseAddress_)
 	{
 		Init(reserveSize_, baseAddress_);
