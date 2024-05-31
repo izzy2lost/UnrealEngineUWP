@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaTag.h"
+#include "AvaTagId.h"
 #include "UObject/SoftObjectPtr.h"
 #include "AvaTagSoftHandle.generated.h"
 

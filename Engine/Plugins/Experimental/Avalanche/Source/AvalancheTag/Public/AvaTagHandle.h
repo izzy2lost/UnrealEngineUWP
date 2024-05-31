@@ -2,18 +2,19 @@
 
 #pragma once
 
-#include "AvaTag.h"
+#include "AvaTagId.h"
 #include "Containers/ContainersFwd.h"
 #include "AvaTagHandle.generated.h"
 
 class UAvaTagCollection;
+struct FAvaTag;
 
 /**
  * Handle to a Tag in a particular Source.
  * This should be used by the UStructs/UObjects to properly reference a particular FAvaTag.
  */
 USTRUCT(BlueprintType)
-struct AVALANCHETAG_API FAvaTagHandle
+struct FAvaTagHandle
 {
 	GENERATED_BODY()
 
@@ -25,21 +26,21 @@ struct AVALANCHETAG_API FAvaTagHandle
 	{
 	}
 
-	const FAvaTag* GetTag() const;
+	AVALANCHETAG_API const FAvaTag* GetTag() const;
 
-	FString ToString() const;
+	AVALANCHETAG_API FString ToString() const;
 
-	FString ToDebugString() const;
+	AVALANCHETAG_API FString ToDebugString() const;
 
-	FName ToName() const;
+	AVALANCHETAG_API FName ToName() const;
 
-	void PostSerialize(const FArchive& Ar);
+	AVALANCHETAG_API void PostSerialize(const FArchive& Ar);
 
 	/** Returns true if the Tag Handles resolve to same valued FAvaTags, even if the Source or Tag Id is different */
-	bool MatchesTag(const FAvaTagHandle& InOther) const;
+	AVALANCHETAG_API bool MatchesTag(const FAvaTagHandle& InOther) const;
 
 	/** Returns true if the Tag Handles is the exact same as the other (Same Source and Tag Id) */
-	bool MatchesExact(const FAvaTagHandle& InOther) const;
+	AVALANCHETAG_API bool MatchesExact(const FAvaTagHandle& InOther) const;
 
 	bool IsValid() const
 	{

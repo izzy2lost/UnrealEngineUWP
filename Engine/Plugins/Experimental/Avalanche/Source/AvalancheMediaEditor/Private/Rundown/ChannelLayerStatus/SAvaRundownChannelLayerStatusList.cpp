@@ -2,6 +2,7 @@
 
 #include "SAvaRundownChannelLayerStatusList.h"
 
+#include "AvaTag.h"
 #include "Misc/CoreDelegates.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorDefines.h"

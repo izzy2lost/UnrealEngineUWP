@@ -18,23 +18,23 @@ void UAvaSceneState::Initialize(UAvaSceneSettings* InSceneSettings)
 
 bool UAvaSceneState::AddTagAttribute(const FAvaTagHandle& InTagHandle)
 {
+	if (!InTagHandle.IsValid())
+	{
+		return false;
+	}
+
 	// Return true if already existing
 	if (ContainsTagAttribute(InTagHandle))
 	{
 		return true;
 	}
 
-	if (const FAvaTag* Tag = InTagHandle.GetTag())
-	{
-		UAvaTagAttribute* TagAttribute = NewObject<UAvaTagAttribute>(this, NAME_None, RF_Transient);
-		check(TagAttribute);
-		TagAttribute->Tag = InTagHandle;
+	UAvaTagAttribute* TagAttribute = NewObject<UAvaTagAttribute>(this, NAME_None, RF_Transient);
+	check(TagAttribute);
+	TagAttribute->Tag = InTagHandle;
 
-		SceneAttributes.Add(TagAttribute);
-		return true;
-	}
-
-	return false;
+	SceneAttributes.Add(TagAttribute);
+	return true;
 }
 
 bool UAvaSceneState::RemoveTagAttribute(const FAvaTagHandle& InTagHandle)

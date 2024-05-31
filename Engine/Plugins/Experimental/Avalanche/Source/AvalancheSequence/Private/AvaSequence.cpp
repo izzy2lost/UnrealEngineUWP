@@ -5,6 +5,7 @@
 #include "AvaSequenceController.h"
 #include "AvaSequencePlayer.h"
 #include "AvaSequenceVersion.h"
+#include "AvaTag.h"
 #include "Director/AvaSequenceDirector.h"
 #include "Director/AvaSequenceDirectorBlueprint.h"
 #include "EngineUtils.h"

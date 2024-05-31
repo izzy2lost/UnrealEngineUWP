@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "AvaTag.h"
+#include "AvaTagId.h"
 #include "Containers/ContainersFwd.h"
 #include "AvaTagHandleContainer.generated.h"
 
 class UAvaTagCollection;
+struct FAvaTag;
 struct FAvaTagHandle;
 
 /**

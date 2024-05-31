@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTagLibrary.h"
+#include "AvaTag.h"
 #include "AvaTagHandle.h"
 #include "AvaTagHandleContainer.h"
 #include "AvaTagSoftHandle.h"
