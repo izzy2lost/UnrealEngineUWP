@@ -2688,7 +2688,7 @@ public:
 
 			if (Bypass())
 			{
-				GetContext().RHISetShaderParameters(InShader, InBatchedParameters.ParametersData, InBatchedParameters.Parameters, InBatchedParameters.ResourceParameters, InBatchedParameters.BindlessParameters);
+				GetComputeContext().RHISetShaderParameters(InShader, InBatchedParameters.ParametersData, InBatchedParameters.Parameters, InBatchedParameters.ResourceParameters, InBatchedParameters.BindlessParameters);
 				return;
 			}
 
@@ -2838,7 +2838,7 @@ public:
 		}
 	}
 
-	RHI_API void Transition(TArrayView<const FRHITransitionInfo> Infos);
+	RHI_API void Transition(TArrayView<const FRHITransitionInfo> Infos, ERHITransitionCreateFlags CreateFlags = ERHITransitionCreateFlags::None);
 
 	FORCEINLINE_DEBUGGABLE void BeginTransition(const FRHITransition* Transition)
 	{
@@ -2850,10 +2850,16 @@ public:
 		EndTransitions(MakeArrayView(&Transition, 1));
 	}
 
-	FORCEINLINE_DEBUGGABLE void Transition(const FRHITransitionInfo& Info)
+	FORCEINLINE_DEBUGGABLE void Transition(const FRHITransitionInfo& Info, ERHITransitionCreateFlags CreateFlags = ERHITransitionCreateFlags::None)
 	{
-		Transition(MakeArrayView(&Info, 1));
+		Transition(MakeArrayView(&Info, 1), CreateFlags);
 	}
+
+	//
+	// Performs an immediate transition with the option of broadcasting to multiple pipelines.
+	// Uses both the immediate and async compute contexts. Falls back to graphics-only if async compute is not supported.
+	//
+	RHI_API void Transition(TArrayView<const FRHITransitionInfo> Infos, ERHIPipeline SrcPipelines, ERHIPipeline DstPipelines, ERHITransitionCreateFlags TransitionCreateFlags = ERHITransitionCreateFlags::None);
 
 	FORCEINLINE_DEBUGGABLE void SetTrackedAccess(TArrayView<const FRHITrackedAccessInfo> Infos)
 	{
@@ -4553,13 +4559,6 @@ public:
 	RHI_API static bool IsStalled();
 
 	RHI_API void InitializeImmediateContexts();
-
-	//
-	// Performs an immediate transition with the option of broadcasting to multiple pipelines.
-	// Uses both the immediate and async compute contexts. Falls back to graphics-only if async compute is not supported.
-	//
-	RHI_API void Transition(TArrayView<const FRHITransitionInfo> Infos, ERHIPipeline SrcPipelines, ERHIPipeline DstPipelines);
-	using FRHIComputeCommandList::Transition;
 
 	template <typename LAMBDA>
 	FORCEINLINE_DEBUGGABLE void EnqueueLambda(const TCHAR* LambdaName, LAMBDA&& Lambda)

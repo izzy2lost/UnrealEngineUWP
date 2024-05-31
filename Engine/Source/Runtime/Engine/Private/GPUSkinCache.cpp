@@ -856,7 +856,7 @@ void FGPUSkinCache::TransitionAllToReadable(FRHICommandList& RHICmdList, const T
 				UAVs.Add(Buffer->UpdateAccessState(ToState));
 			}
 		}
-		RHICmdList.Transition(UAVs);
+		RHICmdList.Transition(UAVs, ERHIPipeline::Graphics, IsGPUSkinCacheRayTracingSupported() ? ERHIPipeline::All : ERHIPipeline::Graphics);
 	}
 }
 
@@ -1173,7 +1173,7 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 				RHICmdList.Transition({
 					DispatchData.GetActiveTangentRWBuffer()->UpdateAccessState(ERHIAccess::SRVCompute),
 					StagingBuffer->UpdateAccessState(ERHIAccess::UAVCompute)
-				});
+				}, ERHITransitionCreateFlags::NoFence);
 			}
 
 			INC_DWORD_STAT_BY(STAT_GPUSkinCache_NumTrianglesForRecomputeTangents, NumTriangles);
@@ -1221,7 +1221,7 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 			RHICmdList.Transition({
 				DispatchData.GetTangentRWBuffer()->UpdateAccessState(ERHIAccess::UAVCompute),
 				StagingBuffer->UpdateAccessState(ERHIAccess::UAVCompute)
-				});
+			}, ERHITransitionCreateFlags::NoFence);
 		}
 
 		SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
@@ -1282,7 +1282,7 @@ void FGPUSkinCache::MakeBufferTransitions(FRHICommandList& RHICmdList, TArray<FS
 				UAVs.Add(Buffer->UpdateAccessState(ToState));
 			}
 		}
-		RHICmdList.Transition(MakeArrayView(UAVs.GetData(), UAVs.Num()));
+		RHICmdList.Transition(MakeArrayView(UAVs.GetData(), UAVs.Num()), ERHITransitionCreateFlags::NoFence);
 	}
 }
 

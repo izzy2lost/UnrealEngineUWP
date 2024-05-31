@@ -1573,6 +1573,7 @@ void CopyToSkyTexture(FRDGBuilder& GraphBuilder, FScene* Scene, FRDGTexture* Inp
 		CopyInfo.NumMips = GetNumMips(ProcessedTexture->GetSizeX());
 
 		AddCopyTexturePass(GraphBuilder, InputTexture, OutputTexture, CopyInfo);
+		GraphBuilder.UseExternalAccessMode(OutputTexture, ERHIAccess::SRVMask, ERHIPipeline::All);
 	}
 }
 

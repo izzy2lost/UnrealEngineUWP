@@ -1508,47 +1508,6 @@ void FRHICommandListExecutor::WaitForTasks()
 	}
 }
 
-void FRHICommandListImmediate::Transition(TArrayView<const FRHITransitionInfo> Infos, ERHIPipeline SrcPipelines, ERHIPipeline DstPipelines)
-{
-	check(IsInRenderingThread());
-
-#if DO_CHECK
-	for (const FRHITransitionInfo& Info : Infos)
-	{
-		checkf(Info.IsWholeResource(), TEXT("Only whole resource transitions are allowed in FRHICommandListImmediate::Transition."));
-	}
-#endif
-
-	if (!GSupportsEfficientAsyncCompute)
-	{
-		checkf(SrcPipelines != ERHIPipeline::AsyncCompute, TEXT("Async compute is disabled. Cannot transition from it."));
-		checkf(DstPipelines != ERHIPipeline::AsyncCompute, TEXT("Async compute is disabled. Cannot transition to it."));
-
-		EnumRemoveFlags(SrcPipelines, ERHIPipeline::AsyncCompute);
-		EnumRemoveFlags(DstPipelines, ERHIPipeline::AsyncCompute);
-	}
-
-	const FRHITransition* Transition = RHICreateTransition({ SrcPipelines, DstPipelines, ERHITransitionCreateFlags::None, Infos });
-
-	for (ERHIPipeline Pipeline : MakeFlagsRange(SrcPipelines))
-	{
-		FRHICommandListScopedPipeline Scope(*this, Pipeline);
-		BeginTransition(Transition);
-	}
-
-	for (ERHIPipeline Pipeline : MakeFlagsRange(DstPipelines))
-	{
-		FRHICommandListScopedPipeline Scope(*this, Pipeline);
-		EndTransition(Transition);
-	}
-
-	if (EnumHasAnyFlags(SrcPipelines | DstPipelines, ERHIPipeline::Graphics))
-	{
-		FRHICommandListScopedPipeline Scope(*this, ERHIPipeline::Graphics);
-		SetTrackedAccess(Infos);
-	}
-}
-
 bool FRHICommandListImmediate::IsStalled()
 {
 	return GRHIThreadStallRequestCount.load() > 0;
@@ -1736,7 +1695,7 @@ void FRHICommandListImmediate::EndFrame()
 	}
 }
 
-void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Infos)
+void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Infos, ERHITransitionCreateFlags CreateFlags)
 {
 	const ERHIPipeline Pipeline = GetPipeline();
 
@@ -1746,7 +1705,7 @@ void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Inf
 		FMemStack& MemStack = FMemStack::Get();
 		FMemMark Mark(MemStack);
 		FRHITransition* Transition = new (MemStack.Alloc(FRHITransition::GetTotalAllocationSize(), FRHITransition::GetAlignment())) FRHITransition(Pipeline, Pipeline);
-		GDynamicRHI->RHICreateTransition(Transition, FRHITransitionCreateInfo(Pipeline, Pipeline, ERHITransitionCreateFlags::NoSplit, Infos));
+		GDynamicRHI->RHICreateTransition(Transition, FRHITransitionCreateInfo(Pipeline, Pipeline, CreateFlags | ERHITransitionCreateFlags::NoSplit, Infos));
 
 		GetComputeContext().RHIBeginTransitions(MakeArrayView((const FRHITransition**)&Transition, 1));
 		GetComputeContext().RHIEndTransitions(MakeArrayView((const FRHITransition**)&Transition, 1));
@@ -1759,7 +1718,7 @@ void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Inf
 	{
 		// Allocate the transition in the command list
 		FRHITransition* Transition = new (Alloc(FRHITransition::GetTotalAllocationSize(), FRHITransition::GetAlignment())) FRHITransition(Pipeline, Pipeline);
-		GDynamicRHI->RHICreateTransition(Transition, FRHITransitionCreateInfo(Pipeline, Pipeline, ERHITransitionCreateFlags::NoSplit, Infos));
+		GDynamicRHI->RHICreateTransition(Transition, FRHITransitionCreateInfo(Pipeline, Pipeline, CreateFlags | ERHITransitionCreateFlags::NoSplit, Infos));
 
 		ALLOC_COMMAND(FRHICommandResourceTransition)(Transition);
 	}
@@ -1772,6 +1731,42 @@ void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Inf
 		{
 			SetTrackedAccess({ FRHITrackedAccessInfo(Resource, Info.AccessAfter) });
 		}
+	}
+}
+
+void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Infos, ERHIPipeline SrcPipelines, ERHIPipeline DstPipelines, ERHITransitionCreateFlags TransitionCreateFlags)
+{
+#if DO_CHECK
+	for (const FRHITransitionInfo& Info : Infos)
+	{
+		checkf(Info.IsWholeResource(), TEXT("Only whole resource transitions are allowed in FRHIComputeCommandList::Transition."));
+	}
+#endif
+
+	if (!GSupportsEfficientAsyncCompute)
+	{
+		SrcPipelines = ERHIPipeline::Graphics;
+		DstPipelines = ERHIPipeline::Graphics;
+	}
+
+	const FRHITransition* Transition = RHICreateTransition({ SrcPipelines, DstPipelines, TransitionCreateFlags, Infos });
+
+	for (ERHIPipeline Pipeline : MakeFlagsRange(SrcPipelines))
+	{
+		FRHICommandListScopedPipeline Scope(*this, Pipeline);
+		BeginTransition(Transition);
+	}
+
+	for (ERHIPipeline Pipeline : MakeFlagsRange(DstPipelines))
+	{
+		FRHICommandListScopedPipeline Scope(*this, Pipeline);
+		EndTransition(Transition);
+	}
+
+	{
+		// Set the tracked access on only one of the destination pipes.
+		FRHICommandListScopedPipeline Scope(*this, DstPipelines == ERHIPipeline::AsyncCompute ? ERHIPipeline::AsyncCompute : ERHIPipeline::Graphics);
+		SetTrackedAccess(Infos);
 	}
 }
 

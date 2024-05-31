@@ -186,10 +186,11 @@ namespace RHIValidation
 			void* BeginTransitionBacktrace = nullptr;
 		};
 
+		TRHIPipelineArray<uint64> LastTransitionFences{InPlace, 0};
 		TRHIPipelineArray<FPipelineState> States;
 
-		void BeginTransition   (FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, EResourceTransitionFlags NewFlags, ERHIPipeline Pipeline, void* CreateTrace);
-		void EndTransition     (FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, ERHIPipeline Pipeline, void* CreateTrace);
+		void BeginTransition   (FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, EResourceTransitionFlags NewFlags, ERHITransitionCreateFlags CreateFlags, ERHIPipeline Pipeline, const TRHIPipelineArray<uint64>& PipelineMaxAwaitedFenceValues, void* CreateTrace);
+		void EndTransition     (FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, ERHIPipeline Pipeline, uint64 PipelineFenceValue, void* CreateTrace);
 		void Assert            (FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& RequiredState, bool bAllowAllUAVsOverlap);
 		void AssertTracked     (FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& TrackedState);
 		void SpecificUAVOverlap(FResource* Resource, FSubresourceIndex const& SubresourceIndex, ERHIPipeline Pipeline, bool bAllow);
@@ -505,6 +506,9 @@ namespace RHIValidation
 	struct FFence
 	{
 		bool bSignaled = false;
+		ERHIPipeline SrcPipe = ERHIPipeline::None;
+		ERHIPipeline DstPipe = ERHIPipeline::None;
+		uint64 FenceValue = 0;
 	};
 
 	enum class EOpType
@@ -555,6 +559,7 @@ namespace RHIValidation
 				FState PreviousState;
 				FState NextState;
 				EResourceTransitionFlags Flags;
+				ERHITransitionCreateFlags CreateFlags;
 				void* CreateBacktrace;
 			} Data_BeginTransition;
 
@@ -607,13 +612,11 @@ namespace RHIValidation
 			struct
 			{
 				FFence* Fence;
-				ERHIPipeline Pipeline;
 			} Data_Signal;
 
 			struct
 			{
 				FFence* Fence;
-				ERHIPipeline Pipeline;
 			} Data_Wait;
 
 			struct
@@ -643,7 +646,7 @@ namespace RHIValidation
 		// Returns true if the operation is complete
 		RHI_API bool Replay(FOpQueueState& Queue) const;
 
-		static inline FOperation BeginTransitionResource(FResourceIdentity Identity, FState PreviousState, FState NextState, EResourceTransitionFlags Flags, void* CreateBacktrace)
+		static inline FOperation BeginTransitionResource(FResourceIdentity Identity, FState PreviousState, FState NextState, EResourceTransitionFlags Flags, ERHITransitionCreateFlags CreateFlags, void* CreateBacktrace)
 		{
 			for (ERHIPipeline Pipeline : MakeFlagsRange(PreviousState.Pipelines))
 			{
@@ -656,6 +659,7 @@ namespace RHIValidation
 			Op.Data_BeginTransition.PreviousState = PreviousState;
 			Op.Data_BeginTransition.NextState = NextState;
 			Op.Data_BeginTransition.Flags = Flags;
+			Op.Data_BeginTransition.CreateFlags = CreateFlags;
 			Op.Data_BeginTransition.CreateBacktrace = CreateBacktrace;
 			return MoveTemp(Op);
 		}
@@ -746,21 +750,19 @@ namespace RHIValidation
 			return MoveTemp(Op);
 		}
 
-		static inline FOperation Signal(FFence* Fence, ERHIPipeline Pipeline)
+		static inline FOperation Signal(FFence* Fence)
 		{
 			FOperation Op;
 			Op.Type = EOpType::Signal;
 			Op.Data_Signal.Fence = Fence;
-			Op.Data_Signal.Pipeline = Pipeline;
 			return MoveTemp(Op);
 		}
 
-		static inline FOperation Wait(FFence* Fence, ERHIPipeline Pipeline)
+		static inline FOperation Wait(FFence* Fence)
 		{
 			FOperation Op;
 			Op.Type = EOpType::Wait;
 			Op.Data_Wait.Fence = Fence;
-			Op.Data_Wait.Pipeline = Pipeline;
 			return MoveTemp(Op);
 		}
 
@@ -848,6 +850,8 @@ namespace RHIValidation
 	struct FOpQueueState
 	{
 		ERHIPipeline const Pipeline;
+		uint64 FenceValue = 0;
+		TRHIPipelineArray<uint64> MaxAwaitedFenceValues{InPlace, 0};
 
 #if WITH_RHI_BREADCRUMBS
 		struct
@@ -876,7 +880,7 @@ namespace RHIValidation
 		{}
 
 		void AppendOps(FValidationCommandList* CommandList);
-		
+
 		// Returns true if progress was made
 		bool Execute();
 	};
@@ -974,7 +978,7 @@ namespace RHIValidation
 		{
 			// This function exists due to the implicit transitions that RHI functions make (e.g. RHICopyToResolveTarget).
 			// It should be removed when we eventually remove all implicit transitions from the RHI.
-			AddOp(FOperation::BeginTransitionResource(Identity, PreviousState, NextState, Flags, nullptr));
+			AddOp(FOperation::BeginTransitionResource(Identity, PreviousState, NextState, Flags, ERHITransitionCreateFlags::None, nullptr));
 			AddOp(FOperation::EndTransitionResource(Identity, PreviousState, NextState, nullptr));
 		}
 

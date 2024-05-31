@@ -365,11 +365,11 @@ void FVirtualTextureSpace::AllocateTextures(FRDGBuilder& GraphBuilder)
 }
 
 
-void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuilder& GraphBuilder)
+void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	ON_SCOPE_EXIT
 	{
-		FinalizeTextures(GraphBuilder);
+		FinalizeTextures(GraphBuilder, ExternalAccessQueue);
 	};
 
 	static TArray<FPageTableUpdate> ExpandedUpdates[VIRTUALTEXTURE_SPACE_MAXLAYERS][16];
@@ -566,7 +566,7 @@ void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuild
 	}
 }
 
-void FVirtualTextureSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
+void FVirtualTextureSpace::FinalizeTextures(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	for (uint32 LayerIndex = 0u; LayerIndex < Description.NumPageTableLayers; ++LayerIndex)
 	{
@@ -577,7 +577,7 @@ void FVirtualTextureSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
 			// It's only necessary to enable external access mode on textures modified by RDG this frame.
 			if (FRDGTexture* Texture = GraphBuilder.FindExternalTexture(PageTableEntry.RenderTarget))
 			{
-				GraphBuilder.UseExternalAccessMode(Texture, ERHIAccess::SRVMask);
+				ExternalAccessQueue.Add(Texture, ERHIAccess::SRVMask, ERHIPipeline::All);
 			}
 		}
 	}

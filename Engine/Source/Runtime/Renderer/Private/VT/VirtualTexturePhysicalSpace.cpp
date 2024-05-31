@@ -12,7 +12,7 @@
 #include "VT/VirtualTextureScalability.h"
 #include "VT/VirtualTextureSystem.h"
 #include "RHIUtilities.h"
-#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
 
 DECLARE_MEMORY_STAT_POOL(TEXT("Total Physical Memory"), STAT_TotalPhysicalMemory, STATGROUP_VirtualTextureMemory, FPlatformMemory::MCR_GPU);
 
@@ -195,14 +195,14 @@ void FVirtualTexturePhysicalSpace::ReleaseRHI()
 	}
 }
 
-void FVirtualTexturePhysicalSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
+void FVirtualTexturePhysicalSpace::FinalizeTextures(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	for (int32 Layer = 0; Layer < Description.NumLayers; ++Layer)
 	{
 		// It's only necessary to enable external access mode on textures modified by RDG this frame.
 		if (FRDGTexture* Texture = GraphBuilder.FindExternalTexture(PooledRenderTarget[Layer]))
 		{
-			GraphBuilder.UseExternalAccessMode(Texture, ERHIAccess::SRVMask);
+			ExternalAccessQueue.Add(Texture, ERHIAccess::SRVMask);
 		}
 	}
 }

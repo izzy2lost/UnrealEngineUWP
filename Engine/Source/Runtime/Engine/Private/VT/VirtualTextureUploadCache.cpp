@@ -361,7 +361,7 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 
 			if (!UpdatedTextures.Contains(Entry.RHISubmitTexture))
 			{
-				RHICmdList.Transition(FRHITransitionInfo(Entry.RHISubmitTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest));
+				RHICmdList.Transition(FRHITransitionInfo(Entry.RHISubmitTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest), ERHITransitionCreateFlags::NoFence);
 				UpdatedTextures.Add(Entry.RHISubmitTexture);
 			}
 
@@ -384,7 +384,7 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 	{
 		SRVTransitions.Add(FRHITransitionInfo(UpdatedTextures[Index], ERHIAccess::CopyDest, ERHIAccess::SRVMask));
 	}
-	RHICmdList.Transition(SRVTransitions);
+	RHICmdList.Transition(SRVTransitions, ERHIPipeline::Graphics, ERHIPipeline::All);
 	UpdatedTextures.Reset();
 }
 
@@ -436,7 +436,7 @@ void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const F
 	{
 		if (!UpdatedTextures.Contains(InDestTexture))
 		{
-			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest));
+			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest), ERHITransitionCreateFlags::NoFence);
 			UpdatedTextures.Add(InDestTexture);
 		}
 
@@ -452,7 +452,7 @@ void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const F
 	{
 		if (!UpdatedTextures.Contains(InDestTexture))
 		{
-			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest));
+			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest), ERHITransitionCreateFlags::NoFence);
 			UpdatedTextures.Add(InDestTexture);
 		}
 

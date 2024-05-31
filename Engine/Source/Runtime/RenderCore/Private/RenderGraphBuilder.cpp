@@ -553,6 +553,12 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 	, BarrierValidation(&Passes, BuilderName)
 #endif
 {
+	if (GSupportsEfficientAsyncCompute)
+	{
+		// Insert a manual fence from async compute to graphics to synchronize any all pipeline external access resources from the last run.
+		RHICmdList.Transition({}, ERHIPipeline::AsyncCompute, ERHIPipeline::Graphics);
+	}
+
 	ProloguePass = SetupEmptyPass(Passes.Allocate<FRDGSentinelPass>(Allocators.Root, RDG_EVENT_NAME("Graph Prologue (Graphics)")));
 
 	ParallelExecute.bEnabled = ::IsParallelExecuteEnabled() && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::AllowParallelExecute);
@@ -1638,14 +1644,7 @@ void FRDGBuilder::Execute()
 
 	GRDGTransientResourceAllocator.ReleasePendingDeallocations();
 
-	{
-		SCOPED_NAMED_EVENT_TEXT("FRDGBuilder::FlushAccessModeQueue", FColor::Magenta);
-		for (FRDGViewableResource* Resource : ExternalAccessResources)
-		{
-			UseInternalAccessMode(Resource);
-		}
-		FlushAccessModeQueue();
-	}
+	FlushAccessModeQueue();
 
 	// Create the epilogue pass at the end of the graph just prior to compilation.
 	SetupEmptyPass(EpiloguePass = Passes.Allocate<FRDGSentinelPass>(Allocators.Root, RDG_EVENT_NAME("Graph Epilogue")));
@@ -3642,6 +3641,13 @@ void FRDGBuilder::AddLastTextureTransition(FRDGTexture* Texture)
 	check(IsImmediateMode() || Texture->bExtracted || Texture->ReferenceCount == FRDGViewableResource::DeallocatedReferenceCount);
 	check(Texture->HasRHI());
 
+	if (Texture->AccessModeState.ActiveMode == FRDGViewableResource::EAccessMode::External)
+	{
+		// Assign the final state that was enqueued by the external access pass, which may include merged states.
+		EpilogueResourceAccesses.Emplace(Texture->GetRHI(), Texture->State[0]->Access);
+		return;
+	}
+
 	const FRDGPassHandle EpiloguePassHandle = GetEpiloguePassHandle();
 
 	FRDGSubresourceState* SubresourceStateBefore = nullptr;
@@ -3723,6 +3729,13 @@ void FRDGBuilder::AddLastBufferTransition(FRDGBuffer* Buffer)
 {
 	check(IsImmediateMode() || Buffer->bExtracted || Buffer->ReferenceCount == FRDGViewableResource::DeallocatedReferenceCount);
 	check(Buffer->HasRHI());
+
+	if (Buffer->AccessModeState.ActiveMode == FRDGViewableResource::EAccessMode::External)
+	{
+		// Assign the final state that was enqueued by the external access pass, which may include merged states.
+		EpilogueResourceAccesses.Emplace(Buffer->GetRHI(), Buffer->State->Access);
+		return;
+	}
 
 	const FRDGPassHandle EpiloguePassHandle = GetEpiloguePassHandle();
 

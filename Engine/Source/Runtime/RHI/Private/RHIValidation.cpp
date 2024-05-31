@@ -513,14 +513,7 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 	const ERHIPipeline SrcPipelines = CreateInfo.SrcPipelines;
 	const ERHIPipeline DstPipelines = CreateInfo.DstPipelines;
 
-	struct FFenceEdge
-	{
-		FFence* Fence = nullptr;
-		ERHIPipeline SrcPipe = ERHIPipeline::None;
-		ERHIPipeline DstPipe = ERHIPipeline::None;
-	};
-
-	TArray<FFenceEdge> Fences;
+	TArray<FFence*> Fences;
 
 	if (SrcPipelines != DstPipelines)
 	{
@@ -533,11 +526,10 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 					continue;
 				}
 
-				FFenceEdge FenceEdge;
-				FenceEdge.Fence = new FFence;
-				FenceEdge.SrcPipe = SrcPipe;
-				FenceEdge.DstPipe = DstPipe;
-				Fences.Add(FenceEdge);
+				FFence* Fence = new FFence;
+				Fence->SrcPipe = SrcPipe;
+				Fence->DstPipe = DstPipe;
+				Fences.Add(Fence);
 			}
 		}
 	}
@@ -550,9 +542,9 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 	BeginOps          .Reserve(CreateInfo.TransitionInfos.Num());
 	EndOps            .Reserve(CreateInfo.TransitionInfos.Num());
 
-	for (const FFenceEdge& FenceEdge : Fences)
+	for (FFence* Fence : Fences)
 	{
-		WaitOps[FenceEdge.DstPipe].Emplace(FOperation::Wait(FenceEdge.Fence, FenceEdge.DstPipe));
+		WaitOps[Fence->DstPipe].Emplace(FOperation::Wait(Fence));
 	}
 
 	// Take a backtrace of this transition creation if any of the resources it contains have logging enabled.
@@ -615,9 +607,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 
 		if (const FRHICommitResourceInfo* CommitInfo = Info.CommitInfo.GetPtrOrNull())
 		{
-			RHI_VALIDATION_CHECK((SrcPipelines == ERHIPipeline::Graphics && DstPipelines == ERHIPipeline::Graphics),
-				TEXT("Reserved resource commit operations are only supported on the graphics pipeline and must not cross pipeline boundary."));
-
 			if (Info.Type == FRHITransitionInfo::EType::Buffer)
 			{
 				const FRHIBuffer* Buffer = Info.Buffer;
@@ -659,7 +648,7 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 		FState PreviousState = FState(Info.AccessBefore, SrcPipelines);
 		FState NextState = FState(Info.AccessAfter, DstPipelines);
 
-		BeginOps.Emplace(FOperation::BeginTransitionResource(Identity, PreviousState, NextState, Info.Flags, nullptr));
+		BeginOps.Emplace(FOperation::BeginTransitionResource(Identity, PreviousState, NextState, Info.Flags, CreateInfo.Flags, nullptr));
 		EndOps  .Emplace(FOperation::EndTransitionResource(Identity, PreviousState, NextState, nullptr));
 	}
 
@@ -682,9 +671,9 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 		for (FOperation& Op : EndOps            ) { Op.Data_EndTransition  .CreateBacktrace = Backtrace; }
 	}
 
-	for (const FFenceEdge& FenceEdge : Fences)
+	for (FFence* Fence : Fences)
 	{
-		SignalOps[FenceEdge.SrcPipe].Emplace(FOperation::Signal(FenceEdge.Fence, FenceEdge.SrcPipe));
+		SignalOps[Fence->SrcPipe].Emplace(FOperation::Signal(Fence));
 	}
 
 	Transition->PendingSignals          = MoveTemp(SignalOps);
@@ -1449,6 +1438,28 @@ namespace RHIValidation
 			*GetRHIAccessName(ActualCurrentState.Access),
 			*GetRHIAccessName(CurrentStateFromRHI.Access));
 	}
+	
+	static inline FString GetReasonString_IncorrectFencing(
+		FResource* Resource, FSubresourceIndex const& SubresourceIndex,
+		ERHIPipeline SrcPipelineSkipped,
+		ERHIPipeline DstPipeline)
+	{
+		FString DebugName = GetResourceDebugName(Resource, SubresourceIndex);
+		FString SrcPipelineName = *GetRHIPipelineName(SrcPipelineSkipped);
+		FString DstPipelineName = *GetRHIPipelineName(DstPipeline);
+		return FString::Printf(
+			BARRIER_TRACKER_LOG_PREFIX_RESNAME
+			TEXT("Attemped to begin a resource transition for resource %s on the %s pipeline but skipping the transition on the %s pipeline (which is allowed with the NoFence flag), however no external\n")
+			TEXT("fence was issued between these two pipelines between this begin transition and the last end transition call on the %s pipeline. You must insert a manual fence from '%s' to '%s'.\n")
+			BARRIER_TRACKER_LOG_SUFFIX,
+			*DebugName,
+			*DebugName,
+			*DstPipelineName,
+			*SrcPipelineName,
+			*SrcPipelineName,
+			*SrcPipelineName,
+			*DstPipelineName);
+	}
 
 	static inline FString GetReasonString_IncorrectPreviousExplicitState(
 		FResource* Resource, FSubresourceIndex const& SubresourceIndex,
@@ -1695,7 +1706,7 @@ namespace RHIValidation
 		}
 	}
 
-	void FSubresourceState::BeginTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, EResourceTransitionFlags NewFlags, ERHIPipeline ExecutingPipeline, void* CreateTrace)
+	void FSubresourceState::BeginTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, EResourceTransitionFlags NewFlags, ERHITransitionCreateFlags CreateFlags, ERHIPipeline ExecutingPipeline, const TRHIPipelineArray<uint64>& PipelineMaxAwaitedFenceValues, void* CreateTrace)
 	{
 		FPipelineState& State = States[ExecutingPipeline];
 
@@ -1724,6 +1735,16 @@ namespace RHIValidation
 			}
 		}
 
+		// If we are collapsing multiple pipes to one pipe (only allowed when not fencing), check that the other pipes were fenced prior to this call.
+		if (EnumHasAnyFlags(CreateFlags, ERHITransitionCreateFlags::NoFence))
+		{
+			for (ERHIPipeline AlreadyFencedPipeline : MakeFlagsRange(State.Previous.Pipelines & ~CurrentStateFromRHI.Pipelines))
+			{
+				// The max awaited fence value should be higher than the last transitioned fence value, otherwise a fence was not issued.
+				RHI_VALIDATION_CHECK(LastTransitionFences[AlreadyFencedPipeline] < PipelineMaxAwaitedFenceValues[AlreadyFencedPipeline], *GetReasonString_IncorrectFencing(Resource, SubresourceIndex, AlreadyFencedPipeline, ExecutingPipeline));
+			}
+		}
+
 		// Check we're not already transitioning
 		RHI_VALIDATION_CHECK(!State.bTransitioning, *GetReasonString_DuplicateBeginTransition(Resource, SubresourceIndex, State.Current, TargetState, State.CreateTransitionBacktrace, BeginTrace));
 
@@ -1732,15 +1753,25 @@ namespace RHIValidation
 			// Check for the correct pipeline
 			RHI_VALIDATION_CHECK(EnumHasAllFlags(CurrentStateFromRHI.Pipelines, ExecutingPipeline), *GetReasonString_WrongPipeline(Resource, SubresourceIndex, State.Current, TargetState));
 
+			const auto HasMatchingPipelines = [CreateFlags] (ERHIPipeline Previous, ERHIPipeline Next)
+			{
+				// If no fence is being issued we only need to validate that the transition is happening from one of the previous pipes.
+				if (EnumHasAnyFlags(CreateFlags, ERHITransitionCreateFlags::NoFence))
+				{
+					return EnumHasAllFlags(Previous, Next);
+				}
+				return Previous == Next;
+			};
+
 			if (CurrentStateFromRHI.Access == ERHIAccess::Unknown)
 			{
-				RHI_VALIDATION_CHECK(Resource->TrackedAccess == State.Previous.Access && CurrentStateFromRHI.Pipelines == State.Previous.Pipelines,
+				RHI_VALIDATION_CHECK(Resource->TrackedAccess == State.Previous.Access && HasMatchingPipelines(State.Previous.Pipelines, CurrentStateFromRHI.Pipelines),
 					*GetReasonString_IncorrectPreviousTrackedState(Resource, SubresourceIndex, State.Previous, CurrentStateFromRHI.Pipelines));
 			}
 			else
 			{
 				// Check the current RHI state passed in matches the tracked state for the resource.
-				RHI_VALIDATION_CHECK(CurrentStateFromRHI.Access == State.Previous.Access && CurrentStateFromRHI.Pipelines == State.Previous.Pipelines,
+				RHI_VALIDATION_CHECK(CurrentStateFromRHI.Access == State.Previous.Access && HasMatchingPipelines(State.Previous.Pipelines, CurrentStateFromRHI.Pipelines),
 					*GetReasonString_IncorrectPreviousExplicitState(Resource, SubresourceIndex, State.Previous, CurrentStateFromRHI));
 			}
 		}
@@ -1760,16 +1791,13 @@ namespace RHIValidation
 		State.bTransitioning = true;
 
 		// Replicate the state to other pipes that are not part of the begin pipe mask.
-		for (ERHIPipeline OtherPipeline : MakeFlagsRange(ERHIPipeline::All))
+		for (ERHIPipeline OtherPipeline : MakeFlagsRange(ERHIPipeline::All & ~CurrentStateFromRHI.Pipelines))
 		{
-			if (!EnumHasAnyFlags(CurrentStateFromRHI.Pipelines, OtherPipeline))
-			{
-				States[OtherPipeline] = State;
-			}
+			States[OtherPipeline] = State;
 		}
 	}
 
-	void FSubresourceState::EndTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, ERHIPipeline ExecutingPipeline, void* CreateTrace)
+	void FSubresourceState::EndTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, ERHIPipeline ExecutingPipeline, uint64 ExecutingPipelineFenceValue, void* CreateTrace)
 	{
 		if (Resource->LoggingMode != ELoggingMode::None
 #if LOG_UNNAMED_RESOURCES
@@ -1802,6 +1830,8 @@ namespace RHIValidation
 				States[OtherPipeline] = State;
 			}
 		}
+
+		LastTransitionFences[ExecutingPipeline] = ExecutingPipelineFenceValue;
 	}
 
 	void FSubresourceState::Assert(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& RequiredState, bool bAllowAllUAVsOverlap)
@@ -2080,7 +2110,9 @@ namespace RHIValidation
 					Data_BeginTransition.PreviousState,
 					Data_BeginTransition.NextState,
 					Data_BeginTransition.Flags,
+					Data_BeginTransition.CreateFlags,
 					Queue.Pipeline,
+					Queue.MaxAwaitedFenceValues,
 					Data_BeginTransition.CreateBacktrace);
 
 			}, true);
@@ -2096,6 +2128,7 @@ namespace RHIValidation
 					Data_EndTransition.PreviousState,
 					Data_EndTransition.NextState,
 					Queue.Pipeline,
+					Queue.FenceValue,
 					Data_EndTransition.CreateBacktrace);
 			});
 			Data_EndTransition.Identity.Resource->ReleaseOpRef();
@@ -2143,17 +2176,25 @@ namespace RHIValidation
 			break;
 
 		case EOpType::Signal:
-			check(Data_Signal.Pipeline == Queue.Pipeline);
+			check(Data_Signal.Fence->SrcPipe == Queue.Pipeline);
 			Data_Signal.Fence->bSignaled = true;
+			Data_Signal.Fence->FenceValue = ++Queue.FenceValue;
 			break;
 
 		case EOpType::Wait:
-			check(Data_Wait.Pipeline == Queue.Pipeline);
-			if (!Data_Wait.Fence->bSignaled)
-				return false;
+			{
+				FFence* Fence = Data_Wait.Fence;
+				check(Fence->DstPipe == Queue.Pipeline);
+				if (!Fence->bSignaled)
+				{
+					return false;
+				}
 
-			// The fence has been completed. Free it now.
-			delete Data_Wait.Fence;
+				Queue.MaxAwaitedFenceValues[Fence->SrcPipe] = FMath::Max(Fence->FenceValue, Queue.MaxAwaitedFenceValues[Fence->SrcPipe]);
+
+				// The fence has been completed. Free it now.
+				delete Fence;
+			}
 			break;
 
 		case EOpType::AllUAVsOverlap:
@@ -2317,7 +2358,7 @@ namespace RHIValidation
 		return Backtrace;
 	}
 
-	bool ValidateDimension(EShaderCodeResourceBindingType Type, FRHIViewDesc::EDimension Dimension, bool SRV)
+	bool ValidateDimension(EShaderCodeResourceBindingType Type, FRHIViewDesc::EDimension Dimension, ERHITexturePlane TexturePlane, bool SRV)
 	{
 		// Ignore invalid types
 		if (Type == EShaderCodeResourceBindingType::Invalid)
@@ -2330,23 +2371,42 @@ namespace RHIValidation
 			return false;
 		}
 
+		if (Type == EShaderCodeResourceBindingType::RWStructuredBuffer || Type == EShaderCodeResourceBindingType::StructuredBuffer)
+		{
+			return TexturePlane == ERHITexturePlane::HTile;
+		}
+
+		if (Type == EShaderCodeResourceBindingType::RWByteAddressBuffer || Type == EShaderCodeResourceBindingType::ByteAddressBuffer)
+		{
+			return TexturePlane == ERHITexturePlane::CMask;
+		}
+		
+		if (Type == EShaderCodeResourceBindingType::RWBuffer || Type == EShaderCodeResourceBindingType::Buffer)
+		{
+			return TexturePlane == ERHITexturePlane::PrimaryCompressed || TexturePlane == ERHITexturePlane::CMask;
+		}
+
 		if (Type == EShaderCodeResourceBindingType::Texture2D || Type == EShaderCodeResourceBindingType::RWTexture2D || Type == EShaderCodeResourceBindingType::Texture2DMS)
 		{
 			return Dimension == FRHIViewDesc::EDimension::Texture2D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
+
+		if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
 		{
-			return Dimension == FRHIViewDesc::EDimension::Texture2DArray;
+			return Dimension == FRHIViewDesc::EDimension::Texture2DArray || Dimension == FRHIViewDesc::EDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
+
+		if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
 		{
 			return Dimension == FRHIViewDesc::EDimension::Texture3D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
 		{
 			return Dimension == FRHIViewDesc::EDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
 		{
 			return Dimension == FRHIViewDesc::EDimension::TextureCubeArray;
 		}
@@ -2366,19 +2426,23 @@ namespace RHIValidation
 		{
 			return Dimension == ETextureDimension::Texture2D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
+
+		if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
 		{
-			return Dimension == ETextureDimension::Texture2DArray;
+			return Dimension == ETextureDimension::Texture2DArray || Dimension == ETextureDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
+
+		if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
 		{
 			return Dimension == ETextureDimension::Texture3D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
 		{
 			return Dimension == ETextureDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
 		{
 			return Dimension == ETextureDimension::TextureCubeArray;
 		}
@@ -2405,7 +2469,7 @@ namespace RHIValidation
 		}
 		else if (Type == EShaderCodeResourceBindingType::StructuredBuffer || Type == EShaderCodeResourceBindingType::RWStructuredBuffer)
 		{
-			return BufferType == FRHIViewDesc::EBufferType::Structured;
+			return BufferType == FRHIViewDesc::EBufferType::Structured || BufferType == FRHIViewDesc::EBufferType::AccelerationStructure;
 		}
 		else if (Type == EShaderCodeResourceBindingType::Buffer || Type == EShaderCodeResourceBindingType::RWBuffer)
 		{
@@ -2451,7 +2515,7 @@ namespace RHIValidation
 			{
 				FString SRVName = GetSRVName(SRV, ViewIdentity);
 				uint16 ExpectedStride = RHIShaderBase->DebugStrideValidationData[FoundIndex].Stride;
-				if (ExpectedStride != SRVValidationStride.Stride)
+				if (ExpectedStride != SRVValidationStride.Stride && SRV->GetDesc().Buffer.SRV.BufferType != FRHIViewDesc::EBufferType::AccelerationStructure)
 				{
 					
 					FString ErrorMessage = FString::Printf(TEXT("Shader %s: Buffer stride for \"%s\" must match structure size declared in the shader"), RHIShaderBase->GetShaderName(), *SRVName);
@@ -2475,7 +2539,7 @@ namespace RHIValidation
 
 				if (SRV->IsTexture())
 				{
-					if (!ValidateDimension(ExpectedType, SRV->GetDesc().Texture.SRV.Dimension, true))
+					if (!ValidateDimension(ExpectedType, SRV->GetDesc().Texture.SRV.Dimension, SRV->GetDesc().Texture.SRV.Plane, true))
 					{
 						FString SRVName = GetSRVName(SRV, ViewIdentity);
 						FString ErrorMessage = FString::Printf(TEXT("Shader %s: Dimension for SRV \"%s\" must match type declared in the shader"), RHIShaderBase->GetShaderName(), *SRVName);
@@ -2604,7 +2668,7 @@ namespace RHIValidation
 
 				if (UAV->IsTexture())
 				{
-					if (!ValidateDimension(ExpectedType, UAV->GetDesc().Texture.UAV.Dimension, false))
+					if (!ValidateDimension(ExpectedType, UAV->GetDesc().Texture.UAV.Dimension, UAV->GetDesc().Texture.UAV.Plane, false))
 					{
 						FString UAVName = GetUAVName(UAV, ViewIdentity);
 						FString ErrorMessage = FString::Printf(TEXT("Shader %s: Dimension for UAV \"%s\" must match type declared in the shader"), RHIShaderBase->GetShaderName(), *UAVName);

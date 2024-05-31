@@ -3539,8 +3539,11 @@ FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBu
 			TShaderMapRef<FDesaturatePS> DesaturatePixelShader(View.ShaderMap);
 			TShaderMapRef<FCopyRectPS> PixelShader(View.ShaderMap);
 
+			FRDGTextureRef SceneColorCopy = GraphBuilder.CreateTexture(SceneColor.Texture->Desc, TEXT("SceneColorCopy"));
+			AddCopyTexturePass(GraphBuilder, SceneColor.Texture, SceneColorCopy);
+
 			FDesaturatePS::FParameters* Parameters = GraphBuilder.AllocParameters<FDesaturatePS::FParameters>();
-			Parameters->InputTexture = SceneColor.Texture;
+			Parameters->InputTexture = SceneColorCopy;
 			Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
 			AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("Desaturate"), View, OutputViewport, OutputViewport, VertexShader, DesaturatePixelShader, Parameters, EScreenPassDrawFlags::None);

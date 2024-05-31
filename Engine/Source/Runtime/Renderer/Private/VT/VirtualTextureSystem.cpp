@@ -2440,6 +2440,8 @@ void FVirtualTextureSystem::FinalizeRequests(FRDGBuilder& GraphBuilder)
 		Finalizers.Reset();
 	}
 
+	FRDGExternalAccessQueue ExternalAccessQueue;
+
 	// Update page tables
 	{
 		SCOPE_CYCLE_COUNTER(STAT_PageTableUpdates);
@@ -2450,7 +2452,7 @@ void FVirtualTextureSystem::FinalizeRequests(FRDGBuilder& GraphBuilder)
 		{
 			if (Spaces[ID])
 			{
-				Spaces[ID]->ApplyUpdates(this, GraphBuilder);
+				Spaces[ID]->ApplyUpdates(this, GraphBuilder, ExternalAccessQueue);
 			}
 		}
 	}
@@ -2459,9 +2461,11 @@ void FVirtualTextureSystem::FinalizeRequests(FRDGBuilder& GraphBuilder)
 	{
 		if (PhysicalSpace != nullptr)
 		{
-			PhysicalSpace->FinalizeTextures(GraphBuilder);
+			PhysicalSpace->FinalizeTextures(GraphBuilder, ExternalAccessQueue);
 		}
 	}
+
+	ExternalAccessQueue.Submit(GraphBuilder);
 
 	Frame++;
 }
@@ -2712,14 +2716,17 @@ TUniquePtr<FVirtualTextureUpdater> FVirtualTextureSystem::BeginUpdate(FRDGBuilde
 
 	if (!Settings.bEnablePageRequests)
 	{
+		FRDGExternalAccessQueue ExternalAccessQueue;
+
 		for (uint32 ID = 0; ID < MaxSpaces; ID++)
 		{
 			if (Spaces[ID])
 			{
-				Spaces[ID]->FinalizeTextures(GraphBuilder);
+				Spaces[ID]->FinalizeTextures(GraphBuilder, ExternalAccessQueue);
 			}
 		}
 
+		ExternalAccessQueue.Submit(GraphBuilder);
 		return {};
 	}
 

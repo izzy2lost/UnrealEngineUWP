@@ -181,7 +181,7 @@ int32 FSSAOHelper::GetAmbientOcclusionShaderLevel(const FSceneView& View)
 
 bool FSSAOHelper::IsAmbientOcclusionCompute(const ERHIFeatureLevel::Type FeatureLevel)
 {
-	return FeatureLevel >= ERHIFeatureLevel::SM5 && CVarAmbientOcclusionCompute.GetValueOnRenderThread() >= 1;
+	return FeatureLevel >= ERHIFeatureLevel::SM5 && CVarAmbientOcclusionCompute.GetValueOnAnyThread() >= 1;
 }
 
 int32 FSSAOHelper::GetNumAmbientOcclusionLevels()
