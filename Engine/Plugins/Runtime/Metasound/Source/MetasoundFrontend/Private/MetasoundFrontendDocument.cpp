@@ -437,7 +437,14 @@ Metasound::FNodeClassName FMetasoundFrontendClassName::ToNodeClassName() const
 
 FString FMetasoundFrontendClassName::ToString() const
 {
-	return GetFullName().ToString();
+	FNameBuilder NameBuilder;
+	ToString(NameBuilder);
+	return *NameBuilder;
+}
+
+void FMetasoundFrontendClassName::ToString(FNameBuilder& NameBuilder) const
+{
+	Metasound::FNodeClassName::FormatFullName(NameBuilder, Namespace, Name, Variant);
 }
 
 bool FMetasoundFrontendClassName::Parse(const FString& InClassName, FMetasoundFrontendClassName& OutClassName)

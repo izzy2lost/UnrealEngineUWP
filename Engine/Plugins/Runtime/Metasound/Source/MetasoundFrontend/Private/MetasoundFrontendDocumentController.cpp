@@ -383,7 +383,7 @@ namespace Metasound
 								UE_LOG(LogMetaSound, Error,
 									TEXT("Cannot add external dependency. No Metasound class found with matching registry key [Key:%s, Name:%s, Version:%s]. Suggested solution \"%s\" by %s."),
 									*Key.ToString(),
-									*InMetadata.GetClassName().GetFullName().ToString(),
+									*InMetadata.GetClassName().ToString(),
 									*InMetadata.GetVersion().ToString(),
 									*InMetadata.GetPromptIfMissing().ToString(),
 									*InMetadata.GetAuthor());
@@ -391,7 +391,7 @@ namespace Metasound
 								UE_LOG(LogMetaSound, Error,
 									TEXT("Cannot add external dependency. No Metasound class found with matching registry key [Key:%s, Name:%s, Version:%s]."),
 									*Key.ToString(),
-									*InMetadata.GetClassName().GetFullName().ToString(),
+									*InMetadata.GetClassName().ToString(),
 									*InMetadata.GetVersion().ToString());
 #endif // !WITH_EDITOR
 							}
@@ -412,7 +412,7 @@ namespace Metasound
 						{
 							UE_LOG(LogMetaSound, Error, TEXT(
 								"Unsupported metasound class type for node: \"%s\" (%s)."),
-								*InMetadata.GetClassName().GetFullName().ToString(),
+								*InMetadata.GetClassName().ToString(),
 								*InMetadata.GetVersion().ToString());
 							checkNoEntry();
 						}

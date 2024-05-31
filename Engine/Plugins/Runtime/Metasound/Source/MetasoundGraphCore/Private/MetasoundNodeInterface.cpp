@@ -22,8 +22,6 @@ namespace Metasound
 	, Name(InName)
 	, Variant(InVariant)
 	{
-		ScopedName = FormatScopedName(Namespace, Name);
-		FullName = FormatFullName(Namespace, Name, Variant);
 	}
 
 	/** Namespace of node class. */
@@ -44,35 +42,56 @@ namespace Metasound
 		return Variant;
 	}
 
-	/** Namespace and name of the node class. */
-	const FName& FNodeClassName::GetScopedName() const
+	/** The full name of the Node formatted Namespace.Name[.Variant] */
+	const FString FNodeClassName::ToString() const
 	{
-		return ScopedName;
+		FNameBuilder Builder;
+		FormatFullName(Builder, Namespace, Name, Variant);
+		return *Builder;
+	}
+
+	/** Namespace and name of the node class. */
+	const FName FNodeClassName::GetScopedName() const
+	{
+		return FormatScopedName(Namespace, Name);
 	}
 
 	/** Namespace, name and variant of the node class. */
-	const FName& FNodeClassName::GetFullName() const
+	const FName FNodeClassName::GetFullName() const
 	{
-		return FullName;
+		return FormatFullName(Namespace, Name, Variant);
 	}
 
 	FName FNodeClassName::FormatFullName(const FName& InNamespace, const FName& InName, const FName& InVariant)
 	{
-		FName ScopedName = FormatScopedName(InNamespace, InName);
-
-		if (InVariant != NAME_None)
-		{
-			return FName(*FString::Printf(TEXT("%s.%s"), *ScopedName.ToString(), *InVariant.ToString()));
-		}
-		else
-		{
-			return ScopedName;
-		}
+		FNameBuilder Builder;
+		FormatFullName(Builder, InNamespace, InName, InVariant);
+		return *Builder;
 	}
 
 	FName FNodeClassName::FormatScopedName(const FName& InNamespace, const FName& InName)
 	{
-		return FName(*FString::Printf(TEXT("%s.%s"), *InNamespace.ToString(), *InName.ToString()));
+		FNameBuilder Builder;
+		FormatScopedName(Builder, InNamespace, InName);
+		return *Builder;
+	}
+
+	void FNodeClassName::FormatFullName(FNameBuilder& InBuilder, const FName& InNamespace, const FName& InName, const FName& InVariant)
+	{
+		FormatScopedName(InBuilder, InNamespace, InName);
+
+		if (InVariant != NAME_None)
+		{
+			InBuilder.Append(".");
+			InVariant.AppendString(InBuilder);
+		}
+	}
+
+	void FNodeClassName::FormatScopedName(FNameBuilder& InBuilder, const FName& InNamespace, const FName& InName)
+	{
+		InNamespace.AppendString(InBuilder);
+		InBuilder.Append(".");
+		InName.AppendString(InBuilder);
 	}
 
 	bool FNodeClassName::IsValid() const

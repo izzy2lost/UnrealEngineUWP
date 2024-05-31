@@ -1310,6 +1310,9 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 	// Return string version of full name.
 	FString ToString() const;
 
+	// Return a string into an existing FNameBuilder
+	void ToString(FNameBuilder& NameBuilder) const;
+
 	// Parses string into class name.  For deserialization and debug use only.
 	static bool Parse(const FString& InClassName, FMetasoundFrontendClassName& OutClassName);
 

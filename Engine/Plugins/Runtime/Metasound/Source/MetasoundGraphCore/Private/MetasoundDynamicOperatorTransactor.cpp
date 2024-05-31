@@ -44,7 +44,7 @@ namespace Metasound
 			
 			FString GetDebugNodeNameString(const INode& InNode)
 			{
-				return FString::Printf(TEXT("%s_v%d.%d"), *InNode.GetMetadata().ClassName.GetFullName().ToString(), InNode.GetMetadata().MajorVersion, InNode.GetMetadata().MinorVersion);
+				return FString::Printf(TEXT("%s_v%d.%d"), *InNode.GetMetadata().ClassName.ToString(), InNode.GetMetadata().MajorVersion, InNode.GetMetadata().MinorVersion);
 			}
 
 			FString GetDebugNodeNameString(const FGuid& InNodeID, const INode& InNode)

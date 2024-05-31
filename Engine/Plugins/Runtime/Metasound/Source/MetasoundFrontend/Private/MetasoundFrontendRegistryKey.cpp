@@ -138,7 +138,7 @@ namespace Metasound::Frontend
 		TStringBuilder<128> KeyStringBuilder;
 		KeyStringBuilder.Append(LexToString(Type));
 		KeyStringBuilder.AppendChar('_');
-		KeyStringBuilder.Append(ClassName.GetFullName().ToString());
+		KeyStringBuilder.Append(ClassName.ToString());
 		KeyStringBuilder.AppendChar('_');
 		KeyStringBuilder.Append(FString::FromInt(Version.Major));
 		KeyStringBuilder.AppendChar('.');
