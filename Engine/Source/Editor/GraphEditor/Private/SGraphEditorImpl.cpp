@@ -701,7 +701,7 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 		}
 	};
 
-	FText DefaultCornerText;
+	FText DefaultCornerText = Appearance.Get().CornerText;
 	TAttribute<FText> CornerText = Appearance.IsBound() ?
 		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetCornerText, Appearance, DefaultCornerText)) :
 		TAttribute<FText>(DefaultCornerText);
