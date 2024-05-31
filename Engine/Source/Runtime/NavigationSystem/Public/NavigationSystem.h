@@ -1344,9 +1344,13 @@ protected:
 public:
 	NAVIGATIONSYSTEM_API void DemandLazyDataGathering(FNavigationRelevantData& ElementData);
 
+private:
+	// Reduces a nav bounds only to regions overlapping loaded world partition regions (if any exist)
+	void CheckToLimitNavigationBoundsToLoadedRegions(FNavigationBounds& OutBounds) const;
+
 protected:
 	NAVIGATIONSYSTEM_API virtual void RebuildDirtyAreas(float DeltaSeconds);
-
+	
 	// adds navigation bounds update request to a pending list
 	NAVIGATIONSYSTEM_API void AddNavigationBoundsUpdateRequest(const FNavigationBoundsUpdateRequest& UpdateRequest);
 
