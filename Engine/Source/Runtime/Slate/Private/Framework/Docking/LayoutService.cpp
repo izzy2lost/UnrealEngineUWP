@@ -334,14 +334,19 @@ void FLayoutSaveRestore::SaveSectionToConfig(const FString& InConfigFileName, co
 	}
 }
 
-FText FLayoutSaveRestore::LoadSectionFromConfig(const FString& InConfigFileName, const FString& InSectionName)
+FText FLayoutSaveRestore::LoadSectionFromConfig(const FString& InConfigFileName, const FString& InSectionName, const bool bIsOptional)
 {
 	FString ValueString;
 	const FString JsonFileName = GetLayoutJsonFileName(InConfigFileName);
 	TSharedPtr<FJsonObject> JsonObject = LoadJsonFile(JsonFileName);
 	if (JsonObject.IsValid())
 	{
-		ValueString = JsonObject->GetStringField(InSectionName);
+		// If optional, we check if the field exists first
+		if (!bIsOptional
+			|| (bIsOptional && JsonObject->HasTypedField(InSectionName, EJson::String)))
+		{
+			ValueString = JsonObject->GetStringField(InSectionName);
+		}
 	}
 
 	if (ValueString.IsEmpty())
