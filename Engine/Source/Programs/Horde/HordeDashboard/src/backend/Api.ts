@@ -1211,6 +1211,10 @@ export type GetJobArtifactResponse = {
 	description?: string;
 	/// Step producing the artifact
 	stepId: string;
+	/// Keys for the artifact	
+	keys: string[];
+	/// Metadata for the artifact
+	metadata: string[];
 }
 
 /**Information about a job */
