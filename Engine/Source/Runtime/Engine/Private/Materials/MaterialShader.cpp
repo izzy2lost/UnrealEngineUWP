@@ -2505,6 +2505,15 @@ void FMaterialShaderMap::Compile(
 	ShaderMapId = InShaderMapId;
 	bIsPersistent = Material->IsPersistent();
 
+	// Fill in UserSceneTextureOutput -- only supported for post process domain, and not supported for BL_ReplacingTonemapper
+	const UMaterial* MaterialObject = Material->GetMaterialInterface()->GetMaterial();
+	if (MaterialObject && MaterialObject->MaterialDomain == EMaterialDomain::MD_PostProcess && MaterialObject->BlendableLocation != EBlendableLocation::BL_ReplacingTonemapper)
+	{
+		NewContent->UserSceneTextureOutput = FScriptName(MaterialObject->UserSceneTexture);
+		NewContent->UserTextureDivisorX = MaterialObject->UserTextureDivisor.X;
+		NewContent->UserTextureDivisorY = MaterialObject->UserTextureDivisor.Y;
+	}
+
 #if ALLOW_SHADERMAP_DEBUG_DATA
 	// Store the material name for debugging purposes.
 	// Note: Material instances with static parameters will have the same FriendlyName for their shader maps!
