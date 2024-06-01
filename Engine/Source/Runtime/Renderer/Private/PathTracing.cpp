@@ -1775,7 +1775,6 @@ static void BindLightFunction(
 	int32 Index
 )
 {
-	FRHIRayTracingScene* RTScene = View.GetRayTracingSceneChecked();
 	FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 	FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 	const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();

@@ -278,7 +278,6 @@ void MergeAndSetRayTracingBindings(
 	FRHICommandList& RHICmdList,
 	FSceneRenderingBulkObjectAllocator& Allocator,
 	FRHIShaderBindingTable* SBT,
-	FRHIRayTracingScene* RayTracingScene,
 	FRayTracingPipelineState* Pipeline,
 	TConstArrayView<FRayTracingLocalShaderBindingWriter*> Bindings,
 	ERayTracingBindingType BindingType);

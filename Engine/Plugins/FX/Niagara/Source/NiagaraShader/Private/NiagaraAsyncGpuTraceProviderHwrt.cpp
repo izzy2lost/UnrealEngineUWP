@@ -204,7 +204,6 @@ static FRayTracingPipelineState* CreateNiagaraRayTracingPipelineState(
 static void BindNiagaraRayTracingMeshCommands(
 	FRHICommandList& RHICmdList,
 	FRHIShaderBindingTable* SBT,
-	FRayTracingSceneRHIRef RayTracingScene,
 	FRHIUniformBuffer* ViewUniformBuffer,
 	TConstArrayView<FVisibleRayTracingMeshCommand> RayTracingMeshCommands,
 	FRayTracingPipelineState* Pipeline,
@@ -316,7 +315,6 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 
 	if (UE::FXRenderingUtils::RayTracing::HasRayTracingScene(Scene))
 	{
-		RayTracingScene = UE::FXRenderingUtils::RayTracing::GetRayTracingScene(Scene);
 		RayTracingSceneView = UE::FXRenderingUtils::RayTracing::GetRayTracingSceneView(RHICmdList, Scene);
 		ViewUniformBuffer = ReferenceView.ViewUniformBuffer;
 
@@ -342,7 +340,6 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 		BindNiagaraRayTracingMeshCommands(
 			RHICmdList,
 			RayTracingSBT,
-			RayTracingScene,
 			ViewUniformBuffer,
 			UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(ReferenceView),
 			RayTracingPipelineState,
@@ -358,7 +355,6 @@ void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList,
 {
 	check(IsAvailable());
 	check(RayTracingPipelineState);
-	check(RayTracingScene);
 	check(RayTracingSceneView);
 
 	if (Request.MaxTraceCount == 0)
@@ -428,7 +424,6 @@ void FNiagaraAsyncGpuTraceProviderHwrt::Reset()
 {
 	RayTracingPipelineState = nullptr;
 	RayTracingSBT = nullptr;
-	RayTracingScene = nullptr;
 	RayTracingSceneView = nullptr;
 	ViewUniformBuffer = TUniformBufferRef<FViewUniformShaderParameters>();
 }
