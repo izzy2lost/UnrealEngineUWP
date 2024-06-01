@@ -256,9 +256,19 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 
 	KeyframeHandler = nullptr;
 
-	if (InComponent)
+	UObject* WorldContext = InComponent;
+
+	if (!WorldContext)
 	{
-		if (const UWorld* const World = InComponent->GetWorld())
+		if (TSharedPtr<SDMEditor> EditorWidget = InEditorWidget.Pin())
+		{
+			WorldContext = EditorWidget->GetMaterialModel();
+		}
+	}
+
+	if (WorldContext)
+	{
+		if (const UWorld* const World = WorldContext->GetWorld())
 		{
 			if (const UDMWorldSubsystem* const WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
 			{
