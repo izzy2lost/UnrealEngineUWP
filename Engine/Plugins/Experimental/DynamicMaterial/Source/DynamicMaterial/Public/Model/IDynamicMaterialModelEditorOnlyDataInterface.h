@@ -49,6 +49,8 @@ public:
 
 #if WITH_EDITOR
 	virtual TSharedRef<IDMMaterialBuildStateInterface> CreateBuildStateInterface(UMaterial* InMaterialToBuild) const = 0;
+
+	virtual void SetPropertyComponent(EDMMaterialPropertyType InPropertyType, FName InComponentName, UDMMaterialComponent* InComponent) = 0;
 #endif
 
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath) const = 0;

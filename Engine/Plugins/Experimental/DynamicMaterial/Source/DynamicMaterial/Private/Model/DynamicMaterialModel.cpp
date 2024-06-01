@@ -430,21 +430,28 @@ void UDynamicMaterialModel::PostLoad()
 	FixGlobalParameterValues();
 
 #if WITH_EDITOR
-	SetFlags(RF_Transactional);
-
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
+	// This requires a parameter name change which is editor-only code. It cannot correct itself at runtime.
+	// Open assets in the editor first to fix version upgrades!
 	if (GlobalOpacityValue)
 	{
-		if (UDMMaterialValueFloat1* NewOpacityValue = Cast<UDMMaterialValueFloat1>(GetGlobalParameterValue(GlobalOpacityValueName)))
+		GlobalParameterValues.FindOrAdd(GlobalOpacityValueName) = GlobalOpacityValue;
+
+		if (IDynamicMaterialModelEditorOnlyDataInterface* EditorOnlyDataInterface = GetEditorOnlyData())
 		{
-			NewOpacityValue->SetValue(GlobalOpacityValue->GetValue());
+			EditorOnlyDataInterface->SetPropertyComponent(EDMMaterialPropertyType::Opacity, TEXT("AlphaValue"), GlobalOpacityValue);
+			EditorOnlyDataInterface->SetPropertyComponent(EDMMaterialPropertyType::OpacityMask, TEXT("AlphaValue"), GlobalOpacityValue);
 		}
+
+		GlobalOpacityValue->SetParameterName("VALUE_GlobalOpacity");
 
 		GlobalOpacityValue = nullptr;
 	}
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	SetFlags(RF_Transactional);
 
 	IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData();
 

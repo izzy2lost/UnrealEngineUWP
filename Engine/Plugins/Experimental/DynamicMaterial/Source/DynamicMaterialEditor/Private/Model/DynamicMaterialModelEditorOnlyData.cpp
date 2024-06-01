@@ -1028,6 +1028,14 @@ TSharedRef<IDMMaterialBuildStateInterface> UDynamicMaterialModelEditorOnlyData::
 	return CreateBuildState(InMaterialToBuild);
 }
 
+void UDynamicMaterialModelEditorOnlyData::SetPropertyComponent(EDMMaterialPropertyType InPropertyType, FName InComponentName, UDMMaterialComponent* InComponent)
+{
+	if (TObjectPtr<UDMMaterialProperty>* Property = Properties.Find(InPropertyType))
+	{
+		(*Property)->AddComponent(InComponentName, InComponent);
+	}
+}
+
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath) const
 {
 	if (InPath.IsLeaf())
