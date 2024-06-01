@@ -93,17 +93,23 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 	const FMirrorDataCache MirrorDataCache(AnimInstance->GetMirrorDataTable(), AnimInstance->GetRequiredBonesOnAnyThread());
 	
 	Sampler.Init(PreviewAsset, SamplerRootTransformOrigin, IndexAsset.GetBlendParameters());
-	Sampler.Process();
 
 	PlayTimeOffset = 0.f;
 	if (PoseIdxForTimeOffset >= 0)
 	{
 		PlayTimeOffset = PoseSearchDatabase->GetRealAssetTime(PoseIdxForTimeOffset) - IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate);
-		
-		// centering the Sampler RootTransformOrigin at PlayTimeOffset time, to be able to "align" multiple actors from different animation frames when selected by the pose search debugger
-		FTransform NewSamplerRootTransformOrigin = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(0.f));
-		NewSamplerRootTransformOrigin.SetToRelativeTransform(MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(PlayTimeOffset)));
-		Sampler.SetRootTransformOrigin(NewSamplerRootTransformOrigin);
+
+		if (DatabaseAnimationAsset->GetNumRoles() > 1)
+		{
+			// @todo: implement support for UMultiAnimAsset. the transform should be centered to the origin of the multi character animation!
+		}
+		else
+		{
+			// centering the Sampler RootTransformOrigin at PlayTimeOffset time, to be able to "align" multiple actors from different animation frames when selected by the pose search debugger
+			FTransform NewSamplerRootTransformOrigin = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(0.f));
+			NewSamplerRootTransformOrigin.SetToRelativeTransform(MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(PlayTimeOffset)));
+			Sampler.SetRootTransformOrigin(NewSamplerRootTransformOrigin);
+		}
 	}
 
 	AnimInstance->PlayAnim(IndexAsset.IsLooping(), 0.f);

@@ -911,7 +911,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 						if (!SamplerMap.Contains(SamplerMapKey))
 						{
 							SamplerMap.Add(SamplerMapKey, Samplers.Num());
-							Samplers.Emplace(DatabaseBlendSpace->BlendSpace, RootTransformOrigin, BlendParameters);
+							Samplers.Emplace(DatabaseBlendSpace->BlendSpace, RootTransformOrigin, BlendParameters, FAnimationAssetSampler::DefaultRootTransformSamplingRate, false);
 						}
 					}
 				}
@@ -931,7 +931,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 					if (!SamplerMap.Contains(SamplerMapKey))
 					{
 						SamplerMap.Add(SamplerMapKey, Samplers.Num());
-						Samplers.Emplace(AnimationAsset, RootTransformOrigin);
+						Samplers.Emplace(AnimationAsset, RootTransformOrigin, FVector::ZeroVector, FAnimationAssetSampler::DefaultRootTransformSamplingRate, false);
 					}
 				}
 			}
