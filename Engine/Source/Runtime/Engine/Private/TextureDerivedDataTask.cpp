@@ -269,45 +269,26 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 		}
 	}
 
-	if ( Blocks.Num() == 0 )
+	for (FTextureSourceBlockData& Block : Blocks)
 	{
-		UE_LOG(LogTexture, Error, TEXT("No valid source blocks [%s]"), *InTexture.GetPathName());
-		check( bValid == false );
-		return;
-	}
-
-	if ( Blocks.Num() > 1 )
-	{
-		int32 BlockSizeZ=1;
+		int32 AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ;
 		UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
-			BlockSizeX, BlockSizeY, 1,
+			Block.SizeX, Block.SizeY, 1,
 			false,
 			InPow2Setting, InResizeDuringBuildX, InResizeDuringBuildY,
-			BlockSizeX, BlockSizeY, BlockSizeZ);
+			AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ);
 
-		for (FTextureSourceBlockData& Block : Blocks)
+		// for the common case of NumBlocks == 1, BlockSizeX == Block.SizeX, MipBiasX/Y will both be zero
+		const int32 MipBiasX = FMath::CeilLogTwo(BlockSizeX / AdjustedSizeX);
+		const int32 MipBiasY = FMath::CeilLogTwo(BlockSizeY / AdjustedSizeY);
+		if (MipBiasX != MipBiasY)
 		{
-			int32 AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ;
-			UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
-				Block.SizeX, Block.SizeY, 1,
-				false,
-				InPow2Setting, InResizeDuringBuildX, InResizeDuringBuildY,
-				AdjustedSizeX, AdjustedSizeY, AdjustedSizeZ);
-
-			// for the common case of NumBlocks == 1, BlockSizeX == Block.SizeX, MipBiasX/Y will both be zero
-			const int32 MipBiasX = FMath::CeilLogTwo(BlockSizeX / AdjustedSizeX);
-			const int32 MipBiasY = FMath::CeilLogTwo(BlockSizeY / AdjustedSizeY);
-			if (MipBiasX != MipBiasY)
-			{
-				// @todo Oodle: this is failing even if "pad to pow2 square" is set, can we allow it through in that case?
-				// @@!! is this fixed now?
-				UE_LOG(LogTexture, Error, TEXT("VT has blocks with mismatched aspect ratios, cannot build. [%s]"), *InTexture.GetPathName());
-				check( bValid == false );
-				return;
-			}
-
-			Block.MipBias = MipBiasX;
+			// @todo Oodle: this is failing even if "pad to pow2 square" is set, can we allow it through in that case?
+			UE_LOG(LogTexture, Warning, TEXT("VT has blocks with mismatched aspect ratios, cannot build. [%s]"), *InTexture.GetPathName());  // <- should be an Error, not a Warning
+			return;
 		}
+
+		Block.MipBias = MipBiasX;
 	}
 
 	TextureFullName = InTexture.GetFullName();

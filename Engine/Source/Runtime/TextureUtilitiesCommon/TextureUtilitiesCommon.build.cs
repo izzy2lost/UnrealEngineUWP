@@ -19,7 +19,6 @@ public class TextureUtilitiesCommon : ModuleRules
 				"ImageCore",
 				"Slate",
 				"SlateCore",
-				"TextureBuildUtilities",
 			});
 	}
 }
