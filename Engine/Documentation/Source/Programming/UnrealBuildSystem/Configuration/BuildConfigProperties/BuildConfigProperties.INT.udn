@@ -374,7 +374,7 @@ $ bCompileChaosVisualDebuggerSupport : Whether to compile in Chaos Visual Debugg
 
 ### UnrealBuildAccelerator
 
-$ bAllowUbaCompression : Experimental: Store object (.obj) compressed on disk. Requires UBA to link, currently MSVC only. Toggling this flag will invalidate MSVC actions. Warning, this option is not currently compatitable with PGO or the the cl-clang linker as those are not detoured and linking will fail.
+$ bStoreObjFilesCompressed : Store object (.obj) compressed on disk. Requires uba to do link step where it will decompress obj files again
 
 $ bDisableRemote : When set to true, UBA will not use any remote help
 
@@ -419,8 +419,6 @@ $ bDetailedTrace : Add verbose details to the UBA trace
 $ bDisableWaitOnMem : Disable UBA waiting on available memory before spawning new processes
 
 $ bAllowKillOnMem : Let UBA kill running processes when close to out of memory
-
-$ bStoreObjFilesCompressed : Store object (.obj) compressed on disk. Requires uba to do link step where it will decompress obj files again
 
 $ OutputStatsThresholdMs : Threshold for when executor should output logging for the process. Defaults to never
 
