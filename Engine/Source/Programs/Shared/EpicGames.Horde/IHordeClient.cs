@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
@@ -98,6 +99,12 @@ namespace EpicGames.Horde
 		/// </summary>
 		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, NamespaceId namespaceId, string? accessToken = null)
 			=> hordeClient.CreateStorageClient($"api/v1/storage/{namespaceId}", accessToken);
+
+		/// <summary>
+		/// Creates a storage client for a particular artifact
+		/// </summary>
+		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, ArtifactId artifactId)
+			=> hordeClient.CreateStorageClient($"api/v2/artifacts/{artifactId}");
 
 		/// <summary>
 		/// Creates a storage client for a particular log
