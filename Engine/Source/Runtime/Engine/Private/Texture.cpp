@@ -623,7 +623,12 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 			PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 		}
 
-		if ((PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution) && !this->IsA<UTexture2D>())
+		// PadToPow2 for CubeMaps will almost never do something useful, but go ahead and allow it
+		// PowerOfTwo actions on LongLat CubeMaps act on the source *before* converting to a cube
+		//	 which is pretty pointless (output cube will always be pow2 anyway)
+		//	 but again, allow it if it's requested
+		
+		if ( PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution && !this->IsA<UTexture2D>() )
 		{
 			// currently resizing is only supported for 2D textures, but can be implemented for other types of textures in the future
 			UE_LOG(LogTexture, Display, TEXT("Currently resizing is only supported for Texture2D, forcing PowerOfTwoMode to None. (%s)"), *GetName());
@@ -3904,8 +3909,7 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 
 	if (Source.IsLongLatCubemap())
 	{
-		// this should be kept in sync with ComputeLongLatCubemapExtents()
-		SizeX = SizeY = FMath::Max(1 << FMath::FloorLog2(SizeX / 2), 32);
+		SizeX = SizeY = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(SizeX, MaxTextureSize);
 	}
 
 	//we need to really have the actual top mip size of output platformdata

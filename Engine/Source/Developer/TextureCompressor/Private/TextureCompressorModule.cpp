@@ -2251,27 +2251,6 @@ static inline FVector ComputeWSCubeDirectionAtTexelCenter(uint32 CubemapFace, ui
 	return DirectionWS;
 }
 
-static uint32 ComputeLongLatCubemapExtents(int32 SrcImageSizeX, const uint32 MaxCubemapTextureResolution)
-{
-	// MaxCubemapTextureResolution when not set is 0xFFFFFFFF
-
-	uint32 Out = 1U << FMath::FloorLog2(SrcImageSizeX / 2);
-
-	if ( Out <= 32 || MaxCubemapTextureResolution <= 32 )
-	{
-		return 32;
-	}
-	else if ( Out > MaxCubemapTextureResolution )
-	{
-		// RoundDownToPowerOfTwo
-		return 1U << FMath::FloorLog2(MaxCubemapTextureResolution);
-	}
-	else
-	{
-		return Out;
-	}
-}
-
 void ITextureCompressorModule::GenerateBaseCubeMipFromLongitudeLatitude2D(FImage* OutMip, const FImage& SrcImage, const uint32 MaxCubemapTextureResolution, uint8 SourceEncodingOverride)
 {
 	FTextureBuildSettings TempBuildSettings;
@@ -2290,7 +2269,7 @@ void ITextureCompressorModule::GenerateBaseCubeMipFromLongitudeLatitude2D(FImage
 	LinearizeToWorkingColorSpace(SrcImage, LongLatImage, InBuildSettings);
 
 	// TODO_TEXTURE: Expose target size to user.
-	uint32 Extent = ComputeLongLatCubemapExtents(LongLatImage.SizeX, InBuildSettings.MaxTextureResolution);
+	uint32 Extent = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(LongLatImage.SizeX, InBuildSettings.MaxTextureResolution);
 	float InvExtent = 1.0f / (float)Extent;
 	OutMip->Init(Extent, Extent, SrcImage.NumSlices * 6, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
 
@@ -3707,33 +3686,31 @@ bool FTextureBuildSettings::GetOutputMipInfo(
 		return true;
 	}
 
-	// AFAICT LatLongCubeMaps don't do any of this - pow2 is broken with them but it runs, and max texture stuff
-	// is handled internally in the extents function.
 	int32 BaseSizeX = InMip0SizeX;
 	int32 BaseSizeY = InMip0SizeY;
 	int32 BaseSizeZ = this->bVolume ? InMip0NumSlices : 1; // Volume textures are the only type that mip their Z, arrays and cubes are fixed.
+	
+	ETexturePowerOfTwoSetting::Type PowerOfTwoModeLocal = (ETexturePowerOfTwoSetting::Type)this->PowerOfTwoMode;
+	if (this->MipGenSettings != TMGS_LeaveExistingMips &&
+		PowerOfTwoModeLocal != ETexturePowerOfTwoSetting::None)
+	{
+		int32 TargetSizeX, TargetSizeY, TargetSizeZ;
+		bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume, PowerOfTwoModeLocal, this->ResizeDuringBuildX, this->ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
+		if (NeedsAdjustment)
+		{
+			// In this case we are regenerating the entire mip chain.
+			InExistingMipCount = 1;
+			BaseSizeX = TargetSizeX;
+			BaseSizeY = TargetSizeY;
+			BaseSizeZ = TargetSizeZ; // volume textures already accounted for
+		}
+		// Otherwise we have valid pow2 so we can reuse any existing mips and regenerate
+		// any missing tail mips.
+	}
 
 	// LatLong sources are clamped in ComputeLongLatCubemapExtents
 	if (this->bLongLatSource == false)
 	{
-		ETexturePowerOfTwoSetting::Type PowerOfTwoModeLocal = (ETexturePowerOfTwoSetting::Type)this->PowerOfTwoMode;
-		if (this->MipGenSettings != TMGS_LeaveExistingMips &&
-			PowerOfTwoModeLocal != ETexturePowerOfTwoSetting::None)
-		{
-			int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-			bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume, PowerOfTwoModeLocal, this->ResizeDuringBuildX, this->ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
-			if (NeedsAdjustment)
-			{
-				// In this case we are regenerating the entire mip chain.
-				InExistingMipCount = 1;
-				BaseSizeX = TargetSizeX;
-				BaseSizeY = TargetSizeY;
-				BaseSizeZ = TargetSizeZ; // volume textures already accounted for
-			}
-			// Otherwise we have valid pow2 so we can reuse any existing mips and regenerate
-			// any missing tail mips.
-		}
-
 		// Max texture resolution strips off mips that are above the limit.
 		//int64 MaxTextureResolution = this->MaxTextureResolution; ... ? why was this getting promoted to 64 bit.. probably because of the signed comparison below?
 		int32 GeneratedMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume);
@@ -3784,7 +3761,7 @@ bool FTextureBuildSettings::GetOutputMipInfo(
 	}
 	else
 	{
-		uint32 LongLatCubemapExtents = ComputeLongLatCubemapExtents(BaseSizeX, this->MaxTextureResolution);
+		uint32 LongLatCubemapExtents = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(BaseSizeX, this->MaxTextureResolution);
 		BaseSizeX = LongLatCubemapExtents;
 		BaseSizeY = LongLatCubemapExtents;
 		OutMip0NumSlices = 6 * InMip0NumSlices;
@@ -4163,26 +4140,17 @@ private:
 
 			if (bPadOrStretchTexture)
 			{
-				bool bResizeTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution;
 				if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips)
 				{
 					// pad/stretch+leave existing is broken
 					UE_LOG(LogTextureCompressor, Error,	TEXT("Texture padding or resizing is not allowed when leaving existing mips."));
 					return false;
 				}
-				if ( bLongLatCubemap )
-				{
-					if (bResizeTexture)
-					{
-						UE_LOG(LogTextureCompressor, Warning, TEXT("In order to improve the quality of the generated texture, resizing LongLat cubemaps should be avoided."));
-					}
-					else
-					{
-						UE_LOG(LogTextureCompressor, Warning, TEXT("Padding of a LongLat cubemap may result in incorrect mapping of the texture pixels to the cubemap faces and should be avoided."));
-					}
-				}
 
 				// Want to stretch or pad the texture
+				bool bResizeTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution;
+				// if not bResizeTexture, then padding
+
 				bool bSuitableFormat = FirstSourceMipImage.Format == ERawImageFormat::RGBA32F;
 
 				FImage Temp;
@@ -4200,7 +4168,12 @@ private:
 				{		
 					// changed resizer for "stretch to power of two" , bumped ddc key
 
-					// choice of Filter?
+					// choice of Filter? wrap or clamp?
+
+					// if you have multiple resize operations on a texture, such as StrechToPow2 and then also MaxTextureSize or Downscale
+					//	currently those are done one by one, which is not great
+					//	would be better to compute the net output size of all the operations
+					//	and do just one resize to get directly from source to final size
 
 					FImageCore::ResizeImageAllocDest(SourceImage,TargetImage, TargetTextureSizeX, TargetTextureSizeY);
 				}
@@ -4363,6 +4336,7 @@ private:
 
 					// @todo : find closest ResizeFilter that matches MipGen settings (maybe?)
 					//	 I mean, maybe not?  Most of the time MipGen is "SimpleAverage" which produces a really bad resize
+					//	-> wrap/clamp ?
 					FImageCore::EResizeImageFilter ResizeFilter = FImageCore::EResizeImageFilter::Default;
 					FImageCore::ResizeImage(BaseImage,DestImage,ResizeFilter);
 				}
@@ -4392,6 +4366,7 @@ private:
 					Temp.RawData.Empty();					
 					pSourceMips->Empty();
 
+					// note: on volumes, only XY size is checked, but Z size changes too
 					while( BuildSourceImageMips.Last().SizeX > MaxTextureResolution || 
 						   BuildSourceImageMips.Last().SizeY > MaxTextureResolution )
 					{
@@ -4439,7 +4414,8 @@ private:
 			//  eg. 256 makes 9 mips , 300 also makes 9 mips
 			if (bLongLatCubemap)
 			{
-				NumOutputMips = FImageCoreUtils::GetMipCountFromDimensions(ComputeLongLatCubemapExtents(TopMip.SizeX, BuildSettings.MaxTextureResolution), 1, 1, false);
+				uint32 Extents = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(TopMip.SizeX, BuildSettings.MaxTextureResolution);
+				NumOutputMips = FImageCoreUtils::GetMipCountFromDimensions(Extents, Extents, 6, false);
 			}
 			else
 			{

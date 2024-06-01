@@ -408,28 +408,26 @@ static int GetWithinSliceRDOMemoryUsePerPixel(EPixelFormat PixelFormat)
 	}
 }
 
-static int64 CalculateTextureSourceBytesFromImageInfo(FImageInfo InImageInfo, int32 InMipCount, bool bInVolume)
+static int64 CalculateTextureSourceBytesFromImageInfo(const FImageInfo & InImageInfoConst, const int32 InMipCountConst, const bool bInVolume)
 {
-	if (InMipCount > 0)
+	FImageInfo ImageInfo = InImageInfoConst;
+	int32 MipCount = InMipCountConst;
+
+	int64 SourceBytes = 0;
+	while (MipCount)
 	{
-		int64 SourceBytes = 0;
-		while (InMipCount)
+		SourceBytes += ImageInfo.GetImageSizeBytes();
+
+		ImageInfo.SizeX = FEncodedTextureDescription::GetMipWidth(ImageInfo.SizeX, 1);
+		ImageInfo.SizeY = FEncodedTextureDescription::GetMipHeight(ImageInfo.SizeY, 1);
+		if (bInVolume)
 		{
-			SourceBytes += InImageInfo.GetImageSizeBytes();
-
-			InImageInfo.SizeX = FEncodedTextureDescription::GetMipWidth(InImageInfo.SizeX, 1);
-			InImageInfo.SizeY = FEncodedTextureDescription::GetMipHeight(InImageInfo.SizeY, 1);
-			if (bInVolume)
-			{
-				InImageInfo.NumSlices = FEncodedTextureDescription::GetMipDepth(InImageInfo.NumSlices, 1, true);
-			}
-			InMipCount--;
+			ImageInfo.NumSlices = FEncodedTextureDescription::GetMipDepth(ImageInfo.NumSlices, 1, true);
 		}
-
-		return SourceBytes;
+		MipCount--;
 	}
 
-	return -1;
+	return SourceBytes;
 }
 
 
@@ -480,7 +478,7 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 	TConstArrayView<UE::TextureBuildUtilities::FVirtualTextureSourceBlockInfo> InSourceBlocks)
 {
 	const bool bRDO = true;
-	// @todo Oodle : be careful about using BuildSettings for this as there are two buildsettingses, just assume its on for now
+	// @todo Oodle : be careful about using BuildSettings for bRDO as there are two buildsettingses, just assume its on for now
 	//   <- FIX ME, allow lower mem estimates for non-RDO
 
 	// over-estimate is okay
@@ -505,6 +503,8 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 	int64 TotalTopMipNumPixelsPerLayer = 0;
 	int64 LargestBlockTopMipNumPixels = 0;
 
+	int64 ResizingPhaseMemUsePerLayer = 0;
+
 	// All layers in a VT must have the same layout for each block. Layers only can change source pixels + format, not dims.
 	for (int32 BlockIndex = 0; BlockIndex < InSourceBlocks.Num(); ++BlockIndex)
 	{
@@ -526,11 +526,42 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 		// assume pow2 options are the same for all layers, just use layer 0 here :
 		const FTextureBuildSettings& LayerBuildSettings = InBuildSettingsPerLayer[0];
 
+		check( ! LayerBuildSettings.bVolume );
+		check( ! LayerBuildSettings.bCubemap );
+		check( ! LayerBuildSettings.bLongLatSource );
+
 		int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-		UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(SourceBlock.SizeX, SourceBlock.SizeY, SourceBlock.NumSlices,
+		bool bDidPow2 = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(SourceBlock.SizeX, SourceBlock.SizeY, SourceBlock.NumSlices,
 			LayerBuildSettings.bVolume, (ETexturePowerOfTwoSetting::Type)LayerBuildSettings.PowerOfTwoMode,
 			LayerBuildSettings.ResizeDuringBuildX, LayerBuildSettings.ResizeDuringBuildY,
 			TargetSizeX, TargetSizeY, TargetSizeZ);
+		
+		int64 AfterPow2TopMipNumPixels = (int64) TargetSizeX * TargetSizeY * TargetSizeZ;
+			
+		// MaxTextureSize on UDIM applies to each block on its own
+		if ( LayerBuildSettings.MaxTextureResolution != TNumericLimits<uint32>::Max() )
+		{
+			// max memory use of the MaxTextureResolution op is the source in RGBA32F + a mip of size /2 in RGBA32F
+			ResizingPhaseMemUsePerLayer += AfterPow2TopMipNumPixels * 20;  // (1 + 1/4) * 16;
+		
+			// ResizingPhaseMemUse is per Layer at this point
+
+			while( (uint32)TargetSizeX > LayerBuildSettings.MaxTextureResolution || (uint32)TargetSizeY > LayerBuildSettings.MaxTextureResolution )
+			{
+				TargetSizeX = FMath::Max(TargetSizeX>>1,1);
+				TargetSizeY = FMath::Max(TargetSizeY>>1,1);
+
+				// TargetSizeZ not changed
+				check( ! LayerBuildSettings.bVolume );
+			}
+		}
+		else if ( bDidPow2 )
+		{
+			// surface in in RGBA32F
+			ResizingPhaseMemUsePerLayer += AfterPow2TopMipNumPixels * 16;
+		}
+
+		// TargetSize is now the size after Pow2 and MaxTextureSize resizes :
 
 		int64 CurrentBlockTopMipNumPixels = (int64)TargetSizeX * TargetSizeY * TargetSizeZ;
 
@@ -543,6 +574,10 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 	{
 		return -1; /* Unknown */
 	}
+
+	int64 ResizingPhaseMemUse = TotalSourceBytes + ResizingPhaseMemUsePerLayer * InLayerFormats.Num();
+
+	// after this point, "numpixels" is the number encode to VT and output pixel format
 
 	// assume full mip chain :
 	int64 TotalPixelsPerLayer = (TotalTopMipNumPixelsPerLayer * 4) / 3;
@@ -642,9 +677,12 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 	// take larger of mem use during float image filter phase or tile compression phase
 	MemoryEstimate += FMath::Max(IntermediateFloatColorBytes, TileCompressionBytes + OutputSizeBytes);
 
+	// larger of early resize phase and VT build phase :
+	MemoryEstimate = FMath::Max(ResizingPhaseMemUse,MemoryEstimate);
+
 	MemoryEstimate += 64 * 1024; // overhead room
 
-	//UE_LOG(LogTexture,Display,TEXT("GetBuildRequiredMemoryEstimate VT : %.3f MB"),MemoryEstimate/(1024*1024.f));
+	//UE_LOG(LogTextureBuildUtilities,Display,TEXT("GetBuildRequiredMemoryEstimate VT : %.3f MB"),MemoryEstimate/(1024*1024.f));
 
 	return MemoryEstimate;
 }
@@ -654,7 +692,7 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 TEXTUREBUILDUTILITIES_API int64 GetPhysicalTextureBuildMemoryEstimate(const FTextureBuildSettings* InSettingsPerLayerFetchFirst, const FImageInfo& InSourceImageInfo, int32 InMipCount)
 {
 	const bool bRDO = true;
-	// @todo Oodle : be careful about using BuildSettings for this as there are two buildsettingses, just assume its on for now
+	// @todo Oodle : be careful about using BuildSettings for bRDO as there are two buildsettingses, just assume its on for now
 	//   <- FIX ME, allow lower mem estimates for non-RDO
 
 	// over-estimate is okay
@@ -662,151 +700,238 @@ TEXTUREBUILDUTILITIES_API int64 GetPhysicalTextureBuildMemoryEstimate(const FTex
 
 	int64 MaxNumberOfWorkers = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads());
 
+	const FTextureBuildSettings& BuildSettings = InSettingsPerLayerFetchFirst[0];
+	// non VT
+
+	// Compute the memory it should take to uncompress the bulkdata in memory
+	int64 TotalSourceBytes = CalculateTextureSourceBytesFromImageInfo(InSourceImageInfo, InMipCount, BuildSettings.bVolume);
+	if (TotalSourceBytes <= 0)
 	{
-		const FTextureBuildSettings& BuildSettings = InSettingsPerLayerFetchFirst[0];
-		// non VT
+		return -1; /* Unknown */
+	}
 
-		// Compute the memory it should take to uncompress the bulkdata in memory
-		int64 TotalSourceBytes = CalculateTextureSourceBytesFromImageInfo(InSourceImageInfo, InMipCount, BuildSettings.bVolume);
-		if (TotalSourceBytes <= 0)
+	// NOTE: it would be ideal to call Texture::GetBuiltTextureSize here, but we don't have a Texture pointer, sigh.
+
+	int32 TargetSizeX, TargetSizeY, TargetSizeZ;
+	bool bDidPow2 = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(InSourceImageInfo.SizeX, InSourceImageInfo.SizeY, InSourceImageInfo.NumSlices,
+		BuildSettings.bVolume, (ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode,
+		BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY,
+		TargetSizeX, TargetSizeY, TargetSizeZ);
+	
+	// mem use of the Pow2 op is always lower that later ops, so no need to compute it
+
+	int64 ResizingPhaseMemUse = TotalSourceBytes;
+	int64 InitialTopMipNumPixels = (int64) TargetSizeX * TargetSizeY * TargetSizeZ;
+	ResizingPhaseMemUse += InitialTopMipNumPixels * 16; // top mip in RGBA32F may be needed
+
+	if ( BuildSettings.bLongLatSource )
+	{
+		// longlat to cube is after pow2 pad
+		TargetSizeX = TargetSizeY = ComputeLongLatCubemapExtents(TargetSizeX,BuildSettings.MaxTextureResolution);
+
+		// could be a cube array :
+		TargetSizeZ = InSourceImageInfo.NumSlices * 6;
+
+		// mem use of the longlat->cube operation; requires source longlat in RGBA32F and the cube output :
+		ResizingPhaseMemUse += (int64) TargetSizeX * TargetSizeY * TargetSizeZ * 16;
+	}
+	else if ( BuildSettings.MaxTextureResolution != TNumericLimits<uint32>::Max() )
+	{
+		// apply MaxTextureResolution
+		// NOTE: it would be ideal to call Texture::GetBuiltTextureSize here, but we don't have a Texture pointer, sigh.
+		//		(or some kind of shared function rather than duplicating all this logic)
+
+		// max memory use of the MaxTextureResolution op is the source in RGBA32F + a mip of size /2 in RGBA32F
+		ResizingPhaseMemUse += (InitialTopMipNumPixels/4) * 16;
+		
+		while( (uint32)TargetSizeX > BuildSettings.MaxTextureResolution || (uint32)TargetSizeY > BuildSettings.MaxTextureResolution )
 		{
-			return -1; /* Unknown */
-		}
+			TargetSizeX = FMath::Max(TargetSizeX>>1,1);
+			TargetSizeY = FMath::Max(TargetSizeY>>1,1);
 
-
-
-		int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-		UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(InSourceImageInfo.SizeX, InSourceImageInfo.SizeY, InSourceImageInfo.NumSlices,
-			BuildSettings.bVolume, (ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode,
-			BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY,
-			TargetSizeX, TargetSizeY, TargetSizeZ);
-
-		int64 TotalTopMipNumPixels = (int64)TargetSizeX * TargetSizeY * TargetSizeZ;
-
-		// assume full mip chain :
-		int64 TotalNumPixels = (TotalTopMipNumPixels * 4) / 3;
-
-		// actually we have each mip twice for the float image filter phase so this is under-counting
-		//	but that isn't held allocated while the output is made, so it can overlap with that mem
-		int64 IntermediateFloatColorBytes = TotalNumPixels * sizeof(FLinearColor);
-
-		int64 MemoryEstimate = TotalSourceBytes + IntermediateFloatColorBytes;
-
-		// Assume alpha exists if we don't know for worst-case handling.
-		EPixelFormat PixelFormat = GetOutputPixelFormatWithFallback(BuildSettings, true);
-
-		if (PixelFormat == PF_Unknown)
-		{
-			return -1; /* Unknown */
-		}
-
-		const FPixelFormatInfo& PFI = GPixelFormats[PixelFormat];
-
-		const int64 OutputSizeBytes = (TotalNumPixels * PFI.BlockBytes) / (PFI.BlockSizeX * PFI.BlockSizeY);
-
-		MemoryEstimate += OutputSizeBytes;
-
-		// check to see if it's uncompressed or a BCN format :
-		if (IsDXTCBlockCompressedTextureFormat(PixelFormat))
-		{
-			// block-compressed format ; assume it's using Oodle Texture
-
-			if (bRDO)
+			if ( BuildSettings.bVolume )
 			{
-				// two more copies in outputsize
-				// baseline encode + UT or Layout
-				MemoryEstimate += OutputSizeBytes * 2;
-			}
-
-			// you also have to convert the float surface to an input format for Oodle
-			//	this copy is done in TFO
-			//  Oodle then allocs another copy to swizzle into blocks before encoding
-
-			int IntermediateBytesPerPixel;
-			bool bNeedsIntermediateCopy = true;
-
-			// this matches the logic in TextureFormatOodle :
-			if (PixelFormat == PF_BC6H)
-			{
-				IntermediateBytesPerPixel = 16; //RGBAF32
-				bNeedsIntermediateCopy = false; // no intermediate used in TFO (float source kept), 1 blocksurf
-			}
-			else if (PixelFormat == PF_BC4 || PixelFormat == PF_BC5)
-			{
-				// changed: TFO uses 2_U16 now (4 byte intermediate)
-				IntermediateBytesPerPixel = 8; // RGBA16
-			}
-			else
-			{
-				IntermediateBytesPerPixel = 4; // RGBA8
-			}
-
-			int NumIntermediateCopies = 1; // BlockSurf
-			if (bNeedsIntermediateCopy) NumIntermediateCopies++;
-
-			MemoryEstimate += NumIntermediateCopies * IntermediateBytesPerPixel * TotalNumPixels;
-
-			if (bRDO)
-			{
-				// activity map for whole image :
-				// (this has changed in newer versions of Oodle Texture)
-
-				// Phase1 = computing activity map
-				int ActivityBytesPerPixel;
-
-				if (PixelFormat == PF_BC4) ActivityBytesPerPixel = 12;
-				else if (PixelFormat == PF_BC5) ActivityBytesPerPixel = 16;
-				else ActivityBytesPerPixel = 24;
-
-				int64 RDOPhase1MemUse = ActivityBytesPerPixel * TotalNumPixels;
-
-				// Phase2 = cut into slices, encode each slice
-				// per-slice data structure memory use
-				// non-RDO is all on stack so zero
-
-				// fewer workers for small images ; roughly one slice per 64 KB of output
-				//int64 NumberofSlices = FMath::DivideAndRoundUp<int64>(OutputSizeBytes,64*1024);
-				int64 PixelsPerSlice = (64 * 1024 * TotalNumPixels) / OutputSizeBytes;
-				int64 NumberofSlices = FMath::DivideAndRoundUp<int64>(TotalNumPixels, PixelsPerSlice);
-				if (NumberofSlices <= 4)
-				{
-					PixelsPerSlice = TotalNumPixels / NumberofSlices;
-				}
-
-				int64 MemoryUsePerWorker = PixelsPerSlice * GetWithinSliceRDOMemoryUsePerPixel(PixelFormat);
-					// MemoryUsePerWorker is around 10 MB
-				int64 NumberOfWorkers = FMath::Min(NumberofSlices, MaxNumberOfWorkers);
-
-				int64 RDOPhase2MemUse = 4 * TotalNumPixels; // activity map held on whole image
-				RDOPhase2MemUse += NumberOfWorkers * MemoryUsePerWorker;
-
-				// usually phase2 is higher
-				// but on large BC6 images on machines with low core counts, phase1 can be higher
-
-				MemoryEstimate += FMath::Max(RDOPhase1MemUse, RDOPhase2MemUse);
+				TargetSizeZ = FMath::Max(TargetSizeZ>>1,1);
 			}
 		}
-		else if (IsASTCBlockCompressedTextureFormat(PixelFormat))
+	}
+
+	// from here on, NumPixels is the number that will be encoded to the output pixel format
+
+	int64 TotalTopMipNumPixels = (int64)TargetSizeX * TargetSizeY * TargetSizeZ;
+
+	// assume full mip chain :
+	//	(volume mips are smaller than this, but over-estimating is okay)
+	int64 TotalNumPixels = (TotalTopMipNumPixels * 4) / 3;
+
+	// actually we have each mip twice for the float image filter phase so this is under-counting
+	//	but that isn't held allocated while the output is made, so it can overlap with that mem
+	int64 IntermediateFloatColorBytes = TotalNumPixels * sizeof(FLinearColor);
+
+	// if we knew the source BulkData was always freed during encoding, TotalSourceBytes could be dropped
+	int64 MemoryEstimate = TotalSourceBytes + IntermediateFloatColorBytes;
+
+	// Assume alpha exists if we don't know for worst-case handling.
+	const bool bHasAlphaFallback = true;
+	EPixelFormat PixelFormat = GetOutputPixelFormatWithFallback(BuildSettings, bHasAlphaFallback);
+
+	if (PixelFormat == PF_Unknown)
+	{
+		return -1; /* Unknown */
+	}
+
+	const FPixelFormatInfo& PFI = GPixelFormats[PixelFormat];
+
+	const int64 OutputSizeBytes = (TotalNumPixels * PFI.BlockBytes) / (PFI.BlockSizeX * PFI.BlockSizeY);
+
+	MemoryEstimate += OutputSizeBytes;
+
+	// check to see if it's uncompressed or a BCN format :
+	if (IsDXTCBlockCompressedTextureFormat(PixelFormat))
+	{
+		// block-compressed format ; assume it's using Oodle Texture
+
+		if (bRDO)
 		{
-			// ASTCenc does an entermediate copy to RGBA16F for HDR formats and RGBA8 for LDR
-			MemoryEstimate += (IsHDR(PixelFormat) ? 8 : 4) * TotalNumPixels;
-			// internal memory use of ASTCenc is not estimated
-			// @todo : fix me
+			// two more copies in outputsize
+			// baseline encode + UT or Layout
+			MemoryEstimate += OutputSizeBytes * 2;
+		}
+
+		// you also have to convert the float surface to an input format for Oodle
+		//	this copy is done in TFO
+		//  Oodle then allocs another copy to swizzle into blocks before encoding
+
+		int IntermediateBytesPerPixel;
+		bool bNeedsIntermediateCopy = true;
+
+		// this matches the logic in TextureFormatOodle :
+		if (PixelFormat == PF_BC6H)
+		{
+			IntermediateBytesPerPixel = 16; //RGBAF32
+			bNeedsIntermediateCopy = false; // no intermediate used in TFO (float source kept), 1 blocksurf
+		}
+		else if (PixelFormat == PF_BC4 || PixelFormat == PF_BC5)
+		{
+			// changed: TFO uses 2_U16 now (4 byte intermediate)
+			IntermediateBytesPerPixel = 8; // RGBA16
 		}
 		else
 		{
-			// note: memory ues of non-Oodle encoders is not estimated
-			// @todo : fix me
+			IntermediateBytesPerPixel = 4; // RGBA8
 		}
 
-		MemoryEstimate += 64 * 1024; // overhead room
+		int NumIntermediateCopies = 1; // BlockSurf
+		if (bNeedsIntermediateCopy) NumIntermediateCopies++;
 
-		//UE_LOG(LogTexture,Display,TEXT("GetBuildRequiredMemoryEstimate non-VT : %.3f MB"),MemoryEstimate/(1024*1024.f));
+		MemoryEstimate += NumIntermediateCopies * IntermediateBytesPerPixel * TotalNumPixels;
 
-		return MemoryEstimate;
+		if (bRDO)
+		{
+			// activity map for whole image :
+			// (this has changed in newer versions of Oodle Texture)
 
-		// @todo Oodle : not right for volumes & latlong cubes
-		// @todo Oodle : not right with Composite , CPU textures
+			// Phase1 = computing activity map
+			int ActivityBytesPerPixel;
+
+			if (PixelFormat == PF_BC4) ActivityBytesPerPixel = 12;
+			else if (PixelFormat == PF_BC5) ActivityBytesPerPixel = 16;
+			else ActivityBytesPerPixel = 24;
+
+			int64 RDOPhase1MemUse = ActivityBytesPerPixel * TotalNumPixels;
+
+			// Phase2 = cut into slices, encode each slice
+			// per-slice data structure memory use
+			// non-RDO is all on stack so zero
+
+			// fewer workers for small images ; roughly one slice per 64 KB of output
+			//int64 NumberofSlices = FMath::DivideAndRoundUp<int64>(OutputSizeBytes,64*1024);
+			int64 PixelsPerSlice = (64 * 1024 * TotalNumPixels) / OutputSizeBytes;
+			int64 NumberofSlices = FMath::DivideAndRoundUp<int64>(TotalNumPixels, PixelsPerSlice);
+			if (NumberofSlices <= 4)
+			{
+				PixelsPerSlice = TotalNumPixels / NumberofSlices;
+			}
+
+			int64 MemoryUsePerWorker = PixelsPerSlice * GetWithinSliceRDOMemoryUsePerPixel(PixelFormat);
+				// MemoryUsePerWorker is around 10 MB
+			int64 NumberOfWorkers = FMath::Min(NumberofSlices, MaxNumberOfWorkers);
+
+			int64 RDOPhase2MemUse = 4 * TotalNumPixels; // activity map held on whole image
+			RDOPhase2MemUse += NumberOfWorkers * MemoryUsePerWorker;
+
+			// usually phase2 is higher
+			// but on large BC6 images on machines with low core counts, phase1 can be higher
+
+			MemoryEstimate += FMath::Max(RDOPhase1MemUse, RDOPhase2MemUse);
+		}
+	}
+	else if (IsASTCBlockCompressedTextureFormat(PixelFormat))
+	{
+		// ASTCenc does an entermediate copy to RGBA16F for HDR formats and RGBA8 for LDR
+		MemoryEstimate += (IsHDR(PixelFormat) ? 8 : 4) * TotalNumPixels;
+			
+		// internal memory use of ASTCenc :
+		//	measured from command line astcenc.exe
+		MemoryEstimate += 10 * TotalNumPixels;
+	}
+	else if ( PFI.BlockSizeX > 1 )
+	{
+		// block compressed but not Oodle or ASTC (eg. ETC)
+		// note: memory ues of non-Oodle encoders is not estimated
+		// @todo : fix me
+			
+		// prefer over-estimate to under-estimate :
+		MemoryEstimate += 16 * TotalNumPixels;
+	}
+	else
+	{
+		// non-blocked encoder (uncompressed)
+			
+		// some of the TextureFormatUncompressed encoders use a scratch image
+		//	must over-estimate to be safe :
+		MemoryEstimate += 4 * TotalNumPixels;
+	}
+
+	// mem use is the max of the phases :
+	MemoryEstimate = FMath::Max(MemoryEstimate,ResizingPhaseMemUse);
+
+	MemoryEstimate += 64 * 1024; // overhead room
+
+	//UE_LOG(LogTextureBuildUtilities,Display,TEXT("GetBuildRequiredMemoryEstimate non-VT : %.3f MB"),MemoryEstimate/(1024*1024.f));
+
+	return MemoryEstimate;
+
+	// @todo Oodle : not right with Composite 
+	
+	// this is not right for CPU textures, but it is an over-estimate, so that's okay
+
+	// note: this is intended to be right for TFO, not OTF
+	//	 the cloud TBW and ContentWorker runs that really care about mem use limitations are TFO only
+}
+
+uint32 ComputeLongLatCubemapExtents(int32 SrcImageSizeX, uint32 MaxCubemapTextureResolution)
+{
+	// MaxTextureSize of 0 is changed to max when filling BuildSettings
+	if ( MaxCubemapTextureResolution == 0 )
+	{
+		MaxCubemapTextureResolution = TNumericLimits<uint32>::Max();
+	}
+
+	uint32 Out = 1U << FMath::FloorLog2(SrcImageSizeX / 2);
+
+	if ( Out <= 32 || MaxCubemapTextureResolution <= 32 )
+	{
+		return 32;
+	}
+	else if ( Out > MaxCubemapTextureResolution )
+	{
+		// RoundDownToPowerOfTwo
+		return 1U << FMath::FloorLog2(MaxCubemapTextureResolution);
+	}
+	else
+	{
+		return Out;
 	}
 }
 
