@@ -815,7 +815,13 @@ namespace UsdGeomMeshTranslatorImpl
 			StaticMesh.BuildFromMeshDescription(MeshDescription, LODResources);
 		}
 
-#endif	  // WITH_EDITOR
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed() && bSupportRayTracing)
+		{
+			StaticMesh.GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
+		}
+#endif // RHI_RAYTRACING
+#endif // WITH_EDITOR
 
 		return true;
 	}

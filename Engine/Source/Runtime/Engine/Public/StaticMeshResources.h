@@ -678,6 +678,49 @@ struct FStaticMeshVertexFactories
 using FStaticMeshLODResourcesArray = TIndirectArray<FStaticMeshLODResources>;
 using FStaticMeshVertexFactoriesArray = TArray<FStaticMeshVertexFactories>;
 
+struct FStaticMeshRayTracingProxyLOD
+{
+	FRayTracingGeometry* RayTracingGeometry = nullptr;
+
+	FStaticMeshSectionArray* Sections = nullptr;
+
+	FStaticMeshVertexBuffers* VertexBuffers = nullptr;
+	FRawStaticIndexBuffer* IndexBuffer = nullptr;
+
+	bool bOwnsRayTracingGeometry : 1 = true;
+	bool bOwnsBuffers : 1 = true;
+
+	ENGINE_API ~FStaticMeshRayTracingProxyLOD();
+
+	void InitResources(UStaticMesh* Owner, int32 LODIndex);
+	void ReleaseResources();
+
+	void Serialize(FArchive& Ar, UObject* Owner, int32 Index);
+
+	void SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags);
+
+#if RHI_RAYTRACING
+	void SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FDebugName& DebugName, const FName& OwnerName) const;
+#endif // RHI_RAYTRACING
+};
+
+using FStaticMeshRayTracingProxyLODArray = TIndirectArray<FStaticMeshRayTracingProxyLOD>;
+
+struct FStaticMeshRayTracingProxy
+{
+	FStaticMeshRayTracingProxyLODArray LODs;
+	FStaticMeshVertexFactoriesArray* LODVertexFactories = nullptr;
+
+	bool bUsingRenderingLODs = false;
+
+	~FStaticMeshRayTracingProxy();
+
+	void InitResources(UStaticMesh* Owner);
+	void ReleaseResources();
+
+	void Serialize(FArchive& Ar, UObject* Owner, FStaticMeshRenderData* RenderData, bool bCooked);
+};
+
 /**
  * FStaticMeshRenderData - All data needed to render a static mesh.
  */
@@ -700,6 +743,9 @@ public:
 	FPerPlatformFloat ScreenSize[MAX_STATIC_MESH_LODS];
 
 	TPimplPtr<Nanite::FResources> NaniteResourcesPtr;
+
+	/** Ray tracing representation of this mesh, null if not present.  */
+	FStaticMeshRayTracingProxy* RayTracingProxy = nullptr;
 
 	/** Bounds of the renderable mesh. */
 	FBoxSphereBounds Bounds;
@@ -795,6 +841,8 @@ public:
 	void ComputeUVDensities();
 
 	void BuildAreaWeighedSamplingData();
+
+	ENGINE_API void InitializeRayTracingRepresentationFromRenderingLODs();
 
 #if WITH_EDITOR
 	/** Resolve all per-section settings. */

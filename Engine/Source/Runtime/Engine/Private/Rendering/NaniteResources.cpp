@@ -1637,21 +1637,24 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 		return 0;
 	}
 
-	int32 NumLODs = RenderData->LODResources.Num();
-	int LODIndex = ClampedMinLOD;
+	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RenderData->RayTracingProxy->LODs;
+
+	const int32 NumLODs = RayTracingLODs.Num();
+
+	int32 RayTracingMinLOD = RenderData->RayTracingProxy->bUsingRenderingLODs ? ClampedMinLOD : 0;
 
 #if WITH_EDITOR
 	// If coarse mesh streaming mode is set to 2 then we force use the lowest LOD to visualize streamed out coarse meshes
 	if (Nanite::FCoarseMeshStreamingManager::GetStreamingMode() == 2)
 	{
-		LODIndex = NumLODs - 1;
+		RayTracingMinLOD = NumLODs - 1;
 	}
 #endif // WITH_EDITOR
 
 	// find the first valid RT geometry index
-	for (; LODIndex < NumLODs; ++LODIndex)
+	for (int32 LODIndex = RayTracingMinLOD; LODIndex < NumLODs; ++LODIndex)
 	{
-		const FRayTracingGeometry& RayTracingGeometry = *RenderData->LODResources[LODIndex].RayTracingGeometry;
+		const FRayTracingGeometry& RayTracingGeometry = *RayTracingLODs[LODIndex].RayTracingGeometry;
 		if (RayTracingGeometry.IsValid() && !RayTracingGeometry.IsEvicted() && !RayTracingGeometry.HasPendingBuildRequest())
 		{
 			return LODIndex;
@@ -1688,15 +1691,16 @@ void FSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& O
 
 void FSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const
 {
-	const FStaticMeshLODResources& LOD = RenderData->LODResources[LODIndex];
-	const FStaticMeshVertexFactories& VFs = RenderData->LODVertexFactories[LODIndex];
+	const FStaticMeshRayTracingProxyLOD& LOD = RenderData->RayTracingProxy->LODs[LODIndex];
+	const FStaticMeshVertexFactories& VFs = (*RenderData->RayTracingProxy->LODVertexFactories)[LODIndex];
 
-	const FFallbackLODInfo& FallbackLODInfo = FallbackLODs[LODIndex];
+	const FFallbackLODInfo& FallbackLODInfo = FallbackLODs[LODIndex]; // todo: use RayTracingProxy section info etc
 
 	OutMaterials.SetNum(FallbackLODInfo.Sections.Num());
 
 	for (int32 SectionIndex = 0; SectionIndex < OutMaterials.Num(); ++SectionIndex)
 	{
+		const FStaticMeshSection& Section = (*LOD.Sections)[SectionIndex];
 		const FFallbackLODInfo::FSectionInfo& SectionInfo = FallbackLODInfo.Sections[SectionIndex];
 
 		FMeshBatch& MeshBatch = OutMaterials[SectionIndex];
@@ -1709,8 +1713,6 @@ void FSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshB
 
 		MeshBatch.VertexFactory = &VFs.VertexFactory;
 		MeshBatchElement.VertexFactoryUserData = VFs.VertexFactory.GetUniformBuffer();
-
-		const FStaticMeshSection& Section = LOD.Sections[SectionIndex];
 
 		MeshBatchElement.MinVertexIndex = Section.MinVertexIndex;
 		MeshBatchElement.MaxVertexIndex = Section.MaxVertexIndex;
@@ -1730,11 +1732,15 @@ void FSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdL
 	check(bNeedsDynamicRayTracingGeometries);
 	check(DynamicRayTracingGeometries.IsEmpty());
 
-	DynamicRayTracingGeometries.AddDefaulted(RenderData->LODResources.Num());
+	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RenderData->RayTracingProxy->LODs;
 
-	for (int32 LODIndex = ClampedMinLOD; LODIndex < RenderData->LODResources.Num(); LODIndex++)
+	DynamicRayTracingGeometries.AddDefaulted(RayTracingLODs.Num());
+
+	const int32 RayTracingMinLOD = RenderData->RayTracingProxy->bUsingRenderingLODs ? ClampedMinLOD : 0;
+
+	for (int32 LODIndex = RayTracingMinLOD; LODIndex < RayTracingLODs.Num(); LODIndex++)
 	{
-		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry->Initializer;
+		FRayTracingGeometryInitializer Initializer = RayTracingLODs[LODIndex].RayTracingGeometry->Initializer;
 		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 		{
 			Segment.VertexBuffer = nullptr;
@@ -1893,6 +1899,8 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 		return ResultFlags;
 	}
 
+	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RenderData->RayTracingProxy->LODs;
+
 	if (bUsingNaniteRayTracing)
 	{
 		RayTracingInstance.Geometry = nullptr;
@@ -1900,7 +1908,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	}
 	else
 	{
-		RayTracingInstance.Geometry = RenderData->LODResources[ValidLODIndex].RayTracingGeometry;
+		RayTracingInstance.Geometry = RenderData->RayTracingProxy->LODs[ValidLODIndex].RayTracingGeometry;
 		RayTracingInstance.bApplyLocalBoundsTransform = false;
 	}
 

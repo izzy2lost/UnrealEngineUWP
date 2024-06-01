@@ -783,13 +783,15 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 
 	if (StaticMesh->bSupportRayTracing && BuildParameters.TargetPlatform->UsesRayTracing())
 	{
-		const int32 NumLODs = StaticMeshRenderData.LODResources.Num();
+		const bool bUsingRenderingLODs = true;
 
-		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+		if (bUsingRenderingLODs)
 		{
-			FStaticMeshLODResources& LODResources = StaticMeshRenderData.LODResources[LODIndex];
-
-			LODResources.RayTracingGeometry = new FRayTracingGeometry();
+			StaticMeshRenderData.InitializeRayTracingRepresentationFromRenderingLODs();
+		}
+		else
+		{
+			unimplemented();
 		}
 	}
 	

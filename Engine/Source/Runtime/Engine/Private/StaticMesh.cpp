@@ -1545,6 +1545,252 @@ void FStaticMeshLODResources::DiscardCPUData()
 }
 
 /*------------------------------------------------------------------------------
+	FStaticMeshRayTracingProxyLOD
+------------------------------------------------------------------------------*/
+
+#if RHI_RAYTRACING
+void FStaticMeshRayTracingProxyLOD::SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FDebugName& DebugName, const FName& OwnerName) const
+{
+	Initializer.DebugName = DebugName;
+	Initializer.OwnerName = OwnerName;
+	Initializer.IndexBuffer = IndexBuffer->IndexBufferRHI;
+	Initializer.TotalPrimitiveCount = 0; // This is calculated below based on static mesh section data
+	Initializer.GeometryType = RTGT_Triangles;
+	Initializer.bFastBuild = false;
+
+	TArray<FRayTracingGeometrySegment> GeometrySections;
+	GeometrySections.Reserve(Sections->Num());
+	for (const FStaticMeshSection& Section : *Sections)
+	{
+		FRayTracingGeometrySegment Segment;
+		Segment.VertexBuffer = VertexBuffers->PositionVertexBuffer.VertexBufferRHI;
+		Segment.VertexBufferElementType = VET_Float3;
+		Segment.VertexBufferStride = VertexBuffers->PositionVertexBuffer.GetStride();
+		Segment.VertexBufferOffset = 0;
+		Segment.MaxVertices = VertexBuffers->PositionVertexBuffer.GetNumVertices();
+		Segment.FirstPrimitive = Section.FirstIndex / 3;
+		Segment.NumPrimitives = Section.NumTriangles;
+		Segment.bEnabled = Section.bVisibleInRayTracing;
+		Segment.bForceOpaque = Section.bForceOpaque;
+		GeometrySections.Add(Segment);
+		Initializer.TotalPrimitiveCount += Section.NumTriangles;
+	}
+	Initializer.Segments = GeometrySections;
+}
+#endif // RHI_RAYTRACING
+
+FStaticMeshRayTracingProxyLOD::~FStaticMeshRayTracingProxyLOD()
+{
+	if (bOwnsRayTracingGeometry)
+	{
+		delete RayTracingGeometry;
+	}
+
+	if (bOwnsBuffers)
+	{
+		delete VertexBuffers;
+		delete IndexBuffer;
+		delete Sections;
+	}
+}
+
+void FStaticMeshRayTracingProxyLOD::InitResources(UStaticMesh* Parent, int32 LODIndex)
+{
+	const FName OwnerName = UStaticMesh::GetLODPathName(Parent, LODIndex);
+
+	if (bOwnsBuffers)
+	{
+		IndexBuffer->SetOwnerName(OwnerName);
+		BeginInitResource(IndexBuffer);
+		VertexBuffers->StaticMeshVertexBuffer.SetOwnerName(OwnerName);
+		BeginInitResource(&VertexBuffers->StaticMeshVertexBuffer);
+		VertexBuffers->PositionVertexBuffer.SetOwnerName(OwnerName);
+		BeginInitResource(&VertexBuffers->PositionVertexBuffer);
+
+		// todo: support ColorVertexBuffer
+	}
+
+	if (Parent && !Parent->bSupportRayTracing)
+	{
+		checkf(RayTracingGeometry == nullptr, TEXT("Unexpected RayTracingGeometry on '%s' ray tracing proxy LOD:%d (ray tracing support is disabled on this UStaticMesh)."), *GetPathNameSafe(Parent), LODIndex);
+	}
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && RayTracingGeometry != nullptr && bOwnsRayTracingGeometry)
+	{
+		ENQUEUE_RENDER_COMMAND(InitStaticMeshRayTracingGeometry)(
+			[this, DebugName = (Parent ? Parent->GetFName() : NAME_None), OwnerName](FRHICommandListImmediate& RHICmdList)
+			{
+				FRayTracingGeometryInitializer Initializer;
+				SetupRayTracingGeometryInitializer(Initializer, DebugName, OwnerName);
+
+				RayTracingGeometry->SetInitializer(Initializer);
+			}
+		);
+	}
+#endif // RHI_RAYTRACING
+}
+
+void FStaticMeshRayTracingProxyLOD::ReleaseResources()
+{
+	if (bOwnsRayTracingGeometry)
+	{
+		BeginReleaseResource(RayTracingGeometry);
+	}
+
+	if (bOwnsBuffers)
+	{
+		BeginReleaseResource(IndexBuffer);
+
+		BeginReleaseResource(&VertexBuffers->StaticMeshVertexBuffer);
+		BeginReleaseResource(&VertexBuffers->PositionVertexBuffer);
+		BeginReleaseResource(&VertexBuffers->ColorVertexBuffer);
+	}
+}
+
+void FStaticMeshRayTracingProxyLOD::Serialize(FArchive& Ar, UObject* Owner, int32 Index)
+{
+	UStaticMesh* OwnerStaticMesh = Cast<UStaticMesh>(Owner);
+
+	bool bTmpOwnsBuffers = bOwnsBuffers;
+	Ar << bTmpOwnsBuffers;
+	bOwnsBuffers = bTmpOwnsBuffers;
+
+	if (bOwnsBuffers)
+	{
+		if (VertexBuffers == nullptr)
+		{
+			check(Ar.IsLoading());
+			VertexBuffers = new FStaticMeshVertexBuffers();
+		}
+
+		if (IndexBuffer == nullptr)
+		{
+			check(Ar.IsLoading());
+			IndexBuffer = new FRawStaticIndexBuffer();
+		}
+
+		if (Sections == nullptr)
+		{
+			check(Ar.IsLoading());
+			Sections = new FStaticMeshSectionArray();
+		}
+
+		Ar << *Sections;
+	}
+
+	bool bTmpOwnsRayTracingGeometry = bOwnsRayTracingGeometry;
+	Ar << bTmpOwnsRayTracingGeometry;
+	bOwnsRayTracingGeometry = bTmpOwnsRayTracingGeometry;
+
+	if (bOwnsRayTracingGeometry && RayTracingGeometry == nullptr)
+	{
+		check(Ar.IsLoading());
+		RayTracingGeometry = new FRayTracingGeometry();
+	}
+
+	SerializeBuffers(Ar, OwnerStaticMesh, 0);
+}
+
+void FStaticMeshRayTracingProxyLOD::SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags)
+{
+	if (bOwnsBuffers)
+	{
+		VertexBuffers->PositionVertexBuffer.Serialize(Ar, false);
+		VertexBuffers->StaticMeshVertexBuffer.Serialize(Ar, false);
+		VertexBuffers->ColorVertexBuffer.Serialize(Ar, false);
+
+		IndexBuffer->Serialize(Ar, false);
+	}
+
+	if (bOwnsRayTracingGeometry)
+	{
+		RayTracingGeometry->RawData.BulkSerialize(Ar);
+	}
+}
+
+/*------------------------------------------------------------------------------
+	FStaticMeshRayTracingProxy
+------------------------------------------------------------------------------*/
+
+FStaticMeshRayTracingProxy::~FStaticMeshRayTracingProxy()
+{
+	if (!bUsingRenderingLODs)
+	{
+		delete LODVertexFactories;
+	}
+}
+
+void FStaticMeshRayTracingProxy::InitResources(UStaticMesh* Owner)
+{
+	for (int32 LODIndex = 0; LODIndex < LODs.Num(); ++LODIndex)
+	{
+		LODs[LODIndex].InitResources(Owner, LODIndex);
+
+		if (!bUsingRenderingLODs)
+		{
+			(*LODVertexFactories)[LODIndex].InitResources(*LODs[LODIndex].VertexBuffers, LODIndex, Owner);
+		}
+	}
+}
+
+void FStaticMeshRayTracingProxy::ReleaseResources()
+{
+	for (int32 LODIndex = 0; LODIndex < LODs.Num(); ++LODIndex)
+	{
+		LODs[LODIndex].ReleaseResources();
+
+		if (!bUsingRenderingLODs)
+		{
+			(*LODVertexFactories)[LODIndex].ReleaseResources();
+		}
+	}
+}
+
+void FStaticMeshRayTracingProxy::Serialize(FArchive& Ar, UObject* Owner, FStaticMeshRenderData* RenderData, bool bCooked)
+{
+	FStripDataFlags StripFlags(Ar);
+
+	Ar << bUsingRenderingLODs;
+
+	if (!StripFlags.IsAudioVisualDataStripped())
+	{
+		LODs.Serialize(Ar, Owner);
+
+		if (Ar.IsLoading())
+		{
+			if (bUsingRenderingLODs)
+			{
+				FStaticMeshLODResourcesArray& LODResources = RenderData->LODResources;
+				check(LODs.Num() == LODResources.Num());
+
+				for (int32 Index = 0; Index < LODs.Num(); ++Index)
+				{
+					LODs[Index].Sections = &LODResources[Index].Sections;
+					LODs[Index].VertexBuffers = &LODResources[Index].VertexBuffers;
+					LODs[Index].IndexBuffer = &LODResources[Index].IndexBuffer;
+					LODs[Index].bOwnsBuffers = false;
+
+					LODs[Index].RayTracingGeometry = LODResources[Index].RayTracingGeometry;
+					LODs[Index].bOwnsRayTracingGeometry = false;
+				}
+
+				LODVertexFactories = &RenderData->LODVertexFactories;
+			}
+			else
+			{
+				LODVertexFactories = new FStaticMeshVertexFactoriesArray;
+				LODVertexFactories->Empty(LODs.Num());
+				for (int i = 0; i < LODs.Num(); i++)
+				{
+					new (*LODVertexFactories) FStaticMeshVertexFactories(GMaxRHIFeatureLevel);
+				}
+			}
+		}
+	}
+}
+
+/*------------------------------------------------------------------------------
 	FStaticMeshRenderData
 ------------------------------------------------------------------------------*/
 
@@ -1574,6 +1820,11 @@ FStaticMeshRenderData::~FStaticMeshRenderData()
 		LODResourcesArray[LODIndex] = nullptr;
 	}
 	LODResources.Empty();
+
+	if (RayTracingProxy != nullptr)
+	{
+		delete RayTracingProxy;
+	}
 }
 
 int32 FStaticMeshRenderData::GetNumNonStreamingLODs() const
@@ -1771,6 +2022,23 @@ void FStaticMeshRenderData::Serialize(FArchive& Ar, UStaticMesh* Owner, bool bCo
 	check(NaniteResourcesPtr.IsValid());
 	NaniteResourcesPtr->Serialize(Ar, Owner, bCooked);
 
+	{
+		bool bHasRayTracingProxy = (RayTracingProxy != nullptr);
+
+		Ar << bHasRayTracingProxy;
+
+		if (bHasRayTracingProxy)
+		{
+			if (RayTracingProxy == nullptr)
+			{
+				checkf(Ar.IsLoading(), TEXT("bHasRayTracingProxy unexpectedly changed even though we are not loading data."));
+				RayTracingProxy = new FStaticMeshRayTracingProxy();
+			}
+
+			RayTracingProxy->Serialize(Ar, Owner, this, bCooked);
+		}
+	}
+
 	// Inline the distance field derived data for cooked builds
 	if (bCooked)
 	{
@@ -1941,10 +2209,20 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 		}
 	}
 
-#if RHI_RAYTRACING
-	if (IsRayTracingAllowed() && Owner->bSupportRayTracing) // TODO: Could move most of this to FStaticMeshLODResources::InitResources
+	check(NaniteResourcesPtr.IsValid());
+	NaniteResourcesPtr->InitResources(Owner);
+
+	if (RayTracingProxy != nullptr)
 	{
-		ENQUEUE_RENDER_COMMAND(InitRayTracingGeometryForInlinedLODs)(
+		RayTracingProxy->InitResources(Owner);
+	}
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && RayTracingProxy != nullptr) // TODO: Could move most of this to FStaticMeshLODResources::InitResources
+	{
+		checkf(Owner->bSupportRayTracing, TEXT("Unexpected RayTracingProxy on '%s' (support ray tracing is disabled on this UStaticMesh)."), *GetPathNameSafe(Owner));
+
+		ENQUEUE_RENDER_COMMAND(InitStaticMeshRayTracingGeometry)(
 			[this](FRHICommandListImmediate& RHICmdList)
 			{
 				RayTracingGeometryGroupHandle = GRayTracingGeometryManager->RegisterRayTracingGeometryGroup(LODResources.Num());
@@ -1965,13 +2243,31 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 						LODResources[LODIndex].RayTracingGeometry->InitResource(RHICmdList);
 					}
 				}
+
+				TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RayTracingProxy->LODs;
+
+				for (int32 LODIndex = 0; LODIndex < RayTracingLODs.Num(); ++LODIndex)
+				{
+					FStaticMeshRayTracingProxyLOD& RayTracingLOD = RayTracingLODs[LODIndex];
+
+					// Skip LODs that have their render data stripped
+					if (RayTracingLOD.bOwnsRayTracingGeometry && RayTracingLOD.VertexBuffers->StaticMeshVertexBuffer.GetNumVertices() > 0)
+					{
+						RayTracingLOD.RayTracingGeometry->GroupHandle = RayTracingGeometryGroupHandle;
+
+						if (LODIndex < CurrentFirstLODIdx)
+						{
+							RayTracingLOD.RayTracingGeometry->Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
+						}
+
+						RayTracingLOD.RayTracingGeometry->LODIndex = LODIndex;
+						RayTracingLOD.RayTracingGeometry->InitResource(RHICmdList);
+					}
+				}
 			}
 		);
 	}
 #endif // RHI_RAYTRACING
-
-	check(NaniteResourcesPtr.IsValid());
-	NaniteResourcesPtr->InitResources(Owner);
 
 	ENQUEUE_RENDER_COMMAND(CmdSetStaticMeshReadyForStreaming)(
 		[this, Owner](FRHICommandListImmediate&)
@@ -1986,6 +2282,11 @@ void FStaticMeshRenderData::ReleaseResources()
 	const bool bWasInitialized = bIsInitialized;
 
 	bIsInitialized = false;
+
+	if (RayTracingProxy != nullptr)
+	{
+		RayTracingProxy->ReleaseResources();
+	}
 
 	for (int32 LODIndex = 0; LODIndex < LODResources.Num(); ++LODIndex)
 	{
@@ -2025,6 +2326,46 @@ void FStaticMeshRenderData::AllocateLODResources(int32 NumLODs)
 		LODResources.Add(new FStaticMeshLODResources);
 		new (LODVertexFactories) FStaticMeshVertexFactories(GMaxRHIFeatureLevel);
 	}
+}
+
+void FStaticMeshRenderData::InitializeRayTracingRepresentationFromRenderingLODs()
+{
+	const int32 NumLODs = LODResources.Num();
+
+	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+	{
+		FStaticMeshLODResources& LODModel = LODResources[LODIndex];
+
+		check(LODModel.RayTracingGeometry == nullptr);
+		LODModel.RayTracingGeometry = new FRayTracingGeometry();
+	}
+
+	check(RayTracingProxy == nullptr);
+	RayTracingProxy = new FStaticMeshRayTracingProxy();
+	RayTracingProxy->bUsingRenderingLODs = true;
+
+	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RayTracingProxy->LODs;
+	check(RayTracingLODs.IsEmpty());
+	RayTracingLODs.Reserve(NumLODs);
+
+	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+	{
+		FStaticMeshLODResources& LODModel = LODResources[LODIndex];
+
+		FStaticMeshRayTracingProxyLOD* RayTracingLOD = new FStaticMeshRayTracingProxyLOD;
+
+		RayTracingLOD->RayTracingGeometry = LODModel.RayTracingGeometry;
+		RayTracingLOD->bOwnsRayTracingGeometry = false;
+
+		RayTracingLOD->Sections = &LODModel.Sections;
+		RayTracingLOD->VertexBuffers = &LODModel.VertexBuffers;
+		RayTracingLOD->IndexBuffer = &LODModel.IndexBuffer;
+		RayTracingLOD->bOwnsBuffers = false;
+
+		RayTracingLODs.Add(RayTracingLOD);
+	}
+
+	RayTracingProxy->LODVertexFactories = &LODVertexFactories;
 }
 
 int32 FStaticMeshRenderData::GetFirstValidLODIdx(int32 MinIdx) const
@@ -3152,6 +3493,13 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 						UE_LOG(LogStaticMesh, Error, TEXT("Bad MeshDescription at lod index %d on %s"), LodIndex, *GetPathNameSafe(Owner));
 					}
 				}
+
+#if RHI_RAYTRACING
+				if (Owner->bSupportRayTracing && TargetPlatform->UsesRayTracing())
+				{
+					InitializeRayTracingRepresentationFromRenderingLODs();
+				}
+#endif // RHI_RAYTRACING
 			}
 			else
 			{
@@ -7061,13 +7409,6 @@ void UStaticMesh::BuildFromMeshDescription(const FMeshDescription& MeshDescripti
 
 	LODResources.bHasReversedDepthOnlyIndices = true;
 	LODResources.AdditionalIndexBuffers->ReversedDepthOnlyIndexBuffer.SetIndices(ReversedIndexBuffer, IndexBufferStride);
-
-#if RHI_RAYTRACING
-	if (IsRayTracingAllowed() && bSupportRayTracing)
-	{
-		LODResources.RayTracingGeometry = new FRayTracingGeometry();
-	}
-#endif
 }
 
 
@@ -7198,6 +7539,8 @@ bool UStaticMesh::BuildFromMeshDescriptions(const TArray<const FMeshDescription*
 
 			BuildFromMeshDescription(*MeshDescriptions[LODIndex], LODResources);
 		}
+
+		GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
 
 		InitResources();
 
