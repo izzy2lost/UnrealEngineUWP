@@ -76,7 +76,7 @@ struct FAsyncLoadingThreadSettings
 	FAsyncLoadingThreadSettings();
 
 	/** Gets the ALT settigns from ini (or command line). */
-	static FAsyncLoadingThreadSettings& Get();
+	COREUOBJECT_API static FAsyncLoadingThreadSettings& Get();
 };
 
 /**
