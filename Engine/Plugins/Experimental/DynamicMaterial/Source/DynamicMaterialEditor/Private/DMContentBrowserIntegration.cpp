@@ -113,6 +113,8 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 		return;
 	}
 
+	EditorOnlyData->SetChannelListPreset("All");
+
 	if (!EditorOnlyData->AddTextureSet(InTextureSet, /* Replace */ true))
 	{
 		return;
