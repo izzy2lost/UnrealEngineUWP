@@ -4,11 +4,15 @@
 
 #if WITH_EDITOR
 
+// TextureSourceDataUtils is *incorrectly* in /Runtime/
+//	then the whole file is wrapped in WITH_EDITOR
+
 #include "ImageCoreUtils.h"
 #include "Engine/Texture.h"
 #include "HAL/UnrealMemory.h"
 #include "EngineLogs.h"
 #include "TextureImportSettings.h"
+#include "TextureBuildUtilities.h"
 #include "ImageUtils.h"
 
 namespace UE::TextureUtilitiesCommon::Experimental
@@ -546,8 +550,7 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UText
 	if (Texture->Source.IsLongLatCubemap())
 	{
 		// The function return the max size of the generated cube from the source long lat
-		// this should be kept in sync with the implementation details of ComputeLongLatCubemapExtents() or refactored
-		TargetSourceSize = (1U << FMath::FloorLog2(TargetSizeInGame)) * 2;
+		TargetSourceSize = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(TargetSizeInGame,0);
 	}
 
 	TargetSourceSize = FMath::Min(TargetSourceSize,AdditionalSourceSizeLimit);

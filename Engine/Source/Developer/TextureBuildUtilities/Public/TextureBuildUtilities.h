@@ -123,6 +123,9 @@ struct TEXTUREBUILDUTILITIES_API FVirtualTextureSourceBlockInfo
 TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FTextureBuildSettings* InBuildSettingsPerLayer,
 	TConstArrayView<ERawImageFormat::Type> InLayerFormats,
 	TConstArrayView<UE::TextureBuildUtilities::FVirtualTextureSourceBlockInfo> InSourceBlocks);
+	
+// ComputeLongLatCubemapExtents is done after pad-to-pow2
+TEXTUREBUILDUTILITIES_API uint32 ComputeLongLatCubemapExtents(int32 SrcImageSizeX, uint32 MaxCubemapTextureResolution);
 
 } // namespace TextureBuildUtilities
 } // namespace UE
