@@ -72,7 +72,7 @@ namespace uba
 		//void RegisterOnConnection(u8 id, const OnConnectionFunction& func);
 		//void UnregisterOnConnection(u8 id);
 
-		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override final;
+		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc, bool highPriority = false) override final;
 		virtual void DoWork(u32 count = 1) override final;
 		virtual u32 GetWorkerCount() override final;
 

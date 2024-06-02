@@ -99,14 +99,24 @@ namespace uba
 	}
 
 
-	void WorkManagerImpl::AddWork(const Function<void()>& work, u32 count, const tchar* desc)
+	void WorkManagerImpl::AddWork(const Function<void()>& work, u32 count, const tchar* desc, bool highPriority)
 	{
 		SCOPED_WRITE_LOCK(m_workLock, lock);
+		bool trackWork = m_workTracker.load();
 		for (u32 i = 0; i != count; ++i)
 		{
-			m_work.push_back({ work });
-			if (m_workTracker.load())
-				m_work.back().desc = desc;
+			if (highPriority)
+			{
+				m_work.push_front({ work });
+				if (trackWork)
+					m_work.front().desc = desc;
+			}
+			else
+			{
+				m_work.push_back({ work });
+				if (trackWork)
+					m_work.back().desc = desc;
+			}
 		}
 		lock.Leave();
 

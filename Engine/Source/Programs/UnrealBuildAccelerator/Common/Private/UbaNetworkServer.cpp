@@ -779,14 +779,23 @@ namespace uba
 		}
 	}
 
-	void NetworkServer::AddWork(const Function<void()>& work, u32 count, const tchar* desc)
+	void NetworkServer::AddWork(const Function<void()>& work, u32 count, const tchar* desc, bool highPriority)
 	{
 		SCOPED_WRITE_LOCK(m_additionalWorkLock, lock);
 		for (u32 i = 0; i != count; ++i)
 		{
-			m_additionalWork.push_back({ work });
-			if (m_workTracker)
-				m_additionalWork.back().desc = desc;
+			if (highPriority)
+			{
+				m_additionalWork.push_front({ work });
+				if (m_workTracker)
+					m_additionalWork.front().desc = desc;
+			}
+			else
+			{
+				m_additionalWork.push_back({ work });
+				if (m_workTracker)
+					m_additionalWork.back().desc = desc;
+			}
 		}
 		lock.Leave();
 

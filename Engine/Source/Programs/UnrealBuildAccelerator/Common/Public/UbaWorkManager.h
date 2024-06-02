@@ -17,7 +17,7 @@ namespace uba
 	class WorkManager
 	{
 	public:
-		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) = 0;
+		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc, bool highPriority = false) = 0;
 		virtual u32 GetWorkerCount() = 0;
 		virtual void DoWork(u32 count = 1) = 0;
 
@@ -28,7 +28,7 @@ namespace uba
 		WorkTracker* GetWorkTracker() { return m_workTracker; }
 
 		template<typename TContainer, typename TFunc>
-		void ParallelFor(u32 workCount, TContainer& container, const TFunc& func, const tchar* description = TC(""));
+		void ParallelFor(u32 workCount, TContainer& container, const TFunc& func, const tchar* description = TC(""), bool highPriority = false);
 
 	protected:
 		Atomic<WorkTracker*> m_workTracker;
@@ -40,7 +40,7 @@ namespace uba
 	public:
 		WorkManagerImpl(u32 workerCount);
 		virtual ~WorkManagerImpl();
-		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override;
+		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc, bool highPriority = false) override;
 		virtual u32 GetWorkerCount() override;
 		virtual void DoWork(u32 count = 1) override;
 		void FlushWork();
@@ -73,7 +73,7 @@ namespace uba
 
 
 	template<typename TContainer, typename TFunc>
-	void WorkManager::ParallelFor(u32 workCount, TContainer& container, const TFunc& func, const tchar* description)
+	void WorkManager::ParallelFor(u32 workCount, TContainer& container, const TFunc& func, const tchar* description, bool highPriority)
 	{
 		#if !defined( __clang_analyzer__ ) // Static analyzer claims context can leak but it can only leak when process terminates (and then it doesn't matter)
 
@@ -129,7 +129,7 @@ namespace uba
 				}
 			};
 		
-		AddWork(work, workCount, description);
+		AddWork(work, workCount, description, highPriority);
 		work();
 		doneEvent.IsSet();
 

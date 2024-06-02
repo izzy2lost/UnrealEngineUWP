@@ -691,7 +691,7 @@ namespace uba
 					bucket.m_cacheEntryLookup.erase(key);
 
 				totalEntryCount += bucket.totalEntryCount;
-			});
+			}, TC(""), true);
 
 			// Reset deleted cas files and update it again..
 			deletedCasFiles.clear();
@@ -870,7 +870,7 @@ namespace uba
 			bucket.needsSave = true;
 
 			m_logger.Info(TC("    Bucket %u Done (%s). CacheEntries: %llu (%s) PathTable: %s CasTable: %s"), bucket.index, TimeToText(GetTime() - bucketStartTime).str, bucket.totalEntryCount.load(), BytesToText(bucket.totalEntrySize.load()).str, BytesToText(bucket.m_pathTable.GetSize()).str, BytesToText(bucket.m_casKeyTable.GetSize()).str);
-		});
+		}, TC(""), true);
 
 		// Need to make sure all cas entries are dropped before saving cas table
 		u64 dropStartTime = GetTime();
