@@ -498,17 +498,25 @@ namespace uba
 			ProcessStats processStats;
 			SessionStats sessionStats;
 			StorageStats storageStats;
-			SystemStats systemStats;
+			KernelStats kernelStats;
 
 			const u8* dataStart = reader.GetPositionData();
 			processStats.Read(reader, out.version);
 
-			bool isRemote = sessionIndex != 0;
-			if (isRemote && out.version >= 7)
+			process.isRemote = sessionIndex != 0;
+			if (process.isRemote)
 			{
-				sessionStats.Read(reader, out.version);
-				storageStats.Read(reader);
-				systemStats.Read(reader, out.version);
+				if (out.version >= 7)
+				{
+					sessionStats.Read(reader, out.version);
+					storageStats.Read(reader, out.version);
+					kernelStats.Read(reader, out.version);
+				}
+			}
+			else if (out.version >= 30)
+			{
+				storageStats.Read(reader, out.version);
+				kernelStats.Read(reader, out.version);
 			}
 			const u8* dataEnd = reader.GetPositionData();
 			process.stats.resize(dataEnd - dataStart);
@@ -563,11 +571,11 @@ namespace uba
 			ProcessStats processStats;
 			SessionStats sessionStats;
 			StorageStats storageStats;
-			SystemStats systemStats;
+			KernelStats kernelStats;
 			processStats.Read(reader, out.version);
 			sessionStats.Read(reader, out.version);
-			storageStats.Read(reader);
-			systemStats.Read(reader, out.version);
+			storageStats.Read(reader, out.version);
+			kernelStats.Read(reader, out.version);
 
 			const u8* dataEnd = reader.GetPositionData();
 			process.stats.resize(dataEnd - dataStart);
@@ -908,14 +916,14 @@ namespace uba
 			process.returned = !success;
 
 			CacheStats cacheStats;
-			SystemStats systemStats;
+			KernelStats kernelStats;
 			StorageStats storageStats;
 			const u8* dataStart = reader.GetPositionData();
 			cacheStats.Read(reader, out.version);
 			if (success || out.version >= 29)
 			{
-				storageStats.Read(reader);
-				systemStats.Read(reader, out.version);
+				storageStats.Read(reader, out.version);
+				kernelStats.Read(reader, out.version);
 			}
 			const u8* dataEnd = reader.GetPositionData();
 			process.stats.resize(dataEnd - dataStart);

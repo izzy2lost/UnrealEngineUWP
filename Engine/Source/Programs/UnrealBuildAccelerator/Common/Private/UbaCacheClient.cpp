@@ -309,10 +309,11 @@ namespace uba
 
 		CacheStats cacheStats;
 		StorageStats storageStats;
-		SystemStats systemStats;
+		KernelStats kernelStats;
+		auto kg = MakeGuard([&]() { KernelStats::GetGlobal().Add(kernelStats); m_storage.AddStats(storageStats); });
 
 		StorageStatsScope __(storageStats);
-		SystemStatsScope _(systemStats);
+		KernelStatsScope _(kernelStats);
 
 		CasKey cmdKey = GetCmdKey(rootPaths, info);
 		if (cmdKey == CasKeyZero)
@@ -329,7 +330,7 @@ namespace uba
 				BinaryWriter writer(memory, 0, sizeof_array(memory));
 				cacheStats.Write(writer);
 				storageStats.Write(writer);
-				systemStats.Write(writer);
+				kernelStats.Write(writer);
 				m_session.GetTrace().CacheEndFetch(fetchId, success, memory, writer.GetPosition());
 			});
 
@@ -615,7 +616,7 @@ namespace uba
 						return false;
 					UBA_ASSERT(IsCompressed(casKey));
 
-					FileFetcher fetcher { m_storage.m_bufferSlots };
+					FileFetcher fetcher { m_storage.m_bufferSlots, storageStats };
 					fetcher.m_errorOnFail = false;
 
 					if (IsNormalized(casKey))
@@ -735,7 +736,8 @@ namespace uba
 				return false;
 		}
 
-		FileFetcher fetcher { m_storage.m_bufferSlots };
+		StorageStats storageStats;
+		FileFetcher fetcher { m_storage.m_bufferSlots, storageStats };
 		bool destinationIsCompressed = false;
 		if (destinationFile)
 		{

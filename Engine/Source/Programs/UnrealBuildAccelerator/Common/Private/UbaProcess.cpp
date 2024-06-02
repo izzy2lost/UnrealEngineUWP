@@ -419,7 +419,7 @@ namespace uba
 
 	void ProcessImpl::ThreadRun(bool runningRemote, void* environment)
 	{
-		SystemStatsScope systemStatsScope(m_systemStats);
+		KernelStatsScope kernelStatsScope(m_kernelStats);
 		StorageStatsScope storageStatsScope(m_storageStats);
 		SessionStatsScope sessionStatsScope(m_sessionStats);
 
@@ -518,7 +518,7 @@ namespace uba
 	{
 		m_processStats.wallTime = GetTime() - m_startTime;
 
-		SystemStats::GetGlobal().Add(m_systemStats);
+		KernelStats::GetGlobal().Add(m_kernelStats);
 
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
 		for (auto& child : m_childProcesses)
@@ -1023,7 +1023,11 @@ namespace uba
 		ProcessStats stats;
 		stats.Read(reader, ~0u);
 
+		KernelStats kernelStats;
+		kernelStats.Read(reader, ~0u);
+
 		m_processStats.Add(stats);
+		m_kernelStats.Add(kernelStats);
 
 		if (!IsCancelled())
 			if (m_startInfo.writeOutputFilesOnFail || m_startInfo.rules->IsExitCodeSuccess(m_nativeProcessExitCode))
@@ -1034,7 +1038,7 @@ namespace uba
 			m_parentProcess->m_processStats.Add(m_processStats);
 			m_parentProcess->m_sessionStats.Add(m_sessionStats);
 			m_parentProcess->m_storageStats.Add(m_storageStats);
-			m_parentProcess->m_systemStats.Add(m_systemStats);
+			m_parentProcess->m_kernelStats.Add(m_kernelStats);
 		}
 
 		if (m_startInfo.outputStatsThresholdMs && TimeToMs(m_processStats.GetTotalTime()) > m_startInfo.outputStatsThresholdMs)
@@ -1077,11 +1081,14 @@ namespace uba
 		processStats.wallTime = GetTime() - m_startTime;
 		processStats.cpuTime = 0;
 		processStats.hostTotalTime = m_processStats.hostTotalTime;
+		
+		KernelStats kernelStats;
+		kernelStats.Read(reader, TraceVersion);
 					
 		processStats.Write(statsWriter);
 		m_sessionStats.Write(statsWriter);
 		m_storageStats.Write(statsWriter);
-		m_systemStats.Write(statsWriter);
+		m_kernelStats.Write(statsWriter);
 		BinaryReader statsReader(statsWriter.GetData(), 0, statsWriter.GetPosition());
 
 		bool newProcess = false;
@@ -1110,7 +1117,7 @@ namespace uba
 		m_processStats = {};
 		m_sessionStats = {};
 		m_storageStats = {};
-		m_systemStats = {};
+		m_kernelStats = {};
 
 		m_startTime = GetTime();
 

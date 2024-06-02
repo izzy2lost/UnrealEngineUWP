@@ -575,7 +575,7 @@ namespace uba
 				{
 					*fetchId = u16(~0);
 					u64 sendCasTime = GetTime() - start;
-					stats.sendCas.Add(Timer{sendCasTime, 1});
+					stats.sendCas += Timer{sendCasTime, 1};
 					return true;
 				}
 
@@ -643,7 +643,7 @@ namespace uba
 				PushId(fetchId);
 
 				sendCasTime += GetTime() - start;
-				Stats().sendCas.Add(Timer{sendCasTime, 1});
+				Stats().sendCas += Timer{sendCasTime, 1};
 				return true;
 			}
 
@@ -861,7 +861,7 @@ namespace uba
 					activeStore.recvCasTime += GetTime() - time2;
 
 					StorageStats& stats = Stats();
-					stats.recvCas.Add(Timer{activeStore.recvCasTime, 1});
+					stats.recvCas += Timer{activeStore.recvCasTime, 1};
 					stats.recvCasBytesComp += activeStore.fileSize;
 					stats.recvCasBytesRaw += activeStore.actualSize;
 

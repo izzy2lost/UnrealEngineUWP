@@ -327,6 +327,7 @@ BOOL Detoured_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead
 		trueHandle = dh.trueHandle;
 	}
 
+	TimerScope ts(g_kernelStats.readFile);
 	BOOL res = True_ReadFile(trueHandle, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
 	DEBUG_LOG_TRUE(L"ReadFile", L"%llu %u/%u (%ls) -> %ls", uintptr_t(hFile), lpNumberOfBytesRead ? *lpNumberOfBytesRead : ~0u, nNumberOfBytesToRead, HandleToName(hFile), ToString(res));
 	return res;
@@ -594,6 +595,7 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 		//return True_WriteFile(trueHandle, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
 	}
 
+	TimerScope ts(g_kernelStats.writeFile);
 	BOOL res = True_WriteFile(trueHandle, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
 	DEBUG_LOG_TRUE(L"WriteFile", L"%llu (%ls) -> %ls", uintptr_t(hFile), HandleToName(hFile), ToString(res));
 	return res;
@@ -607,6 +609,8 @@ BOOL Detoured_WriteFileEx(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesTo
 	UBA_ASSERT(isDetouredHandle(hFile));
 	DetouredHandle& h = asDetouredHandle(hFile);
 	UBA_ASSERT(h.trueHandle != INVALID_HANDLE_VALUE);
+
+	TimerScope ts(g_kernelStats.writeFile);
 	return True_WriteFileEx(h.trueHandle, lpBuffer, nNumberOfBytesToWrite, lpOverlapped, lpCompletionRoutine);
 }
 
@@ -905,6 +909,7 @@ BOOL Shared_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fInf
 	if (!CanDetour(fixedFileName))
 	{
 		DEBUG_LOG_TRUE(L"GetFileAttributesExW", L"(%ls)", lpFileName);
+		TimerScope ts(g_kernelStats.getFileInfo);
 		return True_GetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 	}
 
@@ -914,6 +919,7 @@ BOOL Shared_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fInf
 	if (!attr.useCache)
 	{
 		DEBUG_LOG_TRUE(L"GetFileAttributesExW", L"(%ls)", lpFileName);
+		TimerScope ts(g_kernelStats.getFileInfo);
 		return True_GetFileAttributesExW(realName, fInfoLevelId, lpFileInformation);
 	}
 
@@ -932,6 +938,7 @@ BOOL Detoured_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fI
 	{
 		UBA_ASSERT(!g_runningRemote);
 		DEBUG_LOG_TRUE(L"GetFileAttributesExW", L"(%ls)", lpFileName);
+		TimerScope ts(g_kernelStats.getFileInfo);
 		return True_GetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 	}
 
@@ -952,6 +959,7 @@ DWORD Detoured_GetFileAttributesW(LPCWSTR lpFileName)
 	DETOURED_CALL(GetFileAttributesW);
 	if (t_disallowDetour != 0 || Equals(lpFileName, L"nul"))
 	{
+		TimerScope ts(g_kernelStats.getFileInfo);
 		DWORD res = True_GetFileAttributesW(lpFileName);
 		DEBUG_LOG_TRUE(L"GetFileAttributesW", L"(NODETOUR) (%ls) -> %u", lpFileName, res);
 		return res;
@@ -978,6 +986,7 @@ BOOL Detoured_SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes)
 		return true;
 	}
 	DEBUG_LOG_TRUE(L"SetFileAttributesW", L"(%ls) %u", lpFileName, dwFileAttributes);
+	TimerScope ts(g_kernelStats.setFileInfo);
 	return True_SetFileAttributesW(lpFileName, dwFileAttributes);
 }
 
@@ -1831,6 +1840,7 @@ BOOL Detoured_GetFileInformationByHandleEx(HANDLE hFile, FILE_INFO_BY_HANDLE_CLA
 		}
 	}
 	DEBUG_LOG_TRUE(L"GetFileInformationByHandleEx", L"(%ls)", HandleToName(hFile));
+	TimerScope ts(g_kernelStats.getFileInfo);
 	return True_GetFileInformationByHandleEx(trueHandle, fileInformationClass, lpFileInformation, dwBufferSize); /// calls GetFileInformationByHandleEx
 }
 
@@ -1982,6 +1992,7 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 		trueHandle = dh.trueHandle;
 	}
 
+	TimerScope ts(g_kernelStats.getFileInfo);
 	auto res = True_GetFileInformationByHandle(trueHandle, lpFileInformation); // Calls NtQueryInformationFile
 	DEBUG_LOG_TRUE(L"GetFileInformationByHandle", L"%llu (%ls) -> %u", uintptr_t(hFile), HandleToName(hFile), res);
 	return res;
@@ -2080,6 +2091,7 @@ HANDLE Detoured_CreateFileMappingW(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMap
 		trueHandle = dh.trueHandle;
 	}
 
+	TimerScope ts(g_kernelStats.createFileMapping);
 	HANDLE mappingHandle = True_CreateFileMappingW(trueHandle, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 	if (!mappingHandle)
 	{
@@ -2176,6 +2188,7 @@ LPVOID Detoured_MapViewOfFileEx(HANDLE hFileMappingObject, DWORD dwDesiredAccess
 					u32 counter = 0;
 					do
 					{
+						TimerScope ts(g_kernelStats.mapViewOfFile);
 						res = (u8*)True_MapViewOfFileEx(trueMappingObject, dwDesiredAccess, ToHigh(offset), ToLow(offset), dwNumberOfBytesToMap, lpBaseAddress);
 						if (res)
 							break;
@@ -2212,6 +2225,8 @@ LPVOID Detoured_MapViewOfFileEx(HANDLE hFileMappingObject, DWORD dwDesiredAccess
 		UBA_ASSERT(dh.trueHandle != INVALID_HANDLE_VALUE);
 		trueMappingObject = dh.trueHandle;
 	}
+
+	TimerScope ts(g_kernelStats.mapViewOfFile);
 	void* res = True_MapViewOfFileEx(trueMappingObject, dwDesiredAccess, dwFileOffsetHigh, dwFileOffsetLow, dwNumberOfBytesToMap, lpBaseAddress);
 	DEBUG_LOG_TRUE(L"MapViewOfFileEx", L"%llu (size %llu) (%ls) -> 0x%llx", uintptr_t(hFileMappingObject), dwNumberOfBytesToMap, HandleToName(hFileMappingObject), uintptr_t(res));
 
@@ -3132,6 +3147,7 @@ BOOL Detoured_ReadFileEx(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRe
 	DEBUG_LOG_TRUE(L"ReadFileEx", L"%llu (%ls)", uintptr_t(hFile), HandleToName(hFile));
 	UBA_ASSERT(!isDetouredHandle(hFile));
 	UBA_ASSERT(!isListDirectoryHandle(hFile));
+	TimerScope ts(g_kernelStats.readFile);
 	return True_ReadFileEx(hFile, lpBuffer, nNumberOfBytesToRead, lpOverlapped, lpCompletionRoutine);
 }
 

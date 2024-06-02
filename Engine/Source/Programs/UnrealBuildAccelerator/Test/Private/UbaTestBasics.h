@@ -54,7 +54,7 @@ namespace uba
 
 	bool TestEvents(Logger& logger, const StringBufferBase& rootDir)
 	{
-		for (uint i=0; i!=2; ++i)
+		for (u32 i=0; i!=2; ++i)
 		{
 			Event ev;
 			if (!ev.Create(true, i == 1))

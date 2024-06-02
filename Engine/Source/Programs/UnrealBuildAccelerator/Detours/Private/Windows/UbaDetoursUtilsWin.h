@@ -70,10 +70,14 @@ namespace uba
 			}
 			else
 			{
-				mappedSize = 32 * 1024 * 1024;
-				mappingHandle = True_CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE | SEC_RESERVE, ToHigh(reserveSize), ToLow(reserveSize), NULL);
-				if (!mappingHandle)
-					FatalError(1348, L"CreateFileMappingW failed trying to reserve %llu. (Error code: %u)", reserveSize, GetLastError());
+				{
+					mappedSize = 32 * 1024 * 1024;
+					TimerScope ts(g_kernelStats.createFileMapping);
+					mappingHandle = True_CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE | SEC_RESERVE, ToHigh(reserveSize), ToLow(reserveSize), NULL);
+					if (!mappingHandle)
+						FatalError(1348, L"CreateFileMappingW failed trying to reserve %llu. (Error code: %u)", reserveSize, GetLastError());
+				}
+				TimerScope ts(g_kernelStats.mapViewOfFile);
 				baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
 				if (!baseAddress)
 					FatalError(1353, L"MapViewOfFile failed trying to map %llu. ReservedSize: %llu (Error code: %u)", mappedSize, reserveSize, GetLastError());

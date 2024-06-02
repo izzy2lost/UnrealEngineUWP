@@ -10,6 +10,7 @@ namespace uba
 	VARIABLE_MEM(StringBuffer<512>, g_virtualApplication);
 	VARIABLE_MEM(StringBuffer<512>, g_virtualApplicationDir);
 	VARIABLE_MEM(ProcessStats, g_stats);
+	VARIABLE_MEM(KernelStats, g_kernelStats);
 	VARIABLE_MEM(ReaderWriterLock, g_communicationLock);
 	VARIABLE_MEM(StringBuffer<256>, g_logName);
 	VARIABLE_MEM(StringBuffer<512>, g_virtualWorkingDir);
@@ -31,6 +32,7 @@ namespace uba
 		g_virtualApplicationMem.Create();
 		g_virtualApplicationDirMem.Create();
 		g_statsMem.Create();
+		g_kernelStatsMem.Create();
 		g_communicationLockMem.Create();
 		g_logNameMem.Create();
 		g_virtualWorkingDirMem.Create();

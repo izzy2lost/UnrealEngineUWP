@@ -14,27 +14,27 @@ extern const char* __progname;
 
 namespace uba
 {
-	SystemStats g_systemStats;
-	thread_local SystemStats* t_systemStats;
+	KernelStats g_kernelStatsInternal;
+	thread_local KernelStats* t_kernelStats;
 
-	SystemStats& SystemStats::GetCurrent()
+	KernelStats& KernelStats::GetCurrent()
 	{
-		SystemStats* stats = t_systemStats;
-		return stats ? *stats : g_systemStats;
+		KernelStats* stats = t_kernelStats;
+		return stats ? *stats : g_kernelStatsInternal;
 	}
 
-	SystemStats& SystemStats::GetGlobal()
+	KernelStats& KernelStats::GetGlobal()
 	{
-		return g_systemStats;
+		return g_kernelStatsInternal;
 	}
 
-	SystemStatsScope::SystemStatsScope(SystemStats& s) : stats(s)
+	KernelStatsScope::KernelStatsScope(KernelStats& s) : stats(s)
 	{
-		t_systemStats = &stats;
+		t_kernelStats = &stats;
 	}
-	SystemStatsScope::~SystemStatsScope()
+	KernelStatsScope::~KernelStatsScope()
 	{
-		t_systemStats = nullptr;
+		t_kernelStats = nullptr;
 	}
 
 	bool CreateGuid(Guid& out)

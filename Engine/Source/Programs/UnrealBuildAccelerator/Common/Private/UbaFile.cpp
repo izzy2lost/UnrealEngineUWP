@@ -96,7 +96,8 @@ namespace uba
 
 	bool ReadFile(Logger& logger, const tchar* fileName, FileHandle fileHandle, void* b, u64 bufferLen)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().readFile);
+		auto& stats = KernelStats::GetCurrent();
+		ExtendedTimerScope ts(stats.readFile);
 		u8* buffer = (u8*)b;
 		u64 readLeft = bufferLen;
 		u64 firstZeroReadTime = 0;
@@ -128,6 +129,8 @@ namespace uba
 			readLeft -= wasRead;
 			buffer += wasRead;
 		}
+
+		stats.readFile.bytes += bufferLen;
 		return true;
 	}
 
@@ -163,7 +166,7 @@ namespace uba
 
 	bool GetFileInformationByHandle(FileInformation& out, Logger& logger, const tchar* fileName, FileHandle hFile)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
 		BY_HANDLE_FILE_INFORMATION info;
 		if (!::GetFileInformationByHandle(asHANDLE(hFile), &info))
@@ -222,7 +225,7 @@ namespace uba
 
 	bool FileExists(Logger& logger, const tchar* fileName, u64* outSize, u32* outAttributes, u64* lastWriteTime)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
 		MAKE_LONG_FILENAME(fileName);
 		WIN32_FILE_ATTRIBUTE_DATA data;
@@ -273,7 +276,7 @@ namespace uba
 
 	bool SetEndOfFile(Logger& logger, const tchar* fileName, FileHandle handle, u64 size)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().setFileInfo);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().setFileInfo);
 #if PLATFORM_WINDOWS
 		FILE_END_OF_FILE_INFO info;
 		info.EndOfFile = ToLargeInteger(size);
@@ -420,7 +423,7 @@ namespace uba
 
 	FileHandle CreateFileW(const tchar* fileName, u32 desiredAccess, u32 shareMode, u32 createDisp, u32 flagsAndAttributes)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().createFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().createFile);
 	#if PLATFORM_WINDOWS
 		MAKE_LONG_FILENAME(fileName);
 		return (FileHandle)(u64)::CreateFileW(fileName, desiredAccess, shareMode, NULL, createDisp, flagsAndAttributes, NULL);
@@ -479,7 +482,7 @@ namespace uba
 
 	bool CloseFile(const tchar* fileName, FileHandle h)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().closeFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().closeFile);
 #if PLATFORM_WINDOWS
 		return ::CloseHandle(asHANDLE(h));
 #else
@@ -586,7 +589,7 @@ namespace uba
 
 	bool GetFileLastWriteTime(u64& outTime, FileHandle hFile)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileTime);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileTime);
 #if PLATFORM_WINDOWS
 		FILETIME lastWriteTime;
 		auto res = ::GetFileTime(asHANDLE(hFile), NULL, NULL, &lastWriteTime);
@@ -634,7 +637,7 @@ namespace uba
 
 	bool GetFileSizeEx(u64& outFileSize, FileHandle hFile)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
 		LARGE_INTEGER lpFileSize;
 		if (!::GetFileSizeEx(asHANDLE(hFile), &lpFileSize))
@@ -657,7 +660,7 @@ namespace uba
 
 	u32 GetFileAttributesW(const tchar* fileName)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
 		MAKE_LONG_FILENAME(fileName);
 		return ::GetFileAttributesW(fileName);

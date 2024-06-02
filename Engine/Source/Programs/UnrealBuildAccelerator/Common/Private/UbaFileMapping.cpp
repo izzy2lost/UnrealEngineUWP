@@ -42,7 +42,7 @@ namespace uba
 
 	FileMappingHandle CreateMemoryMappingW(Logger& logger, u32 flProtect, u64 maxSize, const tchar* name)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().createFileMapping);
 #if PLATFORM_WINDOWS
 		return { InternalCreateFileMappingW(INVALID_HANDLE_VALUE, flProtect, (DWORD)ToHigh(maxSize), ToLow(maxSize), name) };
 #else
@@ -168,7 +168,7 @@ namespace uba
 
 	FileMappingHandle CreateFileMappingW(FileHandle file, u32 protect, u64 maxSize, const tchar* hint)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().createFileMapping);
 #if PLATFORM_WINDOWS
 		return { InternalCreateFileMappingW(asHANDLE(file), protect, (DWORD)ToHigh(maxSize), ToLow(maxSize), NULL) };
 #else
@@ -206,7 +206,7 @@ namespace uba
 
 	u8* MapViewOfFile(FileMappingHandle fileMappingObject, u32 desiredAccess, u64 offset, u64 bytesToMap)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().mapViewOfFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().mapViewOfFile);
 #if PLATFORM_WINDOWS
 		return (u8*)::MapViewOfFile(fileMappingObject.handle, desiredAccess, (DWORD)ToHigh(offset), ToLow(offset), bytesToMap);
 #else
@@ -237,7 +237,7 @@ namespace uba
 
 	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap, const tchar* hint)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().unmapViewOfFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().unmapViewOfFile);
 #if PLATFORM_WINDOWS
 		(void)bytesToUnmap; return ::UnmapViewOfFile(lpBaseAddress);
 #else

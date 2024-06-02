@@ -84,7 +84,7 @@ namespace uba
 		RtlInitUnicodeString(&uniName, str.data);
 
 		Timer timer(0, 1);
-		auto mg = MakeGuard([&]() { SystemStats::GetCurrent().traverseDir.Add(timer); });
+		auto mg = MakeGuard([&]() { KernelStats::GetCurrent().traverseDir += timer; });
 
 		HANDLE handle;
 
@@ -96,7 +96,7 @@ namespace uba
 
 		u64 startTime = GetTime();
 		NTSTATUS res = NtCreateFile(&handle, FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_ATTRIBUTE_UNPINNED, &ObjectAttributes, &IoStatusBlock, 0, FILE_ATTRIBUTE_NORMAL, ShareAccess, FILE_OPEN, FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_ALERT, NULL, 0);
-		timer.time += startTime - GetTime();
+		timer.time += GetTime() - startTime;
 
 		if (res == STATUS_OBJECT_NAME_NOT_FOUND || res == STATUS_OBJECT_PATH_NOT_FOUND)
 			return !errorOnNotFound;
@@ -134,7 +134,7 @@ namespace uba
 		{
 			startTime = GetTime();
 			res = NtQueryDirectoryFile(handle, 0, NULL, NULL, &IoStatusBlock, buff, sizeof(buff) - 2, (FILE_INFORMATION_CLASS)FileIdBothDirectoryInformation, FALSE, NULL, FALSE);
-			timer.time += startTime - GetTime();
+			timer.time += GetTime() - startTime;
 
 			if (res != STATUS_SUCCESS)
 			{

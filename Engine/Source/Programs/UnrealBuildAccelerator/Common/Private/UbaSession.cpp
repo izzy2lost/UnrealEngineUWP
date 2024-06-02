@@ -1416,6 +1416,8 @@ namespace uba
 		{
 			StackBinaryWriter<1024> writer;
 			process.m_processStats.Write(writer);
+			process.m_storageStats.Write(writer);
+			process.m_kernelStats.Write(writer);
 			u32 exitCode = process.GetExitCode();
 			Vector<ProcessLogLine> emptyLines;
 			auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
@@ -1530,7 +1532,7 @@ namespace uba
 	void Session::PrintSummary(Logger& logger)
 	{
 		logger.BeginScope();
-		logger.Info(TC("  ----- Uba process stats summary -----"));
+		logger.Info(TC("  ------- Detours stats summary -------"));
 		m_processStats.Print(logger);
 		logger.Info(TC(""));
 
@@ -1546,7 +1548,7 @@ namespace uba
 		}
 		logger.Info(TC(""));
 
-		logger.Info(TC("  ----- Uba session stats summary -----"));
+		logger.Info(TC("  ------- Session stats summary -------"));
 
 		PrintSessionStats(logger);
 		logger.EndScope();
@@ -2270,12 +2272,12 @@ namespace uba
 		process.m_processStats.Write(writer);
 		process.m_sessionStats.Write(writer);
 		process.m_storageStats.Write(writer);
-		process.m_systemStats.Write(writer);
+		process.m_kernelStats.Write(writer);
 		m_trace.ProcessEnvironmentUpdated(process.GetId(), reason, writer.GetData(), writer.GetPosition());
 		process.m_processStats = {};
 		process.m_sessionStats = {};
 		process.m_storageStats = {};
-		process.m_systemStats = {};
+		process.m_kernelStats = {};
 		return true;
 	}
 

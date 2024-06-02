@@ -213,6 +213,7 @@ NTSTATUS Detoured_NtQueryInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoS
 		}
 	}
 
+	TimerScope ts(g_kernelStats.getFileInfo);
 	auto res = True_NtQueryInformationFile(TrueHandle, IoStatusBlock, FileInformation, Length, FileInformationClass);
 	DEBUG_LOG_TRUE(L"NtQueryInformationFile", L"(%u) %llu (%ls) -> %ls", FileInformationClass, uintptr_t(FileHandle), HandleToName(FileHandle), ToString(res));
 	return res;
@@ -468,6 +469,8 @@ NTSTATUS Detoured_NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoSta
 			return STATUS_SUCCESS;
 		}
 	}
+
+	TimerScope ts(g_kernelStats.setFileInfo);
 	auto res = True_NtSetInformationFile(trueHandle, IoStatusBlock, FileInformation, Length, FileInformationClass);
 	DEBUG_LOG_TRUE(L"NtSetInformationFile", L"(%u) %llu (%ls) -> %ls", FileInformationClass, uintptr_t(FileHandle), HandleToName(FileHandle), ToString(res));
 	return res;
@@ -560,6 +563,8 @@ NTSTATUS NTAPI Local_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCESS
 			Rpc_WriteLogf(L"[%ls] WRITTEN: %ls", g_rulesIndex ? GetApplicationRules()[g_rulesIndex].app : wcsrchr(g_virtualApplication.data, '\\') + 1, ObjectAttributes->ObjectName->Buffer);
 	}
 #endif
+
+	TimerScope ts(g_kernelStats.createFile);
 
 	//if (!Contains(ObjectAttributes->ObjectName->Buffer, L".dll") && !Contains(ObjectAttributes->ObjectName->Buffer, L".mui"))
 	//Rpc_WriteLogf(L"NtCreateFile: %ls", ObjectAttributes->ObjectName->Buffer);
@@ -806,6 +811,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	{
 		if (isWrite || !g_allowListDirectoryHandle)
 		{
+			TimerScope ts(g_kernelStats.createFile);
 			UBA_ASSERT(!g_runningRemote);
 			NTSTATUS res = True_NtCreateFile(hFileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
 
@@ -1068,6 +1074,8 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 						True_DuplicateHandle(g_hostProcess, (HANDLE)mappingHandle, GetCurrentProcess(), &mf.mappingHandle, 0, FALSE, DUPLICATE_SAME_ACCESS);
 						UBA_ASSERTF(mf.mappingHandle, L"DuplicateHandle failed when opening temp file %ls (%u)", fileName.data, GetLastError());
 						mf.writtenSize = mappingHandleSize;
+
+						TimerScope ts2(g_kernelStats.mapViewOfFile);
 						mf.baseAddress = (u8*)True_MapViewOfFile(mf.mappingHandle, FILE_MAP_READ, 0, 0, mappingHandleSize);
 						UBA_ASSERTF(mf.baseAddress, L"MapViewOfFile failed when opening temp file %ls (%u)", fileName.data, GetLastError());
 						mf.committedSize = mappingHandleSize;
@@ -1252,7 +1260,10 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 	DETOURED_CALL(NtClose);
 
 	if (handle == INVALID_HANDLE_VALUE || handle == PseudoHandle)
+	{
+		TimerScope ts(g_kernelStats.closeHandle);
 		return True_NtClose(handle);
+	}
 
 	if (isListDirectoryHandle(handle))
 	{
@@ -1273,6 +1284,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 
 	if (!isDetouredHandle(handle))
 	{
+		TimerScope ts(g_kernelStats.closeHandle);
 		auto res = True_NtClose(handle);
 		DEBUG_LOG_TRUE(L"NtClose", L"%llu (%ls) -> %ls", uintptr_t(handle), HandleToName(handle), ToString(res));
 		return res;
@@ -1286,7 +1298,10 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 	NTSTATUS res = STATUS_SUCCESS;
 
 	if (dh.trueHandle != INVALID_HANDLE_VALUE)
+	{
+		TimerScope ts(g_kernelStats.closeFile);
 		res = True_NtClose(dh.trueHandle);
+	}
 
 	FileObject* fo = dh.fileObject;
 	if (!fo)

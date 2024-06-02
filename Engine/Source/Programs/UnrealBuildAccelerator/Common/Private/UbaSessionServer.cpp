@@ -220,7 +220,7 @@ namespace uba
 					PrintSummary(logger);
 					m_storage.PrintSummary(logger);
 					m_server.PrintSummary(logger);
-					SystemStats::GetGlobal().Print(logger, true);
+					KernelStats::GetGlobal().Print(logger, true);
 				});
 			m_trace.SessionSummary(0, writer.GetData(), writer.GetPosition());
 		}

@@ -405,6 +405,7 @@ namespace uba
 
 	bool FileFetcher::RetrieveFile(Logger& logger, NetworkClient& client, const CasKey& casKey, const tchar* destination, bool destinationIsCompressed, MemoryBlock* destinationMem)
 	{
+		TimerScope ts(m_stats.recvCas);
 		u8* slot = m_bufferSlots.Pop();
 		auto sg = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 
@@ -477,16 +478,6 @@ namespace uba
 				}
 				return true;
 			};
-
-		//u8* writePos = writeMem;
-
-		// This is here just to prevent server from getting a million messages at the same time.
-		// In theory we could have 10 clients with 48 processes each where each one of the processes asks for a large file (64 messages in flight)
-		// So worst case in that scenario would be 10*48*64 = 30000 messages.
-		bool oneAtTheTime = false;//left > client->GetMessageMaxSize() * 2;
-		if (oneAtTheTime)
-			m_retrieveOneBatchAtTheTimeLock.EnterWrite();
-		auto oatg = MakeGuard([&]() { if (oneAtTheTime) m_retrieveOneBatchAtTheTimeLock.LeaveWrite(); });
 
 		u32 readIndex = 0;
 
@@ -629,6 +620,9 @@ namespace uba
 		if (!destinationMem)
 			if (!destinationFile.Close(&lastWritten))
 				return false;
+
+		m_stats.recvCasBytesRaw += actualSize;
+		m_stats.recvCasBytesComp += fileSize;
 
 		return true;
 	}

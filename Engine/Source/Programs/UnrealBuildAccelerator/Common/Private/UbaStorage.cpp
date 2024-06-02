@@ -344,6 +344,7 @@ namespace uba
 				if (!destinationFile.Write(destBuf, writeBytes))
 					return false;
 #else
+				TimerScope cts(stats.memoryCopy);
 				memcpy(toMem + totalWritten, destBuf, writeBytes);
 #endif
 
@@ -469,6 +470,7 @@ namespace uba
 				if (!rec->destination->Write(compressSlotBuffer, writeBytes))
 					rec->error = true;
 #else
+				TimerScope cts(stats.memoryCopy);
 				memcpy(rec->mem + rec->memPos, compressSlotBuffer, writeBytes);
 				rec->memPos += writeBytes;
 #endif
@@ -2578,7 +2580,7 @@ namespace uba
 
 	void StorageImpl::PrintSummary(Logger& logger)
 	{
-		logger.Info(TC("  ----- Uba storage stats summary -----"));
+		logger.Info(TC("  ------- Storage stats summary -------"));
 		if (m_casLookup.empty())
 		{
 			logger.Info(TC("  Storage not loaded"));

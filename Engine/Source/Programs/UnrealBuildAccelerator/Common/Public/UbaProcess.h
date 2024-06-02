@@ -176,7 +176,7 @@ namespace uba
 		SessionStats m_sessionStats;
 		StorageStats m_storageStats;
 		ProcessStats m_processStats;
-		SystemStats m_systemStats;
+		KernelStats m_kernelStats;
 
 		Thread m_messageThread;
 

@@ -364,7 +364,7 @@ extern "C"
 		server->PrintSummary(logger);
 		server->GetStorage().PrintSummary(logger);
 		server->GetServer().PrintSummary(logger);
-		uba::SystemStats::GetGlobal().Print(logger, true);
+		uba::KernelStats::GetGlobal().Print(logger, true);
 		uba::PrintContentionSummary(logger);
 	}
 	void SessionServer_CancelAll(uba::SessionServer* server)

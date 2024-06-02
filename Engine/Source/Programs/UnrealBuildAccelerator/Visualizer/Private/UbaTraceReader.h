@@ -25,6 +25,7 @@ namespace uba
 			bool bitmapDirty = true;
 			bool returned = false;
 			bool cacheFetch = false;
+			bool isRemote = false;
 			u64 createFilesTime = 0;
 			u64 writeFilesTime = 0;
 			Vector<u8> stats;

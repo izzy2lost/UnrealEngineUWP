@@ -1958,6 +1958,7 @@ namespace uba
 		writer.WriteU32(0); // Exit code
 		writer.WriteString(""); // Log name
 		g_stats.Write(writer);
+		g_kernelStats.Write(writer);
 
 		// This can't wait for response since the session process might move on and reuse shared memory with someone else
 		// Note, if we start using memory mapped files we need to change this to true for child processes since Exit message is writing files to disk..
@@ -1998,6 +1999,7 @@ namespace uba
 		writer.WriteU32(terminateCode); // Exit code
 		writer.WriteString(""); // Log name
 		g_stats.Write(writer);
+		g_kernelStats.Write(writer);
 		writer.Flush(false);
 
 		CloseCom();
@@ -2021,7 +2023,7 @@ extern "C"
 			writer.WriteByte(MessageType_GetNextProcess);
 			writer.WriteU32(prevExitCode);
 			g_stats.Write(writer);
-
+			g_kernelStats.Write(writer);
 
 			writer.Flush();
 			BinaryReader reader;

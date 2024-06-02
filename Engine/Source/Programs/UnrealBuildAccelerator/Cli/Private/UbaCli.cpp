@@ -591,7 +591,7 @@ namespace uba
 		//info.shouldWriteToDisk = shouldWriteToDisk;
 		info.rootDir = g_rootDir.data;
 		//info.traceName.Append(TC("TESTTRACE"));
-		//info.storeObjFilesCompressed = true;
+		info.storeObjFilesCompressed = true;
 		#if UBA_DEBUG_LOG_ENABLED
 		info.remoteLogEnabled = true;
 		#endif
@@ -891,7 +891,7 @@ namespace uba
 			sessionServer.PrintSummary(logger);
 			storageServer.PrintSummary(logger);
 			networkServer.PrintSummary(logger);
-			SystemStats::GetGlobal().Print(logger, true);
+			KernelStats::GetGlobal().Print(logger, true);
 		}
 		logger.EndScope();
 

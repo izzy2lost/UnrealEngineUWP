@@ -643,9 +643,9 @@ namespace uba
 			for (auto& c : m_connections)
 			{
 				success = c.Stop() && success;
-				m_sendTimer.Add(c.m_sendTimer);
-				m_encryptTimer.Add(c.m_encryptTimer);
-				m_decryptTimer.Add(c.m_decryptTimer);
+				m_sendTimer += c.m_sendTimer;
+				m_encryptTimer += c.m_encryptTimer;
+				m_decryptTimer += c.m_decryptTimer;
 			}
 			lock.Leave();
 
@@ -1070,7 +1070,7 @@ namespace uba
 				++it;
 				continue;
 			}
-			m_sendTimer.Add(con.m_sendTimer);
+			m_sendTimer += con.m_sendTimer;
 			it = m_connections.erase(it);
 		}
 	}

@@ -1383,7 +1383,7 @@ namespace uba
 				ProcessStats processStats;
 				SessionStats sessionStats;
 				StorageStats storageStats;
-				SystemStats systemStats;
+				KernelStats kernelStats;
 				CacheStats cacheStats;
 
 				if (process.cacheFetch)
@@ -1395,8 +1395,8 @@ namespace uba
 					cacheStats.Read(reader, m_traceView.version);
 					if (reader.GetLeft())
 					{
-						storageStats.Read(reader);
-						systemStats.Read(reader, m_traceView.version);
+						storageStats.Read(reader, m_traceView.version);
+						kernelStats.Read(reader, m_traceView.version);
 					}
 				}
 				else
@@ -1405,16 +1405,17 @@ namespace uba
 
 					if (reader.GetLeft())
 					{
-						sessionStats.Read(reader, m_traceView.version);
-						storageStats.Read(reader);
-						systemStats.Read(reader, m_traceView.version);
+						if (process.isRemote)
+							sessionStats.Read(reader, m_traceView.version);
+						storageStats.Read(reader, m_traceView.version);
+						kernelStats.Read(reader, m_traceView.version);
 					}
 				}
 
 				if (processStats.hostTotalTime)
 				{
 					logger.Info(L"");
-					logger.Info(L"  ----------- Process stats -----------");
+					logger.Info(L"  ----------- Detours stats -----------");
 					processStats.Print(logger, m_traceView.frequency);
 				}
 
@@ -1439,11 +1440,11 @@ namespace uba
 					storageStats.Print(logger, m_traceView.frequency);
 				}
 
-				if (!systemStats.IsEmpty())
+				if (!kernelStats.IsEmpty())
 				{
 					logger.Info(L"");
-					logger.Info(L"  ----------- System stats ------------");
-					systemStats.Print(logger, false, m_traceView.frequency);
+					logger.Info(L"  ----------- Kernel stats ------------");
+					kernelStats.Print(logger, false, m_traceView.frequency);
 				}
 
 				auto findIt = m_traceView.cacheWrites.find(process.id);
@@ -2165,7 +2166,6 @@ namespace uba
 
 	void Visualizer::WriteProcessStats(Logger& out, TraceView::Process& process)
 	{
-		bool hasStorageStats = true;
 		bool hasExited = process.stop != ~u64(0);
 		out.Info(L"  %ls", process.description.c_str());
 		out.Info(L"  Start:     %ls", TimeToText(process.start, true).str);
@@ -2182,29 +2182,39 @@ namespace uba
 			ProcessStats processStats;
 			SessionStats sessionStats;
 			StorageStats storageStats;
-			SystemStats systemStats;
+			KernelStats kernelStats;
 
 			processStats.Read(reader, m_traceView.version);
 			if (reader.GetLeft())
 			{
-				sessionStats.Read(reader, m_traceView.version);
-				storageStats.Read(reader);
-				systemStats.Read(reader, m_traceView.version);
+				if (process.isRemote)
+					sessionStats.Read(reader, m_traceView.version);
+				storageStats.Read(reader, m_traceView.version);
+				kernelStats.Read(reader, m_traceView.version);
 			}
 
-			out.Info(L"  ----------- Process stats -----------");
+			out.Info(L"  ----------- Detours stats -----------");
 			processStats.Print(out, m_traceView.frequency);
-			if (hasStorageStats)
+
+			if (!sessionStats.IsEmpty())
 			{
 				out.Info(L"");
 				out.Info(L"  ----------- Session stats -----------");
 				sessionStats.Print(out, m_traceView.frequency);
+			}
+
+			if (!storageStats.IsEmpty())
+			{
 				out.Info(L"");
 				out.Info(L"  ----------- Storage stats -----------");
 				storageStats.Print(out, m_traceView.frequency);
+			}
+
+			if (!kernelStats.IsEmpty())
+			{
 				out.Info(L"");
-				out.Info(L"  ----------- System stats ------------");
-				systemStats.Print(out, false, m_traceView.frequency);
+				out.Info(L"  ----------- Kernel stats ------------");
+				kernelStats.Print(out, false, m_traceView.frequency);
 			}
 		}
 	}

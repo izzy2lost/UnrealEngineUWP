@@ -1301,7 +1301,7 @@ namespace uba
 		process.m_processStats.Write(writer);
 		process.m_sessionStats.Write(writer);
 		process.m_storageStats.Write(writer);
-		process.m_systemStats.Write(writer);
+		process.m_kernelStats.Write(writer);
 
 		StackBinaryReader<16> reader;
 		if (!msg.Send(reader, m_stats.procFinishedMsg) && m_loop)
@@ -1379,7 +1379,7 @@ namespace uba
 				PrintSummary(logger);
 				m_storage.PrintSummary(logger);
 				m_client.PrintSummary(logger);
-				SystemStats::GetGlobal().Print(logger, true);
+				KernelStats::GetGlobal().Print(logger, true);
 				if (extraInfo)
 					extraInfo(logger);
 			});
@@ -1765,7 +1765,7 @@ namespace uba
 					PrintSummary(logger);
 					m_storage.PrintSummary(logger);
 					m_client.PrintSummary(logger);
-					SystemStats::GetGlobal().Print(logger, true);
+					KernelStats::GetGlobal().Print(logger, true);
 				});
 			m_trace.SessionSummary(0, writer.GetData(), writer.GetPosition());
 
@@ -1933,12 +1933,12 @@ namespace uba
 			process.m_processStats.Write(writer);
 			process.m_sessionStats.Write(writer);
 			process.m_storageStats.Write(writer);
-			process.m_systemStats.Write(writer);
+			process.m_kernelStats.Write(writer);
 
 			process.m_processStats = {};
 			process.m_sessionStats = {};
 			process.m_storageStats = {};
-			process.m_systemStats = {};
+			process.m_kernelStats = {};
 
 			if (!msg.Send(reader, m_stats.customMsg))
 				return false;

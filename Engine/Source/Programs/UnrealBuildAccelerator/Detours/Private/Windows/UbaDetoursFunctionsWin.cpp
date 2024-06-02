@@ -282,6 +282,7 @@ void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
 		{
 			True_UnmapViewOfFile(baseAddress);
 			mappedSize = Min(reserveSize, AlignUp(Max(size, mappedSize * 4), g_pageSize));
+			TimerScope ts(g_kernelStats.mapViewOfFile);
 			baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
 			if (!baseAddress)
 				FatalError(1347, L"MapViewOfFile failed trying to map %llu for %ls. ReservedSize: %llu (Error code: %u)", mappedSize, HandleToName(handle), reserveSize, GetLastError());
@@ -391,10 +392,12 @@ bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFi
 		alignedOffsetStart = AlignUp(offset - (g_pageSize - 1), g_pageSize);
 		u64 alignedOffsetEnd = AlignUp(endOffset, g_pageSize);
 		u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
+		TimerScope ts(g_kernelStats.mapViewOfFile);
 		info.fileMapMem = (u8*)True_MapViewOfFileEx(info.trueFileMapHandle, info.fileMapViewDesiredAccess, ToHigh(alignedOffsetStart), ToLow(alignedOffsetStart), mapSize, baseAddress);
 	}
 	else
 	{
+		TimerScope ts(g_kernelStats.mapViewOfFile);
 		info.fileMapMem = (u8*)True_MapViewOfFileEx(info.trueFileMapHandle, info.fileMapViewDesiredAccess, 0, 0, numberOfBytesToMap, baseAddress);
 	}
 
@@ -498,6 +501,7 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 	g_stats.detach.count = 1;
 
 	g_stats.Write(writer);
+	g_kernelStats.Write(writer);
 
 	// We must flush here if this is a child because,
 	// if there is a parent process waiting for this to finish,
@@ -870,14 +874,22 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	if (!True_DuplicateHandle(g_hostProcess, mappedFileTableHandle, GetCurrentProcess(), &mappedFileTableHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
 		UBA_ASSERTF(false, L"Failed to duplicate filetable handle (%u)", GetLastError());
 
-	u8* mappedFileTableMem = (u8*)True_MapViewOfFile(mappedFileTableHandle, FILE_MAP_READ, 0, 0, 0);
+	u8* mappedFileTableMem;
+	{
+		TimerScope ts(g_kernelStats.mapViewOfFile);
+		mappedFileTableMem = (u8*)True_MapViewOfFile(mappedFileTableHandle, FILE_MAP_READ, 0, 0, 0);
+	}
 	UBA_ASSERT(mappedFileTableMem);
 	g_mappedFileTable.Init(mappedFileTableMem, mappedFileTableCount, mappedFileTableSize);
 
 	if (!True_DuplicateHandle(g_hostProcess, directoryTableHandle, GetCurrentProcess(), &directoryTableHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
 		UBA_ASSERTF(false, L"Failed to duplicate directorytable handle (%u)", GetLastError());
 
-	u8* directoryTableMem = (u8*)True_MapViewOfFile(directoryTableHandle, FILE_MAP_READ, 0, 0, 0);
+	u8* directoryTableMem;
+	{
+		TimerScope ts(g_kernelStats.mapViewOfFile);
+		directoryTableMem = (u8*)True_MapViewOfFile(directoryTableHandle, FILE_MAP_READ, 0, 0, 0);
+	}
 	UBA_ASSERT(directoryTableMem);
 	g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
 
@@ -999,7 +1011,7 @@ extern "C"
 			writer.WriteByte(MessageType_GetNextProcess);
 			writer.WriteU32(prevExitCode);
 			g_stats.Write(writer);
-
+			g_kernelStats.Write(writer);
 
 			writer.Flush();
 			BinaryReader reader;

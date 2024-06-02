@@ -1338,7 +1338,7 @@ namespace uba
 					sessionClient->PrintSummary(logger);
 					storageClient->PrintSummary(logger);
 					client->PrintSummary(logger);
-					SystemStats::GetGlobal().Print(logger, true);
+					KernelStats::GetGlobal().Print(logger, true);
 				}
 
 				logger.Info(TC("----------- Session %s done! -----------"), sessionClient->GetId());

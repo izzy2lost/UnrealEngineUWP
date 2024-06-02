@@ -8,41 +8,46 @@ namespace uba
 {
 	class Logger;
 
-	inline void Write(BinaryWriter& writer, const AtomicU64& v) { writer.Write7BitEncoded(v.load()); }
-	inline void Read(BinaryReader& reader, AtomicU64& v) { v = reader.Read7BitEncoded(); }
-
 	#define UBA_STORAGE_STATS \
-		UBA_STORAGE_STAT(Timer, calculateCasKey) \
-		UBA_STORAGE_STAT(Timer, copyOrLink) \
-		UBA_STORAGE_STAT(Timer, copyOrLinkWait) \
-		UBA_STORAGE_STAT(Timer, ensureCas) \
-		UBA_STORAGE_STAT(Timer, sendCas) \
-		UBA_STORAGE_STAT(Timer, recvCas) \
-		UBA_STORAGE_STAT(Timer, compressWrite) \
-		UBA_STORAGE_STAT(Timer, compressSend) \
-		UBA_STORAGE_STAT(Timer, decompressRecv) \
-		UBA_STORAGE_STAT(Timer, decompressToMem) \
-		UBA_STORAGE_STAT(Timer, handleOverflow) \
-		UBA_STORAGE_STAT(AtomicU64, sendCasBytesRaw) \
-		UBA_STORAGE_STAT(AtomicU64, sendCasBytesComp) \
-		UBA_STORAGE_STAT(AtomicU64, recvCasBytesRaw) \
-		UBA_STORAGE_STAT(AtomicU64, recvCasBytesComp) \
-		UBA_STORAGE_STAT(Timer, createCas) \
-		UBA_STORAGE_STAT(AtomicU64, createCasBytesRaw) \
-		UBA_STORAGE_STAT(AtomicU64, createCasBytesComp) \
+		UBA_STORAGE_STAT(Timer, calculateCasKey, 0) \
+		UBA_STORAGE_STAT(Timer, copyOrLink, 0) \
+		UBA_STORAGE_STAT(Timer, copyOrLinkWait, 0) \
+		UBA_STORAGE_STAT(Timer, ensureCas, 0) \
+		UBA_STORAGE_STAT(Timer, sendCas, 0) \
+		UBA_STORAGE_STAT(Timer, recvCas, 0) \
+		UBA_STORAGE_STAT(Timer, compressWrite, 0) \
+		UBA_STORAGE_STAT(Timer, compressSend, 0) \
+		UBA_STORAGE_STAT(Timer, decompressRecv, 0) \
+		UBA_STORAGE_STAT(Timer, decompressToMem, 0) \
+		UBA_STORAGE_STAT(Timer, memoryCopy, 30) \
+		UBA_STORAGE_STAT(Timer, handleOverflow, 0) \
+		UBA_STORAGE_STAT(AtomicU64, sendCasBytesRaw, 0) \
+		UBA_STORAGE_STAT(AtomicU64, sendCasBytesComp, 0) \
+		UBA_STORAGE_STAT(AtomicU64, recvCasBytesRaw, 0) \
+		UBA_STORAGE_STAT(AtomicU64, recvCasBytesComp, 0) \
+		UBA_STORAGE_STAT(Timer, createCas, 0) \
+		UBA_STORAGE_STAT(AtomicU64, createCasBytesRaw, 0) \
+		UBA_STORAGE_STAT(AtomicU64, createCasBytesComp, 0) \
 
     struct StorageStats
 	{
-		#define UBA_STORAGE_STAT(type, var) type var;
+		#define UBA_STORAGE_STAT(type, var, ver) type var;
 		UBA_STORAGE_STATS
 		#undef UBA_STORAGE_STAT
 
 		void Write(BinaryWriter& writer);
-		void Read(BinaryReader& reader);
+		void Read(BinaryReader& reader, u32 version);
 		void Add(const StorageStats& other);
 		void Print(Logger& logger, u64 frequency = GetFrequency());
 		bool IsEmpty();
 		static StorageStats* GetCurrent();
+
+		enum
+		{
+			#define UBA_STORAGE_STAT(type, var, ver) Bit_##var,
+			UBA_STORAGE_STATS
+			#undef UBA_STORAGE_STAT
+		};
 	};
 
 	struct StorageStatsScope
@@ -80,6 +85,13 @@ namespace uba
 		void Print(Logger& logger, u64 frequency = GetFrequency());
 		bool IsEmpty();
 		static SessionStats* GetCurrent();
+
+		enum
+		{
+			#define UBA_SESSION_STAT(type, var, ver) Bit_##var,
+			UBA_SESSION_STATS
+			#undef UBA_SESSION_STAT
+		};
 	};
 
 	struct SessionStatsScope

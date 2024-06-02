@@ -38,8 +38,8 @@ namespace uba
 		bool RetrieveFile(Logger& logger, NetworkClient& client, const CasKey& casKey, const tchar* destination, bool destinationIsCompressed, MemoryBlock* destinationMem = nullptr);
 
 		BufferSlots& m_bufferSlots;
+		StorageStats& m_stats;
 		StringBuffer<> m_tempPath;
-		ReaderWriterLock m_retrieveOneBatchAtTheTimeLock;
 		bool m_errorOnFail = true;
 
 		u64 lastWritten = 0;

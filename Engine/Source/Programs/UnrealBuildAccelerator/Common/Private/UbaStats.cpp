@@ -5,6 +5,20 @@
 
 namespace uba
 {
+	inline void Write(BinaryWriter& writer, u64 v) { writer.Write7BitEncoded(v); }
+	inline void Write(BinaryWriter& writer, u32 v) { writer.Write7BitEncoded(v); }
+
+	inline void Read(BinaryReader& reader, u64& v, u32 version) { v = reader.Read7BitEncoded(); }
+	inline void Read(BinaryReader& reader, u32& v, u32 version) { v = u32(reader.Read7BitEncoded()); }
+	inline void Read(BinaryReader& reader, Timer& timer, u32 version) { timer.time = reader.Read7BitEncoded(); timer.count = (u32)reader.Read7BitEncoded(); }
+	inline void Read(BinaryReader& reader, AtomicU64& v, u32 version) { v = reader.Read7BitEncoded(); }
+	inline void Read(BinaryReader& reader, TimeAndBytes& timer, u32 version) { timer.time = reader.Read7BitEncoded(); timer.count = (u32)reader.Read7BitEncoded(); if (version >= 30) timer.bytes = reader.Read7BitEncoded(); }
+
+	inline bool IsEmpty(u64 v) { return v == 0; }
+	inline bool IsEmpty(u32 v) { return v == 0; }
+
+	const tchar EmptyCharArray[] = TC("                   ");
+
 	void ProcessStats::Print(Logger& logger, u64 frequency)
 	{
 		logger.Info(TC("  Total              %8u %9s"), GetTotalCount(), TimeToText(GetTotalTime(), false, frequency).str);
@@ -20,10 +34,9 @@ namespace uba
 			#undef UBA_PROCESS_STAT
 		};
 
-		const tchar empty[] = TC("                   ");
 		for (Stat& s : stats)
 			if (s.timer.count)
-				logger.Info(TC("  %c") PERCENT_HS TC("%s %8u %9s"), ToUpper(s.name[0]), s.name + 1, empty + s.nameLen, s.timer.count.load(), TimeToText(s.timer.time, false, frequency).str);
+				logger.Info(TC("  %c") PERCENT_HS TC("%s %8u %9s"), ToUpper(s.name[0]), s.name + 1, EmptyCharArray + s.nameLen, s.timer.count.load(), TimeToText(s.timer.time, false, frequency).str);
 
 		logger.Info(TC(""));
 
@@ -34,74 +47,167 @@ namespace uba
 		logger.Info(TC("  Wall Time                   %9s"), TimeToText(wallTime, false, frequency).str);
 	}
 
-	void SystemStats::Print(Logger& logger, bool writeHeader, u64 frequency)
+	u64 ProcessStats::GetTotalTime()
+	{
+		return 
+		#define UBA_PROCESS_STAT(T, ver) + T.time
+		UBA_PROCESS_STATS
+		#undef UBA_PROCESS_STAT
+			;
+	}
+
+	u32 ProcessStats::GetTotalCount()
+	{
+		return 
+		#define UBA_PROCESS_STAT(T, ver) + T.count
+			UBA_PROCESS_STATS
+		#undef UBA_PROCESS_STAT
+			;
+	}
+
+	void ProcessStats::Read(BinaryReader& reader, u32 version)
+	{
+		uba::Read(reader, waitOnResponse, version);
+
+		if (version < 30)
+		{
+			#define UBA_PROCESS_STAT(T, ver) if (ver <= version) uba::Read(reader, T, version);
+			UBA_PROCESS_STATS
+			#undef UBA_PROCESS_STAT
+		}
+		else
+		{
+			u64 bits = reader.Read7BitEncoded();
+			#define UBA_PROCESS_STAT(var, ver) if (bits & (1 << Bit_##var)) uba::Read(reader, var, version);
+			UBA_PROCESS_STATS
+			#undef UBA_PROCESS_STAT
+		}
+
+		startupTime = reader.ReadU64();
+		exitTime = reader.ReadU64();
+		wallTime = reader.ReadU64();
+		cpuTime = reader.ReadU64();
+		usedMemory = reader.ReadU32();
+		hostTotalTime = reader.ReadU64();
+	}
+
+	void ProcessStats::Add(const ProcessStats& other)
+	{
+		waitOnResponse += other.waitOnResponse;
+			
+		#define UBA_PROCESS_STAT(T, ver) T += other.T;
+		UBA_PROCESS_STATS
+		#undef UBA_PROCESS_STAT
+
+		startupTime += other.startupTime;
+		exitTime += other.exitTime;
+		wallTime += other.wallTime;
+		cpuTime += other.cpuTime;
+		usedMemory = Max(usedMemory, other.usedMemory);
+		hostTotalTime += other.hostTotalTime;
+	}
+
+	template<typename T>
+	void LogStat(Logger& logger, const char* name, const T&, u64 frequency) {}
+
+	void LogStat(Logger& logger, const char* name, const Timer& timer, u64 frequency)
+	{
+		if (!timer.count)
+			return;
+		logger.Info(TC("  %c") PERCENT_HS TC("%s %8u %9s"), ToUpper(name[0]), name+1, EmptyCharArray + strlen(name)+1, timer.count.load(), TimeToText(timer.time, false, frequency).str);
+	}
+
+	void LogStat(Logger& logger, const char* name, const ExtendedTimer& timer, u64 frequency)
+	{
+		LogStat(logger, name, (const Timer&)timer, frequency);
+	}
+
+	void LogStat(Logger& logger, const char* name, const TimeAndBytes& timer, u64 frequency)
+	{
+		if (!timer.count)
+			return;
+		logger.Info(TC("  %c") PERCENT_HS TC("%s %8u %9s"), ToUpper(name[0]), name+1, EmptyCharArray + strlen(name)+1, timer.count.load(), TimeToText(timer.time, false, frequency).str);
+		if (timer.bytes)
+			logger.Info(TC("     Bytes                    %9s"), BytesToText(timer.bytes).str);
+	}
+
+	void KernelStats::Print(Logger& logger, bool writeHeader, u64 frequency)
 	{
 		if (writeHeader)
-			logger.Info(TC("  --- Platform system stats summary ---"));
+			logger.Info(TC("  ------- Kernel stats summary --------"));
 
-		struct Stat { const char* name; u64 nameLen; const Timer& timer; };
-		Stat stats[] =
-		{
-			#define UBA_SYSTEM_STAT(T, ver) { #T, sizeof(#T), T },
-			UBA_SYSTEM_STATS
-			#undef UBA_SYSTEM_STAT
-		};
-
-		const tchar empty[] = TC("                   ");
-		for (Stat& s : stats)
-			if (s.timer.count)
-				logger.Info(TC("  %c") PERCENT_HS TC("%s %8u %9s"), ToUpper(s.name[0]), s.name+1, empty + s.nameLen, s.timer.count.load(), TimeToText(s.timer.time, false, frequency).str);
+		#define UBA_KERNEL_STAT(type, var, ver) LogStat(logger, #var, var, frequency);
+		UBA_KERNEL_STATS
+		#undef UBA_KERNEL_STAT
 
 		if (writeHeader)
 			logger.Info(TC(""));
 	}
 
-	bool SystemStats::IsEmpty()
+	bool KernelStats::IsEmpty()
 	{
-		#define UBA_SYSTEM_STAT(T, ver) if (T.count) return false;
-		UBA_SYSTEM_STATS
-		#undef UBA_SYSTEM_STAT
+		#define UBA_KERNEL_STAT(type, var, ver) if (var.count) return false;
+		UBA_KERNEL_STATS
+		#undef UBA_KERNEL_STAT
 		return true;
 	}
 
-	void SystemStats::Add(const SystemStats& other)
+	void KernelStats::Add(const KernelStats& other)
 	{
-		#define UBA_SYSTEM_STAT(var, ver) var += other.var;
-		UBA_SYSTEM_STATS
-		#undef UBA_SYSTEM_STAT
+		#define UBA_KERNEL_STAT(type, var, ver) var += other.var;
+		UBA_KERNEL_STATS
+		#undef UBA_KERNEL_STAT
 	}
 
-	void SystemStats::Write(BinaryWriter& writer)
+	void KernelStats::Read(BinaryReader& reader, u32 version)
 	{
-		#define UBA_SYSTEM_STAT(var, ver) uba::Write(writer, var);
-		UBA_SYSTEM_STATS
-		#undef UBA_SYSTEM_STAT
-	}
+		if (version < 30)
+		{
+			#define UBA_KERNEL_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var, version);
+			UBA_KERNEL_STATS
+			#undef UBA_KERNEL_STAT
+			return;
+		}
 
-	void SystemStats::Read(BinaryReader& reader, u32 version)
-	{
-		#define UBA_SYSTEM_STAT(var, ver) if (ver <= version) uba::Read(reader, var);
-		UBA_SYSTEM_STATS
-		#undef UBA_SYSTEM_STAT
+		u16 bits = reader.ReadU16();
+		#define UBA_KERNEL_STAT(type, var, ver) if (bits & (1 << Bit_##var)) uba::Read(reader, var, version);
+		UBA_KERNEL_STATS
+		#undef UBA_KERNEL_STAT
 	}
 
 	void StorageStats::Write(BinaryWriter& writer)
 	{
-		#define UBA_STORAGE_STAT(type, var) uba::Write(writer, var);
+		u64 bits = 0;
+		#define UBA_STORAGE_STAT(type, var, ver) if (!uba::IsEmpty(var)) bits |= (1 << Bit_##var);
+		UBA_STORAGE_STATS
+		#undef UBA_STORAGE_STAT
+
+		writer.Write7BitEncoded(bits);
+
+		#define UBA_STORAGE_STAT(type, var, ver) if (!uba::IsEmpty(var)) uba::Write(writer, var);
 		UBA_STORAGE_STATS
 		#undef UBA_STORAGE_STAT
 	}
 
-	void StorageStats::Read(BinaryReader& reader)
+	void StorageStats::Read(BinaryReader& reader, u32 version)
 	{
-		#define UBA_STORAGE_STAT(type, var) uba::Read(reader, var);
+		if (version < 30)
+		{
+			#define UBA_STORAGE_STAT(type, var, ver) uba::Read(reader, var, version);
+			UBA_STORAGE_STATS
+			#undef UBA_STORAGE_STAT
+			return;
+		}
+
+		u64 bits = reader.Read7BitEncoded();
+		#define UBA_STORAGE_STAT(type, var, ver) if (bits & (1 << Bit_##var)) uba::Read(reader, var, version);
 		UBA_STORAGE_STATS
 		#undef UBA_STORAGE_STAT
 	}
 
 	void StorageStats::Add(const StorageStats& other)
 	{
-		#define UBA_STORAGE_STAT(type, var) var += other.var;
+		#define UBA_STORAGE_STAT(type, var, ver) var += other.var;
 		UBA_STORAGE_STATS
 		#undef UBA_STORAGE_STAT
 	}
@@ -135,13 +241,18 @@ namespace uba
 			logger.Info(TC("  CopyOrLink           %6u %9s"), copyOrLink.count.load(), TimeToText(copyOrLink.time, false, frequency).str);
 		if (copyOrLinkWait.count)
 			logger.Info(TC("  CopyOrLinkWait       %6u %9s"), copyOrLinkWait.count.load(), TimeToText(copyOrLinkWait.time, false, frequency).str);
+		if (compressWrite.count)
+			logger.Info(TC("  CompressToMem        %6u %9s"), compressWrite.count.load(), TimeToText(compressWrite.time, false, frequency).str);
 		if (decompressToMem.count)
 			logger.Info(TC("  DecompressToMem      %6u %9s"), decompressToMem.count.load(), TimeToText(decompressToMem.time, false, frequency).str);
+
+		if (memoryCopy.count)
+			logger.Info(TC("  MemoryCopy           %6u %9s"), memoryCopy.count.load(), TimeToText(memoryCopy.time, false, frequency).str);
 	}
 
 	bool StorageStats::IsEmpty()
 	{
-		#define UBA_STORAGE_STAT(type, var) if (var != type()) return false;
+		#define UBA_STORAGE_STAT(type, var, ver) if (var != type()) return false;
 		UBA_STORAGE_STATS
 		#undef UBA_STORAGE_STAT
 		return true;
@@ -168,14 +279,30 @@ namespace uba
 
 	void SessionStats::Write(BinaryWriter& writer)
 	{
-		#define UBA_SESSION_STAT(type, var, ver) uba::Write(writer, var);
+		u16 bits = 0;
+		#define UBA_SESSION_STAT(type, var, ver) if (var.count) bits |= (1 << Bit_##var);
+		UBA_SESSION_STATS
+		#undef UBA_SESSION_STAT
+
+		writer.WriteU16(bits);
+
+		#define UBA_SESSION_STAT(type, var, ver) if (var.count) uba::Write(writer, var);
 		UBA_SESSION_STATS
 		#undef UBA_SESSION_STAT
 	}
 
 	void SessionStats::Read(BinaryReader& reader, u32 version)
 	{
-		#define UBA_SESSION_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var);
+		if (version < 30)
+		{
+			#define UBA_SESSION_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var, version);
+			UBA_SESSION_STATS
+			#undef UBA_SESSION_STAT
+			return;
+		}
+
+		u16 bits = reader.ReadU16();
+		#define UBA_SESSION_STAT(type, var, ver) if (bits & (1 << Bit_##var)) uba::Read(reader, var, version);
 		UBA_SESSION_STATS
 		#undef UBA_SESSION_STAT
 	}
@@ -185,17 +312,6 @@ namespace uba
 		#define UBA_SESSION_STAT(type, var, ver) var += other.var;
 		UBA_SESSION_STATS
 		#undef UBA_SESSION_STAT
-	}
-
-	template<typename T>
-	void LogStat(Logger& logger, const char* name, const T&, u64 frequency) {}
-
-	void LogStat(Logger& logger, const char* name, const Timer& timer, u64 frequency)
-	{
-		if (!timer.count)
-			return;
-		const tchar empty[] = TC("                   ");
-		logger.Info(TC("  %c") PERCENT_HS TC("%s %8u %9s"), ToUpper(name[0]), name+1, empty + strlen(name)+1, timer.count.load(), TimeToText(timer.time, false, frequency).str);
 	}
 
 	void SessionStats::Print(Logger& logger, u64 frequency)
@@ -242,7 +358,7 @@ namespace uba
 	void SessionSummaryStats::Read(BinaryReader& reader, u32 version)
 	{
 		stats.Read(reader, version);
-		#define UBA_SESSION_SUMMARY_STAT(type, var) uba::Read(reader, var);
+		#define UBA_SESSION_SUMMARY_STAT(type, var) uba::Read(reader, var, version);
 		UBA_SESSION_SUMMARY_STATS
 		#undef UBA_SESSION_SUMMARY_STAT
 	}
@@ -267,7 +383,7 @@ namespace uba
 
 	void CacheStats::Read(BinaryReader& reader, u32 version)
 	{
-		#define UBA_CACHE_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var);
+		#define UBA_CACHE_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var, version);
 		UBA_CACHE_STATS
 		#undef UBA_CACHE_STAT
 	}

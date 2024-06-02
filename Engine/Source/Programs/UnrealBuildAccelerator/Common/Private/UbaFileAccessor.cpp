@@ -26,7 +26,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 	bool SetDeleteOnClose(Logger& logger, const tchar* fileName, FileHandle& handle, bool value)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().setFileInfo);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().setFileInfo);
 		FILE_DISPOSITION_INFO info;
 		info.DeleteFile = value;
 		if (!::SetFileInformationByHandle(asHANDLE(handle), FileDispositionInfo, &info, sizeof(info)))
@@ -161,10 +161,13 @@ namespace uba
 
 	bool FileAccessor::Write(const void* data, u64 dataLen, u64 offset)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().writeFile);
+		auto& stats = KernelStats::GetCurrent();
+		ExtendedTimerScope ts(stats.writeFile);
 
 		if (!m_isWrite)
 			return false;
+
+		stats.writeFile.bytes += dataLen;
 
 		#if UBA_USE_WRITE_THROUGH
 		bool useWriteThrough = true;

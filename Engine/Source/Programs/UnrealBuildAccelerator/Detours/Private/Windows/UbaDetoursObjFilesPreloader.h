@@ -285,15 +285,8 @@ namespace uba
 			auto findIt = m_preloadedObjFiles.find(key);
 			if (findIt == m_preloadedObjFiles.end())
 				return;
-			//u64 start = GetTime();
+			TimerScope ts(g_stats.waitDecompress);
 			findIt->second.event.IsSet();
-			//u64 waitTime = GetTime() - start;
-			//if (TimeToMs(waitTime) > 2)
-			//{
-			//	StringBuffer b;
-			//	b.Appendf(L"Waited %s for preload", TimeToText(waitTime).str);
-			//	Rpc_WriteLog(b.data, b.count, true, false);
-			//}
 		}
 
 		struct Preload

@@ -56,6 +56,7 @@ namespace uba
 	extern StringBuffer<128>& g_systemRoot;
 
 	extern ProcessStats& g_stats;
+	extern KernelStats& g_kernelStats;
 	extern bool g_echoOn;
 	extern ReaderWriterLock& g_communicationLock;
 	extern MemoryBlock& g_memoryBlock;
