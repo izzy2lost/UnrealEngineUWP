@@ -50,13 +50,13 @@ namespace UnrealBuildTool
 		{
 			if (disposing)
 			{
+				_cacheClient?.Dispose();
+				_cacheClient = null;
 				_session?.Dispose();
 				_session = null;
 				_threadedLogger.Dispose();
 				_ubaLogger?.Dispose();
 				_ubaLogger = null;
-				_cacheClient?.Dispose();
-				_cacheClient = null;
 			}
 			base.Dispose(disposing);
 		}
