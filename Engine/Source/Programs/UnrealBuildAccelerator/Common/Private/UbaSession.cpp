@@ -2119,7 +2119,7 @@ namespace uba
 					{
 						if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize, m_tempPath.data))
 							return false;
-						memcpy(destinationFile.GetData(), mem, fileSize);
+						MapMemoryCopy(destinationFile.GetData(), mem, fileSize);
 					}
 					else
 					{
@@ -2660,7 +2660,7 @@ namespace uba
 		if (!mem2)
 			return false;
 
-		memcpy(mem2, memoryBlock.memory, memoryBlock.writtenSize);
+		MapMemoryCopy(mem2, memoryBlock.memory, memoryBlock.writtenSize);
 		UnmapViewOfFile(mem2, memoryBlock.writtenSize, TC(""));
 
 		StringKey symFileKey = CaseInsensitiveFs ? ToStringKeyLower(exportsFile) : ToStringKey(exportsFile);

@@ -296,6 +296,14 @@ namespace uba
 #endif
 	}
 
+	void MapMemoryCopy(void* dest, const void* source, u64 size)
+	{
+		auto& stats = KernelStats::GetCurrent();
+		ExtendedTimerScope ts(stats.memoryCopy);
+		stats.memoryCopy.bytes += size;
+		memcpy(dest, source, size);
+	}
+
 	FileMappingBuffer::FileMappingBuffer(Logger& logger, WorkManager* workManager)
 	:	m_logger(logger)
 	,	m_workManager(workManager)

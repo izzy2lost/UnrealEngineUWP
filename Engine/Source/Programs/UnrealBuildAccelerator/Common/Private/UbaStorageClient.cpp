@@ -489,7 +489,7 @@ namespace uba
 					}
 					else
 					{
-						memcpy(writePos, readBuffer, responseSize);
+						MapMemoryCopy(writePos, readBuffer, responseSize);
 						writePos += responseSize;
 					}
 
@@ -608,7 +608,7 @@ namespace uba
 							}
 							else
 							{
-								memcpy(writePos, decompressBuffer, uncompressedSize);
+								MapMemoryCopy(writePos, decompressBuffer, uncompressedSize);
 								writePos += uncompressedSize;
 							}
 

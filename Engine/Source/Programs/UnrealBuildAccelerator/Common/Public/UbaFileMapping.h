@@ -54,6 +54,7 @@ namespace uba
 	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap, const tchar* hint);
 	bool CloseFileMapping(FileMappingHandle h);
 	bool DuplicateFileMapping(ProcHandle hSourceProcessHandle, FileMappingHandle hSourceHandle, ProcHandle hTargetProcessHandle, FileMappingHandle* lpTargetHandle, u32 dwDesiredAccess, bool bInheritHandle, u32 dwOptions);
+	void MapMemoryCopy(void* dest, const void* source, u64 size);
 
 	struct MappedView
 	{
