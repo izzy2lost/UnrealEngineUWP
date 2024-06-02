@@ -34,11 +34,16 @@ namespace uba
 		return ToStringKey(b.data, b.count);
 	}
 
-	StringKey ToStringKeyLower(const StringBufferBase& b)
+	StringKey ToStringKeyLower(const tchar* str, u64 strLen)
 	{
 		StringBuffer<> temp;
-		temp.Append(b).MakeLower();
+		temp.Append(str, strLen).MakeLower();
 		return ToStringKey(temp.data, temp.count);
+	}
+
+	StringKey ToStringKeyLower(const StringBufferBase& b)
+	{
+		return ToStringKeyLower(b.data, b.count);
 	}
 	StringKey ToStringKey(const StringKeyHasher& hasher, const tchar* str, u64 strLen)
 	{

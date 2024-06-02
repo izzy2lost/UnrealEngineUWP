@@ -100,6 +100,7 @@ namespace uba
 	};
 
 	StringKey ToStringKey(const tchar* str, u64 strLen);
+	StringKey ToStringKeyLower(const tchar* str, u64 strLen);
 	StringKey ToStringKey(const StringBufferBase& b);
 	StringKey ToStringKeyLower(const StringBufferBase& b);
 	StringKey ToStringKey(const StringKeyHasher& hasher, const tchar* str, u64 strLen);
