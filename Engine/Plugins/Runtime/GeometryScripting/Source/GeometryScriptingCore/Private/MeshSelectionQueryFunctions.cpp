@@ -93,7 +93,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshSelectionQueryFunctions::GetMeshSelecti
 		// TODO: if #Triangles == Mesh.TriangleCount, use MeshBoundaryLoops
 
 		FMeshRegionBoundaryLoops Loops(&ReadMesh, Triangles, false);
-		bFoundErrors = Loops.Compute();
+		// Compute returns false if errors occurred
+		bFoundErrors = !Loops.Compute();
 		NumLoops = Loops.Num();
 		IndexLoops.Reserve(NumLoops);
 		PathLoops.Reserve(NumLoops);
