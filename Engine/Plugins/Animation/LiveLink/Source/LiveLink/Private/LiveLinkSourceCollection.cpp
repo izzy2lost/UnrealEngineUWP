@@ -213,8 +213,9 @@ const FLiveLinkCollectionSourceItem* FLiveLinkSourceCollection::FindVirtualSourc
 
 void FLiveLinkSourceCollection::AddSubject(FLiveLinkCollectionSubjectItem InSubject)
 {
+	FLiveLinkSubjectKey Key = InSubject.Key;
 	Subjects.Add(MoveTemp(InSubject));
-	OnLiveLinkSubjectAdded().Broadcast(InSubject.Key);
+	OnLiveLinkSubjectAdded().Broadcast(Key);
 	OnLiveLinkSubjectsChanged().Broadcast();
 }
 

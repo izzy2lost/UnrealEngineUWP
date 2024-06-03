@@ -247,6 +247,12 @@ protected:
 	/** The current collection used. */
 	TUniquePtr<FLiveLinkSourceCollection> Collection;
 
+	/** LiveLink Provider for rebroadcasting */
+	TSharedPtr<ILiveLinkProvider> RebroadcastLiveLinkProvider;
+
+	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
+    mutable FCriticalSection CollectionAccessCriticalSection;
+
 private:
 	/** Pending static info to add to a subject. */
 	TArray<FPendingSubjectStatic> SubjectStaticToPush;
@@ -256,9 +262,6 @@ private:
 
 	/** Key funcs for looking up a set of cached keys by its layout element */
 	TMap<FLiveLinkSubjectName, FLiveLinkSubjectKey> EnabledSubjects;
-
-	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
-	mutable FCriticalSection CollectionAccessCriticalSection;
 
 	struct FSubjectFramesAddedHandles
 	{
@@ -284,8 +287,6 @@ private:
 	/** Delegate when LiveLinkClient has ticked. */
 	FSimpleMulticastDelegate OnLiveLinkTickedDelegate;
 
-	/** LiveLink Provider for rebroadcasting */
-	TSharedPtr<ILiveLinkProvider> RebroadcastLiveLinkProvider;
 	FString RebroadcastLiveLinkProviderName;
 	TSet<FLiveLinkSubjectKey> RebroadcastedSubjects;
 
