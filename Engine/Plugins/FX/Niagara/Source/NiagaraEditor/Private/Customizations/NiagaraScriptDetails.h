@@ -24,9 +24,6 @@ public:
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder);
 
-	FReply OnRefreshMetadata();
-
 private:
 	TSharedPtr<FNiagaraScriptViewModel> ScriptViewModel;
-	TSharedPtr<FNiagaraMetaDataCustomNodeBuilder> MetaDataBuilder;
 };
