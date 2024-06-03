@@ -803,16 +803,6 @@ void FD3D12CommandContextBase::UpdateMemoryStats()
 #endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
 }
 
-void FD3D12CommandContext::RHIBeginScene()
-{
-	// Nothing to do
-}
-
-void FD3D12CommandContext::RHIEndScene()
-{
-	// Nothing to do
-}
-
 IRHIComputeContext* FD3D12DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask)
 {
 	if (GPUMask.HasSingleIndex())

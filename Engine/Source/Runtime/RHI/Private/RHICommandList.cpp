@@ -1566,42 +1566,6 @@ void FRHICommandListImmediate::UnStallRHIThread()
 	}
 }
 
-void FRHICommandListImmediate::BeginScene()
-{
-	check(IsImmediate() && IsInRenderingThread());
-	if (Bypass())
-	{
-		GetContext().RHIBeginScene();
-		return;
-	}
-	ALLOC_COMMAND(FRHICommandBeginScene)();
-	if (!IsRunningRHIInSeparateThread())
-	{
-		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
-		QUICK_SCOPE_CYCLE_COUNTER(BeginScene_Flush);
-		CSV_SCOPED_TIMING_STAT(RHITFlushes, BeginScene);
-		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	}
-}
-
-void FRHICommandListImmediate::EndScene()
-{
-	check(IsImmediate() && IsInRenderingThread());
-	if (Bypass())
-	{
-		GetContext().RHIEndScene();
-		return;
-	}
-	ALLOC_COMMAND(FRHICommandEndScene)();
-	if (!IsRunningRHIInSeparateThread())
-	{
-		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
-		QUICK_SCOPE_CYCLE_COUNTER(EndScene_Flush);
-		CSV_SCOPED_TIMING_STAT(RHITFlushes, EndScene);
-		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	}
-}
-
 void FRHICommandListImmediate::BeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI)
 {
 	check(IsImmediate() && IsInRenderingThread());

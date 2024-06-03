@@ -255,15 +255,6 @@ void FOpenGLDynamicRHI::RHIAdvanceFrameFence()
 	OpenGL_PollAllFences();
 }
 
-
-void FOpenGLDynamicRHI::RHIBeginScene()
-{
-}
-
-void FOpenGLDynamicRHI::RHIEndScene()
-{
-}
-
 #if PLATFORM_ANDROID
 
 JNI_METHOD void Java_com_epicgames_unreal_MediaPlayer14_nativeClearCachedAttributeState(JNIEnv* jenv, jobject thiz, jint PositionAttrib, jint TexCoordsAttrib)

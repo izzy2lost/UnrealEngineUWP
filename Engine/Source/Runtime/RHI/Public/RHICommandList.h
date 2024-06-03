@@ -2285,22 +2285,6 @@ FRHICOMMAND_MACRO(FRHICommandPollOcclusionQueries)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-FRHICOMMAND_MACRO(FRHICommandBeginScene)
-{
-	FORCEINLINE_DEBUGGABLE FRHICommandBeginScene()
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
-FRHICOMMAND_MACRO(FRHICommandEndScene)
-{
-	FORCEINLINE_DEBUGGABLE FRHICommandEndScene()
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
 FRHICOMMAND_MACRO(FRHICommandBeginFrame)
 {
 	FORCEINLINE_DEBUGGABLE FRHICommandBeginFrame()
@@ -4509,8 +4493,12 @@ public:
 		return static_cast<FRHICommandListImmediate&>(RHICmdList);
 	}
 
-	RHI_API void BeginScene();
-	RHI_API void EndScene();
+	UE_DEPRECATED(5.5, "FRHICommandListImmediate::BeginScene() is deprecated and is no longer necessary. Remove any remaining calls to BeginScene(). There is no replacement.")
+	void BeginScene() {}
+
+	UE_DEPRECATED(5.5, "FRHICommandListImmediate::EndScene() is deprecated and is no longer necessary. Remove any remaining calls to EndScene(). There is no replacement.")
+	void EndScene() {}
+
 	RHI_API void BeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI);
 	RHI_API void EndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync);
 	RHI_API void BeginFrame();

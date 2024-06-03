@@ -432,10 +432,6 @@ void FNiagaraGpuComputeDispatch::ProcessPendingTicksFlush(FRHICommandListImmedia
 			TConstStridedView<FSceneView> DummyViews = MakeStridedView<const FSceneView>(0, ViewFamily.Views[0], 1);
 			const bool bAllowGPUParticleUpdate = true;
 
-			// Notify that we are about to begin rendering the 'scene' this is required because some RHIs will ClearState
-			// in the event of submitting commands, i.e. when we write a fence, or indeed perform a manual flush.
-			RHICmdList.BeginScene();
-
 			// Ensure system textures are initialized
 			GetRendererModule().InitializeSystemTextures(RHICmdList);
 
@@ -469,9 +465,6 @@ void FNiagaraGpuComputeDispatch::ProcessPendingTicksFlush(FRHICommandListImmedia
 			MaxTicksToFlush = TNumericLimits<int32>::Max();
 
 			bIsOutsideSceneRenderer = false;
-
-			// We have completed flushing the commands
-			RHICmdList.EndScene();
 			break;
 		}
 

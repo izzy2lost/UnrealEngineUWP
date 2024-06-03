@@ -351,19 +351,11 @@ public:
 
 	}
 
-
 	virtual void RHIEndFrame() final override
 	{
 
 	}
-	virtual void RHIBeginScene() final override
-	{
 
-	}
-	virtual void RHIEndScene() final override
-	{
-
-	}
 	virtual void RHIAliasTextureResources(FTextureRHIRef& DestTexture, FTextureRHIRef& SrcTexture) final override
 	{
 

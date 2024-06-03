@@ -37,16 +37,6 @@ void FD3D11DynamicRHI::RHIBeginFrame()
 #endif
 }
 
-void FD3D11DynamicRHI::RHIBeginScene()
-{
-	// Nothing to do
-}
-
-void FD3D11DynamicRHI::RHIEndScene()
-{
-	// Nothing to do
-}
-
 void FD3D11DynamicRHI::RHIEndFrame()
 {
 #if (RHI_NEW_GPU_PROFILER == 0)

@@ -656,8 +656,6 @@ public:
 #if (RHI_NEW_GPU_PROFILER == 0)
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
 #endif
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
 	virtual void RHISetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ) final override;
 	virtual void RHISetStereoViewport(float LeftMinX, float RightMinX, float LeftMinY, float RightMinY, float MinZ, float LeftMaxX, float RightMaxX, float LeftMaxY, float RightMaxY, float MaxZ) override;
@@ -957,14 +955,6 @@ public:
 		ContextRedirect(RHICalibrateTimers(CalibrationQuery));
 	}
 #endif
-	FORCEINLINE virtual void RHIBeginScene() final override
-	{
-		ContextRedirect(RHIBeginScene());
-	}
-	FORCEINLINE virtual void RHIEndScene() final override
-	{
-		ContextRedirect(RHIEndScene());
-	}
 	FORCEINLINE virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override
 	{
 		ContextRedirect(RHISetStreamSource(StreamIndex, VertexBuffer, Offset));

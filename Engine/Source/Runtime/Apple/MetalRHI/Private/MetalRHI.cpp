@@ -1242,14 +1242,6 @@ void FMetalRHICommandContext::RHIEndFrame()
     ((FMetalDeviceContext*)Context)->EndFrame();
 }
 
-void FMetalRHICommandContext::RHIBeginScene()
-{
-}
-
-void FMetalRHICommandContext::RHIEndScene()
-{
-}
-
 #if WITH_RHI_BREADCRUMBS
 	void FMetalRHICommandContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{

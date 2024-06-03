@@ -529,8 +529,6 @@ public:
 	using FDynamicRHI::RHIBeginFrame;
 	virtual void RHIBeginFrame() override;
 	virtual void RHIEndFrame() override;
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
 	virtual void RHISetRasterizerState(FRHIRasterizerState* NewState) final override;
 	virtual void RHISetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ) final override;

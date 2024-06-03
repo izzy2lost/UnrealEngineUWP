@@ -3781,8 +3781,6 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 		{
 			LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
 		}
-	
-		GraphBuilder.RHICmdList.BeginScene();
 
 		VisibilityTaskData = LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this, StaticMeshUpdateTask);
 
@@ -4307,9 +4305,6 @@ void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef Vi
 
 	AddPass(GraphBuilder, RDG_EVENT_NAME("EndScene"), [this](FRHICommandListImmediate& InRHICmdList)
 	{
-		// Notify the RHI we are done rendering a scene.
-		InRHICmdList.EndScene();
-
 		if (GDumpMeshDrawCommandMemoryStats)
 		{
 			GDumpMeshDrawCommandMemoryStats = 0;

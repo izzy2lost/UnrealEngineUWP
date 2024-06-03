@@ -104,9 +104,6 @@ public:
 	virtual void RHIBeginFrame() final override;
 	virtual void RHIEndFrame() final override;
 
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
-
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override;
 	virtual void RHIEndRenderPass() final override;
 	virtual void RHINextSubpass() final override;
