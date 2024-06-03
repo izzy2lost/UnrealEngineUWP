@@ -110,7 +110,7 @@ FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Exte
 	return DBufferTextures;
 }
 
-FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBufferTextures& DBufferTextures, EShaderPlatform ShaderPlatform)
+FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBufferTextures& DBufferTextures, EShaderPlatform ShaderPlatform, const bool bIsMobileMultiView)
 {
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
@@ -129,13 +129,18 @@ FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBuffe
 
 	if (DBufferTextures.IsValid())
 	{
-		Parameters.DBufferATexture = DBufferTextures.DBufferA;
-		Parameters.DBufferBTexture = DBufferTextures.DBufferB;
-		Parameters.DBufferCTexture = DBufferTextures.DBufferC;
-
-		Parameters.DBufferATextureArray = DBufferTextures.DBufferATexArray;
-		Parameters.DBufferBTextureArray = DBufferTextures.DBufferBTexArray;
-		Parameters.DBufferCTextureArray = DBufferTextures.DBufferCTexArray;
+		if (bIsMobileMultiView)
+		{
+			Parameters.DBufferATextureArray = DBufferTextures.DBufferATexArray;
+			Parameters.DBufferBTextureArray = DBufferTextures.DBufferBTexArray;
+			Parameters.DBufferCTextureArray = DBufferTextures.DBufferCTexArray;
+		}
+		else
+		{
+			Parameters.DBufferATexture = DBufferTextures.DBufferA;
+			Parameters.DBufferBTexture = DBufferTextures.DBufferB;
+			Parameters.DBufferCTexture = DBufferTextures.DBufferC;
+		}
 
 		if (DBufferTextures.DBufferMask)
 		{

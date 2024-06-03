@@ -60,4 +60,4 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDBufferParameters, )
 	SHADER_PARAMETER_SAMPLER(SamplerState, DBufferCTextureSampler)
 END_SHADER_PARAMETER_STRUCT()
 
-FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBufferTextures& DBufferTextures, EShaderPlatform ShaderPlatform);
+FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBufferTextures& DBufferTextures, EShaderPlatform ShaderPlatform, const bool bIsMobileMultiView = false);
