@@ -173,7 +173,10 @@ namespace EpicGames.UBA
 
 		internal void RaiseExited()
 		{
-			Exited?.Invoke(this, new ExitedEventArgs(this));
+			if (ExitCode != 99999) // See ProcessCancelExitCode
+			{
+				Exited?.Invoke(this, new ExitedEventArgs(this));
+			}
 		}
 	}
 }
