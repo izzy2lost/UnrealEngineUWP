@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuT/ASTOpMeshApplyPose.h"
+#include "MuT/ASTOpMeshAddTags.h"
 
 #include "HAL/PlatformMath.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
-
 
 namespace mu
 {
@@ -83,4 +83,39 @@ namespace mu
 
 	}
 
+	Ptr<ASTOp> ASTOpMeshApplyPose::OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const
+	{
+		Ptr<ASTOp> NewOp;
+
+		Ptr<ASTOp> MeshAt = base.child();
+
+		if (!MeshAt)
+		{
+			return nullptr;
+		}
+
+		OP_TYPE MeshType = MeshAt->GetOpType();
+
+		switch (MeshType)
+		{
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				Ptr<ASTOpMeshAddTags> New = mu::Clone<ASTOpMeshAddTags>(MeshAt);
+				if (New->Source)
+				{
+					Ptr<ASTOpMeshApplyPose> NewApplyPose = mu::Clone<ASTOpMeshApplyPose>(this);
+					NewApplyPose->base = New->Source.child();
+					New->Source = NewApplyPose;
+				}
+
+				NewOp = New;
+				break;
+			}
+
+			default:
+				break;
+		}
+
+		return NewOp;
+	}
 }
