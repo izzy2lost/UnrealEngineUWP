@@ -61,6 +61,8 @@ UMovieSceneCustomBinding* UMovieSceneReplaceableBindingBase::CreateCustomBinding
 	return CreateNewCustomBinding(SourceObject, OwnerMovieScene);
 }
 
+#endif
+
 UClass* UMovieSceneReplaceableBindingBase::GetBoundObjectClass() const
 {
 	// We use the bound object class of the preview spawnable by default
@@ -70,8 +72,6 @@ UClass* UMovieSceneReplaceableBindingBase::GetBoundObjectClass() const
 	}
 	return AActor::StaticClass();
 }
-
-#endif
 
 bool UMovieSceneReplaceableBindingBase::SupportsBindingCreationFromObject(const UObject* SourceObject) const
 {
