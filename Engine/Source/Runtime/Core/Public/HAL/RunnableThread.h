@@ -18,9 +18,7 @@ class FTlsAutoCleanup;
  */
 class FRunnableThread
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	friend class FThreadSingletonInitializer;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	friend class FTlsAutoCleanup;
 	friend class FThreadManager;
 	friend class FForkableThread;

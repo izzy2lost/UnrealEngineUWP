@@ -12,7 +12,7 @@ template <typename FuncType> class TFunctionRef;
 /**
  * Thread singleton initializer.
  */
-class UE_DEPRECATED(5.5, "This class will be removed.") FThreadSingletonInitializer
+class FThreadSingletonInitializer
 {
 public:
 
@@ -44,9 +44,9 @@ class TThreadSingleton : public FTlsAutoCleanup
 	/**
 	 * @return TLS slot that holds a TThreadSingleton.
 	 */
-	CORE_API static T*& GetTlsSlot()
+	CORE_API static uint32& GetTlsSlot()
 	{
-		static thread_local T* TlsSlot = nullptr;
+		static uint32 TlsSlot = FPlatformTLS::InvalidTlsSlot;
 		return TlsSlot;
 	}
 #else
@@ -56,9 +56,9 @@ class TThreadSingleton : public FTlsAutoCleanup
 #if PLATFORM_CONSOLE_DYNAMIC_LINK
 	FORCENOINLINE
 #endif
-	static T*& GetTlsSlot()
+	static uint32& GetTlsSlot()
 	{
-		static thread_local T* TlsSlot = nullptr;
+		static uint32 TlsSlot = FPlatformTLS::InvalidTlsSlot;
 		return TlsSlot;
 	}
 #endif
@@ -73,10 +73,10 @@ protected:
 	virtual ~TThreadSingleton()
 	{
 		// Clean the dangling pointer from the TLS.
-		check(GetTlsSlot() != nullptr);
-		if(((FTlsAutoCleanup*)GetTlsSlot()) == static_cast<FTlsAutoCleanup*>(this))
+		check(GetTlsSlot() != FPlatformTLS::InvalidTlsSlot);
+		if(((FTlsAutoCleanup*)FPlatformTLS::GetTlsValue(GetTlsSlot())) == static_cast<FTlsAutoCleanup*>(this))
 		{
-			GetTlsSlot() =  nullptr;
+			FPlatformTLS::SetTlsValue(GetTlsSlot(), nullptr);
 		}
 	}
 
@@ -98,13 +98,7 @@ public:
 	 */
 	FORCEINLINE static T& Get()
 	{
-		T*& TlsSlot = GetTlsSlot();
-		if (TlsSlot == nullptr)
-		{
-			TlsSlot = new T();
-			TlsSlot->Register();
-		}
-		return *TlsSlot;
+		return *(T*)FThreadSingletonInitializer::Get( [](){ return (FTlsAutoCleanup*)new T(); }, T::GetTlsSlot() ); //-V572
 	}
 
 	/**
@@ -113,13 +107,7 @@ public:
 	 */
 	FORCEINLINE static T& Get(TFunctionRef<FTlsAutoCleanup*()> CreateInstance)
 	{
-		T*& TlsSlot = GetTlsSlot();
-		if (TlsSlot == nullptr)
-		{
-			TlsSlot = static_cast<T*>(CreateInstance());
-			TlsSlot->Register();
-		}
-		return *TlsSlot;
+		return *(T*)FThreadSingletonInitializer::Get(CreateInstance, T::GetTlsSlot()); //-V572
 	}
 
 	/**
@@ -127,7 +115,7 @@ public:
 	 */
 	FORCEINLINE static T* TryGet()
 	{
-		return GetTlsSlot();
+		return (T*)FThreadSingletonInitializer::TryGet( T::GetTlsSlot() );
 	}
 
 	/**
@@ -135,9 +123,6 @@ public:
 	*/
 	FORCEINLINE static T* Inject(T* Instance)
 	{
-		T*& TlsSlot = GetTlsSlot();
-		T* OldValue = TlsSlot;
-		TlsSlot = Instance;
-		return OldValue;
+		return (T*)FThreadSingletonInitializer::Inject(Instance, T::GetTlsSlot());
 	}
 };
