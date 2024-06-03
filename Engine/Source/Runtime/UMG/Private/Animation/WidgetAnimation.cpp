@@ -1,4 +1,4 @@
-	// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Animation/WidgetAnimation.h"
 #include "UObject/Package.h"
