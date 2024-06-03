@@ -43,6 +43,9 @@ public:
 	FText GetDisplayText() const;
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
+	UMaterialInstanceDynamic* GetIconDynamicMaterial();
+
+	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	void SetEnhancedInputAction(UInputAction* InInputAction);
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)

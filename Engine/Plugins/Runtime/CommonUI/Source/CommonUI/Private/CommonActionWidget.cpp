@@ -197,6 +197,28 @@ FText UCommonActionWidget::GetDisplayText() const
 	return FText();
 }
 
+UMaterialInstanceDynamic* UCommonActionWidget::GetIconDynamicMaterial()
+{
+	if (UMaterialInterface* Material = Cast<UMaterialInterface>(Icon.GetResourceObject()))
+	{
+		UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material);
+
+		if (!DynamicMaterial)
+		{
+			DynamicMaterial = UMaterialInstanceDynamic::Create(Material, this);
+			Icon.SetResourceObject(DynamicMaterial);
+
+			if (MyIcon.IsValid())
+			{
+				MyIcon->InvalidateImage();
+			}
+		}
+		return DynamicMaterial;
+	}
+
+	return nullptr;
+}
+
 bool UCommonActionWidget::IsHeldAction() const
 {
 	if (EnhancedInputAction && CommonUI::IsEnhancedInputSupportEnabled())
