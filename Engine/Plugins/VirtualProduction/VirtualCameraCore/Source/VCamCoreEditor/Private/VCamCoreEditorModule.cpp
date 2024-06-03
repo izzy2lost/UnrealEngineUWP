@@ -231,15 +231,15 @@ namespace UE::VCamCoreEditor
 			IConcertClientTransactionBridge* TransactionBridge = Client->GetTransactionBridge();
 			TransactionBridge->RegisterTransactionFilter(
 				TEXT("VCam"),
-				FTransactionFilterDelegate::CreateRaw(this, &FVCamCoreEditorModule::ShouldObjectBeTransacted)
+				FOnFilterTransactionDelegate::CreateRaw(this, &FVCamCoreEditorModule::ShouldObjectBeTransacted)
 				);
 		}
 	}
 
-	ETransactionFilterResult FVCamCoreEditorModule::ShouldObjectBeTransacted(UObject* Object, UPackage* Package) const
+	ETransactionFilterResult FVCamCoreEditorModule::ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs) const
 	{
 		// This will allow output providers, modifiers, and the UVCamBlueprintAssetUserData
-		const bool bIsInVCam = Object->IsInA(UVCamComponent::StaticClass());
+		const bool bIsInVCam = FilterArgs.ObjectToFilter && FilterArgs.ObjectToFilter->IsInA(UVCamComponent::StaticClass());
 		return bIsInVCam ? ETransactionFilterResult::IncludeObject : ETransactionFilterResult::UseDefault;
 	}
 }

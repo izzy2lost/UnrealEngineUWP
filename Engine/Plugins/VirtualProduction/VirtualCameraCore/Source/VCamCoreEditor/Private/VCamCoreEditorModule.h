@@ -10,6 +10,7 @@
 class UClass;
 class UVCamWidget;
 enum class ETransactionFilterResult : uint8;
+struct FConcertTransactionFilterArgs;
 
 namespace UE::VCamCoreEditor
 {
@@ -51,6 +52,6 @@ namespace UE::VCamCoreEditor
 		void UnregisterCustomizations();
 		
 		void RegisterMultiUserFilters();
-		ETransactionFilterResult ShouldObjectBeTransacted(UObject* Object, UPackage* Package) const;
+		ETransactionFilterResult ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs) const;
 	};
 }
