@@ -177,8 +177,14 @@ public:
 	FORCEINLINE void MarkAsGarbage()
 	{
 		check(!IsRooted());
-		AtomicallySetFlags(RF_MirroredGarbage);
-		GUObjectArray.IndexToObject(InternalIndex)->SetGarbage();
+
+		// only set these flags after we have finished our transaction
+		// GC should not happen during a transaction so delaying this wont cause GC issues
+		UE_AUTORTFM_ONCOMMIT(
+		{
+			AtomicallySetFlags(RF_MirroredGarbage);
+			GUObjectArray.IndexToObject(InternalIndex)->SetGarbage();
+		});
 	}
 
 	/**
