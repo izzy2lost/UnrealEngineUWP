@@ -1236,7 +1236,8 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 			Info.PackageData->GetCachedObjectsInOuter().Num() != 0 && IsUseInternalReferenceToAvoidGarbageCollect() &&
 			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow
 				&& ReleaseSaveReason != EStateChangeReason::SaveError
-				&& ReleaseSaveReason != EStateChangeReason::CookerShutdown))
+				&& ReleaseSaveReason != EStateChangeReason::CookerShutdown
+				&& ReleaseSaveReason != EStateChangeReason::Retraction))
 		{
 			UE_LOG(LogCook, Error,
 				TEXT("CookPackageSplitter failure: We are demoting a %s package from save and removing our references that keep its objects loaded.\n")
