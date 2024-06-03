@@ -15,6 +15,18 @@
 
 class ITransactionObjectAnnotation;
 
+struct UNREALED_API FStructVariableMetaData
+{
+	static const FName ClampMin;
+	static const FName ClampMax;
+	static const FName UIMin;
+	static const FName UIMax;
+
+private:
+	// This struct should never be instantiated
+	FStructVariableMetaData();
+};
+
 USTRUCT()
 struct FStructVariableDescription
 {
@@ -81,6 +93,9 @@ struct FStructVariableDescription
 
 	UPROPERTY()
 	FString ToolTip;
+
+	UPROPERTY()
+	TMap<FName, FString> MetaData;
 
 	UNREALED_API bool SetPinType(const struct FEdGraphPinType& VarType);
 

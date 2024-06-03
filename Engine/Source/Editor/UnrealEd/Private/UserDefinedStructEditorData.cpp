@@ -14,6 +14,11 @@
 
 #define LOCTEXT_NAMESPACE "UserDefinedStructEditorData"
 
+const FName FStructVariableMetaData::ClampMin("ClampMin");
+const FName FStructVariableMetaData::ClampMax("ClampMax");
+const FName FStructVariableMetaData::UIMin("UIMin");
+const FName FStructVariableMetaData::UIMax("UIMax");
+
 void FStructVariableDescription::PostSerialize(const FArchive& Ar)
 {
 	if (ContainerType == EPinContainerType::None)

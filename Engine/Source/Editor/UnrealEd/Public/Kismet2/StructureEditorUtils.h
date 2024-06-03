@@ -140,6 +140,13 @@ public:
 
 	static UNREALED_API bool Is3dWidgetEnabled(const UUserDefinedStruct* Struct, FGuid VarGuid);
 
+	//Value Range
+	static UNREALED_API bool CanEditValueRange(const UUserDefinedStruct* Struct, FGuid VarGuid);
+
+	//META DATA
+	static UNREALED_API bool SetMetaData(UUserDefinedStruct* Struct, FGuid VarGuid, FName Key, const FString& Value);
+	static UNREALED_API const FString* GetMetaData(const UUserDefinedStruct* Struct, FGuid VarGuid, FName Key);
+
 	//GUID AND VAR DESC
 	static UNREALED_API TArray<FStructVariableDescription>& GetVarDesc(UUserDefinedStruct* Struct);
 

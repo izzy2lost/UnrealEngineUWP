@@ -1001,6 +1001,39 @@ public:
 		}
 	}
 
+	// Value Range
+	EVisibility IsValueRangeOptionVisible() const
+	{
+		if (const TSharedPtr<FUserDefinedStructureDetails> StructureDetailsSP = StructureDetails.Pin())
+		{
+			return FStructureEditorUtils::CanEditValueRange(StructureDetailsSP->GetUserDefinedStruct(), FieldGuid)
+				? EVisibility::Visible
+				: EVisibility::Collapsed;
+		}
+		return EVisibility::Collapsed;
+	}
+
+	// Meta Data
+	FText OnGetMetaData(const FName Key) const
+	{
+		const TSharedPtr<FUserDefinedStructureDetails> Details = StructureDetails.Pin();
+		if (!Details)
+		{
+			return FText();
+		}
+
+		const FString* Value = FStructureEditorUtils::GetMetaData(Details->GetUserDefinedStruct(), FieldGuid, Key);
+		return Value ? FText::FromString(*Value) : FText();
+	}
+
+	void OnMetaDataCommitted(const FText& NewText, ETextCommit::Type, const FName Key)
+	{
+		if (const TSharedPtr<FUserDefinedStructureDetails> StructureDetailsSP = StructureDetails.Pin())
+		{
+			FStructureEditorUtils::SetMetaData(StructureDetailsSP->GetUserDefinedStruct(), FieldGuid, Key, NewText.ToString());
+		}
+	}
+
 	/** IDetailCustomNodeBuilder Interface*/
 	virtual void SetOnRebuildChildren( FSimpleDelegate InOnRegenerateChildren ) override 
 	{
@@ -1182,6 +1215,78 @@ public:
 			.IsChecked(this, &FUserDefinedStructureFieldLayout::OnGet3dWidgetEnabled)
 		]
 		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FUserDefinedStructureFieldLayout::Is3dWidgetOptionVisible)));
+
+		ChildrenBuilder.AddCustomRow(LOCTEXT("ClampRange", "Value Range"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ValueRangeLabel", "Value Range"))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.FillWidth(1)
+			[
+				SNew(SEditableTextBox)
+				.OnTextCommitted(this, &FUserDefinedStructureFieldLayout::OnMetaDataCommitted, FStructVariableMetaData::ClampMin)
+				.Text(this, &FUserDefinedStructureFieldLayout::OnGetMetaData, FStructVariableMetaData::ClampMin)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("Min .. Max Separator", " .. "))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+			+SHorizontalBox::Slot()
+			.FillWidth(1)
+			[
+				SNew(SEditableTextBox)
+				.OnTextCommitted(this, &FUserDefinedStructureFieldLayout::OnMetaDataCommitted, FStructVariableMetaData::ClampMax)
+				.Text(this, &FUserDefinedStructureFieldLayout::OnGetMetaData, FStructVariableMetaData::ClampMax)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+		]
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FUserDefinedStructureFieldLayout::IsValueRangeOptionVisible)));
+
+		ChildrenBuilder.AddCustomRow(LOCTEXT("UIRange", "Slider Range"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("SliderRangeLabel", "Slider Range"))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.FillWidth(1)
+			[
+				SNew(SEditableTextBox)
+				.OnTextCommitted(this, &FUserDefinedStructureFieldLayout::OnMetaDataCommitted, FStructVariableMetaData::UIMin)
+				.Text(this, &FUserDefinedStructureFieldLayout::OnGetMetaData, FStructVariableMetaData::UIMin)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("Min .. Max Separator", " .. "))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+			+SHorizontalBox::Slot()
+			.FillWidth(1)
+			[
+				SNew(SEditableTextBox)
+				.OnTextCommitted(this, &FUserDefinedStructureFieldLayout::OnMetaDataCommitted, FStructVariableMetaData::UIMax)
+				.Text(this, &FUserDefinedStructureFieldLayout::OnGetMetaData, FStructVariableMetaData::UIMax)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+		]
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FUserDefinedStructureFieldLayout::IsValueRangeOptionVisible)));
 	}
 
 	virtual void Tick( float DeltaTime ) override {}

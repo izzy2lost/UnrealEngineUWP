@@ -285,6 +285,7 @@ struct FUserDefinedStructureCompilerInner
 			}
 			VarProperty->SetMetaData(TEXT("DisplayName"), *VarDesc.FriendlyName);
 			VarProperty->SetMetaData(FBlueprintMetadata::MD_Tooltip, *VarDesc.ToolTip);
+			VarProperty->AppendMetaData(VarDesc.MetaData);
 			VarProperty->RepNotifyFunc = NAME_None;
 
 			if (!VarDesc.DefaultValue.IsEmpty())

@@ -955,6 +955,73 @@ bool FStructureEditorUtils::Is3dWidgetEnabled(const UUserDefinedStruct* Struct, 
 	return VarDesc && VarDesc->bEnable3dWidget && FEdMode::CanCreateWidgetForStructure(PropertyStruct);
 }
 
+bool FStructureEditorUtils::CanEditValueRange(const UUserDefinedStruct* Struct, FGuid VarGuid)
+{
+	if (const FStructVariableDescription* VarDesc = GetVarDescByGuid(Struct, VarGuid))
+	{
+		if (const FProperty* Property = FindFProperty<FProperty>(Struct, VarDesc->VarName))
+		{
+			return Property->IsA(FNumericProperty::StaticClass());
+		}
+	}
+	return false;
+}
+
+bool FStructureEditorUtils::SetMetaData(UUserDefinedStruct* Struct, FGuid VarGuid, FName Key, const FString& Value)
+{
+	FStructVariableDescription* VarDesc = GetVarDescByGuid(Struct, VarGuid);
+	if (!VarDesc)
+	{
+		return false;
+	}
+
+	const FString* CurrentValue = VarDesc->MetaData.Find(Key);
+
+	if (Value.IsEmpty())
+	{
+		if (!CurrentValue)
+		{
+			// No new or old value, nothing to do
+			return false;
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("RemoveMetaData", "Unset Meta Data"));
+		ModifyStructData(Struct);
+
+		VarDesc->MetaData.Remove(Key);
+		if (FProperty* Property = FindFProperty<FProperty>(Struct, VarDesc->VarName))
+		{
+			Property->RemoveMetaData(Key);
+		}
+
+		OnStructureChanged(Struct);
+		return true;
+	}
+
+	if (CurrentValue && CurrentValue->Equals(Value, ESearchCase::CaseSensitive))
+	{
+		// There's both old and new value, and they are the same, so nothing to do
+		return false;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("ChangeMetaData", "Set Meta Data"));
+	ModifyStructData(Struct);
+
+	VarDesc->MetaData.Add(Key, Value);
+	if (FProperty* Property = FindFProperty<FProperty>(Struct, VarDesc->VarName))
+	{
+		Property->SetMetaData(Key, *Value);
+	}
+
+	OnStructureChanged(Struct);
+	return true;
+}
+
+const FString* FStructureEditorUtils::GetMetaData(const UUserDefinedStruct* Struct, FGuid VarGuid, FName Key)
+{
+	return GetVarDescByGuid(Struct, VarGuid)->MetaData.Find(Key);
+}
+
 FGuid FStructureEditorUtils::GetGuidForProperty(const FProperty* Property)
 {
 	const UUserDefinedStruct* UDStruct = Property ? Cast<const UUserDefinedStruct>(Property->GetOwnerStruct()) : nullptr;
