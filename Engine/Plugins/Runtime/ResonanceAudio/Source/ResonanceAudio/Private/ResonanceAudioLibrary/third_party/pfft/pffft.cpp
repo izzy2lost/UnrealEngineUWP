@@ -60,6 +60,9 @@
 #if defined(__clang__)
 _Pragma("clang diagnostic push") \
 _Pragma("clang diagnostic ignored \"-Wshadow\"")
+#if __clang_major__ >= 18
+_Pragma("clang diagnostic ignored \"-Wvla-cxx-extension\"")
+#endif
 #elif defined(_MSC_VER)
 #pragma warning(push)
 #pragma warning(disable:6294) /* Ill-defined for-loop:  initial condition does not satisfy test.  Loop body not executed. */
@@ -74,6 +77,7 @@ _Pragma("clang diagnostic ignored \"-Wshadow\"")
 #pragma warning(disable:6385) /* Reading invalid data from '<array>': the readable size is '<array size>' bytes, but '<read size>' bytes may be read */
 #pragma warning(disable:6386) /* Buffer overrun while writing to '<array>': the writable size is '<array size>' bytes, but '<write size>' bytes might be written */
 #pragma warning(disable:4244) /* 'initializing': conversion from '<type>' to '<type>', possible loss of data */
+#pragma warning(disable:6255) /* `_alloca` indicates failure by raising a stack overflow exception.  Consider using _malloca instead. */
 #endif
 
 

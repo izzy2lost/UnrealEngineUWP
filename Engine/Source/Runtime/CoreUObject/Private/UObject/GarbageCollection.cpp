@@ -1937,8 +1937,8 @@ private:
 		{
 			return;
 		}
-		
-		uint32 ValidIndices[UnvalidatedStructArrays.Max()];
+
+		uint32 ValidIndices[decltype(UnvalidatedStructArrays)::Max()];
 		uint32* ValidIt = ValidIndices;
 		for (uint32 Idx = 0; Idx < Num; ++Idx)
 		{
