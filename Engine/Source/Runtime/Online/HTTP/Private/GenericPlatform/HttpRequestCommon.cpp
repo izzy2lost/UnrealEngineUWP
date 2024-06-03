@@ -210,7 +210,13 @@ void FHttpRequestCommon::SetTimeout(float InTimeoutSecs)
 void FHttpRequestCommon::ClearTimeout()
 {
 	TimeoutSecs.Reset();
+	ResetTimeoutStatus();
+}
+
+void FHttpRequestCommon::ResetTimeoutStatus()
+{
 	StopTotalTimeoutTimer();
+	bTimedOut = false;
 }
 
 TOptional<float> FHttpRequestCommon::GetTimeout() const

@@ -107,6 +107,11 @@ void FHttpRequestAdapterBase::ClearTimeout()
 	HttpRequest->ClearTimeout(); 
 }
 
+void FHttpRequestAdapterBase::ResetTimeoutStatus() 
+{ 
+	HttpRequest->ResetTimeoutStatus(); 
+}
+
 TOptional<float> FHttpRequestAdapterBase::GetTimeout() const 
 { 
 	return HttpRequest->GetTimeout(); 

@@ -305,6 +305,11 @@ public:
 	virtual void ClearTimeout() = 0;
 
 	/**
+	 * Reset the elapsed timeout duration and flag, after the request completed and need to be reused
+	 */
+	virtual void ResetTimeoutStatus() = 0;
+
+	/**
 	 * Gets the optional timeout in seconds for this entire HTTP request to complete.
 	 * If valid, this value overrides the default HTTP timeout set via FHttpModule::SetTimeout().
 	 *

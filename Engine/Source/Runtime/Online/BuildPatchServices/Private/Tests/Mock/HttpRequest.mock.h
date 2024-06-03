@@ -134,6 +134,11 @@ namespace BuildPatchServices
 			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::ClearTimeout");
 		}
 
+		virtual void ResetTimeoutStatus() override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::ResetTimeoutStatus");
+		}
+
 		virtual TOptional<float> GetTimeout() const override
 		{
 			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetTimeout");

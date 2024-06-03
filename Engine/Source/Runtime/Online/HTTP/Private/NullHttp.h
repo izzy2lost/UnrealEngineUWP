@@ -45,6 +45,7 @@ public:
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override;
 	virtual void SetTimeout(float InTimeoutSecs) override;
 	virtual void ClearTimeout() override;
+	virtual void ResetTimeoutStatus() override;
 	virtual TOptional<float> GetTimeout() const override;
 	virtual void SetActivityTimeout(float InTimeoutSecs) override;
 	virtual void ProcessRequestUntilComplete() override;

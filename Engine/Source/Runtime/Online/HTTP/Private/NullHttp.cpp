@@ -219,6 +219,10 @@ void FNullHttpRequest::ClearTimeout()
 	TimeoutSecs.Reset();
 }
 
+void FNullHttpRequest::ResetTimeoutStatus() 
+{
+}
+
 TOptional<float> FNullHttpRequest::GetTimeout() const 
 { 
 	return TimeoutSecs; 

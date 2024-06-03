@@ -127,6 +127,7 @@ public:
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override { return EHttpRequestDelegateThreadPolicy::CompleteOnGameThread; }
 	virtual void SetTimeout(float InTimeoutSecs) override {}
 	virtual void ClearTimeout() override {}
+	virtual void ResetTimeoutStatus() override {}
 	virtual TOptional<float> GetTimeout() const override { return TOptional<float>(); }
 	virtual void SetActivityTimeout(float InTimeoutSecs) override {}
 	virtual void ProcessRequestUntilComplete() override {}
