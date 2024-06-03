@@ -1490,6 +1490,11 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 	}
 }
 
+static bool ShouldRenderTranslucentView(const FViewInfo& View, ETranslucencyView TranslucencyView, ETranslucencyView ViewsToRender)
+{
+	return View.ShouldRenderView() && EnumHasAnyFlags(TranslucencyView, ViewsToRender);
+};
+
 void FDeferredShadingSceneRenderer::RenderTranslucency(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
@@ -1497,7 +1502,8 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 	FTranslucencyPassResourcesMap* OutTranslucencyResourceMap,
 	ETranslucencyView ViewsToRender,
 	FInstanceCullingManager& InstanceCullingManager,
-	bool bStandardTranslucentCanRenderSeparate)
+	bool bStandardTranslucentCanRenderSeparate,
+	FRDGTextureMSAA& OutSharedDepthTexture)
 {
 	if (!EnumHasAnyFlags(ViewsToRender, ETranslucencyView::UnderWater | ETranslucencyView::AboveWater))
 	{
@@ -1514,13 +1520,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 		SceneColorCopyTexture = AddCopySceneColorPass(GraphBuilder, Views, SceneTextures.Color);
 	}
 
-	const auto ShouldRenderView = [&](const FViewInfo& View, ETranslucencyView TranslucencyView)
-	{
-		return View.ShouldRenderView() && EnumHasAnyFlags(TranslucencyView, ViewsToRender);
-	};
-
 	// Create a shared depth texture at the correct resolution.
-	FRDGTextureMSAA SharedDepthTexture;
 	const bool bIsScalingTranslucency = SeparateTranslucencyDimensions.Scale != 1.0f;
 	if (bIsScalingTranslucency)
 	{
@@ -1532,7 +1532,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 			1,
 			SeparateTranslucencyDimensions.NumSamples);
 
-		SharedDepthTexture = CreateTextureMSAA(
+		OutSharedDepthTexture = CreateTextureMSAA(
 			GraphBuilder, Desc,
 			TEXT("Translucency.DepthMS"),
 			TEXT("Translucency.Depth"),
@@ -1544,7 +1544,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 			FViewInfo& View = Views[ViewIndex];
 			const ETranslucencyView TranslucencyView = GetTranslucencyView(View);
 
-			if (!ShouldRenderView(View, TranslucencyView))
+			if (!ShouldRenderTranslucentView(View, TranslucencyView, ViewsToRender))
 			{
 				continue;
 			}
@@ -1553,35 +1553,49 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 			AddDownsampleDepthPass(
 				GraphBuilder, View,
 				FScreenPassTexture(SceneTextures.Depth.Resolve, View.ViewRect),
-				FScreenPassRenderTarget(SharedDepthTexture.Target, SeparateTranslucencyViewport.Rect, ViewIndex == 0 ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad),
+				FScreenPassRenderTarget(OutSharedDepthTexture.Target, SeparateTranslucencyViewport.Rect, ViewIndex == 0 ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad),
 				EDownsampleDepthFilter::Point);
 		}
 	}
 	else
 	{
 		// Uses the existing depth buffer for depth testing the translucency.
-		SharedDepthTexture = SceneTextures.Depth;
+		OutSharedDepthTexture = SceneTextures.Depth;
 	}
 
 	if (ViewFamily.AllowTranslucencyAfterDOF())
 	{
-		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, SharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyStandard, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyStandard, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
 		if (ViewFamily.AllowStandardTranslucencySeparated() && bStandardTranslucentCanRenderSeparate)
 		{
-			RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, SharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyStandardModulate, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+			RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyStandardModulate, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
 		}
 
 		if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterTranslucentBeforeTranslucentAfterDOF)
 		{
 			RenderHairComposition(GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.Velocity, *OutTranslucencyResourceMap);
 		}
-		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, SharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyAfterDOF, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
-		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, SharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyAfterDOFModulate, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
-		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, SharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyAfterMotionBlur, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyAfterDOF, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyAfterDOFModulate, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_TranslucencyAfterMotionBlur, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
 	}
 	else // Otherwise render translucent primitives in a single bucket.
 	{
-		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, SharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_AllTranslucency, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+		RenderTranslucencyInner(GraphBuilder, SceneTextures, TranslucentLightingVolumeTextures, OutTranslucencyResourceMap, OutSharedDepthTexture, ViewsToRender, SceneColorCopyTexture, ETranslucencyPass::TPT_AllTranslucency, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
+	}
+}
+
+
+void FDeferredShadingSceneRenderer::UpscaleTranslucencyIfNeeded(
+	FRDGBuilder& GraphBuilder,
+	const FSceneTextures& SceneTextures,
+	ETranslucencyView ViewsToRender,
+	FTranslucencyPassResourcesMap* OutTranslucencyResourceMap,
+	FRDGTextureMSAA& InSharedDepthTexture)
+{
+	if (!EnumHasAnyFlags(ViewsToRender, ETranslucencyView::UnderWater | ETranslucencyView::AboveWater))
+	{
+		return;
 	}
 
 	bool bUpscalePostDOFTranslucency = true;
@@ -1604,7 +1618,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 		FViewInfo& View = Views[ViewIndex];
 		const ETranslucencyView TranslucencyView = GetTranslucencyView(View);
 
-		if (!ShouldRenderView(View, TranslucencyView))
+		if (!ShouldRenderTranslucentView(View, TranslucencyView, ViewsToRender))
 		{
 			continue;
 		}
@@ -1612,14 +1626,14 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(
 		// Upscale the responsive AA into original depth buffer.
 		bool bUpscaleResponsiveAA = (
 			IsTemporalAccumulationBasedMethod(View.AntiAliasingMethod) &&
-			SharedDepthTexture.Target != SceneTextures.Depth.Target);
+			InSharedDepthTexture.Target != SceneTextures.Depth.Target);
 		if (bUpscaleResponsiveAA)
 		{
 			const FScreenPassTextureViewport SeparateTranslucencyViewport = SeparateTranslucencyDimensions.GetInstancedStereoViewport(View);
 			AddUpsampleResponsiveAAPass(
 				GraphBuilder,
 				View,
-				FScreenPassTexture(SharedDepthTexture.Target, SeparateTranslucencyViewport.Rect),
+				FScreenPassTexture(InSharedDepthTexture.Target, SeparateTranslucencyViewport.Rect),
 				/* OutputDepthTexture = */ SceneTextures.Depth.Target);
 		}
 

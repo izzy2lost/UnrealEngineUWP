@@ -646,7 +646,14 @@ void FDeferredShadingSceneRenderer::RenderLightShaftBloom(
 							}
 							else if(TranslucencyPassResources.IsValid())
 							{
-								ensure(TranslucencyPassResources.ViewRect == OutputViewport.Rect);
+								if (BloomOutput == ELightShaftBloomOutput::SeparateTranslucency)
+								{
+									ensure(TranslucencyPassResources.ViewRect == OutputViewport.Rect);
+								}
+								else
+								{
+									ensure(View.ViewRect == OutputViewport.Rect);
+								}
 							}
 						}
 					}

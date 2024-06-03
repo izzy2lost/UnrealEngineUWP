@@ -859,7 +859,8 @@ private:
 		FTranslucencyPassResourcesMap* OutTranslucencyResourceMap,
 		ETranslucencyView ViewsToRender,
 		FInstanceCullingManager& InstanceCullingManager,
-		bool bStandardTranslucentCanRenderSeparate);
+		bool bStandardTranslucentCanRenderSeparate,
+		FRDGTextureMSAA& OutSharedDepthTexture);
 
 	/** Renders the scene's translucency given a specific pass. */
 	void RenderTranslucencyInner(
@@ -873,6 +874,13 @@ private:
 		ETranslucencyPass::Type TranslucencyPass,
 		FInstanceCullingManager& InstanceCullingManager,
 		bool bStandardTranslucentCanRenderSeparate);
+
+	void UpscaleTranslucencyIfNeeded(
+		FRDGBuilder& GraphBuilder,
+		const FSceneTextures& SceneTextures,
+		ETranslucencyView ViewsToRender,
+		FTranslucencyPassResourcesMap* OutTranslucencyResourceMap,
+		FRDGTextureMSAA& InSharedDepthTexture);
 
 	/** Renders the scene's light shafts */
 	FRDGTextureRef RenderLightShaftOcclusion(
