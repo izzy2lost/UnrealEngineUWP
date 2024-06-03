@@ -3,6 +3,8 @@
 #pragma once
 
 #include "Replication/Data/ConcertPropertySelection.h"
+
+#include "Containers/Array.h"
 #include "UObject/SoftObjectPtr.h"
 
 namespace UE::ConcertSharedSlate
@@ -12,19 +14,29 @@ namespace UE::ConcertSharedSlate
 	{
 	public:
 		
-		FPropertyData(FSoftClassPath OwningClass, FConcertPropertyChain Object)
-			: OwningClassPtr(MoveTemp(OwningClass))
+		FPropertyData(TSet<TSoftObjectPtr<>> ContextObjects, FSoftClassPath OwningClass, FConcertPropertyChain Object)
+			: ContextObjects(MoveTemp(ContextObjects))
+			, OwningClassPtr(MoveTemp(OwningClass))
 			, Property(MoveTemp(Object))
 		{}
 		
+		const TSet<TSoftObjectPtr<>>& GetContextObjects() const { return ContextObjects; }
 		const FConcertPropertyChain& GetProperty() const { return Property; }
 		const TSoftClassPtr<>& GetOwningClassPtr() const { return OwningClassPtr; }
 
 	private:
 
+		/**
+		 * The objects for which the properties are being displayed.
+		 *
+		 * This usually has only 1 entry.
+		 * This has multiple elements in the case of multi-edit (i.e. when the user clicks multiple, compatible actors in the top-view).
+		 * For example, for multi-edit this could contain ActorA->StaticMeshComponent0 and ActorB->StaticMeshComponent0.
+		 */
+		TSet<TSoftObjectPtr<>> ContextObjects;
+		
 		/** The class with which the FProperty can be determined. */
 		TSoftClassPtr<> OwningClassPtr;
-		
 		/**
 		 * The property to be replicated.
 		 *

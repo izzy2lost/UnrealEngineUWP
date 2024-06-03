@@ -32,7 +32,7 @@ namespace UE::ConcertSharedSlate
 		];
 	}
 
-	void SPropertyTreeView::RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, const bool bCanReuseExistingRowItems)
+	void SPropertyTreeView::RefreshPropertyData(const TArray<FPropertyAssignmentEntry>& Entries, bool bCanReuseExistingRowItems)
 	{
 		if (!bCanReuseExistingRowItems)
 		{
@@ -43,12 +43,15 @@ namespace UE::ConcertSharedSlate
 		TMap<FConcertPropertyChain, TSharedPtr<FPropertyData>> NewChainToPropertyDataCache;
 		
 		PropertyRowData.Empty();
-		for (const FConcertPropertyChain& PropertyChain : PropertiesToDisplay)
+		for (const FPropertyAssignmentEntry& Entry : Entries)
 		{
-			const TSharedPtr<FPropertyData>* ExistingItem = ChainToPropertyDataCache.Find(PropertyChain);
-			const TSharedRef<FPropertyData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocatePropertyData(Class, PropertyChain);
-			PropertyRowData.Emplace(Item);
-			NewChainToPropertyDataCache.Emplace(PropertyChain, Item);
+			for (const FConcertPropertyChain& PropertyChain : Entry.PropertiesToDisplay)
+			{
+				const TSharedPtr<FPropertyData>* ExistingItem = ChainToPropertyDataCache.Find(PropertyChain);
+				const TSharedRef<FPropertyData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocatePropertyData(Entry.ContextObjects, Entry.Class, PropertyChain);
+				PropertyRowData.Emplace(Item);
+				NewChainToPropertyDataCache.Emplace(PropertyChain, Item);
+			}
 		}
 
 		// If an item was removed, then NewPathToPropertyDataCache does not contain it. 
@@ -73,9 +76,9 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 
-	TSharedRef<FPropertyData> SPropertyTreeView::AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
+	inline TSharedRef<FPropertyData> SPropertyTreeView::AllocatePropertyData(TSet<TSoftObjectPtr<>> ContextObjects, FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
 	{
-		return MakeShared<FPropertyData>(MoveTemp(OwningClass), MoveTemp(PropertyChain));
+		return MakeShared<FPropertyData>(MoveTemp(ContextObjects), MoveTemp(OwningClass), MoveTemp(PropertyChain));
 	}
 
 	void SPropertyTreeView::BuildRootPropertyRowData()

@@ -37,7 +37,7 @@ namespace UE::ConcertSharedSlate
 	 * Shared code for the tree view for replicated actors and properties.
 	 * 
 	 * It is a tree view that is searchable with a search box and exposes slots to add more filter widgets, such as SBasicFilterBar.
-	 * The columns are modular and are abstracted by IReplicationTreeColumn. You can customize row content by by specializing TReplicationTreeItemTraits;
+	 * The columns are modular and are abstracted by IReplicationTreeColumn. You can customize row content by specializing TReplicationTreeItemTraits;
 	 * the default implementation creates a SReplicationColumnRow, which uses IReplicationTreeColumn to draw the columns. 
 	 */
 	template<typename TItemType>

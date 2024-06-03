@@ -121,8 +121,8 @@ namespace UE::ConcertReplicationScriptingEditor
 
 	void SConcertPropertyChainPicker::RefreshPropertiesDisplayedInTree()
 	{
-		TSet<FConcertPropertyChain> Properties;
-		FSoftClassPath ClassPath = SelectedClass;
+		ConcertSharedSlate::FPropertyAssignmentEntry Entry { .Class = SelectedClass };
+		TSet<FConcertPropertyChain>& Properties = Entry.PropertiesToDisplay;
 		
 		if (SelectedClass)
 		{
@@ -134,7 +134,7 @@ namespace UE::ConcertReplicationScriptingEditor
 		}
 
 		// If no class is selected, the widget will display the NoItemsContent ("Select a class").
-		TreeView->RefreshPropertyData(Properties, ClassPath);
+		TreeView->RefreshPropertyData({ Entry });
 	}
 
 	void SConcertPropertyChainPicker::OnPropertySelected(const FConcertPropertyChain& ConcertPropertyChain, bool bIsSelected)

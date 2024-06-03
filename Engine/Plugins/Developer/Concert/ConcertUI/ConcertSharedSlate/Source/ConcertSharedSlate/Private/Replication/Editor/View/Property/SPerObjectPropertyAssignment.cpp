@@ -21,10 +21,14 @@ namespace UE::ConcertSharedSlate
 
 	void SPerObjectPropertyAssignment::RefreshData(const TSet<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model)
 	{
-		TSet<FConcertPropertyChain> Properties;
+		TSet<TSoftObjectPtr<>> ContextObjects;
+		Algo::Transform(Objects, ContextObjects, [](const FSoftObjectPath& Path){ return TSoftObjectPtr{ Path }; });
+		
+		FPropertyAssignmentEntry AssignmentEntry { .ContextObjects = MoveTemp(ContextObjects) };
+		TSet<FConcertPropertyChain>& Properties = AssignmentEntry.PropertiesToDisplay;
+		FSoftClassPath& ClassPath = AssignmentEntry.Class;
+		
 		bool bHasClassPath = false;
-		FSoftClassPath ClassPath;
-
 		EnumerateProperties(Objects, Model, OptionalPropertySource.Get(),
 			[&Properties, &bHasClassPath, &ClassPath](const FSoftClassPath& Class, const FConcertPropertyChain& Chain)
 			{
@@ -43,7 +47,7 @@ namespace UE::ConcertSharedSlate
 				Properties.Add(Chain);
 				return EBreakBehavior::Continue;
 			});
-
+		
 		if (bHasClassPath)
 		{
 			// If the objects have changed, the classes may share properties.
@@ -54,12 +58,12 @@ namespace UE::ConcertSharedSlate
 			const bool bCanReusePropertyData = PreviousSelectedObjects.Num() == Objects.Num() && PreviousSelectedObjects.Includes(Objects);
 			PreviousSelectedObjects = Objects;
 			
-			TreeView->RefreshPropertyData(Properties, ClassPath, bCanReusePropertyData);
+			TreeView->RefreshPropertyData({ AssignmentEntry } , bCanReusePropertyData);
 		}
 		else
 		{
 			PreviousSelectedObjects.Reset();
-			TreeView->RefreshPropertyData(Properties, ClassPath, false);
+			TreeView->RefreshPropertyData({}, false);
 		}
 	}
 }

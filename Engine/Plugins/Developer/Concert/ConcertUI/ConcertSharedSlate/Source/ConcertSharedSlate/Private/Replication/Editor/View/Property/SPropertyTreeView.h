@@ -59,7 +59,7 @@ namespace UE::ConcertSharedSlate
 		void Construct(const FArguments& InArgs);
 
 		//~ Begin IPropertyTreeView Interface
-		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems) override;
+		virtual void RefreshPropertyData(const TArray<FPropertyAssignmentEntry>& Entries, bool bCanReuseExistingRowItems) override;
 		virtual void RequestRefilter() const override { TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { TreeView->RequestResortForColumn(ColumnId); }
 		virtual void RequestScrollIntoView(const FConcertPropertyChain& PropertyChain) override;
@@ -78,7 +78,7 @@ namespace UE::ConcertSharedSlate
 		/** Inverse map of PropertyRowData using FPropertyData::GetProperty as key. Contains all elements of PropertyRowData. */
 		TMap<FConcertPropertyChain, TSharedPtr<FPropertyData>> ChainToPropertyDataCache;
 		
-		TSharedRef<FPropertyData> AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);
+		TSharedRef<FPropertyData> AllocatePropertyData(TSet<TSoftObjectPtr<>> ContextObjects, FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);
 
 		/** Inits RootPropertyRowData from PropertyRowData. */
 		void BuildRootPropertyRowData();
