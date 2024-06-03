@@ -687,6 +687,7 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 				}
 
 				RenderPass.EndRenderPass();
+				RenderPass.Submit(EMetalSubmitFlagsCreateCommandBuffer);
 				RenderPass.EncodePresentImmersive(VisionOSParams.SwiftDrawable, VisionOSParams.SwiftFrame);
 			}
 		}
