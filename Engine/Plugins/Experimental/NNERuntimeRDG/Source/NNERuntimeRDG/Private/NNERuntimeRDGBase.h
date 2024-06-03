@@ -64,6 +64,7 @@ public:
 		return TensorRDG;
 	}
 
+	bool IsValid() const { return HasBuffer() || GetVolume() == 0; }
 	bool HasBuffer() const { return Buffer != FRDGBufferRef{}; }
 	void SetBuffer(FRDGBufferRef Inbuffer){ Buffer = Inbuffer; }
 	FRDGBufferRef GetBuffer() const { return Buffer; }

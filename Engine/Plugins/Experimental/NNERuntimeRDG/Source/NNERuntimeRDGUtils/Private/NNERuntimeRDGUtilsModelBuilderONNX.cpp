@@ -112,31 +112,40 @@ public:
 		return res;
 	}
 
-	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data, uint64 DataSize) override
+	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape) override
 	{
-		onnx::ValueInfoProto* Value = onnx::ValueInfoProto().New(Graph->GetArena());
+		onnx::ValueInfoProto* Value = AddValueInfoProto(Name, DataType, Shape);
 		
-		if (!SetValue(Value, Name, DataType, Shape))
+		if(Value == nullptr)
 		{
 			return FHTensor();
 		}
 
-		if (Data)
+		return MakeHandle<EHandleType::Tensor>(Value);
+	}
+
+	virtual FHTensor AddConstantTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data, uint64 DataSize) override
+	{
+		onnx::ValueInfoProto* Value = AddValueInfoProto(Name, DataType, Shape);
+		
+		if(Value == nullptr)
 		{
-			onnx::TensorProto* Tensor = Graph->mutable_initializer()->Add();
-
-			Tensor->set_name(TCHAR_TO_ANSI(*Name));
-			Tensor->set_data_type(ToTensorProtoDataType(DataType));
-			for (int32 Idx = 0; Idx < Shape.Num(); ++Idx)
-			{
-				Tensor->add_dims(Shape[Idx]);
-			}
-
-			checkf(DataType != ENNETensorDataType::Char, TEXT("Char tensors not supported yet!"));
-			// raw_data is not supported for strings, when implementing those one will need to use string_data from TensorProto
-			std::string* raw_data = Tensor->mutable_raw_data();
-			raw_data->assign((const char*)Data, DataSize);
+			return FHTensor();
 		}
+
+		onnx::TensorProto* Tensor = Graph->mutable_initializer()->Add();
+
+		Tensor->set_name(TCHAR_TO_ANSI(*Name));
+		Tensor->set_data_type(ToTensorProtoDataType(DataType));
+		for (int32 Idx = 0; Idx < Shape.Num(); ++Idx)
+		{
+			Tensor->add_dims(Shape[Idx]);
+		}
+
+		checkf(DataType != ENNETensorDataType::Char, TEXT("Char tensors not supported yet!"));
+		// raw_data is not supported for strings, when implementing those one will need to use string_data from TensorProto
+		std::string* raw_data = Tensor->mutable_raw_data();
+		raw_data->assign((const char*)Data, DataSize);
 
 		return MakeHandle<EHandleType::Tensor>(Value);
 	}
@@ -268,6 +277,18 @@ public:
 
 private:
 
+	onnx::ValueInfoProto* AddValueInfoProto(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape)
+	{
+		onnx::ValueInfoProto* Value = onnx::ValueInfoProto().New(Graph->GetArena());
+		
+		if (!SetValue(Value, Name, DataType, Shape))
+		{
+			return nullptr;
+		}
+
+		return Value;
+	}
+
 	bool SetValue(onnx::ValueInfoProto* Value, const FString& Name, ENNETensorDataType DataType, const TArrayView<const int32>& InShape)
 	{
 		onnx::TypeProto*		Type = Value->mutable_type();
@@ -361,7 +382,7 @@ bool CreateONNXModelForOperator(const FString& OperatorName, int32 IrVersion, in
 		const TConstArrayView<uint8>& Data = InWeightTensorsData[Idx];
 		check(Data.Num() == Desc.GetDataSize());
 		ModelBuilderONNXHelper::BuildShapeForModel(false, Desc.GetShape(), ShapeForModel);
-		IModelBuilder::FHTensor Tensor = Builder->AddTensor(Desc.GetName(), Desc.GetDataType(), ShapeForModel, Data.GetData(), Data.Num());
+		IModelBuilder::FHTensor Tensor = Builder->AddConstantTensor(Desc.GetName(), Desc.GetDataType(), ShapeForModel, Data.GetData(), Data.Num());
 
 		WeightTensors.Emplace(Tensor);
 	}

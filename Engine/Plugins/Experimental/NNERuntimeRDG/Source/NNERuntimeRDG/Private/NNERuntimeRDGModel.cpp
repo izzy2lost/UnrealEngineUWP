@@ -230,7 +230,7 @@ FModelInstanceRDG::EEnqueueRDGStatus FModelInstanceRDG::EnqueueRDG(FRDGBuilder& 
 	//Create temporary buffers for NOT const intermediate tensors
 	for (FTensorRDG& TensorRDG : IntermediateTensorRDGs)
 	{
-		if (!TensorRDG.HasPreparedData())
+		if (!TensorRDG.IsConstant())
 		{
 			const FRDGBufferDesc BufferDesc = CreateRDGBufferDescForTensorRDG(TensorRDG);
 			const FRDGBufferRef TensorBuffer = RDGBuilder.CreateBuffer(BufferDesc, TEXT("NNE.Tensor.Intermediate"), ERDGBufferFlags::None);
@@ -246,7 +246,7 @@ FModelInstanceRDG::EEnqueueRDGStatus FModelInstanceRDG::EnqueueRDG(FRDGBuilder& 
 		checkCode(
 			for (const TPair<int32, FTensorRDGRef>& TensorRDG : AllTensorRDGRefs) 
 			{ 
-				check(TensorRDG.Value->GetBuffer() != nullptr); 
+				check(TensorRDG.Value->IsValid()); 
 			}
 		);
 	}

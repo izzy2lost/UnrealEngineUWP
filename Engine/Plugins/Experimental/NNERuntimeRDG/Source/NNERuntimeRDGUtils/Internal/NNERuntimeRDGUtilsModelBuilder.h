@@ -50,7 +50,8 @@ public:
 	// Serialize the model to given array
 	virtual bool End(TArray<uint8>& Data) = 0;
 
-	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data = nullptr, uint64 DataSize = 0) = 0;
+	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape) = 0;
+	virtual FHTensor AddConstantTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data, uint64 DataSize) = 0;
 	virtual bool AddInput(FHTensor InTensor) = 0;
 	virtual bool AddOutput(FHTensor OutTensor) = 0;
 	virtual FHOperator AddOperator(const FString& Type, const FString& Domain, TOptional<uint32> Version = FNullOpt{0}, const FString& Name = TEXT("")) = 0;

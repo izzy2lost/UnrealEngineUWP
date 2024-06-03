@@ -97,8 +97,16 @@ bool FModelInstance::PrepareModelRDG(FRDGBuilder& RDGBuilder)
 	{
 		const TRefCountPtr<FRDGPooledBuffer>& PooledBuffer = WeightsExternalRDGResources[Idx];
 		FTensorRDG& Tensor = WeightTensorRDGs[Idx];
-		FRDGBufferRef Buffer = RDGBuilder.RegisterExternalBuffer(PooledBuffer);
-		Tensor.SetBuffer(Buffer);
+		// Only register external buffer when weight tensor is NOT zero-sized.
+		if(Tensor.HasPreparedData())
+		{
+			FRDGBufferRef Buffer = RDGBuilder.RegisterExternalBuffer(PooledBuffer);
+			Tensor.SetBuffer(Buffer);
+		}
+		else
+		{
+			Tensor.SetBuffer(nullptr);
+		}
 	}
 
 	return true;
@@ -195,7 +203,7 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 		OutputTensors.Reset(OperatorOutputTensorIndices.Num());
 		for (int32 i : OperatorOutputTensorIndices[Idx])
 		{
-			AllOutputTensorConstant &= AllTensorRDGRefs[i]->HasPreparedData();
+			AllOutputTensorConstant &= AllTensorRDGRefs[i]->IsConstant();
 			OutputTensors.Add(AllTensorRDGRefs[i]);
 		}
 
@@ -206,7 +214,7 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 		}
 	}
 
-	//If a model output is constant we upload to it (a user provided GPU buffer).
+	//If a model output is constant (and non-empty) we upload to it (a user provided GPU buffer).
 	for (const FTensorRDG& OutputTensor : OutputTensorRDGs)
 	{
 		if (OutputTensor.HasPreparedData())
@@ -301,15 +309,15 @@ void EnqueueTensorUpload(TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGR
 		OutExternalRDGResources.Reset();
 		OutExternalRDGResources.SetNum(TensorToUploadRDGs.Num());
 
-		bool AtLeastOneConstantTensor = false;
+		bool AtLeastOneConstantNonEmptyTensor = false;
 		for (const FTensorRDG& TensorRDG : TensorToUploadRDGs)
 		{
 			if (TensorRDG.HasPreparedData())
 			{
-				AtLeastOneConstantTensor = true;
+				AtLeastOneConstantNonEmptyTensor = true;
 			}
 		}
-		if (!AtLeastOneConstantTensor)
+		if (!AtLeastOneConstantNonEmptyTensor)
 		{
 			return;
 		}

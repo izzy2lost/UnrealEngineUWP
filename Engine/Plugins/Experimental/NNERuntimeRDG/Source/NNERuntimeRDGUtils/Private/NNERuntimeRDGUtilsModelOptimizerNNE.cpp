@@ -259,7 +259,7 @@ namespace ModelOptimizerNNEHelper
 				}
 
 				IModelBuilder::FHTensor TensorInitializer =
-					Builder->AddTensor(FString(ANSI_TO_TCHAR(Output.name().c_str())) + TEXT("_NNEInitializer"), DataType, Shape, Data, DataSize);
+					Builder->AddConstantTensor(FString(ANSI_TO_TCHAR(Output.name().c_str())) + TEXT("_NNEInitializer"), DataType, Shape, Data, DataSize);
 
 				const FString IdentityOpType = TEXT("Identity");
 				TOptional<uint32> OpVersion = GetOpVersionFromOpsetVersion(IdentityOpType, (int) ModelProto.opset_import(0).version());
@@ -358,6 +358,8 @@ namespace ModelOptimizerNNEHelper
 				const void* Data = nullptr;
 				uint64 DataSize = 0;
 
+				IModelBuilder::FHTensor Tensor;
+
 				const onnx::TensorProto* Initializer = GetInitializerFromGraphProto(Graph, TensorName);
 				if (Initializer)
 				{
@@ -366,6 +368,7 @@ namespace ModelOptimizerNNEHelper
 						UE_LOG(LogNNE, Error, TEXT("Tensor data could not be loaded for weight '%s' in node '%s' of type '%s'"), ANSI_TO_TCHAR(TensorName.c_str()), *NNEOpName, *NNEOpType);
 						return false;
 					}
+					Tensor = Builder->AddConstantTensor(ANSI_TO_TCHAR(TensorName.c_str()), DataType, Shape, Data, DataSize);
 				}
 				else if (!TensorName.empty())
 				{
@@ -377,9 +380,12 @@ namespace ModelOptimizerNNEHelper
 					}
 
 					GetTensorInfoFromONNXValueInfo(*ValueInfoProto, Shape, DataType);
+					Tensor = Builder->AddTensor(ANSI_TO_TCHAR(TensorName.c_str()), DataType, Shape);
 				}
-
-				IModelBuilder::FHTensor Tensor = Builder->AddTensor(ANSI_TO_TCHAR(TensorName.c_str()), DataType, Shape, Data, DataSize);
+				else // Empty tensor
+				{
+					Tensor = Builder->AddConstantTensor(/* Name */ TEXT(""), ENNETensorDataType::None, /* Shape */ {0}, /* Data */ nullptr, /* DataSize */ 0);
+				}
 
 				Builder->AddOperatorInput(Op, Tensor);
 			}

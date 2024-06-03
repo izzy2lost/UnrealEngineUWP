@@ -10,7 +10,7 @@ namespace UE::NNERuntimeRDG::Private::OperatorHelper
 		check(Tensor != nullptr);
 		Attr.Reset();
 
-		if (!Tensor->HasPreparedData())
+		if (!Tensor->IsConstant())
 		{
 			return false;
 		}

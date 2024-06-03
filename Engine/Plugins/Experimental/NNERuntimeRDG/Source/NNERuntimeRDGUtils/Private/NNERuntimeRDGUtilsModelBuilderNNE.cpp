@@ -51,17 +51,24 @@ public:
 		return !Data.IsEmpty();
 	}
 
-	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data, uint64 DataSize)
+	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape) override
 	{
 		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> NNEShape;
 		for (int32 i = 0; i < Shape.Num(); ++i)
 		{
 			//Allow caller to use 0 for variable dimensions for inputs/outputs, NNE use -1.
 			//RDG not supporting 0 sized dimension at the moment.
-			NNEShape.Emplace(!Data && Shape[i] == 0 ? -1 : Shape[i]);
+			NNEShape.Emplace(Shape[i] == 0 ? -1 : Shape[i]);
 		}
 
-		int32 Idx = AddTensor(Name, NNEShape, DataType, Data, DataSize);
+		int32 Idx = AddTensor(Name, NNEShape, DataType);
+
+		return MakeHandle<EHandleType::Tensor>(reinterpret_cast<void*>((int64)Idx));
+	}
+
+	virtual FHTensor AddConstantTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data, uint64 DataSize) override
+	{
+		int32 Idx = AddTensor(Name, Shape, DataType, Data, DataSize);
 
 		return MakeHandle<EHandleType::Tensor>(reinterpret_cast<void*>((int64)Idx));
 	}
@@ -178,7 +185,7 @@ public:
 
 private:
 
-	int32 AddTensor(const FString& InName, TArrayView<const int32> InShape, ENNETensorDataType InDataType, const void* Data, uint64 DataSize)
+	int32 AddTensor(const FString& InName, TArrayView<const int32> InShape, ENNETensorDataType InDataType, const void* Data = nullptr, uint64 DataSize = 0u)
 	{
 		int32 Idx = -1;
 
@@ -200,19 +207,19 @@ private:
 			if (Data)
 			{
 				Desc.Type = ENNEFormatTensorType::Initializer;
+				Desc.DataSize = DataSize;
 
 				// Handle empty data initializers, i.e. when DataSize is 0
 				if (DataSize)
 				{
 					Desc.DataOffset = Format.TensorData.AddUninitialized(DataSize);
-					Desc.DataSize = DataSize;
 
 					FMemory::Memcpy(Format.TensorData.GetData() + Desc.DataOffset, Data, DataSize);
 				}
 			}
 			else
 			{
-				if (Desc.DataType == ENNETensorDataType::None && InName.IsEmpty())
+				if (InName.IsEmpty())
 				{
 					Desc.Type = ENNEFormatTensorType::Empty;
 				}

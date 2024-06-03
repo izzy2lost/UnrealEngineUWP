@@ -77,15 +77,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				return -1;
 			}
 
-			for(int Idx = 1; Idx < InputTensors.Num(); ++Idx)
-			{
-				if(!InputTensors[Idx]->HasPreparedData())
-				{
-					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: tensor %s should be constant for shape inference to succeed."), *InputTensors[Idx]->GetName());
-					return -1;
-				}
-			}
-
 			const NNE::Internal::FTensor& Input = *InputTensors[0];
 			const NNE::Internal::FTensor& Roi = *InputTensors[1];
 
@@ -107,25 +98,35 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				return -1;
 			}
 
-			if(Roi.GetDataType() != ENNETensorDataType::Float)
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: only float data type supported for`roi` tensor (name %s)."), *Roi.GetName());
-				return -1;
-			}
-
-			if(!Roi.HasPreparedData())
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `roi` tensor could not be made constant. (name %s)."), *Roi.GetName());
-				return -1;
-			}
-			
-			RegionOfInterest = Roi.GetPreparedData<float>();
-
 			if(CoordTransMode == UE::NNEHlslShaders::Internal::ECoordTransMode::TfCropAndResize
-				&& RegionOfInterest.Num() != 2 * Input.GetShape().Rank())
+				&& Roi.GetShape().Volume() != 2 * Input.GetShape().Rank())
 			{
 				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `roi` tensor (name %s) must have 2 * N length."), *Roi.GetName());
 				return -1;
+			}
+
+			if(Roi.GetShape().Volume() != 0)
+			{
+				if(Roi.GetDataType() != ENNETensorDataType::Float)
+				{
+					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: only float data type supported for`roi` tensor (name %s)."), *Roi.GetName());
+					return -1;
+				}
+
+				if(!Roi.HasPreparedData())
+				{
+					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `roi` tensor could not be made constant. (name %s)."), *Roi.GetName());
+					return -1;
+				}
+				
+				RegionOfInterest = Roi.GetPreparedData<float>();
+
+				if(CoordTransMode == UE::NNEHlslShaders::Internal::ECoordTransMode::TfCropAndResize
+					&& RegionOfInterest.Num() != 2 * Input.GetShape().Rank())
+				{
+					UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: `roi` tensor (name %s) must have 2 * N length."), *Roi.GetName());
+					return -1;
+				}
 			}
 
 			TArray<uint32> OutputShapeData;
@@ -364,6 +365,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool ValidateResizeOperator(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		using namespace UE::NNEHlslShaders::Internal;
+		
 		bool bIsValid = true;
 
 		FAttributeValidator AttributeValidator;
@@ -398,11 +401,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			UE_LOG(LogNNE, Warning, TEXT("Roi tensor must be a 1-D tensor."));
 			return false;
 		}
-		if(InputShapes[1].GetData()[0] != InputShapes[0].Rank() * 2)
+		if(FResizeCS::CoordTransModeFromString(*AttributeMap.GetValueOrDefault<FString>(TEXT("coordinate_transformation_mode"), TEXT("half_pixel"))) == ECoordTransMode::TfCropAndResize &&
+			InputShapes[1].GetData()[0] != 2 * InputShapes[0].Rank())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Roi tensor must have dimension 2*N (where N is the input rank)."));
+			UE_LOG(LogNNE, Warning, TEXT("Roi tensor must have dimension 2*N (where N is the input rank) when `coordinate_transformation_mode` is `tf_crop_and_resize`."));
 			return false;
 		}
+
 		if(InputTypes.Num() == 3)
 		{
 			if(InputTypes[2] != ENNETensorDataType::Float)
