@@ -14,6 +14,7 @@
 #include "GenericPlatform/HttpRequestCommon.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #include "Stats/Stats.h"
 #include "Containers/BackgroundableTicker.h"
@@ -57,6 +58,16 @@ namespace
 		return !IsRunningCommandlet() && !FApp::IsUnattended();
 	}
 }
+
+CSV_DEFINE_CATEGORY(HttpManager, true);
+CSV_DEFINE_STAT(HttpManager, RequestsInQueue);
+CSV_DEFINE_STAT(HttpManager, MaxRequestsInQueue);
+CSV_DEFINE_STAT(HttpManager, RequestsInFlight);
+CSV_DEFINE_STAT(HttpManager, MaxRequestsInFlight);
+CSV_DEFINE_STAT(HttpManager, MaxTimeToWaitInQueue);
+CSV_DEFINE_STAT(HttpManager, DownloadedMB);
+CSV_DEFINE_STAT(HttpManager, BandwidthMbps);
+CSV_DEFINE_STAT(HttpManager, DurationMsAvg);
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FHttpManager::FHttpManager()
@@ -498,6 +509,17 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+	
+	// Report csv stats.
+	int32 TotalDownloadedMB = int32(HttpStats.TotalDownloadedBytes >> 20);
+	CSV_CUSTOM_STAT_DEFINED(RequestsInQueue, HttpStats.RequestsInQueue, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInQueue, int32(HttpStats.MaxRequestsInQueue), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(RequestsInFlight, HttpStats.RequestsInFlight, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInFlight, int32(HttpStats.MaxRequestsInFlight), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxTimeToWaitInQueue, int32(HttpStats.MaxTimeToWaitInQueue), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(DownloadedMB, TotalDownloadedMB, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(BandwidthMbps, int32(HttpStats.BandwidthMbps), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(DurationMsAvg, int32(HttpStats.HttpDurationMsAvg), ECsvCustomStatOp::Set);
 
 	// keep ticking
 	return true;
@@ -588,6 +610,30 @@ bool FHttpManager::SupportsDynamicProxy() const
 
 void FHttpManager::BroadcastHttpRequestCompleted(const FHttpRequestRef& Request)
 {
+	FHttpResponsePtr Response = Request->GetResponse();
+	if (Response.IsValid())
+	{
+		const int64 OldDuration = HttpStatsHistory.DurationMs[HttpStatsHistory.HistoryIndex];
+		const int64 NewDuration = FMath::RoundToInt64(Request->GetElapsedTime() * 1000.0f);
+
+		HttpStatsHistory.TotalDuration -= OldDuration;
+		HttpStatsHistory.TotalDuration += NewDuration;
+		HttpStatsHistory.DurationMs[HttpStatsHistory.HistoryIndex] = NewDuration;
+
+		const int64 SizeBytes = Response->GetContentLength();
+		HttpStats.TotalDownloadedBytes += SizeBytes;
+
+		HttpStatsHistory.TotalDownloadedBytes -= HttpStatsHistory.DownloadedBytes[HttpStatsHistory.HistoryIndex];
+		HttpStatsHistory.TotalDownloadedBytes += SizeBytes;
+		HttpStatsHistory.DownloadedBytes[HttpStatsHistory.HistoryIndex] = SizeBytes;
+
+		HttpStats.BandwidthMbps = ((HttpStatsHistory.TotalDownloadedBytes * 8) / (HttpStatsHistory.TotalDuration + 1) / 1000);
+		HttpStats.HttpDurationMsAvg = HttpStatsHistory.TotalDuration / FHttpStatsHistory::HttpHistoryCount;
+
+		// Increment index
+		HttpStatsHistory.HistoryIndex = (HttpStatsHistory.HistoryIndex + 1) % FHttpStatsHistory::HttpHistoryCount;
+	}
+		
 	RequestCompletedDelegate.ExecuteIfBound(Request);
 }
 
@@ -601,8 +647,15 @@ void FHttpManager::RecordStatTimeToConnect(float Duration)
 	HttpStats.MaxTimeToConnect = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToConnect);
 }
 
+void FHttpManager::RecordStatRequestsInFlight(uint32 RequestsInFlight)
+{
+	HttpStats.RequestsInFlight = RequestsInFlight;
+	HttpStats.MaxRequestsInFlight = FGenericPlatformMath::Max(RequestsInFlight, HttpStats.MaxRequestsInFlight);
+}
+
 void FHttpManager::RecordStatRequestsInQueue(uint32 RequestsInQueue)
 {
+	HttpStats.RequestsInQueue = RequestsInQueue;
 	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue);
 }
 

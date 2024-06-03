@@ -266,6 +266,8 @@ void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<FHttpRequestC
 
 void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
+	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
+
 	// We'll start rate limited requests until we hit the limit
 	// Tick new requests separately from existing RunningThreadedRequests so they get a chance 
 	// to send unaffected by possibly large ElapsedTime above
@@ -285,7 +287,7 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& R
 			float StartImmediately = 0.01f;
 			if (DurationInQueue > StartImmediately)
 			{
-				FHttpModule::Get().GetHttpManager().RecordMaxTimeToWaitInQueue(DurationInQueue);
+				HttpManager.RecordMaxTimeToWaitInQueue(DurationInQueue);
 			}
 
 			if (StartThreadedRequest(ReadyThreadedRequest))
@@ -303,9 +305,10 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& R
 		}
 	}
 
+	HttpManager.RecordStatRequestsInFlight(RunningThreadedRequestsCounter);
 	if (!RateLimitedThreadedRequests.IsEmpty())
 	{
-		FHttpModule::Get().GetHttpManager().RecordStatRequestsInQueue(RateLimitedThreadedRequests.Num());
+		HttpManager.RecordStatRequestsInQueue(RateLimitedThreadedRequests.Num());
 	}
 }
 

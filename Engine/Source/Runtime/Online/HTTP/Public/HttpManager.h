@@ -54,16 +54,34 @@ DECLARE_DELEGATE_OneParam(FHttpManagerRequestCompletedDelegate, const FHttpReque
 
 struct FHttpStats
 {
+	/** The number of requests waiting in queue in http manager */
+	int32 RequestsInQueue = 0;
+	/** The number of requests in flight in http manager */
+	int32 RequestsInFlight = 0;
 	/** The max time to successfully connect the backend */
 	float MaxTimeToConnect = -1.0f;
 	/** The max waiting queue in http manager */
 	uint32 MaxRequestsInQueue = 0;
+	/** The max number of requests in flight in http manager */
+	uint32 MaxRequestsInFlight = 0;
 	/** The max waiting time in queue of http manager */
 	float MaxTimeToWaitInQueue = 0.0f;
+	/** The total bytes downloaded so far */
+	int64 TotalDownloadedBytes = 0;
+	/** Approximate download bandwidth used */
+	int64 BandwidthMbps = 0;
+	/** Avg duration (in milliseconds) from request to response */
+	int64 HttpDurationMsAvg = 0;
 
 	bool operator==(const FHttpStats& Other) const
 	{
-		return MaxRequestsInQueue == Other.MaxRequestsInQueue
+		return RequestsInQueue == Other.RequestsInQueue
+			&& RequestsInFlight == Other.RequestsInFlight
+			&& MaxRequestsInQueue == Other.MaxRequestsInQueue
+			&& MaxRequestsInFlight == Other.MaxRequestsInFlight
+			&& TotalDownloadedBytes == Other.TotalDownloadedBytes
+			&& BandwidthMbps == Other.BandwidthMbps
+			&& HttpDurationMsAvg == Other.HttpDurationMsAvg
 			&& FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect)
 			&& FMath::IsNearlyEqual(MaxTimeToWaitInQueue, Other.MaxTimeToWaitInQueue);
 	}
@@ -343,6 +361,19 @@ protected:
 	TMap<EHttpFlushReason, FHttpFlushTimeLimit> FlushTimeLimitsMap;
 
 	FHttpStats HttpStats;
+	struct FHttpStatsHistory
+	{
+		static constexpr int32 HttpHistoryCount = 16;
+		int32 HistoryIndex = 0;
+
+		int64 DownloadedBytes[HttpHistoryCount] = { 0 };
+		int64 DurationMs[HttpHistoryCount] = { 0 };
+
+		int64 TotalDownloadedBytes = 0;
+		int64 TotalUploadedBytes = 0;
+		int64 TotalDuration = 0;
+	};
+	FHttpStatsHistory HttpStatsHistory;
 
 	bool bUseEventLoop = true;
 
@@ -373,6 +404,9 @@ PACKAGE_SCOPE:
 
 	/** Record the time to connect, to have a general idea how long the client usually take to connect for success requests, to adjust the connection timeout */
 	HTTP_API void RecordStatTimeToConnect(float Duration);
+
+	/** Record the requests waiting in flight, to have an idea if there are too many concurrent requests */
+	HTTP_API void RecordStatRequestsInFlight(uint32 RequestsInFlight);
 
 	/** Record the requests waiting in queue, to have an idea if there are too many requests or if request number limit is too small */
 	HTTP_API void RecordStatRequestsInQueue(uint32 RequestsInQueue);
