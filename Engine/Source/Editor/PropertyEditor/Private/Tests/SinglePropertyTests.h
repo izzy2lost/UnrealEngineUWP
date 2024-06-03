@@ -8,7 +8,7 @@
 #include "Modules/ModuleManager.h"
 #include "Misc/AutomationTest.h"
 #include "PropertyEditorModule.h"
-#include "UObject/Object.h"
+#include "CoreUObject.h"
 
 #include "SinglePropertyTests.generated.h"
 
