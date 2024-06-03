@@ -181,6 +181,12 @@ namespace GeometryCollectionTest
 			Chaos::FErrorReporter ErrorReporter;
 			BuildSimulationData(ErrorReporter, *RestCollection.Get(), SimulationParams.Shared);
 
+			SimulationParams.bUseSimplicialsWhenAvailable =
+				SimulationParams.RestCollectionShared
+				&& SimulationParams.RestCollectionShared->HasAttribute(FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup)
+				&& SimulationParams.Shared.SizeSpecificData[0].CollisionShapesData.Num()
+				&& (SimulationParams.Shared.SizeSpecificData[0].CollisionShapesData[0].CollisionType == ECollisionTypeEnum::Chaos_Surface_Volumetric);
+
 			FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(*DynamicCollection, *RestCollection, SimulationParams);
 		}
 

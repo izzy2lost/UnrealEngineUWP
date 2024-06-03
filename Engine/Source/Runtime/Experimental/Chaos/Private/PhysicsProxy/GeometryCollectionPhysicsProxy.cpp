@@ -644,31 +644,6 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 		PhysicsThreadCollection.CopyMatchingAttributesFrom(DynamicCollection, MakeArrayView(SkipList, SkipListSize));
 		PhysicsThreadCollection.CopyInitialVelocityAttributesFrom(DynamicCollection);
 
-		// Copy simplicials.
-		// TODO: Ryan - Should we just transfer ownership of the SimplicialsAttribute from the DynamicCollection to
-		// the PhysicsThreadCollection?
-		{
-			if (FGeometryCollection::AreCollisionParticlesEnabled()
-				&& DynamicCollection.HasAttribute(DynamicCollection.SimplicialsAttribute, FTransformCollection::TransformGroup))
-			{
-				const auto& SourceSimplicials = DynamicCollection.GetAttribute<TUniquePtr<FSimplicial>>(
-					DynamicCollection.SimplicialsAttribute, FTransformCollection::TransformGroup);
-				for (int32 Index = PhysicsThreadCollection.NumElements(FTransformCollection::TransformGroup) - 1; 0 <= Index; Index--)
-				{
-					PhysicsThreadCollection.Simplicials[Index].Reset(
-						SourceSimplicials[Index] ? SourceSimplicials[Index]->NewCopy() : nullptr);
-				}
-			}
-			else
-			{
-				for (int32 Index = PhysicsThreadCollection.NumElements(FTransformCollection::TransformGroup) - 1; 0 <= Index; Index--)
-				{
-					PhysicsThreadCollection.Simplicials[Index].Reset();
-				}
-			}
-		}
-
-
 		if (Parameters.EnableClustering)
 		{
 			// make sure we set Activate the right way when clustering is enabled ( only root should be enabled at start ) 
@@ -973,35 +948,6 @@ void FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(FGeometryDynam
 		InitialVelocityFacade.Fill(FVector3f(Params.InitialLinearVelocity), FVector3f(Params.InitialAngularVelocity));
 	}
 
-	// process simplicials
-	{
-		// CVar defined in BodyInstance but pertinent here as we will need to copy simplicials in the case that this is set.
-		// Original CVar is read-only so taking a static ptr here is fine as the value cannot be changed
-		static IConsoleVariable* AnalyticDisableCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("p.IgnoreAnalyticCollisionsOverride"));
-		static const bool bAnalyticsDisabled = (AnalyticDisableCVar && AnalyticDisableCVar->GetBool());
-
-		if (FGeometryCollection::AreCollisionParticlesEnabled()
-			&& RestCollection.HasAttribute(DynamicCollection.SimplicialsAttribute, FTransformCollection::TransformGroup)
-			&& Params.Shared.SizeSpecificData[0].CollisionShapesData.Num()
-			&& (Params.Shared.SizeSpecificData[0].CollisionShapesData[0].CollisionType == ECollisionTypeEnum::Chaos_Surface_Volumetric || bAnalyticsDisabled))
-		{
-			const auto& RestSimplicials = RestCollection.GetAttribute<TUniquePtr<FSimplicial>>(
-				DynamicCollection.SimplicialsAttribute, FTransformCollection::TransformGroup);
-			for (int32 Index = DynamicCollection.NumElements(FTransformCollection::TransformGroup) - 1; 0 <= Index; Index--)
-			{
-				DynamicCollection.Simplicials[Index].Reset(
-					RestSimplicials[Index] ? RestSimplicials[Index]->NewCopy() : nullptr);
-			}
-		}
-		else
-		{
-			for (int32 Index = DynamicCollection.NumElements(FTransformCollection::TransformGroup) - 1; 0 <= Index; Index--)
-			{
-				DynamicCollection.Simplicials[Index].Reset();
-			}
-		}
-	}
-
 	// Process Activity
 	{
 		const int32 NumTransforms = DynamicCollection.SimulatableParticles.Num();
@@ -1222,7 +1168,13 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 		const TManagedArray<bool>& SimulatableParticles = DynamicCollection.SimulatableParticles;
 		const TManagedArray<FTransform>& MassToLocal = RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
-		const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
+
+		using FSimplicialUniquePtr = TUniquePtr<FCollisionStructureManager::FSimplicial>;
+		const TManagedArray<FSimplicialUniquePtr>* Simplicials = nullptr;
+		if (Parameters.bUseSimplicialsWhenAvailable)
+		{
+			Simplicials = RestCollection->FindAttribute<FSimplicialUniquePtr>(DynamicCollection.SimplicialsAttribute, FTransformCollection::TransformGroup);
+		}
 
 		// In PushToPhysicsState, we're going to compute a relative transform from Parameters.PrevWorldTransform
 		// to a particle's current world transform to get its relative transform. Then, that relative transform is
@@ -1275,7 +1227,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				PopulateSimulatedParticle(
 					Handle,
 					Parameters.Shared,
-					Simplicials[TransformGroupIndex].Get(),
+					Simplicials? (*Simplicials)[TransformGroupIndex].Get(): nullptr,
 					(bBuildGeometryForChildrenOnPT || (TransformGroupIndex == Parameters.InitialRootIndex)) ? Implicits[TransformGroupIndex] : nullptr,
 					SimFilter,
 					QueryFilter,
@@ -1687,7 +1639,13 @@ void FGeometryCollectionPhysicsProxy::CreateChildrenGeometry_Internal()
 			check(NumTransforms == PhysicsThreadCollection.NumElements(FTransformCollection::TransformGroup));
 			const TManagedArray<FTransform>& MassToLocal = RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 			const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = PhysicsThreadCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
-			const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = PhysicsThreadCollection.Simplicials;
+
+			using FSimplicialUniquePtr = TUniquePtr<FCollisionStructureManager::FSimplicial>;
+			const TManagedArray<FSimplicialUniquePtr>* Simplicials = nullptr;
+			if (Parameters.bUseSimplicialsWhenAvailable)
+			{
+				Simplicials = RestCollection->FindAttribute<FSimplicialUniquePtr>(FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup);
+			}
 
 			// In PushToPhysicsState, we're going to compute a relative transform from Parameters.PrevWorldTransform
 			// to a particle's current world transform to get its relative transform. Then, that relative transform is
@@ -1709,7 +1667,8 @@ void FGeometryCollectionPhysicsProxy::CreateChildrenGeometry_Internal()
 					if (ensure(Handle) && Handle->GetGeometry() == nullptr)
 					{
 						const FTransform WorldTransform = MassToLocal[TransformIndex] * Transform[TransformIndex] * Parameters.WorldTransform;
-						SetImplicitToPTParticles(Handle, Parameters.Shared, Simplicials[TransformIndex].Get(), Implicits[TransformIndex], SimFilter, QueryFilter, WorldTransform, CollisionParticlesPerObjectFraction);
+						const FCollisionStructureManager::FSimplicial* Simplicial = Simplicials ? (*Simplicials)[TransformIndex].Get() : nullptr;
+						SetImplicitToPTParticles(Handle, Parameters.Shared, Simplicial, Implicits[TransformIndex], SimFilter, QueryFilter, WorldTransform, CollisionParticlesPerObjectFraction);
 						check(Handle->GetGeometry() != nullptr);
 					}
 				}
@@ -1885,7 +1844,13 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	TManagedArray<uint8>& DynamicState = DynamicCollection.DynamicState;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollectionShared->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
-	const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
+
+	using FSimplicialUniquePtr = TUniquePtr<FCollisionStructureManager::FSimplicial>;
+	const TManagedArray<FSimplicialUniquePtr>* Simplicials = nullptr;
+	if (Parameters.bUseSimplicialsWhenAvailable)
+	{
+		Simplicials = Parameters.RestCollectionShared->FindAttribute<FSimplicialUniquePtr>(DynamicCollection.SimplicialsAttribute, FTransformCollection::TransformGroup);
+	}
 	Chaos::Facades::FCollectionAnchoringFacade AnchoringFacade(DynamicCollection);
 
 	//If we are a root particle use the world transform, otherwise set the relative transform
@@ -1934,7 +1899,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	PopulateSimulatedParticle(
 		Handle,
 		Parameters.Shared,
-		Simplicials[CollectionClusterIndex].Get(),
+		Simplicials? (*Simplicials)[CollectionClusterIndex].Get(): nullptr,
 		(bBuildGeometryForChildrenOnPT || (CollectionClusterIndex == Parameters.InitialRootIndex)) ? Implicits[CollectionClusterIndex] : nullptr,
 		SimFilter,
 		QueryFilter,

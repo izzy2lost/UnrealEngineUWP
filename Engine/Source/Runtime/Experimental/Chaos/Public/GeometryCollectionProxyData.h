@@ -118,7 +118,9 @@ public:
 	TManagedArray<uint8> DynamicState; 
 	static_assert(sizeof(EObjectStateTypeEnum) <= sizeof(uint8)); // DynamicState must fit  EObjectStateTypeEnum
 
+	UE_DEPRECATED(5.5, "Simplicials array is optional and should be queried using the FindAttribute method")
 	TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>> Simplicials;
+
 	TManagedArray<bool> SimulatableParticles;
 
 	UE_DEPRECATED(5.4, "CollisionStructureID attribute is no longer supported")

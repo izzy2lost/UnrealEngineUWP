@@ -50,10 +50,6 @@ namespace GeometryCollectionTest
 		{
 			// validate that Simplicials are null when CollisionType==Chaos_Volumetric
 			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 4);
-			EXPECT_EQ(Collection->DynamicCollection->Simplicials[0], nullptr);
-			EXPECT_EQ(Collection->DynamicCollection->Simplicials[1], nullptr);
-			EXPECT_EQ(Collection->DynamicCollection->Simplicials[2], nullptr);
-			EXPECT_EQ(Collection->DynamicCollection->Simplicials[3], nullptr);
 			EXPECT_EQ(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0), nullptr);
 
 			const FReal MaxRestingSeparation = -UnitTest.Solver->GetEvolution()->GetGravityForces().GetAcceleration(0).Z * UnitTest.Dt * UnitTest.Dt;	// PBD resting separation will be up to this
@@ -95,12 +91,16 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 		}
 		{
+			using FSimplicialPtr = TUniquePtr<FCollisionStructureManager::FSimplicial>;
+			TManagedArray<FSimplicialPtr>* Simplicials = Collection->RestCollection->FindAttribute<FSimplicialPtr>(FGeometryDynamicCollection::SimplicialsAttribute, FGeometryCollection::TransformAttribute);
+			check(Simplicials);
+
 			// validate that Simplicials are null when CollisionType==Chaos_Volumetric
 			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 4);
-			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]!=nullptr);
+			EXPECT_TRUE((*Simplicials)[0]!=nullptr);
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)!=nullptr);
-			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
-			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() != 0);
+			EXPECT_TRUE((*Simplicials)[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
+			EXPECT_TRUE((*Simplicials)[0]->Size() != 0);
 
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z - (Radius + 10.f)), KINDA_SMALL_NUMBER);
 			EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, Radius, KINDA_SMALL_NUMBER); 
@@ -327,17 +327,21 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 		}
 		{
+			using FSimplicialPtr = TUniquePtr<FCollisionStructureManager::FSimplicial>;
+			TManagedArray<FSimplicialPtr>* Simplicials = Collection->RestCollection->FindAttribute<FSimplicialPtr>(FGeometryDynamicCollection::SimplicialsAttribute, FGeometryCollection::TransformAttribute);
+			check(Simplicials);
+
 			// validate simplicials and implicits are configured correctly
 			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 4);
-			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0] != nullptr);
+			EXPECT_TRUE((*Simplicials)[0] != nullptr);
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0) != nullptr);
-			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
-			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() != 0);
+			EXPECT_TRUE((*Simplicials)[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
+			EXPECT_TRUE((*Simplicials)[0]->Size() != 0);
 			// The following test has been disabled because from now we remove the Implicits after initialization to free up some memory
 			// EXPECT_TRUE(Collection->DynamicCollection->GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[0]->GetType() == (int32)Chaos::ImplicitObjectType::LevelSet);
 
 			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->GetNumTransforms(), 4);
-			EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->Simplicials[0] == nullptr);
+			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(1) == nullptr);
 			// The following test has been disabled because from now we remove the Implicits after initialization to free up some memory
 			// EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[0]->GetType() == (int32)Chaos::ImplicitObjectType::Sphere);
 

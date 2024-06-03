@@ -214,6 +214,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bEnableStrainOnCollision(true)
 		, bUseStaticMeshCollisionForTraces(false)
 		, bOptimizeConvexes(true)
+		, bUseSimplicialsWhenAvailable(false)
 		, bUseDamagePropagation(false)
 		, BreakDamagePropagationFactor(1.0f)
 		, ShockDamagePropagationFactor(0.0f)
@@ -286,6 +287,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bEnableStrainOnCollision(Other.bEnableStrainOnCollision)
 		, bUseStaticMeshCollisionForTraces(Other.bUseStaticMeshCollisionForTraces)
 		, bOptimizeConvexes(Other.bOptimizeConvexes)
+		, bUseSimplicialsWhenAvailable(Other.bUseSimplicialsWhenAvailable)
 		, bUseDamagePropagation(Other.bUseDamagePropagation)
 		, BreakDamagePropagationFactor(Other.BreakDamagePropagationFactor)
 		, ShockDamagePropagationFactor(Other.ShockDamagePropagationFactor)
@@ -392,7 +394,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool bEnableStrainOnCollision : 1;
 	bool bUseStaticMeshCollisionForTraces : 1;
-	bool bOptimizeConvexes : 1 = true;
+	bool bOptimizeConvexes : 1;
+	bool bUseSimplicialsWhenAvailable : 1;
 
 	bool bUseDamagePropagation : 1;
 	float BreakDamagePropagationFactor;

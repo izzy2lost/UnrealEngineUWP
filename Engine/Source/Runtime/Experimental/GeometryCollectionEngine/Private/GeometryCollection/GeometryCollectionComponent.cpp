@@ -3855,6 +3855,11 @@ static FORCEINLINE_DEBUGGABLE int32 ComputeParticleLevel(Chaos::FPBDRigidCluster
 
 void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 {
+	// CVar defined in BodyInstance but pertinent here as we will need to copy simplicials in the case that this is set.
+	// Original CVar is read-only so taking a static ptr here is fine as the value cannot be changed
+	static IConsoleVariable* AnalyticDisableCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("p.IgnoreAnalyticCollisionsOverride"));
+	static const bool bAnalyticsDisabled = (AnalyticDisableCVar && AnalyticDisableCVar->GetBool());
+
 	FSimulationParameters SimulationParameters;
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -3862,6 +3867,7 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 #endif
 		EClusterConnectionTypeEnum ClusterCollectionType = ClusterConnectionType_DEPRECATED;
 		float ConnectionGraphBoundsFilteringMargin = 0;
+		bool bUseSimplicialWhenAvailable = false;
 		if (RestCollection)
 		{
 			RestCollection->GetSharedSimulationParams(SimulationParameters.Shared);
@@ -3873,6 +3879,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			SimulationParameters.InitialRootIndex = RestCollection->GetRootIndex();
 			ClusterCollectionType = RestCollection->ClusterConnectionType;
 			ConnectionGraphBoundsFilteringMargin = RestCollection->ConnectionGraphBoundsFilteringMargin;
+			bUseSimplicialWhenAvailable =
+				FGeometryCollection::AreCollisionParticlesEnabled()
+				&& SimulationParameters.RestCollectionShared
+				&& SimulationParameters.RestCollectionShared->HasAttribute(FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup)
+				&& SimulationParameters.Shared.SizeSpecificData[0].CollisionShapesData.Num()
+				&& (SimulationParameters.Shared.SizeSpecificData[0].CollisionShapesData[0].CollisionType == ECollisionTypeEnum::Chaos_Surface_Volumetric || bAnalyticsDisabled)
+				;
 		}
 		SimulationParameters.Simulating = BodyInstance.bSimulatePhysics;
 		SimulationParameters.EnableClustering = EnableClustering;
@@ -3921,6 +3934,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		SimulationParameters.bEnableStrainOnCollision = bEnableDamageFromCollision;
 		SimulationParameters.bUseStaticMeshCollisionForTraces = bUseStaticMeshCollisionForTraces;
 		SimulationParameters.bOptimizeConvexes = RestCollection ? RestCollection->bOptimizeConvexes : true;
+		SimulationParameters.bUseSimplicialsWhenAvailable = bUseSimplicialWhenAvailable;
 
 #if SIMULATIONPARAMETERS_CACHE_PARAMETERS
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
