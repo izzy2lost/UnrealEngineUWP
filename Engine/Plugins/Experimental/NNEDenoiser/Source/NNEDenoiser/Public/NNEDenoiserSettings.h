@@ -16,8 +16,8 @@ enum EDenoiserRuntimeType : uint8
 	RDG
 };
 
-/** Settings used to create a NNE Denoise */
-UCLASS(Config = Engine, meta = (DisplayName = "NNE Denoise"))
+/** Settings used to create a NNE Denoiser */
+UCLASS(Config = Engine, meta = (DisplayName = "NNE Denoiser"))
 class NNEDENOISER_API UNNEDenoiserSettings : public UDeveloperSettingsBackedByCVars
 {
 	GENERATED_BODY()
@@ -27,16 +27,16 @@ public:
 
 	virtual void PostInitProperties() override;
 
-	/** Denoiser model data used to create a NNE Denoise */
-	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoise", meta = (DisplayName = "Denoiser model data", ToolTip = "Select the denoiser model data"))
+	/** Denoiser model data used to create a NNE Denoiser */
+	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Denoiser model data", ToolTip = "Select the denoiser model data"))
 	TSoftObjectPtr<UNNEDenoiserModelData> DenoiserModelData;
 
 private:
-	/** Runtime type used to run the NNE Denoise model. Backed by the console variable 'NNEDenoiser.Runtime.Type'. */
-	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoise", meta = (DisplayName = "Runtime Type", ToolTip = "Select a Runtime type", ConsoleVariable = "NNEDenoiser.Runtime.Type"))
+	/** Runtime type used to run the NNE Denoiser model. Backed by the console variable 'NNEDenoiser.Runtime.Type'. */
+	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Runtime Type", ToolTip = "Select a Runtime type", ConsoleVariable = "NNEDenoiser.Runtime.Type"))
 	TEnumAsByte<EDenoiserRuntimeType> RuntimeType;
 
-	/** Runtime name used to run the NNE Denoise model. Backed by the console variable 'NNEDenoiser.Runtime.Name'. */
-	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoise", meta = (DisplayName = "Runtime Name Override", ToolTip = "(Optional) Specify the Runtime name", ConsoleVariable = "NNEDenoiser.Runtime.Name"))
+	/** Runtime name used to run the NNE Denoiser model. Backed by the console variable 'NNEDenoiser.Runtime.Name'. */
+	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Runtime Name Override", ToolTip = "(Optional) Specify the Runtime name", ConsoleVariable = "NNEDenoiser.Runtime.Name"))
 	FString RuntimeName;
 };

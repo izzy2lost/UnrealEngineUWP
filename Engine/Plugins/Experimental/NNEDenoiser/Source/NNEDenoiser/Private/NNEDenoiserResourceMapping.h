@@ -100,6 +100,16 @@ public:
 		return InputMapping.Add_GetRef(MoveTemp(ResourceMapping));
 	}
 
+	const FResourceMapping* Get(int32 InputIndex) const
+	{
+		if (InputIndex >= 0 && InputIndex < InputMapping.Num())
+		{
+			return &InputMapping[InputIndex];
+		}
+
+		return {};
+	}
+
 	const FResourceMapping& GetChecked(int32 InputIndex) const
 	{
 		check(InputIndex >= 0 && InputIndex < InputMapping.Num());

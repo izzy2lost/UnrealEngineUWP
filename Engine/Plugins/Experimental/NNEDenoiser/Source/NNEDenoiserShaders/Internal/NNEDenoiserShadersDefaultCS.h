@@ -26,49 +26,89 @@ namespace UE::NNEDenoiserShaders::Internal
 		static constexpr int32 MAX_NUM_MAPPED_CHANNELS{ 4 };
 	};
 	
-	class NNEDENOISERSHADERS_API FNNEDenoiserReadInputCS : public FGlobalShader
+	class NNEDENOISERSHADERS_API FNNEDenoiserTextureBufferMappedCopyCS : public FGlobalShader
 	{
-		DECLARE_GLOBAL_SHADER(FNNEDenoiserReadInputCS);
-		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserReadInputCS, FGlobalShader)
+		DECLARE_GLOBAL_SHADER(FNNEDenoiserTextureBufferMappedCopyCS);
+		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserTextureBufferMappedCopyCS, FGlobalShader)
 
 		class FNNEDenoiserDataType : SHADER_PERMUTATION_ENUM_CLASS("BUFFER_TYPE_INDEX", ENNEDenoiserDataType);
-		class FNNEDenoiserNumMappedChannels : SHADER_PERMUTATION_RANGE_INT("NUM_MAPPED_CHANNELS", 0, FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS);
+		class FNNEDenoiserNumMappedChannels : SHADER_PERMUTATION_RANGE_INT("NUM_MAPPED_CHANNELS", 0, FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS + 1);
 		using FPermutationDomain = TShaderPermutationDomain<FNNEDenoiserDataType, FNNEDenoiserNumMappedChannels>;
 
 	public:
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-			SHADER_PARAMETER(int32, InputTextureWidth)
-			SHADER_PARAMETER(int32, InputTextureHeight)
+			SHADER_PARAMETER(int32, Width)
+			SHADER_PARAMETER(int32, Height)
 			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
-			SHADER_PARAMETER(int32, InputBufferWidth)
-			SHADER_PARAMETER(int32, InputBufferHeight)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputBuffer)
-			SHADER_PARAMETER_ARRAY(FIntVector4, BufferChannel_TextureChannel_Unused_Unused, [FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS])
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputBuffer)
+			SHADER_PARAMETER_ARRAY(FIntVector4, OutputChannel_InputChannel_Unused_Unused, [FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS])
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
 	};
 
-	class NNEDENOISERSHADERS_API FNNEDenoiserWriteOutputCS : public FGlobalShader
+	class NNEDENOISERSHADERS_API FNNEDenoiserBufferMappedCopyCS : public FGlobalShader
 	{
-		DECLARE_GLOBAL_SHADER(FNNEDenoiserWriteOutputCS);
-		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserWriteOutputCS, FGlobalShader)
+		DECLARE_GLOBAL_SHADER(FNNEDenoiserBufferMappedCopyCS);
+		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserBufferMappedCopyCS, FGlobalShader)
 
 		class FNNEDenoiserDataType : SHADER_PERMUTATION_ENUM_CLASS("BUFFER_TYPE_INDEX", ENNEDenoiserDataType);
-		class FNNEDenoiserNumMappedChannels : SHADER_PERMUTATION_RANGE_INT("NUM_MAPPED_CHANNELS", 0, FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS);
+		class FNNEDenoiserNumMappedChannels : SHADER_PERMUTATION_RANGE_INT("NUM_MAPPED_CHANNELS", 0, FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS + 1);
 		using FPermutationDomain = TShaderPermutationDomain<FNNEDenoiserDataType, FNNEDenoiserNumMappedChannels>;
 
 	public:
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-			SHADER_PARAMETER(int32, OutputBufferWidth)
-			SHADER_PARAMETER(int32, OutputBufferHeight)
+			SHADER_PARAMETER(int32, Width)
+			SHADER_PARAMETER(int32, Height)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputBuffer)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputBuffer)
-			SHADER_PARAMETER(int32, OutputTextureWidth)
-			SHADER_PARAMETER(int32, OutputTextureHeight)
+			SHADER_PARAMETER_ARRAY(FIntVector4, OutputChannel_InputChannel_Unused_Unused, [FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS])
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+	};
+
+	class NNEDENOISERSHADERS_API FNNEDenoiserBufferTextureMappedCopyCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FNNEDenoiserBufferTextureMappedCopyCS);
+		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserBufferTextureMappedCopyCS, FGlobalShader)
+
+		class FNNEDenoiserDataType : SHADER_PERMUTATION_ENUM_CLASS("BUFFER_TYPE_INDEX", ENNEDenoiserDataType);
+		class FNNEDenoiserNumMappedChannels : SHADER_PERMUTATION_RANGE_INT("NUM_MAPPED_CHANNELS", 0, FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS + 1);
+		using FPermutationDomain = TShaderPermutationDomain<FNNEDenoiserDataType, FNNEDenoiserNumMappedChannels>;
+
+	public:
+
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER(int32, Width)
+			SHADER_PARAMETER(int32, Height)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputBuffer)
 			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputTexture)
-			SHADER_PARAMETER_ARRAY(FIntVector4, BufferChannel_TextureChannel_Unused_Unused, [FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS])
+			SHADER_PARAMETER_ARRAY(FIntVector4, OutputChannel_InputChannel_Unused_Unused, [FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS])
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+	};
+
+	class NNEDENOISERSHADERS_API FNNEDenoiserTextureMappedCopyCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FNNEDenoiserTextureMappedCopyCS);
+		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserTextureMappedCopyCS, FGlobalShader)
+
+		class FNNEDenoiserDataType : SHADER_PERMUTATION_ENUM_CLASS("BUFFER_TYPE_INDEX", ENNEDenoiserDataType);
+		class FNNEDenoiserNumMappedChannels : SHADER_PERMUTATION_RANGE_INT("NUM_MAPPED_CHANNELS", 0, FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS + 1);
+		using FPermutationDomain = TShaderPermutationDomain<FNNEDenoiserDataType, FNNEDenoiserNumMappedChannels>;
+
+	public:
+
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER(int32, Width)
+			SHADER_PARAMETER(int32, Height)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputTexture)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputTexture)
+			SHADER_PARAMETER_ARRAY(FIntVector4, OutputChannel_InputChannel_Unused_Unused, [FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS])
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);

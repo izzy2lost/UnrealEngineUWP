@@ -173,6 +173,9 @@ bool FGenericDenoiser::Prepare(FIntPoint Extent)
 
 	LastExtent = Extent;
 
+	UE_LOG(LogNNEDenoiser, Log, TEXT("Prepared neural denoiser model:\n  Viewport   %dx%d\n  Num. tiles %dx%d\n  Tile size  %dx%d"),
+		Extent.X, Extent.Y, Tiling.Count.X, Tiling.Count.Y, Tiling.TileSize.X, Tiling.TileSize.Y);
+
 	return true;
 }
 
@@ -225,8 +228,6 @@ TUniquePtr<FHistory> FGenericDenoiser::AddPasses(
 
 	TArray<FRDGBufferRef> InputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetInputTensorDescs(), ModelInstance->GetInputTensorShapes());
 	TArray<FRDGBufferRef> OutputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetOutputTensorDescs(), GetOutputTensorShapes(*ModelInstance));
-
-	UE_LOG(LogNNEDenoiser, Log, TEXT("Divided work of size %dx%d into %dx%d tiles of size %dx%d each..."), Extent.X, Extent.Y, Tiling.Count.X, Tiling.Count.Y, Tiling.TileSize.X, Tiling.TileSize.Y);
 
 	for (int32 I = 0; I < Tiling.Tiles.Num(); I++)
 	{
