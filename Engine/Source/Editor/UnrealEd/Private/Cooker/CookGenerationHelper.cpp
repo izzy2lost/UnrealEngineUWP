@@ -1241,10 +1241,11 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 			UE_LOG(LogCook, Error,
 				TEXT("CookPackageSplitter failure: We are demoting a %s package from save and removing our references that keep its objects loaded.\n")
 				TEXT("This will allow the objects to be garbage collected and cause failures in the splitter which expects them to remain loaded.\n")
-				TEXT("Package=%s, Splitter=%s, ReleaseSaveReason=%s"),
+				TEXT("Package=%s, Splitter=%s, ReleaseSaveReason=%s, NewState=%s"),
 				Info.IsGenerator() ? TEXT("generator") : TEXT("generated"),
 				*Info.GetPackageName(),
-				*GetSplitDataObjectName().ToString(), LexToString(ReleaseSaveReason));
+				*GetSplitDataObjectName().ToString(), LexToString(ReleaseSaveReason), LexToString(NewState));
+			FDebug::DumpStackTraceToLog(ELogVerbosity::Display);
 		}
 		Info.CachedObjectsInOuterInfo.Empty();
 		Info.SetHasTakenOverCachedCookedPlatformData(false);

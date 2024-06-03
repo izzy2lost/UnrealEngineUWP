@@ -205,6 +205,7 @@ namespace UE::Cook
 		/** Number of bits required to store a valid EPackageState */
 		BitCount = 3,
 	};
+	const TCHAR* LexToString(UE::Cook::EPackageState State);
 
 	enum class EPackageStateProperty // Bitfield
 	{
