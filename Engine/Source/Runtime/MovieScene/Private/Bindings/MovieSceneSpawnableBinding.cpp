@@ -18,9 +18,6 @@
 
 #define LOCTEXT_NAMESPACE "FPossessableModel"
 
-
-static const FName SequencerActorTag(TEXT("SequencerActor"));
-
 UObject* UMovieSceneSpawnableBindingBase::SpawnObject(const FGuid& BindingId, int32 BindingIndex, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
 {
 	UWorld* WorldContext = GetWorldContext(SharedPlaybackState);
@@ -70,6 +67,7 @@ UObject* UMovieSceneSpawnableBindingBase::SpawnObject(const FGuid& BindingId, in
 		SpawnedActor->bIsEditorPreviewActor = false;
 #endif
 
+		static const FName SequencerActorTag(TEXT("SequencerActor"));
 		// tag this actor so we know it was spawned by sequencer
 		SpawnedActor->Tags.AddUnique(SequencerActorTag);
 
