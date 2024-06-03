@@ -290,8 +290,37 @@ public:
 	/** Aborts an async cook that hasn't begun. See CreatePhysicsMeshesAsync.  (Useful for cases where frequent updates at runtime would otherwise cause a backlog) */
 	ENGINE_API void AbortPhysicsMeshAsyncCreation();
 
+	enum class EBodySetupCookResult
+	{
+		NoError,
+		FailedToLock,
+		FailedToCook
+	};
+
+	struct FBodySetupTryCookResult
+	{
+		FByteBulkData* Data;
+		EBodySetupCookResult CookResult;
+	};
+
 private:
 	FByteBulkData* GetCookedFormatData();
+
+	/**
+	* Given a format name returns its cooked data.
+	*
+	* @param Format Physics format name.
+	* @return Cooked data or NULL of the data was not found.
+	*/
+	FByteBulkData* GetCookedData(FName Format);
+
+	/**
+	 * Attempt to get cooked physics data, with extended information about
+	 * potential failure cases during the cooking process
+	 * @param Format Physics format name
+	 * @return Cooked data, nullptr if no data or failure occured, plus a failure code
+	 */
+	FBodySetupTryCookResult TryGetCookedData(FName Format);
 
 	// #TODO MRMesh for some reason needs to be able to call this - that case needs fixed to correctly use the create meshes flow
 	friend class UMRMeshComponent;
@@ -311,14 +340,6 @@ private:
 	 * @param OnAsyncPhysicsCookFinished - User callback to call once we're finished
 	 */
 	void FinishCreatePhysicsMeshesAsync(FAsyncCookHelper* AsyncPhysicsCookHelper, FOnAsyncPhysicsCookFinished OnAsyncPhysicsCookFinished);
-
-	/**
-	* Given a format name returns its cooked data.
-	*
-	* @param Format Physics format name.
-	* @return Cooked data or NULL of the data was not found.
-	*/
-	FByteBulkData* GetCookedData(FName Format);
 
 public:
 
