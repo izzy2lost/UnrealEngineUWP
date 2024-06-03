@@ -383,6 +383,16 @@ void USmartObjectDefinition::PreSave(FObjectPreSaveContext SaveContext)
 
 	UpdateBindingDataHandles();
 
+#endif // WITH_EDITOR
+	
+}
+
+void USmartObjectDefinition::CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext)
+{
+	Super::CollectSaveOverrides(SaveContext);
+
+#if WITH_EDITOR
+
 	if (SaveContext.IsCooking()
 		&& SaveContext.GetTargetPlatform()->IsClientOnly()
 		&& GetDefault<USmartObjectSettings>()->bShouldExcludePreConditionsOnDedicatedClient
