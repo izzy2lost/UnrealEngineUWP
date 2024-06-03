@@ -648,7 +648,7 @@ namespace Horde.Server.Perforce
 			if (entry.HealthCheckUrl != null)
 			{
 				ServerHealth http = await GetServerHealthViaHttpAsync(entry.HealthCheckUrl, cancellationToken);
-				if (http.Status == PerforceServerStatus.Unhealthy)
+				if (http.Status != PerforceServerStatus.Unknown && http.Status < health.Status)
 				{
 					// Unhealthy HTTP status will override any p4 info-based status
 					health = new ServerHealth(http.Status, http.Detail);
