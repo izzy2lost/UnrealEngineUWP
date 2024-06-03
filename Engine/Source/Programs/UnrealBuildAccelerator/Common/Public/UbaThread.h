@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "UbaBinaryReaderWriter.h"
 #include "UbaEvent.h"
-#include "UbaMemory.h"
 
 namespace uba
 {
@@ -24,6 +24,7 @@ namespace uba
 	private:
 		Function<u32()>	m_func;
 		void* m_handle = nullptr;
+		ReaderWriterLock m_funcLock;
 
 		#if !PLATFORM_WINDOWS
 		Event m_finished;
