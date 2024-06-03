@@ -182,7 +182,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	Instances[0].Transforms = MakeArrayView(&FMatrix::Identity, 1);
 	Instances[0].InstanceContributionToHitGroupIndex = 0;
 
-	FRayTracingSceneWithGeometryInstances RayTracingScene = CreateRayTracingSceneWithGeometryInstances(Instances, 1);
+	FRayTracingSceneWithGeometryInstances RayTracingScene = CreateRayTracingSceneWithGeometryInstances(Instances);
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingScene.Scene->GetInitializer();
 

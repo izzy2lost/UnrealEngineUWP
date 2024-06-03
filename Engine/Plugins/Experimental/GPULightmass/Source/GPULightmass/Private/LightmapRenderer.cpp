@@ -1131,7 +1131,6 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 			FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances = CreateRayTracingSceneWithGeometryInstances(
 				RayTracingGeometryInstances,
-				1,
 				ERayTracingAccelerationStructureFlags::FastTrace);
 
 			RayTracingScene = SceneWithGeometryInstances.Scene;

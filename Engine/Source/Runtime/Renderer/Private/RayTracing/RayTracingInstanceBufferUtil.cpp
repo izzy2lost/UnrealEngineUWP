@@ -134,11 +134,10 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
-	uint8 NumLayers,
 	ERayTracingAccelerationStructureFlags BuildFlags)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return CreateRayTracingSceneWithGeometryInstances(Instances, NumLayers, 1, 1, 0, BuildFlags);
+	return CreateRayTracingSceneWithGeometryInstances(Instances, 1, 1, 1, 0, BuildFlags);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 

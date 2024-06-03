@@ -81,7 +81,6 @@ RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeom
 
 RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
-	uint8 NumLayers,
 	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace);
 
 // Helper function to fill upload buffers required by BuildRayTracingInstanceBuffer with instance descriptors

@@ -56,7 +56,7 @@ void FRayTracingScene::BuildInitializationData()
 	{
 		FLayer& Layer = Layers[LayerIndex];
 
-		Layer.InitializationData = CreateRayTracingSceneWithGeometryInstances(Layer.Instances, 1, BuildFlags);
+		Layer.InitializationData = CreateRayTracingSceneWithGeometryInstances(Layer.Instances, BuildFlags);
 	}
 }
 
