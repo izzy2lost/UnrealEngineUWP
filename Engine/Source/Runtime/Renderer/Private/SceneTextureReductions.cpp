@@ -40,6 +40,7 @@ class FHZBBuildPS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSharedHZBParameters, Shared)
+		SHADER_PARAMETER(int32, SourceMipIndex)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -237,6 +238,7 @@ void BuildHZB(
 
 			FHZBBuildPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHZBBuildPS::FParameters>();
 			PassParameters->Shared = ShaderParameters;
+			PassParameters->SourceMipIndex = GRHISupportsTextureViews ? 0 : StartDestMip - 1;
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(FurthestHZBTexture, ERenderTargetLoadAction::ENoAction, StartDestMip);
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(FeatureLevel);
@@ -291,7 +293,7 @@ void BuildHZB(
 		FIntVector4 PixelViewPortMinMax = FIntVector4(0, 0, SrcSize.X - 1, SrcSize.Y - 1);
 		
 		{
-			FRDGTextureSRVRef ParentTextureMip = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(FurthestHZBTexture, StartDestMip - 1));
+			FRDGTextureSRVRef ParentTextureMip = GraphBuilder.CreateSRV(GRHISupportsTextureViews ? FRDGTextureSRVDesc::CreateForMipLevel(FurthestHZBTexture, StartDestMip - 1) : FRDGTextureSRVDesc::Create(FurthestHZBTexture));
 			ReduceMips(ParentTextureMip, SrcSize,
 				StartDestMip, DispatchThreadIdToBufferUV, InputViewportMaxBound, PixelViewPortMinMax,
 				/* bOutputClosest = */ false, /* bOutputFurthest = */ true);
@@ -300,7 +302,7 @@ void BuildHZB(
 		if (bReduceClosestDepth)
 		{
 			check(ClosestHZBTexture)
-			FRDGTextureSRVRef ParentTextureMip = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(ClosestHZBTexture, StartDestMip - 1));
+			FRDGTextureSRVRef ParentTextureMip = GraphBuilder.CreateSRV(GRHISupportsTextureViews ? FRDGTextureSRVDesc::CreateForMipLevel(ClosestHZBTexture, StartDestMip - 1) : FRDGTextureSRVDesc::Create(ClosestHZBTexture));
 			ReduceMips(ParentTextureMip, SrcSize,
 				StartDestMip, DispatchThreadIdToBufferUV, InputViewportMaxBound, PixelViewPortMinMax,
 				/* bOutputClosest = */ true, /* bOutputFurthest = */ false);
