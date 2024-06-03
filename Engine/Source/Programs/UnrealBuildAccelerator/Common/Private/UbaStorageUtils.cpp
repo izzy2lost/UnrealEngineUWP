@@ -9,13 +9,15 @@
 
 namespace uba
 {
-	CasKey CalculateCasKey(u8* fileMem, u64 fileSize, bool storeCompressed, WorkManager* workManager)
+	CasKey CalculateCasKey(u8* fileMem, u64 fileSize, bool storeCompressed, WorkManager* workManager, const tchar* hint)
 	{
 		constexpr u32 MaxWorkItemsPerAction2 = 128; // Cap this to not starve other things
 		CasKeyHasher hasher;
 
 		if (fileSize == 0)
 			return ToCasKey(hasher, storeCompressed);
+
+		UBA_ASSERTF(fileSize < sizeof(CompressedObjFileHeader) || !((CompressedObjFileHeader*)fileMem)->IsValid(), TC("CalculateCasKey should never run on compressed file"));
 
 		#ifndef __clang_analyzer__
 

@@ -700,7 +700,7 @@ namespace uba
 							return false;
 
 						fetcher.sizeOnDisk = localBlock.writtenSize;
-						casKey = CalculateCasKey(localBlock.memory, localBlock.writtenSize, false, nullptr);
+						casKey = CalculateCasKey(localBlock.memory, localBlock.writtenSize, false, nullptr, path.data);
 					}
 					else
 					{

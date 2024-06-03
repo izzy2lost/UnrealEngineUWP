@@ -2093,7 +2093,7 @@ namespace uba
 				if (m_storeObjFilesCompressed && process.m_startInfo.rules->StoreFileCompressed(file.name))
 				{
 					Storage::WriteResult res;
-					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager) };
+					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager, file.name.c_str()) };
 
 					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str(), &header, sizeof(header)))
 						return false;
