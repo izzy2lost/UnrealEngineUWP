@@ -661,6 +661,11 @@ bool UContextualAnimSceneActorComponent::TransitionContextualAnimScene(FName Sec
 {
 	return TransitionContextualAnimScene(SectionName, {});
 }
+
+bool UContextualAnimSceneActorComponent::TransitionContextualAnimSceneToSpecificSet(FName SectionName, int32 AnimSetIdx)
+{
+	return TransitionContextualAnimScene(SectionName, AnimSetIdx, {});
+}
 	
 bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx, int32 AnimSetIdx)
 {
@@ -1068,15 +1073,21 @@ void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimS
 	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
 		// Save movement state before the interaction starts so we can restore it when it ends
-		CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection = MovementComp->bIgnoreClientMovementErrorChecksAndCorrection;
 		CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion = MovementComp->bAllowPhysicsRotationDuringAnimRootMotion;
 		CharacterPropertiesBackup.bUseControllerDesiredRotation = MovementComp->bUseControllerDesiredRotation;
 		CharacterPropertiesBackup.bOrientRotationToMovement = MovementComp->bOrientRotationToMovement;
 		CharacterPropertiesBackup.MovementMode = MovementComp->MovementMode;
 		CharacterPropertiesBackup.bSimulatePhysics = MovementComp->UpdatedPrimitive && MovementComp->UpdatedPrimitive->IsSimulatingPhysics();
 
-		// Disable movement correction.
-		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
+		// Disable movement correction if needed
+		if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+		{
+			if (Asset->ShouldIgnoreClientMovementErrorChecksAndCorrection())
+			{
+				CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection = MovementComp->bIgnoreClientMovementErrorChecksAndCorrection;
+				MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
+			}
+		}
 
 		// Prevent physics rotation. During the interaction we want to be fully root motion driven
 		MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = false;
@@ -1097,10 +1108,18 @@ void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimS
 
 void UContextualAnimSceneActorComponent::RestoreMovementState(const FContextualAnimSceneBinding& Binding)
 {
+	// Restore movement state
 	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
-		// Restore movement state
-		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection;
+		// Restore movement correction if needed
+		if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+		{
+			if (Asset->ShouldIgnoreClientMovementErrorChecksAndCorrection())
+			{
+				MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection;
+			}
+		}
+
 		MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion;
 		MovementComp->bUseControllerDesiredRotation = CharacterPropertiesBackup.bUseControllerDesiredRotation;
 		MovementComp->bOrientRotationToMovement = CharacterPropertiesBackup.bOrientRotationToMovement;

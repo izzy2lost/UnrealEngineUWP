@@ -238,6 +238,7 @@ public:
 	FORCEINLINE int32 GetSampleRate() const { return SampleRate; }
 	FORCEINLINE float GetRadius() const { return Radius; }
 	FORCEINLINE bool ShouldPrecomputeAlignmentTracks() const { return bPrecomputeAlignmentTracks; }
+	FORCEINLINE bool ShouldIgnoreClientMovementErrorChecksAndCorrection() const { return bIgnoreClientMovementErrorChecksAndCorrection; }
 
 	const TArray<TEnumAsByte<ECollisionChannel>>& GetCollisionChannelsToIgnoreForRole(FName Role) const;
 	
@@ -351,6 +352,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	TArray<FContextualAnimAttachmentParams> AttachmentParams;
+
+	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay)
+	bool bIgnoreClientMovementErrorChecksAndCorrection = true;
 
 	/** Whether we should extract and cache alignment tracks off line. */
 	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay)

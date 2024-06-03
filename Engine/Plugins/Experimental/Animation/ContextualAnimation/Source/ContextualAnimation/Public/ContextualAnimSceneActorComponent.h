@@ -206,6 +206,9 @@ public:
 	bool TransitionContextualAnimScene(FName SectionName);
 	
 	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
+	bool TransitionContextualAnimSceneToSpecificSet(FName SectionName, int32 AnimSetIdx);
+
+	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
 	bool TransitionSingleActor(int32 SectionIdx, int32 AnimSetIdx);
 
 	bool StartContextualAnimScene(const FContextualAnimSceneBindings& InBindings, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
