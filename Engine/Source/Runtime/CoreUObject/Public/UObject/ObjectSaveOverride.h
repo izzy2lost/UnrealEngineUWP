@@ -13,6 +13,12 @@
  */
 struct FPropertySaveOverride
 {
+	void Merge(const FPropertySaveOverride& Other)
+	{
+		checkf(PropertyPath == Other.PropertyPath, TEXT("Merge called with an unrelated FPropertySaveOverride!"));
+		bMarkTransient |= Other.bMarkTransient;
+	}
+
 	FFieldPath PropertyPath;
 	bool bMarkTransient;
 };
@@ -20,6 +26,30 @@ struct FPropertySaveOverride
 /** Data to specify an override to apply to an object during save without mutating the object itself. */
 struct FObjectSaveOverride
 {
+	void Merge(const FObjectSaveOverride& Other)
+	{
+		bForceTransient |= Other.bForceTransient;
+
+		if (PropOverrides.IsEmpty())
+		{
+			PropOverrides = Other.PropOverrides;
+		}
+		else if (!Other.PropOverrides.IsEmpty())
+		{
+			for (const FPropertySaveOverride& OtherPropOverride : Other.PropOverrides)
+			{
+				if (FPropertySaveOverride* MatchingPropOverride = PropOverrides.FindByPredicate([&OtherPropOverride](const FPropertySaveOverride& PropOverride) { return PropOverride.PropertyPath == OtherPropOverride.PropertyPath; }))
+				{
+					MatchingPropOverride->Merge(OtherPropOverride);
+				}
+				else
+				{
+					PropOverrides.Add(OtherPropOverride);
+				}
+			}
+		}
+	}
+
 	TArray<FPropertySaveOverride> PropOverrides;
 
 	// Treats the object as RF_Transient for the duration of the save

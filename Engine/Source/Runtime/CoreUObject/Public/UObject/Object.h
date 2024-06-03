@@ -21,6 +21,7 @@ namespace UE::ConfigAccessTracking { struct FConfigAccessData; }
 class FConfigCacheIni;
 class FCustomPropertyConditionState;
 class FEditPropertyChain;
+class FObjectCollectSaveOverridesContext;
 class FObjectPostSaveContext;
 class FObjectPostSaveRootContext;
 class FObjectPreSaveContext;
@@ -290,6 +291,11 @@ public:
 	 * @warning: Objects created from within PreSave will NOT have PreSave called on them!!!
 	 */
 	COREUOBJECT_API virtual void PreSave(FObjectPreSaveContext SaveContext);
+
+	/**
+	 * Collect any save override state.
+	 */
+	COREUOBJECT_API virtual void CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext);
 
 #if WITH_EDITOR
 	/**

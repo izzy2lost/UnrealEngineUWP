@@ -1467,6 +1467,11 @@ void UObject::PreSave(FObjectPreSaveContext SaveContext)
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FCoreUObjectDelegates::OnObjectPreSave.Broadcast(this, SaveContext);
 #endif
+	CollectSaveOverrides(FObjectCollectSaveOverridesContext(SaveContext.Data));
+}
+
+void UObject::CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext)
+{
 }
 
 #if WITH_EDITOR

@@ -28,6 +28,20 @@ struct FObjectSaveContextData
 	COREUOBJECT_API void Set(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags);
 	COREUOBJECT_API void Set(UPackage* Package, const ITargetPlatform* InTargetPlatform, const FPackagePath& TargetPath, uint32 InSaveFlags);
 
+	/**
+	 * Add a save override to specific object. (i.e. mark certain objects or properties transient for this save)
+	 */
+	void AddSaveOverride(UObject* Target, FObjectSaveOverride InOverride)
+	{
+		if (FObjectSaveOverride* MatchingSaveOverride = SaveOverrides.Find(Target))
+		{
+			MatchingSaveOverride->Merge(InOverride);
+		}
+		else
+		{
+			SaveOverrides.Add(Target, MoveTemp(InOverride));
+		}
+	}
 
 	// Global Parameters that are read-only by the interfaces
 
@@ -94,6 +108,57 @@ struct FObjectSaveContextData
 	/** Call-site enforcement; records whether the base PreSave was called. */
 	bool bBaseClassCalled = false;
 
+};
+
+/** Interface used by CollectSaveOverrides to access the save parameters. */
+class FObjectCollectSaveOverridesContext
+{
+public:
+	explicit FObjectCollectSaveOverridesContext(FObjectSaveContextData& InData)
+		: Data(InData)
+	{
+		// Note: Doesn't increment NumRefPasses as CollectSaveOverrides is called from PreSave
+	}
+
+	FObjectCollectSaveOverridesContext(const FObjectCollectSaveOverridesContext& Other)
+		: Data(Other.Data)
+	{
+		// Note: Doesn't increment NumRefPasses as CollectSaveOverrides is called from PreSave
+	}
+
+	/** Report whether this is a save into a target-specific cooked format. */
+	bool IsCooking() const { return Data.TargetPlatform != nullptr; }
+
+	/** Return the targetplatform of the save, if cooking. Null if not cooking. */
+	const ITargetPlatform* GetTargetPlatform() const { return Data.TargetPlatform; }
+
+	bool IsCookByTheBook() const { return GetCookType()  == UE::Cook::ECookType::ByTheBook; }
+	bool IsCookOnTheFly() const { return GetCookType() == UE::Cook::ECookType::OnTheFly; }
+	bool IsCookTypeUnknown() const { return GetCookType() == UE::Cook::ECookType::Unknown; }
+	UE::Cook::ECookType GetCookType() const { return Data.CookType; }
+	UE::Cook::ECookingDLC GetCookingDLC() const { return Data.CookingDLC; }
+
+	/**
+	 * Return whether the package is being saved due to a procedural save.
+	 * Any save without the possibility of user-generated edits to the package is a procedural save (Cooking, EditorDomain).
+	 * This allows us to execute transforms that only need to be executed in response to new user data.
+	 */
+	bool IsProceduralSave() const { return Data.bProceduralSave; }
+
+	/** Return the save flags (ESaveFlags) of the save. */
+	uint32 GetSaveFlags() const { return Data.SaveFlags; }
+
+	/**
+	 * Add a save override to specific object. (i.e. mark certain objects or properties transient for this save)
+	 */
+	void AddSaveOverride(UObject* Target, FObjectSaveOverride InOverride)
+	{
+		Data.AddSaveOverride(Target, MoveTemp(InOverride));
+	}
+
+protected:
+	FObjectSaveContextData& Data;
+	friend class UObject;
 };
 
 /** Interface used by PreSave to access the save parameters. */
@@ -172,9 +237,10 @@ public:
 	/**
 	 * Add a save override to specific object. (i.e. mark certain objects or properties transient for this save)
 	 */
+	// TODO: UE_DEPRECATED(5.5, "Calling AddSaveOverride in UObject::PreSave is deprecated. Override UObject::CollectSaveOverrides and call AddSaveOverride on its context instead.")
 	void AddSaveOverride(UObject* Target, FObjectSaveOverride InOverride)
 	{
-		Data.SaveOverrides.Add(Target, MoveTemp(InOverride));
+		Data.AddSaveOverride(Target, MoveTemp(InOverride));
 	}
 
 protected:
