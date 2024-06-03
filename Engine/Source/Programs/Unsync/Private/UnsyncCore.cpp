@@ -1014,6 +1014,12 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 
 			UNSYNC_VERBOSE(L"Reading '%ls'", IndexFileInfo.Path.wstring().c_str());
 			TResult<FBuffer> FileBuffer = ProxyFileSystem.ReadFile(ToString(IndexFileInfo.Path));
+			if (FileBuffer.IsError())
+			{
+				LogError(FileBuffer.GetError());
+				return false;
+			}
+
 			FMemReader		 Reader(*FileBuffer);
 			FIOReaderStream	 Stream(Reader);
 

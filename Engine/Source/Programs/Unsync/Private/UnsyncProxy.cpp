@@ -752,7 +752,9 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 
 		if (Range.Size != Response.Buffer.Size())
 		{
-			Error.Set(AppError(L"Downloaded file chunk size mismatch"));
+			std::string ErrorMessage = fmt::format("Downloaded file chunk size mismatch. Expected {} bytes, got {} byte.", Range.Size, Response.Buffer.Size());
+			Error.Set(AppError(std::move(ErrorMessage)));
+			return;
 		}
 
 		uint64 WrittenBytes = Result.Write(Response.Buffer.Data(), Range.Offset, Range.Size);
