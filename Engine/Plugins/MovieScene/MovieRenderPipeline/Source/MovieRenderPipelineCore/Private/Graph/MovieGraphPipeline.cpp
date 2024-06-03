@@ -712,13 +712,11 @@ void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish
 		return;
 	}
 
-	//TArray<UMovieGraphOutputBase*> Settings = GetPipelinePrimaryConfig()->GetOutputContainers();
-	//Algo::SortBy(Settings, [](const UMovieGraphOutputBase* Setting) { return Setting->GetPriority(); });
-	//for (UMovieGraphOutputBase* Container : Settings)
-	//{
-	//	// All containers have finished processing, final shutdown.
-	//	Container->Finalize();
-	//}
+	// Notify all output nodes that they should finalize
+	for (const TObjectPtr<UMovieGraphFileOutputNode>& Node : GetOutputNodesUsed())
+	{
+		Node->OnAllFramesFinalized(this, PostRenderEvaluatedGraph);
+	}
 
 	TransitionToState(EMovieRenderPipelineState::Export);
 }
@@ -938,7 +936,7 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 	// some other stuff
 
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
-	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
+	TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
 	ProcessOutstandingFinishedFrames();
 
@@ -949,7 +947,7 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 		EvaluatedConfig->GetSettingsForBranch<UMovieGraphFileOutputNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
 	for (UMovieGraphFileOutputNode* FileOutputNode : FileOutputNodes)
 	{
-		FileOutputNode->OnAllShotFramesSubmitted(this, InShot);
+		FileOutputNode->OnAllShotFramesSubmitted(this, InShot, EvaluatedConfig);
 	}
 
 	// Ensure all of our Futures have been converted to the GeneratedOutputData

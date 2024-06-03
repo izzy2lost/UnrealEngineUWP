@@ -31,6 +31,9 @@ namespace UE::MovieGraph
 	struct FRenderTimeStatistics;
 }
 
+/** Convenience type for passing around pass data plus its identifier. */
+typedef TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>> FMovieGraphPassData;
+
 USTRUCT(BlueprintType)
 struct FMovieGraphImagePreviewData
 {

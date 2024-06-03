@@ -15,6 +15,8 @@ namespace UnrealBuildTool.Rules
 					"MovieSceneCapture",
 					"Projects",
 					"MovieRenderPipelineCore",
+					"SlateCore",
+					"OpenColorIO",
 				}
 			);
 

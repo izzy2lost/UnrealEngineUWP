@@ -19,6 +19,9 @@ class FAvidDNxMediaModule : public IModuleInterface
 		LibHandleDNx = LoadDll(TEXT("DNxHR.dll"));
 		LibHandleMXF = LoadDll(TEXT("DNxMXF-dynamic.dll"));
 		LibHandleDNxUncompressed = LoadDll(TEXT("DNxUncompressedSDK.dll"));
+
+		// Add exemption to FName::NameToDisplayString formatting to ensure "DNxHR" is displayed without a space
+		FName::AddNameToDisplayStringExemption(TEXT("DNxHR"));
 	}
 
 	virtual void ShutdownModule() override

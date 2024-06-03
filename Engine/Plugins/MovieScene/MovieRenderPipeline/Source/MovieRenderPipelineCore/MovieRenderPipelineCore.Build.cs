@@ -23,6 +23,8 @@ public class MovieRenderPipelineCore : ModuleRules
 				"DeveloperSettings",
 				"ClothingSystemRuntimeInterface",
 				"Slate",
+				"OpenColorIOWrapper",
+				"ImageCore",
 			}
 		);
 

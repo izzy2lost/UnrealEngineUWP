@@ -17,134 +17,7 @@
 #include "ImageWriteQueue.h"
 #include "Misc/Paths.h"
 #include "Async/TaskGraphInterfaces.h"
-
-#if WITH_OCIO
-#include "ImageCore.h" // For GetImageView()
-#include "OpenColorIOConfiguration.h"
-#include "OpenColorIOColorTransform.h"
-#include "OpenColorIOWrapper.h"
-#endif // WITH_OCIO
-
-namespace UE::MovieGraph::Private
-{	
-#if WITH_OCIO
-	struct FOpenColorIOPixelPreProcessor
-	{
-		FOpenColorIOPixelPreProcessor(FOpenColorIOWrapperProcessor&& InProcessor)
-			: Processor(InProcessor)
-		{ }
-
-		void operator()(FImagePixelData* PixelData)
-		{
-			check(PixelData);
-			Processor.TransformImage(PixelData->GetImageView());
-		}
-
-		FOpenColorIOWrapperProcessor Processor;
-	};
-
-	/**
-	 * Convenience function to resolve an OpenColorIO context with supported tokens.
-	 *
-	 * @return The resolved key/value context.
-	*/
-	TMap<FString, FString> ResolveOpenColorIOContext(
-		const TMap<FString, FString>& InContext,
-		const FMovieGraphRenderDataIdentifier& InRenderId,
-		const UMovieGraphPipeline* InPipeline,
-		TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig,
-		const FMovieGraphTraversalContext& InTraversalContext
-	)
-	{
-		TMap<FString, FString> OutContext;
-		OutContext.Reserve(InContext.Num());
-
-		FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(InRenderId, InPipeline, InEvaluatedConfig, InTraversalContext);
-
-		for (const TPair<FString, FString>& Pair : InContext)
-		{
-			FMovieGraphResolveArgs FormatArgs;
-			UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(Pair.Value, Params, FormatArgs);
-
-			FStringFormatNamedArguments NamedArgs;
-			for (const TPair<FString, FString>& Argument : FormatArgs.FilenameArguments)
-			{
-				NamedArgs.Add(Argument.Key, Argument.Value);
-			}
-
-			const FString& ResolvedValue = OutContext.Add(Pair.Key, FString::Format(*Pair.Value, NamedArgs));
-			UE_LOG(LogMovieRenderPipeline, VeryVerbose, TEXT("OCIO Context Key/Value: %s / %s"), *Pair.Key, *ResolvedValue);
-		}
-
-		return OutContext;
-	}
-
-	/**
-	 * Convenience function to create an OpenColorIO CPU processor based on the specified conversion settings.
-	 * We use the OpenColorIO processor wrapper directly to avoid concurrency issues with the uobjects lifetime.
-	 *
-	 * @return The pixel preprocessor if successful, nullptr otherwise.
-	*/
-	static FPixelPreProcessor CreateOpenColorIOPixelPreProcessor(const FOpenColorIOColorConversionSettings& InConversionSettings, const TMap<FString, FString>& InContext)
-	{
-		const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationSource = InConversionSettings.ConfigurationSource;
-		if (IsValid(ConfigurationSource))
-		{
-			const FOpenColorIOWrapperConfig* ConfigWrapper = ConfigurationSource->GetOrCreateConfigWrapper();
-			TObjectPtr<const UOpenColorIOColorTransform> ColorTransform = ConfigurationSource->FindTransform(InConversionSettings);
-			if (IsValid(ColorTransform))
-			{
-				FOpenColorIOWrapperProcessor Processor;
-				EOpenColorIOViewTransformDirection CurrentDisplayViewDirection;
-
-				if (ColorTransform->GetDisplayViewDirection(CurrentDisplayViewDirection))
-				{
-					Processor = FOpenColorIOWrapperProcessor(
-							ConfigWrapper,
-							ColorTransform->SourceColorSpace,
-							ColorTransform->Display,
-							ColorTransform->View,
-							static_cast<bool>(CurrentDisplayViewDirection),
-							InContext
-						);
-				}
-				else
-				{
-					Processor = FOpenColorIOWrapperProcessor(
-							ConfigWrapper,
-							ColorTransform->SourceColorSpace,
-							ColorTransform->DestinationColorSpace,
-							InContext
-						);
-				}
-
-				if (Processor.IsValid())
-				{
-					return FOpenColorIOPixelPreProcessor(MoveTemp(Processor));
-				}
-			}
-		}
-
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid configuration source or conversion settings, bypassing OpenColorIO transform."));
-
-		return {};
-	}
-
-	/* Utility function to warn the user in case they forgot to check "Disable Tone Curve", which in turn controls the render's scene capture source. */
-	void ValidateDisableTonecurve(const UE::MovieGraph::FMovieGraphSampleState& InPayload)
-	{
-		if (InPayload.SceneCaptureSource != ESceneCaptureSource::SCS_FinalColorHDR)
-		{
-			UE_CALL_ONCE([]
-				{
-					UE_LOG(LogMovieRenderPipeline, Warning, TEXT(
-						"The OCIO transform did not receive scene-referred linear colors, which most standard workflows expect."
-						"You may wish to disable the tonecurve on your renderer node(s)."));
-				});
-		}
-	}
-#endif // WITH_OCIO
-} //end namespace UE::MovieGraph::Private
+#include "Graph/MovieGraphOCIOHelper.h"
 
 UMovieGraphImageSequenceOutputNode::UMovieGraphImageSequenceOutputNode()
 {
@@ -160,44 +33,6 @@ bool UMovieGraphImageSequenceOutputNode::IsFinishedWritingToDiskImpl() const
 {
 	// Wait until the finalization fence is reached meaning we've written everything to disk.
 	return Super::IsFinishedWritingToDiskImpl() && (!FinalizeFence.IsValid() || FinalizeFence.WaitFor(0));
-}
-
-TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> UMovieGraphImageSequenceOutputNode::GetCompositedPasses(
-	UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData) const
-{
-	// Gather the passes that need to be composited
-	TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> CompositedPasses;
-
-	for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& RenderData : InRawFrameData->ImageOutputData)
-	{
-		UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-		check(Payload);
-		if (!Payload->bCompositeOnOtherRenders)
-		{
-			continue;
-		}
-
-		TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>> CompositePass;
-		CompositePass.Key = RenderData.Key;
-		CompositePass.Value = RenderData.Value->CopyImageData();
-		CompositedPasses.Add(MoveTemp(CompositePass));
-	}
-
-	// Sort composited passes if multiple were found. Passes with a higher sort order go to the end of the array so they
-	// get composited on top of passes with a lower sort order.
-	CompositedPasses.Sort([](
-		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassA,
-		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassB)
-	{
-		const UE::MovieGraph::FMovieGraphSampleState* PayloadA = PassA.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-		const UE::MovieGraph::FMovieGraphSampleState* PayloadB = PassB.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-		check(PayloadA);
-		check(PayloadB);
-
-		return PayloadA->CompositingSortOrder < PayloadB->CompositingSortOrder;
-	});
-
-	return CompositedPasses;
 }
 
 FString UMovieGraphImageSequenceOutputNode::CreateFileName(
@@ -357,39 +192,10 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		
 		bool bQuantizationEncodeSRGB = true;
 #if WITH_OCIO
-		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
+		if (FMovieGraphOCIOHelper::GenerateOcioPixelPreProcessor(Payload, InPipeline, InRawFrameData->EvaluatedConfig.Get(), OCIOConfiguration, OCIOContext, TileImageTask->PixelPreProcessors))
 		{
-			UE::MovieGraph::Private::ValidateDisableTonecurve(*Payload);
-
-			TMap<FString, FString> ResolvedOCIOContext;
-
-			const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationAsset = ParentNode->OCIOConfiguration.ColorConfiguration.ConfigurationSource;
-			if (IsValid(ConfigurationAsset))
-			{
-				ResolvedOCIOContext = ConfigurationAsset->Context;
-			}
-
-			ResolvedOCIOContext.Append(ParentNode->OCIOContext);
-
-			ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
-				ResolvedOCIOContext,
-				RenderData.Key,
-				InPipeline,
-				InRawFrameData->EvaluatedConfig.Get(),
-				Payload->TraversalContext
-			);
-
-			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
-				ParentNode->OCIOConfiguration.ColorConfiguration,
-				ResolvedOCIOContext
-			);
-			if (OCIOPixelPreProcessor)
-			{
-				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));
-				
-				// We assume that any encoding on the output transform should be done by OCIO
-				bQuantizationEncodeSRGB = false;
-			}
+			// We assume that any encoding on the output transform should be done by OCIO
+			bQuantizationEncodeSRGB = false;
 		}
 #endif // WITH_OCIO
 
@@ -484,19 +290,9 @@ void UMovieGraphImageSequenceOutputNode_EXR::UpdateTaskPerLayer(
 
 	bool bEnabledOCIO = false;
 #if WITH_OCIO
-	if (InParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
+	if (FMovieGraphOCIOHelper::GenerateOcioPixelPreProcessorWithContext(Payload, InParentNode->OCIOConfiguration, InResolvedOCIOContext, InOutImageTask.PixelPreprocessors.FindOrAdd(InLayerIndex)))
 	{
-		UE::MovieGraph::Private::ValidateDisableTonecurve(*Payload);
-
-		FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
-			InParentNode->OCIOConfiguration.ColorConfiguration,
-			InResolvedOCIOContext
-		);
-		if (OCIOPixelPreProcessor)
-		{
-			InOutImageTask.PixelPreprocessors.FindOrAdd(InLayerIndex).Emplace(MoveTemp(OCIOPixelPreProcessor));
-			bEnabledOCIO = true;
-		}
+		bEnabledOCIO = true;
 	}
 #endif // WITH_OCIO
 
@@ -590,7 +386,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 
 		TMap<FString, FString> ResolvedOCIOContext = {};
 #if WITH_OCIO
-		ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
+		ResolvedOCIOContext = FMovieGraphOCIOHelper::ResolveOpenColorIOContext(
 			ParentNode->OCIOContext,
 			RenderData.Key,
 			InPipeline,
@@ -725,7 +521,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 
 			TMap<FString, FString> ResolvedOCIOContext = {};
 #if WITH_OCIO
-			ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
+			ResolvedOCIOContext = FMovieGraphOCIOHelper::ResolveOpenColorIOContext(
 				ParentNode->OCIOContext,
 				RenderID,
 				InPipeline,

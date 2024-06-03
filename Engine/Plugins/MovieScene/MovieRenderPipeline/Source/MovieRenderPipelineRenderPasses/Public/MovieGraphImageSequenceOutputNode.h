@@ -4,11 +4,10 @@
 
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 
+#include "Async/Future.h"
 #include "IImageWrapper.h"
 #include "MoviePipelineEXROutput.h"
-#include "OpenColorIOColorSpace.h"
 #include "Styling/AppStyle.h"
-#include "Async/Future.h"
 
 #include "MovieGraphImageSequenceOutputNode.generated.h"
 
@@ -20,7 +19,7 @@ class IImageWriteQueue;
 * a series of jpeg, png, bmp, or .exr images. Create an instance of the appropriate class (such as 
 * UMovieGraphImageSequenceOutputNode_JPG) instead of this abstract base class.
 */
-UCLASS(Abstract)
+UCLASS(Abstract, PrioritizeCategories=("FileOutput"))
 class UMovieGraphImageSequenceOutputNode : public UMovieGraphFileOutputNode
 {
 	GENERATED_BODY()
@@ -60,10 +59,6 @@ public:
 	TMap<FString, FString> OCIOContext;
 
 protected:
-	/** Convenience function to get the list of active composite passes from render data. */
-	TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> GetCompositedPasses(
-		UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData) const;
-
 	/** Convenience function to create the output file name. */
 	FString CreateFileName(
 		UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,

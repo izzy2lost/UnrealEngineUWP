@@ -32,12 +32,17 @@ public:
 	 * See OnAllShotFramesSubmitted() for a method that is called when an individual shot has finished rendering.
 	 */
 	void OnAllFramesSubmitted(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) { OnAllFramesSubmittedImpl(InPipeline, InPrimaryJobEvaluatedGraph); }
+	
+	/**
+	 * This is called when the pipeline has finished rendering all shots, and the sequence export process is finishing up.
+	 */
+	void OnAllFramesFinalized(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) { OnAllFramesFinalizedImpl(InPipeline, InPrimaryJobEvaluatedGraph); }
 
 	/**
 	 * This is called when a shot has finished rendering its last frame, and the shot export process has not begun yet.
 	 * See OnAllFramesSubmitted() for a method that is called after all shots have finished rendering.
 	 */
-	void OnAllShotFramesSubmitted(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot) { OnAllShotFramesSubmittedImpl(InPipeline, InShot); }
+	void OnAllShotFramesSubmitted(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot, TObjectPtr<UMovieGraphEvaluatedConfig>& InShotEvaluatedGraph) { OnAllShotFramesSubmittedImpl(InPipeline, InShot, InShotEvaluatedGraph); }
 
 	/** Returns whether this node has finished writing all of its files to disk yet. */
 	bool IsFinishedWritingToDisk() const { return IsFinishedWritingToDiskImpl(); }
@@ -69,15 +74,19 @@ public:
 	uint8 bOverride_FileNameFormat : 1;
 
 	/** What format string should the final files use? Can include folder prefixes, and format string ({shot_name}, etc.) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_FileNameFormat"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FileOutput", meta=(EditCondition="bOverride_FileNameFormat"))
 	FString FileNameFormat = "{sequence_name}.{layer_name}.{frame_number}";
 
 protected:
 	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) {}
 	virtual void OnAllFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) {}
-	virtual void OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot) {}
+	virtual void OnAllFramesFinalizedImpl(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) {}
+	virtual void OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot, TObjectPtr<UMovieGraphEvaluatedConfig>& InShotEvaluatedGraph) {}
 	virtual bool IsFinishedWritingToDiskImpl() const { return true; }
 	
 	/** Returns the number of evaluated (active) file nodes on the specified branch. */
 	static int32 GetNumFileOutputNodes(const UMovieGraphEvaluatedConfig& InEvaluatedConfig, const FName& InBranchName);
+
+	/** Convenience function to get the list of active composite passes from render data. */
+	static TArray<FMovieGraphPassData> GetCompositedPasses(UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData);
 };
