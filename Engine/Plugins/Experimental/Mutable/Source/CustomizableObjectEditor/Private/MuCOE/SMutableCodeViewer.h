@@ -38,7 +38,6 @@ class SMutableSkeletonViewer;
 class SMutableStringViewer;
 class STextComboBox;
 class SWidget;
-namespace mu { struct Curve; }
 namespace mu { struct FProjector; }
 namespace mu { struct FShape; }
 struct FGeometry;
@@ -796,7 +795,7 @@ public:
 	void PreviewMutableProjector(const mu::FProjector* Projector);
 	void PreviewMutableMatrix(const FMatrix44f& Mat);
 	void PreviewMutableShape(const mu::FShape* Shape);
-	void PreviewMutableCurve(const mu::Curve* Curve);
+	void PreviewMutableCurve(const FRichCurve& Curve);
 	
 private:
 	void PrepareStringViewer();

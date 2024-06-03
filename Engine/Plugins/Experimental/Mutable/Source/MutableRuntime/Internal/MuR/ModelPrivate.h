@@ -253,7 +253,7 @@ namespace mu
 		TArray<FShape> m_constantShapes;
 
         //! Constant curves
-		TArray<Curve> m_constantCurves;
+		TArray<FRichCurve> ConstantCurves;
 
         //! Constant skeletons
 		TArray<Ptr<const Skeleton>> m_constantSkeletons;
@@ -295,7 +295,7 @@ namespace mu
             arch << m_constantProjectors;
 			arch << m_constantMatrices;
 			arch << m_constantShapes;
-            arch << m_constantCurves;
+            arch << ConstantCurves;
             arch << m_constantSkeletons;
 			arch << m_constantPhysicsBodies;
             arch << m_parameters;
@@ -320,7 +320,7 @@ namespace mu
             arch >> m_constantProjectors;
 			arch >> m_constantMatrices;
 			arch >> m_constantShapes;
-            arch >> m_constantCurves;
+            arch >> ConstantCurves;
             arch >> m_constantSkeletons;
 			arch >> m_constantPhysicsBodies;
             arch >> m_parameters;
@@ -553,19 +553,9 @@ namespace mu
             return index;
         }
 
-        OP::ADDRESS AddConstant( const Curve& m )
+        OP::ADDRESS AddConstant( const FRichCurve& m )
         {
-            // Ensure unique
-//            for ( SIZE_T i=0; i<m_constantCurves.Num(); ++i)
-//            {
-//                if (m_constantCurves[i]==m)
-//                {
-//                    return (OP::ADDRESS)i;
-//                }
-//            }
-
-            OP::ADDRESS index = OP::ADDRESS( m_constantCurves.Num() );
-            m_constantCurves.Add( m );
+            OP::ADDRESS index = OP::ADDRESS( ConstantCurves.AddUnique( m ) );
             return index;
         }
 

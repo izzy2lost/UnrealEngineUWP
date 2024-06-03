@@ -694,8 +694,7 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeScalarCurve::GetStaticType())
 	{
 		mu::NodeScalarCurve* ScalarCurveVar = StaticCast<mu::NodeScalarCurve*>(ParentNode);
-		mu::NodeScalarCurve::Private* Private = ScalarCurveVar->GetPrivate();
-		AddChildFunc(Private->m_input_scalar.get(), FString::Printf(TEXT("INPUT")));
+		AddChildFunc(ScalarCurveVar->CurveSampleValue.get(), FString::Printf(TEXT("INPUT")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeMeshMakeMorph::GetStaticType())

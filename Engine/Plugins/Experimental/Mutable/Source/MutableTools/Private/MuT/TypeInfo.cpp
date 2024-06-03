@@ -133,30 +133,6 @@ namespace mu
 	};
 	static_assert(sizeof(TypeInfo::s_projectorTypeName) / sizeof(void*) == int32(PROJECTOR_TYPE::COUNT));
 
-	const char* TypeInfo::s_curveInterpolationModeName[static_cast<uint8_t>(mu::CurveKeyFrame::InterpMode::Count)] =
-	{
-		"Linear",
-		"Constant",
-		"Cubic",
-		"None",
-	};
-
-	const char* TypeInfo::s_curveTangentModeName[static_cast<uint8_t> (mu::CurveKeyFrame::TangentMode::Count)] =
-	{
-		"Auto",
-		"Manual",
-		"Broken",
-		"None",
-	};
-
-	const char* TypeInfo::s_curveTangentWeightModeName[static_cast<uint8_t> (mu::CurveKeyFrame::TangentWeightMode::Count)] =
-	{
-		"Auto",
-		"Manual",
-		"Broken",
-		"None",
-	};
-
 	const char* TypeInfo::s_blendModeName[uint32(EBlendType::_BT_COUNT)] =
 	{
 		"None",
@@ -168,7 +144,7 @@ namespace mu
 		"Overlay",
 		"Blend",
 		"Multiply",
-		"Lighten", // TODO: This name is not descriptive.
+		"Lighten",
 		"NormalCombine",
 	};
 	static_assert(sizeof(TypeInfo::s_blendModeName) / sizeof(void*) == int32(EBlendType::_BT_COUNT));

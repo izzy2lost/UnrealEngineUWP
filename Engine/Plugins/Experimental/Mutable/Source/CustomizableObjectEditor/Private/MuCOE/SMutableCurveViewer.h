@@ -96,7 +96,7 @@ public:
 /** Defines an element representing a keyframe of the mutable curve. Used by a ListView */
 struct FMutableCurveElement
 {
-	FMutableCurveElement(const int32 InIndex,const  mu::CurveKeyFrame& InCurveKeyFrame)
+	FMutableCurveElement(const int32 InIndex,const  FRichCurveKey& InCurveKeyFrame)
 		: KeyFrameIndex(InIndex),
 		CurveKeyFrame(InCurveKeyFrame)
 	{
@@ -104,7 +104,7 @@ struct FMutableCurveElement
 	}
 	
 	const int32 KeyFrameIndex;
-	const mu::CurveKeyFrame& CurveKeyFrame;
+	const FRichCurveKey& CurveKeyFrame;
 };
 
 
@@ -114,7 +114,7 @@ struct FMutableCurveElement
 class SMutableCurveViewer final : public SCompoundWidget
 {
 	SLATE_BEGIN_ARGS(SMutableCurveViewer) {}
-		SLATE_ARGUMENT(mu::Curve, MutableCurve) ;
+		SLATE_ARGUMENT(FRichCurve, MutableCurve) ;
 	SLATE_END_ARGS()
 	
 public:
@@ -129,12 +129,12 @@ public:
 	 * @param InMutableCurve - Reference to a mutable curve object to be set as origin for the data displayed
 	 * on this slate object
 	 */
-	void SetCurve(const mu::Curve& InMutableCurve);
+	void SetCurve(const FRichCurve& InMutableCurve);
 	
 private:
 	
 	/** Mutable curve to read the data from. It is the origin for all the data displayed on this slate object */
-	mu::Curve MutableCurve;
+	FRichCurve MutableCurve;
 
 	/*
 	 * Curve graph view

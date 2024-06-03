@@ -105,7 +105,7 @@ namespace mu
 		Arch << Num;                                                           \
 		if (Num)                                                               \
 		{                                                                      \
-			Arch.Stream->Write(&V[0], Num * sizeof(Type));					   \
+			Arch.Stream->Write(V.GetData(), Num * sizeof(Type));					   \
 		}                                                                      \
 	}                                                                          \
                                                                                \
@@ -117,7 +117,7 @@ namespace mu
 		V.SetNum(Num);                                                         \
 		if (Num)                                                               \
 		{                                                                      \
-			Arch.Stream->Read(&V[0], Num * sizeof(Type));					   \
+			Arch.Stream->Read(V.GetData(), Num * sizeof(Type));					   \
 		}                                                                      \
 	}                                                                          \
 
@@ -269,6 +269,7 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FVector2f);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FVector4f);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FMatrix44f);
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FRichCurveKey);
 
 	
 	//---------------------------------------------------------------------------------------------

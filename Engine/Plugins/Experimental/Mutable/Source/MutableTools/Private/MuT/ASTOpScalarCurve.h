@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "HAL/Platform.h"
 #include "MuR/Operations.h"
 #include "MuR/ParametersPrivate.h"
 #include "MuR/Ptr.h"
 #include "MuT/AST.h"
+#include "Curves/RichCurve.h"
+#include "HAL/Platform.h"
 
 
 namespace mu
@@ -24,7 +25,7 @@ struct FProgram;
 		ASTChild time;
 
 		//!
-		Curve curve;
+		FRichCurve Curve;
 
 	public:
 
@@ -32,7 +33,7 @@ struct FProgram;
 		ASTOpScalarCurve(const ASTOpScalarCurve&) = delete;
 		~ASTOpScalarCurve() override;
 
-		OP_TYPE GetOpType() const override { return OP_TYPE::PR_CONSTANT; }
+		OP_TYPE GetOpType() const override { return OP_TYPE::SC_CURVE; }
 		uint64 Hash() const override;
 		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
 		bool IsEqual(const ASTOp& otherUntyped) const override;

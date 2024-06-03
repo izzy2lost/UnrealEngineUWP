@@ -26,36 +26,6 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-void SetCurveNodeValues(mu::NodeScalarCurvePtr& CurveNode, const FRichCurve& Curve)
-{
-	if (Curve.HasAnyData())
-	{
-		CurveNode->SetDefaultValue(Curve.GetDefaultValue());
-		CurveNode->SetKeyFrameCount(Curve.GetNumKeys());
-		int32 KeyNum = 0;
-
-		for (auto Itr = Curve.GetKeyIterator(); Itr; ++Itr)
-		{
-			CurveNode->SetKeyFrame(KeyNum,
-				Itr->Time,
-				Itr->Value,
-				Itr->ArriveTangent,
-				Itr->ArriveTangentWeight,
-				Itr->LeaveTangent,
-				Itr->LeaveTangentWeight,
-				Itr->InterpMode,
-				Itr->TangentMode,
-				Itr->TangentWeightMode);
-
-			KeyNum++;
-		}
-	}
-	else
-	{
-		CurveNode->SetDefaultValue(0.0f); // FRichCurve default DefaultValue is MAX_flt
-	}
-}
-
 
 mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext)
 {
@@ -213,13 +183,12 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 
 	else if (const UCustomizableObjectNodeCurve* TypedNodeCurve = Cast<UCustomizableObjectNodeCurve>(Node))
 	{
-		mu::NodeScalarCurvePtr CurveNode = new mu::NodeScalarCurve();
+		mu::Ptr<mu::NodeScalarCurve> CurveNode = new mu::NodeScalarCurve();
 		Result = CurveNode;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeCurve->InputPin()))
 		{
-			mu::NodeScalarPtr ScalarNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			CurveNode->SetT(ScalarNode);
+			CurveNode->CurveSampleValue = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
 		}
 
 		if (UCurveBase* CurveAsset = TypedNodeCurve->CurveAsset)
@@ -239,24 +208,21 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 			{
 				if (PinIndex >= 0 && PinIndex <= 3)
 				{
-					const FRichCurve& Curve = CurveColor->FloatCurves[PinIndex];
-					SetCurveNodeValues(CurveNode, Curve);
+					CurveNode->Curve = CurveColor->FloatCurves[PinIndex];
 				}
 			}
 			else if (const UCurveVector* const CurveVector = Cast<UCurveVector>(CurveAsset))
 			{
 				if (PinIndex >= 0 && PinIndex <= 2)
 				{
-					const FRichCurve& Curve = CurveVector->FloatCurves[PinIndex];
-					SetCurveNodeValues(CurveNode, Curve);
+					CurveNode->Curve = CurveVector->FloatCurves[PinIndex];
 				}
 			}
 			else if (const UCurveFloat* const CurveFloat = Cast<UCurveFloat>(CurveAsset))
 			{
 				if (PinIndex == 0)
 				{
-					const FRichCurve& Curve = CurveFloat->FloatCurve;
-					SetCurveNodeValues(CurveNode, Curve);
+					CurveNode->Curve = CurveFloat->FloatCurve;
 				}
 			}
 		}

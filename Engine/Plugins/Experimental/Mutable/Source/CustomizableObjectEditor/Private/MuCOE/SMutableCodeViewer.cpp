@@ -43,7 +43,6 @@ class FExtender;
 class FReferenceCollector;
 class FUICommandList;
 class SWidget;
-namespace mu { struct Curve; }
 namespace mu { struct FProjector; }
 namespace mu { struct FShape; }
 struct FGeometry;
@@ -2815,14 +2814,8 @@ void SMutableCodeViewer::PreviewMutableSkeleton(mu::SkeletonPtrConst Skeleton)
 }
 
 
-void SMutableCodeViewer::PreviewMutableCurve(const mu::Curve* Curve)
+void SMutableCodeViewer::PreviewMutableCurve(const FRichCurve& Curve)
 {
-	if (!Curve)
-	{
-		UE_LOG(LogTemp,Error,TEXT("Unable to preview data on null Curve pointer."))
-		return;
-	}
-	
 	if (!PreviewCurveViewer)
 	{
 		PreviewCurveViewer = SNew(SMutableCurveViewer);
@@ -2830,7 +2823,7 @@ void SMutableCodeViewer::PreviewMutableCurve(const mu::Curve* Curve)
 
 	PreviewBorder->SetContent(PreviewCurveViewer.ToSharedRef());
 	
-	PreviewCurveViewer->SetCurve(*Curve);
+	PreviewCurveViewer->SetCurve(Curve);
 }
 
 // TODO: Implement matrix viewer

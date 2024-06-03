@@ -7,19 +7,19 @@
 #include "MuT/Node.h"
 #include "MuT/NodeScalar.h"
 
+#include "Curves/RichCurve.h"
+
 namespace mu
 {
 
-	// Forward definitions
-    class NodeScalarCurve;
-    typedef Ptr<NodeScalarCurve> NodeScalarCurvePtr;
-    typedef Ptr<const NodeScalarCurve> NodeScalarCurvePtrConst;
-
-
-    //! This node makes a new scalar value transforming another scalar value with a curve.
-	//! \ingroup model
+    /** This node makes a new scalar value transforming another scalar value with a curve. */
     class MUTABLETOOLS_API NodeScalarCurve : public NodeScalar
 	{
+	public:
+
+		FRichCurve Curve;
+		Ptr<NodeScalar> CurveSampleValue;
+
 	public:
 
         NodeScalarCurve();
@@ -34,26 +34,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
-
-        //! Get the number of key frames in the Curve.
-		int GetKeyFrameCount() const;
-
-        //! Set the number of key frames in the Curve.
-		void SetKeyFrameCount( int );
-
-		//! Set the default value of the curve
-		void SetDefaultValue(float);
-
-		//! \param index index of the curve, from 0 to GetKeyFrameCount()-1
-        void SetKeyFrame(int index, float time, float value,
-                         float in_tangent, float in_tangent_weight,
-                         float out_tangent, float out_tangent_weight,
-                         uint8_t interp_mode,
-                         uint8_t tangent_mode, uint8_t tangent_weight_mode);
-
-        //! Get the curve time parameter
-		NodeScalarPtr GetT() const;
-		void SetT(NodeScalarPtr);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

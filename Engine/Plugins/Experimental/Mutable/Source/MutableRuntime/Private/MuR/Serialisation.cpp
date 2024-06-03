@@ -35,6 +35,7 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FVector2f);
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FVector4f);
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FMatrix44f);
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FRichCurveKey);
 
 	
     void operator<<(OutputArchive& arch, const FString& t)
@@ -51,6 +52,18 @@ namespace mu
 
     	t = FString(Data.GetData()); // Construct from raw pointer to avoid double zero terminating character
     }
+
+
+	void operator<<(OutputArchive& arch, const FRichCurve& t)
+	{
+		arch << t.Keys;
+	}
+
+
+	void operator>>(InputArchive& arch, FRichCurve& t)
+	{
+		arch >> t.Keys;
+	}
 
 
     void operator<<(OutputArchive& arch, const FName& v)

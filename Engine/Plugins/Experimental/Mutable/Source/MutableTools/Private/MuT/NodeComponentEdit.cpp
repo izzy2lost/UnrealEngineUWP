@@ -52,7 +52,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeComponentEdit::SetSurfaceCount( int num )
+    void NodeComponentEdit::SetSurfaceCount( int32 num )
     {
         check( num >=0 );
         m_pD->m_surfaces.SetNum( num );
@@ -60,7 +60,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    NodeSurface* NodeComponentEdit::GetSurface( int index ) const
+    NodeSurface* NodeComponentEdit::GetSurface( int32 index ) const
     {
         check( index >=0 && index < m_pD->m_surfaces.Num() );
 
@@ -69,7 +69,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeComponentEdit::SetSurface( int index, NodeSurface* pNode )
+    void NodeComponentEdit::SetSurface( int32 index, NodeSurface* pNode )
     {
         check( index >=0 && index < m_pD->m_surfaces.Num() );
 

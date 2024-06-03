@@ -22,6 +22,7 @@ namespace UnrealBuildTool.Rules
 					"ImageCore",
 					"TextureCompressor",
 					"TextureBuildUtilities",
+					"Engine",
 				}
 			);
 		}

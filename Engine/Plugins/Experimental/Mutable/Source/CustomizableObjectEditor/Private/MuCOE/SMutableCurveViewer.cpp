@@ -263,7 +263,7 @@ public:
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.time) ))
+				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.Time) ))
 			];
 		}
 		
@@ -273,7 +273,7 @@ public:
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.value) ))
+				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.Value) ))
 			];
 		}
 		
@@ -283,7 +283,7 @@ public:
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.in_tangent) ))
+				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.ArriveTangent) ))
 			];
 		}
 
@@ -293,7 +293,7 @@ public:
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.in_tangent_weight) ))
+				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.ArriveTangentWeight) ))
 			];
 		}
 
@@ -303,7 +303,7 @@ public:
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.out_tangent) ))
+				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.LeaveTangent) ))
 			];
 		}
 
@@ -313,43 +313,43 @@ public:
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.out_tangent_weight) ))
+				Text(FText::FromString( FString::SanitizeFloat(RowItem->CurveKeyFrame.LeaveTangentWeight) ))
 			];
 		}
 
 		// interp_mode 
 		if (InColumnName == MutableCurveKeyFramesListColumns::KeyFrameInterpolationModeColumnID)
 		{
-			const uint8_t InterpolationMode = RowItem->CurveKeyFrame.interp_mode;
+			const uint8 InterpolationMode = RowItem->CurveKeyFrame.InterpMode;
 			
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString(* FString(mu::TypeInfo::s_curveInterpolationModeName[InterpolationMode])))
+				Text(FText::FromString(* FString::Printf(TEXT("%d"),InterpolationMode)))
 			];
 		}
 
 		// tangent mode 
 		if (InColumnName == MutableCurveKeyFramesListColumns::KeyFrameTangentModeColumnID)
 		{
-			const uint8_t TangentMode = RowItem->CurveKeyFrame.tangent_mode;
+			const uint8 TangentMode = RowItem->CurveKeyFrame.TangentMode;
 			
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString(* FString(mu::TypeInfo::s_curveTangentModeName[TangentMode])))
+					Text(FText::FromString(*FString::Printf(TEXT("%d"), TangentMode)))
 			];
 		}
 
 		// tangent weight mode 
 		if (InColumnName == MutableCurveKeyFramesListColumns::KeyFrameTangentWeightModeColumnID)
 		{
-			const uint8_t TangentWeightMode = RowItem->CurveKeyFrame.tangent_weight_mode;
+			const uint8 TangentWeightMode = RowItem->CurveKeyFrame.TangentWeightMode;
 			
 			return SNew(SHorizontalBox)+SHorizontalBox::Slot()
 			[
 				SNew(STextBlock).
-				Text(FText::FromString(* FString(mu::TypeInfo::s_curveTangentWeightModeName[TangentWeightMode])))
+					Text(FText::FromString(*FString::Printf(TEXT("%d"), TangentWeightMode)))
 			];
 		}
 		
@@ -443,7 +443,7 @@ void SMutableCurveViewer::Construct(const FArguments& InArgs)
 }
 
 
-void SMutableCurveViewer::SetCurve(const mu::Curve& InMutableCurve)
+void SMutableCurveViewer::SetCurve(const FRichCurve& InMutableCurve)
 {
 	this->MutableCurve = InMutableCurve;
 
@@ -457,11 +457,11 @@ void SMutableCurveViewer::SetCurve(const mu::Curve& InMutableCurve)
 
 void SMutableCurveViewer::SetupMutableCurveListView()
 {
-	const int32 KeyFrameCount = MutableCurve.keyFrames.Num() ;
+	const int32 KeyFrameCount = MutableCurve.Keys.Num() ;
 	CurveElements.SetNum(KeyFrameCount);
 	for	(int32 KeyFrameIndex = 0; KeyFrameIndex < KeyFrameCount; KeyFrameIndex++)
 	{
-		const mu::CurveKeyFrame& CurrentKeyFrame = MutableCurve.keyFrames[KeyFrameIndex];
+		const FRichCurveKey& CurrentKeyFrame = MutableCurve.Keys[KeyFrameIndex];
 
 		const TSharedPtr<FMutableCurveElement> NewCurveElement =
 			MakeShareable(new FMutableCurveElement(KeyFrameIndex,CurrentKeyFrame));
@@ -497,18 +497,18 @@ void SMutableCurveViewer::SetupMutableCurveGraph() const
 	float PreviousFrameTime =  TNumericLimits<float>::Lowest();
 	
 	// Fill the curve with data
-	const int32 KeyFrameCount = MutableCurve.keyFrames.Num() ;
+	const int32 KeyFrameCount = MutableCurve.Keys.Num() ;
 	for (int32 KeyframeIndex = 0; KeyframeIndex < KeyFrameCount; KeyframeIndex++)
 	{
 		// Load the mutable data
-		const mu::CurveKeyFrame& CurrentKeyframe = MutableCurve.keyFrames[KeyframeIndex];
+		const FRichCurveKey& CurrentKeyframe = MutableCurve.Keys[KeyframeIndex];
 		
 		// Setup basic data (x and y axis)
 		FKeyPosition KeyPosition;
 		{
 			// time and value
-			KeyPosition.InputValue = CurrentKeyframe.time;
-			KeyPosition.OutputValue = CurrentKeyframe.value;
+			KeyPosition.InputValue = CurrentKeyframe.Time;
+			KeyPosition.OutputValue = CurrentKeyframe.Value;
 		}
 		
 		/*
@@ -524,8 +524,8 @@ void SMutableCurveViewer::SetupMutableCurveGraph() const
 
 			// Shift the position of the current element if we are too close to the last processed element or if
 			// the previous element for whatever reason is now in front of us (previousTime > currentTime>.
-			if (FMath::IsNearlyEqual(PreviousFrameTime,CurrentKeyframe.time,ApplicableTimeDelta)
-				|| PreviousFrameTime > CurrentKeyframe.time)
+			if (FMath::IsNearlyEqual(PreviousFrameTime,CurrentKeyframe.Time,ApplicableTimeDelta)
+				|| PreviousFrameTime > CurrentKeyframe.Time)
 			{
 				KeyPosition.InputValue += ApplicableTimeDelta;
 			}
@@ -538,26 +538,25 @@ void SMutableCurveViewer::SetupMutableCurveGraph() const
 		FKeyAttributes KeyAttributes;
 		{
 			// tangents
-			KeyAttributes.SetArriveTangent(CurrentKeyframe.in_tangent);
-			KeyAttributes.SetLeaveTangent(CurrentKeyframe.out_tangent);
+			KeyAttributes.SetArriveTangent(CurrentKeyframe.ArriveTangent);
+			KeyAttributes.SetLeaveTangent(CurrentKeyframe.LeaveTangent);
 
 			// Weights
-			KeyAttributes.SetArriveTangentWeight(CurrentKeyframe.in_tangent_weight);
-			KeyAttributes.SetLeaveTangentWeight(CurrentKeyframe.out_tangent_weight);
+			KeyAttributes.SetArriveTangentWeight(CurrentKeyframe.ArriveTangentWeight);
+			KeyAttributes.SetLeaveTangentWeight(CurrentKeyframe.LeaveTangentWeight);
 			
 			// Interp mode
-			const TEnumAsByte UnrealInterpolationMode =
-				static_cast<ERichCurveInterpMode>(CurrentKeyframe.interp_mode);
+			const TEnumAsByte UnrealInterpolationMode = static_cast<ERichCurveInterpMode>(CurrentKeyframe.InterpMode);
 			KeyAttributes.SetInterpMode(UnrealInterpolationMode);
 			
 			// Tangent mode
 			const TEnumAsByte UnrealTangentMode =
-				static_cast<ERichCurveTangentMode>(CurrentKeyframe.tangent_mode);
+				static_cast<ERichCurveTangentMode>(CurrentKeyframe.TangentMode);
 			KeyAttributes.SetTangentMode(UnrealTangentMode);
 
 			// Tangent weight
 			const TEnumAsByte UnrealTangentWeightMode =
-				static_cast<ERichCurveTangentWeightMode>(CurrentKeyframe.tangent_weight_mode);
+				static_cast<ERichCurveTangentWeightMode>(CurrentKeyframe.TangentWeightMode);
 			KeyAttributes.SetTangentWeightMode(UnrealTangentWeightMode);
 		}
 

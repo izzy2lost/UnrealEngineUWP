@@ -17,7 +17,6 @@ class SExpandableArea;
 class SMutableCodeViewer;
 class STableViewBase;
 class SWidget;
-namespace mu { struct Curve; }
 namespace mu { struct FProgram; }
 namespace mu { struct FProjector; }
 namespace mu { struct FShape; }
@@ -100,7 +99,7 @@ struct FMutableConstantShapeElement : public FMutableConstantElement
 */ 
 struct FMutableConstantCurveElement : public FMutableConstantElement
 {
-	const mu::Curve* Curve = nullptr;
+	FRichCurve Curve;
 };
 
 

@@ -1069,6 +1069,8 @@ public:
 
 		SkeletalMeshLODSettingsSupport,
 
+		RemoveCustomCurve,
+
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;

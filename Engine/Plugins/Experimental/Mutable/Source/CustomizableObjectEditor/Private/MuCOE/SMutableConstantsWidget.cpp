@@ -1312,7 +1312,7 @@ void SMutableConstantsWidget::LoadConstantShapes()
 void SMutableConstantsWidget::LoadConstantCurves()
 {
 	check (MutableProgramPtr);
-	const int32 ConstantsCount = MutableProgramPtr->m_constantCurves.Num();
+	const int32 ConstantsCount = MutableProgramPtr->ConstantCurves.Num();
 	ConstantCurveElements.Empty(ConstantsCount);
 	
 	mu::OutputMemoryStream Stream;
@@ -1321,10 +1321,10 @@ void SMutableConstantsWidget::LoadConstantCurves()
 	for (int32 CurveIndex = 0; CurveIndex < ConstantsCount; CurveIndex++)
 	{
 		TSharedPtr<FMutableConstantCurveElement> ConstantCurveElement = MakeShared<FMutableConstantCurveElement>();
-		ConstantCurveElement->Curve = &(MutableProgramPtr->m_constantCurves[CurveIndex]);
+		ConstantCurveElement->Curve = MutableProgramPtr->ConstantCurves[CurveIndex];
 		ConstantCurveElement->IndexOnSourceVector = CurveIndex;
 
-		ConstantCurveElement->Curve->Serialise(Archive);
+		Archive << ConstantCurveElement->Curve;
 		
 		ConstantCurveElements.Add(ConstantCurveElement);
 	}

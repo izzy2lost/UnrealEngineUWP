@@ -10,6 +10,7 @@
 #include "MuR/RefCounted.h"
 #include "MuR/MutableMath.h"
 
+#include "Curves/RichCurve.h"
 #include "Math/Vector.h"
 #include "Math/IntVector.h"
 #include "Math/Vector4.h"
@@ -334,6 +335,7 @@ namespace mu
 	MUTABLE_DEFINE_POD_SERIALISABLE(FVector2f);
 	MUTABLE_DEFINE_POD_SERIALISABLE(FVector4f);
 	MUTABLE_DEFINE_POD_SERIALISABLE(FMatrix44f);
+	MUTABLE_DEFINE_POD_SERIALISABLE(FRichCurveKey);
 
 	MUTABLE_DEFINE_POD_SERIALISABLE(FGuid);
 
@@ -352,6 +354,7 @@ namespace mu
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FMatrix44f);
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FIntVector2);
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(TCHAR);
+	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FRichCurveKey);
 
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FUintVector2);
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(UE::Math::TIntVector2<uint16>);
@@ -362,6 +365,11 @@ namespace mu
 	MUTABLERUNTIME_API void operator<<(OutputArchive& arch, const FString& t);
 	
 	MUTABLERUNTIME_API void operator>>(InputArchive& arch, FString& t);
+
+	//---------------------------------------------------------------------------------------------
+	MUTABLERUNTIME_API void operator<<(OutputArchive& arch, const FRichCurve& t);
+
+	MUTABLERUNTIME_API void operator>>(InputArchive& arch, FRichCurve& t);
 
 
 	//---------------------------------------------------------------------------------------------

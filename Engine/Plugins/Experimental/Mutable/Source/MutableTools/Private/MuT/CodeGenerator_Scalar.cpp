@@ -340,21 +340,19 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateScalar_Curve(FScalarGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeScalarCurve>& Typed)
 	{
-		const NodeScalarCurve::Private& node = *Typed->GetPrivate();
-
 		Ptr<ASTOpScalarCurve> op = new ASTOpScalarCurve();
 
 		// T
-		if (Node* pA = node.m_input_scalar.get())
+		if (Node* pA = Typed->CurveSampleValue.get())
 		{
 			op->time = Generate(pA, Options);
 		}
 		else
 		{
-			op->time = CodeGenerator::GenerateMissingScalarCode(TEXT("Curve T"), 0.5f, node.m_errorContext);
+			op->time = CodeGenerator::GenerateMissingScalarCode(TEXT("Curve T"), 0.5f, Typed->GetPrivate()->m_errorContext);
 		}
 
-		op->curve = node.m_curve;
+		op->Curve = Typed->Curve;
 
 		result.op = op;
 	}

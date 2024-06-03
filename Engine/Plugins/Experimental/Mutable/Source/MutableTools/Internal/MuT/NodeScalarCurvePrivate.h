@@ -19,8 +19,6 @@ namespace mu
 
 		static FNodeType s_type;
 
-		NodeScalarPtr m_input_scalar;
-		Curve m_curve;
 	};
 
 

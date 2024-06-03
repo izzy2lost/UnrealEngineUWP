@@ -21,7 +21,6 @@
 #include "MuR/MutableMath.h"
 #include "MuR/MutableString.h"
 #include "MuR/MutableTrace.h"
-#include "MuR/OpEvalCurve.h"
 #include "MuR/OpImageApplyComposite.h"
 #include "MuR/OpImageBinarise.h"
 #include "MuR/OpImageBlend.h"
@@ -5476,18 +5475,18 @@ namespace mu
             switch (item.Stage)
             {
             case 0:
-                    AddOp( FScheduledOp( item.At, item, 1),
-                           FScheduledOp( args.time, item) );
+                AddOp( FScheduledOp( item.At, item, 1),
+                        FScheduledOp( args.time, item) );
                 break;
 
             case 1:
             {
                 float time = LoadScalar( FCacheAddress(args.time,item) );
 
-                const Curve& curve = Program.m_constantCurves[args.curve];
-                float result = EvalCurve(curve, time);
+                const FRichCurve& Curve = Program.ConstantCurves[args.curve];
+                float Result = Curve.Eval(time);
 
-                StoreScalar( item, result );
+                StoreScalar( item, Result );
                 break;
             }
 

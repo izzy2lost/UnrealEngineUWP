@@ -34,7 +34,7 @@ namespace mu
 	uint64 ASTOpScalarCurve::Hash() const
 	{
 		uint64 res = std::hash<uint64>()(size_t(OP_TYPE::SC_CURVE));
-		hash_combine(res, curve.keyFrames.Num());
+		hash_combine(res, Curve.Keys.Num());
 		return res;
 	}
 
@@ -44,7 +44,7 @@ namespace mu
 		if (otherUntyped.GetOpType() == GetOpType())
 		{
 			const ASTOpScalarCurve* other = static_cast<const ASTOpScalarCurve*>(&otherUntyped);
-			return time == other->time && curve == other->curve;
+			return time == other->time && Curve == other->Curve;
 		}
 		return false;
 	}
@@ -53,7 +53,7 @@ namespace mu
 	mu::Ptr<ASTOp> ASTOpScalarCurve::Clone(MapChildFuncRef mapChild) const
 	{
 		Ptr<ASTOpScalarCurve> n = new ASTOpScalarCurve();
-		n->curve = curve;
+		n->Curve = Curve;
 		n->time = mapChild(time.child());
 		return n;
 	}
@@ -66,7 +66,7 @@ namespace mu
 			OP::ScalarCurveArgs args;
 			memset(&args, 0, sizeof(args));
 			args.time = time ? time->linkedAddress : 0;
-			args.curve = program.AddConstant(curve);
+			args.curve = program.AddConstant(Curve);
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
 			//program.m_code.push_back(op);
