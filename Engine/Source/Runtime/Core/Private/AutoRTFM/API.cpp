@@ -14,11 +14,26 @@ namespace
 	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Disabled;
 #endif // UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT
 
-	bool GAutoRTFMEnsureOnAbortByLanguage = true;
-
 	void UpdateAutoRTFMRuntimeCrashData()
 	{
 		FGenericCrashContext::SetGameData(TEXT("IsAutoRTFMRuntimeEnabled"), AutoRTFM::ForTheRuntime::IsAutoRTFMRuntimeEnabled() ? TEXT("true") : TEXT("false"));
+	}
+
+	bool GAutoRTFMEnsureOnAbortByLanguage = true;
+
+	int GAutoRTFMRetryTransactions = AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::NoRetry;
+
+	void UpdateAutoRTFMRetryTransactionsData()
+	{
+		switch (GAutoRTFMRetryTransactions)
+		{
+		case AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::NoRetry:
+			return FGenericCrashContext::SetGameData(TEXT("AutoRTFMRetryTransactionState"), TEXT("NoRetry"));
+		case AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::RetryNonNested:
+			return FGenericCrashContext::SetGameData(TEXT("AutoRTFMRetryTransactionState"), TEXT("RetryNonNested"));
+		case AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::RetryNestedToo:
+			return FGenericCrashContext::SetGameData(TEXT("AutoRTFMRetryTransactionState"), TEXT("RetryNestedToo"));
+		}
 	}
 }
 
@@ -31,10 +46,19 @@ static FAutoConsoleVariableRef CVarAutoRTFMRuntimeEnabled(
 	ECVF_Default
 );
 
+static FAutoConsoleVariableRef CVarAutoRTFMRetryTransactions(
+	TEXT("AutoRTFMRetryTransactions"),
+	GAutoRTFMRetryTransactions,
+	TEXT("Enables the AutoRTFM sanitizer-like mode where we can force an abort-and-retry on transactions (useful to test abort codepaths work as intended)"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*) { UpdateAutoRTFMRetryTransactionsData(); }),
+	ECVF_Default
+);
+
 static FDelayedAutoRegisterHelper DelayedAutoRegister(EDelayedRegisterRunPhase::EndOfEngineInit, []
-{
-	UpdateAutoRTFMRuntimeCrashData();
-});
+	{
+		UpdateAutoRTFMRuntimeCrashData();
+		UpdateAutoRTFMRetryTransactionsData();
+	});
 #endif
 
 namespace AutoRTFM
@@ -112,6 +136,45 @@ namespace AutoRTFM
 		{
 #if UE_AUTORTFM
 			return GAutoRTFMEnsureOnAbortByLanguage;
+#else
+			return false;
+#endif
+		}
+
+		void SetRetryTransaction(EAutoRTFMRetryTransactionState State)
+		{
+#if UE_AUTORTFM
+			GAutoRTFMRetryTransactions = State;
+			UpdateAutoRTFMRetryTransactionsData();
+#endif
+		}
+
+		bool ShouldRetryNonNestedTransactions()
+		{
+#if UE_AUTORTFM
+			switch (GAutoRTFMRetryTransactions)
+			{
+			default:
+				return false;
+			case EAutoRTFMRetryTransactionState::RetryNonNested:
+			case EAutoRTFMRetryTransactionState::RetryNestedToo:
+				return true;
+			}
+#else
+			return false;
+#endif
+		}
+
+		bool ShouldRetryNestedTransactionsToo()
+		{
+#if UE_AUTORTFM
+			switch (GAutoRTFMRetryTransactions)
+			{
+			default:
+				return false;
+			case EAutoRTFMRetryTransactionState::RetryNestedToo:
+				return true;
+			}
 #else
 			return false;
 #endif

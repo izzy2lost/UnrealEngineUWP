@@ -5,33 +5,58 @@
 
 IMPLEMENT_APPLICATION(AutoRTFMTests, "AutoRTFMTests");
 
+#define CATCH_AMALGAMATED_CUSTOM_MAIN
 #include "catch_amalgamated.cpp"
 
-class SetupListener final : public Catch::EventListenerBase
-{
-public:
-	using Catch::EventListenerBase::EventListenerBase;
+int main(int ArgC, const char* ArgV[]) {
+	Catch::Session Session;
 
-	void testRunStarting(const Catch::TestRunInfo&) override
+	bool NoRetry = false;
+	bool RetryNestedToo = false;
+
+	Session.cli(Session.cli()
+		| Catch::Clara::Opt(NoRetry)["--no-retry"]
+		| Catch::Clara::Opt(RetryNestedToo)["--retry-nested-too"]);
+
 	{
-		GEngineLoop.PreInit(0, nullptr);
-		FModuleManager::Get().StartProcessingNewlyLoadedObjects();
+		const int Result = Session.applyCommandLine(ArgC, ArgV);
 
-		// Enable all Verse code to run under AutoRTFM (shouldn't affect our tests here, but better safe than sorry).
-		AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse);
-
-		// We don't want to trigger ensure's on abort because we are going to test that.
-		AutoRTFM::ForTheRuntime::SetEnsureOnAbortByLanguage(false);
+		if (0 != Result)
+		{
+			return Result;
+		}
 	}
 
-	void testRunEnded(const Catch::TestRunStats&) override
+	if (RetryNestedToo)
 	{
-		FPlatformMisc::RequestExit(false);
-
-		FEngineLoop::AppPreExit();
-		FModuleManager::Get().UnloadModulesAtShutdown();
-		FEngineLoop::AppExit();
+		AutoRTFM::ForTheRuntime::SetRetryTransaction(AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::RetryNestedToo);
 	}
-};
+	else if (NoRetry)
+	{
+		AutoRTFM::ForTheRuntime::SetRetryTransaction(AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::NoRetry);
+	}
+	else
+	{
+		// Otherwise default to just retrying the parent transaction.
+		AutoRTFM::ForTheRuntime::SetRetryTransaction(AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::RetryNonNested);
+	}
 
-CATCH_REGISTER_LISTENER(SetupListener)
+	GEngineLoop.PreInit(0, nullptr);
+	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
+
+	// Enable all Verse code to run under AutoRTFM (shouldn't affect our tests here, but better safe than sorry).
+	AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse);
+
+	// We don't want to trigger ensure's on abort because we are going to test that.
+	AutoRTFM::ForTheRuntime::SetEnsureOnAbortByLanguage(false);
+
+	const int Result = Session.run();
+
+	FPlatformMisc::RequestExit(false);
+
+	FEngineLoop::AppPreExit();
+	FModuleManager::Get().UnloadModulesAtShutdown();
+	FEngineLoop::AppExit();
+
+	return Result;
+}

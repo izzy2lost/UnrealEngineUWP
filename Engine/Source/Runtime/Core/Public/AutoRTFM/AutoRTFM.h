@@ -697,8 +697,25 @@ namespace ForTheRuntime
 		AutoRTFM_EnabledForAllVerse,
 	};
 
-	// Set whether the AutoRTFM runtime is enabled or disabled.
-	UE_AUTORTFM_API bool SetAutoRTFMRuntime(EAutoRTFMEnabledState bEnabled);
+	// An enum to represent whether we should abort and retry transactions (for testing purposes).
+	enum EAutoRTFMRetryTransactionState 
+	{
+		// Do not abort and retry transactions (the default).
+		NoRetry = 0,
+
+		// Abort and retry non-nested transactions (EG. only abort the parent transactional nest).
+		RetryNonNested,
+
+		// Abort and retry nested-transactions too. Will be slower as each nested-transaction will
+		// be aborted and retried at least *twice* (once when the non-nested transaction runs the
+		// first time, and a second time when the non-nested transaction is doing its retry after
+		// aborting).
+		RetryNestedToo,
+	};
+
+	// Set whether the AutoRTFM runtime is enabled or disabled. Returns true when the state was changed
+	// successfully.
+	UE_AUTORTFM_API bool SetAutoRTFMRuntime(EAutoRTFMEnabledState State);
 
 	// Query whether the AutoRTFM runtime is enabled.
 	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabled();
@@ -711,6 +728,15 @@ namespace ForTheRuntime
 
 	// Returns whether the runtime will trigger an ensure on an abort-by-language, or not.
 	UE_AUTORTFM_API bool IsEnsureOnAbortByLanguageEnabled();
+
+	// Set whether we should retry transactions.
+	UE_AUTORTFM_API void SetRetryTransaction(EAutoRTFMRetryTransactionState State);
+
+	// Returns true if we should retry non-nested transactions.
+	UE_AUTORTFM_API bool ShouldRetryNonNestedTransactions();
+
+	// Returns true if we should also retry nested transactions.
+	UE_AUTORTFM_API bool ShouldRetryNestedTransactionsToo();
 
 	// Manually create a new transaction from open code and push it as a transaction nest.
 	// Can only be called within an already active parent transaction (EG. this cannot start

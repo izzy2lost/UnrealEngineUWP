@@ -55,6 +55,12 @@ TEST_CASE("Abort.NestedAbortOrder")
 
 	AutoRTFM::Commit([&]
 	{
+		// If we are retrying transactions, need to reset the test state.
+		AutoRTFM::OnAbort([&]
+			{
+				Orderer = 0;
+			});
+
 		InnerResult = AutoRTFM::Transact([&]
 			{
 				AutoRTFM::OnAbort([&]
@@ -368,15 +374,46 @@ TEST_CASE("Abort.PushOnAbortHandler_Order")
 
 			const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 				{
-					AutoRTFM::OnAbort([&Value] { REQUIRE(42 == Value); Value += 1; });
+					AutoRTFM::OnAbort([&Value]
+						{
+							REQUIRE(42 == Value);
+							Value += 1;
+						});
 
 					// Make a child transaction.
 					AutoRTFM::Commit([&]
 						{
-							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(40 == Value); Value += 2; });
+							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]()
+								{
+									// If we are retrying nested transactions too, we can't check that
+									// the value was something specific before hand!
+									if (!AutoRTFM::ForTheRuntime::ShouldRetryNestedTransactionsToo())
+									{
+										REQUIRE(40 == Value);
+										Value += 2;
+									}
+									else
+									{
+										Value += 1;
+									}
+								});
 						});
 
-					AutoRTFM::OnAbort([&Value] { REQUIRE(37 == Value); Value += 3; });
+					AutoRTFM::OnAbort([&Value]
+						{
+							// If we are retrying nested transactions too, we've ran the on-abort in the
+							// child transaction once, so our value will be larger.
+							if (!AutoRTFM::ForTheRuntime::ShouldRetryNestedTransactionsToo())
+							{
+								REQUIRE(37 == Value);
+							}
+							else
+							{
+								REQUIRE(38 == Value);
+							}
+
+							Value += 3;
+						});
 
 					Value = 99;
 
@@ -398,7 +435,11 @@ TEST_CASE("Abort.PushOnAbortHandler_Order")
 					// Make a child transaction.
 					AutoRTFM::Commit([&]
 						{
-							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(false); });
+							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]()
+								{
+									// Only if we are retrying on 
+									REQUIRE(AutoRTFM::ForTheRuntime::ShouldRetryNestedTransactionsToo());
+								});
 						});
 
 					AutoRTFM::OnAbort([&Value] { REQUIRE(37 == Value); Value += 3; });
@@ -439,6 +480,8 @@ TEST_CASE("Abort.PushOnAbortHandler_Order")
 					AutoRTFM::OnCommit([&Value] { REQUIRE(38 == Value); Value += 3; });
 
 					Value = 37;
+
+					AutoRTFM::OnAbort([&Value] { Value = 99; });
 				});
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
@@ -453,6 +496,14 @@ TEST_CASE("Abort.OnAbortTiming")
 	int Memory = 666;
 	AutoRTFM::Commit([&]
 	{
+		// If we are retrying transactions, need to reset the test state.
+		AutoRTFM::OnAbort([&]
+		{
+			REQUIRE(bOnAbortRan);
+			REQUIRE(Memory == 666);
+			bOnAbortRan = false;
+		});
+
 		REQUIRE(bOnAbortRan == false);
 		REQUIRE(Memory == 666);
 
@@ -469,9 +520,6 @@ TEST_CASE("Abort.OnAbortTiming")
 
 			AutoRTFM::AbortTransaction();
 		});
-
-		REQUIRE(Memory == 666);
-		REQUIRE(bOnAbortRan == true);
 	});
 	REQUIRE(Memory == 666);
 	REQUIRE(bOnAbortRan == true);

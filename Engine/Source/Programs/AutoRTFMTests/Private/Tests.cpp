@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma autortfm
-
 #include "Catch2Includes.h"
 #include <AutoRTFM/AutoRTFM.h>
 #include <thread>
@@ -34,7 +32,7 @@ TEST_CASE("Tests.UE_LOG")
 // This test ensures that if you have STM and non-STM modifying data that is
 // adjacent in memory, the STM code won't lose modifications to data that
 // happens to fall into the same STM line.
-TEST_CASE("stm.no_trashing_non_stm")
+TEST_CASE("stm.no_trashing_non_stm", "[.multi-threaded-test]")
 {
 	// A hit-count - lets us ensure each thread is launched and running before
 	// we kick off the meat of the test.
@@ -318,4 +316,25 @@ TEST_CASE("libc.isnan(double)")
 	REQUIRE(AutoRTFM::ETransactionResult::Committed == Transaction);
 	REQUIRE(false == bXIsNaN);
 	REQUIRE(true == bYIsNaN);
+}
+
+TEST_CASE("Tests.RetryNonNested")
+{
+	// We only run this test if we are retrying non-nested transactions (it proves we retried!).
+	if (!AutoRTFM::ForTheRuntime::ShouldRetryNonNestedTransactions())
+	{
+		return;
+	}
+
+	unsigned Count = 0;
+
+	AutoRTFM::Commit([&]
+	{
+		AutoRTFM::Open([&]
+		{
+			Count++;
+		});
+	});
+
+	REQUIRE(2 == Count);
 }

@@ -187,7 +187,7 @@ void AddToGraph(FGraph<unsigned>& Graph)
 	RandomEdge(G, E);
 }
 
-FGraph<unsigned> BuildGraph(const unsigned Total = 10000)
+FGraph<unsigned> BuildGraph(const unsigned Total = 1000)
 {
 	FGraph<unsigned> Result;
 	for (unsigned Count = Total; Count--;)

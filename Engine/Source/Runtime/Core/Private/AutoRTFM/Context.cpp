@@ -242,12 +242,9 @@ void FContext::ClearTransactionStatus()
 	case EContextStatus::OnTrack:
 		break;
 	case EContextStatus::AbortedByLanguage:
-		Status = EContextStatus::OnTrack;
-		break;
 	case EContextStatus::AbortedByRequest:
-		Status = EContextStatus::OnTrack;
-		break;
 	case EContextStatus::AbortedByCascade:
+	case EContextStatus::AbortedByFailedLockAcquisition:
 		Status = EContextStatus::OnTrack;
 		break;
 	default:
@@ -311,7 +308,6 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
         return ETransactionResult::AbortedByLanguage;
     }
     
-	//TUniquePtr<FTransaction> NewTransactionUniquePtr(new FTransaction(this));
 	FTransaction* NewTransaction = new FTransaction(this);
 	FCallNest* NewNest = new FCallNest(this);
 
@@ -333,6 +329,8 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 		PushCallNest(NewNest);
         OuterTransactStackAddress = TransactStackAddress;
 
+		bool bTriedToRunOnce = false;
+
         for (;;)
         {
             Status = EContextStatus::OnTrack;
@@ -347,7 +345,19 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 				DumpState();
 				UE_LOG(LogAutoRTFM, Verbose, TEXT("Committing..."));
 
-                if (AttemptToCommitTransaction(CurrentTransaction))
+				if (UNLIKELY(!bTriedToRunOnce && AutoRTFM::ForTheRuntime::ShouldRetryNonNestedTransactions()))
+				{
+					// We skip trying to commit this time, and instead re-run the transaction.
+					Status = EContextStatus::AbortedByFailedLockAcquisition;
+					CurrentTransaction->AbortWithoutThrowing();
+					ClearTransactionStatus();
+
+					// We've tried to run at least once if we get here!
+					bTriedToRunOnce = true;
+
+					continue;
+				}
+                else if (AttemptToCommitTransaction(CurrentTransaction))
                 {
                     Result = ETransactionResult::Committed;
                     break;
@@ -395,14 +405,37 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
     {
 		// This transaction is within another transaction
 		ASSERT(Status == EContextStatus::OnTrack);
+
 		PushTransaction(NewTransaction);
 		PushCallNest(NewNest);
 
-		CurrentNest->Try([&]() { InstrumentedFunction(Arg); });
-		ASSERT(CurrentTransaction == NewTransaction);
+		bool bTriedToRunOnce = false;
 
-		Result = ResolveNestedTransaction(NewTransaction);
-		
+		for (;;)
+		{
+			CurrentNest->Try([&]() { InstrumentedFunction(Arg); });
+			ASSERT(CurrentTransaction == NewTransaction);
+
+			if (Status == EContextStatus::OnTrack)
+			{
+				if (UNLIKELY(!bTriedToRunOnce && AutoRTFM::ForTheRuntime::ShouldRetryNestedTransactionsToo()))
+				{
+					// We skip trying to commit this time, and instead re-run the transaction.
+					Status = EContextStatus::AbortedByFailedLockAcquisition;
+					NewTransaction->AbortWithoutThrowing();
+					ClearTransactionStatus();
+
+					// We've tried to run at least once if we get here!
+					bTriedToRunOnce = true;
+
+					continue;
+				}
+			}
+
+			Result = ResolveNestedTransaction(NewTransaction);
+			break;
+		}
+
 		PopCallNest();
 		PopTransaction();
 
