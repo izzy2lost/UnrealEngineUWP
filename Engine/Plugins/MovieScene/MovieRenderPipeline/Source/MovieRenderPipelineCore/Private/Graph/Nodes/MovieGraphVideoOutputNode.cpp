@@ -148,6 +148,13 @@ void UMovieGraphVideoOutputNode::OnAllFramesFinalizedImpl(UMovieGraphPipeline* I
 	bHasError = false;
 }
 
+UMovieGraphVideoOutputNode::FMovieGraphCodecWriterWithPromise::FMovieGraphCodecWriterWithPromise(TUniquePtr<MovieRenderGraph::IVideoCodecWriter>&& InWriter, TPromise<bool>&& InPromise)
+	: CodecWriter(MoveTemp(InWriter))
+	, Promise(MoveTemp(InPromise))
+{
+	
+}
+
 void UMovieGraphVideoOutputNode::GetOutputFilePaths(const UMovieGraphPipeline* InPipeline, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, FMovieGraphPassData& InRenderPassData, const TArray<FMovieGraphPassData>& InCompositedPasses, FString& OutFinalFilePath, FString& OutStableFilePath)
 {
 	const TObjectPtr<UMoviePipelineExecutorShot> Shot = InRawFrameData->TraversalContext.Shot;

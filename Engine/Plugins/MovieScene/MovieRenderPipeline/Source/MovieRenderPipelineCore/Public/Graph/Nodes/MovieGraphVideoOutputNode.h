@@ -60,6 +60,8 @@ protected:
 private:
 	struct FMovieGraphCodecWriterWithPromise
 	{
+		FMovieGraphCodecWriterWithPromise(TUniquePtr<MovieRenderGraph::IVideoCodecWriter>&& InWriter, TPromise<bool>&& InPromise);
+		
 		/** The codec writer. */
 		TUniquePtr<MovieRenderGraph::IVideoCodecWriter> CodecWriter;
 
