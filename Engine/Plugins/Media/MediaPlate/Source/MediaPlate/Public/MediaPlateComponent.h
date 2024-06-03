@@ -34,6 +34,8 @@ enum class EMediaPlateEventState : uint8
 	Reverse,
 	Forward,
 	Rewind,
+	Next,
+	Previous,
 	MAX
 };
 

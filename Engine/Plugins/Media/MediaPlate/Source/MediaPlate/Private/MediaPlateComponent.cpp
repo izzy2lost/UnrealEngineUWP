@@ -1482,6 +1482,22 @@ void UMediaPlateComponent::SwitchStates(EMediaPlateEventState State)
 			}
 		}
 		break;
+	case EMediaPlateEventState::Next:
+		{
+			if (MediaPlayer != nullptr)
+			{
+				MediaPlayer->Next();
+			}
+		}
+		break;
+	case EMediaPlateEventState::Previous:
+		{
+			if (MediaPlayer != nullptr)
+			{
+				MediaPlayer->Previous();
+			}
+		}
+		break;
 	case EMediaPlateEventState::MAX:
 	default:
 		checkNoEntry();
