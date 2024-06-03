@@ -444,29 +444,6 @@ void ULevelSequence::PostLoad()
 
 #if WITH_EDITOR
 
-bool UpdateFolderBindingID(UMovieSceneFolder* Folder, FGuid OldGuid, FGuid NewGuid)
-{
-	for (FGuid ChildGuid : Folder->GetChildObjectBindings())
-	{
-		if (ChildGuid == OldGuid)
-		{
-			Folder->AddChildObjectBinding(NewGuid);
-			Folder->RemoveChildObjectBinding(OldGuid);
-			return true;
-		}
-	}
-
-	for (UMovieSceneFolder* ChildFolder : Folder->GetChildFolders())
-	{
-		if (UpdateFolderBindingID(ChildFolder, OldGuid, NewGuid))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 bool ULevelSequence::ConvertOldSpawnables()
 {
 	bool bConvertedDynamicBinding = false;
