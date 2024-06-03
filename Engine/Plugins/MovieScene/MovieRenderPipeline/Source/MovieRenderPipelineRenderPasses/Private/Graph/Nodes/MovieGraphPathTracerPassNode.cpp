@@ -13,6 +13,7 @@ TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathT
 
 UMovieGraphPathTracerRenderPassNode::UMovieGraphPathTracerRenderPassNode()
 	: SpatialSampleCount(1)
+	, bEnableReferenceMotionBlur(false)
 	, bDenoiser(true)
 	, bWriteAllSamples(false)
 	, bDisableToneCurve(false)
@@ -140,3 +141,11 @@ bool UMovieGraphPathTracerRenderPassNode::GetAllowDenoiser() const
 	return bDenoiser;
 }
 
+FEngineShowFlags UMovieGraphPathTracerRenderPassNode::GetShowFlags() const
+{
+	FEngineShowFlags OutShowFlag = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
+	OutShowFlag.SetPathTracing(true);
+	OutShowFlag.SetMotionBlur(!bEnableReferenceMotionBlur);
+
+	return OutShowFlag;
+}
