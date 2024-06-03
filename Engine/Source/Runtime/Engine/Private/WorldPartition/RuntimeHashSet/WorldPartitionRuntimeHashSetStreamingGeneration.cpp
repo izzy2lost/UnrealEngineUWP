@@ -187,6 +187,12 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 				RuntimeCell->SetIsAlwaysLoaded(bIsCellAlwaysLoaded);
 				PopulateRuntimeCell(RuntimeCell, CellActorInstances, OutPackagesToGenerate);
 
+				UWorldPartitionRuntimeCellDataHashSet* RuntimeCellData = CastChecked<UWorldPartitionRuntimeCellDataHashSet>(RuntimeCell->RuntimeCellData);
+				const FVector SpaceMask(1, 1, RuntimeCellData->bIs2D ? 0 : 1);
+
+				RuntimeCell->RuntimeCellData->ContentBounds.Min *= SpaceMask;
+				RuntimeCell->RuntimeCellData->ContentBounds.Max *= SpaceMask;
+
 				if (CellDescInstance.CellBounds.IsSet())
 				{
 					switch (CellDescInstance.SourcePartition->BoundsMethod)
@@ -198,6 +204,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 						if (RuntimeCell->RuntimeCellData->ContentBounds.IsValid)
 						{
 							RuntimeCell->RuntimeCellData->ContentBounds = RuntimeCell->RuntimeCellData->ContentBounds.Overlap(CellDescInstance.CellBounds.GetValue());
+							check(CellDescInstance.CellBounds.GetValue().IsValid);
 						}
 						break;
 					}

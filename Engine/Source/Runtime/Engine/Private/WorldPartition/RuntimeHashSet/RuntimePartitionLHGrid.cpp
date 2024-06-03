@@ -200,6 +200,8 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 		if (bIsSpatiallyLoaded)
 		{
 			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize, Origin * SpaceMask);
+			CellDesc.CellBounds.GetValue().Min *= SpaceMask;
+			CellDesc.CellBounds.GetValue().Max *= SpaceMask;
 			CellDesc.bIs2D = bIs2D;
 		}
 	}
