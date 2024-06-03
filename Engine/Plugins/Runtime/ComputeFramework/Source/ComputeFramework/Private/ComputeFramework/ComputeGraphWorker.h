@@ -108,8 +108,8 @@ private:
 	{
 		~FAsyncReadback();
 
-		class FRHIGPUBufferReadback* Readback;
-		uint32 NumBytes;
+		class FRHIGPUBufferReadback* Readback = nullptr;
+		uint32 NumBytes = 0;
 		const UObject* OwnerPointer = nullptr;
 		FComputeDataProviderRenderProxy::FReadbackCallback OnDataAvailable;
 	};
