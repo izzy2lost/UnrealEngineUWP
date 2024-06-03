@@ -4900,36 +4900,35 @@ void FRenderer::PrepareRasterizerPasses(
 					Context.Dispatches_HW_Triangles.Indirections.Emplace(PassIndex);
 				}
 			}
-
-			if(CVarNaniteRasterSort.GetValueOnRenderThread())
-			{
-				auto SortIndirections = [&](FDispatchContext::FDispatchList& List)
-				{
-					const uint32 Num = List.Indirections.Num();
-
-					TArray<TPair<uint32, uint32>> SortList;
-					SortList.Reserve(Num);
-
-					for (uint32 PassIndex : List.Indirections)
-					{
-						FRasterizerPass& Pass = Context.RasterizerPasses[PassIndex];
-						SortList.Emplace(Pass.CalcSortKey(), PassIndex);
-					}
-
-					SortList.Sort();
-
-					for (uint32 i = 0; i < Num; i++)
-					{
-						List.Indirections[i] = SortList[i].Value;
-					}
-				};
-
-				SortIndirections(Context.Dispatches_SW_Tessellated);
-				SortIndirections(Context.Dispatches_SW_Triangles);
-				SortIndirections(Context.Dispatches_HW_Triangles);
-			}
 		}
 
+		if(CVarNaniteRasterSort.GetValueOnRenderThread())
+		{
+			auto SortIndirections = [&](FDispatchContext::FDispatchList& List)
+			{
+				const uint32 Num = List.Indirections.Num();
+
+				TArray<TPair<uint32, uint32>> SortList;
+				SortList.Reserve(Num);
+
+				for (uint32 PassIndex : List.Indirections)
+				{
+					FRasterizerPass& Pass = Context.RasterizerPasses[PassIndex];
+					SortList.Emplace(Pass.CalcSortKey(), PassIndex);
+				}
+
+				SortList.Sort();
+
+				for (uint32 i = 0; i < Num; i++)
+				{
+					List.Indirections[i] = SortList[i].Value;
+				}
+			};
+
+			SortIndirections(Context.Dispatches_SW_Tessellated);
+			SortIndirections(Context.Dispatches_SW_Triangles);
+			SortIndirections(Context.Dispatches_HW_Triangles);
+		}
 	},
 		bUseSetupCache ? &GNaniteRasterSetupPipe : nullptr,
 		GetVisibilityTask(VisibilityQuery),
