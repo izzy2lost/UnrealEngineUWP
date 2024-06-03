@@ -4,8 +4,6 @@
 
 #include "IPropertyTypeCustomization.h"
 #include "IDetailCustomNodeBuilder.h"
-#include "EditorUndoClient.h"
-#include "StructViewerFilter.h"
 
 class IAssetReferenceFilter;
 class IPropertyHandle;
@@ -14,7 +12,7 @@ class IDetailPropertyRow;
 class IPropertyHandle;
 class FStructOnScope;
 class SWidget;
-class SComboButton;
+class SInstancedStructPicker;
 struct FInstancedStruct;
 class FInstancedStructProvider;
 
@@ -37,20 +35,11 @@ private:
 
 	using FReplacementObjectMap = TMap<UObject*, UObject*>;
 	void OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap);
-	
-	FText GetDisplayValueString() const;
-	FText GetTooltipText() const;
-	const FSlateBrush* GetDisplayValueIcon() const;
-	TSharedRef<SWidget> GenerateStructPicker();
-	void OnStructPicked(const UScriptStruct* InStruct);
 
 	/** Handle to the struct property being edited */
 	TSharedPtr<IPropertyHandle> StructProperty;
 
-	/** The base struct that we're allowing to be picked (controlled by the "BaseStruct" meta-data) */
-	UScriptStruct* BaseScriptStruct = nullptr;
-
-	TSharedPtr<SComboButton> ComboButton;
+	TSharedPtr<SInstancedStructPicker> StructPicker;
 	TSharedPtr<IPropertyUtilities> PropUtils;
 	
 	FDelegateHandle OnObjectsReinstancedHandle;
@@ -121,29 +110,6 @@ private:
 protected:
 	void OnStructLayoutChanges();
 };
-
-/**
- * Filter used by the instanced struct struct picker.
- */
- class STRUCTUTILSEDITOR_API FInstancedStructFilter : public IStructViewerFilter
-{
-public:
-	/** The base struct for the property that classes must be a child-of. */
-	const UScriptStruct* BaseStruct = nullptr;
-
-	// A flag controlling whether we allow UserDefinedStructs
-	bool bAllowUserDefinedStructs = false;
-
-	// A flag controlling whether we allow to select the BaseStruct
-	bool bAllowBaseStruct = true;
-
-	virtual bool IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override;
-	virtual bool IsUnloadedStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const FSoftObjectPath& InStructPath, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override;
-
- 	// Optional filter to prevent selection of some structs e.g. ones in a plugin that is inaccessible from the object being edited
- 	TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter;
-};
-
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
