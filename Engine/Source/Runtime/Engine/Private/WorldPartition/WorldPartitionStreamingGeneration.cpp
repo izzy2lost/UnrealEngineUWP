@@ -2118,6 +2118,8 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 		RuntimeHash->SetupHLODActors(StreamingGenerator.GetStreamingGenerationContext(InContainerInstanceCollection), Params);
 	};
 
+	UWorldPartitionRuntimeHash::ExecutePreSetupHLODActors(this, Params);
+
 	// Process all Content Bundle container instances
 	for (const UActorDescContainerInstance* ContentBundleContainerInstance : ContentBundleContainerInstances)
 	{
@@ -2131,6 +2133,8 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 		FStreamingGenerationContainerInstanceCollection Collection(BaseAndEDLContainerInstances, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs);
 		SetupHLODActorsForCollection(Collection);
 	}
+
+	UWorldPartitionRuntimeHash::ExecutePostSetupHLODActors(this, Params);
 }
 
 FStreamingGenerationContainerInstanceCollection::FStreamingGenerationContainerInstanceCollection(std::initializer_list<TObjectPtr<const UActorDescContainerInstance>> ActorDescContainerInstanceArray, const ECollectionType& InCollectionType)

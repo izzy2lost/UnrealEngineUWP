@@ -15,6 +15,7 @@
 #include "WorldPartition/Cook/WorldPartitionCookPackage.h"
 #include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
 #include "UObject/ObjectSaveContext.h"
+#include "UObject/UObjectIterator.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeHash)
@@ -631,6 +632,31 @@ UWorldPartitionRuntimeHash* UWorldPartitionRuntimeHash::ConvertWorldPartitionHas
 	NewHash->SetDefaultValues();
 	return NewHash;
 }
+
+void UWorldPartitionRuntimeHash::ExecutePreSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams)
+{
+	// Iterate over all hash types and call PreSetupHLODActors() on each of them
+	for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
+	{
+		if (ClassIterator->IsChildOf(UWorldPartitionRuntimeHash::StaticClass()) && !ClassIterator->HasAnyClassFlags(CLASS_Abstract))
+		{
+			CastChecked<UWorldPartitionRuntimeHash>(ClassIterator->GetDefaultObject())->PreSetupHLODActors(InWorldPartition, InParams);
+		}
+	}
+}
+
+void UWorldPartitionRuntimeHash::ExecutePostSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams)
+{
+	// Iterate over all hash types and call PostSetupHLODActors() on each of them
+	for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
+	{
+		if (ClassIterator->IsChildOf(UWorldPartitionRuntimeHash::StaticClass()) && !ClassIterator->HasAnyClassFlags(CLASS_Abstract))
+		{
+			CastChecked<UWorldPartitionRuntimeHash>(ClassIterator->GetDefaultObject())->PostSetupHLODActors(InWorldPartition, InParams);
+		}
+	}
+}
+
 #endif
 
 void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape)
