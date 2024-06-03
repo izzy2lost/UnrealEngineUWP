@@ -185,6 +185,11 @@ namespace Horde.Server.Issues
 							HashSet<int> issueIds = new HashSet<int>(report.IssueSpans.Select(x => x.IssueId));
 							report.Issues.AddRange(issues.Where(x => issueIds.Contains(x.Id)));
 
+							if (!workflowConfig.ReportWarnings)
+							{
+								report.Issues.RemoveAll(x => x.Severity == IssueSeverity.Warning);
+							}
+
 							DateTime reportTime = lastScheduledReportTime;
 
 							IssueReportGroup? group = groups.FirstOrDefault(x => x.Channel == workflowConfig.ReportChannel && x.Time == reportTime);

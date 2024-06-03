@@ -34,6 +34,11 @@ namespace Horde.Server.Issues
 		public string? ReportChannel { get; set; }
 
 		/// <summary>
+		/// Whether to include issues with a warning status in the summary
+		/// </summary>
+		public bool ReportWarnings { get; set; } = true;
+
+		/// <summary>
 		/// Whether to group issues by template in the report
 		/// </summary>
 		public bool GroupIssuesByTemplate { get; set; } = true;
