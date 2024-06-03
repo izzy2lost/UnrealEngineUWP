@@ -258,7 +258,10 @@ const FName FBlueprintMetadata::MD_UseEnumValuesAsMaskValuesInEditor(TEXT("UseEn
 
 const FName FBlueprintMetadata::MD_AnimBlueprintFunction(TEXT("AnimBlueprintFunction"));
 
+const FName FBlueprintMetadata::MD_ShowDisplayNames(TEXT("ShowDisplayNames"));
+
 const FName FBlueprintMetadata::MD_AllowAbstractClasses(TEXT("AllowAbstract"));
+const FName FBlueprintMetadata::MD_AllowedClasses(TEXT("AllowedClasses"));
 const FName FBlueprintMetadata::MD_GetOptions(TEXT("GetOptions"));
 
 const FName FBlueprintMetadata::MD_Namespace(TEXT("Namespace"));

@@ -275,8 +275,13 @@ public:
 	/** Stub function used internally by animation blueprints */
 	static const FName MD_AnimBlueprintFunction;
 
+	/** Metadata that should be used with UPARAM to specify whether a TSubclassOf argument should use the DisplayName of classes */
+	static const FName MD_ShowDisplayNames;
+	
 	/** Metadata that should be used with UPARAM to specify whether a TSubclassOf argument allows abstract classes */
 	static const FName MD_AllowAbstractClasses;
+	/** Metadata that should be used with UPARAM to specify which classes are allowed in selection */
+	static const FName MD_AllowedClasses;
 
 	/** Metadata that should be used with UPARAM to specify a function name that generates a list of available values */
 	static const FName MD_GetOptions;

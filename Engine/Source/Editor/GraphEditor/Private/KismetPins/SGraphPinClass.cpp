@@ -26,6 +26,7 @@
 #include "Misc/CString.h"
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
+#include "PropertyCustomizationHelpers.h"
 #include "SGraphPin.h"
 #include "ScopedTransaction.h"
 #include "SlotBase.h"
@@ -141,21 +142,38 @@ TSharedRef<SWidget> SGraphPinClass::GenerateAssetPicker()
 		PinRequiredParentClass = UObject::StaticClass();
 	}
 
+	//Looks like this defaults to ClassName? Either way, allow UPARAM to specify this. 
+	const FString ShowDisplayNamesString = GraphPinObj->GetOwningNode()->GetPinMetaData(GraphPinObj->PinName, FBlueprintMetadata::MD_ShowDisplayNames);
+	if (!ShowDisplayNamesString.IsEmpty() && ShowDisplayNamesString.ToBool() == true)
+	{
+		Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+	}
+
 	TSharedPtr<FGraphPinFilter> Filter = MakeShareable(new FGraphPinFilter);
 	Filter->bAllowAbstractClasses = bAllowAbstractClasses;
 
+	FString AllowedClassesString = GraphPinObj->GetOwningNode()->GetPinMetaData(GraphPinObj->PinName, FBlueprintMetadata::MD_AllowedClasses);
+	if (!AllowedClassesString.IsEmpty())
+	{
+		Filter->AllowedChildrenOfClasses.Append(PropertyCustomizationHelpers::GetClassesFromMetadataString(AllowedClassesString));
+	}
+	
 	// Check with the node to see if there is any "AllowAbstract" metadata for the pin
 	FString AllowAbstractString = GraphPinObj->GetOwningNode()->GetPinMetaData(GraphPinObj->PinName, FBlueprintMetadata::MD_AllowAbstractClasses);
-
+	
 	// Override bAllowAbstractClasses is the AllowAbstract metadata was set
 	if (!AllowAbstractString.IsEmpty())
 	{
 		Filter->bAllowAbstractClasses = AllowAbstractString.ToBool();
 	}
-
+	
 	Options.ClassFilters.Add(Filter.ToSharedRef());
 
-	Filter->AllowedChildrenOfClasses.Add(PinRequiredParentClass);
+	if (Filter->AllowedChildrenOfClasses.Num() == 0)
+	{
+		Filter->AllowedChildrenOfClasses.Add(PinRequiredParentClass);
+	}
+	
 	Filter->GraphPinOutermostPackage = GraphPinObj->GetOuter()->GetOutermost();
 
 	if (UEdGraphNode* ParentNode = GraphPinObj->GetOwningNode())
