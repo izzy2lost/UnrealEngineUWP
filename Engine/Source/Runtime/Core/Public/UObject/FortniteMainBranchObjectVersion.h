@@ -493,6 +493,9 @@ struct FFortniteMainBranchObjectVersion
 
 		// Fix chaos cloth buckling stiffness parameter bug 
 		ChaosClothAllowZeroBucklingStiffness,
+
+		// AddToFrontend GFA now defaults to unload plugin on exit frontend
+		GameFeatureDataActionAddToFrontendDefaultToUnload,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
