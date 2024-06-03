@@ -116,6 +116,7 @@ public:
 	virtual TArray<FLiveLinkTime> GetSubjectFrameTimes(FLiveLinkSubjectName SubjectName) const override;
 	virtual ULiveLinkSourceSettings* GetSourceSettings(const FGuid& SourceGuid) const override;
 	virtual UObject* GetSubjectSettings(const FLiveLinkSubjectKey& SubjectKey) const override;
+	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const override;
 
 
 	virtual bool EvaluateFrameFromSource_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkSubjectFrameData& OutFrame) override;
@@ -224,9 +225,6 @@ private:
 	/** Cache the game thread values to be reused on any thread */
 	void CacheValues();
 
-	/** Registered with each subject and called when it changes */
-	void OnSubjectChangedHandler();
-
 	void PushSubjectStaticData_Internal(FPendingSubjectStatic&& SubjectStaticData);
 	void PushSubjectFrameData_Internal(FPendingSubjectFrame&& SubjectFrameData);
 
@@ -248,6 +246,7 @@ protected:
 
 	/** The current collection used. */
 	TUniquePtr<FLiveLinkSourceCollection> Collection;
+
 private:
 	/** Pending static info to add to a subject. */
 	TArray<FPendingSubjectStatic> SubjectStaticToPush;

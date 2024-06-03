@@ -302,6 +302,11 @@ public:
 	virtual UObject* GetSubjectSettings(const FLiveLinkSubjectKey& SubjectKey) const = 0;
 
 	/**
+	 * Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording. 
+	 */
+	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const = 0;
+
+	/**
 	 * Return the evaluated subject from a specific source snapshot for a specific role.
 	 * A subject could have to go through a translator to output in the desired role.
 	 * @note This will always return the same value for a specific frame.

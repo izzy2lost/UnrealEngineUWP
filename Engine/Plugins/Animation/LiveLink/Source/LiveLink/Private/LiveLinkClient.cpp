@@ -1518,6 +1518,20 @@ UObject* FLiveLinkClient::GetSubjectSettings(const FLiveLinkSubjectKey& InSubjec
 	return nullptr;
 }
 
+const FLiveLinkStaticDataStruct* FLiveLinkClient::GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
+{
+	FScopeLock Lock(&CollectionAccessCriticalSection);
+	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
+	{
+		if (FLiveLinkSubject* LiveLinkSubject = SubjectItem->GetLiveSubject())
+		{
+			return &LiveLinkSubject->GetStaticData();
+		}
+	}
+
+	return nullptr;
+}
+
 void FLiveLinkClient::RegisterForFrameDataReceived(const FLiveLinkSubjectKey& InSubjectKey, const FOnLiveLinkSubjectStaticDataReceived::FDelegate& OnStaticDataReceived_AnyThread, const FOnLiveLinkSubjectFrameDataReceived::FDelegate& OnFrameDataReceived_AnyThread, FDelegateHandle& OutStaticDataReceivedHandle, FDelegateHandle& OutFrameDataReceivedHandle)
 {
 	OutStaticDataReceivedHandle.Reset();
