@@ -57,7 +57,7 @@ void ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBuffe
 			checkf(
 				false,
 				TEXT("Shader attempted to bind uniform buffer '%s' at slot %s with hash '%u', but the shader expected '%s' with hash '%u'."),
-				*Layout.GetDebugName(), *SlotRegistry.GetDebugDescription(Slot), ExpectedHash, ExpectedStructMetadata->GetShaderVariableName(), Layout.GetHash());
+				*Layout.GetDebugName(), *SlotRegistry.GetDebugDescription(Slot), Layout.GetHash(), ExpectedStructMetadata->GetShaderVariableName(), ExpectedHash);
 		}
 	}
 #endif
