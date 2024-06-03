@@ -497,7 +497,12 @@ void SDockingTabStack::OnFocusChanging( const FWeakWidgetPath& PreviousFocusPath
 FReply SDockingTabStack::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
 	const TSharedPtr<SDockTab> ForegroundTab = TabWell->GetForegroundTab();
-	if ( ForegroundTab.IsValid() && !ForegroundTab->IsActive() )
+
+	const bool bIsRelevantButtonForTabFocus = MouseEvent.GetPressedButtons().Contains(EKeys::LeftMouseButton)
+			|| MouseEvent.GetPressedButtons().Contains(EKeys::RightMouseButton)
+			|| MouseEvent.GetPressedButtons().Contains(EKeys::MiddleMouseButton);
+
+	if (bIsRelevantButtonForTabFocus && ForegroundTab.IsValid() && !ForegroundTab->IsActive())
 	{
 		FGlobalTabmanager::Get()->SetActiveTab( ForegroundTab );
 #if PLATFORM_LINUX

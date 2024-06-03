@@ -58,21 +58,19 @@ void FNavigationConfig::OnUserRemoved(int32 UserIndex)
 
 EUINavigation FNavigationConfig::GetNavigationDirectionFromKey(const FKeyEvent& InKeyEvent) const
 {
-	if (const EUINavigation* Rule = KeyEventRules.Find(InKeyEvent.GetKey()))
+	const bool bModifierHeld = InKeyEvent.IsControlDown() || InKeyEvent.IsAltDown() || InKeyEvent.IsCommandDown() || InKeyEvent.IsShiftDown();
+	if (bIgnoreModifiersForNavigationActions || !bModifierHeld)
 	{
-		if (bKeyNavigation)
+		if (const EUINavigation* Rule = KeyEventRules.Find(InKeyEvent.GetKey()))
 		{
-			return *Rule;
+			if (bKeyNavigation)
+			{
+				return *Rule;
+			}
 		}
-	}
-	else if (bTabNavigation && InKeyEvent.GetKey() == EKeys::Tab )
-	{
-		//@TODO: Really these uses of input should be at a lower priority, only occurring if nothing else handled them
-		// For now this code prevents consuming them when some modifiers are held down, allowing some limited binding
-		const bool bAllowEatingKeyEvents = !InKeyEvent.IsControlDown() && !InKeyEvent.IsAltDown() && !InKeyEvent.IsCommandDown();
-
-		if ( bAllowEatingKeyEvents )
+		else if (bTabNavigation && InKeyEvent.GetKey() == EKeys::Tab )
 		{
+			//@TODO: Really these uses of input should be at a lower priority, only occurring if nothing else handled them
 			return ( InKeyEvent.IsShiftDown() ) ? EUINavigation::Previous : EUINavigation::Next;
 		}
 	}
