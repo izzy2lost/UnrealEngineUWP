@@ -1372,13 +1372,6 @@ namespace PerfSummaries
 			return columnLookup;
 		}
 
-
-		public SummaryTable SortAndFilter(string customFilter, string customRowSort = "buildversion,deviceprofile", bool bReverseSort = false, string weightByColumnName = null)
-		{
-			return SortAndFilter(customFilter.Split(',').ToList(), customRowSort.Split(',').ToList(), bReverseSort, weightByColumnName);
-		}
-
-
 		public static string GetElementTypeStatPrefix(SummaryTableElement.Type type)
 		{
 			switch (type)
@@ -1454,9 +1447,9 @@ namespace PerfSummaries
 			return SummaryTableElement.Type.COUNT;
 		}
 
-		public SummaryTable SortAndFilter(List<string> columnFilterList, List<string> rowSortList, bool bReverseSort, string weightByColumnName, IEnumerable<ISummaryTableColumnFilter> additionalFilters = null)
+		public SummaryTable SortAndFilter(List<string> columnFilterList, List<string> rowSortList, bool bReverseSort, string weightByColumnName, IEnumerable<ISummaryTableColumnFilter> additionalFilters = null, bool bSortTrailingDigitsAsNumeric = false)
 		{
-			SummaryTable newTable = SortRows(rowSortList, bReverseSort);
+			SummaryTable newTable = SortRows(rowSortList, bReverseSort, bSortTrailingDigitsAsNumeric);
 
 			// Generate a column lookup 
 			SummaryTableColumnLookup columnLookup = newTable.GetColumnLookup();
@@ -2206,7 +2199,7 @@ namespace PerfSummaries
 			htmlFile.Close();
 		}
 
-		public SummaryTable SortRows(List<string> rowSortList, bool reverseSort)
+		public SummaryTable SortRows(List<string> rowSortList, bool reverseSort, bool sortTrailingDigitsAsNumeric = false)
 		{
 			List<KeyValuePair<string, int>> columnRemapping = new List<KeyValuePair<string, int>>();
 			for (int i = 0; i < rowCount; i++)
@@ -2218,7 +2211,7 @@ namespace PerfSummaries
 					if (column != null)
 					{
 						string columnKey = column.GetStringValue(i, false, "0000000000.0000000000");
-						if (!column.isNumeric)
+						if (sortTrailingDigitsAsNumeric && !column.isNumeric)
 						{
 							// If there's an integer suffix in the column value, pad it with zeroes for sorting purposes
 							int integerSuffixStartIndex = -1;

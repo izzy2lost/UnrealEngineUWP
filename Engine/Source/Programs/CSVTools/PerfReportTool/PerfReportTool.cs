@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.237.1";
+        private static string VersionString = "4.237.2";
 
         public static string Get() { return VersionString; }
     };
@@ -147,6 +147,7 @@ namespace PerfReportTool
 			"  -spreadsheetfriendly: outputs a single quote before non-numeric entries in summary tables\n" +
 			"  -noSummaryMinMax: don't make min/max columns for each stat in a condensed summary\n" +
 			"  -reverseTable [0|1]: Reverses the order of summary tables (set 0 to force off)\n" +
+			"  -sortTrailingDigitsAsNumeric : detects trailing digits and pads them when sorting summary table\n"+
 			"  -scrollableTable [0|1]: makes the summary table scrollable, with frozen first rows and columns (set 0 to force off)\n" +
 			"  -colorizeTable [off|budget|auto]: selects the table colorization mode. If omitted, uses the default in the summary\n" +
 			"     xml table if set.\n" +
@@ -799,7 +800,8 @@ namespace PerfReportTool
 			// TODO: would be better if we could determine HighIsBad without the format info and store it directly in the column.
 			table.SetColumnFormatInfo(reportXML.columnFormatInfoList);
 
-			SummaryTable filteredTable = table.SortAndFilter(tableInfo.columnFilterList, tableInfo.rowSortList, bReverseTable, weightByColumnName, additionalColumnFilters);
+			bool bSortTrailingDigitsAsNumeric = GetBoolArg("sortTrailingDigitsAsNumeric");
+			SummaryTable filteredTable = table.SortAndFilter(tableInfo.columnFilterList, tableInfo.rowSortList, bReverseTable, weightByColumnName, additionalColumnFilters, bSortTrailingDigitsAsNumeric);
 			if (bCollated)
 			{
 				filteredTable = filteredTable.CollateSortedTable(tableInfo.rowSortList, addMinMaxColumns);
