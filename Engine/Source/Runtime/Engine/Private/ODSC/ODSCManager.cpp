@@ -6,13 +6,30 @@
 #include "ODSCLog.h"
 #include "ODSCThread.h"
 #include "Containers/BackgroundableTicker.h"
+#include "MaterialShared.h"
 #include "Materials/MaterialInstance.h"
+#include "Materials/Material.h"
 
 DEFINE_LOG_CATEGORY(LogODSC);
 
 // FODSCManager
 
+static TAutoConsoleVariable<int32> CVarODSCRecompileMode(
+	TEXT("ODSC.recompilemode"),
+	0,
+	TEXT("Highly experimental - Changes how recompileshaders behaves in cooked build\n")
+	TEXT("0 (default): Gathers all visible materials in a single frame and compiles all permutations for them\n")
+	TEXT("1: Compile only the permutations that are requested by the renderer. Faster iteration but more prone to hitching because of MDC recaching\n")
+	);
+
 FODSCManager* GODSCManager = nullptr;
+
+namespace ODSCManagerPrivate
+{
+#if WITH_ODSC
+	static thread_local int32 ODSCSuspendForceRecompileCount=0;
+#endif
+}
 
 FODSCManager::FODSCManager()
 	: FTSTickerObjectBase(0.0f, FTSBackgroundableTicker::GetCoreTicker())
@@ -105,7 +122,21 @@ void FODSCManager::AddThreadedRequest(
 {
 	if (IsHandlingRequests())
 	{
-		Thread->AddRequest(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, RecompileCommandType);
+		if ((RecompileCommandType == ODSCRecompileCommand::Material || RecompileCommandType == ODSCRecompileCommand::Changed)
+			&& (CVarODSCRecompileMode.GetValueOnAnyThread() > 0))
+		{
+			Thread->ResetMaterialsODSCData(FeatureLevel);
+			
+			// when we ask for "changed", we want both materials and global
+			if (RecompileCommandType == ODSCRecompileCommand::Changed)
+			{
+				Thread->AddRequest(TArray<FString>(), FString(), ShaderPlatform, FeatureLevel, QualityLevel, ODSCRecompileCommand::Changed);
+			}
+		}
+		else
+		{
+			Thread->AddRequest(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, RecompileCommandType);
+		}
 	}
 }
 
@@ -117,18 +148,13 @@ void FODSCManager::AddThreadedShaderPipelineRequest(
 	const FString& VertexFactoryName,
 	const FString& PipelineName,
 	const TArray<FString>& ShaderTypeNames,
-	int32 PermutationId
-)
+	int32 PermutationId,
+	const TArray<FShaderId>& RequestShaderIds)
 {
 	if (IsHandlingRequests())
 	{
-		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId);
+		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestShaderIds);
 	}
-}
-
-static inline bool IsODSCActive()
-{
-	return GODSCManager && GODSCManager->IsHandlingRequests();
 }
 
 void FODSCManager::RegisterMaterialInstance(const UMaterialInstance* MaterialInstance)
@@ -169,4 +195,48 @@ bool FODSCManager::HasAsyncLoadingInstances()
 	}
 
 	return bHasAsyncLoadingInstances;
+}
+
+
+void FODSCManager::SuspendODSCForceRecompile()
+{
+#if WITH_ODSC
+	check(ODSCManagerPrivate::ODSCSuspendForceRecompileCount >= 0);
+	++ODSCManagerPrivate::ODSCSuspendForceRecompileCount;
+#endif
+}
+
+void FODSCManager::ResumeODSCForceRecompile()
+{
+#if WITH_ODSC
+	--ODSCManagerPrivate::ODSCSuspendForceRecompileCount;
+	check(ODSCManagerPrivate::ODSCSuspendForceRecompileCount >= 0);
+#endif
+}
+
+bool FODSCManager::ShouldForceRecompileInternal(const FMaterialShaderMap* MaterialShaderMap, const FMaterial* Material)
+{
+#if WITH_ODSC
+	if (!FPlatformProperties::RequiresCookedData() || CVarODSCRecompileMode.GetValueOnAnyThread() == 0  || ODSCManagerPrivate::ODSCSuspendForceRecompileCount > 0)
+	{
+		return false;
+	}
+
+	if (MaterialShaderMap->IsFromODSC())
+	{
+		return false;
+	}
+
+	return true;
+#else
+	return false;
+#endif
+}
+
+void FODSCManager::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap)
+{
+	if (IsODSCActive())
+	{
+		GODSCManager->Thread->RegisterMaterialShaderMap(MaterialShaderMap);
+	}
 }

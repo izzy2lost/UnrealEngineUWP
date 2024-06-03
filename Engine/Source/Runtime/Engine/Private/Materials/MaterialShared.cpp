@@ -3676,6 +3676,12 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 		return false;
 	}
 
+#if WITH_ODSC
+	bool bShouldForceRecompile = FODSCManager::ShouldForceRecompile(ShaderMap, this) && !IsDefaultMaterial() && !IsUsedWithLandscape();
+#else
+	constexpr bool bShouldForceRecompile = false;
+#endif
+
 	OutShaders.ShaderMap = ShaderMap;
 	const EShaderPlatform ShaderPlatform = ShaderMap->GetShaderPlatform();
 	const EShaderPermutationFlags PermutationFlags = ShaderMap->GetPermutationFlags();
@@ -3731,11 +3737,14 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 				}
 			}
 		}
-		else
+        // we don't do 'else' here because when bShouldForceRecompile is true, we still want to use the current 
+        // pipeline until we have a new one ready. The ODSC server might fail to find the right shader, and this might
+        // skew results when doing some A/B comparisons		
+		if (Pipeline == nullptr || bShouldForceRecompile)
 		{
 			if (InTypes.PipelineType->ShouldOptimizeUnusedOutputs(ShaderPlatform))
 			{
-				bMissingShader = true;
+				bMissingShader = (Pipeline == nullptr);
 
 #if WITH_EDITOR || WITH_ODSC
 				for (const FShaderType* ShaderType : InTypes.PipelineType->GetStages())
@@ -3758,12 +3767,15 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 						const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 						const FString PipelineName(InTypes.PipelineType->GetName());
 						TArray<FString> ShaderStageNamesToCompile;
+						TArray<FShaderId> RequestShaderIds;
 						for (auto* ShaderType : InTypes.PipelineType->GetStages())
 						{
 							ShaderStageNamesToCompile.Add(ShaderType->GetName());
+							RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, InTypes.PipelineType->GetHashedName(), InVertexFactoryType, kUniqueShaderPermutationId, ShaderPlatform));
 						}
 
-						GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, ShaderStageNamesToCompile, kUniqueShaderPermutationId);
+						GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, 
+						                                               ShaderStageNamesToCompile, kUniqueShaderPermutationId, RequestShaderIds);
 					}
 				}
 				else
@@ -3829,9 +3841,12 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 				{
 					OutShaders.Shaders[FrequencyIndex] = Shader;
 				}
-				else
+		        // we don't do 'else' here because when bShouldForceRecompile is true, we still want to use the current 
+		        // shader until we have a new one ready. The ODSC server might fail to find the right shader, and this might
+		        // skew results when doing some A/B comparisons		
+				if (Shader == nullptr || bShouldForceRecompile)
 				{
-					bMissingShader = true;
+					bMissingShader = (Shader == nullptr);
 
 #if WITH_EDITOR || WITH_ODSC
 					if (!ShouldCacheShaderType(ShaderType, InVertexFactoryType, PermutationId))
@@ -3851,7 +3866,11 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 							TArray<FString> ShaderStageNamesToCompile;
 							ShaderStageNamesToCompile.Add(ShaderType->GetName());
 
-							GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, ShaderStageNamesToCompile, PermutationId);
+							TArray<FShaderId> RequestShaderIds;
+							RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, FHashedName(), InVertexFactoryType, PermutationId, ShaderPlatform));
+
+							GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, 
+							                                               ShaderStageNamesToCompile, PermutationId, RequestShaderIds);
 						}
 					}
 					else

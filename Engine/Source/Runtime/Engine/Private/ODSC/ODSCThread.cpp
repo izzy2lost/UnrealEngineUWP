@@ -5,6 +5,9 @@
 #include "ODSCLog.h"
 #include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
+#include "MaterialShared.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/UObjectIterator.h"
 
 FODSCRequestPayload::FODSCRequestPayload(
 	EShaderPlatform InShaderPlatform,
@@ -156,6 +159,35 @@ void FODSCThread::Tick()
 	Process();
 }
 
+void FODSCThread::ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel)
+{
+#if WITH_ODSC
+	FlushRenderingCommands();
+
+	{
+		FScopeLock Lock(&RequestHashCriticalSection);
+
+		// this will stop the rendering thread, and reattach components, in the destructor
+		FMaterialUpdateContext UpdateContext(FMaterialUpdateContext::EOptions::Default);
+		RequestHashes.Empty();
+
+		for (TObjectIterator<UMaterialInterface> It; It; ++It)
+		{ 
+			UMaterialInterface* Material = *It;
+			if (Material)
+			{
+				const FMaterialResource* MaterialResource = Material->GetMaterialResource((ERHIFeatureLevel::Type)FeatureLevel);
+				if (MaterialResource && MaterialResource->GetGameThreadShaderMap())
+				{
+					MaterialResource->GetGameThreadShaderMap()->SetIsFromODSC(false);
+				}
+				UpdateContext.AddMaterialInterface(Material);
+			}
+		}
+	}
+#endif
+}
+
 void FODSCThread::AddRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType)
 {
 	PendingMaterialThreadedRequests.Enqueue(new FODSCMessageHandler(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, RecompileCommandType));
@@ -169,7 +201,8 @@ void FODSCThread::AddShaderPipelineRequest(
 	const FString& VertexFactoryName,
 	const FString& PipelineName,
 	const TArray<FString>& ShaderTypeNames,
-	int32 PermutationId
+	int32 PermutationId,
+	const TArray<FShaderId>& RequestShaderIds
 )
 {
 	// TODO: Requests for individual permutations come in here, but a single coalesced payload is submitted to the server since 
@@ -184,11 +217,43 @@ void FODSCThread::AddShaderPipelineRequest(
 	const FString RequestHash = FMD5::HashAnsiString(*RequestString);
 
 	FScopeLock Lock(&RequestHashCriticalSection);
-	if (!RequestHashes.Contains(RequestHash))
+
+	bool bShouldAddRequest = false;
+
+	for (const FShaderId& ShaderId : RequestShaderIds)
+	{
+		if (!RequestHashes.Contains(ShaderId))
+		{
+			RequestHashes.Add(ShaderId);
+			bShouldAddRequest = true;
+		}
+	}
+
+	if (bShouldAddRequest)
 	{
 		PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
-		RequestHashes.Add(RequestHash);
 	}
+}
+
+void FODSCThread::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap)
+{
+	FScopeLock Lock(&RequestHashCriticalSection);
+
+	TMap<FShaderId, TShaderRef<FShader>> ShadersInMap;
+	MaterialShaderMap.GetShaderList(ShadersInMap);
+	FSHAHash CookedShaderMapIdHash = MaterialShaderMap.GetShaderMapId().CookedShaderMapIdHash;
+	for (auto Iter : ShadersInMap)
+	{
+		// GetShaderList doesn't use the Cookedshadermap id
+		const FShaderId& ShaderIdSrc = Iter.Key;
+		FShaderId ShaderIdCopy(ShaderIdSrc.Type, CookedShaderMapIdHash, ShaderIdSrc.ShaderPipelineName, ShaderIdSrc.VFType, ShaderIdSrc.PermutationId, (EShaderPlatform)ShaderIdSrc.Platform);
+
+		// The shadermap we receive contains all the requests the client sent until now, so it's possible they got removed from RequestHashes already
+		if (RequestHashes.Find(ShaderIdCopy))
+		{
+			RequestHashes.Remove(ShaderIdCopy);
+		}
+    }
 }
 
 void FODSCThread::GetCompletedRequests(TArray<FODSCMessageHandler*>& OutCompletedRequests)
@@ -244,11 +309,6 @@ void FODSCThread::Process()
 		while (PendingMeshMaterialThreadedRequests.Dequeue(Payload))
 		{
 			PayloadsToAggregate.Add(Payload);
-			int FoundIndex = INDEX_NONE;
-			if (RequestHashes.Find(Payload.RequestHash, FoundIndex))
-			{
-				RequestHashes.RemoveAt(FoundIndex);
-			}
 		}
 	}
 

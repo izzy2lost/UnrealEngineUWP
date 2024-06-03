@@ -12,6 +12,7 @@
 
 class FEvent;
 class FRunnableThread;
+class FMaterialShaderMap;
 
 namespace UE
 {
@@ -133,7 +134,8 @@ public:
 		const FString& VertexFactoryName,
 		const FString& PipelineName,
 		const TArray<FString>& ShaderTypeNames,
-		int32 PermutationId
+		int32 PermutationId,
+		const TArray<FShaderId>& RequestShaderIds
 	);
 
 	/**
@@ -150,6 +152,9 @@ public:
 
 	bool HasPendingRequests() const { return bHasPendingRequests; }
 
+	void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
+
+	void ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel);
 protected:
 
 	//~ Begin FRunnable Interface
@@ -194,7 +199,7 @@ private:
 	FCriticalSection RequestHashCriticalSection;
 
 	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
-	TArray<FString> RequestHashes;
+	TSet<FShaderId> RequestHashes;
 
 	/** Pointer to Runnable Thread */
 	FRunnableThread* Thread = nullptr;

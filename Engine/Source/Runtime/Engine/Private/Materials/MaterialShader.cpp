@@ -36,6 +36,10 @@
 #include "PSOPrecacheValidation.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
+#if WITH_ODSC
+#include "ODSC/ODSCManager.h"
+#endif
+
 #if WITH_EDITOR
 #include "Algo/Sort.h"
 #include "Containers/AnsiString.h"
@@ -3385,6 +3389,11 @@ void FMaterialShaderMap::RegisterForODSC(EShaderPlatform InShaderPlatform)
 				bRegistered = true;
 			}
 		}
+
+#if WITH_ODSC
+		bIsFromODSC = true;
+		FODSCManager::RegisterMaterialShaderMap(*this);
+#endif
 	}
 }
 
@@ -3455,6 +3464,9 @@ FMaterialShaderMap::FMaterialShaderMap() :
 	bCompilationFinalized(true),
 	bCompiledSuccessfully(true),
 	bIsPersistent(false)
+#if WITH_ODSC
+	, bIsFromODSC(false)
+#endif
 {
 	checkSlow(IsInGameThread() || IsAsyncLoading());
 #if ALLOW_SHADERMAP_DEBUG_DATA

@@ -1545,6 +1545,11 @@ public:
 	void RemoveCompilingDependency(FMaterial* Material);
 #endif // WITH_EDITOR
 
+#if WITH_ODSC
+	bool IsFromODSC() const { return bIsFromODSC; }
+	void SetIsFromODSC(bool bInIsFromODSC) { bIsFromODSC = bInIsFromODSC; }
+#endif
+
 #if WITH_EDITORONLY_DATA
 	const TCHAR* GetFriendlyName() const { return *GetContent()->FriendlyName; }
 	const TCHAR* GetDebugDescription() const { return *GetContent()->DebugDescription; }
@@ -1704,6 +1709,9 @@ private:
 
 	/** Indicates whether the shader map should be stored in the shader cache. */
 	uint32 bIsPersistent : 1;
+
+	/** Indicates whether the shader map is from ODSC */
+	uint32 bIsFromODSC : 1;
 
 #if WITH_EDITOR
 	FShader* ProcessCompilationResultsForSingleJob(class FShaderCompileJob* SingleJob, const FShaderPipelineType* ShaderPipeline, const FSHAHash& MaterialShaderMapHash);

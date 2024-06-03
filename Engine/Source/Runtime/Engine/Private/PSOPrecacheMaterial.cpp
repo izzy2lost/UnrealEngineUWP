@@ -14,6 +14,7 @@
 #include "MaterialShared.h"
 #include "VertexFactory.h"
 #include "SceneInterface.h"
+#include "ODSC/ODSCManager.h"
 
 int32 GPSOUseBackgroundThreadForCollection = 1;
 static FAutoConsoleVariableRef CVarPSOUseBackgroundThreadForCollection(
@@ -467,6 +468,10 @@ FMaterialPSORequestManager GMaterialPSORequestManager;
 void FMaterialPSOPrecacheCollectionTask::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialPSOPrecacheCollectionTask);
+
+#if WITH_ODSC
+	FODSCSuspendForceRecompileScope ODSCSuspendForceRecompileScope;
+#endif
 
 	// Make sure task is still relevant
 	if (RequestLifecycleID != GMaterialPSORequestManager.GetLifecycleID())

@@ -10,6 +10,7 @@
 
 class FODSCThread;
 class UMaterialInstance;
+class FMaterialShaderMap;
 
 /**
  * Responsible for processing shader compile responses from the ODSC Thread.
@@ -76,14 +77,34 @@ public:
 		const FString& VertexFactoryName,
 		const FString& PipelineName,
 		const TArray<FString>& ShaderTypeNames,
-		int32 PermutationId
+		int32 PermutationId,
+		const TArray<FShaderId>& RequestShaderIds
 	);
+
+	UE_DEPRECATED(5.5, "RequestShaderIds is needed for AddThreadedShaderPipelineRequest and need to match the ones from FMaterialShaderMap::GetShaderList")
+	ENGINE_API void AddThreadedShaderPipelineRequest(
+		EShaderPlatform ShaderPlatform,
+		ERHIFeatureLevel::Type FeatureLevel,
+		EMaterialQualityLevel::Type QualityLevel,
+		const FString& MaterialName,
+		const FString& VertexFactoryName,
+		const FString& PipelineName,
+		const TArray<FString>& ShaderTypeNames,
+		int32 PermutationId
+	) {}
 
 	/** Returns true if we would actually add a request when calling AddThreadedShaderPipelineRequest. */
 	inline bool IsHandlingRequests() const { return Thread != nullptr; }
+	static void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
 
 	static void RegisterMaterialInstance(const UMaterialInstance* MI);
 	static void UnregisterMaterialInstance(const UMaterialInstance* MI);
+
+	static inline bool IsODSCActive();
+	static inline bool ShouldForceRecompile(const FMaterialShaderMap* MaterialShaderMap, const FMaterial* Material);
+
+	static void SuspendODSCForceRecompile();
+	static void ResumeODSCForceRecompile();
 
 private:
 
@@ -91,6 +112,7 @@ private:
 	ENGINE_API void StopThread();
 
 	bool HasAsyncLoadingInstances();
+	bool ShouldForceRecompileInternal(const FMaterialShaderMap* MaterialShaderMap, const FMaterial* Material);
 
 	/** Handles communicating directly with the cook on the fly server. */
 	FODSCThread* Thread = nullptr;
@@ -98,8 +120,30 @@ private:
 	FDelegateHandle OnScreenMessagesHandle;
 	FCriticalSection MaterialInstancesCachedUniformExpressionsCS;
 	TMap<const void*, TWeakObjectPtr<const UMaterialInstance> > MaterialInstancesCachedUniformExpressions;
+};
 
+struct FODSCSuspendForceRecompileScope
+{
+	FODSCSuspendForceRecompileScope()
+	{
+		FODSCManager::SuspendODSCForceRecompile();
+	}
+
+	~FODSCSuspendForceRecompileScope()
+	{
+		FODSCManager::ResumeODSCForceRecompile();
+	}
 };
 
 /** The global shader ODSC manager. */
 extern ENGINE_API FODSCManager* GODSCManager;
+
+inline bool FODSCManager::IsODSCActive()
+{
+	return GODSCManager && GODSCManager->IsHandlingRequests();
+}
+
+inline bool FODSCManager::ShouldForceRecompile(const FMaterialShaderMap* MaterialShaderMap, const FMaterial* Material)
+{
+	return FODSCManager::IsODSCActive() && GODSCManager->ShouldForceRecompileInternal(MaterialShaderMap, Material);
+}
