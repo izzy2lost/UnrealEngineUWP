@@ -545,7 +545,7 @@ void FLightmassExporter::AddMaterial(UMaterialInterface* InMaterialInterface, co
 
 		if (auto* ExistingExportSettings = MaterialExportSettings.Find(InMaterialInterface))
 		{
-			checkf(ExportSettings == *ExistingExportSettings, TEXT("Attempting to add the same material twice with different export settings, this is not (currently) supported"));
+			ensureMsgf(ExportSettings == *ExistingExportSettings, TEXT("Attempting to add the same material twice with different export settings, this is not (currently) supported"));
 			return;
 		}
 
