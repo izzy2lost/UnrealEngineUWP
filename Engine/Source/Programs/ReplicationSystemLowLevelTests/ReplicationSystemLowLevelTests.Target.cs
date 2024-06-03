@@ -22,5 +22,7 @@ public class ReplicationSystemLowLevelTestsTarget : TestTargetRules
 
 		bEnableTrace = true;
 		GlobalDefinitions.Add("UE_NET_TEST_FAKE_REP_TAGS=1");
+		// Load time profiling brings object construction to a crawl.
+		GlobalDefinitions.Add("LOADTIMEPROFILERTRACE_ENABLED=0");
 	}
 }
