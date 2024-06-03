@@ -190,8 +190,9 @@ namespace UnrealBuildTool
 
 		private async void ActionQueueCanceled(IStorageServer? ubaStorage)
 		{
+			Server?.StopServer(); // Make sure all remove processes are returned. We can't have any callbacks after this
 			_bIsCancelled = true;
-			_session?.CancelAll();
+			_session?.CancelAll(); // Cancel all processes native side
 			ubaStorage?.SaveCasTable();
 			foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 			{
@@ -777,6 +778,11 @@ namespace UnrealBuildTool
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
 				_session!.RunProcessRemote(startInfo, (s, e) =>
 				{
+					if (e.ExitCode == 99999) // Process was cancelled by executor
+					{
+						return;
+					}
+
 					Interlocked.Add(ref _remoteProcessedActions, 1);
 					if (e.ExitCode != 0 && !e.LogLines.Any())
 					{

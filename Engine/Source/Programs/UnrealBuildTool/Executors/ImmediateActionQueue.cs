@@ -456,6 +456,13 @@ namespace UnrealBuildTool
 		{
 			Console.CancelKeyPress -= CancelKeyPress;
 
+			if (!CancellationTokenSource.IsCancellationRequested)
+			{
+				Logger.LogWarning("Canceling actions...");
+				CancellationTokenSource.Cancel();
+				e.Cancel = true;
+			}
+
 			// We must do this and can't rely on that there are active processes that are cancelled causing a cascading cancel (force remote actions and no remote workers)
 			int completedActions = 0;
 			lock (Actions)
@@ -470,13 +477,6 @@ namespace UnrealBuildTool
 				}
 			}
 			AddCompletedActions(completedActions);
-
-			if (!CancellationTokenSource.IsCancellationRequested)
-			{
-				Logger.LogWarning("Canceling actions...");
-				CancellationTokenSource.Cancel();
-				e.Cancel = true;
-			}
 		}
 
 		/// <summary>
@@ -887,10 +887,7 @@ namespace UnrealBuildTool
 		/// <param name="action">Action being re-queued</param>
 		public void RequeueAction(LinkedAction action)
 		{
-			if (!CancellationTokenSource.IsCancellationRequested)
-			{
-				SetActionState(action, ActionStatus.Queued, null);
-			}
+			SetActionState(action, ActionStatus.Queued, null);
 		}
 
 		/// <summary>
