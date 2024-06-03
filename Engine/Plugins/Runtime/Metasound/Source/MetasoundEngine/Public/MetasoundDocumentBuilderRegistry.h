@@ -68,16 +68,15 @@ namespace Metasound::Engine
 				NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &DocInterface->GetBuilderUClass()));
 				FMetaSoundFrontendDocumentBuilder& BuilderRef = NewBuilder->GetBuilder();
 				BuilderRef = FMetaSoundFrontendDocumentBuilder(DocInterface);
-
 				const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
-				const FMetasoundFrontendClassName& FullClassName = Document.RootGraph.Metadata.GetClassName();
-				if (!FullClassName.IsValid())
+				const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+				if (!ClassName.IsValid())
 				{
 					BuilderRef.InitDocument();
 				}
 
-				checkf(FullClassName.IsValid(), TEXT("Document initialization must result in a valid class name being generated"));
-				Builders.Add(FullClassName, NewBuilder);
+				checkf(ClassName.IsValid(), TEXT("Document initialization must result in a valid class name being generated"));
+				AddBuilderInternal(ClassName, NewBuilder);
 			}
 
 			return *CastChecked<BuilderClass>(NewBuilder);
@@ -97,9 +96,13 @@ namespace Metasound::Engine
 		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass = false) const override;
 
 		UMetaSoundBuilderBase* FindBuilderObject(TScriptInterface<const IMetaSoundDocumentInterface> MetaSound) const;
-		UMetaSoundBuilderBase* FindBuilderObject(const FMetasoundFrontendClassName& ClassName) const;
-		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& ClassName) const;
+		UMetaSoundBuilderBase* FindBuilderObject(const FMetasoundFrontendClassName& InClassName) const;
+		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
+
+	private:
+		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
+		void FinishBuildingInternal(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass) const;
 	};
 } // namespace Metasound::Engine
