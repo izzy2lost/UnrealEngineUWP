@@ -1637,7 +1637,7 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 		return 0;
 	}
 
-	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RenderData->RayTracingProxy->LODs;
+	FStaticMeshRayTracingProxyLODArray& RayTracingLODs = RenderData->RayTracingProxy->LODs;
 
 	const int32 NumLODs = RayTracingLODs.Num();
 
@@ -1732,7 +1732,7 @@ void FSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdL
 	check(bNeedsDynamicRayTracingGeometries);
 	check(DynamicRayTracingGeometries.IsEmpty());
 
-	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RenderData->RayTracingProxy->LODs;
+	FStaticMeshRayTracingProxyLODArray& RayTracingLODs = RenderData->RayTracingProxy->LODs;
 
 	DynamicRayTracingGeometries.AddDefaulted(RayTracingLODs.Num());
 
@@ -1899,7 +1899,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 		return ResultFlags;
 	}
 
-	TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RenderData->RayTracingProxy->LODs;
+	FStaticMeshRayTracingProxyLODArray& RayTracingLODs = RenderData->RayTracingProxy->LODs;
 
 	if (bUsingNaniteRayTracing)
 	{

@@ -149,8 +149,6 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryGroup(RayTracing::Geom
 
 	check(RegisteredGroups.IsValidIndex(Handle));
 
-	FRayTracingGeometryGroup& Group = RegisteredGroups[Handle];
-	
 	ReleaseRayTracingGeometryGroupReference(Handle);
 }
 
@@ -178,78 +176,81 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryGroupReference(RayTrac
 
 FRayTracingGeometryManager::RayTracingGeometryHandle FRayTracingGeometryManager::RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry)
 {
-	if (GetRayTracingMode() == ERayTracingMode::Dynamic)
+	check(InGeometry);
+
+	if (GetRayTracingMode() != ERayTracingMode::Dynamic)
 	{
-		check(InGeometry);
-		
-		FScopeLock ScopeLock(&MainCS);
-
-		FRegisteredGeometry RegisteredGeometry;
-		RegisteredGeometry.Geometry = InGeometry;
-
-		RayTracingGeometryHandle Handle = RegisteredGeometries.Add(RegisteredGeometry);
-
-		if (InGeometry->GroupHandle != INDEX_NONE)
-		{
-			checkf(RegisteredGroups.IsValidIndex(InGeometry->GroupHandle), TEXT("FRayTracingGeometry.GroupHandle must be valid"));
-
-			FRayTracingGeometryGroup& Group = RegisteredGroups[InGeometry->GroupHandle];
-
-			checkf(InGeometry->LODIndex >= 0 && InGeometry->LODIndex < Group.Geometries.Num(), TEXT("FRayTracingGeometry assigned to a group must have a valid LODIndex"));
-			checkf(Group.Geometries[InGeometry->LODIndex] == nullptr, TEXT("Each LOD inside a FRayTracingGeometryGroup can only be associated with a single FRayTracingGeometry"));
-
-			Group.Geometries[InGeometry->LODIndex] = InGeometry;
-			++Group.NumReferences;
-		}
-		
-		INC_DWORD_STAT(STAT_RayTracingGeometryCount);
-
-		GRayTracingGeometryManager->RefreshRegisteredGeometry(Handle);
-
-		return Handle;
+		return INDEX_NONE;
 	}
 
-	return INDEX_NONE;
+	FScopeLock ScopeLock(&MainCS);
+
+	RayTracingGeometryHandle Handle = RegisteredGeometries.Add({});
+
+	FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[Handle];
+	RegisteredGeometry.Geometry = InGeometry;
+
+	if (InGeometry->GroupHandle != INDEX_NONE)
+	{
+		checkf(RegisteredGroups.IsValidIndex(InGeometry->GroupHandle), TEXT("FRayTracingGeometry.GroupHandle must be valid"));
+
+		FRayTracingGeometryGroup& Group = RegisteredGroups[InGeometry->GroupHandle];
+
+		checkf(InGeometry->LODIndex >= 0 && InGeometry->LODIndex < Group.Geometries.Num(), TEXT("FRayTracingGeometry assigned to a group must have a valid LODIndex"));
+		checkf(Group.Geometries[InGeometry->LODIndex] == nullptr, TEXT("Each LOD inside a FRayTracingGeometryGroup can only be associated with a single FRayTracingGeometry"));
+
+		Group.Geometries[InGeometry->LODIndex] = InGeometry;
+		++Group.NumReferences;
+	}
+		
+	INC_DWORD_STAT(STAT_RayTracingGeometryCount);
+
+	GRayTracingGeometryManager->RefreshRegisteredGeometry(Handle);
+
+	return Handle;
 }
 
 void FRayTracingGeometryManager::ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle)
 {
-	if (GetRayTracingMode() == ERayTracingMode::Dynamic)
+	if (GetRayTracingMode() != ERayTracingMode::Dynamic)
 	{
-		check(Handle != INDEX_NONE);
+		checkf(Handle == INDEX_NONE, TEXT("When dynamic ray tracing is disabled, ray tracing geometries shouldn't have a valid handle."));
+		return;
+	}
 
-		FScopeLock ScopeLock(&MainCS);
+	check(Handle != INDEX_NONE);
 
-		FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[Handle];
+	FScopeLock ScopeLock(&MainCS);
 
-		if (RegisteredGeometry.Geometry->GroupHandle != INDEX_NONE)
-		{
-			// if geometry was assigned to a group, clear the relevant entry so another geometry can be registered later
+	FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[Handle];
 
-			checkf(RegisteredGroups.IsValidIndex(RegisteredGeometry.Geometry->GroupHandle), TEXT("FRayTracingGeometry.GroupHandle must be valid"));
+	if (RegisteredGeometry.Geometry->GroupHandle != INDEX_NONE)
+	{
+		// if geometry was assigned to a group, clear the relevant entry so another geometry can be registered later
 
-			FRayTracingGeometryGroup& Group = RegisteredGroups[RegisteredGeometry.Geometry->GroupHandle];
+		checkf(RegisteredGroups.IsValidIndex(RegisteredGeometry.Geometry->GroupHandle), TEXT("FRayTracingGeometry.GroupHandle must be valid"));
 
-			checkf(RegisteredGeometry.Geometry->LODIndex >= 0 && RegisteredGeometry.Geometry->LODIndex < Group.Geometries.Num(), TEXT("FRayTracingGeometry assigned to a group must have a valid LODIndex"));
-			checkf(Group.Geometries[RegisteredGeometry.Geometry->LODIndex] == RegisteredGeometry.Geometry, TEXT("Unexpected mismatch of FRayTracingGeometry in FRayTracingGeometryGroup"));
+		FRayTracingGeometryGroup& Group = RegisteredGroups[RegisteredGeometry.Geometry->GroupHandle];
 
-			Group.Geometries[RegisteredGeometry.Geometry->LODIndex] = nullptr;
+		checkf(RegisteredGeometry.Geometry->LODIndex >= 0 && RegisteredGeometry.Geometry->LODIndex < Group.Geometries.Num(), TEXT("FRayTracingGeometry assigned to a group must have a valid LODIndex"));
+		checkf(Group.Geometries[RegisteredGeometry.Geometry->LODIndex] == RegisteredGeometry.Geometry, TEXT("Unexpected mismatch of FRayTracingGeometry in FRayTracingGeometryGroup"));
 
-			ReleaseRayTracingGeometryGroupReference(RegisteredGeometry.Geometry->GroupHandle);
-		}
+		Group.Geometries[RegisteredGeometry.Geometry->LODIndex] = nullptr;
 
-		int32 NumRemoved = ResidentGeometries.Remove(RegisteredGeometry.Geometry);
+		ReleaseRayTracingGeometryGroupReference(RegisteredGeometry.Geometry->GroupHandle);
+	}
 
-		if (NumRemoved > 0)
-		{
-			TotalResidentSize -= RegisteredGeometry.Size;
-		}
+	int32 NumRemoved = ResidentGeometries.Remove(RegisteredGeometry.Geometry);
 
-		RegisteredGeometries.RemoveAt(Handle);
-		ReferencedGeometryHandles.Remove(Handle);
+	if (NumRemoved > 0)
+	{
+		TotalResidentSize -= RegisteredGeometry.Size;
+	}
 
-		DEC_DWORD_STAT(STAT_RayTracingGeometryCount);
-	}	
+	RegisteredGeometries.RemoveAt(Handle);
+	ReferencedGeometryHandles.Remove(Handle);
+
+	DEC_DWORD_STAT(STAT_RayTracingGeometryCount);
 }
 
 void FRayTracingGeometryManager::RefreshRegisteredGeometry(RayTracingGeometryHandle Handle)

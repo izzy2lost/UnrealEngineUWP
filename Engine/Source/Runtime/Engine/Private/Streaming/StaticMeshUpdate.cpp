@@ -132,8 +132,6 @@ void FStaticMeshStreamIn::FIntermediateRayTracingGeometry::TransferRayTracingGeo
 
 #if DO_CHECK
 static void CheckRayTracingGeometryInitializer(
-	const UStaticMesh* Mesh,
-	int32 LODIdx,
 	const FStaticMeshLODResources& LODResource,
 	ERayTracingGeometryInitializerType ExpectedInitializerType,
 	const FRayTracingGeometryInitializer& Initializer)
@@ -181,12 +179,7 @@ void FStaticMeshStreamIn::CreateBuffers(const FContext& Context)
 			if (IsRayTracingEnabled() && LODResource.RayTracingGeometry != nullptr && LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
 			{
 #if DO_CHECK
-				CheckRayTracingGeometryInitializer(
-					Context.Mesh,
-					LODIdx + Context.Mesh->GetStreamableResourceState().AssetLODBias,
-					LODResource,
-					ERayTracingGeometryInitializerType::StreamingDestination,
-					LODResource.RayTracingGeometry->Initializer);
+				CheckRayTracingGeometryInitializer(LODResource, ERayTracingGeometryInitializerType::StreamingDestination, LODResource.RayTracingGeometry->Initializer);
 #endif
 
 				IntermediateRayTracingGeometry[LODIdx].CreateFromCPUData(*StreamingRHICmdList, *LODResource.RayTracingGeometry);
@@ -259,12 +252,7 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 #if DO_CHECK
 				// Streaming LODs in/out shouldn't affect the ray tracing geometry initializer
 				// Here we check that assumption
-				CheckRayTracingGeometryInitializer(
-					Context.Mesh,
-					LODIndex + Context.Mesh->GetStreamableResourceState().AssetLODBias,
-					LODResource,
-					ERayTracingGeometryInitializerType::Rendering,
-					LODResource.RayTracingGeometry->Initializer);
+				CheckRayTracingGeometryInitializer(LODResource, ERayTracingGeometryInitializerType::Rendering, LODResource.RayTracingGeometry->Initializer);
 
 				check(EnumHasAllFlags(LODResource.RayTracingGeometry->GetGeometryState(), FRayTracingGeometry::EGeometryStateFlags::StreamedIn));
 #endif
