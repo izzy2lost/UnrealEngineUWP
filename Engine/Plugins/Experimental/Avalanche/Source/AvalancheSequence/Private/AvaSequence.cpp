@@ -505,6 +505,11 @@ UObject* UAvaSequence::GetParentObject(UObject* InObject) const
 		: nullptr;
 }
 
+bool UAvaSequence::CanAnimateObject(UObject& InObject) const
+{
+	return Super::CanAnimateObject(InObject) || InObject.GetTypedOuter<AActor>();
+}
+
 void UAvaSequence::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FAvaSequenceVersion::GUID);

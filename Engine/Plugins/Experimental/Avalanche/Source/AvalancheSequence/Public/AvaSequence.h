@@ -119,6 +119,7 @@ public:
 	virtual UObject* CreateDirectorInstance(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID InSequenceID) override;
 	virtual bool CanPossessObject(UObject& InObject, UObject* InPlaybackContext) const override;
 	virtual UObject* GetParentObject(UObject* InObject) const override;
+	virtual bool CanAnimateObject(UObject& InObject) const override;
 	//~ End UMovieSceneSequence
 
 	//~ Begin UObject
