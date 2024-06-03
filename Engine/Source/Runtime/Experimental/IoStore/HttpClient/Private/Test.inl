@@ -75,6 +75,14 @@ static void MiscTest()
 	check(CrudeToInt("9") == 9);
 	check(CrudeToInt("493") == 493);
 
+	check(CrudeToInt<16>("56") == 0x56);
+	check(CrudeToInt<16>("1") == 0x01);
+	check(CrudeToInt<16>("9") == 0x09);
+	check(CrudeToInt<16>("a") == 0x0a); check(CrudeToInt<16>("A") == 0x0a);
+	check(CrudeToInt<16>("f") == 0x0f); check(CrudeToInt<16>("F") == 0x0f);
+	check(CrudeToInt<16>("g") < 0);
+	check(CrudeToInt<16>("49e") == 0x49e);
+
 	FUrlOffsets UrlOut;
 
 	check(ParseUrl("", UrlOut) == -1);

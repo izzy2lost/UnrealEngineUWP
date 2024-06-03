@@ -252,8 +252,11 @@ static int32 FindMessageTerminal(const char* Data, uint32 Length)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+template <uint32 Base=10>
 static int64 CrudeToInt(FAnsiStringView View)
 {
+	static_assert(Base == 10 || Base == 16);
+
 	// FCStringAnsi::* is not used to mitigate any locale hiccups. By
 	// initialising 'Value' with MSB set we can detect cases where View did not
 	// start with digits. This works as we won't be using this on huge numbers.
@@ -263,9 +266,19 @@ static int64 CrudeToInt(FAnsiStringView View)
 		uint32 Digit = c - '0';
 		if (Digit > 9u)
 		{
-			break;
+			if (Base != 16)
+			{
+				break;
+			}
+
+			Digit = (c | 0x20) - 'a';
+			if (Digit > uint32('f' - 'a'))
+			{
+				break;
+			}
+			Digit += 10;
 		}
-		Value *= 10;
+		Value *= Base;
 		Value += Digit;
 	}
 	return Value;
