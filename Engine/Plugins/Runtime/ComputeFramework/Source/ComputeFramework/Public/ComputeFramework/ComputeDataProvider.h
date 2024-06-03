@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RenderGraphFwd.h"
 #include "Containers/StridedView.h"
 #include "ComputeDataProvider.generated.h"
 
@@ -106,6 +107,22 @@ public:
 
 	/** Collect parameter data required to dispatch work. */
 	virtual void GatherDispatchData(FDispatchData const& InDispatchData) {}
+
+	using FReadbackCallback = TFunction<void(const void* InData, int InNumBytes)>;
+	struct FReadbackData
+	{
+		/** The buffer to be read back. */
+		FRDGBufferRef Buffer;
+
+		/** The number of bytes to read back. */
+		uint32 NumBytes;
+
+		/** Callback to execute once data is ready for CPU consumption. */
+		const FReadbackCallback* ReadbackCallback_RenderThread;
+	};
+
+	/** Data for any readbacks that should be performed. */
+	virtual void GetReadbackData(TArray<FReadbackData>& OutReadbackData) const {}
 
 protected:
 	/** Helper for making an FStridedView over the FDispatchData. */

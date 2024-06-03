@@ -373,6 +373,12 @@ FComputeGraphRenderProxy* UComputeGraph::CreateRenderProxy() const
 							{
 								Invocation.bSupportsUnifiedDispatch &= DataInterface->CanSupportUnifiedDispatch();
 							}
+
+							// If the data interface is requesting readback and is a kernel output, register it.
+							if (!GraphEdge.bKernelInput && DataInterface->GetRequiresReadback())
+							{
+								Invocation.ReadbackProviderIndices.AddUnique(GraphEdge.DataInterfaceIndex);
+							}
 						}
 					}
 				}
