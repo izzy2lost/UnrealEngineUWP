@@ -55,6 +55,7 @@ public:
 private:
 
 	void CacheQueryList();
+	struct FGameplayTagQueryWindowArgs BuildWindowArgs();
 	FReply OnEditButtonClicked();
 	FReply OnClearAllButtonClicked();
 	EVisibility GetQueryDescVisibility() const;

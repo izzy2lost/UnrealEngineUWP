@@ -4,6 +4,7 @@
 
 #include "Widgets/SCompoundWidget.h"
 #include "Misc/NotifyHook.h"
+#include "UObject/WeakFieldPtr.h"
 
 class IPropertyHandle;
 struct FGameplayTagQuery;
@@ -38,6 +39,14 @@ public:
 
 	void SetOnOk(FSimpleDelegate InOnOk) { OnOk = InOnOk; }
 	void SetOnCancel(FSimpleDelegate InOnCancel) { OnCancel = InOnCancel; }
+	void SetOnQueriesCommitted(FOnQueriesCommitted InOnQueriesCommitted) { OnQueriesCommitted = InOnQueriesCommitted; }
+
+	bool IsReadOnly() const { return bReadOnly; }
+	const TArray<FGameplayTagQuery>& GetTagQueries() { return TagQueries; }
+	const FString& GetFilter() { return Filter; }
+
+	/** Returns true if this widget is currently bound to an SWindow (i.e. it's possible to commit the changes) */
+	bool IsBoundToWindow() const;
 	
 	virtual ~SGameplayTagQueryWidget() override;
 
@@ -108,10 +117,14 @@ struct FGameplayTagQueryWindowArgs
 
 	/** (Optional) Widget to use to position the query window. */
 	TSharedPtr<SWidget> AnchorWidget;
+
+	/** (Optional) The underlying edited property. Used for re-assigning the window upon a detail panel refresh. */
+	TWeakFieldPtr<FProperty> Property;
 };
 
 namespace UE::GameplayTags::Editor
 {
 	TWeakPtr<SGameplayTagQueryWidget> OpenGameplayTagQueryWindow(const FGameplayTagQueryWindowArgs& Args);
 	void CloseGameplayTagQueryWindow(TWeakPtr<SGameplayTagQueryWidget> QueryWidget);
+	TWeakPtr<SGameplayTagQueryWidget> TrySyncGameplayTagQueryWidget(const FGameplayTagQueryWindowArgs& Args);
 };

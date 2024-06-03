@@ -42,6 +42,9 @@ void SGameplayTagQueryWidget::Construct(const FArguments& InArgs, const TArray<F
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	Details = PropertyModule.CreateDetailView(ViewArgs);
 	Details->SetObject(EditableGameplayTagQuery);
+	Details->SetEnabled(TAttribute<bool>::Create(
+		TAttribute<bool>::FGetter::CreateSP(this, &SGameplayTagQueryWidget::IsBoundToWindow)
+	));
 
 	ChildSlot
 	[
@@ -82,6 +85,7 @@ void SGameplayTagQueryWidget::Construct(const FArguments& InArgs, const TArray<F
 				[
 					// cancel button
 					SNew(SButton)
+						.IsEnabled(this, &SGameplayTagQueryWidget::IsBoundToWindow)
 						.ContentPadding(FAppStyle::Get().GetMargin("StandardDialog.ContentPadding") )
 						.HAlign(HAlign_Center)
 						.OnClicked(this, &SGameplayTagQueryWidget::OnCancelClicked)
@@ -123,6 +127,11 @@ UEditableGameplayTagQuery* SGameplayTagQueryWidget::CreateEditableQuery(FGamepla
 	}
 
 	return AnEditableQuery;
+}
+
+bool SGameplayTagQueryWidget::IsBoundToWindow() const
+{
+	return OnQueriesCommitted.IsBound();
 }
 
 SGameplayTagQueryWidget::~SGameplayTagQueryWidget()
@@ -205,6 +214,7 @@ namespace UE::GameplayTags::Editor
 
 static TWeakPtr<SGameplayTagQueryWidget> GlobalTagQueryWidget;
 static TWeakPtr<SWindow> GlobalTagQueryWidgetWindow;
+static TWeakFieldPtr<FProperty> GlobalTagQueryWidgetProperty;
 
 TWeakPtr<SGameplayTagQueryWidget> OpenGameplayTagQueryWindow(const FGameplayTagQueryWindowArgs& Args)
 {
@@ -262,6 +272,7 @@ TWeakPtr<SGameplayTagQueryWidget> OpenGameplayTagQueryWindow(const FGameplayTagQ
 
 	GlobalTagQueryWidget = QueryWidget;
 	GlobalTagQueryWidgetWindow = Window;
+	GlobalTagQueryWidgetProperty = Args.Property;
 
 	auto CloseWindow = [WeakQueryWidget = GlobalTagQueryWidget]()
 	{
@@ -286,8 +297,43 @@ void CloseGameplayTagQueryWindow(TWeakPtr<SGameplayTagQueryWidget> QueryWidget)
 
 	GlobalTagQueryWidget = nullptr;
 	GlobalTagQueryWidgetWindow = nullptr;
+	GlobalTagQueryWidgetProperty.Reset();
 }
 
+TWeakPtr<SGameplayTagQueryWidget> TrySyncGameplayTagQueryWidget(const FGameplayTagQueryWindowArgs& Args)
+{
+	// If the property does not match the currently open one, then there's nothing to sync
+	if (!Args.Property.IsValid() || !Args.Property.HasSameIndexAndSerialNumber(GlobalTagQueryWidgetProperty))
+	{
+		return nullptr;
+	}
+
+	if (const TSharedPtr<SWindow> WidgetWindow = GlobalTagQueryWidgetWindow.Pin())
+	{
+		// If the window title is different, then it belongs to a different asset or property
+		if (!WidgetWindow->GetTitle().EqualTo(Args.Title))
+		{
+			return nullptr;
+		}
+	}
+
+	if (const TSharedPtr<SGameplayTagQueryWidget> QueryWidget = GlobalTagQueryWidget.Pin())
+	{
+		const bool bDetailsMatch = QueryWidget->IsReadOnly() == Args.bReadOnly
+			&& QueryWidget->GetFilter() == Args.Filter
+			&& QueryWidget->GetTagQueries() == Args.EditableQueries;
+
+		// Only sync if properties are the same
+		if (bDetailsMatch)
+		{
+			GlobalTagQueryWidgetProperty = Args.Property;
+			QueryWidget->SetOnQueriesCommitted(Args.OnQueriesCommitted);
+			return GlobalTagQueryWidget;
+		}
+	}
+
+	return nullptr;
+}
 } // UE::GameplayTags::Editor
 
 #undef LOCTEXT_NAMESPACE
