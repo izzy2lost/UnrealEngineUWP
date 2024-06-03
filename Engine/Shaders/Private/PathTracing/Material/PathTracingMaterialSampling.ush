@@ -13,6 +13,7 @@ PathTracingMaterialSampling.usf: Material sampling functions
 #include "PathTracingGlossy.ush"
 #if SUBSTRATE_ENABLED
 #include "PathTracingSubstrate.ush"
+#include "PathTracingSubstrateFoliage.ush"
 #include "PathTracingSubstrateSolidGlass.ush"
 #include "PathTracingSubstrateThinGlass.ush"
 #else
@@ -54,6 +55,12 @@ float3 EstimateMaterialAlbedo(FPathTracingPayload Payload)
 				Albedo = 1.0 + Payload.FuzzAmount * Payload.FuzzColor;
 			else
 				Albedo = Payload.DiffuseColor + Payload.SubsurfaceColor + Payload.SpecularColor + Payload.FuzzAmount * Payload.FuzzColor;
+			Albedo *= Payload.GetMaxLobeWeight();
+			break;
+		}
+		case SHADINGMODELID_TWOSIDED_FOLIAGE:
+		{
+			Albedo = Payload.DiffuseColor + Payload.GetFoliageTransmissionColor() + Payload.SpecularColor + Payload.FuzzAmount * Payload.FuzzColor;
 			Albedo *= Payload.GetMaxLobeWeight();
 			break;
 		}
@@ -159,6 +166,16 @@ void AccumulateAlbedoNormal(inout FPathTracingPayload Payload, float3 PathThroug
 				Albedo += PathThroughput * (Payload.DiffuseColor + Payload.SubsurfaceColor + Payload.SpecularColor * RoughnessWeight + Payload.FuzzAmount * Payload.FuzzColor);
 			}
 			
+			Normal += NormThroughput * Payload.WorldNormal;
+			break;
+		}
+		case SHADINGMODELID_TWOSIDED_FOLIAGE:
+		{
+			const float Roughness0 = Payload.RoughnessData.x;
+			const float Roughness1 = Payload.RoughnessData.y;
+			const float SpecBlend = Payload.RoughnessData.z;
+			const float RoughnessWeight = lerp(ROUGHNESS_WEIGHT(Roughness0), ROUGHNESS_WEIGHT(Roughness1), SpecBlend);
+			Albedo += PathThroughput * (Payload.DiffuseColor + Payload.GetFoliageTransmissionColor() + Payload.SpecularColor * RoughnessWeight + Payload.FuzzAmount * Payload.FuzzColor);
 			Normal += NormThroughput * Payload.WorldNormal;
 			break;
 		}
@@ -352,6 +369,14 @@ void AdjustPayloadAfterUnpack(inout FPathTracingPayload HitPayload, bool bApplyO
 				HitPayload.SubsurfaceColor = HitPayload.DiffuseColor;
 				HitPayload.DiffuseColor = 0;
 				AdjustDiffuseSSSContribution(HitPayload.DiffuseColor, HitPayload.SubsurfaceColor, HitPayload.MeanFreePath);
+			}
+			break;
+		}
+		case SHADINGMODELID_TWOSIDED_FOLIAGE:
+		{
+			if (bApplyOverrides)
+			{
+				HitPayload.SetFoliageTransmissionColor(HitPayload.GetFoliageTransmissionColor() * View.DiffuseOverrideParameter.w + View.DiffuseOverrideParameter.xyz);
 			}
 			break;
 		}
@@ -565,6 +590,8 @@ FMaterialSample SampleMaterial(
 				return SubstrateSolidGlass_SampleMaterial(V_World, Payload, RandSample);
 			else
 				return Substrate_SampleMaterial(V_World, Payload, RandSample);
+		case SHADINGMODELID_TWOSIDED_FOLIAGE:
+			return SubstrateFoliage_SampleMaterial(V_World, Payload, RandSample);
 		case SHADINGMODELID_THIN_TRANSLUCENT:
 			return SubstrateThinGlass_SampleMaterial(V_World, Payload, RandSample);
 		case SHADINGMODELID_CLEAR_COAT:
@@ -621,6 +648,8 @@ FMaterialEval EvalMaterial(
 				return SubstrateSolidGlass_EvalMaterial(V_World, L_World, Payload, DiffuseSpecularScale);
 			else
 				return Substrate_EvalMaterial(V_World, L_World, Payload, DiffuseSpecularScale);
+		case SHADINGMODELID_TWOSIDED_FOLIAGE:
+			return SubstrateFoliage_EvalMaterial(V_World, L_World, Payload, DiffuseSpecularScale);
 		case SHADINGMODELID_THIN_TRANSLUCENT:
 			return SubstrateThinGlass_EvalMaterial(V_World, L_World, Payload, DiffuseSpecularScale);
 		case SHADINGMODELID_CLEAR_COAT:

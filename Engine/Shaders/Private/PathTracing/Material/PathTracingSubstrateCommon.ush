@@ -7,6 +7,7 @@
 #endif
 
 #include "../PathTracingCommon.ush"
+#include "../../BRDF.ush"
 
 #define SUBSTRATE_FRESNEL_F82  0
 
@@ -14,6 +15,10 @@
 
 #if SUBSTRATE_PATH_TRACING_GLINTS
 #include "/Engine/Private/Substrate/Glint/GlintThirdParty.ush"
+#endif
+
+#ifndef SUBSTRATE_SHEEN_QUALITY
+#define SUBSTRATE_SHEEN_QUALITY 0
 #endif
 
 float3 SubstrateLobeWeight(FPathTracingPayload Payload, float SatNoL)
@@ -47,5 +52,32 @@ void SubstrateGlint(FPathTracingPayload Payload, float3 InTangentV, float3 InTan
 		const float Fs = f_P(InTangentV, InTangentL, float3(Beckmann.Sigma, Beckmann.Rho), Payload.GlintValue, Payload.GlintUV, Payload.GlintUVdx, Payload.GlintUVdy, true /*bIncludeGeometryTerm*/);
 		OutWeight = Fs / max(0.0001f, InPdf);
 	}
+#endif
+}
+
+FBxDFEnergyTermsA ComputeSheenEnergyTerms(float NoV, float SheenRoughness)
+{
+#if SUBSTRATE_SHEEN_QUALITY == 1
+	FBxDFEnergyTermsA Result;
+	Result.E = SheenLTC_DirectionalAlbedo(NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler);
+	Result.W = 1;
+	return Result;
+#else
+	return ComputeClothEnergyTermsA(SheenRoughness, NoV);
+#endif
+}
+
+float3 ComputeSheenWeight(float3 V, float3 L, float3 N, float NoV, float NoH, float VoH, float SheenRoughness, float3 SheenColor)
+{
+#if SUBSTRATE_SHEEN_QUALITY == 1
+	// Disney's Cloth Lobe
+	float FuzzDirectionalAlbedo = 1;
+	float3 FuzzSpecularPathValueNoL = SheenColor * SheenLTC_Eval(V, L, N, NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler, FuzzDirectionalAlbedo);
+	return FuzzSpecularPathValueNoL * (2 * PI);
+#else
+	// Charlie's Cloth Lobe
+	const float DCloth = D_Charlie(SheenRoughness, NoH);
+	const float3 FCloth = F_Schlick(SheenColor, VoH);
+	return NoL * DCloth * Vis_Ashikhmin(NoV, NoL)) * FCloth * (2 * PI);
 #endif
 }

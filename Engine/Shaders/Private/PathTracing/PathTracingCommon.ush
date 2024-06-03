@@ -553,6 +553,10 @@ struct FPathTracingPayload : FMinimalPayload
 	// SHADINGMODELID_THIN_TRANSLUCENT
 	float3 GetTransmittanceColor() { return exp(-GetExtinction() * SUBSTRATE_SIMPLEVOLUME_THICKNESS_CM); }
 
+	// SHADINGMODELID_TWOSIDED_FOLIAGE
+	float3 GetFoliageTransmissionColor() { return MeanFreePath; }
+	void SetFoliageTransmissionColor(float3 C) { MeanFreePath = C; }
+
 
 #else // PATHTRACING_SUBSTRATE_PAYLOAD
 	// Various ways to interpret CustomData (depending on ShadingModelID)
@@ -578,7 +582,7 @@ struct FPathTracingPayload : FMinimalPayload
 	float GetSubsurfacePhaseFunction() { return CustomData0.a; }
 	void SetSubsurfacePhaseFunction(float G) { CustomData0.a = G; }
 
-	// SHADINGMODELID_SUBSURFACE, SHADINGMODELID_TWO_SIDED_FOLIAGE (note that SHADINGMODELID_SUBSURFACE_PROFILE and SHADINGMODELID_EYE don't use this as they use DiffuseColor directly)
+	// SHADINGMODELID_SUBSURFACE, SHADINGMODELID_TWOSIDED_FOLIAGE (note that SHADINGMODELID_SUBSURFACE_PROFILE and SHADINGMODELID_EYE don't use this as they use DiffuseColor directly)
 	float3 GetSubsurfaceColor() { return CustomData1.xyz; }
 	void SetSubsurfaceColor(float3 SubsurfaceColor) { CustomData1.xyz = SubsurfaceColor; }
 	

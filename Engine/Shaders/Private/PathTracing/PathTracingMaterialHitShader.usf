@@ -580,6 +580,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 					}
 					if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_SIMPLEVOLUME)
 					{
+						// TODO: this case should be represented by a different BSDF
 						Payload.DiffuseColor = GetSimpleVolumeDiffuseColor(Payload.DiffuseColor, SLAB_SSSMFP(BSDF));
 					}
 					else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION)
@@ -599,9 +600,47 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 						Payload.PhaseG = 0.0;
 #endif
 					}
+					else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_WRAP)
+					{
+						const bool bIsThin = BSDF_GETISTHIN(BSDF);
+						const float TransmittanceNoL = 1.0f;
+						const float3 SlabDiffuseColor = bIsThin ? Payload.DiffuseColor : float3(1, 1, 1);
+						const FParticipatingMedia PM = SubstrateSlabCreateParticipatingMedia(Payload.DiffuseColor, SLAB_SSSMFP(BSDF));
+						float3 SubsurfaceColor = IsotropicMediumSlabTransmittance(PM, SUBSTRATE_SIMPLEVOLUME_THICKNESS_M, TransmittanceNoL);
+						const float Opacity = 1.f - abs(SLAB_SSSPHASEANISOTROPY(BSDF));
+
+						float3 Front = Payload.DiffuseColor;
+						float3 Back = SubsurfaceColor;
+						float3 Sum = Front + Back;
+						float S = max(Sum.x, max(Sum.y, Sum.z));
+						if (S > 1)
+						{
+							// nudge the material back to something physically plausible
+							// NOTE: we ignore spec here since it should be accounted for by the brdf model itself
+							Payload.DiffuseColor = Front / S;
+							SubsurfaceColor = Back / S;
+						}
+						if (bIsThin)
+						{
+							// foliage case, only the color matters
+							Payload.ShadingModelID = SHADINGMODELID_TWOSIDED_FOLIAGE;
+							Payload.SetFoliageTransmissionColor(SubsurfaceColor);
+						}
+						else
+						{
+
+							// Match formula from non-Substrate handling of wrap SSS
+							const float SSSRadius = (1 - Opacity) * 10.0; // simple formula, up to 10cm radius
+							// The legacy behavior has both diffuse+sss responses separately, but we can combine them to avoid needing a custom lobe
+							// In practice the diffuse and SSS responses are similar, so the difference should be minimal (and is an approximation of the raster behavior anyway)
+							Payload.DiffuseColor += SubsurfaceColor;
+							Payload.MeanFreePath = SSSRadius;
+							Payload.PhaseG = 0;
+						}
+					}
 					else
 					{
-						// SUBSTRATE_TODO: Do something meaningful for the other SSS types ...
+						// TODO: Are there any other SSS types to consider?
 						Payload.MeanFreePath = 0;
 						Payload.PhaseG       = 0;
 					}
