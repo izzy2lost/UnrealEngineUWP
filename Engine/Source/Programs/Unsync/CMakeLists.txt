@@ -40,6 +40,8 @@ set(src
 	Private/UnsyncCmdDiff.h
 	Private/UnsyncCmdHash.cpp
 	Private/UnsyncCmdHash.h
+	Private/UnsyncCmdInfo.cpp
+	Private/UnsyncCmdInfo.h
 	Private/UnsyncCmdLogin.cpp
 	Private/UnsyncCmdLogin.h
 	Private/UnsyncCmdMount.cpp

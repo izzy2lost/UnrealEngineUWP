@@ -111,13 +111,4 @@ bool			   MergeManifests(FDirectoryManifest& Existing, const FDirectoryManifest&
 void			   MoveCompatibleManifestBlocks(FDirectoryManifest& Manifest, FDirectoryManifest&& DonorManifest);
 bool			   AlgorithmOptionsCompatible(const FAlgorithmOptions& A, const FAlgorithmOptions& B);
 
-struct FCmdInfoOptions
-{
-	FPath			   InputA;
-	FPath			   InputB;
-	bool			   bListFiles = false;
-	const FSyncFilter* SyncFilter = nullptr;
-};
-int32 CmdInfo(const FCmdInfoOptions& Options);
-
 }  // namespace unsync

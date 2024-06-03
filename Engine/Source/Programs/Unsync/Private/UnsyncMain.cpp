@@ -10,6 +10,7 @@
 #include "UnsyncCmdPush.h"
 #include "UnsyncCmdQuery.h"
 #include "UnsyncCmdSync.h"
+#include "UnsyncCmdInfo.h"
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
 #include "UnsyncMemory.h"
@@ -109,7 +110,7 @@ InnerMain(int Argc, char** Argv)
 	bool					 bNoOutputFiles  	 = false;
 	bool					 bNoOutputRevisions  = false;
 	bool					 bPackOnlySmallFiles = false;
-	bool					 bPackFiles		 = false;
+	bool					 bPackFiles		     = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -245,6 +246,7 @@ InnerMain(int Argc, char** Argv)
 	SubInfo->add_option("--exclude",
 						ExcludeFilterArrayUtf8,
 						"Exclude filenames that contain specified words (comma separated). Filter is run after --include.");
+	SubInfo->add_flag("--decode", bDecode, "Decode binary manifest into json");
 	SubCommands.push_back(SubInfo);
 
 	// Configure diff
@@ -430,6 +432,10 @@ InnerMain(int Argc, char** Argv)
 	if (Cli.got_subcommand(SubQuery) || Cli.got_subcommand(SubLogin))
 	{
 		GLogMachineReadable = true;
+	}
+	else if (Cli.got_subcommand(SubInfo))
+	{
+		GLogMachineReadable = bDecode;
 	}
 
 	UNSYNC_VERBOSE(L"UNSYNC v%hs", GetVersionString().c_str());
@@ -1049,6 +1055,7 @@ InnerMain(int Argc, char** Argv)
 		Options.InputB	   = InputFilename2;
 		Options.bListFiles = bInfoFiles;
 		Options.SyncFilter = &SyncFilter;
+		Options.bDecode	   = bDecode;
 		return CmdInfo(Options);
 	}
 	else if (Cli.got_subcommand(SubQuery))

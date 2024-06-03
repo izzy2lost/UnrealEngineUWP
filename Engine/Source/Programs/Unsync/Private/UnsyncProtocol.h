@@ -73,6 +73,10 @@ using FBlock256 = TBlock<FHash256>;
 using FGenericBlock = TBlock<FGenericHash>;
 using FGenericBlockArray = std::vector<FGenericBlock>;
 
+// Json formatting helpers
+void FormatJsonBlock(std::wstring& Output, const FGenericBlock& Block);
+void FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks);
+
 static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR			= 0;
 static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING		= 0xC6BD6CDCEEF79533ull;
 static constexpr uint64 SERIALIZED_SECTION_ID_MACRO_BLOCK			= 0x8390AEBB745E08BCull;

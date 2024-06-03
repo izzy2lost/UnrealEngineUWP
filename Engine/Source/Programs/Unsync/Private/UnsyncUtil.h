@@ -127,6 +127,7 @@ std::string BytesToHexString(const uint8* Data, uint64 Size);
 
 // Converts input bytes to hexadecimal ACII. Returns how many characters were written to output.
 uint64 BytesToHexChars(char* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize);
+uint64 BytesToHexChars(wchar_t* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize);
 
 template<typename HashType>
 std::string
@@ -370,5 +371,10 @@ std::string FormatSystemErrorMessage(int32 ErrorCode);
 bool LooksLikeUrl(std::string_view Str);
 bool LooksLikeHash160(const std::string_view Str);
 bool LooksLikeHash160(const std::wstring_view Str);
+
+// Json formatting helpers
+void FormatJsonKeyValueStr(std::wstring& Output, std::wstring_view K, std::wstring_view V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueUInt(std::wstring& Output, std::wstring_view K, uint64 V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueBool(std::wstring& Output, std::wstring_view K, bool V, std::wstring_view Suffix = {});
 
 }  // namespace unsync

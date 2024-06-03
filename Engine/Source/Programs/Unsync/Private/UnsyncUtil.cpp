@@ -3,6 +3,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncFile.h"
 #include "UnsyncSocket.h"
+#include "UnsyncProtocol.h"
 
 #if UNSYNC_PLATFORM_WINDOWS
 #	include <Windows.h>
@@ -27,6 +28,9 @@
 #include <unordered_set>
 #include <system_error>
 #include <fmt/format.h>
+#if __has_include(<fmt/xchar.h>)
+#	include <fmt/xchar.h>
+#endif
 
 namespace unsync {
 
@@ -34,17 +38,30 @@ static FBuffer GSystemRootCerts;
 
 static const char G_HEX_CHARS[] = "0123456789abcdef";
 
+template<typename CharT>
 uint64
-BytesToHexChars(char* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
+BytesToHexCharsT(CharT* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
 {
 	const uint64 MaxBytes = std::min(OutputSize / 2, InputSize);
 	for (uint64 I = 0; I < MaxBytes; ++I)
 	{
 		uint8 V			  = Input[I];
-		Output[I * 2 + 0] = G_HEX_CHARS[V >> 4];
-		Output[I * 2 + 1] = G_HEX_CHARS[V & 0xF];
+		Output[I * 2 + 0] = CharT(G_HEX_CHARS[V >> 4]);
+		Output[I * 2 + 1] = CharT(G_HEX_CHARS[V & 0xF]);
 	}
 	return MaxBytes * 2;
+}
+
+uint64
+BytesToHexChars(char* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
+{
+	return BytesToHexCharsT(Output, OutputSize, Input, InputSize);
+}
+
+uint64
+BytesToHexChars(wchar_t* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
+{
+	return BytesToHexCharsT(Output, OutputSize, Input, InputSize);
 }
 
 std::string
@@ -62,6 +79,67 @@ BytesToHexString(const uint8* Data, uint64 Size)
 
 	return Result;
 }
+
+
+void
+FormatJsonKeyValueStr(std::wstring& Output, std::wstring_view K, std::wstring_view V, std::wstring_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), L"\"{}\": \"{}\"{}", K, V, Suffix);
+}
+
+void
+FormatJsonKeyValueUInt(std::wstring& Output, std::wstring_view K, uint64 V, std::wstring_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), L"\"{}\": {}{}", K, V, Suffix);
+}
+
+void
+FormatJsonKeyValueBool(std::wstring& Output, std::wstring_view K, bool V, std::wstring_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), L"\"{}\": {}{}", K, V ? L"true" : L"false", Suffix);
+}
+
+void
+FormatJsonBlock(std::wstring& Output, const FGenericBlock& Block)
+{
+	Output += L"{";
+
+	static const size_t MaxHashLen = 2 * sizeof(Block.HashStrong.Data);
+	wchar_t				HashChars[MaxHashLen];
+
+	uint64			  HashLen = BytesToHexChars(HashChars, MaxHashLen, Block.HashStrong.Data, Block.HashStrong.Size());
+	std::wstring_view HashStr = std::wstring_view(HashChars, HashLen);
+
+	FormatJsonKeyValueUInt(Output, L"offset", Block.Offset, L", ");
+	FormatJsonKeyValueUInt(Output, L"size", Block.Size, L", ");
+	if (Block.HashWeak != 0)
+	{
+		FormatJsonKeyValueUInt(Output, L"hash_weak", Block.HashWeak, L", ");
+	}
+	FormatJsonKeyValueStr(Output, L"hash_strong", HashStr);
+
+	Output += L"}";
+}
+
+void
+FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks)
+{
+	Output += L"[\n";
+	uint64 BlockIndex = 0;
+	for (const FGenericBlock& Block : Blocks)
+	{
+		if (BlockIndex != 0)
+		{
+			Output += L",\n";
+		}
+
+		FormatJsonBlock(Output, Block);
+
+		++BlockIndex;
+	}
+	Output += L"]";
+}
+
 
 FTimingLogger::FTimingLogger(const char* InName, ELogLevel InLogLevel, bool bInEnabled)
 : bEnabled(bInEnabled)
