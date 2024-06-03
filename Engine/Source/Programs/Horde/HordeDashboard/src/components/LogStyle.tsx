@@ -13,7 +13,7 @@ export const logMetricNormal = {
    fontSize: 11
 }
 
-const adjustForDisplayScale = (window as any).safari === undefined && window.devicePixelRatio > 1.25;
+const adjustForDisplayScale = /*(window as any).safari === undefined &&*/ window.devicePixelRatio > 1.25;
 
 export const logMetricSmall = {
    // note, making this any larger limits log line range for overflow

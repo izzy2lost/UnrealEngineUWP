@@ -578,7 +578,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    const errors = logSource.errors.sort((a, b) => a.lineIndex - b.lineIndex);
    const issues = logSource.issues;
 
-   handler.compact = !!(logSource.logItems?.length > 1000000);
+   handler.compact = !!(logSource.logItems?.length > 500000);
 
    const onRenderCell = (item?: LogItem, index?: number, isScrolling?: boolean): JSX.Element => {
 
