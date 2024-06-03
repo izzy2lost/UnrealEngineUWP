@@ -105,6 +105,11 @@ namespace UE::AvaMRQEditor::Private
 
 	void RenderSequence(FAvaMRQScopedRender& InScopedRender, UWorld* InWorld, const UAvaRundown& InRundown, const FAvaRundownPage& InPage, UAvaSequence* InSequence)
 	{
+		if (!InSequence)
+		{
+			return;
+		}
+
 		UMoviePipelineExecutorJob* Job = InScopedRender.AllocateJob();
 		if (!Job)
 		{
