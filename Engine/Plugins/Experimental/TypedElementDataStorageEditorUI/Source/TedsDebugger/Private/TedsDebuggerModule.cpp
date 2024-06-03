@@ -17,9 +17,16 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Modules/ModuleManager.h"
+#include "QueryEditor/TedsQueryEditor.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "TedsOutlinerModule"
+
+namespace UE::Teds::Debugger::Private
+{
+	FName QueryEditorToolTabName = TEXT("TEDS Query Editor");
+}
 
 FTedsDebuggerModule::FTedsDebuggerModule()
 {
@@ -30,6 +37,8 @@ FTedsDebuggerModule::FTedsDebuggerModule()
 void FTedsDebuggerModule::StartupModule()
 {
 	IModuleInterface::StartupModule();
+
+	FModuleManager::Get().LoadModule(TEXT("TypedElementFramework"));	
 
 	TedsDebuggerTabName = TEXT("TedsDebugger");
 	RegisterTabSpawners();
@@ -52,6 +61,7 @@ void FTedsDebuggerModule::ShutdownModule()
 
 void FTedsDebuggerModule::RegisterTabSpawners()
 {
+	using namespace UE::Teds::Debugger::Private;
 	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
 		
 	LevelEditorTabManagerChangedHandle = LevelEditorModule.OnTabManagerChanged().AddLambda([this]()
@@ -66,6 +76,14 @@ void FTedsDebuggerModule::RegisterTabSpawners()
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Debug"));
 	
 	});
+
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+		QueryEditorToolTabName,
+		FOnSpawnTab::CreateRaw(this, &FTedsDebuggerModule::OpenQueryEditorTab))
+		.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsDebugCategory())
+		.SetDisplayName(LOCTEXT("TedsDebugger_QueryEditorDisplayName", "TEDS Query Editor"))
+		.SetTooltipText(LOCTEXT("TedsDebugger_QueryEditorToolTip", "Opens TEDS Query Editor"))
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Debug"));
 }
 
 void FTedsDebuggerModule::UnregisterTabSpawners()
@@ -176,6 +194,38 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 	TedsDebuggerInstance = TedsOutliner;
 	
 	return TedsOutliner;
+}
+
+TSharedRef<SDockTab> FTedsDebuggerModule::OpenQueryEditorTab(const FSpawnTabArgs& SpawnTabArgs)
+{
+	TSharedRef<SDockTab> DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);
+	if (!QueryEditorModel)
+	{
+		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+
+		if(Registry && Registry->AreDataStorageInterfacesSet())
+		{
+			ITypedElementDataStorageInterface* DataStorageInterface = Registry->GetMutableDataStorage();
+			QueryEditorModel = MakeUnique<UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel>(*DataStorageInterface);
+		}
+	}
+	if (QueryEditorModel)
+	{
+		QueryEditorModel->Reset();	
+
+		TSharedRef<UE::Teds::Debug::QueryEditor::SQueryEditorWidget> QueryEditor =
+			SNew(UE::Teds::Debug::QueryEditor::SQueryEditorWidget, *QueryEditorModel);
+		DockTab->SetContent(QueryEditor);
+	}
+	else
+	{
+		TSharedRef<STextBlock> TextBlock = SNew(STextBlock)
+		.Text(LOCTEXT("TedsDebuggerModule_CannotLoadQueryEditor", "Cannot load Query Editor - Invalid Model"));
+		DockTab->SetContent(TextBlock);
+	}
+
+
+	return DockTab;
 }
 
 IMPLEMENT_MODULE(FTedsDebuggerModule, TedsDebugger);
