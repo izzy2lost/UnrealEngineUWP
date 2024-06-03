@@ -83,9 +83,10 @@ protected:
 	/* Returns the transform to spawn the actor at*/
 	MOVIESCENETRACKS_API  FTransform GetSpawnTransform() const;
 
+	MOVIESCENETRACKS_API UClass* GetBoundObjectClass() const override { return GetActorClass(); }
 #if WITH_EDITOR
 	/* MovieSceneCustomBinding overrides*/
-	MOVIESCENETRACKS_API UClass* GetBoundObjectClass() const override { return GetActorClass(); }
+	virtual int32 GetCustomBindingPriority() const override { return 10; }
 #endif
 
 protected:
@@ -119,33 +120,33 @@ public:
 public:
 
 	/* MovieSceneSpawnableActorBindingBase overrides*/
-	bool SupportsObjectTemplates() const override { return true; }
+	MOVIESCENETRACKS_API bool SupportsObjectTemplates() const override { return true; }
 
 	/* Override and return the object template if the binding type supports object templates*/
-	UObject* GetObjectTemplate() override { return ActorTemplate.Get(); }
+	MOVIESCENETRACKS_API UObject* GetObjectTemplate() override { return ActorTemplate.Get(); }
 
 	/* MovieSceneSpawnableBindingBase overrides*/
-	void SetObjectTemplate(UObject* InObjectTemplate) override;
-	void CopyObjectTemplate(UObject* InSourceObject, UMovieSceneSequence& MovieSceneSequence) override;
+	MOVIESCENETRACKS_API void SetObjectTemplate(UObject* InObjectTemplate) override;
+	MOVIESCENETRACKS_API void CopyObjectTemplate(UObject* InSourceObject, UMovieSceneSequence& MovieSceneSequence) override;
 
 	/* MovieSceneCustomBinding overrides*/
-	bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override;
-	UMovieSceneCustomBinding* CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
+	MOVIESCENETRACKS_API virtual bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override;
+	MOVIESCENETRACKS_API virtual UMovieSceneCustomBinding* CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
 
 #if WITH_EDITOR
-	bool SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const override;
-	UMovieSceneCustomBinding* CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
-	FText GetBindingTypePrettyName() const override;
+	MOVIESCENETRACKS_API virtual bool SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const override;
+	MOVIESCENETRACKS_API virtual UMovieSceneCustomBinding* CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
+	MOVIESCENETRACKS_API virtual FText GetBindingTypePrettyName() const override;
 #endif
 
 protected:
 
 	/* MovieSceneSpawnableBindingBase overrides*/
-	UWorld* GetWorldContext(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
+	MOVIESCENETRACKS_API UWorld* GetWorldContext(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
 	
 	/* MovieSceneSpawnableActorBindingBase overrides*/
-	TSubclassOf<AActor> GetActorClass() const override;
-	AActor* GetActorTemplate() const override { return ActorTemplate; }
+	MOVIESCENETRACKS_API TSubclassOf<AActor> GetActorClass() const override;
+	MOVIESCENETRACKS_API AActor* GetActorTemplate() const override { return ActorTemplate; }
 
 
 private:

@@ -47,7 +47,7 @@ const FSlateBrush* UMovieSceneReplaceableBindingBase::GetBindingTrackCustomIconO
 
 FText UMovieSceneReplaceableBindingBase::GetBindingTrackIconTooltip() const
 {
-	return LOCTEXT("CustomReplaceableTooltip", "This item is dynamically bound at runtime, and spawns a preview object in Editor within Sequencer");
+	return LOCTEXT("CustomReplaceableTooltip", "This item is dynamically bound at runtime, and may spawn a preview object in Editor within Sequencer");
 }
 
 
@@ -156,14 +156,9 @@ UMovieSceneSpawnableBindingBase* UMovieSceneReplaceableBindingBase::CreateInnerS
 
 UMovieSceneCustomBinding* UMovieSceneReplaceableBindingBase::CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene)
 {
-	if (!SourceObject)
-	{
-		return nullptr;
-	}
-
 	UMovieSceneReplaceableBindingBase* NewCustomBinding = nullptr;
 
-	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject->GetFName());
+	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject ? SourceObject->GetFName() : GetClass()->GetFName());
 	const FName InstancedBindingName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), *FString(TemplateName.ToString() + TEXT("_CustomBinding")));
 
 	NewCustomBinding = NewObject<UMovieSceneReplaceableBindingBase>(&OwnerMovieScene, GetClass(), InstancedBindingName, RF_Transactional);

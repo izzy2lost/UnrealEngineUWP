@@ -41,5 +41,7 @@ protected:
 
 	MOVIESCENETRACKS_API virtual TSubclassOf<UMovieSceneSpawnableBindingBase> GetInnerSpawnableClass() const override;
 
+	virtual int32 GetCustomBindingPriority() const override { return 9; }
+
 };
 

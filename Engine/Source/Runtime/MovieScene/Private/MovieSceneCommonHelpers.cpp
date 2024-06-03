@@ -19,6 +19,7 @@
 #include "MovieSceneBindingReferences.h"
 #include "Bindings/MovieSceneSpawnableBinding.h"
 #include "Evaluation/MovieSceneEvaluationState.h"
+#include "UObject/UObjectIterator.h"
 
 bool MovieSceneHelpers::IsSectionKeyable(const UMovieSceneSection* Section)
 {
@@ -712,6 +713,64 @@ bool MovieSceneHelpers::IsBoundToSpawnable(UMovieSceneSequence* Sequence, const 
 }
 
 
+FGuid MovieSceneHelpers::TryCreateCustomSpawnableBinding(UMovieSceneSequence* Sequence, UObject* CustomBindingObject)
+{
+	FGuid NewID;
+	if (!Sequence)
+	{
+		return NewID;
+	}
+	FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+	if (!BindingReferences)
+	{
+		return NewID;
+	}
+	static TArray<const TSubclassOf<UMovieSceneCustomBinding>> CachedCustomBindingTypes;
+	static bool CustomBindingTypesCached = false;
+	if (!CustomBindingTypesCached)
+	{
+		CustomBindingTypesCached = true;
+		MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(CachedCustomBindingTypes);
+	}
+
+	UMovieSceneCustomBinding* NewCustomBinding = nullptr;
+
+	for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : CachedCustomBindingTypes)
+	{
+		// We only want to use children of UMovieSceneSpawnableBindingBase
+		if ((CustomBindingType->IsChildOf<UMovieSceneSpawnableBindingBase>()))
+		{
+			if (UMovieSceneCustomBinding* CustomBindingCDO = CustomBindingType ? CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>() : nullptr)
+			{
+				if (CustomBindingObject && CustomBindingCDO->SupportsBindingCreationFromObject(CustomBindingObject))
+				{
+					// Create a custom binding from this Object
+					NewCustomBinding = CustomBindingCDO->CreateNewCustomBinding(CustomBindingObject, *Sequence->GetMovieScene());
+					if (NewCustomBinding)
+					{
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	if (NewCustomBinding)
+	{
+		FString DesiredBindingName = NewCustomBinding->GetDesiredBindingName();
+		FString CurrentName = DesiredBindingName.IsEmpty() ? FName::NameToDisplayString(CustomBindingObject->GetName(), false) : DesiredBindingName;
+		CurrentName = MovieSceneHelpers::MakeUniqueBindingName(Sequence->GetMovieScene(), CurrentName);
+
+		NewID = Sequence->GetMovieScene()->AddPossessable(CurrentName, NewCustomBinding->GetBoundObjectClass());
+
+		// Add the custom binding
+		Sequence->GetBindingReferences()->AddOrReplaceBinding(NewID, NewCustomBinding, 0);
+	}
+
+	return NewID;
+}
+
+
 UObject* MovieSceneHelpers::GetSingleBoundObject(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)
 {
 	if (Sequence)
@@ -730,13 +789,30 @@ UObject* MovieSceneHelpers::GetSingleBoundObject(UMovieSceneSequence* Sequence, 
 						return BoundObjects[0].Get();
 					}
 				}
-
-				const FMovieSceneBindingReferences* Refs = Sequence->GetBindingReferences();
-				if (Refs)
+				else if (const FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectId))
 				{
-					UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(SharedPlaybackState->GetPlaybackContext());
-					FMovieSceneBindingResolveParams BindingResolveParams{ Sequence, ObjectId, SequenceID };
-					return Refs->ResolveSingleBinding(BindingResolveParams, BindingIndex, LocatorResolveParams, SharedPlaybackState);
+					const FMovieSceneBindingReferences* Refs = Sequence->GetBindingReferences();
+					if (Refs)
+					{
+						UObject* ResolutionContext = MovieSceneHelpers::GetResolutionContext(Sequence, ObjectId, SequenceID, SharedPlaybackState);
+
+						if (Possessable->GetParent().IsValid() && Sequence->AreParentContextsSignificant())
+						{
+							TArrayView<TWeakObjectPtr<>> ParentBoundObjects = EvaluationState->FindBoundObjects(FMovieSceneEvaluationOperand(SequenceID, Possessable->GetParent()), SharedPlaybackState);
+							for (TWeakObjectPtr<> Parent : ParentBoundObjects)
+							{
+								ResolutionContext = Parent.Get();
+								if (!ResolutionContext)
+								{
+									continue;
+								}
+							}
+						}
+
+						UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(ResolutionContext);
+						FMovieSceneBindingResolveParams BindingResolveParams{ Sequence, ObjectId, SequenceID, ResolutionContext };
+						return Refs->ResolveSingleBinding(BindingResolveParams, BindingIndex, LocatorResolveParams, SharedPlaybackState);
+					}
 				}
 			}
 		}
@@ -896,6 +972,64 @@ const UClass* MovieSceneHelpers::GetBoundObjectClass(UMovieSceneSequence* Sequen
 #endif
 
 
+void MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(TArray<const TSubclassOf<UMovieSceneCustomBinding>>& OutCustomBindingTypes)
+{
+	OutCustomBindingTypes.Empty();
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		if (It->IsChildOf(UMovieSceneCustomBinding::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract))
+		{
+			OutCustomBindingTypes.Add(*It);
+		}
+	}// Sort by spawner priority to allow disambiguation for similar object types
+	OutCustomBindingTypes.Sort([](const TSubclassOf<UMovieSceneCustomBinding>& A, const TSubclassOf<UMovieSceneCustomBinding>& B) {
+		return A && B && A->GetDefaultObject<UMovieSceneCustomBinding>()->GetCustomBindingPriority() > B->GetDefaultObject<UMovieSceneCustomBinding>()->GetCustomBindingPriority(); });
+}
+
+
+TSharedRef<UE::MovieScene::FSharedPlaybackState> MovieSceneHelpers::CreateTransientSharedPlaybackState(UObject* WorldContext, UMovieSceneSequence* Sequence)
+{
+	verify(WorldContext && Sequence);
+
+	using namespace UE::MovieScene;
+	FSharedPlaybackStateCreateParams CreateParams;
+	CreateParams.PlaybackContext = WorldContext;
+	TSharedRef<FSharedPlaybackState> TransientPlaybackState = MakeShared<FSharedPlaybackState>(*Sequence, CreateParams);
+
+	FMovieSceneEvaluationState State;
+	TransientPlaybackState->AddCapabilityRaw(&State);
+	State.AssignSequence(MovieSceneSequenceID::Root, *Sequence, TransientPlaybackState);
+
+	return TransientPlaybackState;
+}
+
+UObject* MovieSceneHelpers::GetResolutionContext(UMovieSceneSequence* Sequence, const FGuid& ObjectId, const FMovieSceneSequenceID& SequenceID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+{
+	if (!Sequence)
+	{
+		return nullptr;
+	}
+	UObject* ResolutionContext = SharedPlaybackState->GetPlaybackContext();
+	if (FMovieScenePossessable* Possessable = Sequence->GetMovieScene()->FindPossessable(ObjectId))
+	{
+		if (Possessable->GetParent().IsValid() && Sequence->AreParentContextsSignificant())
+		{
+			if (FMovieSceneEvaluationState* EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>())
+			{
+				TArrayView<TWeakObjectPtr<>> ParentBoundObjects = EvaluationState->FindBoundObjects(Possessable->GetParent(), SequenceID, SharedPlaybackState);
+				for (TWeakObjectPtr<> Parent : ParentBoundObjects)
+				{
+					ResolutionContext = Parent.Get();
+					if (!ResolutionContext)
+					{
+						continue;
+					}
+				}
+			}
+		}
+	}
+	return ResolutionContext;
+}
 
 MovieSceneHelpers::FMovieSceneScopedPackageDirtyGuard::FMovieSceneScopedPackageDirtyGuard(USceneComponent* InComponent)
 {

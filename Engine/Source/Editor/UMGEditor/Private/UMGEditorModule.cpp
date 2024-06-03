@@ -44,6 +44,8 @@
 #include "WidgetBlueprintThumbnailRenderer.h"
 #include "Customizations/WidgetThumbnailCustomization.h"
 #include "Widgets/SBindWidgetView.h"
+#include "MovieSceneDynamicBindingUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
 
@@ -135,6 +137,9 @@ public:
 		FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
 
 		CVarThumbnailRenderEnable->AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FUMGEditorModule::ThumbnailRenderingEnabled));
+
+		FixupDynamicBindingPayloadParameterNameHandle = UMovieScene::FixupDynamicBindingPayloadParameterNameEvent.AddStatic(FixupPayloadParameterNameForDynamicBinding);
+		FixupWidgetDynamicBindingsHandle = UWidgetAnimation::FixupWidgetDynamicBindingsEvent.AddStatic(FixupWidgetDynamicBindings);
 	}
 
 	/** Called before the module is unloaded, right before the module object is destroyed. */
@@ -215,6 +220,9 @@ public:
 		//	SettingsModule->UnregisterSettings("Editor", "ContentEditors", "WidgetDesigner");
 		//	SettingsModule->UnregisterSettings("Project", "Editor", "UMGEditor");
 		//}
+
+		UMovieScene::FixupDynamicBindingPayloadParameterNameEvent.Remove(FixupDynamicBindingPayloadParameterNameHandle);
+		UWidgetAnimation::FixupWidgetDynamicBindingsEvent.Remove(FixupWidgetDynamicBindingsHandle);
 	}
 
 	/** Gets the extensibility managers for outside entities to extend gui page editor's menus and toolbars */
@@ -434,6 +442,58 @@ private:
 		}
 	}
 
+	static void FixupPayloadParameterNameForDynamicBinding(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName)
+	{
+		using namespace UE::MovieScene;
+
+		check(MovieScene);
+
+		auto FixupPayloadParameterName = [InNode, OldPinName, NewPinName](FMovieSceneDynamicBinding& DynamicBinding)
+		{
+			if (DynamicBinding.WeakEndpoint.Get() == InNode)
+			{
+				if (FMovieSceneDynamicBindingPayloadVariable* Variable = DynamicBinding.PayloadVariables.Find(OldPinName))
+				{
+					DynamicBinding.PayloadVariables.Add(NewPinName, MoveTemp(*Variable));
+					DynamicBinding.PayloadVariables.Remove(OldPinName);
+				}
+			}
+		};
+
+		UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), ThisSequence);
+
+		if (UWidgetAnimation* WidgetAnimation = MovieScene->GetTypedOuter<UWidgetAnimation>())
+		{
+			for (FWidgetAnimationBinding& WidgetAnimationBinding : WidgetAnimation->AnimationBindings)
+			{
+				FixupPayloadParameterName(WidgetAnimationBinding.DynamicBinding);
+			}
+		}
+	}
+
+	static void FixupWidgetDynamicBindings(UWidgetAnimation* WidgetAnimation)
+	{
+		if (WidgetAnimation)
+		{
+			FMovieSceneSequenceEditor* SequenceEditor = FMovieSceneSequenceEditor::Find(WidgetAnimation);
+			if (!SequenceEditor)
+			{
+				return;
+			}
+
+			UBlueprint* SequenceDirectorBP = SequenceEditor->GetOrCreateDirectorBlueprint(WidgetAnimation);
+			if (!SequenceDirectorBP)
+			{
+				return;
+			}
+
+			FMovieSceneDynamicBindingUtils::EnsureBlueprintExtensionCreated(WidgetAnimation, SequenceDirectorBP);
+			FKismetEditorUtilities::CompileBlueprint(SequenceDirectorBP);
+		}
+	}
+
+
 private:
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
@@ -476,6 +536,8 @@ private:
 	FDelegateHandle BlueprintVariableCustomizationHandle;
 	/** Handle for FBlueprintEditorModule::RegisterFunctionCustomization */
 	FDelegateHandle BlueprintFunctionCustomizationHandle;
+	FDelegateHandle FixupDynamicBindingPayloadParameterNameHandle;
+	FDelegateHandle FixupWidgetDynamicBindingsHandle;
 
 	bool bThumbnailRenderersRegistered;
 	bool bOnPostEngineInitHandled;

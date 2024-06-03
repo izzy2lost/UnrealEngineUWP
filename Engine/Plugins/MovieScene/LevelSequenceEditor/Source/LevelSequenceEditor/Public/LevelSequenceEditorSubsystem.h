@@ -36,6 +36,7 @@ class USequencerModuleScriptingLayer;
 class IDetailsView;
 class USequencerCurveEditorObject;
 class UMovieSceneCustomBinding;
+class IMenu;
 
 USTRUCT(BlueprintType)
 struct FMovieSceneScriptingParams
@@ -256,12 +257,15 @@ private:
 		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 	};
 
+	UPROPERTY()
 	TObjectPtr<UMovieSceneBindingPropertyInfoList> BindingPropertyInfoList = nullptr;
+	
 	FBindingPropertiesNotifyHook NotifyHook;
 
 private:
 
 	void AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid);
+	void OnMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
 
 	TSharedPtr<ISequencer> GetActiveSequencer();
 	

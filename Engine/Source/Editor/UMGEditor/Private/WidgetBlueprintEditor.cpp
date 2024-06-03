@@ -89,6 +89,7 @@
 #include "Preferences/UnrealEdOptions.h"
 #include "UnrealEdGlobals.h"
 #include "GraphEditorActions.h"
+#include "MovieSceneDynamicBindingCustomization.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
 
@@ -660,7 +661,8 @@ bool FWidgetBlueprintEditor::IsBindingSelected(const FMovieSceneBinding& InBindi
 	TSharedPtr<ISequencer>& ActiveSequencer = GetSequencer();
 	UMovieSceneSequence* AnimationSequence = ActiveSequencer->GetFocusedMovieSceneSequence();
 	UObject* BindingContext = GetAnimationPlaybackContext();
-	TArray<UObject*, TInlineAllocator<1>> BoundObjects = AnimationSequence->LocateBoundObjects(InBinding.GetObjectGuid(), BindingContext);
+	TArray<UObject*, TInlineAllocator<1>> BoundObjects;
+	AnimationSequence->LocateBoundObjects(InBinding.GetObjectGuid(), UE::UniversalObjectLocator::FResolveParams(BindingContext), ActiveSequencer->GetSharedPlaybackState(), BoundObjects);
 
 	if (BoundObjects.Num() == 0)
 	{
@@ -2295,7 +2297,7 @@ void FWidgetBlueprintEditor::RemoveMissingWidgetsFromTrack(FGuid ObjectId)
 	for (int32 Index = WidgetAnimation->AnimationBindings.Num() - 1; Index >= 0; --Index)
 	{
 		const FWidgetAnimationBinding& Binding = WidgetAnimation->AnimationBindings[Index];
-		if (Binding.AnimationGuid == ObjectId && Binding.FindRuntimeObject(*PreviewRoot->WidgetTree, *PreviewRoot) == nullptr)
+		if (Binding.AnimationGuid == ObjectId && Binding.FindRuntimeObject(*PreviewRoot->WidgetTree, *PreviewRoot, WidgetAnimation, ActiveSequencer->GetSharedPlaybackState()) == nullptr)
 		{
 			WidgetAnimation->AnimationBindings.RemoveAt(Index, EAllowShrinking::No);
 		}
@@ -2369,27 +2371,118 @@ void FWidgetBlueprintEditor::AddDynamicPossessionMenu(FMenuBuilder& MenuBuilder,
 
 	TSharedPtr<ISequencer>& ActiveSequencer = GetSequencer();
 
-	UMovieScene* MovieScene = ActiveSequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+	UWidgetAnimation* WidgetAnimation = Cast<UWidgetAnimation>(ActiveSequencer->GetFocusedMovieSceneSequence());
+	UMovieScene* MovieScene = WidgetAnimation->GetMovieScene();
+
 	FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectId);
 	if (!Possessable)
 	{
 		return;
 	}
 
-	TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = ActiveSequencer->GetViewModel();
-	FObjectBindingModelStorageExtension* ObjectStorage = SequencerViewModel->GetRootModel()->CastDynamic<FObjectBindingModelStorageExtension>();
-	if (!ObjectStorage)
+	FWidgetAnimationBinding* WidgetBinding = nullptr;
+
+	for (int32 Index = 0; Index < WidgetAnimation->AnimationBindings.Num(); ++Index)
+	{
+		FWidgetAnimationBinding& Binding = WidgetAnimation->AnimationBindings[Index];
+		if (Binding.AnimationGuid == ObjectId)
+		{
+			WidgetBinding = &Binding;
+			break;
+		}
+	}
+
+	if (WidgetBinding)
+	{
+		FDetailsViewArgs DetailsViewArgs;
+		{
+			DetailsViewArgs.bAllowSearch = false;
+			DetailsViewArgs.bCustomFilterAreaLocation = true;
+			DetailsViewArgs.bCustomNameAreaLocation = true;
+			DetailsViewArgs.bHideSelectionTip = true;
+			DetailsViewArgs.bLockable = false;
+			DetailsViewArgs.bSearchInitialKeyFocus = true;
+			DetailsViewArgs.bUpdatesFromSelection = false;
+			DetailsViewArgs.bShowOptions = false;
+			DetailsViewArgs.bShowModifiedPropertiesOption = false;
+			DetailsViewArgs.bShowScrollBar = false;
+		}
+
+		FStructureDetailsViewArgs StructureViewArgs;
+		{
+			StructureViewArgs.bShowObjects = false;
+			StructureViewArgs.bShowAssets = true;
+			StructureViewArgs.bShowClasses = true;
+			StructureViewArgs.bShowInterfaces = false;
+		}
+
+		TSharedRef<IStructureDetailsView> StructureDetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor")
+			.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
+
+		// Register details customizations for this instance
+		StructureDetailsView->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(
+			FMovieSceneDynamicBinding::StaticStruct()->GetFName(),
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance, MovieScene, ObjectId));
+
+		// We can't just show the FMovieSceneDynamicBinding struct in the details view, because Slate only uses
+		// the above details view customization for *properties* (not for the root object). So here we put a copy of
+		// our dynamic binding struct inside a container, and when the details view is done setting values on it,
+		// we copy these values back to the original dynamic binding.
+		TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(FMovieSceneDynamicBindingContainer::StaticStruct());
+		FMovieSceneDynamicBindingContainer* BufferContainer = (FMovieSceneDynamicBindingContainer*)StructOnScope->GetStructMemory();
+		BufferContainer->DynamicBinding = WidgetBinding->DynamicBinding;
+		StructureDetailsView->SetStructureData(StructOnScope);
+
+		StructureDetailsView->GetOnFinishedChangingPropertiesDelegate().AddSP(this, &FWidgetBlueprintEditor::OnFinishedChangingDynamicBindingProperties, StructOnScope, ObjectId);
+
+		MenuBuilder.BeginSection(NAME_None, LOCTEXT("DynamicBindingHeader", "Dynamic Binding"));
+		{
+			TSharedRef<SWidget> Widget = StructureDetailsView->GetWidget().ToSharedRef();
+			MenuBuilder.AddWidget(Widget, FText());
+		}
+		MenuBuilder.EndSection();
+	}
+}
+
+void FWidgetBlueprintEditor::OnFinishedChangingDynamicBindingProperties(const FPropertyChangedEvent& ChangeEvent, TSharedPtr<FStructOnScope> ValueStruct, FGuid ObjectId)
+{
+	auto* Container = (FMovieSceneDynamicBindingContainer*)ValueStruct->GetStructMemory();
+
+	using namespace UE::Sequencer;
+
+	TSharedPtr<ISequencer>& ActiveSequencer = GetSequencer();
+
+	UWidgetAnimation* WidgetAnimation = Cast<UWidgetAnimation>(ActiveSequencer->GetFocusedMovieSceneSequence());
+	UMovieScene* MovieScene = WidgetAnimation->GetMovieScene();
+
+	FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectId);
+	if (!Possessable)
 	{
 		return;
 	}
 
-	TSharedPtr<FObjectBindingModel> ObjectBindingModel = ObjectStorage->FindModelForObjectBinding(ObjectId);
-	if (!ObjectBindingModel)
+	FWidgetAnimationBinding* WidgetBinding = nullptr;
+
+	for (int32 Index = 0; Index < WidgetAnimation->AnimationBindings.Num(); ++Index)
 	{
-		return;
+		FWidgetAnimationBinding& Binding = WidgetAnimation->AnimationBindings[Index];
+		if (Binding.AnimationGuid == ObjectId)
+		{
+			WidgetBinding = &Binding;
+			break;
+		}
 	}
 
-	ObjectBindingModel->AddDynamicBindingMenu(MenuBuilder, Possessable->DynamicBinding);
+	if (WidgetBinding)
+	{
+		WidgetBinding->DynamicBinding = Container->DynamicBinding;
+	}
+
+	// Force refresh the binding
+	if (FMovieSceneEvaluationState* EvaluationState = ActiveSequencer->GetSharedPlaybackState()->FindCapability<FMovieSceneEvaluationState>())
+	{
+		EvaluationState->Invalidate(ObjectId, ActiveSequencer->GetFocusedTemplateID());
+	}
 }
 
 void FWidgetBlueprintEditor::AddSlotTrack( UPanelSlot* Slot )
@@ -2514,7 +2607,8 @@ void FWidgetBlueprintEditor::SyncSelectedWidgetsWithSequencerSelection(TArray<FG
 	TSet<FWidgetReference> SequencerSelectedWidgets;
 	for (FGuid Guid : ObjectGuids)
 	{
-		TArray<UObject*, TInlineAllocator<1>> BoundObjects = AnimationSequence->LocateBoundObjects(Guid, BindingContext);
+		TArray<UObject*, TInlineAllocator<1>> BoundObjects;
+		AnimationSequence->LocateBoundObjects(Guid, UE::UniversalObjectLocator::FResolveParams(BindingContext), ActiveSequencer->GetSharedPlaybackState(), BoundObjects);
 		if (BoundObjects.Num() == 0)
 		{
 			continue;
@@ -2588,7 +2682,7 @@ void FWidgetBlueprintEditor::UpdateTrackName(FGuid ObjectId)
 		}
 
 		TArray<UObject*, TInlineAllocator<1>> BoundObjects;
-		WidgetAnimation->LocateBoundObjects(ObjectId, BindingContext, BoundObjects);
+		WidgetAnimation->LocateBoundObjects(ObjectId, UE::UniversalObjectLocator::FResolveParams(BindingContext), ActiveSequencer->GetSharedPlaybackState(), BoundObjects);
 
 		if (BoundObjects.Num() > 0)
 		{

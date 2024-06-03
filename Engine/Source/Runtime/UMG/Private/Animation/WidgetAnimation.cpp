@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+	// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Animation/WidgetAnimation.h"
 #include "UObject/Package.h"
@@ -12,11 +12,18 @@
 #include "Tracks/MovieSceneMaterialParameterCollectionTrack.h"
 #include "UObject/SequencerObjectVersion.h"
 
+#if WITH_EDITOR
+#include "Styling/AppStyle.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WidgetAnimation)
 
 
 #define LOCTEXT_NAMESPACE "UWidgetAnimation"
 
+#if WITH_EDITOR
+UWidgetAnimation::FFixupWidgetDynamicBindingsEvent UWidgetAnimation::FixupWidgetDynamicBindingsEvent;
+#endif
 
 /* UWidgetAnimation structors
  *****************************************************************************/
@@ -37,6 +44,35 @@ void UWidgetAnimation::PostLoad()
 	if (GetLinkerCustomVersion(FSequencerObjectVersion::GUID) < FSequencerObjectVersion::FinishUMGEvaluation)
 	{
 		bLegacyFinishOnStop = false;
+	}
+
+	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LevelSequenceUpgradeDynamicBindings)
+	{
+		bool bConvertedDynamicBinding = false;
+		for (int32 Index = 0; Index < MovieScene->GetPossessableCount(); ++Index)
+		{
+			FMovieScenePossessable& Possessable = MovieScene->GetPossessable(Index);
+			if (Possessable.DynamicBinding_DEPRECATED.Function)
+			{
+				bConvertedDynamicBinding = true;
+
+				for (FWidgetAnimationBinding& Binding : AnimationBindings)
+				{
+					if (Binding.AnimationGuid == Possessable.GetGuid())
+					{
+						Binding.DynamicBinding = Possessable.DynamicBinding_DEPRECATED;
+						Possessable.DynamicBinding_DEPRECATED = FMovieSceneDynamicBinding();
+						break;
+					}
+				}
+			}
+		}
+#if WITH_EDITOR
+		if (bConvertedDynamicBinding && FixupWidgetDynamicBindingsEvent.IsBound())
+		{
+			FixupWidgetDynamicBindingsEvent.Broadcast(this);
+		}
+#endif
 	}
 
 	Super::PostLoad();
@@ -87,6 +123,22 @@ ETrackSupport UWidgetAnimation::IsTrackSupported(TSubclassOf<class UMovieSceneTr
 
 	return Super::IsTrackSupported(InTrackClass);
 }
+
+const FSlateBrush* UWidgetAnimation::GetCustomBrushForBinding(FGuid BindingID) const
+{
+	for (const FWidgetAnimationBinding& Binding : AnimationBindings)
+	{
+		if (Binding.AnimationGuid == BindingID)
+		{
+			if (Binding.DynamicBinding.Function)
+			{
+				return FAppStyle::GetBrush("Sequencer.DynamicBindingIconOverlay");
+			}
+		}
+	}
+	return nullptr;
+}
+
 #endif
 
 float UWidgetAnimation::GetStartTime() const
@@ -225,14 +277,14 @@ bool UWidgetAnimation::CanPossessObject(UObject& Object, UObject* InPlaybackCont
 	return (Object.IsA<UVisual>() && Object.IsIn(PreviewWidget));
 }
 
-void UWidgetAnimation::LocateBoundObjects(const FGuid& ObjectId, UObject* InContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void UWidgetAnimation::LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TSharedPtr<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	if (InContext == nullptr)
+	if (ResolveParams.Context == nullptr)
 	{
 		return;
 	}
 
-	UUserWidget* PreviewWidget = CastChecked<UUserWidget>(InContext);
+	UUserWidget* PreviewWidget = CastChecked<UUserWidget>(ResolveParams.Context);
 	if (PreviewWidget->WidgetTree == nullptr)
 	{
 		return;
@@ -242,7 +294,7 @@ void UWidgetAnimation::LocateBoundObjects(const FGuid& ObjectId, UObject* InCont
 	{
 		if (Binding.AnimationGuid == ObjectId)
 		{
-			UObject* FoundObject = Binding.FindRuntimeObject(*PreviewWidget->WidgetTree, *PreviewWidget);
+			UObject* FoundObject = Binding.FindRuntimeObject(*PreviewWidget->WidgetTree, *PreviewWidget, this, SharedPlaybackState);
 
 			if (FoundObject)
 			{
@@ -250,9 +302,7 @@ void UWidgetAnimation::LocateBoundObjects(const FGuid& ObjectId, UObject* InCont
 			}
 		}
 	}
-
 }
-
 
 UMovieScene* UWidgetAnimation::GetMovieScene() const
 {
@@ -264,6 +314,14 @@ UObject* UWidgetAnimation::CreateDirectorInstance(TSharedRef<const FSharedPlayba
 	// Widget animations do not create separate director instances, but just re-use the UUserWidget from the playback context
 	UUserWidget* WidgetContext = CastChecked<UUserWidget>(SharedPlaybackState->GetPlaybackContext());
 	return WidgetContext;
+}
+
+void UWidgetAnimation::IterateDynamicBindings(const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback)
+{
+	for (FWidgetAnimationBinding& AnimationBinding : AnimationBindings)
+	{
+		InCallback(AnimationBinding.AnimationGuid, AnimationBinding.DynamicBinding);
+	}
 }
 
 UObject* UWidgetAnimation::GetParentObject(UObject* Object) const

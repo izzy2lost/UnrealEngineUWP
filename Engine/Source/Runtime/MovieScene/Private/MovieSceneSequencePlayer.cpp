@@ -249,7 +249,7 @@ void UMovieSceneSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::
 
 	if (bAllowDefault)
 	{
-		InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+		InSequence.LocateBoundObjects(InBindingId, ResolveParams, FindSharedPlaybackState(), OutObjects);
 	}
 }
 

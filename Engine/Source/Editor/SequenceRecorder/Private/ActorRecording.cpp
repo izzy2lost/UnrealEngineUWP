@@ -24,6 +24,10 @@
 #include "IAssetTools.h"
 #include "AssetToolsModule.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "SequencerUtilities.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
+#include "MovieSceneCommonHelpers.h"
 
 static const FName SequencerActorTag(TEXT("SequencerActor"));
 static const FName MovieSceneSectionRecorderFactoryName("MovieSceneSectionRecorderFactory");
@@ -172,26 +176,6 @@ bool UActorRecording::StartRecording(ULevelSequence* CurrentSequence, float Curr
 	}
 
 	return true;
-}
-
-static FString GetUniqueSpawnableName(UMovieScene* MovieScene, const FString& BaseName)
-{
-	FString BlueprintName = BaseName;
-	auto DuplName = [&](FMovieSceneSpawnable& InSpawnable)
-	{
-		return InSpawnable.GetName() == BlueprintName;
-	};
-
-	int32 Index = 2;
-	FString UniqueString;
-	while (MovieScene->FindSpawnable(DuplName))
-	{
-		BlueprintName.RemoveFromEnd(UniqueString);
-		UniqueString = FString::Printf(TEXT(" (%d)"), Index++);
-		BlueprintName += UniqueString;
-	}
-
-	return BlueprintName;
 }
 
 void UActorRecording::GetNonSceneActorComponents(TArray<UActorComponent*>& OutArray)
@@ -435,15 +419,6 @@ FGuid UActorRecording::GetActorInSequence(AActor* InActor, ULevelSequence* Curre
 
 	UMovieScene* MovieScene = CurrentSequence->GetMovieScene();
 	
-	for (int32 SpawnableCount = 0; SpawnableCount < MovieScene->GetSpawnableCount(); ++SpawnableCount)
-	{
-		const FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(SpawnableCount);
-		if (Spawnable.GetName() == ActorTargetName || Spawnable.Tags.Contains(*InActor->GetActorLabel()))
-		{
-			return Spawnable.GetGuid();
-		}
-	}
-
 	for (int32 PossessableCount = 0; PossessableCount < MovieScene->GetPossessableCount(); ++PossessableCount)
 	{
 		const FMovieScenePossessable& Possessable = MovieScene->GetPossessable(PossessableCount);
@@ -482,7 +457,7 @@ void UActorRecording::StartRecordingActorProperties(ULevelSequence* CurrentSeque
 			}
 			else
 			{
-				FString TemplateName = GetUniqueSpawnableName(MovieScene, Actor->GetName());
+				FString TemplateName = MovieSceneHelpers::MakeUniqueBindingName(MovieScene, Actor->GetName());
 
 				AActor* ObjectTemplate = CastChecked<AActor>(CurrentSequence->MakeSpawnableTemplateFromInstance(*Actor, *TemplateName));
 
@@ -506,7 +481,11 @@ void UActorRecording::StartRecordingActorProperties(ULevelSequence* CurrentSeque
 						Pawn->AutoPossessPlayer = EAutoReceiveInput::Disabled;
 					}
 
-					Guid = MovieScene->AddSpawnable(ObjectBindingName, *ObjectTemplate);
+					UE::Sequencer::FCreateBindingParams CreateBindingParams;
+					CreateBindingParams.bAllowCustomBinding = true;
+					CreateBindingParams.bSpawnable = true;
+					CreateBindingParams.BindingNameOverride = ObjectBindingName;
+					Guid = FSequencerUtilities::CreateOrReplaceBinding(nullptr, CurrentSequence, ObjectTemplate, CreateBindingParams);
 				}
 			}
 		}
@@ -522,15 +501,6 @@ void UActorRecording::StartRecordingActorProperties(ULevelSequence* CurrentSeque
 					Possessable->Tags.AddUnique(FName(*Actor->GetActorLabel()));
 				}
 				Possessable->SetName(ObjectBindingName);
-			}
-
-			if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(Guid))
-			{
-				if (!Spawnable->Tags.Contains(*Actor->GetActorLabel()))
-				{
-					Spawnable->Tags.AddUnique(FName(*Actor->GetActorLabel()));
-				}
-				Spawnable->SetName(ObjectBindingName);
 			}
 
 			// add our folder
@@ -646,12 +616,6 @@ TSharedPtr<FMovieSceneAnimationSectionRecorder> UActorRecording::StartRecordingC
 		ChildPossessable->SetParent(Guid, OwnerMovieScene);
 	}
 
-	FMovieSceneSpawnable* ParentSpawnable = OwnerMovieScene->FindSpawnable(Guid);
-	if (ParentSpawnable)
-	{
-		ParentSpawnable->AddChildPossessable(PossessableGuid);
-	}
-
 	CurrentSequence->BindPossessableObject(PossessableGuid, *ActorComponent, BindingContext);
 
 	const USequenceRecorderSettings* Settings = GetDefault<USequenceRecorderSettings>();
@@ -749,10 +713,10 @@ bool UActorRecording::StopRecording(ULevelSequence* OriginalSequence, float Curr
 		UMovieScene* MovieScene = CurrentSequence->GetMovieScene();
 		check(MovieScene);
 
-		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(Guid);
-		if(Spawnable)
+		FMovieScenePossessable* Possessable = MovieScene->FindPossessable(Guid);
+		if(Possessable)
 		{
-			ActorName = Spawnable->GetName();
+			ActorName = Possessable->GetName();
 		}
 	}
 
@@ -1045,10 +1009,9 @@ void UActorRecording::StartRecordingNewComponents(ULevelSequence* CurrentSequenc
 		const USequenceRecorderSettings* Settings = GetDefault<USequenceRecorderSettings>();
 		if (!bRecordToPossessable)
 		{
-			FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(Guid);
-			check(Spawnable);
+			TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GetActorToRecord()->GetWorld(), CurrentSequence);
 
-			AActor* ObjectTemplate = CastChecked<AActor>(Spawnable->GetObjectTemplate());
+			AActor* ObjectTemplate = Cast<AActor>(MovieSceneHelpers::GetObjectTemplate(CurrentSequence, Guid, TransientPlaybackState, 0));
 
 			for (UActorComponent* ActorComponent : NewComponents)
 			{

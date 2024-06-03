@@ -4,7 +4,6 @@
 #include "MovieScene.h"
 #include "IMovieScenePlayer.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
-#include "MovieSceneDynamicBindingInvoker.h"
 #include "MovieSceneSpawnableAnnotation.h"
 #include "MovieSceneBindingReferences.h"
 #include "Bindings/MovieSceneSpawnableBinding.h"
@@ -52,22 +51,8 @@ UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieSce
 		SpawnOwnership = Spawnable->GetSpawnOwnership();
 		IMovieScenePlayer* Player = UE::MovieScene::FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 
-		// See if there is some dynamic binding logic to invoke, otherwise spawn the actor
-			// See if there is some dynamic binding logic to invoke, otherwise spawn the actor
-	    FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(SharedPlaybackState, Sequence, TemplateID, *Spawnable);
-	    if (ResolveResult.Object)
-	    {
-		    SpawnedActor = ResolveResult.Object;
-		    if (ResolveResult.bIsPossessedObject)
-            {
-                SpawnOwnership = ESpawnOwnership::External;
-            }
-        }
-		if (!SpawnedActor)
-		{
-	        // Call through to the list of spawners to see who can spawn something from this FMovieSceneSpawnable
-			SpawnedActor = SpawnObject(*Spawnable, TemplateID, SharedPlaybackState);
-		}
+		// Call through to the list of spawners to see who can spawn something from this FMovieSceneSpawnable
+		SpawnedActor = SpawnObject(*Spawnable, TemplateID, SharedPlaybackState);
 	}
 	else if (UMovieSceneSequence* MovieSceneSequence = MovieScene.GetTypedOuter<UMovieSceneSequence>())
 	{

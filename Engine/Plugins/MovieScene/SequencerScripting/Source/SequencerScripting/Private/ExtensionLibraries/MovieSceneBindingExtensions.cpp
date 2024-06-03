@@ -260,16 +260,9 @@ UObject* UMovieSceneBindingExtensions::GetObjectTemplate(const FMovieSceneBindin
 	UMovieScene* MovieScene = InBinding.GetMovieScene();
 	if (MovieScene)
 	{
-		using namespace UE::MovieScene;
-		FSharedPlaybackStateCreateParams CreateParams;
-		// Ideally we would have a proper world context here, but we don't so use GWorld
-		CreateParams.PlaybackContext = GWorld;
 		UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
-		TSharedRef<FSharedPlaybackState> TransientPlaybackState = MakeShared<FSharedPlaybackState>(*ThisSequence, CreateParams);
+		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GWorld, ThisSequence);
 
-		FMovieSceneEvaluationState State;
-		TransientPlaybackState->AddCapabilityRaw(&State);
-		State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, TransientPlaybackState);
 
 		// TODO: Technically this assumes only one spawnable- do we need to upgrade script to handle multiple binding indices?
 		return MovieSceneHelpers::GetObjectTemplate(MovieScene->GetTypedOuter<UMovieSceneSequence>(), InBinding.BindingID, TransientPlaybackState);

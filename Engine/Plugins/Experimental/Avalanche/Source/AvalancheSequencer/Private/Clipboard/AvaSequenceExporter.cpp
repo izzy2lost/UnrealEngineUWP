@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaSequenceExporter.h"
-#include "AvaSequenceCopyableBinding.h"
 #include "AvaSequencer.h"
 #include "GameFramework/Actor.h"
 #include "MovieScene.h"
@@ -9,14 +8,15 @@
 #include "AvaSequence.h"
 #include "UnrealExporter.h"
 #include "UObject/Package.h"
+#include "SequencerUtilities.h"
 
 namespace UE::AvaSequencer::Private
 {
 	class FAvaSequenceExportObjectInnerContext : public FExportObjectInnerContext
 	{
 	public:
-		explicit FAvaSequenceExportObjectInnerContext(UObject* InPlaybackContext)
-			: PlaybackContext(InPlaybackContext)
+		explicit FAvaSequenceExportObjectInnerContext(const TSharedRef<FAvaSequencer>& InAvaSequencer)
+			: AvaSequencerWeak(InAvaSequencer)
 		{
 		}
 		virtual ~FAvaSequenceExportObjectInnerContext() override = default;
@@ -32,12 +32,14 @@ namespace UE::AvaSequencer::Private
 
 		TConstArrayView<AActor*> GetBoundActors() const { return BoundActors; }
 
-		UObject* GetPlaybackContext() const { return PlaybackContext; }
+		UObject* GetPlaybackContext() const { return AvaSequencerWeak.IsValid() ? AvaSequencerWeak.Pin()->GetPlaybackContext() : nullptr; }
+
+		TSharedPtr<FAvaSequencer> GetSequencer() const { return AvaSequencerWeak.Pin(); }
 
 	private:
-		TObjectPtr<UObject> PlaybackContext;
-
 		TArray<TObjectPtr<AActor>> BoundActors;
+
+		TWeakPtr<FAvaSequencer> AvaSequencerWeak;
 	};
 }
 
@@ -73,7 +75,7 @@ void FAvaSequenceExporter::ExportText(FString& InOutCopiedData, TConstArrayView<
 	}
 
 	UObject* const PlaybackContext = AvaSequencer->GetPlaybackContext();
-	UE::AvaSequencer::Private::FAvaSequenceExportObjectInnerContext ExportContext(PlaybackContext);
+	UE::AvaSequencer::Private::FAvaSequenceExportObjectInnerContext ExportContext(AvaSequencer.ToSharedRef());
 
 	const TCHAR* const Filetype = TEXT("copy");
 	const uint32 PortFlags = PPF_DeepCompareInstances | PPF_ExportsNotFullyQualified;
@@ -117,6 +119,14 @@ bool UAvaSequenceExporter::ExportText(const FExportObjectInnerContext* InContext
 
 	const UE::AvaSequencer::Private::FAvaSequenceExportObjectInnerContext& Context
 		= static_cast<const UE::AvaSequencer::Private::FAvaSequenceExportObjectInnerContext&>(*InContext);
+
+	TSharedPtr<FAvaSequencer> Sequencer = Context.GetSequencer();
+	 
+	if (!Sequencer)
+	{
+		return false;
+	}
+
 
 	UObject* const PlaybackContext = Context.GetPlaybackContext();
 
@@ -162,123 +172,10 @@ bool UAvaSequenceExporter::ExportText(const FExportObjectInnerContext* InContext
 		, FCString::Spc(TextIndent)
 		, *Sequence->GetLabel().ToString());
 
-	UObject* const CopyableBindingOuter = GetTransientPackage();
-
-	TArray<UAvaSequenceCopyableBinding*> ObjectsToExport;
-	ObjectsToExport.Reserve(Bindings.Num());
-
-	for (const FMovieSceneBindingProxy& ObjectBinding : Bindings)
-	{
-		UMovieScene* const MovieScene = ObjectBinding.GetMovieScene();
-		if (!IsValid(MovieScene))
-		{
-			continue;
-		}
-
-		UAvaSequenceCopyableBinding* const CopyableBinding = NewObject<UAvaSequenceCopyableBinding>(CopyableBindingOuter, NAME_None, RF_Transient);
-
-		ObjectsToExport.Add(CopyableBinding);
-
-		if (FMovieScenePossessable* const Possessable = MovieScene->FindPossessable(ObjectBinding.BindingID))
-		{
-			UObject* ResolutionContext = FAvaSequencer::FindResolutionContext(*Sequence
-				, *MovieScene
-				, Possessable->GetParent()
-				, PlaybackContext);
-
-			CopyableBinding->Possessable = *Possessable;
-
-			TArray<UObject*, TInlineAllocator<1>> BoundObjects;
-			Sequence->LocateBoundObjects(CopyableBinding->Possessable.GetGuid(), UE::UniversalObjectLocator::FResolveParams(ResolutionContext), BoundObjects);
-
-			// Store the names of the bound objects so that they can be found on paste
-			for (UObject* const BoundObject : BoundObjects)
-			{
-				if (!BoundObject)
-				{
-					continue;
-				}
-
-				if (AActor* const Actor = Cast<AActor>(BoundObject))
-				{
-					CopyableBinding->BoundActorNames.Add(Actor->GetFName());
-				}
-				else if (ResolutionContext != PlaybackContext)
-				{
-					CopyableBinding->BoundObjectPaths.Add(BoundObject->GetPathName(ResolutionContext));
-				}
-			}
-		}
-		else
-		{
-			FMovieSceneSpawnable* const Spawnable = MovieScene->FindSpawnable(ObjectBinding.BindingID);
-			if (Spawnable)
-			{
-				CopyableBinding->Spawnable = *Spawnable;
-
-				// We manually serialize the spawnable object template so that it's not a reference to a privately owned object. Spawnables all have unique copies of their template objects anyways.
-				// Object Templates are re-created on paste (based on these templates) with the correct ownership set up.
-				CopyableBinding->SpawnableObjectTemplate = Spawnable->GetObjectTemplate();
-			}
-		}
-
-		if (const FMovieSceneBinding* const Binding = MovieScene->FindBinding(ObjectBinding.BindingID))
-		{
-			CopyableBinding->Binding = *Binding;
-			for (UMovieSceneTrack* const Track : Binding->GetTracks())
-			{
-				// Tracks suffer from the same issues as Spawnable's Object Templates (reference to a privately owned object). We'll manually serialize the tracks to copy them,
-				// and then restore them on paste.
-				UMovieSceneTrack* const DuplicatedTrack = Cast<UMovieSceneTrack>(StaticDuplicateObject(Track, CopyableBinding));
-				CopyableBinding->Tracks.Add(DuplicatedTrack);
-			}
-		}
-	}
-
-	UAvaSequenceExporter::ExportBindings(ObjectsToExport, TEXT("copy"), TextIndent + 3, Ar, InWarn);
+	TArray<UMovieSceneFolder*> Folders;
+	FSequencerUtilities::CopyBindings(Sequencer->GetSequencer(), Bindings, Folders, Ar);
 
 	Ar.Logf(TEXT("%sEnd Sequence\r\n"), FCString::Spc(TextIndent));
 
 	return true;
-}
-
-void UAvaSequenceExporter::ExportBindings(const TArray<UAvaSequenceCopyableBinding*>& InObjectsToExport, const TCHAR* InType
-	, int32 InTextIndent
-	, FOutputDevice& Ar
-	, FFeedbackContext* InWarn)
-{
-	// Clear the mark state for saving.
-	UnMarkAllObjects(static_cast<EObjectMark>(EObjectMark::OBJECTMARK_TagExp | EObjectMark::OBJECTMARK_TagImp));
-
-	UObject* const Outer = GetTransientPackage();
-
-	const uint32 PortFlags = PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited;
-
-	FExportObjectInnerContext EmptyContext;
-
-	for (UAvaSequenceCopyableBinding* const ObjectToExport : InObjectsToExport)
-	{
-		// We can't use TextExportTransient on USTRUCTS (which our object contains) so we're going to manually null out some references before serializing them. These references are
-		// serialized manually into the archive, as the auto-serialization will only store a reference (to a privately owned object) which creates issues on deserialization. Attempting 
-		// to deserialize these private objects throws a superflous error in the console that makes it look like things went wrong when they're actually OK and expected.
-		TArray<UMovieSceneTrack*> OldTracks = ObjectToExport->Binding.StealTracks(nullptr);
-
-		UObject* const OldSpawnableTemplate = ObjectToExport->Spawnable.GetObjectTemplate();
-
-		ObjectToExport->Spawnable.SetObjectTemplate(nullptr);
-
-		UExporter::ExportToOutputDevice(&EmptyContext, ObjectToExport, nullptr, Ar, InType
-			, InTextIndent, PortFlags, false, Outer);
-
-		// Restore the references (as we don't want to modify the original in the event of a copy operation!)
-		ObjectToExport->Binding.SetTracks(MoveTemp(OldTracks), nullptr);
-		ObjectToExport->Spawnable.SetObjectTemplate(OldSpawnableTemplate);
-
-		// We manually export the object template for the same private-ownership reason as above. Templates need to be re-created anyways as each Spawnable contains its own copy of the template.
-		if (ObjectToExport->SpawnableObjectTemplate)
-		{
-			UExporter::ExportToOutputDevice(&EmptyContext, ObjectToExport->SpawnableObjectTemplate, nullptr, Ar, InType
-				, InTextIndent, PortFlags);
-		}
-	}
 }

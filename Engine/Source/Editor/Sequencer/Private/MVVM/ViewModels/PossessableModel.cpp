@@ -132,16 +132,6 @@ const FSlateBrush* FPossessableModel::GetIconOverlayBrush() const
 		}
 	}
 
-	UMovieScene*            MovieScene  = OwnerModel ? OwnerModel->GetMovieScene() : nullptr;
-	FMovieScenePossessable* Possessable = MovieScene ? MovieScene->FindPossessable(ObjectBindingID) : nullptr;
-	if (Possessable && Possessable->DynamicBinding.WeakEndpoint.IsValid())
-	{
-		if (Possessable->DynamicBinding.WeakEndpoint.IsValid())
-		{
-			return FAppStyle::GetBrush("Sequencer.DynamicBindingIconOverlay");
-		}
-	}
-
 	UMovieSceneSequence* Sequence = OwnerModel ? OwnerModel->GetSequence() : nullptr;
 	if (Sequence)
 	{
@@ -154,6 +144,10 @@ const FSlateBrush* FPossessableModel::GetIconOverlayBrush() const
 					return CustomBrush;
 				}
 			}
+		}
+		else if (const FSlateBrush* CustomBrush = Sequence->GetCustomBrushForBinding(ObjectBindingID))
+		{
+			return CustomBrush;
 		}
 	}
 

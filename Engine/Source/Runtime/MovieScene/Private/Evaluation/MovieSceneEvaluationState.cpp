@@ -11,7 +11,6 @@
 #include "IMovieScenePlaybackClient.h"
 #include "IMovieScenePlayer.h"
 #include "MovieScene.h"
-#include "MovieSceneDynamicBindingInvoker.h"
 #include "MovieSceneObjectBindingID.h"
 #include "MovieSceneSequence.h"
 #include "UniversalObjectLocatorResolveParams.h"
@@ -434,28 +433,14 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 					}
 					else
 					{
-						FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, *Possessable);
-						if (ResolveResult.Object)
+						UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
+						if (Player)
 						{
-							if (!ResolveResult.bIsPossessedObject)
-							{
-								UE_LOG(LogMovieScene, Error, 
-									TEXT("Possessable '%s' (dynamically resolved to '%s') can't have spawnable-type ownership. The user-defined director blueprint endpoint should set bIsPossessedObject to true."),
-									*LexToString(Possessable->GetName()), *ResolveResult.Object->GetName());
-							}
-							FoundObjects.Add(ResolveResult.Object);
+							Player->ResolveBoundObjects(ResolveParams, InGuid, SequenceID, *Sequence, FoundObjects);
 						}
 						else
 						{
-							UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
-							if (Player)
-							{
-								Player->ResolveBoundObjects(ResolveParams, InGuid, SequenceID, *Sequence, FoundObjects);
-							}
-							else
-							{
-								Sequence->LocateBoundObjects(InGuid, ResolveParams, FoundObjects);
-							}
+							Sequence->LocateBoundObjects(InGuid, ResolveParams, SharedPlaybackState, FoundObjects);
 						}
 					}
 					
@@ -486,28 +471,14 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 				}
 				else
 				{
-					FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, *Possessable);
-					if (ResolveResult.Object)
+					UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
+					if (Player)
 					{
-						if (!ResolveResult.bIsPossessedObject)
-						{
-							UE_LOG(LogMovieScene, Error,
-								TEXT("Possessable '%s' (dynamically resolved to '%s') can't have spawnable-type ownership. The user-defined director blueprint endpoint should set bIsPossessedObject to true."),
-								*LexToString(Possessable->GetName()), *ResolveResult.Object->GetName());
-						}
-						FoundObjects.Add(ResolveResult.Object);
+						Player->ResolveBoundObjects(ResolveParams, InGuid, SequenceID, *Sequence, FoundObjects);
 					}
 					else
 					{
-						UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
-						if (Player)
-						{
-							Player->ResolveBoundObjects(ResolveParams, InGuid, SequenceID, *Sequence, FoundObjects);
-						}
-						else
-						{
-							Sequence->LocateBoundObjects(InGuid, ResolveParams, FoundObjects);
-						}
+						Sequence->LocateBoundObjects(InGuid, ResolveParams, SharedPlaybackState, FoundObjects);
 					}
 				}
 				

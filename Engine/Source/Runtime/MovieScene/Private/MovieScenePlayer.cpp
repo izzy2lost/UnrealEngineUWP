@@ -138,12 +138,12 @@ void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolve
 	{
 		if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
 		{
-			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID };
-			BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->FindSharedPlaybackState()), OutObjects);
+			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID, LocatorResolveParams.Context };
+			BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, FindSharedPlaybackState(), OutObjects);
 		}
 		else
 		{
-			InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, OutObjects);
+			InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, FindSharedPlaybackState(), OutObjects);
 		}
 	}
 }
@@ -176,10 +176,21 @@ TSharedPtr<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::FindSharedPl
 	return GetEvaluationTemplate().GetSharedPlaybackState();
 }
 
+TSharedPtr<const UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::FindSharedPlaybackState() const
+{
+	return ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->GetEvaluationTemplate().GetSharedPlaybackState());
+}
+
 TSharedRef<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPlaybackState()
 {
 	// ToSharedRef will assert if evaluation template isn't initialized
 	return GetEvaluationTemplate().GetSharedPlaybackState().ToSharedRef();
+}
+
+TSharedRef<const UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPlaybackState() const
+{
+	// ToSharedRef will assert if evaluation template isn't initialized
+	return ConstCastSharedRef<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->GetEvaluationTemplate().GetSharedPlaybackState().ToSharedRef());
 }
 
 void IMovieScenePlayer::ResetDirectorInstances()

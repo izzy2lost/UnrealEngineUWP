@@ -4,6 +4,7 @@
 #include "UObject/Object.h"
 #include "Components/Widget.h"
 #include "Blueprint/WidgetTree.h"
+#include "MovieSceneDynamicBindingInvoker.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WidgetAnimationBinding)
 
@@ -13,6 +14,20 @@
 
 UObject* FWidgetAnimationBinding::FindRuntimeObject(const UWidgetTree& WidgetTree, UUserWidget& UserWidget ) const
 {	
+	return FindRuntimeObject(WidgetTree, UserWidget, nullptr, nullptr);
+}
+
+UObject* FWidgetAnimationBinding::FindRuntimeObject(const UWidgetTree& WidgetTree, UUserWidget& UserWidget, const UMovieSceneSequence* Sequence, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (Sequence && SharedPlaybackState && DynamicBinding.Function)
+	{
+		FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(SharedPlaybackState.ToSharedRef(), const_cast<UMovieSceneSequence*>(Sequence), MovieSceneSequenceID::Root, AnimationGuid, DynamicBinding);
+		if (ResolveResult.Object)
+		{
+			return ResolveResult.Object;
+		}
+	}
+
 	if (bIsRootWidget)
 	{
 		return &UserWidget;

@@ -218,7 +218,8 @@ namespace UsdLevelSequenceHelperImpl
 			}
 		}
 
-		TArray<UObject*, TInlineAllocator<1>> Objects = MovieSceneSequence.LocateBoundObjects(Guid, ParentContext);
+		TArray<UObject*, TInlineAllocator<1>> Objects;
+		MovieSceneSequence.LocateBoundObjects(Guid, UE::UniversalObjectLocator::FResolveParams(ParentContext), nullptr, Objects);
 		if (Objects.Num() > 0)
 		{
 			return Objects[0];

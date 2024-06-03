@@ -397,10 +397,12 @@ public:
 	 * Returns the evaluated sequence instance's shared playback state, if any.
 	 */
 	MOVIESCENE_API TSharedPtr<UE::MovieScene::FSharedPlaybackState> FindSharedPlaybackState();
+	MOVIESCENE_API TSharedPtr<const UE::MovieScene::FSharedPlaybackState> FindSharedPlaybackState() const;
 	/**
 	 * Returns the evaluated sequence instance's shared playback state, asserts if there is none.
 	 */
 	MOVIESCENE_API TSharedRef<UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState();
+	MOVIESCENE_API TSharedRef<const UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState() const;
 
 	uint16 GetUniqueIndex() const
 	{
