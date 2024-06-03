@@ -27,7 +27,7 @@ enum ECustomizableObjectTextureLayerEffect : int
 	COTLE_SCREEN				UMETA(DisplayName = "SCREEN"),
 	COTLE_OVERLAY				UMETA(DisplayName = "OVERLAY"),
 	COTLE_ALPHA_OVERLAY			UMETA(DisplayName = "LIGHTEN"),
-	COTLE_NORMAL_COMBINE		UMETA(DisplayName = "COMBINE")
+	COTLE_NORMAL_COMBINE		UMETA(DisplayName = "BLEND NORMALS")
 };
 
 
