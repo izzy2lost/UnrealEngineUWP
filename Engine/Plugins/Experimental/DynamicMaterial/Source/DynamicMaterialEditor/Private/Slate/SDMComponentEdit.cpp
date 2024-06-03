@@ -851,6 +851,11 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 
 			ValueHandle.CategoryOverrideName = MaterialSettingsCategory;
 			ValueHandle.NameOverride = InNameOverride;
+			ValueHandle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
+				FIsResetToDefaultVisible::CreateUObject(InValue, &UDMMaterialValue::CanResetToDefault),
+				FResetToDefaultHandler::CreateUObject(InValue, &UDMMaterialValue::ResetToDefault),
+				/* Propagate to children */ false
+			);
 
 			InOutProcessedObjects.Add(InValue);
 		};
