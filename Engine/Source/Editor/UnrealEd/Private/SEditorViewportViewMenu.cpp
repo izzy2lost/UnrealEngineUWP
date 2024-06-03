@@ -12,6 +12,7 @@
 #include "GPUSkinCacheVisualizationMenuCommands.h"
 #include "GPUSkinCache.h"
 #include "RenderResource.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "EditorViewportViewMenu"
 
@@ -36,50 +37,7 @@ void SEditorViewportViewMenu::Construct( const FArguments& InArgs, TSharedRef<SE
 
 FText SEditorViewportViewMenu::GetViewMenuLabel() const
 {
-	FText Label = LOCTEXT("ViewMenuTitle_Default", "View");
-	TSharedPtr< SEditorViewport > PinnedViewport = Viewport.Pin();
-	if( PinnedViewport.IsValid() )
-	{
-		const TSharedPtr<FEditorViewportClient> ViewportClient = PinnedViewport->GetViewportClient();
-		check(ViewportClient.IsValid());
-		const EViewModeIndex ViewMode = ViewportClient->GetViewMode();
-		// If VMI_VisualizeBuffer, return its subcategory name
-		if (ViewMode == VMI_VisualizeBuffer)
-		{
-			Label = ViewportClient->GetCurrentBufferVisualizationModeDisplayName();
-		}
-		else if (ViewMode == VMI_VisualizeNanite)
-		{
-			Label = ViewportClient->GetCurrentNaniteVisualizationModeDisplayName();
-		}
-		else if (ViewMode == VMI_VisualizeLumen)
-		{
-			Label = ViewportClient->GetCurrentLumenVisualizationModeDisplayName();
-		}
-		else if (ViewMode == VMI_VisualizeSubstrate)
-		{
-			Label = ViewportClient->GetCurrentSubstrateVisualizationModeDisplayName();
-		}
-		else if (ViewMode == VMI_VisualizeGroom)
-		{
-			Label = ViewportClient->GetCurrentGroomVisualizationModeDisplayName();
-		}
-		else if (ViewMode == VMI_VisualizeVirtualShadowMap)
-		{
-			Label = ViewportClient->GetCurrentVirtualShadowMapVisualizationModeDisplayName();
-		}
-		else if (ViewMode == VMI_VisualizeGPUSkinCache)
-		{
-			Label = ViewportClient->GetCurrentGPUSkinCacheVisualizationModeDisplayName();
-		}
-		// For any other category, return its own name
-		else
-		{
-			Label = UViewModeUtils::GetViewModeDisplayName(ViewMode);
-		}
-	}
-
-	return Label;
+	return UE::UnrealEd::GetViewModesSubmenuLabel(Viewport);
 }
 
 const FSlateBrush* SEditorViewportViewMenu::GetViewMenuLabelIcon() const
