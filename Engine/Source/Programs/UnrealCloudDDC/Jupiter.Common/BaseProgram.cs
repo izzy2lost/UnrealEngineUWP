@@ -124,6 +124,9 @@ namespace Jupiter
 					{
 						options.AddServerHeader = false;
 
+						// Decrease min request body rate to be more forgiving for clients that are going wide and not sending as much data per connection
+						options.Limits.MinRequestBodyDataRate = new MinDataRate(10, TimeSpan.FromSeconds(60));
+
 						string socketsRoot = settings.DomainSocketsRoot;
 
 						if (settings.UseDomainSockets)
