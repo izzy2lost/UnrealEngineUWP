@@ -3,34 +3,7 @@
 #pragma once
 
 #include "OverridePassSequence.h"
-
-struct FPaniniProjectionConfig
-{
-	static const FPaniniProjectionConfig Default;
-
-	FPaniniProjectionConfig() = default;
-	FPaniniProjectionConfig(const FViewInfo& View);
-
-	bool IsEnabled() const
-	{
-		return D > 0.01f;
-	}
-
-	void Sanitize()
-	{
-		D = FMath::Max(D, 0.0f);
-		ScreenFit = FMath::Max(ScreenFit, 0.0f);
-	}
-
-	// 0=none..1=full, must be >= 0.
-	float D = 0.0f;
-
-	// Panini hard vertical compression lerp (0=no vertical compression, 1=hard compression).
-	float S = 0.0f;
-
-	// Panini screen fit factor (lerp between vertical and horizontal).
-	float ScreenFit = 1.0f;
-};
+#include "PostProcess/LensDistortion.h"
 
 enum class EUpscaleMethod : uint8
 {
@@ -91,5 +64,5 @@ public:
 		const FViewInfo& View,
 		const FInputs& PassInputs,
 		EUpscaleMethod Method,
-		FPaniniProjectionConfig PaniniConfig);
+		FLensDistortionLUT LensDistortionLUT = FLensDistortionLUT());
 };

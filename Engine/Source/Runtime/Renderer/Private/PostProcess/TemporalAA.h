@@ -4,6 +4,7 @@
 
 #include "ScreenPass.h"
 #include "PostProcess/PostProcessMotionBlur.h"
+#include "PostProcess/LensDistortion.h"
 #include "TemporalUpscaler.h"
 
 struct FTemporalAAHistory;
@@ -174,6 +175,12 @@ extern RENDERER_API FTAAOutputs AddTemporalAAPass(
 	const FTemporalAAHistory& InputHistory,
 	FTemporalAAHistory* OutputHistory);
 
+/** Returns whether TSR support lens distortion in its shader. */
+bool IsTSRLensDistortionSupported(EShaderPlatform ShaderPlatform);
+
+/** Returns whether TSR lens distortion is enabled (for runtime toggle). */
+bool IsTSRLensDistortionEnabled(EShaderPlatform ShaderPlatform);
+
 /** Returns whether a given view need to measure luminance of the scene color for moire anti-flickering. */
 bool NeedTSRMoireLuma(const FViewInfo& View);
 
@@ -203,6 +210,7 @@ struct FDefaultTemporalUpscaler
 		FScreenPassTexture SceneVelocity;
 		FTranslucencyPassResources PostDOFTranslucencyResources;
 		FScreenPassTexture FlickeringInputTexture;
+		FLensDistortionLUT LensDistortionLUT;
 	};
 
 	struct FOutputs

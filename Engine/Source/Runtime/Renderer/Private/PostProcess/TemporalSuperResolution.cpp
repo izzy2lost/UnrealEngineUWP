@@ -20,7 +20,16 @@
 
 namespace
 {
-	
+
+TAutoConsoleVariable<int32> CVarTSRSupportLensDistortion(
+	TEXT("r.TSR.Support.LensDistortion"), 1,
+	TEXT("Whether to compile lens distortion support in TSR's shaders ")
+	TEXT("(adds the lens distortion LUT in the HistoryUpdate pass in branches that even disabled can add a bit of VALU cost when no lens distortion is used).\n")
+	TEXT(" 0: unsupported;\n")
+	TEXT(" 1: supported only on desktop (default);\n")
+	TEXT(" 2: supported everywhere;\n"),
+	ECVF_ReadOnly);
+
 TAutoConsoleVariable<int32> CVarTSRAlphaChannel(
 	TEXT("r.TSR.AplhaChannel"), -1,
 	TEXT("Controls whether TSR should process the scene color's alpha channel.\n")
@@ -204,6 +213,11 @@ TAutoConsoleVariable<float> CVarTSRShadingExposureOffset(
 	TEXT("\n")
 	TEXT("The best TSR internal buffer to verify this is TSR.Flickering.Luminance, either with the \"show VisualizeTemporalUpscaler\" command or in DumpGPU ")
 	TEXT("with the RGB Linear[0;1] source color space against the Tonemaper's output in sRGB source color space.\n"),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<int32> CVarTSRLensDistortion(
+	TEXT("r.TSR.LensDistortion"), 1,
+	TEXT("Whether to apply lens distortion in TSR at runtime (enabled by default, requires r.TSR.Support.LensDistortion enabled at cook time)."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarTSRRejectionAntiAliasingQuality(
@@ -445,6 +459,8 @@ public:
 		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
 		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceOptimization);
+
+		OutEnvironment.SetDefine(TEXT("TSR_SUPPORT_LENS_DISTORTION"), IsTSRLensDistortionSupported(Parameters.Platform) ? 1 : 0);
 	}
 }; // class FTemporalSuperResolutionShader
 
@@ -922,6 +938,8 @@ class FTSRUpdateHistoryCS : public FTSRShader
 		SHADER_PARAMETER(FIntPoint, TranslucencyPixelPosMin)
 		SHADER_PARAMETER(FIntPoint, TranslucencyPixelPosMax)
 
+		SHADER_PARAMETER(FScreenTransform, HistoryPixelPosToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToInputPPCo)
 		SHADER_PARAMETER(FScreenTransform, HistoryPixelPosToScreenPos)
 		SHADER_PARAMETER(FScreenTransform, HistoryPixelPosToInputPPCo)
 		SHADER_PARAMETER(FScreenTransform, HistoryPixelPosToTranslucencyPPCo)
@@ -936,6 +954,7 @@ class FTSRUpdateHistoryCS : public FTSRShader
 		SHADER_PARAMETER(float, InputContributionMultiplier)
 		SHADER_PARAMETER(float, ResurrectionFrameIndex)
 		SHADER_PARAMETER(float, PrevFrameIndex)
+		SHADER_PARAMETER(int32, bLensDistortion)
 		SHADER_PARAMETER(int32, bGenerateOutputMip1)
 		SHADER_PARAMETER(int32, bGenerateOutputMip2)
 		SHADER_PARAMETER(int32, bGenerateOutputMip3)
@@ -945,6 +964,10 @@ class FTSRUpdateHistoryCS : public FTSRShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRPrevHistoryParameters, PrevHistoryParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray, PrevHistoryColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray, PrevHistoryMetadataTexture)
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevDistortingDisplacementTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ResurrectedDistortingDisplacementTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, HistoryColorOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, HistoryMetadataOutput)
@@ -1097,6 +1120,7 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER(float, FlickeringFramePeriod)
 		SHADER_PARAMETER(float, PerceptionAdd)
 
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputMoireLumaTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneTranslucencyTexture)
@@ -1275,6 +1299,32 @@ struct FTSRHistorySliceSequence
 	}
 };
 
+bool IsTSRLensDistortionSupported(EShaderPlatform ShaderPlatform)
+{
+	int32 LensDistortionSupport = CVarTSRSupportLensDistortion.GetValueOnAnyThread();
+	if (LensDistortionSupport <= 0)
+	{
+		return false;
+	}
+	else if (LensDistortionSupport == 1)
+	{
+		return FDataDrivenShaderPlatformInfo::GetIsPC(ShaderPlatform);
+	}
+
+	return true;
+}
+
+bool IsTSRLensDistortionEnabled(EShaderPlatform ShaderPlatform)
+{
+	check(IsInRenderingThread());
+	if (!IsTSRLensDistortionSupported(ShaderPlatform))
+	{
+		return false;
+	}
+
+	return CVarTSRLensDistortion.GetValueOnRenderThread() != 0;
+}
+
 bool NeedTSRMoireLuma(const FViewInfo& View)
 {
 	return GetMainTAAPassConfig(View) == EMainTAAPassConfig::TSR;
@@ -1346,8 +1396,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	}
 	check(HistorySliceSequence.Check());
 		
+	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
+
+	// Whether lens distortion support is compiled in the shaders.
+	const bool bSupportsLensDistortion = IsTSRLensDistortionSupported(ShaderPlatform);
+
 	// Whether to use 16bit VALU
-	bool bUse16BitVALU = Use16BitVALU(View.GetShaderPlatform());
+	bool bUse16BitVALU = Use16BitVALU(ShaderPlatform);
 
 	// Whether alpha channel is supported.
 	const bool bSupportsAlpha = CVarTSRAlphaChannel.GetValueOnRenderThread() >= 0 ? (CVarTSRAlphaChannel.GetValueOnRenderThread() > 0) : IsPostProcessingWithAlphaChannelSupported();
@@ -1454,6 +1509,26 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		}
 	}
 
+	// Whether to use camera cut.
+	const bool bCameraCut =
+		!InputHistory.IsValid() ||
+		View.bCameraCut ||
+		ETSRHistoryFormatBits(InputHistory.FormatBit) != HistoryFormatBits ||
+		false;
+
+	// Whether to apply lens distortion
+	bool bLensDistortion = false;
+	if (bSupportsLensDistortion)
+	{
+		bLensDistortion = PassInputs.LensDistortionLUT.IsEnabled();
+
+		// Still apply lens distortion if the history has been distorted before to ensure smooth transition from distorted -> undistorted.
+		for (int32 i = 0; i < InputHistory.DistortingDisplacementTextures.Num() && !bLensDistortion; i++)
+		{
+			bLensDistortion = bLensDistortion || InputHistory.DistortingDisplacementTextures[i] != nullptr;
+		}
+	}
+
 	FIntPoint HistoryExtent;
 	FIntPoint HistorySize;
 	{
@@ -1491,13 +1566,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 	float OutputToInputResolutionFraction = float(InputRect.Width()) / float(OutputRect.Width());
 	float OutputToInputResolutionFractionSquare = OutputToInputResolutionFraction * OutputToInputResolutionFraction;
-
-	// Whether to use camera cut shader permutation or not.
-	const bool bCameraCut =
-		!InputHistory.IsValid() ||
-		View.bCameraCut ||
-		ETSRHistoryFormatBits(InputHistory.FormatBit) != HistoryFormatBits ||
-		false;
 
 	static auto CVarAntiAliasingQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("sg.AntiAliasingQuality"));
 	check(CVarAntiAliasingQuality);
@@ -2304,8 +2372,10 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->TranslucencyPixelPosMax = SeparateTranslucencyRect.Max - 1;
 
 		FScreenTransform HistoryPixelPosToViewportUV = (FScreenTransform::Identity + 0.5f) * CommonParameters.HistoryInfo.ViewportSizeInverse;
+		PassParameters->HistoryPixelPosToViewportUV = HistoryPixelPosToViewportUV;
+		PassParameters->ViewportUVToInputPPCo = FScreenTransform::Identity * CommonParameters.InputInfo.ViewportSize + CommonParameters.InputJitter + CommonParameters.InputPixelPosMin;
 		PassParameters->HistoryPixelPosToScreenPos = HistoryPixelPosToViewportUV * FScreenTransform::ViewportUVToScreenPos;
-		PassParameters->HistoryPixelPosToInputPPCo = HistoryPixelPosToViewportUV * CommonParameters.InputInfo.ViewportSize + CommonParameters.InputJitter + CommonParameters.InputPixelPosMin;
+		PassParameters->HistoryPixelPosToInputPPCo = HistoryPixelPosToViewportUV * PassParameters->ViewportUVToInputPPCo;
 		PassParameters->HistoryPixelPosToTranslucencyPPCo = HistoryPixelPosToViewportUV * SeparateTranslucencyRect.Size() + CommonParameters.InputJitter * SeparateTranslucencyRect.Size() / CommonParameters.InputInfo.ViewportSize + SeparateTranslucencyRect.Min;
 		PassParameters->HistoryQuantizationError = ComputePixelFormatQuantizationError(HistoryColorFormat);
 
@@ -2318,6 +2388,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		
 		PassParameters->InputToHistoryFactor = float(HistorySize.X) / float(InputRect.Width());
 		PassParameters->InputContributionMultiplier = OutputToHistoryResolutionFractionSquare; 
+		PassParameters->bLensDistortion = bLensDistortion;
 		PassParameters->bGenerateOutputMip1 = false;
 		PassParameters->bGenerateOutputMip2 = false;
 		PassParameters->bGenerateOutputMip3 = false;
@@ -2361,6 +2432,25 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 			PassParameters->PrevHistoryColorTexture = GraphBuilder.CreateSRV(PrevColorSRVDesc);
 			PassParameters->PrevHistoryMetadataTexture = GraphBuilder.CreateSRV(PrevMetadataSRVDesc);
+		}
+
+		PassParameters->PrevDistortingDisplacementTexture = BlackDummy;
+		PassParameters->ResurrectedDistortingDisplacementTexture = BlackDummy;
+		PassParameters->UndistortingDisplacementTexture = BlackDummy;
+		if (bLensDistortion)
+		{
+			if (!bCameraCut && InputHistory.DistortingDisplacementTextures[PrevFrameSliceIndex].IsValid())
+			{
+				PassParameters->PrevDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(InputHistory.DistortingDisplacementTextures[PrevFrameSliceIndex]);
+			}
+			if (!bCameraCut && InputHistory.DistortingDisplacementTextures[ResurrectionFrameSliceIndex].IsValid() && bCanResurrectHistory)
+			{
+				PassParameters->ResurrectedDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(InputHistory.DistortingDisplacementTextures[ResurrectionFrameSliceIndex]);
+			}
+			if (PassInputs.LensDistortionLUT.UndistortingDisplacementTexture)
+			{
+				PassParameters->UndistortingDisplacementTexture = PassInputs.LensDistortionLUT.UndistortingDisplacementTexture;
+			}
 		}
 
 		{
@@ -2449,12 +2539,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		TShaderMapRef<FTSRUpdateHistoryCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TSR UpdateHistory(#%d Quality=%s%s%s%s%s) %dx%d",
+			RDG_EVENT_NAME("TSR UpdateHistory(#%d Quality=%s%s%s%s%s%s) %dx%d",
 				PermutationVector.ToDimensionValueId(),
 				kUpdateQualityNames[int32(PermutationVector.Get<FTSRUpdateHistoryCS::FQualityDim>())],
 				PermutationVector.Get<FTSRShader::F16BitVALUDim>() ? TEXT(" 16bit") : TEXT(""),
 				PermutationVector.Get<FTSRShader::FAlphaChannelDim>() ? TEXT(" AlphaChannel") : TEXT(""),
 				HistoryColorFormat == PF_FloatR11G11B10 ? TEXT(" R11G11B10") : TEXT(""),
+				bSupportsLensDistortion ? (bLensDistortion ? TEXT(" ApplyLensDistortion") : TEXT(" SupportLensDistortion")) : TEXT(""),
 				PassParameters->bGenerateOutputMip3 ? TEXT(" OutputMip3") : (PassParameters->bGenerateOutputMip2 ? TEXT(" OutputMip2") : (PassParameters->bGenerateOutputMip1 ? TEXT(" OutputMip1") : TEXT(""))),
 				HistorySize.X, HistorySize.Y),
 			AsyncComputePasses >= 3 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
@@ -2565,16 +2656,19 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			OutputHistory.ViewMatrices.SetNum(OutputHistory.FrameStorageCount);
 			OutputHistory.SceneColorPreExposures.SetNum(OutputHistory.FrameStorageCount);
 			OutputHistory.InputViewportRects.SetNum(OutputHistory.FrameStorageCount);
+			OutputHistory.DistortingDisplacementTextures.SetNum(OutputHistory.FrameStorageCount);
 		}
 		else
 		{
-			OutputHistory.ViewMatrices = InputHistory.ViewMatrices;
-			OutputHistory.SceneColorPreExposures = InputHistory.SceneColorPreExposures;
-			OutputHistory.InputViewportRects = InputHistory.InputViewportRects;
+			OutputHistory.ViewMatrices                   = InputHistory.ViewMatrices;
+			OutputHistory.SceneColorPreExposures         = InputHistory.SceneColorPreExposures;
+			OutputHistory.InputViewportRects             = InputHistory.InputViewportRects;
+			OutputHistory.DistortingDisplacementTextures = InputHistory.DistortingDisplacementTextures;
 		}
 		OutputHistory.ViewMatrices[CurrentFrameSliceIndex] = View.ViewMatrices;
 		OutputHistory.SceneColorPreExposures[CurrentFrameSliceIndex] = View.PreExposure;
 		OutputHistory.InputViewportRects[CurrentFrameSliceIndex] = InputRect;
+		OutputHistory.DistortingDisplacementTextures[CurrentFrameSliceIndex] = nullptr;
 
 		// Extract filterable history
 		GraphBuilder.QueueTextureExtraction(History.ColorArray, &OutputHistory.ColorArray);
@@ -2586,6 +2680,11 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		if (FlickeringFramePeriod > 0.0f)
 		{
 			GraphBuilder.QueueTextureExtraction(History.MoireArray, &OutputHistory.MoireArray);
+		}
+
+		if (bLensDistortion && PassInputs.LensDistortionLUT.IsEnabled())
+		{
+			GraphBuilder.QueueTextureExtraction(PassInputs.LensDistortionLUT.DistortingDisplacementTexture, &OutputHistory.DistortingDisplacementTextures[CurrentFrameSliceIndex]);
 		}
 
 		// Extract the output for next frame SSR so that separate translucency shows up in SSR.
@@ -2669,6 +2768,12 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->OutputToHistoryResolutionFractionSquare = OutputToHistoryResolutionFractionSquare;
 			PassParameters->FlickeringFramePeriod = FlickeringFramePeriod;
 			PassParameters->PerceptionAdd = FMath::Pow(0.5f, CVarTSRShadingExposureOffset.GetValueOnRenderThread());
+
+			PassParameters->UndistortingDisplacementTexture = BlackDummy;
+			if (bLensDistortion && PassInputs.LensDistortionLUT.IsEnabled())
+			{
+				PassParameters->UndistortingDisplacementTexture = PassInputs.LensDistortionLUT.UndistortingDisplacementTexture;
+			}
 
 			PassParameters->InputTexture = PassInputs.SceneColor.Texture;
 			if (PassInputs.FlickeringInputTexture.IsValid())

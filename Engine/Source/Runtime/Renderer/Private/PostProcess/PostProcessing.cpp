@@ -374,7 +374,11 @@ void AddPostProcessingPasses(
 	const int32 LumenVisualizeMode = GetLumenVisualizeMode(View);
 	const bool bPostProcessingEnabled = IsPostProcessingEnabled(View);
 
-	const FPaniniProjectionConfig PaniniConfig(View);
+	// Temporal Anti-aliasing. Also may perform a temporal upsample from primary to secondary view rect.
+	const EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
+
+	bool bApplyLensDistortion = View.LensDistortionLUT.IsEnabled();
+	bool bApplyLensDistortionInTSR = TAAConfig == EMainTAAPassConfig::TSR && bPostProcessingEnabled && IsTSRLensDistortionEnabled(View.GetShaderPlatform());
 
 	enum class EPass : uint32
 	{
@@ -526,7 +530,7 @@ void AddPostProcessingPasses(
 #if UE_ENABLE_DEBUG_DRAWING
 	PassSequence.SetEnabled(EPass::DebugPrimitive, FSceneRenderer::ShouldCompositeDebugPrimitivesInPostProcess(View));
 #endif
-	PassSequence.SetEnabled(EPass::PrimaryUpscale, PaniniConfig.IsEnabled() || (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && PrimaryViewRect.Size() != View.GetSecondaryViewRectSize()));
+	PassSequence.SetEnabled(EPass::PrimaryUpscale, (bApplyLensDistortion && !bApplyLensDistortionInTSR) || (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && PrimaryViewRect.Size() != View.GetSecondaryViewRectSize()));
 	PassSequence.SetEnabled(EPass::SecondaryUpscale, View.RequiresSecondaryUpscale() || View.Family->GetSecondarySpatialUpscalerInterface() != nullptr);
 
 	const auto GetPostProcessMaterialInputs = [&](FScreenPassTexture InSceneColor)
@@ -603,9 +607,6 @@ void AddPostProcessingPasses(
 
 	if (bPostProcessingEnabled)
 	{
-		// Temporal Anti-aliasing. Also may perform a temporal upsample from primary to secondary view rect.
-		EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
-
 		const bool bPrimaryView = IStereoRendering::IsAPrimaryView(View);
 		const bool bHasViewState = View.ViewState != nullptr;
 		const bool bDepthOfFieldEnabled = DiaphragmDOF::IsEnabled(View);
@@ -850,6 +851,10 @@ void AddPostProcessingPasses(
 			UpscalerPassInputs.DownsampleOverrideFormat = DownsampleOverrideFormat;
 			UpscalerPassInputs.PostDOFTranslucencyResources = PostDOFTranslucencyResources;
 			UpscalerPassInputs.FlickeringInputTexture = TSRFlickeringInput;
+			if (bApplyLensDistortionInTSR)
+			{
+				UpscalerPassInputs.LensDistortionLUT = View.LensDistortionLUT;
+			}
 			check(UpscalerPassInputs.SceneColor.ViewRect == View.ViewRect);
 
 			FDefaultTemporalUpscaler::FOutputs Outputs;
@@ -1756,7 +1761,7 @@ void AddPostProcessingPasses(
 		{
 			EUpscaleMethod Method = GetUpscaleMethod();
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, PaniniConfig);
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, View.LensDistortionLUT);
 		}
 	}
 
@@ -1786,7 +1791,7 @@ void AddPostProcessingPasses(
 				? EUpscaleMethod::SmoothStep
 				: EUpscaleMethod::Nearest;
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, FPaniniProjectionConfig());
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method);
 		}
 	}
 
@@ -2100,7 +2105,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 		{
 			EUpscaleMethod Method = GetUpscaleMethod();
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, FPaniniProjectionConfig());
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method);
 		}
 	}
 
@@ -2129,7 +2134,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 				? EUpscaleMethod::SmoothStep
 				: EUpscaleMethod::Nearest;
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, FPaniniProjectionConfig());
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method);
 		}
 	}
 }
@@ -2220,8 +2225,6 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	const FEyeAdaptationParameters EyeAdaptationParameters = GetEyeAdaptationParameters(View);
 	FRDGBufferRef LastEyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 
-	const FPaniniProjectionConfig PaniniConfig(View);
-
 	enum class EPass : uint32
 	{
 		Distortion,
@@ -2310,7 +2313,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 	bool bUseHighResolutionScreenshotMask = IsHighResolutionScreenshotMaskEnabled(View);
 
-	bool bShouldPrimaryUpscale = (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && View.UnscaledViewRect != View.ViewRect) || PaniniConfig.IsEnabled();
+	bool bShouldPrimaryUpscale = (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && View.UnscaledViewRect != View.ViewRect) || View.LensDistortionLUT.IsEnabled();
 	bShouldPrimaryUpscale |= View.Family->GetPrimarySpatialUpscalerInterface() != nullptr;
 
 	PassSequence.SetEnabled(EPass::Tonemap, bUseToneMapper);
@@ -2947,7 +2950,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 		}
 		else
 		{
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear, PaniniConfig);
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear, View.LensDistortionLUT);
 		}
 	}
 

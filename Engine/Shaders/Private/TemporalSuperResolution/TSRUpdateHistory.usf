@@ -35,6 +35,9 @@
 #define CONFIG_REJECT_TRANSLUCENCY_ON_RESPONSIVE_AA_ONLY 0
 #define CONFIG_HISTORY_RESURRECTION 1
 
+/** Whether lens distortion is supported. */
+#define CONFIG_LENS_DISTORTION TSR_SUPPORT_LENS_DISTORTION
+
 
 //------------------------------------------------------- DEFAULTS
 
@@ -91,9 +94,17 @@ Texture2D<tsr_half4> HistoryRejectionTexture;
 Texture2D<float2> DilatedVelocityTexture;
 Texture2D<tsr_ushort2> AntiAliasingTexture;
 
+#if CONFIG_LENS_DISTORTION
+	Texture2D<float2> PrevDistortingDisplacementTexture;
+	Texture2D<float2> ResurrectedDistortingDisplacementTexture;
+	Texture2D<float2> UndistortingDisplacementTexture;
+#endif
+
 int2   TranslucencyPixelPosMin;
 int2   TranslucencyPixelPosMax;
 
+FScreenTransform HistoryPixelPosToViewportUV;
+FScreenTransform ViewportUVToInputPPCo;
 FScreenTransform HistoryPixelPosToScreenPos;
 FScreenTransform HistoryPixelPosToInputPPCo;
 FScreenTransform HistoryPixelPosToTranslucencyPPCo;
@@ -106,6 +117,9 @@ float InvWeightClampingPixelSpeed;
 float InputToHistoryFactor;
 float ResurrectionFrameIndex;
 float PrevFrameIndex;
+#if CONFIG_LENS_DISTORTION
+	uint bLensDistortion;
+#endif
 uint bGenerateOutputMip1;
 uint bGenerateOutputMip2;
 uint bGenerateOutputMip3;
@@ -447,6 +461,17 @@ tsr_halfCx2 DownsampleSceneColor(tsr_halfCx2 SceneColor, uint LocalGroupThreadIn
 	return SceneColor;
 }
 
+#if CONFIG_LENS_DISTORTION
+float2 ApplyDisplacementTextureOnScreenPos(Texture2D<float2> DisplacementTexture, float2 DestScreenPos)
+{
+	float2 DestViewportUV = ScreenPosToViewportUV(DestScreenPos);
+
+	float2 SrcViewportUV = DestViewportUV + DisplacementTexture.SampleLevel(GlobalBilinearClampedSampler, DestViewportUV, 0);
+			
+	return ViewportUVToScreenPos(SrcViewportUV);
+}
+#endif
+
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -476,11 +501,40 @@ void MainCS(
 	tsr_short2x2 HistoryPixelPos = dpv_add(
 		tsr_short2(GroupId) * tsr_short2(TILE_SIZE, TILE_SIZE),
 		tsr_short2x2(Map8x8Tile2x2LaneDPV(GroupThreadIndex)));
+		
+	float2x2 ScreenPos;
+	float2x2 InputPPCo;
+	#if CONFIG_LENS_DISTORTION
+	BRANCH
+	if (bLensDistortion)
+	{
+		float2x2 DestViewportUV = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToViewportUV);
+		float2x2 SrcViewportUV;
+		UNROLL_N(DPV_PIXEL_PER_LANE)
+		for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
+		{
+			float2 LocalSrcViewportUV = dpv_access_pixel(DestViewportUV, PixelId) + UndistortingDisplacementTexture.SampleLevel(GlobalBilinearClampedSampler, dpv_access_pixel(DestViewportUV, PixelId), 0);
+			
+			SrcViewportUV[0][PixelId] = LocalSrcViewportUV.x;
+			SrcViewportUV[1][PixelId] = LocalSrcViewportUV.y;
+		}
 
-	float2x2 ScreenPos = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToScreenPos);
+		ScreenPos[0][0] = ViewportUVToScreenPos(dpv_access_pixel(SrcViewportUV, 0)).x;
+		ScreenPos[1][0] = ViewportUVToScreenPos(dpv_access_pixel(SrcViewportUV, 0)).y;
+		ScreenPos[0][1] = ViewportUVToScreenPos(dpv_access_pixel(SrcViewportUV, 1)).x;
+		ScreenPos[1][1] = ViewportUVToScreenPos(dpv_access_pixel(SrcViewportUV, 1)).y;
+		
+		// Pixel coordinate of the center of output pixel O in the input viewport.
+		InputPPCo = ApplyScreenTransform(SrcViewportUV, ViewportUVToInputPPCo);
+	}
+	else
+	#endif
+	{
+		ScreenPos = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToScreenPos);
 	
-	// Pixel coordinate of the center of output pixel O in the input viewport.
-	float2x2 InputPPCo = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToInputPPCo);
+		// Pixel coordinate of the center of output pixel O in the input viewport.
+		InputPPCo = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToInputPPCo);
+	}
 
 	// Pixel coordinate of the center of the nearest input pixel K in the input viewport.
 	float2x2 InputPPCk = floor(InputPPCo) + 0.5;
@@ -496,8 +550,7 @@ void MainCS(
 	tsr_half2 DecreaseValidityMultiplier = tsr_half(0.0).xx;
 	tsr_half2 OutputPixelVelocity = tsr_half(0.0).xx;
 	tsr_half2 NoiseFiltering = tsr_half(0.0).xx;
-	bool2 bIsOffScreen = false;
-	bool2 bIsDisoccluded = false;
+	bool2 bIsParallaxRejected = false;
 	#if CONFIG_HISTORY_RESURRECTION
 		bool2 bIsHistoryResurrection = false;
 	#else
@@ -612,19 +665,14 @@ void MainCS(
 				OutputPixelVelocity = tsr_half2(dpv_length(dpv_mul(ScreenVelocity, HistoryInfo_ViewportSize)));
 			}
 			
-			tsr_ushort2 BitMask = tsr_ushort2(round(dpv_interleave_registers_array(RawHistoryRejection)[3] * tsr_half(255.0)));
-
-			// Detect whether the history reprojection is successful
-			IsOffScreenOrDisoccluded(
-				bCameraCut,
-				PrevScreenPos,
-				(BitMask & tsr_ushort(0x1)) == tsr_ushort(0),
-				/* out */ bIsOffScreen,
-				/* out */ bIsDisoccluded);
-				
-			#if CONFIG_HISTORY_RESURRECTION
-				bIsHistoryResurrection = (BitMask & tsr_ushort(0x2)) != tsr_ushort(0);
-			#endif
+			// Unpacks bits masks
+			{
+				tsr_ushort2 BitMask = tsr_ushort2(round(dpv_interleave_registers_array(RawHistoryRejection)[3] * tsr_half(255.0)));
+				bIsParallaxRejected = (BitMask & tsr_ushort(0x1)) == tsr_ushort(0);
+				#if CONFIG_HISTORY_RESURRECTION
+					bIsHistoryResurrection = (BitMask & tsr_ushort(0x2)) != tsr_ushort(0);
+				#endif
+			}
 
 			// Process input texel, forcing to pack register.
 			LowFrequencyRejection      = dpv_force_interleave_registers_array(RawHistoryRejection)[0];
@@ -641,22 +689,57 @@ void MainCS(
 			SpatialAntiAliasingOffset = DecodeSpatialAntiAliasingOffset(EncodedInputTexelOffset);
 		}
 		#endif
-		
-		// Final post processing.
+	}
+
+	// Apply lens distortion on the reprojection.
+	#if CONFIG_LENS_DISTORTION
+	BRANCH
+	if (bLensDistortion)
+	{
+		float2x2 UndistortedScreenPos = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToScreenPos);
+
+		UNROLL_N(DPV_PIXEL_PER_LANE)
+		for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
 		{
-			#if !CONFIG_CLAMP
-			{
-				bIsDisoccluded = false;
-				#if CONFIG_HISTORY_RESURRECTION
-					bIsHistoryResurrection = false;
-				#endif
-				LowFrequencyRejection = tsr_half(1.0).xx;
-				LowFrequencyClamp = tsr_half(1.0).xx;
-			}
+			float2 LocalUndistortedScreenPos = dpv_access_pixel(UndistortedScreenPos, PixelId);
+			float2 LocalPrevScreenPos = dpv_access_pixel(PrevScreenPos, PixelId);
+			float2 LocalSrcScreenPos = ApplyDisplacementTextureOnScreenPos(PrevDistortingDisplacementTexture, LocalPrevScreenPos);
+
+			//LocalSrcScreenPos = lerp(LocalUndistortedScreenPos, LocalSrcScreenPos, saturate(OutputPixelVelocity[PixelId] * tsr_half(8.0)));
+			
+			#if CONFIG_HISTORY_RESURRECTION
+				float2 LocalSrcResurrectedScreenPos = ApplyDisplacementTextureOnScreenPos(ResurrectedDistortingDisplacementTexture, LocalPrevScreenPos);
+				LocalSrcScreenPos = select(bIsHistoryResurrection[PixelId], LocalSrcResurrectedScreenPos, LocalSrcScreenPos);
 			#endif
+
+			PrevScreenPos[0][PixelId] = LocalSrcScreenPos.x;
+			PrevScreenPos[1][PixelId] = LocalSrcScreenPos.y;
 		}
 	}
+	#endif
 	
+	// Detect whether the history reprojection is successful
+	bool2 bIsOffScreen;
+	bool2 bIsDisoccluded;
+	IsOffScreenOrDisoccluded(
+		bCameraCut,
+		PrevScreenPos,
+		bIsParallaxRejected,
+		/* out */ bIsOffScreen,
+		/* out */ bIsDisoccluded);
+				
+	// Final post processing.
+	#if !CONFIG_CLAMP
+	{
+		bIsDisoccluded = false;
+		#if CONFIG_HISTORY_RESURRECTION
+			bIsHistoryResurrection = false;
+		#endif
+		LowFrequencyRejection = tsr_half(1.0).xx;
+		LowFrequencyClamp = tsr_half(1.0).xx;
+	}
+	#endif
+
 	// Reproject history
 	tsr_halfCx2 PrevHighFrequencyColor;
 	tsr_half2 PrevHistoryValidity;

@@ -50,6 +50,7 @@
 #include "Nanite/NaniteShared.h"
 #include "LightFunctionAtlas.h"
 #include "SceneExtensions.h"
+#include "PostProcess/LensDistortion.h"
 
 #if RHI_RAYTRACING
 #include "RayTracingInstanceBufferUtil.h"
@@ -875,6 +876,7 @@ struct FTSRHistory
 	TArray<FViewMatrices> ViewMatrices;
 	TArray<float> SceneColorPreExposures;
 	TArray<FIntRect> InputViewportRects;
+	TArray<TRefCountPtr<IPooledRenderTarget>> DistortingDisplacementTextures;
 
 
 	void SafeRelease()
@@ -1439,6 +1441,8 @@ public:
 	/** Only one of the resources(TextureBuffer or Texture2D) will be used depending on the Mobile.UseGPUSceneTexture cvar */
 
 	FTextureRHIRef PrimitiveSceneDataTextureOverrideRHI;
+
+	FLensDistortionLUT LensDistortionLUT;
 
 	FShaderPrintData ShaderPrintData;
 

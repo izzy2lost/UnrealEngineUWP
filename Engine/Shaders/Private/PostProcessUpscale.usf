@@ -17,14 +17,11 @@
 // only for MainPS
 float UpscaleSoftness;
 
-// only for MainVS()
-// .x:HalfFOV .y:tan(HalfFov) .z:CylinderDistortion(0=none, 1:full) .w:Correction to scale Y the same as X is scaled in the center
-float Panini_D;
-float Panini_S;
-float Panini_ScreenPosScale;
-
 SCREEN_PASS_TEXTURE_VIEWPORT(Input)
 SCREEN_PASS_TEXTURE_VIEWPORT(Output)
+
+Texture2D<float2> DistortingDisplacementTexture;
+SamplerState DistortingDisplacementSampler;
 
 Texture2D SceneColorTexture;
 SamplerState SceneColorSampler;
@@ -80,20 +77,6 @@ float Gaussian(float Scale, float2 Offset)
 	return exp2(Scale * dot(Offset, Offset));
 }
 
-// Panini projection in the screen pos
-// @param InScreenPos: the position to project in the screen space
-// @return the panini projected postion in screen space
-float2 PaniniProjectionScreenPos(float2 InScreenPos)
-{
-	const float2 ScreenSpaceToPaniniFactor = GetTanHalfFieldOfView();
-	const float2 PaniniToScreenSpaceFactor = GetCotanHalfFieldOfView();
-	const float2 PaniniDirection = InScreenPos * ScreenSpaceToPaniniFactor;
-	const float2 PaniniPosition = PaniniProjection(PaniniDirection, Panini_D, Panini_S);
-
-	// Return the new position back in the screen space frame
-	return PaniniPosition * PaniniToScreenSpaceFactor * Panini_ScreenPosScale;
-}
-
 // vertex shader entry point
 void MainVS(
 	in uint VertexId : SV_VertexID,
@@ -108,10 +91,8 @@ void MainVS(
 	// still in 0..1 range
 	float4 Position = float4(TexCoord.x, TexCoord.y, 0, 1);
 
-	float2 PlanarScreenPos = TexCoord * 2 - 1;
-
 	// distort pos
-	Position.xy = PaniniProjectionScreenPos(PlanarScreenPos) * 0.5f + 0.5f;
+	Position.xy = TexCoord + DistortingDisplacementTexture.SampleLevel(DistortingDisplacementSampler, TexCoord, 0);
 
 	DrawRectangle(Position, TexCoord, OutPosition, OutTexCoord.xy);
 	OutTexCoord.zw =  OutPosition.xy;

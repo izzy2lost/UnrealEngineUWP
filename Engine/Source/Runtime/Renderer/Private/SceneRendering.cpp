@@ -423,6 +423,12 @@ static TAutoConsoleVariable<int32> CVarEnableMultiGPUForkAndJoin(
 	ECVF_Default
 	);
 
+static TAutoConsoleVariable<float> CVarLensDistortionAffectScreenPercentage(
+	TEXT("r.LensDistortion.AffectScreenPercentage"),
+	0.0f,
+	TEXT("Whether the screen percentage is automatically increased to avoid any upscaling due to the distortion. Disabled by default as this affect render target sizes, and is dependent of the upscaling factor that migth be animated (different FOV or distortion settings for instance)."),
+	ECVF_RenderThreadSafe);
+
 /*-----------------------------------------------------------------------------
 	FParallelCommandListSet
 -----------------------------------------------------------------------------*/
@@ -3089,6 +3095,16 @@ FIntPoint FSceneRenderer::GetDesiredInternalBufferSize(const FSceneViewFamily& V
 		ResolutionFractionUpperBound = PrimaryResolutionFractionUpperBound * ViewFamily.SecondaryViewFraction;
 	}
 
+	if (ViewFamily.Views[0]->bIsViewInfo)
+	{
+		const FViewInfo& View = static_cast<const FViewInfo&>(*ViewFamily.Views[0]);
+		if (View.LensDistortionLUT.IsEnabled())
+		{
+			float AffectScreenPercentage = CVarLensDistortionAffectScreenPercentage.GetValueOnRenderThread();
+			ResolutionFractionUpperBound *= FMath::Lerp(1.0, View.LensDistortionLUT.ResolutionFraction, AffectScreenPercentage);
+		}
+	}
+
 	FIntPoint FamilySizeUpperBound(0, 0);
 
 	for (const FSceneView* View : ViewFamily.AllViews)
@@ -3238,8 +3254,15 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 		check(ISceneViewFamilyScreenPercentage::IsValidResolutionFraction(PrimaryResolutionFraction));
 	}
 
+	float LensDistortionResolutionFraction = 1.0f;
+	if (Views[0].LensDistortionLUT.IsEnabled())
+	{
+		float AffectScreenPercentage = CVarLensDistortionAffectScreenPercentage.GetValueOnRenderThread();
+		LensDistortionResolutionFraction = FMath::Lerp(1.0, Views[0].LensDistortionLUT.ResolutionFraction, AffectScreenPercentage);
+	}
+
 	// Compute final resolution fraction.
-	float ResolutionFraction = PrimaryResolutionFraction * ViewFamily.SecondaryViewFraction;
+	float ResolutionFraction = PrimaryResolutionFraction * ViewFamily.SecondaryViewFraction * LensDistortionResolutionFraction;
 
 	// Checks that view rects are correctly initialized.
 	for (int32 i = 0; i < Views.Num(); i++)
@@ -3740,6 +3763,19 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 					{
 						ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, *AllViews[ViewIndex]);
 					}
+				}
+			}
+		}
+
+		if (FPaniniProjectionConfig::IsEnabledByCVars())
+		{
+			const FPaniniProjectionConfig PaniniProjection = FPaniniProjectionConfig::ReadCVars();
+
+			for (FViewInfo& View : Views)
+			{
+				if (View.ViewMatrices.IsPerspectiveProjection())
+				{
+					View.LensDistortionLUT = PaniniProjection.GenerateLUTPasses(GraphBuilder, View);
 				}
 			}
 		}

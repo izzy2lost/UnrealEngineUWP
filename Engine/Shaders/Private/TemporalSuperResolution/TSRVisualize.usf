@@ -39,6 +39,7 @@ float OutputToHistoryResolutionFractionSquare;
 float FlickeringFramePeriod;
 float PerceptionAdd;
 
+Texture2D<float2>    UndistortingDisplacementTexture;
 Texture2D<tsr_half3> InputTexture;
 Texture2D<tsr_half>  InputMoireLumaTexture;
 Texture2D<tsr_half4> InputSceneTranslucencyTexture;
@@ -55,7 +56,22 @@ Texture2D<tsr_half3> ResurrectedHistoryColorTexture;
 RWTexture2D<tsr_half4> Output;
 
 
-//------------------------------------------------------- ENTRY POINT
+//------------------------------------------------------- FUNCTION
+
+float2 ApplyLensDistortionOnScreenPos(float2 DestScreenPos)
+#if TSR_SUPPORT_LENS_DISTORTION
+{
+	float2 DestViewportUV = ScreenPosToViewportUV(DestScreenPos);
+
+	float2 SrcViewportUV = DestViewportUV + UndistortingDisplacementTexture.SampleLevel(GlobalBilinearClampedSampler, DestViewportUV, 0);
+			
+	return ViewportUVToScreenPos(SrcViewportUV);
+}
+#else
+{
+	return DestScreenPos;
+}
+#endif
 
 tsr_half3 GrayScaleColor(tsr_half3 SceneColor)
 {
@@ -81,6 +97,8 @@ tsr_half3 SampleTSROutputGray(FContext Ctx)
 {
 	return GrayScaleColor(SceneColorTexture[Ctx.OutputPixelPos]);
 }
+
+//------------------------------------------------------- ENTRY POINT
 
 tsr_half3 DisplayHistorySampleCount(FContext Ctx)
 {
@@ -214,7 +232,7 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 	const tsr_half TotalVariationCountThreshold = tsr_half(1.0 / (1.0 - pow(1.0 - BlendFinal, tsr_half(FlickeringFramePeriod))));
 
 	// Texture coordinate
-	float2 MoireHistoryUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToMoireHistoryUV);
+	float2 MoireHistoryUV = ApplyScreenTransform(ApplyLensDistortionOnScreenPos(Ctx.ScreenPos), ScreenPosToMoireHistoryUV);
 	MoireHistoryUV = fastClamp(MoireHistoryUV, MoireHistoryUVBilinearMin, MoireHistoryUVBilinearMax);
 
 	// Texture fetches
@@ -286,9 +304,9 @@ void MainCS(
 		tsr_short2(GroupId) * tsr_short2(TILE_SIZE, TILE_SIZE) +
 		Map8x8Tile2x2Lane(GroupThreadIndex));
 	Ctx.ScreenPos = ApplyScreenTransform(float2(Ctx.OutputPixelPos), OutputPixelPosToScreenPos);
-	Ctx.InputUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputUV);
+	Ctx.InputUV = ApplyScreenTransform(ApplyLensDistortionOnScreenPos(Ctx.ScreenPos), ScreenPosToInputUV);
 	Ctx.InputUV = fastClamp(Ctx.InputUV, InputInfo_UVViewportBilinearMin, InputInfo_UVViewportBilinearMax);
-	Ctx.InputPixelPos = tsr_short2(ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputPixelPos));
+	Ctx.InputPixelPos = tsr_short2(ApplyScreenTransform(ApplyLensDistortionOnScreenPos(Ctx.ScreenPos), ScreenPosToInputPixelPos));
 	Ctx.InputPixelPos = fastClamp(Ctx.InputPixelPos, tsr_short2(InputInfo_ViewportMin), tsr_short2(InputInfo_ViewportMax - 1));
 
 	tsr_half3 OutputColor = tsr_half(0.0);
