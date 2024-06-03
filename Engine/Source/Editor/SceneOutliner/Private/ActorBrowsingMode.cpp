@@ -951,10 +951,12 @@ void FActorBrowsingMode::OnItemAdded(FSceneOutlinerTreeItemPtr Item)
 {
 	if (const FActorTreeItem* ActorItem = Item->CastTo<FActorTreeItem>())
 	{
+		// We incremented the count regardless of Flags.bIsFilteredOut because the count should match what the user sees, which includes things like
+		// actors which don't pass the filter themselves but are force shown by children being visible.
+		++FilteredActorCount;
+		
 		if (!Item->Flags.bIsFilteredOut)
 		{
-			++FilteredActorCount;
-
 			// Synchronize selection
 			if (GEditor->GetSelectedActors()->IsSelected(ActorItem->Actor.Get()))
 			{
@@ -964,11 +966,8 @@ void FActorBrowsingMode::OnItemAdded(FSceneOutlinerTreeItemPtr Item)
 	}
 	else if (Item->IsA<FActorDescTreeItem>())
 	{
-		if (!Item->Flags.bIsFilteredOut)
-		{
-			++FilteredActorCount;
-			++FilteredUnloadedActorCount;
-		}
+		++FilteredActorCount;
+		++FilteredUnloadedActorCount;
 	}
 }
 
@@ -976,18 +975,12 @@ void FActorBrowsingMode::OnItemRemoved(FSceneOutlinerTreeItemPtr Item)
 {
 	if (Item->IsA<FActorTreeItem>())
 	{
-		if (!Item->Flags.bIsFilteredOut)
-		{
-			--FilteredActorCount;
-		}
+		--FilteredActorCount;
 	}
 	else if (Item->IsA<FActorDescTreeItem>())
 	{
-		if (!Item->Flags.bIsFilteredOut)
-		{
-			--FilteredActorCount;
-			--FilteredUnloadedActorCount;
-		}
+		--FilteredActorCount;
+		--FilteredUnloadedActorCount;
 	}
 }
 

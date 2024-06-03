@@ -4,6 +4,7 @@
 #include "ActorTreeItem.h"
 #include "ActorDescTreeItem.h"
 #include "ActorFolderTreeItem.h"
+#include "ComponentTreeItem.h"
 #include "EditorClassUtils.h"
 #include "Engine/Blueprint.h"
 #include "Misc/PackageName.h"
@@ -82,7 +83,7 @@ namespace SceneOutliner
 		return nullptr;
 	}
 
-TSharedPtr<SWidget> FSceneOutlinerHelpers::GetClassHyperlink(UObject* InObject)
+	TSharedPtr<SWidget> FSceneOutlinerHelpers::GetClassHyperlink(UObject* InObject)
 	{
 		if (InObject)
 		{
@@ -117,6 +118,27 @@ TSharedPtr<SWidget> FSceneOutlinerHelpers::GetClassHyperlink(UObject* InObject)
 		}
 
 		return nullptr;
+	}
+
+	void FSceneOutlinerHelpers::PopulateExtraSearchStrings(const ISceneOutlinerTreeItem& TreeItem, TArray< FString >& OutSearchStrings)
+	{
+		// For components, we want them to be searchable by the actor name if they request so. This is so you can search by actors in component
+		// pickers without the actual components themselves being filtered out.
+		if (const FComponentTreeItem* ComponentTreeItem = TreeItem.CastTo<FComponentTreeItem>())
+		{
+			if (ComponentTreeItem->GetSearchComponentByActorName())
+			{
+				if (const UActorComponent* Component = ComponentTreeItem->Component.Get())
+				{
+					if (const AActor* Owner = Component->GetOwner())
+					{
+						constexpr bool bCreateIfNone = false;
+						OutSearchStrings.Add(Owner->GetActorLabel(bCreateIfNone));
+					}
+					
+				}
+			}
+		}
 	}
 
 ;}

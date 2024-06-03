@@ -261,7 +261,7 @@ FSceneOutlinerTreeItemPtr FActorHierarchy::FindOrCreateParentItem(const ISceneOu
 			{
 				return *ParentItem;
 			}
-			else
+			else if (Owner->IsListedInSceneOutliner())
 			{
 				return bCreate ? CreateItemForActor(Owner, true) : nullptr;
 			}
@@ -384,7 +384,8 @@ void FActorHierarchy::CreateComponentItems(const AActor* Actor, TArray<FSceneOut
 		{
 			if (Component != nullptr)
 			{
-				if (FSceneOutlinerTreeItemPtr ComponentItem = Mode->CreateItemFor<FComponentTreeItem>(Component))
+				if (FSceneOutlinerTreeItemPtr ComponentItem =
+					Mode->CreateItemFor<FComponentTreeItem>(FComponentTreeItem(Component, bSearchComponentsByActorName)))
 				{
 					OutItems.Add(ComponentItem);
 				}
@@ -450,25 +451,25 @@ bool FActorHierarchy::CheckLevelInstanceEditing(UWorld* World, AActor* Actor) co
 
 void FActorHierarchy::InsertActorItemAndCreateComponents(AActor* InActor, FSceneOutlinerTreeItemPtr ActorItem, TArray<FSceneOutlinerTreeItemPtr>& OutItems) const
 {
+	const int32 InsertLocation = OutItems.Num();
+	
+	// Create all component items
+	CreateComponentItems(InActor, OutItems);
+
+	// If we are only showing actors with valid components, don't add the actor if no components were added
 	if (bShowingOnlyActorWithValidComponents)
 	{
-		int32 InsertLocation = OutItems.Num();
-
-		// Create all component items
-		CreateComponentItems(InActor, OutItems);
-
-		if (OutItems.Num() != InsertLocation)
+		// If the number of items remained the same after component insertion no components were inserted
+		if (OutItems.Num() == InsertLocation)
 		{
-			// Add the actor before the components
-			OutItems.Insert(ActorItem, InsertLocation);
+			return;
 		}
 	}
-	else
-	{
-		OutItems.Add(ActorItem);
 
-		// Create all component items
-		CreateComponentItems(InActor, OutItems);
+	if(ActorItem)
+	{
+		// Add the actor before the components
+		OutItems.Insert(ActorItem, InsertLocation);
 	}
 }
 
@@ -574,11 +575,11 @@ void FActorHierarchy::CreateWorldChildren(UWorld* World, TArray<FSceneOutlinerTr
 		{
 			continue;
 		}
+
+		FSceneOutlinerTreeItemPtr ActorItem = CreateItemForActor(Actor);
 		
-		if (FSceneOutlinerTreeItemPtr ActorItem = CreateItemForActor(Actor))
-		{
-			InsertActorItemAndCreateComponents(Actor, ActorItem, OutItems);
-		}
+		InsertActorItemAndCreateComponents(Actor, ActorItem, OutItems);
+		
 	}
 
 	CreateUnloadedItems(World, OutItems);

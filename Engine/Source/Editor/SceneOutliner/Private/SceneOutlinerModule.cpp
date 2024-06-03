@@ -152,6 +152,7 @@ TSharedRef<ISceneOutliner> FSceneOutlinerModule::CreateComponentPicker(const FSc
 			Params.bHideLevelInstanceHierarchy = true;
 			Params.bHideUnloadedActors = true;
 			Params.bHideEmptyFolders = true;
+			Params.bSearchComponentsByActorName = true;
 			return new FActorPickingMode(Params, OnItemPicked);
 		});
 

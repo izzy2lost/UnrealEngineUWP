@@ -35,7 +35,9 @@ struct SCENEOUTLINER_API FActorModeParams
 {
 	FActorModeParams() {}
 
-	FActorModeParams(SSceneOutliner* InSceneOutliner, const TWeakObjectPtr<UWorld>& InSpecifiedWorldToDisplay = nullptr, bool bInHideComponents = true, bool bInHideLevelInstanceHierarchy = true, bool bInHideUnloadedActors = true, bool bInHideEmptyFolders = true, bool bInCanInteractWithSelectableActorsOnly = true)
+	FActorModeParams(SSceneOutliner* InSceneOutliner, const TWeakObjectPtr<UWorld>& InSpecifiedWorldToDisplay = nullptr, bool bInHideComponents = true,
+		bool bInHideLevelInstanceHierarchy = true, bool bInHideUnloadedActors = true, bool bInHideEmptyFolders = true,
+		bool bInCanInteractWithSelectableActorsOnly = true, bool binSearchComponentsByActorName = false)
 		: SpecifiedWorldToDisplay(InSpecifiedWorldToDisplay)
 		, SceneOutliner(InSceneOutliner)
 		, bHideComponents(bInHideComponents)
@@ -43,6 +45,7 @@ struct SCENEOUTLINER_API FActorModeParams
 		, bHideUnloadedActors(bInHideUnloadedActors)
 		, bHideEmptyFolders(bInHideEmptyFolders)
 		, bCanInteractWithSelectableActorsOnly(bInCanInteractWithSelectableActorsOnly)
+		, bSearchComponentsByActorName(binSearchComponentsByActorName)
 	{}
 
 	TWeakObjectPtr<UWorld> SpecifiedWorldToDisplay = nullptr;
@@ -54,6 +57,7 @@ struct SCENEOUTLINER_API FActorModeParams
 	bool bHideEmptyFolders = true;
 	bool bCanInteractWithSelectableActorsOnly = true;
 	bool bShouldUpdateContentWhileInPIEFocused = false;
+	bool bSearchComponentsByActorName = false;
 };
 
 class SCENEOUTLINER_API FActorMode : public ISceneOutlinerMode
@@ -137,4 +141,8 @@ protected:
 	bool bCanInteractWithSelectableActorsOnly;
 	/** Should we update content when in PIE and the PIE viewport has focus. */
 	bool bShouldUpdateContentWhileInPIEFocused;
+	/** If true and bHideComponents is false, components will be shown if the owning actor is searched for even if the search text does not match
+	 * the components
+	 */
+	bool bSearchComponentsByActorName;
 };

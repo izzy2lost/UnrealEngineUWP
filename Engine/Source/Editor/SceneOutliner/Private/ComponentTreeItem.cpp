@@ -39,7 +39,7 @@ struct SComponentTreeLabel : FSceneOutlinerCommonLabelData, public SCompoundWidg
 				SAssignNew(InlineTextBlock, SInlineEditableTextBlock)
 				.Text(this, &SComponentTreeLabel::GetDisplayText)
 				.ToolTipText(this, &SComponentTreeLabel::GetTooltipText)
-				//.HighlightText(HighlightText)
+				.HighlightText(HighlightText)
 				.ColorAndOpacity(this, &SComponentTreeLabel::GetForegroundColor)
 				//.OnTextCommitted(this, &SComponentTreeLabel::OnLabelCommitted)
 				//.OnVerifyTextChanged(this, &SComponentTreeLabel::OnVerifyItemLabelChanged)
@@ -173,10 +173,11 @@ private:
 
 const FSceneOutlinerTreeItemType FComponentTreeItem::Type(&ISceneOutlinerTreeItem::Type);
 
-FComponentTreeItem::FComponentTreeItem(UActorComponent* InComponent)
+FComponentTreeItem::FComponentTreeItem(UActorComponent* InComponent, bool bInSearchComponentsByActorName)
 	: ISceneOutlinerTreeItem(Type)
 	, Component(InComponent)
 	, ID(InComponent)
+	, bSearchComponentsByActorName(bInSearchComponentsByActorName)
 {
 	AActor* OwningActor = InComponent->GetOwner();
 	bExistsInCurrentWorldAndPIE = GEditor->ObjectsThatExistInEditorWorld.Get(OwningActor);
@@ -226,6 +227,11 @@ bool FComponentTreeItem::CanInteract() const
 TSharedRef<SWidget> FComponentTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow)
 {
 	return SNew(SComponentTreeLabel, *this, Outliner, InRow);
+}
+
+bool FComponentTreeItem::GetSearchComponentByActorName() const
+{
+	return bSearchComponentsByActorName;
 }
 
 #undef LOCTEXT_NAMESPACE

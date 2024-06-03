@@ -45,6 +45,7 @@ static FAutoConsoleVariableRef CVarAutoRepresentingWorldNetMode(
 
 using FActorFilter = TSceneOutlinerPredicateFilter<FActorTreeItem>;
 using FFolderFilter = TSceneOutlinerPredicateFilter<FFolderTreeItem>;
+using FComponentFilter = TSceneOutlinerPredicateFilter<FComponentTreeItem>;
 
 namespace SceneOutliner
 {
@@ -123,11 +124,19 @@ FActorMode::FActorMode(const FActorModeParams& Params)
 	, bHideEmptyFolders(Params.bHideEmptyFolders)
 	, bCanInteractWithSelectableActorsOnly(Params.bCanInteractWithSelectableActorsOnly)
 	, bShouldUpdateContentWhileInPIEFocused(Params.bShouldUpdateContentWhileInPIEFocused)
+	, bSearchComponentsByActorName(Params.bSearchComponentsByActorName)
 {
 	SceneOutliner->AddFilter(MakeShared<FActorFilter>(FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor)
 	{
 		return IsActorDisplayable(Actor);
 	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
+
+	// Don't show components if the owner actor is not displayable
+	SceneOutliner->AddFilter(MakeShared<FComponentFilter>(FComponentTreeItem::FFilterPredicate::CreateLambda([this](const UActorComponent* ActorComponent)
+	{
+		return ActorComponent && IsActorDisplayable(ActorComponent->GetOwner());
+	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
+
 
 	auto FolderPassesFilter = [this](const FFolder& InFolder, bool bInCheckHideLevelInstanceFlag)
 	{
@@ -172,6 +181,7 @@ TUniquePtr<ISceneOutlinerHierarchy> FActorMode::CreateHierarchy()
 	ActorHierarchy->SetShowingLevelInstances(!bHideLevelInstanceHierarchy);
 	ActorHierarchy->SetShowingUnloadedActors(!bHideUnloadedActors);
 	ActorHierarchy->SetShowingEmptyFolders(!bHideEmptyFolders);
+	ActorHierarchy->SetSearchComponentsByActorName(bSearchComponentsByActorName);
 
 	return ActorHierarchy;
 }
