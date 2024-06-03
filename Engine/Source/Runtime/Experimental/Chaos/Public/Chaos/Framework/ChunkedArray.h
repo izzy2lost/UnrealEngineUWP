@@ -7,7 +7,7 @@ namespace Chaos
 {
 	namespace Private
 	{
-		template<typename InElementType, uint32 TargetBytesPerChunk = 16384, typename AllocatorType = FDefaultAllocator >
+		template<typename InElementType, uint32 TargetBytesPerChunk = 16384, typename AllocatorType = FDefaultAllocator, typename = TEnableIf<std::is_trivially_destructible_v<InElementType>>>
 		class TChaosChunkedArray : public TChunkedArray<InElementType, TargetBytesPerChunk, AllocatorType>
 		{
 		public:
