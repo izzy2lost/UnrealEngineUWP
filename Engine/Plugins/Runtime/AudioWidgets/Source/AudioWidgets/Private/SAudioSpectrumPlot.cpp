@@ -203,6 +203,8 @@ void SAudioSpectrumPlot::Construct(const FArguments& InArgs)
 	ViewMaxFrequency = InArgs._ViewMaxFrequency;
 	ViewMinSoundLevel = InArgs._ViewMinSoundLevel;
 	ViewMaxSoundLevel = InArgs._ViewMaxSoundLevel;
+	TiltExponent = InArgs._TiltExponent;
+	TiltPivotFrequency = InArgs._TiltPivotFrequency;
 	bDisplayFrequencyAxisLabels = InArgs._DisplayFrequencyAxisLabels;
 	bDisplaySoundLevelAxisLabels = InArgs._DisplaySoundLevelAxisLabels;
 	bDisplayFrequencyGridLines = InArgs._DisplayFrequencyGridLines;
@@ -442,12 +444,15 @@ int32 SAudioSpectrumPlot::DrawPowerSpectrum(const FGeometry& AllottedGeometry, F
 		TArray<FVector2f> DataPoints;
 		DataPoints.Reserve(NumFrequencies);
 
+		const float TiltExponentValue = TiltExponent.Get();
+		const float TiltPivotFrequencyValue = TiltPivotFrequency.Get();
 		const float ClampMinFrequency = (FrequencyAxisScale.Get() == EAudioSpectrumPlotFrequencyAxisScale::Logarithmic) ? 0.00001f : -FLT_MAX; // Cannot plot DC with log scale.
 		const float ClampMinMagnitudeSquared = FMath::Pow(10.0f, -200.0f / 10.0f); // Clamp at -200dB
 		for (int Index = 0; Index < NumFrequencies; Index++)
 		{
 			const float Frequency = FMath::Max(PowerSpectrum.CenterFrequencies[Index], ClampMinFrequency);
-			const float MagnitudeSquared = FMath::Max(PowerSpectrum.SquaredMagnitudes[Index], ClampMinMagnitudeSquared);
+			const float TiltPowerGain = FMath::Pow(Frequency / TiltPivotFrequencyValue, TiltExponentValue);
+			const float MagnitudeSquared = FMath::Max(TiltPowerGain * PowerSpectrum.SquaredMagnitudes[Index], ClampMinMagnitudeSquared);
 			const float SoundLevel = 10.0f * FMath::LogX(10.0f, MagnitudeSquared);
 			DataPoints.Add({ Frequency, SoundLevel });
 		}
@@ -600,12 +605,38 @@ FLinearColor SAudioSpectrumPlot::GetSpectrumColor(const FWidgetStyle& InWidgetSt
 	return SlateColor.GetColor(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint();
 }
 
+float SAudioSpectrumPlot::GetTiltExponentValue(const EAudioSpectrumPlotTilt InTilt)
+{
+	switch (InTilt)
+	{
+	default:
+	case EAudioSpectrumPlotTilt::NoTilt:
+		return 0.0f;
+	case EAudioSpectrumPlotTilt::Plus1_5dBPerOctave:
+		return 0.5f;
+	case EAudioSpectrumPlotTilt::Plus3dBPerOctave:
+		return 1.0f;
+	case EAudioSpectrumPlotTilt::Plus4_5dBPerOctave:
+		return 1.5f;
+	case EAudioSpectrumPlotTilt::Plus6dBPerOctave:
+		return 2.0f;
+	}
+}
+
 TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 {
 	constexpr bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr, ContextMenuExtender);
 
 	MenuBuilder.BeginSection(ContextMenuExtensionHook, LOCTEXT("DisplayOptions", "Display Options"));
+
+	if (!TiltExponent.IsBound())
+	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("TiltSpectrum", "Tilt Spectrum"),
+			FText(),
+			FNewMenuDelegate::CreateSP(this, &SAudioSpectrumPlot::BuildTiltSpectrumSubMenu));
+	}
 
 	if (!FrequencyAxisPixelBucketMode.IsBound())
 	{
@@ -656,6 +687,33 @@ TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 	MenuBuilder.EndSection();
 
 	return MenuBuilder.MakeWidget();
+}
+
+void SAudioSpectrumPlot::BuildTiltSpectrumSubMenu(FMenuBuilder& SubMenu)
+{
+	const UEnum* EnumClass = StaticEnum<EAudioSpectrumPlotTilt>();
+	const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
+	for (int32 Index = 0; Index < NumEnumValues; Index++)
+	{
+		const auto EnumValue = static_cast<EAudioSpectrumPlotTilt>(EnumClass->GetValueByIndex(Index));
+		const float TiltExponentValue = GetTiltExponentValue(EnumValue);
+
+		SubMenu.AddMenuEntry(
+			EnumClass->GetDisplayNameTextByIndex(Index),
+#if WITH_EDITOR
+			EnumClass->GetToolTipTextByIndex(Index),
+#else
+			FText(),
+#endif
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSPLambda(this, [this, TiltExponentValue]() { TiltExponent = TiltExponentValue; }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this, TiltExponentValue]() { return (TiltExponent.Get() == TiltExponentValue); })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
 }
 
 void SAudioSpectrumPlot::BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu)

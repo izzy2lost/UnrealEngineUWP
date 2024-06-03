@@ -124,6 +124,7 @@ namespace Metasound::Editor
 			FrequencyResponsePlot = SNew(SAudioSpectrumPlot)
 				.Clipping(EWidgetClipping::ClipToBounds)
 				.ViewMinSoundLevel(-24.0f)
+				.TiltExponent_Lambda([] { return 0.0f; }) // Binding this property has the effect of hiding its context menu entry (Tilting the spectrum is not desired here).
 				.FrequencyAxisPixelBucketMode_Lambda([]() { return EAudioSpectrumPlotFrequencyAxisPixelBucketMode::Sample; }) // Binding this property has the effect of hiding its context menu entry (PixelBucketMode is not much use here).
 				.OnGetAudioSpectrumData(this, &SMetaSoundFilterGraphNode::GetAudioSpectrumData);
 
