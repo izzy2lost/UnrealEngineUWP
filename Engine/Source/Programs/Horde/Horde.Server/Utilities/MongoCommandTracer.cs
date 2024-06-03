@@ -150,6 +150,7 @@ public class MongoCommandTracer
 			sa.Add("db.operationId", ev.OperationId ?? -1);
 			sa.Add("db.requestId", ev.RequestId);
 			sa.Add("db.serviceId", ev.ServiceId?.ToString());
+			sa.Add("db.endpoint", ev.ConnectionId?.ServerId.EndPoint.ToString());
 			
 			TelemetrySpan span = _tracer.StartActiveSpan(name, SpanKind.Client, parentContext: parentSpanEntry?.Span.Context ?? Tracer.CurrentSpan.Context, sa);
 			
