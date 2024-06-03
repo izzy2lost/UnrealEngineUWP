@@ -114,6 +114,7 @@ public:
 		, _HandleSpacebarSelection(false)
 		, _IsFocusable(true)
 		, _ReturnFocusToSelection()
+		, _GenerateAllItems_Debug(false)
 		, _OnItemToString_Debug()
 		, _OnEnteredBadState()
 		{
