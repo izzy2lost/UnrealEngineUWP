@@ -816,7 +816,7 @@ namespace UsdGeomMeshTranslatorImpl
 		}
 
 #if RHI_RAYTRACING
-		if (IsRayTracingAllowed() && bSupportRayTracing)
+		if (IsRayTracingAllowed() && SaticMesh.bSupportRayTracing)
 		{
 			StaticMesh.GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
 		}
