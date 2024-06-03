@@ -246,16 +246,16 @@ class FCustomBindings
 {
 public:
 	UE_NONCOPYABLE(FCustomBindings);
-	explicit FCustomBindings(const FDebugIds& In) : Debug(In) {}
+	FCustomBindings(const FDebugIds& Dbg, const FCustomBindings* InBase = nullptr) : Base(InBase), Debug(Dbg) {}
 
 	// @param Binding must outlive this or call DropStruct()
-	void						BindStruct(FStructSchemaId Id, ICustomBinding& Binding);
-	ICustomBinding*				FindStruct(FStructSchemaId Id)								{ return Find(Id); }
-	const ICustomBinding*		FindStruct(FStructSchemaId Id) const						{ return Find(Id); }
-	void						DropStruct(FStructSchemaId Id);
+	PLAINPROPS_API void						BindStruct(FStructSchemaId Id, ICustomBinding& Binding);
+	ICustomBinding*							FindStruct(FStructSchemaId Id)								{ return Find(Id); }
+	const ICustomBinding*					FindStruct(FStructSchemaId Id) const						{ return Find(Id); }
+	PLAINPROPS_API void						DropStruct(FStructSchemaId Id);
 
 private:
-	ICustomBinding*				Find(FStructSchemaId Id) const;
+	PLAINPROPS_API ICustomBinding* Find(FStructSchemaId Id) const;
 
 	struct FEntry
 	{
@@ -263,9 +263,16 @@ private:
 		ICustomBinding* Binding;
 	};
 
+	const FCustomBindings*					Base = nullptr;
 	TArray<FEntry, TInlineAllocator<8>>		Entries;
 	const FDebugIds&						Debug;
 };
+
+template<typename T, typename Ids>
+struct TCustomBind{ using Type = void; };
+
+template<typename T, typename Ids>
+using CustomBind = typename TCustomBind<T, Ids>::Type;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -470,28 +477,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Todo: Switch to FPlatformMemory::KernelAddressBit once that is submitted
-//
-// This bit is always zero in user mode addresses and most likely won't be used by current or future
-// CPU features like ARM's PAC / Top-Byte Ignore or Intel's Linear Address Masking / 5-Level Paging
-#if defined(__x86_64__) || defined(_M_X64)
-	static constexpr uint32 KernelAddressBit = 63;
-#elif defined(__aarch64__) || defined(_M_ARM64)
-	static constexpr uint32 KernelAddressBit = 55;
-#else
-	#error Unsupported architecture, please declare which address bit distinguish user space from kernel space
-#endif
-
 class FRangeBinding
 {
 	static constexpr uint64		SizeMask = 0b1111;
-	static constexpr uint64		LeafMask = uint64(1) << KernelAddressBit;
+	static constexpr uint64		LeafMask = uint64(1) << FPlatformMemory::KernelAddressBit;
 	static constexpr uint64		BindMask = ~(SizeMask | LeafMask);
 	uint64						Handle;
 
 public:
-	FRangeBinding(const IItemRangeBinding& Binding, ERangeSizeType SizeType);
-	FRangeBinding(const ILeafRangeBinding& Binding, ERangeSizeType SizeType);
+	PLAINPROPS_API FRangeBinding(const IItemRangeBinding& Binding, ERangeSizeType SizeType);
+	PLAINPROPS_API FRangeBinding(const ILeafRangeBinding& Binding, ERangeSizeType SizeType);
 	
 	bool						IsLeafBinding() const		{ return !!(LeafMask & Handle); }
 	const IItemRangeBinding&	AsItemBinding() const		{ check(!IsLeafBinding()); return *reinterpret_cast<IItemRangeBinding*>(Handle & BindMask); }
@@ -522,15 +517,15 @@ class FSchemaBindings
 public:
 	UE_NONCOPYABLE(FSchemaBindings);
 	explicit FSchemaBindings(const FDebugIds& In) : Debug(In) {}
-	~FSchemaBindings();
+	PLAINPROPS_API ~FSchemaBindings();
 
-	void								BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
-	const FSchemaBinding&				GetStruct(FStructSchemaId Id) const;
-	void								DropStruct(FStructSchemaId Id);
+	PLAINPROPS_API void						BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
+	PLAINPROPS_API const FSchemaBinding&	GetStruct(FStructSchemaId Id) const;
+	PLAINPROPS_API void						DropStruct(FStructSchemaId Id);
 
 private:
-	TArray<TUniquePtr<FSchemaBinding>>	Bindings;
-	const FDebugIds&					Debug;
+	TArray<TUniquePtr<FSchemaBinding>>		Bindings;
+	const FDebugIds&						Debug;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -578,15 +573,17 @@ FStructSchemaId BindCustomStructOnce()
 		using Ids = typename Runtime::Ids;
 
 		FBinding()
-		: Id(Runtime::GetTypes().DeclareStruct(Ids::IndexNativeType(Type::Name), NoId, CustomBinding::GetMemberIds(), CustomBinding::Occupancy))
 		{
-			Runtime::GetBindings().BindStruct(Id, Instance);
+			FTypeId Name = Ids::IndexNativeType(CttiOf<Type>::Name);
+			Id = Ids::IndexStruct(Name);
+			Runtime::GetTypes().DeclareStruct(Id, Name, CustomBinding::GetMemberIds(), CustomBinding::Occupancy);
+			Runtime::GetCustoms().BindStruct(Id, Instance);
 		}
 
 		~FBinding()
 		{
-			Runtime::GetBindings().DropStruct(Id);
-			Runtime::GetDeclarations().DropStruct(Id);
+			Runtime::GetCustoms().DropStruct(Id);
+			Runtime::GetTypes().DropStruct(Id);
 		}
 
 		CustomBinding Instance;
@@ -708,18 +705,25 @@ FMemberBinding BindMember()
 	else
 	{
 		using CustomBinding = typename Runtime::template CustomBindings<Type>::Type;
-		using RangeBinding = RangeBind<Type>;
-		constexpr uint32 NumRangeBindings = CountRangeBindings<RangeBinding>();
-
-		if constexpr (std::is_void_v<CustomBinding> && NumRangeBindings)
+		if constexpr (!std::is_void_v<CustomBinding>)
 		{
-			using InnermostType = typename TInnerType<RangeBinding, NumRangeBindings>::Type;
-			Out.RangeBindings = GetRangeBindings<RangeBinding, NumRangeBindings>();
-			Out.InnermostType = BindType<InnermostType, Ids>(Out.InnermostSchema);
+			Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
 		}
 		else
 		{
-			Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
+			using RangeBinding = RangeBind<Type>;
+			if constexpr (!std::is_void_v<RangeBinding>)
+			{
+				constexpr uint32 NumRangeBindings = CountRangeBindings<RangeBinding>();
+				using InnermostType = typename TInnerType<RangeBinding, NumRangeBindings>::Type;
+
+				Out.RangeBindings = GetRangeBindings<RangeBinding, NumRangeBindings>();
+				Out.InnermostType = BindType<InnermostType, Ids>(Out.InnermostSchema);
+			}
+			else
+			{
+				Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
+			}
 		}
 	}
 	
@@ -830,7 +834,10 @@ struct FMemberBinder
 
 //////////////////////////////////////////////////////////////////////////
 
-// Save -> load ids
+// Save -> load struct ids for ESchemaFormat::InMemoryNames
+[[nodiscard]] PLAINPROPS_API TArray<FStructSchemaId> IndexInMemoryNames(const FSchemaBatch& Schemas,  FIdIndexerBase& Indexer);
+
+// Save -> load ids for ESchemaFormat::StableNames
 struct FIdBinding
 {
 	TConstArrayView<FNameId>			Names;
@@ -862,7 +869,7 @@ struct FIdTranslatorBase
 	static FIdBinding TranslateIds(FMutableMemoryView To, FIdIndexerBase& Indexer, TConstArrayView<FNameId> TranslatedNames, const FSchemaBatch& From);
 };
 
-// Maps saved ids -> runtime load ids
+// Maps saved ids -> runtime load ids for ESchemaFormat::StableNames
 struct FIdTranslator : FIdTranslatorBase
 {
 	template<class NameType>

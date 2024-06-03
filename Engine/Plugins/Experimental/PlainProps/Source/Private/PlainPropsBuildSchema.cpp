@@ -69,6 +69,10 @@ struct FEnumSchemaBuilder
 
 //////////////////////////////////////////////////////////////////////////
 
+FSchemasBuilder::FSchemasBuilder(const FDeclarations& Types)
+: FSchemasBuilder(Types.GetStructs(), Types.GetEnums(), Types.GetDebug())
+{}
+
 FSchemasBuilder::FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug)
 : DeclaredStructs(InStructs)
 , DeclaredEnums(InEnums)

@@ -3,21 +3,13 @@
 #pragma once
 
 #include "Containers/Set.h"
+#include "Math/MathFwd.h"
 #include "PlainPropsBind.h"
 #include "PlainPropsLoad.h"
 #include "PlainPropsRead.h"
 #include "PlainPropsIndex.h"
 #include "UObject/NameTypes.h"
 
-namespace PlainProps
-{
-	template<>
-	void AppendString(FString& Out, const FName& Name) { Name.AppendString(Out); }
-}
-
-// Todo: PP_NAME_STRUCT(, FName);
-struct FName_Ctti { static constexpr char Name[] = "FName"; };
-FName_Ctti CttiOfPtr(FName*);
 
 namespace PlainProps::UE
 {
@@ -243,7 +235,6 @@ struct TUniquePtrBinding : public IItemRangeBinding
 		const TUniquePtr<T>& Ptr = Ctx.Request.GetRange<TUniquePtr<T>>();
 		Ctx.Items.SetAll(Ptr.Get(), Ptr ? 1 : 0);
 	}
-
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -352,6 +343,63 @@ struct TSetBinding : public IItemRangeBinding
 };
 
 //////////////////////////////////////////////////////////////////////////
+
+struct FTransformIds
+{
+	FMemberId Translate[3];
+	FMemberId Rotate[4];
+	FMemberId Scale[3];
+
+	TConstArrayView<FMemberId> GetAll() const
+	{
+		static_assert(offsetof(FTransformIds, Rotate)	== offsetof(FTransformIds, Translate) + sizeof(Translate));
+		static_assert(offsetof(FTransformIds, Scale)	== offsetof(FTransformIds, Rotate) + sizeof(Rotate));
+		return MakeArrayView(&Translate[0], 3 + 4 + 3);
+	}
+	
+	template<class Ids>	
+	static const FTransformIds& Get()
+	{
+		static FTransformIds Out = {	//Ids::IndexMember("Mask"),
+			{ Ids::IndexMember("TranslateX"), Ids::IndexMember("TranslateY"), Ids::IndexMember("TranslateZ") },
+			{ Ids::IndexMember("RotateX"), Ids::IndexMember("RotateY"),	Ids::IndexMember("RotateZ"), Ids::IndexMember("RotateW") },
+			{ Ids::IndexMember("ScaleX"), Ids::IndexMember("ScaleY"), Ids::IndexMember("ScaleZ") }};
+
+		return Out;
+	}
+};
+
+struct FTransformBinding : public ICustomBinding
+{
+	PLAINPROPS_API void			Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FTransformIds& Ids) const;
+	PLAINPROPS_API void			Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch, const FTransformIds& Ids) const;
+	PLAINPROPS_API virtual bool	DiffStruct(const void* StructA, const void* StructB) const override;
+};
+
+template<class Ids>
+struct TTransformBinding final : public FTransformBinding
+{
+	using Type = FTransform;
+	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
+
+	static TConstArrayView<FMemberId> GetMemberIds()
+	{
+		return FTransformIds::Get<Ids>().GetAll();
+	}
+
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) override
+	{
+		Save(Dst, *static_cast<const FTransform*>(Src), static_cast<const FTransform*>(Default), FTransformIds::Get<Ids>());
+	}
+
+	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
+	{
+		Load(*static_cast<FTransform*>(Dst), Src, Method, Batch, FTransformIds::Get<Ids>());
+	}
+};
+
+//////////////////////////////////////////////////////////////////////////
+
 struct FSetOps
 {
 	union
@@ -557,7 +605,7 @@ struct TSetDeltaBinding : public ICustomBinding
 //		}
 //	}
 //
-//	virtual TUniquePtr<FBuiltStruct>	SaveStruct(const void* Src, const FDebugIds& Debug) const override
+//	virtual FBuiltStructPtr	SaveStruct(const void* Src, const FDebugIds& Debug) const override
 //	{
 //		...
 //	}
@@ -565,29 +613,45 @@ struct TSetDeltaBinding : public ICustomBinding
 
 }
 
+
+PP_NAME_STRUCT(, FName);
+
+namespace UE::Math { PP_NAME_STRUCT(, FTransform); }
+
+
 namespace PlainProps
 {
-	template<typename T>
-	struct TRangeBind<TArray<T>>
-	{
-		using Type = UE::TArrayBinding<T>;
-	};
 
-	template<>
-	struct TRangeBind<FString>
-	{
-		using Type = UE::FStringBinding;
-	};
+template<>
+PLAINPROPS_API void AppendString(FString& Out, const FName& Name);
 
-	template<typename T>
-	struct TRangeBind<TUniquePtr<T>>
-	{
-		using Type = UE::TUniquePtrBinding<T>;
-	};
+template<typename T>
+struct TRangeBind<TArray<T>>
+{
+	using Type = UE::TArrayBinding<T>;
+};
 
-	template<typename T>
-	struct TRangeBind<TSet<T>>
-	{
-		using Type = UE::TSetBinding<T>;
-	};
+template<>
+struct TRangeBind<FString>
+{
+	using Type = UE::FStringBinding;
+};
+
+template<typename T>
+struct TRangeBind<TUniquePtr<T>>
+{
+	using Type = UE::TUniquePtrBinding<T>;
+};
+
+template<typename T>
+struct TRangeBind<TSet<T>>
+{
+	using Type = UE::TSetBinding<T>;
+};
+
+template<typename Ids>
+struct TCustomBind<FTransform, Ids>
+{
+	using Type = UE::TTransformBinding<Ids>;
+};
 }

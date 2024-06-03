@@ -2,27 +2,27 @@
 
 #pragma once
 
-#include <cstdint>
+#include "HAL/Platform.h"
 
 namespace PlainProps 
 {
 
-#define _PP_ARITHMETIC_CTTI(T) struct T##_Ctti  { inline static constexpr char Name[] = #T; using Type = T; }; T##_Ctti CttiOfPtr(T*);
-_PP_ARITHMETIC_CTTI(float)
-_PP_ARITHMETIC_CTTI(double)
-_PP_ARITHMETIC_CTTI(bool)
-_PP_ARITHMETIC_CTTI(int8_t)
-_PP_ARITHMETIC_CTTI(uint8_t)
-_PP_ARITHMETIC_CTTI(int16_t)
-_PP_ARITHMETIC_CTTI(int32_t)
-_PP_ARITHMETIC_CTTI(uint32_t)
-_PP_ARITHMETIC_CTTI(int64_t)
-_PP_ARITHMETIC_CTTI(uint64_t)
-_PP_ARITHMETIC_CTTI(char)
-_PP_ARITHMETIC_CTTI(char8_t)
-_PP_ARITHMETIC_CTTI(char16_t)
-_PP_ARITHMETIC_CTTI(char32_t)
-_PP_ARITHMETIC_CTTI(wchar_t)
+#define _PP_ARITHMETIC_CTTI(T, N) struct T##_Ctti  { inline static constexpr char Name[] = #N; using Type = T; }; T##_Ctti CttiOfPtr(T*);
+_PP_ARITHMETIC_CTTI(float, f32)
+_PP_ARITHMETIC_CTTI(double, f64)
+_PP_ARITHMETIC_CTTI(bool, bool)
+_PP_ARITHMETIC_CTTI(int8, s8)
+_PP_ARITHMETIC_CTTI(uint8, u8)
+_PP_ARITHMETIC_CTTI(int16, s16)
+_PP_ARITHMETIC_CTTI(uint16, u16)
+_PP_ARITHMETIC_CTTI(int32, s32)
+_PP_ARITHMETIC_CTTI(uint32, u32)
+_PP_ARITHMETIC_CTTI(int64, s64)
+_PP_ARITHMETIC_CTTI(uint64, u64)
+_PP_ARITHMETIC_CTTI(char, utf8)
+_PP_ARITHMETIC_CTTI(char8_t, utf8)
+_PP_ARITHMETIC_CTTI(char16_t, utf16)
+_PP_ARITHMETIC_CTTI(char32_t, utf32)
 #undef _PP_ARITHMETIC_CTTI
 
 //////////////////////////////////////////////////////////////////////////
@@ -59,6 +59,7 @@ template<typename T> using CttiOf = typename TCttiOf<T>::Type;
 #define PP_REFLECT_ENUM(NS, T, ...)						_PP_REFLECT_ENUM(_PP_NUM_ARGS(__VA_ARGS__), NS, T, __VA_ARGS__)
 #define PP_REFLECT_STRUCT(NS, T, S, ...)				_PP_REFLECT_STRUCT(_PP_NUM_ARGS(__VA_ARGS__), NS, T, S, __VA_ARGS__)
 #define PP_REFLECT_STRUCT_TEMPLATE(NS, T, S, ...)		_PP_REFLECT_STRUCT_TEMPLATE(_PP_NUM_ARGS(__VA_ARGS__), NS, T, S, __VA_ARGS__)
+#define PP_NAME_STRUCT(NS, T)							struct T##_Ctti { inline static constexpr char Name[] = #T; using Type = NS :: T; }; T##_Ctti CttiOfPtr(T*);
 
 // Alternate set of macros to reflect classes/structs with bitfield bool members, e.g. uint8 bOol : 1;
 

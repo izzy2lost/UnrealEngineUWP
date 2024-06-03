@@ -4,6 +4,7 @@
 #include "PlainPropsBind.h"
 #include "PlainPropsInternalBuild.h"
 #include "PlainPropsInternalFormat.h"
+#include "Algo/Find.h"
 #include <type_traits>
 
 namespace PlainProps
@@ -98,7 +99,8 @@ struct TStructuralRangeSaver
 };
 
 using FNestedRangeSaver = TStructuralRangeSaver<FBuiltRange*, FRangeMemberBinding>;
-using FStructRangeSaver = TStructuralRangeSaver<TUniquePtr<FBuiltStruct>, FStructSchemaId>;
+using FStructRangeSaver = TStructuralRangeSaver<FBuiltStructPtr, FStructSchemaId>;
+using FStructRangeDeltaSaver = TStructuralRangeSaver<FBuiltStructPtr, FDefaultStruct>;
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -150,6 +152,18 @@ template<class SaverType, typename InnerContextType>
 	return Allocator.GetAllocatedRange();
 }
 
+[[nodiscard]] static FBuiltRange* SaveStructRange(const void* Range, const IItemRangeBinding& ItemBinding, const FSaveContext& Ctx, FStructSchemaId Id)
+{
+	if (const FDefaultStruct* Defaults = Algo::FindBy(Ctx.Defaults, Id, &FDefaultStruct::Id))
+	{
+		return SaveRange<FStructRangeDeltaSaver>(Range, ItemBinding, Ctx, *Defaults);
+	}
+	else
+	{
+		return SaveRange<FStructRangeSaver>(Range, ItemBinding, Ctx, Id);
+	}
+}
+
 [[nodiscard]] static FBuiltRange* SaveRange(const uint8* Range, FRangeMemberBinding Member, const FSaveContext& Ctx)
 {
 	FRangeBinding Binding = Member.RangeBindings[0];
@@ -163,9 +177,9 @@ template<class SaverType, typename InnerContextType>
 	const IItemRangeBinding& ItemBinding = Binding.AsItemBinding();
 	switch (InnerType.GetKind())
 	{
-	case EMemberKind::Leaf:		return SaveRange<FLeafRangeSaver>(  Range, ItemBinding, Ctx, SizeOf(GetArithmeticWidth(InnerType.AsLeaf())));
+	case EMemberKind::Leaf:		return SaveRange<FLeafRangeSaver>(Range, ItemBinding, Ctx, SizeOf(GetArithmeticWidth(InnerType.AsLeaf())));
 	case EMemberKind::Range:	return SaveRange<FNestedRangeSaver>(Range, ItemBinding, Ctx, GetInnerRange(Member));
-	case EMemberKind::Struct:	return SaveRange<FStructRangeSaver>(Range, ItemBinding, Ctx, static_cast<FStructSchemaId>(Member.InnermostSchema.Get()));
+	case EMemberKind::Struct:	return SaveStructRange(Range, ItemBinding, Ctx, static_cast<FStructSchemaId>(Member.InnermostSchema.Get()));
 	}
 
 	check(false);
@@ -179,9 +193,14 @@ template<class SaverType, typename InnerContextType>
 	return SaveRange(Range, Member, Ctx);
 }
 
-[[nodiscard]] static TUniquePtr<FBuiltStruct> SaveRangeItem(const uint8* Struct, FStructSchemaId Id, const FSaveContext& Ctx)
+[[nodiscard]] static FBuiltStructPtr SaveRangeItem(const uint8* Struct, FStructSchemaId Id, const FSaveContext& Ctx)
 {
 	return SaveStruct(Struct, Id, Ctx);
+}
+
+[[nodiscard]] static FBuiltStructPtr SaveRangeItem(const uint8* Struct, FDefaultStruct Default, const FSaveContext& Ctx)
+{
+	return SaveStructDelta(Struct, Default.Struct, Default.Id, Ctx);
 }
 
 [[nodiscard]] static FMemberType ToMemberType(FMemberBindType In)
@@ -233,7 +252,7 @@ static void SaveMember(FMemberBuilder& Out, const void* Struct, FMemberId Name, 
 	Out.AddStruct(Name, Member.Id, SaveStruct(At(Struct, Member.Offset), Member.Id, Ctx));
 }
 
-TUniquePtr<FBuiltStruct> SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveContext& Ctx)
+FBuiltStructPtr SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveContext& Ctx)
 {
 	const FStructDeclaration& Declaration = Ctx.Declarations.Get(Id);
 
@@ -441,13 +460,13 @@ static void SaveMemberDelta(FMemberBuilder& Out, const void* Struct, const void*
 
 static void SaveMemberDelta(FMemberBuilder& Out, const void* Struct, const void* Default, FMemberId Name, const FSaveContext& Ctx, FStructMemberBinding Member)
 {
-	if (TUniquePtr<FBuiltStruct> Delta = SaveStructDelta(At(Struct, Member.Offset), At(Default, Member.Offset), Member.Id, Ctx))
+	if (FBuiltStructPtr Delta = SaveStructDelta(At(Struct, Member.Offset), At(Default, Member.Offset), Member.Id, Ctx))
 	{
 		Out.AddStruct(Name, Member.Id, MoveTemp(Delta));
 	}
 }
 
-TUniquePtr<FBuiltStruct> SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId Id, const FSaveContext& Ctx)
+FBuiltStructPtr SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId Id, const FSaveContext& Ctx)
 {
 	const FStructDeclaration& Declaration = Ctx.Declarations.Get(Id);
 

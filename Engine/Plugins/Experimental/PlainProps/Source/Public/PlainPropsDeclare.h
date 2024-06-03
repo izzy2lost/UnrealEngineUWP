@@ -54,8 +54,8 @@ public:
 	UE_NONCOPYABLE(FDeclarations);
 	explicit FDeclarations(const FDebugIds& In) : Debug(In) {}
 
-	void											DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, ELeafWidth Width, TConstArrayView<FEnumerator> Enumerators);
-	void											DeclareStruct(FStructSchemaId Id, FTypeId Type, TConstArrayView<FMemberId> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super = {});
+	PLAINPROPS_API void								DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, ELeafWidth Width, TConstArrayView<FEnumerator> Enumerators);
+	PLAINPROPS_API void								DeclareStruct(FStructSchemaId Id, FTypeId Type, TConstArrayView<FMemberId> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super = {});
 	
 	void											DropEnum(FEnumSchemaId Id)		{ Check(Id); DeclaredEnums[Id.Idx].Reset(); }
 	void											DropStruct(FStructSchemaId Id)	{ Check(Id); DeclaredStructs[Id.Idx].Reset(); }
@@ -73,8 +73,8 @@ protected:
 	const FDebugIds&								Debug;
 
 #if DO_CHECK
-	void											Check(FEnumSchemaId Id) const;
-	void											Check(FStructSchemaId Id) const;
+	PLAINPROPS_API void								Check(FEnumSchemaId Id) const;
+	PLAINPROPS_API void								Check(FStructSchemaId Id) const;
 #else
 	void											Check(...) const {}
 #endif

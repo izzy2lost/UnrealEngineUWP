@@ -8,7 +8,7 @@ namespace PlainProps::Test
 {
 
 static_assert(std::is_same_v<CttiOf<float>::Type, float>);
-static_assert(std::string_view(CttiOf<int>::Name) == std::string_view("int32_t"));
+static_assert(std::string_view(CttiOf<int>::Name) == std::string_view("s32"));
 
 //////////////////////////////////////////////////////////////////////////
 

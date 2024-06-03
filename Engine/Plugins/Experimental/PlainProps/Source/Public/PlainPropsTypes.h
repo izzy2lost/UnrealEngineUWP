@@ -268,6 +268,8 @@ using FOptionalParametricTypeId = TOptionalId<FParametricTypeId>;
 
 template<class IdType>
 inline constexpr TOptionalId<IdType> ToOptional(IdType Id) { return Id; }
+inline constexpr FOptionalSchemaId ToOptionalSchema(FEnumSchemaId Id) { return static_cast<FSchemaId>(Id); }
+inline constexpr FOptionalSchemaId ToOptionalSchema(FStructSchemaId Id) { return static_cast<FSchemaId>(Id); }
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -379,11 +381,12 @@ public:
 	virtual FTypeId						Resolve(FStructSchemaId Id) const = 0;
 
 	virtual void						AppendDebugString(FString& Out, FNameId Name) const = 0;
-	virtual void						AppendDebugString(FString& Out, FScopeId Scope) const;
-	virtual void						AppendDebugString(FString& Out, FTypenameId Typename) const;
-	virtual void						AppendDebugString(FString& Out, FTypeId Type) const;
-	virtual void						AppendDebugString(FString& Out, FEnumSchemaId Name) const;
-	virtual void						AppendDebugString(FString& Out, FStructSchemaId Name) const;
+
+	PLAINPROPS_API virtual void			AppendDebugString(FString& Out, FScopeId Scope) const;
+	PLAINPROPS_API virtual void			AppendDebugString(FString& Out, FTypenameId Typename) const;
+	PLAINPROPS_API virtual void			AppendDebugString(FString& Out, FTypeId Type) const;
+	PLAINPROPS_API virtual void			AppendDebugString(FString& Out, FEnumSchemaId Name) const;
+	PLAINPROPS_API virtual void			AppendDebugString(FString& Out, FStructSchemaId Name) const;
 
 	PLAINPROPS_API FString				Print(FNameId Name) const;
 	PLAINPROPS_API FString				Print(FMemberId Name) const;

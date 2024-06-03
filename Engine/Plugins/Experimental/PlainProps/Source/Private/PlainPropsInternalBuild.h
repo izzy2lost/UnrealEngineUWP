@@ -24,8 +24,8 @@ struct FBuiltMember
 	FBuiltMember(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Schema, uint64 Value);
 	//FBuiltMember(FMemberId Name, FEnumSchemaId Schema, ELeafWidth Width,  uint64 Value);
 	FBuiltMember(FMemberId Name, FTypedRange&& Range);
-	FBuiltMember(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Value);
-	static FBuiltMember MakeSuper(FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Value);
+	FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Value);
+	static FBuiltMember MakeSuper(FStructSchemaId Schema, FBuiltStructPtr&& Value);
 	~FBuiltMember(); // Deletes Value
 
 	FBuiltMember& operator=(const FBuiltMember&) = delete;

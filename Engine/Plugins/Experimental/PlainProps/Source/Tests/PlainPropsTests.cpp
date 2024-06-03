@@ -123,7 +123,7 @@ public:
 	TArray64<uint8>				Write();
 
 private:
-	TArray<TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>>	Objects;
+	TArray<TPair<FStructSchemaId, FBuiltStructPtr>>	Objects;
 	FDeclarations												Declarations;
 
 	TArray<FMemberId> NameMembers(std::initializer_list<const char*> Members)
@@ -185,14 +185,14 @@ TArray64<uint8> FTestBatchBuilder::Write()
 {
 	// Build partial schemas
 	FSchemasBuilder SchemaBuilders(Declarations.GetStructs(), Declarations.GetEnums(), *this);
-	for (const TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>& Object : Objects)
+	for (const TPair<FStructSchemaId, FBuiltStructPtr>& Object : Objects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
 	}
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 
 	// Filter out declared but unused names and ids
-	FWriter Writer(*this, Schemas);
+	FWriter Writer(*this, Schemas, ESchemaFormat::StableNames);
 
 	// Write names
 	TArray64<uint8> Out;
@@ -219,7 +219,7 @@ TArray64<uint8> FTestBatchBuilder::Write()
 
 	// Write objects
 	WriteU32(Out, TestMagics[2]);
-	for (const TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>& Object : Objects)
+	for (const TPair<FStructSchemaId, FBuiltStructPtr>& Object : Objects)
 	{
 		WriteU32(/* out */ Tmp, TestMagics[3]);
 		WriteU32(/* out */ Tmp, Writer.GetWriteId(Object.Key).Get().Idx);
@@ -628,14 +628,14 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 
 			FMemberBuilder Members;
 			Members.Add(	Batch.NameMember("I1"), 100);
-			TUniquePtr<FBuiltStruct> NestedInStruct = Members.BuildAndReset(Batch.Get(NestedId), Batch);
+			FBuiltStructPtr NestedInStruct = Members.BuildAndReset(Batch.Get(NestedId), Batch);
 
 			Members.AddStruct(Batch.NameMember("Nested"), NestedId, MoveTemp(NestedInStruct));
 			Members.Add(Batch.NameMember("Leaf"), true);
-			TUniquePtr<FBuiltStruct> Struct = Members.BuildAndReset(Batch.Get(StructId), Batch);
+			FBuiltStructPtr Struct = Members.BuildAndReset(Batch.Get(StructId), Batch);
 		
 			Members.Add(Batch.NameMember("I2"), 200);
-			TUniquePtr<FBuiltStruct> NestedInObject = Members.BuildAndReset(Batch.Get(NestedId), Batch);
+			FBuiltStructPtr NestedInObject = Members.BuildAndReset(Batch.Get(NestedId), Batch);
 
 			Members.Add(Batch.NameMember("L1"), 123.f);
 			Members.AddStruct(Batch.NameMember("S"), StructId, MoveTemp(Struct));

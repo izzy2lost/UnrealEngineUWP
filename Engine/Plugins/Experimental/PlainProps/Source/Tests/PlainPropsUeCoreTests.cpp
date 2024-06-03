@@ -15,6 +15,7 @@
 #include "Algo/Compare.h"
 #include "Containers/StringView.h"
 #include "Containers/Map.h"
+#include "Math/Transform.h"
 #include "Templates/UnrealTemplate.h"
 #include "Tests/TestHarnessAdapter.h"
 
@@ -24,6 +25,7 @@ namespace PlainProps::UE::Test
 static TIdIndexer<FName>	GNames;
 static FDeclarations		GTypes(/* debug */ GNames);
 static FSchemaBindings		GSchemas(/* debug */ GNames);
+static FCustomBindings		GCustoms(/* debug */ GNames);
 
 struct FIds
 {
@@ -44,7 +46,7 @@ struct FIds
 template<class T>
 struct TCustomBindings
 {
-	using Type = void;
+	using Type = CustomBind<T, FIds>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -54,8 +56,9 @@ struct FDefaultRuntime
 	using Ids = FIds;
 	template<class T> using CustomBindings = TCustomBindings<T>;
 
-	static FDeclarations&			GetDeclarations()				{ return GTypes; }
-	static FSchemaBindings&			GetSchemas()					{ return GSchemas; }
+	static FDeclarations&			GetTypes()			{ return GTypes; }
+	static FSchemaBindings&			GetSchemas()		{ return GSchemas; }
+	static FCustomBindings&			GetCustoms()		{ return GCustoms; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -67,8 +70,8 @@ struct TScopedEnumDeclaration
 	using Ctti = CttiOf<Enum>;
 
 	FEnumSchemaId Id;
-	TScopedEnumDeclaration() : Id(DeclareNativeEnum<Ctti, Ids>(Runtime::GetDeclarations(), Mode)) {}
-	~TScopedEnumDeclaration() { Runtime::GetDeclarations().DropEnum(Id); }
+	TScopedEnumDeclaration() : Id(DeclareNativeEnum<Ctti, Ids>(Runtime::GetTypes(), Mode)) {}
+	~TScopedEnumDeclaration() { Runtime::GetTypes().DropEnum(Id); }
 };
 
 template<class T, EMemberPresence Occupancy = EMemberPresence::AllowSparse, class Runtime = FDefaultRuntime>
@@ -79,17 +82,17 @@ struct TScopedStructDeclaration
 	FStructSchemaId Id;
 
 	TScopedStructDeclaration()
-	: Id(DeclareNativeStruct<CttiOf<T>, Ids>(Runtime::GetDeclarations(), Occupancy))
+	: Id(DeclareNativeStruct<CttiOf<T>, Ids>(Runtime::GetTypes(), Occupancy))
 	{}
 
 	~TScopedStructDeclaration()
 	{
-		Runtime::GetDeclarations().DropStruct(Id);
+		Runtime::GetTypes().DropStruct(Id);
 	}
 
 	const FStructDeclaration& Get() const
 	{
-		return Runtime::GetDeclarations().Get(Id);
+		return Runtime::GetTypes().Get(Id);
 	}
 };
 
@@ -179,14 +182,14 @@ public:
 	TArray64<uint8>				Write() const;
 
 private:
-	using IdBuiltStructPair = TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>;
+	using IdBuiltStructPair = TPair<FStructSchemaId, FBuiltStructPtr>;
 	TArray<IdBuiltStructPair>	SavedObjects;
 	FNameBinding				SavedNames;
 	FCustomBindings				Customs;
 };
 
 FBatchSaver::FBatchSaver()
-: Customs(/* debug */ GNames)
+: Customs(/* debug */ GNames, &GCustoms)
 {
 	Customs.BindStruct(SavedNames.Declaration.Id, SavedNames);
 }
@@ -202,7 +205,7 @@ template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
 	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
-	if (TUniquePtr<FBuiltStruct> Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs}))
+	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs}))
 	{
 		SavedObjects.Emplace(Id, MoveTemp(Delta));
 		return true;
@@ -235,7 +238,7 @@ TArray64<uint8> FBatchSaver::Write() const
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 
 	// Filter out declared but unused names and ids
-	FWriter Writer(GNames, Schemas);
+	FWriter Writer(GNames, Schemas, ESchemaFormat::StableNames);
 	TArray<FName> UsedNames;
 	for (uint32 Idx = 0, Num = GNames.NumNames(); Idx < Num; ++Idx)
 	{
@@ -260,7 +263,7 @@ TArray64<uint8> FBatchSaver::Write() const
 
 	// Write objects
 	WriteU32(Out, Magics[2]);
-	for (const TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>& Object : SavedObjects)
+	for (const TPair<FStructSchemaId, FBuiltStructPtr>& Object : SavedObjects)
 	{
 		WriteU32(/* out */ Tmp, Magics[3]);
 		WriteU32(/* out */ Tmp, Writer.GetWriteId(Object.Key).Get().Idx);
@@ -286,7 +289,7 @@ class FBatchLoader
 {
 public:
 	FBatchLoader(FMemoryView Data)
-	: Customs(/* debug */ GNames)
+	: Customs(/* debug */ GNames, &GCustoms)
 	{
 		// Read ids
 		FByteReader It(Data);
@@ -331,7 +334,7 @@ public:
 	~FBatchLoader()
 	{
 		CHECK(LoadIdx == Objects.Num()); // Test should load all saved objects
-		DestroyLoadPlans(Plans);
+		Plans.Reset();
 		const FSchemaBatch* LoadSchemas = UnmountReadSchemas(Objects[0].Schema.Batch);
 		DestroyTranslatedSchemas(LoadSchemas);
 	}
@@ -355,7 +358,7 @@ private:
 	TConstArrayView<FName>		Ids;
 	FNameBinding				Names;
 	FCustomBindings				Customs;
-	FLoadBatch*					Plans;
+	FLoadBatchPtr				Plans;
 	TArray<FStructView>			Objects;
 	int32						LoadIdx = 0;
 };
@@ -756,9 +759,39 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
+	SECTION("Transform")
+	{
+		BindCustomStructOnce<TTransformBinding<FIds>, FDefaultRuntime>();
+
+		Run([](FBatchSaver& Batch)
+			{
+				CHECK(!Batch.SaveDelta(FTransform(),FTransform()));
+				CHECK(!Batch.SaveDelta(FTransform(FVector::UnitY()), FTransform(FVector::UnitY())));
+
+				Batch.Save(FTransform());
+
+				// This should only save translation
+				Batch.SaveDelta(FTransform(FVector::UnitY()), FTransform());
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FTransform>().Equals(FTransform(), 0.0));
+
+				FTransform TranslateOnly;
+				TranslateOnly.SetTranslation(FVector(10, 20, 30));
+				TranslateOnly.SetRotation(FQuat(1, 2, 3, 4));
+				TranslateOnly.SetScale3D(FVector(5, 6, 7));
+				Batch.LoadInto(TranslateOnly);
+				CHECK(TranslateOnly.GetTranslation() == FVector::UnitY());
+				CHECK(TranslateOnly.GetRotation() == FQuat(1, 2, 3, 4));
+				CHECK(TranslateOnly.GetScale3D() == FVector(5, 6, 7));
+			});
+	}
+
 	SECTION("Reference")
 	{}
 }
 
 } // namespace PlainProps::UE::Test
+
 #endif // WITH_TESTS

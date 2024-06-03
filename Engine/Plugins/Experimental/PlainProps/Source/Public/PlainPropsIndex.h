@@ -11,9 +11,9 @@ namespace PlainProps
 class FNestedScopeIndexer
 {
 public:
-	FNestedScopeId						Index(FNestedScope Scope);
+	PLAINPROPS_API FNestedScopeId		Index(FNestedScope Scope);
 	FNestedScopeId						Index(FScopeId Outer, FFlatScopeId Inner)			{ return Index({Outer, Inner}); }
-	FNestedScope						Resolve(FNestedScopeId Id) const;
+	PLAINPROPS_API FNestedScope			Resolve(FNestedScopeId Id) const;
 	int32								Num() const											{ return Scopes.Num(); }
 
 	auto								begin() const										{ return Scopes.begin(); }
@@ -27,11 +27,11 @@ private:
 class FParametricTypeIndexer
 {
 public:
-	~FParametricTypeIndexer();
+	PLAINPROPS_API ~FParametricTypeIndexer();
 
-	FParametricTypeId					Index(FParametricTypeView View);
+	PLAINPROPS_API FParametricTypeId	Index(FParametricTypeView View);
 	/// @return View invalidated by calling Index() (switch Parameters to TPagedArray to avoid)
-	FParametricTypeView					Resolve(FParametricTypeId Id) const;
+	PLAINPROPS_API FParametricTypeView	Resolve(FParametricTypeId Id) const;
 	FParametricType						At(int32 Idx) const									{ return Types[Idx]; }
 	int32								Num() const											{ return Types.Num(); }
 	TConstArrayView<FParametricType>	GetAllTypes() const									{ return Types; }
@@ -49,12 +49,12 @@ private:
 class FIdIndexerBase : public FDebugIds
 {
 public:
-	FScopeId							NestScope(FScopeId Outer, FFlatScopeId Inner);
-	FParametricTypeId					MakeParametricTypeId(FConcreteTypenameId Name, TConstArrayView<FTypeId> Params);
-	FTypeId								MakeParametricType(FTypeId Type, TConstArrayView<FTypeId> Params);
+	PLAINPROPS_API FScopeId				NestScope(FScopeId Outer, FFlatScopeId Inner);
+	PLAINPROPS_API FParametricTypeId	MakeParametricTypeId(FConcreteTypenameId Name, TConstArrayView<FTypeId> Params);
+	PLAINPROPS_API FTypeId				MakeParametricType(FTypeId Type, TConstArrayView<FTypeId> Params);
 
-	FEnumSchemaId						IndexEnum(FTypeId Type);
-	FStructSchemaId						IndexStruct(FTypeId Type);
+	PLAINPROPS_API FEnumSchemaId		IndexEnum(FTypeId Type);
+	PLAINPROPS_API FStructSchemaId		IndexStruct(FTypeId Type);
 	
 	virtual FNestedScope				Resolve(FNestedScopeId Id) const override final		{ return NestedScopes.Resolve(Id); }
 	virtual FParametricTypeView			Resolve(FParametricTypeId Id) const override final	{ return ParametricTypes.Resolve(Id); }

@@ -177,7 +177,7 @@ ICustomBinding*	FCustomBindings::Find(FStructSchemaId Id) const
 		}
 	}
 
-	return nullptr;
+	return Base ? Base->Find(Id) : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -253,6 +253,22 @@ void FSchemaBindings::DropStruct(FStructSchemaId Id)
 }
 
 //////////////////////////////////////////////////////////////////////////
+
+TArray<FStructSchemaId> IndexInMemoryNames(const FSchemaBatch& Schemas, FIdIndexerBase& Indexer)
+{
+	const uint8* Base = reinterpret_cast<const uint8*>(&Schemas);
+	const uint32* Offsets = Schemas.SchemaOffsets;
+
+	TArray<FStructSchemaId> Out;
+	Out.SetNumUninitialized(Schemas.NumStructSchemas);
+	for (int32 Idx = 0; Idx < Out.Num(); ++Idx)
+	{
+		const FStructSchema& Schema = *reinterpret_cast<const FStructSchema*>(Base + Offsets[Idx]);
+		Out[Idx] = Indexer.IndexStruct(Schema.Type);
+	}
+
+	return Out;
+}
 
 uint32 FIdTranslatorBase::CalculateTranslationSize(int32 NumSavedNames, const FSchemaBatch& Batch)
 {
@@ -355,7 +371,7 @@ FSchemaBatch* CreateTranslatedSchemas(const FSchemaBatch& In, FIdBinding NewIds)
 		Out->SchemaOffsets[Idx] = In.SchemaOffsets[Idx] - DroppedBytes;
 	}
 
-	// Copy schemas and remap type ids
+	// Copy schemas and remap type ids if needed
 	FMemory::Memcpy(reinterpret_cast<uint8*>(Out) + Out->GetSchemaOffsets()[0], InSchemas.GetData(), InSchemas.GetSize());
 	for (FStructSchema& Schema : GetStructSchemas(*Out))
 	{

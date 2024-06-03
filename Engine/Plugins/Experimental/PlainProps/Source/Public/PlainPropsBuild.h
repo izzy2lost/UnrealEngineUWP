@@ -18,6 +18,12 @@ struct FBuiltRange;
 class FDebugIds;
 struct FUnpackedLeafType;
 
+struct FBuiltStructDeleter 
+{
+	PLAINPROPS_API void operator()(FBuiltStruct* Ptr) const;
+};
+using FBuiltStructPtr = TUniquePtr<FBuiltStruct, FBuiltStructDeleter>;
+
 //////////////////////////////////////////////////////////////////////////
 
 struct FMemberSchema
@@ -88,7 +94,7 @@ PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, cons
 namespace Private
 {
 	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
-	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
+	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltStructPtr> Structs);
 	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
 	PLAINPROPS_API void							NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
 
@@ -127,7 +133,7 @@ template<typename EnumType, typename SizeType>
 	return { MakeEnumRangeSchema<EnumType, SizeType>(Enum), Private::BuildLeafRange(Values.GetData(), Values.Num()) };
 }
 
-[[nodiscard]] inline FTypedRange BuildStructRange(FStructSchemaId Schema, ERangeSizeType SizeType, /* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Values )
+[[nodiscard]] inline FTypedRange BuildStructRange(FStructSchemaId Schema, ERangeSizeType SizeType, /* in-out */ TArrayView64<FBuiltStructPtr> Values )
 {
 	return { MakeStructRangeSchema(SizeType, Schema), Values.Num() ? Private::BuildStructuralRange(/* ownership xfer */ Values) : nullptr };
 }
@@ -158,13 +164,13 @@ public:
 	void AddEnum64(FMemberId Name, FEnumSchemaId Schema, uint64 Value)	{ AddLeaf(Name, {ELeafType::Enum, ELeafWidth::B64}, ToOptional(Schema), Value); }
 
 	PLAINPROPS_API void AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value);
-	PLAINPROPS_API void AddStruct(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Struct);	
+	PLAINPROPS_API void AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Struct);	
 	PLAINPROPS_API void AddRange(FMemberId Name, FTypedRange&& Range);
 	
 	// Build members into a single nested super struct member, no-op if no non-super members has been added
 	PLAINPROPS_API void BuildSuperStruct(const FStructDeclaration& Super, const FDebugIds& Debug);
 
-	[[nodiscard]] PLAINPROPS_API TUniquePtr<FBuiltStruct> BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
+	[[nodiscard]] PLAINPROPS_API FBuiltStructPtr BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
 
 	bool IsEmpty() const { return Members.IsEmpty(); }
 

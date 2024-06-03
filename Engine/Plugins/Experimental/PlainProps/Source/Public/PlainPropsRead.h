@@ -26,15 +26,15 @@ class FReadBatchId
 };
 
 // @param Schemas must outlive read batch
-const FSchemaBatch*		ValidateSchemas(FMemoryView Schemas);
-FReadBatchId			MountReadSchemas(const FSchemaBatch* Schemas);
-const FSchemaBatch*		UnmountReadSchemas(FReadBatchId Batch);
+PLAINPROPS_API const FSchemaBatch*		ValidateSchemas(FMemoryView Schemas);
+PLAINPROPS_API FReadBatchId				MountReadSchemas(const FSchemaBatch* Schemas);
+PLAINPROPS_API const FSchemaBatch*		UnmountReadSchemas(FReadBatchId Batch);
 
-uint32					NumStructSchemas(FReadBatchId Batch);
-const FStructSchema&	ResolveStructSchema(FReadBatchId Batch, FStructSchemaId Id);
-const FEnumSchema&		ResolveEnumSchema(FReadBatchId Batch, FEnumSchemaId Id);
-FNestedScope			ResolveUntranslatedNestedScope(FReadBatchId Batch, FNestedScopeId Id);
-FParametricTypeView		ResolveUntranslatedParametricType(FReadBatchId Batch, FParametricTypeId Id);
+PLAINPROPS_API uint32					NumStructSchemas(FReadBatchId Batch);
+PLAINPROPS_API const FStructSchema&		ResolveStructSchema(FReadBatchId Batch, FStructSchemaId Id);
+PLAINPROPS_API const FEnumSchema&		ResolveEnumSchema(FReadBatchId Batch, FEnumSchemaId Id);
+PLAINPROPS_API FNestedScope				ResolveUntranslatedNestedScope(FReadBatchId Batch, FNestedScopeId Id);
+PLAINPROPS_API FParametricTypeView		ResolveUntranslatedParametricType(FReadBatchId Batch, FParametricTypeId Id);
 
 //////////////////////////////////////////////////////////////////////////
 

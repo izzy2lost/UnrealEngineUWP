@@ -46,13 +46,14 @@ public:
 	using FStructDeclarations = TConstArrayView<TUniquePtr<FStructDeclaration>>;
 	using FEnumDeclarations = TConstArrayView<TUniquePtr<FEnumDeclaration>>;
 
-	FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug);
-	~FSchemasBuilder();
+	PLAINPROPS_API explicit FSchemasBuilder(const FDeclarations& Declarations);
+	PLAINPROPS_API FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug);
+	PLAINPROPS_API ~FSchemasBuilder();
 
-	FEnumSchemaBuilder&							NoteEnum(FEnumSchemaId Id);
-	FStructSchemaBuilder&						NoteStruct(FStructSchemaId Id);
-	void										NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct);
-	FBuiltSchemas								Build();
+	PLAINPROPS_API FEnumSchemaBuilder&			NoteEnum(FEnumSchemaId Id);
+	PLAINPROPS_API FStructSchemaBuilder&		NoteStruct(FStructSchemaId Id);
+	PLAINPROPS_API void							NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct);
+	PLAINPROPS_API FBuiltSchemas				Build();
 
 private:
 	FStructDeclarations							DeclaredStructs;

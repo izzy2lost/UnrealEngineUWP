@@ -18,13 +18,15 @@ namespace PlainProps
 // Rewrite as a more compact data structure once we get a large number of ids
 struct FWriteIds
 {
-	FWriteIds(const FIdIndexerBase& DeclaredIds, const FBuiltSchemas& Schemas);
+	FWriteIds(const FIdIndexerBase& DeclaredIds, const FBuiltSchemas& Schemas, ESchemaFormat Format);
+
+	bool								HasStableNames() const { return !Names.IsEmpty(); }
 
 	TArray<FOptionalNameId>				Names;
 	TArray<FOptionalNestedScopeId>		NestedScopes;
 	TArray<FOptionalParametricTypeId>	ParametricTypes;
-	TArray<FOptionalSchemaId>			Structs;
-	TArray<FOptionalSchemaId>			Enums;
+	TArray<FOptionalStructSchemaId>		Structs;
+	TArray<FOptionalEnumSchemaId>		Enums;
 
 	uint32								NumKeptSchemas;
 	uint32								NumKeptStructSchemas;
@@ -41,8 +43,8 @@ struct FWriteIds
 	FParametricTypeId					Remap(FParametricTypeId Old) const		{ return ParametricTypes[Old.Idx].Get(); }
 	FTypenameId							Remap(FTypenameId Old) const			{ return Old.IsConcrete() ? FTypenameId(Remap(Old.AsConcrete())) : FTypenameId(Remap(Old.AsParametric())); }
 	FTypeId								Remap(FTypeId Old) const				{ return { Remap(Old.Scope), Remap(Old.Name) }; }
-	FSchemaId							RemapStruct(FSchemaId Old) const		{ return Structs[Old.Idx].Get(); }
-	FSchemaId							RemapEnum(FSchemaId Old) const			{ return Enums[Old.Idx].Get(); }
+	FStructSchemaId						RemapStruct(FSchemaId Old) const		{ return Structs[Old.Idx].Get(); }
+	FEnumSchemaId						RemapEnum(FSchemaId Old) const			{ return Enums[Old.Idx].Get(); }
 };
 
 static TConstArrayView<FNameId> GetUsedNames(const FBuiltStructSchema& Used)
@@ -176,7 +178,7 @@ static void CopyUsedIds(TArray<T>& Out, const TBitArray<>& Used, C&& Ids)
 	}
 }
 
-FWriteIds::FWriteIds(const FIdIndexerBase& Declared, const FBuiltSchemas& Schemas)
+FWriteIds::FWriteIds(const FIdIndexerBase& Declared, const FBuiltSchemas& Schemas, ESchemaFormat Format)
 {
 	Structs.Init(NoId, Declared.NumStructs());
 	Enums.Init(NoId, Declared.NumEnums());
@@ -185,50 +187,53 @@ FWriteIds::FWriteIds(const FIdIndexerBase& Declared, const FBuiltSchemas& Schema
 	uint32 NewSchemaIdx = 0;
 	for (const FBuiltStructSchema& Struct : Schemas.Structs)
 	{
-		Structs[Struct.Id.Idx] = FSchemaId{NewSchemaIdx++};
+		Structs[Struct.Id.Idx] = FStructSchemaId{NewSchemaIdx++};
 	}
 	NumKeptStructSchemas = NewSchemaIdx;
 	for (const FBuiltEnumSchema& Enum : Schemas.Enums)
 	{
-		Enums[Enum.Id.Idx] = FSchemaId{NewSchemaIdx++};
+		Enums[Enum.Id.Idx] = FEnumSchemaId{NewSchemaIdx++};
 	}
 	NumKeptSchemas = NewSchemaIdx;
 
-	// Generate new name indices
-	FUsedIds Used(Declared);
-	Used.DetectUsage(Schemas.Structs);
-	Used.DetectUsage(Schemas.Enums);
-	MakeRemapping(Names, Used.Names);
-
-	// Generate new nested scope and parametric type mappings
-	KeptScopes.Reserve(MakeRemapping(/* out */ NestedScopes, Used.NestedScopes));
-	KeptParametrics.Reserve(MakeRemapping(/* out */ ParametricTypes, Used.ParametricTypes, Declared.GetParametricTypes()));
-
-	// Copy nested scopes and parametric types
-	CopyUsedIds(/* out */ KeptScopes, Used.NestedScopes, Declared.GetNestedScopes());
-	CopyUsedIds(/* out */ KeptParametrics, Used.ParametricTypes, Declared.GetParametricTypes().GetAllTypes());
-
-	// Remap copied nested scopes
-	for (FNestedScope& KeptScope : KeptScopes)
+	if (Format == ESchemaFormat::StableNames)
 	{
-		KeptScope.Inner = Remap(KeptScope.Inner);
-		KeptScope.Outer = Remap(KeptScope.Outer);
-	}
+		// Generate new name indices
+		FUsedIds Used(Declared);
+		Used.DetectUsage(Schemas.Structs);
+		Used.DetectUsage(Schemas.Enums);
+		MakeRemapping(Names, Used.Names);
 
-	// Remap copied parametric types and copy parameters
-	TConstArrayView<FTypeId> DeclaredParameters = Declared.GetParametricTypes().GetAllParameters();
-	for (FParametricType& KeptType : KeptParametrics)
-	{
-		FParameterIndexRange OldParameters = KeptType.Parameters;
-		KeptType.Name = Remap(KeptType.Name);
-		KeptType.Parameters.Idx = KeptParameters.Num();
-		KeptParameters.Append(DeclaredParameters.Slice(OldParameters.Idx, OldParameters.NumParameters));
-	}
+		// Generate new nested scope and parametric type mappings
+		KeptScopes.Reserve(MakeRemapping(/* out */ NestedScopes, Used.NestedScopes));
+		KeptParametrics.Reserve(MakeRemapping(/* out */ ParametricTypes, Used.ParametricTypes, Declared.GetParametricTypes()));
 
-	// Remap copied parameters
-	for (FTypeId& KeptParameter : KeptParameters)
-	{
-		KeptParameter = Remap(KeptParameter);
+		// Copy nested scopes and parametric types
+		CopyUsedIds(/* out */ KeptScopes, Used.NestedScopes, Declared.GetNestedScopes());
+		CopyUsedIds(/* out */ KeptParametrics, Used.ParametricTypes, Declared.GetParametricTypes().GetAllTypes());
+
+		// Remap copied nested scopes
+		for (FNestedScope& KeptScope : KeptScopes)
+		{
+			KeptScope.Inner = Remap(KeptScope.Inner);
+			KeptScope.Outer = Remap(KeptScope.Outer);
+		}
+
+		// Remap copied parametric types and copy parameters
+		TConstArrayView<FTypeId> DeclaredParameters = Declared.GetParametricTypes().GetAllParameters();
+		for (FParametricType& KeptType : KeptParametrics)
+		{
+			FParameterIndexRange OldParameters = KeptType.Parameters;
+			KeptType.Name = Remap(KeptType.Name);
+			KeptType.Parameters.Idx = KeptParameters.Num();
+			KeptParameters.Append(DeclaredParameters.Slice(OldParameters.Idx, OldParameters.NumParameters));
+		}
+
+		// Remap copied parameters
+		for (FTypeId& KeptParameter : KeptParameters)
+		{
+			KeptParameter = Remap(KeptParameter);
+		}
 	}
 }
 
@@ -263,11 +268,11 @@ static FOptionalSchemaId GetStaticInnerSchema(const FMemberSchema& Schema, const
 		check(IsStructOrEnum(InnermostType));
 		if (InnermostType.IsLeaf())
 		{
-			return ToOptional(NewIds.RemapEnum(InnerSchema.Get()));
+			return ToOptional(static_cast<FSchemaId>(NewIds.RemapEnum(InnerSchema.Get())));
 		}
 		else if (!InnermostType.AsStruct().IsDynamic)
 		{
-			return ToOptional(NewIds.RemapStruct(InnerSchema.Get()));
+			return ToOptional(static_cast<FSchemaId>(NewIds.RemapStruct(InnerSchema.Get())));
 		}
 	}
 
@@ -320,12 +325,12 @@ static ESuper GetInheritance(FOptionalSchemaId Super, TConstArrayView<const FMem
 
 static void WriteSchema(TArray64<uint8>& Out, const FBuiltStructSchema& Struct, const FWriteIds& NewIds)
 {
-	FOptionalSchemaId NewSuperId = Struct.Super ? ToOptional(NewIds.RemapStruct(Struct.Super.Get())) : NoId;
+	FOptionalSchemaId NewSuperId = Struct.Super ? ToOptionalSchema(NewIds.RemapStruct(Struct.Super.Get())) : NoId;
 	ESuper Inheritance = GetInheritance(NewSuperId, Struct.MemberSchemas);
 
 	TArray<FMemberType> MemberTypes = GetMemberTypes(Struct);
 	TArray<FMemberType> InnerRangeTypes = GetInnerRangeTypes(Struct);
-	TArray<FMemberId> MemberNames = RemapIds(NewIds, Struct.MemberNames);
+	TArray<FMemberId> MemberNames = NewIds.HasStableNames() ? RemapIds(NewIds, Struct.MemberNames) : Struct.MemberNames;
 	TArray<FSchemaId> InnerSchemas = GetInnerSchemas(Struct, NewIds, Inheritance);
 
 	check(MemberNames.Num() + UsesSuper(Inheritance) == MemberTypes.Num());
@@ -333,7 +338,7 @@ static void WriteSchema(TArray64<uint8>& Out, const FBuiltStructSchema& Struct, 
 	// Zero init for determinism
 	alignas(FStructSchema) uint8 HeaderData[offsetof(FStructSchema, Footer)] = {};
 	FStructSchema& BinaryHeader = *reinterpret_cast<FStructSchema*>(HeaderData);
-	BinaryHeader.Type = NewIds.Remap(Struct.Type);
+	BinaryHeader.Type = NewIds.HasStableNames() ? NewIds.Remap(Struct.Type) : Struct.Type;
 	BinaryHeader.Inheritance = Inheritance;
 	BinaryHeader.IsDense = Struct.bDense;
 	BinaryHeader.NumMembers = IntCastChecked<uint16>(MemberTypes.Num());
@@ -557,9 +562,9 @@ public:
 	, Debug(InDebug)
 	{}
 
-	void WriteMembers(FStructSchemaId BuiltId, const FBuiltStruct& Struct)
+	FStructSchemaId WriteMembers(FStructSchemaId BuiltId, const FBuiltStruct& Struct)
 	{
-		FSchemaId WriteId = NewIds.RemapStruct(BuiltId);
+		FStructSchemaId WriteId = NewIds.RemapStruct(BuiltId);
 		const FBuiltStructSchema& Schema = Schemas.Structs[WriteId.Idx];
 		const TArray<FMemberId>& Order = Schema.MemberNames;
 		const int32 NumSuper = Schema.MemberSchemas.Num() - Schema.MemberNames.Num();
@@ -604,6 +609,8 @@ public:
 		}
 
 		Bits.Flush();
+
+		return WriteId;
 	}
 
 private:
@@ -735,10 +742,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FWriter::FWriter(const FIdIndexerBase& DeclaredIds, const FBuiltSchemas& InSchemas)
+FWriter::FWriter(const FIdIndexerBase& DeclaredIds, const FBuiltSchemas& InSchemas, ESchemaFormat Format)
 : Schemas(InSchemas)
 , Debug(DeclaredIds)
-, NewIds(new FWriteIds(DeclaredIds, InSchemas))
+, NewIds(new FWriteIds(DeclaredIds, InSchemas, Format))
 {}
 
 FWriter::~FWriter()
@@ -759,9 +766,9 @@ void FWriter::WriteSchemas(TArray64<uint8>& Out) const
 	WriteSchemasImpl(Out, Schemas, *NewIds);
 }
 
-void FWriter::WriteMembers(TArray64<uint8>& Out, FStructSchemaId BuiltId, const FBuiltStruct& Struct) const
+FStructSchemaId FWriter::WriteMembers(TArray64<uint8>& Out, FStructSchemaId BuiltId, const FBuiltStruct& Struct) const
 {
-	FMemberWriter(Out, Schemas, *NewIds, Debug).WriteMembers(BuiltId, Struct);
+	return FMemberWriter(Out, Schemas, *NewIds, Debug).WriteMembers(BuiltId, Struct);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

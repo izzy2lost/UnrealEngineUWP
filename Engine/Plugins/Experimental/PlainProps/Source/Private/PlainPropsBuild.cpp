@@ -11,6 +11,11 @@
 namespace PlainProps
 {
 
+void FBuiltStructDeleter::operator()(FBuiltStruct* Ptr) const
+{
+	delete Ptr;
+}
+
 FBuiltRange* FBuiltRange::Create(uint64 NumItems, SIZE_T ItemSize)
 {
 	check(NumItems > 0);
@@ -53,7 +58,7 @@ namespace Private
 		return PlainProps::BuildStructuralRangeImpl(Values);
 	}
 
-	FBuiltRange* BuildStructuralRange(TArrayView64<TUniquePtr<FBuiltStruct>> Values)
+	FBuiltRange* BuildStructuralRange(TArrayView64<FBuiltStructPtr> Values)
 	{
 		return PlainProps::BuildStructuralRangeImpl(Values);
 	}
@@ -96,7 +101,7 @@ namespace Private
 FMemberBuilder::FMemberBuilder() {}
 FMemberBuilder::~FMemberBuilder() {}
 
-void FMemberBuilder::AddStruct(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Struct)
+void FMemberBuilder::AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Struct)
 {
 	Members.Emplace(Name, Schema, MoveTemp(Struct));
 }
@@ -123,12 +128,12 @@ void FMemberBuilder::BuildSuperStruct(const FStructDeclaration& Super, const FDe
 		return;
 	}
 	
-	TUniquePtr<FBuiltStruct> OnlyMember = BuildAndReset(Super, Debug);
+	FBuiltStructPtr OnlyMember = BuildAndReset(Super, Debug);
 	Members.Emplace(FBuiltMember::MakeSuper(Super.Id, MoveTemp(OnlyMember)));
 	check(Members[0].Schema.Type.AsStruct().IsSuper);
 }
 
-TUniquePtr<FBuiltStruct> FMemberBuilder::BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug)
+FBuiltStructPtr FMemberBuilder::BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug)
 {
 	checkf(!(Declared.Super && Declared.Occupancy == EMemberPresence::RequireAll),
 		TEXT("Requiring sub structs to be dense isn't implemented"));
@@ -161,9 +166,9 @@ TUniquePtr<FBuiltStruct> FMemberBuilder::BuildAndReset(const FStructDeclaration&
 
 	Members.Reset();
 
-	GLiveStructsFoo.Add(Out);
+	//GLiveStructsFoo.Add(Out);
 
-	return TUniquePtr<FBuiltStruct>(Out);
+	return FBuiltStructPtr(Out);
 }
 
 template<typename IntType, typename FloatType>
@@ -209,11 +214,11 @@ FBuiltMember::FBuiltMember(FMemberId Name, FTypedRange&& Range)
 : FBuiltMember(Name, MoveTemp(Range.Schema), { .Range = Range.Values })
 {}
 
-FBuiltMember::FBuiltMember(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Value)
+FBuiltMember::FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Value)
 : FBuiltMember(Name, {DefaultStructType, FOptionalSchemaId(Schema)}, { .Struct = Value.Release() })
 {}
 
-FBuiltMember FBuiltMember::MakeSuper(FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Value)
+FBuiltMember FBuiltMember::MakeSuper(FStructSchemaId Schema, FBuiltStructPtr&& Value)
 {
 	return FBuiltMember(NoId, {SuperStructType, FOptionalSchemaId(Schema)}, { .Struct = Value.Release() });
 }
@@ -266,7 +271,7 @@ uint64 FBuiltRange::Delete(FBuiltRange* Range, FOptionalSchemaId InnerSchema, TC
 
 FBuiltStruct::~FBuiltStruct()
 { 
-	check(GLiveStructsFoo.Remove(this) == 1);
+	//check(GLiveStructsFoo.Remove(this) == 1);
 
 	for (const FBuiltMember& Member : MakeArrayView(Members, NumMembers))
 	{
@@ -278,7 +283,7 @@ FBuiltStruct::~FBuiltStruct()
 
 FTypedRange FStructRangeBuilder::BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug)
 {
-	TArray64<TUniquePtr<FBuiltStruct>> BuiltStructs;
+	TArray64<FBuiltStructPtr> BuiltStructs;
 	BuiltStructs.Reserve(Structs.Num());
 	for (FMemberBuilder& Struct : Structs)
 	{
