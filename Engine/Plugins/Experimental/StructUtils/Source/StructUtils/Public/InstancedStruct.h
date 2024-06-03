@@ -462,6 +462,11 @@ public:
 		InstancedStruct.AddStructReferencedObjects(Collector);
 	}
 
+	bool Serialize(FArchive& Ar)
+	{
+		return InstancedStruct.Serialize(Ar);
+	}
+
 private:
 	/**
 	 * Note:
