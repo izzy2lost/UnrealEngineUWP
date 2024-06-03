@@ -238,15 +238,6 @@ SDMComponentEdit::~SDMComponentEdit()
 	{
 		Stage->SetBeingEdited(false);
 	}
-
-	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
-	{
-		Stage->GetOnUpdate().RemoveAll(this);
-	}
-	else if (UDMMaterialEffect* Effect = Cast<UDMMaterialEffect>(ComponentWeak.Get()))
-	{
-		Effect->GetOnUpdate().RemoveAll(this);
-	}
 }
 
 void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent* InComponent, const TWeakPtr<SDMEditor>& InEditorWidget)

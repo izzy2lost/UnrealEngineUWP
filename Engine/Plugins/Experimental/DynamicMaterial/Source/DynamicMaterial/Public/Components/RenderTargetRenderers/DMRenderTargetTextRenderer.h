@@ -2,15 +2,20 @@
 
 #pragma once
 
-#include "Components/DMRenderTargetRenderer.h"
+#include "Components/RenderTargetRenderers/DMRenderTargetWidgetRendererBase.h"
 #include "Delegates/IDelegateInstance.h"
+#include "Fonts/FontCache.h"
 #include "Framework/Text/TextLayout.h"
+#include "InstancedStruct.h"
 #include "Internationalization/Text.h"
 #include "Math/Color.h"
 #include "Math/Vector2D.h"
+#include "Templates/SharedPointer.h"
 #include "DMRenderTargetTextRenderer.generated.h"
 
 class FCanvasTextItem;
+class STextBlock;
+class SWidget;
 class UCanvas;
 class UFont;
 
@@ -23,11 +28,13 @@ struct FDMTextLine
 	FString Line;
 
 	UPROPERTY()
-	float Width = 0.f;
+	float Width;
+
+	TSharedPtr<STextBlock> Widget;
 };
 
 UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Text Renderer"))
-class DYNAMICMATERIAL_API UDMRenderTargetTextRenderer : public UDMRenderTargetRenderer
+class DYNAMICMATERIAL_API UDMRenderTargetTextRenderer : public UDMRenderTargetWidgetRendererBase
 {
 	GENERATED_BODY()
 
@@ -37,10 +44,10 @@ public:
 	UDMRenderTargetTextRenderer();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UFont* GetFont() const;
+	const FSlateFontInfo& GetFontInfo() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetFont(UFont* InFont);
+	void SetFontInfo(const FSlateFontInfo& InFontInfo);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const FText& GetText() const;
@@ -61,16 +68,82 @@ public:
 	void SetBackgroundColor(const FLinearColor& InBackgroundColor);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	bool GetHasHighlight() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetHasHighlight(bool bInHasHighlight);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	const FLinearColor& GetHighlightColor() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetHighlightColor(const FLinearColor& InHighlightColor);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	bool GetHasShadow() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetHasShadow(bool bInHasShadow);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	const FLinearColor& GetShadowColor() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetShadowColor(const FLinearColor& InShadowColor);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	const FVector2D& GetShadowOffset() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetShadowOffset(const FVector2D& InShadowOffset);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	bool GetAutoWrapText() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetAutoWrapText(bool bInAutoWrap);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	float GetWrapTextAt() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetWrapTextAt(float InWrapAt);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	ETextWrappingPolicy GetWrappingPolicy() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetWrappingPolicy(ETextWrappingPolicy InWrappingPolicy);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	ETextJustify::Type GetJustify() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void SetJustify(ETextJustify::Type InJustify);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	float GetKerning() const;
+	ETextTransformPolicy GetTransformPolicy() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetKerning(float InKerning);
+	void SetTransformPolicy(ETextTransformPolicy InTransformPolicy);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	ETextFlowDirection GetFlowDirection() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetFlowDirection(ETextFlowDirection InFlowDirection);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	ETextShapingMethod GetShapingMethod() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetShapingMethod(ETextShapingMethod InShapingMethod);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	const TInstancedStruct<FSlateBrush>& GetStrikeBrush() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetStrikeBrush(const TInstancedStruct<FSlateBrush>& InStrikeBrush);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	float GetLineHeight() const;
@@ -103,70 +176,10 @@ public:
 	void SetPaddingBottom(float InPadding);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FIntPoint& GetTextScale() const;
+	bool IsOverridingRenderTargetSize() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetTextScale(const FIntPoint& InTextScale);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FIntPoint& GetTextureSizeOverride() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetTextureSizeOverride(const FIntPoint& InTextureSizeOverride);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool GetHasOutline() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetHasOutline(bool bInHasOutline);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FLinearColor& GetOutlineColor() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetOutlineColor(const FLinearColor& InOutlineColor);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool GetHasShadow() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetHasShadow(bool bInHasShadow);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FLinearColor& GetShadowColor() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetShadowColor(const FLinearColor& InShadowColor);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FVector2D& GetShadowOffset() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetShadowOffset(const FVector2D& InShadowOffset);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool GetHasGlow() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetHasGlow(bool bInHasGlow);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FLinearColor& GetGlowColor() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetGlowColor(const FLinearColor& InGlowColor);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FVector2D& GetGlowInnerRadius() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetGlowInnerRadius(const FVector2D& InGlowInnerRadius);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FVector2D& GetGlowOuterRadius() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetGlowOuterRadius(const FVector2D& InGlowOuterRadius);
+	void SetOverrideRenderTargetSize(bool bInOverride);
 
 #if WITH_EDITOR
 	//~ Begin IDMJsonSerializable
@@ -180,9 +193,9 @@ public:
 #endif
 
 protected:
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetFont, BlueprintSetter = SetFont, Category = "Material Designer|Text",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetFontInfo, BlueprintSetter = SetFontInfo, Category = "Material Designer|Text",
 		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
-	UFont* Font = nullptr;
+	FSlateFontInfo FontInfo;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetText, BlueprintSetter = SetText, Category = "Material Designer|Text",
 		meta = (MultiLine, NotKeyframeable, AllowPrivateAccess = "true"))
@@ -195,13 +208,57 @@ protected:
 		meta = (AllowPrivateAccess = "true"))
 	FLinearColor TextColor = FLinearColor::White;
 
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetHasHighlight, BlueprintSetter = SetHasHighlight, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	bool bHasHighlight = false;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetHighlightColor, BlueprintSetter = SetHighlightColor, Category = "Material Designer|Text",
+		meta = (AllowPrivateAccess = "true", EditCondition = "bHasHighlight", EditConditionHides = true))
+	FLinearColor HighlightColor = FLinearColor::Black;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetHasShadow, BlueprintSetter = SetHasShadow, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	bool bHasShadow = false;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetShadowColor, BlueprintSetter = SetShadowColor, Category = "Material Designer|Text",
+		meta = (AllowPrivateAccess = "true", EditCondition = "bHasShadow", EditConditionHides = true))
+	FLinearColor ShadowColor = FLinearColor::Black;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetShadowOffset, BlueprintSetter = SetShadowOffset, Category = "Material Designer|Text",
+		meta = (AllowPrivateAccess = "true", EditCondition = "bHasShadow", EditConditionHides = true))
+	FVector2D ShadowOffset = FVector2D(1.0, 1.0);
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetAutoWrapText, BlueprintSetter = SetAutoWrapText, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	bool bAutoWrapText = false;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetWrapTextAt, BlueprintSetter = SetWrapTextAt, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true", EditCondition="bAutoWrapText", EditConditionHides))
+	float WrapTextAt = 0.f;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetWrappingPolicy, BlueprintSetter = SetWrappingPolicy, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true", EditCondition = "bAutoWrapText", EditConditionHides))
+	ETextWrappingPolicy WrappingPolicy = ETextWrappingPolicy::DefaultWrapping;
+
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetJustify, BlueprintSetter = SetJustify, Category = "Material Designer|Text",
 		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
 	TEnumAsByte<ETextJustify::Type> Justify = ETextJustify::Left;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetKerning, BlueprintSetter = SetKerning, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true"))
-	float Kerning = 0.f;
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetTransformPolicy, BlueprintSetter = SetTransformPolicy, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	ETextTransformPolicy TransformPolicy = ETextTransformPolicy::None;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetFlowDirection, BlueprintSetter = SetFlowDirection, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	ETextFlowDirection FlowDirection = ETextFlowDirection::Auto;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetShapingMethod, BlueprintSetter = SetShapingMethod, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	ETextShapingMethod ShapingMethod = ETextShapingMethod::Auto;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetStrikeBrush, BlueprintSetter = SetStrikeBrush, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	TInstancedStruct<FSlateBrush> StrikeBrush;
 
 	/** Multiplier on the base font height. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetLineHeight, BlueprintSetter = SetLineHeight, Category = "Material Designer|Text",
@@ -228,62 +285,21 @@ protected:
 		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
 	float PaddingBottom = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetTextScale, BlueprintSetter = SetTextScale, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true", ClampMin = 1, UIMin = 1, ClampMax = 64, UIMax = 64,
-			ToolTip = "Increasing this will increase the resolution of the text."))
-	FIntPoint TextScale = FIntPoint(10, 10);
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetTextureSizeOverride, BlueprintSetter = SetTextureSizeOverride, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true", ToolTip = "Override the size of the render target. Set to 0 to disable."))
-	FIntPoint TextureSizeOverride = FIntPoint(0, 0);
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetHasOutline, BlueprintSetter = SetHasOutline, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true"))
-	bool bOutline = false;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetOutlineColor, BlueprintSetter = SetOutlineColor, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true", EditCondition = "bOutline", EditConditionHides = true))
-	FLinearColor OutlineColor = FLinearColor::Black;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetHasShadow, BlueprintSetter = SetHasShadow, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true"))
-	bool bShadow = false;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetShadowColor, BlueprintSetter = SetShadowColor, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true", EditCondition = "bShadow", EditConditionHides = true))
-	FLinearColor ShadowColor = FLinearColor::Black;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetShadowOffset, BlueprintSetter = SetShadowOffset, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true", EditCondition = "bShadow", EditConditionHides = true))
-	FVector2D ShadowOffset = FVector2D(1.0, 1.0);
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetHasGlow, BlueprintSetter = SetHasGlow, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true"))
-	bool bGlow = false;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetGlowColor, BlueprintSetter = SetGlowColor, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true", EditCondition = "bGlow", EditConditionHides = true))
-	FLinearColor GlowColor = FLinearColor::White;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetGlowInnerRadius, BlueprintSetter = SetGlowInnerRadius, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true", EditCondition = "bGlow", EditConditionHides = true, ClampMin = 0, UIMin = 0, ClampMax = 1, UIMax = 1))
-	FVector2D GlowInnerRadius = FVector2D(0.5, 0.5);
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetGlowOuterRadius, BlueprintSetter = SetGlowOuterRadius, Category = "Material Designer|Text",
-		meta = (AllowPrivateAccess = "true", EditCondition = "bGlow", EditConditionHides = true, ClampMin = 0, UIMin = 0, ClampMax = 1, UIMax = 1))
-	FVector2D GlowOuterRadius = FVector2D(0.5, 0.5);
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetOverrideRenderTargetSize, BlueprintSetter = SetOverrideRenderTargetSize, Category = "Material Designer|Text",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true", ToolTip = "When true, will change the size of the render target to fit the text."))
+	bool bOverrideRenderTargetSize = true;
 
 	bool bRecalculateTextSize = false;
 
-	void CalculateLineSizes();
-
-	FIntPoint GetRequiredTextureSize() const;
-
 	void UpdateTextLines();
 
-	FCanvasTextItem CreateTextItem(const FVector2D& InPosition, const FText& InText) const;
+	TSharedRef<STextBlock> CreateTextWidget(const FText& InText) const;
 
-	void UpdateTextureSize();
+	void SetCustomTextureSize();
+
+	//~ Begin UDMRenderTargetWidgetRendererBase
+	virtual void CreateWidgetInstance() override;
+	//~ End UDMRenderTargetWidgetRendererBase
 
 	//~ Begin UDMRenderTargetRenderer
 	virtual void UpdateRenderTarget_Internal() override;

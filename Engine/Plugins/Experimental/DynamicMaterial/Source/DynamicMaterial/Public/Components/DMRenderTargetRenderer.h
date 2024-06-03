@@ -48,6 +48,10 @@ public:
 	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 
+	//~ Begin UDMMaterialComponent
+	virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
+	//~ End UDMMaterialComponent
+
 	//~ Begin UObject
 	virtual void PostLoad() override;
 	//~ End UObject

@@ -44,6 +44,7 @@ public class DynamicMaterialEditor : ModuleRules
 				"RHI",
 				"Slate",
 				"SlateCore",
+				"StructUtils",
 				"ToolMenus",
 				"TypedElementRuntime",
 				"UMG",

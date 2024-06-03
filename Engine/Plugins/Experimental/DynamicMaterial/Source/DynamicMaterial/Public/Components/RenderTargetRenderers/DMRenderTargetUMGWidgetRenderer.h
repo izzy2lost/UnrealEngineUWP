@@ -2,19 +2,19 @@
 
 #pragma once
 
-#include "Components/DMRenderTargetRenderer.h"
-#include "DMRenderTargetWidgetRenderer.generated.h"
+#include "Components/RenderTargetRenderers/DMRenderTargetWidgetRendererBase.h"
+#include "DMRenderTargetUMGWidgetRenderer.generated.h"
 
 class FWidgetRenderer;
 class UWidget;
 
 UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Widget Renderer"))
-class DYNAMICMATERIAL_API UDMRenderTargetWidgetRenderer : public UDMRenderTargetRenderer
+class DYNAMICMATERIAL_API UDMRenderTargetUMGWidgetRenderer : public UDMRenderTargetWidgetRendererBase
 {
 	GENERATED_BODY()
 
 public:
-	UDMRenderTargetWidgetRenderer();
+	UDMRenderTargetUMGWidgetRenderer();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	TSubclassOf<UWidget> GetWidgetClass() const { return WidgetClass; }
@@ -41,11 +41,7 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UWidget> WidgetInstance;
 
-	TSharedPtr<FWidgetRenderer> WidgetRenderer;
-
-	virtual void CreateWidgetInstance();
-
-	//~ Begin UDMRenderTargetRenderer
-	virtual void UpdateRenderTarget_Internal() override;
-	//~ End UDMRenderTargetRenderer
+	//~ Begin UDMRenderTargetWidgetRendererBase
+	virtual void CreateWidgetInstance() override;
+	//~ End UDMRenderTargetWidgetRendererBase
 };

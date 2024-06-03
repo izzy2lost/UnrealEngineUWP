@@ -60,7 +60,7 @@ TSharedPtr<FJsonValue> FDMJsonUtils::Serialize(const UScriptStruct* InScriptStru
 	if (!IsValid(InScriptStruct))
 	{
 		UE_LOG(LogDynamicMaterial, Error, TEXT("Invalid script struct."));
-		return nullptr;
+		return MakeShared<FJsonValueNull>();
 	}
 
 	TSharedRef<FJsonObject> JsonStruct = MakeShared<FJsonObject>();
@@ -71,7 +71,7 @@ TSharedPtr<FJsonValue> FDMJsonUtils::Serialize(const UScriptStruct* InScriptStru
 	}
 
 	UE_LOG(LogDynamicMaterial, Error,TEXT("Failed to convert struct to json. [%s]"), *InScriptStruct->GetName());
-	return nullptr;
+	return MakeShared<FJsonValueNull>();
 }
 
 TSharedPtr<FJsonValue> FDMJsonUtils::Serialize(const UObject* InObject)
@@ -116,7 +116,7 @@ TSharedPtr<FJsonValue> FDMJsonUtils::Serialize(const UObject* InObject)
 	UE_LOG(LogDynamicMaterial, Error, TEXT("Failed to convert object to json. [%s] [%s]"), 
 		*InObject->GetClass()->GetName(), *InObject->GetPathName());
 
-	return nullptr;
+	return MakeShared<FJsonValueNull>();
 }
 
 TSharedPtr<FJsonValue> FDMJsonUtils::Serialize(const FObjectPtr& InObject)

@@ -23,7 +23,7 @@
 #include "Components/MaterialStageInputs/DMMSISlot.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
-#include "Components/RenderTargetRenderers/DMRenderTargetWidgetRenderer.h"
+#include "Components/RenderTargetRenderers/DMRenderTargetUMGWidgetRenderer.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
@@ -1219,14 +1219,14 @@ namespace UE::DynamicMaterialEditor::Private
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
 
-			UDMBlueprintFunctionLibrary::SetStageInputToRenderer(Stage, UDMRenderTargetWidgetRenderer::StaticClass(), UDMMaterialStageBlend::InputB);
+			UDMBlueprintFunctionLibrary::SetStageInputToRenderer(Stage, UDMRenderTargetUMGWidgetRenderer::StaticClass(), UDMMaterialStageBlend::InputB);
 		}
 		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
 
-			UDMBlueprintFunctionLibrary::SetStageInputToRenderer(Stage, UDMRenderTargetWidgetRenderer::StaticClass(), UDMMaterialStageThroughputLayerBlend::InputMaskSource);
+			UDMBlueprintFunctionLibrary::SetStageInputToRenderer(Stage, UDMRenderTargetUMGWidgetRenderer::StaticClass(), UDMMaterialStageThroughputLayerBlend::InputMaskSource);
 		}
 		else
 		{

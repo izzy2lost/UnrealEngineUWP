@@ -10,7 +10,7 @@
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
-#include "Components/RenderTargetRenderers/DMRenderTargetWidgetRenderer.h"
+#include "Components/RenderTargetRenderers/DMRenderTargetUMGWidgetRenderer.h"
 #include "DMDefs.h"
 #include "DMMaterialSlotLayerAddEffectMenus.h"
 #include "DMValueDefinition.h"
@@ -573,7 +573,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		FUIAction(FExecuteAction::CreateSP(
 			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_Renderer,
-			TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetWidgetRenderer::StaticClass())
+			TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetUMGWidgetRenderer::StaticClass())
 		))
 	);
 

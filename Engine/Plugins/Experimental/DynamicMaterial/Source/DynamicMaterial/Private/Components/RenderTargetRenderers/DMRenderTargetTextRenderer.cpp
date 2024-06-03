@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
-#include "CanvasItem.h"
-#include "CanvasTypes.h"
 #include "Components/MaterialValues/DMMaterialValueRenderTarget.h"
-#include "Engine/Canvas.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Engine/Engine.h"
-#include "Engine/TextureRenderTarget2D.h"
 #include "TextureResource.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 #if WITH_EDITOR
 #include "Dom/JsonValue.h"
@@ -24,32 +24,42 @@ namespace UE::DynamicMaterial::Private
 #if WITH_EDITOR
 struct FDMRenderTargetTextRenderer
 {
-	static const inline FName FontName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, Font);
+	static const inline FName FontInfoName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, FontInfo);
 	static const inline FName TextName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, Text);
 	static const inline FName TextColorName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, TextColor);
+	static const inline FName HasHighlightName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bHasHighlight);
+	static const inline FName HighlightColorName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, HighlightColor);
+	static const inline FName HasShadowName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bHasShadow);
+	static const inline FName ShadowColorName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, ShadowColor);
+	static const inline FName ShadowOffsetName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, ShadowOffset);
+	static const inline FName AutoWrapTextName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bAutoWrapText);
+	static const inline FName WrapTextAtName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, WrapTextAt);
+	static const inline FName WrappingPolicyName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, WrappingPolicy);
 	static const inline FName JustifyName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, Justify);
-	static const inline FName KerningName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, Kerning);
+	static const inline FName TransformPolicyName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, TransformPolicy);
+	static const inline FName FlowDirectionName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, FlowDirection);
+	static const inline FName ShapingMethodName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, ShapingMethod);
+	static const inline FName StrikeBrushName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, StrikeBrush);
 	static const inline FName LineHeightName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, LineHeight);
 	static const inline FName PaddingLeftName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, PaddingLeft);
 	static const inline FName PaddingRightName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, PaddingRight);
 	static const inline FName PaddingTopName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, PaddingTop);
 	static const inline FName PaddingBottomName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, PaddingBottom);
-	static const inline FName TextScaleName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, TextScale);
-	static const inline FName TextureSizeOverrideName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, TextureSizeOverride);
-	static const inline FName bOutlineName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bOutline);
-	static const inline FName OutlineColorName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, OutlineColor);
-	static const inline FName bShadowName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bShadow);
-	static const inline FName ShadowColorName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, ShadowColor);
-	static const inline FName ShadowOffsetName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, ShadowOffset);
-	static const inline FName bGlowName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bGlow);
-	static const inline FName GlowColorName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, GlowColor);
-	static const inline FName GlowInnerRadiusName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, GlowInnerRadius);
-	static const inline FName GlowOuterRadiusName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, GlowOuterRadius);
+	static const inline FName OverrideRenderTargetSizeName = GET_MEMBER_NAME_CHECKED(UDMRenderTargetTextRenderer, bOverrideRenderTargetSize);
 
 	static const inline TSet<FName> PropertyNames = {
-		FontName, TextName, TextColorName, JustifyName, KerningName, LineHeightName, PaddingLeftName, PaddingRightName,
-		PaddingTopName, PaddingBottomName, TextScaleName, TextureSizeOverrideName, bOutlineName, OutlineColorName, bShadowName,
-		ShadowColorName, ShadowOffsetName, bGlowName, GlowColorName, GlowInnerRadiusName, GlowOuterRadiusName
+		FontInfoName, TextName, TextColorName,
+		HasHighlightName, HighlightColorName,
+		HasShadowName, ShadowColorName, ShadowOffsetName,
+		AutoWrapTextName, WrapTextAtName, WrappingPolicyName,
+		JustifyName,
+		TransformPolicyName,
+		FlowDirectionName,
+		ShapingMethodName,
+		StrikeBrushName,
+		LineHeightName,
+		PaddingLeftName, PaddingTopName, PaddingRightName, PaddingBottomName,
+		OverrideRenderTargetSizeName
 	};
 };
 #endif
@@ -64,11 +74,166 @@ UDMRenderTargetTextRenderer::UDMRenderTargetTextRenderer()
 #if WITH_EDITOR
 TSharedPtr<FJsonValue> UDMRenderTargetTextRenderer::JsonSerialize() const
 {
-	return MakeShared<FJsonValueNull>();
+	TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+
+	Object->SetField(FDMRenderTargetTextRenderer::FontInfoName.GetPlainNameString(), FDMJsonUtils::Serialize<FSlateFontInfo>(FontInfo));
+	Object->SetField(FDMRenderTargetTextRenderer::TextName.GetPlainNameString(), FDMJsonUtils::Serialize(Text));
+	Object->SetField(FDMRenderTargetTextRenderer::TextColorName.GetPlainNameString(), FDMJsonUtils::Serialize(TextColor));
+	Object->SetField(FDMRenderTargetTextRenderer::HasHighlightName.GetPlainNameString(), FDMJsonUtils::Serialize(bHasHighlight));
+	Object->SetField(FDMRenderTargetTextRenderer::HighlightColorName.GetPlainNameString(), FDMJsonUtils::Serialize(HighlightColor));
+	Object->SetField(FDMRenderTargetTextRenderer::HasShadowName.GetPlainNameString(), FDMJsonUtils::Serialize(bHasShadow));
+	Object->SetField(FDMRenderTargetTextRenderer::ShadowColorName.GetPlainNameString(), FDMJsonUtils::Serialize(ShadowColor));
+	Object->SetField(FDMRenderTargetTextRenderer::ShadowOffsetName.GetPlainNameString(), FDMJsonUtils::Serialize(ShadowOffset));
+	Object->SetField(FDMRenderTargetTextRenderer::AutoWrapTextName.GetPlainNameString(), FDMJsonUtils::Serialize(bAutoWrapText));
+	Object->SetField(FDMRenderTargetTextRenderer::WrapTextAtName.GetPlainNameString(), FDMJsonUtils::Serialize(WrapTextAt));
+	Object->SetField(FDMRenderTargetTextRenderer::WrappingPolicyName.GetPlainNameString(), FDMJsonUtils::Serialize(WrappingPolicy));
+	Object->SetField(FDMRenderTargetTextRenderer::JustifyName.GetPlainNameString(), FDMJsonUtils::Serialize(Justify.GetValue()));
+	Object->SetField(FDMRenderTargetTextRenderer::TransformPolicyName.GetPlainNameString(), FDMJsonUtils::Serialize(TransformPolicy));
+	Object->SetField(FDMRenderTargetTextRenderer::FlowDirectionName.GetPlainNameString(), FDMJsonUtils::Serialize(FlowDirection));
+	Object->SetField(FDMRenderTargetTextRenderer::ShapingMethodName.GetPlainNameString(), FDMJsonUtils::Serialize(ShapingMethod));
+	Object->SetField(FDMRenderTargetTextRenderer::LineHeightName.GetPlainNameString(), FDMJsonUtils::Serialize(LineHeight));
+	Object->SetField(FDMRenderTargetTextRenderer::PaddingLeftName.GetPlainNameString(), FDMJsonUtils::Serialize(PaddingLeft));
+	Object->SetField(FDMRenderTargetTextRenderer::PaddingRightName.GetPlainNameString(), FDMJsonUtils::Serialize(PaddingRight));
+	Object->SetField(FDMRenderTargetTextRenderer::PaddingTopName.GetPlainNameString(), FDMJsonUtils::Serialize(PaddingTop));
+	Object->SetField(FDMRenderTargetTextRenderer::PaddingBottomName.GetPlainNameString(), FDMJsonUtils::Serialize(PaddingBottom));
+	Object->SetField(FDMRenderTargetTextRenderer::OverrideRenderTargetSizeName.GetPlainNameString(), FDMJsonUtils::Serialize(bOverrideRenderTargetSize));
+
+	if (StrikeBrush.IsValid())
+	{
+		Object->SetField(FDMRenderTargetTextRenderer::StrikeBrushName.GetPlainNameString(), FDMJsonUtils::Serialize<FSlateBrush>(StrikeBrush.Get<FSlateBrush>()));
+	}
+	else
+	{
+		Object->SetField(FDMRenderTargetTextRenderer::StrikeBrushName.GetPlainNameString(), MakeShared<FJsonValueNull>());
+	}
+
+	return MakeShared<FJsonValueObject>(Object);
 }
 
 bool UDMRenderTargetTextRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
 {
+	TSharedPtr<FJsonObject> Object = InJsonValue->AsObject();
+
+	if (!Object.IsValid())
+	{
+		return false;
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::FontInfoName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize<FSlateFontInfo>(*JsonValue, FontInfo);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::TextName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, Text);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::TextColorName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, TextColor);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::HasHighlightName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, bHasHighlight);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::HighlightColorName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, HighlightColor);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::HasShadowName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, bHasShadow);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::ShadowColorName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, ShadowColor);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::ShadowOffsetName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, ShadowOffset);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::AutoWrapTextName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, bAutoWrapText);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::WrapTextAtName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, WrapTextAt);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::WrappingPolicyName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, WrappingPolicy);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::JustifyName.GetPlainNameString()))
+	{
+		ETextJustify::Type EnumValue = ETextJustify::Left;
+		FDMJsonUtils::Deserialize(*JsonValue, EnumValue);
+		Justify = EnumValue;
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::TransformPolicyName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, TransformPolicy);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::FlowDirectionName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, FlowDirection);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::ShapingMethodName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, ShapingMethod);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::LineHeightName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, LineHeight);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::PaddingLeftName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, PaddingLeft);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::PaddingRightName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, PaddingRight);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::PaddingTopName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, PaddingTop);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::PaddingBottomName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, PaddingBottom);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::OverrideRenderTargetSizeName.GetPlainNameString()))
+	{
+		FDMJsonUtils::Deserialize(*JsonValue, bOverrideRenderTargetSize);
+	}
+
+	if (const TSharedPtr<FJsonValue>* JsonValue = Object->Values.Find(FDMRenderTargetTextRenderer::StrikeBrushName.GetPlainNameString()))
+	{
+		if (!(*JsonValue)->IsNull())
+		{
+			FDMJsonUtils::Deserialize<FSlateBrush>(*JsonValue, *StrikeBrush.GetMutablePtr<FSlateBrush>());
+		}
+	}
+
 	return true;
 }
 
@@ -78,55 +243,39 @@ void UDMRenderTargetTextRenderer::PostEditChangeProperty(FPropertyChangedEvent& 
 
 	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (PropertyName == FDMRenderTargetTextRenderer::TextName)
-	{
-		UpdateTextLines();
-	}
-	else if (PropertyName == FDMRenderTargetTextRenderer::FontName
-		|| PropertyName == FDMRenderTargetTextRenderer::KerningName
-		|| PropertyName == FDMRenderTargetTextRenderer::LineHeightName
-		|| PropertyName == FDMRenderTargetTextRenderer::PaddingLeftName
-		|| PropertyName == FDMRenderTargetTextRenderer::PaddingRightName
-		|| PropertyName == FDMRenderTargetTextRenderer::PaddingTopName
-		|| PropertyName == FDMRenderTargetTextRenderer::PaddingBottomName
-		|| PropertyName == FDMRenderTargetTextRenderer::TextScaleName
-		|| PropertyName == FDMRenderTargetTextRenderer::TextureSizeOverrideName)
-	{
-		TextScale.X = FMath::Clamp(TextScale.X, 1, UE::DynamicMaterial::Private::MaxTexScale.X);
-		TextScale.Y = FMath::Clamp(TextScale.Y, 1, UE::DynamicMaterial::Private::MaxTexScale.Y);
-		bRecalculateTextSize = true;
-		AsyncUpdateRenderTarget();
-	}
-	else if (PropertyName == FDMRenderTargetTextRenderer::bGlowName
-		|| PropertyName == FDMRenderTargetTextRenderer::bShadowName
-		|| PropertyName == FDMRenderTargetTextRenderer::bOutlineName)
+	if (PropertyName == FDMRenderTargetTextRenderer::HasHighlightName
+		|| PropertyName == FDMRenderTargetTextRenderer::HasShadowName
+		|| PropertyName == FDMRenderTargetTextRenderer::AutoWrapTextName)
 	{
 		// Cause details panel refresh.
 		Update(EDMUpdateType::Structure);
-		AsyncUpdateRenderTarget();
 	}
-	else if (FDMRenderTargetTextRenderer::PropertyNames.Contains(PropertyName))
+
+	if (FDMRenderTargetTextRenderer::PropertyNames.Contains(PropertyName))
 	{
+		Widget.Reset();
+		bRecalculateTextSize = true;
 		AsyncUpdateRenderTarget();
 	}
 }
 #endif
 
-UFont* UDMRenderTargetTextRenderer::GetFont() const
+const FSlateFontInfo& UDMRenderTargetTextRenderer::GetFontInfo() const
 {
-	return Font;
+	return FontInfo;
 }
 
-void UDMRenderTargetTextRenderer::SetFont(UFont* InFont)
+void UDMRenderTargetTextRenderer::SetFontInfo(const FSlateFontInfo& InFontInfo)
 {
-	if (Font == InFont)
+	if (FontInfo == InFontInfo)
 	{
 		return;
 	}
 
-	Font = InFont;
+	FontInfo = InFontInfo;
 
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
 }
 
 const FText& UDMRenderTargetTextRenderer::GetText() const
@@ -143,8 +292,9 @@ void UDMRenderTargetTextRenderer::SetText(const FText& InText)
 
 	Text = InText;
 
-	UpdateTextLines();
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
+
 }
 
 const FLinearColor& UDMRenderTargetTextRenderer::GetTextColor() const
@@ -182,6 +332,43 @@ void UDMRenderTargetTextRenderer::SetBackgroundColor(const FLinearColor& InBackg
 	}
 }
 
+bool UDMRenderTargetTextRenderer::GetHasHighlight() const
+{
+	return bHasHighlight;
+}
+
+void UDMRenderTargetTextRenderer::SetHasHighlight(bool bInHasHighlight)
+{
+	if (bHasHighlight == bInHasHighlight)
+	{
+		return;
+	}
+
+	bHasHighlight = bInHasHighlight;
+
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
+
+}
+
+const FLinearColor& UDMRenderTargetTextRenderer::GetHighlightColor() const
+{
+	if (UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue())
+	{
+		return RenderTargetValue->GetClearColor();
+	}
+
+	return FLinearColor::Black;
+}
+
+void UDMRenderTargetTextRenderer::SetHighlightColor(const FLinearColor& InHighlightColor)
+{
+	if (UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue())
+	{
+		RenderTargetValue->SetClearColor(InHighlightColor);
+	}
+}
+
 ETextJustify::Type UDMRenderTargetTextRenderer::GetJustify() const
 {
 	return Justify;
@@ -195,40 +382,6 @@ void UDMRenderTargetTextRenderer::SetJustify(ETextJustify::Type InJustify)
 	}
 
 	Justify = InJustify;
-
-	AsyncUpdateRenderTarget();
-}
-
-float UDMRenderTargetTextRenderer::GetKerning() const
-{
-	return Kerning;
-}
-
-void UDMRenderTargetTextRenderer::SetKerning(float InKerning)
-{
-	if (Kerning == InKerning)
-	{
-		return;
-	}
-
-	Kerning = InKerning;
-
-	UpdateTextureSize();
-}
-
-const FLinearColor& UDMRenderTargetTextRenderer::GetOutlineColor() const
-{
-	return OutlineColor;
-}
-
-void UDMRenderTargetTextRenderer::SetOutlineColor(const FLinearColor& InOutlineColor)
-{
-	if (OutlineColor == InOutlineColor)
-	{
-		return;
-	}
-
-	OutlineColor = InOutlineColor;
 
 	AsyncUpdateRenderTarget();
 }
@@ -247,7 +400,9 @@ void UDMRenderTargetTextRenderer::SetLineHeight(float InLineHeight)
 
 	LineHeight = InLineHeight;
 
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
+
 }
 
 float UDMRenderTargetTextRenderer::GetPaddingLeft() const
@@ -264,7 +419,8 @@ void UDMRenderTargetTextRenderer::SetPaddingLeft(float InPaddingLeft)
 
 	PaddingLeft = InPaddingLeft;
 
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
 }
 
 float UDMRenderTargetTextRenderer::GetPaddingRight() const
@@ -281,7 +437,8 @@ void UDMRenderTargetTextRenderer::SetPaddingRight(float InPaddingRight)
 
 	PaddingRight = InPaddingRight;
 
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
 }
 
 float UDMRenderTargetTextRenderer::GetPaddingTop() const
@@ -298,7 +455,8 @@ void UDMRenderTargetTextRenderer::SetPaddingTop(float InPaddingTop)
 
 	PaddingTop = InPaddingTop;
 
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
 }
 
 float UDMRenderTargetTextRenderer::GetPaddingBottom() const
@@ -315,78 +473,43 @@ void UDMRenderTargetTextRenderer::SetPaddingBottom(float InPaddingBottom)
 
 	PaddingBottom = InPaddingBottom;
 
-	UpdateTextureSize();
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
 }
 
-const FIntPoint& UDMRenderTargetTextRenderer::GetTextScale() const
+bool UDMRenderTargetTextRenderer::IsOverridingRenderTargetSize() const
 {
-	return TextScale;
+	return bOverrideRenderTargetSize;
 }
 
-void UDMRenderTargetTextRenderer::SetTextScale(const FIntPoint& InTextScale)
+void UDMRenderTargetTextRenderer::SetOverrideRenderTargetSize(bool bInOverride)
 {
-	FIntPoint NewTextScale = InTextScale;
-	NewTextScale.X = FMath::Clamp(InTextScale.X, 1, UE::DynamicMaterial::Private::MaxTexScale.X);
-	NewTextScale.Y = FMath::Clamp(InTextScale.Y, 1, UE::DynamicMaterial::Private::MaxTexScale.Y);
-
-	if (TextScale == NewTextScale)
+	if (bOverrideRenderTargetSize == bInOverride)
 	{
 		return;
 	}
 
-	TextScale = NewTextScale;
+	bOverrideRenderTargetSize = bInOverride;
 
-	UpdateTextureSize();
-}
-
-const FIntPoint& UDMRenderTargetTextRenderer::GetTextureSizeOverride() const
-{
-	return TextureSizeOverride;
-}
-
-void UDMRenderTargetTextRenderer::SetTextureSizeOverride(const FIntPoint& InTextureSizeOverride)
-{
-	if (TextureSizeOverride == InTextureSizeOverride)
-	{
-		return;
-	}
-
-	TextureSizeOverride = InTextureSizeOverride;
-
-	UpdateTextureSize();
-}
-
-bool UDMRenderTargetTextRenderer::GetHasOutline() const
-{
-	return bOutline;
-}
-
-void UDMRenderTargetTextRenderer::SetHasOutline(bool bInHasOutline)
-{
-	if (bOutline == bInHasOutline)
-	{
-		return;
-	}
-
-	bOutline = bInHasOutline;
-
+	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
 bool UDMRenderTargetTextRenderer::GetHasShadow() const
 {
-	return bShadow;
+	return bHasShadow;
 }
 
 void UDMRenderTargetTextRenderer::SetHasShadow(bool bInHasShadow)
 {
-	if (bShadow == bInHasShadow)
+	if (bHasShadow == bInHasShadow)
 	{
 		return;
 	}
 
-	bShadow = bInHasShadow;
+	bHasShadow = bInHasShadow;
 
+	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
@@ -421,134 +544,131 @@ void UDMRenderTargetTextRenderer::SetShadowOffset(const FVector2D& InShadowOffse
 
 	ShadowOffset = InShadowOffset;
 
+	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
-bool UDMRenderTargetTextRenderer::GetHasGlow() const
+bool UDMRenderTargetTextRenderer::GetAutoWrapText() const
 {
-	return bGlow;
+	return bAutoWrapText;
 }
 
-void UDMRenderTargetTextRenderer::SetHasGlow(bool bInHasGlow)
+void UDMRenderTargetTextRenderer::SetAutoWrapText(bool bInAutoWrap)
 {
-	if (bGlow == bInHasGlow)
+	if (bAutoWrapText == bInAutoWrap)
 	{
 		return;
 	}
 
-	bGlow = bInHasGlow;
+	bAutoWrapText = bInAutoWrap;
 
+	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
-const FLinearColor& UDMRenderTargetTextRenderer::GetGlowColor() const
+float UDMRenderTargetTextRenderer::GetWrapTextAt() const
 {
-	return GlowColor;
+	return WrapTextAt;
 }
 
-void UDMRenderTargetTextRenderer::SetGlowColor(const FLinearColor& InGlowColor)
+void UDMRenderTargetTextRenderer::SetWrapTextAt(float InWrapAt)
 {
-	if (GlowColor == InGlowColor)
+	if (WrapTextAt == InWrapAt)
 	{
 		return;
 	}
 
-	GlowColor = InGlowColor;
+	WrapTextAt = InWrapAt;
 
+	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
-const FVector2D& UDMRenderTargetTextRenderer::GetGlowInnerRadius() const
+ETextWrappingPolicy UDMRenderTargetTextRenderer::GetWrappingPolicy() const
 {
-	return GlowInnerRadius;
+	return WrappingPolicy;
 }
 
-void UDMRenderTargetTextRenderer::SetGlowInnerRadius(const FVector2D& InGlowInnerRadius)
+void UDMRenderTargetTextRenderer::SetWrappingPolicy(ETextWrappingPolicy InWrappingPolicy)
 {
-	if (GlowInnerRadius == InGlowInnerRadius)
+	if (WrappingPolicy == InWrappingPolicy)
 	{
 		return;
 	}
 
-	GlowInnerRadius = InGlowInnerRadius;
+	WrappingPolicy = InWrappingPolicy;
 
+	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
-const FVector2D& UDMRenderTargetTextRenderer::GetGlowOuterRadius() const
+ETextTransformPolicy UDMRenderTargetTextRenderer::GetTransformPolicy() const
 {
-	return GlowOuterRadius;
+	return TransformPolicy;
 }
 
-void UDMRenderTargetTextRenderer::SetGlowOuterRadius(const FVector2D& InGlowOuterRadius)
+void UDMRenderTargetTextRenderer::SetTransformPolicy(ETextTransformPolicy InTransformPolicy)
 {
-	if (GlowOuterRadius == InGlowOuterRadius)
+	if (TransformPolicy == InTransformPolicy)
 	{
 		return;
 	}
 
-	GlowOuterRadius = InGlowOuterRadius;
+	TransformPolicy = InTransformPolicy;
+
+	bRecalculateTextSize = true;
+	AsyncUpdateRenderTarget();
+}
+
+ETextFlowDirection UDMRenderTargetTextRenderer::GetFlowDirection() const
+{
+	return FlowDirection;
+}
+
+void UDMRenderTargetTextRenderer::SetFlowDirection(ETextFlowDirection InFlowDirection)
+{
+	if (FlowDirection == InFlowDirection)
+	{
+		return;
+	}
+
+	FlowDirection = InFlowDirection;
 
 	AsyncUpdateRenderTarget();
 }
 
-void UDMRenderTargetTextRenderer::CalculateLineSizes()
+ETextShapingMethod UDMRenderTargetTextRenderer::GetShapingMethod() const
 {
-	FTextSizingParameters Params(0, 0, 0, 0, Font);
-	Params.Scaling = FVector2D(1, 1);
-
-	for (FDMTextLine& Line : Lines)
-	{
-		Params.DrawXL = 0;
-		Params.DrawYL = 0;
-
-		UCanvas::CanvasStringSize(Params, *Line.Line);
-
-		int32 RequiredWidth = Params.DrawXL;
-		RequiredWidth += Line.Line.Len() > 0 ? ((Line.Line.Len() - 1) * Kerning) : 0;
-
-		Line.Width = RequiredWidth;
-	}
+	return ShapingMethod;
 }
 
-FIntPoint UDMRenderTargetTextRenderer::GetRequiredTextureSize() const
+void UDMRenderTargetTextRenderer::SetShapingMethod(ETextShapingMethod InShapingMethod)
 {
-	if (TextureSizeOverride.X > 0 && TextureSizeOverride.Y > 0)
+	if (ShapingMethod == InShapingMethod)
 	{
-		return TextureSizeOverride;
+		return;
 	}
 
-	if (!IsValid(Font) || Lines.IsEmpty())
+	ShapingMethod = InShapingMethod;
+
+	AsyncUpdateRenderTarget();
+}
+
+const TInstancedStruct<FSlateBrush>& UDMRenderTargetTextRenderer::GetStrikeBrush() const
+{
+	return StrikeBrush;
+}
+
+void UDMRenderTargetTextRenderer::SetStrikeBrush(const TInstancedStruct<FSlateBrush>& InStrikeBrush)
+{
+	if (StrikeBrush == InStrikeBrush)
 	{
-		return UE::DynamicMaterial::Private::MinimumTextTextureSize;
+		return;
 	}
 
-	const float MaxCharHeight = Font->GetMaxCharHeight();
+	StrikeBrush = InStrikeBrush;
 
-	if (MaxCharHeight <= 0)
-	{
-		return UE::DynamicMaterial::Private::MinimumTextTextureSize;
-	}
-
-	FVector2f Size = FVector2f::ZeroVector;
-
-	for (const FDMTextLine& Line : Lines)
-	{
-		Size.X = FMath::Max(Size.X, Line.Width);
-		Size.Y += MaxCharHeight * LineHeight;
-	}
-
-	Size.X += PaddingLeft + PaddingRight;
-	Size.Y += PaddingTop + PaddingBottom;
-
-	Size.X = FMath::Max(Size.X, UE::DynamicMaterial::Private::MinimumTextTextureSize.X);
-	Size.Y = FMath::Max(Size.Y, UE::DynamicMaterial::Private::MinimumTextTextureSize.Y);
-
-	FIntPoint RequiredSize = FIntPoint::ZeroValue;
-	RequiredSize.X = FMath::CeilToInt(Size.X * TextScale.X);
-	RequiredSize.Y = FMath::CeilToInt(Size.Y * TextScale.Y);
-
-	return RequiredSize;
+	AsyncUpdateRenderTarget();
 }
 
 void UDMRenderTargetTextRenderer::UpdateTextLines()
@@ -567,55 +687,59 @@ void UDMRenderTargetTextRenderer::UpdateTextLines()
 			NewLine.LeftChopInline(1);
 		}
 
-		Lines.Add({NewLine, -1.f});
-	}
+		TSharedRef<STextBlock> TextBlock = CreateTextWidget(FText::FromString(NewLine));
+
+		Lines.Emplace(NewLine, TextBlock->ComputeDesiredSize(1.f).X, TextBlock);
+	}	
 
 	bRecalculateTextSize = true;
 	AsyncUpdateRenderTarget();
 }
 
-FCanvasTextItem UDMRenderTargetTextRenderer::CreateTextItem(const FVector2D& InPosition, const FText& InText) const
+TSharedRef<STextBlock> UDMRenderTargetTextRenderer::CreateTextWidget(const FText& InText) const
 {
-	FCanvasTextItem TextItem(InPosition, InText, Font, TextColor);
-
-	TextItem.BlendMode = SE_BLEND_Translucent; // Must be translucent for fonts!
-	TextItem.HorizSpacingAdjust = Kerning;
-
-	if (bOutline)
-	{
-		TextItem.bOutlined = true;
-		TextItem.OutlineColor = OutlineColor;
-	}
-	else
-	{
-		TextItem.bOutlined = false;
-	}
-
-	if (bShadow)
-	{
-		TextItem.EnableShadow(ShadowColor, ShadowOffset);
-	}
-	else
-	{
-		TextItem.DisableShadow();
-	}
-
-	if (bGlow)
-	{
-		TextItem.FontRenderInfo.GlowInfo.bEnableGlow = true;
-		TextItem.FontRenderInfo.GlowInfo.GlowColor = GlowColor;
-		TextItem.FontRenderInfo.GlowInfo.GlowInnerRadius = GlowInnerRadius;
-		TextItem.FontRenderInfo.GlowInfo.GlowOuterRadius = GlowOuterRadius;
-	}
-	else
-	{
-		TextItem.FontRenderInfo.GlowInfo.bEnableGlow = false;
-	}
-
-	return TextItem;
+	return SNew(STextBlock)
+		.Font(FontInfo)
+		.Text(Text)
+		.LineHeightPercentage(LineHeight)
+		.ColorAndOpacity(TextColor)
+		.HighlightColor(bHasHighlight ? HighlightColor : TAttribute<FLinearColor>())
+		.ShadowColorAndOpacity(bHasShadow ? ShadowColor : TAttribute<FLinearColor>())
+		.ShadowOffset(bHasShadow ? ShadowOffset : TAttribute<FVector2D>())
+		.Justification(Justify)
+		.TransformPolicy(TransformPolicy)
+		.TextFlowDirection(FlowDirection)
+		.TextShapingMethod(ShapingMethod)
+		.StrikeBrush(StrikeBrush.GetPtr<FSlateBrush>())
+		.Margin(FMargin(PaddingLeft, PaddingTop, PaddingRight, PaddingBottom))
+		.AutoWrapText(bAutoWrapText)
+		.WrappingPolicy(bAutoWrapText ? WrappingPolicy : TAttribute<ETextWrappingPolicy>())
+		.WrapTextAt(bAutoWrapText ? WrapTextAt : TAttribute<float>());
 }
 
-void UDMRenderTargetTextRenderer::UpdateTextureSize()
+void UDMRenderTargetTextRenderer::CreateWidgetInstance()
+{
+	TSharedRef<SVerticalBox> NewWidget = SNew(SVerticalBox);
+
+	for (FDMTextLine& Line : Lines)
+	{
+		if (!Line.Widget.IsValid())
+		{
+			Line.Widget = CreateTextWidget(FText::FromString(Line.Line));
+			Line.Width = Line.Widget->ComputeDesiredSize(1.f).X;
+		}
+
+		NewWidget->AddSlot()
+			.AutoHeight()
+			[
+				Line.Widget.ToSharedRef()
+			];
+	}
+
+	Widget = NewWidget;
+}
+
+void UDMRenderTargetTextRenderer::SetCustomTextureSize()
 {
 	UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue();
 
@@ -624,112 +748,34 @@ void UDMRenderTargetTextRenderer::UpdateTextureSize()
 		return;
 	}
 
-	const FIntPoint RequiredSize = GetRequiredTextureSize();
+	if (!Widget.IsValid())
+	{
+		return;
+	}
 
-	RenderTargetValue->SetTextureSize(RequiredSize);
+	Widget->SlatePrepass(1.f);
+	const FVector2D Size = Widget->GetDesiredSize();
+
+	RenderTargetValue->SetTextureSize(FIntPoint(FMath::RoundToInt(Size.X), FMath::RoundToInt(Size.Y)));
 	RenderTargetValue->FlushCreateRenderTarget();
 }
 
 void UDMRenderTargetTextRenderer::UpdateRenderTarget_Internal()
 {
-	Super::UpdateRenderTarget();
-
-	if (!IsValid(Font) || Lines.IsEmpty())
+	if (Text.IsEmpty())
 	{
 		return;
 	}
 
-	UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue();
+	UpdateTextLines();
+	CreateWidgetInstance();
 
-	if (!RenderTargetValue)
+	if (bOverrideRenderTargetSize && bRecalculateTextSize)
 	{
-		return;
+		SetCustomTextureSize();
 	}
 
-	if (bRecalculateTextSize)
-	{
-		CalculateLineSizes();
-		UpdateTextureSize();
-	}
-
-	UTextureRenderTarget2D* RenderTarget = RenderTargetValue->GetRenderTarget();
-
-	if (!RenderTarget)
-	{
-		return;
-	}
-
-	RenderTarget->UpdateResourceImmediate(true);
-
-	FTextureRenderTargetResource* RenderTargetResource = RenderTarget->GameThread_GetRenderTargetResource();
-
-	if (!RenderTargetResource)
-	{
-		return;
-	}
-
-	static const FGameTime GameTime = FGameTime::CreateUndilated(0, 0);
-
-	FCanvas RenderCanvas(
-		RenderTargetResource,
-		nullptr,
-		GameTime,
-		GEngine->GetDefaultWorldFeatureLevel(),
-		FCanvas::ECanvasDrawMode::CDM_ImmediateDrawing
-	);
-
-	const FVector2D RenderTargetSize = FVector2D(RenderTarget->SizeX, RenderTarget->SizeY);
-
-	FCanvasTileItem TileItem = FCanvasTileItem(FVector2D::ZeroVector, RenderTargetSize, RenderTarget->ClearColor);
-	RenderCanvas.DrawItem(TileItem);
-
-	const float MaxCharHeight = Font->GetMaxCharHeight();
-
-	FCanvasTextItem TextItem = CreateTextItem(FVector2D::ZeroVector, FText::GetEmpty());
-
-	const float LeftOffset = PaddingLeft * static_cast<float>(TextScale.X);
-	const float RightOffset = PaddingRight * static_cast<float>(TextScale.X);
-
-	TextItem.Position.X = LeftOffset;
-	TextItem.Position.Y = PaddingTop * static_cast<float>(TextScale.Y);
-	TextItem.Scale.X = static_cast<float>(TextScale.X);
-	TextItem.Scale.Y = static_cast<float>(TextScale.Y);
-
-	if (!FMath::IsNearlyEqual(LineHeight, 1.f))
-	{
-		TextItem.Position.Y += MaxCharHeight * (LineHeight - 1.f) * 0.5f * static_cast<float>(TextScale.Y);
-	}
-
-	const float ActualLineHeight = MaxCharHeight * LineHeight * static_cast<float>(TextScale.Y);
-
-	for (const FDMTextLine& Line : Lines)
-	{
-		switch (Justify)
-		{
-			default:
-			case ETextJustify::Left:
-			case ETextJustify::InvariantLeft:
-				TextItem.Position.X = LeftOffset;
-				break;
-
-			case ETextJustify::Center:
-				TextItem.Position.X = (RenderTarget->SizeX - (Line.Width * TextItem.Scale.X)) * 0.5f;
-				break;
-
-			case ETextJustify::Right:
-			case ETextJustify::InvariantRight:
-				TextItem.Position.X = RenderTarget->SizeX - (Line.Width * TextItem.Scale.X) - RightOffset;
-				break;
-		}
-
-		TextItem.Text = FText::FromString(Line.Line);
-		RenderCanvas.DrawItem(TextItem);
-		TextItem.Position.Y += ActualLineHeight;
-	}
-
-	RenderCanvas.Flush_GameThread();
-
-	RenderTarget->UpdateResourceImmediate(false);
+	Super::UpdateRenderTarget_Internal();
 }
 
 #undef LOCTEXT_NAMESPACE
