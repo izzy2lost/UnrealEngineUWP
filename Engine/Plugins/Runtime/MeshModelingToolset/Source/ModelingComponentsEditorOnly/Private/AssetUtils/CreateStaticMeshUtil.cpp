@@ -76,6 +76,7 @@ UE::AssetUtils::ECreateStaticMeshResult UE::AssetUtils::CreateStaticMeshAsset(
 		BuildSettings.bRecomputeTangents = Options.bEnableRecomputeTangents;
 		BuildSettings.bGenerateLightmapUVs = Options.bGenerateLightmapUVs;
 		BuildSettings.bUseFullPrecisionUVs = Options.bUseFullPrecisionUVs;
+		BuildSettings.bBuildReversedIndexBuffer = Options.bBuildReversedIndexBuffer;
 		
 		if (!Options.bAllowDistanceField)
 		{

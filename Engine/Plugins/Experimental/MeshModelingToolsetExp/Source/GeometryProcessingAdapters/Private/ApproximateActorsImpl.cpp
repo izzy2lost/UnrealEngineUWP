@@ -1399,6 +1399,8 @@ UStaticMesh* FApproximateActorsImpl::EmitGeneratedMeshAsset(
 	MeshAssetOptions.bGenerateLightmapUVs = Options.bGenerateLightmapUVs;
 	MeshAssetOptions.bCreatePhysicsBody = Options.bCreatePhysicsBody;
 
+	MeshAssetOptions.bBuildReversedIndexBuffer = Options.bBuildReversedIndexBuffer;
+
 	if (Material)
 	{
 		MeshAssetOptions.AssetMaterials.Add(Material);

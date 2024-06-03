@@ -96,6 +96,9 @@ namespace AssetUtils
 
 		// by default, PostEditChange() will be called to rebuild mesh, set true to skip this call
 		bool bDeferPostEditChange = false;
+
+		// Whether to build a reversed index buffer. Will double the memory usage of indices.
+		bool bBuildReversedIndexBuffer = true;
 	};
 
 	/**
