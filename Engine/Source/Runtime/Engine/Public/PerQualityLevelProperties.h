@@ -47,10 +47,22 @@ namespace QualityLevelProperty
 	ENGINE_API FName QualityLevelToFName(int32 QL);
 	ENGINE_API int32 FNameToQualityLevel(FName QL);
 	template<typename _ValueType>
-	ENGINE_API TMap<int32, _ValueType> ConvertQualtiyLevelData(const TMap<EPerQualityLevels, _ValueType>& Data);
+	ENGINE_API TMap<int32, _ValueType> ConvertQualityLevelData(const TMap<EPerQualityLevels, _ValueType>& Data);
 	template<typename _ValueType>
-	ENGINE_API TMap<EPerQualityLevels, _ValueType> ConvertQualtiyLevelData(const TMap<int32, _ValueType>& Data);
-	
+	UE_DEPRECATED(5.5, "Use ConvertQualityLevelData.")
+	TMap<int32, _ValueType> ConvertQualtiyLevelData(const TMap<EPerQualityLevels, _ValueType>& Data)
+	{
+		return ConvertQualityLevelData(Data);
+	}
+	template<typename _ValueType>
+	ENGINE_API TMap<EPerQualityLevels, _ValueType> ConvertQualityLevelData(const TMap<int32, _ValueType>& Data);
+	template<typename _ValueType>
+	UE_DEPRECATED(5.5, "Use ConvertQualityLevelData.")
+	TMap<EPerQualityLevels, _ValueType> ConvertQualtiyLevelData(const TMap<int32, _ValueType>& Data)
+	{
+		return ConvertQualityLevelData(Data);
+	}
+
 #if WITH_EDITOR
 	ENGINE_API TArray<FName> GetEnginePlatformsForPlatformOrGroupName(const FString& InPlatformName);
 	ENGINE_API FSupportedQualityLevelArray PerPlatformOverrideMapping(FString& InPlatformName);
@@ -91,7 +103,12 @@ struct FPerQualityLevelProperty
 #if WITH_EDITOR
 	int32 GetValueForPlatform(const ITargetPlatform* TargetPlatform) const;
 	FSupportedQualityLevelArray GetSupportedQualityLevels(const TCHAR* InPlatformName = nullptr) const;
-	void StripQualtiyLevelForCooking(const TCHAR* InPlatformName = nullptr);
+	void StripQualityLevelForCooking(const TCHAR* InPlatformName = nullptr);
+	UE_DEPRECATED(5.5, "Use StripQualityLevelForCooking")
+	void StripQualtiyLevelForCooking(const TCHAR* InPlatformName = nullptr)
+	{
+		StripQualityLevelForCooking(InPlatformName);
+	}
 	bool IsQualityLevelValid(int32 QualityLevel) const;
 	void ConvertQualityLevelData(const TMap<FName, _ValueType>& PlatformData, const TMultiMap<FName, FName>& PerPlatformToQualityLevel, _ValueType Default);
 	UE_DEPRECATED(5.5, "Use ConvertQualityLevelData")
@@ -114,7 +131,7 @@ struct FPerQualityLevelProperty
 		CVarName = FString(InCVarName);
 	}
 
-	UE_DEPRECATED(5.4, "If no cvar is associated with the property, all quality levels will be keept when cooking. Call SetQualtiyLevelCVarForCooking to strip unsupported quality levels when cooking")
+	UE_DEPRECATED(5.4, "If no cvar is associated with the property, all quality levels will be keept when cooking. Call SetQualityLevelCVarForCooking to strip unsupported quality levels when cooking")
 	void Init(const TCHAR* InCVarName, const TCHAR* InSection)
 	{
 		SetQualityLevelCVarForCooking(InCVarName, InSection);

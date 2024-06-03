@@ -18,7 +18,7 @@ namespace QualityLevelProperty
 	static FString QualityLevelMappingStr = TEXT("QualityLevelMapping");
 
 	template<typename _ValueType>
-	TMap<int32, _ValueType> ConvertQualtiyLevelData(const TMap<EPerQualityLevels, _ValueType>& Data)
+	TMap<int32, _ValueType> ConvertQualityLevelData(const TMap<EPerQualityLevels, _ValueType>& Data)
 	{
 		TMap<int32, _ValueType> ConvertedData;
 
@@ -31,7 +31,7 @@ namespace QualityLevelProperty
 	}
 
 	template<typename _ValueType>
-	TMap<EPerQualityLevels, _ValueType> ConvertQualtiyLevelData(const TMap<int32, _ValueType>& Data)
+	TMap<EPerQualityLevels, _ValueType> ConvertQualityLevelData(const TMap<int32, _ValueType>& Data)
 	{
 		TMap<EPerQualityLevels, _ValueType> ConvertedData;
 
@@ -321,7 +321,7 @@ FSupportedQualityLevelArray FPerQualityLevelProperty<StructType, ValueType, _Bas
 }
 
 template<typename StructType, typename ValueType, EName _BasePropertyName>
-void FPerQualityLevelProperty<StructType, ValueType, _BasePropertyName>::StripQualtiyLevelForCooking(const TCHAR* InPlatformName)
+void FPerQualityLevelProperty<StructType, ValueType, _BasePropertyName>::StripQualityLevelForCooking(const TCHAR* InPlatformName)
 {
 	StructType* This = StaticCast<StructType*>(this);
 	if (This->PerQuality.Num() > 0 && !CVarName.IsEmpty())
@@ -424,7 +424,7 @@ ENGINE_API FArchive& operator<<(FArchive& Ar, FPerQualityLevelProperty<StructTyp
 	{
 		bCooked = true;
 		const FDataDrivenPlatformInfo& PlatformInfo = Ar.CookingTarget()->GetPlatformInfo();
-		This->StripQualtiyLevelForCooking(*(PlatformInfo.IniPlatformName.ToString()));
+		This->StripQualityLevelForCooking(*(PlatformInfo.IniPlatformName.ToString()));
 	}
 #endif
 	{
@@ -449,7 +449,7 @@ ENGINE_API void operator<<(FStructuredArchive::FSlot Slot, FPerQualityLevelPrope
 	if (UnderlyingArchive.IsCooking())
 	{
 		bCooked = true;
-		This->StripQualtiyLevelForCooking(*(UnderlyingArchive.CookingTarget()->GetPlatformInfo().IniPlatformName.ToString()));
+		This->StripQualityLevelForCooking(*(UnderlyingArchive.CookingTarget()->GetPlatformInfo().IniPlatformName.ToString()));
 	}
 #endif
 	{
@@ -465,13 +465,13 @@ template ENGINE_API void operator<<(FStructuredArchive::FSlot Slot, FPerQualityL
 #if WITH_EDITOR
 template ENGINE_API int32 FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::GetValueForPlatform(const ITargetPlatform* TargetPlatform) const;
 template ENGINE_API FSupportedQualityLevelArray FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::GetSupportedQualityLevels(const TCHAR* InPlatformName) const;
-template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::StripQualtiyLevelForCooking(const TCHAR* InPlatformName);
+template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::StripQualityLevelForCooking(const TCHAR* InPlatformName);
 template ENGINE_API bool FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::IsQualityLevelValid(int32 QualityLevel) const;
 template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::ConvertQualityLevelData(const TMap<FName, int32>& PlaformData, const TMultiMap<FName, FName>& PerPlatformToQualityLevel, int32 Default);
 template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::ConvertQualityLevelDataUsingCVar(const TMap<FName, int32>& PlaformData, int32 Default, bool);
 #endif
-template TMap<int32, int32> QualityLevelProperty::ConvertQualtiyLevelData(const TMap<EPerQualityLevels, int32>& Data);
-template TMap<EPerQualityLevels, int32> QualityLevelProperty::ConvertQualtiyLevelData(const TMap<int32, int32>& Data);
+template TMap<int32, int32> QualityLevelProperty::ConvertQualityLevelData(const TMap<EPerQualityLevels, int32>& Data);
+template TMap<EPerQualityLevels, int32> QualityLevelProperty::ConvertQualityLevelData(const TMap<int32, int32>& Data);
 template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::Init(const TCHAR* InCVarName, const TCHAR* InSection);
 template ENGINE_API int32 FPerQualityLevelProperty<FPerQualityLevelInt, int32, NAME_IntProperty>::GetValue(int32 QualityLevel) const;
 
@@ -499,13 +499,13 @@ template ENGINE_API void operator<<(FStructuredArchive::FSlot Slot, FPerQualityL
 #if WITH_EDITOR
 template int32 FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::GetValueForPlatform(const ITargetPlatform* TargetPlatform) const;
 template FSupportedQualityLevelArray FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::GetSupportedQualityLevels(const TCHAR* InPlatformName) const;
-template void FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::StripQualtiyLevelForCooking(const TCHAR* InPlatformName);
+template void FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::StripQualityLevelForCooking(const TCHAR* InPlatformName);
 template bool FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::IsQualityLevelValid(int32 QualityLevel) const;
 template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::ConvertQualityLevelData(const TMap<FName, float>& PlaformData, const TMultiMap<FName, FName>& PerPlatformToQualityLevel, float Default);
 template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::ConvertQualityLevelDataUsingCVar(const TMap<FName, float>& PlaformData, float Default, bool);
 #endif
-template TMap<int32, float> QualityLevelProperty::ConvertQualtiyLevelData(const TMap<EPerQualityLevels, float>&Data);
-template TMap<EPerQualityLevels, float> QualityLevelProperty::ConvertQualtiyLevelData(const TMap<int32, float>& Data);
+template TMap<int32, float> QualityLevelProperty::ConvertQualityLevelData(const TMap<EPerQualityLevels, float>&Data);
+template TMap<EPerQualityLevels, float> QualityLevelProperty::ConvertQualityLevelData(const TMap<int32, float>& Data);
 template ENGINE_API void FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::Init(const TCHAR* InCVarName, const TCHAR* InSection);
 template ENGINE_API float FPerQualityLevelProperty<FPerQualityLevelFloat, float, NAME_FloatProperty>::GetValue(int32 QualityLevel) const;
 
