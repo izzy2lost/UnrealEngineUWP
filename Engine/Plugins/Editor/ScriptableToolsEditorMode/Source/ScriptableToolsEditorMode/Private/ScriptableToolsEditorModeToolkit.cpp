@@ -365,7 +365,9 @@ void FScriptableToolsEditorModeToolkit::BuildToolPalette(FName PaletteIndex, cla
 			return;
 		}
 
-		FString ToolIdentifier = ToolClass->GetName();
+		
+		FString ToolIdentifier;
+		ToolClass->GetClassPathName().ToString(ToolIdentifier);
 
 		TSharedPtr<FUIAction> NewAction = MakeShared<FUIAction>(
 		FExecuteAction::CreateLambda([this, ToolClass, ToolIdentifier, ToolManager]()
