@@ -260,6 +260,8 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool StopCompilationAfterErrors = false;
 
+		public int CompletedActions { get => _completedActions; }
+
 		/// <summary>
 		/// Return true if the queue is done
 		/// </summary>
@@ -453,6 +455,22 @@ namespace UnrealBuildTool
 		private void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
 		{
 			Console.CancelKeyPress -= CancelKeyPress;
+
+			// We must do this and can't rely on that there are active processes that are cancelled causing a cascading cancel (force remote actions and no remote workers)
+			int completedActions = 0;
+			lock (Actions)
+			{
+				for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
+				{
+					if (Actions[actionIndex].Status == ActionStatus.Queued)
+					{
+						Actions[actionIndex].Status = ActionStatus.Error;
+						++completedActions;
+					}
+				}
+			}
+			AddCompletedActions(completedActions);
+
 			if (!CancellationTokenSource.IsCancellationRequested)
 			{
 				Logger.LogWarning("Canceling actions...");
@@ -869,7 +887,10 @@ namespace UnrealBuildTool
 		/// <param name="action">Action being re-queued</param>
 		public void RequeueAction(LinkedAction action)
 		{
-			SetActionState(action, ActionStatus.Queued, null);
+			if (!CancellationTokenSource.IsCancellationRequested)
+			{
+				SetActionState(action, ActionStatus.Queued, null);
+			}
 		}
 
 		/// <summary>
