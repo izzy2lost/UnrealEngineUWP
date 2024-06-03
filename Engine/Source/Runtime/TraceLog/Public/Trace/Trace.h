@@ -81,7 +81,18 @@ using OnConnectFunc = void(void);
 
 enum class EMessageType : uint8
 {
-	Reserved = 0,
+	Reserved			= 0,
+	// Add to log
+	Log,
+	// For backwards compatibility
+	Info = Log,
+	// Display in console or similar
+	Display,
+	// Warnings to notify user
+	WarningStart		= 0x04,
+	// Errors are critical to the user, but application
+	// can continue to run.
+	ErrorStart			= 0x10,
 	WriteError,
 	ReadError,
 	ConnectError,
@@ -89,7 +100,9 @@ enum class EMessageType : uint8
 	EstablishError,
 	FileOpenError,
 	WriterError,
-	Info				= 0xff,
+	// Fatal errors should cause application to stop
+	FatalStart			= 0x40,
+	OOMFatal,
 };
 	
 struct FMessageEvent

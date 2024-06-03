@@ -251,6 +251,11 @@ void* Writer_MemoryAllocate(SIZE_T Size, uint32 Alignment)
 	}
 #endif // TRACE_PRIVATE_STOMP
 
+	if (Ret == nullptr)
+	{
+		UE_TRACE_MESSAGE_F(OOMFatal, "OOM allocating %llu bytes", uint64(Size));
+	}
+
 #if TRACE_PRIVATE_STATISTICS
 	AtomicAddRelaxed(&GTraceStatistics.MemoryUsed, uint64(Size));
 #endif

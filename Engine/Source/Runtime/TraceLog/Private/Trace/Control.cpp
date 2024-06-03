@@ -134,7 +134,7 @@ static bool Writer_ControlListen()
 		return false;
 	}
 
-	UE_TRACE_MESSAGE_F(Info, "Control listening on port %u", GControlPort);
+	UE_TRACE_MESSAGE_F(Display, "Control listening on port %u", GControlPort);
 	GControlState = EControlState::Listening;
 	return true;
 }

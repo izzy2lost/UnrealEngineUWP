@@ -844,34 +844,47 @@ void OnConnectionCallback()
 ////////////////////////////////////////////////////////////////////////////////
 void OnMessageCallback(const UE::Trace::FMessageEvent& Message)
 {
+	#define LOG_WITH_VERBOSITY(Verbosity, Text) \
+		UE_LOG(LogTrace, Verbosity, TEXT("%s"), Text)
+
 	const auto TypeStr = StringCast<TCHAR>(Message.TypeStr);
+	TStringBuilder<128> LogStr;
+	if (Message.Description != nullptr)
+	{
+		LogStr << Message.TypeStr << TEXT(" ") << Message.Description;
+	}
+	else
+	{
+		LogStr << Message.TypeStr;
+	}
+	
 	switch(Message.Type)
 	{
-	// Information to the user
-	case UE::Trace::EMessageType::Info:
-		{
-			if (Message.Description != nullptr)
-			{
-				const auto Description = StringCast<TCHAR>(Message.Description);
-				UE_LOG(LogTrace, Display, TEXT("%s"), Description.Get());
-			}
-		}
+	case UE::Trace::EMessageType::Log:
+		LOG_WITH_VERBOSITY(Log, LogStr.ToString());
 		break;
-	// By default treated as errors	
+	case UE::Trace::EMessageType::Display:
+		LOG_WITH_VERBOSITY(Display, LogStr.ToString());
+		break;
 	default:
 		{
-			if (Message.Description != nullptr)
+			if (Message.Type > UE::Trace::EMessageType::FatalStart)
 			{
-				const auto Description = StringCast<TCHAR>(Message.Description);
-				UE_LOG(LogTrace, Error, TEXT("%s %s"), TypeStr.Get(), Description.Get());
+				LOG_WITH_VERBOSITY(Fatal, LogStr.ToString());
 			}
-			else
+			else if (Message.Type > UE::Trace::EMessageType::ErrorStart)
 			{
-				UE_LOG(LogTrace, Error, TEXT("%s"), TypeStr.Get());
+				LOG_WITH_VERBOSITY(Error, LogStr.ToString());
+			}
+			else if (Message.Type > UE::Trace::EMessageType::WarningStart)
+			{
+				LOG_WITH_VERBOSITY(Warning, LogStr.ToString());
 			}
 		}
 		break;
 	}
+	
+	#undef LOG_WITH_VERBOSITY
 }
 
 ////////////////////////////////////////////////////////////////////////////////
