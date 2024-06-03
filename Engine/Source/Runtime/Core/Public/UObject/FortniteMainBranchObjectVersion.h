@@ -491,6 +491,9 @@ struct FFortniteMainBranchObjectVersion
 
 		// Fix chaos cloth buckling stiffness parameter bug 
 		ChaosClothAllowZeroBucklingStiffness,
+		
+		// LevelSequenceUpgradeDynamicBindings was removed but was intended for this position. Putting this here to make sure versioning of subsequent assets remains the same
+		LevelSequenceUpgradeDynamicBindings_NoOp,
 
 		// AddToFrontend GFA now defaults to unload plugin on exit frontend
 		GameFeatureDataActionAddToFrontendDefaultToUnload,
