@@ -266,19 +266,16 @@ void RasterizeTri_Scanline( FRasterTri Tri, FWritePixel WritePixel )
 		x0 += Tri.MinPixel.x;
 		x1 += Tri.MinPixel.x;
 
-		float x = x0;
-		while(1)
+		// NOTE: In some cases x0 > x1 and we need to avoid writing pixels in those situations
+		// or else artifacts can appear, particularly in VSM near page edges.
+		for (float x = x0; x <= x1; x++)
 		{
-			if( min3( CX0, CX1, CX2 ) >= 0 )
-				WritePixel( uint2(x,y), float3(CX0, CX1, CX2), Tri );
-
-			if( x >= x1 )
-				break;
+			if (min3(CX0, CX1, CX2) >= 0)
+				WritePixel(uint2(x, y), float3(CX0, CX1, CX2), Tri);
 
 			CX0 -= Tri.Edge12.y;
 			CX1 -= Tri.Edge20.y;
 			CX2 -= Tri.Edge01.y;
-			x++;
 		}
 
 		if( y >= Tri.MaxPixel.y )
