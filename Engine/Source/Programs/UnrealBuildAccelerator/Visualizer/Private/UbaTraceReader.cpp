@@ -279,9 +279,13 @@ namespace uba
 		}
 
 		#if 0
-		StringBuffer<> type;
-		type.Appendf(L"TraceType: %u\r\n", traceType);
-		OutputDebugString(type.data);
+		static const tchar* traceTypeNames[] =
+		{
+			#define UBA_TRACE_TYPE(name) TC(#name),
+			UBA_TRACE_TYPES
+			#undef UBA_TRACE_TYPE
+		};
+		OutputDebugString(StringBuffer<>().Appendf(L"TraceType: %s\r\n", traceTypeNames[traceType]).data);
 		#endif
 
 		switch (traceType)

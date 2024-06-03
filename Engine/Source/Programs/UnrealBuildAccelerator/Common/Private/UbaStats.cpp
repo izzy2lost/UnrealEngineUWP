@@ -193,7 +193,7 @@ namespace uba
 	{
 		if (version < 30)
 		{
-			#define UBA_STORAGE_STAT(type, var, ver) uba::Read(reader, var, version);
+			#define UBA_STORAGE_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var, version);
 			UBA_STORAGE_STATS
 			#undef UBA_STORAGE_STAT
 			return;
