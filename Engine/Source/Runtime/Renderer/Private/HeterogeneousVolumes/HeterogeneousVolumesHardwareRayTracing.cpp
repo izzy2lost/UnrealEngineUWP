@@ -223,7 +223,7 @@ void GenerateRayTracingScene(
 		RayTracingGeometryInstance.NumTransforms = 1;
 		RayTracingGeometryInstance.Transforms = MakeArrayView(&RayTracingTransforms[GeometryIndex], 1);
 
-		RayTracingScene.AddInstance(RayTracingGeometryInstance);
+		RayTracingScene.AddInstance(RayTracingGeometryInstance, ERayTracingSceneLayer::Base);
 	}
 
 	FRDGBufferDesc ScratchBufferDesc;

@@ -255,7 +255,7 @@ FRHIRayTracingScene* UE::FXRenderingUtils::RayTracing::GetRayTracingScene(const 
 {
 	if (const FScene* Scene = InScene->GetRenderScene())
 	{
-		return Scene->RayTracingScene.GetRHIRayTracingSceneChecked();
+		return Scene->RayTracingScene.GetRHIRayTracingSceneChecked(ERayTracingSceneLayer::Base);
 	}
 
 	return nullptr;

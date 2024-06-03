@@ -1083,14 +1083,14 @@ bool FViewInfo::HasRayTracingScene() const
 	return false;
 }
 
-FRHIRayTracingScene* FViewInfo::GetRayTracingSceneChecked() const
+FRHIRayTracingScene* FViewInfo::GetRayTracingSceneChecked(ERayTracingSceneLayer Layer) const
 {
 	check(Family);
 	if (Family->Scene)
 	{
 		if (FScene* Scene = Family->Scene->GetRenderScene())
 		{
-			FRHIRayTracingScene* Result = Scene->RayTracingScene.GetRHIRayTracingScene();
+			FRHIRayTracingScene* Result = Scene->RayTracingScene.GetRHIRayTracingScene(Layer);
 			checkf(Result, TEXT("Ray tracing scene is expected to be created at this point."));
 			return Result;
 		}

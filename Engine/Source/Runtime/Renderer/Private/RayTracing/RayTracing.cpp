@@ -1064,7 +1064,6 @@ namespace RayTracing
 						RayTracingInstance.DefaultUserData = InstanceSceneDataOffset;
 						RayTracingInstance.bIncrementUserDataPerInstance = true;
 						RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
-						RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
 						RayTracingInstance.Mask = SceneInfo->CachedRayTracingInstance.Mask;
 						RayTracingInstance.Flags = SceneInfo->CachedRayTracingInstance.Flags;
 						AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
@@ -1122,7 +1121,7 @@ namespace RayTracing
 
 							RayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
 
-							RayTracingScene.AddInstance(RayTracingInstance, SceneProxy, true);
+							RayTracingScene.AddInstance(RayTracingInstance, ERayTracingSceneLayer::Base, SceneProxy, true);
 						}
 
 						uint32 DecalGlobalSegmentIndex = INDEX_NONE;
@@ -1132,10 +1131,9 @@ namespace RayTracing
 							RayTracingScene.NumSegments += Instance.GetMaterials().Num();
 
 							FRayTracingGeometryInstance DecalRayTracingInstance = RayTracingInstance;
-							DecalRayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Decals;
 							DecalRayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(DecalGlobalSegmentIndex);
 
-							RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), SceneProxy, true);
+							RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), ERayTracingSceneLayer::Decals, SceneProxy, true);
 						}
 
 						if (bParallelMeshBatchSetup)
@@ -1440,9 +1438,8 @@ namespace RayTracing
 								RayTracingScene.NumSegments += RayTracingInstance.GeometryRHI->GetNumSegments();
 
 								RayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
-								RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
 
-								InstanceBatch.InstanceHandle = RayTracingScene.AddInstance(RayTracingInstance, SceneProxy, false);
+								InstanceBatch.InstanceHandle = RayTracingScene.AddInstance(RayTracingInstance, ERayTracingSceneLayer::Base, SceneProxy, false);
 							}
 
 							InstanceBatch.DecalInstanceHandle = FRayTracingScene::INVALID_INSTANCE_HANDLE;
@@ -1455,9 +1452,8 @@ namespace RayTracing
 
 								FRayTracingGeometryInstance DecalRayTracingInstance = RayTracingInstance;
 								DecalRayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(DecalGlobalSegmentIndex);
-								DecalRayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Decals;
 
-								InstanceBatch.DecalInstanceHandle = RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), SceneProxy, false);
+								InstanceBatch.DecalInstanceHandle = RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), ERayTracingSceneLayer::Decals, SceneProxy, false);
 							}
 
 							for (int32 CommandIndex : RelevantPrimitive.CachedRayTracingMeshCommandIndices)
@@ -1493,8 +1489,8 @@ namespace RayTracing
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingScene_AddCachedStaticInstances);
 					
-					const FRayTracingScene::FInstanceRange CachedStaticInstanceRange = RayTracingScene.AllocateInstanceRangeUninitialized(NumCachedStaticInstances);
-					const FRayTracingScene::FInstanceRange CachedStaticDecalInstanceRange = RayTracingScene.AllocateInstanceRangeUninitialized(NumCachedStaticDecalInstances);
+					const FRayTracingScene::FInstanceRange CachedStaticInstanceRange = RayTracingScene.AllocateInstanceRangeUninitialized(NumCachedStaticInstances, ERayTracingSceneLayer::Base);
+					const FRayTracingScene::FInstanceRange CachedStaticDecalInstanceRange = RayTracingScene.AllocateInstanceRangeUninitialized(NumCachedStaticDecalInstances, ERayTracingSceneLayer::Decals);
 					const uint32 BaseCachedVisibleMeshCommandsIndex = VisibleRayTracingMeshCommands.AddUninitialized(NumCachedStaticVisibleMeshCommands);
 					const uint32 BaseCachedGlobalSegmentIndex = RayTracingScene.NumSegments;
 					RayTracingScene.NumSegments += NumCachedStaticVisibleMeshCommands;
@@ -1543,7 +1539,6 @@ namespace RayTracing
 							const int32 InstanceIndexInRange = GatherContexts[RelevantPrimitive.ContextIndex].InstanceOffset + RelevantPrimitive.RelativeInstanceOffset;
 
 							FRayTracingGeometryInstance RayTracingInstance = *RelevantPrimitive.CachedRayTracingInstance;
-							RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
 							RayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(MainGlobalSegmentIndex);
 							AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
@@ -1555,7 +1550,6 @@ namespace RayTracing
 							const int32 DecalInstanceIndexInRange = GatherContexts[RelevantPrimitive.ContextIndex].DecalInstanceOffset + RelevantPrimitive.RelativeDecalInstanceOffset;
 
 							FRayTracingGeometryInstance DecalRayTracingInstance = *RelevantPrimitive.CachedRayTracingInstance;
-							DecalRayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Decals;
 							DecalRayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(DecalGlobalSegmentIndex);
 							AddDebugRayTracingInstanceFlags(DecalRayTracingInstance.Flags);
 
