@@ -164,7 +164,7 @@ protected:
 
 	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
-	TSharedRef<SWidget> CreateActorMaterialSlotSelector(const AActor* InActor);
+	TSharedRef<SWidget> CreateActorMaterialSlotSelector(AActor* InActor);
 
 	void OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel);
 	void OnValuesUpdated(UDynamicMaterialModel* InMaterialModel);
@@ -175,7 +175,7 @@ protected:
 	FText GetToolTipForProperty(EDMMaterialPropertyType InProperty) const;
 	void OnSlotCheckStateChanged(ECheckBoxState InCheckState, EDMMaterialPropertyType InProperty);
 
-	FReply OnCreateMaterialButtonClicked(TWeakPtr<FDMObjectMaterialProperty> InMaterialProperty);
+	FReply OnCreateMaterialButtonClicked(FDMObjectMaterialProperty InMaterialProperty);
 
 	void OnToolBarPropertyChanged(TSharedPtr<FDMObjectMaterialProperty> InNewSelectedProperty);
 	TSharedRef<SWidget> MakeToolBarSettingsMenu();
