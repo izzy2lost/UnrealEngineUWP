@@ -27,9 +27,6 @@ struct FDMTextLine
 	UPROPERTY()
 	FString Line;
 
-	UPROPERTY()
-	float Width;
-
 	TSharedPtr<STextBlock> Widget;
 };
 
