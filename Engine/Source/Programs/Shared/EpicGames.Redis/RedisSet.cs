@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -142,6 +143,19 @@ namespace EpicGames.Redis
 		public static Task<long> SetRemoveAsync<TElement>(this IDatabaseAsync target, RedisSetKey<TElement> key, TElement[] values, CommandFlags flags = CommandFlags.None)
 		{
 			return target.SetRemoveAsync(key.Inner, RedisSerializer.Serialize(values), flags);
+		}
+
+		#endregion
+
+		#region SetScanAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.SetScanAsync(RedisKey, RedisValue, int, long, int, CommandFlags)"/>
+		public static async IAsyncEnumerable<TElement> SetScanAsync<TElement>(this IDatabaseAsync target, RedisSetKey<TElement> key, RedisValue pattern = default, int pageSize = 250, long cursor = 0, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+		{
+			await foreach (RedisValue value in target.SetScanAsync(key.Inner, default, pageSize, cursor, pageOffset, flags))
+			{
+				yield return RedisSerializer.Deserialize<TElement>(value);
+			}
 		}
 
 		#endregion
