@@ -664,6 +664,11 @@ void FHttpManager::RecordMaxTimeToWaitInQueue(float Duration)
 	HttpStats.MaxTimeToWaitInQueue = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToWaitInQueue);
 }
 
+void FHttpManager::RecordPlatformStats(const FHttpStatsPlatform& PlatformStats)
+{
+	HttpStats.PlatformStats = PlatformStats;
+}
+
 void FHttpManager::UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar)
 {
 	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
