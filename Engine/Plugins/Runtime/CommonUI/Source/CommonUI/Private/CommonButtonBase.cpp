@@ -1908,6 +1908,15 @@ void UCommonButtonBase::DisableButton()
 	}
 }
 
+void UCommonButtonBase::SetRequiresHold(bool bInRequiresHold)
+{
+	bRequiresHold = bInRequiresHold;
+	if (const UCommonInputSubsystem* CommonInputSubsystem = GetInputSubsystem())
+	{
+		UpdateHoldData(CommonInputSubsystem->GetCurrentInputType());
+	}
+}
+
 void UCommonButtonBase::SetIsFocusable(bool bInIsFocusable)
 {
 	UUserWidget::SetIsFocusable(bInIsFocusable);
