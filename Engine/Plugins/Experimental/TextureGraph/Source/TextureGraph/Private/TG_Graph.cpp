@@ -581,22 +581,26 @@ void UTG_Graph::RemoveEdge(UTG_Node& NodeFrom, FTG_Name& PinFromName, UTG_Node& 
 void UTG_Graph::AppendParamsSignature(FTG_Arguments& InOutArguments, TArray<FTG_Id>& InParams,
                                       TArray<FTG_Id>& OutParams) const
 {
-	for (auto pid : Params)
+	for (auto PinId : Params)
 	{
-		const UTG_Pin* ParamPin = GetPin(pid.Value);
+		const UTG_Pin* ParamPin = GetPin(PinId.Value);
 
-		FTG_Argument Argument = {
-			ParamPin->GetAliasName(), // Use the alias name to export the param as the graph interface
-			ParamPin->GetArgumentCPPTypeName(), // Same CPP type name
-			ParamPin->GetArgumentType().Unparamed() // Remove the param tag since it is no longer a param
-		}; 
+		/// The pin has to be marked connectable to show up
+		if (!ParamPin->IsNotConnectable())
+		{
+			FTG_Argument Argument = {
+				ParamPin->GetAliasName(), // Use the alias name to export the param as the graph interface
+				ParamPin->GetArgumentCPPTypeName(), // Same CPP type name
+				ParamPin->GetArgumentType().Unparamed() // Remove the param tag since it is no longer a param
+			}; 
 
-		InOutArguments.Emplace(Argument);
+			InOutArguments.Emplace(Argument);
 
-		if (ParamPin->IsInput())
-			InParams.Emplace(pid.Value);
-		else
-			OutParams.Emplace(pid.Value);
+			if (ParamPin->IsInput())
+				InParams.Emplace(PinId.Value);
+			else
+				OutParams.Emplace(PinId.Value);
+		}
 	}
 }
 
@@ -768,11 +772,14 @@ void UTG_Graph::ForEachEdges(std::function<void(const UTG_Pin* /*pinFrom*/, cons
 				if (APinId < BPinId)
 				{
 					const UTG_Pin* BPin = GetPin(BPinId);
-					check(BPin);
-					if (APinIsOutputAkaSource)
-						visitor(APin, BPin);
-					else
-						visitor(BPin, APin);
+
+					if (BPin)
+					{
+						if (APinIsOutputAkaSource)
+							visitor(APin, BPin);
+						else
+							visitor(BPin, APin);
+					}
 				}
 			}
 		}
@@ -849,34 +856,38 @@ int UTG_Graph::GetAllOutputParamValues(TArray<FTG_Variant>& OutVariants, TArray<
 
 FTG_Ids UTG_Graph::GatherSourceNodes(const UTG_Node* InNode) const
 {
-	FTG_Ids sourceNodes; // the array of source nodes that will be return, empty for now
+	FTG_Ids SourceNodes; // the array of source nodes that will be return, empty for now
 
 	if (InNode) // Only work for a valid node
 	{
-		bool allInConnected = true;
-		bool allInDisconnected = true;
+		bool AllInConnected = true;
+		bool AllInDisconnected = true;
 		auto InPinIds = InNode->GetInputPinIds();
 		for (auto opi : InPinIds) // Over all the Input pins, find the node feeding them
 		{
 			const UTG_Pin* Pin = InNode->Pins[opi.PinIdx()];
 			if (Pin->GetEdges().IsEmpty())
 			{
-				allInConnected = false;
+				AllInConnected = false;
 			}
 			else
 			{
-				allInDisconnected = false;
+				AllInDisconnected = false;
 				auto EdgePinId = Pin->GetEdges()[0];
 				const UTG_Pin* SourcePin = GetPin(EdgePinId);
-				check(SourcePin);
 
-				// only add the source node if not already there
-				if (sourceNodes.Find(SourcePin->GetNodeId()) == INDEX_NONE)
-					sourceNodes.Emplace(SourcePin->GetNodeId());
+				if (SourcePin)
+				{
+					check(SourcePin);
+
+					// only add the source node if not already there
+					if (SourceNodes.Find(SourcePin->GetNodeId()) == INDEX_NONE)
+						SourceNodes.Emplace(SourcePin->GetNodeId());
+				}
 			}
 		}
 	}
-	return sourceNodes;
+	return SourceNodes;
 }
 
 FTG_Ids UTG_Graph::GatherAllSourceNodes(const UTG_Node* Node) const

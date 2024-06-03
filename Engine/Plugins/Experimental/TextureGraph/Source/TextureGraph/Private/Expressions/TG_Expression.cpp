@@ -64,13 +64,14 @@ FTG_Signature::FInit UTG_Expression::GetSignatureInitArgsFromClass() const
 		FName PropName = FName(Prop->GetNameCPP());
 		FName PropTypeName = FName(Prop->GetCPPType());
 		bool bIsNotConnectable = false; // by default all arguments are connectable
+
 #if WITH_EDITORONLY_DATA
-		
 		auto PropertyTGType = Prop->GetMetaData(TEXT("TGType"));
 		bIsNotConnectable = Prop->HasMetaData(TEXT("TGPinNotConnectable"));
 #else
 		FString PropertyTGType;
 #endif
+
 		// Add NotConnectable for certain types:
 		{
 			FByteProperty* ByteProperty = CastField<FByteProperty>(*Prop);

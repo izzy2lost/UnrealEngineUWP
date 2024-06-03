@@ -16,6 +16,7 @@ struct FTG_EvaluationContext;
 UENUM()
 enum class ETG_VariantType : uint8
 {
+	Invalid = 0xFF												UMETA(DisplayName = "Invalid"),
 	Scalar = FTG_VariantInnerData::IndexOfType<float>()			UMETA(DisplayName = "Scalar"),
 	Color = FTG_VariantInnerData::IndexOfType<FLinearColor>()	UMETA(DisplayName = "Color"),
 	Vector = FTG_VariantInnerData::IndexOfType<FVector4f>()		UMETA(DisplayName = "Vector"),

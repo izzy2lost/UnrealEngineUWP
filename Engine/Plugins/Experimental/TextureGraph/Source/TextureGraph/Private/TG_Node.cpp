@@ -498,8 +498,14 @@ FTG_Variant::EType UTG_Node::EvalExpressionCommonVariantType() const
 			{
 				// now we know the thing connected to the pin variant exist, what is its type?
 				UTG_Pin* OtherPin = GetGraph()->GetPin(Pin->GetVarId());
-				FTG_Variant::EType OtherType = FTG_Variant::GetTypeFromName(OtherPin->GetArgumentCPPTypeName());
-				Type = FTG_Variant::WhichCommonType(Type, OtherType);
+
+				if (OtherPin)
+				{
+					FTG_Variant::EType OtherType = FTG_Variant::GetTypeFromName(OtherPin->GetArgumentCPPTypeName());
+					Type = FTG_Variant::WhichCommonType(Type, OtherType);
+				}
+				else
+					return FTG_Variant::EType::Invalid;
 			}
 			// removed the else part here since the selfvar/default will be reset to the common type on the next evaluation
 			/*else

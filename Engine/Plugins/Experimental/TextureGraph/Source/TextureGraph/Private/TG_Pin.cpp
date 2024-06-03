@@ -242,6 +242,9 @@ FString UTG_Pin::GetEvaluatedVarValue() const
 		}
 	}
 
+	if (!CurrentVar)
+		return FString();
+
 	FString CurrentValue = CurrentVar->LogValue();
 
 	// Enum requires special-case handling
