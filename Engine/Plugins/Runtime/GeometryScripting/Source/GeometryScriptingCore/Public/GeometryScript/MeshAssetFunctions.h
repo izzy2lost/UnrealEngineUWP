@@ -107,7 +107,23 @@ public:
 	bool bDeferMeshPostEditChange = false;
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyMorphTargetToAssetOptions
+{
+	GENERATED_BODY()
+public:
 
+	/** If true and the morph target with the given name exists, it will be overwritten. If false, will abort and print a 
+	 * console error. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bOverwriteExistingTarget = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bEmitTransaction = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bDeferMeshPostEditChange = false;
+};
 
 // Although the class name indicates StaticMeshFunctions, that was a naming mistake that is difficult
 // to correct. This class is intended to serve as a generic asset utils function library. The naming
@@ -260,7 +276,7 @@ public:
 		UDynamicMesh* FromMorphTarget, 
 		USkeletalMesh* ToSkeletalMeshAsset,
 		FName MorphTargetName,
-		FGeometryScriptCopyMeshToAssetOptions Options,
+		FGeometryScriptCopyMorphTargetToAssetOptions Options,
 		FGeometryScriptMeshWriteLOD TargetLOD,
 		EGeometryScriptOutcomePins& Outcome,
 		UGeometryScriptDebug* Debug = nullptr);
