@@ -77,7 +77,6 @@ void FLiveLinkHub::Initialize()
 	LiveLinkHubClient->OnStaticDataReceived_AnyThread().AddSP(this, &FLiveLinkHub::OnStaticDataReceived_AnyThread);
 	LiveLinkHubClient->OnFrameDataReceived_AnyThread().AddSP(this, &FLiveLinkHub::OnFrameDataReceived_AnyThread);
 	LiveLinkHubClient->OnSubjectMarkedPendingKill_AnyThread().AddSP(this, &FLiveLinkHub::OnSubjectMarkedPendingKill_AnyThread);
-	LiveLinkHubClient->OnLiveLinkSubjectAdded().AddSP(this, &FLiveLinkHub::OnSubjectAdded);
 
 	RegisterLiveLinkHubSettings();
 
@@ -93,7 +92,6 @@ FLiveLinkHub::~FLiveLinkHub()
 	RecordingController.Reset();
 	PlaybackController.Reset();
 
-	LiveLinkHubClient->OnLiveLinkSubjectAdded().RemoveAll(this);
 	LiveLinkHubClient->OnSubjectMarkedPendingKill_AnyThread().RemoveAll(this);
 	LiveLinkHubClient->OnFrameDataReceived_AnyThread().RemoveAll(this);
 	LiveLinkHubClient->OnStaticDataReceived_AnyThread().RemoveAll(this);
@@ -180,27 +178,6 @@ void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSu
 	if (LiveLinkHubClient->IsSubjectEnabled(InSubjectKey.SubjectName))
 	{
 		LiveLinkProvider->UpdateSubjectFrameData(OverridenName, MoveTemp(FrameDataCopy));
-	}
-}
-
-void FLiveLinkHub::OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey) const
-{
-	// Send an update to connected clients as well.
-	ULiveLinkSubjectSettings* SubjectSettings = Cast<ULiveLinkSubjectSettings>(LiveLinkHubClient->GetSubjectSettings(InSubjectKey));
-
-	if (const FLiveLinkStaticDataStruct* StaticData = LiveLinkHubClient->GetSubjectStaticData(InSubjectKey))
-	{
-		FLiveLinkStaticDataStruct StaticDataCopy;
-		StaticDataCopy.InitializeWith(*StaticData);
-
-		const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
-
-		UE_LOG(LogLiveLinkHub, Verbose, TEXT("Pushed static subject %s"), *InSubjectKey.SubjectName.ToString());
-		LiveLinkProvider->UpdateSubjectStaticData(OverridenName, SubjectSettings->Role, MoveTemp(StaticDataCopy));
-	}
-	else
-	{
-		UE_LOG(LogLiveLinkHub, Verbose, TEXT("Failed to push static subject %s, static data doesn't exist"), *InSubjectKey.SubjectName.ToString());
 	}
 }
 
