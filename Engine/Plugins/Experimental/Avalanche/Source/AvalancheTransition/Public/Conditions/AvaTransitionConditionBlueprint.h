@@ -5,7 +5,7 @@
 #include "Blueprint/StateTreeConditionBlueprintBase.h"
 #include "AvaTransitionConditionBlueprint.generated.h"
 
-UCLASS(MinimalAPI, Abstract)
+UCLASS(MinimalAPI, Abstract, DisplayName="Motion Design Transition Condition Blueprint")
 class UAvaTransitionConditionBlueprint : public UStateTreeConditionBlueprintBase
 {
 	GENERATED_BODY()

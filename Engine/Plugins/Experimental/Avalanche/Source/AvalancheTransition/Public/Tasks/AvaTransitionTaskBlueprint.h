@@ -5,7 +5,7 @@
 #include "Blueprint/StateTreeTaskBlueprintBase.h"
 #include "AvaTransitionTaskBlueprint.generated.h"
 
-UCLASS(MinimalAPI, Abstract)
+UCLASS(MinimalAPI, Abstract, DisplayName="Motion Design Transition Task Blueprint")
 class UAvaTransitionTaskBlueprint : public UStateTreeTaskBlueprintBase
 {
 	GENERATED_BODY()
