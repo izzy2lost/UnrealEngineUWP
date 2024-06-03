@@ -52,6 +52,7 @@ namespace Jupiter
 			Log.Logger = new LoggerConfiguration()
 				.ReadFrom.Configuration(Configuration)
 				.Enrich.With<DatadogLogEnricher>()
+				.Enrich.WithRequestHeader("ue-session", "ue-session")
 				.CreateLogger();
 
 			try

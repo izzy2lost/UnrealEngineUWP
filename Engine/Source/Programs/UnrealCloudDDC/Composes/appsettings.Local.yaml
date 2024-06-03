@@ -12,7 +12,7 @@ Jupiter:
   ChmodDomainSockets: true
 Replication:
   CurrentSite: docker-compose
-Ngunx:
+Nginx:
   UseNginxRedirect: true
 UnrealCloudDDC:
   storageImplementations:

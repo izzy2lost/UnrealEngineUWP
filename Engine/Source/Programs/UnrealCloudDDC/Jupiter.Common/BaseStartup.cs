@@ -12,11 +12,13 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using Amazon;
 using EpicGames.AspNet;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -172,12 +174,30 @@ namespace Jupiter
 							});
 							break;
 						case SchemeImplementations.Okta:
+							JwtBearerEvents bearerEvents = new JwtBearerEvents();
+							if (Auth.RemapNameClaim)
+							{
+								bool firstTime = true;
+								bearerEvents.OnMessageReceived += context =>
+								{
+									if (!firstTime)
+									{
+										return Task.CompletedTask;
+									}
+
+									firstTime = false;
+									context.Options.TokenValidationParameters.NameClaimType = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier";
+									return Task.CompletedTask;
+								};
+							}
+							
 							availableSchemes.Add(name);
 							authenticationBuilder.AddOktaWebApi(name, new OktaWebApiOptions
 							{
 								OktaDomain = scheme.OktaDomain,
 								AuthorizationServerId = scheme.OktaAuthorizationServerId,
 								Audience = scheme.JwtAudience,
+								JwtBearerEvents = bearerEvents
 							});
 							break;
 						default:
@@ -674,6 +694,11 @@ namespace Jupiter
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by the configuration system")]
 		public List<AclEntry> Acls { get; set; } = new List<AclEntry>();
+
+		/// <summary>
+		/// Remaps name claim from http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name to http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier which is required for Okta
+		/// </summary>
+		public bool RemapNameClaim { get; set; } = true;
 
 		public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 		{

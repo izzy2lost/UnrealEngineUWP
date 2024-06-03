@@ -48,12 +48,20 @@ data:
           proxy_set_header X-Jupiter-XAccel-Supported true;
           proxy_set_header X-Jupiter-Port Public;
           proxy_set_header Connection "";
+    
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
         }
         location /health {
           proxy_set_header X-Jupiter-Port Public;
           proxy_set_header Connection "";
+
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
          }
@@ -92,12 +100,20 @@ data:
           proxy_set_header X-Jupiter-XAccel-Supported true;
           proxy_set_header X-Jupiter-Port Corp;
           proxy_set_header Connection "";
+
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;  
         }
         location /health {
           proxy_set_header X-Jupiter-Port Corp;
           proxy_set_header Connection "";
+
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
         }
@@ -137,12 +153,20 @@ data:
           proxy_set_header X-Jupiter-XAccel-Supported true;
           proxy_set_header X-Jupiter-Port Public;
           proxy_set_header Connection "";
+
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
         }
         location /health {
           proxy_set_header X-Jupiter-Port Public;
           proxy_set_header Connection "";
+
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
         }
@@ -182,12 +206,20 @@ data:
           proxy_set_header X-Jupiter-XAccel-Supported true;
           proxy_set_header X-Jupiter-Port Corp;
           proxy_set_header Connection "";
+
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
         }
         location /health {
           proxy_set_header X-Jupiter-Port Corp;
           proxy_set_header Connection "";
+          
+          # Always set the x-forwarded-for header so we can extract the proper ip of the sender for logging purposes
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
           proxy_pass http://jupiter_backend;
           proxy_next_upstream error timeout http_500;
         }
