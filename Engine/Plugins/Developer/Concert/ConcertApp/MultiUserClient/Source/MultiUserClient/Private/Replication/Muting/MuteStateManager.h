@@ -27,6 +27,8 @@ namespace UE::MultiUserClient
 
 		/** @return Object with which the objects' mute state can be changed and queried. */
 		FMuteChangeTracker& GetChangeTracker() { return ChangeTracker; }
+		/** @return Object with which you can query whether an object is muted. */
+		const FMuteStateSynchronizer& GetSynchronizer() const { return MuteStateSynchronizer; }
 		
 		/** Broadcasts when a mute request fails. */
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMuteRequestFailure, const FConcertReplication_ChangeMuteState_Request&, const FConcertReplication_ChangeMuteState_Response&);

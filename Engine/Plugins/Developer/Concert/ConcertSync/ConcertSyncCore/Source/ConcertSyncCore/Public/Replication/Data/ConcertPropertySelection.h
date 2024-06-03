@@ -62,32 +62,14 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	};
 	FString ToString(EToStringMethod Method = EToStringMethod::Path) const;
 	
-	friend bool operator==(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right)
-	{
-		return Left.PathToProperty == Right.PathToProperty;
-	}
-	friend bool operator!=(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right)
-	{
-		return !(Left == Right);
-	}
+	friend bool operator==(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right) { return Left.PathToProperty == Right.PathToProperty; }
+	friend bool operator!=(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right) { return !(Left == Right); }
 
-	friend bool operator==(const FConcertPropertyChain& Left, const TArray<FName>& Path)
-	{
-		return Left.PathToProperty == Path;
-	}
-	friend bool operator!=(const FConcertPropertyChain& Left, const TArray<FName>& Path)
-	{
-		return Left.PathToProperty != Path;
-	}
+	friend bool operator==(const FConcertPropertyChain& Left, const TArray<FName>& Path) { return Left.PathToProperty == Path; }
+	friend bool operator!=(const FConcertPropertyChain& Left, const TArray<FName>& Path) { return Left.PathToProperty != Path; }
 	
-	friend bool operator==(const TArray<FName>& Path, const FConcertPropertyChain& Left)
-	{
-		return Left.PathToProperty == Path;
-	}
-	friend bool operator!=(const TArray<FName>& Path, const FConcertPropertyChain& Left)
-	{
-		return Left.PathToProperty != Path;
-	}
+	friend bool operator==(const TArray<FName>& Path, const FConcertPropertyChain& Left) { return Left.PathToProperty == Path; }
+	friend bool operator!=(const TArray<FName>& Path, const FConcertPropertyChain& Left) { return Left.PathToProperty != Path; }
 	
 private:
 	
@@ -186,4 +168,17 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 	}
 };
 
-CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertPropertyChain& Chain);
+namespace UE::ConcertSyncCore
+{
+	/**
+	 * Implementation of hashing FConcertPropertyChain. Allows you to use TSet::ContainsByHash without constructing a FConcertPropertyChain, which is expensive because it searches the property tree.
+	 * You can rely on the fact that this function is either updated or deprecated when the hasing algorithm for FConcertPropertyChain is changed.
+	 */
+	CONCERTSYNCCORE_API uint32 ComputeHashForPropertyChainContent(const TArray<FName>& PropertyChain);
+}
+inline uint32 GetTypeHash(const FConcertPropertyChain& Chain)
+{
+	// If you need to changing the hashing function - update ComputeHashForPropertyChainContent since some code relies on the hasing logic.
+	return UE::ConcertSyncCore::ComputeHashForPropertyChainContent(Chain.GetPathToProperty());
+}
+

@@ -229,7 +229,7 @@ bool FConcertPropertySelection::EnumeratePropertyOverlaps(
     return !Intersection.IsEmpty();
 }
 
-uint32 GetTypeHash(const FConcertPropertyChain& Chain)
+uint32 UE::ConcertSyncCore::ComputeHashForPropertyChainContent(const TArray<FName>& PropertyChain)
 {
-    return GetTypeHash(Chain.GetPathToProperty());
+    return GetTypeHash(PropertyChain);
 }

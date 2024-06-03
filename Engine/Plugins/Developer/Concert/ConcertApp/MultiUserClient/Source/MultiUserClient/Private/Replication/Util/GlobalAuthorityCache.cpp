@@ -137,10 +137,12 @@ namespace UE::MultiUserClient
 		return Conflict == EAuthorityConflict::Allowed;
 	}
 
-	TOptional<FGuid> FGlobalAuthorityCache::GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const
+	TOptional<FGuid> FGlobalAuthorityCache::GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const TArray<FName>& PropertyChain) const
 	{
 		TOptional<FGuid> Result;
-		ForEachClientWithAuthorityOverObject(Object, [this, &Object, &Property, &Result](const FGuid& ClientId)
+		const uint32 Hash = ConcertSyncCore::ComputeHashForPropertyChainContent(PropertyChain);
+		
+		ForEachClientWithAuthorityOverObject(Object, [this, &Object, &PropertyChain, &Result, Hash](const FGuid& ClientId)
 		{
 			const FReplicationClient* Client = ClientManager.FindClient(ClientId);
 			if (!ensureMsgf(Client, TEXT("OnPreRemoteClientRemoved should have updated OwnedObjectsToClients")))
@@ -150,7 +152,7 @@ namespace UE::MultiUserClient
 			
 			const FConcertReplicatedObjectInfo* ObjectInfo = Client->GetStreamSynchronizer().GetServerState().ReplicatedObjects.Find(Object);
 			const bool bHasObjectRegistered = ensureMsgf(ObjectInfo, TEXT("OnStreamChanged should have updated OwnedObjectsToClients"))
-				&& ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property);
+				&& ObjectInfo->PropertySelection.ReplicatedProperties.ContainsByHash(Hash, PropertyChain);
 			const bool bHasAuthority = Client->GetAuthoritySynchronizer().HasAuthorityOver(Object);
 			if (bHasObjectRegistered && bHasAuthority)
 			{

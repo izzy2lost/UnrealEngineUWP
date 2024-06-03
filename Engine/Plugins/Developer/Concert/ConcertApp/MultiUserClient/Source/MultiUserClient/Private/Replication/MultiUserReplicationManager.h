@@ -4,14 +4,15 @@
 
 #include "Client/ReplicationClientManager.h"
 #include "IConcertSession.h"
+#include "Misc/ChangeLevelHandler.h"
+#include "Muting/MuteStateManager.h"
+#include "Notification/ReplicationUserNotifier.h"
 #include "Replication/IMultiUserReplication.h"
 #include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
-#include "UnrealEditor/ChangeLevelHandler.h"
 #include "Util/Query/RegularQueryService.h"
 
 #include "Misc/Optional.h"
-#include "Muting/MuteStateManager.h"
-#include "Notification/ReplicationUserNotifier.h"
+#include "Misc/PreventReplicatedPropertyTransaction.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -111,13 +112,13 @@ namespace UE::MultiUserClient
 			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
 			 */
 			FReplicationClientManager ClientManager;
-
 			/** Interacts with the mute global server mute system. */
 			FMuteStateManager MuteManager;
 
 			/** Clears local client's registered objects when leaving map. */
 			FChangeLevelHandler ChangeLevelHandler;
-
+			/** Prevents recording of transactions that change properties that are being replicated by a client. */
+			FPreventReplicatedPropertyTransaction PreventReplicatedPropertyTransaction;
 			/** This system notifies users when requests go wrong */
 			FReplicationUserNotifier UserNotifier;
 			

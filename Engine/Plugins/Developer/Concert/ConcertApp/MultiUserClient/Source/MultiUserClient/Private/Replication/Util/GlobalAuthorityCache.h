@@ -55,7 +55,9 @@ namespace UE::MultiUserClient
 		bool CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const;
 
 		/** Gets the client that has authority over the given property, if there is any. */
-		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const;
+		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const { return GetClientWithAuthorityOverProperty(Object, Property.GetPathToProperty()); }
+		/** Gets the client that has authority over the given property, if there is any. */
+		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const TArray<FName>& PropertyChain) const;
 		
 		/**
 		 * Removes entries from Request that would generate conflicts.
