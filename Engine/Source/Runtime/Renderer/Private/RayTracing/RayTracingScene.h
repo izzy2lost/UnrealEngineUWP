@@ -146,6 +146,9 @@ public:
 
 	uint32 GetNumNativeInstances() const { return InitializationData.NumNativeCPUInstances + InitializationData.NumNativeGPUSceneInstances; }
 
+	FRDGBufferRef GetInstanceDebugBuffer() const { return InstanceDebugBuffer; }
+	FRDGBufferRef GetDebugInstanceGPUSceneIndexBuffer() const { return DebugInstanceGPUSceneIndexBuffer; }
+
 	void InitPreViewTranslation(const FViewMatrices& ViewMatrices);
 
 public:
@@ -166,10 +169,6 @@ public:
 	// Used coarse mesh streaming handles during the last TLAS build
 	TArray<Nanite::CoarseMeshStreamingHandle> UsedCoarseMeshStreamingHandles;
 
-	// Special data for debugging purposes
-	FRDGBufferRef InstanceDebugBuffer = nullptr;
-
-	FRDGBufferRef DebugInstanceGPUSceneIndexBuffer = nullptr;
 	bool bNeedsDebugInstanceGPUSceneIndexBuffer = false;
 
 	// Used for transforming to translated world space in which TLAS was built.
@@ -202,6 +201,10 @@ private:
 	FShaderResourceViewRHIRef TransformUploadSRV;
 
 	FByteAddressBuffer AccelerationStructureAddressesBuffer;
+
+	// Special data for debugging purposes
+	FRDGBufferRef InstanceDebugBuffer = nullptr;
+	FRDGBufferRef DebugInstanceGPUSceneIndexBuffer = nullptr;
 
 	// Persistent storage for ray tracing instance descriptors.
 	// Cleared every frame without releasing memory to avoid large heap allocations.
