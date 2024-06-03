@@ -73,6 +73,7 @@ protected:
 	virtual ~TThreadSingleton()
 	{
 		// Clean the dangling pointer from the TLS.
+		check(GetTlsSlot() != nullptr);
 		if(((FTlsAutoCleanup*)GetTlsSlot()) == static_cast<FTlsAutoCleanup*>(this))
 		{
 			GetTlsSlot() =  nullptr;
