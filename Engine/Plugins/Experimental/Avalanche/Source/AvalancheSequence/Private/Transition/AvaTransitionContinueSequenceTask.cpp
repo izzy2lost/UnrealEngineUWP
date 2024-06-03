@@ -20,11 +20,7 @@ TArray<UAvaSequencePlayer*> FAvaTransitionContinueSequenceTask::ExecuteSequenceT
 		return PlaybackObject->ContinueSequencesByLabel(InstanceData.SequenceName);
 
 	case EAvaTransitionSequenceQueryType::Tag:
-		if (const FAvaTag* Tag = InstanceData.SequenceTag.GetTag())
-		{
-			return PlaybackObject->ContinueSequencesByTag(*Tag, InstanceData.bPerformExactMatch);
-		}
-		return TArray<UAvaSequencePlayer*>();
+		return PlaybackObject->ContinueSequencesByTag(InstanceData.SequenceTag, InstanceData.bPerformExactMatch);
 	}
 
 	checkNoEntry();

@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionExecutor.h"
+#include "AvaTag.h"
 #include "AvaTagHandleKeyFuncs.h"
+#include "AvaTagList.h"
 #include "AvaTransitionLayer.h"
 #include "AvaTransitionSubsystem.h"
 #include "Behavior/IAvaTransitionBehavior.h"
@@ -41,46 +43,66 @@ void FAvaTransitionExecutor::Setup()
 			InInstance.Setup();
 		});
 
-	using FAvaTagHandleMapType = TMap<FAvaTagHandle, EAvaTransitionType, FDefaultSetAllocator, TAvaTagHandleMapKeyFuncs<EAvaTransitionType, false>>;
-
-	FAvaTagHandleMapType LayerToTransitionTypeMap;
-	LayerToTransitionTypeMap.Reserve(Instances.Num());
-
-	// Gather Map of Layer to the Transition Types for that Layer
-	for (const FAvaTransitionBehaviorInstance& Instance : Instances)
+	struct FLayerInfo
 	{
-		EAvaTransitionType& LayerTransitionType = LayerToTransitionTypeMap.FindOrAdd(Instance.GetTransitionLayer());
-		LayerTransitionType |= Instance.GetTransitionType();
+		// All the Behavior Instances found for a given Layer
+		TArray<FAvaTransitionBehaviorInstance*> BehaviorInstances;
+
+		// The accumulated Transition Type for a given Layer (e.g. combinations could be In, Out or In | Out)
+		EAvaTransitionType TransitionType;
+	};
+
+	// Map of BehaviorInstance to the Resolved Tags
+	TMap<FAvaTag, FLayerInfo> TagLayerInfo;
+	{
+		// Rough Estimate: assume each Instance is in its own single unique tag
+		TagLayerInfo.Reserve(Instances.Num());
+
+		// Gather the Layer info for each Instance
+		for (FAvaTransitionBehaviorInstance& Instance : Instances)
+		{
+			for (const FAvaTag* Tag : Instance.GetTransitionLayer().GetTags())
+			{
+				FLayerInfo& LayerInfo = TagLayerInfo.FindOrAdd(*Tag);
+				LayerInfo.BehaviorInstances.AddUnique(&Instance);
+				LayerInfo.TransitionType |= Instance.GetTransitionType();
+			}
+		}
 	}
 
 	// Ensure there's an exiting null instance for every entering Transition Instance in a layer
-	for (const TPair<FAvaTagHandle, EAvaTransitionType>& Pair : LayerToTransitionTypeMap)
+	for (const TPair<FAvaTag, FLayerInfo>& Pair : TagLayerInfo)
 	{
-		if (Pair.Value == EAvaTransitionType::In && !EnumHasAnyFlags(Pair.Value, EAvaTransitionType::Out))
+		const FLayerInfo& LayerInfo = Pair.Value;
+		if (LayerInfo.TransitionType == EAvaTransitionType::In && !EnumHasAnyFlags(LayerInfo.TransitionType, EAvaTransitionType::Out))
 		{
+			check(!LayerInfo.BehaviorInstances.IsEmpty());
 			FAvaTransitionBehaviorInstance& NullInstanceCopy = Instances.Add_GetRef(NullInstance);
 			NullInstanceCopy.SetTransitionType(EAvaTransitionType::Out);
-			NullInstanceCopy.SetOverrideLayer(Pair.Key);
+			NullInstanceCopy.SetOverrideLayer(LayerInfo.BehaviorInstances[0]->GetTransitionLayer());
 			NullInstanceCopy.Setup();
 		}
 	}
 
 	// For the Instances that are going out, if they belong in the same Transition Layer as an Instance going In
 	// mark them as Needs Discard (this does not mean the scene will be discarded as there could be logic that reverts this flag)
-	for (FAvaTransitionBehaviorInstance& Instance : Instances)
+	for (const TPair<FAvaTag, FLayerInfo>& Pair : TagLayerInfo)
 	{
-		if (Instance.GetTransitionType() == EAvaTransitionType::In)
+		if (!EnumHasAnyFlags(Pair.Value.TransitionType, EAvaTransitionType::In))
 		{
 			continue;
 		}
 
-		Instance.SetTransitionType(EAvaTransitionType::Out);
-
-		const EAvaTransitionType LayerTransitionType = LayerToTransitionTypeMap[Instance.GetTransitionLayer()];
-
-		if (EnumHasAnyFlags(LayerTransitionType, EAvaTransitionType::In))
+		for (FAvaTransitionBehaviorInstance* Instance : Pair.Value.BehaviorInstances)
 		{
-			if (FAvaTransitionScene* TransitionScene = Instance.GetTransitionContext().GetTransitionScene())
+			if (Instance->GetTransitionType() == EAvaTransitionType::In)
+			{
+				continue;
+			}
+
+			Instance->SetTransitionType(EAvaTransitionType::Out);
+
+			if (FAvaTransitionScene* TransitionScene = Instance->GetTransitionContext().GetTransitionScene())
 			{
 				TransitionScene->SetFlags(EAvaTransitionSceneFlags::NeedsDiscard);
 			}

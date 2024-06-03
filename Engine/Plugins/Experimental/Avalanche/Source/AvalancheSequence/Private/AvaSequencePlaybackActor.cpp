@@ -110,7 +110,7 @@ UAvaSequencePlayer* AAvaSequencePlaybackActor::PreviewFrame(UAvaSequence* InSequ
 	return PlaySequence(InSequence, PlaySettings);
 }
 
-UAvaSequencePlayer* AAvaSequencePlaybackActor::PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, FAvaSequencePlayParams InPlaySettings)
+UAvaSequencePlayer* AAvaSequencePlaybackActor::PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, const FAvaSequencePlayParams& InPlaySettings)
 {
 	if (UAvaSequence* const ResolvedSequence = InSequence.Get())
 	{
@@ -124,12 +124,12 @@ UAvaSequencePlayer* AAvaSequencePlaybackActor::PlaySequenceBySoftReference(TSoft
 	return nullptr;
 }
 
-TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByLabel(FName InSequenceLabel, FAvaSequencePlayParams InPlaySettings)
+TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByLabel(FName InSequenceLabel, const FAvaSequencePlayParams& InPlaySettings)
 {
-	return PlaySequencesByLabels({ InSequenceLabel }, MoveTemp(InPlaySettings));
+	return PlaySequencesByLabels({ InSequenceLabel }, InPlaySettings);
 }
 
-TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesBySoftReference(const TArray<TSoftObjectPtr<UAvaSequence>>& InSequences, FAvaSequencePlayParams InPlaySettings)
+TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesBySoftReference(const TArray<TSoftObjectPtr<UAvaSequence>>& InSequences, const FAvaSequencePlayParams& InPlaySettings)
 {
 	TArray<UAvaSequencePlayer*> Players;
 	Players.Reserve(InSequences.Num());
@@ -142,14 +142,14 @@ TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesBySoftRefere
 	return Players;
 }
 
-TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByTag(const FAvaTag& InTag, bool bInExactMatch, FAvaSequencePlayParams InPlaySettings)
+TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch, const FAvaSequencePlayParams& InPlaySettings)
 {
-	if (!InTag.IsValid())
+	if (!InTagHandle.IsValid())
 	{
 		return TArray<UAvaSequencePlayer*>();
 	}
 
-	const TArray<UAvaSequence*> SequencesToPlay = GetSequencesByTag(InTag, bInExactMatch);
+	const TArray<UAvaSequence*> SequencesToPlay = GetSequencesByTag(InTagHandle, bInExactMatch);
 
 	TArray<UAvaSequencePlayer*> SequencePlayers;
 	SequencePlayers.Reserve(SequencesToPlay.Num());
@@ -165,7 +165,7 @@ TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByTag(const 
 	return SequencePlayers;
 }
 
-TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByLabels(const TArray<FName>& InSequenceLabels, FAvaSequencePlayParams InPlaySettings)
+TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::PlaySequencesByLabels(const TArray<FName>& InSequenceLabels, const FAvaSequencePlayParams& InPlaySettings)
 {
 	if (InSequenceLabels.IsEmpty())
 	{
@@ -205,11 +205,11 @@ TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::ContinueSequencesByLabel(
 	return ContinueSequencesByLabels({ InSequenceLabel });
 }
 
-TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::ContinueSequencesByTag(const FAvaTag& InTag, bool bInExactMatch)
+TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::ContinueSequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch)
 {
 	TArray<UAvaSequencePlayer*> SequencePlayers;
 	
-	const TArray<UAvaSequence*> SequencesToContinue = GetSequencesByTag(InTag, bInExactMatch);
+	const TArray<UAvaSequence*> SequencesToContinue = GetSequencesByTag(InTagHandle, bInExactMatch);
 	for (UAvaSequence* Sequence : SequencesToContinue)
 	{
 		if (UAvaSequencePlayer* Player = ContinueSequence(Sequence))
@@ -330,9 +330,9 @@ TArray<UAvaSequence*> AAvaSequencePlaybackActor::GetSequencesByLabel(TConstArray
 	return OutSequences;
 }
 
-TArray<UAvaSequence*> AAvaSequencePlaybackActor::GetSequencesByTag(const FAvaTag& InTag, bool bInExactMatch) const
+TArray<UAvaSequence*> AAvaSequencePlaybackActor::GetSequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) const
 {
-	if (!InTag.IsValid())
+	if (!InTagHandle.IsValid())
 	{
 		UE_LOG(LogAvaSequencePlayback, Verbose
 			, TEXT("Input Tag was empty in playback actor %s")
@@ -352,7 +352,7 @@ TArray<UAvaSequence*> AAvaSequencePlaybackActor::GetSequencesByTag(const FAvaTag
 
 	for (UAvaSequence* Sequence : AllSequences)
 	{
-		if (Sequence && Sequence->GetSequenceTag() == InTag)
+		if (Sequence && Sequence->GetSequenceTag().Overlaps(InTagHandle))
 		{
 			OutSequences.Add(Sequence);
 		}
@@ -399,9 +399,9 @@ TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::GetSequencePlayersByLabel
 	return GetSequencePlayersByLabels({ InSequenceLabel });
 }
 
-TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::GetSequencePlayersByTag(const FAvaTag& InTag, bool bInExactMatch) const
+TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::GetSequencePlayersByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) const
 {
-	const TArray<UAvaSequence*> Sequences = GetSequencesByTag(InTag, bInExactMatch);
+	const TArray<UAvaSequence*> Sequences = GetSequencesByTag(InTagHandle, bInExactMatch);
 
 	TArray<UAvaSequencePlayer*> SequencePlayers;
 	SequencePlayers.Reserve(Sequences.Num());

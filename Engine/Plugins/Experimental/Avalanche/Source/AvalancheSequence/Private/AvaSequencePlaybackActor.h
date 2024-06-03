@@ -30,22 +30,22 @@ protected:
 	virtual void CleanupPlayers() override;
 	virtual UAvaSequencePlayer* PlaySequence(UAvaSequence* InSequence, const FAvaSequencePlayParams& InPlaySettings = FAvaSequencePlayParams()) override;
 	virtual UAvaSequencePlayer* PreviewFrame(UAvaSequence* InSequence) override;
-	virtual UAvaSequencePlayer* PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, FAvaSequencePlayParams InPlaySettings) override;
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabel(FName InSequenceLabel, FAvaSequencePlayParams InPlaySettings) override;
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesBySoftReference(const TArray<TSoftObjectPtr<UAvaSequence>>& InSequences, FAvaSequencePlayParams InPlaySettings) override;
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabels(const TArray<FName>& InSequenceLabels, FAvaSequencePlayParams InPlaySettings) override;
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesByTag(const FAvaTag& InTag, bool bInExactMatch, FAvaSequencePlayParams InPlaySettings) override;
+	virtual UAvaSequencePlayer* PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, const FAvaSequencePlayParams& InPlaySettings) override;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabel(FName InSequenceLabel, const FAvaSequencePlayParams& InPlaySettings) override;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesBySoftReference(const TArray<TSoftObjectPtr<UAvaSequence>>& InSequences, const FAvaSequencePlayParams& InPlaySettings) override;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabels(const TArray<FName>& InSequenceLabels, const FAvaSequencePlayParams& InPlaySettings) override;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch, const FAvaSequencePlayParams& InPlaySettings) override;
 	virtual TArray<UAvaSequencePlayer*> PlayScheduledSequences() override;
 	virtual UAvaSequencePlayer* ContinueSequence(UAvaSequence* InSequence) override;
 	virtual TArray<UAvaSequencePlayer*> ContinueSequencesByLabel(FName InSequenceLabel) override;
 	virtual TArray<UAvaSequencePlayer*> ContinueSequencesByLabels(const TArray<FName>& InSequenceLabels) override;
-	virtual TArray<UAvaSequencePlayer*> ContinueSequencesByTag(const FAvaTag& InTag, bool bInExactMatch) override;
+	virtual TArray<UAvaSequencePlayer*> ContinueSequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) override;
 	virtual void StopSequence(UAvaSequence* InSequence) override;
 	virtual UObject* GetPlaybackContext() const override;
 	virtual UAvaSequencePlayer* GetSequencePlayer(const UAvaSequence* InSequence) const override;
 	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByLabel(FName InSequenceLabel) const override;
 	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByLabels(const TArray<FName>& InSequenceLabels) const override;
-	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByTag(const FAvaTag& InTag, bool bInExactMatch) const override;
+	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) const override;
 	virtual TArray<UAvaSequencePlayer*> GetAllSequencePlayers() const override;
 	virtual bool HasActiveSequencePlayers() const override;
 	virtual void UpdateCameraCut(const UE::MovieScene::FOnCameraCutUpdatedParams& InCameraCutParams) override;
@@ -76,7 +76,7 @@ private:
 
 	TArray<UAvaSequence*> GetSequencesByLabel(TConstArrayView<FName> InSequenceLabels) const;
 
-	TArray<UAvaSequence*> GetSequencesByTag(const FAvaTag& InTag, bool bInExactMatch) const;
+	TArray<UAvaSequence*> GetSequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) const;
 
 	UFUNCTION(BlueprintCallable, CallInEditor, DisplayName="Play Scheduled Sequences", Category="Scheduled Playback")
 	void BP_PlayScheduledSequences();

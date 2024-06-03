@@ -107,10 +107,9 @@ void UAvaSequence::SetLabel(FName InLabel)
 	Label = InLabel;
 }
 
-FAvaTag UAvaSequence::GetSequenceTag() const
+FAvaTagHandle UAvaSequence::GetSequenceTag() const
 {
-	const FAvaTag* ResolvedTag = Tag.GetTag();
-	return ResolvedTag ? *ResolvedTag : FAvaTag();
+	return Tag;
 }
 
 void UAvaSequence::SetSequenceTag(const FAvaTagHandle& InSequenceTag)

@@ -32,7 +32,7 @@ bool UAvaTagAttribute::ClearTagHandle(const FAvaTagHandle& InTagHandle)
 
 bool UAvaTagAttribute::ContainsTag(const FAvaTagHandle& InTagHandle) const
 {
-	return Tag.MatchesTag(InTagHandle);
+	return Tag.Overlaps(InTagHandle);
 }
 
 bool UAvaTagAttribute::HasValidTagHandle() const

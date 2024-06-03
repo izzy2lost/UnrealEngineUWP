@@ -18,7 +18,7 @@ class UAvaTagLibrary : public UBlueprintFunctionLibrary
 
 public:
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Tag", meta=(CompactNodeTitle = "->", BlueprintAutocast))
-	static AVALANCHETAG_API FAvaTag ResolveTagHandle(const FAvaTagHandle& InTagHandle);
+	static AVALANCHETAG_API TArray<FAvaTag> ResolveTagHandle(const FAvaTagHandle& InTagHandle);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Tag", meta=(CompactNodeTitle = "->", BlueprintAutocast))
 	static AVALANCHETAG_API TArray<FAvaTag> ResolveTagHandles(const FAvaTagHandleContainer& InTagHandleContainer);

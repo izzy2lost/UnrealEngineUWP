@@ -12,7 +12,7 @@ class UAvaSequence;
 class UAvaSequencePlayer;
 class ULevel;
 class UObject;
-struct FAvaTag;
+struct FAvaTagHandle;
 
 namespace UE::MovieScene
 {
@@ -57,7 +57,7 @@ public:
 	 * @return the player instantiated for the Sequence, or null if Sequence was not valid for playback
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Play Sequence (by Soft Reference)", Category = "Playback")
-	virtual UAvaSequencePlayer* PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, FAvaSequencePlayParams InPlaySettings) = 0;
+	virtual UAvaSequencePlayer* PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, const FAvaSequencePlayParams& InPlaySettings) = 0;
 
 	/**
 	 * Plays all the sequences that have the provided label
@@ -66,7 +66,7 @@ public:
 	 * @return an array of the Sequence Players with possible invalid/null entries kept so that each Player matches in Index with the input Sequence it is playing
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Play Sequences (by Label)", Category = "Playback")
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabel(FName InSequenceLabel, FAvaSequencePlayParams InPlaySettings) = 0;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabel(FName InSequenceLabel, const FAvaSequencePlayParams& InPlaySettings) = 0;
 
 	/**
 	 * Plays multiple Sequences by their Soft Reference
@@ -75,7 +75,7 @@ public:
 	 * @return an array of the Sequence Players with possible invalid/null entries kept so that each Player matches in Index with the input Sequence it is playing
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Play Sequences (by Soft Reference)", Category = "Playback")
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesBySoftReference(const TArray<TSoftObjectPtr<UAvaSequence>>& InSequences, FAvaSequencePlayParams InPlaySettings) = 0;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesBySoftReference(const TArray<TSoftObjectPtr<UAvaSequence>>& InSequences, const FAvaSequencePlayParams& InPlaySettings) = 0;
 
 	/**
 	 * Plays multiple Sequences by an array of sequence labels
@@ -84,17 +84,17 @@ public:
 	 * @return an array of the Sequence Players with possible invalid/null entries kept so that each Player matches in Index with the input Sequence it is playing
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Play Sequences (by Labels)", Category = "Playback")
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabels(const TArray<FName>& InSequenceLabels, FAvaSequencePlayParams InPlaySettings) = 0;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesByLabels(const TArray<FName>& InSequenceLabels, const FAvaSequencePlayParams& InPlaySettings) = 0;
 
 	/**
 	 * Plays all the Sequences that match the given gameplay tag(s)
-	 * @param InTag the tag to match
+	 * @param InTagHandle the tag to match
 	 * @param bInExactMatch whether to only consider sequences that have the tag exactly
 	 * @param InPlaySettings the play settings to use for playback
 	 * @return an array of the Sequence Players with only valid entries kept
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Play Sequences (by Tag)", Category = "Playback")
-	virtual TArray<UAvaSequencePlayer*> PlaySequencesByTag(const FAvaTag& InTag, bool bInExactMatch, FAvaSequencePlayParams InPlaySettings) = 0;
+	virtual TArray<UAvaSequencePlayer*> PlaySequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch, const FAvaSequencePlayParams& InPlaySettings) = 0;
 
 	/**
 	 * Plays the Scheduled Sequences with the Scheduled Play Settings
@@ -128,12 +128,12 @@ public:
 
 	/**
 	 * Triggers Continues in all the sequences matching the provided tag
-	 * @param InTag the tag to match
+	 * @param InTagHandle the tag to match
 	 * @param bInExactMatch whether to only consider sequences that have the tag exactly
 	 * @return the array of the Sequence Players with only valid entries that fired the continue
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Continue Sequences (by Tag)", Category = "Playback")
-	virtual TArray<UAvaSequencePlayer*> ContinueSequencesByTag(const FAvaTag& InTag, bool bInExactMatch) = 0;
+	virtual TArray<UAvaSequencePlayer*> ContinueSequencesByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) = 0;
 
 	virtual void StopSequence(UAvaSequence* InSequence) = 0;
 
@@ -152,7 +152,7 @@ public:
 
 	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByLabels(const TArray<FName>& InSequenceLabels) const = 0;
 
-	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByTag(const FAvaTag& InTag, bool bInExactMatch) const = 0;
+	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByTag(const FAvaTagHandle& InTagHandle, bool bInExactMatch) const = 0;
 
 	/** Retrieves all Active Sequence Players */
 	UFUNCTION(BlueprintCallable, DisplayName = "Get Active Sequence Players", Category = "Playback")

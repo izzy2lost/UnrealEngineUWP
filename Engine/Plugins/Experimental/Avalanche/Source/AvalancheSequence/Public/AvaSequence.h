@@ -53,7 +53,7 @@ public:
 	void SetLabel(FName InLabel);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Sequence")
-	FAvaTag GetSequenceTag() const;
+	FAvaTagHandle GetSequenceTag() const;
 
 	void SetSequenceTag(const FAvaTagHandle& InSequenceTag);
 

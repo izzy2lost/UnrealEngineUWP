@@ -4,15 +4,22 @@
 #include "AvaTag.h"
 #include "AvaTagHandle.h"
 #include "AvaTagHandleContainer.h"
+#include "AvaTagList.h"
 #include "AvaTagSoftHandle.h"
 
-FAvaTag UAvaTagLibrary::ResolveTagHandle(const FAvaTagHandle& InTagHandle)
+TArray<FAvaTag> UAvaTagLibrary::ResolveTagHandle(const FAvaTagHandle& InTagHandle)
 {
-	if (const FAvaTag* Tag = InTagHandle.GetTag())
+	FAvaTagList TagList = InTagHandle.GetTags();
+
+	TArray<FAvaTag> Tags;
+	Tags.Reserve(TagList.Tags.Num());
+
+	for (const FAvaTag* Tag : TagList)
 	{
-		return *Tag;
+		Tags.Add(*Tag);
 	}
-	return FAvaTag();
+
+	return Tags;
 }
 
 TArray<FAvaTag> UAvaTagLibrary::ResolveTagHandles(const FAvaTagHandleContainer& InTagHandleContainer)
