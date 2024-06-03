@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/WorldPartitionRuntimeCellData.h"
+#include "Misc/HierarchicalLogArchive.h"
 
 int32 UWorldPartitionRuntimeCellData::StreamingSourceCacheEpoch = 0;
 
@@ -22,6 +23,18 @@ void UWorldPartitionRuntimeCellData::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 	Ar << DebugName;
 }
+
+#if WITH_EDITOR
+void UWorldPartitionRuntimeCellData::DumpStateLog(FHierarchicalLogArchive& Ar) const
+{
+	Ar.Printf(TEXT("Content Bounds: %s"), *ContentBounds.ToString());
+
+	if (CellBounds.IsSet())
+	{
+		Ar.Printf(TEXT("Cell Bounds: %s"), *CellBounds.GetValue().ToString());
+	}
+}
+#endif
 
 void UWorldPartitionRuntimeCellData::ResetStreamingSourceInfo() const
 {

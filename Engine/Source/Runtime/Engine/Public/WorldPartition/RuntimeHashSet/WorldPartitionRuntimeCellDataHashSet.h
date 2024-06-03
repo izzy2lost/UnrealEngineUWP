@@ -11,6 +11,10 @@ class UWorldPartitionRuntimeCellDataHashSet : public UWorldPartitionRuntimeCellD
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITOR
+	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
+#endif
+
 	UPROPERTY()
 	bool bIs2D;
 };

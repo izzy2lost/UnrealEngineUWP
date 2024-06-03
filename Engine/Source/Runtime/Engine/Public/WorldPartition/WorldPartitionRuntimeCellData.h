@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "StringDev.h"
+#include "Misc/HierarchicalLogArchive.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartitionRuntimeCellData.generated.h"
 
@@ -19,6 +20,10 @@ class UWorldPartitionRuntimeCellData : public UObject
 	//~Begin UObject Interface
 	ENGINE_API void Serialize(FArchive& Ar);
 	//~End UObject Interface
+
+#if WITH_EDITOR
+	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
+#endif
 
 	ENGINE_API virtual void ResetStreamingSourceInfo() const;
 	ENGINE_API virtual void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const;
