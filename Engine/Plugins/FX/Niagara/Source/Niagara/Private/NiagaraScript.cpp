@@ -4292,6 +4292,38 @@ void UNiagaraScript::ResolveParameterCollectionReferences()
 
 #endif
 
+#if WITH_EDITORONLY_DATA
+void UNiagaraScript::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+{
+	Super::AppendToClassSchema(Context);
+
+	// Used by iterative cooking.  This will provide additional context for if things have changed such that a cook will
+	// be required.  This is focused on global settings rather than the usual dependencies between objects.
+
+	// the compiler version
+	const FGuid CompilerVersion = FNiagaraCustomVersion::GetLatestScriptCompileVersion();
+	Context.Update(&CompilerVersion, sizeof(FGuid));
+
+	// the DI source hash
+	if (GNiagaraCompileHashAllDataInterfaces)
+	{
+		Context.Update(NiagaraScriptInternal::CompileHashAllDataInterfaces().GetData(), FNiagaraCompileHash::HashSize);
+	}
+
+	// settings/configurations
+	Context.Update(&GNiagaraTranslatorFailIfNotSetSeverity, sizeof(GNiagaraTranslatorFailIfNotSetSeverity));
+
+	const UNiagaraSettings* NiagaraSettings = GetDefault<UNiagaraSettings>();
+	checkf(NiagaraSettings, TEXT("Failed to acquire default UNiagaraSettings during AppendToClassSchema"));
+
+	if (NiagaraSettings)
+	{
+		Context.Update(&NiagaraSettings->InvalidNamespaceWriteSeverity, sizeof(NiagaraSettings->InvalidNamespaceWriteSeverity));
+	}
+}
+#endif
+
+
 TArray<TObjectPtr<UNiagaraParameterCollection>>& UNiagaraScript::GetCachedParameterCollectionReferences()
 {
 #if WITH_EDITORONLY_DATA

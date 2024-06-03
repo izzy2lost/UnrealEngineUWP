@@ -1157,8 +1157,17 @@ public:
 	void SaveShaderStableKeys(const class ITargetPlatform* TP);
 
 	TArray<FName> FindShaderFormatsForCooking(const ITargetPlatform* TargetPlatform) const;
-
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Append config values or settings that can change how instances of the class are cooked, including especially
+	 * values that determine how version upgraded are conducted. Can also append a unique guid when necessary to
+	 * invalidate previous results because serialization changed and no custom version was updated.
+	 */
+	NIAGARA_API static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
+#endif
+
 	FNiagaraShaderScript* GetRenderThreadScript()
 	{
 		return ScriptResource.Get();
