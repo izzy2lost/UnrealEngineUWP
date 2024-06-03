@@ -545,7 +545,9 @@ extern "C"
 	bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
 	{
 		using namespace uba;
-		return cacheClient->FetchFromCache(*rootPaths, bucket, info);
+		bool cacheHit = false;
+		bool res = cacheClient->FetchFromCache(cacheHit, *rootPaths, bucket, info);
+		return res && cacheHit;
 	}
 
 	void CacheClient_RequestServerShutdown(uba::CacheClient* cacheClient, const uba::tchar* reason)

@@ -406,7 +406,8 @@ namespace uba
 						ProcessStartInfo& si = exitInfo->startInfo->startInfo;
 						u64 startTime = GetTime();
 
-						if (m_cacheClient->FetchFromCache(*m_rootPaths[0], 0, si))
+						bool cacheHit = false;
+						if (m_cacheClient->FetchFromCache(cacheHit, *m_rootPaths[0], 0, si) && cacheHit)
 						{
 							auto process = new CachedProcess(si);
 							ProcessHandle ph(process);

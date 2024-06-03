@@ -421,7 +421,7 @@ namespace uba
 				{
 					if (strLen != 1)
 						success = false;
-					if (str[0] != RootPaths::RootStartByte + (IsWindows ? 2 : 1))
+					if (str[0] != RootPaths::RootStartByte + (IsWindows ? 3 : 1)) // 3 is because each root has three entries on windows
 						success = false;
 					rootPos = str[0];
 				}

@@ -1962,6 +1962,33 @@ namespace uba
 		return true;
 	}
 
+	bool StorageImpl::IsFileVerified(const StringKey& fileNameKey)
+	{
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return false;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+		SCOPED_READ_LOCK(fileEntry.lock, entryLock);
+		return fileEntry.verified;
+	}
+
+	void StorageImpl::ReportFileInfoWeak(const StringKey& fileNameKey, u64 verifiedLastWriteTime, u64 verifiedSize)
+	{
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+		if (fileEntry.verified)
+			return;
+		fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize;
+	}
+
 	bool StorageImpl::StoreCasKey(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed)
 	{
 		StringBuffer<> forKey;
@@ -1969,7 +1996,11 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey fileNameKey = ToStringKey(forKey);
+		return StoreCasKey(out, fileNameKey, fileName, casKeyOverride, fileIsCompressed);
+	}
 
+	bool StorageImpl::StoreCasKey(CasKey& out, const StringKey& fileNameKey, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed)
+	{
 		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
 		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
 		FileEntry& fileEntry = insres.first->second;
@@ -2412,7 +2443,8 @@ namespace uba
 
 					if (mappedView.memory)
 					{
-						memcpy(writePos, mappedView.memory, compressedFileSize);
+						TimerScope cts(stats.memoryCopy);
+						MapMemoryCopy(writePos, mappedView.memory, compressedFileSize);
 					}
 					else
 					{

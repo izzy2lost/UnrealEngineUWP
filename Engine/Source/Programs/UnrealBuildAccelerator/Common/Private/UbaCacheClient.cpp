@@ -4,6 +4,7 @@
 #include "UbaApplicationRules.h"
 #include "UbaCacheEntry.h"
 #include "UbaCompactTables.h"
+#include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
 #include "UbaProcessStartInfo.h"
@@ -59,6 +60,8 @@ namespace uba
 		#if UBA_LOG_FETCH_CACHE_INFO
 		m_reportMissReason = true;
 		#endif
+
+		m_useDirectoryPreParsing = info.useDirectoryPreparsing;
 
 		m_client.RegisterOnConnected([this]()
 			{
@@ -302,8 +305,10 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::FetchFromCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info)
+	bool CacheClient::FetchFromCache(bool& outCacheHit, const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info)
 	{
+		outCacheHit = false;
+
 		if (!m_connected)
 			return false;
 
@@ -419,8 +424,17 @@ namespace uba
 				}
 				else
 				{
+					StringBuffer<MaxPath> forKey;
+					forKey.Append(path);
+					if (CaseInsensitiveFs)
+						forKey.MakeLower();
+					StringKey fileNameKey = ToStringKey(forKey);
+
+					if (m_useDirectoryPreParsing)
+						PreparseDirectory(fileNameKey, path);
+
 					bool fileIsCompressed = IsFileCompressed(info, path);
-					m_storage.StoreCasKey(localCasKey, path.data, CasKeyZero, fileIsCompressed);
+					m_storage.StoreCasKey(localCasKey, fileNameKey, path.data, CasKeyZero, fileIsCompressed);
 					UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
 				}
 
@@ -667,10 +681,21 @@ namespace uba
 							memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
 
 						FileAccessor destFile(logger, path.data);
-						if (!destFile.CreateWrite())
-							return logger.Error(TC("Failed to create file for cache output %s for %s"), path.data, info.description);
-						if (!destFile.Write(localBlock.memory, localBlock.writtenSize))
-							return false;
+
+						bool useFileMapping = true;
+						if (useFileMapping)
+						{
+							if (!destFile.CreateMemoryWrite(false, DefaultAttributes(), localBlock.writtenSize))
+								return logger.Error(TC("Failed to create file for cache output %s for %s"), path.data, info.description);
+							MapMemoryCopy(destFile.GetData(), localBlock.memory, localBlock.writtenSize);
+						}
+						else
+						{
+							if (!destFile.CreateWrite())
+								return logger.Error(TC("Failed to create file for cache output %s for %s"), path.data, info.description);
+							if (!destFile.Write(localBlock.memory, localBlock.writtenSize))
+								return false;
+						}
 						if (!destFile.Close(&fetcher.lastWritten))
 							return false;
 
@@ -693,6 +718,7 @@ namespace uba
 					if (!m_session.RegisterNewFile(path.data))
 						return false;
 				}
+				outCacheHit = true;
 				success = true;
 				return true;
 			}
@@ -1105,7 +1131,6 @@ namespace uba
 		u32 rootIndex = normalizedPath[0] - RootPaths::RootStartByte;
 		const TString& root = rootPaths.GetRoot(rootIndex);
 
-		StringBuffer<MaxPath> path;
 		outPath.Append(root).Append(normalizedPath.data + 1);
 		return true;
 	}
@@ -1118,5 +1143,50 @@ namespace uba
 		if (!rules)
 			rules = m_session.GetRules(info);
 		return rules->StoreFileCompressed(filename);
+	}
+
+	void CacheClient::PreparseDirectory(const StringKey& fileNameKey, const StringBufferBase& filePath)
+	{
+		const tchar* lastSep = filePath.Last(PathSeparator);
+		if (!lastSep)
+			return;
+
+		StringBuffer<MaxPath> path;
+		path.Append(filePath.data, lastSep - filePath.data);
+		if (CaseInsensitiveFs)
+			path.MakeLower();
+
+		StringKeyHasher dirHasher;
+		dirHasher.Update(path.data, path.count);
+		StringKey pathKey = ToStringKey(dirHasher);
+
+		SCOPED_WRITE_LOCK(m_directoryPreparserLock, preparserLock);
+		auto insres = m_directoryPreparser.try_emplace(pathKey);
+		PreparedDir& dir = insres.first->second;
+		preparserLock.Leave();
+
+		SCOPED_WRITE_LOCK(dir.lock, preparserLock2);
+		if (dir.done)
+			return;
+
+		dir.done = true;
+
+		// It is likely this folder has already been handled by session if this file is verified
+		if (m_storage.IsFileVerified(fileNameKey))
+			return;
+
+		u32 dirLength = path.count;
+
+		// Traverse all files in directory and report the file information... but only if it has not been reported before.. we don't want to interfere with other reports
+		TraverseDir(m_logger, path.data, 
+			[&](const DirectoryEntry& e)
+			{
+				path.Resize(dirLength).Append('\\').Append(e.name, e.nameLen);
+				if (CaseInsensitiveFs)
+					path.MakeLower();
+
+				StringKey fileNameKey = ToStringKey(dirHasher, path.data, path.count);
+				m_storage.ReportFileInfoWeak(fileNameKey, e.lastWritten, e.size);
+			});
 	}
 }

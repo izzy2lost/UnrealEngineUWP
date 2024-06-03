@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UbaHash.h"
 #include "UbaLogger.h"
 #include "UbaMemory.h"
 
@@ -27,6 +28,7 @@ namespace uba
 		NetworkClient& client;
 		Session& session;
 		bool reportMissReason = false;
+		bool useDirectoryPreparsing = true; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
 	};
 
 	class CacheClient
@@ -36,7 +38,7 @@ namespace uba
 		~CacheClient();
 
 		bool WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize, u32 processId = 0);
-		bool FetchFromCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info);
+		bool FetchFromCache(bool& outCacheHit, const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info);
 		bool RequestServerShutdown(const tchar* reason);
 
 		bool ExecuteCommand(Logger& logger, const tchar* command, const tchar* destinationFile = nullptr, const tchar* additionalInfo = nullptr);
@@ -58,12 +60,14 @@ namespace uba
 
 		bool GetLocalPathAndCasKey(Bucket& bucket, const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset);
 		bool IsFileCompressed(const ProcessStartInfo& info, const StringView& filename);
+		void PreparseDirectory(const StringKey& fileNameKey, const StringBufferBase& filePath);
 
 		MutableLogger m_logger;
 		StorageImpl& m_storage;
 		NetworkClient& m_client;
 		Session& m_session;
 		bool m_reportMissReason;
+		bool m_useDirectoryPreParsing;
 
 		Atomic<bool> m_connected;
 
@@ -71,6 +75,10 @@ namespace uba
 		UnorderedMap<u32, Bucket> m_buckets;
 
 		ReaderWriterLock m_sendOneAtTheTimeLock;
+
+		ReaderWriterLock m_directoryPreparserLock;
+		struct PreparedDir { ReaderWriterLock lock; bool done = false; };
+		UnorderedMap<StringKey, PreparedDir> m_directoryPreparser;
 
 		CacheClient(const CacheClient&) = delete;
 		CacheClient& operator=(const CacheClient&) = delete;
