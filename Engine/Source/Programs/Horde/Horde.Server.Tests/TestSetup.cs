@@ -253,6 +253,7 @@ namespace Horde.Server.Tests
 
 			services.AddSingleton<AclService>();
 			services.AddSingleton<AgentService>();
+			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
 			services.AddSingleton<AgentRelayService>();
 			services.AddSingleton<AwsAutoScalingLifecycleService>();
 			services.AddSingleton<ArtifactExpirationService>();
