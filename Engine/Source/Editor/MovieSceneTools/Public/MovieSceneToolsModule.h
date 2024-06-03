@@ -96,7 +96,6 @@ private:
 	static void RemoveForCookEventSection(UMovieSceneEventSectionBase* Section);
 	static bool IsTrackClassAllowed(UClass* InClass);
 	static void PostDuplicateEvent(ULevelSequence* LevelSequence);
-	static void FixupDynamicBindingsEvent(ULevelSequence* LevelSequence);
 
 private:
 
@@ -149,7 +148,6 @@ private:
 	FDelegateHandle FixupDynamicBindingPayloadParameterNameHandle;
 	FDelegateHandle FixupEventSectionPayloadParameterNameHandle;
 	FDelegateHandle UpgradeLegacyEventEndpointHandle;
-	FDelegateHandle FixupDynamicBindingsHandle;
 
 	FDelegateHandle OnObjectsReplacedHandle;
 

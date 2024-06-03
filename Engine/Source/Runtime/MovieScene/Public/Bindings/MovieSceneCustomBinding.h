@@ -88,13 +88,6 @@ public:
 	*/
 	UMovieSceneSpawnableBindingBase* AsSpawnable(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) { return const_cast<UMovieSceneSpawnableBindingBase*>(const_cast<const UMovieSceneCustomBinding*>(this)->AsSpawnable(SharedPlaybackState)); }
 
-	/*
-	* Must be implemented.
-	* Should return the most specific relevant class of the bound object. Used to populate the FMovieScenePossessable bound object class.
-	*/
-	virtual UClass* GetBoundObjectClass() const PURE_VIRTUAL(UMovieSceneCustomBinding::GetBoundObjectClass, return UObject::StaticClass(););
-
-
 #if WITH_EDITOR
 
 	/*
@@ -127,16 +120,17 @@ public:
 	*/
 	virtual FText GetBindingTypePrettyName() const PURE_VIRTUAL(UMovieSceneCustomBinding::GetBindingTypePrettyName, return FText(););
 
+	/*
+	* Must be implemented.
+	* Should return the most specific relevant class of the bound object. Used to populate the FMovieScenePossessable bound object class.
+	*/
+	virtual UClass* GetBoundObjectClass() const PURE_VIRTUAL(UMovieSceneCustomBinding::GetBoundObjectClass, return UObject::StaticClass(););
+
 
 	/*
 	* Called by UI code to see if this custom binding supports converting to a possessable.
 	*/
 	virtual bool CanConvertToPossessable(const FGuid& Guid, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const { return true; }
-
-	/*
-	* Called by UI code when the binding has recently been added or modified in the case anything needs to be initialized or modified based on this. 
-	*/
-	virtual void OnBindingAddedOrChanged(UMovieScene& OwnerMovieScene) {}
 
 #endif
 

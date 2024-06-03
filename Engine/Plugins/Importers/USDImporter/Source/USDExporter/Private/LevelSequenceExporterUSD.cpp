@@ -50,8 +50,6 @@
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "UObject/UObjectGlobals.h"
-#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
-#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
 
 #define LOCTEXT_NAMESPACE "LevelSequenceExporterUSD"
 
@@ -575,6 +573,16 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// Spawn everything for this instance
 			for (FMovieSceneSequenceID SequenceInstance : SequenceInstancePair.Value)
 			{
+				int32 NumSpawnables = MovieScene->GetSpawnableCount();
+				for (int32 Index = 0; Index < NumSpawnables; ++Index)
+				{
+					const FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(Index);
+					const FGuid& Guid = Spawnable.GetGuid();
+
+					StaticCastSharedRef<FMovieSceneSpawnRegister>(Context.SpawnRegister)
+						->SpawnObject(Guid, *MovieScene, SequenceInstance, Context.Sequencer->GetSharedPlaybackState(), 0);
+				}
+
 				if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 				{
 					int32 BindingIndex = 0;
@@ -849,38 +857,26 @@ namespace UE::LevelSequenceExporterUSD::Private
 							LastGuid = BindingReference.ID;
 							BindingIndex = 0;
 						}
-						if (BindingReference.CustomBinding)
+						if (BindingReference.CustomBinding
+							&& BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
 						{
-							if (BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+							BoundObject = Context.SpawnRegister
+											  ->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, BindingIndex++));
+							if (!BoundObject)
 							{
-								BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, BindingIndex++));
-								if (!BoundObject)
-								{
-									// This should never happen as we preemptively spawn everything:
-									// At this point all our spawns should be spawned, but invisible
-									UE_LOG(LogUsd, Warning, TEXT("Failed to find spawned object for spawnable with Guid '%s'"), *Guid.ToString());
-									continue;
-								}
-
-								if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
-								{
-									BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, BindingIndex));
-								}
+								// This should never happen as we preemptively spawn everything:
+								// At this point all our spawns should be spawned, but invisible
+								UE_LOG(LogUsd, Warning, TEXT("Failed to find spawned object for spawnable with Guid '%s'"), *Guid.ToString());
+								continue;
 							}
 
-							if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(BindingReference.CustomBinding->AsSpawnable(Context.Sequencer->GetSharedPlaybackState())))
+							if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
 							{
-								if (SpawnableDirectorBlueprintBinding->DynamicBinding.Function)
-								{
-									DynamicBindings.Add(FSpawnedInstanceKey(Guid, BindingIndex), &SpawnableDirectorBlueprintBinding->DynamicBinding);
-								}
-							}
+								BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, BindingIndex));
 
-							if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableDirectorBlueprintBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(BindingReference.CustomBinding))
-							{
-								if (ReplaceableDirectorBlueprintBinding->DynamicBinding.Function)
+								if (Possessable.DynamicBinding.Function)
 								{
-									DynamicBindings.Add(FSpawnedInstanceKey(Guid, BindingIndex), &ReplaceableDirectorBlueprintBinding->DynamicBinding);
+									DynamicBindings.Add(FSpawnedInstanceKey(Guid, BindingIndex), &Possessable.DynamicBinding);
 								}
 							}
 						}
@@ -908,6 +904,45 @@ namespace UE::LevelSequenceExporterUSD::Private
 				if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
 				{
 					BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, 0));
+
+					if (Possessable.DynamicBinding.Function)
+					{
+						DynamicBindings.Add(FSpawnedInstanceKey(Guid, 0), &Possessable.DynamicBinding);
+					}
+				}
+			}
+
+			// Spawnables
+			int32 NumSpawnables = MovieScene->GetSpawnableCount();
+			for (int32 Index = 0; Index < NumSpawnables; ++Index)
+			{
+				FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(Index);
+				const FGuid& Guid = Spawnable.GetGuid();
+
+				// We won't have spawned ASphereReflectionCapture here.
+				// See the comment inside FLevelSequenceHidingSpawnRegister::SpawnObject and UE-167593 for more info
+				if (ASphereReflectionCapture* ReflectionCapture = Cast<ASphereReflectionCapture>(Spawnable.GetObjectTemplate()))
+				{
+					continue;
+				}
+
+				UObject* BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, 0));
+				if (!BoundObject)
+				{
+					// This should never happen as we preemptively spawn everything:
+					// At this point all our spawns should be spawned, but invisible
+					UE_LOG(LogUsd, Warning, TEXT("Failed to find spawned object for spawnable with Guid '%s'"), *Guid.ToString());
+					continue;
+				}
+
+				if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
+				{
+					BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, 0));
+
+					if (Spawnable.DynamicBinding.Function)
+					{
+						DynamicBindings.Add(FSpawnedInstanceKey(Guid, 0), &Spawnable.DynamicBinding);
+					}
 				}
 			}
 		}
@@ -1734,7 +1769,7 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	// Spawn (but hide) all spawnables so that they will also show up on the level export if we need them to.
 	// We have to traverse the template IDs when spawning spawnables, because we'll want to force each individual spawnable of each
 	// FMovieSceneSequenceID to spawn a separate object, so that they can become separate prims. Without doing this, if we used the same
-	// subsequence with spawnables multiple times within a parent sequence we'd only get one prim out, as the spawnable bindings
+	// subsequence with spawnables multiple times within a parent sequence we'd only get one prim out, as the FMovieSceneSpawnable objects
 	// would be the exact same between all instances of the child sequence (same FGuid)
 	LevelSequenceExporterImpl::PreSpawnSpawnables(Context, *LevelSequence);
 

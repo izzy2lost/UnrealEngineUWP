@@ -1243,12 +1243,12 @@ void FWidgetBlueprintCompilerContext::ValidateWidgetAnimations()
 		for (const FWidgetAnimationBinding& Binding : InAnimation->AnimationBindings)
 		{
 			// Look for the object bindings within the widget
-			UObject* FoundObject = Binding.FindRuntimeObject(*LatestWidgetTree, *UserWidget, InAnimation, nullptr);
+			UObject* FoundObject = Binding.FindRuntimeObject(*LatestWidgetTree, *UserWidget);
 
 			// If any of the FoundObjects is null, we do not play the animation.
 			if (FoundObject == nullptr)
 			{
-				FoundObject = Binding.FindRuntimeObject(*WidgetBP->WidgetTree, *UserWidget, InAnimation, nullptr);
+				FoundObject = Binding.FindRuntimeObject(*WidgetBP->WidgetTree, *UserWidget);
 				if (FoundObject == nullptr)
 				{
 					// Notify the user of the null track in the editor

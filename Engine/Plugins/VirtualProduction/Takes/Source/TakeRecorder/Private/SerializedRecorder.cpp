@@ -32,7 +32,6 @@
 #include "UObject/UObjectIterator.h"
 #include "LevelSequenceActor.h"
 #include "LevelEditorViewport.h"
-#include "SequencerUtilities.h"
 
 #define LOCTEXT_NAMESPACE "SerializedRecorder"
 
@@ -424,18 +423,11 @@ AActor* FSerializedRecorder::SetActorPossesableOrSpawnable(UMovieSceneSequence* 
 
 		Actor->SetActorLabel(ActorHeader.Label); //spawnable has samen Name used for matching.
 
-		FMovieScenePossessable Possessable(ActorHeader.Label, SpawnableClass);
+		FMovieSceneSpawnable Spawnable(ActorHeader.Label, *Actor);
+		Spawnable.SetGuid(ActorHeader.Guid);
 
-		Possessable.SetGuid(ActorHeader.Guid);
 		FMovieSceneBinding NewBinding(ActorHeader.Guid, ActorHeader.Label);
-		MovieScene->AddPossessable(Possessable, NewBinding);
-
-		UE::Sequencer::FCreateBindingParams CreateBindingParams;
-		CreateBindingParams.bAllowCustomBinding = true;
-		CreateBindingParams.bSpawnable = true;
-		CreateBindingParams.BindingNameOverride = ActorHeader.Label;
-		CreateBindingParams.ReplacementGuid = ActorHeader.Guid;
-		FSequencerUtilities::CreateOrReplaceBinding(nullptr, InMovieSceneSequence, Actor, CreateBindingParams);
+		MovieScene->AddSpawnable(Spawnable, NewBinding);
 
 		if (ActorHeader.Guid.IsValid())
 		{
@@ -483,6 +475,15 @@ AActor* FSerializedRecorder::SetActorPossesableOrSpawnable(UMovieSceneSequence* 
 		Possessable->SetName(ActorHeader.Label);
 	}
 
+	if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ActorHeader.Guid))
+	{
+		if (!Spawnable->Tags.Contains(*(ActorHeader.Label)))
+		{
+			Spawnable->Tags.AddUnique(FName(*(ActorHeader.Label)));
+		}
+		Spawnable->SetName(ActorHeader.Label);
+	}
+
 	// look for a folder to put us in
 	if (ActorHeader.FolderName.IsValid())
 	{
@@ -525,6 +526,12 @@ void FSerializedRecorder::SetComponentPossessable(UMovieSceneSequence* InMovieSc
 		// Set up parent/child guids for possessables within spawnables
 		FMovieScenePossessable* ChildPossessablePtr = InMovieScene->FindPossessable(ActorProperty.Guid);
 		ChildPossessablePtr->SetParent(ActorHeader.Guid, InMovieScene);
+		
+		FMovieSceneSpawnable* ParentSpawnable = InMovieScene->FindSpawnable(ActorHeader.Guid);
+		if (ParentSpawnable)
+		{
+			ParentSpawnable->AddChildPossessable(ActorProperty.Guid);
+		}
 
 		for (UActorComponent* Component : Actor->GetComponents())
 		{

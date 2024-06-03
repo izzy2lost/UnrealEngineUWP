@@ -23,6 +23,7 @@ class UMovieSceneTrack;
 class FMenuBuilder;
 class FPropertyPath;
 class FStructOnScope;
+struct FMovieSceneDynamicBinding;
 enum class ECheckBoxState : uint8;
 
 namespace UE
@@ -123,6 +124,9 @@ public:
 public:
 
 	TSharedRef<SWidget> GetAddTrackMenuContent();
+
+	/** Build a sub-menu for editing the given dynamic binding */
+	void AddDynamicBindingMenu(FMenuBuilder& MenuBuilder, FMovieSceneDynamicBinding& DynamicBinding);
 
 protected:
 

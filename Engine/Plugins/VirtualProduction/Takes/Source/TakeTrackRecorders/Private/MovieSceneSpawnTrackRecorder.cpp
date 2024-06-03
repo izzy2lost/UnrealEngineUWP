@@ -7,7 +7,6 @@
 #include "Sections/MovieSceneBoolSection.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "Channels/MovieSceneChannelProxy.h"
-#include "MovieSceneSequence.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSpawnTrackRecorder)
 
@@ -26,12 +25,7 @@ bool FMovieSceneSpawnTrackRecorderFactory::CanRecordObject(UObject* InObjectToRe
 
 void UMovieSceneSpawnTrackRecorder::CreateTrackImpl()
 {
-	UMovieSceneSequence* Sequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
-	if (!Sequence)
-	{
-		return;
-	}
-	if (!MovieSceneHelpers::IsBoundToAnySpawnable(Sequence, ObjectGuid, MovieSceneHelpers::CreateTransientSharedPlaybackState(this, Sequence)))
+	if (MovieScene->FindPossessable(ObjectGuid))
 	{
 		return;
 	}

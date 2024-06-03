@@ -449,8 +449,6 @@ struct FFortniteMainBranchObjectVersion
 
 		// Add the imported asset dependencies to the Cloth Asset USD Import node
 		ChaosClothAssetUSDImportNodeAddAssetDependencies,
-		// Upgraded movie scene 'dynamic bindings' to use the new Custom Bindings system
-		LevelSequenceUpgradeDynamicBindings,
 
 		// Changed HitLighting to HitLightingForReflections, and HitLighting now means hit lighting for entire Lumen
 		LumenRayLightingModeOverrideEnum,

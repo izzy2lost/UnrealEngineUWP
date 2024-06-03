@@ -6,6 +6,7 @@
 #include "MovieRenderPipelineDataTypes.h"
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
+#include "MovieSceneSpawnable.h"
 #include "MovieScenePossessable.h"
 #include "MovieSceneBinding.h"
 #include "LevelSequence.h"
@@ -511,8 +512,6 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			// camera components and track them as sidecar cameras. We do this even if sidecar data isn't being used.
 			if (LeafNode->CameraCutSection.IsValid() && LeafNode->MovieScene.IsValid())
 			{
-				UMovieSceneSequence* Sequence = LeafNode->MovieScene->GetTypedOuter<UMovieSceneSequence>();
-				TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GWorld, Sequence);
 				int32 MainCameraIndex = INDEX_NONE;
 				FMovieSceneObjectBindingID MainBinding = LeafNode->CameraCutSection->GetCameraBindingID();
 
@@ -562,28 +561,33 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 								LastValidGuid = ParentGuid;
 								ParentGuid = ParentAsPossessable->GetParent();
 								SidecarCamera.Name = ParentAsPossessable->GetName();
-
-								if (MovieSceneHelpers::IsBoundToAnySpawnable(LeafNode->MovieScene->GetTypedOuter<UMovieSceneSequence>(), ParentAsPossessable->GetGuid(), TransientPlaybackState))
+							}
+							else if (FMovieSceneSpawnable* ParentAsSpawnable = LeafNode->MovieScene->FindSpawnable(ParentGuid))
+							{
+								FMovieSceneBinding* Binding = LeafNode->MovieScene->FindBinding(ParentAsSpawnable->GetGuid());
+								if (Binding)
 								{
-									FMovieSceneBinding* Binding = LeafNode->MovieScene->FindBinding(ParentAsPossessable->GetGuid());
-									if (Binding)
+									const TArray<UMovieSceneTrack*> AllBindingTracks = Binding->GetTracks();
+									for (const UMovieSceneTrack* Track : AllBindingTracks)
 									{
-										const TArray<UMovieSceneTrack*> AllBindingTracks = Binding->GetTracks();
-										for (const UMovieSceneTrack* Track : AllBindingTracks)
+										if (const UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(Track))
 										{
-											if (const UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(Track))
+											for (const UMovieSceneSection* Section : SpawnTrack->GetAllSections())
 											{
-												for (const UMovieSceneSection* Section : SpawnTrack->GetAllSections())
+												if (const UMovieSceneSpawnSection* BoolSection = Cast<UMovieSceneSpawnSection>(Section))
 												{
-													if (const UMovieSceneSpawnSection* BoolSection = Cast<UMovieSceneSpawnSection>(Section))
-													{
-														bAddCamera = BoolSection->GetChannel().GetDefault().Get(true);
-													}
+													bAddCamera = BoolSection->GetChannel().GetDefault().Get(true);
 												}
 											}
 										}
 									}
 								}
+
+								// Spawnables will never have a parent
+								LastValidGuid = ParentGuid;
+								ParentGuid.Invalidate(); 
+								
+								SidecarCamera.Name = ParentAsSpawnable->GetName();
 							}
 						}
 

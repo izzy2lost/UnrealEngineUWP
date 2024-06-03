@@ -435,9 +435,6 @@ private:
 	/** Update the name of a track to reflect changes in bindings */
 	void UpdateTrackName(FGuid ObjectId);
 
-	/* Called after changing dynamic binding properties*/
-	void OnFinishedChangingDynamicBindingProperties(const FPropertyChangedEvent& ChangeEvent, TSharedPtr<FStructOnScope> ValueStruct, FGuid ObjectId);
-
 private:
 	/** The preview scene that owns the preview GUI */
 	FPreviewScene PreviewScene;

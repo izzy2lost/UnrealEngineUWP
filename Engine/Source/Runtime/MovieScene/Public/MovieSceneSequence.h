@@ -41,12 +41,6 @@ struct FMovieScenePossessable;
 struct FMovieSceneTimecodeSource;
 struct FUniversalObjectLocator;
 struct FMovieSceneBindingReferences;
-struct FMovieSceneDynamicBinding;
-
-#if WITH_EDITOR
-struct FSlateBrush;
-#endif
-
 
 namespace UE::MovieScene
 {
@@ -145,7 +139,6 @@ public:
 	 * @param Params				Resolve parameters specifying the context and fragment-specific parameters
 	 * @param OutObjects			Destination array to add found objects to
 	 */
-	UE_DEPRECATED(5.5, "Please use the version that also takes a SharedPlaybackState")
 	MOVIESCENE_API void LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
@@ -156,26 +149,12 @@ public:
 	 * @param Context				Optional context to use to find the required object (for instance, a parent spawnable object)
 	 * @return An array of all bound objects
 	 */
-	UE_DEPRECATED(5.5, "Please use the version that also takes a SharedPlaybackState")
 	TArray<UObject*, TInlineAllocator<1>> LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& Context) const
 	{
 		TArray<UObject*, TInlineAllocator<1>> OutObjects;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		LocateBoundObjects(ObjectId, Context, OutObjects);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return OutObjects;
 	}
-
-	/**
-	 * Locate all the objects that correspond to the specified object ID, using the specified parameters.
-	 * Calling this directly instead of IMovieScenePlayer::ResolveBoundObjects means that you won't be able to locate Spawnable objects or objects from Custom Bindings.
-	 *
-	 * @param ObjectId				The unique identifier of the object.
-	 * @param ResolveParams			Resolve parameters specifying the context and fragment-specific parameters
-	 * @param SharedPlaybackState   Optional ptr to SharedPlaybackState
-	 * @param OutObjects			Destination array to add found objects to
-	 */
-	MOVIESCENE_API virtual void LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TSharedPtr<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
 	 * Attempt to find the guid relating to the specified object
@@ -322,12 +301,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence")
 	MOVIESCENE_API FMovieSceneTimecodeSource GetEarliestTimecodeSource() const;
-
-	MOVIESCENE_API virtual void IterateDynamicBindings(const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback) {}
-	
-#if WITH_EDITOR
-	MOVIESCENE_API virtual const FSlateBrush* GetCustomBrushForBinding(FGuid BindingID) const { return nullptr; }
-#endif
 
 public:
 

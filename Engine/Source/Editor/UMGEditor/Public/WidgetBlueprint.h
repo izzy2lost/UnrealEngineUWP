@@ -173,6 +173,32 @@ struct UMGEDITOR_API FDelegateEditorBinding
 	FDelegateRuntimeBinding ToRuntimeBinding(class UWidgetBlueprint* Blueprint) const;
 };
 
+
+/** Struct used only for loading old animations */
+USTRUCT()
+struct FWidgetAnimation_DEPRECATED
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	TObjectPtr<UMovieScene> MovieScene = nullptr;
+
+	UPROPERTY()
+	TArray<FWidgetAnimationBinding> AnimationBindings;
+
+	bool SerializeFromMismatchedTag(struct FPropertyTag const& Tag, FStructuredArchive::FSlot Slot);
+
+};
+
+template<>
+struct TStructOpsTypeTraits<FWidgetAnimation_DEPRECATED> : public TStructOpsTypeTraitsBase2<FWidgetAnimation_DEPRECATED>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
 UENUM()
 enum class EWidgetSupportsDynamicCreation : uint8
 {
@@ -225,6 +251,9 @@ public:
 	
 	UPROPERTY()
 	TArray< FDelegateEditorBinding > Bindings;
+
+	UPROPERTY()
+	TArray<FWidgetAnimation_DEPRECATED> AnimationData_DEPRECATED;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UWidgetAnimation>> Animations;

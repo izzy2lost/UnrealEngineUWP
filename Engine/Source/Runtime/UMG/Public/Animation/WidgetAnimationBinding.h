@@ -5,19 +5,10 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Misc/Guid.h"
-#include "MovieSceneDynamicBinding.h"
-#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "WidgetAnimationBinding.generated.h"
 
 class UUserWidget;
 class UWidgetTree;
-class UMovieSceneSequence;
-
-namespace UE::MovieScene
-{
-	struct FSharedPlaybackState;
-}
-
 
 /**
  * A single object bound to a UMG sequence.
@@ -39,19 +30,13 @@ struct FWidgetAnimationBinding
 	UPROPERTY()
 	bool bIsRootWidget = false;
 
-	UPROPERTY()
-	FMovieSceneDynamicBinding DynamicBinding;
-
 public:
 
 	/**
 	 * Locates a runtime object to animate from the provided tree of widgets.
 	 * @return the runtime object to animate or null if not found
 	 */
-	UE_DEPRECATED(5.5, "Please use the version that takes a SharedPlaybackState and Sequence")
 	UMG_API UObject* FindRuntimeObject(const UWidgetTree& WidgetTree, UUserWidget& UserWidget) const;
-
-	UMG_API UObject* FindRuntimeObject(const UWidgetTree& WidgetTree, UUserWidget& UserWidget, const UMovieSceneSequence* Sequence, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const;
 
 	/**
 	 * Compares two widget animation bindings for equality.
@@ -62,6 +47,30 @@ public:
 	 */
 	friend bool operator==(const FWidgetAnimationBinding& X, const FWidgetAnimationBinding& Y)
 	{
-		return (X.WidgetName == Y.WidgetName) && (X.SlotWidgetName == Y.SlotWidgetName) && (X.AnimationGuid == Y.AnimationGuid) && (X.bIsRootWidget == Y.bIsRootWidget) && (X.DynamicBinding.Function == Y.DynamicBinding.Function);
+		return (X.WidgetName == Y.WidgetName) && (X.SlotWidgetName == Y.SlotWidgetName) && (X.AnimationGuid == Y.AnimationGuid) && (X.bIsRootWidget == Y.bIsRootWidget);
+	}
+
+	/**
+	 * Serializes a widget animation binding from/to the given archive.
+	 *
+	 * @param Ar The archive to serialize to/from.
+	 * @param Binding the binding to serialize.
+	 */
+	friend FArchive& operator<<(FArchive& Ar, FWidgetAnimationBinding& Binding)
+	{
+		Ar << Binding.WidgetName;
+		Ar << Binding.SlotWidgetName;
+		Ar << Binding.AnimationGuid;
+		Ar << Binding.bIsRootWidget;
+		return Ar;
+	}
+
+	friend void operator<<(FStructuredArchive::FSlot Slot, FWidgetAnimationBinding& Binding)
+	{
+		FStructuredArchive::FRecord Record = Slot.EnterRecord();
+		Record << SA_VALUE(TEXT("WidgetName"), Binding.WidgetName);
+		Record << SA_VALUE(TEXT("SlotWidgetName"), Binding.SlotWidgetName);
+		Record << SA_VALUE(TEXT("AnimationGuid"), Binding.AnimationGuid);
+		Record << SA_VALUE(TEXT("bIsRootWidget"), Binding.bIsRootWidget);
 	}
 };

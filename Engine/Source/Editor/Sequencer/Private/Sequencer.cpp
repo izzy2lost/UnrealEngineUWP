@@ -1616,7 +1616,18 @@ void FSequencer::UpdateSequencerCustomizations(const UMovieSceneSequence* Previo
 	// TODO: Allow customization of which custom bindings are allowed? For now just iterate over all subclasses and sort by priority
 
 	// Cache custom spawnable types
-	MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(SupportedCustomBindingTypes);
+	SupportedCustomBindingTypes.Empty();
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		if (It->IsChildOf(UMovieSceneCustomBinding::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract))
+		{
+			SupportedCustomBindingTypes.Add(*It);
+		}
+	}
+
+	// Sort by spawner priority to allow disambiguation for similar object types
+	SupportedCustomBindingTypes.Sort([](const TSubclassOf<UMovieSceneCustomBinding>& A, const TSubclassOf<UMovieSceneCustomBinding>& B) {
+		return A && B && A->GetDefaultObject<UMovieSceneCustomBinding>()->GetCustomBindingPriority() > B->GetDefaultObject<UMovieSceneCustomBinding>()->GetCustomBindingPriority(); });
 }
 
 void FSequencer::RerunConstructionScripts()

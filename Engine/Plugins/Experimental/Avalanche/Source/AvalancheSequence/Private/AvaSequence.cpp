@@ -429,7 +429,7 @@ TArray<UObject*> UAvaSequence::GetBoundObjects(UObject* InPlaybackContext) const
 	for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
 	{
 		TArray<UObject*, TInlineAllocator<1>> BoundObject;
-		LocateBoundObjects(Binding.GetObjectGuid(), UE::UniversalObjectLocator::FResolveParams(InPlaybackContext), MovieSceneHelpers::CreateTransientSharedPlaybackState(InPlaybackContext, MovieScene->GetTypedOuter<UMovieSceneSequence>()), BoundObject);
+		LocateBoundObjects(Binding.GetObjectGuid(), UE::UniversalObjectLocator::FResolveParams(InPlaybackContext), BoundObject);
 		OutObjects.Append(BoundObject);
 	}
 

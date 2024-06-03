@@ -39,29 +39,15 @@ public:
 
 	/* UMovieSceneCustomBinding overrides */
 	virtual bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override;
-	virtual UClass* GetBoundObjectClass() const override;
 #if WITH_EDITOR
 	virtual	void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) override;
 	virtual const FSlateBrush* GetBindingTrackCustomIconOverlay() const override;
 	virtual FText GetBindingTrackIconTooltip() const override;
+	virtual UClass* GetBoundObjectClass() const override;
 
 	virtual bool SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const override;
 	virtual UMovieSceneCustomBinding* CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
 #endif
-
-#if WITH_EDITORONLY_DATA
-	// Optional Editor-only preview object
-	UPROPERTY(Instanced, VisibleAnywhere, Category="Editor")
-	TObjectPtr<UMovieSceneSpawnableBindingBase> PreviewSpawnable = nullptr;
-#endif
-
-public:
-
-	/*
-	*  Note that we choose to implement CreateCustomBinding here rather than in subclasses.
-	*  Instead we rely on subclasses to implement CreateInnerSpawnable and InitReplaceableBinding which we call here.
-	*/
-	UMovieSceneCustomBinding* CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene) override final;
 
 protected:
 
@@ -82,6 +68,12 @@ protected:
 	/* Must be implemented. Called from CreateNewCustomBinding to allow the replaceable to initialize any data members from the source object. */
 	virtual void InitReplaceableBinding(UObject* SourceObject, UMovieScene & OwnerMovieScene) PURE_VIRTUAL(UMovieSceneReplaceableBindingBase::InitReplaceableBinding, return;);
 
+#if WITH_EDITORONLY_DATA
+	// Editor-only preview object
+	UPROPERTY(Instanced, VisibleAnywhere, Category="Editor")
+	TObjectPtr<UMovieSceneSpawnableBindingBase> PreviewSpawnable = nullptr;
+#endif
+
 protected:
 
 	/* UMovieSceneCustomBinding overrides*/
@@ -89,4 +81,9 @@ protected:
 	FMovieSceneBindingResolveResult ResolveBinding(const FMovieSceneBindingResolveParams& ResolveParams, int32 BindingIndex, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override final;
 	const UMovieSceneSpawnableBindingBase* AsSpawnable(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override final;
 
+	/* 
+	*  Note that we choose to implement CreateCustomBinding here rather than in subclasses.
+	*  Instead we rely on subclasses to implement CreateInnerSpawnable and InitReplaceableBinding which we call here.
+	*/
+	UMovieSceneCustomBinding* CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene) override final;
 };

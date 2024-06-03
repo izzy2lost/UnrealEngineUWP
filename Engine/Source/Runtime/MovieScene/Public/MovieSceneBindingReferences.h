@@ -58,10 +58,6 @@ struct FMovieSceneBindingResolveParams
 	/** The sequence ID of the object binding being resolved */
 	UPROPERTY()
 	FMovieSceneSequenceID SequenceID;
-
-	/* The outer context with which to resolve this binding. May be the world, or may be an outer UObject.*/
-	UPROPERTY()
-	TObjectPtr<UObject> Context = nullptr;
 };
 
 /**

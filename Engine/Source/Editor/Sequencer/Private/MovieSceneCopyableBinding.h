@@ -61,7 +61,4 @@ public:
 	
 	UPROPERTY()
 	int32 NumCustomBindings;
-
-	UPROPERTY()
-	TArray<int32> PreviewSpawnableBindings;
 };

@@ -87,7 +87,7 @@ struct FMovieSceneDynamicBindingResolveParams
 };
 
 USTRUCT(BlueprintType)
-struct MOVIESCENE_API FMovieSceneDynamicBindingResolveResult
+struct FMovieSceneDynamicBindingResolveResult
 {
 	GENERATED_BODY()
 

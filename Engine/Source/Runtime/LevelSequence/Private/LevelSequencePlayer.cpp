@@ -128,7 +128,7 @@ void ULevelSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FReso
 	{
 		if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
 		{
-			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID, LocatorResolveParams.Context };
+			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID };
 			if (LocatorResolveParams.ParameterBuffer == nullptr)
 			{
 				// Allocate temporary local buffer for this
@@ -152,13 +152,13 @@ void ULevelSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FReso
 				TInlineResolveParameterBuffer<128> Buffer;
 				LocatorResolveParams.ParameterBuffer = &Buffer;
 				LocatorResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
-				InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, GetSharedPlaybackState(), OutObjects);
+				InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, OutObjects);
 				LocatorResolveParams.ParameterBuffer = nullptr;
 			}
 			else
 			{
 				LocatorResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
-				InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, GetSharedPlaybackState(), OutObjects);
+				InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, OutObjects);
 			}
 		}
 	}

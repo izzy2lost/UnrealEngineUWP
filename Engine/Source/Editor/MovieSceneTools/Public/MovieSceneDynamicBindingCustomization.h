@@ -28,8 +28,6 @@ public:
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding);
 
-	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
-
 protected:
 
 	virtual void GetPayloadVariables(UObject* EditObject, void* RawData, FPayloadVariableMap& OutPayloadVariables) const override;
@@ -55,6 +53,5 @@ private:
 
 	UMovieScene* EditedMovieScene;
 	FGuid ObjectBinding;
-	int32 BindingIndex = 0;
 };
 

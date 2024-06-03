@@ -18,11 +18,8 @@ class UMovieSceneSubSection;
 class UMovieSceneSequence;
 class USceneComponent;
 class USoundBase;
-template <class TClass> class TSubclassOf;
-class UMovieSceneCustomBinding;
 struct FRichCurve;
 enum class EMovieSceneKeyInterpolation : uint8;
-struct FMovieSceneSequenceID;
 
 namespace UE::MovieScene
 {
@@ -230,15 +227,6 @@ public:
 	static MOVIESCENE_API bool IsBoundToSpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
 
 	/*
-	* Attempts to create a new custom spawnable binding for the passed in UObject*. 
-	* Where possible, it is preferred to call FSequencerUtilities::CreateOrReplaceBinding as it handles more cases. This should only be called in cases where there is no editor or sequencer context.
-	* FactoryCreatedActor may be passed in as an alternative option for creating the binding in the case an actor factory was able to create an actor from this object.
-	*/
-
-	static MOVIESCENE_API FGuid TryCreateCustomSpawnableBinding(UMovieSceneSequence* Sequence, UObject* CustomBindingObject);
-	
-
-	/*
 	* Returns the single bound object currently bound to the given objectid and binding index (optional).
 	*/
 	static MOVIESCENE_API UObject* GetSingleBoundObject(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
@@ -269,14 +257,6 @@ public:
 	static MOVIESCENE_API const UClass* GetBoundObjectClass(UMovieSceneSequence* Sequence, const FGuid& ObjectId, int32 BindingIndex = 0);
 #endif
 
-	/* Returns a sorted list of all custom binding type classes currently known. Slow, may desire to cache result*/
-	static void MOVIESCENE_API GetPrioritySortedCustomBindingTypes(TArray<const TSubclassOf<UMovieSceneCustomBinding>>& OutCustomBindingTypes);
-
-	/* For cases where the user does not have a IMovieScenePlayer with a shared playback state, creates a transient one. Use sparingly. */
-	static TSharedRef<UE::MovieScene::FSharedPlaybackState> MOVIESCENE_API CreateTransientSharedPlaybackState(UObject* WorldContext, UMovieSceneSequence* Sequence);
-
-	/* Finds the resolution context to use to resolve the given guid. */
-	static MOVIESCENE_API UObject* GetResolutionContext(UMovieSceneSequence* Sequence, const FGuid& ObjectId, const FMovieSceneSequenceID& SequenceID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
 };
 
 /**

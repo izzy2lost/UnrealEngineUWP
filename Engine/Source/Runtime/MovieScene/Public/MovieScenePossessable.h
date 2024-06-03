@@ -154,9 +154,9 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Actor)
 	TArray<FName> Tags;
 
-	// Property has been deprecated- 'Dynamic Bindings' are now handled by UMovieSceneReplaceableDirectorBlueprintBinding and the custom binding system
-	UPROPERTY()
-	FMovieSceneDynamicBinding DynamicBinding_DEPRECATED;
+	/** Optional user-defined possessable lookup information */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category="Sequencer")
+	FMovieSceneDynamicBinding DynamicBinding;
 
 	/* Get the optional binding id for binding to a spawnable */
 	const FMovieSceneObjectBindingID& GetSpawnableObjectBindingID() const 

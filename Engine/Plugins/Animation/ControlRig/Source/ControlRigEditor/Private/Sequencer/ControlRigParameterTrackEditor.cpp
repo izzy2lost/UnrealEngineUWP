@@ -4184,12 +4184,9 @@ bool FControlRigParameterTrackEditor::HandleAssetAdded(UObject* Asset, const FGu
 
 	const FScopedTransaction Transaction(LOCTEXT("AddControlRigAsset", "Add Control Rig"));
 
-	UE::Sequencer::FCreateBindingParams CreateBindingParams;
-	CreateBindingParams.bSpawnable = true;
-	CreateBindingParams.bAllowCustomBinding = true;
-	FGuid NewGuid = GetSequencer()->CreateBinding(*ASkeletalMeshActor::StaticClass(), CreateBindingParams);
+	FGuid NewGuid = GetSequencer()->MakeNewSpawnable(*ASkeletalMeshActor::StaticClass());
 
-	// CreateBinding can fail if spawnables are not allowed
+	// MakeNewSpawnable can fail if spawnables are not allowed
 	if (!NewGuid.IsValid())
 	{
 		return false;
@@ -4208,7 +4205,8 @@ bool FControlRigParameterTrackEditor::HandleAssetAdded(UObject* Asset, const FGu
 	
 	// Save Spawnable state as the default (with new name and skeletal mesh asset)
 	{
-		GetSequencer()->GetSpawnRegister().SaveDefaultSpawnableState(NewGuid, GetSequencer()->GetFocusedTemplateID(), GetSequencer()->GetSharedPlaybackState());
+		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(NewGuid);
+		GetSequencer()->GetSpawnRegister().SaveDefaultSpawnableState(*Spawnable, GetSequencer()->GetFocusedTemplateID(), *GetSequencer());
 	}
 
 	UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), NewGuid, NAME_None));

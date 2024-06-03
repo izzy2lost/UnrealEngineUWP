@@ -92,6 +92,16 @@ static FGuid GetActorInSequence(AActor* InActor, UMovieScene* MovieScene)
 {
 	FString ActorTargetName = InActor->GetActorLabel();
 
+
+	for (int32 SpawnableCount = 0; SpawnableCount < MovieScene->GetSpawnableCount(); ++SpawnableCount)
+	{
+		const FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(SpawnableCount);
+		if (Spawnable.GetName() == ActorTargetName || Spawnable.Tags.Contains(*ActorTargetName))
+		{
+			return Spawnable.GetGuid();
+		}
+	}
+
 	for (int32 PossessableCount = 0; PossessableCount < MovieScene->GetPossessableCount(); ++PossessableCount)
 	{
 		const FMovieScenePossessable& Possessable = MovieScene->GetPossessable(PossessableCount);
