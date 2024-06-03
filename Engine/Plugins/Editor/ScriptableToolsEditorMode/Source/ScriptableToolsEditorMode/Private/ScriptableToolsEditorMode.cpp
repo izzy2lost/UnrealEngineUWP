@@ -28,6 +28,9 @@
 #include "ToolTargets/DynamicMeshComponentToolTarget.h"
 #include "ToolTargets/SkeletalMeshComponentToolTarget.h"
 
+#include "Utility/ScriptableToolContextObjects.h"
+#include "ContextObjectStore.h"
+
 #define LOCTEXT_NAMESPACE "UScriptableToolsEditorMode"
 
 const FEditorModeID UScriptableToolsEditorMode::EM_ScriptableToolsEditorModeId = TEXT("EM_ScriptableToolsEditorMode");
@@ -170,7 +173,8 @@ void UScriptableToolsEditorMode::Enter()
 	// register each of them with ToolManager
 	ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder) 
 	{
-		FString UseName = ToolClass->GetName();
+		FString UseName;
+		ToolClass->GetClassPathName().ToString(UseName);
 		GetToolManager(EToolsContextScope::EdMode)->RegisterToolType(UseName, ToolBuilder);
 	});
 
@@ -187,7 +191,37 @@ void UScriptableToolsEditorMode::Enter()
 		ModeToolkit->InitializeAfterModeSetup();
 		ModeToolkit->ForceToolPaletteRebuild();
 	}
+
+	InitializeModeContexts();
 }
+
+void UScriptableToolsEditorMode::InitializeModeContexts()
+{
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+
+	auto AddContextObject = [this, ContextStore](UScriptableToolContextObject* Object)
+	{
+		if (ensure(ContextStore->AddContextObject(Object)))
+		{
+			ContextsToShutdown.Add(Object);
+		}
+		ContextsToUpdateOnToolEnd.Add(Object);
+	};
+
+	UScriptableToolViewportWidgetAPI* ViewportWidgetAPI = NewObject<UScriptableToolViewportWidgetAPI>();
+	ViewportWidgetAPI = NewObject<UScriptableToolViewportWidgetAPI>();
+	ViewportWidgetAPI->Initialize(
+		[this](TSharedRef<SWidget> InOverlaidWidget) {
+			Toolkit->GetToolkitHost()->AddViewportOverlayWidget(InOverlaidWidget);
+		},
+		[this](TSharedRef<SWidget> InOverlaidWidget) {
+			Toolkit->GetToolkitHost()->RemoveViewportOverlayWidget(InOverlaidWidget);
+		}
+		);
+	AddContextObject(ViewportWidgetAPI);
+
+}
+
 
 
 void UScriptableToolsEditorMode::OnBlueprintPreCompile(UBlueprint* Blueprint)
@@ -233,6 +267,16 @@ void UScriptableToolsEditorMode::Exit()
 	
 	// clear realtime viewport override
 	ConfigureRealTimeViewportsOverride(false);
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	for (TWeakObjectPtr<UScriptableToolContextObject> Context : ContextsToShutdown)
+	{
+		if (Context.IsValid())
+		{
+			Context->Shutdown();
+			ContextStore->RemoveContextObject(Context.Get());
+		}
+	}
 
 	// Call base Exit method to ensure proper cleanup
 	UEdMode::Exit();
@@ -284,6 +328,14 @@ void UScriptableToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, U
 {
 	// re-enable slate throttling (see OnToolStarted)
 	FSlateThrottleManager::Get().DisableThrottle(false);
+
+	for (TWeakObjectPtr<UScriptableToolContextObject> Context : ContextsToUpdateOnToolEnd)
+	{
+		if (Context.IsValid())
+		{
+			Context->OnToolEnded(Tool);
+		}
+	}
 }
 
 void UScriptableToolsEditorMode::BindCommands()

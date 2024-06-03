@@ -18,10 +18,11 @@ class FCanvas;
 class FSceneView;
 
 class UPreviewGeometry;
+
 class UScriptableToolLineSet;
 class UScriptableToolPointSet;
 class UScriptableToolTriangleSet;
-
+class UUserWidget;
 
 UENUM(BlueprintType)
 enum class EToolsFrameworkOutcomePins : uint8
@@ -879,6 +880,17 @@ protected:
 
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TObjectPtr<UPreviewGeometry> ToolDrawableGeometry = nullptr;
+
+
+public:
+
+	// Widget Overlay API
+
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Widgets")
+	void SetOverlayWidget(UUserWidget* Widget, bool bMakeDraggable=true);
+
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Widgets")
+	void ClearOverlayWidget();
 
 };
 

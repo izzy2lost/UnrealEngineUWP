@@ -21,10 +21,23 @@
 #include "InteractiveGizmoManager.h"
 #include "SceneView.h"
 
+#include "Blueprint/UserWidget.h"
+#include "ContextObjectStore.h"
+#include "Utility/ScriptableToolContextObjects.h"
+#include "Slate/SObjectWidget.h"
+#include "ModelingWidgets/SDraggableBox.h"
+#include "Components/Widget.h"
+
+
 #include "UObject/EnumProperty.h"
 
 #define LOCTEXT_NAMESPACE "UScriptableInteractiveTool"
 
+namespace ScriptableInteractiveToolLocals
+{
+	class SScriptableToolViewportOverlayDragContainer : public SObjectWidget
+	{ };
+}
 
 UScriptableInteractiveTool* UScriptableInteractiveToolPropertySet::GetOwningTool(EToolsFrameworkOutcomePins& Outcome)
 {
@@ -192,6 +205,7 @@ void UScriptableInteractiveTool::Setup()
 	DrawHUDHelper = NewObject<UScriptableTool_HUDAPI>();
 
 	OnScriptSetup();
+
 
 
 	ToolDrawableGeometry = NewObject<UPreviewGeometry>();
@@ -1224,6 +1238,46 @@ UScriptableToolTriangleSet* UScriptableInteractiveTool::AddTriangleSet()
 }
 
 
+void UScriptableInteractiveTool::SetOverlayWidget(UUserWidget* Widget, bool bMakeDraggable )
+{
+	UContextObjectStore* ContextStore = GetToolManager()->GetContextObjectStore();
+
+	UScriptableToolViewportWidgetAPI* ViewportWidgetAPI = ContextStore->FindContext< UScriptableToolViewportWidgetAPI>();
+	if (ViewportWidgetAPI && Widget)
+	{
+		if (bMakeDraggable)
+		{
+
+			TSharedRef<SWidget> WrappedWidget = Widget->TakeDerivedWidget<ScriptableInteractiveToolLocals::SScriptableToolViewportOverlayDragContainer>([](UUserWidget* Widget, TSharedRef<SWidget> Content) {
+				return SNew(ScriptableInteractiveToolLocals::SScriptableToolViewportOverlayDragContainer, Widget)
+					[
+						SNew(SDraggableBoxOverlay)
+						[
+							Content
+						]
+					];
+				});
+
+			ViewportWidgetAPI->SetOverlayWidget(WrappedWidget);
+
+		}
+		else
+		{
+			ViewportWidgetAPI->SetOverlayWidget(Widget->TakeWidget());
+		}
+	}
+}
+
+void UScriptableInteractiveTool::ClearOverlayWidget()
+{
+	UContextObjectStore* ContextStore = GetToolManager()->GetContextObjectStore();
+
+	UScriptableToolViewportWidgetAPI* ViewportWidgetAPI = ContextStore->FindContext< UScriptableToolViewportWidgetAPI>();
+	if (ViewportWidgetAPI)
+	{
+		ViewportWidgetAPI->ClearOverlayWidget();
+	}
+}
 
 FInputRayHit UScriptableToolsUtilityLibrary::MakeInputRayHit_Miss()
 {

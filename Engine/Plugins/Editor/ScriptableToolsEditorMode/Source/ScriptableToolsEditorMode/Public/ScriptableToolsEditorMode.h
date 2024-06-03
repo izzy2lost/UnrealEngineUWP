@@ -18,6 +18,7 @@ class UModelingSelectionInteraction;
 class UGeometrySelectionManager;
 class UScriptableToolSet;
 class UBlueprint;
+class UScriptableToolContextObject;
 
 UCLASS(Transient)
 class SCRIPTABLETOOLSEDITORMODE_API UScriptableToolsEditorMode : public UBaseLegacyWidgetEdMode
@@ -63,6 +64,7 @@ public:
 	// End of UEdMode interface
 	//////////////////
 
+	
 
 protected:
 	virtual void BindCommands() override;
@@ -86,6 +88,13 @@ protected:
 
 	void OnBlueprintCompiled();
 	FDelegateHandle BlueprintCompiledHandle;
+
+	void InitializeModeContexts();
+
+private:
+
+	TArray<TWeakObjectPtr<UScriptableToolContextObject>> ContextsToUpdateOnToolEnd;
+	TArray<TWeakObjectPtr<UScriptableToolContextObject>> ContextsToShutdown;
 
 protected:
 	UPROPERTY()
