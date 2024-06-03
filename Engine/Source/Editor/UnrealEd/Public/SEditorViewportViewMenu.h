@@ -5,14 +5,14 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Framework/MultiBox/MultiBoxExtender.h"
-#include "Widgets/SWidget.h"
-#include "SEditorViewport.h"
 #include "SEditorViewportToolBarMenu.h"
 #include "Styling/SlateTypes.h"
 
-struct FSlateBrush;
+class FExtender;
+class SEditorViewport;
+class SWidget;
 class UToolMenu;
+struct FSlateBrush;
 
 class SEditorViewportViewMenu : public SEditorViewportToolbarMenu
 {
