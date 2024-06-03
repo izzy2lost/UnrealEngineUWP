@@ -1412,19 +1412,6 @@ struct WorldReferenceGenerator : public FFindReferencedAssets
 				}
 			}
 		}
-
-		TArray<UObject*> ReferencedObjects;
-		// Special case for blueprints
-		for (AActor* Actor : FActorRange(World))
-		{
-			ReferencedObjects.Reset();
-			Actor->GetReferencedContentObjects(ReferencedObjects);
-			for(UObject* Reference : ReferencedObjects)
-			{
-				auto& Objects = ReferenceGraph.FindOrAdd(Reference);
-				Objects.Add(Actor);
-			}
-		}
 	}
 
 	void MarkAllObjects()
