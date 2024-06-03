@@ -14,8 +14,6 @@ class UAvaGlobalOpacityModifier : public UAvaMaterialParameterModifier
 {
 	GENERATED_BODY()
 
-	static inline const FName MaterialDesignerGlobalOpacityValueName = FName("VALUE_GlobalOpacity");
-
 public:
 	UAvaGlobalOpacityModifier();
 
