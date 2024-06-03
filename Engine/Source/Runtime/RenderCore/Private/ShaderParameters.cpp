@@ -102,17 +102,19 @@ void FShaderUniformBufferParameter::Bind(const FShaderParameterMap& ParameterMap
 	uint16 UnusedBaseIndex = 0;
 	uint16 UnusedNumBytes = 0;
 
-	if(!ParameterMap.FindParameterAllocation(ParameterName,BaseIndex,UnusedBaseIndex,UnusedNumBytes))
+	if (TOptional<FParameterAllocation> Parameter = ParameterMap.FindParameterAllocation(ParameterName))
 	{
-		BaseIndex = 0xffff;
-		if(Flags == SPF_Mandatory)
-		{
-			FailureToBindNonOptionalParameter(TEXT("shader resource parameter"), ParameterName);
-		}
+		// NOTE: the name difference is intentional (and confusing)
+		BaseIndex = Parameter->BufferIndex;
+		checkf(IsBound(), TEXT("UniformBuffer Parameter '%s' was not bound with a valid index. This can cause instability at runtime."), ParameterName);
 	}
 	else
 	{
-		check(IsBound());
+		BaseIndex = 0xffff;
+		if (Flags == SPF_Mandatory)
+		{
+			FailureToBindNonOptionalParameter(TEXT("shader resource parameter"), ParameterName);
+		}
 	}
 }
 

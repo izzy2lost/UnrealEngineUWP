@@ -296,14 +296,15 @@ public:
 	FShaderParameterMap()
 	{}
 
-	RENDERCORE_API TOptional<FParameterAllocation> FindParameterAllocation(const FString& ParameterName) const;
-	RENDERCORE_API bool FindParameterAllocation(const TCHAR* ParameterName,uint16& OutBufferIndex,uint16& OutBaseIndex,uint16& OutSize) const;
-	RENDERCORE_API bool ContainsParameterAllocation(const TCHAR* ParameterName) const;
-	RENDERCORE_API void AddParameterAllocation(const TCHAR* ParameterName,uint16 BufferIndex,uint16 BaseIndex,uint16 Size,EShaderParameterType ParameterType);
-	RENDERCORE_API void RemoveParameterAllocation(const TCHAR* ParameterName);
+	RENDERCORE_API TOptional<FParameterAllocation> FindParameterAllocation(FStringView ParameterName) const;
+	RENDERCORE_API TOptional<FParameterAllocation> FindAndRemoveParameterAllocation(FStringView ParameterName);
+	RENDERCORE_API bool FindParameterAllocation(FStringView ParameterName, uint16& OutBufferIndex, uint16& OutBaseIndex, uint16& OutSize) const;
+	RENDERCORE_API bool ContainsParameterAllocation(FStringView ParameterName) const;
+	RENDERCORE_API void AddParameterAllocation(FStringView ParameterName, uint16 BufferIndex, uint16 BaseIndex, uint16 Size, EShaderParameterType ParameterType);
+	RENDERCORE_API void RemoveParameterAllocation(FStringView ParameterName);
 
 	/** Returns an array of all parameters with the given type. */
-	RENDERCORE_API TArray<FString> GetAllParameterNamesOfType(EShaderParameterType InType) const;
+	RENDERCORE_API TArray<FStringView> GetAllParameterNamesOfType(EShaderParameterType InType) const;
 
 	/** Returns a count of all parameters of the given type. */
 	RENDERCORE_API uint32 CountParametersOfType(EShaderParameterType InType) const;
@@ -323,12 +324,15 @@ public:
 		return Ar;
 	}
 
-	inline void GetAllParameterNames(TArray<FString>& OutNames) const
+	void GetAllParameterNames(TArray<FString>& OutNames) const
 	{
 		ParameterMap.GenerateKeyArray(OutNames);
 	}
 
-	inline const TMap<FString, FParameterAllocation>& GetParameterMap() const { return ParameterMap; }
+	const TMap<FString, FParameterAllocation>& GetParameterMap() const
+	{
+		return ParameterMap;
+	}
 
 	TMap<FString,FParameterAllocation> ParameterMap;
 };

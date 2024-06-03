@@ -366,11 +366,10 @@ void FShaderParameterBindings::BindForRootShaderParameters(const FShader* Shader
 	// Binds the uniform buffer that contains the root shader parameters.
 	{
 		const TCHAR* ShaderBindingName = FShaderParametersMetadata::kRootUniformBufferBindingName;
-		uint16 BufferIndex, BaseIndex, BoundSize;
-		if (ParametersMap.FindParameterAllocation(ShaderBindingName, BufferIndex, BaseIndex, BoundSize))
+		if (TOptional<FParameterAllocation> Parameter = ParametersMap.FindParameterAllocation(ShaderBindingName))
 		{
 			BindingContext.ShaderGlobalScopeBindings.Add(ShaderBindingName, ShaderBindingName);
-			RootParameterBufferIndex = BufferIndex;
+			RootParameterBufferIndex = Parameter->BufferIndex;
 		}
 		else
 		{

@@ -119,7 +119,7 @@ bool BuildResourceTableMapping(
 		const FString& Name = Entry.UniformBufferMemberName;
 
 		// If the shaders uses this member (eg View_PerlinNoise3DTexture)...
-		if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindParameterAllocation(Name))
+		if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindAndRemoveParameterAllocation(Name))
 		{
 			const EShaderParameterType ParameterType = Allocation->Type;
 			const bool bBindlessParameter = IsParameterBindless(ParameterType);
@@ -127,17 +127,18 @@ bool BuildResourceTableMapping(
 			// Force bindless "indices" to zero since they're not needed in SetResourcesFromTables
 			const uint16 BaseIndex = bBindlessParameter ? 0 : Allocation->BaseIndex;
 
-			ParameterMap.RemoveParameterAllocation(*Name);
-
 			uint16 UniformBufferIndex = INDEX_NONE;
-			uint16 UBBaseIndex, UBSize;
 
 			// Add the UB itself as a parameter if not there
-			FString UniformBufferName(Entry.GetUniformBufferName());
-			if (!ParameterMap.FindParameterAllocation(*UniformBufferName, UniformBufferIndex, UBBaseIndex, UBSize))
+			FStringView UniformBufferName = Entry.GetUniformBufferName();
+			if (TOptional<FParameterAllocation> UniformBufferParameter = ParameterMap.FindParameterAllocation(UniformBufferName))
+			{
+				UniformBufferIndex = UniformBufferParameter->BufferIndex;
+			}
+			else
 			{
 				UniformBufferIndex = UsedUniformBufferSlots.FindAndSetFirstZeroBit();
-				ParameterMap.AddParameterAllocation(*UniformBufferName, UniformBufferIndex,0,0,EShaderParameterType::UniformBuffer);
+				ParameterMap.AddParameterAllocation(UniformBufferName, UniformBufferIndex, 0, 0, EShaderParameterType::UniformBuffer);
 			}
 
 			// Mark used UB index
@@ -221,7 +222,7 @@ void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformB
 				continue;
 			}
 
-			ParameterMap.RemoveParameterAllocation(*Name);
+			ParameterMap.RemoveParameterAllocation(Name);
 		}
 	}
 }
@@ -403,7 +404,7 @@ bool UE::ShaderCompilerCommon::ValidatePackedResourceCounts(FShaderCompilerOutpu
 	{
 		auto GetAllResourcesOfType = [&](EShaderParameterType InType)
 		{
-			const TArray<FString> AllNames = Output.ParameterMap.GetAllParameterNamesOfType(InType);
+			const TArray<FStringView> AllNames = Output.ParameterMap.GetAllParameterNamesOfType(InType);
 			if (AllNames.IsEmpty())
 			{
 				return FString();
@@ -571,7 +572,7 @@ void HandleReflectedGlobalConstantBufferMember(
 	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
 
 	Output.ParameterMap.AddParameterAllocation(
-		*MemberName,
+		MemberName,
 		ConstantBufferIndex,
 		ReflectionOffset,
 		ReflectionSize,
@@ -592,7 +593,7 @@ void HandleReflectedUniformBufferConstantBufferMember(
 	if (ParameterType != EShaderParameterType::LooseData)
 	{
 		Output.ParameterMap.AddParameterAllocation(
-			*MemberName,
+			MemberName,
 			UniformBufferSlot,
 			ReflectionOffset,
 			1,
@@ -645,7 +646,7 @@ void HandleReflectedUniformBuffer(
 	FString AdjustedUniformBufferName(UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(UniformBufferName));
 
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*AdjustedUniformBufferName,
+		AdjustedUniformBufferName,
 		ReflectionSlot,
 		BaseIndex,
 		BufferSize,
@@ -662,7 +663,7 @@ void HandleReflectedShaderResource(
 )
 {
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*ResourceName,
+		ResourceName,
 		BindOffset,
 		ReflectionSlot,
 		BindCount,
@@ -728,7 +729,7 @@ void HandleReflectedShaderUAV(
 )
 {
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*UAVName,
+		UAVName,
 		BindOffset,
 		ReflectionSlot,
 		BindCount,
@@ -745,7 +746,7 @@ void HandleReflectedShaderSampler(
 )
 {
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*SamplerName,
+		SamplerName,
 		BindOffset,
 		ReflectionSlot,
 		BindCount,

@@ -700,9 +700,9 @@ bool AllowGlobalShaderLoad()
 
 }
 
-TOptional<FParameterAllocation> FShaderParameterMap::FindParameterAllocation(const FString& ParameterName) const
+TOptional<FParameterAllocation> FShaderParameterMap::FindParameterAllocation(FStringView ParameterName) const
 {
-	if (const FParameterAllocation* Allocation = ParameterMap.Find(ParameterName))
+	if (const FParameterAllocation* Allocation = ParameterMap.FindByHash(GetTypeHash(ParameterName), ParameterName))
 	{
 		if (Allocation->bBound)
 		{
@@ -718,7 +718,18 @@ TOptional<FParameterAllocation> FShaderParameterMap::FindParameterAllocation(con
 	return TOptional<FParameterAllocation>();
 }
 
-bool FShaderParameterMap::FindParameterAllocation(const TCHAR* ParameterName, uint16& OutBufferIndex, uint16& OutBaseIndex, uint16& OutSize) const
+TOptional<FParameterAllocation> FShaderParameterMap::FindAndRemoveParameterAllocation(FStringView ParameterName)
+{
+	FParameterAllocation Result;
+	if (ParameterMap.RemoveAndCopyValueByHash(GetTypeHash(ParameterName), ParameterName, Result))
+	{
+		return TOptional<FParameterAllocation>(Result);
+	}
+
+	return TOptional<FParameterAllocation>();
+}
+
+bool FShaderParameterMap::FindParameterAllocation(FStringView ParameterName, uint16& OutBufferIndex, uint16& OutBaseIndex, uint16& OutSize) const
 {
 	if (TOptional<FParameterAllocation> Allocation = FindParameterAllocation(ParameterName))
 	{
@@ -732,25 +743,25 @@ bool FShaderParameterMap::FindParameterAllocation(const TCHAR* ParameterName, ui
 	return false;
 }
 
-bool FShaderParameterMap::ContainsParameterAllocation(const TCHAR* ParameterName) const
+bool FShaderParameterMap::ContainsParameterAllocation(FStringView ParameterName) const
 {
-	return ParameterMap.Find(ParameterName) != NULL;
+	return ParameterMap.FindByHash(GetTypeHash(ParameterName), ParameterName) != nullptr;
 }
 
-void FShaderParameterMap::AddParameterAllocation(const TCHAR* ParameterName,uint16 BufferIndex,uint16 BaseIndex,uint16 Size,EShaderParameterType ParameterType)
+void FShaderParameterMap::AddParameterAllocation(FStringView ParameterName,uint16 BufferIndex,uint16 BaseIndex,uint16 Size,EShaderParameterType ParameterType)
 {
 	check(ParameterType < EShaderParameterType::Num);
-	ParameterMap.Add(ParameterName, FParameterAllocation(BufferIndex, BaseIndex, Size, ParameterType));
+	ParameterMap.Emplace(ParameterName, FParameterAllocation(BufferIndex, BaseIndex, Size, ParameterType));
 }
 
-void FShaderParameterMap::RemoveParameterAllocation(const TCHAR* ParameterName)
+void FShaderParameterMap::RemoveParameterAllocation(FStringView ParameterName)
 {
-	ParameterMap.Remove(ParameterName);
+	ParameterMap.RemoveByHash(GetTypeHash(ParameterName), ParameterName);
 }
 
-TArray<FString> FShaderParameterMap::GetAllParameterNamesOfType(EShaderParameterType InType) const
+TArray<FStringView> FShaderParameterMap::GetAllParameterNamesOfType(EShaderParameterType InType) const
 {
-	TArray<FString> Result;
+	TArray<FStringView> Result;
 	for (const TMap<FString, FParameterAllocation>::ElementType& Parameter : ParameterMap)
 	{
 		if (Parameter.Value.Type == InType)
