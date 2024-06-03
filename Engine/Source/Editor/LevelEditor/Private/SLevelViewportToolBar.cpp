@@ -241,7 +241,7 @@ void SLevelViewportToolBar::Construct( const FArguments& InArgs )
 					.Padding( ToolbarSlotPadding )
 					[
 						SNew( SLevelEditorViewportViewMenu, ViewportRef, SharedThis(this) )
-						.MenuExtenders(GetViewMenuExtender())
+						.MenuExtenders(UE::LevelEditor::GetViewModesLegacyExtenders())
 						.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewMenuButton")))
 					]
 					+ SHorizontalBox::Slot()
@@ -1573,12 +1573,6 @@ TWeakObjectPtr<UWorld> SLevelViewportToolBar::GetWorld() const
 	return NULL;
 }
 
-TSharedPtr<FExtender> SLevelViewportToolBar::GetViewMenuExtender()
-{
-	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
-	return LevelEditorModule.GetMenuExtensibilityManager()->GetAllExtenders();
-}
-
 void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 {
 	FToolMenuInsert InsertPosition("ViewMode", EToolMenuInsertType::After);
@@ -1970,7 +1964,6 @@ void SLevelViewportToolBar::OnLandscapeLODChanged(int32 NewValue)
 	ViewportClient.LandscapeLODOverride = NewValue;
 	ViewportClient.Invalidate();
 }
-
 
 FReply SLevelViewportToolBar::OnRealtimeWarningClicked()
 {

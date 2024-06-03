@@ -10,7 +10,6 @@
 #include "SViewportToolBar.h"
 
 class ACameraActor;
-class FExtender;
 class SExtensionPanel;
 class SActionableMessageViewportWidget;
 class STransformViewportToolBar;
@@ -267,9 +266,6 @@ private:
 
 	/** Gets the world we are editing */
 	TWeakObjectPtr<UWorld> GetWorld() const;
-
-	/** Gets the extender for the view menu */
-	TSharedPtr<FExtender> GetViewMenuExtender();
 
 	/** Called when the user disables realtime override from the toolbar */
 	void OnDisableRealtimeOverride();

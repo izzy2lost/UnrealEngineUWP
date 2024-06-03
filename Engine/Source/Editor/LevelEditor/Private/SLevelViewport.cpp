@@ -1942,6 +1942,9 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 	FToolMenuContext ViewportToolbarContext;
 	{
 		ViewportToolbarContext.AppendCommandList(GetCommandList());
+		// Stay backward-compatible with legacy view menu extenders. Note that these extenders can now leak between
+		// submenus of the viewport toolbar.
+		ViewportToolbarContext.AddExtender(UE::LevelEditor::GetViewModesLegacyExtenders());
 
 		ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
 		ContextObject->LevelViewport = SharedThis(this);

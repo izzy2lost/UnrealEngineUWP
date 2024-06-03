@@ -4,6 +4,7 @@
 
 #include "Templates/SharedPointerFwd.h"
 
+class FExtender;
 class FLevelEditorViewportClient;
 class SLevelViewport;
 class SWidget;
@@ -16,6 +17,8 @@ namespace UE::LevelEditor
 bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 
 void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
+
+TSharedPtr<FExtender> GetViewModesLegacyExtenders();
 
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);

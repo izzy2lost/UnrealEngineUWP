@@ -3,6 +3,7 @@
 #include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 
 #include "EditorViewportCommands.h"
+#include "LevelEditor.h"
 #include "LevelEditorActions.h"
 #include "LevelViewportActions.h"
 #include "LevelViewportContext.h"
@@ -89,6 +90,12 @@ void AddViewportToolbarTransformsSection(FToolMenuSection& InSection)
 			ScaleMode.SetShowInToolbarTopLevel(true);
 			Section.AddEntry(ScaleMode);
 		}));
+}
+
+TSharedPtr<FExtender> GetViewModesLegacyExtenders()
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+	return LevelEditorModule.GetMenuExtensibilityManager()->GetAllExtenders();
 }
 
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section)
