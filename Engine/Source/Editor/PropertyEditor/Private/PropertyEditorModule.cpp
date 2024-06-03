@@ -519,6 +519,24 @@ void FPropertyEditorModule::UnregisterCustomPropertyTypeLayout( FName PropertyTy
 	}
 }
 
+FDelegateHandle FPropertyEditorModule::RegisterPropertyHandleLayoutOverride(const FName PropertyTypeName,
+	const FPropertyHandleLayoutOverride& Delegate)
+{
+	PropertyHandleLayoutOverrides.Add(PropertyTypeName, Delegate);
+	return Delegate.GetHandle();
+}
+
+void FPropertyEditorModule::UnregisterPropertyHandleLayoutOverride(const FDelegateHandle DelegateHandle)
+{
+	for (auto It = PropertyHandleLayoutOverrides.CreateIterator(); It; ++It)
+	{
+		if (It->Value.GetHandle() == DelegateHandle)
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
 void FPropertySection::AddCategory(FName CategoryName)
 {
 	checkf(!CategoryName.ToString().Contains(TEXT("|")), TEXT("Cannnot register a section mapping for a subcategory. Section: '%s', Category: '%s'"), *Name.ToString(), *CategoryName.ToString());
@@ -1036,6 +1054,16 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 {
 	if (PropertyTypeName != NAME_None)
 	{
+		for (auto It = PropertyHandleLayoutOverrides.CreateConstKeyIterator(PropertyTypeName); It; ++It)
+		{
+			const FName TypeOverrideName = It->Value.Execute(PropertyHandle);
+			if (TypeOverrideName != NAME_None)
+			{
+				PropertyTypeName = TypeOverrideName;
+				break;
+			}
+		}
+
 		const FPropertyTypeLayoutCallbackList* LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find( PropertyTypeName );
 	
 		if( !LayoutCallbacks )

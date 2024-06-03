@@ -298,6 +298,21 @@ public:
 	virtual void UnregisterCustomPropertyTypeLayout( FName PropertyTypeName, TSharedPtr<IPropertyTypeIdentifier> InIdentifier = nullptr);
 
 	/**
+	 * Registers a property layout override callback
+	 *
+	 * @param PropertyTypeName Name of the property type (e.g. struct FName) to override
+	 * @param Delegate The delegate to call when we're looking for a property handle's layout override
+	 */
+	virtual FDelegateHandle RegisterPropertyHandleLayoutOverride(FName PropertyTypeName, const FPropertyHandleLayoutOverride& Delegate);
+
+	/**
+	 * Unregisters a property layout override callback
+	 *
+	 * @param DelegateHandle The handle returned by RegisterPropertyHandleLayoutOverride
+	 */
+	virtual void UnregisterPropertyHandleLayoutOverride(FDelegateHandle DelegateHandle);
+
+	/**
 	 * Find an existing section or create a section for a class.
 	 * 
 	 * @param ClassName		The class to add a section mapping for.
@@ -473,6 +488,8 @@ private:
 	FCustomDetailLayoutNameMap ClassNameToDetailLayoutNameMap;
 	/** A mapping of property names to property type layout delegates, called when querying for custom property layouts */
 	FCustomPropertyTypeLayoutMap GlobalPropertyTypeToLayoutMap;
+	/** Registered list of override callbacks. First one returning non-None is going to be applied (if any). */
+	TMultiMap<FName, FPropertyHandleLayoutOverride> PropertyHandleLayoutOverrides;
 	/** A mapping of class names to section mappings. */
 	TMap<FName, TSharedPtr<FClassSectionMapping>> ClassSectionMappings;
 	/** Event to be called when a property editor is opened */

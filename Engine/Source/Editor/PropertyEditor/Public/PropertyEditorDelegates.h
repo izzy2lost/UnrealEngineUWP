@@ -99,6 +99,12 @@ DECLARE_DELEGATE_RetVal_TwoParams(TSharedRef< SWidget >, FConstructExternalColum
 DECLARE_DELEGATE_RetVal(bool, FIsPropertyEditingEnabled);
 
 /**
+ * A delegate that returns the name of a type that is to be used to look up the layout callback instead of the
+ * property's type. Return None to not provide an override.
+ */
+DECLARE_DELEGATE_RetVal_OneParam(FName, FPropertyHandleLayoutOverride, const IPropertyHandle& Handle)
+
+/**
  * A delegate which is called after properties have been edited and PostEditChange has been called on all objects.
  * This can be used to safely make changes to data that the details panel is observing instead of during PostEditChange (which is
  * unsafe)
