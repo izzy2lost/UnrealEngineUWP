@@ -123,7 +123,7 @@ private:
 	TMpscQueue<FElementPtr> AddedElements;
 
 	/** Current time of the ticker **/
-	double CurrentTime{ 0.0 };
+	std::atomic<double> CurrentTime{ 0.0 };
 	/** Future delegates to fire **/
 	TArray<FElementPtr> Elements;
 };
