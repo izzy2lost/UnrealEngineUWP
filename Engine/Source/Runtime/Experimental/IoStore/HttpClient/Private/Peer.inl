@@ -43,7 +43,20 @@ FCertRoots::~FCertRoots()
 ////////////////////////////////////////////////////////////////////////////////
 FCertRoots::FCertRoots(FMemoryView PemData)
 {
-	SSL_CTX* Context = SSL_CTX_new(TLS_client_method());
+	if (static bool InitOnce = false; !InitOnce)
+	{
+		// While OpenSSL will lazily initialise itself, the defaults used will fail
+		// initialisation on some platforms. So we have a go here. We do not register
+		// anything for clean-up as we do not know if anyone else has done so.
+		uint64 InitOpts = OPENSSL_INIT_NO_ATEXIT;
+		OPENSSL_init_ssl(InitOpts, nullptr);
+		InitOnce = true;
+	}
+
+	auto* Method = TLS_client_method();
+	SSL_CTX* Context = SSL_CTX_new(Method);
+	checkf(Context != nullptr, TEXT("ERR_get_error() == %d"), ERR_get_error());
+
 	SSL_CTX_set_options(Context, SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3);
 
 	const void* Data = PemData.GetData();

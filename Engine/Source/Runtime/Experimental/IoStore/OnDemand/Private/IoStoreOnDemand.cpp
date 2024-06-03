@@ -295,16 +295,33 @@ static void LoadCaCerts()
 {
 	using namespace UE::IoStore::HTTP;
 
+	// The following config option is used when staging to copy root certs PEM
+	const TCHAR* CertSection = TEXT("/Script/Engine.NetworkSettings");
+	const TCHAR* CertKey = TEXT("n.VerifyPeer");
+	bool bExpectCerts = false;
+	if (GConfig != nullptr)
+	{
+		GConfig->GetBool(CertSection, CertKey, bExpectCerts, GEngineIni);
+	}
+
+	// Open the certs file
 	IFileManager& Ifm = IFileManager::Get();
 	FString PemPath = FPaths::EngineContentDir() / TEXT("Certificates/ThirdParty/cacert.pem");
 	FArchive* Reader = Ifm.CreateFileReader(*PemPath);
-	check(Reader != nullptr)
+	if (!bExpectCerts && Reader == nullptr)
+	{
+		UE_LOG(LogIas, Warning, TEXT("Unable to load '%s'. Maybe it wasn't staged? Ensure '[%s]/%s=true' when staging"), *PemPath, CertSection, CertKey);
+		return;
+	}
+	checkf(Reader != nullptr, TEXT("%s/%s==true but '%s' could not be loaded"), CertSection, CertKey, *PemPath);
 
+	// Buffer certificate data
 	uint32 Size = uint32(Reader->TotalSize());
 	FIoBuffer PemData(Size);
 	FMutableMemoryView PemView = PemData.GetMutableView();
 	Reader->Serialize(PemView.GetData(), Size);
 
+	// Load the certs
 	FCertRoots CaRoots(PemData.GetView());
 
 	uint32 NumCerts = CaRoots.Num();
