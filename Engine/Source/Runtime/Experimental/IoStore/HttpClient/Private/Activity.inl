@@ -65,8 +65,8 @@ struct alignas(16) FActivity
 		Build,
 		Send,
 		RecvMessage,
-		RecvContent,
 		RecvStream,
+		RecvContent,
 		RecvDone,
 		Completed,
 		Cancelled,
@@ -100,7 +100,7 @@ struct alignas(16) FActivity
 static void Activity_TraceStateNames()
 {
 	FAnsiStringView StateNames[] = {
-		"None", "Build", "Send", "RecvMessage", "RecvContent", "RecvStream",
+		"None", "Build", "Send", "RecvMessage", "RecvStream", "RecvContent",
 		"RecvDone", "Completed", "Cancelled", "Failed", "$",
 	};
 	static_assert(UE_ARRAY_COUNT(StateNames) == int32(FActivity::EState::_Num) + 1);
@@ -142,8 +142,8 @@ static int32 Activity_Rewind(FActivity* Activity)
 ////////////////////////////////////////////////////////////////////////////////
 static uint32 Activity_RemainingKiB(FActivity* Activity)
 {
-	if (Activity->State < FActivity::EState::RecvContent) return MAX_uint32;
-	if (Activity->State > FActivity::EState::RecvContent) return 0;
+	if (Activity->State <= FActivity::EState::RecvStream)  return MAX_uint32;
+	if (Activity->State >  FActivity::EState::RecvContent) return 0;
 
 	uint32 ContentLength = uint32(Activity->Response.ContentLength);
 	check(Activity->StateParam <= ContentLength);
