@@ -1908,12 +1908,12 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForMatchingPrimary
 bool UAssetManager::GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
 {
 	TArray<FSoftObjectPath> Array;
-	bool bReturnValue = GetPrimaryAssetLoadList(Array, PrimaryAssetId, LoadBundles, bLoadRecursive);
+	bool bReturnValue = GetPrimaryAssetLoadList(Array, PrimaryAssetId, LoadBundles, bLoadRecursive, false);
 	OutAssetLoadSet.Append(Array);
 	return bReturnValue;
 }
 
-bool UAssetManager::GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
+bool UAssetManager::GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive, bool bEnsureUniqueness) const
 {
 	const FPrimaryAssetData* NameData = GetNameData(PrimaryAssetId);
 	if (NameData)
@@ -1923,7 +1923,14 @@ bool UAssetManager::GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoa
 		if (!AssetPath.IsNull())
 		{
 			// Dynamic types can have no base asset path
-			OutAssetLoadList.AddUnique(AssetPath);
+			if (bEnsureUniqueness)
+			{
+				OutAssetLoadList.AddUnique(AssetPath);
+			}
+			else
+			{
+				OutAssetLoadList.Add(AssetPath);
+			}
 		}
 
 		// Construct a temporary bundle data with the bundles specified
@@ -1947,7 +1954,14 @@ bool UAssetManager::GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoa
 		{
 			for (const FTopLevelAssetPath& Path : Entry.AssetPaths)
 			{
-				OutAssetLoadList.AddUnique(FSoftObjectPath(Path));
+				if (bEnsureUniqueness)
+				{
+					OutAssetLoadList.AddUnique(FSoftObjectPath(Path));
+				}
+				else
+				{
+					OutAssetLoadList.Add(FSoftObjectPath(Path));
+				}
 			}
 		}
 	}
@@ -1970,7 +1984,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::PreloadPrimaryAssets(const TArray<F
 
 	for (const FPrimaryAssetId& PrimaryAssetId : AssetsToLoad)
 	{
-		if (GetPrimaryAssetLoadList(PathsToLoad, PrimaryAssetId, LoadBundles, bLoadRecursive))
+		if (GetPrimaryAssetLoadList(PathsToLoad, PrimaryAssetId, LoadBundles, bLoadRecursive, false))
 		{
 			if (DebugValid.Len() < MaxDebugWarningLen)
 			{

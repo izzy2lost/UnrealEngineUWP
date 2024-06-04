@@ -325,9 +325,10 @@ public:
 	 * @param PrimaryAssetId	Asset that would be loaded
 	 * @param LoadBundles		List of bundles to load for those assets
 	 * @param bLoadRecursive	If true, this will call RecursivelyExpandBundleData and recurse into sub bundles of other primary assets loaded by a bundle reference
+	 * @param bEnsureUniqueness Only unique items will be inserted in OutAssetLoadList
 	 * @return					True if primary asset id was found
 	 */
-	ENGINE_API bool GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const;
+	ENGINE_API bool GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive, bool bEnsureUniqueness = true) const;
 
 	/**
 	 * Preloads data for a set of assets in a specific bundle state, and returns a handle you must keep active.
