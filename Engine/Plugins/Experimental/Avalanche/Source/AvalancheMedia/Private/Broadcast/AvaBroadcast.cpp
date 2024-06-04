@@ -68,6 +68,10 @@ UAvaBroadcast& UAvaBroadcast::Get()
 		Broadcast->AddToRoot();
 #if WITH_EDITOR
 		Broadcast->LoadBroadcast();
+#else
+		Broadcast->CreateProfile(NAME_None, /*bMakeCurrentProfile*/ true);
+		Broadcast->EnsureValidCurrentProfile();
+		Broadcast->UpdateProfileNames();
 #endif
 	}
 	

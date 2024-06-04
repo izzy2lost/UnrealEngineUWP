@@ -3,11 +3,8 @@
 #include "AvalancheInteractiveToolsModule.h"
 #include "AvaInteractiveToolsCommands.h"
 #include "AvaInteractiveToolsDelegates.h"
-#include "AvaInteractiveToolsSettings.h"
 #include "Builders/AvaInteractiveToolsActorToolBuilder.h"
 #include "Interfaces/IPluginManager.h"
-#include "IPlacementModeModule.h"
-#include "Styling/SlateIconFinder.h"
 #include "Tools/AvaInteractiveToolsActorToolNull.h"
 #include "Tools/AvaInteractiveToolsActorToolSpline.h"
 
@@ -56,26 +53,6 @@ void FAvalancheInteractiveToolsModule::RegisterCategory(FName InCategoryName, TS
 
 	Categories.Add(InCategoryName, InCategoryCommand);
 	Tools.Add(InCategoryName, {});
-
-	if (InPlacementModeSortPriority != NoPlacementCategory)
-	{
-		IPlacementModeModule& PlacementMode = IPlacementModeModule::Get();
-
-		if (!PlacementMode.GetRegisteredPlacementCategory(InCategoryName))
-		{
-			static const FText LabelFormat = LOCTEXT("LabelFormat", "Motion Design {0}");
-
-			const FPlacementCategoryInfo PlacementCategory = FPlacementCategoryInfo(
-				FText::Format(LabelFormat, InCategoryCommand->GetLabel()),
-				InCategoryCommand->GetIcon(),
-				InCategoryName,
-				InCategoryCommand->GetCommandName().ToString(),
-				InPlacementModeSortPriority
-			);
-
-			PlacementMode.RegisterPlacementCategory(PlacementCategory);
-		}
-	}
 }
 
 void FAvalancheInteractiveToolsModule::RegisterTool(FName InCategory, FAvaInteractiveToolsToolParameters&& InToolParams)
@@ -112,8 +89,6 @@ void FAvalancheInteractiveToolsModule::RegisterTool(FName InCategory, FAvaIntera
 			{
 				return InA.Priority < InB.Priority;
 			});
-
-		IPlacementModeModule::Get().RegenerateItemsForCategory(InCategory);
 	}
 }
 
@@ -146,8 +121,6 @@ void FAvalancheInteractiveToolsModule::OnPostEngineInit()
 {
 	using namespace UE::AvaInteractiveTools::Private;
 
-	IPlacementModeModule& PlacementMode = IPlacementModeModule::Get();
-
 	bInitialRegistration = true;
 	BroadcastRegisterCategories();
 	BroadcastRegisterTools();
@@ -159,16 +132,6 @@ void FAvalancheInteractiveToolsModule::OnPostEngineInit()
 			{
 				return InA.Priority < InB.Priority;
 			});
-	}
-
-	PlacementMode.OnPlacementModeCategoryRefreshed().AddRaw(
-		this,
-		&FAvalancheInteractiveToolsModule::OnPlacementCategoryRefreshed
-	);
-
-	for (const TPair<FName, TArray<FAvaInteractiveToolsToolParameters>>& Pair : Tools)
-	{
-		PlacementMode.RegenerateItemsForCategory(Pair.Key);
 	}
 }
 
@@ -199,74 +162,7 @@ void FAvalancheInteractiveToolsModule::RegisterDefaultTools()
 }
 
 void FAvalancheInteractiveToolsModule::OnPlacementCategoryRefreshed(FName InCategory)
-{
-	if (!Categories.Contains(InCategory))
-	{
-		return;
-	}
-
-	if (!Tools.Contains(InCategory))
-	{
-		return;
-	}
-
-	IPlacementModeModule& PlacementMode = IPlacementModeModule::Get();
-
-	TArray<TSharedPtr<FPlaceableItem>> Items;
-	PlacementMode.GetItemsForCategory(InCategory, Items);
-
-	for (const FAvaInteractiveToolsToolParameters& Tool : Tools[InCategory])
-	{
-		if (!(Tool.Factory && Tool.Factory->NewActorClass) && !Tool.FactoryClass)
-		{
-			continue;
-		}
-
-		const bool bAlreadyRegistered = Items.ContainsByPredicate(
-			[&Tool](const TSharedPtr<FPlaceableItem>& InItem)
-			{
-				return InItem.IsValid() && InItem->NativeName.Equals(Tool.ToolIdentifier);
-			}
-		);
-
-		if (bAlreadyRegistered)
-		{
-			continue;
-		}
-
-		TSharedPtr<FPlaceableItem> PlaceableItem;
-
-		if (Tool.Factory)
-		{
-			PlaceableItem = MakeShared<FPlaceableItem>(
-				Tool.Factory,
-				FAssetData(Tool.Factory->NewActorClass->GetDefaultObject()),
-				Tool.Priority
-			);
-		}
-		else
-		{
-			PlaceableItem = MakeShared<FPlaceableItem>(
-				*Tool.FactoryClass.Get(),
-				FAssetData(Tool.FactoryClass.Get()),
-				NAME_None,
-				NAME_None,
-				TOptional<FLinearColor>(),
-				Tool.Priority
-			);
-		}
-
-		PlaceableItem->DisplayName = Tool.UICommand->GetLabel();
-		PlaceableItem->NativeName = Tool.ToolIdentifier;
-
-		if (FSlateIconFinder::FindIcon(Tool.UICommand->GetCommandName()).IsSet())
-		{
-			PlaceableItem->ClassThumbnailBrushOverride = Tool.UICommand->GetCommandName();
-			PlaceableItem->bAlwaysUseGenericThumbnail = false;
-		}
-
-		PlacementMode.RegisterPlaceableItem(InCategory, PlaceableItem.ToSharedRef());
-	}
+{	
 }
 
 #undef LOCTEXT_NAMESPACE

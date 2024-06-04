@@ -5489,6 +5489,9 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		Views[ViewIndex].GPUSceneViewId = InstanceCullingManager.RegisterView(Views[ViewIndex]);
+
+		uint32 InstanceFactor = Views[ViewIndex].GetStereoPassInstanceFactor();
+		Views[ViewIndex].InstanceFactor = InstanceFactor > 0 ? InstanceFactor : 1;
 	}
 
 	{

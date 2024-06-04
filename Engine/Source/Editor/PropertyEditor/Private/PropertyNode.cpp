@@ -3059,6 +3059,8 @@ void FPropertyNode::NotifyPostChange( FPropertyChangedEvent& InPropertyChangedEv
 					FPropertyChangedEvent ChangedEvent = InPropertyChangedEvent;
 					if (CurProperty != InPropertyChangedEvent.Property)
 					{
+						// Parent object node property. Reset property and leave the event type as unspecified since we dont pass in the exact leaf property.
+						ChangedEvent.ChangeType = EPropertyChangeType::Unspecified;
 						ChangedEvent.Property = CurProperty;
 						ChangedEvent.MemberProperty = CurProperty;
 					}

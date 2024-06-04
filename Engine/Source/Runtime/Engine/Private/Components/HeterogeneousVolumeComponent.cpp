@@ -51,10 +51,13 @@ public:
 	//~ End FPrimitiveSceneProxy Interface.
 
 private:
-	UMaterialInterface* MaterialInterface;
 	FLocalVertexFactory VertexFactory;
 	FStaticMeshVertexBuffers StaticMeshVertexBuffers;
 	FHeterogeneousVolumeData HeterogeneousVolumeData;
+
+	// Cache UObject values
+	UMaterialInterface* MaterialInterface;
+	FMaterialRelevance MaterialRelevance;
 };
 
 /*=============================================================================
@@ -63,13 +66,13 @@ private:
 
 FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVolumeComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent)
-	, MaterialInterface(InComponent->GetMaterial(0))
 	, VertexFactory(GetScene().GetFeatureLevel(), "FHeterogeneousVolumeSceneProxy")
 #if ACTOR_HAS_LABELS
 	, HeterogeneousVolumeData(this, InComponent->GetReadableName())
 #else
 	, HeterogeneousVolumeData(this)
 #endif
+	, MaterialInterface(InComponent->GetMaterial(0))
 {
 	bIsHeterogeneousVolume = true;
 	bCastDynamicShadow = InComponent->CastShadow;
@@ -91,6 +94,11 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	if (InComponent->MaterialInstanceDynamic)
 	{
 		MaterialInterface = InComponent->MaterialInstanceDynamic;
+	}
+
+	if (MaterialInterface)
+	{
+		MaterialRelevance = MaterialInterface->GetRelevance_Concurrent(GetScene().GetFeatureLevel());
 	}
 
 	HeterogeneousVolumeData.StepFactor = InComponent->StepFactor;
@@ -154,12 +162,7 @@ FPrimitiveViewRelevance FHeterogeneousVolumeSceneProxy::GetViewRelevance(const F
 {
 	FPrimitiveViewRelevance Result;
 
-	if (MaterialInterface)
-	{
-		FMaterialRelevance MaterialRelevance = MaterialInterface->GetRelevance_Concurrent(View->GetFeatureLevel());
-		MaterialRelevance.SetPrimitiveViewRelevance(Result);
-	}
-
+	MaterialRelevance.SetPrimitiveViewRelevance(Result);
 	Result.bDrawRelevance = IsShown(View) && View->Family->EngineShowFlags.HeterogeneousVolumes;
 	Result.bOpaque = false;
 	Result.bStaticRelevance = false;
@@ -496,6 +499,7 @@ void UHeterogeneousVolumeComponent::PostEditChangeProperty(FPropertyChangedEvent
 			MaterialInstanceDynamic = CreateOrCastToMID(MaterialInterface);
 		}
 		OnSparseVolumeTextureChanged(GetSparseVolumeTexture(MaterialInterface, SVTParameterIndex));
+		MarkRenderStateDirty();
 	}
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UHeterogeneousVolumeComponent, VolumeResolution))

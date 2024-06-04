@@ -48,9 +48,6 @@ namespace UE::DMX::Private
 		/** Generates a menu widget for the Fader Group Controller info panel */
 		TSharedRef<SWidget> GenerateFaderGroupControllerInfoMenuWidget();
 
-		/** Generates a menu widget for adding a new Fader Group Controller to the Control Console */
-		TSharedRef<SWidget> GenerateAddNewFaderGroupControllerMenuWidget();
-
 		/** Restores the search filter text from the Fader Group Controller */
 		void RestoreFaderGroupControllerFilter();
 

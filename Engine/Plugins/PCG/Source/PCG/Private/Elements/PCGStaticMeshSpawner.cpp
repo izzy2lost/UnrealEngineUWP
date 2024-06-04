@@ -198,25 +198,20 @@ bool FPCGStaticMeshSpawnerElement::PrepareDataInternal(FPCGContext* InContext) c
 				Context->CurrentOutputPointData = OutputPointData;
 			}
 
-			// At this point, if we're in a reuse case we don't need to create the instance list here as it won't be processed or spawned
-			if (!bSkippedDueToReuse)
-			{
-				FPCGStaticMeshSpawnerContext::FPackedInstanceListData& InstanceListData = Context->MeshInstancesData.Emplace_GetRef();
-				InstanceListData.TargetActor = TargetActor;
-				InstanceListData.SpatialData = PointData;
-			}
+			FPCGStaticMeshSpawnerContext::FPackedInstanceListData& InstanceListData = Context->MeshInstancesData.Emplace_GetRef();
+			InstanceListData.TargetActor = TargetActor;
+			InstanceListData.SpatialData = PointData;
 
 			Context->CurrentPointData = PointData;
 			Context->bCurrentInputSetup = true;
 		}
 
+		// TODO: If we know we re-use the ISMCs, we should not run the Selection, as it can be pretty costly.
+		// At the moment, the selection is filling the output point data, so it is necessary to run it. But we should just hit the cache in that case.
 		if (!Context->bSelectionDone)
 		{
-			TArray<FPCGMeshInstanceList> DummyMeshInstances;
-			TArray<FPCGMeshInstanceList>& MeshInstances = (bSkippedDueToReuse ? DummyMeshInstances : Context->MeshInstancesData.Last().MeshInstances);
-
 			check(Context->CurrentPointData);
-			Context->bSelectionDone = Settings->MeshSelectorParameters->SelectInstances(*Context, Settings, Context->CurrentPointData, MeshInstances, Context->CurrentOutputPointData);
+			Context->bSelectionDone = Settings->MeshSelectorParameters->SelectInstances(*Context, Settings, Context->CurrentPointData, Context->MeshInstancesData.Last().MeshInstances, Context->CurrentOutputPointData);
 		}
 
 		if (!Context->bSelectionDone)
@@ -295,7 +290,7 @@ bool FPCGStaticMeshSpawnerElement::ExecuteInternal(FPCGContext* InContext) const
 	while(!Context->MeshInstancesData.IsEmpty())
 	{
 		const FPCGStaticMeshSpawnerContext::FPackedInstanceListData& InstanceList = Context->MeshInstancesData.Last();
-		check(InstanceList.MeshInstances.Num() == InstanceList.PackedCustomData.Num());
+		check(Context->bSkippedDueToReuse || InstanceList.MeshInstances.Num() == InstanceList.PackedCustomData.Num());
 
 		const bool bTargetActorValid = (InstanceList.TargetActor && IsValid(InstanceList.TargetActor));
 
@@ -304,7 +299,10 @@ bool FPCGStaticMeshSpawnerElement::ExecuteInternal(FPCGContext* InContext) const
 			while (Context->CurrentDataIndex < InstanceList.MeshInstances.Num())
 			{
 				const FPCGMeshInstanceList& MeshInstance = InstanceList.MeshInstances[Context->CurrentDataIndex];
-				SpawnStaticMeshInstances(Context, MeshInstance, InstanceList.TargetActor, InstanceList.PackedCustomData[Context->CurrentDataIndex]);
+				// We always have mesh instances, but if we are in re-use, we don't compute the packed custom data.
+				static const FPCGPackedCustomData EmptyCustomData{};
+				const FPCGPackedCustomData& PackedCustomData = InstanceList.PackedCustomData.IsValidIndex(Context->CurrentDataIndex) ? InstanceList.PackedCustomData[Context->CurrentDataIndex] : EmptyCustomData;
+				SpawnStaticMeshInstances(Context, MeshInstance, InstanceList.TargetActor, PackedCustomData);
 
 				// Now that the mesh is loaded/spawned, set the bounds to out points if requested.
 				if (MeshInstance.Descriptor.StaticMesh && Settings->bApplyMeshBoundsToPoints)
@@ -391,6 +389,12 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawne
 			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("MeshLoadFailed", "Unable to load mesh '{0}'"), FText::FromString(InstanceList.Descriptor.StaticMesh.ToString())));
 		}
 
+		return;
+	}
+
+	// Don't spawn meshes if we reuse the ISMCs, but we still want to be sure that the mesh is loaded at least (for operations downstream).
+	if (Context->bSkippedDueToReuse)
+	{
 		return;
 	}
 

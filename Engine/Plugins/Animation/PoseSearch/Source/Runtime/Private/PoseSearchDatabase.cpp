@@ -358,6 +358,14 @@ FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(
 	FFloatInterval Range;
 	Range.Min = bSampleAll ? 0.0f : RequestedSamplingRange.Min;
 	Range.Max = bSampleAll ? SequencePlayLength : FMath::Min(SequencePlayLength, RequestedSamplingRange.Max);
+
+	if (Range.Min > Range.Max)
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("Sampling range minimum (%f) is greated than max (%f). Setting min to be equal to max."), Range.Min, Range.Max)
+		
+		Range.Min = Range.Max;
+	}
+	
 	return Range;
 }
 #endif // WITH_EDITORONLY_DATA

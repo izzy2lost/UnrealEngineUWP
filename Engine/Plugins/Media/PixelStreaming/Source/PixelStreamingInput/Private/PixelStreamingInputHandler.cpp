@@ -73,6 +73,7 @@ namespace UE::PixelStreamingInput
 		RegisterMessageHandler("MouseWheel", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseWheel(Ar); });
 		RegisterMessageHandler("MouseDouble", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseDoubleClick(Ar); });
 
+		RegisterMessageHandler("XREyeViews", [this](FString SourceId, FMemoryReader Ar) { HandleOnXREyeViews(Ar); });
 		RegisterMessageHandler("XRHMDTransform", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRHMDTransform(Ar); });
 		RegisterMessageHandler("XRControllerTransform", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRControllerTransform(Ar); });
 		RegisterMessageHandler("XRButtonPressed", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRButtonPressed(Ar); });
@@ -883,79 +884,84 @@ namespace UE::PixelStreamingInput
 		}
 	}
 
-	/**
-	 * XR Handling
-	 */
-	void FPixelStreamingInputHandler::HandleOnXRHMDTransform(FMemoryReader Ar)
+	FMatrix FPixelStreamingInputHandler::ExtractWebXRMatrix(FMemoryReader& Ar)
 	{
-		// The buffer contains the transform matrix stored as 16 floats
-		FMatrix HMDMatrix;
+		FMatrix OutMat;
 		for (int32 Row = 0; Row < 4; ++Row)
 
 		{
-			float Col0, Col1, Col2, Col3;
+			float Col0 = 0.0f, Col1 = 0.0f, Col2 = 0.0f, Col3 = 0.0f;
 			Ar << Col0 << Col1 << Col2 << Col3;
-			HMDMatrix.M[Row][0] = Col0;
-			HMDMatrix.M[Row][1] = Col1;
-			HMDMatrix.M[Row][2] = Col2;
-			HMDMatrix.M[Row][3] = Col3;
+			OutMat.M[Row][0] = Col0;
+			OutMat.M[Row][1] = Col1;
+			OutMat.M[Row][2] = Col2;
+			OutMat.M[Row][3] = Col3;
 		}
-		HMDMatrix.DiagnosticCheckNaN();
-		/**
-		 * Converts the 'Y up' 'right handed' WebXR coordinate system transform to Unreal's 'Z up'
-		 * 'left handed' coordinate system.
-		 *
-		 * Ignores scale.
-		 *
-		 * HMD Coordinate space (https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API/Geometry)
-		 */
+		OutMat.DiagnosticCheckNaN();
+		return OutMat;
+	}
+
+	FTransform FPixelStreamingInputHandler::WebXRMatrixToUETransform(FMatrix Mat)
+	{
 		// Rows and columns are swapped between raw mat and FMat
 		FMatrix UEMatrix = FMatrix(
-			FPlane(HMDMatrix.M[0][0], HMDMatrix.M[1][0], HMDMatrix.M[2][0], HMDMatrix.M[3][0]),
-			FPlane(HMDMatrix.M[0][1], HMDMatrix.M[1][1], HMDMatrix.M[2][1], HMDMatrix.M[3][1]),
-			FPlane(HMDMatrix.M[0][2], HMDMatrix.M[1][2], HMDMatrix.M[2][2], HMDMatrix.M[3][2]),
-			FPlane(HMDMatrix.M[0][3], HMDMatrix.M[1][3], HMDMatrix.M[2][3], HMDMatrix.M[3][3]));
+			FPlane(Mat.M[0][0], Mat.M[1][0], Mat.M[2][0], Mat.M[3][0]),
+			FPlane(Mat.M[0][1], Mat.M[1][1], Mat.M[2][1], Mat.M[3][1]),
+			FPlane(Mat.M[0][2], Mat.M[1][2], Mat.M[2][2], Mat.M[3][2]),
+			FPlane(Mat.M[0][3], Mat.M[1][3], Mat.M[2][3], Mat.M[3][3]));
 		// Extract & convert translation
 		FVector Translation = FVector(-UEMatrix.M[3][2], UEMatrix.M[3][0], UEMatrix.M[3][1]) * 100.0f;
 		// Extract & convert rotation
 		FQuat RawRotation(UEMatrix);
 		FQuat Rotation(-RawRotation.Z, RawRotation.X, RawRotation.Y, -RawRotation.W);
+		return FTransform(Rotation, Translation, FVector(Mat.GetScaleVector(1.0f)));
+	}
+
+	/**
+	 * XR Handling
+	 */
+	void FPixelStreamingInputHandler::HandleOnXREyeViews(FMemoryReader Ar)
+	{
+		// The `Ar` buffer contains the left eye transform matrix stored as 16 floats
+		FTransform LeftEyeTransform = WebXRMatrixToUETransform(ExtractWebXRMatrix(Ar));
+
+		// The `Ar` buffer contains the left eye projection matrix stored as 16 floats
+		FMatrix LeftEyeProjectionMatrix = ExtractWebXRMatrix(Ar);
+
+		// The `Ar` buffer contains the right eye transform matrix stored as 16 floats
+		FTransform RightEyeTransform = WebXRMatrixToUETransform(ExtractWebXRMatrix(Ar));
+
+		// The `Ar` buffer contains the right eye projection matrix stored as 16 floats
+		FMatrix RightEyeProjectionMatrix = ExtractWebXRMatrix(Ar);
 
 		if (FPixelStreamingHMD* HMD = IPixelStreamingHMDModule::Get().GetPixelStreamingHMD(); HMD != nullptr)
 		{
-			HMD->SetTransform(FTransform(Rotation, Translation, FVector(HMDMatrix.GetScaleVector(1.0f))));
+			HMD->SetEyeViews(LeftEyeTransform, LeftEyeProjectionMatrix, RightEyeTransform, RightEyeProjectionMatrix);
+		}
+	}
+
+	void FPixelStreamingInputHandler::HandleOnXRHMDTransform(FMemoryReader Ar)
+	{
+		// The `Ar` buffer contains the transform matrix stored as 16 floats
+		FTransform HMDTransform = WebXRMatrixToUETransform(ExtractWebXRMatrix(Ar));
+
+		if (FPixelStreamingHMD* HMD = IPixelStreamingHMDModule::Get().GetPixelStreamingHMD(); HMD != nullptr)
+		{
+			HMD->SetTransform(HMDTransform);
 		}
 	}
 
 	void FPixelStreamingInputHandler::HandleOnXRControllerTransform(FMemoryReader Ar)
 	{
-		// The buffer contains the transform matrix stored as 16 floats
-		FMatrix ControllerMatrix;
-		for (int32 Row = 0; Row < 4; ++Row)
-		{
-			float Col0, Col1, Col2, Col3;
-			Ar << Col0 << Col1 << Col2 << Col3;
-			// Rows and columns are swapped between raw mat and FMat
-			ControllerMatrix.M[Row][0] = Col0;
-			ControllerMatrix.M[Row][1] = Col1;
-			ControllerMatrix.M[Row][2] = Col2;
-			ControllerMatrix.M[Row][3] = Col3;
-		}
-		ControllerMatrix.DiagnosticCheckNaN();
-		FMatrix UEMatrix = FMatrix(
-			FPlane(ControllerMatrix.M[0][0], ControllerMatrix.M[1][0], ControllerMatrix.M[2][0], ControllerMatrix.M[3][0]),
-			FPlane(ControllerMatrix.M[0][1], ControllerMatrix.M[1][1], ControllerMatrix.M[2][1], ControllerMatrix.M[3][1]),
-			FPlane(ControllerMatrix.M[0][2], ControllerMatrix.M[1][2], ControllerMatrix.M[2][2], ControllerMatrix.M[3][2]),
-			FPlane(ControllerMatrix.M[0][3], ControllerMatrix.M[1][3], ControllerMatrix.M[2][3], ControllerMatrix.M[3][3]));
-		// Extract & convert translation
-		FVector Translation = FVector(-UEMatrix.M[3][2], UEMatrix.M[3][0], UEMatrix.M[3][1]) * 100.0f;
-		// Extract & convert rotation
-		FQuat RawRotation(UEMatrix);
-		FQuat Rotation(-RawRotation.Z, RawRotation.X, RawRotation.Y, -RawRotation.W);
-		EControllerHand Handedness;
+		// The `Ar` buffer contains the transform matrix stored as 16 floats
+		FTransform ControllerTransform = WebXRMatrixToUETransform(ExtractWebXRMatrix(Ar));
+
+		// The `Ar` buffer contains a UInt8 for the handedness
+		EControllerHand Handedness = EControllerHand::Left;
 		Ar << Handedness;
+
 		FPixelStreamingXRController Controller;
-		Controller.Transform = FTransform(Rotation, Translation, FVector(ControllerMatrix.GetScaleVector(1.0f)));
+		Controller.Transform = ControllerTransform;
 		Controller.Handedness = Handedness;
 		XRControllers.Add(Handedness, Controller);
 	}
@@ -1066,7 +1072,7 @@ namespace UE::PixelStreamingInput
 
 	void FPixelStreamingInputHandler::HandleOnXRSystem(FMemoryReader Ar)
 	{
-		uint8 ActiveSystem;
+		uint8 ActiveSystem = (uint8)EPixelStreamingXRSystem::Unknown;
 		Ar << ActiveSystem;
 		IPixelStreamingHMDModule::Get().SetActiveXRSystem(static_cast<XRSystem>(ActiveSystem));
 	}
@@ -1395,7 +1401,7 @@ namespace UE::PixelStreamingInput
 
 			if (bEditable)
 			{
-				FVector2D NormalizedLocation;
+				FVector2D NormalizedLocation = FVector2D::ZeroVector;
 				TSharedPtr<SWindow> ApplicationWindow = TargetWindow.Pin();
 				if (ApplicationWindow.IsValid())
 				{

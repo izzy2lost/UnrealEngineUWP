@@ -526,15 +526,18 @@ void FStateTreeInstanceData::Append(UObject& InOwner, TConstArrayView<FConstStru
 		FInstancedStruct* Source = InInstancesToMove[Index - StartIndex];
 
 		// The source is used to move temporary instance data into instance data. Not all entries may have it.
-		// If the source is specified, move it to the instance data. We assume that if the source is object wrapper, it is already the instance we want.
-		if (Source && Source->IsValid())
+		// The instance struct can be empty, in which case the temporary instance is ignored.
+		// If the source is specified, move it to the instance data.
+		// We assume that if the source is object wrapper, it is already the instance we want.
+		if (Struct.IsValid()
+			&& (Source && Source->IsValid()))
 		{
 			check(Struct.GetScriptStruct() == Source->GetScriptStruct());
 				
 			FMemory::Memswap(Struct.GetMemory(), Source->GetMutableMemory(), Struct.GetScriptStruct()->GetStructureSize());
 			Source->Reset();
 		}
-		else if (FStateTreeInstanceObjectWrapper* Wrapper = Storage.InstanceStructs[Index].GetPtr<FStateTreeInstanceObjectWrapper>())
+		else if (FStateTreeInstanceObjectWrapper* Wrapper = Struct.GetPtr<FStateTreeInstanceObjectWrapper>())
 		{
 			if (Wrapper->InstanceObject)
 			{

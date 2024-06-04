@@ -1931,7 +1931,12 @@ void FNaniteRasterPipelines::ReloadFixedFunctionBins()
 		FNaniteRasterEntry* RasterEntry = PipelineMap.Find(Pipeline);
 		check(RasterEntry != nullptr);
 		RasterEntry->RasterPipeline = Pipeline;
-		RasterEntry->CacheMap.Reset();
+	}
+
+	// Reset the entire raster setup cache
+	for (const auto& Pair : PipelineMap)
+	{
+		Pair.Value.CacheMap.Reset();
 	}
 }
 

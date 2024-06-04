@@ -121,7 +121,7 @@ FString FAvaEaseCurveTool::GetReferencerName() const
 
 TSharedRef<SWidget> FAvaEaseCurveTool::GenerateWidget()
 {
-	CacheSelectionData();
+	UpdateEaseCurveFromSequencerKeySelections();
 
 	if (!ToolWidget.IsValid())
 	{

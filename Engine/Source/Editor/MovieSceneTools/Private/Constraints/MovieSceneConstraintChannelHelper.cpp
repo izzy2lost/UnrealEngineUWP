@@ -479,7 +479,7 @@ void FCompensationEvaluator::ComputeCompensation(UWorld* InWorld, const TSharedP
 		}
 	}
 	
-	auto EvaluateAt = [InSequencer, &AllConstraints, &BakeHelpers](FFrameNumber InFrame)
+	auto EvaluateAt = [Handle = this->Handle, InSequencer, &AllConstraints, &BakeHelpers](FFrameNumber InFrame)
 	{
 		FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
 		InFrame = (FFrameTime(InFrame) * RootToLocalTransform.InverseNoLooping()).GetFrame();
@@ -516,7 +516,10 @@ void FCompensationEvaluator::ComputeCompensation(UWorld* InWorld, const TSharedP
 			}
 		}
 
-		// ControlRig->Evaluate_AnyThread();
+		if (Handle)
+		{
+			Handle->PreEvaluate();
+		}
 	};
 
 
@@ -557,8 +560,10 @@ void FCompensationEvaluator::ComputeCompensation(UWorld* InWorld, const TSharedP
 	{
 		const FTransform ChildLocal = ChildLocals[0];
 		Handle->SetGlobalTransform(ChildGlobals[0]);
+		Handle->PreEvaluate();
 		ChildLocals[0] = Handle->GetLocalTransform();
 		Handle->SetLocalTransform(ChildLocal);
+		Handle->PreEvaluate();
 	}
 }
 

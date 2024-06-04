@@ -123,6 +123,14 @@ SChaosVDSolverPlaybackControls::~SChaosVDSolverPlaybackControls()
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
+		// TODO: Doing this here to try to keep this change small enough for a 5.4.1 hotfix release
+		// This should be handled by the playback controller, but currently we are not doing any tracking of what solver tracks are being unloaded/loaded there
+		// This can be done as part of UE-192940 , which is a task to remove a similar dependency in the UI for the playback logic
+		if (FChaosVDTrackInfo* SolverTrackInfo = PlaybackControllerPtr->GetMutableTrackInfo(EChaosVDTrackType::Solver, SolverID))
+		{
+			SolverTrackInfo->CurrentFrame = 0;
+		}
+
 		PlaybackControllerPtr->ReleaseExclusivePlaybackControls(*this);
 	}
 }

@@ -77,7 +77,8 @@
 		},
 		{
 			"Name": "AVCodecsCore",
-			"Enabled": true
+			"Enabled": true,
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "NVCodecs",

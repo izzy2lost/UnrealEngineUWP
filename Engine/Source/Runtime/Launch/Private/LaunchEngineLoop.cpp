@@ -191,6 +191,7 @@
 	#include "DynamicResolutionState.h"
 	#include "EngineModule.h"
 	#include "DumpGPU.h"
+	#include "PSOPrecacheMaterial.h"
 
 #if !UE_SERVER
 	#include "AppMediaTimeSource.h"
@@ -5017,6 +5018,14 @@ int32 FEngineLoop::Init()
 }
 
 
+// 5.4.2 local change to avoid modifying public headers
+namespace PipelineStateCache
+{
+	// Waits for any pending tasks to complete.
+	extern RHI_API void WaitForAllTasks();
+
+}
+
 void FEngineLoop::Exit()
 {
 	STAT_ADD_CUSTOMMESSAGE_NAME( STAT_NamedMarker, TEXT( "EngineLoop.Exit" ) );
@@ -5136,12 +5145,14 @@ void FEngineLoop::Exit()
 #endif // WITH_EDITOR
 	FModuleManager::Get().UnloadModule("WorldBrowser", true);
 
-	// Clean up all cached pipelines, before the garbage collector shuts down.
-	ENQUEUE_RENDER_COMMAND(ShutdownPipelineStateCache)([](FRHICommandListImmediate& RHICmdList)
-	{
-		PipelineStateCache::Shutdown();
-	});
-	FlushRenderingCommands();
+
+#if WITH_ENGINE	
+	// Reset any in progress PSO compile requests, reduces pipelinestatecache task wait time.
+	ClearMaterialPSORequests();
+#endif
+
+	// Wait for any pending tasks to complete.
+	PipelineStateCache::WaitForAllTasks();
 
 	AppPreExit();
 

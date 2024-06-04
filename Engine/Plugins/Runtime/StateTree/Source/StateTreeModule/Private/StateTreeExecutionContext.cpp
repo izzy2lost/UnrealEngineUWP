@@ -772,6 +772,8 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 			InstanceStructs.AddDefaulted(State.InstanceDataNum);
 			TempInstanceStructs.AddZeroed(State.InstanceDataNum);
 
+			bool bCanHaveTempData = false;
+
 			if (State.Type == EStateTreeStateType::Subtree)
 			{
 				check(State.ParameterDataHandle.IsValid());
@@ -782,6 +784,7 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 					// Parameters are not set by a linked state, create instance data.
 					InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = ParamsInstanceData;
 					NextFrame.StateParameterDataHandle = State.ParameterDataHandle;
+					bCanHaveTempData = true;
 				}
 				else
 				{
@@ -792,6 +795,9 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 					
 					NextFrame.StateParameterDataHandle = NextStateParameterDataHandle;
 					NextStateParameterDataHandle = FStateTreeDataHandle::Invalid; // Mark as used.
+
+					// This state will not instantiate parameter data, so we don't care about the temp data either.
+					bCanHaveTempData = false;
 				}
 			}
 			else
@@ -802,6 +808,7 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 					check(State.ParameterDataHandle.IsValid());
 					const FConstStructView ParamsInstanceData = NextFrame.StateTree->DefaultInstanceData.GetStruct(State.ParameterTemplateIndex.Get());
 					InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = ParamsInstanceData;
+					bCanHaveTempData = true;
 
 					if (State.Type == EStateTreeStateType::Linked
 						|| State.Type == EStateTreeStateType::LinkedAsset)
@@ -817,7 +824,7 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 				}
 			}
 			
-			if (!bAreCommon && State.ParameterDataHandle.IsValid())
+			if (!bAreCommon && bCanHaveTempData)
 			{
 				TempInstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = FindInstanceTempData(NextFrame, State.ParameterDataHandle);
 			}
@@ -920,8 +927,14 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(FStateTreeInstanceSto
 	case EStateTreeDataSourceType::SubtreeParameterData:
 		{
 			// Defined in parent frame.
-			check(ParentFrame);
-			return GetDataView(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, ContextAndExternalDataViews, CurrentFrame.StateParameterDataHandle);
+			if (ParentFrame)
+			{
+				// Linked subtree, params defined in parent scope.
+				return GetDataView(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, ContextAndExternalDataViews, CurrentFrame.StateParameterDataHandle);
+			}
+			// Standalone subtree, params define as state params.
+			FCompactStateTreeParameters& Params = InstanceDataStorage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FCompactStateTreeParameters>();
+			return Params.Parameters.GetMutableValue();
 		}
 
 	case EStateTreeDataSourceType::StateParameterData:
@@ -981,8 +994,15 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 			: CurrentFrame.GlobalParameterDataHandle.IsValid();
 
 	case EStateTreeDataSourceType::SubtreeParameterData:
-		return ParentFrame
-			&& IsHandleSourceValid(nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
+		if (ParentFrame)
+		{
+			// Linked subtree, params defined in parent scope.
+			return IsHandleSourceValid(nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
+		}
+		// Standalone subtree, params define as state params.
+		return CurrentFrame.ActiveInstanceIndexBase.IsValid()
+			&& CurrentFrame.ActiveStates.Contains(Handle.GetState(), CurrentFrame.NumCurrentlyActiveStates)
+			&& InstanceDataStorage->IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
 
 	case EStateTreeDataSourceType::StateParameterData:
 		return CurrentFrame.ActiveInstanceIndexBase.IsValid()
@@ -1028,10 +1048,16 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewOrTemporary(const FSta
 	case EStateTreeDataSourceType::SubtreeParameterData:
 		if (ParentFrame)
 		{
+			// Linked subtree, params defined in parent scope.
 			if (FCompactStateTreeParameters* Params = InstanceDataStorage->GetMutableTemporaryStruct(*ParentFrame, CurrentFrame.StateParameterDataHandle).GetPtr<FCompactStateTreeParameters>())
 			{
 				return Params->Parameters.GetMutableValue();
 			}
+		}
+		// Standalone subtree, params define as state params.
+		if (FCompactStateTreeParameters* Params = InstanceDataStorage->GetMutableTemporaryStruct(CurrentFrame, Handle).GetPtr<FCompactStateTreeParameters>())
+		{
+			return Params->Parameters.GetMutableValue();
 		}
 		break;
 
@@ -3070,7 +3096,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				}
 
 				// The linked state tree should have compatible context requirements.
-				if (!RootStateTree.HasCompatibleContextData(*NextState.LinkedAsset))
+				if (!NextState.LinkedAsset->HasCompatibleContextData(RootStateTree))
 				{
 					STATETREE_LOG(Error, TEXT("%hs: The linked State Tree '%s' does not have compatible schema, trying to select state %s from '%s'.  '%s' using StateTree '%s'."),
 						__FUNCTION__, *GetFullNameSafe(NextState.LinkedAsset), *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));

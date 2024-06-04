@@ -2286,6 +2286,12 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 void UIKRetargetProcessor::SetNeedsInitialized()
 {
 	bIsInitialized = false;
+
+	if (RetargeterAsset)
+	{
+		RetargeterAsset->IncrementVersion(); // triggers re-init
+	}
+	
 	if (IKRigProcessor)
 	{
 		// may not be initialized yet (during setup as prerequisites are being created)

@@ -4,7 +4,6 @@
 
 #include "GlobalShader.h"
 #include "RHIGPUReadback.h"
-#include "RenderCaptureInterface.h"
 #include "RenderGraphUtils.h"
 #include "Async/Async.h"
 
@@ -41,8 +40,6 @@ IMPLEMENT_GLOBAL_SHADER(FPCGTextureReadbackCS, "/PCGComputeShaders/PCGTextureRea
 void FPCGTextureReadbackInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, const FPCGTextureReadbackDispatchParams& Params, const TFunction<void(void* OutBuffer, int32 ReadbackWidth, int32 ReadbackHeight)>& AsyncCallback)
 {
 	check(Params.SourceTexture && Params.SourceSampler);
-
-	RenderCaptureInterface::FScopedCapture RenderCapture(true, &RHICmdList, TEXT("PCGTextureDataReadback"));
 
 	FPCGTextureReadbackCS::FParameters PassParameters;
 	PassParameters.SourceTextureArray = Params.SourceTexture;

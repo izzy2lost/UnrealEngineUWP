@@ -639,8 +639,8 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 				Output.Curve,
 				ComponentTransform,
 				AttachParentName,
-				PrevPoseSnapshot,
-				CurrPoseSnapshot);
+				CurrPoseSnapshot,
+				PrevPoseSnapshot);
 		}
 		else if (!CurrPoseSnapshot.IsEmpty())
 		{

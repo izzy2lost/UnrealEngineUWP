@@ -146,7 +146,7 @@ void Main(
 	
 	float4 ShadowPosition = float4(0, 0, 0, 0);
 	
-#if MOBILE_MULTI_VIEW || INSTANCED_STEREO
+#if ((MOBILE_MULTI_VIEW || INSTANCED_STEREO) && SHADING_PATH_MOBILE)
 	ShadowPosition = mul(ScreenPosition, ResolvedView.MobileMultiviewShadowTransform);
 	ShadowPosition = mul(ShadowPosition, ScreenToShadowMatrix);
 #else

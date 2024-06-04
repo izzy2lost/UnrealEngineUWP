@@ -161,6 +161,9 @@ private:
 	/** In case tracks are not reset when a new analysis session is started we keep track of the longest duration to adjust our clamp range. */
 	double MaxTrackRecordingDuration = 0;
 
+	/** The recording duration time the UI was last updated from the debugger. Used to detect if new data has been collect while the UI was inactive. */
+	double LastUpdatedTrackRecordingDuration = 0;
+
 	/** Indicates that a live session was started (record button or auto record in PIE) to generate StateTree traces. */
 	bool bRecording = false;
 
