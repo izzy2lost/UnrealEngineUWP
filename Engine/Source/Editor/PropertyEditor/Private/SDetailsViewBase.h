@@ -148,6 +148,7 @@ public:
 	virtual const FCustomPropertyTypeLayoutMap& GetCustomPropertyTypeLayoutMap() const { return InstancedTypeToLayoutMap; }
 	virtual void SaveExpandedItems( TSharedRef<FPropertyNode> StartNode ) override;
 	virtual void RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode) override;
+	virtual void RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode, TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates);
 	virtual void MarkNodeAnimating(TSharedPtr<FPropertyNode> InNode, float InAnimationDuration, TOptional<FGuid> InAnimationBatchId) override;
 	virtual bool IsNodeAnimating(TSharedPtr<FPropertyNode> InNode) override;
 	virtual FDetailColumnSizeData& GetColumnSizeData() override { return ColumnSizeData; }
@@ -183,7 +184,7 @@ public:
 	virtual void EnqueueDeferredAction(FSimpleDelegate& DeferredAction) override;
 
 	/** Restore all expanded items in root nodes and external root nodes. */
-	void RestoreAllExpandedItems();
+	void RestoreAllExpandedItems(TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates = nullptr);
 
 	/**
 	 * Returns a @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode for this

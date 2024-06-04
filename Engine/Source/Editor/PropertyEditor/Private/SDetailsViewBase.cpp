@@ -1537,7 +1537,7 @@ void SDetailsViewBase::SaveExpandedItems(TSharedRef<FPropertyNode> StartNode)
 	}
 }
 
-void SDetailsViewBase::RestoreAllExpandedItems()
+void SDetailsViewBase::RestoreAllExpandedItems(TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SDetailsViewBase::RestoreAllExpandedItems);
 
@@ -1552,7 +1552,7 @@ void SDetailsViewBase::RestoreAllExpandedItems()
 	for (TSharedPtr<FComplexPropertyNode>& RootPropertyNode : GetRootNodes())
 	{
 		check(RootPropertyNode.IsValid());
-		RestoreExpandedItems(RootPropertyNode.ToSharedRef());
+		RestoreExpandedItems(RootPropertyNode.ToSharedRef(), OptionalExpansionStates);
 	}
 
 	for (FDetailLayoutData& LayoutData : DetailLayouts)
@@ -1561,12 +1561,17 @@ void SDetailsViewBase::RestoreAllExpandedItems()
 		for (TSharedPtr<FComplexPropertyNode>& ExternalRootPropertyNode : ExternalRootPropertyNodes)
 		{
 			check(ExternalRootPropertyNode.IsValid());
-			RestoreExpandedItems(ExternalRootPropertyNode.ToSharedRef());
+			RestoreExpandedItems(ExternalRootPropertyNode.ToSharedRef(), OptionalExpansionStates);
 		}
 	}
 }
 
 void SDetailsViewBase::RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode)
+{
+	RestoreExpandedItems(StartNode, nullptr);
+}
+
+void SDetailsViewBase::RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode, TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates)
 {
 	if (bRunningDeferredActions)
 	{
@@ -1578,17 +1583,28 @@ void SDetailsViewBase::RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode)
 
 	UStruct* BestBaseStruct = StartNode->FindComplexParent()->GetBaseStructure();
 
-	//while a valid class, and we're either the same as the base class (for multiple actors being selected and base class is AActor) OR we're not down to AActor yet)
-	TArray<FString> DetailPropertyExpansionStrings;
-	for (UStruct* Struct = BestBaseStruct; Struct && ((BestBaseStruct == Struct) || (Struct != AActor::StaticClass())); Struct = Struct->GetSuperStruct())
+	if (OptionalExpansionStates)
 	{
-		GConfig->GetSingleLineArray(TEXT("DetailPropertyExpansion"), *Struct->GetName(), DetailPropertyExpansionStrings, GEditorPerProjectIni);
+		const FStringPrefixTree* PrefixTree = OptionalExpansionStates->Find(BestBaseStruct);
+		if (PrefixTree)
+		{
+			SetExpandedItems(StartNode, *PrefixTree, false);
+		}
 	}
+	else
+	{
+		//while a valid class, and we're either the same as the base class (for multiple actors being selected and base class is AActor) OR we're not down to AActor yet)
+		TArray<FString> DetailPropertyExpansionStrings;
+		for (UStruct* Struct = BestBaseStruct; Struct && ((BestBaseStruct == Struct) || (Struct != AActor::StaticClass())); Struct = Struct->GetSuperStruct())
+		{
+			GConfig->GetSingleLineArray(TEXT("DetailPropertyExpansion"), *Struct->GetName(), DetailPropertyExpansionStrings, GEditorPerProjectIni);
+		}
 
-	FStringPrefixTree PrefixTree;
-	PrefixTree.InsertAll(DetailPropertyExpansionStrings);
+		FStringPrefixTree PrefixTree;
+		PrefixTree.InsertAll(DetailPropertyExpansionStrings);
 
-	SetExpandedItems(StartNode, PrefixTree, false);
+		SetExpandedItems(StartNode, PrefixTree, false);
+	}
 
 	if (BestBaseStruct)
 	{
