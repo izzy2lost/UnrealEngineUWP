@@ -29,6 +29,14 @@ namespace Dataflow
 	};
 }
 
+namespace DataflowContextHelpers
+{
+	// Return a new(or saved) content that can store the execution state of the graph. 
+	template<class T>
+	DATAFLOWENGINE_API TObjectPtr<T> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner);
+}
+
+
 /** 
  * Context object used for selection/rendering 
  */
@@ -174,6 +182,10 @@ public:
 	/** Content Serialization */
 	virtual void Serialize(FArchive& Ar);
 
+	/* Context cache saving */
+	bool IsSaved() const { return bIsSaved; }
+	void SetIsSaved(bool bInSaved) { bIsSaved = bInSaved; }
+
 	//~ UObject interface
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
@@ -196,6 +208,9 @@ protected:
     /** Dirty flag to trigger rendering. Do we need that? since when accessing the member by non const ref we will not dirty it */
 	UPROPERTY()
 	bool bIsDirty = true;
+
+	/** Saved as a cached context. Will be automatically saved to a cache directory if true. Use the pvar p.Dataflow.Editor.ContextCaching to enable. [def:false] */
+	bool bIsSaved = false;
 };
 
 /** 

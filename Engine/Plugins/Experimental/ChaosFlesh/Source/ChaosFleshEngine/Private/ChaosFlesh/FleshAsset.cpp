@@ -6,6 +6,7 @@
 #include "ChaosFlesh/FleshAsset.h"
 #include "ChaosFlesh/FleshCollection.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/TransformCollection.h"
 
@@ -74,7 +75,7 @@ void UFleshAsset::Serialize(FArchive& Ar)
 
 TObjectPtr<UDataflowBaseContent> UFleshAsset::CreateDataflowContent()
 {
-	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = NewObject<UDataflowSkeletalContent>();
+	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = DataflowContextHelpers::CreateNewDataflowContent<UDataflowSkeletalContent>(this);
 
 	SkeletalContent->SetDataflowOwner(this);
 	SkeletalContent->SetTerminalAsset(this);

@@ -2,12 +2,15 @@
 
 #include "Dataflow/DataflowEditor.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Animation/Skeleton.h"
+#include "ContentBrowserModule.h"
 #include "Dataflow/AssetDefinition_DataflowContext.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorUtil.h"
 #include "Engine/SkeletalMesh.h"
+#include "Modules/ModuleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowEditor)
 
@@ -33,7 +36,7 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 		{
 			if(UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
 			{
-				EditorContent = DataflowContextDefinitionHelpers::CreateNewDataflowContent<UDataflowBaseContent>(ContentOwner);
+				EditorContent = DataflowContextHelpers::CreateNewDataflowContent<UDataflowBaseContent>(ContentOwner);
 				EditorContent->SetDataflowOwner(DataflowAsset);
 				EditorContent->SetDataflowAsset(DataflowAsset);
 			}
@@ -42,7 +45,17 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 				if(IDataflowContentOwner* EditorContentOwner = Cast<IDataflowContentOwner>(ContentOwner))
 				{
 					EditorContent = EditorContentOwner->BuildDataflowContent();
-					RequiredObjects.Add(EditorContent->GetDataflowAsset());
+					if (EditorContent)
+					{
+						if (EditorContent->IsSaved())
+						{
+							// Setup an asset that lives in the content broswer.
+							FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+							FAssetRegistryModule::AssetCreated(EditorContent);
+						}
+
+						RequiredObjects.Add(EditorContent->GetDataflowAsset());
+					}
 				}
 			}
 		}
