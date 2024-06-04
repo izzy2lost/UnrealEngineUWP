@@ -154,7 +154,7 @@ struct FRootSequenceData
 
 		if (!RootHierarchy)
 		{
-			RootHierarchy = InstanceRegistry->GetInstance(RootInstanceHandle).GetPlayer()->GetEvaluationTemplate().GetHierarchy();
+			RootHierarchy = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState()->GetHierarchy();
 		}
 
 		if (ensure(RootHierarchy))
@@ -210,7 +210,7 @@ struct FRootSequenceData
 
 		if (!RootHierarchy)
 		{
-			RootHierarchy = InstanceRegistry->GetInstance(RootInstanceHandle).GetPlayer()->GetEvaluationTemplate().GetHierarchy();
+			RootHierarchy = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState()->GetHierarchy();
 		}
 
 		if (!RootHierarchy)

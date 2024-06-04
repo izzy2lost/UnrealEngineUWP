@@ -1,15 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Systems/MovieSceneLevelVisibilitySystem.h"
+
 #include "Engine/Level.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
+#include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneRootInstantiatorSystem.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "EntitySystem/MovieSceneSpawnablesSystem.h"
-#include "EntitySystem/MovieSceneEntitySystemLinker.h"
-#include "MovieSceneTracksComponentTypes.h"
 #include "MovieSceneExecutionToken.h"
-#include "IMovieScenePlayer.h"
+#include "MovieSceneTracksComponentTypes.h"
 
 #include "Misc/PackageName.h"
 #include "Engine/World.h"
@@ -188,9 +189,10 @@ void FMovieSceneLevelStreamingSharedData::Flush(UMovieSceneEntitySystemLinker* L
 		return;
 	}
 
-	TArray<IMovieScenePlayer*> PlayerPtrsScratch;
+	TArray<TSharedRef<FSharedPlaybackState>> StatesScratch;
 
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	FPreAnimatedStateExtension& PreAnimatedState = Linker->PreAnimatedState;
 
 	FLevelStreamingPreAnimatedTokenProducer TokenProducer;
 
@@ -236,12 +238,12 @@ void FMovieSceneLevelStreamingSharedData::Flush(UMovieSceneEntitySystemLinker* L
 					Pair.Value.bPreviousState = GetLevelVisibility(*Level);
 				}
 
-				PlayerPtrsScratch.Reset();
-				Pair.Value.GetPlayers(InstanceRegistry, PlayerPtrsScratch);
-				for (IMovieScenePlayer* Player : PlayerPtrsScratch)
+				StatesScratch.Reset();
+				Pair.Value.GetSharedPlaybackStates(InstanceRegistry, StatesScratch);
+				for (TSharedRef<FSharedPlaybackState> State : StatesScratch)
 				{
 					// Globally save preanimated state
-					Player->SavePreAnimatedState(*Level, TMovieSceneAnimTypeID<FMovieSceneLevelStreamingSharedData>(), TokenProducer);
+					State->GetPreAnimatedState().SavePreAnimatedState(*Level, TMovieSceneAnimTypeID<FMovieSceneLevelStreamingSharedData>(), TokenProducer);
 				}
 
 				SetLevelVisibility(*Level, bShouldBeVisible, &FlushStreamingType);
@@ -380,17 +382,14 @@ TOptional<ELevelVisibility> FMovieSceneLevelStreamingSharedData::FVisibilityData
 	}
 }
 
-void FMovieSceneLevelStreamingSharedData::FVisibilityData::GetPlayers(FInstanceRegistry* InstanceRegistry, TArray<IMovieScenePlayer*>& OutPlayers) const
+void FMovieSceneLevelStreamingSharedData::FVisibilityData::GetSharedPlaybackStates(FInstanceRegistry* InstanceRegistry, TArray<TSharedRef<FSharedPlaybackState>>& OutSharedPlaybackStates) const
 {
 	for (const FVisibilityRequest& Request : Requests)
 	{
 		if (InstanceRegistry->IsHandleValid(Request.Instance))
 		{
-			IMovieScenePlayer* Player = InstanceRegistry->GetInstance(Request.Instance).GetPlayer();
-			if (Player)
-			{
-				OutPlayers.AddUnique(Player);
-			}
+			TSharedRef<FSharedPlaybackState> State = InstanceRegistry->GetInstance(Request.Instance).GetSharedPlaybackState();
+			OutSharedPlaybackStates.AddUnique(State);
 		}
 	}
 }

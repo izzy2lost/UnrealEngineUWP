@@ -41,8 +41,9 @@ struct FGatherTransformOrigin
 			}
 
 			const FSequenceInstance& Instance = SparseInstances[Index];
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
 
-			const IMovieScenePlaybackClient*  Client       = Instance.GetPlayer()->GetPlaybackClient();
+			const IMovieScenePlaybackClient*  Client       = SharedPlaybackState->FindCapability<IMovieScenePlaybackClient>();
 			const UObject*                    InstanceData = Client ? Client->GetInstanceData() : nullptr;
 			const IMovieSceneTransformOrigin* RawInterface = Cast<const IMovieSceneTransformOrigin>(InstanceData);
 
@@ -183,7 +184,9 @@ bool UMovieSceneTransformOriginSystem::IsRelevantImpl(UMovieSceneEntitySystemLin
 
 	for (const FSequenceInstance& Instance : InLinker->GetInstanceRegistry()->GetSparseInstances())
 	{
-		const IMovieScenePlaybackClient*  Client       = Instance.GetPlayer()->GetPlaybackClient();
+		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+
+		const IMovieScenePlaybackClient*  Client       = SharedPlaybackState->FindCapability<IMovieScenePlaybackClient>();
 		const UObject*                    InstanceData = Client ? Client->GetInstanceData() : nullptr;
 		const IMovieSceneTransformOrigin* RawInterface = Cast<const IMovieSceneTransformOrigin>(InstanceData);
 
@@ -257,8 +260,9 @@ void UMovieSceneTransformOriginSystem::OnRun(FSystemTaskPrerequisites& InPrerequ
 		}
 
 		const FSequenceInstance& Instance = SparseInstances[Index];
+		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
 
-		const IMovieScenePlaybackClient*  Client       = Instance.GetPlayer()->GetPlaybackClient();
+		const IMovieScenePlaybackClient*  Client       = SharedPlaybackState->FindCapability<IMovieScenePlaybackClient>();
 		const UObject*                    InstanceData = Client ? Client->GetInstanceData() : nullptr;
 		const IMovieSceneTransformOrigin* RawInterface = Cast<const IMovieSceneTransformOrigin>(InstanceData);
 

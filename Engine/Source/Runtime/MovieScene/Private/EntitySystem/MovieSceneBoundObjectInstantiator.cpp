@@ -44,7 +44,9 @@ void UMovieSceneGenericBoundObjectInstantiator::OnRun(FSystemTaskPrerequisites& 
 			EResolveError Error = EResolveError::UnresolvedBinding;
 
 			FSequenceInstance& SequenceInstance = InstanceRegistry->MutateInstance(InstanceHandle);
-			for (TWeakObjectPtr<> WeakObject : SequenceInstance.GetPlayer()->FindBoundObjects(ObjectBinding, SequenceInstance.GetSequenceID()))
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+			TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(ObjectBinding, SequenceInstance.GetSequenceID());
+			for (TWeakObjectPtr<> WeakObject : BoundObjects)
 			{
 				if (UObject* Object = WeakObject.Get())
 				{

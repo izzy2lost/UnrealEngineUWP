@@ -34,7 +34,7 @@ struct FPreAnimatedCameraCutTraits : FPreAnimatedStateTraits
 	using StorageType = FPreAnimatedCameraCutState;
 
 	static bool ShouldHandleWorldCameraCuts(UWorld* World);
-	static StorageType CachePreAnimatedValue(IMovieScenePlayer* Player, uint8 InKey);
+	static StorageType CachePreAnimatedValue(UObject* PlaybackContext, uint8 InKey);
 
 	void RestorePreAnimatedValue(uint8 InKey, const StorageType& CachedValue, const FRestoreStateParams& Params);
 };

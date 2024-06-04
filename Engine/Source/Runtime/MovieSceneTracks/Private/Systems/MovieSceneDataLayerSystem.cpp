@@ -577,7 +577,8 @@ void UMovieSceneDataLayerSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites
 					FString SequenceList;
 					for (const FSequenceInstance& Instance : Linker->GetInstanceRegistry()->GetSparseInstances())
 					{
-						UMovieSceneSequence* Sequence = Instance.GetPlayer()->GetEvaluationTemplate().GetSequence(Instance.GetSequenceID());
+						TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+						UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Instance.GetSequenceID());
 
 						if (SequenceList.Len())
 						{
@@ -599,16 +600,12 @@ UDataLayerManager* UMovieSceneDataLayerSystem::GetDataLayerManager(UE::MovieScen
 	using namespace UE::MovieScene;
 
 	const FSequenceInstance& Instance = Linker->GetInstanceRegistry()->GetInstance(RootInstance);
-	IMovieScenePlayer* Player = Instance.GetPlayer();
-	if (!Player)
+	UObject* PlaybackContext = Instance.GetSharedPlaybackState()->GetPlaybackContext();
+	if (PlaybackContext)
 	{
-		return nullptr;
+		return UDataLayerManager::GetDataLayerManager(PlaybackContext);
 	}
-
-	UObject* PlayerUObject = Player->AsUObject();
-	UObject* PlaybackContext = PlayerUObject ? PlayerUObject : Player->GetPlaybackContext();
-
-	return UDataLayerManager::GetDataLayerManager(PlaybackContext);
+	return nullptr;
 }
 
 void UMovieSceneDataLayerSystem::UpdateDesiredStates()

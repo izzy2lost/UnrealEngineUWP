@@ -28,10 +28,9 @@ bool FPreAnimatedCameraCutTraits::ShouldHandleWorldCameraCuts(UWorld* World)
 }
 
 FPreAnimatedCameraCutState FPreAnimatedCameraCutTraits::CachePreAnimatedValue(
-		IMovieScenePlayer* Player, 
+		UObject* PlaybackContext,
 		uint8 InKey)
 {
-	UObject* PlaybackContext = Player->GetPlaybackContext();
 	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 	if (ShouldHandleWorldCameraCuts(World))
 	{
@@ -154,10 +153,10 @@ void FCameraCutGameHandler::CachePreAnimatedValue(
 {
 	TSharedPtr<FPreAnimatedCameraCutStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedCameraCutStorage>();
 
-	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
+	UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 	PreAnimatedStorage->CachePreAnimatedValue(
 			(uint8)0,  // Later this can be an index for split-screen player
-			[Player](uint8 InKey) { return FPreAnimatedCameraCutTraits::CachePreAnimatedValue(Player, InKey); },
+			[PlaybackContext](uint8 InKey) { return FPreAnimatedCameraCutTraits::CachePreAnimatedValue(PlaybackContext, InKey); },
 			EPreAnimatedCaptureSourceTracking::AlwaysCache);
 }
 
@@ -181,8 +180,7 @@ void FCameraCutGameHandler::SetCameraCut(
 		return;
 	}
 
-	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 	// Also bail out if we don't have a world running any sort of game.

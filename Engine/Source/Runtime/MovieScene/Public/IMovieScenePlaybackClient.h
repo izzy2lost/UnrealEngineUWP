@@ -26,7 +26,7 @@ class IMovieScenePlaybackClient
 public:
 	GENERATED_BODY()
 
-	static UE::MovieScene::TPlaybackCapabilityID<IMovieScenePlaybackClient> ID;
+	MOVIESCENE_API static UE::MovieScene::TPlaybackCapabilityID<IMovieScenePlaybackClient> ID;
 
 	/**
 	 * Locate bound objects that relate to the specified binding ID

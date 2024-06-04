@@ -18,9 +18,8 @@ namespace UE::MovieScene
 
 struct FSlomoUtil
 {
-	static void ApplySlomo(IMovieScenePlayer& Player, double TimeDilation)
+	static void ApplySlomo(UObject* PlaybackContext, double TimeDilation)
 	{
-		UObject* PlaybackContext = Player.GetPlaybackContext();
 		UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 		if (!World || (!GIsEditor && World->GetNetMode() == NM_Client) || TimeDilation <= 0.f)
@@ -42,9 +41,9 @@ struct FPreAnimatedSlomoState
 {
 	TOptional<double> TimeDilation;
 
-	static FPreAnimatedSlomoState SaveState(IMovieScenePlayer* Player)
+	static FPreAnimatedSlomoState SaveState(UObject* PlaybackContext)
 	{
-		if (AWorldSettings* WorldSettings = Player->GetPlaybackContext()->GetWorld()->GetWorldSettings())
+		if (AWorldSettings* WorldSettings = PlaybackContext->GetWorld()->GetWorldSettings())
 		{
 			return FPreAnimatedSlomoState{ WorldSettings->CinematicTimeDilation };
 		}
@@ -53,15 +52,15 @@ struct FPreAnimatedSlomoState
 
 	void RestoreState(const FMovieSceneAnimTypeID& Unused, const FRestoreStateParams& Params)
 	{
-		IMovieScenePlayer* Player = Params.GetTerminalPlayer();
-		if (!ensure(Player))
+		TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = Params.GetTerminalPlaybackState();
+		if (!ensure(SharedPlaybackState))
 		{
 			return;
 		}
 
 		if (TimeDilation.IsSet())
 		{
-			FSlomoUtil::ApplySlomo(*Player, TimeDilation.GetValue());
+			FSlomoUtil::ApplySlomo(SharedPlaybackState->GetPlaybackContext(), TimeDilation.GetValue());
 		}
 	}
 };
@@ -90,10 +89,10 @@ struct FEvaluateSlomo
 		{
 			FRootInstanceHandle RootInstanceHandle = RootInstanceHandles[Index];
 			const FSequenceInstance& Instance = InstanceRegistry->GetInstance(RootInstanceHandle);
-			IMovieScenePlayer* Player = Instance.GetPlayer();
+			UObject* PlaybackContext = Instance.GetSharedPlaybackState()->GetPlaybackContext();
 
 			const double TimeDilation(TimeDilations[Index]);
-			FSlomoUtil::ApplySlomo(*Player, TimeDilation);
+			FSlomoUtil::ApplySlomo(PlaybackContext, TimeDilation);
 		}
 	}
 };
@@ -173,10 +172,10 @@ void UMovieSceneSlomoSystem::SavePreAnimatedState(const FPreAnimationParameters&
 		{
 			FRootInstanceHandle RootInstanceHandle = RootInstanceHandles[Index];
 			const FSequenceInstance& Instance = InstanceRegistry->GetInstance(RootInstanceHandle);
-			IMovieScenePlayer* Player = Instance.GetPlayer();
+			UObject* PlaybackContext = Instance.GetSharedPlaybackState()->GetPlaybackContext();
 
 			PreAnimatedStorage->BeginTrackingEntity(EntityIDs[Index], bWantsRestoreState, RootInstanceHandle, Key);
-			PreAnimatedStorage->CachePreAnimatedValue(Key, [Player](const FMovieSceneAnimTypeID&) { return FPreAnimatedSlomoState::SaveState(Player); });
+			PreAnimatedStorage->CachePreAnimatedValue(Key, [PlaybackContext](const FMovieSceneAnimTypeID&) { return FPreAnimatedSlomoState::SaveState(PlaybackContext); });
 		}
 	};
 

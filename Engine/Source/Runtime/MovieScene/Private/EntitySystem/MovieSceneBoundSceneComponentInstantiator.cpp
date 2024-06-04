@@ -9,6 +9,7 @@
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 
+#include "Evaluation/MovieSceneEvaluationState.h"
 #include "MovieSceneCommonHelpers.h"
 #include "IMovieScenePlayer.h"
 
@@ -46,8 +47,8 @@ void UMovieSceneBoundSceneComponentInstantiator::OnRun(FSystemTaskPrerequisites&
 			EResolveError Result = EResolveError::UnresolvedBinding;
 
 			FSequenceInstance& SequenceInstance = InstanceRegistry->MutateInstance(InstanceHandle);
-
-			TArrayView<TWeakObjectPtr<>> BoundObjects = SequenceInstance.GetPlayer()->FindBoundObjects(ObjectBinding, SequenceInstance.GetSequenceID());
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+			TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(ObjectBinding, SequenceInstance.GetSequenceID());
 			if (BoundObjects.Num() == 0)
 			{
 				UE_LOG(LogMovieSceneECS, Verbose, TEXT("FBoundSceneComponentBatch::ResolveObjects: No bound objects returned for FGuid: %s"), *ObjectBinding.ToString());

@@ -90,8 +90,7 @@ void FCameraCutEditorHandler::CachePreAnimatedValue(
 		return;
 	}
 
-	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 	// Only handle editor world/viewports.
@@ -129,8 +128,7 @@ void FCameraCutEditorHandler::ForcePreAnimatedValueOperation(
 
 	TGuardValue<FEntityManager*> EntityManagerForDebugging(GEntityManagerForDebuggingVisualizers, &Linker->EntityManager);
 
-	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 	// Only handle editor world/viewports.
@@ -200,8 +198,7 @@ void FCameraCutEditorHandler::SetCameraCut(
 		return;
 	}
 
-	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 	// Only handle editor world/viewports.

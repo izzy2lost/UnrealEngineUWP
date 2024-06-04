@@ -50,7 +50,6 @@ UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieSce
 		}
 
 		SpawnOwnership = Spawnable->GetSpawnOwnership();
-		IMovieScenePlayer* Player = UE::MovieScene::FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 
 		// See if there is some dynamic binding logic to invoke, otherwise spawn the actor
 			// See if there is some dynamic binding logic to invoke, otherwise spawn the actor

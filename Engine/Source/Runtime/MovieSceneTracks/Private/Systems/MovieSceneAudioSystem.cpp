@@ -310,7 +310,7 @@ private:
 			bool bWantsRestoreState) const
 	{
 		const FMovieSceneContext& Context = Instance.GetContext();
-		IMovieScenePlayer* Player = Instance.GetPlayer();
+		UObject* PlaybackContext = Instance.GetSharedPlaybackState()->GetPlaybackContext();
 
 		UMovieSceneAudioSection* AudioSection = AudioData.Section;
 		if (!ensureMsgf(AudioSection, TEXT("No valid audio section found in audio track component data!")))
@@ -340,8 +340,6 @@ private:
 		// Root audio track
 		if (BoundObject == nullptr)
 		{
-			UObject* PlaybackContext = Player->GetPlaybackContext();
-
 			const FMovieSceneActorReferenceData& AttachActorData = AudioSection->GetAttachActorData();
 
 			USceneComponent* AttachComponent = nullptr;
@@ -351,7 +349,7 @@ private:
 			if (AttachBindingID.IsValid())
 			{
 				// If the transform is set, otherwise use the bound actor's transform
-				for (TWeakObjectPtr<> WeakObject : AttachBindingID.ResolveBoundObjects(Instance.GetSequenceID(), *Player))
+				for (TWeakObjectPtr<> WeakObject : AttachBindingID.ResolveBoundObjects(Instance.GetSequenceID(), Instance.GetSharedPlaybackState()))
 				{
 					AActor* AttachActor = Cast<AActor>(WeakObject.Get());
 					if (AttachActor)
@@ -408,7 +406,7 @@ private:
 				EvaluationData->VolumeMultiplier = VolumeMultiplier * AudioSection->EvaluateEasing(Context.GetTime());
 				EvaluationData->PitchMultiplier = PitchMultiplier;
 
-				EnsureAudioIsPlaying(nullptr, InstanceHandle, *AudioSection, *EvaluationData, Context, *Player);
+				EnsureAudioIsPlaying(nullptr, InstanceHandle, *AudioSection, *EvaluationData, Context, PlaybackContext);
 			}
 		}
 
@@ -449,7 +447,7 @@ private:
 				EvaluationData->VolumeMultiplier = VolumeMultiplier;
 				EvaluationData->PitchMultiplier = PitchMultiplier;
 
-				EnsureAudioIsPlaying(BoundObject, InstanceHandle, *AudioSection, *EvaluationData, Context, *Player);
+				EnsureAudioIsPlaying(BoundObject, InstanceHandle, *AudioSection, *EvaluationData, Context, PlaybackContext);
 			}
 		}
 	}
@@ -460,7 +458,7 @@ private:
 			UMovieSceneAudioSection& AudioSection,
 			FAudioComponentEvaluationData& EvaluationData,
 			const FMovieSceneContext& Context, 
-			IMovieScenePlayer& Player) const
+			UObject* PlaybackContext) const
 	{
 		using FInstanceObjectKey = UMovieSceneAudioSystem::FInstanceObjectKey;
 		using FAudioInputsBySectionKey = UMovieSceneAudioSystem::FAudioInputsBySectionKey;
@@ -530,7 +528,6 @@ private:
 		const bool bSoundNeedsStateChange =  AudioComponent.Sound != Sound;
 		bool bSoundNeedsTimeSync = false;
 
-		UObject* PlaybackContext = Player.GetPlaybackContext();
 		UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 		// Sync only if there is no time dilation because otherwise the system will constantly resync because audio 

@@ -37,9 +37,9 @@ namespace MovieScene
 
 FCameraCutPlaybackCapabilityCompatibilityWrapper::FCameraCutPlaybackCapabilityCompatibilityWrapper(const FSequenceInstance& SequenceInstance)
 {
-	TSharedRef<FSharedPlaybackState> PlaybackState = SequenceInstance.GetSharedPlaybackState();
-	CameraCutCapability = PlaybackState->FindCapability<FCameraCutPlaybackCapability>();
-	Player = SequenceInstance.GetPlayer();
+	TSharedRef<FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+	CameraCutCapability = SharedPlaybackState->FindCapability<FCameraCutPlaybackCapability>();
+	Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 }
 
 bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldUpdateCameraCut()

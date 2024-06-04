@@ -88,8 +88,8 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 				OutBoundMaterials[Index] = FObjectComponent::Null();
 
 				UMaterialParameterCollection* Collection = MPCs[Index].Get();
-				IMovieScenePlayer* Player = InstanceRegistry->GetInstance(InstanceHandles[Index]).GetPlayer();
-				UObject* WorldContextObject = Player->GetPlaybackContext();
+				TSharedRef<const FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(InstanceHandles[Index]).GetSharedPlaybackState();
+				UObject* WorldContextObject = SharedPlaybackState->GetPlaybackContext();
 				UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
 				if (World && Collection)
 				{
@@ -108,7 +108,7 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 							{
 								if (!Instance->bLoggedMissingParameterWarning)
 								{
-									MissingParameters.FindOrAdd(MakeTuple(Instance, Player)).Add(Name.ToString());
+									MissingParameters.FindOrAdd(MakeTuple(Instance, SharedPlaybackState)).Add(Name.ToString());
 								}
 							}
 						}
@@ -119,7 +119,7 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 							{
 								if (!Instance->bLoggedMissingParameterWarning)
 								{
-									MissingParameters.FindOrAdd(MakeTuple(Instance, Player)).Add(Name.ToString());
+									MissingParameters.FindOrAdd(MakeTuple(Instance, SharedPlaybackState)).Add(Name.ToString());
 								}
 							}
 						}
@@ -133,13 +133,13 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 		{
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 
-			for (TPair<TTuple<UMaterialParameterCollectionInstance*, IMovieScenePlayer*>, TArray<FString>>& Pair : MissingParameters)
+			for (TPair<FMissingParameterKey, TArray<FString>>& Pair : MissingParameters)
 			{
 				FFormatNamedArguments Arguments;
 				Arguments.Add(TEXT("ParamNames"), FText::FromString(FString::Join(Pair.Value, TEXT(", "))));
 				FMessageLog("PIE").Warning()
 					->AddToken(FTextToken::Create(NSLOCTEXT("MaterialParameterCollectionTrack", "InvalidParameterText", "Invalid parameter name or type applied in sequence")))
-					->AddToken(FUObjectToken::Create(Pair.Key.Get<1>()->GetEvaluationTemplate().GetSequence(MovieSceneSequenceID::Root)))
+					->AddToken(FUObjectToken::Create(Pair.Key.Get<1>()->GetSequence(MovieSceneSequenceID::Root)))
 					->AddToken(FTextToken::Create(NSLOCTEXT("MaterialParameterCollectionTrack", "OnText", "on")))
 					->AddToken(FUObjectToken::Create(Pair.Key.Get<0>()))
 					->AddToken(FTextToken::Create(FText::Format(NSLOCTEXT("MaterialParameterCollectionTrack", "InvalidParameterFormatText", "with the following invalid parameters: {ParamNames}."), Arguments)));
@@ -154,7 +154,9 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 		FBuiltInComponentTypes* BuiltInComponents;
 		FMovieSceneTracksComponentTypes* TracksComponents;
 
-		mutable TMap<TTuple<UMaterialParameterCollectionInstance*, IMovieScenePlayer*>, TArray<FString>> MissingParameters;
+		using FMissingParameterKey = TTuple<UMaterialParameterCollectionInstance*, TSharedRef<const FSharedPlaybackState>>;
+		using FMissingParametersMap = TMap<FMissingParameterKey, TArray<FString>>;
+		mutable FMissingParametersMap MissingParameters;
 	};
 
 
