@@ -412,7 +412,7 @@ void FCurveTableEditor::InitCurveTableEditor( const EToolkitMode::Type Mode, con
 	
 	if (Table)
 	{
-		Table->OnCurveTableChanged().AddSP(this, &FCurveTableEditor::RefreshCachedCurveTable);
+		Table->OnCurveTableChanged().AddSP(this, &FCurveTableEditor::RefreshTableRows);
 	}
 
 	GEditor->RegisterForUndo(this);
