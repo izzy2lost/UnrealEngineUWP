@@ -2776,12 +2776,19 @@ namespace DatasmithNavisworks
 		{
 			ItemFilterParams.bHasClipBox = false;
 
-			LcOaClipPlaneSet ClipPlaneSet = ActiveDocument.ActiveView.Viewer.GetClipPlaneSet();
-			LcOaClipPlaneSetMode ClipPlaneSetMode = ClipPlaneSet.GetMode();
-
-			if (ClipPlaneSetMode == LcOaClipPlaneSetMode.eMODE_BOX)
+#if DATASMITH_NAVISWORKS_2025_OR_GREATER
+			ClipPlaneSet PlaneSet = ActiveDocument.ActiveView.Viewer.GetClipPlaneSet();
+			ClipPlaneSetMode PlaneSetMode = PlaneSet.Mode;
+			if (PlaneSetMode == ClipPlaneSetMode.Box)
 			{
-				BoundingBox3D Box3D = ClipPlaneSet.GetBox();
+				BoundingBox3D Box3D = PlaneSet.Box;
+#else
+			LcOaClipPlaneSet PlaneSet = ActiveDocument.ActiveView.Viewer.GetClipPlaneSet();
+			LcOaClipPlaneSetMode PlaneSetMode = PlaneSet.GetMode();
+			if (PlaneSetMode == LcOaClipPlaneSetMode.eMODE_BOX)
+			{
+				BoundingBox3D Box3D = PlaneSet.GetBox();
+#endif
 
 				ItemFilterParams.bHasClipBox = true;
 				Box ClipBox = new Box
