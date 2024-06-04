@@ -177,9 +177,11 @@ void MobileDirectionalLightPS(
 	}
 #endif
 
+	half GatheredAmbientOcclusion = 1;
 #if ENABLE_AMBIENT_OCCLUSION
-	half4 GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy);
-	GBuffer.GBufferAO *= lerp(1.0, GatheredAmbientOcclusion.r, MobileBasePass.AmbientOcclusionStaticFraction);
+	GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy).r;
+	GatheredAmbientOcclusion = lerp(1.0, GatheredAmbientOcclusion, MobileBasePass.AmbientOcclusionStaticFraction);
+	GBuffer.GBufferAO *= GatheredAmbientOcclusion;
 #endif
 
 	// Directional light
@@ -203,7 +205,8 @@ void MobileDirectionalLightPS(
 	OutProxyAdditive.rgb = Color;
 #else
 	OutColor.rgb = Color;
-	OutColor.a = 1;
+	// Blend is enabled only for static skylights
+	OutColor.a = GatheredAmbientOcclusion;
 #endif
 }
 
@@ -369,9 +372,11 @@ void MobileReflectionEnvironmentSkyLightingPS(
 	float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 	uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), GBuffer.Depth);
 
+	half GatheredAmbientOcclusion = 1;
 #if ENABLE_AMBIENT_OCCLUSION
-	half4 GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy);
-	GBuffer.GBufferAO *= lerp(1.0, GatheredAmbientOcclusion.r, MobileBasePass.AmbientOcclusionStaticFraction);
+	GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy).r;
+	GatheredAmbientOcclusion = lerp(1.0, GatheredAmbientOcclusion, MobileBasePass.AmbientOcclusionStaticFraction);
+	GBuffer.GBufferAO *= GatheredAmbientOcclusion;
 #endif
 	
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
@@ -384,6 +389,7 @@ void MobileReflectionEnvironmentSkyLightingPS(
 	OutProxyAdditive.rgb = ReflectionAndSky.rgb;
 #else
 	OutColor.rgb = ReflectionAndSky.rgb;
-	OutColor.a = 1;
+	// Blend is enabled only for static skylights
+	OutColor.a = GatheredAmbientOcclusion;
 #endif
 }

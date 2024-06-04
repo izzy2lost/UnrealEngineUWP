@@ -395,7 +395,15 @@ void RenderReflectionEnvironmentSkyLighting(FRHICommandList& RHICmdList, const F
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 	// Add to emissive in SceneColor
-	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One>::GetRHI();
+	if (!bDynamicSkyLight)
+	{
+		// pre-multiply SceneColor with AO
+		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI();
+	}
+	else
+	{
+		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One>::GetRHI();
+	}
 	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
 	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<
 		false, CF_Always,
@@ -471,8 +479,6 @@ static void RenderDirectionalLight(FRHICommandList& RHICmdList, const FScene& Sc
 
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-	// Add to emissive in SceneColor
-	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One>::GetRHI();
 	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
 
 	uint8 LightingChannelStencilValue = GetLightingChannelStencilValue(LightingChannel);
@@ -530,6 +536,17 @@ static void RenderDirectionalLight(FRHICommandList& RHICmdList, const FScene& Sc
 	const bool bDynamicShadows = DirectionalLight.Proxy->CastsDynamicShadow() && View.Family->EngineShowFlags.DynamicShadows;
 	const bool bPlanarReflection = Scene.GetForwardPassGlobalPlanarReflection() != nullptr;
 
+	// Add to emissive in SceneColor
+	if (bInlineReflectionAndSky && !bDynamicSkyLight)
+	{
+		// pre-multiply SceneColor with AO
+		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI();
+	}
+	else
+	{
+		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One>::GetRHI();
+	}
+	
 	// Do two passes, first masking DefautLit, second masking all other shading models
 	const bool bOnlyDefaultLitInView = IsOnlyDefaultLitShadingModel(View.ShadingModelMaskInView);
 	int32 NumPasses = !bOnlyDefaultLitInView && MobileUsesGBufferCustomData(Scene.GetShaderPlatform()) ? 2 : 1;
@@ -593,6 +610,11 @@ static void RenderDirectionalLights(FRHICommandList& RHICmdList, const FScene& S
 	bool bPrimitivesUseLightingChannels = (View.bUsesLightingChannels && GMobileIgnoreDeferredShadingSkyLightChannels == 0);
 	const bool bInlineReflectionAndSky = (NumLights == 1) && !bPrimitivesUseLightingChannels && (Scene.MobileDirectionalLights[0] != nullptr);
 
+	if (!bInlineReflectionAndSky)
+	{
+		RenderReflectionEnvironmentSkyLighting(RHICmdList, Scene, View);
+	}
+
 	for (uint32 ChannelIdx = 0; ChannelIdx < UE_ARRAY_COUNT(Scene.MobileDirectionalLights); ChannelIdx++)
 	{
 		FLightSceneInfo* DirectionalLight = Scene.MobileDirectionalLights[ChannelIdx];
@@ -600,11 +622,6 @@ static void RenderDirectionalLights(FRHICommandList& RHICmdList, const FScene& S
 		{
 			RenderDirectionalLight(RHICmdList, Scene, View, DefaultLightMaterial, *DirectionalLight, ChannelIdx, bInlineReflectionAndSky);
 		}
-	}
-
-	if (!bInlineReflectionAndSky)
-	{
-		RenderReflectionEnvironmentSkyLighting(RHICmdList, Scene, View);
 	}
 }
 
