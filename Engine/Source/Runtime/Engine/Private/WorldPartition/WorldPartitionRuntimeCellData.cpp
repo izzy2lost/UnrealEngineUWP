@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/WorldPartitionRuntimeCellData.h"
+#include "WorldPartition/WorldPartitionLog.h"
 #include "Misc/HierarchicalLogArchive.h"
 
 int32 UWorldPartitionRuntimeCellData::StreamingSourceCacheEpoch = 0;
@@ -46,8 +47,11 @@ void UWorldPartitionRuntimeCellData::ResetStreamingSourceInfo() const
 	CachedSourceInfoEpoch = StreamingSourceCacheEpoch;	
 }
 
+DECLARE_CYCLE_STAT(TEXT("Append Streaming Source Info"), STAT_WorldPartitionAppendStreamingSourceInfo, STATGROUP_WorldPartition);
 void UWorldPartitionRuntimeCellData::AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const
 {
+	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionAppendStreamingSourceInfo);
+
 	if (CachedSourceInfoEpoch != StreamingSourceCacheEpoch)
 	{
 		ResetStreamingSourceInfo();

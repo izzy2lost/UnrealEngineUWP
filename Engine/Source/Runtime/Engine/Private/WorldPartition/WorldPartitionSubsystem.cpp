@@ -33,7 +33,6 @@
 #include "Async/ParallelFor.h"
 #include "Algo/ForEach.h"
 #include "Misc/HashBuilder.h"
-#include "Stats/Stats.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -50,7 +49,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionSubsystem)
 
-DECLARE_STATS_GROUP(TEXT("World Partition"), STATGROUP_WorldPartition, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("Update Streaming State"), STAT_WorldPartitionUpdateStreamingState, STATGROUP_WorldPartition);
 DECLARE_CYCLE_STAT(TEXT("Update Streaming State (External)"), STAT_WorldPartitionUpdateStreamingStateExternal, STATGROUP_WorldPartition);
 CSV_DEFINE_CATEGORY(WorldPartition, (!UE_BUILD_SHIPPING));
