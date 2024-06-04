@@ -9,6 +9,7 @@
 #include "RHIAccess.h"
 #include "RHIFeatureLevel.h"
 #include "RHIGlobals.h"
+#include "RHIResourceUtils.h"
 #include "RHIShaderPlatform.h"
 #include "RHIStaticStates.h"
 #include "RenderGraphBuilder.h"
@@ -33,14 +34,7 @@ struct FInstanceCullingOcclusionQueryDeferredContext;
 namespace
 {
 
-template <typename T>
-static FBufferRHIRef CreateBufferWithData(FRHICommandListBase& RHICmdList, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
-{
-	FResourceArrayUploadArrayView DataView(Data);
-	FRHIResourceCreateInfo CreateInfo(Name);
-	CreateInfo.ResourceArray = &DataView;
-	return RHICmdList.CreateBuffer(DataView.SizeInBytes, UsageFlags, Data.GetTypeSize(), ResourceState, CreateInfo);
-}
+
 
 
 static EPixelFormat GetPreferredVisibilityMaskFormat()
@@ -224,11 +218,11 @@ public:
 			FVector3f(+1.0f, -1.0f, -1.0f),
 		};
 
-		IndexBuffer = CreateBufferWithData(RHICmdList, EBufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer,
+		IndexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer,
 			TEXT("FInstanceCullingOcclusionQueryBox_IndexBuffer"),
 			MakeArrayView(BoxIndexBufferData));
 
-		VertexBuffer = CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
+		VertexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
 			TEXT("FInstanceCullingOcclusionQueryBox_VertexBuffer"),
 			MakeArrayView(BoxVertexBufferData));
 

@@ -10,6 +10,7 @@
 #include "MaterialShared.h"
 #include "Materials/Material.h"
 #include "RenderingThread.h"
+#include "RHIResourceUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "BaseMeshReconstructorModule.h"
 #include "MeshReconstructorBase.h"
@@ -60,11 +61,8 @@ public:
 	{
 		NumVerts = PerVertexData.Num();
 
-		const uint32 SizeInBytes = PerVertexData.Num() * sizeof(DataType);
-
-		FResourceArrayUploadArrayView ResourceArray(PerVertexData.GetData(), SizeInBytes);
-		FRHIResourceCreateInfo CreateInfo(TEXT("FMRMeshVertexBuffer"), &ResourceArray);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(SizeInBytes, BUF_Static | BUF_ShaderResource, CreateInfo);
+		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FMRMeshVertexBuffer"), PerVertexData);
+		VertexBufferRHI = RHICmdList.CreateVertexBuffer(CreateInfo.GetResourceDataSize(), BUF_Static | BUF_ShaderResource, CreateInfo);
 	}
 
 };
@@ -77,30 +75,16 @@ public:
 	{
 		NumIndices = Indices.Num();
 
-		const uint32 Size = Indices.Num() * sizeof(uint32);
-
-		FRHIResourceCreateInfo CreateInfo(TEXT("FMRMeshIndexBuffer"));
-		IndexBufferRHI = RHICmdList.CreateBuffer(Size, BUF_Static | BUF_IndexBuffer, sizeof(uint32), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
-
-		// Write the indices to the index buffer.
-		void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Size, RLM_WriteOnly);
-		FMemory::Memcpy(Buffer, Indices.GetData(), Size);
-		RHICmdList.UnlockBuffer(IndexBufferRHI);
+		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FMRMeshIndexBuffer"), Indices);
+		IndexBufferRHI = RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), BUF_Static | BUF_IndexBuffer, sizeof(uint32), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
 	}
 
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<uint16>& Indices)
 	{
 		NumIndices = Indices.Num();
 
-		const uint32 Size = Indices.Num() * sizeof(uint16);
-
-		FRHIResourceCreateInfo CreateInfo(TEXT("FMRMeshIndexBuffer"));
-		IndexBufferRHI = RHICmdList.CreateBuffer(Size, BUF_Static | BUF_IndexBuffer, sizeof(uint16), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
-
-		// Write the indices to the index buffer.
-		void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Size, RLM_WriteOnly);
-		FMemory::Memcpy(Buffer, Indices.GetData(), Size);
-		RHICmdList.UnlockBuffer(IndexBufferRHI);
+		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FMRMeshIndexBuffer"), Indices);
+		IndexBufferRHI = RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), BUF_Static | BUF_IndexBuffer, sizeof(uint16), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
 	}
 };
 

@@ -11,6 +11,7 @@
 #include "Math/Vector2DHalf.h"
 #include "ResourcePool.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
+#include "RHIResourceUtils.h"
 
 class FGlobalDynamicMeshPoolPolicy
 {
@@ -198,24 +199,14 @@ TGlobalResource<FGlobalDynamicMeshVertexPool> GDynamicMeshVertexPool;
 
 void FDynamicMeshIndexBuffer32::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	FRHIResourceCreateInfo CreateInfo(TEXT("FDynamicMeshIndexBuffer32"));
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint32), Indices.Num() * sizeof(uint32), BUF_Static, CreateInfo);
-
-	// Copy the index data into the index buffer.
-	void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Indices.Num() * sizeof(uint32), RLM_WriteOnly);
-	FMemory::Memcpy(Buffer, Indices.GetData(), Indices.Num() * sizeof(uint32));
-	RHICmdList.UnlockBuffer(IndexBufferRHI);
+	FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FDynamicMeshIndexBuffer32"), MakeArrayView(Indices));
+	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint32), CreateInfo.GetResourceDataSize(), BUF_Static, CreateInfo);
 }
 
 void FDynamicMeshIndexBuffer16::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	FRHIResourceCreateInfo CreateInfo(TEXT("FDynamicMeshIndexBuffer16"));
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), Indices.Num() * sizeof(uint16), BUF_Static, CreateInfo);
-
-	// Copy the index data into the index buffer.
-	void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Indices.Num() * sizeof(uint16), RLM_WriteOnly);
-	FMemory::Memcpy(Buffer, Indices.GetData(), Indices.Num() * sizeof(uint16));
-	RHICmdList.UnlockBuffer(IndexBufferRHI);
+	FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FDynamicMeshIndexBuffer16"), MakeArrayView(Indices));
+	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), CreateInfo.GetResourceDataSize(), BUF_Static, CreateInfo);
 }
 
 /** FDynamicMeshBufferAllocator's base implementation. It always reallocates new buffers. */

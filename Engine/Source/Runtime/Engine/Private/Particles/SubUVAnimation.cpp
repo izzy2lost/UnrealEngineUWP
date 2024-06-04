@@ -12,6 +12,7 @@
 #include "DerivedDataCacheKey.h"
 #include "ComponentReregisterContext.h"
 #include "RHI.h"
+#include "RHIResourceUtils.h"
 
 #define LOCTEXT_NAMESPACE "FSubUVDerivedData"
 
@@ -59,13 +60,10 @@ FSubUVBoundingGeometryBuffer::~FSubUVBoundingGeometryBuffer() = default;
 
 void FSubUVBoundingGeometryBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	const uint32 SizeInBytes = Vertices->Num() * Vertices->GetTypeSize();
-
-	if (SizeInBytes > 0)
+	if (Vertices->Num() > 0)
 	{
-		FResourceArrayUploadArrayView ResourceArray(Vertices->GetData(), SizeInBytes);
-		FRHIResourceCreateInfo CreateInfo(TEXT("FSubUVBoundingGeometryBuffer"), &ResourceArray);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(SizeInBytes, BUF_ShaderResource | BUF_Static, CreateInfo);
+		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FSubUVBoundingGeometryBuffer"), *Vertices);
+		VertexBufferRHI = RHICmdList.CreateVertexBuffer(CreateInfo.GetResourceDataSize(), BUF_ShaderResource | BUF_Static, CreateInfo);
 		ShaderResourceView = RHICmdList.CreateShaderResourceView(VertexBufferRHI, sizeof(FVector2f), PF_G32R32F);
 	}
 }

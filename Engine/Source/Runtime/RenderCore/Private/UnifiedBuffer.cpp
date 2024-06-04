@@ -8,6 +8,7 @@
 #include "Shader.h"
 #include "GlobalShader.h"
 #include "RenderGraphUtils.h"
+#include "RHIResourceUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
 // Uploads use a storage buffers which are at least 128m elements
@@ -1704,14 +1705,12 @@ void FScatterUploadBuffer::ResourceUploadTo(FRHICommandList& RHICmdList, const R
 		const EBufferUsageFlags Usage = bFloat4Buffer ? BUF_None : BUF_ByteAddressBuffer;
 
 		{
-			FResourceArrayUploadArrayView ScatterResourceArray(ScatterData, ScatterDataSize);
-			FRHIResourceCreateInfo CreateInfo(TEXT("ScatterResourceArray"), &ScatterResourceArray);
+			FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("ScatterResourceArray"), ScatterData, ScatterDataSize);
 			ScatterBuffer.Buffer = RHICmdList.CreateStructuredBuffer(sizeof(uint32), ScatterDataSize, BUF_ShaderResource | BUF_Volatile | Usage, CreateInfo);
 			ScatterBuffer.SRV = RHICmdList.CreateShaderResourceView(ScatterBuffer.Buffer);
 		}
 		{
-			FResourceArrayUploadArrayView UploadResourceArray(UploadData, UploadDataSize);
-			FRHIResourceCreateInfo CreateInfo(TEXT("ScatterUploadBuffer"), &UploadResourceArray);
+			FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("ScatterUploadBuffer"), UploadData, UploadDataSize);
 			UploadBuffer.Buffer = RHICmdList.CreateStructuredBuffer(TypeSize, UploadDataSize, BUF_ShaderResource | BUF_Volatile | Usage, CreateInfo);
 			UploadBuffer.SRV = RHICmdList.CreateShaderResourceView(UploadBuffer.Buffer);
 		}
