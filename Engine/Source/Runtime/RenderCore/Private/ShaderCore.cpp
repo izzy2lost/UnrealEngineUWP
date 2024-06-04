@@ -355,6 +355,7 @@ FShaderHashCache GShaderHashCache;
 
 /** Global map of virtual file path to physical file paths */
 static TMap<FString, FString> GShaderSourceDirectoryMappings;
+static TArray<FString> GShaderSourceSharedVirtualDirectories = { TEXT("/Engine/Shared/") };
 
 static TAutoConsoleVariable<int32> CVarForceDebugViewModes(
 	TEXT("r.ForceDebugViewModes"),
@@ -1363,8 +1364,9 @@ bool CheckVirtualShaderFilePath(FStringView VirtualFilePath, TArray<FShaderCompi
 		bSuccess = false;
 	}
 
-	FStringView Extension = FPathViews::GetExtension(VirtualFilePath);
-	if (VirtualFilePath.StartsWith(TEXT("/Engine/Shared/")))
+	const FStringView Extension = FPathViews::GetExtension(VirtualFilePath);
+	const bool bIsSharedDirectory = GShaderSourceSharedVirtualDirectories.ContainsByPredicate([&VirtualFilePath](const FString& SharedDirectory) { return VirtualFilePath.StartsWith(SharedDirectory); });
+	if (bIsSharedDirectory)
 	{
 		if ((Extension != TEXTVIEW("h")))
 		{
@@ -3643,6 +3645,30 @@ void AddShaderSourceDirectoryMapping(const FString& VirtualShaderDirectory, cons
 	UE_LOG(LogShaders, Log, TEXT("Mapping virtual shader directory %s to %s"),
 		*VirtualShaderDirectory, *RealShaderDirectory);
 	GShaderSourceDirectoryMappings.Add(VirtualShaderDirectory, RealShaderDirectory);
+}
+
+void AddShaderSourceSharedVirtualDirectory(const FString& VirtualShaderDirectory)
+{
+	check(IsInGameThread());
+	if (FPlatformProperties::RequiresCookedData() || !AllowShaderCompiling())
+	{
+		return;
+	}
+
+	// Do sanity checks of the virtual shader directory to map.
+	checkf(
+		VirtualShaderDirectory.StartsWith(TEXT("/")) &&
+		VirtualShaderDirectory.EndsWith(TEXT("/")) &&
+		!VirtualShaderDirectory.Contains(FString(TEXT("."))),
+		TEXT("Shared VirtualShaderDirectory = \"%s\" must start and end with '/' and contain no '.' characters."),
+		*VirtualShaderDirectory
+	);
+
+	// Detect collisions with any other mappings.
+	check(!GShaderSourceSharedVirtualDirectories.Contains(VirtualShaderDirectory));
+
+	// Add to the list of shared directories
+	GShaderSourceSharedVirtualDirectories.Add(VirtualShaderDirectory);
 }
 
 void FShaderCode::Compress(FName ShaderCompressionFormat, FOodleDataCompression::ECompressor InOodleCompressor, FOodleDataCompression::ECompressionLevel InOodleLevel)

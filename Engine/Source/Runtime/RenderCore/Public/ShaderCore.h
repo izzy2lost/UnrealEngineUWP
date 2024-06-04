@@ -1360,6 +1360,11 @@ extern RENDERCORE_API void ResetAllShaderSourceDirectoryMappings();
  * @param RealShaderDirectory FPlatformProcess::BaseDir() relative path of the directory map.
  */
 extern RENDERCORE_API void AddShaderSourceDirectoryMapping(const FString& VirtualShaderDirectory, const FString& RealShaderDirectory);
+/**
+ * Specifies that the virtual shader directory and all subdirectories should contain only .h files that are shared between C++ / shader
+ * @param VirtualShaderDirectory Unique absolute path of the virtual shader directory (ex: /Project/Shared/).
+ */
+extern RENDERCORE_API void AddShaderSourceSharedVirtualDirectory(const FString& VirtualShaderDirectory);
 
 extern RENDERCORE_API void AddShaderSourceFileEntry(TArray<FString>& OutVirtualFilePaths, FString VirtualFilePath, EShaderPlatform ShaderPlatform, const FName* ShaderPlatformName = nullptr);
 extern RENDERCORE_API void GetAllVirtualShaderSourcePaths(TArray<FString>& OutVirtualFilePaths, EShaderPlatform ShaderPlatform, const FName* ShaderPlatformName = nullptr);
