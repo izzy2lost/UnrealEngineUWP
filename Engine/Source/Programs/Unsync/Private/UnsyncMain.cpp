@@ -880,8 +880,6 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
-	RemoteDesc.TlsRequirement = ETlsRequirement::None; // nocheckin
-
 	if (Cli.got_subcommand(SubHash))
 	{
 		FCmdHashOptions HashOptions;
