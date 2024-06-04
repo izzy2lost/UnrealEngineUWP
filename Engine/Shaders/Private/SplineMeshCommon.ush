@@ -420,7 +420,7 @@ FSplineMeshDeformedLocalBounds SplineMeshDeformLocalBounds(FSplineMeshDeformBoun
 
 	// Sample at evenly-spaced intervals from min->max, accumulating the convex combination of slice bounds
 	LOOP
-	for (int i = 0; i < NUM_SLICE_SAMPLES; ++i)
+	for (uint i = 0; i < NUM_SLICE_SAMPLES; ++i)
 	{
 		SplineMeshDeformLocalBoundsStep(Context, CurSplineDist);
 		CurSplineDist += SplineDistStep;

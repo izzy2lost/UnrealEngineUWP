@@ -168,7 +168,7 @@ FShaderPrintContext InitShaderPrintContext(bool bActive, uint2 InStartCoord)
 FShaderPrintContext InitShaderPrintContextAtCursor(uint2 InCurrentCoord, uint2 InStartCoord) 
 {
 	FShaderPrintConfig Config = InitShaderPrintContextConfig();
-	const bool bActive = all(InCurrentCoord == Config.CursorCoord);
+	const bool bActive = all(int2(InCurrentCoord) == Config.CursorCoord);
 	return InitShaderPrintContext(bActive, float2(InStartCoord) / float2(Config.Resolution));
 }
 
