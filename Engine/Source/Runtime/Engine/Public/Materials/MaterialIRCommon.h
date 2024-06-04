@@ -17,20 +17,16 @@ namespace UE::Shader
 
 namespace ERHIFeatureLevel { enum Type : int; }
 
-class FMaterial;
+class ITargetPlatform;
 class FMaterialIRModule;
+class FMaterial;
+struct FStaticParameterSet;
+struct FShaderCompilerEnvironment;
 class FMaterialIRModule;
 class FMaterialIRModuleBuilder;
-class ITargetPlatform;
-class UMaterial;
-class UMaterialExpression;
 struct FExpressionInput;
-struct FExpressionOutput;
-struct FShaderCompilerEnvironment;
-struct FStaticParameterSet;
-struct FMaterialInputDescription;
 
-namespace UE::MIR
+namespace MaterialIR
 {
 
 /* Types*/
@@ -42,17 +38,28 @@ using FArithmeticTypePtr = const FArithmeticType*;
 
 /* IR */
 struct FValue;
-struct FInstruction;
-struct FSetMaterialOutput;
 using FValuePtr = const FValue*;
-using FInstructionPtr = const FInstruction*;
+struct FScalarValue;
+struct FVector;
+struct FSetMaterialOutputInstr;
 
 /* Others */
-class FEmitter;
+class FBuilder;
 
 }
 
 #define UE_MIR_UNREACHABLE() { check(!"Unreachable"); UE_ASSUME(false); }
-#define UE_MIR_TODO() UE_MIR_UNREACHABLE()
+
+#define UE_MIR_PRIVATE() \
+		struct FPrivate; \
+		friend FPrivate; \
+		FPrivate* AsPrivate() { return reinterpret_cast<FPrivate*>(this); }\
+		const FPrivate* AsPrivate() const { return reinterpret_cast<const FPrivate*>(this); }
+
+#define UE_MIR_BEGIN_PRIVATE(TypeName)\
+		struct TypeName::FPrivate : TypeName {
+
+#define UE_MIR_END_PRIVATE()\
+		}
 
 #endif // #if WITH_EDITOR

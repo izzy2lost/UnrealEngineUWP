@@ -153,7 +153,7 @@ void UMaterialGraph::UpdatePinTypes()
 {
 	using namespace UE::HLSLTree;
 
-	if (!Material->IsUsingNewHLSLGenerator() || Material->IsUsingNewTranslatorPrototype())
+	if (!Material->IsUsingNewHLSLGenerator())
 	{
 		return;
 	}

@@ -33,19 +33,12 @@ enum class EMaterialParameterType : uint8;
 
 namespace UE
 {
-
 namespace HLSLTree
 {
 class FScope;
 class FStatement;
 class FExpression;
 }
-
-namespace MIR
-{
-	class FEmitter;
-}
-
 }
 
 //@warning: FExpressionInput is mirrored in MaterialShared.h and manually "subclassed" in Material.h (FMaterialInput)
@@ -328,14 +321,6 @@ class UMaterialExpression : public UObject
 
 	ENGINE_API bool IsUsingNewHLSLGenerator() const;
 
-	/**
-	 * Builds this expression's material IR.
-	 * 
-	 * This function is responsible for doing the semantic analysis on this error, error checking and reporting and
-	 * implementing this expression's logic by emitting appropriate material IR values.
-	 */
-	ENGINE_API virtual void Build(UE::MIR::FEmitter& Emitter);
-
 #endif // WITH_EDITOR
 
 	/**
@@ -363,10 +348,6 @@ class UMaterialExpression : public UObject
 
 	/** Counts the number of inputs this expression has. Default implementation has O(n) complexity. */
 	ENGINE_API virtual int32 CountInputs() const;
-	/**
-	 * Returns the output at specified index is valid
-	 */
-	ENGINE_API FExpressionOutput* GetOutput(int32 OutputIndex) { return &Outputs[OutputIndex]; }
 
 	/**
 	 * Returns the input at index InputIndex if valid, nullptr otherwise.

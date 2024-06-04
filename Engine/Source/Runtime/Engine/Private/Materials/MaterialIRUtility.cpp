@@ -2,15 +2,14 @@
 
 #include "Materials/MaterialIRUtility.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
-#include "Materials/MaterialIREmitter.h"
-#include "Materials/Material.h"
+#include "Materials/MaterialIRBuilder.h"
 #include "MaterialShared.h"
 
 #if WITH_EDITOR
 
-namespace IR = UE::MIR;
+namespace Utility {
 
-namespace UE::Utility {
+namespace MIR = MaterialIR;
 
 bool IsMaterialPropertyShared(EMaterialProperty InProperty)
 {
@@ -40,41 +39,24 @@ bool IsMaterialPropertyShared(EMaterialProperty InProperty)
 	}
 }
 
-bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, FMaterialInputDescription& Input)
-{
-	for (; PropertyIndex < MP_MAX; ++PropertyIndex)
-	{
-		EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
-		if (Utility::IsMaterialPropertyShared(Property)
-			&& Property != MP_SubsurfaceColor
-			&& Property != MP_FrontMaterial
-			&& BaseMaterial->GetExpressionInputDescription(Property, Input))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-IR::FValuePtr CreateMaterialAttributeDefaultValue(IR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property)
+MIR::FValuePtr CreateMaterialAttributeDefaultValue(MIR::FBuilder& Builder, const FMaterial* Material, EMaterialProperty Property)
 {
 	EMaterialValueType Type = FMaterialAttributeDefinitionMap::GetValueType(Property);
 	FVector4f DefaultValue = FMaterialAttributeDefinitionMap::GetDefaultValue(Property);
 
 	switch (Type)
 	{
-		case MCT_ShadingModel: return Emitter.EmitConstantInt1(Material->GetShadingModels().GetFirstShadingModel());
+		case MCT_ShadingModel: return Builder.NewConstantInt1(Material->GetShadingModels().GetFirstShadingModel());
 
-		case MCT_Float1: return Emitter.EmitConstantFloat1(  DefaultValue.X );
-		case MCT_Float2: return Emitter.EmitConstantFloat2({ DefaultValue.X, DefaultValue.Y });
-		case MCT_Float3: return Emitter.EmitConstantFloat3({ DefaultValue.X, DefaultValue.Y, DefaultValue.Z });
-		case MCT_Float4: return Emitter.EmitConstantFloat4(DefaultValue);
+		case MCT_Float1: return Builder.NewConstantFloat1(  DefaultValue.X );
+		case MCT_Float2: return Builder.NewConstantFloat2({ DefaultValue.X, DefaultValue.Y });
+		case MCT_Float3: return Builder.NewConstantFloat3({ DefaultValue.X, DefaultValue.Y, DefaultValue.Z });
+		case MCT_Float4: return Builder.NewConstantFloat4(DefaultValue);
 
-		case MCT_UInt1: return Emitter.EmitConstantInt1(  (int32)DefaultValue.X );
-		case MCT_UInt2: return Emitter.EmitConstantInt2({ (int32)DefaultValue.X, (int32)DefaultValue.Y });
-		case MCT_UInt3: return Emitter.EmitConstantInt3({ (int32)DefaultValue.X, (int32)DefaultValue.Y, (int32)DefaultValue.Z });
-		case MCT_UInt4: return Emitter.EmitConstantInt4({ (int32)DefaultValue.X, (int32)DefaultValue.Y, (int32)DefaultValue.Z, (int32)DefaultValue.W });
+		case MCT_UInt1: return Builder.NewConstantInt1(  (int32)DefaultValue.X );
+		case MCT_UInt2: return Builder.NewConstantInt2({ (int32)DefaultValue.X, (int32)DefaultValue.Y });
+		case MCT_UInt3: return Builder.NewConstantInt3({ (int32)DefaultValue.X, (int32)DefaultValue.Y, (int32)DefaultValue.Z });
+		case MCT_UInt4: return Builder.NewConstantInt4({ (int32)DefaultValue.X, (int32)DefaultValue.Y, (int32)DefaultValue.Z, (int32)DefaultValue.W });
 
 		default: UE_MIR_UNREACHABLE();
 	}

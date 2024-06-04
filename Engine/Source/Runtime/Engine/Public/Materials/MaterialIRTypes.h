@@ -6,7 +6,7 @@
 
 #if WITH_EDITOR
 
-namespace UE::MIR
+namespace MaterialIR
 {
 
 enum ETypeKind
@@ -22,10 +22,9 @@ struct FType
 	static FTypePtr FromShaderType(const UE::Shader::FType& InShaderType);
 	static FTypePtr GetVoid();
 
-	FArithmeticTypePtr ToArithmetic() const;
-	FArithmeticTypePtr ToScalar() const;
-	FArithmeticTypePtr ToVector() const;
-	FArithmeticTypePtr ToMatrix() const;
+	const FArithmeticType* ToArithmetic() const;
+	bool IsScalar() const;
+
 };
 
 enum EScalarKind
@@ -50,6 +49,6 @@ struct FArithmeticType : FType
 	bool IsMatrix() const { return NumRows > 1 && NumColumns > 1; }
 };
 
-} // namespace UE::MIR
+} // namespace MaterialIR
 
-#endif // #if WITH_EDITOR
+#endif

@@ -5,16 +5,12 @@
 
 #if WITH_EDITOR
 
-namespace UE::Utility {
+namespace Utility {
 
-//
 bool IsMaterialPropertyShared(EMaterialProperty InProperty);
 
 //
-bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, FMaterialInputDescription& Input);
-
-//
-UE::MIR::FValuePtr CreateMaterialAttributeDefaultValue(UE::MIR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property);
+MaterialIR::FValuePtr CreateMaterialAttributeDefaultValue(MaterialIR::FBuilder& Builder, const FMaterial* Material, EMaterialProperty Property);
 
 } // namespace Utility
 

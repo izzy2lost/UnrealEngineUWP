@@ -4,7 +4,7 @@
 
 #if WITH_EDITOR
 
-namespace UE::MIR
+namespace MaterialIR
 {
 
 FTypePtr FType::FromShaderType(const UE::Shader::FType& InShaderType)
@@ -46,27 +46,18 @@ FTypePtr FType::GetVoid()
 	return &Type;
 }
 
-FArithmeticTypePtr FType::ToArithmetic() const
+const FArithmeticType* FType::ToArithmetic() const
 {
-	return Kind == TK_Arithmetic ? static_cast<FArithmeticTypePtr>(this) : nullptr; 
+	return Kind == TK_Arithmetic ? static_cast<const FArithmeticType*>(this) : nullptr; 
 }
 
-FArithmeticTypePtr FType::ToScalar() const
+bool FType::IsScalar() const
 {
-	FArithmeticTypePtr Type = ToArithmetic();
-	return Type->IsScalar() ? Type : nullptr;
-}
-
-FArithmeticTypePtr FType::ToVector() const
-{
-	FArithmeticTypePtr Type = ToArithmetic();
-	return Type->IsVector() ? Type : nullptr;
-}
-
-FArithmeticTypePtr FType::ToMatrix() const
-{
-	FArithmeticTypePtr Type = ToArithmetic();
-	return Type->IsMatrix() ? Type : nullptr;
+	if (FArithmeticTypePtr Arith = ToArithmetic())
+	{
+		return Arith->IsScalar();
+	}
+	return false;
 }
 
 const TCHAR* ScalarKindToString(EScalarKind Kind)
@@ -158,6 +149,6 @@ const FArithmeticType* FArithmeticType::GetMatrix(EScalarKind InScalarKind, int 
 	return GetNumericalType(InScalarKind, NumRows, NumColumns);
 }
 
-} // namespace UE::MIR
+} // namespace MaterialIR
 
 #endif // #if WITH_EDITOR

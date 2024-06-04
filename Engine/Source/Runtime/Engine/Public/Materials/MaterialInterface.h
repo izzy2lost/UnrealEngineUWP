@@ -20,7 +20,6 @@
 #include "SceneTypes.h"
 #include "Engine/BlendableInterface.h"
 #include "Materials/MaterialLayersFunctions.h"
-#include "Materials/MaterialIRModule.h"
 #include "Interfaces/Interface_AssetUserData.h"
 #include "MaterialSceneTextureId.h"
 #include "Materials/MaterialRelevance.h"
@@ -434,11 +433,9 @@ public:
 
 #if WITH_EDITOR
 	ENGINE_API virtual const FMaterialCachedHLSLTree& GetCachedHLSLTree(TMicRecursionGuard RecursionGuard = TMicRecursionGuard()) const;
-	ENGINE_API const FMaterialIRModule& GetIRModule() const { return IRModule; }
 #endif
 
 	ENGINE_API bool IsUsingNewHLSLGenerator() const;
-	ENGINE_API bool IsUsingNewTranslatorPrototype() const;
 	ENGINE_API bool IsUsingControlFlow() const;
 
 	ENGINE_API const FSubstrateCompilationConfig& GetSubstrateCompilationConfig() const;
@@ -1195,7 +1192,6 @@ protected:
 
 #if WITH_EDITOR
 	TUniquePtr<FMaterialCachedHLSLTree> CachedHLSLTree;
-	FMaterialIRModule IRModule;
 #endif // WITH_EDITOR
 private:
 	/**
