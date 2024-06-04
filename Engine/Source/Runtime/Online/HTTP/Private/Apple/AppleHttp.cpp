@@ -11,6 +11,8 @@
 #include "Misc/App.h"
 #include "Misc/Base64.h"
 
+extern TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode;
+
 /**
  * Class to hold data from delegate implementation notifications.
  */
@@ -843,7 +845,6 @@ void FAppleHttpRequest::FinishRequest()
 
 	TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
 	bool bSucceeded = (Response && Response->GetStatusFromDelegate() == EHttpRequestStatus::Succeeded);
-	SetStatus(bSucceeded ? EHttpRequestStatus::Succeeded : EHttpRequestStatus::Failed);
 
 	if (bSucceeded)
 	{
@@ -878,7 +879,16 @@ void FAppleHttpRequest::FinishRequest()
 		{
 			ResponseCommon = nullptr;
 		}
-		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), ResponseCommon, bSucceeded);
+
+		if (CVarHttpSetGeneralFailureReasonFromCommonCode.GetValueOnAnyThread())
+		{
+			HandleRequestFailed(Response);
+		}
+		else
+		{
+			SetStatus(EHttpRequestStatus::Failed);
+			OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), ResponseCommon, bSucceeded);
+		}
 	}
 }
 

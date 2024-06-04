@@ -23,6 +23,13 @@ TAutoConsoleVariable<bool> CVarHttpLogJsonResponseOnly(
 
 }
 
+TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode(
+	TEXT("http.SetGeneralFailureReasonFromCommonCode"),
+	true,
+	TEXT("Temporary hotfixable cvar: when enabled, set general failure reason from common code instead."),
+	ECVF_SaveForNextBoot
+);
+
 FHttpRequestCommon::FHttpRequestCommon()
 	: RequestStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
 	, ActivityTimeoutAt(0.0)
@@ -179,6 +186,36 @@ void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> InRespon
 
 	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), InResponse, true);
 	FHttpModule::Get().GetHttpManager().RecordStatTimeToConnect(ConnectTime);
+}
+
+void FHttpRequestCommon::HandleRequestFailed(TSharedPtr<IHttpResponse> InResponse)
+{
+	if (CVarHttpSetGeneralFailureReasonFromCommonCode.GetValueOnAnyThread())
+	{
+		if (FailureReason == EHttpFailureReason::None) // Failure reason was not set by platform, will set it here
+		{
+			if (bCanceled)
+			{
+				SetFailureReason(EHttpFailureReason::Cancelled);
+			}
+			else if (bTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::TimedOut);
+			}
+			else if (!bUsePlatformActivityTimeout && bActivityTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::ConnectionError);
+			}
+			else
+			{
+				SetFailureReason(EHttpFailureReason::Other);
+			}
+		}
+
+		SetStatus(EHttpRequestStatus::Failed);
+	}
+
+	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), InResponse, false);
 }
 
 void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)

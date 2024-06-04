@@ -75,6 +75,7 @@ protected:
 	HTTP_API void FinishRequestNotInHttpManager();
 
 	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse);
+	HTTP_API void HandleRequestFailed(TSharedPtr<IHttpResponse> InResponse);
 
 	HTTP_API void StartActivityTimeoutTimer();
 	HTTP_API void StartActivityTimeoutTimerBy(double DelayToTrigger);

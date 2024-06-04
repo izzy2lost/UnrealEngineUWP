@@ -19,6 +19,8 @@
 #include <openssl/ssl.h>
 #endif
 
+extern TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode;
+
 #if WITH_SSL
 static int SslCertVerify(int PreverifyOk, X509_STORE_CTX* Context)
 {
@@ -1238,50 +1240,78 @@ void FCurlHttpRequest::FinishRequest()
 			}
 		}
 
-		SetStatus(EHttpRequestStatus::Failed);
-
-		// Mark last request attempt as completed but failed
-		if (bCanceled)
+		if (CVarHttpSetGeneralFailureReasonFromCommonCode.GetValueOnAnyThread())
 		{
-			SetFailureReason(EHttpFailureReason::Cancelled);
-		}
-		else if (bTimedOut)
-		{
-			SetFailureReason(EHttpFailureReason::TimedOut);
-		}
-		else if (bActivityTimedOut)
-		{
-			SetFailureReason(EHttpFailureReason::ConnectionError);
-		}
-		else if (bCurlRequestCompleted)
-		{
-			switch (CurlCompletionResult)
+			if (bCurlRequestCompleted)
 			{
-			case CURLE_COULDNT_CONNECT:
-			case CURLE_OPERATION_TIMEDOUT:
-			case CURLE_COULDNT_RESOLVE_PROXY:
-			case CURLE_COULDNT_RESOLVE_HOST:
-			case CURLE_SSL_CONNECT_ERROR:
+				switch (CurlCompletionResult)
+				{
+				case CURLE_COULDNT_CONNECT:
+				case CURLE_OPERATION_TIMEDOUT:
+				case CURLE_COULDNT_RESOLVE_PROXY:
+				case CURLE_COULDNT_RESOLVE_HOST:
+				case CURLE_SSL_CONNECT_ERROR:
 #if WITH_CURL_XCURL
-			case CURLE_SEND_ERROR:
+				case CURLE_SEND_ERROR:
 #endif
-				// report these as connection errors (safe to retry)
-				SetFailureReason(EHttpFailureReason::ConnectionError);
-				break;
-			default:
-				SetFailureReason(EHttpFailureReason::Other);
+					// report these as connection errors (safe to retry)
+					SetFailureReason(EHttpFailureReason::ConnectionError);
+					break;
+				default:
+					break;
+				}
 			}
+
+			HandleRequestFailed(Response);
 		}
 		else
 		{
-			SetFailureReason(EHttpFailureReason::Other);
-		}
-		// Call delegate with failure
-		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
+			SetStatus(EHttpRequestStatus::Failed);
 
-		//Delegate needs to know about the errors -- so clear out Response (since connection failed) afterwards...
-		ResponseCommon = nullptr;
-		TotalBytesRead = 0;
+			// Mark last request attempt as completed but failed
+			if (bCanceled)
+			{
+				SetFailureReason(EHttpFailureReason::Cancelled);
+			}
+			else if (bTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::TimedOut);
+			}
+			else if (bActivityTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::ConnectionError);
+			}
+			else if (bCurlRequestCompleted)
+			{
+				switch (CurlCompletionResult)
+				{
+				case CURLE_COULDNT_CONNECT:
+				case CURLE_OPERATION_TIMEDOUT:
+				case CURLE_COULDNT_RESOLVE_PROXY:
+				case CURLE_COULDNT_RESOLVE_HOST:
+				case CURLE_SSL_CONNECT_ERROR:
+	#if WITH_CURL_XCURL
+				case CURLE_SEND_ERROR:
+	#endif
+					// report these as connection errors (safe to retry)
+					SetFailureReason(EHttpFailureReason::ConnectionError);
+					break;
+				default:
+					SetFailureReason(EHttpFailureReason::Other);
+				}
+			}
+			else
+			{
+				SetFailureReason(EHttpFailureReason::Other);
+			}
+
+			// Call delegate with failure
+			OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
+
+			//Delegate needs to know about the errors -- so clear out Response (since connection failed) afterwards...
+			ResponseCommon = nullptr;
+			TotalBytesRead = 0;
+		}
 	}
 }
 

@@ -38,6 +38,7 @@
 
 extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
 extern TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled;
+extern TAutoConsoleVariable<int32> CVarHttpMaxConcurrentRequests;
 
 class FMockHttpModule : public FHttpModule
 {
@@ -1721,6 +1722,64 @@ TEST_CASE_METHOD(FWaitUntilQuitFromTestThreadedFixture, "Threaded http request p
 	});
 
 	ThreadedHttpRunnable.StartTestHttpThread(false/*bBlockGameThread*/);
+}
+
+TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Cancel http request without ProcessRequest called", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlToTestMethods());
+	++ExpectingExtraCallbacks;
+	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		--ExpectingExtraCallbacks;
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
+		bQuitRequested = true;
+	});
+	HttpRequest->CancelRequest();
+}
+
+TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Cancel http request with ProcessRequest called but before started from queue", HTTP_TAG)
+{
+	CVarHttpMaxConcurrentRequests->Set(1);
+
+	std::atomic<bool> bFirstRequestCompleted = false;
+
+	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this, &bFirstRequestCompleted]() {
+		TSharedRef<IHttpRequest> HttpRequestRunning = CreateRequest();
+		HttpRequestRunning->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 1/*ChunkLatency*/));
+		HttpRequestRunning->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+		HttpRequestRunning->OnProcessRequestComplete().BindLambda([this, &bFirstRequestCompleted](FHttpRequestPtr HttpRequestQueuing, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			bFirstRequestCompleted = true;
+			ThreadedHttpRunnable.UnblockGameThread();
+		});
+		HttpRequestRunning->ProcessRequest();
+
+
+		TSharedRef<IHttpRequest> HttpRequestQueuing = CreateRequest();
+		HttpRequestQueuing->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 1/*ChunkLatency*/));
+		HttpRequestQueuing->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+		HttpRequestQueuing->OnHeaderReceived().BindLambda([this](FHttpRequestPtr Request, const FString& HeaderName, const FString& HeaderValue) {
+			// Should never be started
+			CHECK(false);
+		});
+		HttpRequestQueuing->OnRequestProgress64().BindLambda([this](FHttpRequestPtr Request, uint64 /*BytesSent*/, uint64 BytesReceived) {
+			// Should never be started
+			CHECK(false);
+		});
+
+		++ExpectingExtraCallbacks;
+		HttpRequestQueuing->OnProcessRequestComplete().BindLambda([this, &bFirstRequestCompleted](FHttpRequestPtr HttpRequestQueuing, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			--ExpectingExtraCallbacks;
+			CHECK(!bSucceeded);
+			CHECK(HttpRequestQueuing->GetFailureReason() == EHttpFailureReason::Cancelled);
+			CHECK(!bFirstRequestCompleted);
+		});
+		HttpRequestQueuing->ProcessRequest();
+		FPlatformProcess::Sleep(1); // Make sure the first request started
+		HttpRequestQueuing->CancelRequest();
+	});
+
+	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
 }
 
 #if UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
