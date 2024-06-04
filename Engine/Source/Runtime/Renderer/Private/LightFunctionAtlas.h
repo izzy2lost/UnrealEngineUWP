@@ -123,6 +123,12 @@ struct FAtlasLightInfoData
 	FMatrix44f Transform;
 };
 
+struct FLightFunctionAtlasSetup
+{
+	uint32 EdgeSize = 2;
+	uint32 SlotResolution = 32;
+};
+
 
 
 // This class holds all data and resources related light function for a single scene, including multiple views.
@@ -206,6 +212,8 @@ private:
 	uint32																LightCountSkippedDueToMissingAtlasSlot = 0;
 	TSet<FLightFunctionSlotKey>											SkippedLightFunctionsSet;
 #endif
+
+	FLightFunctionAtlasSetup AtlasSetup;
 };
 
 
