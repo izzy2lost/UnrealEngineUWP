@@ -27,6 +27,21 @@ namespace EpicGames.Horde.Storage
 		public RefName RefName { get; set; }
 
 		/// <summary>
+		/// Optional URL to the job that produced this artifact
+		/// </summary>
+		public Uri? JobUrl { get; set; }
+
+		/// <summary>
+		/// Keys associated with the artifact
+		/// </summary>
+		public List<string>? Keys { get; set; }
+
+		/// <summary>
+		/// Metadata associated with the artifact
+		/// </summary>
+		public List<string>? Metadata { get; set; }
+
+		/// <summary>
 		/// Filter for the files selected for download
 		/// </summary>
 		public List<string>? Filter { get; set; }

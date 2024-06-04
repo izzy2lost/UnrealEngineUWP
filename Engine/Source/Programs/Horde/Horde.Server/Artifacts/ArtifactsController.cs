@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Mime;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -549,6 +550,18 @@ namespace Horde.Server.Artifacts
 			Uri baseUri = new Uri(_globalConfig.ServerSettings.ServerUrl, $"api/v2/artifacts/{artifact.Id}");
 
 			ArtifactDescriptor descriptor = new ArtifactDescriptor(baseUri, new RefName("default"), fileFilter);
+			descriptor.Keys = new List<string>(artifact.Keys);
+			descriptor.Metadata = new List<string>(artifact.Metadata);
+
+			foreach (string key in artifact.Keys)
+			{
+				Match match = Regex.Match(key, @"^job:([0-9a-zA-Z]{12})$");
+				if (match.Success)
+				{
+					descriptor.JobUrl = new Uri(_globalConfig.ServerSettings.DashboardUrl, $"job/{match.Value}");
+					break;
+				}
+			}
 
 			byte[] data = descriptor.Serialize();
 			return new FileStreamResult(new MemoryStream(data), "application/x-horde-artifact") { FileDownloadName = $"{artifact.Name}.uartifact" };
