@@ -75,7 +75,9 @@ using FGenericBlockArray = std::vector<FGenericBlock>;
 
 // Json formatting helpers
 void FormatJsonBlock(std::wstring& Output, const FGenericBlock& Block);
+void FormatJsonBlock(std::string& Output, const FGenericBlock& Block);
 void FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks);
+void FormatJsonBlockArray(std::string& Output, const FGenericBlockArray& Blocks);
 
 static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR			= 0;
 static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING		= 0xC6BD6CDCEEF79533ull;

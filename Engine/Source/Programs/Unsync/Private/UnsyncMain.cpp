@@ -116,6 +116,10 @@ InnerMain(int Argc, char** Argv)
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
 	uint32					 BackgroundTaskMemoryBudgetGB = 2;
 
+	const std::string HiddenGroupId;  // CLI11 uses an empty string group name to mark arguments that should be hidden
+	const std::string ExperimentalGroupId = "Experimental";
+	const std::string DangerousGroupId	  = "Dangerous";
+
 	struct FDeprecatedOptions
 	{
 		bool bQuickSyncMode			= false;
@@ -123,12 +127,11 @@ InnerMain(int Argc, char** Argv)
 		bool bQuickSourceValidation = false;
 	} DeprecatedOptions;
 
-	const std::string HiddenGroupId;  // CLI11 uses an empty string group name to mark arguments that should be hidden
-
-	auto AddTlsOptions = [&CacertFilenameUtf8, &bRequireTls, &bAllowInsecureTls](CLI::App* App) {
+	auto AddTlsOptions = [&CacertFilenameUtf8, &bRequireTls, &bAllowInsecureTls, &DangerousGroupId](CLI::App* App)
+	{
 		App->add_option("--cacert", CacertFilenameUtf8, "Certificate authority file to use for TLS validation (.pem)");
 		App->add_flag("--tls", bRequireTls, "Force TLS when connecting to remote server");
-		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation");
+		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation")->group(DangerousGroupId);
 	};
 
 	auto AddProxyOptions = [&RemoteAddressUtf8, &bNoProxySelect](CLI::App* App) {
@@ -182,7 +185,7 @@ InnerMain(int Argc, char** Argv)
 	{
 		SubPack =
 			Cli.add_subcommand("pack",
-							   "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file");
+							   "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file")->group(HiddenGroupId);
 
 		SubPack->add_option("Input", InputFilenameUtf8, "Input directory path")->required();
 
@@ -203,7 +206,7 @@ InnerMain(int Argc, char** Argv)
 
 	CLI::App* SubUnpack = nullptr;
 	{
-		SubUnpack = Cli.add_subcommand("unpack", "EXPERIMENTAL: Sync directory based on package snapshot");
+		SubUnpack = Cli.add_subcommand("unpack", "EXPERIMENTAL: Sync directory based on package snapshot")->group(HiddenGroupId);
 
 		SubUnpack->add_option("Output", OutputFilenameUtf8, "Output directory path")->required();
 
@@ -270,7 +273,7 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_option("Target", TargetFilenameUtf8, "Target path")->required();
 	SubSync->add_option("-m, --manifest", SourceManifestFilenameUtf8, "Override manifest path for Source");
 	AddProxyOptions(SubSync);
-	SubSync->add_option("--dfs", PreferredDfsUtf8, "Preferred DFS mirror (matched by sub-string)");
+	SubSync->add_option("--dfs", PreferredDfsUtf8, "DEPRECATED: Preferred DFS mirror (matched by sub-string)")->group(HiddenGroupId);
 	SubSync->add_option(
 		"--overlay",
 		OverlayArrayUtf8,
@@ -325,9 +328,12 @@ InnerMain(int Argc, char** Argv)
 					  "the manifest. This is an extra precaution that will detect any missing or invalid remote files before running the "
 					  "sync process, however this can be very slow when dealing with large numbers of files and directories.");
 
-	SubSync->add_flag("--no-output-validation", bNoOutputValidation, "Skip final patched file block hash validation (DANGEROUS)");
-	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)");
-	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
+	SubSync->add_flag("--no-output-validation", bNoOutputValidation, "Skip final patched file block hash validation (DANGEROUS)")
+		->group(DangerousGroupId);
+	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)")
+		->group(DangerousGroupId);
+	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)")
+		->group(ExperimentalGroupId);
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
 	SubSync->add_option("--token", AuthTokenPathUtf8, "Explicit path to the authentication token file to use");
 	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
@@ -374,7 +380,7 @@ InnerMain(int Argc, char** Argv)
 
 	// Configure mount
 
-	CLI::App* SubMount = Cli.add_subcommand("mount", "Mount directory manifest as a virtual file system (EXPERIMENTAL)");
+	CLI::App* SubMount = Cli.add_subcommand("mount", "Mount directory manifest as a virtual file system (EXPERIMENTAL)")->group(HiddenGroupId);
 	SubMount
 		->add_option("Source",
 					 SourceFilenameUtf8,
@@ -393,6 +399,7 @@ InnerMain(int Argc, char** Argv)
 		Subcommand->add_option("--threads", GMaxThreads, "Limit worker threads to specified number");
 		Subcommand->add_flag("--buffered-files", GForceBufferedFiles, "Always use buffered file IO");
 		Subcommand->add_flag("--debug", bUseDebugMode, "Enable extra debugging features, such as extra memory safety validation");
+		Subcommand->add_flag("--experimental", GExperimental, "Enable experimental code paths")->group(HiddenGroupId);
 
 		SilentFlag->excludes(VerboseFlag);
 		SilentFlag->excludes(VeryVerboseFlag);
@@ -650,6 +657,16 @@ InnerMain(int Argc, char** Argv)
 
 	FPath SourceFilename = bFilesystemSource ? NormalizeFilenameUtf8(SourceFilenameUtf8) : FPath(SourceFilenameUtf8);
 
+	if (GDryRun)
+	{
+		UNSYNC_LOG(L">>> DRY RUN <<<");
+	}
+
+	if (GExperimental)
+	{
+		UNSYNC_LOG(L">>> EXPERIMENTAL MODE <<<");
+	}
+
 	if (GLogVeryVerbose)
 	{
 		UNSYNC_LOG(L"Very verbose logging is enabled");
@@ -657,11 +674,6 @@ InnerMain(int Argc, char** Argv)
 	else if (GLogVerbose)
 	{
 		UNSYNC_LOG(L"Verbose logging is enabled");
-	}
-
-	if (GDryRun)
-	{
-		UNSYNC_LOG(L">>> DRY RUN <<<");
 	}
 
 	if (GForceBufferedFiles)
@@ -867,6 +879,8 @@ InnerMain(int Argc, char** Argv)
 						   MirrorResult.TryError()->Context.c_str());
 		}
 	}
+
+	RemoteDesc.TlsRequirement = ETlsRequirement::None; // nocheckin
 
 	if (Cli.got_subcommand(SubHash))
 	{

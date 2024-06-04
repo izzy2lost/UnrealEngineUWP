@@ -99,6 +99,7 @@ struct FRemoteProtocolFeatures
 	bool bDirectoryListing = false;
 	bool bFileDownload	   = false;
 	bool bDownloadByHash   = false;
+	bool bBlockDownload	   = false;
 };
 
 struct FTelemetryEventSyncComplete
@@ -144,7 +145,8 @@ struct FRemoteProtocolBase
 class FProxy
 {
 public:
-	FProxy(const FRemoteDesc&			  InRemoteDesc,
+	FProxy(FProxyPool&					  ProxyPool,
+		   const FRemoteDesc&			  InRemoteDesc,
 		   const FRemoteProtocolFeatures& InFeatures,
 		   const FAuthDesc*				  InAuthDesc,
 		   const FBlockRequestMap*		  InRequestMap);
@@ -171,6 +173,8 @@ public:
 
 	std::unique_ptr<FHttpConnection> AllocHttp();
 	void							 DeallocHttp(std::unique_ptr<FHttpConnection>&& Connection);
+
+	bool SupportsHttp() const { return HttpPool.has_value(); }
 
 	void Invalidate();
 	bool IsValid() const;

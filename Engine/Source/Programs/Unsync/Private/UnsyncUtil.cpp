@@ -88,15 +88,34 @@ FormatJsonKeyValueStr(std::wstring& Output, std::wstring_view K, std::wstring_vi
 }
 
 void
+FormatJsonKeyValueStr(std::string& Output, std::string_view K, std::string_view V, std::string_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), "\"{}\": \"{}\"{}", K, V, Suffix);
+}
+
+void
 FormatJsonKeyValueUInt(std::wstring& Output, std::wstring_view K, uint64 V, std::wstring_view Suffix)
 {
 	fmt::format_to(std::back_inserter(Output), L"\"{}\": {}{}", K, V, Suffix);
 }
 
 void
+FormatJsonKeyValueUInt(std::string& Output, std::string_view K, uint64 V, std::string_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), "\"{}\": {}{}", K, V, Suffix);
+}
+
+
+void
 FormatJsonKeyValueBool(std::wstring& Output, std::wstring_view K, bool V, std::wstring_view Suffix)
 {
 	fmt::format_to(std::back_inserter(Output), L"\"{}\": {}{}", K, V ? L"true" : L"false", Suffix);
+}
+
+void
+FormatJsonKeyValueBool(std::string& Output, std::string_view K, bool V, std::string_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), "\"{}\": {}{}", K, V ? "true" : "false", Suffix);
 }
 
 void
@@ -122,6 +141,28 @@ FormatJsonBlock(std::wstring& Output, const FGenericBlock& Block)
 }
 
 void
+FormatJsonBlock(std::string& Output, const FGenericBlock& Block)
+{
+	Output += "{";
+
+	static const size_t MaxHashLen = 2 * sizeof(Block.HashStrong.Data);
+	char				HashChars[MaxHashLen];
+
+	uint64			 HashLen = BytesToHexChars(HashChars, MaxHashLen, Block.HashStrong.Data, Block.HashStrong.Size());
+	std::string_view HashStr = std::string_view(HashChars, HashLen);
+
+	FormatJsonKeyValueUInt(Output, "offset", Block.Offset, ", ");
+	FormatJsonKeyValueUInt(Output, "size", Block.Size, ", ");
+	if (Block.HashWeak != 0)
+	{
+		FormatJsonKeyValueUInt(Output, "hash_weak", Block.HashWeak, ", ");
+	}
+	FormatJsonKeyValueStr(Output, "hash_strong", HashStr);
+
+	Output += "}";
+}
+
+void
 FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks)
 {
 	Output += L"[\n";
@@ -138,6 +179,25 @@ FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks)
 		++BlockIndex;
 	}
 	Output += L"]";
+}
+
+void
+FormatJsonBlockArray(std::string& Output, const FGenericBlockArray& Blocks)
+{
+	Output += "[\n";
+	uint64 BlockIndex = 0;
+	for (const FGenericBlock& Block : Blocks)
+	{
+		if (BlockIndex != 0)
+		{
+			Output += ",\n";
+		}
+
+		FormatJsonBlock(Output, Block);
+
+		++BlockIndex;
+	}
+	Output += "]";
 }
 
 

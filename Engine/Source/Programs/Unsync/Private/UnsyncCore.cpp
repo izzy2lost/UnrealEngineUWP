@@ -39,6 +39,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_END
 namespace unsync {
 
 bool GDryRun = false;
+bool GExperimental = false;
 
 FBlock128
 ToBlock128(const FGenericBlock& GenericBlock)

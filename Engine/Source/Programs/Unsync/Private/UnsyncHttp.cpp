@@ -38,18 +38,18 @@ UpdateView(std::string_view& View, const char* Data, size_t Size)
 	}
 }
 
-using HttpMessageCallback = std::function<void(FHttpResponse&& Response)>;
-
 struct FHttpParser
 {
 	static FHttpParser* ToThis(http_parser* Parser) { return (FHttpParser*)(Parser->data); }
 
-	FHttpParser(HttpMessageCallback InResponseCallback,
+	FHttpParser(FHttpMessageCallback InResponseCallback,
+				FHttpChunkCallback   InChunkCallback,
 				uint8*				InScratchBuffer,
 				uint64				InScratchSize,
 				http_parser_type	Type,
 				EHttpMethod			InMethod)
 	: ResponseCallback(InResponseCallback)
+	, ChunkCallback(InChunkCallback)
 	, Method(InMethod)
 	, ScratchBuffer(InScratchBuffer)
 	, ScratchSize(InScratchSize)
@@ -95,9 +95,19 @@ struct FHttpParser
 		return 0;
 	}
 
-	int OnChunkHeader() { return 0; }
+	int OnChunkHeader()
+	{ 
+		return 0;
+	}
 
-	int OnChunkComplete() { return 0; }
+	int OnChunkComplete()
+	{
+		if (ChunkCallback)
+		{
+			ChunkCallback(Response);
+		}
+		return 0;
+	}
 
 	int OnHdrField(const char* Data, size_t Size)
 	{
@@ -214,7 +224,8 @@ struct FHttpParser
 		return bShouldContinue;
 	}
 
-	HttpMessageCallback ResponseCallback;
+	FHttpMessageCallback ResponseCallback;
+	FHttpChunkCallback ChunkCallback;
 	FHttpResponse		Response;
 
 	EHttpMethod Method = EHttpMethod::GET;
@@ -239,13 +250,13 @@ struct FHttpParser
 };
 
 FHttpResponse
-HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request)
+HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request, FHttpChunkCallback ChunkCallback)
 {
 	FHttpResponse Result;
 
 	if (HttpRequestBegin(Connection, Request))
 	{
-		Result = HttpRequestEnd(Connection);
+		Result = HttpRequestEnd(Connection, ChunkCallback);
 	}
 
 	return Result;
@@ -437,7 +448,7 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 }
 
 FHttpResponse
-HttpRequestEnd(FHttpConnection& Connection)
+HttpRequestEnd(FHttpConnection& Connection, FHttpChunkCallback ChunkCallback)
 {
 	FHttpResponse Result;
 
@@ -467,7 +478,7 @@ HttpRequestEnd(FHttpConnection& Connection)
 	// TODO: user-provided scratch buffer
 	uint8 ScratchBuffer[256_KB];
 	ScratchBuffer[0] = 0;
-	FHttpParser Parser(MessageCallback, ScratchBuffer, sizeof(ScratchBuffer), HTTP_RESPONSE, Connection.Method);
+	FHttpParser Parser(MessageCallback, ChunkCallback, ScratchBuffer, sizeof(ScratchBuffer), HTTP_RESPONSE, Connection.Method);
 
 	while (!Parser.bComplete)
 	{

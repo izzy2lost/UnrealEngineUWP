@@ -374,7 +374,10 @@ bool LooksLikeHash160(const std::wstring_view Str);
 
 // Json formatting helpers
 void FormatJsonKeyValueStr(std::wstring& Output, std::wstring_view K, std::wstring_view V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueStr(std::string& Output, std::string_view K, std::string_view V, std::string_view Suffix = {});
 void FormatJsonKeyValueUInt(std::wstring& Output, std::wstring_view K, uint64 V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueUInt(std::string& Output, std::string_view K, uint64 V, std::string_view Suffix = {});
 void FormatJsonKeyValueBool(std::wstring& Output, std::wstring_view K, bool V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueBool(std::string& Output, std::string_view K, bool V, std::string_view Suffix = {});
 
 }  // namespace unsync

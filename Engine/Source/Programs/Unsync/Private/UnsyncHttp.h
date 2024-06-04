@@ -10,10 +10,12 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <functional>
 
 namespace unsync {
 
 struct FRemoteDesc;
+struct FHttpResponse;
 
 enum class EHttpContentType
 {
@@ -33,6 +35,9 @@ enum class EHttpMethod
 	POST,
 	PUT,
 };
+
+using FHttpMessageCallback = std::function<void(FHttpResponse&& Response)>;
+using FHttpChunkCallback   = std::function<void(FHttpResponse& Response)>;
 
 struct FHttpRequest
 {
@@ -111,7 +116,7 @@ const char* HttpStatusToString(int32 Code);
 
 // Synchronous HTTP request API
 
-FHttpResponse HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request);
+FHttpResponse HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request, FHttpChunkCallback ChunkCallback = {});
 
 inline FHttpResponse
 HttpRequest(FHttpConnection& Connection,
@@ -149,8 +154,10 @@ HttpRequest(FHttpConnection& Connection,
 	return HttpRequest(Connection, Request);
 }
 
-FHttpResponse
-HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl, std::string_view BearerToken = {});
+FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
+						  EHttpMethod		 Method,
+						  std::string_view	 RequestUrl,
+						  std::string_view	 BearerToken = {});
 
 FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
 						  EHttpMethod		 Method,
@@ -163,6 +170,6 @@ FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
 
 bool HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request);
 
-FHttpResponse HttpRequestEnd(FHttpConnection& Connection);
+FHttpResponse HttpRequestEnd(FHttpConnection& Connection, FHttpChunkCallback ChunkCallback = {});
 
 }  // namespace unsync

@@ -19,7 +19,25 @@
 
 namespace unsync {
 
-struct FUnsyncProtocolImpl : FRemoteProtocolBase
+struct FUnsyncBaseProtocolImpl : FRemoteProtocolBase
+{
+	FUnsyncBaseProtocolImpl(const FRemoteDesc&			   InRemoteDesc,
+							const FBlockRequestMap*		   InRequestMap,
+							const FRemoteProtocolFeatures& InFeatures)
+	: FRemoteProtocolBase(InRemoteDesc, InRequestMap)
+	, Features(InFeatures)
+	{
+	}
+
+	virtual TResult<FBuffer> DownloadManifest(std::string_view ManifestName) override
+	{
+		return AppError(L"Manifests can't be downloaded from UNSYNC proxy.");
+	};
+
+	const FRemoteProtocolFeatures Features;
+};
+
+struct FUnsyncProtocolImpl : FUnsyncBaseProtocolImpl
 {
 	FUnsyncProtocolImpl(const FRemoteDesc&			   InRemoteDesc,
 						const FRemoteProtocolFeatures& InFeatures,
@@ -28,10 +46,7 @@ struct FUnsyncProtocolImpl : FRemoteProtocolBase
 	virtual ~FUnsyncProtocolImpl() override;
 	virtual bool			 IsValid() const override;
 	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
-	virtual TResult<FBuffer> DownloadManifest(std::string_view ManifestName) override
-	{
-		return AppError(L"Manifests can't be downloaded from UNSYNC proxy.");
-	};
+
 	virtual void Invalidate() override;
 	virtual bool Contains(const FDirectoryManifest& Manifest) override { return true; }	 // TODO: check files on the unsync proxy
 
@@ -40,12 +55,36 @@ struct FUnsyncProtocolImpl : FRemoteProtocolBase
 	bool						 bIsConnetedToHost = false;
 	std::unique_ptr<FSocketBase> SocketHandle;
 
-	const FRemoteProtocolFeatures Features;
-
 	static void SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event);
 };
 
-FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InFeatures, const FAuthDesc* InAuthDesc, const FBlockRequestMap* InRequestMap)
+struct FUnsyncHttpProtocolImpl : FUnsyncBaseProtocolImpl
+{
+	FUnsyncHttpProtocolImpl(const FRemoteDesc& InRemoteDesc,
+							const FRemoteProtocolFeatures& InFeatures,
+							const FBlockRequestMap* InRequestMap,
+							FProxyPool&				   InProxyPool)
+	: FUnsyncBaseProtocolImpl(InRemoteDesc, InRequestMap, InFeatures)
+	, ProxyPool(InProxyPool)
+	{
+	}
+
+	virtual bool			IsValid() const override { return bValid; }
+	virtual void			Invalidate() override { bValid = false; }
+	virtual bool			Contains(const FDirectoryManifest& Manifest) override { return true; }	// TODO: check files on the unsync proxy
+
+	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
+
+	const FRemoteProtocolFeatures Features;
+	bool						  bValid = true;
+	FProxyPool&					  ProxyPool;
+};
+
+FProxy::FProxy(FProxyPool&					  ProxyPool,
+			   const FRemoteDesc&			  RemoteDesc,
+			   const FRemoteProtocolFeatures& InFeatures,
+			   const FAuthDesc*				  InAuthDesc,
+			   const FBlockRequestMap*		  InRequestMap)
 {
 	UNSYNC_ASSERT(InRequestMap);
 
@@ -56,8 +95,16 @@ FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InF
 	}
 	else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
-		auto* Inner	 = new FUnsyncProtocolImpl(RemoteDesc, InFeatures, InAuthDesc, InRequestMap);
-		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
+		if (GExperimental && ProxyPool.SupportsHttp() && InFeatures.bBlockDownload)
+		{
+			auto* Inner	 = new FUnsyncHttpProtocolImpl(RemoteDesc, InFeatures, InRequestMap, ProxyPool);
+			ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
+		}
+		else
+		{
+			auto* Inner	 = new FUnsyncProtocolImpl(RemoteDesc, InFeatures, InAuthDesc, InRequestMap);
+			ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
+		}
 	}
 	else
 	{
@@ -69,8 +116,7 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 										 const FRemoteProtocolFeatures& InFeatures,
 										 const FAuthDesc*				InAuthDesc,
 										 const FBlockRequestMap*		InRequestMap)
-: FRemoteProtocolBase(RemoteDesc, InRequestMap)
-, Features(InFeatures)
+: FUnsyncBaseProtocolImpl(RemoteDesc, InRequestMap, InFeatures)
 {
 	if (RemoteDesc.TlsRequirement != ETlsRequirement::None)
 	{
@@ -222,6 +268,22 @@ FUnsyncProtocolImpl::IsValid() const
 	return bIsConnetedToHost && SocketHandle && SocketValid(*SocketHandle);
 }
 
+static void
+SortBlockRequests(std::vector<FBlockRequest>& Requests)
+{
+	std::sort(Requests.begin(),
+			  Requests.end(),
+			  [](const FBlockRequest& A, const FBlockRequest& B) -> bool
+			  {
+				  int32 FileCmp = std::memcmp(A.FilenameMd5.Data, B.FilenameMd5.Data, A.FilenameMd5.Size());
+				  if (FileCmp != 0)
+				  {
+					  return FileCmp < 0;
+				  }
+				  return A.Offset < B.Offset;
+			  });
+}
+
 FDownloadResult
 FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
 {
@@ -256,15 +318,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 		}
 	}
 
-	std::sort(Requests.begin(), Requests.end(), [](const FBlockRequest& A, const FBlockRequest& B) -> bool
-	{
-		int32 FileCmp = std::memcmp(A.FilenameMd5.Data, B.FilenameMd5.Data, A.FilenameMd5.Size());
-		if (FileCmp != 0)
-		{
-			return FileCmp;
-		}
-		return A.Offset < B.Offset;
-	});
+	SortBlockRequests(Requests);
 
 	bool bOk = bIsConnetedToHost;
 
@@ -408,6 +462,126 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 	return ResultOk<FDownloadError>();
 }
 
+static std::string
+FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNeedBlock> NeedBlocks)
+{
+	std::vector<FBlockRequest> Requests;
+
+	for (const FNeedBlock& Block : NeedBlocks)
+	{
+		if (const FBlockRequest* Request = RequestMap.FindRequest(Block.Hash))
+		{
+			Requests.push_back(*Request);
+		}
+	}
+
+	SortBlockRequests(Requests);
+
+	std::string Output;
+	Output += "{ ";  // main object
+	Output += "\"files\": [\n";
+
+	static const FHash128 InvalidHash = {};
+	FHash128	   FilenameHash = InvalidHash;
+
+	uint32 BlockIndex = 0;
+	for (const FBlockRequest& Request : Requests)
+	{
+		if (FilenameHash != Request.FilenameMd5)
+		{
+			if (FilenameHash != InvalidHash)
+			{
+				Output += "]},\n";  // close blocks arary and file object
+			}
+
+			const std::string* FilenameUtf8 = RequestMap.FindFile(Request.FilenameMd5);
+			UNSYNC_ASSERTF(FilenameUtf8, L"Could not find file in the block request map");
+
+			// Start file object and blocks array
+			Output += "{";
+
+			std::string EscapedFilenameUtf8 = StringEscape(*FilenameUtf8);
+			FormatJsonKeyValueStr(Output, "name", EscapedFilenameUtf8, ", ");
+			Output += "\"blocks\": [\n";
+
+			BlockIndex = 0;
+			FilenameHash = Request.FilenameMd5;
+		}
+
+		if (BlockIndex != 0)
+		{
+			Output += ",\n";
+		}
+
+		FGenericBlock Block;
+		Block.HashStrong = FGenericHash::FromBlake3_128(Request.BlockHash);
+		Block.Offset	 = Request.Offset;
+		Block.Size		 = CheckedNarrow(Request.Size);
+
+		FormatJsonBlock(Output, Block);
+
+		++BlockIndex;
+	}
+
+	if (FilenameHash != InvalidHash)
+	{
+		Output += "]}\n";	// close blocks arary and file object
+	}
+
+	Output += "]\n";  // files array
+	Output += "}\n";  // main object
+
+	return Output;
+}
+
+FDownloadResult
+FUnsyncHttpProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
+{
+	if (!IsValid())
+	{
+		return FDownloadResult(EDownloadRetryMode::Abort);
+	}
+
+	std::string RequestJson = FormatBlockRequestJson(*RequestMap, NeedBlocks);
+
+	auto ChunkCallback = [&CompletionCallback](FHttpResponse& Response)
+	{
+		if (Response.Success() && Response.Buffer.Size())
+		{
+			FBuffer			 DecompressedBuffer = Decompress(Response.Buffer);
+			FDownloadedBlock DownloadedBlock;
+			DownloadedBlock.bCompressed		 = false;
+			DownloadedBlock.Data			 = DecompressedBuffer.Data();
+			DownloadedBlock.DecompressedSize = DecompressedBuffer.Size();
+			FHash128 DecompressedHash		 = HashBlake3Bytes<FHash128>(DecompressedBuffer.Data(), DecompressedBuffer.Size());
+			CompletionCallback(DownloadedBlock, DecompressedHash);
+		}
+
+		Response.Buffer.Clear();
+	};
+
+	FPooledHttpConnection HttpConnection(ProxyPool);
+
+	FHttpRequest Request;
+	Request.Method			   = EHttpMethod::POST;
+	Request.PayloadContentType = EHttpContentType::Application_Json;
+	Request.Payload.Data	   = reinterpret_cast<const uint8*>(RequestJson.data());
+	Request.Payload.Size	   = RequestJson.length();
+	Request.Url				   = "/api/v1/blocks";
+
+	FHttpResponse Response = HttpRequest(HttpConnection, Request, ChunkCallback);
+
+	if (Response.Success())
+	{
+		return ResultOk<FDownloadError>();
+	}
+	else
+	{
+		UNSYNC_ERROR(L"Failed to complete block request. HTTP error code: %d.", Response.Code);
+		return FDownloadError(EDownloadRetryMode::Abort);
+	}
+}
+
 void
 FUnsyncProtocolImpl::Invalidate()
 {
@@ -537,6 +711,10 @@ ProxyQuery::Hello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
 				else if (Elem.string_value() == "file")
 				{
 					Result.Features.bFileDownload = true;
+				}
+				else if (Elem.string_value() == "blocks")
+				{
+					Result.Features.bBlockDownload = true;
 				}
 			}
 		}
@@ -1017,7 +1195,11 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 					   RemoteDesc.Host.Address.c_str(),
 					   RemoteDesc.Host.Port);
 
-		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(RemoteDesc, AuthDesc);
+		std::unique_ptr<FHttpConnection> HttpConnection = HttpPool->Acquire();
+
+		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(*HttpConnection, AuthDesc);
+
+		HttpPool->Release(std::move(HttpConnection));
 
 		if (Response.IsError())
 		{
@@ -1064,7 +1246,7 @@ FProxyPool::Alloc()
 
 	if (!Result || !Result->IsValid())
 	{
- 		Result = std::make_unique<FProxy>(RemoteDesc, Features, AuthDesc, &RequestMap);
+ 		Result = std::make_unique<FProxy>(*this, RemoteDesc, Features, AuthDesc, &RequestMap);
 	}
 
 	return Result;

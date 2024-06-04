@@ -21,6 +21,7 @@
 namespace unsync {
 
 extern bool GDryRun;
+extern bool GExperimental;
 
 class FProxy;
 class FProxyPool;
