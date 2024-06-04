@@ -169,16 +169,18 @@ struct FExportsValidationContext
 		IsCooking	= 1 << 0,
 	};
 
-	FExportsValidationContext(const UPackage* InPackage, const TSet<UObject*>& InExports, EFlags InFlags,
-		FOutputDevice* InOutputDevice)
+	FExportsValidationContext(const UPackage* InPackage, const TSet<UObject*>& InExports, const TMap<UObject*, FObjectSaveOverride>& InSaveOverrides, 
+		EFlags InFlags, FOutputDevice* InOutputDevice)
 		: Package(InPackage)
 		, Exports(InExports)
+		, SaveOverrides(InSaveOverrides)
 		, Flags(InFlags)
 		, OutputDevice(InOutputDevice)
 	{}
 
 	const UPackage* Package;
 	const TSet<UObject*>& Exports;
+	const TMap<UObject*, FObjectSaveOverride>& SaveOverrides;
 	const EFlags Flags;
 	FOutputDevice* OutputDevice;
 };
