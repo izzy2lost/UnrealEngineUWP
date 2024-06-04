@@ -361,10 +361,13 @@ namespace GeometryCollection::Facades
 
 	CHAOS_API void FCollectionTransformFacade::EnforceSingleRoot(const FString & RootName)
 	{
+		check(Collection);
+
 		TArray<int32> Roots = GetRootIndices();
 		if (Roots.Num() > 1)
 		{
 			int32 Idx = TransformAttribute.AddElements(1);
+			ParentAttribute.Modify()[Idx] = INDEX_NONE;
 
 			if (HasBoneNameAttribute())
 			{

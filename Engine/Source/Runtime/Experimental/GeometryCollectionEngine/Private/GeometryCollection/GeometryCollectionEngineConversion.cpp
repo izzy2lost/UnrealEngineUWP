@@ -1714,17 +1714,19 @@ void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const
 
 void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FManagedArrayCollection& InCollection, USkeleton* OutSkeleton, TArray<int32>& OutIndexRemap)
 {
-	GeometryCollection::Facades::FCollectionTransformFacade Transforms(InCollection);
+	FManagedArrayCollection LocalCollection = InCollection;
+	GeometryCollection::Facades::FCollectionTransformFacade Transforms(LocalCollection);
 	if (Transforms.IsValid() && Transforms.HasBoneNameAttribute() && OutSkeleton)
 	{
+		Transforms.EnforceSingleRoot("root");
+
 		OutIndexRemap.Init(INDEX_NONE, Transforms.Num());
 		auto AddMapping = [&OutIndexRemap](int32 A, int32 B)
 		{
 			OutIndexRemap[A] = B;
 		};
 
-		FReferenceSkeletonModifier Edit(OutSkeleton);
-		auto AddChildren = [&Transforms, &Edit, &AddMapping](const TArray<int32>& CollectionChildren)
+		auto AddChildren = [&Transforms, &OutSkeleton, &AddMapping](const TArray<int32>& CollectionChildren)
 		{
 			TQueue<int32> Children;
 			auto Enqueue = [&Children](const TArray<int32>& List)
@@ -1740,13 +1742,16 @@ void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FMan
 				Children.Dequeue(CurrentIndex);
 
 				int32 CollectionParentIndex = (*Transforms.GetParents())[CurrentIndex];
-				int32 SkeletionParentIndex = Edit.FindBoneIndex(FName((*Transforms.FindBoneNames())[CollectionParentIndex]));
+				int32 SkeletionParentIndex = OutSkeleton->GetReferenceSkeleton().FindBoneIndex(FName((*Transforms.FindBoneNames())[CollectionParentIndex]));
 
 				FName BoneName = FName((*Transforms.FindBoneNames())[CurrentIndex]);
 				FTransform Transform = FTransform((*Transforms.FindTransforms())[CurrentIndex]);
 				FMeshBoneInfo Info(BoneName, BoneName.ToString(), SkeletionParentIndex);
-				Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
-				AddMapping(CurrentIndex, Edit.GetReferenceSkeleton().GetRawBoneNum());
+				{
+					FReferenceSkeletonModifier Edit(OutSkeleton);
+					Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
+				}
+				AddMapping(CurrentIndex, OutSkeleton->GetReferenceSkeleton().GetRawBoneNum());
 
 				Enqueue((*Transforms.FindChildren())[CurrentIndex].Array());
 			}
@@ -1762,8 +1767,11 @@ void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FMan
 				FName BoneName = FName((*Transforms.FindBoneNames())[i]);
 				FTransform Transform = FTransform((*Transforms.FindTransforms())[i]);
 				FMeshBoneInfo Info(BoneName, BoneName.ToString(), INDEX_NONE);
-				Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
-				AddMapping(i,Edit.GetReferenceSkeleton().GetNum());
+				{
+					FReferenceSkeletonModifier Edit(OutSkeleton);
+					Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
+				}
+				AddMapping(i,OutSkeleton->GetReferenceSkeleton().GetNum());
 
 				if ((*Transforms.FindChildren())[i].Num())
 				{
