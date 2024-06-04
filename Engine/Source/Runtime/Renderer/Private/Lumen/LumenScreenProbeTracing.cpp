@@ -126,6 +126,11 @@ FAutoConsoleVariableRef CVarLumenScreenProbeGatherScreenTraceMinimumOccupancy(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+bool SupportsHairScreenTraces()
+{
+	return GVarLumenScreenProbeGatherHierarchicalScreenTracesSkipHairHits.GetValueOnRenderThread() == 0;
+}
+
 class FClearTracesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FClearTracesCS)
@@ -769,7 +774,7 @@ void TraceScreenProbes(
 			PassParameters->NumThicknessStepsToDetermineCertainty = GLumenScreenProbeGatherHierarchicalScreenTracesSkipFoliageHits ? 0 : GLumenScreenProbeGatherNumThicknessStepsToDetermineCertainty;
 			PassParameters->MinimumTracingThreadOccupancy = GLumenScreenProbeGatherScreenTracesMinimumOccupancy;
 			PassParameters->SkipFoliageHits = GLumenScreenProbeGatherHierarchicalScreenTracesSkipFoliageHits;
-			PassParameters->SkipHairHits = GVarLumenScreenProbeGatherHierarchicalScreenTracesSkipHairHits.GetValueOnRenderThread();
+			PassParameters->SkipHairHits = !SupportsHairScreenTraces();
 
 			PassParameters->ScreenProbeParameters = ScreenProbeParameters;
 			PassParameters->IndirectTracingParameters = IndirectTracingParameters;

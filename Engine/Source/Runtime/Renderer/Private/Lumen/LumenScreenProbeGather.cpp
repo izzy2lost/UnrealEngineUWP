@@ -334,6 +334,8 @@ FAutoConsoleVariableRef GVarLumenScreenProbeTileDebugMode(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+bool SupportsHairScreenTraces();
+
 namespace LumenScreenProbeGather 
 {
 	int32 GetTracingOctahedronResolution(const FViewInfo& View)
@@ -1990,6 +1992,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 		StateFrameIndex = ScreenProbeParameters.FixedJitterIndex;
 	}
 	ScreenProbeParameters.ScreenProbeRayDirectionFrameIndex = StateFrameIndex % FMath::Max(CVarLumenScreenProbeTemporalMaxRayDirections.GetValueOnRenderThread(), 1);
+	ScreenProbeParameters.bSupportsHairScreenTraces = SupportsHairScreenTraces() ? 1u : 0u;
 
 	FRDGTextureDesc DownsampledDepthDesc(FRDGTextureDesc::Create2D(ScreenProbeParameters.ScreenProbeAtlasBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 	ScreenProbeParameters.ScreenProbeSceneDepth = GraphBuilder.CreateTexture(DownsampledDepthDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeSceneDepth"));
