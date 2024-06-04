@@ -3,13 +3,34 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Streams;
-using MongoDB.Bson.Serialization;
 
-namespace Horde.Server.Jobs.TestData
+#pragma warning disable CA2227 // Change 'x' to be read-only by removing the property setter
+
+namespace EpicGames.Horde.Jobs.TestData
 {
+	/// <summary>
+	/// Test outcome
+	/// </summary>
+	public enum TestOutcome
+	{
+		/// <summary>
+		/// The test was successful
+		/// </summary>
+		Success,
+		/// <summary>
+		/// The test failed
+		/// </summary>
+		Failure,
+		/// <summary>
+		/// The test was skipped
+		/// </summary>
+		Skipped,
+		/// <summary>
+		/// The test had an unspecified result
+		/// </summary>
+		Unspecified
+	}
+
 	/// <summary>
 	/// Response object describing test data to store
 	/// </summary>
@@ -67,58 +88,42 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// Unique id of the test data
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Stream that generated the test data
 		/// </summary>
-		public string StreamId { get; set; }
+		public string StreamId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The template reference id
 		/// </summary>
-		public string TemplateRefId { get; set; }
+		public string TemplateRefId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The job which produced the data
 		/// </summary>
-		public string JobId { get; set; }
+		public string JobId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The step that ran
 		/// </summary>
-		public string StepId { get; set; }
+		public string StepId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The changelist number that contained the data
 		/// </summary>
-		public int Change { get; set; }
+		public int Change { get; set; } = 0;
 
 		/// <summary>
 		/// Key used to identify the particular data
 		/// </summary>
-		public string Key { get; set; }
+		public string Key { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The data stored for this test
 		/// </summary>
-		public Dictionary<string, object> Data { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="testData">Test data to construct from</param>
-		internal GetTestDataResponse(ITestData testData)
-		{
-			Id = testData.Id.ToString();
-			StreamId = testData.StreamId.ToString();
-			TemplateRefId = testData.TemplateRefId.ToString();
-			JobId = testData.JobId.ToString();
-			StepId = testData.StepId.ToString();
-			Change = testData.Change;
-			Key = testData.Key;
-			Data = BsonSerializer.Deserialize<Dictionary<string, object>>(testData.Data);
-		}
+		public Dictionary<string, object> Data { get; set; } = new Dictionary<string, object>();
 	}
 
 	/// <summary>
@@ -129,48 +134,37 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// Meta unique id for environment 
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The platforms in the environment
 		/// </summary>
-		public List<string> Platforms { get; set; }
+		public List<string> Platforms { get; set; } = new List<string>();
 
 		/// <summary>
 		/// The build configurations being tested
 		/// </summary>
-		public List<string> Configurations { get; set; }
+		public List<string> Configurations { get; set; } = new List<string>();
 
 		/// <summary>
 		/// The build targets being tested
 		/// </summary>
-		public List<string> BuildTargets { get; set; }
+		public List<string> BuildTargets { get; set; } = new List<string>();
 
 		/// <summary>
 		/// The test project name
-		/// </summary>
-		public string ProjectName { get; set; }
+		/// </summary>	
+		public string ProjectName { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The rendering hardware interface being used with the test
 		/// </summary>
-		public string RHI { get; set; }
+		public string RHI { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The varation of the test meta data, for example address sanitizing
 		/// </summary>
-		public string Variation { get; set; }
-
-		internal GetTestMetaResponse(ITestMeta meta)
-		{
-			Id = meta.Id.ToString();
-			Platforms = meta.Platforms.Select(p => p).ToList();
-			Configurations = meta.Configurations.Select(p => p).ToList();
-			BuildTargets = meta.BuildTargets.Select(p => p).ToList();
-			ProjectName = meta.ProjectName;
-			RHI = meta.RHI;
-			Variation = meta.Variation;
-		}
+		public string Variation { get; set; } = String.Empty;
 	}
 
 	/// <summary>
@@ -181,12 +175,12 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The id of the test
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The name of the test 
 		/// </summary>
-		public string Name { get; set; }
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The name of the test 
@@ -201,16 +195,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The meta data the test runs on
 		/// </summary>
-		public List<string> Metadata { get; set; }
-
-		internal GetTestResponse(ITest test)
-		{
-			Id = test.Id.ToString();
-			Name = test.Name;
-			DisplayName = test.DisplayName;
-			SuiteName = test.SuiteName?.ToString();
-			Metadata = test.Metadata.Select(x => x.ToString()).ToList();
-		}
+		public List<string> Metadata { get; set; } = new List<string>();
 	}
 
 	/// <summary>
@@ -231,25 +216,18 @@ namespace Horde.Server.Jobs.TestData
 	{
 		/// <summary>
 		/// The id of the suite
-		/// </summary>
-		public string Id { get; set; }
+		/// </summary>	
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The name of the test suite
 		/// </summary>
-		public string Name { get; set; }
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The meta data the test suite runs on
 		/// </summary>
-		public List<string> Metadata { get; set; }
-
-		internal GetTestSuiteResponse(ITestSuite suite)
-		{
-			Id = suite.Id.ToString();
-			Name = suite.Name;
-			Metadata = suite.Metadata.Select(x => x.ToString()).ToList();
-		}
+		public List<string> Metadata { get; set; } = new List<string>();
 	}
 
 	/// <summary>
@@ -260,38 +238,22 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The stream id
 		/// </summary>
-		public string StreamId { get; set; }
+		public string StreamId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Individual tests which run in the stream
 		/// </summary>
-		public List<GetTestResponse> Tests { get; set; }
+		public List<GetTestResponse> Tests { get; set; } = new List<GetTestResponse>();
 
 		/// <summary>
 		/// Test suites that run in the stream
 		/// </summary>
-		public List<GetTestSuiteResponse> TestSuites { get; set; }
+		public List<GetTestSuiteResponse> TestSuites { get; set; } = new List<GetTestSuiteResponse>();
 
 		/// <summary>
 		/// Test suites that run in the stream
 		/// </summary>
-		public List<GetTestMetaResponse> TestMetadata { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="streamId"></param>
-		/// <param name="tests"></param>
-		/// <param name="suites"></param>
-		/// <param name="metaData"></param>
-		internal GetTestStreamResponse(StreamId streamId, List<ITest> tests, List<ITestSuite> suites, List<ITestMeta> metaData)
-		{
-			StreamId = streamId.ToString();
-
-			Tests = tests.Select(t => new GetTestResponse(t)).ToList();
-			TestSuites = suites.Select(t => new GetTestSuiteResponse(t)).ToList();
-			TestMetadata = metaData.Select(m => new GetTestMetaResponse(m)).ToList();
-		}
+		public List<GetTestMetaResponse> TestMetadata { get; set; } = new List<GetTestMetaResponse>();
 	}
 
 	/// <summary>
@@ -302,7 +264,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The test id
 		/// </summary>
-		public string TestId { get; set; }
+		public string TestId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The ourcome of the suite test
@@ -317,7 +279,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// Test UID for looking up in test details
 		/// </summary>
-		public string UID { get; set; }
+		public string UID { get; set; } =String.Empty;
 
 		/// <summary>
 		/// The number of test warnings generated
@@ -328,20 +290,6 @@ namespace Horde.Server.Jobs.TestData
 		/// The number of test errors generated
 		/// </summary>
 		public int? ErrorCount { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="data"></param>
-		public GetSuiteTestDataResponse(ISuiteTestData data)
-		{
-			TestId = data.TestId.ToString();
-			Outcome = data.Outcome;
-			Duration = data.Duration;
-			UID = data.UID;
-			WarningCount = data.WarningCount;
-			ErrorCount = data.ErrorCount;
-		}
 	}
 
 	/// <summary>
@@ -352,28 +300,17 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The corresponding test ref
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The test documents for this ref
 		/// </summary>
-		public List<string> TestDataIds { get; set; }
+		public List<string> TestDataIds { get; set; } = new List<string>();
 
 		/// <summary>
 		/// Suite test data
 		/// </summary>		
 		public List<GetSuiteTestDataResponse>? SuiteTests { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="details"></param>
-		public GetTestDataDetailsResponse(ITestDataDetails details)
-		{
-			Id = details.Id.ToString();
-			TestDataIds = details.TestDataIds.Select(x => x.ToString()).ToList();
-			SuiteTests = details.SuiteTests?.Select(x => new GetSuiteTestDataResponse(x)).ToList();
-		}
 	}
 
 	/// <summary>
@@ -384,12 +321,12 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The test ref id
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The associated stream
 		/// </summary>
-		public string StreamId { get; set; }
+		public string StreamId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The associated job id
@@ -414,7 +351,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The platform the test ran on 
 		/// </summary>
-		public string MetaId { get; set; }
+		public string MetaId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The test id in stream
@@ -450,30 +387,5 @@ namespace Horde.Server.Jobs.TestData
 		/// Suite test successes
 		/// </summary>
 		public int? SuiteSuccessCount { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="testData"></param>
-		public GetTestDataRefResponse(ITestDataRef testData)
-		{
-			Id = testData.Id.ToString();
-			StreamId = testData.StreamId.ToString();
-			JobId = testData.JobId?.ToString();
-			StepId = testData.StepId?.ToString();
-			Duration = testData.Duration;
-			BuildChangeList = testData.BuildChangeList;
-			MetaId = testData.Metadata.ToString();
-			TestId = testData.TestId?.ToString();
-			if (testData.TestId != null)
-			{
-				Outcome = testData.Outcome;
-			}
-			SuiteId = testData.SuiteId?.ToString();
-			SuiteSkipCount = testData.SuiteSkipCount;
-			SuiteWarningCount = testData.SuiteWarningCount;
-			SuiteErrorCount = testData.SuiteErrorCount;
-			SuiteSuccessCount = testData.SuiteSuccessCount;
-		}
 	}
 }

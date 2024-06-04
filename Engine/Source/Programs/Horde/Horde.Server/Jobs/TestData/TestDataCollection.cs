@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
 using Horde.Server.Server;
 using Horde.Server.Utilities;

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 
 namespace Horde.Server.Jobs.TestData
 {
@@ -69,7 +71,17 @@ namespace Horde.Server.Jobs.TestData
 			[FromQuery(Name = "configuration")] string[]? configurations = null)
 		{
 			IReadOnlyList<ITestMeta> metaData = await _testDataService.FindTestMetaAsync(projects, platforms, configurations, targets);
-			return metaData.ConvertAll(m => new GetTestMetaResponse(m));
+			return metaData.ConvertAll(m => new GetTestMetaResponse
+			{
+				Id = m.Id.ToString(),
+				Platforms = m.Platforms.Select(p => p).ToList(),
+				Configurations = m.Configurations.Select(p => p).ToList(),
+				BuildTargets = m.BuildTargets.Select(p => p).ToList(),
+				ProjectName = m.ProjectName,
+				RHI = m.RHI,
+				Variation = m.Variation
+
+			});
 		}
 
 		/// <summary>
@@ -84,7 +96,20 @@ namespace Horde.Server.Jobs.TestData
 		{
 			TestRefId[] idValues = Array.ConvertAll(ids, x => TestRefId.Parse(x));
 			IReadOnlyList<ITestDataDetails> details = await _testDataService.FindTestDetailsAsync(idValues);
-			return details.Select(d => new GetTestDataDetailsResponse(d)).ToList();
+			return details.Select(d => new GetTestDataDetailsResponse
+			{
+				Id = d.Id.ToString(),
+				TestDataIds = d.TestDataIds.Select(x => x.ToString()).ToList(),
+				SuiteTests = d.SuiteTests?.Select(x => new GetSuiteTestDataResponse
+				{
+					TestId = x.TestId.ToString(),
+					Outcome = x.Outcome,
+					Duration = x.Duration,
+					UID = x.UID,
+					WarningCount = x.WarningCount,
+					ErrorCount = x.ErrorCount
+				}).ToList()
+			}).ToList();
 		}
 
 		/// <summary>
@@ -101,7 +126,14 @@ namespace Horde.Server.Jobs.TestData
 
 			IReadOnlyList<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());
 
-			return testValues.Select(x => new GetTestResponse(x)).ToList();
+			return testValues.Select(x => new GetTestResponse
+			{
+				Id = x.Id.ToString(),
+				Name = x.Name,
+				DisplayName = x.DisplayName,
+				SuiteName = x.SuiteName?.ToString(),
+				Metadata = x.Metadata.Select(m => m.ToString()).ToList(),
+			}).ToList();
 		}
 
 		/// <summary>
@@ -222,7 +254,34 @@ namespace Horde.Server.Jobs.TestData
 
 				List<ITestMeta> streamMetaData = metaData.Where(x => streamMetaIds.Contains(x.Id)).ToList();
 
-				responses.Add(new GetTestStreamResponse(s.StreamId, streamTests, streamSuites, streamMetaData));
+				responses.Add(new GetTestStreamResponse
+				{
+					StreamId = s.StreamId.ToString(),
+					Tests = tests.Select(test => new GetTestResponse
+					{
+						Id = test.Id.ToString(),
+						Name = test.Name,
+						DisplayName = test.DisplayName,
+						SuiteName = test.SuiteName?.ToString(),
+						Metadata = test.Metadata.Select(m => m.ToString()).ToList()
+					}).ToList(),
+					TestSuites = suites.Select(suite => new GetTestSuiteResponse
+					{
+						Id = suite.Id.ToString(),
+						Name = suite.Name,
+						Metadata = suite.Metadata.Select(x => x.ToString()).ToList()
+					}).ToList(),
+					TestMetadata = metaData.Select(meta => new GetTestMetaResponse
+					{
+						Id = meta.Id.ToString(),
+						Platforms = meta.Platforms.Select(p => p).ToList(),
+						Configurations = meta.Configurations.Select(p => p).ToList(),
+						BuildTargets = meta.BuildTargets.Select(p => p).ToList(),
+						ProjectName = meta.ProjectName,
+						RHI = meta.RHI,
+						Variation = meta.Variation
+					}).ToList()
+				});
 			}
 
 			return responses;
@@ -273,9 +332,25 @@ namespace Horde.Server.Jobs.TestData
 			}
 
 			IReadOnlyList<ITestDataRef> dataRefs = await _testDataService.FindTestRefsAsync(queryStreams.ToArray(), metaIds.ConvertAll(x => TestMetaId.Parse(x)).ToArray(), testIds, suiteIds, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, minChange, maxChange);
-			foreach (ITestDataRef d in dataRefs)
+			foreach (ITestDataRef testData in dataRefs)
 			{
-				responses.Add(new GetTestDataRefResponse(d));
+				responses.Add(new GetTestDataRefResponse
+				{
+					Id = testData.Id.ToString(),
+					StreamId = testData.StreamId.ToString(),
+					JobId = testData.JobId?.ToString(),
+					StepId = testData.StepId?.ToString(),
+					Duration = testData.Duration,
+					BuildChangeList = testData.BuildChangeList,
+					MetaId = testData.Metadata.ToString(),
+					TestId = testData.TestId?.ToString(),
+					Outcome = testData.TestId != null ? testData.Outcome : null,
+					SuiteId = testData.SuiteId?.ToString(),
+					SuiteSkipCount = testData.SuiteSkipCount,
+					SuiteWarningCount = testData.SuiteWarningCount,
+					SuiteErrorCount = testData.SuiteErrorCount,
+					SuiteSuccessCount = testData.SuiteSuccessCount
+				});
 			}
 
 			return responses;
@@ -337,11 +412,22 @@ namespace Horde.Server.Jobs.TestData
 			List<object> results = new List<object>();
 
 			IReadOnlyList<ITestData> documents = await _testDataCollection.FindAsync(streamIdValue, minChange, maxChange, jobId, jobStepId, key, index, count, cancellationToken);
-			foreach (ITestData document in documents)
+			foreach (ITestData testData in documents)
 			{
-				if (await _jobService.AuthorizeAsync(document.JobId, JobAclAction.ViewJob, User, _globalConfig.Value, cancellationToken))
+				if (await _jobService.AuthorizeAsync(testData.JobId, JobAclAction.ViewJob, User, _globalConfig.Value, cancellationToken))
 				{
-					results.Add(PropertyFilter.Apply(new GetTestDataResponse(document), filter));
+					results.Add(PropertyFilter.Apply(new GetTestDataResponse
+					{
+						Id = testData.Id.ToString(),
+						StreamId = testData.StreamId.ToString(),
+						TemplateRefId = testData.TemplateRefId.ToString(),
+						JobId = testData.JobId.ToString(),
+						StepId = testData.StepId.ToString(),
+						Change = testData.Change,
+						Key = testData.Key,
+						Data = BsonSerializer.Deserialize<Dictionary<string, object>>(testData.Data)
+					}
+				, filter));
 				}
 			}
 
@@ -370,7 +456,17 @@ namespace Horde.Server.Jobs.TestData
 				return Forbid();
 			}
 
-			return PropertyFilter.Apply(new GetTestDataResponse(testData), filter);
+			return PropertyFilter.Apply(new GetTestDataResponse
+			{
+				Id = testData.Id.ToString(),
+				StreamId = testData.StreamId.ToString(),
+				TemplateRefId = testData.TemplateRefId.ToString(),
+				JobId = testData.JobId.ToString(),
+				StepId = testData.StepId.ToString(),
+				Change = testData.Change,
+				Key = testData.Key,
+				Data = BsonSerializer.Deserialize<Dictionary<string, object>>(testData.Data)
+			}, filter);
 		}
 	}
 }

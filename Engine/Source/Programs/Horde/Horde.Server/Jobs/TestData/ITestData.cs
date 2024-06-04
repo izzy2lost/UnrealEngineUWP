@@ -4,34 +4,12 @@ using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
 using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.TestData
 {
-	/// <summary>
-	/// Test outcome
-	/// </summary>
-	public enum TestOutcome
-	{
-		/// <summary>
-		/// The test was successful
-		/// </summary>
-		Success,
-		/// <summary>
-		/// The test failed
-		/// </summary>
-		Failure,
-		/// <summary>
-		/// The test was skipped
-		/// </summary>
-		Skipped,
-		/// <summary>
-		/// The test had an unspecified result
-		/// </summary>
-		Unspecified
-	}
-
 	/// <summary>
 	/// Defines a testing environment based on platforms, configurations, targets, etc.
 	/// </summary>
