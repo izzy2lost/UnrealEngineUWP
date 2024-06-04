@@ -352,6 +352,7 @@ namespace Horde.Server.Jobs
 				{
 					if (otherGroup != graph.Groups[batch.GroupIdx])
 					{
+						//						AnomalyDetectorConfiguration INPUTDEPENDENCIES
 						foreach (NodeOutputRef outputRef in otherGroup.Nodes.SelectMany(x => x.Inputs))
 						{
 							if (outputRef.NodeRef.GroupIdx == batch.GroupIdx && outputRef.NodeRef.NodeIdx == step.NodeIdx && !response.PublishOutputs.Contains(outputRef.OutputIdx))

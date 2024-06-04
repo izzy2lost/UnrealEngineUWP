@@ -7,6 +7,7 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Transports;
 using EpicGames.Horde.Logs;
 using Horde.Agent.Services;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,14 +25,15 @@ namespace Horde.Agent.Leases.Handlers
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeHandler(ComputeListenerService listenerService, IOptions<AgentSettings> settings)
+		public ComputeHandler(RpcLease lease, ComputeListenerService listenerService, IOptions<AgentSettings> settings)
+			: base(lease)
 		{
 			_listenerService = listenerService;
 			_settings = settings.Value;
 		}
 
 		/// <inheritdoc/>
-		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ComputeTask computeTask, ILogger localLogger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ComputeTask computeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
 			await using IServerLogger? serverLogger = (computeTask.LogId != null) ? session.HordeClient.CreateServerLogger(LogId.Parse(computeTask.LogId), LogLevel.Trace).WithLocalLogger(localLogger) : null;
 			ILogger logger = serverLogger ?? localLogger;
@@ -152,6 +154,21 @@ namespace Horde.Agent.Leases.Handlers
 				logger.LogError(e, "Unable to delete termination signal file {Path}", path);
 			}
 		}
+	}
+
+	class ComputeHandlerFactory : LeaseHandlerFactory<ComputeTask>
+	{
+		readonly ComputeListenerService _listenerService;
+		readonly IOptions<AgentSettings> _settings;
+
+		public ComputeHandlerFactory(ComputeListenerService listenerService, IOptions<AgentSettings> settings)
+		{
+			_listenerService = listenerService;
+			_settings = settings;
+		}
+
+		public override LeaseHandler<ComputeTask> CreateHandler(RpcLease lease)
+			=> new ComputeHandler(lease, _listenerService, _settings);
 	}
 }
 

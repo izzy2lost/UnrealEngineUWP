@@ -2,8 +2,6 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Perforce.Managed;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Services;
@@ -11,55 +9,14 @@ using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using OpenTracing;
-using OpenTracing.Util;
 
 namespace Horde.Agent.Leases
 {
-	using ByteString = Google.Protobuf.ByteString;
-
 	/// <summary>
 	/// Implements the message handling loop for an agent. Runs asynchronously until disposed.
 	/// </summary>
 	class LeaseManager
 	{
-		/// <summary>
-		/// Stores information about an active session
-		/// </summary>
-		internal class LeaseInfo
-		{
-			/// <summary>
-			/// The worker lease state
-			/// </summary>
-			public RpcLease Lease { get; set; }
-
-			/// <summary>
-			/// Identifier for this lease
-			/// </summary>
-			public LeaseId LeaseId { get; set; }
-
-			/// <summary>
-			/// The task being executed for this lease
-			/// </summary>
-			public Task? Task { get; set; }
-
-			/// <summary>
-			/// Source for cancellation tokens for this session.
-			/// </summary>
-			public CancellationTokenSource CancellationTokenSource { get; }
-
-			/// <summary>
-			/// Constructor
-			/// </summary>
-			/// <param name="lease">The worker lease state</param>
-			public LeaseInfo(RpcLease lease)
-			{
-				Lease = lease;
-				LeaseId = LeaseId.Parse(lease.Id);
-				CancellationTokenSource = new CancellationTokenSource();
-			}
-		}
-
 		/// <summary>
 		/// Object used for controlling access to the access tokens and active sessions list
 		/// </summary>
@@ -68,7 +25,7 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// The list of active leases.
 		/// </summary>
-		readonly List<LeaseInfo> _activeLeases = new List<LeaseInfo>();
+		readonly List<LeaseHandler> _activeLeases = new List<LeaseHandler>();
 
 		/// <summary>
 		/// Number of leases completed
@@ -120,26 +77,34 @@ namespace Horde.Agent.Leases
 		readonly CapabilitiesService _capabilitiesService;
 		readonly StatusService _statusService;
 		readonly ISystemMetrics _systemMetrics;
-		readonly Dictionary<string, LeaseHandler> _typeUrlToLeaseHandler;
+		readonly Dictionary<string, LeaseHandlerFactory> _typeUrlToLeaseHandler;
 		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly ILogger _logger;
 
 		RpcAgentCapabilities? _capabilities;
 
-		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, ISystemMetrics systemMetrics, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, ILogger logger)
+		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, ISystemMetrics systemMetrics, IEnumerable<LeaseHandlerFactory> leaseHandlerFactories, LeaseLoggerFactory leaseLoggerFactory, ILogger logger)
 		{
 			_session = session;
 			_capabilitiesService = capabilitiesService;
 			_statusService = statusService;
 			_systemMetrics = systemMetrics;
-			_typeUrlToLeaseHandler = leaseHandlers.ToDictionary(x => x.LeaseType, x => x);
+			_typeUrlToLeaseHandler = leaseHandlerFactories.ToDictionary(x => x.LeaseType, x => x);
 			_leaseLoggerFactory = leaseLoggerFactory;
 			_logger = logger;
 		}
 
 		public LeaseManager(ISession session, IServiceProvider serviceProvider)
-			: this(session, serviceProvider.GetRequiredService<CapabilitiesService>(), serviceProvider.GetRequiredService<StatusService>(), serviceProvider.GetRequiredService<ISystemMetrics>(), serviceProvider.GetRequiredService<IEnumerable<LeaseHandler>>(), serviceProvider.GetRequiredService<LeaseLoggerFactory>(), serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
+			: this(session, serviceProvider.GetRequiredService<CapabilitiesService>(), serviceProvider.GetRequiredService<StatusService>(), serviceProvider.GetRequiredService<ISystemMetrics>(), serviceProvider.GetRequiredService<IEnumerable<LeaseHandlerFactory>>(), serviceProvider.GetRequiredService<LeaseLoggerFactory>(), serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
 		{
+		}
+
+		public List<RpcLease> GetActiveLeases()
+		{
+			lock (_lockObject)
+			{
+				return _activeLeases.Select(x => x.RpcLease).ToList();
+			}
 		}
 
 		public async Task<SessionResult> RunAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
@@ -165,7 +130,7 @@ namespace Horde.Agent.Leases
 				try
 				{
 					_logger.LogInformation("Draining leases... ({NumLeases} remaining)", _activeLeases.Count);
-					await DrainLeasesAsync();
+					await DrainLeasesAsync("session terminating");
 				}
 				catch (Exception ex)
 				{
@@ -176,51 +141,52 @@ namespace Horde.Agent.Leases
 			return result;
 		}
 
-		async Task DrainLeasesAsync()
+		async Task DrainLeasesAsync(string reason)
 		{
 			for (int idx = 0; idx < _activeLeases.Count; idx++)
 			{
-				LeaseInfo activeLease = _activeLeases[idx];
-				if (activeLease.Task == null)
+				LeaseHandler activeLease = _activeLeases[idx];
+				if (activeLease.Result.IsCompleted)
 				{
 					_activeLeases.RemoveAt(idx--);
-					_logger.LogInformation("Removed lease {LeaseId}", activeLease.Lease.Id);
+					_logger.LogInformation("Removed lease {LeaseId}", activeLease.Id);
 				}
 				else
 				{
-					_logger.LogInformation("Cancelling active lease {LeaseId}", activeLease.Lease.Id);
-					activeLease.CancellationTokenSource.Cancel();
+					_logger.LogInformation("Cancelling active lease {LeaseId}", activeLease.Id);
+					activeLease.Cancel(reason);
 				}
 			}
 
 			while (_activeLeases.Count > 0)
 			{
-				List<Task> tasks = _activeLeases.Select(x => x.Task!).ToList();
+				List<Task> tasks = _activeLeases.Select(x => (Task)x.Result).ToList();
 				tasks.Add(Task.Delay(TimeSpan.FromMinutes(1.0)));
 				await Task.WhenAny(tasks);
 
 				for (int idx = 0; idx < _activeLeases.Count; idx++)
 				{
-					LeaseInfo activeLease = _activeLeases[idx];
-					if (activeLease.Task!.IsCompleted)
+					LeaseHandler activeLease = _activeLeases[idx];
+					if (activeLease.Result.IsCompleted)
 					{
 						_activeLeases.RemoveAt(idx--);
 						try
 						{
-							await activeLease.Task;
+							await activeLease.Result;
 						}
 						catch (OperationCanceledException)
 						{
 						}
 						catch (Exception ex)
 						{
-							_logger.LogError(ex, "Lease {LeaseId} threw an exception while terminating", activeLease.Lease.Id);
+							_logger.LogError(ex, "Lease {LeaseId} threw an exception while terminating", activeLease.Id);
 						}
-						_logger.LogInformation("Lease {LeaseId} has completed", activeLease.Lease.Id);
+						_logger.LogInformation("Lease {LeaseId} has completed", activeLease.Id);
+						activeLease.Dispose();
 					}
 					else
 					{
-						_logger.LogInformation("Still waiting for lease {LeaseId} to terminate...", activeLease.Lease.Id);
+						_logger.LogInformation("Still waiting for lease {LeaseId} to terminate...", activeLease.Id);
 					}
 				}
 			}
@@ -271,9 +237,9 @@ namespace Horde.Agent.Leases
 				// Get the new the lease states. If a restart is requested and we have no active leases, signal to the server that we're stopping.
 				lock (_lockObject)
 				{
-					foreach (LeaseInfo leaseInfo in _activeLeases)
+					foreach (LeaseHandler activeLease in _activeLeases)
 					{
-						updateSessionRequest.Leases.Add(new RpcLease(leaseInfo.Lease));
+						updateSessionRequest.Leases.Add(new RpcLease(activeLease.RpcLease));
 					}
 					if (_sessionResult != null && _activeLeases.Count == 0)
 					{
@@ -314,7 +280,7 @@ namespace Horde.Agent.Leases
 						// Now reconcile the local state to match what the server reports
 						if (updateSessionResponse != null)
 						{
-							bool atLeastOneLeaseFinished = _activeLeases.Any(x => x.Lease.State is RpcLeaseState.Completed or RpcLeaseState.Cancelled);
+							bool atLeastOneLeaseFinished = _activeLeases.Any(x => x.RpcLease.State is RpcLeaseState.Completed or RpcLeaseState.Cancelled);
 							if (atLeastOneLeaseFinished && shutdownAfterFinishedLease)
 							{
 								_logger.LogInformation("At least one lease executed. Requesting shutdown.");
@@ -324,7 +290,7 @@ namespace Horde.Agent.Leases
 							PoolIds = updateSessionResponse.PoolIds;
 
 							// Remove any leases which have completed
-							int numRemoved = _activeLeases.RemoveAll(x => (x.Lease.State == RpcLeaseState.Completed || x.Lease.State == RpcLeaseState.Cancelled) && !updateSessionResponse.Leases.Any(y => y.Id == x.Lease.Id && y.State != RpcLeaseState.Cancelled));
+							int numRemoved = _activeLeases.RemoveAll(x => (x.RpcLease.State == RpcLeaseState.Completed || x.RpcLease.State == RpcLeaseState.Cancelled) && !updateSessionResponse.Leases.Any(y => y.Id == x.RpcLease.Id && y.State != RpcLeaseState.Cancelled));
 							NumLeasesCompleted += numRemoved;
 
 							// Create any new leases and cancel any running leases
@@ -332,21 +298,33 @@ namespace Horde.Agent.Leases
 							{
 								if (serverLease.State == RpcLeaseState.Cancelled)
 								{
-									LeaseInfo? info = _activeLeases.FirstOrDefault(x => x.Lease.Id == serverLease.Id);
-									if (info != null)
+									LeaseHandler? handler = _activeLeases.FirstOrDefault(x => x.RpcLease.Id == serverLease.Id);
+									if (handler != null)
 									{
 										_logger.LogInformation("Cancelling lease {LeaseId}", serverLease.Id);
-										info.CancellationTokenSource.Cancel();
+										handler.Cancel("cancelled by server");
 									}
 								}
-								if (serverLease.State == RpcLeaseState.Pending && !_activeLeases.Any(x => x.Lease.Id == serverLease.Id))
+								if (serverLease.State == RpcLeaseState.Pending && !_activeLeases.Any(x => x.RpcLease.Id == serverLease.Id))
 								{
 									serverLease.State = RpcLeaseState.Active;
 
 									_logger.LogInformation("Adding lease {LeaseId}", serverLease.Id);
-									LeaseInfo info = new LeaseInfo(serverLease);
-									info.Task = Task.Run(() => HandleLeaseAsync(_session, info), CancellationToken.None);
-									_activeLeases.Add(info);
+
+									LeaseHandler leaseHandler = CreateLeaseHandler(serverLease);
+									leaseHandler.Start(_session, _logger, _leaseLoggerFactory);
+									leaseHandler.Result.ContinueWith((Task<LeaseResult> task) =>
+									{
+										LeaseResult result = task.Result;
+										if (result.SessionResult != null && _sessionResult == null)
+										{
+											_logger.LogInformation("Lease {LeaseId} is setting session result to {Result}", leaseHandler.Id, result.SessionResult.Outcome);
+											_sessionResult = result.SessionResult;
+										}
+										_updateLeasesEvent.Set();
+									}, TaskScheduler.Default);
+
+									_activeLeases.Add(leaseHandler);
 									OnLeaseActive?.Invoke(serverLease);
 								}
 							}
@@ -379,7 +357,7 @@ namespace Horde.Agent.Leases
 						if (_activeLeases.Count > 0)
 						{
 							_logger.LogInformation("Agent marked itself as busy. Draining any active leases to prevent them from using up local resources...");
-							await DrainLeasesAsync();
+							await DrainLeasesAsync("user is active");
 						}
 					}
 					else if (_activeLeases.Count == 0)
@@ -407,6 +385,17 @@ namespace Horde.Agent.Leases
 					await Task.Delay(TimeSpan.FromSeconds(10.0), stoppingToken);
 				}
 			}
+		}
+
+		LeaseHandler CreateLeaseHandler(RpcLease lease)
+		{
+			Any payload = lease.Payload;
+			if (!_typeUrlToLeaseHandler.TryGetValue(payload.TypeUrl, out LeaseHandlerFactory? leaseHandlerFactory))
+			{
+				_logger.LogError("Invalid lease payload type ({PayloadType})", payload.TypeUrl);
+				return new DefaultLeaseHandler(lease, LeaseResult.Failed);
+			}
+			return leaseHandlerFactory.CreateHandler(lease);
 		}
 
 		/// <summary>
@@ -483,89 +472,6 @@ namespace Horde.Agent.Leases
 				moveNextAsync = call.ResponseStream.MoveNext();
 			}
 			return response;
-		}
-
-		/// <summary>
-		/// Handle a lease request
-		/// </summary>
-		/// <param name="session">The current session</param>
-		/// <param name="leaseInfo">Information about the lease</param>
-		/// <returns>Async task</returns>
-		async Task HandleLeaseAsync(ISession session, LeaseInfo leaseInfo)
-		{
-			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(leaseInfo.Lease.Id).StartActive();
-			scope.Span.SetTag("LeaseId", leaseInfo.Lease.Id);
-			scope.Span.SetTag("AgentId", session.AgentId.ToString());
-			//			using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
-			//			using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
-
-			_logger.LogInformation("Handling lease {LeaseId}", leaseInfo.Lease.Id);
-
-			// Get the lease outcome
-			LeaseResult result = LeaseResult.Failed;
-			try
-			{
-				result = await HandleLeasePayloadAsync(session, leaseInfo);
-			}
-			catch (OperationCanceledException) when (leaseInfo.CancellationTokenSource.IsCancellationRequested)
-			{
-				_logger.LogInformation("Lease {LeaseId} cancelled", leaseInfo.Lease.Id);
-			}
-			catch (InsufficientSpaceException ex)
-			{
-				_logger.LogError(ex, "{Message}", ex.Message);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Unhandled exception while executing lease {LeaseId}: {Message}", leaseInfo.Lease.Id, ex.Message);
-			}
-
-			// Update the state of the lease
-			lock (_lockObject)
-			{
-				if (leaseInfo.CancellationTokenSource.IsCancellationRequested)
-				{
-					leaseInfo.Lease.State = RpcLeaseState.Cancelled;
-					leaseInfo.Lease.Outcome = RpcLeaseOutcome.Failed;
-					leaseInfo.Lease.Output = ByteString.Empty;
-				}
-				else
-				{
-					leaseInfo.Lease.State = (result.Outcome == LeaseOutcome.Cancelled) ? RpcLeaseState.Cancelled : RpcLeaseState.Completed;
-					leaseInfo.Lease.Outcome = (RpcLeaseOutcome)result.Outcome;
-					leaseInfo.Lease.Output = (result.Output != null) ? ByteString.CopyFrom(result.Output) : ByteString.Empty;
-				}
-				_logger.LogInformation("Transitioning lease {LeaseId} to {State}, outcome={Outcome}", leaseInfo.Lease.Id, leaseInfo.Lease.State, leaseInfo.Lease.Outcome);
-
-				if (result.SessionResult != null && _sessionResult == null)
-				{
-					_logger.LogInformation("Lease {LeaseId} is setting session result to {Result}", leaseInfo.Lease.Id, result.SessionResult.Outcome);
-					_sessionResult = result.SessionResult;
-				}
-			}
-			_updateLeasesEvent.Set();
-		}
-
-		/// <summary>
-		/// Dispatch a lease payload to the appropriate handler
-		/// </summary>
-		/// <param name="session">The current session</param>
-		/// <param name="leaseInfo">Information about the lease</param>
-		/// <returns>Outcome from the lease</returns>
-		internal async Task<LeaseResult> HandleLeasePayloadAsync(ISession session, LeaseInfo leaseInfo)
-		{
-			Any payload = leaseInfo.Lease.Payload;
-			if (!_typeUrlToLeaseHandler.TryGetValue(payload.TypeUrl, out LeaseHandler? leaseHandler))
-			{
-				_logger.LogError("Invalid lease payload type ({PayloadType})", payload.TypeUrl);
-				return LeaseResult.Failed;
-			}
-
-			using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory(leaseInfo.LeaseId);
-			ILogger leaseLogger = leaseLoggerFactory.CreateLogger(leaseHandler.GetType());
-
-			GlobalTracer.Instance.ActiveSpan?.SetTag("task", payload.TypeUrl);
-			return await leaseHandler.ExecuteAsync(session, LeaseId.Parse(leaseInfo.Lease.Id), payload, leaseLogger, leaseInfo.CancellationTokenSource.Token);
 		}
 
 		/// <summary>

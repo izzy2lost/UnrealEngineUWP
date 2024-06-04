@@ -9,9 +9,10 @@ using EpicGames.Core;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Horde.Agent.Leases.Handlers;
 using HordeCommon.Rpc;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Messages.Telemetry;
+using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -281,7 +282,6 @@ class TelemetryService : BackgroundService
 	private readonly TimeSpan _heartbeatMaxAllowedDiff = TimeSpan.FromSeconds(5);
 
 	private readonly WorkerService _workerService;
-	private readonly JobHandler _jobHandler;
 	private readonly GrpcService _grpcService;
 	private readonly AgentSettings _agentSettings;
 	private readonly ILogger<TelemetryService> _logger;
@@ -298,10 +298,9 @@ class TelemetryService : BackgroundService
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public TelemetryService(WorkerService workerService, JobHandler jobHandler, GrpcService grpcService, ISystemMetrics systemMetrics, IOptions<AgentSettings> settings, ILogger<TelemetryService> logger)
+	public TelemetryService(WorkerService workerService, GrpcService grpcService, ISystemMetrics systemMetrics, IOptions<AgentSettings> settings, ILogger<TelemetryService> logger)
 	{
 		_workerService = workerService;
-		_jobHandler = jobHandler;
 		_grpcService = grpcService;
 		_agentSettings = settings.Value;
 		_logger = logger;
@@ -567,12 +566,18 @@ class TelemetryService : BackgroundService
 
 			RpcSendTelemetryEventsRequest request = new();
 			Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
-			RpcExecutionMetadata em = new()
+
+			RpcExecutionMetadata em = new();
+			foreach (RpcLease lease in _workerService.GetActiveLeases())
 			{
-				LeaseId = _jobHandler.CurrentLeaseId.ToString(),
-				JobId = _jobHandler.CurrentJobId,
-				JobBatchId = _jobHandler.CurrentBatchId,
-			};
+				if (lease.Payload.TryUnpack<ExecuteJobTask>(out ExecuteJobTask task))
+				{
+					em.LeaseId = lease.Id;
+					em.JobId = task.JobId;
+					em.JobBatchId = task.BatchId;
+					break;
+				}
+			}
 
 			if (cpuMetrics != null)
 			{

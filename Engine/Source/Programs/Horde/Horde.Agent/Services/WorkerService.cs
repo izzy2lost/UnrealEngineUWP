@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using EpicGames.Core;
 using Horde.Agent.Leases;
+using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -39,6 +40,14 @@ namespace Horde.Agent.Services
 			_statusService = statusService;
 			_logger = logger;
 			_serviceProvider = serviceProvider;
+		}
+
+		/// <summary>
+		/// Gets all the current leases held by the agent
+		/// </summary>
+		public List<RpcLease> GetActiveLeases()
+		{
+			return _currentLeaseManager?.GetActiveLeases() ?? new List<RpcLease>();
 		}
 
 		/// <summary>

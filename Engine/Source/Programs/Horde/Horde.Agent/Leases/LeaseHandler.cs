@@ -3,29 +3,173 @@
 using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Perforce.Managed;
 using Google.Protobuf;
-using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Agent.Services;
+using HordeCommon.Rpc;
+using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
+using OpenTracing;
+using OpenTracing.Util;
+using ByteString = Google.Protobuf.ByteString;
 
 namespace Horde.Agent.Leases
 {
 	/// <summary>
 	/// Handles execution of a specific lease type
 	/// </summary>
-	abstract class LeaseHandler
+	abstract class LeaseHandler : IDisposable
 	{
 		/// <summary>
-		/// Returns protobuf type urls for the handled message types
+		/// Identifier for this lease
 		/// </summary>
-		public abstract string LeaseType { get; }
+		public LeaseId Id { get; }
+
+		/// <summary>
+		/// The RPC lease state
+		/// </summary>
+		public RpcLease RpcLease { get; set; }
+
+		/// <summary>
+		/// Payload from the lease
+		/// </summary>
+		public Any RpcPayload { get; }
+
+		/// <summary>
+		/// Result from executing the lease
+		/// </summary>
+		public Task<LeaseResult> Result { get; private set; }
+
+		/// <summary>
+		/// Whether the lease has been cancelled
+		/// </summary>
+		public bool IsCancelled => _cancellationSource.IsCancellationRequested;
+
+		/// <summary>
+		/// Reason for cancellation
+		/// </summary>
+		public string CancellationReason => _cancellationReason ?? "unknown";
+
+		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
+		string? _cancellationReason;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		protected LeaseHandler(RpcLease rpcLease)
+		{
+			Id = LeaseId.Parse(rpcLease.Id);
+			RpcLease = rpcLease;
+			RpcPayload = rpcLease.Payload;
+			Result = Task.FromException<LeaseResult>(new InvalidOperationException("Lease has not been started"));
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			Dispose(disposing: true);
+			GC.SuppressFinalize(this);
+		}
+
+		/// <summary>
+		/// Overridable dispose method
+		/// </summary>
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_cancellationSource.Dispose();
+			}
+		}
+
+		/// <summary>
+		/// Starts executing the lease
+		/// </summary>
+		public void Start(ISession session, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
+		{
+			Result = Task.Run(() => HandleLeaseAsync(session, logger, leaseLoggerFactory));
+		}
+
+		/// <summary>
+		/// Cancels the lease
+		/// </summary>
+		public void Cancel(string reason)
+		{
+			Interlocked.CompareExchange(ref _cancellationReason, reason, null);
+			_cancellationSource.Cancel();
+		}
+
+		/// <summary>
+		/// Handle a lease request
+		/// </summary>
+		async Task<LeaseResult> HandleLeaseAsync(ISession session, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
+		{
+			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(RpcLease.Id).StartActive();
+			scope.Span.SetTag("LeaseId", RpcLease.Id);
+			scope.Span.SetTag("AgentId", session.AgentId.ToString());
+			//			using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
+			//			using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
+
+			logger.LogInformation("Handling lease {LeaseId}", Id);
+
+			// Get the lease outcome
+			LeaseResult result = LeaseResult.Failed;
+			try
+			{
+				result = await HandleLeasePayloadAsync(session, leaseLoggerFactory);
+			}
+			catch (OperationCanceledException) when (_cancellationSource.IsCancellationRequested)
+			{
+				logger.LogInformation("Lease {LeaseId} cancelled", Id);
+			}
+			catch (InsufficientSpaceException ex)
+			{
+				logger.LogError(ex, "{Message}", ex.Message);
+			}
+			catch (Exception ex)
+			{
+				logger.LogError(ex, "Unhandled exception while executing lease {LeaseId}: {Message}", Id, ex.Message);
+			}
+
+			// Update the state of the lease
+			RpcLease newRpcLease = new RpcLease(RpcLease);
+			if (_cancellationSource.IsCancellationRequested)
+			{
+				newRpcLease.State = RpcLeaseState.Cancelled;
+				newRpcLease.Outcome = RpcLeaseOutcome.Failed;
+				newRpcLease.Output = Google.Protobuf.ByteString.Empty;
+			}
+			else
+			{
+				newRpcLease.State = (result.Outcome == LeaseOutcome.Cancelled) ? RpcLeaseState.Cancelled : RpcLeaseState.Completed;
+				newRpcLease.Outcome = (RpcLeaseOutcome)result.Outcome;
+				newRpcLease.Output = (result.Output != null) ? ByteString.CopyFrom(result.Output) : ByteString.Empty;
+			}
+			RpcLease = newRpcLease;
+
+			logger.LogInformation("Transitioning lease {LeaseId} to {State}, outcome={Outcome}", Id, RpcLease.State, RpcLease.Outcome);
+
+			return result;
+		}
+
+		/// <summary>
+		/// Dispatch a lease payload to the appropriate handler
+		/// </summary>
+		internal async Task<LeaseResult> HandleLeasePayloadAsync(ISession session, LeaseLoggerFactory leaseLoggerFactory)
+		{
+			using ILoggerFactory loggerFactory = leaseLoggerFactory.CreateLoggerFactory(Id);
+			ILogger leaseLogger = loggerFactory.CreateLogger(GetType());
+
+			GlobalTracer.Instance.ActiveSpan?.SetTag("task", RpcPayload.TypeUrl);
+			return await ExecuteAsync(session, leaseLogger, _cancellationSource.Token);
+		}
 
 		/// <summary>
 		/// Executes a lease
 		/// </summary>
 		/// <returns>Result for the lease</returns>
-		public abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, ILogger logger, CancellationToken cancellationToken);
+		protected abstract Task<LeaseResult> ExecuteAsync(ISession session, ILogger logger, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Runs a child process, piping the output to the given logger
@@ -99,21 +243,30 @@ namespace Horde.Agent.Leases
 	/// <typeparam name="T">Type of the lease message</typeparam>
 	abstract class LeaseHandler<T> : LeaseHandler where T : IMessage<T>, new()
 	{
-		/// <summary>
-		/// Static for the message type descriptor
-		/// </summary>
-		public static MessageDescriptor Descriptor { get; } = new T().Descriptor;
-
-		/// <inheritdoc/>
-		public override string LeaseType { get; } = $"type.googleapis.com/{Descriptor.Name}";
-
-		/// <inheritdoc/>
-		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, ILogger logger, CancellationToken cancellationToken)
+		protected LeaseHandler(RpcLease rpcLease)
+			: base(rpcLease)
 		{
-			return ExecuteAsync(session, leaseId, message.Unpack<T>(), logger, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, T message, ILogger logger, CancellationToken cancellationToken);
+		protected override Task<LeaseResult> ExecuteAsync(ISession session, ILogger logger, CancellationToken cancellationToken)
+		{
+			return ExecuteAsync(session, Id, RpcLease.Payload.Unpack<T>(), logger, cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		protected abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, T message, ILogger logger, CancellationToken cancellationToken);
+	}
+
+	class DefaultLeaseHandler : LeaseHandler
+	{
+		readonly LeaseResult _result;
+
+		public DefaultLeaseHandler(RpcLease lease, LeaseResult result) : base(lease)
+			=> _result = result;
+
+		/// <inheritdoc/>
+		protected override Task<LeaseResult> ExecuteAsync(ISession session, ILogger logger, CancellationToken cancellationToken)
+			=> Task.FromResult(_result);
 	}
 }

@@ -6,6 +6,7 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Horde.Agent.Services;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -14,79 +15,61 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class JobHandler : LeaseHandler<ExecuteJobTask>
 	{
-		/// <summary>
-		/// Current lease ID being executed
-		/// </summary>
-		public LeaseId? CurrentLeaseId { get; private set; } = null;
-
-		/// <summary>
-		/// Current job ID being executed
-		/// </summary>
-		public string? CurrentJobId { get; private set; } = null;
-
-		/// <summary>
-		/// Current job batch ID being executed
-		/// </summary>
-		public string? CurrentBatchId { get; private set; } = null;
+		public JobHandler(RpcLease lease)
+			: base(lease)
+		{ }
 
 		/// <inheritdoc/>
-		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ExecuteJobTask executeTask, ILogger localLogger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ExecuteJobTask executeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
+			GlobalTracer.Instance.ActiveSpan?.SetTag("jobId", executeTask.JobId.ToString());
+			GlobalTracer.Instance.ActiveSpan?.SetTag("jobName", executeTask.JobName.ToString());
+			GlobalTracer.Instance.ActiveSpan?.SetTag("batchId", executeTask.BatchId.ToString());
+
+			await using IServerLogger logger = session.HordeClient.CreateServerLogger(LogId.Parse(executeTask.LogId)).WithLocalLogger(localLogger);
 			try
 			{
-				CurrentLeaseId = leaseId;
-				CurrentJobId = executeTask.JobId;
-				CurrentBatchId = executeTask.BatchId;
+				executeTask.JobOptions ??= new RpcJobOptions();
 
-				GlobalTracer.Instance.ActiveSpan?.SetTag("jobId", executeTask.JobId.ToString());
-				GlobalTracer.Instance.ActiveSpan?.SetTag("jobName", executeTask.JobName.ToString());
-				GlobalTracer.Instance.ActiveSpan?.SetTag("batchId", executeTask.BatchId.ToString());
+				List<string> arguments = new List<string>();
+				arguments.Add("execute");
+				arguments.Add("job");
+				arguments.Add($"-AgentId={session.AgentId}");
+				arguments.Add($"-SessionId={session.SessionId}");
+				arguments.Add($"-LeaseId={leaseId}");
+				arguments.Add($"-WorkingDir={session.WorkingDir}");
+				arguments.Add($"-Task={Convert.ToBase64String(executeTask.ToByteArray())}");
 
-				await using IServerLogger logger = session.HordeClient.CreateServerLogger(LogId.Parse(executeTask.LogId)).WithLocalLogger(localLogger);
-				try
-				{
-					executeTask.JobOptions ??= new RpcJobOptions();
+				string driverName = String.IsNullOrEmpty(executeTask.JobOptions.Driver) ? "JobDriver" : executeTask.JobOptions.Driver;
+				FileReference driverAssembly = FileReference.Combine(new DirectoryReference(AppContext.BaseDirectory), driverName, $"{driverName}.dll");
 
-					List<string> arguments = new List<string>();
-					arguments.Add("execute");
-					arguments.Add("job");
-					arguments.Add($"-AgentId={session.AgentId}");
-					arguments.Add($"-SessionId={session.SessionId}");
-					arguments.Add($"-LeaseId={leaseId}");
-					arguments.Add($"-WorkingDir={session.WorkingDir}");
-					arguments.Add($"-Task={Convert.ToBase64String(executeTask.ToByteArray())}");
+				Dictionary<string, string> environment = ManagedProcess.GetCurrentEnvVars();
+				environment[HordeHttpClient.HordeUrlEnvVarName] = session.HordeClient.ServerUrl.ToString();
+				environment[HordeHttpClient.HordeTokenEnvVarName] = executeTask.Token;
+				environment["UE_LOG_JSON_TO_STDOUT"] = "1";
 
-					string driverName = String.IsNullOrEmpty(executeTask.JobOptions.Driver) ? "JobDriver" : executeTask.JobOptions.Driver;
-					FileReference driverAssembly = FileReference.Combine(new DirectoryReference(AppContext.BaseDirectory), driverName, $"{driverName}.dll");
+				int exitCode = await RunDotNetProcessAsync(driverAssembly, arguments, environment, false, logger, cancellationToken);
+				logger.LogInformation("Driver finished with exit code {ExitCode}", exitCode);
 
-					Dictionary<string, string> environment = ManagedProcess.GetCurrentEnvVars();
-					environment[HordeHttpClient.HordeUrlEnvVarName] = session.HordeClient.ServerUrl.ToString();
-					environment[HordeHttpClient.HordeTokenEnvVarName] = executeTask.Token;
-					environment["UE_LOG_JSON_TO_STDOUT"] = "1";
-
-					int exitCode = await RunDotNetProcessAsync(driverAssembly, arguments, environment, false, logger, cancellationToken);
-					logger.LogInformation("Driver finished with exit code {ExitCode}", exitCode);
-
-					return (exitCode == 0) ? LeaseResult.Success : LeaseResult.Failed;
-				}
-				catch (OperationCanceledException ex)
-				{
-					logger.LogError(ex, "Lease was cancelled");
-					throw;
-				}
-				catch (Exception ex)
-				{
-					logger.LogError(ex, "Unhandled exception: {Message}", ex.Message);
-					throw;
-				}
+				return (exitCode == 0) ? LeaseResult.Success : LeaseResult.Failed;
 			}
-			finally
+			catch (OperationCanceledException ex)
 			{
-				CurrentLeaseId = null;
-				CurrentJobId = null;
-				CurrentBatchId = null;
+				logger.LogError(ex, "Lease was cancelled ({Reason})", CancellationReason);
+				throw;
+			}
+			catch (Exception ex)
+			{
+				logger.LogError(ex, "Unhandled exception: {Message}", ex.Message);
+				throw;
 			}
 		}
+	}
+
+	class JobHandlerFactory : LeaseHandlerFactory<ExecuteJobTask>
+	{
+		public override LeaseHandler<ExecuteJobTask> CreateHandler(RpcLease lease)
+			=> new JobHandler(lease);
 	}
 }
 

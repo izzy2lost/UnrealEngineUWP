@@ -6,6 +6,7 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Horde.Agent.Services;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -13,8 +14,12 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class ConformHandler : LeaseHandler<ConformTask>
 	{
+		public ConformHandler(RpcLease lease)
+			: base(lease)
+		{ }
+
 		/// <inheritdoc/>
-		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ConformTask conformTask, ILogger localLogger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ConformTask conformTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
 			await using IServerLogger serverLogger = session.HordeClient.CreateServerLogger(LogId.Parse(conformTask.LogId)).WithLocalLogger(localLogger);
 
@@ -39,6 +44,12 @@ namespace Horde.Agent.Leases.Handlers
 
 			return (exitCode == 0) ? LeaseResult.Success : LeaseResult.Failed;
 		}
+	}
+
+	class ConformHandlerFactory : LeaseHandlerFactory<ConformTask>
+	{
+		public override LeaseHandler<ConformTask> CreateHandler(RpcLease lease)
+			=> new ConformHandler(lease);
 	}
 }
 

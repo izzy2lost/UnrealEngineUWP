@@ -10,6 +10,7 @@ using EpicGames.Horde.Logs;
 using Grpc.Core;
 using Horde.Agent.Services;
 using HordeCommon.Rpc;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -17,12 +18,12 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class UpgradeHandler : LeaseHandler<UpgradeTask>
 	{
-		public UpgradeHandler()
-		{
-		}
+		public UpgradeHandler(RpcLease lease)
+			: base(lease)
+		{ }
 
 		/// <inheritdoc/>
-		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, UpgradeTask task, ILogger localLogger, CancellationToken cancellationToken)
+		protected override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, UpgradeTask task, ILogger localLogger, CancellationToken cancellationToken)
 		{
 			await using IServerLogger logger = session.HordeClient.CreateServerLogger(LogId.Parse(task.LogId)).WithLocalLogger(localLogger);
 
@@ -191,6 +192,12 @@ namespace Horde.Agent.Leases.Handlers
 			await DeleteDirectoryContentsAsync(baseDir);
 			baseDir.Delete();
 		}
+	}
+
+	class UpgradeHandlerFactory : LeaseHandlerFactory<UpgradeTask>
+	{
+		public override LeaseHandler<UpgradeTask> CreateHandler(RpcLease lease)
+			=> new UpgradeHandler(lease);
 	}
 }
 

@@ -193,16 +193,16 @@ namespace Horde.Agent
 			services.AddSingleton<TelemetryService>();
 			services.AddHostedService(sp => sp.GetRequiredService<TelemetryService>());
 
-			services.AddSingleton<JobHandler>();
+			services.AddSingleton<JobHandlerFactory>();
 			services.AddSingleton<StatusService>();
 			services.AddHostedService<StatusService>(sp => sp.GetRequiredService<StatusService>());
 
-			services.AddSingleton<LeaseHandler, ComputeHandler>();
-			services.AddSingleton<LeaseHandler, ConformHandler>();
-			services.AddSingleton<LeaseHandler, JobHandler>(x => x.GetRequiredService<JobHandler>());
-			services.AddSingleton<LeaseHandler, RestartHandler>();
-			services.AddSingleton<LeaseHandler, ShutdownHandler>();
-			services.AddSingleton<LeaseHandler, UpgradeHandler>();
+			services.AddSingleton<LeaseHandlerFactory, ComputeHandlerFactory>();
+			services.AddSingleton<LeaseHandlerFactory, ConformHandlerFactory>();
+			services.AddSingleton<LeaseHandlerFactory, JobHandlerFactory>(x => x.GetRequiredService<JobHandlerFactory>());
+			services.AddSingleton<LeaseHandlerFactory, RestartHandlerFactory>();
+			services.AddSingleton<LeaseHandlerFactory, ShutdownHandlerFactory>();
+			services.AddSingleton<LeaseHandlerFactory, UpgradeHandlerFactory>();
 
 			services.AddSingleton<CapabilitiesService>();
 			services.AddSingleton<ISessionFactory, SessionFactory>();
