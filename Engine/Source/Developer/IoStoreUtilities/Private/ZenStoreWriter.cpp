@@ -868,7 +868,8 @@ void FZenStoreWriter::CommitPackageInternal(FZenCommitInfo&& ZenCommitInfo)
 
 		const int32 NumAttachments = CommitInfo.Attachments.Num();
 		TArray<FCbAttachment, TInlineAllocator<2>> CbAttachments;
-		
+		CookInfo.Attachments.Empty(NumAttachments);
+
 		if (NumAttachments)
 		{
 			TArray<const FCommitAttachmentInfo*, TInlineAllocator<2>> SortedAttachments;
