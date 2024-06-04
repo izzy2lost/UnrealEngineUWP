@@ -1071,6 +1071,8 @@ public:
 
 		RemoveCustomCurve,
 
+		AddEditorGamePlayTags,
+
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;
