@@ -178,7 +178,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync-ExportMeshTask);
 
 			UE_LOG(LogLandscape, VeryVerbose, TEXT("Exporting actor '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
-			double StartTimeSeconds = FPlatformTime::Seconds();
+			const double StartTimeSeconds = FPlatformTime::Seconds();
 
 			if (!AsyncBuildData->LandscapeWeakRef.IsValid() || AsyncBuildData->bCancelled)
 			{
@@ -294,15 +294,19 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			const bool bUseNaniteExportCache = (UE::Landscape::NaniteExportCacheMaxQuadCount < 0) || (ProxyQuadCount <= UE::Landscape::NaniteExportCacheMaxQuadCount);
 
 			bool bSuccess = false;
-			TArray<uint8> MeshDescriptionData;
-			if (bUseNaniteExportCache && GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
+			int64 DDCReadBytes = 0;
+			int64 DDCWriteBytes = 0;
+			
+			if (TArray64<uint8> MeshDescriptionData; 
+				bUseNaniteExportCache && GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - ReadExportedMeshFromDDC);
 
-				FMemoryReader Reader(MeshDescriptionData);
+				FMemoryReaderView Reader(MakeMemoryView(MeshDescriptionData));
 				AsyncBuildData->NaniteMeshDescription->Serialize(Reader);
 
 				bSuccess = true;
+				DDCReadBytes += MeshDescriptionData.Num();
 			}
 			else
 			{
@@ -317,16 +321,19 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				if (bUseNaniteExportCache && bSuccess)
 				{
 					// serialize the nanite mesh description and submit it to DDC 
-					TArray<uint8, FDefaultAllocator64> MeshDescriptionData64;
+					TArray64<uint8> MeshDescriptionData64;
 					FMemoryWriter64 Writer(MeshDescriptionData64);
 					AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
 
-					GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName());
+					GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData64, *AsyncBuildData->LandscapeWeakRef->GetFullName());
+					DDCWriteBytes += MeshDescriptionData64.Num();
 				}
 			}
 
+			const double ExportSeconds = FPlatformTime::Seconds() - StartTimeSeconds;
 			if (!bSuccess)
 			{
+				UE_LOG(LogLandscape, Log, TEXT("Failed export of raw static mesh for Nanite landscape (%i components) for actor %s : (DDC: %d, DDC read: %lld bytes, DDC write: %lld bytes, key: %s, export: %f seconds)"), AsyncBuildData->InputComponents.Num(), *Name, bUseNaniteExportCache, DDCReadBytes, DDCWriteBytes, *ExportDDCKey, ExportSeconds);
 				AsyncBuildData->bCancelled = true;
 				return;
 			}
@@ -336,8 +343,6 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			checkf(bSuccess && (PolygonGroups.Num() == AsyncBuildData->InputComponents.Num()), TEXT("Invalid landscape static mesh raw mesh export for actor %s (%i components)"), *Name, AsyncBuildData->InputComponents.Num());
 			check(AsyncBuildData->InputMaterials.Num() == AsyncBuildData->InputComponents.Num());
 			AsyncBuildData->MeshAttributes = MakeShared<FStaticMeshAttributes>(*AsyncBuildData->NaniteMeshDescription);
-
-			UE_LOG(LogLandscape, Verbose, TEXT("Successful export of raw static mesh for Nanite landscape (%i components) for actor %s"), AsyncBuildData->InputComponents.Num(), *Name);
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - CommitMeshDescription);
 
@@ -349,7 +354,9 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->NaniteStaticMesh->CommitMeshDescription(0u, CommitParams);
 			AsyncBuildData->bExportResult = true;
 
-			const  double DurationSeconds = FPlatformTime::Seconds() - StartTimeSeconds;
+			const double DurationSeconds = FPlatformTime::Seconds() - StartTimeSeconds;
+			UE_LOG(LogLandscape, Log, TEXT("Successful export of raw static mesh for Nanite landscape (%i components) for actor %s : (DDC: %d, DDC read: %lld bytes, DDC write: %lld bytes, key: %s, export: %f seconds, commit: %f seconds)"), AsyncBuildData->InputComponents.Num(), *Name, bUseNaniteExportCache, DDCReadBytes, DDCWriteBytes, *ExportDDCKey, ExportSeconds, DurationSeconds - ExportSeconds);
+
 			if (const double ExtraWait = FMath::Max(LandscapeNaniteAsyncDebugWait - DurationSeconds, 0.0); ExtraWait > 0.0)
 			{
 				FPlatformProcess::Sleep(ExtraWait);
