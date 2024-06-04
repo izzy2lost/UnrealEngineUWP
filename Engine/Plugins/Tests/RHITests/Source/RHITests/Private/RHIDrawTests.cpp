@@ -7,22 +7,11 @@
 #include "RHIStaticStates.h"
 #include "ShaderCompilerCore.h"
 
-class FTestDrawInstancedVS_Direct : public FGlobalShader
+class FTestDrawInstancedVS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FTestDrawInstancedVS_Direct);
-
-	FTestDrawInstancedVS_Direct() = default;
-	FTestDrawInstancedVS_Direct(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FGlobalShader(Initializer)
-	{}
-};
-
-class FTestDrawInstancedVS_Indirect : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FTestDrawInstancedVS_Indirect);
-
-	FTestDrawInstancedVS_Indirect() = default;
-	FTestDrawInstancedVS_Indirect(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	DECLARE_GLOBAL_SHADER(FTestDrawInstancedVS);
+	FTestDrawInstancedVS() = default;
+	FTestDrawInstancedVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FGlobalShader(Initializer)
 	{
 	}
@@ -31,9 +20,7 @@ class FTestDrawInstancedVS_Indirect : public FGlobalShader
 		OutEnvironment.CompilerFlags.Add(CFLAG_IndirectDraw);
 	}
 };
-
-IMPLEMENT_GLOBAL_SHADER(FTestDrawInstancedVS_Direct, "/Plugin/RHITests/Private/TestDrawInstanced.usf", "TestDrawInstancedMainVS", SF_Vertex);
-IMPLEMENT_GLOBAL_SHADER(FTestDrawInstancedVS_Indirect, "/Plugin/RHITests/Private/TestDrawInstanced.usf", "TestDrawInstancedMainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FTestDrawInstancedVS, "/Plugin/RHITests/Private/TestDrawInstanced.usf", "TestDrawInstancedMainVS", SF_Vertex);
 
 class FTestDrawInstancedPS : public FGlobalShader
 {
@@ -58,8 +45,7 @@ namespace
 struct FDrawTestResources
 {
 	FDrawTestResources(FRHICommandListImmediate& RHICmdList)
-		: VertexShader_Direct(GetGlobalShaderMap(GMaxRHIFeatureLevel))
-		, VertexShader_Indirect(GetGlobalShaderMap(GMaxRHIFeatureLevel))
+		: VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel))
 		, PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel))
 	{		
 		FRHITextureDesc RenderTargetTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::RenderTargetable, PF_B8G8R8A8, FClearValueBinding(), RenderTargetSize, 1, 1, 1, 1, 0);
@@ -74,16 +60,13 @@ struct FDrawTestResources
 
 		VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(VertexDeclarationElements);
 
-		GraphicsPSOInit_Direct.BoundShaderState.VertexShaderRHI = VertexShader_Direct.GetVertexShader();
-		GraphicsPSOInit_Direct.BoundShaderState.VertexDeclarationRHI = VertexDeclarationRHI;
-		GraphicsPSOInit_Direct.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-		GraphicsPSOInit_Direct.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-		GraphicsPSOInit_Direct.BlendState = TStaticBlendState<>::GetRHI();
-		GraphicsPSOInit_Direct.RasterizerState = TStaticRasterizerState<>::GetRHI();
-		GraphicsPSOInit_Direct.PrimitiveType = EPrimitiveType::PT_TriangleList;
-
-		GraphicsPSOInit_Indirect = GraphicsPSOInit_Direct;
-		GraphicsPSOInit_Indirect.BoundShaderState.VertexShaderRHI = VertexShader_Indirect.GetVertexShader();
+		GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = VertexDeclarationRHI;
+		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+		GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+		GraphicsPSOInit.PrimitiveType = EPrimitiveType::PT_TriangleList;
 
 		// D3D12 does not have a way to get the base instance ID (SV_InstanceID always starts from 0), so we must emulate it...
 		uint32 InstanceIDs[MaxInstances];
@@ -135,13 +118,9 @@ struct FDrawTestResources
 	static constexpr uint32 MaxInstances = 8;
 
 	FVertexDeclarationRHIRef VertexDeclarationRHI;
-
-	TShaderMapRef<FTestDrawInstancedVS_Direct> VertexShader_Direct;
-	TShaderMapRef<FTestDrawInstancedVS_Indirect> VertexShader_Indirect;
+	TShaderMapRef<FTestDrawInstancedVS> VertexShader;
 	TShaderMapRef<FTestDrawInstancedPS> PixelShader;
-
-	FGraphicsPipelineStateInitializer GraphicsPSOInit_Direct;
-	FGraphicsPipelineStateInitializer GraphicsPSOInit_Indirect;
+	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 
 	FIntPoint RenderTargetSize = FIntPoint(4, 4);
 	FTextureRHIRef RenderTarget;
@@ -198,12 +177,8 @@ bool FRHIDrawTests::InternalDrawBaseVertexAndInstance(FRHICommandListImmediate& 
 	RHICmdList.BeginRenderPass(RenderPassInfo, TestName);
 	RHICmdList.SetViewport(0, 0, 0, float(Resources.RenderTargetSize.X), float(Resources.RenderTargetSize.Y), 1);
 
-	FGraphicsPipelineStateInitializer& PSOInit = DrawKind == EDrawKind::Direct
-		? Resources.GraphicsPSOInit_Direct
-		: Resources.GraphicsPSOInit_Indirect;
-
-	RHICmdList.ApplyCachedRenderTargets(PSOInit);
-	SetGraphicsPipelineState(RHICmdList, PSOInit, 0);
+	RHICmdList.ApplyCachedRenderTargets(Resources.GraphicsPSOInit);
+	SetGraphicsPipelineState(RHICmdList, Resources.GraphicsPSOInit, 0);
 
 	check(Resources.InstanceIDBuffer->GetStride() == 4);
 	RHICmdList.SetStreamSource(0, Resources.VertexBuffer, 0);
@@ -311,8 +286,8 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 	RHICmdList.BeginRenderPass(RenderPassInfo, TEXT("Test_MultiDrawIndirect"));
 	RHICmdList.SetViewport(0, 0, 0, float(Resources.RenderTargetSize.X), float(Resources.RenderTargetSize.Y), 1);
 
-	RHICmdList.ApplyCachedRenderTargets(Resources.GraphicsPSOInit_Indirect);
-	SetGraphicsPipelineState(RHICmdList, Resources.GraphicsPSOInit_Indirect, 0);
+	RHICmdList.ApplyCachedRenderTargets(Resources.GraphicsPSOInit);
+	SetGraphicsPipelineState(RHICmdList, Resources.GraphicsPSOInit, 0);
 
 	check(Resources.InstanceIDBuffer->GetStride() == 4);
 	RHICmdList.SetStreamSource(0, Resources.VertexBuffer, 0);
