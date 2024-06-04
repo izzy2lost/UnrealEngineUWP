@@ -55,8 +55,6 @@
 
 #define SHOW_NAV_EXPORT_PREVIEW 0
 
-#define TEXT_WEAKOBJ_NAME(obj) (obj.IsValid(false) ? *obj->GetName() : (obj.IsValid(false, true)) ? TEXT("MT-Unreachable") : TEXT("INVALID"))
-
 CSV_DEFINE_CATEGORY(NAVREGEN, false);
 
 struct dtTileCacheAlloc;

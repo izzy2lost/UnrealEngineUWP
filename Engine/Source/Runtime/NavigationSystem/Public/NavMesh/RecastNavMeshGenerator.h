@@ -177,8 +177,6 @@ struct FRecastGeometryCache
 
 	FRecastGeometryCache() {}
 	NAVIGATIONSYSTEM_API FRecastGeometryCache(const uint8* Memory);
-
-	static bool IsValid(const uint8* Memory, int32 MemorySize);
 };
 
 struct FRecastRawGeometryElement
@@ -517,7 +515,6 @@ protected:
 	/** Appends specified geometry to tile's geometry */
 	NAVIGATIONSYSTEM_API void ValidateAndAppendGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, const FCompositeNavModifier& InModifier);
 	NAVIGATIONSYSTEM_API void AppendGeometry(const FNavigationRelevantData& DataRef, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
-	NAVIGATIONSYSTEM_API void AppendVoxels(rcSpanCache* SpanData, int32 NumSpans);
 	
 	/** prepare voxel cache from collision data */
 	NAVIGATIONSYSTEM_API void PrepareVoxelCache(const TNavStatArray<uint8>& RawCollisionCache, const FCompositeNavModifier& InModifier, TNavStatArray<rcSpanCache>& SpanData);
