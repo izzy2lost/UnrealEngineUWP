@@ -14,6 +14,7 @@
 #include "ISequencer.h"
 #include "AdvancedPreviewSceneModule.h"
 #include "Modules/ModuleManager.h"
+#include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "ContextualAnimAssetEditorToolkit"
 
@@ -251,6 +252,16 @@ TSharedRef<SWidget> FContextualAnimAssetEditorToolkit::BuildSectionsMenu()
 
 void FContextualAnimAssetEditorToolkit::ShowNewAnimSetDialog()
 {
+	const UContextualAnimSceneAsset* SceneAsset = GetSceneAsset();
+	const int32 NumRoles = SceneAsset ? SceneAsset->GetNumRoles() : 0;
+
+	if (NumRoles == 0)
+	{
+		const FText DialogMsg = LOCTEXT("MissingRolesDialog", "Can't add new anim set. Roles asset hasn't been set or no roles has been defined.");
+		FMessageDialog::Open(EAppMsgType::Ok, DialogMsg);
+		return;
+	}
+
 	TSharedRef<SContextualAnimNewAnimSetDialog> NewAnimSetDialog = SNew(SContextualAnimNewAnimSetDialog, ViewModel.ToSharedRef());
 	NewAnimSetDialog->Show();
 }

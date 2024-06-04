@@ -549,6 +549,11 @@ void FContextualAnimViewModel::RefreshPreviewScene()
 		}
 	}
 
+	if (!SceneAsset->HasValidData())
+	{
+		return;
+	}
+
 	if (!SceneAsset->Sections.IsValidIndex(ActiveSectionIdx))
 	{
 		return;
