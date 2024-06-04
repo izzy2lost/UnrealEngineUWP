@@ -307,6 +307,11 @@ bool UMaterialInterface::IsUsingNewHLSLGenerator() const
 	return BaseMaterial ? BaseMaterial->bEnableNewHLSLGenerator : false;
 }
 
+bool UMaterialInterface::IsUsingNewTranslatorPrototype() const
+{
+	return IsUsingNewHLSLGenerator() && bIsUsingNewMaterialTranslatorPrototype;
+}
+
 const FSubstrateCompilationConfig& UMaterialInterface::GetSubstrateCompilationConfig() const
 {
 	const UMaterial* BaseMaterial = GetMaterial_Concurrent();

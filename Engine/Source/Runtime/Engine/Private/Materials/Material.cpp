@@ -84,6 +84,7 @@
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionBreakMaterialAttributes.h"
+#include "Materials/MaterialIRModuleBuilder.h"
 #include "MaterialCachedData.h"
 #include "Misc/OutputDeviceArchiveWrapper.h"
 #include "HAL/FileManager.h"
@@ -2084,9 +2085,19 @@ void UMaterial::UpdateCachedExpressionData()
 		// Relinks function call inputs. Otherwise, we can get invalid inputs and they will cause errors when generating the syntax tree
 		UpdateTransientExpressionData();
 
-		LocalCachedTree = new FMaterialCachedHLSLTree();
-		LocalCachedTree->GenerateTree(this, nullptr, nullptr);
-		LocalCachedExpressionData->UpdateForCachedHLSLTree(*LocalCachedTree, nullptr, this);
+		if (bIsUsingNewMaterialTranslatorPrototype)
+		{
+			FMaterialIRModuleBuilder Builder;
+			Builder.Build(this, &IRModule);
+
+			LocalCachedExpressionData->AnalyzeMaterial(*this); // Temporary
+		}
+		else
+		{
+			LocalCachedTree = new FMaterialCachedHLSLTree();
+			LocalCachedTree->GenerateTree(this, nullptr, nullptr);
+			LocalCachedExpressionData->UpdateForCachedHLSLTree(*LocalCachedTree, nullptr, this);
+		}
 	}
 	else
 	{

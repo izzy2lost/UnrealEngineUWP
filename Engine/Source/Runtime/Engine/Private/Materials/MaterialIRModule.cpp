@@ -5,7 +5,7 @@
 
 #if WITH_EDITOR
 
-namespace MIR = MaterialIR;
+namespace IR = UE::MIR;
 
 FMaterialIRModule::~FMaterialIRModule()
 {
@@ -14,7 +14,7 @@ FMaterialIRModule::~FMaterialIRModule()
 
 void FMaterialIRModule::Empty()
 {
-	for (MIR::FValue* Value : Values)
+	for (IR::FValuePtr Value : Values)
 	{
 		delete Value;
 	}
@@ -23,12 +23,4 @@ void FMaterialIRModule::Empty()
 	Outputs.Empty();
 }
 
-void FMaterialIRModule::Reset(EShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, const ITargetPlatform* InTargetPlatform)
-{
-	Empty();
-
-	ShaderPlatform = InShaderPlatform;
-	TargetPlatform = InTargetPlatform;
-}
-
-#endif
+#endif // #if WITH_EDITOR
