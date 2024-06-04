@@ -644,8 +644,6 @@ static void StartRenderingThread()
 		break;
 	}
 
-	GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
-
 	// Turn on the threaded rendering flag.
 	GIsThreadedRendering = true;
 
@@ -676,6 +674,8 @@ static void StartRenderingThread()
 	FRenderCommandFence Fence;
 	Fence.BeginFence();
 	Fence.Wait();
+
+	GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
 
 	GRunRenderingThreadHeartbeat = true;
 	// Create the rendering thread heartbeat
