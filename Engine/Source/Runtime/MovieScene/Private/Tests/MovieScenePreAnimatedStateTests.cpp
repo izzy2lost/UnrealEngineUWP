@@ -112,39 +112,43 @@ namespace Impl
 	}
 }
 
-void UTestMovieSceneEvalHookSection::Begin(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UTestMovieSceneEvalHookSection::Begin(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
 	using namespace Impl;
 
-	FScopedPreAnimatedCaptureSource CaptureSource(&Player->PreAnimatedState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
-	Player->SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
+	FScopedPreAnimatedCaptureSource CaptureSource(SharedPlaybackState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
+	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
+	Linker->PreAnimatedState.SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
 
 	TestValue1 = StartValue;
 }
-void UTestMovieSceneEvalHookSection::Update(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UTestMovieSceneEvalHookSection::Update(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
 	using namespace Impl;
 
-	FScopedPreAnimatedCaptureSource CaptureSource(&Player->PreAnimatedState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
-	Player->SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
+	FScopedPreAnimatedCaptureSource CaptureSource(SharedPlaybackState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
+	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
+	Linker->PreAnimatedState.SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
 
 	++TestValue1;
 }
-void UTestMovieSceneEvalHookSection::End(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UTestMovieSceneEvalHookSection::End(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
 	using namespace Impl;
 
-	FScopedPreAnimatedCaptureSource CaptureSource(&Player->PreAnimatedState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
-	Player->SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
+	FScopedPreAnimatedCaptureSource CaptureSource(SharedPlaybackState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
+	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
+	Linker->PreAnimatedState.SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
 
 	TestValue1 = EndValue;
 }
-void UTestMovieSceneEvalHookSection::Trigger(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UTestMovieSceneEvalHookSection::Trigger(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
 	using namespace Impl;
 
-	FScopedPreAnimatedCaptureSource CaptureSource(&Player->PreAnimatedState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
-	Player->SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
+	FScopedPreAnimatedCaptureSource CaptureSource(SharedPlaybackState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
+	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
+	Linker->PreAnimatedState.SavePreAnimatedState(AnimType1, FPreAnimatedTokenProducer(&TestValue1));
 
 	--TestValue1;
 }

@@ -17,7 +17,6 @@
 
 #include "MovieSceneEvaluationHookSystem.generated.h"
 
-class IMovieScenePlayer;
 class UMovieSceneEntitySystemLinker;
 class UObject;
 

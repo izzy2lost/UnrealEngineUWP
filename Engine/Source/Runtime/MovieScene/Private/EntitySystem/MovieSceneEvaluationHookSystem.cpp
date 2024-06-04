@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EntitySystem/MovieSceneEvaluationHookSystem.h"
+
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
-#include "EntitySystem/MovieSceneSpawnablesSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "EntitySystem/MovieSceneSpawnablesSystem.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSource.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
@@ -235,9 +237,8 @@ void UMovieSceneEvaluationHookSystem::TriggerAllEvents()
 	{
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Pair.Key.InstanceHandle);
 
-		IMovieScenePlayer* Player      = SequenceInstance.GetPlayer();
 		FMovieSceneContext RootContext = SequenceInstance.GetContext();
-		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+		TSharedRef<FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
 		FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = Linker->PreAnimatedState.GetEvaluationHookMetaData();
 
 		for (const FMovieSceneEvaluationHookEvent& Event : Pair.Value.Events)
@@ -260,13 +261,13 @@ void UMovieSceneEvaluationHookSystem::TriggerAllEvents()
 			switch (Event.Type)
 			{
 				case EEvaluationHookEvent::Begin:
-					Event.Hook.Interface->Begin(Player, Params);
+					Event.Hook.Interface->Begin(SharedPlaybackState, Params);
 					break;
 				case EEvaluationHookEvent::Update:
-					Event.Hook.Interface->Update(Player, Params);
+					Event.Hook.Interface->Update(SharedPlaybackState, Params);
 					break;
 				case EEvaluationHookEvent::End:
-					Event.Hook.Interface->End(Player, Params);
+					Event.Hook.Interface->End(SharedPlaybackState, Params);
 					if (EvaluationHookMetaData)
 					{
 						EvaluationHookMetaData->StopTrackingCaptureSource(Event.Hook.Interface.GetObject(), Event.RootInstanceHandle, Event.SequenceID);
@@ -274,7 +275,7 @@ void UMovieSceneEvaluationHookSystem::TriggerAllEvents()
 					break;
 
 				case EEvaluationHookEvent::Trigger:
-					Event.Hook.Interface->Trigger(Player, Params);
+					Event.Hook.Interface->Trigger(SharedPlaybackState, Params);
 					break;
 			}
 		}

@@ -3,9 +3,9 @@
 #include "MovieScene/MovieSceneLensComponentSection.h"
 
 #include "Channels/MovieSceneChannelProxy.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
 #include "Evaluation/MovieScenePreAnimatedState.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSource.h"
-#include "IMovieScenePlayer.h"
 #include "MovieSceneExecutionToken.h"
 #include "MovieSceneTimeHelpers.h"
 
@@ -215,15 +215,17 @@ void UMovieSceneLensComponentSection::Finalize()
 	UE::MovieScene::Optimize(&ImageCenterChannels[1], Params);
 }
 
-void UMovieSceneLensComponentSection::Begin(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UMovieSceneLensComponentSection::Begin(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
-	FScopedPreAnimatedCaptureSource CaptureSource(&Player->PreAnimatedState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
+	FScopedPreAnimatedCaptureSource CaptureSource(SharedPlaybackState, this, Params.SequenceID, EvalOptions.CompletionMode == EMovieSceneCompletionMode::RestoreState);
 
-	for (TWeakObjectPtr<> BoundObject : Player->FindBoundObjects(Params.ObjectBindingID, Params.SequenceID))
+	FMovieSceneInstancePreAnimatedState& PreAnimatedState = SharedPlaybackState->GetPreAnimatedState();
+	TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(Params.ObjectBindingID, Params.SequenceID);
+	for (TWeakObjectPtr<> BoundObject : BoundObjects)
 	{
 		if (ULensComponent* LensComponent = Cast<ULensComponent>(BoundObject.Get()))
 		{
-			Player->SavePreAnimatedState(*LensComponent, FPreAnimatedLensFileTokenProducer::GetAnimTypeID(), FPreAnimatedLensFileTokenProducer());
+			PreAnimatedState.SavePreAnimatedState(*LensComponent, FPreAnimatedLensFileTokenProducer::GetAnimTypeID(), FPreAnimatedLensFileTokenProducer());
 
 			// Override the existing lens file settings of the lens component to use the cached, duplicate lens file
 			LensComponent->SetFIZEvaluationMode(EFIZEvaluationMode::UseRecordedValues);
@@ -233,9 +235,10 @@ void UMovieSceneLensComponentSection::Begin(IMovieScenePlayer* Player, const UE:
 	}
 }
 
-void UMovieSceneLensComponentSection::Update(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UMovieSceneLensComponentSection::Update(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
-	for (TWeakObjectPtr<> BoundObject : Player->FindBoundObjects(Params.ObjectBindingID, Params.SequenceID))
+	TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(Params.ObjectBindingID, Params.SequenceID);
+	for (TWeakObjectPtr<> BoundObject : BoundObjects)
 	{
 		if (ULensComponent* LensComponent = Cast<ULensComponent>(BoundObject.Get()))
 		{
@@ -307,9 +310,10 @@ void UMovieSceneLensComponentSection::Update(IMovieScenePlayer* Player, const UE
 	}
 }
 
-void UMovieSceneLensComponentSection::End(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UMovieSceneLensComponentSection::End(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
-	Player->RestorePreAnimatedState();
+	SharedPlaybackState->GetPreAnimatedState().RestorePreAnimatedState();
+	SharedPlaybackState->ClearObjectCaches();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -30,7 +30,7 @@ public:
 	void Initialize(ULiveLinkControllerBase* InLiveLinkController);
 
 	//~ Begin UMovieSceneHookSection interface
-	virtual void Update(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const override;
+	virtual void Update(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const override;
 	//~ End UMovieSceneHookSection interface
 
 public:
