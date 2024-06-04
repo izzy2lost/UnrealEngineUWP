@@ -6,6 +6,7 @@
 #include "Net/Core/DirtyNetObjectTracker/GlobalDirtyNetObjectTracker.h"
 
 #include "Iris/IrisConfig.h"
+#include "Iris/Core/IrisCsv.h"
 
 namespace UE::Net::Private
 {
@@ -58,6 +59,10 @@ public:
 	/** Reset the global list and look at the final polled list and clear any flags for objects that got polled */
 	void ReconcilePolledList(const FNetBitArrayView& ObjectsPolled);
 
+#if UE_NET_IRIS_CSV_STATS
+	void ReportCSVStats();
+#endif
+
 	/** Returns the list of objects that are dirty this frame or were dirty in previous frames but not cleaned up at that time. */
 	const FNetBitArrayView GetAccumulatedDirtyNetObjects() const { return MakeNetBitArrayView(AccumulatedDirtyNetObjects); }
 
@@ -107,6 +112,11 @@ private:
 
 #if UE_NET_THREAD_SAFETY_CHECK
 	std::atomic_bool bIsExternalAccessAllowed = false;
+#endif
+
+#if UE_NET_IRIS_CSV_STATS
+	int32 PushModelDirtyObjectsCount = 0;
+	int32 ForceNetUpdateObjectsCount = 0;
 #endif
 };
 

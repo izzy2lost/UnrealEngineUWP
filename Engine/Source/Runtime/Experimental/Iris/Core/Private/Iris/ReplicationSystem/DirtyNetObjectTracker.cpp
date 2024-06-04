@@ -7,7 +7,10 @@
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
+
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "Traits/IntType.h"
+
 #include <atomic>
 
 // Don't compile verbose logs in Shipping builds
@@ -156,6 +159,10 @@ void FDirtyNetObjectTracker::MarkNetObjectDirty(FInternalNetRefIndex NetObjectIn
 		return;
 	}
 
+#if UE_NET_IRIS_CSV_STATS
+	PushModelDirtyObjectsCount += (DirtyNetObjects.IsBitSet(NetObjectIndex) ? 0 : 1);
+#endif
+
 	const uint32 BitOffset = NetObjectIndex;
 	const StorageType BitMask = StorageType(1) << (BitOffset & (StorageTypeBitCount - 1));
 
@@ -169,6 +176,10 @@ void FDirtyNetObjectTracker::MarkNetObjectDirty(FInternalNetRefIndex NetObjectIn
 
 void FDirtyNetObjectTracker::ForceNetUpdate(FInternalNetRefIndex NetObjectIndex)
 {
+#if UE_NET_IRIS_CSV_STATS
+	ForceNetUpdateObjectsCount += (ForceNetUpdateObjects.IsBitSet(NetObjectIndex)?0:1);
+#endif
+
 	ForceNetUpdateObjects.SetBit(NetObjectIndex);
 
 	// Flag the object dirty so we update his filters too
@@ -223,6 +234,19 @@ void FDirtyNetObjectTracker::ReconcilePolledList(const FNetBitArrayView& Objects
 	std::atomic_thread_fence(std::memory_order_seq_cst);
 }
 
+#if UE_NET_IRIS_CSV_STATS
+void FDirtyNetObjectTracker::ReportCSVStats()
+{
+	CSV_CUSTOM_STAT(Iris, PushModelDirtyObjects, PushModelDirtyObjectsCount, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(Iris, ForceNetUpdateObjects, ForceNetUpdateObjectsCount, ECsvCustomStatOp::Set);
+
+	PushModelDirtyObjectsCount = 0;
+	ForceNetUpdateObjectsCount = 0;
+}
+#endif
+
+#pragma region GlobalFunctions
+
 void MarkNetObjectStateDirty(uint32 ReplicationSystemId, FInternalNetRefIndex NetObjectIndex)
 {
 	if (UReplicationSystem* ReplicationSystem = GetReplicationSystem(ReplicationSystemId))
@@ -241,4 +265,6 @@ void ForceNetUpdate(uint32 ReplicationSystemId, FInternalNetRefIndex NetObjectIn
 	}
 }
 
-}
+#pragma endregion
+
+} // end namespace UE::Net::Private

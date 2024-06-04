@@ -192,7 +192,7 @@ public:
 
 public:
 
-	// Debug functions exposed that are triggered via console commands
+	// Debug functions that are triggered via console commands
 	void PrintDynamicFilterClassConfig() const;
 	void PrintReplicatedObjects(uint32 ArgTraits) const;
 	void PrintAlwaysRelevantObjects(uint32 ArgTraits) const;
