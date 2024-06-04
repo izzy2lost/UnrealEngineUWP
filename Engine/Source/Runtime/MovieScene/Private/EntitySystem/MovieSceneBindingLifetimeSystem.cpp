@@ -51,33 +51,37 @@ void UMovieSceneBindingLifetimeSystem::OnRun(FSystemTaskPrerequisites& InPrerequ
 	}
 
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	FPreAnimatedStateExtension& PreAnimatedState = Linker->PreAnimatedState;
 
 	bool bLink = false;
-	auto SetBindingActivation = [InstanceRegistry, &bLink](FMovieSceneEntityID EntityID, FInstanceHandle InstanceHandle, const FMovieSceneBindingLifetimeComponentData& BindingLifetime)
+	auto SetBindingActivation = [InstanceRegistry, &PreAnimatedState, &bLink](FMovieSceneEntityID EntityID, FInstanceHandle InstanceHandle, const FMovieSceneBindingLifetimeComponentData& BindingLifetime)
 	{
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandle);
 
 		FMovieSceneSequenceID SequenceID = SequenceInstance.GetSequenceID();
-		IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-		if (Player)
+		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+		FMovieSceneEvaluationState* EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>();
+		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
+		if (EvaluationState)
 		{
 			// For now we use the linking/unlinking of the inactive ranges to set the binding activations
 			if (BindingLifetime.BindingLifetimeState == EMovieSceneBindingLifetimeState::Inactive)
 			{
-				Player->State.SetBindingActivation(BindingLifetime.BindingGuid, SequenceID, !bLink);
+				EvaluationState->SetBindingActivation(BindingLifetime.BindingGuid, SequenceID, !bLink);
 			}
 			else
 			{
-				for (TWeakObjectPtr<> WeakBoundObject : Player->FindBoundObjects(BindingLifetime.BindingGuid, SequenceID))
+				TArrayView<TWeakObjectPtr<>> BoundObjects = EvaluationState->FindBoundObjects(BindingLifetime.BindingGuid, SequenceID, SharedPlaybackState);
+				for (TWeakObjectPtr<> WeakBoundObject : BoundObjects)
 				{
 					if (UObject* BoundObject = WeakBoundObject.Get())
 					{
 						if (BoundObject->Implements<UMovieSceneBindingEventReceiverInterface>())
 						{
 							TScriptInterface<IMovieSceneBindingEventReceiverInterface> BindingEventReceiver = BoundObject;
-							if (BindingEventReceiver.GetObject())
+							if (BindingEventReceiver.GetObject() && Player)
 							{
-								FMovieSceneObjectBindingID BindingID = UE::MovieScene::FRelativeObjectBindingID(MovieSceneSequenceID::Root, SequenceID, BindingLifetime.BindingGuid, *Player);
+								FMovieSceneObjectBindingID BindingID = UE::MovieScene::FRelativeObjectBindingID(MovieSceneSequenceID::Root, SequenceID, BindingLifetime.BindingGuid, SharedPlaybackState);
 								if (bLink)
 								{
 									IMovieSceneBindingEventReceiverInterface::Execute_OnObjectBoundBySequencer(BindingEventReceiver.GetObject(), Cast<UMovieSceneSequencePlayer>(Player->AsUObject()), BindingID);

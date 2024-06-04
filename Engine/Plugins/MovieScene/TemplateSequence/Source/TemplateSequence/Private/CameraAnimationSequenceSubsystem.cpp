@@ -8,7 +8,9 @@
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/MovieSceneRootInstantiatorSystem.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "IMovieScenePlayer.h"
+#include "MovieSceneSpawnRegister.h"
 #include "Systems/MovieScenePropertyInstantiator.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraAnimationSequenceSubsystem)
@@ -63,8 +65,8 @@ struct FCameraAnimationInstantiationMutation : IMovieSceneEntityMutation
 	void BindObjectImpl(const FInstanceHandle& InstanceHandle, const FGuid& ObjectBinding, UObject*& OutBoundObject) const
 	{
 		const FSequenceInstance& Instance = InstanceRegistry.GetInstance(InstanceHandle);
-		IMovieScenePlayer* Player = Instance.GetPlayer();
-		TArrayView<TWeakObjectPtr<>> BoundObjects = Player->FindBoundObjects(ObjectBinding, Instance.GetSequenceID());
+		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+		TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(ObjectBinding, Instance.GetSequenceID());
 		if (ensure(BoundObjects.Num() > 0))
 		{
 			// In theory we should get the scene component from the object, but we know that camera animations are
@@ -109,10 +111,11 @@ void UCameraAnimationSpawnableSystem::OnRun(FSystemTaskPrerequisites& InPrerequi
 			// We won't actually be spawning anything, because our player's spawn register will simply 
 			// return the fake camera "stand-in" object.
 			const FSequenceInstance& Instance = InstanceRegistry->GetInstance(InstanceHandle);
-			IMovieScenePlayer* Player = Instance.GetPlayer();
-			const UMovieSceneSequence* Sequence = Player->State.FindSequence(Instance.GetSequenceID());
-			UObject* SpawnedObject = Player->GetSpawnRegister().SpawnObject(
-				SpawnableBinding, *Sequence->GetMovieScene(), Instance.GetSequenceID(), *Player);
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+			const UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Instance.GetSequenceID());
+			FMovieSceneSpawnRegister* SpawnRegister = SharedPlaybackState->FindCapability<FMovieSceneSpawnRegister>();
+			UObject* SpawnedObject = SpawnRegister->SpawnObject(
+				SpawnableBinding, *Sequence->GetMovieScene(), Instance.GetSequenceID(), SharedPlaybackState);
 			ensure(SpawnedObject);
 		});
 }

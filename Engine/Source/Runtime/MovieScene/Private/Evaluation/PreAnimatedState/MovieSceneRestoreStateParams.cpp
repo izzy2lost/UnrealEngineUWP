@@ -5,6 +5,7 @@
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/MovieSceneSequenceInstance.h"
+#include "IMovieScenePlayer.h"
 
 namespace UE
 {
@@ -15,14 +16,15 @@ IMovieScenePlayer* FRestoreStateParams::GetTerminalPlayer() const
 {
 	if (Linker && TerminalInstanceHandle.IsValid())
 	{
-		return Linker->GetInstanceRegistry()->GetInstance(TerminalInstanceHandle).GetPlayer();
+		const FSequenceInstance& Instance = Linker->GetInstanceRegistry()->GetInstance(TerminalInstanceHandle);
+		return UE::MovieScene::FPlayerIndexPlaybackCapability::GetPlayer(Instance.GetSharedPlaybackState());
 	}
 
 	ensureAlways(false);
 	return nullptr;
 }
 
-TSharedPtr<const FSharedPlaybackState> FRestoreStateParams::GetTerminalPlaybackState() const
+TSharedPtr<FSharedPlaybackState> FRestoreStateParams::GetTerminalPlaybackState() const
 {
 	if (Linker && TerminalInstanceHandle.IsValid())
 	{

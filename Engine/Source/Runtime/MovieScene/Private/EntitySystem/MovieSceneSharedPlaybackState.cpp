@@ -63,6 +63,23 @@ UMovieSceneSequence* FSharedPlaybackState::GetSequence(FMovieSceneSequenceIDRef 
 	}
 }
 
+TArrayView<TWeakObjectPtr<>> FSharedPlaybackState::FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID) const
+{
+	if (FMovieSceneEvaluationState* EvaluationState = FindCapability<FMovieSceneEvaluationState>())
+	{
+		return EvaluationState->FindBoundObjects(ObjectBindingID, SequenceID, SharedThis(this));
+	}
+	return TArrayView<TWeakObjectPtr<>>();
+}
+
+void FSharedPlaybackState::ClearObjectCaches()
+{
+	if (FMovieSceneEvaluationState* EvaluationState = FindCapability<FMovieSceneEvaluationState>())
+	{
+		EvaluationState->ClearObjectCaches(SharedThis(this));
+	}
+}
+
 void FSharedPlaybackState::InvalidateCachedData()
 {
 	UMovieSceneEntitySystemLinker* Linker = GetLinker();

@@ -100,6 +100,12 @@ public:
 	/** Gets a sub-sequence given an ID */
 	UMovieSceneSequence* GetSequence(FMovieSceneSequenceIDRef SequenceID) const;
 
+	/** Finds the bound objects for the given object binding in the given (sub)sequence */
+	TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID) const;
+
+	/** Clears object caches for the entire sequence hierarchy. */
+	void ClearObjectCaches();
+
 public:
 
 	/**

@@ -812,14 +812,6 @@ bool FPreAnimatedStateExtension::HasActiveCaptureSource() const
 	return (CaptureSource && CaptureSource->bWantsRestoreState);
 }
 
-bool FPreAnimatedStateExtension::ShouldCaptureAnyState() const
-{
-	FScopedPreAnimatedCaptureSource* CaptureSource = FScopedPreAnimatedCaptureSource::GetCaptureSourcePtr();
-	ensureMsgf(!CaptureSource || CaptureSource->WeakLinker.Get() == Linker,
-			TEXT("The current capture source is related to a different linker. Are you missing setting a scope capture source?"));
-	return (CaptureSource && CaptureSource->bWantsRestoreState) || IsCapturingGlobalState();
-}
-
 void FPreAnimatedStateExtension::AddSourceMetaData(const UE::MovieScene::FPreAnimatedStateEntry& Entry)
 {
 	using namespace UE::MovieScene;
