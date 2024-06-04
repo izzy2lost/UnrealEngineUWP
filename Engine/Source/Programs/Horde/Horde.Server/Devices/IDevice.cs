@@ -135,22 +135,6 @@ namespace Horde.Server.Devices
 	}
 
 	/// <summary>
-	/// The type of device pool
-	/// </summary>
-	public enum DevicePoolType
-	{
-		/// <summary>
-		/// Available to CIS jobs
-		/// </summary>
-		Automation,
-
-		/// <summary>
-		/// Shared by users with remote checking and checkouts
-		/// </summary>
-		Shared
-	}
-
-	/// <summary>
 	/// A logical pool of devices
 	/// </summary>
 	public interface IDevicePool

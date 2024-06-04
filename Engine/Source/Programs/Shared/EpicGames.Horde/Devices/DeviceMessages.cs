@@ -3,10 +3,27 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 
-namespace Horde.Server.Devices
+#pragma warning disable CA2227 // Change 'x' to be read-only by removing the property setter
+
+namespace EpicGames.Horde.Devices
 {
+
+	/// <summary>
+	/// The type of device pool
+	/// </summary>
+	public enum DevicePoolType
+	{
+		/// <summary>
+		/// Available to CIS jobs
+		/// </summary>
+		Automation,
+
+		/// <summary>
+		/// Shared by users with remote checking and checkouts
+		/// </summary>
+		Shared
+	}
 
 	/// <summary>
 	/// Create device platform request
@@ -263,18 +280,6 @@ namespace Horde.Server.Devices
 		/// The time device was freed
 		/// </summary>
 		public DateTime? ReservationFinishUtc { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="telemetry"></param>
-		public GetDeviceUtilizationResponse(DeviceUtilizationTelemetry telemetry)
-		{
-			JobId = telemetry.JobId;
-			StepId = telemetry.StepId;
-			ReservationStartUtc = telemetry.ReservationStartUtc;
-			ReservationFinishUtc = telemetry.ReservationFinishUtc;
-		}
 	}
 
 	/// <summary>
@@ -360,7 +365,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Device response constructor
 		/// </summary>
-		public GetDeviceResponse(string id, string platformId, string poolId, string name, bool enabled, string? address, string? modelId, string? modifiedByUser, string? notes, DateTime? problemTime, DateTime? maintenanceTime, List<DeviceUtilizationTelemetry>? utilization, string? checkedOutByUser = null, DateTime? checkOutTime = null, DateTime? checkOutExpirationTime = null)
+		public GetDeviceResponse(string id, string platformId, string poolId, string name, bool enabled, string? address, string? modelId, string? modifiedByUser, string? notes, DateTime? problemTime, DateTime? maintenanceTime, List<GetDeviceUtilizationResponse>? utilization, string? checkedOutByUser = null, DateTime? checkOutTime = null, DateTime? checkOutExpirationTime = null)
 		{
 			Id = id;
 			Name = name;
@@ -373,7 +378,7 @@ namespace Horde.Server.Devices
 			Notes = notes;
 			ProblemTime = problemTime;
 			MaintenanceTime = maintenanceTime;
-			Utilization = utilization?.Select(u => new GetDeviceUtilizationResponse(u)).ToList();
+			Utilization = utilization;
 			CheckedOutByUserId = checkedOutByUser;
 			CheckOutTime = checkOutTime;
 			CheckOutExpirationTime = checkOutExpirationTime;
@@ -612,23 +617,6 @@ namespace Horde.Server.Devices
 		/// If this telemetry marks a detected device issue, the time of the issue
 		/// </summary>
 		public DateTime? ProblemTimeUtc { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="data"></param>
-		public GetTelemetryInfoResponse(IDeviceTelemetry data)
-		{
-			CreateTimeUtc = data.CreateTimeUtc;
-			StreamId = data.StreamId;
-			JobId = data.JobId;
-			StepId = data.StepId;
-			JobName = data.JobName;
-			StepName = data.StepName;
-			ReservationStartUtc = data.ReservationStartUtc;
-			ReservationFinishUtc = data.ReservationFinishUtc;
-			ProblemTimeUtc = data.ProblemTimeUtc;
-		}
 	}
 
 	/// <summary>
@@ -746,7 +734,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetDevicePlatformTelemetryResponse(string platformId, List<string>? available, List<string>? maintenance, List<string>? problem, List<string>? disabled, IReadOnlyDictionary<string, IReadOnlyList<IDevicePoolReservationTelemetry>>? reserved)
+		public GetDevicePlatformTelemetryResponse(string platformId, List<string>? available, List<string>? maintenance, List<string>? problem, List<string>? disabled, Dictionary<string, List<GetDevicePoolReservationTelemetryResponse>>? reserved)
 		{
 			PlatformId = platformId;
 			if (available != null && available.Count > 0)
@@ -765,18 +753,10 @@ namespace Horde.Server.Devices
 			{
 				Disabled = disabled;
 			}
+
 			if (reserved != null && reserved.Count > 0)
 			{
-				Reserved = new Dictionary<string, List<GetDevicePoolReservationTelemetryResponse>>();
-
-				foreach (KeyValuePair<string, IReadOnlyList<IDevicePoolReservationTelemetry>> r in reserved)
-				{
-					Reserved[r.Key] = new List<GetDevicePoolReservationTelemetryResponse>();
-					foreach (IDevicePoolReservationTelemetry telemetry in r.Value)
-					{
-						Reserved[r.Key].Add(new GetDevicePoolReservationTelemetryResponse(telemetry.DeviceId.ToString(), telemetry.JobId, telemetry.StepId, telemetry.JobName, telemetry.StepName));
-					}
-				}
+				Reserved = reserved;
 			}
 		}
 	}

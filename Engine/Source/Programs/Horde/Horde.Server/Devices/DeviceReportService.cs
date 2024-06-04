@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Devices;
 using Horde.Server.Jobs;
 using Horde.Server.Notifications;
 using Horde.Server.Server;

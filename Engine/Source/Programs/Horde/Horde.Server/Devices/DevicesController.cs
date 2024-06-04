@@ -136,7 +136,15 @@ namespace Horde.Server.Devices
 					checkoutExpiration = device.CheckOutTime.Value.AddDays(_deviceService.SharedDeviceCheckoutDays);
 				}
 
-				responses.Add(new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser, device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, device.Utilization, device.CheckedOutByUser, device.CheckOutTime, checkoutExpiration));
+				List<GetDeviceUtilizationResponse>? utilization = device.Utilization?.Select(u => new GetDeviceUtilizationResponse
+				{
+					JobId = u.JobId,
+					StepId = u.StepId,
+					ReservationStartUtc = u.ReservationStartUtc,
+					ReservationFinishUtc = u.ReservationFinishUtc
+				}).ToList();
+
+				responses.Add(new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser, device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, utilization, device.CheckedOutByUser, device.CheckOutTime, checkoutExpiration));
 			}
 
 			return responses;
@@ -174,7 +182,15 @@ namespace Horde.Server.Devices
 				checkoutExpiration = device.CheckOutTime.Value.AddDays(_deviceService.SharedDeviceCheckoutDays);
 			}
 
-			return new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser?.ToString(), device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, device.Utilization, device.CheckedOutByUser, device.CheckOutTime, checkoutExpiration);
+			List<GetDeviceUtilizationResponse>? utilization = device.Utilization?.Select(u => new GetDeviceUtilizationResponse
+			{
+				JobId = u.JobId,
+				StepId = u.StepId,
+				ReservationStartUtc = u.ReservationStartUtc,
+				ReservationFinishUtc = u.ReservationFinishUtc
+			}).ToList();
+
+			return new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser?.ToString(), device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, utilization, device.CheckedOutByUser, device.CheckOutTime, checkoutExpiration);
 		}
 
 		/// <summary>
@@ -422,8 +438,22 @@ namespace Horde.Server.Devices
 
 					foreach (IDevicePlatformTelemetry telemetry in pool.Value)
 					{
+						Dictionary<string, List<GetDevicePoolReservationTelemetryResponse>> reservedResponse = new Dictionary<string, List<GetDevicePoolReservationTelemetryResponse>>();
+
 						IReadOnlyDictionary<string, IReadOnlyList<IDevicePoolReservationTelemetry>>? reserved = telemetry.Reserved?.ToDictionary(kvp => kvp.Key.ToString(), kvp => kvp.Value);
-						platformTelemetry.Add(new GetDevicePlatformTelemetryResponse(telemetry.PlatformId.ToString(), telemetry.Available?.Select(d => d.ToString()).ToList(), telemetry.Maintenance?.Select(d => d.ToString()).ToList(), telemetry.Problem?.Select(d => d.ToString()).ToList(), telemetry.Disabled?.Select(d => d.ToString()).ToList(), reserved));
+						if (reserved != null && reserved.Count > 0)
+						{
+
+							foreach (KeyValuePair<string, IReadOnlyList<IDevicePoolReservationTelemetry>> r in reserved)
+							{
+								reservedResponse[r.Key] = new List<GetDevicePoolReservationTelemetryResponse>();
+								foreach (IDevicePoolReservationTelemetry u in r.Value)
+								{
+									reservedResponse[r.Key].Add(new GetDevicePoolReservationTelemetryResponse(u.DeviceId.ToString(), u.JobId, u.StepId, u.JobName, u.StepName));
+								}
+							}
+						}
+						platformTelemetry.Add(new GetDevicePlatformTelemetryResponse(telemetry.PlatformId.ToString(), telemetry.Available?.Select(d => d.ToString()).ToList(), telemetry.Maintenance?.Select(d => d.ToString()).ToList(), telemetry.Problem?.Select(d => d.ToString()).ToList(), telemetry.Disabled?.Select(d => d.ToString()).ToList(), reservedResponse));
 					}
 
 					poolData[pool.Key.ToString()] = platformTelemetry;
@@ -513,7 +543,14 @@ namespace Horde.Server.Devices
 
 			foreach (IDevice device in devices)
 			{
-				response.Devices.Add(new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser, device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, device.Utilization));
+				List<GetDeviceUtilizationResponse>? utilization = device.Utilization?.Select(u => new GetDeviceUtilizationResponse
+				{
+					JobId = u.JobId,
+					StepId = u.StepId,
+					ReservationStartUtc = u.ReservationStartUtc,
+					ReservationFinishUtc = u.ReservationFinishUtc
+				}).ToList();
+				response.Devices.Add(new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser, device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, utilization));
 			}
 
 			return response;
@@ -671,7 +708,18 @@ namespace Horde.Server.Devices
 					results[deviceId] = info;
 				}
 
-				info.Add(new GetTelemetryInfoResponse(t));
+				info.Add(new GetTelemetryInfoResponse
+				{
+					CreateTimeUtc = t.CreateTimeUtc,
+					StreamId = t.StreamId,
+					JobId = t.JobId,
+					StepId = t.StepId,
+					JobName = t.JobName,
+					StepName = t.StepName,
+					ReservationStartUtc = t.ReservationStartUtc,
+					ReservationFinishUtc = t.ReservationFinishUtc,
+					ProblemTimeUtc = t.ProblemTimeUtc
+				});
 			}
 
 			foreach (KeyValuePair<string, List<GetTelemetryInfoResponse>> result in results)
