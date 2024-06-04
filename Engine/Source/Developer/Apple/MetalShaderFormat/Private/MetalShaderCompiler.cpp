@@ -752,6 +752,7 @@ void BuildMetalShaderOutput(
 			Job.SourceCRCLen = SourceCRCLen;
 			Job.SourceCRC = SourceCRC;
 			Job.bRetainObjectFile = ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive);
+			Job.bOptimizeForSize = ShaderInput.Environment.GetCompileArgument(TEXT("METAL_OPTIMIZE_FOR_SIZE"), false);
 			Job.bCompileAsPCH = false;
 			Job.ReturnCode = 0;
 

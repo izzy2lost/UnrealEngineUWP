@@ -58,6 +58,7 @@ struct FMetalShaderBytecodeJob
 	uint32 SourceCRC;
 	bool bRetainObjectFile;
 	bool bCompileAsPCH;
+	bool bOptimizeForSize;
 	
 	FString Message;
 	FString Results;
