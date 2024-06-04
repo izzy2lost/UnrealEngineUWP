@@ -72,6 +72,9 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_B
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = Evaluation, meta=(FoldProperty))
 	EWarpingEvaluationMode EvaluationMode = EWarpingEvaluationMode::Graph;
+	
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (FoldProperty, PinHiddenByDefault))
+	bool bResetEveryFrame = false;
 
 	// The translation offset behavior mode
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (FoldProperty, PinHiddenByDefault))
@@ -152,6 +155,7 @@ public:
 
 	// Folded property accesors
 	EWarpingEvaluationMode GetEvaluationMode() const;
+	bool GetResetEveryFrame() const;
 	const FVector& GetTranslationDelta() const;
 	const FRotator& GetRotationDelta() const;
 	EOffsetRootBoneMode GetTranslationMode() const;

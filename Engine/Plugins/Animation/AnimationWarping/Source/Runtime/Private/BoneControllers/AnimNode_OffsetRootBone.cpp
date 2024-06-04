@@ -71,7 +71,8 @@ void FAnimNode_OffsetRootBone::Update_AnyThread(const FAnimationUpdateContext& C
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
 	// If we just became relevant and haven't been initialized yet, then reset.
-	if (!bIsFirstUpdate && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter()))
+	if (GetResetEveryFrame() || 
+		(!bIsFirstUpdate && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter())))
 	{
 		Reset(Context);
 	}
@@ -427,6 +428,11 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 EWarpingEvaluationMode FAnimNode_OffsetRootBone::GetEvaluationMode() const
 {
 	return GET_ANIM_NODE_DATA(EWarpingEvaluationMode, EvaluationMode);
+}
+
+bool FAnimNode_OffsetRootBone::GetResetEveryFrame() const
+{
+	return GET_ANIM_NODE_DATA(bool, bResetEveryFrame);
 }
 
 const FVector& FAnimNode_OffsetRootBone::GetTranslationDelta() const

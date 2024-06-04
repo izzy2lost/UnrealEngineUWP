@@ -476,3 +476,10 @@ void UPoseSearchTrajectoryLibrary::GetTrajectorySampleAtTime(UPARAM(ref) const F
 	OutTrajectorySample = InTrajectory.GetSampleAtTime(Time, bExtrapolate);
 }
 
+void UPoseSearchTrajectoryLibrary::GetTrajectoryVelocity(UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, float Time1, float Time2, FVector& OutVelocity, bool bExtrapolate)
+{
+	FPoseSearchQueryTrajectorySample Sample1 = InTrajectory.GetSampleAtTime(Time1, bExtrapolate);
+	FPoseSearchQueryTrajectorySample Sample2 = InTrajectory.GetSampleAtTime(Time2, bExtrapolate);
+
+	OutVelocity = (Sample2.Position - Sample1.Position) / (Time2 - Time1);
+}
