@@ -33,7 +33,7 @@ export class AgentStore {
     private _pools: PoolData[] = [];
 
     // don't need this for now
-    modifiedAfterDate: Date = new Date(0);
+    modifiedAfterDate?: Date;
 
     inflight?: boolean;
 
