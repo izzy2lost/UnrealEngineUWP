@@ -15,6 +15,8 @@
 #include "StructUtilsDelegates.h"
 #include "Misc/EnumerateRange.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#include "StateTreePropertyFunctionBase.h"
+
 #if WITH_EDITOR
 #include "Editor.h"
 #include "Engine/UserDefinedStruct.h"
@@ -359,10 +361,10 @@ void UStateTree::PostLoad()
 		{
 			if (Node->InstanceTemplateIndex.IsValid())
 			{
-				const bool bUseSharedInstanceData = NodeView.GetPtr<FStateTreeConditionBase>() || NodeView.GetPtr<FStateTreeConsiderationBase>();
-
-				FStateTreeInstanceData& SourceInstanceData = bUseSharedInstanceData ? SharedInstanceData : DefaultInstanceData;
-
+				const bool bIsUsingSharedInstanceData = NodeView.GetScriptStruct()->IsChildOf<FStateTreeConditionBase>()
+														|| NodeView.GetScriptStruct()->IsChildOf<FStateTreeConsiderationBase>()
+														|| NodeView.GetScriptStruct()->IsChildOf<FStateTreePropertyFunctionBase>();
+				FStateTreeInstanceData& SourceInstanceData = bIsUsingSharedInstanceData ? SharedInstanceData : DefaultInstanceData;
 				if (SourceInstanceData.IsObject(Node->InstanceTemplateIndex.Get()))
 				{
 					Node->PostLoad(SourceInstanceData.GetMutableObject(Node->InstanceTemplateIndex.Get()));
@@ -372,7 +374,6 @@ void UStateTree::PostLoad()
 					Node->PostLoad(SourceInstanceData.GetMutableStruct(Node->InstanceTemplateIndex.Get()));
 				}
 			}
-			
 		}
 	}
 
@@ -746,9 +747,11 @@ bool UStateTree::PatchBindings()
 		const FStateTreeNodeBase& Node = NodeView.Get<const FStateTreeNodeBase>();
 
 		FStateTreeInstanceData* SourceInstanceData = &DefaultInstanceData;
-		if (NodeView.GetPtr<const FStateTreeConditionBase>() || NodeView.GetPtr<const FStateTreeConsiderationBase>())
+		if (NodeView.GetScriptStruct()->IsChildOf<FStateTreeConditionBase>()
+            || NodeView.GetScriptStruct()->IsChildOf<FStateTreeConsiderationBase>()
+            || NodeView.GetScriptStruct()->IsChildOf<FStateTreePropertyFunctionBase>())
 		{
-			// Conditions are stored in shared instance data.
+			// Conditions, Considerations, and PropertyFunctions are stored in shared instance data.
 			SourceInstanceData = &SharedInstanceData;
 		}
 
@@ -796,7 +799,7 @@ bool UStateTree::PatchBindings()
 		}
 
 		FString ErrorMsg;
-		for (int32 Index = Batch.BindingsBegin; Index != Batch.BindingsEnd; Index++)
+		for (int32 Index = Batch.BindingsBegin.Get(); Index != Batch.BindingsEnd.Get(); Index++)
 		{
 			FStateTreePropertyPathBinding& Binding = PropertyPathBindings[Index];
 
@@ -1067,6 +1070,5 @@ void UStateTree::CompileIfChanged()
 		}
 	}
 }
-
 #endif // WITH_EDITOR
 

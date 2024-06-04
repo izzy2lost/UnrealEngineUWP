@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IDetailPropertyExtensionHandler.h"
+#include "IDetailPropertyChildrenCustomizationHandler.h"
 
 enum class EStateTreePropertyUsage : uint8;
 
@@ -48,4 +49,12 @@ public:
 	// IDetailPropertyExtensionHandler interface
 	virtual bool IsPropertyExtendable(const UClass* InObjectClass, const IPropertyHandle& PropertyHandle) const override;
 	virtual void ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, const IDetailLayoutBuilder& InDetailBuilder, const UClass* InObjectClass, TSharedPtr<IPropertyHandle> PropertyHandle) override;
+};
+
+/* Overrides bound property's children composition. */
+class FStateTreeBindingsChildrenCustomization : public IDetailPropertyChildrenCustomizationHandler
+{
+public:
+	bool ShouldCustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle) override;
+	void CustomizeChildren(IDetailChildrenBuilder& ChildrenBuilder, TSharedPtr<IPropertyHandle> InPropertyHandle) override;
 };

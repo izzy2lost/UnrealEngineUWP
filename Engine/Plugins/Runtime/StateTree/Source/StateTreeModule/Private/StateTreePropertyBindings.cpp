@@ -69,6 +69,25 @@ namespace UE::StateTree
 
 		return EStateTreePropertyUsage::Parameter;
 	}
+
+	const FProperty* GetStructSingleOutputProperty(const UStruct& InStruct)
+	{
+		const FProperty* FuncOutputProperty = nullptr;
+		for (TFieldIterator<FProperty> PropIt(&InStruct, EFieldIteratorFlags::IncludeSuper); PropIt; ++PropIt)
+		{
+			if (GetUsageFromMetaData(*PropIt) == EStateTreePropertyUsage::Output)
+			{
+				if (FuncOutputProperty)
+				{
+					return nullptr;
+				}
+
+				FuncOutputProperty = *PropIt;
+			}
+		}
+
+		return FuncOutputProperty;
+	}
 #endif
 
 } // UE::StateTree
@@ -213,7 +232,7 @@ bool FStateTreePropertyBindings::ResolvePaths()
 	
 	for (const FStateTreePropertyCopyBatch& Batch : CopyBatches)
 	{
-		for (int32 i = Batch.BindingsBegin; i != Batch.BindingsEnd; i++)
+		for (int32 i = Batch.BindingsBegin.Get(); i != Batch.BindingsEnd.Get(); i++)
 		{
 			const FStateTreePropertyPathBinding& Binding = PropertyPathBindings[i];
 			
@@ -1174,7 +1193,7 @@ bool FStateTreePropertyBindings::ResetObjects(const FStateTreeIndex16 TargetBatc
 
 	bool bResult = true;
 	
-	for (int32 i = Batch.BindingsBegin; i != Batch.BindingsEnd; i++)
+	for (int32 i = Batch.BindingsBegin.Get(); i != Batch.BindingsEnd.Get(); i++)
 	{
 		const FStateTreePropertyCopy& Copy = PropertyCopies[i];
 		// Copies that fail to be resolved (i.e. property path does not resolve, types changed) will be marked as None, skip them.
@@ -1254,7 +1273,7 @@ void FStateTreePropertyBindings::DebugPrintInternalLayout(FString& OutString) co
 		OutString += FString::Printf(TEXT("  | %-40s | %-40s | %8s [%3d:%-3d[ |\n"),
 									 CopyBatch.TargetStruct.Struct ? *CopyBatch.TargetStruct.Struct->GetName() : TEXT("null"),
 									 *CopyBatch.TargetStruct.Name.ToString(),
-									 TEXT(""), CopyBatch.BindingsBegin, CopyBatch.BindingsEnd);
+									 TEXT(""), CopyBatch.BindingsBegin.Get(), CopyBatch.BindingsEnd.Get());
 	}
 
 	/** Array of property bindings, resolved into arrays of copies before use. */
@@ -1401,10 +1420,10 @@ bool FStateTreePropertyPath::UpdateSegmentsFromValue(const FStateTreeDataView Ba
 	return true;
 }
 
-FString FStateTreePropertyPath::ToString(const int32 HighlightedSegment, const TCHAR* HighlightPrefix, const TCHAR* HighlightPostfix, const bool bOutputInstances) const
+FString FStateTreePropertyPath::ToString(const int32 HighlightedSegment, const TCHAR* HighlightPrefix, const TCHAR* HighlightPostfix, const bool bOutputInstances, const int32 FirstSegment) const
 {
 	FStringBuilderBase Result;
-	for (TEnumerateRef<const FStateTreePropertyPathSegment> Segment : EnumerateRange(Segments))
+	for (TEnumerateRef<const FStateTreePropertyPathSegment> Segment : EnumerateRange(TConstArrayView<FStateTreePropertyPathSegment>(Segments).Mid(FMath::Max(FirstSegment, 0))))
 	{
 		if (Segment.GetIndex() > 0)
 		{

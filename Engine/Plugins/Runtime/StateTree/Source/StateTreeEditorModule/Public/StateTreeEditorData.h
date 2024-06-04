@@ -17,6 +17,9 @@ namespace UE::StateTree::Editor
 {
 	// Name used to describe container of global items (other items use the path to the container State).  
 	extern STATETREEEDITORMODULE_API const FString GlobalStateName;
+
+	// Name used to describe container of property functions.
+	extern STATETREEEDITORMODULE_API const FString PropertyFunctionStateName;
 }
 
 
@@ -69,6 +72,8 @@ public:
 	virtual const FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() const override { return &EditorBindings; }
 	virtual FStateTreeBindableStructDesc FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const override;
 
+	virtual EStateTreeVisitor EnumerateBindablePropertyFunctionNodes(TFunctionRef<EStateTreeVisitor(const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
+
 	// ~IStateTreeEditorPropertyBindingsOwner
 
 	/**
@@ -103,33 +108,39 @@ public:
 
 	/**
 	* Iterates over all structs that are related to binding
-	* @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	* @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	*/
 	EStateTreeVisitor VisitHierarchy(TFunctionRef<EStateTreeVisitor(UStateTreeState& State, UStateTreeState* ParentState)> InFunc) const;
 
 	/**
 	 * Iterates over all structs at the global level (context, tree parameters, evaluators, global tasks) that are related to binding.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitGlobalNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Iterates over all structs in the state hierarchy that are related to binding.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitHierarchyNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Iterates over all structs that are related to binding.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitAllNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Iterates over all nodes in a given state.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitStateNodes(const UStateTreeState& State, TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
+
+	/**
+	 * Iterates recursively over all property functions of the provided node. Also nested ones.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
+	 */
+	EStateTreeVisitor VisitStructBoundPropertyFunctions(FGuid StructID, const FString& StatePath, TFunctionRef<EStateTreeVisitor(const FStateTreeEditorNode& EditorNode, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Returns array of nodes along the execution path, up to the TargetStruct.
@@ -216,6 +227,14 @@ public:
 	void AddPropertyBinding(const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath)
 	{
 		EditorBindings.AddPropertyBinding(SourcePath, TargetPath);
+	}
+
+	/**
+	 * Adds property binding to PropertyFunction of provided type.
+	 */
+	void AddPropertyBinding(const UScriptStruct* PropertyFunctionNodeStruct, TConstArrayView<FStateTreePropertyPathSegment> SourcePathSegments, const FStateTreePropertyPath& TargetPath)
+	{
+		EditorBindings.AddFunctionPropertyBinding(PropertyFunctionNodeStruct, SourcePathSegments, TargetPath);
 	}
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

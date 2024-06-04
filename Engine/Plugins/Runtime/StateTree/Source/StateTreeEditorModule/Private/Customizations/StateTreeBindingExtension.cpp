@@ -13,6 +13,15 @@
 #include "Widgets/Layout/SBox.h"
 #include "StateTreePropertyRef.h"
 #include "StateTreePropertyRefHelpers.h"
+#include "DetailLayoutBuilder.h"
+#include "IPropertyUtilities.h"
+#include "IDetailChildrenBuilder.h"
+#include "IStructureDataProvider.h"
+#include "StateTreeEditorNodeUtils.h"
+#include "StateTreeEditorModule.h"
+#include "StateTreeNodeClassCache.h"
+#include "StateTreePropertyFunctionBase.h"
+#include "StateTreeEditorData.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -208,11 +217,6 @@ EStateTreePropertyUsage MakeStructPropertyPathFromPropertyHandle(TSharedPtr<cons
 	return ResultUsage;
 }
 
-const FStateTreeBindableStructDesc* FindStruct(TConstArrayView<FStateTreeBindableStructDesc> AccessibleStructs, const FGuid StructID)
-{
-	return AccessibleStructs.FindByPredicate([StructID](const FStateTreeBindableStructDesc& Desc) { return Desc.ID == StructID; });
-}
-
 // @todo: there's a similar function in StateTreeNodeDetails.cpp, merge.
 FText GetPropertyTypeText(const FProperty* Property)
 {
@@ -279,18 +283,56 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		// First item in the binding chain is the index in AccessibleStructs.
 		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
 		check(SourceStructIndex >= 0 && SourceStructIndex < AccessibleStructs.Num());
+
+		const FStateTreeBindableStructDesc& BindableStruct = AccessibleStructs[SourceStructIndex];
 				
 		TConstArrayView<FBindingChainElement> SourceBindingChain(InBindingChain.begin() + 1, InBindingChain.Num() - 1); // remove struct index.
 
 		FStateTreeDataView DataView;
-		BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, DataView);
+		BindingOwner->GetDataViewByID(BindableStruct.ID, DataView);
 
 		// If SourceBindingChain is empty at this stage, it means that the binding points to the source struct itself.
 		FStateTreePropertyPath SourcePath;
-		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromBindingChain(AccessibleStructs[SourceStructIndex].ID, SourceBindingChain, DataView, SourcePath);
-				
+		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromBindingChain(BindableStruct.ID, SourceBindingChain, DataView, SourcePath);
+
 		OwnerObject->Modify();
-		EditorBindings->AddPropertyBinding(SourcePath, TargetPath);
+
+		if (BindableStruct.DataSource == EStateTreeBindableStructSource::PropertyFunction)
+		{
+			const UScriptStruct* PropertyFunctionNodeStruct = nullptr;
+
+			BindingOwner->EnumerateBindablePropertyFunctionNodes([ID = BindableStruct.ID, &PropertyFunctionNodeStruct](const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
+			{
+				if (Desc.ID == ID)
+				{
+					PropertyFunctionNodeStruct = NodeStruct;
+					return EStateTreeVisitor::Break;
+				}
+
+				return EStateTreeVisitor::Continue;
+			});
+
+			if (ensure(PropertyFunctionNodeStruct))
+			{
+				// If there are no segments, bindings leads directly into source struct's single output property. It's path has to be recovered.
+				if (SourcePath.NumSegments() == 0)
+				{
+					const FProperty* SingleOutputProperty = UE::StateTree::GetStructSingleOutputProperty(*BindableStruct.Struct);
+					check(SingleOutputProperty);
+
+					FStateTreePropertyPathSegment SingleOutputPropertySegment = FStateTreePropertyPathSegment(SingleOutputProperty->GetFName());
+					SourcePath = EditorBindings->AddFunctionPropertyBinding(PropertyFunctionNodeStruct, {SingleOutputPropertySegment}, TargetPath);
+				}
+				else
+				{
+					SourcePath = EditorBindings->AddFunctionPropertyBinding(PropertyFunctionNodeStruct, SourcePath.GetSegments(), TargetPath);
+				}
+			}
+		}
+		else
+		{
+			EditorBindings->AddPropertyBinding(SourcePath, TargetPath);
+		}
 
 		UpdateData();
 
@@ -331,8 +373,9 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 	{
 		static FName PropertyIcon(TEXT("Kismet.Tabs.Variables"));
 
-		Text = FText::GetEmpty();
-		TooltipText = FText::GetEmpty();
+		SourceStructName = FText::GetEmpty();
+		FormatableText = FText::GetEmpty();
+		FormatableTooltipText = FText::GetEmpty();
 		Color = FLinearColor::White;
 		Image = nullptr;
 
@@ -390,18 +433,32 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 
 		FTextBuilder TooltipBuilder;
-		if (const FStateTreePropertyPath* SourcePath = EditorBindings->GetPropertyBindingSource(TargetPath))
+		const FStateTreePropertyPathBinding* CurrentBinding = EditorBindings->GetBindings().FindByPredicate([this](const FStateTreePropertyPathBinding& Binding)
 		{
-			const FStateTreeBindableStructDesc* SourceDesc = UE::StateTree::PropertyBinding::FindStruct(AccessibleStructs, SourcePath->GetStructID());
-			if (SourceDesc)
+			return Binding.GetTargetPath() == TargetPath;
+		});
+
+		if (CurrentBinding)
+		{
+			const FStateTreePropertyPath& SourcePath = CurrentBinding->GetSourcePath();
+			FString SourcePropertyPathAsString = SourcePath.ToString();
+
+			// If source is a bound PropertyFunction, it will not be present in AccessibleStructs thus it has to be accessed through bindings owner.
+			FStateTreeBindableStructDesc SourceDesc;
+			if (BindingOwner->GetStructByID(SourcePath.GetStructID(), SourceDesc))
 			{
-				bool bIsValidBinding = false;
+				// Making first segment of the path invisible for the user if it's struct's single output property.
+				if (UE::StateTree::GetStructSingleOutputProperty(*SourceDesc.Struct))
+				{
+					SourcePropertyPathAsString = SourcePath.ToString(/*HighlightedSegment*/ INDEX_NONE, /*HighlightPrefix*/ nullptr, /*HighlightPostfix*/ nullptr, /*bOutputInstances*/ false, 1);
+				}
 
 				// Check that the binding is valid.
+				bool bIsValidBinding = false;
 				FStateTreeDataView SourceDataView;
 				const FProperty* SourceLeafProperty = nullptr;
 				const UStruct* SourceStruct = nullptr;
-				if (BindingOwner->GetDataViewByID(SourcePath->GetStructID(), SourceDataView)
+				if (BindingOwner->GetDataViewByID(SourcePath.GetStructID(), SourceDataView)
 					&& TargetDataView.IsValid())
 				{
 					TArray<FStateTreePropertyPathIndirection> SourceIndirections;
@@ -410,7 +467,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 					// Resolve source and target properties.
 					// Source path can be empty, when the binding binds directly to a context struct/class.
 					// Target path must always point to a valid property (at least one indirection).
-					if (SourcePath->ResolveIndirectionsWithValue(SourceDataView, SourceIndirections)
+					if (SourcePath.ResolveIndirectionsWithValue(SourceDataView, SourceIndirections)
 						&& TargetPath.ResolveIndirectionsWithValue(TargetDataView, TargetIndirections)
 						&& !TargetIndirections.IsEmpty())
 					{
@@ -431,24 +488,32 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 					}
 				}
 
-				FString SourcePropertyName;
-				SourcePropertyName += SourceDesc->Name.ToString();
-				if (!SourcePath->IsPathEmpty())
-				{
-					SourcePropertyName += TEXT(".") + SourcePath->ToString();
-				}
+				FormatableText = FText::FormatNamed(LOCTEXT("ValidSourcePath", "{SourceStruct}{PropertyPath}"), TEXT("PropertyPath"), SourcePropertyPathAsString.IsEmpty() ? FText() : FText::FromString(TEXT(".") + SourcePropertyPathAsString));
+				SourceStructName = FText::FromString(SourceDesc.Name.ToString());
 
 				if (bIsValidBinding)
 				{
-					Text = FText::FromString(SourcePropertyName);
-
-					if (SourcePath->IsPathEmpty())
+					if (SourcePropertyPathAsString.IsEmpty())
 					{
-						TooltipBuilder.AppendLineFormat(LOCTEXT("ExistingBindingTooltip", "Property is bound to {0}."), FText::FromString(SourceDesc->ToString()));
+						if (CurrentBinding->GetPropertyFunctionNode().IsValid())
+						{
+							TooltipBuilder.AppendLine(LOCTEXT("ExistingBindingToFunctionTooltip", "Property is bound to function {SourceStruct}."));
+						}
+						else
+						{
+							TooltipBuilder.AppendLine(LOCTEXT("ExistingBindingTooltip", "Property is bound to {SourceStruct}."));
+						}
 					}
 					else
 					{
-						TooltipBuilder.AppendLineFormat(LOCTEXT("ExistingBindingWithPropertyTooltip", "Property is bound to {0} property {1}."), FText::FromString(SourceDesc->ToString()), FText::FromString(SourcePath->ToString()));
+						if (CurrentBinding->GetPropertyFunctionNode().IsValid())
+						{
+							TooltipBuilder.AppendLineFormat(LOCTEXT("ExistingBindingToFunctionWithPropertyTooltip", "Property is bound to function {SourceStruct} property {PropertyPath}."), {{TEXT("PropertyPath"), FText::FromString(SourcePropertyPathAsString)}});
+						}
+						else
+						{
+							TooltipBuilder.AppendLineFormat(LOCTEXT("ExistingBindingWithPropertyTooltip", "Property is bound to {SourceStruct} property {PropertyPath}."), {{TEXT("PropertyPath"), FText::FromString(SourcePropertyPathAsString)}});
+						}
 					}
 
 					if (bIsPropertyRef) // Update the pin type with source property so that property ref that can binds to multiple types display the binded one.
@@ -471,18 +536,23 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 						SourceType = SourceStruct->GetDisplayNameText();
 					}
 					FText TargetType = UE::StateTree::PropertyBinding::GetPropertyTypeText(Property);
-					
-					Text = FText::FromString(SourcePropertyName);
 
-					if (SourcePath->IsPathEmpty())
+					if (SourcePath.IsPathEmpty())
 					{
-						TooltipBuilder.AppendLineFormat(LOCTEXT("MismatchingBindingTooltip", "Property is bound to {0}, but binding source type '{1}' does not match property type '{2}'."),
-							FText::FromString(SourceDesc->ToString()), SourceType, TargetType);
+						TooltipBuilder.AppendLineFormat(LOCTEXT("MismatchingBindingTooltip", "Property is bound to {SourceStruct}, but binding source type '{SourceType}' does not match property type '{TargetType}'."),
+							{
+								{TEXT("SourceType"), SourceType},
+								{TEXT("TargetType"), TargetType}
+							});
 					}
 					else
 					{
-						TooltipBuilder.AppendLineFormat(LOCTEXT("MismatchingBindingTooltipWithProperty", "Property is bound to {0} property {1}, but binding source type '{2}' does not match property type '{3}'."),
-							FText::FromString(SourceDesc->ToString()), FText::FromString(SourcePath->ToString()), SourceType, TargetType);
+						TooltipBuilder.AppendLineFormat(LOCTEXT("MismatchingBindingTooltipWithProperty", "Property is bound to {SourceStruct} property {PropertyPath}, but binding source type '{SourceType}' does not match property type '{TargetType}'."),
+							{
+								{TEXT("PropertyPath"), FText::FromString(SourcePropertyPathAsString)},
+								{TEXT("SourceType"), SourceType},
+								{TEXT("TargetType"), TargetType}
+							});
 					}
 
 					Image = FCoreStyle::Get().GetBrush("Icons.ErrorWithColor");
@@ -492,18 +562,18 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			else
 			{
 				// Missing source
-				Text = FText::Format(LOCTEXT("MissingSource", "???.{0}"), FText::FromString(SourcePath->ToString()));
-				TooltipBuilder.AppendLineFormat(LOCTEXT("MissingBindingTooltip", "Missing binding source for property path '{0}'."), FText::FromString(SourcePath->ToString()));
+				FormatableText = FText::Format(LOCTEXT("MissingSource", "???.{0}"), FText::FromString(SourcePropertyPathAsString));
+				TooltipBuilder.AppendLineFormat(LOCTEXT("MissingBindingTooltip", "Missing binding source for property path '{0}'."), FText::FromString(SourcePropertyPathAsString));
 				Image = FCoreStyle::Get().GetBrush("Icons.ErrorWithColor");
 				Color = FLinearColor::White;
 			}
 
-			CachedSourcePath = *SourcePath;
+			CachedSourcePath = SourcePath;
 		}
 		else
 		{
 			// No bindings
-			Text = FText::GetEmpty();
+			FormatableText = FText::GetEmpty();
 			TooltipBuilder.AppendLineFormat(LOCTEXT("BindTooltip", "Bind {0} to value from another property."), UE::StateTree::PropertyBinding::GetPropertyTypeText(Property));
 
 			Image = FAppStyle::GetBrush(PropertyIcon);
@@ -528,12 +598,12 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			}
 		}
 
-		TooltipText = TooltipBuilder.ToText();
+		FormatableTooltipText = TooltipBuilder.ToText();
 
 		bIsDataCached = true;
 	}
 
-	bool CanBindToContextStruct(const UStruct* InStruct)
+	bool CanBindToContextStruct(const UStruct* InStruct, int32 InStructIndex)
 	{
 		ConditionallyUpdateData();
 
@@ -547,12 +617,31 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::Parameter
 					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::TransitionEvent
 					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::StateEvent
+					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::PropertyFunction
 					&& AccessibleStruct.Struct == InStruct;
 			});
 
 			if (bIsStateTreeNode)
 			{
 				return false;
+			}
+		}
+
+		check(AccessibleStructs.IsValidIndex(InStructIndex));
+		// Binding directly into PropertyFunction's struct is allowed if it contains a compatible single output property.
+		if (AccessibleStructs[InStructIndex].DataSource == EStateTreeBindableStructSource::PropertyFunction)
+		{
+			IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get());
+			FStateTreeDataView DataView;
+			// If DataView exists, struct is an instance of already bound function.
+			if (BindingOwner == nullptr || BindingOwner->GetDataViewByID(AccessibleStructs[InStructIndex].ID, DataView))
+			{
+				return false;
+			}
+
+			if (const FProperty* SingleOutputProperty = UE::StateTree::GetStructSingleOutputProperty(*AccessibleStructs[InStructIndex].Struct))
+			{
+				return CanBindToProperty(SingleOutputProperty, {FBindingChainElement(nullptr, InStructIndex), FBindingChainElement(const_cast<FProperty*>(SingleOutputProperty))});
 			}
 		}
 
@@ -585,7 +674,14 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		check(AccessibleStructs.IsValidIndex(SourceStructIndex));
 
 		FStateTreeDataView SourceDataView;
-		BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, SourceDataView);
+		if (AccessibleStructs[SourceStructIndex].DataSource == EStateTreeBindableStructSource::PropertyFunction)
+		{
+			SourceDataView = FStateTreeDataView(AccessibleStructs[SourceStructIndex].Struct, nullptr);
+		}
+		else
+		{
+			BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, SourceDataView);
+		}
 
 		FStateTreePropertyPath SourcePath;
 		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromBindingChain(AccessibleStructs[SourceStructIndex].ID, InBindingChain, SourceDataView, SourcePath);
@@ -609,12 +705,39 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 		ConditionallyUpdateData();
 
-		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*PropertyHandle->GetProperty()))
-		{
-			const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
-			check(AccessibleStructs.IsValidIndex(SourceStructIndex));
+		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
+		check(AccessibleStructs.IsValidIndex(SourceStructIndex));
+		const FStateTreeBindableStructDesc& StructDesc = AccessibleStructs[SourceStructIndex];
 
-			if (!UE::StateTree::PropertyRefHelpers::IsPropertyAccessibleForPropertyRef(*SourceProperty, InBindingChain, AccessibleStructs[SourceStructIndex]))
+		if (StructDesc.DataSource == EStateTreeBindableStructSource::PropertyFunction)
+		{
+			IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get());
+			FStateTreeDataView DataView;
+			// If DataView exists, struct is an instance of already bound function.
+			if (BindingOwner == nullptr || BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, DataView))
+			{
+				return false;
+			}
+
+			// To avoid duplicates, PropertyFunction struct's children are not allowed to be bound if it contains a compatible single output property.
+			if (const FProperty* SingleOutputProperty = UE::StateTree::GetStructSingleOutputProperty(*StructDesc.Struct))
+			{
+				if (CanBindToProperty(SingleOutputProperty, {FBindingChainElement(nullptr, SourceStructIndex), FBindingChainElement(const_cast<FProperty*>(SingleOutputProperty))}))
+				{
+					return false;
+				}
+			}
+
+			// Binding to non-output PropertyFunctions properties is not allowed.
+			if (InBindingChain.Num() == 1 && UE::StateTree::GetUsageFromMetaData(SourceProperty) != EStateTreePropertyUsage::Output)
+			{
+				return false;
+			}
+		}
+
+		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*PropertyHandle->GetProperty()) && !UE::StateTree::PropertyRefHelpers::IsPropertyAccessibleForPropertyRef(*SourceProperty, InBindingChain, StructDesc))
+		{
+			if (!UE::StateTree::PropertyRefHelpers::IsPropertyAccessibleForPropertyRef(*SourceProperty, InBindingChain, StructDesc))
 			{
 				return false;
 			}
@@ -732,24 +855,143 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 	FText GetText()
 	{
 		ConditionallyUpdateData();
-		return Text;
+
+		// Bound PropertyFunction is allowed to override it's display name.
+		if (IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get()))
+		{
+			if(FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings())
+			{
+				const FStateTreePropertyPathBinding* CurrentBinding = EditorBindings->GetBindings().FindByPredicate([this](const FStateTreePropertyPathBinding& Binding)
+				{
+					return Binding.GetTargetPath() == TargetPath;
+				});
+
+				if (CurrentBinding)
+				{
+					const FConstStructView PropertyFunctionEditorNodeView = CurrentBinding->GetPropertyFunctionNode();
+					if(PropertyFunctionEditorNodeView.IsValid())
+					{
+						const FStateTreeEditorNode& EditorNode = PropertyFunctionEditorNodeView.Get<const FStateTreeEditorNode>();
+						if (const FStateTreeNodeBase* Node = EditorNode.Node.GetPtr<const FStateTreeNodeBase>())
+						{
+							const FText Description = Node->GetDescription(CachedSourcePath.GetStructID(), EditorNode.GetInstance(), FStateTreeBindingLookup(BindingOwner), EStateTreeNodeFormatting::Text);
+							if (!Description.IsEmpty())
+							{
+								return FText::FormatNamed(FormatableText, TEXT("SourceStruct"), Description);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return FText::FormatNamed(FormatableText, TEXT("SourceStruct"), SourceStructName);
 	}
 	
 	FText GetTooltipText()
 	{
 		ConditionallyUpdateData();
-		return TooltipText;
+
+		// If the source property is a PropertyFunction and it overrides it's display name, it's been used in the tooltip text.
+		if (IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get()))
+		{
+			if(FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings())
+			{
+				const FStateTreePropertyPathBinding* CurrentBinding = EditorBindings->GetBindings().FindByPredicate([this](const FStateTreePropertyPathBinding& Binding)
+				{
+					return Binding.GetTargetPath() == TargetPath;
+				});
+
+				if (CurrentBinding)
+				{
+					const FConstStructView PropertyFunctionEditorNodeView = CurrentBinding->GetPropertyFunctionNode();
+					if(PropertyFunctionEditorNodeView.IsValid())
+					{
+						const FStateTreeEditorNode& EditorNode = PropertyFunctionEditorNodeView.Get<const FStateTreeEditorNode>();
+						if(const FStateTreeNodeBase* Node = EditorNode.Node.GetPtr<const FStateTreeNodeBase>())
+						{
+							const FText Description = Node->GetDescription(CachedSourcePath.GetStructID(), EditorNode.GetInstance(), FStateTreeBindingLookup(BindingOwner), EStateTreeNodeFormatting::Text);
+							if (!Description.IsEmpty())
+							{
+								return FText::FormatNamed(FormatableTooltipText, TEXT("SourceStruct"), Description);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return FText::FormatNamed(FormatableTooltipText, TEXT("SourceStruct"), SourceStructName);
 	}
 	
 	FLinearColor GetColor()
 	{
 		ConditionallyUpdateData();
+
+		// Bound PropertyFunction is allowed to override it's icon color if the binding leads directly into it's single output property.
+		if (CachedSourcePath.NumSegments() == 1)
+		{
+			if (IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get()))
+			{
+				if(FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings())
+				{
+					const FStateTreePropertyPathBinding* CurrentBinding = EditorBindings->GetBindings().FindByPredicate([this](const FStateTreePropertyPathBinding& Binding)
+					{
+						return Binding.GetTargetPath() == TargetPath;
+					});
+
+					if (CurrentBinding)
+					{
+						const FConstStructView PropertyFunctionEditorNodeView = CurrentBinding->GetPropertyFunctionNode();
+						if (PropertyFunctionEditorNodeView.IsValid())
+						{
+							const FStateTreeEditorNode& EditorNode = PropertyFunctionEditorNodeView.Get<const FStateTreeEditorNode>();
+							if (const FStateTreeNodeBase* Node = EditorNode.Node.GetPtr<const FStateTreeNodeBase>())
+							{
+								if (Node && UE::StateTree::GetStructSingleOutputProperty(*Node->GetInstanceDataType()))
+								{
+									return Node->GetIconColor();
+								}
+					
+							}
+						}
+					}
+				}
+			}
+		}
+
 		return Color;
 	}
 	
 	const FSlateBrush* GetImage()
 	{
 		ConditionallyUpdateData();
+
+		// Bound PropertyFunction is allowed to override it's icon.
+		if (IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get()))
+		{
+				if(FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings())
+				{
+					const FStateTreePropertyPathBinding* CurrentBinding = EditorBindings->GetBindings().FindByPredicate([this](const FStateTreePropertyPathBinding& Binding)
+					{
+						return Binding.GetTargetPath() == TargetPath;
+					});
+
+					if (CurrentBinding)
+					{
+						const FConstStructView PropertyFunctionEditorNodeView = CurrentBinding->GetPropertyFunctionNode();
+						if (PropertyFunctionEditorNodeView.IsValid())
+						{
+							const FStateTreeEditorNode& EditorNode = PropertyFunctionEditorNodeView.Get<const FStateTreeEditorNode>();
+							if (const FStateTreeNodeBase* Node = EditorNode.Node.GetPtr<const FStateTreeNodeBase>())
+							{
+								return UE::StateTreeEditor::EditorNodeUtils::ParseIcon(Node->GetIconName()).GetIcon();
+							}
+						}
+					}
+				}
+		}
+
 		return Image;
 	}
 	
@@ -798,8 +1040,15 @@ private:
 	TSharedPtr<const IPropertyHandle> PropertyHandle;
 	TArray<FStateTreeBindableStructDesc> AccessibleStructs;
 
-	FText Text;
-	FText TooltipText;
+	/* Default name of the source struct. */
+	FText SourceStructName;
+
+	/* Binding's display name text. Expects it's source struct name to be injected before use. */
+	FText FormatableText;
+
+	/* Binding's tooltip text. Expects it's source struct name to be injected before use. */
+	FText FormatableTooltipText;
+
 	FLinearColor Color = FLinearColor::White;
 	const FSlateBrush* Image = nullptr;
 	
@@ -811,6 +1060,76 @@ bool IsPropertyBindable(const FProperty& Property)
 	return Property.HasAnyPropertyFlags(CPF_Edit) 
 			&& (!Property.HasAnyPropertyFlags(CPF_NativeAccessSpecifierPrivate | CPF_NativeAccessSpecifierProtected) || Property.GetBoolMetaData(FBlueprintMetadata::MD_AllowPrivateAccess));
 }
+
+/* Provides PropertyFunctionNode instance for a property node. */
+class FStateTreePropertyFunctionNodeProvider : public IStructureDataProvider
+{
+public:
+	FStateTreePropertyFunctionNodeProvider(IStateTreeEditorPropertyBindingsOwner& InBindingsOwner, FStateTreePropertyPath InTargetPath)
+		: BindingsOwner(Cast<UObject>(&InBindingsOwner))
+		, TargetPath(MoveTemp(InTargetPath))
+	{}
+	
+	virtual bool IsValid() const override
+	{
+		return GetPropertyFunctionEditorNodeView(BindingsOwner.Get(), TargetPath).IsValid();
+	};
+
+	virtual const UStruct* GetBaseStructure() const override
+	{
+		return FStateTreeEditorNode::StaticStruct();
+	}
+	
+	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
+	{
+		if (ExpectedBaseStructure)
+		{
+			const FStructView Node = GetPropertyFunctionEditorNodeView(BindingsOwner.Get(), TargetPath);
+
+			if (Node.IsValid() && Node.GetScriptStruct()->IsChildOf(ExpectedBaseStructure))
+			{
+				OutInstances.Add(MakeShared<FStructOnScope>(Node.GetScriptStruct(), Node.GetMemory()));
+			}
+		}
+	}
+
+	static bool IsBoundToValidPropertyFunction(UObject& InBindingsOwner, const FStateTreePropertyPath& InTargetPath)
+	{
+		return GetPropertyFunctionEditorNodeView(&InBindingsOwner, InTargetPath).IsValid();
+	}
+	
+private:
+	static FStructView GetPropertyFunctionEditorNodeView(UObject* RawBindingsOwner, const FStateTreePropertyPath& InTargetPath)
+	{
+		if(IStateTreeEditorPropertyBindingsOwner* Owner = Cast<IStateTreeEditorPropertyBindingsOwner>(RawBindingsOwner))
+		{
+			FStateTreeEditorPropertyBindings* EditorBindings = Owner->GetPropertyEditorBindings();
+			FStateTreePropertyPathBinding* FoundBinding = EditorBindings->GetMutableBindings().FindByPredicate([&InTargetPath](const FStateTreePropertyPathBinding& Binding)
+			{
+				return Binding.GetTargetPath() == InTargetPath;
+			});
+
+			
+			if (FoundBinding)
+			{
+				const FStructView EditorNodeView = FoundBinding->GetMutablePropertyFunctionNode();
+				if (EditorNodeView.IsValid())
+				{
+					const FStateTreeEditorNode& EditorNode = EditorNodeView.Get<FStateTreeEditorNode>();
+					if (EditorNode.Node.IsValid() && EditorNode.Instance.IsValid())
+					{
+						return EditorNodeView;
+					}
+				}
+			}
+		}
+
+		return FStructView();
+	}
+
+	TWeakObjectPtr<UObject> BindingsOwner;
+	FStateTreePropertyPath TargetPath;
+};
 
 } // UE::StateTree::PropertyBinding
 
@@ -877,8 +1196,13 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			EditorBindings = BindingOwner->GetPropertyEditorBindings();
 			BindingOwner->GetAccessibleStructs(TargetPath.GetStructID(), AccessibleStructs);
 
+			BindingOwner->EnumerateBindablePropertyFunctionNodes([&AccessibleStructs](const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
+			{
+				AccessibleStructs.Add(Desc);
+				return EStateTreeVisitor::Continue;
+			});
+
 			TMap<FString, FText> SectionNames;
-			
 			for (FStateTreeBindableStructDesc& StructDesc : AccessibleStructs)
 			{
 				const UStruct* Struct = StructDesc.Struct;
@@ -895,6 +1219,22 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 				else
 				{
 					ContextStruct.Section = SectionNames.Add(StructDesc.StatePath, FText::FromString(StructDesc.StatePath));
+				}
+				
+				// PropertyFunction overrides it's struct's icon color.
+				if (StructDesc.DataSource == EStateTreeBindableStructSource::PropertyFunction)
+				{
+					if (const FProperty* OutputProperty = UE::StateTree::GetStructSingleOutputProperty(*StructDesc.Struct))
+					{
+						const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+						check(Schema);
+
+						FEdGraphPinType PinType;
+						if (Schema->ConvertPropertyToPinType(OutputProperty, PinType))
+						{
+							ContextStruct.Color = Schema->GetPinTypeColor(PinType);
+						}
+					}
 				}
 			}
 		}
@@ -932,7 +1272,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 
 	Args.OnCanBindToContextStructWithIndex = FOnCanBindToContextStructWithIndex::CreateLambda([CachedBindingData](const UStruct* InStruct, int32 InStructIndex)
 		{
-			return CachedBindingData->CanBindToContextStruct(InStruct);
+			return CachedBindingData->CanBindToContextStruct(InStruct, InStructIndex);
 		});
 
 	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
@@ -945,14 +1285,16 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			return true;
 		});
 
-	Args.OnAddBinding = FOnAddBinding::CreateLambda([CachedBindingData](FName InPropertyName, TConstArrayView<FBindingChainElement> InBindingChain)
+	Args.OnAddBinding = FOnAddBinding::CreateLambda([CachedBindingData, &InDetailBuilder](FName InPropertyName, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			CachedBindingData->AddBinding(InBindingChain);
+			InDetailBuilder.GetPropertyUtilities()->RequestForceRefresh();
 		});
 
-	Args.OnRemoveBinding = FOnRemoveBinding::CreateLambda([CachedBindingData](FName InPropertyName)
+	Args.OnRemoveBinding = FOnRemoveBinding::CreateLambda([CachedBindingData, &InDetailBuilder](FName InPropertyName)
 		{
 			CachedBindingData->RemoveBinding();
+			InDetailBuilder.GetPropertyUtilities()->RequestForceRefresh();
 		});
 
 	Args.OnCanRemoveBinding = FOnCanRemoveBinding::CreateLambda([EditorBindings, TargetPath](FName InPropertyName)
@@ -997,6 +1339,45 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 	[
 		PropertyAccessEditor.MakePropertyBindingWidget(BindingContextStructs, Args)
 	];
+}
+
+void FStateTreeBindingsChildrenCustomization::CustomizeChildren(IDetailChildrenBuilder& ChildrenBuilder, TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	TArray<UObject*> OuterObjects;
+	InPropertyHandle->GetOuterObjects(OuterObjects);
+	if (OuterObjects.Num() == 1)
+	{
+		FStateTreePropertyPath TargetPath;
+		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromPropertyHandle(InPropertyHandle, TargetPath);
+
+		using FStateTreePropertyFunctionNodeProvider = UE::StateTree::PropertyBinding::FStateTreePropertyFunctionNodeProvider;
+		UObject* BindingsOwner = UE::StateTree::PropertyBinding::FindEditorBindingsOwner(OuterObjects[0]);
+		if (BindingsOwner && FStateTreePropertyFunctionNodeProvider::IsBoundToValidPropertyFunction(*BindingsOwner, TargetPath))
+		{
+			// Bound PropertyFunction takes control over property's children composition.
+			const TSharedPtr<FStateTreePropertyFunctionNodeProvider> StructProvider = MakeShared<FStateTreePropertyFunctionNodeProvider>(*CastChecked<IStateTreeEditorPropertyBindingsOwner>(BindingsOwner), MoveTemp(TargetPath));
+			// Create unique name to persists expansion state.
+			const FName UniqueName = FName(LexToString(TargetPath.GetStructID()) + TargetPath.ToString());
+			ChildrenBuilder.AddChildStructure(InPropertyHandle.ToSharedRef(), StructProvider, UniqueName);
+		}
+	}
+}
+
+bool FStateTreeBindingsChildrenCustomization::ShouldCustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle)
+{
+	TArray<UObject*> OuterObjects;
+	InPropertyHandle->GetOuterObjects(OuterObjects);
+	if (OuterObjects.Num() == 1)
+	{
+		// Bound property's children composition gets overridden.
+		FStateTreePropertyPath TargetPath;
+		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromPropertyHandle(InPropertyHandle, TargetPath);
+		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(UE::StateTree::PropertyBinding::FindEditorBindingsOwner(OuterObjects[0]));
+		FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
+		return EditorBindings->HasPropertyBinding(TargetPath);
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

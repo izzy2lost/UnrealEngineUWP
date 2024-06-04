@@ -5,6 +5,8 @@
 #include "Misc/EnumerateRange.h"
 #include "PropertyPathHelpers.h"
 #include "StateTreeNodeBase.h"
+#include "StateTreePropertyFunctionBase.h"
+#include "StateTreeEditorNode.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEditorPropertyBindings)
 
@@ -43,6 +45,33 @@ void FStateTreeEditorPropertyBindings::AddPropertyBinding(const FStateTreeProper
 		}
 	}
 	
+	PropertyBindings.Add(Binding);
+}
+
+FStateTreePropertyPath FStateTreeEditorPropertyBindings::AddFunctionPropertyBinding(const UScriptStruct* PropertyFunctionNodeStruct, TConstArrayView<FStateTreePropertyPathSegment> SourcePathSegments, const FStateTreePropertyPath& TargetPath)
+{
+	check(PropertyFunctionNodeStruct->IsChildOf<FStateTreePropertyFunctionBase>());
+
+	FInstancedStruct PropertyFunctionNode(FStateTreeEditorNode::StaticStruct());
+	FStateTreeEditorNode& PropertyFunction = PropertyFunctionNode.GetMutable<FStateTreeEditorNode>();
+	const FGuid NodeID = FGuid::NewGuid();
+	PropertyFunction.ID = NodeID;
+	PropertyFunction.Node.InitializeAs(PropertyFunctionNodeStruct);
+	const FStateTreePropertyFunctionBase& Function = PropertyFunction.Node.Get<FStateTreePropertyFunctionBase>();
+	if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Function.GetInstanceDataType()))
+	{
+		PropertyFunction.Instance.InitializeAs(InstanceType);
+	}
+
+	RemovePropertyBindings(TargetPath);
+	FStateTreePropertyPath SourcePath = FStateTreePropertyPath(NodeID, SourcePathSegments);
+	PropertyBindings.Emplace(MoveTemp(PropertyFunctionNode), SourcePath, TargetPath);
+	return SourcePath;
+}
+
+void FStateTreeEditorPropertyBindings::AddPropertyBinding(const FStateTreePropertyPathBinding& Binding)
+{
+	RemovePropertyBindings(Binding.GetTargetPath());
 	PropertyBindings.Add(Binding);
 }
 
@@ -86,13 +115,15 @@ const FStateTreePropertyPath* FStateTreeEditorPropertyBindings::GetPropertyBindi
 	return Binding ? &Binding->GetSourcePath() : nullptr;
 }
 
-void FStateTreeEditorPropertyBindings::GetPropertyBindingsFor(const FGuid StructID, TArray<FStateTreePropertyPathBinding>& OutBindings) const
+void FStateTreeEditorPropertyBindings::GetPropertyBindingsFor(const FGuid StructID, TArray<const FStateTreePropertyPathBinding*>& OutBindings) const
 {
-	OutBindings = PropertyBindings.FilterByPredicate([StructID](const FStateTreePropertyPathBinding& Binding)
+	for (const FStateTreePropertyPathBinding& Binding : PropertyBindings)
+	{
+		if (Binding.GetSourcePath().GetStructID().IsValid() && Binding.GetTargetPath().GetStructID() == StructID)
 		{
-			return Binding.GetSourcePath().GetStructID().IsValid()
-				&& Binding.GetTargetPath().GetStructID() == StructID;
-		});
+			OutBindings.Add(&Binding);
+		}
+	}
 }
 
 void FStateTreeEditorPropertyBindings::RemoveUnusedBindings(const TMap<FGuid, const FStateTreeDataView>& ValidStructs)
@@ -205,6 +236,13 @@ const FStateTreeEditorPropertyPath* FStateTreeEditorPropertyBindings::GetPropert
 	}
 	return nullptr;
 }
+
+void FStateTreeEditorPropertyBindings::GetPropertyBindingsFor(const FGuid StructID, TArray<FStateTreePropertyPathBinding>& OutBindings) const
+{
+	TArray<const FStateTreePropertyPathBinding*> NodeBindings;
+	GetPropertyBindingsFor(StructID, NodeBindings);
+	Algo::Transform(NodeBindings, OutBindings, [](const FStateTreePropertyPathBinding* BindingPtr) { return *BindingPtr; });
+}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FStateTreeEditorPropertyBindings::RemoveUnusedBindings(const TMap<FGuid, const UStruct*>& ValidStructs)
@@ -260,17 +298,55 @@ FText FStateTreeBindingLookup::GetPropertyPathDisplayName(const FStateTreeProper
 	const FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
 	check(EditorBindings);
 
-	FString Result;
+	FString StructName;
+	int32 FirstSegmentToStringify = 0;
 
-	FStateTreeBindableStructDesc Struct;
-	if (BindingOwner->GetStructByID(InPath.GetStructID(), Struct))
+	// If path's struct is a PropertyFunction, let it override a display name.
 	{
-		Result = Struct.Name.ToString();
+		const FStateTreePropertyPathBinding* BindingToPath = EditorBindings->GetBindings().FindByPredicate([&InPath](const FStateTreePropertyPathBinding& Binding)
+		{
+			return Binding.GetSourcePath() == InPath;
+		});
+
+		if (BindingToPath && BindingToPath->GetPropertyFunctionNode().IsValid())
+		{
+			const FConstStructView PropertyFuncEditorNodeView = BindingToPath->GetPropertyFunctionNode();
+			const FStateTreeEditorNode& EditorNode = PropertyFuncEditorNodeView.Get<const FStateTreeEditorNode>();
+
+			if (!EditorNode.Node.IsValid())
+			{
+				return LOCTEXT("Unlinked", "???");
+			}
+
+			const FStateTreeNodeBase& Node = EditorNode.Node.Get<FStateTreeNodeBase>();
+
+			// Skipping an output property if there's only one of them.
+			if (UE::StateTree::GetStructSingleOutputProperty(*Node.GetInstanceDataType()))
+			{
+				FirstSegmentToStringify = 1;
+			}
+
+			const FText Description = Node.GetDescription(BindingToPath->GetSourcePath().GetStructID(), EditorNode.GetInstance(), *this, Formatting);
+			if (!Description.IsEmpty())
+			{
+				StructName = Description.ToString();
+			}
+		}
+	
+		if (StructName.IsEmpty())
+		{
+			FStateTreeBindableStructDesc Struct;
+			if (BindingOwner->GetStructByID(InPath.GetStructID(), Struct))
+			{
+				StructName = Struct.Name.ToString();
+			}
+		}
 	}
 
-	if (!InPath.IsPathEmpty())
+	FString Result = MoveTemp(StructName);
+	if (InPath.NumSegments() > FirstSegmentToStringify)
 	{
-		Result += TEXT(".") + InPath.ToString();
+		Result += TEXT(".") + InPath.ToString(/*HighlightedSegment*/ INDEX_NONE, /*HighlightPrefix*/ nullptr, /*HighlightPostfix*/ nullptr, /*bOutputInstances*/ false, FirstSegmentToStringify);
 	}
 
 	return FText::FromString(Result);
