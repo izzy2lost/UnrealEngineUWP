@@ -64,6 +64,11 @@ FAvaTransitionContext& FAvaTransitionBehaviorInstance::GetTransitionContext()
 	return TransitionContext;
 }
 
+FAvaTransitionSceneOwner FAvaTransitionBehaviorInstance::GetTransitionSceneOwner() const
+{
+	return TransitionSceneOwner;
+}
+
 void FAvaTransitionBehaviorInstance::SetTransitionType(EAvaTransitionType InTransitionType)
 {
 	TransitionContext.TransitionType = InTransitionType;
@@ -243,7 +248,7 @@ TOptional<FAvaTransitionExecutionContext> FAvaTransitionBehaviorInstance::MakeCo
 
 	const FStateTreeReference& StateTreeReference = InBehavior->GetStateTreeReference();
 
-	FAvaTransitionExecutionContext Context(InBehavior->AsUObject(), *StateTreeReference.GetStateTree(), InstanceData);
+	FAvaTransitionExecutionContext Context(*this, InBehavior->AsUObject(), *StateTreeReference.GetStateTree(), InstanceData);
 	if (!Context.IsValid())
 	{
 		return TOptional<FAvaTransitionExecutionContext>();

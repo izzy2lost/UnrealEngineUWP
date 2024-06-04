@@ -2,8 +2,9 @@
 
 #include "AvaTransitionExecutionContext.h"
 
-FAvaTransitionExecutionContext::FAvaTransitionExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
+FAvaTransitionExecutionContext::FAvaTransitionExecutionContext(const FAvaTransitionBehaviorInstance& InBehaviorInstance, UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
 	: FStateTreeExecutionContext(InOwner, InStateTree, InInstanceData)
+	, BehaviorInstance(InBehaviorInstance)
 {
 }
 

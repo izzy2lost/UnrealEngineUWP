@@ -48,6 +48,8 @@ struct FAvaTransitionBehaviorInstance
 
 	FAvaTransitionContext& GetTransitionContext();
 
+	FAvaTransitionSceneOwner GetTransitionSceneOwner() const;
+
 	void SetTransitionType(EAvaTransitionType InTransitionType);
 
 	bool Setup();

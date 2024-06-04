@@ -4,6 +4,9 @@
 
 #include "StateTreeTypes.h"
 
+struct FAvaTransitionBehaviorInstance;
+struct FStateTreeExecutionContext;
+
 namespace UE::AvaTransition
 {
 	/** Safely gets the Instance Data if the Struct type matches or nullptr if there is type mismatch */
@@ -18,4 +21,10 @@ namespace UE::AvaTransition
 		}
 		return nullptr;
 	}
+
+	/**
+	 * Retrieves the Behavior Instance from the Execution Context
+	 * The Execution Context *must* have originated from Motion Design to return a valid pointer
+	 */
+	const FAvaTransitionBehaviorInstance* GetBehaviorInstance(const FStateTreeExecutionContext& InExecutionContext);
 }
