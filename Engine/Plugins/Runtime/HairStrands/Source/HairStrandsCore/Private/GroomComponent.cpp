@@ -1554,6 +1554,26 @@ void UGroomComponent::SwitchSimulationLOD(const int32 PreviousLOD, const int32 C
 	}
 }
 
+#if WITH_EDITOR
+
+bool UGroomComponent::IsCompiling() const
+{
+	return BindingAsset && BindingAsset->IsCompiling();
+}
+
+void UGroomComponent::PostCompilation()
+{
+	if (GroomAssetBeingLoaded && GroomAssetBeingLoaded->IsValid())
+	{
+		// Re-set the assets on the component now that they are loaded
+		SetGroomAsset(GroomAssetBeingLoaded, BindingAssetBeingLoaded);
+	}
+
+	InitIfDependenciesReady();
+}
+
+#endif // WITH_EDITOR
+
 void UGroomComponent::SetGroomAsset(UGroomAsset* Asset)
 {
 	SetGroomAsset(Asset, BindingAsset);
@@ -1568,7 +1588,7 @@ void UGroomComponent::SetGroomAsset(UGroomAsset* Asset, UGroomBindingAsset* InBi
 		LODForcedIndex = FMath::Clamp(LODForcedIndex, -1, GroomAsset->GetLODCount() - 1);
 
 #if WITH_EDITORONLY_DATA
-		if (InBinding && !InBinding->IsValid())
+		if (InBinding && !InBinding->IsCompiling() && !InBinding->IsValid())
 		{
 			// The binding could be invalid if the groom asset was previously invalid.
 			// This will re-fetch the binding data from the DDC to make it valid
@@ -1600,6 +1620,18 @@ void UGroomComponent::SetGroomAsset(UGroomAsset* Asset, UGroomBindingAsset* InBi
 		BindingAsset = InBinding;
 	}
 
+	InitIfDependenciesReady(bUpdateSimulation);
+}
+
+void UGroomComponent::InitIfDependenciesReady(const bool bUpdateSimulation)
+{
+#if WITH_EDITOR
+	if (BindingAsset && BindingAsset->IsCompiling())
+	{
+		return;
+	}
+#endif
+
 	if (!UGroomBindingAsset::IsBindingAssetValid(BindingAsset, false, bValidationEnable) || !UGroomBindingAsset::IsCompatible(GroomAsset, BindingAsset, bValidationEnable))
 	{
 		BindingAsset = nullptr;
@@ -1611,7 +1643,23 @@ void UGroomComponent::SetGroomAsset(UGroomAsset* Asset, UGroomBindingAsset* InBi
 		return;
 	}
 	InitResources();
-	if(bUpdateSimulation) UpdateHairSimulation();
+
+	if (bUpdateSimulation)
+	{
+		UpdateHairSimulation();
+	}
+
+	// Registration can be skipped when BindingAsset is compiling, we need to take care of it here
+	// if we're already registered.
+	if (IsRegistered())
+	{
+		if (GUseGroomCacheStreaming)
+		{
+			IGroomCacheStreamingManager::Get().RegisterComponent(this);
+		}
+
+		MeshDeformerInstance = (MeshDeformer != nullptr) ? MeshDeformer->CreateInstance(this, MeshDeformerInstanceSettings) : nullptr;
+	}
 }
 
 void UGroomComponent::SetStableRasterization(bool bEnable)
@@ -1907,7 +1955,17 @@ void UGroomComponent::UpdateHairGroupsDescAndInvalidateRenderState(bool bInvalid
 FPrimitiveSceneProxy* UGroomComponent::CreateSceneProxy()
 {
 	if (!GroomAsset || GroomAsset->GetNumHairGroups() == 0 || HairGroupInstances.Num() == 0)
+	{
 		return nullptr;
+	}
+
+#if WITH_EDITOR
+	// This will be recreated when the binding asset compilation finishes
+	if (BindingAsset && BindingAsset->IsCompiling())
+	{
+		return nullptr;
+	}
+#endif
 
 	if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
@@ -3217,6 +3275,14 @@ void UGroomComponent::InvalidateAndRecreate()
 void UGroomComponent::OnRegister()
 {
 	Super::OnRegister();
+
+#if WITH_EDITOR
+	if (BindingAsset && BindingAsset->IsCompiling())
+	{
+		return;
+	}
+#endif
+
 	UpdateHairGroupsDesc();
 
 	if (GUseGroomCacheStreaming)
@@ -3297,6 +3363,15 @@ void UGroomComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 void UGroomComponent::OnAttachmentChanged()
 {
 	Super::OnAttachmentChanged();
+
+#if WITH_EDITOR
+	// InitResources will be called when the binding finishes compiling
+	if (BindingAsset && BindingAsset->IsCompiling())
+	{
+		return;
+	}
+#endif
+
 	if (GroomAsset && !IsBeingDestroyed() && HasBeenCreated() && IsValidChecked(this))
 	{
 		UMeshComponent* NewMeshComponent = Cast<UMeshComponent>(GetAttachParent());

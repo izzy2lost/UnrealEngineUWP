@@ -166,7 +166,6 @@ public:
 	FHairStrandsRestRootResource* GetGuideStrandsRestRootResource(uint32 GroupIndex);
 	FHairStrandsDeformedRootResource* GetGuideStrandsDeformedRootResource(uint32 GroupIndex);
 
-
 #if WITH_EDITOR
 	virtual void CheckForErrors() override;
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
@@ -175,6 +174,11 @@ public:
 	void ValidateMaterials(bool bMapCheck) const;
 	void Invalidate();
 	void InvalidateAndRecreate();
+	void PostCompilation();
+	
+	//~ Begin IInterface_AsyncCompilation Interface.
+	virtual bool IsCompiling() const override;
+	//~ End IInterface_AsyncCompilation Interface.
 #endif
 
 #if WITH_EDITOR
@@ -307,6 +311,7 @@ public:
 	//~ End INiagaraPhysicsAssetDICollectorInterface Interface
 
 private:
+	void InitIfDependenciesReady(const bool bUpdateSimulation = true);
 	void UpdateGroomCache(float Time);
 
 	UPROPERTY(EditAnywhere, Category = GroomCache)
@@ -358,6 +363,7 @@ private:
 	void InitResources(bool bIsBindingReloading=false);
 	void ReleaseResources();
 
+	friend class UGroomBindingAsset;
 	friend class FGroomComponentRecreateRenderStateContext;
 	friend class FHairStrandsSceneProxy;
 	friend class FHairCardsSceneProxy;

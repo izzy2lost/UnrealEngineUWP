@@ -10,6 +10,7 @@
 #include "RenderResource.h"
 #include "GroomResources.h"
 #include "HairStrandsInterface.h"
+#include "Async/AsyncWork.h"
 #include "Engine/SkeletalMesh.h"
 #include "GroomBindingAsset.generated.h"
 
@@ -46,11 +47,111 @@ enum class EGroomBindingMeshType : uint8
 	GeometryCache
 };
 
+/*-----------------------------------------------------------------------------
+	Async GroomBinding Compilation
+-----------------------------------------------------------------------------*/
+
+UENUM()
+enum class EGroomBindingAsyncProperties : uint64
+{
+	None = 0,
+	GroomBindingType = 1 << 0,
+	Groom = 1 << 1,
+	SourceSkeletalMesh = 1 << 2,
+	TargetSkeletalMesh = 1 << 3,
+	SourceGeometryCache = 1 << 4,
+	TargetGeometryCache = 1 << 5,
+	NumInterpolationPoints = 1 << 6,
+	MatchingSection = 1 << 7,
+	GroupInfos = 1 << 8,
+	HairGroupResources = 1 << 9,
+	HairGroupPlatformData = 1 << 10,
+	All = MAX_uint64
+};
+
+ENUM_CLASS_FLAGS(EGroomBindingAsyncProperties);
+
+enum class EGroomBindingAsyncPropertyLockType
+{
+	None = 0,
+	ReadOnly = 1,
+	WriteOnly = 2,
+	ReadWrite = 3
+};
+
+ENUM_CLASS_FLAGS(EGroomBindingAsyncPropertyLockType);
+
+// Any thread implicated in the build must have a valid scope to be granted access to protected properties without causing any stalls.
+class FGroomBindingAsyncBuildScope
+{
+public:
+	HAIRSTRANDSCORE_API FGroomBindingAsyncBuildScope(const UGroomBindingAsset* Asset);
+	HAIRSTRANDSCORE_API ~FGroomBindingAsyncBuildScope();
+	HAIRSTRANDSCORE_API static bool ShouldWaitOnLockedProperties(const UGroomBindingAsset* Asset);
+
+private:
+	const UGroomBindingAsset* PreviousScope = nullptr;
+	// Only the thread(s) compiling this asset will have full access to protected properties without causing any stalls.
+	static thread_local const UGroomBindingAsset* Asset;
+};
+
+struct FGroomBindingBuildContext
+{
+	FGroomBindingBuildContext() = default;
+	// Non-copyable
+	FGroomBindingBuildContext(const FGroomBindingBuildContext&) = delete;
+	FGroomBindingBuildContext& operator=(const FGroomBindingBuildContext&) = delete;
+	// Movable
+	FGroomBindingBuildContext(FGroomBindingBuildContext&&) = default;
+	FGroomBindingBuildContext& operator=(FGroomBindingBuildContext&&) = default;
+
+	bool bReloadResource = false;
+};
+
+/**
+ * Worker used to perform async compilation.
+ */
+class FGroomBindingAsyncBuildWorker : public FNonAbandonableTask
+{
+public:
+	UGroomBindingAsset* GroomBinding;
+	TOptional<FGroomBindingBuildContext> BuildContext;
+
+	/** Initialization constructor. */
+	FGroomBindingAsyncBuildWorker(
+		UGroomBindingAsset* InGroomBinding,
+		FGroomBindingBuildContext&& InBuildContext)
+		: GroomBinding(InGroomBinding)
+		, BuildContext(MoveTemp(InBuildContext))
+	{
+	}
+
+	FORCEINLINE TStatId GetStatId() const
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(FGroomBindingAsyncBuildWorker, STATGROUP_ThreadPoolAsyncTasks);
+	}
+
+	void DoWork();
+};
+
+struct FGroomBindingAsyncBuildTask : public FAsyncTask<FGroomBindingAsyncBuildWorker>
+{
+	FGroomBindingAsyncBuildTask(
+		UGroomBindingAsset* InGroomBinding,
+		FGroomBindingBuildContext&& InBuildContext)
+		: FAsyncTask<FGroomBindingAsyncBuildWorker>(InGroomBinding, MoveTemp(InBuildContext))
+		, GroomBinding(InGroomBinding)
+	{
+	}
+
+	const UGroomBindingAsset* GroomBinding;
+};
+
 /**
  * Implements an asset that can be used to store binding information between a groom and a skeletal mesh
  */
 UCLASS(BlueprintType, hidecategories = (Object))
-class HAIRSTRANDSCORE_API UGroomBindingAsset : public UObject
+class HAIRSTRANDSCORE_API UGroomBindingAsset : public UObject, public IInterface_AsyncCompilation
 {
 	GENERATED_BODY()
 
@@ -251,15 +352,83 @@ public:
 	/** Return true if the binding asset is valid, i.e., correctly built and loaded. */
 	bool IsValid() const { return bIsValid;  }
 
-	//private :
 #if WITH_EDITOR
+private:
+	/** Used as a bit-field indicating which properties are read by async compilation. */
+	std::atomic<uint64> AccessedProperties;
+	/** Used as a bit-field indicating which properties are written to by async compilation. */
+	std::atomic<uint64> ModifiedProperties;
+	/** Holds the pointer to an async task if one exists. */
+	TUniquePtr<FGroomBindingAsyncBuildTask> AsyncTask;
+
+	bool IsAsyncTaskComplete() const
+	{
+		return AsyncTask == nullptr || AsyncTask->IsWorkDone();
+	}
+
+	bool TryCancelAsyncTasks()
+	{
+		if (AsyncTask)
+		{
+			if (AsyncTask->IsDone() || AsyncTask->Cancel())
+			{
+				AsyncTask.Reset();
+			}
+		}
+
+		return AsyncTask == nullptr;
+	}
+
+	void ExecuteCacheDerivedDatas(FGroomBindingBuildContext& Context);
+	void FinishCacheDerivedDatas(FGroomBindingBuildContext& Context);
+
+public:
+	/** IInterface_AsyncCompilation begin*/
+	virtual bool IsCompiling() const override
+	{
+		return AsyncTask != nullptr || AccessedProperties.load(std::memory_order_relaxed) != 0;
+	}
+	/** IInterface_AsyncCompilation end*/
+
 	FOnGroomBindingAssetChanged OnGroomBindingAssetChanged;
 
 	void RecreateResources();
 	void ChangeFeatureLevel(ERHIFeatureLevel::Type PendingFeatureLevel);
 	void ChangePlatformLevel(ERHIFeatureLevel::Type PendingFeatureLevel);
 #endif
+private:
+	void WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties AsyncProperties, EGroomBindingAsyncPropertyLockType LockType) const;
+	void AcquireAsyncProperty(uint64 AsyncProperties = MAX_uint64, EGroomBindingAsyncPropertyLockType LockType = EGroomBindingAsyncPropertyLockType::ReadWrite)
+	{
+#if WITH_EDITOR
+		if ((LockType & EGroomBindingAsyncPropertyLockType::ReadOnly) == EGroomBindingAsyncPropertyLockType::ReadOnly)
+		{
+			AccessedProperties |= AsyncProperties;
+		}
 
+		if ((LockType & EGroomBindingAsyncPropertyLockType::WriteOnly) == EGroomBindingAsyncPropertyLockType::WriteOnly)
+		{
+			ModifiedProperties |= AsyncProperties;
+		}
+#endif
+	}
+
+	void ReleaseAsyncProperty(uint64 AsyncProperties = MAX_uint64, EGroomBindingAsyncPropertyLockType LockType = EGroomBindingAsyncPropertyLockType::ReadWrite)
+	{
+#if WITH_EDITOR
+		if ((LockType & EGroomBindingAsyncPropertyLockType::ReadOnly) == EGroomBindingAsyncPropertyLockType::ReadOnly)
+		{
+			AccessedProperties &= ~AsyncProperties;
+		}
+
+		if ((LockType & EGroomBindingAsyncPropertyLockType::WriteOnly) == EGroomBindingAsyncPropertyLockType::WriteOnly)
+		{
+			ModifiedProperties &= ~AsyncProperties;
+		}
+#endif
+	}
+
+public:
 #if WITH_EDITORONLY_DATA
 	/** Build/rebuild a binding asset */
 	void Build();
@@ -292,6 +461,9 @@ private:
 #endif
 	bool bIsValid = false;
 	uint32 AssetNameHash = 0;
+
+	friend class FGroomBindingCompilingManager;
+	friend class FGroomBindingAsyncBuildWorker;
 };
 
 UCLASS(BlueprintType, hidecategories = (Object))

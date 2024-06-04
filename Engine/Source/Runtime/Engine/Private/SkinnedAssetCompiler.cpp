@@ -59,9 +59,14 @@ FSkinnedAssetCompilingManager::FSkinnedAssetCompilingManager()
 	PreGarbageCollectHandle = FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FSkinnedAssetCompilingManager::OnPreGarbageCollect);
 }
 
-FName FSkinnedAssetCompilingManager::GetAssetTypeName() const
+FName FSkinnedAssetCompilingManager::GetStaticAssetTypeName()
 {
 	return TEXT("UE-SkinnedAsset");
+}
+
+FName FSkinnedAssetCompilingManager::GetAssetTypeName() const
+{
+	return GetStaticAssetTypeName();
 }
 
 FTextFormat FSkinnedAssetCompilingManager::GetAssetNameFormat() const

@@ -32,6 +32,7 @@
 #include "PrimitiveViewRelevance.h"
 #include "UObject/Package.h"
 #include "RenderUtils.h"
+#include "AssetCompilingManager.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "SceneInterface.h"
 #include "EngineUtils.h"
@@ -465,8 +466,6 @@ USkeletalMesh::USkeletalMesh(FVTableHelper& Helper)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USkeletalMesh::~USkeletalMesh() = default;
-
-
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FSkeletalMeshRenderData* USkeletalMesh::GetSkeletalMeshRenderData() const
@@ -1397,9 +1396,27 @@ bool USkeletalMesh::IsTransacting() const
 	return bTransacting;
 }
 
+void USkeletalMesh::PreEditChange(FProperty* PropertyAboutToChange)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeletalMesh::PreEditChange);
+
+	// Tell the compiler to finish compiling us if we have a pending
+	// compilation ongoing plus any dependency (i.e. UGroomBindings).
+	FAssetCompilingManager::Get().FinishCompilationForObjects({ this });
+
+	Super::PreEditChange(PropertyAboutToChange);
+}
+
 void USkeletalMesh::PreEditUndo()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeletalMesh::PreEditUndo);
+
+	// Tell the compiler to finish compiling us if we have a pending
+	// compilation ongoing plus any dependency (i.e. UGroomBindings).
+	FAssetCompilingManager::Get().FinishCompilationForObjects({ this });
+
 	bTransacting = true;
+
 	Super::PreEditUndo();
 }
 
@@ -2000,10 +2017,9 @@ void USkeletalMesh::Build()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(USkeletalMesh::Build);
 
-	if (IsCompiling())
-	{
-		FSkinnedAssetCompilingManager::Get().FinishCompilation({this});
-	}
+	// Tell the compiler to finish compiling us if we have a pending
+	// compilation ongoing plus any dependency (i.e. UGroomBindings).
+	FAssetCompilingManager::Get().FinishCompilationForObjects({this});
 
 	FSkinnedAssetAsyncBuildScope AsyncBuildScope(this);
 
@@ -2113,10 +2129,9 @@ FEvent* USkeletalMesh::LockPropertiesUntil()
 	FEvent* Event = FPlatformProcess::GetSynchEventFromPool();
 	check(Event);
 
-	if (IsCompiling())
-	{
-		FSkinnedAssetCompilingManager::Get().FinishCompilation({ this });
-	}
+	// Tell the compiler to finish compiling us if we have a pending
+	// compilation ongoing plus any dependency (i.e. UGroomBindings).
+	FAssetCompilingManager::Get().FinishCompilationForObjects({ this });
 
 	//Use the async task compile to lock the properties
 	FSkinnedAsyncTaskContext Context(Event);

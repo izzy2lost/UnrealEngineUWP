@@ -6,13 +6,16 @@
 #include "GeometryCache.h"
 #include "GeometryCacheMeshData.h"
 #include "GroomAsset.h"
+#include "GroomBindingCompiler.h"
 #include "GroomBindingBuilder.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Serialization/MemoryReader.h"
+#include "UObject/UObjectIterator.h"
 #include "UObject/AnimObjectVersion.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/DevObjectVersion.h"
 #include "Misc/CoreMisc.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GroomBindingAsset)
@@ -124,6 +127,108 @@ static void InternalSerializePlatformDatas(FArchive& Ar, UObject* Owner, TArray<
 	}
 }
 
+/*-----------------------------------------------------------------------------
+	FGroomBindingAsyncBuildScope
+-----------------------------------------------------------------------------*/
+thread_local const UGroomBindingAsset* FGroomBindingAsyncBuildScope::Asset = nullptr;
+
+FGroomBindingAsyncBuildScope::FGroomBindingAsyncBuildScope(const UGroomBindingAsset* InAsset)
+{
+	PreviousScope = Asset;
+	Asset = InAsset;
+}
+
+FGroomBindingAsyncBuildScope::~FGroomBindingAsyncBuildScope()
+{
+	check(Asset);
+	Asset = PreviousScope;
+}
+
+bool FGroomBindingAsyncBuildScope::ShouldWaitOnLockedProperties(const UGroomBindingAsset* InAsset)
+{
+	return Asset != InAsset;
+}
+
+/*-----------------------------------------------------------------------------
+	FGroomBindingAsyncBuildWorker
+-----------------------------------------------------------------------------*/
+void FGroomBindingAsyncBuildWorker::DoWork()
+{
+#if WITH_EDITOR
+	if (BuildContext.IsSet())
+	{
+		GroomBinding->ExecuteCacheDerivedDatas(*BuildContext);
+	}
+#endif
+}
+
+void UGroomBindingAsset::WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties AsyncProperties, EGroomBindingAsyncPropertyLockType LockType) const
+{
+#if WITH_EDITOR
+	// We need to protect internal asset data from race conditions during async build
+	if (IsCompiling())
+	{
+		if (FGroomBindingAsyncBuildScope::ShouldWaitOnLockedProperties(this))
+		{
+			bool bIsLocked = true;
+			// We can remove the lock if we're accessing in read-only and there is no write-lock
+			if ((LockType & EGroomBindingAsyncPropertyLockType::ReadOnly) == EGroomBindingAsyncPropertyLockType::ReadOnly)
+			{
+				// Maintain the lock if the write-lock bit is non-zero
+				bIsLocked &= (ModifiedProperties & (uint64)AsyncProperties) != 0;
+			}
+
+			if (bIsLocked)
+			{
+				FString PropertyName = StaticEnum<EGroomBindingAsyncProperties>()->GetNameByValue((int64)AsyncProperties).ToString();
+				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("GroomBindingCompilationStall %s"), *PropertyName));
+
+				if (IsInGameThread())
+				{
+					UE_LOG(
+						LogHairStrands,
+						Verbose,
+						TEXT("Accessing property %s of the GroomBindingAsset while it is still being built asynchronously will force it to be compiled before continuing. "
+							"For better performance, consider making the caller async aware so it can wait until the groom binding is ready to access this property."
+							"To better understand where those calls are coming from, you can use Editor.AsyncAssetDumpStallStacks on the console."),
+						*PropertyName
+					);
+
+					FGroomBindingCompilingManager::Get().FinishCompilation({ const_cast<UGroomBindingAsset*>(this) });
+				}
+				else
+				{
+					// Trying to access a property from another thread that cannot force finish the compilation is invalid
+					ensureMsgf(
+						false,
+						TEXT("Accessing property %s of the GroomBindingAsset while it is still being built asynchronously is only supported on the game-thread. "
+							"To avoid any race-condition, consider finishing the compilation before pushing tasks to other threads or making higher-level game-thread code async aware so it "
+							"schedules the task only when the groom binding's compilation is finished. If this is a blocker, you can disable async groom binding compilation from the editor experimental settings."),
+						*PropertyName
+					);
+				}
+			}
+		}
+		// If we're accessing this property from the async build thread, make sure the property is still protected from access from other threads.
+		else
+		{
+			bool bIsLocked = true;
+			if ((LockType & EGroomBindingAsyncPropertyLockType::ReadOnly) == EGroomBindingAsyncPropertyLockType::ReadOnly)
+			{
+				bIsLocked &= (AccessedProperties & (uint64)AsyncProperties) != 0;
+			}
+
+			if ((LockType & EGroomBindingAsyncPropertyLockType::WriteOnly) == EGroomBindingAsyncPropertyLockType::WriteOnly)
+			{
+				bIsLocked &= (ModifiedProperties & (uint64)AsyncProperties) != 0;
+			}
+			ensureMsgf(bIsLocked, TEXT("Property %s has not been locked properly for use by async build"), *StaticEnum<EGroomBindingAsyncProperties>()->GetNameByValue((int64)AsyncProperties).ToString());
+		}
+	}
+#endif
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void UGroomBindingAsset::Serialize(FArchive& Ar)
@@ -133,6 +238,21 @@ void UGroomBindingAsset::Serialize(FArchive& Ar)
 	if (GetGroom())
 	{
 		Flags = GetGroom()->GenerateClassStripFlags(Ar);
+	}
+
+	if (IsCompiling())
+	{
+		// Skip serialization during compilation if told to do so.
+		if (Ar.ShouldSkipCompilingAssets())
+		{
+			return;
+		}
+
+		// Since UPROPERTY are accessed directly by offset during serialization instead of using accessors,
+		// the protection put in place to automatically finish compilation if a locked property is accessed will not work.
+		// We have no choice but to force finish the compilation here to avoid potential race conditions between 
+		// async compilation and the serialization.
+		FGroomBindingCompilingManager::Get().FinishCompilation({ this });
 	}
 #endif
 
@@ -330,11 +450,21 @@ void UGroomBindingAsset::Reset()
 #if WITH_EDITORONLY_DATA
 void UGroomBindingAsset::InvalidateBinding(class USkeletalMesh*)
 {
-	CacheDerivedDatas();
+	InvalidateBinding();
 }
 
 void UGroomBindingAsset::InvalidateBinding()
 {
+	const bool bDependenciesStillCaching =
+		(GetTargetSkeletalMesh() && GetTargetSkeletalMesh()->IsCompiling()) ||
+		(GetSourceSkeletalMesh() && GetSourceSkeletalMesh()->IsCompiling());
+
+	// Nothing else to do as we're going to be rebuilt when our dependencies finish caching anyway
+	if (bDependenciesStillCaching)
+	{
+		return;
+	}
+
 	CacheDerivedDatas();
 }
 
@@ -355,29 +485,39 @@ void UGroomBindingAsset::PostLoad()
 		LocalGroom->ConditionalPostLoad();
 
 	#if WITH_EDITOR
-		CacheDerivedDatas();
+		USkeletalMesh* LocalTargetSkeletalMesh = GetTargetSkeletalMesh();
+		USkeletalMesh* LocalSourceSkeletalMesh = GetSourceSkeletalMesh();
 
-		// Sanity check. This function will report back warnings/issues into the log for user.
-		UGroomBindingAsset::IsCompatible(LocalGroom, this, true);
-
-		if (USkeletalMesh* LocalTargetSkeletalMesh = GetTargetSkeletalMesh())
+		if (LocalTargetSkeletalMesh)
 		{
+			LocalTargetSkeletalMesh->ConditionalPostLoad();
 			LocalTargetSkeletalMesh->OnPostMeshCached().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
 			bRegisterTargetMeshCallback = true;
 		}
 
-		if (USkeletalMesh* LocalSourceSkeletalMesh = GetSourceSkeletalMesh())
+		// Do not register the same skeletal mesh twice as it will make us invalidate bindings twice in a row and cause a stall.
+		if (LocalSourceSkeletalMesh && LocalSourceSkeletalMesh != LocalTargetSkeletalMesh)
 		{
+			LocalSourceSkeletalMesh->ConditionalPostLoad();
 			LocalSourceSkeletalMesh->OnPostMeshCached().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
 			bRegisterSourceMeshCallback = true;
 		}
 
-		if (LocalGroom)
+		if (GetTargetGeometryCache())
 		{
-			LocalGroom->GetOnGroomAssetChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
-			LocalGroom->GetOnGroomAssetResourcesChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
-			bRegisterGroomAssetCallback = true;
+			GetTargetGeometryCache()->ConditionalPostLoad();
 		}
+		
+		if (GetSourceGeometryCache())
+		{
+			GetSourceGeometryCache()->ConditionalPostLoad();
+		}
+
+		LocalGroom->GetOnGroomAssetChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+		LocalGroom->GetOnGroomAssetResourcesChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+		bRegisterGroomAssetCallback = true;
+
+		InvalidateBinding();
 	#endif
 	}
 
@@ -786,7 +926,7 @@ namespace GroomBindingDerivedDataCacheUtils
 
 	FString BuildGroomBindingDerivedDataKey(const FString& KeySuffix)
 	{
-		return FDerivedDataCacheInterface::BuildCacheKey(*(TEXT("GROOM_BINDING_V") + FGroomBindingBuilder::GetVersion() + TEXT("_")), *GetGroomBindingDerivedDataVersion(), *KeySuffix);
+		return FDerivedDataCacheInterface::BuildCacheKey(*(TEXT("GROOMBINDING_V") + FGroomBindingBuilder::GetVersion() + TEXT("_")), *GetGroomBindingDerivedDataVersion(), *KeySuffix);
 	}
 }
 
@@ -843,6 +983,69 @@ void UGroomBindingAsset::CacheDerivedDatas()
 		return;
 	}
 
+	if (IsCompiling())
+	{
+		FGroomBindingCompilingManager::Get().FinishCompilation({ this });
+	}
+
+	bool bNeedFlushRenderingCommand = false;
+	for (TObjectIterator<UGroomComponent> HairStrandsComponentIt; HairStrandsComponentIt; ++HairStrandsComponentIt)
+	{
+		if (HairStrandsComponentIt->BindingAsset == this ||
+			HairStrandsComponentIt->BindingAssetBeingLoaded == this) // A GroomAsset was set on the component while it was still loading
+		{
+			if (HairStrandsComponentIt->IsRenderStateCreated())
+			{
+				HairStrandsComponentIt->DestroyRenderState_Concurrent();
+				bNeedFlushRenderingCommand = true;
+			}
+		}
+	}
+
+	if (bNeedFlushRenderingCommand)
+	{
+		// Flush the rendering commands generated by the detachments.
+		FlushRenderingCommands();
+	}
+
+	FGroomBindingBuildContext Context;
+#if WITH_EDITOR
+	// Acquire everything in readonly so that any thread trying to write a property locked for read-only will wait until the build is finished
+	AcquireAsyncProperty(MAX_uint64, EGroomBindingAsyncPropertyLockType::ReadOnly);
+
+	// Acquire the resource modified by the build so that any thread trying to read those will wait until the build is finished
+	// If we forget something here and the build uses it, we will get an assert on the build thread because we're writing to an unlocked property
+	AcquireAsyncProperty((uint64)EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	AcquireAsyncProperty((uint64)EGroomBindingAsyncProperties::HairGroupPlatformData, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	AcquireAsyncProperty((uint64)EGroomBindingAsyncProperties::GroupInfos, EGroomBindingAsyncPropertyLockType::WriteOnly);
+
+	// Do synchronous build until GeometryCache is thread-safe
+	const bool bIsAsyncBuildSupported = GetTargetGeometryCache() == nullptr && GetSourceGeometryCache() == nullptr;
+
+	// Inline reduction is not thread-safe, prevent async build until this is fixed.
+	if (bIsAsyncBuildSupported && FGroomBindingCompilingManager::Get().IsAsyncCompilationAllowed(this))
+	{
+		FQueuedThreadPool* ThreadPool = FGroomBindingCompilingManager::Get().GetThreadPool();
+		EQueuedWorkPriority BasePriority = FGroomBindingCompilingManager::Get().GetBasePriority(this);
+		check(AsyncTask == nullptr);
+		AsyncTask = MakeUnique<FGroomBindingAsyncBuildTask>(this, MoveTemp(Context));
+		AsyncTask->StartBackgroundTask(ThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait);
+		FGroomBindingCompilingManager::Get().AddGroomBindings({ this });
+	}
+	else
+#endif
+	{
+		ExecuteCacheDerivedDatas(Context);
+		FinishCacheDerivedDatas(Context);
+	}
+}
+
+void UGroomBindingAsset::ExecuteCacheDerivedDatas(FGroomBindingBuildContext& Context)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomBindingAsset::ExecuteCacheDerivedDatas);
+
+	FGroomBindingAsyncBuildScope BuildScope(this);
+
 	// 1. Set group count to the groom target
 	const uint32 GroupCount = GetGroom()->GetNumHairGroups();
 	GetHairGroupsPlatformData().SetNum(GroupCount);
@@ -864,8 +1067,6 @@ void UGroomBindingAsset::CacheDerivedDatas()
 	bool bReloadResource = false;
 	if (bAnyGroupNeedRebuild)
 	{
-		FGroomComponentRecreateRenderStateContext RecreateRenderContext(GetGroom());
-
 		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
 		{
 			// 1. Build data
@@ -911,11 +1112,7 @@ void UGroomBindingAsset::CacheDerivedDatas()
 		//    use the binding infos to know if curve count match between GroomAsset and GroomBindingAsset
 		UpdateGroomBindingAssetInfos(this);
 
-		// 4. Reload resources if needed
-		if (bReloadResource)
-		{
-			InitResource();
-		}
+		Context.bReloadResource |= bReloadResource;
 	}
 	else
 	{
@@ -954,7 +1151,7 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 		bool bHasDataInCache = false;
 		if (Data)
 		{
-			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Found (GroomBinding:%s)."), *In->GetName());
+			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Found (GroomBinding:%s TargetPlatform:%s Async:%s)."), *In->GetName(), *TargetPlatform->PlatformName(), IsInGameThread() ? TEXT("No") : TEXT("Yes"));
 
 			// Header
 			FMemoryReaderView Ar(Data, /*bIsPersistent*/ true);
@@ -976,7 +1173,7 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 		}
 		if (!bHasDataInCache)
 		{
-			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Not found (GroomBinding:%s)."), *In->GetName());
+			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Not found (GroomBinding:%s TargetPlatform:%s Async:%s)."), *In->GetName(), *TargetPlatform->PlatformName(), IsInGameThread() ? TEXT("No") : TEXT("Yes"));
 
 			// Build groom binding data
 			FGroomBindingBuilder::FInput BuilderInput;
@@ -1022,6 +1219,30 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 	}
 }
 
+void UGroomBindingAsset::FinishCacheDerivedDatas(FGroomBindingBuildContext& Context)
+{
+	ReleaseAsyncProperty();
+
+	if (!IsTemplate() && Context.bReloadResource && IsValid())
+	{
+		InitResource();
+	}
+
+	for (TObjectIterator<UGroomComponent> HairStrandsComponentIt; HairStrandsComponentIt; ++HairStrandsComponentIt)
+	{
+		if (HairStrandsComponentIt->BindingAsset == this ||
+			HairStrandsComponentIt->BindingAssetBeingLoaded == this) // A GroomAsset was set on the component while it was still loading
+		{
+			HairStrandsComponentIt->PostCompilation();
+
+			if (HairStrandsComponentIt->IsRegistered())
+			{
+				HairStrandsComponentIt->RecreateRenderState_Concurrent();
+			}
+		}
+	}
+}
+
 static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform)
 {
 	check(In);
@@ -1053,6 +1274,12 @@ static UGroomBindingAsset::FCachedCookedPlatformData* FindCachedCookedPlatformDa
 
 void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
 {
+	// Finish any async compilation of the editor target before building other platforms
+	if (IsCompiling())
+	{
+		FGroomBindingCompilingManager::Get().FinishCompilation({ this });
+	}
+
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 
 	// 1. Build the key for each group
@@ -1167,6 +1394,7 @@ FName UGroomBindingAsset::GetAssetPathName(int32 LODIndex)
 	UFUNCTION(BlueprintGetter)\
 	GetConst Type Access UGroomBindingAsset::Get##Name() const\
 	{\
+		WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::Name, EGroomBindingAsyncPropertyLockType::ReadOnly); \
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS\
 		return Name;\
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS\
@@ -1174,6 +1402,7 @@ FName UGroomBindingAsset::GetAssetPathName(int32 LODIndex)
 	UFUNCTION(BlueprintSetter)\
 	void UGroomBindingAsset::Set##Name(SetConst Type Access In##Name)\
 	{\
+		WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::Name, EGroomBindingAsyncPropertyLockType::WriteOnly); \
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS\
 		Name = In##Name;\
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS\
@@ -1192,6 +1421,7 @@ DEFINE_GROOMBINDING_MEMBER_ACCESSOR(TArray<FGoomBindingGroupInfo>, &, GroupInfos
 
 TArray<FGoomBindingGroupInfo>& UGroomBindingAsset::GetGroupInfos()
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::GroupInfos, EGroomBindingAsyncPropertyLockType::ReadWrite);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return GroupInfos;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1220,6 +1450,7 @@ FName UGroomBindingAsset::GetHairGroupResourcesMemberName()
 
 UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupResources()
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::ReadWrite);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupResources;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1227,6 +1458,7 @@ UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupResourc
 
 const UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupResources() const
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::ReadOnly);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupResources;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1234,6 +1466,7 @@ const UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupR
 
 void UGroomBindingAsset::SetHairGroupResources(UGroomBindingAsset::FHairGroupResources InHairGroupResources)
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::WriteOnly);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	HairGroupResources = InHairGroupResources;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1248,6 +1481,7 @@ FName UGroomBindingAsset::GetHairGroupPlatformDataMemberName()
 
 const TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::GetHairGroupsPlatformData() const
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupPlatformData, EGroomBindingAsyncPropertyLockType::ReadOnly);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupsPlatformData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1255,6 +1489,7 @@ const TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::Ge
 
 TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::GetHairGroupsPlatformData()
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupPlatformData, EGroomBindingAsyncPropertyLockType::ReadWrite);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupsPlatformData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS

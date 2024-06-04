@@ -16,6 +16,7 @@
 #include "HairStrandsVertexFactory.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/App.h"
+#include "AssetCompilingManager.h"
 #include "Misc/Paths.h"
 #include "RHIStaticStates.h"
 #include "Serialization/LargeMemoryReader.h"
@@ -1563,6 +1564,16 @@ static bool IsCardsAttributes(const FName PropertyName)
 static bool IsMeshesAttributes(const FName PropertyName)
 {
 	return PropertyName == UGroomAsset::GetHairGroupsMeshesMemberName();
+}
+
+bool UGroomAsset::Modify(bool bAlwaysMarkDirty)
+{
+	// We are not really async compilable at the moment, but this will
+	// cue the other compilers that depends on this asset (i.e. UGroomBindings)
+	// to finish their async compilation before we start any modification.
+	FAssetCompilingManager::Get().FinishCompilationForObjects({ this });
+
+	return Super::Modify(bAlwaysMarkDirty);
 }
 
 void UGroomAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)

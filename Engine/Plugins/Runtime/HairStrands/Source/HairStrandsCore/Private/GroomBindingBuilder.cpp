@@ -10,7 +10,9 @@
 #include "HairStrandsMeshProjection.h"
 #include "Async/ParallelFor.h"
 #include "GlobalShader.h"
+#include "Misc/CoreMisc.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "GroomRBFDeformer.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -2225,6 +2227,9 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 	// 1. Build groom root data
 	FHairRootGroupData OutData;
 	{
+		// If we're currently running on a worker thread, all this preloading
+		// stuff should have happened on the game-thread part of the build
+		// before going async so these should be no-ops in that case.
 		In.GroomAsset->ConditionalPostLoad();
 
 		// Ensure the skeletal meshes / geom caches are built
@@ -2247,13 +2252,19 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 			}
 		}
 
+		// If a skeletal mesh build or preedit is called while we're async compiling groom bindings, the groom binding compiler
+		// will take care of finishing any groom binding that depends on the skeletal mesh being modified. So this is 
+		// safe to do asynchronously without locks on the render data. We assume that the skeletal mesh's render data is
+		// immutable once it has been built and can only be rebuilt throught a call to PreEditChange first.
+		const bool bAsyncCompiling = !IsInGameThread();
+
 		// * Only for SkeletalMesh: Take scoped lock on the skeletal render mesh data during the entire groom binding building
 		// * Then use an async build scope to allow accessing skeletal mesh property safely.
 		//   If skel.meshes are nullptr, this will act as a NOP
 		USkeletalMesh* InSourceSkeletalMesh = In.SourceSkeletalMesh == In.TargetSkeletalMesh ? nullptr : In.SourceSkeletalMesh;
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		FScopedSkeletalMeshRenderData SourceSkeletalMeshScopedData(InSourceSkeletalMesh);
-		FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(In.TargetSkeletalMesh);
+		FScopedSkeletalMeshRenderData SourceSkeletalMeshScopedData(bAsyncCompiling ? nullptr : InSourceSkeletalMesh);
+		FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(bAsyncCompiling ? nullptr : In.TargetSkeletalMesh);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		TUniquePtr<GroomBinding_Mesh::IMeshData> SourceMeshData;
@@ -2262,11 +2273,20 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 		{
 			if (InSourceSkeletalMesh)
 			{
-				FSkinnedAssetAsyncBuildScope AsyncBuildScope(InSourceSkeletalMesh);
-				USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, SourceSkeletalMeshScopedData);
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(InSourceSkeletalMesh, SourceSkeletalMeshScopedData.GetData()));
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				if (bAsyncCompiling)
+				{
+					const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+					checkf(TargetPlatform == RunningPlatform, TEXT("It is only safe to query the running platform's render data asynchronously from the skeletal mesh"));
+					SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(InSourceSkeletalMesh, InSourceSkeletalMesh->GetResourceForRendering()));
+				}
+				else
+				{
+					FSkinnedAssetAsyncBuildScope AsyncBuildScope(InSourceSkeletalMesh);
+					USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, SourceSkeletalMeshScopedData);
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(InSourceSkeletalMesh, SourceSkeletalMeshScopedData.GetData()));
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				}
 			}
 			else
 			{
@@ -2275,11 +2295,20 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 
 			if (In.TargetSkeletalMesh)
 			{
-				FSkinnedAssetAsyncBuildScope AsyncBuildScope(In.TargetSkeletalMesh);
-				USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, TargetSkeletalMeshScopedData);
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(In.TargetSkeletalMesh, TargetSkeletalMeshScopedData.GetData()));
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				if (bAsyncCompiling)
+				{
+					const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+					checkf(TargetPlatform == RunningPlatform, TEXT("It is only safe to query the running platform's render data asynchronously from the skeletal mesh"));
+					TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(In.TargetSkeletalMesh, In.TargetSkeletalMesh->GetResourceForRendering()));
+				}
+				else
+				{
+					FSkinnedAssetAsyncBuildScope AsyncBuildScope(In.TargetSkeletalMesh);
+					USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, TargetSkeletalMeshScopedData);
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(In.TargetSkeletalMesh, TargetSkeletalMeshScopedData.GetData()));
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				}
 			}
 			else
 			{

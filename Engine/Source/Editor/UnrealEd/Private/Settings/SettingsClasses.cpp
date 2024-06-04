@@ -188,6 +188,7 @@ UEditorExperimentalSettings::UEditorExperimentalSettings( const FObjectInitializ
 	, bEnableAsyncSkeletalMeshCompilation(true)	// This was false and set to True in /Engine/Config/BaseEditorPerProjectUserSettings.ini. The setting is removed from .ini so change it to default True.
 	, bEnableAsyncSkinnedAssetCompilation(false)
 	, bEnableAsyncSoundWaveCompilation(false)
+	, bEnableAsyncGroomBindingCompilation(false)
 	, bHDREditor(false)
 	, HDREditorNITLevel(160.0f)
 	, bUseOpenCLForConvexHullDecomp(false)
