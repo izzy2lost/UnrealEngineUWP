@@ -279,6 +279,11 @@ void UReplicatedTestObjectBridge::SetExternalWorldLocationUpdateFunctor(TFunctio
 	SetInstanceGetWorldObjectInfoFunction(LocUpdateFunctor);
 }
 
+TFunction<void(UE::Net::FNetRefHandle, const UObject*, FVector&, float&)> UReplicatedTestObjectBridge::GetExternalWorldLocationUpdateFunctor() const
+{
+	return GetInstanceGetWorldObjectInfoFunction();
+}
+
 void UReplicatedTestObjectBridge::SetExternalPreUpdateFunctor(TFunction<void(TArrayView<UObject*>, const UReplicationBridge*)> PreUpdateFunctor)
 {
 	SetInstancePreUpdateFunction(PreUpdateFunctor);

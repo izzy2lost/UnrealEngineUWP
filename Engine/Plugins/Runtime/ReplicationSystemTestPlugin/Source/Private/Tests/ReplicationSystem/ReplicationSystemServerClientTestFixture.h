@@ -65,13 +65,13 @@ public:
 
 	struct FConnectionInfo
 	{
-		UDataStreamManager* DataStreamManager;
-		UReplicationDataStream* ReplicationDataStream;
-		UNetTokenDataStream* NetTokenDataStream;
-		FNetTokenStoreState* RemoteNetTokenStoreState;
+		UDataStreamManager* DataStreamManager = nullptr;
+		UReplicationDataStream* ReplicationDataStream = nullptr;
+		UNetTokenDataStream* NetTokenDataStream = nullptr;
+		FNetTokenStoreState* RemoteNetTokenStoreState = nullptr;
 		TResizableCircularQueue<const FDataStreamRecord*> WriteRecords;
 		TResizableCircularQueue<FPacketData> WrittenPackets;
-		uint32 ConnectionId;
+		uint32 ConnectionId = 0;
 	};
 
 	struct FReplicationSystemParamsOverride
@@ -86,7 +86,7 @@ public:
 public:
 	FReplicationSystemTestNode(bool bIsServer, const TCHAR* Name);
 	explicit FReplicationSystemTestNode(FReplicationSystemTestNode::EDelaySetup);
-	~FReplicationSystemTestNode();
+	virtual ~FReplicationSystemTestNode();
 
 	void Setup(bool bIsServer, const TCHAR* Name, FReplicationSystemTestNode::FReplicationSystemParamsOverride* ParamsOverride=nullptr);
 
@@ -139,6 +139,7 @@ public:
 
 	// Connection
 	uint32 AddConnection();
+	void RemoveConnection(uint32 ConnectionId);
 
 	// System Update
 	void PreSendUpdate(const UReplicationSystem::FSendUpdateParams& Params);
@@ -221,8 +222,10 @@ protected:
 	};
 
 	virtual void SetUp() override;
-	FReplicationSystemTestClient* CreateClient();
 	virtual void TearDown() override;
+
+	FReplicationSystemTestClient* CreateClient();
+	void DestroyClient(FReplicationSystemTestClient* Client);
 
 	FDataStreamTestUtil DataStreamUtil;
 	FReplicationSystemTestServer* Server;

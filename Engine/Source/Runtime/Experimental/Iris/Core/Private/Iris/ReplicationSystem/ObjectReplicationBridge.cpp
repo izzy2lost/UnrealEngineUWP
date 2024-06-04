@@ -936,9 +936,19 @@ void UObjectReplicationBridge::SetInstancePreUpdateFunction(FInstancePreUpdateFu
 	PreUpdateInstanceFunction = InPreUpdateFunction;
 }
 
+UObjectReplicationBridge::FInstancePreUpdateFunction UObjectReplicationBridge::GetInstancePreUpdateFunction() const
+{
+	return PreUpdateInstanceFunction;
+}
+
 void UObjectReplicationBridge::SetInstanceGetWorldObjectInfoFunction(FInstanceGetWorldObjectInfoFunction InGetWorldObjectInfoFunction)
 {
 	GetInstanceWorldObjectInfoFunction = InGetWorldObjectInfoFunction;
+}
+
+UObjectReplicationBridge::FInstanceGetWorldObjectInfoFunction UObjectReplicationBridge::GetInstanceGetWorldObjectInfoFunction() const
+{
+	return GetInstanceWorldObjectInfoFunction;
 }
 
 void UObjectReplicationBridge::ForcePollObject(FNetRefHandle Handle)

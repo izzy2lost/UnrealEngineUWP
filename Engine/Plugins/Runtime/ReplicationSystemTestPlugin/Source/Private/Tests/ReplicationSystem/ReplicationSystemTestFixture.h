@@ -104,7 +104,6 @@ protected:
 
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
-	Private::FReplicationProtocolManager ReplicationProtocolManager;
 	
 	TArray<TStrongObjectPtr<UObject>> CreatedObjects;
 };

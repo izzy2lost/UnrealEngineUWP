@@ -279,12 +279,18 @@ protected:
 	/** Set the function that we should call before copying state data. */
 	IRISCORE_API void SetInstancePreUpdateFunction(FInstancePreUpdateFunction InPreUpdateFunction);
 	
+	/** Get the function that we should call before copying state data. */
+	IRISCORE_API FInstancePreUpdateFunction GetInstancePreUpdateFunction() const;
+
 	/** Helper method to get the world location & cull distance for replicated instances with the HasWorldLocation trait. */
 	using FInstanceGetWorldObjectInfoFunction = TFunction<void(UE::Net::FNetRefHandle, const UObject*, FVector&, float&)>;
 
 	/** Set the function that we should call to get the world location of an object. */
 	IRISCORE_API void SetInstanceGetWorldObjectInfoFunction(FInstanceGetWorldObjectInfoFunction InGetWorldObjectInfoFunction);
 	
+	/** Get the function that we should call to get the world location of an object. */
+	IRISCORE_API FInstanceGetWorldObjectInfoFunction GetInstanceGetWorldObjectInfoFunction() const;
+
 	// Poll frequency support
 
 	/** Force polling of Object when ObjectToPollWith is polled. */

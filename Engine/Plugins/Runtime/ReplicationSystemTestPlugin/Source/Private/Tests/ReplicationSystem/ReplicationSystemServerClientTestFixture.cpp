@@ -256,6 +256,31 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	return Connection.ConnectionId;
 }
 
+void FReplicationSystemTestNode::RemoveConnection(uint32 ConnectionId)
+{
+	for (TArray<FConnectionInfo>::TIterator It = Connections.CreateIterator(); It; ++It)
+	{
+		FConnectionInfo& ConnectionInfo = *It;
+		if (ConnectionInfo.ConnectionId != ConnectionId)
+		{
+			continue;
+		}
+
+		ReplicationSystem->RemoveConnection(ConnectionInfo.ConnectionId);
+
+		if (IsValid(ConnectionInfo.DataStreamManager))
+		{
+			ConnectionInfo.DataStreamManager->Deinit();
+			ConnectionInfo.DataStreamManager->MarkAsGarbage();
+		}
+
+		UE_NET_TRACE_CONNECTION_CLOSED(GetNetTraceId(), ConnectionId);
+
+		It.RemoveCurrent();
+		break;
+	}
+}
+
 void FReplicationSystemTestNode::PreSendUpdate(const UReplicationSystem::FSendUpdateParams& Params)
 {
 	ReplicationSystem->PreSendUpdate(Params);
@@ -503,6 +528,19 @@ FReplicationSystemTestClient* FReplicationSystemServerClientTestFixture::CreateC
 	Client->ConnectionIdOnServer = Server->AddConnection();
 
 	return Client;
+}
+
+void FReplicationSystemServerClientTestFixture::DestroyClient(FReplicationSystemTestClient* Client)
+{
+	if (!Clients.Remove(Client))
+	{
+		UE_LOG(LogIris, Warning, TEXT("Unable to find FReplicationSystemTestClient %p for destroy. NOT destroying."), Client);
+		return;
+	}
+
+	Server->RemoveConnection(Client->ConnectionIdOnServer);
+
+	delete Client;
 }
 
 }
