@@ -182,6 +182,8 @@ public:
 
 	/**
 	* This will be called at the beginning of post processing to make sure that each view extension gets a chance to subscribe to an after pass event.
+	*  - The pass MUST write to the override output texture if it is active (this occurs when the pass is the last in the post processing chain writing to the back buffer).
+	*    For performance reasons it is recommended to only subscribe to a pass when the pass will produce a GPU resource. Calling 
 	*/
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass Pass, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) {};
 

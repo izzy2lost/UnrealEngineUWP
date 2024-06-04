@@ -39,14 +39,15 @@ public:
 // Describes a texture with a paired viewport rect.
 struct FScreenPassTexture
 {
-	FScreenPassTexture() = default;
+	FScreenPassTexture() {}
 
 	explicit FScreenPassTexture(FRDGTextureRef InTexture);
 	explicit FScreenPassTexture(const FScreenPassTextureSlice& ScreenTexture);
 
 	FScreenPassTexture(FRDGTextureRef InTexture, FIntRect InViewRect);
 
-	RENDERER_API static FScreenPassTexture CopyFromSlice(FRDGBuilder& GraphBuilder, const FScreenPassTextureSlice& ScreenTextureSlice);
+	// Returns a 2D texture from the input slice. A copy is used if the input is a slice of a 2D texture array, or the override output is active.
+	RENDERER_API static FScreenPassTexture CopyFromSlice(FRDGBuilder& GraphBuilder, const FScreenPassTextureSlice& ScreenTextureSlice, FScreenPassTexture OverrideOutput = FScreenPassTexture());
 
 	bool IsValid() const;
 

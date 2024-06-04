@@ -59,39 +59,52 @@ FRDGTextureRef TryCreateViewFamilyDepthTexture(FRDGBuilder& GraphBuilder, const 
 }
 
 // static
-FScreenPassTexture FScreenPassTexture::CopyFromSlice(FRDGBuilder& GraphBuilder, const FScreenPassTextureSlice& ScreenTextureSlice)
+FScreenPassTexture FScreenPassTexture::CopyFromSlice(FRDGBuilder& GraphBuilder, const FScreenPassTextureSlice& ScreenTextureSlice, FScreenPassTexture OverrideOutput)
 {
-	if (!ScreenTextureSlice.TextureSRV)
+	FRDGTextureSRV* InputTextureSRV = ScreenTextureSlice.TextureSRV;
+
+	if (!InputTextureSRV)
 	{
-		return FScreenPassTexture(nullptr, ScreenTextureSlice.ViewRect);
-	}
-	else if (!ScreenTextureSlice.TextureSRV->Desc.Texture->Desc.IsTextureArray())
-	{
-		return FScreenPassTexture(ScreenTextureSlice.TextureSRV->Desc.Texture, ScreenTextureSlice.ViewRect);
+		return OverrideOutput;
 	}
 
-	FRDGTextureDesc Desc = ScreenTextureSlice.TextureSRV->Desc.Texture->Desc;
-	Desc.Dimension = ETextureDimension::Texture2D;
-	Desc.ArraySize = 1;
+	FRDGTexture* InputTexture = InputTextureSRV->Desc.Texture;
 
-	// If a pass uses blending to write to this post process texture, it needs to support being a render target, so make sure this flag is included.
-	// Most post processing uses SceneColor or its FRDGTextureDesc, and SceneColor already has the RenderTargetable flag set, but TSR (the input to
-	// the "Before Bloom" stage) writes to texture slices using compute, and its output doesn't have this flag.
-	Desc.Flags |= ETextureCreateFlags::RenderTargetable;
+	// We can avoid the copy if it's a 2D texture and there's no override output.
+	if (InputTexture->Desc.IsTexture2D() && !OverrideOutput.IsValid())
+	{
+		return FScreenPassTexture(InputTexture, ScreenTextureSlice.ViewRect);
+	}
 
-	FRDGTextureRef NewTexture = GraphBuilder.CreateTexture(Desc, TEXT("CopyToScreenPassTexture2D"));
+	check(InputTexture->Desc.IsTexture2D() || InputTexture->Desc.IsTextureArray());
+
+	FRDGTextureRef OutputTexture = OverrideOutput.Texture;
+
+	if (!OutputTexture)
+	{
+		FRDGTextureDesc Desc = InputTexture->Desc;
+		Desc.Dimension = ETextureDimension::Texture2D;
+		Desc.ArraySize = 1;
+
+		// If a pass uses blending to write to this post process texture, it needs to support being a render target, so make sure this flag is included.
+		// Most post processing uses SceneColor or its FRDGTextureDesc, and SceneColor already has the RenderTargetable flag set, but TSR (the input to
+		// the "Before Bloom" stage) writes to texture slices using compute, and its output doesn't have this flag.
+		Desc.Flags |= ETextureCreateFlags::RenderTargetable;
+
+		OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("CopyToScreenPassTexture2D"));
+	}
 
 	FRHICopyTextureInfo CopyInfo;
-	CopyInfo.SourceSliceIndex = ScreenTextureSlice.TextureSRV->Desc.FirstArraySlice;
-	CopyInfo.NumMips = ScreenTextureSlice.TextureSRV->Desc.Texture->Desc.NumMips;
+	CopyInfo.SourceSliceIndex = InputTextureSRV->Desc.FirstArraySlice;
+	CopyInfo.NumMips = InputTexture->Desc.NumMips;
 
 	AddCopyTexturePass(
 		GraphBuilder,
-		ScreenTextureSlice.TextureSRV->Desc.Texture,
-		NewTexture,
+		InputTexture,
+		OutputTexture,
 		CopyInfo);
 
-	return FScreenPassTexture(NewTexture, ScreenTextureSlice.ViewRect);
+	return FScreenPassTexture(OutputTexture, ScreenTextureSlice.ViewRect);
 }
 
 // static

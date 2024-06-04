@@ -116,20 +116,11 @@ struct FPostProcessMaterialInputs
 	}
 
 	/**
-	* A helper function that extracts the right scene color texture, untouched, to be used further in post processing.
-	*/
+	 * Returns the input scene color as a 2D texture output. This WILL perform a GPU copy if the override output is active or the input scene color was a 2D texture array slice.
+	 */
 	inline FScreenPassTexture ReturnUntouchedSceneColorForPostProcessing(FRDGBuilder& GraphBuilder) const
 	{
-		if (OverrideOutput.IsValid())
-		{
-			return OverrideOutput;
-		}
-		else
-		{
-			/** We don't want to modify scene texture in any way. We just want it to be passed back onto the next stage. */
-			FScreenPassTextureSlice SceneTexture = const_cast<FScreenPassTextureSlice&>(Textures[(uint32)EPostProcessMaterialInput::SceneColor]);
-			return FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneTexture);
-		}
+		return FScreenPassTexture::CopyFromSlice(GraphBuilder, const_cast<FScreenPassTextureSlice&>(Textures[(uint32)EPostProcessMaterialInput::SceneColor]), OverrideOutput);
 	}
 
 	// [Optional] Render to the specified output. If invalid, a new texture is created and returned.
