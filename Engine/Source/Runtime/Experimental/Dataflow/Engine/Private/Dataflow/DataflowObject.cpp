@@ -87,20 +87,6 @@ void UDataflow::PostLoad()
 		{
 			EdNode->SetEnabledState(ENodeEnabledState::Disabled);
 		}
-		else
-		{
-			if (DataflowEdNode)
-			{
-				if (DataflowEdNode->ShouldRenderNode())
-				{
-					RenderTargets.Add(DataflowEdNode);
-				}
-				if (DataflowEdNode->ShouldWireframeRenderNode())
-				{
-					WireframeRenderTargets.Add(DataflowEdNode);
-				}
-			}
-		}
 	}
 #endif
 

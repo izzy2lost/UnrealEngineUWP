@@ -104,13 +104,13 @@ public:
 
 private:
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	bool bRenderInAssetEditor = false;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	bool bRenderWireframeInAssetEditor = false;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	bool bCanEnableRenderWireframe = true;
 
 	void OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type);
