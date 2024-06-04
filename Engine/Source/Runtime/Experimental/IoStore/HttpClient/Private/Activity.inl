@@ -92,7 +92,6 @@ struct alignas(16) FActivity
 	};
 	UPTRINT				SinkParam;
 	FTicketSink			Sink;
-	FSocket				Socket;
 	FResponseInternal	Response;
 	FBuffer				Buffer;
 };
