@@ -680,7 +680,7 @@ TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FT
 	// larger of early resize phase and VT build phase :
 	MemoryEstimate = FMath::Max(ResizingPhaseMemUse,MemoryEstimate);
 
-	MemoryEstimate += 64 * 1024; // overhead room
+	MemoryEstimate += 1024 * 1024; // overhead room
 
 	//UE_LOG(LogTextureBuildUtilities,Display,TEXT("GetBuildRequiredMemoryEstimate VT : %.3f MB"),MemoryEstimate/(1024*1024.f));
 
@@ -896,7 +896,7 @@ TEXTUREBUILDUTILITIES_API int64 GetPhysicalTextureBuildMemoryEstimate(const FTex
 	// mem use is the max of the phases :
 	MemoryEstimate = FMath::Max(MemoryEstimate,ResizingPhaseMemUse);
 
-	MemoryEstimate += 64 * 1024; // overhead room
+	MemoryEstimate += 1024 * 1024; // overhead room
 
 	//UE_LOG(LogTextureBuildUtilities,Display,TEXT("GetBuildRequiredMemoryEstimate non-VT : %.3f MB"),MemoryEstimate/(1024*1024.f));
 

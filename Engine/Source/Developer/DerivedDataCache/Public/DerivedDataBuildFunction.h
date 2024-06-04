@@ -85,6 +85,9 @@ public:
 
 	/** Returns the name by which to identify this build for logging and profiling. */
 	virtual const FSharedString& GetName() const = 0;
+	
+	/** Returns estimate of memory required for this operation. */
+	virtual uint64 GetRequiredMemory() const = 0;
 
 	/** Returns the constant with the matching key, or an object with no fields if not found. */
 	virtual FCbObject FindConstant(FUtf8StringView Key) const = 0;

@@ -43,7 +43,7 @@ public:
 
 	inline ECachePolicy GetCachePolicyMask() const final { return CachePolicyMask; }
 	inline EBuildPolicy GetBuildPolicyMask() const final { return BuildPolicyMask; }
-	inline uint64 GetRequiredMemory() const { return RequiredMemory; }
+	uint64 GetRequiredMemory() const override { return RequiredMemory; }
 	inline bool ShouldCheckDeterministicOutput() const { return bDeterministicOutputCheck; }
 
 	void AddConstant(FUtf8StringView Key, FCbObject&& Value);
