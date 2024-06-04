@@ -19,9 +19,9 @@ namespace UE::ConcertSharedSlate
 		];
 	}
 
-	void SPerObjectPropertyAssignment::RefreshData(const TSet<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model)
+	void SPerObjectPropertyAssignment::RefreshData(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model)
 	{
-		TSet<TSoftObjectPtr<>> ContextObjects;
+		TArray<TSoftObjectPtr<>> ContextObjects;
 		Algo::Transform(Objects, ContextObjects, [](const FSoftObjectPath& Path){ return TSoftObjectPtr{ Path }; });
 		
 		FPropertyAssignmentEntry AssignmentEntry { .ContextObjects = MoveTemp(ContextObjects) };
@@ -55,10 +55,10 @@ namespace UE::ConcertSharedSlate
 			// However, we must regenerate all column widgets since they may be referencing the object the row was originally built for. So they'd display the state of the previous object still!
 			// Example: Assign property combo-box in Multi-User All Clients view displays who has the property assigned.
 			// Note: If the objects did not change, we definitely want to reuse item pointers since otherwise the user row selection is reset.
-			const bool bCanReusePropertyData = PreviousSelectedObjects.Num() == Objects.Num() && PreviousSelectedObjects.Includes(Objects);
+			const bool bCanReusePropertyData = PreviousSelectedObjects == Objects;
 			PreviousSelectedObjects = Objects;
 			
-			TreeView->RefreshPropertyData({ AssignmentEntry } , bCanReusePropertyData);
+			TreeView->RefreshPropertyData({ AssignmentEntry }, bCanReusePropertyData);
 		}
 		else
 		{

@@ -97,7 +97,7 @@ namespace UE::ConcertSharedSlate
 		virtual void Refresh() override;
 		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
-		virtual TSet<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
 		//~ End IReplicationStreamEditor Interface
 
 	private:

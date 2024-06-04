@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/PropertyTreeFactory.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Templates/SharedPointer.h"
 
@@ -56,6 +57,15 @@ namespace UE::ConcertClientSharedSlate
 		ConcertSharedSlate::FColumnSortInfo PrimaryPropertySort { ConcertSharedSlate::ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
 		/** Optional initial secondary sort mode for object rows */
 		ConcertSharedSlate::FColumnSortInfo SecondaryPropertySort { ConcertSharedSlate::ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
+		
+		/**
+		 * Optional delegate for grouping objects under a category.
+		 * If unset, no category are generated.
+		 * 
+		 * When the user clicks an object in the top view, this delegate will be called for the clicked object, its components (if an actor), and its (nested) subobjects.
+		 * ContextObjects is a single object if a single object is clicked or multiple object in the case of multi-edit.
+		 */
+		ConcertSharedSlate::FCreateCategoryRow CreateCategoryRow;
 	};
 	
 	/**

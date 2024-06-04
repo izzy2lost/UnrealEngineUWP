@@ -38,13 +38,13 @@ namespace UE::MultiUserClient
 			const TSharedRef<IConcertClient>& LocalConcertClient,
 			const FReplicationClientManager& ClientManager,
 			const FConcertPropertyChain& DisplayedProperty,
-			const TSet<FSoftObjectPath>& EditedObjects
+			const TArray<FSoftObjectPath>& EditedObjects
 			);
 		
 		SLATE_BEGIN_ARGS(SAssignPropertyComboBox)
 		{}
 			SLATE_ARGUMENT(FConcertPropertyChain, DisplayedProperty)
-			SLATE_ARGUMENT(TSet<FSoftObjectPath>, EditedObjects)
+			SLATE_ARGUMENT(TArray<FSoftObjectPath>, EditedObjects)
 			SLATE_ARGUMENT(TSharedPtr<FText>, HighlightText)
 			/** Called when the property assignment of any client(s) is changed by this widget. */
 			SLATE_EVENT(FOnPropertyAssignmentChanged, OnPropertyAssignmentChanged)
@@ -65,7 +65,7 @@ namespace UE::MultiUserClient
 		TSharedPtr<IConcertClient> ConcertClient;
 
 		/** The objects for which the property is being displayed. */
-		TSet<FSoftObjectPath> EditedObjects;
+		TArray<FSoftObjectPath> EditedObjects;
 		/** The property assigned to this column. */
 		FConcertPropertyChain Property;
 

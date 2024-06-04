@@ -1,7 +1,8 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
+#include "Replication/Editor/View/IMultiObjectPropertyAssignmentView.h"
 #include "Replication/Editor/View/IPropertyAssignmentView.h"
 #include "Replication/Editor/View/IPropertyTreeView.h"
 
@@ -10,19 +11,23 @@
 
 namespace UE::ConcertSharedSlate
 {
+	class IObjectHierarchyModel;
 	class IPropertySelectionSourceModel;
 	class IReplicationStreamModel;
 	
-	/** SPerObjectPropertyAssignment shows only the properties of the displayed object, which is achieved by wrapping SPropertyTreeView. */
-	class SPerObjectPropertyAssignment
+	/** SMultiObjectAssignment shows the properties of the displayed object and all of its subobjects.*/
+	class SMultiObjectAssignment
 		: public SCompoundWidget
-		, public IPropertyAssignmentView
+		, public IMultiObjectPropertyAssignmentView
 	{
 	public:
 
-		SLATE_BEGIN_ARGS(SPerObjectPropertyAssignment){}
+		SLATE_BEGIN_ARGS(SMultiObjectAssignment){}
 			/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
 			SLATE_ARGUMENT(TSharedPtr<IPropertySelectionSourceModel>, PropertySource)
+			
+			/** Optional. Gets components and subobjects of the displayed object. If unspecified, behaves exactly like SPerObjectAssignmentView. */
+			SLATE_ARGUMENT(TSharedPtr<IObjectHierarchyModel>, ObjectHierarchy)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InTreeView);
@@ -32,6 +37,8 @@ namespace UE::ConcertSharedSlate
 		virtual void RequestRefilter() const override { return TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { return TreeView->RequestRefilter(); }
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
+		virtual void SetShouldShowSubobjects(bool bShowSubobjects) override;
+		virtual bool GetShouldShowSubobjects() const override { return bShouldShowSubobjects;}
 		//~ End IPropertyAssignmentView Interface
 
 	private:
@@ -40,10 +47,21 @@ namespace UE::ConcertSharedSlate
 		TSharedPtr<IPropertyTreeView> TreeView;
 		/** Used to determine whether to rebuild the entire property data. */
 		TArray<FSoftObjectPath> PreviousSelectedObjects;
-		
+
+		/** Used to get subobjects of selected objects. */
+		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
 		/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
 		TSharedPtr<IPropertySelectionSourceModel> OptionalPropertySource;
+
+		/** Whether EChildRelationshipFlags::Subobject objects should be shown. */
+		bool bShouldShowSubobjects = false;
+
+		struct FBuildAssignmentEntryResult
+		{
+			FPropertyAssignmentEntry Entry;
+			bool bHaveSharedClass = false;
+		};
+		/** Builds a property section grouped by Objects (usually has 1 object - contains similar objects, like StaticMeshComponent0, for multi-edit purposes). */
+		FBuildAssignmentEntryResult BuildAssignmentEntry(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model);
 	};
 }
-
-

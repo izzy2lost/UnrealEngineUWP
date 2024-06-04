@@ -33,7 +33,7 @@ namespace UE::ConcertSharedSlate
 				{
 					Result = Visit(Model, ChildObject, ChildOfChild, Relationship, Callback, InclusionFlags);
 					return Result;
-				});
+				}, InclusionFlags);
 				return Result;
 			}
 		};

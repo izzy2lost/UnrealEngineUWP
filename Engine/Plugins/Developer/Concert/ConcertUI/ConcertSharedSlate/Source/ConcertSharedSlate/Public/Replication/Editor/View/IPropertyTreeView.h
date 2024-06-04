@@ -22,7 +22,7 @@ namespace UE::ConcertSharedSlate
 		 * This has multiple elements in the case of multi-edit (i.e. when the user clicks multiple, compatible actors in the top-view).
 		 * For example, for multi-edit this could contain ActorA->StaticMeshComponent0 and ActorB->StaticMeshComponent0.
 		 */
-		TSet<TSoftObjectPtr<>> ContextObjects;
+		TArray<TSoftObjectPtr<>> ContextObjects;
 		
 		/** The properties to display */
 		TSet<FConcertPropertyChain> PropertiesToDisplay;

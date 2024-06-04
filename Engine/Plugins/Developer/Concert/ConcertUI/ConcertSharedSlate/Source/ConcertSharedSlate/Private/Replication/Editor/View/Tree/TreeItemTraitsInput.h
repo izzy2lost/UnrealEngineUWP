@@ -7,6 +7,8 @@
 #include "Types/SlateEnums.h"
 
 class FName;
+class ITableRow;
+class STableViewBase;
 class SWidget;
 
 struct FTableRowStyle;
@@ -49,5 +51,8 @@ namespace UE::ConcertSharedSlate
 			/** Style to use for rows */
 			const FTableRowStyle* RowStyle = nullptr;
 		};
+
+		/** Overrides the widget for the row if the delegate returns non-nullptr. */
+		DECLARE_DELEGATE_RetVal_ThreeParams(TSharedPtr<ITableRow>, FOverrideRowWidget, TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable, const FGenerateRowArgs& AdditionalArgs);
 	};
 }

@@ -22,9 +22,9 @@ namespace UE::ConcertSharedSlate
 	FSoftClassPath GetObjectClassFromModelOrLoad(const FSoftObjectPath& Object, const IReplicationStreamModel& Model);
 
 	/** Calls EnumerateRegisteredPropertiesOnly or EnumerateAllProperties depending on whether OptionalSource is nullptr. */
-	void EnumerateProperties(const TSet<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model, const IPropertySelectionSourceModel* OptionalSource, FEnumerateProperties Callback);
+	void EnumerateProperties(TConstArrayView<FSoftObjectPath> Objects, const IReplicationStreamModel& Model, const IPropertySelectionSourceModel* OptionalSource, FEnumerateProperties Callback);
 	/** Enumerates the properties that are assigned to the object in Model */
-	void EnumerateRegisteredPropertiesOnly(const TSet<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model, FEnumerateProperties Callback);
+	void EnumerateRegisteredPropertiesOnly(TConstArrayView<FSoftObjectPath> Objects, const IReplicationStreamModel& Model, FEnumerateProperties Callback);
 	/** Enumerate the properties that are selectable in Source (e.g. all properties in that class, @see FSelectPropertyFromUClassModel). */
-	void EnumerateAllProperties(const TSet<FSoftObjectPath>& Objects, const IPropertySelectionSourceModel& Source, const IReplicationStreamModel& Model, FEnumerateProperties Callback);
+	void EnumerateAllProperties(TConstArrayView<FSoftObjectPath> Objects, const IPropertySelectionSourceModel& Source, const IReplicationStreamModel& Model, FEnumerateProperties Callback);
 }

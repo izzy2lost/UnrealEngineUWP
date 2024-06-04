@@ -10,6 +10,7 @@
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
+#include "Replication/Editor/View/IMultiObjectPropertyAssignmentView.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
@@ -78,6 +79,9 @@ namespace UE::MultiUserClient
 
 		FMuteStateManager& MuteManager = *InMultiUserReplicationManager.GetMuteManager();
 		
+		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
+		const TSharedRef<IObjectNameModel> NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel();
+		
 		TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditorAttribute =
 		   TAttribute<TSharedPtr<IMultiReplicationStreamEditor>>::CreateLambda([this]()
 		   {
@@ -101,10 +105,14 @@ namespace UE::MultiUserClient
 			{
 				ReplicationColumns::Property::LabelColumn(),
 				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, *ClientManager)
-			}
+			},
+			.CreateCategoryRow = CreateDefaultCategoryGenerator(NameModel)
 		};
 		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateFilterablePropertyTreeView(MoveTemp(TreeViewParams));
-		TSharedRef<IPropertyAssignmentView> PropertyAssignmentView = CreatePerObjectAssignmentView({ .PropertyTreeView = PropertyTreeView, .PropertySource = PropertySourceModel });
+		
+		TSharedRef<IMultiObjectPropertyAssignmentView> PropertyAssignmentView = CreateMultiObjectAssignmentView(
+			{ .PropertyTreeView = PropertyTreeView, .ObjectHierarchy = ObjectHierarchy, .PropertySource = PropertySourceModel}
+			);
 		
 		FCreateMultiStreamEditorParams Params
 		{
@@ -115,12 +123,11 @@ namespace UE::MultiUserClient
 			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate)
 		};
 		
-		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
 		FCreateViewerParams ViewerParams
 		{
-			.PropertyAssignmentView = MoveTemp(PropertyAssignmentView),
+			.PropertyAssignmentView = StaticCastSharedRef<IPropertyAssignmentView>(PropertyAssignmentView),
 			.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
-			.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
+			.NameModel = NameModel, // This makes actors use their labels, and components use the names given in the BP editor
 			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 			.ObjectColumns =
 			{

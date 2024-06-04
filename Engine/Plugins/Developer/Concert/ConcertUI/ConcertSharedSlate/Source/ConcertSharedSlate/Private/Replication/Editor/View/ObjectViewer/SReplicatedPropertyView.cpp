@@ -32,7 +32,7 @@ namespace UE::ConcertSharedSlate
 	void SReplicatedPropertyView::RefreshPropertyData()
 	{
 		SCOPED_CONCERT_TRACE(RefreshPropertyData);
-		TSet<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
+		TArray<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
 		{
 			SetPropertyContent(EReplicatedPropertyContent::NoSelection);
@@ -51,9 +51,9 @@ namespace UE::ConcertSharedSlate
 		SetPropertyContent(EReplicatedPropertyContent::Properties);
 	}
 
-	TSet<FSoftObjectPath> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
+	TArray<FSoftObjectPath> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
 	{
-		TSet<FSoftObjectPath> Result;
+		TArray<FSoftObjectPath> Result;
 		Algo::Transform(GetSelectedRootObjectsDelegate.Execute(), Result, [](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 		{
 			return ObjectData->GetObjectPath();
@@ -92,7 +92,7 @@ namespace UE::ConcertSharedSlate
 			];
 	}
 	
-	TOptional<FSoftClassPath> SReplicatedPropertyView::GetClassForPropertiesFromSelection(const TSet<FSoftObjectPath>& Objects) const
+	TOptional<FSoftClassPath> SReplicatedPropertyView::GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const
 	{
 		FSoftClassPath SharedClass;
 		const bool bAllHaveSameClass = Algo::AllOf(Objects, [this, &SharedClass](const FSoftObjectPath& Object)

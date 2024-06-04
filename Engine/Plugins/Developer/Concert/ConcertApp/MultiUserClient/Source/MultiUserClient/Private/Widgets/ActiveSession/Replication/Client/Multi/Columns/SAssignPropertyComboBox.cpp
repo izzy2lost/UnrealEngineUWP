@@ -30,7 +30,7 @@ namespace UE::MultiUserClient
 {
 	namespace AssignPropertyComboBox
 	{
-		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TSet<FSoftObjectPath>& EditedObjects)
+		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<FSoftObjectPath>& EditedObjects)
 		{
 			TArray<FGuid> Clients;
 			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FReplicationClient& Client)
@@ -55,7 +55,7 @@ namespace UE::MultiUserClient
 		const TSharedRef<IConcertClient>& LocalConcertClient,
 		const FReplicationClientManager& ClientManager,
 		const FConcertPropertyChain& DisplayedProperty,
-		const TSet<FSoftObjectPath>& EditedObjects)
+		const TArray<FSoftObjectPath>& EditedObjects)
 	{
 		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
 		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);

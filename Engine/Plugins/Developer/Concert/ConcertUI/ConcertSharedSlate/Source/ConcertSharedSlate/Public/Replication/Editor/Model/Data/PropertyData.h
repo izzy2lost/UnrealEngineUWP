@@ -14,13 +14,13 @@ namespace UE::ConcertSharedSlate
 	{
 	public:
 		
-		FPropertyData(TSet<TSoftObjectPtr<>> ContextObjects, FSoftClassPath OwningClass, FConcertPropertyChain Object)
+		FPropertyData(TArray<TSoftObjectPtr<>> ContextObjects, FSoftClassPath OwningClass, FConcertPropertyChain Object)
 			: ContextObjects(MoveTemp(ContextObjects))
 			, OwningClassPtr(MoveTemp(OwningClass))
 			, Property(MoveTemp(Object))
 		{}
 		
-		const TSet<TSoftObjectPtr<>>& GetContextObjects() const { return ContextObjects; }
+		const TArray<TSoftObjectPtr<>>& GetContextObjects() const { return ContextObjects; }
 		const FConcertPropertyChain& GetProperty() const { return Property; }
 		const TSoftClassPtr<>& GetOwningClassPtr() const { return OwningClassPtr; }
 
@@ -33,7 +33,7 @@ namespace UE::ConcertSharedSlate
 		 * This has multiple elements in the case of multi-edit (i.e. when the user clicks multiple, compatible actors in the top-view).
 		 * For example, for multi-edit this could contain ActorA->StaticMeshComponent0 and ActorB->StaticMeshComponent0.
 		 */
-		TSet<TSoftObjectPtr<>> ContextObjects;
+		TArray<TSoftObjectPtr<>> ContextObjects;
 		
 		/** The class with which the FProperty can be determined. */
 		TSoftClassPtr<> OwningClassPtr;

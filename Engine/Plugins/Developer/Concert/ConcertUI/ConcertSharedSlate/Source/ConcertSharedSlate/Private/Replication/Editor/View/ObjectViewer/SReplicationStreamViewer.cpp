@@ -58,7 +58,7 @@ namespace UE::ConcertSharedSlate
 		PropertySection->RequestResortForColumn(ColumnId);
 	}
 
-	TSet<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
+	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
 	{
 		return PropertySection->GetObjectsSelectedForPropertyEditing();
 	}

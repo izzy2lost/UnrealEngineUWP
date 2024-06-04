@@ -93,7 +93,7 @@ namespace UE::ConcertSharedSlate
 		ReplicationViewer->RequestPropertyColumnResort(ColumnId);
 	}
 
-	TSet<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
+	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
 	{
 		return ReplicationViewer->GetObjectsBeingPropertyEdited();
 	}

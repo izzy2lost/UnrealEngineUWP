@@ -32,6 +32,26 @@ namespace UE::ConcertSharedSlate
 		/** The item is only displayed if the filter passes on one of its children. If no child is included, the item is not displayed. */
 		IncludeOnlyIfChildIsIncluded
 	};
+
+	/** Result for the IsLessThan override delegate in SReplicationTreeView. */
+	enum class EComparisonOverride : uint8
+	{
+		/** Left < Right is to be treated as true */
+		Less,
+		/** Left < Right is to be treated as false */
+		NotLess,
+		/** Use the standard column comparision delegates to find out. */
+		UseDefault
+	};
+
+	/** Result for the GetSearchString override delegate in SReplicationTreeView. */
+	enum class ESearchTermResult : uint8
+	{
+		/** The delegate wants the passed in item to go through normal text search as well. */
+		UseDefault,
+		/** The delegate does not want the passed in item to go through the rest of the text search process. */
+		UseOverrideOnly,
+	};
 	
 	/**
 	 * Shared code for the tree view for replicated actors and properties.
@@ -44,16 +64,18 @@ namespace UE::ConcertSharedSlate
 	class SReplicationTreeView : public SCompoundWidget
 	{
 	public:
-
-		using TOverrideColumnWidget = typename TReplicationTreeData<TItemType>::FOverrideColumnWidget;
-		using FGetHoveredRowContent = typename TReplicationTreeData<TItemType>::FGetHoveredRowContent;
-
+		
+		using FOverrideColumnWidget = typename TReplicationTreeData<TItemType>::FOverrideColumnWidget;
 		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
-		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
 
+		// TODO UE-216456: The following callbacks could be extracted to a IReplicationItem<TItemType> to simplify SReplicationTreeView implementation 
+		using FOverrideRowWidget	= typename TReplicationTreeData<TItemType>::FOverrideRowWidget;
+		using FGetHoveredRowContent = typename TReplicationTreeData<TItemType>::FGetHoveredRowContent;
 		DECLARE_DELEGATE_RetVal_OneParam(EItemFilterResult, FCustomFilter, const TItemType& Item);
-		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
+		DECLARE_DELEGATE_RetVal_TwoParams(EComparisonOverride, FIsLessThanOverride, const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right);
+		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
+		DECLARE_DELEGATE_RetVal_TwoParams(ESearchTermResult, FGetSearchTermsOverride, const TSharedPtr<TItemType>& Item, TArray<FString>& InOutSearchTerms);
 
 		enum class EContent
 		{
@@ -83,17 +105,19 @@ namespace UE::ConcertSharedSlate
 
 			/** Optional callback to do even more filtering of items. */
 			SLATE_EVENT(FCustomFilter, FilterItem)
-		
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			SLATE_EVENT(FGetHoveredRowContent, GetHoveredRowContent)
 			/**
 			 * Optional. If the delegate returns non-null, that widget will be used instead of the one the column would generate.
 			 * This is useful, e.g. if you want to generate a separator widget between items.
 			 */
-			SLATE_EVENT(TOverrideColumnWidget, OverrideColumnWidget)
-			/** Optional callback for determining whether this item can be searched. */
-			SLATE_EVENT(FIsSearchableItem, IsSearchableItem)
-		
-			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
-			SLATE_EVENT(FGetHoveredRowContent, GetHoveredRowContent)
+			SLATE_EVENT(FOverrideColumnWidget, OverrideColumnWidget)
+			/** Optional. The widget returned by this delegate ends up overriding the default row widget. */
+			SLATE_EVENT(FOverrideRowWidget, OverrideRowWidget)
+			/** Optional. This delegate is used during sorting and can override the default sorting behaviour for some items. This can be used e.g. for category nodes. */
+			SLATE_EVENT(FIsLessThanOverride, OverrideIsLessThan)
+			/** Optional. Can generate custom terms for an item type. This can be used e.g. for category nodes. */
+			SLATE_EVENT(FGetSearchTermsOverride, OverrideGetSearchTerms)
 			
 			/** The columns this list should have */
 			SLATE_ARGUMENT(TArray<TReplicationColumnEntry<TItemType>>, Columns)
@@ -131,14 +155,18 @@ namespace UE::ConcertSharedSlate
 			OnGetChildrenDelegate = InArgs._OnGetChildren;
 			OnDeleteItemsDelegate = InArgs._OnDeleteItems;
 			CustomFilterDelegate = InArgs._FilterItem;
-			OverrideColumnWidget = InArgs._OverrideColumnWidget;
-			IsSearchableItemDelegate = InArgs._IsSearchableItem;
 			GetHoveredRowContentDelegate = InArgs._GetHoveredRowContent;
+			OverrideColumnWidgetDelegate = InArgs._OverrideColumnWidget;
+			OverrideRowWidgetDelegate = InArgs._OverrideRowWidget;
+			OverrideIsLessThanDelegate = InArgs._OverrideIsLessThan;
+			OverrideGetSearchTerms = InArgs._OverrideGetSearchTerms;
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
 			RowStyle = InArgs._RowStyle;
 			
 			SearchText = MakeShared<FText>();
-			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings));
+			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(
+				TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings)
+				);
 			SearchTextFilter->OnChanged().AddSP(this, &SReplicationTreeView::RequestRefilter);
 			
 			ChildSlot
@@ -291,6 +319,7 @@ namespace UE::ConcertSharedSlate
 		
 		TArray<TSharedPtr<TItemType>> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
 		const TArray<TSharedPtr<TItemType>>& GetFilteredRootItems() const { return FilteredRootItems; }
+		const FText& GetHighlightText() const { return *SearchText; }
 		
 		virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -351,12 +380,16 @@ namespace UE::ConcertSharedSlate
 		FDeleteItems OnDeleteItemsDelegate;
 		/** Optional delegate for filtering the items even more. */
 		FCustomFilter CustomFilterDelegate;
-		/** Optional delegate for overriding the column widgets. */
-		TOverrideColumnWidget OverrideColumnWidget;
-		/** Optional callback for determining whether this item can be filtered. If false, it will not be shown when searched. */
-		FIsSearchableItem IsSearchableItemDelegate;
 		/** Optional. The content to overlay on hovered rows; it covers the entire row. */
 		FGetHoveredRowContent GetHoveredRowContentDelegate;
+		/** Optional delegate for overriding the column widgets. */
+		FOverrideColumnWidget OverrideColumnWidgetDelegate;
+		/** Optional. The widget returned by this delegate ends up overriding the default row widget. */
+		FOverrideRowWidget OverrideRowWidgetDelegate;
+		/** Optional. This delegate is used during sorting and can override the default sorting behaviour for some items. */
+		FIsLessThanOverride OverrideIsLessThanDelegate;
+		/** Optional. Can generate custom terms for an item type. This can be used e.g. for category nodes. */
+		FGetSearchTermsOverride OverrideGetSearchTerms;
 
 		/** Style to use for rows */
 		const FTableRowStyle* RowStyle = nullptr;
@@ -516,16 +549,23 @@ namespace UE::ConcertSharedSlate
 			SReplicationColumnRow<TItemType>::FGetColumn::CreateSP(this, &SReplicationTreeView::FindColumnByName
 			);
 
-		// Compile-time decide the row that is supposed to be generated
-		return TReplicationTreeItemTraits<TItemType>::GenerateRowWidget(Item, OwnerTable,
-			{
-				ColumnGetter,
-				OverrideColumnWidget,
-				GetHoveredRowContentDelegate,
-				SearchText,
-				ExpandableColumnId,
-				RowStyle
-			});
+		const typename TReplicationTreeData<TItemType>::FGenerateRowArgs RowArgs
+		{
+			ColumnGetter,
+			OverrideColumnWidgetDelegate,
+			GetHoveredRowContentDelegate,
+			SearchText,
+			ExpandableColumnId,
+			RowStyle
+		};
+		const TSharedPtr<ITableRow> OverrideRowWidget = OverrideRowWidgetDelegate.IsBound()
+			? OverrideRowWidgetDelegate.Execute(Item, OwnerTable, RowArgs)
+			: nullptr;
+		
+		return OverrideRowWidget
+			? OverrideRowWidget.ToSharedRef()
+			// Compile-time decide the row that is supposed to be generated
+			: TReplicationTreeItemTraits<TItemType>::GenerateRowWidget(Item, OwnerTable, RowArgs);
 	}
 
 	template <typename TItemType>
@@ -626,11 +666,12 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings)
 	{
-		if (IsSearchableItemDelegate.IsBound() && !IsSearchableItemDelegate.Execute(Item))
+		if (OverrideGetSearchTerms.IsBound()
+			&& OverrideGetSearchTerms.Execute(Item, OutSearchStrings) == ESearchTermResult::UseOverrideOnly)
 		{
 			return;
 		}
-
+		
 		for (const TPair<FName, TSharedRef<IReplicationTreeColumn<TItemType>>>& ColumnEntry : ColumnInstances)
 		{
 			ColumnEntry.Value->PopulateSearchString(*Item, OutSearchStrings);
@@ -796,6 +837,12 @@ namespace UE::ConcertSharedSlate
 		
 		Items.Sort([this, &IsLessThan](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right)
 		{
+			const EComparisonOverride ComparisonOverride = OverrideIsLessThanDelegate.IsBound() ? OverrideIsLessThanDelegate.Execute(Left, Right) : EComparisonOverride::UseDefault;
+			if (ComparisonOverride != EComparisonOverride::UseDefault)
+			{
+				return ComparisonOverride == EComparisonOverride::Less;
+			}
+			
 			if (PrimarySortInfo.IsValid() && IsLessThan(Left, Right, PrimarySortInfo.SortedColumnId, PrimarySortInfo.SortMode))
 			{
 				return true; // Left comes before Right

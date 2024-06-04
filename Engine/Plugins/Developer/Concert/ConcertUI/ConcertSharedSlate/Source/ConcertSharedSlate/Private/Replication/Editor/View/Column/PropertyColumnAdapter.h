@@ -3,23 +3,24 @@
 #pragma once
 
 #include "Replication/Editor/Model/Data/PropertyData.h"
+#include "Replication/Editor/Model/Data/PropertyNodeData.h"
 #include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Replication/Editor/View/Column/IReplicationTreeColumn.h"
 
 namespace UE::ConcertSharedSlate
 {
 	/** Adapts an IPropertyTreeColumn to IReplicationTreeColumn<FPropertyData>. It simply passes additional info down to IPropertyTreeColumn. */
-	class FPropertyColumnAdapter : public IReplicationTreeColumn<FPropertyData>
+	class FPropertyColumnAdapter : public IReplicationTreeColumn<FPropertyNodeData>
 	{
 	public:
 
-		static TArray<TReplicationColumnEntry<FPropertyData>> Transform(const TArray<FPropertyColumnEntry>& Entries)
+		static TArray<TReplicationColumnEntry<FPropertyNodeData>> Transform(const TArray<FPropertyColumnEntry>& Entries)
 		{
-			TArray<TReplicationColumnEntry<FPropertyData>> Result;
-			Algo::Transform(Entries, Result, [](const FPropertyColumnEntry& Entry) -> TReplicationColumnEntry<FPropertyData>
+			TArray<TReplicationColumnEntry<FPropertyNodeData>> Result;
+			Algo::Transform(Entries, Result, [](const FPropertyColumnEntry& Entry) -> TReplicationColumnEntry<FPropertyNodeData>
 			{
 				return {
-					TReplicationColumnDelegates<FPropertyData>::FCreateColumn::CreateLambda([CreateDelegate = Entry.CreateColumn]()
+					TReplicationColumnDelegates<FPropertyNodeData>::FCreateColumn::CreateLambda([CreateDelegate = Entry.CreateColumn]()
 					{
 						return MakeShared<FPropertyColumnAdapter>(CreateDelegate.Execute());
 					}),
@@ -39,21 +40,23 @@ namespace UE::ConcertSharedSlate
 		{
 			return AdaptedColumn->GenerateColumnWidget({ InArgs.HighlightText, Transform(InArgs.RowItem) });
 		}
-		virtual void PopulateSearchString(const FPropertyData& InItem, TArray<FString>& InOutSearchStrings) const override
+		virtual void PopulateSearchString(const FPropertyNodeData& InItem, TArray<FString>& InOutSearchStrings) const override
 		{
 			return AdaptedColumn->PopulateSearchString(Transform(InItem), InOutSearchStrings);
 		}
 
 		virtual bool CanBeSorted() const override { return AdaptedColumn->CanBeSorted(); }
-		virtual bool IsLessThan(const FPropertyData& Left, const FPropertyData& Right) const override { return AdaptedColumn->IsLessThan(Transform(Left), Transform(Right)); }
+		virtual bool IsLessThan(const FPropertyNodeData& Left, const FPropertyNodeData& Right) const override { return AdaptedColumn->IsLessThan(Transform(Left), Transform(Right)); }
 
 	private:
 
 		TSharedRef<IPropertyTreeColumn> AdaptedColumn;
 
-		static FPropertyTreeRowContext Transform(FPropertyData Data)
+		static FPropertyTreeRowContext Transform(const FPropertyNodeData& Data)
 		{
-			return { MoveTemp(Data) };
+			const TOptional<FPropertyData>& PropertyData = Data.GetPropertyData();
+			checkf(PropertyData, TEXT("This node is not a property node - column callbacks should not have been invoked on it!"));
+			return { *PropertyData };
 		}
 	};
 }

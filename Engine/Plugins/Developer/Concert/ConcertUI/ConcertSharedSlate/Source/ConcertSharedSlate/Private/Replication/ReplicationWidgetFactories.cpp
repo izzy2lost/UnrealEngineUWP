@@ -5,10 +5,14 @@
 #include "Editor/Model/GenericReplicationStreamModel.h"
 #include "Editor/View/MultiEditor/SMultiReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
+#include "Editor/View/Property/SMultiObjectAssignment.h"
 #include "Editor/View/Property/SPerObjectPropertyAssignment.h"
 #include "Editor/View/Property/SPropertyTreeView.h"
 #include "Replication/PropertyAssignmentViewFactory.h"
+#include "Replication/Editor/Model/Object/IObjectNameModel.h"
 #include "Replication/Editor/View/IPropertyAssignmentView.h"
+
+#include "Widgets/Text/STextBlock.h"
 
 namespace UE::ConcertSharedSlate
 {
@@ -36,7 +40,7 @@ namespace UE::ConcertSharedSlate
 			.IsEditingEnabled(MoveTemp(EditorParams.IsEditingEnabled))
 			.EditingDisabledToolTipText(MoveTemp(EditorParams.EditingDisabledToolTipText));
 	}
-	
+
 	TSharedRef<IPropertyTreeView> CreateSearchablePropertyTreeView(FCreatePropertyTreeViewParams Params)
 	{
 		// The label column is always required
@@ -60,6 +64,7 @@ namespace UE::ConcertSharedSlate
 		
 		return SNew(SPropertyTreeView)
 			.FilterItem(MoveTemp(FilterDelegate))
+			.CreateCategoryRow(MoveTemp(Params.CreateCategoryRow))
 			.Columns(MoveTemp(Params.PropertyColumns))
 			.ExpandableColumnLabel(ReplicationColumns::Property::LabelColumnId)
 			.PrimarySort(Params.PrimaryPropertySort)
@@ -75,6 +80,13 @@ namespace UE::ConcertSharedSlate
 	{
 		return SNew(SPerObjectPropertyAssignment, Params.PropertyTreeView)
 			.PropertySource(Params.PropertySource);
+	}
+
+	TSharedRef<IMultiObjectPropertyAssignmentView> CreateMultiObjectAssignmentView(FCreateMultiObjectAssignmentViewParams Params)
+	{
+		return SNew(SMultiObjectAssignment, Params.PropertyTreeView)
+			.PropertySource(Params.PropertySource)
+			.ObjectHierarchy(Params.ObjectHierarchy);
 	}
 
 	TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams EditorParams, FCreateViewerParams ViewerParams)

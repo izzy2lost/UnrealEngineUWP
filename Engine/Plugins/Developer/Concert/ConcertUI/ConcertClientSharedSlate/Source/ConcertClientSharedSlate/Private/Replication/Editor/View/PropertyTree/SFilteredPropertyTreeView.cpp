@@ -62,6 +62,7 @@ namespace UE::ConcertClientSharedSlate
 		{
 			.PropertyColumns = MoveTemp(Params.AdditionalPropertyColumns),
 			.FilterItem = FFilterPropertyData::CreateSP(this, &SFilteredPropertyTreeView::PassesFilters),
+			.CreateCategoryRow = MoveTemp(Params.CreateCategoryRow),
 			.PrimaryPropertySort = Params.PrimaryPropertySort,
 			.SecondaryPropertySort = Params.SecondaryPropertySort
 		};

@@ -5,15 +5,21 @@
 #include "Editor/View/Column/IPropertyTreeColumn.h"
 #include "Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Editor/View/Column/SelectionViewerColumns.h"
+#include "Editor/View/Extension/CategoryRowGeneration.h"
 #include "Replication/Utils/FilterResult.h"
 
+#include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
 #include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/SoftObjectPtr.h"
+
+class SExpanderArrow;
 
 namespace UE::ConcertSharedSlate
 {
 	class FPropertyData;
+	class IObjectNameModel;
 	class IPropertyTreeView;
 	
 	DECLARE_DELEGATE_RetVal_OneParam(EFilterResult, FFilterPropertyData, const FPropertyData&);
@@ -26,8 +32,17 @@ namespace UE::ConcertSharedSlate
 			ReplicationColumns::Property::LabelColumn()
 		};
 
-		/** Optional filter function. Return true to al */
+		/** Optional filter function. */
 		FFilterPropertyData FilterItem;
+
+		/**
+		 * Optional delegate for grouping objects under a category.
+		 * If unset, no category are generated.
+		 * 
+		 * When the user clicks an object in the top view, this delegate will be called for the clicked object, its components (if an actor), and its (nested) subobjects.
+		 * ContextObjects is a single object if a single object is clicked or multiple object in the case of multi-edit.
+		 */
+		FCreateCategoryRow CreateCategoryRow;
 		
 		/** Optional initial primary sort mode for object rows */
 		FColumnSortInfo PrimaryPropertySort { ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
