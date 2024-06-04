@@ -147,6 +147,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_PhysicsProperties(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PreviewGroomComponent(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_BindingProperties(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_PreviewSettings(const FSpawnTabArgs& Args);
 private:
 
 	/** Dockable tab for properties */
@@ -162,6 +163,7 @@ private:
 	TSharedPtr<class IDetailsView> DetailView_PhysicsProperties;
 	TSharedPtr<class IDetailsView> DetailView_PreviewGroomComponent;
 	TSharedPtr<class IDetailsView> DetailView_BindingProperties;
+	TSharedPtr<class IDetailsView> DetailView_PreviewSceneProperties;
 
 	static const FName ToolkitFName;
 	static const FName TabId_Viewport;
@@ -175,6 +177,7 @@ private:
 	static const FName TabId_PhysicsProperties;
 	static const FName TabId_PreviewGroomComponent;
 	static const FName TabId_BindingProperties;
+	static const FName TabId_PreviewSceneProperties;
 
 
 	bool bIsTabManagerInitialized = false;
