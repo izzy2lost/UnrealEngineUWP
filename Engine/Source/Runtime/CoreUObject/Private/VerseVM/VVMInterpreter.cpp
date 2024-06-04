@@ -1658,47 +1658,17 @@ class FInterpreter
 		VValue FieldValue;
 		if (VObject* Object = ObjectOperand.DynamicCast<VObject>())
 		{
-			const VEmergentType* EmergentType = Object->GetEmergentType();
-			VShape* Shape = EmergentType->Shape.Get();
-			V_DIE_IF(Shape == nullptr);
-			const VShape::VEntry* Field = Shape->GetField(FieldName);
-			V_DIE_IF(Field == nullptr);
-			switch (Field->Type)
-			{
-				case EFieldType::Offset:
-					FieldValue = Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index].Get(Context);
-					break;
-				case EFieldType::Constant:
-					FieldValue = Field->Value.Get();
-					break;
-				case EFieldType::FProperty:
-					FieldValue = Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo))->Get(Context);
-					break;
-				default:
-					V_DIE("Field: %s has an unsupported type; cannot load!", *FieldName.AsString());
-					break;
-			}
+			FieldValue = Object->LoadField(Context, FieldName);
 		}
-		else if (ObjectOperand.IsUObject())
+		else if (UObject* UeObject = ObjectOperand.ExtractUObject())
 		{
-			UObject* UeObject = ObjectOperand.AsUObject();
-			UVerseVMClass* Class = CastChecked<UVerseVMClass>(UeObject->GetClass());
-			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
-			FieldValue = FieldProperty->ContainerPtrToValuePtr<VRestValue>(UeObject)->Get(Context);
+			FieldValue = UVerseVMClass::LoadField(Context, UeObject, FieldName);
 		}
 		else
 		{
 			V_DIE("Unsupported operand to a `LoadField` operation!");
 		}
-
-		if (FieldValue.IsCellOfType<VProcedure>())
-		{
-			FieldValue = VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), ObjectOperand);
-		}
-		else if (FieldValue.IsCellOfType<VNativeFunction>())
-		{
-			FieldValue = FieldValue.StaticCast<VNativeFunction>().Bind(Context, ObjectOperand);
-		}
+		V_DIE_UNLESS(FieldValue);
 		DEF(Op.Dest, FieldValue);
 		return {FOpResult::Return};
 	}
@@ -1717,9 +1687,9 @@ class FInterpreter
 		{
 			const VEmergentType* EmergentType = Object->GetEmergentType();
 			VShape* Shape = EmergentType->Shape.Get();
-			V_DIE_IF(Shape == nullptr);
+			V_DIE_UNLESS(Shape != nullptr);
 			const VShape::VEntry* Field = Shape->GetField(FieldName);
-			V_DIE_IF(Field == nullptr);
+			V_DIE_UNLESS(Field != nullptr);
 			switch (Field->Type)
 			{
 				case EFieldType::Offset:
@@ -1736,13 +1706,29 @@ class FInterpreter
 					break;
 			}
 		}
-		else if (ObjectOperand.IsUObject())
+		else if (UObject* UeObject = ObjectOperand.ExtractUObject())
 		{
-			UObject* UeObject = ObjectOperand.AsUObject();
 			UVerseVMClass* Class = CastChecked<UVerseVMClass>(UeObject->GetClass());
-			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
-			VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(UeObject);
-			bSucceeded = Def(Slot, ValueOperand);
+			VShape* Shape = Class->Shape.Get();
+			V_DIE_UNLESS(Shape != nullptr);
+			const VShape::VEntry* Field = Shape->GetField(FieldName);
+			V_DIE_UNLESS(Field != nullptr);
+			switch (Field->Type)
+			{
+				case EFieldType::FProperty:
+				{
+					FVRestValueProperty* FieldProperty = CastFieldChecked<FVRestValueProperty>(Field->UProperty);
+					VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(UeObject);
+					bSucceeded = Def(Slot, ValueOperand);
+					break;
+				}
+				case EFieldType::Constant:
+					bSucceeded = Def(Field->Value.Get(), ValueOperand);
+					break;
+				default:
+					V_DIE("Field: %s has an unsupported type; cannot unify!", *FieldName.AsString());
+					break;
+			}
 		}
 		else
 		{

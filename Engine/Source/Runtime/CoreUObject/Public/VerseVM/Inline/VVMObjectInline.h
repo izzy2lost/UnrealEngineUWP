@@ -5,13 +5,16 @@
 
 #include "UObject/UnrealType.h" // For FProperty
 #include "VerseVM/Inline/VVMShapeInline.h"
+#include "VerseVM/VVMFunction.h"
+#include "VerseVM/VVMNativeFunction.h"
 #include "VerseVM/VVMObject.h"
+#include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMUnreachable.h"
 
 namespace Verse
 {
 
-inline const VValue VObject::LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field)
+inline VValue VObject::LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field)
 {
 	V_DIE_IF(Field == nullptr);
 
@@ -22,14 +25,28 @@ inline const VValue VObject::LoadField(FAllocationContext Context, const VCppCla
 		case EFieldType::FProperty:
 			return Field->UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(CppClassInfo))->Get(Context);
 		case EFieldType::Constant:
-			return Field->Value.Get().Follow();
+		{
+			VValue FieldValue = Field->Value.Get();
+			if (FieldValue.IsCellOfType<VProcedure>())
+			{
+				return VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), *this);
+			}
+			else if (FieldValue.IsCellOfType<VNativeFunction>())
+			{
+				return FieldValue.StaticCast<VNativeFunction>().Bind(Context, *this);
+			}
+			else
+			{
+				return FieldValue;
+			}
+		}
 		default:
 			VERSE_UNREACHABLE();
 			break;
 	}
 }
 
-inline const VValue VObject::LoadField(FAllocationContext Context, VUniqueString& Name)
+inline VValue VObject::LoadField(FAllocationContext Context, VUniqueString& Name)
 {
 	const VEmergentType* EmergentType = GetEmergentType();
 	return LoadField(Context, *EmergentType->CppClassInfo, EmergentType->Shape->GetField(Name));

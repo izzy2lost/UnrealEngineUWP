@@ -17,7 +17,7 @@ struct VObject : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
-	const VValue LoadField(FAllocationContext Context, VUniqueString& Name);
+	VValue LoadField(FAllocationContext Context, VUniqueString& Name);
 
 	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
 	/// The data is retrieved from the object, rather than the shape.
@@ -35,7 +35,7 @@ protected:
 
 	static constexpr const size_t DataAlignment = alignof(VRestValue);
 
-	const VValue LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field);
+	VValue LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field);
 	static size_t DataOffset(const VCppClassInfo& CppClassInfo);
 
 	/*

@@ -4,19 +4,44 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "UObject/VerseValueProperty.h"
+#include "VerseVM/VVMFunction.h"
+#include "VerseVM/VVMNativeFunction.h"
 #include "VerseVM/VVMUClass.h"
 
-FORCEINLINE_DEBUGGABLE FVRestValueProperty* UVerseVMClass::GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const
+FORCEINLINE_DEBUGGABLE Verse::VValue UVerseVMClass::LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName)
 {
 	using namespace Verse;
 
-	const VShape::VEntry* Field = Shape->GetField(FieldName);
-	if (!Field)
+	const UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
+	const VShape::VEntry* Field = Class->Shape->GetField(FieldName);
+
+	switch (Field->Type)
 	{
-		V_DIE("Field: %s was not found!", *FieldName.AsString());
+		case EFieldType::FProperty:
+		{
+			FVRestValueProperty* FieldProperty = CastFieldChecked<FVRestValueProperty>(Field->UProperty);
+			return FieldProperty->ContainerPtrToValuePtr<Verse::VRestValue>(Object)->Get(Context);
+		}
+		case EFieldType::Constant:
+		{
+			VValue FieldValue = Field->Value.Get();
+			if (FieldValue.IsCellOfType<VProcedure>())
+			{
+				return VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), Object);
+			}
+			else if (FieldValue.IsCellOfType<VNativeFunction>())
+			{
+				return FieldValue.StaticCast<VNativeFunction>().Bind(Context, Object);
+			}
+			else
+			{
+				return FieldValue;
+			}
+		}
+		default:
+			VERSE_UNREACHABLE();
+			break;
 	}
-	checkSlow(Field->Type == EFieldType::FProperty);
-	return CastFieldChecked<FVRestValueProperty>(Field->UProperty);
 }
 
 #endif // WITH_VERSE_VM

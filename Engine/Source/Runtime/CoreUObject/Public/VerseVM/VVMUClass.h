@@ -25,7 +25,7 @@ class COREUOBJECT_API UVerseVMClass : public UClass
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 public:
-	FVRestValueProperty* GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const;
+	static Verse::VValue LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName);
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 	//~ Begin UObject interface

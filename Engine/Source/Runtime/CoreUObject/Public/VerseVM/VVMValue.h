@@ -165,7 +165,7 @@ struct VValue
 		return BitCast<UObject*>(EncodedBits & ~UObjectTag);
 	}
 
-	UObject* ExtractUObject()
+	UObject* ExtractUObject() const
 	{
 		if (IsUObject())
 		{
