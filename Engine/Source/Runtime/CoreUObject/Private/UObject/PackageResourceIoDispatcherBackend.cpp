@@ -111,12 +111,13 @@ class FPackageResourceIoBackend final
 		{
 			FScopeLock _(&CriticalSection);
 			
-			FHandles& Handles = Lookup.FindChecked(Request);
+			if (FHandles* Handles = Lookup.Find(Request))
+			{
+				Handles->RequestHandle->WaitCompletion();
+				Handles->RequestHandle.Reset();
 
-			Handles.RequestHandle->WaitCompletion();
-			Handles.RequestHandle.Reset();
-
-			Lookup.Remove(Request);
+				Lookup.Remove(Request);
+			}
 		}
 
 		void Cancel(FIoRequestImpl* Request)
@@ -225,6 +226,21 @@ bool FPackageResourceIoBackend::Resolve(FIoRequestImpl* Request)
 		return false;
 	}
 	
+	if (Request->Options.GetSize() == 0)
+	{
+		void* UserSuppliedMemory = Request->Options.GetTargetVa();
+
+		FIoBuffer Buffer = UserSuppliedMemory	? FIoBuffer(FIoBuffer::Wrap, UserSuppliedMemory, 0)
+												: FIoBuffer(0);
+
+		Request->SetResult(Buffer);
+
+		CompletedRequests.Enqueue(Request);
+		BackendContext->WakeUpDispatcherThreadDelegate.Execute();
+
+		return true;
+	}
+
 	PendingRequests.Add(Request, MoveTemp(FileHandle), [this, Request](IAsyncReadFileHandle& FileHandle)
 	{
 		FAsyncFileCallBack Callback = [this, Request](bool bWasCancelled, IAsyncReadRequest* FileReadRequest)
