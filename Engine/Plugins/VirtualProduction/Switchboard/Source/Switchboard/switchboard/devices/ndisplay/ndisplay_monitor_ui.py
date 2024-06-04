@@ -62,11 +62,11 @@ class nDisplayMonitorUI(QWidget):
             lambda: self.try_issue_console_exec())
 
         # Create remaining buttons
-        btn_refresh_mosaics = QPushButton('Refresh Mosaics')
-        btn_refresh_mosaics.setToolTip(
+        btn_refresh_table = QPushButton('Refresh Table')
+        btn_refresh_table.setToolTip(
             'Updates the cached mosaic topologies.')
-        btn_refresh_mosaics.clicked.connect(
-            self.monitor.on_refresh_mosaics_clicked)
+        btn_refresh_table.clicked.connect(
+            self.monitor.on_refresh_table_clicked)
 
         btn_fix_exe_flags = QPushButton('Fix ExeFlags')
         btn_fix_exe_flags.setToolTip(
@@ -84,8 +84,11 @@ class nDisplayMonitorUI(QWidget):
         layout_buttons.addWidget(self.cmb_console_exec)
         layout_buttons.addWidget(btn_console_exec)
         layout_buttons.addStretch(1)
-        layout_buttons.addWidget(btn_refresh_mosaics)
-        layout_buttons.addWidget(btn_fix_exe_flags)
+        layout_buttons.addWidget(btn_refresh_table)
+
+        if self.monitor.use_exe_flags:
+            layout_buttons.addWidget(btn_fix_exe_flags)
+
         layout_buttons.addWidget(btn_minimize_windows)
 
         return layout_buttons

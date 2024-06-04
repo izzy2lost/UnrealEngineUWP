@@ -7,10 +7,12 @@ import traceback
 
 from PySide6 import QtCore
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon
 
 from switchboard import message_protocol
+from switchboard.message_protocol import SyncStatusRequestFlags
 from switchboard.switchboard_logging import LOGGER
+from switchboard.devices.device_base import Device
 
 
 class nDisplayMonitor(QAbstractTableModel):
@@ -22,27 +24,32 @@ class nDisplayMonitor(QAbstractTableModel):
 
     COLOR_WARNING = QColor(0x70, 0x40, 0x00)
     COLOR_NORMAL = QColor(0x3d, 0x3d, 0x3d)
+    COLOR_DISCONNECTED = QColor(0x7F, 0x7F, 0x7F)
     CORE_OVERLOAD_THRESH = 90  # percent utilization
 
     # Special meaning when received from listener for PresentMode, but
     # sometimes also used for other values' display for consistency.
     DATA_MISSING = 'n/a'
 
+    # If false, the button to disable full screen optimizations is hidden
+    # and periodic polling of the state of this feature is disabled.
+    use_exe_flags = True
+
     def __init__(self, parent):
         QAbstractTableModel.__init__(self, parent)
 
-        self.polling_period_ms = 1000
+        self.polling_period_ms = 2000
 
         # ordered so that we can map row indices to devices
         self.devicedatas = OrderedDict()
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.poll_sync_status)
+        self.timer.timeout.connect(self.poll_variable_sync_status)
 
         HEADER_DATA = {
+            'Connected': 'If we are connected to the listener of this device',
             'Node': 'The cluster name of this device',
             'Host': 'The URL of the remote PC',
-            'Connected': 'If we are connected to the listener of this device',
             'Driver': 'GPU driver version',
             'PresentMode':
                 'Current presentation mode. Only available once the render '
@@ -84,10 +91,18 @@ class nDisplayMonitor(QAbstractTableModel):
                 'sensors.)',
         }
 
+        if not self.use_exe_flags:
+            HEADER_DATA.pop('ExeFlags')
+
         self.colnames = list(HEADER_DATA.keys())
         self.tooltips = list(HEADER_DATA.values())
 
-    def color_for_column(self, colname, value, data):
+        # Load connection status icons
+        self.icon_unconnected = QIcon(":/icons/images/status_blank_disabled.png")
+        self.icon_connected = QIcon(":/icons/images/status_cyan.png")
+        self.icon_running = QIcon(":/icons/images/status_orange.png")
+
+    def color_for_column(self, colname, value, data, is_program_running: bool):
         ''' Returns the background color for the given cell '''
         if data['Connected'].lower() == 'no':
             if colname == 'Connected':
@@ -95,7 +110,11 @@ class nDisplayMonitor(QAbstractTableModel):
             return self.COLOR_NORMAL
 
         if colname == 'PresentMode':
-            is_good = 'Hardware Composed: Independent Flip' in value
+            ok_values = [
+                'Hardware Composed: Independent Flip',
+                'Hardware: Independent Flip',
+            ]
+            is_good = (not is_program_running) or any(ok_value in value for ok_value in ok_values)
             return self.COLOR_NORMAL if is_good else self.COLOR_WARNING
 
         if colname == 'Gpus':
@@ -103,10 +122,11 @@ class nDisplayMonitor(QAbstractTableModel):
             return self.COLOR_NORMAL if is_synced else self.COLOR_WARNING
 
         if colname == 'InFocus':
-            return self.COLOR_NORMAL if 'yes' in value else self.COLOR_WARNING
+            is_good = (not is_program_running) or ('yes' in value)
+            return self.COLOR_NORMAL if is_good else self.COLOR_WARNING
 
         if colname == 'ExeFlags':
-            is_good = 'DISABLEDXMAXIMIZEDWINDOWEDMODE' in value
+            is_good = (not is_program_running) or ('DISABLEDXMAXIMIZEDWINDOWEDMODE' in value)
             return self.COLOR_NORMAL if is_good else self.COLOR_WARNING
 
         if colname == 'Displays':
@@ -234,8 +254,7 @@ class nDisplayMonitor(QAbstractTableModel):
 
         # notify the UI
         row = deviceIdx + 1
-        self.dataChanged.emit(self.createIndex(row, 1),
-                              self.createIndex(row, len(self.colnames)))
+        self.refresh_display_for_row(row)
 
     def handle_connection_change(self, devicedata, deviceIdx):
         '''
@@ -255,11 +274,44 @@ class nDisplayMonitor(QAbstractTableModel):
                 self.reset_device_data(device, data)
 
             row = deviceIdx + 1
-            self.dataChanged.emit(self.createIndex(row, 1),
-                                  self.createIndex(row, len(self.colnames)))
+            self.refresh_display_for_row(row)
 
-    def poll_sync_status(self):
+    def default_program_id(self):
+        ''' Default value for program id when unreal is not running.
+        Used for messages that need this argument'''
+
+        return '00000000-0000-0000-0000-000000000000'
+
+    def program_id_from_device(self, device: Device):
+        ''' Returns the program id of the running nDisplay unreal instance '''
+        try:
+            program_id = device.program_start_queue.running_puuids_named('unreal')[-1]
+        except IndexError:
+            program_id = self.default_program_id()
+
+        return program_id
+
+    def poll_sync_status_for_device(self, device: Device, request_flags: SyncStatusRequestFlags):
+        ''' Polls sync status for the given device '''
+
+        # no point in continuing if not connected to listener
+        if not (device.unreal_client.is_connected
+                and device.unreal_client.is_authenticated):
+            return
+
+        # create message
+
+        program_id = self.program_id_from_device(device)
+
+        _, msg = message_protocol.create_get_sync_status_message(
+            program_id, request_flags)
+
+        # send get sync status message
+        device.unreal_client.send_message(msg)
+
+    def poll_sync_status(self, request_flags: SyncStatusRequestFlags):
         ''' Polls sync status for all nDisplay devices '''
+
         for deviceIdx, devicedata in enumerate(self.devicedatas.values()):
             device = devicedata['device']
 
@@ -269,23 +321,25 @@ class nDisplayMonitor(QAbstractTableModel):
             # detect stale devices
             self.handle_stale_device(devicedata, deviceIdx)
 
-            # no point in continuing if not connected to listener
-            if not (device.unreal_client.is_connected
-                    and device.unreal_client.is_authenticated):
-                continue
+            # request status
+            self.poll_sync_status_for_device(device, request_flags)
 
-            # create message
-            try:
-                program_id = device.program_start_queue.running_puuids_named(
-                    'unreal')[-1]
-            except IndexError:
-                program_id = '00000000-0000-0000-0000-000000000000'
+    def poll_variable_sync_status(self):
+        ''' Poll sync status but only include items that may change and that are
+        not likely to cause hitches in the target machine. '''
 
-            _, msg = message_protocol.create_get_sync_status_message(
-                program_id)
+        request_flags = SyncStatusRequestFlags.all()
 
-            # send get sync status message
-            device.unreal_client.send_message(msg)
+        # We don't poll status that can cause hitches, or that do not typically change.
+
+        request_flags &= ~SyncStatusRequestFlags.SyncTopos  # <-- Causes hitches when presenting frames.
+        request_flags &= ~SyncStatusRequestFlags.MosaicTopos
+        request_flags &= ~SyncStatusRequestFlags.DriverInfo
+
+        if not self.use_exe_flags:
+            request_flags &= ~SyncStatusRequestFlags.ProgramLayers
+
+        self.poll_sync_status(request_flags)
 
     def devicedata_from_device(self, device):
         ''' Retrieves the devicedata and index for given device '''
@@ -301,209 +355,230 @@ class nDisplayMonitor(QAbstractTableModel):
         Populates model data with message contents, which comes from 'get sync
         data' command.
         '''
+
         data = devicedata['data']
         device = devicedata['device']
+
+        request_flags = SyncStatusRequestFlags(message['request_flags'])
+        sync_status = message['syncStatus']
 
         #
         # Sync Topology
         #
-        sync_status = message['syncStatus']
-        sync_topos = sync_status['syncTopos']
+        if SyncStatusRequestFlags.SyncTopos in request_flags:
+            sync_topos = sync_status['syncTopos']
 
-        # Build list informing which Gpus in each Sync group are in sync
-        gpus = []
+            # Build list informing which Gpus in each Sync group are in sync
+            gpus = []
 
-        for sync_topo in sync_topos:
-            gpu_sync_oks = [gpu['bIsSynced'] for gpu in sync_topo['syncGpus']]
-            gpu_syncs = map(lambda x: "Synced" if x else 'Free', gpu_sync_oks)
-            gpus.append('%s' % (', '.join(gpu_syncs)))
+            for sync_topo in sync_topos:
+                gpu_sync_oks = [gpu['bIsSynced'] for gpu in sync_topo['syncGpus']]
+                gpu_syncs = map(lambda x: "Synced" if x else 'Free', gpu_sync_oks)
+                gpus.append('%s' % (', '.join(gpu_syncs)))
 
-        data['Gpus'] = '\n'.join(gpus) if len(gpus) > 0 else self.DATA_MISSING
+            data['Gpus'] = '\n'.join(gpus) if len(gpus) > 0 else self.DATA_MISSING
 
-        # Build list informing which Display in each Sync group are in sync.
-        displays = []
+            # Build list informing which Display in each Sync group are in sync.
+            displays = []
 
-        bpc_strings = {1: 6, 2: 8, 3: 10, 4: 12, 5: 16}
+            bpc_strings = {1: 6, 2: 8, 3: 10, 4: 12, 5: 16}
 
-        for sync_topo in sync_topos:
-            display_sync_states = [
-                f"{syncDisplay['syncState']}"
-                f"({bpc_strings.get(syncDisplay['bpc'], '??')}bpc)"
-                for syncDisplay in sync_topo['syncDisplays']]
-            displays.append(', '.join(display_sync_states))
+            for sync_topo in sync_topos:
+                display_sync_states = [
+                    f"{syncDisplay['syncState']}"
+                    f"({bpc_strings.get(syncDisplay['bpc'], '??')}bpc)"
+                    for syncDisplay in sync_topo['syncDisplays']]
+                displays.append(', '.join(display_sync_states))
 
-        if len(displays) > 0:
-            data['Displays'] = '\n'.join(displays)
-        else:
-            data['Displays'] = self.DATA_MISSING
-
-        # Build Fps
-        refresh_rates = \
-            [f"{syncTopo['syncStatusParams']['refreshRate']*1e-4:.3f}"
-                for syncTopo in sync_topos]
-
-        if len(refresh_rates) > 0:
-            data['Fps'] = '\n'.join(refresh_rates)
-        else:
-            data['Fps'] = self.DATA_MISSING
-
-        # Build House Sync
-        house_fpss = [syncTopo['syncStatusParams']['houseSyncIncoming']*1e-4
-                      for syncTopo in sync_topos]
-        house_syncs = [syncTopo['syncStatusParams']['bHouseSync']
-                       for syncTopo in sync_topos]
-        house_sync_fpss = list(map(lambda x: f"{x[1]:.3f}" if x[0] else 'no',
-                               zip(house_syncs, house_fpss)))
-
-        if len(house_sync_fpss) > 0:
-            data['HouseSync'] = '\n'.join(house_sync_fpss)
-        else:
-            data['HouseSync'] = self.DATA_MISSING
-
-        # Build Sync Source
-        source_str = {0: 'Vsync', 1: 'House'}
-        sync_sources = [sync_topo['syncControlParams']['source']
-                        for sync_topo in sync_topos]
-        sync_sources = [source_str.get(sync_source, 'Unknown')
-                        for sync_source in sync_sources]
-        bInternalSecondaries = [
-            sync_topo['syncStatusParams']['bInternalSecondary']
-            for sync_topo in sync_topos]
-
-        sync_followers = []
-
-        for i in range(len(sync_sources)):
-            if bInternalSecondaries[i] and sync_sources[i] == 'Vsync':
-                sync_followers.append('Vsync(daisy)')
+            if len(displays) > 0:
+                data['Displays'] = '\n'.join(displays)
             else:
-                sync_followers.append(sync_sources[i])
+                data['Displays'] = self.DATA_MISSING
 
-        if len(sync_followers) > 0:
-            data['SyncSource'] = '\n'.join(sync_followers)
-        else:
-            data['SyncSource'] = self.DATA_MISSING
+            # Build Fps
+            refresh_rates = \
+                [f"{syncTopo['syncStatusParams']['refreshRate']*1e-4:.3f}"
+                    for syncTopo in sync_topos]
 
+            if len(refresh_rates) > 0:
+                data['Fps'] = '\n'.join(refresh_rates)
+            else:
+                data['Fps'] = self.DATA_MISSING
+
+            # Build House Sync
+            house_fpss = [syncTopo['syncStatusParams']['houseSyncIncoming']*1e-4
+                          for syncTopo in sync_topos]
+            house_syncs = [syncTopo['syncStatusParams']['bHouseSync']
+                           for syncTopo in sync_topos]
+            house_sync_fpss = list(
+                map(
+                    lambda x: f"{x[1]:.3f}" if x[0] else 'no',
+                    zip(house_syncs, house_fpss)
+                )
+            )
+
+            if len(house_sync_fpss) > 0:
+                data['HouseSync'] = '\n'.join(house_sync_fpss)
+            else:
+                data['HouseSync'] = self.DATA_MISSING
+
+            # Build Sync Source
+            source_str = {0: 'Vsync', 1: 'House'}
+            sync_sources = [sync_topo['syncControlParams']['source']
+                            for sync_topo in sync_topos]
+            sync_sources = [source_str.get(sync_source, 'Unknown')
+                            for sync_source in sync_sources]
+            bInternalSecondaries = [
+                sync_topo['syncStatusParams']['bInternalSecondary']
+                for sync_topo in sync_topos]
+
+            sync_followers = []
+
+            for i in range(len(sync_sources)):
+                if bInternalSecondaries[i] and sync_sources[i] == 'Vsync':
+                    sync_followers.append('Vsync(daisy)')
+                else:
+                    sync_followers.append(sync_sources[i])
+
+            if len(sync_followers) > 0:
+                data['SyncSource'] = '\n'.join(sync_followers)
+            else:
+                data['SyncSource'] = self.DATA_MISSING
+
+        #
         # Mosaic Topology
-        mosaic_topos = sync_status['mosaicTopos']
+        #
+        if SyncStatusRequestFlags.MosaicTopos in request_flags:
+            mosaic_topos = sync_status['mosaicTopos']
 
-        mosaic_topo_lines = []
+            mosaic_topo_lines = []
 
-        for mosaic_topo in mosaic_topos:
-            display_settings = mosaic_topo['displaySettings']
-            width_per_display = display_settings['width']
-            height_per_display = display_settings['height']
+            for mosaic_topo in mosaic_topos:
+                display_settings = mosaic_topo['displaySettings']
+                width_per_display = display_settings['width']
+                height_per_display = display_settings['height']
 
-            width = mosaic_topo['columns'] * width_per_display
-            height = mosaic_topo['rows'] * height_per_display
+                width = mosaic_topo['columns'] * width_per_display
+                height = mosaic_topo['rows'] * height_per_display
 
-            # Ignoring displaySettings['freq'] because it seems to be fixed
-            # and ignores sync frequency.
-            line = f"{width}x{height} {display_settings['bpp']}bpp"
-            mosaic_topo_lines.append(line)
+                # Ignoring displaySettings['freq'] because it seems to be fixed
+                # and ignores sync frequency.
+                line = f"{width}x{height} {display_settings['bpp']}bpp"
+                mosaic_topo_lines.append(line)
 
-        data['Mosaics'] = '\n'.join(mosaic_topo_lines)
+            data['Mosaics'] = '\n'.join(mosaic_topo_lines)
 
-        # Build PresentMode.
-        flip_history = sync_status['flipModeHistory']
+        #
+        # Build PresentMode
+        #
+        if SyncStatusRequestFlags.FlipModeHistory in request_flags:
+            flip_history = sync_status['flipModeHistory']
 
-        if len(flip_history) > 0:
-            data['PresentMode'] = flip_history[-1]
+            if len(flip_history) > 0:
+                data['PresentMode'] = flip_history[-1]
 
-        # Detect PresentMode glitches
-        if len(set(flip_history)) > 1:
-            data['PresentMode'] = 'GLITCH!'
-            data['TimeLastFlipGlitch'] = time.time()
+            # Detect PresentMode glitches
+            if len(set(flip_history)) > 1:
+                data['PresentMode'] = 'GLITCH!'
+                data['TimeLastFlipGlitch'] = time.time()
 
-        # Write time since last glitch
-        if data['PresentMode'] != self.DATA_MISSING:
-            time_since_flip_glitch = time.time() - data['TimeLastFlipGlitch']
+            # Write time since last glitch
+            if data['PresentMode'] != self.DATA_MISSING:
+                time_since_flip_glitch = time.time() - data['TimeLastFlipGlitch']
 
-            # For 1 minute, let the user know that there was a flip mode glitch
-            if time_since_flip_glitch < 1*60:
-                data['PresentMode'] = data['PresentMode'].split('\n')[0] \
-                    + '\n' + str(int(time_since_flip_glitch))
+                # For 1 minute, let the user know that there was a flip mode glitch
+                if time_since_flip_glitch < 1*60:
+                    data['PresentMode'] = data['PresentMode'].split('\n')[0] \
+                        + '\n' + str(int(time_since_flip_glitch))
 
         # Window in focus or not
-        data['InFocus'] = 'no'
-        for prg in device.program_start_queue.running_programs_named('unreal'):
-            if prg.pid and prg.pid == sync_status['pidInFocus']:
-                data['InFocus'] = 'yes'
-                break
+        if SyncStatusRequestFlags.PidInFocus in request_flags:
+            data['InFocus'] = 'no'
+            for prg in device.program_start_queue.running_programs_named('unreal'):
+                if prg.pid and prg.pid == sync_status['pidInFocus']:
+                    data['InFocus'] = 'yes'
+                    break
 
         # Show Exe flags (like Disable Fullscreen Optimization)
-        data['ExeFlags'] = '\n'.join([
-            layer for layer in sync_status['programLayers'][1:]])
+        if SyncStatusRequestFlags.ProgramLayers in request_flags:
+            data['ExeFlags'] = '\n'.join([
+                layer for layer in sync_status['programLayers'][1:]])
 
         # Driver version
-        try:
-            driver = sync_status['driverVersion']
-            data['Driver'] = f'{int(driver/100)}.{driver % 100}'
-        except (KeyError, TypeError):
-            data['Driver'] = self.DATA_MISSING
+        if SyncStatusRequestFlags.DriverInfo in request_flags:
+            try:
+                driver = sync_status['driverVersion']
+                data['Driver'] = f'{int(driver/100)}.{driver % 100}'
+            except (KeyError, TypeError):
+                data['Driver'] = self.DATA_MISSING
 
         # Taskbar visibility
-        data['Taskbar'] = sync_status.get('taskbar', self.DATA_MISSING)
+        if SyncStatusRequestFlags.Taskbar in request_flags:
+            data['Taskbar'] = sync_status.get('taskbar', self.DATA_MISSING)
 
         # Operating system version
         data['OsVer'] = self.friendly_osver(device)
 
         # CPU utilization
-        try:
-            num_cores = len(sync_status['cpuUtilization'])
-            num_overloaded_cores = 0
-            cpu_load_avg = 0.0
-            for core_load in sync_status['cpuUtilization']:
-                cpu_load_avg += float(core_load) * (1.0 / num_cores)
-                if core_load > self.CORE_OVERLOAD_THRESH:
-                    num_overloaded_cores += 1
+        if SyncStatusRequestFlags.CpuUtilization in request_flags:
+            try:
+                num_cores = len(sync_status['cpuUtilization'])
+                num_overloaded_cores = 0
+                cpu_load_avg = 0.0
+                for core_load in sync_status['cpuUtilization']:
+                    cpu_load_avg += float(core_load) * (1.0 / num_cores)
+                    if core_load > self.CORE_OVERLOAD_THRESH:
+                        num_overloaded_cores += 1
 
-            data['CpuUtilization'] = f"{cpu_load_avg:.0f}%"
-            if num_overloaded_cores > 0:
-                data['CpuUtilization'] += f' ({num_overloaded_cores} cores >' \
-                    f' {self.CORE_OVERLOAD_THRESH}%)'
+                data['CpuUtilization'] = f"{cpu_load_avg:.0f}%"
+                if num_overloaded_cores > 0:
+                    data['CpuUtilization'] += f' ({num_overloaded_cores} cores >' \
+                        f' {self.CORE_OVERLOAD_THRESH}%)'
 
-            if device.processor_smt:
-                data['CpuUtilization'] += ' (SMT ENABLED)'
-        except (KeyError, ValueError):
-            data['CpuUtilization'] = self.DATA_MISSING
+                if device.processor_smt:
+                    data['CpuUtilization'] += ' (SMT ENABLED)'
+            except (KeyError, ValueError):
+                data['CpuUtilization'] = self.DATA_MISSING
 
         # Memory utilization
-        try:
-            gb = 1024 * 1024 * 1024
-            mem_total = device.total_phys_mem
-            mem_avail = sync_status.get('availablePhysicalMemory', 0)
-            mem_utilized = mem_total - mem_avail
-            data['MemUtilization'] = \
-                f'{mem_utilized/gb:.1f} / {mem_total/gb:.0f} GB'
-        except TypeError:
-            data['MemUtilization'] = self.DATA_MISSING
+        if SyncStatusRequestFlags.AvailablePhysicalMemory in request_flags:
+            try:
+                gb = 1024 * 1024 * 1024
+                mem_total = device.total_phys_mem
+                mem_avail = sync_status.get('availablePhysicalMemory', 0)
+                mem_utilized = mem_total - mem_avail
+                data['MemUtilization'] = \
+                    f'{mem_utilized/gb:.1f} / {mem_total/gb:.0f} GB'
+            except TypeError:
+                data['MemUtilization'] = self.DATA_MISSING
 
         # GPU utilization + clocks
-        try:
-            gpu_stats = list(map(
-                lambda x: f"#{x[0]}: {x[1]:.0f}% ({x[2] / 1000:.0f} MHz)",
-                zip(count(), sync_status['gpuUtilization'],
-                    sync_status['gpuCoreClocksKhz'])))
+        if (SyncStatusRequestFlags.GpuUtilization | SyncStatusRequestFlags.GpuCoreClockKhz) in request_flags:
+            try:
+                gpu_stats = list(map(
+                    lambda x: f"#{x[0]}: {x[1]:.0f}% ({x[2] / 1000:.0f} MHz)",
+                    zip(count(), sync_status['gpuUtilization'],
+                        sync_status['gpuCoreClocksKhz'])))
 
-            if len(gpu_stats) > 0:
-                data['GpuUtilization'] = '\n'.join(gpu_stats)
-            else:
+                if len(gpu_stats) > 0:
+                    data['GpuUtilization'] = '\n'.join(gpu_stats)
+                else:
+                    data['GpuUtilization'] = self.DATA_MISSING
+            except (KeyError, TypeError):
                 data['GpuUtilization'] = self.DATA_MISSING
-        except (KeyError, TypeError):
-            data['GpuUtilization'] = self.DATA_MISSING
 
         # GPU temperature
-        try:
-            temps = [t if t != -2147483648 else self.DATA_MISSING
-                     for t in sync_status['gpuTemperature']]
+        if SyncStatusRequestFlags.GpuTemperature in request_flags:
+            try:
+                temps = [t if t != -2147483648 else self.DATA_MISSING for t in sync_status['gpuTemperature']]
 
-            if len(temps) > 0:
-                data['GpuTemperature'] = '\n'.join(
-                    map(lambda x: f"#{x[0]}: {x[1]}° C", zip(count(), temps)))
-            else:
+                if len(temps) > 0:
+                    data['GpuTemperature'] = '\n'.join(
+                        map(lambda x: f"#{x[0]}: {x[1]}° C", zip(count(), temps)))
+                else:
+                    data['GpuTemperature'] = self.DATA_MISSING
+            except (KeyError, TypeError):
                 data['GpuTemperature'] = self.DATA_MISSING
-        except (KeyError, TypeError):
-            data['GpuTemperature'] = self.DATA_MISSING
 
     def on_get_sync_status(self, device, message):
         '''
@@ -531,8 +606,7 @@ class nDisplayMonitor(QAbstractTableModel):
             return
 
         row = deviceIdx + 1
-        self.dataChanged.emit(self.createIndex(row, 1),
-                              self.createIndex(row, len(self.colnames)))
+        self.refresh_display_for_row(row)
 
     def try_issue_console_exec(self, exec_str, executor=''):
         ''' Issues a console exec to the cluster '''
@@ -549,6 +623,22 @@ class nDisplayMonitor(QAbstractTableModel):
 
         return False
 
+    def refresh_display_for_row(self, row: int):
+        ''' Refreshes the data displayed in the given row. Zero-based index. '''
+
+        self.refresh_display_for_cells(
+            self.createIndex(row, 0),
+            self.createIndex(row, len(self.colnames) - 1)
+        )
+
+    def refresh_display_for_cells(self, upper_left: QModelIndex, lower_right: QModelIndex):
+        ''' Refreshes the cells in the given range, inclusive '''
+
+        self.dataChanged.emit(upper_left, lower_right)
+
+        # This was necessary to reliably update the table display with the changed data.
+        self.headerDataChanged.emit(Qt.Orientation.Horizontal, upper_left.column, lower_right.column)
+
     # ~ QAbstractTableModel interface begin
 
     def rowCount(self, parent=QModelIndex()):
@@ -560,6 +650,9 @@ class nDisplayMonitor(QAbstractTableModel):
     def headerData(self, section, orientation, role):
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
+                # Connection column uses icons and don't need the long header name
+                if self.colnames[section] == 'Connected':
+                    return ""
                 return self.colnames[section]
             else:
                 return "{}".format(section)
@@ -578,7 +671,20 @@ class nDisplayMonitor(QAbstractTableModel):
 
         # grab (device_hash, device_data) from ordered dict
         _, devicedata = list(self.devicedatas.items())[row]
+        device = devicedata['device']
         data = devicedata['data']
+        is_program_running = self.program_id_from_device(device) != self.default_program_id()
+
+        if colname == 'Connected':
+            if role == Qt.ItemDataRole.DecorationRole:
+                if data['Connected'].lower() == 'yes':
+                    if is_program_running:
+                        return self.icon_running
+                    return self.icon_connected
+                return self.icon_unconnected
+
+            return None
+
         value = data[colname]
 
         if role == Qt.ItemDataRole.DisplayRole:
@@ -586,22 +692,53 @@ class nDisplayMonitor(QAbstractTableModel):
 
         elif role == Qt.ItemDataRole.BackgroundRole:
             return self.color_for_column(colname=colname, value=value,
-                                         data=data)
+                                         data=data, is_program_running=is_program_running)
 
         elif role == Qt.ItemDataRole.TextAlignmentRole:
+            alignment = Qt.AlignmentFlag.AlignCenter
             if colname in ('CpuUtilization', 'GpuUtilization'):
-                return Qt.AlignmentFlag.AlignLeft
-            return Qt.AlignmentFlag.AlignRight
+                alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            return alignment
+
+        elif role == Qt.ItemDataRole.ForegroundRole:
+            if data['Connected'].lower() != 'yes':
+                return self.COLOR_DISCONNECTED
 
         return None
 
     # ~ QAbstractTableModel interface end
 
+    def update_device_name_and_address(self, in_device: Device):
+        ''' Refeshes the node names and addresses displayed in the table '''
+
+        for deviceIdx, devicedata in enumerate(self.devicedatas.values()):
+            device = devicedata['device']
+
+            # See if it is the right device based on its hash.
+            if in_device.device_hash == device.device_hash:
+
+                # Update name and address
+                data = devicedata['data']
+                data['Host'] = str(device.address)
+                data['Node'] = device.name
+
+                # Refresh the table with the new data
+                row = deviceIdx + 1
+                self.refresh_display_for_row(row)
+                return
+
     @QtCore.Slot()
-    def on_refresh_mosaics_clicked(self):
+    def on_refresh_table_clicked(self):
+        ''' Refreshes the data in the table, which involves sending commands to
+        the devices.'''
+
         for devicedata in self.devicedatas.values():
             device = devicedata['device']
             device.refresh_mosaics()
+            self.update_device_name_and_address(device)
+
+        # Request a full update on the sync status.
+        self.poll_sync_status(SyncStatusRequestFlags.all())
 
     @QtCore.Slot()
     def on_fix_exe_flags_clicked(self):

@@ -33,6 +33,8 @@
 
 #if PLATFORM_WINDOWS
 
+#include "GpuClocker.h"
+
 #pragma warning(push)
 #pragma warning(disable : 4005)	// Disable macro redefinition warning for compatibility with Windows SDK 8+
 
@@ -253,31 +255,109 @@ FString FSwitchboardCommandLineOptions::ToString(bool bIncludeRedeploy /* = fals
 	return FString::Join(Args, TEXT(" "));
 }
 
+
+#if PLATFORM_WINDOWS
+/** Used to limit NvApi loading to the current scope (recursive allowed) and thread. */
+class FScopedNvApi
+{
+private:
+
+	/** Global recursive lock for NvApi usage */
+	static UE::FRecursiveMutex NvApiLock;
+
+	/** Keeps track of failed unloads. Useful to recover from potential NvApi unloading errors */
+	static std::atomic<int32> OwedUnloads;
+
+	/** Used to repeatedly show NvAPI initialization errors. Once is enough. */
+	static bool bErrorLoggedOnce;
+
+	/** True if the NvAPI was initialized */
+	bool bIsNvApiInitialized;
+
+public:
+	FScopedNvApi()
+		: bIsNvApiInitialized(false)
+	{
+		NvApiLock.Lock(); // Unlocked at the end of the destructor
+
+		// Initialize NvAPI.
+
+		if (OwedUnloads)
+		{
+			OwedUnloads--;
+			bIsNvApiInitialized = true; // If it isn't true, the calls to the api will simply fail.
+		}
+		else
+		{
+			const NvAPI_Status Result = NvAPI_Initialize();
+
+			if (Result == NVAPI_OK)
+			{
+				bIsNvApiInitialized = true;
+			}
+			else if (!bErrorLoggedOnce)
+			{
+				bErrorLoggedOnce = false;
+
+				NvAPI_ShortString ErrorString;
+				NvAPI_GetErrorMessage(Result, ErrorString);
+				UE_LOG(LogSwitchboard, Error, TEXT("NvAPI_Initialize failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
+			}
+		}
+	}
+
+	~FScopedNvApi()
+	{
+		// Only unload NvApi if it was initialized
+		if (bIsNvApiInitialized)
+		{
+			const NvAPI_Status Result = NvAPI_Unload();
+
+			if (Result == NVAPI_OK)
+			{
+				bIsNvApiInitialized = false;
+			}
+			else
+			{
+				// This would be an unexpected event because the lock prevents concurrent usage of the library.
+				// We try to compensate by not loading next time.
+
+				OwedUnloads++;
+
+				NvAPI_ShortString ErrorString;
+				NvAPI_GetErrorMessage(Result, ErrorString);
+				UE_LOG(LogSwitchboard, Error, TEXT("NvAPI_Unload unexpectedly failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
+			}
+		}
+
+		NvApiLock.Unlock();
+	}
+
+	/** Returns true if the NvAPI was initialized successfully */
+	bool IsNvApiInitialized()
+	{
+		return bIsNvApiInitialized;
+	}
+};
+
+// Initialize static member variables
+bool FScopedNvApi::bErrorLoggedOnce = false;
+std::atomic<int32> FScopedNvApi::OwedUnloads = 0;
+UE::FRecursiveMutex FScopedNvApi::NvApiLock;
+
+#endif // PLATFORM_WINDOWS
+
+
 FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions& InOptions)
 	: Options(InOptions)
 	, CpuMonitor(MakeShared<FCpuUtilizationMonitor>())
 	, SBLHelper(MakeShared<FSBLHelperClient>())
-	, bIsNvAPIInitialized(false)
 	, CachedMosaicToposLock(MakeShared<FRWLock>())
 	, CachedMosaicTopos(MakeShared<TArray<FMosaicTopo>>())
 {
 #if PLATFORM_WINDOWS
-	// initialize NvAPI
-	{
-		const NvAPI_Status Result = NvAPI_Initialize();
-		if (Result == NVAPI_OK)
-		{
-			bIsNvAPIInitialized = true;
-
-			FillOutMosaicTopologies(*CachedMosaicTopos);
-		}
-		else
-		{
-			NvAPI_ShortString ErrorString;
-			NvAPI_GetErrorMessage(Result, ErrorString);
-			UE_LOG(LogSwitchboard, Error, TEXT("NvAPI_Initialize failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-		}
-	}
+	// Cache Mosaic Topologies
+	FillOutMosaicTopologies(*CachedMosaicTopos);
 #endif // PLATFORM_WINDOWS
 
 	const int32 NumLogicalProcessors = FPlatformMisc::NumberOfCoresIncludingHyperthreads();
@@ -983,6 +1063,12 @@ bool FSwitchboardListener::Task_StartProcess(const FSwitchboardStartTask& InRunT
 
 			// We disconnect right away because launches happen only far and in between.
 			SBLHelper->Disconnect();
+		}
+		else
+		{
+			UE_LOG(LogSwitchboard, Warning, TEXT("Lock Gpu clocks was requested but could not connect to SwitchboardListenerHelper process. "
+				"Please verify that it is running as admin (elevated privileges are required to lock Gpu clocks). "
+			    "If locking Gpu clocks is not desired, this option can be disabled in Switchboard."));
 		}
 	}
 
@@ -1781,15 +1867,16 @@ stream_receive_outer_break:
 
 
 #if PLATFORM_WINDOWS
-static FCriticalSection SwitchboardListenerMutexNvapi;
-#endif // PLATFORM_WINDOWS
-
-#if PLATFORM_WINDOWS
 static void FillOutSyncTopologies(TArray<FSyncTopo>& SyncTopos)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutSyncTopologies);
 
-	FScopeLock LockNvapi(&SwitchboardListenerMutexNvapi);
+	FScopedNvApi ScopedNvApi;
+
+	if (!ScopedNvApi.IsNvApiInitialized())
+	{
+		return;
+	}
 
 	// Normally there is a single sync card. BUT an RTX Server could have more, and we need to account for that.
 
@@ -1968,6 +2055,13 @@ static void FillOutDriverVersion(FSyncStatus& SyncStatus)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutDriverVersion);
 
+	FScopedNvApi ScopedNvApi;
+
+	if (!ScopedNvApi.IsNvApiInitialized())
+	{
+		return;
+	}
+
 	NvU32 DriverVersion;
 	NvAPI_ShortString BuildBranchString;
 
@@ -2015,7 +2109,12 @@ static void FillOutMosaicTopologies(TArray<FMosaicTopo>& MosaicTopos)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutMosaicTopologies);
 
-	FScopeLock LockNvapi(&SwitchboardListenerMutexNvapi);
+	FScopedNvApi ScopedNvApi;
+
+	if (!ScopedNvApi.IsNvApiInitialized())
+	{
+		return;
+	}
 
 	NvU32 GridCount = 0;
 	TArray<NV_MOSAIC_GRID_TOPO> GridTopologies;
@@ -2274,128 +2373,64 @@ static void FillOutDisableFullscreenOptimizationForProcess(FSyncStatus& SyncStat
 #endif // PLATFORM_WINDOWS
 
 #if PLATFORM_WINDOWS
-static void FillOutPhysicalGpuStats(FSyncStatus& SyncStatus)
+static void FillOutPhysicalGpuStats(FSyncStatus& SyncStatus, bool bGetUtilizations, bool bGetClocks, bool bGetTemperatures)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutPhysicalGpuStats);
 
-	// TODO: Can we somehow use the GPU engine "engtype_3D" perf counters for this instead?
-
-	FScopeLock LockNvapi(&SwitchboardListenerMutexNvapi);
-
-	TArray<NvPhysicalGpuHandle> PhysicalGpuHandles;
-	PhysicalGpuHandles.SetNumUninitialized(NVAPI_MAX_PHYSICAL_GPUS);
-	NvU32 PhysicalGpuCount;
-	NvAPI_Status NvResult = NvAPI_EnumPhysicalGPUs(PhysicalGpuHandles.GetData(), &PhysicalGpuCount);
-	if (NvResult != NVAPI_OK)
+	if (!bGetUtilizations && !bGetClocks && !bGetTemperatures)
 	{
-		NvAPI_ShortString ErrorString;
-		NvAPI_GetErrorMessage(NvResult, ErrorString);
-		UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_EnumPhysicalGPUs failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
 		return;
 	}
 
-	PhysicalGpuHandles.SetNum(PhysicalGpuCount);
+	FGpuClocker GpuClocker;
 
-	// Sort first by bus, then by bus slot, ascending. Consistent with task manager and others.
-	Algo::Sort(PhysicalGpuHandles, [](const NvPhysicalGpuHandle& Lhs, const NvPhysicalGpuHandle& Rhs) -> bool {
-		NvU32 LhsBusId, RhsBusId, LhsSlotId, RhsSlotId;
-		const NvAPI_Status LhsBusResult = NvAPI_GPU_GetBusId(Lhs, &LhsBusId);
-		const NvAPI_Status RhsBusResult = NvAPI_GPU_GetBusId(Rhs, &RhsBusId);
-		const NvAPI_Status LhsSlotResult = NvAPI_GPU_GetBusSlotId(Lhs, &LhsSlotId);
-		const NvAPI_Status RhsSlotResult = NvAPI_GPU_GetBusSlotId(Rhs, &RhsSlotId);
+	uint32 GpuCount;
 
-		if (LhsBusResult != NVAPI_OK || RhsBusResult != NVAPI_OK)
-		{
-			NvAPI_ShortString LhsErrorString;
-			NvAPI_ShortString RhsErrorString;
-			NvAPI_GetErrorMessage(LhsBusResult, LhsErrorString);
-			NvAPI_GetErrorMessage(RhsBusResult, RhsErrorString);
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GPU_GetBusId failed. Errors: %s, %s"), ANSI_TO_TCHAR(LhsErrorString), ANSI_TO_TCHAR(RhsErrorString));
-			return false;
-		}
-
-		if (LhsSlotResult != NVAPI_OK || RhsSlotResult != NVAPI_OK)
-		{
-			NvAPI_ShortString LhsErrorString;
-			NvAPI_ShortString RhsErrorString;
-			NvAPI_GetErrorMessage(LhsSlotResult, LhsErrorString);
-			NvAPI_GetErrorMessage(RhsSlotResult, RhsErrorString);
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GPU_GetBusSlotId failed. Errors: %s, %s"), ANSI_TO_TCHAR(LhsErrorString), ANSI_TO_TCHAR(RhsErrorString));
-			return false;
-		}
-
-		if (LhsBusId != RhsBusId)
-		{
-			return LhsBusId < RhsBusId;
-		}
-
-		return LhsSlotId < RhsSlotId;
-	});
-
-	SyncStatus.GpuUtilization.SetNumUninitialized(PhysicalGpuCount);
-	SyncStatus.GpuCoreClocksKhz.SetNumUninitialized(PhysicalGpuCount);
-	SyncStatus.GpuTemperature.SetNumUninitialized(PhysicalGpuCount);
-
-	for (NvU32 PhysicalGpuIdx = 0; PhysicalGpuIdx < PhysicalGpuCount; ++PhysicalGpuIdx)
+	if (!GpuClocker.GetGpuCount(GpuCount))
 	{
-		SyncStatus.GpuUtilization[PhysicalGpuIdx] = -1;
-		SyncStatus.GpuCoreClocksKhz[PhysicalGpuIdx] = -1;
-		SyncStatus.GpuTemperature[PhysicalGpuIdx] = MIN_int32;
+		return;
+	}
 
-		const NvPhysicalGpuHandle& PhysicalGpu = PhysicalGpuHandles[PhysicalGpuIdx];
+	SyncStatus.GpuUtilization.SetNumUninitialized(GpuCount);
+	SyncStatus.GpuCoreClocksKhz.SetNumUninitialized(GpuCount);
+	SyncStatus.GpuTemperature.SetNumUninitialized(GpuCount);
 
-		NV_GPU_DYNAMIC_PSTATES_INFO_EX PstatesInfo;
-		PstatesInfo.version = NV_GPU_DYNAMIC_PSTATES_INFO_EX_VER;
-		NvResult = NvAPI_GPU_GetDynamicPstatesInfoEx(PhysicalGpu, &PstatesInfo);
-		if (NvResult == NVAPI_OK)
+	for (uint32 GpuIdx = 0; GpuIdx < GpuCount; ++GpuIdx)
+	{
+		SyncStatus.GpuUtilization[GpuIdx] = -1;
+		SyncStatus.GpuCoreClocksKhz[GpuIdx] = -1;
+		SyncStatus.GpuTemperature[GpuIdx] = MIN_int32;
+
+		if (bGetUtilizations)
 		{
-			// FIXME: NV_GPU_UTILIZATION_DOMAIN_ID enum is missing in our nvapi.h, but documented elsewhere.
-			//const int8 UtilizationDomain = NVAPI_GPU_UTILIZATION_DOMAIN_GPU;
-			const int8 UtilizationDomain = 0;
-			if (PstatesInfo.utilization[UtilizationDomain].bIsPresent)
+			uint32 UsageKernel;
+			uint32 UsageMemory;
+
+			if (GpuClocker.GetGpuUsage(GpuIdx, UsageKernel, UsageMemory))
 			{
-				SyncStatus.GpuUtilization[PhysicalGpuIdx] = PstatesInfo.utilization[UtilizationDomain].percentage;
+				SyncStatus.GpuUtilization[GpuIdx] = static_cast<int8>(UsageKernel);
 			}
 		}
-		else
-		{
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GPU_GetDynamicPstatesInfoEx failed. Error code: %d"), NvResult);
-		}
 
-		NV_GPU_CLOCK_FREQUENCIES ClockFreqs;
-		ClockFreqs.version = NV_GPU_CLOCK_FREQUENCIES_VER;
-		ClockFreqs.ClockType = NV_GPU_CLOCK_FREQUENCIES_CURRENT_FREQ;
-		NvResult = NvAPI_GPU_GetAllClockFrequencies(PhysicalGpu, &ClockFreqs);
-		if (NvResult == NVAPI_OK)
+		if (bGetClocks)
 		{
-			if (ClockFreqs.domain[NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS].bIsPresent)
+			uint32 GraphicsMHz;
+			uint32 MemoryMHz;
+
+			if (GpuClocker.GetGpuMHz(GpuIdx, GraphicsMHz, MemoryMHz))
 			{
-				SyncStatus.GpuCoreClocksKhz[PhysicalGpuIdx] = ClockFreqs.domain[NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS].frequency;
+				SyncStatus.GpuCoreClocksKhz[GpuIdx] = GraphicsMHz * 1000;
 			}
 		}
-		else
-		{
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GPU_GetAllClockFrequencies failed. Error code: %d"), NvResult);
-		}
 
-		NV_GPU_THERMAL_SETTINGS ThermalSettings;
-		ThermalSettings.version = NV_GPU_THERMAL_SETTINGS_VER;
-		NvResult = NvAPI_GPU_GetThermalSettings(PhysicalGpu, NVAPI_THERMAL_TARGET_ALL, &ThermalSettings);
-		if (NvResult == NVAPI_OK)
+		if (bGetTemperatures)
 		{
-			// Report max temp across all sensors for this GPU.
-			for (NvU32 SensorIdx = 0; SensorIdx < ThermalSettings.count; ++SensorIdx)
+			uint32 Celsius;
+
+			if (GpuClocker.GetGpuCelsius(GpuIdx, Celsius))
 			{
-				const NvS32 SensorTemp = ThermalSettings.sensor[SensorIdx].currentTemp;
-				if (SensorTemp > SyncStatus.GpuTemperature[PhysicalGpuIdx])
-				{
-					SyncStatus.GpuTemperature[PhysicalGpuIdx] = SensorTemp;
-				}
+				SyncStatus.GpuTemperature[GpuIdx] = static_cast<int32>(Celsius);
 			}
-		}
-		else
-		{
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GPU_GetThermalSettings failed. Error code: %d"), NvResult);
 		}
 	}
 }
@@ -2428,9 +2463,13 @@ bool FSwitchboardListener::Task_GetSyncStatus(const FSwitchboardGetSyncStatusTas
 	TSharedRef<FSyncStatus> SyncStatus = MakeShared<FSyncStatus>(); // Smart pointer to avoid potentially bigger copy to lambda below.
 
 	// We need to run these on this thread to avoid threading issues.
-	FillOutFlipMode(SyncStatus.Get(), FindOrStartFlipModeMonitorForUUID(InGetSyncStatusTask.ProgramID));
+	if (EnumHasAnyFlags(InGetSyncStatusTask.RequestFlags, ESyncStatusRequestFlags::FlipModeHistory))
+	{
+		FillOutFlipMode(SyncStatus.Get(), FindOrStartFlipModeMonitorForUUID(InGetSyncStatusTask.ProgramID));
+	}
 
 	// Fill out fullscreen optimization setting
+	if (EnumHasAnyFlags(InGetSyncStatusTask.RequestFlags, ESyncStatusRequestFlags::ProgramLayers))
 	{
 		TSharedPtr<FRunningProcess>* ProcessPtr = RunningProcesses.FindByPredicate([&](const TSharedPtr<FRunningProcess>& InProcess)
 		{
@@ -2457,42 +2496,69 @@ bool FSwitchboardListener::Task_GetSyncStatus(const FSwitchboardGetSyncStatusTas
 	MessageFuture.Future = Async(EAsyncExecution::ThreadPool,
 		[
 			SyncStatus,
-			IsNvAPIInitialized=bIsNvAPIInitialized,
-			CpuMonitor=CpuMonitor,
-			CachedMosaicToposLock=CachedMosaicToposLock,
-			CachedMosaicTopos=CachedMosaicTopos
+			RequestFlags = InGetSyncStatusTask.RequestFlags,
+			CpuMonitor = CpuMonitor,
+			CachedMosaicToposLock = CachedMosaicToposLock,
+			CachedMosaicTopos = CachedMosaicTopos
 		]() {
 			SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE_STR("FSwitchboardListener::Task_GetSyncStatus future closure");
 
-			FillOutTaskbarAutoHide(SyncStatus.Get());
+			// Load NvApi with FScopedNvApi only if we have requests that need it.
+			ESyncStatusRequestFlags FlagsThatNeedNvApi = ESyncStatusRequestFlags::DriverInfo;
+			EnumAddFlags(FlagsThatNeedNvApi, ESyncStatusRequestFlags::SyncTopos);
 
-			if (IsNvAPIInitialized)
+			if (EnumHasAnyFlags(RequestFlags, FlagsThatNeedNvApi))
 			{
-				FillOutDriverVersion(SyncStatus.Get());
-				FillOutSyncTopologies(SyncStatus->SyncTopos);
+				FScopedNvApi ScopedNvApi;
+
+				if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::DriverInfo))
+				{
+					FillOutDriverVersion(SyncStatus.Get());
+				}
+
+				if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::SyncTopos))
+				{
+					FillOutSyncTopologies(SyncStatus->SyncTopos);
+				}
 			}
 
+			if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::MosaicTopos))
 			{
 				FReadScopeLock Lock(*CachedMosaicToposLock);
 				SyncStatus->MosaicTopos = *CachedMosaicTopos;
 			}
 
-			SyncStatus->PidInFocus = FindPidInFocus();
+			if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::Taskbar))
+			{
+				FillOutTaskbarAutoHide(SyncStatus.Get());
+			}
 
-			if (CpuMonitor)
+			if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::PidInFocus))
+			{
+				SyncStatus->PidInFocus = FindPidInFocus();
+			}
+
+			if (CpuMonitor && EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::CpuUtilization))
 			{
 				CpuMonitor->GetPerCoreUtilization(SyncStatus->CpuUtilization);
 			}
 
-			const FPlatformMemoryStats MemStats = FPlatformMemory::GetStats();
-			SyncStatus->AvailablePhysicalMemory = MemStats.AvailablePhysical;
-
-			if (IsNvAPIInitialized)
+			if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::AvailablePhysicalMemory))
 			{
-				FillOutPhysicalGpuStats(SyncStatus.Get());
+				const FPlatformMemoryStats MemStats = FPlatformMemory::GetStats();
+				SyncStatus->AvailablePhysicalMemory = MemStats.AvailablePhysical;
+			}
+			
+			// Query GPU stats. These use NVML
+			{
+				const bool bGetUtilizations = EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::GpuUtilization);
+				const bool bGetClocks = EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::GpuCoreClockKhz);
+				const bool bGetTemperatures = EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::GpuTemperature);
+
+				FillOutPhysicalGpuStats(SyncStatus.Get(), bGetUtilizations, bGetClocks, bGetTemperatures);
 			}
 
-			return CreateSyncStatusMessage(SyncStatus.Get());
+			return CreateSyncStatusMessage(SyncStatus.Get(), RequestFlags);
 		}
 	);
 
@@ -2511,12 +2577,16 @@ bool FSwitchboardListener::Task_RefreshMosaics(const FSwitchboardRefreshMosaicsT
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::Task_RefreshMosaics);
 
 #if PLATFORM_WINDOWS
-	if (!bIsNvAPIInitialized)
 	{
-		SendMessage(
-			CreateTaskDeclinedMessage(InRefreshMosaicsTask, "NvAPI not supported", {}),
-			InRefreshMosaicsTask.Recipient);
-		return false;
+		FScopedNvApi ScopedNvApi;
+
+		if (!ScopedNvApi.IsNvApiInitialized())
+		{
+			SendMessage(
+				CreateTaskDeclinedMessage(InRefreshMosaicsTask, "NvAPI not supported", {}),
+				InRefreshMosaicsTask.Recipient);
+			return false;
+		}
 	}
 
 	// Reject request if an equivalent one is already in our future
