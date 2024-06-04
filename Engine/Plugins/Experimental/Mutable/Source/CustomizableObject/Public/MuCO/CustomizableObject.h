@@ -431,8 +431,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnableClothing = false;
 
-	// TODO: Enable 16 bit weights 
-	UPROPERTY(VisibleAnywhere, Category = CompileOptions)
+	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnable16BitBoneWeights = false;
 
 	UPROPERTY(EditAnywhere, Category = CompileOptions)

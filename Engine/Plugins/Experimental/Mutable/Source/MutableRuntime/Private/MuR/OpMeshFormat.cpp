@@ -602,6 +602,19 @@ namespace mu
 					}
 					break;
 				}
+				case MBF_NUINT16:
+				{
+					const uint16* Data = reinterpret_cast<const uint16*>(WeightIt.ptr());
+					for (int32 InfluenceIndex = 0; InfluenceIndex < BufferInfluences; ++InfluenceIndex)
+					{
+						if (*Data > 0)
+						{
+							++ThisVertexInfluences;
+						}
+						++Data;
+					}
+					break;
+				}
 
 				default:
 					// Unsupported
