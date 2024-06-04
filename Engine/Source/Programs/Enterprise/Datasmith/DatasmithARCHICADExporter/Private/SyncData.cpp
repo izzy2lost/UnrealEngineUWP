@@ -1310,8 +1310,8 @@ void FSyncData::FLight::Process(FProcessInfo* IOProcessInfo)
 					break;
 			}
 			AreaLightElement.SetLightType(AreaLightType);
-			AreaLightElement.SetWidth(float(Parameters.AreaSize.y * IOProcessInfo->SyncContext.ScaleLength));
-			AreaLightElement.SetLength(float(Parameters.AreaSize.x * IOProcessInfo->SyncContext.ScaleLength));
+			AreaLightElement.SetWidth(float(Parameters.AreaSize.x * IOProcessInfo->SyncContext.ScaleLength));
+			AreaLightElement.SetLength(float(Parameters.AreaSize.y * IOProcessInfo->SyncContext.ScaleLength));
 		}
 		if (!Parameters.IESFileName.IsEmpty())
 		{
@@ -1442,7 +1442,7 @@ FSyncData::FLight::FLightData::FLightData(const ModelerAPI::Light& InLight)
 	Color = ACRGBColorToUELinearColor(InLight.GetColor());
 
 	Position = FGeometryUtil::GetTranslationVector(InLight.GetPosition());
-	Rotation = FGeometryUtil::GetRotationQuat(InLight.GetDirection());
+	Rotation = FGeometryUtil::GetRotationQuat(InLight.GetDirection(), InLight.GetUpVector());
 }
 
 bool FSyncData::FLight::FLightData::operator!=(const FLightData& InOther) const
