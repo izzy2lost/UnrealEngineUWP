@@ -225,9 +225,6 @@ private:
 	/** Called when the far view plane slider is adjusted in the perspective viewport */
 	void OnFarViewPlaneValueChanged( float NewValue );
 
-	bool IsLandscapeLODSettingChecked(int32 Value) const;
-	void OnLandscapeLODChanged(int32 NewValue);
-
 	FReply OnRealtimeWarningClicked();
 	EVisibility GetRealtimeWarningVisibility() const;
 

@@ -24,7 +24,7 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, IsViewModeSupportedDelegate, EViewModeInd
  * @param InViewport The viewport associated with this viewport toolbar.
  * @param InIsViewModeSupported Optional delegate to filter which view modes are added to the list.
  */
-UNREALED_API void FillViewMenu(UToolMenu* InMenu,
+UNREALED_API void PopulateViewModesMenu(UToolMenu* InMenu,
 	TSharedRef<SEditorViewport> InViewport,
 	IsViewModeSupportedDelegate InIsViewModeSupported = IsViewModeSupportedDelegate());
 

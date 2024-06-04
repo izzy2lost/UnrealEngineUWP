@@ -3,6 +3,8 @@
 #include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 
 #include "EditorViewportCommands.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
+#include "GroomVisualizationData.h"
 #include "LevelEditor.h"
 #include "LevelEditorActions.h"
 #include "LevelViewportActions.h"
@@ -20,6 +22,17 @@
 
 namespace UE::LevelEditor::Private
 {
+
+bool IsLandscapeLODSettingChecked(FLevelEditorViewportClient& ViewportClient, int32 Value)
+{
+	return ViewportClient.LandscapeLODOverride == Value;
+}
+
+void OnLandscapeLODChanged(FLevelEditorViewportClient& ViewportClient, int32 NewValue)
+{
+	ViewportClient.LandscapeLODOverride = NewValue;
+	ViewportClient.Invalidate();
+}
 
 TOptional<bool> UpdateAndGetRealtimeWarningFromContext(const FToolMenuContext& Context)
 {
@@ -96,6 +109,271 @@ TSharedPtr<FExtender> GetViewModesLegacyExtenders()
 {
 	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
 	return LevelEditorModule.GetMenuExtensibilityManager()->GetAllExtenders();
+}
+
+void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InViewport)
+{
+	FToolMenuInsert InsertPosition("ViewMode", EToolMenuInsertType::After);
+
+	{
+		FToolMenuSection& Section = InMenu->AddSection(
+			"LevelViewportDeferredRendering", LOCTEXT("DeferredRenderingHeader", "Deferred Rendering"), InsertPosition);
+	}
+
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("VisualizeBufferViewMode",
+			LOCTEXT("VisualizeBufferViewModeDisplayName", "Buffer Visualization"),
+			LOCTEXT("BufferVisualizationMenu_ToolTip", "Select a mode for buffer visualization"),
+			FNewMenuDelegate::CreateStatic(&FBufferVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+					check(Viewport.IsValid());
+					FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+					return ViewportClient.IsViewModeEnabled(VMI_VisualizeBuffer);
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeBufferMode"));
+	}
+
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("VisualizeNaniteViewMode",
+			LOCTEXT("VisualizeNaniteViewModeDisplayName", "Nanite Visualization"),
+			LOCTEXT("NaniteVisualizationMenu_ToolTip", "Select a mode for Nanite visualization"),
+			FNewMenuDelegate::CreateStatic(&FNaniteVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+					check(Viewport.IsValid());
+					FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+					return ViewportClient.IsViewModeEnabled(VMI_VisualizeNanite);
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeNaniteMode"));
+	}
+
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("VisualizeLumenViewMode", LOCTEXT("VisualizeLumenViewModeDisplayName", "Lumen"),
+			LOCTEXT("LumenVisualizationMenu_ToolTip", "Select a mode for Lumen visualization"),
+			FNewMenuDelegate::CreateStatic(&FLumenVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+					check(Viewport.IsValid());
+					FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+					return ViewportClient.IsViewModeEnabled(VMI_VisualizeLumen);
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeLumenMode"));
+	}
+
+	if (Substrate::IsSubstrateEnabled())
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("VisualizeSubstrateViewMode", LOCTEXT("VisualizeSubstrateViewModeDisplayName", "Substrate"),
+			LOCTEXT("SubstrateVisualizationMenu_ToolTip", "Select a mode for Substrate visualization"),
+			FNewMenuDelegate::CreateStatic(&FSubstrateVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+					check(Viewport.IsValid());
+					FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+					return ViewportClient.IsViewModeEnabled(VMI_VisualizeSubstrate);
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeSubstrateMode"));
+	}
+
+	if (IsGroomEnabled())
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("VisualizeGroomViewMode", LOCTEXT("VisualizeGroomViewModeDisplayName", "Groom"),
+			LOCTEXT("GroomVisualizationMenu_ToolTip", "Select a mode for Groom visualization"),
+			FNewMenuDelegate::CreateStatic(&FGroomVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+					check(Viewport.IsValid());
+					FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+					return ViewportClient.IsViewModeEnabled(VMI_VisualizeGroom);
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeGroomMode"));
+	}
+
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("VisualizeVirtualShadowMapViewMode",
+			LOCTEXT("VisualizeVirtualShadowMapViewModeDisplayName", "Virtual Shadow Map"),
+			LOCTEXT("VirtualShadowMapVisualizationMenu_ToolTip",
+				"Select a mode for virtual shadow map visualization. Select a light component in the world outliner to "
+				"visualize that light."),
+			FNewMenuDelegate::CreateStatic(&FVirtualShadowMapVisualizationMenuCommands::BuildVisualisationSubMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+					check(Viewport.IsValid());
+					FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+					return ViewportClient.IsViewModeEnabled(VMI_VisualizeVirtualShadowMap);
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeVirtualShadowMapMode"));
+	}
+
+	{
+		auto BuildActorColorationMenu = [WeakViewport = InViewport.ToWeakPtr()](UToolMenu* InMenu) {
+			FToolMenuSection& SubMenuSection = InMenu->AddSection(
+				"LevelViewportActorColoration", LOCTEXT("ActorColorationHeader", "Actor Coloration"));
+
+			TArray<FActorPrimitiveColorHandler::FPrimitiveColorHandler> PrimitiveColorHandlers;
+			FActorPrimitiveColorHandler::Get().GetRegisteredPrimitiveColorHandlers(PrimitiveColorHandlers);
+
+			for (const FActorPrimitiveColorHandler::FPrimitiveColorHandler& PrimitiveColorHandler : PrimitiveColorHandlers)
+			{
+				if (!PrimitiveColorHandler.bAvailalbleInEditor)
+				{
+					continue;
+				}
+
+				SubMenuSection.AddMenuEntry(NAME_None, PrimitiveColorHandler.HandlerText, FText(), FSlateIcon(),
+					FUIAction(FExecuteAction::CreateLambda([WeakViewport, PrimitiveColorHandler]() {
+						if (TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
+						{
+							const bool bActorColorationEnabled = Viewport->GetLevelViewportClient().HandleIsShowFlagEnabled(
+								FEngineShowFlags::EShowFlag::SF_ActorColoration);
+
+							if (PrimitiveColorHandler.HandlerName.IsNone())
+							{
+								if (bActorColorationEnabled)
+								{
+									Viewport->GetLevelViewportClient().HandleToggleShowFlag(
+										FEngineShowFlags::EShowFlag::SF_ActorColoration);
+								}
+							}
+							else
+							{
+								if (!bActorColorationEnabled)
+								{
+									Viewport->GetLevelViewportClient().HandleToggleShowFlag(
+										FEngineShowFlags::EShowFlag::SF_ActorColoration);
+								}
+
+								FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(
+									PrimitiveColorHandler.HandlerName, GWorld);
+							}
+						}
+					}),
+						FCanExecuteAction::CreateLambda([WeakViewport]() {
+							if (TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
+							{
+								return true;
+							}
+							return false;
+						}),
+						FGetActionCheckState::CreateLambda([WeakViewport, PrimitiveColorHandler]() {
+							if (TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
+							{
+								const bool bActorColorationEnabled =
+									Viewport->GetLevelViewportClient().HandleIsShowFlagEnabled(
+										FEngineShowFlags::EShowFlag::SF_ActorColoration);
+
+								if (PrimitiveColorHandler.HandlerName.IsNone())
+								{
+									return bActorColorationEnabled ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								}
+								else
+								{
+									if (bActorColorationEnabled)
+									{
+										return FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandler()
+													== PrimitiveColorHandler.HandlerName
+												 ? ECheckBoxState::Checked
+												 : ECheckBoxState::Unchecked;
+									}
+								}
+							}
+
+							return ECheckBoxState::Unchecked;
+						})),
+					EUserInterfaceActionType::RadioButton);
+			}
+		};
+
+		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu("ActorColoration", LOCTEXT("ActorColorationDisplayName", "Actor Coloration"),
+			LOCTEXT("ActorColorationMenu_ToolTip", "Override Actor Coloration mode"),
+			FNewToolMenuDelegate::CreateLambda(BuildActorColorationMenu),
+			FUIAction(FExecuteAction(), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([WeakViewport = InViewport.ToWeakPtr()]() {
+					if (const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
+					{
+						return Viewport->GetLevelViewportClient().HandleIsShowFlagEnabled(
+							FEngineShowFlags::EShowFlag::SF_ActorColoration);
+					}
+					return false;
+				})),
+			EUserInterfaceActionType::RadioButton,
+			/*bInOpenSubMenuOnClick=*/false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LODColorationMode"));
+	}
+
+	{
+		FToolMenuSection& Section = InMenu->AddSection(
+			"LevelViewportLandscape", LOCTEXT("LandscapeHeader", "Landscape"), InsertPosition);
+
+		auto BuildLandscapeLODMenu = [WeakViewport = InViewport.ToWeakPtr()](UToolMenu* InMenu) {
+			FToolMenuSection& SubMenuSection = InMenu->AddSection(
+				"LevelViewportLandScapeLOD", LOCTEXT("LandscapeLODHeader", "Landscape LOD"));
+
+			auto CreateLandscapeLODAction = [WeakViewport](int32 LODValue) {
+				FUIAction LandscapeLODAction;
+				LandscapeLODAction.ExecuteAction = FExecuteAction::CreateLambda([WeakViewport, LODValue]() {
+					if (const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
+					{
+						UE::LevelEditor::Private::OnLandscapeLODChanged(Viewport->GetLevelViewportClient(), LODValue);
+					}
+				});
+				LandscapeLODAction.GetActionCheckState = FGetActionCheckState::CreateLambda(
+					[WeakViewport, LODValue]() -> ECheckBoxState {
+						bool bChecked = false;
+						if (const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
+						{
+							bChecked = UE::LevelEditor::Private::IsLandscapeLODSettingChecked(
+								Viewport->GetLevelViewportClient(), LODValue);
+						}
+						return bChecked ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+					});
+
+				return LandscapeLODAction;
+			};
+
+			SubMenuSection.AddMenuEntry("LandscapeLODAuto", LOCTEXT("LandscapeLODAuto", "Auto"), FText(), FSlateIcon(),
+				CreateLandscapeLODAction(-1), EUserInterfaceActionType::RadioButton);
+
+			SubMenuSection.AddSeparator("LandscapeLODSeparator");
+
+			static const FText FormatString = LOCTEXT("LandscapeLODFixed", "Fixed at {0}");
+			for (int32 i = 0; i < 8; ++i)
+			{
+				SubMenuSection.AddMenuEntry(NAME_None, FText::Format(FormatString, FText::AsNumber(i)), FText(),
+					FSlateIcon(), CreateLandscapeLODAction(i), EUserInterfaceActionType::RadioButton);
+			}
+		};
+
+		Section.AddSubMenu("LandscapeLOD", LOCTEXT("LandscapeLODDisplayName", "LOD"),
+			LOCTEXT("LandscapeLODMenu_ToolTip", "Override Landscape LOD in this viewport"),
+			FNewToolMenuDelegate::CreateLambda(BuildLandscapeLODMenu),
+			/*bInOpenSubMenuOnClick=*/false, FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LOD"));
+	}
 }
 
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section)

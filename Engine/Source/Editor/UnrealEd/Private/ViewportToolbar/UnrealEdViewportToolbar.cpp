@@ -66,7 +66,7 @@ FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport)
 	return Label;
 }
 
-void FillViewMenu(
+void PopulateViewModesMenu(
 	UToolMenu* InMenu, TSharedRef<SEditorViewport> InViewport, IsViewModeSupportedDelegate InIsViewModeSupported)
 {
 	const FEditorViewportCommands& BaseViewportActions = FEditorViewportCommands::Get();

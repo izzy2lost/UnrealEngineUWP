@@ -89,7 +89,7 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 			return true;
 		});
 
-	UE::UnrealEd::FillViewMenu(Menu, Viewport.Pin().ToSharedRef(), IsViewModeSupported);
+	UE::UnrealEd::PopulateViewModesMenu(Menu, Viewport.Pin().ToSharedRef(), IsViewModeSupported);
 }
 
 #undef LOCTEXT_NAMESPACE

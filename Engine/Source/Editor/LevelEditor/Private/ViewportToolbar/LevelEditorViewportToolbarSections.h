@@ -19,6 +19,7 @@ bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
 
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
+void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<SLevelViewport> InViewport);
 
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
