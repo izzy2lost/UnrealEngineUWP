@@ -52,9 +52,8 @@ FStructuredArchiveVisitor::ScopedRecord::~ScopedRecord()
 
 void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext)
 {
-	FRunningContext::Create([InSlot, &InOutValue, InSerializeContext](FRunningContext LocalContext) {
-		Serialize(LocalContext, InSlot, InOutValue, InSerializeContext);
-	});
+	FRunningContext LocalContext = FRunningContextPromise{};
+	Serialize(LocalContext, InSlot, InOutValue, InSerializeContext);
 }
 
 void FStructuredArchiveVisitor::Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext)

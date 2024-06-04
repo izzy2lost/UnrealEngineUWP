@@ -81,10 +81,6 @@
 
 #include "Compression/OodleDataCompression.h"
 
-#if (WITH_VERSE_VM || defined(__INTELLISENSE__)) && WITH_COREUOBJECT
-#include "VerseVM/VVMVerse.h"
-#endif
-
 #if !(IS_PROGRAM || WITH_EDITOR)
 #include "IPlatformFilePak.h"
 #endif
@@ -105,6 +101,10 @@
 	#include "UObject/LinkerLoad.h"
 	#include "UObject/PackageResourceManager.h"
 	#include "UObject/ReferencerFinder.h"
+
+	#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+		#include "VerseVM/VVMVerse.h"
+	#endif
 #endif
 
 #if WITH_EDITOR
@@ -6850,6 +6850,10 @@ void FEngineLoop::AppPreExit( )
 		GIOThreadPool->Destroy();
 	}
 
+#if (WITH_VERSE_VM || defined(__INTELLISENSE__)) && WITH_COREUOBJECT
+	Verse::VerseVM::Shutdown();
+#endif
+
 #if WITH_ENGINE
 	if ( GShaderCompilingManager )
 	{
@@ -6861,10 +6865,6 @@ void FEngineLoop::AppPreExit( )
 		delete GShaderCompilerStats;
 		GShaderCompilerStats = nullptr;
 	}
-
-#if (WITH_VERSE_VM || defined(__INTELLISENSE__)) && WITH_COREUOBJECT
-	Verse::VerseVM::Shutdown();
-#endif
 
 #if WITH_ODSC
 	if (GODSCManager)

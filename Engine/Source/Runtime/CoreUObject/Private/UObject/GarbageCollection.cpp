@@ -3791,7 +3791,10 @@ static FORCEINLINE void StartVerseGC()
 	{
 		// If this triggers, then someone is kicking off a Verse GC outside of FrankenGC which is a problem
 		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
-		Verse::FIOContext::Create([](Verse::FIOContext Context) { 
+
+		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
+		Context.RelinquishAccess([](Verse::FIOContext Context) {
+			Context.SetIsInManuallyEmptyStack(true);
 			Verse::FHeap::ExternallySynchronouslyStartGC(Context);
 			VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
 		});
@@ -3805,10 +3808,14 @@ static FORCEINLINE void StopVerseGC()
 	if (GIsFrankenGCCollecting)
 	{
 		GIsFrankenGCCollecting = false;
-		Verse::FIOContext::Create([](Verse::FIOContext Context) { 
+
+		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
+		Context.RelinquishAccess([](Verse::FIOContext Context) { 
 			Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
+			Context.SetIsInManuallyEmptyStack(false);
 			VerseCycleRequest.Wait(Context);
 		});
+
 		// If this trips, then something went wrong with waiting for the previous cycle to complete.
 		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
 	}
@@ -4323,11 +4330,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		bool bIsDone = false;
-		Verse::FIOContext::Create(
-			[&bIsDone](Verse::FIOContext VerseContext) {
-				bIsDone = Verse::FHeap::IsGCTerminationPendingExternalSignal(VerseContext);
-			}
-		);
+		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
+		Context.RelinquishAccess([&bIsDone](Verse::FIOContext Context) {
+			bIsDone = Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
+		});
 		return !bIsDone;
 #else
 		return false;
