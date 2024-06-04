@@ -9503,6 +9503,12 @@ bool ParseContainerGenerationArguments(FIoStoreArguments& Arguments, FIoStoreWri
 	}
 
 	WriterSettings.bCompressionEnableDDC = FParse::Param(FCommandLine::Get(), TEXT("compressionEnableDDC"));
+	if (WriterSettings.bCompressionEnableDDC && !FPaths::IsProjectFilePathSet())
+	{
+		UE_LOG(LogIoStore, Warning,
+			TEXT("Ignoring -compressionEnableDDC due to missing .uproject file as the first unnamed argument."));
+		WriterSettings.bCompressionEnableDDC = false;
+	}
 
 	int32 CompressionMinSizeToConsiderDDC = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("-compressionMinSizeToConsiderDDC="), CompressionMinSizeToConsiderDDC))
