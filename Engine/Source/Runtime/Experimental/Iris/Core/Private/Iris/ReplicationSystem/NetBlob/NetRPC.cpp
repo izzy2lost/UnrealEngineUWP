@@ -22,6 +22,7 @@
 #include "Iris/Serialization/ObjectNetSerializer.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Core/IrisLog.h"
+#include "Iris/Core/IrisProfiler.h"
 #include "Containers/ArrayView.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
@@ -568,6 +569,10 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 
 	// Call function
 	{
+#if IRIS_CLIENT_PROFILER_ENABLE
+		UE::Net::FClientProfiler::RecordRPC(Function->GetFName());
+#endif
+
 		UE::Net::FScopedNetContextRPC CallingRPC;
 		Object->ProcessEvent(const_cast<UFunction*>(Function), FunctionParameters);
 	}

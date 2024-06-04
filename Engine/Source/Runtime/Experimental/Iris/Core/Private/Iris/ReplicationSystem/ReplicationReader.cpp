@@ -933,13 +933,6 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	
 		// Get Bridge
 		FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId);
-
-		CSV_CUSTOM_STAT(IrisClient, ClientObjectCreate, 1, ECsvCustomStatOp::Accumulate);
-		if (!bIsSubObject)
-		{
-			CSV_CUSTOM_STAT(IrisClient, ClientObjectCreateRoot, 1, ECsvCustomStatOp::Accumulate);
-		}
-
 		const FReplicationBridgeCreateNetRefHandleResult CreateResult = ReplicationBridge->CallCreateNetRefHandleFromRemote(RootObjectOfSubObject, IncompleteHandle, BridgeContext);
 		FNetRefHandle NetRefHandle = CreateResult.NetRefHandle;
 		if (!NetRefHandle.IsValid())
@@ -964,6 +957,17 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		FReplicatedObjectInfo& ObjectInfo = StartReplication(InternalIndex);
 
 		ObjectInfo.bIsDeltaCompressionEnabled = bIsDeltaCompressed;
+
+#if IRIS_CLIENT_PROFILER_ENABLE
+		if (UE::Net::FClientProfiler::IsCapturing())
+		{
+			UObject* Object = NetRefHandleManager->GetReplicatedObjectInstance(InternalIndex);
+			if (Object)
+			{
+				UE::Net::FClientProfiler::RecordObjectCreate(Object->GetClass()->GetFName(), bIsSubObject);
+			}
+		}
+#endif
 	}
 	else
 	{
@@ -2055,6 +2059,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferences()
 		ResolveAndDispatchUnresolvedReferencesForObject(Context, InternalIndex);
 	}
 
+#if IRIS_CLIENT_PROFILER_ENABLE
 	CSV_CUSTOM_STAT(IrisClient, HotUnresolvedHandleCache, HotUnresolvedHandleCache.Num(), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(IrisClient, ColdUnresolvedHandleCache, ColdUnresolvedHandleCache.Num(), ECsvCustomStatOp::Set);
 
@@ -2067,6 +2072,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferences()
 		VisitedUnresolvedHandles.GetAllocatedSize() +
 		InternalObjectsToResolve.GetAllocatedSize());
 	CSV_CUSTOM_STAT(IrisClient, UnresolvedHandleBufferSizes, TotalCacheSize, ECsvCustomStatOp::Set);
+#endif
 
 	if (NumHandlesPendingResolveLastUpdate != VisitedUnresolvedHandles.Num() || ObjectsWithAttachmentPendingResolve.Num() > 0)
 	{

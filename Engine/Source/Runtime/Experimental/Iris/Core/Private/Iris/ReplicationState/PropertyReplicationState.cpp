@@ -19,8 +19,6 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogIrisRepNotify, Warning, All);
 
-CSV_DECLARE_CATEGORY_EXTERN(IrisClient);
-
 namespace UE::Net
 {
 
@@ -479,7 +477,9 @@ void FPropertyReplicationState::CallRepNotifies(void* RESTRICT DstData, const FC
 
 				if (bShouldCallRepNotify)
 				{
-					CSV_CUSTOM_STAT(IrisClient, RepNotifyCount, 1, ECsvCustomStatOp::Accumulate);
+#if IRIS_CLIENT_PROFILER_ENABLE
+					UE::Net::FClientProfiler::RecordRepNotify(RepNotifyFunction->GetFName());
+#endif
 
 					// We only want to call RepNotify once for c-arrays
 					LastPropertyWithRepNotify = Property;

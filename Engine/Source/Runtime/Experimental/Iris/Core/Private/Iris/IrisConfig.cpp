@@ -40,6 +40,3 @@ EReplicationSystem GetUseIrisReplicationCmdlineValue()
 
 // Enable Iris category by default on servers
 CSV_DEFINE_CATEGORY(Iris, WITH_SERVER_CODE);
-
-// Enable IrisClient category on the client only
-CSV_DEFINE_CATEGORY(IrisClient, !WITH_SERVER_CODE);
