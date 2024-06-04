@@ -441,6 +441,16 @@ void UDynamicMaterialModel::PostLoad()
 
 		GlobalOpacityValue->SetParameterName("VALUE_GlobalOpacity");
 
+		if (FMath::IsNearlyZero(GlobalOpacityValue->GetDefaultValue()))
+		{
+			GlobalOpacityValue->SetDefaultValue(1.f);
+
+			if (FMath::IsNearlyZero(GlobalOpacityValue->GetValue()))
+			{
+				GlobalOpacityValue->SetValue(1.f);
+			}
+		}
+
 		GlobalOpacityValue = nullptr;
 	}
 
