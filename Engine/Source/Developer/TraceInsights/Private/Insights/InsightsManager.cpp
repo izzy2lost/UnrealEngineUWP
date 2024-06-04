@@ -1101,8 +1101,9 @@ void FInsightsManager::UpdateAppTitle()
 					TraceServices::FSessionInfo SessionInfo = DiagnosticsProvider->GetSessionInfo();
 
 					const FString SessionName = FPaths::GetBaseFilename(CurrentTraceFilename);
-					const FText AppTitle = FText::Format(LOCTEXT("UnrealInsightsAppNameFmt2", "{0} - {1} - {2} - {3} - {4} - Unreal Insights"),
+					const FText AppTitle = FText::Format(LOCTEXT("UnrealInsightsAppNameFmt2", "{0}{1} - {2} - {3} - {4} - {5} Unreal Insights"),
 						FText::FromString(SessionName),
+						!SessionInfo.Branch.IsEmpty() ? FText::FromString(TEXT(" - ") + SessionInfo.Branch) : FText::GetEmpty(),
 						FText::FromString(SessionInfo.Platform),
 						FText::FromString(SessionInfo.AppName),
 						FText::FromString(LexToString(SessionInfo.ConfigurationType)),
