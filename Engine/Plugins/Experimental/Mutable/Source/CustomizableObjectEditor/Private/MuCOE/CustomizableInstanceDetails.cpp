@@ -186,6 +186,16 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 		.OnCheckStateChanged(this, &FCustomizableInstanceDetails::OnUseUISectionsSelectionChanged)
 	];
 
+	TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
+	if (UCustomizableObjectEditorProperties* EditorProperties = Editor->GetEditorProperties())
+	{
+		IDetailPropertyRow* FilterPropertyRow = VisibilitySettingsCategory.AddExternalObjectProperty({ EditorProperties }, FName("Filter"));
+		FilterPropertyRow->GetPropertyHandle()->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FCustomizableInstanceDetails::Refresh));
+
+		Filter = EditorProperties->Filter.GameplayTagsFilter;
+		FilterType = EditorProperties->Filter.GameplayTagsFilterType;
+	}
+
 	// Copy, Paste and Reset Parameters
 	ParametersCategory.AddCustomRow(LOCTEXT("CustomizableInstanceDetails_CopyPasteResetButtons", "Copy Paste Reset"))
 	[
@@ -622,12 +632,12 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 
 			if (CustomInstance->GetPrivate()->bShowUISections)
 			{
-				IDetailGroup* CurrentSection = GenerateParameterSection(ParamInfo.ParamIndexInObject, DetailsCategory);
+				IDetailGroup* CurrentSection = GenerateParameterSection(DetailsCategory, *CustomizableObject, ParamInfo.ParamName);
 				check(CurrentSection);
 
 				if (!IsMultidimensionalProjector(ParamInfo.ParamIndexInObject))
 				{
-					GenerateWidgetRow(CurrentSection->AddWidgetRow(), ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
+					GenerateWidgetRow(CurrentSection->AddWidgetRow(), *CustomizableObject, ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
 				}
 				else
 				{
@@ -635,14 +645,14 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 
 					// Call Order between the following lines maters.
 					ParentsGroups.Add(ParamInfo.ParamName, ProjectorGroup);
-					GenerateWidgetRow(ProjectorGroup->HeaderRow(), ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
+					GenerateWidgetRow(ProjectorGroup->HeaderRow(), *CustomizableObject, ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
 				}
 			}
 			else
 			{
 				if (!IsMultidimensionalProjector(ParamInfo.ParamIndexInObject))
 				{
-					GenerateWidgetRow(DetailsCategory.AddCustomRow(FText::FromString(ParamInfo.ParamName)), ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
+					GenerateWidgetRow(DetailsCategory.AddCustomRow(FText::FromString(ParamInfo.ParamName)), *CustomizableObject, ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
 				}
 				else
 				{
@@ -650,7 +660,7 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 
 					// Call Order between the following lines maters.
 					ParentsGroups.Add(ParamInfo.ParamName, ProjectorGroup);
-					GenerateWidgetRow(ProjectorGroup->HeaderRow(), ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
+					GenerateWidgetRow(ProjectorGroup->HeaderRow(), *CustomizableObject, ParamInfo.ParamName, ParamInfo.ParamIndexInObject);
 				}
 			}
 		}
@@ -683,7 +693,7 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 		{
 			if (!ParamHasParent.Find(ParametersTree[ParamIndexInObject].ParamIndexInObject))
 			{
-				RecursivelyAddParamAndChildren(ParametersTree[ParamIndexInObject].ParamIndexInObject, "", DetailsCategory);
+				RecursivelyAddParamAndChildren(*CustomizableObject, ParametersTree[ParamIndexInObject].ParamIndexInObject, "", DetailsCategory);
 			}
 		}
 	}
@@ -692,10 +702,9 @@ bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 }
 
 
-void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 ParamIndexInObject, const FString ParentName, IDetailCategoryBuilder& DetailsCategory)
+void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const UCustomizableObject& CustomizableObject, const int32 ParamIndexInObject, const FString ParentName, IDetailCategoryBuilder& DetailsCategory)
 {
-	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);	
+	const FString ParamName = CustomizableObject.GetParameterName(ParamIndexInObject);	
 	TArray<int32> Children;
 	
 	ParamChildren.MultiFind(ParamName, Children, true);
@@ -704,12 +713,12 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 	{
 		if (CustomInstance->GetPrivate()->bShowUISections)
 		{
-			IDetailGroup* CurrentSection = GenerateParameterSection(ParamIndexInObject, DetailsCategory);
+			IDetailGroup* CurrentSection = GenerateParameterSection(DetailsCategory, CustomizableObject, ParamName);
 			check(CurrentSection);
 
 			if (Children.Num() == 0 && !IsMultidimensionalProjector(ParamIndexInObject))
 			{
-				GenerateWidgetRow(CurrentSection->AddWidgetRow(), ParamName, ParamIndexInObject);
+				GenerateWidgetRow(CurrentSection->AddWidgetRow(), CustomizableObject, ParamName, ParamIndexInObject);
 			}
 			else
 			{
@@ -717,14 +726,14 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 				
 				// Call Order between the following lines maters.
 				ParentsGroups.Add(ParamName, ParentGroup);
-				GenerateWidgetRow(ParentGroup->HeaderRow(), ParamName, ParamIndexInObject);
+				GenerateWidgetRow(ParentGroup->HeaderRow(), CustomizableObject, ParamName, ParamIndexInObject);
 			}
 		}
 		else
 		{
 			if (Children.Num() == 0 && !IsMultidimensionalProjector(ParamIndexInObject))
 			{
-				GenerateWidgetRow(DetailsCategory.AddCustomRow(FText::FromString(ParamName)), ParamName, ParamIndexInObject);
+				GenerateWidgetRow(DetailsCategory.AddCustomRow(FText::FromString(ParamName)), CustomizableObject, ParamName, ParamIndexInObject);
 			}
 			else
 			{
@@ -732,7 +741,7 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 				
 				// Call Order between the following lines maters.
 				ParentsGroups.Add(ParamName, ParentGroup);
-				GenerateWidgetRow(ParentGroup->HeaderRow(), ParamName, ParamIndexInObject);
+				GenerateWidgetRow(ParentGroup->HeaderRow(), CustomizableObject, ParamName, ParamIndexInObject);
 			}
 		}
 	}
@@ -742,7 +751,7 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 
 		if (Children.Num() == 0 && !IsMultidimensionalProjector(ParamIndexInObject))
 		{
-			GenerateWidgetRow(ParentGroup->AddWidgetRow(), ParamName, ParamIndexInObject);
+			GenerateWidgetRow(ParentGroup->AddWidgetRow(), CustomizableObject, ParamName, ParamIndexInObject);
 		}
 		else
 		{
@@ -750,13 +759,13 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 
 			// Call Order between the following lines maters
 			ParentsGroups.Add(ParamName, ChildGroup);
-			GenerateWidgetRow(ParentGroup->HeaderRow(), ParamName, ParamIndexInObject);
+			GenerateWidgetRow(ParentGroup->HeaderRow(), CustomizableObject, ParamName, ParamIndexInObject);
 		}
 	}
 
 	for (const int32 ChildIndexInObject : Children)
 	{
-		RecursivelyAddParamAndChildren(ChildIndexInObject, ParamName, DetailsCategory);
+		RecursivelyAddParamAndChildren(CustomizableObject, ChildIndexInObject, ParamName, DetailsCategory);
 	}
 }
 
@@ -801,6 +810,33 @@ bool FCustomizableInstanceDetails::IsVisible(int32 ParamIndexInObject)
 }
 
 
+bool FCustomizableInstanceDetails::IsIntParameterFilteredOut(const UCustomizableObject& CustomizableObject, const FString& ParamName, const FString& ParamOption) const
+{
+	if (Filter.IsEmpty())
+	{
+		return false;
+	}
+
+	FMutableParamUIMetadata Metadata = CustomizableObject.GetIntParameterOptionUIMetadata(ParamName, ParamOption);
+
+	switch (FilterType)
+	{
+	case EGameplayContainerMatchType::Any:
+	{
+		return !Metadata.EditorGameplayTags.HasAny(Filter);
+	}
+	case EGameplayContainerMatchType::All:
+	{
+		return !Metadata.EditorGameplayTags.HasAll(Filter);
+	}
+	default:
+		unimplemented();
+		return false;
+	}
+}
+
+
+
 bool FCustomizableInstanceDetails::IsMultidimensionalProjector(int32 ParamIndexInObject)
 {
 	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
@@ -809,12 +845,9 @@ bool FCustomizableInstanceDetails::IsMultidimensionalProjector(int32 ParamIndexI
 }
 
 
-IDetailGroup* FCustomizableInstanceDetails::GenerateParameterSection(const int32 ParamIndexInObject, IDetailCategoryBuilder& DetailsCategory)
+IDetailGroup* FCustomizableInstanceDetails::GenerateParameterSection(IDetailCategoryBuilder& DetailsCategory, const UCustomizableObject& CustomizableObject, const FString& ParamName)
 {
-	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	const FMutableParamUIMetadata UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
+	const FMutableParamUIMetadata UIMetadata = CustomizableObject.GetParameterUIMetadata(ParamName);
 	const FString SectionName = UIMetadata.UISectionName.IsEmpty() ? "Miscellaneous" : UIMetadata.UISectionName;
 	IDetailGroup* CurrentSection = nullptr;
 
@@ -834,7 +867,7 @@ IDetailGroup* FCustomizableInstanceDetails::GenerateParameterSection(const int32
 }
 
 
-void FCustomizableInstanceDetails::GenerateWidgetRow(FDetailWidgetRow& WidgetRow, const FString& ParamName, const int32 ParamIndexInObject)
+void FCustomizableInstanceDetails::GenerateWidgetRow(FDetailWidgetRow& WidgetRow, const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject)
 {
 	WidgetRow.NameContent()
 	[
@@ -850,7 +883,7 @@ void FCustomizableInstanceDetails::GenerateWidgetRow(FDetailWidgetRow& WidgetRow
 		.HAlign(HAlign_Fill)
 		.Padding(0.0f, 5.0f, 0.0f, 5.0f)
 		[
-			GenerateParameterWidget(ParamIndexInObject)
+			GenerateParameterWidget(CustomizableObject, ParamName, ParamIndexInObject)
 		]
 	]
 	.OverrideResetToDefault(FResetToDefaultOverride::Create(FSimpleDelegate::CreateSP(this, &FCustomizableInstanceDetails::OnResetParameterButtonClicked, ParamIndexInObject)))
@@ -858,27 +891,25 @@ void FCustomizableInstanceDetails::GenerateWidgetRow(FDetailWidgetRow& WidgetRow
 }
 
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateParameterWidget(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateParameterWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-
-	switch (CustomizableObject->GetParameterType(ParamIndexInObject))
+	switch (CustomizableObject.GetParameterType(ParamIndexInObject))
 	{
 		case EMutableParameterType::Bool:
 		{
-			return GenerateBoolWidget(ParamIndexInObject);
+			return GenerateBoolWidget(ParamName);
 		}
 		case EMutableParameterType::Float:
 		{
-			return GenerateFloatWidget(ParamIndexInObject);
+			return GenerateFloatWidget(CustomizableObject, ParamName);
 		}
 		case EMutableParameterType::Color:
 		{
-			return GenerateColorWidget(ParamIndexInObject);
+			return GenerateColorWidget(ParamName);
 		}
 		case EMutableParameterType::Texture:
 		{
-			return GenerateTextureWidget(ParamIndexInObject);
+			return GenerateTextureWidget(CustomizableObject, ParamName);
 		}
 		case EMutableParameterType::Projector:
 		{
@@ -886,16 +917,16 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateParameterWidget(const 
 
 			if (!bIsParamMultidimensional)
 			{
-				return GenerateSimpleProjector(ParamIndexInObject);
+				return GenerateSimpleProjector(ParamName);
 			}
 			else 
 			{
-				return GenerateMultidimensionalProjector(ParamIndexInObject);
+				return GenerateMultidimensionalProjector(CustomizableObject, ParamName, ParamIndexInObject);
 			}
 		}
 		case EMutableParameterType::Int:
 		{
-			return GenerateIntWidget(ParamIndexInObject);
+			return GenerateIntWidget(CustomizableObject, ParamName, ParamIndexInObject);
 		}
 		case EMutableParameterType::None:
 		{
@@ -909,26 +940,20 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateParameterWidget(const 
 
 // INT PARAMETERS -----------------------------------------------------------------------------------------------------------------
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	
 	const bool bMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional(ParamIndexInObject);
 	if (bMultidimensional)
 	{
 		return SNew(STextBlock).Text(LOCTEXT("MultidimensionalINTParameter_Text", "Multidimensional INT Parameter not supported"));
 	}
 
-	const int32 NumValues = CustomizableObject->GetIntParameterNumOptions(ParamIndexInObject);
+	const int32 NumValues = CustomizableObject.GetIntParameterNumOptions(ParamIndexInObject);
 	if (!NumValues)
 	{
 		return SNew(STextBlock).Text(LOCTEXT("NoAvailableOptions", "No Available Options"));
 	}
 	
-	FString ToolTipText = FString("None");
-	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	FString Value = CustomInstance->GetIntParameterSelectedOption(ParamName, -1);
-
 	TSharedPtr<TArray<TSharedPtr<FString>>>* FoundOptions = IntParameterOptions.Find(ParamIndexInObject);
 	TArray<TSharedPtr<FString>>& OptionNamesAttribute = FoundOptions && FoundOptions->IsValid() ? 
 														*FoundOptions->Get() :
@@ -936,40 +961,46 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 
 
 	OptionNamesAttribute.Empty();
 
-	int32 ValueIndex = 0;
+	const FString SelectedOption = CustomInstance->GetIntParameterSelectedOption(ParamName, INDEX_NONE);
 
+	// Tooltip for the selected option
+	FString ToolTipText = FString("None");
+	if (const FString* Identifier = CustomizableObject.GetPrivate()->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, SelectedOption)))
+	{
+		if (FString* CustomizableObjectPath = CustomizableObject.GetPrivate()->CustomizableObjectPathMap.Find(*Identifier))
+		{
+			ToolTipText = *CustomizableObjectPath;
+		}
+	}
+
+	TSharedPtr<FString> SelectedOptionString;
 	for (int32 i = 0; i < NumValues; ++i)
 	{
-		FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i);
+		const FString PossibleValue = CustomizableObject.GetIntParameterAvailableOption(ParamIndexInObject, i);
 
-		if (PossibleValue == Value)
+		if (PossibleValue == SelectedOption) // Always add the selected option, even if it should be filtered.
 		{
-			ValueIndex = i;
-
-			const FString* Identifier = CustomizableObject->GetPrivate()->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, PossibleValue));
-			if (Identifier)
-			{
-				if (FString* CustomizableObjectPath = CustomizableObject->GetPrivate()->CustomizableObjectPathMap.Find(*Identifier))
-				{
-					ToolTipText = *CustomizableObjectPath;
-				}
-			}
+			SelectedOptionString = TSharedPtr<FString>(new FString(PossibleValue));
+			OptionNamesAttribute.Add(SelectedOptionString);
 		}
 
-		OptionNamesAttribute.Add(TSharedPtr<FString>(new FString(CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i))));
+		else if (!IsIntParameterFilteredOut(CustomizableObject, ParamName, PossibleValue))
+		{
+			OptionNamesAttribute.Add(TSharedPtr<FString>(new FString(PossibleValue)));
+		}
 	}
 
 	return SNew(SSearchableComboBox)
 		.ToolTipText(FText::FromString(ToolTipText))
 		.OptionsSource(&OptionNamesAttribute)
-		.InitiallySelectedItem(OptionNamesAttribute[ValueIndex])
+		.InitiallySelectedItem(SelectedOptionString)
 		.Method(EPopupMethod::UseCurrentWindow)
 		.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnIntParameterComboBoxChanged, ParamName)
 		.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetIntParameter)
 		.Content()
 		[
 			SNew(STextBlock)
-				.Text(FText::FromString(*OptionNamesAttribute[ValueIndex]))
+				.Text(FText::FromString(*SelectedOption))
 		];
 }
 
@@ -997,11 +1028,9 @@ void FCustomizableInstanceDetails::OnIntParameterComboBoxChanged(TSharedPtr<FStr
 
 // FLOAT PARAMETERS -----------------------------------------------------------------------------------------------------------------
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateFloatWidget(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateFloatWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName)
 {
-	const UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const FString& ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-	const FMutableParamUIMetadata& UIMetadata = CustomizableObject->GetParameterUIMetadata(ParamName);
+	const FMutableParamUIMetadata& UIMetadata = CustomizableObject.GetParameterUIMetadata(ParamName);
 
 	if (const TSoftObjectPtr<UObject>* FloatDecoratorAsset = UIMetadata.ExtraAssets.Find(UIMetadataKeyWords::FloatDecoratorName))
 	{
@@ -1132,10 +1161,8 @@ void FCustomizableInstanceDetails::OnFloatParameterCommited(float Value, ETextCo
 
 // TEXTURE PARAMETERS -----------------------------------------------------------------------------------------------------------------
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateTextureWidget(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateTextureWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 	const FName ParameterValue = CustomInstance->GetTextureParameterSelectedOption(ParamName);
 	TSharedPtr<FString> InitiallySelected;
 
@@ -1235,11 +1262,8 @@ void FCustomizableInstanceDetails::OnTextureParameterComboBoxSelectionChanged(TS
 
 // COLOR PARAMETERS -----------------------------------------------------------------------------------------------------------------
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateColorWidget(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateColorWidget(const FString& ParamName)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-
 	return SNew(SColorBlock)
 		.Color(this, &FCustomizableInstanceDetails::GetColorParameterValue, ParamName)
 		.ShowBackgroundForAlpha(false)
@@ -1288,11 +1312,8 @@ void FCustomizableInstanceDetails::OnSetColorFromColorPicker(FLinearColor NewCol
 
 // PROJECTOR PARAMETERS -----------------------------------------------------------------------------------------------------------------
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateSimpleProjector(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateSimpleProjector(const FString& ParamName)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-
 	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 	const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();
 	const bool bSelectedProjector = ProjectorParameter->IsProjectorSelected(ParamName);
@@ -1469,11 +1490,8 @@ FReply FCustomizableInstanceDetails::OnProjectorResetTransform(const FString Par
 }
 
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjector(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjector(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-
 	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 	const TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
 	const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
@@ -1482,12 +1500,12 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 
 	// Selected Pose UI
 	const FString PoseSwitchEnumParamName = ParamName + FMultilayerProjector::POSE_PARAMETER_POSTFIX;
-	const int32 PoseSwitchEnumParamIndexInObject = CustomizableObject->FindParameter(PoseSwitchEnumParamName);
+	const int32 PoseSwitchEnumParamIndexInObject = CustomizableObject.FindParameter(PoseSwitchEnumParamName);
 	TSharedPtr<SVerticalBox> ProjectorBox = SNew(SVerticalBox);
 
 	if (PoseSwitchEnumParamIndexInObject != INDEX_NONE)
 	{
-		const int32 NumPoseValues = CustomizableObject->GetIntParameterNumOptions(PoseSwitchEnumParamIndexInObject);
+		const int32 NumPoseValues = CustomizableObject.GetIntParameterNumOptions(PoseSwitchEnumParamIndexInObject);
 
 		TSharedPtr<TArray<TSharedPtr<FString>>>* FoundOptions = ProjectorParameterPoseOptions.Find(PoseSwitchEnumParamIndexInObject);
 		TArray<TSharedPtr<FString>>& PoseOptionNamesAttribute = FoundOptions && FoundOptions->IsValid() ?
@@ -1501,7 +1519,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 
 		for (int32 j = 0; j < NumPoseValues; ++j)
 		{
-			const FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(PoseSwitchEnumParamIndexInObject, j);
+			const FString PossibleValue = CustomizableObject.GetIntParameterAvailableOption(PoseSwitchEnumParamIndexInObject, j);
 			if (PossibleValue == PoseValue)
 			{
 				PoseValueIndex = j;
@@ -1571,7 +1589,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 
 	for (int32 RangeIndex = 0; RangeIndex < ProjectorParameters[ProjectorParamIndex].RangeValues.Num(); ++RangeIndex)
 	{
-		const int32 TextureSwitchEnumParamIndexInObject = CustomizableObject->FindParameter(TextureSwitchEnumParamName);
+		const int32 TextureSwitchEnumParamIndexInObject = CustomizableObject.FindParameter(TextureSwitchEnumParamName);
 		check(TextureSwitchEnumParamIndexInObject >= 0); TSharedPtr<FString> CurrentStateName = nullptr;
 
 		const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();
@@ -1666,8 +1684,8 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 		Button->SetBorderBackgroundColor(bSelectedProjector ? FLinearColor::Green : FLinearColor::White);
 
 		// If number of options is equal to 1, Mutable does not consider it multidimensional parameters
-		int32 NumValues = CustomizableObject->GetIntParameterNumOptions(TextureSwitchEnumParamIndexInObject);
-		FString Value = CustomizableObject->IsParameterMultidimensional(TextureSwitchEnumParamName) ? 
+		int32 NumValues = CustomizableObject.GetIntParameterNumOptions(TextureSwitchEnumParamIndexInObject);
+		FString Value = CustomizableObject.IsParameterMultidimensional(TextureSwitchEnumParamName) ? 
 			CustomInstance->GetIntParameterSelectedOption(TextureSwitchEnumParamName, RangeIndex) : CustomInstance->GetIntParameterSelectedOption(TextureSwitchEnumParamName);
 
 		TArray<TSharedPtr<FString>> OptionNamesAttribute;
@@ -1675,13 +1693,13 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 
 		for (int32 CandidateIndex = 0; CandidateIndex < NumValues; ++CandidateIndex)
 		{
-			FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex);
+			FString PossibleValue = CustomizableObject.GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex);
 			if (PossibleValue == Value)
 			{
 				ValueIndex = CandidateIndex;
 			}
 
-			OptionNamesAttribute.Add(MakeShared<FString>(CustomizableObject->GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex)));
+			OptionNamesAttribute.Add(MakeShared<FString>(CustomizableObject.GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex)));
 		}
 		
 		// Avoid filling this arraw with repeated array  options
@@ -1867,11 +1885,8 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::MakeTextureComboEntryWidget(TS
 
 // BOOL PARAMETERS -----------------------------------------------------------------------------------------------------------------
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateBoolWidget(const int32 ParamIndexInObject)
+TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateBoolWidget(const FString& ParamName)
 {
-	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
 		.HAlign(HAlign_Left)

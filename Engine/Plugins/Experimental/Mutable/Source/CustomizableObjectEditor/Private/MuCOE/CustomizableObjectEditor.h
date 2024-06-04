@@ -211,6 +211,7 @@ public:
 	virtual void HideGizmoClipMesh() override;
 	virtual void ShowGizmoLight(ULightComponent& SelectedLight) override;
 	virtual void HideGizmoLight() override;
+	virtual UCustomizableObjectEditorProperties* GetEditorProperties() override;
 
 	/** Select only this node only. Do nothing if already was only selected. */
 	void SelectSingleNode(UCustomizableObjectNode& Node);
@@ -447,6 +448,8 @@ private:
 
 	TObjectPtr<UCustomSettings> CustomSettings = nullptr;
 
+	TObjectPtr<UCustomizableObjectEditorProperties> EditorProperties = nullptr;
+	
 	bool bRecursionGuard = false;
 	
 	EGizmoType GizmoType = EGizmoType::Hidden;

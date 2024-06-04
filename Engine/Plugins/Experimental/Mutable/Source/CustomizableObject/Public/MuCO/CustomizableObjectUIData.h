@@ -6,6 +6,10 @@
 #include "Engine/Texture2D.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 
+#if WITH_EDITORONLY_DATA
+#include "GameplayTagContainer.h"
+#endif
+
 #include "CustomizableObjectUIData.generated.h"
 
 class UTexture2D;
@@ -54,6 +58,13 @@ struct FMutableParamUIMetadata : public FMutableUIMetadata
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	float MaximumValue = 1.0f;
+
+#if WITH_EDITORONLY_DATA
+	/** Gameplay tags to take into consideration when filtering parameters.
+	  * Only applies to the options shown in drop downs. Child object parameters and data table rows. */
+	UPROPERTY(EditAnywhere, Category = UI)
+	FGameplayTagContainer EditorGameplayTags;
+#endif
 
 	friend FArchive& operator<<(FArchive& Ar, FMutableParamUIMetadata& Struct);
 };

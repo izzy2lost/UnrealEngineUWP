@@ -186,6 +186,8 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	CustomSettings = NewObject<UCustomSettings>();
 	CustomSettings->SetEditor(SharedThis(this));
 	
+	EditorProperties = NewObject<UCustomizableObjectEditorProperties>();
+
 	// Support undo/redo
 	CustomizableObject->SetFlags(RF_Transactional);
 
@@ -348,6 +350,7 @@ void FCustomizableObjectEditor::AddReferencedObjects( FReferenceCollector& Colle
 	Collector.AddReferencedObject( PreviewInstance );
 	Collector.AddReferencedObject( ProjectorParameter );
 	Collector.AddReferencedObject( CustomSettings );
+	Collector.AddReferencedObject(EditorProperties);
 }
 
 
@@ -1120,6 +1123,12 @@ void FCustomizableObjectEditor::HideGizmoLight()
 	Viewport->HideGizmoLight();
 
 	CustomizableObjectEditorAdvancedPreviewSettings->Refresh();
+}
+
+
+UCustomizableObjectEditorProperties* FCustomizableObjectEditor::GetEditorProperties()
+{
+	return EditorProperties;
 }
 
 

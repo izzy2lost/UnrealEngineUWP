@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuCO/CustomizableObjectUIData.h"
 
@@ -66,6 +66,24 @@ FArchive& operator<<(FArchive& Ar, FMutableParamUIMetadata& Struct)
 	
 	Ar << Struct.MinimumValue;
 	Ar << Struct.MaximumValue;
+
+#if WITH_EDITORONLY_DATA
+	FString ExportString;
+	if (Ar.IsSaving())
+	{
+		ExportString = Struct.EditorGameplayTags.ToString();
+	}
+
+	Ar << ExportString;
+
+	if (Ar.IsLoading())
+	{
+		if (!ExportString.IsEmpty())
+		{
+			Struct.EditorGameplayTags.FromExportString(ExportString);
+		}
+	}
+#endif
 
 	return Ar;
 }

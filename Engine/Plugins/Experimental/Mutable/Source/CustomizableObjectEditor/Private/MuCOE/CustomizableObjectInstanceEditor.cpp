@@ -229,6 +229,8 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 	CustomSettings = NewObject<UCustomSettings>();
 	CustomSettings->SetEditor(SharedThis(this));
 
+	EditorProperties = NewObject<UCustomizableObjectEditorProperties>();
+
 	// Register our commands. This will only register them if not previously registered
 	FCustomizableObjectInstanceEditorCommands::Register();
 	FCustomizableObjectEditorViewportCommands::Register();
@@ -380,6 +382,7 @@ void FCustomizableObjectInstanceEditor::AddReferencedObjects( FReferenceCollecto
 	Collector.AddReferencedObject( HelperCallback );
 	Collector.AddReferencedObject( ProjectorParameter );
 	Collector.AddReferencedObject( CustomSettings );
+	Collector.AddReferencedObject(EditorProperties);
 }
 
 
@@ -577,6 +580,12 @@ void FCustomizableObjectInstanceEditor::ShowGizmoProjectorParameter(const FStrin
 void FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter()
 {
 	HideGizmoProjectorParameter(SharedThis(this), Viewport, CustomizableInstanceDetailsView);
+}
+
+
+UCustomizableObjectEditorProperties* FCustomizableObjectInstanceEditor::GetEditorProperties()
+{
+	return EditorProperties;
 }
 
 

@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCOE/ICustomizableObjectInstanceEditor.h"
 #include "MuCOE/CustomizableObjectEditorViewportLights.h"
+
 #include "TickableEditorObject.h"
-#include "MuCO/CustomizableObjectPrivate.h"
+#include "GameplayTagContainer.h"
 
 #include "CustomizableObjectInstanceEditor.generated.h"
 
@@ -127,6 +129,35 @@ private:
 	TWeakPtr<ICustomizableObjectInstanceEditor> Editor;
 };
 
+USTRUCT()
+struct FCustomizableObjectGameplayTagsFilter
+{
+	GENERATED_BODY();
+
+public:
+	/** Filter Gameplay tags to match with. */
+	UPROPERTY(EditAnywhere, meta = (DisplayName = "Tags"), Category = NoCategory)
+	FGameplayTagContainer GameplayTagsFilter;
+
+	/** Filter match type. */
+	UPROPERTY(EditAnywhere, meta = (DisplayName = "Match type"), Category = NoCategory)
+	EGameplayContainerMatchType GameplayTagsFilterType = EGameplayContainerMatchType::Any;
+};
+
+UCLASS(Transient)
+class UCustomizableObjectEditorProperties : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	/** Gameplay tags based parameter options filter.
+	  * Tags may be added to the Editor Gameplay Tags container in the parameters metadata.
+	  * Only applies to the options shown in drop downs. Child object parameters and data table rows. */
+	UPROPERTY(meta = (DisplayName = "Gameplay Tags Filter"))
+	FCustomizableObjectGameplayTagsFilter Filter;
+};
+
 
 /**
  * CustomizableObject Editor class
@@ -177,6 +208,7 @@ public:
 	virtual void HideGizmo() override;
 	virtual void ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex) override;
 	virtual void HideGizmoProjectorParameter() override;
+	virtual UCustomizableObjectEditorProperties* GetEditorProperties() override;
 	
 	/** Callback to notify the editor when the PreviewInstance has been updated */
 	void OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance);
@@ -297,6 +329,8 @@ private:
 	TObjectPtr<UProjectorParameter> ProjectorParameter = nullptr;
 
 	TObjectPtr<UCustomSettings> CustomSettings = nullptr;
+
+	TObjectPtr<UCustomizableObjectEditorProperties> EditorProperties = nullptr;
 
 	/** Adds the customizable Object Instance Editor commands to the default toolbar */
 	void ExtendToolbar();

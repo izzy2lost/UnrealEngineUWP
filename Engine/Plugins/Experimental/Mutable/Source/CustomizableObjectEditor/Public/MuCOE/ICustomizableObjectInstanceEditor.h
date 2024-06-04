@@ -17,6 +17,7 @@ class UCustomizableObjectNodeMeshClipMorph;
 class UCustomizableObjectNodeMeshClipWithMesh;
 class ULightComponent;
 class UPoseAsset;
+class UCustomizableObjectEditorProperties;
 
 /**
  * Public interface to Customizable Object Instance Editor
@@ -90,6 +91,9 @@ public:
 	/** Hide the light gizmo of the light.
 	 * Synchronizes all editor widgets so that the selection and the widgets is always consistent. */
 	virtual void HideGizmoLight() {}
+
+	/** @return Editor properties. */
+	virtual UCustomizableObjectEditorProperties* GetEditorProperties() = 0;
 };
 
 

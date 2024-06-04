@@ -5,6 +5,7 @@
 #include "IDetailCustomization.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
+#include "GameplayTagContainer.h"
 
 class FDetailWidgetRow;
 class FReply;
@@ -15,6 +16,7 @@ class IDetailCategoryBuilder;
 class IDetailGroup;
 class IDetailLayoutBuilder; 
 class SWidget;
+class UCustomizableObject;
 class UCustomizableObjectInstance;
 
 enum class ECheckBoxState : uint8;
@@ -70,25 +72,28 @@ private:
 	// Main parameter generation functions
 	// Returns true if parameters have been hidden due to runtime type
 	bool GenerateParametersView(IDetailCategoryBuilder& MainCategory);
-	void RecursivelyAddParamAndChildren(const int32 ParamIndexInObject, const FString ParentName, IDetailCategoryBuilder& DetailsCategory);
+	void RecursivelyAddParamAndChildren(const UCustomizableObject& CustomizableObject, const int32 ParamIndexInObject, const FString ParentName, IDetailCategoryBuilder& DetailsCategory);
 	void FillChildrenMap(int32 ParamIndexInObject);
 
 	// Function to determine if a parameter widget should be generated
 	bool IsVisible(int32 ParamIndexInObject);
 	bool IsMultidimensionalProjector(int32 ParamIndexInObject);
 
+	// @return true if the parameter doesn't match the current filter.
+	bool IsIntParameterFilteredOut(const UCustomizableObject& CustomizableObject, const FString& ParamName, const FString& ParamOption) const;
+
 	// Main widget generation functions
-	IDetailGroup* GenerateParameterSection(const int32 ParamIndexInObject, IDetailCategoryBuilder& DetailsCategory);
-	void GenerateWidgetRow(FDetailWidgetRow& WidgetRow, const FString& ParamName, const int32 ParamIndexInObject);
-	TSharedRef<SWidget> GenerateParameterWidget(const int32 ParamIndexInObject);
+	IDetailGroup* GenerateParameterSection(IDetailCategoryBuilder& DetailsCategory, const UCustomizableObject& CustomizableObject, const FString& ParamName);
+	void GenerateWidgetRow(FDetailWidgetRow& WidgetRow, const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateParameterWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject);
 
 	// Int Parameters Functions
-	TSharedRef<SWidget> GenerateIntWidget(const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateIntWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject);
 	void OnIntParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName);
 	TSharedRef<SWidget> OnGenerateWidgetIntParameter(TSharedPtr<FString> InItem) const;
 	
 	// Float Parameters Functions
-	TSharedRef<SWidget> GenerateFloatWidget(const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateFloatWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName);
 	float GetFloatParameterValue(const FString ParamName, int32 RangeIndex) const;
 	void OnFloatParameterChanged(float Value, const FString ParamName, int32 RangeIndex);
 	void OnFloatParameterSliderBegin();
@@ -97,24 +102,24 @@ private:
 	void OnFloatParameterCommited(float Value, ETextCommit::Type Type, const FString ParamName, int32 RangeIndex);	// Needed to have undo/redo
  
 	// Texture Parameters Functions
-	TSharedRef<SWidget> GenerateTextureWidget(const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateTextureWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName);
 	void GenerateTextureParameterOptions();
 	void OnTextureParameterComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName);
 	
 	// Color Parameters Functions
-	TSharedRef<SWidget> GenerateColorWidget(const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateColorWidget(const FString& ParamName);
 	FLinearColor GetColorParameterValue(const FString ParamName) const;
 	FReply OnColorBlockMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, const FString ParamName);
 	void OnSetColorFromColorPicker(FLinearColor NewColor, const FString PickerParamName);
 
 	// Bool Parameters Functions
-	TSharedRef<SWidget> GenerateBoolWidget(const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateBoolWidget(const FString& ParamName);
 	ECheckBoxState GetBoolParameterValue(const FString ParamName) const;
 	void OnBoolParameterChanged(ECheckBoxState InCheckboxState, const FString ParamName);
 
 	// Projector Parameters Functions
-	TSharedRef<SWidget> GenerateSimpleProjector(const int32 ParamIndexInObject);
-	TSharedRef<SWidget> GenerateMultidimensionalProjector(const int32 ParamIndexInObject);
+	TSharedRef<SWidget> GenerateSimpleProjector(const FString& ParamName);
+	TSharedRef<SWidget> GenerateMultidimensionalProjector(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject);
 	TSharedPtr<ICustomizableObjectInstanceEditor> GetEditorChecked() const;
 	FReply OnProjectorSelectChanged(const FString ParamName, const int32 RangeIndex) const;
 	FReply OnProjectorCopyTransform(const FString ParamName, const int32 RangeIndex) const;
@@ -188,5 +193,9 @@ private:
 
 	// Unique transaction pointer to allow transactions that start and finish in different funtion scopes.
 	TUniquePtr<FScopedTransaction> Transaction;
+
+	//** Editor gameplay tags filter and filter type. Used to filter int parameter options. */
+	FGameplayTagContainer Filter;
+	EGameplayContainerMatchType FilterType;
 };
 
