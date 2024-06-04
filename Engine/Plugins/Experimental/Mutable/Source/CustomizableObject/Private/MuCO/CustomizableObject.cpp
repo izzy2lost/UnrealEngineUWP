@@ -52,6 +52,17 @@
 
 DEFINE_LOG_CATEGORY(LogMutable);
 
+#if WITH_EDITOR
+
+TAutoConsoleVariable<int32> CVarPackagedDataBytesLimitOverride(
+	TEXT("mutable.PackagedDataBytesLimitOverride"),
+	-1,
+	TEXT("Defines the value to be used as 'PackagedDataBytesLimitOverride' for the compilation of all COs.\n")
+	TEXT(" <0 : Use value defined in the CO\n")
+	TEXT(" >=0  : Use this value instead\n"));
+
+#endif
+
 #if WITH_EDITORONLY_DATA
 
 namespace UE::Mutable::Private
@@ -2100,7 +2111,18 @@ FCompilationOptions UCustomizableObjectPrivate::GetCompileOptions() const
 	Options.TextureCompression = TextureCompression;
 	Options.OptimizationLevel = OptimizationLevel;
 	Options.bUseDiskCompilation = bUseDiskCompilation;
-	Options.PackagedDataBytesLimit = PackagedDataBytesLimit;
+	
+	const int32 TargetBulkDataFileBytesOverride = CVarPackagedDataBytesLimitOverride.GetValueOnAnyThread();
+	if ( TargetBulkDataFileBytesOverride >= 0)
+	{
+		Options.PackagedDataBytesLimit = TargetBulkDataFileBytesOverride;
+		UE_LOG(LogMutable,Display, TEXT("Ignoring CO PackagedDataBytesLimit value in favour of overriding CVar value : mutable.PackagedDataBytesLimitOverride %llu"), Options.PackagedDataBytesLimit);
+	}
+	else
+	{
+		Options.PackagedDataBytesLimit =  PackagedDataBytesLimit;
+	}
+	
 	Options.EmbeddedDataBytesLimit = EmbeddedDataBytesLimit;
 	Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
 	Options.bRealTimeMorphTargetsEnabled = GetPublic()->bEnableRealTimeMorphTargets;
