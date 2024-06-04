@@ -68,6 +68,7 @@ Replication:
     MaxParallelReplications: {{ default 128  .MaxParallelReplications }} 
     SkipSnapshot: {{ default true  .SkipSnapshot }}
     PageSize: {{ default 1000  .PageSize }}
+    Version: {{ default "Refs"  .Version }}
 {{- end -}}
 {{- end }}
 
