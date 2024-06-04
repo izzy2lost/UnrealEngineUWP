@@ -38,6 +38,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"MeshUtilitiesCommon",
 				"ModelingOperatorsEditorOnly",	// TODO: Someday remove editor dependencies, see UE-206172
 				"ModelingOperators",
+				"MeshConversionEngineTypes",
 				"RenderCore",
 				"SkeletalMeshDescription",
 				"Slate",
