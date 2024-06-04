@@ -2306,6 +2306,7 @@ public:
 	ENGINE_API bool HandleListParticleSystemsCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleListSpawnedActorsCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleLogoutStatLevelsCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
+	ENGINE_API virtual void WriteMemReportMetadata( FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleMemReportCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleMemReportDeferredCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleSkeletalMeshReportCommand(const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld);
