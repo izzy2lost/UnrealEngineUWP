@@ -9,17 +9,30 @@
 class FMaterialIRModuleBuilder
 {
 public:
-	bool Build(UMaterial* InMaterial, FMaterialIRModule* TargetModule);
+	//
+	void SetSource(FMaterial* InMaterial, const FStaticParameterSet* InStaticParameters);
+
+	//
+	void SetPlatform(EShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, const ITargetPlatform* InTargetPlatform);
+
+	//
+	void SetTarget(FMaterialIRModule* InModule);
+
+	//
+	bool Build();
 
 private:
-	UMaterial* BaseMaterial;
+	FMaterial* Material;
+	const FStaticParameterSet* StaticParameters;
+	EShaderPlatform ShaderPlatform{};
+	ERHIFeatureLevel::Type FeatureLevel{};
+	const ITargetPlatform* TargetPlatform{};
 	FMaterialIRModule* Module;
-	TArray<UMaterialExpression*> ExpressionAnalysisStack;
-	TMap<const FExpressionInput*, UE::MIR::FValuePtr> InputValues;
-	TMap<const FExpressionOutput*, UE::MIR::FValuePtr> OutputValues;
 
-	friend class UE::MIR::FEmitter;
-	struct FPrivate;
+	TArray<FExpressionInput*> ExpressionAnalysisStack;
+
+	struct FHelper;
+	friend FHelper;
 };
 
 #endif

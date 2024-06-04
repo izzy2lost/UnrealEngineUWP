@@ -100,11 +100,6 @@ class FExpressionStaticTerrainLayerWeight;
 }
 }
 
-namespace UE::MIR
-{
-	class FEmitter;
-}
-
 template <class ElementType> class TLinkedList;
 
 #define ME_CAPTION_HEIGHT		18
@@ -195,8 +190,6 @@ ENGINE_API bool IsAlphaCompositeBlendMode(EBlendMode BlendMode);
 ENGINE_API bool IsAlphaCompositeBlendMode(const FMaterial& In);
 ENGINE_API bool IsAlphaCompositeBlendMode(const UMaterialInterface& In);
 ENGINE_API bool IsAlphaCompositeBlendMode(const FMaterialShaderParameters& In);
-
-ENGINE_API bool IsUsingNewMaterialTranslatorPrototype();
 
 #if WITH_EDITOR
 
@@ -2778,7 +2771,6 @@ private:
 	friend class FShaderCompilingManager;
 	friend class FHLSLMaterialTranslator;
 	friend class FMaterialHLSLErrorHandler;
-	friend class UE::MIR::FEmitter;
 };
 
 
