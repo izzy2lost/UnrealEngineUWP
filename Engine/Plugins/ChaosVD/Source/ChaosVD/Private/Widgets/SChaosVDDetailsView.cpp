@@ -38,6 +38,15 @@ void SChaosVDDetailsView::Construct(const FArguments& InArgs)
 	];
 }
 
+void SChaosVDDetailsView::SetSelectedStruct(const TSharedPtr<FStructOnScope>& NewStruct)
+{
+	// Clear the object selection view, as now we will have a struct view active
+	SetSelectedObject(nullptr);
+	
+	CurrentStructInView = NewStruct;
+	StructDetailsView->SetStructureData(NewStruct);
+}
+
 TSharedPtr<IDetailsView> SChaosVDDetailsView::CreateObjectDetailsView()
 {
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -81,6 +90,7 @@ void SChaosVDDetailsView::SetSelectedObject(UObject* NewObject)
 {
 	// Even if the object is not valid, clear any active structure view
 	StructDetailsView->SetStructureData(nullptr);
+	CurrentStructInView = nullptr;
 
 	if (DetailsView->IsLocked())
 	{

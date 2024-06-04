@@ -25,6 +25,8 @@
 //#include "Engine/World.h"
 //#include "DrawDebugHelpers.h"
 
+class FChaosVDDataWrapperUtils;
+
 template <typename T, bool>
 struct TSpatialAccelerationTraits
 {
@@ -1356,6 +1358,8 @@ private:
 	TArrayAsMap<TPayloadType, FPayloadInfo> MPayloadInfo;
 	T MaxPayloadBounds;
 	bool bIsEmpty;
+
+	friend ::FChaosVDDataWrapperUtils;
 };
 
 template<typename TPayloadType, class T, int d>

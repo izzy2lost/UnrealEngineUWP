@@ -166,6 +166,17 @@
 			FChaosVisualDebuggerTrace::TraceConstraintsContainer(ContainerView);
 	#endif
 
+	#ifndef CVD_TRACE_ACCELERATION_STRUCTURES
+		#define CVD_TRACE_ACCELERATION_STRUCTURES(AccelerationStructuresCollections, SolverType, SolverRef, DataChannel) \
+			{ \
+				FChaosVDContext StartAccelerationStrutureCVDContextData; \
+				FChaosVisualDebuggerTrace::GetCVDContext<SolverType>(SolverRef, StartAccelerationStrutureCVDContextData); \
+				CVD_SCOPE_CONTEXT(StartAccelerationStrutureCVDContextData); \
+				CVD_SCOPED_DATA_CHANNEL_OVERRIDE(DataChannel) \
+				FChaosVisualDebuggerTrace::TraceSceneAccelerationStructures(AccelerationStructuresCollections); \
+			}
+	#endif
+
 #else // WITH_CHAOS_VISUAL_DEBUGGER
 
 	#ifndef CVD_TRACE_PARTICLE
@@ -260,6 +271,10 @@
 
 	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER
 		#define CVD_TRACE_CONSTRAINTS_CONTAINER(ContainerView)
+	#endif
+
+	#ifndef CVD_TRACE_ACCELERATION_STRUCTURES
+			#define CVD_TRACE_ACCELERATION_STRUCTURES(AccelerationStructuresCollections, SolverType, SolverRef, DataChannel)
 	#endif
 
 #endif // WITH_CHAOS_VISUAL_DEBUGGER

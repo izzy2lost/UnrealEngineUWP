@@ -16,6 +16,8 @@
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include <atomic>
 
+#include "DataWrappers/ChaosVDAccelerationStructureDataWrappers.h"
+
 namespace Chaos::VisualDebugger
 {
 	class FChaosVDSerializableNameTable;
@@ -111,6 +113,7 @@ struct FChaosVDGameFrameData
 	TMap<FName, FChaosVDTrackedLocation> RecordedNonSolverLocationsByID;
 	TMap<FName, FChaosVDTrackedTransform> RecordedNonSolverTransformsByID;
 	TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>> RecordedSceneQueries;
+	TMap<int32, TArray<TSharedPtr<FChaosVDAABBTreeDataWrapper>>> RecordedAABBTreesBySolverID;
 };
 
 /**

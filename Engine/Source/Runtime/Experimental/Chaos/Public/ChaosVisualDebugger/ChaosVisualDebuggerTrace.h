@@ -28,6 +28,7 @@
 
 namespace Chaos
 {
+class FAccelerationStructureHandle;
 class FCharacterGroundConstraintContainer;
 class FPBDConstraintContainer;
 class FPBDJointConstraints;
@@ -145,6 +146,9 @@ namespace Chaos
 
 	class FPBDCollisionConstraint;
 	class FParticlePairMidPhase;
+
+	template <typename PayloadType, typename T, int d>
+	class ISpatialAccelerationCollection;
 }
 
 using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::FImplicitObjectPtr, Chaos::FChaosArchive>;
@@ -251,6 +255,8 @@ public:
 
 	static CHAOS_API void TraceSceneQueryStart(const Chaos::FImplicitObject* InputGeometry, const FQuat& GeometryOrientation, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, FChaosVDCollisionQueryParams&& Params, FChaosVDCollisionResponseParams&& ResponseParams, FChaosVDCollisionObjectQueryParams&& ObjectParams, EChaosVDSceneQueryType QueryType, EChaosVDSceneQueryMode QueryMode, int32 SolverID, bool bIsRetry);
 	static CHAOS_API void TraceSceneQueryVisit(FChaosVDQueryVisitStep&& InQueryVisitData);
+
+	static CHAOS_API void TraceSceneAccelerationStructures(const Chaos::ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>* InAccelerationCollection);
 
 	/** Returns true if the provided solver ID needs a Full Capture */
 	static bool ShouldPerformFullCapture(int32 SolverID);

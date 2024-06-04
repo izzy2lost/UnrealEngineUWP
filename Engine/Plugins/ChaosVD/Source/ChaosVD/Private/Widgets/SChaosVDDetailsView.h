@@ -38,6 +38,8 @@ public:
 	template<typename TStruct>
 	void SetSelectedStruct(TStruct* NewStruct);
 
+	void SetSelectedStruct(const TSharedPtr<FStructOnScope>& NewStruct);
+
 protected:
 
 	TSharedPtr<IDetailsView> CreateObjectDetailsView();
@@ -58,8 +60,6 @@ protected:
 template <typename TStruct>
 void SChaosVDDetailsView::SetSelectedStruct(TStruct* NewStruct)
 {
-	SetSelectedObject(nullptr);
-
 	TSharedPtr<FStructOnScope> StructDataView = nullptr;
 
 	if (NewStruct)
@@ -67,7 +67,5 @@ void SChaosVDDetailsView::SetSelectedStruct(TStruct* NewStruct)
 		StructDataView = MakeShared<FStructOnScope>(TStruct::StaticStruct(), reinterpret_cast<uint8*>(NewStruct));
 	}
 
-	CurrentStructInView = StructDataView;
-
-	StructDetailsView->SetStructureData(StructDataView);
+	SetSelectedStruct(StructDataView);
 }

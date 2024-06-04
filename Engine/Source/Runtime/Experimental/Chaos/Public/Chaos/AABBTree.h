@@ -72,6 +72,8 @@ struct FAABBTimeSliceCVars
 	static CHAOS_API FAutoConsoleVariableRef CVarMinDataChunkToProcessBetweenTimeChecks;
 };
 
+class FChaosVDDataWrapperUtils;
+
 namespace Chaos
 {
 
@@ -526,6 +528,8 @@ struct TAABBTreeLeafArray : public TBoundsWrapperHelper<TPayloadType, T, bComput
 
 	/** Flag on the leaf to know if it has been updated */
 	bool bDirtyLeaf = false;
+
+	friend ::FChaosVDDataWrapperUtils;
 };
 
 template <typename TPayloadType, bool bComputeBounds, typename T>
@@ -607,6 +611,8 @@ public:
 	}
 private:
 	int32 NumOfValidElements = 0;
+
+	friend ::FChaosVDDataWrapperUtils;
 };
 
 template <typename LeafType>
@@ -3775,9 +3781,10 @@ private:
 	{
 		if (InInterface)
 		{
-			if (Nodes.Num() > 0)
+			int32 RootNodeIndex = bDynamicTree ? RootNode : 0;
+			if (Nodes.Num() > 0 && Nodes.IsValidIndex(RootNodeIndex))
 			{
-				Nodes[0].DebugDraw(*InInterface, Nodes, { 1.f, 1.f, 1.f }, 5.f);
+				Nodes[RootNodeIndex].DebugDraw(*InInterface, Nodes, { 1.f, 1.f, 1.f }, 5.f);
 			}
 			for (int LeafIndex = 0; LeafIndex < Leaves.Num(); LeafIndex++)
 			{
@@ -3968,6 +3975,7 @@ private:
 	using FNodeIndexAndCost = TTuple<FNode&, int32, FReal>;
 	TArray<FNodeIndexAndCost> PriorityQ;	
 
+	friend ::FChaosVDDataWrapperUtils;
 };
 
 template<typename TPayloadType, typename TLeafType, bool bMutable, typename T, typename StorageTraits>

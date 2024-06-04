@@ -2,6 +2,8 @@
 
 #include "ChaosVisualDebugger/ChaosVDDataWrapperUtils.h"
 
+#include "Chaos/SpatialAccelerationCollection.h"
+
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
 #include "Chaos/PBDJointConstraints.h"
@@ -16,23 +18,6 @@
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Math/UnitConversion.h"
-
-namespace Chaos::VisualDebugger::Utils
-{
-	template<typename InType,typename OutType, int32 Size, typename TransformT>
-	void TransformStaticArray(const InType (&In)[Size], OutType (&Out)[Size], TransformT Trans)
-	{
-		for (int32 Index = 0; Index < Size; Index++)
-		{
-			Out[Index] = Invoke(Trans, In[Index]);
-		}
-	}
-
-	inline FTransform ConvertToFTransform(const FRigidTransform3& InChaosTransform)
-	{
-		return InChaosTransform;
-	}
-}
 
 void FChaosVDDataWrapperUtils::CopyManifoldPointsToDataWrapper(const Chaos::FManifoldPoint& InCopyFrom, FChaosVDManifoldPoint& OutCopyTo)
 {
@@ -456,4 +441,110 @@ void FChaosVDDataWrapperUtils::CopyShapeDataToWrapper(const Chaos::FShapeInstanc
 	OutCopyTo.QueryData.Word2 = CollisionData.QueryData.Word2;
 	OutCopyTo.QueryData.Word3 = CollisionData.QueryData.Word3;
 }
+
+void FChaosVDDataWrapperUtils::BuildDataWrapperFromAABBStructure(const Chaos::ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>* SceneAccelerationStructures, int32 OwnerSolverID, TArray<FChaosVDAABBTreeDataWrapper>& OutAABBTrees)
+{
+	using namespace Chaos;
+
+	if (!SceneAccelerationStructures)
+	{
+		return;
+	}
+
+	ISpatialAccelerationCollection<FAccelerationStructureHandle, FReal, 3>* MutableSceneAccelerationStructures = const_cast<ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>*>(SceneAccelerationStructures);
+
+	TArray<FSpatialAccelerationIdx> SpatialIndices = MutableSceneAccelerationStructures->GetAllSpatialIndices();
+	OutAABBTrees.Reserve(SpatialIndices.Num());
+	for (const FSpatialAccelerationIdx SpatialIndex : SpatialIndices)
+	{
+		const ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>* AccelerationStructure = MutableSceneAccelerationStructures->GetSubstructure(SpatialIndex);
+
+		FChaosVDAABBTreeDataWrapper AABBTreDataWrapper;
+		AABBTreDataWrapper.SolverId = OwnerSolverID;
+		
+		if (const TAABBTree<FAccelerationStructureHandle, TAABBTreeLeafArray<FAccelerationStructureHandle>>* AABBTree = AccelerationStructure->template As<TAABBTree<FAccelerationStructureHandle, TAABBTreeLeafArray<FAccelerationStructureHandle>>>())
+		{
+			BuildDataWrapperFromAABBStructure(*AABBTree, AABBTreDataWrapper);
+			OutAABBTrees.Emplace(AABBTreDataWrapper);
+		}
+		else if (const TAABBTree<FAccelerationStructureHandle, TBoundingVolume<FAccelerationStructureHandle>>* AABBTreeBV = AccelerationStructure->template As<TAABBTree<FAccelerationStructureHandle, TBoundingVolume<FAccelerationStructureHandle>>>())
+		{
+			BuildDataWrapperFromAABBStructure(*AABBTreeBV, AABBTreDataWrapper);
+			OutAABBTrees.Emplace(AABBTreDataWrapper);
+		}
+	}
+}
+
+void FChaosVDDataWrapperUtils::AddTreeLeaves(const TConstArrayView<Chaos::TAABBTreeLeafArray<Chaos::FAccelerationStructureHandle>>& LeavesContainer, FChaosVDAABBTreeDataWrapper& InOutAABBTreeWrapper)
+{
+	using namespace Chaos;
+
+	InOutAABBTreeWrapper.LeavesNum = LeavesContainer.Num();
+	InOutAABBTreeWrapper.TreeArrayLeafs.Reserve(InOutAABBTreeWrapper.LeavesNum);
+	for (const TAABBTreeLeafArray<FAccelerationStructureHandle>& TreeArrayLeaf : LeavesContainer)
+	{
+		FChaosVDAABBTreeLeafDataWrapper CVDLeaf;
+		CVDLeaf.Elements.Reserve(TreeArrayLeaf.Elems.Num());
+			
+		CVDLeaf.Bounds = ConvertToFBox(TreeArrayLeaf.GetBounds());
+
+		for (const TPayloadBoundsElement<FAccelerationStructureHandle, FReal>& Elem : TreeArrayLeaf.Elems)
+		{
+			FChaosVDAABBTreePayloadBoundsElement CVELeafElement;
+			CVELeafElement.ParticleIndex = GetUniqueIdx(Elem).Idx;
+			CVELeafElement.Bounds = ConvertToFBox(Elem.Bounds);
+
+			CVELeafElement.MarkAsValid();
+	
+			CVDLeaf.Elements.Emplace(CVELeafElement);
+		}
+			
+		CVDLeaf.MarkAsValid();
+
+		InOutAABBTreeWrapper.TreeArrayLeafs.Emplace(MoveTemp(CVDLeaf));
+	}
+}
+
+void FChaosVDDataWrapperUtils::AddTreeLeaves(const TConstArrayView<Chaos::TBoundingVolume<Chaos::FAccelerationStructureHandle>>& LeavesContainer, FChaosVDAABBTreeDataWrapper& InOutAABBTreeWrapper)
+{
+	using namespace Chaos;
+
+	InOutAABBTreeWrapper.LeavesNum = LeavesContainer.Num();
+	InOutAABBTreeWrapper.BoundingVolumeLeafs.Reserve(InOutAABBTreeWrapper.LeavesNum);
+
+	for (const TBoundingVolume<FAccelerationStructureHandle>& BoundingVolumeLeaf : LeavesContainer)
+	{
+		TVector<int32, 3> ElementCounts = BoundingVolumeLeaf.MElements.Counts();
+
+		FChaosVDBoundingVolumeDataWrapper CVDBoundingVolume;
+		CVDBoundingVolume.MElementsCounts = FIntVector3(ElementCounts.X, ElementCounts.Y, ElementCounts.Z);
+
+		CVDBoundingVolume.MaxPayloadBounds = BoundingVolumeLeaf.MaxPayloadBounds;
+
+		typedef TBoundingVolume<FAccelerationStructureHandle>::FCellElement FCellElement;
+
+		TConstArrayView<TArray<FCellElement>> ElementsFlatArray = MakeArrayView(BoundingVolumeLeaf.MElements.GetData(), ElementCounts.X * ElementCounts.Y * ElementCounts.Z);
+			
+		for (const TArray<FCellElement>& InCellElements : ElementsFlatArray)
+		{
+			TArray<FChaosVDBVCellElementDataWrapper> CellDataWrapper;
+			Algo::Transform(InCellElements, CellDataWrapper, [](const FCellElement& InElement)
+			{
+				FChaosVDBVCellElementDataWrapper CVDCellElement;
+				CVDCellElement.Bounds = ConvertToFBox(InElement.Bounds);
+				CVDCellElement.ParticleIndex = GetUniqueIdx(InElement.Payload).Idx;
+				CVDCellElement.StartIdx = FIntVector3(InElement.StartIdx.X, InElement.StartIdx.Y, InElement.StartIdx.Z);
+				CVDCellElement.EndIdx = FIntVector3(InElement.EndIdx.X, InElement.EndIdx.Y, InElement.EndIdx.Z);
+				CVDCellElement.MarkAsValid();
+	
+				return CVDCellElement;
+			});
+		}
+
+		CVDBoundingVolume.MarkAsValid();
+		
+		InOutAABBTreeWrapper.BoundingVolumeLeafs.Emplace(MoveTemp(CVDBoundingVolume));
+	}
+}
+
 #endif //WITH_CHAOS_VISUAL_DEBUGGER

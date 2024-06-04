@@ -8,6 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "ChaosVDSolverInfoActor.generated.h"
 
+class UChaosVDGTAccelerationStructuresDataComponent;
 class UChaosVDSolverCharacterGroundConstraintDataComponent;
 class UChaosVDSolverJointConstraintDataComponent;
 struct FChaosVDParticleDataWrapper;
@@ -44,6 +45,7 @@ public:
 	UChaosVDParticleDataComponent* GetParticleDataComponent() { return ParticleDataComponent; }
 	UChaosVDSolverJointConstraintDataComponent* GetJointsDataComponent() { return JointsDataComponent; }
 	UChaosVDSolverCharacterGroundConstraintDataComponent* GetCharacterGroundConstraintDataComponent() { return CharacterGroundConstraintDataComponent; }
+	UChaosVDGTAccelerationStructuresDataComponent* GetGTAccelerationStructuresDataComponent() { return GTAccelerationStructuresDataComponent; }
 
 	void RegisterParticleActor(int32 ParticleID, AChaosVDParticleActor* ParticleActor);
 
@@ -113,6 +115,9 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UChaosVDSolverCharacterGroundConstraintDataComponent> CharacterGroundConstraintDataComponent;
+
+	UPROPERTY()
+	TObjectPtr<UChaosVDGTAccelerationStructuresDataComponent> GTAccelerationStructuresDataComponent;
 };
 
 template <typename TCallback>

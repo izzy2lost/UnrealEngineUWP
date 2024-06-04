@@ -492,6 +492,8 @@ void FChaosScene::EndFrame()
 		return;
 	}
 
+	CVD_TRACE_ACCELERATION_STRUCTURES(SolverAccelerationStructure, Chaos::FPhysicsSolver, *SceneSolver, CVDDC_AccelerationStructures);
+
 #if !UE_BUILD_SHIPPING
 	{
 		Chaos::AABBTreeStatistics TreeStats;

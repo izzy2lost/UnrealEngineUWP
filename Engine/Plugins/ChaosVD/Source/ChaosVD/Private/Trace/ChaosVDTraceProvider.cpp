@@ -9,6 +9,7 @@
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
 #include "Compression/OodleDataCompressionUtil.h"
+#include "DataProcessors/ChaosVDAABBTreeDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDCharacterGroundConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDJointConstraintDataProcessor.h"
@@ -273,6 +274,10 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDArchiveHeaderProcessor> ArchiveHeaderDataProcessor = MakeShared<FChaosVDArchiveHeaderProcessor>();
 	ArchiveHeaderDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(ArchiveHeaderDataProcessor);
+
+	TSharedPtr<FChaosVDAABBTreeDataProcessor> AABBTreeDataProcessor = MakeShared<FChaosVDAABBTreeDataProcessor>();
+	AABBTreeDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(AABBTreeDataProcessor);
 
 	bDefaultDataProcessorsRegistered = true;
 }

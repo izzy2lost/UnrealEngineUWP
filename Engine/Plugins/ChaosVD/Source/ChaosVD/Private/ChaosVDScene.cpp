@@ -31,6 +31,7 @@
 #include "Settings/ChaosVDCoreSettings.h"
 #include "UObject/Package.h"
 #include "Actors/ChaosVDGeometryContainer.h"
+#include "Components/ChaosVDGTAccelerationStructuresDataComponent.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -357,6 +358,20 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 		if (UChaosVDSceneQueryDataComponent* QueryDataComponent = SceneQueriesContainer->GetSceneQueryDataComponent())
 		{
 			QueryDataComponent->UpdateQueriesFromFrameData(InNewGameFrameData);
+		}
+	}
+
+	for (const TPair<int32, TArray<TSharedPtr<FChaosVDAABBTreeDataWrapper>>>& AABBTreeDataWithSolverID : InNewGameFrameData.RecordedAABBTreesBySolverID)
+	{
+		if (AChaosVDSolverInfoActor** SolverInfoActorPtrPtr =  SolverDataContainerBySolverID.Find(AABBTreeDataWithSolverID.Key))
+		{
+			if (AChaosVDSolverInfoActor* SolverInfoActorPtr = *SolverInfoActorPtrPtr)
+			{
+				if (UChaosVDGTAccelerationStructuresDataComponent* GTAccelerationStructureDataComponent = SolverInfoActorPtr->GetGTAccelerationStructuresDataComponent())
+				{
+					GTAccelerationStructureDataComponent->UpdateAABBTreeData(AABBTreeDataWithSolverID.Value);
+				}
+			}
 		}
 	}
 }

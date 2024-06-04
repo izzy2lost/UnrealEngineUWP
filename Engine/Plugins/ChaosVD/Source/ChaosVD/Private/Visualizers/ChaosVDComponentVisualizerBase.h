@@ -13,6 +13,7 @@
 #include "Widgets/SChaosVDEnumFlagsMenu.h"
 #include "Widgets/SWidget.h"
 
+class SChaosVDMainTab;
 class FChaosVDSolverDataSelection;
 struct FChaosVDSolverDataSelectionHandle;
 class UChaosVDSettingsObjectBase;
@@ -60,7 +61,7 @@ protected:
 	
 	virtual bool CanHandleClick(const HChaosVDComponentVisProxy& VisProxy);
 
-	virtual bool SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene);
+	virtual bool SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene,const TSharedRef<SChaosVDMainTab>& InMainTabToolkitHost);
 
 	template<typename ObjectSettingsType, typename VisualizationFlagsType>
 	void CreateGenericVisualizerMenu(FName MenuToExtend, FName SectionName, const FText& InSectionLabel, const FText& InFlagsMenuLabel,  const FText& InFlagsMenuTooltip, FSlateIcon FlagsMenuIcon,  const FText& InSettingsMenuLabel, const FText& InSettingsMenuTooltip);

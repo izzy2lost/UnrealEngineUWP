@@ -43,7 +43,7 @@ public:
 
 	virtual bool CanHandleClick(const HChaosVDComponentVisProxy& VisProxy) override;
 
-	virtual bool SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene) override;
+	virtual bool SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene, const TSharedRef<SChaosVDMainTab>& InMainTabToolkitHost) override;
 
 protected:
 	

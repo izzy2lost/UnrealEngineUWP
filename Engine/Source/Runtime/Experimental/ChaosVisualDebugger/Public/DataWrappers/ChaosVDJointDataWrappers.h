@@ -2,28 +2,11 @@
 
 #pragma once
 #include "ChaosVDParticleDataWrapper.h"
+#include "DataWrappers/ChaosVDDataSerializationMacros.h"
 #include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
 
 #include "ChaosVDJointDataWrappers.generated.h"
-
-#ifndef CVD_IMPLEMENT_SERIALIZER
-		#define CVD_IMPLEMENT_SERIALIZER(Type) \
-		inline FArchive& operator<<(FArchive& Ar, Type& Data) \
-		{\
-			Data.Serialize(Ar); \
-			return Ar; \
-		} \
-		template<>\
-		struct TStructOpsTypeTraits<Type> : public TStructOpsTypeTraitsBase2<Type> \
-		{\
-			enum\
-			{\
-				WithSerializer = true,\
-			};\
-		};\
-
-#endif
 
 UENUM()
 enum class EChaosVDJointReSimType

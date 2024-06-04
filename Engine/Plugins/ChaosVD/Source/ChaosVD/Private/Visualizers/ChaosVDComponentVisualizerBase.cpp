@@ -44,13 +44,13 @@ bool FChaosVDComponentVisualizerBase::VisProxyHandleClick(FEditorViewportClient*
 			TabManager->TryInvokeTab(InspectorTabID);
 		}
 
-		return SelectVisualizedData(*ChaosVDHitProxy, CVDScene.ToSharedRef());
+		return SelectVisualizedData(*ChaosVDHitProxy, CVDScene.ToSharedRef(), MainTabToolkitHost.ToSharedRef());
 	}
 
 	return false;
 }
 
-bool FChaosVDComponentVisualizerBase::SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene)
+bool FChaosVDComponentVisualizerBase::SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene, const TSharedRef<SChaosVDMainTab>& InMainTabToolkitHost)
 {
 	if (TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = InCVDScene->GetSolverDataSelectionObject().Pin())
 	{
