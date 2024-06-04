@@ -19,7 +19,7 @@ namespace Jupiter
 		/// </summary>
 		[Required]
 		[Range(15, int.MaxValue)]
-		public int ReplicationPollFrequencySeconds { get; set; } = 15;
+		public int ReplicationPollFrequencySeconds { get; set; } = 60;
 
 		[Required]
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
