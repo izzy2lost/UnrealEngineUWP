@@ -77,6 +77,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FString CacheDir;
 	FString DefaultArtifactName;
 	FString SteamTokenType;
+	FString NintendoTokenType;
 	EOS_ERTCBackgroundMode RTCBackgroundMode;
 	int32 TickBudgetInMilliseconds;
 	int32 TitleStorageReadChunkLength;
@@ -93,6 +94,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool bMirrorAchievementsToEOS;
 	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon. Equivalent functionality can be accessed via the IntegratedPlatformManagementFlags config.")
 	bool bMirrorPresenceToEAS;
+	bool bUseNewLoginFlow;
 	TArray<FEOSArtifactSettings> Artifacts;
 	TArray<FString> TitleStorageTags;
 	TArray<FString> AuthScopeFlags;
@@ -184,6 +186,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
 	bool bMirrorPresenceToEAS = false;
 
+	/** Set to true to use new EOS login flow */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="EOS Login Settings", DisplayName="Use new Login flow, which doesn't rely on EOSPlus")
+	bool bUseNewLoginFlow = false;
+
 	/**
 	 * When running with Steam, defines what TokenType OSSEOS will request from OSSSteam to login with.
 	 * Please see EOS documentation at https://dev.epicgames.com/docs/dev-portal/identity-provider-management#steam for more information.
@@ -196,6 +202,16 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
 	FString SteamTokenType = TEXT("Session");
+
+	/**
+	 * When running with Nintendo, defines what ExternalType will be used during ExternalAuth Login.
+	 * The default is currently "NintendoServiceAccount".
+	 * Possible values:
+	 *     "NintendoServiceAccount" -> Use the EOS_ECT_NINTENDO_NSA_ID_TOKEN token type.
+	 *     "NintendoAccount" -> Use the EOS_ECT_NINTENDO_ID_TOKEN token type.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
+	FString NintendoTokenType = TEXT("NintendoServiceAccount");
 
 	/** Get the settings for the selected artifact */
 	static bool GetSelectedArtifactSettings(FEOSArtifactSettings& OutSettings);

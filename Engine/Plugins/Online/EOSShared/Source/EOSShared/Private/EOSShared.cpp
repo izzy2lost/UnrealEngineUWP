@@ -176,6 +176,34 @@ const TCHAR* LexToString(const EOS_Presence_EStatus PresenceStatus)
 	}
 }
 
+const TCHAR* LexToString(const EOS_EExternalCredentialType ExternalCredentialType)
+{
+	switch (ExternalCredentialType)
+	{
+		case EOS_EExternalCredentialType::EOS_ECT_AMAZON_ACCESS_TOKEN:	return TEXT("AmazonAccessToken");
+		case EOS_EExternalCredentialType::EOS_ECT_APPLE_ID_TOKEN:		return TEXT("AppleIdToken");
+		case EOS_EExternalCredentialType::EOS_ECT_DEVICEID_ACCESS_TOKEN:return TEXT("DeviceIdAccessToken");
+		case EOS_EExternalCredentialType::EOS_ECT_DISCORD_ACCESS_TOKEN:	return TEXT("DiscordAccessToken");
+		case EOS_EExternalCredentialType::EOS_ECT_EPIC:					return TEXT("Epic");
+		case EOS_EExternalCredentialType::EOS_ECT_EPIC_ID_TOKEN:		return TEXT("EpicIdToken");
+		case EOS_EExternalCredentialType::EOS_ECT_GOG_SESSION_TICKET:	return TEXT("GOGSessionTicket");
+		case EOS_EExternalCredentialType::EOS_ECT_GOOGLE_ID_TOKEN:		return TEXT("GoogleIdToken");
+		case EOS_EExternalCredentialType::EOS_ECT_ITCHIO_JWT:			return TEXT("ITCHIOJWT");
+		case EOS_EExternalCredentialType::EOS_ECT_ITCHIO_KEY:			return TEXT("ITCHIOKey");
+		case EOS_EExternalCredentialType::EOS_ECT_NINTENDO_ID_TOKEN:	return TEXT("NintendoIdToken");
+		case EOS_EExternalCredentialType::EOS_ECT_NINTENDO_NSA_ID_TOKEN:return TEXT("NintendoNSAIdToken");
+		case EOS_EExternalCredentialType::EOS_ECT_OCULUS_USERID_NONCE:	return TEXT("OculusUserIdNonce");
+		case EOS_EExternalCredentialType::EOS_ECT_OPENID_ACCESS_TOKEN:	return TEXT("OpenIdAccessToken");
+		case EOS_EExternalCredentialType::EOS_ECT_PSN_ID_TOKEN:			return TEXT("PSNIdToken");
+		case EOS_EExternalCredentialType::EOS_ECT_STEAM_APP_TICKET:		return TEXT("SteamAppTicket");
+		case EOS_EExternalCredentialType::EOS_ECT_STEAM_SESSION_TICKET:	return TEXT("SteamSessionTicket");
+		case EOS_EExternalCredentialType::EOS_ECT_UPLAY_ACCESS_TOKEN:	return TEXT("UplayAccessToken");
+		case EOS_EExternalCredentialType::EOS_ECT_VIVEPORT_USER_TOKEN:	return TEXT("ViveportUserToken");
+		case EOS_EExternalCredentialType::EOS_ECT_XBL_XSTS_TOKEN:		return TEXT("XBLXSTSToken");
+		default: checkNoEntry();										return TEXT("Unknown");
+	}
+}
+
 bool LexFromString(EOS_EExternalAccountType& OutEnum, const TCHAR* InString)
 {
 	if (FCString::Stricmp(InString, TEXT("Amazon")) == 0)
@@ -419,6 +447,97 @@ bool LexFromString(EOS_UI_EInputStateButtonFlags& OutEnum, const TCHAR* InString
 	else if (FCString::Stricmp(InString, TEXT("None")) == 0)
 	{
 		OutEnum = EOS_UI_EInputStateButtonFlags::EOS_UISBF_None;
+	}
+	else
+	{
+		checkNoEntry();
+		return false;
+	}
+
+	return true;
+}
+
+bool LexFromString(EOS_EExternalCredentialType& OutEnum, const TCHAR* InString)
+{
+	if (FCString::Stricmp(InString, TEXT("AmazonAccessToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_AMAZON_ACCESS_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("AppleIdToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_APPLE_ID_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("DeviceIdAccessToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_DEVICEID_ACCESS_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("DiscordAccessToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_DISCORD_ACCESS_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Epic")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_EPIC;
+	}
+	else if (FCString::Stricmp(InString, TEXT("EpicIdToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_EPIC_ID_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("GOGSessionTicket")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_GOG_SESSION_TICKET;
+	}
+	else if (FCString::Stricmp(InString, TEXT("GoogleIdToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_GOOGLE_ID_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("ITCHIOJWT")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_ITCHIO_JWT;
+	}
+	else if (FCString::Stricmp(InString, TEXT("ITCHIOKey")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_ITCHIO_KEY;
+	}
+	else if (FCString::Stricmp(InString, TEXT("NintendoIdToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_NINTENDO_ID_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("NintendoNSAIdToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_NINTENDO_NSA_ID_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("OculusUserIdNonce")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_OCULUS_USERID_NONCE;
+	}
+	else if (FCString::Stricmp(InString, TEXT("OpenIdAccessToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_OPENID_ACCESS_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("PSNIdToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_PSN_ID_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("SteamAppTicket")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_STEAM_APP_TICKET;
+	}
+	else if (FCString::Stricmp(InString, TEXT("SteamSessionTicket")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_STEAM_SESSION_TICKET;
+	}
+	else if (FCString::Stricmp(InString, TEXT("UplayAccessToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_UPLAY_ACCESS_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("ViveportUserToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_VIVEPORT_USER_TOKEN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("XBLXSTSToken")) == 0)
+	{
+		OutEnum = EOS_EExternalCredentialType::EOS_ECT_XBL_XSTS_TOKEN;
 	}
 	else
 	{

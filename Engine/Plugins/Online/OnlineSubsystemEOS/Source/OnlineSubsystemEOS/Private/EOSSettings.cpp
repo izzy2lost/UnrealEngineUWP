@@ -146,6 +146,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	, bMirrorAchievementsToEOS(false)
 	, bMirrorPresenceToEAS(false)
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	, bUseNewLoginFlow(false)
 {
 
 }
@@ -197,6 +198,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		GConfig->GetBool(INI_SECTION, TEXT("bMirrorAchievementsToEOS"), CachedSettings->bMirrorAchievementsToEOS, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bMirrorPresenceToEAS"), CachedSettings->bMirrorPresenceToEAS, GEngineIni);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		GConfig->GetBool(INI_SECTION, TEXT("bUseNewLoginFlow"), CachedSettings->bUseNewLoginFlow, GEngineIni);
 		// Artifacts explicitly skipped
 		GConfig->GetArray(INI_SECTION, TEXT("TitleStorageTags"), CachedSettings->TitleStorageTags, GEngineIni);
 		GConfig->GetArray(INI_SECTION, TEXT("AuthScopeFlags"), CachedSettings->AuthScopeFlags, GEngineIni);
@@ -231,6 +233,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Native.bMirrorAchievementsToEOS = bMirrorAchievementsToEOS;
 	Native.bMirrorPresenceToEAS = bMirrorPresenceToEAS;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	Native.bUseNewLoginFlow = bUseNewLoginFlow;
 	Algo::Transform(Artifacts, Native.Artifacts, &FArtifactSettings::ToNative);
 	Native.TitleStorageTags = TitleStorageTags;
 	Native.AuthScopeFlags = AuthScopeFlags;
