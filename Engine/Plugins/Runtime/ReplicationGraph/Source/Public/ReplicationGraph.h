@@ -922,7 +922,8 @@ class REPLICATIONGRAPH_API UReplicationGraph : public UReplicationDriver
 public:
 
 	UReplicationGraph();
-	virtual ~UReplicationGraph();
+
+	virtual void BeginDestroy() override;
 
 	/** The per-connection manager class to instantiate. This will be read off the instantiated UNetReplicationManager. */
 	UPROPERTY(Config)
@@ -1223,8 +1224,8 @@ private:
 
 	friend class AReplicationGraphDebugActor;
 
-	/** Delegate that runs after world cleanup to report any actors that were not explicitly removed from Replication Graph and could be leaks. */
-	FDelegateHandle PostWorldCleanupCheckDelegateHandle;
+	/** Delegate to remove all network actors when a world is cleaned up. */
+	FDelegateHandle WorldCleanupDelegateHandle;
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
