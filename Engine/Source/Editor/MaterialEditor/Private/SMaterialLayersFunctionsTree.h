@@ -17,6 +17,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
+#include "Materials/MaterialExpressionMaterialSample.h"
 
 class IPropertyHandle;
 class SMaterialLayersFunctionsInstanceTree;
@@ -115,7 +116,11 @@ public:
 	TAttribute<ECheckBoxState> IsParamChecked;
 	TWeakObjectPtr<class UDEditorParameterValue> LayerParameter;
 	class UMaterialEditorInstanceConstant* MaterialEditorInstance;
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	TSharedPtr<class SMaterialSubstrateTree> NestedTree;
+#else
 	TSharedPtr<class SMaterialLayersFunctionsInstanceTree> NestedTree;
+#endif
 	FSimpleDelegate OnLayerPropertyChanged;
 };
 

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SMaterialLayersFunctionsTree.h"
+#include "SMaterialSubstrateTree.h"
 #include "MaterialEditor/DEditorFontParameterValue.h"
 #include "MaterialEditor/DEditorMaterialLayersParameterValue.h"
 #include "MaterialEditor/DEditorRuntimeVirtualTextureParameterValue.h"
@@ -1786,8 +1787,12 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 
 	if (LayerParameter != nullptr)
 	{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		FOnClicked OnRelinkToParent = FOnClicked::CreateSP(NestedTree.ToSharedRef(), &SMaterialSubstrateTree::RelinkLayersToParent);
+#else
 		FOnClicked OnRelinkToParent = FOnClicked::CreateSP(NestedTree.ToSharedRef(), &SMaterialLayersFunctionsInstanceTree::RelinkLayersToParent);
-
+#endif
+		
 		this->ChildSlot
 			[
 				SNew(SVerticalBox)
@@ -1819,9 +1824,15 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+				PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(NestedTree.Get(), &SMaterialSubstrateTree::AddLayer))
+#else
 					PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(NestedTree.Get(), &SMaterialLayersFunctionsInstanceTree::AddLayer))
+#endif
 				];
 		}
+
+#ifndef ENABLE_MATERIAL_LAYER_PROTOTYPE
 		HeaderBox->AddSlot()
 			.FillWidth(1.0f)
 			[
@@ -1858,6 +1869,7 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 				.OnClicked(OnChildButtonClicked)
 				.ToolTipText(LOCTEXT("SaveToChildInstance", "Save To Child Instance"))
 			];
+#endif
 	}
 	else
 	{
@@ -1877,10 +1889,18 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 
 void SMaterialLayersFunctionsInstanceWrapper::Construct(const FArguments& InArgs)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	NestedTree = SNew(SMaterialSubstrateTree)
+		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
+		.InWrapper(this)
+		.InShowHiddenDelegate(InArgs._InShowHiddenDelegate);
+#else
 	NestedTree = SNew(SMaterialLayersFunctionsInstanceTree)
 		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
 		.InWrapper(this)
 		.InShowHiddenDelegate(InArgs._InShowHiddenDelegate);
+#endif
+	
 
 	LayerParameter = NestedTree->FunctionParameter;
 

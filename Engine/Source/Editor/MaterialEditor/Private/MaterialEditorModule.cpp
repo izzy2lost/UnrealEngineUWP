@@ -23,6 +23,7 @@
 #include "ISettingsModule.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "MaterialEditorGraphPanelPinFactory.h"
+#include "MaterialEditorStyle.h"
 
 const FName MaterialEditorAppIdentifier = FName(TEXT("MaterialEditorApp"));
 const FName MaterialInstanceEditorAppIdentifier = FName(TEXT("MaterialInstanceEditorApp"));
@@ -67,6 +68,8 @@ public:
 
 		GraphPanelPinFactory = MakeShared<FMaterialEditorGraphPanelPinFactory>();
 		FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
+
+		FSubstrateMaterialEditorStyle::Initialize();
 	}
 
 	/**
@@ -78,6 +81,8 @@ public:
 
 		MenuExtensibilityManager.Reset();
 		ToolBarExtensibilityManager.Reset();
+		
+		FSubstrateMaterialEditorStyle::Shutdown();
 	}
 
 	/**
