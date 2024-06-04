@@ -27,7 +27,5 @@ public class SourceFilteringTrace : ModuleRules
 				}
 			);
         }
-
-		bAllowAutoRTFMInstrumentation = true;
     }
 }
