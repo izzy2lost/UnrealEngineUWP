@@ -361,9 +361,10 @@ void STraitEditorView::UpdateTraitStatusInStack(const TArray<TSharedPtr<FTraitDa
 				const FTraitInterfaceUID& RequiredInterface = RequiredInterfaces[RequiredIndex];
 
 				bool bFound = false;
-				for (int32 ParentIndex = TraitIndex - 1; ParentIndex >= 0 && !bFound; ParentIndex--)
+				// Start search from current trait to enable traits that inherit from a trait with a required interface that is implemented in the derived class
+				for (int32 SearchStartIndex = TraitIndex; SearchStartIndex >= 0 && !bFound; SearchStartIndex--)
 				{
-					const TSharedPtr<FTraitDataEditorDef>& ParentTraitData = CurrentTraitsData[ParentIndex];
+					const TSharedPtr<FTraitDataEditorDef>& ParentTraitData = CurrentTraitsData[SearchStartIndex];
 
 					const TArray<FTraitInterfaceUID>& ParentImplementedInterfaces = ParentTraitData->ImplementedInterfaces;
 

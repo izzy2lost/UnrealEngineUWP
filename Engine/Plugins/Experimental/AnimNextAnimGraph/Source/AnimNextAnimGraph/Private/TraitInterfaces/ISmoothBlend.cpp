@@ -11,7 +11,7 @@ namespace UE::AnimNext
 #if WITH_EDITOR
 	const FText& ISmoothBlend::GetDisplayName() const
 	{
-		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_ISmoothBlend_Name", "Group Synchronization");
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_ISmoothBlend_Name", "Smooth Blend");
 		return InterfaceName;
 	}
 	const FText& ISmoothBlend::GetDisplayShortName() const
