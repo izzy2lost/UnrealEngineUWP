@@ -218,7 +218,7 @@ double FWeightedCubicInterpolation::Evaluate(FFrameTime InTime) const
 		NewInterp = TNumericLimits<double>::Lowest(); //just need to be out of range
 		for (double Result : Results)
 		{
-			if ((Result >= 0.0) && (Result <= 1.0))
+			if ((Result > 0.0 || FMath::IsNearlyEqual(Result, 0.0)) && (Result < 1.0 || FMath::IsNearlyEqual(Result, 1.0))) 
 			{
 				if (NewInterp < 0.0 || Result > NewInterp)
 				{
