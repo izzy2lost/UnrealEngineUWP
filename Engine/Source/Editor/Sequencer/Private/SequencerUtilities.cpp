@@ -2407,7 +2407,10 @@ FGuid TryCreateCustomBinding(TSharedRef<ISequencer> Sequencer, UObject* CustomBi
 		for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
 		{
 			// If 'spawnable' has been passed in, we only want to use children of UMovieSceneSpawnableBindingBase and vice versa
-			if ((!bSpawnable != CustomBindingType->IsChildOf<UMovieSceneSpawnableBindingBase>()) && (!bReplaceable != CustomBindingType->IsChildOf<UMovieSceneReplaceableBindingBase>()))
+			const bool bIsCustomSpawnableBinding = CustomBindingType->IsChildOf<UMovieSceneSpawnableBindingBase>();
+			const bool bIsCustomReplaceableBinding = CustomBindingType->IsChildOf<UMovieSceneReplaceableBindingBase>();
+			if ((bSpawnable && bIsCustomSpawnableBinding) ||
+				(bReplaceable && bIsCustomReplaceableBinding))
 			{
 				if (UMovieSceneCustomBinding* CustomBindingCDO = CustomBindingType ? CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>() : nullptr)
 				{

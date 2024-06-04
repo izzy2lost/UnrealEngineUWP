@@ -3413,6 +3413,7 @@ void SSequencer::OnAssetsDropped( const FAssetDragDropOp& DragDropOp )
 				UE::Sequencer::FCreateBindingParams Params;
 				Params.BindingNameOverride = CurObject->GetName();
 				Params.bSpawnable = true;
+				Params.bReplaceable = true;
 				Params.ActorFactory = DragDropOp.GetActorFactory();
 
 				if (SequencerRef.CreateBinding(*CurObject, Params).IsValid())
