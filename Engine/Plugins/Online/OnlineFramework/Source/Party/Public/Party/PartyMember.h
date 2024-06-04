@@ -7,6 +7,7 @@
 #include "SocialTypes.h"
 #include "PartyMember.generated.h"
 
+class ULocalPlayer;
 class USocialUser;
 class FOnlinePartyMember;
 class FOnlinePartyData;
@@ -175,11 +176,18 @@ public:
 
 	virtual void BeginDestroy() override;
 
-	bool CanPromoteToLeader() const;
-	bool PromoteToPartyLeader();
-
-	bool CanKickFromParty() const;
-	bool KickFromParty();
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool CanPromoteToLeader() const { return false; }
+	bool CanPromoteToLeader(const ULocalPlayer& PerformingPlayer) const;
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool PromoteToPartyLeader() { return false; }
+	bool PromoteToPartyLeader(const ULocalPlayer& PerformingPlayer);
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool CanKickFromParty() const { return false; }
+	bool CanKickFromParty(const ULocalPlayer& PerformingPlayer) const;
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool KickFromParty() { return false; }
+	bool KickFromParty(const ULocalPlayer& PerformingPlayer);
 
 	bool IsInitialized() const;
 	bool IsPartyLeader() const;

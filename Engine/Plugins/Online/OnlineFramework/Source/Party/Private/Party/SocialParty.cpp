@@ -284,7 +284,8 @@ ESocialPartyInviteFailureReason USocialParty::CanInviteUserInternal(const USocia
 
 	//@todo DanH Party: The problem with CanLocalUserInvite is that it the "friend" restriction is applied to mcp friends only, so a console friend doesn't count (but should) #required
 	//		Need to check in with OGS about that...
-	if (!OssParty->CanLocalUserInvite(*OwningLocalUserId))
+	const ULocalPlayer* PerformingPlayer = User.GetOwningToolkit().GetOwningLocalPlayerPtr();
+	if (!PerformingPlayer || !OssParty->CanLocalUserInvite(*PerformingPlayer->GetPreferredUniqueNetId()))
 	{
 		return ESocialPartyInviteFailureReason::OssValidationFailed;
 	}
@@ -337,6 +338,8 @@ bool USocialParty::TryInviteUser(const USocialUser& UserToInvite, const ESocialP
 			bIsOnlineOnPlatform = PlatformPresenceInfo->bIsOnline;
 		}
 
+		const ULocalPlayer* PerformingPlayer = UserToInvite.GetOwningToolkit().GetOwningLocalPlayerPtr();
+
 		if ((UserPlatformId.IsValid() && bIsOnlineOnPlatform) && 
 			(!UserPrimaryId.IsValid() || bPreferPlatformInvite) && 
 			!IsInviteRateLimited(UserToInvite, ESocialSubsystem::Platform))
@@ -345,9 +348,9 @@ bool USocialParty::TryInviteUser(const USocialUser& UserToInvite, const ESocialP
 			bool bSentPlatformInvite = false;
 			const FName SocialOssName = USocialManager::GetSocialOssName(ESocialSubsystem::Platform);
 			const IOnlineSessionPtr PlatformSessionInterface = Online::GetSessionInterface(GetWorld(), SocialOssName);
-			if (PlatformSessionInterface)
+			if (PlatformSessionInterface && PerformingPlayer)
 			{
-				FUniqueNetIdRepl LocalUserPlatformId = GetOwningLocalMember().GetRepData().GetPlatformDataUniqueId();
+				FUniqueNetIdRepl LocalUserPlatformId = PerformingPlayer->GetUniqueNetIdForPlatformUser();
 
 				//@todo FORT-244991 Temporarily fall back on grabbing the LocalUserPlatformId from the Platform identity interface
 				if (!LocalUserPlatformId.IsValid())
@@ -371,12 +374,12 @@ bool USocialParty::TryInviteUser(const USocialUser& UserToInvite, const ESocialP
 			OnInviteSentInternal(ESocialSubsystem::Platform, UserToInvite, bSentPlatformInvite, FailureReason, InviteMethod);
 			bSentInvite |= bSentPlatformInvite;
 		}
-		if ((!bSentInvite || bMustSendPrimaryInvite) && UserPrimaryId.IsValid() && !IsInviteRateLimited(UserToInvite, ESocialSubsystem::Primary))
+		if ((!bSentInvite || bMustSendPrimaryInvite) && PerformingPlayer && UserPrimaryId.IsValid() && !IsInviteRateLimited(UserToInvite, ESocialSubsystem::Primary))
 		{
 			// Primary subsystem invites can be sent directly to the user via the party interface
 			const FPartyInvitationRecipient Recipient(*UserPrimaryId, MetaData);
 			const IOnlinePartyPtr PartyInterface = Online::GetPartyInterfaceChecked(GetWorld());
-			const bool bSentPrimaryInvite = PartyInterface->SendInvitation(*OwningLocalUserId, GetPartyId(), Recipient);
+			const bool bSentPrimaryInvite = PartyInterface->SendInvitation(*PerformingPlayer->GetPreferredUniqueNetId(), GetPartyId(), Recipient);
 			ESocialPartyInviteFailureReason FailureReason = bSentPrimaryInvite ? ESocialPartyInviteFailureReason::Success : ESocialPartyInviteFailureReason::PartyInviteFailed;
 			OnInviteSentInternal(ESocialSubsystem::Primary, UserToInvite, bSentPrimaryInvite, FailureReason, InviteMethod);
 			bSentInvite |= bSentPrimaryInvite;
@@ -389,20 +392,20 @@ bool USocialParty::TryInviteUser(const USocialUser& UserToInvite, const ESocialP
 	return bSentInvite;
 }
 
-bool USocialParty::CanPromoteMember(const UPartyMember& PartyMember) const
+bool USocialParty::CanPromoteMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const
 {
-	check(PartyMembersById.Contains(PartyMember.GetPrimaryNetId()));
-	return CanPromoteMemberInternal(PartyMember);
+	check(PartyMembersById.Contains(PerformingPlayer.GetPreferredUniqueNetId()) && PartyMembersById.Contains(PartyMember.GetPrimaryNetId()));
+	return CanPromoteMemberInternal(PerformingPlayer, PartyMember);
 }
 
-bool USocialParty::CanPromoteMemberInternal(const UPartyMember& PartyMember) const
+bool USocialParty::CanPromoteMemberInternal(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const
 {
-	return IsLocalPlayerPartyLeader() && bIsMemberPromotionPossible && !PartyMember.IsPartyLeader() && !PartyMember.IsLocalPlayer();
+	return IsPartyLeader(PerformingPlayer) && bIsMemberPromotionPossible && !PartyMember.IsPartyLeader() && !PartyMember.IsLocalPlayer();
 }
 
-bool USocialParty::TryPromoteMember(const UPartyMember& PartyMember)
+bool USocialParty::TryPromoteMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember)
 {
-	if (CanPromoteMember(PartyMember))
+	if (CanPromoteMember(PerformingPlayer, PartyMember))
 	{
 		UE_LOG(LogParty, VeryVerbose, TEXT("Party [%s] Attempting to promote member [%s]"), *ToDebugString(), *PartyMember.ToDebugString(false));
 
@@ -410,30 +413,30 @@ bool USocialParty::TryPromoteMember(const UPartyMember& PartyMember)
 		PartyDataReplicator.Flush();
 
 		IOnlinePartyPtr PartyInterface = Online::GetPartyInterfaceChecked(GetWorld());
-		return PartyInterface->PromoteMember(*OwningLocalUserId, GetPartyId(), *PartyMember.GetPrimaryNetId());
+		return PartyInterface->PromoteMember(*PerformingPlayer.GetPreferredUniqueNetId(), GetPartyId(), *PartyMember.GetPrimaryNetId());
 	}
 	return false;
 }
 
-bool USocialParty::CanKickMember(const UPartyMember& PartyMember) const
+bool USocialParty::CanKickMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const
 {
-	check(PartyMembersById.Contains(PartyMember.GetPrimaryNetId()));
-	return CanKickMemberInternal(PartyMember);
+	check(PartyMembersById.Contains(PerformingPlayer.GetPreferredUniqueNetId()) && PartyMembersById.Contains(PartyMember.GetPrimaryNetId()));
+	return CanKickMemberInternal(PerformingPlayer, PartyMember);
 }
 
-bool USocialParty::CanKickMemberInternal(const UPartyMember& PartyMember) const
+bool USocialParty::CanKickMemberInternal(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const
 {
-	return IsLocalPlayerPartyLeader() && !PartyMember.IsLocalPlayer();
+	return IsPartyLeader(PerformingPlayer) && !PartyMember.IsLocalPlayer();
 }
 
-bool USocialParty::TryKickMember(const UPartyMember& PartyMember)
+bool USocialParty::TryKickMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember)
 {
-	if (CanKickMember(PartyMember))
+	if (CanKickMember(PerformingPlayer, PartyMember))
 	{
 		UE_LOG(LogParty, VeryVerbose, TEXT("Party [%s] Attempting to kick member [%s]"), *ToDebugString(), *PartyMember.ToDebugString(false));
 
 		IOnlinePartyPtr PartyInterface = Online::GetPartyInterfaceChecked(GetWorld());
-		return PartyInterface->KickMember(*OwningLocalUserId, GetPartyId(), *PartyMember.GetPrimaryNetId());
+		return PartyInterface->KickMember(*PerformingPlayer.GetPreferredUniqueNetId(), GetPartyId(), *PartyMember.GetPrimaryNetId());
 	}
 	return false;
 }

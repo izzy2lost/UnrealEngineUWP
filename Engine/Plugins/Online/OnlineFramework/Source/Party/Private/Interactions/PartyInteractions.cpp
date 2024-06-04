@@ -234,15 +234,18 @@ FString FSocialInteraction_KickPartyMember::GetSlashCommandToken()
 
 bool FSocialInteraction_KickPartyMember::CanExecute(const USocialUser& User)
 {
+	const ULocalPlayer* LocalPlayer = User.GetOwningToolkit().GetOwningLocalPlayerPtr();
 	const UPartyMember* PartyMember = User.GetPartyMember(IOnlinePartySystem::GetPrimaryPartyTypeId());
-	return PartyMember && PartyMember->CanKickFromParty();
+	return LocalPlayer && PartyMember && PartyMember->CanKickFromParty(*LocalPlayer);
 }
 
 void FSocialInteraction_KickPartyMember::ExecuteInteraction(USocialUser& User)
 {
-	if (UPartyMember* PartyMember = User.GetPartyMember(IOnlinePartySystem::GetPrimaryPartyTypeId()))
+	const ULocalPlayer* LocalPlayer = User.GetOwningToolkit().GetOwningLocalPlayerPtr();
+	UPartyMember* PartyMember = User.GetPartyMember(IOnlinePartySystem::GetPrimaryPartyTypeId());
+	if (LocalPlayer && PartyMember)
 	{
-		PartyMember->KickFromParty();
+		PartyMember->KickFromParty(*LocalPlayer);
 	}
 }
 
@@ -262,15 +265,18 @@ FString FSocialInteraction_PromoteToPartyLeader::GetSlashCommandToken()
 
 bool FSocialInteraction_PromoteToPartyLeader::CanExecute(const USocialUser& User)
 {
+	const ULocalPlayer* LocalPlayer = User.GetOwningToolkit().GetOwningLocalPlayerPtr();
 	const UPartyMember* PartyMember = User.GetPartyMember(IOnlinePartySystem::GetPrimaryPartyTypeId());
-	return PartyMember && PartyMember->CanPromoteToLeader();
+	return LocalPlayer && PartyMember && PartyMember->CanPromoteToLeader(*LocalPlayer);
 }
 
 void FSocialInteraction_PromoteToPartyLeader::ExecuteInteraction(USocialUser& User)
 {
-	if (UPartyMember* PartyMember = User.GetPartyMember(IOnlinePartySystem::GetPrimaryPartyTypeId()))
+	const ULocalPlayer* LocalPlayer = User.GetOwningToolkit().GetOwningLocalPlayerPtr();
+	UPartyMember* PartyMember = User.GetPartyMember(IOnlinePartySystem::GetPrimaryPartyTypeId());
+	if (LocalPlayer && PartyMember)
 	{
-		PartyMember->PromoteToPartyLeader();
+		PartyMember->PromoteToPartyLeader(*LocalPlayer);
 	}
 }
 

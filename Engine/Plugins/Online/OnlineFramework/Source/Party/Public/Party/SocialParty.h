@@ -238,13 +238,21 @@ protected:
 	//--------------------------
 	// User/member-specific actions that are best exposed on the individuals themselves, but best handled by the actual party
 	bool HasUserBeenInvited(const USocialUser& User) const;
-	
-	bool CanPromoteMember(const UPartyMember& PartyMember) const;
-	virtual bool CanKickMember(const UPartyMember& PartyMember) const;
+
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool CanPromoteMember(const UPartyMember& PartyMember) const { return false; }
+	bool CanPromoteMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool CanKickMember(const UPartyMember& PartyMember) const { return false; }
+	virtual bool CanKickMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool TryPromoteMember(const UPartyMember& PartyMember) { return false; }
+	bool TryPromoteMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember);
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool TryKickMember(const UPartyMember& PartyMember) { return false; }
+	virtual bool TryKickMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember);
 	
 	bool TryInviteUser(const USocialUser& UserToInvite, const ESocialPartyInviteMethod InviteMethod = ESocialPartyInviteMethod::Other, const FString& MetaData = FString());
-	bool TryPromoteMember(const UPartyMember& PartyMember);
-	virtual bool TryKickMember(const UPartyMember& PartyMember);
 	//--------------------------
 
 protected:
@@ -265,8 +273,13 @@ protected:
 	UE_DEPRECATED(5.3, "This function has been deperecated, use CanInviteUserInternal(const USocialUser& User, const ESocialPartyInviteMethod InviteMethod) instead.")
 	virtual ESocialPartyInviteFailureReason CanInviteUserInternal(const USocialUser& User) const;
 	virtual ESocialPartyInviteFailureReason CanInviteUserInternal(const USocialUser& User, const ESocialPartyInviteMethod InviteMethod) const;
-	virtual bool CanPromoteMemberInternal(const UPartyMember& PartyMember) const;
-	virtual bool CanKickMemberInternal(const UPartyMember& PartyMember) const;
+
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool CanPromoteMemberInternal(const UPartyMember& PartyMember) const { return false; }
+	virtual bool CanPromoteMemberInternal(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
+	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool CanKickMemberInternal(const UPartyMember& PartyMember) const { return false; }
+	virtual bool CanKickMemberInternal(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
 
 	virtual void OnInviteSentInternal(ESocialSubsystem SubsystemType, const USocialUser& InvitedUser, bool bWasSuccessful, const ESocialPartyInviteFailureReason FailureReason, const ESocialPartyInviteMethod InviteMethod);
 

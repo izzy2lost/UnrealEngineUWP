@@ -145,24 +145,24 @@ void UPartyMember::Shutdown()
 	MemberDataReplicator.Reset();
 }
 
-bool UPartyMember::CanPromoteToLeader() const
+bool UPartyMember::CanPromoteToLeader(const ULocalPlayer& PerformingPlayer) const
 {
-	return GetParty().CanPromoteMember(*this);
+	return GetParty().CanPromoteMember(PerformingPlayer, *this);
 }
 
-bool UPartyMember::PromoteToPartyLeader()
+bool UPartyMember::PromoteToPartyLeader(const ULocalPlayer& PerformingPlayer)
 {
-	return GetParty().TryPromoteMember(*this);
+	return GetParty().TryPromoteMember(PerformingPlayer, *this);
 }
 
-bool UPartyMember::CanKickFromParty() const
+bool UPartyMember::CanKickFromParty(const ULocalPlayer& PerformingPlayer) const
 {
-	return GetParty().CanKickMember(*this);
+	return GetParty().CanKickMember(PerformingPlayer, *this);
 }
 
-bool UPartyMember::KickFromParty()
+bool UPartyMember::KickFromParty(const ULocalPlayer& PerformingPlayer)
 {
-	return GetParty().TryKickMember(*this);
+	return GetParty().TryKickMember(PerformingPlayer, *this);
 }
 
 bool UPartyMember::IsInitialized() const
