@@ -25,8 +25,6 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeEditMaterialBaseDetails:
 
 void FCustomizableObjectNodeEditMaterialBaseDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(DetailBuilder);
-
 	DetailBuilderPtr = &DetailBuilder;
 	NodeEditMaterialBase = nullptr;
 
