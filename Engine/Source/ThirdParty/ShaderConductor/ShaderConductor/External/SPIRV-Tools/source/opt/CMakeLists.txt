@@ -13,15 +13,10 @@
 # limitations under the License.
 set(SPIRV_TOOLS_OPT_SOURCES
   fix_func_call_arguments.h
-# UE Change Begin: Interface variable scalar replacement pass rewrite
-  adv_interface_var_sroa.h
-# UE Change End: Interface variable scalar replacement pass rewrite
   aggressive_dead_code_elim_pass.h
   amd_ext_to_khr.h
   analyze_live_input_pass.h
-# UE Change Begin: Added support for Android driver patch pass to fix platform specific issues
   android_driver_patch_pass.h
-# UE Change End: Added support for Android driver patch pass to fix platform specific issues
   basic_block.h
   block_merge_pass.h
   block_merge_util.h
@@ -65,11 +60,7 @@ set(SPIRV_TOOLS_OPT_SOURCES
   fold_spec_constant_op_and_composite_pass.h
   freeze_spec_constant_value_pass.h
   function.h
-# UE Change Begin: Implement a fused-multiply-add pass to reduce the
-# possibility of re-association.
   fused_multiply_add_pass.h
-# UE Change End: Implement a fused-multiply-add pass to reduce the
-# possibility of re-association.
   graphics_robust_access_pass.h
   if_conversion.h
   inline_exhaustive_pass.h
@@ -113,12 +104,8 @@ set(SPIRV_TOOLS_OPT_SOURCES
   pass_manager.h
   private_to_local_pass.h
   propagator.h
-# UE Change Begin: Added support for reducing const arrays to structs
   reduce_const_array_to_struct_pass.h
-# UE Change End: Added support for reducing const arrays to structs
-# UE Change Begin: Convert-Composite-To-Op-Access-Chain-Pass
   convert_composite_to_op_access_chain.h
-# UE Change End: Convert-Composite-To-Op-Access-Chain-Pass
   reduce_load_size.h
   redundancy_elimination.h
   reflect.h
@@ -140,9 +127,7 @@ set(SPIRV_TOOLS_OPT_SOURCES
   strip_debug_info_pass.h
   strip_nonsemantic_info_pass.h
   struct_cfg_analysis.h
-# UE Change Begin: Pack struct field offsets
   struct_packing_pass.h
-# UE Change End: Pack struct field offsets
   switch_descriptorset_pass.h
   tree_iterator.h
   trim_capabilities_pass.h
@@ -156,15 +141,10 @@ set(SPIRV_TOOLS_OPT_SOURCES
   wrap_opkill.h
 
   fix_func_call_arguments.cpp
-# UE Change Begin: Interface variable scalar replacement pass rewrite
-  adv_interface_var_sroa.cpp
-# UE Change End: Interface variable scalar replacement pass rewrite
   aggressive_dead_code_elim_pass.cpp
   amd_ext_to_khr.cpp
   analyze_live_input_pass.cpp
-# UE Change Begin: Added support for Android driver patch pass to fix platform specific issues
   android_driver_patch_pass.cpp
-# UE Change End: Added support for Android driver patch pass to fix platform specific issues
   basic_block.cpp
   block_merge_pass.cpp
   block_merge_util.cpp
@@ -207,11 +187,7 @@ set(SPIRV_TOOLS_OPT_SOURCES
   fold_spec_constant_op_and_composite_pass.cpp
   freeze_spec_constant_value_pass.cpp
   function.cpp
-# UE Change Begin: Implement a fused-multiply-add pass to reduce the
-# possibility of re-association.
   fused_multiply_add_pass.cpp
-# UE Change End: Implement a fused-multiply-add pass to reduce the
-# possibility of re-association.
   graphics_robust_access_pass.cpp
   if_conversion.cpp
   inline_exhaustive_pass.cpp
@@ -253,12 +229,8 @@ set(SPIRV_TOOLS_OPT_SOURCES
   pass_manager.cpp
   private_to_local_pass.cpp
   propagator.cpp
-# UE Change Begin: Added support for reducing const arrays to structs
   reduce_const_array_to_struct_pass.cpp
-# UE Change End: Added support for reducing const arrays to structs
-# UE Change Begin: Convert-Composite-To-Op-Access-Chain-Pass
   convert_composite_to_op_access_chain.cpp
-# UE Change End: Convert-Composite-To-Op-Access-Chain-Pass
   reduce_load_size.cpp
   redundancy_elimination.cpp
   register_pressure.cpp
@@ -279,9 +251,7 @@ set(SPIRV_TOOLS_OPT_SOURCES
   strip_debug_info_pass.cpp
   strip_nonsemantic_info_pass.cpp
   struct_cfg_analysis.cpp
-# UE Change Begin: Pack struct field offsets
   struct_packing_pass.cpp
-# UE Change End: Pack struct field offsets
   switch_descriptorset_pass.cpp
   trim_capabilities_pass.cpp
   type_manager.cpp

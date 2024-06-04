@@ -481,6 +481,7 @@ namespace CrossCompiler
 		OutOptions.disableOptimizations = InOptions.bDisableOptimizations;
 		OutOptions.enableFMAPass = InOptions.bEnableFMAPass;
 		OutOptions.enableSeparateSamplers = InOptions.bEnableSeparateSamplersInGlsl;
+		OutOptions.remapAttributeLocations = InOptions.bRemapAttributeLocations;
 		OutOptions.shaderModel = ShaderConductor::Compiler::ShaderModel
 		{
 			static_cast<uint8>(InOptions.ShaderModel.Major),

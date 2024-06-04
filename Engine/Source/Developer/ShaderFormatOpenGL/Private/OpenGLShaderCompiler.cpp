@@ -1699,47 +1699,115 @@ void ParseReflectionData(const FShaderCompilerInput& ShaderInput, CrossCompiler:
 	}
 
 	{
+		uint32 AssignedInputs = 0;
+
 		ReflectionBindings.GatherOutputAttributes(Reflection);
 		for (SpvReflectInterfaceVariable* Var : ReflectionBindings.OutputAttributes)
 		{
 			if (Var->storage_class == SpvStorageClassOutput && Var->built_in == -1 && !CrossCompiler::FShaderConductorContext::IsIntermediateSpirvOutputVariable(Var->name))
 			{
-				FString TypeQualifier;
-
-				auto const type = *Var->type_description;
-				uint32_t masked_type = type.type_flags & 0xF;
-
-				switch (masked_type) {
-				default: checkf(false, TEXT("unsupported component type %d"), masked_type); break;
-				case SPV_REFLECT_TYPE_FLAG_BOOL: TypeQualifier = TEXT("b"); break;
-				case SPV_REFLECT_TYPE_FLAG_INT: TypeQualifier = (type.traits.numeric.scalar.signedness ? TEXT("i") : TEXT("u")); break;
-				case SPV_REFLECT_TYPE_FLAG_FLOAT: TypeQualifier = (type.traits.numeric.scalar.width == 32 ? TEXT("f") : TEXT("h")); break;
-				}
-
-				if (type.type_flags & SPV_REFLECT_TYPE_FLAG_MATRIX)
-				{
-					TypeQualifier += FString::Printf(TEXT("%d%d"), type.traits.numeric.matrix.row_count, type.traits.numeric.matrix.column_count);
-				}
-				else if (type.type_flags & SPV_REFLECT_TYPE_FLAG_VECTOR)
-				{
-					TypeQualifier += FString::Printf(TEXT("%d"), type.traits.numeric.vector.component_count);
-				}
-				else
-				{
-					TypeQualifier += TEXT("1");
-				}
-
-				FString Name = ANSI_TO_TCHAR(Var->name);
-				Name.ReplaceInline(TEXT("."), TEXT("_"));
-
 				if (Frequency == SF_Pixel && strstr(Var->name, "SV_Target"))
 				{
+					FString TypeQualifier;
+
+					auto const type = *Var->type_description;
+					uint32_t masked_type = type.type_flags & 0xF;
+
+					switch (masked_type) {
+					default: checkf(false, TEXT("unsupported component type %d"), masked_type); break;
+					case SPV_REFLECT_TYPE_FLAG_BOOL: TypeQualifier = TEXT("b"); break;
+					case SPV_REFLECT_TYPE_FLAG_INT: TypeQualifier = (type.traits.numeric.scalar.signedness ? TEXT("i") : TEXT("u")); break;
+					case SPV_REFLECT_TYPE_FLAG_FLOAT: TypeQualifier = (type.traits.numeric.scalar.width == 32 ? TEXT("f") : TEXT("h")); break;
+					}
+
+					if (type.type_flags & SPV_REFLECT_TYPE_FLAG_MATRIX)
+					{
+						TypeQualifier += FString::Printf(TEXT("%d%d"), type.traits.numeric.matrix.row_count, type.traits.numeric.matrix.column_count);
+					}
+					else if (type.type_flags & SPV_REFLECT_TYPE_FLAG_VECTOR)
+					{
+						TypeQualifier += FString::Printf(TEXT("%d"), type.traits.numeric.vector.component_count);
+					}
+					else
+					{
+						TypeQualifier += TEXT("1");
+					}
+
+					FString Name = ANSI_TO_TCHAR(Var->name);
+					Name.ReplaceInline(TEXT("."), TEXT("_"));
 					ReflectionOut.OutputVarNames.Add(Name);
 					CCHeaderWriter.WriteOutputAttribute(TEXT("out_Target"), *TypeQualifier, Var->location, /*bLocationPrefix:*/ true, /*bLocationSuffix:*/ true);
 				}
 				else
 				{
-					CCHeaderWriter.WriteOutputAttribute(*Name, *TypeQualifier, Var->location, /*bLocationPrefix:*/ true, /*bLocationSuffix:*/ false);
+					unsigned Location = Var->location;
+					unsigned SemanticIndex = Location;
+					check(Var->semantic);
+					unsigned i = (unsigned)strlen(Var->semantic);
+					check(i);
+					while (isdigit((unsigned char)(Var->semantic[i - 1])))
+					{
+						i--;
+					}
+					if (i < strlen(Var->semantic))
+					{
+						SemanticIndex = (unsigned)atoi(Var->semantic + i);
+						if (Location != SemanticIndex)
+						{
+							Location = SemanticIndex;
+						}
+					}
+
+					while ((1 << Location) & AssignedInputs)
+					{
+						Location++;
+					}
+
+					if (Location != Var->location)
+					{
+						SPVRResult = Reflection.ChangeOutputVariableLocation(Var, Location);
+						check(SPVRResult == SPV_REFLECT_RESULT_SUCCESS);
+					}
+
+					uint32 ArrayCount = 1;
+					for (uint32 Dim = 0; Dim < Var->array.dims_count; Dim++)
+					{
+						ArrayCount *= Var->array.dims[Dim];
+					}
+
+					FString TypeQualifier;
+
+					auto const type = *Var->type_description;
+					uint32_t masked_type = type.type_flags & 0xF;
+
+					switch (masked_type) {
+					default: checkf(false, TEXT("unsupported component type %d"), masked_type); break;
+					case SPV_REFLECT_TYPE_FLAG_BOOL: TypeQualifier = TEXT("b"); break;
+					case SPV_REFLECT_TYPE_FLAG_INT: TypeQualifier = (type.traits.numeric.scalar.signedness ? TEXT("i") : TEXT("u")); break;
+					case SPV_REFLECT_TYPE_FLAG_FLOAT: TypeQualifier = (type.traits.numeric.scalar.width == 32 ? TEXT("f") : TEXT("h")); break;
+					}
+
+					if (type.type_flags & SPV_REFLECT_TYPE_FLAG_MATRIX)
+					{
+						TypeQualifier += FString::Printf(TEXT("%d%d"), type.traits.numeric.matrix.row_count, type.traits.numeric.matrix.column_count);
+					}
+					else if (type.type_flags & SPV_REFLECT_TYPE_FLAG_VECTOR)
+					{
+						TypeQualifier += FString::Printf(TEXT("%d"), type.traits.numeric.vector.component_count);
+					}
+					else
+					{
+						TypeQualifier += TEXT("1");
+					}
+
+					for (uint32 j = 0; j < ArrayCount; j++)
+					{
+						AssignedInputs |= (1 << (Location + j));
+					}
+
+					FString Name = ANSI_TO_TCHAR(Var->name);
+					Name.ReplaceInline(TEXT("."), TEXT("_"));
+					CCHeaderWriter.WriteOutputAttribute(*Name, *TypeQualifier, Location, /*bLocationPrefix:*/ true, /*bLocationSuffix:*/ false);
 				}
 			}
 		}
@@ -2807,6 +2875,7 @@ static bool CompileToGlslWithShaderConductor(
 	// Initialize compilation options for ShaderConductor
 	CrossCompiler::FShaderConductorOptions Options;
 	Options.bDisableScalarBlockLayout = true;
+	Options.bRemapAttributeLocations = (Frequency == SF_Vertex);
 	Options.bForceStorageImageFormat = true;
 	Options.bWarningsAsErrors = Input.Environment.CompilerFlags.Contains(CFLAG_WarningsAsErrors);
 	
@@ -2887,17 +2956,6 @@ static bool CompileToGlslWithShaderConductor(
 			UE_LOG(LogOpenGLShaderCompiler, Error, TEXT("Failed to apply reduce-const-array-to-struct for Android"));
 			return false;
 		} 
-	}
-
-	// For Android run an additional pass to patch spirv to be compatible across drivers
-	if (!bCompilationFailed && (Version == GLSL_ES3_1_ANDROID || Version == GLSL_150_ES3_1))
-	{
-		const char* OptArgs[] = {"--adv-interface-variable-scalar-replacement=skip-matrices"};
-		if (!CompilerContext.OptimizeSpirv(SpirvData, OptArgs, UE_ARRAY_COUNT(OptArgs)))
-		{
-			UE_LOG(LogOpenGLShaderCompiler, Error, TEXT("Failed to apply interface-variable-scalar-replacement for Android"));
-			return false;
-		}
 	}
 
 	if (!bCompilationFailed)

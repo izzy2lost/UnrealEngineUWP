@@ -43,4 +43,4 @@ class ReduceConstArrayToStructPass : public Pass {
 }  // namespace opt
 }  // namespace spvtools
 
-#endif  // SOURCE_OPT_REDUCE_CONST_ARRAY_TO_STRUCT_PASS_
+#endif  // SOURCE_OPT_ANDROID_DRIVER_PATCH_

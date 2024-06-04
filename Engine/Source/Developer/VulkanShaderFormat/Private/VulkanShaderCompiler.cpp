@@ -1296,12 +1296,7 @@ static bool BuildShaderOutputFromSpirv(
 	// For Android run an additional pass to patch spirv to be compatible across drivers
 	if (IsAndroidShaderFormat(InternalState.Input.ShaderFormat))
 	{
-		const char* OptArgs[] = {
-			"--android-driver-patch",
-			// FORT-733360: Some Adreno drivers have bugs for interpolators, which are arrays,
-			// hence we need to get rid of them.
-			"--adv-interface-variable-scalar-replacement=skip-matrices"
-		};
+		const char* OptArgs[] = { "--android-driver-patch" };
 		if (!CompilerContext.OptimizeSpirv(SerializedOutput.Spirv.Data, OptArgs, UE_ARRAY_COUNT(OptArgs)))
 		{
 			UE_LOG(LogVulkanShaderCompiler, Error, TEXT("Failed to apply driver patches for Android"));

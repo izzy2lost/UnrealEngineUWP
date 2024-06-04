@@ -1032,18 +1032,6 @@ Optimizer::PassToken CreateConvertCompositeToOpAccessChainPass();
 Optimizer::PassToken CreateStructPackingPass(const char* structToPack = nullptr);
 // UE Change ENd: Pack struct field offsets
 
-// UE Change Begin: Interface variable scalar replacement pass rewrite
-// Create an adv-interface-variable-scalar-replacement pass that replaces array
-// or matrix interface variables with a series of scalar or vector interface
-// variables. For example, it replaces `float3 foo[2]` with `float3 foo0, foo1`.
-// If |process_matrices| is true, matrix interface variables will be replaced by
-// scalars.
-// It handles more cases than existing interface-variable-scalar-replacement
-// pass, and hopefully will replace that soon.
-Optimizer::PassToken CreateAdvancedInterfaceVariableScalarReplacementPass(
-    bool process_matrices);
-// UE Change End: Interface variable scalar replacement pass rewrite
-
 }  // namespace spvtools
 
 #endif  // INCLUDE_SPIRV_TOOLS_OPTIMIZER_HPP_

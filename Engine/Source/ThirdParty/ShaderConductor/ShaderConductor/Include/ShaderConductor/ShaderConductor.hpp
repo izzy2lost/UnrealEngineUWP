@@ -197,6 +197,9 @@ namespace ShaderConductor
             // UE Change Begin: Allow separate samplers in GLSL via extensions.
             bool enableSeparateSamplers = false;
             // UE Change End: Allow separate samplers in GLSL via extensions.
+			// UE Change Begin: Allow to in/out attributes to be remapped.
+			bool remapAttributeLocations = false;
+			// UE Change End: Allow to in/out attributes to be remapped.
 			// UE Change Begin: Support for specifying direct arguments to DXC
             uint32_t numDXCArgs = 0;
             const char** DXCArgs = nullptr;
