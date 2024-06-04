@@ -209,7 +209,7 @@ bool FImageViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 {
 	if (EventArgs.Event == IE_Pressed)
 	{
-		if (EventArgs.Key == EKeys::MouseScrollUp)
+		if (EventArgs.Key == EKeys::MouseScrollUp || EventArgs.Key == EKeys::Add)
 		{
 			const auto [PixelCoordsValid, PixelCoords] = GetPixelCoordinatesUnderCursor();
 			if (PixelCoordsValid)
@@ -219,7 +219,7 @@ bool FImageViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 			return true;
 		}
 
-		if (EventArgs.Key == EKeys::MouseScrollDown)
+		if (EventArgs.Key == EKeys::MouseScrollDown || EventArgs.Key == EKeys::Subtract)
 		{
 			const auto [PixelCoordsValid, PixelCoords] = GetPixelCoordinatesUnderCursor();
 			if (PixelCoordsValid)
