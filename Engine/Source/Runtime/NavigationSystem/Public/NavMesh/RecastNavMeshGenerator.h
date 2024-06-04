@@ -702,23 +702,24 @@ struct FPendingTileElement
 	}
 };
 
-struct FRunningTileElement
+template<typename TTileGeneratorTask>
+struct TRunningTileElement
 {
-	FRunningTileElement()
+	TRunningTileElement()
 		: Coord(FIntPoint::NoneValue)
 		, bShouldDiscard(false)
 		, AsyncTask(nullptr)
 	{
 	}
 	
-	FRunningTileElement(FIntPoint InCoord)
+	TRunningTileElement(FIntPoint InCoord)
 		: Coord(InCoord)
 		, bShouldDiscard(false)
 		, AsyncTask(nullptr)
 	{
 	}
 
-	bool operator == (const FRunningTileElement& Other) const
+	bool operator == (const TRunningTileElement& Other) const
 	{
 		return Coord == Other.Coord;
 	}
@@ -727,8 +728,11 @@ struct FRunningTileElement
 	FIntPoint					Coord;
 	/** whether generated results should be discarded */
 	bool						bShouldDiscard; 
-	FRecastTileGeneratorTask*	AsyncTask;
+	FAsyncTask<TTileGeneratorTask>* AsyncTask;
 };
+
+UE_DEPRECATED(5.5, "FRunningTileElement is deprecated. Please use TRunningTileElement<FRecastTileGeneratorWrapper> instead.")
+typedef TRunningTileElement<FRecastTileGeneratorWrapper> FRunningTileElement;
 
 struct FTileTimestamp
 {
@@ -1102,7 +1106,7 @@ protected:
 	TNavStatArray<FPendingTileElement> PendingDirtyTiles;			
 	
 	/** List of dirty tiles currently being regenerated */
-	TNavStatArray<FRunningTileElement> RunningDirtyTiles;
+	TNavStatArray<TRunningTileElement<FRecastTileGeneratorWrapper>> RunningDirtyTiles;
 
 #if WITH_EDITOR
 	/** List of tiles that were recently regenerated */
