@@ -3772,6 +3772,13 @@ static TAutoConsoleVariable<int32> CVarMobileForwardEnableLocalLights(
 		"2: Local Lights Buffer Enabled\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMobileRenderRectLightsAsSpotLights(
+	TEXT("r.Mobile.Forward.RenderRectLightsAsSpotLights"),
+	0,
+	TEXT("0: Rect Lights are rendered as area lights\n"
+		"1: Rect Lights are rendered as Spot Lights (default)\n"),
+	ECVF_ReadOnly | ECVF_MobileShaderChange);
+
 static TAutoConsoleVariable<int32> CVarMobileForwardEnableParticleLights(
 	TEXT("r.Mobile.Forward.EnableParticleLights"),
 	0,

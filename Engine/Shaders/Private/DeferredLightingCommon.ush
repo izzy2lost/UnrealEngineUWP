@@ -260,7 +260,7 @@ float GetLocalLightAttenuation(
 		// This extra attenuation has been added for supporting existing 'legacy' shading model on mobile. 
 		// This is not needed for Substrate which unifies all lighting paths
 		#if SHADING_PATH_MOBILE && !SUBSTRATE_ENABLED
-		LightMask *= 1.0f / (DistanceSqr + 1.0f);
+		//LightMask *= 1.0f / (DistanceSqr + 1.0f);
 		#endif
 	}
 	else
@@ -364,7 +364,22 @@ FLightAccumulator AccumulateDynamicLighting(
 	#if TRANSLUCENCY_NON_DIRECTIONAL
 		NoL = 1.0f;
 	#endif
-		Lighting = EvaluateBxDF(GBuffer, N, V, L, NoL, Shadow);
+		BRANCH
+		if (LightData.bRectLight)
+		{
+			FRect Rect = GetRect( ToLight, LightData );
+			const FRectTexture SourceTexture = ConvertToRectTexture(LightData);
+
+		#if REFERENCE_QUALITY
+			Lighting = IntegrateBxDF( GBuffer, N, V, Rect, Shadow, SourceTexture, SVPos );
+		#else
+			Lighting = IntegrateBxDF( GBuffer, N, V, Rect, Shadow, SourceTexture);
+		#endif		
+		}
+		else
+		{
+			Lighting = EvaluateBxDF(GBuffer, N, V, L, NoL, Shadow);
+		}
 
 		Lighting.Specular *= LightData.SpecularScale;
 				

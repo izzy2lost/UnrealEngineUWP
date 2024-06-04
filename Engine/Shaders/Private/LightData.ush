@@ -377,16 +377,23 @@ FDeferredLightData ConvertToDeferredLight_Mobile(const FLocalLightData In)
 	half4 OutPreviewShadowMapChannelMask = 0;
 	uint OutLightingChannelMask = LIGHTING_CHANNEL_MASK;
 	FDeferredLightData Out = ConvertToDeferredLight(In, 1.0f, OutPreviewShadowMapChannelMask, OutLightingChannelMask);	
-	
+
 	// Override value for performance on mobile
-	Out.SourceRadius	= 0;
-	Out.SourceLength	= 0;
-	Out.Tangent			= 0;
 	Out.SoftSourceRadius= 0;
 	Out.SpecularScale	= 1.0f;
-	//Render RectLight approximately as SpotLight
-	Out.bSpotLight		= Out.bSpotLight || Out.bRectLight;
-	Out.bRectLight		= false;
+#if RECT_LIGHT_AS_SPOTLIGHT
+	// Render RectLight approximately as SpotLight
+	Out.bSpotLight	= Out.bSpotLight || Out.bRectLight;
+	Out.bRectLight	= false;
+#endif
+
+	BRANCH
+	if (!Out.bRectLight)
+	{
+		Out.SourceRadius = 0;
+		Out.SourceLength = 0;
+		Out.Tangent = 0;
+	}
 
 	return Out;
 }
