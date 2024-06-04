@@ -8,6 +8,7 @@
 #include "Features/IModularFeature.h"
 #include "GenericPlatform/GenericApplicationMessageHandler.h"
 #include "GenericPlatform/IInputInterface.h"
+#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "IInputDeviceModule.h"
 #include "InputCoreTypes.h"
 #include "Misc/CoreDelegates.h"
@@ -31,6 +32,7 @@ FLiveLinkInputDeviceSource::FLiveLinkInputDeviceSource(const FLiveLinkInputDevic
 	SourceMachineName = LOCTEXT("LocalMachine", "Local");
 
 	DeferredStartDelegateHandle = FCoreDelegates::OnEndFrame.AddRaw(this, &FLiveLinkInputDeviceSource::Start);
+	IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddRaw(this, &FLiveLinkInputDeviceSource::HandleGamepadDeviceChange);
 }
 
 FLiveLinkInputDeviceSource::~FLiveLinkInputDeviceSource()
@@ -39,6 +41,7 @@ FLiveLinkInputDeviceSource::~FLiveLinkInputDeviceSource()
 	{
 		FCoreDelegates::OnEndFrame.Remove(DeferredStartDelegateHandle);
 	}
+	IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().RemoveAll(this);
 }
 
 void FLiveLinkInputDeviceSource::ReceiveClient(ILiveLinkClient* InClient, FGuid InSourceGuid)
@@ -126,22 +129,23 @@ bool FLiveLinkInputDeviceSource::TickInputDevices(const double InDeltaTime)
 {
 	static thread_local double ElapsedUpdate = 0;
 	bool bGamepadState = false;
+
+	const bool bShouldDoDeviceUpdate = bShouldRefreshDeviceList;
 	for( int Index = 0; Index < InputDevices.Num(); Index++ )
 	{
-		InputDevices[Index]->Tick( InDeltaTime );
-		InputDevices[Index]->SendControllerEvents();
-		const bool bDeviceGamepadAttached = InputDevices[Index]->IsGamepadAttached();
-		// If elapsed time is greater than 1 second.  Force a device update so that we can catch new devices
-		// added to the system.  This normally happens by the WindowsApplication.cpp but we are outside of the
-		// process message loop so we have to periodically apply it here. We only do this here if we don't have
-		// any devices attached as there is a cost for making this query that can cause noticeble hitches.
-		//
-		if (!bDeviceGamepadAttached && ElapsedUpdate > 1.0)
+		if (bShouldDoDeviceUpdate)
 		{
 			static const FInputDeviceProperty RequestUpdateProp(TEXT("Request_Device_Update"));
 			InputDevices[Index]->SetDeviceProperty(-1, &RequestUpdateProp);
 		}
+		InputDevices[Index]->Tick( InDeltaTime );
+		InputDevices[Index]->SendControllerEvents();
+		const bool bDeviceGamepadAttached = InputDevices[Index]->IsGamepadAttached();
 		bGamepadState = bGamepadState || bDeviceGamepadAttached;
+	}
+	if (bShouldDoDeviceUpdate)
+	{
+		bShouldRefreshDeviceList = false;
 	}
 
 	ElapsedUpdate = ElapsedUpdate > 1 ? 0 : ElapsedUpdate + InDeltaTime;
@@ -280,6 +284,10 @@ void FLiveLinkInputDeviceSource::Send(FInputDeviceId DeviceId, FLiveLinkFrameDat
 	Client->PushSubjectFrameData_AnyThread({ SourceGuid, SubjectName }, MoveTemp(FrameDataToSend));
 }
 
+void FLiveLinkInputDeviceSource::HandleGamepadDeviceChange(EInputDeviceConnectionState /* unused */, FPlatformUserId /* unused  */, FInputDeviceId /* unused */)
+{
+    bShouldRefreshDeviceList = true;
+}
 
 
 #undef LOCTEXT_NAMESPACE

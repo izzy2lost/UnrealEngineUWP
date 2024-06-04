@@ -67,6 +67,9 @@ private:
 	double DevicePollWaitTime() const;
 
 private:
+	/** This delegate is invoked when a gamepad device is added or removed from the application. */
+	void HandleGamepadDeviceChange(EInputDeviceConnectionState NewConnectionState, FPlatformUserId PlatformUserId, FInputDeviceId InputDeviceId);
+
 	/** Update the our known gamepad state so that it can be reflected back to the LiveLink UI. */
 	void UpdateGamepadState(const bool bInState);
 
@@ -112,4 +115,6 @@ private:
 
 	// Indicates if we have ANY gamepads connected and thus are an active device for Live Link.
 	bool bIsGamepadConnected = false;
+
+	std::atomic<bool> bShouldRefreshDeviceList = false;
 };

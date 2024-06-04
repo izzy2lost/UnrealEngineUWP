@@ -4,11 +4,13 @@
 
 #include "Commandlets/Commandlet.h"
 #include "CoreMinimal.h"
-#include "Engine/Engine.h"
 #include "Editor/EditorPerformanceSettings.h"
-#include "Misc/CoreDelegates.h"
+#include "Engine/Engine.h"
+#include "Framework/Application/SlateApplication.h"
 #include "LiveLinkHub.h"
+#include "LiveLinkHubInputProcessor.h"
 #include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -23,6 +25,8 @@ void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 	// Disable throttling for the hub
 	GetMutableDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground = false;
 
+	check(FSlateApplication::IsInitialized());
+	FSlateApplication::Get().RegisterInputPreProcessor(MakeShared<FLiveLinkHubInputProcessor>());
 	{
 		UE_LOG(LogLiveLinkHubApplication, Display, TEXT("LiveLinkHub Initialized (Version: %d.%d)"), ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION);
 
@@ -40,6 +44,8 @@ void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 			GEngine->UpdateTimeAndHandleMaxTickRate();
 
 			CommandletHelpers::TickEngine(nullptr, DeltaTime);
+
+			FSlateApplication::Get().PollGameDeviceState();
 
 			// This is normally ticked by OnSamplingInput.
 			LiveLinkHub->Tick();
