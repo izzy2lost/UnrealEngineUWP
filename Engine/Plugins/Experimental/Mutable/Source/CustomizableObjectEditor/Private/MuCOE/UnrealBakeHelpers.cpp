@@ -47,33 +47,15 @@ UObject* FUnrealBakeHelpers::BakeHelper_DuplicateAsset(UObject* Object, const FS
 	
 	if (bGenerateConstantMaterialInstances && MatInterface && MatInstance)
 	{
-		UMaterialInterface* ParentInterface = MatInterface;
-
-		UMaterialInstanceDynamic* InstanceDynamic = Cast<UMaterialInstanceDynamic>(Object);
-
-		if (InstanceDynamic)
-		{
-			ParentInterface = InstanceDynamic->Parent;
-		}
-		else
-		{
-			UMaterialInstanceConstant* InstanceConstant = Cast<UMaterialInstanceConstant>(Object);
-
-			if (InstanceConstant)
-			{
-				ParentInterface = InstanceConstant->Parent;
-			}
-		}
-
 		UMaterialInstanceConstantFactoryNew* MaterialFactory = NewObject<UMaterialInstanceConstantFactoryNew>();
-		MaterialFactory->InitialParent = ParentInterface;
+		MaterialFactory->InitialParent = MatInstance->Parent;
 		FString MaterialInstanceName = FinalObjName;
 		DupObject = (UMaterialInstanceConstant*)MaterialFactory->FactoryCreateNew(UMaterialInstanceConstant::StaticClass(),
 			Package, FName(MaterialInstanceName), RF_NoFlags, NULL, GWarn);
 		ensure(DupObject);
 
 		TMap<int, UTexture*> EmptyTextureReplacementMap;
-		FUnrealBakeHelpers::CopyAllMaterialParameters(DupObject, MatInterface, EmptyTextureReplacementMap);
+		CopyAllMaterialParameters(DupObject, MatInterface, EmptyTextureReplacementMap);
 	}
 	else
 	{
@@ -300,9 +282,6 @@ void FUnrealBakeHelpers::CopyAllMaterialParameters(UObject* DestMaterial, UMater
 
 	if (Material && DupMaterial)
 	{
-		TArray<FMaterialParameterInfo> parametersInfo;
-		TArray<FGuid> parametersGuids;
-
 		// copy scalar parameters
 		TArray<FMaterialParameterInfo> ScalarParameterInfoArray;
 		TArray<FGuid> GuidArray;

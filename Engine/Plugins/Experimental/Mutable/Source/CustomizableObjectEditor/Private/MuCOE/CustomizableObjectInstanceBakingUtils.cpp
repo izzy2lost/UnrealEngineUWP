@@ -465,126 +465,88 @@ bool BakeCustomizableObjectInstance(
 			UObject* DuplicatedObject;
 			TArray<TMap<int, UTexture*>> TextureReplacementMaps;
 
-			// Duplicate Mutable generated textures
+			// Duplicate Textures found in the Material Instances of the SkeletalMesh so we can later assign them to the
+			// duplicates of those material instances. At the end of the baking we will have a series of materials with the 
+			// parameters set as the material instances they are based of.
 			for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
 			{
 				UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
 				Material = Interface->GetMaterial();
 				MaterialName = Material ? Material->GetName() : "Material";
-				Inst = Cast<UMaterialInstance>(Mesh->GetMaterials()[m].MaterialInterface);
+				Inst = Cast<UMaterialInstance>(Interface);
 
-				TMap<int, UTexture*> ReplacementTextures;
-				TextureReplacementMaps.Add(ReplacementTextures);
-
-				// The material will only have Mutable generated textures if it's actually a UMaterialInstance
+				TextureReplacementMaps.AddDefaulted();
+				
 				if (Material != nullptr && Inst != nullptr)
 				{
 					TArray<FName> ParameterNames = FUnrealBakeHelpers::GetTextureParameterNames(Material);
-
 					for (int32 i = 0; i < ParameterNames.Num(); i++)
 					{
 						if (Inst->GetTextureParameterValue(ParameterNames[i], Texture))
 						{
 							UTexture2D* SrcTex = Cast<UTexture2D>(Texture);
-							if (!SrcTex) continue;
+							if (!SrcTex)
+							{
+								continue;
+							}
+
+							FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
+							RemoveRestrictedChars(ParameterSanitized);
+							ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
+							if (!GetUniqueResourceName(SrcTex, ResourceName, ArrayCachedObject, ArrayCachedElement))
+							{
+								continue;
+							}
+							
+							EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+							if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
+							{
+								return false;
+							}
+
+							// Skip already processed resource
+							if (ArrayCachedElement.Find(ResourceName) != INDEX_NONE)
+							{
+								continue;
+							}
 
 							bool bIsMutableTexture = false;
-
 							for (UAssetUserData* UserData : *SrcTex->GetAssetUserDataArray())
 							{
-								UTextureMipDataProviderFactory* CustomMipDataProviderFactory = Cast<UMutableTextureMipDataProviderFactory>(UserData);
-								if (CustomMipDataProviderFactory)
+								if (Cast<UMutableTextureMipDataProviderFactory>(UserData))
 								{
 									bIsMutableTexture = true;
 								}
 							}
-
-							if ((SrcTex->GetPlatformData() != nullptr) &&
-								(SrcTex->GetPlatformData()->Mips.Num() > 0) &&
-								bIsMutableTexture)
+							
+							// Duplicating mutable generated textures
+							if (bIsMutableTexture)
 							{
-								FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
-								RemoveRestrictedChars(ParameterSanitized);
-								ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
-
-								if (!GetUniqueResourceName(SrcTex, ResourceName, ArrayCachedObject, ArrayCachedElement))
+								if (SrcTex->GetPlatformData() && SrcTex->GetPlatformData()->Mips.Num() > 0)
 								{
-									continue;
-								}
+									// Recover original name of the texture parameter value, now substituted by the generated Mutable texture
+									UTexture* OriginalTexture = nullptr;
+									Inst->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
 
-								EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
-								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
-								{
-									return false;
-								}
+									PackageName = AssetPath + FString("/") + ResourceName;
+									TMap<UObject*, UObject*> FakeReplacementMap;
+									UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, ResourceName, PackageName, OriginalTexture, true, FakeReplacementMap, bUsedGrantedOverridingRights);
+									ArrayCachedElement.Add(ResourceName);
+									ArrayCachedObject.Add(DupTex);
+								
+									TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DupTex->GetPackage()};
+									OutSavedPackages.Add(PackageToSave);
 
-								// Recover original name of the texture parameter value, now substituted by the generated Mutable texture
-								UTexture* OriginalTexture = nullptr;
-								UMaterialInstanceDynamic* InstDynamic = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterials()[m].MaterialInterface);
-								if (InstDynamic != nullptr)
-								{
-									InstDynamic->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
-								}
-								else
-								{
-									UMaterialInstanceConstant* InstConstant = Cast<UMaterialInstanceConstant>(Mesh->GetMaterials()[m].MaterialInterface);
-
-									if (InstConstant != nullptr)
+									if (OriginalTexture != nullptr)
 									{
-										InstConstant->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
+										TextureReplacementMaps[m].Add(i, DupTex);
 									}
 								}
-
-								PackageName = AssetPath + FString("/") + ResourceName;
-								TMap<UObject*, UObject*> FakeReplacementMap;
-								UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, ResourceName, PackageName, OriginalTexture, true, FakeReplacementMap, bUsedGrantedOverridingRights);
-								ArrayCachedElement.Add(ResourceName);
-								ArrayCachedObject.Add(DupTex);
-								
-								TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DupTex->GetPackage()};
-								OutSavedPackages.Add(PackageToSave);
-
-								if (OriginalTexture != nullptr)
-								{
-									TextureReplacementMaps[m].Add(i, DupTex);
-								}
 							}
-						}
-					}
-				}
-			}
-
-			// Duplicate non-Mutable material textures
-			for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
-			{
-				UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
-				Material = Interface->GetMaterial();
-				MaterialName = Material ? Material->GetName() : "Material";
-
-				if (Material != nullptr)
-				{
-					TArray<FName> ParameterNames = FUnrealBakeHelpers::GetTextureParameterNames(Material);
-
-					for (int32 i = 0; i < ParameterNames.Num(); i++)
-					{
-						TArray<FMaterialParameterInfo> InfoArray;
-						TArray<FGuid> GuidArray;
-						Material->GetAllTextureParameterInfo(InfoArray, GuidArray);
-						
-						if (Material->GetTextureParameterValue(InfoArray[i], Texture))
-						{
-							FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
-							RemoveRestrictedChars(ParameterSanitized);
-							ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
-
-							if (ArrayCachedElement.Find(ResourceName) == INDEX_NONE)
+							else
 							{
-								EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
-								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType ))
-								{
-									return false;
-								}
-
+								// Duplicate the non-mutable textures of the Material instance (pass-through textures)
+								
 								PackageName = AssetPath + FString("/") + ResourceName;
 								TMap<UObject*, UObject*> FakeReplacementMap;
 								DuplicatedObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Texture, ResourceName, PackageName, true, FakeReplacementMap, bUsedGrantedOverridingRights, false);
@@ -731,7 +693,6 @@ bool BakeCustomizableObjectInstance(
 										TPair<EPackageSaveResolutionType, UPackage*> TexturePackageToSave {TextureSaveType, DupTex->GetPackage()};
 										OutSavedPackages.Add(TexturePackageToSave);
 										
-
 										if (InstDynamic)
 										{
 											InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
