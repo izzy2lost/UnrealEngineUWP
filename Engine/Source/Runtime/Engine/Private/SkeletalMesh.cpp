@@ -2280,11 +2280,6 @@ void USkeletalMesh::RemoveLegacyClothingSections()
 						FSkelMeshSection& DuplicatedSection = LodModel.Sections[Section.CorrespondClothSectionIndex_DEPRECATED];
 
 						// Cache the base index for the first clothing section (will be in correct order)
-						if(ClothingSectionCount == 0)
-						{
-							PreEditChange(nullptr);
-						}
-						
 						BaseVertex = FMath::Min(DuplicatedSection.BaseVertexIndex, BaseVertex);
 						BaseIndex = FMath::Min(DuplicatedSection.BaseIndex, BaseIndex);
 
