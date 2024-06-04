@@ -555,7 +555,7 @@ namespace Horde.Server.Artifacts
 
 			foreach (string key in artifact.Keys)
 			{
-				Match match = Regex.Match(key, @"^job:([0-9a-zA-Z]{12})$");
+				Match match = Regex.Match(key, @"^job:([0-9a-zA-Z]{24})$");
 				if (match.Success)
 				{
 					descriptor.JobUrl = new Uri(_globalConfig.ServerSettings.DashboardUrl, $"job/{match.Value}");
