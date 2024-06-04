@@ -303,6 +303,8 @@ public:
 	// Validates node and returns whether or not the node is valid.
 	virtual void Validate(Metasound::Editor::FGraphNodeValidationResult& OutResult) override;
 
+	/**Set Unconnected Pins hidden/Unhidden*/
+	void HideUnconnectedPins(const bool InHidePins);
 
 protected:
 	// Friended to enable mutation of Frontend NodeID & direct breadcrumb access

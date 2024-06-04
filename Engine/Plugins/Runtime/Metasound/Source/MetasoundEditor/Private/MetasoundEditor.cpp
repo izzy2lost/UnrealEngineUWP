@@ -2164,6 +2164,12 @@ namespace Metasound
 					FExecuteAction::CreateLambda([this] { RenameSelectedNode(); }),
 					FCanExecuteAction::CreateLambda([this]() { return CanRenameSelectedNodes(); }));
 
+				GraphEditorCommands->MapAction(FGraphEditorCommands::Get().HideNoConnectionPins,
+					FExecuteAction::CreateSP(this, &FEditor::HideUnconnectedPins));				
+				
+				GraphEditorCommands->MapAction(FGraphEditorCommands::Get().ShowAllPins,
+					FExecuteAction::CreateSP(this, &FEditor::ShowUnconnectedPins));
+
 				// Alignment Commands
 				GraphEditorCommands->MapAction(FGraphEditorCommands::Get().AlignNodesTop,
 					FExecuteAction::CreateLambda([this]() { MetasoundGraphEditor->OnAlignTop(); }));
@@ -2914,6 +2920,30 @@ namespace Metasound
 				DocumentHandle->SynchronizeDependencyMetadata();
 				FMetasoundFrontendDocumentModifyContext& ModifyContext = FGraphBuilder::GetOutermostMetaSoundChecked(Graph).GetModifyContext();
 				ModifyContext.SetDocumentModified();
+			}
+		}
+
+		void FEditor::HideUnconnectedPins()
+		{			
+			const FGraphPanelSelectionSet& SelectedNodes = MetasoundGraphEditor->GetSelectedNodes();
+			for (UObject* Object : SelectedNodes)
+			{
+				if (UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(Object))
+				{
+					ExternalNode->HideUnconnectedPins(true);
+				}	
+			}
+		}
+
+		void FEditor::ShowUnconnectedPins()
+		{
+			const FGraphPanelSelectionSet& SelectedNodes = MetasoundGraphEditor->GetSelectedNodes();
+			for (UObject* Object : SelectedNodes)
+			{
+				if (UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(Object))
+				{
+					ExternalNode->HideUnconnectedPins(false);
+				}
 			}
 		}
 
