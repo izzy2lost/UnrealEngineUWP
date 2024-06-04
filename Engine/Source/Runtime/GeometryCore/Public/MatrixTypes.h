@@ -448,6 +448,24 @@ struct TMatrix2
 		return RotationRad(AngleDeg * TMathUtil<RealType>::DegToRad);
 	}
 
+	// Create a matrix that scales along the specified axis
+	// @param Axis	Axis to scale along
+	// @param Scale	Amount to scale
+	// @param bNormalizeAxis Whether to normalize Axis. If false, assumes Axis was already normalized.
+	static TMatrix2<RealType> AxisScale(TVector2<RealType> Axis, RealType Scale, bool bNormalizeAxis = true)
+	{
+		if (bNormalizeAxis)
+		{
+			Axis.Normalize();
+		}
+		RealType X2 = Axis.X * Axis.X;
+		RealType Y2 = Axis.Y * Axis.Y;
+		RealType XY = Axis.X * Axis.Y;
+		return TMatrix2<RealType>(
+			Scale * X2 + Y2, Scale * XY - XY,
+			Scale * XY - XY, Scale * Y2 + X2);
+	}
+
 	/**
 	 * Assumes we have a rotation matrix (uniform scale ok)
 	 */
