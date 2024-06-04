@@ -237,7 +237,7 @@ public:
 	/**
 	 * Add a save override to specific object. (i.e. mark certain objects or properties transient for this save)
 	 */
-	// TODO: UE_DEPRECATED(5.5, "Calling AddSaveOverride in UObject::PreSave is deprecated. Override UObject::CollectSaveOverrides and call AddSaveOverride on its context instead.")
+	UE_DEPRECATED(5.5, "Calling AddSaveOverride in UObject::PreSave is deprecated. Override UObject::CollectSaveOverrides and call AddSaveOverride on its context instead.")
 	void AddSaveOverride(UObject* Target, FObjectSaveOverride InOverride)
 	{
 		Data.AddSaveOverride(Target, MoveTemp(InOverride));
