@@ -65,8 +65,6 @@
 #include "Particles/EmitterCameraLensEffectBase.h"
 #include "LevelUtils.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
-#include "Physics/AsyncPhysicsInputComponent.h"
-#include "Physics/NetworkPhysicsComponent.h"
 #include "PBDRigidsSolver.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 
@@ -239,10 +237,6 @@ APlayerController::APlayerController(const FObjectInitializer& ObjectInitializer
 		RootComponent->SetUsingAbsoluteRotation(true);
 	}
 
-	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
-	{
-		bAsyncPhysicsTickEnabled = true;
-	}
 #if UE_ENABLE_DEBUG_DRAWING
 	CurrentInputModeDebugString = TEXT("Default");
 #endif	// UE_ENABLE_DEBUG_DRAWING
@@ -4868,8 +4862,6 @@ void APlayerController::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > &
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DISABLE_REPLICATED_PROPERTY(APlayerController, AsyncPhysicsDataComponent_DEPRECARED);
-
 	// These used to only replicate if PlayerCameraManager->GetViewTargetPawn() != GetPawn()
 	// But, since they also don't update unless that condition is true, these values won't change, thus won't send
 	// This is a little less efficient, but fits into the new condition system well, and shouldn't really add much overhead
@@ -4878,9 +4870,6 @@ void APlayerController::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > &
 	// Replicate SpawnLocation for remote spectators
 	DOREPLIFETIME_CONDITION(APlayerController, SpawnLocation, COND_OwnerOnly);
 }
-
-void APlayerController::OnRep_AsyncPhysicsDataComponent()
-{}
 
 void APlayerController::SetPlayer( UPlayer* InPlayer )
 {
@@ -6116,16 +6105,6 @@ void APlayerController::BeginReplication()
 }
 #endif // UE_WITH_IRIS
 
-UAsyncPhysicsData* APlayerController::GetAsyncPhysicsDataToWrite() const
-{
-	return nullptr;
-}
-
-const UAsyncPhysicsData* APlayerController::GetAsyncPhysicsDataToConsume() const
-{
-	return nullptr;  
-}
-
 void APlayerController::ExecuteAsyncPhysicsCommand(const FAsyncPhysicsTimestamp& AsyncPhysicsTimestamp, UObject* OwningObject, const TFunction<void()>& Command, const bool bEnableResim)
 {
 	if(UWorld* World = GetWorld())
@@ -6341,12 +6320,6 @@ void APlayerController::UpdateServerTimestampToCorrect()
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
-
-void APlayerController::AsyncPhysicsTickActor(float DeltaTime, float SimTime)
-{
-	Super::AsyncPhysicsTickActor(DeltaTime, SimTime);
-}
-
 
 #undef LOCTEXT_NAMESPACE
 

@@ -377,28 +377,8 @@ protected:
 #if UE_WITH_IRIS
 	ENGINE_API virtual void BeginReplication() override;
 #endif // UE_WITH_IRIS
-	/** The type of async physics data object to use*/
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "AsyncPhysicsDataClass is deprecated. See UInputSettings::bEnableLegacyInputScales to enable legacy behavior"))
-	TSubclassOf<UAsyncPhysicsData> AsyncPhysicsDataClass_DEPRECATED;
-
-	/** Get the async physics data to write to. This data will make its way to the async physics tick on client and server. Should not be used during async tick */
-	UE_DEPRECATED(5.3, "GetAsyncPhysicsDataToConsume is deprecated, please see the new C++ NetworkPhysicsComponent")
-	UFUNCTION(BlueprintPure, Category = PlayerController)
-	ENGINE_API UAsyncPhysicsData* GetAsyncPhysicsDataToWrite() const;
-
-	/** Get the async physics data to execute logic off of. This data should not be modified and will NOT make its way back. Must be used during async tick */
-	UE_DEPRECATED(5.3, "GetAsyncPhysicsDataToConsume is deprecated, please see the new C++ NetworkPhysicsComponent")
-	UFUNCTION(BlueprintPure, Category = PlayerController)
-	ENGINE_API const UAsyncPhysicsData* GetAsyncPhysicsDataToConsume() const;
 
 private:
-
-	UPROPERTY(ReplicatedUsing=OnRep_AsyncPhysicsDataComponent, meta = (DeprecatedProperty, DeprecationMessage = "AsyncPhysicsDataComponent is deprecated. please see the new C++ NetworkPhysicsComponent"))
-	TObjectPtr<UAsyncPhysicsInputComponent> AsyncPhysicsDataComponent_DEPRECARED;
-
-	UE_DEPRECATED(5.3, "OnRep_AsyncPhysicsDataComponent is deprecated, please see the new C++ NetworkPhysicsComponent")
-	UFUNCTION()
-	ENGINE_API void OnRep_AsyncPhysicsDataComponent();
 
 	struct FDynamicForceFeedbackAction
 	{
@@ -2406,9 +2386,6 @@ private:
 	UE_DEPRECATED(5.4, "Deprecated for not being used in physics frame offset calculation anymore and will get removed eventually. Use GetPhysicsTimestamp() and GetNetworkPhysicsTickOffset() for the physics frame offset which is automatically kept in sync by time dilation while Physics Prediction in Project Settings is enabled. Recommended when using the new flow: Set p.net.CmdOffsetEnabled = 0 to stop the legacy frame offset logic from running in the background.")
 	UFUNCTION(Client, Unreliable)
 	ENGINE_API void ClientCorrectionAsyncPhysicsTimestamp(FAsyncPhysicsTimestamp Timestamp);
-
-	/** Update the tick offset in between the local client and the server */
-	ENGINE_API virtual void AsyncPhysicsTickActor(float DeltaTime, float SimTime) override;
 
 public:
 
