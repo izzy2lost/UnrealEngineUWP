@@ -142,14 +142,6 @@ private:
 	 */
 	UNREALED_API FText GetCameraMenuLabel() const;
 
-
-	/**
-	 * Returns the label for the "View" tool bar menu, which changes depending on viewport show flags
-	 *
-	 * @return	Label to use for this menu label
-	 */
-	UNREALED_API FText GetViewMenuLabel() const;
-
 	/**
 	 * Generates the toolbar options menu content 
 	 *
