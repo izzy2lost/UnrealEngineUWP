@@ -4614,7 +4614,6 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FTickContext& TickCon
 	FEventContext& EventContext = TickContext.EventContext;
 	FInterruptionContext& InOutInterruptionContext = TickContext.InterruptionContext;
 	bool bLocalIsInGameThread = IsInGameThread();
-	bool bCanAccessCoreRedirects = bLocalIsInGameThread || IsEngineStartupModuleLoadingComplete();
 
 	EGatherStatus OutStatus = EGatherStatus::Complete;
 	if (!GlobalGatherer.IsValid())
@@ -4758,7 +4757,7 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FTickContext& TickCon
 	}
 
 	auto RunAssetSearchDataGathered = [this, &EventContext, &TickContext, &LazyStartTimer,
-		&InOutInterruptionContext, bCanAccessCoreRedirects]
+		&InOutInterruptionContext]
 	(TMultiMap<FName, TUniquePtr<FAssetData>>& InAssetResults,
 		TMultiMap<FName, TUniquePtr<FAssetData>>& OutDeferredAssetResults)
 		{
@@ -4778,7 +4777,7 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FTickContext& TickCon
 				}
 
 				AssetSearchDataGathered(EventContext, InAssetResults, OutDeferredAssetResults,
-					InOutInterruptionContext, bCanAccessCoreRedirects);
+					InOutInterruptionContext);
 			}
 		};
 	auto RunDependencyDataGathered = [this, &bLocalIsInGameThread, &LazyStartTimer, &InOutInterruptionContext]
@@ -4853,7 +4852,7 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FTickContext& TickCon
 		// so we avoid spuriously reporting status == UnableToProgress
 		if (BackgroundResults.Assets.IsEmpty()
 			&& (!bLocalIsInGameThread || BackgroundResults.AssetsForGameThread.IsEmpty())
-			&& bCanAccessCoreRedirects && TickContext.bHandleDeferred)
+			&& TickContext.bHandleDeferred)
 		{
 			if (!DeferredAssets.IsEmpty() || !DeferredDependencies.IsEmpty() ||
 				(bLocalIsInGameThread && (!DeferredAssetsForGameThread.IsEmpty() || !DeferredDependenciesForGameThread.IsEmpty())))
@@ -5120,7 +5119,6 @@ void FAssetRegistryImpl::TickGatherPackage(Impl::FEventContext& EventContext, co
 		}
 	};
 
-	bool bCanAccessCoreRedirects = IsInGameThread() || IsEngineStartupModuleLoadingComplete();
 	FName PackageFName(PackageName);
 
 	// Gather results from the background search
@@ -5163,7 +5161,7 @@ void FAssetRegistryImpl::TickGatherPackage(Impl::FEventContext& EventContext, co
 		TMultiMap<FName, TUniquePtr<FAssetData>> DeferredPackageAssetsMap;
 		UE::AssetRegistry::Impl::FInterruptionContext InterruptionContext;
 		AssetSearchDataGathered(EventContext, PackageAssetsMap, DeferredPackageAssetsMap,
-			InterruptionContext, bCanAccessCoreRedirects);
+			InterruptionContext);
 		if (DeferredPackageAssetsMap.Num())
 		{
 			UE_LOG(LogAssetRegistry, Warning, TEXT("Attempted to add package '%s' to the registry before its UClass was available. \
@@ -5953,31 +5951,22 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 				Iter.RemoveCurrent();
 			}
 		}
-		bool bCanAccessCoreRedirects = IsInGameThread() || IsEngineStartupModuleLoadingComplete();
 		// Force AssetSearchDataGathered to process these assets, skipping the PostLoadAssetRegistryTags if needed
-		// But don't allow this if !bCanAccessCoreRedirects. The caller should not be calling ScanPathsSynchronous
-		// in that case.
 		const bool bOldForceCompletionEvenIfPostLoadsFail = bForceCompletionEvenIfPostLoadsFail;
-		bForceCompletionEvenIfPostLoadsFail = bCanAccessCoreRedirects;
+		bForceCompletionEvenIfPostLoadsFail = true;
 
 		int32 OriginalNumDeferredAssetsForGameThread = DeferredAssetsForGameThread.Num();
+
 		// We don't call AssetsFoundCallback here because even for deferred assets it will already have been called.
 		// We pass DeferredAssetsForGameThread as the OutDeferred parameter, but we expect nothing will be deferred.
 		AssetSearchDataGathered(Context.EventContext, CollectedDeferredAssets, DeferredAssetsForGameThread,
-			TickContext.InterruptionContext, bCanAccessCoreRedirects);
+			TickContext.InterruptionContext);
 		// All of the assets we collected should have been processed or deferred.
 		ensure(CollectedDeferredAssets.Num() == 0);
-		// We should not have deferred any assets because we set bForceCompletionEvenIfPostLoadsFail. If we couldn't
-		// set it because the caller is calling to early, log an error about it.
-		if (DeferredAssetsForGameThread.Num() > OriginalNumDeferredAssetsForGameThread)
-		{
-			// With current logic the only way we could defer is if !bCanAccessCoreRedirects
-			check(!bCanAccessCoreRedirects);
-			ensureMsgf(false,
-				TEXT("ScanPathsSynchronous was called on a thread other than the game thread, before IsEngineStartupModuleLoadingComplete. ")
-				TEXT("This caused us not to be able to complete the scan because we can not access CoreRedirects. Some assets will be missing. ")
-				TEXT("Calling code should change to not allow the ScanPathsSynchronous call this early, or queue it to the gamethread."));
-		}
+
+		// We should not have deferred any new assets because we set bForceCompletionEvenIfPostLoadsFail=true
+		ensure(DeferredAssetsForGameThread.Num() <= OriginalNumDeferredAssetsForGameThread);
+
 		bForceCompletionEvenIfPostLoadsFail = bOldForceCompletionEvenIfPostLoadsFail;
 		// Tick to perform any subsequent processing required for these assets beyond AssetSearchDataGathered
 		Impl::FTickContext AssetTickContext(Context.EventContext, Context.InheritanceContext);
@@ -6059,7 +6048,7 @@ FAssetData* FAssetRegistryImpl::ResolveAssetIdCollision(FAssetData& A, FAssetDat
 	return Keep;
 }
 
-bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData, bool bCanAccessCoreRedirects)
+bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData)
 {
 	check(AssetData);
 	if (!AssetData->TagsAndValues.Num())
@@ -6070,51 +6059,44 @@ bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData, boo
 	bool bCouldPostLoadAssetRegistryTags = true;
 	UClass* AssetClass = nullptr;
 	FTopLevelAssetPath AssetClassPath;
-	if (!bCanAccessCoreRedirects)
-	{
-		bCouldPostLoadAssetRegistryTags = false;
-	}
-	else
-	{
-		AssetClassPath = AssetData->AssetClassPath;
-		AssetClass = FindObject<UClass>(AssetClassPath, true);
+	AssetClassPath = AssetData->AssetClassPath;
+	AssetClass = FindObject<UClass>(AssetClassPath, true);
 
-		while (!AssetClass)
+	while (!AssetClass)
+	{
+		// this is probably a blueprint that has not yet been loaded, try to find its native base class
+		const FTopLevelAssetPath* ParentClassPath = CachedBPInheritanceMap.Find(AssetClassPath);
+		if (ParentClassPath && !ParentClassPath->IsNull())
 		{
-			// this is probably a blueprint that has not yet been loaded, try to find its native base class
-			const FTopLevelAssetPath* ParentClassPath = CachedBPInheritanceMap.Find(AssetClassPath);
-			if (ParentClassPath && !ParentClassPath->IsNull())
+			AssetClassPath = *ParentClassPath;
+			AssetClass = FindObject<UClass>(AssetClassPath, true);
+		}
+		else
+		{
+			FTopLevelAssetPath LastAssetClassPath = AssetClassPath;
+			// Maybe it's a redirector
+			FSoftObjectPath RedirectedPath = GRedirectCollector.GetAssetPathRedirection(FSoftObjectPath(AssetClassPath));
+			if (RedirectedPath.IsValid())
 			{
-				AssetClassPath = *ParentClassPath;
+				AssetClassPath = RedirectedPath.GetAssetPath();
+			}
+			else
+			{
+				FCoreRedirectObjectName NewName = FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Class, FCoreRedirectObjectName(AssetClassPath));
+				if (NewName.IsValid())
+				{
+					AssetClassPath = NewName.ToString();
+				}
+			}
+
+			if (AssetClassPath != LastAssetClassPath && !AssetClassPath.IsNull())
+			{
 				AssetClass = FindObject<UClass>(AssetClassPath, true);
 			}
 			else
 			{
-				FTopLevelAssetPath LastAssetClassPath = AssetClassPath;
-				// Maybe it's a redirector
-				FSoftObjectPath RedirectedPath = GRedirectCollector.GetAssetPathRedirection(FSoftObjectPath(AssetClassPath));
-				if (RedirectedPath.IsValid())
-				{
-					AssetClassPath = RedirectedPath.GetAssetPath();
-				}
-				else
-				{
-					FCoreRedirectObjectName NewName = FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Class, FCoreRedirectObjectName(AssetClassPath));
-					if (NewName.IsValid())
-					{
-						AssetClassPath = NewName.ToString();
-					}
-				}
-
-				if (AssetClassPath != LastAssetClassPath && !AssetClassPath.IsNull())
-				{
-					AssetClass = FindObject<UClass>(AssetClassPath, true);
-				}
-				else
-				{
-					bCouldPostLoadAssetRegistryTags = false;
-					break;
-				}
+				bCouldPostLoadAssetRegistryTags = false;
+				break;
 			}
 		}
 	}
@@ -6134,8 +6116,6 @@ bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData, boo
 		// Okay, we think we're done loading and now we need to make some expensive final checks to try to either
 		// track down the classes for fixup or just give up
 		bMakeFinalChecks = true;
-		// bCanAccessCoreRedirects should be true when IsEngineStartupModuleLoadingComplete
-		check(bCanAccessCoreRedirects);
 	}
 	if (!AssetClass && bForceCompletionEvenIfPostLoadsFail)
 	{
@@ -6324,7 +6304,7 @@ bool FAssetRegistryImpl::ShouldSkipGatheredAsset(FAssetData& AssetData)
 void FAssetRegistryImpl::AssetSearchDataGathered(Impl::FEventContext& EventContext,
 	TMultiMap<FName, TUniquePtr<FAssetData>>& AssetResults,
 	TMultiMap<FName, TUniquePtr<FAssetData>>& OutDeferredAssetResults,
-	Impl::FInterruptionContext& InOutInterruptionContext, bool bCanAccessCoreRedirects)
+	Impl::FInterruptionContext& InOutInterruptionContext)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AssetSearchDataGathered);
 
@@ -6393,7 +6373,7 @@ void FAssetRegistryImpl::AssetSearchDataGathered(Impl::FEventContext& EventConte
 
 #if WITH_EDITOR
 		// Postload assets based on their declared class. Queue them for for later retry if their class has not yet loaded.
-		bool CouldPostLoad = TryPostLoadAssetRegistryTags(BackgroundResult.Get(), bCanAccessCoreRedirects);
+		bool CouldPostLoad = TryPostLoadAssetRegistryTags(BackgroundResult.Get());
 		if (!CouldPostLoad)
 		{
 			OutDeferredAssetResults.Add(BackgroundAssetPackageName, MoveTemp(BackgroundResult));

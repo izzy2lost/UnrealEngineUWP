@@ -24,8 +24,8 @@ class IPakFile;
 class UClass;
 struct FTopLevelAssetPath;
 namespace UE::CoreRedirects::Private { struct FCoreRedirectObjectUtf8Name; }
-
-#define WITH_COREREDIRECTS_MULTITHREAD_WARNING !UE_BUILD_SHIPPING && !IS_PROGRAM && !WITH_EDITOR
+namespace UE::CoreRedirects::Private { class FRWWithExclusiveRecursionScopeLockForRead; }
+namespace UE::CoreRedirects::Private { class FRWWithExclusiveRecursionScopeLockForWrite; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCoreRedirects, Log, All);
 
@@ -352,10 +352,10 @@ struct FCoreRedirects
 	static COREUOBJECT_API bool RemoveRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString);
 
 	/** Returns true if this has ever been initialized */
-	static bool IsInitialized() { return bInitialized; }
+	static COREUOBJECT_API bool IsInitialized();
 
 	/** Returns true if this is in debug mode that slows loading and adds additional warnings */
-	static bool IsInDebugMode() { return bInDebugMode; }
+	static COREUOBJECT_API bool IsInDebugMode();
 
 	/** Validate a named list of redirects */
 	static COREUOBJECT_API void ValidateRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString);
@@ -363,8 +363,8 @@ struct FCoreRedirects
 	/** Validates all known redirects and warn if they seem to point to missing things */
 	static COREUOBJECT_API void ValidateAllRedirects();
 
-	/** Gets map from config key -> Flags */
-	static const TMap<FName, ECoreRedirectFlags>& GetConfigKeyMap() { return ConfigKeyMap; }
+	/** Gets map from config key -> Flags. It may only be accessed once it becomes constant data after the system is initialized */
+	static COREUOBJECT_API const TMap<FName, ECoreRedirectFlags>& GetConfigKeyMap();
 
 	/** Goes from the containing package and name of the type to the type flag */
 	static COREUOBJECT_API ECoreRedirectFlags GetFlagsForTypeName(FName PackageName, FName TypeName);
@@ -391,24 +391,36 @@ struct FCoreRedirects
 	static COREUOBJECT_API bool RunTests();
 
 private:
+	typedef UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForRead FCoreRedirectorScopeLockForRead;
+	typedef UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForWrite FCoreRedirectorScopeLockForWrite;
+
 	/** Static only class, never constructed */
 	COREUOBJECT_API FCoreRedirects();
 
-	/** Add a single redirect to a type map */
-	static COREUOBJECT_API bool AddSingleRedirect(const FCoreRedirect& NewRedirect, const FString& SourceString);
+	/** Internal implementation for AddRedirectList that requires a write lock to already have been acquired */
+	static COREUOBJECT_API bool AddRedirectListUnderWriteLock(TArrayView<const FCoreRedirect> Redirects, 
+		const FString& SourceString, const FCoreRedirectorScopeLockForWrite& HeldLock);
 
-	/** Remove a single redirect from a type map */
-	static COREUOBJECT_API bool RemoveSingleRedirect(const FCoreRedirect& OldRedirect, const FString& SourceString);
+	/** Internal implementation for AddSingleRedirect that requires a write lock to already have been acquired */
+	static COREUOBJECT_API bool AddSingleRedirectUnderWriteLock(const FCoreRedirect& NewRedirect, 
+		const FString& SourceString, const FCoreRedirectorScopeLockForWrite& HeldLock);
+
+	/** Internal implementation for RemoveSingleRedirect that requires a write lock to already have been acquired */
+	static COREUOBJECT_API bool RemoveSingleRedirectUnderWriteLock(const FCoreRedirect& OldRedirect, 
+		const FString& SourceString, const FCoreRedirectorScopeLockForWrite& HeldLock);
 
 	/** Add native redirects, called before ini is parsed for the first time */
-	static COREUOBJECT_API void RegisterNativeRedirects();
+	static COREUOBJECT_API void RegisterNativeRedirectsUnderWriteLock(const FCoreRedirectorScopeLockForWrite& HeldLock);
 
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	/** Mark that CoreRedirects is about to start being used from multiple threads, and writes to new types of redirects are no longer allowed.
-	  * ReadRedirectsFromIni and all other AddRedirectList calls must be called before this
-	  */
-	static COREUOBJECT_API void EnterMultithreadedPhase();
-#endif
+	/** Internal implementation for GetMatchingRedirects that requires a read lock to already have been acquired */
+	static COREUOBJECT_API bool GetMatchingRedirectsUnderReadLock(ECoreRedirectFlags Type, 
+		const FCoreRedirectObjectName& OldObjectName, TArray<const FCoreRedirect*>& FoundRedirects, ECoreRedirectMatchFlags MatchFlags, 
+		const FCoreRedirectorScopeLockForRead& HeldLock);
+
+	/** Internal implementation for RedirectNameAndValues that requires a read lock to already have been acquired */
+	static COREUOBJECT_API bool RedirectNameAndValuesUnderReadLock(ECoreRedirectFlags Type, const FCoreRedirectObjectName& OldObjectName,
+		FCoreRedirectObjectName& NewObjectName, const FCoreRedirect** FoundValueRedirect,
+		ECoreRedirectMatchFlags MatchFlags, const FCoreRedirectorScopeLockForRead& HeldLock);
 
 	/** Container for managing Wildcard redirects (substrings, prefixes, suffixes) */
 	struct FWildcardData
@@ -439,18 +451,13 @@ private:
 	};
 
 	/** Whether this has been initialized at least once */
-	static COREUOBJECT_API bool bInitialized;
+	static COREUOBJECT_API std::atomic<bool> bInitialized;
 
 	/** True if we are in debug mode that does extra validation */
-	static COREUOBJECT_API bool bInDebugMode;
+	static COREUOBJECT_API std::atomic<bool> bInDebugMode;
 
 	/** True if we have done our initial validation. After initial validation, each change to redirects will validate independently */
 	static COREUOBJECT_API bool bValidatedOnce;
-
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	/** Whether CoreRedirects is now being used multithreaded and therefore does not support writes to RedirectTypeMap keyvalue pairs */
-	static COREUOBJECT_API bool bIsInMultithreadedPhase;
-#endif
 
 	/** Map from config name to flag */
 	static COREUOBJECT_API TMap<FName, ECoreRedirectFlags> ConfigKeyMap;
@@ -471,9 +478,33 @@ private:
 	};
 	static COREUOBJECT_API FRedirectTypeMap RedirectTypeMap;
 
-	/**
-	 * Lock to protect multithreaded access to *KnownMissing functions, which can be called from the async loading threads. 
-	 * TODO: The KnownMissing functions use RedirectTypeMap, which is unguarded; there is race condition vulnerability if asyncloading thread is active before all categories are added to RedirectTypeMap.
+	/** This lock allows exclusive locking (WriteLock) and shared locking (ReadLock)
+	 *  Additionally, it permits limited types of recursion. It is possible to ReadLock() 
+	 *  or WriteLock() while locked for write. It is NOT possible to Read or WriteLock() while
+	 *  locked for read. I.e., if the lock is held exclusively, it re-acquiring it is always permitted.
+	 *  If the lock is held shared, re-acquiring it is never permitted.
 	 */
-	static COREUOBJECT_API FRWLock KnownMissingLock;
+	struct FRWLockWithExclusiveRecursion
+	{
+		void ReadLock();
+
+		void WriteLock();
+
+		void WriteUnlock();
+
+		void ReadUnlock();
+
+	private:
+		FRWLock InternalLock;
+		std::atomic<uint32> WriteLockOwnerThreadId = 0;
+		int32 RecursionCount = 0;
+	};
+	friend class UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForRead;
+	friend class UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForWrite;
+
+	/**
+	 * Lock to protect multithreaded access to the CoreRedirect system
+	 */
+	static COREUOBJECT_API FRWLockWithExclusiveRecursion RWLock;
 };
+

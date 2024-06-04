@@ -428,7 +428,7 @@ private:
 	void AssetSearchDataGathered(Impl::FEventContext& EventContext,
 		TMultiMap<FName, TUniquePtr<FAssetData>>& AssetResults, 
 		TMultiMap<FName, TUniquePtr<FAssetData>>& OutDeferredResults,\
-		Impl::FInterruptionContext& InOutInterruptionContext, bool bCanAccessCoreRedirects);
+		Impl::FInterruptionContext& InOutInterruptionContext);
 	/** Validate assets gathered from disk before adding them to the AssetRegistry. */
 	bool ShouldSkipGatheredAsset(FAssetData& AssetData);
 
@@ -471,7 +471,7 @@ private:
 	 * @param AssetData Existing asset data
 	 * @return Returns false if the required parent UClass is not yet available
 	 */
-	bool TryPostLoadAssetRegistryTags(FAssetData* AssetData, bool bCanAccessCoreRedirects);
+	bool TryPostLoadAssetRegistryTags(FAssetData* AssetData);
 
 	/** Update Redirect collector with redirects loaded from asset registry */
 	void UpdateRedirectCollector();
