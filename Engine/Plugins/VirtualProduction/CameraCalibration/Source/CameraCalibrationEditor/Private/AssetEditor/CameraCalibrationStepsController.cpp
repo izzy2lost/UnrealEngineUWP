@@ -718,15 +718,7 @@ void FCameraCalibrationStepsController::CreateComp()
 			NewFlagSetting.ShowFlagName = FEngineShowFlags::FindNameByIndex(FEngineShowFlags::EShowFlag::SF_Fog);
 			NewFlagSetting.Enabled = false;
 
-			CaptureComponent->ShowFlagSettings.Add(NewFlagSetting);
-
-			if (FProperty* ShowFlagSettingsProperty = CaptureComponent->GetClass()->FindPropertyByName(
-				GET_MEMBER_NAME_CHECKED(USceneCaptureComponent2D, ShowFlagSettings)))
-			{
-				// This PostEditChange will ensure that ShowFlags is updated.
-				FPropertyChangedEvent PropertyChangedEvent(ShowFlagSettingsProperty);
-				CaptureComponent->PostEditChangeProperty(PropertyChangedEvent);
-			}
+			CaptureComponent->SetShowFlagSettings({ NewFlagSetting });
 		}
 	}
 

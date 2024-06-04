@@ -141,12 +141,21 @@ class USceneCaptureComponent : public USceneComponent
 	bool bUseRayTracingIfEnabled;
 
 	/** ShowFlags for the SceneCapture's ViewFamily, to control rendering settings for this view. Hidden but accessible through details customization */
-	UPROPERTY(EditAnywhere, interp, Category=SceneCapture)
-	TArray<struct FEngineShowFlagsSetting> ShowFlagSettings;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to this property is deprecated, and it will become private in a future release. Please use SetShowFlagSettings and GetShowFlagSettings instead.")
+	UPROPERTY(EditAnywhere, interp, Blueprintgetter = GetShowFlagSettings, BlueprintSetter = SetShowFlagSettings, Category=SceneCapture)
+	TArray<FEngineShowFlagsSetting> ShowFlagSettings;
 
 	// TODO: Make this a UStruct to set directly?
 	/** Settings stored here read from the strings and int values in the ShowFlagSettings array */
 	FEngineShowFlags ShowFlags;
+
+	/** Get the show flag settings. */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API const TArray<FEngineShowFlagsSetting>& GetShowFlagSettings() const;
+
+	/** Set the show flag settings. */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetShowFlagSettings(const TArray<FEngineShowFlagsSetting>& InShowFlagSettings);
 
 public:
 	/** Name of the profiling event. */

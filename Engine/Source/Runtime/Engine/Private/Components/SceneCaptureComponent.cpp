@@ -221,6 +221,18 @@ void USceneCaptureComponent::PostLoad()
 	}
 }
 
+const TArray<FEngineShowFlagsSetting>& USceneCaptureComponent::GetShowFlagSettings() const
+{
+	return ShowFlagSettings;
+}
+
+void USceneCaptureComponent::SetShowFlagSettings(const TArray<FEngineShowFlagsSetting>& InShowFlagSettings)
+{
+	ShowFlagSettings = InShowFlagSettings;
+
+	UpdateShowFlags();
+}
+
 void USceneCaptureComponent::BeginDestroy()
 {
 	Super::BeginDestroy();
