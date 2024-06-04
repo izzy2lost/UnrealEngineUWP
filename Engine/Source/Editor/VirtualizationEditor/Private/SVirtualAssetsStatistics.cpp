@@ -252,6 +252,17 @@ TSharedRef<SWidget> SVirtualAssetsStatisticsDialog::GetGridPanel()
 
 	} Panels;
 
+	// Early out if the system is disabled
+	if (IVirtualizationSystem::Get().IsEnabled() == false)
+	{
+		return	SNew(STextBlock)
+				.Margin(FMargin(ColumnMargin, RowMargin))
+				.ColorAndOpacity(TitleColor)
+				.Font(TitleFont)
+				.Justification(ETextJustify::Center)
+				.Text(LOCTEXT("Disabled", "Virtual Assets Are Disabled For This Project"));
+	}
+
 	TSharedRef<SHorizontalBox> Panel = SNew(SHorizontalBox);
 	Panel->AddSlot()
 	.Padding(BorderPadding)
