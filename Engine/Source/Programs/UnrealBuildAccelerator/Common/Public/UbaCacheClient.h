@@ -28,7 +28,9 @@ namespace uba
 		NetworkClient& client;
 		Session& session;
 		bool reportMissReason = false;
-		bool useDirectoryPreparsing = true; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
+		bool useDirectoryPreparsing = false; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
+		bool validateCacheWritesInput = false; // Set to true to validate cas of all input files before sent to cache
+		bool validateCacheWritesOutput = true; // Set to true to validate cas of all output files before sent to cache
 	};
 
 	class CacheClient
@@ -68,6 +70,8 @@ namespace uba
 		Session& m_session;
 		bool m_reportMissReason;
 		bool m_useDirectoryPreParsing;
+		bool m_validateCacheWritesInput;
+		bool m_validateCacheWritesOutput;
 
 		Atomic<bool> m_connected;
 

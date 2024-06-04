@@ -4,6 +4,7 @@
 #include "UbaApplicationRules.h"
 #include "UbaCacheEntry.h"
 #include "UbaCompactTables.h"
+#include "UbaCompressedObjFileHeader.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
@@ -62,6 +63,8 @@ namespace uba
 		#endif
 
 		m_useDirectoryPreParsing = info.useDirectoryPreparsing;
+		m_validateCacheWritesInput = info.validateCacheWritesInput;
+		m_validateCacheWritesOutput = info.validateCacheWritesOutput;
 
 		m_client.RegisterOnConnected([this]()
 			{
@@ -248,11 +251,54 @@ namespace uba
 						return false;
 				}
 
+				bool shouldValidate = (m_validateCacheWritesInput && !isOutput) || (m_validateCacheWritesOutput && isOutput);
+
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
 				{
+					
+					if (shouldValidate && FileExists(m_logger, path.data))
+					{
+						m_logger.Warning(TC("CasDb claims file %s does not exist but it does! Will not populate cache for %s"), path.data, info.description); 
+						return false;
+					}
+
 					//m_logger.Warning(TC("Can't find file %s"), path.data); 
 					stringToCasKey.erase(insres.first);
 					continue; // m_logger.Info(TC("This should never happen! (%s)"), path.data);
+				}
+
+
+				if (shouldValidate)
+				{
+					FileAccessor fa(m_logger, path.data);
+					if (!fa.OpenMemoryRead())
+					{
+						m_logger.Warning(TC("CasDb claims file %s does exist but can't open it. Will not populate cache for %s"), path.data, info.description); 
+						return false;
+					}
+
+					CasKey oldKey = AsCompressed(casKey, false);
+					CasKey newKey;
+
+					u64 fileSize = fa.GetSize();
+					u8* fileMem = fa.GetData();
+
+					if (fileSize > sizeof(CompressedObjFileHeader) && ((CompressedObjFileHeader*)fileMem)->IsValid())
+						newKey = AsCompressed(((CompressedObjFileHeader*)fileMem)->casKey, false);
+					else
+						newKey = CalculateCasKey(fileMem, fileSize, false, nullptr, path.data);
+
+					if (newKey != oldKey)
+					{
+						FileInformation fileInfo;
+						fa.GetFileInformationByHandle(fileInfo);
+
+						auto& fileEntry = m_storage.GetOrCreateFileEntry(CaseInsensitiveFs ? ToStringKeyLower(path) : ToStringKey(path));
+						SCOPED_READ_LOCK(fileEntry.lock, lock);
+
+						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculting it gives us %s (FileEntry: %llu/%llu/%s, Real: %llu/%llu). Will not populate cache for %s"), path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, fileEntry.size, fileEntry.lastWritten, fileEntry.verified ? TC("true") : TC("false"), fileSize, fileInfo.lastWriteTime, info.description); 
+						return false;
+					}
 				}
 			}
 

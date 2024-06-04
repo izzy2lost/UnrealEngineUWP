@@ -1242,6 +1242,12 @@ namespace uba
 		return logger.Error(TC("Needs exclusive access to storage %s. Another process is running"), rootDir.data);
 	}
 
+	StorageImpl::FileEntry& StorageImpl::GetOrCreateFileEntry(StringKey fileNameKey)
+	{
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
+		return m_fileTableLookup.try_emplace(fileNameKey).first->second;
+	}
+
 	bool StorageImpl::LoadCasTable(bool logStats, bool alwaysCheckAllFiles)
 	{
 		static bool isExclusive = CheckExclusive(m_logger, m_rootDir);
@@ -1870,11 +1876,7 @@ namespace uba
 			forKey.MakeLower();
 		StringKey fileNameKey = ToStringKey(forKey);
 
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
-		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-		FileEntry& fileEntry = insres.first->second;
-		lookupLock.Leave();
-
+		FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 	
 		if (fileEntry.verified)
@@ -2003,11 +2005,7 @@ namespace uba
 
 	bool StorageImpl::StoreCasKey(CasKey& out, const StringKey& fileNameKey, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed)
 	{
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
-		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-		FileEntry& fileEntry = insres.first->second;
-		lookupLock.Leave();
-
+		FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 	
 		if (fileEntry.verified)
@@ -2345,10 +2343,7 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
-		auto insres = m_fileTableLookup.try_emplace(key);
-		FileEntry& entry = insres.first->second;
-		lock.Leave();
+		FileEntry& entry = GetOrCreateFileEntry(key);
 
 		TimerScope ts(stats.copyOrLink);
 
@@ -2553,11 +2548,7 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
-		auto insres = m_fileTableLookup.try_emplace(key);
-		lock.Leave();
-
-		FileEntry& entry = insres.first->second;
+		FileEntry& entry = GetOrCreateFileEntry(key);
 		SCOPED_WRITE_LOCK(entry.lock, lock2);
 		entry.casKey = casKey;
 		entry.lastWritten = lastWritten;

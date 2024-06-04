@@ -29,6 +29,9 @@ namespace uba
 		inline u8* GetData() { return m_data; }
 		inline u64 GetSize() { return m_size; }
 
+		// Can be called if file is opened
+		bool GetFileInformationByHandle(FileInformation& out);
+
 	private:
 		bool InternalClose(bool success, u64* lastWriteTime);
 		Logger& m_logger;

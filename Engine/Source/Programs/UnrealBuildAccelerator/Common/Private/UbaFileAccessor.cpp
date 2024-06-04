@@ -336,7 +336,7 @@ namespace uba
 			return errorOnFail ? m_logger.Error(TC("Failed to open file %s for read"), m_fileName) : false;
 
 		FileInformation info;
-		if (!GetFileInformationByHandle(info, m_logger, m_fileName, m_fileHandle))
+		if (!GetFileInformationByHandle(info))
 			return m_logger.Error(TC("GetFileInformationByHandle failed on %s"), m_fileName);
 
 		m_size = info.size;
@@ -360,6 +360,10 @@ namespace uba
 		return true;
 	}
 
+	bool FileAccessor::GetFileInformationByHandle(FileInformation& out)
+	{
+		return uba::GetFileInformationByHandle(out, m_logger, m_fileName, m_fileHandle);
+	}
 
 	bool FileAccessor::InternalClose(bool success, u64* lastWriteTime)
 	{

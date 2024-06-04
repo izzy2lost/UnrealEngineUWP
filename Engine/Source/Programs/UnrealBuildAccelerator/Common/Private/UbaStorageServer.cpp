@@ -199,10 +199,7 @@ namespace uba
 		if (out == CasKeyZero)
 			return false;
 
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
-		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-		FileEntry& fileEntry = insres.first->second;
-		lookupLock.Leave();
+		FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = true;
 		fileEntry.casKey = out;

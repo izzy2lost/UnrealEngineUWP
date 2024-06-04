@@ -175,6 +175,9 @@ namespace uba
 		bool OpenCasDataFile(u32 index, u64 size);
 		bool CreateCasDataFiles();
 
+		struct FileEntry;
+		FileEntry& GetOrCreateFileEntry(StringKey fileNameKey);
+
 
 		WorkManager* m_workManager;
 		MutableLogger m_logger;
