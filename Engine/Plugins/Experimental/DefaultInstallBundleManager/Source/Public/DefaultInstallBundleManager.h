@@ -196,6 +196,7 @@ protected:
 	public:
 		FString BundleNameString; // Since FNames do not preserve casing
 		TArray<EBundlePrereqs> Prereqs;
+		bool bReleaseRequired = false; // A bundle source may have done install work so expects a release call
 		bool bIsStartup = false;
 		TArray<FBundleSourceRelevance> ContributingSources; // Sources contributing to this bundle info
 		EInstallBundlePriority Priority = EInstallBundlePriority::Low;

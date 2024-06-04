@@ -118,6 +118,7 @@ public:
 
 	// Cancel the install for the specified bundles
 	virtual void CancelBundles(TArrayView<const FName> BundleNames) {}
+	virtual void CancelBundles(TArrayView<const FName> BundleNames, TArray<FName>& OutAdditionalBunldlesToCancel) { CancelBundles(BundleNames); }
 
 	// User Pause/Resume bundles.
 	virtual void UserPauseBundles(TArrayView<const FName> BundleNames) {}
