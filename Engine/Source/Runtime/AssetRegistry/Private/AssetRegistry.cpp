@@ -6757,6 +6757,10 @@ bool FAssetRegistryImpl::RemoveAssetPath(Impl::FEventContext& EventContext, FNam
 				bHasAsset = true;
 				return false;
 			}, true /* bRecursive */, false /* bIncludeOnlyOnDiskAssets */);
+
+		// If the verse file caches contain this path then keep it around
+		bHasAsset |= CachedVerseFilesByPath.Contains(PathToRemove);
+
 		if (bHasAsset)
 		{
 			// At least one asset still exists in the path. Fail the remove.
@@ -6998,6 +7002,10 @@ void FAssetRegistryImpl::AddVerseFile(Impl::FEventContext& EventContext, FName V
 	if (!bAlreadyExists)
 	{
 		FName VerseDirectoryPath(FPathViews::GetPath(WriteToString<256>(VerseFilePathToAdd)));
+		
+		// Ensure this path is represented in the CachedPathTree
+		AddPath(EventContext, WriteToString<256>(VerseDirectoryPath));
+
 		TArray<FName>& FilePathsArray = CachedVerseFilesByPath.FindOrAdd(VerseDirectoryPath);
 		FilePathsArray.Add(VerseFilePathToAdd);
 		EventContext.VerseEvents.Emplace(VerseFilePathToAdd, Impl::FEventContext::EEvent::Added);
@@ -7016,6 +7024,9 @@ void FAssetRegistryImpl::RemoveVerseFile(Impl::FEventContext& EventContext, FNam
 			if (FilePathsArray->IsEmpty())
 			{
 				CachedVerseFilesByPath.Remove(VerseDirectoryPath);
+				
+				// Try to remove this path from the general CachedPathTree - assuming no other files are keeping it around
+				RemoveAssetPath(EventContext, VerseDirectoryPath);  
 			}
 		}
 		EventContext.VerseEvents.Emplace(VerseFilePathToRemove, Impl::FEventContext::EEvent::Removed);
