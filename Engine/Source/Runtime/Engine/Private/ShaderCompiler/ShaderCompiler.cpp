@@ -9782,6 +9782,16 @@ void CompileGlobalShaderMap(EShaderPlatform Platform, const ITargetPlatform* Tar
 		FlushShaderFileCache();
 	}
 
+#if WITH_ODSC
+	// First try to load the global shader map with ODSC if it's connected. TryLoadGlobalShaders will set GGlobalShaderMap[Platform]
+	if (!GGlobalShaderMap[Platform] && FODSCManager::IsODSCActive())
+	{
+		UE_LOG(LogShaders, Display, TEXT("Trying to load global shaders from ODSC ..."));
+		GODSCManager->TryLoadGlobalShaders(Platform);
+		UE_LOG(LogShaders, Display, TEXT("Global shaders from ODSC: %s"), (GGlobalShaderMap[Platform] != nullptr) ? TEXT("success") : TEXT("failed"));
+	}
+#endif
+
 	// If the global shader map hasn't been created yet, create it.
 	if (!GGlobalShaderMap[Platform])
 	{
@@ -10638,12 +10648,14 @@ void LoadGlobalShadersForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPla
 
 			bool bIsNewGlobalShaderMapComplete = IsGlobalShaderMapComplete(nullptr, NewGlobalShaderMap, ShaderPlatform);
 
-			if (GGlobalShaderMap[ShaderPlatform] && bIsNewGlobalShaderMapComplete)
+			if (bIsNewGlobalShaderMapComplete)
 			{
-				GGlobalShaderMap[ShaderPlatform]->ReleaseAllSections();
-
-				delete GGlobalShaderMap[ShaderPlatform];
-				GGlobalShaderMap[ShaderPlatform] = nullptr;
+				if (GGlobalShaderMap[ShaderPlatform])
+				{
+					GGlobalShaderMap[ShaderPlatform]->ReleaseAllSections();
+					delete GGlobalShaderMap[ShaderPlatform];
+					GGlobalShaderMap[ShaderPlatform] = nullptr;
+				}
 				GGlobalShaderMap[ShaderPlatform] = NewGlobalShaderMap;
 
 				VerifyGlobalShaders(ShaderPlatform, nullptr, false);
@@ -10658,10 +10670,7 @@ void LoadGlobalShadersForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPla
 			}
 			else
 			{
-				if (!bIsNewGlobalShaderMapComplete)
-				{
-					UE_LOG(LogShaderCompilers, Error, TEXT("New shader map is incomplete. Look at the ODSC server log to see shader errors"));
-				}
+				UE_LOG(LogShaderCompilers, Error, TEXT("New shader map is incomplete. Look at the ODSC server log to see shader errors"));
 				delete NewGlobalShaderMap;
 			}
 		}

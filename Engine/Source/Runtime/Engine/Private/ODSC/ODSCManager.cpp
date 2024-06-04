@@ -10,6 +10,12 @@
 #include "Materials/MaterialInstance.h"
 #include "Materials/Material.h"
 
+// For GetMaxSupportedFeatureLevel
+#include "DataDrivenShaderPlatformInfo.h"
+
+// For GetCachedScalabilityCVars
+#include "UnrealEngine.h"
+
 DEFINE_LOG_CATEGORY(LogODSC);
 
 // FODSCManager
@@ -238,5 +244,24 @@ void FODSCManager::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialS
 	if (IsODSCActive())
 	{
 		GODSCManager->Thread->RegisterMaterialShaderMap(MaterialShaderMap);
+	}
+}
+ 
+void FODSCManager::TryLoadGlobalShaders(EShaderPlatform ShaderPlatform)
+{
+	check(IsODSCActive());
+	ERHIFeatureLevel::Type TargetFeatureLevel = GetMaxSupportedFeatureLevel(ShaderPlatform);
+	const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
+	Thread->AddRequest(TArray<FString>(), FString(), ShaderPlatform, TargetFeatureLevel, ActiveQualityLevel, ODSCRecompileCommand::Changed);
+	Thread->Wakeup();
+	Thread->WaitUntilAllRequestsDone();
+	TArray<FODSCMessageHandler*> CompletedThreadedRequests;
+	Thread->GetCompletedRequests(CompletedThreadedRequests);
+	// Finish and remove any completed requests
+	for (FODSCMessageHandler* CompletedRequest : CompletedThreadedRequests)
+	{
+		check(CompletedRequest);
+		ProcessCookOnTheFlyShaders(false, CompletedRequest->GetMeshMaterialMaps(), CompletedRequest->GetMaterialsToLoad(), CompletedRequest->GetGlobalShaderMap());
+		delete CompletedRequest;
 	}
 }

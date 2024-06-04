@@ -106,6 +106,7 @@ bool FODSCMessageHandler::ReloadGlobalShaders() const
 FODSCThread::FODSCThread(const FString& HostIP)
 	: Thread(nullptr)
 	, WakeupEvent(FPlatformProcess::GetSynchEventFromPool(true))
+	, AllRequestsDoneEvent(FPlatformProcess::GetSynchEventFromPool(true))
 	, ODSCHostIP(HostIP)
 {
 	UE_LOG(LogODSC, Log, TEXT("ODSC Thread active."));
@@ -121,6 +122,8 @@ FODSCThread::~FODSCThread()
 {
 	StopThread();
 
+	FPlatformProcess::ReturnSynchEventToPool(AllRequestsDoneEvent);
+	AllRequestsDoneEvent = nullptr;
 	FPlatformProcess::ReturnSynchEventToPool(WakeupEvent);
 	WakeupEvent = nullptr;
 }
@@ -268,7 +271,13 @@ void FODSCThread::GetCompletedRequests(TArray<FODSCMessageHandler*>& OutComplete
 
 void FODSCThread::Wakeup()
 {
+	AllRequestsDoneEvent->Reset();
 	WakeupEvent->Trigger();
+}
+
+void FODSCThread::WaitUntilAllRequestsDone()
+{
+	AllRequestsDoneEvent->Wait();
 }
 
 bool FODSCThread::Init()
@@ -349,6 +358,7 @@ void FODSCThread::Process()
 	// SendMessageToServer is synchronous, so when we're here, we know we've processed all the requests
 	bHasPendingRequests = false;
 	WakeupEvent->Reset();
+	AllRequestsDoneEvent->Trigger();
 }
 
 void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler)

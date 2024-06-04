@@ -149,6 +149,11 @@ public:
 	* Wakeup the thread to process requests.
 	*/
 	void Wakeup();
+	
+	/**
+	* Wait until all added requests are processed. Must be called after Wakeup.
+	*/
+	void WaitUntilAllRequestsDone();
 
 	bool HasPendingRequests() const { return bHasPendingRequests; }
 
@@ -206,6 +211,9 @@ private:
 
 	/** Holds an event signaling the thread to wake up. */
 	FEvent* WakeupEvent;
+	
+	/** Holds an event signaling when all the requests are processed*/
+	FEvent* AllRequestsDoneEvent;
 
 	void SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler);
 

@@ -105,6 +105,7 @@ public:
 
 	static void SuspendODSCForceRecompile();
 	static void ResumeODSCForceRecompile();
+	void TryLoadGlobalShaders(EShaderPlatform ShaderPlatform);
 
 private:
 
