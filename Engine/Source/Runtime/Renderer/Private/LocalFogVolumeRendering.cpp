@@ -370,7 +370,8 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 	Local height fog rendering common function
 =============================================================================*/
 
-void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out)
+// This is view data because the transform is expressed in translated world space
+void GetLocalFogVolumeViewSortingData(const FScene* Scene, const FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out)
 {
 	check(Scene->LocalFogVolumes.Num() > 0); // We should not get there if there is not any local fog volume.
 
@@ -394,12 +395,13 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		const float FalloffScaleUI = 0.01f;
 		const float SafeFallOff = FMath::Max(LHF->HeightFogFalloff, SafeFalloffThreshold) * FalloffScaleUI;
 
-		FMatrix44f Transform = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
-		FMatrix44f InvTransform = Transform.Inverse();
+		FTransform RotationScaleMatrix = LHF->FogTransform;
+		RotationScaleMatrix.SetTranslation(FVector::ZeroVector);
+		FMatrix44f InvTransform = FMatrix44f(RotationScaleMatrix.ToMatrixWithScale().Inverse());
 
 		FVector3f XVec(InvTransform.M[0][0], InvTransform.M[0][1], InvTransform.M[0][2]);
 		FVector3f YVec(InvTransform.M[1][0], InvTransform.M[1][1], InvTransform.M[1][2]);
-		FVector3f Tran(InvTransform.M[3][0], InvTransform.M[3][1], InvTransform.M[3][2]);
+		FVector3f TranslatedWorldPosition(View.ViewMatrices.GetPreViewTranslation() + LHF->FogTransform.GetTranslation());
 
 		// Normalization requires small tolerance for large volumes.
 		const float NormalizeTolerance = 1.e-32;
@@ -433,12 +435,12 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		};
 
 		// Translation and scale at fp32 for stability. Further optimization: we could use fp16 if translated/view space position would be sent.
-		LocalFogVolumeGPUInstanceDataIt->Data0[0] = AsUint32(Tran.X);
-		LocalFogVolumeGPUInstanceDataIt->Data0[1] = AsUint32(Tran.Y);
-		LocalFogVolumeGPUInstanceDataIt->Data0[2] = AsUint32(Tran.Z);
+		LocalFogVolumeGPUInstanceDataIt->Data0[0] = AsUint32(TranslatedWorldPosition.X);
+		LocalFogVolumeGPUInstanceDataIt->Data0[1] = AsUint32(TranslatedWorldPosition.Y);
+		LocalFogVolumeGPUInstanceDataIt->Data0[2] = AsUint32(TranslatedWorldPosition.Z);
 		LocalFogVolumeGPUInstanceDataIt->Data0[3] = AsUint32(LHF->FogUniformScale);
 
-		// Store X and Y from the rotation matrix and recover Z in the shader. Further optimization: could be fp16.
+		// Store X and Y from the rotation matrix and recover Z in the shader.
 		LocalFogVolumeGPUInstanceDataIt->Data1[0] = FVector2DHalf(XVec.X, XVec.Y).AsUInt32();
 		LocalFogVolumeGPUInstanceDataIt->Data1[1] = FVector2DHalf(XVec.Z, YVec.X).AsUInt32();
 		LocalFogVolumeGPUInstanceDataIt->Data1[2] = FVector2DHalf(YVec.Y, YVec.Z).AsUInt32();
@@ -634,11 +636,11 @@ void InitLocalFogVolumesForViews(
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
-		FLocalFogVolumeSortingData SortingData;
-		GetLocalFogVolumeSortingData(Scene, GraphBuilder, SortingData);
-
 		for (FViewInfo& View : Views)
 		{
+			FLocalFogVolumeSortingData SortingData;
+			GetLocalFogVolumeViewSortingData(Scene, View, GraphBuilder, SortingData);
+
 			CreateViewLocalFogVolumeBufferSRV(Scene, View, GraphBuilder, SortingData, ShouldRenderLocalFogVolumeInVolumetricFog(Scene, SceneViewFamily, bShouldRenderVolumetricFog), bUseHalfResLocalFogVolume);
 
 			if (View.LocalFogVolumeViewData.GPUInstanceCount > 0)
