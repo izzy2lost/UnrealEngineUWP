@@ -451,8 +451,8 @@ void FCompilerResultsLog::InternalLogMessage(FName MessageID, const TSharedRef<F
 		{
 			if (IsRunningCommandlet())
 			{				
-				UE_LOGFMT_NSLOC(LogBlueprint, Error, "Blueprint", "CompilerError", "[Compiler] {ErrorMessage} from Source: {SourceFile}",
-												("ErrorMessage", Message->ToText().ToString()), ("SourceFile", SourcePath));
+				UE_LOGFMT_NSLOC(LogBlueprint, Error, "Blueprint", "CompilerError", "[AssetLog] {AssetPath}: [Compiler] {ErrorMessage} from Source: {SourceFile}",
+												("AssetPath", FAssetMsg::FormatPathForAssetLog(*SourcePath)), ("ErrorMessage", Message->ToText().ToString()), ("SourceFile", SourcePath));
 			}
 			else
 			{
