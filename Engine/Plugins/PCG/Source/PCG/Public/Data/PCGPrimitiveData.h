@@ -26,6 +26,7 @@ public:
 	virtual bool SamplePoint(const FTransform& Transform, const FBox& Bounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
 	// TODO needs an implementation to support projection
 	//virtual bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const;
+
 protected:
 	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
@@ -34,6 +35,8 @@ public:
 	// ~Begin UPCGSpatialDataWithPointCache implementation
 	virtual const UPCGPointData* CreatePointData(FPCGContext* Context) const override;
 	// ~End UPCGSpatialDataWithPointCache implementation
+
+	TWeakObjectPtr<UPrimitiveComponent> GetComponent() const { return Primitive; }
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data")
 	FVector VoxelSize = FVector(100.0, 100.0, 100.0);
