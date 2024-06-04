@@ -4,6 +4,7 @@
 
 #include "Constraint.h"
 #include "ConstraintsManager.h"
+#include "Evaluation/IMovieScenePlaybackCapability.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 #include "Delegates/DelegateCombinations.h"
@@ -44,7 +45,7 @@ public:
 	CONSTRAINTS_API virtual bool HasBoundObjects() const override;
 	
 	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
-	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr) override;
+	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject = nullptr) override;
 
 	/** Whether or not it's valid for example it may not be fully loaded*/
 	virtual bool IsValid(const bool bDeepCheck = true) const override;

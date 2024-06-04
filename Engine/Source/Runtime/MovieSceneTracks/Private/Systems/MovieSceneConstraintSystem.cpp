@@ -172,6 +172,7 @@ struct FEvaluateConstraintChannels
 		}
 
 		const FSequenceInstance& TargetInstance = InstanceRegistry->GetInstance(InstanceHandle);
+		TSharedRef<FSharedPlaybackState> SharedPlaybackState = TargetInstance.GetSharedPlaybackState();
 
 		bool Result = false;
 		ConstraintAndActiveChannel->ActiveChannel.Evaluate(FrameTime, Result);
@@ -182,7 +183,7 @@ struct FEvaluateConstraintChannels
 			TransformConstraint->InitConstraint(World);
 
 			// this has to be done once the constraint initialized
-			TransformConstraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), *TargetInstance.GetPlayer());
+			TransformConstraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), SharedPlaybackState);
 			
 			if (UTransformableComponentHandle* ComponentHandle = Cast<UTransformableComponentHandle>(TransformConstraint->ChildTRSHandle))
 			{
@@ -197,7 +198,7 @@ struct FEvaluateConstraintChannels
 		}
 		else
 		{
-			Constraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), *TargetInstance.GetPlayer());	
+			Constraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), SharedPlaybackState);	
 		}
 	}
 

@@ -3336,13 +3336,15 @@ void FSequencerUtilities::UpdateBindingIDs(TSharedRef<ISequencer> Sequencer, FGu
 	TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID> OldFixedToNewFixedMap;
 	OldFixedToNewFixedMap.Add(UE::MovieScene::FFixedObjectBindingID(OldGuid, FocusedGuid), UE::MovieScene::FFixedObjectBindingID(NewGuid, FocusedGuid));
 
+	TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = Sequencer->GetSharedPlaybackState();
+
 	if (UMovieScene* MovieScene = Sequencer->GetRootMovieSceneSequence()->GetMovieScene())
 	{
 		for (UMovieSceneSection* Section : MovieScene->GetAllSections())
 		{
 			if (Section)
 			{
-				Section->OnBindingIDsUpdated(OldFixedToNewFixedMap, Sequencer->GetRootTemplateID(), Hierarchy, *Sequencer);
+				Section->OnBindingIDsUpdated(OldFixedToNewFixedMap, Sequencer->GetRootTemplateID(), SharedPlaybackState);
 			}
 		}
 	}
@@ -3359,7 +3361,7 @@ void FSequencerUtilities::UpdateBindingIDs(TSharedRef<ISequencer> Sequencer, FGu
 					{
 						if (Section)
 						{
-							Section->OnBindingIDsUpdated(OldFixedToNewFixedMap, Pair.Key, Hierarchy, *Sequencer);
+							Section->OnBindingIDsUpdated(OldFixedToNewFixedMap, Pair.Key, SharedPlaybackState);
 						}
 					}
 				}

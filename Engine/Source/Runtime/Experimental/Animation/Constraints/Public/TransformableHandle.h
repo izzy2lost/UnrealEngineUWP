@@ -7,18 +7,22 @@
 #include "MovieSceneObjectBindingID.h"
 #include "TransformableHandle.generated.h"
 
-struct FTickFunction;
-class USceneComponent;
-struct FMovieSceneFloatChannel;
-struct FMovieSceneDoubleChannel;
 class UMovieSceneSection;
+class USceneComponent;
+enum class EMovieSceneTransformChannel : uint32;
 struct FFRameNumber;
 struct FFrameRate;
-enum class EMovieSceneTransformChannel : uint32;
-class IMovieScenePlayer;
-namespace UE { namespace MovieScene {struct FFixedObjectBindingID;} }
+struct FMovieSceneDoubleChannel;
+struct FMovieSceneFloatChannel;
 struct FMovieSceneSequenceHierarchy;
 struct FMovieSceneSequenceID;
+struct FTickFunction;
+
+namespace UE::MovieScene
+{
+	struct FFixedObjectBindingID;
+	struct FSharedPlaybackState;
+}
 
 UENUM()
 enum class EHandleEvent : uint8
@@ -68,14 +72,14 @@ public:
 	CONSTRAINTS_API virtual bool HasBoundObjects() const;
 
 	/** Resolve the bound objects so that any object it references are resolved and correctly set up*/
-	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr) PURE_VIRTUAL(ResolveBoundObjects);
+	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject = nullptr) PURE_VIRTUAL(ResolveBoundObjects);
 
 	/** Make a duplicate of myself with this outer*/
 	CONSTRAINTS_API virtual UTransformableHandle* Duplicate(UObject* NewOuter) const PURE_VIRTUAL(Duplicate, return nullptr;);
 
 
 	/** Fix up Binding in case it has changed*/
-	CONSTRAINTS_API void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player);
+	CONSTRAINTS_API void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
 	
 	/** Perform any special ticking needed for this handle, by default it does nothing, todo need to see if we need to tick control rig also*/
 	virtual void TickTarget() const {};
@@ -202,7 +206,7 @@ public:
 		const bool bLocal = true) const override;
 
 	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
-	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr) override;
+	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject = nullptr) override;
 
 	/** Make a duplicate of myself with this outer*/
 	CONSTRAINTS_API virtual UTransformableHandle* Duplicate(UObject* NewOuter) const override;

@@ -40,7 +40,7 @@ class IMovieSceneEasingFunction;
 class IMovieScenePlayer;
 class UMovieSceneEntitySystemLinker;
 class UObject;
-namespace UE { namespace MovieScene { class ISectionEventHandler; } }
+enum class ECookOptimizationFlags;
 struct FEasingComponentData;
 struct FFrame;
 struct FFrameRate;
@@ -54,18 +54,14 @@ struct FMovieSceneSequenceID;
 struct FPropertyChangedEvent;
 struct FQualifiedFrameTime;
 
-enum class ECookOptimizationFlags;
-
-namespace UE
+namespace UE::MovieScene
 {
-namespace MovieScene
-{
+	class ISectionEventHandler;
 	struct FEntityImportParams;
 	struct FFixedObjectBindingID;
 	struct FImportedEntity;
+	struct FSharedPlaybackState;
 }
-}
-
 
 /** Enumeration defining how a section's channel proxy behaves. */
 enum class EMovieSceneChannelProxyType : uint8
@@ -592,11 +588,8 @@ public:
 	/* Migrate the frame times of the movie scene section from the source frame rate to the destination frame rate */
 	virtual void MigrateFrameTimes(FFrameRate SourceRate, FFrameRate DestinationRate) {}
 
-	/**
-	 * When guid bindings are updated to allow this section to fix-up any internal bindings
-	 *
-	 */
-	virtual void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player) {}
+	/** When guid bindings are updated to allow this section to fix-up any internal bindings */
+	virtual void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) {}
 
 	/** Get the referenced bindings for this section */
 	virtual void GetReferencedBindings(TArray<FGuid>& OutBindings) {}

@@ -1240,7 +1240,7 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		
 		FMovieSceneSequenceID SequenceID = Operand.SequenceID;
 		TArrayView<TWeakObjectPtr<>> BoundObjects = Player.FindBoundObjects(Operand);
-			const UMovieSceneSequence* Sequence = Player.State.FindSequence(Operand.SequenceID);
+		const UMovieSceneSequence* Sequence = Player.State.FindSequence(Operand.SequenceID);
 		UControlRig* ControlRig = nullptr;
 		UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
 		if (Sequence && BoundObject)
@@ -1412,6 +1412,7 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 				}
 				if (BoundObject)
 				{
+					TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = Player.GetSharedPlaybackState();
 					for (FConstraintAndActiveValue& ConstraintValue : ConstraintsValues)
 					{
 						UMovieSceneControlRigParameterSection* NonConstSection = const_cast<UMovieSceneControlRigParameterSection*>(Section);
@@ -1424,7 +1425,7 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 							{
 								TransformConstraint->InitConstraint(BoundObject->GetWorld());
 							}
-							ConstraintValue.Constraint->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
+							ConstraintValue.Constraint->ResolveBoundObjects(Operand.SequenceID, SharedPlaybackState, ControlRig);
 							ConstraintValue.Constraint->SetActive(ConstraintValue.Value);
 						}
 					}
@@ -1438,7 +1439,7 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 						{
 							if (TransformConstraint->ParentTRSHandle)
 							{
-								TransformConstraint->ParentTRSHandle->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
+								TransformConstraint->ParentTRSHandle->ResolveBoundObjects(Operand.SequenceID, SharedPlaybackState, ControlRig);
 								TransformConstraint->EnsurePrimaryDependency(BoundObject->GetWorld());
 							}
 						}

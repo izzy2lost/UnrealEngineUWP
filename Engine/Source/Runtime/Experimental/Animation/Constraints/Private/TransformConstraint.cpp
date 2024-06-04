@@ -594,18 +594,18 @@ bool UTickableTransformConstraint::HasBoundObjects() const
 	return false;
 }
 
-void UTickableTransformConstraint::ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject)
+void UTickableTransformConstraint::ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject)
 {
 	// update dependencies if the constraint becomes valid once resolved 
 	FConstraintDependencyScope Scope(this);
 	
 	if (ChildTRSHandle && ChildTRSHandle->HasBoundObjects())
 	{
-		ChildTRSHandle->ResolveBoundObjects(LocalSequenceID, Player, SubObject);
+		ChildTRSHandle->ResolveBoundObjects(LocalSequenceID, SharedPlaybackState, SubObject);
 	}
 	if (ParentTRSHandle && ParentTRSHandle->HasBoundObjects())
 	{
-		ParentTRSHandle->ResolveBoundObjects(LocalSequenceID, Player, SubObject);
+		ParentTRSHandle->ResolveBoundObjects(LocalSequenceID, SharedPlaybackState, SubObject);
 	}
 }
 

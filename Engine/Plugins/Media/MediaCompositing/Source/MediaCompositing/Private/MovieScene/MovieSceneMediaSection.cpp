@@ -103,17 +103,16 @@ void UMovieSceneMediaSection::MigrateFrameTimes(FFrameRate SourceRate, FFrameRat
 	}
 }
 
-void UMovieSceneMediaSection::OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player)
+void UMovieSceneMediaSection::OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
 {
-	UE::MovieScene::FFixedObjectBindingID FixedBindingID = 
-		MediaSourceProxyBindingID.ResolveToFixed(LocalSequenceID, Player);
+	UE::MovieScene::FFixedObjectBindingID FixedBindingID = MediaSourceProxyBindingID.ResolveToFixed(LocalSequenceID, SharedPlaybackState);
 
 	if (OldFixedToNewFixedMap.Contains(FixedBindingID))
 	{
 		Modify();
 
-		MediaSourceProxyBindingID =
-			OldFixedToNewFixedMap[FixedBindingID].ConvertToRelative(LocalSequenceID, Hierarchy);
+		const FMovieSceneSequenceHierarchy* Hierarchy = SharedPlaybackState->GetHierarchy();
+		MediaSourceProxyBindingID = OldFixedToNewFixedMap[FixedBindingID].ConvertToRelative(LocalSequenceID, Hierarchy);
 	}
 }
 
