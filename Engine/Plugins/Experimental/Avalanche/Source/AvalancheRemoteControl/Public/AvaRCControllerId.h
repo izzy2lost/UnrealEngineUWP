@@ -9,7 +9,7 @@ class URCVirtualPropertyBase;
 class URemoteControlPreset;
 
 /** Struct describing data to identify/find a Controller in a given preset */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FAvaRCControllerId
 {
 	GENERATED_BODY()
@@ -18,6 +18,6 @@ struct FAvaRCControllerId
 
 	AVALANCHEREMOTECONTROL_API FText ToText() const;
 
-	UPROPERTY(EditAnywhere, Category = "Motion Design Remote Control")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Remote Control")
 	FName Name;
 };

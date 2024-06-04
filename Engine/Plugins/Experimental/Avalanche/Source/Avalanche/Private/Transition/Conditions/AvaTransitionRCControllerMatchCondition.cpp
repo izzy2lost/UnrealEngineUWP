@@ -3,19 +3,11 @@
 #include "Transition/Conditions/AvaTransitionRCControllerMatchCondition.h"
 #include "AvaSceneSubsystem.h"
 #include "AvaTransitionContext.h"
-#include "AvaTransitionLayer.h"
-#include "AvaTransitionLayerUtils.h"
 #include "AvaTransitionLog.h"
-#include "AvaTransitionScene.h"
-#include "AvaTransitionSubsystem.h"
 #include "AvaTransitionUtils.h"
-#include "Behavior/AvaTransitionBehaviorInstance.h"
-#include "IAvaSceneInterface.h"
-#include "RCVirtualProperty.h"
-#include "RemoteControlPreset.h"
 #include "StateTreeExecutionContext.h"
 #include "StateTreeLinker.h"
-#include "Transition/Extensions/IAvaTransitionRCExtension.h"
+#include "Transition/AvaTransitionRCLibrary.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionRCControllerMatchCondition"
 
@@ -55,89 +47,11 @@ bool FAvaTransitionRCControllerMatchCondition::Link(FStateTreeLinker& InLinker)
 
 bool FAvaTransitionRCControllerMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {
-	const FInstanceDataType& InstanceData          = InContext.GetInstanceData(*this);
-	const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
-	UAvaTransitionSubsystem& TransitionSubsystem   = InContext.GetExternalData(TransitionSubsystemHandle);
-	const UAvaSceneSubsystem& SceneSubsystem       = InContext.GetExternalData(SceneSubsystemHandle);
-	const FAvaTransitionScene* TransitionScene     = TransitionContext.GetTransitionScene();
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 
-	URCVirtualPropertyBase* Controller = GetController(InstanceData.ControllerId, SceneSubsystem, TransitionScene);
-	if (!Controller)
-	{
-		return false;
-	}
-
-	// Get all the Behavior Instances in the same Layer
-	TArray<const FAvaTransitionBehaviorInstance*> BehaviorInstances;
-	{
-		FAvaTransitionLayerComparator Comparator = FAvaTransitionLayerUtils::BuildComparator(TransitionContext, EAvaTransitionLayerCompareType::Same, FAvaTagHandle());
-		BehaviorInstances = FAvaTransitionLayerUtils::QueryBehaviorInstances(TransitionSubsystem, Comparator);
-	}
-
-	if (BehaviorInstances.IsEmpty())
-	{
-		return false;
-	}
-
-	// Optional Extension to override Controller Comparison
-	IAvaRCTransitionExtension* const RCTransitionExtension = TransitionScene->FindExtension<IAvaRCTransitionExtension>();
-
-	for (const FAvaTransitionBehaviorInstance* BehaviorInstance : BehaviorInstances)
-	{
-		check(BehaviorInstance);
-
-		const FAvaTransitionScene* OtherTransitionScene = BehaviorInstance->GetTransitionContext().GetTransitionScene();
-		if (!OtherTransitionScene)
-		{
-			continue;
-		}
-
-		EAvaTransitionComparisonResult Result;
-		if (RCTransitionExtension)
-		{
-			Result = RCTransitionExtension->CompareControllers(Controller->Id
-				, *TransitionScene
-				, *OtherTransitionScene);
-		}
-		else if (URCVirtualPropertyBase* OtherController = GetController(InstanceData.ControllerId, SceneSubsystem, OtherTransitionScene))
-		{
-			Result = Controller->IsValueEqual(OtherController)
-				? EAvaTransitionComparisonResult::Same
-				: EAvaTransitionComparisonResult::Different;
-		}
-		else
-		{
-			Result = EAvaTransitionComparisonResult::None;
-		}
-
-		if (InstanceData.ValueComparisonType == Result)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-URCVirtualPropertyBase* FAvaTransitionRCControllerMatchCondition::GetController(const FAvaRCControllerId& InControllerId, const UAvaSceneSubsystem& InSceneSubsystem, const FAvaTransitionScene* InTransitionScene) const
-{
-	if (!InTransitionScene)
-	{
-		return nullptr;
-	}
-
-	IAvaSceneInterface* SceneInterface = InSceneSubsystem.GetSceneInterface(InTransitionScene->GetLevel());
-	if (!SceneInterface)
-	{
-		return nullptr;
-	}
-
-	if (URemoteControlPreset* RemoteControlPreset = SceneInterface->GetRemoteControlPreset())
-	{
-		return InControllerId.FindController(RemoteControlPreset);
-	}
-
-	return nullptr;
+	return UAvaTransitionRCLibrary::CompareRCControllerValues(InContext.GetExternalData(TransitionContextHandle)
+		, InstanceData.ControllerId
+		, InstanceData.ValueComparisonType);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -52,8 +52,6 @@ struct AVALANCHE_API FAvaTransitionRCControllerMatchCondition : public FAvaTrans
 	virtual bool TestCondition(FStateTreeExecutionContext& InContext) const override;
 	//~ End FStateTreeConditionBase
 
-	URCVirtualPropertyBase* GetController(const FAvaRCControllerId& InControllerId, const UAvaSceneSubsystem& InSceneSubsystem, const FAvaTransitionScene* InTransitionScene) const;
-
 	UE_DEPRECATED(5.5, "ControllerId has been moved to Instance Data")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the Instance Data ControllerId instead"))
 	FAvaRCControllerId ControllerId_DEPRECATED;
