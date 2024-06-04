@@ -111,14 +111,11 @@ void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& InPr
 	else if ((PropertyName == GET_MEMBER_NAME_CHECKED(URuntimePartitionLHGrid, bShowGridPreview)) || 
 			 (PropertyName == GET_MEMBER_NAME_CHECKED(URuntimePartitionLHGrid, bIs2D)))
 	{
+		WorldGridPreviewer.Reset();
+
 		if (bShowGridPreview)
 		{
 			WorldGridPreviewer = MakeUnique<FWorldGridPreviewer>(GetTypedOuter<UWorld>(), bIs2D);
-		}
-		else
-		{
-			check(WorldGridPreviewer);
-			WorldGridPreviewer.Reset();
 		}
 
 		if (!GPackageWasDirty)

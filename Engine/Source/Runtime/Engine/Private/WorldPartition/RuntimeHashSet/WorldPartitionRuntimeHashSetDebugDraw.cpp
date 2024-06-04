@@ -358,63 +358,66 @@ void UWorldPartitionRuntimeHashSet::Draw3D(const TArray<FWorldPartitionStreaming
 
 	ForEachStreamingData([this, &Sources, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		for (const FWorldPartitionStreamingSource& Source : Sources)
+		if (StreamingData.SpatialIndex)
 		{
-			Source.ForEachShape(StreamingData.GetLoadingRange(), StreamingData.Name, false, [this, &StreamingData, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](const FSphericalSector& Shape)
+			for (const FWorldPartitionStreamingSource& Source : Sources)
 			{
-				const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
-
-				StreamingData.SpatialIndex.Get()->ForEachIntersectingElement(ShapeSphere, [this, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](UWorldPartitionRuntimeCell* Cell)
+				Source.ForEachShape(StreamingData.GetLoadingRange(), StreamingData.Name, false, [this, &StreamingData, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](const FSphericalSector& Shape)
 				{
-					const FVector2D CellStreamingBoundsSize = FVector2D(Cell->GetStreamingBounds().GetSize());
-					const FVector2D CellStreamingBoundsMin = FVector2D(Cell->GetStreamingBounds().Min);
+					const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
-					float CellOpacity = 0.0f;
-					TArray<FLinearColor> CellColors;
-
-					switch (GShowRuntimeHashSetDebugDisplayMode)
+					StreamingData.SpatialIndex.Get()->ForEachIntersectingElement(ShapeSphere, [this, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](UWorldPartitionRuntimeCell* Cell)
 					{
-					case 0:
-						CellColors.Add(Cell->GetDebugColor(VisualizeMode));
-						CellOpacity = 0.25f / FMath::Max<float>(GShowRuntimeHashSetDebugDisplayLevelCount, 1);
-						break;
-					case 1:
-						if (DataLayerDebugColors.Num() && Cell->GetDataLayers().Num())
+						const FVector2D CellStreamingBoundsSize = FVector2D(Cell->GetStreamingBounds().GetSize());
+						const FVector2D CellStreamingBoundsMin = FVector2D(Cell->GetStreamingBounds().Min);
+
+						float CellOpacity = 0.0f;
+						TArray<FLinearColor> CellColors;
+
+						switch (GShowRuntimeHashSetDebugDisplayMode)
 						{
-							for (const FName& DataLayer : Cell->GetDataLayers())
+						case 0:
+							CellColors.Add(Cell->GetDebugColor(VisualizeMode));
+							CellOpacity = 0.25f / FMath::Max<float>(GShowRuntimeHashSetDebugDisplayLevelCount, 1);
+							break;
+						case 1:
+							if (DataLayerDebugColors.Num() && Cell->GetDataLayers().Num())
 							{
-								CellColors.Add(DataLayerDebugColors[DataLayer]);
-							}
-							CellOpacity = 0.67f;
-						}
-						break;
-					case 2:
-						if (ContentBundleManager && Cell->GetContentBundleID().IsValid())
-						{
-							if (const FContentBundleBase* ContentBundle = ContentBundleManager->GetContentBundle(OwningWorld, Cell->GetContentBundleID()))
-							{
-								check(ContentBundle->GetDescriptor());
-								CellColors.Add(ContentBundle->GetDescriptor()->GetDebugColor());
+								for (const FName& DataLayer : Cell->GetDataLayers())
+								{
+									CellColors.Add(DataLayerDebugColors[DataLayer]);
+								}
 								CellOpacity = 0.67f;
 							}
+							break;
+						case 2:
+							if (ContentBundleManager && Cell->GetContentBundleID().IsValid())
+							{
+								if (const FContentBundleBase* ContentBundle = ContentBundleManager->GetContentBundle(OwningWorld, Cell->GetContentBundleID()))
+								{
+									check(ContentBundle->GetDescriptor());
+									CellColors.Add(ContentBundle->GetDescriptor()->GetDebugColor());
+									CellOpacity = 0.67f;
+								}
+							}
+							break;
 						}
-						break;
-					}
 
-					if (CellColors.IsEmpty())
-					{
-						CellColors.Add(FLinearColor::White);
-						CellOpacity = 0.1f;
-					}
+						if (CellColors.IsEmpty())
+						{
+							CellColors.Add(FLinearColor::White);
+							CellOpacity = 0.1f;
+						}
 
-					// Draw Cell using its debug color
-					const FBox Box(Cell->GetStreamingBounds());
-					const FVector BoxCenter(Box.GetCenter());
-					const FColor BoxColor(CellColors[0].CopyWithNewOpacity(CellOpacity).ToFColor(true));
-					const FVector CellPos = WorldPartitionTransform.TransformPosition(BoxCenter);
-					DrawDebugBox(OwningWorld, CellPos, Box.GetExtent(), WorldPartitionTransform.GetRotation(), BoxColor.WithAlpha(255), false, -1.f, 255, 20.f);
+						// Draw Cell using its debug color
+						const FBox Box(Cell->GetStreamingBounds());
+						const FVector BoxCenter(Box.GetCenter());
+						const FColor BoxColor(CellColors[0].CopyWithNewOpacity(CellOpacity).ToFColor(true));
+						const FVector CellPos = WorldPartitionTransform.TransformPosition(BoxCenter);
+						DrawDebugBox(OwningWorld, CellPos, Box.GetExtent(), WorldPartitionTransform.GetRotation(), BoxColor.WithAlpha(255), false, -1.f, 255, 20.f);
+					});
 				});
-			});
+			}
 		}
 		return true;
 	});
