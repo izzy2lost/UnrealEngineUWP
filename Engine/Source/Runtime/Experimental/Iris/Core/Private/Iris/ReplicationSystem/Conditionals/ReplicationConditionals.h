@@ -30,7 +30,7 @@ struct FReplicationConditionalsInitParams
 {
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	const FReplicationFiltering* ReplicationFiltering = nullptr;
-	const FReplicationConnections* ReplicationConnections = nullptr;
+	FReplicationConnections* ReplicationConnections = nullptr;
 	const FNetObjectGroups* NetObjectGroups = nullptr;
 	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
@@ -60,6 +60,7 @@ public:
 
 	bool SetConditionConnectionFilter(FInternalNetRefIndex ObjectIndex, EReplicationCondition Condition, uint32 ConnectionId, bool bEnable);
 	bool SetCondition(FInternalNetRefIndex ObjectIndex, EReplicationCondition Condition, bool bEnable);
+	void SetOwningConnection(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId);
 
 	// For property custom conditions only
 	void InitPropertyCustomConditions(FInternalNetRefIndex ObjectIndex);
@@ -70,6 +71,16 @@ public:
 	void MarkPropertyDirty(FInternalNetRefIndex ObjectIndex, uint16 RepIndex);
 
 	void Update();
+
+	struct FConditionalsMask
+	{
+		bool IsUninitialized() const { return ConditionalsMask == 0; }
+		bool IsConditionEnabled(int Condition) const { checkSlow(Condition < 16); return ConditionalsMask & (uint16(1) << unsigned(Condition)); }
+		bool SetConditionEnabled(int Condition, bool bEnabled) { checkSlow(Condition < 16); return ConditionalsMask |= (uint16(bEnabled ? 1 : 0) << unsigned(Condition)); }
+
+		// Each LifetimeCondition is represented in this member via (1U << ELifetimeCondition)
+		uint16 ConditionalsMask;
+	};
 
 	bool ApplyConditionalsToChangeMask(uint32 ReplicatingConnectionId, bool bIsInitialState, FInternalNetRefIndex ParentObjectIndex, FInternalNetRefIndex ObjectIndex, uint32* ChangeMaskData, const uint32* ConditionalChangeMaskData, const FReplicationProtocol* Protocol);
 
@@ -82,16 +93,6 @@ private:
 		// Assume there can only be one connection which has the role autonomous connection and all else are simulated
 		uint16 AutonomousConnectionId : 15;
 		uint16 bRepPhysics : 1;
-	};
-
-	struct FConditionalsMask
-	{
-		bool IsUninitialized() const { return ConditionalsMask == 0; }
-		bool IsConditionEnabled(int Condition) const { return ConditionalsMask & (uint16(1) << unsigned(Condition)); }
-		bool SetConditionEnabled(int Condition, bool bEnabled) { return ConditionalsMask |= (uint16(bEnabled ? 1 : 0) << unsigned(Condition)); }
-
-		// Each LifetimeCondition is represented in this member via (1U << ELifetimeCondition)
-		uint16 ConditionalsMask;
 	};
 
 	struct FPerConnectionInfo
@@ -113,6 +114,7 @@ private:
 
 private:
 	void UpdateObjectsInScope();
+	void UpdateAndResetObjectsWithDirtyConditionals();
 
 	FConditionalsMask GetLifetimeConditionals(uint32 ReplicatingConnectionId, FInternalNetRefIndex ParentObjectIndex, bool bInitialState) const;
 
@@ -135,13 +137,14 @@ private:
 
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	const FReplicationFiltering* ReplicationFiltering = nullptr;
-	const FReplicationConnections* ReplicationConnections = nullptr;
+	FReplicationConnections* ReplicationConnections = nullptr;
 	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 	const FNetObjectGroups* NetObjectGroups = nullptr;
 
 	TArray<FPerObjectInfo> PerObjectInfos;
 	TArray<FPerConnectionInfo> ConnectionInfos;
 	TMap<FInternalNetRefIndex, FObjectDynamicConditions> DynamicConditions;
+	FNetBitArray ObjectsWithDirtyLifetimeConditionals;
 
 	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxConnectionCount = 0;

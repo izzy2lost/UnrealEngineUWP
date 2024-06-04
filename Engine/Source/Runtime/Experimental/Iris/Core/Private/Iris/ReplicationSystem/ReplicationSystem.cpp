@@ -1125,6 +1125,9 @@ void UReplicationSystem::SetOwningNetConnection(FNetRefHandle Handle, uint32 Con
 		return;
 	}
 
+	FReplicationConditionals& Conditionals = Impl->ReplicationSystemInternal.GetConditionals();
+	Conditionals.SetOwningConnection(ObjectInternalIndex, ConnectionId);
+
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 	Filtering.SetOwningConnection(ObjectInternalIndex, ConnectionId);
 }

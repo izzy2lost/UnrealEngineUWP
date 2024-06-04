@@ -130,6 +130,7 @@ public:
 				uint64 LastAckedBaselineIndex : 2;						// Last acknowledged baseline index which we can use for deltacompresion
 				uint64 PendingBaselineIndex : 2;						// Baseline index pending acknowledgment from client
 				uint64 FlushFlags : 3;									// Flags indicating what we are waiting for when flushing
+				uint64 HasDirtyConditionals : 1;						// If this flag is set, we must update conditionals.
 			};
 		};
 
@@ -160,6 +161,9 @@ public:
 
 	// Called if an object first being teared-off/flushed and then explicitly destroyed before it has been removed from scope
 	void NotifyDestroyedObjectPendingEndReplication(FInternalNetRefIndex ObjectInternalIndex);
+
+	// Called to propagate changes to global lifetime conditionals
+	void UpdateDirtyGlobalLifetimeConditionals(TArrayView<FInternalNetRefIndex> ObjectsWithDirtyConditionals);
 
 	// Propagate dirty changemasks
 	void UpdateDirtyChangeMasks(const FChangeMaskCache& CachedChangeMasks) { InternalUpdateDirtyChangeMasks(CachedChangeMasks, EFlushFlags::FlushFlags_None, false); }

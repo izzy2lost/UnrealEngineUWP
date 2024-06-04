@@ -44,6 +44,7 @@ public:
 
 	void Init(FDeltaCompressionBaselineInvalidationTrackerInitParams& InitParams);
 
+	// It is up to calling code to also do this for eventual subobjects.
 	void InvalidateBaselines(FInternalNetRefIndex ObjectIndex, uint32 ConnId);
 
 	// Returns an array of objects with enabled conditions such that DC baselines need to be invalidated.

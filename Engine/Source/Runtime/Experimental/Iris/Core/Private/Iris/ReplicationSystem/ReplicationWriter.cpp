@@ -847,6 +847,19 @@ void FReplicationWriter::UpdateScope(const FNetBitArrayView& UpdatedScope)
 	ObjectsInScope.Combine(ObjectsPendingDestroy, FNetBitArrayBase::AndNotOp);
 }
 
+void FReplicationWriter::UpdateDirtyGlobalLifetimeConditionals(TArrayView<FInternalNetRefIndex> ObjectsWithDirtyConditionals)
+{
+	for (FInternalNetRefIndex InternalObjectIndex : ObjectsWithDirtyConditionals)
+	{
+		FReplicationInfo& Info = ReplicatedObjects[InternalObjectIndex];
+		if (Info.GetState() != EReplicatedObjectState::Invalid)
+		{
+			// We just set a flag that we will process if the object is going to be replicated
+			Info.HasDirtyConditionals = 1;
+		}
+	}
+}
+
 void FReplicationWriter::InternalUpdateDirtyChangeMasks(const FChangeMaskCache& CachedChangeMasks, EFlushFlags ExtraFlushFlags, bool bMarkForTearOff)
 {
 	//IRIS_PROFILER_SCOPE(FReplicationWriter_UpdateDirtyChangeMasks);
@@ -2054,8 +2067,8 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 		return EWriteObjectStatus::NoInstanceProtocol;
 	}
 
-	// Filter out changemasks that are not supposed to be replicated to this connection
-	const bool bNeedToFilterChangeMask = (bIsInitialState || Info.HasDirtyChangeMask) && Info.HasChangemaskFilter;
+	// Objects affected by conditionals might need to modify the changemask
+	const bool bNeedToFilterChangeMask = (bIsInitialState || Info.HasDirtyChangeMask || Info.HasDirtyConditionals) && Info.HasChangemaskFilter;
 	if (bNeedToFilterChangeMask)
 	{
 		ApplyFilterToChangeMask(OutBatchInfo.ParentInternalIndex, InternalIndex, Info, ObjectData.Protocol, ReplicatedObjectStateBuffer, bIsInitialState);
@@ -2066,6 +2079,23 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 		}
 #endif
 	}
+
+	// Even if root is not affected by dirty conditionals one of our subobjects might be.
+	if (!Info.IsSubObject && Info.HasDirtyConditionals)
+	{
+		for (uint32 SubObjectIndex : NetRefHandleManager->GetSubObjects(InternalIndex))
+		{
+			FReplicationInfo& SubObjectInfo = GetReplicationInfo(SubObjectIndex);
+			const EReplicatedObjectState SubObjectState = SubObjectInfo.GetState();
+			if (SubObjectInfo.HasChangemaskFilter && (SubObjectState > EReplicatedObjectState::Invalid && SubObjectState < EReplicatedObjectState::PendingDestroy))
+			{
+				MarkObjectDirty(SubObjectIndex, "UpdateGlobalConditional");
+				SubObjectInfo.HasDirtyChangeMask = 1;
+				Info.HasDirtySubObjects = 1;
+			}
+		}
+	}
+	Info.HasDirtyConditionals = 0;
 
 	const bool bIsObjectIndexForAttachment = IsObjectIndexForOOBAttachment(InternalIndex);
 	const bool bHasState = (bIsInitialState || Info.HasDirtyChangeMask) && !!(WriteObjectFlags & EWriteObjectFlag::WriteObjectFlag_State);
@@ -3449,9 +3479,9 @@ void FReplicationWriter::ApplyFilterToChangeMask(uint32 ParentInternalIndex, uin
 {
 	const uint32* ConditionalChangeMaskPointer = (EnumHasAnyFlags(Protocol->ProtocolTraits, EReplicationProtocolTraits::HasConditionalChangeMask) ? reinterpret_cast<const uint32*>(InternalStateBuffer + Protocol->GetConditionalChangeMaskOffset()) : static_cast<const uint32*>(nullptr));
 	const bool bChangeMaskWasModified = ReplicationConditionals->ApplyConditionalsToChangeMask(Parameters.ConnectionId, bIsInitialState, ParentInternalIndex, InternalIndex, Info.GetChangeMaskStoragePointer(), ConditionalChangeMaskPointer, Protocol);
-	if (bChangeMaskWasModified && !MakeNetBitArrayView(Info.GetChangeMaskStoragePointer(), Info.ChangeMaskBitCount).IsAnyBitSet())
+	if (bChangeMaskWasModified)
 	{
-		Info.HasDirtyChangeMask = 0;
+		Info.HasDirtyChangeMask = MakeNetBitArrayView(Info.GetChangeMaskStoragePointer(), Info.ChangeMaskBitCount).IsAnyBitSet() ? 1 : 0;
 	}
 }
 

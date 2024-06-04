@@ -13,15 +13,25 @@
 #include "Iris/ReplicationSystem/Filtering/NetObjectGroups.h"
 #include "Iris/ReplicationSystem/Filtering/ReplicationFiltering.h"
 #include "Iris/Serialization/InternalNetSerializers.h"
+#include "Iris/ReplicationSystem/ReplicationWriter.h"
 #include "Containers/ArrayView.h"
 #include "UObject/CoreNetTypes.h"
 #include "Net/Core/NetHandle/NetHandleManager.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
 #include "Net/Core/PropertyConditions/PropertyConditions.h"
 #include "Net/Core/Trace/NetDebugName.h"
+#include "HAL/IConsoleManager.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogIrisConditionals, Log, All);
 
 namespace UE::Net::Private
 {
+
+static bool bEnableUpdateObjectsWithDirtyConditionals = true;
+static FAutoConsoleVariableRef CVarEnableUpdateObjectsWithDirtyConditionals(
+	TEXT("net.Iris.EnableUpdateObjectsWithDirtyConditionals"),
+	bEnableUpdateObjectsWithDirtyConditionals,
+	TEXT("Enable the updating subobjects with conditionals."));
 
 FReplicationConditionals::FReplicationConditionals()
 {
@@ -47,6 +57,7 @@ void FReplicationConditionals::Init(FReplicationConditionalsInitParams& Params)
 
 	PerObjectInfos.SetNumZeroed(MaxInternalNetRefIndex);
 	ConnectionInfos.SetNum(MaxConnectionCount + 1U);
+	ObjectsWithDirtyLifetimeConditionals.Init(Params.MaxInternalNetRefIndex);
 }
 
 void FReplicationConditionals::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
@@ -54,6 +65,8 @@ void FReplicationConditionals::OnMaxInternalNetRefIndexIncreased(FInternalNetRef
 	MaxInternalNetRefIndex = NewMaxInternalIndex;
 
 	PerObjectInfos.SetNumZeroed(NewMaxInternalIndex);
+
+	ObjectsWithDirtyLifetimeConditionals.SetNumBits(NewMaxInternalIndex);
 
 	for (FPerConnectionInfo& ConnectionInfo : ConnectionInfos)
 	{
@@ -82,15 +95,31 @@ bool FReplicationConditionals::SetConditionConnectionFilter(FInternalNetRefIndex
 	FPerObjectInfo* ObjectInfo = GetPerObjectInfo(ObjectIndex);
 	if (ObjectInfo->AutonomousConnectionId != AutonomousConnectionId)
 	{
+		UE_LOG(LogIrisConditionals, Verbose, TEXT("SetConditionConnectionFilter %s. AutonomousConnectionId: %u"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), AutonomousConnectionId);
+
 		const uint32 ConnIdForBaselineInvalidation = (bEnable ? ConnectionId : ObjectInfo->AutonomousConnectionId);
 		ObjectInfo->AutonomousConnectionId = uint16(AutonomousConnectionId);
 
+		// TODO: Make sure we also invalidate baselines for subobjects
 		BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, ConnIdForBaselineInvalidation);
 
 		MarkRemoteRoleDirty(ObjectIndex);
+		// Mark object as having dirty global conditional that should be evaluated before next send
+		ObjectsWithDirtyLifetimeConditionals.SetBit(ObjectIndex);
 	}
 
 	return true;
+}
+
+void FReplicationConditionals::SetOwningConnection(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId)
+{
+	if (ReplicationFiltering->GetOwningConnection(ObjectIndex) != ConnectionId)
+	{
+		UE_LOG(LogIrisConditionals, Verbose, TEXT("SetOwningConnection on object %u. Connection: %u"), ObjectIndex, ConnectionId);
+
+		// Mark object as having dirty global conditional that should be evaluated before next send
+		ObjectsWithDirtyLifetimeConditionals.SetBit(ObjectIndex);
+	}
 }
 
 void FReplicationConditionals::AddConnection(uint32 ConnectionId)
@@ -120,8 +149,14 @@ bool FReplicationConditionals::SetCondition(FInternalNetRefIndex ObjectIndex, ER
 		FPerObjectInfo* ObjectInfo = GetPerObjectInfo(ObjectIndex);
 		if (bEnable && !ObjectInfo->bRepPhysics)
 		{
+			UE_LOG(LogIrisConditionals, Verbose, TEXT("SetCondition object %s. EReplicationCondition::ReplicatePhysics: %u"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), bEnable ? 1U : 0U);
+
 			// We only care to track this change if the condition is enabled.
+			// TODO: Make sure we also invalidate baselines for subobjects
 			BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, BaselineInvalidationTracker->InvalidateBaselineForAllConnections);
+
+			// Mark object as having dirty global conditional that should be evaluated before next send
+			ObjectsWithDirtyLifetimeConditionals.SetBit(ObjectIndex);
 		}
 		ObjectInfo->bRepPhysics = bEnable ? 1U : 0U;
 		return true;
@@ -316,6 +351,7 @@ bool FReplicationConditionals::SetPropertyCustomCondition(FInternalNetRefIndex O
 					// If a condition is enabled we also mark the corresponding regular changemask as dirty.
 					FNetBitArrayView MemberChangeMask = GetMemberChangeMask(Fragment.ExternalSrcBuffer, StateDescriptor);
 					FReplicationStateHeader& Header = GetReplicationStateHeader(Fragment.ExternalSrcBuffer, StateDescriptor);
+
 					MarkDirty(Header, MemberChangeMask, ChangeMaskDescriptor);
 
 					// Enabled conditions causes new properties to be replicated which most likely have incorrect values at the receiving end.
@@ -469,6 +505,10 @@ bool FReplicationConditionals::SetPropertyDynamicCondition(FInternalNetRefIndex 
 void FReplicationConditionals::Update()
 {
 	UpdateObjectsInScope();
+	if (bEnableUpdateObjectsWithDirtyConditionals)
+	{
+		UpdateAndResetObjectsWithDirtyConditionals();
+	}
 }
 
 void FReplicationConditionals::GetChildSubObjectsToReplicate(uint32 ReplicatingConnectionId, const FConditionalsMask& LifetimeConditionals,  const FInternalNetRefIndex ParentObjectIndex, FSubObjectsToReplicateArray& OutSubObjectsToReplicate)
@@ -491,11 +531,10 @@ void FReplicationConditionals::GetChildSubObjectsToReplicate(uint32 ReplicatingC
 			// Append child subobjects that fulfill the condition
 			for (uint32 ArrayIndex = 0; ArrayIndex < SubObjectsInfo.NumSubObjects; ++ArrayIndex)
 			{
+				const FInternalNetRefIndex SubObjectIndex = SubObjectsInfo.ChildSubObjects[ArrayIndex];
 				const ELifetimeCondition LifeTimeCondition = (ELifetimeCondition)SubObjectsInfo.SubObjectLifeTimeConditions[ArrayIndex];
 				if (LifeTimeCondition == COND_NetGroup)
 				{
-					const FInternalNetRefIndex SubObjectIndex = SubObjectsInfo.ChildSubObjects[ArrayIndex];
-
 					uint32 GroupCount = 0U;
 					if (const FNetObjectGroupHandle* GroupMemberships = NetObjectGroups->GetGroupMemberships(SubObjectIndex, GroupCount))
 					{
@@ -525,13 +564,21 @@ void FReplicationConditionals::GetChildSubObjectsToReplicate(uint32 ReplicatingC
 								break;
 							}
 						}
+
+						if (!bShouldReplicateSubObject)
+						{
+							UE_LOG(LogIrisConditionals, VeryVerbose, TEXT("%s Filtered out by COND_NetGroup"), *NetRefHandleManager->PrintObjectFromIndex(SubObjectIndex));
+						}
 					}
 				}
 				else if (LifetimeConditionals.IsConditionEnabled(LifeTimeCondition))
 				{
-					const FInternalNetRefIndex SubObjectIndex = SubObjectsInfo.ChildSubObjects[ArrayIndex];
 					GetChildSubObjectsToReplicate(ReplicatingConnectionId, LifetimeConditionals, SubObjectIndex, OutSubObjectsToReplicate);
 					OutSubObjectsToReplicate.Add(SubObjectIndex);
+				}
+				else
+				{
+					UE_LOG(LogIrisConditionals, VeryVerbose, TEXT("%s Filtered out by %s"), *NetRefHandleManager->PrintObjectFromIndex(SubObjectIndex), *UEnum::GetValueAsString(LifeTimeCondition));
 				}
 			}
 		}
@@ -563,6 +610,7 @@ bool FReplicationConditionals::ApplyConditionalsToChangeMask(uint32 ReplicatingC
 	if (EnumHasAnyFlags(Protocol->ProtocolTraits, EReplicationProtocolTraits::HasLifetimeConditionals))
 	{
 		const FConditionalsMask LifetimeConditionals = GetLifetimeConditionals(ReplicatingConnectionId, ParentObjectIndex, bIsInitialState);
+
 		FConditionalsMask PrevLifeTimeConditions = ConnectionInfos[ReplicatingConnectionId].ObjectConditionals[ObjectIndex];
 		if (PrevLifeTimeConditions.IsUninitialized())
 		{
@@ -596,6 +644,8 @@ bool FReplicationConditionals::ApplyConditionalsToChangeMask(uint32 ReplicatingC
 				{
 					if (!PrevLifeTimeConditions.IsConditionEnabled(Condition))
 					{
+						UE_LOG(LogIrisConditionals, Verbose, TEXT("Dirtying member %s %s:%s due to condition %s"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), ToCStr(StateDescriptor->DebugName), ToCStr(StateDescriptor->MemberDebugDescriptors[MemberIt].DebugName), *UEnum::GetValueAsString(Condition));
+
 						const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskDescriptor = ChangeMaskDescriptors[MemberIt];
 						for (uint32 BitIt = ChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, BitEndIt = BitIt + ChangeMaskDescriptor.BitCount; BitIt != BitEndIt; ++BitIt)
 						{
@@ -607,10 +657,11 @@ bool FReplicationConditionals::ApplyConditionalsToChangeMask(uint32 ReplicatingC
 				else
 				{
 					const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskDescriptor = ChangeMaskDescriptors[MemberIt];
-					for (uint32 BitIt = ChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, BitEndIt = BitIt + ChangeMaskDescriptor.BitCount; BitIt != BitEndIt; ++BitIt)
+					if (ChangeMask.IsAnyBitSet(ChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, ChangeMaskDescriptor.BitCount))
 					{
-						bMaskWasModified |= ChangeMask.GetBit(BitIt);
-						ChangeMask.ClearBit(BitIt);
+						UE_LOG(LogIrisConditionals, VeryVerbose, TEXT("Filtering out member %s %s:%s due to condition %s"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), ToCStr(StateDescriptor->DebugName), ToCStr(StateDescriptor->MemberDebugDescriptors[MemberIt].DebugName), *UEnum::GetValueAsString(Condition));
+						ChangeMask.ClearBits(ChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, ChangeMaskDescriptor.BitCount);
+						bMaskWasModified = true;
 					}
 				}
 			}
@@ -644,6 +695,7 @@ bool FReplicationConditionals::ApplyConditionalsToChangeMask(uint32 ReplicatingC
 						{
 							if (!PrevLifeTimeConditions.IsConditionEnabled(Condition))
 							{
+								UE_LOG(LogIrisConditionals, Verbose, TEXT("Dirtying member %s %s:%s due to condition %s"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), ToCStr(StateDescriptor->DebugName), ToCStr(StateDescriptor->MemberDebugDescriptors[MemberIt].DebugName), *UEnum::GetValueAsString(Condition));
 								const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskDescriptor = ChangeMaskDescriptors[MemberIt];
 								for (uint32 BitIt = CurrentChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, BitEndIt = BitIt + ChangeMaskDescriptor.BitCount; BitIt != BitEndIt; ++BitIt)
 								{
@@ -655,10 +707,12 @@ bool FReplicationConditionals::ApplyConditionalsToChangeMask(uint32 ReplicatingC
 						else
 						{
 							const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskDescriptor = ChangeMaskDescriptors[MemberIt];
-							for (uint32 BitIt = CurrentChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, BitEndIt = BitIt + ChangeMaskDescriptor.BitCount; BitIt != BitEndIt; ++BitIt)
+							if (ChangeMask.IsAnyBitSet(CurrentChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, ChangeMaskDescriptor.BitCount))
 							{
-								bMaskWasModified |= ChangeMask.GetBit(BitIt);
-								ChangeMask.ClearBit(BitIt);
+								UE_LOG(LogIrisConditionals, VeryVerbose, TEXT("Filtering out member %s %s:%s due to condition %s"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), ToCStr(StateDescriptor->DebugName), ToCStr(StateDescriptor->MemberDebugDescriptors[MemberIt].DebugName), *UEnum::GetValueAsString(Condition));
+
+								ChangeMask.ClearBits(CurrentChangeMaskBitOffset + ChangeMaskDescriptor.BitOffset, ChangeMaskDescriptor.BitCount);
+								bMaskWasModified = true;
 							}
 						}
 					}
@@ -755,7 +809,37 @@ void FReplicationConditionals::UpdateObjectsInScope()
 				}
 			}
 		}
+
 	}
+}
+
+void FReplicationConditionals::UpdateAndResetObjectsWithDirtyConditionals()
+{
+	IRIS_PROFILER_SCOPE(FReplicationConditionals_UpdateAndResetObjectsWithDirtyConditionals);
+
+	const FNetBitArray& ValidConnections = ReplicationConnections->GetValidConnections();
+
+	// We do not expect many objects with dirty global lifetime conditionals each frame
+	const uint32 MaxBatchObjectCount = 128U;
+	FInternalNetRefIndex ObjectIndices[MaxBatchObjectCount];
+
+	const uint32 BitCount = ~0U;
+	for (uint32 ObjectCount, StartIndex = 0; (ObjectCount = ObjectsWithDirtyLifetimeConditionals.GetSetBitIndices(StartIndex, BitCount, ObjectIndices, MaxBatchObjectCount)) > 0; )
+	{
+		for (uint32 ConnectionId : ValidConnections)
+		{
+			UE::Net::Private::FReplicationConnection* Connection = ReplicationConnections->GetConnection(ConnectionId);
+			Connection->ReplicationWriter->UpdateDirtyGlobalLifetimeConditionals(MakeArrayView(ObjectIndices, ObjectCount));
+		}
+
+		StartIndex = ObjectIndices[ObjectCount - 1] + 1U;
+		if ((StartIndex == ObjectsWithDirtyLifetimeConditionals.GetNumBits()) | (ObjectCount < MaxBatchObjectCount))
+		{
+			break;
+		}
+	}	
+
+	ObjectsWithDirtyLifetimeConditionals.ClearAllBits();
 }
 
 FReplicationConditionals::FConditionalsMask FReplicationConditionals::GetLifetimeConditionals(uint32 ReplicatingConnectionId, FInternalNetRefIndex ParentObjectIndex, bool bIsInitialState) const
@@ -784,7 +868,7 @@ FReplicationConditionals::FConditionalsMask FReplicationConditionals::GetLifetim
 	ConditionalsMask.SetConditionEnabled(COND_SimulatedOnlyNoReplay, bRoleSimulated);
 	ConditionalsMask.SetConditionEnabled(COND_SimulatedOrPhysicsNoReplay, bRoleSimulated | bRepPhysics);
 	ConditionalsMask.SetConditionEnabled(COND_SkipReplay, true);
-
+	
 	return ConditionalsMask;
 }
 
