@@ -103,7 +103,6 @@ FDerivedParams GetDerivedParams(in FInputParams Input, in float SceneDepth)
 	return Out;
 }
 
-int bUseLightFunctionAtlas;
 Texture2D<uint> LightingChannelsTexture;
 
 uint GetLightingChannelMask(float2 UV)

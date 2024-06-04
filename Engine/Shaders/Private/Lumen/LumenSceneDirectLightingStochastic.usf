@@ -113,7 +113,7 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 	#endif
 
 	#if USE_LIGHT_FUNCTION_ATLAS
-	if (LightData.LightFunctionAtlasLightIndex >= 0 && Luminance(LightTargetPDF.Diffuse) > 0.01f)
+	if (LightData.LightFunctionAtlasLightIndex > 0 && Luminance(LightTargetPDF.Diffuse) > 0.01f)
 	{
 		LightTargetPDF.Diffuse *= GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
 	}
@@ -1055,7 +1055,7 @@ void MainCS(
 
 		float ShadowFactor = 1.f;
 		#if USE_LIGHT_FUNCTION_ATLAS
-		if (ShadowFactor > ShadowThreshold && LumenLight.DeferredLightData.LightFunctionAtlasLightIndex >= 0)
+		if (ShadowFactor > ShadowThreshold && LumenLight.DeferredLightData.LightFunctionAtlasLightIndex > 0)
 		{
 			ShadowFactor *= GetLocalLightFunctionCommon(SampleSceneData.TranslatedWorldPosition, LumenLight.DeferredLightData.LightFunctionAtlasLightIndex);
 		}

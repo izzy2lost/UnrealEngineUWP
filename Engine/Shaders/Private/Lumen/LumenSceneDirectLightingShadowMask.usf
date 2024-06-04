@@ -128,7 +128,7 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 			ShadowMaskRay.bShadowFactorComplete = false;
 
 			#if USE_LIGHT_FUNCTION_ATLAS
-			if (ShadowMaskRay.ShadowFactor > 0.01f && DeferredLightUniforms.LightFunctionAtlasLightIndex >= 0)
+			if (ShadowMaskRay.ShadowFactor > 0.01f && DeferredLightUniforms.LightFunctionAtlasLightIndex > 0)
 			{
 				ShadowMaskRay.ShadowFactor *= GetLocalLightFunctionCommon(TranslatedWorldPosition, DeferredLightUniforms.LightFunctionAtlasLightIndex);
 				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
