@@ -88,6 +88,7 @@
 #include "ScopedTransaction.h"
 #include "ISequencerTrackEditor.h"
 #include "MovieSceneToolHelpers.h"
+#include "Evaluation/ViewportSettingsPlaybackCapability.h"
 #include "Sections/MovieSceneBoolSection.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Sections/MovieSceneSubSection.h"

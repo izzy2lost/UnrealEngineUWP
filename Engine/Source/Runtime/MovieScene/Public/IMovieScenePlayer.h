@@ -27,6 +27,7 @@ struct FMovieSceneRootEvaluationTemplateInstance;
 class FMovieSceneSequenceInstance;
 class IMovieScenePlayer;
 class IMovieSceneSequencePlayerObserver;
+struct EMovieSceneViewportParams;
 
 namespace UE::MovieScene
 {
@@ -50,31 +51,6 @@ namespace UE::MovieScene
 		uint16 PlayerIndex = (uint16)-1;
 	};
 }
-
-struct EMovieSceneViewportParams
-{
-	EMovieSceneViewportParams()
-	{
-		FadeAmount = 0.f;
-		FadeColor = FLinearColor::Black;
-		bEnableColorScaling = false;
-	}
-
-	enum SetViewportParam
-	{
-		SVP_FadeAmount   = 0x00000001,
-		SVP_FadeColor    = 0x00000002,
-		SVP_ColorScaling = 0x00000004,
-		SVP_All          = SVP_FadeAmount | SVP_FadeColor | SVP_ColorScaling
-	};
-
-	SetViewportParam SetWhichViewportParam;
-
-	float FadeAmount;
-	FLinearColor FadeColor;
-	FVector ColorScale; 
-	bool bEnableColorScaling;
-};
 
 /** Camera cut parameters */
 struct FMovieSceneCameraCutParams
@@ -136,14 +112,16 @@ public:
 	 *
 	 * @param ViewportParamMap A map from the viewport client to its settings
 	 */
-	virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) = 0;
+	UE_DEPRECATED(5.5, "Viewport settings management has moved to FViewportSettingsPlaybackCapability")
+	virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) {}
 
 	/*
 	 * Get the current perspective viewport settings
 	 *
 	 * @param ViewportParamMap A map from the viewport client to its settings
 	 */
-	virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const = 0;
+	UE_DEPRECATED(5.5, "Viewport settings management has moved to FViewportSettingsPlaybackCapability")
+	virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const {}
 
 	/** @return whether the player is currently playing, scrubbing, etc. */
 	virtual EMovieScenePlayerStatus::Type GetPlaybackStatus() const = 0;
