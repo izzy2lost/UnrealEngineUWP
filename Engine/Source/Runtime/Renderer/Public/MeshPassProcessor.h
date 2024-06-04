@@ -515,7 +515,7 @@ public:
 	bool							bDepthBounds = false;
 	uint8							MultiViewCount = 0;
 	bool							bHasFragmentDensityAttachment = false;
-	bool							bAllowVariableRateShading = false;
+	bool							bAllowVariableRateShading = true;
 	EVRSShadingRate					DrawShadingRate  = EVRSShadingRate::VRSSR_1x1;
 
 	EPrimitiveType					PrimitiveType;

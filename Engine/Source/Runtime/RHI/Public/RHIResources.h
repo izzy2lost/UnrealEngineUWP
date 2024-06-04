@@ -4083,7 +4083,7 @@ public:
 		, bDepthBounds(false)
 		, MultiViewCount(0)
 		, bHasFragmentDensityAttachment(false)
-		, bAllowVariableRateShading(false)
+		, bAllowVariableRateShading(true)
 		, ShadingRate(EVRSShadingRate::VRSSR_1x1)
 		, Flags(0)
 		, StatePrecachePSOHash(0)
