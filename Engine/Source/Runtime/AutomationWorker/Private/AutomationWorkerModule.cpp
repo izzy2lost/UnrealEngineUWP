@@ -208,7 +208,9 @@ void FAutomationWorkerModule::ReportTestComplete()
 			Message->ExecutionCount = ExecutionCount;
 			Message->State = bSuccess ? EAutomationState::Success : EAutomationState::Fail;
 			Message->Duration = ExecutionInfo.Duration;
-			Message->Entries = ExecutionInfo.GetEntries();
+			// Prune log entries if it is a success to reduce foot print.
+			Message->Entries = bPruneLogsOnSuccess && bSuccess ?
+				ExecutionInfo.GetEntries().FilterByPredicate([](const FAutomationExecutionEntry& Entry) { return Entry.Event.Context != "log"; }) : ExecutionInfo.GetEntries();
 			Message->WarningTotal = ExecutionInfo.GetWarningTotal();
 			Message->ErrorTotal = ExecutionInfo.GetErrorTotal();
 
@@ -681,6 +683,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 	BeautifiedTestName = Message.BeautifiedTestName;
 	FullTestPath = Message.FullTestPath;
 	bSendAnalytics = Message.bSendAnalytics;
+	bPruneLogsOnSuccess = Message.bPruneLogsOnSuccess;
 	TestRequesterAddress = Context->GetSender();
 	ActiveScreenshotComparisonId = FGuid();
 

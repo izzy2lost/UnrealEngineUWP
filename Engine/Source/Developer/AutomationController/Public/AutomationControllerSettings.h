@@ -169,6 +169,14 @@ public:
 	UPROPERTY(Config)
 	bool bAutoExpandSingleItemSubgroups;
 
+	/** Whether to Sort tests by failure type in json/html report */
+	UPROPERTY()
+	bool bSortTestsByFailure;
+
+	/** Whether to prune log events from test report on success */
+	UPROPERTY()
+	bool bPruneLogsOnSuccess;
+
 private:
 	/** Whether to treat log warnings as test errors (default=true) */
 	UPROPERTY(Config, Meta = (DeprecatedProperty, DeprecationMessage = "Use bElevateLogWarningsToErrors instead."))

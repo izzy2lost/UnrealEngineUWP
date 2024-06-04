@@ -319,17 +319,22 @@ struct FAutomationWorkerRunTests : public FAutomationWorkerMessageBase
 	UPROPERTY()
 	bool bSendAnalytics;
 
+	/** If true, prune log events from test report on success */
+	UPROPERTY()
+	bool bPruneLogsOnSuccess;
+
 	/** Default constructor. */
 	FAutomationWorkerRunTests( ) :ExecutionCount(0), RoleIndex(0), bSendAnalytics(false) { }
 
 	/** Creates and initializes a new instance. */
-	FAutomationWorkerRunTests( uint32 InExecutionCount, int32 InRoleIndex, FString InTestName, FString InBeautifiedTestName, FString InFullTestPath, bool InSendAnalytics)
+	FAutomationWorkerRunTests( uint32 InExecutionCount, int32 InRoleIndex, FString InTestName, FString InBeautifiedTestName, FString InFullTestPath, bool InSendAnalytics, bool InPruneLogsOnSuccess)
 		: ExecutionCount(InExecutionCount)
 		, RoleIndex(InRoleIndex)
 		, TestName(InTestName)
 		, BeautifiedTestName(InBeautifiedTestName)
 		, FullTestPath(InFullTestPath)
 		, bSendAnalytics(InSendAnalytics)
+		, bPruneLogsOnSuccess(InPruneLogsOnSuccess)
 	{ }
 };
 

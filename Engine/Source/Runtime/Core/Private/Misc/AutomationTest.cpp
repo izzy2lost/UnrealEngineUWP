@@ -199,23 +199,22 @@ void FAutomationTestFramework::FAutomationTestOutputDevice::Serialize( const TCH
 		if (CaptureLog)
 		{
 			ELogVerbosity::Type EffectiveVerbosity = AutomationTest::GetAutomationLogLevel(Verbosity, Category, LocalCurTest);
+			if (EffectiveVerbosity != ELogVerbosity::NoLogging)
+			{
+				FString FormattedMsg = FString::Printf(TEXT("%s: %s"), *Category.ToString(), V);
 
-			FString FormattedMsg = FString::Printf(TEXT("%s: %s [log]"), *Category.ToString(), V);
-			
-			// Errors
-			if (EffectiveVerbosity == ELogVerbosity::Error)
-			{
-				LocalCurTest->AddError(FormattedMsg, STACK_OFFSET);
-			}
-			// Warnings
-			else if (EffectiveVerbosity == ELogVerbosity::Warning)
-			{
-				LocalCurTest->AddWarning(FormattedMsg, STACK_OFFSET);
-			}
-			// Display
-			else if (EffectiveVerbosity != ELogVerbosity::NoLogging)
-			{
-				LocalCurTest->AddInfo(FormattedMsg, STACK_OFFSET);
+				FAutomationEvent Event(EAutomationEventType::Info, FormattedMsg, TEXT("log"));
+				// Errors
+				if (EffectiveVerbosity == ELogVerbosity::Error)
+				{
+					Event.Type = EAutomationEventType::Error;
+				}
+				// Warnings
+				else if (EffectiveVerbosity == ELogVerbosity::Warning)
+				{
+					Event.Type = EAutomationEventType::Warning;
+				}
+				LocalCurTest->AddEvent(Event, STACK_OFFSET);
 			}
 		}
 		// Log...etc
@@ -1417,8 +1416,21 @@ void FAutomationTestBase::SetTelemetryStorage(const FString& StorageName)
 
 void FAutomationTestBase::AddEvent(const FAutomationEvent& InEvent, int32 StackOffset, bool bCaptureStack)
 {
-	FWriteScopeLock Lock(ActionCS);
-	ExecutionInfo.AddEvent(InEvent, StackOffset + 1, bCaptureStack);
+	ELogVerbosity::Type LogType = ELogVerbosity::Display;
+	if (InEvent.Type == EAutomationEventType::Error)
+	{
+		LogType = ELogVerbosity::Error;
+	}
+	else if (InEvent.Type == EAutomationEventType::Warning)
+	{
+		LogType = ELogVerbosity::Warning;
+	}
+
+	if (!IsExpectedMessage(InEvent.Message, LogType))
+	{
+		FWriteScopeLock Lock(ActionCS);
+		ExecutionInfo.AddEvent(InEvent, StackOffset + 1, bCaptureStack);
+	}
 }
 
 bool FAutomationTestBase::HasAnyErrors() const

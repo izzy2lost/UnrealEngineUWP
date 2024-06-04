@@ -1196,6 +1196,11 @@ namespace Gauntlet
 		}
 		private static JsonSerializerOptions GetDefaultJsonOptions()
 		{
+			if (CommandUtils.IsBuildMachine)
+			{
+				return new JsonSerializerOptions { };
+			}
+			// Pretty print when running locally
 			return new JsonSerializerOptions
 			{
 				WriteIndented = true

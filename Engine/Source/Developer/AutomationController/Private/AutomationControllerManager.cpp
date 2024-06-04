@@ -167,6 +167,8 @@ FAutomationControllerManager::FAutomationControllerManager()
 	}
 
 	bKeepPIEOpen = Settings->bKeepPIEOpen;
+	bSortTestsByFailure = Settings->bSortTestsByFailure;
+	bPruneLogsOnSuccess = Settings->bPruneLogsOnSuccess;
 	
 	FString DeveloperPath;
 	FParse::Value(FCommandLine::Get(), TEXT("ReportOutputPath="), ReportExportPath, false);
@@ -823,7 +825,7 @@ void FAutomationControllerManager::ExecuteNextTask( int32 ClusterIndex, OUT bool
 							UE_LOG(LogAutomationController, Log, TEXT("Sending RunTest %s to %s"), *NextTest->GetDisplayName(), *DeviceAddress.ToString());
 
 							SendMessage(
-								FMessageEndpoint::MakeMessage<FAutomationWorkerRunTests>(ExecutionCount, AddressIndex, NextTest->GetCommand(), NextTest->GetDisplayName(), NextTest->GetFullTestPath(), bSendAnalytics),
+								FMessageEndpoint::MakeMessage<FAutomationWorkerRunTests>(ExecutionCount, AddressIndex, NextTest->GetCommand(), NextTest->GetDisplayName(), NextTest->GetFullTestPath(), bSendAnalytics, bPruneLogsOnSuccess),
 								FAutomationWorkerRunTests::StaticStruct(),
 								DeviceAddress);
 
@@ -998,7 +1000,7 @@ void FAutomationControllerManager::ProcessResults()
 
 		FAutomatedTestPassResults SerializedPassResults = JsonTestPassResults;
 
-		if (FParse::Param(FCommandLine::Get(), TEXT("SortTestsByFailure")))
+		if (bSortTestsByFailure)
 		{
 			// Sort result by failure to improve readability (disabled by default)
 			SerializedPassResults.Tests.StableSort([](const FAutomatedTestResult& A, const FAutomatedTestResult& B) {

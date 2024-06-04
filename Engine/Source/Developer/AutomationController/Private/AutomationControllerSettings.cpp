@@ -14,6 +14,8 @@ UAutomationControllerSettings::UAutomationControllerSettings(const FObjectInitia
 	, bElevateLogWarningsToErrors(true)
 	, bKeepPIEOpen(false)
 	, bAutoExpandSingleItemSubgroups(true)
+	, bSortTestsByFailure(false)
+	, bPruneLogsOnSuccess(true)
 	, bTreatLogWarningsAsTestErrors(true)
 	, GameInstanceLostTimerSeconds(300.0f)
 	, bResetTelemetryStorageOnNewSession(false)
