@@ -206,10 +206,6 @@ void FRazerChromaDeviceModule::StartupModule()
 
 	// Initialize the SDK	
 	const RZRESULT Res = UE::RazerChroma::InitChromaSDK();
-	UE_CLOG(Res != RZRESULT_SUCCESS, LogRazerChroma, Error, TEXT("[%hs] Failed to Init Razer Chroma Editor API. Error code %d (%s)"),
-			__func__,
-			Res,
-			*FRazerChromaDeviceModule::RazerErrorToString(Res));
 	
 	// Ensure that we keep track of if we have loaded the API successfully or not for later.
 	bLoadedDynamicAPISuccessfully &= (Res == RZRESULT_SUCCESS);
@@ -227,6 +223,24 @@ void FRazerChromaDeviceModule::StartupModule()
 			UE_LOG(LogRazerChroma, Log, TEXT("[%hs] Set default Idle Animation to %s"), __func__, *NewIdleAnimation->GetAnimationName());
 		}
 	}
+
+	// This will be the result if you run on a machine which does not have the Razer Synapse client installed
+	// (i.e. you don't have any razer products) We don't want to error here, as that would be expected. 
+	if (Res == RZRESULT_DLL_NOT_FOUND)
+	{
+		UE_LOG(LogRazerChroma, Log, TEXT("[%hs] Failed to Init Razer Chroma Editor API. The Razer Synapse client is likely not installed on this machine. Error code %d (%s)"),
+			__func__,
+			Res,
+			*FRazerChromaDeviceModule::RazerErrorToString(Res));
+	}
+	// If we failed for any other reason then it is not expected and we should log an error
+	else if (Res != RZRESULT_SUCCESS)
+	{
+		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to Init Razer Chroma Editor API. Error code %d (%s)"),
+			__func__,
+			Res,
+			*FRazerChromaDeviceModule::RazerErrorToString(Res));
+	}	
 
 #else
 	
