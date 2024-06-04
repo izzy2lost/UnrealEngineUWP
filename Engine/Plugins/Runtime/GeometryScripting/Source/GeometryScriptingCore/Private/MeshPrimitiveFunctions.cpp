@@ -647,6 +647,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolyline
 	float StartScale,
 	float EndScale,
 	float RotationAngleDeg,
+	float MaxMiterScale,
 	UGeometryScriptDebug* Debug)
 {
 	if (TargetMesh == nullptr)
@@ -706,6 +707,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolyline
 	SweepGen.InitialFrame = FFrame3d(SweepGen.Path[0]);
 	SweepGen.StartScale = StartScale;
 	SweepGen.EndScale = EndScale;
+	if (MaxMiterScale > 1.0)
+	{
+		SweepGen.EnableMitering((double)MaxMiterScale);
+	}
 
 	SweepGen.Generate();
 
@@ -775,6 +780,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleSweptPo
 	bool bCapped,
 	float StartScale,
 	float EndScale,
+	float RotationAngleDeg,
+	float MaxMiterScale,
 	UGeometryScriptDebug* Debug)
 {
 	if (TargetMesh == nullptr)
@@ -794,9 +801,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleSweptPo
 	}
 
 	FGeneralizedCylinderGenerator SweepGen;
+	FMatrix2d Rotation2D = FMatrix2d::RotationDeg(-RotationAngleDeg);
 	for (FVector2D Point : PolygonVertices)
 	{
-		SweepGen.CrossSection.AppendVertex(FVector2d(Point.X, Point.Y));
+		SweepGen.CrossSection.AppendVertex(Rotation2D * FVector2d(Point.X, Point.Y));
 	}
 	for (FVector SweepPathPos : SweepPath)
 	{
@@ -809,6 +817,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleSweptPo
 	SweepGen.InitialFrame = FFrame3d(SweepGen.Path[0]);
 	SweepGen.StartScale = StartScale;
 	SweepGen.EndScale = EndScale;
+	if (MaxMiterScale > 1.0f)
+	{
+		SweepGen.EnableMitering((double)MaxMiterScale);
+	}
 
 	SweepGen.Generate();
 
@@ -829,6 +841,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolygon(
 	float StartScale,
 	float EndScale,
 	float RotationAngleDeg,
+	float MaxMiterScale,
 	UGeometryScriptDebug* Debug)
 {
 	if (TargetMesh == nullptr)
@@ -870,6 +883,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolygon(
 	SweepGen.InitialFrame = FFrame3d(SweepGen.Path[0]);
 	SweepGen.StartScale = StartScale;
 	SweepGen.EndScale = EndScale;
+	if (MaxMiterScale > 1.0f)
+	{
+		SweepGen.EnableMitering((double)MaxMiterScale);
+	}
 
 	SweepGen.Generate();
 
