@@ -58,6 +58,7 @@
 	<Option Name="IncludeUnrealInsightsInToolCompile" DefaultValue="false" Description="Include Unreal Insights into Compile Tools prerequisites" />
 	<Option Name="IncludeEpicWebHelperInToolCompile" DefaultValue="false" Description="Include EpicWebHelper into Compile Tools prerequisites" />
 	<Option Name="WithDeviceReservation" DefaultValue="$(Horde)" Description="Whether to re-use devices and installed builds for a sequence of tests, where supported"/>
+	<Option Name="BuildSizeLimit" DefaultValue="" Description="The maximum package size limit in kilo-bytes" />
 
 	<!-- 
 		Allow project graphs that Include this file to specify their own defaults.
@@ -471,6 +472,7 @@
 		<Property Name="PlatformHashNodeName" Value="$(PreNodeName)Hash $(TargetPlatform)" />
 		<Property Name="PlatformPublishStagedNodeName" Value="$(PreNodeName)Publish Staged $(TargetPlatform)" />
 		<Property Name="PlatformPublishPackagedNodeName" Value="$(PreNodeName)Publish Packaged $(TargetPlatform)" />
+		<Property Name="PlatformCheckBuildSizeNodeName" Value="$(PreNodeName)Check Build Size $(TargetPlatform)" />
 		<Property Name="PlatformStagedArtifactNodeName" Value="$(PlatformPublishStagedNodeName) (Horde)" />
 		<Property Name="RequirePlatformStaged" Value="$(PlatformStageNodeName);$(PlatformStagedArtifactNodeName)" />
 		<Property Name="RequirePlatformStaged" Value="$(RequirePlatformStaged);$(PlatformPublishStagedNodeName)" If="!$(SkipPublish) And $(PublishBuilds)"/>
@@ -634,6 +636,13 @@
 					<Command Name="BuildCookRun" Arguments="$(BCRArgs) -configuration=$(PackageConfiguration) $(StageAndPackageArguments) -skipbuild -skipcook -skipstage -skippak -skippackage -archive -archivedirectory=&quot;$(NetworkOutputDirectory)/$(StagedPlatformFolder)/Packages&quot;" />
 				</ForEach>
 			</Node>
+
+			<!-- Check Build Size -->
+			<Node Name="$(PlatformCheckBuildSizeNodeName)" Requires="$(PlatformPublishPackagedNodeName)">
+				<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
+					<Command Name="CheckBuildSize" Arguments="-project=$(ProjectName) -platform=$(TargetPlatform) -packagesize=$(BuildSizeLimit) -build=&quot;$(NetworkOutputDirectory)&quot; -configuration=$(PackageConfiguration)" />
+				</ForEach>
+			</Node>
 			
 		</Agent>
 		
@@ -751,7 +760,8 @@
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(RequirePlatformStaged)" If="!$(SkipPublish)" />
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(RequirePlatformPackaged)" If="!$(SkipPackage) and !$(SkipPublish)" />
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformHashNodeName)"  If="$(PublishHashedStagingData)" />	
-		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)" />		
+		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)" />
+		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformCheckBuildSizeNodeName)" If="'$(BuildSizeLimit)' != ''" />
 
 		<Property Name="GeneratedTargetNodes" Value="$(GeneratedTargetNodes);$(PlatformTasks)"/>
 		<Property Name="GeneratedTargetTestNodes" Value="$(GeneratedTargetTestNodes);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)"/>
