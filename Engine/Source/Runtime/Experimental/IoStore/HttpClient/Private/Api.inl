@@ -190,6 +190,7 @@ FTicketStatus::EId FTicketStatus::GetId() const
 	switch (Activity->State)
 	{
 	case FActivity::EState::RecvMessage:	return EId::Response;
+	case FActivity::EState::RecvStream:
 	case FActivity::EState::RecvDone:		return EId::Content;
 	case FActivity::EState::Cancelled:		return EId::Cancelled;
 	case FActivity::EState::Failed:			return EId::Error;
