@@ -252,7 +252,7 @@ void VisualizeMeshDistanceFieldCS(
 #if !USE_GLOBAL_DISTANCE_FIELD && !MONOCHROME_VISUALIZATION
 		{
 			FDFObjectData DFObjectData = LoadDFObjectData(HitCulledObjectIndex);
-			Albedo = 0.1f * IntToColor(DFObjectData.GPUSceneInstanceIndex);
+			Albedo = 0.1f * IntToColor(DFObjectData.GPUSceneInstanceIndex + 1);
 		}
 #endif
 		Lighting *= Albedo;

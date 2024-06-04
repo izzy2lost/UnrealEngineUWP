@@ -230,6 +230,25 @@ bool SStaticMeshEditorViewport::IsShowNaniteFallbackVisible() const
 	return PreviewStaticMesh && PreviewStaticMesh->IsNaniteEnabled() ? true : false;
 }
 
+void SStaticMeshEditorViewport::ToggleShowDistanceField()
+{
+	if (EditorViewportClient)
+	{
+		EditorViewportClient->EngineShowFlags.SetVisualizeMeshDistanceFields(!EditorViewportClient->EngineShowFlags.VisualizeMeshDistanceFields);
+		SceneViewport->Invalidate();
+	}
+}
+
+bool SStaticMeshEditorViewport::IsShowDistanceFieldChecked() const
+{
+	return EditorViewportClient ? EditorViewportClient->EngineShowFlags.VisualizeMeshDistanceFields : false;
+}
+
+bool SStaticMeshEditorViewport::IsShowDistanceFieldVisible() const
+{
+	return true;
+}
+
 void SStaticMeshEditorViewport::UpdatePreviewSocketMeshes()
 {
 	UStaticMesh* const PreviewStaticMesh = PreviewMeshComponent ? ToRawPtr(PreviewMeshComponent->GetStaticMesh()) : nullptr;
@@ -571,6 +590,13 @@ void SStaticMeshEditorViewport::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &SStaticMeshEditorViewport::IsShowNaniteFallbackChecked),
 		FIsActionButtonVisible::CreateSP(this, &SStaticMeshEditorViewport::IsShowNaniteFallbackVisible));
+
+	CommandList->MapAction(
+		Commands.SetShowDistanceField,
+		FExecuteAction::CreateSP(this, &SStaticMeshEditorViewport::ToggleShowDistanceField),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &SStaticMeshEditorViewport::IsShowDistanceFieldChecked),
+		FIsActionButtonVisible::CreateSP(this, &SStaticMeshEditorViewport::IsShowDistanceFieldVisible));
 
 	CommandList->MapAction(
 		Commands.SetShowWireframe,

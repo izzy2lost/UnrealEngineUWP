@@ -36,6 +36,7 @@ public:
 
 	 /**  */
 	TSharedPtr<FUICommandInfo> SetShowNaniteFallback;
+	TSharedPtr<FUICommandInfo> SetShowDistanceField;
 	TSharedPtr<FUICommandInfo> SetShowWireframe;
 	TSharedPtr<FUICommandInfo> SetShowVertexColor;
 	TSharedPtr<FUICommandInfo> SetShowPhysicalMaterialMasks;

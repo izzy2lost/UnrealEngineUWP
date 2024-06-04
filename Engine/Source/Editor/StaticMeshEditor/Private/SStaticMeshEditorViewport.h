@@ -187,6 +187,12 @@ private:
 	bool IsShowNaniteFallbackChecked() const;
 
 	bool IsShowNaniteFallbackVisible() const;
+
+	void ToggleShowDistanceField();
+
+	bool IsShowDistanceFieldChecked() const;
+
+	bool IsShowDistanceFieldVisible() const;
 private:
 	
 	/** The parent tab where this viewport resides */
