@@ -13,7 +13,7 @@ struct FSetVertexTrianglePositionTargetBindingDataflowNode : public FDataflowNod
 {
 	GENERATED_USTRUCT_BODY()
 		DATAFLOW_NODE_DEFINE_INTERNAL(FSetVertexTrianglePositionTargetBindingDataflowNode, "SetVertexTrianglePositionTargetBinding", "Flesh", "")
-		DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
+		DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FGeometryCollection::StaticType(),  "Collection")
 
 public:
 	typedef FManagedArrayCollection DataType;

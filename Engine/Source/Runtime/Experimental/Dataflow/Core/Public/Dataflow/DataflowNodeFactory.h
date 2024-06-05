@@ -10,7 +10,6 @@ struct FDataflowConnection;
 
 namespace Dataflow
 {
-
 	struct FNewNodeParameters {
 		FGuid Guid;
 		FName Type;

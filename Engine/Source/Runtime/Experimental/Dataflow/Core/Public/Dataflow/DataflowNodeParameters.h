@@ -38,11 +38,12 @@ namespace Dataflow
 
 	struct FRenderingParameter {
 		FRenderingParameter() {}
-		FRenderingParameter(FName InTypeName, const TArray<FName>& InOutputs)
-			: Type(InTypeName), Outputs(InOutputs) {}
-		FRenderingParameter(FName InTypeName, TArray<FName>&& InOutputs)
-			: Type(InTypeName), Outputs(InOutputs) {}
+		FRenderingParameter(FString InRenderName, FName InTypeName, const TArray<FName>& InOutputs)
+			: Name(InRenderName), Type(InTypeName), Outputs(InOutputs) {}
+		FRenderingParameter(FString InRenderName, FName InTypeName, TArray<FName>&& InOutputs)
+			: Name(InRenderName), Type(InTypeName), Outputs(InOutputs) {}
 
+		FString Name = FString("");
 		FName Type = FName("");
 		TArray<FName> Outputs;
 	};

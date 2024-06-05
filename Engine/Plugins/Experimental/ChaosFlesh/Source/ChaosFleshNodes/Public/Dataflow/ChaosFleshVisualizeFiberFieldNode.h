@@ -17,7 +17,7 @@ struct FVisualizeFiberFieldNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FVisualizeFiberFieldNode, "VisualizeFiberField", "Flesh", "")
-	DATAFLOW_NODE_RENDER_TYPE(FFieldCollection::StaticType(), "VectorField")
+	DATAFLOW_NODE_RENDER_TYPE("VolumeRender",FFieldCollection::StaticType(), "VectorField")
 
 public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "Collection"))
@@ -47,7 +47,7 @@ struct FVisualizePositionTargetsNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FVisualizePositionTargetsNode, "VisualizePositionTargets", "Flesh", "")
-		DATAFLOW_NODE_RENDER_TYPE(FFieldCollection::StaticType(), "VectorField")
+	DATAFLOW_NODE_RENDER_TYPE("VolumeRender",FFieldCollection::StaticType(), "VectorField")
 
 public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "Collection"))
@@ -74,7 +74,7 @@ struct FVisualizeKinematicFacesNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FVisualizeKinematicFacesNode, "VisualizeKinematicFaces", "Flesh", "")
-	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FGeometryCollection::StaticType(),  "Collection")
 
 public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection", DataflowPassthrough = "Collection"))

@@ -12,18 +12,21 @@
 namespace Dataflow
 {
 	class FContext;
+	typedef TPair<FString, FName> FRenderKey;
 
 	struct FGraphRenderingState {
 		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext)
 			: NodeGuid(InGuid)
 			, Node(InNode)
+			, RenderName(InParameters.Name)
 			, RenderType(InParameters.Type)
 			, RenderOutputs(InParameters.Outputs)
 			, Context(InContext)
 		{}
 
 		const FGuid& GetGuid() const { return NodeGuid; }
-		const FName& GetRenderType() const { return RenderType; }
+		FName GetNodeName() const { return Node?Node->GetName():FName(); }
+		FRenderKey GetRenderKey() const { return { RenderName,RenderType }; }
 		const TArray<FName>& GetRenderOutputs() const { return RenderOutputs; }
 
 		template<class T>
@@ -43,6 +46,7 @@ namespace Dataflow
 		const FGuid NodeGuid;
 		const FDataflowNode* Node = nullptr;
 
+		FString RenderName;
 		FName RenderType;
 		TArray<FName> RenderOutputs;
 
@@ -57,7 +61,7 @@ namespace Dataflow
 		typedef TFunction<void(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State)> FOutputRenderingFunction;
 
 		// All Maps indexed by TypeName
-		TMap<FName, FOutputRenderingFunction > RenderMap;		// [TypeName] -> NewNodeFunction
+		TMap<FRenderKey, FOutputRenderingFunction > RenderMap;		// [TypeName] -> NewNodeFunction
 		DATAFLOWENGINE_API static FRenderingFactory* Instance;
 		FRenderingFactory() {}
 
@@ -73,23 +77,25 @@ namespace Dataflow
 			return Instance;
 		}
 
-		void RegisterOutput(const FName& Type, FOutputRenderingFunction InFunction)
+		void RegisterOutput(const FRenderKey& Key, FOutputRenderingFunction InFunction)
 		{
-			if (RenderMap.Contains(Type))
+			if (RenderMap.Contains(Key))
 			{
 				UE_LOG(LogChaos, Warning,
 					TEXT("Warning : Dataflow output rendering registration conflicts with "
-						"existing type(%s)"), *Type.ToString());
+						"existing renderer(<%s,%s>)"), 
+					*Key.Get<0>(),
+					*Key.Get<1>().ToString());
 			}
 			else
 			{
-				RenderMap.Add(Type, InFunction);
+				RenderMap.Add(Key, InFunction);
 			}
 		}
 
 		DATAFLOWENGINE_API void RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State);
 
-		bool Contains(FName InType) const { return RenderMap.Contains(InType); }
+		bool Contains(const FRenderKey& InKey) const { return RenderMap.Contains(InKey); }
 
 	};
 

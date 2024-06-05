@@ -237,7 +237,7 @@ namespace Dataflow
 
 		*		@param Outputs : {FManagedArrayCollection : "Collection"}
 		*/
-		FRenderingFactory::GetInstance()->RegisterOutput(FGeometryCollection::StaticType(),
+		FRenderingFactory::GetInstance()->RegisterOutput({ "SurfaceRender", FGeometryCollection::StaticType()},
 			[](GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State)
 			{
 				if (State.GetRenderOutputs().Num())
@@ -282,7 +282,7 @@ namespace Dataflow
 
 		*		@param Outputs : {FDynamicMesh3 : "Mesh"}
 		*/
-		FRenderingFactory::GetInstance()->RegisterOutput(FName("FDynamicMesh3"),
+		FRenderingFactory::GetInstance()->RegisterOutput({ "SurfaceRender", FName("FDynamicMesh3") },
 			[](GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State)
 			{
 				if (State.GetRenderOutputs().Num())
@@ -344,7 +344,7 @@ namespace Dataflow
 
 		*		@param Outputs : {FBox : "Box"}
 		*/
-		FRenderingFactory::GetInstance()->RegisterOutput(FName("FBox"),
+		FRenderingFactory::GetInstance()->RegisterOutput({ "SurfaceRender", FName("FBox") },
 			[](GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State)
 			{
 				if (State.GetRenderOutputs().Num())
@@ -405,7 +405,7 @@ namespace Dataflow
 
 		*		@param Outputs : {FFieldCollection : "VectorField"}
 		*/
-		FRenderingFactory::GetInstance()->RegisterOutput(FFieldCollection::StaticType(),
+		FRenderingFactory::GetInstance()->RegisterOutput({ "VolumeRender", FFieldCollection::StaticType() },
 			[](GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State)
 			{
 				if (State.GetRenderOutputs().Num())

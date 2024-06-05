@@ -90,7 +90,7 @@ struct FMakeBoxDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FMakeBoxDataflowNode, "MakeBox", "Generators|Box", "")
-	DATAFLOW_NODE_RENDER_TYPE(FName("FBox"), "Box")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FName("FBox"), "Box")
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Box", meta = (DisplayName = "Input Data Type"));

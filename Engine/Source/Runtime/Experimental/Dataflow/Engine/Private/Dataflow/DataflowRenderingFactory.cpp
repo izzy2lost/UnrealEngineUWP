@@ -13,16 +13,17 @@ namespace Dataflow
 
 	void FRenderingFactory::RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State)
 	{
-		FName OutputType = State.GetRenderType();
-		if (RenderMap.Contains(State.GetRenderType()))
+		if (RenderMap.Contains(State.GetRenderKey()))
 		{
-			RenderMap[State.GetRenderType()](RenderData, State);
+			RenderMap[State.GetRenderKey()](RenderData, State);
 		}
 		else
 		{
 			UE_LOG(LogChaos, Warning,
-				TEXT("Warning : Dataflow missing output rendering type(%s)"), *State.GetRenderType().ToString());
-
+				TEXT("Warning : Dataflow missing output renderer <%s,%s> for node %s"), 
+				*State.GetRenderKey().Get<0>(),
+				*State.GetRenderKey().Get<1>().ToString(),
+				*State.GetNodeName().ToString());
 		}
 	}
 }
