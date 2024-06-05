@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TSRCommon.ush"
+#if TSR_SUPPORT_LENS_DISTORTION
+	#include "../LensDistortion.ush"
+#endif
 
 
 //------------------------------------------------------- CONFIG
@@ -60,16 +63,8 @@ RWTexture2D<tsr_half4> Output;
 
 //------------------------------------------------------- FUNCTION
 
+#if !TSR_SUPPORT_LENS_DISTORTION
 float2 ApplyLensDistortionOnScreenPos(Texture2D<float2> DisplacementTexture, float2 DestScreenPos)
-#if TSR_SUPPORT_LENS_DISTORTION
-{
-	float2 DestViewportUV = ScreenPosToViewportUV(DestScreenPos);
-
-	float2 SrcViewportUV = DestViewportUV + DisplacementTexture.SampleLevel(GlobalBilinearClampedSampler, DestViewportUV, 0);
-			
-	return ViewportUVToScreenPos(SrcViewportUV);
-}
-#else
 {
 	return DestScreenPos;
 }

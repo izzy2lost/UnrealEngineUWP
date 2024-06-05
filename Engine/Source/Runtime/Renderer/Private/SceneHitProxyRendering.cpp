@@ -35,6 +35,7 @@
 #include "HairStrands/HairStrandsData.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshSceneProxy.h"
+#include "PixelShaderUtils.h"
 
 class FHitProxyShaderElementData : public FMeshMaterialShaderElementData
 {
@@ -224,11 +225,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FHitProxyPassParameters, )
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-BEGIN_SHADER_PARAMETER_STRUCT(FHitProxyCopyToViewFamilyParameters, )
-	RDG_TEXTURE_ACCESS(HitProxyTexture, ERHIAccess::SRVGraphics)
-	RENDER_TARGET_BINDING_SLOTS()
-END_SHADER_PARAMETER_STRUCT()
-
 static void AddViewMeshElementsPass(const TIndirectArray<FMeshBatch> &MeshElements, FRDGBuilder& GraphBuilder, FHitProxyPassParameters* PassParameters, const FScene* Scene, const FViewInfo& View, const FMeshPassProcessorRenderState& DrawRenderState, FInstanceCullingManager& InstanceCullingManager)
 {
 	AddSimpleMeshPass(GraphBuilder, PassParameters, Scene, View, &InstanceCullingManager, RDG_EVENT_NAME("HitProxy::MeshElementsPass"), View.ViewRect,
@@ -250,6 +246,28 @@ static void AddViewMeshElementsPass(const TIndirectArray<FMeshBatch> &MeshElemen
 		}
 	);
 }
+
+class FHitProxyCopyPS : public FGlobalShader
+{
+public:
+	DECLARE_GLOBAL_SHADER(FHitProxyCopyPS);
+	SHADER_USE_PARAMETER_STRUCT(FHitProxyCopyPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  UndistortingDisplacementSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HitProxyTexture)
+
+		SHADER_PARAMETER(FScreenTransform, PassSvPositionToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToHitProxyPixelPos)
+		SHADER_PARAMETER(FIntPoint, HitProxyPixelPosMin)
+		SHADER_PARAMETER(FIntPoint, HitProxyPixelPosMax)
+
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FHitProxyCopyPS, "/Engine/Private/HitProxyCopy.usf", "MainPS", SF_Pixel);
+
 
 static void DoRenderHitProxies(
 	FRDGBuilder& GraphBuilder, 
@@ -476,78 +494,36 @@ static void DoRenderHitProxies(
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, ViewFamily);
 	check(ViewFamilyTexture);
 
-	//
-	// Copy the hit proxy buffer into the view family's render target.
-	//
-
+	// Copy & Apply lens distortion of the hit proxy buffer into the view family's render target.
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
-		auto* PassParameters = GraphBuilder.AllocParameters<FHitProxyCopyToViewFamilyParameters>();
+		const FViewInfo& View = Views[ViewIndex];
+
+		FHitProxyCopyPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHitProxyCopyPS::FParameters>();
+		PassParameters->PassSvPositionToViewportUV = FScreenTransform::SvPositionToViewportUV(View.UnscaledViewRect);
+		PassParameters->ViewportUVToHitProxyPixelPos = FScreenTransform::ChangeTextureBasisFromTo(
+			FScreenPassTextureViewport(HitProxyTexture, View.ViewRect), FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TexelPosition);
+		PassParameters->HitProxyPixelPosMin = View.ViewRect.Min;
+		PassParameters->HitProxyPixelPosMax = View.ViewRect.Max - 1;
+
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		if (View.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->UndistortingDisplacementTexture = View.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
 		PassParameters->HitProxyTexture = HitProxyTexture;
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(ViewFamilyTexture, ERenderTargetLoadAction::ELoad);
 
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("HitProxies::CopyOutput"),
+		TShaderMapRef<FHitProxyCopyPS> PixelShader(View.ShaderMap);
+
+		FPixelShaderUtils::AddFullscreenPass(
+			GraphBuilder,
+			View.ShaderMap,
+			RDG_EVENT_NAME("HitProxyCopy %dx%d", View.UnscaledViewRect.Width(), View.UnscaledViewRect.Height()),
+			PixelShader,
 			PassParameters,
-			ERDGPassFlags::Raster,
-			[&Views, HitProxyTextureExtent, HitProxyTexture, ViewFamilyTexture, FeatureLevel](FRHICommandListImmediate& RHICmdList)
-		{
-			// Set up a FTexture that is used to draw the hit proxy buffer to the view family's render target.
-			FTexture HitProxyRenderTargetTexture;
-			HitProxyRenderTargetTexture.TextureRHI = HitProxyTexture->GetRHI();
-			HitProxyRenderTargetTexture.SamplerStateRHI = TStaticSamplerState<>::GetRHI();
-
-			// Generate the vertices and triangles mapping the hit proxy RT pixels into the view family's RT pixels.
-			FBatchedElements BatchedElements;
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-			{
-				const FViewInfo& View = Views[ViewIndex];
-
-				float InvBufferSizeX = 1.0f / HitProxyTextureExtent.X;
-				float InvBufferSizeY = 1.0f / HitProxyTextureExtent.Y;
-
-				const float U0 = View.ViewRect.Min.X * InvBufferSizeX;
-				const float V0 = View.ViewRect.Min.Y * InvBufferSizeY;
-				const float U1 = View.ViewRect.Max.X * InvBufferSizeX;
-				const float V1 = View.ViewRect.Max.Y * InvBufferSizeY;
-
-				// Note: High DPI .  We are drawing to the size of the unscaled view rect because that is the size of the views render target
-				// if we do not do this clicking would be off.
-				const int32 V00 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Min.X, View.UnscaledViewRect.Min.Y, 0, 1), FVector2f(U0, V0), FLinearColor::White, FHitProxyId());
-				const int32 V10 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Max.X, View.UnscaledViewRect.Min.Y, 0, 1), FVector2f(U1, V0), FLinearColor::White, FHitProxyId());
-				const int32 V01 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Min.X, View.UnscaledViewRect.Max.Y, 0, 1), FVector2f(U0, V1), FLinearColor::White, FHitProxyId());
-				const int32 V11 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Max.X, View.UnscaledViewRect.Max.Y, 0, 1), FVector2f(U1, V1), FLinearColor::White, FHitProxyId());
-
-				BatchedElements.AddTriangle(V00, V10, V11, &HitProxyRenderTargetTexture, BLEND_Opaque);
-				BatchedElements.AddTriangle(V00, V11, V01, &HitProxyRenderTargetTexture, BLEND_Opaque);
-			}
-
-			// Generate a transform which maps from view family RT pixel coordinates to Normalized Device Coordinates.
-			FIntPoint ViewFamilyTextureExtent = ViewFamilyTexture->Desc.Extent;
-
-			const FMatrix PixelToView =
-				FTranslationMatrix(FVector(0, 0, 0)) *
-				FMatrix(
-					FPlane(1.0f / ((float)ViewFamilyTextureExtent.X / 2.0f), 0.0, 0.0f, 0.0f),
-					FPlane(0.0f, -GProjectionSignY / ((float)ViewFamilyTextureExtent.Y / 2.0f), 0.0f, 0.0f),
-					FPlane(0.0f, 0.0f, 1.0f, 0.0f),
-					FPlane(-1.0f, GProjectionSignY, 0.0f, 1.0f)
-				);
-
-			FSceneView SceneView = FBatchedElements::CreateProxySceneView(PixelToView, FIntRect(0, 0, ViewFamilyTextureExtent.X, ViewFamilyTextureExtent.Y));
-			FMeshPassProcessorRenderState DrawRenderState;
-
-			DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
-			DrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
-
-			BatchedElements.Draw(
-				RHICmdList,
-				DrawRenderState,
-				FeatureLevel,
-				SceneView,
-				false,
-				1.0f
-			);
-		});
+			View.UnscaledViewRect);
 	}
 }
 #endif

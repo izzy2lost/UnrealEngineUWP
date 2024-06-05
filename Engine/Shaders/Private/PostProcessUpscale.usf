@@ -5,6 +5,7 @@
 #include "PostProcessCommon.ush"
 #include "PaniniProjection.ush"
 #include "TextureSampling.ush"
+#include "LensDistortion.ush"
 
 #define UPSCALE_METHOD_NEAREST 0
 #define UPSCALE_METHOD_BILINEAR 1
@@ -92,7 +93,7 @@ void MainVS(
 	float4 Position = float4(TexCoord.x, TexCoord.y, 0, 1);
 
 	// distort pos
-	Position.xy = TexCoord + DistortingDisplacementTexture.SampleLevel(DistortingDisplacementSampler, TexCoord, 0);
+	Position.xy = ApplyLensDistortionOnViewportUV(DistortingDisplacementTexture, DistortingDisplacementSampler, TexCoord);
 
 	DrawRectangle(Position, TexCoord, OutPosition, OutTexCoord.xy);
 	OutTexCoord.zw =  OutPosition.xy;

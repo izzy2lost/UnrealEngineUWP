@@ -1534,7 +1534,10 @@ void AddPostProcessingPasses(
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.SceneTextures.SceneTextures = Inputs.SceneTextures;
-
+		if (bApplyLensDistortionInTSR)
+		{
+			PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+		}
 		SceneColor = AddSelectionOutlinePass(GraphBuilder, View, SceneUniformBuffer, PassInputs, NaniteRasterResults, InstancedEditorDepthTexture);
 	}
 
@@ -1548,7 +1551,10 @@ void AddPostProcessingPasses(
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.BasePassType = FCompositePrimitiveInputs::EBasePassType::Deferred;
-
+		if (bApplyLensDistortionInTSR)
+		{
+			PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+		}
 		SceneColor = AddEditorPrimitivePass(GraphBuilder, View, PassInputs, InstanceCullingManager);
 	}
 #endif //WITH_EDITOR

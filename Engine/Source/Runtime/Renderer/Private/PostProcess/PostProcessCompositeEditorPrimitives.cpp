@@ -10,39 +10,47 @@
 #include "PixelShaderUtils.h"
 #include "Substrate/Substrate.h"
 #include "MeshEdgesRendering.h"
+#include "PixelShaderUtils.h"
 
 namespace
 {
-	class FCompositeEditorPrimitivesPS : public FCompositePrimitiveShaderBase
+class FCompositeEditorPrimitivesPS : public FCompositePrimitiveShaderBase
+{
+public:
+	DECLARE_GLOBAL_SHADER(FCompositeEditorPrimitivesPS);
+	SHADER_USE_PARAMETER_STRUCT(FCompositeEditorPrimitivesPS, FCompositePrimitiveShaderBase);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Color)
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Depth)
+		SHADER_PARAMETER_ARRAY(FVector4f, SampleOffsetArray, [FCompositePrimitiveShaderBase::kMSAASampleCountMax])
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  UndistortingDisplacementSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EditorPrimitivesDepth)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EditorPrimitivesColor)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  ColorSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  DepthSampler)
+
+
+		SHADER_PARAMETER(FScreenTransform, PassSvPositionToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToColorUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToDepthUV)
+		SHADER_PARAMETER(uint32, bOpaqueEditorGizmo)
+		SHADER_PARAMETER(uint32, bCompositeAnyNonNullDepth)
+		SHADER_PARAMETER(FVector2f, DepthTextureJitter)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
-	public:
-		DECLARE_GLOBAL_SHADER(FCompositeEditorPrimitivesPS);
-		SHADER_USE_PARAMETER_STRUCT(FCompositeEditorPrimitivesPS, FCompositePrimitiveShaderBase);
-
-		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-			SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-			SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Color)
-			SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Depth)
-			SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Output)
-			SHADER_PARAMETER_ARRAY(FVector4f, SampleOffsetArray, [FCompositePrimitiveShaderBase::kMSAASampleCountMax])
-			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EditorPrimitivesDepth)
-			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EditorPrimitivesColor)
-			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
-			SHADER_PARAMETER_SAMPLER(SamplerState, ColorSampler)
-			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
-			SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
-			SHADER_PARAMETER(uint32, bOpaqueEditorGizmo)
-			SHADER_PARAMETER(uint32, bCompositeAnyNonNullDepth)
-			SHADER_PARAMETER(FVector2f, DepthTextureJitter)
-			RENDER_TARGET_BINDING_SLOTS()
-			END_SHADER_PARAMETER_STRUCT()
-
-			static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-		{
-			FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		}
-	};
-	IMPLEMENT_GLOBAL_SHADER(FCompositeEditorPrimitivesPS, "/Engine/Private/PostProcessCompositePrimitives.usf", "MainCompositeEditorPrimitivesPS", SF_Pixel);
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(FCompositeEditorPrimitivesPS, "/Engine/Private/PostProcessCompositePrimitives.usf", "MainCompositeEditorPrimitivesPS", SF_Pixel);
 
 
 void RenderEditorPrimitives(FRHICommandList& RHICmdList, const FViewInfo& View, FMeshPassProcessorRenderState& DrawRenderState, FInstanceCullingManager& InstanceCullingManager)
@@ -392,7 +400,14 @@ FScreenPassTexture AddEditorPrimitivePass(
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->Color = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Inputs.SceneColor));
 		PassParameters->Depth = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(SceneDepth));
-		PassParameters->Output = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Output));
+
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		if (Inputs.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->UndistortingDisplacementTexture = Inputs.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
+
 		PassParameters->ColorTexture = Inputs.SceneColor.Texture;
 		PassParameters->ColorSampler = PointClampSampler;
 		if (View.Family->EngineShowFlags.SceneCaptureCopySceneDepth)
@@ -406,6 +421,13 @@ FScreenPassTexture AddEditorPrimitivePass(
 		PassParameters->DepthSampler = PointClampSampler;
 		PassParameters->EditorPrimitivesDepth = EditorPrimitiveDepth;
 		PassParameters->EditorPrimitivesColor = EditorPrimitiveColor;
+		
+		PassParameters->PassSvPositionToViewportUV = FScreenTransform::SvPositionToViewportUV(Output.ViewRect);
+		PassParameters->ViewportUVToColorUV = FScreenTransform::ChangeTextureBasisFromTo(
+			FScreenPassTextureViewport(Inputs.SceneColor), FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
+		PassParameters->ViewportUVToDepthUV = FScreenTransform::ChangeTextureBasisFromTo(
+			FScreenPassTextureViewport(SceneDepth), FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
+		
 		PassParameters->bOpaqueEditorGizmo = bOpaqueEditorGizmo;
 		PassParameters->bCompositeAnyNonNullDepth = bProducedByPriorPass && !View.Family->EngineShowFlags.MeshEdges;
 		PassParameters->DepthTextureJitter = SceneDepthJitter;

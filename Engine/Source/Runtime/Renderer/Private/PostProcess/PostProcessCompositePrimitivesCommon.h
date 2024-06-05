@@ -5,6 +5,7 @@
 #include "ScreenPass.h"
 #include "OverridePassSequence.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "PostProcess/LensDistortion.h"
 
 //UE_ENABLE_DEBUG_DRAWING i.e. !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || WITH_EDITOR
 //Only available in Debug/Development/Editor builds due to current use cases, but can be extended in future
@@ -67,6 +68,9 @@ struct FCompositePrimitiveInputs
 
 	// [Required] The scene depth to composite with editor primitives.
 	FScreenPassTexture SceneDepth;
+
+	// [Optional] Lens distortion applied on the scene color.
+	FLensDistortionLUT LensDistortionLUT;
 
 	bool bUseMetalMSAAHDRDecode = false;
 };

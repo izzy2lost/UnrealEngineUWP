@@ -4,6 +4,11 @@
 #include "ScreenPass.ush"
 #include "GammaCorrectionCommon.ush"
 #include "ACES.ush"
+#include "LensDistortion.ush"
+
+
+Texture2D<float2> UndistortingDisplacementTexture;
+SamplerState UndistortingDisplacementSampler;
 
 #if MSAA_SAMPLE_COUNT > 1
 Texture2DMS<float, MSAA_SAMPLE_COUNT> EditorPrimitivesDepth;
@@ -25,7 +30,9 @@ SamplerState OverlayLookupSampler;
 
 SCREEN_PASS_TEXTURE_VIEWPORT(Color)
 SCREEN_PASS_TEXTURE_VIEWPORT(Depth)
-FScreenTransform ColorToDepth;
+FScreenTransform PassSvPositionToViewportUV;
+FScreenTransform ViewportUVToColorUV;
+FScreenTransform ViewportUVToDepthUV;
 
 float4 OutlineColors[8];
 int OutlineColorIndexBits;
@@ -211,11 +218,16 @@ float4 PerSample(int2 PixelPos, int SampleID, FPixelInfo CenterPixelInfo, float3
 }
 
 void MainPS(
-	noperspective float4 UVAndScreenPos : TEXCOORD0,
 	float4 SvPosition : SV_POSITION,
 	out float4 OutColor : SV_Target0)
 {
-	const float2 ColorUV = UVAndScreenPos.xy;
+	const float2 DistortedViewportUV = ApplyScreenTransform(SvPosition.xy, PassSvPositionToViewportUV);
+	const float2 UndistortedViewportUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, DistortedViewportUV);
+
+	const float2 DistortedColorUV = ApplyScreenTransform(DistortedViewportUV, ViewportUVToColorUV);
+	const float2 ColorUV = ApplyScreenTransform(UndistortedViewportUV, ViewportUVToColorUV);
+	const float2 DepthUV = ApplyScreenTransform(UndistortedViewportUV, ViewportUVToDepthUV);
+
 	const int2 ColorPixelPos = int2(ColorUV * Color_Extent);
 
 	// Scout outwards from the center pixel to determine if any neighboring pixels are selected
@@ -237,8 +249,6 @@ void MainPS(
 	);
 #endif
 
-	const float2 DepthUV = ApplyScreenTransform(ColorUV, ColorToDepth);
-
 	float Center = Texture2DSampleLevel(DepthTexture, DepthSampler, DepthUV, 0).r;
 	float Left   = Texture2DSampleLevel(DepthTexture, DepthSampler, DepthUV + float2(-1,  0) * Depth_ExtentInverse, 0).r;
 	float Right  = Texture2DSampleLevel(DepthTexture, DepthSampler, DepthUV + float2( 1,  0) * Depth_ExtentInverse, 0).r;
@@ -259,7 +269,7 @@ void MainPS(
 	FPixelInfo CenterPixelInfo = GetPixelInfo(ColorPixelPos, 0, SecondaryViewportOffset, 0, DeviceZPlane, DeviceZMinMax);
 
 	float4 OverlayColor = Texture2DSample(OverlayLookupTexture, OverlayLookupSampler, ColorUV);
-	OutColor = Texture2DSample(ColorTexture, ColorSampler, ColorUV); 
+	OutColor = Texture2DSample(ColorTexture, ColorSampler, DistortedColorUV); 
 	
 	float4 SelectionEffect = 0;
 	const int ScoutSum = dot(saturate(StencilScout), 1);

@@ -10,6 +10,7 @@
 #include "ClearQuad.h"
 #include "ScenePrivate.h"
 #include "PostProcess/SceneRenderTargets.h"
+#include "PixelShaderUtils.h"
 
 namespace
 {
@@ -32,21 +33,28 @@ public:
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Color)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Depth)
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  UndistortingDisplacementSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
-		SHADER_PARAMETER_SAMPLER(SamplerState, ColorSampler)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  ColorSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
-		SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  DepthSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EditorPrimitivesDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, EditorPrimitivesStencil)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, OverlayLookupTexture)
-		SHADER_PARAMETER_SAMPLER(SamplerState, OverlayLookupSampler)
-		SHADER_PARAMETER(FScreenTransform, ColorToDepth)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  OverlayLookupSampler)
+
+		SHADER_PARAMETER(FScreenTransform, PassSvPositionToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToColorUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToDepthUV)
 		SHADER_PARAMETER_ARRAY(FVector4f, OutlineColors, [8])
 		SHADER_PARAMETER(int, OutlineColorIndexBits)
 		SHADER_PARAMETER(float, SelectionHighlightIntensity)
 		SHADER_PARAMETER(float, BSPSelectionIntensity)
 		SHADER_PARAMETER(float, UILuminanceAndIsSCRGB)
 		SHADER_PARAMETER(float, SecondaryViewportOffset)
+
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -274,17 +282,34 @@ FScreenPassTexture AddSelectionOutlinePass(
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->Color = GetScreenPassTextureViewportParameters(ColorViewport);
 		PassParameters->Depth = GetScreenPassTextureViewportParameters(DepthViewport);
-		PassParameters->ColorToDepth = FScreenTransform::ChangeTextureUVCoordinateFromTo(ColorViewport, DepthViewport);
+
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		if (Inputs.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->UndistortingDisplacementTexture = Inputs.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
+
 		PassParameters->ColorTexture = Inputs.SceneColor.Texture;
 		PassParameters->ColorSampler = PointClampSampler;
+
 		PassParameters->DepthTexture = Inputs.SceneDepth.Texture;
 		PassParameters->DepthSampler = PointClampSampler;
+
 		PassParameters->EditorPrimitivesDepth = DepthStencilTexture;
 		PassParameters->EditorPrimitivesStencil = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateWithPixelFormat(DepthStencilTexture, PF_X24_G8));
+		
 		PassParameters->OverlayLookupTexture = OverlayColorTexture;
 		PassParameters->OverlayLookupSampler = PointClampSampler;
+		
 		PassParameters->OutlineColors[0] = View.SelectionOutlineColor;
 		PassParameters->OutlineColors[1] = View.SubduedSelectionOutlineColor;
+		
+		PassParameters->PassSvPositionToViewportUV = FScreenTransform::SvPositionToViewportUV(OutputViewport.Rect);
+		PassParameters->ViewportUVToColorUV = FScreenTransform::ChangeTextureBasisFromTo(
+			ColorViewport, FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
+		PassParameters->ViewportUVToDepthUV = FScreenTransform::ChangeTextureBasisFromTo(
+			DepthViewport, FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
 
 		if (GEnableSelectionOutlineColors)
 		{
@@ -346,14 +371,13 @@ FScreenPassTexture AddSelectionOutlinePass(
 
 		TShaderMapRef<FSelectionOutlinePS> PixelShader(View.ShaderMap, PermutationVector);
 
-		AddDrawScreenPass(
+		FPixelShaderUtils::AddFullscreenPass(
 			GraphBuilder,
+			View.ShaderMap,
 			RDG_EVENT_NAME("OutlineColor %dx%d", OutputViewport.Rect.Width(), OutputViewport.Rect.Height()),
-			View,
-			OutputViewport,
-			ColorViewport,
 			PixelShader,
-			PassParameters);
+			PassParameters,
+			Output.ViewRect);
 	}
 
 	return MoveTemp(Output);
