@@ -2397,7 +2397,7 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 
-		EInstallBundleRequestFlags InstallFlags = InstallFlags = UseAsyncLoading() ?
+		EInstallBundleRequestFlags InstallFlags = UseAsyncLoading() ?
 			(Options.InstallBundleFlags | EInstallBundleRequestFlags::AsyncMount) : Options.InstallBundleFlags;
 		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestUpdateContent(AssetInstallBundles, InstallFlags);
 		if (MaybeRequestInfo.HasError())
