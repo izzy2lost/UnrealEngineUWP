@@ -272,7 +272,139 @@ float3 SubstrateMobileForwardLighting(
 				////
 				//// Evaluate local lights
 				////
-				#if ENABLE_CLUSTERED_LIGHTS && !DISABLE_FORWARD_LOCAL_LIGHTS && (FORWARD_SHADING || TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING) // Forbidden for Single Layer Water
+				#if MERGED_LOCAL_LIGHTS_MOBILE == 1
+				{
+					// Merged light data
+					FDeferredLightData LightData = (FDeferredLightData)0;
+					half3 LocalLightA = MobileSceneTextures.LocalLightTextureA.Load(int3(SvPosition.xy, 0)).xyz; 
+					half4 LocalLightB = MobileSceneTextures.LocalLightTextureB.Load(int3(SvPosition.xy, 0));
+
+					LightData.SourceRadius		= 0;
+					LightData.SourceLength		= 0;
+					LightData.Tangent			= 0;
+					LightData.SoftSourceRadius	= 0;
+					LightData.SpecularScale		= LocalLightB.a;
+					LightData.bSpotLight		= false;
+					LightData.bRectLight		= false;
+					LightData.Color 			= LocalLightA.rgb;
+					LightData.bRadialLight 		= false;
+					LightData.Direction 		= OctahedronToUnitVector(Pack888To1212(LocalLightB.rgb) * 2 - 1);
+
+					const half4 LightAttenuation 	= half4(1, 1, 1, 1); 
+					const float SurfaceShadow = 0;
+					const uint  LocalLightChannelMask = LIGHTING_CHANNEL_MASK;
+
+					const FRectTexture LocalRectTexture = ConvertToRectTexture(LightData);
+
+					float3 L = LightData.Direction;	// Already normalized
+					float3 ToLight = L;
+					float LightMask = 1;
+					if (LightData.bRadialLight)
+					{
+						LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+					}
+
+					FTranslucencyLightingVector LightingVector = GetTranslucencyLightingVector(LightData, TranslatedWorldPosition);
+					#if SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL
+					GetVolumeLightingDirectional(LightingVector.AmbientLightingVector, LightingVector.DirectionalLightingVector, SubstrateBSDFContext.N, BSDFEvaluate.DiffuseColor, GetMaterialTranslucencyDirectionalLightingIntensity(), InterpolatedLighting, VolumeLighting);
+					#elif SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL
+					GetVolumeLightingNonDirectional(LightingVector.AmbientLightingVector, BSDFEvaluate.DiffuseColor, InterpolatedLighting, VolumeLighting);
+					#else
+					// Update the Substrate BSDF context accordgin to the new L
+					SubstrateBSDFContext.SubstrateUpdateBSDFContext(ToLight);
+
+					FSubstrateEvaluateResult BSDFEvaluate = (FSubstrateEvaluateResult)0;
+					Color += SubstrateForwardLightingCommon(
+						Dither,
+						Settings,
+						LightData,
+						ToLight,
+						LightMask,
+						LightAttenuation,
+						LocalRectTexture,
+						LocalLightChannelMask,
+						PrimitiveLightingChannelMask,
+						PrecomputedShadowFactors,
+						TranslatedWorldPosition,
+						SceneDepth,
+						LuminanceWeight(SubstrateBSDFContext, CurrentBSDF),
+						SubstratePixelHeader,
+						SubstrateBSDFContext,
+						BSDFEvaluate);
+					#endif
+				}
+				#elif  MERGED_LOCAL_LIGHTS_MOBILE == 2
+				{
+					const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+
+					float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
+					float3 MergedLightL = float3(0,0,0);
+					float MergedSpecularScale = 0.f;
+					float MergedTotalWeight = 0;
+					MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false/*bSupportLightFunctions*/, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, SubstrateBSDFContext.N);
+
+					if (MergedTotalWeight > 0.f)
+					{
+						MergedLightL = MergedLightL / MergedTotalWeight;
+						MergedSpecularScale = MergedSpecularScale / MergedTotalWeight;
+
+						FDeferredLightData LightData = (FDeferredLightData)0;
+						LightData.SourceRadius		= 0;
+						LightData.SourceLength		= 0;
+						LightData.Tangent			= 0;
+						LightData.SoftSourceRadius	= 0;
+						LightData.SpecularScale		= MergedSpecularScale;
+						LightData.bSpotLight		= false;
+						LightData.bRectLight		= false;
+						LightData.Color 			= MergedLightColor;
+						LightData.bRadialLight 		= false;
+						LightData.Direction 		= MergedLightL;
+
+						const half4 LightAttenuation = half4(1, 1, 1, 1); 
+						const float SurfaceShadow = 0;
+						const uint  LocalLightChannelMask = LIGHTING_CHANNEL_MASK;
+
+						const FRectTexture LocalRectTexture = ConvertToRectTexture(LightData);			
+
+						float3 L = LightData.Direction;	// Already normalized
+						float3 ToLight = L;
+						float LightMask = 1;
+						if (LightData.bRadialLight)
+						{
+							LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+						}
+
+						FTranslucencyLightingVector LightingVector = GetTranslucencyLightingVector(LightData, TranslatedWorldPosition);
+						#if SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL
+						GetVolumeLightingDirectional(LightingVector.AmbientLightingVector, LightingVector.DirectionalLightingVector, SubstrateBSDFContext.N, BSDFEvaluate.DiffuseColor, GetMaterialTranslucencyDirectionalLightingIntensity(), InterpolatedLighting, VolumeLighting);
+						#elif SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL
+						GetVolumeLightingNonDirectional(LightingVector.AmbientLightingVector, BSDFEvaluate.DiffuseColor, InterpolatedLighting, VolumeLighting);
+						#else
+						// Update the Substrate BSDF context accordgin to the new L
+						SubstrateBSDFContext.SubstrateUpdateBSDFContext(ToLight);
+
+						FSubstrateEvaluateResult BSDFEvaluate = (FSubstrateEvaluateResult)0;
+						Color += SubstrateForwardLightingCommon(
+							Dither,
+							Settings,
+							LightData,
+							ToLight,
+							LightMask,
+							LightAttenuation,
+							LocalRectTexture,
+							LocalLightChannelMask,
+							PrimitiveLightingChannelMask,
+							PrecomputedShadowFactors,
+							TranslatedWorldPosition,
+							SceneDepth,
+							LuminanceWeight(SubstrateBSDFContext, CurrentBSDF),
+							SubstratePixelHeader,
+							SubstrateBSDFContext,
+							BSDFEvaluate);
+						#endif
+					}
+				}
+				#elif ENABLE_CLUSTERED_LIGHTS && !DISABLE_FORWARD_LOCAL_LIGHTS && (FORWARD_SHADING || TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING) // Forbidden for Single Layer Water
 				{
 					// Basic implementation for FORWARD_LOCAL_LIGHTS where local lights are reloaded per BSDF layer. It is fast by default when layer==1.
 					const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);

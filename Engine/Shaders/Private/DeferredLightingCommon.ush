@@ -23,6 +23,10 @@
 #define ADAPTIVE_VOLUMETRIC_SHADOW_MAP 0
 #endif
 
+#ifndef ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION
+#define ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION 0
+#endif
+
 #if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 #include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
 
@@ -259,7 +263,7 @@ float GetLocalLightAttenuation(
 		LightMask = Square( saturate( 1 - Square( DistanceSqr * Square(LightData.InvRadius) ) ) );
 		// This extra attenuation has been added for supporting existing 'legacy' shading model on mobile. 
 		// This is not needed for Substrate which unifies all lighting paths
-		#if SHADING_PATH_MOBILE && !SUBSTRATE_ENABLED
+		#if SHADING_PATH_MOBILE && (!SUBSTRATE_ENABLED || ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION)
 		if (!LightData.bRectLight)
 		{ 
 			LightMask *= 1.0f / (DistanceSqr + 1.0f);

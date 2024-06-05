@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #define SUPPORT_CONTACT_SHADOWS 0
+#define ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION 1
 #define MAX_UINT 4294967295
 
 #if !COMPUTE_SHADER
