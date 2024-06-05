@@ -1,0 +1,393 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "BehaviorTree/ValueOrBBKey.h"
+
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Bool.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Class.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Enum.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Float.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Int.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Name.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Rotator.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
+
+#include "Serialization/CustomVersion.h"
+
+const FGuid EValueOrBBKeyVersion::Guid = FGuid(0x82238A1B, 0xD8DA4083, 0xB5BC56A9, 0x48AA4C22);
+FCustomVersionRegistration GValueOrBBKeyVersion(EValueOrBBKeyVersion::Guid, EValueOrBBKeyVersion::LatestVersion, TEXT("EValueOrBBKeyVersion"));
+
+FBlackboard::FKey FValueOrBlackboardKeyBase::GetKeyId(const UBehaviorTreeComponent& OwnerComp) const
+{
+	if (KeyId == FBlackboard::InvalidKey)
+	{
+		if (const UBlackboardComponent* BlackboardComp = OwnerComp.GetBlackboardComponent())
+		{
+			KeyId = BlackboardComp->GetKeyID(Key);
+		}
+	}
+	return KeyId;
+}
+
+FString FValueOrBlackboardKeyBase::ToStringKeyName() const
+{
+	return FString::Format(TEXT("Key: {0}"), { *Key.ToString() });
+}
+
+FString FValueOrBBKey_Class::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return GetNameSafe(DefaultValue);
+	}
+}
+
+FString FValueOrBBKey_Enum::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return EnumType ? EnumType->GetNameStringByValue(DefaultValue) : TEXT("Invalid Enum");
+	}
+}
+
+FString FValueOrBBKey_Float::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return FString::Printf(TEXT("%.2f"), DefaultValue);
+	}
+}
+
+FString FValueOrBBKey_Name::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return DefaultValue.ToString();
+	}
+}
+
+FString FValueOrBBKey_Object::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return GetNameSafe(DefaultValue);
+	}
+}
+
+FString FValueOrBBKey_Rotator::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return DefaultValue.ToString();
+	}
+}
+
+FString FValueOrBBKey_Vector::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return DefaultValue.ToString();
+	}
+}
+
+bool FValueOrBBKey_Bool::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Bool>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+bool FValueOrBBKey_Bool::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+bool FValueOrBBKey_Bool::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Bool>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+bool FValueOrBBKey_Bool::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+UClass* FValueOrBBKey_Class::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Class>(Blackboard, Key, KeyId, DefaultValue.Get());
+}
+
+UClass* FValueOrBBKey_Class::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue.Get();
+}
+
+UClass* FValueOrBBKey_Class::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Class>(BehaviorComp, Key, KeyId, DefaultValue.Get());
+}
+
+UClass* FValueOrBBKey_Class::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue.Get();
+}
+
+uint8 FValueOrBBKey_Enum::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Enum>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+uint8 FValueOrBBKey_Enum::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+uint8 FValueOrBBKey_Enum::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Enum>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+uint8 FValueOrBBKey_Enum::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+float FValueOrBBKey_Float::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Float>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+float FValueOrBBKey_Float::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+float FValueOrBBKey_Float::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Float>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+float FValueOrBBKey_Float::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+int32 FValueOrBBKey_Int32::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Int>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+int32 FValueOrBBKey_Int32::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+int32 FValueOrBBKey_Int32::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Int>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+int32 FValueOrBBKey_Int32::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+FName FValueOrBBKey_Name::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Name>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+FName FValueOrBBKey_Name::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+FName FValueOrBBKey_Name::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Name>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+FName FValueOrBBKey_Name::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+FString FValueOrBBKey_String::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_String>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+FString FValueOrBBKey_String::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+FString FValueOrBBKey_String::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_String>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+FString FValueOrBBKey_String::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+UObject* FValueOrBBKey_Object::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Object>(Blackboard, Key, KeyId, DefaultValue.Get());
+}
+
+UObject* FValueOrBBKey_Object::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue.Get();
+}
+
+UObject* FValueOrBBKey_Object::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Object>(BehaviorComp, Key, KeyId, DefaultValue.Get());
+}
+
+UObject* FValueOrBBKey_Object::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue.Get();
+}
+
+FRotator FValueOrBBKey_Rotator::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Rotator>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+FRotator FValueOrBBKey_Rotator::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+FRotator FValueOrBBKey_Rotator::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Rotator>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+FRotator FValueOrBBKey_Rotator::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+FVector FValueOrBBKey_Vector::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Vector>(Blackboard, Key, KeyId, DefaultValue);
+}
+
+FVector FValueOrBBKey_Vector::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+FVector FValueOrBBKey_Vector::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetValue<UBlackboardKeyType_Vector>(BehaviorComp, Key, KeyId, DefaultValue);
+}
+
+FVector FValueOrBBKey_Vector::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+#if WITH_EDITOR
+bool FValueOrBBKey_Bool::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Bool::StaticClass();
+}
+
+bool FValueOrBBKey_Class::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	if (const UBlackboardKeyType_Class* ClassKey = Cast<UBlackboardKeyType_Class>(KeyType))
+	{
+		if (BaseClass && ClassKey->BaseClass)
+		{
+			return ClassKey->BaseClass->IsChildOf(BaseClass);
+		}
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Enum::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	if (const UBlackboardKeyType_Enum* EnumKey = Cast<UBlackboardKeyType_Enum>(KeyType))
+	{
+		if (EnumType && EnumKey->EnumType)
+		{
+			return EnumKey->EnumType == EnumType;
+		}
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Float::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Float::StaticClass();
+}
+
+bool FValueOrBBKey_Int32::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Int::StaticClass();
+}
+
+bool FValueOrBBKey_Name::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Name::StaticClass();
+}
+
+bool FValueOrBBKey_String::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_String::StaticClass();
+}
+
+bool FValueOrBBKey_Object::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	if (const UBlackboardKeyType_Object* ObjectKey = Cast<UBlackboardKeyType_Object>(KeyType))
+	{
+		if (BaseClass && ObjectKey->BaseClass)
+		{
+			return ObjectKey->BaseClass->IsChildOf(BaseClass);
+		}
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Rotator::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Rotator::StaticClass();
+}
+
+bool FValueOrBBKey_Vector::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Vector::StaticClass();
+}
+#endif // WITH_EDITOR

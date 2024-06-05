@@ -4,6 +4,10 @@
 
 #include "GameplayBehaviorsEditorStyle.h"
 
+#include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
+#include "ValueOrBBKeyDetails.h"
+
 #define LOCTEXT_NAMESPACE "GameplayBehaviors"
 
 class FGameplayBehaviorsEditorModule : public IGameplayBehaviorsEditorModule
@@ -16,11 +20,19 @@ protected:
 void FGameplayBehaviorsEditorModule::StartupModule()
 {
 	FGameplayBehaviorsEditorStyle::Get();
+
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_GameplayTag", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails::MakeInstance));
+	PropertyModule.NotifyCustomizationModuleChanged();
 }
 
 void FGameplayBehaviorsEditorModule::ShutdownModule()
 {
 	FGameplayBehaviorsEditorStyle::Shutdown();
+
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_GameplayTag");
+	PropertyModule.NotifyCustomizationModuleChanged();
 }
 
 IMPLEMENT_MODULE(FGameplayBehaviorsEditorModule, GameplayBehaviorsEditorModule)
