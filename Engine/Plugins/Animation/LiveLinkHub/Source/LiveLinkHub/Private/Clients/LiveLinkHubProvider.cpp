@@ -20,7 +20,6 @@
 #include "Misc/ScopeLock.h"
 #include "Session/LiveLinkHubSession.h"
 #include "Session/LiveLinkHubSessionManager.h"
-#include "Subjects/LiveLinkHubSubjectSessionConfig.h"
 #include "TimerManager.h"
 
 

@@ -24,9 +24,6 @@ class FLiveLinkHubClient : public FLiveLinkClient
 public:
 	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub);
 	virtual ~FLiveLinkHubClient();
-
-	/** Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording. */
-	const FLiveLinkStaticDataStruct* GetSubjectStaticData(const FLiveLinkSubjectKey& InSubjectKey);
 	
 	/** Get the delegate called when frame data is received. */
 	FOnFrameDataReceived_AnyThread& OnFrameDataReceived_AnyThread()
@@ -61,7 +58,13 @@ public:
 	virtual FText GetSourceStatus(FGuid InEntryGuid) const override;
 	virtual bool IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey) const override;
 	virtual void RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) override;
+	virtual bool AddVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey, TSubclassOf<ULiveLinkVirtualSubject> VirtualSubjectClass) override;
+    virtual void RemoveVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey) override;
 	//~ End ILiveLinkClient interface
+
+	//~ Begin FLiveLinkClient interface
+	virtual TSharedPtr<ILiveLinkProvider> GetRebroadcastLiveLinkProvider() const override;
+	//~ End FLiveLinkClient interface
 
 private:
 	/** Create a LiveLinkPlaybackSource which acts as a dummy source when doing playback. */
@@ -70,8 +73,6 @@ private:
 	bool CreatePlaybackSubject(const FLiveLinkSubjectPreset& InSubjectPreset);
 	/** Broadcast a static data update to this client's listeners. */
 	void BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const;
-	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
-	mutable FCriticalSection CollectionAccessCriticalSection;
 
 private:
 	/** Weak pointer to the live link hub. */
@@ -82,4 +83,6 @@ private:
     FOnStaticDataReceived_AnyThread OnStaticDataReceivedDelegate_AnyThread;
 	/** Delegate called when a subject is marked for deletion. */
 	FOnSubjectMarkedPendingKill_AnyThread OnSubjectMarkedPendingKillDelegate_AnyThread;
+	/** Whether there are virtual subjects at the moment. Used to determine if we should cache frame data for their usage. */
+	std::atomic<bool> bVirtualSubjectsPresent = false;
 };

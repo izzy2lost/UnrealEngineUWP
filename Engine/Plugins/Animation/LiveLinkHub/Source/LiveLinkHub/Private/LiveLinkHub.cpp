@@ -2,26 +2,21 @@
 
 #include "LiveLinkHub.h"
 
+
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Clients/LiveLinkHubClientsController.h"
 #include "Clients/LiveLinkHubProvider.h"
-#include "Config/LiveLinkHubFileUtilities.h"
-#include "DesktopPlatformModule.h"
-#include "EditorDirectories.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
-#include "IDesktopPlatform.h"
 #include "ISettingsModule.h"
 #include "LiveLinkEditorSettings.h"
 #include "LiveLinkHubClient.h"
 #include "LiveLinkHubSettings.h"
-#include "LiveLinkProvider.h"
+#include "LiveLinkHubSubjectSettings.h"
 #include "LiveLinkHubCommands.h"
 #include "LiveLinkProviderImpl.h"
 #include "LiveLinkSettings.h"
-#include "LiveLinkSubject.h"
-#include "LiveLinkSubjectSettings.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
@@ -230,15 +225,10 @@ void FLiveLinkHub::OpenConfig()
 
 FName FLiveLinkHub::GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const
 {
-	if (const TSharedPtr<ILiveLinkHubSessionManager> Manager = SessionManager)
+	ILiveLinkClient& Client = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+	if (ULiveLinkHubSubjectSettings* Settings = Cast<ULiveLinkHubSubjectSettings>(Client.GetSubjectSettings(InSubjectKey)))
 	{
-		if (const TSharedPtr<ILiveLinkHubSession> CurrentSession = Manager->GetCurrentSession())
-		{
-			if (TOptional<FLiveLinkHubSubjectProxy> SubjectProxy = CurrentSession->GetSubjectConfig(InSubjectKey))
-			{
-				return SubjectProxy->GetOutboundName();
-			}
-		}
+		return *Settings->OutboundName;
 	}
 
 	return InSubjectKey.SubjectName;

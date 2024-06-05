@@ -2,11 +2,15 @@
 
 #include "LiveLinkHubClient.h"
 
+#include "Algo/AnyOf.h"
 #include "Async/TaskGraphInterfaces.h"
+#include "Clients/LiveLinkHubProvider.h"
 #include "Engine/Engine.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubLog.h"
+#include "LiveLinkHubModule.h"
+#include "LiveLinkHubSubjectSettings.h"
 #include "LiveLinkRoleTrait.h"
 #include "LiveLinkSourceCollection.h"
 #include "LiveLinkSettings.h"
@@ -28,8 +32,7 @@ DECLARE_CYCLE_STAT(TEXT("LiveLinkHub - Push FrameData"), STAT_LiveLinkHub_PushFr
 #define LOCTEXT_NAMESPACE "LiveLinkHub.LiveLinkHubClient"
 
 FLiveLinkHubClient::FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub)
-	: FLiveLinkClient()
-	, LiveLinkHub(MoveTemp(InLiveLinkHub))
+	: LiveLinkHub(MoveTemp(InLiveLinkHub))
 {
 }
 
@@ -50,20 +53,6 @@ void FLiveLinkHubClient::CacheSubjectSettings(const FLiveLinkSubjectKey& Subject
 
 		BroadcastStaticDataUpdate(SubjectItem->GetLiveSubject(), SubjectItem->GetSubject()->GetRole(), SubjectItem->GetLiveSubject()->GetStaticData());
 	}
-}
-
-const FLiveLinkStaticDataStruct* FLiveLinkHubClient::GetSubjectStaticData(const FLiveLinkSubjectKey& InSubjectKey)
-{
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
-	{
-		if (FLiveLinkSubject* LiveLinkSubject = SubjectItem->GetLiveSubject())
-		{
-			return &LiveLinkSubject->GetStaticData();
-		}
-	}
-
-	return nullptr;
 }
 
 bool FLiveLinkHubClient::CreateSource(const FLiveLinkSourcePreset& InSourcePreset)
@@ -327,10 +316,16 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 			UClass* SettingClass = DefaultSetting.SettingClass.Get();
 			if (SettingClass == nullptr)
 			{
-				SettingClass = ULiveLinkSubjectSettings::StaticClass();
+				SettingClass = ULiveLinkHubSubjectSettings::StaticClass();
 			}
 
 			SubjectSettings = NewObject<ULiveLinkSubjectSettings>(GetTransientPackage(), SettingClass);
+
+			if (SubjectSettings->IsA<ULiveLinkHubSubjectSettings>())
+			{
+				Cast<ULiveLinkHubSubjectSettings>(SubjectSettings)->Initialize(SubjectKey, Role.Get(), this);
+			}
+
 			SubjectSettings->Role = Role;
 
 			UClass* FrameInterpolationProcessorClass = DefaultSetting.FrameInterpolationProcessor.Get();
@@ -383,6 +378,7 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 
 			bool bEnabled = Collection->FindEnabledSubject(SubjectKey.SubjectName) == nullptr;
 			FLiveLinkCollectionSubjectItem CollectionSubjectItem(SubjectKey, MakeUnique<FLiveLinkSubject>(SourceItem->TimedData), SubjectSettings, bEnabled);
+			
 			CollectionSubjectItem.GetLiveSubject()->Initialize(SubjectKey, Role.Get(), this);
 
 			LiveLinkSubject = CollectionSubjectItem.GetLiveSubject();
@@ -401,25 +397,26 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 		// Dispatch it on the game thread since FLiveLinkSubject::SetStaticData asserts when called outside the game thread.
 		// Note that SetStaticData may not be needed on the hub but we might need it for interpolation or preprocessing in the future.
 		FFunctionGraphTask::CreateAndDispatchWhenReady([this, LiveLinkSubject, SubjectKey, Role, StaticData = MoveTemp(InStaticData)]() mutable
+		{
+			FScopeLock Lock(&CollectionAccessCriticalSection);
+			// Validate live link subject hasn't changed
+			if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
 			{
-				FScopeLock Lock(&CollectionAccessCriticalSection);
-				// Validate live link subject hasn't changed
-				if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
+				const FLiveLinkSubject* CurrentLiveLinkSubject = SubjectItem->GetLiveSubject();
+				if (LiveLinkSubject == CurrentLiveLinkSubject)
 				{
-					const FLiveLinkSubject* CurrentLiveLinkSubject = SubjectItem->GetLiveSubject();
-					if (LiveLinkSubject == CurrentLiveLinkSubject)
-					{
-						LiveLinkSubject->SetStaticData(Role, MoveTemp(StaticData));
-					}
+    				LiveLinkSubject->SetStaticData(Role, MoveTemp(StaticData));
 				}
-			}, TStatId(), nullptr, ENamedThreads::GameThread);
+			}
+		}, TStatId(), nullptr, ENamedThreads::GameThread);
 	}
-
 }
 
 void FLiveLinkHubClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, FLiveLinkFrameDataStruct&& FrameData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLinkHub_PushFrameData);
+
+	TOptional<FLiveLinkSubjectFrameData> TranslatedFrame;
 
 	bool bFrameValid = true;
 	{
@@ -438,21 +435,34 @@ void FLiveLinkHubClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKe
 					TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = LiveSubject->GetFrameTranslators();
 					if (Translators.Num() && Translators[0].IsValid())
 					{
-						FLiveLinkSubjectFrameData OutTranslatedFrame;
-						Translators[0]->Translate(LiveSubject->GetStaticData(), FrameData, OutTranslatedFrame);
-						FrameData = MoveTemp(OutTranslatedFrame.FrameData);
+						FLiveLinkSubjectFrameData TranslatedFrameData;
+						if (Translators[0]->Translate(LiveSubject->GetStaticData(), FrameData, TranslatedFrameData))
+						{
+							TranslatedFrame = MoveTemp(TranslatedFrameData);
+						}
 					}
 				}
 			}
 		}
 	}
 
+	// If the data was translated, then we broadcast this data, but we save snapshots of the original data since Evaluate will need it for translation as well.
+	FLiveLinkFrameDataStruct* FrameDataToBroadcast = TranslatedFrame.IsSet() ? &(TranslatedFrame->FrameData) : &FrameData;
+
 	if (bFrameValid)
 	{
-		OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, FrameData);
+		OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, *FrameDataToBroadcast);
 	}
 
-	BroadcastFrameDataUpdate(SubjectKey, FrameData);
+	if (bVirtualSubjectsPresent)
+	{
+		// Cache frames if we have virtual subjects so they can use the data.
+		FLiveLinkClient::PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(FrameData));
+	}
+	else
+	{
+		BroadcastFrameDataUpdate(SubjectKey, MoveTemp(*FrameDataToBroadcast));
+	}
 }
 
 FText FLiveLinkHubClient::GetSourceStatus(FGuid InEntryGuid) const
@@ -483,7 +493,34 @@ bool FLiveLinkHubClient::IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey)
 void FLiveLinkHubClient::RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey)
 {
 	OnSubjectMarkedPendingKill_AnyThread().Broadcast(InSubjectKey);
+
 	FLiveLinkClient::RemoveSubject_AnyThread(InSubjectKey);
+}
+
+bool FLiveLinkHubClient::AddVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey, TSubclassOf<ULiveLinkVirtualSubject> VirtualSubjectClass)
+{
+	bool bResult =  FLiveLinkClient::AddVirtualSubject(VirtualSubjectKey, VirtualSubjectClass);
+	if (bResult)
+	{
+		bVirtualSubjectsPresent = true;
+	}
+
+	return bResult;
+}
+
+void FLiveLinkHubClient::RemoveVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey)
+{
+	FLiveLinkClient::RemoveVirtualSubject(VirtualSubjectKey);
+
+	{
+		FScopeLock Lock(&CollectionAccessCriticalSection);
+		bVirtualSubjectsPresent = Algo::AnyOf(Collection->GetSubjects(), [] (const FLiveLinkCollectionSubjectItem& SubjectItem) { return !!SubjectItem.GetVirtualSubject(); });
+	}
+}
+
+TSharedPtr<ILiveLinkProvider> FLiveLinkHubClient::GetRebroadcastLiveLinkProvider() const
+{
+	return FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkProvider();
 }
 
 void FLiveLinkHubClient::BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const

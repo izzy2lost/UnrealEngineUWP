@@ -239,7 +239,7 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 			// Setup rebroadcast provider
 			if (!RebroadcastLiveLinkProvider.IsValid())
 			{
-				RebroadcastLiveLinkProvider = ILiveLinkProvider::CreateLiveLinkProvider(RebroadcastLiveLinkProviderName);
+				RebroadcastLiveLinkProvider = GetRebroadcastLiveLinkProvider();
 			}
 				
 			if (RebroadcastLiveLinkProvider.IsValid())
@@ -735,6 +735,11 @@ void FLiveLinkClient::BroadcastFrameDataUpdate(const FLiveLinkSubjectKey& InSubj
 	{
 		Handles->OnFrameDataReceived.Broadcast(InFrameData);
 	}
+}
+
+TSharedPtr<ILiveLinkProvider> FLiveLinkClient::GetRebroadcastLiveLinkProvider() const
+{
+	return ILiveLinkProvider::CreateLiveLinkProvider(RebroadcastLiveLinkProviderName);
 }
 
 void FLiveLinkClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkFrameDataStruct&& InFrameData)

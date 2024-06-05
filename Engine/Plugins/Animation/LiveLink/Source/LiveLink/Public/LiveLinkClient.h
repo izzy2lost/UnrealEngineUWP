@@ -244,6 +244,9 @@ protected:
 	/** Broadcast out to the SubjectFrameAddedHandles a frame data update. */
 	void BroadcastFrameDataUpdate(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameData);
 
+	/** Method that can be overriden in child classes to provide their own rebroadcast provider. */
+	virtual TSharedPtr<ILiveLinkProvider> GetRebroadcastLiveLinkProvider() const;
+
 	/** The current collection used. */
 	TUniquePtr<FLiveLinkSourceCollection> Collection;
 

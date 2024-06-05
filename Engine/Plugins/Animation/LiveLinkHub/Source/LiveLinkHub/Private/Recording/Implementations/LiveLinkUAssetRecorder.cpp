@@ -39,7 +39,7 @@ namespace UAssetRecorderUtils
 		FLiveLinkHubClient* LiveLinkClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 		TSubclassOf<ULiveLinkRole> LiveLinkRole = LiveLinkClient->GetSubjectRole_AnyThread(SubjectKey);
 		
-		if (const FLiveLinkStaticDataStruct* StaticData = LiveLinkClient->GetSubjectStaticData(SubjectKey))
+		if (const FLiveLinkStaticDataStruct* StaticData = LiveLinkClient->GetSubjectStaticData_AnyThread(SubjectKey))
 		{
 			FInstancedStruct StaticDataInstancedStruct;
 			StaticDataInstancedStruct.InitializeAs(StaticData->GetStruct(), (uint8*)StaticData->GetBaseData());
