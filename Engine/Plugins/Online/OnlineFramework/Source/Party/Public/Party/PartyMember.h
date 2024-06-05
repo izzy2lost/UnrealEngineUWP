@@ -176,16 +176,16 @@ public:
 
 	virtual void BeginDestroy() override;
 
-	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
 	bool CanPromoteToLeader() const { return false; }
 	bool CanPromoteToLeader(const ULocalPlayer& PerformingPlayer) const;
-	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
 	bool PromoteToPartyLeader() { return false; }
 	bool PromoteToPartyLeader(const ULocalPlayer& PerformingPlayer);
-	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
 	bool CanKickFromParty() const { return false; }
 	bool CanKickFromParty(const ULocalPlayer& PerformingPlayer) const;
-	UE_DEPRECATED(5.6, "This has been deprecated to support multiple local players and now requires a performing player.")
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
 	bool KickFromParty() { return false; }
 	bool KickFromParty(const ULocalPlayer& PerformingPlayer);
 

@@ -78,7 +78,7 @@ public:
 	void SetLocalUserOnlineState(EOnlinePresenceState::Type OnlineState);
 	void AddLocalUserOnlineProperties(FPresenceProperties OnlineProperties);
 
-	UE_DEPRECATED(5.6, "GetOwningLocalPlayer returns LocalPlayerOwner which is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.")
+	UE_DEPRECATED(5.5, "GetOwningLocalPlayer returns LocalPlayerOwner which is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.")
 	ULocalPlayer& GetOwningLocalPlayer() const;
 
 	ULocalPlayer* GetOwningLocalPlayerPtr() const;
