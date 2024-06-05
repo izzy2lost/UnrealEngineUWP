@@ -72,54 +72,95 @@ void FLatticeDeformerOp::CalculateResult(FProgressCancel* Progress)
 
 	if (bDeformNormals)
 	{
-		if (ResultMesh->HasAttributes())
+		auto GetDeformedNormals = [this, &ExecutionInfo, &Progress](const FDynamicMesh3& Mesh, TArray<FVector3f>& DeformedNormals)
 		{
-			FDynamicMeshNormalOverlay* NormalOverlay = ResultMesh->Attributes()->PrimaryNormals();
-			check(NormalOverlay != nullptr);
-
-			TArray<FVector3f> DeformedNormals;
-			Lattice->GetRotatedOverlayNormals(LatticeControlPoints,
-											  NormalOverlay,
-											  DeformedNormals,
-											  InterpolationType,
-											  ExecutionInfo,
-											  Progress);
-
-			if (Progress && Progress->Cancelled())
+			if (Mesh.HasAttributes())
 			{
-				return;
+				const FDynamicMeshNormalOverlay* NormalOverlay = Mesh.Attributes()->PrimaryNormals();
+				check(NormalOverlay != nullptr);
+
+				Lattice->GetRotatedOverlayNormals(LatticeControlPoints,
+												  NormalOverlay,
+												  DeformedNormals,
+												  InterpolationType,
+												  ExecutionInfo,
+												  Progress);
 			}
-
-			for (int ElementID : NormalOverlay->ElementIndicesItr())
+			else if (Mesh.HasVertexNormals())
 			{
-				NormalOverlay->SetElement(ElementID, DeformedNormals[ElementID]);
+				TArray<FVector3f> OriginalNormals;
+				OriginalNormals.SetNum(Mesh.MaxVertexID());
+				for (int VertexID : Mesh.VertexIndicesItr())
+				{
+					OriginalNormals[VertexID] = Mesh.GetVertexNormal(VertexID);
+				}
+
+				Lattice->GetRotatedMeshVertexNormals(LatticeControlPoints,
+													 OriginalNormals,
+													 DeformedNormals,
+													 InterpolationType,
+													 ExecutionInfo,
+													 Progress);
+			}
+		};
+
+		const FDynamicMesh3& DeformNormalMesh = bUsingSubmesh ? Submesh->GetSubmesh() : *ResultMesh;
+		TArray<FVector3f> DeformedNormals;
+		GetDeformedNormals(DeformNormalMesh, DeformedNormals);
+
+		if (DeformedNormals.IsEmpty())
+		{
+			return;
+		}
+
+		if (Progress && Progress->Cancelled())
+		{
+			return;
+		}
+		
+		if (bUsingSubmesh)
+		{
+			if (ResultMesh->HasAttributes())
+			{
+				const FDynamicMeshNormalOverlay* SubOverlay = Submesh->GetSubmesh().Attributes()->PrimaryNormals();
+				check(SubOverlay != nullptr);
+
+				FDynamicMeshNormalOverlay* ResultOverlay = ResultMesh->Attributes()->PrimaryNormals();
+				check(ResultOverlay != nullptr);
+
+				for (const int SubElementID : SubOverlay->ElementIndicesItr())
+				{
+					const int BaseElementID = Submesh->MapNormalToBaseMesh(0, SubElementID);
+					ResultOverlay->SetElement(BaseElementID, DeformedNormals[SubElementID]);
+				}
+			}
+			else if (ResultMesh->HasVertexNormals())
+			{
+				for (const int SubVID : Submesh->GetSubmesh().VertexIndicesItr())
+				{
+					const int BaseVertexID = Submesh->MapVertexToBaseMesh(SubVID);
+					ResultMesh->SetVertexNormal(BaseVertexID, DeformedNormals[SubVID]);
+				}
 			}
 		}
-		else if (ResultMesh->HasVertexNormals())
+		else
 		{
-			TArray<FVector3f> OriginalNormals;
-			OriginalNormals.SetNum(ResultMesh->MaxVertexID());
-			for (int VertexID : ResultMesh->VertexIndicesItr())
+			if (ResultMesh->HasAttributes())
 			{
-				OriginalNormals[VertexID] = ResultMesh->GetVertexNormal(VertexID);
+				FDynamicMeshNormalOverlay* NormalOverlay = ResultMesh->Attributes()->PrimaryNormals();
+				check(NormalOverlay != nullptr);
+			
+				for (int ElementID : NormalOverlay->ElementIndicesItr())
+				{
+					NormalOverlay->SetElement(ElementID, DeformedNormals[ElementID]);
+				}
 			}
-
-			TArray<FVector3f> RotatedNormals;
-			Lattice->GetRotatedMeshVertexNormals(LatticeControlPoints,
-												 OriginalNormals,
-												 RotatedNormals,
-												 InterpolationType,
-												 ExecutionInfo,
-												 Progress);
-
-			if (Progress && Progress->Cancelled())
+			else if (ResultMesh->HasVertexNormals())
 			{
-				return;
-			}
-
-			for (int vid : ResultMesh->VertexIndicesItr())
-			{
-				ResultMesh->SetVertexNormal(vid, RotatedNormals[vid]);
+				for (int vid : ResultMesh->VertexIndicesItr())
+				{
+					ResultMesh->SetVertexNormal(vid, DeformedNormals[vid]);
+				}
 			}
 		}
 	}

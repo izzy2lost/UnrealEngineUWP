@@ -76,16 +76,19 @@ public:
 	inline bool ContainsGroup(int FromID) const { return GroupMap.ContainsFrom(FromID); }
 
 	FIndexMapi& GetUVMap(int UVLayer) { return UVMaps[UVLayer]; }
+	const FIndexMapi& GetUVMap(int UVLayer) const { return UVMaps[UVLayer]; }
 	void SetUV(int UVLayer, int FromID, int ToID) { UVMaps[UVLayer].Add(FromID, ToID); }
 	int GetNewUV(int UVLayer, int FromID) const { return UVMaps[UVLayer].GetTo(FromID); }
 	inline bool ContainsUV(int UVLayer, int FromID) const { return UVMaps[UVLayer].ContainsFrom(FromID); }
 
 	FIndexMapi& GetNormalMap(int NormalLayer) { return NormalMaps[NormalLayer]; }
+	const FIndexMapi& GetNormalMap(int NormalLayer) const { return NormalMaps[NormalLayer]; }
 	void SetNormal(int NormalLayer, int FromID, int ToID) { NormalMaps[NormalLayer].Add(FromID, ToID); }
 	int GetNewNormal(int NormalLayer, int FromID) const { return NormalMaps[NormalLayer].GetTo(FromID); }
 	inline bool ContainsNormal(int NormalLayer, int FromID) const { return NormalMaps[NormalLayer].ContainsFrom(FromID); }
 
 	FIndexMapi& GetColorMap() { return ColorMap; }
+	const FIndexMapi& GetColorMap() const { return ColorMap; }
 	void SetColor( int FromID, int ToID) { ColorMap.Add(FromID, ToID); }
 	int GetNewColor(int FromID) const { return ColorMap.GetTo(FromID); }
 	inline bool ContainsColor(int FromID) const { return ColorMap.ContainsFrom(FromID); }

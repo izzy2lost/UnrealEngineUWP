@@ -202,6 +202,42 @@ public:
 		}
 	}
 
+	/** @return Normal ID in the submesh, mapped from the base mesh */
+	int MapNormalToSubmesh(int NormalLayer, int BaseNID) const
+	{
+		return Mappings.GetNormalMap(NormalLayer).GetTo(BaseNID);
+	}
+
+	/** @return Normal ID in the base mesh, mapped from the submesh */
+	int MapNormalToBaseMesh(int NormalLayer, int SubNID) const
+	{
+		return Mappings.GetNormalMap(NormalLayer).GetFrom(SubNID);
+	}
+
+	/** @return UV ID in the submesh, mapped from the base mesh */
+	int MapUVToSubmesh(int UVLayer, int BaseUVID) const
+	{
+		return Mappings.GetUVMap(UVLayer).GetTo(BaseUVID);
+	}
+
+	/** @return UV ID in the base mesh, mapped from the submesh */
+	int MapUVToBaseMesh(int UVLayer, int SubUVID) const
+	{
+		return Mappings.GetUVMap(UVLayer).GetFrom(SubUVID);
+	}
+
+	/** @return Vertex Color ID in the submesh, mapped from the base mesh */
+	int MapColorToSubmesh(int BaseCID) const
+	{
+		return Mappings.GetColorMap().GetTo(BaseCID);
+	}
+
+	/** @return Vertex Color ID in the base mesh, mapped from the submesh */
+	int MapColorToBaseMesh(int SubCID) const
+	{
+		return Mappings.GetColorMap().GetFrom(SubCID);
+	}
+
 	/**
 	 * Computes the Submesh object, index mappings corresponding sub to base mesh, and boundary between sub and base mesh
 	 * @param SubTriangles ArrayView of triangle IDs to include in the submesh
