@@ -3610,7 +3610,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 	if (!bNeedEllipsis && Context.bForceEllipsis)
 	{
 		bNeedEllipsis = true;
-		EllipsisLineX = LineX;
+		EllipsisLineX = LineX - PreviousWhitespaceAdvance; //It's ok to always substract whitespace advance (LTR or RTL overflow direction), as the value will always be 0 for RTL overflow direction.
 		EllipsisLineY = LineY;
 	}
 
