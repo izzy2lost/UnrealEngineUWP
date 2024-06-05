@@ -95,13 +95,18 @@ static TAutoConsoleVariable<bool> CVarMaterialEdPreshaderDumpToHLSL(
 	TEXT("Controls whether to append preshader expressions and parameter reference counts to the HLSL source window (as comments at the end of the code)."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<bool> CVarMaterialEdUseNewTranslatorPrototype(
+#endif
+
+static TAutoConsoleVariable<bool> CVarUsingUseNewMaterialTranslatorPrototype(
 	TEXT("r.MaterialEditor.UseNewTranslatorPrototype"),
 	false,
 	TEXT("Controls whether to enable the new material translator prototype (WIP) ."),
 	ECVF_RenderThreadSafe);
 
-#endif
+bool IsUsingNewMaterialTranslatorPrototype()
+{
+	return CVarUsingUseNewMaterialTranslatorPrototype.GetValueOnAnyThread();
+}
 
 IMPLEMENT_TYPE_LAYOUT(FHashedMaterialParameterInfo);
 IMPLEMENT_TYPE_LAYOUT(FUniformExpressionSet);
@@ -459,6 +464,11 @@ FExpressionInput FExpressionInput::GetTracedInput() const
 		return Reroute->TraceInputsToRealInput();
 	}
 	return *this;
+}
+
+FExpressionOutput* FExpressionInput::GetConnectedOutput()
+{
+	return IsConnected() ? &Expression->GetOutputs()[OutputIndex] : nullptr;
 }
 
 int32 FExpressionExecOutput::Compile(class FMaterialCompiler* Compiler) const
@@ -3368,37 +3378,40 @@ bool FMaterial::Translate_New(const FMaterialShaderMapId& InShaderMapId,
 	FMaterialCompilationOutput& OutCompilationOutput,
 	TRefCountPtr<FSharedShaderCompilerEnvironment>& OutMaterialEnvironment)
 {
-	const bool bUseNewTranslatorPrototype = CVarMaterialEdUseNewTranslatorPrototype->GetBool();
-	if (bUseNewTranslatorPrototype)
+	if (IsUsingNewMaterialTranslatorPrototype())
 	{
-		FMaterialIRModule Module;
+		const FMaterialIRModule& Module = this->GetMaterialInterface()->GetIRModule();
 
-		/* Setup the builder and bild the material */
-		FMaterialIRModuleBuilder Builder;
-		Builder.SetSource(this, &InStaticParameters);
-		Builder.SetPlatform(InPlatform, InShaderMapId.FeatureLevel, InTargetPlatform);
-		Builder.SetTarget(&Module);
-		if (!Builder.Build())
+		if (!Module.GetErrors().IsEmpty())
+		{
+			// TODO: This could be moved elsewhere, when the Module is built.
+			for (const FMaterialIRModule::FError& Error : Module.GetErrors())
+			{
+				ErrorExpressions.Push(Error.Expression);
+				CompileErrors.Push(Error.Message);
+			}
+			return false;
+		}
+	
+		// Copy over the compilation output
+		OutCompilationOutput = Module.GetCompilationOutput();
+		OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
+
+		// Translate the material IR module to HLSL template string parameters and material environment
+		FMaterialIRToHLSLTranslator::FParametersMap ShaderStringParameters;
+		FMaterialIRToHLSLTranslator Translator;
+		if (!Translator.Translate(*this, InStaticParameters, Module, ShaderStringParameters, *OutMaterialEnvironment))
 		{
 			return false;
 		}
 
-		/* Copy over the compilation output */
-		OutCompilationOutput = Module.GetCompilationOutput();
-		OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
-
-		/* Translate the material IR module to HLSL template string parameters and material environment */
-		FMaterialIRToHLSLTranslator::FParametersMap ShaderStringParameters;
-		FMaterialIRToHLSLTranslator Translator;
-		Translator.Translate(*this, Module, ShaderStringParameters, *OutMaterialEnvironment);
-
-		/* Interpolate HLSL parameters with the material shader template to produce the final shader source */
+		// Interpolate HLSL parameters with the material shader template to produce the final shader source
 		int32 LineNumber;
 		FStringTemplateResolver Resolver = FMaterialSourceTemplate::Get().BeginResolve(InPlatform, &LineNumber);
 		ShaderStringParameters.Add({TEXT("line_number"), FString::Printf(TEXT("%u"), LineNumber)});
 		Resolver.SetParameterMap(&ShaderStringParameters);
 
-		// Interpolate the string
+		// Interpolate the final material shader source string
 		FString MaterialShaderCode = Resolver.Finalize();
 		OutMaterialEnvironment->IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/Material.ush"), MoveTemp(MaterialShaderCode));
 

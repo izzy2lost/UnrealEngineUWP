@@ -9,22 +9,28 @@
 class FMaterialIRModule
 {
 public:
+	struct FError
+	{
+		UMaterialExpression* Expression;
+		FString Message;
+	};
+
+public:
 	~FMaterialIRModule();
 	void Empty();
-	void Reset(EShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, const ITargetPlatform* InTargetPlatform);
-	EShaderPlatform GetShaderPlatform() const { return ShaderPlatform; }
-	const ITargetPlatform* GetTargetPlatform() const { return TargetPlatform; }
 	const FMaterialCompilationOutput& GetCompilationOutput() const { return CompilationOutput; }
-	TArrayView<const MaterialIR::FSetMaterialOutputInstr* const> GetOutputs() const { return Outputs; }
+	TArrayView<const UE::MIR::FSetMaterialOutput* const> GetOutputs() const { return Outputs; }
+	TArrayView<const FError> GetErrors() const { return Errors; }
 
 private:
-	EShaderPlatform ShaderPlatform;
-	const ITargetPlatform* TargetPlatform;
 	FMaterialCompilationOutput CompilationOutput;
-	TArray<MaterialIR::FValue*> Values;
-	TArray<MaterialIR::FSetMaterialOutputInstr*> Outputs;
+	TArray<UE::MIR::FValuePtr> Values;
+	TArray<UE::MIR::FSetMaterialOutput*> Outputs;
+	TArray<FError> Errors;
 
-	friend MaterialIR::FBuilder;
+
+	friend UE::MIR::FEmitter;
+	friend FMaterialIRModuleBuilder;
 };
 
-#endif
+#endif // #if WITH_EDITOR

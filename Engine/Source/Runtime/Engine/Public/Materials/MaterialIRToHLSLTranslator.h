@@ -13,11 +13,15 @@ public:
 
 public:
 	FMaterialIRToHLSLTranslator();
-	void Translate(const FMaterial& InMaterial, const FMaterialIRModule& InModule, FParametersMap& OutParameters, FShaderCompilerEnvironment& OutEnvironment);
+	void SetTarget(EShaderPlatform InShaderPlatform, const ITargetPlatform* InTargetPlatform, ERHIFeatureLevel::Type InFeatureLevel);
+	bool Translate(const FMaterial& InMaterial, const FStaticParameterSet& StaticParameters, const FMaterialIRModule& InModule, FParametersMap& OutParameters, FShaderCompilerEnvironment& OutEnvironment);
 
 private:
- 	
-	UE_MIR_PRIVATE();
+	EShaderPlatform ShaderPlatform{};
+	const ITargetPlatform* TargetPlatform{};
+	ERHIFeatureLevel::Type FeatureLevel{};
+
+	struct FPrivate;
 };
 
 #endif // #if WITH_EDITOR

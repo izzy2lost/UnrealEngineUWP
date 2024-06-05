@@ -7,6 +7,7 @@
 #include "SceneTypes.h"
 
 class FMaterialHLSLGenerator;
+struct FExpressionOutput;
 
 namespace UE::HLSLTree
 {
@@ -110,6 +111,10 @@ struct FExpressionInput
 		MaskB = B;
 		MaskA = A;
 	}
+
+	/** Returns the connected expression output if this input is connected to one,	nullptr otherwise. */
+	FExpressionOutput* GetConnectedOutput();
+
 #endif // WITH_EDITOR
 };
 

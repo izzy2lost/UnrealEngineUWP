@@ -7,19 +7,21 @@ enum EMaterialProperty : int;
 
 #if WITH_EDITOR
 
-namespace MaterialIR
-{
+namespace UE::MIR {
 
 enum EValueKind
 {
 	/* Values */
-	VK_Value = 1 << 0,
-	VK_Scalar = VK_Value | 1 << 2,
-	VK_Vector = VK_Value | 2 << 2,
-	
+	VK_ScalarConstant,
+	VK_Dimensional,
+
 	/* Instructions */
-	VK_Instruction = 1 << 1,
- 	VK_SetMaterialOutputInstr = VK_Instruction | 1 << 2,
+	VK_InstructionBegin,
+
+	VK_SetMaterialOutput = VK_InstructionBegin,
+	VK_BinaryOperator,
+
+	VK_InstructionEnd,
 };
 
 /* Values */
@@ -29,27 +31,23 @@ struct FValue
 	EValueKind Kind{};
 	FTypePtr  Type{};
 
-	bool IsA(EValueKind InKind) const
-	{
-		return (Kind & InKind) == InKind;
-	}
+	bool IsA(EValueKind InKind) const { return Kind == InKind; }
+	FInstructionPtr AsInstruction() const;
+	bool Equals(FValuePtr Other) const;
+	uint32 GetSizeInBytes() const;
 
 	template <typename T>
-	const T* Cast() const
-	{
-		return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr;
-	}
+	const T* As() const { return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr; }
 
-	void Destroy();
 };
 
-	template <EValueKind TTypeKind>
-	struct TValue : FValue
-	{
-		static constexpr EValueKind TypeKind = TTypeKind;
-	};
+template <EValueKind TTypeKind>
+struct TValue : FValue
+{
+	static constexpr EValueKind TypeKind = TTypeKind;
+};
 
-struct FScalarValue : TValue<VK_Scalar>
+struct FScalarConstant : TValue<VK_ScalarConstant>
 {
 	union
 	{
@@ -59,37 +57,53 @@ struct FScalarValue : TValue<VK_Scalar>
 	};
 };
 
-struct FVectorValue : TValue<VK_Vector>
+struct FDimensional : TValue<VK_Dimensional>
 {
 	TArrayView<const FValuePtr> GetComponents() const;
 	TArrayView<FValuePtr> GetMutableComponents();
+	uint32 GetSizeInBytes() const;
 };
 
 template <int TDimension>
-struct TVectorValue : FVectorValue
+struct TDimensional : FDimensional
 {
 	FValuePtr Components[TDimension];
 };
 
 /* Instructions */
 
-struct FInstruction : TValue<VK_Instruction>
+struct FInstruction : FValue
 {
 	FInstruction* Next{};
 };
 
-	template <EValueKind TTypeKind>
-	struct TInstruction : FInstruction
-	{
-		static constexpr EValueKind TypeKind = TTypeKind;
-	};
+template <EValueKind TTypeKind>
+struct TInstruction : FInstruction
+{
+	static constexpr EValueKind TypeKind = TTypeKind;
+};
 
-struct FSetMaterialOutputInstr : TInstruction<VK_SetMaterialOutputInstr>
+struct FSetMaterialOutput : TInstruction<VK_SetMaterialOutput>
 {
 	EMaterialProperty Property;
 	FValuePtr ArgValue;
 };
 
-} // namespace MaterialIR
+enum EBinaryOperator
+{
+	BO_Invalid,
+	BO_Add,
+	BO_Subtract,
+	BO_Multiply,
+	BO_Divide,
+};
 
+struct FBinaryOperator : TInstruction<VK_BinaryOperator>
+{
+	EBinaryOperator Operator = BO_Invalid;
+	FValuePtr Lhs{};
+	FValuePtr Rhs{};
+};
+
+} // namespace UE::MIR
 #endif
