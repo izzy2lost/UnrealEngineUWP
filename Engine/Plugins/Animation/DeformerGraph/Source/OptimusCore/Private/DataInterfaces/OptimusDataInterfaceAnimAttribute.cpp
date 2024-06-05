@@ -723,7 +723,7 @@ void FOptimusAnimAttributeDataProviderProxy::AllocateResources(FRDGBuilder& Grap
 		for (int32 ArrayIndex = 0; ArrayIndex < AttributeArrayMetadata.Num(); ArrayIndex++)
 		{
 			const FArrayMetadata& ArrayMetadata = AttributeArrayMetadata[ArrayIndex];
-			const TArray<uint8>& ArrayData = AttributeArrayData[ArrayIndex];
+			const TArray<uint8>& ArrayData = AttributeArrayData[ArrayIndex].ArrayOfValues;
 			
 			ArrayBuffers.Add(
 				GraphBuilder.CreateBuffer(

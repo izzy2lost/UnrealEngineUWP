@@ -421,8 +421,7 @@ bool UOptimusDeformer::SetVariableDataType(
 		return false;
 	}
 	
-	// Make sure the value data container is still large enough to hold the property value.
-	InVariableDesc->ValueData.Reset();
+	// Make sure the value data container matches the property value.
 	InVariableDesc->EnsureValueContainer();
 	return true;
 }
@@ -2167,7 +2166,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 
 			if (UOptimusNode_ConstantValue const* ConstantNode = Cast<const UOptimusNode_ConstantValue>(ValueNode))
 			{
-				ValueNodeDescription.Value = ConstantNode->GetShaderValue().ShaderValue;
+				ValueNodeDescription.ShaderValue = ConstantNode->GetShaderValue();
 			}
 		}
 	}
@@ -3068,7 +3067,7 @@ void UOptimusDeformer::Notify(EOptimusGlobalNotifyType InNotifyType, UObject* In
 	case EOptimusGlobalNotifyType::ConstantValueChanged:
 		if (UOptimusNode_ConstantValue* ConstantValue = Cast<UOptimusNode_ConstantValue>(InObject))
 		{
-			ConstantValueUpdateDelegate.Broadcast(ConstantValue, ConstantValue->GetShaderValue().ShaderValue);
+			ConstantValueUpdateDelegate.Broadcast(ConstantValue, ConstantValue->GetShaderValue());
 		}
 		
 		break;

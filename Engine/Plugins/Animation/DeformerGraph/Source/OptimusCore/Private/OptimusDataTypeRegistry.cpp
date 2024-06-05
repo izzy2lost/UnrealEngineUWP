@@ -57,7 +57,7 @@ static bool IsStructHashable(const UScriptStruct* InStructType)
 
 template<typename SourceT, typename DestT>
 static bool ConvertPropertyValuePOD(
-		TArrayView<const uint8> InRawValue, FShaderValueType::FValueView OutShaderValue
+		TArrayView<const uint8> InRawValue, FShaderValueContainerView OutShaderValue
 	)
 {
 	if (ensure(InRawValue.Num() == sizeof(SourceT)) &&
@@ -67,6 +67,18 @@ static bool ConvertPropertyValuePOD(
 		return true;
 	}
 	return false;
+}
+
+// Special logic for things like StructuredBuffer<float3> which should be packed as buffer of float4 in Vulkan
+static FOptimusDataTypeHandle GetArrayElementDataTypeForStructuredBuffer(FOptimusDataTypeHandle InDataType)
+{
+	FOptimusDataTypeHandle Result = InDataType;
+	if (InDataType->ShaderValueType->Type != EShaderFundamentalType::Struct && InDataType->ShaderValueType->VectorElemCount == 3)
+	{
+		Result = FOptimusDataTypeRegistry::Get().FindType(FShaderValueType::Get(InDataType->ShaderValueType->Type, 4));
+	}
+
+	return Result;
 }
 
 EOptimusDataTypeUsageFlags FOptimusDataTypeRegistry::GetStructTypeUsageFlag(UScriptStruct* InStruct)
@@ -231,7 +243,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    *FBoolProperty::StaticClass(),
 	    FText::FromString(TEXT("Bool")),
 	    FShaderValueType::Get(EShaderFundamentalType::Bool),
-		[](UStruct *InScope, FName InName) {
+		[](FFieldVariant InScope, FName InName) {
 		    FBoolProperty* Property = new FBoolProperty(InScope, InName, RF_Public);
 		    Property->SetBoolSize(sizeof(bool), true);
 			return Property;
@@ -245,7 +257,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    *FIntProperty::StaticClass(),
 	    FText::FromString(TEXT("Int")),
 	    FShaderValueType::Get(EShaderFundamentalType::Int),
-	    [](UStruct* InScope, FName InName) {
+	    [](FFieldVariant InScope, FName InName) {
 		    FIntProperty* Property = new FIntProperty(InScope, InName, RF_Public);
 			Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
 		    return Property;
@@ -285,7 +297,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 		*FUInt32Property::StaticClass(),
 	    FText::FromString(TEXT("UInt")),
 		FShaderValueType::Get(EShaderFundamentalType::Uint),
-		[](UStruct* InScope, FName InName) {
+		[](FFieldVariant InScope, FName InName) {
 			FUInt32Property* Property = new FUInt32Property(InScope, InName, RF_Public);
 			Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
 			return Property;
@@ -327,7 +339,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    *FFloatProperty::StaticClass(),
 	    FText::FromString(TEXT("Float")),
 	    FShaderValueType::Get(EShaderFundamentalType::Float),
-	    [](UStruct* InScope, FName InName) {
+	    [](FFieldVariant InScope, FName InName) {
 		    FFloatProperty* Property = new FFloatProperty(InScope, InName, RF_Public);
 		    Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
 #if WITH_EDITOR
@@ -347,7 +359,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    *FDoubleProperty::StaticClass(),
 	    FText::FromString(TEXT("Float")),
 	    FShaderValueType::Get(EShaderFundamentalType::Float),
-	    [](UStruct* InScope, FName InName) {
+	    [](FFieldVariant InScope, FName InName) {
 		    FDoubleProperty* Property = new FDoubleProperty(InScope, InName, RF_Public);
 		    Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
 #if WITH_EDITOR
@@ -419,7 +431,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    FShaderValueType::Get(EShaderFundamentalType::Float, 4, 4),
 	    [](
 	    	TArrayView<const uint8> InRawValue,
-			FShaderValueType::FValueView OutShaderValue) -> bool
+			FShaderValueContainerView OutShaderValue) -> bool
 	    {
 	    	if (ensure(InRawValue.Num() == TBaseStructure<FTransform>::Get()->GetCppStructOps()->GetSize()) &&
 				ensure(OutShaderValue.ShaderValue.Num() == FShaderValueType::Get(EShaderFundamentalType::Float, 4, 4)->GetResourceElementSize()))
@@ -458,6 +470,16 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 
 	
 	Registry.TypeWithAtomicSupport = {FIntProperty::StaticClass()->GetFName()};
+	
+	// Scan available built-in types to see if we can create array type for them
+	// Currently only support variable usage + no nested array
+
+	TMap<FName, FTypeInfo> AlreadyRegisteredTypes = Registry.RegisteredTypes;
+	
+	for (const TPair<FName, FTypeInfo>& Type : AlreadyRegisteredTypes)
+	{
+		Registry.RegisterArrayTypeIfApplicable(Type.Value.DataType);
+	}
 }
 
 
@@ -528,7 +550,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 	const bool bIsHashable = IsStructHashable(InStructType);
 
 	PropertyCreateFuncT PropertyCreateFunc;
-	PropertyCreateFunc = [bIsHashable, InStructType](UStruct* InScope, FName InName) -> FProperty *
+	PropertyCreateFunc = [bIsHashable, InStructType](FFieldVariant InScope, FName InName) -> FProperty *
 	{
 		auto Property = new FStructProperty(InScope, InName, RF_Public);
 		Property->Struct = InStructType;
@@ -583,10 +605,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 			// Special logic for things like StructuredBuffer<float3> which should be packed as buffer of float4 in Vulkan
 			if (bIsArrayMember)
 			{
-				if (DataType->ShaderValueType->Type != EShaderFundamentalType::Struct && DataType->ShaderValueType->VectorElemCount == 3)
-				{
-					DataType = FindType(FShaderValueType::Get(DataType->ShaderValueType->Type, 4));
-				}
+				DataType = GetArrayElementDataTypeForStructuredBuffer(DataType);
 			}
 			
 			if (DataType->GetNumArrays() > 0)
@@ -716,7 +735,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 		}
 		
 		PropertyValueConvertFunc = [ConversionEntries, ExpectedPropertySize, ExpectedShaderValueSize](
-				TArrayView<const uint8> InRawValue, FShaderValueType::FValueView OutShaderValue
+				TArrayView<const uint8> InRawValue, FShaderValueContainerView OutShaderValue
 			) -> bool
 		{
 			if (ensure(InRawValue.Num() == ExpectedPropertySize) &&
@@ -736,7 +755,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 
 						// Convert each element, store them in a separate buffer that is to be uploaded
 						FScriptArrayHelper ArrayHelper(ArrayProperty, PropertyRawValue);
-						TArray<uint8>& Buffer = OutShaderValue.ArrayList[ConversionInfo.ArrayIndex];
+						TArray<uint8>& Buffer = OutShaderValue.ArrayList[ConversionInfo.ArrayIndex].ArrayOfValues;
 						Buffer.AddZeroed(ConversionInfo.ShaderValueSize * ArrayHelper.Num());
 						
 						for (int32 Index = 0; Index < ArrayHelper.Num(); Index++)
@@ -745,7 +764,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 							uint8* ShaderValuePtr = Buffer.GetData() + ConversionInfo.ShaderValueSize * Index;
 
 							// Nested buffer is not possible
-							TArray<TArray<uint8>> DummyBufferList;
+							TArray<FArrayShaderValue> DummyBufferList;
 
 							if (!ConversionInfo.PropertyInfo.ConvertFunc(
 									{ElementPtr, ArrayProperty->Inner->GetSize()},
@@ -822,6 +841,103 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 	}
 
 	return false;
+}
+
+bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHandle InElementDataType)
+{
+	// For now only allow array type for variables
+	if (!EnumHasAnyFlags(InElementDataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable))
+	{
+		return false;
+	}
+
+	// Nested array is not supported at the moment for array variables
+	if (InElementDataType->GetNumArrays() != 0)
+	{
+		return false;
+	}
+	
+	PropertyCreateFuncT ElementPropertyCreateFunc = FindPropertyCreateFunc(InElementDataType->TypeName);
+	PropertyCreateFuncT	ArrayPropertyCreateFunc = [ElementPropertyCreateFunc](FFieldVariant InScope, FName InName) -> FProperty*
+	{
+		FArrayProperty* ArrayProperty = new FArrayProperty(InScope, InName, RF_NoFlags);
+		ArrayProperty->Inner = ElementPropertyCreateFunc(ArrayProperty, TEXT("Inner"));
+		
+		return ArrayProperty;
+	};
+
+	// Making sure we are copying property value of a type into shader value of a equal or larger type, see comment for GetArrayElementDataTypeForStructuredBuffer
+	FOptimusDataTypeHandle InnerDataTypeForStructuredBuffer = GetArrayElementDataTypeForStructuredBuffer(InElementDataType);
+	check(InnerDataTypeForStructuredBuffer->ShaderValueSize >= InElementDataType->ShaderValueSize);
+	PropertyValueConvertFuncT ElementPropertyValueConvertFunc = FindPropertyValueConvertFunc(InnerDataTypeForStructuredBuffer->TypeName);
+	check(ElementPropertyValueConvertFunc);
+	int32 ElementShaderValueSize = InnerDataTypeForStructuredBuffer->ShaderValueSize;
+
+	// Nested array is not supported at the moment for array variables
+	check(InnerDataTypeForStructuredBuffer->GetNumArrays() == 0);
+	
+	PropertyValueConvertFuncT ArrayPropertyValueConvertFunc = [
+		ArrayPropertyCreateFunc,
+		ElementShaderValueSize,
+		ElementPropertyValueConvertFunc
+		] (
+		TArrayView<const uint8> InRawValue,
+		FShaderValueContainerView OutShaderValue
+		) -> bool
+	{
+		const TUniquePtr<FArrayProperty> LocalArrayProperty(CastField<FArrayProperty>(ArrayPropertyCreateFunc(nullptr, NAME_None)));
+
+		const FArrayProperty* ArrayProperty = LocalArrayProperty.Get();
+		// Convert each element, store them in a separate buffer that is to be uploaded
+		FScriptArrayHelper ArrayHelper(ArrayProperty, InRawValue.GetData());
+		TArray<uint8>& Buffer = OutShaderValue.ArrayList[0].ArrayOfValues;
+		Buffer.AddZeroed(ElementShaderValueSize * ArrayHelper.Num());
+				
+		for (int32 Index = 0; Index < ArrayHelper.Num(); Index++)
+		{
+			uint8* ElementPtr = ArrayHelper.GetRawPtr(Index);
+			uint8* ShaderValuePtr = Buffer.GetData() + ElementShaderValueSize * Index;
+
+			// Nested buffer is not possible
+			TArray<FArrayShaderValue> DummyBufferList;
+
+			if (!ElementPropertyValueConvertFunc(
+					{ElementPtr, ArrayProperty->Inner->GetSize()},
+					{
+						{ShaderValuePtr, ElementShaderValueSize},
+						DummyBufferList
+					}))
+			{
+				return false;
+			}
+		}	
+		return true;
+	};
+
+	TSharedRef<FOptimusDataType> ArrayDataType = MakeShared<FOptimusDataType>();
+	
+	const FTypeInfo Info
+	{
+		ArrayDataType,
+		ArrayPropertyCreateFunc,
+		ArrayPropertyValueConvertFunc,
+		{FArrayMetadata(ElementShaderValueSize, 0 )}
+	};
+
+	{
+		*ArrayDataType = *InElementDataType;
+		ArrayDataType->TypeName = *(TEXT("TArray<") + InElementDataType->TypeName.ToString() + TEXT(">"));
+		ArrayDataType->DisplayName = FText::FromString(InElementDataType->DisplayName.ToString() + TEXT(" Array"));
+		ArrayDataType->ShaderValueType = FShaderValueType::MakeDynamicArrayType(InnerDataTypeForStructuredBuffer->ShaderValueType);
+		
+		// Unused field
+		ArrayDataType->ShaderValueSize = 0;	
+	}
+	
+	RegisteredTypes.Add(ArrayDataType->TypeName, Info);
+	RegistrationOrder.Add(ArrayDataType->TypeName);
+
+	return true;
 }
 
 void FOptimusDataTypeRegistry::RefreshStructType(UUserDefinedStruct* InStructType)
@@ -916,7 +1032,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 		{
 			const bool bIsHashable = IsStructHashable(InStructType);
 
-			PropertyCreateFunc = [bIsHashable, InStructType](UStruct* InScope, FName InName) -> FProperty *
+			PropertyCreateFunc = [bIsHashable, InStructType](FFieldVariant InScope, FName InName) -> FProperty *
 			{
 				auto Property = new FStructProperty(InScope, InName, RF_Public);
 				Property->Struct = InStructType;
@@ -970,7 +1086,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 
 			PropertyValueConvertFunc = [ConversionEntries, ExpectedPropertySize, ExpectedShaderValueSize](
 				TArrayView<const uint8> InRawValue, 
-				FShaderValueType::FValueView OutShaderValue
+				FShaderValueContainerView OutShaderValue
 				) -> bool
 			{
 				// we can be copying a smaller property into a larger shader side array element
@@ -1076,7 +1192,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 		{
 			const bool bIsHashable = IsStructHashable(InStructType);
 
-			PropertyCreateFunc = [bIsHashable, InStructType](UStruct* InScope, FName InName) -> FProperty *
+			PropertyCreateFunc = [bIsHashable, InStructType](FFieldVariant InScope, FName InName) -> FProperty *
 			{
 				FStructProperty* Property = new FStructProperty(InScope, InName, RF_Public);
 				Property->Struct = InStructType;
@@ -1132,7 +1248,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 		{
 			const bool bIsHashable = IsStructHashable(InStructType);
 			
-			PropertyCreateFunc = [bIsHashable, InStructType](UStruct* InScope, FName InName) -> FProperty* {
+			PropertyCreateFunc = [bIsHashable, InStructType](FFieldVariant InScope, FName InName) -> FProperty* {
 				FStructProperty* Property = new FStructProperty(InScope, InName, RF_Public);
 				Property->Struct = InStructType;
 				Property->ElementSize = InStructType->GetStructureSize();
@@ -1179,7 +1295,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 		PropertyCreateFuncT PropertyCreateFunc;
 		if (EnumHasAnyFlags(InUsageFlags, EOptimusDataTypeUsageFlags::Variable))
 		{
-			PropertyCreateFunc = [InClassType](UStruct* InScope, FName InName) -> FProperty* {
+			PropertyCreateFunc = [InClassType](FFieldVariant InScope, FName InName) -> FProperty* {
 				FObjectProperty* Property = new FObjectProperty(InScope, InName, RF_Public);
 				Property->SetPropertyClass(InClassType);
 				Property->SetPropertyFlags(CPF_HasGetValueTypeHash);

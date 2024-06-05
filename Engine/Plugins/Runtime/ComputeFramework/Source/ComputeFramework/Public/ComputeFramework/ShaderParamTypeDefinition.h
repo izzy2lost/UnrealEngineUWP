@@ -107,43 +107,76 @@ template<> struct TStructOpsTypeTraits<FShaderValueTypeHandle> : TStructOpsTypeT
 	enum { WithSerializer = true, WithIdenticalViaEquality = true, WithCopy = false };
 };
 
+
+
+USTRUCT()
+struct FArrayShaderValue
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<uint8> ArrayOfValues;
+};
+
+USTRUCT()
+struct FShaderValueContainer
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<uint8> ShaderValue;
+
+	UPROPERTY()
+	TArray<FArrayShaderValue> ArrayList;
+
+	FShaderValueContainer() = default;
+	
+	explicit FShaderValueContainer(int32 InShaderValueSize, int32 InNumArrays)
+	{
+		ShaderValue.SetNumUninitialized(InShaderValueSize);
+		ArrayList.AddDefaulted(InNumArrays);
+	}
+
+	static bool IsSameType(const FShaderValueContainer& A, const FShaderValueContainer& B)
+	{
+		return A.ShaderValue.Num() == B.ShaderValue.Num() && A.ArrayList.Num() == B.ArrayList.Num();
+	};
+
+	bool IsValid() const
+	{
+		return ShaderValue.Num() > 0 || ArrayList.Num() > 0;
+	}
+	void Reset()
+	{
+		ShaderValue.Reset();
+		ArrayList.Reset();
+	};
+};
+
+struct FShaderValueContainerView
+{
+	TArrayView<uint8> ShaderValue;
+	TArrayView<FArrayShaderValue> ArrayList;
+
+	FShaderValueContainerView(
+			TArrayView<uint8> InShaderValue,
+			TArrayView<FArrayShaderValue> InArrayList) :
+			ShaderValue(InShaderValue),
+			ArrayList(InArrayList) {}
+		
+	FShaderValueContainerView(TArrayView<uint8> InShaderValue) :
+		ShaderValue(InShaderValue) {}
+		
+	FShaderValueContainerView(FShaderValueContainer& InValue) :
+		ShaderValue(InValue.ShaderValue),
+		ArrayList(InValue.ArrayList) {}
+};
+
 /*  */
 USTRUCT()
 struct COMPUTEFRAMEWORK_API FShaderValueType
 {
 	GENERATED_BODY()
-
-	struct FValue
-	{
-		FValue() = default;
-		FValue(int32 InShaderValueSize, int32 InNumArrays)
-		{
-			ShaderValue.SetNumUninitialized(InShaderValueSize);
-			ArrayList.AddDefaulted(InNumArrays);
-		}
-		
-		TArray<uint8> ShaderValue;
-		TArray<TArray<uint8>> ArrayList;
-	};
-	
-	struct FValueView
-	{
-		FValueView(
-			TArrayView<uint8> InShaderValue,
-			TArrayView<TArray<uint8>> InArrayList) :
-			ShaderValue(InShaderValue),
-			ArrayList(InArrayList) {}
-		
-		FValueView(TArrayView<uint8> InShaderValue) :
-			ShaderValue(InShaderValue) {}
-		
-		FValueView(FValue& InValue) :
-			ShaderValue(InValue.ShaderValue),
-			ArrayList(InValue.ArrayList) {}
-		
-		TArrayView<uint8> ShaderValue;
-		TArrayView<TArray<uint8>> ArrayList;
-	};
 	
 	// A simple container representing a single, named element in a shader value struct.
 	struct FStructElement

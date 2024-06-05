@@ -19,6 +19,7 @@ class UOptimusDeformer;
 class UOptimusVariableContainer;
 class UOptimusVariableDescription;
 class UOptimusComponentSourceBinding;
+struct FShaderValueContainer;
 
 
 struct FOptimusDeformerInstanceComponentLodContext
@@ -246,7 +247,7 @@ public:
 	
 	
 	/** Directly set a graph constant value. */
-	void SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue);
+	void SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, FShaderValueContainer const& InValue);
 
 	FOptimusPersistentBufferPoolPtr GetBufferPool() const { return BufferPool; }
 

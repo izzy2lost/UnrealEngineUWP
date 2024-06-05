@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IOptimusDeformerInstanceAccessor.h"
+#include "OptimusDataTypeRegistry.h"
 #include "ComputeFramework/ComputeDataInterface.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
@@ -10,6 +11,8 @@
 
 class UOptimusDeformerInstance;
 class UMeshComponent;
+class FRDGBuffer;
+class FRDGBufferSRV;
 
 /** */
 USTRUCT()
@@ -24,16 +27,24 @@ struct FOptimusGraphVariableDescription
 	FShaderValueTypeHandle ValueType;
 
 	UPROPERTY()
-	TArray<uint8> Value;
-
+    FShaderValueContainer ShaderValue;
+	
 	UPROPERTY()
 	int32 Offset = 0;
 
 	UPROPERTY()
 	TSoftObjectPtr<UObject> SourceObject;
-
-	// Cached SourceValueName extracted from Name, Initialized by the DataProvider for when SourceObject is not null
+	
+	// Cache below are set by the data provider, computed from serialized data
+	
+	// SourceValueName extracted from Name, Initialized by the DataProvider for when SourceObject is not null
 	FString CachedSourceValueName;
+
+	int32 CachedArrayIndexStart = 0;
+	
+	// Deprecated 
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use ShaderValue instead"))
+	TArray<uint8> Value_DEPRECATED;
 };
 
 /** Compute Framework Data Interface used for marshaling compute graph parameters and variables. */
@@ -54,6 +65,7 @@ public:
 	UComputeDataProvider* CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const override;
 	//~ End UComputeDataInterface Interface
 
+	void PostLoad() override;
 private:
 	UPROPERTY()
 	TArray<FOptimusGraphVariableDescription> Variables;
@@ -79,7 +91,19 @@ public:
 
 	int32 ParameterBufferSize = 0;
 
-	void SetConstant(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue);
+
+	struct FArrayMetadata
+	{
+		int32 Offset;
+		int32 ElementSize;
+	};
+	
+	TArray<FArrayMetadata> ParameterArrayMetadata;
+	
+	
+	void Init(UMeshComponent* InMeshComponent, const TArray<FOptimusGraphVariableDescription>& InVariables, int32 InParameterBufferSize);
+	
+	void SetConstant(TSoftObjectPtr<UObject> InSourceObject, FShaderValueContainer const& InValue);
 	
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
@@ -98,13 +122,24 @@ private:
 class FOptimusGraphDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FOptimusGraphDataProviderProxy(UOptimusDeformerInstance const* DeformerInstance, TArray<FOptimusGraphVariableDescription> const& Variables, int32 ParameterBufferSize);
+	FOptimusGraphDataProviderProxy(
+		UOptimusDeformerInstance const* DeformerInstance,
+		TArray<FOptimusGraphVariableDescription> const& Variables, 
+		int32 ParameterBufferSize,
+		TArray<UOptimusGraphDataProvider::FArrayMetadata> const& InParameterArrayMetadata);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	bool IsValid(FValidationData const& InValidationData) const override;
+	void AllocateResources(FRDGBuilder& GraphBuilder) override;
 	void GatherDispatchData(FDispatchData const& InDispatchData) override;
 	//~ End FComputeDataProviderRenderProxy Interface
 
 private:
 	TArray<uint8> ParameterData;
+
+	TArray<UOptimusGraphDataProvider::FArrayMetadata> ParameterArrayMetadata;
+	TArray<FArrayShaderValue> ParameterArrayData;
+
+	TArray<FRDGBuffer*> ParameterArrayBuffers;
+	TArray<FRDGBufferSRV*> ParameterArrayBufferSRVs;
 };

@@ -10,39 +10,18 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusVariableDescription)
 
 
-bool UOptimusVariableDescription::EnsureValueContainer()
+void UOptimusVariableDescription::EnsureValueContainer()
 {
-	bool bValueContainerChanged = false;
-	
 	// Check if the current default value storage matches, otherwise create a matching default value storage, otherwise
 	// if the variable type changes, we end up with mismatch in storage vs type.
 	const UClass* RequiredClass = UOptimusValueContainerGeneratorClass::GetClassForType(GetPackage(), DataType);
 
-	bool bValueContainerNeedsZeroing = false;
 	if (!DefaultValue || DefaultValue->GetClass() != RequiredClass)
 	{
 		DefaultValue = UOptimusValueContainer::MakeValueContainer(this, DataType);
-		bValueContainerChanged = true;
-		bValueContainerNeedsZeroing = true;
 	}
 
-	if (DataType->CanCreateProperty())
-	{
-		const FShaderValueType::FValue ShaderValue = DataType->MakeShaderValue();
-		
-		if (bValueContainerNeedsZeroing || ValueData.Num() != ShaderValue.ShaderValue.Num())
-		{
-			ValueData.SetNumZeroed(ShaderValue.ShaderValue.Num());
-			bValueContainerChanged = true;
-		}
-	}
-	else if (!ValueData.IsEmpty())
-	{
-		ValueData.Reset();
-		bValueContainerChanged = true;
-	}
-
-	return bValueContainerChanged;
+	CachedShaderValue = DefaultValue->GetShaderValue();
 }
 
 
@@ -73,10 +52,15 @@ void UOptimusVariableDescription::PostLoad()
 		DataType = DoubleDataType;
 	}
 
-	if (EnsureValueContainer())
+	EnsureValueContainer();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (!ValueData_DEPRECATED.IsEmpty())
 	{
-		(void)MarkPackageDirty();
+		CachedShaderValue.ShaderValue = ValueData_DEPRECATED;
+		ValueData_DEPRECATED.Reset();
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 
@@ -111,8 +95,7 @@ void UOptimusVariableDescription::PostEditChangeProperty(FPropertyChangedEvent& 
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UOptimusVariableDescription, DefaultValue))
 	{
 		// Store the default shader value.
-		FShaderValueType::FValue Value = DefaultValue->GetShaderValue();
-		ValueData = MoveTemp(Value.ShaderValue);
+		CachedShaderValue = DefaultValue->GetShaderValue();
 	}
 }
 

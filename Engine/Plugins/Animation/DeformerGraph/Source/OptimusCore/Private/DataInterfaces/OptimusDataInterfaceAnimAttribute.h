@@ -170,7 +170,7 @@ struct FOptimusAnimAttributeRuntimeData
 
 	UScriptStruct* AttributeType = nullptr;
 
-	FShaderValueType::FValue CachedDefaultValue;
+	FShaderValueContainer CachedDefaultValue;
 };
 
 /** Compute Framework Data Provider for reading animation attributes on skeletal mesh. */
@@ -224,7 +224,7 @@ public:
 public:
 	TArray<uint8> AttributeBuffer;
 	TArray<FArrayMetadata> AttributeArrayMetadata;
-	TArray<TArray<uint8>> AttributeArrayData;
+	TArray<FArrayShaderValue> AttributeArrayData;
 
 private:
 	TArray<FRDGBuffer*> ArrayBuffers;

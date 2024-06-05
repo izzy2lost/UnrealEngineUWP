@@ -51,5 +51,5 @@ public:
 	static UOptimusValueContainer* MakeValueContainer(UObject* InOwner, FOptimusDataTypeRef InDataTypeRef);
 
 	FOptimusDataTypeRef GetValueType() const;
-	FShaderValueType::FValue GetShaderValue() const;
+	FShaderValueContainer GetShaderValue() const;
 };

@@ -22,14 +22,14 @@ class FOptimusDataTypeRegistry :
 public:
 	DECLARE_EVENT_OneParam(FOptimusDataTypeRegistry, FOnDataTypeChanged, FName /* InTypeName */);
 	
-	using PropertyCreateFuncT = TFunction<FProperty *(UStruct *InScope, FName InName)>;
+	using PropertyCreateFuncT = TFunction<FProperty *(FFieldVariant InScope, FName InName)>;
 
 	/** Defines a function that takes an array view on UE property data and converts it to
 	 *  a matching HLSL shader value data. It's expected that the input and output array views
 	 *  hold enough data to both read all property data for this type and write out shader values
 	 *  matching these data.
 	  */
-	using PropertyValueConvertFuncT = TFunction<bool(TArrayView<const uint8> InRawValue, FShaderValueType::FValueView OutShaderValue)>;
+	using PropertyValueConvertFuncT = TFunction<bool(TArrayView<const uint8> InRawValue, FShaderValueContainerView OutShaderValue)>;
 
 	struct FArrayMetadata
 	{
@@ -123,6 +123,11 @@ public:
 	// Register a complex type that has corresponding types on both the UE and HLSL side.
 	OPTIMUSCORE_API bool RegisterStructType(
 		UScriptStruct *InStructType
+		);
+	
+	// Register a array type that has corresponding types on both the UE and HLSL side.
+	OPTIMUSCORE_API bool RegisterArrayTypeIfApplicable(
+		FOptimusDataTypeHandle InElementDataType
 		);
 		
 	// Refresh struct type info in case a user defined struct is changed.

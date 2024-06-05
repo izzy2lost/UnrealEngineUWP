@@ -217,18 +217,10 @@ FOptimusDataTypeRef UOptimusNode_GetVariable::GetValueType() const
 }
 
 
-FShaderValueType::FValue UOptimusNode_GetVariable::GetShaderValue() const
+FShaderValueContainer UOptimusNode_GetVariable::GetShaderValue() const
 {
-	if (const UOptimusVariableDescription* Var = VariableDesc.Get();
-		Var && ensure(Var->DataType.IsValid()) && ensure(GetPins().Num() == 1))
-	{
-		FShaderValueType::FValue ValueResult = Var->DataType->MakeShaderValue();
-
-		if (Var->DataType->ConvertPropertyValueToShader(Var->ValueData, ValueResult))
-		{
-			return ValueResult;
-		}
-	}
+	// Unused, Graph data interface is responsible for collecting value from UOptimusVariableDescription
+	checkNoEntry();
 
 	return {};
 }

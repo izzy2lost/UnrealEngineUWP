@@ -106,7 +106,7 @@ FOptimusDataTypeRef UOptimusValueContainer::GetValueType() const
 	return {};	
 }
 
-FShaderValueType::FValue UOptimusValueContainer::GetShaderValue() const
+FShaderValueContainer UOptimusValueContainer::GetShaderValue() const
 {
 	UOptimusValueContainerGeneratorClass* Class = Cast<UOptimusValueContainerGeneratorClass>(GetClass());
 	const FProperty* ValueProperty = Class->PropertyLink;
@@ -115,7 +115,7 @@ FShaderValueType::FValue UOptimusValueContainer::GetShaderValue() const
 	if (ensure(ValueProperty) && ensure(DataType.IsValid()))
 	{
 		TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
-		FShaderValueType::FValue ValueResult = DataType->MakeShaderValue();
+		FShaderValueContainer ValueResult = DataType->MakeShaderValue();
 		if (DataType->ConvertPropertyValueToShader(ValueData, ValueResult))
 		{
 			return ValueResult;

@@ -456,8 +456,8 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 		VariableDescriptionCopy->Guid = VariableDescription->Guid;
 		VariableDescriptionCopy->VariableName = VariableDescription->VariableName;
 		VariableDescriptionCopy->DataType = VariableDescription->DataType;
-		VariableDescriptionCopy->DefaultValue = nullptr; // No need to copy the default value.
-		VariableDescriptionCopy->ValueData = VariableDescription->ValueData;
+		VariableDescriptionCopy->DefaultValue = nullptr; // No need to copy the default value, we directly copy the shader value of the default value below
+		VariableDescriptionCopy->CachedShaderValue = VariableDescription->CachedShaderValue;
 		Variables->Descriptions.Add(VariableDescriptionCopy);
 	}
 
@@ -601,9 +601,7 @@ namespace
 				if (ensure(Property->GetSize() == sizeof(T)))
 				{
 					const uint8* ValueBytes = reinterpret_cast<const uint8*>(&InValue);
-					FShaderValueType::FValue ValueResult = WantedType->MakeShaderValue();
-					WantedType->ConvertPropertyValueToShader(TArrayView<const uint8>(ValueBytes, sizeof(T)), ValueResult);
-					VariableDesc->ValueData = MoveTemp(ValueResult.ShaderValue);
+					WantedType->ConvertPropertyValueToShader(TArrayView<const uint8>(ValueBytes, sizeof(T)), VariableDesc->CachedShaderValue);
 				}
 
 				return true;
@@ -673,7 +671,7 @@ bool UOptimusDeformerInstance::EnqueueTriggerGraph(FName InTriggerGraphName)
 }
 
 
-void UOptimusDeformerInstance::SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue)
+void UOptimusDeformerInstance::SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, FShaderValueContainer const& InValue)
 {
 	// Poke constants into the UGraphDataProvider objects.
 	// This is an editor only operation when constant nodes are edited in the graph and we want to see the result without a full compile step.

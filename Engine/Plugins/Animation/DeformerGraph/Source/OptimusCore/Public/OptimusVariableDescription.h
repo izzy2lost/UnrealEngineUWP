@@ -46,7 +46,7 @@ public:
 	 * Set the value data storage to match the size required by the DataType. 
 	 * If a reallocation is required then the value data will be zeroed.
 	 */
-	bool EnsureValueContainer();
+	void EnsureValueContainer();
 
 	/** Returns the owning deformer to operate on this variable */
 	// FIXME: Move to interface-based system.
@@ -73,7 +73,7 @@ public:
 
 	/** Cached shader value binary data. */
 	UPROPERTY()
-	TArray<uint8> ValueData;
+	FShaderValueContainer CachedShaderValue;
 
 	void PostLoad();
 #if WITH_EDITOR
@@ -83,6 +83,11 @@ public:
 #endif
 
 private:
+
+	// Deprecated 
+    UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use CachedShaderValue instead"))
+    TArray<uint8> ValueData_DEPRECATED;
+	
 #if WITH_EDITORONLY_DATA
 	FName VariableNameForUndo;
 #endif
