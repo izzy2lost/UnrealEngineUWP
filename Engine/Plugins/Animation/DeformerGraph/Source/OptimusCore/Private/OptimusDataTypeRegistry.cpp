@@ -921,7 +921,7 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 		ArrayDataType,
 		ArrayPropertyCreateFunc,
 		ArrayPropertyValueConvertFunc,
-		{FArrayMetadata(ElementShaderValueSize, 0 )}
+		{{ElementShaderValueSize, 0}}
 	};
 
 	{
