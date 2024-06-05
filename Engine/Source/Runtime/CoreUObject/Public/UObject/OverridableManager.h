@@ -13,7 +13,7 @@
  *************************************************************************************
  */
 
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 
 /**
  * Struct holding the shared ptr of the overridden properties
@@ -156,8 +156,9 @@ public:
 	 * Set the override operation on this object and it will enable it if it wasn't already enabled
 	 * @param Object to set the override operation on
 	 * @param Operation the override operation to set on the object
+	 * @param bNeedsSubobjectTemplateInstantiation set to true if it will need a sub object template instantiation during postload, false will not do it.
 	 * @return the overridden properties of the object */
-	COREUOBJECT_API FOverriddenPropertySet& SetOverriddenProperties(UObject& Object, EOverriddenPropertyOperation Operation);
+	COREUOBJECT_API FOverriddenPropertySet* SetOverriddenProperties(UObject& Object, EOverriddenPropertyOperation Operation, const bool bNeedsSubobjectTemplateInstantiation);
 
 	/**
 	 * Retrieve the overridden state for the specified object
@@ -280,8 +281,10 @@ public:
 protected:
 	FOverridableManager();
 
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	FOverriddenPropertyAnnotations OverriddenObjectAnnotations;
+#else
+	FUObjectAnnotationSparseBool NeedsSubobjectTemplateInstantiation;
 #endif // WITH_EDITORONLY_DATA 
 };
 

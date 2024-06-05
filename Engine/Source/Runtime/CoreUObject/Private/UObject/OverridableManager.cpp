@@ -18,7 +18,7 @@ FOverridableManager& FOverridableManager::Get()
 
 bool FOverridableManager::IsEnabled(const UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	return OverriddenObjectAnnotations.IsEnabled(Object);
 #else
 	return false;
@@ -27,21 +27,21 @@ bool FOverridableManager::IsEnabled(const UObject& Object)
 
 void FOverridableManager::Enable(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	OverriddenObjectAnnotations.FindOrAdd(Object);
 #endif // WITH_EDITORONLY_DATA
 }
 
 void FOverridableManager::Disable(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	OverriddenObjectAnnotations.RemoveAnnotation(&Object);
 #endif // WITH_EDITORONLY_DATA
 }
 
 void FOverridableManager::InheritEnabledFrom(UObject& Object, const UObject* DefaultData)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (!OverriddenObjectAnnotations.IsEnabled(Object))
 	{
 		const UObject* Outer = Object.GetOuter();
@@ -55,26 +55,30 @@ void FOverridableManager::InheritEnabledFrom(UObject& Object, const UObject* Def
 
 void FOverridableManager::CacheArchetype(UObject& Object)
 {
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* OverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		OverriddenProperties->CacheArchetype();
 	}
+#endif // WITH_EDITORONLY_DATA
 }
 
 bool FOverridableManager::NeedSubObjectTemplateInstantiation(const UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
-	if( const FOverriddenPropertySet* OverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+#if WITH_EDITORONLY_DATA
+	if (const FOverriddenPropertySet* OverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		return OverriddenProperties->bNeedsSubobjectTemplateInstantiation;
 	}
-#endif // WITH_EDITORONLY_DATA
 	return false;
+#else
+	return NeedsSubobjectTemplateInstantiation.Get(&Object);
+#endif // WITH_EDITORONLY_DATA
 }
 
 FOverriddenPropertySet* FOverridableManager::GetOverriddenProperties(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	return OverriddenObjectAnnotations.Find(Object);
 #else
 	return nullptr;
@@ -83,30 +87,38 @@ FOverriddenPropertySet* FOverridableManager::GetOverriddenProperties(UObject& Ob
 
 const FOverriddenPropertySet* FOverridableManager::GetOverriddenProperties(const UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	return OverriddenObjectAnnotations.Find(Object);
 #else
 	return nullptr;
 #endif // WITH_EDITORONLY_DATA
 }
 
-FOverriddenPropertySet& FOverridableManager::SetOverriddenProperties(UObject& Object, EOverriddenPropertyOperation Operation)
+FOverriddenPropertySet* FOverridableManager::SetOverriddenProperties(UObject& Object, EOverriddenPropertyOperation Operation, const bool bNeedsSubobjectTemplateInstantiation)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	FOverriddenPropertySet& ObjectOverriddenProperties = OverriddenObjectAnnotations.FindOrAdd(Object);
 	ObjectOverriddenProperties.Reset();
 	ObjectOverriddenProperties.SetOverriddenPropertyOperation(Operation, /*CurrentPropertyChain*/nullptr, /*Property*/nullptr);
-	return ObjectOverriddenProperties;
+	ObjectOverriddenProperties.bNeedsSubobjectTemplateInstantiation = bNeedsSubobjectTemplateInstantiation;
+	return &ObjectOverriddenProperties;
 #else
-	static FOverriddenPropertySet Dummy;
-	return Dummy;
+	if (bNeedsSubobjectTemplateInstantiation)
+	{
+		NeedsSubobjectTemplateInstantiation.Set(&Object);
+	}
+	else
+	{
+		NeedsSubobjectTemplateInstantiation.Clear(&Object);
+	}
+	return nullptr;
 #endif // WITH_EDITORONLY_DATA
 
 }
 
 EOverriddenState FOverridableManager::GetOverriddenState(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if(const FOverriddenPropertySet* OverriddenProperties = GetOverriddenProperties(Object))
 	{
 		// Consider any object that its template is a CDO as added.
@@ -144,7 +156,7 @@ EOverriddenState FOverridableManager::GetOverriddenState(UObject& Object)
 
 void FOverridableManager::OverrideObject(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		// Passing no property node means we are overriding the object itself
@@ -155,7 +167,7 @@ void FOverridableManager::OverrideObject(UObject& Object)
 
 void FOverridableManager::OverrideInstancedSubObject(UObject& Object, UObject& InstancedSubObject)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (InstancedSubObject.IsIn(&Object))
 	{
 		OverrideObject(InstancedSubObject);
@@ -165,7 +177,7 @@ void FOverridableManager::OverrideInstancedSubObject(UObject& Object, UObject& I
 
 void FOverridableManager::PropagateOverrideToInstancedSubObjects(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	TSet<UObject*> InstancedSubObjects;
 	FFindInstancedReferenceSubobjectHelper::GetInstancedSubObjects(&Object, InstancedSubObjects);
 	for (UObject* InstancedSubObject : InstancedSubObjects)
@@ -178,7 +190,7 @@ void FOverridableManager::PropagateOverrideToInstancedSubObjects(UObject& Object
 
 void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->OverrideProperty(PropertyEvent, PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead(), &Object);
@@ -188,18 +200,18 @@ void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyChang
 
 bool FOverridableManager::ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		return ThisObjectOverriddenProperties->ClearOverriddenProperty(PropertyEvent, PropertyNode);
 	}
-	return false;
 #endif // WITH_EDITORONLY_DATA
+	return false;
 }
 
 void FOverridableManager::PreOverrideProperty(UObject& Object, const FEditPropertyChain& PropertyChain)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead(), &Object);
@@ -209,7 +221,7 @@ void FOverridableManager::PreOverrideProperty(UObject& Object, const FEditProper
 
 void FOverridableManager::PostOverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PostEdit, PropertyEvent, PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead(), &Object);
@@ -219,7 +231,7 @@ void FOverridableManager::PostOverrideProperty(UObject& Object, const FPropertyC
 
 void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->NotifyPropertyChange(Notification, PropertyEvent, PropertyNode, &Object);
@@ -229,18 +241,18 @@ void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType N
 
 EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (const FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyEvent, PropertyNode, bOutInheritedOperation);
 	}
-	return EOverriddenPropertyOperation::None;
 #endif // WITH_EDITORONLY_DATA
+	return EOverriddenPropertyOperation::None;
 }
 
 void FOverridableManager::ClearOverrides(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if(FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->Reset();
@@ -251,7 +263,7 @@ void FOverridableManager::ClearOverrides(UObject& Object)
 
 void FOverridableManager::ClearInstancedSubObjectOverrides(UObject& Object, UObject& InstancedSubObject)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	if (InstancedSubObject.IsIn(&Object))
 	{
 		ClearOverrides(InstancedSubObject);
@@ -261,7 +273,7 @@ void FOverridableManager::ClearInstancedSubObjectOverrides(UObject& Object, UObj
 
 void FOverridableManager::PropagateClearOverridesToInstancedSubObjects(UObject& Object)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	TSet<UObject*> InstancedSubObjects;
 	FFindInstancedReferenceSubobjectHelper::GetInstancedSubObjects(&Object, InstancedSubObjects);
 	for (UObject* InstancedSubObject : InstancedSubObjects)
@@ -276,23 +288,24 @@ void FOverridableManager::PropagateClearOverridesToInstancedSubObjects(UObject& 
 
 void FOverridableManager::SerializeOverriddenProperties(UObject& Object, FStructuredArchive::FRecord ObjectRecord)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	const FArchiveState& ArchiveState = ObjectRecord.GetArchiveState();
 	FOverriddenPropertySet* OverriddenProperties = ArchiveState.IsSaving() ? GetOverriddenProperties(Object) : nullptr;
-	TOptional<FStructuredArchiveSlot> OverridenPropertiesSlot = ObjectRecord.TryEnterField(TEXT("OverridenProperties"), OverriddenProperties != nullptr);
-	if (OverridenPropertiesSlot.IsSet())
+	TOptional<FStructuredArchiveSlot> OverriddenPropertiesSlot = ObjectRecord.TryEnterField(TEXT("OverridenProperties"), OverriddenProperties != nullptr);
+	if (OverriddenPropertiesSlot.IsSet())
 	{
 		EOverriddenPropertyOperation Operation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation((FArchiveSerializedPropertyChain*)nullptr, (FProperty*)nullptr) : EOverriddenPropertyOperation::None;
-		*OverridenPropertiesSlot << SA_ATTRIBUTE( TEXT("OverriddenOperation"), Operation);
+		*OverriddenPropertiesSlot << SA_ATTRIBUTE( TEXT("OverriddenOperation"), Operation);
 
 		if (ArchiveState.IsLoading())
 		{
-			OverriddenProperties = &SetOverriddenProperties(Object, Operation);
+			OverriddenProperties = SetOverriddenProperties(Object, Operation, /*bNeedsSubobjectTemplateInstantiation*/false);
+			checkf(OverriddenProperties, TEXT("Expecting a overridden property set returned"));
 		}
 
 		if (Operation != EOverriddenPropertyOperation::None)
 		{
-			FOverriddenPropertySet::StaticStruct()->SerializeItem(*OverridenPropertiesSlot, OverriddenProperties, /* Defaults */ nullptr);
+			FOverriddenPropertySet::StaticStruct()->SerializeItem(*OverriddenPropertiesSlot, OverriddenProperties, /* Defaults */ nullptr);
 		}
 	}
 	else if (ArchiveState.IsLoading())
@@ -311,13 +324,13 @@ FOverridableManager::FOverridableManager()
 
 void FOverridableManager::HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& OldToNewInstanceMap)
 {
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	const TMap<const UObjectBase *, FOverriddenPropertyAnnotation>& AnnotationMap = OverriddenObjectAnnotations.GetAnnotationMap();
 	for (const auto& Pair : AnnotationMap)
 	{
-		if( FOverriddenPropertySet* OverridenProperties = Pair.Value.OverriddenProperties.Get())
+		if( FOverriddenPropertySet* OverriddenProperties = Pair.Value.OverriddenProperties.Get())
 		{
-			OverridenProperties->HandleObjectsReInstantiated(OldToNewInstanceMap);
+			OverriddenProperties->HandleObjectsReInstantiated(OldToNewInstanceMap);
 		}
 	}
 #endif // WITH_EDITORONLY_DATA

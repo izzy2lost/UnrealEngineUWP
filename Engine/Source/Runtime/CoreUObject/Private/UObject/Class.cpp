@@ -1532,9 +1532,12 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					}
 					if (!ControlContext.OverriddenProperties)
 					{
-						ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+						ControlContext.OverriddenProperties = FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation, /*bNeedsSubobjectTemplateInstantiation*/true);
 					}
-					ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
+					else
+					{
+						ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
+					}
 				}
 			}
 		}

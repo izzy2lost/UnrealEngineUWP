@@ -1682,7 +1682,9 @@ void UObject::Serialize(FStructuredArchive::FRecord Record)
 		{
 			// Serializing the overriden properties if using UPS (like object duplication)
 			// Also needed for transactions using TPS
-			if (UnderlyingArchive.UseUnversionedPropertySerialization() || UnderlyingArchive.IsTransacting())
+			if (!UnderlyingArchive.IsCooking() && 
+				!UnderlyingArchive.IsLoadingFromCookedPackage() &&
+				(UnderlyingArchive.UseUnversionedPropertySerialization() || UnderlyingArchive.IsTransacting()))
 			{
 				FOverridableManager::Get().SerializeOverriddenProperties(*this, Record);
 			}
