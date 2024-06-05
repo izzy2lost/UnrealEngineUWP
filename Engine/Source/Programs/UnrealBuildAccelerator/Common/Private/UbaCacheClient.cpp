@@ -238,8 +238,28 @@ namespace uba
 			// Get file caskey using storage
 			if (casKey == CasKeyZero)
 			{
+				bool shouldValidate = (m_validateCacheWritesInput && !isOutput) || (m_validateCacheWritesOutput && isOutput);
 				bool deferCreation = true;
 				bool fileIsCompressed = IsFileCompressed(info, path);
+
+
+
+				CasKey oldOldKey;
+				u64 oldOldSize = 0;
+				u64 oldOldLastWritten = 0;
+				bool oldOldVerified = false;
+
+				if (shouldValidate)
+				{
+					auto& fileEntry = m_storage.GetOrCreateFileEntry(CaseInsensitiveFs ? ToStringKeyLower(path) : ToStringKey(path));
+					SCOPED_READ_LOCK(fileEntry.lock, lock);
+					oldOldKey = fileEntry.casKey;
+					oldOldSize = fileEntry.size;
+					oldOldLastWritten = fileEntry.lastWritten;
+					oldOldVerified = fileEntry.verified;
+				}
+
+
 				if (isOutput)
 				{
 					if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
@@ -250,8 +270,6 @@ namespace uba
 					if (!m_storage.StoreCasKey(casKey, path.data, CasKeyZero, fileIsCompressed))
 						return false;
 				}
-
-				bool shouldValidate = (m_validateCacheWritesInput && !isOutput) || (m_validateCacheWritesOutput && isOutput);
 
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
 				{
@@ -296,7 +314,9 @@ namespace uba
 						auto& fileEntry = m_storage.GetOrCreateFileEntry(CaseInsensitiveFs ? ToStringKeyLower(path) : ToStringKey(path));
 						SCOPED_READ_LOCK(fileEntry.lock, lock);
 
-						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculting it gives us %s (FileEntry: %llu/%llu/%s, Real: %llu/%llu). Will not populate cache for %s"), path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, fileEntry.size, fileEntry.lastWritten, fileEntry.verified ? TC("true") : TC("false"), fileSize, fileInfo.lastWriteTime, info.description); 
+						auto ToString = [](bool b) { return b ? TC("true") : TC("false"); };
+						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculating it gives us %s (OldEntry: %s/%llu/%llu/%s FileEntry: %llu/%llu/%s, Real: %llu/%llu). Will not populate cache for %s"),
+							path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, CasKeyString(oldOldKey).str, oldOldSize, oldOldLastWritten, ToString(oldOldVerified), fileEntry.size, fileEntry.lastWritten, ToString(fileEntry.verified), fileSize, fileInfo.lastWriteTime, info.description);
 						return false;
 					}
 				}
@@ -919,6 +939,18 @@ namespace uba
 		if (!reader.GetLeft())
 			return true;
 
+		bool success = false;
+		auto doneGuard = MakeGuard([&]()
+			{
+				// Send done.. confirm to server
+				StackBinaryWriter<SendMaxSize> writer;
+				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreEntryDone, writer);
+				writer.Write7BitEncoded(MakeId(bucket.id));
+				writer.WriteCasKey(cmdKey);
+				writer.WriteBool(success);
+				return msg.Send(reader);
+			});
+
 		// There is content we need to upload to server
 		while (reader.GetLeft())
 		{
@@ -1020,15 +1052,8 @@ namespace uba
 
 		}
 
-		// Send done.. confirm to server
-		StackBinaryWriter<SendMaxSize> writer;
-		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreEntryDone, writer);
-		writer.Write7BitEncoded(MakeId(bucket.id));
-		writer.WriteCasKey(cmdKey);
-		if (!msg.Send(reader))
-			return false;
-
-		return true;
+		success = true;
+		return doneGuard.Execute();
 	}
 
 	bool CacheClient::FetchCasTable(Bucket& bucket, CacheStats& stats, u32 requiredCasTableOffset)
