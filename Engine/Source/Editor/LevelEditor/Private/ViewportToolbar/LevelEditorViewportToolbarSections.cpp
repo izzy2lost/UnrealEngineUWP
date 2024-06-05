@@ -15,6 +15,7 @@
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SVolumeControl.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -374,6 +375,37 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 			FNewToolMenuDelegate::CreateLambda(BuildLandscapeLODMenu),
 			/*bInOpenSubMenuOnClick=*/false, FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LOD"));
 	}
+}
+
+void AddViewportToolbarViewModesSubmenu(FToolMenuSection& InSection)
+{
+	// This has to be a dynamic entry for the ViewModes submenu's label to be able to access the context.
+	InSection.AddDynamicEntry(
+		"DynamicViewModes", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InDynamicSection) -> void {
+			TAttribute<FText> LabelAttribute = UE::UnrealEd::GetViewModesSubmenuLabel(nullptr);
+			if (ULevelViewportContext* const LevelViewportContext = InDynamicSection.FindContext<ULevelViewportContext>())
+			{
+				TWeakPtr<SEditorViewport> EditorViewport = LevelViewportContext->LevelViewport;
+				LabelAttribute = TAttribute<FText>::CreateLambda(
+					[EditorViewport]() { return UE::UnrealEd::GetViewModesSubmenuLabel(EditorViewport); });
+			}
+
+			InDynamicSection.AddSubMenu("ViewModes", LabelAttribute,
+				LOCTEXT("ViewModesSubmenuTooltip", "View mode settings for the current viewport."),
+				FNewToolMenuDelegate::CreateLambda([](UToolMenu* Submenu) -> void {
+					ULevelViewportContext* const LevelViewportContext = Submenu->FindContext<ULevelViewportContext>();
+					if (!LevelViewportContext)
+					{
+						return;
+					}
+
+					if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+					{
+						UE::UnrealEd::PopulateViewModesMenu(Submenu, LevelViewport.ToSharedRef());
+						PopulateViewModesMenu(Submenu, LevelViewport.ToSharedRef());
+					}
+				}));
+		}));
 }
 
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section)

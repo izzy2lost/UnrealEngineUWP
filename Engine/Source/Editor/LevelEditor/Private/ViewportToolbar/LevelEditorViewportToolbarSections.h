@@ -20,6 +20,7 @@ void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
 
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
 void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<SLevelViewport> InViewport);
+void AddViewportToolbarViewModesSubmenu(FToolMenuSection& InSection);
 
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);

@@ -1933,6 +1933,14 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 
 			{
 				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+
+				{
+					// Stay backward-compatible with the old viewport toolbar.
+					UToolMenus::Get()->RegisterMenu(
+						"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View");
+					UE::LevelEditor::AddViewportToolbarViewModesSubmenu(RightSection);
+				}
+
 				UE::LevelEditor::AddViewportToolbarPerformanceAndScalabilitySubmenu(RightSection);
 				UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSubmenu(RightSection);
 			}
