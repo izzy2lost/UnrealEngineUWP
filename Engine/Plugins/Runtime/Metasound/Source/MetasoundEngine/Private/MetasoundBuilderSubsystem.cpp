@@ -1012,7 +1012,15 @@ UMetaSoundBuilderBase* UMetaSoundBuilderSubsystem::FindBuilderOfDocument(TScript
 {
 	using namespace Metasound::Engine;
 
-	return FDocumentBuilderRegistry::GetChecked().FindBuilderObject(InMetaSound);
+	if (const UObject* MetaSoundObject = InMetaSound.GetObject())
+	{
+		const FMetasoundFrontendDocument& Document = InMetaSound->GetConstDocument();
+		const FMetasoundFrontendClassName& InClassName = Document.RootGraph.Metadata.GetClassName();
+
+		return FDocumentBuilderRegistry::GetChecked().FindBuilderObject(InClassName);
+	}
+
+	return nullptr;
 }
 
 UMetaSoundPatchBuilder* UMetaSoundBuilderSubsystem::FindPatchBuilder(FName BuilderName)

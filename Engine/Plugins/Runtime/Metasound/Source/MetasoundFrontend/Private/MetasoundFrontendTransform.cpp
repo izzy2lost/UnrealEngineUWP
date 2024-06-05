@@ -407,6 +407,18 @@ namespace Metasound
 
 		bool FModifyRootGraphInterfaces::Transform(FMetasoundFrontendDocument& InOutDocument) const
 		{
+			{
+				// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
+				// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
+				// documents using controllers at this point as it disconnects delegates applied at the object level
+				// (i.e. disconnecting changes to any MetaSound instances being auditioned).
+				const FMetasoundFrontendClassName& ClassName = InOutDocument.RootGraph.Metadata.GetClassName();
+				if (FMetaSoundFrontendDocumentBuilder* Builder = IDocumentBuilderRegistry::GetChecked().FindBuilder(ClassName))
+				{
+					Builder->Reload();
+				}
+			}
+
 			FDocumentAccessPtr DocAccessPtr = MakeAccessPtr<FDocumentAccessPtr>(InOutDocument.AccessPoint, InOutDocument);
 			return Transform(FDocumentController::CreateDocumentHandle(DocAccessPtr));
 		}
