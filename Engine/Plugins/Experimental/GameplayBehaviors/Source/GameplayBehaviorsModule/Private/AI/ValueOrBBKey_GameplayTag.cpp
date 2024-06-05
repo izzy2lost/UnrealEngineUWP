@@ -1,6 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#pragma once
-
 #include "AI/ValueOrBBKey_GameplayTag.h"
 
 #include "BlackboardKeyType_GameplayTag.h"
