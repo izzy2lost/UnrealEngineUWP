@@ -57,18 +57,6 @@ static FAutoConsoleVariableRef CVarMinDriverVersionForRayTracingNVIDIA(
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
-#define DXR_ALLOW_EMULATED_RAYTRACING 0
-
-#if DXR_ALLOW_EMULATED_RAYTRACING
-int32 GAllowEmulatedRayTracing = 0;
-static FAutoConsoleVariableRef CVarAllowEmulatedRayTracing(
-	TEXT("r.D3D12.DXR.AllowEmulatedRayTracing"),
-	GAllowEmulatedRayTracing,
-	TEXT("Allows ray tracing emulation support on NVIDIA cards with the Pascal architecture (default=0)."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe
-);
-#endif
-
 // Use AGS_MAKE_VERSION() macro to define the version.
 // i.e. AGS_MAKE_VERSION(major, minor, patch) ((major << 22) | (minor << 12) | patch)
 int32 GMinimumDriverVersionForRayTracingAMD = 0;
@@ -1490,28 +1478,8 @@ void FD3D12DynamicRHI::Init()
 		if (GRHISupportsRayTracing
 			&& IsRayTracingEmulated(AdapterDesc.DeviceId))
 		{
-#if DXR_ALLOW_EMULATED_RAYTRACING
-			if (!GAllowEmulatedRayTracing)
-			{
-				DisableRayTracingSupport();
-				UE_LOG(LogD3D12RHI, Warning, TEXT("Ray tracing is disabled for NVIDIA cards with the Pascal architecture. This can be overridden with the following CVar: r.D3D12.DXR.AllowEmulatedRayTracing=1"));
-			}
-#else
 			DisableRayTracingSupport();
 			UE_LOG(LogD3D12RHI, Warning, TEXT("Ray tracing is disabled for NVIDIA cards with the Pascal architecture."));
-#endif // DXR_ALLOW_EMULATED_RAYTRACING
-		}
-
-		if (GRHISupportsRayTracing && DriverVersion < 45700u)
-		{
-			GD3D12WorkaroundFlags.bAllowGetShaderIdentifierOnCollectionSubObject = false;
-			UE_LOG(LogD3D12RHI, Warning, TEXT("GD3D12WorkaroundFlags.bAllowGetShaderIdentifierOnCollectionSubObject is disabled due to a known issue with current driver version."));
-		}
-
-		if (DriverVersion < 53141u)
-		{
-			GD3D12WorkaroundFlags.bForceCommittedResourceTextureAllocation = true;
-			UE_LOG(LogD3D12RHI, Log, TEXT("GD3D12WorkaroundFlags.bForceCommittedResourceTextureAllocation is set due to a known issue with current driver version."));
 		}
 
 	} // if NVIDIA

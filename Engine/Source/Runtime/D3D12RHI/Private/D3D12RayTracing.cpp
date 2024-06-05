@@ -699,26 +699,6 @@ static FD3D12ShaderIdentifier GetShaderIdentifier(ID3D12StateObject* StateObject
 	return GetShaderIdentifier(PipelineProperties, ExportName);
 }
 
-static bool TryGetShaderIdentifier(ID3D12StateObject* StateObject, const TCHAR* ExportName, FD3D12ShaderIdentifier& OutShaderIdentifier)
-{
-	TRefCountPtr<ID3D12StateObjectProperties> PipelineProperties;
-	HRESULT QueryInterfaceResult = StateObject->QueryInterface(IID_PPV_ARGS(PipelineProperties.GetInitReference()));
-	if (!SUCCEEDED(QueryInterfaceResult))
-	{
-		return false;
-	}
-	const void* ShaderIdData = PipelineProperties->GetShaderIdentifier(ExportName);
-	if (ShaderIdData)
-	{
-		OutShaderIdentifier.SetData(ShaderIdData);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
 FD3D12RayTracingCompactionRequestHandler::FD3D12RayTracingCompactionRequestHandler(FD3D12Device* Device)
 	: FD3D12DeviceChild(Device)
 {
@@ -1096,15 +1076,9 @@ public:
 				Device->GetRayTracingPipelineInfo(Entry.StateObject, &Entry.PipelineInfo);
 			}
 
-			// Shader identifier can be queried immediately here per PSO collection, however this does not work on old NVIDIA drivers (430.00).
-			// Therefore shader identifiers need to be queried from the final linked pipeline (JIRA DH-2182) if a known bad driver is detected.
-			if (GD3D12WorkaroundFlags.bAllowGetShaderIdentifierOnCollectionSubObject)
-			{
-				// Some DXR implementations (such as VKD3D) may not support shader ID queries from collections.
-				// If shader ID query fails, we will attempt to query it from the final linked RTPSO later.
-				TryGetShaderIdentifier(Entry.StateObject, Entry.GetPrimaryExportNameChars(), Entry.Identifier);
-			}
-
+			// Retrieve the identifier from the library
+			Entry.Identifier = GetShaderIdentifier(Entry.StateObject, Entry.GetPrimaryExportNameChars());
+			
 			CompileTimeCycles += FPlatformTime::Cycles64();
 
 			Entry.CompileTimeMS = float(FPlatformTime::ToMilliseconds64(CompileTimeCycles));
