@@ -49,6 +49,12 @@ static FAutoConsoleVariableRef CVarMaxExpiredTimersToLog(
 	MaxExpiredTimersToLog,
 	TEXT("Maximum number of TimerData exceeding the threshold to log in a single frame."));
 
+static int32 GuaranteeEngineTickDelay = 0;
+static FAutoConsoleVariableRef CVarTimerManagerGuaranteeEngineTickDelay(
+	TEXT("TimerManager.GuaranteeEngineTickDelay"),
+	GuaranteeEngineTickDelay,
+	TEXT("If true, timers delayed until next tick will guarantee the engine tick has advanced. If false, these could run during the same engine tick (default behavior prior to 5.5)."));
+
 #ifndef UE_ENABLE_DUMPALLTIMERLOGSTHRESHOLD
 #define UE_ENABLE_DUMPALLTIMERLOGSTHRESHOLD !UE_BUILD_SHIPPING
 #endif
@@ -538,7 +544,6 @@ FTimerHandle FTimerManager::InternalSetTimerForNextTick(FTimerUnifiedDelegate&& 
 	NewTimerData.bRequiresDelegate = true;
 	NewTimerData.TimerDelegate = MoveTemp(InDelegate);
 	NewTimerData.ExpireTime = InternalTime;
-	NewTimerData.Status = ETimerStatus::Active;
 
 	// Set level collection
 	const UWorld* const OwningWorld = OwningGameInstance ? OwningGameInstance->GetWorld() : nullptr;
@@ -547,8 +552,23 @@ FTimerHandle FTimerManager::InternalSetTimerForNextTick(FTimerUnifiedDelegate&& 
 		NewTimerData.LevelCollection = OwningWorld->GetActiveLevelCollection()->GetType();
 	}
 
-	FTimerHandle NewTimerHandle = AddTimer(MoveTemp(NewTimerData));
-	ActiveTimerHeap.HeapPush(NewTimerHandle, FTimerHeapOrder(Timers));
+	// Add to pending timer heap to guarantee it happens next frame if we want to delay
+	const bool bQueueForCurrentFrame = (GuaranteeEngineTickDelay == 0) || HasBeenTickedThisFrame();
+	
+	FTimerHandle NewTimerHandle;
+	if (bQueueForCurrentFrame)
+	{
+		NewTimerData.Status = ETimerStatus::Active;
+		NewTimerHandle = AddTimer(MoveTemp(NewTimerData));
+		ActiveTimerHeap.HeapPush(NewTimerHandle, FTimerHeapOrder(Timers));
+	}
+	else
+	{
+		NewTimerData.Status = ETimerStatus::Pending;
+		NewTimerData.ExpireTime = 0.0;	// Pending timers' ExpireTime means time remaining. It will be converted upon activation.
+		NewTimerHandle = AddTimer(MoveTemp(NewTimerData));
+		PendingTimerSet.Add(NewTimerHandle);
+	}
 
 	return NewTimerHandle;
 }

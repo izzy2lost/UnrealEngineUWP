@@ -3,6 +3,7 @@
 #include "Engine/LatentActionManager.h"
 #include "LatentActions.h"
 #include "Stats/Stats.h"
+#include "HAL/ConsoleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LatentActionManager)
 
@@ -10,12 +11,18 @@
 #define LATENT_ACTION_PROFILING_ENABLED 0
 #endif
 
-#if LATENT_ACTION_PROFILING_ENABLED
-#include "HAL/IConsoleManager.h"
-#endif
 
 FOnLatentActionsChanged FLatentActionManager::LatentActionsChangedDelegate;
 
+
+namespace LatentActionCVars
+{
+	int32 GuaranteeEngineTickDelay = 0;
+	static FAutoConsoleVariableRef CVarLatentActionGuaranteeEngineTickDelay(
+		TEXT("LatentActions.GuaranteeNextTickDelay"),
+		GuaranteeEngineTickDelay,
+		TEXT("If true, latent actions delayed until next tick will guarantee the engine frame has advanced. If false, these would always run at the end of the same engine tick (default behavior prior to 5.5)."));
+}
 
 /////////////////////////////////////////////////////
 // FPendingLatentAction

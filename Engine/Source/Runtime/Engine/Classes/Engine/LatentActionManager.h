@@ -8,6 +8,11 @@
 
 class FPendingLatentAction;
 
+namespace LatentActionCVars
+{
+	extern int32 GuaranteeEngineTickDelay;	// 0: next-tick delays may run at end of current frame (default behavior pre-5.5),  1: next-tick delays will always wait until the engine frame has advanced
+}
+
 // Latent action info
 USTRUCT(BlueprintInternalUseOnly)
 struct FLatentActionInfo
