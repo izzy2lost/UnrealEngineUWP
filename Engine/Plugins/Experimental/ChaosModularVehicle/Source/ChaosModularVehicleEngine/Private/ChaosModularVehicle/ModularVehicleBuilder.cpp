@@ -22,6 +22,8 @@ void FModularVehicleBuilder::GenerateSimTree(UModularVehicleBaseComponent* Modul
 		{
 			SimModuleTree->SetAnimationEnabled(RequiresAnimation);
 
+			SimModuleTree->SetSimTreeProcessingOrder(ModularVehicle->GetTreeProcessingOrder());
+
 			// Physics thread takes ownership of the tree from here
 			ModularVehicle->VehicleSimulationPT->Initialize(SimModuleTree);
 		}

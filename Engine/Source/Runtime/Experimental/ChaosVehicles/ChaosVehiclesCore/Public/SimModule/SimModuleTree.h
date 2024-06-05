@@ -20,8 +20,9 @@ namespace Chaos
 
 	enum ESimTreeProcessingOrder : int8
 	{
-		LeafFirst = 0,
-		RootFirst = 1
+		ManualOverride = 0,	// User calls simulate on the child modules
+		LeafFirst = 1,		// modules simulation from the leaf first
+		RootFirst = 2		// modules simulate from the root first
 	};
 
 	struct FPendingModuleAdds

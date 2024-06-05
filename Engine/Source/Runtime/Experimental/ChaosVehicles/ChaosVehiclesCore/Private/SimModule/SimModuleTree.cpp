@@ -248,7 +248,7 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 {
 	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
 	{
-		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::RootFirst)
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::RootFirst || SimTreeProcessingOrder == ESimTreeProcessingOrder::ManualOverride)
 		{
 			if (Module->IsEnabled())
 			{
@@ -261,9 +261,12 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 			}
 		}
 
-		for (int ChildIdx : GetChildren(NodeIndex))
+		if (SimTreeProcessingOrder != ESimTreeProcessingOrder::ManualOverride)
 		{
-			SimulateNode(DeltaTime, Inputs, ChildIdx, PhysicsProxy);
+			for (int ChildIdx : GetChildren(NodeIndex))
+			{
+				SimulateNode(DeltaTime, Inputs, ChildIdx, PhysicsProxy);
+			}
 		}
 
 		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::LeafFirst)

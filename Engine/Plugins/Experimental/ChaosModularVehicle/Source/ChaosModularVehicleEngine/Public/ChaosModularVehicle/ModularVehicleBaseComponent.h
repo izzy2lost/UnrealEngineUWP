@@ -110,6 +110,8 @@ public:
 
 	APlayerController* GetPlayerController() const;
 	bool IsLocallyControlled() const;
+	void SetTreeProcessingOrder(Chaos::ESimTreeProcessingOrder TreeProcessingOrderIn) { TreeProcessingOrder = TreeProcessingOrderIn; }
+	Chaos::ESimTreeProcessingOrder GetTreeProcessingOrder() { return TreeProcessingOrder; }
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -368,6 +370,7 @@ private:
 	int32 ClusteringCount = 0;
 
 	bool bIsLocallyControlled;
+	Chaos::ESimTreeProcessingOrder TreeProcessingOrder = Chaos::ESimTreeProcessingOrder::LeafFirst;
 
 	TArray<FModuleAnimationSetup> ModuleAnimationSetups;
 
