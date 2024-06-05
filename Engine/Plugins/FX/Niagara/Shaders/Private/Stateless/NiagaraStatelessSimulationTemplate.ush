@@ -97,7 +97,8 @@ void StatelessMain(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIn
 	}
 	
 	// Initialize variables / determine lifetime / etc
-	GRandomSeedInternal = uint4(7123u, Common_RandomSeed, Particle.UniqueIndex * 3581u, 6405u);
+	uint ModuleSeedOffset = 0;
+	GRandomSeedInternal = FNiagaraStatelessDefinitions::MakeRandomSeed(Common_RandomSeed, Particle.UniqueIndex, ModuleSeedOffset++, 0);
 
 	Particle.Lifetime = RandomScaleBiasFloat(0, Common_LifetimeScaleBias.x, Common_LifetimeScaleBias.y);
 	if ( Particle.Lifetime <= 0.0f || Particle.Age >= Particle.Lifetime )
@@ -116,7 +117,7 @@ void StatelessMain(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIn
 	
 	// Run Particle Simulate
 	#define PARTICLE_MODULE(NAME) \
-		GRandomSeedInternal.w += 6405u;\
+		GRandomSeedInternal = FNiagaraStatelessDefinitions::MakeRandomSeed(Common_RandomSeed, Particle.UniqueIndex, ModuleSeedOffset++, 0); \
 		##NAME##_Simulate(Particle);
 
 		PARTICLE_MODULES

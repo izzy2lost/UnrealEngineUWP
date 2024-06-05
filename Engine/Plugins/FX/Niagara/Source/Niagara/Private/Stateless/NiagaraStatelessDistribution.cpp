@@ -14,21 +14,95 @@ namespace NiagaraStatelessDistributionPrivate
 		ECVF_Default
 	);
 
-	TArray<float> CurvesToLUT(TArrayView<const FRichCurve> Curves, int32 NumSamples)
+	bool GReduceLUTTimeRange = true;
+	FAutoConsoleVariableRef CVarNiagaraStatelessDistributionReduceLUTTimeRange(
+		TEXT("fx.NiagaraStateless.Distribution.ReduceLUTTimeRange"),
+		GReduceLUTTimeRange,
+		TEXT("When LUT optimization is enabled we will try to reduce the start / end time if we get duplicate keys, this can improve resolution in the area that matters."),
+		ECVF_Default
+	);
+
+	TArray<float> CurvesToLUT(TArrayView<const FRichCurve> Curves, int32 NumSamples, const FVector2f& TimeRange)
 	{
 		const int32 NumChannels = Curves.Num();
+
+		const float Duration = TimeRange.Y - TimeRange.X;
+		const float SampleToDuration = Duration > 0.0f ? Duration / float(NumSamples - 1) : 0.0f;
 
 		TArray<float> LUT;
 		LUT.SetNumUninitialized(NumChannels * NumSamples);
 		for (int32 iSample=0; iSample < NumSamples; ++iSample)
 		{
-			const float Time = float(iSample) / float(NumSamples - 1);
+			const float Time = (float(iSample) * SampleToDuration) + TimeRange.X;
 			for (int32 iChannel=0; iChannel < NumChannels; ++iChannel)
 			{
 				LUT[(iSample * NumChannels) + iChannel] = Curves[iChannel].Eval(Time);
 			}
 		}
 		return LUT;
+	}
+
+	FVector2f CurvesFindTimeRange(TArrayView<const FRichCurve> Curves, int32 NumSamples)
+	{
+		const int32 NumChannels = Curves.Num();
+		check(NumChannels > 0);
+
+		// Find time range based on keys
+		FVector2f TimeRange = FVector2f(0.0f, 1.0f);
+		Curves[0].GetTimeRange(TimeRange.X, TimeRange.Y);
+		for (int32 iChannel = 1; iChannel < NumChannels; ++iChannel)
+		{
+			FVector2f ChannelTimeRange = TimeRange;
+			Curves[iChannel].GetTimeRange(ChannelTimeRange.X, ChannelTimeRange.Y);
+			TimeRange.X = FMath::Min(TimeRange.X, ChannelTimeRange.X);
+			TimeRange.Y = FMath::Max(TimeRange.Y, ChannelTimeRange.Y);
+		}
+
+		// Reduce start / end times if the sampled results match
+		if (GReduceLUTTimeRange)
+		{
+			TArray<float> LUT = CurvesToLUT(Curves, NumSamples, TimeRange);
+
+			auto DoKeysMatch =
+				[&LUT, &NumChannels](int iCurrKey, int iNextKey)
+				{
+					for (int32 iChannel = 0; iChannel < NumChannels; ++iChannel)
+					{
+						if (!FMath::IsNearlyEqual(LUT[(iCurrKey * NumChannels) + iChannel], LUT[(iNextKey * NumChannels) + iChannel]))
+						{
+							return false;
+						}
+					}
+					return true;
+				};
+
+			int32 iFirstKey = 0;
+			while (iFirstKey < NumSamples - 1 && DoKeysMatch(iFirstKey, iFirstKey + 1))
+			{
+				++iFirstKey;
+			}
+
+			int32 iLastKey = NumSamples - 1;
+			while (iLastKey > 0 && DoKeysMatch(iLastKey, iLastKey - 1))
+			{
+				--iLastKey;
+			}
+
+			if (iFirstKey >= iLastKey)
+			{
+				TimeRange.Y = TimeRange.X;
+			}
+			else
+			{
+				const float StartTime = TimeRange.X;
+				const float Duration = TimeRange.Y - TimeRange.X;
+				const float SampleToDuration = Duration > 0.0f ? Duration / float(NumSamples - 1) : 0.0f;
+				TimeRange.X = StartTime + (float(iFirstKey) * SampleToDuration);
+				TimeRange.Y = StartTime + (float(iLastKey) * SampleToDuration);
+			}
+		}
+
+		return TimeRange;
 	}
 
 	bool AreLUTsAlmostEqual(TArrayView<float> Lhs, TArrayView<float> Rhs, int32 NumChannels, float ErrorThreshold = 0.01f)
@@ -64,14 +138,21 @@ namespace NiagaraStatelessDistributionPrivate
 		return true;
 	}
 
-	TArray<float> CurvesToOptimizedLUT(TArrayView<const FRichCurve> Curves, int32 MaxLutSampleCount)
+	TArray<float> CurvesToOptimizedLUT(TArrayView<const FRichCurve> Curves, int32 MaxLutSampleCount, FVector2f& OutTimeRange)
 	{
-		TArray<float> LUT = CurvesToLUT(Curves, MaxLutSampleCount);
+		OutTimeRange = CurvesFindTimeRange(Curves, MaxLutSampleCount);
+		if (FMath::IsNearlyEqual(OutTimeRange.X, OutTimeRange.Y))
+		{
+			TArray<float> LUT = CurvesToLUT(Curves, 2, OutTimeRange);
+			return LUT;
+		}
+
+		TArray<float> LUT = CurvesToLUT(Curves, MaxLutSampleCount, OutTimeRange);
 		if (GOptimizeLUTs)
 		{
 			for (int32 iSamples = 2; iSamples < MaxLutSampleCount; ++iSamples)
 			{
-				TArray<float> NewLUT = CurvesToLUT(Curves, iSamples);
+				TArray<float> NewLUT = CurvesToLUT(Curves, iSamples, OutTimeRange);
 				if (AreLUTsAlmostEqual(NewLUT, LUT, Curves.Num()))
 				{
 					return NewLUT;
@@ -82,7 +163,7 @@ namespace NiagaraStatelessDistributionPrivate
 	}
 
 	template<typename FValueContainerSetNum, typename FValueAndChannelAccessor>
-	void UpdateDistributionValues(ENiagaraDistributionMode InMode, const TArray<float>& InChannelConstantsAndRanges, const TArray<FRichCurve>& InChannelCurves, int32 InChannelCount, FValueContainerSetNum InContainerNum, FValueAndChannelAccessor InValueAndChannelAccessor, int32 MaxLutSampleCount)
+	void UpdateDistributionValues(ENiagaraDistributionMode InMode, const TArray<float>& InChannelConstantsAndRanges, const TArray<FRichCurve>& InChannelCurves, int32 InChannelCount, FVector2f& OutTimeRange, FValueContainerSetNum InContainerNum, FValueAndChannelAccessor InValueAndChannelAccessor, int32 MaxLutSampleCount)
 	{
 		switch(InMode)
 		{
@@ -91,6 +172,7 @@ namespace NiagaraStatelessDistributionPrivate
 				{
 					// Note we set two values to simplify the GPU code
 					InContainerNum(2);
+					OutTimeRange = FVector2f(0.0f, 1.0f);
 					for (int32 ChannelIndex = 0; ChannelIndex < InChannelCount; ChannelIndex++)
 					{
 						InValueAndChannelAccessor(0, ChannelIndex) = InChannelConstantsAndRanges[0];
@@ -103,6 +185,7 @@ namespace NiagaraStatelessDistributionPrivate
 				{
 					// Note we set two values to simplify the GPU code
 					InContainerNum(2);
+					OutTimeRange = FVector2f(0.0f, 1.0f);
 					for (int32 ChannelIndex = 0; ChannelIndex < InChannelCount; ChannelIndex++)
 					{
 						InValueAndChannelAccessor(0, ChannelIndex) = InChannelConstantsAndRanges[ChannelIndex];
@@ -114,6 +197,7 @@ namespace NiagaraStatelessDistributionPrivate
 				if (InChannelConstantsAndRanges.Num() >= 2)
 				{
 					InContainerNum(2);
+					OutTimeRange = FVector2f(0.0f, 1.0f);
 					for (int32 ChannelIndex = 0; ChannelIndex < InChannelCount; ChannelIndex++)
 					{
 						InValueAndChannelAccessor(0, ChannelIndex) = InChannelConstantsAndRanges[0];
@@ -125,6 +209,7 @@ namespace NiagaraStatelessDistributionPrivate
 				if (InChannelConstantsAndRanges.Num() >= 2 * InChannelCount)
 				{
 					InContainerNum(2);
+					OutTimeRange = FVector2f(0.0f, 1.0f);
 					for (int32 ChannelIndex = 0; ChannelIndex < InChannelCount; ChannelIndex++)
 					{
 						InValueAndChannelAccessor(0, ChannelIndex) = InChannelConstantsAndRanges[ChannelIndex];
@@ -139,8 +224,7 @@ namespace NiagaraStatelessDistributionPrivate
 				if (InChannelCurves.Num() >= ExpectedChannels)
 				{
 					MaxLutSampleCount = FMath::Max(MaxLutSampleCount, 2);
-					//const TArray<float> LUT = CurvesToLUT(MakeArrayView(InChannelCurves.GetData(), ExpectedChannels), MaxLutSampleCount);
-					const TArray<float> LUT = CurvesToOptimizedLUT(MakeArrayView(InChannelCurves.GetData(), ExpectedChannels), MaxLutSampleCount);
+					const TArray<float> LUT = CurvesToOptimizedLUT(MakeArrayView(InChannelCurves.GetData(), ExpectedChannels), MaxLutSampleCount, OutTimeRange);
 					const int32 NumSamples = LUT.Num() / ExpectedChannels;
 
 					InContainerNum(NumSamples);
@@ -386,11 +470,13 @@ void FNiagaraDistributionBase::PostEditChangeProperty(UObject* OwnerObject, FPro
 
 void FNiagaraDistributionRangeFloat::UpdateValuesFromDistribution()
 {
+	FVector2f ValuesTimeRange;
 	NiagaraStatelessDistributionPrivate::UpdateDistributionValues(
 		Mode,
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		1,
+		ValuesTimeRange,
 		[this](int32 Num) {},
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return ValueIndex == 0 ? Min : Max; },
 		MaxLutSampleCount
@@ -399,11 +485,13 @@ void FNiagaraDistributionRangeFloat::UpdateValuesFromDistribution()
 
 void FNiagaraDistributionRangeVector2::UpdateValuesFromDistribution()
 {
+	FVector2f ValuesTimeRange;
 	NiagaraStatelessDistributionPrivate::UpdateDistributionValues(
 		Mode,
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		2,
+		ValuesTimeRange,
 		[this](int32 Num) {},
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return ValueIndex == 0 ? Min[ChannelIndex] : Max[ChannelIndex]; },
 		MaxLutSampleCount
@@ -412,11 +500,13 @@ void FNiagaraDistributionRangeVector2::UpdateValuesFromDistribution()
 
 void FNiagaraDistributionRangeVector3::UpdateValuesFromDistribution()
 {
+	FVector2f ValuesTimeRange;
 	NiagaraStatelessDistributionPrivate::UpdateDistributionValues(
 		Mode,
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		3,
+		ValuesTimeRange,
 		[this](int32 Num) {},
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return ValueIndex == 0 ? Min[ChannelIndex] : Max[ChannelIndex]; },
 		MaxLutSampleCount
@@ -425,11 +515,13 @@ void FNiagaraDistributionRangeVector3::UpdateValuesFromDistribution()
 
 void FNiagaraDistributionRangeColor::UpdateValuesFromDistribution()
 {
+	FVector2f ValuesTimeRange;
 	NiagaraStatelessDistributionPrivate::UpdateDistributionValues(
 		Mode,
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		4,
+		ValuesTimeRange,
 		[this](int32 Num) {},
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return ValueIndex == 0 ? Min.Component(ChannelIndex) : Max.Component(ChannelIndex); },
 		MaxLutSampleCount
@@ -443,6 +535,7 @@ void FNiagaraDistributionFloat::UpdateValuesFromDistribution()
 		ChannelConstantsAndRanges, 
 		ChannelCurves,
 		1,
+		ValuesTimeRange,
 		[this](int32 NumValues) { Values.SetNum(NumValues); },
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return Values[ValueIndex]; },
 		MaxLutSampleCount
@@ -456,6 +549,7 @@ void FNiagaraDistributionVector2::UpdateValuesFromDistribution()
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		2,
+		ValuesTimeRange,
 		[this](int32 NumValues) { Values.SetNum(NumValues); },
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return Values[ValueIndex][ChannelIndex]; },
 		MaxLutSampleCount
@@ -469,6 +563,7 @@ void FNiagaraDistributionVector3::UpdateValuesFromDistribution()
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		3,
+		ValuesTimeRange,
 		[this](int32 NumValues) { Values.SetNum(NumValues); },
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return Values[ValueIndex][ChannelIndex]; },
 		MaxLutSampleCount
@@ -482,6 +577,7 @@ void FNiagaraDistributionColor::UpdateValuesFromDistribution()
 		ChannelConstantsAndRanges,
 		ChannelCurves,
 		4,
+		ValuesTimeRange,
 		[this](int32 NumValues) { Values.SetNum(NumValues); },
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return Values[ValueIndex].Component(ChannelIndex); },
 		MaxLutSampleCount

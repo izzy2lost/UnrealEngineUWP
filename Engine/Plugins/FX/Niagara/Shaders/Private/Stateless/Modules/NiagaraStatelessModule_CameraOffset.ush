@@ -2,7 +2,7 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
-uint3 CameraOffset_Distribution;
+FNiagaraStatelessBuiltDistributionType CameraOffset_Distribution;
 
 void CameraOffset_Simulate(inout FStatelessParticle Particle)
 {

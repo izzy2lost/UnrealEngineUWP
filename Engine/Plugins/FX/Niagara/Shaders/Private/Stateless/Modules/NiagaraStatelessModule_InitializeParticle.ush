@@ -6,7 +6,7 @@ static const uint EInitializeParticleModuleFlag_UniformSpriteSize	= 1 << 0;
 static const uint EInitializeParticleModuleFlag_UniformMeshScale	= 1 << 1;
 
 uint	InitializeParticle_ModuleFlags;
-uint3	InitializeParticle_InitialPosition;
+FNiagaraStatelessBuiltDistributionType	InitializeParticle_InitialPosition;
 float4	InitializeParticle_ColorScale;
 float4	InitializeParticle_ColorBias;
 float2	InitializeParticle_SpriteSizeScale;

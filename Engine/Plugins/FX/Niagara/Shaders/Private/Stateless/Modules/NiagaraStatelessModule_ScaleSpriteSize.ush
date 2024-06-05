@@ -2,7 +2,7 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
-uint3	ScaleSpriteSize_Distribution;
+FNiagaraStatelessBuiltDistributionType	ScaleSpriteSize_Distribution;
 float2	ScaleSpriteSize_CurveScale;
 
 void ScaleSpriteSize_Simulate(inout FStatelessParticle Particle)

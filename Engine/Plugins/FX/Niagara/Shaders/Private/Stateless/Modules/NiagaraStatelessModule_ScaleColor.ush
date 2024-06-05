@@ -2,7 +2,7 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
-uint3	ScaleColor_Distribution;
+FNiagaraStatelessBuiltDistributionType	ScaleColor_Distribution;
 
 void ScaleColor_Simulate(inout FStatelessParticle Particle)
 {

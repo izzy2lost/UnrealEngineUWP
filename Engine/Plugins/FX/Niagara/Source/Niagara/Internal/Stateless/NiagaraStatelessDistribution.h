@@ -47,7 +47,7 @@ struct FNiagaraDistributionBase
 	TArray<FRichCurve> ChannelCurves;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
-	int32 MaxLutSampleCount = 64;
+	int32 MaxLutSampleCount = 128;
 
 	bool operator==(const FNiagaraDistributionBase& Other) const
 	{
@@ -217,6 +217,9 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<float> Values;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
+
 	NIAGARA_API void InitConstant(float Value);
 	NIAGARA_API FNiagaraStatelessRangeFloat CalculateRange(const float Default = 0.0f) const;
 
@@ -243,6 +246,9 @@ struct FNiagaraDistributionVector2 : public FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector2f> Values;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
+
 	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector2f& Value);
 	NIAGARA_API FNiagaraStatelessRangeVector2 CalculateRange(const FVector2f& Default = FVector2f::ZeroVector) const;
@@ -265,6 +271,9 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector3f> Values;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
 
 	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector3f& Value);
@@ -301,6 +310,9 @@ struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FLinearColor> Values;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
 
 	NIAGARA_API void InitConstant(const FLinearColor& Value);
 	NIAGARA_API FNiagaraStatelessRangeColor CalculateRange(const FLinearColor& Default = FLinearColor::White) const;

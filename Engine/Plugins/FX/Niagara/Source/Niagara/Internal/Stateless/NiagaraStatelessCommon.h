@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraCommon.h"
+#include "NiagaraStatelessDefinitions.h"
 
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class ENiagaraStatelessFeatureMask : uint8
@@ -41,14 +42,6 @@ using FNiagaraStatelessRangeVector2	= FNiagaraStatelessRange<FVector2f>;
 using FNiagaraStatelessRangeVector3	= FNiagaraStatelessRange<FVector3f>;
 using FNiagaraStatelessRangeVector4	= FNiagaraStatelessRange<FVector4f>;
 using FNiagaraStatelessRangeColor	= FNiagaraStatelessRange<FLinearColor>;
-
-enum class ENiagaraStatelessBuiltDistributionFlag
-{
-	Random  = 0x00000001,	// StatelessDistributionFlag_Random
-	Uniform = 0x00000002,	// StatelessDistributionFlag_Uniform
-	Binding = 0x00000004,	// StatelessDistributionFlag_Binding
-};
-ENUM_CLASS_FLAGS(ENiagaraStatelessBuiltDistributionFlag);
 
 struct FNiagaraStatelessGlobals
 {

@@ -1,48 +1,45 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#define StatelessDistributionFlag_Random	0x00000001
-#define StatelessDistributionFlag_Uniform	0x00000002
-#define StatelessDistributionFlag_Binding	0x00000004
-
 #define DefineStatelessDistributionSampler(HLSLTYPE, NAMETYPE) \
 	struct FStatelessDistributionSampler##NAMETYPE \
 	{ \
-		void Init(uint RandomSeedOffset, uint3 InParameters) \
+		void Init(uint RandomSeedOffset, FNiagaraStatelessBuiltDistributionType InBuildDistribution) \
 		{ \
-			Parameters = InParameters; \
+			BuildDistribution = InBuildDistribution; \
 			RandomOffset = 0.0f; \
-			if ( (Parameters.x & StatelessDistributionFlag_Random) != 0) \
+			if ( FNiagaraStatelessBuiltDistribution::IsRandom(BuildDistribution) != 0) \
 			{ \
 				RandomOffset = Random##NAMETYPE##(RandomSeedOffset); \
 			} \
 		} \
 		\
-		bool IsValid() { return Parameters.z > 0; } \
+		bool IsValid() { return FNiagaraStatelessBuiltDistribution::IsValid(BuildDistribution); } \
 		\
-		HLSLTYPE GetValue(float NormalizedAge) \
+		HLSLTYPE GetValue(float Time) \
 		{ \
-			if ((Parameters.x & StatelessDistributionFlag_Binding) != 0) \
+			const uint DataOffset = FNiagaraStatelessBuiltDistribution::GetDataOffset(BuildDistribution); \
+			if (FNiagaraStatelessBuiltDistribution::IsBinding(BuildDistribution)) \
 			{ \
-				return GetParameterBuffer##NAMETYPE##(Parameters.y, 0); \
+				return GetParameterBuffer##NAMETYPE##(DataOffset, 0); \
 			} \
-			else if ((Parameters.x & StatelessDistributionFlag_Random) != 0) \
+			else if (FNiagaraStatelessBuiltDistribution::IsRandom(BuildDistribution)) \
 			{ \
-				const HLSLTYPE Value0 = GetStatic##NAMETYPE##(Parameters.y, 0); \
-				const HLSLTYPE Value1 = GetStatic##NAMETYPE##(Parameters.y, 1); \
-				return StatelessLerp(Value0, Value1, RandomOffset, (Parameters.x & StatelessDistributionFlag_Uniform) != 0); \
+				const HLSLTYPE Value0 = GetStatic##NAMETYPE##(DataOffset, 0); \
+				const HLSLTYPE Value1 = GetStatic##NAMETYPE##(DataOffset, 1); \
+				return StatelessLerp(Value0, Value1, RandomOffset, FNiagaraStatelessBuiltDistribution::IsUniform(BuildDistribution)); \
 			} \
 			else \
 			{ \
-				const float Offset = NormalizedAge * float(Parameters.z); \
-				const HLSLTYPE Value0 = GetStatic##NAMETYPE##(Parameters.y, floor(Offset)); \
-				const HLSLTYPE Value1 = GetStatic##NAMETYPE##(Parameters.y, ceil(Offset)); \
+				const float Offset = FNiagaraStatelessBuiltDistribution::ConvertTimeToLookup(BuildDistribution, Time); \
+				const HLSLTYPE Value0 = GetStatic##NAMETYPE##(DataOffset, floor(Offset)); \
+				const HLSLTYPE Value1 = GetStatic##NAMETYPE##(DataOffset, ceil(Offset)); \
 				return lerp(Value0, Value1, frac(Offset)); \
 			} \
 		} \
 		\
-		uint3		Parameters; \
-		HLSLTYPE	RandomOffset; \
+		FNiagaraStatelessBuiltDistributionType		BuildDistribution; \
+		HLSLTYPE									RandomOffset; \
 	}
 
 DefineStatelessDistributionSampler(float,  Float);

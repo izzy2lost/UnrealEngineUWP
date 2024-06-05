@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraStatelessCommon.h"
+#include "NiagaraStatelessBuiltDistribution.h"
 
 class FNiagaraDataBuffer;
 struct FNiagaraStatelessEmitterData;
@@ -217,41 +218,42 @@ private:
 template<typename TType>
 struct FStatelessDistributionSampler
 {
-	explicit FStatelessDistributionSampler(const FParticleSimulationContext& ParticleSimulationContext, const FUintVector3& InParameters, int32 iInstance, uint32 RandomSeedOffset)
-		: Parameters(InParameters)
+	explicit FStatelessDistributionSampler(const FParticleSimulationContext& ParticleSimulationContext, const FNiagaraStatelessBuiltDistributionType& InBuiltDistribution, int32 iInstance, uint32 RandomSeedOffset)
+		: BuiltDistribution(InBuiltDistribution)
 	{
-		if ((Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Random)) != 0)
+		if (FNiagaraStatelessBuiltDistribution::IsRandom(BuiltDistribution))
 		{
 			RandomOffset = ParticleSimulationContext.TRandomFloat<TType>(iInstance, RandomSeedOffset);
 		}
 	}
 
-	bool IsValid() const { return Parameters.Z > 0; }
+	bool IsValid() const { return FNiagaraStatelessBuiltDistribution::IsValid(BuiltDistribution); }
 
-	TType GetValue(const FParticleSimulationContext& ParticleSimulationContext, float NormalizedAge) const
+	TType GetValue(const FParticleSimulationContext& ParticleSimulationContext, float Time) const
 	{
-		if ((Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Binding)) != 0)
+		const uint32 DataOffset = FNiagaraStatelessBuiltDistribution::GetDataOffset(BuiltDistribution);
+		if (FNiagaraStatelessBuiltDistribution::IsBinding(BuiltDistribution))
 		{
-			return ParticleSimulationContext.GetParameterBufferFloat<TType>(Parameters.Y, 0);
+			return ParticleSimulationContext.GetParameterBufferFloat<TType>(DataOffset, 0);
 		}
-		else if ((Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Random)) != 0)
+		else if (FNiagaraStatelessBuiltDistribution::IsRandom(BuiltDistribution))
 		{
 			//-OPT: Could move into constructor
-			const TType	Value0 = ParticleSimulationContext.GetStaticFloat<TType>(Parameters.Y, 0);
-			const TType	Value1 = ParticleSimulationContext.GetStaticFloat<TType>(Parameters.Y, 1);
-			return ParticleSimulationContext.Lerp(Value0, Value1, RandomOffset, (Parameters.X & uint32(ENiagaraStatelessBuiltDistributionFlag::Uniform)) != 0);
+			const TType	Value0 = ParticleSimulationContext.GetStaticFloat<TType>(DataOffset, 0);
+			const TType	Value1 = ParticleSimulationContext.GetStaticFloat<TType>(DataOffset, 1);
+			return ParticleSimulationContext.Lerp(Value0, Value1, RandomOffset, FNiagaraStatelessBuiltDistribution::IsUniform(BuiltDistribution));
 		}
 		else
 		{
-			const float Offset = NormalizedAge * float(Parameters.Z);
-			const TType	Value0 = ParticleSimulationContext.GetStaticFloat<TType>(Parameters.Y, FMath::FloorToInt(Offset));
-			const TType	Value1 = ParticleSimulationContext.GetStaticFloat<TType>(Parameters.Y, FMath::CeilToInt(Offset));
+			const float Offset = FNiagaraStatelessBuiltDistribution::ConvertTimeToLookup(BuiltDistribution, Time);
+			const TType	Value0 = ParticleSimulationContext.GetStaticFloat<TType>(DataOffset, FMath::FloorToInt(Offset));
+			const TType	Value1 = ParticleSimulationContext.GetStaticFloat<TType>(DataOffset, FMath::CeilToInt(Offset));
 			return FMath::Lerp(Value0, Value1, FMath::Fractional(Offset));
 		}
 	}
 
-	const FUintVector3	Parameters;
-	TType				RandomOffset = {};
+	const FNiagaraStatelessBuiltDistributionType	BuiltDistribution;
+	TType											RandomOffset = {};
 };
 
 } //namespace NiagaraStateless

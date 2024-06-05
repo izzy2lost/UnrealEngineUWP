@@ -4,6 +4,7 @@
 
 #include "NiagaraStatelessCommon.h"
 #include "NiagaraStatelessDistribution.h"
+#include "NiagaraStatelessBuiltDistribution.h"
 
 struct FNiagaraDataSetCompiledData;
 struct FNiagaraParameterBinding;
@@ -68,51 +69,49 @@ public:
 
 	// Adds an distribution into the LUT if enabled
 	template<typename TType>
-	FUintVector3 AddDistribution(ENiagaraDistributionMode Mode, TConstArrayView<TType> Values) const
+	FNiagaraStatelessBuiltDistributionType AddDistribution(ENiagaraDistributionMode Mode, TConstArrayView<TType> Values, const FVector2f& TimeRange) const
 	{
 		using namespace NiagaraStateless;
 
-		FUintVector3 Parameters = FUintVector3::ZeroValue;
+		FNiagaraStatelessBuiltDistributionType BuiltDistribution = FNiagaraStatelessBuiltDistribution::GetDefault();
 		if (Values.Num() > 0)
 		{
 			switch (Mode)
 			{
 				case ENiagaraDistributionMode::Binding:				checkNoEntry(); break;
-				case ENiagaraDistributionMode::UniformConstant:		Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Random | ENiagaraStatelessBuiltDistributionFlag::Uniform); break;
-				case ENiagaraDistributionMode::NonUniformConstant:	Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Random); break;
-				case ENiagaraDistributionMode::UniformRange:		Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Random | ENiagaraStatelessBuiltDistributionFlag::Uniform); break;
-				case ENiagaraDistributionMode::NonUniformRange:		Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Random); break;
-				case ENiagaraDistributionMode::UniformCurve:		Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Uniform); break;
-				case ENiagaraDistributionMode::NonUniformCurve:		Parameters.X = 0; break;
+				case ENiagaraDistributionMode::UniformConstant:		FNiagaraStatelessBuiltDistribution::SetIsRandom(BuiltDistribution); FNiagaraStatelessBuiltDistribution::SetIsUniform(BuiltDistribution); break;
+				case ENiagaraDistributionMode::NonUniformConstant:	FNiagaraStatelessBuiltDistribution::SetIsRandom(BuiltDistribution); break;
+				case ENiagaraDistributionMode::UniformRange:		FNiagaraStatelessBuiltDistribution::SetIsRandom(BuiltDistribution); FNiagaraStatelessBuiltDistribution::SetIsUniform(BuiltDistribution); break;
+				case ENiagaraDistributionMode::NonUniformRange:		FNiagaraStatelessBuiltDistribution::SetIsRandom(BuiltDistribution); break;
+				case ENiagaraDistributionMode::UniformCurve:		FNiagaraStatelessBuiltDistribution::SetIsUniform(BuiltDistribution); break;
+				case ENiagaraDistributionMode::NonUniformCurve:		break;
 				default:											checkNoEntry(); break;
 			}
 
-			Parameters.Y = AddStaticData(Values);
-			Parameters.Z = Values.Num() - 1;
+			FNiagaraStatelessBuiltDistribution::SetLookupParameters(BuiltDistribution, AddStaticData(Values), Values.Num(), TimeRange);
 		}
-		return Parameters;
+		return BuiltDistribution;
 	}
 
 	// Adds a distribution into the LUT if enabled and returns the packed information to send to the shader
 	template<typename TDistribution>
-	FUintVector3 AddDistribution(const TDistribution& Distribution) const
+	FNiagaraStatelessBuiltDistributionType AddDistribution(const TDistribution& Distribution) const
 	{
-		FUintVector3 Parameters = FUintVector3::ZeroValue;
+		FNiagaraStatelessBuiltDistributionType BuiltDistribution = FNiagaraStatelessBuiltDistribution::GetDefault();
 		if (Distribution.Mode == ENiagaraDistributionMode::Binding)
 		{
 			const int32 ParameterOffset = AddRendererBinding(Distribution.ParameterBinding);
 			if (ParameterOffset >= 0)
 			{
-				Parameters.X = uint32(ENiagaraStatelessBuiltDistributionFlag::Binding);
-				Parameters.Y = ParameterOffset;
-				Parameters.Z = 1.0f;
+				FNiagaraStatelessBuiltDistribution::SetIsBinding(BuiltDistribution);
+				FNiagaraStatelessBuiltDistribution::SetLookupParameters(BuiltDistribution, ParameterOffset, 1, FVector2f(0.0f, 1.0f));
 			}
 		}
 		else
 		{
-			Parameters = AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values));
+			BuiltDistribution = AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values), Distribution.ValuesTimeRange);
 		}
-		return Parameters;
+		return BuiltDistribution;
 	}
 
 	template<typename TRange, typename TDistribution, typename TDefaultValue>
@@ -153,7 +152,7 @@ private:
 	NiagaraStateless::FParticleSimulationExecData*	ParticleExecData = nullptr;
 
 	int32											ModuleBuiltDataOffset = 0;
-	int32											RandomSeedOffest = 1;
+	int32											RandomSeedOffest = 0;
 
 	struct FTransientObject
 	{

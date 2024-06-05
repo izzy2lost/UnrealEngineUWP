@@ -2,7 +2,7 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
-uint3	ScaleMeshSize_Distribution;
+FNiagaraStatelessBuiltDistributionType	ScaleMeshSize_Distribution;
 float3	ScaleMeshSize_CurveScale;
 int		ScaleMeshSize_CurveScaleOffset;
 	

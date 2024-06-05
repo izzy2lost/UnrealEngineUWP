@@ -4,6 +4,8 @@
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/Random.ush"
 
+#include "/Plugin/FX/Niagara/Shared/NiagaraStatelessDefinitions.h"
+#include "/Plugin/FX/Niagara/Shared/NiagaraStatelessBuiltDistribution.h"
 #include "/Plugin/FX/Niagara/Private/NiagaraQuaternionUtils.ush"
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -88,8 +90,7 @@ static uint4 GRandomSeedInternal;
 
 uint4 RandomUInt4(uint RandomSeedOffset)
 {
-	uint4 RandomSeed = GRandomSeedInternal;
-	RandomSeed.x += RandomSeedOffset;
+	uint4 RandomSeed = FNiagaraStatelessDefinitions::OffsetRandomSeedForCall(GRandomSeedInternal, RandomSeedOffset);
 	return Rand4DPCG32(RandomSeed);
 }
 uint   RandomUInt(uint RandomSeedOffset) { return RandomUInt4(RandomSeedOffset).x; }

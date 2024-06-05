@@ -4,12 +4,13 @@
 
 #include "RenderGraphFwd.h"
 #include "ShaderParameterStruct.h"
+#include "NiagaraStatelessBuiltDistribution.h"
 
 namespace NiagaraStateless
 {
 	BEGIN_SHADER_PARAMETER_STRUCT(FInitializeParticleModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(uint32,		InitializeParticle_ModuleFlags)
-		SHADER_PARAMETER(FUintVector3,	InitializeParticle_InitialPosition)
+		SHADER_PARAMETER(uint32,									InitializeParticle_ModuleFlags)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	InitializeParticle_InitialPosition)
 
 		SHADER_PARAMETER(FLinearColor,	InitializeParticle_ColorScale)				// Unset / Direct Set / Random Range(Link RGBA / Link RGB|Link A / Random Channels) / Random Hue|Saturation|Value
 		SHADER_PARAMETER(FLinearColor,	InitializeParticle_ColorBias)
@@ -45,37 +46,37 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FDynamicMaterialParametersModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(uint32,		DynamicMaterialParameters_ChannelMask)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0X)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0Y)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0Z)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0W)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter1X)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter1Y)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter1Z)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter1W)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter2X)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter2Y)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter2Z)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter2W)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter3X)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter3Y)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter3Z)
-		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter3W)
+		SHADER_PARAMETER(uint32,									DynamicMaterialParameters_ChannelMask)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter0X)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter0Y)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter0Z)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter0W)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter1X)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter1Y)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter1Z)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter1W)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter2X)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter2Y)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter2Z)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter2W)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter3X)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter3Y)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter3Z)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	DynamicMaterialParameters_Parameter3W)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FCameraOffsetModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(FUintVector3,	CameraOffset_Distribution)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	CameraOffset_Distribution)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleColorModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(FUintVector3,	ScaleColor_Distribution)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	ScaleColor_Distribution)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleMeshSizeModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(FUintVector3,	ScaleMeshSize_Distribution)
-		SHADER_PARAMETER(FVector3f,		ScaleMeshSize_CurveScale)
-		SHADER_PARAMETER(int32,			ScaleMeshSize_CurveScaleOffset)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	ScaleMeshSize_Distribution)
+		SHADER_PARAMETER(FVector3f,									ScaleMeshSize_CurveScale)
+		SHADER_PARAMETER(int32,										ScaleMeshSize_CurveScaleOffset)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleMeshSizeBySpeedModule_ShaderParameters, NIAGARASHADER_API)
@@ -96,8 +97,8 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleSpriteSizeModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(FUintVector3,	ScaleSpriteSize_Distribution)
-		SHADER_PARAMETER(FVector2f,		ScaleSpriteSize_CurveScale)
+		SHADER_PARAMETER(FNiagaraStatelessBuiltDistributionType,	ScaleSpriteSize_Distribution)
+		SHADER_PARAMETER(FVector2f,									ScaleSpriteSize_CurveScale)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleSpriteSizeBySpeedModule_ShaderParameters, NIAGARASHADER_API)

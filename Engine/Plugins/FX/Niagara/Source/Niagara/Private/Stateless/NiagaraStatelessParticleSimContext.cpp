@@ -123,7 +123,7 @@ namespace NiagaraStateless
 		DeltaTime = InDeltaTime;
 		InvDeltaTime = DeltaTime > 0.0f ? 1.0f / DeltaTime : 0.0f;
 		EmitterRandomSeed = InEmitterRandomSeed;
-		ModuleRandomSeed = 6405u;
+		ModuleRandomSeed = 0;
 
 		// Setup Required Components
 		{
@@ -218,7 +218,7 @@ namespace NiagaraStateless
 		for (const auto& Callback : ExecData->SimulateFunctions)
 		{
 			BuiltDataOffset = Callback.BuiltDataOffset;
-			ModuleRandomSeed = Callback.RandomSeedOffset * 6405u;
+			ModuleRandomSeed = Callback.RandomSeedOffset;
 			Callback.Function(*this);
 		}
 	}
@@ -226,7 +226,7 @@ namespace NiagaraStateless
 	uint32 FParticleSimulationContext::RandomUInt(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
 		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
-		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomSeed = FNiagaraStatelessDefinitions::MakeRandomSeed(EmitterRandomSeed, UniqueIndex, ModuleRandomSeed, RandomSeedOffset);
 		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return RandomValue.X;
 	}
@@ -234,7 +234,7 @@ namespace NiagaraStateless
 	FUintVector2 FParticleSimulationContext::RandomUInt2(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
 		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
-		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomSeed = FNiagaraStatelessDefinitions::MakeRandomSeed(EmitterRandomSeed, UniqueIndex, ModuleRandomSeed, RandomSeedOffset);
 		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return FUintVector2(RandomValue.X, RandomValue.Y);
 	}
@@ -242,7 +242,7 @@ namespace NiagaraStateless
 	FUintVector3 FParticleSimulationContext::RandomUInt3(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
 		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
-		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomSeed = FNiagaraStatelessDefinitions::MakeRandomSeed(EmitterRandomSeed, UniqueIndex, ModuleRandomSeed, RandomSeedOffset);
 		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return FUintVector3(RandomValue.X, RandomValue.Y, RandomValue.Z);
 	}
@@ -250,7 +250,7 @@ namespace NiagaraStateless
 	FUintVector4 FParticleSimulationContext::RandomUInt4(uint32 iInstance, uint32 RandomSeedOffset) const
 	{
 		const uint32 UniqueIndex = uint32(GetParticleUniqueIndex()[iInstance]);
-		const FUintVector4 RandomSeed(7123u + RandomSeedOffset, EmitterRandomSeed, UniqueIndex * 3581u, ModuleRandomSeed);
+		const FUintVector4 RandomSeed = FNiagaraStatelessDefinitions::MakeRandomSeed(EmitterRandomSeed, UniqueIndex, ModuleRandomSeed, RandomSeedOffset);
 		const FUintVector4 RandomValue = Rand4DPCG32(RandomSeed);
 		return RandomValue;
 	}
