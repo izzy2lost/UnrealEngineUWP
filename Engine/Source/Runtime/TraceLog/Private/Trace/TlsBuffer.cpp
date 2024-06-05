@@ -317,8 +317,9 @@ void Writer_EndThreadBuffer()
 		return;
 	}
 
-	int32 EtxOffset = int32(PTRINT((uint8*)GTlsWriteBuffer - GTlsWriteBuffer->Cursor));
-	AtomicStoreRelaxed(&(GTlsWriteBuffer->EtxOffset), EtxOffset);
+	const PTRINT CurrentCursor = AtomicLoadRelaxed(GTlsWriteBuffer->Cursor);
+	int32 EtxOffset = int32(PTRINT((uint8*)GTlsWriteBuffer - CurrentCursor));
+	AtomicStoreRelease(&(GTlsWriteBuffer->EtxOffset), EtxOffset);
 }
 
 } // namespace Private
