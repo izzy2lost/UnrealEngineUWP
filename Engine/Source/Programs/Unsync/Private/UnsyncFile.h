@@ -380,7 +380,7 @@ struct FDeferredOpenReader : FIOReader
 	virtual void   FlushOne() override { GetOrOpenInner()->FlushOne(); }
 	virtual uint64 GetSize() override { return GetOrOpenInner()->GetSize(); }
 	virtual bool   IsValid() override { return GetOrOpenInner()->IsValid(); }
-	virtual void   Close() override { GetOrOpenInner()->Close(); }
+	virtual void   Close() override { if (Inner) { Inner->Close(); } }
 	virtual int32  GetError() override { return GetOrOpenInner()->GetError(); }
 
 	// IORead
