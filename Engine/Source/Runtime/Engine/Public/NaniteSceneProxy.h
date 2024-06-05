@@ -687,6 +687,11 @@ public:
 
 	ENGINE_API virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override;
 
+	virtual const TConstArrayView<uint64> GetAnimationProviderData() const
+	{
+		return TConstArrayView<uint64>();
+	}
+
 	inline const FSkeletalMeshObject* GetMeshObject() const
 	{
 		return MeshObject;

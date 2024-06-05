@@ -14,7 +14,6 @@ class FPrimitiveDrawInterface;
 class FRawStaticIndexBuffer16or32Interface;
 class UMorphTarget;
 class UPrimitiveComponent;
-class USkeletalMesh;
 class USkinnedMeshComponent;
 class USkeletalMesh;
 class FSkeletalMeshRenderData;
