@@ -17,7 +17,7 @@ struct FHttpServerRequest;
 struct FHttpServerResponse;
 struct FKey;
 UCLASS()
-class UExternalRpcRegistrationComponent : public UObject
+class EXTERNALRPCREGISTRY_API UExternalRpcRegistrationComponent : public UObject
 {
 
 	GENERATED_BODY()
