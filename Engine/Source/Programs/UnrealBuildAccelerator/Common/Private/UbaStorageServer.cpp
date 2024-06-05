@@ -44,6 +44,7 @@ namespace uba
 
 	StorageServer::~StorageServer()
 	{
+		WaitForActiveWork();
 		UBA_ASSERT(m_waitEntries.empty());
 		UBA_ASSERT(m_proxies.empty());
 		m_server.UnregisterOnClientDisconnected(ServiceId);
@@ -54,6 +55,12 @@ namespace uba
 	{
 		m_disallowedPaths.push_back(path);
 		return true;
+	}
+
+	void StorageServer::WaitForActiveWork()
+	{
+		while (m_activeUnmap)
+			Sleep(5);
 	}
 
 	bool StorageServer::GetZone(StringBufferBase& out)
@@ -112,9 +119,14 @@ namespace uba
 		{
 			if (ownsMapping)
 			{
-				UnmapViewOfFile(memoryBegin, mappedView.size, TC(""));
-				CloseFileMapping(mappedView.handle);
-				CloseFile(nullptr, readFileHandle);
+				++server.m_activeUnmap;
+				server.GetServer().AddWork([&server, mb = memoryBegin, mp = mappedView, rfh = readFileHandle]()
+					{
+						UnmapViewOfFile(mb, mp.size, TC(""));
+						CloseFileMapping(mp.handle);
+						CloseFile(nullptr, rfh);
+						--server.m_activeUnmap;
+					}, 1, TC("ActiveFetchRelease"));
 			}
 			else
 				server.m_casDataBuffer.UnmapView(mappedView, TC("OnDisconnected"));

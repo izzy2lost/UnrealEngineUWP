@@ -29,6 +29,8 @@ namespace uba
 
 		using StorageImpl::StoreCasFile;
 
+		void WaitForActiveWork();
+
 	protected:
 
 		virtual bool GetZone(StringBufferBase& out) override;
@@ -100,6 +102,7 @@ namespace uba
 		};
 		ReaderWriterLock m_activeFetchesLock;
 		UnorderedMap<u16, ActiveFetch> m_activeFetches;
+		Atomic<u32> m_activeUnmap;
 
 
 		ReaderWriterLock m_availableIdsLock;

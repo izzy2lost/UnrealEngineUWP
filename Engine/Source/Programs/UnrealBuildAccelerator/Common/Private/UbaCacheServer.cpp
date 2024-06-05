@@ -471,6 +471,8 @@ namespace uba
 		UnorderedMap<CasKey, CasFileInfo> existingCas;
 		ReaderWriterLock existingCasLock;
 
+		m_storage.WaitForActiveWork();
+
 		u32 removedNonExisting = 0;
 		{
 			// TODO: Make this cleaner... 
