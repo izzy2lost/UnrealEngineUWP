@@ -133,10 +133,9 @@ struct FPreAnimatedSkeletalAnimationTraits : FBoundObjectPreAnimatedStateTraits
 		// Restore pose after unbinding to force the restored pose
 		Component->SetUpdateAnimationInEditor(true);
 		Component->SetUpdateClothInEditor(true);
-		Component->TickAnimation(0.f, false);
-
 		if (!Component->IsPostEvaluatingAnimation())
 		{
+			Component->TickAnimation(0.f, false);
 			Component->RefreshBoneTransforms();
 			Component->RefreshFollowerComponents();
 			Component->UpdateComponentToWorld();
