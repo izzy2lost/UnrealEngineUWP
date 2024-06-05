@@ -13,20 +13,6 @@ namespace Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class EFilterConfiguratorNodeType
-{
-	/** A Filter node. */
-	Filter,
-
-	/** A group node. */
-	Group,
-
-	/** Invalid enum type, may be used as a number of enumerations. */
-	InvalidOrMax,
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /** Type definition for shared pointers to instances of FFilterConfiguratorNode. */
 typedef TSharedPtr<class FFilterConfiguratorNode> FFilterConfiguratorNodePtr;
 
@@ -70,7 +56,7 @@ public:
 	void SetSelectedFilterGroupOperator(TSharedPtr<FFilterGroupOperator> InSelectedFilterGroupOperator) { SelectedFilterGroupOperator = InSelectedFilterGroupOperator; }
 	TSharedPtr<FFilterGroupOperator> GetSelectedFilterGroupOperator() const { return SelectedFilterGroupOperator; }
 
-	TSharedPtr<TArray<TSharedPtr<IFilterOperator>>> GetAvailableFilterOperators() const {	return AvailableFilterOperators;	}
+	TSharedPtr<TArray<TSharedPtr<IFilterOperator>>> GetAvailableFilterOperators() const { return AvailableFilterOperators; }
 
 	const FString& GetTextBoxValue() { return TextBoxValue; }
 	void SetTextBoxValue(const FString& InValue);

@@ -1148,7 +1148,9 @@ void STableTreeView::UpdateFilterContext(const FFilterConfigurator& InFilterConf
 {
 	for (const TSharedRef<FTableColumn>& Column : Table->GetColumns())
 	{
-		if (!Column->CanBeFiltered() || !InFilterConfigurator.IsKeyUsed(Column->GetIndex()) || !Column->GetValue(InNode).IsSet())
+		if (!Column->CanBeFiltered() ||
+			!InFilterConfigurator.IsKeyUsed(Column->GetIndex()) ||
+			!Column->GetValue(InNode).IsSet())
 		{
 			continue;
 		}
@@ -1330,14 +1332,12 @@ void STableTreeView::ApplyHierarchyFiltering()
 
 	// The Root node is always hidden. The tree shows the filtered children of the Root node.
 	const TArray<FBaseTreeNodePtr>& RootChildren = Root->GetFilteredChildren();
-	const int32 NumRootChildren = RootChildren.Num();
-	FilteredGroupNodes.Reset(NumRootChildren);
-	for (int32 Cx = 0; Cx < NumRootChildren; ++Cx)
+	FilteredGroupNodes.Reset(RootChildren.Num());
+	for (const FBaseTreeNodePtr& ChildNodePtr : RootChildren)
 	{
-		const FTableTreeNodePtr& ChildNodePtr = StaticCastSharedPtr<FTableTreeNode>(RootChildren[Cx]);
 		if (ChildNodePtr->IsGroup())
 		{
-			FilteredGroupNodes.Add(ChildNodePtr);
+			FilteredGroupNodes.Add(StaticCastSharedPtr<FTableTreeNode>(ChildNodePtr));
 		}
 	}
 
@@ -1355,9 +1355,8 @@ void STableTreeView::ApplyHierarchyFiltering()
 				bExpansionSaved = true;
 			}
 
-			for (int32 Fx = 0; Fx < FilteredGroupNodes.Num(); Fx++)
+			for (const FTableTreeNodePtr& GroupPtr : FilteredGroupNodes)
 			{
-				const FTableTreeNodePtr& GroupPtr = FilteredGroupNodes[Fx];
 				TreeView->SetItemExpansion(GroupPtr, GroupPtr->IsExpanded());
 			}
 		}
@@ -1420,12 +1419,11 @@ bool STableTreeView::ApplyHierarchyFilteringRec(FTableTreeNodePtr NodePtr)
 		}
 
 		const TArray<FBaseTreeNodePtr>& GroupChildren = NodePtr->GetChildren();
-		const int32 NumChildren = GroupChildren.Num();
 
 		NodePtr->ClearFilteredChildren(0);
 
 		int32 NumVisibleChildren = 0;
-		for (int32 Cx = 0; Cx < NumChildren; ++Cx)
+		for (const FBaseTreeNodePtr& GroupChildNodePtr : GroupChildren)
 		{
 			if (AsyncOperationProgress.ShouldCancelAsyncOp())
 			{
@@ -1433,7 +1431,7 @@ bool STableTreeView::ApplyHierarchyFilteringRec(FTableTreeNodePtr NodePtr)
 			}
 
 			// Add a child.
-			const FTableTreeNodePtr& ChildNodePtr = StaticCastSharedPtr<FTableTreeNode>(GroupChildren[Cx]);
+			const FTableTreeNodePtr& ChildNodePtr = StaticCastSharedPtr<FTableTreeNode>(GroupChildNodePtr);
 			if (ApplyHierarchyFilteringRec(ChildNodePtr))
 			{
 				NodePtr->AddFilteredChild(ChildNodePtr);
@@ -1470,20 +1468,18 @@ bool STableTreeView::MakeSubtreeVisible(FTableTreeNodePtr NodePtr, bool bFilterI
 	if (NodePtr->IsGroup())
 	{
 		const TArray<FBaseTreeNodePtr>& GroupChildren = NodePtr->GetChildren();
-		const int32 NumChildren = GroupChildren.Num();
 
-		NodePtr->ClearFilteredChildren(bFilterIsEmpty ? NumChildren : 0);
+		NodePtr->ClearFilteredChildren(bFilterIsEmpty ? GroupChildren.Num() : 0);
 
-		int32 NumVisibleChildren = 0;
 		bool bShouldExpand = false;
-		for (int32 Cx = 0; Cx < NumChildren; ++Cx)
+		for (const FBaseTreeNodePtr& GroupChildNodePtr : GroupChildren)
 		{
 			if (AsyncOperationProgress.ShouldCancelAsyncOp())
 			{
 				break;
 			}
 
-			const FTableTreeNodePtr& ChildNodePtr = StaticCastSharedPtr<FTableTreeNode>(GroupChildren[Cx]);
+			const FTableTreeNodePtr& ChildNodePtr = StaticCastSharedPtr<FTableTreeNode>(GroupChildNodePtr);
 			bShouldExpand |= MakeSubtreeVisible(ChildNodePtr, bFilterIsEmpty);
 			NodePtr->AddFilteredChild(ChildNodePtr);
 			NodePtr->SetExpansion(true);
@@ -1564,7 +1560,39 @@ void STableTreeView::TreeView_OnGetChildren(FTableTreeNodePtr InParent, TArray<F
 	if (InParent->OnLazyCreateChildren(SharedThis(this)))
 	{
 		// Node filtering does not apply to lazy expanded nodes.
-		// Grouping is ignored for lazy expanded nodes.
+
+		// Apply grouping only if the node specifies the grouping that created the node.
+		// In this case, it will apply groupings after the identified one.
+		const FTreeNodeGrouping* AuthorGrouping = InParent->GetAuthorGrouping();
+		if (AuthorGrouping)
+		{
+			TArray<TSharedPtr<FTreeNodeGrouping>> Groupings;
+
+			bool bFound = false;
+			for (TSharedPtr<FTreeNodeGrouping> Grouping : CurrentGroupings)
+			{
+				if (bFound)
+				{
+					Groupings.Add(Grouping);
+				}
+				else
+				{
+					if (Grouping.Get() == AuthorGrouping)
+					{
+						bFound = true;
+					}
+				}
+			}
+
+			if (Groupings.Num() > 0)
+			{
+				// Extract children nodes.
+				TArray<FTableTreeNodePtr> ChildNodes;
+				InParent->SwapChildrenFast(reinterpret_cast<TArray<FBaseTreeNodePtr>&>(ChildNodes));
+
+				GroupNodesRec(ChildNodes, *InParent, 0, Groupings);
+			}
+		}
 
 		// Update aggregation.
 		UpdateAggregatedValuesRec(*InParent);
@@ -2656,6 +2684,11 @@ void STableTreeView::UpdateAggregatedValuesSingleNode(FTableTreeNode& InOutGroup
 
 void STableTreeView::UpdateAggregatedValuesRec(FTableTreeNode& InOutGroupNode)
 {
+	if (AsyncOperationProgress.ShouldCancelAsyncOp())
+	{
+		return;
+	}
+
 	STableTreeView::UpdateAggregatedValues<true>(Table, InOutGroupNode);
 }
 
@@ -2992,7 +3025,6 @@ void STableTreeView::ShowColumn(FTableColumn& Column)
 			.VAlignCell(VAlign_Fill)
 			.InitialSortMode(Column.GetInitialSortMode())
 			.SortMode(this, &STableTreeView::GetSortModeForColumn, Column.GetId())
-			.OnSort(this, &STableTreeView::OnSortModeChanged)
 			.FillWidth(Column.GetInitialWidth())
 			//.FixedWidth(Column.IsFixedWidth() ? Column.GetInitialWidth() : TOptional<float>())
 			.HeaderContent()
@@ -3010,6 +3042,11 @@ void STableTreeView::ShowColumn(FTableColumn& Column)
 			[
 				TreeViewHeaderRow_GenerateColumnMenu(Column)
 			];
+
+		if (Column.CanBeSorted())
+		{
+			ColumnArgs.OnSort(this, &STableTreeView::OnSortModeChanged);
+		}
 
 		int32 ColumnIndex = 0;
 		const int32 NewColumnPosition = Table->GetColumnPositionIndex(Column.GetId());

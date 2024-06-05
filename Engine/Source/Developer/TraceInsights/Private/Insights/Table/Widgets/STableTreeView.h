@@ -179,8 +179,8 @@ public:
 
 	/** Gets the table row nodes. Each node corresponds to a table row. Index in this array corresponds to RowIndex in source table. */
 	const TArray<FTableTreeNodePtr>& GetTableRowNodes() const { return TableRowNodes; }
-	
-	/** Gets the avaiable grouping. */
+
+	/** Gets the available groupings. */
 	const TArray<TSharedPtr<FTreeNodeGrouping>>& GetAvailableGroupings() const { return AvailableGroupings; }
 
 	/** Sets the current groupings. */
@@ -525,7 +525,7 @@ protected:
 
 	static const FName RootNodeName;
 
-	/** The root node of the tree. */
+	/** The root node of the tree. It is invisible; only its children are displayed in the tree view. */
 	FTableTreeNodePtr Root;
 
 	/** Table row nodes. Each node corresponds to a table row. Index in this array corresponds to RowIndex in source table. */
@@ -543,13 +543,13 @@ protected:
 	/** Currently expanded group nodes. */
 	TSet<FTableTreeNodePtr> ExpandedNodes;
 
-	/** If true, the expanded nodes have been saved before applying a text filter. */
+	/** If true, the expanded nodes have been saved before applying a text filter. Only used when bRunInAsyncMode==false. */
 	bool bExpansionSaved = false;
 
-	static constexpr int32 MaxNodesToAutoExpand = 1000;
-	static constexpr int32 MaxDepthToAutoExpand = 4;
-	static constexpr int32 MaxNodesToExpand = 1000000;
-	static constexpr int32 MaxDepthToExpand = 100;
+	int32 MaxNodesToAutoExpand = 1000;
+	int32 MaxDepthToAutoExpand = 4;
+	int32 MaxNodesToExpand = 1000000;
+	int32 MaxDepthToExpand = 100;
 
 	//////////////////////////////////////////////////
 	// Search box & the hierarchy filtering
@@ -650,8 +650,8 @@ class FTableTreeViewNodeFilteringAsyncTask
 {
 public:
 	FTableTreeViewNodeFilteringAsyncTask(STableTreeView* InPtr)
+		: TableTreeViewPtr(InPtr)
 	{
-		TableTreeViewPtr = InPtr;
 	}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FTableTreeViewNodeFilteringAsyncTask, STATGROUP_TaskGraphTasks); }
@@ -676,8 +676,8 @@ class FTableTreeViewHierarchyFilteringAsyncTask
 {
 public:
 	FTableTreeViewHierarchyFilteringAsyncTask(STableTreeView* InPtr)
+		: TableTreeViewPtr(InPtr)
 	{
-		TableTreeViewPtr = InPtr;
 	}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FTableTreeViewHierarchyFilteringAsyncTask, STATGROUP_TaskGraphTasks); }
@@ -702,10 +702,10 @@ class FTableTreeViewSortingAsyncTask
 {
 public:
 	FTableTreeViewSortingAsyncTask(STableTreeView* InPtr, ITableCellValueSorter* InSorter, EColumnSortMode::Type InColumnSortMode)
+		: TableTreeViewPtr(InPtr)
+		, Sorter(InSorter)
+		, ColumnSortMode(InColumnSortMode)
 	{
-		TableTreeViewPtr = InPtr;
-		Sorter = InSorter;
-		ColumnSortMode = InColumnSortMode;
 	}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FTableTreeViewSortingAsyncTask, STATGROUP_TaskGraphTasks); }
@@ -721,9 +721,9 @@ public:
 	}
 
 private:
-	STableTreeView* TableTreeViewPtr;
-	ITableCellValueSorter* Sorter;
-	EColumnSortMode::Type ColumnSortMode;
+	STableTreeView* TableTreeViewPtr = nullptr;
+	ITableCellValueSorter* Sorter = nullptr;
+	EColumnSortMode::Type ColumnSortMode = EColumnSortMode::Type::None;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -732,9 +732,9 @@ class FTableTreeViewGroupingAsyncTask
 {
 public:
 	FTableTreeViewGroupingAsyncTask(STableTreeView* InPtr, TArray<TSharedPtr<FTreeNodeGrouping>>* InGroupings)
+		: TableTreeViewPtr(InPtr)
+		, Groupings(InGroupings)
 	{
-		TableTreeViewPtr = InPtr;
-		Groupings = InGroupings;
 	}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FTableTreeViewGroupingAsyncTask, STATGROUP_TaskGraphTasks); }
@@ -751,7 +751,7 @@ public:
 
 private:
 	STableTreeView* TableTreeViewPtr = nullptr;
-	TArray<TSharedPtr<FTreeNodeGrouping>>* Groupings;
+	TArray<TSharedPtr<FTreeNodeGrouping>>* Groupings = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -762,7 +762,8 @@ public:
 	FSearchForItemToSelectTask(TSharedPtr<FTableTaskCancellationToken> InToken, TSharedPtr<STableTreeView> InPtr)
 		: CancellationToken(InToken)
 		, TableTreeViewPtr(InPtr)
-	{}
+	{
+	}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FSearchForItemToSelectTask, STATGROUP_TaskGraphTasks); }
 	ENamedThreads::Type GetDesiredThread() { return ENamedThreads::Type::AnyThread; }
@@ -770,7 +771,13 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
-		TableTreeViewPtr->SearchForItem(CancellationToken);
+		if (!CancellationToken.IsValid() || !CancellationToken->ShouldCancel())
+		{
+			if (TableTreeViewPtr.IsValid())
+			{
+				TableTreeViewPtr->SearchForItem(CancellationToken);
+			}
+		}
 	}
 
 private:
@@ -787,7 +794,8 @@ public:
 		: CancellationToken(InToken)
 		, TableTreeViewPtr(InPtr)
 		, RowIndex(InRowIndex)
-		{}
+	{
+	}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FSelectNodeByTableRowIndexTask, STATGROUP_TaskGraphTasks); }
 	ENamedThreads::Type GetDesiredThread() { return ENamedThreads::Type::GameThread; }
@@ -795,16 +803,19 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
-		if (!CancellationToken->ShouldCancel())
+		if (!CancellationToken.IsValid() || !CancellationToken->ShouldCancel())
 		{
-			TableTreeViewPtr->SelectNodeByTableRowIndex(RowIndex);
+			if (TableTreeViewPtr.IsValid())
+			{
+				TableTreeViewPtr->SelectNodeByTableRowIndex(RowIndex);
+			}
 		}
 	}
 
 private:
 	TSharedPtr< FTableTaskCancellationToken> CancellationToken;
 	TSharedPtr<STableTreeView> TableTreeViewPtr;
-	uint32 RowIndex;
+	uint32 RowIndex = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

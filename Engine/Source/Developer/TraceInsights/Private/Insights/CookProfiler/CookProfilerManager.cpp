@@ -187,7 +187,7 @@ void FCookProfilerManager::RegisterTimingProfilerLayoutExtensions(FInsightsMajor
 	FMinorTabConfig& MinorTabConfig = InOutExtender.AddMinorTabConfig();
 	MinorTabConfig.TabId = FCookProfilerTabs::PackageTableTreeViewTabID;
 	MinorTabConfig.TabLabel = LOCTEXT("PackageTableTreeViewTabTitle", "Packages");
-	MinorTabConfig.TabTooltip = LOCTEXT("PackageTableTreeViewTabTitleTooltip", "Opens the Packages Tree View tab, that allows cook profilling.");
+	MinorTabConfig.TabTooltip = LOCTEXT("PackageTableTreeViewTabTitleTooltip", "Opens the Packages Tree View tab, that allows cook profiling.");
 	MinorTabConfig.TabIcon = FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.PackagesView");
 	MinorTabConfig.OnSpawnTab = FOnSpawnTab::CreateRaw(this, &FCookProfilerManager::SpawnTab_PackageTableTreeView);
 	MinorTabConfig.CanSpawnTab = FCanSpawnTab::CreateRaw(this, &FCookProfilerManager::CanSpawnTab_PackageTableTreeView);
@@ -204,6 +204,7 @@ TSharedRef<SDockTab> FCookProfilerManager::SpawnTab_PackageTableTreeView(const F
 {
 	TSharedRef<FPackageTable> PackageTable = MakeShared<FPackageTable>();
 	PackageTable->Reset();
+	PackageTable->SetDisplayName(LOCTEXT("PackageTableTreeViewTabTitle", "Packages"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
