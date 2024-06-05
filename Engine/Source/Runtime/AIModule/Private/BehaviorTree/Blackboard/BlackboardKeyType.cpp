@@ -25,7 +25,7 @@ void UBlackboardKeyType::InitializeKey(UBlackboardComponent& OwnerComp, FBlackbo
 	if (bCreateKeyInstance)
 	{
 		FBlackboardInstancedKeyMemory* MyMemory = (FBlackboardInstancedKeyMemory*)RawData;
-		UBlackboardKeyType* KeyInstance = NewObject<UBlackboardKeyType>(&OwnerComp, GetClass());
+		UBlackboardKeyType* KeyInstance = DuplicateObject<UBlackboardKeyType>(this, &OwnerComp);
 		KeyInstance->bIsInstanced = true;
 		MyMemory->KeyIdx = KeyID;
 		OwnerComp.KeyInstances[KeyID] = KeyInstance;
