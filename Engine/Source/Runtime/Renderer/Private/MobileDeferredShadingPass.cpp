@@ -185,10 +185,10 @@ public:
 	SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(FMobileRadialLightFunctionPS, FMaterialShader)
 
 	class FEnableShadingModelSupport: SHADER_PERMUTATION_BOOL("ENABLE_SHADINGMODEL_SUPPORT_MOBILE_DEFERRED");
-	class FSpotLightDim				: SHADER_PERMUTATION_BOOL("IS_SPOT_LIGHT");
+	class FRadialLightTypeDim		: SHADER_PERMUTATION_RANGE_INT("RADIAL_LIGHT_TYPE", LIGHT_TYPE_POINT, LIGHT_TYPE_RECT);
 	class FIESProfileDim			: SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FSpotLightShadowDim		: SHADER_PERMUTATION_BOOL("SUPPORT_SPOTLIGHTS_SHADOW");
-	using FPermutationDomain = TShaderPermutationDomain<FEnableShadingModelSupport, FSpotLightDim, FIESProfileDim, FSpotLightShadowDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FEnableShadingModelSupport, FRadialLightTypeDim, FIESProfileDim, FSpotLightShadowDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT(FLightShaderParameters, Light)
@@ -713,7 +713,7 @@ static void RenderLocalLight_StencilMask(FRHICommandList& RHICmdList, const FSce
 	FDeferredLightVS::FParameters ParametersVS = FDeferredLightVS::GetParameters(View, &LightSceneInfo);
 	SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), ParametersVS);
 
-	if (LightType == LightType_Point)
+	if (LightType == LightType_Point || LightType == LightType_Rect)
 	{
 		StencilingGeometry::DrawSphere(RHICmdList);
 	}
@@ -740,7 +740,8 @@ static void RenderLocalLight(
 	const uint8 LightType = LightSceneInfo.Proxy->GetLightType();
 	const bool bIsSpotLight = LightType == LightType_Spot;
 	const bool bIsPointLight = LightType == LightType_Point;
-	if (!bIsSpotLight && !bIsPointLight)
+	const bool bIsRectLight = LightType == LightType_Rect;
+	if (!bIsSpotLight && !bIsPointLight && !bIsRectLight)
 	{
 		return;
 	}
@@ -819,7 +820,7 @@ static void RenderLocalLight(
 
 		FMobileRadialLightFunctionPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FMobileRadialLightFunctionPS::FEnableShadingModelSupport>(bEnableShadingModelSupport);
-		PermutationVector.Set<FMobileRadialLightFunctionPS::FSpotLightDim>(bIsSpotLight);
+		PermutationVector.Set<FMobileRadialLightFunctionPS::FRadialLightTypeDim>(LightType);
 		PermutationVector.Set<FMobileRadialLightFunctionPS::FIESProfileDim>(bUseIESTexture);
 		PermutationVector.Set<FMobileRadialLightFunctionPS::FSpotLightShadowDim>(bShouldCastShadow);
 		FCachedLightMaterial LightMaterial;
@@ -840,7 +841,7 @@ static void RenderLocalLight(
 
 		SetShaderParametersMixedPS(RHICmdList, PixelShader, PassParameters, View, LightMaterial.MaterialProxy, *LightMaterial.Material);
 
-		if (LightType == LightType_Point)
+		if (LightType == LightType_Point || LightType == LightType_Rect)
 		{
 			StencilingGeometry::DrawSphere(RHICmdList);
 		}
@@ -919,7 +920,7 @@ static void RenderSimpleLights(
 		TShaderRef<FMobileRadialLightFunctionPS> PixelShader;
 		FMobileRadialLightFunctionPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FMobileRadialLightFunctionPS::FEnableShadingModelSupport>(bEnableShadingModelSupport);
-		PermutationVector.Set<FMobileRadialLightFunctionPS::FSpotLightDim>(false);
+		PermutationVector.Set<FMobileRadialLightFunctionPS::FRadialLightTypeDim>(LightType_Point);
 		PermutationVector.Set<FMobileRadialLightFunctionPS::FIESProfileDim>(false);
 		PassPixelShaders[PassIndex] = MaterialShaderMap->GetShader<FMobileRadialLightFunctionPS>(PermutationVector);
 		GraphicsPSOLight[PassIndex].BoundShaderState.PixelShaderRHI = PassPixelShaders[PassIndex].GetPixelShader();

@@ -524,6 +524,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 				}
 			}
 
+			const uint32 LightShaderParameterFlags = RenderRectLightsAsSpotLights(FeatureLevel) ? ELightShaderParameterFlags::RectAsSpotLight : 0u;
 			float SelectedForwardDirectionalLightIntensitySq = 0.0f;
 			int32 SelectedForwardDirectionalLightPriority = -1;
 			const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
@@ -539,7 +540,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 				if (LightSceneInfo->ShouldRenderLight(View))
 				{
 					FLightRenderParameters LightParameters;
-					LightProxy->GetLightShaderParameters(LightParameters);
+					LightProxy->GetLightShaderParameters(LightParameters, LightShaderParameterFlags);
 
 					if (LightProxy->IsInverseSquared())
 					{

@@ -691,12 +691,13 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTas
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene_Lights, FColor::Green);
 		const bool bAllowStaticLighting = IsStaticLightingAllowed();
+		const uint32 Flags = RenderRectLightsAsSpotLights(FeatureLevel) ? ELightShaderParameterFlags::RectAsSpotLight : 0u;
 
 		for (int32 Index = 0; Index < Scene.Lights.GetMaxIndex(); ++Index)
 		{
 			if (Scene.Lights.IsAllocated(Index))
 			{
-				InitLightData(Scene.Lights[Index], bAllowStaticLighting, LightData[Index]);
+				InitLightData(Scene.Lights[Index], bAllowStaticLighting, Flags, LightData[Index]);
 			}
 			else
 			{
@@ -739,13 +740,13 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTas
 	GraphBuilder.QueueBufferUpload<FLightSceneData>(LightDataBufferRDG, LightData, ERDGInitialDataFlags::NoCopy);
 }
 
-void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, FLightSceneData& DataOut)
+void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, uint32 LightShaderParameterFlags, FLightSceneData& DataOut)
 {
 	const FLightSceneInfo& LightInfo = *LightInfoCompact.LightSceneInfo;
 	const FLightSceneProxy& LightProxy = *LightInfo.Proxy;
 
 	FLightRenderParameters LightParams;
-	LightProxy.GetLightShaderParameters(LightParams);
+	LightProxy.GetLightShaderParameters(LightParams, LightShaderParameterFlags);
 
 	if (LightProxy.IsInverseSquared())
 	{

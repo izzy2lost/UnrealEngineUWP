@@ -1663,6 +1663,16 @@ bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
 	return false;
 }
 
+bool RenderRectLightsAsSpotLights(const FStaticFeatureLevel FeatureLevel)
+{
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		static const auto CVarRenderRectLightAsSpotLight = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.Forward.RenderRectLightsAsSpotLights"));
+		return (CVarRenderRectLightAsSpotLight && CVarRenderRectLightAsSpotLight->GetValueOnAnyThread() != 0);
+	}
+	return false;
+}
+
 static TAutoConsoleVariable<int32> CVarLightFunctionAtlasFormat(
 	TEXT("r.LightFunctionAtlas.Format"),
 	0,

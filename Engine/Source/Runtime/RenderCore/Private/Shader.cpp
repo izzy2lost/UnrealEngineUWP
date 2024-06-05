@@ -1992,16 +1992,6 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 			KeyGen.AppendSeparator();
 			KeyGen.Append(TEXT("MobFDP"));
 		}
-
-		{
-			static const auto CVarRenderRectLightAsSpotLight = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.Forward.RenderRectLightsAsSpotLights"));
-			const bool bRenderAsSpotLight = (CVarRenderRectLightAsSpotLight && CVarRenderRectLightAsSpotLight->GetValueOnAnyThread() != 0);
-			if (bRenderAsSpotLight)
-			{
-				KeyGen.AppendSeparator();
-				KeyGen.Append(TEXT("R2S"));
-			}
-		}
 	}
 	else
 	{
@@ -2012,6 +2002,12 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 		}
 	}
 
+	if (RenderRectLightsAsSpotLights(GetMaxSupportedFeatureLevel(Platform)))
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("R2S"));
+	}
+	
 	uint32 PlatformShadingModelsMask = GetPlatformShadingModelsMask(Platform);
 	if (PlatformShadingModelsMask != 0xFFFFFFFF)
 	{

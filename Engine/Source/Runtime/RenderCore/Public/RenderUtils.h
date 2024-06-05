@@ -552,6 +552,8 @@ extern RENDERCORE_API bool DoesProjectSupportLumenRayTracedTranslucentRefraction
 /** Whether or not the platform supports the scene spline texture for spline meshes */
 RENDERCORE_API bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform);
 
+RENDERCORE_API bool RenderRectLightsAsSpotLights(const FStaticFeatureLevel FeatureLevel);
+
 namespace Substrate
 {
 	RENDERCORE_API bool IsSubstrateEnabled();

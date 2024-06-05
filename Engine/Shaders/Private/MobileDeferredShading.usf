@@ -29,10 +29,6 @@
 #endif
 #include "HairStrands/HairStrandsEnvironmentLightingCommon.ush"
 
-#ifndef IS_SPOT_LIGHT 
-#define IS_SPOT_LIGHT 0 
-#endif 
-
 float4x4 TranslatedWorldToLight;
 float2 LightFunctionParameters2;
 
@@ -277,7 +273,7 @@ void MobileRadialLightPS(
 	half3 CameraVector = normalize(TranslatedWorldPosition);
 			
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
-	FDeferredLightData LightData = InitDeferredLightFromLightParameters(GetRootLightShaderParameters(), IS_SPOT_LIGHT ? LIGHT_TYPE_SPOT : LIGHT_TYPE_POINT);
+	FDeferredLightData LightData = InitDeferredLightFromLightParameters(GetRootLightShaderParameters(), RADIAL_LIGHT_TYPE);
 		
 	// Affect the light color by any other shadow/transmittance before the lighting is evaluated
 	{
