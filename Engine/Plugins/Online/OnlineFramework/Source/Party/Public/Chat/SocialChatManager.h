@@ -140,7 +140,9 @@ protected:
 	virtual void InitializeChatManager();
 	virtual ESocialChannelType TryChannelTypeLookupByRoomId(const FChatRoomId& RoomID);
 
+	virtual void HandleChatRoomMessageSent(const FUniqueNetId& LocalUserId, const FChatRoomId& RoomId, bool bWasSuccessful, const FString& Error);
 	virtual void HandleChatRoomMessageReceived(const FUniqueNetId& LocalUserId, const FChatRoomId& RoomId, const TSharedRef<FChatMessage>& ChatMessage);
+	virtual void HandleChatPrivateMessageSent(const FUniqueNetId& LocalUserId, const FUniqueNetId& RecipientId, bool bWasSuccessful, const FString& Error);
 	virtual void HandleChatPrivateMessageReceived(const FUniqueNetId& LocalUserId, const TSharedRef<FChatMessage>& ChatMessage);
 
 	virtual void OnChannelCreatedInternal(USocialChatChannel& CreatedChannel);
