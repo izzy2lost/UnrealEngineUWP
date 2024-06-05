@@ -98,7 +98,7 @@ namespace UE::GameFeatures
 		TEXT("Enable to make block deactivation until all dependencies are deactivated. Warning - this can lead to failure to unload"));
 
 	static TAutoConsoleVariable<bool> CVarEnableAssetStreaming(TEXT("GameFeaturePlugin.EnableAssetStreaming"),
-		false,
+		true,
 		TEXT("Enable experimental asset streaming"));
 
 	bool ShouldDeferLocalizationDataLoad()
@@ -2296,6 +2296,8 @@ struct FGameFeaturePluginState_WaitingForDependencies : public FTransitionDepend
 	}
 };
 
+// TODO: this is mostly going to look like the download state with a few modifications. Should probably just have a
+// common base with it
 struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePluginState
 {
 	FGameFeaturePluginState_AssetDependencyStreaming(FGameFeaturePluginStateMachineProperties& InStateProperties) 
@@ -2310,6 +2312,7 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 
 	void Cleanup()
 	{
+		IInstallBundleManager::InstallBundleCompleteDelegate.RemoveAll(this);
 		Result = MakeValue();
 		PendingBundleDownloads.Empty();
 	}
@@ -2356,10 +2359,16 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 	{
 		Cleanup();
 
+		if (StateProperties.GetPluginProtocol() != EGameFeaturePluginProtocol::InstallBundle)
+		{
+			// For now, we don't support asset streaming with file protocol
+			return;
+		}
+
 		// TODO: Install Bundles need to move away from FNames for identifiers, this is currently just bloating up the name table
 		// when using dynamic GFPs
-		TArray<FGameFeaturePluginDependency> AssetDependencies = UGameFeaturesSubsystem::Get().FindPluginAssetDependencies(StateProperties.PluginInstalledFilename);
-		TValueOrError<TArray<FName>, FString> MaybeAssetInstallBundles = UGameFeaturesSubsystem::Get().GetPolicy().GetStreamingAssetInstallBundles(AssetDependencies);
+		TValueOrError<TArray<FName>, FString> MaybeAssetInstallBundles = 
+			UGameFeaturesSubsystem::Get().GetPolicy().GetStreamingAssetInstallBundles(StateProperties.PluginIdentifier.GetFullPluginURL());
 		if (MaybeAssetInstallBundles.HasError())
 		{
 			Result = GetErrorResult(MaybeAssetInstallBundles.GetError());
@@ -2372,22 +2381,24 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 			return;
 		}
 
-		// Respect DoNotDownload flag
-		// TODO: move DoNotDownload flag to base protocol options? We could now have a file: GFP that needs to stream dependencies
-		if (StateProperties.ProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
+		const FInstallBundlePluginProtocolOptions& Options = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>();
+		if (Options.bDoNotDownload)
 		{
-			const FInstallBundlePluginProtocolOptions& Options = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>();
-			if (Options.bDoNotDownload)
-			{
-				Result = GetErrorResult(TEXT("GFPStateMachine.DownloadNotAllowed"));
-				return;
-			}
+			Result = GetErrorResult(TEXT("GFPStateMachine.DownloadNotAllowed"));
+			return;
+		}
+
+		FInstallBundlePluginProtocolMetaData& ProtocolData = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
+		for (FName Bundle : AssetInstallBundles)
+		{
+			// Add to metadata list for later cleanup
+			ProtocolData.InstallBundles.AddUnique(Bundle);
 		}
 
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 
-		// TODO: where do flags come from? The dependency being streamed from?
-		EInstallBundleRequestFlags InstallFlags = EInstallBundleRequestFlags::None;
+		EInstallBundleRequestFlags InstallFlags = InstallFlags = UseAsyncLoading() ?
+			(Options.InstallBundleFlags | EInstallBundleRequestFlags::AsyncMount) : Options.InstallBundleFlags;
 		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestUpdateContent(AssetInstallBundles, InstallFlags);
 		if (MaybeRequestInfo.HasError())
 		{
@@ -2399,7 +2410,10 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 
 		FInstallBundleRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
 		PendingBundleDownloads = MoveTemp(RequestInfo.BundlesEnqueued);
-		IInstallBundleManager::InstallBundleCompleteDelegate.AddRaw(this, &FGameFeaturePluginState_AssetDependencyStreaming::OnInstallBundleCompleted);
+		if (!PendingBundleDownloads.IsEmpty())
+		{
+			IInstallBundleManager::InstallBundleCompleteDelegate.AddRaw(this, &FGameFeaturePluginState_AssetDependencyStreaming::OnInstallBundleCompleted);
+		}
 
 		// TODO: how to apply pausing? bUserPauseDownload is protocol specific
 		//if (Options.bUserPauseDownload)

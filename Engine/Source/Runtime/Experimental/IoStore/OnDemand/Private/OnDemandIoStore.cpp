@@ -22,6 +22,7 @@
 #include "IO/PackageStore.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegatesInternal.h"
+#include "Misc/CoreMisc.h"
 #include "Misc/EncryptionKeyManager.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
@@ -49,7 +50,40 @@ namespace Private
 ///////////////////////////////////////////////////////////////////////////////
 static FString GetInstallCacheDirectory()
 {
-	return FPaths::ProjectPersistentDownloadDir() / TEXT("IoStore") / TEXT("InstallCache");
+	FString DirName;
+
+	if (IsRunningDedicatedServer())
+	{
+#if 0 // TODO: Fix this for forking servers
+		if (!FForkProcessHelper::IsForkRequested())
+		{
+			DirName = TEXT("InstallCacheServer");
+		}
+		else
+		{
+			if (!FForkProcessHelper::IsForkedChildProcess())
+			{
+				UE_LOG(LogIoStoreOnDemand, Fatal, TEXT("Attempting to create IOStore cache before forking!"));
+			}
+
+			DirName = FString::Printf(TEXT("InstallCacheServer-%u"), FPlatformProcess::GetCurrentProcessId());
+		}
+#else
+		DirName = TEXT("InstallCacheServer");
+#endif
+	}
+#if WITH_EDITOR
+	else if (GIsEditor)
+	{
+		DirName = TEXT("InstallCacheEditor");
+	}
+#endif //if WITH_EDITOR
+	else
+	{
+		DirName = TEXT("InstallCache");
+	}
+
+	return FPaths::ProjectPersistentDownloadDir() / TEXT("IoStore") / DirName;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -86,20 +120,21 @@ FIoStatus BuildInstallData(
 	const TSet<FSharedOnDemandContainer>& Containers,
 	const TSet<FPackageId>& PackageIds,
 	FInstallData& OutInstallData,
-	const TSet<FPackageId>& OutMissing)
+	TSet<FPackageId>& OutMissing)
 {
 	OutInstallData.Reserve(Containers.Num());
 
 	// Setup the package information for each container
 	for (const FSharedOnDemandContainer& Container : Containers)
 	{
+		FContainerInstallData& Data = OutInstallData.FindOrAdd(Container);
+
 		if (!Container->Header.IsValid() || Container->Header->PackageIds.IsEmpty())
 		{
 			// The container contains no package data
 			continue;
 		}
 
-		FContainerInstallData& Data = OutInstallData.FindOrAdd(Container);
 		const FIoContainerHeader& Header = *Container->Header;
 		TConstArrayView<FFilePackageStoreEntry> Entries(
 			reinterpret_cast<const FFilePackageStoreEntry*>(Header.StoreEntries.GetData()),
@@ -120,7 +155,6 @@ FIoStatus BuildInstallData(
 
 	FQueue Queue;
 	TSet<FPackageId> Visitied;
-	TSet<FPackageId> Missing;
 
 	Visitied.Reserve(PackageIds.Num());
 	Queue.Reserve(PackageIds.Num());
@@ -167,7 +201,7 @@ FIoStatus BuildInstallData(
 
 		if (!bFound)
 		{
-			Missing.Add(PackageId);
+			OutMissing.Add(PackageId);
 		}
 	}
 
@@ -175,11 +209,6 @@ FIoStatus BuildInstallData(
 	{
 		const FOnDemandContainer& Container = *Kv.Key;
 		FContainerInstallData& Data			= Kv.Value;
-
-		if (Data.PackageIds.IsEmpty())
-		{
-			continue;
-		}
 
 		for (const FPackageId& PackageId : Data.PackageIds)
 		{
@@ -348,6 +377,7 @@ FIoStatus FOnDemandIoStore::Initialize()
 		}
 	}
 
+#if 0
 	OnMountPakHandle = FCoreInternalDelegates::GetOnPakMountOperation().AddLambda(
 		[this](EMountOperation Operation, const TCHAR* ContainerPath, int32 Order) -> void
 		{
@@ -422,6 +452,7 @@ FIoStatus FOnDemandIoStore::Initialize()
 			TickLoop();
 		}
 	}
+#endif
 
 	return EIoErrorCode::Ok;
 }
@@ -675,9 +706,9 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 	Private::SplitHostUrl(Args.Url, Host, TocRelUrl);
 	const FStringView TocPath = FPathViews::GetPath(TocRelUrl);
 
-	if (Args.Toc.IsSet())
+	if (Args.Toc)
 	{
-		CreateContainersFromToc(Args.MountId, TocPath, Args.Toc.GetValue(), MountRequest.Containers);
+		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 	}
 	else if (Args.FilePath.IsEmpty() == false)
 	{
@@ -691,8 +722,7 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 			return TocStatus.Status();
 		}
 
-		FOnDemandToc Toc = TocStatus.ConsumeValueOrDie();
-		Args.Toc.Emplace(MoveTemp(Toc));
+		Args.Toc = MakeShared<FOnDemandToc>(TocStatus.ConsumeValueOrDie());
 
 		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 	}
@@ -709,8 +739,7 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 			return TocStatus.Status();
 		}
 
-		FOnDemandToc Toc = TocStatus.ConsumeValueOrDie();
-		Args.Toc.Emplace(MoveTemp(Toc));
+		Args.Toc = MakeShared<FOnDemandToc>(TocStatus.ConsumeValueOrDie());
 
 		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 	}
@@ -850,7 +879,7 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 	// Parse the tag sets
 	if (MountRequest.MountArgs.TagSets.IsEmpty() == false && MountRequest.TagSets.IsEmpty())
 	{
-		const FOnDemandToc& Toc = MountRequest.MountArgs.Toc.GetValue();
+		const FOnDemandToc& Toc = *MountRequest.MountArgs.Toc;
 		for (const FString& Tag : MountRequest.MountArgs.TagSets)
 		{
 			const FOnDemandTocTagSet* TagSet = Algo::FindBy(Toc.TagSets, Tag, &FOnDemandTocTagSet::Tag);

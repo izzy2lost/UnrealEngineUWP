@@ -46,9 +46,8 @@ public:
 	// returns The dependency URL or an error if the dependency could not be resolved
 	virtual TValueOrError<FString, FString> ResolvePluginDependency(const FString& PluginURL, const FString& DependencyName) const;
 
-	// Called to resolve install bundles for stream asset dependencies, input maps a plugin dependency to referenced assets 
-	// (See UGameFeaturesSubsystem::FindPluginAssetDependencies)
-	virtual TValueOrError<TArray<FName>, FString> GetStreamingAssetInstallBundles(const TArray<FGameFeaturePluginDependency>& AssetDependencies) const { return MakeValue(); }
+	// Called to resolve install bundles for streaming asset dependencies
+	virtual TValueOrError<TArray<FName>, FString> GetStreamingAssetInstallBundles(const FString& PluginURL) const { return MakeValue(); }
 
 	// Called by code that explicitly wants to load a specific plugin
 	// (e.g., when using a fast cook a game might want to allow explicitly loaded game feature plugins)

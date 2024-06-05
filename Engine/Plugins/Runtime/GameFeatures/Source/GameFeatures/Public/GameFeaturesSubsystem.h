@@ -233,7 +233,6 @@ void GAMEFEATURES_API LexFromString(EGameFeatureTargetState& Value, const TCHAR*
 struct FGameFeaturePluginReferenceDetails
 {
 	FString PluginName;
-	TArray<FString> AssetReferences;
 	bool bShouldActivate = false;
 };
 
@@ -385,9 +384,6 @@ struct FGameFeatureInfo
 	bool bLoadedAsBuiltIn;
 	EGameFeaturePluginState CurrentState;
 };
-
-// Key - plugin reference, Value - any specific assets imported
-using FGameFeaturePluginDependency = TPair<FString, TArray<FString>>;
 
 /** The manager subsystem for game features */
 UCLASS()
@@ -730,9 +726,6 @@ private:
 	void BeginTermination(UGameFeaturePluginStateMachine* Machine);
 	void FinishTermination(UGameFeaturePluginStateMachine* Machine);
 	friend class UGameFeaturePluginStateMachine;
-
-	TArray<FGameFeaturePluginDependency> FindPluginAssetDependencies(const FString& PluginDescriptorFilename);
-	friend struct FGameFeaturePluginState_AssetDependencyStreaming;
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */
 	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);

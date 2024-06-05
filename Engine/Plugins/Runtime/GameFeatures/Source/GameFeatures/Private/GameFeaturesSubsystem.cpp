@@ -2206,7 +2206,6 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 		const FStringView NameField = TEXTVIEW("Name");
 		const FStringView EnabledField = TEXTVIEW("Enabled");
 		const FStringView ActivateField = TEXTVIEW("Activate");
-		const FStringView AssetReferencesField = TEXTVIEW("AssetReferences");
 		for (const TSharedPtr<FJsonValue>& PluginElement : *PluginsArray)
 		{
 			if (!PluginElement)
@@ -2242,24 +2241,8 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 			bool bElementActivate = false;
 			ElementObject->TryGetBoolField(ActivateField, bElementActivate);
 
-			TArray<FString> AssetReferences;
-			const TArray<TSharedPtr<FJsonValue>>* AssetRefsArray = nullptr;
-			ElementObject->TryGetArrayField(AssetReferencesField, AssetRefsArray);
-			if (AssetRefsArray)
-			{
-				for (const TSharedPtr<FJsonValue>& AssetRefElement : *AssetRefsArray)
-				{
-					FString AssetRef;
-					if (AssetRefElement && AssetRefElement->TryGetString(AssetRef))
-					{
-						AssetReferences.Add(MoveTemp(AssetRef));
-					}
-				}
-			}
-
 			FGameFeaturePluginReferenceDetails& RefDetails = OutPluginDetails.PluginDependencies.Emplace_GetRef();
 			RefDetails.PluginName = MoveTemp(DependencyName);
-			RefDetails.AssetReferences = MoveTemp(AssetReferences);
 			RefDetails.bShouldActivate = bElementActivate;
 		}
 	}
@@ -2760,21 +2743,6 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 {
 	UE_LOG(LogGameFeatures, Verbose, TEXT("FinishTermination of GameFeaturePlugin. Identifier:%.*s URL:%s"), Machine->GetPluginIdentifier().GetIdentifyingString().Len(), Machine->GetPluginIdentifier().GetIdentifyingString().GetData(), *(Machine->GetPluginURL()));
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
-}
-
-TArray<FGameFeaturePluginDependency> UGameFeaturesSubsystem::FindPluginAssetDependencies(const FString& PluginDescriptorFilename)
-{
-	FGameFeaturePluginDetails Details;
-	ensure(GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, Details));
-
-	TArray<FGameFeaturePluginDependency> OutDeps;
-	OutDeps.Reserve(Details.PluginDependencies.Num());
-	for (FGameFeaturePluginReferenceDetails& RefDetails : Details.PluginDependencies)
-	{
-		OutDeps.Emplace(MoveTemp(RefDetails.PluginName), MoveTemp(RefDetails.AssetReferences));
-	}
-
-	return OutDeps;
 }
 
 bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)

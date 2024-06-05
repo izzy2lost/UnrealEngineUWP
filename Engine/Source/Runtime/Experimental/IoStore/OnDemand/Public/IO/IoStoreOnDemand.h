@@ -208,9 +208,9 @@ struct FOnDemandToc
 
 	static FGuid VersionGuid;
 
-	static TIoStatusOr<FOnDemandToc> LoadFromFile(const FString& FilePath, bool bValidate);
-	static TIoStatusOr<FOnDemandToc> LoadFromUrl(FAnsiStringView Url, uint32 RetryCount = 0, bool bFollowRedirects = false);
-	static TIoStatusOr<FOnDemandToc> LoadFromUrl(FStringView Url, uint32 RetryCount = 0, bool bFollowRedirects = false);
+	UE_API static TIoStatusOr<FOnDemandToc> LoadFromFile(const FString& FilePath, bool bValidate);
+	UE_API static TIoStatusOr<FOnDemandToc> LoadFromUrl(FAnsiStringView Url, uint32 RetryCount = 0, bool bFollowRedirects = false);
+	UE_API static TIoStatusOr<FOnDemandToc> LoadFromUrl(FStringView Url, uint32 RetryCount = 0, bool bFollowRedirects = false);
 };
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);
@@ -251,7 +251,7 @@ ENUM_CLASS_FLAGS(EOnDemandMountOptions);
 struct FOnDemandMountArgs
 {
 	/** Mount an already serialized TOC. */
-	TOptional<FOnDemandToc> Toc;
+	TSharedPtr<FOnDemandToc> Toc;
 	/** Mandatory ID to be used for unmounting all container file(s) included in the TOC. */
 	FString MountId;
 	/** Download the TOC from the specified URL. */
@@ -261,7 +261,7 @@ struct FOnDemandMountArgs
 	/** Used with EOnDemandMountOptions::Install to fliter requested content */
 	TArray<FString> TagSets;
 	/** Mount options. */
-	EOnDemandMountOptions Options;
+	EOnDemandMountOptions Options = EOnDemandMountOptions::None;
 };
 
 struct FOnDemandMountResult

@@ -1084,6 +1084,16 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	}
 #endif
 
+	if (IoStore.IsValid() == false)
+	{
+		IoStore = MakeUnique<FOnDemandIoStore>();
+		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on demand, reason '%s'"), *Status.ToString());
+			return;
+		}
+	}
+
 	LoadCaCerts();
 
 	// Make sure we haven't called initialize before
@@ -1093,16 +1103,6 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	if (TryParseEndpointConfig(CommandLine, EndpointConfig) == false)
 	{
 		return;
-	}
-
-	if (IoStore.IsValid() == false)
-	{
-		IoStore = MakeUnique<FOnDemandIoStore>();
-		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
-		{
-			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on demand, reason '%s'"), *Status.ToString());
-			return;
-		}
 	}
 
 	{

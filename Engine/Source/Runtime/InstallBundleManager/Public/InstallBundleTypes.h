@@ -284,6 +284,7 @@ struct FInstallBundleSourceUpdateBundleInfo
 	FDateTime LastAccessTime = FDateTime::MinValue(); // If cached, used to decide eviction order
 	EInstallBundleInstallState BundleContentState = EInstallBundleInstallState::NotInstalled; // Whether this bundle is up to date
 	bool bIsCached = false; // Whether this bundle should be cached if this source has a bundle cache
+	// TODO: this appears to be unused
 	bool bUseChunkDBs = false; // Whether this bundle should attempt to use ChunkDBs at all
 };
 
