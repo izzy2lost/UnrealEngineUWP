@@ -364,6 +364,7 @@ public:
 	int GetNumInputs() const { return InputValues.Num(); }
 	FModuleInputValue GetValueAtIndex(int Index) const { return InputValues[Index]; }
 	void SetValueAtIndex(int Index, const FModuleInputValue& InValue) { InputValues[Index] = InValue; }
+	void MergeValueAtIndex(int Index, const FModuleInputValue& InValue) { InputValues[Index].Merge(InValue); }
 
 	FModuleInputContainer& operator=(const FModuleInputContainer& Other)
 	{
@@ -379,6 +380,8 @@ public:
 	}
 
 	void Initialize(TArray<FModuleInputSetup>& SetupData, FInputNameMap& NameMapOut);
+
+	void ZeroValues();
 
 	void Serialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess);
 
@@ -410,6 +413,7 @@ public:
 	}
 
 	void SetValue(const FName& InName, const FModuleInputValue& InValue);
+	void MergeValue(const FName& InName, const FModuleInputValue& InValue);
 	FModuleInputValue GetValue(const FName& InName) const;
 	float GetMagnitude(const FName& InName) const;
 	bool InputsNonZero() const;
@@ -417,4 +421,24 @@ public:
 	const FInputNameMap& NameMap;			// per vehicle
 	FModuleInputContainer& ValueContainer;	// per vehicle instance
 };
+
+UCLASS(Abstract, BlueprintType, Blueprintable, EditInlineNew)
+class CHAOSVEHICLESCORE_API UVehicleInputProducerBase : public UClass
+{
+	GENERATED_BODY()
+	
+public:
+	using FInputNameMap = TMap<FName, int>;
+
+	/* initialize the input buffer container(s) */
+	virtual void InitializeContainer(TArray<FModuleInputSetup>& SetupData, FInputNameMap& NameMapOut) {}
+
+	/** capture input at game thread frequency */
+	virtual void BufferInput(const FInputNameMap& InNameMap, const FName InName, const FModuleInputValue& InValue) {}
+
+	/** produce input for PT simulation at PT frequency */
+	virtual void ProduceInput(int32 PhysicsStep, int32 NumSteps, const FInputNameMap& InNameMap, FModuleInputContainer& InOutContainer) {}
+};
+
+
 

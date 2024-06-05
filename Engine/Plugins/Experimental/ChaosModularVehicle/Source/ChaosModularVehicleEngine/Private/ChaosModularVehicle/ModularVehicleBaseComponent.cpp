@@ -5,6 +5,7 @@
 #include "ChaosModularVehicle/VehicleSimBaseComponent.h"
 #include "ChaosModularVehicle/ModularVehicleDefaultAsyncInput.h"
 #include "ChaosModularVehicle/ModularVehicleAnimationInstance.h"
+#include "ChaosModularVehicle/InputProducer.h"
 #include "Engine/Engine.h"
 #include "Engine/Canvas.h"
 #include "Engine/OverlapResult.h"
@@ -66,6 +67,8 @@ UModularVehicleBaseComponent::UModularVehicleBaseComponent(const FObjectInitiali
 	}
 
 	bIsLocallyControlled = false;
+
+	InputProducerClass = UVehicleDefaultInputProducer::StaticClass();
 }
 
 UModularVehicleBaseComponent::~UModularVehicleBaseComponent()
@@ -110,42 +113,55 @@ bool UModularVehicleBaseComponent::IsLocallyControlled() const
 	return false;
 }
 
-void UModularVehicleBaseComponent::GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration)
+void UModularVehicleBaseComponent::ProduceInput(int32 PhysicsStep, int32 NumSteps)
 {
-	for (const FModuleInputSetup& InputSetup : CombinedInputConfiguration)
+	if (InputProducer)
 	{
-		if (InputSetup.InputModifierClass != nullptr)
-		{
-			UDefaultModularVehicleInputModifier* NewPtr = NewObject<UDefaultModularVehicleInputModifier>(this, InputSetup.InputModifierClass);
-			InputModifiers.Add(NewPtr);
-		}
-		else
-		{
-			InputModifiers.Add(nullptr);
-		}
+		InputProducer->ProduceInput(PhysicsStep, NumSteps, InputNameMap, InputsContainer);
 	}
 }
 
-void UModularVehicleBaseComponent::ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue)
-{
-	check(InputModifiers.Num() == InputsContainer.GetNumInputs());
-	for (int I = 0; I < InputsContainer.GetNumInputs(); I++)
-	{
-		if (InputModifiers[I] != nullptr)
-		{
-			InputsContainer.SetValueAtIndex(I, InputModifiers[I]->InterpInputValue(DeltaTime, InputsContainer.GetValueAtIndex(I), RawValue.GetValueAtIndex(I)));
-		}
-		else
-		{
-			InputsContainer.SetValueAtIndex(I, RawValue.GetValueAtIndex(I));
-		}
-	}
-}
+//void UModularVehicleBaseComponent::GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration)
+//{
+//	for (const FModuleInputSetup& InputSetup : CombinedInputConfiguration)
+//	{
+//		if (InputSetup.InputModifierClass != nullptr)
+//		{
+//			UDefaultModularVehicleInputModifier* NewPtr = NewObject<UDefaultModularVehicleInputModifier>(this, InputSetup.InputModifierClass);
+//			InputModifiers.Add(NewPtr);
+//		}
+//		else
+//		{
+//			InputModifiers.Add(nullptr);
+//		}
+//	}
+//}
+
+//void UModularVehicleBaseComponent::ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue)
+//{
+//	check(InputModifiers.Num() == InputsContainer.GetNumInputs());
+//	for (int I = 0; I < InputsContainer.GetNumInputs(); I++)
+//	{
+//		if (InputModifiers[I] != nullptr)
+//		{
+//			InputsContainer.SetValueAtIndex(I, InputModifiers[I]->InterpInputValue(DeltaTime, InputsContainer.GetValueAtIndex(I), RawValue.GetValueAtIndex(I)));
+//		}
+//		else
+//		{
+//			InputsContainer.SetValueAtIndex(I, RawValue.GetValueAtIndex(I));
+//		}
+//	}
+//}
 
 
 void UModularVehicleBaseComponent::OnCreatePhysicsState()
 {
 	Super::OnCreatePhysicsState();
+
+	if (InputProducerClass)
+	{
+		InputProducer = InputProducerClass->GetDefaultObject<UVehicleInputProducerBase>();
+	}
 
 	if (ClusterUnionComponent)
 	{
@@ -368,13 +384,19 @@ void UModularVehicleBaseComponent::BeginPlay()
 	// at that time and AssimilateComponentInputs will not find any controls in the component hierarchy
 	TArray<FModuleInputSetup> CombinedInputConfiguration;
 	AssimilateComponentInputs(CombinedInputConfiguration);
-	RawInputsContainer.Initialize(CombinedInputConfiguration, InputNameMap);
-	InputsContainer = RawInputsContainer;
+
+	if (InputProducer)
+	{
+		InputProducer->InitializeContainer(CombinedInputConfiguration, InputNameMap);
+	}
+
+	InputsContainer.Initialize(CombinedInputConfiguration, InputNameMap);
+
 	if (!bUsingNetworkPhysicsPrediction)
 	{
 		ReplicatedState.Container = InputsContainer;
 	}
-	GenerateInputModifiers(CombinedInputConfiguration);
+	// #TODO reinstate ? GenerateInputModifiers(CombinedInputConfiguration);
 
 	VehicleSimulationPT->SetInputMappings(InputNameMap);
 
@@ -465,7 +487,7 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 	// Should we remove input instead of relying on replicated state in that case?
 	if (bProcessLocally && PVehicleOutput)
 	{
-		ApplyInputModifiers(DeltaTime, RawInputsContainer);
+		//ApplyInputModifiers(DeltaTime, RawInputsContainer); #TODO: If we put this back where does it go
 
 		if (!bUsingNetworkPhysicsPrediction)
 		{
@@ -1054,52 +1076,73 @@ void UModularVehicleBaseComponent::AddGeometryCollectionsFromOwnedActor()
 	}
 }
 
+void UModularVehicleBaseComponent::SetInputProducerClass(TSubclassOf<UVehicleInputProducerBase> InInputProducerClass)
+{
+	InputProducerClass = InInputProducerClass;
+}
+
 void UModularVehicleBaseComponent::SetInputBool(const FName Name, const bool Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInputAxis1D(const FName Name, const double Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInputAxis2D(const FName Name, const FVector2D Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInputAxis3D(const FName Name, const FVector Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInput(const FName& Name, const bool Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInput(const FName& Name, const double Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector2D& Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector& Value)
 {
-	FInputInterface Inputs(InputNameMap, RawInputsContainer);
-	Inputs.SetValue(Name, Value);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
 void UModularVehicleBaseComponent::SetReverseInput(bool Reverse)
@@ -1141,12 +1184,11 @@ void UModularVehicleBaseComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, con
 	// draw input values
 	Canvas->SetDrawColor(FColor::White);
 
-	for (int I = 0; I < RawInputsContainer.GetNumInputs(); I++)
+	for (int I = 0; I < InputsContainer.GetNumInputs(); I++)
 	{
-		float Raw = RawInputsContainer.GetValueAtIndex(I).GetMagnitude();
 		float Interpolated = InputsContainer.GetValueAtIndex(I).GetMagnitude();
 
-		YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s Raw  (%3.2f) %3.2f"), *InputConfig[I].Name.ToString(), Raw, Interpolated), 4, YPos);
+		YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s %3.2f"), *InputConfig[I].Name.ToString(), Interpolated), 4, YPos);
 	}
 
 	YPos += 10;

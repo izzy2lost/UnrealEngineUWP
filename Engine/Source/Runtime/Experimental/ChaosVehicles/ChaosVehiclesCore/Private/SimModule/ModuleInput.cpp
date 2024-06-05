@@ -202,6 +202,14 @@ void FModuleInputContainer::Initialize(TArray<FModuleInputSetup>& SetupData, FIn
 	}
 }
 
+void FModuleInputContainer::ZeroValues()
+{
+	for (int I = 0; I < InputValues.Num(); I++)
+	{
+		InputValues[I].Reset();
+	}
+}
+
 void FModuleInputContainer::Serialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
 	bOutSuccess = true;
@@ -268,6 +276,19 @@ void FInputInterface::SetValue(const FName& InName, const FModuleInputValue& InV
 		UE_LOG(LogModularInput, Warning, TEXT("Trying to set the value of an undefined control input %s"), *InName.ToString());
 	}
 }
+
+void FInputInterface::MergeValue(const FName& InName, const FModuleInputValue& InValue)
+{
+	if (const int* Index = NameMap.Find(InName))
+	{
+		ValueContainer.MergeValueAtIndex(*Index, InValue);
+	}
+	else
+	{
+		UE_LOG(LogModularInput, Warning, TEXT("Trying to set the value of an undefined control input %s"), *InName.ToString());
+	}
+}
+
 
 FModuleInputValue FInputInterface::GetValue(const FName& InName) const
 {

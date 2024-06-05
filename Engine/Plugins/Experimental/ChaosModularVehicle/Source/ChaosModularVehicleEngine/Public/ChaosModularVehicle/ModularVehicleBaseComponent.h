@@ -5,6 +5,7 @@
 #include "ChaosModularVehicle/ChaosSimModuleManagerAsyncCallback.h"
 #include "SimModule/SimModulesInclude.h"
 #include "SimModule/ModuleInput.h"
+#include "ChaosModularVehicle/InputProducer.h"
 #include "ChaosModularVehicle/ModularVehicleSimulationCU.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Components/PrimitiveComponent.h"
@@ -120,6 +121,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	void ProduceInput(int32 PhysicsStep, int32 NumSteps);
+
 	void CreateAssociatedSimComponents(UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
 
 	void PreTickGT(float DeltaTime);
@@ -174,13 +177,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetLocallyControlled(bool bLocallyControlledIn);
 
+	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
+	TSubclassOf<UVehicleInputProducerBase> InputProducerClass;
+
 	// CONTROLS
 	// 
+	//void SetInput(const FName& Name, const FModuleInputValue& Value);
 	void SetInput(const FName& Name, const bool Value);
 	void SetInput(const FName& Name, const double Value);
 	void SetInput(const FName& Name, const FVector2D& Value);
 	void SetInput(const FName& Name, const FVector& Value);
 
+	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
+	void SetInputProducerClass(TSubclassOf<UVehicleInputProducerBase> InInputProducerClass);
 
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetInputBool(const FName Name, const bool Value);
@@ -257,8 +266,8 @@ protected:
 	void AddGeometryCollectionsFromOwnedActor();
 	void SetupSkeletalAnimationStructure();
 	void AssimilateComponentInputs(TArray<FModuleInputSetup>& OutCombinedInputs);
-	virtual void GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration);
-	virtual void ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue);
+	// #TODO reinstate? virtual void GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration);
+	// #TODO reinstate? virtual void ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue);
 
 
 	void ActionTreeUpdates(Chaos::FSimTreeUpdates* NextTreeUpdates);
@@ -363,7 +372,7 @@ private:
 	TArray<FModuleAnimationSetup> ModuleAnimationSetups;
 
 	FInputNameMap InputNameMap;	// map input name to input container array index
-	FModuleInputContainer RawInputsContainer;
+	TObjectPtr<UVehicleInputProducerBase> InputProducer = nullptr;
 	FModuleInputContainer InputsContainer;
 
 };
