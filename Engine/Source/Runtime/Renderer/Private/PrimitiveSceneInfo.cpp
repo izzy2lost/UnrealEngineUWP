@@ -1267,7 +1267,7 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* Sc
 		}
 		else
 		{
-			InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(CachedRayTracingInstance, *SceneProxy, nullptr);
+			InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(CachedRayTracingInstance, *SceneProxy);
 		}
 
 		SceneInfo->CachedRayTracingInstance.Mask = InstanceMaskAndFlags.Mask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
