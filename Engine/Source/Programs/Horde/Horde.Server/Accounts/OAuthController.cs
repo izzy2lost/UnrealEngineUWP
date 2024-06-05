@@ -442,7 +442,12 @@ namespace Horde.Server.Accounts
 			payload[ClaimTypes.Name] = subject.Name;
 			payload[ClaimTypes.Email] = subject.Email;
 			payload[HordeClaimTypes.AccountId] = subject.Id.ToString();
-
+			
+			foreach (IUserClaim claim in subject.Claims)
+			{
+				payload[claim.Type] = claim.Value;
+			}
+			
 			return CreateAndSignJwt(globals, payload);
 		}
 
