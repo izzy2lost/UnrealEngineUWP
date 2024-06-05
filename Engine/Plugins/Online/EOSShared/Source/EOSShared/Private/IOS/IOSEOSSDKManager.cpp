@@ -3,20 +3,12 @@
 
 #if WITH_EOS_SDK
 
-#include "IOSAppDelegate.h"
 #include "Misc/CoreDelegates.h"
-
-static void OnUrlOpened(UIApplication* application, NSURL* url, NSString* sourceApplication, id annotation)
-{
-	// TODO: This is based on a prototype fix on EOS SDK. Once the fix is properly submitted to EOS SDK we should update it
-	[[NSNotificationCenter defaultCenter] postNotificationName:@"EOSSDKAuthCallbackNotification" object:nil userInfo: @{@"EOSSDKAuthCallbackURLKey" : url}];
-}
 
 FIOSEOSSDKManager::FIOSEOSSDKManager()
 {
 	FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddRaw(this, &FIOSEOSSDKManager::OnApplicationStatusChanged, EOS_EApplicationStatus::EOS_AS_Foreground);
 	FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddRaw(this, &FIOSEOSSDKManager::OnApplicationStatusChanged, EOS_EApplicationStatus::EOS_AS_BackgroundSuspended);
-	FIOSCoreDelegates::OnOpenURL.AddStatic(&OnUrlOpened);
 }
 
 FIOSEOSSDKManager::~FIOSEOSSDKManager()
