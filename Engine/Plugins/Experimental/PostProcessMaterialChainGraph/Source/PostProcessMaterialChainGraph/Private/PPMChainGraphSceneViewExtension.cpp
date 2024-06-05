@@ -15,7 +15,6 @@
 #include "PPMChainGraphWorldSubsystem.h"
 #include "PPMChainGraph.h"
 #include "RHI.h"
-#include "Runtime/Renderer/Private/SceneTextureParameters.h"
 #include "ScreenPass.h"
 #include "Engine/Texture2D.h"
 #include "TextureResource.h"
