@@ -56,10 +56,18 @@ public:
 	virtual void UnregisterFilesDeleted(FDelegateHandle InHandle) override;
 	virtual const FSourceControlFilesDeletedDelegate& GetOnFilesDeleted() const override;
 
-	virtual void RegisterSourceControlProjectDirDelegate(const FSourceControlProjectDirDelegate& SourceControlProjectDirDelegate) override;
-	virtual void UnregisterSourceControlProjectDirDelegate() override;
+	virtual void RegisterCustomProjectsDelegate(FSourceControlCustomProjectsDelegate InCustomProjectsDelegate) override;
+	virtual void UnregisterCustomProjectsDelegate() override;
+	virtual TArray<FSourceControlProjectInfo> GetCustomProjects() const override;
 	virtual FString GetSourceControlProjectDir() const override;
+
+	UE_DEPRECATED(5.5, "Use RegisterCustomProjectsDelegate instead.")
+	virtual void RegisterSourceControlProjectDirDelegate(const FSourceControlProjectDirDelegate& SourceControlProjectDirDelegate) override;
+	UE_DEPRECATED(5.5, "Use UnregisterCustomProjectsDelegate instead.")
+	virtual void UnregisterSourceControlProjectDirDelegate() override;
+	UE_DEPRECATED(5.5, "Use !GetCustomProjects().IsEmpty() instead.")
 	virtual bool UsesCustomProjectDir() const override;
+
 	virtual FSourceControlFileStatusMonitor& GetSourceControlFileStatusMonitor() override;
 
 	/** Save the settings to the ini file */
@@ -160,6 +168,9 @@ private:
 	/** Used to cache source controlled AssetData information */
 	FSourceControlAssetDataCache AssetDataCache;
 
-	/** Delegate used to return the current project base directory */
+	UE_DEPRECATED(5.5, "Use CustomProjectsDelegate instead.")
 	FSourceControlProjectDirDelegate SourceControlProjectDirDelegate;
+
+	/** Delegate used to return information on custom projects under source control */
+	FSourceControlCustomProjectsDelegate CustomProjectsDelegate;
 };

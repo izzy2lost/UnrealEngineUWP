@@ -541,6 +541,46 @@ const FSourceControlFilesDeletedDelegate& FSourceControlModule::GetOnFilesDelete
 	return OnFilesDeleted;
 }
 
+void FSourceControlModule::RegisterCustomProjectsDelegate(FSourceControlCustomProjectsDelegate InCustomProjectsDelegate)
+{
+	CustomProjectsDelegate = MoveTemp(InCustomProjectsDelegate);
+}
+
+void FSourceControlModule::UnregisterCustomProjectsDelegate()
+{
+	CustomProjectsDelegate = FSourceControlCustomProjectsDelegate();
+}
+
+TArray<FSourceControlProjectInfo> FSourceControlModule::GetCustomProjects() const
+{
+	return CustomProjectsDelegate.IsBound() ? CustomProjectsDelegate.Execute() : TArray<FSourceControlProjectInfo>();
+}
+
+FString FSourceControlModule::GetSourceControlProjectDir() const
+{
+	{
+		TArray<FSourceControlProjectInfo> CustomProjects = GetCustomProjects();
+		if (!CustomProjects.IsEmpty())
+		{
+			return CustomProjects[0].ProjectDirectory;
+		}
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (SourceControlProjectDirDelegate.IsBound())
+	{
+		FString ProjectDir = SourceControlProjectDirDelegate.Execute();
+		if (!ProjectDir.IsEmpty())
+		{
+			return ProjectDir;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	return FPaths::ProjectDir();
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FSourceControlModule::RegisterSourceControlProjectDirDelegate(const FSourceControlProjectDirDelegate& InSourceControlProjectDirDelegate)
 {
 	SourceControlProjectDirDelegate = InSourceControlProjectDirDelegate;
@@ -551,22 +591,17 @@ void FSourceControlModule::UnregisterSourceControlProjectDirDelegate()
 	SourceControlProjectDirDelegate = FSourceControlProjectDirDelegate();
 }
 
-FString FSourceControlModule::GetSourceControlProjectDir() const
-{
-	if (SourceControlProjectDirDelegate.IsBound())
-	{
-		FString ProjectDir = SourceControlProjectDirDelegate.Execute();
-		if (!ProjectDir.IsEmpty())
-		{
-			return ProjectDir;
-		}
-	}
-	return FPaths::ProjectDir();
-}
-
 bool FSourceControlModule::UsesCustomProjectDir() const
 {
-	if (SourceControlProjectDirDelegate.IsBound())
+	if (CustomProjectsDelegate.IsBound())
+	{
+		TArray<FSourceControlProjectInfo> Projects = CustomProjectsDelegate.Execute();
+		if (!Projects.IsEmpty())
+		{
+			return true;
+		}
+	}
+	else if (SourceControlProjectDirDelegate.IsBound())
 	{
 		FString ProjectDir = SourceControlProjectDirDelegate.Execute();
 		if (!ProjectDir.IsEmpty())
@@ -576,6 +611,7 @@ bool FSourceControlModule::UsesCustomProjectDir() const
 	}
 	return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FSourceControlFileStatusMonitor& FSourceControlModule::GetSourceControlFileStatusMonitor()
 {

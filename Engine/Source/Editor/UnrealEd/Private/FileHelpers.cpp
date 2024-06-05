@@ -4954,11 +4954,17 @@ void FEditorFileUtils::LoadDefaultMapAtStartup()
 
 void FEditorFileUtils::FindAllPackageFiles(TArray<FString>& OutPackages)
 {
-	FString SourceControlProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
-	if (ISourceControlModule::Get().UsesCustomProjectDir())
+	// Check for custom projects
 	{
-		FPackageName::FindPackagesInDirectory(OutPackages, SourceControlProjectDir);
-		return;
+		TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+		if (!CustomProjects.IsEmpty())
+		{
+			for (const FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+			{
+				FPackageName::FindPackagesInDirectory(OutPackages, ProjectInfo.ProjectDirectory);
+			}
+			return;
+		}
 	}
 	
 #if UE_BUILD_SHIPPING
@@ -4984,6 +4990,7 @@ void FEditorFileUtils::FindAllPackageFiles(TArray<FString>& OutPackages)
 void FEditorFileUtils::FindAllSubmittablePackageFiles(TMap<FString, FSourceControlStatePtr>& OutPackages, const bool bIncludeMaps)
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+	const bool bCustomProjects = !ISourceControlModule::Get().GetCustomProjects().IsEmpty();
 
 	TArray<FString> Packages;
 	FEditorFileUtils::FindAllPackageFiles(Packages);
@@ -5006,7 +5013,7 @@ void FEditorFileUtils::FindAllSubmittablePackageFiles(TMap<FString, FSourceContr
 		FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(FPaths::ConvertRelativePathToFull(Filename), EStateCacheUsage::Use);
 
 		// Only include non-map packages that are currently checked out or packages not under source control
-		if (ISourceControlModule::Get().UsesCustomProjectDir())
+		if (bCustomProjects)
 		{
 			if (SourceControlState.IsValid() &&
 				(SourceControlState->CanCheckIn() || (!SourceControlState->IsSourceControlled() && SourceControlState->CanAdd())) &&
@@ -5033,17 +5040,30 @@ void FEditorFileUtils::FindAllSubmittableProjectFiles(TMap<FString, FSourceContr
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 
-	if (ISourceControlModule::Get().UsesCustomProjectDir())
+	TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+	if (CustomProjects.IsEmpty())
 	{
-		const FString SCCProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
+		// Handle just the project file
+		FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()), EStateCacheUsage::Use);
 
-		// Handle non-package files in the project directory
-		TArray<FSourceControlStateRef> SourceControlStates = SourceControlProvider.GetCachedStateByPredicate(
-			[SCCProjectDir](const FSourceControlStateRef& SourceControlState)
-			{
-				return FPaths::IsUnderDirectory(SourceControlState->GetFilename(), SCCProjectDir);
-			}
-		);
+		if (SourceControlState.IsValid() && SourceControlState->IsCurrent() &&
+			(SourceControlState->CanCheckIn() || (!SourceControlState->IsSourceControlled() && SourceControlState->CanAdd())))
+		{
+			OutProjectFiles.Add(FPaths::GetProjectFilePath(), MoveTemp(SourceControlState));
+		}
+	}
+	else
+	{
+		TArray<FSourceControlStateRef> SourceControlStates;
+		for (const FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+		{
+			// Handle non-package files in the project directory
+			SourceControlStates.Append(SourceControlProvider.GetCachedStateByPredicate(
+				[&ProjectInfo](const FSourceControlStateRef& SourceControlState)
+				{
+					return FPaths::IsUnderDirectory(SourceControlState->GetFilename(), ProjectInfo.ProjectDirectory);
+				}));
+		}
 
 		OutProjectFiles.Reserve(SourceControlStates.Num());
 		for (FSourceControlStateRef& SourceControlState : SourceControlStates)
@@ -5058,17 +5078,6 @@ void FEditorFileUtils::FindAllSubmittableProjectFiles(TMap<FString, FSourceContr
 					OutProjectFiles.Add(Filename, MoveTemp(SourceControlState));
 				}
 			}
-		}
-	}
-	else
-	{
-		// Handle just the project file
-		FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()), EStateCacheUsage::Use);
-
-		if (SourceControlState.IsValid() && SourceControlState->IsCurrent() &&
-			(SourceControlState->CanCheckIn() || (!SourceControlState->IsSourceControlled() && SourceControlState->CanAdd())))
-		{
-			OutProjectFiles.Add(FPaths::GetProjectFilePath(), MoveTemp(SourceControlState));
 		}
 	}
 }

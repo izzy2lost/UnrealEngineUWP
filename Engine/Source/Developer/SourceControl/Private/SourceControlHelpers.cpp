@@ -1204,27 +1204,8 @@ TArray<FString> USourceControlHelpers::GetSourceControlLocations(const bool bCon
 {
 	TArray<FString> SourceControlLocations;
 
-	if (ISourceControlModule::Get().UsesCustomProjectDir())
-	{
-		FString ProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
-
-		TArray<FString> RootPaths;
-		FPackageName::QueryRootContentPaths(RootPaths);
-		for (const FString& RootPath : RootPaths)
-		{
-			const FString RootPathOnDisk = FPackageName::LongPackageNameToFilename(RootPath);
-			if (FPaths::IsUnderDirectory(RootPathOnDisk, ProjectDir))
-			{
-				SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(RootPathOnDisk));
-			}
-		}
-
-		if (!bContentOnly)
-		{
-			SourceControlLocations.Add(ProjectDir);
-		}
-	}
-	else
+	TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+	if (CustomProjects.IsEmpty())
 	{
 		TArray<FString> RootPaths;
 		FPackageName::QueryRootContentPaths(RootPaths);
@@ -1233,15 +1214,27 @@ TArray<FString> USourceControlHelpers::GetSourceControlLocations(const bool bCon
 			const FString RootPathOnDisk = FPackageName::LongPackageNameToFilename(RootPath);
 			SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(RootPathOnDisk));
 		}
-		
+
 		if (!bContentOnly)
 		{
 			SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
 			SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
 		}
 	}
-
-
+	else
+	{
+		for (FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+		{
+			for (FString& ContentDir : ProjectInfo.ContentDirectories)
+			{
+				SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(MoveTemp(ContentDir)));
+			}
+			if (!bContentOnly)
+			{
+				SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(MoveTemp(ProjectInfo.ProjectDirectory)));
+			}
+		}
+	}
 
 	return SourceControlLocations;
 }

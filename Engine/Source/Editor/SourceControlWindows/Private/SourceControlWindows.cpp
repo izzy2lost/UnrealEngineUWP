@@ -369,7 +369,7 @@ bool FSourceControlWindows::PromptForCheckin(FCheckinResultInfo& OutResultInfo, 
 	{
 		SourceControlHelpers::RevertUnchangedFiles(SourceControlProvider, Description.FilesForSubmit);
 
-		if (!ISourceControlModule::Get().UsesCustomProjectDir())
+		if (ISourceControlModule::Get().GetCustomProjects().IsEmpty())
 		{
 			// Make sure all files are still checked out
 			for (int32 VerifyIndex = Description.FilesForSubmit.Num() - 1; VerifyIndex >= 0; --VerifyIndex)
