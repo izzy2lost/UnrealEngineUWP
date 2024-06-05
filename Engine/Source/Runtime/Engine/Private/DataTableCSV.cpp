@@ -165,9 +165,14 @@ bool FDataTableImporterCSV::ReadTable()
 	
 	TArray<FProperty*> ColumnProps = DataTable->GetTablePropertyArray(Rows[0], DataTable->RowStruct, ImportProblems, KeyColumn);
 
-	// Empty existing data
-	DataTable->EmptyTable();
+	// Empty existing data if don't want to keep existing values
+	if (!DataTable->bPreserveExistingValues)
+	{
+		DataTable->EmptyTable();
+	}
 
+	TSet<FName> NewlyAddedRows;
+	
 	// Iterate over rows
 	for(int32 RowIdx=1; RowIdx<Rows.Num(); RowIdx++)
 	{
@@ -199,38 +204,53 @@ bool FDataTableImporterCSV::ReadTable()
 			}
 			else
 			{
-			ImportProblems.Add(FString::Printf(TEXT("Row '%d' missing a name."), RowIdx));
+				ImportProblems.Add(FString::Printf(TEXT("Row '%d' missing a name."), RowIdx));
 			}
 
 			continue;
 		}
-
-		// Check its not a duplicate
-		if(!DataTable->AllowDuplicateRowsOnImport() && DataTable->GetRowMap().Find(RowName) != nullptr)
+		
+		uint8* ExistingRowData = DataTable->bPreserveExistingValues ? DataTable->FindRowUnchecked(RowName) : nullptr;
+		
+		if (!DataTable->AllowDuplicateRowsOnImport())
 		{
-			ImportProblems.Add(FString::Printf(TEXT("Duplicate row name '%s'."), *RowName.ToString()));
-			continue;
+			bool bRowNameAlreadyAdded;
+			NewlyAddedRows.Add(RowName, &bRowNameAlreadyAdded);
+			if (bRowNameAlreadyAdded)
+			{
+				ImportProblems.Add(FString::Printf(TEXT("Duplicate row name '%s'."), *RowName.ToString()));
+				continue;
+			}
 		}
-
+		
 		// Allocate data to store information, using UScriptStruct to know its size
-		uint8* RowData = (uint8*)FMemory::Malloc(DataTable->RowStruct->GetStructureSize());
-		DataTable->RowStruct->InitializeStruct(RowData);
-		// And be sure to call DestroyScriptStruct later
-
-		// Add to row map
-		DataTable->AddRowInternal(RowName, RowData);
-
+		uint8* RowData = ExistingRowData ? ExistingRowData : (uint8*)FMemory::Malloc(DataTable->RowStruct->GetStructureSize());
+		
+		// Add to row map if we don't already have existing row because we are preserve existing values
+		if (!ExistingRowData)
+		{
+			DataTable->RowStruct->InitializeStruct(RowData);
+			DataTable->AddRowInternal(RowName, RowData);
+		}
+		
 		// Now iterate over cells (skipping first cell unless we had an explicit name)
-		for(int32 CellIdx = 0; CellIdx < Cells.Num(); CellIdx++)
+		for (int32 CellIdx = 0; CellIdx < Cells.Num(); CellIdx++)
 		{
 			if (CellIdx == KeyColumn)
-		{
+			{
 				continue;
 			}
 
 			// Try and assign string to data using the column property
 			FProperty* ColumnProp = ColumnProps[CellIdx];
 			const FString CellValue = Cells[CellIdx];
+
+			// If we have no value in the csv for this specific entry then do nothing
+			if (DataTable->bPreserveExistingValues && CellValue.IsEmpty())
+			{
+				continue;
+			}
+			
 			FString Error = DataTableUtils::AssignStringToProperty(CellValue, ColumnProp, RowData);
 
 			// If we failed, output a problem string

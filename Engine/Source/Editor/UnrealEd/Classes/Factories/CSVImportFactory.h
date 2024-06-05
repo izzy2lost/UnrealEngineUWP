@@ -94,6 +94,9 @@ private:
 
 	bool bImportAll = false;
 
+	// Function to Copy DataTable row to avoid dangling pointers
+	TUniquePtr<uint8[]> CopyRow(const uint8* RowData, const UScriptStruct* RowStruct) const;
+
 public:
 	UPROPERTY(BlueprintReadWrite, Category="Automation")
 	FCSVImportSettings AutomatedImportSettings;

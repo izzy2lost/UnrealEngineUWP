@@ -73,6 +73,7 @@ UDataTable::UDataTable(const FObjectInitializer& ObjectInitializer)
 	bIgnoreExtraFields = false;
 	bIgnoreMissingFields = false;
 	bStripFromClientBuilds = false;
+	bPreserveExistingValues = false;
 
 #if WITH_EDITORONLY_DATA
 	{ static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(UDataTable::StaticClass(), &GatherDataTableForLocalization); }
@@ -656,6 +657,7 @@ bool UDataTable::CopyImportOptions(UDataTable* SourceTable)
 	bStripFromClientBuilds = SourceTable->bStripFromClientBuilds;
 	bIgnoreExtraFields = SourceTable->bIgnoreExtraFields;
 	bIgnoreMissingFields = SourceTable->bIgnoreMissingFields;
+	bPreserveExistingValues = SourceTable->bPreserveExistingValues;
 	ImportKeyField = SourceTable->ImportKeyField;
 	RowStruct = SourceTable->RowStruct;
 

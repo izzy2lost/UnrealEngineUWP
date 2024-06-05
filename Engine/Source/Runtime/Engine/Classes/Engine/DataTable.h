@@ -118,6 +118,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = ImportOptions)
 	uint8 bIgnoreMissingFields : 1;
 
+	/** Set to true to preserve existing values for any fields that are expected but missing in the CSV file. If false, missing fields will be populated with default values. */
+	UPROPERTY(EditAnywhere, Category = ImportOptions)
+	uint8 bPreserveExistingValues : 1;
+
 	/** Explicit field in import data to use as key. If this is empty it uses Name for JSON and the first field found for CSV */
 	UPROPERTY(EditAnywhere, Category=ImportOptions)
 	FString ImportKeyField;
