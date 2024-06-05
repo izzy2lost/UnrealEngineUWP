@@ -34,9 +34,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.TimeUnit;
 
 public class PSOProgramServiceAccessor
 {
@@ -160,6 +163,9 @@ public class PSOProgramServiceAccessor
 
 	static HandlerThread PSOProgramAccessorHandlerThread;
 
+	static AtomicBoolean bIsReady = new AtomicBoolean(false);
+	static Semaphore MaxLiveRequestsSemaphore;
+	static int MaxLiveRequestPermitCount = 0;
 	static Messenger mReplyToMe;
 
 	final AtomicInteger LastServiceIdx = new AtomicInteger(0);
@@ -220,6 +226,10 @@ public class PSOProgramServiceAccessor
 				PSOProgramAccessorHandlerThread.start();
 				mReplyToMe = new Messenger(new IncomingHandler(PSOProgramAccessorHandlerThread.getLooper()));
 
+				// rate limit the total number of inflight PSO compile requests. shut down waits for all jobs to complete and this reduces the potential wait time.
+				// calling threads wait for a request permit to become available or shutdown is issued.
+				MaxLiveRequestPermitCount = numServices * 3;
+				MaxLiveRequestsSemaphore = new Semaphore(MaxLiveRequestPermitCount); 
 				if(bUseVulkan)
 				{
 					bSuccess = _PSOProgramServiceAccessor.StartVulkanServices(numServices);
@@ -243,6 +253,7 @@ public class PSOProgramServiceAccessor
 		{
 			AndroidThunkJava_StopRemoteProgramLink();
 		}
+		bIsReady.set(bSuccess);
 		return bSuccess;
 	}
 
@@ -250,6 +261,9 @@ public class PSOProgramServiceAccessor
 	{
 		if( _PSOProgramServiceAccessor != null)
 		{
+			bIsReady.set(false);
+			// acquire all of the requests, this causes us to wait for all in progress compiles.
+			MaxLiveRequestsSemaphore.acquireUninterruptibly(MaxLiveRequestPermitCount);
 			try
 			{
 				ProgramServiceAccessorlock.writeLock().lock();
@@ -350,23 +364,41 @@ public class PSOProgramServiceAccessor
 	}
 
 	static final private Object ProgramLinkLock = new Object();
-	public static JNIProgramLinkResponse AndroidThunkJava_OGLRemoteProgramLink(byte[] ContextData, String VertexShader, String PixelShader, String ComputeShader, boolean bAllowTimeOuts)
+	public static JNIProgramLinkResponse AndroidThunkJava_OGLRemoteProgramLink(byte[] ContextData, long PriorityInfo, String VertexShader, String PixelShader, String ComputeShader, boolean bAllowTimeOuts)
 	{
-		if(GameActivity.IsActivityPaused())
+		while( bIsReady.get())
 		{
-			// one at a time when backgrounded.
-			synchronized (ProgramLinkLock)
+			try
 			{
-				return OGLRemoteProgramLink_internal(ContextData, VertexShader, PixelShader, ComputeShader, bAllowTimeOuts);
+				if( MaxLiveRequestsSemaphore.tryAcquire(1, 100, TimeUnit.MILLISECONDS) )
+				{
+					JNIProgramLinkResponse returnResponse = null;
+					if(GameActivity.IsActivityPaused())
+					{
+						// one at a time when backgrounded.
+						synchronized (ProgramLinkLock)
+						{
+							returnResponse = OGLRemoteProgramLink_internal(ContextData, PriorityInfo, VertexShader, PixelShader, ComputeShader, bAllowTimeOuts);
+						}
+					}
+					else
+					{
+						returnResponse = OGLRemoteProgramLink_internal(ContextData, PriorityInfo, VertexShader, PixelShader, ComputeShader, bAllowTimeOuts);
+					}
+					MaxLiveRequestsSemaphore.release(1);
+					return returnResponse;
+				}
+			}
+			catch (InterruptedException e)
+			{
+				Log.error( "interrupted " + e);
 			}
 		}
-		else
-		{
-			return OGLRemoteProgramLink_internal(ContextData, VertexShader, PixelShader, ComputeShader, bAllowTimeOuts);
-		}
+		Log.error("Failed to compile PSO services not ready.");
+		return null;
 	}
 
-	private static JNIProgramLinkResponse OGLRemoteProgramLink_internal(byte[] ContextData, String VertexShader, String PixelShader, String ComputeShader, boolean bAllowTimeOuts)
+	private static JNIProgramLinkResponse OGLRemoteProgramLink_internal(byte[] ContextData, long PriorityInfo, String VertexShader, String PixelShader, String ComputeShader, boolean bAllowTimeOuts)
 	{
 		try
 		{
@@ -411,6 +443,8 @@ public class PSOProgramServiceAccessor
 			params.putByteArray(PSOProgramService.JobContext_Key, ContextData);
 
 			params.putInt(PSOProgramService.JobID_Key, ThisJobID);
+			params.putLong(PSOProgramService.Priority_Key, PriorityInfo);
+
 			msg.replyTo = mReplyToMe;
 
 			JobResponse pendingResponse = new JobResponse();
@@ -518,39 +552,76 @@ public class PSOProgramServiceAccessor
 		return null;
 	}
 
-	public static JNIProgramLinkResponse AndroidThunkJava_VKPSOGFXCompile(byte[] ContextData, byte[] VertexShader, byte[] PixelShader, byte[] PSOData, byte[] PSOCacheData, boolean bAllowTimeOuts)
+	public static JNIProgramLinkResponse AndroidThunkJava_VKPSOGFXCompile(byte[] ContextData, long PriorityInfo, byte[] VertexShader, byte[] PixelShader, byte[] PSOData, byte[] PSOCacheData, boolean bAllowTimeOuts)
 	{
-		if(GameActivity.IsActivityPaused())
+		while( bIsReady.get() )
 		{
-			// one at a time when backgrounded.
-			synchronized (ProgramLinkLock)
+			try
 			{
-				return VKPSOGFXCompile_internal(ContextData, VertexShader, PixelShader, PSOData, PSOCacheData, bAllowTimeOuts);
+				if( MaxLiveRequestsSemaphore.tryAcquire(1, 100, TimeUnit.MILLISECONDS) )
+				{
+					JNIProgramLinkResponse returnResponse = null;
+
+					if(GameActivity.IsActivityPaused())
+					{
+						// one at a time when backgrounded.
+						synchronized (ProgramLinkLock)
+						{
+							returnResponse = VKPSOGFXCompile_internal(ContextData, PriorityInfo, VertexShader, PixelShader, PSOData, PSOCacheData, bAllowTimeOuts);
+						}
+					}
+					else
+					{
+						returnResponse = VKPSOGFXCompile_internal(ContextData, PriorityInfo, VertexShader, PixelShader, PSOData, PSOCacheData, bAllowTimeOuts);
+					}
+					MaxLiveRequestsSemaphore.release(1);
+					return returnResponse;
+				}
+			}
+			catch (InterruptedException e)
+			{
+				Log.error( "interrupted " + e);
 			}
 		}
-		else
-		{
-			return VKPSOGFXCompile_internal(ContextData, VertexShader, PixelShader, PSOData, PSOCacheData, bAllowTimeOuts);
-		}
+		Log.error("Failed to compile PSO services not ready.");
+		return null;
 	}
 
-	public static JNIProgramLinkResponse AndroidThunkJava_VKPSOGFXCompileShm(byte[] ContextData, int SharedMemFD, long VertexShaderSize, long PixelShaderSize, long PSODataSize, long PSOCacheDataSize, boolean bAllowTimeOuts)
+	public static JNIProgramLinkResponse AndroidThunkJava_VKPSOGFXCompileShm(byte[] ContextData, long PriorityInfo, int SharedMemFD, long VertexShaderSize, long PixelShaderSize, long PSODataSize, long PSOCacheDataSize, boolean bAllowTimeOuts)
 	{
-		if(GameActivity.IsActivityPaused())
+		while( bIsReady.get() )
 		{
-			// one at a time when backgrounded.
-			synchronized (ProgramLinkLock)
+			try
 			{
-				return VKPSOGFXCompileShm_internal(ContextData, SharedMemFD, VertexShaderSize, PixelShaderSize, PSODataSize, PSOCacheDataSize, bAllowTimeOuts);
+				if( MaxLiveRequestsSemaphore.tryAcquire(1, 100, TimeUnit.MILLISECONDS) )
+				{
+					JNIProgramLinkResponse returnResponse = null;
+					if(GameActivity.IsActivityPaused())
+					{
+						// one at a time when backgrounded.
+						synchronized (ProgramLinkLock)
+						{
+							returnResponse = VKPSOGFXCompileShm_internal(ContextData, PriorityInfo, SharedMemFD, VertexShaderSize, PixelShaderSize, PSODataSize, PSOCacheDataSize, bAllowTimeOuts);
+						}
+					}
+					else
+					{
+						returnResponse = VKPSOGFXCompileShm_internal(ContextData, PriorityInfo, SharedMemFD, VertexShaderSize, PixelShaderSize, PSODataSize, PSOCacheDataSize, bAllowTimeOuts);
+					}
+					MaxLiveRequestsSemaphore.release(1);
+					return returnResponse;
+				}
+			}
+			catch (InterruptedException e)
+			{
+				Log.error( "interrupted " + e);
 			}
 		}
-		else
-		{
-			return VKPSOGFXCompileShm_internal(ContextData, SharedMemFD, VertexShaderSize, PixelShaderSize, PSODataSize, PSOCacheDataSize, bAllowTimeOuts);
-		}
+		Log.error("Failed to compile PSO services not ready.");
+		return null;
 	}
 
-	private static JNIProgramLinkResponse VKPSOGFXCompile_internal(byte[] ContextData, byte[] VertexShader, byte[] PixelShader, byte[] PSOData, byte[] PSOCacheData, boolean bAllowTimeOuts)
+	private static JNIProgramLinkResponse VKPSOGFXCompile_internal(byte[] ContextData, long PriorityInfo, byte[] VertexShader, byte[] PixelShader, byte[] PSOData, byte[] PSOCacheData, boolean bAllowTimeOuts)
 	{
 		try
 		{
@@ -591,6 +662,7 @@ public class PSOProgramServiceAccessor
 			params.putByteArray(PSOProgramService.JobContext_Key, ContextData);
 
 			params.putInt(PSOProgramService.JobID_Key, ThisJobID);
+			params.putLong(PSOProgramService.Priority_Key, PriorityInfo);
 			msg.replyTo = mReplyToMe;
 
 			JobResponse pendingResponse = new JobResponse();
@@ -698,7 +770,7 @@ public class PSOProgramServiceAccessor
 		return null;
 	}
 
-	private static JNIProgramLinkResponse VKPSOGFXCompileShm_internal(byte[] ContextData, int SharedMemFD, long VertexShaderSize, long PixelShaderSize, long PSODataSize, long PSOCacheDataSize, boolean bAllowTimeOuts)
+	private static JNIProgramLinkResponse VKPSOGFXCompileShm_internal(byte[] ContextData, long PriorityInfo, int SharedMemFD, long VertexShaderSize, long PixelShaderSize, long PSODataSize, long PSOCacheDataSize, boolean bAllowTimeOuts)
 	{
 		ParcelFileDescriptor parcelFD = null;
 		try
@@ -744,6 +816,8 @@ public class PSOProgramServiceAccessor
 			params.putByteArray(PSOProgramService.JobContext_Key, ContextData);
 
 			params.putInt(PSOProgramService.JobID_Key, ThisJobID);
+			params.putLong(PSOProgramService.Priority_Key, PriorityInfo);
+			
 			msg.replyTo = mReplyToMe;
 
 			JobResponse pendingResponse = new JobResponse();

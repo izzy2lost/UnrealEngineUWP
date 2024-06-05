@@ -4273,12 +4273,30 @@ public:
 	{
 		struct
 		{
-			uint16					Reserved			: 14;
-			uint16					bPSOPrecache			: 1;
+			uint16					Reserved			: 11;
+			uint16					bPSOPrecache		: 1;
 			uint16					bFromPSOFileCache	: 1;
+			uint16					PrecacheCompileType : 3;
 		};
 		uint16						Flags;
 	};
+
+	enum class EPSOPrecacheCompileType : uint8
+	{
+		NotSet = 0,
+		MinPri = 1,
+		NormalPri = 2,
+		MaxPri = 3,
+
+		NumTypes = 4,
+	};
+	static_assert((int)EPSOPrecacheCompileType::MaxPri < (1<<3) ); // ensure MaxPri fits within PrecacheCompileType
+	void SetPSOPrecacheCompileType(EPSOPrecacheCompileType PrecacheCompileTypeIN) 
+	{ 
+		check(PrecacheCompileTypeIN <= EPSOPrecacheCompileType::MaxPri && PrecacheCompileTypeIN >= EPSOPrecacheCompileType::MinPri);
+		PrecacheCompileType = (uint16)PrecacheCompileTypeIN;
+	}
+	EPSOPrecacheCompileType GetPSOPrecacheCompileType() const {	return (EPSOPrecacheCompileType)PrecacheCompileType; }
 
 	// Cached hash off all state data provided at creation time (Only contains hash of data which influences the PSO precaching for the current platform)
 	// Created from hashing the state data instead of the pointers which are used during fast runtime cache checking and compares

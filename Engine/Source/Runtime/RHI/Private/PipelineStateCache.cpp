@@ -281,7 +281,7 @@ static FAutoConsoleVariableRef GPSOPrecompileThreadPoolSizeMaxVar(
 );
 
 int32 GPSOPrecompileThreadPoolThreadPriority = (int32)EThreadPriority::TPri_BelowNormal;
-static FAutoConsoleVariableRef CVarStreamingTextureIOPriority(
+static FAutoConsoleVariableRef CVarPrecompileThreadPoolThreadPriority(
 	TEXT("r.pso.PrecompileThreadPoolThreadPriority"),
 	GPSOPrecompileThreadPoolThreadPriority,
 	TEXT("Thread priority for the PSO precompile pool"),
@@ -2179,6 +2179,13 @@ public:
 					}
 				}
 
+			    const bool bAbortPSOCompileDueToShutdown = IsEngineExitRequested() && Initializer.bPSOPrecache;
+			    if (bAbortPSOCompileDueToShutdown)
+			    {
+				    UE_LOG(LogRHI, Verbose, TEXT("Skipping a precache compile due to engine shutdown."));
+				    bSkipCreation = true;
+			    }
+
 				FGraphicsPipelineState* GfxPipeline = static_cast<FGraphicsPipelineState*>(Pipeline);
 
 				uint64 StartTime = FPlatformTime::Cycles64();
@@ -2189,7 +2196,7 @@ public:
 				{
 					GfxPipeline->SortKey = GfxPipeline->RHIPipeline->GetSortKey();
 				}
-				else
+				else if(!bAbortPSOCompileDueToShutdown)
 				{
 					HandlePipelineCreationFailure(Initializer);
 				}
@@ -3149,6 +3156,7 @@ void FPrecacheComputePipelineCache::OnNewPipelineStateCreated(const FPrecacheCom
 		check(CachedState->CompletionEvent != nullptr);
 		FGraphicsPipelineStateInitializer GraphicsPipelineStateInitializer;
 		GraphicsPipelineStateInitializer.bPSOPrecache = true;
+		GraphicsPipelineStateInitializer.SetPSOPrecacheCompileType(FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NormalPri);
 
 		FPSOCompilationDebugData PSOCompilationDebugData;
 		PSOCompilationDebugData.PSOCompilationEventName = PSOCompilationEventName;
@@ -3221,16 +3229,15 @@ void FPrecacheGraphicsPipelineCache::OnNewPipelineStateCreated(const FGraphicsPi
 	check((NewGraphicsPipelineState->CompletionEvent != nullptr) == bDoAsyncCompile);
 
 	// Mark as precache so it will try and use the background thread pool if available
-	bool bPSOPrecache = true;
-
 	FGraphicsPipelineStateInitializer InitializerCopy(Initializer);
-	InitializerCopy.bPSOPrecache = bPSOPrecache;
+	InitializerCopy.SetPSOPrecacheCompileType(FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NormalPri);
+	InitializerCopy.bPSOPrecache = true;
 
 	FPSOCompilationDebugData PSOCompilationDebugData;
 	PSOCompilationDebugData.PSOCompilationEventName = PSOCompilationEventName;
 
 	// Start the precache task	
-	InternalCreateGraphicsPipelineState(InitializerCopy, EPSOPrecacheResult::Active, bDoAsyncCompile, bPSOPrecache, NewGraphicsPipelineState, PSOCompilationDebugData, false);
+	InternalCreateGraphicsPipelineState(InitializerCopy, EPSOPrecacheResult::Active, bDoAsyncCompile, InitializerCopy.bPSOPrecache, NewGraphicsPipelineState, PSOCompilationDebugData, false);
 }
 
 FPSOPrecacheRequestResult PipelineStateCache::PrecacheGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer)

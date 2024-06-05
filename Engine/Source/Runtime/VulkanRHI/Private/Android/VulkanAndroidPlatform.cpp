@@ -18,6 +18,7 @@
 #include <android/sharedmem_jni.h>
 #include <sys/mman.h>
 #include "ProfilingDebugging/ScopedTimers.h"
+#include "Android/AndroidDynamicRHI.h"
 
 #if USE_ANDROID_SWAPPY
 #undef VK_NO_PROTOTYPES
@@ -1346,8 +1347,13 @@ void PipelineToBinary(FVulkanDevice* Device, const VkGraphicsPipelineCreateInfo*
 #define CHECK_JNI_EXCEPTIONS(env)  if (env->ExceptionCheck()) {env->ExceptionDescribe();env->ExceptionClear();}
 #endif
 
-static bool GRemoteCompileServicesStarted = false;
-static bool GRemoteCompileServicesActive = false;
+namespace AndroidVulkanService
+{
+	std::atomic<bool> GRemoteCompileServicesStarted = false;
+	std::atomic<bool> GRemoteCompileServicesActive = false;
+	std::atomic<bool> bOneTimeErrorEncountered = false;
+	std::atomic<int> TotalErrors = 0;
+}
 
 struct FVKRemoteProgramCompileJNI
 {
@@ -1385,9 +1391,9 @@ struct FVKRemoteProgramCompileJNI
 		CHECK_JNI_EXCEPTIONS(Env);
 		if (PSOServiceAccessor)
 		{
-			DispatchPSOCompile = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompile", "([B[B[B[B[BZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
+			DispatchPSOCompile = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompile", "([BJ[B[B[B[BZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
 			CHECK_JNI_EXCEPTIONS(Env);
-			DispatchPSOCompileShm = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompileShm", "([BIJJJJZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
+			DispatchPSOCompileShm = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompileShm", "([BJIJJJJZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
 			CHECK_JNI_EXCEPTIONS(Env);
 			StartRemoteProgramLink = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_StartRemoteProgramLink", "(IZZ)Z", false);
 			CHECK_JNI_EXCEPTIONS(Env);
@@ -1434,13 +1440,16 @@ static bool AreAndroidVulkanRemoteCompileServicesAvailable()
 
 bool FVulkanAndroidPlatform::AreRemoteCompileServicesActive()
 {
-	if (GRemoteCompileServicesStarted && AreAndroidVulkanRemoteCompileServicesAvailable())
+	// The services could be stopped at any point elsewhere, the return value is not guaranteed to be correct.
+	// it does not need to be exact as the PSO service will reject any new requests after service stop has been encountered.
+	// any existing PSOservice jobs will complete as normal.
+	if (AndroidVulkanService::GRemoteCompileServicesStarted && AreAndroidVulkanRemoteCompileServicesAvailable())
 	{
-		if (!GRemoteCompileServicesActive)
+		if (!AndroidVulkanService::GRemoteCompileServicesActive)
 		{
 			JNIEnv* Env = FAndroidApplication::GetJavaEnv();
-			GRemoteCompileServicesActive = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.AreProgramServicesReady);
-			if (!GRemoteCompileServicesActive)
+			AndroidVulkanService::GRemoteCompileServicesActive = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.AreProgramServicesReady);
+			if (!AndroidVulkanService::GRemoteCompileServicesActive)
 			{
 				if ((bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.HaveServicesFailed))
 				{
@@ -1448,8 +1457,12 @@ bool FVulkanAndroidPlatform::AreRemoteCompileServicesActive()
 					StopRemoteCompileServices();
 				}
 			}
+			else
+			{
+				UE_LOG(LogRHI, Log, TEXT("Remote compile services are active."));
+			}
 		}
-		return GRemoteCompileServicesActive;
+		return AndroidVulkanService::GRemoteCompileServicesActive;
 	}
 	return false;
 }
@@ -1460,40 +1473,53 @@ bool FVulkanAndroidPlatform::StartRemoteCompileServices(int NumServices)
 	
 	VKRemoteProgramCompileJNI.Init(Env);
 
-	if (Env && AreAndroidVulkanRemoteCompileServicesAvailable() && !GRemoteCompileServicesStarted)
+	if (Env && AreAndroidVulkanRemoteCompileServicesAvailable() && !AndroidVulkanService::GRemoteCompileServicesStarted)
 	{
-		GRemoteCompileServicesStarted = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StartRemoteProgramLink, (jint)NumServices, /*bUseRobustEGLContext*/(jboolean)false, /*bUseVulkan*/(jboolean)true);
+		AndroidVulkanService::GRemoteCompileServicesStarted = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StartRemoteProgramLink, (jint)NumServices, /*bUseRobustEGLContext*/(jboolean)false, /*bUseVulkan*/(jboolean)true);
 	}
 
-	return GRemoteCompileServicesStarted;
+	return AndroidVulkanService::GRemoteCompileServicesStarted;
 }
 
 void FVulkanAndroidPlatform::StopRemoteCompileServices()
 {
-	GRemoteCompileServicesStarted = false;
-	GRemoteCompileServicesActive = false;
-	JNIEnv* Env = FAndroidApplication::GetJavaEnv();
-
-	if (Env && ensure(AreAndroidVulkanRemoteCompileServicesAvailable()))
+	bool bExpected = true;
+	if(AndroidVulkanService::GRemoteCompileServicesStarted.compare_exchange_strong(bExpected, false) )
 	{
-		Env->CallStaticVoidMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StopRemoteProgramLink);
+		UE_LOG(LogVulkanRHI, Log, TEXT("Stopping Remote Compile Services"));
+		AndroidVulkanService::GRemoteCompileServicesActive = false;
+		JNIEnv* Env = FAndroidApplication::GetJavaEnv();
+
+		if (Env && ensure(AreAndroidVulkanRemoteCompileServicesAvailable()))
+		{
+			Env->CallStaticVoidMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StopRemoteProgramLink);
+		}
 	}
 }
 
-namespace AndroidVulkanService
+VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(
+		FVulkanDevice* Device, 
+		const TArrayView<uint8> OptionalPSOCacheData, 
+		FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType,
+		const VkGraphicsPipelineCreateInfo* PipelineInfo, 
+		FGfxPipelineDesc* GfxEntry, 
+		const FVulkanRenderTargetLayout* RTLayout, 
+		TArrayView<uint32_t> VS, 
+		TArrayView<uint32_t> PS, 
+		size_t& AfterSize,
+		FString* FailureMessageOUT
+	)
 {
-	std::atomic<bool> bOneTimeErrorEncountered = false;
-}
-
-VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, const TArrayView<uint8> OptionalPSOCacheData, const VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize)
-{
-	FString FailureMessageOUT;
-	
-	if (!AreRemoteCompileServicesActive())
+	if (!ensure(AreRemoteCompileServicesActive()))
 	{
 		return VK_NULL_HANDLE;
 	}
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_VulkanAndroid_PrecompilePSO);
+
+	auto SetFailureMessage = [FailureMessageOUT](FString&& Msg) { if (FailureMessageOUT) { *FailureMessageOUT = Msg; }};
+
+	VkPipelineCache ReturnPipelineCache = VK_NULL_HANDLE;
+	FPlatformDynamicRHI::FPSOServicePriInfo PriorityInfo(PSOCompileType);
 
 // 	FScopedDurationTimeLogger Timer(TEXT("FVulkanAndroidPlatform::PrecompilePSO"));
 
@@ -1556,7 +1582,7 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 					bool bEnableTimeOuts = !FPlatformMisc::IsDebuggerPresent();
 					{
 						QUICK_SCOPE_CYCLE_COUNTER(STAT_VulkanAndroid_PrecompilePSOJAVA);
-						ProgramResponseObj = NewScopedJavaObject(Env, Env->CallStaticObjectMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.DispatchPSOCompileShm, *ProgramKeyBuffer, SharedMemFD, VSSize, PSSize, PSOParamsSize, PreSuppliedCacheSize, bEnableTimeOuts));
+						ProgramResponseObj = NewScopedJavaObject(Env, Env->CallStaticObjectMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.DispatchPSOCompileShm, *ProgramKeyBuffer, PriorityInfo.GetPriorityInfo(), SharedMemFD, VSSize, PSSize, PSOParamsSize, PreSuppliedCacheSize, bEnableTimeOuts));
 					}
 					CHECK_JNI_EXCEPTIONS(Env);
 					munmap(SharedBuffer, memSize);
@@ -1600,21 +1626,16 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 						{
 							QUICK_SCOPE_CYCLE_COUNTER(STAT_VulkanAndroid_PrecompilePSOCreateCache);
 							VkPipelineCacheCreateInfo PipelineCacheCreateInfo;
-							VkPipelineCache PipelineCache;
 							memset(&PipelineCacheCreateInfo, 0, sizeof(VkPipelineCacheCreateInfo));
 							PipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 							PipelineCacheCreateInfo.flags = 0;
 							PipelineCacheCreateInfo.pInitialData = ResultSharedBuffer + sizeof(ResultMemSize);
 							PipelineCacheCreateInfo.initialDataSize = ResultSize;
-							VERIFYVULKANRESULT(VulkanRHI::vkCreatePipelineCache(Device->GetInstanceHandle(), &PipelineCacheCreateInfo, VULKAN_CPU_ALLOCATOR, &PipelineCache));
+							VERIFYVULKANRESULT(VulkanRHI::vkCreatePipelineCache(Device->GetInstanceHandle(), &PipelineCacheCreateInfo, VULKAN_CPU_ALLOCATOR, &ReturnPipelineCache));
 							AfterSize = ResultSize - OptionalPSOCacheData.Num();
-
-							return PipelineCache;
 						}
 					}
 				}
-
- 				return VK_NULL_HANDLE;
 			}
 			else
 			{
@@ -1623,8 +1644,7 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 					FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("ec"));
 				}
 
-				FailureMessageOUT = FJavaHelper::FStringFromLocalRef(Env, (jstring)Env->GetObjectField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_ErrorField));
-				check(!FailureMessageOUT.IsEmpty());
+				SetFailureMessage( FJavaHelper::FStringFromLocalRef(Env, (jstring)Env->GetObjectField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_ErrorField)));
 			}
 		}
 		else
@@ -1633,13 +1653,28 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 			{
 				FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("es"));
 			}
-			FailureMessageOUT = TEXT("Remote compiler failed.");
+			SetFailureMessage(TEXT("Remote PSO compiler failed."));
 		}
 	}
+	else
+	{
+		if (AndroidVulkanService::bOneTimeErrorEncountered.exchange(true) == false)
+		{
+			FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("ejni"));
+		}
+		SetFailureMessage(TEXT("Remote PSO compiler JNI error."));
+	}
 
-	return VK_NULL_HANDLE;
+	if (ReturnPipelineCache == VK_NULL_HANDLE)
+	{
+		if ((AndroidVulkanService::TotalErrors++) == FPlatformDynamicRHI::GetPSOServiceFailureThreshold())
+		{
+			FVulkanAndroidPlatform::StopRemoteCompileServices();
+			SetFailureMessage(TEXT("Remote PSO compiler failed, error count has passed threshold. Future compiles will be in-process."));
+		}
+	}
+	return ReturnPipelineCache;
 }
-
 
 bool FAndroidVulkanFramePacer::SupportsFramePace(int32 QueryFramePace)
 {

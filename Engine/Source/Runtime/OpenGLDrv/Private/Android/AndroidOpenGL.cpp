@@ -15,6 +15,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "String/Find.h"
 #include "String/LexFromString.h"
+#include "Android/AndroidDynamicRHI.h"
 
 int32 FAndroidOpenGL::GLMajorVerion = 0;
 int32 FAndroidOpenGL::GLMinorVersion = 0;
@@ -117,7 +118,7 @@ struct FOpenGLRemoteGLProgramCompileJNI
 		CHECK_JNI_EXCEPTIONS(Env);
 		if(OGLServiceAccessor)
 		{
-			DispatchProgramLink = FJavaWrapper::FindStaticMethod(Env, OGLServiceAccessor, "AndroidThunkJava_OGLRemoteProgramLink", "([BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
+			DispatchProgramLink = FJavaWrapper::FindStaticMethod(Env, OGLServiceAccessor, "AndroidThunkJava_OGLRemoteProgramLink", "([BJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
 			CHECK_JNI_EXCEPTIONS(Env);
 			StartRemoteProgramLink = FJavaWrapper::FindStaticMethod(Env, OGLServiceAccessor, "AndroidThunkJava_StartRemoteProgramLink", "(IZZ)Z", false);
 			CHECK_JNI_EXCEPTIONS(Env);
@@ -1078,19 +1079,27 @@ void FAndroidOpenGL::ProcessExtensions(const FString& ExtensionsString)
 	}
 }
 
-static bool GRemoteCompileServicesStarted = false;
-static bool GRemoteCompileServicesActive = false;
+namespace AndroidOGLService
+{
+	std::atomic<bool> GRemoteCompileServicesStarted = false;
+	std::atomic<bool> GRemoteCompileServicesActive = false;
+	std::atomic<bool> bOneTimeErrorEncountered = false;
+	std::atomic<int> TotalErrors = 0;
+}
 extern bool AreAndroidOpenGLRemoteCompileServicesAvailable();
 
 bool FAndroidOpenGL::AreRemoteCompileServicesActive()
 {
-	if (GRemoteCompileServicesStarted && AreAndroidOpenGLRemoteCompileServicesAvailable())
+	// The services could be stopped at any point elsewhere, the return value is not guaranteed to be correct.
+	// it does not need to be exact as the PSO service will reject any new requests after service stop has been encountered.
+	// any existing PSOservice jobs will complete as normal.
+	if (AndroidOGLService::GRemoteCompileServicesStarted && AreAndroidOpenGLRemoteCompileServicesAvailable())
 	{
-		if (!GRemoteCompileServicesActive)
+		if (!AndroidOGLService::GRemoteCompileServicesActive)
 		{
 			JNIEnv* Env = FAndroidApplication::GetJavaEnv();
-			GRemoteCompileServicesActive = (bool)Env->CallStaticBooleanMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.AreProgramServicesReady);
-			if (!GRemoteCompileServicesActive)
+			AndroidOGLService::GRemoteCompileServicesActive = (bool)Env->CallStaticBooleanMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.AreProgramServicesReady);
+			if (!AndroidOGLService::GRemoteCompileServicesActive)
 			{
 				if ((bool)Env->CallStaticBooleanMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.HaveServicesFailed))
 				{
@@ -1098,8 +1107,12 @@ bool FAndroidOpenGL::AreRemoteCompileServicesActive()
 					StopRemoteCompileServices();
 				}
 			}
+			else
+			{
+				UE_LOG(LogRHI, Log, TEXT("Remote compile services are active."));
+			}
 		}
-		return GRemoteCompileServicesActive;
+		return AndroidOGLService::GRemoteCompileServicesActive;
 	}
 	return false;
 }
@@ -1108,40 +1121,39 @@ bool FAndroidOpenGL::StartRemoteCompileServices(int NumServices)
 {
 	JNIEnv* Env = FAndroidApplication::GetJavaEnv();
 
-	if (Env && AreAndroidOpenGLRemoteCompileServicesAvailable() && !GRemoteCompileServicesStarted)
+	if (Env && AreAndroidOpenGLRemoteCompileServicesAvailable() && !AndroidOGLService::GRemoteCompileServicesStarted)
 	{
 		bool bUseRobustContexts = AndroidEGL::GetInstance()->IsUsingRobustContext();
-		GRemoteCompileServicesStarted = (bool)Env->CallStaticBooleanMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.StartRemoteProgramLink, (jint)NumServices, (jboolean)bUseRobustContexts, /*bUseVulkan*/(jboolean)false);
+		AndroidOGLService::GRemoteCompileServicesStarted = (bool)Env->CallStaticBooleanMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.StartRemoteProgramLink, (jint)NumServices, (jboolean)bUseRobustContexts, /*bUseVulkan*/(jboolean)false);
 	}
 
-	return GRemoteCompileServicesStarted;
+	return AndroidOGLService::GRemoteCompileServicesStarted;
 }
 
 void FAndroidOpenGL::StopRemoteCompileServices()
 {
-	GRemoteCompileServicesActive = false;
-	GRemoteCompileServicesStarted = false;
-	JNIEnv* Env = FAndroidApplication::GetJavaEnv();
-
-	if (Env && ensure(AreAndroidOpenGLRemoteCompileServicesAvailable()))
+	bool bExpected = true;
+	if (AndroidOGLService::GRemoteCompileServicesStarted.compare_exchange_strong(bExpected, false))
 	{
-		Env->CallStaticVoidMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.StopRemoteProgramLink);
+		UE_LOG(LogRHI, Log, TEXT("Stopping Remote Compile Services"));
+		AndroidOGLService::GRemoteCompileServicesActive = false;
+		JNIEnv* Env = FAndroidApplication::GetJavaEnv();
+
+		if (Env && ensure(AreAndroidOpenGLRemoteCompileServicesAvailable()))
+		{
+			Env->CallStaticVoidMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.StopRemoteProgramLink);
+		}
 	}
 }
 
-namespace AndroidOGLService
-{
-	std::atomic<bool> bOneTimeErrorEncountered = false;
-}
-
-TArray<uint8> FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(const TArrayView<uint8> ContextData, const TArray<ANSICHAR>& VertexGlslCode, const TArray<ANSICHAR>& PixelGlslCode, const TArray<ANSICHAR>& ComputeGlslCode, FString& FailureMessageOUT)
+TArray<uint8> FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, const TArrayView<uint8> ContextData, const TArray<ANSICHAR>& VertexGlslCode, const TArray<ANSICHAR>& PixelGlslCode, const TArray<ANSICHAR>& ComputeGlslCode, FString& FailureMessageOUT)
 {
 	bool bResult = false;
 	JNIEnv* Env = FAndroidApplication::GetJavaEnv();
 	TArray<uint8> CompiledProgramBinary;
 	FString ErrorMessage;
 
-	if (Env && ensure(GRemoteCompileServicesActive) && ensure(AreAndroidOpenGLRemoteCompileServicesAvailable()))
+	if (Env && ensure(AndroidOGLService::GRemoteCompileServicesActive) && ensure(AreAndroidOpenGLRemoteCompileServicesAvailable()))
 	{
 		// todo: double conversion :(
 		auto jVS = NewScopedJavaObject(Env, Env->NewStringUTF(TCHAR_TO_UTF8(ANSI_TO_TCHAR(VertexGlslCode.IsEmpty() ? "" : VertexGlslCode.GetData()))));
@@ -1151,7 +1163,8 @@ TArray<uint8> FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(const TAr
 		Env->SetByteArrayRegion(*ProgramKeyBuffer, 0, ContextData.Num(), reinterpret_cast<const jbyte*>(ContextData.GetData()));
 		// dont time out if the debugger is attached.
 		bool bEnableTimeOuts = !FPlatformMisc::IsDebuggerPresent();
-		auto ProgramResponseObj = NewScopedJavaObject(Env, Env->CallStaticObjectMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.DispatchProgramLink, *ProgramKeyBuffer, *jVS, *jPS, *jCS, bEnableTimeOuts));
+		FPlatformDynamicRHI::FPSOServicePriInfo PriorityInfo(PSOCompileType);
+		auto ProgramResponseObj = NewScopedJavaObject(Env, Env->CallStaticObjectMethod(OpenGLRemoteGLProgramCompileJNI.OGLServiceAccessor, OpenGLRemoteGLProgramCompileJNI.DispatchProgramLink, *ProgramKeyBuffer, PriorityInfo.GetPriorityInfo(), *jVS, *jPS, *jCS, bEnableTimeOuts));
  		CHECK_JNI_EXCEPTIONS(Env);
 
 		if(*ProgramResponseObj)
@@ -1182,6 +1195,16 @@ TArray<uint8> FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(const TAr
 				FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("es"));
 			}
 			FailureMessageOUT = TEXT("Remote compiler failed.");
+		}
+
+		if(CompiledProgramBinary.IsEmpty())
+		{
+			check(!FailureMessageOUT.IsEmpty());
+			if ((AndroidOGLService::TotalErrors++) == FPlatformDynamicRHI::GetPSOServiceFailureThreshold())
+			{
+				StopRemoteCompileServices();
+				FailureMessageOUT = TEXT("Remote compiler passed failure threshold, disabling further remote compiles.");
+			}
 		}
 	}
 	return CompiledProgramBinary;

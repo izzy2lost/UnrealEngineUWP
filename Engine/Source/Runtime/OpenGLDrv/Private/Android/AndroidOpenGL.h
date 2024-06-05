@@ -140,7 +140,7 @@ struct FAndroidOpenGL : public FOpenGLES
 	static EImageExternalType ImageExternalType;
 
 	/* interface to remote GLES program compiler */
-	static TArray<uint8> DispatchAndWaitForRemoteGLProgramCompile(const TArrayView<uint8> ContextData, const TArray<ANSICHAR>& VertexGlslCode, const TArray<ANSICHAR>& PixelGlslCode, const TArray<ANSICHAR>& ComputeGlslCode, FString& FailureMessageOUT);
+	static TArray<uint8> DispatchAndWaitForRemoteGLProgramCompile(FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType,const TArrayView<uint8> ContextData, const TArray<ANSICHAR>& VertexGlslCode, const TArray<ANSICHAR>& PixelGlslCode, const TArray<ANSICHAR>& ComputeGlslCode, FString& FailureMessageOUT);
 	static bool AreRemoteCompileServicesActive();
 	static bool StartRemoteCompileServices(int NumServices);
 	static void StopRemoteCompileServices();

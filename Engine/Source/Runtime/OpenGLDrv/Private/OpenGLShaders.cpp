@@ -2661,7 +2661,7 @@ static bool CanCreateExternally(bool bIsFromPSO)
 	return false;
 }
 
-static FOpenGLProgramBinary ExternalProgramCompile(const FOpenGLProgramKey& ProgramKey, FRHIVertexShader* VertexShaderRHI, FRHIPixelShader* PixelShaderRHI)
+static FOpenGLProgramBinary ExternalProgramCompile(const FOpenGLProgramKey& ProgramKey, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, FRHIVertexShader* VertexShaderRHI, FRHIPixelShader* PixelShaderRHI)
 {
 	FOpenGLProgramBinary CompiledProgram;
 #if PLATFORM_ANDROID
@@ -2679,7 +2679,7 @@ static FOpenGLProgramBinary ExternalProgramCompile(const FOpenGLProgramKey& Prog
 	}
 
 	FString FailLog;
-	TArray<uint8> CompiledProgramBytes = FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(TArrayView<uint8>((uint8*)&ProgramKey, sizeof(ProgramKey)), VSCode, PSCode, ComputeGlslCode, FailLog);
+	TArray<uint8> CompiledProgramBytes = FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(PSOCompileType, TArrayView<uint8>((uint8*)&ProgramKey, sizeof(ProgramKey)), VSCode, PSCode, ComputeGlslCode, FailLog);
 
 	if (FailLog.IsEmpty())
 	{
@@ -2752,7 +2752,7 @@ void FOpenGLDynamicRHI::PrepareGFXBoundShaderState(const FGraphicsPipelineStateI
 		if (FOpenGLProgramBinaryCache::IsBuildingCache())
 		{
 			OGL_BINARYCACHE_STATS_MARKBEGINCOMPILE(ProgramKey);
-			FOpenGLProgramBinary CompiledProgram = ExternalProgramCompile(ProgramKey, VertexShaderRHI, PixelShaderRHI);
+			FOpenGLProgramBinary CompiledProgram = ExternalProgramCompile(ProgramKey, Initializer.GetPSOPrecacheCompileType(), VertexShaderRHI, PixelShaderRHI);
 
 			if (CompiledProgram.IsValid())
 			{

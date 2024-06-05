@@ -59,6 +59,7 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	static final String PSOCacheData_Key = "psocache";
 	static final String JobContext_Key = "jtx";
 	static final String JobID_Key = "jid";
+	static final String Priority_Key = "pri";
 	static final String ServiceID_Key = "sid";
 	static final String CompiledProgram_Key = "cpg";
 	static final String SHMem_Key = "shm";
@@ -263,6 +264,8 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 		return false;
 	}
 
+	public native void NativeSetThreadPriority(long PriorityInfo);
+
 	@Nullable
 	@Override
 	public IBinder onBind(Intent intent)
@@ -271,6 +274,8 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 
 		if(!bGFXInitialized)
 		{
+			System.loadLibrary("psoservice");
+
 			if(!UseVulkan())
 			{
 				Bundle extras =intent.getExtras();
@@ -316,16 +321,18 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 					beginTrace("PSOProgramService.handleMessage");
 					if(UseVulkan())
 					{
-						byte[] VS = msg.getData().getByteArray(VS_Key);
-						byte[] PS = msg.getData().getByteArray(PS_Key);
-						byte[] PSOData = msg.getData().getByteArray(PSOData_Key);
+						byte[] VS			= msg.getData().getByteArray(VS_Key);
+						byte[] PS			= msg.getData().getByteArray(PS_Key);
+						byte[] PSOData		= msg.getData().getByteArray(PSOData_Key);
 						byte[] PSOCacheData = msg.getData().getByteArray(PSOCacheData_Key);
+						long PriorityInfo	= msg.getData().getLong(Priority_Key);
 
-						int JobID = msg.getData().getInt(JobID_Key);
-						int ServiceID = msg.getData().getInt(ServiceID_Key);
+						int JobID			= msg.getData().getInt(JobID_Key);
+						int ServiceID		= msg.getData().getInt(ServiceID_Key);
 
 						byte[] JobContext = msg.getData().getByteArray(JobContext_Key);
 
+						NativeSetThreadPriority(PriorityInfo);
 						//logger.verbose("Processing program job "+JobID);
 						ProcessVulkanProgramRequest(msg.replyTo, JobID, ServiceID, JobContext, VS, PS, PSOData, PSOCacheData);
 					}
@@ -336,9 +343,10 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 						String CS = msg.getData().getString(CS_Key);
 						int JobID = msg.getData().getInt(JobID_Key);
 						int ServiceID = msg.getData().getInt(ServiceID_Key);
-
+						long PriorityInfo = msg.getData().getLong(Priority_Key);
 						byte[] JobContext = msg.getData().getByteArray(JobContext_Key);
 
+						NativeSetThreadPriority(PriorityInfo);
 						//logger.verbose("Processing program job "+JobID);
 						ProcessGLProgramRequest(msg.replyTo, JobID, ServiceID, JobContext, VS, PS, CS);
 					}
@@ -355,10 +363,12 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 						long PSODataSize				= msg.getData().getLong(PSOData_Key);
 						long PSOCacheDataSize			= msg.getData().getLong(PSOCacheData_Key);
 						int JobID						= msg.getData().getInt(JobID_Key);
+						long PriorityInfo				= msg.getData().getLong(Priority_Key);
 						int ServiceID					= msg.getData().getInt(ServiceID_Key);
 						byte[] JobContext				= msg.getData().getByteArray(JobContext_Key);
 						int SHMemFD						= SharedFD.getFd();
 
+						NativeSetThreadPriority(PriorityInfo);
 						//logger.verbose("Processing program job "+JobID);
 						ProcessVulkanProgramRequestSHM(msg.replyTo, JobID, ServiceID, JobContext, SHMemFD, VSSize, PSSize, PSODataSize, PSOCacheDataSize);
 						try
@@ -586,8 +596,6 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	private void initVulkanContext()
 	{
 		beginTrace("PSOProgramService.InitVulkanContext");
-		System.loadLibrary("psoservice");
-
 		InitVKDevice();
 		endTrace();
 	}

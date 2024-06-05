@@ -1171,19 +1171,19 @@ static const TMap<uint8, VkFragmentShadingRateCombinerOpKHR> FragmentCombinerOpM
 	// @todo: Add "VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MUL_KHR"?
 };
 
-FString FVulkanPipelineStateCacheManager::ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStages])
+static FString ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStages])
 {
 	FString ShaderHashes = "";
-	if (Shaders[ShaderStage::Vertex] && Shaders[ShaderStage::Vertex]->Frequency == SF_Vertex)
+	if (Shaders[ShaderStage::Vertex])
 	{
 		ShaderHashes += TEXT("VS: ") + static_cast<FVulkanVertexShader*>(Shaders[ShaderStage::Vertex])->GetHash().ToString() + TEXT("\n");
 	}
-	if (Shaders[ShaderStage::Pixel] && Shaders[ShaderStage::Pixel]->Frequency == SF_Pixel)
+	if (Shaders[ShaderStage::Pixel] )
 	{
 		ShaderHashes += TEXT("PS: ") + static_cast<FVulkanPixelShader*>(Shaders[ShaderStage::Pixel])->GetHash().ToString() + TEXT("\n");
 	}
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
-	if (Shaders[ShaderStage::Geometry] && Shaders[ShaderStage::Geometry]->Frequency == SF_Geometry)
+	if (Shaders[ShaderStage::Geometry])
 	{
 		ShaderHashes += TEXT("GS: ") + static_cast<FVulkanGeometryShader*>(Shaders[ShaderStage::Geometry])->GetHash().ToString() + TEXT("\n");
 	}
@@ -1191,7 +1191,7 @@ FString FVulkanPipelineStateCacheManager::ShaderHashesToString(FVulkanShader* Sh
 	return ShaderHashes;
 }
 
-bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], bool bPrecompile)
+bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
 {
 	VkPipeline* Pipeline = &PSO->VulkanPipeline;
 	FGfxPipelineDesc* GfxEntry = &PSO->Desc;
@@ -1375,7 +1375,7 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 
 	double BeginTime = FPlatformTime::Seconds();
 
-	Result = CreateVKPipeline(PSO, Shaders, PipelineInfo, bPrecompile);
+	Result = CreateVKPipeline(PSO, Shaders, PipelineInfo, PSOCompileType);
 
 	if (Result != VK_SUCCESS)
 	{
@@ -1398,7 +1398,7 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 
 #if PLATFORM_ANDROID
 
-VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, VkPipelineCache DestPipelineCache, FRWLock& PipelineLock)
+static VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, VkPipelineCache DestPipelineCache, FRWLock& PipelineLock)
 {
 	VkResult Result = VK_ERROR_INITIALIZATION_FAILED;
 	FVulkanShader::FSpirvCode VS = PSO->GetPatchedSpirvCode(Shaders[ShaderStage::Vertex]);
@@ -1411,6 +1411,8 @@ VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsP
 	FGfxPipelineDesc* GfxEntry = &PSO->Desc;
 
 	TArray<uint8> InitialCacheData;
+	bool bSupplyDestPSOCacheData = false; // this can be an optimization, but only if the PSO compile is able to use content from an existing cache.
+	if( bSupplyDestPSOCacheData )
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_ExternalInitialCache);
 		FRWScopeLock Lock(PipelineLock, SLT_Write);
@@ -1419,8 +1421,8 @@ VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsP
 		InitialCacheData.SetNumUninitialized(InitialCacheSize);
 		VulkanRHI::vkGetPipelineCacheData(Device->GetInstanceHandle(), DestPipelineCache, &InitialCacheSize, InitialCacheData.GetData());
 	}
-
-	LocalPipelineCache = FVulkanPlatform::PrecompilePSO(Device, InitialCacheData, &PipelineInfo, GfxEntry, &PSO->RenderPass->GetLayout(), VSCode, PSCode, AfterSize);
+	FString FailLog;
+	LocalPipelineCache = FVulkanPlatform::PrecompilePSO(Device, InitialCacheData, PSOCompileType, &PipelineInfo, GfxEntry, &PSO->RenderPass->GetLayout(), VSCode, PSCode, AfterSize,&FailLog);
 
 	if (ensure(LocalPipelineCache != VK_NULL_HANDLE))
 	{
@@ -1434,14 +1436,15 @@ VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsP
 	}
 	else
 	{
-  		UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline.\nShaders in pipeline"));
+  		UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline (%s).\nShaders in pipeline %s"),*FailLog, *ShaderHashesToString(Shaders));
 	}
 	return Result;
 }
 #endif
 
-VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, bool bIsPrecompileJob)
+VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
 {
+	bool bIsPrecompileJob = PSOCompileType != FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NotSet;
 	if(FVulkanChunkedPipelineCacheManager::IsEnabled())
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_VKPIPELINE);
@@ -1458,7 +1461,7 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 				
 				check(PSO->VulkanPipeline == 0);
 				check(PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateAndStorePSO || PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateIfPresent);
-				VkResult Result;
+				VkResult Result = VK_ERROR_UNKNOWN;
 
 				if(PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateIfPresent)
 				{
@@ -1481,20 +1484,19 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_vkCreateGraphicsPipeline);
 #if PLATFORM_ANDROID
-				if( !FVulkanAndroidPlatform::AreRemoteCompileServicesActive() || !bIsPrecompileJob)
+				if (FVulkanAndroidPlatform::AreRemoteCompileServicesActive() && bIsPrecompileJob)
 				{
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_ExternalCreate);
+					Result = CreatePSOWithExternalService(Device, PSOCompileType, PSO, Shaders, PipelineInfo, PipelineCache, Params.DestPipelineCacheLock);
+				}
+				// if the external service did not produce a result the following will create it in-process as a best effort fallback.
 #endif
+				if (Result != VK_SUCCESS)
+				{
 					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_vkCreate);
 					FRWScopeLock Lock(Params.DestPipelineCacheLock, SLT_ReadOnly);
 					Result = VulkanRHI::vkCreateGraphicsPipelines(Device->GetInstanceHandle(), PipelineCache, 1, &PipelineInfo, VULKAN_CPU_ALLOCATOR, &PSO->VulkanPipeline);
-#if PLATFORM_ANDROID
 				}
-				else
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_ExternalCreate);
-					Result = CreatePSOWithExternalService(Device, PSO, Shaders, PipelineInfo, PipelineCache, Params.DestPipelineCacheLock);
-				}
-#endif
 				return Result;
 			}));
 	}
@@ -1542,8 +1544,8 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 		TArrayView<uint32_t> VSCode = VS.GetCodeView();
 		TArrayView<uint32_t> PSCode = PS.GetCodeView();
 		size_t AfterSize = 0;
-
-		LocalPipelineCache = FVulkanPlatform::PrecompilePSO(Device, MakeArrayView<uint8>(nullptr,0), &PipelineInfo, GfxEntry, &PSO->RenderPass->GetLayout(), VSCode, PSCode, AfterSize);
+		FString FailLog;
+		LocalPipelineCache = FVulkanPlatform::PrecompilePSO(Device, MakeArrayView<uint8>(nullptr,0), PSOCompileType, &PipelineInfo, GfxEntry, &PSO->RenderPass->GetLayout(), VSCode, PSCode, AfterSize,&FailLog);
 
 		if (ensure(LocalPipelineCache != VK_NULL_HANDLE))
 		{
@@ -1568,7 +1570,7 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 		else
 		{
 			FString ShaderHashes = ShaderHashesToString(Shaders);
-			UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline.\nShaders in pipeline: %s"), *ShaderHashes);
+			UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline (%s).\nShaders in pipeline: %s"), *FailLog, *ShaderHashes);
 		}
 	}
 #endif
@@ -2138,7 +2140,7 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 			
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_PART0);
 
-				if(!CreateGfxPipelineFromEntry(NewPSO, VulkanShaders, bIsPrecache))
+				if(!CreateGfxPipelineFromEntry(NewPSO, VulkanShaders, Initializer.GetPSOPrecacheCompileType()))
 				{
 					DeleteNewPSO(NewPSO);
 					return nullptr;
@@ -2169,6 +2171,13 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 					NewPSO->bIsRegistered = true;
 					LRUTrim(NewPSO->PipelineCacheSize);
 					LRUAdd(NewPSO);
+					if(bIsPrecache)
+					{
+						// immediately evict precache PSOs from the LRU.
+						// precache PSOs can saturate the LRU. precache PSOs can end up being trimmed/evicted in the same frame which LRUTrim does not expect.
+						// This means we are LRU-ing rendered PSOs only.
+						LRURemove(NewPSO);
+					}
 				}
 				else
 				{
@@ -2571,7 +2580,7 @@ void FVulkanPipelineStateCacheManager::LRUTouch(FVulkanRHIGraphicsPipelineState*
 
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_LRUMiss);
 
-			if (!CreateGfxPipelineFromEntry(PSO, VulkanShaders, false))
+			if (!CreateGfxPipelineFromEntry(PSO, VulkanShaders, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NotSet))
 			{
 				check(0);
 			}
