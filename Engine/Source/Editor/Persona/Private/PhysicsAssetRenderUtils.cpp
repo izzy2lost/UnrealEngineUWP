@@ -300,9 +300,8 @@ namespace PhysicsAssetRender
 
 		// Draw Constraints.
 		{
-			auto HitProxyFn = [](const int32) { return nullptr; };
-			auto IsSelectedFn = [](const uint32) { return false; };
-			DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, IsSelectedFn, false, HitProxyFn);
+			auto HitProxyFunctor = [](const int32) { return nullptr; };
+			DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, IsSelectedFn(), false, HitProxyFunctor);
 		}
 	}
 
@@ -497,7 +496,7 @@ namespace PhysicsAssetRender
 		}
 	}
 
-	void DebugDrawConstraints(USkeletalMeshComponent* const SkeletalMeshComponent, UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunctionRef< bool(const uint32) > IsConstraintSelected, const bool bRunningSimulation, CreateConstraintHitProxyFn CreateHitProxy)
+	void DebugDrawConstraints(USkeletalMeshComponent* const SkeletalMeshComponent, UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunction< bool(const uint32) > IsSelected, const bool bRunningSimulation, CreateConstraintHitProxyFn CreateHitProxy)
 	{
 		check(SkeletalMeshComponent);
 		check(PhysicsAsset);
@@ -511,11 +510,14 @@ namespace PhysicsAssetRender
 
 		if (RenderSettings->ConstraintViewMode != EPhysicsAssetEditorConstraintViewMode::None)
 		{
+			const bool bIsSelectedStateAvailable = (IsSelected != nullptr);
+			const bool bRenderOnlySelected = bIsSelectedStateAvailable && RenderSettings->bRenderOnlySelectedConstraints;
+
 			for (int32 ConstraintIndex = 0; ConstraintIndex < PhysicsAsset->ConstraintSetup.Num(); ++ConstraintIndex)
 			{
-				const bool bConstraintSelected = IsConstraintSelected(ConstraintIndex);
+				const bool bConstraintSelected = bIsSelectedStateAvailable && IsSelected(ConstraintIndex);
 
-				if ((!RenderSettings->bRenderOnlySelectedConstraints || (RenderSettings->bRenderOnlySelectedConstraints && bConstraintSelected)) &&
+				if ((!bRenderOnlySelected || bConstraintSelected) &&
 					!RenderSettings->IsConstraintHidden(ConstraintIndex))
 				{
 					const bool bDrawLimits = (RenderSettings->ConstraintViewMode == EPhysicsAssetEditorConstraintViewMode::AllLimits) || bConstraintSelected;
@@ -756,8 +758,7 @@ void FPhysicsAssetRenderInterface::DebugDrawBodies(USkeletalMeshComponent* const
 void FPhysicsAssetRenderInterface::DebugDrawConstraints(USkeletalMeshComponent* const SkeletalMeshComponent, UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI)
 {
 	auto HitProxyFn   = [](const int32) { return nullptr; };
-	auto IsSelectedFn = [](const uint32) { return false; };
-	PhysicsAssetRender::DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, IsSelectedFn, false, HitProxyFn);
+	PhysicsAssetRender::DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, PhysicsAssetRender::IsSelectedFn(), false, HitProxyFn);
 }
 
 void FPhysicsAssetRenderInterface::SaveConfig()
