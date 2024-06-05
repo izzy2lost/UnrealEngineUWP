@@ -328,6 +328,9 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		int32 GetSlotIndex(const TAlDagNodePtr<AlDagNode>& DagNode);
 
+		bool HasSurfaceNodes() const { return SurfaceNodes.Num() > 0; }
+		bool HasShellNodes() const { return ShellNodes.Num() > 0; }
+
 	private:
 		FString Name;
 		TArray<TAlDagNodePtr<AlSurfaceNode>> SurfaceNodes;
