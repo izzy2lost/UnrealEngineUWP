@@ -157,8 +157,15 @@ private:
 	void HandlePostGarbageCollect();
 
 	bool bIsGrassCreationPrioritized = false;
-	TArray<TWeakObjectPtr<ALandscape>> LandscapeActors;
-	TArray<TWeakObjectPtr<ALandscapeProxy>> Proxies;
+
+	// UPROPERTY ensures these objects are not deleted before being unregistered
+	// (technically not necessary, as actors should always unregister prior to deletion)
+	UPROPERTY()
+	TArray<TObjectPtr<ALandscape>> LandscapeActors;
+
+	UPROPERTY()
+	TArray<TObjectPtr<ALandscapeProxy>> Proxies;
+
 	FDelegateHandle OnNaniteWorldSettingsChangedHandle;
 
 	FLandscapeTextureStreamingManager* TextureStreamingManager = nullptr;
