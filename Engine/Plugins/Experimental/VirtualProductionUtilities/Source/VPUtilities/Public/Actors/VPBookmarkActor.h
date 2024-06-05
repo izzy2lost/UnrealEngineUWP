@@ -124,7 +124,7 @@ public:
 
 	//Overrides
 
-	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void PostRegisterAllComponents() override;
 
 	virtual void Tick(float DeltaSeconds) override;
 

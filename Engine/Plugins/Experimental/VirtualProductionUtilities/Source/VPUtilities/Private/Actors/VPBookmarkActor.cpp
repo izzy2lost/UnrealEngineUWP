@@ -277,7 +277,7 @@ void AVPBookmarkActor::OnActorDroppedFromTransform_Implementation()
 
 void AVPBookmarkActor::UpdateBookmarkColor(FLinearColor Color)
 {
-	if (BookmarkMeshComponent->GetStaticMesh() != nullptr)
+	if (BookmarkMeshComponent && BookmarkMeshComponent->GetStaticMesh() != nullptr)
 	{
 		UMaterialInterface* Material = BookmarkMeshComponent->GetMaterial(0);
 
@@ -315,9 +315,9 @@ void AVPBookmarkActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 }
 #endif
 
-void AVPBookmarkActor::OnConstruction(const FTransform& Transform)
+void AVPBookmarkActor::PostRegisterAllComponents()
 {
-	Super::OnConstruction(Transform);
+	Super::PostRegisterAllComponents();
 
 	AVPBookmarkActor::UpdateBookmarkColor(BookmarkColor);
 }
