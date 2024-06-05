@@ -117,7 +117,7 @@ export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
             <Stack >
                <Stack tokens={{ childrenGap: 12 }}>
                   <Text styles={{ root: { whiteSpace: "pre" } }}>{"" + summary}</Text>
-                  {!!jobData.cancellationReason && <Stack style={{ color: modeColors.text }} tokens={{ childrenGap: 12 }}>
+                  {!!jobData.cancellationReason && <Stack style={{ color: modeColors.text }} tokens={{ childrenGap: 8 }}>
                      <Label>Cancellation Reason</Label>
                      <Markdown>{jobData.cancellationReason}</Markdown>
                   </Stack>

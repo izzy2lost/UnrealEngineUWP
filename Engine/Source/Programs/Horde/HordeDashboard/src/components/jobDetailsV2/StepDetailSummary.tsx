@@ -243,7 +243,7 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
                <Stack style={{ color: modeColors.text }}>
                   <Markdown>{getStepSummaryMarkdown(jobDetails, stepId)}</Markdown>
                </Stack>
-               {!!step?.cancellationReason && <Stack style={{ color: modeColors.text }} tokens={{ childrenGap: 12 }}>
+               {!!step?.cancellationReason && <Stack style={{ color: modeColors.text, paddingTop: 12, paddingBottom: 12 }} tokens={{ childrenGap: 8 }}>
                   <Label>Cancellation Reason</Label>
                   <Markdown>{step.cancellationReason}</Markdown>
                </Stack>
