@@ -380,8 +380,8 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 
 	// Register console variable sink for private content setting changing
 	CVarSinkHandle = IConsoleManager::Get().RegisterConsoleVariableSink_Handle(FConsoleCommandDelegate::CreateSP(this, &SContentBrowser::OnConsoleVariableChanged));
-	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
-	const bool bEnablePrivateContentFeature = EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool();
+	UpdatePrivateContentFeatureEnabled(false /* bUpdateFilterIfChanged */);
+
 	AssetViewPtr = SNew(SAssetView)
 			.ThumbnailLabel(Config != nullptr ? Config->ThumbnailLabel : EThumbnailLabel::ClassName)
 			//.ThumbnailScale(Config != nullptr ? Config->ThumbnailScale : 0.18f)
@@ -391,7 +391,9 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 			.OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
 			.OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
 			.OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
-			.OnShouldFilterItem(bEnablePrivateContentFeature ? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter) : FOnShouldFilterItem())
+			.OnShouldFilterItem(bPrivateContentFilterEnabled
+				? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter)
+				: FOnShouldFilterItem())
 			.FrontendFilters(FrontendFilters)
 			.TextFilter(TextFilter)
 			.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
@@ -3309,9 +3311,25 @@ void SContentBrowser::OnContentBrowserSettingsChanged(FName PropertyName)
 
 void SContentBrowser::OnConsoleVariableChanged()
 {
-	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
-	const bool bEnablePrivateContentFeature = EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool();
-	AssetViewPtr->SetShouldFilterItem(bEnablePrivateContentFeature ? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter) : FOnShouldFilterItem());
+	UpdatePrivateContentFeatureEnabled(true /* bUpdateFilterIfChanged */);
+}
+
+void SContentBrowser::UpdatePrivateContentFeatureEnabled(bool bUpdateFilterIfChanged)
+{
+	static const IConsoleVariable* EnablePublicAssetFeatureCVar =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
+	const bool bShouldEnablePrivateContentFilter = EnablePublicAssetFeatureCVar
+		&& EnablePublicAssetFeatureCVar->GetBool();
+	if (bPrivateContentFilterEnabled != bShouldEnablePrivateContentFilter)
+	{
+		if (bUpdateFilterIfChanged)
+		{
+			AssetViewPtr->SetShouldFilterItem(bShouldEnablePrivateContentFilter
+				? FOnShouldFilterItem::CreateSP(this, &SContentBrowser::HandlePrivateContentFilter)
+				: FOnShouldFilterItem());
+		}
+		bPrivateContentFilterEnabled = bShouldEnablePrivateContentFilter;
+	}
 }
 
 FReply SContentBrowser::BackClicked()

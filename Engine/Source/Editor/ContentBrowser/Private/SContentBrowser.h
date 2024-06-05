@@ -640,6 +640,7 @@ private:
 	/** Initialize an editor config for this instance if one does not exist. */
 	FContentBrowserInstanceConfig* CreateEditorConfigIfRequired();
 
+	void UpdatePrivateContentFeatureEnabled(bool bUpdateFilterIfChanged);
 private:
 
 	/** The tab that contains this browser */
@@ -734,6 +735,9 @@ private:
 
 	/** True if source should not be changed from an outside source */
 	bool bIsLocked = false;
+
+	/** True if bShouldEnablePrivateContentFilter was true and we are filtering this->AssetView. */
+	bool bPrivateContentFilterEnabled = false;
 
 	/** Starting width of the PathView Box */
 	float PathViewBoxWidth = 150.f;
