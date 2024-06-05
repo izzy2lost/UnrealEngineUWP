@@ -1120,6 +1120,8 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER(float, FlickeringFramePeriod)
 		SHADER_PARAMETER(float, PerceptionAdd)
 
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevDistortingDisplacementTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ResurrectedDistortingDisplacementTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputMoireLumaTexture)
@@ -1722,6 +1724,8 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	int32 CurrentFrameRollingIndex = 0;
 	FTSRHistoryTextures PrevHistory;
 	FTSRHistorySliceSequence PrevHistorySliceSequence;
+	FRDGTextureRef PrevDistortingDisplacementTexture = BlackDummy;
+	FRDGTextureRef ResurrectedDistortingDisplacementTexture = BlackDummy;
 	if (bCameraCut)
 	{
 		PrevHistory.ColorArray = BlackArrayDummy;
@@ -1787,6 +1791,15 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		ResurrectionFrameSliceIndex = PrevHistorySliceSequence.RollingIndexToSliceIndex(ResurrectionFrameRollingIndex);
 		PrevFrameSliceIndex = PrevHistorySliceSequence.RollingIndexToSliceIndex(PrevFrameRollingIndex);
 		CurrentFrameSliceIndex = HistorySliceSequence.RollingIndexToSliceIndex(CurrentFrameRollingIndex);
+
+		if (InputHistory.DistortingDisplacementTextures[PrevFrameSliceIndex].IsValid())
+		{
+			PrevDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(InputHistory.DistortingDisplacementTextures[PrevFrameSliceIndex]);
+		}
+		if (InputHistory.DistortingDisplacementTextures[ResurrectionFrameSliceIndex].IsValid() && ResurrectionFrameSliceIndex != PrevFrameSliceIndex)
+		{
+			ResurrectedDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(InputHistory.DistortingDisplacementTextures[ResurrectionFrameSliceIndex]);
+		}
 	}
 
 	// Whether history Resurrection is possible at all 
@@ -2434,23 +2447,12 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->PrevHistoryMetadataTexture = GraphBuilder.CreateSRV(PrevMetadataSRVDesc);
 		}
 
-		PassParameters->PrevDistortingDisplacementTexture = BlackDummy;
-		PassParameters->ResurrectedDistortingDisplacementTexture = BlackDummy;
+		PassParameters->PrevDistortingDisplacementTexture = PrevDistortingDisplacementTexture;
+		PassParameters->ResurrectedDistortingDisplacementTexture = ResurrectedDistortingDisplacementTexture;
 		PassParameters->UndistortingDisplacementTexture = BlackDummy;
-		if (bLensDistortion)
+		if (bLensDistortion && PassInputs.LensDistortionLUT.IsEnabled())
 		{
-			if (!bCameraCut && InputHistory.DistortingDisplacementTextures[PrevFrameSliceIndex].IsValid())
-			{
-				PassParameters->PrevDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(InputHistory.DistortingDisplacementTextures[PrevFrameSliceIndex]);
-			}
-			if (!bCameraCut && InputHistory.DistortingDisplacementTextures[ResurrectionFrameSliceIndex].IsValid() && bCanResurrectHistory)
-			{
-				PassParameters->ResurrectedDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(InputHistory.DistortingDisplacementTextures[ResurrectionFrameSliceIndex]);
-			}
-			if (PassInputs.LensDistortionLUT.UndistortingDisplacementTexture)
-			{
-				PassParameters->UndistortingDisplacementTexture = PassInputs.LensDistortionLUT.UndistortingDisplacementTexture;
-			}
+			PassParameters->UndistortingDisplacementTexture = PassInputs.LensDistortionLUT.UndistortingDisplacementTexture;
 		}
 
 		{
@@ -2769,6 +2771,8 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->FlickeringFramePeriod = FlickeringFramePeriod;
 			PassParameters->PerceptionAdd = FMath::Pow(0.5f, CVarTSRShadingExposureOffset.GetValueOnRenderThread());
 
+			PassParameters->PrevDistortingDisplacementTexture = PrevDistortingDisplacementTexture;
+			PassParameters->ResurrectedDistortingDisplacementTexture = ResurrectedDistortingDisplacementTexture;
 			PassParameters->UndistortingDisplacementTexture = BlackDummy;
 			if (bLensDistortion && PassInputs.LensDistortionLUT.IsEnabled())
 			{
