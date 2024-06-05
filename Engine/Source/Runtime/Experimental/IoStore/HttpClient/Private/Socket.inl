@@ -39,6 +39,7 @@
 #	include <arpa/inet.h>
 #	include <fcntl.h>
 #	include <netdb.h>
+#	include <netinet/tcp.h>
 #	include <poll.h>
 #	include <sys/select.h>
 #	include <sys/socket.h>
@@ -141,6 +142,9 @@ bool FSocket::Create()
 	{
 		return false;
 	}
+
+	int32 Yes = 1;
+	setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, &(char&)(Yes), sizeof(Yes));
 
 	Trace(Socket, ETrace::SocketCreate);
 	return true;
