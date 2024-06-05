@@ -2754,9 +2754,7 @@ void FControlRigEditMode::BindCommands()
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ToggleManipulators));
 	CommandBindings->MapAction(
 		Commands.ToggleAllManipulators,
-		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ToggleAllManipulators),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FControlRigEditMode::AreControlsVisible));
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ToggleAllManipulators));
 	CommandBindings->MapAction(
 		Commands.ZeroTransforms,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ZeroTransforms, true));
@@ -3283,12 +3281,6 @@ void FControlRigEditMode::ToggleAllManipulators()
 			}
 		}
 	}
-}
-
-bool FControlRigEditMode::AreControlsVisible() const
-{
-	UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>();
-	return Settings->bHideControlShapes;
 }
 
 void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
