@@ -364,6 +364,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::TransferBoneWeight
 	UDynamicMesh* SourceMesh,
 	UDynamicMesh* TargetMesh,
 	FGeometryScriptTransferBoneWeightsOptions Options,
+	FGeometryScriptMeshSelection InSelection,
 	UGeometryScriptDebug* Debug)
 {
 	using namespace UE::Geometry;
@@ -396,9 +397,13 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::TransferBoneWeight
 		TransferBoneWeights.TransferMethod = static_cast<FTransferBoneWeights::ETransferBoneWeightsMethod>(Options.TransferMethod);
 		TransferBoneWeights.bUseParallel = true;
 
-
 		TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
 		{
+			if (!InSelection.IsEmpty())
+			{
+				InSelection.ConvertToMeshIndexArray(EditMesh, TransferBoneWeights.TargetVerticesSubset, EGeometryScriptIndexType::Vertex);
+			}
+			
 			if (!EditMesh.HasAttributes())
 			{
 				EditMesh.EnableAttributes();

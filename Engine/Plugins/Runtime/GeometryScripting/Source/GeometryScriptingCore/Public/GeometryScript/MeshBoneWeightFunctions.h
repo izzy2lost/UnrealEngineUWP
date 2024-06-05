@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GeometryScriptSelectionTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "GeometryScript/GeometryScriptTypes.h"
 #include "SkeletalMeshAttributes.h"
@@ -330,6 +331,8 @@ public:
 	 * @param SourceMesh The mesh we are transferring the weights from.
 	 * @param TargetMesh The mesh we are transferring the weights to.
 	 * @param Options The options to set for the transfer weight algorithm.
+	 * @param Selection Optional subset of target mesh vertices to transfer weights to.
+	 * If left empty, skin weights will be transferred to all target mesh vertices.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta = (ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -337,6 +340,7 @@ public:
 		UDynamicMesh* SourceMesh,
 		UDynamicMesh* TargetMesh,
 		FGeometryScriptTransferBoneWeightsOptions Options = FGeometryScriptTransferBoneWeightsOptions(),
+		FGeometryScriptMeshSelection Selection = FGeometryScriptMeshSelection(),
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
