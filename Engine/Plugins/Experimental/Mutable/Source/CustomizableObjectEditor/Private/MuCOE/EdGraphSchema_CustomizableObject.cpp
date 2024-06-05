@@ -2,6 +2,7 @@
 
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 
+#include "CustomizableObjectConnectionDrawingPolicy.h"
 #include "EdGraphNode_Comment.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -640,7 +641,7 @@ const FPinConnectionResponse UEdGraphSchema_CustomizableObject::CanCreateConnect
 }
 
 
-FLinearColor UEdGraphSchema_CustomizableObject::GetPinTypeColor(const FName& TypeString) const
+FLinearColor UEdGraphSchema_CustomizableObject::GetPinTypeColor(const FName& TypeString)
 {
 	if (TypeString == PC_Enum)
 	{
@@ -1089,6 +1090,12 @@ void UEdGraphSchema_CustomizableObject::OnPinConnectionDoubleCicked(UEdGraphPin*
 	PinA->MakeLinkTo((PinA->Direction == EGPD_Output) ? NodeReroute->GetInputPin() : NodeReroute->GetOutputPin());
 	PinB->MakeLinkTo((PinB->Direction == EGPD_Output) ? NodeReroute->GetInputPin() : NodeReroute->GetOutputPin());
 	NodeReroute->UCustomizableObjectNode::ReconstructNode();
+}
+
+
+FConnectionDrawingPolicy* UEdGraphSchema_CustomizableObject::CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const
+{
+	return new FCustomizableObjectConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, InZoomFactor, InClippingRect, InDrawElements);
 }
 
 
