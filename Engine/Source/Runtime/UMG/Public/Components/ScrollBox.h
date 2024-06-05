@@ -22,6 +22,11 @@ class UScrollBox : public UPanelWidget
 {
 	GENERATED_UCLASS_BODY()
 
+private:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Scroll", meta = (AllowPrivateAccess = "true", DisplayAfter = "bAnimateWheelScrolling"))
+	float ScrollAnimationInterpolationSpeed = 15.f;
+
 public:
 
 	UE_DEPRECATED(5.2, "Direct access to WidgetStyle is deprecated. Please use the getter or setter.")
@@ -164,6 +169,11 @@ public:
 	UMG_API void SetAnimateWheelScrolling(bool bShouldAnimateWheelScrolling);
 
 	UMG_API bool IsAnimateWheelScrolling() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Scroll")
+	UMG_API void SetScrollAnimationInterpolationSpeed(float NewScrollAnimationInterpolationSpeed);
+
+	UMG_API float GetScrollAnimationInterpolationSpeed() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Scroll")
 	UMG_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);

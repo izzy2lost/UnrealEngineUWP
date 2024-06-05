@@ -170,6 +170,9 @@ public:
 	/** Sets whether the list should lerp between scroll offsets or jump instantly between them. */
 	SLATE_API void SetIsScrollAnimationEnabled(bool bInEnableScrollAnimation);
 
+	/** Sets the speed of lerp between scroll offsets. */
+	SLATE_API void SetScrollingAnimationInterpolationSpeed(float InScrollingAnimationInterpolationSpeed);
+
 	/** Sets whether the list should lerp between scroll offsets or jump instantly between them with touch. */
 	SLATE_API void SetEnableTouchAnimatedScrolling(bool bInEnableTouchAnimatedScrolling);
 
@@ -420,6 +423,9 @@ protected:
 
 	/** True to lerp smoothly between offsets when the desired scroll offset changes. */
 	bool bEnableAnimatedScrolling = false;
+
+	/** The speed of interpolation for the scrolling animation */
+	float ScrollingAnimationInterpolationSpeed = 12.f;
 
 	/** True to lerp smoothly between offsets when the desired scroll offset changes with touch. */
 	bool bEnableTouchAnimatedScrolling = false;

@@ -107,6 +107,7 @@ void SScrollBox::Construct( const FArguments& InArgs )
 	DesiredScrollOffset = 0;
 	bIsScrolling = false;
 	bAnimateScroll = false;
+	ScrollingAnimationInterpolationSpeed = InArgs._ScrollAnimationInterpSpeed;
 	AmountScrolledWhileRightMouseDown = 0;
 	PendingScrollTriggerAmount = 0;
 	bShowSoftwareCursor = false;
@@ -646,7 +647,7 @@ void SScrollBox::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	const float ViewFraction = GetViewFraction();
 	const float TargetViewOffset = GetViewOffsetFraction();
 	
-	const float CurrentViewOffset = bAnimateScroll ? FMath::FInterpTo(ScrollBar->DistanceFromTop(), TargetViewOffset, InDeltaTime, 15.f) : TargetViewOffset;
+	const float CurrentViewOffset = bAnimateScroll ? FMath::FInterpTo(ScrollBar->DistanceFromTop(), TargetViewOffset, InDeltaTime, ScrollingAnimationInterpolationSpeed) : TargetViewOffset;
 
 	// Update the scrollbar with the clamped version of the offset
 	float NewPhysicalOffset = GetScrollComponentFromVector(CurrentViewOffset * ScrollPanel->GetDesiredSize());
@@ -1177,6 +1178,11 @@ void SScrollBox::SetAllowOverscroll(EAllowOverscroll NewAllowOverscroll)
 void SScrollBox::SetAnimateWheelScrolling(bool bInAnimateWheelScrolling)
 {
 	bAnimateWheelScrolling = bInAnimateWheelScrolling;
+}
+
+void SScrollBox::SetScrollingAnimationInterpolationSpeed(float NewScrollingAnimationInterpolationSpeed)
+{
+	ScrollingAnimationInterpolationSpeed = NewScrollingAnimationInterpolationSpeed;
 }
 
 void SScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)

@@ -102,6 +102,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		.BackPadScrolling(BackPadScrolling)
 		.FrontPadScrolling(FrontPadScrolling)
 		.AnimateWheelScrolling(bAnimateWheelScrolling)
+		.ScrollAnimationInterpSpeed(ScrollAnimationInterpolationSpeed)
 		.WheelScrollMultiplier(WheelScrollMultiplier)
 		.OnUserScrolled(BIND_UOBJECT_DELEGATE(FOnUserScrolled, SlateHandleUserScrolled))
 		.OnScrollBarVisibilityChanged(BIND_UOBJECT_DELEGATE(FOnScrollBarVisibilityChanged, SlateHandleScrollBarVisibilityChanged));
@@ -139,6 +140,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	MyScrollBox->SetScrollBarRightClickDragAllowed(bAllowRightClickDragScrolling);
 	MyScrollBox->SetConsumeMouseWheel(ConsumeMouseWheel);
 	MyScrollBox->SetAnimateWheelScrolling(bAnimateWheelScrolling);
+	MyScrollBox->SetScrollingAnimationInterpolationSpeed(ScrollAnimationInterpolationSpeed);
 	MyScrollBox->SetWheelScrollMultiplier(WheelScrollMultiplier);
 	MyScrollBox->SetStyle(&WidgetStyle);
 	MyScrollBox->InvalidateStyle();
@@ -427,6 +429,20 @@ void UScrollBox::SetAnimateWheelScrolling(bool bShouldAnimateWheelScrolling)
 bool UScrollBox::IsAnimateWheelScrolling() const
 {
 	return bAnimateWheelScrolling;
+}
+
+void UScrollBox::SetScrollAnimationInterpolationSpeed(float NewScrollAnimationInterpolationSpeed)
+{
+	ScrollAnimationInterpolationSpeed = NewScrollAnimationInterpolationSpeed;
+	if (MyScrollBox)
+	{
+		MyScrollBox->SetScrollingAnimationInterpolationSpeed(ScrollAnimationInterpolationSpeed);
+	}
+}
+
+float UScrollBox::GetScrollAnimationInterpolationSpeed() const
+{
+	return ScrollAnimationInterpolationSpeed;
 }
 
 void UScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)

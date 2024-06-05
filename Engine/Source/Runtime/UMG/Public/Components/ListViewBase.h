@@ -682,6 +682,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
 	bool bEnableScrollAnimation = false;
 	
+	/** The speed to apply when lerping in the scroll animation. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
+	float ScrollingAnimationInterpolationSpeed = 12.f;
+
 	/** True to enable lerped animation when scrolling through the list with touch*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
 	bool bInEnableTouchAnimatedScrolling = false;

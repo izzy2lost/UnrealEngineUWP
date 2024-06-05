@@ -299,7 +299,7 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 
 			if((bStartedTouchInteraction && bEnableTouchAnimatedScrolling) || (!bStartedTouchInteraction && bEnableAnimatedScrolling))
 			{
-				CurrentScrollOffset = FMath::FInterpTo(CurrentScrollOffset, TargetScrollOffset, (double)InDeltaTime, 12.0);
+				CurrentScrollOffset = FMath::FInterpTo(CurrentScrollOffset, TargetScrollOffset, (double)InDeltaTime, ScrollingAnimationInterpolationSpeed);
 				if (FMath::IsNearlyEqual(CurrentScrollOffset, TargetScrollOffset, 0.01))
 				{
 					CurrentScrollOffset = TargetScrollOffset;
@@ -910,6 +910,11 @@ void STableViewBase::SetFixedLineScrollOffset(TOptional<double> InFixedLineScrol
 void STableViewBase::SetIsScrollAnimationEnabled(bool bInEnableScrollAnimation)
 {
 	bEnableAnimatedScrolling = bInEnableScrollAnimation;
+}
+
+void STableViewBase::SetScrollingAnimationInterpolationSpeed(float InScrollingAnimationInterpolationSpeed)
+{
+	ScrollingAnimationInterpolationSpeed = InScrollingAnimationInterpolationSpeed;
 }
 
 void STableViewBase::SetEnableTouchAnimatedScrolling(bool bInEnableTouchAnimatedScrolling)

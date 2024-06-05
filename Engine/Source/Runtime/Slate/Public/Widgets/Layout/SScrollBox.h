@@ -246,6 +246,7 @@ public:
 		, _BackPadScrolling(false)
 		, _FrontPadScrolling(false)
 		, _AnimateWheelScrolling(false)
+		, _ScrollAnimationInterpSpeed(15.f)
 		, _WheelScrollMultiplier(1.f)
 		, _NavigationDestination(EDescendantScrollDestination::IntoView)
 		, _NavigationScrollPadding(0.0f)
@@ -289,6 +290,8 @@ public:
 		SLATE_ARGUMENT(bool, FrontPadScrolling);
 
 		SLATE_ARGUMENT(bool, AnimateWheelScrolling);
+
+		SLATE_ARGUMENT(float, ScrollAnimationInterpSpeed);
 
 		SLATE_ARGUMENT(float, WheelScrollMultiplier);
 
@@ -338,6 +341,8 @@ public:
 	SLATE_API void SetAllowOverscroll( EAllowOverscroll NewAllowOverscroll );
 
 	SLATE_API void SetAnimateWheelScrolling(bool bInAnimateWheelScrolling);
+
+	SLATE_API void SetScrollingAnimationInterpolationSpeed(float NewScrollingAnimationInterpolationSpeed);
 
 	SLATE_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 	
@@ -579,6 +584,9 @@ protected:
 
 	/** Multiplier applied to each click of the scroll wheel (applied alongside the global scroll amount) */
 	float WheelScrollMultiplier = 1.f;
+
+	/** The speed of interpolation for the scrolling animation */
+	float ScrollingAnimationInterpolationSpeed = 15.f;
 
 	/** Whether to animate wheel scrolling */
 	bool bAnimateWheelScrolling : 1;
