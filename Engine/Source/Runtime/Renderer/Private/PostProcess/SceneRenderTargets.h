@@ -59,6 +59,8 @@
 // [Mobile Deferred only]
 // Store shading model into stencil [1-2] bits
 #define GET_STENCIL_MOBILE_SM_MASK(Value)			uint8(((Value) & 0x3) << 1)
+#define STENCIL_MOBILE_DEFAULTLIT_MASK				uint8(1 << 2)
+#define STENCIL_MOBILE_REFLECTIVE_MASK				uint8(1 << 1)
 
 // [Mobile Forward only]
 // Cast contact shadow mask - bit 4 / Must match shader (ScreenSpaceShadows.usf)

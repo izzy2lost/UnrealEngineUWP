@@ -164,21 +164,24 @@ void UpdateDependentPropertyInConfigFile(URendererSettings* RendererSettings, FN
 
 void URendererSettings::FixAntiAliasingOnShadingPathChange(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	// Going from deferred to forward we force MSAA. After that, the AA method is blocked by the edit condition in metadata.
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, MobileShadingPath))
 	{
 		if (MobileShadingPath == EMobileShadingPath::Forward)
 		{
-			MobileAntiAliasing = EMobileAntiAliasingMethod::MSAA;
+			// Nop
 		}
 		else // When we disable forward shading we need to change AA method
 		{
-			MobileAntiAliasing = EMobileAntiAliasingMethod::None;
-			UE_LOG(LogTemp, Warning, TEXT("Disabling Mobile AA because MSAA is not compatible with Mobile Deferred Shading"));
+			if (MobileAntiAliasing == EMobileAntiAliasingMethod::MSAA)
+			{
+				MobileAntiAliasing = EMobileAntiAliasingMethod::None;
+				UE_LOG(LogTemp, Warning, TEXT("Disabling Mobile AA because MSAA is not compatible with Mobile Deferred Shading"));
+			}
 		}
 		UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing));
 		ExportValuesToConsoleVariables(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing)));
 	}
+	// On desktop going from deferred to forward we force MSAA. After that, the AA method is blocked by the edit condition in metadata.
 	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bForwardShading))
 	{
 		if (bForwardShading)

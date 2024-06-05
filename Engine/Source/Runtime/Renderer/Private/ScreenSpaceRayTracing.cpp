@@ -156,7 +156,8 @@ bool ShouldRenderScreenSpaceReflections(const FViewInfo& View)
 		return false;
 	}
 
-	if (IsForwardShadingEnabled(View.GetShaderPlatform()))
+	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
+	if (IsForwardShadingEnabled(ShaderPlatform) && !IsMobilePlatform(ShaderPlatform))
 	{
 		return false;
 	}
@@ -287,16 +288,7 @@ void SetupCommonScreenSpaceRayParameters(
 		/* inout */ OutParameters);
 } // SetupCommonScreenSpaceRayParameters()
 
-
-} // namespace ScreenSpaceRayTracing
-
-
-bool UseSingleLayerWaterIndirectDraw(EShaderPlatform ShaderPlatform);
-
-namespace
-{
-
-float ComputeRoughnessMaskScale(const FViewInfo& View, ESSRQuality SSRQuality)
+static float ComputeRoughnessMaskScale(const FViewInfo& View, ESSRQuality SSRQuality)
 {
 	float MaxRoughness = FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness, 0.01f, 1.0f);
 
@@ -314,11 +306,11 @@ FLinearColor ComputeSSRParams(const FViewInfo& View, ESSRQuality SSRQuality, boo
 
 	float FrameRandom = 0;
 
-	if(View.ViewState)
+	if (View.ViewState)
 	{
 		bool bTemporalAAIsOn = IsTemporalAccumulationBasedMethod(View.AntiAliasingMethod);
 
-		if(bTemporalAAIsOn)
+		if (bTemporalAAIsOn)
 		{
 			// usually this number is in the 0..7 range but it depends on the TemporalAA quality
 			FrameRandom = View.ViewState->GetCurrentTemporalAASampleIndex() * 1551;
@@ -331,13 +323,18 @@ FLinearColor ComputeSSRParams(const FViewInfo& View, ESSRQuality SSRQuality, boo
 	}
 
 	return FLinearColor(
-		FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionIntensity * 0.01f, 0.0f, 1.0f), 
+		FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionIntensity * 0.01f, 0.0f, 1.0f),
 		RoughnessMaskScale,
 		(float)bEnableDiscard,	// TODO 
 		FrameRandom);
 }
 
+} // namespace ScreenSpaceRayTracing
 
+bool UseSingleLayerWaterIndirectDraw(EShaderPlatform ShaderPlatform);
+
+namespace
+{
 
 BEGIN_SHADER_PARAMETER_STRUCT(FSSRTTileClassificationParameters, )
 	SHADER_PARAMETER(FIntPoint, TileBufferExtent)

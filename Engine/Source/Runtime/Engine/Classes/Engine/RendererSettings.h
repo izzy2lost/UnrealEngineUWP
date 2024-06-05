@@ -321,8 +321,7 @@ class URendererSettings : public UDeveloperSettings
 
 	UPROPERTY(config, EditAnywhere, Category = Mobile, meta = (
 		ConsoleVariable = "r.Mobile.AntiAliasing", DisplayName = "Mobile Anti-Aliasing Method",
-		ToolTip = "The mobile default anti-aliasing method.",
-		EditCondition = "MobileShadingPath == 1"))
+		ToolTip = "The mobile default anti-aliasing method."))
 	TEnumAsByte<EMobileAntiAliasingMethod::Type> MobileAntiAliasing;
 
 	UPROPERTY(config, EditAnywhere, Category = Mobile, meta = (
@@ -1362,6 +1361,12 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "The PlanarReflection will work differently on different mode on mobile platform, choose the proper mode as expect. Changing this setting requires restarting the editor.",
 		ConfigRestartRequired = true))
 		TEnumAsByte<EMobilePlanarReflectionMode::Type> MobilePlanarReflectionMode;
+
+	UPROPERTY(config, EditAnywhere, Category = Mobile, meta = (
+		ConsoleVariable = "r.Mobile.ScreenSpaceReflections", DisplayName = "Support Screen Space Reflections on mobile",
+		ToolTip = "Support Screen Space Reflections with mobile rendering. Screen Space Reflections on mobile require TAA Changing this setting requires restarting the editor.",
+		ConfigRestartRequired = true))
+		uint32 bMobileScreenSpaceReflections : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = Mobile, meta = (
 		ConsoleVariable = "r.Mobile.SupportsGen4TAA", DisplayName = "Support desktop Gen4 TAA on mobile",

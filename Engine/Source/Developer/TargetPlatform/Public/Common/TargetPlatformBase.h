@@ -846,6 +846,10 @@ public:
 	{
 		return TargetPlatformSettings->UsesMobileDBuffer();
 	}
+	virtual bool UsesMobileScreenSpaceReflections() const override
+	{
+		return TargetPlatformSettings->UsesMobileScreenSpaceReflections();
+	}
 	virtual bool UsesASTCHDR() const override 
 	{
 		return TargetPlatformSettings->UsesASTCHDR();

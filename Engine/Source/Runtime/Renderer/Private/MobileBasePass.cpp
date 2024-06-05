@@ -62,22 +62,26 @@ EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform Shade
 	return EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 }
 
-uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel)
+extern const uint8 MobileShadingMobelSupportStencilValue = 0b01u;
+uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel, bool bFullyRough)
 {
+	// Bit 0 is set for materials that are receive SSR
+	// Bit 1 is set for DefaultLit materials (see MobileDeferredShadingPass.cpp)
+	const uint8 DefaultLitMask = bFullyRough ? 0b10u : 0b11u;
 	if (ShadingModel.HasOnlyShadingModel(MSM_DefaultLit))
 	{
-		return 1u;
+		return DefaultLitMask;
 	}
 	else if (ShadingModel.HasOnlyShadingModel(MSM_Unlit))
 	{
-		return 0u;
+		return 0b00u;
 	}
-	
+
 	// mark everyhing as MSM_DefaultLit if GBuffer CustomData is not supported
-	return MobileUsesGBufferCustomData(GMaxRHIShaderPlatform) ? 2u : 1u;
+	return MobileUsesGBufferCustomData(GMaxRHIShaderPlatform) ? MobileShadingMobelSupportStencilValue : DefaultLitMask;
 }
 
-void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, FMaterialShadingModelField ShadingModels, bool bUsesDeferredShading)
+void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial& Material, FMaterialShadingModelField ShadingModels, bool bUsesDeferredShading)
 {
 	DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<
 		true, CF_DepthNearOrEqual,
@@ -93,8 +97,8 @@ void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState,
 
 	if (bUsesDeferredShading)
 	{
-		// store into [1-3] bits
-		uint8 ShadingModel = GetMobileShadingModelStencilValue(ShadingModels);
+		// store into [1-2] bits
+		uint8 ShadingModel = GetMobileShadingModelStencilValue(ShadingModels, Material.IsFullyRough());
 		StencilValue |= GET_STENCIL_MOBILE_SM_MASK(ShadingModel);
 		StencilValue |= STENCIL_LIGHTING_CHANNELS_MASK(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetLightingChannelStencilValue() : 0x00);
 	}
@@ -563,7 +567,7 @@ void MobileBasePass::SetOpaqueRenderState(FMeshPassProcessorRenderState& DrawRen
 {
 	if (bCanUseDepthStencil)
 	{
-		SetMobileBasePassDepthState(DrawRenderState, PrimitiveSceneProxy, ShadingModels, bUsesDeferredShading);
+		SetMobileBasePassDepthState(DrawRenderState, PrimitiveSceneProxy, Material, ShadingModels, bUsesDeferredShading);
 	}
 	else
 	{

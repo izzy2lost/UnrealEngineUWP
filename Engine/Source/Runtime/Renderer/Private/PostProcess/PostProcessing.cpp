@@ -73,6 +73,7 @@
 #include "IlluminanceMeter.h"
 #include "SparseVolumeTexture/SparseVolumeTextureStreamingVisualize.h"
 #include "CanvasItem.h"
+#include "MobileSSR.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -2733,7 +2734,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 			EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
 			checkSlow(TAAConfig != EMainTAAPassConfig::Disabled);
 
-			FDefaultTemporalUpscaler::FInputs UpscalerPassInputs;
+			FDefaultTemporalUpscaler::FInputs UpscalerPassInputs{};
 			UpscalerPassInputs.SceneColor = FScreenPassTexture(SceneColor.Texture, View.ViewRect);
 			UpscalerPassInputs.SceneDepth = FScreenPassTexture(SceneDepth.Texture, View.ViewRect);
 			UpscalerPassInputs.SceneVelocity = FScreenPassTexture(Velocity.Texture, View.ViewRect);
@@ -2758,6 +2759,24 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 				unimplemented();
 			}
 			SceneColor = FScreenPassTexture(Outputs.FullRes);
+		}
+		else if (IsMobileSSREnabled(View))
+		{
+			// If we need SSR, and TAA is enabled, then AddTemporalAAPass() has already handled the scene history.
+			// If we need SSR, and TAA is not enabled, then we just need to extract the history.
+			if (!View.bStatePrevViewInfoIsReadOnly)
+			{
+				check(View.ViewState);
+				FTemporalAAHistory& OutputHistory = View.ViewState->PrevFrameViewInfo.TemporalAAHistory;
+				GraphBuilder.QueueTextureExtraction(SceneColor.Texture, &OutputHistory.RT[0]);
+
+				// For SSR, we still fill up the rest of the OutputHistory data using shared math from FTAAPassParameters.
+				FTAAPassParameters TAAInputs(View);
+				TAAInputs.SceneColorInput = SceneColor.Texture;
+				TAAInputs.SetupViewRect(View);
+				OutputHistory.ViewportRect = TAAInputs.OutputViewRect;
+				OutputHistory.ReferenceBufferSize = TAAInputs.GetOutputExtent() * TAAInputs.ResolutionDivisor;
+			}
 		}
 	}
 	else

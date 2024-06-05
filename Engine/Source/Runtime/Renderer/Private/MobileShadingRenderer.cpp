@@ -76,6 +76,7 @@
 #include "Rendering/CustomRenderPass.h"
 #include "GenerateMips.h"
 #include "StereoRenderUtils.h"
+#include "MobileSSR.h"
 
 uint32 GetShadowQuality();
 
@@ -563,7 +564,7 @@ void FMobileSceneRenderer::InitViews(
 		&& !ViewFamily.UseDebugViewPS()
 		&& bRendererOutputFinalSceneColor;
 
-	bShouldRenderHZB = ShouldRenderHZB() && bRendererOutputFinalSceneColor;
+	bShouldRenderHZB = ShouldRenderHZB(Views) && bRendererOutputFinalSceneColor;
 
 	// Whether we need to store depth for post-processing
 	// On PowerVR we see flickering of shadows and depths not updating correctly if targets are discarded.
@@ -1828,9 +1829,7 @@ void MobileDeferredCopyBuffer(FRHICommandList& RHICmdList, const FViewInfo& View
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 	GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-	// Shade only MSM_DefaultLit pixels
-	uint8 StencilRef = GET_STENCIL_MOBILE_SM_MASK(MSM_DefaultLit);
-	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI(); // 4 bits for shading models
+	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 
 	TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
 	TShaderMapRef<T> PixelShader(View.ShaderMap);
@@ -1839,7 +1838,7 @@ void MobileDeferredCopyBuffer(FRHICommandList& RHICmdList, const FViewInfo& View
 	GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 	GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, StencilRef);
+	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0u);
 
 	DrawRectangle(
 		RHICmdList,
@@ -1979,6 +1978,8 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, F
 				// SceneColor write, SceneDepth is read only
 				RHICmdList.NextSubpass();
 				MobileDeferredShadingPass(RHICmdList, ViewContext.ViewIndex, Views.Num(), View, *Scene, SortedLightSet, VisibleLightInfos);
+				RenderSSR(RHICmdList, View);
+
 				if (bUsingPixelLocalStorage)
 				{
 					MobileDeferredCopyBuffer<FMobileDeferredCopyPLSPS>(RHICmdList, View);
@@ -2149,6 +2150,7 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, FS
 				FViewInfo& View = *ViewContext.ViewInfo;
 
 				MobileDeferredShadingPass(RHICmdList, ViewContext.ViewIndex, Views.Num(), View, *Scene, SortedLightSet, VisibleLightInfos);
+				RenderSSR(RHICmdList, View);
 				RenderFog(RHICmdList, View);
 
 				// Draw translucency.
@@ -2351,7 +2353,7 @@ void FMobileSceneRenderer::PreTonemapMSAA(FRHICommandList& RHICmdList, const FMi
 		EDRF_UseTriangleOptimization);
 }
 
-bool FMobileSceneRenderer::ShouldRenderHZB()
+bool FMobileSceneRenderer::ShouldRenderHZB(TArrayView<FViewInfo> InViews)
 {
 	static const auto MobileAmbientOcclusionTechniqueCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AmbientOcclusionTechnique"));
 
@@ -2365,6 +2367,18 @@ bool FMobileSceneRenderer::ShouldRenderHZB()
 	}
 
 	bool bNeedsHZB = bIsFeatureRequested;
+
+	if (!bNeedsHZB)
+	{
+		for (const FViewInfo& View : InViews)
+		{
+			if (IsMobileSSREnabled(View))
+			{
+				bNeedsHZB = true;
+				break;
+			}
+		}
+	}
 
 	return bNeedsHZB;
 }

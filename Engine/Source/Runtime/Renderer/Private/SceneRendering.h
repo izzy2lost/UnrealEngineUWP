@@ -2637,7 +2637,7 @@ protected:
 	/** Issues occlusion queries */
 	void RenderOcclusion(FRHICommandList& RHICmdList);
 	
-	bool ShouldRenderHZB();
+	bool ShouldRenderHZB(TArrayView<FViewInfo> InViews);
 
 
 	/** Generate HZB */
@@ -2657,6 +2657,9 @@ protected:
 
 	/** Renders the base pass for translucency. */
 	void RenderTranslucency(FRHICommandList& RHICmdList, const FViewInfo& View);
+
+	/** Renders screen space reflections. */
+	void RenderSSR(FRHICommandList& RHICmdList, const FViewInfo& View);
 
 	/** On chip pre-tonemap before scene color MSAA resolve (iOS only) */
 	void PreTonemapMSAA(FRHICommandList& RHICmdList, const FMinimalSceneTextures& SceneTextures);

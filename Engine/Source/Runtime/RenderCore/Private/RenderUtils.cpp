@@ -540,6 +540,13 @@ RENDERCORE_API bool IsMobileAmbientOcclusionEnabled(const FStaticShaderPlatform 
 	return IsMobilePlatform(Platform) && GMobileAmbientOcclusionPlatformMask[(int)Platform];
 }
 
+RENDERCORE_API ShaderPlatformMaskType GMobileScreenSpaceReflectionsPlatformMask;
+
+RENDERCORE_API bool AreMobileScreenSpaceReflectionsEnabled(const FStaticShaderPlatform Platform)
+{
+	return IsMobilePlatform(Platform) && GMobileScreenSpaceReflectionsPlatformMask[(int)Platform];
+}
+
 RENDERCORE_API bool IsMobileDistanceFieldEnabled(const FStaticShaderPlatform Platform)
 {
 	return IsMobilePlatform(Platform) && FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields(Platform) && IsUsingDistanceFields(Platform);
@@ -597,7 +604,7 @@ RENDERCORE_API bool MobileBasePassAlwaysUsesCSM(const FStaticShaderPlatform Plat
 
 RENDERCORE_API bool MobileUsesFullDepthPrepass(const FStaticShaderPlatform Platform)
 {
-	return MobileUsesShadowMaskTexture(Platform) || IsMobileAmbientOcclusionEnabled(Platform) || IsUsingDBuffers(Platform) || FReadOnlyCVARCache::MobileEarlyZPass(Platform) == 1;
+	return MobileUsesShadowMaskTexture(Platform) || IsMobileAmbientOcclusionEnabled(Platform) || IsUsingDBuffers(Platform) || AreMobileScreenSpaceReflectionsEnabled(Platform) || FReadOnlyCVARCache::MobileEarlyZPass(Platform) == 1;
 }
 
 RENDERCORE_API bool ShouldForceFullDepthPass(const FStaticShaderPlatform Platform)
@@ -751,6 +758,9 @@ RENDERCORE_API void RenderUtilsInit()
 	static IConsoleVariable* MobileAmbientOcclusionCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AmbientOcclusion"));
 	GMobileAmbientOcclusionPlatformMask.Init(MobileAmbientOcclusionCVar && MobileAmbientOcclusionCVar->GetInt(), EShaderPlatform::SP_NumPlatforms);
 
+	static IConsoleVariable* MobileScreenSpaceReflectionsCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.ScreenSpaceReflections"));
+	GMobileScreenSpaceReflectionsPlatformMask.Init(MobileScreenSpaceReflectionsCVar && MobileScreenSpaceReflectionsCVar->GetInt(), EShaderPlatform::SP_NumPlatforms);
+
 #if WITH_EDITOR
 	ITargetPlatformManagerModule* TargetPlatformManager = GetTargetPlatformManager();
 	if (TargetPlatformManager)
@@ -791,6 +801,8 @@ RENDERCORE_API void RenderUtilsInit()
 					GVelocityEncodeDepthPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->VelocityEncodeDepth();
 
 					GMobileAmbientOcclusionPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->UsesMobileAmbientOcclusion();
+
+					GMobileScreenSpaceReflectionsPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->UsesMobileScreenSpaceReflections();
 				}
 			}
 

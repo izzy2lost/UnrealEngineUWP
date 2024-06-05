@@ -36,6 +36,7 @@ public:
 	TARGETPLATFORM_API virtual int32 GetHeightFogModeForOpaque() const override;
 	TARGETPLATFORM_API virtual bool UsesMobileAmbientOcclusion() const override;
 	TARGETPLATFORM_API virtual bool UsesMobileDBuffer() const override;
+	TARGETPLATFORM_API virtual bool UsesMobileScreenSpaceReflections() const override;
 	TARGETPLATFORM_API virtual bool UsesASTCHDR() const override;
 	TARGETPLATFORM_API virtual void GetRayTracingShaderFormats(TArray<FName>& OutFormats) const override;
 

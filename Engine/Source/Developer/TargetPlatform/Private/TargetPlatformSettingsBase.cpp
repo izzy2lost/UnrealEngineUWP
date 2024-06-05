@@ -94,6 +94,12 @@ bool FTargetPlatformSettingsBase::UsesMobileDBuffer() const
 	return CVar ? (CVar->GetInt() != 0) : false;
 }
 
+bool FTargetPlatformSettingsBase::UsesMobileScreenSpaceReflections() const
+{
+	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.ScreenSpaceReflections"));
+	return CVar ? (CVar->GetInt() != 0) : false;
+}
+
 bool FTargetPlatformSettingsBase::UsesASTCHDR() const
 {
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("cook.ASTCTextureCompressor"));
