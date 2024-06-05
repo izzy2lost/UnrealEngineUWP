@@ -288,7 +288,7 @@ namespace Jupiter.Implementation
 
 				if (isRecentBucket)
 				{
-					_logger.LogWarning("Reached recent bucket when replicating {Name}, will run replication again to ensure consistency as this bucket may change again", _name);
+					_logger.LogInformation("Reached recent bucket {BucketName} when replicating {Name}, will run replication again to ensure consistency as this bucket may change again", refBucket, _name);
 				}
 				else
 				{
@@ -469,6 +469,12 @@ namespace Jupiter.Implementation
 					}
 
 					lastException = e;
+
+					if (e.StatusCode == HttpStatusCode.NotFound)
+					{
+						// delay the retry with a second if blob is missing, as its really not expected for it to actually miss, likely we just haven't reached consistency on the fact that it does exist
+						await Task.Delay(1000, cancellationToken);
+					}
 				}
 			}
 
