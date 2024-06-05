@@ -245,7 +245,7 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 		int32 TargetTileY = 0;
 		RecastNavMesh->GetNavMeshTileXY(TargetLocation, TargetTileX, TargetTileY);
 
-		TArray<int32> TileSet;
+		TArray<FNavTileRef> TileSet;
 		for (int32 Idx = 0; Idx < NumTilesToDisplay; Idx++)
 		{
 			const int32 NeiX = TargetTileX + DeltaX[Idx];

@@ -60,25 +60,40 @@ public:
 	 * @params TileIndex Used to collect geometry for a specific tile, INDEX_NONE will gather all tiles.
 	 * @return True if done collecting.
 	 */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const;
+
+	/* Gather debug geometry.
+	 * @params OutGeometry Output geometry.
+	 * @params TileRef Used to collect geometry for a specific tile, an invalid FNavTileRef will gather all tiles.
+	 * @return True if done collecting.
+	 */
+	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const;
 	
 	/** Returns bounding box for the whole navmesh. */
 	NAVIGATIONSYSTEM_API FBox GetNavMeshBounds() const;
 
 	/** Returns bounding box for a given navmesh tile. */
+	UE_DEPRECATED(5.5, "Use the version of this function on ARecastNavMesh that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API FBox GetNavMeshTileBounds(int32 TileIndex) const;
 
 	/** Retrieves XY and layer coordinates of tile specified by index */
+	UE_DEPRECATED(5.5, "Use the version of this function on ARecastNavMesh that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& OutLayer) const;
 
 	/** Retrieves XY coordinates of tile specified by position */
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& OutY) const;
 
 	/** Retrieves all tile indices at matching XY coordinates */
+	UE_DEPRECATED(5.5, "Use the version of this function on ARecastNavMesh that takes an array of FNavTileRefs instead.")
 	NAVIGATIONSYSTEM_API void GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const;
 
 	/** Retrieves list of tiles that intersect specified bounds */
+	UE_DEPRECATED(5.5, "Use the version of the function that takes an array of FNavTileRefs instead")
 	NAVIGATIONSYSTEM_API void GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds, TArray<int32>& Indices) const;
+
+	/** Retrieves list of tiles that intersect specified bounds */
+	NAVIGATIONSYSTEM_API void GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds, TArray<FNavTileRef>& OutRefs) const;
 
 	/** Retrieves number of tiles in this navmesh */
 	FORCEINLINE int32 GetNavMeshTilesCount() const { return DetourNavMesh ? DetourNavMesh->getMaxTiles() : 0; }
@@ -164,6 +179,7 @@ public:
 	NAVIGATIONSYSTEM_API bool FilterPolys(TArray<NavNodeRef>& PolyRefs, const FRecastQueryFilter* Filter, const UObject* Owner) const;
 
 	/** Get all polys from tile */
+	UE_DEPRECATED(5.5, "Use the version of this function in ARecastNavMesh that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const;
 
 	UE_DEPRECATED(5.3, "Please use the version of this function that takes a FNavLinkId. This function has no effect.")

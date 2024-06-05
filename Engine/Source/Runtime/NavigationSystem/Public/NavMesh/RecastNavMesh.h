@@ -284,6 +284,8 @@ struct FNavTileRef
 
 	bool IsValid() const { return TileRef != (uint64)FNavTileRef(); }
 
+	FORCEINLINE friend uint32 GetTypeHash(const FNavTileRef& NavTileRef) { return GetTypeHash(NavTileRef.TileRef); }
+
 	/** Those 2 functions are used for backward compatibility of the following deprecated functions in FRecastNavMeshGenerator and ARecastNavMesh:
 	*	  RemoveTileLayers
 	*     AddGeneratedTilesTimeSliced
@@ -1179,25 +1181,44 @@ public:
 	NAVIGATIONSYSTEM_API FBox GetNavMeshBounds() const;
 
 	/** Returns bounding box for a given navmesh tile. */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API FBox GetNavMeshTileBounds(int32 TileIndex) const;
 
+	/** Returns bounding box for a given navmesh tile. */
+	NAVIGATIONSYSTEM_API FBox GetNavMeshTileBounds(FNavTileRef TileRef) const;
+
 	/** Retrieves XY coordinates of tile specified by index */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& Layer) const;
+
+	/** Retrieves XY coordinates of tile */
+	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(FNavTileRef TileRef, int32& OutX, int32& OutY, int32& Layer) const;
 
 	/** Retrieves XY coordinates of tile specified by position */
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& OutY) const;
 
 	/** Retrieves the tile resolution */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetNavmeshTileResolution(int32 TileIndex, ENavigationDataResolution& OutResolution) const;
+
+	/** Retrieves the tile resolution */
+	NAVIGATIONSYSTEM_API bool GetNavmeshTileResolution(FNavTileRef TileRef, ENavigationDataResolution& OutResolution) const;
 
 	/** Checks the supplied Points tile indicies can fit in the range of an int32 */
 	NAVIGATIONSYSTEM_API bool CheckTileIndicesInValidRange(const FVector& Point, bool& bOutInRange) const;
 
 	/** Retrieves all tile indices at matching XY coordinates */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes an array of FNavTileRefs instead.")
 	NAVIGATIONSYSTEM_API void GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const;
+
+	/** Retrieves all tiles at matching XY coordinates */
+	NAVIGATIONSYSTEM_API void GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<FNavTileRef>& OutRefs) const;
 
 	/** Retrieves number of tiles in this navmesh */
 	NAVIGATIONSYSTEM_API int32 GetNavMeshTilesCount() const;
+
+	/** Retrieves all tiles in this navmesh */
+	NAVIGATIONSYSTEM_API void GetAllNavMeshTiles(TArray<FNavTileRef>& OutRefs) const;
 
 	/** Removes compressed tile data at given tile coord */
 	NAVIGATIONSYSTEM_API void RemoveTileCacheLayers(int32 TileX, int32 TileY);
@@ -1265,7 +1286,15 @@ public:
 	 * @params TileIndex Used to collect geometry for a specific tile, INDEX_NONE will gather all tiles
 	 * @return True if done collecting.
 	 */
+	UE_DEPRECATED(5.5, "Use the version of the function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const;
+
+	/* Gather debug geometry.
+	 * @params OutGeometry Output geometry.
+	 * @params TileRef Used to collect geometry for a specific tile, an invalid FNavTileRef will gather all tiles
+	 * @return True if done collecting.
+	 */
+	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const;
 
 	// @todo docuement
 	NAVIGATIONSYSTEM_API void DrawDebugPathCorridor(NavNodeRef const* PathPolys, int32 NumPathPolys, bool bPersistent=true) const;
@@ -1430,7 +1459,11 @@ public:
 	NAVIGATIONSYSTEM_API bool FilterPolys(TArray<NavNodeRef>& PolyRefs, const FRecastQueryFilter* Filter, const UObject* Querier = NULL) const;
 
 	/** Get all polys from tile */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const;
+
+	/** Get all polys from tile */
+	NAVIGATIONSYSTEM_API bool GetPolysInTile(FNavTileRef TileRef, TArray<FNavPoly>& Polys) const;
 
 	/** Get up to 256 polys that overlap the specified box */
 	NAVIGATIONSYSTEM_API bool GetPolysInBox(const FBox& Box, TArray<FNavPoly>& Polys, FSharedConstNavQueryFilter Filter = nullptr, const UObject* Owner = nullptr) const;

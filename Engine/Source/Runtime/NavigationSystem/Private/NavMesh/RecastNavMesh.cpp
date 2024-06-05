@@ -1260,20 +1260,76 @@ FBox ARecastNavMesh::GetNavMeshBounds() const
 	return Bounds;
 }
 
+// Deprecated
 FBox ARecastNavMesh::GetNavMeshTileBounds(int32 TileIndex) const
 {
-	FBox Bounds(ForceInit);
-	if (RecastNavMeshImpl)
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
 	{
-		Bounds = RecastNavMeshImpl->GetNavMeshTileBounds(TileIndex);
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetNavMeshTileBounds(TileRefs[0]);
+	}
+
+	return FBox(ForceInit);
+}
+
+FBox ARecastNavMesh::GetNavMeshTileBounds(FNavTileRef TileRef) const
+{
+	FBox Bounds(ForceInit);
+
+	if (HasValidNavmesh() && TileRef.IsValid())
+	{
+		// workaround for privacy issue in the recast API
+		dtNavMesh const* const ConstRecastNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		dtMeshTile const* const Tile = ConstRecastNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
+		if (Tile)
+		{
+			dtMeshHeader const* const Header = Tile->header;
+			if (Header)
+			{
+				Bounds = Recast2UnrealBox(Header->bmin, Header->bmax);
+			}
+		}
 	}
 
 	return Bounds;
 }
 
+// Deprecated
 bool ARecastNavMesh::GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& OutLayer) const
 {
-	return RecastNavMeshImpl && RecastNavMeshImpl->GetNavMeshTileXY(TileIndex, OutX, OutY, OutLayer);
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetNavMeshTileXY(TileRefs[0], OutX, OutY, OutLayer);
+	}
+	return false;
+}
+
+bool ARecastNavMesh::GetNavMeshTileXY(FNavTileRef TileRef, int32& OutX, int32& OutY, int32& OutLayer) const
+{
+	if (HasValidNavmesh() && TileRef.IsValid())
+	{
+		// workaround for privacy issue in the recast API
+		dtNavMesh const* const ConstRecastNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		dtMeshTile const* const Tile = ConstRecastNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
+		if (Tile)
+		{
+			dtMeshHeader const* const Header = Tile->header;
+			if (Header)
+			{
+				OutX = Header->x;
+				OutY = Header->y;
+				OutLayer = Header->layer;
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 bool ARecastNavMesh::GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& OutY) const
@@ -1281,13 +1337,26 @@ bool ARecastNavMesh::GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& 
 	return RecastNavMeshImpl && RecastNavMeshImpl->GetNavMeshTileXY(Point, OutX, OutY);
 }
 
+// Deprecated
 bool ARecastNavMesh::GetNavmeshTileResolution(int32 TileIndex, ENavigationDataResolution& OutResolution) const
+{
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetNavmeshTileResolution(TileRefs[0], OutResolution);
+	}
+
+	return false;
+}
+
+bool ARecastNavMesh::GetNavmeshTileResolution(FNavTileRef TileRef, ENavigationDataResolution& OutResolution) const
 {
 	if (RecastNavMeshImpl)
 	{
 		if (const dtNavMesh* const RecastNavMesh = RecastNavMeshImpl->DetourNavMesh)
 		{
-			if (const dtMeshTile* const Tile = RecastNavMesh->getTile(TileIndex))
+			if (const dtMeshTile* const Tile = RecastNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef)))
 			{
 				if (const dtMeshHeader* const Header = Tile->header)
 				{
@@ -1315,17 +1384,115 @@ bool ARecastNavMesh::CheckTileIndicesInValidRange(const FVector& Point, bool& bO
 	return bValidMesh;
 }
 
+// Deprecated
 void ARecastNavMesh::GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const
 {
 	if (RecastNavMeshImpl)
 	{
-		RecastNavMeshImpl->GetNavMeshTilesAt(TileX, TileY, Indices);
+		TArray<FNavTileRef> Refs;
+		GetNavMeshTilesAt(TileX, TileY, Refs);
+
+		TArray<uint32> UnsignedIndices;
+		FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(RecastNavMeshImpl, Refs, UnsignedIndices);
+
+		Indices.Append(UnsignedIndices);
 	}
 }
 
+void ARecastNavMesh::GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<FNavTileRef>& OutRefs) const
+{	
+	if (HasValidNavmesh())
+	{
+		// workaround for privacy issue in the recast API
+		dtNavMesh const* const ConstRecastNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		const int32 MaxTiles = ConstRecastNavMesh->getTileCountAt(TileX, TileY);
+		TArray<const dtMeshTile*> Tiles;
+		Tiles.AddZeroed(MaxTiles);
+
+		const int32 NumTiles = ConstRecastNavMesh->getTilesAt(TileX, TileY, Tiles.GetData(), MaxTiles);
+		for (int32 i = 0; i < NumTiles; i++)
+		{
+			dtTileRef TileRef = ConstRecastNavMesh->getTileRef(Tiles[i]);
+			if (TileRef)
+			{
+				OutRefs.Add(FNavTileRef(TileRef));
+			}
+		}
+	}
+}
+
+void ARecastNavMesh::GetAllNavMeshTiles(TArray<FNavTileRef>& OutRefs) const
+{
+	if (HasValidNavmesh())
+	{
+		// workaround for privacy issue in the recast API
+		const dtNavMesh* const ConstDetourNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		const int32 TileCount = ConstDetourNavMesh->getMaxTiles();
+
+		OutRefs.Reserve(OutRefs.Num() + TileCount);
+		for (int32 TileIndex = 0; TileIndex < TileCount; ++TileIndex)
+		{
+			if (const dtMeshTile* const Tile = ConstDetourNavMesh->getTile(TileIndex))
+			{
+				if (const dtTileRef TileRef = ConstDetourNavMesh->getTileRef(Tile))
+				{
+					OutRefs.Add(FNavTileRef(TileRef));
+				}
+			}
+		}
+	}
+}
+
+// Deprecated
 bool ARecastNavMesh::GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const
 {
-	return RecastNavMeshImpl && RecastNavMeshImpl->GetPolysInTile(TileIndex, Polys);
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetPolysInTile(TileRefs[0], Polys);
+	}
+
+	return false;
+}
+
+bool ARecastNavMesh::GetPolysInTile(FNavTileRef TileRef, TArray<FNavPoly>& Polys) const
+{
+	if (HasValidNavmesh() && TileRef.IsValid())
+	{
+		// workaround for privacy issue in the recast API
+		const dtNavMesh* const ConstDetourNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		const dtMeshTile* Tile = ConstDetourNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
+		const int32 MaxPolys = Tile && Tile->header ? Tile->header->offMeshBase : 0;
+		if (MaxPolys > 0)
+		{
+			// only ground type polys
+			int32 BaseIdx = Polys.Num();
+			Polys.AddZeroed(MaxPolys);
+
+			dtPoly* Poly = Tile->polys;
+			for (int32 i = 0; i < MaxPolys; i++, Poly++)
+			{
+				FVector PolyCenter(0);
+				for (int k = 0; k < Poly->vertCount; ++k)
+				{
+					PolyCenter += Recast2UnrealPoint(&Tile->verts[Poly->verts[k] * 3]);
+				}
+				PolyCenter /= Poly->vertCount;
+
+				FNavPoly& OutPoly = Polys[BaseIdx + i];
+				OutPoly.Ref = ConstDetourNavMesh->encodePolyId(Tile->salt, ConstDetourNavMesh->getTileIndex(Tile), i);
+				OutPoly.Center = PolyCenter;
+			}
+		}
+
+		return (MaxPolys > 0);
+	}
+
+	return false;
 }
 
 bool ARecastNavMesh::GetNavLinksInTile(const int32 TileIndex, TArray<FNavPoly>& Polys, const bool bIncludeLinksFromNeighborTiles) const
@@ -2425,14 +2592,41 @@ bool ARecastNavMesh::GetPolysWithinPathingDistance(FVector const& StartLoc, cons
 // Deprecated
 void ARecastNavMesh::GetDebugGeometry(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
 {
-	GetDebugGeometryForTile(OutGeometry, TileIndex);
+	if (RecastNavMeshImpl)
+	{
+		FNavTileRef TileRef;
+		if (TileIndex != INDEX_NONE)
+		{
+			TArray<FNavTileRef> TileRefs;
+			FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+			TileRef = TileRefs[0];
+		}
+		GetDebugGeometryForTile(OutGeometry, TileRef);
+	}
 }
 
+// Deprecated
 bool ARecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
 {
 	if (RecastNavMeshImpl)
 	{
-		return RecastNavMeshImpl->GetDebugGeometryForTile(OutGeometry, TileIndex);
+		FNavTileRef TileRef;
+		if (TileIndex != INDEX_NONE)
+		{
+			TArray<FNavTileRef> TileRefs;
+			FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+			TileRef = TileRefs[0];
+		}
+		return GetDebugGeometryForTile(OutGeometry, TileRef);
+	}
+	return true;
+}
+
+bool ARecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const
+{
+	if (RecastNavMeshImpl)
+	{
+		return RecastNavMeshImpl->GetDebugGeometryForTile(OutGeometry, TileRef);
 	}
 	return true;
 }
@@ -2651,7 +2845,7 @@ void ARecastNavMesh::OnNavMeshGenerationFinished()
 				if (SupportsStreaming())
 				{
 					// We use navigation volumes that belongs to this streaming level to find tiles we want to save
-					TArray<int32> LevelTiles;
+					TArray<FNavTileRef> LevelTiles;
 					TArray<FBox> LevelNavBounds = GetNavigableBoundsInLevel(Level);
 					RecastNavMeshImpl->GetNavMeshTilesIn(LevelNavBounds, LevelTiles);
 
@@ -2787,17 +2981,17 @@ void ARecastNavMesh::FillNavigationDataChunkActor(const FBox& QueryBounds, ANavi
 	UE_LOG(LogNavigation, Verbose, TEXT("%s Bounds pos: (%s)  size: (%s)."), ANSI_TO_TCHAR(__FUNCTION__), *QueryBounds.GetCenter().ToString(), *QueryBounds.GetSize().ToString());
 
 	const TArray<FBox> Boxes({ QueryBounds });
-	TArray<int32> TileIndices;
-	RecastNavMeshImpl->GetNavMeshTilesIn(Boxes, TileIndices);
-	if (!TileIndices.IsEmpty())
+	TArray<FNavTileRef> TileRefs;
+	RecastNavMeshImpl->GetNavMeshTilesIn(Boxes, TileRefs);
+	if (!TileRefs.IsEmpty())
 	{
 		// Add a data chunk for this navmesh
 		URecastNavMeshDataChunk* DataChunk = NewObject<URecastNavMeshDataChunk>(&DataChunkActor);
 		DataChunk->NavigationDataName = GetFName();
 		DataChunkActor.GetMutableNavDataChunk().Add(DataChunk);
 
-		DataChunk->GetTiles(RecastNavMeshImpl, TileIndices, SupportsRuntimeGeneration() ? EGatherTilesCopyMode::CopyDataAndCacheData : EGatherTilesCopyMode::CopyData);
-		DataChunk->GetTilesBounds(*RecastNavMeshImpl, TileIndices, OutTilesBounds);
+		DataChunk->GetTiles(RecastNavMeshImpl, TileRefs, SupportsRuntimeGeneration() ? EGatherTilesCopyMode::CopyDataAndCacheData : EGatherTilesCopyMode::CopyData);
+		DataChunk->GetTilesBounds(*RecastNavMeshImpl, TileRefs, OutTilesBounds);
 	}
 }
 

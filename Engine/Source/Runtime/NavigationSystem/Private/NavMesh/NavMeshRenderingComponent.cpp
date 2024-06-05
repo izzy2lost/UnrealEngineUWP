@@ -488,7 +488,12 @@ uint32 FNavMeshSceneProxyData::GetAllocatedSize() const
 
 #if WITH_RECAST
 
+// Deprecated
 void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InNavDetailFlags, const TArray<int32>& TileSet)
+{
+}
+
+void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InNavDetailFlags, const TArray<FNavTileRef>& TileSet)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_NavMesh_GatherDebugDrawingGeometry);
 	Reset();
@@ -682,7 +687,7 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 		}
 		else
 		{
-			NavMesh->GetDebugGeometryForTile(NavMeshGeometry, INDEX_NONE);
+			NavMesh->GetDebugGeometryForTile(NavMeshGeometry, FNavTileRef());
 		}
 
 		const TArray<FVector>& MeshVerts = NavMeshGeometry.MeshVerts;
@@ -800,31 +805,27 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_NavMesh_GatherDebugDrawing_TileIterations);
 			
-			TArray<int32> UseTileIndices;
+			TArray<FNavTileRef> UseTileRefs;
 			if (TileSet.Num() > 0)
 			{
-				UseTileIndices = TileSet;
+				UseTileRefs = TileSet;
 			}
 			else
 			{
-				const int32 TilesCount = NavMesh->GetNavMeshTilesCount();
-				for (int32 Idx = 0; Idx < TilesCount; Idx++)
-				{
-					UseTileIndices.Add(Idx);
-				}
+				NavMesh->GetAllNavMeshTiles(UseTileRefs);
 			}
 
 			TMap<FIntPoint, FVector> TileBuildTimeLabelLocations;
 			
 			// calculate appropriate points for displaying debug labels
-			DebugLabels.Reserve(UseTileIndices.Num());
-			for (int32 TileSetIdx = 0; TileSetIdx < UseTileIndices.Num(); TileSetIdx++)
+			DebugLabels.Reserve(UseTileRefs.Num());
+			for (int32 TileSetIdx = 0; TileSetIdx < UseTileRefs.Num(); TileSetIdx++)
 			{
-				const int32 TileIndex = UseTileIndices[TileSetIdx];
+				const FNavTileRef TileRef = UseTileRefs[TileSetIdx];
 				int32 X, Y, Layer;
-				if (NavMesh->GetNavMeshTileXY(TileIndex, X, Y, Layer))
+				if (NavMesh->GetNavMeshTileXY(TileRef, X, Y, Layer))
 				{
-					const FBox TileBoundingBox = NavMesh->GetNavMeshTileBounds(TileIndex);
+					const FBox TileBoundingBox = NavMesh->GetNavMeshTileBounds(TileRef);
 					FVector TileLabelLocation = TileBoundingBox.GetCenter();
 					TileLabelLocation.Z = TileBoundingBox.Max.Z;
 
@@ -857,7 +858,7 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 					if (bGatherPolygonLabels || bGatherPolygonCost || bGatherPolygonFlags)
 					{
 						TArray<FNavPoly> Polys;
-						NavMesh->GetPolysInTile(TileIndex, Polys);
+						NavMesh->GetPolysInTile(TileRef, Polys);
 
 						float DefaultCosts[RECAST_MAX_AREAS];
 						float FixedCosts[RECAST_MAX_AREAS];
@@ -914,7 +915,7 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 
 					if (bGatherTileBounds)
 					{
-						const FBox TileBox = NavMesh->GetNavMeshTileBounds(TileIndex);
+						const FBox TileBox = NavMesh->GetNavMeshTileBounds(TileRef);
 						const FVector::FReal DrawZ = (TileBox.Min.Z + TileBox.Max.Z) * 0.5;
 						const FVector LL(TileBox.Min.X, TileBox.Min.Y, DrawZ);
 						const FVector UR(TileBox.Max.X, TileBox.Max.Y, DrawZ);
@@ -929,7 +930,7 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 
 					if (bGatherTileResolutions)
 					{
-						const FBox TileBox = NavMesh->GetNavMeshTileBounds(TileIndex);
+						const FBox TileBox = NavMesh->GetNavMeshTileBounds(TileRef);
 						const FVector::FReal DrawZ = TileBox.Max.Z + NavMeshDrawOffset.Z;
 						constexpr FVector::FReal InsideOffset = 10.f;
 						const FVector LowerLeft(TileBox.Min.X + InsideOffset, TileBox.Min.Y + InsideOffset, DrawZ);
@@ -940,7 +941,7 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 						FColor TileBoundsColor = FColor::Silver;
 						ENavigationDataResolution Resolution = ENavigationDataResolution::Invalid;
 						
-						if (NavMesh->GetNavmeshTileResolution(TileIndex, Resolution))
+						if (NavMesh->GetNavmeshTileResolution(TileRef, Resolution))
 						{
 							switch (Resolution)
 							{
@@ -1843,7 +1844,7 @@ void UNavMeshRenderingComponent::GatherData(const ARecastNavMesh& NavMesh, FNavM
 {
 #if WITH_RECAST
 	const int32 DetailFlags = FNavMeshRenderingHelpers::GetDetailFlags(&NavMesh);
-	const TArray<int32> EmptyTileSet;
+	const TArray<FNavTileRef> EmptyTileSet;
 	OutProxyData.GatherData(&NavMesh, DetailFlags, EmptyTileSet);
 #endif // WITH_RECAST
 }

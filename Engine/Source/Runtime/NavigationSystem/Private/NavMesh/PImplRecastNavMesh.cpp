@@ -510,7 +510,7 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 	}
 
 	int32 NumTiles = 0;
-	TArray<int32> TilesToSave;
+	TArray<FNavTileRef> TilesToSave;
 
 	if (Ar.IsSaving())
 	{
@@ -544,7 +544,8 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 					const dtMeshTile* Tile = ConstNavMesh->getTile(i);
 					if (Tile != NULL && Tile->header != NULL && Tile->dataSize > 0)
 					{
-						TilesToSave.Add(i);
+						FNavTileRef TileRef(ConstNavMesh->getTileRef(Tile));
+						TilesToSave.Add(TileRef);
 					}
 				}
 			}
@@ -700,9 +701,9 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 		const bool bSupportsRuntimeGeneration = NavMeshOwner->SupportsRuntimeGeneration();
 		dtNavMesh const* ConstNavMesh = DetourNavMesh;
 		
-		for (int TileIndex : TilesToSave)
+		for (FNavTileRef TileRefToSave : TilesToSave)
 		{
-			const dtMeshTile* Tile = ConstNavMesh->getTile(TileIndex);
+			const dtMeshTile* Tile = ConstNavMesh->getTileByRef(static_cast<dtTileRef>(TileRefToSave));
 			dtTileRef TileRef = ConstNavMesh->getTileRef(Tile);
 			int32 TileDataSize = Tile->dataSize;
 			Ar << TileRef << TileDataSize;
@@ -2554,6 +2555,7 @@ bool FPImplRecastNavMesh::FilterPolys(TArray<NavNodeRef>& PolyRefs, const FRecas
 	return true;
 }
 
+// Deprecated
 bool FPImplRecastNavMesh::GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const
 {
 	if (DetourNavMesh == NULL || TileIndex < 0 || TileIndex >= DetourNavMesh->getMaxTiles())
@@ -2735,12 +2737,25 @@ uint8 GetValidEnds(const dtNavMesh& NavMesh, const dtMeshTile& Tile, const dtPol
 	return ValidEnds;
 }
 
+// Deprecated
 bool FPImplRecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
+{
+	FNavTileRef TileRef;
+	if (TileIndex != INDEX_NONE)
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(this, { static_cast<uint32>(TileIndex) }, TileRefs);
+		TileRef = TileRefs[0];
+	}
+	return GetDebugGeometryForTile(OutGeometry, TileRef);
+}
+
+bool FPImplRecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FPImplRecastNavMesh_GetDebugGeometryForTile);
 	
 	bool bDone = false;
-	if (DetourNavMesh == nullptr || TileIndex >= DetourNavMesh->getMaxTiles())
+	if (DetourNavMesh == nullptr)
 	{
 		bDone = true;
 		return bDone;
@@ -2786,9 +2801,9 @@ bool FPImplRecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeome
 		}
 	};
 
-	if (TileIndex != INDEX_NONE)
+	if (TileRef.IsValid())
 	{
-		dtMeshTile const* const Tile = ConstNavMesh->getTile(TileIndex);
+		dtMeshTile const* const Tile = ConstNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
 		if (Tile != nullptr && Tile->header != nullptr)
 		{
 			const FIntPoint TileCoord = FIntPoint(Tile->header->x, Tile->header->y);
@@ -2799,7 +2814,7 @@ bool FPImplRecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeome
 				ReserveGeometryArrays(OutGeometry, NumVertsToReserve, NumIndicesToReserve);
 
 				const uint32 VertBase = OutGeometry.MeshVerts.Num();
-				GetTilesDebugGeometry(Generator, *Tile, VertBase, OutGeometry, TileIndex, ForbiddenFlags);
+				GetTilesDebugGeometry(Generator, *Tile, VertBase, OutGeometry, ConstNavMesh->getTileIndex(Tile), ForbiddenFlags);
 			}
 		}
 	}
@@ -3120,6 +3135,7 @@ FBox FPImplRecastNavMesh::GetNavMeshBounds() const
 	return Bbox;
 }
 
+// Deprecated
 FBox FPImplRecastNavMesh::GetNavMeshTileBounds(int32 TileIndex) const
 {
 	FBox Bbox(ForceInit);
@@ -3143,6 +3159,7 @@ FBox FPImplRecastNavMesh::GetNavMeshTileBounds(int32 TileIndex) const
 	return Bbox;
 }
 
+// Deprecated
 /** Retrieves XY coordinates of tile specified by index */
 bool FPImplRecastNavMesh::GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& OutLayer) const
 {
@@ -3188,6 +3205,7 @@ bool FPImplRecastNavMesh::GetNavMeshTileXY(const FVector& Point, int32& OutX, in
 	return false;
 }
 
+// Deprecated
 void FPImplRecastNavMesh::GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const
 {
 	if (DetourNavMesh)
@@ -3212,7 +3230,18 @@ void FPImplRecastNavMesh::GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int
 	}
 }
 
+// Deprecated
 void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds, TArray<int32>& Indices) const
+{
+	TArray<FNavTileRef> Refs;
+	GetNavMeshTilesIn(InclusionBounds, Refs);
+
+	TArray<uint32> UnsignedIndices;
+	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(this, Refs, UnsignedIndices);
+	Indices.Append(UnsignedIndices);
+}
+
+void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds, TArray<FNavTileRef>& OutRefs) const
 {
 	if (DetourNavMesh)
 	{
@@ -3239,7 +3268,7 @@ void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds,
 		}
 
 		// We guess that each tile has 3 layers in average
-		Indices.Reserve(TileCoords.Num()*3);
+		OutRefs.Reserve(TileCoords.Num()*3);
 
 		TArray<const dtMeshTile*> MeshTiles;
 		MeshTiles.Reserve(3);
@@ -3264,8 +3293,7 @@ void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds,
 						{
 							if (TileBounds.Intersect(RequestedBounds))
 							{
-								int32 TileIndex = (int32)DetourNavMesh->decodePolyIdTile(TileRef);
-								Indices.Add(TileIndex);
+								OutRefs.Add(FNavTileRef(TileRef));
 								break;
 							}
 						}
