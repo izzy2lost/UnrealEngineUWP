@@ -44,6 +44,7 @@ IElectraDecoder::ECSDCompatibility FD3D12VideoDecoder_H265::IsCompatibleWith(con
 		return IElectraDecoder::ECSDCompatibility::DrainAndReset;
 	}
 
+#if 0
 	const ElectraDecodersUtil::MPEG::H265::FSequenceParameterSet sps = temp.SPSs.CreateConstIterator().Value();
 	// Check that the new CSD isn't Main10 when we are only Main.
 	if (sps.profile_tier_level.general_profile_idc == 2 && !CodecInfo.b10Bit)
@@ -60,6 +61,9 @@ IElectraDecoder::ECSDCompatibility FD3D12VideoDecoder_H265::IsCompatibleWith(con
 		return IElectraDecoder::ECSDCompatibility::DrainAndReset;
 	}
 	return IElectraDecoder::ECSDCompatibility::Compatible;
+#else
+	return IElectraDecoder::ECSDCompatibility::DrainAndReset;
+#endif
 }
 
 TSharedPtr<IElectraDecoderDefaultOutputFormat, ESPMode::ThreadSafe> FD3D12VideoDecoder_H265::GetDefaultOutputFormatFromCSD(const TMap<FString, FVariant>& CSDAndAdditionalOptions)

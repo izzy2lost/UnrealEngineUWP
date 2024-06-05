@@ -1228,7 +1228,7 @@ namespace ElectraDecodersUtil
 				uint32 UnusedShortTermFrameNum = (CurrentPOC.prev_frame_num + 1) % max_frame_num;
 				FOutputFrameInfo NoInfo;
 				NoInfo.bDoNotOutput = true;
-				while(InSliceHeader.frame_num != UnusedShortTermFrameNum)
+				for(int32 nm=0; nm<max_frame_num && InSliceHeader.frame_num != UnusedShortTermFrameNum; ++nm)
 				{
 					TempSliceHeader.frame_num = UnusedShortTermFrameNum;
 					if (InSequenceParameterSet.pic_order_cnt_type != 0)

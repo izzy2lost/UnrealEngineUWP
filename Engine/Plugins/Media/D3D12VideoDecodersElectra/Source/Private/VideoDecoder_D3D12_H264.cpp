@@ -38,6 +38,7 @@ IElectraDecoder::ECSDCompatibility FD3D12VideoDecoder_H264::IsCompatibleWith(con
 		return IElectraDecoder::ECSDCompatibility::DrainAndReset;
 	}
 
+#if 0
 	const ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet sps = temp.SPSs.CreateConstIterator().Value();
 	int32 NewWidth, NewHeight, NewDPBSize;
 	NewDPBSize = sps.GetDPBSize();
@@ -49,6 +50,9 @@ IElectraDecoder::ECSDCompatibility FD3D12VideoDecoder_H264::IsCompatibleWith(con
 		return IElectraDecoder::ECSDCompatibility::DrainAndReset;
 	}
 	return IElectraDecoder::ECSDCompatibility::Compatible;
+#else
+	return IElectraDecoder::ECSDCompatibility::DrainAndReset;
+#endif
 }
 
 TSharedPtr<IElectraDecoderDefaultOutputFormat, ESPMode::ThreadSafe> FD3D12VideoDecoder_H264::GetDefaultOutputFormatFromCSD(const TMap<FString, FVariant>& CSDAndAdditionalOptions)
