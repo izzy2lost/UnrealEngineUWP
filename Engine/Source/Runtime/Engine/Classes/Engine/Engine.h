@@ -2721,13 +2721,17 @@ protected:
 	  */
 	 static ENGINE_API void SendWorldEndOfFrameUpdates();
 
-	 /**
-	  * Allows derived classes to force garbage collection based on various factors (low on available UObject slots / other resources)
-	  */
-	 virtual EGarbageCollectionType ShouldForceGarbageCollection()
-	 {
-		 return EGarbageCollectionType::None;
-	 }
+	/**
+	 * Allows derived classes to force garbage collection based on various factors (low on available UObject slots / other resources)
+	 */
+	ENGINE_API virtual EGarbageCollectionType ShouldForceGarbageCollection();
+
+	/**
+	 * Allows derived classes to set per-frame GC budget depending on various factors.
+	 * Default implementation uses gc.IncrementalGCTimePerFrame and gc.LowMemory.IncrementalGCTimePerFrame
+	 * depending on current memory usage and value of gc.LowMemory.MemoryThresholdMB
+	 */
+	ENGINE_API virtual float GetIncrementalGCTimePerFrame();
 
 public:
 	/** @return the GIsEditor flag setting */

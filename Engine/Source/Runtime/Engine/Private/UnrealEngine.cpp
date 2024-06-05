@@ -1795,6 +1795,28 @@ void UEngine::SetTimeUntilNextGarbageCollection(const float MinTimeUntilNextPass
 	TimeSinceLastPendingKillPurge = TimeBetweenPurgingPendingKillObjects - MinTimeUntilNextPass;
 }
 
+EGarbageCollectionType UEngine::ShouldForceGarbageCollection()
+{
+	return EGarbageCollectionType::None;
+}
+
+float UEngine::GetIncrementalGCTimePerFrame()
+{
+	float IncGCTime = GIncrementalGCTimePerFrame;
+	if (GLowMemoryMemoryThresholdMB > 0.0)
+	{
+		float MBFree = float(PlatformMemoryHelpers::GetFrameMemoryStats().AvailablePhysical / 1024 / 1024);
+#if !UE_BUILD_SHIPPING
+		MBFree -= float(FPlatformMemory::GetExtraDevelopmentMemorySize() / 1024 / 1024);
+#endif
+		if (MBFree <= GLowMemoryMemoryThresholdMB && GLowMemoryIncrementalGCTimePerFrame > GIncrementalGCTimePerFrame)
+		{
+			IncGCTime = GLowMemoryIncrementalGCTimePerFrame;
+		}
+	}
+	return IncGCTime;
+}
+
 void UEngine::ConditionalCollectGarbage()
 {
 	if (GFrameCounter != LastGCFrame)
@@ -1894,18 +1916,7 @@ void UEngine::ConditionalCollectGarbage()
 					else
 					{
 						SCOPE_CYCLE_COUNTER(STAT_GCSweepTime);
-						float IncGCTime = GIncrementalGCTimePerFrame;
-						if (GLowMemoryMemoryThresholdMB > 0.0)
-						{
-							float MBFree = float(PlatformMemoryHelpers::GetFrameMemoryStats().AvailablePhysical / 1024 / 1024);
-#if !UE_BUILD_SHIPPING
-							MBFree -= float(FPlatformMemory::GetExtraDevelopmentMemorySize() / 1024 / 1024);
-#endif
-							if (MBFree <= GLowMemoryMemoryThresholdMB && GLowMemoryIncrementalGCTimePerFrame > GIncrementalGCTimePerFrame)
-							{
-								IncGCTime = GLowMemoryIncrementalGCTimePerFrame;
-							}
-						}
+						float IncGCTime = GetIncrementalGCTimePerFrame();
 						IncrementalPurgeGarbage(true, IncGCTime);
 					}
 				}
