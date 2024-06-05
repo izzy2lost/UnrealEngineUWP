@@ -488,7 +488,7 @@ FTG_Variant::EType UTG_Node::GetExpressionCommonVariantType() const
 
 FTG_Variant::EType UTG_Node::EvalExpressionCommonVariantType() const
 {
-	FTG_Variant::EType Type = FTG_Variant::EType::Scalar;
+	FTG_Variant::EType Type = FTG_Variant::EType::Invalid;
 
 	for (auto Pin : Pins)
 	{

@@ -47,7 +47,7 @@ protected:
 	virtual std::vector<FTG_Variant>	GetEvaluateArgs() override { return std::vector<FTG_Variant>({ Input }); }
 
 public:
-	// The angle in radians to run the trigonometric function on
+	// The input to the node
 	UPROPERTY(meta = (TGType = "TG_Input"))
 	FTG_Variant							Input;
 

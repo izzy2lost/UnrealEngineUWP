@@ -14,9 +14,9 @@ struct FTG_EvaluationContext;
 
 // Types of the variant are organized in increasing complexity, so a compatible type for 2 variants is always the highest 
 UENUM()
-enum class ETG_VariantType : uint8
+enum class ETG_VariantType : int8
 {
-	Invalid = 0xFF												UMETA(DisplayName = "Invalid"),
+	Invalid = -1												UMETA(DisplayName = "Invalid"),
 	Scalar = FTG_VariantInnerData::IndexOfType<float>()			UMETA(DisplayName = "Scalar"),
 	Color = FTG_VariantInnerData::IndexOfType<FLinearColor>()	UMETA(DisplayName = "Color"),
 	Vector = FTG_VariantInnerData::IndexOfType<FVector4f>()		UMETA(DisplayName = "Vector"),
@@ -50,6 +50,10 @@ public:
 	// Retrieve the FName corresponding to a variant type
 	static FName GetNameFromType(ETG_VariantType InType)
 	{
+		/// Invalid defaults to type scalar
+		if (InType == ETG_VariantType::Invalid)
+			return TEXT("Scalar");
+
 		// We could use this: 
 		// return StaticEnum<ETG_VariantType>()->GetName(static_cast<uint32>(InType));
 		// But we want simpler names
@@ -65,6 +69,10 @@ public:
 	// Retrieve the FName associated to a varaint type used for Arg cpoptypename
 	static FName GetArgNameFromType(ETG_VariantType InType)
 	{
+		/// Invalid defaults to type scalar
+		if (InType == ETG_VariantType::Invalid)
+			return TEXT("FTG_Variant.Scalar");
+
 		static FName ArgVariantType_Names[] = {
 			TEXT("FTG_Variant.Scalar"),
 			TEXT("FTG_Variant.Color"),
@@ -100,6 +108,7 @@ public:
 	static bool IsColor(EType InType) { return (InType == EType::Color); }
 	static bool IsVector(EType InType) { return (InType == EType::Vector); }
 	static bool IsTexture(EType InType) { return (InType == EType::Texture); }
+	static bool IsInvalid(EType InType) { return (InType == EType::Invalid); }
 
 	// Find the common type between 2
 	static EType WhichCommonType(EType T0, EType T1)

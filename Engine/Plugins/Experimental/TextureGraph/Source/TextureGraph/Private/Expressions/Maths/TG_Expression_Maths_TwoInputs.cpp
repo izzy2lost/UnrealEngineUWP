@@ -4,6 +4,7 @@
 #include "Transform/Expressions/T_Maths_TwoInputs.h"
 #include "FxMat/MaterialManager.h"
 #include "Job/JobBatch.h"
+#include "TextureGraphEngine/Helper/MathUtils.h"
 
 typedef std::function<TiledBlobPtr(MixUpdateCyclePtr /* Cycle */, BufferDescriptor DesiredOutputDesc, int32 /*TargetId*/, TiledBlobPtr /*Operand1*/, TiledBlobPtr /*Operand2*/)> MathOpFunc;
 
@@ -109,7 +110,7 @@ float UTG_Expression_Step::EvaluateScalar_WithValue(FTG_EvaluationContext* InCon
 	check(ValuePtr && Count == 2);
 	float Y = ValuePtr[0];
 	float X = ValuePtr[1];
-	return X >= Y ? 1 : 0;
+	return MathUtils::Step(Y, X);
 }
 
 FTG_Texture	UTG_Expression_Step::EvaluateTexture(FTG_EvaluationContext* InContext)

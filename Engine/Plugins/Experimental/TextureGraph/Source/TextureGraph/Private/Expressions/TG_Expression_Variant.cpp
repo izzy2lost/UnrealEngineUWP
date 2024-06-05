@@ -93,7 +93,7 @@ void UTG_Expression_Variant::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	CommonVariantType = EvalExpressionCommonVariantType();
+	//CommonVariantType = EvalExpressionCommonVariantType();
 
 	switch (CommonVariantType)
 	{
@@ -117,7 +117,7 @@ void UTG_Expression_Variant::Evaluate(FTG_EvaluationContext* InContext)
 	}
 	default:
 	{
-		Output.EditTexture() = TextureHelper::GetMagenta();
+		Output.EditScalar() = 0.0f;
 		break;
 	}
 	}
