@@ -2,7 +2,6 @@
 
 #pragma once
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
-#include "HarmonixMidi/MidiPlayCursor.h"
 
 namespace HarmonixMetasound
 {

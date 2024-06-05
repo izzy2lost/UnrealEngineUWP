@@ -4,8 +4,8 @@
 #include "Components/ActorComponent.h"
 #include "Harmonix/MusicalTimebase.h"
 #include "HarmonixMidi/MidiSongPos.h"
+#include "HarmonixMidi/SongMaps.h"
 #include "Delegates/DelegateCombinations.h"
-#include "HarmonixMidi/SmoothedMidiPlayCursor.h"
 #include "Templates/UniquePtr.h"
 
 #include "MusicClockComponent.generated.h"
