@@ -6,11 +6,17 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
 #include "Delegates/IDelegateInstance.h"
+#include "Templates/UniquePtr.h"
 
 class SDockTab;
 class SWidget;
 class FSpawnTabArgs;
 class ISceneOutliner;
+
+namespace UE::Teds::Debug::QueryEditor
+{
+	class FTedsQueryEditorModel;
+}
 
 /**
  * Implements the Scene Outliner module.
@@ -35,10 +41,14 @@ private:
 	TSharedRef<SDockTab> OpenTedsDebuggerTab(const FSpawnTabArgs& SpawnTabArgs);
 	TSharedRef<SWidget> CreateTedsDebugger();
 
+	TSharedRef<SDockTab> OpenQueryEditorTab(const FSpawnTabArgs& SpawnTabArgs);
+
 private:
 	FDelegateHandle LevelEditorTabManagerChangedHandle;
 	FName TedsDebuggerTabName;
 	TypedElementDataStorage::QueryHandle InitialColumnQuery;
 	TWeakPtr<ISceneOutliner> TedsDebuggerInstance;
+
+	TUniquePtr<UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel> QueryEditorModel;
 
 };
