@@ -279,7 +279,8 @@ struct RIGVM_API FRigVMTemplateArgument
 	RIGVM_API friend uint32 GetTypeHash_NoLock(const FRigVMTemplateArgument& InArgument);
 
 	// Get the map of types to permutation indices
-	const TArray<int32>& GetPermutations(const TRigVMTypeIndex InType) const;
+	const TArray<int32>& GetPermutations(const TRigVMTypeIndex InType, bool bLockRegistry = true) const;
+	const TArray<int32>& GetPermutations_NoLock(const TRigVMTypeIndex InType) const;
 	void InvalidatePermutations(const TRigVMTypeIndex InType);
 
 protected:
@@ -448,7 +449,8 @@ public:
 	const FRigVMFunction* GetOrCreatePermutation(int32 InIndex, bool bLockRegistry = true);
 
 	// returns true if a given function is a permutation of this template
-	bool ContainsPermutation(const FRigVMFunction* InPermutation) const;
+	bool ContainsPermutation(const FRigVMFunction* InPermutation, bool bLockRegistry = true) const;
+	bool ContainsPermutation_NoLock(const FRigVMFunction* InPermutation) const;
 
 	// returns the index of the permutation within the template of a given function (or INDEX_NONE)
 	int32 FindPermutation(const FRigVMFunction* InPermutation) const;
@@ -467,7 +469,8 @@ public:
 	uint32 GetTypesHashFromTypes(const FTypeMap& InTypes) const;
 
 	// returns true if the template was able to resolve to at least one permutation
-	bool ContainsPermutation(const FTypeMap& InTypes) const;
+	bool ContainsPermutation(const FTypeMap& InTypes, bool bLockRegistry = true) const;
+	bool ContainsPermutation_NoLock(const FTypeMap& InTypes) const;
 
 	// returns true if the template can resolve an argument to a new type
 	bool ResolveArgument(const FName& InArgumentName, const TRigVMTypeIndex InTypeIndex, FTypeMap& InOutTypes, bool bLockRegistry = true) const;

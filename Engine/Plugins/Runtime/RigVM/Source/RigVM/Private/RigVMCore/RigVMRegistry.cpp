@@ -603,7 +603,7 @@ TRigVMTypeIndex FRigVMRegistry_NoLock::FindOrAddType_NoLock(const FRigVMTemplate
 
 		// update the categories first then propagate to TemplatesPerCategory once all categories up to date
 		TArray<TPair<FRigVMTemplateArgument::ETypeCategory, int32>> ToPropagate;
-		auto RegisterNewType = [&](FRigVMTemplateArgument::ETypeCategory InCategory, int32 NewIndex)
+		auto RegisterNewType = [&](FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex NewIndex)
 		{
 			RegisterTypeInCategory_NoLock(InCategory, NewIndex);
 			ToPropagate.Emplace(InCategory, NewIndex);
@@ -1210,7 +1210,16 @@ TRigVMTypeIndex FRigVMRegistry_NoLock::GetArrayTypeFromBaseTypeIndex_NoLock(TRig
 {
 	if(ensure(Types.IsValidIndex(InTypeIndex)))
 	{
+#if UE_RIGVM_DEBUG_TYPEINDEX
+		TRigVMTypeIndex Result = Types[InTypeIndex].ArrayTypeIndex;
+		if(!InTypeIndex.Name.IsNone())
+		{
+			Result.Name = *RigVMTypeUtils::ArrayTypeFromBaseType(InTypeIndex.Name.ToString());
+		}
+		return Result;
+#else
 		return Types[InTypeIndex].ArrayTypeIndex;
+#endif
 	}
 	return INDEX_NONE;
 }
@@ -1219,7 +1228,16 @@ TRigVMTypeIndex FRigVMRegistry_NoLock::GetBaseTypeFromArrayTypeIndex_NoLock(TRig
 {
 	if(ensure(Types.IsValidIndex(InTypeIndex)))
 	{
+#if UE_RIGVM_DEBUG_TYPEINDEX
+		TRigVMTypeIndex Result = Types[InTypeIndex].BaseTypeIndex;
+		if(!InTypeIndex.Name.IsNone())
+		{
+			Result.Name = *RigVMTypeUtils::BaseTypeFromArrayType(InTypeIndex.Name.ToString());
+		}
+		return Result;
+#else
 		return Types[InTypeIndex].BaseTypeIndex;
+#endif
 	}
 	return INDEX_NONE;
 }

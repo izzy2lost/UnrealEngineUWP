@@ -220,7 +220,7 @@ bool FRigVMTemplateArgument::SupportsTypeIndex_NoLock(TRigVMTypeIndex InTypeInde
 		}
 	}
 
-	const TArray<int32>& Permutations = GetPermutations(InTypeIndex);
+	const TArray<int32>& Permutations = GetPermutations_NoLock(InTypeIndex);
 	if (!Permutations.IsEmpty())
 	{
 		if(OutTypeIndex)
@@ -234,7 +234,7 @@ bool FRigVMTemplateArgument::SupportsTypeIndex_NoLock(TRigVMTypeIndex InTypeInde
 	const TArray<TRigVMTypeIndex>& CompatibleTypes = Registry.GetCompatibleTypes_NoLock(InTypeIndex);
 	for (const TRigVMTypeIndex& CompatibleTypeIndex : CompatibleTypes)
 	{
-		const TArray<int32>& CompatiblePermutations = GetPermutations(CompatibleTypeIndex);
+		const TArray<int32>& CompatiblePermutations = GetPermutations_NoLock(CompatibleTypeIndex);
 		if (!CompatiblePermutations.IsEmpty())
 		{
 			if(OutTypeIndex)
@@ -348,7 +348,13 @@ FRigVMTemplateArgument::EArrayType FRigVMTemplateArgument::GetArrayType_NoLock()
 	return EArrayType_Invalid;
 }
 
-const TArray<int32>& FRigVMTemplateArgument::GetPermutations(const TRigVMTypeIndex InType) const
+const TArray<int32>& FRigVMTemplateArgument::GetPermutations(const TRigVMTypeIndex InType, bool bLockRegistry) const
+{
+	FRigVMRegistryReadLock _(bLockRegistry);
+	return GetPermutations_NoLock(InType);
+}
+
+const TArray<int32>& FRigVMTemplateArgument::GetPermutations_NoLock(const TRigVMTypeIndex InType) const
 {
 	if (const TArray<int32>* Found = TypeToPermutations.Find(InType))
 	{
@@ -585,6 +591,18 @@ TArray<TRigVMTypeIndex> FRigVMTemplateArgument::GetSupportedTypeIndices(const TA
 {
 	const FRigVMRegistryReadLock _;
 
+#if UE_RIGVM_DEBUG_TYPEINDEX
+	const FRigVMRegistry_NoLock& Registry = _.GetRegistry();
+	auto UpdateTypeIndex = [&Registry](const TRigVMTypeIndex& TypeIndex) -> TRigVMTypeIndex
+	{
+		if(TypeIndex.Name.IsNone())
+		{
+			return Registry.GetTypeIndex_NoLock(Registry.GetType_NoLock(TypeIndex));
+		}
+		return TypeIndex;
+	};
+#endif
+
 	TArray<TRigVMTypeIndex> SupportedTypes;
 	if(InPermutationIndices.IsEmpty())
 	{
@@ -593,7 +611,11 @@ TArray<TRigVMTypeIndex> FRigVMTemplateArgument::GetSupportedTypeIndices(const TA
 			// INDEX_NONE indicates deleted permutation
 			if (TypeIndex != INDEX_NONE)
 			{
+#if UE_RIGVM_DEBUG_TYPEINDEX
+				SupportedTypes.AddUnique(UpdateTypeIndex(TypeIndex));
+#else
 				SupportedTypes.AddUnique(TypeIndex);
+#endif
 			}
 			return true;
 		});
@@ -603,10 +625,14 @@ TArray<TRigVMTypeIndex> FRigVMTemplateArgument::GetSupportedTypeIndices(const TA
 		for(const int32 PermutationIndex : InPermutationIndices)
 		{
 			// INDEX_NONE indicates deleted permutation
-			const TRigVMTypeIndex Type = GetTypeIndex_NoLock(PermutationIndex);
-			if (Type != INDEX_NONE)
+			const TRigVMTypeIndex TypeIndex = GetTypeIndex_NoLock(PermutationIndex);
+			if (TypeIndex != INDEX_NONE)
 			{
-				SupportedTypes.AddUnique(Type);
+#if UE_RIGVM_DEBUG_TYPEINDEX
+				SupportedTypes.AddUnique(UpdateTypeIndex(TypeIndex));
+#else
+				SupportedTypes.AddUnique(TypeIndex);
+#endif
 			}
 		}
 	}
@@ -1610,7 +1636,13 @@ const FRigVMFunction* FRigVMTemplate::GetOrCreatePermutation_NoLock(int32 InInde
 	return nullptr;
 }
 
-bool FRigVMTemplate::ContainsPermutation(const FRigVMFunction* InPermutation) const
+bool FRigVMTemplate::ContainsPermutation(const FRigVMFunction* InPermutation, bool bLockRegistry) const
+{
+	FRigVMRegistryReadLock _(bLockRegistry);
+	return ContainsPermutation_NoLock(InPermutation);
+}
+
+bool FRigVMTemplate::ContainsPermutation_NoLock(const FRigVMFunction* InPermutation) const
 {
 	return FindPermutation(InPermutation) != INDEX_NONE;
 }
@@ -1796,7 +1828,13 @@ uint32 FRigVMTemplate::GetTypesHashFromTypes(const FTypeMap& InTypes) const
 	return TypeHash;
 }
 
-bool FRigVMTemplate::ContainsPermutation(const FTypeMap& InTypes) const
+bool FRigVMTemplate::ContainsPermutation(const FTypeMap& InTypes, bool bLockRegistry) const
+{
+	const FRigVMRegistryReadLock Readlock(bLockRegistry);
+	return ContainsPermutation_NoLock((InTypes));
+}
+
+bool FRigVMTemplate::ContainsPermutation_NoLock(const FTypeMap& InTypes) const
 {
 	// If they type map is valid (full description of arguments), then we can rely on
 	// the TypesHashToPermutation cache. Otherwise, we will have to search for a specific permutation
@@ -1812,7 +1850,7 @@ bool FRigVMTemplate::ContainsPermutation(const FTypeMap& InTypes) const
 	{
 		if (const FRigVMTemplateArgument* Argument = FindArgument(Pair.Key))
 		{
-			const TArray<int32>& ArgumentPermutations = Argument->GetPermutations(Pair.Value);
+			const TArray<int32>& ArgumentPermutations = Argument->GetPermutations_NoLock(Pair.Value);
 			if (!ArgumentPermutations.IsEmpty())
 			{
 				// If possible permutations is empty, initialize it
@@ -2100,7 +2138,7 @@ bool FRigVMTemplate::UpdateArgumentTypes()
 					}
 
 					// Find if these types were already registered
-					if (ContainsPermutation(Types))
+					if (ContainsPermutation_NoLock(Types))
 					{
 						return true;
 					}

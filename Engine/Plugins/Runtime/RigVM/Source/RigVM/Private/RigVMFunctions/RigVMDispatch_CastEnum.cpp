@@ -16,11 +16,8 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgum
 			FRigVMTemplateArgument::ETypeCategory_SingleEnumValue
 		};
 		
-		static TArray<FRigVMTemplateArgumentInfo> Infos;
-		Infos.Emplace(ValueName, ERigVMPinDirection::Input, ElementCategories);
-		Infos.Emplace(ResultName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Int32);
-		
-		OutInfos = BuildArgumentListFromPrimaryArgument(Infos, ValueName);
+		OutInfos.Emplace(ValueName, ERigVMPinDirection::Input, ElementCategories);
+		OutInfos.Emplace(ResultName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Int32);
 	}
 
 	return OutInfos;
@@ -35,18 +32,6 @@ bool FRigVMDispatch_CastEnumToInt::GetPermutationsFromArgumentType(const FName& 
 			{ ValueName, InTypeIndex },
 			{ ResultName, RigVMTypeUtils::TypeIndex::Int32 }
 		});
-	}
-	else if (InArgumentName == ResultName && InTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
-	{
-		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry_NoLock::GetForRead().GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
-		for (const TRigVMTypeIndex& Type : EnumTypes)
-		{
-			OutPermutations.Add(
-	{
-				{ ValueName, Type },
-				{ ResultName, InTypeIndex }
-			});
-		}
 	}
 	return !OutPermutations.IsEmpty();
 }
@@ -110,11 +95,8 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastIntToEnum::GetArgum
 			FRigVMTemplateArgument::ETypeCategory_SingleEnumValue
 		};
 		
-		static TArray<FRigVMTemplateArgumentInfo> Infos;
-		Infos.Emplace(ValueName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Int32);
-		Infos.Emplace(ResultName, ERigVMPinDirection::Output, ElementCategories);
-		
-		OutInfos = BuildArgumentListFromPrimaryArgument(Infos, ResultName);
+		OutInfos.Emplace(ValueName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Int32);
+		OutInfos.Emplace(ResultName, ERigVMPinDirection::Output, ElementCategories);
 	}
 
 	return OutInfos;
@@ -129,18 +111,6 @@ bool FRigVMDispatch_CastIntToEnum::GetPermutationsFromArgumentType(const FName& 
 			{ ValueName, RigVMTypeUtils::TypeIndex::Int32 },
 			{ ResultName, InTypeIndex }
 		});
-	}
-	else if (InArgumentName == ValueName && InTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
-	{
-		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry_NoLock::GetForRead().GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
-		for (const TRigVMTypeIndex& Type : EnumTypes)
-		{
-			OutPermutations.Add(
-	{
-				{ ValueName, InTypeIndex },
-				{ ResultName, Type }
-			});
-		}
 	}
 	return !OutPermutations.IsEmpty();
 }

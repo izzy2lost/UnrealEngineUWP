@@ -654,20 +654,14 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 
 			if(SourceArgument && TargetArgument)
 			{
-				const TArray<int32>& SourcePermutations = SourceArgument->GetPermutations(InSourceTypeIndex);
-				const TArray<int32>& TargetPermutations = TargetArgument->GetPermutations(InTargetTypeIndex);
-				if(!SourcePermutations.IsEmpty() && !TargetPermutations.IsEmpty())
+				FRigVMTemplateTypeMap Types;
+				Types.Add(SourceArgument->GetName(), InSourceTypeIndex);
+				Types.Add(TargetArgument->GetName(), InTargetTypeIndex);
+
+				int32 PermutationIndex = INDEX_NONE;
+				if(CastTemplate->FullyResolve(Types, PermutationIndex))
 				{
-					for(int32 SourceIndex = 0, SourceCount = SourcePermutations.Num(); SourceIndex < SourceCount; ++SourceIndex)
-					{
-						for(int32 TargetIndex = 0, TargetCount = TargetPermutations.Num(); TargetIndex < TargetCount; ++TargetIndex)
-						{
-							if(SourcePermutations[SourceIndex] == TargetPermutations[TargetIndex])
-							{
-								return const_cast<FRigVMTemplate*>(CastTemplate)->GetOrCreatePermutation(SourcePermutations[SourceIndex]);
-							}
-						}
-					}
+					return const_cast<FRigVMTemplate*>(CastTemplate)->GetOrCreatePermutation(PermutationIndex);
 				}
 			}
 		}
