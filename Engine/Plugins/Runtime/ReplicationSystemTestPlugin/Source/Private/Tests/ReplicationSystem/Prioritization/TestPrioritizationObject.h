@@ -61,8 +61,6 @@ private:
 	FPriorityStateWrapper PriorityState;
 };
 
-
-// Property replication variant of above
 UCLASS()
 class UTestPrioritizationObject : public UReplicatedTestObject
 {
@@ -78,3 +76,35 @@ private:
 	UPROPERTY(Replicated)
 	float NetTest_Priority;
 };
+
+UCLASS()
+class UTestPrioritizationWithWorldLocationObject : public UTestPrioritizationObject
+{
+	GENERATED_BODY()
+
+public:
+	void SetWorldLocation(const FVector& InWorldLocation)
+	{
+		WorldLocation = InWorldLocation;
+	}
+
+	const FVector& GetWorldLocation() const
+	{
+		return WorldLocation;
+	}
+
+	void SetNetCullDistance(float InNetCullDistance)
+	{
+		NetCullDistance = InNetCullDistance;
+	}
+
+	float GetNetCullDistance() const
+	{
+		return NetCullDistance;
+	}
+
+private:
+	FVector WorldLocation = FVector::ZeroVector;
+	float NetCullDistance = 0.0f;
+};
+

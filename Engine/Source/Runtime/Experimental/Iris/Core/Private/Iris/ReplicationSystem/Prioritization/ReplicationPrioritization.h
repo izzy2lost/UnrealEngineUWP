@@ -4,8 +4,9 @@
 
 #include "CoreTypes.h"
 #include "Containers/Array.h"
-#include "Net/Core/NetBitArray.h"
+#include "Containers/ArrayView.h"
 #include "Iris/ReplicationSystem/Prioritization/NetObjectPrioritizer.h"
+#include "Net/Core/NetBitArray.h"
 #include "UObject/StrongObjectPtr.h"
 
 class UNetObjectPrioritizerDefinitions;
@@ -20,6 +21,9 @@ namespace UE::Net
 
 		typedef uint32 FInternalNetRefIndex;
 	}
+
+	// For testing
+	class FTestNetObjectPrioritizerFixture;
 }
 
 namespace UE::Net::Private
@@ -69,6 +73,11 @@ private:
 	void InitPrioritizers();
 
 private:
+	friend UE::Net::FTestNetObjectPrioritizerFixture;
+
+	// For testing
+	TConstArrayView<float> GetPrioritiesForConnection(uint32 ConnectionId) const;
+
 	struct FPrioritizerInfo
 	{
 		TStrongObjectPtr<UNetObjectPrioritizer> Prioritizer;
@@ -106,5 +115,10 @@ private:
 	uint32 ConnectionCount = 0;
 	uint32 HasNewObjectsWithStaticPriority : 1;
 };
+
+inline TConstArrayView<float> FReplicationPrioritization::GetPrioritiesForConnection(uint32 ConnectionId) const
+{
+	return MakeArrayView(ConnectionInfos[ConnectionId].Priorities);
+}
 
 }
