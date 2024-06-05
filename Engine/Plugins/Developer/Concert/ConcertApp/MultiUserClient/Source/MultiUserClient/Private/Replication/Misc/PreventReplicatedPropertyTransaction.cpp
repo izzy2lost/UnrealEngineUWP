@@ -4,7 +4,7 @@
 
 #include "IConcertSyncClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
-#include "Replication/Util/GlobalAuthorityCache.h"
+#include "Replication/Misc/GlobalAuthorityCache.h"
 
 #include "Algo/AnyOf.h"
 #include "Replication/Muting/MuteStateManager.h"

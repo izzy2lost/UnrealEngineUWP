@@ -5,10 +5,9 @@
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "ConcertMessageData.h"
 #include "LocalReplicationClient.h"
-#include "ReplicationClient.h"
+#include "Replication/Misc/GlobalAuthorityCache.h"
 #include "Replication/Submission/MultiEdit/ReassignObjectPropertiesLogic.h"
-#include "Replication/Submission/Notification/SubmissionNotifier.h"
-#include "Replication/Util/GlobalAuthorityCache.h"
+#include "ReplicationClient.h"
 
 #include "UObject/GCObject.h"
 #include "Templates/UnrealTemplate.h"

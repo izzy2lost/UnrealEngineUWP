@@ -5,11 +5,11 @@
 #include "Client/ReplicationClientManager.h"
 #include "IConcertSession.h"
 #include "Misc/ChangeLevelHandler.h"
+#include "Misc/Notification/ReplicationUserNotifier.h"
+#include "Misc/Query/RegularQueryService.h"
 #include "Muting/MuteStateManager.h"
-#include "Notification/ReplicationUserNotifier.h"
 #include "Replication/IMultiUserReplication.h"
 #include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
-#include "Util/Query/RegularQueryService.h"
 
 #include "Misc/Optional.h"
 #include "Misc/PreventReplicatedPropertyTransaction.h"

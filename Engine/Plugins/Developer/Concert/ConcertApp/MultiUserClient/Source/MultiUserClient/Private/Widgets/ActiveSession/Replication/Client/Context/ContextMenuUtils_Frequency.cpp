@@ -3,7 +3,8 @@
 #include "ContextMenuUtils.h"
 
 #include "Replication/Client/ReplicationClientManager.h"
-#include "Replication/Util/FrequencyUtils.h"
+#include "Replication/Misc/Frequency/FrequencyUtils.h"
+#include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 
 #include "Algo/AnyOf.h"
 #include "Async/Async.h"

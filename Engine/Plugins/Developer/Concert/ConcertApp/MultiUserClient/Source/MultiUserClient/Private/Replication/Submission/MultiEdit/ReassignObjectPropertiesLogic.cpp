@@ -5,7 +5,7 @@
 #include "ConcertLogGlobal.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Submission/ISubmissionOperation.h"
-#include "Replication/Util/SynchronizedRequestUtils.h"
+#include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 
 #include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"

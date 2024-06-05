@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
+
 #include "Templates/UnrealTemplate.h"
 #include "UObject/UnrealType.h"
 

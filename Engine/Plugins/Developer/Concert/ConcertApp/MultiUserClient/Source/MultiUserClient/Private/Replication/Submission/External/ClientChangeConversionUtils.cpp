@@ -5,7 +5,7 @@
 #include "Replication/ChangeOperationTypes.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 #include "Replication/Submission/Data/StreamSubmission.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 
 #include "Algo/RemoveIf.h"
 #include "Misc/Guid.h"

@@ -6,7 +6,7 @@
 #include "IConcertSession.h"
 #include "RemoteSubmissionMessages.h"
 #include "Replication/Submission/SingleClientSubmissionOperation.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient

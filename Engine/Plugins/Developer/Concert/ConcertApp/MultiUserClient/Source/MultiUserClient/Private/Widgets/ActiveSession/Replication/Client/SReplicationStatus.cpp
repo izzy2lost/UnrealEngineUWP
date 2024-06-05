@@ -2,7 +2,7 @@
 
 #include "SReplicationStatus.h"
 
-#include "Replication/Util/GlobalAuthorityCache.h"
+#include "Replication/Misc/GlobalAuthorityCache.h"
 
 #include "Algo/AnyOf.h"
 #include "Styling/AppStyle.h"

@@ -3,9 +3,8 @@
 #pragma once
 
 #include "Replication/IToken.h"
+#include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
-#include "Replication/Util/StreamRequestUtils.h"
-#include "Replication/Util/SynchronizedRequestUtils.h"
 
 #include "Misc/OptionalFwd.h"
 #include "Templates/Function.h"

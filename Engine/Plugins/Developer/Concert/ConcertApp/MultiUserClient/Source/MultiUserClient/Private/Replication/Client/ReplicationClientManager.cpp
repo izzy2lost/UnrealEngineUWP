@@ -7,7 +7,7 @@
 #include "RemoteReplicationClient.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Stream/StreamSynchronizer_LocalClient.h"
-#include "Replication/Util/Query/StreamAndAuthorityQueryService.h"
+#include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"

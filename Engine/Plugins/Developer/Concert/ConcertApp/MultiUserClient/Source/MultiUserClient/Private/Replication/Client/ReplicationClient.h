@@ -5,7 +5,7 @@
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
 #include "Replication/Editor/UnrealEditor/ModifyObjectInLevelHandler.h"
-#include "Replication/Frequency/FrequencyChangeTracker.h"
+#include "Replication/Misc/Frequency/FrequencyChangeTracker.h"
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/AutoSubmissionPolicy.h"

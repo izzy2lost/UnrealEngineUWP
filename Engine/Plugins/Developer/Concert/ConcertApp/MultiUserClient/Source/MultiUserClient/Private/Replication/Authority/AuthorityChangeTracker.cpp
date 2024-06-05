@@ -4,7 +4,7 @@
 
 #include "EAuthorityMutability.h"
 #include "IClientAuthoritySynchronizer.h"
-#include "Replication/Util/GlobalAuthorityCache.h"
+#include "Replication/Misc/GlobalAuthorityCache.h"
 
 namespace UE::MultiUserClient
 {

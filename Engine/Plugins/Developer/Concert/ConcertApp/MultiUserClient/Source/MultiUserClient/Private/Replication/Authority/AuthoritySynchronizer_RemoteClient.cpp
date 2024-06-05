@@ -2,7 +2,7 @@
 
 #include "AuthoritySynchronizer_RemoteClient.h"
 
-#include "Replication/Util/Query/StreamAndAuthorityQueryService.h"
+#include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 
 namespace UE::MultiUserClient
 {

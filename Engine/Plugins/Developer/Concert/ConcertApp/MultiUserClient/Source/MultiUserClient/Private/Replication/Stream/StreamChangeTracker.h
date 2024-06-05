@@ -5,7 +5,7 @@
 #include "IClientStreamSynchronizer.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Messages/ChangeStream.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 
 #include "Async/Future.h"
 #include "Containers/Set.h"

@@ -3,7 +3,7 @@
 #include "StreamSynchronizer_RemoteClient.h"
 
 #include "Assets/MultiUserReplicationClientPreset.h"
-#include "Replication/Util/Query/StreamAndAuthorityQueryService.h"
+#include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 
 namespace UE::MultiUserClient
 {

@@ -6,7 +6,7 @@
 #include "ISubmissionWorkflow.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Frequency/FrequencyChangeTracker.h"
+#include "Replication/Misc/Frequency/FrequencyChangeTracker.h"
 #include "Replication/Submission/Queue/SubmissionQueue.h"
 
 namespace UE::MultiUserClient
