@@ -782,6 +782,27 @@ void FControlRigEditorModule::GetPinContextMenuActions(IRigVMClientHost* RigVMCl
 	GetDirectManipulationMenuActions(RigVMClientHost, ModelPin->GetNode(), ModelPin, Menu);
 }
 
+bool FControlRigEditorModule::AssetsPublicFunctionsAllowed(const FAssetData& InAssetData) const
+{
+	// Looking for public functions in cooked assets only happens in UEFN
+	// Make sure we allow only ControlRig/ControlRigSpline/ControlRigModules functions
+	// (to avoid adding actions for internal rigs public functions)
+	const FString AssetClassPath = InAssetData.AssetClassPath.ToString();
+	if (AssetClassPath.Contains(TEXT("ControlRigBlueprintGeneratedClass"))
+		|| AssetClassPath.Contains(TEXT("RigVMBlueprintGeneratedClass")))
+	{
+		const FString PathString = InAssetData.PackagePath.ToString();
+		if (!PathString.StartsWith(TEXT("/ControlRig/"))
+			&& !PathString.StartsWith(TEXT("/ControlRigSpline/"))
+			&& !PathString.StartsWith(TEXT("/ControlRigModules/")))
+		{
+			return false;
+		}
+	}
+	
+	return IControlRigEditorModule::AssetsPublicFunctionsAllowed(InAssetData);
+}
+
 void FControlRigEditorModule::GetDirectManipulationMenuActions(IRigVMClientHost* RigVMClientHost, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const
 {
     // Add direct manipulation context menu entries

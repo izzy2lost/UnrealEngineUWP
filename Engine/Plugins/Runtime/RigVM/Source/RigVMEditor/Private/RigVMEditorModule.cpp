@@ -401,6 +401,11 @@ void FRigVMEditorModule::GetTypeActions(URigVMBlueprint* RigVMBlueprint, FBluepr
 			}
 			PackagesProcessed.Add(ControlRigAssetData.PackageName);
 
+			if (!AssetsPublicFunctionsAllowed(ControlRigAssetData))
+			{
+				continue;
+			}
+
 			TArray<FRigVMGraphFunctionHeader> PublicFunctions;
 			if (ControlRigAssetData.IsAssetLoaded())
 			{
