@@ -518,10 +518,21 @@ struct FObjectHandler : TPropertyComponentHandler<FObjectPropertyTraits, FObject
 		FEntityTaskBuilder()
 			.Read(BuiltInComponents->BoundObject)
 			.Read(BuiltInComponents->PropertyBinding)
+			.ReadOptional(BuiltInComponents->CustomPropertyIndex)
 			.Write(TrackComponents->Object.MetaDataComponents.GetType<0>())
 			.FilterAll({ BuiltInComponents->Tags.NeedsLink })
-			.Iterate_PerEntity(&Linker->EntityManager, [](UObject* Object, const FMovieScenePropertyBinding& Binding, FObjectPropertyTraits::FObjectMetadata& OutMetaData)
+			.Iterate_PerEntity(&Linker->EntityManager, [TrackComponents](UObject* Object, const FMovieScenePropertyBinding& Binding, const FCustomPropertyIndex* OptionalCustomPropertyIndex, FObjectPropertyTraits::FObjectMetadata& OutMetaData)
 				{
+					if (OptionalCustomPropertyIndex)
+					{
+						if (const auto* CustomObjectMetaData = TrackComponents->Accessors.Object.MetaData.Find(OptionalCustomPropertyIndex->Value))
+						{
+							OutMetaData.ObjectClass = CustomObjectMetaData->AllowedClass.Get();
+							OutMetaData.bAllowsClear = CustomObjectMetaData->bAllowsClear;
+							return;
+						}
+					}
+
 					FObjectPropertyBase* BoundProperty = CastField<FObjectPropertyBase>(FTrackInstancePropertyBindings::FindProperty(Object, Binding.PropertyPath.ToString()));
 					if (ensure(BoundProperty))
 					{

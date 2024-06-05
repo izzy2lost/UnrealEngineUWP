@@ -719,7 +719,30 @@ struct FMovieSceneTracksComponentTypes
 	TComponentTypeID<FMovieSceneCameraShakeComponentData> CameraShake;
 	TComponentTypeID<FMovieSceneCameraShakeInstanceData> CameraShakeInstance;
 
-	struct
+	struct FObjectPropertyRegistration : TCustomPropertyRegistration<FObjectPropertyTraits>
+	{
+		struct FMetaData
+		{
+			TWeakObjectPtr<UClass> AllowedClass;
+			bool bAllowsClear = true;
+		};
+
+		void Add(UClass* ClassType, FName PropertyName, GetterFunc Getter, SetterFunc Setter)
+		{
+			TCustomPropertyRegistration<FObjectPropertyTraits>::Add(ClassType, PropertyName, Getter, Setter);
+		}
+
+		void Add(UClass* ClassType, FName PropertyName, GetterFunc Getter, SetterFunc Setter, FMetaData InMetaData)
+		{
+			int32 CustomIndex = CustomAccessors.Num();
+			TCustomPropertyRegistration<FObjectPropertyTraits>::Add(ClassType, PropertyName, Getter, Setter);
+			MetaData.Add(CustomIndex, InMetaData);
+		}
+
+		TMap<int32, FMovieSceneTracksComponentTypes::FObjectPropertyRegistration::FMetaData> MetaData;
+	};
+
+	struct FAccessors
 	{
 		TCustomPropertyRegistration<FBoolPropertyTraits> Bool;
 		TCustomPropertyRegistration<FBytePropertyTraits> Byte;
@@ -731,7 +754,8 @@ struct FMovieSceneTracksComponentTypes
 		TCustomPropertyRegistration<FFloatVectorPropertyTraits> FloatVector;
 		TCustomPropertyRegistration<FDoubleVectorPropertyTraits> DoubleVector;
 		TCustomPropertyRegistration<FComponentTransformPropertyTraits, 1> ComponentTransform;
-		TCustomPropertyRegistration<FObjectPropertyTraits> Object;
+		FObjectPropertyRegistration Object;
+
 	} Accessors;
 
 	struct
