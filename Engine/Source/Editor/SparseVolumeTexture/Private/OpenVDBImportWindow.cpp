@@ -234,7 +234,7 @@ void SOpenVDBImportWindow::Construct(const FArguments& InArgs)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
-				IDocumentation::Get()->CreateAnchor(FString("Engine/Content/OpenVDB/ImportWindow"))
+				IDocumentation::Get()->CreateAnchor(FString("sparse-volume-textures-in-unreal-engine"))
 			]
 			+ SHorizontalBox::Slot()
 			.HAlign(HAlign_Right)
