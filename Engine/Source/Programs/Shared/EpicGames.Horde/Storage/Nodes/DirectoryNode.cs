@@ -420,13 +420,12 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteString(fileEntry.Name);
 				writer.WriteUnsignedVarInt((ulong)flags);
 				writer.WriteUnsignedVarInt((ulong)fileEntry.Length);
+				writer.WriteIoHash(fileEntry.StreamHash);
 
-				if((flags & FileEntryFlags.HasModTime) != 0)
+				if ((flags & FileEntryFlags.HasModTime) != 0)
 				{
 					writer.WriteUnsignedVarInt((ulong)fileEntry.ModTime.Ticks);
 				}
-
-				writer.WriteIoHash(fileEntry.StreamHash);
 
 				if ((flags & FileEntryFlags.HasCustomData) != 0)
 				{
