@@ -9,55 +9,25 @@
 namespace PlainProps
 {
 
-union FBuiltValue
-{
-	uint64			Leaf;
-	FBuiltStruct*	Struct;
-	FBuiltRange*	Range;
-};
-
-struct FBuiltMember
-{
-	FBuiltMember() = delete;
-	FBuiltMember(const FBuiltMember&) = delete;
-	FBuiltMember(FBuiltMember&& O);
-	FBuiltMember(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Schema, uint64 Value);
-	//FBuiltMember(FMemberId Name, FEnumSchemaId Schema, ELeafWidth Width,  uint64 Value);
-	FBuiltMember(FMemberId Name, FTypedRange&& Range);
-	FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Value);
-	static FBuiltMember MakeSuper(FStructSchemaId Schema, FBuiltStructPtr&& Value);
-	~FBuiltMember(); // Deletes Value
-
-	FBuiltMember& operator=(const FBuiltMember&) = delete;
-	FBuiltMember& operator=(FBuiltMember&&);
-
-	FOptionalMemberId		Name;
-	FMemberSchema			Schema;
-	FBuiltValue				Value;
-
-private:
-	FBuiltMember(FOptionalMemberId N, FMemberSchema&& S, FBuiltValue V) : Name(N), Schema(MoveTemp(S)), Value(V) {}
-};
-
 struct FBuiltStruct
 {
-	~FBuiltStruct();
-
+	~FBuiltStruct() = delete; // Allocated in FScratchAllocator 
+	
 	uint16				NumMembers;
 	FBuiltMember		Members[0];
 };
 
 struct FBuiltRange
 {
-	~FBuiltRange() = delete;
-	[[nodiscard]] static FBuiltRange*					Create(uint64 NumItems, SIZE_T ItemSize);
-	static uint64										Delete(FBuiltRange* Range, FOptionalSchemaId InnerSchema, TConstArrayView<FMemberType> InnerTypes);
+	~FBuiltRange() = delete; // Allocated in FScratchAllocator
+
+	[[nodiscard]] static FBuiltRange*					Create(FScratchAllocator& Allocator, uint64 NumItems, SIZE_T ItemSize);
 
 	uint64												Num;
 	uint8												Data[0];
 	
-	TConstArrayView64<const FBuiltRange*>				AsRanges() const { return { reinterpret_cast<FBuiltRange const* const*>(Data), IntCastChecked<int64>(Num) }; }
-	TConstArrayView64<TUniquePtr<const FBuiltStruct>>	AsStructs() const { return { reinterpret_cast<const TUniquePtr<const FBuiltStruct>*>(Data), IntCastChecked<int64>(Num) }; }
+	TConstArrayView64<const FBuiltRange*>				AsRanges() const	{ return { reinterpret_cast<FBuiltRange const* const*>(Data),	static_cast<int64>(Num) }; }
+	TConstArrayView64<const FBuiltStruct*>				AsStructs() const	{ return { reinterpret_cast<FBuiltStruct const* const*>(Data),	static_cast<int64>(Num) }; }
 };
 
 //////////////////////////////////////////////////////////////////////////

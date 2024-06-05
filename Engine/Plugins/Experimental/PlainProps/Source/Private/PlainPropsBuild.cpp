@@ -11,114 +11,114 @@
 namespace PlainProps
 {
 
-void FBuiltStructDeleter::operator()(FBuiltStruct* Ptr) const
+uint8* FScratchAllocator::AllocateInNewPage(SIZE_T Size, uint32 Alignment)
 {
-	delete Ptr;
+	if (Size >= DataSize || (DataSize - Size) < static_cast<uint32>(PageEnd - Cursor))
+	{
+		SIZE_T LonePageSize = Align(offsetof(FPage, Data) + Size, Alignment);
+		FPage*& PrevPage = LastPage ? LastPage->PrevPage : LastPage;
+		FPage Header = { PrevPage };
+		PrevPage = new (FMemory::Malloc(LonePageSize)) FPage { Header };
+		return Align(PrevPage->Data, Alignment);
+	}
+	
+	FPage Header = { LastPage };
+	LastPage = new (FMemory::Malloc(PageSize)) FPage { Header };
+	uint8* Out = Align(LastPage->Data, Alignment);
+	Cursor = Out + Size;
+	PageEnd = LastPage->Data + DataSize;
+	check(Cursor <= PageEnd);
+	return Out;
 }
 
-FBuiltRange* FBuiltRange::Create(uint64 NumItems, SIZE_T ItemSize)
+FScratchAllocator::~FScratchAllocator()
+{
+	for (FPage* It = LastPage; It; )
+	{
+		FPage* Prev = It->PrevPage;
+		FMemory::Free(It);
+		It = Prev;
+	}
+}
+
+FMemberType& FMemberSchema::EditInnermostType(FScratchAllocator& Scratch)
+{
+	if (NumInnerRanges > 1)
+	{
+		FMemberType* Clone = Scratch.AllocateArray<FMemberType>(NumInnerRanges);
+		FMemory::Memcpy(Clone, NestedRangeTypes, NumInnerRanges * sizeof(FMemberType));
+		NestedRangeTypes = Clone;
+		return Clone[NumInnerRanges - 1];
+	}
+
+	return NumInnerRanges == 0 ? Type : InnerRangeType;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+FBuiltRange* FBuiltRange::Create(FScratchAllocator& Scratch, uint64 NumItems, SIZE_T ItemSize)
 {
 	check(NumItems > 0);
-	FBuiltRange* Out = new (FMemory::Malloc(sizeof(FBuiltRange) + NumItems * ItemSize)) FBuiltRange;
+	FBuiltRange* Out = new (Scratch.Allocate(sizeof(FBuiltRange) + NumItems * ItemSize, alignof(FBuiltRange))) FBuiltRange;
 	Out->Num = NumItems;
 	return Out;
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberSchema& InnerRangeSchema)
+FMemberSchema MakeNestedRangeSchema(FScratchAllocator& Scratch, ERangeSizeType SizeType, FMemberSchema InnerRangeSchema)
 {
-	FMemberSchema Out = { FMemberType(SizeType), InnerRangeSchema.InnerSchema };
-	Out.InnerRangeTypes.Reserve(1 + InnerRangeSchema.InnerRangeTypes.Num());
-	Out.InnerRangeTypes.Add(InnerRangeSchema.Type);
-	Out.InnerRangeTypes.Append(InnerRangeSchema.InnerRangeTypes);
-	return Out;
+	check(InnerRangeSchema.NumInnerRanges > 0);
+	uint16 NumInnerRanges = IntCastChecked<uint16>(1 + InnerRangeSchema.NumInnerRanges);
+	FMemberType* InnerRangeTypes = Scratch.AllocateArray<FMemberType>(NumInnerRanges);
+	InnerRangeTypes[0] = InnerRangeSchema.Type;
+	FMemory::Memcpy(&InnerRangeTypes[1], InnerRangeSchema.GetInnerRangeTypes().GetData(), InnerRangeSchema.NumInnerRanges * sizeof(FMemberType));
+
+	return { FMemberType(SizeType), InnerRangeSchema.Type, NumInnerRanges, InnerRangeSchema.InnerSchema, InnerRangeTypes };
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-template<typename BuiltType>
-FBuiltRange* BuildStructuralRangeImpl(/* in-out */ TArrayView64<BuiltType> Values)
+FBuiltRange* CloneLeaves(FScratchAllocator& Scratch, uint64 Num, const void* InData, SIZE_T LeafSize)
 {
-	static_assert(alignof(FBuiltRange) >= alignof(BuiltType));
-	FBuiltRange* Out = FBuiltRange::Create(Values.Num(), sizeof(FBuiltRange));
-	BuiltType* DataIt = reinterpret_cast<BuiltType*>(Out->Data);
-	for (BuiltType& Value : Values)
+	if (Num == 0)
 	{
-		new (DataIt++) BuiltType(MoveTemp(Value));
+		return nullptr;
 	}
 
+	FBuiltRange* Out = FBuiltRange::Create(Scratch, Num, LeafSize);
+	FMemory::Memcpy(Out->Data, InData, Num * LeafSize);
 	return Out;
 }
 
-namespace Private
-{
-	FBuiltRange* BuildStructuralRange(TArrayView64<FBuiltRange*> Values)
-	{
-		return PlainProps::BuildStructuralRangeImpl(Values);
-	}
-
-	FBuiltRange* BuildStructuralRange(TArrayView64<FBuiltStructPtr> Values)
-	{
-		return PlainProps::BuildStructuralRangeImpl(Values);
-	}
-
-	FBuiltRange* BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values)
-	{
-		check(Values.GetSize() == Num * SizeOf(Leaf.Width));
-		FBuiltRange* Out = FBuiltRange::Create(Num, SizeOf(Leaf.Width));
-		FMemory::Memcpy(Out->Data, Values.GetData(), Values.GetSize());
-		return Out;
-	}
-	
-	template<typename FloatType>
-	void NormalizeFloats(FloatType* Values, uint64 Num)
-	{
-		for (uint64 Idx = 0; Idx < Num; ++Idx)
-		{
-			// Reject NaN / INF and ignore negative zero for now
-			checkf(FMath::IsFinite(Values[Idx]), TEXT("Saving NaN or INF isn't supported"));
-		}
-	}
-
-	void NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out)
-	{
-		check(Leaf.Type == ELeafType::Float);
-		if (Leaf.Width == ELeafWidth::B32)
-		{
-			NormalizeFloats(reinterpret_cast<float*>(Out.Data), Out.Num);
-		}
-		else
-		{
-			check(Leaf.Width == ELeafWidth::B64);
-			NormalizeFloats(reinterpret_cast<double*>(Out.Data), Out.Num);
-		}
-	}
-} // namespace Private
+//	template<typename FloatType>
+//	void NormalizeFloats(FloatType* Values, uint64 Num)
+//	{
+//		for (uint64 Idx = 0; Idx < Num; ++Idx)
+//		{
+//			// Reject NaN / INF and ignore negative zero for now
+//			checkf(FMath::IsFinite(Values[Idx]), TEXT("Saving NaN or INF isn't supported"));
+//		}
+//	}
+//
+//	void NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out)
+//	{
+//		check(Leaf.Type == ELeafType::Float);
+//		if (Leaf.Width == ELeafWidth::B32)
+//		{
+//			NormalizeFloats(reinterpret_cast<float*>(Out.Data), Out.Num);
+//		}
+//		else
+//		{
+//			check(Leaf.Width == ELeafWidth::B64);
+//			NormalizeFloats(reinterpret_cast<double*>(Out.Data), Out.Num);
+//		}
+//	}
+//} // namespace Private
 
 //////////////////////////////////////////////////////////////////////////
 
-FMemberBuilder::FMemberBuilder() {}
-FMemberBuilder::~FMemberBuilder() {}
-
-void FMemberBuilder::AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Struct)
-{
-	Members.Emplace(Name, Schema, MoveTemp(Struct));
-}
-
-void FMemberBuilder::AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value)
-{
-	Members.Emplace(Name, Leaf, Enum, Value);
-}
-
-void FMemberBuilder::AddRange(FMemberId Name, FTypedRange&& Range)
-{
-	Members.Emplace(Name, MoveTemp(Range));
-}
-
-TSet<FBuiltStruct*> GLiveStructsFoo;
-
-void FMemberBuilder::BuildSuperStruct(const FStructDeclaration& Super, const FDebugIds& Debug)
+void FMemberBuilder::BuildSuperStruct(FScratchAllocator& Scratch, const FStructDeclaration& Super, const FDebugIds& Debug)
 {
 	// If we need to support EMemberPresence::RequireAll for sub structs,
 	// we need access to struct declaration here or create an empty super
@@ -128,12 +128,12 @@ void FMemberBuilder::BuildSuperStruct(const FStructDeclaration& Super, const FDe
 		return;
 	}
 	
-	FBuiltStructPtr OnlyMember = BuildAndReset(Super, Debug);
+	FBuiltStructPtr OnlyMember = BuildAndReset(Scratch, Super, Debug);
 	Members.Emplace(FBuiltMember::MakeSuper(Super.Id, MoveTemp(OnlyMember)));
 	check(Members[0].Schema.Type.AsStruct().IsSuper);
 }
 
-FBuiltStructPtr FMemberBuilder::BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug)
+FBuiltStructPtr FMemberBuilder::BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug)
 {
 	checkf(!(Declared.Super && Declared.Occupancy == EMemberPresence::RequireAll),
 		TEXT("Requiring sub structs to be dense isn't implemented"));
@@ -157,7 +157,7 @@ FBuiltStructPtr FMemberBuilder::BuildAndReset(const FStructDeclaration& Declared
 
 	uint32 Num = static_cast<uint32>(Members.Num());
 	SIZE_T NumBytes = sizeof(FBuiltStruct) + Num * sizeof(FBuiltMember);
-	FBuiltStruct* Out = reinterpret_cast<FBuiltStruct*>(FMemory::MallocZeroed(NumBytes, alignof(FBuiltStruct)));
+	FBuiltStruct* Out = reinterpret_cast<FBuiltStruct*>(Scratch.AllocateZeroed(NumBytes, alignof(FBuiltStruct)));
 	Out->NumMembers = IntCastChecked<uint16>(Num);
 	for (FBuiltMember& Member : Members)
 	{
@@ -189,108 +189,48 @@ uint64 ValueCast(double Value)
 	return CheckFiniteBitCast<uint64>(Value);
 }
 
-
 //////////////////////////////////////////////////////////////////////////
 
-FBuiltMember::FBuiltMember(FBuiltMember&& O)
-: Name(O.Name)
-, Schema(MoveTemp(O.Schema))
-, Value(O.Value)
+template<typename SchemaIdType>
+static FMemberSchema MakeMemberSchema(FMemberType Type, SchemaIdType InnerSchema)
 {
-	O.Name = NoId;
-	O.Schema.Type = FMemberType(ELeafType::Bool, ELeafWidth::B8);
-	O.Value.Leaf = 0;
+	return {Type, Type, 0, FOptionalSchemaId(InnerSchema), nullptr};
 }
 
 FBuiltMember::FBuiltMember(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value)
-: FBuiltMember(Name, {Leaf.Pack(), FOptionalSchemaId(Enum)}, { .Leaf = Value})
+: FBuiltMember(Name, MakeMemberSchema(Leaf.Pack(), Enum), { .Leaf = Value})
 {}
 
-//FBuiltMember::FBuiltMember(FMemberId Name, FEnumSchemaId Schema, ELeafWidth Width, uint64 Value)
-//: FBuiltMember(Name, MakeMemberSchema(Width, Schema), { .Leaf = Value })
-//{}
-
-FBuiltMember::FBuiltMember(FMemberId Name, FTypedRange&& Range)
+FBuiltMember::FBuiltMember(FMemberId Name, FTypedRange Range)
 : FBuiltMember(Name, MoveTemp(Range.Schema), { .Range = Range.Values })
 {}
 
-FBuiltMember::FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Value)
-: FBuiltMember(Name, {DefaultStructType, FOptionalSchemaId(Schema)}, { .Struct = Value.Release() })
+FBuiltMember::FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Value)
+: FBuiltMember(Name, MakeMemberSchema(DefaultStructType, Schema), { .Struct = Value })
 {}
 
-FBuiltMember FBuiltMember::MakeSuper(FStructSchemaId Schema, FBuiltStructPtr&& Value)
+FBuiltMember FBuiltMember::MakeSuper(FStructSchemaId Schema, FBuiltStructPtr Value)
 {
-	return FBuiltMember(NoId, {SuperStructType, FOptionalSchemaId(Schema)}, { .Struct = Value.Release() });
-}
-
-FBuiltMember::~FBuiltMember()
-{
-	if (Schema.Type.GetKind() == EMemberKind::Struct)
-	{
-		delete Value.Struct;
-	}
-	else if (Schema.Type.GetKind() == EMemberKind::Range)
-	{
-		FBuiltRange::Delete(Value.Range, Schema.InnerSchema, Schema.InnerRangeTypes);
-	}
-}
-
-FBuiltMember& FBuiltMember::operator=(FBuiltMember&& O)
-{
-	this->~FBuiltMember();
-	new (this) FBuiltMember(MoveTemp(O));
-	return *this;
+	return FBuiltMember(NoId, MakeMemberSchema(SuperStructType, Schema), { .Struct = Value });
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-uint64 FBuiltRange::Delete(FBuiltRange* Range, FOptionalSchemaId InnerSchema, TConstArrayView<FMemberType> InnerTypes)
-{ 
-	// TODO: Handle struct and nested ranges
-
-	switch (InnerTypes[0].GetKind()) 
-	{
-	case EMemberKind::Struct:
-		//DeleteStructs(InnerTypes[0].AsStruct(), static_cast<FStructSchemaId>(Schema.InnerSchema.Get()), Range);
-		break;
-	case EMemberKind::Range:
-		//for (FNestedRangeIterator It(Range); It;)
-		//{
-		//	FBuiltRange::Delete(&*It, InnerSchema, InnerTypes.RightChop(1));
-		//	It.Advance();
-		//}
-	case EMemberKind::Leaf:		break;
-	}
-
-	FMemory::Free(Range);
-
-	return 0; // todo: return number of bytes if needed?
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-FBuiltStruct::~FBuiltStruct()
-{ 
-	//check(GLiveStructsFoo.Remove(this) == 1);
-
-	for (const FBuiltMember& Member : MakeArrayView(Members, NumMembers))
-	{
-		Member.~FBuiltMember();
-	}
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-FTypedRange FStructRangeBuilder::BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug)
+FTypedRange FStructRangeBuilder::BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug)
 {
-	TArray64<FBuiltStructPtr> BuiltStructs;
-	BuiltStructs.Reserve(Structs.Num());
-	for (FMemberBuilder& Struct : Structs)
-	{
-		BuiltStructs.Emplace(Struct.BuildAndReset(Declared, Debug));
-	}
+	FTypedRange Out = { MakeStructRangeSchema(SizeType, Declared.Id) };
 
-	return BuildStructRange(Declared.Id, SizeType, /* move */ BuiltStructs);
+	if (int64 Num = Structs.Num())
+	{
+		Out.Values = FBuiltRange::Create(Scratch, Structs.Num(), sizeof(FBuiltStruct*));
+		FBuiltStruct** OutIt = reinterpret_cast<FBuiltStruct**>(Out.Values->Data);
+		for (FMemberBuilder& Struct : Structs)
+		{
+			*OutIt++ = Struct.BuildAndReset(Scratch, Declared, Debug);
+		}
+	}		
+
+	return Out;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -300,12 +240,17 @@ FNestedRangeBuilder::~FNestedRangeBuilder()
 	checkf(Ranges.IsEmpty(), TEXT("Half-built range, forgot to call BuildAndReset() before destruction?"));
 }
 
-FTypedRange FNestedRangeBuilder::BuildAndReset(ERangeSizeType SizeType)
+FTypedRange FNestedRangeBuilder::BuildAndReset(FScratchAllocator& Scratch, ERangeSizeType SizeType)
 {
-	FTypedRange Out = { MakeNestedRangeSchema(SizeType, Schema), 
-						Ranges.IsEmpty() ? nullptr : Private::BuildStructuralRange(Ranges) };
-	Ranges.Reset();
-	return Out;
+	FBuiltRange* Out = nullptr;
+	if (int64 Num = Ranges.Num())
+	{
+		Out = FBuiltRange::Create(Scratch, Num, sizeof(FBuiltRange*));
+		FMemory::Memcpy(Out->Data, Ranges.GetData(), Ranges.NumBytes());
+		Ranges.Reset();
+	}
+
+	return { MakeNestedRangeSchema(Scratch, SizeType, Schema), Out };
 }
 
 } // namespace PlainProps

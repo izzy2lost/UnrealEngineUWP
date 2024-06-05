@@ -107,7 +107,7 @@ inline constexpr uint32 TestMagics[] = {0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99
 class FTestBatchBuilder : public TIdIndexer<FAnsiString>
 {
 public:
-	FTestBatchBuilder() : Declarations(*this) {}
+	FTestBatchBuilder(FScratchAllocator& InScratch) : Declarations(*this), Scratch(InScratch) {}
 
 	FEnumSchemaId				DeclareEnum(FTypeId Type, EEnumMode Mode, ELeafWidth Width, std::initializer_list<const char*> Names, std::initializer_list<uint64> Constants);
 	FEnumSchemaId				DeclareEnum(const char* Scope, const char* Name, EEnumMode Mode, ELeafWidth Width, std::initializer_list<const char*> Names, std::initializer_list<uint64> Constants);
@@ -124,7 +124,8 @@ public:
 
 private:
 	TArray<TPair<FStructSchemaId, FBuiltStructPtr>>	Objects;
-	FDeclarations												Declarations;
+	FDeclarations									Declarations;
+	FScratchAllocator&								Scratch;
 
 	TArray<FMemberId> NameMembers(std::initializer_list<const char*> Members)
 	{
@@ -178,13 +179,13 @@ FEnumSchemaId FTestBatchBuilder::DeclareEnum(const char* Scope, const char* Name
 
 void FTestBatchBuilder::AddObject(FStructSchemaId Schema, FMemberBuilder&& Members)
 {
-	Objects.Emplace(Schema, Members.BuildAndReset(Declarations.Get(Schema), *this));
+	Objects.Emplace(Schema, Members.BuildAndReset(Scratch, Declarations.Get(Schema), *this));
 }
 
 TArray64<uint8> FTestBatchBuilder::Write()
 {
 	// Build partial schemas
-	FSchemasBuilder SchemaBuilders(Declarations.GetStructs(), Declarations.GetEnums(), *this);
+	FSchemasBuilder SchemaBuilders(Declarations, Scratch);
 	for (const TPair<FStructSchemaId, FBuiltStructPtr>& Object : Objects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
@@ -325,12 +326,13 @@ private:
 	TArray<FStructView> Objects;
 };
 
-static void TestSerialize(void (*BuildObjects)(FTestBatchBuilder&), void (*CheckObjects)(TConstArrayView<FStructView>, const FTestNameReader&))
+static void TestSerialize(void (*BuildObjects)(FTestBatchBuilder&, FScratchAllocator&), void (*CheckObjects)(TConstArrayView<FStructView>, const FTestNameReader&))
 {
 	TArray64<uint8> Data;
 	{
-		FTestBatchBuilder Batch;
-		BuildObjects(Batch);
+		FScratchAllocator Scratch;
+		FTestBatchBuilder Batch(Scratch);
+		BuildObjects(Batch, Scratch);
 		Data = Batch.Write();
 	}
 
@@ -375,7 +377,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	{
 		static constexpr std::initializer_list<const char*> MemberNames =  {"b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "b10", "b11"};
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId SchemaId = Batch.DeclareStruct("Testing", "Bools", MemberNames, EMemberPresence::AllowSparse);
 
@@ -468,7 +470,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	{
 		static constexpr std::initializer_list<const char*> MemberNames =  {"F32", "F64", "S8", "U8", "S16", "U16", "S32", "U32", "S64", "U64"};
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId SchemaId = Batch.DeclareStruct("Test", "Numbers", MemberNames, EMemberPresence::AllowSparse);
 
@@ -574,7 +576,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	{
 		static constexpr std::initializer_list<const char*> MemberNames =  {"A", "B", "C"};
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId ExplicitId = Batch.DeclareStruct("Test", "ExplicitDense", MemberNames, EMemberPresence::RequireAll);
 			FStructSchemaId ImplicitId = Batch.DeclareStruct("Test", "ImplicitDense", MemberNames, EMemberPresence::AllowSparse);
@@ -620,7 +622,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 		static constexpr std::initializer_list<const char*> StructMembers =  {"Nested", "Leaf"};
 		static constexpr std::initializer_list<const char*> NestedMembers =  {"I1", "I2"};
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId ObjectId = Batch.DeclareStruct("Test", "Object", ObjectMembers, EMemberPresence::AllowSparse);
 			FStructSchemaId StructId = Batch.DeclareStruct("Test", "Struct", StructMembers, EMemberPresence::AllowSparse);
@@ -628,14 +630,14 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 
 			FMemberBuilder Members;
 			Members.Add(	Batch.NameMember("I1"), 100);
-			FBuiltStructPtr NestedInStruct = Members.BuildAndReset(Batch.Get(NestedId), Batch);
+			FBuiltStructPtr NestedInStruct = Members.BuildAndReset(Scratch, Batch.Get(NestedId), Batch);
 
 			Members.AddStruct(Batch.NameMember("Nested"), NestedId, MoveTemp(NestedInStruct));
 			Members.Add(Batch.NameMember("Leaf"), true);
-			FBuiltStructPtr Struct = Members.BuildAndReset(Batch.Get(StructId), Batch);
+			FBuiltStructPtr Struct = Members.BuildAndReset(Scratch, Batch.Get(StructId), Batch);
 		
 			Members.Add(Batch.NameMember("I2"), 200);
-			FBuiltStructPtr NestedInObject = Members.BuildAndReset(Batch.Get(NestedId), Batch);
+			FBuiltStructPtr NestedInObject = Members.BuildAndReset(Scratch, Batch.Get(NestedId), Batch);
 
 			Members.Add(Batch.NameMember("L1"), 123.f);
 			Members.AddStruct(Batch.NameMember("S"), StructId, MoveTemp(Struct));
@@ -668,7 +670,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 		static constexpr std::initializer_list<const char*> MemberNames = 
 		{ "A2", "A0", "B0", "B4", "B5", "B7", "C3", "D34", "Max8", "Max16", "Max32", "Max64", "IF" };
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			// Test create holes in the original FNameId, FStructSchemaId and FEnumSchemaId index range
 			FStructSchemaId UnusedId = Batch.DeclareStruct("Test", "UnusedStruct", {"U1", "U2"}, EMemberPresence::AllowSparse);
@@ -748,7 +750,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 		enum class EUnused1 : uint8 { X };
 		enum class EUnused2 : uint8 { Y };
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			static constexpr std::initializer_list<const char*> MemberNames = { "B0", "B1", "B8", "B9", "D0", "D3", "Hi", "E3", "E0" };
 		
@@ -758,15 +760,15 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			FEnumSchemaId UnusedEnum2	= Batch.DeclareEnum("Test", "Unused2", EEnumMode::Flat, ELeafWidth::B8, {"Y"}, {0});
 		
 			FMemberBuilder Members;
-			Members.AddRange(Batch.NameMember("B0"), BuildLeafRange(TConstArrayView<bool>()));
-			Members.AddRange(Batch.NameMember("B1"), BuildLeafRange(MakeArrayView({true})));
-			Members.AddRange(Batch.NameMember("B8"), BuildLeafRange(MakeArrayView({false, true, false, true, false, true, false, true})));
-			Members.AddRange(Batch.NameMember("B9"), BuildLeafRange(MakeArrayView({true, false, true, false, true, false, true, false, true})));
-			Members.AddRange(Batch.NameMember("D0"), BuildLeafRange(TConstArrayView<double>()));
-			Members.AddRange(Batch.NameMember("D3"), BuildLeafRange(MakeArrayView({DBL_MIN, 0.0, DBL_MAX})));
-			Members.AddRange(Batch.NameMember("Hi"), BuildLeafRange(MakeArrayView(u8"Hello!")));
-			Members.AddRange(Batch.NameMember("E3"), BuildEnumRange(Enum, MakeArrayView({EABCD::B, EABCD::A, EABCD::D})));
-			Members.AddRange(Batch.NameMember("E0"), BuildEnumRange(Enum, TConstArrayView<EUnused1>()));
+			Members.AddRange(Batch.NameMember("B0"), BuildLeafRange(Scratch, TConstArrayView<bool>()));
+			Members.AddRange(Batch.NameMember("B1"), BuildLeafRange(Scratch, MakeArrayView({true})));
+			Members.AddRange(Batch.NameMember("B8"), BuildLeafRange(Scratch, MakeArrayView({false, true, false, true, false, true, false, true})));
+			Members.AddRange(Batch.NameMember("B9"), BuildLeafRange(Scratch, MakeArrayView({true, false, true, false, true, false, true, false, true})));
+			Members.AddRange(Batch.NameMember("D0"), BuildLeafRange(Scratch, TConstArrayView<double>()));
+			Members.AddRange(Batch.NameMember("D3"), BuildLeafRange(Scratch, MakeArrayView({DBL_MIN, 0.0, DBL_MAX})));
+			Members.AddRange(Batch.NameMember("Hi"), BuildLeafRange(Scratch, MakeArrayView(u8"Hello!")));
+			Members.AddRange(Batch.NameMember("E3"), BuildEnumRange(Scratch, Enum, MakeArrayView({EABCD::B, EABCD::A, EABCD::D})));
+			Members.AddRange(Batch.NameMember("E0"), BuildEnumRange(Scratch, Enum, TConstArrayView<EUnused1>()));
 
 			Batch.AddObject(ObjectId, MoveTemp(Members));
 		}, 
@@ -799,7 +801,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 		
 	SECTION("StructRange")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId ObjectId = Batch.DeclareStruct("Test", "Object", {"Structs"}, EMemberPresence::AllowSparse);
 			FStructSchemaId StructId = Batch.DeclareStruct("Test", "Struct", {"I", "F"}, EMemberPresence::AllowSparse);
@@ -809,7 +811,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			Structs[1].Add(Batch.NameMember("F"), 1.f);
 		
 			FMemberBuilder Members;
-			Members.AddRange(Batch.NameMember("Structs"), Structs.BuildAndReset(Batch.Get(StructId), Batch));
+			Members.AddRange(Batch.NameMember("Structs"), Structs.BuildAndReset(Scratch, Batch.Get(StructId), Batch));
 
 			Batch.AddObject(ObjectId, MoveTemp(Members));
 		}, 
@@ -829,7 +831,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	{
 		enum class EAB : uint8 { A = 1, B = 4 };
 
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId Object = Batch.DeclareStruct("Test", "Object", {"IntRs", "EmptyRs", "EnumRs", "StructRs", "StructRRs"}, EMemberPresence::AllowSparse);
 			FStructSchemaId XY = Batch.DeclareStruct("Test", "XY", {"X", "Y"}, EMemberPresence::RequireAll);
@@ -837,13 +839,13 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			FEnumSchemaId Enum	= Batch.DeclareEnum("Test", "AB", EEnumMode::Flag, ELeafWidth::B8, {"A", "B"}, {1, 4});
 	
 			FNestedRangeBuilder IntRs(MakeLeafRangeSchema<int32, int32>(), 3);
-			IntRs.Add(BuildLeafRange(MakeArrayView({1})));
+			IntRs.Add(BuildLeafRange(Scratch, MakeArrayView({1})));
 			IntRs.Add({});
-			IntRs.Add(BuildLeafRange(MakeArrayView({2, 3})));
+			IntRs.Add(BuildLeafRange(Scratch, MakeArrayView({2, 3})));
 
 			FNestedRangeBuilder EnumRs(MakeEnumRangeSchema<EAB, int32>(Enum), 2);
 			EnumRs.Add({});
-			EnumRs.Add(BuildEnumRange(Enum, MakeArrayView({EAB::A, EAB(0), EAB::B})));
+			EnumRs.Add(BuildEnumRange(Scratch, Enum, MakeArrayView({EAB::A, EAB(0), EAB::B})));
 
 			FStructRangeBuilder XYs(uint64(2));
 			XYs[0].Add(Batch.NameMember("X"), 1.f);
@@ -851,7 +853,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			XYs[1].Add(Batch.NameMember("X"), 3.f);
 			XYs[1].Add(Batch.NameMember("Y"), 4.f);
 			FNestedRangeBuilder StructRs(MakeStructRangeSchema(ERangeSizeType::U64, XY), 1);
-			StructRs.Add(XYs.BuildAndReset(Batch.Get(XY), Batch));
+			StructRs.Add(XYs.BuildAndReset(Scratch, Batch.Get(XY), Batch));
 
 			FStructRangeBuilder ZWs(int16(3));
 			ZWs[0].Add(Batch.NameMember("Z"), 1.5f);
@@ -859,17 +861,17 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			ZWs[2].Add(Batch.NameMember("W"), 3.5f);
 			FMemberSchema ZWRangeSchema = MakeStructRangeSchema(ERangeSizeType::S16, ZW);
 			FNestedRangeBuilder ZWRs(ZWRangeSchema, 1);
-			ZWRs.Add(ZWs.BuildAndReset(Batch.Get(ZW), Batch));
-			FNestedRangeBuilder StructRRs(MakeNestedRangeSchema(ERangeSizeType::U32, ZWRangeSchema), 1);
-			StructRRs.Add(ZWRs.BuildAndReset(ERangeSizeType::U32));
+			ZWRs.Add(ZWs.BuildAndReset(Scratch, Batch.Get(ZW), Batch));
+			FNestedRangeBuilder StructRRs(MakeNestedRangeSchema(Scratch, ERangeSizeType::U32, ZWRangeSchema), 1);
+			StructRRs.Add(ZWRs.BuildAndReset(Scratch, ERangeSizeType::U32));
 
 
 			FMemberBuilder Members;
-			Members.AddRange(Batch.NameMember("IntRs"), IntRs.BuildAndReset(ERangeSizeType::S32));
-			Members.AddRange(Batch.NameMember("EmptyRs"), IntRs.BuildAndReset(ERangeSizeType::S32));
-			Members.AddRange(Batch.NameMember("EnumRs"), EnumRs.BuildAndReset(ERangeSizeType::U8));
-			Members.AddRange(Batch.NameMember("StructRs"), StructRs.BuildAndReset(ERangeSizeType::U64));
-			Members.AddRange(Batch.NameMember("StructRRs"), StructRRs.BuildAndReset(ERangeSizeType::U32));
+			Members.AddRange(Batch.NameMember("IntRs"), IntRs.BuildAndReset(Scratch, ERangeSizeType::S32));
+			Members.AddRange(Batch.NameMember("EmptyRs"), IntRs.BuildAndReset(Scratch, ERangeSizeType::S32));
+			Members.AddRange(Batch.NameMember("EnumRs"), EnumRs.BuildAndReset(Scratch, ERangeSizeType::U8));
+			Members.AddRange(Batch.NameMember("StructRs"), StructRs.BuildAndReset(Scratch, ERangeSizeType::U64));
+			Members.AddRange(Batch.NameMember("StructRRs"), StructRRs.BuildAndReset(Scratch, ERangeSizeType::U32));
 
 			Batch.AddObject(Object, MoveTemp(Members));
 		}, 
@@ -923,7 +925,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	
 	SECTION("UniRange")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId Object = Batch.DeclareStruct("Test", "Object", {"Bools", "Structs", "BF", "BT" }, EMemberPresence::AllowSparse);
 			FStructSchemaId Struct = Batch.DeclareStruct("Test", "Struct", {"MaybeB", "Bs", "MaybeBs", "B"}, EMemberPresence::AllowSparse);
@@ -932,20 +934,20 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			const bool False = false;
 			FNestedRangeBuilder MaybeBs(MakeLeafRangeSchema<bool, bool>(), 1);
 			FStructRangeBuilder Structs(10);
-			Structs[5].AddRange(Batch.NameMember("MaybeB"), BuildLeafRange(&False, true));
-			Structs[6].AddRange(Batch.NameMember("MaybeB"), BuildLeafRange(&True, false));
-			Structs[7].AddRange(Batch.NameMember("MaybeB"), BuildLeafRange(&True, true));
-			Structs[7].AddRange(Batch.NameMember("Bs"),		BuildLeafRange(MakeArrayView({true, true, false, false, true, true, false, false, true, true})));
-			MaybeBs.Add(BuildLeafRange(&True, true));
-			Structs[7].AddRange(Batch.NameMember("MaybeBs"), MaybeBs.BuildAndReset(ERangeSizeType::Uni));
+			Structs[5].AddRange(Batch.NameMember("MaybeB"), BuildLeafRange(Scratch, &False, true));
+			Structs[6].AddRange(Batch.NameMember("MaybeB"), BuildLeafRange(Scratch, &True, false));
+			Structs[7].AddRange(Batch.NameMember("MaybeB"), BuildLeafRange(Scratch, &True, true));
+			Structs[7].AddRange(Batch.NameMember("Bs"),		BuildLeafRange(Scratch, MakeArrayView({true, true, false, false, true, true, false, false, true, true})));
+			MaybeBs.Add(BuildLeafRange(Scratch, &True, true));
+			Structs[7].AddRange(Batch.NameMember("MaybeBs"), MaybeBs.BuildAndReset(Scratch, ERangeSizeType::Uni));
 			Structs[7].Add(Batch.NameMember("B"), true);
-			MaybeBs.Add(BuildLeafRange(&True, false));
-			Structs[8].AddRange(Batch.NameMember("MaybeBs"), MaybeBs.BuildAndReset(ERangeSizeType::Uni));
+			MaybeBs.Add(BuildLeafRange(Scratch, &True, false));
+			Structs[8].AddRange(Batch.NameMember("MaybeBs"), MaybeBs.BuildAndReset(Scratch, ERangeSizeType::Uni));
 			Structs[9].Add(Batch.NameMember("B"), false);
 
 			FMemberBuilder Members;
-			Members.AddRange(Batch.NameMember("Bools"), BuildLeafRange(&True, true));
-			Members.AddRange(Batch.NameMember("Structs"), Structs.BuildAndReset(Batch.Get(Struct), Batch));
+			Members.AddRange(Batch.NameMember("Bools"), BuildLeafRange(Scratch, &True, true));
+			Members.AddRange(Batch.NameMember("Structs"), Structs.BuildAndReset(Scratch, Batch.Get(Struct), Batch));
 			Members.Add(Batch.NameMember("BF"), false);
 			Members.Add(Batch.NameMember("BT"), true);
 
@@ -981,7 +983,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 	
 	SECTION("DynamicStruct")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId Unused1 = Batch.DeclareStruct("Test", "Unused1", {"X"}, EMemberPresence::AllowSparse);
 			FStructSchemaId SA = Batch.DeclareStruct("Test", "SA", {"X"}, EMemberPresence::AllowSparse);
@@ -990,11 +992,11 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			FStructSchemaId Object = Batch.DeclareStruct("Test", "Object", {"Same", "Some", "None", "Diff"}, EMemberPresence::AllowSparse);
 			FStructSchemaId Unused3 = Batch.DeclareStruct("Test", "Unused3", {"X"}, EMemberPresence::AllowSparse);
 		
-			auto BuildStruct = [&Batch](FStructSchemaId Struct, auto X)
+			auto BuildStruct = [&](FStructSchemaId Struct, auto X)
 				{
 					FMemberBuilder Members;
 					Members.Add(Batch.NameMember("X"), X);
-					return Members.BuildAndReset(Batch.Get(Struct), Batch);
+					return Members.BuildAndReset(Scratch, Batch.Get(Struct), Batch);
 				};
 
 			FMemberBuilder O1;
@@ -1030,18 +1032,18 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 
 	SECTION("DynamicStructRange")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId SA = Batch.DeclareStruct("Test", "SA", {"X"}, EMemberPresence::AllowSparse);
 			FStructSchemaId Unused = Batch.DeclareStruct("Test", "Unused2", {"X"}, EMemberPresence::AllowSparse);
 			FStructSchemaId SB = Batch.DeclareStruct("Test", "SB", {"X"}, EMemberPresence::AllowSparse);
 			FStructSchemaId Object = Batch.DeclareStruct("Test", "Object", {"Same", "Some", "None", "Diff", "SameEmpty", "DiffEmpty", "DiffNested"}, EMemberPresence::AllowSparse);
 		
-			auto BuildStructRange = [&Batch](FStructSchemaId Struct, auto X)
+			auto BuildStructRange = [&](FStructSchemaId Struct, auto X)
 				{
 					FStructRangeBuilder Members(1);
 					Members[0].Add(Batch.NameMember("X"), X);
-					return Members.BuildAndReset(Batch.Get(Struct), Batch);
+					return Members.BuildAndReset(Scratch, Batch.Get(Struct), Batch);
 				};
 
 			
@@ -1053,16 +1055,16 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			O1.AddRange(Batch.NameMember("DiffEmpty"), BuildStructRange(SA, 14));
 			FNestedRangeBuilder NestedSA(MakeStructRangeSchema(ERangeSizeType::S32, SA), 1);
 			NestedSA.Add(BuildStructRange(SA, 100));
-			O1.AddRange(Batch.NameMember("DiffNested"), NestedSA.BuildAndReset(ERangeSizeType::S32));
+			O1.AddRange(Batch.NameMember("DiffNested"), NestedSA.BuildAndReset(Scratch, ERangeSizeType::S32));
 			
 			FMemberBuilder O2;
 			O2.AddRange(Batch.NameMember("Same"), BuildStructRange(SA, 20));
 			O2.AddRange(Batch.NameMember("Diff"), BuildStructRange(SB, 22.f));
-			O2.AddRange(Batch.NameMember("SameEmpty"), FStructRangeBuilder(0).BuildAndReset(Batch.Get(SA), Batch));
-			O2.AddRange(Batch.NameMember("DiffEmpty"), FStructRangeBuilder(0).BuildAndReset(Batch.Get(SB), Batch));
+			O2.AddRange(Batch.NameMember("SameEmpty"), FStructRangeBuilder(0).BuildAndReset(Scratch, Batch.Get(SA), Batch));
+			O2.AddRange(Batch.NameMember("DiffEmpty"), FStructRangeBuilder(0).BuildAndReset(Scratch, Batch.Get(SB), Batch));
 			FNestedRangeBuilder NestedSB(MakeStructRangeSchema(ERangeSizeType::S32, SB), 1);
 			NestedSB.Add(BuildStructRange(SB, 200.f));
-			O2.AddRange(Batch.NameMember("DiffNested"), NestedSB.BuildAndReset(ERangeSizeType::S32));
+			O2.AddRange(Batch.NameMember("DiffNested"), NestedSB.BuildAndReset(Scratch, ERangeSizeType::S32));
 			
 			Batch.AddObject(Object, MoveTemp(O1));
 			Batch.AddObject(Object, MoveTemp(O2));
@@ -1092,7 +1094,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 
 	SECTION("Inheritance")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FStructSchemaId Unused = Batch.DeclareStruct("Test", "X", {"X"}, EMemberPresence::AllowSparse);
 			FStructSchemaId Low = Batch.DeclareStruct("Test", "Low", {"LInt"}, EMemberPresence::AllowSparse);
@@ -1101,18 +1103,18 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			
 			FMemberBuilder Members;
 			Members.Add(Batch.NameMember("LInt"), 123);
-			Members.BuildSuperStruct(Batch.Get(Low), Batch);
+			Members.BuildSuperStruct(Scratch, Batch.Get(Low), Batch);
 			Members.Add(Batch.NameMember("MInt"), 456);
 			FMemberBuilder Nested;
 			Nested.Add(Batch.NameMember("LInt"), 1000);
-			Members.AddStruct(Batch.NameMember("MLow"), Low, Nested.BuildAndReset(Batch.Get(Low), Batch));
-			Members.BuildSuperStruct(Batch.Get(Mid), Batch);
+			Members.AddStruct(Batch.NameMember("MLow"), Low, Nested.BuildAndReset(Scratch, Batch.Get(Low), Batch));
+			Members.BuildSuperStruct(Scratch, Batch.Get(Mid), Batch);
 			Members.Add(Batch.NameMember("TInt"), 789);
 			Nested.Add(Batch.NameMember("LInt"), 2000);
-			Members.AddStruct(Batch.NameMember("TLow"), Low, Nested.BuildAndReset(Batch.Get(Low), Batch));
+			Members.AddStruct(Batch.NameMember("TLow"), Low, Nested.BuildAndReset(Scratch, Batch.Get(Low), Batch));
 			FStructRangeBuilder NestedRange(1);
 			NestedRange[0].Add(Batch.NameMember("MInt"), 3000);
-			Members.AddRange(Batch.NameMember("TMids"), NestedRange.BuildAndReset(Batch.Get(Mid), Batch));
+			Members.AddRange(Batch.NameMember("TMids"), NestedRange.BuildAndReset(Scratch, Batch.Get(Mid), Batch));
 
 			Batch.AddObject(Top, MoveTemp(Members));
 		}, 
@@ -1152,7 +1154,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 
 	SECTION("SparseInheritance")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{																										// Usage by A B C 
 			FStructSchemaId B0 = Batch.DeclareStruct("Test", "B0", {"0"}, EMemberPresence::AllowSparse);				 // - - -
 			FStructSchemaId B1 = Batch.DeclareStruct("Test", "B1", {"1"}, EMemberPresence::AllowSparse, ToOptional(B0)); // 1 - 0
@@ -1165,26 +1167,26 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			
 			FMemberBuilder A;
 			A.Add(Batch.NameMember("1"), 1);
-			A.BuildSuperStruct(Batch.Get(B1), Batch);
+			A.BuildSuperStruct(Scratch, Batch.Get(B1), Batch);
 			A.Add(Batch.NameMember("4"), 4);
-			A.BuildSuperStruct(Batch.Get(B4), Batch);
+			A.BuildSuperStruct(Scratch, Batch.Get(B4), Batch);
 			A.Add(Batch.NameMember("5"), 5);
-			A.BuildSuperStruct(Batch.Get(B5), Batch);
+			A.BuildSuperStruct(Scratch, Batch.Get(B5), Batch);
 
 			FMemberBuilder B;
 			B.Add(Batch.NameMember("2"), 20);
-			B.BuildSuperStruct(Batch.Get(B2), Batch);
+			B.BuildSuperStruct(Scratch, Batch.Get(B2), Batch);
 			B.Add(Batch.NameMember("4"), 40);
-			B.BuildSuperStruct(Batch.Get(B4), Batch);
+			B.BuildSuperStruct(Scratch, Batch.Get(B4), Batch);
 
 			FMemberBuilder C;
-			C.BuildSuperStruct(Batch.Get(B1), Batch); // Empty -> noop
+			C.BuildSuperStruct(Scratch, Batch.Get(B1), Batch); // Empty -> noop
 			C.Add(Batch.NameMember("2"), 200);
-			C.BuildSuperStruct(Batch.Get(B2), Batch);
-			C.BuildSuperStruct(Batch.Get(B3), Batch); // Empty -> noop
+			C.BuildSuperStruct(Scratch, Batch.Get(B2), Batch);
+			C.BuildSuperStruct(Scratch, Batch.Get(B3), Batch); // Empty -> noop
 			C.Add(Batch.NameMember("4"), 400);
-			C.BuildSuperStruct(Batch.Get(B4), Batch);
-			C.BuildSuperStruct(Batch.Get(B5), Batch); // Empty -> noop
+			C.BuildSuperStruct(Scratch, Batch.Get(B4), Batch);
+			C.BuildSuperStruct(Scratch, Batch.Get(B5), Batch); // Empty -> noop
 			
 			Batch.AddObject(B6, MoveTemp(A));
 			Batch.AddObject(B5, MoveTemp(B));
@@ -1229,7 +1231,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 
 	SECTION("SparseIndex")
 	{
-		TestSerialize([](FTestBatchBuilder& Batch)
+		TestSerialize([](FTestBatchBuilder& Batch, FScratchAllocator& Scratch)
 		{
 			FScopeId Unused = Batch.MakeScope("Unused");
 			FScopeId NestedUnused1 = Batch.NestScope(Unused, "NestedUnused1");

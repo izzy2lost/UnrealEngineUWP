@@ -186,6 +186,7 @@ private:
 	TArray<IdBuiltStructPair>	SavedObjects;
 	FNameBinding				SavedNames;
 	FCustomBindings				Customs;
+	mutable FScratchAllocator	Scratch;
 };
 
 FBatchSaver::FBatchSaver()
@@ -198,14 +199,14 @@ template<class T>
 void FBatchSaver::Save(T&& Object) 
 {
 	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
-	SavedObjects.Emplace(Id, SaveStruct(&Object, Id, {GTypes, GSchemas, Customs}));
+	SavedObjects.Emplace(Id, SaveStruct(&Object, Id, {GTypes, GSchemas, Customs, Scratch}));
 }
 
 template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
 	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
-	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs}))
+	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs, Scratch}))
 	{
 		SavedObjects.Emplace(Id, MoveTemp(Delta));
 		return true;
@@ -230,7 +231,7 @@ TConstArrayView<T> GrabNumAndArray(/* in-out */ FByteReader& It)
 TArray64<uint8> FBatchSaver::Write() const
 {
 	// Build partial schemas
-	FSchemasBuilder SchemaBuilders(GTypes.GetStructs(), GTypes.GetEnums(), /* debug */ GNames);
+	FSchemasBuilder SchemaBuilders(GTypes, Scratch);
 	for (const IdBuiltStructPair& Object : SavedObjects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);

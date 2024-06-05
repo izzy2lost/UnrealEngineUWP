@@ -23,13 +23,14 @@ struct FSaveContext
 	const FDeclarations&		Declarations;
 	const FSchemaBindings&		Schemas;
 	FCustomBindings&			Customs;
+	FScratchAllocator&			Scratch;
 	FDefaultStructs				Defaults;
 };
 
 template<typename Runtime>
-FSaveContext MakeSaveContext(FDefaultStructs Defaults)
+FSaveContext MakeSaveContext(FDefaultStructs Defaults, FScratchAllocator& Scratch)
 {
-	return { Runtime::GetTypes(), Runtime::GetSchemas(), Runtime::GetCustoms(), Defaults };
+	return { Runtime::GetTypes(), Runtime::GetSchemas(), Runtime::GetCustoms(), Scratch, Defaults };
 }
 
 [[nodiscard]] PLAINPROPS_API FBuiltStructPtr SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveContext& Context);

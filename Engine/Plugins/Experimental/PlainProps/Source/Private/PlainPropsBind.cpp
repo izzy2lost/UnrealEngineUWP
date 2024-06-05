@@ -95,7 +95,7 @@ FRangeMemberBinding FMemberVisitor::GrabRange()
 	FOptionalSchemaId InnermostSchema = HasSchema(InnerTypes.Last()) ? ToOptional(GrabInnerSchema()) : NoId; 
 	uint64 Offset = GrabMemberOffset();
 		
-	return { &InnerTypes[0], RangeBindings, static_cast<uint32>(InnerTypes.Num()), InnermostSchema, Offset};
+	return { &InnerTypes[0], RangeBindings, static_cast<uint16>(InnerTypes.Num()), InnermostSchema, Offset};
 }
 
 void FMemberVisitor::SkipMember()
@@ -141,7 +141,7 @@ FRangeBinding::FRangeBinding(const ILeafRangeBinding& Binding, ERangeSizeType Si
 void* FLeafRangeAllocator::Allocate(FUnpackedLeafType Leaf, uint64 Num)
 {
 	check(!Range);
-	Range = FBuiltRange::Create(Num, SizeOf(Leaf.Width));
+	Range = FBuiltRange::Create(Scratch, Num, SizeOf(Leaf.Width));
 	return Range->Data;
 }
 

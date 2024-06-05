@@ -19,6 +19,7 @@ class FIdIndexerBase;
 struct FLoadBatch;
 class FMemberBuilder;
 struct FSchemaBatch;
+class FScratchAllocator;
 class FStructBinding;
 class FRangeBinding;
 struct FTypedRange;
@@ -182,7 +183,7 @@ struct FRangeMemberBinding
 {
 	const FMemberBindType*	InnerTypes;
 	const FRangeBinding*	RangeBindings;
-	uint32					NumRanges; // At least 1, >1 for nested ranges
+	uint16					NumRanges; // At least 1, >1 for nested ranges
 	FOptionalSchemaId		InnermostSchema;
 	SIZE_T					Offset;
 };
@@ -418,13 +419,14 @@ public:
 // Possible save opt: Use paged linear allocator that only allocates on page exhaustion
 class FLeafRangeAllocator
 {
-	const FUnpackedLeafType		Expected;
+	FScratchAllocator&			Scratch;
 	FBuiltRange*				Range = nullptr;
+	const FUnpackedLeafType		Expected;
 
 	void* Allocate(FUnpackedLeafType Type, uint64 Num);
 
 public:
-	FLeafRangeAllocator(FUnpackedLeafType InExpected) : Expected(InExpected) {}
+	FLeafRangeAllocator(FScratchAllocator& InScratch, FUnpackedLeafType InExpected) : Scratch(InScratch), Expected(InExpected) {}
 
 	template<typename LeafType, typename SizeType>
 	LeafType* AllocateRange(SizeType Num)

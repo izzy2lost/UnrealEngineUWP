@@ -4,6 +4,7 @@
 
 #include "PlainPropsDeclare.h"
 #include "PlainPropsTypes.h"
+#include "Algo/Compare.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Memory/MemoryView.h"
@@ -18,26 +19,96 @@ struct FBuiltRange;
 class FDebugIds;
 struct FUnpackedLeafType;
 
-struct FBuiltStructDeleter 
+using FBuiltStructPtr = FBuiltStruct*;
+
+//////////////////////////////////////////////////////////////////////////
+
+/// Single-threaded scratch allocator for intermediate built representation
+class FScratchAllocator
 {
-	PLAINPROPS_API void operator()(FBuiltStruct* Ptr) const;
+	struct FPage
+	{
+		FPage*			PrevPage;
+		uint8			Data[0];
+	};
+
+	static constexpr uint32 PageSize = 65536;
+	static constexpr uint32 DataSize = PageSize - offsetof(FPage, Data);
+	
+	uint8*					Cursor = nullptr;
+	uint8*					PageEnd = nullptr;
+	FPage*					LastPage = nullptr;
+
+	PLAINPROPS_API uint8* AllocateInNewPage(SIZE_T Size, uint32 Alignment);
+
+public:
+	UE_NONCOPYABLE(FScratchAllocator);
+	FScratchAllocator() = default;
+	PLAINPROPS_API ~FScratchAllocator();
+
+	inline void* Allocate(SIZE_T Size, uint32 Alignment)
+	{
+		uint8* Out = Align(Cursor, Alignment);
+		if (Out + Size <= PageEnd)
+		{
+			Cursor = Out + Size;
+			return Out;
+		}
+
+		return AllocateInNewPage(Size, Alignment);
+	}
+
+	inline void* AllocateZeroed(SIZE_T Size, uint32 Alignment)
+	{
+		void* Out = Allocate(Size, Alignment);
+		FMemory::Memzero(Out, Size);
+		return Out;
+	}
+
+	template<typename T>
+	inline T* AllocateArray(uint64 Num)
+	{
+		T* Out = static_cast<T*>(Allocate(Num * sizeof(T), alignof(T)));
+		for (uint64 Idx = 0; Idx < Num; ++Idx)
+		{
+			new (Out + Idx) T;
+		}
+		return Out;
+	}
 };
-using FBuiltStructPtr = TUniquePtr<FBuiltStruct, FBuiltStructDeleter>;
 
 //////////////////////////////////////////////////////////////////////////
 
 struct FMemberSchema
 {
-	FMemberType				Type;
-	FOptionalSchemaId		InnerSchema;
-	TArray<FMemberType>		InnerRangeTypes;
+	FMemberType						Type;
+	FMemberType						InnerRangeType;
+	uint16							NumInnerRanges;
+	FOptionalSchemaId				InnerSchema;
+	const FMemberType*				NestedRangeTypes;
 
-	FMemberType GetInnermostType() const { return Type.IsRange() ? InnerRangeTypes.Last() : Type; }
+	TConstArrayView<FMemberType> GetInnerRangeTypes() const
+	{
+		return MakeArrayView(NestedRangeTypes ? NestedRangeTypes : &InnerRangeType, NumInnerRanges);
+	}
+
+	FMemberType GetInnermostType() const
+	{
+		return NumInnerRanges ? GetInnerRangeTypes().Last() : Type;
+	}
+
+	[[nodiscard]] PLAINPROPS_API FMemberType& EditInnermostType(FScratchAllocator& Scratch);
+
+	void CheckInvariants()
+	{
+		check(Type.IsRange() == !!NumInnerRanges);
+		check(!!NestedRangeTypes == (NumInnerRanges > 1));
+	}
 };
 
-inline bool operator==(const FMemberSchema& A, const FMemberSchema& B)
+inline bool operator==(FMemberSchema A, FMemberSchema B)
 {
-	return A.Type == B.Type && A.InnerSchema == B.InnerSchema && A.InnerRangeTypes == B.InnerRangeTypes;
+	return A.Type == B.Type && A.InnerSchema == B.InnerSchema && Algo::Compare(A.GetInnerRangeTypes(), B.GetInnerRangeTypes());
 }
 //////////////////////////////////////////////////////////////////////////
 
@@ -65,19 +136,18 @@ struct FTypedRange
 	FBuiltRange* Values = nullptr;
 };
 
-
 template<typename LeafType, typename SizeType>
 FMemberSchema MakeLeafRangeSchema()
 {
 	check(std::is_arithmetic_v<LeafType>);
-	return { FMemberType(RangeSizeOf(SizeType{})), NoId, { ReflectLeaf<LeafType>.Pack() } };
+	return { FMemberType(RangeSizeOf(SizeType{})), ReflectLeaf<LeafType>.Pack(), 1, NoId, nullptr };
 }
 
 template<typename EnumType, typename SizeType>
 FMemberSchema MakeEnumRangeSchema(FEnumSchemaId Schema)
 {
 	check(std::is_enum_v<EnumType>);
-	return { FMemberType(RangeSizeOf(SizeType{})), Schema, { ReflectLeaf<EnumType>.Pack() } };
+	return { FMemberType(RangeSizeOf(SizeType{})), ReflectLeaf<EnumType>.Pack(), 1, Schema, nullptr };
 }
 
 inline constexpr FMemberType DefaultStructType = FMemberType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
@@ -86,65 +156,70 @@ inline constexpr FMemberType SuperStructType =	 FMemberType(FStructType{EMemberK
 
 inline FMemberSchema MakeStructRangeSchema(ERangeSizeType SizeType, FStructSchemaId Schema)
 {
-	return { FMemberType(SizeType), Schema, { DefaultStructType } };
+	return { FMemberType(SizeType), DefaultStructType, 1, Schema, nullptr };
 }
 
-PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberSchema& InnerRangeSchema);
+PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(FScratchAllocator& Scratch, ERangeSizeType SizeType, FMemberSchema InnerRangeSchema);
 
-namespace Private
+//////////////////////////////////////////////////////////////////////////
+
+[[nodiscard]] PLAINPROPS_API FBuiltRange* CloneLeaves(FScratchAllocator& Scratch, uint64 Num, const void* Data, SIZE_T LeafSize);
+
+template<typename LeafType, typename SizeType>
+[[nodiscard]] FTypedRange BuildLeafRange(FScratchAllocator& Scratch, const LeafType* Values, SizeType Num)
 {
-	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
-	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltStructPtr> Structs);
-	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
-	PLAINPROPS_API void							NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
-
-	template<typename LeafType, typename SizeType>
-	[[nodiscard]] FBuiltRange* BuildLeafRange(const LeafType* Values, SizeType InNum)
-	{
-		static_assert(SizeOf(ReflectLeaf<LeafType>.Width) == sizeof(LeafType));
-
-		uint64 Num = IntCastChecked<uint64>(InNum);
-		FBuiltRange* Range = Num > 0 ? Private::BuildLeafRange(ReflectLeaf<LeafType>, Num, MakeMemoryView(Values, Num * sizeof(LeafType))) : nullptr;
-	
-		if (Range && std::is_floating_point_v<LeafType>)
-		{
-			NormalizeLeafRange(ReflectLeaf<LeafType>, *Range);
-		}
-	
-		return Range;
-	}
+	// todo: detect invalid floats
+	return { MakeLeafRangeSchema<LeafType, SizeType>(), CloneLeaves(Scratch, Num, Values, sizeof(LeafType)) };
 }
 
 template<typename LeafType, typename SizeType>
-[[nodiscard]] FTypedRange BuildLeafRange(const LeafType* Values, SizeType Num)
+[[nodiscard]] FTypedRange BuildLeafRange(FScratchAllocator& Scratch, TConstArrayView<LeafType, SizeType> Values)
 {
-	return { MakeLeafRangeSchema<LeafType, SizeType>(), Private::BuildLeafRange(Values, Num) };
-}
-
-template<typename LeafType, typename SizeType>
-[[nodiscard]] FTypedRange BuildLeafRange(TConstArrayView<LeafType, SizeType> Values)
-{
-	return BuildLeafRange(Values.GetData(), Values.Num());
+	// todo: detect invalid floats
+	return { MakeLeafRangeSchema<LeafType, SizeType>(), CloneLeaves(Scratch, Values.Num(), Values.GetData(), sizeof(LeafType)) };
 }
 
 template<typename EnumType, typename SizeType>
-[[nodiscard]] FTypedRange BuildEnumRange(FEnumSchemaId Enum, TConstArrayView<EnumType, SizeType> Values)
+[[nodiscard]] FTypedRange BuildEnumRange(FScratchAllocator& Scratch, FEnumSchemaId Enum, TConstArrayView<EnumType, SizeType> Values)
 {
-	return { MakeEnumRangeSchema<EnumType, SizeType>(Enum), Private::BuildLeafRange(Values.GetData(), Values.Num()) };
+	return { MakeEnumRangeSchema<EnumType, SizeType>(Enum), CloneLeaves(Scratch, Values.Num(), Values.GetData(), sizeof(EnumType)) };
 }
 
-[[nodiscard]] inline FTypedRange BuildStructRange(FStructSchemaId Schema, ERangeSizeType SizeType, /* in-out */ TArrayView64<FBuiltStructPtr> Values )
+[[nodiscard]] inline FTypedRange MakeStructRange(FStructSchemaId Schema, ERangeSizeType SizeType, FBuiltRange* Values )
 {
-	return { MakeStructRangeSchema(SizeType, Schema), Values.Num() ? Private::BuildStructuralRange(/* ownership xfer */ Values) : nullptr };
+	return { MakeStructRangeSchema(SizeType, Schema), Values };
 }
+
+//////////////////////////////////////////////////////////////////////////
+
+union FBuiltValue
+{
+	uint64			Leaf;
+	FBuiltStruct*	Struct;
+	FBuiltRange*	Range;
+};
+
+struct FBuiltMember
+{
+	FBuiltMember(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Schema, uint64 Value);
+	FBuiltMember(FMemberId Name, FTypedRange Range);
+	FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Value);
+	static FBuiltMember MakeSuper(FStructSchemaId Schema, FBuiltStructPtr Value);
+
+	FOptionalMemberId		Name;
+	FMemberSchema			Schema;
+	FBuiltValue				Value;
+
+private:
+	FBuiltMember(FOptionalMemberId N, FMemberSchema&& S, FBuiltValue V) : Name(N), Schema(MoveTemp(S)), Value(V) {}
+};
+
+//////////////////////////////////////////////////////////////////////////
 
 // Builds an ordered list of properties to be saved
 class FMemberBuilder
 {
 public:
-	FMemberBuilder();
-	~FMemberBuilder();
-
 	template<typename LeafType>
 	void Add(FMemberId Name, LeafType Value)
 	{
@@ -163,19 +238,21 @@ public:
 	void AddEnum32(FMemberId Name, FEnumSchemaId Schema, uint32 Value)	{ AddLeaf(Name, {ELeafType::Enum, ELeafWidth::B32}, ToOptional(Schema), Value); }
 	void AddEnum64(FMemberId Name, FEnumSchemaId Schema, uint64 Value)	{ AddLeaf(Name, {ELeafType::Enum, ELeafWidth::B64}, ToOptional(Schema), Value); }
 
-	PLAINPROPS_API void AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value);
-	PLAINPROPS_API void AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr&& Struct);	
-	PLAINPROPS_API void AddRange(FMemberId Name, FTypedRange&& Range);
+	void AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value)	{ Members.Emplace(Name, Leaf, Enum, Value); }
+	void AddRange(FMemberId Name, FTypedRange Range)												{ Members.Emplace(Name, Range); }
+	void AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Struct)					{ Members.Emplace(Name, Schema, Struct); }
 	
 	// Build members into a single nested super struct member, no-op if no non-super members has been added
-	PLAINPROPS_API void BuildSuperStruct(const FStructDeclaration& Super, const FDebugIds& Debug);
+	PLAINPROPS_API void BuildSuperStruct(FScratchAllocator&	Scratch, const FStructDeclaration& Super, const FDebugIds& Debug);
 
-	[[nodiscard]] PLAINPROPS_API FBuiltStructPtr BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
+	[[nodiscard]] PLAINPROPS_API FBuiltStructPtr BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug);
 
 	bool IsEmpty() const { return Members.IsEmpty(); }
 
 private:
-	TArray<FBuiltMember>	Members;
+	using FBuiltMemberArray = TArray<FBuiltMember, TInlineAllocator<16>>;
+	
+	FBuiltMemberArray		Members;
 	
 //	PLAINPROPS_API uint8* AllocateLeafRange(FMemberId Name, FUnpackedLeafType Leaf, ERangeSizeType RangeMax, uint64 Num);
 	
@@ -203,7 +280,7 @@ public:
 	 
 	FMemberBuilder& operator[](uint64 Idx) { return Structs[Idx]; }
 
-	FTypedRange BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
+	FTypedRange BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug);
 
 private:
 	TArray64<FMemberBuilder> Structs; 
@@ -229,7 +306,7 @@ public:
 		Ranges.Add(Range.Values);
 	}
 
-	[[nodiscard]] FTypedRange BuildAndReset(ERangeSizeType SizeType);
+	[[nodiscard]] FTypedRange BuildAndReset(FScratchAllocator& Scratch, ERangeSizeType SizeType);
 
 private:
 	TArray64<FBuiltRange*> Ranges; 

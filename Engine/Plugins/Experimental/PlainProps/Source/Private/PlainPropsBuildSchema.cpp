@@ -39,7 +39,7 @@ static FString PrintMemberSchema(FMemberType Type, FOptionalSchemaId InnerSchema
 
 static FString PrintMemberSchema(FMemberSchema Schema)
 {
-	return PrintMemberSchema(Schema.Type, Schema.InnerSchema, Schema.InnerRangeTypes);
+	return PrintMemberSchema(Schema.Type, Schema.InnerSchema, Schema.GetInnerRangeTypes());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -48,6 +48,7 @@ struct FStructSchemaBuilder
 {
 	const FStructDeclaration&					Declaration;
 	FSchemasBuilder&							AllSchemas;
+	FScratchAllocator&							Scratch;
 	const FDebugIds&							Debug;
 	TMap<FOptionalMemberId, FMemberSchema>		NotedMembers;
 	bool										bMissingMemberNoted = false;
@@ -69,13 +70,14 @@ struct FEnumSchemaBuilder
 
 //////////////////////////////////////////////////////////////////////////
 
-FSchemasBuilder::FSchemasBuilder(const FDeclarations& Types)
-: FSchemasBuilder(Types.GetStructs(), Types.GetEnums(), Types.GetDebug())
+FSchemasBuilder::FSchemasBuilder(const FDeclarations& Types, FScratchAllocator& InScratch)
+: FSchemasBuilder(Types.GetStructs(), Types.GetEnums(), Types.GetDebug(), InScratch)
 {}
 
-FSchemasBuilder::FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug)
+FSchemasBuilder::FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug, FScratchAllocator& InScratch)
 : DeclaredStructs(InStructs)
 , DeclaredEnums(InEnums)
+, Scratch(InScratch)
 , Debug(InDebug)
 {
 	StructIndices.Init(INDEX_NONE, InStructs.Num());
@@ -107,7 +109,7 @@ FStructSchemaBuilder& FSchemasBuilder::NoteStruct(FStructSchemaId Id)
 {
 	checkf(!bBuilt, TEXT("Noted new members after building"));
 	checkf(DeclaredStructs[Id.Idx], TEXT("Undeclared struct '%s' noted"), *Debug.Print(Id));
-	return GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Debug);
+	return GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this, Scratch, Debug);
 }
 
 void FSchemasBuilder::NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct)
@@ -145,7 +147,7 @@ void FSchemasBuilder::NoteInheritanceChains()
 		for (FOptionalStructSchemaId Super = Structs[Idx].Declaration.Super; Super; Super = DeclaredStructs[Super.Get().Idx]->Super)
 		{
 			uint32 SuperIdx = Super.Get().Idx;
-			GetOrEmplace(StructIndices[SuperIdx], Structs, *DeclaredStructs[SuperIdx], *this, Debug);
+			GetOrEmplace(StructIndices[SuperIdx], Structs, *DeclaredStructs[SuperIdx], *this, Scratch, Debug);
 		}
 	}
 }
@@ -160,11 +162,11 @@ static bool RequiresDynamicStructSchema(const FMemberSchema& A, const FMemberSch
 		{
 			return true;
 		}
-		else if (A.Type.IsRange() && A.InnerRangeTypes.Last().IsStruct() && B.InnerRangeTypes.Last().IsStruct())
+		else if (A.Type.IsRange() && A.GetInnermostType().IsStruct() && B.GetInnermostType().IsStruct())
 		{
 			// Same range size and nested range sizes
-			return	A.Type == B.Type &&	Algo::Compare(	MakeArrayView(A.InnerRangeTypes).LeftChop(1),
-														MakeArrayView(B.InnerRangeTypes).LeftChop(1));
+			return	A.Type == B.Type &&	Algo::Compare(	A.GetInnerRangeTypes().LeftChop(1),
+														B.GetInnerRangeTypes().LeftChop(1));
 		}
 	}
 
@@ -194,8 +196,13 @@ void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
 		{
 			if (RequiresDynamicStructSchema(*Schema, Member.Schema))
 			{
-				SetIsDynamic(Schema->Type.IsStruct() ? Schema->Type : Schema->InnerRangeTypes.Last());
-				Schema->InnerSchema = {};
+				if (!Schema->GetInnermostType().AsStruct().IsDynamic)
+				{
+					SetIsDynamic(Schema->EditInnermostType(Scratch));
+					Schema->InnerSchema = NoId;
+				}
+				check(Schema->InnerSchema == NoId);
+				
 			}
 			else
 			{
@@ -222,14 +229,14 @@ void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
 		}
 		else 
 		{
-			check(IsStructOrEnum(Schema.InnerRangeTypes.Last()) == !!Schema.InnerSchema);
+			check(IsStructOrEnum(Schema.GetInnermostType()) == !!Schema.InnerSchema);
 
 			if (Schema.InnerSchema)
 			{
-				void* InnerSchemaBuilder = NoteStructOrEnum(AllSchemas, Schema.InnerRangeTypes.Last().IsStruct(), Schema.InnerSchema.Get());
+				void* InnerSchemaBuilder = NoteStructOrEnum(AllSchemas, Schema.GetInnermostType().IsStruct(), Schema.InnerSchema.Get());
 				if (Member.Value.Range)
 				{
-					NoteRangeRecursively(Schema.Type.AsRange().MaxSize, Schema.InnerRangeTypes, InnerSchemaBuilder, *Member.Value.Range);			
+					NoteRangeRecursively(Schema.Type.AsRange().MaxSize, Schema.GetInnerRangeTypes(), InnerSchemaBuilder, *Member.Value.Range);			
 				}
 			}
 		}
@@ -263,7 +270,7 @@ void FStructSchemaBuilder::NoteRangeRecursively(ERangeSizeType NumType, TConstAr
 	switch (Type.GetKind())
 	{
 	case EMemberKind::Struct:
-		for (const TUniquePtr<const FBuiltStruct>& Struct : Range.AsStructs())
+		for (const FBuiltStruct* Struct : Range.AsStructs())
 		{
 			static_cast<FStructSchemaBuilder*>(InnermostSchema)->NoteMembersRecursively(*Struct);
 		}

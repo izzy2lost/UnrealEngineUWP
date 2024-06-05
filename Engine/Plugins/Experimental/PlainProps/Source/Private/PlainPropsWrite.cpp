@@ -255,7 +255,7 @@ static TArray<FMemberType> GetInnerRangeTypes(const FBuiltStructSchema& Struct)
 	TArray<FMemberType> Out;
 	for (const FMemberSchema* Schema : Struct.MemberSchemas)
 	{
-		Out.Append(Schema->InnerRangeTypes);
+		Out.Append(Schema->GetInnerRangeTypes());
 	}
 	return Out;
 }
@@ -634,8 +634,8 @@ private:
 		switch (Schema.Type.GetKind())
 		{
 		case EMemberKind::Leaf:		WriteLeaf(Schema.Type.AsLeaf(), Value.Leaf); break;
+		case EMemberKind::Range:	WriteRange(Schema.Type.AsRange().MaxSize, Schema.GetInnerRangeTypes(), Schema.InnerSchema, Value.Range); break;
 		case EMemberKind::Struct:	WriteStruct(Schema.Type.AsStruct(), static_cast<FStructSchemaId>(Schema.InnerSchema.Get()), *Value.Struct); break;
-		case EMemberKind::Range:	WriteRange(Schema.Type.AsRange().MaxSize, Schema.InnerRangeTypes, Schema.InnerSchema, Value.Range); break;
 		}
 	}
 
@@ -683,8 +683,8 @@ private:
 			switch (Types[0].GetKind())
 			{
 			case EMemberKind::Leaf:		WriteLeaves(Types[0].AsLeaf(), *Range);	break;
-			case EMemberKind::Struct:	WriteStructs(Types[0].AsStruct(), static_cast<FStructSchemaId>(InnermostSchema.Get()), Range->AsStructs()); break;
 			case EMemberKind::Range:	WriteRanges(Types[0].AsRange().MaxSize, Types.RightChop(1), InnermostSchema, Range->AsRanges()); break;
+			case EMemberKind::Struct:	WriteStructs(Types[0].AsStruct(), static_cast<FStructSchemaId>(InnermostSchema.Get()), Range->AsStructs()); break;
 			}
 		}
 	}
@@ -722,10 +722,10 @@ private:
 		Tmp.Reset();
 	}
 
-	void WriteStructs(FStructType StructType, FStructSchemaId Schema, TConstArrayView64<TUniquePtr<const FBuiltStruct>> Structs)
+	void WriteStructs(FStructType StructType, FStructSchemaId Schema, TConstArrayView64<const FBuiltStruct*> Structs)
 	{
 		Bytes.Append(reinterpret_cast<uint8*>(&Schema.Idx), StructType.IsDynamic * sizeof(Schema.Idx));
-		WriteSkippableItems(Structs, [=](FMemberWriter& Out, const TUniquePtr<const FBuiltStruct>& Struct) { Out.WriteStruct(StructType, Schema, *Struct); });
+		WriteSkippableItems(Structs, [=](FMemberWriter& Out, const FBuiltStruct* Struct) { Out.WriteStruct(StructType, Schema, *Struct); });
 	}
 	
 	void WriteRanges(ERangeSizeType NumType, TConstArrayView<FMemberType> Types, FOptionalSchemaId InnermostSchema, TConstArrayView64<const FBuiltRange*> Ranges)
