@@ -125,7 +125,7 @@ namespace Chaos::Private
 				const FKinematicTarget& KinematicTarget = Kinematic->KinematicTarget();
 				if (KinematicTarget.GetMode() == EKinematicTargetMode::Position)
 				{
-					bIsStationary = (Kinematic->GetX() - KinematicTarget.GetTargetPosition()).IsZero() && (Kinematic->GetR() * KinematicTarget.GetTargetRotation().Inverse()).IsIdentity();
+					bIsStationary = (Kinematic->GetX() - KinematicTarget.GetPosition()).IsZero() && (Kinematic->GetRf() * KinematicTarget.GetRotation().Inverse()).IsIdentity();
 				}
 				else
 				{

@@ -501,6 +501,9 @@ struct FFortniteMainBranchObjectVersion
 		// Upgraded movie scene 'dynamic bindings' to use the new Custom Bindings system
 		LevelSequenceUpgradeDynamicBindings,
 		
+		// Changed the precision for the stored rotation on kinematic targets to match the precision used in particles 
+		ChaosStoreKinematicTargetRotationAsSinglePrecision,
+		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

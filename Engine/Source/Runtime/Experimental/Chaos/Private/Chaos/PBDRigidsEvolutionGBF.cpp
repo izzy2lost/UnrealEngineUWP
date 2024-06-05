@@ -927,9 +927,9 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 	const auto& ApplyParticleKinematicTarget =
 	[Dt, StepFraction, IsLastStep](FTransientPBDRigidParticleHandle& Particle, const int32 ParticleIndex) -> void
 	{
-		TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
+		FKinematicTarget& KinematicTarget = Particle.KinematicTarget();
 		const FVec3 CurrentX = Particle.GetX();
-		const FRotation3 CurrentR = Particle.GetR();
+		const FRotation3f CurrentR = Particle.GetRf();
 		constexpr FReal MinDt = 1e-6f;
 
 		bool bMoved = false;
@@ -954,26 +954,26 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 			// Move to kinematic target and update velocities to match
 			// Target positions only need to be processed once, and we reset the velocity next frame (if no new target is set)
 			FVec3 NewX;
-			FRotation3 NewR;
+			FRotation3f NewR;
 			if (IsLastStep)
 			{
-				NewX = KinematicTarget.GetTarget().GetLocation();
-				NewR = KinematicTarget.GetTarget().GetRotation();
+				NewX = KinematicTarget.GetPosition();
+				NewR = KinematicTarget.GetRotation();
 				KinematicTarget.SetMode(EKinematicTargetMode::Reset);
 			}
 			else
 			{
 				// as a reminder, stepfraction is the remaing fraction of the step from the remaining steps
 				// for total of 4 steps and current step of 2, this will be 1/3 ( 1 step passed, 3 steps remains )
-				NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetTarget().GetLocation(), StepFraction);
-				NewR = FRotation3::Slerp(CurrentR, KinematicTarget.GetTarget().GetRotation(), decltype(FQuat::X)(StepFraction));
+				NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetPosition(), StepFraction);
+				NewR = FRotation3f::Slerp(CurrentR, KinematicTarget.GetRotation(), decltype(FQuat4f::X)(StepFraction));
 			}
 
 			const bool bPositionChanged = !FVec3::IsNearlyEqual(NewX, CurrentX, UE_SMALL_NUMBER);
-			const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_SMALL_NUMBER);
+			const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_KINDA_SMALL_NUMBER);
 			bMoved = bPositionChanged || bRotationChanged;
 			FVec3 NewV = FVec3(0);
-			FVec3 NewW = FVec3(0);
+			FVec3f NewW = FVec3f(0);
 			if (Dt > MinDt)
 			{
 				if (bPositionChanged)
@@ -982,13 +982,13 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 				}
 				if (bRotationChanged)
 				{
-					NewW = FRotation3::CalculateAngularVelocity(CurrentR, NewR, Dt);
+					NewW = FRotation3f::CalculateAngularVelocity(CurrentR, NewR, static_cast<FRealSingle>(Dt));
 				}
 			}
 			Particle.SetX(NewX);
-			Particle.SetR(NewR);
+			Particle.SetRf(NewR);
 			Particle.SetV(NewV);
-			Particle.SetW(NewW);
+			Particle.SetWf(NewW);
 			Particle.SetIsMovingKinematic();
 
 			break;
@@ -1430,7 +1430,7 @@ void FPBDRigidsEvolutionGBF::SetParticleKinematicTarget(FGeometryParticleHandle*
 	{
 		if (NewKinematicTarget.GetMode() == EKinematicTargetMode::Position)
 		{
-			SetParticleTransform(ParticleHandle, NewKinematicTarget.GetTargetPosition(), NewKinematicTarget.GetTargetRotation(), false);
+			SetParticleTransform(ParticleHandle, NewKinematicTarget.GetPosition(), NewKinematicTarget.GetRotation(), false);
 		}
 	}
 }

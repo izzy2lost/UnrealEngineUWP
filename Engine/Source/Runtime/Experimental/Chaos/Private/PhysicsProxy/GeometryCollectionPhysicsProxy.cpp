@@ -3632,7 +3632,7 @@ void FGeometryCollectionPhysicsProxy::SetClusteredParticleKinematicTarget_Intern
 	const Chaos::EObjectStateType ObjectState = Handle->ObjectState();
 	if (ensure(ObjectState == Chaos::EObjectStateType::Kinematic))
 	{
-		Chaos::TKinematicTarget<Chaos::FReal, 3> NewKinematicTarget;
+		Chaos::FKinematicTarget NewKinematicTarget;
 		NewKinematicTarget.SetTargetMode(NewWorldTransform);
 
 		if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())

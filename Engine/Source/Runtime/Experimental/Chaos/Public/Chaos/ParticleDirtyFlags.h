@@ -52,8 +52,6 @@ struct FParticleID
 	}
 };
 
-using FKinematicTarget = TKinematicTarget<FReal, 3>;
-
 enum class EResimType: uint8;
 enum class ESleepType: uint8;
 

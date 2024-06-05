@@ -1132,7 +1132,7 @@ public:
 			{
 				// NOTE: using ClearKinematicTarget() here would just clean the dirty flag, but we actually
 				// want to make sure the kinematic target mode is set to "None", which is how it's default constructed.
-				SetKinematicTarget(Chaos::TKinematicTarget<Chaos::FReal, 3>(), bInvalidate);
+				SetKinematicTarget(Chaos::FKinematicTarget(), bInvalidate);
 			}
 		}
 

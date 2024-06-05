@@ -937,13 +937,13 @@ public:
 		SetW(Velocities.W());
 	}
 
-	void SetKinematicTarget(const TKinematicTarget<T, d>& InKinematicTarget, bool bInvalidate = true)
+	void SetKinematicTarget(const FKinematicTarget& InKinematicTarget, bool bInvalidate = true)
 	{
 		KinematicGeometryParticles->KinematicTarget(ParticleIdx) = InKinematicTarget;
 	}
 
-	const TKinematicTarget<T, d>& KinematicTarget() const { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
-	TKinematicTarget<T, d>& KinematicTarget() { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
+	const FKinematicTarget& KinematicTarget() const { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
+	FKinematicTarget& KinematicTarget() { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
 
 	//Really only useful when using a transient handle
 	const TKinematicGeometryParticleHandleImp<T, d, true>* Handle() const { return KinematicGeometryParticles->Handle(ParticleIdx); }
