@@ -136,7 +136,9 @@ void USwimmingMode::OnGenerateMove(const FMoverTickStartData& StartState, const 
 		if (CharacterInputs)
 		{
 			Params.MoveInputType = CharacterInputs->GetMoveInputType();
-			Params.MoveInput = CharacterInputs->GetMoveInput_WorldSpace();
+
+			const bool bMaintainInputMagnitude = true;
+			Params.MoveInput = UPlanarConstraintUtils::ConstrainDirectionToPlane(MoverComp->GetPlanarConstraint(), CharacterInputs->GetMoveInput_WorldSpace(), bMaintainInputMagnitude);
 		}
 		else
 		{

@@ -11,6 +11,7 @@
 #include "MoverTypes.h"
 #include "LayeredMove.h"
 #include "MoveLibrary/BasedMovementUtils.h"
+#include "MoveLibrary/ConstrainedMoveUtils.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/HitResult.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
@@ -185,6 +186,14 @@ public:
 	// Get the normalized direction considered "up" in worldspace. Typically aligned with gravity, and typically determines the plane an actor tries to move along.
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
 	FVector GetUpDirection() const;
+
+	// Access the planar constraint that may be limiting movement direction
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
+	const FPlanarConstraint& GetPlanarConstraint() const;
+
+	// Sets planar constraint that can limit movement direction
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	void SetPlanarConstraint(const FPlanarConstraint& InConstraint);
 
 public:
 
@@ -417,13 +426,17 @@ private:
 	UPROPERTY(EditDefaultsOnly, EditFixedSize, Instanced, Category = Mover, meta = (NoResetToDefault, MustImplement = "/Script/Mover.MovementSettingsInterface"))
 	TArray<TObjectPtr<UObject>> SharedSettings;
 
-	// Whether or not gravity is overridden on this actor. Otherwise, fall back on world settings. See @SetGravityOverride
+	/** Whether or not gravity is overridden on this actor. Otherwise, fall back on world settings. See @SetGravityOverride */
 	UPROPERTY(EditDefaultsOnly, Category="Mover|Gravity")
 	bool bHasGravityOverride = false;
 	
-	// cm/s^2, only meaningful if @bHasGravityOverride is enabled. Set @SetGravityOverride
+	/** cm/s^2, only meaningful if @bHasGravityOverride is enabled.Set @SetGravityOverride */
 	UPROPERTY(EditDefaultsOnly, Category="Mover|Gravity", meta=(ForceUnits = "cm/s^2"))
 	FVector GravityAccelOverride;
+
+	/** Settings that can lock movement to a particular plane */
+	UPROPERTY(EditDefaultsOnly, Category = "Mover|Constraints")
+	FPlanarConstraint PlanarConstraint;
 
 	/** If enabled, this actor will be moved to follow a base actor that it's standing on. Typically disabled for physics-based movement, which handles based movement internally. */
 	UPROPERTY(EditDefaultsOnly, Category = "Mover")

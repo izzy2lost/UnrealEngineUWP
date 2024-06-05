@@ -21,8 +21,7 @@ void UFollowPathMode::OnGenerateMove(const FMoverTickStartData& StartState, cons
 void UFollowPathMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
 
 	const FMoverDefaultSyncState* StartingMoveState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	const FFollowPathState* StartingPathState		= StartState.SyncState.SyncStateCollection.FindDataByType<FFollowPathState>();

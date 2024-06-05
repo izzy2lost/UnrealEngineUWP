@@ -243,17 +243,9 @@ struct MOVER_API FSimulationTickParams
 {
 	GENERATED_BODY()
 
-	// The scene component that is being moved by the simulation, usually the same as the primitive component
+	// Components involved in movement by the simulation
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Mover)
-	TObjectPtr<USceneComponent> UpdatedComponent;
-
-	// The primitive component used for collision checking by the simulation, usually the same as UpdatedComponent
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Mover)
-	TObjectPtr<UPrimitiveComponent> UpdatedPrimitive;
-
-	// The Mover Component associated with this sim tick
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Mover)
-	TObjectPtr<UMoverComponent> MoverComponent;
+	FMovingComponentSet MovingComps;
 
 	// Simulation state data at the start of the tick, including Input Cmd
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Mover)

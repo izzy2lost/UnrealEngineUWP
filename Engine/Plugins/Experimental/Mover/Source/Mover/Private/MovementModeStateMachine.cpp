@@ -245,9 +245,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 			{
 				FSimulationTickParams SimTickParams;
 				SimTickParams.StartState = SubstepStartData;
-				SimTickParams.UpdatedComponent = UpdatedComponent;
-				SimTickParams.UpdatedPrimitive = UpdatedPrimitive;
-				SimTickParams.MoverComponent = MoverComp;
+				SimTickParams.MovingComps = FMovingComponentSet(MoverComp);
 				SimTickParams.TimeStep = SubTimeStep;
 				SimTickParams.ProposedMove = CombinedMove;
 

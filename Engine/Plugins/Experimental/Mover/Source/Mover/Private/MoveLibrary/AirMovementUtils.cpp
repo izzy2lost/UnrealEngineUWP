@@ -33,7 +33,7 @@ FProposedMove UAirMovementUtils::ComputeControlledFreeMove(const FFreeMoveParams
 	return OutMove;
 }
 
-bool UAirMovementUtils::IsValidLandingSpot(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, const FVector& Location, const FHitResult& Hit, float FloorSweepDistance, float WalkableFloorZ, FFloorCheckResult& OutFloorResult)
+bool UAirMovementUtils::IsValidLandingSpot(const FMovingComponentSet& MovingComps, const FVector& Location, const FHitResult& Hit, float FloorSweepDistance, float WalkableFloorZ, FFloorCheckResult& OutFloorResult)
 {
 	OutFloorResult.Clear();
 
@@ -54,7 +54,7 @@ bool UAirMovementUtils::IsValidLandingSpot(USceneComponent* UpdatedComponent, UP
 	}
 
 	// Make sure floor test passes here.
-	UFloorQueryUtils::FindFloor(UpdatedComponent, UpdatedPrimitive, 
+	UFloorQueryUtils::FindFloor(MovingComps.UpdatedComponent.Get(), MovingComps.UpdatedPrimitive.Get(),
 		FloorSweepDistance, WalkableFloorZ,
 		Location, OutFloorResult);
 
@@ -66,7 +66,7 @@ bool UAirMovementUtils::IsValidLandingSpot(USceneComponent* UpdatedComponent, UP
 	return true;
 }
 
-float UAirMovementUtils::TryMoveToFallAlongSurface(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, UMoverComponent* MoverComponent, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, float FloorSweepDistance, float MaxWalkSlopeCosine, FFloorCheckResult& OutFloorResult, FMovementRecord& MoveRecord)
+float UAirMovementUtils::TryMoveToFallAlongSurface(const FMovingComponentSet& MovingComps, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, float FloorSweepDistance, float MaxWalkSlopeCosine, FFloorCheckResult& OutFloorResult, FMovementRecord& MoveRecord)
 {
 	OutFloorResult.Clear();
 
@@ -78,16 +78,19 @@ float UAirMovementUtils::TryMoveToFallAlongSurface(USceneComponent* UpdatedCompo
 	float PctOfTimeUsed = 0.f;
 	const FVector OldHitNormal = Normal;
 
-	FVector SlideDelta = UMovementUtils::ComputeSlideDelta(Delta, PctOfDeltaToMove, Normal, Hit);
+	FVector SlideDelta = UMovementUtils::ComputeSlideDelta(MovingComps, Delta, PctOfDeltaToMove, Normal, Hit);
 
 	if ((SlideDelta | Delta) > 0.f)
 	{
 		// First sliding attempt along surface
-		UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
+		UMovementUtils::TrySafeMoveUpdatedComponent(MovingComps, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
 
 		PctOfTimeUsed = Hit.Time;
 		if (Hit.IsValidBlockingHit())
 		{
+			UMoverComponent* MoverComponent = MovingComps.MoverComponent.Get();
+			UPrimitiveComponent* UpdatedPrimitive = MovingComps.UpdatedPrimitive.Get();
+
 			// Notify first impact
 			if (MoverComponent && bHandleImpact)
 			{
@@ -96,19 +99,19 @@ float UAirMovementUtils::TryMoveToFallAlongSurface(USceneComponent* UpdatedCompo
 			}
 
 			// Check if we landed
-			if (!IsValidLandingSpot(UpdatedComponent, UpdatedPrimitive, UpdatedPrimitive->GetComponentLocation(),
+			if (!IsValidLandingSpot(MovingComps, UpdatedPrimitive->GetComponentLocation(),
 				Hit, FloorSweepDistance, MaxWalkSlopeCosine, OutFloorResult))
 			{
 				// We've hit another surface during our first move, so let's try to slide along both of them together
 
 				// Compute new slide normal when hitting multiple surfaces.
-				SlideDelta = UMovementUtils::ComputeTwoWallAdjustedDelta(SlideDelta, Hit, OldHitNormal);
+				SlideDelta = UMovementUtils::ComputeTwoWallAdjustedDelta(MovingComps, SlideDelta, Hit, OldHitNormal);
 
 				// Only proceed if the new direction is of significant length and not in reverse of original attempted move.
 				if (!SlideDelta.IsNearlyZero(UE::MoverUtils::SMALL_MOVE_DISTANCE) && (SlideDelta | Delta) > 0.f)
 				{
 					// Perform second move, taking 2 walls into account
-					UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
+					UMovementUtils::TrySafeMoveUpdatedComponent(MovingComps, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
 					PctOfTimeUsed += (Hit.Time * (1.f - PctOfTimeUsed));
 
 					// Notify second impact
@@ -119,7 +122,7 @@ float UAirMovementUtils::TryMoveToFallAlongSurface(USceneComponent* UpdatedCompo
 					}
 
 					// Check if we've landed, to acquire floor result
-					IsValidLandingSpot(UpdatedComponent, UpdatedPrimitive, UpdatedPrimitive->GetComponentLocation(),
+					IsValidLandingSpot(MovingComps, UpdatedPrimitive->GetComponentLocation(),
 						Hit, FloorSweepDistance, MaxWalkSlopeCosine, OutFloorResult);
 				}
 			}

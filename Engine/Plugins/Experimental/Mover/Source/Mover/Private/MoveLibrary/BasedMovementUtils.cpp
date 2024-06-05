@@ -408,7 +408,7 @@ void UBasedMovementUtils::UpdateSimpleBasedMovement(UMoverComponent* TargetMover
 					const bool bSweep = true;
 					FHitResult MoveHitResult;
 
-					bool bDidMove = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, WorldDeltaLocation, WorldTargetQuat, bSweep, MoveComponentFlags, &MoveHitResult, ETeleportType::None);
+					bool bDidMove = UMovementUtils::TryMoveUpdatedComponent_Internal(FMovingComponentSet(TargetMoverComp), WorldDeltaLocation, WorldTargetQuat, bSweep, MoveComponentFlags, &MoveHitResult, ETeleportType::None);
 					
 					const FVector NewWorldLocation = UpdatedComponent->GetComponentLocation();
 

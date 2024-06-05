@@ -4,6 +4,9 @@
 
 #include "MovementUtilsTypes.generated.h"
 
+class USceneComponent;
+class UPrimitiveComponent;
+class UMoverComponent;
 
 
 UENUM()
@@ -44,4 +47,29 @@ struct MOVER_API FProposedMove
 	FVector  LinearVelocity = FVector::ZeroVector;		// Units per second, world space, possibly mapped onto walking surface
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	FRotator AngularVelocity = FRotator::ZeroRotator;	// Degrees per second, local space
+};
+
+
+/** 
+ * Encapsulates components involved in movement. Used by many library functions. 
+ * Only a scene component is required for movement, but this is typically a primitive
+ * component so we provide a pre-cast ptr for convenience.
+ */
+USTRUCT(BlueprintType)
+struct MOVER_API FMovingComponentSet
+{
+	GENERATED_USTRUCT_BODY()
+
+	FMovingComponentSet() {}
+	FMovingComponentSet(USceneComponent* InUpdatedComponent);
+	FMovingComponentSet(UMoverComponent* InMoverComponent);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	TWeakObjectPtr<USceneComponent> UpdatedComponent = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	TWeakObjectPtr<UPrimitiveComponent> UpdatedPrimitive = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	TWeakObjectPtr<UMoverComponent> MoverComponent = nullptr;
 };

@@ -1245,6 +1245,15 @@ FVector UMoverComponent::GetUpDirection() const
 	return DeducedUpDir;
 }
 
+const FPlanarConstraint& UMoverComponent::GetPlanarConstraint() const
+{
+	return PlanarConstraint;
+}
+
+void UMoverComponent::SetPlanarConstraint(const FPlanarConstraint& InConstraint)
+{
+	PlanarConstraint = InConstraint;
+}
 
 TArray<FTrajectorySampleInfo> UMoverComponent::GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond) const
 {

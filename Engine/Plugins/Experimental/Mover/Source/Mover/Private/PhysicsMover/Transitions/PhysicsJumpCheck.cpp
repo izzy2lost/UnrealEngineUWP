@@ -35,7 +35,7 @@ void UPhysicsJumpCheck::OnTrigger(const FSimulationTickParams& Params)
 	TSharedPtr<FJumpImpulseEffect> JumpMove = MakeShared<FJumpImpulseEffect>();
 	JumpMove->UpwardsSpeed = JumpUpwardsSpeed;
 
-	Params.MoverComponent->QueueInstantMovementEffect(JumpMove);
+	Params.MovingComps.MoverComponent->QueueInstantMovementEffect(JumpMove);
 }
 
 #if WITH_EDITOR

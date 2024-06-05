@@ -33,6 +33,7 @@ constexpr float VERTICAL_SLOPE_NORMAL_Z = 0.001f; // Slope is vertical if Abs(No
 
 void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
+	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
@@ -48,7 +49,8 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	if (CharacterInputs)
 	{
 		Params.MoveInputType = CharacterInputs->GetMoveInputType();
-		Params.MoveInput = CharacterInputs->GetMoveInput();
+		const bool bMaintainInputMagnitude = true;
+		Params.MoveInput = UPlanarConstraintUtils::ConstrainDirectionToPlane(MoverComp->GetPlanarConstraint(), CharacterInputs->GetMoveInput_WorldSpace(), bMaintainInputMagnitude);
 	}
 	else
 	{
@@ -134,8 +136,7 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
@@ -176,7 +177,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	FHitResult Hit(1.f);
 	const FQuat TargetOrientQuat = TargetOrient.Quaternion();
 
-	UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, MoveDelta, TargetOrientQuat, true, Hit, ETeleportType::None, MoveRecord);
+	UMovementUtils::TrySafeMoveUpdatedComponent(Params.MovingComps, MoveDelta, TargetOrientQuat, true, Hit, ETeleportType::None, MoveRecord);
 
 	// Compute final velocity based on how long we actually go until we get a hit.
 	FVector NewFallingVelocity = StartingSyncState->GetVelocity_WorldSpace();
@@ -186,7 +187,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	FFloorCheckResult LandingFloor;
 
 	// Handle impact, whether it's a landing surface or something to slide on
-	if (Hit.IsValidBlockingHit() && UpdatedPrimitive)
+	if (Hit.IsValidBlockingHit() && UpdatedComponent)
 	{
 		float LastMoveTimeSlice = DeltaSeconds;
 		float SubTimeTickRemaining = LastMoveTimeSlice * (1.f - Hit.Time);
@@ -194,7 +195,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		PctTimeApplied += Hit.Time * (1.f - PctTimeApplied);
 
 		// Check for hitting a landing surface
-		if (UAirMovementUtils::IsValidLandingSpot(UpdatedComponent, UpdatedPrimitive, UpdatedPrimitive->GetComponentLocation(), 
+		if (UAirMovementUtils::IsValidLandingSpot(Params.MovingComps, UpdatedComponent->GetComponentLocation(),
 			Hit, CommonLegacySettings->FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, OUT LandingFloor))
 		{
 			CaptureFinalState(UpdatedComponent, *StartingSyncState, LandingFloor, DeltaSeconds, DeltaSeconds * PctTimeApplied, OutputSyncState, OutputState, MoveRecord);
@@ -209,7 +210,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		MoverComponent->HandleImpact(ImpactParams);
 
 		// We didn't land on a walkable surface, so let's try to slide along it
-		UAirMovementUtils::TryMoveToFallAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, MoveDelta, 
+		UAirMovementUtils::TryMoveToFallAlongSurface(Params.MovingComps, MoveDelta,
 			(1.f - Hit.Time), TargetOrientQuat, Hit.Normal, Hit, true,
 			CommonLegacySettings->FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, LandingFloor, MoveRecord);
 

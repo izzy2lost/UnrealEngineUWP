@@ -19,7 +19,7 @@ FTransitionEvalResult UZiplineStartTransition::OnEvaluate(const FSimulationTickP
 {
 	FTransitionEvalResult EvalResult = FTransitionEvalResult::NoTransition;
 
-	UCharacterMoverComponent* MoverComp = Cast<UCharacterMoverComponent>(Params.MoverComponent);
+	UCharacterMoverComponent* MoverComp = Cast<UCharacterMoverComponent>(Params.MovingComps.MoverComponent.Get());
 
 	const FMoverSyncState& SyncState = Params.StartState.SyncState;
 
