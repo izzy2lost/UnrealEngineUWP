@@ -10,7 +10,9 @@ FChaosCacheObjectSpawner::FChaosCacheObjectSpawner() : FLevelSequenceActorSpawne
 
 TSharedRef<IMovieSceneObjectSpawner> FChaosCacheObjectSpawner::CreateObjectSpawner()
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return MakeShareable(new FChaosCacheObjectSpawner);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 UClass* FChaosCacheObjectSpawner::GetSupportedTemplateType() const

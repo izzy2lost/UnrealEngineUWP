@@ -91,6 +91,7 @@
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UnrealEdGlobals.h"
 #include "USDClassesEditorModule.h"
+#include "SequencerUtilities.h"
 #endif	  // WITH_EDITOR
 
 #if USE_USD_SDK
@@ -589,9 +590,10 @@ struct FUsdStageActorImpl
 
 	static void SetupDynamicBinding(
 		const FString& PrimPath,
-		FMovieScenePossessable& Possessable,
+		FGuid BindingID,
 		ULevelSequence* Sequence,
-		const FString& DefaultActorFilter
+		const FString& DefaultActorFilter,
+		TSharedPtr<ISequencer> Sequencer
 	)
 	{
 #if WITH_EDITOR
@@ -602,7 +604,7 @@ struct FUsdStageActorImpl
 		}
 
 		// Make sure we trigger the creation of the DirectorBlueprint before we add our binding, or else
-		// FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding may fail. Note: The regular code path for dynamic
+		// FMovieSceneDynamicBindingUtils::ResolveDynamicBinding may fail. Note: The regular code path for dynamic
 		// bindings via the UI ends up calling these exact same lines from
 		// FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu
 		FMovieSceneSequenceEditor* SequenceEditor = FMovieSceneSequenceEditor::Find(Sequence);
@@ -616,34 +618,53 @@ struct FUsdStageActorImpl
 			return;
 		}
 
+		UMovieSceneReplaceableDirectorBlueprintBinding* NewCustomBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(UMovieSceneReplaceableDirectorBlueprintBinding::StaticClass()->GetDefaultObject<UMovieSceneCustomBinding>()->CreateNewCustomBinding(nullptr, *MovieScene));
+
+		if (!NewCustomBinding)
+		{
+			return;
+		}
+
+		FMovieSceneDynamicBinding& DynamicBinding = NewCustomBinding->DynamicBinding;
 		// Setup the Dynamic Binding
 		{
-			Possessable.DynamicBinding = FMovieSceneDynamicBinding{};
-			Possessable.DynamicBinding.CompiledFunctionName = NAME_None;
-			Possessable.DynamicBinding.ResolveParamsPinName = TEXT("Params");
-			Possessable.DynamicBinding.Function = UUsdDynamicBindingResolverLibrary::StaticClass()->FindFunctionByName(
+			DynamicBinding = FMovieSceneDynamicBinding{};
+			DynamicBinding.CompiledFunctionName = NAME_None;
+			DynamicBinding.ResolveParamsPinName = TEXT("Params");
+			DynamicBinding.Function = UUsdDynamicBindingResolverLibrary::StaticClass()->FindFunctionByName(
 				GET_FUNCTION_NAME_CHECKED(UUsdDynamicBindingResolverLibrary, ResolveWithStageActor)
 			);
-			if (Possessable.DynamicBinding.Function)
+			if (DynamicBinding.Function)
 			{
-				Possessable.DynamicBinding.ResolveParamsProperty = Possessable.DynamicBinding.Function->FindPropertyByName(
-					Possessable.DynamicBinding.ResolveParamsPinName
+				DynamicBinding.ResolveParamsProperty = DynamicBinding.Function->FindPropertyByName(
+					DynamicBinding.ResolveParamsPinName
 				);
 			}
 
 			// Store a path to this very actor on the binding, so that it can find us later and ask how to resolve a particular
 			// prim path
-			FMovieSceneDynamicBindingPayloadVariable& ActorPathVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(TEXT("StageActorIDNam"
-																																	 "eFilter"));
+			FMovieSceneDynamicBindingPayloadVariable& ActorPathVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("StageActorIDNam"
+				"eFilter"));
 			ActorPathVariable.Value = DefaultActorFilter;
 
-			FMovieSceneDynamicBindingPayloadVariable& RootLayerVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(TEXT("RootLayerFilter"
+			FMovieSceneDynamicBindingPayloadVariable& RootLayerVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("RootLayerFilter"
 			));
 			RootLayerVariable.Value = FString{};	// No root layer filter by default for more flexibility
 
-			FMovieSceneDynamicBindingPayloadVariable& PrimPathVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(TEXT("PrimPath"));
+			FMovieSceneDynamicBindingPayloadVariable& PrimPathVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("PrimPath"));
 			PrimPathVariable.Value = PrimPath;
 		}
+
+		Sequence->Modify();
+		MovieScene->Modify();
+
+		UE::Sequencer::FCreateBindingParams CreateBindingParams;
+		CreateBindingParams.ReplacementGuid = BindingID;
+		CreateBindingParams.BindingIndex = 0;
+		CreateBindingParams.BindingNameOverride = NewCustomBinding->GetDesiredBindingName();
+		CreateBindingParams.CustomBinding = NewCustomBinding;
+
+		FSequencerUtilities::CreateOrReplaceBinding(Sequencer.ToSharedRef(), nullptr, CreateBindingParams);
 
 		// Setup the Blueprint function ("endpoint") on the Sequence's director Blueprint.
 		// In the future we could also just setup a single endpoint for all dynamic bindings, as they're all identical here. However, even then
@@ -665,7 +686,12 @@ struct FUsdStageActorImpl
 				return;
 			}
 
-			EndpointDefinition.EndpointName = Possessable.GetName() + TEXT("_DynamicBinding");
+			FMovieScenePossessable* Possessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
+			if (!Possessable)
+			{
+				return;
+			}
+			EndpointDefinition.EndpointName = Possessable->GetName() + TEXT("_DynamicBinding");
 
 			DirectorBlueprint->Modify();
 
@@ -680,7 +706,7 @@ struct FUsdStageActorImpl
 
 		// Create a function call node within that endpoint that calls our UFunction
 		// Reference: FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSelected
-		UBlueprintFunctionNodeSpawner* Spawner = UBlueprintFunctionNodeSpawner::Create(Possessable.DynamicBinding.Function);
+		UBlueprintFunctionNodeSpawner* Spawner = UBlueprintFunctionNodeSpawner::Create(DynamicBinding.Function);
 		FBlueprintActionMenuItem Action{Spawner};
 		UEdGraphPin* ThenPin = NewEndpoint->FindPin(UEdGraphSchema_K2::PN_Then, EGPD_Output);
 		FVector2D NodePosition(NewEndpoint->NodePosX + 400.f, NewEndpoint->NodePosY + 100.0f);
@@ -722,7 +748,7 @@ struct FUsdStageActorImpl
 		// Connect additional parameter pins from the endpoint to the function call node
 		// Reference: FMovieSceneDirectorBlueprintEndpointCustomization::SetEndpoint
 		TSet<FName> NonPayloadPins;
-		const FString* WorldContextParamName = Possessable.DynamicBinding.Function->FindMetaData(FBlueprintMetadata::MD_WorldContext);
+		const FString* WorldContextParamName = DynamicBinding.Function->FindMetaData(FBlueprintMetadata::MD_WorldContext);
 		if (WorldContextParamName)
 		{
 			NonPayloadPins.Add(FName(*WorldContextParamName));
@@ -748,7 +774,7 @@ struct FUsdStageActorImpl
 			}
 		}
 
-		FMovieSceneDynamicBindingUtils::SetEndpoint(MovieScene, &Possessable.DynamicBinding, NewEndpoint);
+		FMovieSceneDynamicBindingUtils::SetEndpoint(MovieScene, &DynamicBinding, NewEndpoint);
 		FMovieSceneDynamicBindingUtils::EnsureBlueprintExtensionCreated(Sequence, DirectorBlueprint);
 		FKismetEditorUtilities::CompileBlueprint(DirectorBlueprint);
 #endif	  // WITH_EDITOR
@@ -4240,7 +4266,7 @@ void AUsdStageActor::OnActorAddedToSequencer(AActor* NewActor, const FGuid Guid,
 	Sequence->Modify();
 	MovieScene->Modify();
 
-	FUsdStageActorImpl::SetupDynamicBinding(PrimPath, *Possessable, Sequence, *GetName());
+	FUsdStageActorImpl::SetupDynamicBinding(PrimPath, Guid, Sequence, *GetName(), PinnedSequencer);
 #endif	  // WITH_EDITOR
 }
 
@@ -4298,7 +4324,7 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 	MovieScene->Modify();
 
 	TFunction<UObject*(const FMovieScenePossessable&)> LocateBoundObject = nullptr;
-	LocateBoundObject = [&LocateBoundObject, Sequence, MovieScene](const FMovieScenePossessable& Possessable) -> UObject*
+	LocateBoundObject = [&LocateBoundObject, Sequence, MovieScene, PinnedSequencer](const FMovieScenePossessable& Possessable) -> UObject*
 	{
 		const FGuid& Guid = Possessable.GetGuid();
 		const FGuid& ParentGuid = Possessable.GetParent();
@@ -4312,10 +4338,11 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 			}
 		}
 
-		TArray<UObject*, TInlineAllocator<1>> Objects = Cast<UMovieSceneSequence>(Sequence)->LocateBoundObjects(Guid, ParentContext);
+		TArrayView<TWeakObjectPtr<>> Objects = PinnedSequencer->FindBoundObjects(Guid, PinnedSequencer->GetFocusedTemplateID());
+
 		if (Objects.Num() > 0)
 		{
-			return Objects[0];
+			return Objects[0].Get();
 		}
 
 		return nullptr;
@@ -4332,14 +4359,37 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 			continue;
 		}
 
-		// If the binding already has another dynamic binding let's not touch it,
-		// regardless of whether we set that dynamic binding up or the user did
-		if (Possessable.DynamicBinding.Function != nullptr)
+		const FGuid& BindingGuid = Possessable.GetGuid();
+
+		const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+		if (!BindingReferences)
 		{
 			continue;
 		}
 
-		const FGuid& BindingGuid = Possessable.GetGuid();
+		// If the binding already has another dynamic binding let's not touch it,
+		// regardless of whether we set that dynamic binding up or the user did
+		if (Algo::AnyOf(BindingReferences->GetReferences(Possessable.GetGuid()), [](const FMovieSceneBindingReference& Reference) {
+			if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(Reference.CustomBinding))
+			{
+				if (SpawnableBinding->DynamicBinding.Function != nullptr)
+				{
+					return true;
+				}
+			}
+			if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(Reference.CustomBinding))
+			{
+				if (ReplaceableBinding->DynamicBinding.Function != nullptr)
+				{
+					return true;
+				}
+			}
+			return false;
+			}))
+		{
+			continue;
+		}
+
 		if (AssetUserData->HandledBindingGuids.Contains(BindingGuid))
 		{
 			continue;
@@ -4361,7 +4411,7 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 		// own this component will all return empty strings for SourcePrimPath
 		AssetUserData->HandledBindingGuids.Add(BindingGuid);
 
-		FUsdStageActorImpl::SetupDynamicBinding(SourcePrimPath, Possessable, Sequence, *GetName());
+		FUsdStageActorImpl::SetupDynamicBinding(SourcePrimPath, BindingGuid, Sequence, *GetName(), PinnedSequencer);
 	}
 #endif	  // WITH_EDITOR
 }

@@ -1199,7 +1199,7 @@ UObject* FAvaSequencer::FindResolutionContext(UAvaSequence& InSequence
 		{
 			TArray<UObject*, TInlineAllocator<1>> BoundObjects;
 
-			InSequence.LocateBoundObjects(InGuid, UE::UniversalObjectLocator::FResolveParams(InContextChecked), BoundObjects);
+			InSequence.LocateBoundObjects(InGuid, UE::UniversalObjectLocator::FResolveParams(InContextChecked), MovieSceneHelpers::CreateTransientSharedPlaybackState(InContextChecked, &InSequence), BoundObjects);
 			return BoundObjects;
 		};
 

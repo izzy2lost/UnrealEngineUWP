@@ -85,6 +85,11 @@ public:
 
 	DECLARE_DELEGATE_RetVal_OneParam(void, FPostDuplicateEvent, ULevelSequence*);
 	static LEVELSEQUENCE_API FPostDuplicateEvent PostDuplicateEvent;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FFixupDynamicBindingsEvent, ULevelSequence*);
+	static LEVELSEQUENCE_API FFixupDynamicBindingsEvent FixupDynamicBindingsEvent;
+
+
 #endif
 
 	LEVELSEQUENCE_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
@@ -96,6 +101,8 @@ public:
 
 	UE_DEPRECATED(5.4, "Use the base class LocateBoundObjects()")
 	LEVELSEQUENCE_API void LocateBoundObjects(const FGuid& ObjectId, UObject* Context, const FLevelSequenceBindingReference::FResolveBindingParams& InResolveBindingParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
+
+	LEVELSEQUENCE_API virtual void IterateDynamicBindings(const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback) override;
 
 #if WITH_EDITOR
 
@@ -124,6 +131,14 @@ protected:
 	 * Invoked when this level sequence's director blueprint has been recompiled
 	 */
 	LEVELSEQUENCE_API void OnDirectorRecompiled(UBlueprint*);
+
+private:
+#if WITH_EDITOR
+	// Used to convert any old spawnables in this movie scene to use the custom binding system
+	bool ConvertOldSpawnables();
+	// Used to convert possessables using deprecated 'DynamicBinding' to a custom director blueprint binding
+	void ConvertDynamicBindingPossessable(FMovieScenePossessable& Possessable);
+#endif
 
 #endif // WITH_EDITOR
 

@@ -1488,5 +1488,5 @@ private:
 	uint32 LastKnownStateSerial = 0;
 
 	/* Cached list of supported custom binding types*/
-	TArray<TSubclassOf<UMovieSceneCustomBinding>> SupportedCustomBindingTypes;
+	TArray<const TSubclassOf<UMovieSceneCustomBinding>> SupportedCustomBindingTypes;
 };

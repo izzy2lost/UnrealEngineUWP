@@ -117,6 +117,11 @@
 #include "TransformableHandle.h"
 #include "Constraints/ComponentConstraintChannelInterface.h"
 #include "Constraints/TransformConstraintChannelInterface.h"
+#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "MovieSceneDynamicBindingUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 
 #define LOCTEXT_NAMESPACE "FMovieSceneToolsModule"
 
@@ -250,6 +255,8 @@ void FMovieSceneToolsModule::StartupModule()
 	UMovieSceneEventSectionBase::RemoveForCookEvent.BindStatic(RemoveForCookEventSection);
 	UMovieScene::IsTrackClassAllowedEvent.BindStatic(IsTrackClassAllowed);
 	ULevelSequence::PostDuplicateEvent.BindStatic(PostDuplicateEvent);
+	FixupDynamicBindingsHandle = ULevelSequence::FixupDynamicBindingsEvent.AddStatic(FixupDynamicBindingsEvent);
+
 
 	auto OnObjectsReplaced = [](const TMap<UObject*, UObject*>& ReplacedObjects)
 	{
@@ -287,6 +294,7 @@ void FMovieSceneToolsModule::ShutdownModule()
 	UMovieSceneEventSectionBase::RemoveForCookEvent = UMovieSceneEventSectionBase::FRemoveForCookEvent();
 	UMovieScene::IsTrackClassAllowedEvent = UMovieScene::FIsTrackClassAllowedEvent();
 	ULevelSequence::PostDuplicateEvent = ULevelSequence::FPostDuplicateEvent();
+	ULevelSequence::FixupDynamicBindingsEvent.Remove(FixupDynamicBindingsHandle);
 
 	if (ICurveEditorModule* CurveEditorModule = FModuleManager::GetModulePtr<ICurveEditorModule>("CurveEditor"))
 	{
@@ -440,6 +448,19 @@ void FMovieSceneToolsModule::PostDuplicateEvent(ULevelSequence* LevelSequence)
 	}
 }
 
+
+void FMovieSceneToolsModule::FixupDynamicBindingsEvent(ULevelSequence* LevelSequence)
+{
+	if (LevelSequence)
+	{
+		if (UBlueprint* DirectorBlueprint = LevelSequence->GetDirectorBlueprint())
+		{
+			FMovieSceneDynamicBindingUtils::EnsureBlueprintExtensionCreated(LevelSequence, DirectorBlueprint);
+			FKismetEditorUtilities::CompileBlueprint(DirectorBlueprint);
+		}
+	}
+}
+
 bool FMovieSceneToolsModule::UpgradeLegacyEventEndpointForSection(UMovieSceneEventSectionBase* Section)
 {
 	UMovieSceneSequence*       Sequence           = Section->GetTypedOuter<UMovieSceneSequence>();
@@ -583,6 +604,8 @@ void FMovieSceneToolsModule::FixupPayloadParameterNameForSection(UMovieSceneEven
 
 void FMovieSceneToolsModule::FixupPayloadParameterNameForDynamicBinding(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName)
 {
+	using namespace UE::MovieScene;
+
 	check(MovieScene);
 
 	auto FixupPayloadParameterName = [InNode, OldPinName, NewPinName](FMovieSceneDynamicBinding& DynamicBinding)
@@ -597,14 +620,26 @@ void FMovieSceneToolsModule::FixupPayloadParameterNameForDynamicBinding(UMovieSc
 		}
 	};
 
-	for (int32 Index = 0, PossessableCount = MovieScene->GetPossessableCount(); Index < PossessableCount; ++Index)
-	{
-		FixupPayloadParameterName(MovieScene->GetPossessable(Index).DynamicBinding);
-	}
+	UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+	TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), ThisSequence);
 
-	for (int32 Index = 0, SpawnableCount = MovieScene->GetSpawnableCount(); Index < SpawnableCount; ++Index)
+	if (FMovieSceneBindingReferences* BindingReferences = MovieScene->GetTypedOuter<UMovieSceneSequence>()->GetBindingReferences())
 	{
-		FixupPayloadParameterName(MovieScene->GetSpawnable(Index).DynamicBinding);
+		for (FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+		{
+			if (BindingReference.CustomBinding)
+			{
+				if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableDirectorBlueprintBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(BindingReference.CustomBinding))
+				{
+					FixupPayloadParameterName(ReplaceableDirectorBlueprintBinding->DynamicBinding);
+				}
+
+				if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(BindingReference.CustomBinding->AsSpawnable(TransientPlaybackState)))
+				{
+					FixupPayloadParameterName(SpawnableDirectorBlueprintBinding->DynamicBinding);
+				}
+			}
+		}
 	}
 }
 

@@ -47,7 +47,7 @@ void FMovieScenePossessable::SetParent(const FGuid& InParentGuid, UMovieScene* O
 void FMovieScenePossessable::FixupPossessedObjectClass(UMovieSceneSequence* InSequence, UObject* Context)
 {
 	TArray<UObject*, TInlineAllocator<1>> BoundObjects;
-	InSequence->LocateBoundObjects(Guid, UE::UniversalObjectLocator::FResolveParams(Context), BoundObjects);
+	InSequence->LocateBoundObjects(Guid, UE::UniversalObjectLocator::FResolveParams(Context), nullptr, BoundObjects);
 
 	TArray<UClass*> Classes;
 	for (UObject* BoundObject : BoundObjects)

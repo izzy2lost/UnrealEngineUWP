@@ -497,6 +497,9 @@ struct FFortniteMainBranchObjectVersion
 
 		// AddToFrontend GFA now defaults to unload plugin on exit frontend
 		GameFeatureDataActionAddToFrontendDefaultToUnload,
+
+		// Upgraded movie scene 'dynamic bindings' to use the new Custom Bindings system
+		LevelSequenceUpgradeDynamicBindings,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

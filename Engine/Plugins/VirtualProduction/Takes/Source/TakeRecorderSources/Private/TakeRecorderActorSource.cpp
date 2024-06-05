@@ -46,6 +46,7 @@
 #if WITH_EDITOR
 #include "Tracks/MovieSceneSpawnTrack.h"
 #endif
+#include "SequencerUtilities.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TakeRecorderActorSource)
 
@@ -256,13 +257,16 @@ TArray<UTakeRecorderSource*> UTakeRecorderActorSource::PreRecording(ULevelSequen
 	{
 		// We need to store the object template in the Movie Scene (because it's a complex UObject)
 		// instead of trying to place this data into the non-UObject safe data stream.
-		FName UniqueTemplateName = MakeUniqueObjectName(TargetLevelSequence, ActorToRecord->GetClass(), NAME_None);
-		Header.TemplateName = UniqueTemplateName.ToString();
-		CachedObjectTemplate = CastChecked<AActor>(TargetLevelSequence->MakeSpawnableTemplateFromInstance(*ActorToRecord, UniqueTemplateName));
-		CachedObjectBindingGuid = MovieScene->AddSpawnable(ActorToRecord->GetActorLabel(), *CachedObjectTemplate);
+		UE::Sequencer::FCreateBindingParams CreateBindingParams;
+		CreateBindingParams.bSpawnable = true;
+		CreateBindingParams.bAllowCustomBinding = true;
+		CreateBindingParams.BindingNameOverride = ActorToRecord->GetActorLabel();
+		CachedObjectBindingGuid = FSequencerUtilities::CreateOrReplaceBinding(nullptr, InSequence, ActorToRecord, CreateBindingParams);
+		CachedObjectTemplate = CastChecked<AActor>(MovieSceneHelpers::GetObjectTemplate(InSequence, CachedObjectBindingGuid, MovieSceneHelpers::CreateTransientSharedPlaybackState(ActorToRecord, InSequence)));
 		
 		if (CachedObjectTemplate.IsValid())
 		{
+			Header.TemplateName = CachedObjectTemplate->GetName();
 			PostProcessCreatedObjectTemplateImpl(CachedObjectTemplate.Get());
 		}
 	}
@@ -414,12 +418,6 @@ void UTakeRecorderActorSource::CreateSectionRecordersRecursive(UObject* ObjectTo
 		if (ensure(ChildPossessable))
 		{
 			ChildPossessable->SetParent(CachedObjectBindingGuid, MovieScene);
-		}
-
-		FMovieSceneSpawnable* ParentSpawnable = MovieScene->FindSpawnable(CachedObjectBindingGuid);
-		if (ParentSpawnable)
-		{
-			ParentSpawnable->AddChildPossessable(Guid);
 		}
 
 		// Bindings are stored relative to their context outer. Newly duplicated components have a different outer

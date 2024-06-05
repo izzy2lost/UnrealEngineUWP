@@ -61,7 +61,9 @@ void FLevelSequenceEditorActorBinding::AddPossessActorMenuExtensions(FMenuBuilde
 				if (!Possessable.GetParent().IsValid())
 				{
 					// A possession guid can apply to more than one object, so we get all bound objects for the GUID and add them to our set.
-					ExistingPossessedObjects.Append(MovieSceneSequence->LocateBoundObjects(Possessable.GetGuid(), Sequencer.Pin()->GetPlaybackContext()));
+					TArray<UObject*, TInlineAllocator<1>> OutObjects;
+					MovieSceneSequence->LocateBoundObjects(Possessable.GetGuid(), UE::UniversalObjectLocator::FResolveParams(Sequencer.Pin()->GetPlaybackContext()), Sequencer.Pin()->FindSharedPlaybackState(), OutObjects);
+					ExistingPossessedObjects.Append(OutObjects);
 				}
 			}
 		}

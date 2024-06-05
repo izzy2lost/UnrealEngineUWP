@@ -14,9 +14,9 @@
 #include "Internationalization/Internationalization.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "Sections/MovieSceneBoolSection.h"
+#include "MovieSceneSequence.h"
 
 #define LOCTEXT_NAMESPACE "FPossessableModel"
-
 
 UObject* UMovieSceneSpawnableBindingBase::SpawnObject(const FGuid& BindingId, int32 BindingIndex, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
 {
@@ -59,6 +59,65 @@ UObject* UMovieSceneSpawnableBindingBase::SpawnObject(const FGuid& BindingId, in
 	}
 #endif
 
+	// If have spawned an actor, do some actor-specific setup
+	if (AActor* SpawnedActor = Cast<AActor>(SpawnedObject))
+	{
+		// Ensure this spawnable is not a preview actor. Preview actors will not have BeginPlay() called on them.
+#if WITH_EDITOR
+		SpawnedActor->bIsEditorPreviewActor = false;
+#endif
+
+		static const FName SequencerActorTag(TEXT("SequencerActor"));
+		// tag this actor so we know it was spawned by sequencer
+		SpawnedActor->Tags.AddUnique(SequencerActorTag);
+
+#if WITH_EDITOR
+		if (GIsEditor)
+		{
+			// Explicitly set RF_Transactional on spawned actors so we can undo/redo properties on them.
+			// This particular UObject will be marked RF_Transactional by the caller, but we need to set it on the components.
+
+			for (UActorComponent* Component : SpawnedActor->GetComponents())
+			{
+				if (Component)
+				{
+					Component->SetFlags(RF_Transactional);
+				}
+			}
+		}
+#endif
+
+#if WITH_EDITOR
+		// Don't set the actor label in PIE as this requires flushing async loading.
+		if (WorldContext->WorldType == EWorldType::Editor)
+		{
+			FString BindingName = GetDesiredBindingName();
+			FString ActorLabel = !BindingName.IsEmpty() ? BindingName : SpawnName.ToString();
+
+			if (FMovieScenePossessable* Possessable = MovieScene.FindPossessable(BindingId))
+			{
+				ActorLabel = Possessable->GetName();
+
+				if (UMovieSceneSequence* Sequence = MovieScene.GetTypedOuter<UMovieSceneSequence>())
+				{
+					if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+					{
+						if (BindingReferences->GetReferences(BindingId).Num() > 1)
+						{
+							// If there are multiple bound objects, use the Object Template actor label instead of the possessable name
+							if (AActor* ActorTemplate = Cast<AActor>(GetObjectTemplate()))
+							{
+								ActorLabel = ActorTemplate->GetActorLabel();
+							}
+						}
+					}
+				}
+			}
+			SpawnedActor->SetActorLabel(ActorLabel);
+		}
+#endif
+	}
+
 	// Allows derived classes to perform post-spawn logic such as mesh setup on actors.
 	PostSpawnObject(SpawnedObject, WorldContext, BindingId, BindingIndex, MovieScene, TemplateID, SharedPlaybackState);
 
@@ -77,6 +136,19 @@ void UMovieSceneSpawnableBindingBase::DestroySpawnedObject(UObject* Object)
 		// Explicitly remove RF_Transactional on spawned objects since we don't want to transact spawn/destroy events
 		Object->ClearFlags(RF_Transactional);
 	}
+	if (AActor* Actor = Cast<AActor>(Object))
+	{
+		// Explicitly remove RF_Transactional on spawned actors since we don't want to trasact spawn/destroy events
+		// This particular UObject will have RF_Transactional cleared by the caller, but we need to cleared it on the components.
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (Component)
+			{
+				Component->ClearFlags(RF_Transactional);
+			}
+		}
+	}
+
 #endif
 
 	DestroySpawnedObjectInternal(Object);
@@ -131,7 +203,7 @@ const FSlateBrush* UMovieSceneSpawnableBindingBase::GetBindingTrackCustomIconOve
 
 FText UMovieSceneSpawnableBindingBase::GetBindingTrackIconTooltip() const
 {
-	return LOCTEXT("CustomSpawnableTooltip", "This item is spawned by sequencer by a custom spawnable binding according to this object's binding lifetime track.");
+	return LOCTEXT("CustomSpawnableTooltip", "This item is spawned by sequencer by a custom spawnable binding according to this object's spawn track.");
 }
 
 #endif

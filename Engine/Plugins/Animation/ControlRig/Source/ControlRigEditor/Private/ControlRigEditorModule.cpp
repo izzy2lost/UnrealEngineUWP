@@ -97,6 +97,8 @@
 #include "Constraints/TransformConstraintChannelInterface.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "SequencerUtilities.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigEditorModule"
 
@@ -1184,10 +1186,10 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 			// By default, convert this to a spawnable and delete the existing actor. If for some reason, 
 			// the spawnable couldn't be generated, use the existing actor as a possessable (this could 
 			// eventually be an option)
-			TArray<FGuid> SpawnableGuids = SequencerPtr->ConvertToSpawnable(ActorTrackGuid);
-			if (SpawnableGuids.Num())
-			{	
-				ActorTrackGuid = SpawnableGuids[0];
+
+			if (FMovieScenePossessable* Possessable = FSequencerUtilities::ConvertToCustomBinding(SequencerPtr.ToSharedRef(), ActorTrackGuid, UMovieSceneSpawnableActorBinding::StaticClass(), 0))
+			{ 
+				ActorTrackGuid = Possessable->GetGuid();
 
 				UObject* SpawnedMesh = SequencerPtr->FindSpawnedObjectOrTemplate(ActorTrackGuid);
 

@@ -554,19 +554,6 @@ FDelegateRuntimeBinding FDelegateEditorBinding::ToRuntimeBinding(UWidgetBlueprin
 	return Binding;
 }
 
-bool FWidgetAnimation_DEPRECATED::SerializeFromMismatchedTag(struct FPropertyTag const& Tag, FStructuredArchive::FSlot Slot)
-{
-	static FName AnimationDataName("AnimationData");
-	if(Tag.Type == NAME_StructProperty && Tag.Name == AnimationDataName)
-	{
-		FStructuredArchive::FRecord Record = Slot.EnterRecord();
-		Record << SA_VALUE(TEXT("MovieScene"), MovieScene);
-		Record << SA_VALUE(TEXT("AnimationBindings"), AnimationBindings);
-		return true;
-	}
-
-	return false;
-}
 /////////////////////////////////////////////////////
 // UWidgetBlueprint
 
@@ -1021,29 +1008,6 @@ void UWidgetBlueprint::PostLoad()
 	WidgetTree->ForEachWidget([&] (UWidget* Widget) {
 		Widget->ConnectEditorData();
 	});
-
-	if( GetLinkerUEVersion() < VER_UE4_FIXUP_WIDGET_ANIMATION_CLASS )
-	{
-		// Fixup widget animations.
-		for( auto& OldAnim : AnimationData_DEPRECATED )
-		{
-			FName AnimName = OldAnim.MovieScene->GetFName();
-
-			// Rename the old movie scene so we can reuse the name
-			OldAnim.MovieScene->Rename( *MakeUniqueObjectName( this, UMovieScene::StaticClass(), "MovieScene").ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
-
-			UWidgetAnimation* NewAnimation = NewObject<UWidgetAnimation>(this, AnimName, RF_Transactional);
-
-			OldAnim.MovieScene->Rename(*AnimName.ToString(), NewAnimation, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional );
-
-			NewAnimation->MovieScene = OldAnim.MovieScene;
-			NewAnimation->AnimationBindings = OldAnim.AnimationBindings;
-			
-			Animations.Add( NewAnimation );
-		}	
-
-		AnimationData_DEPRECATED.Empty();
-	}
 
 	if ( GetLinkerUEVersion() < VER_UE4_RENAME_WIDGET_VISIBILITY )
 	{

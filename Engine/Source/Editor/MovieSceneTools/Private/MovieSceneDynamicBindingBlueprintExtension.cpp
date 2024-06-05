@@ -113,7 +113,7 @@ void UMovieSceneDynamicBindingBlueprintExtension::HandleGenerateFunctionGraphs(F
 	};
 	FMovieSceneDynamicBindingUtils::IterateDynamicBindings(MovieScene, GenerateFunctionGraphs);
 
-	// This callback sets the generated function calls back onto the spawnables/possessables in the sequence,
+	// This callback sets the generated function calls back onto the custom director blueprint bindings in the sequence,
 	// and keeps a pointer to any needed arguments on this function, so that we can pass special values later
 	// at runtime.
 	TWeakObjectPtr<UMovieSceneSequence> WeakMovieSceneSequence(MovieSceneSequence);

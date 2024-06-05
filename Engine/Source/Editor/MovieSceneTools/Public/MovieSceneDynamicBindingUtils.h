@@ -5,8 +5,13 @@
 #include "CoreTypes.h"
 #include "MovieScene.h"
 #include "MovieSceneDynamicBinding.h"
-#include "MovieScenePossessable.h"
-#include "MovieSceneSpawnable.h"
+#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
+#include "Editor.h"
+#include "MovieSceneBindingReferences.h"
+#include "MovieSceneCommonHelpers.h"
 
 #include "MovieSceneDynamicBindingUtils.generated.h"
 
@@ -15,6 +20,8 @@
  */
 struct MOVIESCENETOOLS_API FMovieSceneDynamicBindingUtils
 {
+	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
+
 	/**
 	 * Set an endpoint on the given dynamic binding.
 	 */
@@ -31,19 +38,9 @@ struct MOVIESCENETOOLS_API FMovieSceneDynamicBindingUtils
 	template<typename Callback>
 	static void IterateDynamicBindings(UMovieScene* InMovieScene, Callback&& InCallback)
 	{
-		for (int32 Index = 0, PossessableCount = InMovieScene->GetPossessableCount(); Index < PossessableCount; ++Index)
-		{
-			FMovieScenePossessable& Possessable = InMovieScene->GetPossessable(Index);
-			FMovieSceneDynamicBinding& DynamicBinding = Possessable.DynamicBinding;
-			InCallback(Possessable.GetGuid(), DynamicBinding);
-		}
-
-		for (int32 Index = 0, SpawnableCount = InMovieScene->GetSpawnableCount(); Index < SpawnableCount; ++Index)
-		{
-			FMovieSceneSpawnable& Spawnable = InMovieScene->GetSpawnable(Index);
-			FMovieSceneDynamicBinding& DynamicBinding = Spawnable.DynamicBinding;
-			InCallback(Spawnable.GetGuid(), DynamicBinding);
-		}
+		UMovieSceneSequence* ThisSequence = InMovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), ThisSequence);
+		ThisSequence->IterateDynamicBindings(TransientPlaybackState, InCallback);
 	}
 
 	/**

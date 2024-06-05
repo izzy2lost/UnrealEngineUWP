@@ -15,6 +15,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "SequenceRecorderUtils.h"
 #include "Animation/AnimData/IAnimationDataModel.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieScene3DTransformTrackRecorder)
 
@@ -298,15 +299,24 @@ void UMovieScene3DTransformTrackRecorder::FinalizeTrackImpl()
  
  	SlowTask.EnterProgressFrame();
  
- 	// If recording a spawnable, update the spawnable object template to the first keyframe
- 	if (MovieScene.IsValid() && ObjectGuid.IsValid())
- 	{
- 		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectGuid);
- 		if (Spawnable)
- 		{
- 			Spawnable->SpawnTransform = FirstTransform;
- 		}
- 	}
+	// If recording a spawnable, update the spawnable object template to the first keyframe
+	if (MovieScene.IsValid() && ObjectGuid.IsValid())
+	{
+		UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		UObject* WorldContext = ObjectToRecord.Get() ? ObjectToRecord.Get() : GWorld;
+		if (WorldContext)
+		{ 
+			TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(WorldContext, ThisSequence);
+
+			if (AActor* ActorTemplatePtr = Cast<AActor>(MovieSceneHelpers::GetObjectTemplate(ThisSequence, ObjectGuid, TransientPlaybackState, 0)))
+			{
+				if (USceneComponent* RootComponent = ActorTemplatePtr->GetRootComponent())
+				{
+					RootComponent->SetRelativeTransform(FirstTransform);
+				}
+			}
+		}
+	}
 }
 
 void UMovieScene3DTransformTrackRecorder::RecordSampleImpl(const FQualifiedFrameTime& CurrentTime)
