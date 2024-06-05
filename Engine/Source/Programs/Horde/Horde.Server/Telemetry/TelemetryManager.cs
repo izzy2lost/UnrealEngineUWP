@@ -44,7 +44,7 @@ namespace Horde.Server.Telemetry
 				switch (config)
 				{
 					case EpicTelemetryConfig epicConfig:
-						_telemetrySinks.Add(new EpicTelemetrySink(epicConfig, httpClientFactory, loggerFactory.CreateLogger<EpicTelemetrySink>()));
+						_telemetrySinks.Add(new EpicTelemetrySink(epicConfig, loggerFactory.CreateLogger<EpicTelemetrySink>()));
 						break;
 					case ClickHouseTelemetryConfig chConfig:
 						_telemetrySinks.Add(new ClickHouseTelemetrySink(chConfig, httpClientFactory, loggerFactory.CreateLogger<ClickHouseTelemetrySink>()));
