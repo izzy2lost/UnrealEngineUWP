@@ -7,9 +7,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LiveLinkSettings)
 
-FLiveLinkRoleProjectSetting::FLiveLinkRoleProjectSetting()
-	: SettingClass(ULiveLinkSubjectSettings::StaticClass())
-{}
+FLiveLinkRoleProjectSetting::FLiveLinkRoleProjectSetting(TSubclassOf<ULiveLinkSubjectSettings> DefaultSettingsClass)
+	: SettingClass(DefaultSettingsClass)
+{
+}
 
 
 ULiveLinkSettings::ULiveLinkSettings()
@@ -34,7 +35,14 @@ FLiveLinkRoleProjectSetting ULiveLinkSettings::GetDefaultSettingForRole(TSubclas
 	{
 		return DefaultRoleSettings[IndexOf];
 	}
-	FLiveLinkRoleProjectSetting Result;
+
+	TSubclassOf<ULiveLinkSubjectSettings> DefaultClass = ULiveLinkSubjectSettings::StaticClass();
+	if (UClass* Class = DefaultSettingsClass.TryLoadClass<ULiveLinkSubjectSettings>())
+	{
+		DefaultClass = Class;
+	}
+
+	FLiveLinkRoleProjectSetting Result{MoveTemp(DefaultClass)};
 	Result.Role = Role;
 	return Result;
 }
@@ -59,4 +67,3 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif //WITH_EDITOR
 }
-

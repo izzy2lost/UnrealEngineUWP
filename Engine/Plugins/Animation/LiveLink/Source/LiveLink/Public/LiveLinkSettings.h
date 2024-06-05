@@ -25,7 +25,8 @@ struct LIVELINK_API FLiveLinkRoleProjectSetting
 	GENERATED_BODY()
 
 public:
-	FLiveLinkRoleProjectSetting();
+	FLiveLinkRoleProjectSetting() = default;
+	FLiveLinkRoleProjectSetting(TSubclassOf<ULiveLinkSubjectSettings> DefaultSettingsClass);
 
 public:
 	/** The role of the current setting. */
@@ -77,6 +78,10 @@ public:
 protected:
 	UPROPERTY(config, EditAnywhere, Category="LiveLink")
 	TArray<FLiveLinkRoleProjectSetting> DefaultRoleSettings;
+
+	/** When a settings class is not speficied for a role, this settings class will be used. */
+	UPROPERTY(config)
+	FSoftClassPath DefaultSettingsClass;
 
 public:
 	/** The interpolation class to use for new Subjects if no specific settings we set for the Subject's role. */
@@ -156,12 +161,3 @@ public:
 	double GetMessageBusHeartbeatTimeout() const { return MessageBusHeartbeatTimeout; }
 	double GetMessageBusTimeBeforeRemovingDeadSource() const { return MessageBusTimeBeforeRemovingInactiveSource; }
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/EngineTypes.h"
-#include "LiveLinkFrameInterpolationProcessor.h"
-#include "LiveLinkFramePreProcessor.h"
-#include "LiveLinkRole.h"
-#include "LiveLinkSourceSettings.h"
-#include "LiveLinkSubjectSettings.h"
-#endif
