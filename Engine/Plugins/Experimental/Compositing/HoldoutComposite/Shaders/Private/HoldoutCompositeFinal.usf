@@ -1,0 +1,52 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/GammaCorrectionCommon.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+SCREEN_PASS_TEXTURE_VIEWPORT(Input)
+SCREEN_PASS_TEXTURE_VIEWPORT(Custom)
+SCREEN_PASS_TEXTURE_VIEWPORT(Output)
+
+Texture2D InputTexture;
+SamplerState InputSampler;
+
+Texture2D CustomTexture;
+SamplerState CustomSampler;
+
+StructuredBuffer<float4> EyeAdaptationBuffer;
+uint SourceEncoding;
+float DisplayGamma;
+
+void MainPS(
+    float4 SvPosition : SV_POSITION,
+    out float4 OutColor : SV_Target0
+    )
+{
+    float2 ViewportUV = (SvPosition.xy - Output_ViewportMin) * Output_ViewportSizeInverse;
+    
+    const float2 InputUV = (ViewportUV * Input_ViewportSize + Input_ViewportMin) * Input_ExtentInverse;
+    float4 SceneColor = Texture2DSample(InputTexture, InputSampler, InputUV);
+
+    const float2 CustomUV = (ViewportUV * Custom_ViewportSize + Custom_ViewportMin) * Custom_ExtentInverse;
+    float4 CustomColor = Texture2DSample(CustomTexture, CustomSampler, CustomUV);
+
+#if PERMUTATION_GLOBAL_EXPOSURE
+    const float GlobalExposure = EyeAdaptationBuffer[0].x;
+    CustomColor.rgb *= GlobalExposure;
+#endif
+
+    BRANCH
+    if(SourceEncoding == 1)
+    {
+        SceneColor.rgb = pow(SceneColor.rgb, DisplayGamma);
+    }
+    else if(SourceEncoding == 2)
+    {
+        SceneColor.rgb = sRGBToLinear(SceneColor.rgb);
+    }
+
+    // TODO: HDR cases will need to be handled explicitely.
+    OutColor.rgb = LinearToSrgb(CustomColor.rgb * SceneColor.a + SceneColor.rgb);
+    OutColor.a = CustomColor.a * SceneColor.a;
+}
