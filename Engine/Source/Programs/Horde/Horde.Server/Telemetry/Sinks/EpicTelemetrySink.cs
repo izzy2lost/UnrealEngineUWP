@@ -152,11 +152,13 @@ namespace Horde.Server.Telemetry.Sinks
 		{
 			HttpMessageHandler handler = new SocketsHttpHandler();
 
+#pragma warning disable CA2000
 			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(1.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0) };
 			IAsyncPolicy<HttpResponseMessage> handleTransientErrorPolicy = Policy<HttpResponseMessage>.Handle<HttpRequestException>().OrTransientHttpStatusCode().WaitAndRetryAsync(retryTimes);
 			handler = new PolicyHttpMessageHandler(handleTransientErrorPolicy) { InnerHandler = handler };
+#pragma warning restore CA2000
 
-			return new HttpClient(handler);
+			return new HttpClient(handler, true);
 		}
 
 		/// <inheritdoc/>

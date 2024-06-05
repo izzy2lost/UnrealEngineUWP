@@ -70,14 +70,14 @@ namespace Horde.Server.Storage
 
 			public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				await _outer.CheckBlobExists(NamespaceId, locator);
+				await _outer.CheckBlobExistsAsync(NamespaceId, locator, cancellationToken);
 				return await _store.OpenAsync(GetObjectKey(locator), offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>
 			public async Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				await _outer.CheckBlobExists(NamespaceId, locator);
+				await _outer.CheckBlobExistsAsync(NamespaceId, locator, cancellationToken);
 				return await _store.ReadAsync(GetObjectKey(locator), offset, length, cancellationToken);
 			}
 
@@ -95,7 +95,7 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public async ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
-				await _outer.CheckBlobExists(NamespaceId, locator);
+				await _outer.CheckBlobExistsAsync(NamespaceId, locator, cancellationToken);
 				return await _store.TryGetReadRedirectAsync(GetObjectKey(locator), cancellationToken);
 			}
 
@@ -586,11 +586,11 @@ namespace Horde.Server.Storage
 			await _blobCollection.InsertOneAsync(blobInfo, new InsertOneOptions { }, cancellationToken);
 		}
 
-		async ValueTask CheckBlobExists(NamespaceId namespaceId, BlobLocator locator)
+		async ValueTask CheckBlobExistsAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken)
 		{
 			if (_globalConfig.CurrentValue.Storage.EnableGcVerification)
 			{
-				if (await _blobCollection.Find(x => x.Locator == locator && x.GcVersion >= CurrentGcVersion).AnyAsync())
+				if (await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Locator == locator && x.GcVersion >= CurrentGcVersion).AnyAsync(cancellationToken))
 				{
 					_logger.LogWarning("Blob {Locator} accessed after being garbage collected", locator);
 				}
