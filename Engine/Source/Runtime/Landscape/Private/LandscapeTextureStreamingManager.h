@@ -57,8 +57,8 @@ public:
 	// (normally they don't complete streaming until a certain point in the update tick)
 	bool WaitForTextureStreaming();
 
-	// Call this clean up any old entries in tracked TextureStates for textures that have been unloaded without first being Unrequested.
-	void CleanupInvalidEntries();
+	// Call this post garbage collect to clean up any old entries in tracked TextureStates for textures that have been unloaded without first being Unrequested, and make sure the streaming flags weren't cleared
+	void CleanupPostGarbageCollect();
 
 	// Check that all requested textures are still requested.
 	void CheckRequestedTextures();

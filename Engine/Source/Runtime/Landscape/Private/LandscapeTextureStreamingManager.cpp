@@ -128,14 +128,23 @@ bool FLandscapeTextureStreamingManager::WaitForTextureStreaming()
 	return bFullyStreamed;
 }
 
-void FLandscapeTextureStreamingManager::CleanupInvalidEntries()
+void FLandscapeTextureStreamingManager::CleanupPostGarbageCollect()
 {
 	for (auto It = TextureStates.CreateIterator(); It; ++It)
 	{
-		TWeakObjectPtr<UTexture>& TexPtr = It.Key();
-		if (!TexPtr.IsValid())
+		UTexture* Texture = It.Key().Get();
+		if (Texture == nullptr)
 		{
 			It.RemoveCurrent();
+		}
+		else
+		{
+			// reset the texture force resident after garbage collection (which clears it sometimes)
+			FTextureState& State = It.Value();
+			if (State.bForever || State.RequestCount > 0)
+			{
+				Texture->bForceMiplevelsToBeResident = true;
+			}
 		}
 	}
 }

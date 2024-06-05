@@ -259,7 +259,7 @@ void ULandscapeSubsystem::Deinitialize()
 void ULandscapeSubsystem::HandlePostGarbageCollect()
 {
 	ALandscapeProxy::RemoveInvalidExclusionBoxes();
-	GetTextureStreamingManager()->CleanupInvalidEntries();
+	GetTextureStreamingManager()->CleanupPostGarbageCollect();
 }
 
 TStatId ULandscapeSubsystem::GetStatId() const
