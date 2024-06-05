@@ -89,20 +89,29 @@ namespace Metasound::Engine
 #endif // WITH_EDITORONLY_DATA
 
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) const override;
-		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(const FMetasoundFrontendClassName& InClassName) const override;
+		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(const FMetasoundFrontendClassName& InClassName, const FTopLevelAssetPath& AssetPath) const override;
 
 		virtual FMetaSoundFrontendDocumentBuilder* FindOutermostBuilder(const UObject& InSubObject) const override;
 
 		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass = false) const override;
+		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, const FTopLevelAssetPath& AssetPath, bool bForceUnregisterNodeClass = false) const override;
 
+		// Returns the builder object associated with the given MetaSound asset if one is registered and active.
 		UMetaSoundBuilderBase* FindBuilderObject(TScriptInterface<const IMetaSoundDocumentInterface> MetaSound) const;
-		UMetaSoundBuilderBase* FindBuilderObject(const FMetasoundFrontendClassName& InClassName) const;
+
+		// Returns the builder object associated with the given ClassName if one is registered and active.
+		// Optionally, if provided the AssetPath and there is a conflict (i.e. more than one asset is registered
+		// with a given ClassName), will return the one with the provided AssetPath.  Otherwise, will arbitrarily
+		// return one.
+		UMetaSoundBuilderBase* FindBuilderObject(const FMetasoundFrontendClassName& InClassName, const FTopLevelAssetPath& AssetPath) const;
+
+		// Returns all builder objects registered and active associated with the given ClassName.
 		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 
 	private:
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
-		void FinishBuildingInternal(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass) const;
+		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
 	};
 } // namespace Metasound::Engine

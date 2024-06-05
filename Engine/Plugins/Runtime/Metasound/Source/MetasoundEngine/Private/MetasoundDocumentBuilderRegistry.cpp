@@ -26,7 +26,7 @@ namespace Metasound::Engine
 			{
 				UE_CLOG(bIsValid, LogMetaSound, Display, TEXT("- %s"), *Pair.Value->GetFullName());
 				constexpr bool bForceUnregister = true;
-				FinishBuildingInternal(Pair.Key, bForceUnregister);
+				FinishBuildingInternal(*Pair.Value.Get(), bForceUnregister);
 			}
 			else
 			{
@@ -91,9 +91,9 @@ namespace Metasound::Engine
 		return nullptr;
 	}
 
-	FMetaSoundFrontendDocumentBuilder* FDocumentBuilderRegistry::FindBuilder(const FMetasoundFrontendClassName& InClassName) const
+	FMetaSoundFrontendDocumentBuilder* FDocumentBuilderRegistry::FindBuilder(const FMetasoundFrontendClassName& InClassName, const FTopLevelAssetPath& AssetPath) const
 	{
-		if (UMetaSoundBuilderBase* Builder = FindBuilderObject(InClassName))
+		if (UMetaSoundBuilderBase* Builder = FindBuilderObject(InClassName, AssetPath))
 		{
 			return &Builder->GetBuilder();
 		}
@@ -136,19 +136,47 @@ namespace Metasound::Engine
 		return nullptr;
 	}
 
-	UMetaSoundBuilderBase* FDocumentBuilderRegistry::FindBuilderObject(const FMetasoundFrontendClassName& InClassName) const
+	UMetaSoundBuilderBase* FDocumentBuilderRegistry::FindBuilderObject(const FMetasoundFrontendClassName& InClassName, const FTopLevelAssetPath& AssetPath) const
 	{
 		TArray<TWeakObjectPtr<UMetaSoundBuilderBase>> Entries;
 		{
 			FScopeLock Lock(&BuildersCriticalSection);
 			Builders.MultiFind(InClassName, Entries);
 		}
+
+		TWeakObjectPtr<UMetaSoundBuilderBase> FoundEntry;
 		if (!Entries.IsEmpty())
 		{
-			return Entries.Last().Get();
+			if (AssetPath.IsValid())
+			{
+				auto AssetPathMatches = [&AssetPath](const TWeakObjectPtr<UMetaSoundBuilderBase>& BuilderPtr)
+				{
+					if (UMetaSoundBuilderBase* Builder = BuilderPtr.Get())
+					{
+						const FMetaSoundFrontendDocumentBuilder& DocBuilder = BuilderPtr->GetConstBuilder();
+						const UObject& DocObject = DocBuilder.CastDocumentObjectChecked<UObject>();
+						FTopLevelAssetPath ObjectPath;
+						if (ObjectPath.TrySetPath(&DocObject))
+						{
+							return AssetPath == ObjectPath;
+						}
+					}
+					return false;
+				};
+
+				if (TWeakObjectPtr<UMetaSoundBuilderBase>* WeakPtr = Entries.FindByPredicate(AssetPathMatches))
+				{
+					FoundEntry = *WeakPtr;
+				}
+
+			}
+			else
+			{
+				FoundEntry = Entries.Last();
+			}
 		}
 
-		return nullptr;
+		return FoundEntry.Get();
 	}
 
 	TArray<UMetaSoundBuilderBase*> FDocumentBuilderRegistry::FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const
@@ -185,55 +213,72 @@ namespace Metasound::Engine
 		using namespace Metasound;
 		using namespace Metasound::Engine;
 
-		FinishBuildingInternal(InClassName, bForceUnregisterNodeClass);
-
-		// Still return true in this case as the builder likely has become inaccessible and may be in the "beginning" of destruction,
-		// so entries is still reporting that it was successfully removed.
-		{
-			FScopeLock Lock(&BuildersCriticalSection);
-			return Builders.Remove(InClassName) > 0;
-		}
-	}
-
-	void FDocumentBuilderRegistry::FinishBuildingInternal(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass) const
-	{
+		bool bBuildersRemoved = false;
 		TArray<UMetaSoundBuilderBase*> FoundBuilders = FindBuilderObjects(InClassName);
 		for (UMetaSoundBuilderBase* Builder : FoundBuilders)
 		{
-			// If the builder has applied transactions to its document object that are not mirrored in the frontend registry,
-			// unregister version in registry. This will ensure that future requests for the builder's associated asset will
-			// register a fresh version from the object as the transaction history is intrinsically lost once this builder
-			// is destroyed. It is also possible that the DocBuilder's underlying object can be invalid if object was force
-			// deleted, so validity check is necessary.
-			FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
-			if (DocBuilder.IsValid())
+			FinishBuildingInternal(*Builder, bForceUnregisterNodeClass);
+
+			FScopeLock Lock(&BuildersCriticalSection);
+			bBuildersRemoved |= Builders.Remove(InClassName) > 0;
+		}
+
+		return bBuildersRemoved;
+	}
+
+	bool FDocumentBuilderRegistry::FinishBuilding(const FMetasoundFrontendClassName& InClassName, const FTopLevelAssetPath& AssetPath, bool bForceUnregisterNodeClass) const
+	{
+		using namespace Metasound;
+		using namespace Metasound::Engine;
+
+		if (UMetaSoundBuilderBase* Builder = FindBuilderObject(InClassName, AssetPath))
+		{
+			FinishBuildingInternal(*Builder, bForceUnregisterNodeClass);
+
+			FScopeLock Lock(&BuildersCriticalSection);
+			return Builders.RemoveSingle(InClassName, TWeakObjectPtr<UMetaSoundBuilderBase>(Builder)) > 0;
+		}
+
+		return false;
+	}
+
+	void FDocumentBuilderRegistry::FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const
+	{
+		// If the builder has applied transactions to its document object that are not mirrored in the frontend registry,
+		// unregister version in registry. This will ensure that future requests for the builder's associated asset will
+		// register a fresh version from the object as the transaction history is intrinsically lost once this builder
+		// is destroyed. It is also possible that the DocBuilder's underlying object can be invalid if object was force
+		// deleted, so validity check is necessary.
+		FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetBuilder();
+		if (DocBuilder.IsValid())
+		{
+			if (!IsRunningCookCommandlet())
 			{
-				if (!IsRunningCookCommandlet())
+				const int32 TransactionCount = DocBuilder.GetTransactionCount();
+				const int32 LastTransactionRegistered = Builder.GetLastTransactionRegistered();
+				if (bForceUnregisterNodeClass || LastTransactionRegistered != TransactionCount)
 				{
-					const int32 TransactionCount = DocBuilder.GetTransactionCount();
-					const int32 LastTransactionRegistered = Builder->GetLastTransactionRegistered();
-					if (bForceUnregisterNodeClass || LastTransactionRegistered != TransactionCount)
+					UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
+					if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound))
 					{
-						UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
-						if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound))
-						{
-							MetaSoundAsset->UnregisterGraphWithFrontend();
-						}
+						MetaSoundAsset->UnregisterGraphWithFrontend();
 					}
 				}
-				DocBuilder.FinishBuilding();
 			}
+			DocBuilder.FinishBuilding();
 		}
 	}
 
 	bool FDocumentBuilderRegistry::ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const
 	{
-		if (UMetaSoundBuilderBase* Builder = FindBuilderObject(InClassName))
+		bool bReloaded = false;
+		TArray<UMetaSoundBuilderBase*> ClassBuilders = FindBuilderObjects(InClassName);
+		for (UMetaSoundBuilderBase* Builder : ClassBuilders)
 		{
 			Builder->Reload();
-			return true;
+			bReloaded = true;
 		}
 
-		return false;
+		return bReloaded;
 	}
 } // namespace Metasound::Engine
