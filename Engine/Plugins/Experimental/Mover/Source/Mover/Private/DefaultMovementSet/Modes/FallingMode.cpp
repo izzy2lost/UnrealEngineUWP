@@ -24,6 +24,9 @@ UFallingMode::UFallingMode(const FObjectInitializer& ObjectInitializer)
 	, TerminalVerticalSpeed(2000.0f)
 {
 	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
+
+	GameplayTags.AddTag(Mover_IsInAir);
+	GameplayTags.AddTag(Mover_IsFalling);
 }
 
 constexpr float VERTICAL_SLOPE_NORMAL_Z = 0.001f; // Slope is vertical if Abs(Normal.Z) <= this threshold. Accounts for precision problems that sometimes angle normals slightly off horizontal for vertical surface.

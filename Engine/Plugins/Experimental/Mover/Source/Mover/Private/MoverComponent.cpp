@@ -1326,6 +1326,18 @@ FName UMoverComponent::GetMovementModeName() const
 	return NAME_None;
 }
 
+const UBaseMovementMode* UMoverComponent::GetMovementMode() const
+{
+	if (bHasValidCachedState)
+	{
+		if (const TObjectPtr<UBaseMovementMode>* CurrentMode = MovementModes.Find(CachedLastSyncState.MovementMode))
+		{
+			return CurrentMode->Get();
+		}
+	}
+
+	return nullptr;
+}
 
 UPrimitiveComponent* UMoverComponent::GetMovementBase() const
 {

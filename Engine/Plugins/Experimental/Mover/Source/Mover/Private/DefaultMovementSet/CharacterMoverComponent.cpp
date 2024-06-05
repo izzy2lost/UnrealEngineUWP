@@ -29,9 +29,9 @@ void UCharacterMoverComponent::BeginPlay()
 
 bool UCharacterMoverComponent::IsFalling() const
 {
-	if (bHasValidCachedState)
+	if (const UBaseMovementMode* Mode = GetMovementMode())
 	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Falling;
+		return Mode->GameplayTags.HasTag(Mover_IsFalling);
 	}
 
 	return false;
@@ -39,9 +39,9 @@ bool UCharacterMoverComponent::IsFalling() const
 
 bool UCharacterMoverComponent::IsAirborne() const
 {
-	if (bHasValidCachedState)
+	if (const UBaseMovementMode* Mode = GetMovementMode())
 	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Flying || CachedLastSyncState.MovementMode == DefaultModeNames::Falling;
+		return Mode->GameplayTags.HasTag(Mover_IsInAir);
 	}
 
 	return false;
@@ -49,9 +49,9 @@ bool UCharacterMoverComponent::IsAirborne() const
 
 bool UCharacterMoverComponent::IsOnGround() const
 {
-	if (bHasValidCachedState)
+	if (const UBaseMovementMode* Mode = GetMovementMode())
 	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Walking;
+		return Mode->GameplayTags.HasTag(Mover_IsOnGround);
 	}
 
 	return false;
@@ -59,9 +59,9 @@ bool UCharacterMoverComponent::IsOnGround() const
 
 bool UCharacterMoverComponent::IsSwimming() const
 {
-	if (bHasValidCachedState)
+	if (const UBaseMovementMode* Mode = GetMovementMode())
 	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Swimming;
+		return Mode->GameplayTags.HasTag(Mover_IsSwimming);
 	}
 
 	return false;

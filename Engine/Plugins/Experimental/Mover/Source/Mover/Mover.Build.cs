@@ -16,6 +16,7 @@ public class Mover : ModuleRules
 				"AnimGraphRuntime",
 				"MotionWarping",
 				"Water",
+				"GameplayTags"
 			}
 			);
 			

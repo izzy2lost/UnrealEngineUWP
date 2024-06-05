@@ -20,6 +20,8 @@ UWalkingMode::UWalkingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
+
+	GameplayTags.AddTag(Mover_IsOnGround);
 }
 
 void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const

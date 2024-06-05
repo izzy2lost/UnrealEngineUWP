@@ -29,7 +29,6 @@ namespace MoverComponentConstants
 	extern const FVector DefaultUpDir;				// Fallback up direction if not determined by the component or world (normalized)
 }
 
-
 // Fired just before a simulation tick, regardless of being a re-simulated frame or not.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMover_OnPreSimTick, const FMoverTimeStep&, TimeStep, const FMoverInputCmdContext&, InputCmd);
 
@@ -246,6 +245,10 @@ public:	// Queries
 	UFUNCTION(BlueprintPure, Category = Mover)
 	FName GetMovementModeName() const;
 
+	// Get the current movement mode 
+	UFUNCTION(BlueprintPure, Category = Mover)
+	const UBaseMovementMode* GetMovementMode() const;
+
 	// Get the current movement base. Null if there isn't one.
 	UFUNCTION(BlueprintPure, Category = Mover)
 	UPrimitiveComponent* GetMovementBase() const;
@@ -329,7 +332,7 @@ public:	// Queries
 
 		return nullptr;
 	}
-	
+
 protected:
 
 	/** Makes this component and owner actor reflect the state of a particular frame snapshot. This occurs after simulation ticking, as well as during a rollback before we resimulate forward.
@@ -441,7 +444,6 @@ private:
 	/** Used to store cached data & computations between decoupled systems, that can be referenced by name */
 	UPROPERTY(Transient)
 	TObjectPtr<UMoverBlackboard> SimBlackboard;
-
 
 	friend class UBaseMovementMode;
 	friend class UMoverNetworkPhysicsLiaisonComponent;

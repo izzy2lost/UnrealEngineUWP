@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "MoverSimulationTypes.h"
 #include "MoverTypes.h"
 #include "MoveLibrary/MoverBlackboard.h"
@@ -75,6 +76,10 @@ public:
 	/** Transition checks for the current mode. Evaluated in order, stopping at the first successful transition check */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = Mover, meta = (FullyExpand = true))
 	TArray<TObjectPtr<UBaseMovementModeTransition>> Transitions;
+
+	/** A list of gameplay tags associated with this movement mode */
+	UPROPERTY(EditDefaultsOnly, Category = Mover)
+	FGameplayTagContainer GameplayTags;
 
 protected:
 
