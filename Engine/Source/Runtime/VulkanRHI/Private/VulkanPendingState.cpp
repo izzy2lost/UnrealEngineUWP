@@ -534,13 +534,12 @@ void FVulkanPendingGfxState::InternalUpdateDynamicStates(FVulkanCmdBuffer* Cmd)
 void FVulkanPendingGfxState::UpdateInputAttachments(FVulkanFramebuffer* Framebuffer)
 {
 	const FVulkanGfxPipelineDescriptorInfo& GfxDescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-	const TArray<FInputAttachmentData>& InputAttachmentData = GfxDescriptorInfo.GetInputAttachmentData();
+	const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& InputAttachmentData = GfxDescriptorInfo.GetInputAttachmentData();
 
 	for (int32 Index = 0; Index < InputAttachmentData.Num(); ++Index)
 	{
-		const FInputAttachmentData& AttachmentData = InputAttachmentData[Index];
-		const uint32 ColorIndex = static_cast<uint32>(AttachmentData.Type);
-		
+		const FVulkanShaderHeader::FInputAttachmentInfo& AttachmentData = InputAttachmentData[Index];
+	
 		switch (AttachmentData.Type)
 		{
 		case FVulkanShaderHeader::EAttachmentType::Color0:
@@ -551,11 +550,14 @@ void FVulkanPendingGfxState::UpdateInputAttachments(FVulkanFramebuffer* Framebuf
 		case FVulkanShaderHeader::EAttachmentType::Color5:
 		case FVulkanShaderHeader::EAttachmentType::Color6:
 		case FVulkanShaderHeader::EAttachmentType::Color7:
-			check(ColorIndex < Framebuffer->GetNumColorAttachments());
-			CurrentState->SetInputAttachment(AttachmentData.DescriptorSet, AttachmentData.BindingIndex, Framebuffer->AttachmentTextureViews[ColorIndex]->GetTextureView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			{
+				const int32 ColorIndex = static_cast<int32>(AttachmentData.Type) - (int32)FVulkanShaderHeader::EAttachmentType::Color0;
+				check((ColorIndex >= 0) && (ColorIndex < (int32)Framebuffer->GetNumColorAttachments()));
+				CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->AttachmentTextureViews[ColorIndex]->GetTextureView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			}
 			break;
 		case FVulkanShaderHeader::EAttachmentType::Depth:
-			CurrentState->SetInputAttachment(AttachmentData.DescriptorSet, AttachmentData.BindingIndex, Framebuffer->GetPartialDepthTextureView(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+			CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->GetPartialDepthTextureView(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
 			break;
 		default:
 			check(0);

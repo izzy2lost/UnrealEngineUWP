@@ -1283,23 +1283,25 @@ public:
 	// One buffer is a chunk of bytes
 	typedef TArray<uint8> FPackedBuffer;
 
-	void Init(const FVulkanShaderHeader& InCodeHeader, uint64& OutPackedUniformBufferStagingMask)
+	void Init(const FVulkanShaderHeader& InCodeHeader, uint32& OutPackedUniformBufferStagingMask)
 	{
-		PackedUniformBuffers.AddDefaulted(InCodeHeader.PackedUBs.Num());
-		for (int32 Index = 0; Index < InCodeHeader.PackedUBs.Num(); ++Index)
+		if (InCodeHeader.PackedGlobalsSize > 0)
 		{
-			PackedUniformBuffers[Index].AddUninitialized(InCodeHeader.PackedUBs[Index].SizeInBytes);
+			check(PackedUniformBuffers.Num() == 0);
+			PackedUniformBuffers.AddUninitialized(InCodeHeader.PackedGlobalsSize);
+			OutPackedUniformBufferStagingMask = 1;
 		}
-
-		OutPackedUniformBufferStagingMask = ((uint64)1 << (uint64)InCodeHeader.PackedUBs.Num()) - 1;
+		else
+		{
+			OutPackedUniformBufferStagingMask = 0;
+		}
 	}
 
-	inline void SetPackedGlobalParameter(uint32 BufferIndex, uint32 ByteOffset, uint32 NumBytes, const void* RESTRICT NewValue, uint64& InOutPackedUniformBufferStagingDirty)
+	inline void SetPackedGlobalParameter(uint32 ByteOffset, uint32 NumBytes, const void* RESTRICT NewValue, uint32& InOutPackedUniformBufferStagingDirty)
 	{
-		FPackedBuffer& StagingBuffer = PackedUniformBuffers[BufferIndex];
-		check(ByteOffset + NumBytes <= (uint32)StagingBuffer.Num());
+		check(ByteOffset + NumBytes <= (uint32)PackedUniformBuffers.Num());
 		check((NumBytes & 3) == 0 && (ByteOffset & 3) == 0);
-		uint32* RESTRICT RawDst = (uint32*)(StagingBuffer.GetData() + ByteOffset);
+		uint32* RESTRICT RawDst = (uint32*)(PackedUniformBuffers.GetData() + ByteOffset);
 		uint32* RESTRICT RawSrc = (uint32*)NewValue;
 		uint32* RESTRICT RawSrcEnd = RawSrc + (NumBytes >> 2);
 
@@ -1309,21 +1311,19 @@ public:
 			bChanged |= CopyAndReturnNotEqual(*RawDst++, *RawSrc++);
 		}
 
-		InOutPackedUniformBufferStagingDirty = InOutPackedUniformBufferStagingDirty | ((uint64)(bChanged ? 1 : 0) << (uint64)BufferIndex);
+		if (bChanged)
+		{
+			InOutPackedUniformBufferStagingDirty = 1;
+		}
 	}
 
-	// Copies a 'real' constant buffer into the packed globals uniform buffer (only the used ranges)
-	inline void SetEmulatedUniformBufferIntoPacked(uint32 BindPoint, const TArray<uint8>& ConstantData, uint64& NEWPackedUniformBufferStagingDirty)
+	inline const FPackedBuffer& GetBuffer() const
 	{
-	}
-
-	inline const FPackedBuffer& GetBuffer(int32 Index) const
-	{
-		return PackedUniformBuffers[Index];
+		return PackedUniformBuffers;
 	}
 
 protected:
-	TArray<FPackedBuffer>									PackedUniformBuffers;
+	FPackedBuffer PackedUniformBuffers;
 };
 
 class FVulkanStagingBuffer : public FRHIStagingBuffer

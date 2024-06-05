@@ -186,7 +186,8 @@ public:
 
 	inline void SetPackedGlobalShaderParameter(uint32 BufferIndex, uint32 ByteOffset, uint32 NumBytes, const void* NewValue)
 	{
-		PackedUniformBuffers.SetPackedGlobalParameter(BufferIndex, ByteOffset, NumBytes, NewValue, PackedUniformBuffersDirty);
+		check(BufferIndex == 0);
+		PackedUniformBuffers.SetPackedGlobalParameter(ByteOffset, NumBytes, NewValue, PackedUniformBuffersDirty);
 	}
 
 	bool UpdateDescriptorSets(FVulkanCommandListContext* CmdListContext, FVulkanCmdBuffer* CmdBuffer)
@@ -221,8 +222,8 @@ protected:
 	const FVulkanComputePipelineDescriptorInfo* PipelineDescriptorInfo;
 
 	FPackedUniformBuffers PackedUniformBuffers;
-	uint64 PackedUniformBuffersMask;
-	uint64 PackedUniformBuffersDirty;
+	uint32 PackedUniformBuffersMask;
+	uint32 PackedUniformBuffersDirty;
 
 	FVulkanComputePipeline* ComputePipeline;
 
@@ -244,7 +245,8 @@ public:
 
 	inline void SetPackedGlobalShaderParameter(uint8 Stage, uint32 BufferIndex, uint32 ByteOffset, uint32 NumBytes, const void* NewValue)
 	{
-		PackedUniformBuffers[Stage].SetPackedGlobalParameter(BufferIndex, ByteOffset, NumBytes, NewValue, PackedUniformBuffersDirty[Stage]);
+		check(BufferIndex == 0);
+		PackedUniformBuffers[Stage].SetPackedGlobalParameter(ByteOffset, NumBytes, NewValue, PackedUniformBuffersDirty[Stage]);
 	}
 
 	bool UpdateDescriptorSets(FVulkanCommandListContext* CmdListContext, FVulkanCmdBuffer* CmdBuffer)
@@ -285,8 +287,8 @@ protected:
 	const FVulkanGfxPipelineDescriptorInfo* PipelineDescriptorInfo;
 
 	TStaticArray<FPackedUniformBuffers, ShaderStage::NumStages> PackedUniformBuffers;
-	TStaticArray<uint64, ShaderStage::NumStages> PackedUniformBuffersMask;
-	TStaticArray<uint64, ShaderStage::NumStages> PackedUniformBuffersDirty;
+	TStaticArray<uint32, ShaderStage::NumStages> PackedUniformBuffersMask;
+	TStaticArray<uint32, ShaderStage::NumStages> PackedUniformBuffersDirty;
 
 	FVulkanRHIGraphicsPipelineState* GfxPipeline;
 
@@ -298,44 +300,28 @@ protected:
 };
 
 template <bool bIsDynamic>
-static inline bool UpdatePackedUniformBuffers(VkDeviceSize UBOffsetAlignment, const uint16* RESTRICT PackedUBBindingIndices, const FPackedUniformBuffers& PackedUniformBuffers,
-	FVulkanDescriptorSetWriter& DescriptorWriteSet, FVulkanUniformBufferUploader* UniformBufferUploader, uint8* RESTRICT CPURingBufferBase, uint64 RemainingPackedUniformsMask,
+static inline bool UpdatePackedUniformBuffers(VkDeviceSize UBOffsetAlignment, const FPackedUniformBuffers& PackedUniformBuffers,
+	FVulkanDescriptorSetWriter& DescriptorWriteSet, FVulkanUniformBufferUploader* UniformBufferUploader, uint8* RESTRICT CPURingBufferBase,
 	FVulkanCmdBuffer* InCmdBuffer)
 {
-	bool bAnyUBDirty = false;
-	int32 PackedUBIndex = 0;
-	while (RemainingPackedUniformsMask)
+	const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer();
+	const int32 BindingIndex = 0;  // Packed unifrom buffers are only used for globals at binding 0
+
+	const int32 UBSize = StagedUniformBuffer.Num();
+
+	// get offset into the RingBufferBase pointer
+	uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, InCmdBuffer);
+
+	// get location in the ring buffer to use
+	FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
+
+	const VulkanRHI::FVulkanAllocation& Allocation = UniformBufferUploader->GetCPUBufferAllocation();
+	if (bIsDynamic)
 	{
-		if (RemainingPackedUniformsMask & 1)
-		{
-			const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer(PackedUBIndex);
-			int32 BindingIndex = PackedUBBindingIndices[PackedUBIndex];
-
-			const int32 UBSize = StagedUniformBuffer.Num();
-
-			// get offset into the RingBufferBase pointer
-			uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, InCmdBuffer);
-
-			// get location in the ring buffer to use
-			FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
-
-			const VulkanRHI::FVulkanAllocation& Allocation = UniformBufferUploader->GetCPUBufferAllocation();
-			if (bIsDynamic)
-			{
-				const bool bDirty = DescriptorWriteSet.WriteDynamicUniformBuffer(BindingIndex, Allocation.GetBufferHandle(), Allocation.HandleId, UniformBufferUploader->GetCPUBufferOffset(), UBSize, RingBufferOffset);
-				bAnyUBDirty = bAnyUBDirty || bDirty;
-
-			}
-			else
-			{
-				const bool bDirty = DescriptorWriteSet.WriteUniformBuffer(BindingIndex, Allocation.GetBufferHandle(), Allocation.HandleId, RingBufferOffset + UniformBufferUploader->GetCPUBufferOffset(), UBSize);
-				bAnyUBDirty = bAnyUBDirty || bDirty;
-
-			}
-		}
-		RemainingPackedUniformsMask = RemainingPackedUniformsMask >> 1;
-		++PackedUBIndex;
+		return DescriptorWriteSet.WriteDynamicUniformBuffer(BindingIndex, Allocation.GetBufferHandle(), Allocation.HandleId, UniformBufferUploader->GetCPUBufferOffset(), UBSize, RingBufferOffset);
 	}
-
-	return bAnyUBDirty;
+	else
+	{
+		return DescriptorWriteSet.WriteUniformBuffer(BindingIndex, Allocation.GetBufferHandle(), Allocation.HandleId, RingBufferOffset + UniformBufferUploader->GetCPUBufferOffset(), UBSize);
+	}
 }

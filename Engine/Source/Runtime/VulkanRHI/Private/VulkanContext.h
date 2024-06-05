@@ -19,7 +19,6 @@ class FVulkanPendingComputeState;
 class FVulkanQueue;
 class FVulkanSwapChain;
 
-struct FInputAttachmentData;
 
 class FVulkanCommandListContext : public IRHICommandContext
 {

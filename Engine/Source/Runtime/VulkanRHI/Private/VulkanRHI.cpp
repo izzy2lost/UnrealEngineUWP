@@ -1704,22 +1704,14 @@ void FVulkanDescriptorSetsLayoutInfo::GenerateHash(const TArrayView<FRHISamplerS
 	{
 		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo.StageInfos[RemapingIndex];
 
-		Hash = FCrc::MemCrc32(&StageInfo.PackedUBDescriptorSet, sizeof(uint16), Hash);
-		Hash = FCrc::MemCrc32(&StageInfo.NumImageInfos, sizeof(uint16), Hash);
-		Hash = FCrc::MemCrc32(&StageInfo.NumBufferInfos, sizeof(uint16), Hash);
-		Hash = FCrc::MemCrc32(&StageInfo.NumAccelerationStructures, sizeof(uint16), Hash);
-
-		const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& Globals = StageInfo.Globals;
-		Hash = FCrc::MemCrc32(Globals.GetData(), sizeof(FDescriptorSetRemappingInfo::FRemappingInfo) * Globals.Num(), Hash);
-
-		const TArray<FDescriptorSetRemappingInfo::FUBRemappingInfo>& UniformBuffers = StageInfo.UniformBuffers;
-		Hash = FCrc::MemCrc32(UniformBuffers.GetData(), sizeof(FDescriptorSetRemappingInfo::FUBRemappingInfo) * UniformBuffers.Num(), Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.PackedGlobalsSize, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumBoundUniformBuffers, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumImageInfos, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumBufferInfos, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumAccelerationStructures, Hash);
 
 		const TArray<VkDescriptorType>& Types = StageInfo.Types;
 		Hash = FCrc::MemCrc32(Types.GetData(), sizeof(VkDescriptorType) * Types.Num(), Hash);
-
-		const TArray<uint16>& PackedUBBindingIndices = StageInfo.PackedUBBindingIndices;
-		Hash = FCrc::MemCrc32(PackedUBBindingIndices.GetData(), sizeof(uint16) * PackedUBBindingIndices.Num(), Hash);
 	}
 
 	// It would be better to store this when the object is created, but it's not available at that time, so we'll do it here.

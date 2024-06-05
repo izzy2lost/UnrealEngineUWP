@@ -40,7 +40,6 @@ class FVulkanDescriptorSetsLayout;
 class FVulkanGfxPipeline;
 class FVulkanRenderPass;
 class FVulkanCommandBufferManager;
-struct FInputAttachmentData;
 class FValidationContext;
 
 

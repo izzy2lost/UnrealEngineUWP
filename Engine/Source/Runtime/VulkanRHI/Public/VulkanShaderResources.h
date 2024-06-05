@@ -18,50 +18,30 @@
 // Size = Ignored for non-globals
 struct FVulkanShaderHeader
 {
-	struct FSpirvInfo
+	// Includes all bindings, the index in this array is the binding slot
+	struct FBindingInfo
 	{
-		FSpirvInfo() = default;
-		FSpirvInfo(uint32 InDescriptorSetOffset, uint32 InBindingIndexOffset)
-			: DescriptorSetOffset(InDescriptorSetOffset)
-			, BindingIndexOffset(InBindingIndexOffset)
-		{
-		}
-
-		uint32	DescriptorSetOffset = UINT32_MAX;
-		uint32	BindingIndexOffset = UINT32_MAX;
-	};
-
-	struct FUniformBufferInfo
-	{
-		uint32					LayoutHash;
-		uint16					ConstantDataOriginalBindingIndex;
-		uint8					bOnlyHasResources;
-		uint8					bHasResources;
+		// VkDescriptorType
+		uint32					DescriptorType;
 #if VULKAN_ENABLE_BINDING_DEBUG_NAMES
 		FString					DebugName;
 #endif
 	};
-	TArray<FUniformBufferInfo>	UniformBuffers;
+	TArray<FBindingInfo>		Bindings;
 
-	struct FGlobalInfo
+	// FBindingInfo with type VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER have a corresponding entry in this table (at the same index)
+	struct FUniformBufferInfo
 	{
-		uint32							TypeIndex;
-#if VULKAN_ENABLE_BINDING_DEBUG_NAMES
-		FString							DebugName;
-#endif
+		uint32					LayoutHash;
+		uint8					bHasResources;
+		uint8					BindlessCBIndex;
 	};
-	TArray<FGlobalInfo>					Globals;
+	TArray<FUniformBufferInfo>	UniformBufferInfos;
 
-	struct FPackedUBInfo
-	{
-		uint32							SizeInBytes;
-		uint32							SPIRVDescriptorSetOffset;
-		uint32							SPIRVBindingIndexOffset;
-	};
-	TArray<FPackedUBInfo>					PackedUBs;
-
+	// The order of this enum should always match the strings in VulkanBackend.cpp (VULKAN_SUBPASS_FETCH)
 	enum class EAttachmentType : uint8
 	{
+		Depth,
 		Color0,
 		Color1,
 		Color2,
@@ -70,28 +50,39 @@ struct FVulkanShaderHeader
 		Color5,
 		Color6,
 		Color7,
-		Depth,
 
 		Count,
 	};
-	struct FInputAttachment
+
+	// Used to determine the EAttachmentType of a FBindingInfo with type VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+	struct FInputAttachmentInfo
 	{
-		uint16			GlobalIndex;
-		EAttachmentType	Type;
-		uint8			Pad = 0;
+		uint8					BindingIndex;
+		EAttachmentType			Type;
 	};
-	TArray<FInputAttachment>				InputAttachments;
+	TArray<FInputAttachmentInfo> InputAttachmentInfos;
+
+	// The number of uniform buffers containing constants and requiring bindings
+	// Uniform buffers beyond this index do not have bindings (resource only UB)
+	uint32						NumBoundUniformBuffers = 0;
+
+	// Size of the uniform buffer containing packed globals
+	// If present (not zero), it will always be at binding 0 of the stage
+	uint32						PackedGlobalsSize = 0;
+
+	// Mask of input attachments being used (the index of the bit corresponds to EAttachmentType value)
+	uint32						InputAttachmentsMask = 0;
 
 	// Mostly relevant for Vertex Shaders
-	uint32									InOutMask;
+	uint32						InOutMask;
 
 	// Relevant for Ray Tracing Shaders
-	uint32                                  RayTracingPayloadType = 0;
-	uint32                                  RayTracingPayloadSize = 0;
+	uint32						RayTracingPayloadType = 0;
+	uint32						RayTracingPayloadSize = 0;
 
-	FSHAHash								SourceHash;
-	uint32									SpirvCRC = 0;
-	uint8									WaveSize = 0;
+	FSHAHash					SourceHash;
+	uint32						SpirvCRC = 0;
+	uint8						WaveSize = 0;
 
 	// For RayHitGroup shaders
 	enum class ERayHitGroupEntrypoint : uint8
@@ -107,13 +98,10 @@ struct FVulkanShaderHeader
 		// to circumvent DXC compilation issues
 		SeparateBlob
 	};
-	ERayHitGroupEntrypoint RayGroupAnyHit = ERayHitGroupEntrypoint::NotPresent;
-	ERayHitGroupEntrypoint RayGroupIntersection = ERayHitGroupEntrypoint::NotPresent;
+	ERayHitGroupEntrypoint				RayGroupAnyHit = ERayHitGroupEntrypoint::NotPresent;
+	ERayHitGroupEntrypoint				RayGroupIntersection = ERayHitGroupEntrypoint::NotPresent;
 
-	TArray<FSpirvInfo>						UniformBufferSpirvInfos;
-	TArray<FSpirvInfo>						GlobalSpirvInfos;
-
-	FString									DebugName;
+	FString								DebugName;
 
 	FVulkanShaderHeader() = default;
 	enum EInit
@@ -126,55 +114,38 @@ struct FVulkanShaderHeader
 	}
 };
 
-inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FSpirvInfo& Info)
+inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FBindingInfo& BindingInfo)
 {
-	Ar << Info.DescriptorSetOffset;
-	Ar << Info.BindingIndexOffset;
-	return Ar;
-}
-
-inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FUniformBufferInfo& UBInfo)
-{
-	Ar << UBInfo.LayoutHash;
-	Ar << UBInfo.ConstantDataOriginalBindingIndex;
-	Ar << UBInfo.bOnlyHasResources;
-	Ar << UBInfo.bHasResources;
+	Ar << BindingInfo.DescriptorType;
 #if VULKAN_ENABLE_BINDING_DEBUG_NAMES
-	Ar << UBInfo.DebugName;
+	Ar << BindingInfo.DebugName;
 #endif
 	return Ar;
 }
 
-inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FPackedUBInfo& PackedUBInfo)
+inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FUniformBufferInfo& Info)
 {
-	Ar << PackedUBInfo.SizeInBytes;
-	Ar << PackedUBInfo.SPIRVDescriptorSetOffset;
-	Ar << PackedUBInfo.SPIRVBindingIndexOffset;
+	Ar << Info.LayoutHash;
+	Ar << Info.bHasResources;
+	Ar << Info.BindlessCBIndex;
 	return Ar;
 }
 
-inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FGlobalInfo& GlobalInfo)
+inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FInputAttachmentInfo& Info)
 {
-	Ar << GlobalInfo.TypeIndex;
-#if VULKAN_ENABLE_BINDING_DEBUG_NAMES
-	Ar << GlobalInfo.DebugName;
-#endif
-	return Ar;
-}
-
-inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FInputAttachment& AttachmentInfo)
-{
-	Ar << AttachmentInfo.GlobalIndex;
-	Ar << AttachmentInfo.Type;
+	Ar << Info.BindingIndex;
+	Ar << Info.Type;
 	return Ar;
 }
 
 inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader& Header)
 {
-	Ar << Header.UniformBuffers;
-	Ar << Header.Globals;
-	Ar << Header.PackedUBs;
-	Ar << Header.InputAttachments;
+	Ar << Header.Bindings;
+	Ar << Header.UniformBufferInfos;
+	Ar << Header.InputAttachmentInfos;
+	Ar << Header.NumBoundUniformBuffers;
+	Ar << Header.PackedGlobalsSize;
+	Ar << Header.InputAttachmentsMask;
 	Ar << Header.InOutMask;
 	Ar << Header.RayTracingPayloadType;
 	Ar << Header.RayTracingPayloadSize;
@@ -183,8 +154,6 @@ inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader& Header)
 	Ar << Header.WaveSize;
 	Ar << Header.RayGroupAnyHit;
 	Ar << Header.RayGroupIntersection;
-	Ar << Header.UniformBufferSpirvInfos;
-	Ar << Header.GlobalSpirvInfos;
 	Ar << Header.DebugName;
 	return Ar;
 }

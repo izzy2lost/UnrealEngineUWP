@@ -125,43 +125,43 @@ struct FVulkanResourceBinder
 {
 	FVulkanCommandListContext& Context;
 	const EShaderFrequency Frequency;
-	const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GlobalRemappingInfo;
+	const ShaderStage::EStage Stage;
 	PendingStateType* PendingState;
 
-	FVulkanResourceBinder(FVulkanCommandListContext& InContext, EShaderFrequency InFrequency, const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& InGlobalRemappingInfo, PendingStateType* InPendingState)
+	FVulkanResourceBinder(FVulkanCommandListContext& InContext, EShaderFrequency InFrequency, PendingStateType* InPendingState)
 		: Context(InContext)
 		, Frequency(InFrequency)
-		, GlobalRemappingInfo(InGlobalRemappingInfo)
+		, Stage((InFrequency == SF_Compute) ? ShaderStage::Compute : ShaderStage::GetStageForFrequency(InFrequency))
 		, PendingState(InPendingState)
 	{
 	}
 
-	void SetUAV(FRHIUnorderedAccessView* UAV, uint8 Index, bool bClearResources = false)
+	void SetUAV(FRHIUnorderedAccessView* UAV, uint16 Index, bool bClearResources = false)
 	{
 		if (bClearResources)
 		{
 			//Context.ClearShaderResources(UAV);
 		}
 
-		PendingState->SetUAVForUBResource(GlobalRemappingInfo[Index].NewDescriptorSet, GlobalRemappingInfo[Index].NewBindingIndex, ResourceCast(UAV));
+		PendingState->SetUAVForUBResource(Stage, Index, ResourceCast(UAV));
 	}
 
-	void SetSRV(FRHIShaderResourceView* SRV, uint8 Index)
+	void SetSRV(FRHIShaderResourceView* SRV, uint16 Index)
 	{
-		PendingState->SetSRVForUBResource(GlobalRemappingInfo[Index].NewDescriptorSet, GlobalRemappingInfo[Index].NewBindingIndex, ResourceCast(SRV));
+		PendingState->SetSRVForUBResource(Stage, Index, ResourceCast(SRV));
 	}
 
-	void SetTexture(FRHITexture* TextureRHI, uint8 Index)
+	void SetTexture(FRHITexture* TextureRHI, uint16 Index)
 	{
 		FVulkanTexture* VulkanTexture = ResourceCast(TextureRHI);
 		const ERHIAccess RHIAccess = (Frequency == SF_Compute) ? ERHIAccess::SRVCompute : ERHIAccess::SRVGraphics;
 		const VkImageLayout ExpectedLayout = FVulkanLayoutManager::GetDefaultLayout(Context.GetCommandBufferManager()->GetActiveCmdBuffer(), *VulkanTexture, RHIAccess);
-		PendingState->SetTextureForUBResource(GlobalRemappingInfo[Index].NewDescriptorSet, GlobalRemappingInfo[Index].NewBindingIndex, VulkanTexture, ExpectedLayout);
+		PendingState->SetTextureForUBResource(Stage, Index, VulkanTexture, ExpectedLayout);
 	}
 
-	void SetSampler(FRHISamplerState* Sampler, uint8 Index)
+	void SetSampler(FRHISamplerState* Sampler, uint16 Index)
 	{
-		PendingState->SetSamplerStateForUBResource(GlobalRemappingInfo[Index].NewDescriptorSet, GlobalRemappingInfo[Index].NewBindingIndex, ResourceCast(Sampler));
+		PendingState->SetSamplerStateForUBResource(Stage, Index, ResourceCast(Sampler));
 	}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
@@ -182,10 +182,7 @@ void FVulkanCommandListContext::SetResourcesFromTables(const ShaderType* Shader)
 
 	if (Frequency == SF_Compute)
 	{
-		const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GlobalRemappingInfo =
-			PendingComputeState->CurrentState->GetComputePipelineDescriptorInfo().GetGlobalRemappingInfo();
-
-		FVulkanResourceBinder Binder(*this, Frequency, GlobalRemappingInfo, PendingComputeState);
+		FVulkanResourceBinder Binder(*this, Frequency, PendingComputeState);
 		UE::RHICore::SetResourcesFromTables(
 			Binder
 			, *Shader
@@ -198,10 +195,7 @@ void FVulkanCommandListContext::SetResourcesFromTables(const ShaderType* Shader)
 	}
 	else
 	{
-		const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GlobalRemappingInfo =
-		PendingGfxState->CurrentState->GetGfxPipelineDescriptorInfo().GetGlobalRemappingInfo(ShaderStage::GetStageForFrequency(Frequency));
-
-		FVulkanResourceBinder Binder(*this, Frequency, GlobalRemappingInfo, PendingGfxState);
+		FVulkanResourceBinder Binder(*this, Frequency, PendingGfxState);
 		UE::RHICore::SetResourcesFromTables(
 			Binder
 			, *Shader
@@ -485,15 +479,11 @@ void FVulkanCommandListContext::RHISetUniformBufferDynamicOffset(FUniformBufferS
 			const FUniformBufferStaticSlot Slot = StaticSlots[BufferIndex];
 			if (Slot == InSlot)
 			{
-				uint8 DescriptorSet;
-				uint32 BindingIndex;
-				DescriptorInfo.GetUBDescriptorSetAndBindingIndex(Stage, BufferIndex, DescriptorSet, BindingIndex);
-				{
-					// Uniform views always bind max supported range, so make sure Offset+Range is within buffer allocation
-					check((InOffset + PLATFORM_MAX_UNIFORM_BUFFER_RANGE) <= UniformBuffer->Allocation.Size);
-					uint32 DynamicOffset = InOffset + UniformBuffer->GetOffset();
-					PendingGfxState->CurrentState->SetUniformBufferDynamicOffset(DescriptorSet, BindingIndex, DynamicOffset);
-				}
+				// Uniform views always bind max supported range, so make sure Offset+Range is within buffer allocation
+				check((InOffset + PLATFORM_MAX_UNIFORM_BUFFER_RANGE) <= UniformBuffer->Allocation.Size);
+				uint32 DynamicOffset = InOffset + UniformBuffer->GetOffset();
+				PendingGfxState->CurrentState->SetUniformBufferDynamicOffset(Stage, BufferIndex, DynamicOffset);
+
 				break;
 			}
 		}
@@ -512,42 +502,41 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIGraphicsShader* Sh
 
 	FVulkanUniformBuffer* UniformBuffer = ResourceCast(BufferRHI);
 	const FVulkanShaderHeader& CodeHeader = Shader->GetCodeHeader();
-	const FVulkanShaderHeader::FUniformBufferInfo& HeaderUBInfo = CodeHeader.UniformBuffers[BufferIndex];
-	checkfSlow(!HeaderUBInfo.LayoutHash || HeaderUBInfo.LayoutHash == UniformBuffer->GetLayout().GetHash(), TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), HeaderUBInfo.LayoutHash);
+	checkfSlow(!CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash || (CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash == UniformBuffer->GetLayout().GetHash()),
+		TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash);
 	const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = PendingGfxState->CurrentState->GetGfxPipelineDescriptorInfo();
 
-	if (!HeaderUBInfo.bOnlyHasResources)
+	bool bHasResources = false;
+	if (BufferIndex < CodeHeader.NumBoundUniformBuffers)
 	{
 		checkSlow(UniformBuffer->GetLayout().ConstantBufferSize > 0);
 
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		DescriptorInfo.GetUBDescriptorSetAndBindingIndex(Stage, BufferIndex, DescriptorSet, BindingIndex);
-
-		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(DescriptorSet, BindingIndex);
+		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(Stage, BufferIndex);
 
 		if (DescriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
 		{
-			PendingGfxState->SetUniformBuffer<true>(DescriptorSet, BindingIndex, UniformBuffer);
+			PendingGfxState->SetUniformBuffer<true>(Stage, BufferIndex, UniformBuffer);
 		}
 		else
 		{
 			check(DescriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-			PendingGfxState->SetUniformBuffer<false>(DescriptorSet, BindingIndex, UniformBuffer);
+			PendingGfxState->SetUniformBuffer<false>(Stage, BufferIndex, UniformBuffer);
 		}
+
+		bHasResources = (CodeHeader.UniformBufferInfos[BufferIndex].bHasResources != 0);
+	}
+	else
+	{
+		// If the buffer has no bindings, then it is as resource only ub
+		bHasResources = true;
 	}
 
-	if (HeaderUBInfo.bHasResources)
+	if (bHasResources)
 	{
 		checkSlow(Shader->Frequency < SF_NumStandardFrequencies);
 		check(BufferIndex < MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE);
 		BoundUniformBuffers[Shader->Frequency][BufferIndex] = UniformBuffer;
 		DirtyUniformBuffers[Shader->Frequency] |= (1 << BufferIndex);
-	}
-	else
-	{
-		// Internal error: Completely empty UB!
-		checkSlow(!HeaderUBInfo.bOnlyHasResources);
 	}
 }
 
@@ -567,42 +556,41 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIComputeShader* Com
 
 	const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = PendingComputeState->CurrentState->GetComputePipelineDescriptorInfo();
 	const FVulkanShaderHeader& CodeHeader = Shader->GetCodeHeader();
-	const FVulkanShaderHeader::FUniformBufferInfo& HeaderUBInfo = CodeHeader.UniformBuffers[BufferIndex];
-	checkfSlow(!HeaderUBInfo.LayoutHash || HeaderUBInfo.LayoutHash == UniformBuffer->GetLayout().GetHash(), TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), HeaderUBInfo.LayoutHash);
+	checkfSlow(!CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash || (CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash == UniformBuffer->GetLayout().GetHash()), 
+		TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash);
 
 	// Uniform Buffers
-	if (!HeaderUBInfo.bOnlyHasResources)
+	bool bHasResources = false;
+	if (BufferIndex < CodeHeader.NumBoundUniformBuffers)
 	{
 		checkSlow(UniformBuffer->GetLayout().ConstantBufferSize > 0);
 		
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		DescriptorInfo.GetUBDescriptorSetAndBindingIndex(BufferIndex, DescriptorSet, BindingIndex);
-
-		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(DescriptorSet, BindingIndex);
+		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(ShaderStage::Compute, BufferIndex);
 
 		if (DescriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
 		{
-			State.SetUniformBuffer<true>(DescriptorSet, BindingIndex, UniformBuffer);
+			State.SetUniformBuffer<true>(ShaderStage::Compute, BufferIndex, UniformBuffer);
 		}
 		else
 		{
 			check(DescriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-			State.SetUniformBuffer<false>(DescriptorSet, BindingIndex, UniformBuffer);
+			State.SetUniformBuffer<false>(ShaderStage::Compute, BufferIndex, UniformBuffer);
 		}
+
+		bHasResources = (CodeHeader.UniformBufferInfos[BufferIndex].bHasResources != 0);
+	}
+	else
+	{
+		// If the buffer has no bindings, then it is as resource only ub
+		bHasResources = true;
 	}
 
-	if (HeaderUBInfo.bHasResources)
+	if (bHasResources)
 	{
 		checkSlow(ComputeShaderRHI->GetFrequency() == SF_Compute);
 		check(BufferIndex < MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE);
 		BoundUniformBuffers[SF_Compute][BufferIndex] = UniformBuffer;
 		DirtyUniformBuffers[SF_Compute] |= (1 << BufferIndex);
-	}
-	else
-	{
-		// Internal error: Completely empty UB!
-		checkSlow(!HeaderUBInfo.bOnlyHasResources);
 	}
 }
 

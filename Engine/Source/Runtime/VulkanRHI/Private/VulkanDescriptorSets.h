@@ -36,55 +36,32 @@ struct FUniformBufferGatherInfo
 	const FVulkanShaderHeader*	CodeHeaders[ShaderStage::NumStages];
 };
 
-struct FInputAttachmentData
-{
-	uint16	BindingIndex = UINT16_MAX;
-	uint8	DescriptorSet = UINT8_MAX;
-	FVulkanShaderHeader::EAttachmentType Type = FVulkanShaderHeader::EAttachmentType::Count;
-};
 
 // Information for remapping descriptor sets when combining layouts
 struct FDescriptorSetRemappingInfo
 {
-	struct FRemappingInfo
-	{
-		uint16	NewDescriptorSet = UINT16_MAX;
-		uint16	NewBindingIndex = UINT16_MAX;
-	};
-
-	struct FUBRemappingInfo
-	{
-		// Remapping is only valid if there is constant data
-		FRemappingInfo			Remapping;
-
-		bool					bHasConstantData = false;
-		const bool				bPadding = false;	// padding is need on memcmp/MemCrc to make sure mem align
-	};
-
 	struct FStageInfo
 	{
-		TArray<FRemappingInfo>		Globals;
-		TArray<FUBRemappingInfo>	UniformBuffers;
 		TArray<VkDescriptorType>	Types;
-		TArray<uint16>				PackedUBBindingIndices;
-		uint16						PackedUBDescriptorSet = UINT16_MAX;
+		uint32						PackedGlobalsSize = 0;
+		uint32						NumBoundUniformBuffers = 0;
 		uint16						NumImageInfos = 0;
 		uint16						NumBufferInfos = 0;
 		uint16						NumAccelerationStructures = 0;
 
 		inline bool IsEmpty() const
 		{
-			if (Globals.Num() != 0)
+			if (Types.Num() != 0)
 			{
 				return false;
 			}
 
-			if (UniformBuffers.Num() != 0)
+			if (PackedGlobalsSize != 0)
 			{
 				return false;
 			}
 
-			if (PackedUBBindingIndices.Num() != 0)
+			if (NumBoundUniformBuffers != 0)
 			{
 				return false;
 			}
@@ -94,7 +71,7 @@ struct FDescriptorSetRemappingInfo
 	};
 	TStaticArray<FStageInfo, ShaderStage::NumStages>	StageInfos;
 
-	TArray<FInputAttachmentData>						InputAttachmentData;
+	TArray<FVulkanShaderHeader::FInputAttachmentInfo>	InputAttachmentData;
 
 	inline bool operator==(const FDescriptorSetRemappingInfo& In) const
 	{
@@ -103,25 +80,20 @@ struct FDescriptorSetRemappingInfo
 			return false;
 		}
 
-		if (FMemory::Memcmp(InputAttachmentData.GetData(), In.InputAttachmentData.GetData(), sizeof(FInputAttachmentData) * InputAttachmentData.Num()))
+		if (FMemory::Memcmp(InputAttachmentData.GetData(), In.InputAttachmentData.GetData(), sizeof(FVulkanShaderHeader::FInputAttachmentInfo) * InputAttachmentData.Num()))
 		{
 			return false;
 		}
 
 		for (uint32 StageInfosIndex = 0; StageInfosIndex < ShaderStage::NumStages; ++StageInfosIndex)
 		{
-			if (StageInfos[StageInfosIndex].PackedUBDescriptorSet != In.StageInfos[StageInfosIndex].PackedUBDescriptorSet ||
+			if (StageInfos[StageInfosIndex].PackedGlobalsSize != In.StageInfos[StageInfosIndex].PackedGlobalsSize ||
+				StageInfos[StageInfosIndex].NumBoundUniformBuffers != In.StageInfos[StageInfosIndex].NumBoundUniformBuffers ||
 				StageInfos[StageInfosIndex].NumBufferInfos != In.StageInfos[StageInfosIndex].NumBufferInfos ||
 				StageInfos[StageInfosIndex].NumImageInfos != In.StageInfos[StageInfosIndex].NumImageInfos ||
 				StageInfos[StageInfosIndex].NumAccelerationStructures != In.StageInfos[StageInfosIndex].NumAccelerationStructures ||
-				StageInfos[StageInfosIndex].Globals.Num() != In.StageInfos[StageInfosIndex].Globals.Num() ||
-				StageInfos[StageInfosIndex].PackedUBBindingIndices.Num() != In.StageInfos[StageInfosIndex].PackedUBBindingIndices.Num() ||
-				StageInfos[StageInfosIndex].UniformBuffers.Num() != In.StageInfos[StageInfosIndex].UniformBuffers.Num() ||
 				StageInfos[StageInfosIndex].Types.Num() != In.StageInfos[StageInfosIndex].Types.Num() ||
-				FMemory::Memcmp(StageInfos[StageInfosIndex].Types.GetData(), In.StageInfos[StageInfosIndex].Types.GetData(), sizeof(VkDescriptorType) * StageInfos[StageInfosIndex].Types.Num()) ||
-				FMemory::Memcmp(StageInfos[StageInfosIndex].Globals.GetData(), In.StageInfos[StageInfosIndex].Globals.GetData(), sizeof(FRemappingInfo) * StageInfos[StageInfosIndex].Globals.Num()) ||
-				FMemory::Memcmp(StageInfos[StageInfosIndex].PackedUBBindingIndices.GetData(), In.StageInfos[StageInfosIndex].PackedUBBindingIndices.GetData(), sizeof(uint16) * StageInfos[StageInfosIndex].PackedUBBindingIndices.Num()) ||
-				FMemory::Memcmp(StageInfos[StageInfosIndex].UniformBuffers.GetData(), In.StageInfos[StageInfosIndex].UniformBuffers.GetData(), sizeof(FUBRemappingInfo) * StageInfos[StageInfosIndex].UniformBuffers.Num()))
+				FMemory::Memcmp(StageInfos[StageInfosIndex].Types.GetData(), In.StageInfos[StageInfosIndex].Types.GetData(), sizeof(VkDescriptorType) * StageInfos[StageInfosIndex].Types.Num()))
 			{
 				return false;
 			}
@@ -153,79 +125,6 @@ struct FDescriptorSetRemappingInfo
 		}
 		return true;
 	}
-
-	uint32 AddGlobal(uint32 Stage, int32 GlobalIndex, uint32 NewDescriptorSet, VkDescriptorType InType)
-	{
-		FStageInfo& StageInfo = StageInfos[Stage];
-
-		const uint32 NewBindingIndex = StageInfo.Types.Add(InType);
-
-		const int32 RemappingIndex = StageInfo.Globals.AddDefaulted();
-		check(RemappingIndex == GlobalIndex);
-		FDescriptorSetRemappingInfo::FRemappingInfo& Remapping = StageInfo.Globals[RemappingIndex];
-		Remapping.NewDescriptorSet = NewDescriptorSet;
-		Remapping.NewBindingIndex = NewBindingIndex;
-
-		return NewBindingIndex;
-	}
-
-	uint32 AddPackedUB(uint32 Stage, int32 PackUBIndex, uint32 NewDescriptorSet, VkDescriptorType InType)
-	{
-		FStageInfo& StageInfo = StageInfos[Stage];
-
-		const uint32 NewBindingIndex = StageInfo.Types.Add(InType);
-		if (StageInfo.PackedUBDescriptorSet == UINT16_MAX)
-		{
-			StageInfo.PackedUBDescriptorSet = NewDescriptorSet;
-		}
-		else
-		{
-			ensure(StageInfo.PackedUBDescriptorSet == NewDescriptorSet);
-		}
-		const int32 RemappingIndex = StageInfo.PackedUBBindingIndices.Add(NewBindingIndex);
-		check(RemappingIndex == PackUBIndex);
-
-		return NewBindingIndex;
-	}
-
-	void AddUBWithData(uint32 Stage, int32 UniformBufferIndex, uint32 NewDescriptorSet, VkDescriptorType InType, uint32& OutNewBindingIndex)
-	{
-		FStageInfo& StageInfo = StageInfos[Stage];
-
-		OutNewBindingIndex = StageInfo.Types.Add(InType);
-
-		const int32 UBRemappingIndex = StageInfo.UniformBuffers.AddDefaulted();
-		check(UBRemappingIndex == UniformBufferIndex);
-		FDescriptorSetRemappingInfo::FUBRemappingInfo& UBRemapping = StageInfo.UniformBuffers[UBRemappingIndex];
-		UBRemapping.bHasConstantData = true;
-		UBRemapping.Remapping.NewDescriptorSet = NewDescriptorSet;
-		UBRemapping.Remapping.NewBindingIndex = OutNewBindingIndex;
-	}
-
-	void AddRedundantUB(uint32 Stage, int32 UniformBufferIndex, const FDescriptorSetRemappingInfo::FUBRemappingInfo* InExistingUBInfo)
-	{
-		const int32 UBRemappingIndex = StageInfos[Stage].UniformBuffers.AddDefaulted();
-		check(UBRemappingIndex == UniformBufferIndex);
-		FDescriptorSetRemappingInfo::FUBRemappingInfo& UBRemapping = StageInfos[Stage].UniformBuffers[UBRemappingIndex];
-		UBRemapping.bHasConstantData = InExistingUBInfo->bHasConstantData;
-		UBRemapping.Remapping = InExistingUBInfo->Remapping;
-	}
-
-	void AddUBResourceOnly(uint32 Stage, int32 UniformBufferIndex)
-	{
-		const int32 UBRemappingIndex = StageInfos[Stage].UniformBuffers.AddDefaulted();
-		check(UBRemappingIndex == UniformBufferIndex);
-		FDescriptorSetRemappingInfo::FUBRemappingInfo& UBRemapping = StageInfos[Stage].UniformBuffers[UBRemappingIndex];
-		UBRemapping.bHasConstantData = false;
-	}
-
-	static_assert(
-		sizeof(FRemappingInfo) == (sizeof(FRemappingInfo::NewDescriptorSet) + sizeof(FRemappingInfo::NewBindingIndex)),
-		"FRemappingInfo should not have padding! structure is used for MemCrc32/Memcmp");
-
-	static_assert(
-		sizeof(FUBRemappingInfo) == (sizeof(FRemappingInfo) + sizeof(FUBRemappingInfo::bHasConstantData) + sizeof(FUBRemappingInfo::bPadding)),
-		"FUBRemappingInfo should not have padding! structure is used for MemCrc32/Memcmp");
 };
 
 // Information for the layout of descriptor sets; does not hold runtime objects
@@ -671,26 +570,6 @@ public:
 		, RemappingInfo(nullptr)
 		, bInitialized(false)
 	{
-		//		FMemory::Memzero(CodeHeaders);
-	}
-
-	inline void GetUBDescriptorSetAndBindingIndex(int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
-	{
-		ensure(RemappingUBInfos[ParameterIndex].bHasConstantData);
-		OutDescriptorSet = RemappingUBInfos[ParameterIndex].Remapping.NewDescriptorSet;
-		OutBindingIndex = RemappingUBInfos[ParameterIndex].Remapping.NewBindingIndex;
-	}
-
-	inline void GetDescriptorSetAndBindingIndex(int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
-	{
-		OutDescriptorSet = RemappingGlobalInfos[ParameterIndex].NewDescriptorSet;
-		OutBindingIndex = RemappingGlobalInfos[ParameterIndex].NewBindingIndex;
-	}
-
-	inline const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GetGlobalRemappingInfo() const
-	{
-		//OutDescriptorSet = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewDescriptorSet;
-		return RemappingInfo->StageInfos[ShaderStage::Compute].Globals;
 	}
 	
 	inline VkDescriptorType GetDescriptorType(uint8 DescriptorSet, int32 DescriptorIndex) const
@@ -708,9 +587,6 @@ public:
 
 protected:
 	// Cached data from FDescriptorSetRemappingInfo
-	TArrayView<const FDescriptorSetRemappingInfo::FUBRemappingInfo>	RemappingUBInfos;
-	TArrayView<const FDescriptorSetRemappingInfo::FRemappingInfo>	RemappingGlobalInfos;
-	TArrayView<const uint16>										RemappingPackedUBInfos;
 	uint32															HasDescriptorsInSetMask;
 	const FDescriptorSetRemappingInfo*								RemappingInfo;
 	bool															bInitialized;
@@ -729,24 +605,6 @@ public:
 	{
 	}
 
-	inline void GetUBDescriptorSetAndBindingIndex(const ShaderStage::EStage Stage, int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
-	{
-		ensure(RemappingUBInfos[Stage][ParameterIndex].bHasConstantData);
-		OutDescriptorSet = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewDescriptorSet;
-		OutBindingIndex = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewBindingIndex;
-	}
-
-	inline void GetDescriptorSetAndBindingIndex(const ShaderStage::EStage Stage, int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
-	{
-		OutDescriptorSet = RemappingGlobalInfos[Stage][ParameterIndex].NewDescriptorSet;
-		OutBindingIndex = RemappingGlobalInfos[Stage][ParameterIndex].NewBindingIndex;
-	}
-
-	inline const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GetGlobalRemappingInfo(ShaderStage::EStage Stage) const
-	{
-		return RemappingInfo->StageInfos[Stage].Globals;
-	}
-
 	inline VkDescriptorType GetDescriptorType(uint8 DescriptorSet, int32 DescriptorIndex) const
 	{
 		return RemappingInfo->StageInfos[DescriptorSet].Types[DescriptorIndex];
@@ -757,7 +615,7 @@ public:
 		return bInitialized;
 	}
 
-	inline const TArray<FInputAttachmentData>& GetInputAttachmentData() const
+	inline const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& GetInputAttachmentData() const
 	{
 		return RemappingInfo->InputAttachmentData;
 	}
@@ -766,9 +624,6 @@ public:
 
 protected:
 	// Cached data from FDescriptorSetRemappingInfo
-	TArrayView<const FDescriptorSetRemappingInfo::FUBRemappingInfo>	RemappingUBInfos[ShaderStage::NumStages];
-	TArrayView<const FDescriptorSetRemappingInfo::FRemappingInfo>	RemappingGlobalInfos[ShaderStage::NumStages];
-	TArrayView<const uint16>										RemappingPackedUBInfos[ShaderStage::NumStages];
 	uint32													HasDescriptorsInSetMask;
 
 	const FDescriptorSetRemappingInfo*						RemappingInfo;
@@ -1226,8 +1081,6 @@ public:
 	{
 		return DescriptorSetLayout.GetHash();
 	}
-
-	void PatchSpirvBindings(FVulkanShader::FSpirvCode& SpirvCode, EShaderFrequency Frequency, const FVulkanShaderHeader& CodeHeader) const;
 
 protected:
 	FVulkanDescriptorSetsLayout	DescriptorSetLayout;
