@@ -1462,7 +1462,13 @@ void FManifestDASHInternal::PreparePeriodAdaptationSets(TSharedPtrTS<FPeriod> Pe
 			// We do not rely on the AdaptationSet@contentType, AdaptationSet@mimeType and/or AdaptationSet@codecs as these are often not set.
 			// First we go over the representations in the set and hope they have the @codecs attribute set.
 			const TArray<TSharedPtrTS<FDashMPD_RepresentationType>>& MPDRepresentations = MPDAdaptationSet->GetRepresentations();
-			TMultiMap<int32, TSharedPtrTS<FRepresentation>> RepresentationQualityIndexMap;
+			struct FQualityEntry
+			{
+				int32 Bitrate = 0;
+				int32 ListedIndex = 0;
+				TSharedPtrTS<FRepresentation> Rep;
+			};
+			TArray<FQualityEntry> RepresentationQualityIndexList;
 			for(int32 nRepr=0, nReprMax=MPDRepresentations.Num(); nRepr<nReprMax; ++nRepr)
 			{
 				const TSharedPtrTS<FDashMPD_RepresentationType>& MPDRepresentation = MPDRepresentations[nRepr];
@@ -1881,8 +1887,11 @@ void FManifestDASHInternal::PreparePeriodAdaptationSets(TSharedPtrTS<FPeriod> Pe
 				// For all intents and purposes we consider this Representation as usable now.
 				Representation->bIsUsable = true;
 				AdaptationSet->Representations.Emplace(Representation);
-				// Add this representation to the bandwidth-to-index map.
-				RepresentationQualityIndexMap.Add(MPDRepresentation->GetBandwidth(), Representation);
+				// Add this representation to the bandwidth-to-index list.
+				FQualityEntry& qe = RepresentationQualityIndexList.Emplace_GetRef();
+				qe.Bitrate = MPDRepresentation->GetBandwidth();
+				qe.ListedIndex = nRepr;
+				qe.Rep = Representation;
 			}
 
 
@@ -1899,18 +1908,23 @@ void FManifestDASHInternal::PreparePeriodAdaptationSets(TSharedPtrTS<FPeriod> Pe
 					}
 				}
 
-				RepresentationQualityIndexMap.KeySort([](int32 A, int32 B){return A<B;});
+				// Sort by ascending bitrate, keeping the given order for same rates.
+				RepresentationQualityIndexList.StableSort([](const FQualityEntry& a, const FQualityEntry& b)
+				{
+					return a.Bitrate == b.Bitrate ? a.ListedIndex < b.ListedIndex : a.Bitrate < b.Bitrate;
+				});
 				int32 CurrentQualityIndex = -1;
 				int32 CurrentQualityBitrate = -1;
-				for(auto& E : RepresentationQualityIndexMap)
+				for(auto& qlIt : RepresentationQualityIndexList)
 				{
-					if (E.Key != CurrentQualityBitrate)
+					if (CurrentQualityBitrate != qlIt.Bitrate)
 					{
-						CurrentQualityBitrate = E.Key;
+						CurrentQualityBitrate = qlIt.Bitrate;
 						++CurrentQualityIndex;
 					}
-					E.Value->QualityIndex = CurrentQualityIndex;
+					qlIt.Rep->QualityIndex = CurrentQualityIndex;
 				}
+
 				AdaptationSet->bIsUsable = true;
 
 				TMediaOptionalValue<bool> lowLatencyUsable;

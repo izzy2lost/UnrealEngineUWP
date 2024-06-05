@@ -1321,7 +1321,33 @@ IAdaptiveStreamSelector::ESegmentAction FABRLiveStream::PerformSelection(const T
 		}
 		else
 		{
-			CurrentStreamQualityIndex = NewQualityIndex = InCandidates.Num() - 1;
+			if (WorkVars)
+			{
+				FScopeLock lock(&WorkVars->Lock);
+
+				TArray<FDecisionAttributes> QualityDecision;
+
+				CurrentStreamQualityIndex = WorkVars->SegmentDownloadHistory.Num() ? WorkVars->SegmentDownloadHistory.BackRef().QualityIndex : -1;
+
+				for(auto &Can : InCandidates)
+				{
+					FDecisionAttributes da;
+					da.QualityIndex = Can->QualityIndex;
+					da.Bitrate = Can->Bitrate;
+					da.bIsCandidate = true;
+					QualityDecision.Emplace(MoveTemp(da));
+				}
+
+				for(int32 i=QualityDecision.Num()-1; i>=0; --i)
+				{
+					if (QualityDecision[i].bIsCandidate || i==0)
+					{
+						BandwidthScore = QualityDecision[i].BandwidthScore;
+						NewQualityIndex = QualityDecision[i].QualityIndex;
+						break;
+					}
+				}
+			}
 		}
 
 		check(NewQualityIndex >= 0);

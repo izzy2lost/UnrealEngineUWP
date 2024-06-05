@@ -947,7 +947,21 @@ IAdaptiveStreamSelector::ESegmentAction FABROnDemandPlus::PerformSelection(const
 		}
 		else
 		{
-			NewQualityIndex = InCandidates[InCandidates.Num() - 1]->QualityIndex;
+//			FScopeLock lock(&WorkVars->Lock);
+			struct FDecisionAttributes
+			{
+				int32 Bitrate = 0;
+				int32 QualityIndex = 0;
+			};
+			TArray<FDecisionAttributes> QualityLevels;
+			for(auto &Can : InCandidates)
+			{
+				FDecisionAttributes& da = QualityLevels.Emplace_GetRef();
+				da.QualityIndex = Can->QualityIndex;
+				da.Bitrate = Can->Bitrate;
+			}
+			QualityLevels.StableSort([](const FDecisionAttributes& a, const FDecisionAttributes& b){ return a.Bitrate > b.Bitrate; });
+			NewQualityIndex = QualityLevels[0].QualityIndex;
 		}
 
 		check(NewQualityIndex >= 0);
