@@ -36,7 +36,7 @@ namespace UE::ConcertSharedSlate
 	class IReplicationStreamViewer;
 	class IStreamExtender;
 	class IObjectHierarchyModel;
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	
 	/**
 	 * Creates a model that can be passed to CreateEditor.
@@ -113,7 +113,7 @@ namespace UE::ConcertSharedSlate
 		 * Required. Determines the properties that are displayed in the property list. 
 		 * @note The view will keep a strong reference to this.
 		 */
-		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+		TSharedRef<IPropertySourceProcessor> PropertySource;
 		
 		/** Optional. Determines whether all UI for changing the model should be disabled. */
 		TAttribute<bool> IsEditingEnabled;
@@ -171,7 +171,7 @@ namespace UE::ConcertSharedSlate
 		 * Determines the properties that can be added to the property list.
 		 * @note The view will keep a strong reference to this.
 		 */
-		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+		TSharedRef<IPropertySourceProcessor> PropertySource;
 
 		/** Optional. If set, the Add button should automatically assign the added object to stream returned by this callback. */
 		FGetAutoAssignTarget GetAutoAssignToStreamDelegate;

@@ -4,7 +4,7 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
-#include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
+#include "Replication/Editor/Model/Property/IPropertySourceProcessor.h"
 
 #include "Containers/Set.h"
 #include "UObject/SoftObjectPath.h"
@@ -29,7 +29,7 @@ namespace UE::ConcertSharedSlate
 #endif
 	}
 
-	void EnumerateProperties(TConstArrayView<TSoftObjectPtr<>> Objects, const IReplicationStreamModel& Model, const IPropertySelectionSourceModel* OptionalSource, FEnumerateProperties Callback)
+	void EnumerateProperties(TConstArrayView<TSoftObjectPtr<>> Objects, const IReplicationStreamModel& Model, const IPropertySourceProcessor* OptionalSource, FEnumerateProperties Callback)
 	{
 		if (OptionalSource)
 		{
@@ -63,7 +63,7 @@ namespace UE::ConcertSharedSlate
 	}
 
 	/** Enumerate the properties that are selectable in Source (e.g. all properties in that class, @see FSelectPropertyFromUClassModel). */
-	void EnumerateAllProperties(TConstArrayView<TSoftObjectPtr<>> Objects, const IPropertySelectionSourceModel& Source, const IReplicationStreamModel& Model, FEnumerateProperties Callback)
+	void EnumerateAllProperties(TConstArrayView<TSoftObjectPtr<>> Objects, const IPropertySourceProcessor& Source, const IReplicationStreamModel& Model, FEnumerateProperties Callback)
 	{
 		TSet<FSoftClassPath> VisitedClasses; 
 			
@@ -73,10 +73,13 @@ namespace UE::ConcertSharedSlate
 			const FPropertySourceContext ObjectQueryContext(Object, ObjectClass);
 					
 			EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
-			Source.GetPropertySource(ObjectQueryContext)->EnumerateSelectableItems([&Callback, &ObjectClass, &BreakBehavior](const FSelectablePropertyInfo& PropertyInfo)
+			Source.ProcessPropertySource(ObjectQueryContext, [&Callback, &ObjectClass, &BreakBehavior](const IPropertySourceModel& PropertySource)
 			{
-				BreakBehavior = Callback(ObjectClass, PropertyInfo.Property);
-				return BreakBehavior;
+				PropertySource.EnumerateSelectableItems([&Callback, &ObjectClass, &BreakBehavior](const FSelectablePropertyInfo& PropertyInfo)
+				{
+					BreakBehavior = Callback(ObjectClass, PropertyInfo.Property);
+					return BreakBehavior;
+				});
 			});
 					
 			if (BreakBehavior == EBreakBehavior::Break)

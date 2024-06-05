@@ -7,7 +7,7 @@
 #include "Replication/Editor/Utils/DisplayUtils.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
-#include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
+#include "Replication/Editor/Model/Property/IPropertySourceProcessor.h"
 #include "Replication/Editor/Model/ObjectSource/IObjectSelectionSourceModel.h"
 #include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
 
@@ -27,7 +27,7 @@ namespace UE::ConcertSharedSlate
 		const FArguments& InArgs,
 		const TSharedRef<IEditableReplicationStreamModel>& InPropertiesModel,
 		const TSharedRef<IObjectSelectionSourceModel>& InObjectSelectionSource,
-		const TSharedRef<IPropertySelectionSourceModel>& InPropertySelectionSource)
+		const TSharedRef<IPropertySourceProcessor>& InPropertySelectionSource)
 	{
 		ObjectSelectionSource = InObjectSelectionSource;
 		PropertySelectionSource = InPropertySelectionSource;

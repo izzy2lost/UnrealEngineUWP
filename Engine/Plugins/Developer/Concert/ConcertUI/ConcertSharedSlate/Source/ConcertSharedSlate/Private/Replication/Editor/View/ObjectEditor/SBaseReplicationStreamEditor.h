@@ -23,7 +23,7 @@ namespace UE::ConcertSharedSlate
 	class IObjectNameModel;
 	class IObjectSelectionSourceModel;
 	class IPropertyAssignmentView;
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	class IObjectHierarchyModel;
 	class SReplicationStreamViewer;
 	
@@ -88,7 +88,7 @@ namespace UE::ConcertSharedSlate
 		void Construct(const FArguments& InArgs,
            const TSharedRef<IEditableReplicationStreamModel>& InPropertiesModel,
            const TSharedRef<IObjectSelectionSourceModel>& InObjectSelectionSource,
-           const TSharedRef<IPropertySelectionSourceModel>& InPropertySelectionSource
+           const TSharedRef<IPropertySourceProcessor>& InPropertySelectionSource
 		);
 		virtual ~SBaseReplicationStreamEditor() override;
 
@@ -112,7 +112,7 @@ namespace UE::ConcertSharedSlate
 		/** For deciding which objects can be added to EditablePropertiesModel. */
 		TSharedPtr<IObjectSelectionSourceModel> ObjectSelectionSource;
 		/** For deciding which properties can be added to EditablePropertiesModel. */
-		TSharedPtr<IPropertySelectionSourceModel> PropertySelectionSource;
+		TSharedPtr<IPropertySourceProcessor> PropertySelectionSource;
 
 		/** Optional. Determines whether all UI for changing the model should be disabled. */
 		TAttribute<bool> IsEditingEnabledAttribute;

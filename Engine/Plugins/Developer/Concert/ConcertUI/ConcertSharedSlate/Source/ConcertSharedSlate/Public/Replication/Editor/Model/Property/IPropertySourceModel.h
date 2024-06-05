@@ -15,7 +15,7 @@ namespace UE::ConcertSharedSlate
 	
 	/**
 	 * A specific object source, e.g. like actors, components from an actor (right-click), etc.
-	 * @see IPropertySelectionSourceModel.
+	 * @see IPropertySelectionProcessor.
 	 */
 	using IPropertySourceModel = ConcertSharedSlate::IItemSourceModel<FSelectablePropertyInfo>;
 }

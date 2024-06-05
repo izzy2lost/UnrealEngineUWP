@@ -10,7 +10,7 @@
 
 namespace UE::ConcertSharedSlate
 {
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	class IReplicationStreamModel;
 	
 	/** SPerObjectPropertyAssignment shows only the properties of the displayed object, which is achieved by wrapping SPropertyTreeView. */
@@ -22,7 +22,7 @@ namespace UE::ConcertSharedSlate
 
 		SLATE_BEGIN_ARGS(SPerObjectPropertyAssignment){}
 			/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
-			SLATE_ARGUMENT(TSharedPtr<IPropertySelectionSourceModel>, PropertySource)
+			SLATE_ARGUMENT(TSharedPtr<IPropertySourceProcessor>, PropertySource)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InTreeView);
@@ -42,7 +42,7 @@ namespace UE::ConcertSharedSlate
 		TArray<TSoftObjectPtr<>> PreviousSelectedObjects;
 		
 		/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
-		TSharedPtr<IPropertySelectionSourceModel> OptionalPropertySource;
+		TSharedPtr<IPropertySourceProcessor> OptionalPropertySource;
 	};
 }
 

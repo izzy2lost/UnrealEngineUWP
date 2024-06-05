@@ -2,11 +2,13 @@
 
 #pragma once
 
+#include "Misc/EBreakBehavior.h"
+
 #include "Containers/Array.h"
+#include "Internationalization/Text.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 #include "Textures/SlateIcon.h"
-#include "Misc/EBreakBehavior.h"
 
 namespace UE::ConcertSharedSlate
 {

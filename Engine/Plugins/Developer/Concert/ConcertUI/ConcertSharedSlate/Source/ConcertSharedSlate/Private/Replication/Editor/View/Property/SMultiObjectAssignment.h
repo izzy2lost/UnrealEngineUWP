@@ -15,7 +15,7 @@ struct TSoftObjectPtr;
 namespace UE::ConcertSharedSlate
 {
 	class IObjectHierarchyModel;
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	class IReplicationStreamModel;
 	
 	/** SMultiObjectAssignment shows the properties of the displayed object and all of its subobjects.*/
@@ -27,7 +27,7 @@ namespace UE::ConcertSharedSlate
 
 		SLATE_BEGIN_ARGS(SMultiObjectAssignment){}
 			/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
-			SLATE_ARGUMENT(TSharedPtr<IPropertySelectionSourceModel>, PropertySource)
+			SLATE_ARGUMENT(TSharedPtr<IPropertySourceProcessor>, PropertySource)
 			
 			/** Optional. Gets components and subobjects of the displayed object. If unspecified, behaves exactly like SPerObjectAssignmentView. */
 			SLATE_ARGUMENT(TSharedPtr<IObjectHierarchyModel>, ObjectHierarchy)
@@ -54,7 +54,7 @@ namespace UE::ConcertSharedSlate
 		/** Used to get subobjects of selected objects. */
 		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
 		/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
-		TSharedPtr<IPropertySelectionSourceModel> OptionalPropertySource;
+		TSharedPtr<IPropertySourceProcessor> OptionalPropertySource;
 
 		/** Whether EChildRelationshipFlags::Subobject objects should be shown. */
 		bool bShouldShowSubobjects = false;

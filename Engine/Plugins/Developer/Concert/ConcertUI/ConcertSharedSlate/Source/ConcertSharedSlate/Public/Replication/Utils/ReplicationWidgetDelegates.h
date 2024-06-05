@@ -17,7 +17,7 @@ struct FSoftObjectPath;
 namespace UE::ConcertSharedSlate
 {
 	class FPropertyData;
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	class IReplicationStreamModel;
 
 	/** A predicate for determining Left < Right. */

@@ -11,7 +11,7 @@ struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	class IPropertyTreeView;
 	class IEditableReplicationStreamModel;
 	class IObjectNameModel;

@@ -16,7 +16,7 @@ namespace UE::ConcertSharedSlate
 	class IMultiObjectPropertyAssignmentView;
 	class FPropertyData;
 	class IPropertyAssignmentView;
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
 	class IPropertyTreeView;
 	
 	DECLARE_DELEGATE_RetVal_OneParam(EFilterResult, FFilterPropertyData, const FPropertyData&);
@@ -31,7 +31,7 @@ namespace UE::ConcertSharedSlate
 		 * If specified, the view will display all properties reported by the model (useful for editor UI which edits streams, not useful for server where property info is not available).
 		 * If unspecified, only display the properties assigned to the object in the stream.
 		 */
-		TSharedPtr<IPropertySelectionSourceModel> PropertySource;
+		TSharedPtr<IPropertySourceProcessor> PropertySource;
 	};
 	
 	/**
@@ -59,7 +59,7 @@ namespace UE::ConcertSharedSlate
 		 * If specified, the view will display all properties reported by the model (useful for editor UI which edits streams, not useful for server where property info is not available).
 		 * If unspecified, only display the properties assigned to the object in the stream.
 		 */
-		TSharedPtr<IPropertySelectionSourceModel> PropertySource;
+		TSharedPtr<IPropertySourceProcessor> PropertySource;
 	};
 
 	/**
