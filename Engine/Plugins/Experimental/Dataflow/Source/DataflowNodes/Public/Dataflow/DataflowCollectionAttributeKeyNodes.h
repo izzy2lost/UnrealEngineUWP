@@ -4,29 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Dataflow/DataflowConnectionTypes.h"
 
 #include "DataflowCollectionAttributeKeyNodes.generated.h"
 
 class USkeletalMesh;
-
-
-USTRUCT(BlueprintType)
-struct DATAFLOWNODES_API FCollectionAttributeKey
-{
-	GENERATED_USTRUCT_BODY()
-public:
-	FCollectionAttributeKey() : Attribute(""), Group("") {}
-	FCollectionAttributeKey(FString InAttribute, FString InGroup)
-		: Attribute(InAttribute), Group(InGroup) {}
-	TPair<FName, FName> GetNamedKey() { return { FName(Attribute), FName(Group)}; }
-
-	UPROPERTY(EditAnywhere, Category = "Collection Key")
-	FString Attribute;
-
-	UPROPERTY(EditAnywhere, Category = "Collection Key")
-	FString Group;
-
-};
 
 
 USTRUCT(meta = (Dataflow))

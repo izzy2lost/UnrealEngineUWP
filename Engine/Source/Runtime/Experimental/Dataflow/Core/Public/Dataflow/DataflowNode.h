@@ -584,10 +584,10 @@ private:
 #define DATAFLOW_NODE_REGISTER_CREATION_FACTORY(A)									\
 	::Dataflow::FNodeFactory::RegisterNodeFromType<A>();
 
-#define DATAFLOW_NODE_RENDER_TYPE(A, B, C)												\
+#define DATAFLOW_NODE_RENDER_TYPE(A, B, ...)												\
 	virtual TArray<::Dataflow::FRenderingParameter> GetRenderParametersImpl() const {		\
 		TArray<::Dataflow::FRenderingParameter> Array;								\
-		Array.Add({ A, B, {C,} });														\
+		Array.Add({ A, B, {__VA_ARGS__,} });														\
 		return Array;}
 
 #define DATAFLOW_NODE_DEFINE_INTERNAL(TYPE, DISPLAY_NAME, CATEGORY, TAGS)			\
