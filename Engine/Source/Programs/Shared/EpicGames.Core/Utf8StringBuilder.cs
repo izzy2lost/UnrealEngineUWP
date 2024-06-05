@@ -15,7 +15,20 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Returns the length of this string
 		/// </summary>
-		public int Length => _writer.Length;
+		public int Length
+		{
+			get => _writer.Length;
+			set
+			{
+				int prevLength = _writer.Length;
+				_writer.Resize(value);
+
+				if (value > prevLength)
+				{
+					_writer.WrittenSpan.Slice(prevLength).Fill(0);
+				}
+			}
+		}
 
 		/// <summary>
 		/// Accessor for the written span
