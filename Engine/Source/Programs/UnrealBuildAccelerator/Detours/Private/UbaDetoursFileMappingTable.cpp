@@ -14,6 +14,7 @@ namespace uba
 	{
 		m_mem = mem;
 		m_lookup.reserve(tableCount + 100);
+		m_memoryBlock.ReserveNoLock(tableCount*(sizeof(GrowingUnorderedMap<StringKey, FileInfo>::value_type)+16), TC(""));
 		ParseNoLock(tableSize);
 	}
 

@@ -86,6 +86,21 @@ namespace uba
 		return ret;
 	}
 
+	void MemoryBlock::ReserveNoLock(u64 bytes, const tchar* hint)
+	{
+		#if PLATFORM_WINDOWS
+		u64 newPos = Min(writtenSize + bytes, reserveSize);
+		if (newPos <= mappedSize)
+			return;
+		u64 toCommit = AlignUp(newPos - mappedSize, 1024 * 1024);
+		if (mappedSize + toCommit > reserveSize)
+			toCommit = reserveSize - mappedSize;
+		if (!VirtualAlloc(memory + mappedSize, toCommit, MEM_COMMIT, PAGE_READWRITE))
+			FatalError(9883, TC("Failed to commit virtual memory for memory block. Total size %llu (%u) (%s)"), mappedSize + toCommit, GetLastError(), hint);
+		mappedSize += toCommit;
+		#endif
+	}
+
 	void MemoryBlock::Free(void* p)
 	{
 		if (!memory)

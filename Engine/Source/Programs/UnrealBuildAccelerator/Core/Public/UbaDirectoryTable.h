@@ -19,6 +19,8 @@ namespace uba
 		{
 			m_memory = mem;
 			m_lookup.reserve(tableCount + 100);
+			if (m_memoryBlock)
+				m_memoryBlock->ReserveNoLock(tableCount*(sizeof(GrowingUnorderedMap<StringKey, Directory>::value_type)+16), TC(""));
 			ParseDirectoryTable(tableSize);
 		}
 

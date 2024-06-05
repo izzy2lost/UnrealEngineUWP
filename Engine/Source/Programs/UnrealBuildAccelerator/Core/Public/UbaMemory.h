@@ -99,6 +99,7 @@ namespace uba
 		void Deinit();
 		void* Allocate(u64 bytes, u64 alignment, const tchar* hint);
 		void* AllocateNoLock(u64 bytes, u64 alignment, const tchar* hint);
+		void ReserveNoLock(u64 bytes, const tchar* hint);
 		void Free(void* p);
 		tchar* Strdup(const tchar* str);
 		void Swap(MemoryBlock& other);
