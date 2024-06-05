@@ -2309,60 +2309,6 @@ void FCustomizableObjectEditor::AddCachedReferencers(const FName& PathName, TArr
 }
 
 
-void FCustomizableObjectEditor::GetExternalChildObjects(const UCustomizableObject* const Object, TArray<UCustomizableObject*>& ExternalChildren, const bool bRecursively, const EObjectFlags ExcludeFlags)
-{
-	TArray<FAssetData> ArrayAssetData;
-	TArray<FName> ArrayAlreadyProcessedChild;
-	TArray<FName> ArrayReferenceNames;
-
-	AddCachedReferencers(*Object->GetOuter()->GetPathName(), ArrayReferenceNames, ArrayAssetData);
-
-	bool bMultipleBaseObjectsFound = false;
-
-	FAssetData* AssetData = nullptr;
-	UCustomizableObject* ChildObject;
-
-	for (const FName& ReferenceName : ArrayReferenceNames)
-	{
-		const int32 MaxIndex = ArrayAssetData.Num();
-
-		for (int32 i = 0; i < MaxIndex; ++i)
-		{
-			if (ArrayAssetData[i].PackageName.ToString() == ReferenceName.ToString())
-			{
-				AssetData = &ArrayAssetData[i];
-			}
-		}
-
-		if (AssetData != nullptr) // Elements in ArrayAssetData are already of static class UCustomizableObject
-		{
-			ChildObject = Cast<UCustomizableObject>(AssetData->GetAsset());
-			if (!ChildObject) continue;
-
-			if (ChildObject != Object && !ChildObject->HasAnyFlags(ExcludeFlags))
-			{
-				ExternalChildren.AddUnique(ChildObject);
-			}
-
-			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-			ChildObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
-
-			if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
-			{
-				if (ArrayAlreadyProcessedChild.Find(ReferenceName) == INDEX_NONE)
-				{
-					ArrayAlreadyProcessedChild.Add(ReferenceName);
-					if (bRecursively)
-					{
-						GetExternalChildObjects(ChildObject, ExternalChildren, bRecursively);
-					}
-				}
-			}
-		}
-	}
-}
-
-
 void FCustomizableObjectEditor::CreatePreviewActor()
 {
 	if (Actor)

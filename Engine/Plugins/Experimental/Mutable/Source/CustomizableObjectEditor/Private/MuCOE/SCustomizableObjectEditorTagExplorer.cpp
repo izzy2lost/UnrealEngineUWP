@@ -8,7 +8,6 @@
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/GraphTraversal.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeExtendMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
@@ -18,14 +17,18 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithUVMask.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
-#include "Widgets/Views/SListView.h"
+
 
 class ITableRow;
 class STableViewBase;
 class SWidget;
 class UObject;
 
+const FName SCustomizableObjectEditorTagExplorer::COLUMN_OBJECT(TEXT("Customizable Object"));
+const FName SCustomizableObjectEditorTagExplorer::COLUMN_TYPE(TEXT("Node Type"));
+
 #define LOCTEXT_NAMESPACE "SCustomizableObjectEditorTagExplorer"
+
 
 void SCustomizableObjectEditorTagExplorer::Construct(const FArguments & InArgs)
 {
@@ -34,7 +37,6 @@ void SCustomizableObjectEditorTagExplorer::Construct(const FArguments & InArgs)
 	ChildSlot
 	[
 		SNew(SVerticalBox)
-
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(5.0f)
@@ -80,181 +82,78 @@ void SCustomizableObjectEditorTagExplorer::Construct(const FArguments & InArgs)
 		.AutoHeight()
 		.Padding(2.0f)
 		[
-			SNew(SHorizontalBox)
-			
-			+ SHorizontalBox::Slot()
-			[
-				SAssignNew(ColumnMat, SListView<UCustomizableObjectNode*>)
-				.ListItemsSource(&MaterialNodes)
-				.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
-				.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
-				.SelectionMode(ESelectionMode::Single)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
-					+ SHeaderRow::Column("MaterialNode")
-					.DefaultLabel(LOCTEXT("MaterialNode_ColumnName", "Material Node"))
-					.FillWidth(0.3f)
-					.HAlignHeader(EHorizontalAlignment::HAlign_Center)
-					.HAlignCell(EHorizontalAlignment::HAlign_Center)
-				)
-			]
-			
-			+ SHorizontalBox::Slot()
-			[
-				SAssignNew(ColumnClipMesh, SListView<UCustomizableObjectNode*>)
-				.ListItemsSource(&ClipMeshNodes)
-				.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
-				.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
-					+ SHeaderRow::Column("ClipMeshNode")
-					.DefaultLabel(LOCTEXT("ClipMeshNode_ColumnName", "Clip Mesh Node"))
-					.FillWidth(0.3f)
-					.HAlignHeader(EHorizontalAlignment::HAlign_Center)
-					.HAlignCell(EHorizontalAlignment::HAlign_Center)
-				)
-			]
+			SAssignNew(ListViewWidget, SListView<TWeakObjectPtr<UCustomizableObjectNode>>)
+			.ListItemsSource(&Nodes)
+			.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
+			.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
+			.SelectionMode(ESelectionMode::Single)
+			.HeaderRow
+			(
+				SNew(SHeaderRow)
+				+ SHeaderRow::Column(COLUMN_OBJECT)
+				.DefaultLabel(LOCTEXT("CustomizableObject_ColumnName", "Customizable Object"))
+				.FillWidth(0.5f)
+				.HAlignHeader(EHorizontalAlignment::HAlign_Center)
+				.HAlignCell(EHorizontalAlignment::HAlign_Left)
+				.SortMode(this, &SCustomizableObjectEditorTagExplorer::GetColumnSortMode, COLUMN_OBJECT)
+				.OnSort(this, &SCustomizableObjectEditorTagExplorer::SortListView)
 
-			+ SHorizontalBox::Slot()
-			[
-				SAssignNew(ColumnClipMorph, SListView<UCustomizableObjectNode*>)
-				.ListItemsSource(&ClipMorphNodes)
-				.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
-				.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
-					+ SHeaderRow::Column("ClipMorphNode")
-					.DefaultLabel(LOCTEXT("ClipMorphNode_ColumnName", "Clip Morph Node"))
-					.FillWidth(0.3f)
-					.HAlignHeader(EHorizontalAlignment::HAlign_Center)
-					.HAlignCell(EHorizontalAlignment::HAlign_Center)
-				)
-			]
-	
-			+ SHorizontalBox::Slot()
-			[
-				SAssignNew(ColumnVar, SListView<UCustomizableObjectNode*>)
-				.ListItemsSource(&VariationNodes)
-				.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
-				.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
-					+ SHeaderRow::Column("VariationNode")
-					.DefaultLabel(LOCTEXT("VariationNode_ColumnName", "Variation Node"))
-					.FillWidth(0.3f)
-					.HAlignHeader(EHorizontalAlignment::HAlign_Center)
-					.HAlignCell(EHorizontalAlignment::HAlign_Center)
-				)
-			]
-
-			+ SHorizontalBox::Slot()
-			[
-				SAssignNew(ColumnExtend, SListView<UCustomizableObjectNode*>)
-				.ListItemsSource(&ExtendNodes)
-				.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
-				.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
-					+ SHeaderRow::Column("ExtendNode")
-					.DefaultLabel(LOCTEXT("ExtendNode_ColumnName", "Extend Node"))
-					.FillWidth(0.3f)
-					.HAlignHeader(EHorizontalAlignment::HAlign_Center)
-					.HAlignCell(EHorizontalAlignment::HAlign_Center)
-				)
-			]
-
-			+ SHorizontalBox::Slot()
-			[
-				SAssignNew(ColumnClipDeform, SListView<UCustomizableObjectNode*>)
-				.ListItemsSource(&ClipDeformNodes)
-				.OnGenerateRow(this, &SCustomizableObjectEditorTagExplorer::OnGenerateTableRow)
-				.OnSelectionChanged(this, &SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
-					+ SHeaderRow::Column("ClipDeform")
-					.DefaultLabel(LOCTEXT("ClipDeform_ColumnName", "Clip Deform Node"))
-					.FillWidth(0.3f)
-					.HAlignHeader(EHorizontalAlignment::HAlign_Center)
-					.HAlignCell(EHorizontalAlignment::HAlign_Center)
-				)
-			]
+				+ SHeaderRow::Column(COLUMN_TYPE)
+				.DefaultLabel(LOCTEXT("NodeType_ColumnName", "Node Type"))
+				.FillWidth(0.5f)
+				.HAlignHeader(EHorizontalAlignment::HAlign_Center)
+				.HAlignCell(EHorizontalAlignment::HAlign_Left)
+				.SortMode(this, &SCustomizableObjectEditorTagExplorer::GetColumnSortMode, COLUMN_TYPE)
+				.OnSort(this, &SCustomizableObjectEditorTagExplorer::SortListView)
+			)
 		]
 	];
 }
 
+
 TSharedRef<SWidget> SCustomizableObjectEditorTagExplorer::OnGetTagsMenuContent()
 {
-	bool bMultipleBaseObjectsFound = false;
 	NodeTags.Empty();
 
-	UCustomizableObject* CustomizableObject = CustomizableObjectEditorPtr->GetCustomizableObject();
-
-	if (!CustomizableObject)
+	if (UCustomizableObject* CustomizableObject = CustomizableObjectEditorPtr->GetCustomizableObject())
 	{
-		return SNullWidget::NullWidget;
-	}
+		TArray<FString> Tags;
+		TSet<UCustomizableObject*> CustomizableObjectTree;
 
-	UCustomizableObjectNodeObject* Root = GetRootNode(CustomizableObject, bMultipleBaseObjectsFound);
-	TArray<UCustomizableObject*> CustomizableObjectFamily;
-	TArray<FString> Tags;
+		GetAllObjectsInGraph(CustomizableObject, CustomizableObjectTree);
 
-	if (Root && !bMultipleBaseObjectsFound)
-	{
-		UCustomizableObject* AbsoluteCO = Root->ParentObject ? CustomizableObjectEditorPtr->GetAbsoluteCOParent(Root) : CustomizableObject;
-
-		if (AbsoluteCO)
+		for (const UCustomizableObject* CustObject : CustomizableObjectTree)
 		{
-			CustomizableObjectFamily.Add(AbsoluteCO);
-			// Stores external customizable objects
-			CustomizableObjectEditorPtr->GetExternalChildObjects(AbsoluteCO, CustomizableObjectFamily, true);
-
-			for (UCustomizableObject* CustObject : CustomizableObjectFamily)
+			if (CustObject)
 			{
-				FillTagInformation(CustObject, Tags);
+				FillTagInformation(*CustObject, Tags);
 			}
 		}
-	}
-	else
-	{
-		if (bMultipleBaseObjectsFound)
+
+		if (Tags.Num())
 		{
-			UE_LOG(LogTemp, Error, TEXT("Multiple base object nodes found. Can't check tags."));
+			FMenuBuilder MenuBuilder(true, NULL);
+
+			for (int32 TagIndex = 0; TagIndex < Tags.Num(); ++TagIndex)
+			{
+				FText TagText = FText::FromString(Tags[TagIndex]);
+				FUIAction Action(FExecuteAction::CreateSP(this, &SCustomizableObjectEditorTagExplorer::OnComboBoxSelectionChanged, Tags[TagIndex]));
+				MenuBuilder.AddMenuEntry(TagText, FText::GetEmpty(), FSlateIcon(), Action);
+			}
+
+			return MenuBuilder.MakeWidget();
 		}
-
-		if (!Root)
-		{
-			UE_LOG(LogTemp, Error, TEXT("No base object node found. Can't check tags."));
-		}
-	}
-
-	if (Tags.Num())
-	{
-		FMenuBuilder MenuBuilder(true, NULL);
-
-		for (int32 TagIndex = 0; TagIndex < Tags.Num(); ++TagIndex)
-		{
-			FText TagText = FText::FromString(Tags[TagIndex]);
-			FUIAction Action(FExecuteAction::CreateSP(this, &SCustomizableObjectEditorTagExplorer::OnComboBoxSelectionChanged, Tags[TagIndex]));
-			MenuBuilder.AddMenuEntry(TagText, FText::GetEmpty(), FSlateIcon(), Action);
-		}
-
-		return MenuBuilder.MakeWidget();
 	}
 
 	return SNullWidget::NullWidget;
 }
 
-void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObject * Object, TArray<FString>& Tags)
+
+void SCustomizableObjectEditorTagExplorer::FillTagInformation(const UCustomizableObject& Object, TArray<FString>& Tags)
 {
-	if (Object->GetPrivate()->GetSource())
+	if (Object.GetPrivate()->GetSource())
 	{
-		for (const TObjectPtr<UEdGraphNode>& Node : Object->GetPrivate()->GetSource()->Nodes)
+		for (const TObjectPtr<UEdGraphNode>& Node : Object.GetPrivate()->GetSource()->Nodes)
 		{
 			if (UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 			{
@@ -276,6 +175,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 				{
 					const FString& VairationTag = TypedNodeVariations->GetVariation(i).Tag; 
 					NodeTags.Add(VairationTag, TypedNodeVariations);
+					
 					if (Tags.Find(VairationTag) == INDEX_NONE)
 					{
 						Tags.Add(VairationTag);
@@ -288,6 +188,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 				for (int32 i = 0; i < TypedNodeClipMorph->Tags.Num(); ++i)
 				{
 					NodeTags.Add(TypedNodeClipMorph->Tags[i], TypedNodeClipMorph);
+					
 					if (Tags.Find(TypedNodeClipMorph->Tags[i]) == INDEX_NONE)
 					{
 						Tags.Add(TypedNodeClipMorph->Tags[i]);
@@ -300,6 +201,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 				for (int32 i = 0; i < TypedNodeClipMesh->Tags.Num(); ++i)
 				{
 					NodeTags.Add(TypedNodeClipMesh->Tags[i], TypedNodeClipMesh);
+					
 					if (Tags.Find(TypedNodeClipMesh->Tags[i]) == INDEX_NONE)
 					{
 						Tags.Add(TypedNodeClipMesh->Tags[i]);
@@ -312,6 +214,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 				for (int32 i = 0; i < TypedNodeClipMask->Tags.Num(); ++i)
 				{
 					NodeTags.Add(TypedNodeClipMask->Tags[i], TypedNodeClipMask);
+					
 					if (Tags.Find(TypedNodeClipMask->Tags[i]) == INDEX_NONE)
 					{
 						Tags.Add(TypedNodeClipMask->Tags[i]);
@@ -324,6 +227,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 				for (int32 i = 0; i < TypedNodeExtend->Tags.Num(); ++i)
 				{
 					NodeTags.Add(TypedNodeExtend->Tags[i], TypedNodeExtend);
+					
 					if (Tags.Find(TypedNodeExtend->Tags[i]) == INDEX_NONE)
 					{
 						Tags.Add(TypedNodeExtend->Tags[i]);
@@ -336,6 +240,7 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 				for (int32 i = 0; i < TypedNodeClipDeform->Tags.Num(); ++i)
 				{
 					NodeTags.Add(TypedNodeClipDeform->Tags[i], TypedNodeClipDeform);
+					
 					if (Tags.Find(TypedNodeClipDeform->Tags[i]) == INDEX_NONE)
 					{
 						Tags.Add(TypedNodeClipDeform->Tags[i]);
@@ -346,10 +251,12 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 	}
 }
 
+
 TSharedRef<SWidget> SCustomizableObjectEditorTagExplorer::MakeComboButtonItemWidget(TSharedPtr<FString> StringItem)
 {
 	return SNew(STextBlock).Text(FText::FromString(*StringItem));
 }
+
 
 FText SCustomizableObjectEditorTagExplorer::GetCurrentItemLabel() const
 {
@@ -361,6 +268,7 @@ FText SCustomizableObjectEditorTagExplorer::GetCurrentItemLabel() const
 	return LOCTEXT("InvalidComboEntryText", "None");
 }
 
+
 FReply SCustomizableObjectEditorTagExplorer::CopyTagToClipboard()
 {
 	if (!SelectedTag.IsEmpty())
@@ -371,95 +279,43 @@ FReply SCustomizableObjectEditorTagExplorer::CopyTagToClipboard()
 	return FReply::Handled();
 }
 
-void SCustomizableObjectEditorTagExplorer::OnComboBoxSelectionChanged(FString NewValue)
+
+void SCustomizableObjectEditorTagExplorer::OnComboBoxSelectionChanged(const FString NewValue)
 {
 	SelectedTag = NewValue;
 
 	if (!NewValue.IsEmpty())
 	{
-		TArray<UCustomizableObjectNode*> auxNodes;
-		NodeTags.MultiFind(NewValue, auxNodes, false);
+		TArray<UCustomizableObjectNode*> AllNodes;
+		NodeTags.MultiFind(NewValue, AllNodes, false);
 
-		MaterialNodes.Empty();
-		VariationNodes.Empty();
-		ClipMeshNodes.Empty();
-		ClipMorphNodes.Empty();
-		ExtendNodes.Empty();
-		ClipDeformNodes.Empty();
+		Nodes.Empty();
 
-		for (UCustomizableObjectNode* node : auxNodes)
+		for (UCustomizableObjectNode* Node : AllNodes)
 		{
-			if (Cast<UCustomizableObjectNodeMaterialBase>(node) && MaterialNodes.Find(node) == INDEX_NONE)
+			if (Node)
 			{
-				MaterialNodes.Add(node);
-			}
-
-			if (Cast<UCustomizableObjectNodeMaterialVariation>(node) && VariationNodes.Find(node) == INDEX_NONE)
-			{
-				VariationNodes.Add(node);
-			}
-
-			if (Cast<UCustomizableObjectNodeMeshClipMorph>(node) && ClipMorphNodes.Find(node) == INDEX_NONE)
-			{
-				ClipMorphNodes.Add(node);
-			}
-
-			if (Cast<UCustomizableObjectNodeMeshClipWithMesh>(node) && ClipMeshNodes.Find(node) == INDEX_NONE)
-			{
-				ClipMeshNodes.Add(node);
-			}
-			
-			if (Cast<UCustomizableObjectNodeExtendMaterial>(node) && ExtendNodes.Find(node) == INDEX_NONE)
-			{
-				ExtendNodes.Add(node);
-			}
-
-			if (Cast<UCustomizableObjectNodeMeshClipDeform>(node) && ClipDeformNodes.Find(node) == INDEX_NONE)
-			{
-				ClipDeformNodes.Add(node);
+				Nodes.Add(MakeWeakObjectPtr(Node));
 			}
 		}
 	}
 
-	if (ColumnMat.IsValid() && ColumnClipMesh.IsValid() && ColumnClipMorph.IsValid() && ColumnVar.IsValid() && ColumnExtend.IsValid() && ColumnClipDeform.IsValid())
+	if (ListViewWidget.IsValid())
 	{
-		ColumnMat.ToSharedRef()->RequestListRefresh();
-		ColumnClipMesh.ToSharedRef()->RequestListRefresh();
-		ColumnClipMorph.ToSharedRef()->RequestListRefresh();
-		ColumnVar.ToSharedRef()->RequestListRefresh();
-		ColumnExtend.ToSharedRef()->RequestListRefresh();
-		ColumnClipDeform.ToSharedRef()->RequestListRefresh();
+		ListViewWidget->RequestListRefresh();
 	}
 }
 
-TSharedRef<ITableRow> SCustomizableObjectEditorTagExplorer::OnGenerateTableRow(UCustomizableObjectNode * Node, const TSharedRef<STableViewBase>& OwnerTable)
+
+TSharedRef<ITableRow> SCustomizableObjectEditorTagExplorer::OnGenerateTableRow(TWeakObjectPtr<UCustomizableObjectNode> Node, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	bool multiRoot = false;
-	UCustomizableObject* NodeCO = Cast<UCustomizableObject>(Node->GetGraph()->GetOuter());
-	FString ObjectNode = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
-
-	if (NodeCO)
-	{
-		ObjectNode = GetRootNode(NodeCO, multiRoot)->GetNodeTitle(ENodeTitleType::MenuTitle).ToString();
-		int Indx = ObjectNode.Find("\n");
-		ObjectNode.RemoveAt(Indx, ObjectNode.Len() - Indx);
-	}
-
-	return SNew(STableRow<UCustomizableObjectNode*>, OwnerTable)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString(ObjectNode))
-		]
-		];
+	return SNew(STagExplorerTableRow, OwnerTable).CustomizableObjectNode(Node);
 }
 
-void SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged(UCustomizableObjectNode* Entry, ESelectInfo::Type SelectInfo) const
+
+void SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged(TWeakObjectPtr<UCustomizableObjectNode> Entry, ESelectInfo::Type SelectInfo) const
 {
-	if (Entry)
+	if (Entry.IsValid())
 	{
 		UObject* Object = Entry->GetCustomizableObjectGraph()->GetOuter();
 
@@ -468,18 +324,108 @@ void SCustomizableObjectEditorTagExplorer::OnTagTableSelectionChanged(UCustomiza
 
 		// Find it
 		TSharedPtr<ICustomizableObjectEditor> Editor = Entry->GetGraphEditor();
-		Editor->SelectNode(Entry);
+		Editor->SelectNode(Entry.Get());
 
-		if (ColumnMat.IsValid() && ColumnClipMesh.IsValid() && ColumnClipMorph.IsValid() && ColumnVar.IsValid() && ColumnExtend.IsValid() && ColumnClipDeform.IsValid())
+		if (ListViewWidget.IsValid())
 		{
-			ColumnMat.ToSharedRef()->ClearSelection();
-			ColumnClipMesh.ToSharedRef()->ClearSelection();
-			ColumnClipMorph.ToSharedRef()->ClearSelection();
-			ColumnVar.ToSharedRef()->ClearSelection();
-			ColumnExtend.ToSharedRef()->ClearSelection();
-			ColumnClipDeform.ToSharedRef()->RequestListRefresh();
+			ListViewWidget->ClearSelection();
+			ListViewWidget->RequestListRefresh();
 		}
 	}
+}
+
+
+void SCustomizableObjectEditorTagExplorer::SortListView(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type NewSortMode)
+{
+	CurrentSortColumn = ColumnId;
+	SortMode = NewSortMode;
+
+	if (ColumnId == SCustomizableObjectEditorTagExplorer::COLUMN_OBJECT)
+	{
+		Nodes.Sort([&](const TWeakObjectPtr<UCustomizableObjectNode>& NodeA, const TWeakObjectPtr<UCustomizableObjectNode>& NodeB)
+		{
+			if (NodeA.IsValid() && NodeB.IsValid())
+			{
+				FString NameA = GetNameSafe(NodeA->GetOutermostObject());
+				FString NameB = GetNameSafe(NodeB->GetOutermostObject());
+
+				return NewSortMode == EColumnSortMode::Ascending ? NameA < NameB : NameA > NameB;
+			}
+
+			return NodeA.IsValid();
+		});
+	}
+	else if (ColumnId == SCustomizableObjectEditorTagExplorer::COLUMN_TYPE)
+	{
+		Nodes.Sort([&](const TWeakObjectPtr<UCustomizableObjectNode>& NodeA, const TWeakObjectPtr<UCustomizableObjectNode>& NodeB)
+		{
+			if (NodeA.IsValid() && NodeB.IsValid())
+			{
+				const FString NodeTypeA = NodeA->GetNodeTitle(ENodeTitleType::ListView).ToString();
+				const FString NodeTypeB = NodeB->GetNodeTitle(ENodeTitleType::ListView).ToString();
+
+				return NewSortMode == EColumnSortMode::Ascending ? NodeTypeA < NodeTypeB : NodeTypeA > NodeTypeB;
+			}
+
+			return NodeA.IsValid();
+		});
+	}
+	else
+	{
+		check(false); // Unknown method.
+	}
+
+	ListViewWidget->RequestListRefresh();
+}
+
+
+EColumnSortMode::Type SCustomizableObjectEditorTagExplorer::GetColumnSortMode(const FName ColumnName) const
+{
+	if (CurrentSortColumn != ColumnName)
+	{
+		return EColumnSortMode::None;
+	}
+
+	return SortMode;
+}
+
+
+void STagExplorerTableRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTableView)
+{
+	Node = InArgs._CustomizableObjectNode;
+
+	SMultiColumnTableRow<TWeakObjectPtr<UCustomizableObjectNode> >::Construct(FSuperRowType::FArguments(), OwnerTableView);
+}
+
+
+TSharedRef<SWidget> STagExplorerTableRow::GenerateWidgetForColumn(const FName& InColumnName)
+{
+	if (InColumnName == SCustomizableObjectEditorTagExplorer::COLUMN_OBJECT)
+	{
+		if (Node.IsValid())
+		{
+			if (UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(Node->GetOutermostObject()))
+			{
+				return SNew(SBox).Padding(5.0f,0.0f,0.0f,0.0f)
+				[
+					SNew(STextBlock).Text(FText::FromString(CustomizableObject->GetName()))
+				];
+			}
+		}
+	}
+	
+	else if (InColumnName == SCustomizableObjectEditorTagExplorer::COLUMN_TYPE)
+	{
+		if (Node.IsValid())
+		{
+			return SNew(SBox).Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock).Text(Node->GetNodeTitle(ENodeTitleType::ListView))
+			];
+		}
+	}
+	
+	return SNullWidget::NullWidget;
 }
 
 #undef LOCTEXT_NAMESPACE 

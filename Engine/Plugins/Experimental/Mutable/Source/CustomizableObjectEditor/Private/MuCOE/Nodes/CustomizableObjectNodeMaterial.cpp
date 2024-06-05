@@ -688,16 +688,16 @@ void UCustomizableObjectNodeMaterial::PostEditChangeProperty(FPropertyChangedEve
 
 FText UCustomizableObjectNodeMaterial::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	if (Material)
+	if (TitleType == ENodeTitleType::ListView || !Material)
+	{
+		return LOCTEXT("Material", "Material");
+	}
+	else
 	{
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("MaterialName"), FText::FromString(Material->GetName()));
 
 		return FText::Format(LOCTEXT("Material_Title", "{MaterialName}\nMaterial"), Args);
-	}
-	else
-	{
-		return LOCTEXT("Material", "Material");
 	}
 }
 
