@@ -669,6 +669,12 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				file.FileInfo.Refresh();
 				FileEntry.SetPermissions(file.FileInfo!, file.FileEntry.Flags);
+
+				if((file.FileEntry.Flags & FileEntryFlags.HasModTime) != 0)
+				{
+					file.FileInfo.LastWriteTimeUtc = file.FileEntry.ModTime;
+				}
+
 				stats.Update(1, 0);
 			}
 		}
