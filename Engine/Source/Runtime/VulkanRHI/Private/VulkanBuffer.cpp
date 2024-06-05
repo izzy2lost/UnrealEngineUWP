@@ -639,8 +639,28 @@ void FVulkanDynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* D
 	VULKAN_SIGNAL_UNIMPLEMENTED();
 }
 
+void* FVulkanDynamicRHI::RHILockBuffer(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI, uint32 Offset, uint32 Size, EResourceLockMode LockMode)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_LockBuffer_RenderThread);
+	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanBuffers);
+	FVulkanResourceMultiBuffer* Buffer = ResourceCast(BufferRHI);
+
+	if (LockMode == RLM_ReadOnly)
+	{
+		// Lock in ReadOnly will call PrepareForCPURead on Device, so we can use the immediate context directly.
+		// This is a legacy path though, FRHIGPUBufferReadback should be used for reading back buffers.
+		return Buffer->Lock(Device->GetImmediateContext(), LockMode, Size, Offset);
+	}
+	else
+	{
+		return Buffer->Lock(RHICmdList, LockMode, Size, Offset);
+	}
+}
+
 void FVulkanDynamicRHI::RHIUnlockBuffer(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI)
 {
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_FDynamicRHI_UnlockBuffer_RenderThread);
-	FDynamicRHI::RHIUnlockBuffer(RHICmdList, BufferRHI);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_UnlockBuffer_RenderThread);
+	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanBuffers);
+	FVulkanResourceMultiBuffer* Buffer = ResourceCast(BufferRHI);
+	Buffer->Unlock(RHICmdList);
 }
