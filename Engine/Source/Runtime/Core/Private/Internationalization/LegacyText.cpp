@@ -70,6 +70,16 @@ bool FTextComparison::EqualToCaseIgnored( const FString& A, const FString& B )
 	return A.Equals(B, ESearchCase::IgnoreCase);
 }
 
+bool FTextComparison::Contains(const FString& TextToSearch, const FString& TextToFind, const ETextComparisonLevel::Type ComparisonLevel)
+{
+	return TextToSearch.Contains(TextToFind, ESearchCase::CaseSensitive);
+}
+
+bool FTextComparison::ContainsCaseIgnored(const FString& TextToSearch, const FString& TextToFind)
+{
+	return TextToSearch.Contains(TextToFind, ESearchCase::IgnoreCase);
+}
+
 FText::FSortPredicate::FSortPredicate(const ETextComparisonLevel::Type ComparisonLevel)
 {
 
