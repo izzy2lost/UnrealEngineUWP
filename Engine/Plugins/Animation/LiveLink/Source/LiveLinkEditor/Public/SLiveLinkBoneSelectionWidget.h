@@ -1,4 +1,4 @@
-/**  Copyright Epic Games, Inc. All Rights Reserved. */
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -45,7 +45,7 @@ public:
 	*
 	* @param	InArgs	The declaration data for this widget
 	*/
-	void Construct(const FArguments& InArgs, FLiveLinkSkeletonStaticData SkeletonStaticData);
+	void Construct(const FArguments& InArgs, TOptional<FLiveLinkSkeletonStaticData> SkeletonStaticData);
 
 	/** Get the filter text widget, e.g. for focus */
 	TSharedPtr<SWidget> GetFilterTextWidget();

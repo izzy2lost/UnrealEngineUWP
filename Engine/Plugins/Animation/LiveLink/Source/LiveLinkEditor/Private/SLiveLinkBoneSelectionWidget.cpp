@@ -21,11 +21,14 @@
 #define LOCTEXT_NAMESPACE "SLiveLinkBoneSelectionWidget"
 
 /////////////////////////////////////////////////////
-void SLiveLinkBoneTreeMenu::Construct(const FArguments& InArgs, FLiveLinkSkeletonStaticData InSkeletonStaticData)
+void SLiveLinkBoneTreeMenu::Construct(const FArguments& InArgs, TOptional<FLiveLinkSkeletonStaticData> InSkeletonStaticData)
 {
 	OnSelectionChangedDelegate = InArgs._OnBoneSelectionChanged;
-
-	SkeletonStaticData = MoveTemp(InSkeletonStaticData);
+	
+	if (InSkeletonStaticData)
+	{
+		SkeletonStaticData = MoveTemp(*InSkeletonStaticData);
+	}
 
 	FText TitleToUse = !InArgs._Title.IsEmpty() ? InArgs._Title  : LOCTEXT("BonePickerTitle", "Select...");
 
@@ -258,8 +261,7 @@ TSharedRef<SWidget> SLiveLinkBoneSelectionWidget::CreateSkeletonWidgetMenu()
 		}
 	}
 
-
-	TSharedRef<SLiveLinkBoneTreeMenu> MenuWidget = SNew(SLiveLinkBoneTreeMenu, MoveTemp(*SkeletonData))
+	TSharedRef<SLiveLinkBoneTreeMenu> MenuWidget = SNew(SLiveLinkBoneTreeMenu, MoveTemp(SkeletonData))
 		.OnBoneSelectionChanged(this, &SLiveLinkBoneSelectionWidget::OnSelectionChanged)
 		.SelectedBone(CurrentBoneName);
 
