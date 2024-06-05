@@ -106,6 +106,9 @@ struct FCustomDetailsViewArgs
 	/** Map of the Node Name to their Expanded State */
 	TMap<FCustomDetailsViewItemId, bool> ExpansionState;
 
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnExpansionStateChanged, const TSharedRef<ICustomDetailsViewItem>&, bool)
+	FOnExpansionStateChanged OnExpansionStateChanged;
+
 	/** Default value column width, as a percentage, 0-1. */
 	float ValueColumnWidth = 0.6f;
 

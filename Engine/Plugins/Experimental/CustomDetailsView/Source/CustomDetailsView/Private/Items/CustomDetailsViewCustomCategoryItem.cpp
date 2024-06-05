@@ -38,7 +38,7 @@ void FCustomDetailsViewCustomCategoryItem::CreateNameWidget()
 
 void FCustomDetailsViewCustomCategoryItem::RefreshItemId()
 {
-	ItemId = FCustomDetailsViewItemId::MakePropertyId(CategoryName);
+	ItemId = FCustomDetailsViewItemId::MakeCategoryId(CategoryName);
 }
 
 void FCustomDetailsViewCustomCategoryItem::SetLabel(const FText& InLabel)

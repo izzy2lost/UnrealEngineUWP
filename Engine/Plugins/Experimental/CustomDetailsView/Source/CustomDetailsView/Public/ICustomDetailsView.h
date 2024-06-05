@@ -100,4 +100,10 @@ public:
 
 	/** Find a previously added custom item. */
 	virtual TSharedPtr<ICustomDetailsViewItem> FindCustomItem(const FName& InItemName) const = 0;
+
+	/** Returns the current expansion state of an item. Returns true if the item state was found. */
+	virtual bool GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool& bOutExpanded) const = 0;
+
+	/** Sets the current expansion state of an item. */
+	virtual void SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool bInExpanded) = 0;
 };

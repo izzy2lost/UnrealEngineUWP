@@ -142,6 +142,7 @@ void SCustomDetailsView::OnExpansionChanged(TSharedPtr<ICustomDetailsViewItem> I
 		return;
 	}
 	ViewArgs.ExpansionState.Add(InItem->GetItemId(), bInExpanded);
+	ViewArgs.OnExpansionStateChanged.Broadcast(InItem.ToSharedRef(), bInExpanded);
 }
 
 void SCustomDetailsView::SetExpansionRecursive(TSharedPtr<ICustomDetailsViewItem> InItem, bool bInExpand)
@@ -321,6 +322,22 @@ bool SCustomDetailsView::FilterItems(const TArray<FString>& InFilterStrings)
 	}
 
 	return false;
+}
+
+bool SCustomDetailsView::GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool& bOutExpanded) const
+{
+	if (const bool* State = ViewArgs.ExpansionState.Find(InItemId))
+	{
+		bOutExpanded = *State;
+		return true;
+	}
+
+	return false;
+}
+
+void SCustomDetailsView::SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool bInExpanded)
+{
+	ViewArgs.ExpansionState.FindOrAdd(InItemId) = bInExpanded;
 }
 
 bool SCustomDetailsView::ShouldRebuildImmediately(ECustomDetailsViewBuildType InBuildType) const

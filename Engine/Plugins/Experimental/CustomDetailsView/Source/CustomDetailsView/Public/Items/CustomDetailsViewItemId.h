@@ -61,6 +61,8 @@ public:
 
 	bool IsValid() const { return bHasCachedHash; }
 
+	const FString& GetItemName() const { return ItemName; }
+
 	uint32 GetItemType() const { return ItemType; }
 
 	bool IsType(EDetailNodeType InType) const;
