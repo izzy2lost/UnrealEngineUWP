@@ -89,8 +89,9 @@ void FDataflowInput::PullValue(Dataflow::FContext& Context) const
 void FDataflowInput::FixAndPropagateType(FName InType)
 {
 	check(InType.ToString().StartsWith(Type.ToString()));
-	const bool bSuccess = OwningNode->TrySetConnectionType(this, InType);
-	if (bSuccess)
+	// first try to fix as a legal change to give a chance for the node to proapagte the type changes if necessary
+	const bool bNeedToPropagate = OwningNode->TrySetConnectionType(this, InType);
+	if (bNeedToPropagate)
 	{
 		if (FDataflowReRouteNode* ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
 		{
@@ -99,6 +100,12 @@ void FDataflowInput::FixAndPropagateType(FName InType)
 				Output->FixAndPropagateType(InType);
 			}
 		}
+	}
+	else
+	{
+		// Simply fix the type  ( at this point we should not be a anytype )
+		check(!bIsAnyType);
+		Type = InType;
 	}
 }
 
@@ -292,8 +299,9 @@ void FDataflowOutput::ForwardInput(const FDataflowInput* Input, Dataflow::FConte
 void FDataflowOutput::FixAndPropagateType(FName InType)
 {
 	check(InType.ToString().StartsWith(Type.ToString()));
-	const bool bSuccess = OwningNode->TrySetConnectionType(this, InType);
-	if (bSuccess)
+	// first try to fix as a legal change to give a chance for the node to proapagte the type changes if necessary
+	const bool bNeedToPropagate = OwningNode->TrySetConnectionType(this, InType);
+	if (bNeedToPropagate)
 	{
 		if (FDataflowReRouteNode* ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
 		{
@@ -305,5 +313,11 @@ void FDataflowOutput::FixAndPropagateType(FName InType)
 				}
 			}
 		}
+	}
+	else
+	{
+		// Simply fix the type  ( at this point we should not be a anytype )
+		check(!bIsAnyType);
+		Type = InType;
 	}
 }
