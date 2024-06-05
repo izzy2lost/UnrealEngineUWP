@@ -40,7 +40,7 @@ namespace HarmonixMetasound
 	using namespace Metasound;
 
 	FMidiClock::FMidiClock(const FOperatorSettings& InSettings)
-		: SongMapEvaluator(MakeShared<FSongMapsWithAlternateTempoSource>(MakeClockConductorMidiData(120.0f, 4, 4)))
+		: SongMapEvaluator(MakeShared<FSongMapsWithAlternateTempoSource>(MakeShared<FSongMaps>(120.0f, 4, 4)))
 		, CurrentTempoInfoPointIndex(0)
 		, CurrentTimeSignaturePointIndex(0)
 		, TickResidualWhenDriven(0.0f)
@@ -154,23 +154,23 @@ namespace HarmonixMetasound
 		return *this;
 	}
 
-	void FMidiClock::AttachToMidiFile(TSharedPtr<FMidiFileData> MidiData, bool ResetToStart)
+	void FMidiClock::AttachToSongMapEvaluator(TSharedPtr<ISongMapEvaluator> SongMaps, bool ResetToStart)
 	{
 		MidiDataChangedInBlock = true;
-		if (!MidiData)
+		if (!SongMaps)
 		{
-			MidiData = MakeClockConductorMidiData(TempoAtBlockEnd, TimeSignatureAtBlockEnd.Numerator, TimeSignatureAtBlockEnd.Denominator);
+			SongMaps = MakeShared<FSongMaps>(TempoAtBlockEnd, TimeSignatureAtBlockEnd.Numerator, TimeSignatureAtBlockEnd.Denominator);
 		}
 
 		if (ExternalClockDriver)
 		{
 			// use the tempo from the external clock...
-			RebuildSongMapEvaluator(ExternalClockDriver->SongMapEvaluator->GetMidiFileWithTempoMap(), MidiData);
+			RebuildSongMapEvaluator(ExternalClockDriver->SongMapEvaluator->GetSongMapsWithTempoMap(), SongMaps);
 		}
 		else
 		{
 			// All maps come from the same source...
-			RebuildSongMapEvaluator(MidiData, MidiData);
+			RebuildSongMapEvaluator(SongMaps, SongMaps);
 		}
 
 		if (ResetToStart)
@@ -180,15 +180,15 @@ namespace HarmonixMetasound
 		PostTempoOrTimeSignatureEventsIfNeeded();
 	}
 
-	void FMidiClock::MidiChanged()
+	void FMidiClock::SongMapsChanged()
 	{
 		MidiDataChangedInBlock = true;
 		PostTempoOrTimeSignatureEventsIfNeeded();
 	}
 
-	void FMidiClock::DetachFromMidiFile()
+	void FMidiClock::DetachFromSongMaps()
 	{
-		AttachToMidiFile(nullptr, false);
+		AttachToSongMapEvaluator(nullptr, false);
 	}
 
 	void FMidiClock::SetDrivingClock(FConstSharedMidiClockPtr NewExternalClockDriver)
@@ -196,9 +196,9 @@ namespace HarmonixMetasound
 		MidiDataChangedInBlock = true;
 		ExternalClockDriver = NewExternalClockDriver;
 		RebuildSongMapEvaluator(ExternalClockDriver ? 
-									ExternalClockDriver->SongMapEvaluator->GetMidiFileWithTempoMap() : 
-									SongMapEvaluator->GetMidiFileWithOtherMaps(),
-								SongMapEvaluator->GetMidiFileWithOtherMaps());
+									ExternalClockDriver->SongMapEvaluator->GetSongMapsWithTempoMap() : 
+									SongMapEvaluator->GetSongMapsWithOtherMaps(),
+								SongMapEvaluator->GetSongMapsWithOtherMaps());
 	}
 
 	void FMidiClock::PrepareBlock()
@@ -223,7 +223,7 @@ namespace HarmonixMetasound
 
 		if (ExternalClockDriver && ExternalClockDriver->MidiDataChangedInBlock)
 		{
-			RebuildSongMapEvaluator(ExternalClockDriver->SongMapEvaluator->GetMidiFileWithTempoMap(), SongMapEvaluator->GetMidiFileWithOtherMaps());
+			RebuildSongMapEvaluator(ExternalClockDriver->SongMapEvaluator->GetSongMapsWithTempoMap(), SongMapEvaluator->GetSongMapsWithOtherMaps());
 			PostTempoOrTimeSignatureEventsIfNeeded();
 		}
 	}
@@ -566,39 +566,6 @@ namespace HarmonixMetasound
 			}
 		}
 		return Tick;
-	}
-
-	TSharedPtr<FMidiFileData> FMidiClock::MakeClockConductorMidiData(float InTempoBPM, int32 InTimeSigNum, int32 InTimeSigDen)
-	{
-		TSharedPtr<FMidiFileData> OutMidiData = MakeShared<FMidiFileData>();
-
-		// clear it all out for good measure...
-		FTempoMap& TempoMap = OutMidiData->SongMaps.GetTempoMap();
-		TempoMap.Empty();
-		FBarMap& BarMap = OutMidiData->SongMaps.GetBarMap();
-		BarMap.Empty();
-		OutMidiData->Tracks.Empty();
-
-		// create conductor track
-		FMidiTrack& Track = OutMidiData->Tracks.Add_GetRef(FMidiTrack(TEXT("conductor")));
-		// max out song length data so the midi can play indefinitely
-		OutMidiData->ConformToLength(std::numeric_limits<int32>::max());
-
-		// add time sig info
-		int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
-		int32 TimeSigDen = FMath::Clamp(InTimeSigDen, 1, 64);
-		Track.AddEvent(FMidiEvent(0, FMidiMsg((uint8)TimeSigNum, (uint8)TimeSigDen)));
-		BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDen);
-
-		// add tempo info
-		float TempoBPM = FMath::Max(1.0f, InTempoBPM);
-		int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
-		Track.AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		TempoMap.AddTempoInfoPoint(MidiTempo, 0);
-
-		Track.Sort();
-
-		return OutMidiData;
 	}
 
 	int32 FMidiClock::GetNextTickToProcessAtBlockFrame(int32 BlockFrame) const
@@ -1012,9 +979,9 @@ namespace HarmonixMetasound
 		}
 	}
 
-	void FMidiClock::RebuildSongMapEvaluator(const TSharedPtr<const FMidiFileData>& MidiWithTempo, const TSharedPtr<const FMidiFileData>& MidiWithOtherMaps)
+	void FMidiClock::RebuildSongMapEvaluator(const TSharedPtr<const ISongMapEvaluator>& MapWithTempo, const TSharedPtr<const ISongMapEvaluator>& MapWithOtherMaps)
 	{
-		SongMapEvaluator = MakeShared<FSongMapsWithAlternateTempoSource>(MidiWithTempo, MidiWithOtherMaps);
+		SongMapEvaluator = MakeShared<FSongMapsWithAlternateTempoSource>(MapWithTempo, MapWithOtherMaps);
 	}
 
 }

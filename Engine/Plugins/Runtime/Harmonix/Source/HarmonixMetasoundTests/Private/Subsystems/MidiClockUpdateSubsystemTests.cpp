@@ -17,20 +17,13 @@ namespace HarmonixMetasoundTests::MidiClockUpdateSubsystem
 			int32 TimeSigNum,
 			int32 TimeSigDenom)
 		{
-			const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-			check(MidiData);
+			const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Tempo, TimeSigNum, TimeSigDenom);
+			check(SongMaps);
 			
-			MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
-			MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-			const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
-			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-			MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
-			MidiData->Tracks[0].Sort();
-			MidiData->ConformToLength(std::numeric_limits<int32>::max());
+			SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
 			HarmonixMetasound::FMidiClock Clock{ OperatorSettings };
-			Clock.AttachToMidiFile(MidiData);
+			Clock.AttachToSongMapEvaluator(SongMaps);
 			Clock.SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 			return Clock;

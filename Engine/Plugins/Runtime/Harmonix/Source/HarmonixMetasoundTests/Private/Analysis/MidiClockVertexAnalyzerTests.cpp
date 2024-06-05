@@ -41,22 +41,12 @@ namespace HarmonixMetasoundTests::MidiClockVertexAnalyzer
 
 	void ResetAndStartClock(const HarmonixMetasound::FMidiClockWriteRef& ClockInput, float Tempo, float Speed, int32 TimeSigNumerator, int32 TimeSigDenominator)
 	{
-		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-		check(MidiData);
+		const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Tempo, TimeSigNumerator, TimeSigDenominator);
+		check(SongMaps);
 
-		MidiData->SongMaps.EmptyAllMaps();
-		MidiData->Tracks.Empty();
+		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
-		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNumerator), static_cast<uint8>(TimeSigDenominator))));
-		MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNumerator, TimeSigDenominator);
-		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
-		MidiData->Tracks[0].Sort();
-		MidiData->ConformToLength(std::numeric_limits<int32>::max());
-
-		ClockInput->AttachToMidiFile(MidiData);
+		ClockInput->AttachToSongMapEvaluator(SongMaps);
 		ClockInput->SeekTo(0,0);
 		ClockInput->SetSpeed(0, Speed);
 		ClockInput->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);

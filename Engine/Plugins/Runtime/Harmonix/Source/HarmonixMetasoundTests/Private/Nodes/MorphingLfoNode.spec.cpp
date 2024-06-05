@@ -62,22 +62,12 @@ namespace HarmonixMetasoundTests::MorphingLFONode
 			return false;
 		}
 		
-		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-		check(MidiData);
+		const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Tempo, TimeSigNumerator, TimeSigDenominator);
+		check(SongMaps);
 
-		MidiData->SongMaps.EmptyAllMaps();
-		MidiData->Tracks.Empty();
+		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
-		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNumerator), static_cast<uint8>(TimeSigDenominator))));
-		MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNumerator, TimeSigNumerator);
-		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
-		MidiData->Tracks[0].Sort();
-		MidiData->ConformToLength(std::numeric_limits<int32>::max());
-
-		(*ClockInput)->AttachToMidiFile(MidiData);
+		(*ClockInput)->AttachToSongMapEvaluator(SongMaps);
 		(*ClockInput)->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 		(*ClockInput)->SetSpeed(0, Speed);
 

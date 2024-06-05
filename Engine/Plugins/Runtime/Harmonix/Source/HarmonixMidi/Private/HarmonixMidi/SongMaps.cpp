@@ -988,6 +988,23 @@ void FSongMaps::SetLengthTotalBars(int32 Bars)
 	LengthData.LengthFractionalBars = Bars;
 }
 
+void FSongMaps::AddTempoChange(int32 Tick, float TempoBPM)
+{
+	int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
+	AddTempoInfoPoint(MidiTempo, Tick);
+}
+
+void FSongMaps::AddTimeSigChange(int32 Tick, int32 InTimeSigNum, int32 InTimeSigDenom)
+{
+	// Time signature changes can only happen at the beginning of a bar,
+	// so round up to the next bar boundary...
+	int32 AbsoluteBar = FMath::CeilToInt32(GetBarIncludingCountInAtTick(Tick));
+	Tick = BarBeatTickIncludingCountInToTick(AbsoluteBar, 1, 0);
+	int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
+	int32 TimeSigDenom = FMath::Clamp(InTimeSigDenom, 1, 64);
+	AddTimeSignatureAtBarIncludingCountIn(AbsoluteBar, TimeSigNum, TimeSigDenom);
+}
+
 int32 ISongMapEvaluator::CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidiClockSubdivisionQuantization Quantize) const
 {
 	const FBarMap& BarMap = GetBarMap();
@@ -1193,30 +1210,30 @@ bool ISongMapEvaluator::ChordMapIsEmpty() const
 
 const FTempoMap& FSongMapsWithAlternateTempoSource::GetTempoMap() const
 {
-	return MidiFileWithTempoMap->SongMaps.GetTempoMap();
+	return SongMapsWithTempoMap->GetTempoMap();
 }
 
 const FBeatMap& FSongMapsWithAlternateTempoSource::GetBeatMap() const
 {
-	return MidiFileWithOtherMaps->SongMaps.GetBeatMap();
+	return SongMapsWithOtherMaps->GetBeatMap();
 }
 
 const FBarMap& FSongMapsWithAlternateTempoSource::GetBarMap() const
 {
-	return MidiFileWithOtherMaps->SongMaps.GetBarMap();
+	return SongMapsWithOtherMaps->GetBarMap();
 }
 
 const FSectionMap& FSongMapsWithAlternateTempoSource::GetSectionMap() const
 {
-	return MidiFileWithOtherMaps->SongMaps.GetSectionMap();
+	return SongMapsWithOtherMaps->GetSectionMap();
 }
 
 const FChordProgressionMap& FSongMapsWithAlternateTempoSource::GetChordMap() const
 {
-	return MidiFileWithOtherMaps->SongMaps.GetChordMap();
+	return SongMapsWithOtherMaps->GetChordMap();
 }
 
 const FSongLengthData& FSongMapsWithAlternateTempoSource::GetSongLengthData() const
 {
-	return MidiFileWithOtherMaps->SongMaps.GetSongLengthData();
+	return SongMapsWithOtherMaps->GetSongLengthData();
 }

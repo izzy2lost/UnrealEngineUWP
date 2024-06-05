@@ -41,37 +41,19 @@ namespace HarmonixMetasoundTests::MidiSongPosVertexAnalyzer
 
 	void ResetAndStartClock(const HarmonixMetasound::FMidiClockWriteRef& ClockInput)
 	{
-		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-		check(MidiData);
+		const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(240.3f, 4, 4);
+		check(SongMaps);
 
-		MidiData->SongMaps.EmptyAllMaps();
-		MidiData->Tracks.Empty();
+		SongMaps->AddTimeSignatureAtBarIncludingCountIn(4, 7, 8);
+		SongMaps->AddTempoChange(960, 200.0f);
+		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
-		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(4), static_cast<uint8>(4))));
-		MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, 4, 4);
-
-		MidiData->Tracks[0].AddEvent(FMidiEvent(960 * 4 * 4, FMidiMsg(static_cast<uint8>(7), static_cast<uint8>(8))));
-		MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(4, 7, 8);
-
-		int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(240.3);
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
-
-		MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(200);
-		MidiData->Tracks[0].AddEvent(FMidiEvent(960, FMidiMsg(MidiTempo)));
-		MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 960);
-
-		MidiData->Tracks[0].Sort();
-
-		MidiData->ConformToLength(std::numeric_limits<int32>::max());
-
-		ClockInput->AttachToMidiFile(MidiData);
+		ClockInput->AttachToSongMapEvaluator(SongMaps);
 		ClockInput->SeekTo(0,0);
 		ClockInput->SetSpeed(0, 1.0f);
 		ClockInput->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
-		int32 Bar1Tick = MidiData->SongMaps.BarBeatTickIncludingCountInToTick(1, 1, 0);
-		int32 Bar7Tick = MidiData->SongMaps.BarBeatTickIncludingCountInToTick(7, 1, 0);
+		int32 Bar1Tick = SongMaps->BarBeatTickIncludingCountInToTick(1, 1, 0);
+		int32 Bar7Tick = SongMaps->BarBeatTickIncludingCountInToTick(7, 1, 0);
 		ClockInput->SetupPersistentLoop(Bar1Tick, Bar7Tick - Bar1Tick);
 	}
 	

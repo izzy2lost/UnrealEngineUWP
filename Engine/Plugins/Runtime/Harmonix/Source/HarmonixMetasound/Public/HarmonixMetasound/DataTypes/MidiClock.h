@@ -46,9 +46,10 @@ namespace HarmonixMetasound
 		virtual ~FMidiClock();
 		FMidiClock& operator=(const FMidiClock& Other);
 
-		void AttachToMidiFile(TSharedPtr<FMidiFileData> MidiData, bool ResetToStart = true);
-		void MidiChanged();
-		void DetachFromMidiFile();
+		void AttachToSongMapEvaluator(TSharedPtr<ISongMapEvaluator> SongMaps, bool ResetToStart = true);
+		void SongMapsChanged();
+		void DetachFromSongMaps();
+
 		const ISongMapEvaluator& GetSongMapEvaluator() const { return *SongMapEvaluator; }
 
 		void SetDrivingClock(FConstSharedMidiClockPtr NewExternalClockDriver);
@@ -162,11 +163,7 @@ namespace HarmonixMetasound
 		 */
 		int32 WrapTickIfLooping(int32 Tick) const;
 		
-		// Creates a new FMidiFileData with the given starting Tempo and Time Signature
-		// With max song length to be played indefinitely. Useful for Midi Clock Metronomes.
-		static TSharedPtr<FMidiFileData> MakeClockConductorMidiData(float TempoBPM, int32 TimeSigNum, int32 TimeSigDen);
-
-		bool GetMidiDataChangedInBlock() const { return MidiDataChangedInBlock; }
+		bool GetSongMapsChangedInBlock() const { return MidiDataChangedInBlock; }
 
 	private:
 		int32 GetNextTickToProcessAtBlockFrame(int32 BlockFrame) const;
@@ -186,7 +183,7 @@ namespace HarmonixMetasound
 		void AddLoopToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 LoopLength);
 		void AddSeekToBlock(int32 BlockFrameIndex, int32 ToTick);
 		void AddAdvanceToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 NumTicks);
-		void RebuildSongMapEvaluator(const TSharedPtr<const FMidiFileData>& MidiWithTempo, const TSharedPtr<const FMidiFileData>& MidiWithOtherMaps);
+		void RebuildSongMapEvaluator(const TSharedPtr<const ISongMapEvaluator>& MidiWithTempo, const TSharedPtr<const ISongMapEvaluator>& MidiWithOtherMaps);
 
 		TSharedPtr<FSongMapsWithAlternateTempoSource> SongMapEvaluator;
 		int32 CurrentTempoInfoPointIndex;

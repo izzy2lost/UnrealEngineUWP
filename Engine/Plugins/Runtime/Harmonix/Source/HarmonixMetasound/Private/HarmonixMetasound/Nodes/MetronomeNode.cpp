@@ -64,7 +64,7 @@ namespace HarmonixMetasound
 
 		//** DATA
 		TSharedPtr<FMidiClock, ESPMode::NotThreadSafe> MonotonicallyIncreasingClock;
-		TSharedPtr<FMidiFileData> MidiData;
+		TSharedPtr<FSongMaps> SongMaps;
 		FSampleCount BlockSize;
 		float        SampleRate;
 		float        CurrentTempo;
@@ -74,7 +74,7 @@ namespace HarmonixMetasound
 		int32		 NextClockTickToProcess = 0;
 		bool		 bClocksArePreparedForExecute = true;
 
-		void BuildMidiData(bool ResetToStart = true);
+		void BuildSongMaps(bool ResetToStart = true);
 		void UpdateMidi();
 		void AddTempoChangeForMidi(float TempoBPM);
 		void AddTimeSigChangeForMidi(int32 TimeSigNum, int32 TimeSigDenom);
@@ -235,7 +235,7 @@ namespace HarmonixMetasound
 			MidiClockOutPin->SetDrivingClock(MonotonicallyIncreasingClock);
 		}
 
-		BuildMidiData();
+		BuildSongMaps();
 		
 		FTransportInitFn InitFn = [this](EMusicPlayerTransportState CurrentState)
 		{
@@ -298,7 +298,7 @@ namespace HarmonixMetasound
 				// Play from the beginning if we haven't received a seek call while we were stopped...
 				if (!ReceivedSeekWhileStopped())
 				{
-					BuildMidiData(true);
+					BuildSongMaps(true);
 					LastProcessedClockTick = -1;
 					NextClockTickToProcess = 0;
 				}
@@ -309,7 +309,7 @@ namespace HarmonixMetasound
 				return EMusicPlayerTransportState::Playing;
 				
 			case EMusicPlayerTransportState::Seeking:
-				BuildMidiData(false);
+				BuildSongMaps(false);
 				DrivingMidiClock.SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination());
 				LastProcessedClockTick = DrivingMidiClock.GetLastProcessedMidiTick();
 				NextClockTickToProcess = DrivingMidiClock.GetNextMidiTickToProcess();
@@ -330,25 +330,25 @@ namespace HarmonixMetasound
 		MarkClocksAsExecuted();
 	}
 
-	void FMetronomeOperator::BuildMidiData(bool ResetToStart)
+	void FMetronomeOperator::BuildSongMaps(bool ResetToStart)
 	{
 		// make sure we have valid values
 		CurrentTempo = FMath::Max(1.0f, *TempoInPin);
 		CurrentTimeSigNum = FMath::Max(1, *TimeSigNumInPin);
 		CurrentTimeSigDenom = FMath::Max(1, *TimeSigDenomInPin);
 	
-		MidiData = FMidiClock::MakeClockConductorMidiData(CurrentTempo, CurrentTimeSigNum, CurrentTimeSigDenom);
+		SongMaps = MakeShared<FSongMaps>(CurrentTempo, CurrentTimeSigNum, CurrentTimeSigDenom);
 		
 		if (LoopInPin)
 		{
-			MonotonicallyIncreasingClock->AttachToMidiFile(MidiData, ResetToStart);
+			MonotonicallyIncreasingClock->AttachToSongMapEvaluator(SongMaps, ResetToStart);
 
 			// midi clock out will follow the tempo of the monotonically increasing clock
 			// so just assign it to some reasonable values. They will be ignored
-			TSharedPtr<FMidiFileData> MidiDataOut = FMidiClock::MakeClockConductorMidiData(120.0f, CurrentTimeSigNum, CurrentTimeSigDenom);
-			MidiClockOutPin->AttachToMidiFile(MidiDataOut, ResetToStart);
+			TSharedPtr<FSongMaps> SongMapsOut = MakeShared<FSongMaps>(120.0f, CurrentTimeSigNum, CurrentTimeSigDenom);
+			MidiClockOutPin->AttachToSongMapEvaluator(SongMapsOut, ResetToStart);
 			
-			int32 LoopEndTick = MidiDataOut->SongMaps.BarIncludingCountInToTick(FMath::Max(LoopLengthBarsInPin, 1));
+			int32 LoopEndTick = SongMapsOut->BarIncludingCountInToTick(FMath::Max(LoopLengthBarsInPin, 1));
 			// LoopEndTick == Loop Length since we are starting the loop at tick 0...
 			MidiClockOutPin->SetupPersistentLoop(0, LoopEndTick);
 		}
@@ -356,7 +356,7 @@ namespace HarmonixMetasound
 		{
 			// if we're not looping, then the MidiClockOut is going to be the driving midi clock
 			// so attach the midi data directly to it
-			MidiClockOutPin->AttachToMidiFile(MidiData);
+			MidiClockOutPin->AttachToSongMapEvaluator(SongMaps);
 			MidiClockOutPin->ClearPersistentLoop();
 		}
 	}
@@ -391,7 +391,7 @@ namespace HarmonixMetasound
 
 		if (HasMidiChanges)
 		{
-			DrivingMidiClock.MidiChanged();
+			DrivingMidiClock.SongMapsChanged();
 		}
 	}
 
@@ -399,7 +399,7 @@ namespace HarmonixMetasound
 	{
 		CurrentTempo = InTempoBPM;
 		int32 AtTick = GetDrivingMidiClock().GetNextMidiTickToProcess();
-		MidiData->AddTempoChange(0, AtTick, CurrentTempo);
+		SongMaps->AddTempoChange(AtTick, CurrentTempo);
 	}
 
 	void FMetronomeOperator::AddTimeSigChangeForMidi(int32 InTimeSigNum, int32 InTimeSigDenom)
@@ -408,12 +408,12 @@ namespace HarmonixMetasound
 		CurrentTimeSigDenom = InTimeSigDenom;
 		int32 AtTick = GetDrivingMidiClock().GetNextMidiTickToProcess();
 		// round to the next bar boundary, the bar we're actually going to apply the time sig change to
-		int32 AtBar = FMath::CeilToInt32(MidiData->SongMaps.GetBarIncludingCountInAtTick(AtTick));
-		int32 NumTimeSigPoints = MidiData->SongMaps.GetNumTimeSignatureChanges();
+		int32 AtBar = FMath::CeilToInt32(SongMaps->GetBarIncludingCountInAtTick(AtTick));
+		int32 NumTimeSigPoints = SongMaps->GetNumTimeSignatureChanges();
 
 		// check if there's already a time signature point at the bar we're trying to update
 		// the metronome clock increases monotonically, so we just have to check the _last_ point
-		FTimeSignaturePoint* Point = MidiData->SongMaps.GetMutableTimeSignaturePoint(NumTimeSigPoints - 1);
+		FTimeSignaturePoint* Point = SongMaps->GetMutableTimeSignaturePoint(NumTimeSigPoints - 1);
 		check(Point);
 		if (Point->BarIndex == AtBar)
 		{
@@ -423,7 +423,7 @@ namespace HarmonixMetasound
 		}
 		else
 		{
-			MidiData->AddTimeSigChange(0, AtTick, CurrentTimeSigNum, CurrentTimeSigDenom);
+			SongMaps->AddTimeSigChange(AtTick, CurrentTimeSigNum, CurrentTimeSigDenom);
 		}
 	}
 

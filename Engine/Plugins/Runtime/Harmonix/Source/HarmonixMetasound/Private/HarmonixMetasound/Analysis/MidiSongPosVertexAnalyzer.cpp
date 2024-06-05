@@ -58,7 +58,7 @@ namespace HarmonixMetasound::Analysis
 
 		TSharedPtr<const FSongMapChain> MapChain = History->GetLatestMapsForProducer();
 
-		if (!MapChain->SongMaps || Clock.GetMidiDataChangedInBlock() ||
+		if (!MapChain->SongMaps || Clock.GetSongMapsChangedInBlock() ||
 			Clock.GetFirstTickInLoop() != MapChain->FirstTickInLoop ||
 			Clock.GetLoopLengthTicks() != MapChain->LoopLengthTicks)
 		{

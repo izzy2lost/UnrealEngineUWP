@@ -21,7 +21,7 @@ namespace Harmonix::Midi::Ops::Tests
 		constexpr uint8 TimeSigNumerator = 4;
 		constexpr uint8 TimeSigDenominator = 4;
 		const auto Clock = MakeShared<HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>(OperatorSettings);
-		Clock->AttachToMidiFile(HarmonixMetasound::FMidiClock::MakeClockConductorMidiData(Tempo, TimeSigNumerator, TimeSigDenominator));
+		Clock->AttachToSongMapEvaluator(MakeShared<FSongMaps>(Tempo, TimeSigNumerator, TimeSigDenominator));
 		
 		HarmonixMetasound::FMidiStream OutputStream;
 

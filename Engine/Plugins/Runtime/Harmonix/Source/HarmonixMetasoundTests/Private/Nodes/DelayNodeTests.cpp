@@ -240,24 +240,12 @@ namespace HarmonixMetasoundTests::DelayNode
 			{
 				return false;
 			}
-			const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-			check(MidiData);
+			const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Tempo, TimeSigNum, TimeSigDenom);
+			check(SongMaps);
 
-			MidiData->SongMaps.EmptyAllMaps();
-			MidiData->Tracks.Empty();
+			SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
-			MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
-			MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-			const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
-			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-			MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
-			MidiData->Tracks[0].Sort();
-			MidiData->ConformToLength(std::numeric_limits<int32>::max());
-			MidiData->SongMaps.GetSongLengthData().LengthTicks = std::numeric_limits<int32>::max();
-			MidiData->SongMaps.GetSongLengthData().LengthFractionalBars = std::numeric_limits<float>::max();
-
-			(*ClockInput)->AttachToMidiFile(MidiData);
+			(*ClockInput)->AttachToSongMapEvaluator(SongMaps);
 			(*ClockInput)->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 			SampleRemainder = 0;

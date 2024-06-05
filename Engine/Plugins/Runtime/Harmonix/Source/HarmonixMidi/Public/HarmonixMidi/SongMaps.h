@@ -177,8 +177,9 @@ public:
 	//virtual FSongLengthData& GetSongLengthData() = 0;
 	virtual const FSongLengthData& GetSongLengthData() const = 0;
 
-private:
+protected:
 	friend struct FSongMaps;
+	friend struct FSongMapsWithAlternateTempoSource;
 	virtual const FTempoMap& GetTempoMap() const = 0;
 	virtual const FBeatMap& GetBeatMap() const = 0;
 	virtual const FBarMap& GetBarMap() const = 0;
@@ -258,6 +259,9 @@ public:
 	void SetSongLengthTicks(int32 NewLengthTicks);
 	void FinalizeBarMap(int32 InLastTick);
 
+	void AddTempoChange(int32 Tick, float TempoBPM);
+	void AddTimeSigChange(int32 Tick, int32 TimeSigNum, int32 TimeSigDenom);
+
 	bool AddTempoInfoPoint(int32 MicrosecondsPerQuarterNote, int32 Tick, bool SortNow = true);
 	bool AddTimeSignatureAtBarIncludingCountIn(int32 BarIndex, int32 InNumerator, int32 InDenominator, bool SortNow = true, bool FailOnError = true);
 	FTimeSignaturePoint* GetMutableTimeSignaturePoint(int32 PointIndex);
@@ -294,26 +298,21 @@ private:
 struct HARMONIXMIDI_API FSongMapsWithAlternateTempoSource : public ISongMapEvaluator
 {
 public:
-	FSongMapsWithAlternateTempoSource(const TSharedPtr<const FMidiFileData>& MidiWithTempo, const TSharedPtr<const FMidiFileData>& MidiWithOthers)
-		: MidiFileWithTempoMap(MidiWithTempo)
-		, MidiFileWithOtherMaps(MidiWithOthers)
+	FSongMapsWithAlternateTempoSource(const TSharedPtr<const ISongMapEvaluator>& SongMapsWithTempo, const TSharedPtr<const ISongMapEvaluator>& SongMapsWithOthers)
+		: SongMapsWithTempoMap(SongMapsWithTempo)
+		, SongMapsWithOtherMaps(SongMapsWithOthers)
 	{}
 
-	FSongMapsWithAlternateTempoSource(const TSharedPtr<const FMidiFileData>& MidiData)
-		: MidiFileWithTempoMap(MidiData)
-		, MidiFileWithOtherMaps(MidiData)
+	FSongMapsWithAlternateTempoSource(const TSharedPtr<const ISongMapEvaluator>& SongMaps)
+		: SongMapsWithTempoMap(SongMaps)
+		, SongMapsWithOtherMaps(SongMaps)
 	{
 	}
 
-	FSongMapsWithAlternateTempoSource(const TSharedPtr<const FSongMapsWithAlternateTempoSource>& Other)
-		: MidiFileWithTempoMap(Other->MidiFileWithTempoMap)
-		, MidiFileWithOtherMaps(Other->MidiFileWithOtherMaps)
-	{}
-
 	FSongMapsWithAlternateTempoSource& operator=(const TSharedPtr<const FSongMapsWithAlternateTempoSource>& Other)
 	{
-		MidiFileWithTempoMap = Other->MidiFileWithTempoMap;
-		MidiFileWithOtherMaps = Other->MidiFileWithOtherMaps;
+		SongMapsWithTempoMap = Other->SongMapsWithTempoMap;
+		SongMapsWithOtherMaps = Other->SongMapsWithOtherMaps;
 		return *this;
 	}
 
@@ -321,15 +320,15 @@ public:
 
 	operator bool() const 
 	{
-		return MidiFileWithTempoMap.IsValid() && MidiFileWithOtherMaps.IsValid();
+		return SongMapsWithTempoMap.IsValid() && SongMapsWithOtherMaps.IsValid();
 	}
 
-	const TSharedPtr<const FMidiFileData>& GetMidiFileWithTempoMap() const { return MidiFileWithTempoMap; }
-	const TSharedPtr<const FMidiFileData>& GetMidiFileWithOtherMaps() const { return MidiFileWithOtherMaps; }
+	const TSharedPtr<const ISongMapEvaluator>& GetSongMapsWithTempoMap() const { return SongMapsWithTempoMap; }
+	const TSharedPtr<const ISongMapEvaluator>& GetSongMapsWithOtherMaps() const { return SongMapsWithOtherMaps; }
 
-	bool AllMapsHaveOneSource() const { return MidiFileWithTempoMap == MidiFileWithOtherMaps; }
+	bool AllMapsHaveOneSource() const { return SongMapsWithTempoMap == SongMapsWithOtherMaps; }
 
-private:
+protected:
 	virtual const FTempoMap& GetTempoMap() const override;
 	virtual const FBeatMap& GetBeatMap() const override;
 	virtual const FBarMap& GetBarMap() const override;
@@ -337,6 +336,6 @@ private:
 	virtual const FChordProgressionMap& GetChordMap() const override;
 	virtual const FSongLengthData& GetSongLengthData() const override;
 
-	TSharedPtr<const FMidiFileData> MidiFileWithTempoMap;
-	TSharedPtr<const FMidiFileData> MidiFileWithOtherMaps;
+	TSharedPtr<const ISongMapEvaluator> SongMapsWithTempoMap;
+	TSharedPtr<const ISongMapEvaluator> SongMapsWithOtherMaps;
 };

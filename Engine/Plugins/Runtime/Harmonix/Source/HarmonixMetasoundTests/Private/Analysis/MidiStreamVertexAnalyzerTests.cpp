@@ -50,19 +50,13 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		using namespace Metasound;
 
 		// Make the tempo and time sig maps
-		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-		check(MidiData);
-		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
-		MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
-		MidiData->Tracks[0].Sort();
-		MidiData->ConformToLength(std::numeric_limits<int32>::max());
+		const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Tempo, TimeSigNum, TimeSigDenom);
+		check(SongMaps);
+
+		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
 		// Attach the maps
-		Clock->AttachToMidiFile(MidiData);
+		Clock->AttachToSongMapEvaluator(SongMaps);
 	}
 	
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(

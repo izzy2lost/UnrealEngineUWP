@@ -579,7 +579,7 @@ namespace HarmonixMetasound
 
 		if (CurrentMidiFile.IsValid())
 		{			
-			MidiClockOut->AttachToMidiFile(CurrentMidiFile->GetMidiFile(), !IsPlaying());
+			MidiClockOut->AttachToSongMapEvaluator(CurrentMidiFile->GetMidiFile(), !IsPlaying());
 			MidiCursor.Prepare(CurrentMidiFile->GetMidiFile());
 			MidiOutPin->SetTicksPerQuarterNote(CurrentMidiFile->GetMidiFile()->TicksPerQuarterNote);
 			if (*LoopInPin)
@@ -616,7 +616,7 @@ namespace HarmonixMetasound
 		}
 		else
 		{
-			MidiClockOut->AttachToMidiFile(nullptr, !IsPlaying());
+			MidiClockOut->AttachToSongMapEvaluator(nullptr, !IsPlaying());
 			MidiCursor.Prepare(nullptr);
 		}
 	}

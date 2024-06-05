@@ -109,8 +109,8 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			, MidiClockOut(FMidiClockWriteRef::CreateNew(InSettings))
 			, BlockSize(InSettings.GetNumFramesPerBlock())
 		{
-			TSharedPtr<FMidiFileData> ConductorMidiData = FMidiClock::MakeClockConductorMidiData(120.0f, 4, 4);
-			MidiClockOut->AttachToMidiFile(ConductorMidiData, true);
+			TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(120.0f, 4, 4);
+			MidiClockOut->AttachToSongMapEvaluator(SongMaps, true);
 			MidiClockOut->SetDrivingClock(MidiClockIn->AsShared().ToSharedPtr());
 			bClockOutNeedsPrepare = false;
 		}

@@ -159,8 +159,8 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 
 				MetronomeClockOut = Generator->GetOutputReadReference<FMidiClock>(NodeNames::Metronome::ClockOut);
 
-				TSharedPtr<FMidiFileData> MidiData = FMidiClock::MakeClockConductorMidiData(Params.Metronome.Tempo, Params.Metronome.TimeSig.Numerator, Params.Metronome.TimeSig.Denominator);
-				MetronomeLoopLengthTicks = MidiData->SongMaps.BarIncludingCountInToTick(Params.Metronome.LoopLengthBars);
+				TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Params.Metronome.Tempo, Params.Metronome.TimeSig.Numerator, Params.Metronome.TimeSig.Denominator);
+				MetronomeLoopLengthTicks = SongMaps->BarIncludingCountInToTick(Params.Metronome.LoopLengthBars);
 			}
 
 			if (Params.MidiPlayer.MidiFile.IsValid())

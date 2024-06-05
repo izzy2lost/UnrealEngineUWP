@@ -121,8 +121,8 @@ namespace HarmonixMetasoundTests::MetronomeNode
 			float SecsPerBlock = Params.NumSamplesPerBlock / Params.SampleRate;
 			float TicksPerBlock = TicksPerSec * SecsPerBlock;
 
-			TSharedPtr<FMidiFileData> MidiData = FMidiClock::MakeClockConductorMidiData(Params.Tempo, Params.TimeSigNumerator, Params.TimeSigDenominator);
-			int32 LoopLengthTicks = MidiData->SongMaps.BarIncludingCountInToTick(Params.LoopLengthBars);
+			TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Params.Tempo, Params.TimeSigNumerator, Params.TimeSigDenominator);
+			int32 LoopLengthTicks = SongMaps->BarIncludingCountInToTick(Params.LoopLengthBars);
 			
 			//test for tempo consistency by stopping and restarting the transport (clock output and tempo map)
 			if (TestCaseString.Equals(TempoChangeTestString))

@@ -16,7 +16,7 @@ namespace HarmonixMetasoundTests::MidiClock
 
 	TUniquePtr<FMidiClock> TestClock;
 	TSharedPtr<FMidiClock, ESPMode::NotThreadSafe> DrivingClock;
-	TSharedPtr<FMidiFileData> MidiFileData;
+	TSharedPtr<FSongMaps> SongMaps;
 	Metasound::FOperatorSettings OperatorSettings {48000, 100};
 
 	void AddStateAtFrame(EMusicPlayerTransportState State, int32 Frame) const
@@ -404,11 +404,11 @@ namespace HarmonixMetasoundTests::MidiClock
 		{
 			It("Without driving clock - One Tempo Change At Span End", [this]()
 			{
-				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
+				SongMaps = MakeShared<FSongMaps>(123, 5, 8);
 				constexpr int32 TempoChangeTick = 234;
 				constexpr float TempoChangeTempo = 89;
-				MidiFileData->AddTempoChange(0, TempoChangeTick, TempoChangeTempo);
-				TestClock->AttachToMidiFile(MidiFileData);
+				SongMaps->AddTempoChange(TempoChangeTick, TempoChangeTempo);
+				TestClock->AttachToSongMapEvaluator(SongMaps);
 				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 				while (TestClock->GetLastProcessedMidiTick() < TempoChangeTick)
@@ -448,11 +448,11 @@ namespace HarmonixMetasoundTests::MidiClock
 
 			It("Without driving clock - One Tempo Change At Span Start", [this]()
 			{
-				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
+				SongMaps = MakeShared<FSongMaps>(123, 5, 8);
 				constexpr int32 TempoChangeTick = 230;
 				constexpr float TempoChangeTempo = 89;
-				MidiFileData->AddTempoChange(0, TempoChangeTick, TempoChangeTempo);
-				TestClock->AttachToMidiFile(MidiFileData);
+				SongMaps->AddTempoChange(TempoChangeTick, TempoChangeTempo);
+				TestClock->AttachToSongMapEvaluator(SongMaps);
 				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 				while (TestClock->GetLastProcessedMidiTick() < TempoChangeTick)
@@ -492,15 +492,15 @@ namespace HarmonixMetasoundTests::MidiClock
 
 			It("Without driving clock - Many Tempo Changes In Span", [this]()
 			{
-				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
+				SongMaps = MakeShared<FSongMaps>(123, 5, 8);
 				constexpr int32 NumChanges = 4;
 				constexpr int32 TempoChangeTicks[NumChanges] = { 230, 231, 232, 233 };
 				constexpr float TempoChangeTempos [NumChanges] = { 89.0, 89.2, 89.4, 89.6 };
 				for (int32 i = 0; i < NumChanges; ++i)
 				{
-					MidiFileData->AddTempoChange(0, TempoChangeTicks[i], TempoChangeTempos[i]);
+					SongMaps->AddTempoChange(TempoChangeTicks[i], TempoChangeTempos[i]);
 				}
-				TestClock->AttachToMidiFile(MidiFileData);
+				TestClock->AttachToSongMapEvaluator(SongMaps);
 				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 				while (TestClock->GetLastProcessedMidiTick() < TempoChangeTicks[NumChanges - 1])
@@ -543,11 +543,11 @@ namespace HarmonixMetasoundTests::MidiClock
 		{
 			It("Without driving clock - One Change", [this]()
 			{
-				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
-				const int32 TimeSigChangeTick = MidiFileData->SongMaps.BarBeatTickIncludingCountInToTick(2, 1, 0);
+				SongMaps = MakeShared<FSongMaps>(123, 5, 8);
+				const int32 TimeSigChangeTick = SongMaps->BarBeatTickIncludingCountInToTick(2, 1, 0);
 				const FTimeSignature NewTimeSig{ 3, 4 };
-				MidiFileData->AddTimeSigChange(0, TimeSigChangeTick, NewTimeSig.Numerator, NewTimeSig.Denominator);
-				TestClock->AttachToMidiFile(MidiFileData);
+				SongMaps->AddTimeSigChange(TimeSigChangeTick, NewTimeSig.Numerator, NewTimeSig.Denominator);
+				TestClock->AttachToSongMapEvaluator(SongMaps);
 				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 						
 				while (TestClock->GetLastProcessedMidiTick() < TimeSigChangeTick)
@@ -587,17 +587,17 @@ namespace HarmonixMetasoundTests::MidiClock
 
 			It("Without driving clock - One Change with tempos", [this]()
 			{
-				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
-				const int32 TimeSigChangeTick = MidiFileData->SongMaps.BarBeatTickIncludingCountInToTick(2, 1, 0);
+				SongMaps = MakeShared<FSongMaps>(123, 5, 8);
+				const int32 TimeSigChangeTick = SongMaps->BarBeatTickIncludingCountInToTick(2, 1, 0);
 				constexpr int32 NumTempoChanges = 3;
 				constexpr int32 TempoChangeTicks[NumTempoChanges] = { 4799, 4800, 4801 };
 				constexpr float TempoChangeTempos[NumTempoChanges] = { 155.0f, 157.2f, 158.4f };
-				MidiFileData->AddTempoChange(0, TempoChangeTicks[0], TempoChangeTempos[0]);
+				SongMaps->AddTempoChange(TempoChangeTicks[0], TempoChangeTempos[0]);
 				const FTimeSignature NewTimeSig{ 3, 4 };
-				MidiFileData->AddTimeSigChange(0, TimeSigChangeTick, NewTimeSig.Numerator, NewTimeSig.Denominator);
-				MidiFileData->AddTempoChange(0, TempoChangeTicks[1], TempoChangeTempos[1]);
-				MidiFileData->AddTempoChange(0, TempoChangeTicks[2], TempoChangeTempos[2]);
-				TestClock->AttachToMidiFile(MidiFileData);
+				SongMaps->AddTimeSigChange(TimeSigChangeTick, NewTimeSig.Numerator, NewTimeSig.Denominator);
+				SongMaps->AddTempoChange(TempoChangeTicks[1], TempoChangeTempos[1]);
+				SongMaps->AddTempoChange(TempoChangeTicks[2], TempoChangeTempos[2]);
+				TestClock->AttachToSongMapEvaluator(SongMaps);
 				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 				while (TestClock->GetLastProcessedMidiTick() < TimeSigChangeTick)
