@@ -238,7 +238,7 @@ namespace uba
 		return WriteCompressed(out, from, readHandle, 0, fileSize, to, nullptr, 0);
 	}
 
-	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* to, const void* header, u64 headerSize)
+	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* to, const void* header, u64 headerSize, u64 lastWriteTime)
 	{
 		StorageStats& stats = Stats();
 
@@ -355,6 +355,9 @@ namespace uba
 		}
 
 #if !UBA_USE_SPARSEFILE
+		if (lastWriteTime)
+			if (!SetFileLastWriteTime(destinationFile.GetHandle(), lastWriteTime))
+				return m_logger.Error(TC("Failed to set file time on filehandle for %s"), to);
 		if (!destinationFile.Close())
 			return false;
 #endif
@@ -515,6 +518,7 @@ namespace uba
 			FileHandle readHandle;
 			if (!OpenFileSequentialRead(m_logger, fileName, readHandle))
 				return m_logger.Error(TC("Failed to open file %s for read (%s)"), fileName, LastErrorToText().data);
+			auto fileGuard = MakeGuard([&](){ CloseFile(fileName, readHandle); });
 
 			u64 fileSize;
 			if (!uba::GetFileSizeEx(fileSize, readHandle))
@@ -1911,26 +1915,25 @@ namespace uba
 		}
 		fileEntry.verified = true;
 
-		u64 fileSize = 0;
-		u32 attributes = 0;
-		u64 lastWritten = 0;
-
-		if (!FileExists(m_logger, fileName, &fileSize, &attributes, &lastWritten))
-		{
-			fileEntry.casKey = CasKeyZero;
-			u32 lastError = GetLastError();
-			if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
-				return m_logger.Error(TC("FileExists failed on %s (%s)"), fileName, LastErrorToText(lastError).data);
-			out = CasKeyZero;
-			return true;
-		}
-
-		if (IsDirectory(attributes))
+		// Use OpenFile+GetFileInformationByHandle+close instead of Getting file attributes because it is actually faster on cloud setups (weirdly enough)
+		FileHandle fileHandle;
+		if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
 		{
 			fileEntry.casKey = CasKeyZero;
 			out = CasKeyZero;
 			return true;
 		}
+		auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
+
+		FileInformation info;
+		if (!GetFileInformationByHandle(info, m_logger, fileName, fileHandle))
+		{
+			fileEntry.casKey = CasKeyZero;
+			return m_logger.Error(TC("GetFileInformationByHandle failed on %s"), fileName);
+		}
+
+		u64 fileSize = info.size;
+		u64 lastWritten = info.lastWriteTime;
 
 		if (fileEntry.casKey != CasKeyZero)
 		{
@@ -1955,11 +1958,6 @@ namespace uba
 		fileEntry.lastWritten = lastWritten;
 		if (casKeyOverride == CasKeyZero)
 		{
-			FileHandle fileHandle;
-			if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
-				return false;
-			auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
-
 			if (fileIsCompressed)
 			{
 				CompressedObjFileHeader header(CasKeyZero);
@@ -2034,26 +2032,25 @@ namespace uba
 		}
 		fileEntry.verified = true;
 
-		u64 fileSize = 0;
-		u32 attributes = 0;
-		u64 lastWritten = 0;
-
-		if (!FileExists(m_logger, fileName, &fileSize, &attributes, &lastWritten))
-		{
-			fileEntry.casKey = CasKeyZero;
-			u32 lastError = GetLastError();
-			if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
-				return m_logger.Error(TC("FileExists failed on %s (%s)"), fileName, LastErrorToText(lastError).data);
-			out = CasKeyZero;
-			return true;
-		}
-
-		if (IsDirectory(attributes))
+		// Use OpenFile+GetFileInformationByHandle+close instead of Getting file attributes because it is actually faster on cloud setups (weirdly enough)
+		FileHandle fileHandle;
+		if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
 		{
 			fileEntry.casKey = CasKeyZero;
 			out = CasKeyZero;
 			return true;
 		}
+		auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
+
+		FileInformation info;
+		if (!GetFileInformationByHandle(info, m_logger, fileName, fileHandle))
+		{
+			fileEntry.casKey = CasKeyZero;
+			return m_logger.Error(TC("GetFileInformationByHandle failed on %s"), fileName);
+		}
+
+		u64 fileSize = info.size;
+		u64 lastWritten = info.lastWriteTime;
 
 		if (fileEntry.casKey != CasKeyZero)
 		{
@@ -2074,11 +2071,6 @@ namespace uba
 		fileEntry.lastWritten = lastWritten;
 		if (casKeyOverride == CasKeyZero)
 		{
-			FileHandle fileHandle;
-			if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
-				return false;
-			auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
-
 			if (fileIsCompressed)
 			{
 				CompressedObjFileHeader header(CasKeyZero);
