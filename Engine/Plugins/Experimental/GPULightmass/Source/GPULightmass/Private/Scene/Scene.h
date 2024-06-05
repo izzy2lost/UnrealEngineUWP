@@ -7,6 +7,7 @@
 #include "Scene/InstancedStaticMesh.h"
 #include "Scene/Landscape.h"
 #include "MeshPassProcessor.h"
+#include "RayTracingMeshDrawCommands.h"
 #include "IrradianceCaching.h"
 #include "GPULightmassSettings.h"
 #include "Templates/UniquePtr.h"

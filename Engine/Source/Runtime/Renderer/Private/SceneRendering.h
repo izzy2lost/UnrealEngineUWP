@@ -29,6 +29,7 @@
 #include "Templates/UniquePtr.h"
 #include "MeshDrawCommands.h"
 #include "MeshPassProcessor.h"
+#include "RayTracingMeshDrawCommands.h"
 #include "ShaderPrintParameters.h"
 #include "PostProcess/PostProcessAmbientOcclusionMobile.h"
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"

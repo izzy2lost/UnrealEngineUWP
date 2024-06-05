@@ -11,6 +11,7 @@
 #include "MaterialDomain.h"
 #include "MeshMaterialShader.h"
 #include "MeshPassProcessor.inl"
+#include "RayTracingMeshDrawCommands.h"
 #include "RayTracingInstanceMask.h"
 #include "RayTracingPayloadType.h"
 #include "ShaderParameterStruct.h"

@@ -9,6 +9,7 @@
 #include "FXRenderingUtils.h"
 #include "GlobalShader.h"
 #include "MeshPassProcessor.h"
+#include "RayTracingMeshDrawCommands.h"
 #include "NiagaraSettings.h"
 #include "PipelineStateCache.h"
 #include "ShaderParameterMacros.h"
