@@ -32,7 +32,7 @@ namespace Metasound
 			// Registry can be null in test builds for legacy controller implementation, so doesn't use GetChecked
 			if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 			{
-				if (const FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName()))
+				if (const FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
 				{
 					return Builder->FindConstBuildGraphChecked();
 				}
@@ -46,7 +46,7 @@ namespace Metasound
 			// Registry can be null in test builds for legacy controller implementation, so doesn't use GetChecked
 			if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 			{
-				if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName()))
+				if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
 				{
 					return Builder->FindBuildGraphChecked();
 				}

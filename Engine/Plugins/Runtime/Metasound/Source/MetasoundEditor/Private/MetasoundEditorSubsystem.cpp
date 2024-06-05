@@ -91,6 +91,9 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 			constexpr bool bForceNodeCreation = true;
 			NewDocBuilder.InjectInputTemplateNodes(bForceNodeCreation, InjectResult);
 
+			FMetasoundAssetBase& Asset = NewDocBuilder.GetBuilder().GetMetasoundAsset();
+			Asset.RebuildReferencedAssetClasses();
+
 			if (!bWasRooted)
 			{
 				InBuilder->RemoveFromRoot();

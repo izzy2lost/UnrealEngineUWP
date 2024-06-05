@@ -480,13 +480,6 @@ namespace Metasound
 					NewGraphNode.bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 					NewGraphNode.NodeID = InNodeID;
 					NewGraphNode.ClassName = InMetadata.GetClassName();
-
-					if (!NewGraphNode.bIsClassNative)
-					{
-						FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetasoundGraph.GetMetasound());
-						check(MetaSoundAsset);
-						MetaSoundAsset->RebuildReferencedAssetClasses();
-					}
 				};
 
 				return GraphBuilderPrivate::AddNode<UMetasoundEditorGraphExternalNode>(InMetaSound, InitNodeFunc, bInSelectNewNode);
@@ -497,11 +490,22 @@ namespace Metasound
 
 		UMetasoundEditorGraphExternalNode* FGraphBuilder::AddExternalNode(UObject& InMetaSound, const FMetasoundFrontendClassMetadata& InMetadata, bool bInSelectNewNode)
 		{
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
+			using namespace Frontend;
 
-			Frontend::FConstNodeHandle NodeHandle = MetaSoundAsset->GetRootGraphHandle()->AddNode(InMetadata);
-			return AddExternalNode(InMetaSound, NodeHandle->GetID(), NodeHandle->GetClassMetadata(), bInSelectNewNode);
+			FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound);
+			if (const FMetasoundFrontendNode* NewNode = Builder.AddNodeByClassName(InMetadata.GetClassName(), InMetadata.GetVersion().Major))
+			{
+				FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+				check(MetaSoundAsset);
+				MetaSoundAsset->GetDocumentChecked().Metadata.ModifyContext.AddNodeIDModified(NewNode->GetID());
+				const FMetasoundFrontendClass* Dependency = Builder.FindDependency(NewNode->ClassID);
+				if (ensure(Dependency))
+				{
+					return AddExternalNode(InMetaSound, NewNode->GetID(), Dependency->Metadata, bInSelectNewNode);
+				}
+			}
+
+			return nullptr;
 		}
 
 		Frontend::FNodeHandle FGraphBuilder::AddExternalNodeHandle(UObject& InMetaSound, const FMetasoundFrontendClassName& InClassName)

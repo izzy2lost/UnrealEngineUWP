@@ -328,6 +328,8 @@ namespace MenuExtension_MetaSoundSourceTemplate
 	{
 		if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
 		{
+			using namespace Metasound::Editor;
+
 			for (TClass* ReferencedMetaSound : Context->LoadSelectedObjects<TClass>())
 			{
 				FString PackagePath;
@@ -345,8 +347,15 @@ namespace MenuExtension_MetaSoundSourceTemplate
 				}
 
 				UMetaSoundEditorSubsystem& MetaSoundEditorSubsystem = UMetaSoundEditorSubsystem::GetChecked();
-				MetaSoundEditorSubsystem.BuildToAsset(&Builder, MetaSoundEditorSubsystem.GetDefaultAuthor(), AssetName, FPackageName::GetLongPackagePath(PackagePath), BuilderResult);
-				if (BuilderResult != EMetaSoundBuilderResult::Succeeded)
+				TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound = MetaSoundEditorSubsystem.BuildToAsset(&Builder, MetaSoundEditorSubsystem.GetDefaultAuthor(), AssetName, FPackageName::GetLongPackagePath(PackagePath), BuilderResult);
+				if (BuilderResult == EMetaSoundBuilderResult::Succeeded)
+				{
+					if (ensure(NewMetaSound))
+					{
+						FGraphBuilder::RegisterGraphWithFrontend(*NewMetaSound.GetObject());
+					}
+				}
+				else
 				{
 					UE_LOG(LogMetaSound, Error, TEXT("Error building to asset when creating preset '%s'"), *AssetName);
 				}
@@ -354,7 +363,8 @@ namespace MenuExtension_MetaSoundSourceTemplate
 		}
 	}
 
- 	static FDelayedAutoRegisterHelper DelayedAutoRegister(EDelayedRegisterRunPhase::EndOfEngineInit, [] {
+ 	static FDelayedAutoRegisterHelper DelayedAutoRegister(EDelayedRegisterRunPhase::EndOfEngineInit, []
+	{
  		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
  		{
  			FToolMenuOwnerScoped OwnerScoped(UE_MODULE_NAME);

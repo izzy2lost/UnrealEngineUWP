@@ -883,11 +883,9 @@ void FMetasoundAssetBase::RebuildReferencedAssetClasses()
 	using namespace Metasound::Frontend;
 
 	IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
-	if (AssetManager.AddAssetReferences(*this))
-	{
-		TSet<IMetaSoundAssetManager::FAssetInfo> ReferencedAssetClasses = AssetManager.GetReferencedAssetClasses(*this);
-		SetReferencedAssetClasses(MoveTemp(ReferencedAssetClasses));
-	}
+	AssetManager.AddAssetReferences(*this);
+	TSet<IMetaSoundAssetManager::FAssetInfo> ReferencedAssetClasses = AssetManager.GetReferencedAssetClasses(*this);
+	SetReferencedAssetClasses(MoveTemp(ReferencedAssetClasses));
 }
 #endif // WITH_EDITOR
 

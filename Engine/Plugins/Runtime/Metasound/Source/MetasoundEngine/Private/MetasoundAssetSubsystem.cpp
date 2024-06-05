@@ -626,14 +626,14 @@ namespace Metasound::Engine
 		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
 		const FMetasoundFrontendClassMetadata& Metadata = Document.RootGraph.Metadata;
 
+		const FTopLevelAssetPath AssetPath(&InObject);
 		if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 		{
 			constexpr bool bForceUnregister = true;
-			BuilderRegistry->FinishBuilding(Metadata.GetClassName(), bForceUnregister);
+			BuilderRegistry->FinishBuilding(Metadata.GetClassName(), AssetPath, bForceUnregister);
 		}
 
 		const FAssetKey AssetKey(Metadata.GetClassName(), Metadata.GetVersion());
-		const FTopLevelAssetPath AssetPath(&InObject);
 		AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, AssetPath);
 	}
 
@@ -642,16 +642,16 @@ namespace Metasound::Engine
 		using namespace Frontend;
 
 		FNodeClassInfo ClassInfo;
+		const FTopLevelAssetPath AssetPath(InAssetData.PackageName, InAssetData.AssetName);
 		if (ensureAlways(AssetSubsystemPrivate::GetAssetClassInfo(InAssetData, ClassInfo)))
 		{
 			if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 			{
 				constexpr bool bForceUnregister = true;
-				BuilderRegistry->FinishBuilding(ClassInfo.ClassName, bForceUnregister);
+				BuilderRegistry->FinishBuilding(ClassInfo.ClassName, AssetPath, bForceUnregister);
 			}
 
 			const FAssetKey AssetKey(ClassInfo.ClassName, ClassInfo.Version);
-			const FTopLevelAssetPath AssetPath(InAssetData.PackageName, InAssetData.AssetName);
 			AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, AssetPath);
 		}
 	}
