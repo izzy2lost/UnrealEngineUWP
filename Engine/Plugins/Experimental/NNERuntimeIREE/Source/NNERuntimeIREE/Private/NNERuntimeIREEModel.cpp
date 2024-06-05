@@ -229,7 +229,7 @@ namespace UE::NNERuntimeIREE
 				}
 
 				iree_hal_allocator_t* DeviceAllocator = nullptr;
-				iree_string_view_t Identifier = iree_make_cstring_view("sync");
+				iree_string_view_t Identifier = iree_make_cstring_view("local-sync");
 				Status = iree_hal_allocator_create_heap(Identifier, HostAllocator, HostAllocator, &DeviceAllocator);
 				if (!iree_status_is_ok(Status))
 				{
@@ -588,6 +588,24 @@ namespace UE::NNERuntimeIREE
 				{
 					return iree_hal_device_allocator(Device);
 				}
+
+				bool CreateBufferViewCopy(iree_host_size_t Rank, iree_hal_dim_t* Shape, iree_hal_element_types_t Type, iree_hal_buffer_params_t Params, void* Data, iree_host_size_t DataSizeInBytes, iree_hal_buffer_view_t** BufferView)
+				{
+					iree_status_t Status = iree_ok_status();
+					check(iree_status_is_ok(Status));
+
+					Status = iree_hal_buffer_view_allocate_buffer_copy(
+						Device,
+						GetDeviceAllocator(),
+						Rank, Shape,
+						Type, IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+						Params,
+						iree_make_const_byte_span(Data, DataSizeInBytes),
+						BufferView);
+
+					iree_status_free(Status);
+					return iree_status_is_ok(Status);
+				}
 			};
 			TMap<FString, TWeakPtr<FDevice>> FDevice::Devices;
 
@@ -757,14 +775,8 @@ namespace UE::NNERuntimeIREE
 						}
 						ENNETensorDataType NNEType = InputTensorDescs[i].GetDataType();
 						iree_hal_element_types_t IREEType = UE::NNERuntimeIREE::Private::NNEToIREEType(NNEType);
-						Status = iree_hal_buffer_view_allocate_buffer(
-							Device->GetDeviceAllocator(),
-							InputTensorShapes[i].Rank(), Shape,
-							IREEType, IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
-							Params,
-							iree_make_const_byte_span((void*)InInputBindings[i].Data, InInputBindings[i].SizeInBytes),
-							&TempBufferView);
-						if (!iree_status_is_ok(Status))
+
+						if (!Device->CreateBufferViewCopy(InputTensorShapes[i].Rank(), Shape, IREEType, Params, (void*)InInputBindings[i].Data, InInputBindings[i].SizeInBytes, &TempBufferView))
 						{
 							UE::NNERuntimeIREE::Private::PrintIREEError("UE::NNERuntimeIREE::CPU::Private::FSession failed to allocate the buffer view", Status);
 							if (TempBufferView)

@@ -92,12 +92,17 @@ static inline iree_const_byte_span_t iree_const_cast_byte_span(
   return iree_make_const_byte_span(span.data, span.data_length);
 }
 
+static inline iree_byte_span_t iree_cast_const_byte_span(
+    iree_const_byte_span_t span) {
+  return iree_make_byte_span((uint8_t*)span.data, span.data_length);
+}
+
 //===----------------------------------------------------------------------===//
 // Totally shady stack allocation
 //===----------------------------------------------------------------------===//
 // TODO(benvanik): remove our uses of this or make them more explicit.
 
-#if defined(IREE_COMPILER_MSVC)
+#if defined(IREE_PLATFORM_WINDOWS)
 // The safe malloca that may fall back to heap in the case of stack overflows:
 // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/malloca?view=vs-2019
 // Because that gets really annoying to deal with during error handling we just

@@ -12,12 +12,12 @@ public class IREE : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			PublicAdditionalLibraries.Add(System.IO.Path.Combine(ModuleDirectory, "Lib", "Win64", "flatcc_parsing.lib"));
-			PublicAdditionalLibraries.Add(System.IO.Path.Combine(ModuleDirectory, "Lib", "Win64", "ireert.lib"));
+			PublicAdditionalLibraries.Add(System.IO.Path.Combine(ModuleDirectory, "Lib", "Windows", "flatcc_parsing.lib"));
+			PublicAdditionalLibraries.Add(System.IO.Path.Combine(ModuleDirectory, "Lib", "Windows", "ireert.lib"));
 
 			if (Target.WindowsPlatform.Compiler.IsClang())
 			{
-				PublicSystemIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "Clang"));
+				PublicSystemIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "Include", "Clang"));
 			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)

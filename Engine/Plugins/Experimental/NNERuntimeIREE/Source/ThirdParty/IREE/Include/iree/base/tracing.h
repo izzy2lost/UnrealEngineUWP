@@ -223,6 +223,11 @@ enum {
 // Exits a fiber context.
 #define IREE_TRACE_FIBER_LEAVE()
 
+// Publishes a source file to the tracing infrastructure.
+// The filename and contents are copied and need not live longer than the call.
+#define IREE_TRACE_PUBLISH_SOURCE_FILE(filename, filename_length, content, \
+                                       content_length)
+
 // Begins a new zone with the parent function name.
 #define IREE_TRACE_ZONE_BEGIN(zone_id) \
   iree_zone_id_t zone_id = 0;          \
@@ -305,6 +310,8 @@ enum {
 //===----------------------------------------------------------------------===//
 
 #if !(IREE_TRACING_FEATURES & IREE_TRACING_FEATURE_ALLOCATION_TRACKING)
+
+static void* iree_tracing_obscure_ptr(void* ptr) { return ptr; }
 
 // Traces a new memory allocation with host |ptr| and the given |size|.
 // A balanced IREE_TRACE_FREE on the same |ptr| is required for proper memory
