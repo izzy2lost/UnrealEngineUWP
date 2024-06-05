@@ -56,6 +56,8 @@ public:
 
 	static UWidget* GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp);
 
+	static bool CanDropOnTargetExtensions(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp, FText& OutFailureText);
+
 	static bool IsBindWidgetProperty(const FProperty* InProperty);
 	static bool IsBindWidgetProperty(const FProperty* InProperty, bool& bIsOptional);
 

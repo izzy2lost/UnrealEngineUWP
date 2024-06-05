@@ -188,6 +188,20 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 	UWidgetBlueprint* Blueprint = BlueprintEditor->GetWidgetBlueprintObj();
 	check( Blueprint != nullptr && Blueprint->WidgetTree != nullptr );
 
+	const auto CanDropOnTargetExtensions = [](UWidget* Target, const TSharedPtr<FDecoratedDragDropOp>& DecoratedDragDropOp) -> bool
+		{
+			FText CanDropOnTargetFailureText = FText::GetEmpty();
+			const bool bCanDropOnTargetExtensions = FWidgetBlueprintEditorUtils::CanDropOnTargetExtensions(Target, DecoratedDragDropOp, CanDropOnTargetFailureText);
+
+			if (!bCanDropOnTargetExtensions && DecoratedDragDropOp.IsValid())
+			{
+				DecoratedDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+				DecoratedDragDropOp->CurrentHoverText = CanDropOnTargetFailureText;
+			}
+
+			return bCanDropOnTargetExtensions;
+		};
+
 	// Is this a drag/drop op to create a new widget in the tree?
 	TSharedPtr<FDragDropOperation> DragDropOp = DragDropEvent.GetOperation();
 	if (DragDropOp.IsValid() && !DragDropOp->IsOfType<FHierarchyWidgetDragDropOpImpl>())
@@ -197,6 +211,11 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 		{
 			DecoratedDragDropOp = StaticCastSharedPtr<FDecoratedDragDropOp>(DragDropOp);
 			DecoratedDragDropOp->ResetToDefaultToolTip();
+		}
+
+		if (!CanDropOnTargetExtensions(TargetTemplate, DecoratedDragDropOp))
+		{
+			return TOptional<EItemDropZone>();
 		}
 
 		// Are we adding to a locked widget?
@@ -337,6 +356,11 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 			{
 				HierarchyDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
 				HierarchyDragDropOp->CurrentHoverText = LOCTEXT("CantHaveMultipleChildren", "Widget can't have multiple children.");
+				return TOptional<EItemDropZone>();
+			}
+
+			if (!CanDropOnTargetExtensions(TargetTemplate, HierarchyDragDropOp))
+			{
 				return TOptional<EItemDropZone>();
 			}
 

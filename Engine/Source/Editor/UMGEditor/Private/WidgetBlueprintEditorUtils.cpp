@@ -1613,6 +1613,26 @@ UWidget* FWidgetBlueprintEditorUtils::GetWidgetTemplateFromDragDrop(UWidgetBluep
 	return Widget;
 }
 
+bool FWidgetBlueprintEditorUtils::CanDropOnTargetExtensions(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp, FText& OutFailureText)
+{
+	if (Target)
+	{
+		IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+		const TArrayView<const TSharedPtr<IDragDropExtension>> DragDropExtensions = EditorModule.GetDragDropExtensibilityManager()->GetExtensions();
+
+		for (const TSharedPtr<IDragDropExtension>& DragDropExtension : DragDropExtensions)
+		{
+			if (ensure(DragDropExtension.IsValid()) && !DragDropExtension->CanDropOnTarget(Target, DragDropOp))
+			{
+				OutFailureText = DragDropExtension->GetDropFailureText(Target, DragDropOp);
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsToExport, /*out*/ FString& ExportedText)
 {
 	// Clear the mark state for saving.
