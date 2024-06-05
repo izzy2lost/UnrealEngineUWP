@@ -170,15 +170,17 @@ namespace Jupiter.Implementation
 			{
 				if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
 				{
+					List<BlobId> blobs = new List<BlobId>();
 					try
 					{
-						List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true, cancellationToken: cancellationToken);
-						await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs, cancellationToken);
+						blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true, cancellationToken: cancellationToken);
 					}
 					catch (RefNotFoundException)
 					{
 						// if the ref is already deleted its not possible for us to cleanup the bucket list
+						_logger.LogWarning("Ref {Name} {Bucket} {Namespace} not found when cleaning up stats tracking, unable to remove blob tracking thus stats will be incorrect.", name, bucket, ns);
 					}
+					await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs, cancellationToken);
 				}
 
 				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name, cancellationToken);
