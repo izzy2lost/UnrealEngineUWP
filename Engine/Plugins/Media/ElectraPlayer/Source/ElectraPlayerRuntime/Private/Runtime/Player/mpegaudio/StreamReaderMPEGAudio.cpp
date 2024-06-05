@@ -61,7 +61,7 @@ struct FStreamReaderMPEGAudio::FLiveRequest : public TSharedFromThis<FStreamRead
 	void OnProcessRequestComplete(FHttpRequestPtr InSourceHttpRequest, FHttpResponsePtr InHttpResponse, bool bInSucceeded);
 	void OnHeaderReceived(FHttpRequestPtr InSourceHttpRequest, const FString& InHeaderName, const FString& InHeaderValue);
 	void OnStatusCodeReceived(FHttpRequestPtr InSourceHttpRequest, int32 InHttpStatusCode);
-	bool OnProcessRequestStream(void* InDataPtr, int64 InLength);
+	void OnProcessRequestStream(void* InDataPtr, int64& InLength);
 	void Cancel();
 	void WaitUntilFinished();
 	enum class EEvent
@@ -71,7 +71,7 @@ struct FStreamReaderMPEGAudio::FLiveRequest : public TSharedFromThis<FStreamRead
 		Finished
 	};
 	TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> Handle;
-	FHttpRequestStreamDelegate StreamDelegate;
+	FHttpRequestStreamDelegateV2 StreamDelegate;
 	int32 StatusCode = 0;
 	TMediaMessageQueueWithTimeout<EEvent> Events;
 	TMultiMap<FString, FString> Headers;
@@ -253,7 +253,7 @@ void FStreamReaderMPEGAudio::FLiveRequest::OnStatusCodeReceived(FHttpRequestPtr 
 	}
 }
 
-bool FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPtr, int64 InLength)
+void FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPtr, int64& InLength)
 {
 	if (StatusCode == 200)
 	{
@@ -295,11 +295,13 @@ bool FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPt
 					int64 BufSizeRequired = rb->Buffer.Num() + DataBytesNow;
 					if (!rb->Buffer.EnlargeTo(BufSizeRequired))
 					{
-						return false;
+						InLength = 0;
+						return;
 					}
 					if (!rb->Buffer.PushData(reinterpret_cast<const uint8*>(InDataPtr), DataBytesNow))
 					{
-						return false;
+						InLength = 0;
+						return;
 					}
 
 					// Sanity check that we are not reading excessive data, which is the case when the
@@ -307,7 +309,8 @@ bool FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPt
 					if (MaxDataBytes && rb->Buffer.Num() > MaxDataBytes)
 					{
 						bHasFailed = true;
-						return false;
+						InLength = 0;
+						return;
 					}
 				}
 				TotalDataBytePos += DataBytesNow;
@@ -322,7 +325,6 @@ bool FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPt
 			}
 		}
 	}
-	return true;
 }
 
 
@@ -416,7 +418,7 @@ void FStreamReaderMPEGAudio::HandleRequest()
 		LiveRequest->Handle->OnProcessRequestComplete().BindThreadSafeSP(LiveRequest.ToSharedRef(), &FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestComplete);
 		LiveRequest->Handle->OnHeaderReceived().BindThreadSafeSP(LiveRequest.ToSharedRef(), &FStreamReaderMPEGAudio::FLiveRequest::OnHeaderReceived);
 		LiveRequest->Handle->OnStatusCodeReceived().BindThreadSafeSP(LiveRequest.ToSharedRef(), &FStreamReaderMPEGAudio::FLiveRequest::OnStatusCodeReceived);
-		LiveRequest->Handle->SetResponseBodyReceiveStreamDelegate(LiveRequest->StreamDelegate);
+		LiveRequest->Handle->SetResponseBodyReceiveStreamDelegateV2(LiveRequest->StreamDelegate);
 		LiveRequest->Handle->SetHeader(TEXT("User-Agent"), IElectraHttpManager::GetDefaultUserAgent());
 		LiveRequest->Handle->SetHeader(TEXT("Accept-Encoding"), TEXT("identity"));
 		// If this is an Icycast, we ask for period metadata.

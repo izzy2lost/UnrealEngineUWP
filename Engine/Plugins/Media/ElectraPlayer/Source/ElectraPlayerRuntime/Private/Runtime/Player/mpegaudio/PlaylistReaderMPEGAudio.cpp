@@ -109,7 +109,7 @@ private:
 		void OnProcessRequestComplete(FHttpRequestPtr InSourceHttpRequest, FHttpResponsePtr InHttpResponse, bool bInSucceeded);
 		void OnHeaderReceived(FHttpRequestPtr InSourceHttpRequest, const FString& InHeaderName, const FString& InHeaderValue);
 		void OnStatusCodeReceived(FHttpRequestPtr InSourceHttpRequest, int32 InHttpStatusCode);
-		bool OnProcessRequestStream(void* InDataPtr, int64 InLength);
+		void OnProcessRequestStream(void* InDataPtr, int64& InLength);
 		void FindSyncMarkers();
 		void Cancel();
 		bool Validate(FMPEGAudioInfoHeader& InOutInfoHeader, FString& OutError, TArray<FString>& OutWarnings);
@@ -318,11 +318,11 @@ void FPlaylistReaderMPEGAudio::FRequest::FindSyncMarkers()
 	}
 }
 
-bool FPlaylistReaderMPEGAudio::FRequest::OnProcessRequestStream(void *InDataPtr, int64 InLength)
+void FPlaylistReaderMPEGAudio::FRequest::OnProcessRequestStream(void *InDataPtr, int64& InLength)
 {
 	if (StatusCode < 200 || StatusCode >= 300)
 	{
-		return true;
+		return;
 	}
 
 	// Add new data unconditionally. This won't be overly much so not to worry.
@@ -356,7 +356,6 @@ bool FPlaylistReaderMPEGAudio::FRequest::OnProcessRequestStream(void *InDataPtr,
 		bSentHaveProbeDataMsg = true;
 		Events.SendMessage(EEvent::HaveProbeData);
 	}
-	return true;
 }
 
 void FPlaylistReaderMPEGAudio::FRequest::Cancel()
@@ -833,7 +832,8 @@ void FPlaylistReaderMPEGAudio::WorkerThread()
 				AlreadyRead = 10;
 				Req->Buffer.AddUninitialized(10);
 				Archive->Serialize(Req->Buffer.GetData(), 10);
-				Req->OnProcessRequestStream(nullptr, 0);
+				int64 Length = 0;
+				Req->OnProcessRequestStream(nullptr, Length);
 				check(Req->ProbeSize > 0);
 			}
 			Req->ProbeSize = Req->ProbeSize < 0 ? FRequest::GetMinProbeSize() : Req->ProbeSize;
@@ -850,7 +850,7 @@ void FPlaylistReaderMPEGAudio::WorkerThread()
 	}
 	else
 	{
-		FHttpRequestStreamDelegate StreamDelegate;
+		FHttpRequestStreamDelegateV2 StreamDelegate;
 		StreamDelegate.BindThreadSafeSP(Req.ToSharedRef(), &FPlaylistReaderMPEGAudio::FRequest::OnProcessRequestStream);
 		Req->Handle = FHttpModule::Get().CreateRequest();
 		Req->Handle->SetVerb(TEXT("GET"));
@@ -859,7 +859,7 @@ void FPlaylistReaderMPEGAudio::WorkerThread()
 		Req->Handle->OnProcessRequestComplete().BindThreadSafeSP(Req.ToSharedRef(), &FPlaylistReaderMPEGAudio::FRequest::OnProcessRequestComplete);
 		Req->Handle->OnHeaderReceived().BindThreadSafeSP(Req.ToSharedRef(), &FPlaylistReaderMPEGAudio::FRequest::OnHeaderReceived);
 		Req->Handle->OnStatusCodeReceived().BindThreadSafeSP(Req.ToSharedRef(), &FPlaylistReaderMPEGAudio::FRequest::OnStatusCodeReceived);
-		Req->Handle->SetResponseBodyReceiveStreamDelegate(StreamDelegate);
+		Req->Handle->SetResponseBodyReceiveStreamDelegateV2(StreamDelegate);
 		Req->Handle->SetHeader(TEXT("User-Agent"), IElectraHttpManager::GetDefaultUserAgent());
 		Req->Handle->SetHeader(TEXT("Accept-Encoding"), TEXT("identity"));
 		Req->Handle->SetTimeout(PlayerSessionServices->GetOptionValue(MPEGAudio::OptionKeyMPEGAudioLoadTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 60)).GetAsSeconds());
