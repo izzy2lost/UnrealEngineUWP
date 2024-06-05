@@ -16,6 +16,7 @@
 #include "Misc/MemStack.h"
 #include "Containers/ArrayView.h"
 #include "MeshPassProcessor.h"
+#include "RayTracingMeshDrawCommands.h"
 #include "RayTracingInstanceBufferUtil.h"
 #include "RayTracingDebugTypes.h"
 
