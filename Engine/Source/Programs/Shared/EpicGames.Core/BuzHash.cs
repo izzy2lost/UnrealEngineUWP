@@ -225,5 +225,58 @@ namespace EpicGames.Core
 		{
 			return (uint)((1L << 32) / targetSize);
 		}
+
+		/// <summary>
+		/// Gets the length of a chunk up to the next content-defined boundary
+		/// </summary>
+		/// <param name="inputData">Input data to find a boundary in</param>
+		/// <param name="minSize">Minimum size for a chunk</param>
+		/// <param name="maxSize">Maximum size for a chunk</param>
+		/// <param name="targetSize">Desired average size for a chunk</param>
+		/// <returns></returns>
+		public static int FindChunkLength(ReadOnlySpan<byte> inputData, int minSize, int maxSize, int targetSize)
+		{
+			// If the target option sizes are fixed, just chunk the data along fixed boundaries
+			if (minSize == targetSize && maxSize == targetSize)
+			{
+				return Math.Min(inputData.Length, maxSize);
+			}
+
+			// Cap the append data span to the maximum amount we can add
+			int maxLength = maxSize;
+			if (maxLength < inputData.Length)
+			{
+				inputData = inputData.Slice(0, maxLength);
+			}
+
+			int windowSize = minSize;
+
+			// Fast path for appending data to the buffer up to the chunk window size
+			int length = Math.Min(windowSize, inputData.Length);
+			uint rollingHash = BuzHash.Add(0, inputData.Slice(0, length));
+
+			// Get the threshold for the rolling hash to split the output
+			uint rollingHashThreshold = (uint)((1L << 32) / targetSize);
+
+			// Step through the rest of the data which is completely contained in appendData.
+			if (length < inputData.Length)
+			{
+				Debug.Assert(length >= windowSize);
+
+				ReadOnlySpan<byte> tailSpan = inputData.Slice(length - windowSize, inputData.Length - windowSize);
+				ReadOnlySpan<byte> headSpan = inputData.Slice(length);
+
+				int count = BuzHash.Update(tailSpan, headSpan, rollingHashThreshold, ref rollingHash);
+				if (count != -1)
+				{
+					length += count;
+					return length;
+				}
+
+				length += headSpan.Length;
+			}
+
+			return length;
+		}
 	}
 }
