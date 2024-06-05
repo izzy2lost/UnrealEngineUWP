@@ -3356,19 +3356,35 @@ bool FMaterial::Translate_Legacy(const FMaterialShaderMapId& ShaderMapId,
 	TRefCountPtr<FSharedShaderCompilerEnvironment>& OutMaterialEnvironment)
 {
 	FString MaterialTranslationDDCKeyString = GetMaterialShaderMapKeyString(ShaderMapId, FMaterialShaderParameters(this), InPlatform, false);
+	
 	FHLSLMaterialTranslator MaterialTranslator(this, OutCompilationOutput, InStaticParameters, InPlatform, GetQualityLevel(), ShaderMapId.FeatureLevel, InTargetPlatform, &ShaderMapId.SubstrateCompilationConfig, MoveTemp(MaterialTranslationDDCKeyString));
-	const bool bSuccess = MaterialTranslator.Translate();
-	if (bSuccess)
-	{
-		// Create a shader compiler environment for the material that will be shared by all jobs from this material
-		OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
-		OutMaterialEnvironment->TargetPlatform = InTargetPlatform;
-		MaterialTranslator.GetMaterialEnvironment(InPlatform, *OutMaterialEnvironment);
-		const FString MaterialShaderCode = MaterialTranslator.GetMaterialShaderCode();
+	EHLSLMaterialTranslatorResult Result = MaterialTranslator.Translate(false);
 
-		OutMaterialEnvironment->IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/Material.ush"), MaterialShaderCode);
+	// If the DDC result was invalid we need to invoke translation again turning the DDC off.
+	if (Result == EHLSLMaterialTranslatorResult::RetryWithoutDDC)
+	{
+		// FHLSLMaterialTranslator is designed as single use. After a call to Translate() no other calls are allowed.
+		// Destruct the current instance and create a new one before translating the material again, forcing the translator
+		// to translate the material instead of accessing the DDC cache.
+		MaterialTranslator.~FHLSLMaterialTranslator();
+		new (&MaterialTranslator) FHLSLMaterialTranslator(this, OutCompilationOutput, InStaticParameters, InPlatform, GetQualityLevel(), ShaderMapId.FeatureLevel, InTargetPlatform, &ShaderMapId.SubstrateCompilationConfig, MoveTemp(MaterialTranslationDDCKeyString));
+		Result = MaterialTranslator.Translate(true);
 	}
-	return bSuccess;
+
+	if (Result != EHLSLMaterialTranslatorResult::Success)
+	{
+		return false;
+	}
+
+	// Create a shader compiler environment for the material that will be shared by all jobs from this material
+	OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
+	OutMaterialEnvironment->TargetPlatform = InTargetPlatform;
+	MaterialTranslator.GetMaterialEnvironment(InPlatform, *OutMaterialEnvironment);
+	const FString MaterialShaderCode = MaterialTranslator.GetMaterialShaderCode();
+
+	OutMaterialEnvironment->IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/Material.ush"), MaterialShaderCode);
+	
+	return true;
 }
 
 bool FMaterial::Translate_New(const FMaterialShaderMapId& InShaderMapId,

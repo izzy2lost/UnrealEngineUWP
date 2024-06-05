@@ -242,6 +242,20 @@ enum ESubstrateCompilationContext : uint8
 	SCC_MAX = 2u
 };
 
+/** 
+ * Enumerates Translate() results.
+ * If RetryWithoutDDC is returned, the caller should call Translate() again
+ * on a new instance of FHLSLMaterialTranslator forcing DDC query off (i.e. call
+ * Translate(false)). This is because an instance of FHLSLMaterialTranslator
+ * is single use.
+ */
+enum class EHLSLMaterialTranslatorResult
+{
+	Success,
+	Failure,
+	RetryWithoutDDC,
+};
+
 class FHLSLMaterialTranslator : public FMaterialCompiler
 {
 	friend class FMaterialDerivativeAutogen;
@@ -338,8 +352,8 @@ protected:
 	/** Keeps track of which variations of analytic derivative functions are used, and generates the code during translation. **/
 	FMaterialDerivativeAutogen DerivativeAutogen;
 
-	/** Whether the translation succeeded. */
-	uint32 bSuccess : 1;
+	/** The translation result. */
+	EHLSLMaterialTranslatorResult TranslationResult;
 	/** Whether the compute shader material inputs were compiled. */
 	uint32 bCompileForComputeShader : 1;
 	/** Whether the compiled material uses scene depth. */
@@ -621,7 +635,8 @@ public:
 
 	void ValidateVtPropertyLimits();
 	void ValidateShadingModelsForFeatureLevel(const FMaterialShadingModelField& ShadingModels);
-	bool Translate();
+
+	EHLSLMaterialTranslatorResult Translate(bool bForceDisableDDCQuery);
 
 	void GetMaterialEnvironment(EShaderPlatform InPlatform, FShaderCompilerEnvironment& OutEnvironment);
 	
@@ -1400,11 +1415,11 @@ protected:
 	virtual bool IsCurrentlyCompilingForPreviousFrame() const;
 
 	virtual bool IsDevelopmentFeatureEnabled(const FName& FeatureName) const override;
-	
+
 	/**
-	 * EFfectively performs the translation without querying the DDC first.
+	 * Effectively performs the translation without querying the DDC first.
 	 */
-	void DoTranslate();
+	void TranslateMaterial();
 
 	/**
 	 * Queries the DDC cache for a cached translation.

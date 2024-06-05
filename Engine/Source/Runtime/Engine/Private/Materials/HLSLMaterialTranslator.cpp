@@ -639,6 +639,7 @@ void FHLSLMaterialTranslator::AppendVersion(FShaderKeyGenerator& KeyGen, EShader
 {
 	static const FGuid DDCVersion = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().MaterialTranslationDDCVersion);
 	KeyGen.AppendDebugText(TEXT("_MatTransl_"));
+	KeyGen.AppendDebugText(FApp::GetProjectName());
 	KeyGen.Append(FMaterialSourceTemplate::Get().GetTemplateHashString(Platform));
 	KeyGen.AppendSeparator();
 	KeyGen.Append(DDCVersion);
@@ -669,7 +670,7 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	CurrentCustomVertexInterpolatorOffset(0)
 ,	CompileErrorsSink(nullptr)
 ,	CompileErrorExpressionsSink(nullptr)
-,	bSuccess(false)
+,	TranslationResult(EHLSLMaterialTranslatorResult::Success)
 ,	bCompileForComputeShader(false)
 ,	bUsesSceneDepth(false)
 ,	bNeedsParticlePosition(false)
@@ -1169,7 +1170,7 @@ UE_TRACE_EVENT_BEGIN(Cpu, FHLSLMaterialTranslatorTranslate, NoSync)
 UE_TRACE_EVENT_END()
  
 
-bool FHLSLMaterialTranslator::Translate()
+EHLSLMaterialTranslatorResult FHLSLMaterialTranslator::Translate(bool bForceDisableDDCQuery)
 {
 	STAT(FDateTime TranslationDateTime = FDateTime::Now());
 	STAT(double TotalTime = FPlatformTime::Seconds());
@@ -1221,7 +1222,7 @@ bool FHLSLMaterialTranslator::Translate()
 	FSharedBuffer EnvironmentDefinesBuffer;
 
 	// Asynchronously query the DDC for results
-	if (!bDisableTranslationDDC)
+	if (!bForceDisableDDCQuery && !bDisableTranslationDDC)
 	{
 		AsyncQueryDDC(DDCRequestOwner, EnvironmentDefinesBuffer);
 	}
@@ -1229,7 +1230,7 @@ bool FHLSLMaterialTranslator::Translate()
 	// Synchronously begin translating the material
 	{
 		SCOPE_SECONDS_COUNTER(TranslationOnlyTime);
-		DoTranslate();
+		TranslateMaterial();
 	}
 
 	// One of the two has terminated. This will be a NOOP if DDC query task has completed.
@@ -1251,13 +1252,25 @@ bool FHLSLMaterialTranslator::Translate()
 		EnvironmentDefinesBufferReaderProxy.bResolveRedirectors = true;
 		EnvironmentDefines->Serialize(EnvironmentDefinesBufferReaderProxy);
 
-		MaterialCompilationOutput = DDCMaterialCompilationOutput;
+		// If a parameter collection failed to load, the DDC entry is invalid. Caller needs
+		// to invoke translate again forcing DDC querying off in order to re-translate the
+		// material from scratch. We can't do this ourselves because this class was designed
+		// to be single-use. The caller needs to create a new instance and invoke Translate
+		// again.
+		if (EnvironmentDefines->ParameterCollections.Contains(nullptr))
+		{
+			TranslationResult = EHLSLMaterialTranslatorResult::RetryWithoutDDC;
+		}
+		else
+		{
+			MaterialCompilationOutput = DDCMaterialCompilationOutput;
 		
-		STAT(DDCRequestSerializeTime += SerializeTime - FPlatformTime::Seconds());
-		STAT(GShaderCompilerStats->IncrementMaterialCacheHit());
-		bSuccess = true;
+			STAT(DDCRequestSerializeTime += SerializeTime - FPlatformTime::Seconds());
+			STAT(GShaderCompilerStats->IncrementMaterialCacheHit());
+			TranslationResult = EHLSLMaterialTranslatorResult::Success;
+		}
 	}
-	else if (bSuccess)
+	else if (TranslationResult == EHLSLMaterialTranslatorResult::Success)
 	{
 		if (bVerbose)
 		{
@@ -1294,12 +1307,12 @@ bool FHLSLMaterialTranslator::Translate()
 
 #endif // STATS
 
-	return bSuccess;
+	return TranslationResult;
 }
 
-void FHLSLMaterialTranslator::DoTranslate()
+void FHLSLMaterialTranslator::TranslateMaterial()
 {
-	bSuccess = true;
+	TranslationResult = EHLSLMaterialTranslatorResult::Success;
 	
 	// No cache hit, continue translating the material
 	check(ScopeStack.Num() == 0);
@@ -1316,8 +1329,8 @@ void FHLSLMaterialTranslator::DoTranslate()
 	// If pedantic error checking is enabled, log out the pre-compilation errors
 	if (GPedanticErrorChecksEnabled)
 	{
-		bSuccess = Material->CheckInValidStateForCompilation(this);
-		if (!bSuccess)
+		TranslationResult = Material->CheckInValidStateForCompilation(this) ? EHLSLMaterialTranslatorResult::Success : EHLSLMaterialTranslatorResult::Failure;
+		if (TranslationResult != EHLSLMaterialTranslatorResult::Success)
 		{
 			return;
 		}
@@ -1327,7 +1340,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 	UMaterialInterface* Interface = Material->GetMaterialInterface();
 	if (!Interface)
 	{
-		bSuccess = false;
+		TranslationResult = EHLSLMaterialTranslatorResult::Failure;
 		return;
 	}
 
@@ -1340,7 +1353,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 			if (Expression->ContainsInputLoop(VisitedExpressions))
 			{
 				AppendExpressionError(Expression, TEXT("Expression is part of a cycle. Please make sure the material graph is acyclic."));
-				bSuccess = false;
+				TranslationResult = EHLSLMaterialTranslatorResult::Failure;
 				return;
 			}
 		}
@@ -4394,7 +4407,7 @@ int32 FHLSLMaterialTranslator::Error(const TCHAR* Text)
 	if (!bUsingErrorProxy)
 	{
 		// Standard error handling, immediately append one-off errors and signal failure
-		bSuccess = false;
+		TranslationResult = EHLSLMaterialTranslatorResult::Failure;
 		if (ExpressionToError)
 		{
 			ExpressionToError->LastErrorText = Text;
