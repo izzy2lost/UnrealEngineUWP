@@ -17,7 +17,6 @@
 #include "HarmonixMetasound/DataTypes/MidiStepSequence.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-#include "HarmonixMidi/MidiPlayCursor.h"
 #include "HarmonixMidi/MidiVoiceId.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
