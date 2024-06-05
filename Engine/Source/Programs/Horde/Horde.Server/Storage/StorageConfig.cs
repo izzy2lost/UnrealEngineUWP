@@ -53,7 +53,12 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Whether to enable garbage collection
 		/// </summary>
-		public bool EnableGC { get; set; } = true;
+		public bool EnableGc { get; set; } = true;
+
+		/// <summary>
+		/// Whether to enable garbage collection in verification mode (nothing deleted, just logging on access to deleted blobs)
+		/// </summary>
+		public bool EnableGcVerification { get; set; }
 
 		/// <summary>
 		/// List of storage backends
