@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "Replication/Editor/Model/Property/IPropertySourceModel.h"
-
 #include "Templates/FunctionFwd.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/SoftObjectPtr.h"
 
 namespace UE::ConcertSharedSlate
 {
+	class IPropertySource;
+	
 	/** Arguments for getting properties associated with an object / class. */
 	struct FPropertySourceContext
 	{
@@ -35,7 +35,7 @@ namespace UE::ConcertSharedSlate
 	public:
 		
 		/** Allows you to get the properties that are associated with the passed in object / class context. You are not allowed to keep a reference to Processor. */
-		virtual void ProcessPropertySource(const FPropertySourceContext& Context, TFunctionRef<void(const IPropertySourceModel& Model)> Processor) const = 0;
+		virtual void ProcessPropertySource(const FPropertySourceContext& Context, TFunctionRef<void(const IPropertySource& Model)> Processor) const = 0;
 		
 		virtual ~IPropertySourceProcessor() = default;
 	};

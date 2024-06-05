@@ -4,6 +4,7 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
+#include "Replication/Editor/Model/Property/IPropertySource.h"
 #include "Replication/Editor/Model/Property/IPropertySourceProcessor.h"
 
 #include "Containers/Set.h"
@@ -73,9 +74,9 @@ namespace UE::ConcertSharedSlate
 			const FPropertySourceContext ObjectQueryContext(Object, ObjectClass);
 					
 			EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
-			Source.ProcessPropertySource(ObjectQueryContext, [&Callback, &ObjectClass, &BreakBehavior](const IPropertySourceModel& PropertySource)
+			Source.ProcessPropertySource(ObjectQueryContext, [&Callback, &ObjectClass, &BreakBehavior](const IPropertySource& PropertySource)
 			{
-				PropertySource.EnumerateSelectableItems([&Callback, &ObjectClass, &BreakBehavior](const FSelectablePropertyInfo& PropertyInfo)
+				PropertySource.EnumerateProperties([&Callback, &ObjectClass, &BreakBehavior](const FPropertyInfo& PropertyInfo)
 				{
 					BreakBehavior = Callback(ObjectClass, PropertyInfo.Property);
 					return BreakBehavior;

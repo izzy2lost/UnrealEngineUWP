@@ -38,6 +38,7 @@ namespace UE::ConcertClientSharedSlate
 		};
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	void FConcertSyncCoreReplicatedPropertySource::EnumerateSelectableItems(TFunctionRef<EBreakBehavior(const ConcertSharedSlate::FSelectablePropertyInfo& SelectableOption)> Delegate) const
 	{
 		if (!Class.IsValid())
@@ -50,6 +51,7 @@ namespace UE::ConcertClientSharedSlate
 			return Delegate({ MoveTemp(Property) });
 		});
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #undef LOCTEXT_NAMESPACE

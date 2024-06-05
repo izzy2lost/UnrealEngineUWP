@@ -12,7 +12,10 @@
 
 namespace UE::ConcertSharedSlate
 {
-	using FPropertySourceCategory UE_DEPRECATED(5.5, "No longer in use.") = ConcertSharedSlate::TSourceSelectionCategory<FSelectablePropertyInfo>;
+	using FPropertySourceCategory UE_DEPRECATED(5.5, "No longer in use.") =
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ConcertSharedSlate::TSourceSelectionCategory<FSelectablePropertyInfo>;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	/** Decides which properties can be added to a IReplicationStreamModel. */
 	class UE_DEPRECATED(5.5, "Use IPropertySourceProcessor instead.") IPropertySelectionSourceModel
@@ -23,7 +26,9 @@ namespace UE::ConcertSharedSlate
 	public:
 
 		/** Gets the single source determining which properties can be selected. */
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		virtual TSharedRef<IPropertySourceModel> GetPropertySource(const FSoftClassPath& Class) const = 0;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		
 		virtual ~IPropertySelectionSourceModel() = default;
 	};

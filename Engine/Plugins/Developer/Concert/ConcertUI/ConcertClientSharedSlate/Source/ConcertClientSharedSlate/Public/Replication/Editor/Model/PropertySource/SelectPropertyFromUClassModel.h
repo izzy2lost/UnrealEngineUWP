@@ -10,7 +10,6 @@ struct FSoftClassPath;
 
 namespace UE::ConcertClientSharedSlate
 {
-	
 	/**
 	 * Decides which properties can be added to IEditableReplicationStreamModel.
 	 * The allowed properties are those returned by UE::ConcertSyncCore::ForEachReplicatableProperty.
@@ -22,10 +21,9 @@ namespace UE::ConcertClientSharedSlate
 		//~ Begin IPropertySelectionProcessor Interface
 		virtual void ProcessPropertySource(
 			const ConcertSharedSlate::FPropertySourceContext& Context,
-			TFunctionRef<void(const ConcertSharedSlate::IPropertySourceModel& Model)> Processor
+			TFunctionRef<void(const ConcertSharedSlate::IPropertySource& Model)> Processor
 			) const override;
 		//~ End IPropertySelectionProcessor Interface
-
 	};
 }
 

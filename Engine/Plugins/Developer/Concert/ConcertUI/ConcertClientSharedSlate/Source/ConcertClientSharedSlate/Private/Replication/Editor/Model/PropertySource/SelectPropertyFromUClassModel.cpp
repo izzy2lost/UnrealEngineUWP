@@ -2,27 +2,20 @@
 
 #include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 
-#include "Replication/Editor/Model/Property/IPropertySourceModel.h"
-#include "Replication/Editor/Model/PropertySource/ConcertSyncCoreReplicatedPropertySource.h"
-
 #include "ConcertLogGlobal.h"
-
-#define LOCTEXT_NAMESPACE "FSelectPropertyFromUClassModel"
+#include "Replication/Editor/Model/PropertySource/ReplicatablePropertySource.h"
 
 namespace UE::ConcertClientSharedSlate
 {
 	void FSelectPropertyFromUClassModel::ProcessPropertySource(
 		const ConcertSharedSlate::FPropertySourceContext& Context,
-		TFunctionRef<void(const ConcertSharedSlate::IPropertySourceModel& Model)> Processor
+		TFunctionRef<void(const ConcertSharedSlate::IPropertySource& Model)> Processor
 		) const
 	{
 		UClass* LoadedClass = Context.Class.TryLoadClass<UObject>();
-		
-		FConcertSyncCoreReplicatedPropertySource UClassIteratorSource;
-		UClassIteratorSource.SetClass(LoadedClass ? LoadedClass : nullptr);
 		UE_CLOG(!LoadedClass, LogConcert, Warning, TEXT("Could not resolve class %s. Properties will not be available."), *Context.Class.ToString());
-		Processor(UClassIteratorSource);
+		
+		FReplicatablePropertySource PropertySource(LoadedClass);
+		Processor(PropertySource);
 	}
 }
-
-#undef LOCTEXT_NAMESPACE
