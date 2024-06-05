@@ -1119,7 +1119,7 @@ namespace JobDriver.Execution
 			bool result = await ExecuteWithTempStorageAsync(step, workspaceDir, arguments.ToString(), useP4, logger, cancellationToken);
 			return result;
 		}
-
+		
 		protected async Task CreateArtifactsAsync(JobStepId stepId, ArtifactName name, ArtifactType type, DirectoryReference baseDir, IEnumerable<(string, FileReference)> files, ILogger logger, CancellationToken cancellationToken)
 		{
 			await CreateArtifactAsync(stepId, name, type, baseDir, files.Select(x => x.Item2), logger, cancellationToken);
@@ -1208,18 +1208,20 @@ namespace JobDriver.Execution
 			}
 
 			// Read all the input storage blocks, keeping track of which block each file came from
-			Dictionary<FileReference, TempStorageBlockRef> fileToStorageBlock = new Dictionary<FileReference, TempStorageBlockRef>();
-			foreach (KeyValuePair<TempStorageBlockRef, TempStorageBlockManifest> pair in inputManifests)
+			Dictionary<string, (TempStorageFile, TempStorageBlockRef)> inputPathToSource = new Dictionary<string, (TempStorageFile, TempStorageBlockRef)>(FileReference.Comparer);
+			foreach ((TempStorageBlockRef inputStorageBlock, TempStorageBlockManifest inputManifest) in inputManifests)
 			{
-				TempStorageBlockRef inputStorageBlock = pair.Key;
-				foreach (FileReference file in pair.Value.Files.Select(x => x.ToFileReference(workspaceDir)))
+				foreach (TempStorageFile inputFile in inputManifest.Files)
 				{
-					TempStorageBlockRef? currentStorageBlock;
-					if (fileToStorageBlock.TryGetValue(file, out currentStorageBlock) && !TempStorage.IsDuplicateBuildProduct(file))
+					(TempStorageFile File, TempStorageBlockRef BlockRef) source;
+					if (!inputPathToSource.TryGetValue(inputFile.RelativePath, out source))
 					{
-						logger.LogError("File '{File}' was produced by {InputBlock} and {CurrentBlock}", file, inputStorageBlock.ToString(), currentStorageBlock.ToString());
+						inputPathToSource.Add(inputFile.RelativePath, (inputFile, inputStorageBlock));
 					}
-					fileToStorageBlock[file] = inputStorageBlock;
+					else if (!inputFile.Equals(source.File) && !TempStorage.IsDuplicateBuildProduct(inputFile.ToFileReference(workspaceDir)))
+					{
+						logger.LogError("File '{File}' was produced by {InputBlock} and {CurrentBlock}", inputFile.RelativePath, inputStorageBlock.ToString(), source.BlockRef.ToString());
+					}
 				}
 			}
 
@@ -1276,7 +1278,7 @@ namespace JobDriver.Execution
 			}
 
 			// Find a block name for all new outputs
-			Dictionary<FileReference, string> fileToBlockName = new Dictionary<FileReference, string>();
+			Dictionary<FileReference, string> outputFileToBlockName = new Dictionary<FileReference, string>();
 			for (int idx = 0; idx < step.OutputNames.Count; idx++)
 			{
 				string tagName = step.OutputNames[idx];
@@ -1287,25 +1289,25 @@ namespace JobDriver.Execution
 				HashSet<FileReference> files = tagNameToFileSet[tagName];
 				foreach (FileReference file in files)
 				{
-					if (!fileToStorageBlock.ContainsKey(file) && file.IsUnderDirectory(workspaceDir))
+					if (file.IsUnderDirectory(workspaceDir))
 					{
 						if (isDefaultOutput)
 						{
-							if (!fileToBlockName.ContainsKey(file))
+							if (!outputFileToBlockName.ContainsKey(file))
 							{
-								fileToBlockName[file] = "";
+								outputFileToBlockName[file] = "";
 							}
 						}
 						else
 						{
 							string? blockName;
-							if (fileToBlockName.TryGetValue(file, out blockName) && blockName.Length > 0)
+							if (outputFileToBlockName.TryGetValue(file, out blockName) && blockName.Length > 0)
 							{
-								fileToBlockName[file] = $"{blockName}+{outputNameWithoutHash}";
+								outputFileToBlockName[file] = $"{blockName}+{outputNameWithoutHash}";
 							}
 							else
 							{
-								fileToBlockName[file] = outputNameWithoutHash;
+								outputFileToBlockName[file] = outputNameWithoutHash;
 							}
 						}
 					}
@@ -1314,7 +1316,7 @@ namespace JobDriver.Execution
 
 			// Invert the dictionary to make a mapping of storage block to the files each contains
 			Dictionary<string, HashSet<FileReference>> outputStorageBlockToFiles = new Dictionary<string, HashSet<FileReference>>();
-			foreach (KeyValuePair<FileReference, string> pair in fileToBlockName)
+			foreach (KeyValuePair<FileReference, string> pair in outputFileToBlockName)
 			{
 				HashSet<FileReference>? files;
 				if (!outputStorageBlockToFiles.TryGetValue(pair.Value, out files))
@@ -1350,12 +1352,13 @@ namespace JobDriver.Execution
 					DirectoryNode outputNode = new DirectoryNode();
 
 					// Create all the output blocks
+					Dictionary<FileReference, TempStorageBlockRef> outputFileToStorageBlock = new Dictionary<FileReference, TempStorageBlockRef>();
 					foreach (KeyValuePair<string, HashSet<FileReference>> pair in outputStorageBlockToFiles)
 					{
 						TempStorageBlockRef outputBlock = new TempStorageBlockRef(step.Name, pair.Key);
 						foreach (FileReference file in pair.Value)
 						{
-							fileToStorageBlock.Add(file, outputBlock);
+							outputFileToStorageBlock.Add(file, outputBlock);
 						}
 						if (pair.Value.Any(x => referencedOutputFiles.Contains(x)))
 						{
@@ -1372,7 +1375,7 @@ namespace JobDriver.Execution
 						foreach (FileReference file in files)
 						{
 							TempStorageBlockRef? storageBlock;
-							if (fileToStorageBlock.TryGetValue(file, out storageBlock))
+							if (outputFileToStorageBlock.TryGetValue(file, out storageBlock))
 							{
 								storageBlocks.Add(storageBlock);
 							}

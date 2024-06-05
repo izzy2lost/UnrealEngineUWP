@@ -93,7 +93,7 @@ namespace JobDriver.Utility
 	/// Information about a single file in temp storage
 	/// </summary>
 	[DebuggerDisplay("{RelativePath}")]
-	public class TempStorageFile
+	public class TempStorageFile : IEquatable<TempStorageFile>
 	{
 		/// <summary>
 		/// The path of the file, relative to the engine root. Stored using forward slashes.
@@ -301,6 +301,24 @@ namespace JobDriver.Utility
 		{
 			return FileReference.Combine(rootDir, RelativePath.Replace('/', Path.DirectorySeparatorChar));
 		}
+
+		/// <inheritdoc/>
+		public override bool Equals(object? other)
+			=> Equals(other as TempStorageFile);
+
+		/// <inheritdoc/>
+		public bool Equals(TempStorageFile? other)
+		{
+			return other != null
+				&& String.Equals(RelativePath, other.RelativePath, StringComparison.Ordinal)
+				&& LastWriteTimeUtcTicks == other.LastWriteTimeUtcTicks
+				&& Length == other.Length
+				&& (Digest == null || other.Digest == null || String.Equals(Digest, other.Digest, StringComparison.Ordinal));
+		}
+
+		/// <inheritdoc/>
+		public override int GetHashCode()
+			=> HashCode.Combine(RelativePath, LastWriteTimeUtcTicks, Length);
 	}
 
 	/// <summary>

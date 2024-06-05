@@ -736,7 +736,7 @@ namespace AutomationTool
 				}
 			}
 
-			// ExecuteAsync the command
+			// Execute the command
 			if (!listOnly)
 			{
 				if (singleNode != null)
@@ -1100,18 +1100,20 @@ namespace AutomationTool
 			}
 
 			// Read all the input storage blocks, keeping track of which block each file came from
-			Dictionary<FileReference, TempStorageBlock> fileToStorageBlock = new Dictionary<FileReference, TempStorageBlock>();
+			Dictionary<string, TempStorageFile> inputFiles = new Dictionary<string, TempStorageFile>(FileReference.Comparer);
 			foreach (KeyValuePair<TempStorageBlock, TempStorageManifest> pair in inputManifests)
 			{
-				TempStorageBlock inputStorageBlock = pair.Key;
-				foreach (FileReference file in pair.Value.Files.Select(x => x.ToFileReference(rootDir)))
+				foreach (TempStorageFile newFile in pair.Value.Files)
 				{
-					TempStorageBlock? currentStorageBlock;
-					if (fileToStorageBlock.TryGetValue(file, out currentStorageBlock) && !TempStorage.IsDuplicateBuildProduct(file))
+					TempStorageFile? existingFile;
+					if (inputFiles.TryGetValue(newFile.RelativePath, out existingFile) && !TempStorage.IsDuplicateBuildProduct(newFile.ToFileReference(rootDir)))
 					{
-						Logger.LogError("File '{File}' was produced by {InputStorageBlock} and {CurrentStorageBlock}", file, inputStorageBlock, currentStorageBlock);
+						if (existingFile.LastWriteTimeUtcTicks != newFile.LastWriteTimeUtcTicks)
+						{
+							Logger.LogError("File '{File}' was produced by multiple nodes", newFile.RelativePath);// {InputStorageBlock} and {CurrentStorageBlock}", file, inputStorageBlock, currentStorageBlock);
+						}
 					}
-					fileToStorageBlock[file] = inputStorageBlock;
+					inputFiles[newFile.RelativePath] = newFile;
 				}
 			}
 
@@ -1195,7 +1197,7 @@ namespace AutomationTool
 				HashSet<FileReference> files = tagNameToFileSet[output.TagName];
 				foreach (FileReference file in files)
 				{
-					if (!fileToStorageBlock.ContainsKey(file) && file.IsUnderDirectory(rootDir))
+					if (file.IsUnderDirectory(rootDir))
 					{
 						if (output == node.DefaultOutput)
 						{
@@ -1236,12 +1238,13 @@ namespace AutomationTool
 			// Write all the storage blocks, and update the mapping from file to storage block
 			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
+				Dictionary<FileReference, TempStorageBlock> outputFileToStorageBlock = new Dictionary<FileReference, TempStorageBlock>();
 				foreach (KeyValuePair<string, HashSet<FileReference>> pair in outputStorageBlockToFiles)
 				{
 					TempStorageBlock outputBlock = new TempStorageBlock(node.Name, pair.Key);
 					foreach (FileReference file in pair.Value)
 					{
-						fileToStorageBlock.Add(file, outputBlock);
+						outputFileToStorageBlock.Add(file, outputBlock);
 					}
 					storage.Archive(node.Name, pair.Key, pair.Value.ToArray(), pair.Value.Any(x => referencedOutputFiles.Contains(x)));
 				}
@@ -1258,7 +1261,7 @@ namespace AutomationTool
 					foreach (FileReference file in files)
 					{
 						TempStorageBlock? storageBlock;
-						if (fileToStorageBlock.TryGetValue(file, out storageBlock))
+						if (outputFileToStorageBlock.TryGetValue(file, out storageBlock))
 						{
 							storageBlocks.Add(storageBlock);
 						}
