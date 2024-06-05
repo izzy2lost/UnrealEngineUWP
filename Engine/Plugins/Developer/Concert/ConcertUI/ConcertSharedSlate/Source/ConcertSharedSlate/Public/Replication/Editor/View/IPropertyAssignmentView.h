@@ -5,9 +5,10 @@
 #include "Containers/ContainersFwd.h"
 #include "Containers/Set.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/SoftObjectPtr.h"
 
 class SWidget;
-struct FSoftObjectPath;
+class UObject;
 
 namespace UE::ConcertSharedSlate
 {
@@ -35,7 +36,7 @@ namespace UE::ConcertSharedSlate
 		 * @param Objects The objects that are supposed to be displayed.
 		 * @param Model The model that can be queried for object info.
 		 */
-		virtual void RefreshData(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model) = 0;
+		virtual void RefreshData(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model) = 0;
 		
 		/** Reapply the filter function to all items at the end of the frame. Call e.g. when the filters have changed. */
 		virtual void RequestRefilter() const = 0;

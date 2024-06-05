@@ -11,15 +11,15 @@ namespace UE::ConcertSharedSlate
 {
 	namespace Private
 	{
-		static TMap<FSoftObjectPath, TArray<FSoftObjectPath>> BuildHierarchy(const TArray<FSoftObjectPath>& RootObjects, IObjectHierarchyModel& HierarchyModel, bool bShouldShowSubobjects)
+		static TMap<FSoftObjectPath, TArray<FSoftObjectPath>> BuildHierarchy(const TArray<TSoftObjectPtr<>>& RootObjects, IObjectHierarchyModel& HierarchyModel, bool bShouldShowSubobjects)
 		{
 			TMap<FSoftObjectPath, TArray<FSoftObjectPath>> Result;
 
-			for (const FSoftObjectPath& Object : RootObjects)
+			for (const TSoftObjectPtr<>& Object : RootObjects)
 			{
 				HierarchyModel.ForEachChildRecursive(
 					Object,
-					[&Result](const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
+					[&Result](const TSoftObjectPtr<>& Parent, const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)
 					{
 						// ForEachChildRecursive iterates through the hierarchy as it would be displayed by the component panel in the details panel
 						// E.g. for ACharacter this would say
@@ -34,7 +34,7 @@ namespace UE::ConcertSharedSlate
 						ParentPathString.LeftInline(Index);
 
 						const FSoftObjectPath ParentPath(*ParentPathString);
-						Result.FindOrAdd(ParentPath).Add(ChildObject);
+						Result.FindOrAdd(ParentPath).Add(ChildObject.GetUniqueID());
 						return EBreakBehavior::Continue;
 					},
 					bShouldShowSubobjects ? EChildRelationshipFlags::All : EChildRelationshipFlags::Component
@@ -45,9 +45,9 @@ namespace UE::ConcertSharedSlate
 		}
 
 		static void ForEachCategory(
-			const TArray<FSoftObjectPath>& Start,
+			const TArray<TSoftObjectPtr<>>& Start,
 			const TMap<FSoftObjectPath, TArray<FSoftObjectPath>>& Hierarchy,
-			TFunctionRef<void(const TArray<FSoftObjectPath>& ContextObjects)> Callback
+			TFunctionRef<void(const TArray<TSoftObjectPtr<>>& ContextObjects)> Callback
 			)
 		{
 			if (Start.IsEmpty())
@@ -56,8 +56,8 @@ namespace UE::ConcertSharedSlate
 			}
 
 			// While multi-editing, if any of the subobjects do not match skip the entire category.
-			const FSoftObjectPath FirstEntry = *Start.CreateConstIterator();
-			const TArray<FSoftObjectPath>* FirstEntryChildren = Hierarchy.Find(FirstEntry);
+			const TSoftObjectPtr<> FirstEntry = Start[0];
+			const TArray<FSoftObjectPath>* FirstEntryChildren = Hierarchy.Find(FirstEntry.GetUniqueID());
 			if (!FirstEntryChildren)
 			{
 				return;
@@ -72,11 +72,11 @@ namespace UE::ConcertSharedSlate
 				// +1 for the "." preceding the child, otherwise we'd get ".Component"
 				ChildName.RightChopInline(Base.Len() + 1);
 
-				TArray<FSoftObjectPath> RelatedChildren;
+				TArray<TSoftObjectPtr<>> RelatedChildren;
 				// This intentionally iterates FirstEntry as well
-				for (const FSoftObjectPath& StartObject : Start)
+				for (const TSoftObjectPtr<>& StartObject : Start)
 				{
-					const TArray<FSoftObjectPath>* Children = Hierarchy.Find(StartObject);
+					const TArray<FSoftObjectPath>* Children = Hierarchy.Find(StartObject.GetUniqueID());
 					if (!Children)
 					{
 						continue;
@@ -86,7 +86,7 @@ namespace UE::ConcertSharedSlate
 					const FSoftObjectPath ExpectedChildPath(*ExpectedChildPathString);
 					if (Children->Contains(ExpectedChildPath))
 					{
-						RelatedChildren.Add(ExpectedChildPath);
+						RelatedChildren.Emplace(ExpectedChildPath);
 					}
 				}
 
@@ -111,7 +111,7 @@ namespace UE::ConcertSharedSlate
 		];
 	}
 
-	void SMultiObjectAssignment::RefreshData(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model)
+	void SMultiObjectAssignment::RefreshData(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model)
 	{
 		TArray<FPropertyAssignmentEntry> Entries;
 		auto[RootEntry, bRootSharesClass] = BuildAssignmentEntry(Objects, Model);
@@ -126,7 +126,7 @@ namespace UE::ConcertSharedSlate
 		{
 			using namespace Private;
 			const TMap<FSoftObjectPath, TArray<FSoftObjectPath>> HierarchyInfo = BuildHierarchy(Objects, *ObjectHierarchy, bShouldShowSubobjects);
-			ForEachCategory(Objects, HierarchyInfo, [this, &Model, &Entries](const TArray<FSoftObjectPath>& ContextObjects)
+			ForEachCategory(Objects, HierarchyInfo, [this, &Model, &Entries](const TArray<TSoftObjectPtr<>>& ContextObjects)
 			{
 				auto[Entry, bShareClass] = BuildAssignmentEntry(ContextObjects, Model);
 				if (bShareClass)
@@ -156,14 +156,11 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 
-	SMultiObjectAssignment::FBuildAssignmentEntryResult SMultiObjectAssignment::BuildAssignmentEntry(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model)
+	SMultiObjectAssignment::FBuildAssignmentEntryResult SMultiObjectAssignment::BuildAssignmentEntry(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model)
 	{
 		FBuildAssignmentEntryResult Result;
-		
-		TArray<TSoftObjectPtr<>> ContextObjects;
-		Algo::Transform(Objects, ContextObjects, [](const FSoftObjectPath& Path){ return TSoftObjectPtr{ Path }; });
 
-		Result.Entry = { .ContextObjects = MoveTemp(ContextObjects) };
+		Result.Entry = { .ContextObjects = Objects };
 		TSet<FConcertPropertyChain>& Properties = Result.Entry.PropertiesToDisplay;
 		FSoftClassPath& ClassPath = Result.Entry.Class;
 		

@@ -15,6 +15,9 @@ namespace UE::ConcertSharedSlate
 		FReplicatedObjectData(FSoftObjectPath ObjectPath)
 			: ObjectPtr(MoveTemp(ObjectPath))
 		{}
+		FReplicatedObjectData(TSoftObjectPtr<> Object)
+			: ObjectPtr(MoveTemp(Object))
+		{}
 		
 		const FSoftObjectPath& GetObjectPath() const { return ObjectPtr.GetUniqueID(); }
 		const TSoftObjectPtr<>& GetObjectPtr() const { return ObjectPtr; }

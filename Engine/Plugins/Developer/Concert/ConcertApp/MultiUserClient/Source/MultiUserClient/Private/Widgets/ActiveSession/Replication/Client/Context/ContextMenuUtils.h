@@ -4,6 +4,7 @@
 
 #include "Containers/ArrayView.h"
 #include "UObject/SoftObjectPath.h"
+#include "UObject/SoftObjectPtr.h"
 
 class IConcertClient;
 class FMenuBuilder;
@@ -24,7 +25,7 @@ namespace UE::MultiUserClient::ContextMenuUtils
 	/** Adds menu entries for reassigning the object to another client. */
 	void AddReassignmentOptions(
 		FMenuBuilder& MenuBuilder,
-		const FSoftObjectPath& ContextObject,
+		const TSoftObjectPtr<>& ContextObject,
 		const IConcertClient& ConcertClient,
 		const FReplicationClientManager& ReplicationManager,
 		ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
@@ -35,11 +36,11 @@ namespace UE::MultiUserClient::ContextMenuUtils
 	/** Adds an edit box for batch reassigning the select object's frequencies for all replicating clients. */
 	void AddFrequencyOptionsForMultipleClients(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObjects, FReplicationClientManager& InClientManager);
 	/** Adds an edit box for batch reassigning the select object's frequencies for all replicating clients. */
-	inline void AddFrequencyOptionsIfOneContextObject_MultiClient(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects, FReplicationClientManager& InClientManager)
+	inline void AddFrequencyOptionsIfOneContextObject_MultiClient(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects, FReplicationClientManager& InClientManager)
 	{
 		if (ContextObjects.Num() == 1)
 		{
-			AddFrequencyOptionsForMultipleClients(MenuBuilder, ContextObjects[0], InClientManager);
+			AddFrequencyOptionsForMultipleClients(MenuBuilder, ContextObjects[0].GetUniqueID(), InClientManager);
 		}
 	}
 }

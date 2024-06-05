@@ -19,12 +19,9 @@ namespace UE::ConcertSharedSlate
 		];
 	}
 
-	void SPerObjectPropertyAssignment::RefreshData(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model)
+	void SPerObjectPropertyAssignment::RefreshData(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model)
 	{
-		TArray<TSoftObjectPtr<>> ContextObjects;
-		Algo::Transform(Objects, ContextObjects, [](const FSoftObjectPath& Path){ return TSoftObjectPtr{ Path }; });
-		
-		FPropertyAssignmentEntry AssignmentEntry { .ContextObjects = MoveTemp(ContextObjects) };
+		FPropertyAssignmentEntry AssignmentEntry { .ContextObjects = Objects };
 		TSet<FConcertPropertyChain>& Properties = AssignmentEntry.PropertiesToDisplay;
 		FSoftClassPath& ClassPath = AssignmentEntry.Class;
 		

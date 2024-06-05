@@ -23,9 +23,14 @@ namespace UE::MultiUserClient::ContextMenuUtils
 		using FInlineAllocator = TInlineAllocator<24>;
 		using FInlineObjectPathArray = TArray<FSoftObjectPath, FInlineAllocator>;
 		
-		static FInlineObjectPathArray GetChildrenOfManagedObject(ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy, FSoftObjectPath ManagedObject)
+		static FInlineObjectPathArray GetChildrenOfManagedObject(ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy, TSoftObjectPtr<> ManagedObject)
 		{
-			return ObjectHierarchy.GetChildrenRecursive<FInlineAllocator>(ManagedObject);
+			FInlineObjectPathArray Result;
+			Algo::Transform(ObjectHierarchy.GetChildrenRecursive<FInlineAllocator>(ManagedObject), Result, [](const TSoftObjectPtr<>& Object)
+			{
+				return Object.GetUniqueID();
+			});
+			return Result;
 		}
 		
 		static void AddReassignSection(
@@ -69,7 +74,7 @@ namespace UE::MultiUserClient::ContextMenuUtils
 	
 	void AddReassignmentOptions(
 		FMenuBuilder& MenuBuilder,
-		const FSoftObjectPath& ContextObject,
+		const TSoftObjectPtr<>& ContextObject,
 		const IConcertClient& ConcertClient,
 		const FReplicationClientManager& ReplicationManager,
 		ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
@@ -80,7 +85,7 @@ namespace UE::MultiUserClient::ContextMenuUtils
 		const TArray<const FReplicationClient*> SortedClients = ClientUtils::GetSortedClientList(ConcertClient, ReplicationManager);
 		
 		MenuBuilder.BeginSection(TEXT("Reassign.This"), LOCTEXT("Reassign.This", "Reassign this to"));
-		Private::AddReassignSection(MenuBuilder, SortedClients, Private::FInlineObjectPathArray{ ContextObject }, ConcertClient, ReassignmentLogic, MultiStreamEditor);
+		Private::AddReassignSection(MenuBuilder, SortedClients, Private::FInlineObjectPathArray{ ContextObject.GetUniqueID() }, ConcertClient, ReassignmentLogic, MultiStreamEditor);
 		MenuBuilder.EndSection();
 
 		// Do not distract the user with more options if children have no assigned properties

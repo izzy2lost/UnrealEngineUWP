@@ -30,15 +30,15 @@ namespace UE::MultiUserClient
 {
 	namespace AssignPropertyComboBox
 	{
-		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<FSoftObjectPath>& EditedObjects)
+		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<TSoftObjectPtr<>>& EditedObjects)
 		{
 			TArray<FGuid> Clients;
 			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FReplicationClient& Client)
 			{
 				const TMap<FSoftObjectPath, FConcertReplicatedObjectInfo>& ObjectInfoMap = Client.GetStreamSynchronizer().GetServerState().ReplicatedObjects;
-				for (const FSoftObjectPath& ObjectPath : EditedObjects)
+				for (const TSoftObjectPtr<>& ObjectPath : EditedObjects)
 				{
-					if (const FConcertReplicatedObjectInfo* ObjectInfo = ObjectInfoMap.Find(ObjectPath)
+					if (const FConcertReplicatedObjectInfo* ObjectInfo = ObjectInfoMap.Find(ObjectPath.GetUniqueID())
 						; ObjectInfo && ObjectInfo->PropertySelection.ReplicatedProperties.Contains(DisplayedProperty))
 					{
 						Clients.Add(Client.GetEndpointId());
@@ -55,7 +55,7 @@ namespace UE::MultiUserClient
 		const TSharedRef<IConcertClient>& LocalConcertClient,
 		const FReplicationClientManager& ClientManager,
 		const FConcertPropertyChain& DisplayedProperty,
-		const TArray<FSoftObjectPath>& EditedObjects)
+		const TArray<TSoftObjectPtr<>>& EditedObjects)
 	{
 		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
 		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);
@@ -212,15 +212,16 @@ namespace UE::MultiUserClient
 
 			// ... and then assign the property
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
-			for (const FSoftObjectPath& ObjectPath : EditedObjects)
+			for (const TSoftObjectPtr<>& Object : EditedObjects)
 			{
+				const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
 				if (!EditModel->ContainsObjects({ ObjectPath }))
 				{
-					EditModel->AddObjects({ ObjectPath.ResolveObject() });
+					EditModel->AddObjects({ Object.Get() });
 				}
 
 				const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
-				TArray<FConcertPropertyChain> AddedProperties { Property };
+				TArray AddedProperties { Property };
 				ConcertClientSharedSlate::PropertyUtils::AppendAdditionalPropertiesToAdd(ClassPath, AddedProperties);
 				EditModel->AddProperties(ObjectPath, AddedProperties);
 			}
@@ -246,9 +247,9 @@ namespace UE::MultiUserClient
 		{
 			if (*Client != ClientToRemoveFrom && !ClientToRemoveFrom.AllowsEditing())
 			{
-				const bool bHasAnySelectedObject = Algo::AnyOf(EditedObjects, [this, &ClientToRemoveFrom](const FSoftObjectPath& ObjectPath)
+				const bool bHasAnySelectedObject = Algo::AnyOf(EditedObjects, [this, &ClientToRemoveFrom](const TSoftObjectPtr<>& Object)
 				{
-					return ClientToRemoveFrom.GetClientEditModel()->HasProperty(ObjectPath, Property);
+					return ClientToRemoveFrom.GetClientEditModel()->HasProperty(Object.GetUniqueID(), Property);
 				});
 				bCanRemoveFromOwners = !bHasAnySelectedObject;
 				
@@ -289,9 +290,9 @@ namespace UE::MultiUserClient
 
 		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client->GetClientEditModel();
 		ECheckBoxState CheckBoxState = ECheckBoxState::Undetermined;
-		for (const FSoftObjectPath& ObjectPath : EditedObjects)
+		for (const TSoftObjectPtr<>& ObjectPath : EditedObjects)
 		{
-			const bool bHasProperty = Model->HasProperty(ObjectPath, Property);
+			const bool bHasProperty = Model->HasProperty(ObjectPath.GetUniqueID(), Property);
 			switch (CheckBoxState)
 			{
 			case ECheckBoxState::Unchecked:
@@ -330,7 +331,7 @@ namespace UE::MultiUserClient
 		bool bIsAssignedToAnyClient = false;
 		ClientManager->ForEachClient([this, &bIsAssignedToAnyClient](const FReplicationClient& Client)
 		{
-			for (const FSoftObjectPath& EditedObject : EditedObjects)
+			for (const TSoftObjectPtr<>& EditedObject : EditedObjects)
 			{
 				if (bIsAssignedToAnyClient)
 				{
@@ -338,7 +339,7 @@ namespace UE::MultiUserClient
 				}
 				
 				const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client.GetClientEditModel();
-				const bool bHasProperty = Model->HasProperty(EditedObject, Property);
+				const bool bHasProperty = Model->HasProperty(EditedObject.GetUniqueID(), Property);
 				bIsAssignedToAnyClient |= bHasProperty;
 			}
 			
@@ -354,8 +355,9 @@ namespace UE::MultiUserClient
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = ClientToRemoveFrom.GetClientEditModel();
 			if (ClientToRemoveFrom.AllowsEditing() && ShouldRemoveFromClient(ClientToRemoveFrom))
 			{
-				for (const FSoftObjectPath& ObjectPath : EditedObjects)
+				for (const TSoftObjectPtr<>& Object : EditedObjects)
 				{
+					const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
 					const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
 					EditModel->RemoveProperties(ObjectPath, { Property });
 					

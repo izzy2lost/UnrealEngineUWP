@@ -23,7 +23,7 @@ namespace UE::ConcertClientSharedSlate
 		FSelectPropertyFromUClassModel();
 
 		//~ Begin IPropertySelectionSourceModel Interface
-		virtual TSharedRef<ConcertSharedSlate::IPropertySourceModel> GetPropertySource(const FSoftClassPath& Class) const override;
+		virtual TSharedRef<ConcertSharedSlate::IPropertySourceModel> GetPropertySource(const ConcertSharedSlate::FPropertySourceContext& Context) const override;
 		//~ End IPropertySelectionSourceModel Interface
 
 	private:

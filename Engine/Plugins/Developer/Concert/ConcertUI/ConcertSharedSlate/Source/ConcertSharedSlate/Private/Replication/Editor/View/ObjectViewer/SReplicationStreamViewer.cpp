@@ -26,6 +26,19 @@
 
 namespace UE::ConcertSharedSlate
 {
+	namespace Private
+	{
+		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath)
+		{
+			return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));
+		}
+
+		static TSharedRef<FReplicatedObjectData> AllocateObjectData(TSoftObjectPtr<> Object)
+		{
+			return MakeShared<FReplicatedObjectData>(MoveTemp(Object));
+		}
+	}
+	
 	void SReplicationStreamViewer::Construct(const FArguments& InArgs, const TSharedRef<IReplicationStreamModel>& InPropertiesModel)
 	{
 		PropertiesModel = InPropertiesModel;
@@ -58,12 +71,12 @@ namespace UE::ConcertSharedSlate
 		PropertySection->RequestResortForColumn(ColumnId);
 	}
 
-	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
+	TArray<TSoftObjectPtr<>> SReplicationStreamViewer::GetSelectedObjects() const
 	{
 		return PropertySection->GetObjectsSelectedForPropertyEditing();
 	}
 
-	void SReplicationStreamViewer::SelectObjects(TConstArrayView<FSoftObjectPath> Objects, bool bAtEndOfTick)
+	void SReplicationStreamViewer::SelectObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bAtEndOfTick)
 	{
 		SCOPED_CONCERT_TRACE(SelectObjects);
 		
@@ -76,7 +89,7 @@ namespace UE::ConcertSharedSlate
 		TArray<TSharedPtr<FReplicatedObjectData>> NewSelectedItems; 
 		Algo::TransformIf(AllObjectRowData, NewSelectedItems, [&Objects](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 			{
-				return Objects.Contains(ObjectData->GetObjectPath());
+				return Objects.Contains(ObjectData->GetObjectPtr());
 			},
 			[](const TSharedPtr<FReplicatedObjectData>& ObjectData){ return ObjectData; }
 		);
@@ -86,7 +99,7 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 
-	void SReplicationStreamViewer::ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive, bool bAtEndOfTick)
+	void SReplicationStreamViewer::ExpandObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bRecursive, bool bAtEndOfTick)
 	{
 		SCOPED_CONCERT_TRACE(ExpandObjects);
 		
@@ -104,18 +117,18 @@ namespace UE::ConcertSharedSlate
 		
 		TArray<TSharedPtr<FReplicatedObjectData>> ItemsToExpand;
 		ItemsToExpand.Reserve(Objects.Num());
-		for (const FSoftObjectPath& Path : Objects)
+		for (const TSoftObjectPtr<>& Path : Objects)
 		{
-			if (const TSharedPtr<FReplicatedObjectData>* Item = PathToObjectDataCache.Find(Path))
+			if (const TSharedPtr<FReplicatedObjectData>* Item = PathToObjectDataCache.Find(Path.GetUniqueID()))
 			{
 				ItemsToExpand.Add(*Item);
 			}
 			
 			if (bRecursive && ObjectHierarchy)
 			{
-				ObjectHierarchy->ForEachChildRecursive(Path, [this, &ItemsToExpand](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship)
+				ObjectHierarchy->ForEachChildRecursive(Path, [this, &ItemsToExpand](const TSoftObjectPtr<>&, const TSoftObjectPtr<>& ChildObject, EChildRelationship)
 				{
-					if (const TSharedPtr<FReplicatedObjectData>* Item = PathToObjectDataCache.Find(ChildObject))
+					if (const TSharedPtr<FReplicatedObjectData>* Item = PathToObjectDataCache.Find(ChildObject.GetUniqueID()))
 					{
 						ItemsToExpand.Add(*Item);
 					}
@@ -186,11 +199,6 @@ namespace UE::ConcertSharedSlate
 		}
 		
 		IReplicationStreamViewer::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-	}
-
-	TSharedRef<FReplicatedObjectData> SReplicationStreamViewer::AllocateObjectData(FSoftObjectPath ObjectPath)
-	{
-		return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));
 	}
 
 	TSharedRef<SWidget> SReplicationStreamViewer::CreateContentWidget(const FArguments& InArgs)
@@ -317,13 +325,15 @@ namespace UE::ConcertSharedSlate
 		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
 		IterateDisplayableObjects([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
 		{
-			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(ObjectPath);
+			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(TSoftObjectPtr(ObjectPath));
 			const bool bIsActor = !ParentInfo; 
 			if (bIsActor || ShouldDisplayChildObject(ObjectPath, ParentInfo->Relationship))
 			{
 				const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
 				ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
-				const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(ObjectPath);
+				const TSharedRef<FReplicatedObjectData> Item = ExistingItem
+					? ExistingItem->ToSharedRef()
+					: Private::AllocateObjectData(ObjectPath);
 				AllObjectRowData.AddUnique(Item);
 				NewPathToObjectDataCache.Emplace(ObjectPath, Item);
 				
@@ -450,19 +460,23 @@ namespace UE::ConcertSharedSlate
 		}
 		
 		// Add all objects that appear in the hierarchy of ReplicatedObjectData
-		const auto AddItem = [this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath)
+		const auto AddItem = [this, &NewPathToObjectDataCache](const TSoftObjectPtr<>& Object)
 		{
+			const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
 			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
 			ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
-			const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(ObjectPath);
+			const TSharedRef<FReplicatedObjectData> Item = ExistingItem
+				? ExistingItem->ToSharedRef()
+				: Private::AllocateObjectData(ObjectPath);
 			AllObjectRowData.AddUnique(Item);
 			NewPathToObjectDataCache.Emplace(ObjectPath, Item);
 		};
 		
-		AddItem(OwningActor);
-		ObjectHierarchy->ForEachChildRecursive(OwningActor, [this, &AddItem](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
+		const TSoftObjectPtr ActorPtr(OwningActor);
+		AddItem(ActorPtr);
+		ObjectHierarchy->ForEachChildRecursive(ActorPtr, [this, &AddItem](const TSoftObjectPtr<>&, const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)
 		{
-			if (ShouldDisplayChildObject(ChildObject, Relationship))
+			if (ShouldDisplayChildObject(ChildObject.GetUniqueID(), Relationship))
 			{
 				AddItem(ChildObject);
 			}
@@ -474,15 +488,15 @@ namespace UE::ConcertSharedSlate
 	{
 		// Important: this view should be possible to be built in programs, so it should not reference things like AActor, UActorComponent, ResolveObject, etc. directly.
 		
-		const FSoftObjectPath& SearchedObject = ReplicatedObjectData->GetObjectPath();
+		const TSoftObjectPtr<>& SearchedObject = ReplicatedObjectData->GetObjectPtr();
 		if (!ObjectHierarchy)
 		{
 			return;
 		}
 
-		ObjectHierarchy->ForEachDirectChild(SearchedObject, [this, &ProcessChild](const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
+		ObjectHierarchy->ForEachDirectChild(SearchedObject, [this, &ProcessChild](const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)
 		{
-			if (const TSharedPtr<FReplicatedObjectData>* ObjectData = PathToObjectDataCache.Find(ChildObject))
+			if (const TSharedPtr<FReplicatedObjectData>* ObjectData = PathToObjectDataCache.Find(ChildObject.GetUniqueID()))
 			{
 				ProcessChild(*ObjectData);
 			}

@@ -13,9 +13,9 @@ namespace UE::ConcertClientSharedSlate
 		: UClassIteratorSource(MakeShared<FConcertSyncCoreReplicatedPropertySource>())
 	{}
 
-	TSharedRef<ConcertSharedSlate::IPropertySourceModel> FSelectPropertyFromUClassModel::GetPropertySource(const FSoftClassPath& Class) const
+	TSharedRef<ConcertSharedSlate::IPropertySourceModel> FSelectPropertyFromUClassModel::GetPropertySource(const ConcertSharedSlate::FPropertySourceContext& Context) const
 	{
-		UClass* LoadedClass = Class.TryLoadClass<UObject>();
+		UClass* LoadedClass = Context.Class.TryLoadClass<UObject>();
 		if (LoadedClass)
 		{
 			UClassIteratorSource->SetClass(LoadedClass);
@@ -23,7 +23,7 @@ namespace UE::ConcertClientSharedSlate
 		else
 		{
 			UClassIteratorSource->SetClass(nullptr);
-			UE_LOG(LogConcert, Warning, TEXT("Could not resolve class %s. Properties will not be available."), *Class.ToString());
+			UE_LOG(LogConcert, Warning, TEXT("Could not resolve class %s. Properties will not be available."), *Context.Class.ToString());
 		}
 		return UClassIteratorSource;
 	}

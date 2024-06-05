@@ -28,7 +28,7 @@ namespace UE::ConcertSharedSlate
 		void Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InTreeView);
 
 		//~ Begin IPropertyAssignmentView Interface
-		virtual void RefreshData(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model) override;
+		virtual void RefreshData(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model) override;
 		virtual void RequestRefilter() const override { return TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { return TreeView->RequestRefilter(); }
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
@@ -39,7 +39,7 @@ namespace UE::ConcertSharedSlate
 		/** The tree view that is being wrapped. */
 		TSharedPtr<IPropertyTreeView> TreeView;
 		/** Used to determine whether to rebuild the entire property data. */
-		TArray<FSoftObjectPath> PreviousSelectedObjects;
+		TArray<TSoftObjectPtr<>> PreviousSelectedObjects;
 		
 		/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
 		TSharedPtr<IPropertySelectionSourceModel> OptionalPropertySource;

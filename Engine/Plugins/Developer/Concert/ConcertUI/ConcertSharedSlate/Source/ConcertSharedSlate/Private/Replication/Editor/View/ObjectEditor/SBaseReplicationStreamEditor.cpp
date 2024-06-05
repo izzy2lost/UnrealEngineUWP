@@ -93,9 +93,9 @@ namespace UE::ConcertSharedSlate
 		ReplicationViewer->RequestPropertyColumnResort(ColumnId);
 	}
 
-	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
+	TArray<TSoftObjectPtr<>> SBaseReplicationStreamEditor::GetSelectedObjects() const
 	{
-		return ReplicationViewer->GetObjectsBeingPropertyEdited();
+		return ReplicationViewer->GetSelectedObjects();
 	}
 
 	FHoverRowContent SBaseReplicationStreamEditor::MakeHoveredRowContent(const TSharedPtr<FReplicatedObjectData>& Data) const
@@ -145,7 +145,7 @@ namespace UE::ConcertSharedSlate
 		// Newly added objects should be automatically selected
 		if (!AddedObjects.IsEmpty())
 		{
-			TArray<FSoftObjectPath> TopLevelObjects;
+			TArray<TSoftObjectPtr<>> TopLevelObjects;
 			
 			// Goal: select an object so the property view immediately shows properties for some object.
 			// Problem: if objects have different classes, property view will be empty (incompatible class)
@@ -155,7 +155,7 @@ namespace UE::ConcertSharedSlate
 				[this, &AddedObjects](const UObject* Object)
 				{
 					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(Object);
-					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return FSoftObjectPath(AddedObject) == ParentInfo->Parent; });
+					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return AddedObject == ParentInfo->Parent; });
 					return bIsTopOfHierarchy;
 				},
 				[](const UObject* Object){ return Object; });
@@ -249,8 +249,8 @@ namespace UE::ConcertSharedSlate
 			EUserInterfaceActionType::Button
 		);
 
-		TArray<FSoftObjectPath> SelectedObjects;
-		Algo::Transform(ReplicationViewer->GetSelectedOutlinerObjects(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPath(); });
+		TArray<TSoftObjectPtr<>> SelectedObjects;
+		Algo::Transform(ReplicationViewer->GetSelectedOutlinerObjects(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPtr(); });
 		OnExtendObjectsContextMenuDelegate.ExecuteIfBound(MenuBuilder, SelectedObjects);
 		
 		return MenuBuilder.MakeWidget();

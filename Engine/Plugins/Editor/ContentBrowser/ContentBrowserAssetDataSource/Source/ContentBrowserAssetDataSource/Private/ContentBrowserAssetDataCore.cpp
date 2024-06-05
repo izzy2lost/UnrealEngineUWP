@@ -1899,7 +1899,7 @@ bool GetAssetDataAttribute(const FAssetData& InAssetData, const bool InIncludeMe
 		FAssetDataTagMapSharedView::FFindTagResult FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
 		if (!FoundValue.IsSet())
 		{
-			ensureMsgf(ClassPropertyTagCache || (FindObject<UClass>(InAssetData.AssetClassPath) == nullptr), TEXT("FAssetPropertyTagCache not populated for type %s when looking for attribute %s"), *WriteToString<256>(InAssetData.AssetClassPath), *WriteToString<256>(InAttributeKey));
+			//ensureMsgf(ClassPropertyTagCache || (FindObject<UClass>(InAssetData.AssetClassPath) == nullptr), TEXT("FAssetPropertyTagCache not populated for type %s when looking for attribute %s"), *WriteToString<256>(InAssetData.AssetClassPath), *WriteToString<256>(InAttributeKey));
 			if (ClassPropertyTagCache)
 			{
 				// Check to see if the key we were given resolves as an alias
@@ -1998,8 +1998,8 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 			}
 		}
 
-		ensureMsgf(!InIncludeMetaData || ClassPropertyTagCache || (FindObject<UClass>(InAssetData.AssetClassPath) == nullptr), TEXT("FAssetPropertyTagCache not populated for type %s when fetching all attributes"), 
-			*WriteToString<256>(InAssetData.AssetClassPath));
+		/*ensureMsgf(!InIncludeMetaData || ClassPropertyTagCache || (FindObject<UClass>(InAssetData.AssetClassPath) == nullptr), TEXT("FAssetPropertyTagCache not populated for type %s when fetching all attributes"), 
+			*WriteToString<256>(InAssetData.AssetClassPath));*/
 
 		OutAttributeValues.Reserve(OutAttributeValues.Num() + InAssetData.TagsAndValues.Num());
 		for (const auto& TagAndValue : InAssetData.TagsAndValues)

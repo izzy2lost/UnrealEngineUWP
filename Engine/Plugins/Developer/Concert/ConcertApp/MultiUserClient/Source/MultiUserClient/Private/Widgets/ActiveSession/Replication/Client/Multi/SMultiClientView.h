@@ -69,7 +69,7 @@ namespace UE::MultiUserClient
 		void OnHierarchyNeedsRefresh() const;
 		
 		/** Adds additional entries to the context menu for the object tree view. */
-		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const;
+		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects) const;
 		/** Decides whether the object should be displayed: do not show it if it's not in the editor world. */
 		bool ShouldDisplayObject(const FSoftObjectPath& Object) const;
 	};

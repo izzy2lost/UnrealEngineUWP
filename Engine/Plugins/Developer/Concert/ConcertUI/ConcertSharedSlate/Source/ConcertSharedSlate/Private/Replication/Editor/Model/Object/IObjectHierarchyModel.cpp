@@ -7,8 +7,8 @@
 namespace UE::ConcertSharedSlate
 {
 	void IObjectHierarchyModel::ForEachChildRecursive(
-		const FSoftObjectPath& Root,
-		TFunctionRef<EBreakBehavior(const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)> Callback,
+		const TSoftObjectPtr<>& Root,
+		TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>& Parent, const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)> Callback,
 		EChildRelationshipFlags InclusionFlags
 		) const
 	{
@@ -16,10 +16,10 @@ namespace UE::ConcertSharedSlate
 		{
 			static EBreakBehavior Visit(
 				const IObjectHierarchyModel& Model,
-				const FSoftObjectPath& Parent,
-				const FSoftObjectPath& ChildObject,
+				const TSoftObjectPtr<>& Parent,
+				const TSoftObjectPtr<>& ChildObject,
 				EChildRelationship Relationship,
-				TFunctionRef<EBreakBehavior(const FSoftObjectPath&, const FSoftObjectPath&, EChildRelationship)> Callback,
+				TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>&, const TSoftObjectPtr<>&, EChildRelationship)> Callback,
 				EChildRelationshipFlags InclusionFlags
 				)
 			{
@@ -29,7 +29,7 @@ namespace UE::ConcertSharedSlate
 				}
 				
 				EBreakBehavior Result = EBreakBehavior::Continue;
-				Model.ForEachDirectChild(ChildObject, [&Model, &ChildObject, &Callback, &InclusionFlags, &Result](const FSoftObjectPath& ChildOfChild, EChildRelationship Relationship)
+				Model.ForEachDirectChild(ChildObject, [&Model, &ChildObject, &Callback, &InclusionFlags, &Result](const TSoftObjectPtr<>& ChildOfChild, EChildRelationship Relationship)
 				{
 					Result = Visit(Model, ChildObject, ChildOfChild, Relationship, Callback, InclusionFlags);
 					return Result;
@@ -38,7 +38,7 @@ namespace UE::ConcertSharedSlate
 			}
 		};
 			
-		ForEachDirectChild(Root, [this, &Root, &Callback, &InclusionFlags](const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
+		ForEachDirectChild(Root, [this, &Root, &Callback, &InclusionFlags](const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)
 		{
 			return FHelper::Visit(*this, Root, ChildObject, Relationship, Callback, InclusionFlags);
 		}, InclusionFlags);

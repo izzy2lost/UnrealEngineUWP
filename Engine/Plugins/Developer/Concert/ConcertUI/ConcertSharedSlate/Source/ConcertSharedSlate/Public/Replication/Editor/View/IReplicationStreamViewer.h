@@ -29,12 +29,12 @@ namespace UE::ConcertSharedSlate
 		 */
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) = 0;
 
-		/**
-		 * @return The objects for which the properties are being edited / displayed.
-		 * If there is an IReplicationSubobjectView, this is IReplicationSubobjectView::GetSelectedObjects.
-		 * Otherwise it is IReplicationStreamViewer::GetSelectedTopLevelObjects.
-		 */
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const = 0;
+		/** @return The objects for which the properties are being edited / displayed. */
+		UE_DEPRECATED(5.5, "Use GetSelectedObjects instead.")
+		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const;
+
+		/** @return The objects for which the properties are being edited / displayed. */
+		virtual TArray<TSoftObjectPtr<>> GetSelectedObjects() const = 0;
 
 		virtual ~IReplicationStreamViewer() = default;
 	};

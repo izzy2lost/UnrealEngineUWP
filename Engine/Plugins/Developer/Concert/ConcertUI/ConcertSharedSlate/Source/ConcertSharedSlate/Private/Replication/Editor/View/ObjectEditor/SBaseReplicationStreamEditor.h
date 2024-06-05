@@ -24,7 +24,6 @@ namespace UE::ConcertSharedSlate
 	class IObjectSelectionSourceModel;
 	class IPropertyAssignmentView;
 	class IPropertySelectionSourceModel;
-	class IReplicationSubobjectView;
 	class IObjectHierarchyModel;
 	class SReplicationStreamViewer;
 	
@@ -97,7 +96,7 @@ namespace UE::ConcertSharedSlate
 		virtual void Refresh() override;
 		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		virtual TArray<TSoftObjectPtr<>> GetSelectedObjects() const override;
 		//~ End IReplicationStreamEditor Interface
 
 	private:

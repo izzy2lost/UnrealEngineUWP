@@ -42,7 +42,7 @@ namespace UE::ConcertSharedSlate
 		/** Requests that the given column be resorted, if it currently affects the row sorting. */
 		void RequestResortForColumn(const FName& ColumnId) const { PropertyAssignmentView->RequestResortForColumn(ColumnId); }
 		
-		TArray<FSoftObjectPath> GetObjectsSelectedForPropertyEditing() const;
+		TArray<TSoftObjectPtr<>> GetObjectsSelectedForPropertyEditing() const;
 
 	private:
 		
@@ -72,7 +72,7 @@ namespace UE::ConcertSharedSlate
 		TSharedRef<SWidget> CreatePropertiesView(const FArguments& InArgs);
 		
 		/** Given the selected objects, determines whether they all have the same class and returns it if so. */
-		TOptional<FSoftClassPath> GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const;
+		TOptional<FSoftClassPath> GetClassForPropertiesFromSelection(const TArray<TSoftObjectPtr<>>& Objects) const;
 		/** Sets how to display this widget */
 		void SetPropertyContent(EReplicatedPropertyContent Content) const;
 

@@ -95,16 +95,16 @@ namespace UE::ConcertSharedSlate
 		virtual void Refresh() override;
 		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		virtual TArray<TSoftObjectPtr<>> GetSelectedObjects() const override;
 		//~ End IReplicationStreamViewer Interface
 
 		void RequestObjectDataRefresh() { bHasRequestedObjectRefresh = true; }
 		void RequestPropertyDataRefresh() { bHasRequestedPropertyRefresh = true; }
 
 		/** Selects the given objects. */
-		void SelectObjects(TConstArrayView<FSoftObjectPath> Objects, bool bAtEndOfTick = false);
+		void SelectObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bAtEndOfTick = false);
 		/** Expands the given objects, recursively if desired. */
-		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive, bool bAtEndOfTick = false);
+		void ExpandObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bRecursive, bool bAtEndOfTick = false);
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const;
@@ -143,14 +143,12 @@ namespace UE::ConcertSharedSlate
 
 		bool bHasRequestedObjectRefresh = false;
 		bool bHasRequestedPropertyRefresh = false;
-		TArray<FSoftObjectPath> PendingToSelect;
-		TArray<FSoftObjectPath> PendingToExpand;
+		TArray<TSoftObjectPtr<>> PendingToSelect;
+		TArray<TSoftObjectPtr<>> PendingToExpand;
 		bool bPendingExpandRecursively = false;
 		
 		/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
 		FShouldDisplayObject ShouldDisplayObjectDelegate;
-
-		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
 
 		// Widget creation helpers
 		TSharedRef<SWidget> CreateContentWidget(const FArguments& InArgs);

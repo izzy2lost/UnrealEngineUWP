@@ -9,6 +9,9 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+template<class T>
+struct TSoftObjectPtr;
+
 namespace UE::ConcertSharedSlate
 {
 	class IObjectHierarchyModel;
@@ -33,7 +36,7 @@ namespace UE::ConcertSharedSlate
 		void Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InTreeView);
 
 		//~ Begin IPropertyAssignmentView Interface
-		virtual void RefreshData(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model) override;
+		virtual void RefreshData(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model) override;
 		virtual void RequestRefilter() const override { return TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { return TreeView->RequestRefilter(); }
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
@@ -46,7 +49,7 @@ namespace UE::ConcertSharedSlate
 		/** The tree view that is being wrapped. */
 		TSharedPtr<IPropertyTreeView> TreeView;
 		/** Used to determine whether to rebuild the entire property data. */
-		TArray<FSoftObjectPath> PreviousSelectedObjects;
+		TArray<TSoftObjectPtr<>> PreviousSelectedObjects;
 
 		/** Used to get subobjects of selected objects. */
 		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
@@ -62,6 +65,6 @@ namespace UE::ConcertSharedSlate
 			bool bHaveSharedClass = false;
 		};
 		/** Builds a property section grouped by Objects (usually has 1 object - contains similar objects, like StaticMeshComponent0, for multi-edit purposes). */
-		FBuildAssignmentEntryResult BuildAssignmentEntry(const TArray<FSoftObjectPath>& Objects, const IReplicationStreamModel& Model);
+		FBuildAssignmentEntryResult BuildAssignmentEntry(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model);
 	};
 }
