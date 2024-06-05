@@ -21,6 +21,8 @@ public:
 
 	void Initialize(TObjectPtr<UCameraAsset> InCameraAsset);
 
+	UCameraAsset* GetCameraAsset() const { return CameraAsset; }
+
 public:
 
 	// UAssetEditor interface
@@ -29,6 +31,7 @@ public:
 
 private:
 
+	UPROPERTY()
 	TObjectPtr<UCameraAsset> CameraAsset;
 };
 
