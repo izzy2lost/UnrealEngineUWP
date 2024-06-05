@@ -10,6 +10,7 @@
 
 class FAssetThumbnailPool;
 class FScopedTransaction;
+class ICustomDetailsViewItem;
 class IDetailKeyframeHandler;
 class IDetailTreeNode;
 class IPropertyHandle;
@@ -74,6 +75,8 @@ protected:
 	TWeakObjectPtr<UDMMaterialComponent> ComponentWeak;
 	TWeakPtr<SDMEditor> EditorWidgetWeak;
 
+	bool bConstructing = false;
+
 	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler;
 
 	TSharedPtr<SBox> Container;
@@ -81,6 +84,8 @@ protected:
 	bool bCreatedWithLinkedUVs;
 
 	FDelegateHandle UpdateHandle;
+
+	TSet<FName> Categories;
 
 	TSharedRef<SWidget> CreateEditWidget();
 
@@ -92,4 +97,6 @@ protected:
 	FText GetSourceTypeEditWidgetText() const;
 
 	void OnUndo();
+
+	void OnExpansionStateChanged(const TSharedRef<ICustomDetailsViewItem>& InItem, bool bInExpansionState);
 };

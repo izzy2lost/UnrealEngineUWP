@@ -34,6 +34,8 @@
 
 #define LOCTEXT_NAMESPACE "SDMSlotLayer"
 
+const FLazyName SDMSlotLayerItem::EffectsListName = "EffectsList";
+
 void SDMSlotLayerItem::Construct(const FArguments& InArgs, const TSharedPtr<SDMSlot>& InSlotWidget, const TSharedRef<STableViewBase>& InLayerView, 
 	const TSharedPtr<FDMMaterialLayerReference>& InLayerItem)
 {
@@ -48,8 +50,6 @@ void SDMSlotLayerItem::Construct(const FArguments& InArgs, const TSharedPtr<SDMS
 	PreviewSize = InArgs._PreviewSize;
 	OnStageSelected = InArgs._OnStageSelected;
 	OnLayerLinkToggled = InArgs._OnLayerLinkToggled;
-
-	bDisplayEffectsList = true;
 
 	STableRow<TSharedPtr<FDMMaterialLayerReference>>::Construct(
 		STableRow<TSharedPtr<FDMMaterialLayerReference>>::FArguments()
@@ -1009,7 +1009,7 @@ void SDMSlotLayerItem::SaveLayerPreviewSize(const float InNewSize, const TShared
 
 EVisibility SDMSlotLayerItem::GetEffectsListVisibility() const
 {
-	return EffectsList->GetLayerItemCount() > 0 && bDisplayEffectsList ? EVisibility::Visible : EVisibility::Collapsed;
+	return EffectsList->GetLayerItemCount() > 0 && AreEffectsExpanded() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 TSharedRef<SWidget> SDMSlotLayerItem::CreateNewEffectMenu()
@@ -1181,7 +1181,7 @@ EVisibility SDMSlotLayerItem::GetLayerLinkToggleButtonVisibility() const
 
 FReply SDMSlotLayerItem::OnEffectsToggleButtonClicked()
 {
-	bDisplayEffectsList = !bDisplayEffectsList;
+	SetEffectsExpanded(!AreEffectsExpanded());
 
 	return FReply::Handled();
 }
@@ -1191,7 +1191,7 @@ const FSlateBrush* SDMSlotLayerItem::GetEffectsToggleButtonImage() const
 	static const FSlateBrush* Displayed = FDynamicMaterialEditorStyle::GetBrush("EffectsView.Row.Fx.Opened");
 	static const FSlateBrush* Hidden = FDynamicMaterialEditorStyle::GetBrush("EffectsView.Row.Fx.Closed");
 
-	if (bDisplayEffectsList)
+	if (AreEffectsExpanded())
 	{
 		return Displayed;
 	}
@@ -1291,6 +1291,31 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerHeaderEditableText() const
 					LayerHeaderTextContainer->SetContent(CreateLayerHeaderText());
 				}
 			}));
+}
+
+bool SDMSlotLayerItem::AreEffectsExpanded() const
+{
+	// Default to expanded
+	bool bExpanded = true;
+
+	if (UDMMaterialSlot* Slot = GetSlot())
+	{
+		SDMEditor::GetExpansionState(Slot, EffectsListName, bExpanded);
+	}
+
+	return bExpanded;
+}
+
+void SDMSlotLayerItem::SetEffectsExpanded(bool bInExpanded)
+{
+	UDMMaterialSlot* Slot = GetSlot();
+
+	if (!Slot)
+	{
+		return;
+	}
+
+	SDMEditor::SetExpansionState(Slot, EffectsListName, bInExpanded);
 }
 
 void SDMSlotLayerItem::DeselectAllEffects()

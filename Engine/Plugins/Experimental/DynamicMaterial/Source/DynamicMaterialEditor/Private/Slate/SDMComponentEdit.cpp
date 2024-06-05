@@ -245,6 +245,8 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 	ComponentWeak = InComponent;
 	EditorWidgetWeak = InEditorWidget;
 
+	TGuardValue<bool> Constructing(bConstructing, true);
+
 	KeyframeHandler = nullptr;
 
 	UObject* WorldContext = InComponent;
@@ -288,29 +290,43 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 {
 	SDMEditor::ClearPropertyHandles(this);
 
+	constexpr bool bDefaultCategoryExpansionState = true;
+
+	UDMMaterialComponent* Component = ComponentWeak.Get();
+
 	FCustomDetailsViewArgs Args;
 	Args.KeyframeHandler = KeyframeHandler;
 	Args.bAllowGlobalExtensions = true;
 	Args.bAllowResetToDefault = true;
 	Args.bShowCategories = false;
+	Args.OnExpansionStateChanged.AddSP(this, &SDMComponentEdit::OnExpansionStateChanged);
 
 	TSharedRef<ICustomDetailsView> DetailsView = ICustomDetailsViewModule::Get().CreateCustomDetailsView(Args);
 	FCustomDetailsViewItemId RootId = DetailsView->GetRootItem()->GetItemId();
 
 	TSharedPtr<ICustomDetailsViewItem> DefaultCategoryItem;
 
-	auto GetDefaultCategory = [&DefaultCategoryItem, &DetailsView, &RootId]()
+	auto GetDefaultCategory = [this, Component, &DefaultCategoryItem, &DetailsView, &RootId]()
 		{
 			if (!DefaultCategoryItem.IsValid())
 			{
-				DefaultCategoryItem = DetailsView->CreateCustomCategoryItem("General", LOCTEXT("General", "General"))->AsItem();
+				constexpr const TCHAR* DefaultCategoryName = TEXT("General");
+
+				DefaultCategoryItem = DetailsView->CreateCustomCategoryItem(DefaultCategoryName, LOCTEXT("General", "General"))->AsItem();
+				DefaultCategoryItem->RefreshItemId();
 				DetailsView->ExtendTree(RootId, ECustomDetailsTreeInsertPosition::Child, DefaultCategoryItem.ToSharedRef());
+
+				bool bExpansionState = true;
+				SDMEditor::GetExpansionState(Component, DefaultCategoryName, bExpansionState);
+
+				DetailsView->SetItemExpansionState(DefaultCategoryItem->GetItemId(), bExpansionState);
+				Categories.Add(DefaultCategoryName);
 			}
 
 			return DefaultCategoryItem;
 		};
 
-	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
+	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(Component))
 	{
 		TSharedPtr<ICustomDetailsViewCustomItem> TypeSelectorItem = DetailsView->CreateCustomItem(
 			FName(TEXT("SamplerType")),
@@ -389,7 +405,15 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			if (!CategoryItem.IsValid())
 			{
 				CategoryItem = DetailsView->CreateCustomCategoryItem(CategoryName, FText::FromName(CategoryName))->AsItem();
+				CategoryItem->RefreshItemId();
 				DetailsView->ExtendTree(RootId, ECustomDetailsTreeInsertPosition::Child, CategoryItem.ToSharedRef());
+
+				bool bExpansionState = true;
+				SDMEditor::GetExpansionState(Component, CategoryName, bExpansionState);
+
+				DetailsView->SetItemExpansionState(CategoryItem->GetItemId(), bExpansionState);
+
+				Categories.Add(CategoryName);
 			}
 		}
 
@@ -484,7 +508,7 @@ TArray<FDMPropertyHandle> SDMComponentEdit::GetEditRows()
 	}
 	else
 	{
-		if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget())
 		{
 			if (UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel())
 			{
@@ -836,6 +860,30 @@ void SDMComponentEdit::OnUndo()
 			}
 		}
 	}
+}
+
+void SDMComponentEdit::OnExpansionStateChanged(const TSharedRef<ICustomDetailsViewItem>& InItem, bool bInExpansionState)
+{
+	if (bConstructing)
+	{
+		return;
+	}
+
+	const FCustomDetailsViewItemId& ItemId = InItem->GetItemId();
+
+	if (ItemId.GetItemType() != static_cast<uint32>(EDetailNodeType::Category))
+	{
+		return;
+	}
+
+	TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	EditorWidget->SetExpansionState(ComponentWeak.Get(), *ItemId.GetItemName(), bInExpansionState);
 }
 
 void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel,

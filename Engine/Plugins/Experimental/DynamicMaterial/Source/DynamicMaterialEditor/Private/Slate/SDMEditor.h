@@ -7,6 +7,7 @@
 #include "DMEDefs.h"
 #include "DMObjectMaterialProperty.h"
 #include "EditorUndoClient.h"
+#include "UObject/ObjectKey.h"
 #include "Widgets/Layout/SSplitter.h"
 
 class FAssetThumbnailPool;
@@ -45,6 +46,9 @@ public:
 	static TSharedRef<FAssetThumbnailPool> GetThumbnailPool();
 
 	static TSharedRef<SWidget> GetEmptyContent();
+
+	static bool GetExpansionState(UObject* InOwner, FName InName, bool& bOutExpanded);
+	static void SetExpansionState(UObject* InOwner, FName InName, bool bInIsExpanded);
 
 	static FDMPropertyHandle GetPropertyHandle(const SWidget* InOwningWidget, UObject* InObject, const FName& InPropertyName);
 
@@ -127,6 +131,28 @@ public:
 	//~ End FUndoClient
 
 protected:
+	struct FExpansionItem
+	{
+		TObjectKey<UObject> Owner;
+		FName Name;
+
+		friend uint32 GetTypeHash(const FExpansionItem& InItem)
+		{
+			return HashCombineFast(
+				GetTypeHash(InItem.Owner),
+				GetTypeHash(InItem.Name)
+			);
+		}
+
+		bool operator==(const FExpansionItem& InOther) const
+		{
+			return Owner == InOther.Owner
+				&& Name == InOther.Name;
+		}
+	};
+
+	static TMap<FExpansionItem, bool> ExpansionStates;
+
 	static TSharedPtr<FAssetThumbnailPool> ThumbnailPool;
 
 	static TMap<const SWidget*, TArray<FDMPropertyHandle>> PropertyHandleMap;

@@ -51,6 +51,8 @@
 
 #define LOCTEXT_NAMESPACE "SDMEditor"
 
+TMap<SDMEditor::FExpansionItem, bool> SDMEditor::ExpansionStates;
+
 namespace UE::DynamicMaterialEditor::Private
 {
 	TSharedPtr<IDetailTreeNode> SearchNodesForProperty(const TArray<TSharedRef<IDetailTreeNode>>& InNodes, FName InPropertyName)
@@ -1489,6 +1491,25 @@ void SDMEditor::DeleteSelectedLayer()
 	{
 		ActiveSlotWidget->OnLayerRowButtonsRemoveClicked();
 	}
+}
+
+bool SDMEditor::GetExpansionState(UObject* InOwner, FName InName, bool& bOutExpanded)
+{
+	const FExpansionItem ExpansionItem = {InOwner, InName};
+
+	if (const bool* State = ExpansionStates.Find(ExpansionItem))
+	{
+		bOutExpanded = *State;
+		return true;
+	}
+
+	return false;
+}
+
+void SDMEditor::SetExpansionState(UObject* InOwner, FName InName, bool bInIsExpanded)
+{
+	const FExpansionItem ExpansionItem = {InOwner, InName};
+	ExpansionStates.FindOrAdd(ExpansionItem) = bInIsExpanded;
 }
 
 FReply SDMEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)

@@ -52,14 +52,14 @@ public:
 	int32 GetLayerItemIndex() const;
 	bool IsRootLayer() const;
 
-	FORCEINLINE const TSharedPtr<SDMStage>& GetBaseStageWidget() const { return BaseStageWidget; }
-	FORCEINLINE const TSharedPtr<SDMStage>& GetMaskStageWidget() const { return MaskStageWidget; }
+	const TSharedPtr<SDMStage>& GetBaseStageWidget() const { return BaseStageWidget; }
+	const TSharedPtr<SDMStage>& GetMaskStageWidget() const { return MaskStageWidget; }
 
-	FORCEINLINE const TSharedPtr<SDMStage>& GetSelectedStageWidget() const { return SelectedStageWidget; }
+	const TSharedPtr<SDMStage>& GetSelectedStageWidget() const { return SelectedStageWidget; }
 
-	FORCEINLINE bool AreEffectsExpanded() const { return bDisplayEffectsList; }
+	bool AreEffectsExpanded() const;
 
-	void SetEffectsExpanded(bool bInExpanded) { bDisplayEffectsList = bInExpanded; }
+	void SetEffectsExpanded(bool bInExpanded);
 
 	void DeselectAllEffects();
 
@@ -68,6 +68,8 @@ public:
 	TSharedPtr<SDMLayerEffectsView> GetEffectsList() const { return EffectsList; }
 
 protected:
+	static const FLazyName EffectsListName;
+
 	TWeakPtr<SDMSlot> SlotWidgetWeak;
 	TWeakPtr<STableViewBase> LayerViewWeak;
 	TSharedPtr<FDMMaterialLayerReference> LayerItem;
@@ -86,7 +88,6 @@ protected:
 	TSharedPtr<SDMStage> SelectedStageWidget;
 
 	TSharedPtr<SDMLayerEffectsView> EffectsList;
-	bool bDisplayEffectsList;
 
 	TSharedPtr<SBox> LayerHeaderTextContainer;
 
