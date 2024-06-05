@@ -309,6 +309,11 @@ namespace EpicGames.Horde.Jobs
 		public bool? Aborted { get; set; }
 
 		/// <summary>
+		/// Optional reason the job was canceled
+		/// </summary>
+		public string? CancellationReason { get; set; }
+
+		/// <summary>
 		/// New list of arguments for the job. Only -Target= arguments can be modified after the job has started.
 		/// </summary>
 		public List<string>? Arguments { get; set; }
@@ -454,6 +459,11 @@ namespace EpicGames.Horde.Jobs
 		/// The user that aborted this job
 		/// </summary>
 		public GetThinUserInfoResponse? AbortedByUserInfo { get; set; }
+
+		/// <summary>
+		/// Optional reason the job was canceled
+		/// </summary>
+		public string? CancellationReason { get; set; }
 
 		/// <summary>
 		/// Priority of the job
@@ -662,6 +672,11 @@ namespace EpicGames.Horde.Jobs
 		public bool? AbortRequested { get; set; }
 
 		/// <summary>
+		/// Optional reason the job step was canceled
+		/// </summary>
+		public string? CancellationReason { get; set; }
+
+		/// <summary>
 		/// Specifies the log file id for this step
 		/// </summary>
 		public string? LogId { get; set; }
@@ -799,6 +814,11 @@ namespace EpicGames.Horde.Jobs
 		/// The user that requested this step be run again 
 		/// </summary>
 		public GetThinUserInfoResponse? AbortedByUserInfo { get; set; }
+
+		/// <summary>
+		/// Optional reason the job step was canceled
+		/// </summary>
+		public string? CancellationReason { get; set; }
 
 		/// <summary>
 		/// Name of the user that requested this step be run again [DEPRECATED]

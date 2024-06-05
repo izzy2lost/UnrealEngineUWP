@@ -1,5 +1,5 @@
 
-import { Stack, Text } from '@fluentui/react';
+import { Label, Stack, Text } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import { JobStepError, JobStepOutcome, JobStepState, ReportPlacement } from '../../backend/Api';
@@ -227,6 +227,8 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
       }
    }
 
+   const step = jobDetails.stepById(stepId)!
+
    const reportData = jobDetails.getReportData(ReportPlacement.Summary, stepId);
 
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 0, paddingRight: 12 } }}>
@@ -241,6 +243,11 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
                <Stack style={{ color: modeColors.text }}>
                   <Markdown>{getStepSummaryMarkdown(jobDetails, stepId)}</Markdown>
                </Stack>
+               {!!step?.cancellationReason && <Stack style={{ color: modeColors.text }} tokens={{ childrenGap: 12 }}>
+                  <Label>Cancellation Reason</Label>
+                  <Markdown>{step.cancellationReason}</Markdown>
+               </Stack>
+               }
                {!!reportData && <Stack style={{ paddingTop: 8 }}> <Markdown>{reportData}</Markdown> </Stack>}
                {!!priceText && <Stack style={{ paddingTop: 8 }}>
                   <Text>{priceText}</Text>

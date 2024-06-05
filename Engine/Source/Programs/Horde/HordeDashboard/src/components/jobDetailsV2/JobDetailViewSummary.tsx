@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Stack, Text } from '@fluentui/react';
+import { Label, Stack, Text } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import { JobState, ReportPlacement } from '../../backend/Api';
@@ -52,7 +52,7 @@ JobDetailsV2.registerDataView("SummaryDataView", (details: JobDetailsV2) => new 
 
 export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDetails }) => {
 
-   const { hordeClasses } = getHordeStyling();
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    if (jobDetails.updated) { }
 
@@ -83,7 +83,7 @@ export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
 
    if (!jobData) {
       return null;
-   }   
+   }
 
    const price = jobDetails.jobPrice();
 
@@ -106,7 +106,7 @@ export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
 
    const reportData = jobDetails.getReportData(ReportPlacement.Summary);
 
-   return (<Stack id={ sideRail.url} styles={{ root: { paddingTop: 0, paddingRight: 12 } }}>
+   return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 0, paddingRight: 12 } }}>
       <Stack className={hordeClasses.raised} >
          <Stack tokens={{ childrenGap: 12 }} grow>
             <Stack horizontal>
@@ -115,9 +115,15 @@ export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
                </Stack>
             </Stack>
             <Stack >
-               <Stack tokens={{childrenGap: 12}}>
+               <Stack tokens={{ childrenGap: 12 }}>
                   <Text styles={{ root: { whiteSpace: "pre" } }}>{"" + summary}</Text>
-                  {!!reportData && <Stack> <Markdown>{reportData}</Markdown></Stack>}                  
+                  {!!jobData.cancellationReason && <Stack style={{ color: modeColors.text }} tokens={{ childrenGap: 12 }}>
+                     <Label>Cancellation Reason</Label>
+                     <Markdown>{jobData.cancellationReason}</Markdown>
+                  </Stack>
+                  }
+
+                  {!!reportData && <Stack> <Markdown>{reportData}</Markdown></Stack>}
                   {!!price && <Stack>
                      <Text>{`Estimated cost: $${price.toFixed(2)}`}</Text>
                   </Stack>}

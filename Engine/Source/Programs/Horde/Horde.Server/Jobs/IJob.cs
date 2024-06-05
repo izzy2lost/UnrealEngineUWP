@@ -87,6 +87,11 @@ namespace Horde.Server.Jobs
 		public UserId? AbortedByUserId { get; }
 
 		/// <summary>
+		/// Optional reason for why the job was canceled
+		/// </summary>
+		public string? CancellationReason { get; }
+
+		/// <summary>
 		/// Identifier of the bisect task that started this job
 		/// </summary>
 		public BisectTaskId? StartedByBisectTaskId { get; }
@@ -301,8 +306,9 @@ namespace Horde.Server.Jobs
 		/// <param name="arguments">New arguments for the job</param>
 		/// <param name="labelIdxToTriggerId">New trigger ID for a label in the job</param>
 		/// <param name="jobTrigger">New downstream job id</param>
+		/// <param name="cancellationReason">Optional reason why the job was canceled</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IJob?> TryUpdateJobAsync(string? name = null, Priority? priority = null, bool? autoSubmit = null, int? autoSubmitChange = null, string? autoSubmitMessage = null, UserId? abortedByUserId = null, ObjectId? notificationTriggerId = null, List<JobReport>? reports = null, List<string>? arguments = null, KeyValuePair<int, ObjectId>? labelIdxToTriggerId = null, KeyValuePair<TemplateId, JobId>? jobTrigger = null, CancellationToken cancellationToken = default);
+		Task<IJob?> TryUpdateJobAsync(string? name = null, Priority? priority = null, bool? autoSubmit = null, int? autoSubmitChange = null, string? autoSubmitMessage = null, UserId? abortedByUserId = null, ObjectId? notificationTriggerId = null, List<JobReport>? reports = null, List<string>? arguments = null, KeyValuePair<int, ObjectId>? labelIdxToTriggerId = null, KeyValuePair<TemplateId, JobId>? jobTrigger = null, string? cancellationReason = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates the state of a batch
@@ -331,9 +337,10 @@ namespace Horde.Server.Jobs
 		/// <param name="newPriority">New priority for this step</param>
 		/// <param name="newReports">New report documents</param>
 		/// <param name="newProperties">Property changes. Any properties with a null value will be removed.</param>
+		/// <param name="newCancellationReason">The reason the job step was canceled</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the job was updated, false if it was deleted in the meantime</returns>
-		Task<IJob?> TryUpdateStepAsync(JobStepBatchId batchId, JobStepId stepId, JobStepState newState = default, JobStepOutcome newOutcome = default, JobStepError? newError = null, bool? newAbortRequested = null, UserId? newAbortByUserId = null, LogId? newLogId = null, ObjectId? newNotificationTriggerId = null, UserId? newRetryByUserId = null, Priority? newPriority = null, List<JobReport>? newReports = null, Dictionary<string, string?>? newProperties = null, CancellationToken cancellationToken = default);
+		Task<IJob?> TryUpdateStepAsync(JobStepBatchId batchId, JobStepId stepId, JobStepState newState = default, JobStepOutcome newOutcome = default, JobStepError? newError = null, bool? newAbortRequested = null, UserId? newAbortByUserId = null, LogId? newLogId = null, ObjectId? newNotificationTriggerId = null, UserId? newRetryByUserId = null, Priority? newPriority = null, List<JobReport>? newReports = null, Dictionary<string, string?>? newProperties = null, string? newCancellationReason = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to update the node groups to be executed for a job. Fails if another write happens in the meantime.
@@ -1574,6 +1581,11 @@ namespace Horde.Server.Jobs
 		/// If an abort is requested, stores the id of the user that requested it
 		/// </summary>
 		public UserId? AbortedByUserId { get; }
+
+		/// <summary>
+		/// Optional reason for why the job step was canceled
+		/// </summary>
+		public string? CancellationReason { get; }
 
 		/// <summary>
 		/// List of reports for this step

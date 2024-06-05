@@ -1169,6 +1169,9 @@ export type UpdateJobRequest = {
 	/** Mark this job as aborted */
 	aborted?: boolean;
 
+	/** Reason job was canceled */
+	cancellationReason?: string;
+
 	/** New list of arguments for the job. Only -Target= arguments can be modified after the job has started.  */
 	arguments?: string[];
 
@@ -1253,6 +1256,9 @@ export type GetJobResponse = {
 	/** The user that started this job */
 	abortedByUserInfo?: GetThinUserInfoResponse;
 
+	/** The reason the job was canceled */
+	cancellationReason?: string;
+
 	/** Whether job was created by a bisect task */
 	startedByBisectTaskId?: string;
 
@@ -1328,6 +1334,9 @@ export type UpdateStepRequest = {
 	/**If the step has been requested to abort */
 	abortRequested?: boolean;
 
+	/** The reason the step was canceled */	
+	cancellationReason?: string;
+
 	/**Specifies the log file id for this step */
 	logId?: string;
 
@@ -1378,6 +1387,9 @@ export type GetStepResponse = {
 
 	/* The user that retried this step */
 	retriedByUserInfo?: GetThinUserInfoResponse;
+
+	/** The reason the job step canceled */
+	cancellationReason?: string;
 
 	/**The log id for this step */
 	logId?: string;

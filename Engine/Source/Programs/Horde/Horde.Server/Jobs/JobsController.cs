@@ -350,7 +350,7 @@ namespace Horde.Server.Jobs
 				abortedByUserId = User.GetUserId();
 			}
 
-			IJob? newJob = await _jobService.UpdateJobAsync(job, name: request.Name, priority: request.Priority, autoSubmit: request.AutoSubmit, abortedByUserId: abortedByUserId, arguments: request.Arguments);
+			IJob? newJob = await _jobService.UpdateJobAsync(job, name: request.Name, priority: request.Priority, autoSubmit: request.AutoSubmit, abortedByUserId: abortedByUserId, arguments: request.Arguments, cancellationReason: request.CancellationReason);
 			if (newJob == null)
 			{
 				return NotFound(jobId);
@@ -607,6 +607,7 @@ namespace Horde.Server.Jobs
 			response.StartedByBisectTaskId = job.StartedByBisectTaskId;
 			response.AbortedByUser = abortedByUserInfo?.Login;
 			response.AbortedByUserInfo = abortedByUserInfo;
+			response.CancellationReason = job.CancellationReason;
 			response.CreateTime = new DateTimeOffset(job.CreateTimeUtc);
 			response.State = job.GetState();
 			response.Priority = job.Priority;
@@ -750,6 +751,7 @@ namespace Horde.Server.Jobs
 			response.AbortRequested = step.AbortRequested;
 			response.AbortByUser = abortedByUserInfo?.Login;
 			response.AbortedByUserInfo = abortedByUserInfo;
+			response.CancellationReason = step.CancellationReason;
 			response.RetryByUser = retriedByUserInfo?.Login;
 			response.RetriedByUserInfo = retriedByUserInfo;
 			response.LogId = step.LogId?.ToString();
@@ -1587,7 +1589,7 @@ namespace Horde.Server.Jobs
 					retryNodeRef = new NodeRef(step.Batch.GroupIdx, step.NodeIdx);
 				}
 
-				IJob? newJob = await _jobService.UpdateStepAsync(job, batchId, stepId, streamConfig, request.State, request.Outcome, null, request.AbortRequested, abortByUser, (request.LogId == null) ? null : LogId.Parse(request.LogId), null, retryByUser, request.Priority, null, request.Properties);
+				IJob? newJob = await _jobService.UpdateStepAsync(job, batchId, stepId, streamConfig, request.State, request.Outcome, null, request.AbortRequested, abortByUser, (request.LogId == null) ? null : LogId.Parse(request.LogId), null, retryByUser, request.Priority, null, request.Properties, request.CancellationReason);
 				if (newJob == null)
 				{
 					return NotFound(jobId);
