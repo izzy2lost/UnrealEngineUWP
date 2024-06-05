@@ -770,6 +770,11 @@ namespace uba
 			}
 		}
 
+		// There are directory crawlers happening in parallel so we need to really make sure to invalidate this one since a crawler can actually
+		// hit this file with information from a query before it was written.. and then it will turn it back to "verified" using old info
+		if (registerRealFile)
+			m_storage.InvalidateCachedFileInfo(fileNameKey);
+
 		FileEntryAdded(fileNameKey, lastWriteTime, fileSize);
 
 		u8 temp[1024];
@@ -2144,8 +2149,9 @@ namespace uba
 						return false;
 				}
 
-				Storage::CachedFileInfo cfi;
-				m_storage.VerifyAndGetCachedFileInfo(cfi, file.key, file.lastWriteTime, fileSize);
+				// There are directory crawlers happening in parallel so we need to really make sure to invalidate this one since a crawler can actually
+				// hit this file with information from a query before it was written.. and then it will turn it back to "verified" using old info
+				m_storage.InvalidateCachedFileInfo(file.key);
 			}
 			else
 			{

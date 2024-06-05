@@ -1341,19 +1341,19 @@ namespace uba
 		{
 			StringKey fileNameKey = reader.ReadStringKey();
 			auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-			FileEntry& entry = insres.first->second;
-			entry.verified = false;
+			FileEntry& fileEntry = insres.first->second;
+			fileEntry.verified = false;
 			if (reader.GetPosition() + 24 > fileSize)
 			{
 				m_fileTableLookup.clear();
 				m_logger.Warning(TC("CasTable file %s is corrupt"), fileName.data);
 				return false;
 			}
-			entry.size = reader.ReadU64();
-			entry.lastWritten = reader.ReadU64();
+			fileEntry.size = reader.ReadU64();
+			fileEntry.lastWritten = reader.ReadU64();
 			CasKey key = reader.ReadCasKey();
 			if (key != CasKeyZero)
-				entry.casKey = AsCompressed(key, m_storeCompressed);
+				fileEntry.casKey = AsCompressed(key, m_storeCompressed);
 		}
 
 
@@ -1861,10 +1861,30 @@ namespace uba
 		lookupLock.Leave();
 
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
-		fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize;
+		
+		// If fileEntry.lastWritten is newer than our verifiedLastWriteTime it means that something else updated the file in between us getting info from file system
+		// and ending up here. If that is the case we can't touch the verified stamp.
+		if (verifiedLastWriteTime >= fileEntry.lastWritten)
+			fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize && fileEntry.casKey != CasKeyInvalid;
+
 		if (!fileEntry.verified)
 			return false;
 		out.casKey = fileEntry.casKey;
+		return true;
+	}
+
+	bool StorageImpl::InvalidateCachedFileInfo(StringKey fileNameKey)
+	{
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return false;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+		fileEntry.verified = false;
+		fileEntry.casKey = CasKeyInvalid;
 		return true;
 	}
 
@@ -1881,6 +1901,8 @@ namespace uba
 	
 		if (fileEntry.verified)
 		{
+			UBA_ASSERT(fileEntry.casKey != CasKeyInvalid);
+
 			if (fileEntry.casKey != CasKeyZero)
 			{
 				UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
@@ -1923,7 +1945,7 @@ namespace uba
 				out = fileEntry.casKey;
 				return true;
 			}
-			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten)
+			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten && fileEntry.casKey != CasKeyInvalid)
 			{
 				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
@@ -2044,7 +2066,7 @@ namespace uba
 				out = fileEntry.casKey;
 				return true;
 			}
-			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten)
+			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten && fileEntry.casKey != CasKeyInvalid)
 			{
 				out = fileEntry.casKey;
 				return true;
@@ -2343,7 +2365,7 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		FileEntry& entry = GetOrCreateFileEntry(key);
+		FileEntry& fileEntry = GetOrCreateFileEntry(key);
 
 		TimerScope ts(stats.copyOrLink);
 
@@ -2414,8 +2436,8 @@ namespace uba
 
 				FileAccessor destinationFile(m_logger, destination);
 
-				SCOPED_WRITE_LOCK(entry.lock, entryLock);
-				entry.verified = false;
+				SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+				fileEntry.verified = false;
 
 				// This is to reduce number of active CreateFiles.. seems like machines don't like tons of CreateFile at the same time
 				#if PLATFORM_WINDOWS
@@ -2483,10 +2505,10 @@ namespace uba
 				UBA_ASSERT(lastWriteTime);
 				if (lastWriteTime)
 				{
-					entry.casKey = casKey;
-					entry.lastWritten = lastWriteTime;
-					entry.size = decompressedSize;
-					entry.verified = true;
+					fileEntry.casKey = casKey;
+					fileEntry.lastWritten = lastWriteTime;
+					fileEntry.size = decompressedSize;
+					fileEntry.verified = true;
 				}
 				return true;
 			}
@@ -2499,8 +2521,8 @@ namespace uba
 			UBA_ASSERT(false);
 			#endif
 
-			SCOPED_WRITE_LOCK(entry.lock, entryLock);
-			entry.verified = false;
+			SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+			fileEntry.verified = false;
 
 			bool firstTry = true;
 			while (true)

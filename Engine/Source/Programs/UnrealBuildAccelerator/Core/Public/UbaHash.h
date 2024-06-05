@@ -35,6 +35,7 @@ namespace uba
 #pragma pack(pop)
 
 	constexpr CasKey CasKeyZero;
+	constexpr CasKey CasKeyInvalid(~0ull, ~0ull, ~0u);
 
 	// Use 36+1 characters
 	inline void GuidToStr(tchar* out, u32 capacity, const Guid& g)
