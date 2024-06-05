@@ -7,6 +7,7 @@
 #include "MeshDescription.h"
 #include "DynamicMesh/DynamicVerticesOctree3.h"
 #include "BoneWeights.h"
+#include "DynamicSubmesh3.h"
 #include "GroupTopology.h"
 #include "SkeletalMeshAttributes.h"
 #include "Misc/Optional.h"
@@ -14,6 +15,7 @@
 #include "DynamicMesh/DynamicMeshOctree3.h"
 #include "SkeletalMesh/SkeletalMeshEditionInterface.h"
 #include "Engine/SkeletalMesh.h"
+#include "Selections/GeometrySelection.h"
 #include "TargetInterfaces/MeshTargetInterfaceTypes.h"
 
 #include "SkinWeightsPaintTool.generated.h"
@@ -26,6 +28,7 @@ class UPersonaEditorModeManagerContext;
 
 namespace UE::Geometry 
 {
+	struct FGeometrySelection;
 	template <typename BoneIndexType, typename BoneWeightType> class TBoneWeightsDataSource;
 	template <typename BoneIndexType, typename BoneWeightType> class TSmoothBoneWeights;
 }
@@ -107,11 +110,13 @@ namespace SkinPaintTool
 	// data required to preview the skinning deformations as you paint
 	struct FSkinToolDeformer
 	{
-		void Initialize(const USkeletalMeshComponent* SkeletalMeshComponent, const FMeshDescription* Mesh);
+		void Initialize(const USkeletalMeshComponent* InSkelMeshComponent, const FMeshDescription* InMeshDescription);
 
 		void SetAllVerticesToBeUpdated();
 
-		void UpdateVertexDeformation(USkinWeightsPaintTool* Tool);
+		void SetToRefPose(USkinWeightsPaintTool* Tool);
+
+		void UpdateVertexDeformation(USkinWeightsPaintTool* Tool, const TArray<FTransform>& PoseComponentSpace);
 
 		void SetVertexNeedsUpdated(int32 VertexIndex);
 		
@@ -122,7 +127,9 @@ namespace SkinPaintTool
 		// inverted, component space ref pose transform of each bone
 		TArray<FTransform> InvCSRefPoseTransforms;
 		// bones transforms used in last deformation update
-		TArray<FTransform> PrevBoneTransforms;
+		TArray<FTransform> PreviousPoseComponentSpace;
+		// bones transforms stored for duration of async deformation update
+		TArray<FTransform> RefPoseComponentSpace;
 		// bone index to bone name
 		TArray<FName> BoneNames;
 		TMap<FName, BoneIndex> BoneNameToIndexMap;
@@ -182,7 +189,7 @@ namespace SkinPaintTool
 		// copy the initial weight values from the skeletal mesh
 		void InitializeSkinWeights(
 			const USkeletalMeshComponent* SkeletalMeshComponent,
-			FMeshDescription* Mesh);
+			const FMeshDescription* Mesh);
 
 		// applies an edit to a single vertex weight on a single bone, then normalizes the remaining weights while
 		// keeping the edited weight intact (ie, adapts OTHER influences to achieve normalization)
@@ -192,7 +199,7 @@ namespace SkinPaintTool
 			float NewWeightValue,
 			FMultiBoneWeightEdits& WeightEdits);
 
-		void ApplyCurrentWeightsToMeshDescription(FMeshDescription* EditedMesh);
+		void ApplyCurrentWeightsToMeshDescription(FMeshDescription* MeshDescription);
 		
 		static float GetWeightOfBoneOnVertex(
 			const int32 BoneIndex,
@@ -425,9 +432,14 @@ public:
 	void GrowSelection() const;
 	void ShrinkSelection() const;
 	void FloodSelection() const;
+	// isolate selection
+	bool IsAnyComponentSelected() const;
+	bool IsSelectionIsolated() const;
+	void SetIsolateSelected(const bool bIsolateSelection);
 
-	// get a list of currently selected vertices
+	// get a list of currently selected components (converting other components)
 	void GetSelectedVertices(TArray<int32>& OutVertexIndices) const;
+	void GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const;
 
 	// get the average weight value of each influence on the given vertices
 	void GetInfluences(const TArray<int32>& VertexIndices, TArray<BoneIndex>& OutBoneIndices);
@@ -476,6 +488,11 @@ protected:
 	void OnShutdown(EToolShutdownType ShutdownType) override;
 	void OnTick(float DeltaTime) override;
 
+	void PostEditMeshInitialization(
+		const USkeletalMeshComponent* Component,
+		const FDynamicMesh3& InDynamicMesh,
+		const FMeshDescription& InMeshDescription);
+
 	// stamp
 	float CalculateBrushFalloff(float Distance) const;
 	void CalculateVertexROI(
@@ -523,6 +540,14 @@ protected:
 	// the currently edited mesh descriptions
 	mutable TMap<EMeshLODIdentifier, FMeshDescription> EditedMeshes;
 	FMeshDescription* EditedMesh = nullptr;
+	// when selection is isolated, we hide the full mesh and show a submesh
+	// when islated selection is unhidden, we remap all changes from the submesh back to the full mesh
+	TSharedPtr<FMeshDescription> PartialMeshDescription = nullptr; // during isolated selection
+	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreVertices;
+	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreEdges;
+	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreFaces;
+	bool bPendingUpdateFromPartialMesh = false;
+	void FinishIsolatedSelection();
 
 	// storage of vertex weights per bone 
 	SkinPaintTool::FSkinToolWeights Weights;
@@ -564,6 +589,10 @@ protected:
 	TUniquePtr<UE::Geometry::FDynamicMeshAABBTree3> MeshSpatial = nullptr;
 	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
 	void InitializeSelectionMechanic();
+
+	// isolate selection sub-meshes
+	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
+	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
 
 	// skin weight layer
 	void OnActiveLODChanged();

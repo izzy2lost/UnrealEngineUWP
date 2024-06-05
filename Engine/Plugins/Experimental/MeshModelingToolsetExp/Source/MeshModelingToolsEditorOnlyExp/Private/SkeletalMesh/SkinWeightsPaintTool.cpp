@@ -28,12 +28,16 @@
 #include "Spatial/PointSetHashTable.h"
 #include "Operations/SmoothBoneWeights.h"
 #include "ContextObjectStore.h"
+#include "DynamicMeshToMeshDescription.h"
+#include "DynamicSubmesh3.h"
+#include "MeshDescriptionToDynamicMesh.h"
 #include "SkeletalDebugRendering.h"
 #include "Editor/Persona/Public/IPersonaEditorModeManager.h"
 #include "Editor/Persona/Public/PersonaModule.h"
 #include "Preferences/PersonaOptions.h"
 #include "PreviewProfileController.h"
 #include "Animation/SkinWeightProfile.h"
+#include "AnimationRuntime.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinWeightsPaintTool)
 
@@ -262,10 +266,10 @@ float FMultiBoneWeightEdits::GetVertexDeltaFromEdits(const int32 BoneIndex, cons
 	return 0.0f;
 }
 
-void FSkinToolDeformer::Initialize(const USkeletalMeshComponent* SkeletalMeshComponent, const FMeshDescription* Mesh)
+void FSkinToolDeformer::Initialize(const USkeletalMeshComponent* InSkelMeshComponent, const FMeshDescription* InMeshDescription)
 {
 	// get all bone transforms in the reference pose store a copy in component space
-	Component = SkeletalMeshComponent;
+	Component = InSkelMeshComponent;
 	const FReferenceSkeleton& RefSkeleton = Component->GetSkeletalMeshAsset()->GetRefSkeleton();
 	const TArray<FTransform> &LocalSpaceBoneTransforms = RefSkeleton.GetRefBonePose();
 	const int32 NumBones = LocalSpaceBoneTransforms.Num();
@@ -296,14 +300,14 @@ void FSkinToolDeformer::Initialize(const USkeletalMeshComponent* SkeletalMeshCom
 	}
 
 	// store reference pose vertex positions
-	const TArrayView<const UE::Math::TVector<float>> VertexPositions = Mesh->GetVertexPositions().GetRawArray();
+	const TArrayView<const FVector3f> VertexPositions = InMeshDescription->GetVertexPositions().GetRawArray();
 	RefPoseVertexPositions = VertexPositions;
 
 	// set all vertices to be updated on first tick
 	SetAllVerticesToBeUpdated();
 
 	// record "prev" bone transforms to detect change in pose
-	PrevBoneTransforms = Component->GetComponentSpaceTransforms();
+	PreviousPoseComponentSpace = Component->GetComponentSpaceTransforms();
 }
 
 void FSkinToolDeformer::SetAllVerticesToBeUpdated()
@@ -315,23 +319,35 @@ void FSkinToolDeformer::SetAllVerticesToBeUpdated()
 	}
 }
 
-void FSkinToolDeformer::UpdateVertexDeformation(USkinWeightsPaintTool* Tool)
+void FSkinToolDeformer::SetToRefPose(USkinWeightsPaintTool* Tool)
+{
+	// get ref pose
+	const FReferenceSkeleton& RefSkeleton = Component->GetSkeletalMeshAsset()->GetRefSkeleton();
+	const TArray<FTransform>& RefPoseLocalSpace = RefSkeleton.GetRefBonePose();
+	// convert to global space and store in current pose
+	FAnimationRuntime::FillUpComponentSpaceTransforms(RefSkeleton, RefPoseLocalSpace, RefPoseComponentSpace);
+	// update mesh to new pose
+	UpdateVertexDeformation(Tool, RefPoseComponentSpace);
+}
+
+void FSkinToolDeformer::UpdateVertexDeformation(
+	USkinWeightsPaintTool* Tool,
+	const TArray<FTransform>& PoseComponentSpace)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::UpdateDeformationTotal);
 
 	// if no weights have been modified, we must check for a modified pose which requires re-calculation of skinning
 	if (VerticesWithModifiedWeights.IsEmpty())
 	{
-		const TArray<FTransform>& CurrentBoneTransforms = Component->GetComponentSpaceTransforms();
-		for (int32 BoneIndex=0; BoneIndex<CurrentBoneTransforms.Num(); ++BoneIndex)
+		for (int32 BoneIndex=0; BoneIndex<PoseComponentSpace.Num(); ++BoneIndex)
 		{
 			if (!Tool->Weights.IsBoneWeighted[BoneIndex])
 			{
 				continue;
 			}
 			
-			const FTransform& CurrentBoneTransform = CurrentBoneTransforms[BoneIndex];
-			const FTransform& PrevBoneTransform = PrevBoneTransforms[BoneIndex];
+			const FTransform& CurrentBoneTransform = PoseComponentSpace[BoneIndex];
+			const FTransform& PrevBoneTransform = PreviousPoseComponentSpace[BoneIndex];
 			if (!CurrentBoneTransform.Equals(PrevBoneTransform))
 			{
 				SetAllVerticesToBeUpdated();
@@ -348,20 +364,23 @@ void FSkinToolDeformer::UpdateVertexDeformation(USkinWeightsPaintTool* Tool)
 	// update vertex positions
 	UPreviewMesh* PreviewMesh = Tool->PreviewMesh;
 	const TArray<VertexWeights>& CurrentWeights = Tool->Weights.CurrentWeights;
-	PreviewMesh->DeferredEditMesh([this, &CurrentWeights](FDynamicMesh3& Mesh)
+	PreviewMesh->DeferredEditMesh([this, &CurrentWeights, &PoseComponentSpace](FDynamicMesh3& Mesh)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::UpdateDeformation);
-		const TArray<FTransform>& CurrentBoneTransforms = Component->GetComponentSpaceTransforms();
 		const TArray<int32> VertexIndices = VerticesWithModifiedWeights.Array();
 		
-		ParallelFor( VerticesWithModifiedWeights.Num(), [this, &VertexIndices, &Mesh, &CurrentBoneTransforms, &CurrentWeights](int32 Index)
+		ParallelFor( VerticesWithModifiedWeights.Num(), [this, &VertexIndices, &Mesh, &PoseComponentSpace, &CurrentWeights](int32 Index)
 		{
 			const int32 VertexID = VertexIndices[Index];
 			FVector VertexNewPosition = FVector::ZeroVector;
 			const VertexWeights& VertexPerBoneData = CurrentWeights[VertexID];
 			for (const FVertexBoneWeight& VertexData : VertexPerBoneData)
 			{
-				const FTransform& CurrentTransform = CurrentBoneTransforms[VertexData.BoneIndex];
+				if (VertexData.BoneIndex == INDEX_NONE)
+				{
+					continue;
+				}
+				const FTransform& CurrentTransform = PoseComponentSpace[VertexData.BoneIndex];
 				VertexNewPosition += CurrentTransform.TransformPosition(VertexData.VertexInBoneSpace) * VertexData.Weight;
 			}
 			
@@ -435,7 +454,7 @@ void FSkinToolDeformer::UpdateVertexDeformation(USkinWeightsPaintTool* Tool)
 	VerticesWithModifiedWeights.Reset();
 
 	// record the skeleton state we used to update the deformations
-	PrevBoneTransforms = Component->GetComponentSpaceTransforms();
+	PreviousPoseComponentSpace = PoseComponentSpace;
 }
 
 void FSkinToolDeformer::SetVertexNeedsUpdated(int32 VertexIndex)
@@ -445,7 +464,7 @@ void FSkinToolDeformer::SetVertexNeedsUpdated(int32 VertexIndex)
 
 void FSkinToolWeights::InitializeSkinWeights(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
-	FMeshDescription* Mesh)
+	const FMeshDescription* Mesh)
 {
 	// initialize deformer data
 	Deformer.Initialize(SkeletalMeshComponent, Mesh);
@@ -620,9 +639,9 @@ void FSkinToolWeights::EditVertexWeightAndNormalize(
 		NewWeightValue);
 }
 
-void FSkinToolWeights::ApplyCurrentWeightsToMeshDescription(FMeshDescription* EditedMesh)
+void FSkinToolWeights::ApplyCurrentWeightsToMeshDescription(FMeshDescription* MeshDescription)
 {
-	FSkeletalMeshAttributes MeshAttribs(*EditedMesh);
+	FSkeletalMeshAttributes MeshAttribs(*MeshDescription);
 	FSkinWeightsVertexAttributesRef VertexSkinWeights = MeshAttribs.GetVertexSkinWeights(Profile);
 	
 	UE::AnimationCore::FBoneWeightsSettings Settings;
@@ -631,7 +650,13 @@ void FSkinToolWeights::ApplyCurrentWeightsToMeshDescription(FMeshDescription* Ed
 	TArray<UE::AnimationCore::FBoneWeight> SourceBoneWeights;
 	SourceBoneWeights.Reserve(UE::AnimationCore::MaxInlineBoneWeightCount);
 
-	const int32 NumVertices = EditedMesh->Vertices().Num();
+	const int32 NumVertices = MeshDescription->Vertices().Num();
+	if (!ensure(CurrentWeights.Num() == NumVertices))
+	{
+		// weights are out of sync with mesh description you're trying to apply them to
+		return;
+	}
+	
 	for (int32 VertexIndex = 0; VertexIndex < NumVertices; VertexIndex++)
 	{
 		SourceBoneWeights.Reset();
@@ -875,11 +900,11 @@ void USkinWeightsPaintTool::Setup()
 	// replace the base brush properties
 	ReplaceToolPropertySource(BrushProperties, WeightToolProperties);
 	BrushProperties = WeightToolProperties;
-
 	// brush render customization
 	BrushStampIndicator->bScaleNormalByStrength = true;
 	BrushStampIndicator->SecondaryLineThickness = 1.0f;
 	BrushStampIndicator->SecondaryLineColor = FLinearColor::Yellow;
+	RecalculateBrushRadius();
 
 	// default to the root bone as current bone
 	PendingCurrentBone = CurrentBone = Component->GetSkeletalMeshAsset()->GetRefSkeleton().GetBoneName(0);
@@ -887,44 +912,14 @@ void USkinWeightsPaintTool::Setup()
 	// configure preview mesh
 	PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
 	PreviewMesh->SetShadowsEnabled(false);
-	// enable vtx colors on preview mesh
-	PreviewMesh->EditMesh([](FDynamicMesh3& Mesh)
-	{
-		Mesh.EnableAttributes();
-		Mesh.Attributes()->DisablePrimaryColors();
-		Mesh.Attributes()->EnablePrimaryColors();
-		// Create an overlay that has no split elements, init with zero value.
-		Mesh.Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB){return true;}, 0.f);
-	});
-	// optionally display vertex color material
-	SetDisplayVertexColors(WeightToolProperties->ColorMode != EWeightColorMode::FullMaterial);
 
-	// modify viewport render settings to optimize for painting weights
-	FPreviewProfileController PreviewProfileController;
-	PreviewProfileToRestore = PreviewProfileController.GetActiveProfile();
-	PreviewProfileController.SetActiveProfile(UDefaultEditorProfiles::EditingProfileName.ToString());
-	// turn on bone colors
-	bBoneColorsToRestore = GetDefault<UPersonaOptions>()->bShowBoneColors;
-	GetMutableDefault<UPersonaOptions>()->bShowBoneColors = true;
-
-	// initialize vertices & triangle octrees (this must be done after PreviewMesh has been initialized)
-	InitializeOctrees();
-
-	// initialize weight maps and deformation data
-	Weights.InitializeSkinWeights(Component, EditedMesh);
-	bVisibleWeightsValid = false;
-
-	RecalculateBrushRadius();
-
-	
-	const FLinearColor FaceSelectedOrange = FLinearColor(0.886f, 0.672f, 0.473f);
-	const FLinearColor VertexSelectedPurple = FLinearColor(0.78f, 0.f, 0.78f);
-	const FLinearColor VertexSelectedYellow = FLinearColor::Yellow;
-
+	// selection colors
+	constexpr FLinearColor FaceSelectedOrange = FLinearColor(0.886f, 0.672f, 0.473f);
+	constexpr FLinearColor VertexSelectedPurple = FLinearColor(0.78f, 0.f, 0.78f);
+	constexpr FLinearColor VertexSelectedYellow = FLinearColor(1.f,1.f,0.f);
 	// configure secondary render material for selected triangles
 	// NOTE: the material returned by ToolSetupUtil::GetSelectionMaterial has a checkerboard pattern on back faces which makes it hard to use
-	UMaterialInterface* Material = LoadObject<UMaterial>(nullptr, TEXT("/MeshModelingToolsetExp/Materials/SculptMaterial"));
-	if (Material)
+	if (UMaterialInterface* Material = LoadObject<UMaterial>(nullptr, TEXT("/MeshModelingToolsetExp/Materials/SculptMaterial")))
 	{
 		if (UMaterialInstanceDynamic* MatInstance = UMaterialInstanceDynamic::Create(Material, GetToolManager()))
 		{
@@ -932,33 +927,27 @@ void USkinWeightsPaintTool::Setup()
 			PreviewMesh->SetSecondaryRenderMaterial(MatInstance);
 		}
 	}
-
 	// set up vertex selection mechanic
 	PolygonSelectionMechanic = NewObject<UPolygonSelectionMechanic>(this);
 	PolygonSelectionMechanic->bAddSelectionFilterPropertiesToParentTool = false;
 	PolygonSelectionMechanic->Setup(this);
 	PolygonSelectionMechanic->SetIsEnabled(false);
 	PolygonSelectionMechanic->OnSelectionChanged.AddLambda([this](){OnSelectionChanged.Broadcast();} );
-	// restore saved mode
-	SetComponentSelectionMode(WeightToolProperties->ComponentSelectionMode);
 	// adjust selection rendering for this context
 	PolygonSelectionMechanic->HilightRenderer.PointColor = FLinearColor::Blue;
 	PolygonSelectionMechanic->HilightRenderer.PointSize = 10.0f;
-
+	// vertex highlighting once selected
 	PolygonSelectionMechanic->SelectionRenderer.LineThickness = 1.0f;
 	PolygonSelectionMechanic->SelectionRenderer.PointColor = VertexSelectedYellow;
 	PolygonSelectionMechanic->SelectionRenderer.PointSize = 5.0f;
 	PolygonSelectionMechanic->SelectionRenderer.DepthBias = 2.0f;
-
 	// despite the name, this renders the vertices
 	PolygonSelectionMechanic->PolyEdgesRenderer.PointColor = VertexSelectedPurple;
 	PolygonSelectionMechanic->PolyEdgesRenderer.PointSize = 5.0f;
 	PolygonSelectionMechanic->PolyEdgesRenderer.DepthBias = 2.0f;
 	PolygonSelectionMechanic->PolyEdgesRenderer.LineThickness = 1.0f;
-
-	// initialize the polygon selection mechanic (this must be done after PreviewMesh has been initialized)
-	InitializeSelectionMechanic();
-	
+	// restore saved mode
+	SetComponentSelectionMode(WeightToolProperties->ComponentSelectionMode);
 	// secondary triangle buffer used to render face selection
 	PreviewMesh->EnableSecondaryTriangleBuffers([this](const FDynamicMesh3* Mesh, int32 TriangleID)
 	{
@@ -973,10 +962,11 @@ void USkinWeightsPaintTool::Setup()
 	{
 		PreviewMesh->FastNotifySecondaryTrianglesChanged();
 	});
-	
-	// initialize smooth operator (this must be done after PreviewMesh & Weights have been initialized)
-	InitializeSmoothWeightsOperator();
 
+	// run all initialization for mesh/weights
+	PostEditMeshInitialization(Component, *PreviewMesh->GetMesh(), *EditedMesh);
+
+	// bind the skeletal mesh editor context
 	if (EditorContext.IsValid())
 	{
 		EditorContext->BindTo(this);
@@ -984,7 +974,15 @@ void USkinWeightsPaintTool::Setup()
 
 	// trigger last used mode
 	ToggleEditingMode();
-	
+
+	// modify viewport render settings to optimize for painting weights
+	FPreviewProfileController PreviewProfileController;
+	PreviewProfileToRestore = PreviewProfileController.GetActiveProfile();
+	PreviewProfileController.SetActiveProfile(UDefaultEditorProfiles::EditingProfileName.ToString());
+	// turn on bone colors
+	bBoneColorsToRestore = GetDefault<UPersonaOptions>()->bShowBoneColors;
+	GetMutableDefault<UPersonaOptions>()->bShowBoneColors = true;
+	// set focus to viewport so brush hotkey works
 	SetFocusInViewport();
 	
 	// inform user of tool keys
@@ -1124,6 +1122,12 @@ void USkinWeightsPaintTool::OnUpdateModifierState(int ModifierID, bool bIsOn)
 
 void USkinWeightsPaintTool::OnTick(float DeltaTime)
 {
+	if (bPendingUpdateFromPartialMesh)
+	{
+		FinishIsolatedSelection();
+		bPendingUpdateFromPartialMesh = false;
+	}
+	
 	if (bStampPending)
 	{
 		ApplyStamp(LastStamp);
@@ -1144,7 +1148,43 @@ void USkinWeightsPaintTool::OnTick(float DeltaTime)
 	}
 
 	// sparsely updates vertex positions (only on vertices with modified weights)
-	Weights.Deformer.UpdateVertexDeformation(this);
+	Weights.Deformer.UpdateVertexDeformation(this, Weights.Deformer.Component->GetComponentSpaceTransforms());
+}
+
+void USkinWeightsPaintTool::PostEditMeshInitialization(
+	const USkeletalMeshComponent* InComponent,
+	const FDynamicMesh3& InDynamicMesh,
+	const FMeshDescription& InMeshDescription)
+{
+	// update the preview mesh
+	PreviewMesh->ReplaceMesh(InDynamicMesh);
+	PreviewMesh->EditMesh([](FDynamicMesh3& Mesh)
+	{
+		Mesh.EnableAttributes();
+		Mesh.Attributes()->DisablePrimaryColors();
+		Mesh.Attributes()->EnablePrimaryColors();
+		Mesh.Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB){return true;}, 0.f);
+	});
+	SetDisplayVertexColors(WeightToolProperties->ColorMode != EWeightColorMode::FullMaterial);
+	
+	// update vertices & triangle octrees (this must be done after PreviewMesh has been updated)
+	InitializeOctrees();
+
+	// update the polygon selection mechanic (this must be done after PreviewMesh has been updated)
+	InitializeSelectionMechanic();
+
+	// update weights
+	Weights = FSkinToolWeights();
+	if (!IsProfileValid(WeightToolProperties->ActiveSkinWeightProfile))
+	{
+		WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+	}
+	Weights.Profile = WeightToolProperties->ActiveSkinWeightProfile;
+	Weights.InitializeSkinWeights(InComponent, &InMeshDescription);
+	bVisibleWeightsValid = false;
+	
+	// update smooth operator (this must be done after PreviewMesh & Weights have been updated)
+	InitializeSmoothWeightsOperator();
 }
 
 void USkinWeightsPaintToolProperties::SetComponentMode(EComponentSelectionMode InComponentMode)
@@ -1201,7 +1241,7 @@ bool USkinWeightsPaintTool::HitTest(const FRay& Ray, FHitResult& OutHit)
 		CurTargetTransform.InverseTransformVector((FVector3d)Ray.Direction));
 	UE::Geometry::Normalize(LocalRay.Direction);
 	
-	const FDynamicMesh3* Mesh = PreviewMesh->GetPreviewDynamicMesh();
+	const FDynamicMesh3* Mesh = PreviewMesh->GetMesh();
 
 	FViewCameraState StateOut;
 	GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(StateOut);
@@ -1763,6 +1803,7 @@ void USkinWeightsPaintTool::InitializeSelectionMechanic()
 		SelectionTopology.Get(),
 		[this]() { return MeshSpatial.Get(); }
 	);
+	PolygonSelectionMechanic->ClearSelection();
 }
 
 void USkinWeightsPaintTool::InitializeSmoothWeightsOperator()
@@ -2431,6 +2472,11 @@ void USkinWeightsPaintTool::OnActiveLODChanged()
 		return;
 	}
 
+	if (IsSelectionIsolated())
+	{
+		FinishIsolatedSelection();
+	}
+
 	// apply previous changes
 	Weights.ApplyCurrentWeightsToMeshDescription(EditedMesh);
 
@@ -2444,34 +2490,9 @@ void USkinWeightsPaintTool::OnActiveLODChanged()
 		*EditedMesh = *UE::ToolTarget::GetMeshDescription(Target, Params);
 	}
 
-	// update the preview mesh
-	PreviewMesh->ReplaceMesh(UE::ToolTarget::GetDynamicMeshCopy(Target, Params));
-	PreviewMesh->EditMesh([](FDynamicMesh3& Mesh)
-	{
-		Mesh.EnableAttributes();
-		Mesh.Attributes()->DisablePrimaryColors();
-		Mesh.Attributes()->EnablePrimaryColors();
-		Mesh.Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB){return true;}, 0.f);
-	});
-
-	// update vertices & triangle octrees (this must be done after PreviewMesh has been updated)
-	InitializeOctrees();
-
-	// update weights
-	Weights = FSkinToolWeights();
-	if (!IsProfileValid(WeightToolProperties->ActiveSkinWeightProfile))
-	{
-		WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
-	}
-	Weights.Profile = WeightToolProperties->ActiveSkinWeightProfile;
-	Weights.InitializeSkinWeights(Component, EditedMesh);
-	bVisibleWeightsValid = false;
-
-	// update the polygon selection mechanic (this must be done after PreviewMesh has been updated)
-	InitializeSelectionMechanic();
-
-	// update smooth operator (this must be done after PreviewMesh & Weights have been updated)
-	InitializeSmoothWeightsOperator();
+	// reinitialize all mesh data structures
+	const UE::Geometry::FDynamicMesh3 DynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, Params);
+	PostEditMeshInitialization(Component, DynamicMesh, *EditedMesh);
 }
 
 void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
@@ -2480,6 +2501,11 @@ void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
 	if (!SkeletalMeshComponent)
 	{
 		return;
+	}
+
+	if (IsSelectionIsolated())
+	{
+		FinishIsolatedSelection();
 	}
 
 	if (!IsProfileValid(WeightToolProperties->ActiveSkinWeightProfile))
@@ -2591,6 +2617,153 @@ void USkinWeightsPaintTool::FloodSelection() const
 	PolygonSelectionMechanic->FloodSelection();
 }
 
+bool USkinWeightsPaintTool::IsAnyComponentSelected() const
+{
+	if (!PolygonSelectionMechanic)
+	{
+		return false;
+	}
+
+	return PolygonSelectionMechanic->HasSelection();
+}
+
+bool USkinWeightsPaintTool::IsSelectionIsolated() const
+{
+	return PartialMeshDescription.IsValid();
+}
+
+void USkinWeightsPaintTool::SetIsolateSelected(const bool bIsolateSelection)
+{
+	// if we are turning off an isolated selection, we must queue the Tick() to update the full mesh
+	if (!bIsolateSelection && PartialMeshDescription.IsValid())
+	{
+		bPendingUpdateFromPartialMesh = true;
+		return;
+	}
+	
+	if (PartialMeshDescription.IsValid())
+	{
+		ensure(false); // should be reset to null
+		return;
+	}
+	
+	if (!ensure(PolygonSelectionMechanic))
+	{
+		return;
+	}
+
+	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(Target);
+	if (!ensure(SkeletalMeshComponent))
+	{
+		return;
+	}
+
+	if (!ensure(EditedMesh))
+	{
+		return;
+	}
+
+	// apply previous changes
+	Weights.ApplyCurrentWeightsToMeshDescription(EditedMesh);
+	
+	// put into ref pose, BEFORE copying the mesh, so that submesh deformer initializes with vertices in ref pose
+	Weights.Deformer.SetToRefPose(this);
+
+	// store selection to be restored
+	IsolatedSelectionToRestoreVertices.Reset();
+	IsolatedSelectionToRestoreEdges.Reset();
+	IsolatedSelectionToRestoreFaces.Reset();
+	IsolatedSelectionToRestoreVertices.ElementType = UE::Geometry::EGeometryElementType::Vertex;
+	IsolatedSelectionToRestoreEdges.ElementType = UE::Geometry::EGeometryElementType::Edge;
+	IsolatedSelectionToRestoreFaces.ElementType = UE::Geometry::EGeometryElementType::Face;
+	PolygonSelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
+	PolygonSelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
+	PolygonSelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
+
+	// store copy of original FDynamicMesh to restore
+	FDynamicMesh3 DynamicMesh;
+	FMeshDescriptionToDynamicMesh Converter;
+	Converter.Convert(EditedMesh, DynamicMesh);
+	FullDynamicMesh = MoveTemp(DynamicMesh);
+
+	// create a submesh from the selected triangles (or triangles connected to selected vertices/edges)
+	TArray<int32> TrianglesToIsolate;
+	GetSelectedTriangles(TrianglesToIsolate);
+	if (TrianglesToIsolate.IsEmpty())
+	{
+		return;
+	}
+	PartialSubMesh = UE::Geometry::FDynamicSubmesh3(&FullDynamicMesh, TrianglesToIsolate);
+
+	// create mesh description for sub-mesh
+	PartialMeshDescription = MakeShared<FMeshDescription>();
+	// registering skeletal mesh attributes is required to create room to copy attributes during conversion from dynamic mesh
+	FSkeletalMeshAttributes Attributes(*PartialMeshDescription);
+	Attributes.Register();
+	// convert the partial dynamic mesh to a mesh description
+	// NOTE: this copies vertex weights to partial mesh description (later used to load weights into the tool)
+	FDynamicMeshToMeshDescription DnyToDescConverter;
+	constexpr bool bCopyTangents = true;
+	DnyToDescConverter.Convert(&PartialSubMesh.GetSubmesh(), *PartialMeshDescription, bCopyTangents);
+	
+	// reinitialize all mesh data structures
+	PostEditMeshInitialization(SkeletalMeshComponent, PartialSubMesh.GetSubmesh(), *PartialMeshDescription.Get());
+}
+
+void USkinWeightsPaintTool::FinishIsolatedSelection()
+{
+	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(Target);
+	if (!ensure(SkeletalMeshComponent))
+	{
+		return;
+	}
+
+	if (!PartialMeshDescription)
+	{
+		// nothing hidden
+		return;
+	}
+
+	// apply partial mesh weights to partial mesh description
+	Weights.ApplyCurrentWeightsToMeshDescription(PartialMeshDescription.Get());
+
+	// reinitialize with full mesh
+	PostEditMeshInitialization(SkeletalMeshComponent, FullDynamicMesh, *EditedMesh);
+
+	// copy the remapped weights back to the full mesh
+	const FSkeletalMeshConstAttributes MeshAttribs(*PartialMeshDescription.Get());
+	const FSkinWeightsVertexAttributesConstRef AllVertexWeights = MeshAttribs.GetVertexSkinWeights(WeightToolProperties->ActiveSkinWeightProfile);
+	const int32 NumVerticesInPartialMesh = PartialMeshDescription.Get()->Vertices().Num();
+	for (int32 VertexIndexPartial = 0; VertexIndexPartial < NumVerticesInPartialMesh; VertexIndexPartial++)
+	{
+		// get the equivalent vertex on the full mesh
+		const int32 VertexIndexFull = PartialSubMesh.MapVertexToBaseMesh(VertexIndexPartial);
+		// clear all the weights on this vertex
+		Weights.CurrentWeights[VertexIndexFull].Init(FVertexBoneWeight(), UE::AnimationCore::MaxInlineBoneWeightCount);
+		// replace with weights from partial mesh
+		const FVertexBoneWeightsConst& VertexWeightsPartial = AllVertexWeights.Get(VertexIndexPartial);
+		for (int32 InfluenceIndex=0; InfluenceIndex<VertexWeightsPartial.Num(); ++InfluenceIndex)
+		{
+			const UE::AnimationCore::FBoneWeight& SingleBoneWeight = VertexWeightsPartial[InfluenceIndex];
+			FVertexBoneWeight& VertexBoneWeight = Weights.CurrentWeights[VertexIndexFull][InfluenceIndex];
+			VertexBoneWeight.BoneIndex = SingleBoneWeight.GetBoneIndex();
+			VertexBoneWeight.Weight = SingleBoneWeight.GetWeight();
+			VertexBoneWeight.VertexInBoneSpace = Weights.Deformer.InvCSRefPoseTransforms[VertexBoneWeight.BoneIndex].TransformPosition(Weights.Deformer.RefPoseVertexPositions[VertexIndexFull]);
+		}
+	}
+	// sync both weight buffers
+	Weights.PreChangeWeights = Weights.CurrentWeights;
+	// apply full mesh weights to full mesh description
+	Weights.ApplyCurrentWeightsToMeshDescription(EditedMesh);
+
+	// restore selection (allows for easily adjusting crop)
+	PolygonSelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
+	PolygonSelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
+	PolygonSelectionMechanic->SetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
+
+	PartialMeshDescription = nullptr;
+}
+
 void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices) const
 {
 	OutVertexIndices.Empty();
@@ -2616,13 +2789,9 @@ void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices)
 	};
 
 	// add selected vertices
-	if (PolygonSelectionMechanic->Properties->bSelectVertices)
-	{
-		AddVertices(Selection.SelectedCornerIDs);
-	}
+	AddVertices(Selection.SelectedCornerIDs);
 
 	// add vertices on selected edges
-	if (PolygonSelectionMechanic->Properties->bSelectEdges)
 	{
 		TSet<int32> VerticesInSelectedEdges;
 		for (const int32 SelectedEdgeIndex : Selection.SelectedEdgeIDs)
@@ -2636,7 +2805,6 @@ void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices)
 	}
 
 	// add vertices in selected faces
-	if (PolygonSelectionMechanic->Properties->bSelectFaces)
 	{
 		TSet<int32> VerticesInSelectedFaces;
 		for (const int32 SelectedFaceIndex : Selection.SelectedGroupIDs)
@@ -2649,6 +2817,42 @@ void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices)
 		
 		AddVertices(VerticesInSelectedFaces);
 	}
+}
+
+void USkinWeightsPaintTool::GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const
+{
+	OutTriangleIndices.Empty();
+	if (!PolygonSelectionMechanic)
+	{
+		return;
+	}
+	
+	const FGroupTopologySelection& Selection = PolygonSelectionMechanic->GetActiveSelection();
+	const FDynamicMesh3* DynamicMesh = PreviewMesh->GetMesh();
+	TSet<int32> TriangleSet;
+
+	// add triangles connected to selected vertices
+	for (const int32 VertexIndex : Selection.SelectedCornerIDs)
+	{
+		DynamicMesh->EnumerateVertexTriangles(VertexIndex, [&TriangleSet](int32 TriangleIndex)
+		{
+			TriangleSet.Add(TriangleIndex);
+		});
+	}
+
+	// add triangles connected to selected edges
+	for (const int32 EdgeIndex : Selection.SelectedEdgeIDs)
+	{
+		DynamicMesh->EnumerateEdgeTriangles(EdgeIndex, [&TriangleSet](int32 TriangleIndex)
+		{
+			TriangleSet.Add(TriangleIndex);
+		});
+	}
+
+	// add selected triangles
+	TriangleSet.Append(Selection.SelectedGroupIDs);	
+
+	OutTriangleIndices = TriangleSet.Array();
 }
 
 void USkinWeightsPaintTool::GetInfluences(const TArray<int32>& VertexIndices, TArray<BoneIndex>& OutBoneIndices)
@@ -2677,6 +2881,11 @@ float USkinWeightsPaintTool::GetAverageWeightOnBone(
 	
 	for (const int32 SelectedVertex : VertexIndices)
 	{
+		if (!Weights.CurrentWeights.IsValidIndex(SelectedVertex))
+		{
+			continue;
+		}
+		
 		for (const FVertexBoneWeight& VertexBoneData : Weights.CurrentWeights[SelectedVertex])
 		{
 			if (VertexBoneData.BoneIndex == InBoneIndex)
