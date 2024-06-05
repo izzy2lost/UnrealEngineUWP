@@ -195,6 +195,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	SubstrateHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
 
 	float Coverage = 0.0;
+	FSubstrateDBuffer DBufferData =(FSubstrateDBuffer)0;
 	if (SubstrateHeader.SubstrateTree.BSDFCount > 0)
 	{
 		const float3 V = MaterialParameters.CameraVector;
@@ -210,38 +211,50 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 #endif 
 
 		// Since the Convert-To-Decal node forces parameter blending for the entire Substrate tree, the BSDF we are interested in will be in 0.
-		Coverage = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], DecalFading, CoverageOverBackground);
-
+		DBufferData = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], DecalFading, CoverageOverBackground);
 	}
-	const float Opacity = Coverage;
+	const float Opacity = DBufferData.Coverage;
+	const float3 EmissiveColor = DBufferData.Emissive;
 #else // SUBSTRATE_ENABLED
-	float3 Color = GetMaterialEmissive(PixelMaterialInputs);
+	float3 EmissiveColor = GetMaterialEmissive(PixelMaterialInputs);
 	
 	float Opacity = GetMaterialOpacity(PixelMaterialInputs) * DecalFading;
 
-	FGBufferData GBufferData;
-	GBufferData.WorldNormal = MaterialParameters.WorldNormal;
-	GBufferData.BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
-	GBufferData.Metallic = GetMaterialMetallic(PixelMaterialInputs);
-	GBufferData.Specular = GetMaterialSpecular(PixelMaterialInputs);
-	GBufferData.Roughness = GetMaterialRoughness(PixelMaterialInputs);
-	GBufferData.CustomData = 0;
-	GBufferData.IndirectIrradiance = 0;
-	GBufferData.PrecomputedShadowFactors = 1;
-	GBufferData.GBufferAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
-	GBufferData.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
-	GBufferData.SelectiveOutputMask = 0;
-	GBufferData.PerObjectGBufferData = 1; 
-	GBufferData.DiffuseIndirectSampleOcclusion = 0;
-	GBufferData.Velocity = 0;
+	FGBufferData DBufferData;
+	DBufferData.WorldNormal = MaterialParameters.WorldNormal;
+	DBufferData.BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
+	DBufferData.Metallic = GetMaterialMetallic(PixelMaterialInputs);
+	DBufferData.Specular = GetMaterialSpecular(PixelMaterialInputs);
+	DBufferData.Roughness = GetMaterialRoughness(PixelMaterialInputs);
+	DBufferData.CustomData = 0;
+	DBufferData.IndirectIrradiance = 0;
+	DBufferData.PrecomputedShadowFactors = 1;
+	DBufferData.GBufferAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
+	DBufferData.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+	DBufferData.SelectiveOutputMask = 0;
+	DBufferData.PerObjectGBufferData = 1; 
+	DBufferData.DiffuseIndirectSampleOcclusion = 0;
+	DBufferData.Velocity = 0;
 
-	DecalCommonOutput(In, Out, Color, Opacity, GBufferData);
+	DecalCommonOutput(In, Out, EmissiveColor, Opacity, DBufferData);
 #endif // SUBSTRATE_ENABLED
 
 #if DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_MOBILE
 	#if DECAL_MOBILE_FORWARD_LIT
-		Out.MRT[0].rgb = ForwardDecalLighting(TranslatedWorldPosition, Color, Opacity, MaterialParameters.ScreenPosition.xy, MaterialParameters.ScreenPosition.w,
-			GBufferData, CameraVector, MaterialParameters.TangentToWorld[2], ReflectionAboutCustomWorldNormal(MaterialParameters, MaterialParameters.WorldNormal, false));
+		Out.MRT[0].rgb = ForwardDecalLighting(
+			TranslatedWorldPosition, 
+			MaterialParameters.ScreenPosition.xy, 
+			MaterialParameters.ScreenPosition.w,
+			CameraVector, 
+			MaterialParameters.TangentToWorld[2], 
+			ReflectionAboutCustomWorldNormal(MaterialParameters, MaterialParameters.WorldNormal, false),
+			DBufferData.WorldNormal,
+			DBufferData.Specular,
+			DBufferData.BaseColor,
+			DBufferData.Metallic,
+			DBufferData.Roughness,
+			EmissiveColor,
+			Opacity);
 	#endif
 #endif
 

@@ -13,29 +13,29 @@
 #include "DBufferDecalShared.ush"
 
 #if SUBSTRATE_ENABLED  
-float DecalCommonOutput(
+FSubstrateDBuffer DecalCommonOutput(
 	inout FPixelShaderOut Out, 
 	in FSubstratePixelHeader InHeader,
 	in FSubstrateBSDF InBSDF,
 	in float FadeOutWeight,
 	in float CoverageOverBackground)
 {
-	FSubstrateDBuffer DBuffer = InHeader.SubstrateConvertToDBuffer(InBSDF);
+	FSubstrateDBuffer OutDBuffer = InHeader.SubstrateConvertToDBuffer(InBSDF);
 
-	DBuffer.Coverage *= FadeOutWeight;
+	OutDBuffer.Coverage *= FadeOutWeight;
 
-	float3 Color = DBuffer.Emissive;
+	float3 Color = OutDBuffer.Emissive;
 
 #if DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_MOBILE
 	// Cheap mobile forward approximation uses both emissive and color.
-	Color += DBuffer.BaseColor;
+	Color += OutDBuffer.BaseColor;
 #if MATERIALBLENDING_MODULATE
-	Color *= DBuffer.Coverage;
+	Color *= OutDBuffer.Coverage;
 #endif
 #elif DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_AO
 	// Replace color with AO for AO decals.
 #if SUBSTRATE_INLINE_SHADING
-	Color = lerp(1, InHeader.IrradianceAO.MaterialAO, DBuffer.Coverage);
+	Color = lerp(1, InHeader.IrradianceAO.MaterialAO, OutDBuffer.Coverage);
 #else
 #error Substrate - Decals must be evaluated inline.
 #endif
@@ -51,11 +51,11 @@ float DecalCommonOutput(
 #endif
 
 	// Outputing color to MRT0 (can be emissive or any other data set above)
-	Out.MRT[0] = float4(Color, DBuffer.Coverage);
+	Out.MRT[0] = float4(Color, OutDBuffer.Coverage);
 
 #if DECAL_RENDERTARGETMODE == DECAL_RENDERTARGETMODE_DBUFFER
-	// If we output to DBuffer, write to all the 3 RTs.
-	SubstratePackDBuffer(DBuffer, Out.MRT[0], Out.MRT[1], Out.MRT[2]);
+	// If we output to OutDBuffer, write to all the 3 RTs.
+	SubstratePackDBuffer(OutDBuffer, Out.MRT[0], Out.MRT[1], Out.MRT[2]);
 
 	#if DECAL_RENDERTARGET_COUNT == 4
 		Out.MRT[3] = 1.0f; // DBufferMask
@@ -82,7 +82,7 @@ float DecalCommonOutput(
 	Out.MRT[3] = 0;
 #endif
 
-	return DBuffer.Coverage;
+	return OutDBuffer;
 }
 #else // SUBSTRATE_ENABLED
 void DecalCommonOutput(inout FPixelShaderIn In, inout FPixelShaderOut Out, float3 Color, float Opacity, FGBufferData Data)

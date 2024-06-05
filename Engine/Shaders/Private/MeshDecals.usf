@@ -162,12 +162,12 @@ void FPixelShaderInOut_MainPS(
 
 		// Either propagate the BSDF opacity, or use the one for AlphaComposite (premultiplied alpha)
 		float CoverageOverBackground = SubstrateHeader.SubstrateTree.BSDFs[0].Coverage;
-#if SUBSTRATE_USE_PREMULTALPHA_OVERRIDE // AlphaComposite - Premultiplied alpha blending
+	#if SUBSTRATE_USE_PREMULTALPHA_OVERRIDE // AlphaComposite - Premultiplied alpha blending
 		CoverageOverBackground = GetMaterialOpacity(PixelMaterialInputs);
-#endif 
-
+	#endif 
 		// Since the Convert-To-Decal node forces parameter blending for the entire Substrate tree, the BSDF we are interested in will be in 0.
-		Coverage = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], 1.0f /*CoverageWeight*/, CoverageOverBackground);
+		const FSubstrateDBuffer DBuffer = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], 1.0f /*CoverageWeight*/, CoverageOverBackground);
+		Coverage = DBuffer.Coverage;
 	}
 	const float Opacity = Coverage;
 #else // SUBSTRATE_ENABLED
