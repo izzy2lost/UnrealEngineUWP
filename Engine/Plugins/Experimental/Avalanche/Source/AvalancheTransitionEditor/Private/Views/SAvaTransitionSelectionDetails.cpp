@@ -8,6 +8,7 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "StateTreeDelegates.h"
+#include "StateTreeEditorModule.h"
 #include "StateTreeState.h"
 #include "ViewModels/AvaTransitionViewModel.h"
 
@@ -37,6 +38,9 @@ void SAvaTransitionSelectionDetails::Construct(const FArguments& InArgs, const T
 	{
 		DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([]{ return false; }));
 	}
+
+	FStateTreeEditorModule& StateTreeEditorModule = FModuleManager::LoadModuleChecked<FStateTreeEditorModule>("StateTreeEditorModule");
+	DetailsView->SetExtensionHandler(StateTreeEditorModule.CreateStateTreeDetailPropertyExtensionHandler());
 
 	OnSelectionChanged(InSelection->GetSelectedItems());
 

@@ -26,6 +26,8 @@ public:
 	/** Creates an instance of StateTree editor. Only virtual so that it can be called across the DLL boundary. */
 	virtual TSharedRef<IStateTreeEditor> CreateStateTreeEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UStateTree* StateTree);
 
+	TSharedRef<IDetailPropertyExtensionHandler> CreateStateTreeDetailPropertyExtensionHandler();
+
 	virtual TSharedPtr<FExtensibilityManager> GetMenuExtensibilityManager() override { return MenuExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() override { return ToolBarExtensibilityManager; }
 

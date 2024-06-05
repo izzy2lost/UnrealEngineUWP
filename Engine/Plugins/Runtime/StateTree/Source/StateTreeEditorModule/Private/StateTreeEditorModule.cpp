@@ -17,6 +17,7 @@
 #include "Customizations/StateTreeStateParametersDetails.h"
 #include "Customizations/StateTreeTransitionDetails.h"
 #include "Customizations/StateTreeEventDescDetails.h"
+#include "Customizations/StateTreeBindingExtension.h"
 #include "Customizations/StateTreeBlueprintPropertyRefDetails.h"
 #include "PropertyEditorModule.h"
 #include "StateTree.h"
@@ -146,6 +147,11 @@ TSharedRef<IStateTreeEditor> FStateTreeEditorModule::CreateStateTreeEditor(const
 	TSharedRef<FStateTreeEditor> NewEditor(new FStateTreeEditor());
 	NewEditor->InitEditor(Mode, InitToolkitHost, StateTree);
 	return NewEditor;
+}
+
+TSharedRef<IDetailPropertyExtensionHandler> FStateTreeEditorModule::CreateStateTreeDetailPropertyExtensionHandler()
+{
+	return MakeShared<FStateTreeBindingExtension>();
 }
 
 TSharedPtr<FStateTreeNodeClassCache> FStateTreeEditorModule::GetNodeClassCache()
