@@ -882,7 +882,7 @@ void FAppleHttpRequest::FinishRequest()
 
 		if (CVarHttpSetGeneralFailureReasonFromCommonCode.GetValueOnAnyThread())
 		{
-			HandleRequestFailed(Response);
+			HandleRequestFailed(ResponseCommon);
 		}
 		else
 		{
