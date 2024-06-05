@@ -68,6 +68,7 @@ private:
 	void OnShowOnlyRuntimeSelectionChanged(ECheckBoxState InCheckboxState);
 	void OnShowOnlyRelevantSelectionChanged(ECheckBoxState InCheckboxState);
 	void OnUseUISectionsSelectionChanged(ECheckBoxState InCheckboxState);
+	void OnUseUIThumbnailsSelectionChanged(ECheckBoxState InCheckboxState);
 
 	// Main parameter generation functions
 	// Returns true if parameters have been hidden due to runtime type
@@ -90,7 +91,7 @@ private:
 	// Int Parameters Functions
 	TSharedRef<SWidget> GenerateIntWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName, const int32 ParamIndexInObject);
 	void OnIntParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName);
-	TSharedRef<SWidget> OnGenerateWidgetIntParameter(TSharedPtr<FString> InItem) const;
+	TSharedRef<SWidget> OnGenerateWidgetIntParameter(TSharedPtr<FString> OptionName, const FString ParameterName);
 	
 	// Float Parameters Functions
 	TSharedRef<SWidget> GenerateFloatWidget(const UCustomizableObject& CustomizableObject, const FString& ParamName);

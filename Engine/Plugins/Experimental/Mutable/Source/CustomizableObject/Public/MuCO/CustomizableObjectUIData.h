@@ -36,6 +36,12 @@ struct FMutableUIMetadata
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	TSoftObjectPtr<UTexture2D> UIThumbnail;
 
+#if WITH_EDITORONLY_DATA
+	/** Editor Only Parameter Thumbnail. In an editor parameter combobox, this option will be represented with the selected asset's thumbnail. */
+	UPROPERTY(EditAnywhere, Category = UI)
+	TSoftObjectPtr<UObject> EditorUIThumbnailObject;
+#endif
+
 	/** Extra information to be used in UI building, with semantics completely defined by the game/UI programmer, with a key to identify the semantic of its related value */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = UI)
 	TMap<FString, FString> ExtraInformation;

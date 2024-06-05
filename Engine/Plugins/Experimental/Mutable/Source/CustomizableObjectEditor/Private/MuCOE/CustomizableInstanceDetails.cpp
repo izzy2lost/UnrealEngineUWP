@@ -2,8 +2,8 @@
 
 #include "MuCOE/CustomizableInstanceDetails.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "CustomizableObjectInstanceEditor.h"
-
 #include "ContentBrowserModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -21,6 +21,7 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 
+#include "AssetThumbnail.h"
 #include "Slate/DeferredCleanupSlateBrush.h"
 #include "SSearchableComboBox.h"
 #include "Types/SlateEnums.h"
@@ -185,6 +186,23 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 		.IsChecked(CustomInstance->GetPrivate()->bShowUISections ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
 		.OnCheckStateChanged(this, &FCustomizableInstanceDetails::OnUseUISectionsSelectionChanged)
 	];
+
+	
+	// Show UI thumbnails Option
+	VisibilitySettingsCategory.AddCustomRow( LOCTEXT("CustomizableInstanceDetails_UIThumbnails", "UI Thumbnails") )
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(FText::FromString("UI Thumbnails"))
+	]
+	.ValueContent()
+	.HAlign(EHorizontalAlignment::HAlign_Fill)
+	[
+		SNew(SCheckBox)
+		.IsChecked(CustomInstance->GetPrivate()->bShowUIThumbnails ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
+		.OnCheckStateChanged(this, &FCustomizableInstanceDetails::OnUseUIThumbnailsSelectionChanged)
+	];
+
 
 	TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 	if (UCustomizableObjectEditorProperties* EditorProperties = Editor->GetEditorProperties())
@@ -552,6 +570,12 @@ void FCustomizableInstanceDetails::OnShowOnlyRelevantSelectionChanged(ECheckBoxS
 void FCustomizableInstanceDetails::OnUseUISectionsSelectionChanged(ECheckBoxState InCheckboxState)
 {
 	CustomInstance->GetPrivate()->bShowUISections = InCheckboxState == ECheckBoxState::Checked;
+	Refresh();
+}
+
+void FCustomizableInstanceDetails::OnUseUIThumbnailsSelectionChanged(ECheckBoxState InCheckboxState)
+{
+	CustomInstance->GetPrivate()->bShowUIThumbnails = InCheckboxState == ECheckBoxState::Checked;
 	Refresh();
 }
 
@@ -996,7 +1020,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const UCusto
 		.InitiallySelectedItem(SelectedOptionString)
 		.Method(EPopupMethod::UseCurrentWindow)
 		.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnIntParameterComboBoxChanged, ParamName)
-		.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetIntParameter)
+		.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetIntParameter, ParamName)
 		.Content()
 		[
 			SNew(STextBlock)
@@ -1005,9 +1029,78 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const UCusto
 }
 
 
-TSharedRef<SWidget> FCustomizableInstanceDetails::OnGenerateWidgetIntParameter(TSharedPtr<FString> InItem) const
+TSharedRef<SWidget> FCustomizableInstanceDetails::OnGenerateWidgetIntParameter(TSharedPtr<FString> OptionName, const FString ParameterName)
 {
-	return SNew(STextBlock).Text(FText::FromString(*InItem.Get()));
+	// Final widget
+	TSharedPtr<SHorizontalBox> IntWidgetBox = SNew(SHorizontalBox);
+
+	if (CustomInstance->GetPrivate()->bShowUIThumbnails)
+	{
+		bool bUsesCustomThumbnail = false;
+
+		// Asset with the thumbnail info
+		FAssetData AssetData;
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+		// Metadata of the represented int option
+		const FMutableParamUIMetadata ParameterMetadata = CustomInstance->GetCustomizableObject()->GetIntParameterOptionUIMetadata(ParameterName, *OptionName);
+
+		// Custom thumbnail has preference
+		if (!ParameterMetadata.UIThumbnail.IsNull())
+		{
+			// Custom Thumbnail
+			AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(ParameterMetadata.UIThumbnail.ToSoftObjectPath());
+
+			if (AssetData.IsValid())
+			{
+				if (UTexture2D* UIThumbnail = Cast<UTexture2D>(AssetData.GetAsset()))
+				{
+					// We need to store the generated texture.
+					TSharedRef<FDeferredCleanupSlateBrush> Brush = FDeferredCleanupSlateBrush::CreateBrush(UIThumbnail, FVector2D(68.f, 68.0f), /* Texture size (64) + padding (4) */
+						FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), ESlateBrushTileType::NoTile, ESlateBrushImageType::Linear);
+					DynamicBrushes.Add(Brush);
+
+					IntWidgetBox->AddSlot().AutoWidth()
+					[
+						SNew(SImage).Image(Brush->GetSlateBrush())
+					];
+
+					bUsesCustomThumbnail = true;
+				}
+			}
+		}
+
+		if (!bUsesCustomThumbnail)
+		{
+			// Asset thumbnail
+			AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(ParameterMetadata.EditorUIThumbnailObject.ToSoftObjectPath());
+
+			// We don't need to check if the asset data is valid here. We want to use the default thumbnail if there is no asset data.
+			TSharedPtr<FAssetThumbnail> Thumbnail = MakeShareable(new FAssetThumbnail(AssetData, 64, 64, UThumbnailManager::Get().GetSharedThumbnailPool()));
+			FAssetThumbnailConfig ThumbnailConfig;
+
+			ThumbnailConfig.ColorStripOrientation = EThumbnailColorStripOrientation::VerticalRightEdge;
+			ThumbnailConfig.Padding = FMargin(2.0f); // Prevents overlap with rounded corners; this matches what the Content Browser tiles do
+
+			IntWidgetBox->AddSlot().AutoWidth()
+			[
+				Thumbnail->MakeThumbnailWidget(ThumbnailConfig)
+			];
+
+			if (!AssetData.IsValid())
+			{
+				IntWidgetBox->GetSlot(0).SetFillWidth(2.0f);
+				IntWidgetBox->GetSlot(0).SetMaxSize(68.0f);
+			}
+		}
+	}
+
+	IntWidgetBox->AddSlot().VAlign(EVerticalAlignment::VAlign_Center).Padding(10.0f, 0.0f, 0.0f, 0.0f)
+	[
+		SNew(STextBlock).Text(FText::FromString(*OptionName.Get()))
+	];
+
+	return IntWidgetBox.ToSharedRef();
 }
 
 

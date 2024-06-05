@@ -1073,6 +1073,9 @@ public:
 
 		AddEditorGamePlayTags,
 
+		AddedParameterThumbnailsToEditor,
+
+		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;

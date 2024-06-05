@@ -126,17 +126,24 @@ private:
 	// Returns the current selected option or a null pointer
 	TSharedPtr<FString> GenerateMutableMetaDataColumnComboBoxOptions();
 
-	// Callback to regenerate the combobox options
+	// Generates Thumbnail columns combobox options
+	// Returns the current selected option or a null pointer
+	TSharedPtr<FString> GenerateThumbnailColumnComboBoxOptions();
+
+	// Callbacks to regenerate the combobox options
 	void OnOpenMutableMetadataComboBox();
+	void OnOpenThumbnailComboBox();
 
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	// OnComboBoxSelectionChanged Callbacks
 	void OnMutableMetaDataColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
+	void OnThumbnailColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
 
-	// Sets the combo box selection color
-	FSlateColor GetMetadataUIComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
+	// If the property selected in the combobox does not exist anymore, returns a red color.
+	FSlateColor GetComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions, const FName ColumnName) const;
 
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	// OnComboBoxSelectionChanged Callbacks for ComboBox
 	void OnMutableMetaDataColumnComboBoxSelectionReset();
+	void OnThumbnailColumnComboBoxSelectionReset();
 
 
 	// Version Control Category -------------
@@ -229,9 +236,14 @@ private:
 	// Mutable UI Metadata -------------
 	// Array with the name of the MutableMetaData columns
 	TArray<TSharedPtr<FString>> MutableMetaDataColumnsOptionNames;
+	
+	TArray<TSharedPtr<FString>> ThumbnailColumnOptionNames;
 
 	// ComboBox widget to select a MutableMetaDatacolumn from the NodeTable
 	TSharedPtr<STextComboBox> MutableMetaDataComboBox;
+	
+	// ComboBox widget to select a Thumbnail Column from the NodeTable
+	TSharedPtr<STextComboBox> ThumbnailComboBox;
 
 
 	// Version Bridge -------------

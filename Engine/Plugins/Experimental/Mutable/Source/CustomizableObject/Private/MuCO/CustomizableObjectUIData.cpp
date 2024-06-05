@@ -25,6 +25,20 @@ FArchive& operator<<(FArchive& Ar, FMutableUIMetadata& Metadata)
 		Ar << StringRef;
 	}
 
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsLoading())
+	{
+		FString StringRef;
+		Ar << StringRef;
+		Metadata.EditorUIThumbnailObject = TSoftObjectPtr<UObject>(FSoftObjectPath(StringRef));
+	}
+	else
+	{
+		FString StringRef = Metadata.EditorUIThumbnailObject.ToSoftObjectPath().ToString();
+		Ar << StringRef;
+	}
+#endif // WITH_EDITORONLY_DATA
+
 	Ar << Metadata.ExtraInformation;
 
 	if (Ar.IsLoading())
@@ -54,7 +68,6 @@ FArchive& operator<<(FArchive& Ar, FMutableUIMetadata& Metadata)
 			Ar << StringRef;
 		}
 	}
-
 
 	return Ar;
 }

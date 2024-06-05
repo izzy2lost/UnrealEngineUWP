@@ -54,6 +54,7 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 		DetailBuilder->HideProperty("VersionColumn");
 		IDetailCategoryBuilder& UICategory = DetailBuilder->EditCategory("UI");
 		DetailBuilder->HideProperty("ParamUIMetadataColumn");
+		DetailBuilder->HideProperty("ThumbnailColumn");
 		IDetailCategoryBuilder& AnimationCategory = DetailBuilder->EditCategory("AnimationProperties");
 		IDetailCategoryBuilder& LayoutCategory = DetailBuilder->EditCategory("DefaultMeshLayoutEditor");
 
@@ -63,6 +64,7 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 		GenerateMeshColumnComboBoxOptions();
 		TSharedPtr<FString> CurrentMutableMetadataColumn = GenerateMutableMetaDataColumnComboBoxOptions();
 		TSharedPtr<FString> CurrentVersionColumn = GenerateVersionColumnComboBoxOptions();
+		TSharedPtr<FString> CurrentThumbnailColumn = GenerateThumbnailColumnComboBoxOptions();
 
 		CustomizableObjectCategory.AddProperty("ParameterName");
 		CustomizableObjectCategory.AddCustomRow(LOCTEXT("VersionColumn_Selector","VersionColumn"))
@@ -101,9 +103,29 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 			.OnComboBoxOpening(this, &FCustomizableObjectNodeTableDetails::OnOpenMutableMetadataComboBox)
 			.OnSelectionChanged(this, &FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelectionChanged)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.ColorAndOpacity(this, &FCustomizableObjectNodeTableDetails::GetMetadataUIComboBoxTextColor, &MutableMetaDataColumnsOptionNames)
+			.ColorAndOpacity(this, &FCustomizableObjectNodeTableDetails::GetComboBoxTextColor, &MutableMetaDataColumnsOptionNames, Node->ParamUIMetadataColumn)
 		]
 		.OverrideResetToDefault(FResetToDefaultOverride::Create(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelectionReset)));
+		
+		UICategory.AddCustomRow(LOCTEXT("ThumbnailColumn_Selector", "ThumbnailColumn"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ThumbnailColumn_SelectorText", "Options Thumbnail Column"))
+			.ToolTipText(LOCTEXT("ThumbnailColumn_SelectorTooltip", "Select a column that contains the assets to use its thumbnails as Option thumbnails."))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SAssignNew(ThumbnailComboBox,STextComboBox)
+			.InitiallySelectedItem(CurrentThumbnailColumn)
+			.OptionsSource(&ThumbnailColumnOptionNames)
+			.OnComboBoxOpening(this, &FCustomizableObjectNodeTableDetails::OnOpenThumbnailComboBox)
+			.OnSelectionChanged(this, &FCustomizableObjectNodeTableDetails::OnThumbnailColumnComboBoxSelectionChanged)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.ColorAndOpacity(this, &FCustomizableObjectNodeTableDetails::GetComboBoxTextColor, &MutableMetaDataColumnsOptionNames, Node->ThumbnailColumn)
+		]
+		.OverrideResetToDefault(FResetToDefaultOverride::Create(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeTableDetails::OnThumbnailColumnComboBoxSelectionReset)));
 
 
 
@@ -1017,9 +1039,9 @@ void FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelecti
 }
 
 
-FSlateColor FCustomizableObjectNodeTableDetails::GetMetadataUIComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const
+FSlateColor FCustomizableObjectNodeTableDetails::GetComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions, const FName ColumnName) const
 {	
-	if (Node->FindTableProperty(Node->GetTableNodeStruct(), Node->ParamUIMetadataColumn) || Node->ParamUIMetadataColumn.IsNone())
+	if (Node->FindTableProperty(Node->GetTableNodeStruct(), ColumnName) || ColumnName.IsNone())
 	{
 		return FSlateColor::UseForeground();
 	}
@@ -1038,6 +1060,86 @@ void FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelecti
 		GenerateMutableMetaDataColumnComboBoxOptions();
 		MutableMetaDataComboBox->ClearSelection();
 		MutableMetaDataComboBox->RefreshOptions();
+	}
+}
+
+
+TSharedPtr<FString> FCustomizableObjectNodeTableDetails::GenerateThumbnailColumnComboBoxOptions()
+{
+	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
+	TSharedPtr<FString> CurrentSelection;
+	ThumbnailColumnOptionNames.Reset();
+
+	if (!TableStruct)
+	{
+		return CurrentSelection;
+	}
+
+	// Iterating struct Options
+	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
+	{
+		FProperty* ColumnProperty = *It;
+
+		if (!ColumnProperty)
+		{
+			continue;
+		}
+
+		if (const FSoftObjectProperty* ObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
+		{
+			TSharedPtr<FString> Option = MakeShareable(new FString(DataTableUtils::GetPropertyExportName(ColumnProperty)));
+			ThumbnailColumnOptionNames.Add(Option);
+
+			if (*Option == Node->ThumbnailColumn)
+			{
+				CurrentSelection = ThumbnailColumnOptionNames.Last();
+			}
+		}
+	}
+
+	if (!Node->ThumbnailColumn.IsNone() && !CurrentSelection)
+	{
+		ThumbnailColumnOptionNames.Add(MakeShareable(new FString(Node->ThumbnailColumn.ToString())));
+		CurrentSelection = ThumbnailColumnOptionNames.Last();
+	}
+
+	return CurrentSelection;
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnOpenThumbnailComboBox()
+{
+	TSharedPtr<FString> CurrentSelection = GenerateThumbnailColumnComboBoxOptions();
+
+	if (ThumbnailComboBox.IsValid())
+	{
+		ThumbnailComboBox->ClearSelection();
+		ThumbnailComboBox->RefreshOptions();
+		ThumbnailComboBox->SetSelectedItem(CurrentSelection);
+	}
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnThumbnailColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
+{
+	if (Selection && Node->ThumbnailColumn != FName(*Selection)
+		&& (SelectInfo == ESelectInfo::OnKeyPress || SelectInfo == ESelectInfo::OnMouseClick))
+	{
+		Node->ThumbnailColumn = FName(*Selection);
+		Node->MarkPackageDirty();
+	}
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnThumbnailColumnComboBoxSelectionReset()
+{
+	Node->ThumbnailColumn = NAME_None;
+
+	if (ThumbnailComboBox.IsValid())
+	{
+		GenerateThumbnailColumnComboBoxOptions();
+		ThumbnailComboBox->ClearSelection();
+		ThumbnailComboBox->RefreshOptions();
 	}
 }
 

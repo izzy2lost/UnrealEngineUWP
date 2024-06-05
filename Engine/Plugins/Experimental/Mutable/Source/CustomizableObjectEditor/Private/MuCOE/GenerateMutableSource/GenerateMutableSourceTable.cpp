@@ -862,47 +862,63 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 
 		FMutableParameterData ParameterUIData(TableNode->ParamUIMetadata, EMutableParameterType::Int);
 		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
+		
 		FMutableParameterData& ParameterUIDataRef = GenerationContext.ParameterUIDataMap.Add(TableNode->ParameterName, ParameterUIData);
+		FProperty* MetadataColumnProperty = DataTable->FindTableProperty(TableNode->ParamUIMetadataColumn);
+		bool bIsValidMetadataColumn = MetadataColumnProperty &&
+			CastField<FStructProperty>(MetadataColumnProperty) &&
+			CastField<FStructProperty>(MetadataColumnProperty)->Struct == FMutableParamUIMetadata::StaticStruct();
 
-		if (TableNode->ParamUIMetadataColumn.IsNone())
+		// Trigger warning only if the name is different than "None"
+		if (!TableNode->ParamUIMetadataColumn.IsNone() && !bIsValidMetadataColumn)
 		{
+			FText LogMessage = FText::Format(LOCTEXT("InvalidParamUIMetadataColumn_Warning",
+				"UI Metadata Column [{0}] is not a valid type or does not exist in the Structure of the Node."), FText::FromName(TableNode->ParamUIMetadataColumn));
+			GenerationContext.Compiler->CompilerLog(LogMessage, TableNode);
+		}
+
+		FProperty* ThumbnailColumnProperty = DataTable->FindTableProperty(TableNode->ThumbnailColumn);
+		bool bIsValidThumbnailColumn = ThumbnailColumnProperty && CastField<FSoftObjectProperty>(ThumbnailColumnProperty);
+
+		// Trigger warning only if the name is different than "None"
+		if (!TableNode->ThumbnailColumn.IsNone() && !bIsValidThumbnailColumn)
+		{
+			FText LogMessage = FText::Format(LOCTEXT("InvalidThumbnailColumn_Warning",
+				"Thumbnail Column [{0}] is not an objet type or does not exist in the Structure of the Node."), FText::FromName(TableNode->ThumbnailColumn));
+			GenerationContext.Compiler->CompilerLog(LogMessage, TableNode);
+		}
+
+		if (!bIsValidMetadataColumn && !bIsValidThumbnailColumn)
+		{
+			// Do no add a meta data if it is not needed.
 			return;
 		}
 
-		FProperty* ColumnProperty = DataTable->FindTableProperty(TableNode->ParamUIMetadataColumn);
-
-		if (!ColumnProperty)
+		for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
 		{
-			FString msg = "Couldn't find Options UI Metadata Column [" + TableNode->ParamUIMetadataColumn.ToString() + "] in the Structure of the Node.";
-			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TableNode);
+			FName RowName = RowNames[NameIndex];
+			FMutableParamUIMetadata MetadataValue;
 
-			return;
-		}
-
-		FString WrongTypeMessage = "Column with name [" + TableNode->ParamUIMetadataColumn.ToString() + "] is not a Mutable Param UI Metadata type.";
-
-		if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
-		{
-			if (StructProperty->Struct != FMutableParamUIMetadata::StaticStruct())
+			if (bIsValidMetadataColumn)
 			{
-				GenerationContext.Compiler->CompilerLog(FText::FromString(WrongTypeMessage), TableNode);
-
-				return;
-			}
-			
-			for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
-			{
-				if (uint8* CellData = GetCellData(RowNames[NameIndex], *DataTable, *ColumnProperty))
+				if (uint8* CellData = GetCellData(RowName, *DataTable, *MetadataColumnProperty))
 				{
-					FMutableParamUIMetadata Value = *(FMutableParamUIMetadata*)CellData;
-					ParameterUIDataRef.ArrayIntegerParameterOption.Add(RowNames[NameIndex].ToString(), FIntegerParameterUIData(Value));
+					MetadataValue = *(FMutableParamUIMetadata*)CellData;
 				}
 			}
-		}
-		else
-		{
-			GenerationContext.Compiler->CompilerLog(FText::FromString(WrongTypeMessage), TableNode);
-			return;
+
+			FIntegerParameterUIData IntegerMetadata = FIntegerParameterUIData(MetadataValue);
+
+			if (bIsValidThumbnailColumn && MetadataValue.EditorUIThumbnailObject.IsNull())
+			{
+				if (uint8* CellData = GetCellData(RowName, *DataTable, *ThumbnailColumnProperty))
+				{
+					FSoftObjectPtr ObjectPtr = *(FSoftObjectPtr*)CellData;
+					IntegerMetadata.ParamUIMetadata.EditorUIThumbnailObject = ObjectPtr.ToSoftObjectPath();
+				}
+			}
+
+			ParameterUIDataRef.ArrayIntegerParameterOption.Add(RowName.ToString(), IntegerMetadata);
 		}
 	}
 }

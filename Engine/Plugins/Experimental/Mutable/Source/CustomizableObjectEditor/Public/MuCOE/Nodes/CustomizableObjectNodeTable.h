@@ -221,6 +221,10 @@ public:
 	/** Name of the column that contains the MutableUIMetadata of the row options. */
 	UPROPERTY(EditAnywhere, Category = UI)
 	FName ParamUIMetadataColumn;
+	
+	/** Name of the column that contains the asset to use its thumbnails as option thumbnails. */
+	UPROPERTY(EditAnywhere, Category = UI)
+	FName ThumbnailColumn;
 
 	/** Map to relate a Structure Column with its Data */
 	UPROPERTY()
