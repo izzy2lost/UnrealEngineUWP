@@ -4133,14 +4133,16 @@ protected:
 		}
 		else if (URigVMInjectionInfo* Injection = Cast<URigVMInjectionInfo>(CreatedObject))
 		{
-			URigVMNode* InjectedNode = Injection->Node;
-			ProcessConstructedObject(InjectedNode);
+			if (URigVMNode* InjectedNode = Injection->Node)
+			{
+				ProcessConstructedObject(InjectedNode);
 
-			FName NewName = InjectedNode->GetFName();
-			UpdateObjectName(URigVMNode::StaticClass(), Injection->GetGraph(), NewName);
-			Controller->RenameObject(InjectedNode, *NewName.ToString(), nullptr);
-			Injection->InputPin = Injection->InputPin ? Injection->Node->FindPin(Injection->InputPin->GetName()) : nullptr;
-			Injection->OutputPin = Injection->OutputPin ? Injection->Node->FindPin(Injection->OutputPin->GetName()) : nullptr;
+				FName NewName = InjectedNode->GetFName();
+				UpdateObjectName(URigVMNode::StaticClass(), Injection->GetGraph(), NewName);
+				Controller->RenameObject(InjectedNode, *NewName.ToString(), nullptr);
+				Injection->InputPin = Injection->InputPin ? Injection->Node->FindPin(Injection->InputPin->GetName()) : nullptr;
+				Injection->OutputPin = Injection->OutputPin ? Injection->Node->FindPin(Injection->OutputPin->GetName()) : nullptr;
+			}
 		}
 	}
 };
