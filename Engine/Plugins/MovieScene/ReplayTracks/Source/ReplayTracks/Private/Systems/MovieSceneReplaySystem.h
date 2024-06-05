@@ -9,7 +9,6 @@
 
 class FDelegateHandle;
 class IConsoleVariable;
-class IMovieScenePlayer;
 struct FMovieSceneContext;
 struct FTimerHandle;
 
@@ -19,6 +18,8 @@ namespace UE
 {
 namespace MovieScene
 {
+
+struct FSharedPlaybackState;
 
 struct FReplayComponentData
 {
@@ -93,8 +94,8 @@ private:
 	// Handlers for replay events. These are all static because they happen across level reloads,
 	// which mean that the current object may have been wiped out and re-created, so we can't rely
 	// on any instance data.
-	static void OnPreLoadMap(const FString& MapName, IMovieScenePlayer* Player);
-	static void OnPostLoadMap(UWorld* World, IMovieScenePlayer* LastPlayer, FMovieSceneContext LastContext);
+	static void OnPreLoadMap(const FString& MapName, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
+	static void OnPostLoadMap(UWorld* World, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneContext LastContext);
 	static void OnEndPlayMap();
 
 	static FDelegateHandle PreLoadMapHandle;
