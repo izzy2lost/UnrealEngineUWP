@@ -884,6 +884,12 @@ RunTests(const std::string& Preset)
 		TestBasicHash();
 	}
 
+	if (Preset == "chunking" || Preset == "all")
+	{
+		extern void TestChunking();
+		TestChunking();
+	}
+
 	if (Preset == "sync" || Preset == "all")
 	{
 		for (auto Weak : WeakList)
