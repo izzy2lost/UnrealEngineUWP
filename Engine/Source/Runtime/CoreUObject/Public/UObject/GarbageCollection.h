@@ -85,6 +85,11 @@ private:
 */
 COREUOBJECT_API void EnableFrankenGCMode(bool bEnable);
 
+/**
+* Test to see if franken GC needs to run
+*/
+COREUOBJECT_API bool ShouldFrankenGCRun();
+
 /** True during the whole time that Franken GC is collecting from both Verse and UE */
 extern COREUOBJECT_API bool GIsFrankenGCCollecting;
 #endif

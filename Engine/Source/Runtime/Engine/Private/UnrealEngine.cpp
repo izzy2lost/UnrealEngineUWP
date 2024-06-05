@@ -1814,6 +1814,12 @@ void UEngine::ConditionalCollectGarbage()
 #endif
 		{
 			EGarbageCollectionType ForceTriggerPurge = ShouldForceGarbageCollection();
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+			if (ForceTriggerPurge == EGarbageCollectionType::None && UE::GC::ShouldFrankenGCRun())
+			{
+				ForceTriggerPurge = EGarbageCollectionType::Incremental;
+			}
+#endif
 			if (ForceTriggerPurge != EGarbageCollectionType::None)
 			{
 				ForceGarbageCollection(ForceTriggerPurge == EGarbageCollectionType::Full);

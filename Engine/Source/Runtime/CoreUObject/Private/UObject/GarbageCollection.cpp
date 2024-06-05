@@ -3765,8 +3765,6 @@ static bool UpdateFrankenGCMode()
 			Verse::FIOContext::Create([](Verse::FIOContext Context) {
 				Verse::FHeap::EnableExternalControl(Context);
 				});
-			// If this trips, then the collection thread was still active after external control was enabled
-			ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
 		}
 		else
 		{
@@ -3782,6 +3780,11 @@ void EnableFrankenGCMode(bool bEnable)
 	UpdateFrankenGCMode();
 }
 
+bool ShouldFrankenGCRun()
+{
+	return UpdateFrankenGCMode() && Verse::FHeap::IsGCStartPendingExternalSignal();
+}
+
 static FORCEINLINE void StartVerseGC()
 {
 	ensure(!bInFrankenGCStartStop && !GIsFrankenGCCollecting);
@@ -3789,9 +3792,6 @@ static FORCEINLINE void StartVerseGC()
 	GIsFrankenGCCollecting = UpdateFrankenGCMode();
 	if (GIsFrankenGCCollecting)
 	{
-		// If this triggers, then someone is kicking off a Verse GC outside of FrankenGC which is a problem
-		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
-
 		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
 		Context.RelinquishAccess([](Verse::FIOContext Context) {
 			Context.SetIsInManuallyEmptyStack(true);
@@ -3815,9 +3815,6 @@ static FORCEINLINE void StopVerseGC()
 			Context.SetIsInManuallyEmptyStack(false);
 			VerseCycleRequest.Wait(Context);
 		});
-
-		// If this trips, then something went wrong with waiting for the previous cycle to complete.
-		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
 	}
 }
 #else
