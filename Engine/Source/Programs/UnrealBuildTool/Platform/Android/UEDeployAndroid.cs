@@ -31,6 +31,12 @@ namespace UnrealBuildTool
 		// name of the only vulkan validation layer we're interested in 
 		private const string ANDROID_VULKAN_VALIDATION_LAYER = "libVkLayer_khronos_validation.so";
 
+		// list of supported aliased namespaces in manifest. First namespace in the list is the default one
+		private static readonly List<AliasedXMLNamespace> ManifestXMLNamespaces = new() {
+				new AliasedXMLNamespace { Alias = "android", Url = "http://schemas.android.com/apk/res/android" },
+				new AliasedXMLNamespace { Alias = "dist", Url = "http://schemas.android.com/apk/distribution" },
+				new AliasedXMLNamespace { Alias = "tools", Url = "http://schemas.android.com/tools" } };
+
 		// Minimum Android SDK that must be used for Java compiling
 		readonly int MinimumSDKLevel = 30;
 
@@ -159,7 +165,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			UPL = new UnrealPluginLanguage(ProjectFile, inPluginExtraData, NDKArches, "http://schemas.android.com/apk/res/android", "xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\"", UnrealTargetPlatform.Android, Logger);
+			UPL = new UnrealPluginLanguage(ProjectFile, inPluginExtraData, NDKArches, ManifestXMLNamespaces, UnrealTargetPlatform.Android, Logger);
 			UPLHashCode = UPL.GetUPLHash();
 			//			APL.SetTrace();
 		}
@@ -2810,19 +2816,7 @@ namespace UnrealBuildTool
 
 			StringBuilder Text = new StringBuilder();
 			Text.AppendLine(XML_HEADER);
-
-
-			bool bIsMakeAAREnabled = false;
-			Ini.GetBool("/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings", "bEnableASISPlugin", out bIsMakeAAREnabled);
-
-			if (bIsMakeAAREnabled)
-			{				
-				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:dist=\"http://schemas.android.com/apk/distribution\" xmlns:tools=\"http://schemas.android.com/tools\"");
-			}
-			else
-			{
-				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\"");
-			}
+			Text.AppendLine($"<manifest {String.Join(" ", ManifestXMLNamespaces)}");
 
 			if (ExtraManifestNodeTags != null)
 			{
@@ -2850,14 +2844,6 @@ namespace UnrealBuildTool
 				Text.AppendLine("\t\t\t<category android:name=\"android.intent.category.BROWSABLE\" />");
 				Text.AppendLine("\t\t\t<data android:scheme=\"https\" />");
 				Text.AppendLine("\t\t</intent>");
-				Text.AppendLine("\t</queries>");
-			}
-
-			if (bIsMakeAAREnabled)
-			{
-				Text.AppendLine("\t<dist:module dist:instant=\"true\" />");
-				Text.AppendLine("\t<queries>");
-				Text.AppendLine(String.Format("\t\t<package android:name=\"{0}\" />", PackageName));
 				Text.AppendLine("\t</queries>");
 			}
 
