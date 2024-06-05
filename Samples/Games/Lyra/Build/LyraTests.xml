@@ -60,7 +60,8 @@
 
 	<Property Name="ExtraStageAndPackageArguments" Value="-target=&quot;$(TargetName)&quot; -compressed -CrashReporter" />
 
-	<Property Name="BuildSizeLimit" Value="400000" />
+	<Property Name="CheckBuildSizePlatforms" Value="Android" />
+	<Property Name="BuildSizeLimitAndroid" Value="400000" />
 
 
 	<!-- =============================================================================== -->

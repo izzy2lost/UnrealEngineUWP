@@ -58,7 +58,6 @@
 	<Option Name="IncludeUnrealInsightsInToolCompile" DefaultValue="false" Description="Include Unreal Insights into Compile Tools prerequisites" />
 	<Option Name="IncludeEpicWebHelperInToolCompile" DefaultValue="false" Description="Include EpicWebHelper into Compile Tools prerequisites" />
 	<Option Name="WithDeviceReservation" DefaultValue="$(Horde)" Description="Whether to re-use devices and installed builds for a sequence of tests, where supported"/>
-	<Option Name="BuildSizeLimit" DefaultValue="" Description="The maximum package size limit in kilo-bytes" />
 
 	<!-- 
 		Allow project graphs that Include this file to specify their own defaults.
@@ -80,7 +79,9 @@
 	<Option Name="PublishZenSnapshot" DefaultValue="false" Restrict="true|false" Description="Publish build to zen host" />
 
 	<Option Name="EnableSymbolStore" DefaultValue="$(IsBuildMachine)" Restrict="true|false" Description="Enables the upload of debugging symbols" />
-	<Property Name="SymbolServerPath" Value="" If="$(EnableSymbolStore) == 'false'"/>
+	<Property Name="SymbolServerPath" Value="" If="$(EnableSymbolStore) == 'false'" />
+
+	<Option Name="CheckBuildSizePlatforms" DefaultValue="" Description="List of Platforms to CheckBuildSize on" />
 
 	<!-- This will define options for all platforms and create lists called EditorPlatforms, RequiredEditorPlatforms, and TargetPlatforms. E.g. TargetPlatforms=Win64+Mac+Android -->
 	<Include Script="Inc/PlatformOptions.xml" />
@@ -505,6 +506,8 @@
 		<Property Name="PackageOnlyArguments" Value="$(ExtraPackageOnlyArguments)"/>
 		<Property Name="PackageOnlyArguments" Value="$(PackageOnlyArguments) -archive -archivedirectory=&quot;$(ProjectOutputDirectory)/$(StagedPlatformFolder)&quot;" If="$(IsMobilePlatform)" />
 
+		<Property Name="BuildSizeLimit$(TargetPlatform)" Value="" If="!ContainsItem('$(CheckBuildSizePlatforms)', '$(TargetPlatform)', '+')"/>
+
 		<!-- Build the client and if necessary a server-->
 		<Agent Name="Compile $(PlatformAgentName)" Type="$(CompileAgentType)">
 
@@ -640,7 +643,7 @@
 			<!-- Check Build Size -->
 			<Node Name="$(PlatformCheckBuildSizeNodeName)" Requires="$(PlatformPublishPackagedNodeName)">
 				<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
-					<Command Name="CheckBuildSize" Arguments="-project=$(ProjectName) -platform=$(TargetPlatform) -packagesize=$(BuildSizeLimit) -build=&quot;$(NetworkOutputDirectory)&quot; -configuration=$(PackageConfiguration)" />
+					<Command Name="CheckBuildSize" Arguments="-project=$(TargetName) -platform=$(TargetPlatform) -packagesize=$(BuildSizeLimit$(TargetPlatform)) -build=&quot;$(NetworkOutputDirectory)&quot; -configuration=$(PackageConfiguration)" />
 				</ForEach>
 			</Node>
 			
@@ -761,7 +764,7 @@
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(RequirePlatformPackaged)" If="!$(SkipPackage) and !$(SkipPublish)" />
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformHashNodeName)"  If="$(PublishHashedStagingData)" />	
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)" />
-		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformCheckBuildSizeNodeName)" If="'$(BuildSizeLimit)' != ''" />
+		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformCheckBuildSizeNodeName)" If="'$(BuildSizeLimit$(TargetPlatform))' != ''" />
 
 		<Property Name="GeneratedTargetNodes" Value="$(GeneratedTargetNodes);$(PlatformTasks)"/>
 		<Property Name="GeneratedTargetTestNodes" Value="$(GeneratedTargetTestNodes);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)"/>

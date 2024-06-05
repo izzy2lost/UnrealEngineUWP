@@ -774,18 +774,27 @@ namespace Gauntlet
 				else
 				{
 					string ExeFileName = string.Format("{0}{1}", ExeBase, BuildType);
+					string ExeFileName2 = ProjectName;
 
 					if (TargetConfiguration != UnrealTargetConfiguration.Development)
 					{
 						ExeFileName += string.Format("-{0}-{1}", TargetPlatform.ToString(), TargetConfiguration.ToString());
+						ExeFileName2 += string.Format("-{0}-{1}", TargetPlatform.ToString(), TargetConfiguration.ToString());
 					}
 
-					ExeFileName += Platform.GetExeExtension(TargetPlatform);
+					if (TargetPlatform != UnrealTargetPlatform.IOS)
+					{
+						ExeFileName += Platform.GetExeExtension(TargetPlatform);
+						ExeFileName2 += Platform.GetExeExtension(TargetPlatform);
+					}
 
 					string BasePath = GetPlatformPath(TargetRole, TargetPlatform);
 					string ProjectBinary = string.Format("{0}\\Binaries\\{1}\\{2}", ProjectName, TargetPlatform.ToString(), ExeFileName);
+					string ProjectBinary2 = string.Format("{0}\\Binaries\\{1}\\{2}", ExeBase, TargetPlatform.ToString(), ExeFileName2);
 					string StubBinary = Path.Combine(BasePath, ExeFileName);
+					string StubBinary2 = Path.Combine(BasePath, ExeFileName2);
 					string DevBinary = Path.Combine(Environment.CurrentDirectory, ProjectBinary);
+					string DevBinary2 = Path.Combine(Environment.CurrentDirectory, ProjectBinary2);
 
 					string NonCodeProjectName = "UnrealGame" + Platform.GetExeExtension(TargetPlatform);
 					string NonCodeProjectBinary = Path.Combine(BasePath, "Engine", "Binaries", TargetPlatform.ToString());
@@ -808,12 +817,25 @@ namespace Gauntlet
 					{
 						ExePath = NonCodeProjectBinary;
 					}
+					else if (File.Exists(Path.Combine(BasePath, ProjectBinary2)))
+					{
+						ExePath = Path.Combine(BasePath, ProjectBinary2);
+					}
+					else if (File.Exists(StubBinary2))
+					{
+						ExePath = Path.Combine(BasePath, ExeFileName2);
+					}
+					else if (IsRunningDev && File.Exists(DevBinary2))
+					{
+						ExePath = DevBinary2;
+					}
 					else
 					{
-						List<string> CheckedFiles = new List<String>() { Path.Combine(BasePath, ProjectBinary), StubBinary, NonCodeProjectBinary };
+						List<string> CheckedFiles = new List<String>() { Path.Combine(BasePath, ProjectBinary), StubBinary, NonCodeProjectBinary, Path.Combine(BasePath, ProjectBinary2), StubBinary2 };
 						if (IsRunningDev)
 						{
 							CheckedFiles.Add(DevBinary);
+							CheckedFiles.Add(DevBinary2);
 						}
 
 						throw new AutomationException("Executable not found, upstream compile job may have failed.  Could not find executable {0} within {1}, binaries checked: {2}", ExeFileName, BasePath, String.Join(" - ", CheckedFiles));
