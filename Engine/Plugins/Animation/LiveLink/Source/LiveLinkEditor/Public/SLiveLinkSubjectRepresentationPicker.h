@@ -25,6 +25,8 @@ class STableViewBase;
 
 typedef TSharedPtr<FLiveLinkSubjectRepresentationPickerEntry> FLiveLinkSubjectRepresentationPickerEntryPtr;
 
+DECLARE_DELEGATE_OneParam(FOnGetSubjects, TArray<FLiveLinkSubjectKey>& /**OutSubjectsList*/);
+
 
 /**
  * A widget which allows the user to enter a subject name or discover it from a drop menu.
@@ -96,6 +98,9 @@ public:
 		/** Sets the font used to draw the text on the button */
 		SLATE_ATTRIBUTE(FSlateFontInfo, Font)
 
+		/** (Optional) Delegate that can be specified in order to provide a custom list of subjects. */
+		SLATE_EVENT(FOnGetSubjects, OnGetSubjects);
+
 	SLATE_END_ARGS()
 
 	/**
@@ -143,6 +148,9 @@ private:
 	TAttribute<bool> HasMultipleValuesAttribute;
 	bool bShowSource;
 	bool bShowRole;
+
+	/** Delegate used to retrieve a custom list of subjects. */
+	FOnGetSubjects GetSubjectsDelegate;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

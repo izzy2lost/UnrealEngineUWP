@@ -24,7 +24,7 @@ public:
 		virtual bool Translate(const FLiveLinkStaticDataStruct& InStaticData, const FLiveLinkFrameDataStruct& InFrameData, FLiveLinkSubjectFrameData& OutTranslatedFrame) const override;
 	};
 
-protected:
+public:
 	/** Name of the resulting bone. Defaults to "Root" */
 	UPROPERTY(EditAnywhere, Category="LiveLink")
 	FName OutputBoneName = "Root";
