@@ -330,6 +330,9 @@ class UMaterialExpressionSubstrateSlabBSDF : public UMaterialExpressionSubstrate
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR
 	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	static int32 CompileDefaultSlab(class FMaterialCompiler* Compiler, FVector3f DiffuseAlbedoOverride = {0.18f, 0.18f, 0.18f});
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
 	virtual uint32 GetOutputType(int32 OutputIndex) override;
 	virtual uint32 GetInputType(int32 InputIndex) override;
@@ -1191,4 +1194,78 @@ class UMaterialExpressionSubstrateThinFilm : public UMaterialExpressionSubstrate
 	virtual void GetExpressionToolTip(TArray<FString>& OutToolTip) override;
 #endif
 	//~ End UMaterialExpression Interface
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// Attributes
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+enum ESubstrateAttributeIndex : int
+{
+	MSA_FrontMaterial,
+	MSA_NonSubstrateAttributes,
+	MSA_MAX
+};
+
+#define FRONT_MATERIAL_ATTRIBUTES_TEXT "Front Material"
+#define NON_SUBSTRATE_ATTRIBUTES_TEXT "Non-Substrate Attributes"
+
+inline bool CheckIfNonSubstratePropertyType(EMaterialProperty Property)
+{
+	return Property != MP_FrontMaterial;
+}
+
+#endif //#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Get Attributes")
+class UMaterialExpressionSubstrateGetAttributes : public UMaterialExpressionSubstrateUtilityBase
+{
+	GENERATED_UCLASS_BODY()
+
+	UPROPERTY()
+	FMaterialAttributesInput MaterialAttributes;
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
+	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
+	virtual FName GetInputName(int32 InputIndex) const override;
+	virtual bool IsInputConnectionRequired(int32 InputIndex) const override;
+	virtual uint32 GetInputType(int32 InputIndex) override;
+	virtual uint32 GetOutputType(int32 OutputIndex) override;
+
+	virtual bool IsResultMaterialAttributes(int32 OutputIndex) override { return OutputIndex == MSA_NonSubstrateAttributes; }
+	virtual bool IsResultSubstrateMaterial(int32 OutputIndex) override { return OutputIndex == MSA_FrontMaterial; }
+	virtual void GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex) override;
+	virtual FSubstrateOperator* SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex) override;
+#endif // WITH_EDITOR
+#endif //#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+};
+
+UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, DisplayName = "Substrate Set Attributes")
+class UMaterialExpressionSubstrateSetAttributes : public UMaterialExpressionSubstrateUtilityBase
+{
+	GENERATED_UCLASS_BODY()
+
+	UPROPERTY()
+	FExpressionInput FrontMaterial;
+
+	UPROPERTY()
+ 	FMaterialAttributesInput NonSubstrateAttributes;
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
+	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
+	virtual FName GetInputName(int32 InputIndex) const override;
+	virtual bool IsInputConnectionRequired(int32 InputIndex) const override;
+	virtual uint32 GetInputType(int32 InputIndex) override;
+
+	virtual bool IsResultMaterialAttributes(int32 OutputIndex) override { return true; }
+	virtual bool IsResultSubstrateMaterial(int32 OutputIndex) override { return FrontMaterial.IsConnected(); }
+	virtual void GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex) override;
+	virtual FSubstrateOperator* SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex) override;
+#endif // WITH_EDITOR
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 };

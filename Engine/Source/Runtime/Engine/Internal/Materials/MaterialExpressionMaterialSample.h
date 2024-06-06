@@ -11,11 +11,6 @@
 
 #include "MaterialExpressionMaterialSample.generated.h"
 
-#ifndef ENABLE_MATERIAL_LAYER_PROTOTYPE
-//WIP Internal Only - Please do not enable + use this in any projects other than for iterating the new layering prototype system until further notice
-#define ENABLE_MATERIAL_LAYER_PROTOTYPE 0
-#endif
-
 class FMaterialCompiler;
 
 UCLASS(MinimalAPI)

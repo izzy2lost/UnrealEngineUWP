@@ -753,6 +753,7 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 				else
 				{
 					Expression = CreateNewMaterialExpression(UMaterialExpressionMaterialLayerOutput::StaticClass(), OutputPlacement, false, true);
+					Expression->bCollapsed = true;
 					SetPreviewExpression(Expression);
 					// This shouldn't count as having dirtied the material, so reset the flag
 					bMaterialDirty = false;
@@ -760,55 +761,171 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 				// We can check the usage here and add the appropriate inputs too (e.g. Layer==1MA, Blend==2MA)
 				if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
 				{
-					UMaterialExpression* Input = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-350, 300), false, true);
-					if (Input)
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+					if (Substrate::IsSubstrateEnabled())
 					{
-						UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(Input);
-						BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
-						BaseAttributesInput->InputName = TEXT("Material Attributes");
-						BaseAttributesInput->bUsePreviewValueAsDefault = true;
+						UMaterialExpression* Input = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-800, 300), false, true);
+						if (Input)
+						{
+							UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(Input);
+							BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
+							BaseAttributesInput->InputName = TEXT("Material Attributes");
+							BaseAttributesInput->bUsePreviewValueAsDefault = true;
+							BaseAttributesInput->PreviewValue = FLinearColor::MakeRandomColor();
+						}
+
+						UMaterialExpression* SetSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateSetAttributes::StaticClass(), FVector2D(-50, 300), false, true);
+						UMaterialExpression* GetSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateGetAttributes::StaticClass(), FVector2D(-450, 300), false, true);
+						if (Input && SetSubstrateAttributes && GetSubstrateAttributes)
+						{
+							UMaterialEditingLibrary::ConnectMaterialExpressions(Input, FString(), GetSubstrateAttributes, FString());
+						
+							UMaterialEditingLibrary::ConnectMaterialExpressions(GetSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT, SetSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT);
+							UMaterialEditingLibrary::ConnectMaterialExpressions(GetSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT, SetSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT);
+
+							UMaterialEditingLibrary::ConnectMaterialExpressions(SetSubstrateAttributes, FString(), Expression, FString());
+							bMaterialDirty = true;
+						}
 
 					}
-					if (GetDefault<UEditorExperimentalSettings>()->bExampleLayersAndBlends)
+					else
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 					{
-						UMaterialExpression* SetMaterialAttributes = CreateNewMaterialExpression(UMaterialExpressionSetMaterialAttributes::StaticClass(), FVector2D(40, 300), false, true);
-						if (Input && SetMaterialAttributes)
+						UMaterialExpression* Input = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-350, 300), false, true);
+						if (Input)
 						{
+							UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(Input);
+							BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
+							BaseAttributesInput->InputName = TEXT("Material Attributes");
+							BaseAttributesInput->bUsePreviewValueAsDefault = true;
+						}
+
+						if (GetDefault<UEditorExperimentalSettings>()->bExampleLayersAndBlends)
+						{
+							UMaterialExpression* SetMaterialAttributes = CreateNewMaterialExpression(UMaterialExpressionSetMaterialAttributes::StaticClass(), FVector2D(40, 300), false, true);
+							if (Input && SetMaterialAttributes)
+							{
 							UMaterialEditingLibrary::ConnectMaterialExpressions(Input, FString(), SetMaterialAttributes, FString());
-							UMaterialEditingLibrary::ConnectMaterialExpressions(SetMaterialAttributes, FString(), Expression, FString());
-							bMaterialDirty = true;
+								UMaterialEditingLibrary::ConnectMaterialExpressions(SetMaterialAttributes, FString(), Expression, FString());
+								bMaterialDirty = true;
+							}
 						}
 					}
 				}
 				else if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
 				{
-					// "Top layer" should be below "bottom layer" on the graph, to align with B on blend nodes
-					UMaterialExpression* InputTop = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-300, 400), false, true);
-					if (InputTop)
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+					if (Substrate::IsSubstrateEnabled())
 					{
-						UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(InputTop);
-						BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
-						BaseAttributesInput->InputName = TEXT("Top Layer");
-						BaseAttributesInput->bUsePreviewValueAsDefault = true;
-					}
-
-					UMaterialExpression* InputBottom = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-300, 200), false, true);
-					if (InputBottom)
-					{
-						UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(InputBottom);
-						BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
-						BaseAttributesInput->InputName = TEXT("Bottom Layer");
-						BaseAttributesInput->bUsePreviewValueAsDefault = true;
-					}
-					if (GetDefault<UEditorExperimentalSettings>()->bExampleLayersAndBlends)
-					{
-						UMaterialExpression* BlendMaterialAttributes = CreateNewMaterialExpression(UMaterialExpressionBlendMaterialAttributes::StaticClass(), FVector2D(40, 300), false, true);
-						if (InputTop && InputBottom && BlendMaterialAttributes)
 						{
-							UMaterialEditingLibrary::ConnectMaterialExpressions(InputBottom, FString(), BlendMaterialAttributes, FString(TEXT("A")));
-							UMaterialEditingLibrary::ConnectMaterialExpressions(InputTop, FString(), BlendMaterialAttributes, FString(TEXT("B")));
-							UMaterialEditingLibrary::ConnectMaterialExpressions(BlendMaterialAttributes, FString(), Expression, FString());
-							bMaterialDirty = true;
+							UMaterialExpression* InputBottom = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-1100, 200), false, true);
+							if (InputBottom)
+							{
+								UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(InputBottom);
+								BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
+								BaseAttributesInput->InputName = TEXT("Background Layer");
+								BaseAttributesInput->bUsePreviewValueAsDefault = true;
+							}
+
+							// "Top layer" should be below "bottom layer" on the graph, to align with Foreground/B on blend nodes
+							UMaterialExpression* InputTop = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-1100, 400), false, true);
+							if (InputTop)
+							{
+								UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(InputTop);
+								BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
+								BaseAttributesInput->InputName = TEXT("Foreground Layer");
+								BaseAttributesInput->bUsePreviewValueAsDefault = true;
+								BaseAttributesInput->PreviewValue = FLinearColor::White;
+							}
+
+							if(InputTop && InputBottom && GetDefault<UEditorExperimentalSettings>()->bExampleLayersAndBlends)
+							{
+								static TObjectPtr<UMaterialFunction> DefaultBlendFunction = FindObject<UMaterialFunction>(nullptr, DEFAULT_MATERIALLAYERBLEND_PATH);
+								if (!DefaultBlendFunction)
+								{
+									DefaultBlendFunction = LoadObject<UMaterialFunction>(nullptr, DEFAULT_MATERIALLAYERBLEND_PATH);
+								}
+							
+								if (DefaultBlendFunction)
+								{
+									if(UMaterialExpressionMaterialFunctionCall* BlendFunctionCall = Cast<UMaterialExpressionMaterialFunctionCall>(CreateNewMaterialExpression(UMaterialExpressionMaterialFunctionCall::StaticClass(), FVector2D(-100, 300), false, false)))
+									{
+										BlendFunctionCall->Function = MaterialFunction;
+										InputTop->MaterialExpressionEditorX = -500;
+										InputBottom->MaterialExpressionEditorX = -500;
+										if (BlendFunctionCall->SetMaterialFunction(DefaultBlendFunction))
+										{
+											if (BlendFunctionCall->FunctionInputs.Num() >= 2 && BlendFunctionCall->FunctionOutputs.Num() > 0)
+											{
+												BlendFunctionCall->FunctionInputs[0].Input.Connect(0, InputBottom);
+												BlendFunctionCall->FunctionInputs[1].Input.Connect(0, InputTop);
+												UMaterialEditingLibrary::ConnectMaterialExpressions(BlendFunctionCall, FString(), Expression, FString());
+												bMaterialDirty = true;
+											}
+										}
+									}
+								}
+
+								if (!bMaterialDirty)
+								{
+									UMaterialExpression* SetSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateSetAttributes::StaticClass(), FVector2D(-75, 300), false, true);
+									UMaterialExpression* HorizontalMixingNode = CreateNewMaterialExpression(UMaterialExpressionSubstrateHorizontalMixing::StaticClass(), FVector2D(-350, 200), false, true);
+									UMaterialExpression* GetBottomSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateGetAttributes::StaticClass(), FVector2D(-750, 200), false, true);
+
+									UMaterialExpression* LegacyBlendNode = CreateNewMaterialExpression(UMaterialExpressionBlendMaterialAttributes::StaticClass(), FVector2D(-350, 400), false, true);
+									UMaterialExpression* GetTopSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateGetAttributes::StaticClass(), FVector2D(-750, 400), false, true);
+
+									if (SetSubstrateAttributes && HorizontalMixingNode && GetBottomSubstrateAttributes && LegacyBlendNode && GetTopSubstrateAttributes)
+									{
+										UMaterialEditingLibrary::ConnectMaterialExpressions(InputBottom, FString(), GetBottomSubstrateAttributes, FString());
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetBottomSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT, HorizontalMixingNode, FString("Background"));
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetBottomSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT, LegacyBlendNode, FString("A"));
+
+										UMaterialEditingLibrary::ConnectMaterialExpressions(InputTop, FString(), GetTopSubstrateAttributes, FString());
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetTopSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT, HorizontalMixingNode, FString("Foreground"));
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetTopSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT, LegacyBlendNode, FString("B"));
+
+										UMaterialEditingLibrary::ConnectMaterialExpressions(HorizontalMixingNode, FString(), SetSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT);
+										UMaterialEditingLibrary::ConnectMaterialExpressions(LegacyBlendNode, FString(), SetSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT);
+
+										UMaterialEditingLibrary::ConnectMaterialExpressions(SetSubstrateAttributes, FString(), Expression, FString());
+										bMaterialDirty = true;
+									}
+								}
+							}
+						}
+					}
+					else
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+					{
+						// "Top layer" should be below "bottom layer" on the graph, to align with B on blend nodes
+						UMaterialExpression* InputTop = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-300, 400), false, true);
+						if (InputTop)
+						{
+							UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(InputTop);
+							BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
+							BaseAttributesInput->InputName = TEXT("Top Layer");
+							BaseAttributesInput->bUsePreviewValueAsDefault = true;
+						}
+
+						UMaterialExpression* InputBottom = CreateNewMaterialExpression(UMaterialExpressionFunctionInput::StaticClass(), FVector2D(-300, 200), false, true);
+						if (InputBottom)
+						{
+							UMaterialExpressionFunctionInput* BaseAttributesInput = Cast<UMaterialExpressionFunctionInput>(InputBottom);
+							BaseAttributesInput->InputType = FunctionInput_MaterialAttributes;
+							BaseAttributesInput->InputName = TEXT("Bottom Layer");
+							BaseAttributesInput->bUsePreviewValueAsDefault = true;
+						}
+						if (GetDefault<UEditorExperimentalSettings>()->bExampleLayersAndBlends)
+						{
+							UMaterialExpression* BlendMaterialAttributes = CreateNewMaterialExpression(UMaterialExpressionBlendMaterialAttributes::StaticClass(), FVector2D(40, 300), false, true);
+							if (InputTop && InputBottom && BlendMaterialAttributes)
+							{
+								UMaterialEditingLibrary::ConnectMaterialExpressions(InputBottom, FString(), BlendMaterialAttributes, FString(TEXT("A")));
+								UMaterialEditingLibrary::ConnectMaterialExpressions(InputTop, FString(), BlendMaterialAttributes, FString(TEXT("B")));
+								UMaterialEditingLibrary::ConnectMaterialExpressions(BlendMaterialAttributes, FString(), Expression, FString());
+								bMaterialDirty = true;
+							}
 						}
 					}
 				}
@@ -3003,7 +3120,11 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 			int32 NumOutputs = 0;
 			// For Material Layers
 
-			if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
+			if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+			&& !Substrate::IsSubstrateEnabled()
+#endif
+			)
 			{
 				// Material layers must have a single MA input and output only
 				for (UMaterialExpression* Expression : MaterialFunction->GetExpressions())
@@ -3039,7 +3160,11 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 					FailingExpression.Add(nullptr);
 				}
 			}
-			else if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
+			else if (MaterialFunction->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+			&& !Substrate::IsSubstrateEnabled()
+#endif
+			)
 			{
 				// Material layer blends can have two MA inputs and single MA output only
 				for (UMaterialExpression* Expression : MaterialFunction->GetExpressions())

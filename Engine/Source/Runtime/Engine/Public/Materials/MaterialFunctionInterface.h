@@ -35,6 +35,9 @@ enum class EMaterialFunctionUsage : uint8
 	MaterialLayer,
 	MaterialLayerBlend
 };
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#define DEFAULT_MATERIALLAYERBLEND_PATH TEXT("/Engine/EngineMaterials/Blends/MLB_Horizontal")
+#endif
 
 using FMFRecursionGuard = TMaterialRecursionGuard<class UMaterialFunctionInterface>;
 

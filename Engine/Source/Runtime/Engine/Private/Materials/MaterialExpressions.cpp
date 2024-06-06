@@ -2146,6 +2146,7 @@ void UMaterialExpression::ConnectToPreviewMaterial(UMaterial* InMaterial, int32 
 				UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
 				ConvertAttributeNode->Material = InMaterial;
 				ConvertAttributeNode->MaterialAttributes.Connect(OutputIndex, this);
+				ConvertAttributeNode->ShadingModelOverride = MSM_DefaultLit;
 
 				// Connect substrate data into material FrontMaterial input
 				if (UMaterialEditorOnlyData* MaterialEditorOnlyData = InMaterial->GetEditorOnlyData())
@@ -7365,27 +7366,42 @@ uint32 UMaterialExpressionGetMaterialAttributes::GetOutputType(int32 OutputIndex
 }
 
 bool UMaterialExpressionGetMaterialAttributes::IsResultSubstrateMaterial(int32 OutputIndex)
-{
+{	
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (OutputIndex >= 1 && OutputIndex <= AttributeGetTypes.Num())
+	{
+		return FMaterialAttributeDefinitionMap::GetValueType(AttributeGetTypes[OutputIndex - 1]) == MCT_Substrate;
+	}
+#endif
+
 	if (MaterialAttributes.Expression)
 	{
-		return MaterialAttributes.Expression->IsResultSubstrateMaterial(0);
+		return MaterialAttributes.Expression->IsResultSubstrateMaterial(MaterialAttributes.OutputIndex);
 	}
 	return false;
 }
 
 void UMaterialExpressionGetMaterialAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (IsResultSubstrateMaterial(OutputIndex))
+#else
 	if (MaterialAttributes.Expression)
+#endif
 	{
-		MaterialAttributes.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, 0);
+		MaterialAttributes.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, MaterialAttributes.OutputIndex);
 	}
 }
 
 FSubstrateOperator* UMaterialExpressionGetMaterialAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (IsResultSubstrateMaterial(OutputIndex))
+#else
 	if (MaterialAttributes.Expression)
+#endif
 	{
-		return MaterialAttributes.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, 0);
+		return MaterialAttributes.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, MaterialAttributes.OutputIndex);
 	}
 	return nullptr;
 }
@@ -7697,6 +7713,29 @@ uint32 UMaterialExpressionSetMaterialAttributes::GetInputType(int32 InputIndex)
 	}
 
 	return InputType;
+}
+
+bool UMaterialExpressionSetMaterialAttributes::IsResultSubstrateMaterial(int32 OutputIndex)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (Inputs[0].IsConnected())
+	{
+		Inputs[0].Expression->IsResultSubstrateMaterial(Inputs[0].OutputIndex);
+	}
+#endif
+
+	return false;
+}
+
+FSubstrateOperator* UMaterialExpressionSetMaterialAttributes::SubstrateGenerateMaterialTopologyTree(FMaterialCompiler* Compiler, UMaterialExpression* Parent, int32 OutputIndex)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if(IsResultSubstrateMaterial(OutputIndex))
+	{
+		Inputs[0].Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, Inputs[0].OutputIndex);
+	}
+#endif
+	return nullptr;
 }
 
 void UMaterialExpressionSetMaterialAttributes::GetExpressionToolTip(TArray<FString>& OutToolTip)
@@ -8406,6 +8445,58 @@ int32 UMaterialExpressionMaterialAttributeLayers::Compile(FMaterialCompiler* Com
 
 	return Result;
 }
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+bool UMaterialExpressionMaterialAttributeLayers::IsResultSubstrateMaterial(int32 OutputIndex)
+{
+	return Substrate::IsSubstrateEnabled();
+}
+
+FSubstrateOperator* UMaterialExpressionMaterialAttributeLayers::SubstrateGenerateMaterialTopologyTree(FMaterialCompiler* Compiler, UMaterialExpression* Parent, int32 OutputIndex)
+{
+	FSubstrateOperator* OutOperator = nullptr;
+
+	const FMaterialLayersFunctions* OverrideLayers = Compiler->GetMaterialLayers();
+	OverrideLayerGraph(OverrideLayers);
+
+	//Behaviour mirrors the behaviour of the existing compile function
+	if (ValidateLayerConfiguration(Compiler, true) && bIsLayerGraphBuilt)
+	{
+		if (NumActiveBlendCallers > 0 && BlendCallers[NumActiveBlendCallers - 1]->MaterialFunction)
+		{
+			// Multiple blended layers
+			OutOperator = BlendCallers[NumActiveBlendCallers - 1]->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, 0);
+		}
+		else if (NumActiveLayerCallers > 0 && LayerCallers[NumActiveLayerCallers - 1]->MaterialFunction)
+		{
+			// Single layer
+			OutOperator = LayerCallers[NumActiveLayerCallers - 1]->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, 0);
+		}
+		else if (NumActiveLayerCallers == 0)
+		{
+			// Pass-through
+			const FGuid AttributeID = Compiler->GetMaterialAttribute();
+			if (Input.GetTracedInput().Expression)
+			{
+				OutOperator = Input.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, 0);
+			}
+		}
+
+		if (!OutOperator)
+		{
+			//If this is reached, compile a default operator to avoid a crash
+			FSubstrateOperator& DefaultOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+			DefaultOperator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
+			DefaultOperator.ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
+			OutOperator = &DefaultOperator;
+		}
+	}
+
+	OverrideLayerGraph(nullptr);
+
+	return OutOperator;
+}
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 
 void UMaterialExpressionMaterialAttributeLayers::GetCaption(TArray<FString>& OutCaptions) const
 {
@@ -10015,7 +10106,9 @@ bool UMaterialExpressionFeatureLevelSwitch::IsInputConnectionRequired(int32 Inpu
 
 bool UMaterialExpressionFeatureLevelSwitch::IsResultMaterialAttributes(int32 OutputIndex)
 {
+#if !ENABLE_MATERIAL_LAYER_PROTOTYPE
 	check(OutputIndex == 0);
+#endif
 	for (FExpressionInputIterator It{ this }; It; ++It)
 	{
 		// If there is a loop anywhere in this expression's inputs then we can't risk checking them
@@ -15461,6 +15554,8 @@ UMaterialInterface* UMaterialFunction::GetPreviewMaterial()
 		PreviewMaterial->bIsPreviewMaterial = true;
 
 		PreviewMaterial->AssignExpressionCollection(GetExpressionCollection());
+		//Update cached expression data to ensure function calls are populated for resolving the preview
+		PreviewMaterial->UpdateCachedExpressionData();
 
 		//Find the first output expression and use that. 
 		for (UMaterialExpression* Expression : GetExpressions())
@@ -15605,6 +15700,303 @@ void UMaterialFunction::Serialize(FArchive& Ar)
 #endif // #if WITH_EDITOR
 }
 
+#if WITH_EDITORONLY_DATA
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+void UMaterialFunction::GetAllCustomOutputExpressions(TArray<class UMaterialExpressionCustomOutput*>& OutCustomOutputs) const
+{
+	for (UMaterialExpression* Expression : GetExpressions())
+	{
+		UMaterialExpressionCustomOutput* CustomOutput = Cast<UMaterialExpressionCustomOutput>(Expression);
+		if (CustomOutput)
+		{
+			OutCustomOutputs.Add(CustomOutput);
+		}
+	}
+}
+
+void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
+{
+	if (!Substrate::IsSubstrateEnabled() || GetMaterialFunctionUsage() == EMaterialFunctionUsage::Default)
+	{
+		return;
+	}
+
+	UMaterialFunctionEditorOnlyData* EditorOnly = GetEditorOnlyData();
+	if (!EditorOnly)
+	{
+		return;
+	}
+
+	TArray<TObjectPtr<UMaterialExpression>>& Expressions = EditorOnly->ExpressionCollection.Expressions;
+	if (Expressions.Num() < 1)
+	{
+		return;
+	}
+
+	UMaterialExpressionFunctionOutput* OutputNode = Cast<UMaterialExpressionFunctionOutput>(Expressions[0]);
+	if (!OutputNode || !OutputNode->A.IsConnected() || !OutputNode->A.Expression->IsResultMaterialAttributes(OutputNode->A.OutputIndex))
+	{
+		return;
+	}
+
+	//Perform a full sweep to check for embedded Substrate expressions, checking if conversion is necessary
+	TArray<UMaterialFunctionInterface*> AllFunctions;
+	GetDependentFunctions(AllFunctions);
+	AllFunctions.Add(this);	
+	for (UMaterialFunctionInterface* Function : AllFunctions)
+	{
+		for (UMaterialExpression* Expression : Function->GetExpressions())
+		{
+			if (Expression->IsA<UMaterialExpressionSubstrateBSDF>()
+				|| Expression->IsA<UMaterialExpressionSubstrateUtilityBase>())
+			{
+				//If Substrate nodes are present, do not convert this function, assume previously converted or Substrate MF
+				return;
+			}
+		}
+	}
+
+	auto MoveNodeInHorizonalAxis = [](UMaterialExpression* NodeToMove, int32 HorizontalOffset = 0)
+	{
+		NodeToMove->MaterialExpressionEditorX += HorizontalOffset;
+	};
+
+	auto PlaceNodeInLocation = [](UMaterialExpression* ExistingNode, UMaterialExpression* NewNode)
+	{
+		NewNode->MaterialExpressionEditorX = ExistingNode->MaterialExpressionEditorX;
+		NewNode->MaterialExpressionEditorY = ExistingNode->MaterialExpressionEditorY;
+	};
+
+	auto PlaceBelowNode= [](UMaterialExpression* ExistingNode, UMaterialExpression* NewNode, int32 DownOffset = 100)
+	{
+		NewNode->MaterialExpressionEditorX = ExistingNode->MaterialExpressionEditorX;
+		NewNode->MaterialExpressionEditorY = ExistingNode->MaterialExpressionEditorY + DownOffset;
+	};
+
+	auto ReplaceNodeAndMoveToTheRight = [](UMaterialExpression* ExistingNode, UMaterialExpression* NewNode, int32 RightOffset = 350)
+	{
+		NewNode->MaterialExpressionEditorX = ExistingNode->MaterialExpressionEditorX;
+		NewNode->MaterialExpressionEditorY = ExistingNode->MaterialExpressionEditorY;
+		ExistingNode->MaterialExpressionEditorX = NewNode->MaterialExpressionEditorX + RightOffset;
+	};
+
+	bool bBlendConverted = false;
+	if (GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
+	{
+		UMaterialExpressionFunctionInput* BottomInput = nullptr;
+		UMaterialExpressionFunctionInput* TopInput = nullptr;
+
+		for (UMaterialExpression* Expression : Expressions)
+		{
+			if (UMaterialExpressionFunctionInput* InputNode = Cast<UMaterialExpressionFunctionInput>(Expression))
+			{
+				if (!BottomInput && InputNode->InputName == TEXT("Bottom Layer"))
+				{
+					BottomInput = InputNode;
+				}
+				else if (!TopInput && InputNode->InputName == TEXT("Top Layer"))
+				{
+					TopInput = InputNode;
+				}
+			}
+		}
+	
+		//The two legacy inputs are required at a minimum.
+		if (!TopInput || !BottomInput)
+		{
+			return;
+		}
+
+		BottomInput->InputName = TEXT("Background Layer");
+		TopInput->InputName = TEXT("Foreground Layer");
+		if (BottomInput->PreviewValue == FVector4f(FLinearColor::Black) && TopInput->PreviewValue == FVector4f(FLinearColor::Black))
+		{
+			//Only occurs during the update process and if inputs are set to black default so the blend has distinct preview, further user defined colours will not be altered.
+			TopInput->PreviewValue = FLinearColor::White;
+		}
+
+		/**
+		 * Blend node conversion occurs recursively. We can't resolve which nodes could have multiple inputs already connected to a node's output from the expression itself,
+		 * so we have to traverse from the output function to map the existing graph correctly.
+		 */
+		TMap<UMaterialExpression*, UMaterialExpression*> ReplacementNodeMapping;
+		TArray<UMaterialExpression*> RecursedExpressions;
+		auto ConvertBlendExpression = [&](FExpressionInput* Input, UMaterialExpression* InputExpression) -> void
+		{
+			if(!Input || !InputExpression)
+			{
+				return;
+			}
+		
+			if (UMaterialExpressionBlendMaterialAttributes* BlendNode = Cast<UMaterialExpressionBlendMaterialAttributes>(InputExpression))
+			{
+				//Load the existing substrate default blend function which will replace the legacy blend node.
+				static TObjectPtr<UMaterialFunction> DefaultBlendFunction = FindObject<UMaterialFunction>(GetTransientPackage(), DEFAULT_MATERIALLAYERBLEND_PATH);
+				if (!DefaultBlendFunction)
+				{
+					DefaultBlendFunction = LoadObject<UMaterialFunction>(GetTransientPackage(), DEFAULT_MATERIALLAYERBLEND_PATH);
+				}
+
+				if(DefaultBlendFunction)
+				{
+					UMaterialExpressionMaterialFunctionCall* BlendFunctionCall = ReplacementNodeMapping.Contains(BlendNode) ? Cast<UMaterialExpressionMaterialFunctionCall>(*ReplacementNodeMapping.Find(BlendNode)) : nullptr;
+					if (!BlendFunctionCall)
+					{
+						//Store the mapping of a blend node to it's replacement function call, which means we only create a call once per individual blend node.
+						BlendFunctionCall = Cast<UMaterialExpressionMaterialFunctionCall>(ReplacementNodeMapping.Add(BlendNode, NewObject<UMaterialExpressionMaterialFunctionCall>(this)));
+						BlendFunctionCall->Function = this;
+						BlendFunctionCall->SetMaterialFunction(DefaultBlendFunction);
+
+						if (BlendFunctionCall && BlendFunctionCall->FunctionInputs.Num() >= 3)
+						{
+							//These should match the sort priority of the Default MLB
+							BlendFunctionCall->FunctionInputs[0].Input.Connect(BlendNode->A.OutputIndex, BlendNode->A.Expression); //Background
+							BlendFunctionCall->FunctionInputs[1].Input.Connect(BlendNode->B.OutputIndex, BlendNode->B.Expression); //Foreground
+							BlendFunctionCall->FunctionInputs[2].Input.Connect(BlendNode->Alpha.OutputIndex, BlendNode->Alpha.Expression);
+						}
+
+						PlaceNodeInLocation(BlendNode, BlendFunctionCall);
+						InputExpression = BlendFunctionCall;
+						Expressions.Add(BlendFunctionCall);
+						RecursedExpressions.Add(BlendFunctionCall);
+					}
+
+					if (BlendFunctionCall)
+					{
+						Input->Connect(0, BlendFunctionCall);
+						bBlendConverted = true;
+					}
+				}
+			}
+			else if (InputExpression->IsA<UMaterialExpressionSetMaterialAttributes>() || InputExpression->IsA<UMaterialExpressionMakeMaterialAttributes>())
+			{
+				//Same behaviour as above, but for now extends the Make/Set nodes with conversion, so we don't remove the existing node in this case.
+				UMaterialExpressionSubstrateSetAttributes* SetSubstrateNode = ReplacementNodeMapping.Contains(InputExpression) ? Cast<UMaterialExpressionSubstrateSetAttributes>(*ReplacementNodeMapping.Find(InputExpression)) : nullptr;
+				if(!SetSubstrateNode)
+				{
+					SetSubstrateNode = Cast<UMaterialExpressionSubstrateSetAttributes>(ReplacementNodeMapping.Add(InputExpression, NewObject<UMaterialExpressionSubstrateSetAttributes>(this)));
+					SetSubstrateNode->Function = this;
+					SetSubstrateNode->NonSubstrateAttributes.Connect(0, InputExpression);
+					Expressions.Add(SetSubstrateNode);
+					RecursedExpressions.Add(SetSubstrateNode);
+
+					UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+					ConvertNode->Function = this;
+					ConvertNode->MaterialAttributes.Connect(0, InputExpression);
+					ConvertNode->ShadingModelOverride = MSM_DefaultLit;
+					Expressions.Add(ConvertNode);
+					RecursedExpressions.Add(ConvertNode);
+
+					SetSubstrateNode->FrontMaterial.Connect(0, ConvertNode);
+
+					PlaceBelowNode(InputExpression, ConvertNode);
+					PlaceBelowNode(ConvertNode, SetSubstrateNode, 250);
+				}
+
+				if(SetSubstrateNode)
+				{
+					Input->Connect(0, SetSubstrateNode);
+					bBlendConverted = true;
+				}
+			}
+
+			return;			
+		};
+
+		auto RecurseBlendFunction = [&](UMaterialExpression* Expression, auto&& RecurseBlendFunction) -> void
+		{
+			//If null or if the expression has already been recursed, skip.
+			if(!Expression || RecursedExpressions.Contains(Expression))
+			{
+				return;
+			}
+			RecursedExpressions.Add(Expression);
+
+			//If the expression is valid, iterate the connected expressions for upgrade to Substrate, then recurse via each valid expression
+			for (FExpressionInputIterator It{ Expression }; It; ++It)
+			{
+				ConvertBlendExpression(It.Input, It.Input->Expression);
+				RecurseBlendFunction(It.Input->Expression, RecurseBlendFunction);	
+			}
+		};
+		//Begin recursion process from the output node.
+		RecurseBlendFunction(OutputNode, RecurseBlendFunction);
+
+		//Once the nodes have been replaced and all connections remapped, we can remove the replaced nodes from the function.
+		for (auto& Mapping : ReplacementNodeMapping)
+		{
+			if(UMaterialExpressionBlendMaterialAttributes* BlendExpression = Cast<UMaterialExpressionBlendMaterialAttributes>(Mapping.Key))
+			{
+				for (FExpressionInputIterator It{ BlendExpression }; It; ++It)
+				{
+					It.Input->Expression = nullptr;
+				}
+				Expressions.Remove(BlendExpression);
+			}
+		}
+	}
+
+	//If we are converting a standard layer function, or if the blend node has not had blend functionality replaced directly, add basic conversion logic to the node.
+	if (!bBlendConverted || GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
+	{
+		//Layer assets are simpler than their blend counterparts because we only need to convert the legacy MAs, similar to the behaviour of a material upgrade.
+		UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributesNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+		ConvertAttributesNode->Function = this;
+		ConvertAttributesNode->MaterialAttributes.Connect(0, OutputNode->A.Expression);
+		ConvertAttributesNode->ShadingModelOverride = MSM_DefaultLit;
+		ReplaceNodeAndMoveToTheRight(OutputNode, ConvertAttributesNode);
+
+		//Add Custom logic connections
+		TArray<class UMaterialExpressionCustomOutput*> CustomOutputExpressions;
+		GetAllCustomOutputExpressions(CustomOutputExpressions);
+		check(ConvertAttributesNode);
+		for (UMaterialExpressionCustomOutput* Expression : CustomOutputExpressions)
+		{
+			// Gather custom output for single layer water
+			if (UMaterialExpressionSingleLayerWaterMaterialOutput* SingleLayerWaterOutput = Cast<UMaterialExpressionSingleLayerWaterMaterialOutput>(Expression))
+			{	
+				if (SingleLayerWaterOutput->ScatteringCoefficients.Expression)
+				{
+					ConvertAttributesNode->WaterScatteringCoefficients.Connect(SingleLayerWaterOutput->ScatteringCoefficients.OutputIndex, SingleLayerWaterOutput->ScatteringCoefficients.Expression);
+				}
+				if (SingleLayerWaterOutput->AbsorptionCoefficients.Expression)
+				{
+					ConvertAttributesNode->WaterAbsorptionCoefficients.Connect(SingleLayerWaterOutput->AbsorptionCoefficients.OutputIndex, SingleLayerWaterOutput->AbsorptionCoefficients.Expression);
+				}
+				if (SingleLayerWaterOutput->PhaseG.Expression)
+				{
+					ConvertAttributesNode->WaterPhaseG.Connect(SingleLayerWaterOutput->PhaseG.OutputIndex, SingleLayerWaterOutput->PhaseG.Expression);
+				}
+				if (SingleLayerWaterOutput->ColorScaleBehindWater.Expression)
+				{
+					ConvertAttributesNode->ColorScaleBehindWater.Connect(SingleLayerWaterOutput->ColorScaleBehindWater.OutputIndex, SingleLayerWaterOutput->ColorScaleBehindWater.Expression);
+				}
+
+				break;
+			}
+		}
+
+		/**
+		 * Layer MFs differ from materials in that they only have 1 output,
+		 * so we use the Set Substrate Attributes node to collect the Front Material and MAs to pass to the next function in the layer stack.
+		 */
+		UMaterialExpressionSubstrateSetAttributes* SetAttributesNode = NewObject<UMaterialExpressionSubstrateSetAttributes>(this);
+		SetAttributesNode->Function = this;
+		SetAttributesNode->NonSubstrateAttributes.Connect(0, OutputNode->A.Expression);
+		SetAttributesNode->FrontMaterial.Connect(0, ConvertAttributesNode);
+		ReplaceNodeAndMoveToTheRight(OutputNode, SetAttributesNode);
+
+		Expressions.EmplaceAt(1, SetAttributesNode);
+		Expressions.EmplaceAt(2, ConvertAttributesNode);
+
+		OutputNode->A.Connect(0, SetAttributesNode);
+	}
+	MoveNodeInHorizonalAxis(OutputNode, 50);
+	OutputNode->bCollapsed = true;
+}
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+#endif //WITH_EDITORONLY_DATA
+
 void UMaterialFunction::PostLoad()
 {
 	LLM_SCOPE(ELLMTag::Materials);
@@ -15637,6 +16029,9 @@ void UMaterialFunction::PostLoad()
 		ensure(!EditorOnly->ExpressionCollection.ExpressionExecEnd);
 		EditorOnly->ExpressionCollection.ExpressionExecEnd = MoveTemp(ExpressionExecEnd_DEPRECATED);
 	}
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	ConvertExpressionsBetweenLegacyAndSubstrate();
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 
 	if (EditorOnly)
 	{
@@ -15955,74 +16350,171 @@ bool UMaterialFunction::ValidateFunctionUsage(FMaterialCompiler* Compiler, const
 #if WITH_EDITOR
 	if (GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
 	{
-		// Material layers must have a single MA input and output only
-		for (UMaterialExpression* Expression : GetExpressions())
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		if (Substrate::IsSubstrateEnabled())
 		{
-			if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+			// Material layers must have a single MA input and output only
+			for (UMaterialExpression* Expression : GetExpressions())
 			{
-				++NumInputs;
-				if (NumInputs > 1 || !InputExpression->IsResultMaterialAttributes(0))
+				if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
 				{
-					Compiler->Errorf(TEXT("Layer graphs only support a single material attributes input."));
+					if (InputExpression->IsResultMaterialAttributes(0) || InputExpression->IsResultSubstrateMaterial(0))
+					{
+						++NumInputs;
+					}
+
+					if (NumInputs > 1)
+					{
+						Compiler->Errorf(TEXT("Layer graphs only support a single material attributes or Substrate inputs currently."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+				{
+					if (OutputExpression->IsResultMaterialAttributes(0) || OutputExpression->IsResultSubstrateMaterial(0))
+					{
+						++NumOutputs;
+					}
+
+					if (NumOutputs > 1)
+					{
+						Compiler->Errorf(TEXT("Layer graphs only support a single material attributes or Substrate outputs currently."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
+				{
+					Compiler->Errorf(TEXT("Layer graphs do not support layers within layers."));
 					bHasValidOutput = false;
 				}
 			}
-			else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+
+			if (NumInputs > 1 || NumOutputs < 1)
 			{
-				++NumOutputs;
-				if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
-				{
-					Compiler->Errorf(TEXT("Layer graphs only support a single material attributes output."));
-					bHasValidOutput = false;
-				}
-			}
-			else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
-			{
-				Compiler->Errorf(TEXT("Layer graphs do not support layers within layers."));
-					bHasValidOutput = false;
+				Compiler->Errorf(TEXT("Layer graphs require a single material attributes or Substrate output and optionally, a single material attributes or Substrate input."));
+				bHasValidOutput = false;
 			}
 		}
-
-		if ( NumInputs > 1 || NumOutputs < 1)
+		else
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 		{
-			Compiler->Errorf(TEXT("Layer graphs require a single material attributes output and optionally, a single material attributes input."));
-			bHasValidOutput = false;
+			// Material layers must have a single MA input and output only
+			for (UMaterialExpression* Expression : GetExpressions())
+			{
+				if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+				{
+					++NumInputs;
+					if (NumInputs > 1 || !InputExpression->IsResultMaterialAttributes(0))
+					{
+						Compiler->Errorf(TEXT("Layer graphs only support a single material attributes input."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+				{
+					++NumOutputs;
+					if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
+					{
+						Compiler->Errorf(TEXT("Layer graphs only support a single material attributes output."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
+				{
+					Compiler->Errorf(TEXT("Layer graphs do not support layers within layers."));
+						bHasValidOutput = false;
+				}
+			}
+
+			if ( NumInputs > 1 || NumOutputs < 1)
+			{
+				Compiler->Errorf(TEXT("Layer graphs require a single material attributes output and optionally, a single material attributes input."));
+				bHasValidOutput = false;
+			}
 		}
 	}
 	else if (GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
 	{
-		// Material layer blends can have up to two MA inputs and single MA output only
-		for (UMaterialExpression* Expression : GetExpressions())
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		if(Substrate::IsSubstrateEnabled())
 		{
-			if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+			// Material layer blends can have up to two MA inputs and single MA output only
+			for (UMaterialExpression* Expression : GetExpressions())
 			{
-				++NumInputs;
-				if (NumInputs > 2 || !InputExpression->IsResultMaterialAttributes(0))
+				if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
 				{
-					Compiler->Errorf(TEXT("Layer blend graphs only support two material attributes inputs."));
+					if(InputExpression->IsResultMaterialAttributes(0) || InputExpression->IsResultSubstrateMaterial(0))
+					{
+						++NumInputs;
+					}
+
+					if (NumInputs > 2)
+					{
+						Compiler->Errorf(TEXT("Layer blend graphs only support two material attributes or Substrate inputs currently."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+				{
+					if (OutputExpression->IsResultMaterialAttributes(0) || OutputExpression->IsResultSubstrateMaterial(0))
+					{
+						++NumOutputs;
+					}
+					if (NumOutputs > 1)
+					{
+						Compiler->Errorf(TEXT("Layer blend graphs only support a single MA or Substrate output currently."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
+				{
+					Compiler->Errorf(TEXT("Layer blend graphs do not support layers within layers."));
 					bHasValidOutput = false;
 				}
 			}
-			else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+
+			if (NumOutputs < 1)
 			{
-				++NumOutputs;
-				if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
-				{
-					Compiler->Errorf(TEXT("Layer blend graphs only support a single material attributes output."));
-					bHasValidOutput = false;
-				}
-			}
-			else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
-			{
-				Compiler->Errorf(TEXT("Layer blend graphs do not support layers within layers."));
-					bHasValidOutput = false;
+				Compiler->Errorf(TEXT("Layer blend graphs must have a only a single MA or Substrate output currently."));
+				bHasValidOutput = false;
 			}
 		}
-
-		if (NumOutputs < 1)
+		else
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 		{
-			Compiler->Errorf(TEXT("Layer blend graphs can have up to two material attributes inputs and a single output."));
-			bHasValidOutput = false;
+			// Material layer blends can have up to two MA inputs and single MA output only
+			for (UMaterialExpression* Expression : GetExpressions())
+			{
+				if (UMaterialExpressionFunctionInput* InputExpression = Cast<UMaterialExpressionFunctionInput>(Expression))
+				{
+					++NumInputs;
+					if (NumInputs > 2 || !InputExpression->IsResultMaterialAttributes(0))
+					{
+						Compiler->Errorf(TEXT("Layer blend graphs only support two material attributes inputs."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionFunctionOutput* OutputExpression = Cast<UMaterialExpressionFunctionOutput>(Expression))
+				{
+					++NumOutputs;
+					if (NumOutputs > 1 || !OutputExpression->IsResultMaterialAttributes(0))
+					{
+						Compiler->Errorf(TEXT("Layer blend graphs only support a single material attributes output."));
+						bHasValidOutput = false;
+					}
+				}
+				else if (UMaterialExpressionMaterialAttributeLayers* RecursiveLayer = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
+				{
+					Compiler->Errorf(TEXT("Layer blend graphs do not support layers within layers."));
+						bHasValidOutput = false;
+				}
+			}
+
+			if (NumOutputs < 1)
+			{
+				Compiler->Errorf(TEXT("Layer blend graphs can have up to two material attributes inputs and a single output."));
+				bHasValidOutput = false;
+			}
 		}
 	}
 #endif
@@ -18219,15 +18711,32 @@ int32 UMaterialExpressionFunctionInput::CompilePreviewValue(FMaterialCompiler* C
 			return Compiler->Constant3(PreviewValue.X, PreviewValue.Y, PreviewValue.Z);
 		case FunctionInput_Vector4:
 			return Compiler->Constant4(PreviewValue.X, PreviewValue.Y, PreviewValue.Z, PreviewValue.W);
-		case FunctionInput_MaterialAttributes:		
-			return FMaterialAttributeDefinitionMap::CompileDefaultExpression(Compiler, AttributeID);
+		case FunctionInput_MaterialAttributes:
+		{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+			if (AttributeID == FMaterialAttributeDefinitionMap::GetID(MP_EmissiveColor))
+			{
+				return Compiler->Constant3(PreviewValue.X, PreviewValue.Y, PreviewValue.Z);
+			}
+
+			if (!Substrate::IsSubstrateEnabled() || AttributeID != FMaterialAttributeDefinitionMap::GetID(MP_FrontMaterial))
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+			{
+				return FMaterialAttributeDefinitionMap::CompileDefaultExpression(Compiler, AttributeID);
+			}
+		}
+		case FunctionInput_Substrate:
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		{
+			return UMaterialExpressionSubstrateSlabBSDF::CompileDefaultSlab(Compiler, FVector3f(PreviewValue.X, PreviewValue.Y, PreviewValue.Z));
+		}
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 		case FunctionInput_Texture2D:
 		case FunctionInput_TextureCube:
 		case FunctionInput_Texture2DArray:
 		case FunctionInput_TextureExternal:
 		case FunctionInput_StaticBool:
 		case FunctionInput_Bool:
-		case FunctionInput_Substrate:
 			return Compiler->Errorf(TEXT("Missing Preview connection for function input '%s'"), *InputName.ToString());
 		default:
 			return Compiler->Errorf(TEXT("Unknown input type"));
@@ -18399,29 +18908,45 @@ bool UMaterialExpressionFunctionInput::IsResultSubstrateMaterial(int32 OutputInd
 	}
 	else
 	{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		//This ensures the default Substrate operator is always generated for layering, reflecting the behaviour in SubstrateGenerateMaterialTopologyTree
+		return Substrate::IsSubstrateEnabled() && IsResultMaterialAttributes(OutputIndex);
+#else
 		return false;
+#endif
 	}
 }
 
 void UMaterialExpressionFunctionInput::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (IsResultSubstrateMaterial(OutputIndex))
+#else
 	if (FunctionInput_Substrate == InputType)
+#endif
 	{
 		FExpressionInput EffectivePreviewDuringCompileTracedInput = EffectivePreviewDuringCompile.GetTracedInput();
-		int32 ExpressionResult = INDEX_NONE;
 		if (EffectivePreviewDuringCompileTracedInput.GetTracedInput().Expression)
 		{
 			EffectivePreviewDuringCompileTracedInput.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, EffectivePreviewDuringCompileTracedInput.OutputIndex);
+			return;
 		}
 	}
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	SubstrateMaterialInfo.AddShadingModel(SSM_DefaultLit);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
+#endif
 }
 
 FSubstrateOperator* UMaterialExpressionFunctionInput::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (IsResultSubstrateMaterial(OutputIndex))
+#else
 	if (FunctionInput_Substrate == InputType)
+#endif
 	{
 		FExpressionInput EffectivePreviewDuringCompileTracedInput = EffectivePreviewDuringCompile.GetTracedInput();
-		int32 ExpressionResult = INDEX_NONE;
 		if (EffectivePreviewDuringCompileTracedInput.GetTracedInput().Expression)
 		{
 			return EffectivePreviewDuringCompileTracedInput.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, EffectivePreviewDuringCompileTracedInput.OutputIndex);
@@ -25272,6 +25797,76 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 	return OutputCodeChunk;
 }
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+int32 UMaterialExpressionSubstrateSlabBSDF::CompileDefaultSlab(FMaterialCompiler* Compiler, FVector3f DiffuseAlbedoOverride)
+{
+	/**
+	 * This creates a default slab, primarily for material function previews where the input may be optional/missing.
+	 */
+	if (!Substrate::IsSubstrateEnabled())
+	{
+		return Compiler->SubstrateCreateAndRegisterNullMaterial();
+	}
+
+	FGuid PathUniqueId = Compiler->SubstrateTreeStackGetPathUniqueId();
+	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(PathUniqueId);
+
+	int32 SSSProfileCodeChunk = INDEX_NONE;
+	int32 SpecularProfileCodeChunk = INDEX_NONE;	
+	int32 TangentCodeChunk = INDEX_NONE;
+	int32 NormalCodeChunk = Compiler->VertexNormal();
+	int32 ThicknessCodeChunk = Compiler->Constant(SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM);
+
+	const FSubstrateRegisteredSharedLocalBasis NewRegisteredSharedLocalBasis = SubstrateCompilationInfoCreateSharedLocalBasis(Compiler, NormalCodeChunk, TangentCodeChunk);
+	SubstrateOperator.BSDFRegisteredSharedLocalBasis = NewRegisteredSharedLocalBasis;
+
+	int32 DiffuseAlbedoCodeChunk = Compiler->Constant3(DiffuseAlbedoOverride.X, DiffuseAlbedoOverride.Y, DiffuseAlbedoOverride.Z);
+	const float DefaultF0 = 0.04f;
+	int32 F0CodeChunk = Compiler->Constant3(DefaultF0, DefaultF0, DefaultF0);
+	int32 RoughnessCodeChunk = Compiler->Constant(0.5f);
+	int32 AnisotropyCodeChunk = Compiler->Constant(0.0f);
+	int32 F90CodeChunk = Compiler->Constant3(1.0f, 1.0f, 1.0f);
+	int32 SSSMFPCodeChunk = Compiler->Constant3(0.0f, 0.0f, 0.0f);
+	int32 SSSMFPScaleCodeChunk = Compiler->Constant(1.0f);
+	int32 SSSPhaseAnisotropyCodeChunk = Compiler->Constant(0.0f);
+	int32 SecondRoughnessCodeChunk = Compiler->Constant(0.0f);
+	int32 SecondRoughnessWeightCodeChunk = Compiler->Constant(0.0f);
+	int32 FuzzAmountCodeChunk = Compiler->Constant(0.0f);
+	int32 FuzzColorCodeChunk = Compiler->Constant3(0.0f, 0.0f, 0.0f);
+	int32 FuzzRoughnessCodeChunk = Compiler->Constant(0.5f);
+	int32 GlintValueCodeChunk = Compiler->Constant(0.0f);
+	int32 GlintUVCodeChunk = Compiler->Constant2(0.0f, 0.0f);
+
+	return Compiler->SubstrateSlabBSDF(
+		DiffuseAlbedoCodeChunk,
+		F0CodeChunk,
+		F90CodeChunk,
+		RoughnessCodeChunk,
+		AnisotropyCodeChunk,
+		Compiler->Constant(0.0f),
+		SSSMFPCodeChunk,
+		SSSMFPScaleCodeChunk,
+		SSSPhaseAnisotropyCodeChunk,
+		Compiler->Constant(0.0f),
+		Compiler->Constant3(0.0f, 0.0f, 0.0f),
+		SecondRoughnessCodeChunk,
+		SecondRoughnessWeightCodeChunk,
+		Compiler->Constant(0.0f),										// SecondRoughnessAsSimpleClearCoat
+		FuzzAmountCodeChunk,
+		FuzzColorCodeChunk,
+		FuzzRoughnessCodeChunk,
+		ThicknessCodeChunk,
+		GlintValueCodeChunk,
+		GlintUVCodeChunk,
+		Compiler->Constant(0.0f),
+		false,
+		NormalCodeChunk,
+		TangentCodeChunk,
+		Compiler->GetSubstrateSharedLocalBasisIndexMacro(NewRegisteredSharedLocalBasis),
+		(SubstrateOperator.Index != INDEX_NONE && SubstrateOperator.BSDFIndex != INDEX_NONE) && (!SubstrateOperator.bUseParameterBlending || (SubstrateOperator.bUseParameterBlending && SubstrateOperator.bRootOfParameterBlendingSubTree)) ? &SubstrateOperator : nullptr);
+}
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+
 FSubstrateMaterialComplexity UMaterialExpressionSubstrateSlabBSDF::GetComplexity() const
 {
 	FSubstrateMaterialComplexity Out;
@@ -28271,6 +28866,252 @@ bool UMaterialExpressionSubstrateConvertMaterialAttributes::HasSSS() const
 }
 
 #endif // WITH_EDITOR
+
+// Substrate Attributes Start -----
+UMaterialExpressionSubstrateGetAttributes::UMaterialExpressionSubstrateGetAttributes(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_SubstrateAttributes;
+		FConstructorStatics()
+			: NAME_SubstrateAttributes(LOCTEXT("SubstrateAttributes", "Substrate Attributes"))
+		{
+		}
+	};
+
+	static FConstructorStatics ConstructorStatics;
+
+	bShowOutputNameOnPin = true;
+	bShowMaskColorsOnPin = false;
+
+	MenuCategories.Add(ConstructorStatics.NAME_SubstrateAttributes); //Check this setup for other Substrate nodes
+
+	Outputs.Reset();
+	Outputs.SetNum(ESubstrateAttributeIndex::MSA_MAX);
+	Outputs[ESubstrateAttributeIndex::MSA_NonSubstrateAttributes] = FExpressionOutput(NON_SUBSTRATE_ATTRIBUTES_TEXT);
+	Outputs[ESubstrateAttributeIndex::MSA_FrontMaterial] = FExpressionOutput(FRONT_MATERIAL_ATTRIBUTES_TEXT);
+#endif
+
+#if WITH_EDITOR
+	CachedInputs.Empty();
+	CachedInputs.Add(&MaterialAttributes);
+#endif
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+}
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITOR
+void UMaterialExpressionSubstrateGetAttributes::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (GraphNode && PropertyChangedEvent.Property != nullptr)
+	{
+		GraphNode->ReconstructNode();
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+int32 UMaterialExpressionSubstrateGetAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 Ret = INDEX_NONE;
+
+	FGuid AttributeId = Compiler->GetMaterialAttribute();
+	EMaterialProperty Property = FMaterialAttributeDefinitionMap::GetProperty(AttributeId);
+
+	if ((OutputIndex == ESubstrateAttributeIndex::MSA_NonSubstrateAttributes && Property != MP_FrontMaterial)
+		|| (OutputIndex == ESubstrateAttributeIndex::MSA_FrontMaterial && Property == MP_FrontMaterial))
+	{
+		Ret = MaterialAttributes.CompileWithDefault(Compiler, AttributeId);
+	}
+
+	return Ret;
+}
+
+void UMaterialExpressionSubstrateGetAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
+{
+	if (MaterialAttributes.Expression && IsResultSubstrateMaterial(OutputIndex))
+	{
+		MaterialAttributes.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, MaterialAttributes.OutputIndex);
+	}
+}
+
+FSubstrateOperator* UMaterialExpressionSubstrateGetAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
+{
+	if (MaterialAttributes.Expression && IsResultSubstrateMaterial(OutputIndex))
+	{
+		return MaterialAttributes.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, MaterialAttributes.OutputIndex);
+	}
+
+	return nullptr;
+}
+
+void UMaterialExpressionSubstrateGetAttributes::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Get Substrate Attributes"));
+}
+
+
+FName UMaterialExpressionSubstrateGetAttributes::GetInputName(int32 InputIndex) const
+{
+	if (0 == InputIndex)
+	{
+		return *NSLOCTEXT("GetSubstrateAttributes", "InputName", "Material Attributes").ToString();
+	}
+	return NAME_None;
+}
+
+bool UMaterialExpressionSubstrateGetAttributes::IsInputConnectionRequired(int32 InputIndex) const
+{
+	return true;
+}
+
+uint32 UMaterialExpressionSubstrateGetAttributes::GetInputType(int32 InputIndex)
+{
+	return MCT_MaterialAttributes;
+}
+
+uint32 UMaterialExpressionSubstrateGetAttributes::GetOutputType(int32 OutputIndex)
+{
+	switch (OutputIndex)
+	{
+	case ESubstrateAttributeIndex::MSA_FrontMaterial: return MCT_Substrate;
+	case ESubstrateAttributeIndex::MSA_NonSubstrateAttributes: return MCT_MaterialAttributes;
+	}
+	check(false);
+	return MCT_Float1;
+}
+#endif // WITH_EDITOR
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+
+UMaterialExpressionSubstrateSetAttributes::UMaterialExpressionSubstrateSetAttributes(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_SubstrateAttributes;
+		FConstructorStatics()
+			: NAME_SubstrateAttributes(LOCTEXT("SubstrateAttributes", "Substrate Attributes"))
+		{
+		}
+	};
+
+	static FConstructorStatics ConstructorStatics;
+
+	bShowOutputNameOnPin = true;
+	bShowMaskColorsOnPin = false;
+
+	MenuCategories.Add(ConstructorStatics.NAME_SubstrateAttributes);
+
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("Material Attributes")));
+#endif
+
+#if WITH_EDITOR
+	CachedInputs.Empty();
+	CachedInputs.Add(&FrontMaterial);
+	CachedInputs.Add(&NonSubstrateAttributes);
+#endif
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+}
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITOR
+void UMaterialExpressionSubstrateSetAttributes::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (GraphNode && PropertyChangedEvent.Property != nullptr)
+	{
+		GraphNode->ReconstructNode();
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+int32 UMaterialExpressionSubstrateSetAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 Ret = INDEX_NONE;
+	UMaterialExpression* Expression = nullptr;
+
+	EMaterialProperty Property = FMaterialAttributeDefinitionMap::GetProperty(Compiler->GetMaterialAttribute());
+	if (Property == MP_FrontMaterial)
+	{
+		Expression = FrontMaterial.Expression;
+	}
+	else
+	{
+		Expression = NonSubstrateAttributes.Expression;
+	}
+
+	if (Expression)
+	{
+		Ret = Expression->Compile(Compiler, OutputIndex);
+	}
+
+	return Ret;
+}
+
+void UMaterialExpressionSubstrateSetAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
+{
+	if (FrontMaterial.Expression)
+	{
+		FrontMaterial.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, FrontMaterial.OutputIndex);
+	}
+}
+
+FSubstrateOperator* UMaterialExpressionSubstrateSetAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
+{
+	if (FrontMaterial.Expression)
+	{
+		return FrontMaterial.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, FrontMaterial.OutputIndex);
+	}
+
+	return nullptr;
+}
+
+void UMaterialExpressionSubstrateSetAttributes::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Set Substrate Attributes"));
+}
+
+
+FName UMaterialExpressionSubstrateSetAttributes::GetInputName(int32 InputIndex) const
+{
+	if (InputIndex == ESubstrateAttributeIndex::MSA_NonSubstrateAttributes)
+	{
+		return *NSLOCTEXT("SetSubstrateAttributes", "InputName", NON_SUBSTRATE_ATTRIBUTES_TEXT).ToString();
+	}
+	if (InputIndex == ESubstrateAttributeIndex::MSA_FrontMaterial)
+	{
+		return *NSLOCTEXT("SetSubstrateAttributes", "InputName", FRONT_MATERIAL_ATTRIBUTES_TEXT).ToString();
+	}
+	return NAME_None;
+}
+
+uint32 UMaterialExpressionSubstrateSetAttributes::GetInputType(int32 InputIndex)
+{
+	if (InputIndex == ESubstrateAttributeIndex::MSA_NonSubstrateAttributes)
+	{
+		return MCT_MaterialAttributes;
+	}
+	if (InputIndex == ESubstrateAttributeIndex::MSA_FrontMaterial)
+	{
+		return MCT_Substrate;
+	}
+	return Super::GetInputType(InputIndex);
+}
+
+bool UMaterialExpressionSubstrateSetAttributes::IsInputConnectionRequired(int32 InputIndex) const
+{
+	return true;
+}
+#endif // WITH_EDITOR
+#endif // ENABLE_MATERIAL_LAYER_PROTOTYPE
+
+// Substrate Attributes End -----
 
 UMaterialExpressionExecBegin::UMaterialExpressionExecBegin(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

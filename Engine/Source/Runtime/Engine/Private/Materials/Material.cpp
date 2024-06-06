@@ -3367,201 +3367,373 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	bool bRelinkCustomOutputNodes = false;
 	UMaterialExpressionSubstrateShadingModels* ConvertNode = nullptr;
 	// Connect all the legacy pin into the conversion node
-	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected() && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	//First check if this material contains a layer node connection, as that requires different upgrade behavior to convert to the Substrate material layer system
+	bool bLayersMaterial = false;
+	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected())
 	{
-		UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
-		ConvertAttributeNode->Material = this;
-		SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
-		ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
-
-		// * Copy the material attribute connection to the conversion node.
-		// * Leave the material attribute existing connection plugged to the root node, 
-		//   so that other input (PixelDepthOffset, WorldPositionOffset, ...) get pull 
-		//   from the material attributes node
-		ConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0, SUBSTRATE_COPY_CONNECTION);
-
-		// Reconnect custom output to material attribute conversion node
+		UMaterialExpression* FinalNode = nullptr;
+		UMaterialExpressionMaterialAttributeLayers* LayersNode = nullptr;
+		for(UMaterialExpression* Expression : GetExpressions())
 		{
-			check(ConvertAttributeNode);
-			GatherCustomNodes();
-
-			if (SingleLayerWaterOutput)
+			if(Expression->IsA<UMaterialExpressionMaterialAttributeLayers>())
 			{
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(0), ConvertAttributeNode, 1); // WaterScatteringCoefficients
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(1), ConvertAttributeNode, 2); // WaterAbsorptionCoefficients
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(2), ConvertAttributeNode, 3); // WaterPhaseG
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(3), ConvertAttributeNode, 4); // ColorScaleBehindWater
+				LayersNode = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression);
+				FinalNode = EditorOnly->MaterialAttributes.Expression;
+				bLayersMaterial = true;
+				break;
 			}
 		}
 
-		// Connect converted Substrate data to root node
-		EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
-
-		// Shading Model
-		// * either use the shader graph expression 
-		// * or add a constant shading model
-		if (ShadingModel == MSM_FromMaterialExpression)
+		if(FinalNode && LayersNode)
 		{
-			ConvertAttributeNode->ShadingModelOverride = MSM_FromMaterialExpression;
+			//Separate the layers/blends MAs to Substrate/Non-Substrate respectively and connect to their relevant material output
+			UMaterialExpressionSubstrateGetAttributes* GetAttributesNode = NewObject<UMaterialExpressionSubstrateGetAttributes>(this);
+			GetAttributesNode->Material = this;
+			GetAttributesNode->MaterialAttributes.Connect(0, FinalNode);
+			EditorOnly->FrontMaterial.Connect(ESubstrateAttributeIndex::MSA_FrontMaterial, GetAttributesNode);
+			EditorOnly->MaterialAttributes.Connect(ESubstrateAttributeIndex::MSA_NonSubstrateAttributes, GetAttributesNode);
+			SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
+
+			//If a non-Substrate default input is connected to the MLA node, convert it.
+			if (LayersNode->Input.IsConnected() && !LayersNode->Input.Expression->IsResultSubstrateMaterial(LayersNode->Input.OutputIndex))
+			{
+				UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+				ConvertAttributeNode->Material = this;
+				ConvertAttributeNode->MaterialAttributes.Connect(LayersNode->Input.OutputIndex, LayersNode->Input.Expression);
+				ConvertAttributeNode->ShadingModelOverride = MSM_DefaultLit;
+
+				UMaterialExpressionSubstrateSetAttributes* SetAttributesNode = NewObject<UMaterialExpressionSubstrateSetAttributes>(this);
+				SetAttributesNode->Material = this;
+				SetAttributesNode->FrontMaterial.Connect(0, ConvertAttributeNode);
+				SetAttributesNode->NonSubstrateAttributes.Connect(LayersNode->Input.OutputIndex, LayersNode->Input.Expression);
+
+				LayersNode->Input.Connect(0, SetAttributesNode);
+
+				SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
+				ReplaceNodeAndMoveToTheRight(LayersNode, ConvertAttributeNode);
+				SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
+				ReplaceNodeAndMoveToTheRight(LayersNode, SetAttributesNode);			
+			}
+
+			BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
+			RefractionCoverageMode = RCM_CoverageIgnored;
+			bInvalidateShader = true;
 		}
-		else
+	}
+	
+	if(!bLayersMaterial)
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+	{
+		if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected() && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
 		{
-			// Store Substrate shading model of the converted material. 
-			check(ShadingModels.CountShadingModels() == 1);
-			ConvertAttributeNode->ShadingModelOverride = ShadingModel;
-		}
-
-		if (MaterialDomain == MD_DeferredDecal)
-		{
-			// For now we don't enforce shading model since it could be driven by expression and we don't have much 
-			// control on this, but only DefaultLit should be supported.
-
-			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
-			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+			UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
 			ConvertAttributeNode->Material = this;
-			ReplaceNodeAndMoveToTheRight(ConvertAttributeNode, ConvertToDecalNode);
-			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertAttributeNode);
+			SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
+			ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 
-			EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
-		}
+			// * Copy the material attribute connection to the conversion node.
+			// * Leave the material attribute existing connection plugged to the root node, 
+			//   so that other input (PixelDepthOffset, WorldPositionOffset, ...) get pull 
+			//   from the material attributes node
+			ConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0, SUBSTRATE_COPY_CONNECTION);
 
-		BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
-		RefractionCoverageMode = RCM_CoverageIgnored;
-		bInvalidateShader = true;
-	}
-	else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty())
-	{
-		// Empty material: Create by default a slab node
-		UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Disney.SMF_UE4Disney"));
-		if (DefaultMF)
-		{
-			DefaultMF->UpdateFromFunctionResource();
-			DefaultMF->PostEditChange();
-			DefaultMF->ConditionalPostLoad();
-
-			UMaterialExpressionMaterialFunctionCall* MFCallNode = NewObject<UMaterialExpressionMaterialFunctionCall>(this);
-			if (MFCallNode->SetMaterialFunction(DefaultMF))
+			// Reconnect custom output to material attribute conversion node
 			{
-				// This is needed for input/output expressions to be set correctly, otherwise compilation will fail.
-				GetExpressionCollection().AddExpression(MFCallNode);
-
-				SetPosXAndMoveReferenceToTheRight(MFCallNode);
-				EditorOnly->FrontMaterial.Connect(0, MFCallNode);
-
-				MFCallNode->UpdateFromFunctionResource();
-				MFCallNode->PostEditChange();
-				MFCallNode->ConditionalPostLoad();
-
-				ColorMatInputConnectionTo(EditorOnly->BaseColor,		MFCallNode, 0, MP_BaseColor);
-				ScalarMatInputConnectionTo(EditorOnly->Metallic,		MFCallNode, 1, MP_Metallic);
-				ScalarMatInputConnectionTo(EditorOnly->Specular,		MFCallNode, 2, MP_Specular);
-				ScalarMatInputConnectionTo(EditorOnly->Roughness,		MFCallNode, 3, MP_Roughness);
-				Vector3MatInputConnectionTo(EditorOnly->Normal,			MFCallNode, 4, MP_Normal);
-				ColorMatInputConnectionTo(EditorOnly->EmissiveColor,	MFCallNode, 5, MP_EmissiveColor);
-				ScalarMatInputConnectionTo(EditorOnly->Opacity,			MFCallNode, 6, MP_Opacity);
-			}
-		}
-		else
-		{
-			// Or if it cannot be found, a slab node
-			UMaterialExpressionSubstrateSlabBSDF* SlabNode = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
-			SlabNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(SlabNode);
-			EditorOnly->FrontMaterial.Connect(0, SlabNode);
-		}
-		bRelinkCustomOutputNodes = false;
-		bInvalidateShader = true;
-	}
-	else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected())
-	{
-		if (MaterialDomain == MD_Surface)
-		{
-			bool bClearCoatConversionDone = false;
-			if (ShadingModel == MSM_ClearCoat)
-			{
+				check(ConvertAttributeNode);
 				GatherCustomNodes();
-				if (ClearCoatBottomNormalOutput)
+
+				if (SingleLayerWaterOutput)
 				{
-					// For this special case, using two slabs to create a clear coat material with separated top and bottom normal. 
-
-					// Create metalness to Slab parameterisation conveersion node
-					UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0* SubstrateMetalnessToDiffuseAlbedoF0 = NewObject<UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0>(this);
-					SetPosXAndMoveReferenceToTheRight(SubstrateMetalnessToDiffuseAlbedoF0);
-					ColorMatInputConnectionTo(EditorOnly->BaseColor, SubstrateMetalnessToDiffuseAlbedoF0, 0, MP_BaseColor);
-					ScalarMatInputConnectionTo(EditorOnly->Metallic, SubstrateMetalnessToDiffuseAlbedoF0, 1, MP_Metallic);
-					ScalarMatInputConnectionTo(EditorOnly->Specular, SubstrateMetalnessToDiffuseAlbedoF0, 2, MP_Specular);
-					
-					// Top slab BSDF as a simple Disney material
-					UMaterialExpressionSubstrateSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
-					BottomSlabBSDF->Material = this;
-					SetPosXAndMoveReferenceToTheRight(BottomSlabBSDF);
-					BottomSlabBSDF->GetInput(0)->Connect(0, SubstrateMetalnessToDiffuseAlbedoF0);
-					BottomSlabBSDF->GetInput(1)->Connect(1, SubstrateMetalnessToDiffuseAlbedoF0);
-					BottomSlabBSDF->GetInput(2)->Connect(2, SubstrateMetalnessToDiffuseAlbedoF0);
-					ScalarMatInputConnectionTo(EditorOnly->Roughness, BottomSlabBSDF, 3, MP_Roughness);
-					ScalarMatInputConnectionTo(EditorOnly->Anisotropy, BottomSlabBSDF, 4, MP_Anisotropy, SUBSTRATE_COPY_CONNECTION);
-					Vector3MatInputConnectionTo(EditorOnly->Tangent, BottomSlabBSDF, 6, MP_Tangent);
-
-					check(ClearCoatBottomNormalOutput);
-					ConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), BottomSlabBSDF, 5, SUBSTRATE_COPY_CONNECTION);// ClearColorBottomNormal -> BottomSlabBSDF.Normal
-
-					// Now weight the top base material by opacity.
-					UMaterialExpressionSubstrateSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
-					TopSlabBSDF->Material = this;
-					TopSlabBSDF->MaterialExpressionEditorX = BottomSlabBSDF->MaterialExpressionEditorX;
-					TopSlabBSDF->MaterialExpressionEditorY = BottomSlabBSDF->MaterialExpressionEditorY + 650;
-					ColorMatInputConnectionTo(EditorOnly->EmissiveColor, TopSlabBSDF, 10, MP_EmissiveColor);
-					ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDF, 3, MP_CustomData0);	// ClearCoatRoughness => Roughness
-					Vector3MatInputConnectionTo(EditorOnly->Normal, TopSlabBSDF, 5, MP_Normal);
-
-					//  The top layer has a hard coded specular value of 0.5 (F0 = 0.04)
-					UMaterialExpressionConstant* ConstantHalf = NewObject<UMaterialExpressionConstant>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantHalf);
-					ConstantHalf->R = 0.5f * 0.08f;
-					TopSlabBSDF->GetInput(1)->Connect(0, ConstantHalf);
-
-					// The original clear coat is a complex assemblage of arbitrary functions that do not always make sense.
-					// To simplify things, we set the top slab BSDF as having a constant Grey scale transmittance.
-					// As for the original, this is achieved with coverage so both transmittance and specular contribution vanishes
-					UMaterialExpressionConstant* ConstantZero = NewObject<UMaterialExpressionConstant>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantZero);
-					ConstantZero->R = 0.0f;
-					TopSlabBSDF->GetInput(0)->Connect(0, ConstantZero);							// BaseColor = 0 to only feature absorption, no scattering
-
-					// Now setup the mean free path with a hard coded transmittance of 0.75 when viewing the surface perpendicularly
-					UMaterialExpressionConstant* Constant075 = NewObject<UMaterialExpressionConstant>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, Constant075);
-					Constant075->R = 0.75f;
-					UMaterialExpressionSubstrateTransmittanceToMFP* TransToMDFP = NewObject<UMaterialExpressionSubstrateTransmittanceToMFP>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, TransToMDFP);
-					TransToMDFP->GetInput(0)->Connect(0, Constant075);
-					TopSlabBSDF->GetInput(7)->Connect(0, TransToMDFP);							// MFP -> MFP
-					TopSlabBSDF->GetInput(13)->Connect(1, TransToMDFP);							// Thickness -> Thickness
-
-					// Now weight the top base material by ClearCoat
-					UMaterialExpressionSubstrateWeight* TopSlabBSDFWithCoverage = NewObject<UMaterialExpressionSubstrateWeight>(this);
-					SetPosXAndMoveReferenceToTheRight(TopSlabBSDFWithCoverage);
-					TopSlabBSDFWithCoverage->GetInput(0)->Connect(0, TopSlabBSDF);												// TopSlabBSDF -> A
-					ScalarMatInputConnectionTo(EditorOnly->ClearCoat, TopSlabBSDFWithCoverage, 1, MP_CustomData0);				// ClearCoat -> Weight
-					ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDFWithCoverage, 1, MP_CustomData1);		// ClearCoat -> Weight
-
-					UMaterialExpressionSubstrateVerticalLayering* VerticalLayering = NewObject<UMaterialExpressionSubstrateVerticalLayering>(this);
-					SetPosXAndMoveReferenceToTheRight(VerticalLayering);
-					VerticalLayering->GetInput(0)->Connect(0, TopSlabBSDFWithCoverage);			// Top -> Top
-					VerticalLayering->GetInput(1)->Connect(0, BottomSlabBSDF);					// Bottom -> Base
-
-					EditorOnly->FrontMaterial.Connect(0, VerticalLayering);
-					bClearCoatConversionDone = true;
-					bRelinkCustomOutputNodes = false;	// We do not want that to happen in this case
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(0), ConvertAttributeNode, 1); // WaterScatteringCoefficients
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(1), ConvertAttributeNode, 2); // WaterAbsorptionCoefficients
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(2), ConvertAttributeNode, 3); // WaterPhaseG
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(3), ConvertAttributeNode, 4); // ColorScaleBehindWater
 				}
 			}
-			
-			if (!bClearCoatConversionDone)
+
+			// Connect converted Substrate data to root node
+			EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
+
+			// Shading Model
+			// * either use the shader graph expression 
+			// * or add a constant shading model
+			if (ShadingModel == MSM_FromMaterialExpression)
 			{
+				ConvertAttributeNode->ShadingModelOverride = MSM_FromMaterialExpression;
+			}
+			else
+			{
+				// Store Substrate shading model of the converted material. 
+				check(ShadingModels.CountShadingModels() == 1);
+				ConvertAttributeNode->ShadingModelOverride = ShadingModel;
+			}
+
+			if (MaterialDomain == MD_DeferredDecal)
+			{
+				// For now we don't enforce shading model since it could be driven by expression and we don't have much 
+				// control on this, but only DefaultLit should be supported.
+
+				// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
+				UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+				ConvertAttributeNode->Material = this;
+				ReplaceNodeAndMoveToTheRight(ConvertAttributeNode, ConvertToDecalNode);
+				ConvertToDecalNode->DecalMaterial.Connect(0, ConvertAttributeNode);
+
+				EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
+			}
+
+			BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
+			RefractionCoverageMode = RCM_CoverageIgnored;
+			bInvalidateShader = true;
+		}
+		else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty())
+		{
+			// Empty material: Create by default a slab node
+			UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Disney.SMF_UE4Disney"));
+			if (DefaultMF)
+			{
+				DefaultMF->UpdateFromFunctionResource();
+				DefaultMF->PostEditChange();
+				DefaultMF->ConditionalPostLoad();
+
+				UMaterialExpressionMaterialFunctionCall* MFCallNode = NewObject<UMaterialExpressionMaterialFunctionCall>(this);
+				if (MFCallNode->SetMaterialFunction(DefaultMF))
+				{
+					// This is needed for input/output expressions to be set correctly, otherwise compilation will fail.
+					GetExpressionCollection().AddExpression(MFCallNode);
+
+					SetPosXAndMoveReferenceToTheRight(MFCallNode);
+					EditorOnly->FrontMaterial.Connect(0, MFCallNode);
+
+					MFCallNode->UpdateFromFunctionResource();
+					MFCallNode->PostEditChange();
+					MFCallNode->ConditionalPostLoad();
+
+					ColorMatInputConnectionTo(EditorOnly->BaseColor,		MFCallNode, 0, MP_BaseColor);
+					ScalarMatInputConnectionTo(EditorOnly->Metallic,		MFCallNode, 1, MP_Metallic);
+					ScalarMatInputConnectionTo(EditorOnly->Specular,		MFCallNode, 2, MP_Specular);
+					ScalarMatInputConnectionTo(EditorOnly->Roughness,		MFCallNode, 3, MP_Roughness);
+					Vector3MatInputConnectionTo(EditorOnly->Normal,			MFCallNode, 4, MP_Normal);
+					ColorMatInputConnectionTo(EditorOnly->EmissiveColor,	MFCallNode, 5, MP_EmissiveColor);
+					ScalarMatInputConnectionTo(EditorOnly->Opacity,			MFCallNode, 6, MP_Opacity);
+				}
+			}
+			else
+			{
+				// Or if it cannot be found, a slab node
+				UMaterialExpressionSubstrateSlabBSDF* SlabNode = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+				SlabNode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(SlabNode);
+				EditorOnly->FrontMaterial.Connect(0, SlabNode);
+			}
+			bRelinkCustomOutputNodes = false;
+			bInvalidateShader = true;
+		}
+		else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected())
+		{
+			if (MaterialDomain == MD_Surface)
+			{
+				bool bClearCoatConversionDone = false;
+				if (ShadingModel == MSM_ClearCoat)
+				{
+					GatherCustomNodes();
+					if (ClearCoatBottomNormalOutput)
+					{
+						// For this special case, using two slabs to create a clear coat material with separated top and bottom normal. 
+
+						// Create metalness to Slab parameterisation conveersion node
+						UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0* SubstrateMetalnessToDiffuseAlbedoF0 = NewObject<UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0>(this);
+						SetPosXAndMoveReferenceToTheRight(SubstrateMetalnessToDiffuseAlbedoF0);
+						ColorMatInputConnectionTo(EditorOnly->BaseColor, SubstrateMetalnessToDiffuseAlbedoF0, 0, MP_BaseColor);
+						ScalarMatInputConnectionTo(EditorOnly->Metallic, SubstrateMetalnessToDiffuseAlbedoF0, 1, MP_Metallic);
+						ScalarMatInputConnectionTo(EditorOnly->Specular, SubstrateMetalnessToDiffuseAlbedoF0, 2, MP_Specular);
+					
+						// Top slab BSDF as a simple Disney material
+						UMaterialExpressionSubstrateSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+						BottomSlabBSDF->Material = this;
+						SetPosXAndMoveReferenceToTheRight(BottomSlabBSDF);
+						BottomSlabBSDF->GetInput(0)->Connect(0, SubstrateMetalnessToDiffuseAlbedoF0);
+						BottomSlabBSDF->GetInput(1)->Connect(1, SubstrateMetalnessToDiffuseAlbedoF0);
+						BottomSlabBSDF->GetInput(2)->Connect(2, SubstrateMetalnessToDiffuseAlbedoF0);
+						ScalarMatInputConnectionTo(EditorOnly->Roughness, BottomSlabBSDF, 3, MP_Roughness);
+						ScalarMatInputConnectionTo(EditorOnly->Anisotropy, BottomSlabBSDF, 4, MP_Anisotropy, SUBSTRATE_COPY_CONNECTION);
+						Vector3MatInputConnectionTo(EditorOnly->Tangent, BottomSlabBSDF, 6, MP_Tangent);
+
+						check(ClearCoatBottomNormalOutput);
+						ConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), BottomSlabBSDF, 5, SUBSTRATE_COPY_CONNECTION);// ClearColorBottomNormal -> BottomSlabBSDF.Normal
+
+						// Now weight the top base material by opacity.
+						UMaterialExpressionSubstrateSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+						TopSlabBSDF->Material = this;
+						TopSlabBSDF->MaterialExpressionEditorX = BottomSlabBSDF->MaterialExpressionEditorX;
+						TopSlabBSDF->MaterialExpressionEditorY = BottomSlabBSDF->MaterialExpressionEditorY + 650;
+						ColorMatInputConnectionTo(EditorOnly->EmissiveColor, TopSlabBSDF, 10, MP_EmissiveColor);
+						ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDF, 3, MP_CustomData0);	// ClearCoatRoughness => Roughness
+						Vector3MatInputConnectionTo(EditorOnly->Normal, TopSlabBSDF, 5, MP_Normal);
+
+						//  The top layer has a hard coded specular value of 0.5 (F0 = 0.04)
+						UMaterialExpressionConstant* ConstantHalf = NewObject<UMaterialExpressionConstant>(this);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantHalf);
+						ConstantHalf->R = 0.5f * 0.08f;
+						TopSlabBSDF->GetInput(1)->Connect(0, ConstantHalf);
+
+						// The original clear coat is a complex assemblage of arbitrary functions that do not always make sense.
+						// To simplify things, we set the top slab BSDF as having a constant Grey scale transmittance.
+						// As for the original, this is achieved with coverage so both transmittance and specular contribution vanishes
+						UMaterialExpressionConstant* ConstantZero = NewObject<UMaterialExpressionConstant>(this);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantZero);
+						ConstantZero->R = 0.0f;
+						TopSlabBSDF->GetInput(0)->Connect(0, ConstantZero);							// BaseColor = 0 to only feature absorption, no scattering
+
+						// Now setup the mean free path with a hard coded transmittance of 0.75 when viewing the surface perpendicularly
+						UMaterialExpressionConstant* Constant075 = NewObject<UMaterialExpressionConstant>(this);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, Constant075);
+						Constant075->R = 0.75f;
+						UMaterialExpressionSubstrateTransmittanceToMFP* TransToMDFP = NewObject<UMaterialExpressionSubstrateTransmittanceToMFP>(this);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, TransToMDFP);
+						TransToMDFP->GetInput(0)->Connect(0, Constant075);
+						TopSlabBSDF->GetInput(7)->Connect(0, TransToMDFP);							// MFP -> MFP
+						TopSlabBSDF->GetInput(13)->Connect(1, TransToMDFP);							// Thickness -> Thickness
+
+						// Now weight the top base material by ClearCoat
+						UMaterialExpressionSubstrateWeight* TopSlabBSDFWithCoverage = NewObject<UMaterialExpressionSubstrateWeight>(this);
+						SetPosXAndMoveReferenceToTheRight(TopSlabBSDFWithCoverage);
+						TopSlabBSDFWithCoverage->GetInput(0)->Connect(0, TopSlabBSDF);												// TopSlabBSDF -> A
+						ScalarMatInputConnectionTo(EditorOnly->ClearCoat, TopSlabBSDFWithCoverage, 1, MP_CustomData0);				// ClearCoat -> Weight
+						ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDFWithCoverage, 1, MP_CustomData1);		// ClearCoat -> Weight
+
+						UMaterialExpressionSubstrateVerticalLayering* VerticalLayering = NewObject<UMaterialExpressionSubstrateVerticalLayering>(this);
+						SetPosXAndMoveReferenceToTheRight(VerticalLayering);
+						VerticalLayering->GetInput(0)->Connect(0, TopSlabBSDFWithCoverage);			// Top -> Top
+						VerticalLayering->GetInput(1)->Connect(0, BottomSlabBSDF);					// Bottom -> Base
+
+						EditorOnly->FrontMaterial.Connect(0, VerticalLayering);
+						bClearCoatConversionDone = true;
+						bRelinkCustomOutputNodes = false;	// We do not want that to happen in this case
+					}
+				}
+			
+				if (!bClearCoatConversionDone)
+				{
+					ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
+					ConvertNode->Material = this;
+					SetPosXAndMoveReferenceToTheRight(ConvertNode);
+					ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
+					ColorMatInputConnectionTo(EditorOnly->BaseColor, ConvertNode, 0, MP_BaseColor);
+					ScalarMatInputConnectionTo(EditorOnly->Metallic, ConvertNode, 1, MP_Metallic);
+					ScalarMatInputConnectionTo(EditorOnly->Specular, ConvertNode, 2, MP_Specular);
+					ScalarMatInputConnectionTo(EditorOnly->Roughness, ConvertNode, 3, MP_Roughness);
+					ScalarMatInputConnectionTo(EditorOnly->Anisotropy, ConvertNode, 4, MP_Anisotropy);
+					ColorMatInputConnectionTo(EditorOnly->EmissiveColor, ConvertNode, 5, MP_EmissiveColor);
+					Vector3MatInputConnectionTo(EditorOnly->Normal, ConvertNode, 6, MP_Normal, SUBSTRATE_COPY_CONNECTION);
+					Vector3MatInputConnectionTo(EditorOnly->Tangent, ConvertNode, 7, MP_Tangent);
+					ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, ConvertNode, 8, MP_SubsurfaceColor);
+					ScalarMatInputConnectionTo(EditorOnly->ClearCoat, ConvertNode, 9, MP_CustomData0);
+					ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, ConvertNode, 10, MP_CustomData1);
+					ScalarMatInputConnectionTo(EditorOnly->Opacity, ConvertNode, 11, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
+					bRelinkCustomOutputNodes = true;
+			
+					// Shading Model
+					// * either use the shader graph expression 
+					// * or add a constant shading model
+					if (ShadingModel == MSM_FromMaterialExpression)
+					{
+						if (!EditorOnly->ShadingModelFromMaterialExpression.IsConnected())
+						{
+							ConvertNode->ShadingModelOverride = MSM_DefaultLit;
+						}
+						else
+						{
+							// Reconnect the shading model expression. 
+							// Note: assign the expression directly, as using ConvertNode->GetInput(19)->Connect(..) causes the expression to not be assigned
+							ConvertNode->ShadingModel.Connect(EditorOnly->ShadingModelFromMaterialExpression.OutputIndex, EditorOnly->ShadingModelFromMaterialExpression.Expression);
+						}
+
+						// Store Substrate shading model of the converted material. 
+						GatherCustomNodes();
+						if (SingleLayerWaterOutput)
+						{
+							ShadingModels.AddShadingModel(MSM_SingleLayerWater);
+						}
+
+						check(ShadingModels.CountShadingModels() >= 1);
+					}
+					else
+					{
+						ConvertNode->ShadingModelOverride = ShadingModel;
+						check(ShadingModels.CountShadingModels() == 1);
+					}
+
+					EditorOnly->FrontMaterial.Connect(0, ConvertNode);
+				}
+
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_Volume)
+			{
+				UMaterialExpressionSubstrateVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionSubstrateVolumetricFogCloudBSDF>(this);
+				VolBSDF->Material = this;
+				SetPosXAndMoveReferenceToTheRight(VolBSDF);
+				ColorMatInputConnectionTo(EditorOnly->BaseColor, VolBSDF, 0, MP_BaseColor);	
+				ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, VolBSDF, 1, MP_SubsurfaceColor);
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, VolBSDF, 2, MP_EmissiveColor);	
+				ScalarMatInputConnectionTo(EditorOnly->AmbientOcclusion, VolBSDF, 3, MP_AmbientOcclusion);
+
+				VolBSDF->bEmissiveOnly = ShadingModel == MSM_Unlit;
+
+				// SUBSTRATE_TODO remove the VolumetricAdvancedOutput node and add the input onto FogCloudBSDF even if only used by the cloud renderer?
+				EditorOnly->FrontMaterial.Connect(0, VolBSDF);
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_LightFunction)
+			{
+				// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
+				ShadingModel = MSM_Unlit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_Unlit);
+
+				// Only Emissive & Opacity are valid input for PostProcess material
+				UMaterialExpressionSubstrateLightFunction* LightFunctionNode = NewObject<UMaterialExpressionSubstrateLightFunction>(this);
+				LightFunctionNode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(LightFunctionNode);
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, LightFunctionNode, 0, MP_EmissiveColor);
+
+				EditorOnly->FrontMaterial.Connect(0, LightFunctionNode);
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_PostProcess)
+			{
+				// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
+				ShadingModel = MSM_Unlit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_Unlit);
+
+				if (MaterialDomain == MD_PostProcess && !IsPostProcessMaterialOutputingAlpha())
+				{
+					BlendMode = BLEND_Opaque;
+				}
+
+				UMaterialExpressionSubstratePostProcess* PostProcNode = NewObject<UMaterialExpressionSubstratePostProcess>(this);
+				PostProcNode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(PostProcNode);
+
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, PostProcNode, 0, MP_EmissiveColor);
+				ScalarMatInputConnectionTo(EditorOnly->Opacity, PostProcNode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
+
+				EditorOnly->FrontMaterial.Connect(0, PostProcNode);
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_DeferredDecal)
+			{
+				// Some decal materials don't have their shading mode set correctly to DefaultLit. Since only DefaultLit is supported, forcing it here.
+				ShadingModel = MSM_DefaultLit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_DefaultLit);
+
 				ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
 				ConvertNode->Material = this;
 				SetPosXAndMoveReferenceToTheRight(ConvertNode);
-				ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 				ColorMatInputConnectionTo(EditorOnly->BaseColor, ConvertNode, 0, MP_BaseColor);
 				ScalarMatInputConnectionTo(EditorOnly->Metallic, ConvertNode, 1, MP_Metallic);
 				ScalarMatInputConnectionTo(EditorOnly->Specular, ConvertNode, 2, MP_Specular);
@@ -3574,153 +3746,40 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 				ScalarMatInputConnectionTo(EditorOnly->ClearCoat, ConvertNode, 9, MP_CustomData0);
 				ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, ConvertNode, 10, MP_CustomData1);
 				ScalarMatInputConnectionTo(EditorOnly->Opacity, ConvertNode, 11, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-				bRelinkCustomOutputNodes = true;
-			
-				// Shading Model
-				// * either use the shader graph expression 
-				// * or add a constant shading model
-				if (ShadingModel == MSM_FromMaterialExpression)
-				{
-					if (!EditorOnly->ShadingModelFromMaterialExpression.IsConnected())
-					{
-						ConvertNode->ShadingModelOverride = MSM_DefaultLit;
-					}
-					else
-					{
-						// Reconnect the shading model expression. 
-						// Note: assign the expression directly, as using ConvertNode->GetInput(19)->Connect(..) causes the expression to not be assigned
-						ConvertNode->ShadingModel.Connect(EditorOnly->ShadingModelFromMaterialExpression.OutputIndex, EditorOnly->ShadingModelFromMaterialExpression.Expression);
-					}
 
-					// Store Substrate shading model of the converted material. 
-					GatherCustomNodes();
-					if (SingleLayerWaterOutput)
-					{
-						ShadingModels.AddShadingModel(MSM_SingleLayerWater);
-					}
+				// Add constant for the Unlit shading model
+				ConvertNode->ShadingModelOverride = ShadingModel;
+				check(ShadingModels.CountShadingModels() == 1);
 
-					check(ShadingModels.CountShadingModels() >= 1);
-				}
-				else
-				{
-					ConvertNode->ShadingModelOverride = ShadingModel;
-					check(ShadingModels.CountShadingModels() == 1);
-				}
+				// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
+				UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+				ConvertToDecalNode->Material = this;
+				ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
+				ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
 
-				EditorOnly->FrontMaterial.Connect(0, ConvertNode);
+				EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
+				bInvalidateShader = true;
 			}
-
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_Volume)
-		{
-			UMaterialExpressionSubstrateVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionSubstrateVolumetricFogCloudBSDF>(this);
-			VolBSDF->Material = this;
-			SetPosXAndMoveReferenceToTheRight(VolBSDF);
-			ColorMatInputConnectionTo(EditorOnly->BaseColor, VolBSDF, 0, MP_BaseColor);	
-			ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, VolBSDF, 1, MP_SubsurfaceColor);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, VolBSDF, 2, MP_EmissiveColor);	
-			ScalarMatInputConnectionTo(EditorOnly->AmbientOcclusion, VolBSDF, 3, MP_AmbientOcclusion);
-
-			VolBSDF->bEmissiveOnly = ShadingModel == MSM_Unlit;
-
-			// SUBSTRATE_TODO remove the VolumetricAdvancedOutput node and add the input onto FogCloudBSDF even if only used by the cloud renderer?
-			EditorOnly->FrontMaterial.Connect(0, VolBSDF);
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_LightFunction)
-		{
-			// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
-			ShadingModel = MSM_Unlit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_Unlit);
-
-			// Only Emissive & Opacity are valid input for PostProcess material
-			UMaterialExpressionSubstrateLightFunction* LightFunctionNode = NewObject<UMaterialExpressionSubstrateLightFunction>(this);
-			LightFunctionNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(LightFunctionNode);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, LightFunctionNode, 0, MP_EmissiveColor);
-
-			EditorOnly->FrontMaterial.Connect(0, LightFunctionNode);
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_PostProcess)
-		{
-			// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
-			ShadingModel = MSM_Unlit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_Unlit);
-
-			if (MaterialDomain == MD_PostProcess && !IsPostProcessMaterialOutputingAlpha())
+			else if (MaterialDomain == MD_UI)
 			{
-				BlendMode = BLEND_Opaque;
+				// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
+				ShadingModel = MSM_Unlit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_Unlit);
+
+				UMaterialExpressionSubstrateUI* UINode = NewObject<UMaterialExpressionSubstrateUI>(this);
+				UINode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(UINode);
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, UINode, 0, MP_EmissiveColor);
+				ScalarMatInputConnectionTo(EditorOnly->Opacity, UINode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
+
+				EditorOnly->FrontMaterial.Connect(0, UINode);
+				bInvalidateShader = true;
 			}
 
-			UMaterialExpressionSubstratePostProcess* PostProcNode = NewObject<UMaterialExpressionSubstratePostProcess>(this);
-			PostProcNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(PostProcNode);
-
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, PostProcNode, 0, MP_EmissiveColor);
-			ScalarMatInputConnectionTo(EditorOnly->Opacity, PostProcNode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-
-			EditorOnly->FrontMaterial.Connect(0, PostProcNode);
-			bInvalidateShader = true;
+			BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
+			RefractionCoverageMode = RCM_CoverageIgnored;
 		}
-		else if (MaterialDomain == MD_DeferredDecal)
-		{
-			// Some decal materials don't have their shading mode set correctly to DefaultLit. Since only DefaultLit is supported, forcing it here.
-			ShadingModel = MSM_DefaultLit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_DefaultLit);
-
-			ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
-			ConvertNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(ConvertNode);
-			ColorMatInputConnectionTo(EditorOnly->BaseColor, ConvertNode, 0, MP_BaseColor);
-			ScalarMatInputConnectionTo(EditorOnly->Metallic, ConvertNode, 1, MP_Metallic);
-			ScalarMatInputConnectionTo(EditorOnly->Specular, ConvertNode, 2, MP_Specular);
-			ScalarMatInputConnectionTo(EditorOnly->Roughness, ConvertNode, 3, MP_Roughness);
-			ScalarMatInputConnectionTo(EditorOnly->Anisotropy, ConvertNode, 4, MP_Anisotropy);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, ConvertNode, 5, MP_EmissiveColor);
-			Vector3MatInputConnectionTo(EditorOnly->Normal, ConvertNode, 6, MP_Normal, SUBSTRATE_COPY_CONNECTION);
-			Vector3MatInputConnectionTo(EditorOnly->Tangent, ConvertNode, 7, MP_Tangent);
-			ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, ConvertNode, 8, MP_SubsurfaceColor);
-			ScalarMatInputConnectionTo(EditorOnly->ClearCoat, ConvertNode, 9, MP_CustomData0);
-			ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, ConvertNode, 10, MP_CustomData1);
-			ScalarMatInputConnectionTo(EditorOnly->Opacity, ConvertNode, 11, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-
-			// Add constant for the Unlit shading model
-			ConvertNode->ShadingModelOverride = ShadingModel;
-			check(ShadingModels.CountShadingModels() == 1);
-
-			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
-			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
-			ConvertToDecalNode->Material = this;
-			ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
-			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
-
-			EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_UI)
-		{
-			// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
-			ShadingModel = MSM_Unlit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_Unlit);
-
-			UMaterialExpressionSubstrateUI* UINode = NewObject<UMaterialExpressionSubstrateUI>(this);
-			UINode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(UINode);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, UINode, 0, MP_EmissiveColor);
-			ScalarMatInputConnectionTo(EditorOnly->Opacity, UINode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-
-			EditorOnly->FrontMaterial.Connect(0, UINode);
-			bInvalidateShader = true;
-		}
-
-		BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
-		RefractionCoverageMode = RCM_CoverageIgnored;
 	}
 
 	if (bRelinkCustomOutputNodes)

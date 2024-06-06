@@ -166,6 +166,13 @@ public:
 
 	/** Returns If returns an empty string, use the default class name for the material function. Otherwise, the string will be the name shown when the function is exposed to users in the material graph as a node, or from the contextual menu when searching for nodes. */
 	virtual FString GetUserExposedCaption() const override { return UserExposedCaption; }
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	/** Converts legacy Material Layer Functions to utilise Substrate */
+	void ConvertExpressionsBetweenLegacyAndSubstrate();
+
+	/** Retrieves an array of all custom output expressions in a Material Function */
+	void GetAllCustomOutputExpressions(TArray<class UMaterialExpressionCustomOutput*>& OutCustomOutputs) const;
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
