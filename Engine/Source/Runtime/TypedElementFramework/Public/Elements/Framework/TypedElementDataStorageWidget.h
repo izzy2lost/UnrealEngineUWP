@@ -21,17 +21,13 @@ public:
 
 	SLATE_BEGIN_ARGS(STedsWidget)
 		: _UiRowHandle(TypedElementDataStorage::InvalidRowHandle)
-		, _ConstructorTypeInfo(nullptr)
 		, _Content()
 	{
 	}
 
 	// The UI Row this widget will be assigned to
 	SLATE_ARGUMENT(TypedElementDataStorage::RowHandle, UiRowHandle)
-
-	// The typeinfo for the constructor that will create this widget
-	SLATE_ARGUMENT(const UScriptStruct*, ConstructorTypeInfo)
-
+	
 	/** The actual widget content */
 	SLATE_DEFAULT_SLOT(FArguments, Content)
 	
@@ -41,12 +37,10 @@ public:
 
 	void Construct( const FArguments& InArgs );
 	
-	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* GetWidgetConstructorTypeInfo() const;
 	TYPEDELEMENTFRAMEWORK_API void SetContent(const TSharedRef< SWidget >& InContent);
 
 	
 private:
 	
     TypedElementDataStorage::RowHandle UiRowHandle;
-	const UScriptStruct* ConstructorTypeInfo = nullptr;
 };

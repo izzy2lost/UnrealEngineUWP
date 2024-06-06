@@ -325,8 +325,8 @@ public:
 					continue;
 				}
 
-				// A row has numerous widgets, make sure we only update the one that was created by our column by checking the constuctor
-				if(TedsWidget->GetWidgetConstructorTypeInfo() != CellWidgetConstructor->GetTypeInfo())
+				// A row has numerous widgets, make sure we only update the one that was created by our column by checking the constructor
+				if(WidgetsIt->WidgetConstructor != CellWidgetConstructor)
 				{
 					continue;
 				}
@@ -374,6 +374,15 @@ public:
 		if (HeaderWidgetConstructor)
 		{
 			UiRowHandle = Storage.AddRow(Storage.FindTable(FName(TEXT("Editor_WidgetTable"))));
+
+			// TEDS UI TODO: We can't do this from the Widget Constructor because it is a UStruct and does not have access to AsShared(), so we would
+			// be forced to store a raw pointer instead of a weak pointer which is unsafe. Once the widget construction pipleline is improved this can
+			// probably be moved to a better place
+			if(FTypedElementSlateWidgetReferenceColumn* WidgetReferenceColumn = Storage.GetColumn<FTypedElementSlateWidgetReferenceColumn>(UiRowHandle))
+			{
+				WidgetReferenceColumn->WidgetConstructor = HeaderWidgetConstructor;
+			}
+			
 			Widget = StorageUi.ConstructWidget(UiRowHandle, *HeaderWidgetConstructor, 
 				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
 		}
@@ -487,6 +496,11 @@ public:
 			}
 
 			Storage.AddColumn(UiRowHandle, FTableViewerColumn{.Outliner = OwningOutliner});
+			
+			if(FTypedElementSlateWidgetReferenceColumn* WidgetReferenceColumn = Storage.GetColumn<FTypedElementSlateWidgetReferenceColumn>(UiRowHandle))
+			{
+				WidgetReferenceColumn->WidgetConstructor = CellWidgetConstructor;
+			}
 			
 			RowWidget = StorageUi.ConstructWidget(UiRowHandle, *CellWidgetConstructor, 
 							FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));

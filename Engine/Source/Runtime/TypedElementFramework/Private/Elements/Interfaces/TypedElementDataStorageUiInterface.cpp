@@ -75,7 +75,6 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 	// Create a container widget to hold the content (even if it doesn't exist yet)
 	TSharedPtr<STedsWidget> ContainerWidget = SNew(STedsWidget)
 	.UiRowHandle(Row)
-	.ConstructorTypeInfo(TypeInfo)
 	[
 		Widget.ToSharedRef()
 	];

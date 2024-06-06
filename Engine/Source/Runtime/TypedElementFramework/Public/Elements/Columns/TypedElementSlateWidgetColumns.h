@@ -10,6 +10,7 @@
 
 class SWidget;
 class STedsWidget;
+struct FTypedElementWidgetConstructor;
 
 /**
  * Stores a widget reference in the data storage. At the start of processing any
@@ -27,6 +28,9 @@ struct FTypedElementSlateWidgetReferenceColumn final : public FTypedElementDataS
 
 	// Reference to the container widget that holds the internal widget
 	TWeakPtr<STedsWidget> TedsWidget;
+
+	// Reference to the widget constructor that was used to create this widget (if applicable)
+	TWeakPtr<FTypedElementWidgetConstructor> WidgetConstructor;
 };
 
 /**
