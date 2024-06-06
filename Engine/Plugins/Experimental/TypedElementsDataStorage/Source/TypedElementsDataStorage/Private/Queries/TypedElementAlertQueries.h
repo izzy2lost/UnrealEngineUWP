@@ -53,13 +53,3 @@ private:
 	TypedElementDataStorage::QueryHandle ParentReadOnlyQuery;
 };
 
-/**
- * Enable AlertColumn to be mementoized
- */
-UCLASS()
-class UTypedElementAlertColumnMementoTranslator final : public UTypedElementDefaultMementoTranslator
-{
-	GENERATED_BODY()
-public:
-	const UScriptStruct* GetColumnType() const override;
-};

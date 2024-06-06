@@ -67,8 +67,8 @@ public:
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SInstanceDataObjectFixupTool::Construct(const FArguments& InArgs)
 {
-	Panels[0] = MakeShared<FInstanceDataObjectFixupPanel>(InArgs._InstanceDataObjects, FInstanceDataObjectFixupPanel::EViewFlags::DefaultLeftPanel);
-	Panels[1] = MakeShared<FInstanceDataObjectFixupPanel>(InArgs._InstanceDataObjects, FInstanceDataObjectFixupPanel::EViewFlags::DefaultRightPanel);
+	Panels[0] = MakeShared<FInstanceDataObjectFixupPanel>(InArgs._InstanceDataObjects, InArgs._InstanceDataObjectsOwner, FInstanceDataObjectFixupPanel::EViewFlags::DefaultLeftPanel);
+	Panels[1] = MakeShared<FInstanceDataObjectFixupPanel>(InArgs._InstanceDataObjects, InArgs._InstanceDataObjectsOwner, FInstanceDataObjectFixupPanel::EViewFlags::DefaultRightPanel);
 	
 	ChildSlot
 	[

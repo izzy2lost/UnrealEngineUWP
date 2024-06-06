@@ -12,6 +12,11 @@
 #include "Editor/PropertyEditor/Private/PropertyNode.h"
 #include "UObject/PropertyBagRepository.h"
 
+#include "Elements/Columns/TypedElementAlertColumns.h"
+#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
+
 #include "UObject/OverriddenPropertySet.h"
 #include "UObject/OverridableManager.h"
 #include "UObject/TextProperty.h"
@@ -205,8 +210,10 @@ int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, FName ChildTyp
 	});
 }
 
-FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags InViewFlags)
+FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(
+	TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, TObjectPtr<UObject> InstanceDataObjectsOwner, EViewFlags InViewFlags)
 	: Instances(InstanceDataObjects)
+	, InstancesOwner(InstanceDataObjectsOwner)
 	, RedirectedPropertyTree(MakeShared<FRedirectedPropertyNode>())
 	, ViewFlags(InViewFlags)
 {
@@ -236,12 +243,37 @@ static bool ObjectHasLoosePropertiesThatNeedFixup(UObject* Object)
 
 FInstanceDataObjectFixupPanel::~FInstanceDataObjectFixupPanel()
 {
-	for (UObject* Instance : Instances)
+	using namespace TypedElementDataStorage;
+
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	ITypedElementDataStorageInterface* DataStorage = Registry ? Registry->GetMutableDataStorage() : nullptr;
+	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = Registry ? Registry->GetMutableDataStorageCompatibility() : nullptr;
+
+	if (DataStorageCompatibility != nullptr && DataStorage != nullptr)
 	{
-		if (!ObjectHasLoosePropertiesThatNeedFixup(Instance))
+		for (UObject* Instance : Instances)
 		{
-			UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
-			Repository.MarkAsFixedUp(Repository.FindInstanceForDataObject(Instance));
+			if (!ObjectHasLoosePropertiesThatNeedFixup(Instance))
+			{
+				UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
+				Repository.MarkAsFixedUp(Repository.FindInstanceForDataObject(Instance));
+
+				// If a UObject isn't registered with TEDS, there's a chance its parent is registered and is the one
+				// with the alert column on it, so search upward until the nearest registered parent is found.
+				RowHandle Row = DataStorageCompatibility->FindRowWithCompatibleObject(InstancesOwner ? InstancesOwner.Get() : Instance);
+				DataStorage->RemoveColumns<FTypedElementAlertColumn>(Row);
+			}
+		}
+	}
+	else
+	{
+		for (UObject* Instance : Instances)
+		{
+			if (!ObjectHasLoosePropertiesThatNeedFixup(Instance))
+			{
+				UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
+				Repository.MarkAsFixedUp(Repository.FindInstanceForDataObject(Instance));
+			}
 		}
 	}
 }

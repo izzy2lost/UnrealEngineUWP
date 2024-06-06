@@ -53,7 +53,8 @@ public:
 		DefaultRightPanel = HideLooseProperties,
 	};
 	
-	FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags ViewFlags);
+	FInstanceDataObjectFixupPanel(
+		TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, TObjectPtr<UObject> InstanceDataObjectsOwner, EViewFlags ViewFlags);
 	~FInstanceDataObjectFixupPanel();
 	
 	int32 Find(UObject* Value) const;
@@ -150,6 +151,7 @@ private:
 	void InitRedirectedPropertyTree();
 	
 	TArray<TObjectPtr<UObject>> Instances; // stores either InstanceDataObject property bag or just regular objects
+	TObjectPtr<UObject> InstancesOwner; // if not null, then it stores the common parent for the instances.
 
 	// the redirected property tree keeps track of which properties in the InstanceDataObject were either set by a property bag during serialization or
 	// redirected to from a floating property. The members of the tree are visible in the left panel.

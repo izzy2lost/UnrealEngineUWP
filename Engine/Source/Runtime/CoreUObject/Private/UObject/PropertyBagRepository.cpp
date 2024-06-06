@@ -593,15 +593,29 @@ void FPropertyBagRepository::DestroyOuterBag(const UObject* Owner)
 	RemoveAssociationUnsafe(Owner);
 }
 
-bool FPropertyBagRepository::RequiresFixup(const UObject* Object) const
+bool FPropertyBagRepository::RequiresFixup(const UObject* Object, bool bIncludeOuter) const
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	if (const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object))
+
+	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
+	bool bResult = BagData ? BagData->bNeedsFixup : false;
+	if (!bResult && bIncludeOuter)
 	{
-		return BagData->bNeedsFixup;
+		ForEachObjectWithOuterBreakable(Object,
+			[&bResult, this](UObject* Object) 
+			{
+				if (const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object); 
+					BagData && BagData->bNeedsFixup)
+				{
+					bResult = true;
+					return false;
+				}
+				return true;
+			}, true);
 	}
-	return false;
+	return bResult;
 }
+
 
 void FPropertyBagRepository::MarkAsFixedUp(const UObject* Object)
 {
@@ -645,6 +659,27 @@ UObject* FPropertyBagRepository::FindInstanceDataObject(const UObject* Object)
 const UObject* FPropertyBagRepository::FindInstanceDataObject(const UObject* Object) const
 {
 	return const_cast<FPropertyBagRepository*>(this)->FindInstanceDataObject(Object);
+}
+
+void FPropertyBagRepository::FindNestedInstanceDataObject(const UObject* Owner, bool bRequiresFixupOnly, TFunctionRef<void(UObject*)> Callback)
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+
+	if (const FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner); 
+		BagData && BagData->InstanceDataObject && (!bRequiresFixupOnly || BagData->bNeedsFixup))
+	{
+		Callback(BagData->InstanceDataObject);
+	}
+
+	ForEachObjectWithOuter(Owner,
+		[this, bRequiresFixupOnly, Callback](UObject* Object)
+		{
+			if (const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
+				BagData && BagData->InstanceDataObject && (!bRequiresFixupOnly || BagData->bNeedsFixup))
+			{
+				Callback(BagData->InstanceDataObject);
+			}
+		}, true);
 }
 
 const UObject* FPropertyBagRepository::FindInstanceForDataObject(const UObject* InstanceDataObject) const

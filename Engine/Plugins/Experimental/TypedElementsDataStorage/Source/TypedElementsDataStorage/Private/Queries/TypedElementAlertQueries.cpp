@@ -395,14 +395,3 @@ bool UTypedElementAlertQueriesFactory::MoveToNextParent(
 	Parent = Result.Count != 0 ? Parent : InvalidRowHandle;
 	return Result.Count != 0;
 }
-
-
-
-//
-// UTypedElementAlertColumnMementoTranslator
-//
-
-const UScriptStruct* UTypedElementAlertColumnMementoTranslator::GetColumnType() const
-{ 
-	return FTypedElementAlertColumn::StaticStruct();
-}

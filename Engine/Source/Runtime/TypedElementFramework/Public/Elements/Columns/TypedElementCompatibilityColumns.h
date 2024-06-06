@@ -34,9 +34,9 @@ struct FTypedElementUObjectIdColumn final : public FTypedElementDataStorageColum
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	uint32 Id;
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	int32 SerialNumber;
 };
 
@@ -81,6 +81,15 @@ struct FTypedElementWorldColumn final : public FTypedElementDataStorageColumn
  */
 USTRUCT(meta = (DisplayName = "Property bag placeholder"))
 struct FTypedElementPropertyBagPlaceholderTag final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Tag to signal that a row contains an object with at least one loose property associated with it.
+ */
+USTRUCT(meta = (DisplayName = "Loose property"))
+struct FTypedElementLoosePropertyTag final : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };

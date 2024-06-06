@@ -22,6 +22,7 @@ namespace UnrealBuildTool.Rules
 					"PropertyEditor", 
 					"WorkspaceMenuStructure", 
 					"UnrealEd",
+					"TypedElementFramework"
 				}
 			);
 		}

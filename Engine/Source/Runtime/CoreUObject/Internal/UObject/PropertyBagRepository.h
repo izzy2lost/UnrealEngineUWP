@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
 #include "UObject/GCObject.h"
+#include "Templates/FunctionFwd.h"
 
 class UObject;
 class FMemoryArchive;
@@ -99,10 +100,11 @@ public:
 
 	/**
 	 * RequiresFixup - test if InstanceDataObject properties perfectly match object instance properties. This is necessary for the object to be published in UEFN.    
-	 * @param Object	- Object to test.
-	 * @return			- Does the object's InstanceDataObject contain any loose properties requiring user fixup before the object may be published?
+	 * @param Object		- Object to test.
+	 * @param bIncludeOuter - Include the outer objects in the check.
+	 * @return				- Does the object's InstanceDataObject, or optionally any of its outer objects, contain any loose properties requiring user fixup before the object may be published?
 	 */
-	COREUOBJECT_API bool RequiresFixup(const UObject* Object) const;
+	COREUOBJECT_API bool RequiresFixup(const UObject* Object, bool bIncludeOuter = false) const;
 	// set the bNeedsFixup flag for this object's IDO to false
 	COREUOBJECT_API void MarkAsFixedUp(const UObject* Object = nullptr);
 
@@ -110,6 +112,7 @@ public:
 	COREUOBJECT_API bool HasInstanceDataObject(const UObject* Owner) const;
 	COREUOBJECT_API UObject* FindInstanceDataObject(const UObject* Owner);
 	COREUOBJECT_API const UObject* FindInstanceDataObject(const UObject* Owner) const;
+	COREUOBJECT_API void FindNestedInstanceDataObject(const UObject* Owner, bool bRequiresFixupOnly, TFunctionRef<void(UObject*)> Callback);
 
 	COREUOBJECT_API const UObject* FindInstanceForDataObject(const UObject* InstanceDataObject) const;
 
