@@ -244,6 +244,7 @@ void DrawBonesFromPoseWatch(
 	DrawConfig.AffectedBoneColor = BoneColor;
 	DrawConfig.SelectedBoneColor = BoneColor;
 	DrawConfig.ParentOfSelectedBoneColor = BoneColor;
+	DrawConfig.bUseMultiColorAsDefaultColor = false;
 
 	SkeletalDebugRendering::DrawBonesInternal(
 		PDI,
