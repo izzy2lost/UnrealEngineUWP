@@ -43,6 +43,7 @@
 #if SUBSTRATE_ENABLED
 #define MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING 0
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
+#include "/Engine/Private/PathTracing/Material/PathTracingSubstrateCommon.ush"
 #endif
 
 float AdjustMaterialRoughness(float Roughness, float PathRoughness)
@@ -470,7 +471,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 								FuzzRoughness = MakeRoughnessSafe(FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
 							}
 							
-							const float FuzzE = ComputeClothEnergyTermsA(FuzzRoughness, NoV).E;
+							const float FuzzE = ComputeSheenEnergyTerms(FuzzRoughness, NoV).E;
 							const float FuzzAttenuation = 1.0 - FuzzAmount * FuzzE;
 							float DiffuseWeight = FuzzAttenuation;
 							float3 Spec0Albedo = FuzzAttenuation * Spec0E;
@@ -491,7 +492,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 								Spec1Albedo *=       SpecBlend;
 							}
 							// SUBSTRATE_TODO: Need to account for glass case here for lobe selection ....
-							const float  FuzzAlbedo = FuzzAmount * FuzzE;
+							const float3 FuzzAlbedo = FuzzAmount * FuzzE * FuzzColor;
 							const float3 SlabAlbedo = MaxLobeWeight * (DiffuseWeight * DiffuseColor + Spec0Albedo + Spec1Albedo + FuzzAlbedo);
 							Pdf = LobeColorToWeight(SlabAlbedo);
 						}

@@ -60,24 +60,59 @@ FBxDFEnergyTermsA ComputeSheenEnergyTerms(float NoV, float SheenRoughness)
 #if SUBSTRATE_SHEEN_QUALITY == 1
 	FBxDFEnergyTermsA Result;
 	Result.E = SheenLTC_DirectionalAlbedo(NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler);
-	Result.W = 1;
+	Result.W = Result.E; // overall weight is the directional albedo
 	return Result;
 #else
 	return ComputeClothEnergyTermsA(SheenRoughness, NoV);
 #endif
 }
 
-float3 ComputeSheenWeight(float3 V, float3 L, float3 N, float NoV, float NoH, float VoH, float SheenRoughness, float3 SheenColor)
+#define USE_SHEEN_LTC_SAMPLER 1 // 0: fallback to uniform sampling (for reference)
+								// 1: use the LTC coefficients for importance sampling
+
+float ComputeSheenPdf(float3 V, float3 L, float3 N, float NoV, float SheenRoughness)
+{
+#if USE_SHEEN_LTC_SAMPLER != 0 && SUBSTRATE_SHEEN_QUALITY == 1
+	// Disney's Cloth Lobe
+	float FuzzDirectionalAlbedo = 1;
+	float FuzzSpecularPathValueNoL = SheenLTC_Eval(V, L, N, NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler, FuzzDirectionalAlbedo);
+	return FuzzSpecularPathValueNoL;
+#else
+	// uniform sampling (for legacy cloth lobe, or naive sampling of the LTC lobe)
+	const float Pdf = 1 / (2 * PI);
+	return Pdf;
+#endif
+
+}
+
+float3 ComputeSheenWeight(float3 V, float3 L, float3 N, float NoV, float NoL, float NoH, float VoH, float SheenRoughness, float3 SheenColor)
 {
 #if SUBSTRATE_SHEEN_QUALITY == 1
 	// Disney's Cloth Lobe
-	float FuzzDirectionalAlbedo = 1;
-	float3 FuzzSpecularPathValueNoL = SheenColor * SheenLTC_Eval(V, L, N, NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler, FuzzDirectionalAlbedo);
-	return FuzzSpecularPathValueNoL * (2 * PI);
+	float FuzzDirectionalAlbedo = 1; // NOTE: Path Tracer includes this term in the weight applied outside
+	float FuzzSpecularPathValueNoL = SheenLTC_Eval(V, L, N, NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler, FuzzDirectionalAlbedo);
+#if USE_SHEEN_LTC_SAMPLER == 0
+	// using naive sampling, weight will include Brdf evaluation
+	// uniform sampling, pdf is just 1/2pi
+	return SheenColor * (FuzzSpecularPathValueNoL * 2 * PI);
+#else
+	// LTC sampling - pdf is equal to the brdf, so sample weight is just the color
+	return SheenColor;
+#endif
+
 #else
 	// Charlie's Cloth Lobe
 	const float DCloth = D_Charlie(SheenRoughness, NoH);
 	const float3 FCloth = F_Schlick(SheenColor, VoH);
-	return NoL * DCloth * Vis_Ashikhmin(NoV, NoL)) * FCloth * (2 * PI);
+	return (2 * PI * NoL * DCloth * Vis_Ashikhmin(NoV, NoL)) * FCloth;
+#endif
+}
+
+float3 SampleSheenDirection(float3 V, float SheenRoughness, float2 Rand)
+{
+#if USE_SHEEN_LTC_SAMPLER != 0 && SUBSTRATE_SHEEN_QUALITY == 1
+	return SheenLTC_Sample(CosineSampleHemisphere(Rand).xyz, V, float3(0, 0, 1), V.z, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler);
+#else
+	return UniformSampleHemisphere(Rand).xyz;
 #endif
 }

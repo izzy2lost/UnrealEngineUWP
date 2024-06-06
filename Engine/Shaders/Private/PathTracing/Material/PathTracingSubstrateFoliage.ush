@@ -137,7 +137,7 @@ FMaterialSample SubstrateFoliage_SampleMaterial(
 	{
 		// cloth lobe
 		RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.z, 1.0);
-		L = UniformSampleHemisphere(RandSample.xy).xyz;
+		L = SampleSheenDirection(V, Data.FuzzRoughness, RandSample.xy);
 		H = normalize(L + V);
 	}
 
@@ -151,14 +151,12 @@ FMaterialSample SubstrateFoliage_SampleMaterial(
 
 	FMaterialSample Result = CreateMaterialSample(L_World, 0.0, 0.0, 1.0, OutRoughness, PATHTRACER_SCATTER_DIFFUSE);
 
-
-
 	const float DiffPdf = NoL / PI;
 	float2 GGXResult0 = GGXEvalReflection(L, V, H, Data.Alpha0);
 	const float2 GGXResult1 = GGXEvalReflection(L, V, H, Data.Alpha1);
 	const float Spec0Pdf = GGXResult0.y;
 	const float Spec1Pdf = GGXResult1.y;
-	const float ClothPdf = 1 / (2 * PI);
+	const float ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
 
 	const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
 	if (bSampledTransmit)
@@ -195,8 +193,12 @@ FMaterialSample SubstrateFoliage_SampleMaterial(
 	else
 	{
 		// Cloth Lobe
-		float3 ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-		Result.AddLobeWithMIS(ClothWeight * ShadowTerminator, 1 / (2.0 * PI), Data.LobePdf.w);
+		float3 ClothWeight = 0;
+		if (NoV > 0 && NoL > 0)
+		{
+			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
+		}
+		Result.AddLobeWithMIS(ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.w);
 		Result.ScatterType = PATHTRACER_SCATTER_SPECULAR;
 
 		Result.Pdf += Data.LobePdf.x * DiffPdf;
@@ -260,8 +262,9 @@ FMaterialEval SubstrateFoliage_EvalMaterial(
 		}
 		{
 			// Cloth Lobe
-			float3 ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-			Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothWeight * ShadowTerminator, 1 / (2.0 * PI), Data.LobePdf.w);
+			float3 ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
+			float ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
+			Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.w);
 		}
 	}
 

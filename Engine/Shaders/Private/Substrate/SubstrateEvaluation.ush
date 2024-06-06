@@ -727,6 +727,7 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 					else
 					{
 						ClothSpecularPathValueNoL = FuzzF0 * SheenLTC_Eval(BSDFContext.V, AreaLightContext.L, BSDFContext.N, BSDFContext.Context.NoV, FuzzRoughness, View.SheenLTCTexture, View.SheenLTCSampler, DirectionalAlbedo);
+						ClothSpecularPathValueNoL *= DirectionalAlbedo;
 					}
 					EnergyTerms.E = DirectionalAlbedo;
 					EnergyTerms.W = 1.f;
