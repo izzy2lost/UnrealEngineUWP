@@ -827,7 +827,7 @@ void AddPostProcessingPasses(
 				else
 				{
 					UpscalerPassInputs.bGenerateOutputMip1 = bMotionBlurNeedsHalfResInput;
-					UpscalerPassInputs.bGenerateVelocityFlattenTextures = FVelocityFlattenTextures::AllowExternal(View) && !bVisualizeMotionBlur;
+					UpscalerPassInputs.bGenerateVelocityFlattenTextures = FVelocityFlattenTextures::AllowExternal(View) && !bVisualizeMotionBlur && !bApplyLensDistortionInTSR;
 				}
 			}
 			else if (PostProcessMaterialBeforeBloomChain.Num() > 0)
@@ -969,6 +969,10 @@ void AddPostProcessingPasses(
 			PassInputs.Quality = GetMotionBlurQuality();
 			PassInputs.Filter = GetMotionBlurFilter();
 			PassInputs.VelocityFlattenTextures = VelocityFlattenTextures;
+			if (bApplyLensDistortionInTSR)
+			{
+				PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+			}
 
 			// Motion blur visualization replaces motion blur when enabled.
 			if (bVisualizeMotionBlur)
@@ -1677,6 +1681,10 @@ void AddPostProcessingPasses(
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.SceneVelocity = Velocity;
+		if (bApplyLensDistortionInTSR)
+		{
+			PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+		}
 
 		SceneColor = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs, EVisualizeMotionVectors::ReprojectionAlignment);
 	}

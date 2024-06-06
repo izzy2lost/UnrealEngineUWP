@@ -973,6 +973,9 @@ struct FPreviousViewInfo
 	TRefCountPtr<IPooledRenderTarget> HZB;
 	TRefCountPtr<IPooledRenderTarget> NaniteHZB;
 
+	// Distorting displacement texture applied.
+	TRefCountPtr<IPooledRenderTarget> DistortingDisplacementTexture;
+
 	// Bit mask used to interpret per-instance occlusion query results for this view.
 	// Expected to contain a single active bit or zero if instance occlusion query data is not available.
 	// See FInstanceCullingOcclusionQueryRenderer.
@@ -1068,6 +1071,7 @@ struct FPreviousViewInfo
 	// Scene color used for reprojecting next frame to verify the motion vector reprojects correctly.
 	TRefCountPtr<IPooledRenderTarget> VisualizeMotionVectors;
 	FIntRect VisualizeMotionVectorsRect;
+	bool bIsVisualizeMotionVectorsDistorted = false;
 
 	uint64 GetGPUSizeBytes(bool bLogSizes) const;
 };

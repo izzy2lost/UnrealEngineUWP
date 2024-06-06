@@ -10,6 +10,7 @@
 #include "PostProcess/PostProcessing.h"
 #include "VelocityRendering.h"
 #include "UnrealEngine.h"
+#include "PixelShaderUtils.h"
 
 namespace
 {
@@ -322,9 +323,16 @@ public:
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Velocity)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVelocityFlattenParameters, VelocityFlattenParameters)
 		SHADER_PARAMETER(FMatrix44f, ClipToPrevClipOverride)
+		SHADER_PARAMETER(FScreenTransform, ThreadIdToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToPixelPos)
 		SHADER_PARAMETER(int32, bCancelCameraMotion)
 		SHADER_PARAMETER(int32, bAddCustomCameraMotion)
+		SHADER_PARAMETER(int32, bLensDistortion)
 
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, DistortingDisplacementSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, UndistortingDisplacementSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, VelocityTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
 
@@ -518,17 +526,18 @@ class FMotionBlurVisualizePS : public FMotionBlurShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FMatrix44f, WorldToClipPrev)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ColorTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  UndistortingDisplacementSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, VelocityTexture)
 
-		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Color)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Velocity)
 
-		SHADER_PARAMETER_SAMPLER(SamplerState, ColorSampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, VelocitySampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
 
+		SHADER_PARAMETER(FScreenTransform, SvPositionToScreenPos)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToVelocityUV)
 		SHADER_PARAMETER(int, CheckerboardEnabled)
 
 		RENDER_TARGET_BINDING_SLOTS()
@@ -662,6 +671,21 @@ void AddMotionBlurVelocityPass(
 		{
 			PassParameters->ClipToPrevClipOverride = FMatrix44f(View.ClipToPrevClipOverride.GetValue());
 		}
+
+		PassParameters->DistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->DistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		PassParameters->bLensDistortion = Inputs.LensDistortionLUT.IsEnabled();
+		if (Inputs.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->DistortingDisplacementTexture = Inputs.LensDistortionLUT.DistortingDisplacementTexture;
+			PassParameters->UndistortingDisplacementTexture = Inputs.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
+
+		PassParameters->ThreadIdToViewportUV = FScreenTransform::DispatchThreadIdToViewportUV(Viewports.Velocity.Rect);
+		PassParameters->ViewportUVToPixelPos = FScreenTransform::ChangeTextureBasisFromTo(
+			FScreenPassTextureViewport(Viewports.Velocity), FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TexelPosition);
 
 		PassParameters->Velocity = Viewports.VelocityParameters;
 		PassParameters->DepthTexture = Inputs.SceneDepth.Texture;
@@ -1140,23 +1164,42 @@ FScreenPassTextureSlice AddVisualizeMotionBlurPass(FRDGBuilder& GraphBuilder, co
 
 	const bool bVisualizeDebugInfo = CVarVisualizeMotionBlurEnableDebugInformation.GetValueOnRenderThread();
 
-	FMotionBlurVisualizePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMotionBlurVisualizePS::FParameters>();
-	PassParameters->WorldToClipPrev = FMatrix44f(GetPreviousWorldToClipMatrix(View));		// LWC_TODO: Precision loss
-	PassParameters->View = View.ViewUniformBuffer;
-	PassParameters->ColorTexture = Inputs.SceneColor.TextureSRV;
-	PassParameters->DepthTexture = Inputs.SceneDepth.Texture;
-	PassParameters->VelocityTexture = Inputs.SceneVelocity.Texture;
-	PassParameters->Color = Viewports.ColorParameters;
-	PassParameters->Velocity = Viewports.VelocityParameters;
-	PassParameters->ColorSampler = GetMotionBlurColorSampler();
-	PassParameters->VelocitySampler = GetMotionBlurVelocitySampler();
-	PassParameters->DepthSampler = GetMotionBlurVelocitySampler();
-	PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
-	PassParameters->CheckerboardEnabled = bVisualizeDebugInfo;
+	{
+		FMotionBlurVisualizePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMotionBlurVisualizePS::FParameters>();
+		PassParameters->WorldToClipPrev = FMatrix44f(GetPreviousWorldToClipMatrix(View));		// LWC_TODO: Precision loss
+		PassParameters->View = View.ViewUniformBuffer;
 
-	TShaderMapRef<FMotionBlurVisualizePS> PixelShader(View.ShaderMap);
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		if (Inputs.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->UndistortingDisplacementTexture = Inputs.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
 
-	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("VisualizeMotionBlur"), View, Viewports.Color, Viewports.Color, PixelShader, PassParameters);
+		PassParameters->DepthTexture = Inputs.SceneDepth.Texture;
+		PassParameters->VelocityTexture = Inputs.SceneVelocity.Texture;
+		PassParameters->Velocity = Viewports.VelocityParameters;
+		PassParameters->VelocitySampler = GetMotionBlurVelocitySampler();
+		PassParameters->DepthSampler = GetMotionBlurVelocitySampler();
+		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+
+		PassParameters->SvPositionToScreenPos = (
+			FScreenTransform::SvPositionToViewportUV(Output.ViewRect) *
+			FScreenTransform::ViewportUVToScreenPos);
+		PassParameters->ScreenPosToVelocityUV = FScreenTransform::ChangeTextureBasisFromTo(
+			Inputs.SceneDepth, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+
+		PassParameters->CheckerboardEnabled = bVisualizeDebugInfo;
+
+		TShaderMapRef<FMotionBlurVisualizePS> PixelShader(View.ShaderMap);
+		FPixelShaderUtils::AddFullscreenPass(
+			GraphBuilder,
+			View.ShaderMap,
+			RDG_EVENT_NAME("VisualizeMotionVectors %dx%d", Output.ViewRect.Width(), Output.ViewRect.Height()),
+			PixelShader,
+			PassParameters,
+			Output.ViewRect);
+	}
 
 	Output.LoadAction = ERenderTargetLoadAction::ELoad;
 

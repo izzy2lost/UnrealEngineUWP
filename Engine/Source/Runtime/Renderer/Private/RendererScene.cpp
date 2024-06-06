@@ -849,11 +849,21 @@ uint64 FTemporalAAHistory::GetGPUSizeBytes(bool bLogSizes) const
 
 uint64 FTSRHistory::GetGPUSizeBytes(bool bLogSizes) const
 {
-	return
+	uint64 TotalSize =
 		GetRenderTargetGPUSizeBytes(ColorArray, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(MetadataArray, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(GuideArray, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(MoireArray, bLogSizes);
+
+	for (const TRefCountPtr <IPooledRenderTarget>& Texture : DistortingDisplacementTextures)
+	{
+		if (Texture.IsValid())
+		{
+			TotalSize += GetRenderTargetGPUSizeBytes(Texture, bLogSizes);
+		}
+	}
+
+	return TotalSize;
 }
 
 uint64 FScreenSpaceDenoiserHistory::GetGPUSizeBytes(bool bLogSizes) const
@@ -876,6 +886,7 @@ uint64 FPreviousViewInfo::GetGPUSizeBytes(bool bLogSizes) const
 		GetRenderTargetGPUSizeBytes(GBufferC, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(HZB, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(NaniteHZB, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(DistortingDisplacementTexture, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(CompressedDepthViewNormal, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(CompressedOpaqueDepth, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(CompressedOpaqueShadingModel, bLogSizes) +

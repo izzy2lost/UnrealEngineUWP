@@ -14,6 +14,10 @@ class FVisualizeMotionVectorsPS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevDistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  PrevDistortingDisplacementSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  UndistortingDisplacementSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, VelocityTexture)
@@ -28,9 +32,9 @@ class FVisualizeMotionVectorsPS : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PrevColorSampler)
 
-		SHADER_PARAMETER(FScreenTransform, SvPositionToVelocity)
-		SHADER_PARAMETER(FScreenTransform, SvPositionToColor)
 		SHADER_PARAMETER(FScreenTransform, SvPositionToScreenPos)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToVelocity)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToColor)
 		SHADER_PARAMETER(FScreenTransform, PrevScreenPosToPrevColor)
 		SHADER_PARAMETER(int32, VisualizeType)
 
@@ -69,6 +73,19 @@ FScreenPassTexture AddVisualizeMotionVectorsPass(FRDGBuilder& GraphBuilder, cons
 		FVisualizeMotionVectorsPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeMotionVectorsPS::FParameters>();
 		PassParameters->View = View.ViewUniformBuffer;
 
+		PassParameters->PrevDistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->PrevDistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		if (View.PrevViewInfo.bIsVisualizeMotionVectorsDistorted)
+		{
+			PassParameters->PrevDistortingDisplacementTexture = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.DistortingDisplacementTexture);
+		}
+		if (Inputs.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->UndistortingDisplacementTexture = Inputs.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
+
 		PassParameters->ColorTexture = Inputs.SceneColor.Texture;
 		PassParameters->DepthTexture = Inputs.SceneDepth.Texture;
 		PassParameters->VelocityTexture = Inputs.SceneVelocity.Texture;
@@ -83,18 +100,15 @@ FScreenPassTexture AddVisualizeMotionVectorsPass(FRDGBuilder& GraphBuilder, cons
 		PassParameters->DepthSampler     = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		PassParameters->PrevColorSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
-		FScreenTransform SvPositionToViewportUV = FScreenTransform::SvPositionToViewportUV(Output.ViewRect);
-		PassParameters->SvPositionToColor = (
-			SvPositionToViewportUV *
-			FScreenTransform::ChangeTextureBasisFromTo(Inputs.SceneColor, FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV));
-		PassParameters->SvPositionToVelocity = (
-			SvPositionToViewportUV *
-			FScreenTransform::ChangeTextureBasisFromTo(Inputs.SceneDepth, FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV));
 		PassParameters->SvPositionToScreenPos = (
-			SvPositionToViewportUV *
+			FScreenTransform::SvPositionToViewportUV(Output.ViewRect) *
 			FScreenTransform::ViewportUVToScreenPos);
-		PassParameters->PrevScreenPosToPrevColor = (
-			FScreenTransform::ChangeTextureBasisFromTo(PrevColor, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV));
+		PassParameters->ScreenPosToColor = FScreenTransform::ChangeTextureBasisFromTo(
+			Inputs.SceneColor, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+		PassParameters->ScreenPosToVelocity = FScreenTransform::ChangeTextureBasisFromTo(
+			Inputs.SceneDepth, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+		PassParameters->PrevScreenPosToPrevColor = FScreenTransform::ChangeTextureBasisFromTo(
+			PrevColor, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
 		PassParameters->VisualizeType = int32(Visualize);
 
 		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
@@ -113,6 +127,12 @@ FScreenPassTexture AddVisualizeMotionVectorsPass(FRDGBuilder& GraphBuilder, cons
 	{
 		GraphBuilder.QueueTextureExtraction(Inputs.SceneColor.Texture, &View.ViewState->PrevFrameViewInfo.VisualizeMotionVectors);
 		View.ViewState->PrevFrameViewInfo.VisualizeMotionVectorsRect = Inputs.SceneColor.ViewRect;
+		View.ViewState->PrevFrameViewInfo.bIsVisualizeMotionVectorsDistorted = Inputs.LensDistortionLUT.IsEnabled();
+		
+		if (Inputs.LensDistortionLUT.IsEnabled())
+		{
+			GraphBuilder.QueueTextureExtraction(Inputs.LensDistortionLUT.DistortingDisplacementTexture, &View.ViewState->PrevFrameViewInfo.DistortingDisplacementTexture);
+		}
 	}
 
 	return MoveTemp(Output);
