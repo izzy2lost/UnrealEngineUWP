@@ -3524,8 +3524,12 @@ namespace Metasound
 
 			if (Builder.IsValid())
 			{
-				const FMetasoundFrontendGraph& Graph = Builder->GetConstBuilder().FindConstBuildGraphChecked();
-				return Graph.Style.bIsGraphEditable;
+				const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+				if (DocBuilder.IsValid())
+				{
+					const FMetasoundFrontendGraph& Graph = DocBuilder.FindConstBuildGraphChecked();
+					return Graph.Style.bIsGraphEditable;
+				}
 			}
 
 			return false;
