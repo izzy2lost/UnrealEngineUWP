@@ -115,10 +115,10 @@ void UOptimusNode_GetVariable::ExportCustomProperties(FOutputDevice& Out, uint32
 		Out.Logf(TEXT("%sCustomProperties VariableDefinition Name=\"%s\" Type=%s"),
 			FCString::Spc(Indent), *Var->VariableName.ToString(), *Var->DataType->TypeName.ToString());
 
-		if (const FProperty* Property = Var->DefaultValue->GetClass()->FindPropertyByName(UOptimusValueContainerGeneratorClass::ValuePropertyName))
+		if (const FProperty* Property = Var->DefaultValueStruct.GetValueProperty())
 		{
 			FString ValueStr;
-			Property->ExportTextItem_InContainer(ValueStr, Var->DefaultValue.Get(), nullptr, nullptr, PPF_None);
+			Property->ExportTextItem_InContainer(ValueStr, Var->DefaultValueStruct.GetValueMemory(), nullptr, nullptr, PPF_None);
 			Out.Logf(TEXT(" DefaultValue=\"%s\""), *ValueStr.ReplaceCharWithEscapedChar());
 		}
 		Out.Logf(TEXT("\n"));

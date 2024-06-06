@@ -493,6 +493,7 @@ private:
 	void PostLoadFixupMissingComponentBindingsCompat();
 	void PostLoadFixupMismatchedResourceDataDomains();
 	void PostLoadRemoveDeprecatedExecutionNodes();
+	void PostLoadRemoveDeprecatedValueContainerGeneratorClass();
 
 	/** Find a compatible binding with the given data interface. Returns nullptr if no such binding exists */
 	UOptimusComponentSourceBinding* FindCompatibleBindingWithInterface(

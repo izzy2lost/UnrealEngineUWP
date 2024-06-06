@@ -46,9 +46,7 @@ bool FOptimusVariableAction_AddVariable::Do(IOptimusPathResolver* InRoot)
 
 
 	Variable->VariableName = Variable->GetFName();
-	Variable->DataType = DataType;
-
-	Variable->EnsureValueContainer();
+	Variable->SetDataType(DataType);
 
 	if (!Deformer->AddVariableDirect(Variable, INDEX_NONE))
 	{
@@ -102,11 +100,6 @@ bool FOptimusVariableAction_RemoveVariable::Do(IOptimusPathResolver* InRoot)
 	{
 		Optimus::FBinaryObjectWriter VarArchive(Variable, VariableData);
 	}
-	
-	if (ensure(Variable->DefaultValue))
-	{
-		Optimus::FBinaryObjectWriter ValueArchive(Variable->DefaultValue, DefaultValueData);
-	}
 
 	return Deformer->RemoveVariableDirect(Variable);
 }
@@ -128,13 +121,6 @@ bool FOptimusVariableAction_RemoveVariable::Undo(IOptimusPathResolver* InRoot)
 	// Fill in the stored data
 	{
 		Optimus::FBinaryObjectReader VarArchive(Variable, VariableData);
-	}
-
-	Variable->EnsureValueContainer();
-
-	if (!DefaultValueData.IsEmpty() && Variable->DefaultValue)
-	{
-		Optimus::FBinaryObjectReader VarArchive(Variable->DefaultValue, DefaultValueData);
 	}
 	
 	if (!Deformer->AddVariableDirect(Variable, VariableIndex))

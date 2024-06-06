@@ -322,15 +322,15 @@ private:
 };
 
 
-class FOptimusValueContainerCustomization : public IPropertyTypeCustomization
+class FOptimusValueContainerStructCustomization : public IPropertyTypeCustomization
 {
 public:
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance()
 	{
-		return MakeShared<FOptimusValueContainerCustomization>();
+		return MakeShared<FOptimusValueContainerStructCustomization>();
 	}
 
-	FOptimusValueContainerCustomization();
+	FOptimusValueContainerStructCustomization();
 	// IPropertyTypeCustomization overrides
 	virtual void CustomizeHeader(
 		TSharedRef<IPropertyHandle> InPropertyHandle,
@@ -343,6 +343,8 @@ public:
 		IPropertyTypeCustomizationUtils& InCustomizationUtils) override;
 private:
 	TSharedPtr<IPropertyHandle> InnerPropertyHandle;
+
+	TSharedPtr<IPropertyTypeCustomization> PropertyBagCustomization;
 };
 
 

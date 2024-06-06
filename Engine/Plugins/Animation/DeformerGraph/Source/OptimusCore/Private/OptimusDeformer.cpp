@@ -421,8 +421,6 @@ bool UOptimusDeformer::SetVariableDataType(
 		return false;
 	}
 	
-	// Make sure the value data container matches the property value.
-	InVariableDesc->EnsureValueContainer();
 	return true;
 }
 
@@ -575,7 +573,7 @@ bool UOptimusDeformer::SetVariableDataTypeDirect(
 	
 	if (InVariableDesc->DataType != InDataType)
 	{
-		InVariableDesc->DataType = InDataType;
+		InVariableDesc->SetDataType(InDataType);
 		Notify(EOptimusGlobalNotifyType::VariableTypeChanged, InVariableDesc);
 		(void)MarkPackageDirty();
 	}
@@ -2872,9 +2870,6 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 
 void UOptimusDeformer::OnDataTypeChanged(FName InTypeName)
 {
-	// Currently only value containers depends on the UDSs,
-	UOptimusValueContainerGeneratorClass::RefreshClassForType(GetPackage(), FOptimusDataTypeRegistry::Get().FindType(InTypeName));
-	
 	for (UOptimusNodeGraph* Graph : Graphs)
 	{
 		for (UOptimusNode* Node: Graph->Nodes)
@@ -3126,6 +3121,11 @@ void UOptimusDeformer::PostLoad()
 {
 	Super::PostLoad();
 
+	for (UOptimusVariableDescription* VariableDescription : Variables->Descriptions)
+	{
+		VariableDescription->ConditionalPostLoad();
+	}
+	
 	// PostLoad everything first before changing anything for back compat
 	// Each graph postloads everything it owns
 	for (UOptimusNodeGraph* Graph: GetGraphs())
@@ -3219,6 +3219,11 @@ void UOptimusDeformer::PostLoad()
 	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelDataInterface)
 	{
 		PostLoadRemoveDeprecatedExecutionNodes();
+	}
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyBagValueContainer)
+	{
+		PostLoadRemoveDeprecatedValueContainerGeneratorClass();
 	}
 
 	// If the graph was saved at any previous version, and was clean, mark the status now as modified.
@@ -3426,6 +3431,22 @@ void UOptimusDeformer::PostLoadRemoveDeprecatedExecutionNodes()
 	}
 	
 	(void)MarkPackageDirty();
+}
+
+void UOptimusDeformer::PostLoadRemoveDeprecatedValueContainerGeneratorClass()
+{
+	// Remove deprecated uclass based value container generator class
+	TArray<UObject*> ObjectsInPackage;
+	GetObjectsWithOuter(GetPackage(), ObjectsInPackage, false);
+
+	for (UObject* Object : ObjectsInPackage)
+	{
+		if (UOptimusValueContainerGeneratorClass* GeneratorClass = Cast<UOptimusValueContainerGeneratorClass>(Object))
+		{
+			Optimus::RemoveObject(GeneratorClass);
+			Optimus::RemoveObject(GeneratorClass->GetDefaultObject());
+		}
+	}	
 }
 
 

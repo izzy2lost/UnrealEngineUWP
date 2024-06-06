@@ -5,23 +5,27 @@
 #include "OptimusDataTypeRegistry.h"
 #include "OptimusDeformer.h"
 #include "OptimusHelpers.h"
+#include "OptimusObjectVersion.h"
 #include "OptimusValueContainer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusVariableDescription)
 
 
-void UOptimusVariableDescription::EnsureValueContainer()
+void UOptimusVariableDescription::SetDataType(FOptimusDataTypeRef InDataType)
 {
-	// Check if the current default value storage matches, otherwise create a matching default value storage, otherwise
-	// if the variable type changes, we end up with mismatch in storage vs type.
-	const UClass* RequiredClass = UOptimusValueContainerGeneratorClass::GetClassForType(GetPackage(), DataType);
-
-	if (!DefaultValue || DefaultValue->GetClass() != RequiredClass)
+	if (InDataType != DataType)
 	{
-		DefaultValue = UOptimusValueContainer::MakeValueContainer(this, DataType);
+		DataType = InDataType;
+		DefaultValueStruct.SetType(InDataType);
 	}
-
-	CachedShaderValue = DefaultValue->GetShaderValue();
+	else
+	{
+		DataType = InDataType;
+		if (!DefaultValueStruct.IsInitialized())
+		{
+			DefaultValueStruct.SetType(InDataType);
+		}
+	}
 }
 
 
@@ -49,18 +53,38 @@ void UOptimusVariableDescription::PostLoad()
 	
 	if (DataType == FloatDataType)
 	{
-		DataType = DoubleDataType;
+		SetDataType(DoubleDataType);
 	}
-
-	EnsureValueContainer();
-
+	
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (!ValueData_DEPRECATED.IsEmpty())
 	{
 		CachedShaderValue.ShaderValue = ValueData_DEPRECATED;
 		ValueData_DEPRECATED.Reset();
 	}
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyBagValueContainer)
+	{
+		if (DefaultValue_DEPRECATED)
+		{
+			DefaultValue_DEPRECATED->ConditionalPostLoad();
+			DefaultValueStruct = DefaultValue_DEPRECATED->MakeValueContainerStruct();
+			DefaultValue_DEPRECATED = nullptr;
+		}
+	}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if (!DefaultValueStruct.IsInitialized())
+	{
+		SetDataType(DataType);
+	}
+
+	// The cached shader value might have incorrect size due to LWC changes,
+	// so we refresh the cache here. Example: FVector shader value was saved as 3*8 bytes at some point
+	if (DataType->ShaderValueSize != CachedShaderValue.ShaderValue.Num())
+	{
+		CachedShaderValue = DefaultValueStruct.GetShaderValue(DataType);
+	}
 }
 
 
@@ -87,15 +111,18 @@ void UOptimusVariableDescription::PostEditChangeProperty(FPropertyChangedEvent& 
 		UOptimusDeformer* Deformer = GetOwningDeformer();
 		if (ensure(Deformer))
 		{
+			// Keep the default value in sync
+			DefaultValueStruct.SetType(DataType);
+			
 			// Set the variable type again, so that we can remove any links that are now type-incompatible.
 			constexpr bool bForceChange = true;
 			Deformer->SetVariableDataType(this, DataType, bForceChange);
 		}
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UOptimusVariableDescription, DefaultValue))
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UOptimusVariableDescription, DefaultValueStruct))
 	{
 		// Store the default shader value.
-		CachedShaderValue = DefaultValue->GetShaderValue();
+		CachedShaderValue = DefaultValueStruct.GetShaderValue(DataType);
 	}
 }
 

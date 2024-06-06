@@ -2,6 +2,7 @@
 
 #include "OptimusValueContainer.h"
 #include "OptimusHelpers.h"
+#include "OptimusValueContainerStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusValueContainer)
 
@@ -94,6 +95,28 @@ UOptimusValueContainer* UOptimusValueContainer::MakeValueContainer(UObject* InOw
 	const UClass* Class = UOptimusValueContainerGeneratorClass::GetClassForType(InOwner->GetPackage(), InDataTypeRef);
 
 	return NewObject<UOptimusValueContainer>(InOwner, Class);
+}
+
+FOptimusValueContainerStruct UOptimusValueContainer::MakeValueContainerStruct()
+{
+	FOptimusValueContainerStruct OtherContainer;
+	
+	UOptimusValueContainerGeneratorClass* Class = Cast<UOptimusValueContainerGeneratorClass>(GetClass());
+	const FProperty* ValueProperty = Class->PropertyLink;
+	
+	FOptimusDataTypeRef DataType = GetValueType();
+	if (ensure(ValueProperty) && ensure(DataType.IsValid()))
+	{
+		OtherContainer.SetType(DataType.Resolve());
+		
+		TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
+
+		uint8* OtherContainerMemory = OtherContainer.GetMutableValueMemory();
+
+		FMemory::Memcpy(OtherContainerMemory, ValueData.GetData(), ValueData.Num());
+	}
+
+	return OtherContainer;
 }
 
 FOptimusDataTypeRef UOptimusValueContainer::GetValueType() const

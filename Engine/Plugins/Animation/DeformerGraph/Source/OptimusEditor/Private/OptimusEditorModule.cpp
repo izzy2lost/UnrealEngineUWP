@@ -29,6 +29,7 @@
 #include "OptimusSourceAssetActions.h"
 #include "OptimusValidatedName.h"
 #include "OptimusValueContainer.h"
+#include "OptimusValueContainerStruct.h"
 #include "PropertyEditorModule.h"
 #include "UObject/FieldIterator.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
@@ -206,7 +207,7 @@ void FOptimusEditorModule::RegisterPropertyCustomizations()
 	RegisterPropertyCustomization(FOptimusShaderText::StaticStruct()->GetFName(), &FOptimusShaderTextCustomization::MakeInstance);
 	RegisterPropertyCustomization(FOptimusParameterBinding::StaticStruct()->GetFName(), &FOptimusParameterBindingCustomization::MakeInstance);
 	RegisterPropertyCustomization(FOptimusParameterBindingArray::StaticStruct()->GetFName(), &FOptimusParameterBindingArrayCustomization::MakeInstance);
-	RegisterPropertyCustomization(UOptimusValueContainer::StaticClass()->GetFName(), &FOptimusValueContainerCustomization::MakeInstance);
+	RegisterPropertyCustomization(FOptimusValueContainerStruct::StaticStruct()->GetFName(), &FOptimusValueContainerStructCustomization::MakeInstance);
 	RegisterPropertyCustomization(FOptimusValidatedName::StaticStruct()->GetFName(), &FOptimusValidatedNameCustomization::MakeInstance);
 	RegisterPropertyCustomization(FOptimusDeformerInstanceComponentBinding::StaticStruct()->GetFName(), &FOptimusDeformerInstanceComponentBindingCustomization::MakeInstance);
 	

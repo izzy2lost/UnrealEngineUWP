@@ -152,18 +152,6 @@ void UOptimusNodeGraph::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 			}
 		}	
 	}
-
-	// Similarly, Attribute Nodes also use objects with generated class that need to be recreated
-	// if the duplication took place at the asset level
-	{
-		for (UOptimusNode* Node : Nodes)
-		{
-			if (UOptimusNode_AnimAttributeDataInterface* AttributeNode = Cast<UOptimusNode_AnimAttributeDataInterface>(Node))
-			{
-				AttributeNode->RecreateValueContainers();
-			}
-		}	
-	}
 }
 
 void UOptimusNodeGraph::PostLoad()

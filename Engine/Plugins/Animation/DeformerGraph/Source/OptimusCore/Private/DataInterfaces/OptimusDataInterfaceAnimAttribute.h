@@ -5,6 +5,7 @@
 #include "OptimusComputeDataInterface.h"
 #include "OptimusDataType.h"
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusValueContainerStruct.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 
 #include "OptimusDataInterfaceAnimAttribute.generated.h"
@@ -30,9 +31,10 @@ struct FOptimusAnimAttributeDescription
 	UPROPERTY(EditAnywhere, Category = "Data Interface", meta=(UseInAnimAttribute))
 	FOptimusDataTypeRef DataType;
 
-	UPROPERTY(EditAnywhere, Category = "Data Interface", meta=(EditInLine))
-	TObjectPtr<UOptimusValueContainer> DefaultValue = nullptr;
-	
+	// Default value if the animation attribute is not found
+	UPROPERTY(EditAnywhere, Category = "Data Interface")
+	FOptimusValueContainerStruct DefaultValueStruct;
+
 	UPROPERTY()
 	FString HlslId;
 
@@ -42,14 +44,20 @@ struct FOptimusAnimAttributeDescription
 	void UpdatePinNameAndHlslId(bool bInIncludeBoneName = true, bool bInIncludeTypeName = true);
 	
 	// Helpers
-	FOptimusAnimAttributeDescription& Init(class UOptimusAnimAttributeDataInterface* InOwner,const FString& InName, FName InBoneName,
+	FOptimusAnimAttributeDescription& Init(const FString& InName, FName InBoneName,
 	const FOptimusDataTypeRef& InDataType);
 	
 private:
+	friend class UOptimusAnimAttributeDataInterface;
+	
 	FString GetFormattedId(
 		const FString& InDelimiter,
 		bool bInIncludeBoneName,
 		bool bInIncludeTypeName) const;
+
+	// Deprecated
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "use DefaultValueStruct instead"))
+	TObjectPtr<UOptimusValueContainer> DefaultValue_DEPRECATED = nullptr;
 };
 
 USTRUCT()
@@ -111,6 +119,7 @@ public:
 #if WITH_EDITOR
 	void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
+	void PostLoad() override;
 	
 	//~ Begin UOptimusComputeDataInterface Interface
 	FString GetDisplayName() const override;
@@ -130,10 +139,6 @@ public:
 	//~ End UComputeDataInterface Interface
 
 	const FOptimusAnimAttributeDescription& AddAnimAttribute(const FString& InName, FName InBoneName, const FOptimusDataTypeRef& InDataType);
-
-	// Value containers use generated classes that not duplicated when the asset is duplicated
-	// so they have to be recreated with classes in the current asset
-	void RecreateValueContainers();
 
 	void OnDataTypeChanged(FName InDataType);
 	

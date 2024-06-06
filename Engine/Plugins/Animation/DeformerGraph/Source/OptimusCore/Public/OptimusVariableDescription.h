@@ -5,6 +5,7 @@
 #include "OptimusDataType.h"
 
 #include "CoreMinimal.h"
+#include "OptimusValueContainerStruct.h"
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -43,10 +44,9 @@ class OPTIMUSCORE_API UOptimusVariableDescription :
 	GENERATED_BODY()
 public:
 	/** 
-	 * Set the value data storage to match the size required by the DataType. 
-	 * If a reallocation is required then the value data will be zeroed.
+	 * Set the data type, and recreate the backing data storage as well
 	 */
-	void EnsureValueContainer();
+	void SetDataType(FOptimusDataTypeRef InDataType);
 
 	/** Returns the owning deformer to operate on this variable */
 	// FIXME: Move to interface-based system.
@@ -68,9 +68,9 @@ public:
 	FOptimusDataTypeRef DataType;
 
 	/** The default value for the variable. */
-	UPROPERTY(EditAnywhere, Category = VariableDefinition, meta = (EditInLine))
-	TObjectPtr<UOptimusValueContainer> DefaultValue = nullptr;
-
+	UPROPERTY(EditAnywhere, Category = VariableDefinition)
+	FOptimusValueContainerStruct DefaultValueStruct;
+	
 	/** Cached shader value binary data. */
 	UPROPERTY()
 	FShaderValueContainer CachedShaderValue;
@@ -87,6 +87,10 @@ private:
 	// Deprecated 
     UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use CachedShaderValue instead"))
     TArray<uint8> ValueData_DEPRECATED;
+
+	// Deprecated 
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "use DefaultValueStruct instead"))
+	TObjectPtr<UOptimusValueContainer> DefaultValue_DEPRECATED = nullptr;
 	
 #if WITH_EDITORONLY_DATA
 	FName VariableNameForUndo;

@@ -456,7 +456,7 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 		VariableDescriptionCopy->Guid = VariableDescription->Guid;
 		VariableDescriptionCopy->VariableName = VariableDescription->VariableName;
 		VariableDescriptionCopy->DataType = VariableDescription->DataType;
-		VariableDescriptionCopy->DefaultValue = nullptr; // No need to copy the default value, we directly copy the shader value of the default value below
+		 // No need to copy the default value, we directly copy the shader value of the default value below
 		VariableDescriptionCopy->CachedShaderValue = VariableDescription->CachedShaderValue;
 		Variables->Descriptions.Add(VariableDescriptionCopy);
 	}

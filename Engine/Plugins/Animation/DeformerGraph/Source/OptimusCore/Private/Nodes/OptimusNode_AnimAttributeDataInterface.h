@@ -22,7 +22,6 @@ public:
 	void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 
-	void RecreateValueContainers();
 
 	virtual void OnDataTypeChanged(FName InTypeName) override;
 

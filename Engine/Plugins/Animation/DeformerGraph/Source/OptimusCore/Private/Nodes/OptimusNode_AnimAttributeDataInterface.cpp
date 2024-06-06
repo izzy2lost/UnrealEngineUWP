@@ -79,14 +79,6 @@ void UOptimusNode_AnimAttributeDataInterface::PostEditChangeChainProperty(FPrope
 
 #endif
 
-void UOptimusNode_AnimAttributeDataInterface::RecreateValueContainers()
-{
-	if (UOptimusAnimAttributeDataInterface* Interface = Cast<UOptimusAnimAttributeDataInterface>(DataInterfaceData))
-	{
-		Interface->RecreateValueContainers();
-	}
-}
-
 void UOptimusNode_AnimAttributeDataInterface::OnDataTypeChanged(FName InTypeName)
 {
 	Super::OnDataTypeChanged(InTypeName);
@@ -98,10 +90,6 @@ void UOptimusNode_AnimAttributeDataInterface::OnDataTypeChanged(FName InTypeName
 void UOptimusNode_AnimAttributeDataInterface::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
 	Super::PostDuplicate(DuplicateMode);
-
-	// Recreate the value containers in case the node was pasted from a different asset
-	// Otherwise the value container can still reference the value container generator class in the asset it was copied from
-	RecreateValueContainers();
 }
 
 

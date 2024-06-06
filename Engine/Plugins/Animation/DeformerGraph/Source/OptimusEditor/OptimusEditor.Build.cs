@@ -32,8 +32,9 @@ namespace UnrealBuildTool.Rules
 					"MessageLog",
 					"PropertyEditor",
 					"KismetCompiler",
-					"SourceCodeAccess"
-				}
+					"SourceCodeAccess", 
+					"StructUtilsEditor"
+                }
 			);
 
         }
