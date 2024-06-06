@@ -43,8 +43,9 @@ namespace GLTF
 
 		TArray<float> MorphTargetWeights; //for the instantiated mesh with morph targets.
 
-		TMap<int, FTransform> SkinIndexToGlobalInverseBindTransform;
-		TMap<int, FTransform> SkinIndexToLocalBindPose; //bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
+		TMap<int, FMatrix> SkinIndexToGlobalInverseBindMatrix; //Matrix in glTF space
+		TMap<int, FMatrix> SkinIndexToLocalBindMatrix;	//Matrix in glTF space
+														//bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
 		bool bHasLocalBindPose;
 		FTransform LocalBindPose;	// First Skin that's using the joint will fill the LocalBindPose.
 									//	Edge case Scenario which is currently not supported:
