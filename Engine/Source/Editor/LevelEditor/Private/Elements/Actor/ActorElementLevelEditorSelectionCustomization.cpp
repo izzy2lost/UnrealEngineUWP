@@ -90,7 +90,7 @@ bool IsActorReachable(const AActor* Actor)
 	// Ensure that neither the level nor the actor is being destroyed or is unreachable
 	const EObjectFlags InvalidSelectableFlags = RF_BeginDestroyed;
 	bool ReturnValue = true;
-	if (Actor->GetLevel()->HasAnyFlags(InvalidSelectableFlags) || (!GIsTransacting && (!IsValidChecked(Actor->GetLevel()) || Actor->GetLevel()->IsUnreachable())))
+	if (!Actor->GetLevel() || Actor->GetLevel()->HasAnyFlags(InvalidSelectableFlags) || (!GIsTransacting && (!IsValidChecked(Actor->GetLevel()) || Actor->GetLevel()->IsUnreachable())))
 	{
 		UE_LOG(LogActorLevelEditorSelection, Warning, TEXT("SelectActor: %s (%s) Flags: (0x%08X)"),
 			TEXT("The requested operation could not be completed because the level has invalid flags."),
