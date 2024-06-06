@@ -2313,58 +2313,10 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 			InMenuBuilder.AddMenuSeparator(TEXT("Control Rig"));
 			InMenuBuilder.BeginSection("ControlRig", LOCTEXT("ControlRig_Label", "Control Rig"));
 			{
-				InMenuBuilder.AddWidget(
-					SNew(SBox)
-					.HAlign(HAlign_Right)
-					[
-						SNew(SBox)
-						.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-						.WidthOverride(100.0f)
-						.IsEnabled(this, &FControlRigEditor::IsToolbarDrawNullsEnabled)
-						[
-							SNew(SCheckBox)
-							.IsChecked(this, &FControlRigEditor::GetToolbarDrawNulls)
-							.OnCheckStateChanged(this, &FControlRigEditor::OnToolbarDrawNullsChanged)
-							.ToolTipText(LOCTEXT("ControlRigDrawNullsToolTip", "If checked all nulls are drawn as axes."))
-						]
-					],
-					LOCTEXT("ControlRigDisplayNulls", "Display Nulls")
-				);
-
-				InMenuBuilder.AddWidget(
-					SNew(SBox)
-					.HAlign(HAlign_Right)
-					[
-						SNew(SBox)
-						.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-						.WidthOverride(100.0f)
-						.IsEnabled(this, &FControlRigEditor::IsToolbarDrawSocketsEnabled)
-						[
-							SNew(SCheckBox)
-							.IsChecked(this, &FControlRigEditor::GetToolbarDrawSockets)
-							.OnCheckStateChanged(this, &FControlRigEditor::OnToolbarDrawSocketsChanged)
-							.ToolTipText(LOCTEXT("ControlRigDrawSocketsToolTip", "If checked all sockets are drawn."))
-						]
-					],
-					LOCTEXT("ControlRigDisplaySockets", "Display Sockets")
-				);
-
-				InMenuBuilder.AddWidget(
-					SNew(SBox)
-					.HAlign(HAlign_Right)
-					[
-						SNew(SBox)
-						.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-						.WidthOverride(100.0f)
-						[
-							SNew(SCheckBox)
-							.IsChecked(this, &FControlRigEditor::GetToolbarDrawAxesOnSelection)
-							.OnCheckStateChanged(this, &FControlRigEditor::OnToolbarDrawAxesOnSelectionChanged)
-							.ToolTipText(LOCTEXT("ControlRigDisplayAxesOnSelectionToolTip", "If checked axes will be drawn for all selected rig elements."))
-						]
-					],
-					LOCTEXT("ControlRigDisplayAxesOnSelection", "Display Axes On Selection")
-				);
+				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleControlVisibility);
+				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleDrawNulls);
+				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleDrawSockets);
+				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleDrawAxesOnSelection);
 
 				InMenuBuilder.AddWidget(
 					SNew(SBox)
@@ -2519,6 +2471,23 @@ void FControlRigEditor::OnToolbarAxesScaleChanged(float InValue)
 	}
 }
 
+void FControlRigEditor::HandleToggleControlVisibility()
+{
+	if (FControlRigEditMode* EditMode = GetEditMode())
+	{
+		EditMode->ToggleAllManipulators();
+	}
+}
+
+bool FControlRigEditor::AreControlsVisible() const
+{
+	if (FControlRigEditMode* EditMode = GetEditMode())
+	{
+		return EditMode->AreControlsVisible();
+	}
+	return false;
+}
+
 void FControlRigEditor::HandleToggleSchematicViewport()
 {
 	if(SchematicViewport.IsValid())
@@ -2537,20 +2506,20 @@ bool FControlRigEditor::IsSchematicViewportActive() const
 	return false;
 }
 
-ECheckBoxState FControlRigEditor::GetToolbarDrawAxesOnSelection() const
+bool FControlRigEditor::GetToolbarDrawAxesOnSelection() const
 {
 	if (const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>())
 	{
-		return Settings->bDisplayAxesOnSelection ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		return Settings->bDisplayAxesOnSelection;
 	}
-	return ECheckBoxState::Unchecked;
+	return false;
 }
 
-void FControlRigEditor::OnToolbarDrawAxesOnSelectionChanged(ECheckBoxState InNewValue)
+void FControlRigEditor::HandleToggleToolbarDrawAxesOnSelection()
 {
 	if (UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>())
 	{
-		Settings->bDisplayAxesOnSelection = InNewValue == ECheckBoxState::Checked;
+		Settings->bDisplayAxesOnSelection = !Settings->bDisplayAxesOnSelection;
 	}
 }
 
@@ -2566,20 +2535,20 @@ bool FControlRigEditor::IsToolbarDrawNullsEnabled() const
 	return false;
 }
 
-ECheckBoxState FControlRigEditor::GetToolbarDrawNulls() const
+bool FControlRigEditor::GetToolbarDrawNulls() const
 {
 	if (const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>())
 	{
-		return Settings->bDisplayNulls ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		return Settings->bDisplayNulls;
 	}
-	return ECheckBoxState::Unchecked;
+	return false;
 }
 
-void FControlRigEditor::OnToolbarDrawNullsChanged(ECheckBoxState InNewValue)
+void FControlRigEditor::HandleToggleToolbarDrawNulls()
 {
 	if (UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>())
 	{
-		Settings->bDisplayNulls = InNewValue == ECheckBoxState::Checked;
+		Settings->bDisplayNulls = !Settings->bDisplayNulls;
 	}
 }
 
@@ -2595,20 +2564,20 @@ bool FControlRigEditor::IsToolbarDrawSocketsEnabled() const
 	return false;
 }
 
-ECheckBoxState FControlRigEditor::GetToolbarDrawSockets() const
+bool FControlRigEditor::GetToolbarDrawSockets() const
 {
 	if (const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>())
 	{
-		return Settings->bDisplaySockets ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		return Settings->bDisplaySockets;
 	}
-	return ECheckBoxState::Unchecked;
+	return false;
 }
 
-void FControlRigEditor::OnToolbarDrawSocketsChanged(ECheckBoxState InNewValue)
+void FControlRigEditor::HandleToggleToolbarDrawSockets()
 {
 	if (UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>())
 	{
-		Settings->bDisplaySockets = InNewValue == ECheckBoxState::Checked;
+		Settings->bDisplaySockets = !Settings->bDisplaySockets;
 	}
 }
 
@@ -3672,6 +3641,30 @@ void FControlRigEditor::BindCommands()
 		FControlRigEditorCommands::Get().BackwardsAndForwardsSolveEvent,
 		FExecuteAction::CreateSP(this, &FRigVMEditor::SetEventQueue, TArray<FName>(BackwardsAndForwardsSolveEventQueue)),
 		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().ToggleControlVisibility,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleControlVisibility),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FControlRigEditor::AreControlsVisible));
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().ToggleDrawNulls,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleToolbarDrawNulls),
+		FCanExecuteAction::CreateSP(this, &FControlRigEditor::IsToolbarDrawNullsEnabled),
+		FIsActionChecked::CreateSP(this, &FControlRigEditor::GetToolbarDrawNulls));
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().ToggleDrawSockets,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleToolbarDrawSockets),
+		FCanExecuteAction::CreateSP(this, &FControlRigEditor::IsToolbarDrawSocketsEnabled),
+		FIsActionChecked::CreateSP(this, &FControlRigEditor::GetToolbarDrawSockets));
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().ToggleDrawAxesOnSelection,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleToolbarDrawAxesOnSelection),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FControlRigEditor::GetToolbarDrawAxesOnSelection));
 
 	GetToolkitCommands()->MapAction(
 		FControlRigEditorCommands::Get().ToggleSchematicViewportVisibility,

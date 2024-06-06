@@ -39,6 +39,18 @@ public:
 	/** Request per node direct manipulation on a scale */
 	TSharedPtr< FUICommandInfo > RequestDirectManipulationScale;
 
+	/** Toggle visibility of the controls */
+	TSharedPtr< FUICommandInfo > ToggleControlVisibility;
+
+	/** Toggle visibility of nulls */
+	TSharedPtr< FUICommandInfo > ToggleDrawNulls;
+
+	/** Toggle visibility of sockets */
+	TSharedPtr< FUICommandInfo > ToggleDrawSockets;
+
+	/** Toggle visibility of axes on selection */
+	TSharedPtr< FUICommandInfo > ToggleDrawAxesOnSelection;
+
 	/** Toggle visibility of the schematic */
 	TSharedPtr< FUICommandInfo > ToggleSchematicViewportVisibility;
 

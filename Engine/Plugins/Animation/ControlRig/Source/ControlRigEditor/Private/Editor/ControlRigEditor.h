@@ -240,14 +240,16 @@ private:
 	/** Handle preview scene setup */
 	void HandlePreviewSceneCreated(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene);
 	void HandleViewportCreated(const TSharedRef<class IPersonaViewport>& InViewport);
+	void HandleToggleControlVisibility();
+	bool AreControlsVisible() const;
 	bool IsToolbarDrawNullsEnabled() const;
-	ECheckBoxState GetToolbarDrawNulls() const;
-	void OnToolbarDrawNullsChanged(ECheckBoxState InNewValue);
+	bool GetToolbarDrawNulls() const;
+	void HandleToggleToolbarDrawNulls();
 	bool IsToolbarDrawSocketsEnabled() const;
-	ECheckBoxState GetToolbarDrawSockets() const;
-	void OnToolbarDrawSocketsChanged(ECheckBoxState InNewValue);
-	ECheckBoxState GetToolbarDrawAxesOnSelection() const;
-	void OnToolbarDrawAxesOnSelectionChanged(ECheckBoxState InNewValue);
+	bool GetToolbarDrawSockets() const;
+	void HandleToggleToolbarDrawSockets();
+	bool GetToolbarDrawAxesOnSelection() const;
+	void HandleToggleToolbarDrawAxesOnSelection();
 	TOptional<float> GetToolbarAxesScale() const;
 	void OnToolbarAxesScaleChanged(float InValue);
 	void HandleToggleSchematicViewport();

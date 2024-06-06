@@ -3283,6 +3283,31 @@ void FControlRigEditMode::ToggleAllManipulators()
 	}
 }
 
+bool FControlRigEditMode::AreControlsVisible() const
+{
+	if (!AreEditingControlRigDirectly())
+	{
+		TMap<UControlRig*, TArray<FRigElementKey>> SelectedControls;
+		GetAllSelectedControls(SelectedControls);
+		TArray<UControlRig*> ControlRigs;
+		SelectedControls.GenerateKeyArray(ControlRigs);
+		for (UControlRig* ControlRig : ControlRigs)
+		{
+			if (ControlRig)
+			{
+				if (!ControlRig->bControlsVisible)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	
+	UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>();
+	return !Settings->bHideControlShapes;
+}
+
 void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 {
 	// Gather up the control rigs for the selected controls

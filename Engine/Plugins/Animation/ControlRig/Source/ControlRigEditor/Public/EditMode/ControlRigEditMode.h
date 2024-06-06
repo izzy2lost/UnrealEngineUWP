@@ -263,6 +263,9 @@ protected:
 	/** Toggles visibility of all  control rig shapes in the viewport */
 	void ToggleAllManipulators();
 
+	/** Returns true if all control rig shapes are visible in the viewport */
+	bool AreControlsVisible() const;
+
 	/** If Anim Slider is open, got to the next tool*/
 	void ChangeAnimSliderTool();
 
