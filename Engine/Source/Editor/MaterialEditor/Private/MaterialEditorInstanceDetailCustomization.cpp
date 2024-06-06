@@ -107,7 +107,7 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 	TSharedRef<IPropertyHandle> ParameterGroupsProperty = DetailLayout.GetProperty("ParameterGroups");
 
 	// check if tree has any selection, we show parameter properties for selected layer only
-	if (this->MaterialLayersFunctionsInstance->NestedTree->GetNumItemsSelected() > 0)
+	if (MaterialLayersFunctionsInstance != nullptr && MaterialLayersFunctionsInstance->NestedTree->GetNumItemsSelected() > 0)
 	{
 		// for each selected FSortedParamData item (type stack)
 		for (TSharedPtr<FSortedParamData> SelectedItem : this->MaterialLayersFunctionsInstance->NestedTree->GetSelectedItems())

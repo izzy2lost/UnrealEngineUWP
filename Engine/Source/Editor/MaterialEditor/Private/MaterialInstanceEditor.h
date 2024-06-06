@@ -190,6 +190,9 @@ private:
 
 	/** Spawns the advanced preview settings tab */
 	TSharedRef<SDockTab> SpawnTab_PreviewSettings(const FSpawnTabArgs& Args);
+	
+	/** Spawns the asset browser tab */
+	TSharedRef<SDockTab> SpawnTab_AssetBrowser(const FSpawnTabArgs& Args);
 
 	/**	Caches the specified tab for later retrieval */
 	void AddToSpawnedToolPanels( const FName& TabIdentifier, const TSharedRef<SDockTab>& SpawnedTab );
@@ -270,6 +273,7 @@ private:
 	static const FName PropertiesTabId;	
 	static const FName LayerPropertiesTabId;
 	static const FName PreviewSettingsTabId;
+	static const FName AssetBrowserTabId;
 
 	/** Object used as material statistics manager */
 	TSharedPtr<class FMaterialStats> MaterialStatsManager;

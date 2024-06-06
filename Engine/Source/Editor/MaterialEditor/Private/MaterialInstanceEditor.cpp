@@ -48,6 +48,7 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "AdvancedPreviewSceneModule.h"
+#include "ContentBrowserModule.h"
 #include "Misc/MessageDialog.h"
 #include "Framework/Commands/UICommandInfo.h"
 #include "Styling/AppStyle.h"
@@ -55,6 +56,9 @@
 #include "MaterialEditingLibrary.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "DebugViewModeHelpers.h"
+#include "IContentBrowserSingleton.h"
+#include "Materials/MaterialFunctionMaterialLayer.h"
+#include "Materials/MaterialFunctionMaterialLayerBlend.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Widgets/Input/SButton.h"
@@ -68,6 +72,7 @@ const FName FMaterialInstanceEditor::PreviewTabId( TEXT( "MaterialInstanceEditor
 const FName FMaterialInstanceEditor::PropertiesTabId( TEXT( "MaterialInstanceEditor_MaterialProperties" ) );
 const FName FMaterialInstanceEditor::LayerPropertiesTabId(TEXT("MaterialInstanceEditor_MaterialLayerProperties"));
 const FName FMaterialInstanceEditor::PreviewSettingsTabId(TEXT("MaterialInstanceEditor_PreviewSettings"));
+const FName FMaterialInstanceEditor::AssetBrowserTabId(TEXT("MaterialInstanceEditor_AssetBrowser"));
 
 extern TAutoConsoleVariable<bool> CVarMaterialEdAllowIgnoringCompilationErrors;
 
@@ -260,6 +265,12 @@ void FMaterialInstanceEditor::RegisterTabSpawners(const TSharedRef<class FTabMan
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	InTabManager->RegisterTabSpawner(AssetBrowserTabId, FOnSpawnTab::CreateSP(this, &FMaterialInstanceEditor::SpawnTab_AssetBrowser))
+		.SetDisplayName(LOCTEXT("AssetBrowserTab", "Asset Browser"))
+		.SetGroup(WorkspaceMenuCategoryRef)
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+#endif
 	MaterialStatsManager->RegisterTabs();
 
 	OnRegisterTabSpawners().Broadcast(InTabManager);
@@ -276,7 +287,9 @@ void FMaterialInstanceEditor::UnregisterTabSpawners(const TSharedRef<class FTabM
 		InTabManager->UnregisterTabSpawner(LayerPropertiesTabId);
 	}
 	InTabManager->UnregisterTabSpawner( PreviewSettingsTabId );
-
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	InTabManager->UnregisterTabSpawner( AssetBrowserTabId );
+#endif
 	MaterialStatsManager->UnregisterTabs();
 
 	OnUnregisterTabSpawners().Broadcast(InTabManager);
@@ -453,7 +466,48 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 
 	if (!bIsFunctionPreviewMaterial)
 	{
-		StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MaterialInstanceEditor_Layout_v8")
+		
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MaterialInstanceEditor_Layout_v9")
+			->AddArea
+			(
+				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)->SetSizeCoefficient(0.9f)
+					->Split
+					(
+						FTabManager::NewStack()->SetSizeCoefficient(0.70f)->SetHideTabWell(true)
+						->AddTab(PreviewTabId, ETabState::OpenedTab)
+						->AddTab(PreviewSettingsTabId, ETabState::ClosedTab)
+					)
+					->Split
+					(
+						FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)->SetSizeCoefficient(0.7f)
+						->Split
+						(
+					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)->SetSizeCoefficient(0.3f)
+							->Split
+							(
+								FTabManager::NewStack()/*->SetSizeCoefficient(0.30f)*/
+								->AddTab(LayerPropertiesTabId, ETabState::OpenedTab)
+							)
+							->Split
+							(
+								FTabManager::NewStack()/*->SetSizeCoefficient(0.30f)*/
+								->AddTab(AssetBrowserTabId, ETabState::OpenedTab)
+							)
+						)
+						->Split
+						(
+						FTabManager::NewStack()->SetSizeCoefficient(0.30f)
+								->AddTab(PropertiesTabId, ETabState::OpenedTab)
+						)
+					)
+				)
+			);
+#else
+			StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MaterialInstanceEditor_Layout_v8")
 			->AddArea
 			(
 				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
@@ -475,8 +529,9 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 					)
 				)
 			);
+#endif
 		}
-
+	
 	const bool bCreateDefaultStandaloneMenu = true;
 	const bool bCreateDefaultToolbar = true;
 	TArray<UObject*> ObjectsToEdit;
@@ -1059,6 +1114,37 @@ TSharedRef<SDockTab> FMaterialInstanceEditor::SpawnTab_PreviewSettings(const FSp
 			SNew(SBox)
 			[
 				InWidget
+			]
+		];
+
+	return SpawnedTab;
+}
+
+TSharedRef<SDockTab> FMaterialInstanceEditor::SpawnTab_AssetBrowser(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId() == AssetBrowserTabId);
+
+	// TSharedRef<SWidget> InWidget = SNullWidget::NullWidget;
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+
+	// Configure filter for asset picker
+	FAssetPickerConfig Config;
+	Config.SelectionMode = ESelectionMode::Single;
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayer::StaticClass()->GetClassPathName());
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayerInstance::StaticClass()->GetClassPathName());
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayerBlend::StaticClass()->GetClassPathName());
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayerBlendInstance::StaticClass()->GetClassPathName());
+	Config.bAddFilterUI = true;
+	Config.ThumbnailScale = 0.4f;
+	Config.InitialThumbnailSize = EThumbnailSize::Small;
+	Config.InitialAssetViewType = EAssetViewType::Tile;
+	
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		.Label(LOCTEXT("AssetBrowserTab", "Asset Browser"))
+		[
+			SNew(SBox)
+			[
+				ContentBrowserModule.Get().CreateAssetPicker(Config)
 			]
 		];
 
