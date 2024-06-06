@@ -3767,7 +3767,7 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 			}
 		}
 
-		if (FPaniniProjectionConfig::IsEnabledByCVars())
+		if (ViewFamily.EngineShowFlags.LensDistortion && FPaniniProjectionConfig::IsEnabledByCVars())
 		{
 			const FPaniniProjectionConfig PaniniProjection = FPaniniProjectionConfig::ReadCVars();
 
