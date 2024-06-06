@@ -368,13 +368,6 @@ public:
 	// Sets the editor-only node location of a node with the given ID to the provided location.
 	// Returns true if the node was found and the location was updated, false if not.
 	bool SetNodeLocation(const FGuid& InNodeID, const FVector2D& InLocation, const FGuid* InLocationGuid = nullptr);
-
-	// Sets the editor-only style of a node with the given ID.
-	bool SetNodeStyle(const FGuid& InNodeID, const FMetasoundFrontendNodeStyle& InNodeStyle);
-
-	// Gets the editor-only style of a node with the given ID.
-	const FMetasoundFrontendNodeStyle& GetNodeStyle(const FGuid& InNodeID);
-
 #endif // WITH_EDITOR
 
 	bool SetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendLiteral& InLiteral);

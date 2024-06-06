@@ -3493,27 +3493,6 @@ bool FMetaSoundFrontendDocumentBuilder::SetNodeLocation(const FGuid& InNodeID, c
 
 	return false;
 }
-const FMetasoundFrontendNodeStyle& FMetaSoundFrontendDocumentBuilder::GetNodeStyle(const FGuid& InNodeID)
-{
-	if (const FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID))
-	{
-		return Node->Style;
-	}
-
-	static const FMetasoundFrontendNodeStyle Invalid;
-	return Invalid;
-}
-
-bool FMetaSoundFrontendDocumentBuilder::SetNodeStyle(const FGuid& InNodeID, const FMetasoundFrontendNodeStyle& InNodeStyle)
-{
-	if (FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID))
-	{
-		Node->Style = InNodeStyle;
-		return true;
-	}
-
-	return false;
-}
 #endif // WITH_EDITOR
 
 void FMetaSoundFrontendDocumentBuilder::SetVersionNumber(const FMetasoundFrontendVersionNumber& InDocumentVersionNumber)

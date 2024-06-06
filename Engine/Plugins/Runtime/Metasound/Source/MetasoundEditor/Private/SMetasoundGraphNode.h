@@ -58,7 +58,6 @@ namespace Metasound::Editor
 		virtual void GetOverlayBrushes(bool bSelected, const FVector2D WidgetSize, TArray<FOverlayBrushInfo>& Brushes) const override;
 		virtual void OnCommentBubbleToggled(bool bInCommentBubbleVisible) override;
 		virtual void OnCommentTextCommitted(const FText& NewComment, ETextCommit::Type CommitInfo) override;
-		virtual void OnAdvancedViewChanged(const ECheckBoxState NewCheckedState) override;
 
 		FLinearColor GetNodeTitleColorOverride() const;
 

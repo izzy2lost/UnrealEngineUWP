@@ -562,11 +562,6 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendNodeStyle
 
 	UPROPERTY()
 	bool bIsPrivate = false;
-	
-	//Whether or not Unconnected pins are hidden
-	UPROPERTY()
-	bool bUnconnectedPinsHidden = false;
-
 #endif // WITH_EDITORONLY_DATA
 };
 

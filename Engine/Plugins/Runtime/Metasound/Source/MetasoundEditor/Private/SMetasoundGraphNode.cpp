@@ -366,11 +366,6 @@ namespace Metasound
 
 		void SMetaSoundGraphNode::CreateStandardPinWidget(UEdGraphPin* InPin)
 		{
-			//Set pin hidden if the node has unconnected pins hidden
-			const FMetasoundFrontendNode& FrontendNode = GetMetaSoundNode().GetFrontendNodeChecked();
-			FMetasoundFrontendNodeStyle Style = FrontendNode.Style;
-			InPin->SafeSetHidden(Style.bUnconnectedPinsHidden);
-
 			const bool bShowPin = ShouldPinBeHidden(InPin);
 			if (bShowPin)
 			{
@@ -501,18 +496,6 @@ namespace Metasound
 					Builder.SetNodeComment(Node->GetID(), EdNode.NodeComment, Result);
 				}
 			}
-		}
-
-		void SMetaSoundGraphNode::OnAdvancedViewChanged(const ECheckBoxState NewCheckedState)
-		{
-			if (NewCheckedState == ECheckBoxState::Checked)
-			{
-				if (UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(&GetMetaSoundNode()))
-				{
-					ExternalNode->HideUnconnectedPins(false);
-				}
-			}
-			SGraphNode::OnAdvancedViewChanged(NewCheckedState);
 		}
 
 		FLinearColor SMetaSoundGraphNode::GetNodeTitleColorOverride() const

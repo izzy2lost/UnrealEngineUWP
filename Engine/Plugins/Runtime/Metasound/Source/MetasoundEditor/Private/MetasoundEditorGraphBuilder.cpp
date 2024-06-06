@@ -1738,16 +1738,7 @@ namespace Metasound
 			// Pin ToolTips are no longer cached on pins, and are instead dynamically generated via UMetasoundEditorGraphNode::GetPinHoverText
 			InPin.PinToolTip = { };
 			InPin.bAdvancedView = InMetadata.bIsAdvancedDisplay;
-
-			//Are the Unconnected hidden for the node
-			bool bUnconnectedHidden = false;
-			UMetasoundEditorGraphNode* MetasoundGraphNode = Cast<UMetasoundEditorGraphNode>(InPin.GetOwningNode());
-			{
-				FMetasoundFrontendNode FrontendNode = MetasoundGraphNode->GetFrontendNodeChecked();
-				bUnconnectedHidden = FrontendNode.Style.bUnconnectedPinsHidden;
-			}
-
-			if (InPin.bAdvancedView || bUnconnectedHidden)
+			if (InPin.bAdvancedView)
 			{
 				UEdGraphNode* OwningNode = InPin.GetOwningNode();
 				check(OwningNode);
