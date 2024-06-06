@@ -60,10 +60,9 @@ namespace UnrealBuildTool.Rules
 						"SkeletalMeshUtilitiesCommon",
 						"UnrealEd",
 						"VariantManager",
+						"MaterialX",
 					}
 				);
-
-				AddEngineThirdPartyPrivateStaticDependencies(Target, "MaterialX");
 			}
 		}
 	}
