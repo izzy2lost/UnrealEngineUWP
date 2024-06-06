@@ -251,6 +251,10 @@ int FModelInstance::PrepareTensorShapesAndData()
 		{
 			AllInitializedTensors[Idx] = true;
 		}
+		for (int32 Idx : EmptyTensorIndices)
+		{
+			AllInitializedTensors[Idx] = true;
+		}
 	);
 
 	//Release uploaded GPU side constants tensors.

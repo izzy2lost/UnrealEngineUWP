@@ -384,7 +384,7 @@ namespace ModelOptimizerNNEHelper
 				}
 				else // Empty tensor
 				{
-					Tensor = Builder->AddConstantTensor(/* Name */ TEXT(""), ENNETensorDataType::None, /* Shape */ {0}, /* Data */ nullptr, /* DataSize */ 0);
+					Tensor = Builder->AddEmptyTensor();
 				}
 
 				Builder->AddOperatorInput(Op, Tensor);

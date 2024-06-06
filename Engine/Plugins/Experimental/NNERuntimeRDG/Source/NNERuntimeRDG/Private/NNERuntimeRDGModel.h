@@ -41,6 +41,7 @@ namespace UE::NNERuntimeRDG::Private
 		TArray<int32>				WeightTensorIndices;
 		TArray<int32>				InputTensorIndices;
 		TArray<int32>				OutputTensorIndices;
+		TArray<int32>				EmptyTensorIndices;
 
 		//Tensor indices by operator
 		TArray<TArray<uint32>>		OperatorInputTensorIndices;
@@ -50,6 +51,7 @@ namespace UE::NNERuntimeRDG::Private
 		FTensorRDGRefMap			AllTensorRDGRefs;
 		FTensorRDGArray				InputTensorRDGs;
 		FTensorRDGArray				OutputTensorRDGs;
+		FTensorRDGArray				EmptyTensorRDGs;
 		FTensorRDGArray				IntermediateTensorRDGs;
 		FTensorRDGArray				WeightTensorRDGs;
 	};

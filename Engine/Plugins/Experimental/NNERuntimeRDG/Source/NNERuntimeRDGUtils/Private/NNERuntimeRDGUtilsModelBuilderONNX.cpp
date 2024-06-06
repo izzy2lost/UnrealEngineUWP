@@ -150,6 +150,12 @@ public:
 		return MakeHandle<EHandleType::Tensor>(Value);
 	}
 
+	virtual FHTensor AddEmptyTensor() override
+	{
+		// ONNX empty tensors are indicated by an empty name
+		return AddTensor(/* Name */ TEXT(""), ENNETensorDataType::None, /* Shape */ {0});
+	}
+
 	virtual bool AddInput(FHTensor Handle) override
 	{
 		onnx::ValueInfoProto* Value = ModelBuilderONNXHelper::OnnxTensorCast(Handle);
@@ -355,7 +361,9 @@ bool CreateONNXModelForOperator(const FString& OperatorName, int32 IrVersion, in
 	{
 		const NNE::Internal::FTensor& Desc = InInputTensors[Idx];
 		ModelBuilderONNXHelper::BuildShapeForModel(bUseVariadicShapeForModel, Desc.GetShape(), ShapeForModel);
-		IModelBuilder::FHTensor Tensor = Builder->AddTensor(Desc.GetName(), Desc.GetDataType(), ShapeForModel);
+		IModelBuilder::FHTensor Tensor = Desc.GetDataType() == ENNETensorDataType::None ?
+			  Builder->AddEmptyTensor()
+			: Builder->AddTensor(Desc.GetName(), Desc.GetDataType(), ShapeForModel);
 
 		InputTensors.Emplace(Tensor);
 		Builder->AddInput(Tensor);
@@ -382,7 +390,9 @@ bool CreateONNXModelForOperator(const FString& OperatorName, int32 IrVersion, in
 		const TConstArrayView<uint8>& Data = InWeightTensorsData[Idx];
 		check(Data.Num() == Desc.GetDataSize());
 		ModelBuilderONNXHelper::BuildShapeForModel(false, Desc.GetShape(), ShapeForModel);
-		IModelBuilder::FHTensor Tensor = Builder->AddConstantTensor(Desc.GetName(), Desc.GetDataType(), ShapeForModel, Data.GetData(), Data.Num());
+		IModelBuilder::FHTensor Tensor = Desc.GetDataType() == ENNETensorDataType::None ?
+			  Builder->AddEmptyTensor()
+			: Builder->AddConstantTensor(Desc.GetName(), Desc.GetDataType(), ShapeForModel, Data.GetData(), Data.Num());
 
 		WeightTensors.Emplace(Tensor);
 	}

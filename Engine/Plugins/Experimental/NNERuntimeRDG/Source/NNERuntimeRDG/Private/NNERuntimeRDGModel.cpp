@@ -31,6 +31,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 	WeightTensorIndices.Empty();
 	InputTensorIndices.Empty();
 	OutputTensorIndices.Empty();
+	EmptyTensorIndices.Empty();
 	OperatorInputTensorIndices.Empty();
 	OperatorOutputTensorIndices.Empty();
 
@@ -44,12 +45,19 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 		const NNE::FSymbolicTensorShape SymbolicShape = NNE::FSymbolicTensorShape::Make(FormatTensorDesc.Shape);
 		const NNE::FTensorDesc SymbolicTensor = NNE::FTensorDesc::Make(FormatTensorDesc.Name, SymbolicShape, FormatTensorDesc.DataType);
 
-		if (Format.Tensors[Idx].Type != ENNEFormatTensorType::Empty)
+		if (FormatTensorDesc.Type != ENNEFormatTensorType::Empty && FormatTensorDesc.DataType == ENNETensorDataType::None)
 		{
-			AllSymbolicTensorDescs.Emplace(Idx, SymbolicTensor);
+			UE_LOG(LogNNE, Error, TEXT("Tensor %s has invalid format: Data type None is reserved for empty tensors."), *SymbolicTensor.GetName());
+			return false;
 		}
 
-		if (FormatTensorDesc.Type == ENNEFormatTensorType::Input)
+		AllSymbolicTensorDescs.Emplace(Idx, SymbolicTensor);
+
+		if (FormatTensorDesc.Type == ENNEFormatTensorType::Empty)
+		{
+			EmptyTensorIndices.Emplace(Idx);
+		}
+		else if (FormatTensorDesc.Type == ENNEFormatTensorType::Input)
 		{
 			InputTensorIndices.Emplace(Idx);
 			InputSymbolicTensors.Emplace(SymbolicTensor);
@@ -154,6 +162,17 @@ FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensor
 		AllTensorRDGRefs.Emplace(Idx, &OutputTensorRDGs[i]);
 	}
 
+	EmptyTensorRDGs.Reset(EmptyTensorIndices.Num());
+	for (int32 i = 0; i < EmptyTensorIndices.Num(); ++i)
+	{
+		const int32 Idx = EmptyTensorIndices[i];
+		const NNE::FTensorDesc& TensorDesc = AllSymbolicTensorDescs[Idx];
+		const NNE::FTensorShape TensorShape = NNE::FTensorShape::MakeFromSymbolic(TensorDesc.GetShape());
+
+		EmptyTensorRDGs.Emplace(FTensorRDG::Make(TensorDesc, TensorShape, nullptr));
+		AllTensorRDGRefs.Emplace(Idx, &EmptyTensorRDGs[i]);
+	}
+
 	checkCode(
 		checkf(AllTensorRDGRefs.Num() == AllSymbolicTensorDescs.Num(), TEXT("Some tensor was not allocated for model preparation."));
 	);
@@ -177,7 +196,7 @@ FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensor
 		OutputTensorShapes.Emplace(AllTensorRDGRefs[OutputIndices]->GetShape());
 	}
 
-	check(InputTensorIndices.Num() + OutputTensorIndices.Num() + WeightTensorIndices.Num() + IntermediateTensorIndices.Num() == AllTensorRDGRefs.Num());
+	check(InputTensorIndices.Num() + OutputTensorIndices.Num() + WeightTensorIndices.Num() + IntermediateTensorIndices.Num() + EmptyTensorIndices.Num() == AllTensorRDGRefs.Num());
 	check(InputTensorShapes.Num() == InputSymbolicTensors.Num());
 	check(OutputTensorShapes.Num() == OutputSymbolicTensors.Num());
 	check(WeightTensorIndices.Num() == WeightTensorRDGs.Num());

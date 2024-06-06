@@ -71,7 +71,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				return -1;
 			}
 
-			if(InputTensors.Num() == 4 && InputTensors[2]->GetVolume() != 0)
+			if(InputTensors.Num() == 4 && InputTensors[2]->GetDataType() != ENNETensorDataType::None)
 			{
 				UE_LOG(LogNNE, Warning, TEXT("Hlsl Resize: both `sizes` and `scales` were provided."));
 				return -1;
@@ -448,14 +448,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				UE_LOG(LogNNE, Warning, TEXT("Sizes tensor must have dimension N (where N is the input rank)."));
 				return false;
 			}
-		}
-
-		// NOTE: the current RDG Hlsl infrastructure does NOT support empty tensors (FModelInstance::Init() breaks), 
-		// therefore it's not possible to specify the Sizes tensor (as Scales would need to be empty).
-		if(InputTypes.Num() == 4)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("Sizes tensor is not currently supported, please use Scales tensor."));
-			return false;
 		}
 
 		return bIsValid;
