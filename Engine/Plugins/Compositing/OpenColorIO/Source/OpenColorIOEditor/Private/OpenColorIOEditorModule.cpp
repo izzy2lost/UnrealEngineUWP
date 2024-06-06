@@ -285,8 +285,7 @@ void FOpenColorIOEditorModule::TrackNewViewportIfRequired(FViewport* Viewport)
 		const TArray<FLevelEditorViewportClient*> LevelViewportClients = GEditor->GetLevelViewportClients();
 		FLevelEditorViewportClient* const* AssociatedClient = LevelViewportClients.FindByPredicate([Viewport](const FLevelEditorViewportClient* Other) { return Other == Viewport->GetClient(); });
 
-		// Active viewport should always have a client
-		if (ensure(AssociatedClient))
+		if (AssociatedClient)
 		{
 			FLevelEditorViewportClient* Client = *AssociatedClient;
 			TSharedPtr<SLevelViewport> LevelViewport = StaticCastSharedPtr<SLevelViewport>(Client->GetEditorViewportWidget());
