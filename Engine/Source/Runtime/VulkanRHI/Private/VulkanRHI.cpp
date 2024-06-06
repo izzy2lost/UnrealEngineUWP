@@ -1432,6 +1432,18 @@ TArray<VkExtensionProperties> FVulkanDynamicRHI::RHIGetAllDeviceExtensions(VkPhy
 	return Extensions;
 }
 
+TArray<FAnsiString> FVulkanDynamicRHI::RHIGetLoadedDeviceExtensions() const
+{
+	// Create copies to prevent issues
+	TArray<FAnsiString> OutExtensions;
+	const TArray<const ANSICHAR*>& DeviceExtensions = GetDevice()->DeviceExtensions;
+	for (const ANSICHAR* ExtensionName : DeviceExtensions)
+	{
+		OutExtensions.Emplace(ExtensionName);
+	}
+	return OutExtensions;
+}
+
 VkImage FVulkanDynamicRHI::RHIGetVkImage(FRHITexture* InTexture) const
 {
 	FVulkanTexture* VulkanTexture = ResourceCast(InTexture);
@@ -1480,6 +1492,19 @@ FVulkanRHIImageViewInfo FVulkanDynamicRHI::RHIGetImageViewInfo(FRHITexture* InTe
 	Info.SubresourceRange.baseArrayLayer = 0;
 
 	return Info;
+}
+
+FVulkanRHIAllocationInfo FVulkanDynamicRHI::RHIGetAllocationInfo(FRHIBuffer* InBuffer) const
+{
+	FVulkanResourceMultiBuffer* VulkanBuffer = ResourceCast(InBuffer);
+	const VulkanRHI::FVulkanAllocation& Allocation = VulkanBuffer->GetCurrentAllocation();
+
+	FVulkanRHIAllocationInfo NewInfo{};
+	NewInfo.Handle = Allocation.GetDeviceMemoryHandle(GetDevice());
+	NewInfo.Offset = Allocation.Offset;
+	NewInfo.Size = Allocation.Size;
+
+	return NewInfo;
 }
 
 void FVulkanDynamicRHI::RHISetImageLayout(VkImage Image, VkImageLayout OldLayout, VkImageLayout NewLayout, const VkImageSubresourceRange& SubresourceRange)
