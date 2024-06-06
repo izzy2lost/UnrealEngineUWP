@@ -5972,7 +5972,7 @@ public:
 	};
 
 	void InitializePackageWriter(UCookOnTheFlyServer& COTFS, ICookedPackageWriter*& CookedPackageWriter,
-		const FString& ResolvedMetadataPath)
+		const FString& ResolvedMetadataPath, UE::Cook::FDeterminismManager* InDeterminismManager)
 	{
 		Initialize();
 		if (DiffMode == EDiffMode::None)
@@ -5992,7 +5992,8 @@ public:
 		switch (DiffMode)
 		{
 		case EDiffMode::DiffOnly:
-			CookedPackageWriter = new FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
+			CookedPackageWriter = new FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter),
+				InDeterminismManager);
 			break;
 		case EDiffMode::LinkerDiff:
 			CookedPackageWriter = new FLinkerDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
@@ -6000,17 +6001,17 @@ public:
 		case EDiffMode::IterativeValidate:
 			CookedPackageWriter = new FIterativeValidatePackageWriter(COTFS,
 				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::AllInOnePhase,
-				ResolvedMetadataPath);
+				ResolvedMetadataPath, InDeterminismManager);
 			break;
 		case EDiffMode::IterativeValidatePhase1:
 			CookedPackageWriter = new FIterativeValidatePackageWriter(COTFS,
 				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::Phase1,
-				ResolvedMetadataPath);
+				ResolvedMetadataPath, InDeterminismManager);
 			break;
 		case EDiffMode::IterativeValidatePhase2:
 			CookedPackageWriter = new FIterativeValidatePackageWriter(COTFS,
 				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::Phase2,
-				ResolvedMetadataPath);
+				ResolvedMetadataPath, InDeterminismManager);
 			break;
 		default:
 			checkNoEntry();
@@ -6018,7 +6019,22 @@ public:
 		}
 	}
 
-private:
+	bool IsDeterminismDebug() const
+	{
+		switch (DiffMode)
+		{
+		case EDiffMode::None: return false;
+		case EDiffMode::DiffOnly: return true;
+		case EDiffMode::LinkerDiff: return false;
+		case EDiffMode::IterativeValidate: return true;
+		case EDiffMode::IterativeValidatePhase1: return true;
+		case EDiffMode::IterativeValidatePhase2: return true;
+		default:
+			checkNoEntry();
+			return false;
+		}
+	}
+
 	void Initialize()
 	{
 		if (bInitialized)
@@ -6065,6 +6081,7 @@ private:
 		bInitialized = true;
 	}
 
+private:
 	bool bInitialized = false;
 	EDiffMode DiffMode = EDiffMode::None;
 };
@@ -6359,6 +6376,10 @@ void FSaveCookedPackageContext::SetupPlatform(const ITargetPlatform* InTargetPla
 	Info.PackageName = Package->GetFName();
 	Info.LooseFilePath = PlatFilename;
 	PackageWriter->BeginPackage(Info);
+	if (CookContext->DeterminismManager)
+	{
+		CookContext->DeterminismManager->BeginPackage(Package, TargetPlatform, PackageWriter);
+	}
 	// Set platform-specific save flags
 	FPackagePlatformData& PlatformData = PackageData.FindOrAddPlatformData(TargetPlatform);
 	uint32 PlatformSaveFlagsMask = SAVE_AllowTimeout;
@@ -6430,6 +6451,10 @@ void FSaveCookedPackageContext::FinishPlatform()
 		Info.WriteOptions = GetCommitWriteOptions();
 
 		PackageWriter->CommitPackage(MoveTemp(Info));
+		if (CookContext->DeterminismManager)
+		{
+			CookContext->DeterminismManager->EndPackage();
+		}
 	}
 
 	// Update asset registry
@@ -6698,6 +6723,11 @@ TArray<IPackageWriter::FCommitAttachmentInfo> FSaveCookedPackageContext::GetComm
 		UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult,
 			GeneratedResult, MoveTemp(PlatformRuntimeDependencies), Result);
 	}
+	if (CookContext->DeterminismManager)
+	{
+		CookContext->DeterminismManager->AppendCommitAttachments(Result);
+	}
+
 	return Result;
 }
 
@@ -7237,6 +7267,9 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	GConfig->GetString(TEXT("CookSettings"), TEXT("MPCookGeneratorSplit"), GeneratorSplit, GEditorIni);
 	FParse::Value(FCommandLine::Get(), TEXT("-MPCookGeneratorSplit="), GeneratorSplit);
 	MPCookGeneratorSplit = UE::Cook::ParseMPCookGeneratorSplitFromString(GeneratorSplit);
+
+	bDeterminismDebug = FParse::Param(FCommandLine::Get(), TEXT("cookdeterminism")) ||
+		FParse::Param(FCommandLine::Get(), TEXT("diffonlybase"));
 }
 
 void UCookOnTheFlyServer::ParseCookFilters()
@@ -11257,6 +11290,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 	const FString ResolvedRootPath = RootPathSandbox.Replace(TEXT("[Platform]"), *PlatformString);
 	const FString ResolvedMetadataPath = MetadataPathSandbox.Replace(TEXT("[Platform]"), *PlatformString);
 
+	TUniquePtr<FDeterminismManager> DeterminismManager;
 	ICookedPackageWriter* PackageWriter = nullptr;
 	FString WriterDebugName;
 	ICookedPackageWriter::FBeginCacheCallback BeginCacheCallback(
@@ -11265,21 +11299,35 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 			return this->SavePackageBeginCacheForCookedPlatformData(Info.PackageName,
 				Info.TargetPlatform, Info.SaveableObjects, Info.SaveFlags);
 		});
+	DiffModeHelper->Initialize();
+	ICookedPackageWriter::FRegisterDeterminismHelperCallback RegisterDeterminismHelperCallback;
+	if (bDeterminismDebug || DiffModeHelper->IsDeterminismDebug())
+	{
+		DeterminismManager = MakeUnique<FDeterminismManager>();
+		RegisterDeterminismHelperCallback =
+			[this, DeterminismManagerPtr = DeterminismManager.Get()]
+			(UObject* SourceObject, const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+			{
+				DeterminismManagerPtr->RegisterDeterminismHelper(SourceObject, DeterminismHelper);
+			};
+	}
 	if (IsUsingZenStore())
 	{
 		FZenStoreWriter* ZenWriter = new FZenStoreWriter(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform);
 		ZenWriter->SetBeginCacheCallback(MoveTemp(BeginCacheCallback));
+		ZenWriter->SetRegisterDeterminismHelperCallback(MoveTemp(RegisterDeterminismHelperCallback));
 		PackageWriter = ZenWriter;
 		WriterDebugName = TEXT("ZenStore");
 	}
 	else
 	{
 		PackageWriter = new FLooseCookedPackageWriter(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform,
-			GetAsyncIODelete(), *SandboxFile, MoveTemp(BeginCacheCallback));
+			GetAsyncIODelete(), *SandboxFile, MoveTemp(BeginCacheCallback),
+			MoveTemp(RegisterDeterminismHelperCallback));
 		WriterDebugName = TEXT("LooseCookedPackageWriter");
 	}
 
-	DiffModeHelper->InitializePackageWriter(*this, PackageWriter, ResolvedMetadataPath);
+	DiffModeHelper->InitializePackageWriter(*this, PackageWriter, ResolvedMetadataPath, DeterminismManager.Get());
 
 	// Setup save package settings (i.e. validation)
 	FSavePackageSettings SavePackageSettings = FSavePackageSettings::GetDefaultSettings();
@@ -11333,7 +11381,8 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 			});
 	}
 
-	FCookSavePackageContext* Context = new FCookSavePackageContext(TargetPlatform, PackageWriter, WriterDebugName, MoveTemp(SavePackageSettings));
+	FCookSavePackageContext* Context = new FCookSavePackageContext(TargetPlatform, PackageWriter, WriterDebugName, MoveTemp(SavePackageSettings),
+		MoveTemp(DeterminismManager));
 	return Context;
 
 }

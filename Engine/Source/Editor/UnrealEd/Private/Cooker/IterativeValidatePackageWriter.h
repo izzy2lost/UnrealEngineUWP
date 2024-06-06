@@ -22,7 +22,8 @@ public:
 		Phase2,
 	};
 	FIterativeValidatePackageWriter(UCookOnTheFlyServer& InCOTFS, TUniquePtr<ICookedPackageWriter>&& InInner,
-		EPhase InPhase, const FString& ResolvedMetadataPath);
+		EPhase InPhase, const FString& ResolvedMetadataPath,
+		UE::Cook::FDeterminismManager* InDeterminismManager);
 
 	// IPackageWriter
 	virtual void BeginPackage(const FBeginPackageInfo& Info) override;

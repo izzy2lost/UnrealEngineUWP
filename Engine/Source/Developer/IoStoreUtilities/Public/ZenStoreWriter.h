@@ -72,6 +72,10 @@ public:
 	{
 		BeginCacheCallback = MoveTemp(InBeginCacheCallback);
 	}
+	void SetRegisterDeterminismHelperCallback(FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback)
+	{
+		RegisterDeterminismHelperCallback = MoveTemp(InRegisterDeterminismHelperCallback);
+	}
 
 	struct ZenHostInfo
 	{
@@ -81,10 +85,18 @@ public:
 		uint16 HostPort;
 	};
 
-	IOSTOREUTILITIES_API virtual FCookCapabilities GetCookCapabilities() const override
+	virtual FCapabilities GetCapabilities() const override
+	{
+		FCapabilities Result;
+		Result.bDeterminismDebug = (bool)RegisterDeterminismHelperCallback;
+		return Result;
+	}
+
+	virtual FCookCapabilities GetCookCapabilities() const override
 	{
 		FCookCapabilities Result;
 		Result.bDiffModeSupported = true;
+		Result.bOplogAttachments = true;
 		Result.HeaderFormat = EPackageHeaderFormat::ZenPackageSummary;
 		return Result;
 	}
@@ -101,6 +113,9 @@ public:
 
 
 	IOSTOREUTILITIES_API virtual void WriteBulkData(const FBulkDataInfo& Info, const FIoBuffer& BulkData, const TArray<FFileRegion>& FileRegions) override;
+	IOSTOREUTILITIES_API virtual void RegisterDeterminismHelper(UObject* SourceObject,
+		const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper) override;
+
 	IOSTOREUTILITIES_API virtual void Initialize(const FCookInfo& Info) override;
 	IOSTOREUTILITIES_API virtual void BeginCook(const FCookInfo& Info) override;
 	IOSTOREUTILITIES_API virtual void EndCook(const FCookInfo& Info) override;
@@ -237,6 +252,7 @@ private:
 	TMap<FName, TArray<FString>>		PackageAdditionalFiles;
 
 	FBeginCacheCallback					BeginCacheCallback;
+	FRegisterDeterminismHelperCallback RegisterDeterminismHelperCallback;
 
 	FEntryCreatedEvent					EntryCreatedEvent;
 	FCriticalSection					CommitEventCriticalSection;

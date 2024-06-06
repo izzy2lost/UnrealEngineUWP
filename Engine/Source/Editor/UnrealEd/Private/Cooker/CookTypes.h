@@ -90,6 +90,7 @@ class TFastPointerSet : public TSet<KeyType, TFastPointerSetKeyFuncs<KeyType>, S
 
 namespace UE::Cook
 {
+	class FDeterminismManager;
 	struct FPackageData;
 	struct FPlatformData;
 
@@ -297,13 +298,15 @@ namespace UE::Cook
 	struct FCookSavePackageContext
 	{
 		FCookSavePackageContext(const ITargetPlatform* InTargetPlatform,
-			ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings);
+			ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings,
+			TUniquePtr<FDeterminismManager>&& InDeterminismManager);
 		~FCookSavePackageContext();
 
 		FSavePackageContext SaveContext;
 		FString WriterDebugName;
 		ICookedPackageWriter* PackageWriter;
 		ICookedPackageWriter::FCookCapabilities PackageWriterCapabilities;
+		TUniquePtr<FDeterminismManager> DeterminismManager;
 	};
 
 	/* Thread Local Storage access to identify which thread is the SchedulerThread for cooking. */
@@ -392,7 +395,7 @@ namespace UE::Cook
 
 	TConstArrayView<const TCHAR*> GetCommandLineDelimiterStrs();
 	TConstArrayView<TCHAR> GetCommandLineDelimiterChars();
-}
+} // namespace UE::Cook
 
 bool LexTryParseString(FPlatformMemoryStats::EMemoryPressureStatus& OutValue, FStringView Text);
 FString LexToString(FPlatformMemoryStats::EMemoryPressureStatus Value);

@@ -684,6 +684,7 @@ void CallPreSaveRoot(UObject* Object, FObjectSaveContextData& ObjectSaveContext)
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	ObjectSaveContext.bCleanupRequired = false;
+	ObjectSaveContext.Object = Object;
 	Object->PreSaveRoot(FObjectPreSaveRootContext(ObjectSaveContext));
 	ObjectSaveContext.bCleanupRequired |= bLegacyNeedsCleanup;
 }
@@ -695,6 +696,7 @@ void CallPostSaveRoot(UObject* Object, FObjectSaveContextData& ObjectSaveContext
 	Object->PostSaveRoot(bNeedsCleanup);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
+	ObjectSaveContext.Object = Object;
 	ObjectSaveContext.bCleanupRequired = bNeedsCleanup;
 	Object->PostSaveRoot(FObjectPostSaveRootContext(ObjectSaveContext));
 }
@@ -800,6 +802,21 @@ void FObjectPreSaveContext::HarvestCookRuntimeDependencies(UObject* HarvestRefer
 	}
 
 }
+
+bool FObjectPreSaveContext::IsDeterminismDebug()
+{
+	return Data.bDeterminismDebug;
+}
+
+void FObjectPreSaveContext::RegisterDeterminismHelper(
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (Data.PackageWriter)
+	{
+		Data.PackageWriter->RegisterDeterminismHelper(Data.Object, DeterminismHelper);
+	}
+}
+
 #endif
 
 void FObjectSaveContextData::Set(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags)

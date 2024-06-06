@@ -43,11 +43,14 @@
 #include "Async/ParallelFor.h"
 
 #if WITH_EDITOR
+#include "Cooker/CookDeterminismHelper.h"
 #include "DerivedDataBuildVersion.h"
 #include "Math/GuardedInt.h"
+#include "Misc/ScopeRWLock.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "TextureCompiler.h"
 #include "TextureBuildUtilities.h"
-#include "Misc/ScopeRWLock.h"
+#include "TextureDerivedDataBuildUtils.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Texture)
@@ -1382,6 +1385,32 @@ void UTexture::PreSave(const class ITargetPlatform* TargetPlatform)
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
+#if WITH_EDITOR
+class FTextureDeterminismHelper : public UE::Cook::IDeterminismHelper
+{
+public:
+	FTextureDeterminismHelper(UTexture* InTexture)
+		: Texture(InTexture)
+	{
+	}
+
+	virtual void ConstructDiagnostics(UE::Cook::IDeterminismConstructDiagnosticsContext& Context)
+	{
+		FCbWriter Writer;
+		if (!UE::TextureBuildUtilities::TryWriteCookDeterminismDiagnostics(
+			Writer, Texture, Context.GetTargetPlatform()))
+		{
+			return;
+		}
+
+		Context.AddDiagnostic("UTexture", Writer.Save());
+	}
+
+private:
+	UTexture* Texture;
+};
+#endif
+
 void UTexture::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	PreSaveEvent.Broadcast(this);
@@ -1412,6 +1441,11 @@ void UTexture::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		GWarn->StatusUpdate( 0, 0, FText::Format( NSLOCTEXT("UnrealEd", "SavingPackage_CompressingTexture", "Compressing texture:  {0}"), FText::FromString(GetName()) ) );
 		DeferCompression = false;
 		UpdateResource();
+	}
+
+	if (ObjectSaveContext.IsDeterminismDebug())
+	{
+		ObjectSaveContext.RegisterDeterminismHelper(new FTextureDeterminismHelper(this));
 	}
 #endif // #if WITH_EDITOR
 }

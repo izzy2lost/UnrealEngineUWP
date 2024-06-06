@@ -531,6 +531,11 @@ public:
 		{
 			ObjectSaveContext.SaveOverrides = MoveTemp(*SaveArgs.InOutSaveOverrides);
 		}
+		ObjectSaveContext.PackageWriter = PackageWriter;
+		if (PackageWriter)
+		{
+			ObjectSaveContext.bDeterminismDebug = SaveArgs.SavePackageContext->PackageWriterCapabilities.bDeterminismDebug;
+		}
 
 		// Setup the harvesting flags and generate the context for harvesting the package
 		SetupHarvestingRealms();

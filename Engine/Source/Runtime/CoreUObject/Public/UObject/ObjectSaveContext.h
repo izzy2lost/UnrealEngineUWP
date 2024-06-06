@@ -6,13 +6,16 @@
 #include "HAL/Platform.h"
 #include "UObject/CookEnums.h"
 #include "UObject/ObjectSaveOverride.h"
+#include "Templates/RefCounting.h"
 
 class FPackagePath;
+class IPackageWriter;
 class ITargetPlatform;
 class UPackage;
 struct FSoftObjectPath;
 #if WITH_EDITOR
 namespace UE::Cook { class FCookDependency; }
+namespace UE::Cook { class IDeterminismHelper; }
 #endif
 
 /** Data used to provide information about the save parameters during PreSave/PostSave. */
@@ -55,6 +58,12 @@ struct FObjectSaveContextData
 	/** The target platform of the save, if cooking. Null if not cooking. */
 	const ITargetPlatform* TargetPlatform = nullptr;
 
+	/** The PackageWriter passed to SavePackage, may be null. */
+	IPackageWriter* PackageWriter = nullptr;
+
+	/** The object the Save event is being called on, if known. */
+	UObject* Object = nullptr;
+
 	/** The save flags (ESaveFlags) of the save. */
 	uint32 SaveFlags = 0;
 
@@ -86,6 +95,12 @@ struct FObjectSaveContextData
 
 	/** Set to false if the save failed, before calling any PostSaves. */
 	bool bSaveSucceeded = true;
+
+	/**
+	 * Applicable only to cook saves: True if the SavePackage call should write extra debug data for debugging
+	 * cook determinism or incremental cook issues.
+	 */
+	bool bDeterminismDebug = false;
 
 	// Collection variables that are written but not read during the PreSave/PostSave functions
 #if WITH_EDITOR
@@ -210,6 +225,17 @@ public:
 	COREUOBJECT_API void AddCookRuntimeDependency(FSoftObjectPath Dependency);
 	/** Serialize an object to find all packages that it references, and AddCookRuntimeDependency for each one. */
 	COREUOBJECT_API void HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom);
+
+	/**
+	 * Applicable only to cook saves: True if the SavePackage call should write extra debug data for debugging
+	 * cook determinism or incremental cook issues.
+	 */
+	COREUOBJECT_API bool IsDeterminismDebug();
+	/**
+	 * Ignored unless IsDeterminismDebug()=true. An object should call this function to register
+	 * their callback class for adding determinism diagnostics the package save.
+	 */
+	COREUOBJECT_API void RegisterDeterminismHelper(const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper);
 #endif
 
 	/**

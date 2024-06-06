@@ -28,7 +28,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogDiff, Log, All);
 
-FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner)
+FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner,
+	UE::Cook::FDeterminismManager* InDeterminismManager)
 	: Inner(MoveTemp(InInner))
 {
 	AccumulatorGlobals.Reset(new UE::DiffWriter::FAccumulatorGlobals(Inner.Get()));
@@ -56,6 +57,9 @@ FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInne
 	Indent = FCString::Spc(FOutputDeviceHelper::FormatLogLine(ELogVerbosity::Warning,
 		LogDiff.GetCategoryName(), TEXT(""), GPrintLogTimes).Len());
 	NewLine = TEXT("\n"); // OutputDevices are responsible for remapping to LINE_TERMINATOR if desired
+
+	check(InDeterminismManager);
+	DeterminismManager = InDeterminismManager;
 }
 
 void FDiffPackageWriter::ParseCmds()
@@ -215,6 +219,7 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 
 		TMap<FName, FArchiveDiffStats> PackageDiffStats;
 		const TCHAR* CutoffString = TEXT("UEditorEngine::Save()");
+		Accumulator.SetDeterminismManager(*DeterminismManager);
 		Accumulator.CompareWithPrevious(CutoffString, PackageDiffStats);
 
 		//COOK_STAT(FSavePackageStats::NumberOfDifferentPackages++);
@@ -348,6 +353,12 @@ bool FDiffPackageWriter::IsAnotherSaveNeeded(FSavePackageResultStruct& PreviousR
 	{
 		return false;
 	}
+}
+
+void FDiffPackageWriter::RegisterDeterminismHelper(UObject* SourceObject,
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	DeterminismManager->RegisterDeterminismHelper(SourceObject, DeterminismHelper);
 }
 
 bool FDiffPackageWriter::FilterPackageName(const FString& InWildcard)

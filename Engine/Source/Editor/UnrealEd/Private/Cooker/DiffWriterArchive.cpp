@@ -3,6 +3,7 @@
 #include "Cooker/DiffWriterArchive.h"
 
 #include "Compression/CompressionUtil.h"
+#include "Cooker/CookDeterminismManager.h"
 #include "Cooker/DiffWriterLinkerLoadHeader.h"
 #include "Cooker/DiffWriterZenHeader.h"
 #include "HAL/FileManager.h"
@@ -605,6 +606,11 @@ void FAccumulator::SetHeaderSize(int64 InHeaderSize)
 	HeaderSize = InHeaderSize;
 }
 
+void FAccumulator::SetDeterminismManager(UE::Cook::FDeterminismManager& InDeterminismManager)
+{
+	DeterminismManager = &InDeterminismManager;
+}
+
 FName FAccumulator::GetAssetClass() const
 {
 	return Asset != nullptr ? Asset->GetClass()->GetFName() : NAME_None;
@@ -950,6 +956,10 @@ void FAccumulator::CompareWithPreviousForSection(const FPackageData& SourcePacka
 			check(CallstackAtOffsetPtr && DifferenceCallstackDataPtr); // These were set up above.
 			const FCallstacks::FCallstackAtOffset& CallstackAtOffset = *CallstackAtOffsetPtr;
 			const FCallstacks::FCallstackData& DifferenceCallstackData = *DifferenceCallstackDataPtr;
+			if (DeterminismManager)
+			{
+				DeterminismManager->RecordExportModified(DifferenceCallstackData.SerializedObjectName);
+			}
 
 			FString BeforePropertyVal;
 			FString AfterPropertyVal;
@@ -1096,6 +1106,10 @@ void FAccumulator::CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FN
 
 	MessageCallback(ELogVerbosity::Display, FString::Printf(TEXT("Comparing: %s"), *Filename));
 	MessageCallback(ELogVerbosity::Warning, FString::Printf(TEXT("Asset class: %s"), *AssetClass.ToString()));
+	if (DeterminismManager)
+	{
+		DeterminismManager->RecordPackageModified(Asset);
+	}
 
 	int32 NumLoggedDiffs = 0;
 	
@@ -1150,6 +1164,17 @@ void FAccumulator::CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FN
 
 	CompareWithPreviousForSection(SourcePackageExports, DestPackageExports, CallstackCutoffText,
 		NumLoggedDiffs, OutStats, ExportsFilename);
+
+	// Log comparison of the DeterminismHelper diagnostics, if we have any
+	if (DeterminismManager)
+	{
+		FString DeterminismLines = DeterminismManager->GetCurrentPackageDiagnosticsAsText();
+		if (!DeterminismLines.IsEmpty())
+		{
+			DeterminismLines = FString(TEXT("DeterminismHelper Diagnostics:\n") + DeterminismLines);
+			MessageCallback(ELogVerbosity::Display, MoveTemp(DeterminismLines));
+		}
+	}
 
 	// Optionally save out any differences we detected.
 	const FArchiveDiffStats& Stats = OutStats.FindOrAdd(AssetClass);

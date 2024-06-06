@@ -39,12 +39,20 @@ public:
 
 	FLooseCookedPackageWriter(const FString& OutputPath, const FString& MetadataDirectoryPath,
 		const ITargetPlatform* TargetPlatform, FAsyncIODelete& InAsyncIODelete,
-		UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback);
+		UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback,
+		FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback);
 	~FLooseCookedPackageWriter();
+
+	virtual FCapabilities GetCapabilities() const override
+	{
+		FCapabilities Result = Super::GetCapabilities();
+		Result.bDeterminismDebug = (bool)RegisterDeterminismHelperCallback;
+		return Result;
+	}
 
 	virtual FCookCapabilities GetCookCapabilities() const override
 	{
-		FCookCapabilities Result;
+		FCookCapabilities Result = Super::GetCookCapabilities();
 		Result.bDiffModeSupported = true;
 		return Result;
 	}
@@ -53,6 +61,8 @@ public:
 	virtual int64 GetExportsFooterSize() override;
 
 	virtual FDateTime GetPreviousCookTime() const override;
+	virtual void RegisterDeterminismHelper(UObject* SourceObject,
+		const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper) override;
 	virtual void Initialize(const FCookInfo& Info) override;
 	virtual void BeginCook(const FCookInfo& Info) override;
 	virtual void EndCook(const FCookInfo& Info) override;
@@ -166,6 +176,7 @@ private:
 	UE::Cook::FCookSandbox& SandboxFile;
 	FAsyncIODelete& AsyncIODelete;
 	FBeginCacheCallback BeginCacheCallback;
+	FRegisterDeterminismHelperCallback RegisterDeterminismHelperCallback;
 	bool bIterateSharedBuild = false;
 	bool bProvidePerPackageResults = false;
 };

@@ -59,13 +59,15 @@ LLM_DEFINE_TAG(Cooker_PackageStoreManifest);
 
 FLooseCookedPackageWriter::FLooseCookedPackageWriter(const FString& InOutputPath,
 	const FString& InMetadataDirectoryPath, const ITargetPlatform* InTargetPlatform, FAsyncIODelete& InAsyncIODelete,
-	UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback)
+	UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback,
+	FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback)
 	: OutputPath(InOutputPath)
 	, MetadataDirectoryPath(InMetadataDirectoryPath)
 	, TargetPlatform(*InTargetPlatform)
 	, SandboxFile(InSandboxFile)
 	, AsyncIODelete(InAsyncIODelete)
 	, BeginCacheCallback(MoveTemp(InBeginCacheCallback))
+	, RegisterDeterminismHelperCallback(MoveTemp(InRegisterDeterminismHelperCallback))
 {
 }
 
@@ -536,6 +538,15 @@ FDateTime FLooseCookedPackageWriter::GetPreviousCookTime() const
 {
 	const FString PreviousAssetRegistry = FPaths::Combine(MetadataDirectoryPath, GetDevelopmentAssetRegistryFilename());
 	return IFileManager::Get().GetTimeStamp(*PreviousAssetRegistry);
+}
+
+void FLooseCookedPackageWriter::RegisterDeterminismHelper(UObject* SourceObject,
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (RegisterDeterminismHelperCallback)
+	{
+		RegisterDeterminismHelperCallback(SourceObject, DeterminismHelper);
+	}
 }
 
 void FLooseCookedPackageWriter::Initialize(const FCookInfo& Info)

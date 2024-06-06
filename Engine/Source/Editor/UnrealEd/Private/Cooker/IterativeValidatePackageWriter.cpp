@@ -276,8 +276,9 @@ void FIterativeValidateMPCollector::ReadAndSyncPackageStatus(FCbObjectView Messa
 }
 
 FIterativeValidatePackageWriter::FIterativeValidatePackageWriter(UCookOnTheFlyServer& InCOTFS,
-	TUniquePtr<ICookedPackageWriter>&& InInner, EPhase InPhase, const FString& ResolvedMetadataPath)
-	: FDiffPackageWriter(MoveTemp(InInner))
+	TUniquePtr<ICookedPackageWriter>&& InInner, EPhase InPhase, const FString& ResolvedMetadataPath,
+	UE::Cook::FDeterminismManager* InDeterminismManager)
+	: FDiffPackageWriter(MoveTemp(InInner), InDeterminismManager)
 	, MetadataPath(ResolvedMetadataPath)
 	, COTFS(InCOTFS)
 	, Phase(InPhase)

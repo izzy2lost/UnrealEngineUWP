@@ -403,6 +403,15 @@ void FZenStoreWriter::WritePackageTrailer(const FPackageTrailerInfo& Info, const
 	checkNoEntry();
 }
 
+void FZenStoreWriter::RegisterDeterminismHelper(UObject* SourceObject,
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (RegisterDeterminismHelperCallback)
+	{
+		RegisterDeterminismHelperCallback(SourceObject, DeterminismHelper);
+	}
+}
+
 void FZenStoreWriter::Initialize(const FCookInfo& Info)
 {
 	CookMode = Info.CookMode;

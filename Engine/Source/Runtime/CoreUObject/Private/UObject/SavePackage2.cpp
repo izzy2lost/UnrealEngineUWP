@@ -284,13 +284,15 @@ ESavePackageResult RoutePresave(FSaveContext& SaveContext)
 		// this is to prevent warning on objects which won't be harvested later since they are unreferenced
 		if (!SaveContext.IsUnsaveable(Object, false/*bEmitWarning*/))
 		{
+			FObjectSaveContextData& ObjectSaveContext = SaveContext.GetObjectSaveContext();
+			ObjectSaveContext.Object = Object;
 			if (SaveContext.IsCooking() && Object->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 			{
 				FArchiveObjectCrc32 CrcArchive;
 				CrcArchive.ArIsFilterEditorOnly = true;
 				FString PathNameBefore = Object->GetPathName();
 				int32 Before = CrcArchive.Crc32(Object);
-				UE::SavePackageUtilities::CallPreSave(Object, SaveContext.GetObjectSaveContext());
+				UE::SavePackageUtilities::CallPreSave(Object, ObjectSaveContext);
 				int32 After = CrcArchive.Crc32(Object);
 
 				if (Before != After)
@@ -324,7 +326,7 @@ ESavePackageResult RoutePresave(FSaveContext& SaveContext)
 			}
 			else
 			{
-				UE::SavePackageUtilities::CallPreSave(Object, SaveContext.GetObjectSaveContext());
+				UE::SavePackageUtilities::CallPreSave(Object, ObjectSaveContext);
 			}
 		}
 	}
@@ -2670,6 +2672,8 @@ void PostSavePackage(FSaveContext& SaveContext)
 		bContainsNoAsset &= bLinkerContainsNoAsset;
 
 		// Call the linker post save callbacks
+		FObjectSaveContextData& ObjectSaveContext = SaveContext.GetObjectSaveContext();
+		ObjectSaveContext.Object = nullptr;
 		Linker->OnPostSave(SaveContext.GetTargetPackagePath(), FObjectPostSaveContext(SaveContext.GetObjectSaveContext()));
 	}
 
@@ -2696,7 +2700,9 @@ void PostSavePackage(FSaveContext& SaveContext)
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	UPackage::PackageSavedEvent.Broadcast(SaveContext.GetFilename(), Package);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	UPackage::PackageSavedWithContextEvent.Broadcast(SaveContext.GetFilename(), Package, FObjectPostSaveContext(SaveContext.GetObjectSaveContext()));
+	FObjectSaveContextData& ObjectSaveContext = SaveContext.GetObjectSaveContext();
+	ObjectSaveContext.Object = nullptr;
+	UPackage::PackageSavedWithContextEvent.Broadcast(SaveContext.GetFilename(), Package, FObjectPostSaveContext(ObjectSaveContext));
 
 	// update the internal package filename path if we're saving to a valid mounted path and we aren't currently cooking
 #if WITH_EDITOR

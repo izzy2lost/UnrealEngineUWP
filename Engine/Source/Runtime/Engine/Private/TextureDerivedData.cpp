@@ -40,6 +40,7 @@
 #include "ProfilingDebugging/CookStats.h"
 #include "UObject/ArchiveCookContext.h"
 #include "VT/LightmapVirtualTexture.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryWriter.h"
 #include "TextureBuildUtilities.h"
 #include "TextureCompiler.h"
@@ -4115,7 +4116,6 @@ void UTexture::CleanupCachedRunningPlatformData()
 	}
 }
 
-
 void UTexture::SerializeCookedPlatformData(FArchive& Ar, const bool bSerializeMipData)
 {
 	if (IsTemplate() )
@@ -4285,6 +4285,56 @@ void UTexture::SerializeCookedPlatformData(FArchive& Ar, const bool bSerializeMi
 		LODBias = 0;
 	}
 }
+
+#if WITH_EDITOR
+namespace UE::TextureBuildUtilities
+{
+
+bool TryWriteCookDeterminismDiagnostics(FCbWriter& Writer, UTexture* Texture, const ITargetPlatform* TargetPlatform)
+{
+	if (!TargetPlatform->AllowAudioVisualData())
+	{
+		return false;
+	}
+	TMap<FString, FTexturePlatformData*>* CookedPlatformDataPtr = Texture->GetCookedPlatformData();
+	if (!CookedPlatformDataPtr)
+	{
+		return false;
+	}
+
+	ETextureEncodeSpeed EncodeSpeed = Texture->GetDesiredEncodeSpeed();
+	TArray<TArray<FTextureBuildSettings>> BuildSettingsToCacheFetchOrBuild;
+	if (EncodeSpeed == ETextureEncodeSpeed::FinalIfAvailable)
+	{
+		EncodeSpeed = ETextureEncodeSpeed::Fast;
+	}
+	FTextureBuildSettings BuildSettingsFetchOrBuild;
+	GetTextureBuildSettings(*Texture, TargetPlatform->GetTextureLODSettings(), *TargetPlatform, EncodeSpeed, BuildSettingsFetchOrBuild, nullptr);
+	GetBuildSettingsPerFormat(*Texture, BuildSettingsFetchOrBuild, nullptr, TargetPlatform, EncodeSpeed, BuildSettingsToCacheFetchOrBuild, nullptr);
+
+	if (BuildSettingsToCacheFetchOrBuild.IsEmpty())
+	{
+		return false;
+	}
+
+	Writer.BeginObject();
+	Writer.BeginArray("BuildSettings");
+	for (int32 SettingIndex = 0; SettingIndex < BuildSettingsToCacheFetchOrBuild.Num(); SettingIndex++)
+	{
+		// CookedPlatformData is keyed off of the fetchorbuild key.
+		FString DerivedDataKeyFetchOrBuild;
+		GetTextureDerivedDataKey(*Texture, BuildSettingsToCacheFetchOrBuild[SettingIndex].GetData(), DerivedDataKeyFetchOrBuild);
+		Writer.BeginObject();
+		Writer << "DerivedDataKey" << DerivedDataKeyFetchOrBuild;
+		Writer.EndObject();
+	}
+	Writer.EndArray();
+	Writer.EndObject();
+	return true;
+}
+
+}
+#endif
 
 int32 UTexture::GMinTextureResidentMipCount = NUM_INLINE_DERIVED_MIPS;
 

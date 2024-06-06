@@ -24,6 +24,7 @@ class FLinkerLoad;
 class FProperty;
 class FUObjectThreadContext;
 class UObject;
+namespace UE::Cook { class FDeterminismManager; }
 struct FUObjectSerializeContext;
 
 
@@ -261,6 +262,7 @@ public:
 	void CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FName,FArchiveDiffStats>& OutStats);
 
 	void SetHeaderSize(int64 InHeaderSize);
+	void SetDeterminismManager(UE::Cook::FDeterminismManager& InDeterminismManager);
 	void SetCollectingCallstacks(bool bInCollectingCallstacks);
 	FName GetAssetClass() const;
 	bool IsWriterUsingPostSaveTransforms() const;
@@ -282,6 +284,7 @@ private:
 	TArray<uint8> FirstSaveLinkerData;
 	int64 FirstSaveLinkerSize = 0;
 	FAccumulatorGlobals& Globals;
+	UE::Cook::FDeterminismManager* DeterminismManager = nullptr;
 
 	FDiffMap DiffMap;
 	FMessageCallback MessageCallback;

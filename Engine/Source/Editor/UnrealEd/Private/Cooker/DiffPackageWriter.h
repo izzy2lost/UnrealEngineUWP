@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AssetRegistry/AssetRegistryState.h"
+#include "Cooker/CookDeterminismManager.h"
 #include "Cooker/DiffWriterArchive.h"
 #include "Serialization/PackageWriter.h"
 
@@ -12,13 +13,14 @@ namespace UE::DiffWriter { struct FAccumulatorGlobals; }
 class FDiffPackageWriter : public ICookedPackageWriter
 {
 public:
-	FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner);
+	FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner, UE::Cook::FDeterminismManager* InDeterminismManager);
 
 	// IPackageWriter
 	virtual FCapabilities GetCapabilities() const override
 	{
 		FCapabilities Result = Inner->GetCapabilities();
 		Result.bIgnoreHeaderDiffs = bIgnoreHeaderDiffs;
+		Result.bDeterminismDebug = true;
 		return Result;
 	}
 	virtual void BeginPackage(const FBeginPackageInfo& Info) override;
@@ -51,8 +53,10 @@ public:
 	virtual TUniquePtr<FLargeMemoryWriter> CreateLinkerExportsArchive(FName PackageName, UObject* Asset, uint16 MultiOutputIndex) override;
 	virtual bool IsPreSaveCompleted() const override
 	{
-		return bDiffCallstack;
+		return bHasStartedSecondSave;
 	}
+	virtual void RegisterDeterminismHelper(UObject* SourceObject,
+		const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper) override;
 
 	// ICookedPackageWriter
 	virtual FCookCapabilities GetCookCapabilities() const override
@@ -137,6 +141,7 @@ protected:
 	TSet<FTopLevelAssetPath> CompareDenyListClasses;
 	TUniquePtr<ICookedPackageWriter> Inner;
 	TUniquePtr<UE::DiffWriter::FAccumulatorGlobals> AccumulatorGlobals;
+	UE::Cook::FDeterminismManager* DeterminismManager = nullptr;
 	/** Only non-null between BeginPackage and CommitPackage. */
 	UPackage* Package = nullptr;
 	const TCHAR* Indent = nullptr;
@@ -149,7 +154,6 @@ protected:
 	bool bIgnoreHeaderDiffs = false;
 	bool bIsDifferent = false;
 	bool bNewPackage = false;
-	bool bDiffCallstack = false;
 	bool bHasStartedSecondSave = false;
 	bool bDumpObjList = false;
 	bool bDumpObjects = false;

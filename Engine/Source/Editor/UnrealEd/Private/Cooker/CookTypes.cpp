@@ -2,9 +2,11 @@
 
 #include "CookTypes.h"
 
-#include "CompactBinaryTCP.h"
-#include "CookPackageData.h"
 #include "Containers/StringView.h"
+#include "Cooker/CompactBinaryTCP.h"
+#include "Cooker/CookDeterminismManager.h"
+#include "Cooker/CookPackageData.h"
+#include "Cooker/PackageTracker.h"
 #include "DerivedDataRequest.h"
 #include "Editor.h"
 #include "HAL/PlatformTLS.h"
@@ -15,7 +17,6 @@
 #include "Math/UnrealMathUtility.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
-#include "PackageTracker.h"
 #include "Serialization/PackageWriterToSharedBuffer.h"
 
 LLM_DEFINE_TAG(Cooker_CachedPlatformData);
@@ -219,10 +220,12 @@ void SetIsSchedulerThread(bool bValue)
 }
 
 FCookSavePackageContext::FCookSavePackageContext(const ITargetPlatform* InTargetPlatform,
-	ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings)
+	ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings,
+	TUniquePtr<FDeterminismManager>&& InDeterminismManager)
 	: SaveContext(InTargetPlatform, InPackageWriter, MoveTemp(InSettings))
 	, WriterDebugName(InWriterDebugName)
 	, PackageWriter(InPackageWriter)
+	, DeterminismManager(MoveTemp(InDeterminismManager))
 {
 	PackageWriterCapabilities = InPackageWriter->GetCookCapabilities();
 }

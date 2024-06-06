@@ -1540,6 +1540,8 @@ private:
 	bool bRunningAsShaderServer = false;
 	/** Whether to skip saving packages that are cooked. When true, the cook will only load and process packages but not write them to disk */
 	bool bSkipSave = false;
+	/** Whether cooked packages should store extra data to debug indeterminism. */
+	bool bDeterminismDebug = false;
 	/** Timers for tracking how long we have been busy, to manage retries and warnings of deadlock */
 	double SaveBusyStartTimeSeconds = MAX_flt;
 	double SaveBusyRetryTimeSeconds = MAX_flt;
