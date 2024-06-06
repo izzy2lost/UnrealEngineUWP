@@ -12,6 +12,7 @@ class AActor;
 class ADynamicMeshActor;
 class AStaticMeshActor;
 class UCEClonerComponent;
+class UClass;
 class UNiagaraDataChannelReader;
 class UNiagaraDataChannelWriter;
 class UDynamicMesh;
@@ -262,6 +263,17 @@ enum class ECEClonerMeshConversion : uint8
 	InstancedStaticMesh
 };
 
+/** Enumerates all states for extension/layout */
+enum class ECEClonerSystemStatus : uint8
+{
+	/** Nothing to do */
+	UpToDate = 0,
+	/** Parameters needs an update */
+	ParametersDirty = 1 << 0,
+	/** Simulation needs an update */
+	SimulationDirty = 1 << 1
+};
+
 USTRUCT()
 struct FCEClonerAttachmentItem
 {
@@ -453,6 +465,7 @@ struct FCEClonerEffectorDataInterfaces
 	void Remove(int32 InIndex) const;
 	bool IsValid() const;
 	int32 Num() const;
+	void Commit() const;
 
 	UNiagaraDataInterfaceArrayInt32* GetIndexArray() const;
 
@@ -531,21 +544,10 @@ struct FCEExtensionSection
 namespace UE::ClonerEffector
 {
 #if WITH_EDITOR
-	namespace ClonerSection
+	namespace EditorSection
 	{
-		const FCEExtensionSection ClonerSection(TEXT("Cloner"), 0);
-		const FCEExtensionSection EffectorSection(TEXT("Effector"), 1);
-		const FCEExtensionSection EmissionSection(TEXT("Emission"), 2);
-		const FCEExtensionSection PhysicsSection(TEXT("Physics"), 3);
-		const FCEExtensionSection RenderingSection(TEXT("Rendering"), 4);
-	}
-
-	namespace EffectorSection
-	{
-		const FCEExtensionSection EffectorSection(TEXT("Effector"), 0);
-		const FCEExtensionSection ModeSection(TEXT("Mode"), 1);
-		const FCEExtensionSection ShapeSection(TEXT("Shape"), 2);
-		const FCEExtensionSection ForcesSection(TEXT("Forces"), 3);
+		/** Retrieves section metadata from class */
+		FCEExtensionSection GetExtensionSectionFromClass(UClass* InClass);
 	}
 #endif
 

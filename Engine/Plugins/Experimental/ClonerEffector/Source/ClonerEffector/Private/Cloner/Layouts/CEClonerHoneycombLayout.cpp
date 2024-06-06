@@ -29,7 +29,7 @@ void UCEClonerHoneycombLayout::SetWidthCount(int32 InWidthCount)
 	}
 
 	WidthCount = InWidthCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::SetHeightCount(int32 InHeightCount)
@@ -40,7 +40,7 @@ void UCEClonerHoneycombLayout::SetHeightCount(int32 InHeightCount)
 	}
 
 	HeightCount = InHeightCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::SetWidthOffset(float InWidthOffset)
@@ -51,7 +51,7 @@ void UCEClonerHoneycombLayout::SetWidthOffset(float InWidthOffset)
 	}
 
 	WidthOffset = InWidthOffset;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::SetHeightOffset(float InHeightOffset)
@@ -62,7 +62,7 @@ void UCEClonerHoneycombLayout::SetHeightOffset(float InHeightOffset)
 	}
 
 	HeightOffset = InHeightOffset;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::SetHeightSpacing(float InHeightSpacing)
@@ -73,7 +73,7 @@ void UCEClonerHoneycombLayout::SetHeightSpacing(float InHeightSpacing)
 	}
 
 	HeightSpacing = InHeightSpacing;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::SetWidthSpacing(float InWidthSpacing)
@@ -84,7 +84,7 @@ void UCEClonerHoneycombLayout::SetWidthSpacing(float InWidthSpacing)
 	}
 
 	WidthSpacing = InWidthSpacing;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::SetTwistFactor(float InFactor)
@@ -95,12 +95,12 @@ void UCEClonerHoneycombLayout::SetTwistFactor(float InFactor)
 	}
 
 	TwistFactor = InFactor;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
-void UCEClonerHoneycombLayout::SetTwistAxis(ENiagaraOrientationAxis InAxis)
+void UCEClonerHoneycombLayout::SetTwistAxis(ECEClonerAxis InAxis)
 {
-	if (TwistAxis == InAxis)
+	if (TwistAxis == InAxis || InAxis == ECEClonerAxis::Custom)
 	{
 		return;
 	}
@@ -136,27 +136,27 @@ void UCEClonerHoneycombLayout::OnTwistAxisChanged()
 	// Restrict twist axis to plane axis
 	if (Plane == ECEClonerPlane::XY)
 	{
-		if (TwistAxis == ENiagaraOrientationAxis::ZAxis)
+		if (TwistAxis == ECEClonerAxis::Z)
 		{
-			TwistAxis = ENiagaraOrientationAxis::XAxis;
+			TwistAxis = ECEClonerAxis::X;
 		}
 	}
 	else if (Plane == ECEClonerPlane::XZ)
 	{
-		if (TwistAxis == ENiagaraOrientationAxis::YAxis)
+		if (TwistAxis == ECEClonerAxis::Y)
 		{
-			TwistAxis = ENiagaraOrientationAxis::XAxis;
+			TwistAxis = ECEClonerAxis::X;
 		}
 	}
 	else if (Plane == ECEClonerPlane::YZ)
 	{
-		if (TwistAxis == ENiagaraOrientationAxis::XAxis)
+		if (TwistAxis == ECEClonerAxis::X)
 		{
-			TwistAxis = ENiagaraOrientationAxis::YAxis;
+			TwistAxis = ECEClonerAxis::Y;
 		}
 	}
 
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerHoneycombLayout::OnLayoutParametersChanged(UCEClonerComponent* InComponent)

@@ -6,8 +6,13 @@
 #include "IDetailCustomization.h"
 #include "UObject/NameTypes.h"
 #include "UObject/WeakObjectPtr.h"
+#include "Templates/SharedPointerFwd.h"
 
 class FReply;
+class IPropertyHandle;
+class IPropertyUtilities;
+class UCEClonerComponent;
+class UCEClonerLayoutBase;
 class UFunction;
 class UObject;
 
@@ -17,7 +22,9 @@ class FCEEditorClonerComponentDetailCustomization : public IDetailCustomization
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
 	{
-		return MakeShared<FCEEditorClonerComponentDetailCustomization>();
+		TSharedRef<FCEEditorClonerComponentDetailCustomization> Customization = MakeShared<FCEEditorClonerComponentDetailCustomization>();
+		Customization->Init();
+		return Customization;
 	}
 
 	explicit FCEEditorClonerComponentDetailCustomization()
@@ -31,9 +38,24 @@ public:
 
 protected:
 	static void RemoveEmptySections();
+	static void OnChildPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyHandle> InParentHandleWeak);
+	static void OnPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyUtilities> InUtilitiesWeak);
+
+	/** Bind delegates needed */
+	void Init();
+
+	/** Used to refresh details view when layout changes */
+	void OnClonerLayoutLoaded(UCEClonerComponent* InCloner, UCEClonerLayoutBase* InLayout);
 
 	/** Execute ufunction with that name on selected objects */
 	FReply OnFunctionButtonClicked(FName InFunctionName);
 
+	/** Function name to object ufunction mapping */
 	TMap<FName, TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>> LayoutFunctionNames;
+
+	/** Customized objects */
+	TArray<TWeakObjectPtr<UCEClonerComponent>> ClonerComponentsWeak;
+
+	/** Property utilities for details view refresh */
+	TWeakPtr<IPropertyUtilities> PropertyUtilitiesWeak;
 };

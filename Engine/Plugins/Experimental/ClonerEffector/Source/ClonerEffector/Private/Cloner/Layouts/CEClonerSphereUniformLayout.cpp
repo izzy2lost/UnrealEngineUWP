@@ -12,7 +12,7 @@ void UCEClonerSphereUniformLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereUniformLayout::SetRadius(float InRadius)
@@ -23,7 +23,7 @@ void UCEClonerSphereUniformLayout::SetRadius(float InRadius)
 	}
 
 	Radius = InRadius;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereUniformLayout::SetRatio(float InRatio)
@@ -34,7 +34,7 @@ void UCEClonerSphereUniformLayout::SetRatio(float InRatio)
 	}
 
 	Ratio = InRatio;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereUniformLayout::SetOrientMesh(bool bInOrientMesh)
@@ -45,7 +45,7 @@ void UCEClonerSphereUniformLayout::SetOrientMesh(bool bInOrientMesh)
 	}
 
 	bOrientMesh = bInOrientMesh;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereUniformLayout::SetRotation(const FRotator& InRotation)
@@ -56,7 +56,7 @@ void UCEClonerSphereUniformLayout::SetRotation(const FRotator& InRotation)
 	}
 
 	Rotation = InRotation;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereUniformLayout::SetScale(const FVector& InScale)
@@ -67,7 +67,7 @@ void UCEClonerSphereUniformLayout::SetScale(const FVector& InScale)
 	}
 
 	Scale = InScale;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR

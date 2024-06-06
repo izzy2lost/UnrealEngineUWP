@@ -15,7 +15,7 @@ void UCEClonerEmitterSpawnExtension::SetSpawnLoopMode(ECEClonerSpawnLoopMode InM
 	}
 
 	SpawnLoopMode = InMode;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerEmitterSpawnExtension::SetSpawnLoopIterations(int32 InIterations)
@@ -31,7 +31,7 @@ void UCEClonerEmitterSpawnExtension::SetSpawnLoopIterations(int32 InIterations)
 	}
 
 	SpawnLoopIterations = InIterations;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerEmitterSpawnExtension::SetSpawnLoopInterval(float InInterval)
@@ -47,7 +47,7 @@ void UCEClonerEmitterSpawnExtension::SetSpawnLoopInterval(float InInterval)
 	}
 
 	SpawnLoopInterval = InInterval;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerEmitterSpawnExtension::SetSpawnBehaviorMode(ECEClonerSpawnBehaviorMode InMode)
@@ -58,7 +58,7 @@ void UCEClonerEmitterSpawnExtension::SetSpawnBehaviorMode(ECEClonerSpawnBehavior
 	}
 
 	SpawnBehaviorMode = InMode;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerEmitterSpawnExtension::SetSpawnRate(float InRate)
@@ -74,7 +74,7 @@ void UCEClonerEmitterSpawnExtension::SetSpawnRate(float InRate)
 	}
 
 	SpawnRate = InRate;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerEmitterSpawnExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)

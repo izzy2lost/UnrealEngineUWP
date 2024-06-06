@@ -8,7 +8,7 @@
 #include "CEClonerCollisionExtension.generated.h"
 
 /** Extension dealing with collisions and physics related options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, AutoExpandCategories=("Collisions"))
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, AutoExpandCategories=("Collisions"), meta=(Section="Physics", Priority=3))
 class UCEClonerCollisionExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()
@@ -18,9 +18,6 @@ public:
 		: UCEClonerExtensionBase(
 			TEXT("Collisions")
 			, 0
-#if WITH_EDITOR
-			, UE::ClonerEffector::ClonerSection::PhysicsSection
-#endif
 		)
 	{}
 

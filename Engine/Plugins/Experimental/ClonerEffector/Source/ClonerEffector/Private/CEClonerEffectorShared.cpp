@@ -178,6 +178,22 @@ int32 FCEClonerEffectorDataInterfaces::Num() const
 	return IndexSize;
 }
 
+void FCEClonerEffectorDataInterfaces::Commit() const
+{
+	for (const TPair<FName, TObjectPtr<UNiagaraDataInterface>>& DataInterfacePair : DataInterfaces)
+	{
+		if (UNiagaraDataInterface* NiagaraDataInterface = DataInterfacePair.Value.Get())
+		{
+			if (UNiagaraSystem* System = NiagaraDataInterface->GetTypedOuter<UNiagaraSystem>())
+			{
+				FNiagaraUserRedirectionParameterStore& UserParameterStore = System->GetExposedParameters();
+				const FNiagaraVariable DIVar(FNiagaraTypeDefinition(NiagaraDataInterface->GetClass()), DataInterfacePair.Key);
+				UserParameterStore.SetDataInterface(NiagaraDataInterface, DIVar);
+			}
+		}
+	}
+}
+
 UNiagaraDataInterfaceArrayInt32* FCEClonerEffectorDataInterfaces::GetIndexArray() const
 {
 	if (const TObjectPtr<UNiagaraDataInterface>* Array = DataInterfaces.Find(FCEClonerEffectorDataInterfaces::IndexName))
@@ -187,6 +203,31 @@ UNiagaraDataInterfaceArrayInt32* FCEClonerEffectorDataInterfaces::GetIndexArray(
 
 	return nullptr;
 }
+
+#if WITH_EDITOR
+FCEExtensionSection UE::ClonerEffector::EditorSection::GetExtensionSectionFromClass(UClass* InClass)
+{
+	FCEExtensionSection Section;
+
+	if (!InClass)
+	{
+		return Section;
+	}
+
+	while (InClass && !InClass->HasMetaData(TEXT("Section")))
+	{
+		InClass = InClass->GetSuperClass();
+	}
+
+	if (InClass)
+	{
+		Section.SectionName = FName(InClass->GetMetaData(TEXT("Section")));
+		Section.SectionOrder = InClass->GetIntMetaData(TEXT("Priority"));
+	}
+
+	return Section;
+}
+#endif
 
 AStaticMeshActor* UE::ClonerEffector::Conversion::ConvertClonerToStaticMesh(UCEClonerComponent* InCloner)
 {

@@ -12,7 +12,7 @@ class UCEEffectorComponent;
 struct FCEClonerEffectorDataInterfaces;
 
 /** Extension dealing with effectors options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Effector", Priority=1))
 class UCEClonerEffectorExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()
@@ -26,9 +26,6 @@ public:
 		: UCEClonerExtensionBase(
 			TEXT("Effector")
 			, 0
-#if WITH_EDITOR
-			, UE::ClonerEffector::ClonerSection::EffectorSection
-#endif
 		)
 	{}
 

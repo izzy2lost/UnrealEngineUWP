@@ -7,7 +7,7 @@
 #include "CEClonerRangeExtension.generated.h"
 
 /** Extension dealing with range options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Cloner", Priority=0))
 class UCEClonerRangeExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()
@@ -17,9 +17,6 @@ public:
 		: UCEClonerExtensionBase(
 			TEXT("Range")
 			, 0
-#if WITH_EDITOR
-			, UE::ClonerEffector::ClonerSection::ClonerSection
-#endif
 		)
 	{}
 

@@ -70,7 +70,7 @@ ACEClonerActor::ACEClonerActor()
 		}
 #endif
 
-		ClonerComponent->OnClonerInitialized().AddUObject(this, &ACEClonerActor::OnClonerInitialized);
+		UCEClonerComponent::OnClonerInitialized().AddUObject(this, &ACEClonerActor::OnClonerInitialized);
 	}
 }
 
@@ -113,10 +113,13 @@ void ACEClonerActor::PostActorCreated()
 
 void ACEClonerActor::OnClonerInitialized(UCEClonerComponent* InClonerComponent)
 {
+	if (ClonerComponent == InClonerComponent)
+	{
 #if WITH_EDITOR
-	// PostActorCreated is sometimes called after the cloner is initialized
-	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &ACEClonerActor::SpawnDefaultActorAttached));
+		// PostActorCreated is sometimes called after the cloner is initialized
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &ACEClonerActor::SpawnDefaultActorAttached));
 #endif
+	}
 }
 
 void ACEClonerActor::MigrateDeprecatedProperties()

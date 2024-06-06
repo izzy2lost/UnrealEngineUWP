@@ -18,10 +18,11 @@ public:
 		return MakeShared<FCEEditorClonerEffectorExtensionDetailCustomization>();
 	}
 
-	static void CustomizeEffectorsProperty(TSharedRef<IPropertyHandle> InProperty, IDetailCategoryBuilder& InCategoryBuilder);
-	static bool OnFilterEffectorActor(const AActor* InActor);
-
 	//~ Begin IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
 	//~ End IDetailCustomization
+
+protected:
+	static void CustomizeEffectorsProperty(TSharedRef<IPropertyHandle> InProperty, IDetailCategoryBuilder& InCategoryBuilder);
+	static bool OnFilterEffectorActor(const AActor* InActor);
 };

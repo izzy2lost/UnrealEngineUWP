@@ -9,7 +9,7 @@
 class UCEEffectorComponent;
 
 /** Effector supported forces to affect clones */
-UCLASS(MinimalAPI, BlueprintType, Within=CEEffectorComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEEffectorComponent, meta=(Section="Forces", Priority=3))
 class UCEEffectorForceExtension : public UCEEffectorExtensionBase
 {
 	GENERATED_BODY()
@@ -18,9 +18,6 @@ public:
 	UCEEffectorForceExtension()
 		: UCEEffectorExtensionBase(
 			TEXT("Forces")
-#if WITH_EDITOR
-			, UE::ClonerEffector::EffectorSection::ForcesSection
-#endif
 		)
 	{}
 

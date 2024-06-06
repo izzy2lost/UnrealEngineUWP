@@ -27,7 +27,7 @@ void UCEClonerSplineLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSplineLayout::SetSplineActorWeak(const TWeakObjectPtr<AActor>& InSplineActor)
@@ -38,7 +38,7 @@ void UCEClonerSplineLayout::SetSplineActorWeak(const TWeakObjectPtr<AActor>& InS
 	}
 
 	SplineActorWeak = InSplineActor;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSplineLayout::SetSplineActor(AActor* InSplineActor)
@@ -54,7 +54,7 @@ void UCEClonerSplineLayout::SetOrientMesh(bool bInOrientMesh)
 	}
 
 	bOrientMesh = bInOrientMesh;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR
@@ -152,13 +152,14 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 	if (USplineComponent* SplineComponent = SplineComponentWeak.Get())
     {
 		SplineComponent->TransformUpdated.RemoveAll(this);
+
 		SplineComponentWeak.Reset();
     }
 
 	SplineComponentWeak = nullptr;
 
 	// bind
-	if (AActor* SplineActor = SplineActorWeak.Get())
+	if (const AActor* SplineActor = SplineActorWeak.Get())
 	{
 		if (USplineComponent* SplineComponent = SplineActor->FindComponentByClass<USplineComponent>())
 		{
@@ -181,13 +182,13 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 
 void UCEClonerSplineLayout::OnSampleSplineTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType)
 {
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSplineLayout::OnSampleSplineRenderStateUpdated(UActorComponent& InComponent)
 {
 	if (SplineActorWeak.IsValid() && InComponent.GetOwner() == SplineActorWeak.Get())
 	{
-		UpdateLayoutParameters();
+		MarkLayoutDirty();
 	}
 }

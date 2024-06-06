@@ -4,12 +4,19 @@
 
 #include "Effector/CEEffectorComponent.h"
 
+#if WITH_EDITOR
+FCEExtensionSection UCEEffectorExtensionBase::GetExtensionSection() const
+{
+	return UE::ClonerEffector::EditorSection::GetExtensionSectionFromClass(GetClass());
+}
+#endif
+
 UCEEffectorComponent* UCEEffectorExtensionBase::GetEffectorComponent() const
 {
 	return GetTypedOuter<UCEEffectorComponent>();
 }
 
-void UCEEffectorExtensionBase::UpdateExtensionParameters(bool bInUpdateLinkedCloners, bool bInImmediate)
+void UCEEffectorExtensionBase::UpdateExtensionParameters(bool bInUpdateLinkedCloners)
 {
 	if (!IsExtensionActive())
 	{
@@ -27,7 +34,7 @@ void UCEEffectorExtensionBase::UpdateExtensionParameters(bool bInUpdateLinkedClo
 
 		if (bInUpdateLinkedCloners)
 		{
-			EffectorComponent->RequestClonerUpdate(bInImmediate);
+			EffectorComponent->RequestClonerUpdate(/** Immediate */false);
 		}
 	}
 }

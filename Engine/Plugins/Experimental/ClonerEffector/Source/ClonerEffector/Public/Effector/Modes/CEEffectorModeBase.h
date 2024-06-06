@@ -8,7 +8,7 @@
 class UCEEffectorComponent;
 
 /** Represents a behavior for an effector to affect clones in a specific way */
-UCLASS(MinimalAPI, Abstract, BlueprintType, Within=CEEffectorComponent)
+UCLASS(MinimalAPI, Abstract, BlueprintType, Within=CEEffectorComponent, meta=(Section="Mode", Priority=2))
 class UCEEffectorModeBase : public UCEEffectorExtensionBase
 {
 	GENERATED_BODY()
@@ -21,9 +21,6 @@ public:
 	UCEEffectorModeBase(FName InModeName, int32 InModeIdentifier)
 		: UCEEffectorExtensionBase(
 			InModeName
-#if WITH_EDITOR
-			, UE::ClonerEffector::EffectorSection::ModeSection
-#endif
 		)
 		, ModeIdentifier(InModeIdentifier)
 	{}

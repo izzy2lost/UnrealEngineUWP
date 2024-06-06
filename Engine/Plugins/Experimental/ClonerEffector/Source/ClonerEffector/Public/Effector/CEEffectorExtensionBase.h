@@ -18,22 +18,11 @@ public:
 	UCEEffectorExtensionBase()
 		: UCEEffectorExtensionBase(
 			NAME_None
-#if WITH_EDITOR
-			, FCEExtensionSection(NAME_None, INDEX_NONE)
-#endif
 		)
 	{}
 
-	UCEEffectorExtensionBase(
-		FName InExtensionName
-#if WITH_EDITOR
-		, const FCEExtensionSection& InExtensionSection
-#endif
-		)
+	UCEEffectorExtensionBase(FName InExtensionName)
 		: ExtensionName(InExtensionName)
-#if WITH_EDITOR
-		, ExtensionSection(InExtensionSection)
-#endif
 	{}
 
 	FName GetExtensionName() const
@@ -42,17 +31,14 @@ public:
 	}
 
 #if WITH_EDITOR
-	const FCEExtensionSection& GetExtensionSection() const
-	{
-		return ExtensionSection;
-	}
+	CLONEREFFECTOR_API FCEExtensionSection GetExtensionSection() const;
 #endif
 
 	/** Get the effector component using this extension */
 	UCEEffectorComponent* GetEffectorComponent() const;
 
 	/** Request refresh extension next tick */
-	void UpdateExtensionParameters(bool bInUpdateLinkedCloners = false, bool bInImmediate = false);
+	void UpdateExtensionParameters(bool bInUpdateLinkedCloners = false);
 
 	/** Enable this extension */
 	void ActivateExtension();
@@ -88,8 +74,4 @@ private:
 	FName ExtensionName = NAME_None;
 
 	bool bExtensionActive = false;
-
-#if WITH_EDITOR
-	FCEExtensionSection ExtensionSection;
-#endif
 };

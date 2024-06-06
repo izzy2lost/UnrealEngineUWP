@@ -131,10 +131,10 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
-	CLONEREFFECTOR_API void SetTwistAxis(ENiagaraOrientationAxis InAxis);
+	CLONEREFFECTOR_API void SetTwistAxis(ECEClonerAxis InAxis);
 
 	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
-	ENiagaraOrientationAxis GetTwistAxis() const
+	ECEClonerAxis GetTwistAxis() const
 	{
 		return TwistAxis;
 	}
@@ -186,8 +186,8 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
 	float TwistFactor = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
-	ENiagaraOrientationAxis TwistAxis = ENiagaraOrientationAxis::YAxis;
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
+	ECEClonerAxis TwistAxis = ECEClonerAxis::Y;
 
 private:
 #if WITH_EDITOR

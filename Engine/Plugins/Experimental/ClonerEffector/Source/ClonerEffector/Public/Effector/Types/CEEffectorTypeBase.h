@@ -15,7 +15,7 @@ class UCEEffectorComponent;
 class UDynamicMesh;
 
 /** Represents a shape for an effector to affect clones on specific zones */
-UCLASS(MinimalAPI, Abstract, BlueprintType, Within=CEEffectorComponent)
+UCLASS(MinimalAPI, Abstract, BlueprintType, Within=CEEffectorComponent, meta=(Section="Shape", Priority=1))
 class UCEEffectorTypeBase : public UCEEffectorExtensionBase
 {
 	GENERATED_BODY()
@@ -31,9 +31,6 @@ public:
 	UCEEffectorTypeBase(FName InTypeName, int32 InTypeIdentifier)
 		: UCEEffectorExtensionBase(
 			InTypeName
-#if WITH_EDITOR
-			, UE::ClonerEffector::EffectorSection::ShapeSection
-#endif
 		)
 		, TypeIdentifier(InTypeIdentifier)
 	{}

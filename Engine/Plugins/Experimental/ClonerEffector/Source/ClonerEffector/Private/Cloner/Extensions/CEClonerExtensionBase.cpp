@@ -4,6 +4,13 @@
 
 #include "Cloner/CEClonerComponent.h"
 
+#if WITH_EDITOR
+FCEExtensionSection UCEClonerExtensionBase::GetExtensionSection() const
+{
+	return UE::ClonerEffector::EditorSection::GetExtensionSectionFromClass(GetClass());
+}
+#endif
+
 UCEClonerComponent* UCEClonerExtensionBase::GetClonerComponent() const
 {
 	return GetTypedOuter<UCEClonerComponent>();
@@ -51,7 +58,7 @@ void UCEClonerExtensionBase::DeactivateExtension()
 	}
 }
 
-void UCEClonerExtensionBase::UpdateExtensionParameters(bool bInUpdateCloner, bool bInImmediate)
+void UCEClonerExtensionBase::UpdateExtensionParameters()
 {
 	if (!IsExtensionActive())
 	{
@@ -67,18 +74,35 @@ void UCEClonerExtensionBase::UpdateExtensionParameters(bool bInUpdateCloner, boo
 
 		OnExtensionParametersChanged(ClonerComponent);
 
-		if (bInUpdateCloner)
+		if (EnumHasAnyFlags(ExtensionStatus, ECEClonerSystemStatus::SimulationDirty))
 		{
-			ClonerComponent->RequestClonerUpdate(bInImmediate);
+			ClonerComponent->RequestClonerUpdate(/*Immediate*/false);
 		}
 	}
+
+	ExtensionStatus = ECEClonerSystemStatus::UpToDate;
+}
+
+void UCEClonerExtensionBase::MarkExtensionDirty(bool bInUpdateCloner)
+{
+	EnumAddFlags(ExtensionStatus, ECEClonerSystemStatus::ParametersDirty);
+
+	if (bInUpdateCloner)
+	{
+		EnumAddFlags(ExtensionStatus, ECEClonerSystemStatus::SimulationDirty);
+	}
+}
+
+bool UCEClonerExtensionBase::IsExtensionDirty() const
+{
+	return EnumHasAnyFlags(ExtensionStatus, ECEClonerSystemStatus::ParametersDirty);
 }
 
 void UCEClonerExtensionBase::PostEditImport()
 {
 	Super::PostEditImport();
 
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 #if WITH_EDITOR
@@ -86,11 +110,11 @@ void UCEClonerExtensionBase::PostEditUndo()
 {
 	Super::PostEditUndo();
 
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 #endif
 
 void UCEClonerExtensionBase::OnExtensionPropertyChanged()
 {
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }

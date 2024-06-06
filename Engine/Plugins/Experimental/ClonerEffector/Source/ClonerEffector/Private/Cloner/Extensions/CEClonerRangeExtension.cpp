@@ -12,7 +12,7 @@ void UCEClonerRangeExtension::SetRangeEnabled(bool bInRangeEnabled)
 	}
 
 	bRangeEnabled = bInRangeEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeMirrored(bool bInMirrored)
@@ -23,7 +23,7 @@ void UCEClonerRangeExtension::SetRangeMirrored(bool bInMirrored)
 	}
 
 	bRangeMirrored = bInMirrored;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeOffsetMin(const FVector& InRangeOffsetMin)
@@ -34,7 +34,7 @@ void UCEClonerRangeExtension::SetRangeOffsetMin(const FVector& InRangeOffsetMin)
 	}
 
 	RangeOffsetMin = InRangeOffsetMin;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeOffsetMax(const FVector& InRangeOffsetMax)
@@ -45,7 +45,7 @@ void UCEClonerRangeExtension::SetRangeOffsetMax(const FVector& InRangeOffsetMax)
 	}
 
 	RangeOffsetMax = InRangeOffsetMax;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeRotationMin(const FRotator& InRangeRotationMin)
@@ -56,7 +56,7 @@ void UCEClonerRangeExtension::SetRangeRotationMin(const FRotator& InRangeRotatio
 	}
 
 	RangeRotationMin = InRangeRotationMin;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeRotationMax(const FRotator& InRangeRotationMax)
@@ -67,7 +67,7 @@ void UCEClonerRangeExtension::SetRangeRotationMax(const FRotator& InRangeRotatio
 	}
 
 	RangeRotationMax = InRangeRotationMax;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeScaleUniform(bool bInRangeScaleUniform)
@@ -78,7 +78,7 @@ void UCEClonerRangeExtension::SetRangeScaleUniform(bool bInRangeScaleUniform)
 	}
 
 	bRangeScaleUniform = bInRangeScaleUniform;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeScaleMin(const FVector& InRangeScaleMin)
@@ -89,7 +89,7 @@ void UCEClonerRangeExtension::SetRangeScaleMin(const FVector& InRangeScaleMin)
 	}
 
 	RangeScaleMin = InRangeScaleMin;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeScaleMax(const FVector& InRangeScaleMax)
@@ -100,7 +100,7 @@ void UCEClonerRangeExtension::SetRangeScaleMax(const FVector& InRangeScaleMax)
 	}
 
 	RangeScaleMax = InRangeScaleMax;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeScaleUniformMin(float InRangeScaleUniformMin)
@@ -111,7 +111,7 @@ void UCEClonerRangeExtension::SetRangeScaleUniformMin(float InRangeScaleUniformM
 	}
 
 	RangeScaleUniformMin = InRangeScaleUniformMin;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::SetRangeScaleUniformMax(float InRangeScaleUniformMax)
@@ -122,7 +122,7 @@ void UCEClonerRangeExtension::SetRangeScaleUniformMax(float InRangeScaleUniformM
 	}
 
 	RangeScaleUniformMax = InRangeScaleUniformMax;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerRangeExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)

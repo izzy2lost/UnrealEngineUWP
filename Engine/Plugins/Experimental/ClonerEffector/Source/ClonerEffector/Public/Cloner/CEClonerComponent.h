@@ -37,22 +37,24 @@ public:
 	/** Show material warning notification when missing niagara usage flag */
 	static void ShowMaterialWarning(int32 InMaterialCount);
 
-	static CLONEREFFECTOR_API FName GetActiveExtensionsName();
+	static CLONEREFFECTOR_API FName GetActiveExtensionsPropertyName();
 
-	static CLONEREFFECTOR_API FName GetActiveLayoutName();
+	static CLONEREFFECTOR_API FName GetActiveLayoutPropertyName();
+
+	static CLONEREFFECTOR_API FName GetLayoutNamePropertyName();
 #endif
 
-	TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerMeshUpdated()
+	static TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerMeshUpdated()
 	{
 		return OnClonerMeshUpdatedDelegate;
 	}
 
-	TMulticastDelegateRegistration<void(UCEClonerComponent*, UCEClonerLayoutBase*)>& OnClonerLayoutLoaded()
+	static TMulticastDelegateRegistration<void(UCEClonerComponent*, UCEClonerLayoutBase*)>& OnClonerLayoutLoaded()
 	{
 		return OnClonerLayoutLoadedDelegate;
 	}
 
-	TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerInitialized()
+	static TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerInitialized()
 	{
 		return OnClonerInitializedDelegate;
 	}
@@ -210,15 +212,15 @@ public:
 protected:
 	/** Called when meshes have been updated */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerMeshUpdated, UCEClonerComponent* /** ClonerComponent */)
-	FOnClonerMeshUpdated OnClonerMeshUpdatedDelegate;
+	CLONEREFFECTOR_API static FOnClonerMeshUpdated OnClonerMeshUpdatedDelegate;
 
 	/** Called when new cloner layout is loaded */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
-	FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
+	CLONEREFFECTOR_API static FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
 
 	/** Called when cloner is initialized */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerInitialized, UCEClonerComponent* /** ClonerComponent */)
-	FOnClonerInitialized OnClonerInitializedDelegate;
+	CLONEREFFECTOR_API static FOnClonerInitialized OnClonerInitializedDelegate;
 
 	//~ Begin UObject
 	virtual void PostInitProperties() override;
@@ -312,11 +314,11 @@ protected:
 	FName LayoutName = NAME_None;
 
 	/** Active layout used */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Layout", meta=(DisplayAfter="LayoutName"))
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	TObjectPtr<UCEClonerLayoutBase> ActiveLayout;
 
 	/** Active Extensions on this layout */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Layout")
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	TArray<TObjectPtr<UCEClonerExtensionBase>> ActiveExtensions;
 
 	/** Layout instances cached */
@@ -349,9 +351,6 @@ private:
 
 	/** Called to trigger an update of cloner rendering state tree */
 	void UpdateClonerRenderState();
-
-	/** Forces a refresh of the active system parameters in niagara store */
-	void RefreshUserParameters() const;
 
 	void OnEnabledChanged();
 	void OnClonerEnabled();

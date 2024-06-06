@@ -7,7 +7,7 @@
 #include "CEClonerStepExtension.generated.h"
 
 /** Extension dealing with delta step accumulated options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Cloner", Priority=0))
 class UCEClonerStepExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()
@@ -17,9 +17,6 @@ public:
 		: UCEClonerExtensionBase(
 			TEXT("Step")
 			, 0
-#if WITH_EDITOR
-			, UE::ClonerEffector::ClonerSection::ClonerSection
-#endif
 		)
 	{}
 

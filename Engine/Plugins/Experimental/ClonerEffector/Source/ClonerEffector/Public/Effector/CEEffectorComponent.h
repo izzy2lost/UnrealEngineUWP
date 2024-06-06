@@ -30,6 +30,12 @@ class UCEEffectorComponent : public USceneComponent
 	friend class UCEClonerEffectorExtension;
 
 public:
+#if WITH_EDITOR
+	CLONEREFFECTOR_API static FName GetModeNamePropertyName();
+
+	CLONEREFFECTOR_API static FName GetTypeNamePropertyName();
+#endif
+
 	UCEEffectorComponent();
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
@@ -140,6 +146,11 @@ public:
 		return ActiveMode;
 	}
 
+	TConstArrayView<TObjectPtr<UCEEffectorExtensionBase>> GetActiveExtensions() const
+	{
+		return ActiveExtensions;
+	}
+
 	void RequestClonerUpdate(bool bInImmediate);
 
 protected:
@@ -180,7 +191,7 @@ protected:
 	FName TypeName = NAME_None;
 
 	/** Cached active type used for faster access */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Shape", meta=(DisplayAfter="TypeName"))
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	TObjectPtr<UCEEffectorTypeBase> ActiveType;
 
 	/** Name of the shape type to use */
@@ -188,11 +199,11 @@ protected:
 	FName ModeName = NAME_None;
 
 	/** Cached active mode used for faster access */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Mode", meta=(DisplayAfter="ModeName"))
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	TObjectPtr<UCEEffectorModeBase> ActiveMode;
 
 	/** Active Extensions on this effector */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Transient, DuplicateTransient, NonTransactional, Category="Extensions")
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	TArray<TObjectPtr<UCEEffectorExtensionBase>> ActiveExtensions;
 
 #if WITH_EDITORONLY_DATA

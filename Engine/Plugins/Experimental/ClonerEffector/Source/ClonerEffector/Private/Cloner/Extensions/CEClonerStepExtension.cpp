@@ -12,7 +12,7 @@ void UCEClonerStepExtension::SetDeltaStepEnabled(bool bInEnabled)
 	}
 
 	bDeltaStepEnabled = bInEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerStepExtension::SetDeltaStepPosition(const FVector& InPosition)
@@ -23,7 +23,7 @@ void UCEClonerStepExtension::SetDeltaStepPosition(const FVector& InPosition)
 	}
 
 	DeltaStepPosition = InPosition;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerStepExtension::SetDeltaStepRotation(const FRotator& InRotation)
@@ -34,7 +34,7 @@ void UCEClonerStepExtension::SetDeltaStepRotation(const FRotator& InRotation)
 	}
 
 	DeltaStepRotation = InRotation;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerStepExtension::SetDeltaStepScale(const FVector& InScale)
@@ -45,7 +45,7 @@ void UCEClonerStepExtension::SetDeltaStepScale(const FVector& InScale)
 	}
 
 	DeltaStepScale = InScale;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerStepExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)

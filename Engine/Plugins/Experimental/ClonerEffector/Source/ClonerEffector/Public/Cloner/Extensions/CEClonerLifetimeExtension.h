@@ -10,7 +10,7 @@
 class UNiagaraDataInterfaceCurve;
 
 /** Extension dealing with clones lifetime options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Emission", Priority=3))
 class UCEClonerLifetimeExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()

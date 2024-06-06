@@ -10,7 +10,7 @@
 class UNiagaraDataInterfaceCurve;
 
 /** Extension dealing with clones spawning options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Emission", Priority=2))
 class UCEClonerEmitterSpawnExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()
@@ -20,9 +20,6 @@ public:
 		: UCEClonerExtensionBase(
 			TEXT("Spawn")
 			, 0
-#if WITH_EDITOR
-			, UE::ClonerEffector::ClonerSection::EmissionSection
-#endif
 		)
 	{}
 

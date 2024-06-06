@@ -187,7 +187,8 @@ void UCEClonerEffectorExtension::OnEffectorsChanged()
 		EffectorIndexArray.Add(EffectorIndex);
 	}
 
-	UpdateExtensionParameters(/** UpdateCloner */true);
+	// Apply changes
+	EffectorDataInterfaces->Commit();
 }
 
 void UCEClonerEffectorExtension::OnEffectorActorsChanged()

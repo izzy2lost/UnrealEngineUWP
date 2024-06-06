@@ -31,6 +31,10 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #endif
 
+UCEClonerComponent::FOnClonerInitialized UCEClonerComponent::OnClonerInitializedDelegate;
+UCEClonerComponent::FOnClonerLayoutLoaded UCEClonerComponent::OnClonerLayoutLoadedDelegate;
+UCEClonerComponent::FOnClonerMeshUpdated UCEClonerComponent::OnClonerMeshUpdatedDelegate;
+
 DEFINE_LOG_CATEGORY_STATIC(LogCEClonerComponent, Log, All);
 
 #define LOCTEXT_NAMESPACE "CEClonerComponent"
@@ -168,15 +172,6 @@ void UCEClonerComponent::UpdateClonerRenderState()
 #else
 	OnDirtyMeshesUpdated(true);
 #endif
-}
-
-void UCEClonerComponent::RefreshUserParameters() const
-{
-	if (UNiagaraSystem* ActiveSystem = GetAsset())
-	{
-		FNiagaraUserRedirectionParameterStore& UserParameterStore = ActiveSystem->GetExposedParameters();
-		UserParameterStore.PostGenericEditChange();
-	}
 }
 
 void UCEClonerComponent::UpdateClonerAttachmentTree(bool bInReset)
@@ -1004,14 +999,19 @@ void UCEClonerComponent::ShowMaterialWarning(int32 InMaterialCount)
 	}
 }
 
-FName UCEClonerComponent::GetActiveExtensionsName()
+FName UCEClonerComponent::GetActiveExtensionsPropertyName()
 {
 	return GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveExtensions);
 }
 
-FName UCEClonerComponent::GetActiveLayoutName()
+FName UCEClonerComponent::GetActiveLayoutPropertyName()
 {
 	return GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveLayout);
+}
+
+FName UCEClonerComponent::GetLayoutNamePropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerComponent, LayoutName);
 }
 #endif // WITH_EDITOR
 
@@ -1055,18 +1055,35 @@ bool UCEClonerComponent::TickCloner(float InDelta)
 	{
 		TreeUpdateDeltaTime += InDelta;
 
+		// Update attachment tree
 		if (TreeUpdateDeltaTime >= TreeUpdateInterval)
 		{
-			TreeUpdateDeltaTime -= TreeUpdateInterval;
+			TreeUpdateDeltaTime -= TreeUpdateInterval != 0.f ? TreeUpdateInterval : TreeUpdateDeltaTime;
 
 			UpdateClonerAttachmentTree();
 			UpdateClonerRenderState();
 		}
 
+		// Update layout parameters
+		if (ActiveLayout && ActiveLayout->IsLayoutDirty())
+		{
+			ActiveLayout->UpdateLayoutParameters();
+		}
+
+		// Update extension parameters
+		for (const TObjectPtr<UCEClonerExtensionBase>& ActiveExtension : ActiveExtensions)
+		{
+			if (ActiveExtension && ActiveExtension->IsExtensionDirty())
+			{
+				ActiveExtension->UpdateExtensionParameters();
+			}
+		}
+
+		// Is a simulation reset needed
 		if (bNeedsRefresh)
 		{
 			bNeedsRefresh = false;
-			RequestClonerUpdate(true);
+			RequestClonerUpdate(/**Immediate*/true);
 		}
 	}
 
@@ -1353,7 +1370,12 @@ void UCEClonerComponent::RequestClonerUpdate(bool bInImmediate)
 	if (bInImmediate)
 	{
 		bNeedsRefresh = false;
-		RefreshUserParameters();
+
+		if (UNiagaraSystem* ActiveSystem = GetAsset())
+		{
+			FNiagaraUserRedirectionParameterStore& UserParameterStore = ActiveSystem->GetExposedParameters();
+			UserParameterStore.PostGenericEditChange();
+		}
 	}
 	else
 	{
@@ -1488,7 +1510,7 @@ UCEClonerLayoutBase* UCEClonerComponent::FindOrAddLayout(FName InLayoutName)
 
 	// Check cached layout instances
 	UCEClonerLayoutBase* NewActiveLayout = nullptr;
-	for (TObjectPtr<UCEClonerLayoutBase>& LayoutInstance : LayoutInstances)
+	for (const TObjectPtr<UCEClonerLayoutBase>& LayoutInstance : LayoutInstances)
 	{
 		if (LayoutInstance && LayoutInstance->GetLayoutName() == InLayoutName)
 		{
@@ -1643,6 +1665,12 @@ void UCEClonerComponent::ActivateLayout(UCEClonerLayoutBase* InLayout)
 		return;
 	}
 
+	// Should match current active layout name
+	if (LayoutName != InLayout->GetLayoutName())
+	{
+		return;
+	}
+
 	// Copy data interfaces to new layout
 	if (ActiveLayout && ActiveLayout->IsLayoutLoaded())
 	{
@@ -1678,7 +1706,7 @@ void UCEClonerComponent::OnActiveLayoutChanged()
 	OnSeedChanged();
 	OnColorChanged();
 
-	Layout->UpdateLayoutParameters();
+	Layout->MarkLayoutDirty();
 
 	TSet<TObjectPtr<UCEClonerExtensionBase>> PrevActiveExtensions(ActiveExtensions);
 	ActiveExtensions.Empty();
@@ -1692,7 +1720,7 @@ void UCEClonerComponent::OnActiveLayoutChanged()
 				Extension->ActivateExtension();
 			}
 
-			Extension->UpdateExtensionParameters();
+			Extension->MarkExtensionDirty();
 
 			ActiveExtensions.Add(Extension);
 			PrevActiveExtensions.Remove(Extension);

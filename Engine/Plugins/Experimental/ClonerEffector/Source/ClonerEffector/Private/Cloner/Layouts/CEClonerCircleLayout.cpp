@@ -12,7 +12,7 @@ void UCEClonerCircleLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetRadius(float InRadius)
@@ -23,7 +23,7 @@ void UCEClonerCircleLayout::SetRadius(float InRadius)
 	}
 
 	Radius = InRadius;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetAngleStart(float InAngleStart)
@@ -34,7 +34,7 @@ void UCEClonerCircleLayout::SetAngleStart(float InAngleStart)
 	}
 
 	AngleStart = InAngleStart;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetAngleRatio(float InAngleRatio)
@@ -45,7 +45,7 @@ void UCEClonerCircleLayout::SetAngleRatio(float InAngleRatio)
 	}
 
 	AngleRatio = InAngleRatio;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetOrientMesh(bool bInOrientMesh)
@@ -56,7 +56,7 @@ void UCEClonerCircleLayout::SetOrientMesh(bool bInOrientMesh)
 	}
 
 	bOrientMesh = bInOrientMesh;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetPlane(ECEClonerPlane InPlane)
@@ -67,7 +67,7 @@ void UCEClonerCircleLayout::SetPlane(ECEClonerPlane InPlane)
 	}
 
 	Plane = InPlane;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetRotation(const FRotator& InRotation)
@@ -78,7 +78,7 @@ void UCEClonerCircleLayout::SetRotation(const FRotator& InRotation)
 	}
 
 	Rotation = InRotation;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCircleLayout::SetScale(const FVector& InScale)
@@ -89,7 +89,7 @@ void UCEClonerCircleLayout::SetScale(const FVector& InScale)
 	}
 
 	Scale = InScale;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR

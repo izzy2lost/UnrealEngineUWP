@@ -2,18 +2,15 @@
 
 #include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
 
-#include "CEEditorClonerEffectorExtensionDetailCustomization.h"
 #include "Cloner/CEClonerComponent.h"
-#include "Cloner/Extensions/CEClonerEffectorExtension.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
-#include "Cloner/Extensions/CEClonerLifetimeExtension.h"
 #include "Cloner/Layouts/CEClonerLayoutBase.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
 #include "Input/Reply.h"
+#include "IPropertyUtilities.h"
 #include "Modules/ModuleManager.h"
-#include "NiagaraDataInterfaceCurve.h"
 #include "PropertyEditorModule.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
@@ -32,131 +29,84 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 	// Remove niagara utilities
 	InDetailBuilder.HideCategory(TEXT("NiagaraComponent_Utilities"));
 
-	// Remove extension array property
-	TSharedRef<IPropertyHandle> ActiveExtensionsProperty = InDetailBuilder.GetProperty(UCEClonerComponent::GetActiveExtensionsName(), UCEClonerComponent::StaticClass());
+	TSharedRef<IPropertyUtilities> PropertyUtilities = InDetailBuilder.GetPropertyUtilities();
+	PropertyUtilitiesWeak = PropertyUtilities.ToWeakPtr();
+	ClonerComponentsWeak = InDetailBuilder.GetObjectsOfTypeBeingCustomized<UCEClonerComponent>();
 
-	if (!ActiveExtensionsProperty->IsValidHandle())
+	// Place LayoutName property above all properties in the category
 	{
-		return;
+		TSharedRef<IPropertyHandle> LayoutHandle = InDetailBuilder.GetProperty(UCEClonerComponent::GetLayoutNamePropertyName(), UCEClonerComponent::StaticClass());
+		LayoutHandle->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateStatic(&FCEEditorClonerComponentDetailCustomization::OnPropertyChanged, PropertyUtilitiesWeak));
+
+		IDetailCategoryBuilder& LayoutCategoryBuilder = InDetailBuilder.EditCategory(TEXT("Layout"), FText::FromName(TEXT("Layout")));
+		LayoutCategoryBuilder.AddProperty(LayoutHandle);
 	}
-
-	InDetailBuilder.HideProperty(ActiveExtensionsProperty);
-
-	uint32 NumElements = 0;
-	TSharedPtr<IPropertyHandleArray> ActiveExtensionArrayProperty = ActiveExtensionsProperty->AsArray();
-	ActiveExtensionArrayProperty->GetNumElements(NumElements);
 
 	// Everything needs to be below Cloner category
-	int32 StartOrder = InDetailBuilder.EditCategory(TEXT("Cloner")).GetSortOrder() + 1;
+	const IDetailCategoryBuilder& ClonerCategoryBuilder = InDetailBuilder.EditCategory(TEXT("Cloner"), FText::FromName(TEXT("Cloner")));
+	const int32 ExtensionSortOrderOffset = 1;
+	const int32 StartSortOrder = ClonerCategoryBuilder.GetSortOrder() + 1;
 
-	TSharedRef<IPropertyHandle> ActiveLayoutProperty = InDetailBuilder.GetProperty(UCEClonerComponent::GetActiveLayoutName(), UCEClonerComponent::StaticClass());
-
-	if (!ActiveLayoutProperty->IsValidHandle())
+	// Group same class objects together so their properties are grouped in the details panel when multiple cloners are selected
+	struct FDetailsCategoryData
 	{
-		return;
+		FName SectionName;
+		int32 SortOrder;
+		TArray<UObject*> Objects;
+	};
+
+	TMap<FName, FDetailsCategoryData> CategoryToData;
+	for (const TWeakObjectPtr<UCEClonerComponent>& ClonerComponentWeak : ClonerComponentsWeak)
+	{
+		const UCEClonerComponent* ClonerComponent = ClonerComponentWeak.Get();
+
+		if (!ClonerComponent)
+		{
+			continue;
+		}
+
+		if (UCEClonerLayoutBase* ActiveLayout = ClonerComponent->GetActiveLayout())
+		{
+			FDetailsCategoryData& CategoryData = CategoryToData.FindOrAdd(TEXT("Layout"));
+			CategoryData.SectionName = TEXT("Cloner");
+			CategoryData.SortOrder = StartSortOrder;
+			CategoryData.Objects.Add(ActiveLayout);
+		}
+
+		for (UCEClonerExtensionBase* ActiveExtension : ClonerComponent->GetActiveExtensions())
+		{
+			FDetailsCategoryData& CategoryData = CategoryToData.FindOrAdd(ActiveExtension->GetExtensionName());
+			CategoryData.SectionName = ActiveExtension->GetExtensionSection().SectionName;
+			CategoryData.SortOrder = StartSortOrder + ExtensionSortOrderOffset + ActiveExtension->GetExtensionSection().SectionOrder;
+			CategoryData.Objects.Add(ActiveExtension);
+		}
 	}
 
-	const FName LayoutCategoryName = ActiveLayoutProperty->GetDefaultCategoryName();
-	IDetailCategoryBuilder& LayoutCategory = InDetailBuilder.EditCategory(LayoutCategoryName);
-	LayoutCategory.SetSortOrder(StartOrder++);
+	FAddPropertyParams AddParams;
+	AddParams.CreateCategoryNodes(false);
+	AddParams.HideRootObjectNode(true);
 
-	const TSharedRef<FPropertySection> ClonerSection = PropertyModule.FindOrCreateSection(ComponentClassName, UE::ClonerEffector::ClonerSection::ClonerSection.SectionName, FText::FromName(UE::ClonerEffector::ClonerSection::ClonerSection.SectionName));
-	ClonerSection->AddCategory(LayoutCategoryName);
-
-	const TArray<TWeakObjectPtr<UCEClonerComponent>> ClonerComponentsWeak = InDetailBuilder.GetObjectsOfTypeBeingCustomized<UCEClonerComponent>();
-
-	for (uint32 ElementIndex = 0; ElementIndex < NumElements; ElementIndex++)
+	for (const TPair<FName,FDetailsCategoryData>& CategoryToObjectsPair : CategoryToData)
 	{
-		TSharedPtr<IPropertyHandle> ActiveExtensionProperty = ActiveExtensionArrayProperty->GetElement(ElementIndex);
+		const FName CategoryName = CategoryToObjectsPair.Key;
 
-		UObject* ObjectValue;
-		FPropertyAccess::Result ReadResult = ActiveExtensionProperty->GetValue(ObjectValue);
-
-		if (ReadResult != FPropertyAccess::Success)
+		if (CategoryName.IsNone() || CategoryToObjectsPair.Value.Objects.IsEmpty())
 		{
 			continue;
 		}
 
-		UCEClonerExtensionBase* ActiveExtension = Cast<UCEClonerExtensionBase>(ObjectValue);
+		IDetailCategoryBuilder& CategoryBuilder = InDetailBuilder.EditCategory(CategoryName, FText::FromName(CategoryName));
+		CategoryBuilder.SetSortOrder(CategoryToObjectsPair.Value.SortOrder);
 
-		if (!IsValid(ActiveExtension))
+		const TSharedRef<FPropertySection> PropertySection = PropertyModule.FindOrCreateSection(ComponentClassName, CategoryToObjectsPair.Value.SectionName, FText::FromName(CategoryToObjectsPair.Value.SectionName));
+		PropertySection->AddCategory(CategoryName);
+
+		if (IDetailPropertyRow* ObjectRow = CategoryBuilder.AddExternalObjects(CategoryToObjectsPair.Value.Objects, EPropertyLocation::Default, AddParams))
 		{
-			continue;
-		}
+			TSharedPtr<IPropertyHandle> ObjectPropertyHandle = ObjectRow->GetPropertyHandle();
 
-		IDetailCategoryBuilder& ExtensionCategoryBuilder = InDetailBuilder.EditCategory(ActiveExtension->GetExtensionName());
-		ExtensionCategoryBuilder.SetSortOrder(StartOrder + ActiveExtension->GetExtensionSection().SectionOrder);
-
-		const FName ExtensionSectionName = ActiveExtension->GetExtensionSection().SectionName;
-		const TSharedRef<FPropertySection> ExtensionSection = PropertyModule.FindOrCreateSection(ComponentClassName, ExtensionSectionName, FText::FromName(ExtensionSectionName));
-		ExtensionSection->AddCategory(ActiveExtension->GetExtensionName());
-
-		TFunction<void(const TSharedPtr<IPropertyHandle>&)> AddObjectProperty = [&ExtensionCategoryBuilder, &AddObjectProperty](const TSharedPtr<IPropertyHandle>& InPropertyHandle)
-		{
-			uint32 NumChildren = 0;
-			InPropertyHandle->GetNumChildren(NumChildren);
-
-			for (uint32 ChildrenIndex = 0; ChildrenIndex < NumChildren; ChildrenIndex++)
-			{
-				TSharedPtr<IPropertyHandle> ChildHandle = InPropertyHandle->GetChildHandle(ChildrenIndex);
-
-				if (ChildHandle->IsCategoryHandle() && NumChildren == 1)
-				{
-					AddObjectProperty(ChildHandle);
-				}
-				else
-				{
-					const FProperty* Property = ChildHandle->GetProperty();
-
-					/*
-					 * Since AddExternalObject doesn't add hidden properties (EditConditionHides) of the object but only the visible ones
-					 * We add them manually, but this also means the object customization is not used, we need to set it manually from here
-					*/
-					if (Property && Property->GetName() == UCEClonerEffectorExtension::GetEffectorActorsWeakName())
-					{
-						FCEEditorClonerEffectorExtensionDetailCustomization::CustomizeEffectorsProperty(ChildHandle.ToSharedRef(), ExtensionCategoryBuilder);
-					}
-					else
-					{
-						ExtensionCategoryBuilder.AddProperty(ChildHandle);
-					}
-				}
-			}
-		};
-
-		AddObjectProperty(ActiveExtensionProperty->GetChildHandle(0));
-
-		if (UCEClonerLifetimeExtension* LifetimeExtension = Cast<UCEClonerLifetimeExtension>(ActiveExtension))
-		{
-			UNiagaraDataInterfaceCurve* LifetimeScaleCurve = LifetimeExtension->GetLifetimeScaleCurveDI();
-
-			if (!LifetimeScaleCurve || ClonerComponentsWeak.Num() > 1)
-			{
-				return;
-			}
-
-			const TArray<UObject*> ShowObjects {LifetimeScaleCurve};
-			ExtensionCategoryBuilder.SetShowAdvanced(true);
-
-			FAddPropertyParams Params;
-			Params.HideRootObjectNode(true);
-			Params.CreateCategoryNodes(false);
-
-			IDetailPropertyRow* CurveRow = ExtensionCategoryBuilder.AddExternalObjects(ShowObjects, EPropertyLocation::Advanced, Params);
-
-			TWeakObjectPtr<UCEClonerLifetimeExtension> LifetimeExtensionWeak(LifetimeExtension);
-			CurveRow->Visibility(MakeAttributeLambda([LifetimeExtensionWeak]()
-			{
-				if (UCEClonerLifetimeExtension* LifetimeExtension = LifetimeExtensionWeak.Get())
-				{
-					return LifetimeExtension->GetLifetimeEnabled()
-						&& LifetimeExtension->GetLifetimeScaleEnabled()
-						? EVisibility::Visible
-						: EVisibility::Collapsed;
-				}
-
-				return EVisibility::Visible;
-			}));
+			// Fix for EditConditionHides not appearing when condition is met due to AddExternalObjects not rebuilding children
+			ObjectPropertyHandle->SetOnChildPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateStatic(&FCEEditorClonerComponentDetailCustomization::OnChildPropertyChanged, ObjectPropertyHandle->AsWeak()));
 		}
 	}
 
@@ -186,40 +136,6 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 				TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunctions = LayoutFunctionNames.FindOrAdd(FunctionName);
 				ObjectFunctions.Add(ClonerComponent, Function);
 				FunctionToCategory.Add(FunctionName, FName(Function->GetMetaData(TEXT("Category"))));
-			}
-		}
-
-		// Look for CallInEditor functions in active layout
-		if (UCEClonerLayoutBase* ActiveLayout = ClonerComponent->GetActiveLayout())
-		{
-			// Iterate through all UFunctions in the class
-			for (UFunction* Function : TFieldRange<UFunction>(ActiveLayout->GetClass(), EFieldIteratorFlags::ExcludeSuper))
-			{
-				// Only CallInEditor function with 0 parameters
-				if (Function && Function->HasMetaData("CallInEditor") && Function->NumParms == 0)
-				{
-					FName FunctionName = Function->GetFName();
-					TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunctions = LayoutFunctionNames.FindOrAdd(FunctionName);
-					ObjectFunctions.Add(ActiveLayout, Function);
-					FunctionToCategory.Add(FunctionName, FName(Function->GetMetaData(TEXT("Category"))));
-				}
-			}
-		}
-
-		// Look for CallInEditor functions in active extensions
-		for (const TObjectPtr<UCEClonerExtensionBase>& ActiveExtension : ClonerComponent->GetActiveExtensions())
-		{
-			// Iterate through all UFunctions in the class
-			for (UFunction* Function : TFieldRange<UFunction>(ActiveExtension->GetClass(), EFieldIteratorFlags::ExcludeSuper))
-			{
-				// Only CallInEditor function with 0 parameters
-				if (Function && Function->HasMetaData("CallInEditor") && Function->NumParms == 0)
-				{
-					FName FunctionName = Function->GetFName();
-					TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunctions = LayoutFunctionNames.FindOrAdd(FunctionName);
-					ObjectFunctions.Add(ActiveExtension, Function);
-					FunctionToCategory.Add(FunctionName, FName(Function->GetMetaData(TEXT("Category"))));
-				}
 			}
 		}
 	}
@@ -283,6 +199,45 @@ void FCEEditorClonerComponentDetailCustomization::RemoveEmptySections()
 	PropertyModule.RemoveSection(ComponentClassName, TEXT("Rendering"));
 	PropertyModule.RemoveSection(ComponentClassName, TEXT("Effects"));
 	PropertyModule.RemoveSection(ComponentClassName, TEXT("Streaming"));
+}
+
+void FCEEditorClonerComponentDetailCustomization::OnPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyUtilities> InUtilitiesWeak)
+{
+	if (const TSharedPtr<IPropertyUtilities> PropertyUtilities = InUtilitiesWeak.Pin())
+	{
+		if (InEvent.ChangeType != EPropertyChangeType::Interactive)
+		{
+			PropertyUtilities->RequestForceRefresh();
+		}
+	}
+}
+
+void FCEEditorClonerComponentDetailCustomization::Init()
+{
+	// When using a layout for the first time, it is not yet loaded and the property change will trigger an async load
+	UCEClonerComponent::OnClonerLayoutLoaded().RemoveAll(this);
+	UCEClonerComponent::OnClonerLayoutLoaded().AddSP(this, &FCEEditorClonerComponentDetailCustomization::OnClonerLayoutLoaded);
+}
+
+void FCEEditorClonerComponentDetailCustomization::OnChildPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyHandle> InParentHandleWeak)
+{
+	if (const TSharedPtr<IPropertyHandle> PropertyHandle = InParentHandleWeak.Pin())
+	{
+		if (InEvent.ChangeType != EPropertyChangeType::Interactive)
+		{
+			PropertyHandle->RequestRebuildChildren();
+		}
+	}
+}
+
+void FCEEditorClonerComponentDetailCustomization::OnClonerLayoutLoaded(UCEClonerComponent* InCloner, UCEClonerLayoutBase* InLayout)
+{
+	const TSharedPtr<IPropertyUtilities> PropertyUtilities = PropertyUtilitiesWeak.Pin();
+
+	if (PropertyUtilities && InCloner && ClonerComponentsWeak.Contains(InCloner))
+	{
+		PropertyUtilities->RequestForceRefresh();
+	}
 }
 
 FReply FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked(FName InFunctionName)

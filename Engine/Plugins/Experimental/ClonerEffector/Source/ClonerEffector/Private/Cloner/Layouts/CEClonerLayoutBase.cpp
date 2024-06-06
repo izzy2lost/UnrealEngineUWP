@@ -234,9 +234,30 @@ TSet<FName> UCEClonerLayoutBase::GetSupportedExtensions() const
 	return ModuleSupported;
 }
 
+bool UCEClonerLayoutBase::IsLayoutDirty() const
+{
+	return EnumHasAnyFlags(LayoutStatus, ECEClonerSystemStatus::ParametersDirty);
+}
+
+void UCEClonerLayoutBase::PostEditImport()
+{
+	Super::PostEditImport();
+
+	MarkLayoutDirty();
+}
+
+#if WITH_EDITOR
+void UCEClonerLayoutBase::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	MarkLayoutDirty();
+}
+#endif
+
 void UCEClonerLayoutBase::OnLayoutPropertyChanged()
 {
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult)
@@ -300,7 +321,7 @@ AActor* UCEClonerLayoutBase::GetClonerActor() const
 	return nullptr;
 }
 
-void UCEClonerLayoutBase::UpdateLayoutParameters(bool bInUpdateCloner, bool bInImmediate)
+void UCEClonerLayoutBase::UpdateLayoutParameters()
 {
 	if (!IsLayoutActive())
 	{
@@ -309,19 +330,28 @@ void UCEClonerLayoutBase::UpdateLayoutParameters(bool bInUpdateCloner, bool bInI
 
 	if (UCEClonerComponent* ClonerComponent = GetClonerComponent())
 	{
+		if (!ClonerComponent->GetEnabled())
+		{
+			return;
+		}
+
 		OnLayoutParametersChanged(ClonerComponent);
 
-		if (bInUpdateCloner)
+		if (EnumHasAnyFlags(LayoutStatus, ECEClonerSystemStatus::SimulationDirty))
 		{
-			RequestClonerUpdate(bInImmediate);
+			ClonerComponent->RequestClonerUpdate(/*Immediate*/false);
 		}
 	}
+
+	LayoutStatus = ECEClonerSystemStatus::UpToDate;
 }
 
-void UCEClonerLayoutBase::RequestClonerUpdate(bool bInImmediate) const
+void UCEClonerLayoutBase::MarkLayoutDirty(bool bInUpdateCloner)
 {
-	if (UCEClonerComponent* ClonerComponent = GetClonerComponent())
+	EnumAddFlags(LayoutStatus, ECEClonerSystemStatus::ParametersDirty);
+
+	if (bInUpdateCloner)
 	{
-		ClonerComponent->RequestClonerUpdate(bInImmediate);
+		EnumAddFlags(LayoutStatus, ECEClonerSystemStatus::SimulationDirty);
 	}
 }

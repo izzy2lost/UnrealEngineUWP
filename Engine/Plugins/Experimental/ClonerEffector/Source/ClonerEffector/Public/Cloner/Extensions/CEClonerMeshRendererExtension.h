@@ -9,7 +9,7 @@
 #include "CEClonerMeshRendererExtension.generated.h"
 
 /** Extension dealing with mesh rendering options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Rendering", Priority=4))
 class UCEClonerMeshRendererExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()

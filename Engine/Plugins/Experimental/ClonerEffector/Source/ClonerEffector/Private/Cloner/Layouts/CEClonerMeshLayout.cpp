@@ -29,7 +29,7 @@ void UCEClonerMeshLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetAsset(ECEClonerMeshAsset InAsset)
@@ -40,7 +40,7 @@ void UCEClonerMeshLayout::SetAsset(ECEClonerMeshAsset InAsset)
 	}
 
 	Asset = InAsset;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetSampleData(ECEClonerMeshSampleData InSampleData)
@@ -51,7 +51,7 @@ void UCEClonerMeshLayout::SetSampleData(ECEClonerMeshSampleData InSampleData)
 	}
 
 	SampleData = InSampleData;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetSampleActorWeak(const TWeakObjectPtr<AActor>& InSampleActor)
@@ -62,7 +62,7 @@ void UCEClonerMeshLayout::SetSampleActorWeak(const TWeakObjectPtr<AActor>& InSam
 	}
 
 	SampleActorWeak = InSampleActor;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetSampleActor(AActor* InActor)
@@ -165,5 +165,5 @@ void UCEClonerMeshLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 
 void UCEClonerMeshLayout::OnSampleMeshTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType)
 {
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }

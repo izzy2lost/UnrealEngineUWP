@@ -73,13 +73,10 @@ public:
 
 	AActor* GetClonerActor() const;
 
-	/** Request refresh layout next tick */
-	void UpdateLayoutParameters(bool bInUpdateCloner = true, bool bInImmediate = false);
+	/** Updates all parameters handled by this layout */
+	void UpdateLayoutParameters();
 
-	/** Updates the cloner, forcing a reset of the system */
-	void RequestClonerUpdate(bool bInImmediate = false) const;
-
-	/* Checks if the niagara system asset is valid and usable with the cloner */
+	/** Checks if the niagara system asset is valid and usable with the cloner */
 	bool IsLayoutValid() const;
 
 	/** Is this layout system cached and ready to be used */
@@ -108,7 +105,20 @@ public:
 	/** Gets the cloner extensions supported by this layout */
 	virtual TSet<FName> GetSupportedExtensions() const;
 
+	/** Request refresh layout next tick */
+	void MarkLayoutDirty(bool bInUpdateCloner = true);
+
+	/** Is the cloner not up to date with layout parameters */
+	bool IsLayoutDirty() const;
+
 protected:
+	//~ Begin UObject
+	virtual void PostEditImport() override;
+#if WITH_EDITOR
+	virtual void PostEditUndo() override;
+#endif
+	//~ End UObject
+
 	/** Called once after layout is loaded */
 	virtual void OnLayoutLoaded() {}
 
@@ -153,4 +163,6 @@ private:
 	FCEClonerEffectorDataInterfaces DataInterfaces;
 
 	int32 LoadRequestIdentifier = INDEX_NONE;
+
+	ECEClonerSystemStatus LayoutStatus = ECEClonerSystemStatus::UpToDate;
 };

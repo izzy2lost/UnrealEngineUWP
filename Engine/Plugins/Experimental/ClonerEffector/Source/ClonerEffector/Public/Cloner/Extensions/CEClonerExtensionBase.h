@@ -20,24 +20,14 @@ public:
 		: UCEClonerExtensionBase(
 			NAME_None
 			, 0
-#if WITH_EDITOR
-			, FCEExtensionSection(NAME_None, INDEX_NONE)
-#endif
 		)
 	{}
 
 	UCEClonerExtensionBase(
 		FName InExtensionName
-		, int32 InExtensionPriority
-#if WITH_EDITOR
-		, const FCEExtensionSection& InExtensionSection
-#endif
-		)
+		, int32 InExtensionPriority)
 		: ExtensionName(InExtensionName)
 		, ExtensionPriority(InExtensionPriority)
-#if WITH_EDITOR
-		, ExtensionSection(InExtensionSection)
-#endif
 	{}
 
 	FName GetExtensionName() const
@@ -51,10 +41,7 @@ public:
 	}
 
 #if WITH_EDITOR
-	const FCEExtensionSection& GetExtensionSection() const
-	{
-		return ExtensionSection;
-	}
+	CLONEREFFECTOR_API FCEExtensionSection GetExtensionSection() const;
 #endif
 
 	/** Get the cloner component using this extension */
@@ -80,8 +67,13 @@ public:
 	/** Called when the meshes are updated */
 	virtual void OnClonerMeshesUpdated() {}
 
+	/** Updates all extensions parameters */
+	void UpdateExtensionParameters();
+
 	/** Request refresh extension next tick */
-	void UpdateExtensionParameters(bool bInUpdateCloner = true, bool bInImmediate = false);
+	void MarkExtensionDirty(bool bInUpdateCloner = true);
+
+	bool IsExtensionDirty() const;
 
 protected:
 	//~ Begin UObject
@@ -114,8 +106,5 @@ private:
 
 	bool bExtensionActive = false;
 
-#if WITH_EDITOR
-	/** Used for editor UI */
-	FCEExtensionSection ExtensionSection;
-#endif
+	ECEClonerSystemStatus ExtensionStatus = ECEClonerSystemStatus::UpToDate;
 };

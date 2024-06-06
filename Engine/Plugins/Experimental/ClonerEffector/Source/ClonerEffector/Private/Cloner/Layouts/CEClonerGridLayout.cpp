@@ -14,7 +14,7 @@ void UCEClonerGridLayout::SetCountX(int32 InCountX)
 	}
 
 	CountX = InCountX;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetCountY(int32 InCountY)
@@ -25,7 +25,7 @@ void UCEClonerGridLayout::SetCountY(int32 InCountY)
 	}
 
 	CountY = InCountY;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetCountZ(int32 InCountZ)
@@ -36,7 +36,7 @@ void UCEClonerGridLayout::SetCountZ(int32 InCountZ)
 	}
 
 	CountZ = InCountZ;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSpacingX(float InSpacingX)
@@ -47,7 +47,7 @@ void UCEClonerGridLayout::SetSpacingX(float InSpacingX)
 	}
 
 	SpacingX = InSpacingX;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSpacingY(float InSpacingY)
@@ -58,7 +58,7 @@ void UCEClonerGridLayout::SetSpacingY(float InSpacingY)
 	}
 
 	SpacingY = InSpacingY;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSpacingZ(float InSpacingZ)
@@ -69,7 +69,7 @@ void UCEClonerGridLayout::SetSpacingZ(float InSpacingZ)
 	}
 
 	SpacingZ = InSpacingZ;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetConstraint(ECEClonerGridConstraint InConstraint)
@@ -80,7 +80,7 @@ void UCEClonerGridLayout::SetConstraint(ECEClonerGridConstraint InConstraint)
 	}
 
 	Constraint = InConstraint;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetInvertConstraint(bool bInInvertConstraint)
@@ -91,25 +91,25 @@ void UCEClonerGridLayout::SetInvertConstraint(bool bInInvertConstraint)
 	}
 
 	bInvertConstraint = bInInvertConstraint;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSphereConstraint(const FCEClonerGridConstraintSphere& InConstraint)
 {
 	SphereConstraint = InConstraint;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetCylinderConstraint(const FCEClonerGridConstraintCylinder& InConstraint)
 {
 	CylinderConstraint = InConstraint;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetTextureConstraint(const FCEClonerGridConstraintTexture& InConstraint)
 {
 	TextureConstraint = InConstraint;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetTwistFactor(float InFactor)
@@ -120,18 +120,18 @@ void UCEClonerGridLayout::SetTwistFactor(float InFactor)
 	}
 
 	TwistFactor = InFactor;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
-void UCEClonerGridLayout::SetTwistAxis(ENiagaraOrientationAxis InAxis)
+void UCEClonerGridLayout::SetTwistAxis(ECEClonerAxis InAxis)
 {
-	if (TwistAxis == InAxis)
+	if (TwistAxis == InAxis || InAxis == ECEClonerAxis::Custom)
 	{
 		return;
 	}
 
 	TwistAxis = InAxis;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR

@@ -6,9 +6,11 @@
 #include "DetailWidgetRow.h"
 #include "Effector/CEEffectorComponent.h"
 #include "Effector/CEEffectorExtensionBase.h"
+#include "Effector/Modes/CEEffectorModeBase.h"
+#include "Effector/Types/CEEffectorTypeBase.h"
+#include "IPropertyUtilities.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
-#include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "CEEditorEffectorComponentDetailCustomization"
 
@@ -17,114 +19,106 @@ void FCEEditorEffectorComponentDetailCustomization::CustomizeDetails(IDetailLayo
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 	const FName ComponentClassName = UCEEffectorComponent::StaticClass()->GetFName();
 
-	// Remove extension array property
-	TSharedRef<IPropertyHandle> ActiveExtensionsProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCEEffectorComponent, ActiveExtensions), UCEEffectorComponent::StaticClass());
+	TSharedRef<IPropertyUtilities> PropertyUtilities = InDetailBuilder.GetPropertyUtilities();
 
-	if (!ActiveExtensionsProperty->IsValidHandle())
+	// Place TypeName property above all properties in the category
 	{
-		return;
+		TSharedRef<IPropertyHandle> TypeHandle = InDetailBuilder.GetProperty(UCEEffectorComponent::GetTypeNamePropertyName(), UCEEffectorComponent::StaticClass());
+		TypeHandle->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateStatic(&FCEEditorEffectorComponentDetailCustomization::OnPropertyChanged, PropertyUtilities.ToWeakPtr()));
+
+		IDetailCategoryBuilder& ShapeCategoryBuilder = InDetailBuilder.EditCategory(TEXT("Shape"), FText::FromName(TEXT("Shape")));
+		ShapeCategoryBuilder.AddProperty(TypeHandle);
 	}
 
-	InDetailBuilder.HideProperty(ActiveExtensionsProperty);
+	// Place ModeName property above all properties in the category
+	{
+		TSharedRef<IPropertyHandle> ModeHandle = InDetailBuilder.GetProperty(UCEEffectorComponent::GetModeNamePropertyName(), UCEEffectorComponent::StaticClass());
+		ModeHandle->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateStatic(&FCEEditorEffectorComponentDetailCustomization::OnPropertyChanged, PropertyUtilities.ToWeakPtr()));
+
+		IDetailCategoryBuilder& ModeCategoryBuilder = InDetailBuilder.EditCategory(TEXT("Mode"), FText::FromName(TEXT("Mode")));
+		ModeCategoryBuilder.AddProperty(ModeHandle);
+	}
+
+	const TArray<TWeakObjectPtr<UCEEffectorComponent>> EffectorComponentsWeak = InDetailBuilder.GetObjectsOfTypeBeingCustomized<UCEEffectorComponent>();
 
 	// Everything needs to be below Effector category
-	const FName EffectorCategoryName = TEXT("Effector");
-	int32 StartOrder = InDetailBuilder.EditCategory(EffectorCategoryName).GetSortOrder() + 1;
+	const IDetailCategoryBuilder& EffectorCategoryBuilder = InDetailBuilder.EditCategory(TEXT("Effector"), FText::FromName(TEXT("Effector")));
+	const int32 ExtensionSortOrderOffset = 2;
+	const int32 StartSortOrder = EffectorCategoryBuilder.GetSortOrder() + 1;
 
-	const FName EffectorSectionName = UE::ClonerEffector::EffectorSection::EffectorSection.SectionName;
-	const TSharedRef<FPropertySection> EffectorSection = PropertyModule.FindOrCreateSection(ComponentClassName, EffectorSectionName, FText::FromName(EffectorSectionName));
-	EffectorSection->AddCategory(EffectorCategoryName);
-
-	// Shape
+	// Group same class objects together so their properties are grouped in the details panel when multiple effectors are selected
+	struct FDetailsCategoryData
 	{
-		TSharedRef<IPropertyHandle> ActiveTypeProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCEEffectorComponent, ActiveType), UCEEffectorComponent::StaticClass());
-
-		if (!ActiveTypeProperty->IsValidHandle())
-		{
-			return;
-		}
-
-		const FName TypeCategoryName = ActiveTypeProperty->GetDefaultCategoryName();
-
-		IDetailCategoryBuilder& TypeCategory = InDetailBuilder.EditCategory(TypeCategoryName);
-		TypeCategory.SetSortOrder(StartOrder++);
-
-		const FName TypeSectionName = UE::ClonerEffector::EffectorSection::ShapeSection.SectionName;
-		const TSharedRef<FPropertySection> TypeSection = PropertyModule.FindOrCreateSection(ComponentClassName, TypeSectionName, FText::FromName(TypeSectionName));
-		TypeSection->AddCategory(TypeCategoryName);
-	}
-
-	// Mode
-	{
-		TSharedRef<IPropertyHandle> ActiveModeProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCEEffectorComponent, ActiveMode), UCEEffectorComponent::StaticClass());
-
-		if (!ActiveModeProperty->IsValidHandle())
-		{
-			return;
-		}
-
-		const FName ModeCategoryName = ActiveModeProperty->GetDefaultCategoryName();
-
-		IDetailCategoryBuilder& ModeCategory = InDetailBuilder.EditCategory(ModeCategoryName);
-		ModeCategory.SetSortOrder(StartOrder++);
-
-		const FName ModeSectionName = UE::ClonerEffector::EffectorSection::ModeSection.SectionName;
-		const TSharedRef<FPropertySection> ModeSection = PropertyModule.FindOrCreateSection(ComponentClassName, ModeSectionName, FText::FromName(ModeSectionName));
-		ModeSection->AddCategory(ModeCategoryName);
-	}
-
-	TFunction<void(const TSharedPtr<IPropertyHandle>&, IDetailCategoryBuilder&)> AddObjectProperty = [&AddObjectProperty](const TSharedPtr<IPropertyHandle>& InPropertyHandle, IDetailCategoryBuilder& InCategoryBuilder)
-	{
-		uint32 NumChildren = 0;
-		InPropertyHandle->GetNumChildren(NumChildren);
-
-		for (uint32 ChildrenIndex = 0; ChildrenIndex < NumChildren; ChildrenIndex++)
-		{
-			TSharedPtr<IPropertyHandle> ChildHandle = InPropertyHandle->GetChildHandle(ChildrenIndex);
-
-			if (ChildHandle->IsCategoryHandle() && NumChildren == 1)
-			{
-				AddObjectProperty(ChildHandle, InCategoryBuilder);
-			}
-			else
-			{
-				InCategoryBuilder.AddProperty(ChildHandle);
-			}
-		}
+		FName SectionName;
+		int32 SortOrder;
+		TArray<UObject*> Objects;
 	};
 
-	uint32 NumElements = 0;
-	TSharedPtr<IPropertyHandleArray> ActiveExtensionArrayProperty = ActiveExtensionsProperty->AsArray();
-	ActiveExtensionArrayProperty->GetNumElements(NumElements);
-
-	for (uint32 ElementIndex = 0; ElementIndex < NumElements; ElementIndex++)
+	TMap<FName, FDetailsCategoryData> CategoryToData;
+	for (const TWeakObjectPtr<UCEEffectorComponent>& EffectorComponentWeak : EffectorComponentsWeak)
 	{
-		TSharedPtr<IPropertyHandle> ActiveExtensionProperty = ActiveExtensionArrayProperty->GetElement(ElementIndex);
+		const UCEEffectorComponent* EffectorComponent = EffectorComponentWeak.Get();
 
-		UObject* ObjectValue;
-		FPropertyAccess::Result ReadResult = ActiveExtensionProperty->GetValue(ObjectValue);
-
-		if (ReadResult != FPropertyAccess::Success)
+		if (!EffectorComponent)
 		{
 			continue;
 		}
 
-		UCEEffectorExtensionBase* ActiveExtension = Cast<UCEEffectorExtensionBase>(ObjectValue);
+		if (UCEEffectorTypeBase* ActiveType = EffectorComponent->GetActiveType())
+		{
+			FDetailsCategoryData& CategoryData = CategoryToData.FindOrAdd(TEXT("Shape"));
+			CategoryData.SectionName = ActiveType->GetExtensionSection().SectionName;
+			CategoryData.SortOrder = StartSortOrder + ActiveType->GetExtensionSection().SectionOrder;
+			CategoryData.Objects.Add(ActiveType);
+		}
 
-		if (!ActiveExtension)
+		if (UCEEffectorModeBase* ActiveMode = EffectorComponent->GetActiveMode())
+		{
+			FDetailsCategoryData& CategoryData = CategoryToData.FindOrAdd(TEXT("Mode"));
+			CategoryData.SectionName = ActiveMode->GetExtensionSection().SectionName;
+			CategoryData.SortOrder = StartSortOrder + ActiveMode->GetExtensionSection().SectionOrder;
+			CategoryData.Objects.Add(ActiveMode);
+		}
+
+		for (const TObjectPtr<UCEEffectorExtensionBase>& ActiveExtension : EffectorComponent->GetActiveExtensions())
+		{
+			FDetailsCategoryData& CategoryData = CategoryToData.FindOrAdd(ActiveExtension->GetExtensionName());
+			CategoryData.SectionName = ActiveExtension->GetExtensionSection().SectionName;
+			CategoryData.SortOrder = StartSortOrder + ExtensionSortOrderOffset + ActiveExtension->GetExtensionSection().SectionOrder;
+			CategoryData.Objects.Add(ActiveExtension);
+		}
+	}
+
+	const FName EffectorSectionName = TEXT("Effector");
+	const TSharedRef<FPropertySection> EffectorSection = PropertyModule.FindOrCreateSection(ComponentClassName, EffectorSectionName, FText::FromName(EffectorSectionName));
+	EffectorSection->AddCategory(TEXT("Effector"));
+
+	FAddPropertyParams AddParams;
+	AddParams.CreateCategoryNodes(false);
+	AddParams.HideRootObjectNode(true);
+
+	for (const TPair<FName,FDetailsCategoryData>& CategoryToObjectsPair : CategoryToData)
+	{
+		const FName CategoryName = CategoryToObjectsPair.Key;
+
+		if (CategoryName.IsNone() || CategoryToObjectsPair.Value.Objects.IsEmpty())
 		{
 			continue;
 		}
 
-		const FName ExtensionSectionName = ActiveExtension->GetExtensionSection().SectionName;
+		IDetailCategoryBuilder& CategoryBuilder = InDetailBuilder.EditCategory(CategoryName, FText::FromName(CategoryName));
+		CategoryBuilder.SetSortOrder(CategoryToObjectsPair.Value.SortOrder);
 
-		IDetailCategoryBuilder& ExtensionCategory = InDetailBuilder.EditCategory(ExtensionSectionName);
-		ExtensionCategory.SetSortOrder(StartOrder + ActiveExtension->GetExtensionSection().SectionOrder);
+		const TSharedRef<FPropertySection> PropertySection = PropertyModule.FindOrCreateSection(ComponentClassName, CategoryToObjectsPair.Value.SectionName, FText::FromName(CategoryToObjectsPair.Value.SectionName));
+		PropertySection->AddCategory(CategoryName);
 
-		const TSharedRef<FPropertySection> ExtensionSection = PropertyModule.FindOrCreateSection(ComponentClassName, ExtensionSectionName, FText::FromName(ExtensionSectionName));
-		ExtensionSection->AddCategory(ExtensionSectionName);
+		if (IDetailPropertyRow* ObjectRow = CategoryBuilder.AddExternalObjects(CategoryToObjectsPair.Value.Objects, EPropertyLocation::Default, AddParams))
+		{
+			TSharedPtr<IPropertyHandle> ObjectPropertyHandle = ObjectRow->GetPropertyHandle();
 
-		AddObjectProperty(ActiveExtensionProperty->GetChildHandle(0), ExtensionCategory);
+			// Fix for EditConditionHides not appearing when condition is met due to AddExternalObjects not rebuilding children
+			ObjectPropertyHandle->SetOnChildPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateStatic(&FCEEditorEffectorComponentDetailCustomization::OnChildPropertyChanged, ObjectPropertyHandle->AsWeak()));
+		}
 	}
 }
 
@@ -135,6 +129,28 @@ void FCEEditorEffectorComponentDetailCustomization::RemoveEmptySections()
 
 	// Remove sections
 	PropertyModule.RemoveSection(ComponentClassName, TEXT("Streaming"));
+}
+
+void FCEEditorEffectorComponentDetailCustomization::OnPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyUtilities> InUtilitiesWeak)
+{
+	if (const TSharedPtr<IPropertyUtilities> PropertyUtilities = InUtilitiesWeak.Pin())
+	{
+		if (InEvent.ChangeType != EPropertyChangeType::Interactive)
+		{
+			PropertyUtilities->RequestForceRefresh();
+		}
+	}
+}
+
+void FCEEditorEffectorComponentDetailCustomization::OnChildPropertyChanged(const FPropertyChangedEvent& InEvent, TWeakPtr<IPropertyHandle> InParentHandleWeak)
+{
+	if (const TSharedPtr<IPropertyHandle> PropertyHandle = InParentHandleWeak.Pin())
+	{
+		if (InEvent.ChangeType != EPropertyChangeType::Interactive)
+		{
+			PropertyHandle->RequestRebuildChildren();
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

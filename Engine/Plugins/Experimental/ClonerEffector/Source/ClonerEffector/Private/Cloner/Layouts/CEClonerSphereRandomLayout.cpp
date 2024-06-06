@@ -12,7 +12,7 @@ void UCEClonerSphereRandomLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetRadius(float InRadius)
@@ -23,7 +23,7 @@ void UCEClonerSphereRandomLayout::SetRadius(float InRadius)
 	}
 
 	Radius = InRadius;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetDistribution(float InDistribution)
@@ -39,7 +39,7 @@ void UCEClonerSphereRandomLayout::SetDistribution(float InDistribution)
 	}
 
 	Distribution = InDistribution;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetLongitude(float InLongitude)
@@ -55,7 +55,7 @@ void UCEClonerSphereRandomLayout::SetLongitude(float InLongitude)
 	}
 
 	Longitude = InLongitude;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetLatitude(float InLatitude)
@@ -71,7 +71,7 @@ void UCEClonerSphereRandomLayout::SetLatitude(float InLatitude)
 	}
 
 	Latitude = InLatitude;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetOrientMesh(bool bInOrientMesh)
@@ -82,7 +82,7 @@ void UCEClonerSphereRandomLayout::SetOrientMesh(bool bInOrientMesh)
 	}
 
 	bOrientMesh = bInOrientMesh;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetRotation(const FRotator& InRotation)
@@ -93,7 +93,7 @@ void UCEClonerSphereRandomLayout::SetRotation(const FRotator& InRotation)
 	}
 
 	Rotation = InRotation;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSphereRandomLayout::SetScale(const FVector& InScale)
@@ -104,7 +104,7 @@ void UCEClonerSphereRandomLayout::SetScale(const FVector& InScale)
 	}
 
 	Scale = InScale;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR

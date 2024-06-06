@@ -7,7 +7,7 @@
 #include "CEClonerProgressExtension.generated.h"
 
 /** Extension dealing with clone progress options */
-UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent)
+UCLASS(MinimalAPI, BlueprintType, Within=CEClonerComponent, meta=(Section="Emission", Priority=4))
 class UCEClonerProgressExtension : public UCEClonerExtensionBase
 {
 	GENERATED_BODY()
@@ -17,9 +17,6 @@ public:
 		: UCEClonerExtensionBase(
 			TEXT("Progress")
 			, 0
-#if WITH_EDITOR
-			, UE::ClonerEffector::ClonerSection::EmissionSection
-#endif
 		)
 	{}
 

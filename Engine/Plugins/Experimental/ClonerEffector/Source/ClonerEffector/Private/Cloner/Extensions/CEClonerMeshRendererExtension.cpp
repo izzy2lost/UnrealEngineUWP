@@ -14,11 +14,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogCEClonerMeshRenderer, Log, All);
 UCEClonerMeshRendererExtension::UCEClonerMeshRendererExtension()
 	: UCEClonerExtensionBase(
 		TEXT("MeshRenderer")
-		, 1
-#if WITH_EDITOR
-		, UE::ClonerEffector::ClonerSection::RenderingSection
-#endif
-		)
+		, 1)
 {
 	// Default override material
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultMaterialFinder(UCEClonerEffectorSettings::DefaultMaterialPath);
@@ -33,7 +29,7 @@ void UCEClonerMeshRendererExtension::SetMeshRenderMode(ECEClonerMeshRenderMode I
 	}
 
 	MeshRenderMode = InMode;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerMeshRendererExtension::SetMeshFacingMode(ENiagaraMeshFacingMode InMode)

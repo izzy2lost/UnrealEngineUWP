@@ -15,7 +15,7 @@ void UCEClonerCollisionExtension::SetSurfaceCollisionEnabled(bool bInSurfaceColl
 	}
 
 	bSurfaceCollisionEnabled = bInSurfaceCollisionEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetParticleCollisionEnabled(bool bInParticleCollisionEnabled)
@@ -26,7 +26,7 @@ void UCEClonerCollisionExtension::SetParticleCollisionEnabled(bool bInParticleCo
 	}
 
 	bParticleCollisionEnabled = bInParticleCollisionEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetCollisionVelocityEnabled(bool bInCollisionVelocityEnabled)
@@ -37,7 +37,7 @@ void UCEClonerCollisionExtension::SetCollisionVelocityEnabled(bool bInCollisionV
 	}
 
 	bCollisionVelocityEnabled = bInCollisionVelocityEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetCollisionIterations(int32 InCollisionIterations)
@@ -49,7 +49,7 @@ void UCEClonerCollisionExtension::SetCollisionIterations(int32 InCollisionIterat
 	}
 
 	CollisionIterations = InCollisionIterations;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetCollisionGridResolution(int32 InCollisionGridResolution)
@@ -61,7 +61,7 @@ void UCEClonerCollisionExtension::SetCollisionGridResolution(int32 InCollisionGr
 	}
 
 	CollisionGridResolution = InCollisionGridResolution;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetCollisionGridSize(const FVector& InCollisionGridSize)
@@ -73,7 +73,7 @@ void UCEClonerCollisionExtension::SetCollisionGridSize(const FVector& InCollisio
 	}
 
 	CollisionGridSize = NewCollisionGridSize;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetCollisionRadiusMode(ECEClonerCollisionRadiusMode InMode)
@@ -84,7 +84,7 @@ void UCEClonerCollisionExtension::SetCollisionRadiusMode(ECEClonerCollisionRadiu
 	}
 
 	CollisionRadiusMode = InMode;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetMassMin(float InMassMin)
@@ -96,7 +96,7 @@ void UCEClonerCollisionExtension::SetMassMin(float InMassMin)
 	}
 
 	MassMin = InMassMin;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::SetMassMax(float InMassMax)
@@ -108,7 +108,7 @@ void UCEClonerCollisionExtension::SetMassMax(float InMassMax)
 	}
 
 	MassMax = InMassMax;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerCollisionExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)
@@ -177,7 +177,7 @@ void UCEClonerCollisionExtension::OnClonerMeshesUpdated()
 {
 	Super::OnClonerMeshesUpdated();
 
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 #if WITH_EDITOR

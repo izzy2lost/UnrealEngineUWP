@@ -12,7 +12,7 @@ void UCEClonerLineLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerLineLayout::SetSpacing(float InSpacing)
@@ -23,7 +23,7 @@ void UCEClonerLineLayout::SetSpacing(float InSpacing)
 	}
 
 	Spacing = InSpacing;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerLineLayout::SetAxis(ECEClonerAxis InAxis)
@@ -34,7 +34,7 @@ void UCEClonerLineLayout::SetAxis(ECEClonerAxis InAxis)
 	}
 
 	Axis = InAxis;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerLineLayout::SetDirection(const FVector& InDirection)
@@ -45,7 +45,7 @@ void UCEClonerLineLayout::SetDirection(const FVector& InDirection)
 	}
 
 	Direction = InDirection;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerLineLayout::SetRotation(const FRotator& InRotation)
@@ -56,7 +56,7 @@ void UCEClonerLineLayout::SetRotation(const FRotator& InRotation)
 	}
 
 	Rotation = InRotation;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR

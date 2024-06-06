@@ -19,6 +19,18 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogCEEffectorComponent, Log, All);
 
+#if WITH_EDITOR
+FName UCEEffectorComponent::GetModeNamePropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEEffectorComponent, ModeName);
+}
+
+FName UCEEffectorComponent::GetTypeNamePropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEEffectorComponent, TypeName);
+}
+#endif
+
 UCEEffectorComponent::UCEEffectorComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;

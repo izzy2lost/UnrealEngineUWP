@@ -12,7 +12,7 @@ void UCEClonerProgressExtension::SetInvertProgress(bool bInInvertProgress)
 	}
 
 	bInvertProgress = bInInvertProgress;
-	UpdateExtensionParameters(/** UpdateCloner */false);
+	MarkExtensionDirty(/** UpdateCloner */false);
 }
 
 void UCEClonerProgressExtension::SetProgress(float InProgress)
@@ -25,7 +25,7 @@ void UCEClonerProgressExtension::SetProgress(float InProgress)
 	}
 
 	Progress = InProgress;
-	UpdateExtensionParameters(/** UpdateCloner */false);
+	MarkExtensionDirty(/** UpdateCloner */false);
 }
 
 void UCEClonerProgressExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)

@@ -7,9 +7,11 @@
 #include "Cloner/Customizations/CEEditorClonerActorDetailCustomization.h"
 #include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
 #include "Cloner/Customizations/CEEditorClonerEffectorExtensionDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerLifetimeExtensionDetailCustomization.h"
 #include "Cloner/Customizations/CEEditorClonerMeshLayoutDetailCustomization.h"
 #include "Cloner/Customizations/CEEditorClonerSplineLayoutDetailCustomization.h"
 #include "Cloner/Extensions/CEClonerEffectorExtension.h"
+#include "Cloner/Extensions/CEClonerLifetimeExtension.h"
 #include "Cloner/Layouts/CEClonerMeshLayout.h"
 #include "Cloner/Layouts/CEClonerSplineLayout.h"
 #include "Effector/Customizations/CEEditorEffectorComponentDetailCustomization.h"
@@ -35,6 +37,7 @@ void FCEEditorModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout(UCEClonerEffectorExtension::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerEffectorExtensionDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEClonerSplineLayout::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerSplineLayoutDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEClonerMeshLayout::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerMeshLayoutDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEClonerLifetimeExtension::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerLifetimeExtensionDetailCustomization::MakeInstance));
 
 	// Effector customization
 	PropertyModule.RegisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorActorDetailCustomization::MakeInstance));
@@ -44,7 +47,7 @@ void FCEEditorModule::StartupModule()
 
 void FCEEditorModule::ShutdownModule()
 {
-	if (FModuleManager::Get().IsModuleLoaded(PropertyEditorName))
+	if (FModuleManager::Get().IsModuleLoaded(PropertyEditorName) && UObjectInitialized())
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorName);
 
@@ -54,6 +57,7 @@ void FCEEditorModule::ShutdownModule()
 		PropertyModule.UnregisterCustomClassLayout(UCEClonerEffectorExtension::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEClonerSplineLayout::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEClonerMeshLayout::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEClonerLifetimeExtension::StaticClass()->GetFName());
 
 		// Effector customization
 		PropertyModule.UnregisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName());

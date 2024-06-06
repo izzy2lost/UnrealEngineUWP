@@ -11,11 +11,7 @@
 UCEClonerLifetimeExtension::UCEClonerLifetimeExtension()
 	: UCEClonerExtensionBase(
 		TEXT("Lifetime")
-		, 0
-#if WITH_EDITOR
-		, UE::ClonerEffector::ClonerSection::EmissionSection
-#endif
-		)
+		, 0)
 {
 	// Default Scale Curve
 	LifetimeScaleCurve.AddKey(0, 1.f);
@@ -30,7 +26,7 @@ void UCEClonerLifetimeExtension::SetLifetimeEnabled(bool bInEnabled)
 	}
 
 	bLifetimeEnabled = bInEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerLifetimeExtension::SetLifetimeMin(float InMin)
@@ -46,7 +42,7 @@ void UCEClonerLifetimeExtension::SetLifetimeMin(float InMin)
 	}
 
 	LifetimeMin = InMin;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerLifetimeExtension::SetLifetimeMax(float InMax)
@@ -62,7 +58,7 @@ void UCEClonerLifetimeExtension::SetLifetimeMax(float InMax)
 	}
 
 	LifetimeMax = InMax;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerLifetimeExtension::SetLifetimeScaleEnabled(bool bInEnabled)
@@ -73,13 +69,13 @@ void UCEClonerLifetimeExtension::SetLifetimeScaleEnabled(bool bInEnabled)
 	}
 
 	bLifetimeScaleEnabled = bInEnabled;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerLifetimeExtension::SetLifetimeScaleCurve(const FRichCurve& InCurve)
 {
 	LifetimeScaleCurve = InCurve;
-	UpdateExtensionParameters();
+	MarkExtensionDirty();
 }
 
 void UCEClonerLifetimeExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)
@@ -128,7 +124,7 @@ void UCEClonerLifetimeExtension::OnLifetimeScaleCurveChanged()
 	if (const UNiagaraDataInterfaceCurve* LifetimeCurve = LifetimeScaleCurveDIWeak.Get())
 	{
 		LifetimeScaleCurve = LifetimeCurve->Curve;
-		UpdateExtensionParameters();
+		MarkExtensionDirty();
 	}
 }
 
