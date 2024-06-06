@@ -355,13 +355,10 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromWallClock()
 
 	double FreeRunTime = (ClockComponent->GetWorld()->GetTimeSeconds() - FreeRunStartTimeSecs) * ClockComponent->CurrentClockAdvanceRate;
 
-	ClockComponent->CurrentSmoothedAudioRenderSongPos.SetByTime(((float)FreeRunTime * 1000.0) + SongPosOffsetMs, ClockComponent->DefaultMaps);
+	ClockComponent->CurrentRawAudioRenderSongPos.SetByTime(((float)FreeRunTime * 1000.0) + SongPosOffsetMs, ClockComponent->DefaultMaps);
+	ClockComponent->CurrentSmoothedAudioRenderSongPos = ClockComponent->CurrentRawAudioRenderSongPos;
 	ClockComponent->CurrentPlayerExperiencedSongPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs(), ClockComponent->DefaultMaps);
 	ClockComponent->CurrentVideoRenderSongPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs(), ClockComponent->DefaultMaps);
-	if (ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn > ClockComponent->RawUnsmoothedAudioRenderPos.SecondsIncludingCountIn)
-	{
-		ClockComponent->RawUnsmoothedAudioRenderPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f, ClockComponent->DefaultMaps);
-	}
 
 	if (TempoChanged)
 	{
@@ -410,7 +407,7 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromHistory()
 	}
 
 	auto Entry = ClockHistory->Positions.GetEntry(ClockHistory->Positions.GetLastWriteIndex());
-	ClockComponent->RawUnsmoothedAudioRenderPos.SetByTick(Entry->Item.UpToTick, *(CurrentMapChain->SongMaps));
+	ClockComponent->CurrentRawAudioRenderSongPos.SetByTick(Entry->Item.UpToTick, *(CurrentMapChain->SongMaps));
 	Metasound::FSampleCount LastRenderPosSampleCount = Entry->Item.SampleCount;
 	float SpeedAtRawRenderTime = Entry->Item.CurrentSpeed;
 	LastTickSeen = Entry->Item.UpToTick;

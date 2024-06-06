@@ -290,6 +290,8 @@ private:
 	FMidiSongPos CurrentVideoRenderSongPos;
 	UPROPERTY(BlueprintGetter = GetCurrentPlayerExperiencedSongPos, Category = "MusicClock")
 	FMidiSongPos CurrentPlayerExperiencedSongPos;
+	UPROPERTY(BlueprintGetter = GetCurrentRawAudioRenderSongPos, Category = "MusicClock")
+	FMidiSongPos CurrentRawAudioRenderSongPos;
 
 public:
 	// Getter functions for the Blueprint properties exposed above...
@@ -301,6 +303,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
 	FMidiSongPos GetCurrentPlayerExperiencedSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetCurrentRawAudioRenderSongPos() const;
 
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
@@ -321,7 +326,7 @@ public:
 	// Note: Not const as it might cause the clock to update from its source.
 	FMidiSongPos CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
-	const FMidiSongPos& GetRawUnsmoothedAudioRenderPos() const { return RawUnsmoothedAudioRenderPos; }
+	const FMidiSongPos& GetRawUnsmoothedAudioRenderPos() const { return CurrentRawAudioRenderSongPos; }
 
 protected:
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction);
@@ -337,8 +342,9 @@ private:
 	EMusicClockState State = EMusicClockState::Stopped;
 
 	FSongMaps DefaultMaps;
-	FMidiSongPos RawUnsmoothedAudioRenderPos;
 
+	float RawAudioRenderDeltaBarF = 0.0f;
+	float RawAudioRenderDeltaBeatF = 0.0f;
 	float AudioRenderDeltaBarF = 0.0f;
 	float AudioRenderDeltaBeatF = 0.0f;
 	float PlayerExperienceDeltaBarF = 0.0f;
@@ -349,6 +355,7 @@ private:
 	int32 LastBroadcastBeat = -1;
 	FSongSection LastBroadcastSongSection;
 
+	FMidiSongPos PrevRawAudioRenderSongPos;
 	FMidiSongPos PrevAudioRenderSongPos;
 	FMidiSongPos PrevPlayerExperiencedSongPos;
 	FMidiSongPos PrevVideoRenderSongPos;
