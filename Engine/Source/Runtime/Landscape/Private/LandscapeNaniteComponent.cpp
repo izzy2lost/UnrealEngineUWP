@@ -205,7 +205,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			FString ExportDDCKey;
 			{
 				// Mesh Export Version, expressed as a GUID string.  Change this if any of the mesh building code here changes.
-				static const char* MeshExportVersion = "d317ef8d-b9f4-44df-ac06-0724bfed912a";
+				static const char* MeshExportVersion = "b72793d4-3d4f-4a8b-b895-e1f82be4fff3";
 
 				FSHA1 Hasher;
 				check(PLATFORM_LITTLE_ENDIAN); // not sure if NewProxyContentId byte order is platform agnostic or not
