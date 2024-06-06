@@ -283,8 +283,13 @@ STG_EditorViewport::STG_EditorViewport()
 
 STG_EditorViewport::~STG_EditorViewport()
 {
-	CastChecked<UEditorEngine>(GEngine)->OnPreviewFeatureLevelChanged().Remove(PreviewFeatureLevelChangedHandle);
-
+	if (PreviewFeatureLevelChangedHandle.IsValid())
+	{
+		if (UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine))
+		{
+			EditorEngine->OnPreviewFeatureLevelChanged().Remove(PreviewFeatureLevelChangedHandle);
+		}
+	}
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 	if (EditorViewportClient.IsValid())
 	{

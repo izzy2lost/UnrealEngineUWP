@@ -86,6 +86,12 @@ void FTextureGraphEditorModule::ShutdownModule()
 	
 	ShutdownTextureGraphEngine();
 }
+
+void FTextureGraphEditorModule::PreUnloadCallback()
+{
+	TG_Exporter.Reset();
+}
+
 void FTextureGraphEditorModule::StartTextureGraphEngine()
 {
 	if (!TextureGraphEngine::GetInstance())

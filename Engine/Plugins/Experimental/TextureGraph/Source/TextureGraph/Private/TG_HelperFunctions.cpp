@@ -43,9 +43,11 @@ TArray<BlobPtr> FTG_HelperFunctions::GetTexturedOutputs(const UTG_Node* Node, FT
 					BufferDescriptor DesiredDesc = OutputExpression->Output.EditTexture().GetBufferDescriptor();
 					if (DesiredDesc.Width == 0 || DesiredDesc.Height == 0)
 					{
+						FTG_OutputSettings& OutputSetting = OutputExpression->OutputSettings;
+				
 						DesiredDesc = T_FlatColorTexture::GetFlatColorDesc("Output");
-						DesiredDesc.Width = (uint32)EResolution::Resolution256;
-						DesiredDesc.Height = (uint32)EResolution::Resolution256;
+						DesiredDesc.Width = (uint32)OutputSetting.Width;
+						DesiredDesc.Height = (uint32)OutputSetting.Height;
 					}
 
 					// OutputExpression->Output.EditTexture() =
@@ -141,6 +143,8 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 					MapSettings.LODGroup = OutputSetting.LODGroup;
 					MapSettings.Compression = OutputSetting.Compression;
 					MapSettings.IsSRGB = OutputSetting.bSRGB;
+					MapSettings.Width = (int32)OutputSetting.Width;
+					MapSettings.Height = (int32)OutputSetting.Height;
 					TargetExportSettings.ExportPreset.push_back(std::pair<FName, FExportMapSettings>{ MapSettings.Name, MapSettings });
 				}
 				else
