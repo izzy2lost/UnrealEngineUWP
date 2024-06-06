@@ -1378,7 +1378,6 @@ UGroomComponent::UGroomComponent(const FObjectInitializer& ObjectInitializer)
 	bAutoActivate = true;
 	bSelectable = true;
 	RegisteredMeshComponent = nullptr;
-	SkeletalPreviousPositionOffset = FVector::ZeroVector;
 	InitializedResources = nullptr;
 	Mobility = EComponentMobility::Movable;
 	bIsGroomAssetCallbackRegistered = false;
@@ -3175,7 +3174,6 @@ void UGroomComponent::ReleaseResources()
 	{
 		RemoveTickPrerequisiteComponent(RegisteredMeshComponent);
 	}
-	SkeletalPreviousPositionOffset = FVector::ZeroVector;
 	RegisteredMeshComponent = nullptr;
 
 	GroomCacheBuffers.Reset();

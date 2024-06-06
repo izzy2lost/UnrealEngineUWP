@@ -344,7 +344,6 @@ private:
 	void* InitializedResources;
 	class UMeshComponent* RegisteredMeshComponent;
 	class UMeshComponent* DeformedMeshComponent;
-	FVector SkeletalPreviousPositionOffset;
 	bool bIsGroomAssetCallbackRegistered;
 	bool bIsGroomBindingAssetCallbackRegistered;
 	bool bValidationEnable = true;
