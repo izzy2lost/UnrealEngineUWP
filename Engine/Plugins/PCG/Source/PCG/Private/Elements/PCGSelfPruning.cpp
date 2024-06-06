@@ -243,6 +243,7 @@ namespace PCGSelfPruningElement
 						}
 						else
 						{
+							check(ThisInstance->GetBodySetup());
 							OtherInstance = new FBodyInstance();
 							OtherInstance->bAutoWeld = false;
 							OtherInstance->bSimulatePhysics = false;

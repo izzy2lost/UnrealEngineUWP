@@ -90,7 +90,7 @@ void FPCGCollisionWrapper::CreateBodyInstances(const TArray<FSoftObjectPath>& Me
 			MeshPtr = Mesh.LoadSynchronous();
 		}
 
-		if(MeshPtr)
+		if(MeshPtr && MeshPtr->GetBodySetup())
 		{
 			//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCollisionWrapper::CreateBodyInstances::CreateBodyInstance);
 			BodyInstance = new FBodyInstance();
