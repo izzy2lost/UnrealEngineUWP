@@ -63,15 +63,7 @@ namespace UnrealBuildTool.Rules
 					}
 				);
 
-				if (Target.Platform == UnrealTargetPlatform.Win64)
-				{
-					PrivateDependencyModuleNames.AddRange(
-						new string[]
-						{
-							"MaterialX"
-						}
-					);
-				}
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "MaterialX");
 			}
 		}
 	}
