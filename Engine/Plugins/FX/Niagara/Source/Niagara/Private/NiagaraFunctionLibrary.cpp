@@ -16,6 +16,7 @@
 #include "NiagaraComponentPool.h"
 #include "NiagaraWorldManager.h"
 #include "DataInterface/NiagaraDataInterfaceStaticMesh.h"
+#include "DataInterface/NiagaraDataInterfaceSceneCapture2D.h"
 #include "NiagaraDataInterfaceSkeletalMesh.h"
 #include "NiagaraDataInterfaceTexture.h"
 #include "NiagaraDataInterface2DArrayTexture.h"
@@ -508,6 +509,54 @@ void UNiagaraFunctionLibrary::SetSkeletalMeshDataInterfaceFilteredSockets(UNiaga
 	}
 
 	SkeletalMeshInterface->SetFilteredSocketsFromBlueprints(FilteredSockets);
+}
+
+NIAGARA_API void UNiagaraFunctionLibrary::SetSceneCapture2DDataInterfaceManagedMode(UNiagaraComponent* NiagaraSystem, const FName& DIName, 
+	ESceneCaptureSource ManagedCaptureSource, FIntPoint ManagedTextureSize, ETextureRenderTargetFormat ManagedTextureFormat,
+	ECameraProjectionMode::Type ManagedProjectionType, float ManagedFOVAngle, float ManagedOrthoWidth, bool bManagedCaptureEveryFrame,
+	bool bManagedCaptureOnMovement, const TArray<AActor*>& ShowOnlyActors)
+{
+	if (!NiagaraSystem)
+	{
+		if (FNiagaraUtilities::LogVerboseWarnings())
+		{
+			UE_LOG(LogNiagara, Warning, TEXT("NiagaraSystem in \"SetSceneCapture2DDataInterfaceManagedMode\" is NULL, skipping."));
+		}
+		return;
+	}
+
+	UNiagaraDataInterfaceSceneCapture2D* CaptureDI =
+		UNiagaraFunctionLibrary::GetDataInterface< UNiagaraDataInterfaceSceneCapture2D>(NiagaraSystem, DIName);
+
+	if (!CaptureDI)
+	{
+		if (FNiagaraUtilities::LogVerboseWarnings())
+		{
+			UE_LOG(LogNiagara, Warning, TEXT("Scene Capture 2D DI \"%s\" is Null in \"SetSceneCapture2DDataInterfaceManagedMode\" is NULL, skipping."), *DIName.ToString());
+		}
+		return;
+	}
+
+	CaptureDI->SourceMode = ENDISceneCapture2DSourceMode::Managed;
+
+	CaptureDI->ManagedCaptureSource = ManagedCaptureSource;
+	CaptureDI->ManagedTextureSize = ManagedTextureSize;
+	CaptureDI->ManagedTextureFormat = ManagedTextureFormat;
+	CaptureDI->ManagedProjectionType = ManagedProjectionType;
+	CaptureDI->ManagedFOVAngle = ManagedFOVAngle;
+	CaptureDI->ManagedOrthoWidth = ManagedOrthoWidth;
+	CaptureDI->bManagedCaptureEveryFrame = bManagedCaptureEveryFrame;
+	CaptureDI->bManagedCaptureOnMovement = bManagedCaptureOnMovement;
+	
+	CaptureDI->ManagedShowOnlyActors.Empty();
+
+	TArray<TObjectPtr<AActor>> AllActors;
+	for (AActor* CurrActor : ShowOnlyActors)
+	{
+		AllActors.Add(CurrActor);
+	}
+	
+	CaptureDI->ManagedShowOnlyActors.Append(AllActors);
 }
 
 void UNiagaraFunctionLibrary::SetTextureObject(UNiagaraComponent* NiagaraSystem, const FString& OverrideName, UTexture* Texture)

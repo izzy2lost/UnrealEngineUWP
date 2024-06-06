@@ -12,7 +12,6 @@
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
 #include "Math/Float16Color.h"
-#include "DataInterface/NiagaraDataInterfaceSceneCapture2D.h"
 
 UShallowWaterRiverComponent::UShallowWaterRiverComponent(const FObjectInitializer& Initializer)
 	: Super(Initializer)
@@ -96,7 +95,7 @@ void UShallowWaterRiverComponent::PostEditChangeProperty(FPropertyChangedEvent& 
 	}
 			
 	// this should go before rebuild not after...something is wrong
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UShallowWaterRiverComponent, PreviewBakedSim))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UShallowWaterRiverComponent, PreviewBakedSim) && RiverSimSystem->IsActive())
 	{
 		RiverSimSystem->SetVariableBool(FName("ReadCachedSim"), PreviewBakedSim);
 	}
@@ -112,15 +111,15 @@ void UShallowWaterRiverComponent::Rebuild()
 	{
 		RiverSimSystem->SetActive(false);
 		RiverSimSystem->DestroyComponent();
-		RiverSimSystem = nullptr;
-
-		AllWaterBodies.Empty();
+		RiverSimSystem = nullptr;		
 	}
 	
 	if (NiagaraRiverSimulation == nullptr)
 	{
 		UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterRiverComponent::Rebuild() - null Niagara system asset"));
 	}
+
+	AllWaterBodies.Empty();
 
 	// collect all the water bodies	
 	if (SourceRiverWaterBody != nullptr)
@@ -163,8 +162,8 @@ void UShallowWaterRiverComponent::Rebuild()
 		}
 		else
 		{
-			UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterRiverComponent::Rebuild() - null water body actor found"));
-			return;
+			UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterRiverComponent::Rebuild() - skipping null water body actor found"));
+			continue;
 		}
 	}
 	FBoxSphereBounds CombinedBounds(CombinedWorldBoundsBuilder);
@@ -222,21 +221,52 @@ void UShallowWaterRiverComponent::Rebuild()
 
 		RiverSimSystem->SetVisibleFlag(true);
 		RiverSimSystem->SetAsset(NiagaraRiverSimulation);
+							
+		// convert to raw ptr array for function library
+		TArray<AActor*> BottomContourActorsRawPtr;
+		for (TObjectPtr<AActor> CurrActor : BottomContourActors)
+		{
+			AActor* CurrActorRawPtr = CurrActor.Get();
+			BottomContourActorsRawPtr.Add(CurrActorRawPtr);
+		}
 
-		UNiagaraDataInterfaceSceneCapture2D* BottomCaptureDI =
-			UNiagaraFunctionLibrary::GetDataInterface< UNiagaraDataInterfaceSceneCapture2D>(RiverSimSystem, "User.BottomCapture");
+		FName DIName = "User.BottomCapture";
 
-		BottomCaptureDI->SourceMode = ENDISceneCapture2DSourceMode::Managed;
-		BottomCaptureDI->ManagedOrthoWidth = FMath::Max(WorldGridSize.X, WorldGridSize.Y);
-		BottomCaptureDI->ManagedTextureSize = FIntPoint(ResolutionMaxAxis, ResolutionMaxAxis);
-		BottomCaptureDI->ManagedCaptureSource = ESceneCaptureSource::SCS_SceneDepth;
-		BottomCaptureDI->ManagedTextureFormat = ETextureRenderTargetFormat::RTF_R16f;
-		BottomCaptureDI->ManagedProjectionType = ECameraProjectionMode::Orthographic;
+		UNiagaraFunctionLibrary::SetSceneCapture2DDataInterfaceManagedMode(RiverSimSystem, DIName,
+			ESceneCaptureSource::SCS_SceneDepth,
+			FIntPoint(ResolutionMaxAxis, ResolutionMaxAxis),
+			ETextureRenderTargetFormat::RTF_R16f,
+			ECameraProjectionMode::Orthographic,
+			90.0f,
+			FMath::Max(WorldGridSize.X, WorldGridSize.Y),
+			true,
+			false,
+			BottomContourActorsRawPtr);
 
-		BottomCaptureDI->ManagedShowOnlyActors.Empty();
-		BottomCaptureDI->ManagedShowOnlyActors.Append(BottomContourActors);
+	
+		// accumulate bounding box for river water bodies
+		FBoxSphereBounds::Builder BottomContourCombinedWorldBoundsBuilder;
+		for (TObjectPtr<AActor> BottomContourActor : BottomContourActors)
+		{
+			if (BottomContourActor != nullptr)
+			{
+				// accumulate bounds
+				FBoxSphereBounds WorldBounds;
+				BottomContourActor->GetActorBounds(false, WorldBounds.Origin, WorldBounds.BoxExtent);
 
+				BottomContourCombinedWorldBoundsBuilder += WorldBounds;
+			}
+			else
+			{
+				UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterRiverComponent::Rebuild() - skipping null bottom contour boundary actor found"));
+				continue;
+			}
+		}
+		FBoxSphereBounds CombinedBottomContourBounds(BottomContourCombinedWorldBoundsBuilder);
+				
 		RiverSimSystem->ReinitializeSystem();
+
+		RiverSimSystem->SetVariableFloat(FName("CaptureOffset"), BottomContourCaptureOffset + CombinedBottomContourBounds.Origin.Z + CombinedBottomContourBounds.BoxExtent.Z);
 	}
 	else
 	{
@@ -255,6 +285,7 @@ void UShallowWaterRiverComponent::Rebuild()
 
 	WorldGridSize = 2.0f * FVector2D(CombinedBounds.BoxExtent.X, CombinedBounds.BoxExtent.Y);
 	RiverSimSystem->SetVariableVec2(FName("WorldGridSize"), WorldGridSize);
+	RiverSimSystem->SetVariableInt(FName("ResolutionMaxAxis"), ResolutionMaxAxis);
 
 	// pad out source's box height a so it intersects the sim plane.  This value doesn't matter much so we hardcode it
 	float Overshoot = 1000.f;
@@ -324,7 +355,7 @@ void UShallowWaterRiverComponent::Bake()
 		TObjectPtr<UWaterBodyComponent> CurrWaterBodyComponent = CurrWaterBody->GetWaterBodyComponent();
 
 		// #todo(dmp): reenable
-		//CurrWaterBodyComponent->SetShallowWaterSimulationTexture(ShallowWaterSimArrayValues, 
+		// CurrWaterBodyComponent->SetShallowWaterSimulationTexture(ShallowWaterSimArrayValues, 
 		//	FIntVector2(BakedWaterSurfaceRT->SizeX, BakedWaterSurfaceRT->SizeY), SystemPos, WorldGridSize);
 	}
 }

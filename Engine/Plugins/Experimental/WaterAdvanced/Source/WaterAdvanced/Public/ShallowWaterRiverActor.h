@@ -60,6 +60,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Collisions")
 	TArray<TObjectPtr<AActor>> BottomContourActors;
 
+	UPROPERTY(EditAnywhere, Category = "Collisions")
+	float BottomContourCaptureOffset = 0.f;
+
 	virtual void PostLoad() override;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

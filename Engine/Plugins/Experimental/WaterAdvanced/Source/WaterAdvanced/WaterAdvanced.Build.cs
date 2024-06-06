@@ -9,13 +9,6 @@ public class WaterAdvanced : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
-		PublicIncludePaths.AddRange(
-			new string[] {
-				 System.IO.Path.Combine(GetModuleDirectory("Niagara"), "Private"),				 
-			}
-			);
-				
-		
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...

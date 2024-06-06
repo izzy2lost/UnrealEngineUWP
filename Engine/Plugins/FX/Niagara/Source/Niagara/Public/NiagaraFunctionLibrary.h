@@ -72,6 +72,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Niagara)
 	static NIAGARA_API void SetSkeletalMeshDataInterfaceFilteredSockets(UNiagaraComponent* NiagaraSystem, const FString& OverrideName, const TArray<FName>& FilteredSockets);
 
+	/** Sets managed mode parameters for the Scene capture 2D  data interface, this is destructive as it modifies the data interface. */
+	UFUNCTION(BlueprintCallable, Category = Niagara)
+	static NIAGARA_API void SetSceneCapture2DDataInterfaceManagedMode(UNiagaraComponent* NiagaraSystem, const FName& DIName,
+		ESceneCaptureSource ManagedCaptureSource,
+		FIntPoint ManagedTextureSize,
+		ETextureRenderTargetFormat ManagedTextureFormat,
+		ECameraProjectionMode::Type ManagedProjectionType,
+		float ManagedFOVAngle,
+		float ManagedOrthoWidth,
+		bool bManagedCaptureEveryFrame,
+		bool bManagedCaptureOnMovement,
+		const TArray<AActor*> &ShowOnlyActors);
+
 	/** Overrides the Texture Object for a Niagara Texture Data Interface User Parameter.*/
 	UFUNCTION(BlueprintCallable, Category = Niagara)
 	static NIAGARA_API void SetTextureObject(UNiagaraComponent* NiagaraSystem, const FString& OverrideName, UTexture* Texture);
