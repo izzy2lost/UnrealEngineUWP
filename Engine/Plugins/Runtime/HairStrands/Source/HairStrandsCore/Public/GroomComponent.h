@@ -339,11 +339,6 @@ private:
 	TObjectPtr<UGroomBindingAsset> BindingAssetBeingLoaded;
 #endif
 
-protected:
-	// Used for tracking if a Niagara component is attached or not
-	virtual void OnChildAttached(USceneComponent* ChildComponent) override;
-	virtual void OnChildDetached(USceneComponent* ChildComponent) override;
-
 private:
 	void DeleteDeferredHairGroupInstances();
 	void* InitializedResources;
