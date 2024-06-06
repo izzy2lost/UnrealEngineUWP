@@ -17,11 +17,11 @@ struct VObject : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
-	VValue LoadField(FAllocationContext Context, VUniqueString& Name);
+	VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
 
 	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
 	/// The data is retrieved from the object, rather than the shape.
-	VRestValue& GetFieldSlot(FAllocationContext Context, VUniqueString& Name);
+	VRestValue& GetFieldSlot(FAllocationContext Context, const VUniqueString& Name);
 
 	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
 
@@ -44,9 +44,9 @@ protected:
 	 *
 	 * ```
 	 * c := class {x:int}
-	 * c := C{}
-	 * Foo(c.X) # allocates a placeholder
-	 * c.X := 1  # This is the first time `c.X` actually gets defined.
+	 * C := c{}
+	 * Foo(C.X) # allocates a placeholder
+	 * C.X := 1  # This is the first time `c.X` actually gets defined.
 	 * ```
 	 *
 	 * This stores the actual data for individual fields. Some constants and procedures are stored in the shape, not the

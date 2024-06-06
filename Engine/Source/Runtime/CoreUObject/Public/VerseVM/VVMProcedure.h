@@ -38,11 +38,17 @@ FUnwindEdge                    UnwindEdge[0]
 FUnwindEdge                    UnwindEdge[1]
 ...
 FUnwindEdge                    UnwindEdge[NumUnwindEdges - 1]
+FOpLocation                    OpLocation[0]
+FOpLocation                    OpLocation[1]
+...
+FOpLocation                    OpLocation[NumOpLocations - 1]
 */
 struct VProcedure : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	TWriteBarrier<VUniqueString> Path;
 
 	uint32 NumRegisters;
 	uint32 NumPositionalParameters;
@@ -54,6 +60,7 @@ struct VProcedure : VCell
 	uint32 NumOperands;
 	uint32 NumLabels;
 	uint32 NumUnwindEdges;
+	uint32 NumOpLocations;
 
 	TWriteBarrier<VCell> Trailing[];
 
@@ -77,6 +84,9 @@ struct VProcedure : VCell
 	FUnwindEdge* GetUnwindEdgesBegin() { return BitCast<FUnwindEdge*>(GetLabelsEnd()); }
 	FUnwindEdge* GetUnwindEdgesEnd() { return GetUnwindEdgesBegin() + NumUnwindEdges; }
 
+	FOpLocation* GetOpLocationsBegin() { return BitCast<FOpLocation*>(GetUnwindEdgesEnd()); }
+	FOpLocation* GetOpLocationsEnd() { return GetOpLocationsBegin() + NumOpLocations; }
+
 	// In bytes.
 	uint32 BytecodeOffset(const FOp& Bytecode)
 	{
@@ -87,6 +97,38 @@ struct VProcedure : VCell
 	{
 		checkSlow(GetOpsBegin() <= Data && Data < GetOpsEnd());
 		return static_cast<uint32>(BitCast<char*>(Data) - BitCast<char*>(GetOpsBegin()));
+	}
+
+	const FLocation* GetLocation(const FOp& Op)
+	{
+		return GetLocation(BytecodeOffset(Op));
+	}
+
+	// Return the nearest location at or earlier than `OpOffset`, using the
+	// first location if `OpOffset` is before the earliest offset with location
+	// information.  Returns `nullptr` if there is no location information.
+	const FLocation* GetLocation(int32 OpOffset)
+	{
+		auto First = GetOpLocationsBegin();
+		auto Last = GetOpLocationsEnd();
+		if (First == Last)
+		{
+			return nullptr;
+		}
+		for (auto I = First + (Last - First) / 2;
+			 I != First;
+			 I = First + (Last - First) / 2)
+		{
+			if (I->Begin > OpOffset)
+			{
+				Last = I;
+			}
+			else
+			{
+				First = I;
+			}
+		}
+		return &First->Location;
 	}
 
 	void SetConstant(FAllocationContext Context, FConstantIndex ConstantIndex, VValue Value)
@@ -101,7 +143,18 @@ struct VProcedure : VCell
 		return GetConstantsBegin()[ConstantIndex.Index].Get();
 	}
 
-	static VProcedure& NewUninitialized(FAllocationContext Context, uint32 NumRegisters, uint32 NumPositionalParameters, uint32 NumNamedParameters, uint32 NumConstants, uint32 NumOpBytes, uint32 NumOperands, uint32 NumLabels, uint32 NumUnwindEdges)
+	static VProcedure& NewUninitialized(
+		FAllocationContext Context,
+		VUniqueString& Path,
+		uint32 NumRegisters,
+		uint32 NumPositionalParameters,
+		uint32 NumNamedParameters,
+		uint32 NumConstants,
+		uint32 NumOpBytes,
+		uint32 NumOperands,
+		uint32 NumLabels,
+		uint32 NumUnwindEdges,
+		uint32 NumOpLocations)
 	{
 		const size_t NumBytes = offsetof(VProcedure, Trailing)
 							  + sizeof(TWriteBarrier<VUniqueString>) * NumNamedParameters
@@ -109,15 +162,39 @@ struct VProcedure : VCell
 							  + NumOpBytes
 							  + sizeof(FValueOperand) * NumOperands
 							  + sizeof(FLabelOffset) * NumLabels
-							  + sizeof(FUnwindEdge) * NumUnwindEdges;
-		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(Context, NumRegisters, NumPositionalParameters, NumNamedParameters, NumConstants, NumOpBytes, NumOperands, NumLabels, NumUnwindEdges);
+							  + sizeof(FUnwindEdge) * NumUnwindEdges
+							  + sizeof(FOpLocation) * NumOpLocations;
+		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(
+			Context,
+			Path,
+			NumRegisters,
+			NumPositionalParameters,
+			NumNamedParameters,
+			NumConstants,
+			NumOpBytes,
+			NumOperands,
+			NumLabels,
+			NumUnwindEdges,
+			NumOpLocations);
 	}
 
 	static void SerializeImpl(VProcedure*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
-	VProcedure(FAllocationContext Context, uint32 InNumRegisters, uint32 InNumPositionalParameters, uint32 InNumNamedParameters, uint32 InNumConstants, uint32 InNumOpBytes, uint32 InNumOperands, uint32 InNumLabels, uint32 InNumUnwindEdges)
+	VProcedure(
+		FAllocationContext Context,
+		VUniqueString& Path,
+		uint32 InNumRegisters,
+		uint32 InNumPositionalParameters,
+		uint32 InNumNamedParameters,
+		uint32 InNumConstants,
+		uint32 InNumOpBytes,
+		uint32 InNumOperands,
+		uint32 InNumLabels,
+		uint32 InNumUnwindEdges,
+		uint32 InNumOpLocations)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+		, Path(Context, Path)
 		, NumRegisters(InNumRegisters)
 		, NumPositionalParameters(InNumPositionalParameters)
 		, NumNamedParameters(InNumNamedParameters)
@@ -126,6 +203,7 @@ private:
 		, NumOperands(InNumOperands)
 		, NumLabels(InNumLabels)
 		, NumUnwindEdges(InNumUnwindEdges)
+		, NumOpLocations(InNumOpLocations)
 	{
 		for (TWriteBarrier<VUniqueString>* NamedParam = GetNamedParamsBegin(); NamedParam != GetNamedParamsEnd(); ++NamedParam)
 		{

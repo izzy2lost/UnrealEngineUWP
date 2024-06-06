@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+
 #include "VerseVM/VVMBytecode.h"
+#include "VerseVM/VVMAbstractVisitor.h"
 #include "VerseVM/VVMBytecodeOps.h"
 
 namespace
@@ -21,4 +23,14 @@ const char* Verse::ToString(Verse::EOpcode Opcode)
 {
 	return Ops[static_cast<size_t>(Opcode)].Name;
 }
+
+template <>
+void Verse::Visit(FAbstractVisitor& Visitor, FOpLocation& Value, const TCHAR* ElementName)
+{
+	Visitor.BeginObject(ElementName);
+	Visitor.Visit(Value.Begin, TEXT("Begin"));
+	Visit(Visitor, Value.Location, TEXT("Location"));
+	Visitor.EndObject();
+}
+
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

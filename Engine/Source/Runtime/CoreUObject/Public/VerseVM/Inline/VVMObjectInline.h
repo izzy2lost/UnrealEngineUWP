@@ -46,13 +46,13 @@ inline VValue VObject::LoadField(FAllocationContext Context, const VCppClassInfo
 	}
 }
 
-inline VValue VObject::LoadField(FAllocationContext Context, VUniqueString& Name)
+inline VValue VObject::LoadField(FAllocationContext Context, const VUniqueString& Name)
 {
 	const VEmergentType* EmergentType = GetEmergentType();
 	return LoadField(Context, *EmergentType->CppClassInfo, EmergentType->Shape->GetField(Name));
 }
 
-inline VRestValue& VObject::GetFieldSlot(FAllocationContext Context, VUniqueString& Name)
+inline VRestValue& VObject::GetFieldSlot(FAllocationContext Context, const VUniqueString& Name)
 {
 	const VEmergentType* EmergentType = GetEmergentType();
 	const VShape::VEntry* Field = EmergentType->Shape->GetField(Name);

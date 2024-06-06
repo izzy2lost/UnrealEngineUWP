@@ -8,6 +8,8 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include "VVMBytecodeOps.h"
+#include "VVMLocation.h"
+#include "VVMMarkStackVisitor.h"
 
 namespace Verse
 {
@@ -119,5 +121,21 @@ struct FUnwindEdge
 	int32 End;
 	FLabelOffset OnUnwind;
 };
+
+// Mapping from an opcode offset to a location.  VProcedure holds a sorted array of such
+// mappings where an op's location is the latest entry with an equal or lesser offset.
+struct FOpLocation
+{
+	int32 Begin;
+	FLocation Location;
+};
+
+template <>
+void Visit(FAbstractVisitor&, FOpLocation&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor&, const FOpLocation&, FMarkStackVisitor::ConsumeElementName)
+{
+}
 } // namespace Verse
 #endif // WITH_VERSE_VM
