@@ -1886,6 +1886,7 @@ namespace uba
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = false;
 		fileEntry.casKey = CasKeyInvalid;
+		fileEntry.lastInvalidationTime = GetSystemTimeAsFileTime();
 		return true;
 	}
 

@@ -35,6 +35,8 @@ namespace uba
 		bool useDirectoryPreparsing = false; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
 		bool validateCacheWritesInput = false; // Set to true to validate cas of all input files before sent to cache
 		bool validateCacheWritesOutput = true; // Set to true to validate cas of all output files before sent to cache
+		bool useRoots = true;
+		bool useCacheHit = true;
 	};
 
 	class CacheClient
@@ -55,6 +57,7 @@ namespace uba
 
 	private:
 		struct Bucket;
+		u64 MakeId(u32 bucketId);
 
 		bool SendPathTable(Bucket& bucket, u32 requiredPathTableSize);
 		bool SendCasTable(Bucket& bucket, u32 requiredCasTableSize);
@@ -76,6 +79,8 @@ namespace uba
 		bool m_useDirectoryPreParsing;
 		bool m_validateCacheWritesInput;
 		bool m_validateCacheWritesOutput;
+		bool m_useRoots;
+		bool m_useCacheHit;
 
 		Atomic<bool> m_connected;
 

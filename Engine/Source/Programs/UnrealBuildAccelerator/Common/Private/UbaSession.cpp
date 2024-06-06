@@ -647,7 +647,7 @@ namespace uba
 	}
 
 
-	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize, u64 lastWriteTime)
+	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize, u64 lastWriteTime, bool invalidateStorage)
 	{
 		// Remote is not updating its own directory table
 		if (m_runningRemote)
@@ -772,7 +772,7 @@ namespace uba
 
 		// There are directory crawlers happening in parallel so we need to really make sure to invalidate this one since a crawler can actually
 		// hit this file with information from a query before it was written.. and then it will turn it back to "verified" using old info
-		if (registerRealFile)
+		if (registerRealFile && invalidateStorage)
 			m_storage.InvalidateCachedFileInfo(fileNameKey);
 
 		FileEntryAdded(fileNameKey, lastWriteTime, fileSize);
@@ -2100,7 +2100,7 @@ namespace uba
 					Storage::WriteResult res;
 					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager, file.name.c_str()) };
 
-					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str(), &header, sizeof(header)))
+					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str(), &header, sizeof(header), file.lastWriteTime))
 						return false;
 					shouldEvictFromMemory = true;
 				}

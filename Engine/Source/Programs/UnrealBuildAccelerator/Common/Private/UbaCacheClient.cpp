@@ -29,10 +29,10 @@ namespace uba
 		table.GetValueAsBool(validateCacheWritesInput, TC("ValidateCacheWritesInput"));
 		table.GetValueAsBool(validateCacheWritesOutput, TC("ValidateCacheWritesOutput"));
 		table.GetValueAsBool(reportMissReason, TC("ReportMissReason"));
+		table.GetValueAsBool(useRoots, TC("UseRoots"));
+		table.GetValueAsBool(useCacheHit, TC("UseCacheHit"));
 	}
 
-
-	u64 MakeId(u32 bucketId) { return u64(bucketId) | ((u64(!CaseInsensitiveFs) + (RootPathsVersion << 1)) << 32); }
 
 	struct CacheClient::Bucket
 	{
@@ -76,6 +76,8 @@ namespace uba
 		m_useDirectoryPreParsing = info.useDirectoryPreparsing;
 		m_validateCacheWritesInput = info.validateCacheWritesInput;
 		m_validateCacheWritesOutput = info.validateCacheWritesOutput;
+		m_useCacheHit = info.useCacheHit;
+		m_useRoots = info.useRoots;
 
 		m_client.RegisterOnConnected([this]()
 			{
@@ -158,6 +160,8 @@ namespace uba
 		Bucket& bucket = m_buckets.try_emplace(bucketId, bucketId).first->second;
 		bucketsLock.Leave();
 
+		TString qualifiedPath;
+
 		// Traverse all inputs and outputs. to create cache entry that we can send to server
 		while (true)
 		{
@@ -207,21 +211,29 @@ namespace uba
 				continue;
 			}
 
-			// Find root for path in order to be able to normalize it.
-			auto root = rootPaths.FindRoot(path);
-			if (!root)
+			if (m_useRoots)
 			{
-				m_logger.Info(TC("FILE WITHOUT ROOT: %s (%s)"), path.data, info.description);
-				success = false;
-				continue;
+				// Find root for path in order to be able to normalize it.
+				auto root = rootPaths.FindRoot(path);
+				if (!root)
+				{
+					m_logger.Info(TC("FILE WITHOUT ROOT: %s (%s)"), path.data, info.description);
+					success = false;
+					continue;
+				}
+
+				if (!root->includeInKey)
+					continue;
+
+				u32 rootLen = u32(root->path.size());
+				qualifiedPath = path.data + rootLen - 1;
+				qualifiedPath[0] = tchar(RootPaths::RootStartByte + root->index);
+			}
+			else
+			{
+				qualifiedPath = path.data;
 			}
 
-			if (!root->includeInKey)
-				continue;
-
-			u32 rootLen = u32(root->path.size());
-			TString qualifiedPath = path.data + rootLen - 1;
-			qualifiedPath[0] = tchar(RootPaths::RootStartByte + root->index);
 
 			u32 pathOffset = bucket.sendPathTable.Add(qualifiedPath.c_str(), u32(qualifiedPath.size()), &requiredPathTableSize);
 
@@ -258,6 +270,7 @@ namespace uba
 				CasKey oldOldKey;
 				u64 oldOldSize = 0;
 				u64 oldOldLastWritten = 0;
+				u64 lastInvalidationTime = 0;
 				bool oldOldVerified = false;
 
 				if (shouldValidate)
@@ -268,6 +281,7 @@ namespace uba
 					oldOldSize = fileEntry.size;
 					oldOldLastWritten = fileEntry.lastWritten;
 					oldOldVerified = fileEntry.verified;
+					lastInvalidationTime = fileEntry.lastInvalidationTime;
 				}
 
 
@@ -326,8 +340,8 @@ namespace uba
 						SCOPED_READ_LOCK(fileEntry.lock, lock);
 
 						auto ToString = [](bool b) { return b ? TC("true") : TC("false"); };
-						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculating it gives us %s (OldEntry: %s/%llu/%llu/%s FileEntry: %llu/%llu/%s, Real: %llu/%llu). Will not populate cache for %s"),
-							path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, CasKeyString(oldOldKey).str, oldOldSize, oldOldLastWritten, ToString(oldOldVerified), fileEntry.size, fileEntry.lastWritten, ToString(fileEntry.verified), fileSize, fileInfo.lastWriteTime, info.description);
+						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculating it gives us %s (OldEntry: %s/%llu/%llu/%s FileEntry: %llu/%llu/%s, Real: %llu/%llu. Last invalidation: %llu). Will not populate cache for %s"),
+							path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, CasKeyString(oldOldKey).str, oldOldSize, oldOldLastWritten, ToString(oldOldVerified), fileEntry.size, fileEntry.lastWritten, ToString(fileEntry.verified), fileSize, fileInfo.lastWriteTime, lastInvalidationTime, info.description);
 						return false;
 					}
 				}
@@ -381,6 +395,12 @@ namespace uba
 		finished = true;
 		return true;
 	}
+
+	u64 CacheClient::MakeId(u32 bucketId)
+	{
+		return u64(bucketId) | ((u64(!CaseInsensitiveFs) + (RootPathsVersion << 1) + (u8(m_useRoots) << 2)) << 32);
+	}
+
 
 	bool CacheClient::FetchFromCache(bool& outCacheHit, const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info)
 	{
@@ -615,7 +635,12 @@ namespace uba
 			}
 			if (rangeBegin != ~0u)
 				addRange(u32(sharedReader.GetPosition()));
-			UBA_ASSERT(!sharedMatchingRanges.empty());
+			if (sharedMatchingRanges.empty())
+			{
+				auto& range = sharedMatchingRanges.emplace_back();
+				range.begin = 0;
+				range.end = 0;
+			}
 		}
 
 		// Read entries
@@ -675,6 +700,9 @@ namespace uba
 				UBA_ASSERTF(testIsMatch, TC("%s"), info.description);
 				UBA_ASSERTF(matchingId == entryId, TC("%u vs %u"), matchingId, entryId);
 #endif
+
+				if (!m_useCacheHit)
+					return false;
 
 				{
 					StackBinaryWriter<128> writer;
@@ -1189,6 +1217,8 @@ namespace uba
 
 	bool CacheClient::ShouldNormalize(const StringBufferBase& path)
 	{
+		if (!m_useRoots)
+			return false;
 		if (path.EndsWith(TC(".dep.json"))) // Contains absolute paths (dep file for msvc)
 			return true;
 		if (path.EndsWith(TC(".d"))) // Contains absolute paths (dep file for clang)
@@ -1213,7 +1243,7 @@ namespace uba
 		u32 rootIndex = normalizedPath[0] - RootPaths::RootStartByte;
 		const TString& root = rootPaths.GetRoot(rootIndex);
 
-		outPath.Append(root).Append(normalizedPath.data + 1);
+		outPath.Append(root).Append(normalizedPath.data + u32(m_useRoots)); // If we use root paths, then first byte is root path table index
 		return true;
 	}
 

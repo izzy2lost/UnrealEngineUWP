@@ -815,6 +815,8 @@ namespace uba
 					auto logType = connectionInfo.ShouldDisconnect() ? LogEntryType_Info : LogEntryType_Warning;
 					m_logger.Logf(logType, TC("Failed to retrieve cas for %s from client (Needed to write %s)"), CasKeyString(casKey).str, destination.data);
 				}
+
+				bool shouldWriteToDisk = ShouldWriteToDisk(destination);
 				if (success)
 				{
 					if (destination.StartsWith(TC("<log>")))
@@ -839,7 +841,7 @@ namespace uba
 						return true;
 					}
 
-					if (ShouldWriteToDisk(destination))
+					if (shouldWriteToDisk)
 					{
 						bool writeCompressed = false;
 						if (m_storeObjFilesCompressed)
@@ -870,7 +872,8 @@ namespace uba
 				if (success)
 				{
 					m_storage.DropCasFile(casKey, false, destination.data);
-					RegisterCreateFileForWrite(StringKeyZero, destination, true);
+					bool invalidateStorage = false; // No need, already handled in m_storage.CopyOrLink
+					RegisterCreateFileForWrite(StringKeyZero, destination, shouldWriteToDisk, 0, 0, invalidateStorage);
 
 
 					SCOPED_WRITE_LOCK(m_processesLock, lock);
