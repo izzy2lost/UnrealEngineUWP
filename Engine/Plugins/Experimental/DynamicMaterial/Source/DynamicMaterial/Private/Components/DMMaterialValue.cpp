@@ -469,15 +469,10 @@ void UDMMaterialValue::Update(EDMUpdateType InUpdateType)
 
 	Super::Update(InUpdateType);
 
-#if WITH_EDITOR
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
-	check(MaterialModel);
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = MaterialModel->GetEditorOnlyData())
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
-		ModelEditorOnlyData->OnValueUpdated(this, InUpdateType);
+		MaterialModel->OnValueUpdated(this, InUpdateType);
 	}
-#endif
 }
 
 #if WITH_EDITOR

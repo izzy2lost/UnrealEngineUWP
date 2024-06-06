@@ -1622,18 +1622,6 @@ void UDynamicMaterialModelEditorOnlyData::OnValueUpdated(UDMMaterialValue* InVal
 {
 	check(InValue);
 
-	if (InValue->GetMaterialModel() != MaterialModel)
-	{
-		return;
-	}
-
-	if (InUpdateType == EDMUpdateType::Value && IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
-	{
-		InValue->SetMIDParameter(MaterialModel->DynamicMaterialInstance);
-	}
-
-	OnValueUpdateDelegate.Broadcast(MaterialModel, InValue);
-
 	// Non-exported materials have their values update via settings parameters
 	// Exported materials need to be rebuilt to update the main material.
 	const bool bMaterialInDifferentPackage = MaterialModel->DynamicMaterial ? MaterialModel->DynamicMaterial->GetPackage() != GetPackage() : true;
@@ -1647,18 +1635,6 @@ void UDynamicMaterialModelEditorOnlyData::OnValueUpdated(UDMMaterialValue* InVal
 void UDynamicMaterialModelEditorOnlyData::OnTextureUVUpdated(UDMTextureUV* InTextureUV)
 {
 	check(InTextureUV);
-
-	if (InTextureUV->GetMaterialModel() != MaterialModel)
-	{
-		return;
-	}
-
-	if (IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
-	{
-		InTextureUV->SetMIDParameters(MaterialModel->DynamicMaterialInstance);
-	}
-
-	OnTextureUVUpdateDelegate.Broadcast(MaterialModel, InTextureUV);
 
 	// Non-exported materials have their values update via settings parameters
 	// Exported materials need to be rebuilt to update the main material.

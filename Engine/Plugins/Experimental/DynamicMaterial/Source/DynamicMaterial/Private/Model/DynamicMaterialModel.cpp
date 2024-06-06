@@ -5,6 +5,7 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
 #include "Components/MaterialValues/DMMaterialValueFloat2.h"
+#include "Components/DMTextureUV.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
@@ -417,6 +418,54 @@ void UDynamicMaterialModel::ResetData()
 	}
 }
 #endif
+
+void UDynamicMaterialModel::OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType)
+{
+	check(InValue);
+
+	if (InValue->GetMaterialModel() != this)
+	{
+		return;
+	}
+
+	if (InUpdateType == EDMUpdateType::Value && IsValid(DynamicMaterialInstance))
+	{
+		InValue->SetMIDParameter(DynamicMaterialInstance);
+	}
+
+	OnValueUpdateDelegate.Broadcast(this, InValue);
+
+#if WITH_EDITOR
+	if (IDynamicMaterialModelEditorOnlyDataInterface* EditorOnlyData = GetEditorOnlyData())
+	{
+		EditorOnlyData->OnValueUpdated(InValue, InUpdateType);
+	}
+#endif
+}
+
+void UDynamicMaterialModel::OnTextureUVUpdated(UDMTextureUV* InTextureUV)
+{
+	check(InTextureUV);
+
+	if (InTextureUV->GetMaterialModel() != this)
+	{
+		return;
+	}
+
+	if (IsValid(this) && IsValid(DynamicMaterialInstance))
+	{
+		InTextureUV->SetMIDParameters(DynamicMaterialInstance);
+	}
+
+	OnTextureUVUpdateDelegate.Broadcast(this, InTextureUV);
+
+#if WITH_EDITOR
+	if (IDynamicMaterialModelEditorOnlyDataInterface* EditorOnlyData = GetEditorOnlyData())
+	{
+		EditorOnlyData->OnTextureUVUpdated(InTextureUV);
+	}
+#endif
+}
 
 void UDynamicMaterialModel::PostLoad()
 {

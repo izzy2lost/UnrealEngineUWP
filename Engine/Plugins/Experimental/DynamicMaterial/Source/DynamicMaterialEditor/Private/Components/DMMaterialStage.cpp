@@ -252,8 +252,11 @@ void UDMMaterialStage::AddDelegates()
 		{
 			if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 			{
-				ModelEditorOnlyData->GetOnValueUpdateDelegate().AddUObject(this, &UDMMaterialStage::OnValueUpdated);
-				ModelEditorOnlyData->GetOnTextureUVUpdateDelegate().AddUObject(this, &UDMMaterialStage::OnTextureUVUpdated);
+				if (UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel())
+				{
+					MaterialModel->GetOnValueUpdateDelegate().AddUObject(this, &UDMMaterialStage::OnValueUpdated);
+					MaterialModel->GetOnTextureUVUpdateDelegate().AddUObject(this, &UDMMaterialStage::OnTextureUVUpdated);
+				}
 			}
 		}
 	}
@@ -267,8 +270,11 @@ void UDMMaterialStage::RemoveDelegates()
 		{
 			if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 			{
-				ModelEditorOnlyData->GetOnValueUpdateDelegate().RemoveAll(this);
-				ModelEditorOnlyData->GetOnTextureUVUpdateDelegate().RemoveAll(this);
+				if (UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel())
+				{
+					MaterialModel->GetOnValueUpdateDelegate().RemoveAll(this);
+					MaterialModel->GetOnTextureUVUpdateDelegate().RemoveAll(this);
+				}
 			}
 		}
 	}

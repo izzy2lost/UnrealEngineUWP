@@ -32,9 +32,7 @@ struct FDMMaterialChannelListPreset;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnMaterialBuilt, UDynamicMaterialModel*);
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnValueListUpdated, UDynamicMaterialModel*);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnValueUpdated, UDynamicMaterialModel*, UDMMaterialValue*);
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnSlotListUpdated, UDynamicMaterialModel*);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnTextureUVUpdated, UDynamicMaterialModel*, UDMTextureUV*);
 
 UENUM(BlueprintType)
 enum class EDMState : uint8
@@ -175,9 +173,7 @@ public:
 	
 	FDMOnMaterialBuilt& GetOnMaterialBuiltDelegate() { return OnMaterialBuiltDelegate; }
 	FDMOnValueListUpdated& GetOnValueListUpdateDelegate() { return OnValueListUpdateDelegate; }
-	FDMOnValueUpdated& GetOnValueUpdateDelegate() { return OnValueUpdateDelegate; }
 	FDMOnSlotListUpdated& GetOnSlotListUpdateDelegate() { return OnSlotListUpdateDelegate; }
-	FDMOnTextureUVUpdated& GetOnTextureUVUpdateDelegate() { return OnTextureUVUpdateDelegate; }
 
 	TSharedRef<FDMMaterialBuildState> CreateBuildState(UMaterial* InMaterialToBuild, bool bInDirtyAssets = true) const;
 
@@ -221,8 +217,8 @@ public:
 	//~ Begin IDynamicMaterialModelEditorOnlyDataInterface
 	virtual void PostEditorDuplicate() override;
 	virtual void RequestMaterialBuild() override;
-	virtual void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType) override;
 	virtual void OnValueListUpdate() override;
+	virtual void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType) override;
 	virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV) override;
 	virtual void LoadDeprecatedModelData(UDynamicMaterialModel* InMaterialModel) override;
 	virtual TSharedRef<IDMMaterialBuildStateInterface> CreateBuildStateInterface(UMaterial* InMaterialToBuild) const override;
@@ -277,9 +273,7 @@ protected:
 
 	FDMOnMaterialBuilt OnMaterialBuiltDelegate;
 	FDMOnValueListUpdated OnValueListUpdateDelegate;
-	FDMOnValueUpdated OnValueUpdateDelegate;
 	FDMOnSlotListUpdated OnSlotListUpdateDelegate;
-	FDMOnTextureUVUpdated OnTextureUVUpdateDelegate;
 
 	void CreateMaterial();
 

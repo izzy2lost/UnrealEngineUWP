@@ -35,6 +35,9 @@ class UMaterialExpression;
 enum EBlendMode : int;
 #endif
 
+DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnValueUpdated, UDynamicMaterialModel*, UDMMaterialValue*);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnTextureUVUpdated, UDynamicMaterialModel*, UDMTextureUV*);
+
 UCLASS(ClassGroup = "Material Designer", DefaultToInstanced, BlueprintType, meta = (DisplayThumbnail = "true"))
 class DYNAMICMATERIAL_API UDynamicMaterialModel : public UObject
 {
@@ -163,9 +166,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void ResetData();
+#endif
+
+	virtual void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType);
+
+	virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV);
+
+	FDMOnValueUpdated::RegistrationType& GetOnValueUpdateDelegate() { return OnValueUpdateDelegate; }
+	FDMOnTextureUVUpdated::RegistrationType& GetOnTextureUVUpdateDelegate() { return OnTextureUVUpdateDelegate; }
 
 	//~ Begin UObject
-#endif
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
@@ -201,6 +211,9 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> EditorOnlyDataSI;
 #endif
+
+	FDMOnValueUpdated OnValueUpdateDelegate;
+	FDMOnTextureUVUpdated OnTextureUVUpdateDelegate;
 
 	/**
 	 * Because they are not assigned to individual properties, the global parameter values end up being their archetype versions
