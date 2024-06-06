@@ -364,7 +364,7 @@ public:
 	 * @param StartScale uniform scaling applied to the 2D polygon at the start of the path. Interpolated via arc length to EndScale at the end of the path.
 	 * @param EndScale uniform scaling applied to the 2D polygon at the end of the path
 	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U. This Rotation is applied before any rotation in the SweepPath Transforms.
-	 * @param MaxMiterScale If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking, and sweep path frames will be aligned to the path direction
+	 * @param MiterLimit If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking, and sweep path frames will be aligned to the path direction
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod, AutoCreateRefTerm="PolylineTexParamU, SweepPathTexParamV"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -380,7 +380,7 @@ public:
 		float StartScale = 1.0f,
 		float EndScale = 1.0f,
 		float RotationAngleDeg = 0.0f,
-		float MaxMiterScale = 1.0f,
+		float MiterLimit = 1.0f,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -409,7 +409,7 @@ public:
 	 * @param StartScale uniform scaling applied to the 2D polygon at the start of the path. Interpolated via arc length to EndScale at the end of the path.
 	 * @param EndScale uniform scaling applied to the 2D polygon at the end of the path
 	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U
-	 * @param MaxMiterScale If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking
+	 * @param MiterLimit If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -424,7 +424,7 @@ public:
 		float StartScale = 1.0f,
 		float EndScale = 1.0f,
 		float RotationAngleDeg = 0.0f,
-		float MaxMiterScale = 1.0f,
+		float MiterLimit = 1.0f,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -437,8 +437,8 @@ public:
 	 * @param bCapped if true the open ends of the swept generalized cylinder are triangulated
 	 * @param StartScale uniform scaling applied to the 2D polygon at the start of the path. Interpolated via arc length to EndScale at the end of the path.
 	 * @param EndScale uniform scaling applied to the 2D polygon at the end of the path
-	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U
-	 * @param MaxMiterScale If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking, and sweep path frames will be aligned to the path direction
+	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U. This Rotation is applied before any rotation in the SweepPath Transforms.
+	 * @param MiterLimit If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking, and sweep path frames will be aligned to the path direction
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -453,7 +453,7 @@ public:
 		float StartScale = 1.0f,
 		float EndScale = 1.0f,
 		float RotationAngleDeg = 0.0f,
-		float MaxMiterScale = 1.0f,
+		float MiterLimit = 1.0f,
 		UGeometryScriptDebug* Debug = nullptr);
 
 

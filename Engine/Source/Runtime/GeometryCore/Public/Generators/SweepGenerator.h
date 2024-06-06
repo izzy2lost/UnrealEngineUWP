@@ -738,18 +738,27 @@ public:
 	double StartScale = 1.0;
 	double EndScale = 1.0;
 
-	// Maximum mitering scale to apply at turns; only applied if greater than 1
+	// Maximum factor by which mitering can expand the cross section at sharp turns, to give the appearance of a consistent cross section width. Only used if > 1.0.
 	// Note: If PathFrames are specified, then bAlignFramesToSampledTangents must be true for mitering to be performed.
-	double MaxMiterScale = 1.0;
+	// (Similar to the MiterLimit concept in SVG / CSS)
+	double MiterLimit = 1.0;
 
 	// Whether to align the frames to the path tangents. Only relevant if PathFrames is specified.
 	bool bAlignFramesToSampledTangents = false;
 
-	// Configure settings to support 'mitering' -- i.e., scaling the cross sections as needed to maintain consistent cross section size through sharp corners, up to the specified scale limit
-	void EnableMitering(double InMaxMiterScale = 10)
+	// Configure settings to support mitering -- i.e., scaling the cross sections as needed to maintain consistent cross section size through sharp corners, up to the specified scale limit
+	void EnableMitering(double InMiterLimit = 10)
 	{
-		MaxMiterScale = InMaxMiterScale;
+		MiterLimit = InMiterLimit;
 		bAlignFramesToSampledTangents = true;
+	}
+
+	// Set the MiterLimit based on the maximum turn angle at which a correct miter should be applied. For turns sharper than this angle, the cross section will appear to shrink at the turn.
+	// @param MiterAngleLimitInDeg Maximum turn angle for correct mitering; should be >= 0 and < 180
+	void SetMiterLimitByAngle(double MiterAngleLimitInDeg)
+	{
+		MiterAngleLimitInDeg = FMath::Clamp(MiterAngleLimitInDeg, 0, 180 - FMathd::ZeroTolerance);
+		MiterLimit = 1.0/FMath::Sin(MiterAngleLimitInDeg * FMathd::DegToRad * .5);
 	}
 
 	// When true, the generator attempts to scale UV's in a way that preserves scaling across different mesh
@@ -845,7 +854,7 @@ public:
 
 				FVector3d Tangent = Normalized(-ToPrev + ToNext);
 				CrossSectionFrame.AlignAxis(2, Tangent);
-				if (MaxMiterScale > 1)
+				if (MiterLimit > 1)
 				{
 					// only miter if neither neighbor vector is exactly zero
 					if (!ToPrev.IsZero() && !ToNext.IsZero())
@@ -857,9 +866,9 @@ public:
 						{
 							double CosTwoTheta = ToPrev.Dot(ToNext);
 							double SqrScale = 2.0 / (1.0 - CosTwoTheta);
-							if (!FMath::IsFinite(SqrScale) || SqrScale > MaxMiterScale * MaxMiterScale)
+							if (!FMath::IsFinite(SqrScale) || SqrScale > MiterLimit * MiterLimit)
 							{
-								ScaleAmount = MaxMiterScale;
+								ScaleAmount = MiterLimit;
 							}
 							else
 							{

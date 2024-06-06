@@ -647,7 +647,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolyline
 	float StartScale,
 	float EndScale,
 	float RotationAngleDeg,
-	float MaxMiterScale,
+	float MiterLimit,
 	UGeometryScriptDebug* Debug)
 {
 	if (TargetMesh == nullptr)
@@ -707,9 +707,9 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolyline
 	SweepGen.InitialFrame = FFrame3d(SweepGen.Path[0]);
 	SweepGen.StartScale = StartScale;
 	SweepGen.EndScale = EndScale;
-	if (MaxMiterScale > 1.0)
+	if (MiterLimit > 1.0)
 	{
-		SweepGen.EnableMitering((double)MaxMiterScale);
+		SweepGen.EnableMitering((double)MiterLimit);
 	}
 
 	SweepGen.Generate();
@@ -781,7 +781,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleSweptPo
 	float StartScale,
 	float EndScale,
 	float RotationAngleDeg,
-	float MaxMiterScale,
+	float MiterLimit,
 	UGeometryScriptDebug* Debug)
 {
 	if (TargetMesh == nullptr)
@@ -817,9 +817,9 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleSweptPo
 	SweepGen.InitialFrame = FFrame3d(SweepGen.Path[0]);
 	SweepGen.StartScale = StartScale;
 	SweepGen.EndScale = EndScale;
-	if (MaxMiterScale > 1.0f)
+	if (MiterLimit > 1.0f)
 	{
-		SweepGen.EnableMitering((double)MaxMiterScale);
+		SweepGen.EnableMitering((double)MiterLimit);
 	}
 
 	SweepGen.Generate();
@@ -841,7 +841,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolygon(
 	float StartScale,
 	float EndScale,
 	float RotationAngleDeg,
-	float MaxMiterScale,
+	float MiterLimit,
 	UGeometryScriptDebug* Debug)
 {
 	if (TargetMesh == nullptr)
@@ -883,9 +883,9 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSweepPolygon(
 	SweepGen.InitialFrame = FFrame3d(SweepGen.Path[0]);
 	SweepGen.StartScale = StartScale;
 	SweepGen.EndScale = EndScale;
-	if (MaxMiterScale > 1.0f)
+	if (MiterLimit > 1.0f)
 	{
-		SweepGen.EnableMitering((double)MaxMiterScale);
+		SweepGen.EnableMitering((double)MiterLimit);
 	}
 
 	SweepGen.Generate();
