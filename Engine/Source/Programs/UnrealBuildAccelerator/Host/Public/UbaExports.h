@@ -45,6 +45,9 @@ extern "C"
 	UBA_API uba::LogWriter* CreateCallbackLogWriter(uba::CallbackLogWriter::BeginScopeCallback begin, uba::CallbackLogWriter::EndScopeCallback end, uba::CallbackLogWriter::LogCallback log);
 	UBA_API void DestroyCallbackLogWriter(uba::LogWriter* writer);
 
+	// Config
+	UBA_API bool Config_Load(const uba::tchar* configFile);
+
 	// NetworkServer
 	UBA_API uba::NetworkServer* NetworkServer_Create(uba::LogWriter& writer = uba::g_consoleLogWriter, uba::u32 workerCount = 64, uba::u32 sendSize = uba::SendDefaultSize, uba::u32 receiveTimeoutSeconds = 60, bool useQuic = false);
 	UBA_API void NetworkServer_Destroy(uba::NetworkServer* server);

@@ -10,6 +10,7 @@ namespace uba
 {
 	class CompactCasKeyTable;
 	class CompactPathTable;
+	class Config;
 	class NetworkClient;
 	class ProcessHandle;
 	class RootPaths;
@@ -27,6 +28,9 @@ namespace uba
 		StorageImpl& storage;
 		NetworkClient& client;
 		Session& session;
+
+		void Apply(Config& config);
+
 		bool reportMissReason = false;
 		bool useDirectoryPreparsing = false; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
 		bool validateCacheWritesInput = false; // Set to true to validate cas of all input files before sent to cache

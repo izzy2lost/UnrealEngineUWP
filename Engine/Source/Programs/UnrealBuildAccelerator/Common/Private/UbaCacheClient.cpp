@@ -5,6 +5,7 @@
 #include "UbaCacheEntry.h"
 #include "UbaCompactTables.h"
 #include "UbaCompressedObjFileHeader.h"
+#include "UbaConfig.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
@@ -21,6 +22,16 @@
 
 namespace uba
 {
+	void CacheClientCreateInfo::Apply(Config& config)
+	{
+		const ConfigTable& table = config.GetTable(TC("CacheClient"));
+		table.GetValueAsBool(useDirectoryPreparsing, TC("UseDirectoryPreparsing"));
+		table.GetValueAsBool(validateCacheWritesInput, TC("ValidateCacheWritesInput"));
+		table.GetValueAsBool(validateCacheWritesOutput, TC("ValidateCacheWritesOutput"));
+		table.GetValueAsBool(reportMissReason, TC("ReportMissReason"));
+	}
+
+
 	u64 MakeId(u32 bucketId) { return u64(bucketId) | ((u64(!CaseInsensitiveFs) + (RootPathsVersion << 1)) << 32); }
 
 	struct CacheClient::Bucket
@@ -1250,6 +1261,9 @@ namespace uba
 		TraverseDir(m_logger, path.data, 
 			[&](const DirectoryEntry& e)
 			{
+				if (IsDirectory(e.attributes))
+					return;
+
 				path.Clear().Append('\\').Append(e.name, e.nameLen);
 				if (CaseInsensitiveFs)
 					path.MakeLower();

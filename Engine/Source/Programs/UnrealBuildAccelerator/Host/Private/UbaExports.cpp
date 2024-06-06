@@ -3,6 +3,7 @@
 #include "UbaExports.h"
 #include "UbaAWS.h"
 #include "UbaCacheClient.h"
+#include "UbaConfig.h"
 #include "UbaNetworkBackendQuic.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaNetworkClient.h"
@@ -84,6 +85,24 @@ namespace uba
 		UbaAssert(desc.data, "", 0, "", -1);
 	}
 	#endif
+
+	Config& GetConfig(const tchar* fileName = nullptr)
+	{
+		static Config config;
+		if (config.IsLoaded())
+			return config;
+		LoggerWithWriter logger(g_nullLogWriter);
+		StringBuffer<> temp;
+		if (!fileName)
+		{
+			GetDirectoryOfCurrentModule(logger, temp);
+			temp.EnsureEndsWithSlash().Append(TC("UbaHost.toml"));
+			fileName = temp.data;
+		}
+
+		config.LoadFromFile(logger, fileName);
+		return config;
+	}
 }
 
 extern "C"
@@ -112,6 +131,12 @@ extern "C"
 	{
 		if (writer != &uba::g_consoleLogWriter)
 			delete writer;
+	}
+
+	bool Config_Load(const uba::tchar* configFile)
+	{
+		uba::GetConfig(configFile);
+		return true;
 	}
 
 	uba::NetworkServer* NetworkServer_Create(uba::LogWriter& writer, uba::u32 workerCount, uba::u32 sendSize, uba::u32 receiveTimeoutSeconds, bool useQuic)
@@ -522,6 +547,8 @@ extern "C"
 			return nullptr;
 		}
 		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
+		info.apply(GetConfig);
+
 		info.reportMissReason = reportMissReason;
 		return new CacheClient(info);
 	}

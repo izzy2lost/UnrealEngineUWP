@@ -4,6 +4,7 @@
 
 #include "UbaTestBasics.h"
 #include "UbaTestCache.h"
+#include "UbaTestConfig.h"
 #include "UbaTestNetwork.h"
 #include "UbaTestScheduler.h"
 #include "UbaTestSession.h"
@@ -31,6 +32,7 @@ namespace uba
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCompactPathTable) \
 		UBA_TEST(TestCacheEntry) \
+		UBA_TEST(TestConfig) \
 
 
 #define UBA_POSIX_TESTS \
