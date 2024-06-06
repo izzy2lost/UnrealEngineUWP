@@ -175,7 +175,7 @@ namespace EpicGames.Core
 		/// <param name="state">The current hash value</param>
 		/// <returns>Number of bytes consumed from next</returns>
 #pragma warning disable CA1045 // Do not pass types by reference
-		public static unsafe int Update(ReadOnlySpan<byte> prev, ReadOnlySpan<byte> next, uint threshold, ref uint state)
+		public static unsafe int Update(ReadOnlySpan<byte> prev, ReadOnlySpan<byte> next, int windowSize, uint threshold, ref uint state)
 #pragma warning restore CA1045 // Do not pass types by reference
 		{
 			Debug.Assert(prev.Length == next.Length);
@@ -187,13 +187,13 @@ namespace EpicGames.Core
 				uint hash = state;
 				for (int idx = 0; idx < prev.Length; idx++)
 				{
-					hash = Rol32(hash, 1) ^ table[nextPtr[idx]];
 					if (hash < threshold)
 					{
 						state = hash;
 						return idx;
 					}
-					hash ^= Rol32(table[prevPtr[idx]], prev.Length - 1);
+					hash ^= Rol32(table[prevPtr[idx]], windowSize - 1);
+					hash = Rol32(hash, 1) ^ table[nextPtr[idx]];
 				}
 				state = hash;
 			}
@@ -256,7 +256,7 @@ namespace EpicGames.Core
 			uint rollingHash = BuzHash.Add(0, inputData.Slice(0, length));
 
 			// Get the threshold for the rolling hash to split the output
-			uint rollingHashThreshold = (uint)((1L << 32) / targetSize);
+			uint rollingHashThreshold = (uint)((1L << 32) / (targetSize-minSize));
 
 			// Step through the rest of the data which is completely contained in appendData.
 			if (length < inputData.Length)
@@ -266,7 +266,7 @@ namespace EpicGames.Core
 				ReadOnlySpan<byte> tailSpan = inputData.Slice(length - windowSize, inputData.Length - windowSize);
 				ReadOnlySpan<byte> headSpan = inputData.Slice(length);
 
-				int count = BuzHash.Update(tailSpan, headSpan, rollingHashThreshold, ref rollingHash);
+				int count = BuzHash.Update(tailSpan, headSpan, minSize, rollingHashThreshold, ref rollingHash);
 				if (count != -1)
 				{
 					length += count;

@@ -250,5 +250,135 @@ namespace EpicGames.Horde.Tests
 				await GetReadOrderAsync(childHandle, list);
 			}
 		}
+		private struct ChunkOffsetsAndSizes
+		{
+			public List<int> _offsets;
+			public List<int> _sizes;
+		}
+
+		/// <summary>
+		/// Utility function to test low-level chunking algorithm with different chunking parameters
+		/// </summary>
+		private static ChunkOffsetsAndSizes FindChunks(ReadOnlySpan<byte> data, int minSize, int maxSize, int targetSize)
+		{
+			ChunkOffsetsAndSizes chunks;
+
+			chunks._offsets = new List<int>();
+			chunks._sizes = new List<int>();
+
+			int currentOffset = 0;
+			while (currentOffset != data.Length)
+			{
+				chunks._offsets.Add(currentOffset);
+				int chunkLength = BuzHash.FindChunkLength(data.Slice(currentOffset), minSize, maxSize, targetSize);
+				currentOffset += chunkLength;
+				chunks._sizes.Add(currentOffset);
+			}
+
+			Assert.AreEqual(chunks._offsets.Count, chunks._sizes.Count);
+
+			return chunks;
+		}
+
+		/// <summary>
+		/// Utility function to test low-level chunking algorithm with varying target chunk sizes
+		/// </summary>
+		private static ChunkOffsetsAndSizes FindChunks(ReadOnlySpan<byte> data, int targetSize)
+		{
+			int minSize = targetSize / 2;
+			int maxSize = targetSize * 4;
+			return FindChunks(data, minSize, maxSize, targetSize);
+		}
+
+		/// <summary>
+		/// Verify that chunking algorithm produces chunks at predetermined offsets,
+		/// which is important for generating consistent chunking between different implementations.
+		/// </summary>
+		[TestMethod]
+		public void DeterministicChunkOffsets()
+		{
+			int dataSize = 1 << 20; // 1MB test buffer
+			byte[] data = GenerateChunkingTestBuffer(dataSize, 1234);
+
+			List<int> expectedChunkOffsets = new List<int>
+			{
+				0, 34577, 128471, 195115, 238047, 297334, 358754, 396031,
+				462359, 508658, 601550, 702021, 754650, 790285, 854987, 887998,
+				956848, 1042406
+			};
+
+			int targetSize = 65536;
+			ChunkOffsetsAndSizes chunks = FindChunks(data, targetSize);
+
+			CollectionAssert.AreEqual(expectedChunkOffsets, chunks._offsets);
+		}
+
+		/// <summary>
+		/// Verify that chunking algorithm produces chunks of expected sizes for different target chunk size configurations.
+		/// This helps validating chunking consistency between different implementations of the algorithm.
+		/// </summary>
+		[TestMethod]
+		public void DeterministicChunkSize()
+		{
+			int dataSize = 128 << 20; // 128MB test buffer
+			byte[] data = GenerateChunkingTestBuffer(dataSize, 1234);
+
+			// Chunk size in KB and expected number of generated chunks
+			List<(int, int)> configList = new List<(int, int)>
+			{
+				(8, 16442),
+				(16, 8146),
+				(32, 4089),
+				(64, 2019),
+				(96, 1362),
+				(128, 1012),
+				(160, 811),
+				(192, 681),
+				(256, 503),
+			};
+
+			Parallel.ForEach(configList, config =>
+			{
+				(int targetSizeKB, int expectedNumChunks) = config;
+
+				int targetSize = targetSizeKB * 1024;
+
+				ChunkOffsetsAndSizes chunks = FindChunks(data, targetSize);
+
+				int avgChunkSize = dataSize / chunks._offsets.Count;
+				int absError = Math.Abs(avgChunkSize - targetSize);
+				double absErrorPct = (100.0 * absError) / targetSize;
+
+				Assert.IsTrue(absErrorPct < 5.0, $"Average chunk size {avgChunkSize} is more than 5% different from target {targetSize}");
+				Assert.AreEqual(expectedNumChunks, chunks._offsets.Count);
+			});
+		}
+
+		/// <summary>
+		/// Utility function to quickly generate a deterministic byte sequence
+		/// that can be used to ensure consistency between multiple implementations 
+		/// of the chunking algorithm.
+		/// </summary>
+		static byte[] GenerateChunkingTestBuffer(int count, uint seed)
+		{
+			byte[] data = new byte[count];
+			uint rngState = seed;
+
+			for (int i = 0; i < count; ++i)
+			{
+				data[i] = (byte)XorShift32(ref rngState);
+			}
+
+			return data;
+		}
+		static uint XorShift32(ref uint state)
+		{
+			uint x = state;
+			x ^= x << 13;
+			x ^= x >> 17;
+			x ^= x << 5;
+			state = x;
+			return x;
+		}
 	}
 }
