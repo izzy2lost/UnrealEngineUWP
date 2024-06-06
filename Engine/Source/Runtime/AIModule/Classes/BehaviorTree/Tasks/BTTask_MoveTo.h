@@ -12,6 +12,7 @@
 #include "AITypes.h"
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 #include "BehaviorTree/ValueOrBBKey.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "BTTask_MoveTo.generated.h"
 
 class UAITask_MoveTo;
