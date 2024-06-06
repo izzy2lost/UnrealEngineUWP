@@ -318,7 +318,7 @@ void FReplicationSystemUtil::AddDependentActor(const AActor* Parent, AActor* Chi
 {
 	// Can only add dependent actors on already replicating actors
 	FNetHandle ParentHandle = GetNetHandle(Parent);
-	if (!ensureMsgf(ParentHandle.IsValid(), TEXT("FReplicationSystemUtil::AddDependentActor Parent %s must be replicated"), *GetPathNameSafe(Parent)))
+	if (!ensureMsgf(ParentHandle.IsValid(), TEXT("FReplicationSystemUtil::AddDependentActor Parent %s is not replicated. Cannot attach child %s as dependent"), *GetPathNameSafe(Parent), *GetNameSafe(Child)))
 	{
 		return;
 	}
@@ -340,7 +340,7 @@ void FReplicationSystemUtil::AddDependentActor(const AActor* Parent, AActor* Chi
 							const FActorBeginReplicationParams BeginReplicationParams;
 							ChildRefHandle = Bridge->BeginReplication(Child, BeginReplicationParams);
 						}
-						if (ensureMsgf(ChildRefHandle.IsValid(), TEXT("FReplicationSystemUtil::AddDependentActor Child %s must be replicated"), *GetPathNameSafe(Child)))
+						if (ensureMsgf(ChildRefHandle.IsValid(), TEXT("FReplicationSystemUtil::AddDependentActor Child %s is not replicated"), *GetPathNameSafe(Child)))
 						{
 							Bridge->AddDependentObject(ParentRefHandle, ChildRefHandle, SchedulingHint);
 						}
