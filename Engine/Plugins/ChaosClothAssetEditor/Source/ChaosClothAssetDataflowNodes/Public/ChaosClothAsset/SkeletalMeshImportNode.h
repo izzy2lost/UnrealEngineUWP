@@ -20,7 +20,7 @@ public:
 	FManagedArrayCollection Collection;
 
 	/** The skeletal mesh to import. */
-	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import")
+	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh Import", Meta = (DataflowInput))
 	TObjectPtr<const USkeletalMesh> SkeletalMesh;
 
 	/** The skeletal mesh LOD to import. */
