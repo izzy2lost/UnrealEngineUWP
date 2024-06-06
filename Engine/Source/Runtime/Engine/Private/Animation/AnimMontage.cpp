@@ -1477,16 +1477,10 @@ void FAnimMontageInstance::Play(float InPlayRate, const FMontageBlendSettings& B
 	FAlphaBlendArgs BlendInArgs = BlendInSettings.Blend;
 	if (AnimInstance.IsValid() && BlendInSettings.BlendMode == EMontageBlendMode::Inertialization)
 	{
-		FInertializationRequest Request;
-		Request.Duration = BlendInArgs.BlendTime;
-		Request.BlendMode = BlendInArgs.BlendOption;
-		Request.CustomBlendCurve = BlendInArgs.CustomCurve;
-		Request.BlendProfile = BlendInSettings.BlendProfile;
-		Request.bUseBlendMode = (BlendInArgs.BlendOption != EAlphaBlendOption::Linear) || (BlendInArgs.CustomCurve != nullptr);
-
+		const float InertialBlendDuration = BlendInArgs.BlendTime;
 		// Request new inertialization for new montage's group name
 		// If there is an existing inertialization request, we overwrite that here.
-		AnimInstance->RequestMontageInertialization(Montage, Request);
+		AnimInstance->RequestMontageInertialization(Montage, InertialBlendDuration, BlendInSettings.BlendProfile);
 
 		// When using inertialization, we need to instantly blend in.
 		BlendInArgs.BlendTime = 0.0f;
@@ -1553,15 +1547,8 @@ void FAnimMontageInstance::Stop(const FMontageBlendSettings& InBlendOutSettings,
 
 				if (bShouldInertialize)
 				{
-					FInertializationRequest Request;
-					Request.Duration = InBlendOutSettings.Blend.BlendTime;
-					Request.BlendMode = InBlendOutSettings.Blend.BlendOption;
-					Request.CustomBlendCurve = InBlendOutSettings.Blend.CustomCurve;
-					Request.BlendProfile = InBlendOutSettings.BlendProfile;
-					Request.bUseBlendMode = (InBlendOutSettings.Blend.BlendOption != EAlphaBlendOption::Linear) || (InBlendOutSettings.Blend.CustomCurve != nullptr);
-
 					// Send the inertial blend request to the anim instance
-					Inst->RequestMontageInertialization(Montage, Request);
+					Inst->RequestMontageInertialization(Montage, InBlendOutSettings.Blend.BlendTime, InBlendOutSettings.BlendProfile);
 				}
 			}
 		}

@@ -110,12 +110,11 @@ FAnimInstanceProxy::FAnimInstanceProxy(UAnimInstance* Instance)
 	, bUseMainInstanceMontageEvaluationData(false)
 {
 }
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 FAnimInstanceProxy::FAnimInstanceProxy(const FAnimInstanceProxy&) = default;
 FAnimInstanceProxy& FAnimInstanceProxy::operator=(FAnimInstanceProxy&&) = default;
 FAnimInstanceProxy& FAnimInstanceProxy::operator=(const FAnimInstanceProxy&) = default;
 FAnimInstanceProxy::~FAnimInstanceProxy() = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FAnimInstanceProxy::UpdateAnimationNode(const FAnimationUpdateContext& InContext)
 {
@@ -453,7 +452,7 @@ void FAnimInstanceProxy::Uninitialize(UAnimInstance* InAnimInstance)
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	MontageEvaluationData.Reset();
-	SlotGroupInertializationRequestDataMap.Reset();
+	SlotGroupInertializationRequestMap.Reset();
 	DefaultLinkedInstanceInputNode = nullptr;
 	ResetAnimationCurves();
 	MaterialParametersToClear.Reset();
@@ -1022,13 +1021,8 @@ void FAnimInstanceProxy::UpdateSlotNodeWeight(const FName& SlotNodeName, float I
 
 bool FAnimInstanceProxy::GetSlotInertializationRequest(const FName& SlotName, UE::Anim::FSlotInertializationRequest& OutRequest)
 {
-	return false;
-}
-
-bool FAnimInstanceProxy::GetSlotInertializationRequestData(const FName& SlotName, FInertializationRequest& OutRequest)
-{
 	const FName GroupName = Skeleton ? Skeleton->GetSlotGroupName(SlotName) : NAME_None;
-	if (const FInertializationRequest* FoundRequest = GetSlotGroupInertializationRequestDataMap().Find(GroupName))
+	if (const UE::Anim::FSlotInertializationRequest* FoundRequest = GetSlotGroupInertializationRequestMap().Find(GroupName))
 	{
 		OutRequest = *FoundRequest;
 		return true;
@@ -2146,9 +2140,6 @@ const FMontageEvaluationState* FAnimInstanceProxy::GetActiveMontageEvaluationSta
 	return nullptr;
 }
 
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 TMap<FName, UE::Anim::FSlotInertializationRequest>& FAnimInstanceProxy::GetSlotGroupInertializationRequestMap()
 {
 	if (bUseMainInstanceMontageEvaluationData && GetMainInstanceProxy())
@@ -2157,18 +2148,6 @@ TMap<FName, UE::Anim::FSlotInertializationRequest>& FAnimInstanceProxy::GetSlotG
 	}
 
 	return SlotGroupInertializationRequestMap;
-}
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-TMap<FName, FInertializationRequest>& FAnimInstanceProxy::GetSlotGroupInertializationRequestDataMap()
-{
-	if (bUseMainInstanceMontageEvaluationData && GetMainInstanceProxy())
-	{
-		return GetMainInstanceProxy()->SlotGroupInertializationRequestDataMap;
-	}
-
-	return SlotGroupInertializationRequestDataMap;
 }
 
 void FAnimInstanceProxy::GatherDebugData(FNodeDebugData& DebugData)

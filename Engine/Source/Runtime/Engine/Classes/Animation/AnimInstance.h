@@ -11,7 +11,6 @@
 #include "Animation/AnimSubsystemInstance.h"
 #include "Animation/AnimSync.h"
 #include "Animation/AnimNotifies/AnimNotify.h"
-#include "Animation/AnimInertializationRequest.h"
 #include "AnimInstance.generated.h"
 
 // Post Compile Validation requires WITH_EDITOR
@@ -51,7 +50,6 @@ typedef TArray<FTransform> FTransformArrayA2;
 namespace UE::Anim
 {
 	struct FHeapAttributeContainer;
-	// DEPRECATED use FInertializationRequest instead
 	using FSlotInertializationRequest = TPair<float, const UBlendProfile*>;
 	struct FCurveFilterSettings;
 }	// namespace UE::Anim
@@ -885,14 +883,9 @@ private:
 protected:
 	/** Map between Active Montages and their FAnimMontageInstance */
 	TMap<class UAnimMontage*, struct FAnimMontageInstance*> ActiveMontagesMap;
-	
-
-	UE_DEPRECATED(5.5, "This property is deprecated. Please use SlotGroupInertializationRequestDataMap instead")
-	TMap<FName, UE::Anim::FSlotInertializationRequest> SlotGroupInertializationRequestMap;
 
 	/**  Inertialization requests gathered this frame. Gets reset in UpdateMontageEvaluationData */
-	UPROPERTY(Transient)
-	TMap<FName, FInertializationRequest> SlotGroupInertializationRequestDataMap;
+	TMap<FName, UE::Anim::FSlotInertializationRequest> SlotGroupInertializationRequestMap;
 
 	/* StopAllMontagesByGroupName needs a BlendMode and BlendProfile to function properly if using non-default ones in your montages. If you want default BlendMode/BlendProfiles, you need to update the calling code to do so. */
 	UE_DEPRECATED(5.0, "Use StopAllMontagesByGroupName with other signature.")
@@ -913,9 +906,6 @@ public:
 
 	/**  Builds an inertialization request from the montage's group, provided duration and optional blend profile*/
 	ENGINE_API void RequestMontageInertialization(const UAnimMontage* Montage, float Duration, const UBlendProfile* BlendProfile = nullptr);
-
-	/**  Makes an inertialization request from the montage's group. */
-	ENGINE_API void RequestMontageInertialization(const UAnimMontage* Montage, const FInertializationRequest& Request);
 
 	/**  Requests an inertial blend during the next anim graph update. Requires your anim graph to have a slot node belonging to the specified group name */
 	UFUNCTION(BlueprintCallable, Category = "Animation|Inertial Blending")

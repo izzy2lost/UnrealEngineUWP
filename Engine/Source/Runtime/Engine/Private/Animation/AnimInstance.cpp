@@ -359,7 +359,7 @@ void UAnimInstance::UninitializeAnimation()
 	ActiveAnimNotifyEventReference.Reset(); 
 	NotifyQueue.Reset(SkelMeshComp);
 
-	SlotGroupInertializationRequestDataMap.Reset();
+	SlotGroupInertializationRequestMap.Reset();
 	
 	// Cleanup layer nodes
 	if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(GetClass()))
@@ -1892,32 +1892,19 @@ void UAnimInstance::Montage_Advance(float DeltaSeconds)
 
 void UAnimInstance::RequestSlotGroupInertialization(FName InSlotGroupName, float Duration, const UBlendProfile* BlendProfile)
 {
-	FInertializationRequest Request;
-	Request.Duration = Duration;
-	Request.BlendProfile = BlendProfile;
-
 	// Must add this on both the anim instance and proxy's map, as this could called after UAnimInstance::UpdateMontageEvaluationData.
-	SlotGroupInertializationRequestDataMap.FindOrAdd(InSlotGroupName) = Request;
-	GetProxyOnAnyThread<FAnimInstanceProxy>().GetSlotGroupInertializationRequestDataMap().FindOrAdd(InSlotGroupName) = Request;
+	SlotGroupInertializationRequestMap.FindOrAdd(InSlotGroupName) = UE::Anim::FSlotInertializationRequest(Duration, BlendProfile);
+	GetProxyOnAnyThread<FAnimInstanceProxy>().GetSlotGroupInertializationRequestMap().FindOrAdd(InSlotGroupName) = UE::Anim::FSlotInertializationRequest(Duration, BlendProfile);
 }
 
-void UAnimInstance::RequestMontageInertialization(const UAnimMontage* Montage, const FInertializationRequest& Request)
+void UAnimInstance::RequestMontageInertialization(const UAnimMontage* Montage, float Duration, const UBlendProfile* BlendProfile)
 {
 	if (Montage)
 	{
 		// Adds a new request or overwrites an existing one
 		// We always overwrite with the last request, instead of using the shortest one (differs from AnimNode_Inertialization), because we expect the last montage played/stopped to take precedence
-		SlotGroupInertializationRequestDataMap.FindOrAdd(Montage->GetGroupName()) = Request;
+		SlotGroupInertializationRequestMap.FindOrAdd(Montage->GetGroupName()) = UE::Anim::FSlotInertializationRequest(Duration, BlendProfile);
 	}
-}
-
-void UAnimInstance::RequestMontageInertialization(const UAnimMontage* Montage, float Duration, const UBlendProfile* BlendProfile)
-{
-	FInertializationRequest Request;
-	Request.Duration = Duration;
-	Request.BlendProfile = BlendProfile;
-	
-	RequestMontageInertialization(Montage, Request);
 }
 
 void UAnimInstance::QueueMontageBlendingOutEvent(const FQueuedMontageBlendingOutEvent& MontageBlendingOutEvent)
@@ -3891,11 +3878,11 @@ void UAnimInstance::UpdateMontageEvaluationData()
 		}
 	}
 
-	Proxy.GetSlotGroupInertializationRequestDataMap() = SlotGroupInertializationRequestDataMap;
+	Proxy.GetSlotGroupInertializationRequestMap() = SlotGroupInertializationRequestMap;
 
 	// Reset inertialization requests every frame.
 	// If the request is missed by the graph (i.e. the slot node is not relevant), we assume what brought it back to relevancy will handle the blend instead.
-	SlotGroupInertializationRequestDataMap.Reset();
+	SlotGroupInertializationRequestMap.Reset();
 }
 
 float UAnimInstance::GetInstanceAssetPlayerLength(int32 AssetPlayerIndex)
