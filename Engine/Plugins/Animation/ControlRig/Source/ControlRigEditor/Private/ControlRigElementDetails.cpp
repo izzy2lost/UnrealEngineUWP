@@ -344,7 +344,7 @@ void FRigElementKeyDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStruct
 		]
 		.ValueContent()
 		[
-			InStructPropertyHandle->CreatePropertyValueWidget()
+			InStructPropertyHandle->CreatePropertyValueWidget(false)
 		];
 	}
 	else
