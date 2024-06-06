@@ -979,11 +979,10 @@ bool UMetasoundEditorGraphOutputNode::CanUserDeleteNode() const
 {
 	if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GetMember()))
 	{
-		return Vertex->IsInterfaceMember();
+		return !Vertex->IsInterfaceMember();
 	}
 	
-	return true;	
-
+	return true;
 }
 
 void UMetasoundEditorGraphOutputNode::SetNodeID(FGuid InNodeID)
