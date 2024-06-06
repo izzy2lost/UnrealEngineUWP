@@ -21,7 +21,10 @@ namespace PerfSummaries
 			HistogramThresholds = new double[histogramStrings.Length];
 			for (int i = 0; i < histogramStrings.Length; i++)
 			{
-				HistogramThresholds[i] = Convert.ToDouble(histogramStrings[i], System.Globalization.CultureInfo.InvariantCulture);
+				if (histogramStrings[i].Length > 0) // Fail gracefully if a variable fails to resolve
+				{
+					HistogramThresholds[i] = Convert.ToDouble(histogramStrings[i], System.Globalization.CultureInfo.InvariantCulture);
+				}
 			}
 
 			foreach (XElement child in element.Elements())

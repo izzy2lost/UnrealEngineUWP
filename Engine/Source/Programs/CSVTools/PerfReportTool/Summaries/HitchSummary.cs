@@ -20,7 +20,10 @@ namespace PerfSummaries
 			HitchThresholds = new double[hitchThresholds.Length];
 			for (int i = 0; i < hitchThresholds.Length; i++)
 			{
-				HitchThresholds[i] = Convert.ToDouble(hitchThresholds[i], System.Globalization.CultureInfo.InvariantCulture);
+				if (hitchThresholds[i].Length > 0) // Fail gracefully if a variable fails to resolve
+				{
+					HitchThresholds[i] = Convert.ToDouble(hitchThresholds[i], System.Globalization.CultureInfo.InvariantCulture);
+				}
 			}
 		}
 		public HitchSummary() { }

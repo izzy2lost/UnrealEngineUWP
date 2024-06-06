@@ -435,7 +435,8 @@ namespace PerfSummaries
 				string[] colourStrings = colourThresholdElementStr.Split(',');
 				if (colourStrings.Length != 4)
 				{
-					throw new Exception("Incorrect number of colourthreshold entries. Should be 4.");
+					Console.Write("Incorrect number of colourthreshold entries. Should be 4: "+ colourThresholdEl.ToString());
+					return null;
 				}
 				double[] colourThresholds = new double[4];
 				for (int i = 0; i < colourStrings.Length; i++)

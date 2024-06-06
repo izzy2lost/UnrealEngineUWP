@@ -624,13 +624,12 @@ namespace PerfReportTool
 
 		public string ResolveVariables(string attributeValue)
 		{
-			// Remap all variables found in the attribute name
 			if (!attributeValue.Contains('$'))
 			{
 				return attributeValue;
 			}
 
-			// Remap all variables found in the attribute name
+			// Remap all variables found in the attribute value
 			int StringPos = 0;
 			while (StringPos < attributeValue.Length)
 			{
@@ -650,12 +649,14 @@ namespace PerfReportTool
 
 				string FullVariableName = attributeValue.Substring(VarStartIndex+2, VarEndIndex - VarStartIndex-2);
 				string VariableName = FullVariableName;
-				int ArrayIndex = -1;
+
+				string VariableValue = "";
 
 				// Check for an array index
 				int OpenBracketIndex = VariableName.IndexOf('[');
 				if (OpenBracketIndex != -1)
 				{
+					int ArrayIndex = -1;
 					if (FullVariableName.EndsWith("]"))
 					{
 						string ArrayIndexStr = VariableName.Substring(OpenBracketIndex + 1, VariableName.Length - 2 - OpenBracketIndex);
@@ -667,33 +668,42 @@ namespace PerfReportTool
 					if (ArrayIndex < 0)
 					{
 						Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Can't read array index");
-						continue;
 					}
-					VariableName = FullVariableName.Substring(0, OpenBracketIndex);
-				}
-
-
-				// Replace the variable if found
-				if (vars.TryGetValue(VariableName, out string VariableValue))
-				{
-					attributeValue = attributeValue.Substring(0,VarStartIndex) + VariableValue + attributeValue.Substring(VarEndIndex+1);
-					if (ArrayIndex >= 0)
+					else
 					{
-						string[] elements = attributeValue.Split(",");
-						if (ArrayIndex >= elements.Length)
+						VariableName = FullVariableName.Substring(0, OpenBracketIndex);
+						if (vars.TryGetValue(VariableName, out VariableValue))
 						{
-							Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Array index out of range!");
-							continue;
+							string[] elements = VariableValue.Split(",");
+							if (ArrayIndex < elements.Length)
+							{
+								VariableValue = elements[ArrayIndex];
+							}
+							else
+							{
+								Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Array index out of range!");
+							}
 						}
-						attributeValue = elements[ArrayIndex];
+						else
+						{
+							Console.WriteLine("[Warning] Failed to resolve array variable ${" + FullVariableName + "}");
+							VariableValue = "";
+						}
 					}
-					// Adjust stringPos to take into account the replace
-					StringPos = VarStartIndex + VariableValue.Length;
 				}
-				else
+				else 
 				{
-					Console.WriteLine("[Warning] Failed to resolve variable ${" + VariableName + "}");
+					// Read the variable value. Default to empty string and replace anyway if not found
+					if (!vars.TryGetValue(VariableName, out VariableValue))
+					{
+						Console.WriteLine("[Warning] Failed to resolve variable ${" + VariableName + "}");
+						VariableValue = "";
+					}
 				}
+				
+				// Replace the variable name with its value and update StringPos to take into account the replace
+				attributeValue = attributeValue.Substring(0, VarStartIndex) + VariableValue + attributeValue.Substring(VarEndIndex + 1);
+				StringPos = VarStartIndex + VariableValue.Length;
 			}
 			return attributeValue;
 		}
@@ -820,8 +830,10 @@ namespace PerfReportTool
 				}
 			}
 			catch (FormatException e)
-			{
-				Console.WriteLine(string.Format("[Warning] Failed to convert XML attribute '{0}' '{1}' ({2})", attributeName, attributeValue, e.Message));
+			{	
+				// If the attribute value is empty (likely due to failed variable mapping), display the original version
+				string attributeValueToDisplay = attributeValue.Length > 0 ? attributeValue : attribute.Value;
+				Console.WriteLine(string.Format("[Warning] Failed to convert XML attribute '{0}' '{1}' ({2})", attributeName, attributeValueToDisplay, e.Message));
 				return defaultValue;
 			}
 		}
