@@ -238,6 +238,22 @@ FCoreRedirectObjectName::FCoreRedirectObjectName(const FTopLevelAssetPath& TopLe
 {
 }
 
+FCoreRedirectObjectName::FCoreRedirectObjectName(const FSoftObjectPath& SoftObjectPath)
+{
+	if (!SoftObjectPath.IsSubobject())
+	{
+		PackageName = SoftObjectPath.GetLongPackageFName();
+		ObjectName = SoftObjectPath.GetAssetFName();
+	}
+	else
+	{
+		if (!ExpandNames(SoftObjectPath.ToString(), ObjectName, OuterName, PackageName))
+		{
+			Reset();
+		}
+	}
+}
+
 FCoreRedirectObjectName::FCoreRedirectObjectName(const FString& InString)
 {
 	if (!ExpandNames(InString, ObjectName, OuterName, PackageName))
@@ -1534,6 +1550,21 @@ void FCoreRedirects::AppendHashOfGlobalRedirects(FBlake3& Hasher)
 {
 	GRedirectionSummary.AppendHashGlobal(Hasher);
 }
+
+void FCoreRedirects::RecordAddedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest)
+{
+	FCoreRedirect ConvertedToCoreRedirect(ECoreRedirectFlags::Type_Object,
+		FCoreRedirectObjectName(Source), FCoreRedirectObjectName(Dest));
+	GRedirectionSummary.Add(ConvertedToCoreRedirect, false /* bIsWildcardMatch */);
+}
+
+void FCoreRedirects::RecordRemovedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest)
+{
+	FCoreRedirect ConvertedToCoreRedirect(ECoreRedirectFlags::Type_Object,
+		FCoreRedirectObjectName(Source), FCoreRedirectObjectName(Dest));
+	GRedirectionSummary.Remove(ConvertedToCoreRedirect, false /* bIsWildcardMatch */);
+}
+
 #endif
 
 bool FCoreRedirects::RunTests()

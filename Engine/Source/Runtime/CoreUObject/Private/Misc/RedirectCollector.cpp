@@ -3,6 +3,7 @@
 #include "Misc/RedirectCollector.h"
 #include "Algo/Transform.h"
 #include "Misc/CoreDelegates.h"
+#include "UObject/CoreRedirects.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -118,6 +119,9 @@ void FRedirectCollector::ResolveAllSoftObjectPaths(FName FilterPackage)
 				if (Dest.ToString() != ToLoad)
 				{
 					ObjectPathRedirectionMap.Add(ToLoadPath, Dest);
+#if WITH_EDITOR
+					FCoreRedirects::RecordAddedObjectRedirector(ToLoadPath, Dest);
+#endif
 				}
 			}
 			else
@@ -246,11 +250,21 @@ void FRedirectCollector::AddAssetPathRedirection(const FSoftObjectPath& Original
 	{
 		// If RedirectedPath points back to OriginalPath, remove that to avoid a circular reference
 		// This can happen when renaming assets in the editor but not actually dropping redirectors because it was new
-		ObjectPathRedirectionMap.Remove(RedirectedPath);
+		FSoftObjectPath TargetPath;
+		bool bRemoved = ObjectPathRedirectionMap.RemoveAndCopyValue(RedirectedPath, TargetPath);
+#if WITH_EDITOR
+		if (bRemoved)
+		{
+			FCoreRedirects::RecordRemovedObjectRedirector(RedirectedPath, TargetPath);
+		}
+#endif
 	}
 
 	// This replaces an existing mapping, can happen in the editor if things are renamed twice
 	ObjectPathRedirectionMap.Add(OriginalPath, RedirectedPath);
+#if WITH_EDITOR
+	FCoreRedirects::RecordAddedObjectRedirector(OriginalPath, RedirectedPath);
+#endif
 }
 
 void FRedirectCollector::AddAssetPathRedirection(FName OriginalPath, FName RedirectedPath)
@@ -268,6 +282,9 @@ void FRedirectCollector::RemoveAssetPathRedirection(const FSoftObjectPath& Origi
 
 	if (ensureMsgf(Found, TEXT("Cannot remove redirection from %s, it was not registered"), *OriginalPath.ToString()))
 	{
+#if WITH_EDITOR
+		FCoreRedirects::RecordRemovedObjectRedirector(OriginalPath, *Found);
+#endif
 		ObjectPathRedirectionMap.Remove(OriginalPath);
 	}
 }

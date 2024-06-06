@@ -22,6 +22,7 @@
 class FBlake3;
 class IPakFile;
 class UClass;
+struct FSoftObjectPath;
 struct FTopLevelAssetPath;
 namespace UE::CoreRedirects::Private { struct FCoreRedirectObjectUtf8Name; }
 namespace UE::CoreRedirects::Private { class FRWWithExclusiveRecursionScopeLockForRead; }
@@ -96,6 +97,8 @@ struct FCoreRedirectObjectName
 	}
 
 	COREUOBJECT_API FCoreRedirectObjectName(const FTopLevelAssetPath& TopLevelAssetPath);
+
+	COREUOBJECT_API FCoreRedirectObjectName(const FSoftObjectPath& SoftObjectPath);
 
 	COREUOBJECT_API FCoreRedirectObjectName(const FString& InString);
 
@@ -385,6 +388,11 @@ struct FCoreRedirects
 	 * Used in iterative cooking to invalidate the cooked version of packages when CoreRedirects change.
 	 */
 	static COREUOBJECT_API void AppendHashOfGlobalRedirects(FBlake3& Hasher);
+
+	/** Add the given Source->Path redirector to the summary used for AppendHashOfRedirectsAffectingPackages. */
+	static COREUOBJECT_API void RecordAddedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest);
+	/** Remove the given Source->Path redirector to the summary used for AppendHashOfRedirectsAffectingPackages. */
+	static COREUOBJECT_API void RecordRemovedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest);
 #endif
 
 	/** Runs set of redirector tests, returns false on failure */
