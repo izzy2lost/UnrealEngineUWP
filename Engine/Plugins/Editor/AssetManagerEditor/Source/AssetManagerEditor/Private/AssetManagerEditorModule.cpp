@@ -833,13 +833,11 @@ void FAssetManagerEditorModule::OpenReferenceViewerTab(const TArray<FAssetIdenti
 		return NameA.FastLess(NameB);
 	});
 
-	FString StringToHash;
+	uint32 SelectionHash = 0;
 	for (const FName PackageName : PackageNames)
 	{
-		StringToHash += PackageName.ToString();
+		SelectionHash ^= GetTypeHash(PackageName);
 	}
-
-	uint32 SelectionHash = GetTypeHash(FName(StringToHash));
 
 	// Look for possibly existing Tab for the same assets
 	if (const FName* TabIDPtr = AssetsHashToTabID.Find(SelectionHash))
