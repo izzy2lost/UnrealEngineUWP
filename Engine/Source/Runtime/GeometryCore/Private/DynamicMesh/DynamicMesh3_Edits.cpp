@@ -302,6 +302,19 @@ void FDynamicMesh3::RemoveUnusedVertices()
 	UpdateChangeStamps(true, true);
 }
 
+bool FDynamicMesh3::HasUnusedVertices() const
+{
+	for (int32 VID = 0; VID < MaxVertexID(); ++VID)
+	{
+		// If vertex exists but is not referenced by any triangles
+		if (VertexRefCounts.GetRefCount(VID) == 1)
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
 
 
 void FDynamicMesh3::CompactInPlace(FCompactMaps* CompactInfo)

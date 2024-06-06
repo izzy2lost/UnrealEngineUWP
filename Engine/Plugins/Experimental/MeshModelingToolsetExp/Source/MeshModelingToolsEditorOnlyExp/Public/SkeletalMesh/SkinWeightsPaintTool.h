@@ -493,6 +493,8 @@ protected:
 		const FDynamicMesh3& InDynamicMesh,
 		const FMeshDescription& InMeshDescription);
 
+	void CleanMesh() const;
+
 	// stamp
 	float CalculateBrushFalloff(float Distance) const;
 	void CalculateVertexROI(

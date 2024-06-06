@@ -1213,6 +1213,11 @@ public:
 	GEOMETRYCORE_API void RemoveUnusedVertices();
 
 	/**
+	 * @return true if any vertices are unused (not in any triangles)
+	 * */
+	GEOMETRYCORE_API bool HasUnusedVertices() const;
+
+	/**
 	 * Reverse the ccw/cw orientation of all triangles in the mesh, and
 	 * optionally flip the vertex normals if they exist
 	 */

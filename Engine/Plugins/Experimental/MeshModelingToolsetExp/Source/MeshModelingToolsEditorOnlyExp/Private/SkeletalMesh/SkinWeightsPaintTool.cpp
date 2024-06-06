@@ -38,6 +38,7 @@
 #include "PreviewProfileController.h"
 #include "Animation/SkinWeightProfile.h"
 #include "AnimationRuntime.h"
+#include "TargetInterfaces/DynamicMeshCommitter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinWeightsPaintTool)
 
@@ -876,6 +877,9 @@ void USkinWeightsPaintTool::Setup()
 	const USkeletalMeshComponent* Component = Cast<USkeletalMeshComponent>(TargetComponent->GetOwnerComponent());
 	check(Component && Component->GetSkeletalMeshAsset())
 
+	// prepare mesh for skin editing
+	CleanMesh();
+
 	// create a mesh description for editing (this must be done before calling UpdateBonePositionInfos) 
 	bool bSupportsLODs = false;
 	const EMeshLODIdentifier DefaultLOD = UE::ToolTarget::GetTargetMeshDescriptionLOD(Target, bSupportsLODs);
@@ -1016,6 +1020,11 @@ void USkinWeightsPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
 {
+	if (!WeightToolProperties)
+	{
+		return PreviewMesh->GetActor()->GetComponentsBoundingBox();
+	}
+	
 	// 1. Prioritize Brush & Vertex modes
 	switch (WeightToolProperties->EditingMode)
 	{
@@ -1185,6 +1194,22 @@ void USkinWeightsPaintTool::PostEditMeshInitialization(
 	
 	// update smooth operator (this must be done after PreviewMesh & Weights have been updated)
 	InitializeSmoothWeightsOperator();
+}
+
+void USkinWeightsPaintTool::CleanMesh() const
+{
+	if (PreviewMesh->GetMesh()->HasUnusedVertices())
+	{
+		// orphaned vertices wreak havoc on our selection tools
+		PreviewMesh->EditMesh([](FDynamicMesh3& Mesh)
+		{
+			Mesh.RemoveUnusedVertices();
+			Mesh.CompactInPlace();
+		});
+	
+		IDynamicMeshCommitter* DynamicMeshCommitter = Cast<IDynamicMeshCommitter>(Target);
+		DynamicMeshCommitter->CommitDynamicMesh(*PreviewMesh->GetMesh());
+	}
 }
 
 void USkinWeightsPaintToolProperties::SetComponentMode(EComponentSelectionMode InComponentMode)
