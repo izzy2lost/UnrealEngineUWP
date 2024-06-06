@@ -7,6 +7,7 @@
 #include "IDetailsView.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkRole.h"
+#include "LiveLinkSubjectSettings.h"
 
 #include "IStructureDetailsView.h"
 #include "Modules/ModuleManager.h"
@@ -205,7 +206,9 @@ void SLiveLinkDataView::Tick(const FGeometry& AllottedGeometry, const double InC
 void SLiveLinkDataView::SetSubjectKey(FLiveLinkSubjectKey InSubjectKey)
 {
 	SubjectKey = InSubjectKey;
-	SettingsDetailsView->SetObject(Client->GetSubjectSettings(SubjectKey));
+
+	UObject* SettingsObject = Client->GetSubjectSettings(SubjectKey);
+	SettingsDetailsView->SetObject(SettingsObject);
 }
 
 int32 SLiveLinkDataView::GetDetailWidgetIndex() const

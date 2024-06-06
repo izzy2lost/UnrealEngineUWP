@@ -5,9 +5,12 @@
 #include "Clients/LiveLinkHubProvider.h"
 #include "LiveLinkHubApplication.h"
 #include "LiveLinkHubLog.h"
+#include "LiveLinkHubSubjectSettings.h"
 #include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkHubRecordingController.h"
+#include "Subjects/LiveLinkHubSubjectSettingsDetailsCustomization.h"
 
 #if !WITH_LIVELINK_HUB
 #include "HAL/FileManager.h"
@@ -42,13 +45,22 @@ void FLiveLinkHubModule::StartupModule()
 		LOCTEXT("LiveLinkHubTooltip", "Launch the LiveLink Hub app."),
 		FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.Icon.Small"),
 		FUIAction(FExecuteAction::CreateRaw(this, &FLiveLinkHubModule::OpenLiveLinkHub)));
+#else
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	PropertyModule.RegisterCustomClassLayout(ULiveLinkHubSubjectSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkHubSubjectSettingsDetailsCustomization::MakeInstance));
 #endif
+
 }
 
 void FLiveLinkHubModule::ShutdownModule()
 {
 #if !WITH_LIVELINK_HUB
 	UToolMenus::UnregisterOwner(this);
+#else
+	if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+	{
+		PropertyModule->UnregisterCustomClassLayout(ULiveLinkHubSubjectSettings::StaticClass()->GetFName());
+	}
 #endif
 }
 
