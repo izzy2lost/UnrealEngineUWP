@@ -664,6 +664,7 @@ public:
 
 private:
 	RHI_API void ActivatePipelines(ERHIPipeline Pipelines);
+	RHI_API void InvalidBufferFatalError(const FRHIResourceCreateInfo& CreateInfo, EBufferUsageFlags Usage, uint32 Stride);
 
 public:
 	RHI_API ERHIPipeline SwitchPipeline(ERHIPipeline Pipeline);
@@ -726,6 +727,11 @@ public:
 		FRHIBufferDesc BufferDesc = CreateInfo.bWithoutNativeResource
 			? FRHIBufferDesc::Null()
 			: FRHIBufferDesc(Size, Stride, Usage);
+
+		if (Size == 0 && !BufferDesc.IsNull())
+		{
+			InvalidBufferFatalError(CreateInfo, Usage, Stride);
+		}
 
 		FRHICommandListScopedPipelineGuard ScopedPipeline(*this);
 		FBufferRHIRef Buffer = GDynamicRHI->RHICreateBuffer(*this, BufferDesc, ResourceState, CreateInfo);

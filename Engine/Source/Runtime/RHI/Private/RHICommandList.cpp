@@ -2131,6 +2131,11 @@ void FRHICommandList::GenerateMips(FRHITexture*)
 	UE_LOG(LogRHI, Fatal, TEXT("GenerateMips on RHI command lists is deprecated and no longer functions. Use the FGenerateMips helper class from the RenderCore module to generate mips on textures."));
 }
 
+void FRHICommandListBase::InvalidBufferFatalError(const FRHIResourceCreateInfo& CreateInfo, EBufferUsageFlags Usage, uint32 Stride)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Attempt to create zero-sized buffer '%s', owner '%s', usage 0x%x, stride %u."), CreateInfo.DebugName ? CreateInfo.DebugName : TEXT("(nullptr)"), *CreateInfo.OwnerName.ToString(), (uint32)Usage, Stride);
+}
+
 FRayTracingShaderBindings UE::RHI::ConvertRayTracingShaderBindings(const FRHIBatchedShaderParameters& BatchedParameters)
 {
 	FRayTracingShaderBindings Result;
@@ -2226,5 +2231,4 @@ void FRHICommandList::RayTraceDispatchIndirect(
 
 	GlobalResourceBindings.Reset();
 }
-
 
