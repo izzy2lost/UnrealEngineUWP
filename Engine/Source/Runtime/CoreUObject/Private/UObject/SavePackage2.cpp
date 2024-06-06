@@ -2449,9 +2449,13 @@ ESavePackageResult UpdatePackageHeader(FStructuredArchive::FRecord& StructuredAr
 
 		// Update package flags from package, in case serialization has modified package flags.
 		uint32 PackageFlags = Linker->LinkerRoot->GetPackageFlags();
-		if (!bContainsAsset)
+		if (SaveContext.IsCooking() && !bContainsAsset)
 		{
 			PackageFlags |= PKG_ContainsNoAsset;
+		}
+		else
+		{
+			PackageFlags &= ~PKG_ContainsNoAsset;
 		}
 		// Take the Linker FilterEditorOnlyData setting over the package flags to set this flag in the summary
 		if (Linker->IsFilterEditorOnly())
