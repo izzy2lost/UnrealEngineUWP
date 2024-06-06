@@ -202,7 +202,7 @@ void AVPBookmarkActor::CaptureSnapshot()
 	}
 
 	FText ErrorMessage;
-	if (!SceneCaptureComponent->TextureTarget->UpdateTexture(SnapshotTexture, /*InFlags = */CTF_Default, /*InAlphaOverride = */nullptr, /*InOnTextureChangingDelegate = */[](UTexture*) {}, &ErrorMessage))
+	if (!SceneCaptureComponent->TextureTarget->UpdateTexture(SnapshotTexture, /*InFlags = */static_cast<EConstructTextureFlags>(CTF_Default | CTF_ForceOpaque), /*InAlphaOverride = */nullptr, /*InOnTextureChangingDelegate = */[](UTexture*) {}, &ErrorMessage))
 	{
 		FMessageLog("VPBookmarkActor").Warning(ErrorMessage);
 		return;
