@@ -147,7 +147,7 @@ protected:
 
 	virtual void OnChannelCreatedInternal(USocialChatChannel& CreatedChannel);
 	virtual void OnChannelLeftInternal(USocialChatChannel& ChannelLeft);
-private:
+protected:
 	TMap < ESocialChannelType, TWeakObjectPtr<USocialChatChannel>> ChannelsByType;
 
 	USocialChatRoom& FindOrCreateRoom(const FChatRoomId& RoomId);
@@ -170,7 +170,7 @@ private:
 	virtual void HandleChatRoomJoinPrivateFailure(const FUniqueNetId& LocalUserId, const FChatRoomId& RoomId, const FString& Error) { }
 	virtual void HandleChatRoomExitFailure(const FUniqueNetId& LocalUserId, const FChatRoomId& RoomId, const FString& Error) { }
 
-private:
+protected:
 	UPROPERTY()
 	TMap<TWeakObjectPtr<USocialUser>, TObjectPtr<USocialPrivateMessageChannel>> DirectChannelsByTargetUser;
 
