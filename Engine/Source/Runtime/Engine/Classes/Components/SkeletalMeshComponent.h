@@ -1706,6 +1706,10 @@ public:
 	ENGINE_API virtual void SetComponentTickEnabled(bool bEnabled) override;
 	ENGINE_API virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
 
+#if WITH_EDITOR
+	ENGINE_API virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
+#endif // WITH_EDITOR
+
 	//Handle registering our end physics tick function
 	ENGINE_API virtual void RegisterEndPhysicsTick(bool bRegister);
 

@@ -46,6 +46,7 @@
 #if WITH_EDITOR
 #include "Engine/PoseWatch.h"
 #include "Settings/AnimBlueprintSettings.h"
+#include "SkeletalMeshComponentInstanceData.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkeletalMeshComponent)
@@ -529,6 +530,13 @@ void USkeletalMeshComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
 }
+
+#if WITH_EDITOR
+TStructOnScope<FActorComponentInstanceData> USkeletalMeshComponent::GetComponentInstanceData() const
+{
+	return MakeStructOnScope<FActorComponentInstanceData, FSkeletalMeshComponentInstanceData>(this);
+}
+#endif // WITH_EDITOR
 
 void USkeletalMeshComponent::RegisterEndPhysicsTick(bool bRegister)
 {
