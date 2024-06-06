@@ -254,6 +254,7 @@ void FMovieSceneToolsModule::StartupModule()
 	UMovieSceneEventSectionBase::PostDuplicateSectionEvent.BindStatic(PostDuplicateEventSection);
 	UMovieSceneEventSectionBase::RemoveForCookEvent.BindStatic(RemoveForCookEventSection);
 	UMovieScene::IsTrackClassAllowedEvent.BindStatic(IsTrackClassAllowed);
+	UMovieScene::IsCustomBindingClassAllowedEvent.BindStatic(IsCustomBindingClassAllowed);
 	ULevelSequence::PostDuplicateEvent.BindStatic(PostDuplicateEvent);
 	FixupDynamicBindingsHandle = ULevelSequence::FixupDynamicBindingsEvent.AddStatic(FixupDynamicBindingsEvent);
 
@@ -293,6 +294,7 @@ void FMovieSceneToolsModule::ShutdownModule()
 	UMovieSceneEventSectionBase::PostDuplicateSectionEvent = UMovieSceneEventSectionBase::FPostDuplicateEvent();
 	UMovieSceneEventSectionBase::RemoveForCookEvent = UMovieSceneEventSectionBase::FRemoveForCookEvent();
 	UMovieScene::IsTrackClassAllowedEvent = UMovieScene::FIsTrackClassAllowedEvent();
+	UMovieScene::IsCustomBindingClassAllowedEvent = UMovieScene::FIsCustomBindingClassAllowedEvent();
 	ULevelSequence::PostDuplicateEvent = ULevelSequence::FPostDuplicateEvent();
 	ULevelSequence::FixupDynamicBindingsEvent.Remove(FixupDynamicBindingsHandle);
 
@@ -558,7 +560,7 @@ bool FMovieSceneToolsModule::UpgradeLegacyEventEndpointForSection(UMovieSceneEve
 	return true;
 }
 
-bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
+bool IsMovieSceneClassAllowed(UClass* InClass)
 {
 	if (!InClass)
 	{
@@ -576,6 +578,19 @@ bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
 	}
 
 	return true;
+}
+
+bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
+{
+	return IsMovieSceneClassAllowed(InClass);
+}
+
+bool FMovieSceneToolsModule::IsCustomBindingClassAllowed(UClass* InClass)
+{
+	// For now this has the same implementation as IsTrackClassAllowed, but has been kept a separate function and event in the case we want
+	// different behavior here.
+
+	return IsMovieSceneClassAllowed(InClass);
 }
 
 void FMovieSceneToolsModule::FixupPayloadParameterNameForSection(UMovieSceneEventSectionBase* Section, UK2Node* InNode, FName OldPinName, FName NewPinName)

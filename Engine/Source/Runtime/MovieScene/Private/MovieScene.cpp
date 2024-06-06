@@ -46,6 +46,7 @@ TOptional<TRangeBound<FFrameNumber>> GetMaxUpperBound(const UMovieSceneTrack* Tr
 
 UMovieScene::FIsTrackClassAllowedEvent UMovieScene::IsTrackClassAllowedEvent;
 UMovieScene::FFixupDynamicBindingPayloadParameterNameEvent UMovieScene::FixupDynamicBindingPayloadParameterNameEvent;
+UMovieScene::FIsCustomBindingClassAllowedEvent UMovieScene::IsCustomBindingClassAllowedEvent;
 
 bool UMovieScene::IsTrackClassAllowed(UClass* InClass)
 {
@@ -56,6 +57,17 @@ bool UMovieScene::IsTrackClassAllowed(UClass* InClass)
 
 	return true;
 }
+
+bool UMovieScene::IsCustomBindingClassAllowed(UClass* InClass)
+{
+	if (IsCustomBindingClassAllowedEvent.IsBound() && !IsCustomBindingClassAllowedEvent.Execute(InClass))
+	{
+		return false;
+	}
+
+	return true;
+}
+
 
 #endif
 

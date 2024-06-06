@@ -95,6 +95,7 @@ private:
 	static void PostDuplicateEventSection(UMovieSceneEventSectionBase* Section);
 	static void RemoveForCookEventSection(UMovieSceneEventSectionBase* Section);
 	static bool IsTrackClassAllowed(UClass* InClass);
+	static bool IsCustomBindingClassAllowed(UClass* InClass);
 	static void PostDuplicateEvent(ULevelSequence* LevelSequence);
 	static void FixupDynamicBindingsEvent(ULevelSequence* LevelSequence);
 

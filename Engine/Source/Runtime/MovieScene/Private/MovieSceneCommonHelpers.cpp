@@ -979,6 +979,12 @@ void MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(TArray<const TSubcla
 	{
 		if (It->IsChildOf(UMovieSceneCustomBinding::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract))
 		{
+#if WITH_EDITOR
+			if (!UMovieScene::IsCustomBindingClassAllowed(*It))
+			{
+				continue;
+			}
+#endif
 			OutCustomBindingTypes.Add(*It);
 		}
 	}// Sort by spawner priority to allow disambiguation for similar object types

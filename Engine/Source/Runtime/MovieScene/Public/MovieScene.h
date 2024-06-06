@@ -585,6 +585,12 @@ public:
 
 	static MOVIESCENE_API bool IsTrackClassAllowed(UClass* InClass);
 
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FIsCustomBindingClassAllowedEvent, UClass*);
+
+	static MOVIESCENE_API FIsCustomBindingClassAllowedEvent IsCustomBindingClassAllowedEvent;
+
+	static MOVIESCENE_API bool IsCustomBindingClassAllowed(UClass* InClass);
+
 	void OnDynamicBindingUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName)
 	{
 		FixupDynamicBindingPayloadParameterNameEvent.Broadcast(this, InNode, OldPinName, NewPinName);
