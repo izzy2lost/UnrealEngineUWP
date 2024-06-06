@@ -115,12 +115,15 @@ namespace UE::ConcertSharedSlate
 	{
 		TArray<FPropertyAssignmentEntry> Entries;
 		auto[RootEntry, bRootSharesClass] = BuildAssignmentEntry(Objects, Model);
-		if (!ensureMsgf(bRootSharesClass, TEXT("Objects do not share the same class. Investigate invalid call.")))
+		if (RootEntry.PropertiesToDisplay.IsEmpty() || !ensureMsgf(bRootSharesClass, TEXT("Objects do not share the same class. Investigate invalid call.")))
 		{
-			PreviousSelectedObjects.Reset();
+			PreviousSelectedObjects = Objects;
 			TreeView->RefreshPropertyData({}, false);
+			OnObjectGroupsChangedDelegate.Broadcast();
+			return;
 		}
-		
+
+		DisplayedGroups = { FObjectGroup{ Objects } };
 		Entries.Emplace(MoveTemp(RootEntry));
 		if (ObjectHierarchy)
 		{
@@ -128,6 +131,8 @@ namespace UE::ConcertSharedSlate
 			const TMap<FSoftObjectPath, TArray<FSoftObjectPath>> HierarchyInfo = BuildHierarchy(Objects, *ObjectHierarchy, bShouldShowSubobjects);
 			ForEachCategory(Objects, HierarchyInfo, [this, &Model, &Entries](const TArray<TSoftObjectPtr<>>& ContextObjects)
 			{
+				DisplayedGroups.Add(FObjectGroup{ ContextObjects });
+				
 				auto[Entry, bShareClass] = BuildAssignmentEntry(ContextObjects, Model);
 				if (bShareClass)
 				{
@@ -136,15 +141,22 @@ namespace UE::ConcertSharedSlate
 			});
 		}
 		
+		const bool bObjectsHaveChanged = PreviousSelectedObjects == Objects;
+		PreviousSelectedObjects = Objects;
+		
 		// If the objects have changed, the classes may share properties.
 		// In that case, below we'd reuse the item pointer, which would cause the tree view to re-use the old row widgets.
 		// However, we must regenerate all column widgets since they may be referencing the object the row was originally built for. So they'd display the state of the previous object still!
 		// Example: Assign property combo-box in Multi-User All Clients view displays who has the property assigned.
 		// Note: If the objects did not change, we definitely want to reuse item pointers since otherwise the user row selection is reset.
-		const bool bCanReusePropertyData = PreviousSelectedObjects == Objects;
-		PreviousSelectedObjects = Objects;
-			
+		const bool bCanReusePropertyData = bObjectsHaveChanged;
+		
 		TreeView->RefreshPropertyData(Entries, bCanReusePropertyData);
+
+		if (!bObjectsHaveChanged)
+		{
+			OnObjectGroupsChangedDelegate.Broadcast();
+		}
 	}
 
 	void SMultiObjectAssignment::SetShouldShowSubobjects(bool bShowSubobjects)

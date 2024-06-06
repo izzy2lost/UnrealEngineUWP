@@ -32,6 +32,8 @@ namespace UE::ConcertSharedSlate
 		virtual void RequestRefilter() const override { return TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { return TreeView->RequestRefilter(); }
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
+		virtual TArray<FObjectGroup> GetDisplayedGroups() const override { return { FObjectGroup{ PreviousSelectedObjects } }; }
+		virtual FOnSelectionChanged& OnObjectGroupsChanged() override { return OnObjectGroupsChangedDelegate; }
 		//~ End IPropertyAssignmentView Interface
 
 	private:
@@ -43,6 +45,9 @@ namespace UE::ConcertSharedSlate
 		
 		/** Optional. If specified, displays the properties of this model instead of those assigned in the stream. */
 		TSharedPtr<IPropertySourceProcessor> OptionalPropertySource;
+		
+		/** Broadcasts when the result of GetDisplayedGroups() has changed. */
+		FOnSelectionChanged OnObjectGroupsChangedDelegate;
 	};
 }
 

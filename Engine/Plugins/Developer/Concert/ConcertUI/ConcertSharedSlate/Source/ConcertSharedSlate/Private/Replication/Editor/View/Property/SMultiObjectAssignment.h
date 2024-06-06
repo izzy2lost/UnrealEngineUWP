@@ -40,9 +40,14 @@ namespace UE::ConcertSharedSlate
 		virtual void RequestRefilter() const override { return TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { return TreeView->RequestRefilter(); }
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
+		virtual TArray<FObjectGroup> GetDisplayedGroups() const override { return DisplayedGroups; }
+		virtual FOnSelectionChanged& OnObjectGroupsChanged() override { return OnObjectGroupsChangedDelegate; }
+		//~ End IPropertyAssignmentView Interface
+		
+		//~ End IMultiObjectPropertyAssignmentView Interface
 		virtual void SetShouldShowSubobjects(bool bShowSubobjects) override;
 		virtual bool GetShouldShowSubobjects() const override { return bShouldShowSubobjects;}
-		//~ End IPropertyAssignmentView Interface
+		//~ End IMultiObjectPropertyAssignmentView Interface
 
 	private:
 
@@ -50,6 +55,8 @@ namespace UE::ConcertSharedSlate
 		TSharedPtr<IPropertyTreeView> TreeView;
 		/** Used to determine whether to rebuild the entire property data. */
 		TArray<TSoftObjectPtr<>> PreviousSelectedObjects;
+		/** Cached value for GetDisplayedGroups. */
+		TArray<FObjectGroup> DisplayedGroups;
 
 		/** Used to get subobjects of selected objects. */
 		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
@@ -58,6 +65,9 @@ namespace UE::ConcertSharedSlate
 
 		/** Whether EChildRelationshipFlags::Subobject objects should be shown. */
 		bool bShouldShowSubobjects = false;
+		
+		/** Broadcasts when the result of GetDisplayedGroups() has changed. */
+		FOnSelectionChanged OnObjectGroupsChangedDelegate;
 
 		struct FBuildAssignmentEntryResult
 		{

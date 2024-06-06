@@ -13,6 +13,19 @@ class UObject;
 namespace UE::ConcertSharedSlate
 {
 	class IReplicationStreamModel;
+
+	/**
+	 * An object group is a bunch of related objects.
+	 * This relates to multi-editing.
+	 *
+	 * Example: You click 2 ACineCameraActor in the IReplicationStreamViewer:
+	 * - A group is the 2 actors you clicked
+	 * - A group is the two cine camera components of the actor
+	 */
+	struct FObjectGroup
+	{
+		TArray<TSoftObjectPtr<>> Group;
+	};
 	
 	/**
 	 * A replication assignment view displays an object's properties.
@@ -22,8 +35,9 @@ namespace UE::ConcertSharedSlate
 	 * - Object tree view: User can click on an object.
 	 * - IPropertyAssignmentView: The clicked object's properties are displayed (the "root objects").
 	 *
-	 * Right now there is only 1 implementation: SPerObjectPropertyAssignment, which displays the root object's properties only.
-	 * We could also add an implementation that also displays the subobject properties, similar how the editor's property matrix does it. 
+	 * Right now there are 2 implementation:
+	 *	- SPerObjectPropertyAssignment, which displays the root object's properties only
+	 *	- SMultiObjectAssignment, which displays the root object and its subobjects.
 	 * Generally, you can imagine the view as a tree view which has columns that can be injected (e.g. @see CreateBaseStreamEditor).
 	 */
 	class CONCERTSHAREDSLATE_API IPropertyAssignmentView
@@ -49,6 +63,13 @@ namespace UE::ConcertSharedSlate
 
 		/** Gets the tree view's widget */
 		virtual TSharedRef<SWidget> GetWidget() = 0;
+
+		/** @return The groups of objects being displayed in this view right now. */
+		virtual TArray<FObjectGroup> GetDisplayedGroups() const = 0;
+		
+		DECLARE_MULTICAST_DELEGATE(FOnSelectionChanged);
+		/** @return Event that broadcasts when the result of GetDisplayedGroups() has changed. */
+		virtual FOnSelectionChanged& OnObjectGroupsChanged() = 0;
 
 		virtual ~IPropertyAssignmentView() = default;
 	};

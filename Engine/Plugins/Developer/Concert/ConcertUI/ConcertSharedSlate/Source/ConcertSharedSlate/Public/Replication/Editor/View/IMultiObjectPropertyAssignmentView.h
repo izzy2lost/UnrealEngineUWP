@@ -15,7 +15,5 @@ namespace UE::ConcertSharedSlate
 		virtual void SetShouldShowSubobjects(bool bShowSubobjects) = 0;
 		/** @return Whether subobjects should be shown */
 		virtual bool GetShouldShowSubobjects() const = 0;
-
-		virtual ~IMultiObjectPropertyAssignmentView() = default;
 	};
 }
