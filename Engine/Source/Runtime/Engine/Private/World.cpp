@@ -7895,9 +7895,15 @@ UWorld* FSeamlessTravelHandler::Tick()
 				// Warn if we loaded a game mode that wanted a different replication system from the previous mode.
 				if (AGameModeBase* GameMode = LoadedWorld->GetAuthGameMode())
 				{
-					EReplicationSystem LoadedGameModeRepSystem = GameMode->GetGameNetDriverReplicationSystem();
+					const EReplicationSystem LoadedGameModeRepSystem = GameMode->GetGameNetDriverReplicationSystem();
+#if UE_WITH_IRIS
+					const EReplicationSystem IrisCmdlineRepSystem = UE::Net::GetUseIrisReplicationCmdlineValue();
+#else
+					const EReplicationSystem IrisCmdlineRepSystem = EReplicationSystem::Default;
+#endif
+
 					const bool bIsNetDriverCompatible = LoadedGameModeRepSystem == EReplicationSystem::Default || 
-														UE::Net::GetUseIrisReplicationCmdlineValue() != EReplicationSystem::Default ||
+														IrisCmdlineRepSystem != EReplicationSystem::Default ||
 														(LoadedGameModeRepSystem == EReplicationSystem::Iris && NetDriver->IsUsingIrisReplication());
 					ensureMsgf(bIsNetDriverCompatible, TEXT("Seamless travel loaded game mode %s that wants a different replication system than the current NetDriver uses."), *GetNameSafe(GameMode));
 				}

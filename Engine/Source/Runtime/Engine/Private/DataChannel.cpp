@@ -11,7 +11,9 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#endif
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"

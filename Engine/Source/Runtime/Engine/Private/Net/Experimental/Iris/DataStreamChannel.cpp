@@ -469,12 +469,14 @@ void UDataStreamChannel::ReceivedNak(int32 PacketId)
 // Some DataStreams require perfect acking. If the ack sequence window is full we would get NAKs for packets thay may have been received.
 bool UDataStreamChannel::IsPacketWindowFull() const
 {
+#if UE_WITH_IRIS
 	const uint32 IrisPacketSequenceSafetyMarginUnsigned = static_cast<uint32>(FPlatformMath::Max(0, UE::Net::Private::IrisPacketSequenceSafetyMargin));
 	if (Connection->IsPacketSequenceWindowFull(IrisPacketSequenceSafetyMarginUnsigned))
 	{
 		UE_LOG(LogIris, Verbose, TEXT("Packet window full."));
 		return true;
 	}
+#endif // UE_WITH_IRIS
 
 	return WriteRecords.Count() >= WriteRecords.AllocatedCapacity();
 }

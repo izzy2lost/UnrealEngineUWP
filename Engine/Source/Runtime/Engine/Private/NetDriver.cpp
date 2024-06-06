@@ -248,7 +248,7 @@ namespace UE::Net::Private
 
 	static bool bIgnoreStaticActorDestruction = false;
 
-
+#if UE_WITH_IRIS
 	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams)
 	{
 		if (ReplicationSystemConfig.MaxReplicatedObjectCount != 0)
@@ -286,6 +286,7 @@ namespace UE::Net::Private
 			OutParams.MaxNetObjectGroupCount = ReplicationSystemConfig.MaxNetObjectGroupCount;
 		}
 	}
+#endif // UE_WITH_IRIS
 
 	bool IsGuidInOuterChain(const FNetGUIDCache& GuidCache, const FNetGuidCacheObject* CacheObj, FNetworkGUID GuidMatch)
 	{
