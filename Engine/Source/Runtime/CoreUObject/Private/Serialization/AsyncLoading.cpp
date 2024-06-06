@@ -6770,6 +6770,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateExports()
 				// This will cause the object to be serialized. We do this here for all objects and
 				// not just UClass and template objects, for which this is required in order to ensure
 				// seek free loading, to be able introduce async file I/O.
+				UE_TRACK_REFERENCING_PACKAGE_SCOPED(Object, PackageAccessTrackingOps::NAME_PreLoad);
 				Linker->Preload(Object);
 				PackageObjLoaded.Add(Object);
 			}
@@ -6835,6 +6836,7 @@ EAsyncPackageState::Type FAsyncPackage::PreLoadObjects()
 		UObject* Object = PackageObjLoaded[PreLoadIndex++];
 		if (Object && Object->GetLinker())
 		{
+			UE_TRACK_REFERENCING_PACKAGE_SCOPED(Object, PackageAccessTrackingOps::NAME_PreLoad);
 			Object->GetLinker()->Preload(Object);
 				LastObjectWorkWasPerformedOn = Object;
 				LastTypeOfWorkPerformed = TEXT("preloading");
@@ -7065,6 +7067,7 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 					{
 						if (PreLoadObject && PreLoadObject->GetLinker())
 						{
+							UE_TRACK_REFERENCING_PACKAGE_SCOPED(PreLoadObject, PackageAccessTrackingOps::NAME_PreLoad);
 							PreLoadObject->GetLinker()->Preload(PreLoadObject);
 							PackageObjLoaded.Add(PreLoadObject);
 						}
