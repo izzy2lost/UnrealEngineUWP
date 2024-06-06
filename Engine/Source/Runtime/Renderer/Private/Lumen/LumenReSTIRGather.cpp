@@ -776,7 +776,7 @@ void DispatchTemporalAccumulation(
 
 			{
 				
-				FRDGTextureRef OldDepthHistory = View.ViewState->Lumen.DepthHistoryRT ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.DepthHistoryRT) : SceneTextures.Depth.Target;
+				FRDGTextureRef OldDepthHistory = View.ViewState->Lumen.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.SceneDepthHistory) : SceneTextures.Depth.Target;
 				FRDGTextureRef OldHistoryNumFramesAccumulated = GraphBuilder.RegisterExternalTexture(*HistoryNumFramesAccumulated);
 
 				{

@@ -1519,7 +1519,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 						else if (IsLumenFrontLayerHistoryValid(View))
 						{
 							const FReflectionTemporalState& State = View.ViewState->Lumen.TranslucentReflectionState;
-							const FIntPoint HistoryResolution = State.DepthHistoryRT->GetDesc().Extent;
+							const FIntPoint HistoryResolution = State.LayerSceneDepthHistory->GetDesc().Extent;
 							const FVector2f InvBufferSize(1.0f / SceneTextures.Config.Extent.X, 1.0f / SceneTextures.Config.Extent.Y);
 							PassParameters->FrontLayerMode = 1;
 							PassParameters->FrontLayerHistoryUVMinMax = FVector4f(
@@ -1529,8 +1529,8 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 								(State.HistoryViewRect.Max.Y - 0.5f) * InvBufferSize.Y);
 							PassParameters->FrontLayerHistoryScreenPositionScaleBias = State.HistoryScreenPositionScaleBias;
 							PassParameters->FrontLayerHistoryBufferSizeAndInvSize = FVector4f(HistoryResolution.X, HistoryResolution.Y, 1.f/HistoryResolution.X, 1.f/HistoryResolution.Y);
-							PassParameters->FrontLayerTranslucencyDepthTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.DepthHistoryRT, TEXT("VSM.FrontLayerHistoryDepth"));
-							PassParameters->FrontLayerTranslucencyNormalTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.NormalHistoryRT, TEXT("VSM.FrontLayerHistoryNormal"));
+							PassParameters->FrontLayerTranslucencyDepthTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.LayerSceneDepthHistory, TEXT("VSM.FrontLayerHistoryDepth"));
+							PassParameters->FrontLayerTranslucencyNormalTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.LayerSceneNormalHistory, TEXT("VSM.FrontLayerHistoryNormal"));
 							bFrontLayerEnabled = true;
 						}
 					}

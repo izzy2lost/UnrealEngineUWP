@@ -9,10 +9,10 @@ RWTexture2D<float> RWDepthTexture;
 RWTexture2D<float4> RWNormalTexture;
 
 /**
- * Copy depth and normal for opaque before it gets possibly overwritten by water or other translucency writing depth
+ * Copy depth and normal for opaque before it gets overwritten by water or other translucency writing depth
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void StoreLumenDepthCS(
+void StoreLumenSceneHistoryCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
 {
 	uint2 ScreenCoord = DispatchThreadId + View.ViewRectMinAndSize.xy;
@@ -20,7 +20,7 @@ void StoreLumenDepthCS(
 
 	RWDepthTexture[DispatchThreadId + View.ViewRectMinAndSize.xy] = ConvertToDeviceZ(LumenMaterial.SceneDepth);
 
-	#if STORE_NORMAL
+	#if PERMUTATION_STORE_NORMAL
 	{
 		RWNormalTexture[DispatchThreadId + View.ViewRectMinAndSize.xy] = float4(EncodeNormal(LumenMaterial.WorldNormal), 0.0f);
 	}

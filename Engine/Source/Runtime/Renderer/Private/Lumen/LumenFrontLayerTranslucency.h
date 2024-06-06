@@ -19,8 +19,8 @@ public:
 struct FFrontLayerTranslucencyData
 {
 	bool IsValid() const { return SceneDepth != nullptr; }
-	FRDGTextureRef Normal = nullptr;
 	FRDGTextureRef SceneDepth = nullptr;
+	FRDGTextureRef Normal = nullptr;
 };
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLumenFrontLayerTranslucencyGBufferParameters, )

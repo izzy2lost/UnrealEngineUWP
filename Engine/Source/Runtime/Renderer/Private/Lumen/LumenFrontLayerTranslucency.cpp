@@ -406,8 +406,8 @@ void RenderFrontLayerTranslucencyGBuffer(
 	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly && IsVSMTranslucentHighQualityEnabled())
 	{
 		// Queue updating the view state's render target reference with the new values
-		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.SceneDepth, &View.ViewState->Lumen.TranslucentReflectionState.DepthHistoryRT);
-		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.Normal, &View.ViewState->Lumen.TranslucentReflectionState.NormalHistoryRT);
+		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.SceneDepth, &View.ViewState->Lumen.TranslucentReflectionState.LayerSceneDepthHistory);
+		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.Normal, &View.ViewState->Lumen.TranslucentReflectionState.LayerSceneNormalHistory);
 	}
 }
 
@@ -420,8 +420,8 @@ bool IsLumenFrontLayerHistoryValid(const FViewInfo& View)
 { 
 	return View.ViewState && 
 		View.ViewState->PrevFrameNumber == View.ViewState->Lumen.TranslucentReflectionState.HistoryFrameIndex && 
-		View.ViewState->Lumen.TranslucentReflectionState.DepthHistoryRT != nullptr && 
-		View.ViewState->Lumen.TranslucentReflectionState.NormalHistoryRT != nullptr;
+		View.ViewState->Lumen.TranslucentReflectionState.LayerSceneDepthHistory != nullptr &&
+		View.ViewState->Lumen.TranslucentReflectionState.LayerSceneNormalHistory != nullptr;
 }
 
 FFrontLayerTranslucencyData FDeferredShadingSceneRenderer::RenderFrontLayerTranslucency(

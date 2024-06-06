@@ -184,7 +184,6 @@ FAutoConsoleVariableRef CVarLumenScreenProbeTemporalMaxFastUpdateModeAmount(
 	TEXT("Maximum amount of fast-responding temporal filter to use when traces hit a moving object.  Values closer to 1 cause more noise, but also faster reaction to scene changes."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
-
 int32 GLumenScreenProbeTemporalFastUpdateModeUseNeighborhoodClamp = 0;
 FAutoConsoleVariableRef CVarLumenScreenProbeTemporalFastUpdateModeUseNeighborhoodClamp(
 	TEXT("r.Lumen.ScreenProbeGather.Temporal.FastUpdateModeUseNeighborhoodClamp"),
@@ -1475,7 +1474,7 @@ void UpdateHistoryScreenProbeGather(
 		TRefCountPtr<IPooledRenderTarget>* HistoryNumFramesAccumulated = &ScreenProbeGatherState.NumFramesAccumulatedRT;
 		TRefCountPtr<IPooledRenderTarget>* FastUpdateModeHistoryState = &ScreenProbeGatherState.FastUpdateModeHistoryRT;
 
-		FRDGTextureRef OldNormalHistory = View.ViewState->Lumen.NormalHistoryRT ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.NormalHistoryRT) : nullptr;
+		FRDGTextureRef OldNormalHistory = View.ViewState->Lumen.SceneNormalHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.SceneNormalHistory) : nullptr;
 
 		const uint32 ClosureCount = Substrate::GetSubstrateMaxClosureCount(View);
 		const bool bRejectBasedOnNormal = LumenScreenProbeGather::UseRejectBasedOnNormal() && OldNormalHistory;
@@ -1517,7 +1516,7 @@ void UpdateHistoryScreenProbeGather(
 
 			{
 				FRDGTextureRef OldRoughSpecularIndirectHistory = GraphBuilder.RegisterExternalTexture(*RoughSpecularIndirectHistoryState);
-				FRDGTextureRef OldDepthHistory = View.ViewState->Lumen.DepthHistoryRT ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.DepthHistoryRT) : SceneTextures.Depth.Target;
+				FRDGTextureRef OldDepthHistory = View.ViewState->Lumen.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.SceneDepthHistory) : SceneTextures.Depth.Target;
 				FRDGTextureRef OldHistoryNumFramesAccumulated = GraphBuilder.RegisterExternalTexture(*HistoryNumFramesAccumulated);
 				FRDGTextureRef OldFastUpdateModeHistory = GraphBuilder.RegisterExternalTexture(*FastUpdateModeHistoryState);
 
@@ -1694,10 +1693,10 @@ void UpdateHistoryScreenProbeGather(
 	}
 }
 
-class FStoreLumenDepthCS : public FGlobalShader
+class FStoreLumenSceneHistoryCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FStoreLumenDepthCS)
-	SHADER_USE_PARAMETER_STRUCT(FStoreLumenDepthCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FStoreLumenSceneHistoryCS)
+	SHADER_USE_PARAMETER_STRUCT(FStoreLumenSceneHistoryCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -1707,7 +1706,7 @@ class FStoreLumenDepthCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWNormalTexture)
 	END_SHADER_PARAMETER_STRUCT()
 
-	class FStoreNormal : SHADER_PERMUTATION_BOOL("STORE_NORMAL");
+	class FStoreNormal : SHADER_PERMUTATION_BOOL("PERMUTATION_STORE_NORMAL");
 	using FPermutationDomain = TShaderPermutationDomain<FStoreNormal>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -1727,7 +1726,7 @@ class FStoreLumenDepthCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FStoreLumenDepthCS, "/Engine/Private/Lumen/LumenDenoising.usf", "StoreLumenDepthCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FStoreLumenSceneHistoryCS, "/Engine/Private/Lumen/LumenDenoising.usf", "StoreLumenSceneHistoryCS", SF_Compute);
 
 /**
  * Copy depth and normal for opaque before it gets possibly overwritten by water or other translucency writing depth
@@ -1750,11 +1749,11 @@ void FDeferredShadingSceneRenderer::StoreLumenDepthHistory(FRDGBuilder& GraphBui
 			FrameTemporaries.ViewExtent,
 			TEXT("Lumen.NormalHistory")) : nullptr;
 
-		FStoreLumenDepthCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FStoreLumenDepthCS::FStoreNormal>(bStoreNormal);
-		auto ComputeShader = View.ShaderMap->GetShader<FStoreLumenDepthCS>(PermutationVector);
+		FStoreLumenSceneHistoryCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FStoreLumenSceneHistoryCS::FStoreNormal>(bStoreNormal);
+		auto ComputeShader = View.ShaderMap->GetShader<FStoreLumenSceneHistoryCS>(PermutationVector);
 
-		FStoreLumenDepthCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FStoreLumenDepthCS::FParameters>();
+		FStoreLumenSceneHistoryCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FStoreLumenSceneHistoryCS::FParameters>();
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
@@ -1763,20 +1762,20 @@ void FDeferredShadingSceneRenderer::StoreLumenDepthHistory(FRDGBuilder& GraphBui
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("StoreLumenDepth%s", bStoreNormal ? TEXT("AndNormal") : TEXT("")),
+			RDG_EVENT_NAME("StoreLumenSceneHistory Normal:%d", bStoreNormal ? 1 : 0),
 			ComputeShader,
 			PassParameters,
-			FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FStoreLumenDepthCS::GetGroupSize()));
+			FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FStoreLumenSceneHistoryCS::GetGroupSize()));
 
-		GraphBuilder.QueueTextureExtraction(DepthHistory, &View.ViewState->Lumen.DepthHistoryRT);
+		GraphBuilder.QueueTextureExtraction(DepthHistory, &View.ViewState->Lumen.SceneDepthHistory);
 
 		if (bStoreNormal)
 		{
-			GraphBuilder.QueueTextureExtraction(NormalHistory, &View.ViewState->Lumen.NormalHistoryRT);
+			GraphBuilder.QueueTextureExtraction(NormalHistory, &View.ViewState->Lumen.SceneNormalHistory);
 		}
 		else
 		{
-			View.ViewState->Lumen.NormalHistoryRT = nullptr;
+			View.ViewState->Lumen.SceneNormalHistory = nullptr;
 		}
 	}
 }
@@ -2394,4 +2393,3 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 
 	return DenoiserOutputs;
 }
-

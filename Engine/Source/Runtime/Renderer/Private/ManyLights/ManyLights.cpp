@@ -56,7 +56,7 @@ static TAutoConsoleVariable<int32> CVarManyLightsTemporalMaxFramesAccumulated(
 static TAutoConsoleVariable<float> CVarManyLightsTemporalNeighborhoodClampScale(
 	TEXT("r.ManyLights.Temporal.NeighborhoodClampScale"),
 	2.0f,
-	TEXT("Scales how permissive is neighborhood clamp. Higher values cause more ghosting, but allow smoother temporal accumulation."),
+	TEXT("Scales how permissive is neighborhood clamp. Higher values reduce noise, but also increase ghosting."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 

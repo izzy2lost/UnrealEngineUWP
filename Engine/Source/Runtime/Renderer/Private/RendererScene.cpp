@@ -941,12 +941,11 @@ uint64 FScreenProbeGatherTemporalState::GetGPUSizeBytes(bool bLogSizes) const
 
 uint64 FReflectionTemporalState::GetGPUSizeBytes(bool bLogSizes) const
 {
-	return 
-		GetRenderTargetGPUSizeBytes(SpecularIndirectHistoryRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(ResolveVarianceHistoryRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(DepthHistoryRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(NormalHistoryRT, bLogSizes);
+	return
+		GetRenderTargetGPUSizeBytes(SpecularAndSecondMomentHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(LayerSceneDepthHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(LayerSceneNormalHistory, bLogSizes);
 }
 
 uint64 FRadianceCacheState::GetGPUSizeBytes(bool bLogSizes) const
@@ -972,8 +971,8 @@ uint64 FLumenViewState::GetGPUSizeBytes(bool bLogSizes) const
 		ScreenProbeGatherState.GetGPUSizeBytes(bLogSizes) +
 		ReflectionState.GetGPUSizeBytes(bLogSizes) +
 		TranslucentReflectionState.GetGPUSizeBytes(bLogSizes) +
-		GetRenderTargetGPUSizeBytes(DepthHistoryRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(NormalHistoryRT, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(SceneDepthHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(SceneNormalHistory, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(TranslucencyVolume0, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(TranslucencyVolume1, bLogSizes) +
 		RadianceCacheState.GetGPUSizeBytes(bLogSizes) +
