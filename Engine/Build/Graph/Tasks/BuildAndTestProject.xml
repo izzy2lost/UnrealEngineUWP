@@ -81,7 +81,7 @@
 	<Option Name="EnableSymbolStore" DefaultValue="$(IsBuildMachine)" Restrict="true|false" Description="Enables the upload of debugging symbols" />
 	<Property Name="SymbolServerPath" Value="" If="$(EnableSymbolStore) == 'false'" />
 
-	<Option Name="CheckBuildSizePlatforms" DefaultValue="" Description="List of Platforms to CheckBuildSize on" />
+	<Option Name="CheckBuildSizePlatforms" DefaultValue="" Description="List of Platforms to CheckBuildSize on, format is Name:000000 separated by ;" />
 
 	<!-- This will define options for all platforms and create lists called EditorPlatforms, RequiredEditorPlatforms, and TargetPlatforms. E.g. TargetPlatforms=Win64+Mac+Android -->
 	<Include Script="Inc/PlatformOptions.xml" />
@@ -506,7 +506,8 @@
 		<Property Name="PackageOnlyArguments" Value="$(ExtraPackageOnlyArguments)"/>
 		<Property Name="PackageOnlyArguments" Value="$(PackageOnlyArguments) -archive -archivedirectory=&quot;$(ProjectOutputDirectory)/$(StagedPlatformFolder)&quot;" If="$(IsMobilePlatform)" />
 
-		<Property Name="BuildSizeLimit$(TargetPlatform)" Value="" If="!ContainsItem('$(CheckBuildSizePlatforms)', '$(TargetPlatform)', '+')"/>
+		<Property Name="BuildSizeLimit" Value=""/>
+		<Regex Pattern="(?&lt;!\w)$(TargetPlatform):([0-9]+)" Capture="BuildSizeLimit" Input="$(CheckBuildSizePlatforms)"/>
 
 		<!-- Build the client and if necessary a server-->
 		<Agent Name="Compile $(PlatformAgentName)" Type="$(CompileAgentType)">
@@ -548,7 +549,7 @@
 				<Do If="!$(SkipCook)">
 					<Expand Name="PreCookStep"/>
 					<Property Name="CookArgs" Value="" />
-					<Property Name="CookArgs" Value="-MapIniSection=$(MapIniSection) $(CookPlatform)" If="'$(MapIniSection)' != ''"/>				
+					<Property Name="CookArgs" Value="-MapIniSection=&quot;$(MapIniSection)&quot; $(CookPlatform)" If="'$(MapIniSection)' != ''"/>				
 					<Cook Project="$(TargetProject)" Platform="$(CookPlatform)" TagOutput="false" Arguments="$(CookArgs) $(ExtraCookArguments)"/>
 				</Do>
 			</Node>
@@ -643,7 +644,7 @@
 			<!-- Check Build Size -->
 			<Node Name="$(PlatformCheckBuildSizeNodeName)" Requires="$(PlatformPublishPackagedNodeName)">
 				<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
-					<Command Name="CheckBuildSize" Arguments="-project=$(TargetName) -platform=$(TargetPlatform) -packagesize=$(BuildSizeLimit$(TargetPlatform)) -build=&quot;$(NetworkOutputDirectory)&quot; -configuration=$(PackageConfiguration)" />
+					<Command Name="CheckBuildSize" Arguments="-project=$(TargetName) -platform=$(TargetPlatform) -packagesize=$(BuildSizeLimit) -build=&quot;$(NetworkOutputDirectory)&quot; -configuration=$(PackageConfiguration)" />
 				</ForEach>
 			</Node>
 			
@@ -764,7 +765,7 @@
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(RequirePlatformPackaged)" If="!$(SkipPackage) and !$(SkipPublish)" />
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformHashNodeName)"  If="$(PublishHashedStagingData)" />	
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)" />
-		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformCheckBuildSizeNodeName)" If="'$(BuildSizeLimit$(TargetPlatform))' != ''" />
+		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformCheckBuildSizeNodeName)" If="'$(BuildSizeLimit)' != ''" />
 
 		<Property Name="GeneratedTargetNodes" Value="$(GeneratedTargetNodes);$(PlatformTasks)"/>
 		<Property Name="GeneratedTargetTestNodes" Value="$(GeneratedTargetTestNodes);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)"/>
