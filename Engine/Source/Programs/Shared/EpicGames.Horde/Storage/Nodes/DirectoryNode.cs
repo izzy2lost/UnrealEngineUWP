@@ -368,19 +368,14 @@ namespace EpicGames.Horde.Storage.Nodes
 				IoHash streamHash = reader.ReadIoHash();
 				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, length, targetHandle);
 
-				DateTime modTime = default;
-				if ((flags & FileEntryFlags.HasModTime) != 0)
-				{
-					modTime = new DateTime((long)reader.ReadUnsignedVarInt());
-				}
-
 				ReadOnlyMemory<byte> customData = default;
 				if ((flags & FileEntryFlags.HasCustomData) != 0)
 				{
 					customData = reader.ReadVariableLengthBytes();
+					flags &= ~FileEntryFlags.HasCustomData;
 				}
 
-				directoryNode.AddFile(new FileEntry(name, flags, length, streamHash, target, modTime, customData));
+				directoryNode.AddFile(new FileEntry(name, flags, length, streamHash, target, customData));
 			}
 
 			int directoryCount = (int)reader.ReadUnsignedVarInt();
@@ -407,25 +402,12 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteBlobRef(fileEntry.Target.Handle);
 				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
 
-				FileEntryFlags flags = fileEntry.Flags & ~FileEntryFlags.HasCustomData;
-				if (fileEntry.CustomData.Length > 0)
-				{
-					flags |= FileEntryFlags.HasCustomData;
-				}
-				if (fileEntry.ModTime != default)
-				{
-					flags |= FileEntryFlags.HasModTime;
-				}
+				FileEntryFlags flags = (fileEntry.CustomData.Length > 0) ? (fileEntry.Flags | FileEntryFlags.HasCustomData) : (fileEntry.Flags & ~FileEntryFlags.HasCustomData);
 
 				writer.WriteString(fileEntry.Name);
 				writer.WriteUnsignedVarInt((ulong)flags);
 				writer.WriteUnsignedVarInt((ulong)fileEntry.Length);
 				writer.WriteIoHash(fileEntry.StreamHash);
-
-				if ((flags & FileEntryFlags.HasModTime) != 0)
-				{
-					writer.WriteUnsignedVarInt((ulong)fileEntry.ModTime.Ticks);
-				}
 
 				if ((flags & FileEntryFlags.HasCustomData) != 0)
 				{

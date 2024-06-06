@@ -664,7 +664,7 @@ namespace Horde.Server.Replicators
 						else if (io.Command == PerforceIoCommand.Close)
 						{
 							FileInfo info = await fileWriter.CloseAsync(io.File, cancellationToken);
-							rootUpdate.AddFile(info.Path.ToString(), info.Flags, info.Length, info.LeafChunkedData, customData: info.Md5);
+							rootUpdate.AddFile(info.Path.ToString(), info.Flags, info.Length, info.LeafChunkedData, info.Md5);
 						}
 						else if (io.Command == PerforceIoCommand.Unlink)
 						{
