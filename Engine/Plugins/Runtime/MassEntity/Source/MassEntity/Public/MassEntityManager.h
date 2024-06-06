@@ -209,33 +209,19 @@ public:
 	/**
 	 * A dedicated structure for ensuring the "on entities creation" observers get notified only once all other 
 	 * initialization operations are done and this creation context instance gets released. */
-	struct MASSENTITY_API FEntityCreationContext
+	struct FEntityCreationContext
 	{
-	private:
-		FEntityCreationContext() = default;
-		explicit FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities = {});
+		explicit FEntityCreationContext(const int32 InNumSpawned = 0)
+			: NumberSpawned(InNumSpawned)
+		{}
+		~FEntityCreationContext() { if (OnSpawningFinished) OnSpawningFinished(*this); }
 
-	public:
-		~FEntityCreationContext();
-
-		TConstArrayView<FMassArchetypeEntityCollection> GetEntityCollections() const;
-		int32 GetSpawnedNum() const { return CreatedEntities.Num(); }
-		void MarkDirty();
-		void AddCollection(FMassArchetypeEntityCollection&& Collection);
-		void AppendEntities(const TConstArrayView<FMassEntityHandle> EntitiesToAppend);
-
-		UE_DEPRECATED(5.5, "This constructor is now deprecated and defunct. Use one of the others instead.")
-		explicit FEntityCreationContext(const int32 InNumSpawned) : FEntityCreationContext() {}
-		UE_DEPRECATED(5.5, "This function is now deprecated since FEntityCreationContext can contain more than a single collection now. Use GetEntityCollections instead.")
-		const FMassArchetypeEntityCollection& GetEntityCollection() const;
-
+		const FMassArchetypeEntityCollection& GetEntityCollection() const { return EntityCollection; }
 	private:
 		friend FMassEntityManager;
-		mutable TArray<FMassArchetypeEntityCollection> EntityCollections;
-		TArray<FMassEntityHandle> CreatedEntities;
-		FMassArchetypeEntityCollection::EDuplicatesHandling CollectionCreationDuplicatesHandling = FMassArchetypeEntityCollection::EDuplicatesHandling::NoDuplicates;
+		int32 NumberSpawned;
+		FMassArchetypeEntityCollection EntityCollection;
 		TFunction<void(FEntityCreationContext&)> OnSpawningFinished;
-		TSharedPtr<FMassEntityManager> Manager;
 	};
 
 	/**
@@ -372,8 +358,6 @@ public:
 	 *  for ensuring that the given entity archetype (FMassArchetypeEntityCollection .Archetype) does have given fragments. 
 	 *  Failing this assumption will cause a check-fail. */
 	static void BatchSetEntityFragmentsValues(const FMassArchetypeEntityCollection& SparseEntities, TArrayView<const FInstancedStruct> FragmentInstanceList);
-
-	static void BatchSetEntityFragmentsValues(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, TArrayView<const FInstancedStruct> FragmentInstanceList);
 
 	// Return true if it is an valid built entity
 	bool IsEntityActive(FMassEntityHandle Entity) const 
@@ -666,14 +650,6 @@ private:
 	UE::Mass::FSingleThreadedEntityStorage& GetEntityStorageInterface();
 	const UE::Mass::FSingleThreadedEntityStorage& GetEntityStorageInterface() const;
 #endif
-
-	/** 
-	 * If ActiveCreationContext is not valid the function creates a new shared FEntityCreationContext instance and returns that.
-	 * Otherwise ActiveCreationContext will get extended with ReservedEntities and returned by the function.
-	 */
-	TSharedRef<FEntityCreationContext> GetOrMakeCreationContext(TConstArrayView<FMassEntityHandle> ReservedEntities = {});
-	bool IsDuringEntityCreation() const { return ActiveCreationContext.IsValid(); }
-	void DirtyCreationContext();
 	
 private:
 
@@ -683,9 +659,6 @@ private:
 		UE::Mass::FSingleThreadedEntityStorage,
 		UE::Mass::FConcurrentEntityStorage>;
 	FEntityStorageContainerType EntityStorage;
-
-	/** Never access directly, use GetOrMakeCreationContext instead. */
-	TWeakPtr<FEntityCreationContext> ActiveCreationContext;
 
 	std::atomic<bool> bCommandBufferFlushingInProgress = false;
 	/**

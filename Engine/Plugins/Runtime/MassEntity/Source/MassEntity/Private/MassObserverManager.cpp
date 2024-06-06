@@ -84,11 +84,6 @@ void FMassObserverManager::Initialize()
 
 bool FMassObserverManager::OnPostEntitiesCreated(const FMassArchetypeEntityCollection& EntityCollection)
 {
-	return OnPostEntitiesCreated(MakeArrayView(&EntityCollection , 1));
-}
-
-bool FMassObserverManager::OnPostEntitiesCreated(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections)
-{
 	FMassProcessingContext ProcessingContext(EntityManager, /*DeltaSeconds=*/0.f);
 	// requesting not to flush commands since handling creation of new entities can result in multiple collections of
 	// processors being executed and flushing commands between these runs would ruin EntityCollection since entities could
@@ -96,7 +91,7 @@ bool FMassObserverManager::OnPostEntitiesCreated(TConstArrayView<FMassArchetypeE
 	ProcessingContext.bFlushCommandBuffer = false;
 	ProcessingContext.CommandBuffer = MakeShareable(new FMassCommandBuffer());
 
-	if (OnPostEntitiesCreated(ProcessingContext, EntityCollections))
+	if (OnPostEntitiesCreated(ProcessingContext, EntityCollection))
 	{
 		EntityManager.FlushCommands(ProcessingContext.CommandBuffer);
 		return true;
@@ -104,27 +99,14 @@ bool FMassObserverManager::OnPostEntitiesCreated(TConstArrayView<FMassArchetypeE
 	return false;
 }
 
-// DEPRECATED
 bool FMassObserverManager::OnPostEntitiesCreated(FMassProcessingContext& ProcessingContext, const FMassArchetypeEntityCollection& EntityCollection)
-{
-	return OnPostEntitiesCreated(ProcessingContext, MakeArrayView(&EntityCollection, 1));
-}
-
-bool FMassObserverManager::OnPostEntitiesCreated(FMassProcessingContext& ProcessingContext, TConstArrayView<FMassArchetypeEntityCollection> EntityCollections)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("OnPostEntitiesCreated")
 
 	check(ProcessingContext.EntityManager);
+	const FMassArchetypeCompositionDescriptor& ArchetypeComposition = ProcessingContext.EntityManager->GetArchetypeComposition(EntityCollection.GetArchetype());
 
-	bool bReturnValue = false;
-
-	for (const FMassArchetypeEntityCollection& Collection : EntityCollections)
-	{
-		const FMassArchetypeCompositionDescriptor& ArchetypeComposition = ProcessingContext.EntityManager->GetArchetypeComposition(Collection.GetArchetype());
-		bReturnValue = OnCompositionChanged(ProcessingContext, Collection, ArchetypeComposition, EMassObservedOperation::Add) || bReturnValue;
-	}
-
-	return bReturnValue;
+	return OnCompositionChanged(ProcessingContext, EntityCollection, ArchetypeComposition, EMassObservedOperation::Add);
 }
 
 bool FMassObserverManager::OnPreEntitiesDestroyed(const FMassArchetypeEntityCollection& EntityCollection)
@@ -258,7 +240,7 @@ void FMassObserverManager::HandleFragmentsImpl(FMassProcessingContext& Processin
 		ProcessingContext.AuxData.InitializeAs(Type);
 		FMassRuntimePipeline& Pipeline = (*HandlersContainer).FindChecked(Type);
 
-		UE::Mass::Executor::RunProcessorsView(Pipeline.GetMutableProcessors(), ProcessingContext, MakeArrayView(&EntityCollection, 1));
+		UE::Mass::Executor::RunProcessorsView(Pipeline.GetMutableProcessors(), ProcessingContext, &EntityCollection);
 	}
 }
 
@@ -271,7 +253,7 @@ void FMassObserverManager::HandleSingleEntityImpl(const UScriptStruct& FragmentT
 	ProcessingContext.AuxData.InitializeAs(&FragmentType);
 	FMassRuntimePipeline& Pipeline = (*HandlersContainer).FindChecked(&FragmentType);
 
-	UE::Mass::Executor::RunProcessorsView(Pipeline.GetMutableProcessors(), ProcessingContext, MakeArrayView(&EntityCollection, 1));
+	UE::Mass::Executor::RunProcessorsView(Pipeline.GetMutableProcessors(), ProcessingContext, &EntityCollection);
 }
 
 void FMassObserverManager::AddObserverInstance(const UScriptStruct& FragmentOrTagType, const EMassObservedOperation Operation, UMassProcessor& ObserverProcessor)
