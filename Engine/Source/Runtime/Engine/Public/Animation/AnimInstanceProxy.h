@@ -11,6 +11,7 @@
 #include "Animation/AnimClassInterface.h"
 #include "Animation/AnimTrace.h"
 #include "Animation/AnimSync.h"
+#include "Animation/AnimInertializationRequest.h"
 
 #include "AnimInstanceProxy.generated.h"
 
@@ -45,6 +46,7 @@ namespace UE::Anim
 	class FAnimSyncGroupScope;
 	class FActiveStateMachineScope;
 	struct FAnimSyncParams;
+	// DEPRECATED use FInertializationRequest instead
 	using FSlotInertializationRequest = TPair<float, const UBlendProfile*>;
 }
 
@@ -423,7 +425,10 @@ public:
 	// Allow slot nodes to store off their weight during ticking
 	ENGINE_API void UpdateSlotNodeWeight(const FName& SlotNodeName, float InLocalMontageWeight, float InNodeGlobalWeight);
 
+	UE_DEPRECATED(5.5, "Please use GetSlotInertializationRequestData instead.")
 	ENGINE_API bool GetSlotInertializationRequest(const FName& SlotName, UE::Anim::FSlotInertializationRequest& OutRequest);
+
+	ENGINE_API bool GetSlotInertializationRequestData(const FName& SlotName, FInertializationRequest& OutRequest);
 
 	/** Register a named slot */
 	ENGINE_API void RegisterSlotNodeWithAnimInstance(const FName& SlotNodeName);
@@ -772,7 +777,10 @@ protected:
 		Note that there might be multiple Active at the same time. This will only return the first active one it finds. **/
 	ENGINE_API const FMontageEvaluationState* GetActiveMontageEvaluationState() const;
 
+	UE_DEPRECATED(5.5, "Please use GetSlotGroupInertializationRequestDataMap instead.")
 	ENGINE_API TMap<FName, UE::Anim::FSlotInertializationRequest>& GetSlotGroupInertializationRequestMap();
+	
+	ENGINE_API TMap<FName, FInertializationRequest>& GetSlotGroupInertializationRequestDataMap();
 
 	/** Access montage array data */
 	ENGINE_API TArray<FMontageEvaluationState>& GetMontageEvaluationData();
@@ -1122,8 +1130,12 @@ private:
 	/** Copy of UAnimInstance::MontageInstances data used for update & evaluation */
 	TArray<FMontageEvaluationState> MontageEvaluationData;
 
-	// Inertialization request for each slot.
+	UE_DEPRECATED(5.5, "This property is deprecated. Please use SlotGroupInertializationRequestDataMap instead")
 	TMap<FName, UE::Anim::FSlotInertializationRequest> SlotGroupInertializationRequestMap;
+
+	// Inertialization request for each slot.
+	UPROPERTY(Transient)
+	TMap<FName, FInertializationRequest> SlotGroupInertializationRequestDataMap;
 
 	/** Delegate fired on the game thread before update occurs */
 	TArray<FAnimNode_Base*> GameThreadPreUpdateNodes;

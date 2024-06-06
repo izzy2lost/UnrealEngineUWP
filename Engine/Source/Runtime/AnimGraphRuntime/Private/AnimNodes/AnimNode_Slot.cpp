@@ -43,21 +43,18 @@ void FAnimNode_Slot::Update_AnyThread(const FAnimationUpdateContext& Context)
 	// Update cache in AnimInstance.
 	Context.AnimInstanceProxy->UpdateSlotNodeWeight(SlotName, WeightData.SlotNodeWeight, Context.GetFinalBlendWeight());
 
-	UE::Anim::FSlotInertializationRequest InertializationRequest;
-	if (Context.AnimInstanceProxy->GetSlotInertializationRequest(SlotName, InertializationRequest))
+	FInertializationRequest InertializationRequest;
+	if (Context.AnimInstanceProxy->GetSlotInertializationRequestData(SlotName, InertializationRequest))
 	{
 		UE::Anim::IInertializationRequester* InertializationRequester = Context.GetMessage<UE::Anim::IInertializationRequester>();
 		if (InertializationRequester)
 		{
-			FInertializationRequest Request;
-			Request.Duration = InertializationRequest.Get<0>();
-			Request.BlendProfile = InertializationRequest.Get<1>();
 #if ANIM_TRACE_ENABLED
-			Request.NodeId = Context.GetCurrentNodeId();
-			Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
+			InertializationRequest.NodeId = Context.GetCurrentNodeId();
+			InertializationRequest.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
 #endif
 
-			InertializationRequester->RequestInertialization(Request);
+			InertializationRequester->RequestInertialization(InertializationRequest);
 		}
 		else
 		{
