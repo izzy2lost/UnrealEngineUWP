@@ -122,6 +122,17 @@ void FNavTestSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>&
 						NavTestActor->RadiusUsedToValidateNavData, 0.5f*Distance + NavTestActor->RadiusUsedToValidateNavData,  
 						NumSides, SDPG_World);
 				}
+
+				if (NavTestActor->bDrawRaycastToQueryTargetActor && NavTestActor->QueryTargetActor)
+				{
+					const FVector QueryTargetLocation = NavTestActor->QueryTargetActor->GetActorLocation();
+					PDI->DrawLine(ActorLocation, QueryTargetLocation, NavTestActor->bRaycastToQueryTargetActorResult ? FColor::Red : FColor::Green, SDPG_World, 2.5);
+
+					if (FNavigationSystem::IsValidLocation(NavTestActor->RaycastHitLocation))
+					{
+						DrawWireSphere(PDI, NavTestActor->RaycastHitLocation, FColor::Red, 25.f, 6, SDPG_World);
+					}
+				}
 			}
 
 			// draw path

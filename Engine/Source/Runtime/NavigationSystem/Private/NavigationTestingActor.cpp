@@ -55,8 +55,10 @@ ANavigationTestingActor::ANavigationTestingActor(const FObjectInitializer& Objec
 	bGatherDetailedInfo = true;
 	bDrawDistanceToWall = false;
 	ClosestWallLocation = FNavigationSystem::InvalidLocation;
+	RaycastHitLocation = FNavigationSystem::InvalidLocation;
 	bNavDataIsReadyInRadius = false;
 	bNavDataIsReadyToQueryTargetActor = false;
+	bRaycastToQueryTargetActorResult = false;
 	OffsetFromCornersDistance = 0.f;
 
 	QueryingExtent = FVector(DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_VERTICAL);
@@ -140,6 +142,7 @@ void ANavigationTestingActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	static const FName NAME_QueryTargetActor = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, QueryTargetActor);
 	static const FName NAME_IsSearchStart = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, bSearchStart);
 	static const FName NAME_InvokerComponent = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, InvokerComponent);
+	static const FName NAME_FilterClass = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, FilterClass);
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -189,17 +192,12 @@ void ANavigationTestingActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 				}
 			}
 
-			if (bDrawDistanceToWall)
+			UpdateLocalQueries();
+			UpdateTargetActorQueries();
+
+			if (ChangedPropName == NAME_FilterClass)
 			{
-				ClosestWallLocation = FindClosestWallLocation();
-			}
-			if (bDrawIfNavDataIsReadyInRadius)
-			{
-				bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
-			}
-			if (bDrawIfNavDataIsReadyToQueryTargetActor)
-			{
-				bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
+				UpdatePathfinding();
 			}
 		}
 		else if (ChangedCategory == TEXT("Pathfinding"))
@@ -279,20 +277,8 @@ void ANavigationTestingActor::PostEditMove(bool bFinished)
 			UpdatePathfinding();
 		}
 
-		if (bDrawDistanceToWall)
-		{
-			ClosestWallLocation = FindClosestWallLocation();
-		}
-
-		if (bDrawIfNavDataIsReadyInRadius)
-		{
-			bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
-		}
-
-		if (bDrawIfNavDataIsReadyToQueryTargetActor)
-		{
-			bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
-		}
+		UpdateLocalQueries();
+		UpdateTargetActorQueries();
 	}
 }
 
@@ -422,6 +408,30 @@ void ANavigationTestingActor::UpdatePathfinding()
 	}
 }
 
+void ANavigationTestingActor::UpdateLocalQueries()
+{
+	if (bDrawDistanceToWall)
+	{
+		ClosestWallLocation = FindClosestWallLocation();
+	}
+	if (bDrawIfNavDataIsReadyInRadius)
+	{
+		bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
+	}
+}
+
+void ANavigationTestingActor::UpdateTargetActorQueries()
+{
+	if (bDrawIfNavDataIsReadyToQueryTargetActor)
+	{
+		bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
+	}
+	if (bDrawRaycastToQueryTargetActor)
+	{
+		bRaycastToQueryTargetActorResult = CheckRaycastToActor(QueryTargetActor, RaycastHitLocation);
+	}
+}
+
 FVector ANavigationTestingActor::FindClosestWallLocation() const
 {
 #if WITH_EDITORONLY_DATA
@@ -486,12 +496,29 @@ bool ANavigationTestingActor::CheckIfNavDataIsReadyToActor(const AActor* TargetA
 	return false;
 }
 
+bool ANavigationTestingActor::CheckRaycastToActor(const AActor* TargetActor, FVector& OutHitLocation)
+{
+	OutHitLocation = FNavigationSystem::InvalidLocation;
+#if WITH_EDITORONLY_DATA
+	if (EdRenderComp)
+	{
+		EdRenderComp->MarkRenderStateDirty();
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	UpdateNavData();
+	if (MyNavData && TargetActor)
+	{
+		FSharedConstNavQueryFilter Filter = UNavigationQueryFilter::GetQueryFilter(*MyNavData, this, FilterClass);
+		return MyNavData->Raycast(GetActorLocation(), TargetActor->GetActorLocation(), OutHitLocation, Filter, this);
+	}
+
+	return false;
+}
+
 void ANavigationTestingActor::OnQueryTargetActorTransformUpdated(USceneComponent* InRootComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
-	if (bDrawIfNavDataIsReadyToQueryTargetActor)
-	{
-		bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
-	}
+	UpdateTargetActorQueries();
 }
 
 void ANavigationTestingActor::SearchPathTo(ANavigationTestingActor* Goal)
