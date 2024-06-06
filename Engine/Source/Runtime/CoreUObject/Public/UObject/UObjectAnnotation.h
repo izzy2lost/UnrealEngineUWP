@@ -106,8 +106,6 @@ private:
 					else
 					{
 						AnnotationMap.Add(Object, LocalAnnotation);
-						AnnotationCacheKey = nullptr;
-						AnnotationCacheValue = TAnnotation();
 					}
 				};
 
