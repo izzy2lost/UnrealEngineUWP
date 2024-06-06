@@ -646,6 +646,27 @@ namespace EpicGames.UHT.Types
 	{
 
 		/// <summary>
+		/// For nested properties, this points to the parent
+		/// </summary>
+		public UhtPropertySettings? ParentSettings { get; set; } = null;
+
+		/// <summary>
+		/// The root settings for a nested property
+		/// </summary>
+		public UhtPropertySettings RootSettings
+		{
+			get
+			{
+				UhtPropertySettings settings = this;
+				while (settings.ParentSettings != null)
+				{
+					settings = settings.ParentSettings;
+				}
+				return settings;
+			}
+		}
+
+		/// <summary>
 		/// Source name of the property
 		/// </summary>
 		public string SourceName { get; set; } = String.Empty;
@@ -758,6 +779,7 @@ namespace EpicGames.UHT.Types
 		/// <param name="messageSite">Message site used to construct meta data object</param>
 		public void Reset(UhtPropertySettings parentPropertySettings, string sourceName, IUhtMessageSite messageSite)
 		{
+			ParentSettings = parentPropertySettings;
 			SourceName = sourceName;
 			EngineName = sourceName;
 			MetaData = new UhtMetaData(messageSite, parentPropertySettings.Outer.Session.Config);
@@ -788,6 +810,7 @@ namespace EpicGames.UHT.Types
 		/// <param name="disallowPropertyFlags">Property flags that are not allowed</param>
 		public void Reset(UhtType outer, int lineNumber, UhtPropertyCategory propertyCategory, EPropertyFlags disallowPropertyFlags)
 		{
+			ParentSettings = null;
 			SourceName = String.Empty;
 			EngineName = String.Empty;
 			MetaData = new UhtMetaData(outer, outer.Session.Config);
@@ -820,6 +843,7 @@ namespace EpicGames.UHT.Types
 			{
 				throw new UhtIceException("Property must have an outer specified");
 			}
+			ParentSettings = null;
 			SourceName = property.SourceName;
 			EngineName = property.EngineName;
 			MetaData = property.MetaData;
@@ -1038,6 +1062,27 @@ namespace EpicGames.UHT.Types
 		/// </summary>
 		[JsonIgnore]
 		public bool IsEditorOnlyProperty => PropertyFlags.HasAnyFlags(EPropertyFlags.EditorOnly);
+
+		/// <summary>
+		/// Return the root property for the given property.  If the property is outside of a container, 
+		/// return the property itself.  Otherwise, return the property associated with the container.
+		/// </summary>
+		public UhtProperty RootProperty
+		{
+			get
+			{
+				UhtProperty root = this;
+				while (true)
+				{
+					UhtProperty? outer = root.Outer as UhtProperty;
+					if (outer == null)
+					{
+						return root;
+					}
+					root = outer;
+				}
+			}
+		}
 
 		/// <summary>
 		/// Construct a new property
