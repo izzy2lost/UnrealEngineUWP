@@ -848,7 +848,11 @@ void URigVMEdGraphNode::RemoveGraphSubPins(UEdGraphPin* InParentPin, const TArra
 
 		CachedPins.Remove(ModelSubPin);
 	}
-	InParentPin->SubPins.Reset();
+	
+	InParentPin->SubPins.RemoveAll([InPinsToKeep](const UEdGraphPin* Pin) -> bool
+	{
+		return !InPinsToKeep.Contains(Pin);
+	});
 }
 
 bool URigVMEdGraphNode::ModelPinsChanged(bool bForce)
