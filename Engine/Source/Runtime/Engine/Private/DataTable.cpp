@@ -470,6 +470,26 @@ void UDataTable::AddRow(FName RowName, const FTableRowBase& RowData)
 	AddRowInternal(RowName, NewRawRowData);
 }
 
+void UDataTable::AddRow(FName RowName, const uint8* RowData, const UScriptStruct* RowType)
+{
+	DATATABLE_CHANGE_SCOPE();
+
+	UScriptStruct& EmptyUsingStruct = GetEmptyUsingStruct();
+
+	checkf(RowType == &EmptyUsingStruct, TEXT("AddRow called with an incompatible row type! Got '%s', but expected '%s'"), *RowType->GetPathName(), *EmptyUsingStruct.GetPathName());
+
+	// We want to delete the row memory even for child classes that override remove
+	RemoveRowInternal(RowName);
+
+	uint8* NewRawRowData = (uint8*)FMemory::Malloc(EmptyUsingStruct.GetStructureSize());
+
+	EmptyUsingStruct.InitializeStruct(NewRawRowData);
+	EmptyUsingStruct.CopyScriptStruct(NewRawRowData, RowData);
+
+	// Add to map
+	AddRowInternal(RowName, NewRawRowData);
+}
+
 void UDataTable::AddRowInternal(FName RowName, uint8* RowData)
 {
 	RowMap.Add(RowName, RowData);

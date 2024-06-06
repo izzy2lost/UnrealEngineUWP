@@ -323,6 +323,7 @@ public:
 
 	/** Copies RowData into table. That is: create Row if not found and copy data into the RowMap based on RowData. This is a "copy in" operation, so changing the passed in RowData after the fact does nothing. */
 	ENGINE_API virtual void AddRow(FName RowName, const FTableRowBase& RowData);
+	ENGINE_API virtual void AddRow(FName RowName, const uint8* RowData, const UScriptStruct* RowType);
 
 #if WITH_EDITOR
 	ENGINE_API virtual void CleanBeforeStructChange();

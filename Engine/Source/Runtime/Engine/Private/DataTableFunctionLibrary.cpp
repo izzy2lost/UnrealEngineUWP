@@ -95,6 +95,57 @@ bool UDataTableFunctionLibrary::GetDataTableRowFromName(UDataTable* Table, FName
 	return false;
 }
 
+DEFINE_FUNCTION(UDataTableFunctionLibrary::execGetDataTableRowFromName)
+{
+    P_GET_OBJECT(UDataTable, Table);
+    P_GET_PROPERTY(FNameProperty, RowName);
+        
+    Stack.StepCompiledIn<FStructProperty>(NULL);
+    void* OutRowPtr = Stack.MostRecentPropertyAddress;
+
+	P_FINISH;
+	bool bSuccess = false;
+		
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+	if (!Table)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AccessViolation,
+			NSLOCTEXT("GetDataTableRow", "MissingTableInput", "Failed to resolve the table input. Be sure the DataTable is valid.")
+		);
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if(StructProp && OutRowPtr)
+	{
+		UScriptStruct* OutputType = StructProp->Struct;
+		const UScriptStruct* TableType  = Table->GetRowStruct();
+		
+		if (OutputType == TableType)
+		{
+			P_NATIVE_BEGIN;
+			bSuccess = Generic_GetDataTableRowFromName(Table, RowName, OutRowPtr);
+			P_NATIVE_END;
+		}
+		else
+		{
+			FBlueprintExceptionInfo ExceptionInfo(
+				EBlueprintExceptionType::AccessViolation,
+				FText::Format(NSLOCTEXT("GetDataTableRow", "IncompatibleProperty", "Incompatible output parameter; the data table's type ({0}) is not the same as the return type ({1})."), FText::AsCultureInvariant(GetPathNameSafe(TableType)), FText::AsCultureInvariant(OutputType->GetPathName()))
+				);
+			FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+		}
+	}
+	else
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AccessViolation,
+			NSLOCTEXT("GetDataTableRow", "MissingOutputProperty", "Failed to resolve the output parameter for GetDataTableRow.")
+		);
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	*(bool*)RESULT_PARAM = bSuccess;
+}
+
 void UDataTableFunctionLibrary::GetDataTableRowNames(const UDataTable* Table, TArray<FName>& OutRowNames)
 {
 	if (Table)
@@ -326,6 +377,7 @@ void UDataTableFunctionLibrary::AddDataTableRow(UDataTable* const DataTable, con
 		return;
 	}
 
+	DataTable->Modify();
 	DataTable->AddRow(RowName, RowData);
 }
 
@@ -338,7 +390,7 @@ DEFINE_FUNCTION(UDataTableFunctionLibrary::execAddDataTableRow)
 	Stack.MostRecentPropertyContainer = nullptr;
 	Stack.StepCompiledIn<FStructProperty>(nullptr);
 
-	const FTableRowBase* const RowData = reinterpret_cast<FTableRowBase*>(Stack.MostRecentPropertyAddress);
+	const uint8* const RowData = Stack.MostRecentPropertyAddress;
 	const FStructProperty* const StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
 
 	P_FINISH;
@@ -357,19 +409,18 @@ DEFINE_FUNCTION(UDataTableFunctionLibrary::execAddDataTableRow)
 		const UScriptStruct* const TableType = DataTable->GetRowStruct();
 
 		// If the row type is compatible with the table type ...
-		const bool bIsTableRow = RowType->IsChildOf(FTableRowBase::StaticStruct());
-		const bool bMatchesTableType = RowType == TableType;
-		if (bIsTableRow && (bMatchesTableType || (RowType->IsChildOf(TableType) && FStructUtils::TheSameLayout(RowType, TableType))))
+		if (RowType == TableType)
 		{
 			P_NATIVE_BEGIN;
-			AddDataTableRow(DataTable, RowName, *RowData);
+			DataTable->Modify();
+			DataTable->AddRow(RowName, RowData, RowType);
 			P_NATIVE_END;
 		}
 		else
 		{
 			FBlueprintExceptionInfo ExceptionInfo(
 				EBlueprintExceptionType::AccessViolation,
-				NSLOCTEXT("AddDataTableRow", "IncompatibleProperty", "The data table type is incompatible with the RowData parameter.")
+				FText::Format(NSLOCTEXT("AddDataTableRow", "IncompatibleProperty", "Incompatible RowData parameter; the data table's type ({0}) is not the same as the RowData type ({1})."), FText::AsCultureInvariant(GetPathNameSafe(TableType)), FText::AsCultureInvariant(RowType->GetPathName()))
 			);
 			FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
 		}

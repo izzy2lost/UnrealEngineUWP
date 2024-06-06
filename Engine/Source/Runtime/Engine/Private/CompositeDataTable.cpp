@@ -198,6 +198,11 @@ void UCompositeDataTable::AddRow(FName RowName, const FTableRowBase& RowData)
 	// do nothing
 }
 
+void UCompositeDataTable::AddRow(FName RowName, const uint8* RowData, const UScriptStruct* RowType)
+{
+	// do nothing
+}
+
 void UCompositeDataTable::Serialize(FArchive& Ar)
 {
 	if (Ar.IsLoading())
