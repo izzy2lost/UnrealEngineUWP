@@ -341,7 +341,7 @@ bool FValueOrBBKey_Class::SerializeFromMismatchedTag(const FPropertyTag& Tag, FS
 
 bool FValueOrBBKey_Enum::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
-	if (Tag.Type == NAME_EnumProperty || Tag.Type == NAME_ByteProperty || Tag.Type == NAME_Int8Property)
+	if (Tag.Type == NAME_EnumProperty)
 	{
 		Slot << DefaultValue;
 		return true;
