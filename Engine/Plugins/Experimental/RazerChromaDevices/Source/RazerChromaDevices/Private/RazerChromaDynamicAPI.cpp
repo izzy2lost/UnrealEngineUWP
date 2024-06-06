@@ -26,6 +26,7 @@ FRazerChromaEditorDynamicAPI::DELETEEFFECT FRazerChromaEditorDynamicAPI::DeleteE
 FRazerChromaEditorDynamicAPI::SETIDLEANIMATION FRazerChromaEditorDynamicAPI::SetIdleAnimation = nullptr;
 FRazerChromaEditorDynamicAPI::USEIDLEANIMATIONS FRazerChromaEditorDynamicAPI::SetUseIdleAnimations = nullptr;
 FRazerChromaEditorDynamicAPI::STOPALLANIMATIONS FRazerChromaEditorDynamicAPI::StopAllAnimations = nullptr;
+FRazerChromaEditorDynamicAPI::CLOSEALL FRazerChromaEditorDynamicAPI::CloseAll = nullptr;
 FRazerChromaEditorDynamicAPI::PAUSEANIMATION FRazerChromaEditorDynamicAPI::PauseAnimation = nullptr;
 FRazerChromaEditorDynamicAPI::RESUMEANIMATION FRazerChromaEditorDynamicAPI::ResumeAnimation = nullptr;
 FRazerChromaEditorDynamicAPI::ISANIMATIONPLAYING FRazerChromaEditorDynamicAPI::IsAnimationPlaying = nullptr;
@@ -65,7 +66,8 @@ bool FRazerChromaEditorDynamicAPI::LoadAPI(void* RazerChromaEditorDLLHandle)
 	FRazerChromaEditorDynamicAPI::DeleteEffect = reinterpret_cast<DELETEEFFECT>(GetProcAddress(RazerModule, "PluginCoreDeleteEffect"));
 	FRazerChromaEditorDynamicAPI::SetIdleAnimation = reinterpret_cast<SETIDLEANIMATION>(GetProcAddress(RazerModule, "PluginSetIdleAnimation"));
 	FRazerChromaEditorDynamicAPI::SetUseIdleAnimations = reinterpret_cast<USEIDLEANIMATIONS>(GetProcAddress(RazerModule, "PluginUseIdleAnimations"));
-	FRazerChromaEditorDynamicAPI::StopAllAnimations = reinterpret_cast<STOPALLANIMATIONS>(GetProcAddress(RazerModule, "PluginStopAll"));
+	FRazerChromaEditorDynamicAPI::StopAllAnimations = reinterpret_cast<STOPALLANIMATIONS>(GetProcAddress(RazerModule, "PluginStopAll"));	
+	FRazerChromaEditorDynamicAPI::CloseAll = reinterpret_cast<CLOSEALL>(GetProcAddress(RazerModule, "PluginCloseAll"));
 	FRazerChromaEditorDynamicAPI::PauseAnimation = reinterpret_cast<PAUSEANIMATION>(GetProcAddress(RazerModule, "PluginPauseAnimation"));
 	FRazerChromaEditorDynamicAPI::ResumeAnimation = reinterpret_cast<RESUMEANIMATION>(GetProcAddress(RazerModule, "PluginResumeAnimation"));
 	FRazerChromaEditorDynamicAPI::IsAnimationPlaying = reinterpret_cast<ISANIMATIONPLAYING>(GetProcAddress(RazerModule, "PluginIsPlaying"));
@@ -93,6 +95,7 @@ bool FRazerChromaEditorDynamicAPI::LoadAPI(void* RazerChromaEditorDLLHandle)
 		FRazerChromaEditorDynamicAPI::SetIdleAnimation && 
 		FRazerChromaEditorDynamicAPI::SetUseIdleAnimations && 
 		FRazerChromaEditorDynamicAPI::StopAllAnimations && 
+		FRazerChromaEditorDynamicAPI::CloseAll &&
 		FRazerChromaEditorDynamicAPI::PauseAnimation && 
 		FRazerChromaEditorDynamicAPI::ResumeAnimation &&
 		FRazerChromaEditorDynamicAPI::IsAnimationPlaying &&

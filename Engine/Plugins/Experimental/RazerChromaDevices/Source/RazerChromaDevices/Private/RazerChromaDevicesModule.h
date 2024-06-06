@@ -38,6 +38,11 @@ protected:
      */
     bool IsChromaAvailable() const;
 
+	/**
+	* Cleans up the SDK and all currently playing animations.
+	*/
+	void CleanupSDK();
+
 	/** Handle to the Razer Chroma dynamic DLL */
 	void* RazerChromaEditorDLLHandle = nullptr;
 

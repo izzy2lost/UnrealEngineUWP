@@ -66,6 +66,8 @@ struct FRazerChromaEditorDynamicAPI
 
 	typedef void (*STOPALLANIMATIONS)();
 
+	typedef void (*CLOSEALL)();
+
 	typedef void (*PAUSEANIMATION)(int32 animationId);
 
 	typedef void (*RESUMEANIMATION)(int32 animationId, bool loop);
@@ -114,6 +116,10 @@ struct FRazerChromaEditorDynamicAPI
 
 	// Stops all animations that are currently playing
 	static STOPALLANIMATIONS StopAllAnimations;
+
+	// Closes all open animations so they can be reloaded from disk.
+	// You should call this on application shutdown
+	static CLOSEALL CloseAll;
 
 	// Pauses the animation with the given int32 id
 	static PAUSEANIMATION PauseAnimation;

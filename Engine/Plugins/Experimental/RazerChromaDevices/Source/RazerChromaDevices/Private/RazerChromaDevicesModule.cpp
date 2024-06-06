@@ -255,13 +255,13 @@ void FRazerChromaDeviceModule::ShutdownModule()
 
 #if RAZER_CHROMA_SUPPORT
 
+	// Modular feature is no longer available
 	IModularFeatures::Get().UnregisterModularFeature(UE::RazerChroma::FeatureName, this);
 
-	if (FRazerChromaEditorDynamicAPI::UnInit)
-	{
-		FRazerChromaEditorDynamicAPI::UnInit();
-	}
-	
+	// Run some razer chroma specific cleanup
+	CleanupSDK();
+
+	// Free the DLL handle from the process
 	if (RazerChromaEditorDLLHandle)
 	{
 		FPlatformProcess::FreeDllHandle(RazerChromaEditorDLLHandle);
@@ -292,6 +292,42 @@ TSharedPtr<IInputDevice> FRazerChromaDeviceModule::CreateInputDevice(const TShar
 }
 
 #if RAZER_CHROMA_SUPPORT
+
+void FRazerChromaDeviceModule::CleanupSDK()
+{
+	// Disable idle animations
+	if (FRazerChromaEditorDynamicAPI::SetUseIdleAnimations)
+	{
+		FRazerChromaEditorDynamicAPI::SetUseIdleAnimations(false);
+	}
+
+	// Stop playing all animations
+	if (FRazerChromaEditorDynamicAPI::StopAllAnimations)
+	{
+		FRazerChromaEditorDynamicAPI::StopAllAnimations();
+	}
+
+	// Return any animations to disk
+	if (FRazerChromaEditorDynamicAPI::CloseAll)
+	{
+		FRazerChromaEditorDynamicAPI::CloseAll();
+	}
+
+	// Finally, UnInit the whole sdk
+	if (FRazerChromaEditorDynamicAPI::UnInit)
+	{
+		FRazerChromaEditorDynamicAPI::UnInit();
+	}
+
+	// Doing all of the above _should_ reset the state of Razer peripherals to the user's
+	// default settings and make sure that the application is correctly removed from Razer Synapse...
+
+	UE_LOG(LogRazerChroma,
+		Log,
+		TEXT("[%hs] Razer Chroma Editor library cleaned up."),
+		__func__);
+}
+
 bool FRazerChromaDeviceModule::IsChromaAvailable() const
 {
 	return RazerChromaEditorDLLHandle != nullptr && bLoadedDynamicAPISuccessfully;
@@ -305,10 +341,7 @@ void FRazerChromaDeviceModule::ForceReinitalize()
 	}
 
 	// Force Uninit...
-	if (FRazerChromaEditorDynamicAPI::UnInit)
-	{
-		FRazerChromaEditorDynamicAPI::UnInit();
-	}
+	CleanupSDK();
 
 	// And re-init
 	const RZRESULT Res = UE::RazerChroma::InitChromaSDK();
