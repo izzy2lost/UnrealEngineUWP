@@ -547,7 +547,7 @@ extern "C"
 			return nullptr;
 		}
 		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
-		info.apply(GetConfig);
+		info.Apply(GetConfig);
 
 		info.reportMissReason = reportMissReason;
 		return new CacheClient(info);
