@@ -11,6 +11,17 @@
 struct FLiveLinkSubjectFrameData;
 struct FLiveLinkSubjectKey;
 
+/** What action should be taken when a bone name conflict happens between a parent and a child subject. */
+UENUM()
+enum class EBoneTransformResolution
+{
+	/** Keep parent bone transform. */
+	KeepParent,
+	/** Keep child bone transform. */
+	KeepChild,
+	/** Combine the child and parent's bone transforms. */
+	Combine
+};
 
 /** A Skeleton virtual subject is an assembly of different subjects supporting the animation role */
 UCLASS(meta=(DisplayName="Animation Virtual Subject"))
@@ -61,6 +72,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LiveLink")
 	TArray<FLiveLinkVirtualSubjectBoneAttachment> Attachments;
 
+	/** What should happen to the location of a bone when there's a conflict between the child and parent subject. */
+	UPROPERTY(EditAnywhere, Category = "LiveLink")
+	EBoneTransformResolution LocationBehavior = EBoneTransformResolution::Combine;
+
+	/** What should happen to the rotation of a bone when there's a conflict between the child and parent subject. */
+	UPROPERTY(EditAnywhere, Category = "LiveLink")
+	EBoneTransformResolution RotationBehavior = EBoneTransformResolution::Combine;
+
 	/** Whether to append SubjectName to each bones part of the virtual hierarchy */
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	bool bAppendSubjectNameToBones;
@@ -73,10 +92,6 @@ private:
 		int32 ParentBone = INDEX_NONE;
 		/** Offset of the child bone to its parent bone. */
 		FTransform Offset = FTransform::Identity;
-		/** Whether to ignore parent location when offsetting the child bone relative to its parent. */
-		bool bIgnoreParentLocation = false;
-		/** Whether to ignore parent rotation when offsetting the child bone relative to its parent. */
-		bool bIgnoreParentRotation = false;
 	};
 
 	/** Map of global child indices to their respective bone info structure.  */

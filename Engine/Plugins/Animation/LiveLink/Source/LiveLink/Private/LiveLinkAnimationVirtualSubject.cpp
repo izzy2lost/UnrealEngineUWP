@@ -331,8 +331,6 @@ void ULiveLinkAnimationVirtualSubject::ProcessAttachmentsForStaticData(TArray<in
 			FChildBoneInfo ChildBoneInfo;
 			ChildBoneInfo.Offset = Offset;
 			ChildBoneInfo.ParentBone = GlobalParentIndex;
-			ChildBoneInfo.bIgnoreParentLocation = Attachment.bIgnoreParentLocation;
-			ChildBoneInfo.bIgnoreParentRotation = Attachment.bIgnoreParentRotation;
 
 			ChildBonesInfo.Add(GlobalChildIndex, MoveTemp(ChildBoneInfo));
 		}
@@ -349,23 +347,43 @@ void ULiveLinkAnimationVirtualSubject::ProcessAttachmentsForFrameData(FLiveLinkA
 
 		const FChildBoneInfo& ChildBoneInfo = ChildInfo.Value;
 
-		FTransform ParentTransform = SnapshotFrameData->Transforms[ChildBoneInfo.ParentBone];
-		FTransform ModifiedParentTransform = FTransform::Identity;
-		if (!ChildBoneInfo.bIgnoreParentLocation)
+		FTransform& ParentBoneTransform = SnapshotFrameData->Transforms[ChildInfo.Value.ParentBone];
+		FTransform& ChildBoneTransform = SnapshotFrameData->Transforms[ChildInfo.Key];
+
+		FTransform FinalBoneTransform;
+		switch(LocationBehavior)
 		{
-			ModifiedParentTransform.SetLocation(ParentTransform.GetLocation());
+			using enum EBoneTransformResolution;
+			case KeepParent:
+				FinalBoneTransform.SetLocation(ParentBoneTransform.GetLocation());
+				break;
+			case KeepChild:
+			{
+				FinalBoneTransform.SetLocation(ChildBoneTransform.GetLocation());
+				break;
+			}
+			case Combine:
+			{
+				FinalBoneTransform.SetLocation(ChildBoneTransform.TransformPosition(ParentBoneTransform.GetLocation()));
+				break;
+			}
 		}
-		if (!ChildBoneInfo.bIgnoreParentRotation)
+
+		switch(RotationBehavior)
 		{
-			ModifiedParentTransform.SetRotation(ParentTransform.GetRotation());
+			using enum EBoneTransformResolution;
+			case KeepParent:
+				FinalBoneTransform.SetRotation(ParentBoneTransform.GetRotation());
+				break;
+			case KeepChild:
+				FinalBoneTransform.SetRotation(ChildBoneTransform.GetRotation());
+				break;
+			case Combine:
+				FinalBoneTransform.SetRotation(ChildBoneTransform.TransformRotation(ParentBoneTransform.GetRotation()));
+				break;
 		}
 
-		ModifiedParentTransform.SetScale3D(ParentTransform.GetScale3D());
-
-		// Also apply an offset from the attach target to the child bone.
-		Offset = Offset * ModifiedParentTransform;
-
-		SnapshotFrameData->Transforms[ChildInfo.Key] = SnapshotFrameData->Transforms[ChildInfo.Key] * Offset;
+		ChildBoneTransform = FinalBoneTransform * Offset;
 	}
 }
 
