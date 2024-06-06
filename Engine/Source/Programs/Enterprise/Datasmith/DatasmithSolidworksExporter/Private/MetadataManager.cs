@@ -206,7 +206,6 @@ namespace DatasmithSolidworks
 
 		static private bool ExportFaceProperties(int InFaceindex, Face2 InFace, FMetadata InMetadata)
 		{
-			//InMetadata.AddPair("Face_" + InFaceindex, FDocument.GetFaceId(InFace).ToString());
 			return true;
 		}
 

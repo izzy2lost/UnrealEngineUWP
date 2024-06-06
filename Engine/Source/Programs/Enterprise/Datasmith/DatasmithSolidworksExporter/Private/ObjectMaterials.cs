@@ -5,6 +5,7 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using System.Linq;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using DatasmithSolidworks.Names;
 using static DatasmithSolidworks.Addin;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
@@ -17,6 +18,8 @@ namespace DatasmithSolidworks
 	// see "Appearance Hierarchy" in SW docs
 	public class FObjectMaterials
 	{
+		private FDocumentTracker DocumentTracker;
+
 		// Note: part document might be a different document than the owner one:
 		// for example, when loading component materials, owner will be the document 
 		// that component resides in, while part doc will be the document that component references!
@@ -31,8 +34,9 @@ namespace DatasmithSolidworks
 
 		private readonly Dictionary<int, FMaterial> GlobalMaterialsMap;  // All collected materials
 
-		public FObjectMaterials(PartDoc InPartDocument, Dictionary<int, FMaterial> InOutMaterialsMap)
+		public FObjectMaterials(FDocumentTracker InDocumentTracker, PartDoc InPartDocument, Dictionary<int, FMaterial> InOutMaterialsMap)
 		{
+			DocumentTracker = InDocumentTracker;
 			GlobalMaterialsMap = InOutMaterialsMap;
 			PartDocument = InPartDocument;
 		}
@@ -94,11 +98,11 @@ namespace DatasmithSolidworks
 			{
 				return GetMaterial(ComponentMaterialID);
 			}
-
-			uint FaceId = unchecked((uint)(InFace?.GetFaceId() ?? 0));
-			if (FDocumentTracker.IsValidFaceId(FaceId) && FaceMaterialsMap.ContainsKey(FaceId.ToString()))
+			
+			FDocumentTracker.FFaceId FaceId = DocumentTracker.GetFaceId(InFace);
+			if (FDocumentTracker.IsValidFaceId(FaceId) && FaceMaterialsMap.ContainsKey(FaceId.GetKey()))
 			{
-				int MatId = FaceMaterialsMap[FaceId.ToString()];
+				int MatId = FaceMaterialsMap[FaceId.GetKey()];
 				return GetMaterial(MatId);
 			}
 
@@ -200,7 +204,7 @@ namespace DatasmithSolidworks
 
 			object[] ObjMaterials = Ext.GetRenderMaterials2((int)InDisplayState, InDisplayStateNames);
 
-			FObjectMaterials PartMaterials = new FObjectMaterials(InPartDoc, MaterialsMap);
+			FObjectMaterials PartMaterials = new FObjectMaterials(InOwnerDoc, InPartDoc, MaterialsMap);
 
 			foreach (object ObjMat in ObjMaterials)
 			{
@@ -233,9 +237,9 @@ namespace DatasmithSolidworks
 						}
 						case IFace2 Face:
 						{
-							uint FaceId = InOwnerDoc.GetFaceId(Face);
-							LogDebug($"    Face '{Face.GetFaceId()}'");
-							PartMaterials.RegisterMaterial(PartMaterials.FaceMaterialsMap, Doc, RenderMat, FaceId.ToString());
+							FDocumentTracker.FFaceId FaceId = InOwnerDoc.GetOrAssignFaceId(Face);
+							LogDebug($"    Face '{FaceId}'");
+							PartMaterials.RegisterMaterial(PartMaterials.FaceMaterialsMap, Doc, RenderMat, FaceId.GetKey());
 							continue;
 						}
 						case IFeature Feat:
@@ -391,15 +395,16 @@ namespace DatasmithSolidworks
 
 			object[] ObjMaterials = InComponent.GetRenderMaterials2((int)InDisplayState, InDisplayStateNames);
 
-			FObjectMaterials ComponentMaterials = new FObjectMaterials(ComponentDoc as PartDoc, MaterialsMap);
+			FObjectMaterials ComponentMaterials = new FObjectMaterials(InComponentOwner, ComponentDoc as PartDoc, MaterialsMap);
 
 			if (ObjMaterials != null)
 			{
 				foreach (object ObjMat in ObjMaterials)
 				{
 					RenderMaterial RenderMat = ObjMat as RenderMaterial;
-					int NumUsers = RenderMat.GetEntitiesCount();
 
+					int NumUsers = RenderMat.GetEntitiesCount();
+					
 					LogDebug($"  FileName: {RenderMat.FileName}");
 					LogDebug($"    Users({NumUsers}):");
 
@@ -424,10 +429,12 @@ namespace DatasmithSolidworks
 							case IFace2 Face:
 							{
 								// note: plugins sets FaceId on each face to identify per-face materials later in CreateMeshData
-								uint FaceId = InComponentOwner.GetFaceId(Face);
-								LogDebug($"    Face '{Face.GetFaceId()}'");
+								FDocumentTracker.FFaceId FaceId = InComponentOwner.GetOrAssignFaceId(Face);
+								LogDebug($"    Face '{FaceId}'");
+								LogDebug($"          Body: '{((Body2)Face.GetBody())?.Name}'");
+
 								ComponentMaterials.RegisterMaterial(ComponentMaterials.FaceMaterialsMap,
-									InComponentOwner.SwDoc, RenderMat, FaceId.ToString());
+									InComponentOwner.SwDoc, RenderMat, FaceId.GetKey());
 								break;
 							}
 							case IFeature Feat:
@@ -515,6 +522,7 @@ namespace DatasmithSolidworks
 
 					if (Comp.GetModelDoc2() == null)
 					{
+						LogDedent();
 						// Component's model doc might be null if component is suppressed/lightweight (in which case we treat it as hidden)
 						// or has already been deleted
 						return false;
@@ -604,7 +612,7 @@ namespace DatasmithSolidworks
 								if (Comp.GetModelDoc2() is PartDoc CompDoc)
 								{
 									LogDebug($"        registering material for Part Component in DocMaterials");
-									FObjectMaterials ComponentMaterials = new FObjectMaterials(CompDoc, MaterialsMap);
+									FObjectMaterials ComponentMaterials = new FObjectMaterials(InAsmDoc, CompDoc, MaterialsMap);
 
 									LogIndent();
 									ComponentMaterials.SetComponentMaterial(RenderMat, InAsmDoc.SwDoc);

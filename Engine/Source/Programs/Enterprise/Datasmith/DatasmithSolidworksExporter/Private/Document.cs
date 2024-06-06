@@ -6,9 +6,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using DatasmithSolidworks.Names;
 using static DatasmithSolidworks.Addin;
+using SolidWorks.Interop.swconst;
+using static DatasmithSolidworks.FBody;
+using static DatasmithSolidworks.FDocumentTracker;
 
 namespace DatasmithSolidworks
 {
@@ -31,6 +35,28 @@ namespace DatasmithSolidworks
 
 		public uint FaceCounter = 1; // Face Id generator
 
+		// Encapsulates SW PersistentReference of a face
+		public readonly struct FFaceId
+		{
+			public readonly byte[] Value;
+			
+			public FFaceId(byte[] InValue=null)
+			{
+				Value = InValue;
+			}
+			
+			public bool IsValid()
+			{
+				return Value != null;
+			}
+			
+			// Get key to use in a dictionary
+			public string GetKey()
+			{
+				return Convert.ToBase64String(Value);
+			}
+		}
+		
 		protected FDocumentTracker(FDocument InDoc, FDatasmithExporter InExporter)
 		{
 			Doc = InDoc;
@@ -56,21 +82,22 @@ namespace DatasmithSolidworks
 			bDocumentIsDirty = bInDirty;
 		}
 
-		public uint GetFaceId(IFace2 InFace)
+		// Currently, FaceId uses PersistentReference which replaced internal FaceId(GetFaceId/SetFaceId). GetFaceId/SetFaceId was too unstable.
+		// PersistentReference is always defined. But GetOrAssignFaceId is left to identify places in code where Id is used with intent that it has to exist.
+		// Calls to GetFaceId don't expect Id to be defined and can ignore if it's not.
+		public FFaceId GetOrAssignFaceId(IFace2 InFace)
 		{
-			uint FaceId = unchecked((uint)InFace.GetFaceId());
-			if (!IsValidFaceId(FaceId))
-			{
-				uint Count = FaceCounter++;
-				FaceId = unchecked((uint)(0xAA << 24)) | Count;
-				InFace.SetFaceId((int)FaceId);
-			}
-			return FaceId;
+			return new FFaceId(Doc.SwDoc.Extension.GetPersistReference3(InFace));
 		}
-
-		public static bool IsValidFaceId(uint InFaceId)
+		
+		public FFaceId GetFaceId(IFace2 InFace)
 		{
-			return (InFaceId >> 24 == 0xAA);
+			return InFace != null ? new FFaceId(Doc.SwDoc.Extension.GetPersistReference3(InFace)) : new FFaceId();
+		}
+		
+		public static bool IsValidFaceId(FFaceId InFaceId)
+		{
+			return InFaceId.IsValid();
 		}
 
 		public bool IsUpdateInProgress()
@@ -238,18 +265,23 @@ namespace DatasmithSolidworks
 		}
 
 		public abstract FMeshData ExtractComponentMeshData(Component2 Comp);
-
-
+		
 		// Extracts meshes used for the assembly configuration
 		public void ProcessConfigurationMeshes(List<FDatasmithExporter.FMeshExportInfo> MeshExportInfos, FMeshes.FConfiguration MeshesConfiguration)
 		{
-			
+			LogDebug($"ProcessConfigurationMeshes:");
+			LogIndent();
+
 			// Extract meshes data and prepare for parallel datasmith export
 			// note: mesh data need to be extracted from the component when required configuration is active(i.e. can't move it outside of configuration enumeration loop)
-			foreach (Component2 Comp in MeshesConfiguration.EnumerateComponents())
+			// Enumerate components stable
+			foreach (var CP in MeshesConfiguration.EnumerateComponents().Select(Comp => new {Comp, Name=new FComponentName(Comp)} ) .OrderBy(CP => CP.Name.ToString()))
 			{
-				FMeshData MeshData = ExtractComponentMeshData(Comp);
-				FComponentName ComponentName = new FComponentName(Comp);
+				
+				FMeshData MeshData = ExtractComponentMeshData(CP.Comp);
+				FComponentName ComponentName = CP.Name;
+				LogDebug($"{ComponentName}:");
+				LogDebug($"{MeshData}");
 				
 				if (MeshData != null)
 				{
@@ -262,6 +294,7 @@ namespace DatasmithSolidworks
 					});
 				}
 			}
+			LogDedent();
 		}
 
 		public void AssignMaterialsToDatasmithMeshes(List<FDatasmithExporter.FMeshExportInfo> CreatedMeshes)

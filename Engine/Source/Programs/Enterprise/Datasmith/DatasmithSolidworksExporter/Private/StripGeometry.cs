@@ -3,8 +3,11 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+
+using SolidWorks.Interop.sldworks;
 
 namespace DatasmithSolidworks
 {
@@ -90,21 +93,29 @@ namespace DatasmithSolidworks
 			}
 
 			FStripGeometry StripGeom = new FStripGeometry();
-
-			Parallel.ForEach(InBodies, Body =>
+				
+			foreach(FBody Body in InBodies)
 			{
 				FStripGeometryBody StripBody = new FStripGeometryBody();
 				StripBody.Bounds = Body.Bounds;
 				StripGeom.Bodies.Add(StripBody);
-
-				foreach (FBody.FBodyFace Face in Body.Faces)
+				
+				object[] ArrFaces = Body.Body.GetFaces();
+				
+					
+				if (ArrFaces != null)
 				{
-					FStripGeometryFace StripFace = new FStripGeometryFace();
-					StripFace.Strip = Face.ExtractGeometry();
-					StripFace.Material = InMaterials?.GetMaterial(Face.Face);
-					StripBody.Faces.Add(StripFace);
+					foreach (object ObjFace in ArrFaces)
+					{
+						FBody.FBodyFace Face = new FBody.FBodyFace(ObjFace as Face2);
+						
+						FStripGeometryFace StripFace = new FStripGeometryFace();
+						StripFace.Strip = Face.ExtractGeometry();
+						StripFace.Material = InMaterials?.GetMaterial(Face.Face);
+						StripBody.Faces.Add(StripFace);
+					}
 				}
-			});
+			}
 
 			FMeshData MeshData = null;
 			try

@@ -66,26 +66,8 @@ namespace DatasmithSolidworks
 				{
 					return;
 				}
-
-				foreach (FVec3 Vertex in MeshData.Vertices)
-				{
-					Hash ^= Vertex.GetHashCode();
-				}
-
-				foreach (FVec3 Normal in MeshData.Normals)
-				{
-					Hash ^= Normal.GetHashCode();
-				}
-
-				foreach (FVec2 TexCoord in MeshData.TexCoords)
-				{
-					Hash ^= TexCoord.GetHashCode();
-				}
-
-				foreach (FTriangle Triangle in MeshData.Triangles)
-				{
-					Hash ^= Triangle.GetHashCode();
-				}
+				
+				Hash = MeshData.HashCode;
 			}
 
 			public override bool Equals(object Obj)
@@ -474,7 +456,7 @@ namespace DatasmithSolidworks
 
 					LogDedent();
 				}
-
+				
 				// Export materials
 				InDoc.SetExportStatus($"Component Materials");
 				HashSet<FComponentName> ComponentNamesToExportSet = new HashSet<FComponentName>();
@@ -495,7 +477,6 @@ namespace DatasmithSolidworks
 				
 				// Export meshes
 				InDoc.SetExportStatus($"Component Meshes");
-
 				InDoc.ProcessConfigurationMeshes(ExtractedMeshes, MeshesConfiguration);
 
 				// Combine separate scene trees into the single one with configuration-specific data

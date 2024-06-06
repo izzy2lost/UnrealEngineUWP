@@ -872,7 +872,7 @@ namespace DatasmithSolidworks
 
 		public void ExportMaterials(Dictionary<int, FMaterial> InMaterialsMap)
 		{
-			LogDebug($"ExportMaterials: \n  {string.Join("  \n", InMaterialsMap.Select(KVP => $"{KVP.Key}: {KVP.Value}" ))}");
+			LogDebug($"ExportMaterials: \n  {string.Join("\n  ", InMaterialsMap.Select(KVP => $"{KVP.Key}: {KVP.Value}" ))}");
 
 			List<FDatasmithFacadeTexture> CreatedTextures = new List<FDatasmithFacadeTexture>();
 			List<FDatasmithFacadeMaterialInstance> CreatedMaterials = new List<FDatasmithFacadeMaterialInstance>();
