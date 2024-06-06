@@ -45,6 +45,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// File should be materialized as UTF-16 (but is stored as a UTF-8 source)
 		/// </summary>
 		Utf16 = 64,
+
+		/// <summary>
+		/// Whether the file entry includes a modification time
+		/// </summary>
+		HasModTime = 128,
 	}
 
 	/// <summary>
@@ -78,6 +83,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		public ChunkedDataNodeRef Target { get; }
 
 		/// <summary>
+		/// Last modified time. Only valid if FileEntryFlags.HasModTime is set.
+		/// </summary>
+		public DateTime ModTime { get; }
+
+		/// <summary>
 		/// Custom user data for this file entry
 		/// </summary>
 		public ReadOnlyMemory<byte> CustomData { get; set; }
@@ -85,21 +95,32 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData chunkedData, ReadOnlyMemory<byte> customData = default)
-			: this(name, flags, length, chunkedData.StreamHash, chunkedData.Root, customData)
+		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData chunkedData, DateTime modTime = default, ReadOnlyMemory<byte> customData = default)
+			: this(name, flags, length, chunkedData.StreamHash, chunkedData.Root, modTime, customData)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FileEntry(string name, FileEntryFlags flags, long length, IoHash streamHash, ChunkedDataNodeRef target, ReadOnlyMemory<byte> customData)
+		public FileEntry(string name, FileEntryFlags flags, long length, IoHash streamHash, ChunkedDataNodeRef target, DateTime modTime = default, ReadOnlyMemory<byte> customData = default)
 		{
+			flags &= ~(FileEntryFlags.HasModTime | FileEntryFlags.HasCustomData);
+			if (modTime != default)
+			{
+				flags |= FileEntryFlags.HasModTime;
+			}
+			if (customData.Length > 0)
+			{
+				flags |= FileEntryFlags.HasCustomData;
+			}
+
 			Name = name;
 			Flags = flags;
 			Length = length;
 			StreamHash = streamHash;
 			Target = target;
+			ModTime = modTime;
 			CustomData = customData;
 		}
 
