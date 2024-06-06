@@ -290,6 +290,23 @@ FMusicTimestamp FBarMap::TickToMusicTimestamp(float Tick, int32* OutBeatsPerBar)
 		TimeSigIndex = 0;
 	}
 
+	if (Points[TimeSigIndex].TimeSignature.Numerator == 0 || Points[TimeSigIndex].TimeSignature.Denominator == 0)
+	{
+		// Assume 4/4 time.
+		Result.Bar = int32(Tick) / (TicksPerQuarterNote * 4);
+		Tick -= (Result.Bar * TicksPerQuarterNote * 4);
+		if (Tick < 0)
+		{
+			Result.Bar--;
+			Tick += TicksPerQuarterNote * 4;
+		}
+		Result.Beat = Tick / TicksPerQuarterNote;
+		Result.Bar += StartBar;
+		Result.Beat += 1.0f; // 1 based
+		if (OutBeatsPerBar) *OutBeatsPerBar = 4;
+		return Result;
+	}
+
 	int32 TicksPerBar = GetTicksInBarAfterPoint(TimeSigIndex);
 	float TicksPassed = Tick - Points[TimeSigIndex].StartTick;
 	if (TicksPassed < 0)

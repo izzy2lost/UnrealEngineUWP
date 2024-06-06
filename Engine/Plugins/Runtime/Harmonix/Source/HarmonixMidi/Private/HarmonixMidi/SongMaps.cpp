@@ -12,7 +12,7 @@ FSongMaps::FSongMaps()
 FSongMaps::FSongMaps(float Bpm, int32 TimeSigNumerator, int32 TimeSigDenominator)
 {
 	TempoMap.AddTempoInfoPoint(Harmonix::Midi::Constants::BPMToMidiTempo(Bpm), 0);
-	BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNumerator, TimeSigDenominator);
+	BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNumerator == 0 ? 4 : TimeSigNumerator, TimeSigDenominator == 0 ? 4 : TimeSigDenominator);
 }
 
 FSongMaps::FSongMaps(const ISongMapEvaluator& Other)
