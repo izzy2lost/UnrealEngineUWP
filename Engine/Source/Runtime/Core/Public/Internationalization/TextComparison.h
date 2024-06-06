@@ -30,7 +30,4 @@ public:
 
 	static CORE_API bool EqualTo(const FString& A, const FString& B, const ETextComparisonLevel::Type ComparisonLevel = ETextComparisonLevel::Default);
 	static CORE_API bool EqualToCaseIgnored(const FString& A, const FString& B);
-
-	static CORE_API bool Contains(const FString& TextToSearch, const FString& TextToFind, const ETextComparisonLevel::Type ComparisonLevel = ETextComparisonLevel::Default);
-	static CORE_API bool ContainsCaseIgnored(const FString& TextToSearch, const FString& TextToFind);
 };

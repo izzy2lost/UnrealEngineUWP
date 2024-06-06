@@ -19,7 +19,6 @@ THIRD_PARTY_INCLUDES_START
 	#include <unicode/unistr.h>
 	#include <unicode/coll.h>
 	#include <unicode/sortkey.h>
-	#include <unicode/usearch.h>
 	#include <unicode/ubidi.h>
 THIRD_PARTY_INCLUDES_END
 
@@ -139,32 +138,6 @@ bool FTextComparison::EqualTo( const FString& A, const FString& B, const ETextCo
 bool FTextComparison::EqualToCaseIgnored( const FString& A, const FString& B )
 {
 	return EqualTo(A, B, ETextComparisonLevel::Secondary);
-}
-
-bool FTextComparison::Contains(const FString& TextToSearch, const FString& TextToFind, const ETextComparisonLevel::Type ComparisonLevel)
-{
-	const TSharedRef<const icu::Collator, ESPMode::ThreadSafe> Collator( FInternationalization::Get().GetCurrentLanguage()->Implementation->GetCollator(ComparisonLevel) );
-
-	icu::UnicodeString UnicodeTextToSearch, UnicodeTextToFind;
-	ICUUtilities::ConvertString(TextToSearch, UnicodeTextToSearch);
-	ICUUtilities::ConvertString(TextToFind, UnicodeTextToFind);
-
-	bool bResult = false;
-
-	UErrorCode error = U_ZERO_ERROR;
-	UStringSearch* StringSearch = usearch_openFromCollator(UnicodeTextToFind.getBuffer(), UnicodeTextToFind.length(), UnicodeTextToSearch.getBuffer(), UnicodeTextToSearch.length(), Collator->toUCollator(), nullptr, &error);
-	if (StringSearch)
-	{
-		bResult = usearch_first(StringSearch, &error) != USEARCH_DONE;
-		usearch_close(StringSearch);
-	}
-
-	return bResult;
-}
-
-bool FTextComparison::ContainsCaseIgnored(const FString& TextToSearch, const FString& TextToFind)
-{
-	return Contains(TextToSearch, TextToFind, ETextComparisonLevel::Secondary);
 }
 
 class FText::FSortPredicate::FSortPredicateImplementation
