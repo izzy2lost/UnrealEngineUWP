@@ -499,10 +499,7 @@ void AMassSpawner::SpawnGeneratedEntities(TConstArrayView<FMassEntitySpawnDataGe
 			// create entity collections and run Processors on them. 
 			TArray<FMassArchetypeEntityCollection> EntityCollections;
 			UE::Mass::Utils::CreateEntityCollections(EntityManager, AllEntities, FMassArchetypeEntityCollection::NoDuplicates, EntityCollections);
-			for (const FMassArchetypeEntityCollection& Collection : EntityCollections)
-			{
-				UE::Mass::Executor::RunProcessorsView(Processors, ProcessingContext, &Collection);
-			}
+			UE::Mass::Executor::RunProcessorsView(Processors, ProcessingContext, EntityCollections);
 		}
 	}
 

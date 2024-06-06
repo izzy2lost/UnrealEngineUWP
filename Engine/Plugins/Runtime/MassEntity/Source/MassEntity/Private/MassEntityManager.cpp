@@ -13,6 +13,7 @@
 #include "Misc/Fork.h"
 #include "Misc/CoreDelegates.h"
 #include "Algo/Find.h"
+#include "MassEntityUtils.h"
 
 const FMassEntityHandle FMassEntityManager::InvalidEntity;
 
@@ -43,6 +44,64 @@ namespace UE::Mass::Private
 	constexpr int32 InvalidEntityIndex = 0;
 }
 
+//-----------------------------------------------------------------------------
+// FMassEntityManager::FEntityCreationContext
+//-----------------------------------------------------------------------------
+FMassEntityManager::FEntityCreationContext::FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities)
+	: CreatedEntities(InCreatedEntities)
+{
+	Manager = InManager.AsShared();
+}
+
+FMassEntityManager::FEntityCreationContext::~FEntityCreationContext()
+{
+	if (OnSpawningFinished)
+	{
+		OnSpawningFinished(*this);
+	}
+}
+
+TConstArrayView<FMassArchetypeEntityCollection> FMassEntityManager::FEntityCreationContext::GetEntityCollections() const
+{
+	// the EntityCollection has been dirtied, we need to rebuild it
+	if (EntityCollections.IsEmpty() == true && CreatedEntities.IsEmpty() == false && Manager)
+	{
+		UE::Mass::Utils::CreateEntityCollections(*Manager.Get(), CreatedEntities, CollectionCreationDuplicatesHandling, EntityCollections);
+	}
+
+	return EntityCollections;
+}
+
+void FMassEntityManager::FEntityCreationContext::MarkDirty()
+{
+	EntityCollections.Reset();
+}
+
+void FMassEntityManager::FEntityCreationContext::AddCollection(FMassArchetypeEntityCollection&& Collection)
+{
+	EntityCollections.Add(MoveTemp(Collection));
+}
+
+void FMassEntityManager::FEntityCreationContext::AppendEntities(const TConstArrayView<FMassEntityHandle> EntitiesToAppend)
+{
+	if (EntitiesToAppend.Num())
+	{
+		if (CreatedEntities.Num())
+		{
+			// since we already have entities in CreatedEntities (initially ensured to have no duplicates) we cannot 
+			// guarantee anymore that we'll have no duplicates after adding EntitiesToAppend
+			CollectionCreationDuplicatesHandling = FMassArchetypeEntityCollection::FoldDuplicates;
+		}
+
+		CreatedEntities.Append(EntitiesToAppend);
+
+		MarkDirty();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// FMassEntityManager
+//-----------------------------------------------------------------------------
 #if MASS_CONCURRENT_RESERVE
 UE::Mass::IEntityStorageInterface& FMassEntityManager::GetEntityStorageInterface()
 {
@@ -119,6 +178,9 @@ const UE::Mass::IEntityStorageInterface& FMassEntityManager::DebugGetEntityStora
 }
 #endif
 
+//-----------------------------------------------------------------------------
+// FMassEntityManager
+//-----------------------------------------------------------------------------
 FMassEntityManager::FMassEntityManager(UObject* InOwner)
 	: ObserverManager(*this)
 	, Owner(InOwner)
@@ -127,9 +189,6 @@ FMassEntityManager::FMassEntityManager(UObject* InOwner)
 	DebugName = InOwner ? (InOwner->GetName() + TEXT("_EntityManager")) : TEXT("Unset");
 #endif
 }
-
-//////////////////////////////////////////////////////////////////////
-// FMassEntityManager
 
 FMassEntityManager::~FMassEntityManager()
 {
@@ -768,7 +827,7 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Batch
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchCreateEntities);
 
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
-	testableCheckfReturn(ArchetypeHandle.IsValid(), return MakeShareable(new FEntityCreationContext(0))
+	testableCheckfReturn(ArchetypeHandle.IsValid(), return GetOrMakeCreationContext()
 		, TEXT("%hs expecting a valid ArchetypeHandle"), __FUNCTION__);
 
 	TConstArrayView<FMassEntityHandle> ReservedEntities = BatchReserveEntities(Count, InOutEntities);
@@ -797,18 +856,21 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Inter
 	FMassArchetypeEntityCollection::FEntityRangeArray TargetArchetypeEntityRanges;
 	ArchetypeData->BatchAddEntities(ReservedEntities, SharedFragmentValues, TargetArchetypeEntityRanges);
 
-	FEntityCreationContext* CreationContext = new FEntityCreationContext(ReservedEntities.Num());
-	new (&CreationContext->EntityCollection) FMassArchetypeEntityCollection(ArchetypeHandle, MoveTemp(TargetArchetypeEntityRanges));
+	TSharedRef<FEntityCreationContext> SharedContext = GetOrMakeCreationContext(ReservedEntities);
+	FEntityCreationContext* CreationContext = &SharedContext.Get();
+	CreationContext->AddCollection(FMassArchetypeEntityCollection(ArchetypeHandle, MoveTemp(TargetArchetypeEntityRanges)));
 
-	if (ObserverManager.HasObserversForBitSet(ArchetypeData->GetCompositionDescriptor().Fragments, EMassObservedOperation::Add)
-		|| ObserverManager.HasObserversForBitSet(ArchetypeData->GetCompositionDescriptor().Tags, EMassObservedOperation::Add))
+	if (!CreationContext->OnSpawningFinished
+		&& (ObserverManager.HasObserversForBitSet(ArchetypeData->GetCompositionDescriptor().Fragments, EMassObservedOperation::Add)
+			|| ObserverManager.HasObserversForBitSet(ArchetypeData->GetCompositionDescriptor().Tags, EMassObservedOperation::Add)))
 	{
-		CreationContext->OnSpawningFinished = [this](FEntityCreationContext& Context) {
-			ObserverManager.OnPostEntitiesCreated(Context.EntityCollection);
+		CreationContext->OnSpawningFinished = [this](FEntityCreationContext& Context)
+		{
+			ObserverManager.OnPostEntitiesCreated(Context.GetEntityCollections());
 		};
 	}
 
-	return MakeShareable(CreationContext);
+	return SharedContext;
 }
 
 void FMassEntityManager::DestroyEntity(FMassEntityHandle Entity)
@@ -833,6 +895,7 @@ void FMassEntityManager::BatchDestroyEntities(TConstArrayView<FMassEntityHandle>
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchDestroyEntities);
 
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
+	checkf(IsDuringEntityCreation() == false, TEXT("%hs: Trying to destroy entities while entity creation is under way. This operation is not supported."), __FUNCTION__);
 
 	// @todo optimize, we can make savings by implementing Archetype->RemoveEntities()
 	for (const FMassEntityHandle Entity : InEntities)
@@ -862,6 +925,7 @@ void FMassEntityManager::BatchDestroyEntityChunks(const FMassArchetypeEntityColl
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchDestroyEntityChunks);
 
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
+	checkf(IsDuringEntityCreation() == false, TEXT("%hs: Trying to destroy entities while entity creation is under way. This operation is not supported."), __FUNCTION__);
 
 	TArray<FMassEntityHandle> EntitiesRemoved;
 	// note that it's important to place the context instance in the same scope as the loop below that updates 
@@ -896,7 +960,14 @@ void FMassEntityManager::AddFragmentToEntity(FMassEntityHandle Entity, const USc
 	CheckIfEntityIsActive(Entity);
 
 	const FMassArchetypeCompositionDescriptor Descriptor(InternalAddFragmentListToEntityChecked(Entity, FMassFragmentBitSet(*FragmentType)));
-	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	if (IsDuringEntityCreation())
+	{
+		DirtyCreationContext();
+	}
+	else
+	{
+		ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	}
 }
 
 void FMassEntityManager::AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType, const FStructInitializationCallback& Initializer)
@@ -913,7 +984,14 @@ void FMassEntityManager::AddFragmentToEntity(FMassEntityHandle Entity, const USc
 	Initializer(FragmentData, *FragmentType);
 
 	const FMassArchetypeCompositionDescriptor Descriptor(MoveTemp(Fragments));
-	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	if (IsDuringEntityCreation())
+	{
+		DirtyCreationContext();
+	}
+	else 
+	{
+		ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	}
 }
 
 void FMassEntityManager::AddFragmentListToEntity(FMassEntityHandle Entity, TConstArrayView<const UScriptStruct*> FragmentList)
@@ -921,7 +999,14 @@ void FMassEntityManager::AddFragmentListToEntity(FMassEntityHandle Entity, TCons
 	CheckIfEntityIsActive(Entity);
 
 	const FMassArchetypeCompositionDescriptor Descriptor(InternalAddFragmentListToEntityChecked(Entity, FMassFragmentBitSet(FragmentList)));
-	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	if (IsDuringEntityCreation())
+	{
+		DirtyCreationContext();
+	}
+	else
+	{
+		ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	}
 }
 
 void FMassEntityManager::AddCompositionToEntity_GetDelta(FMassEntityHandle Entity, FMassArchetypeCompositionDescriptor& InDescriptor)
@@ -953,7 +1038,14 @@ void FMassEntityManager::AddCompositionToEntity_GetDelta(FMassEntityHandle Entit
 
 			GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 
-			ObserverManager.OnPostCompositionAdded(Entity, InDescriptor);
+			if (IsDuringEntityCreation())
+			{
+				DirtyCreationContext();
+			}
+			else
+			{
+				ObserverManager.OnPostCompositionAdded(Entity, InDescriptor);
+			}
 		}
 	}
 }
@@ -977,7 +1069,14 @@ void FMassEntityManager::RemoveCompositionFromEntity(FMassEntityHandle Entity, c
 		if (NewDescriptor.IsEquivalent(OldArchetype->GetCompositionDescriptor()) == false)
 		{
 			ensureMsgf(OldArchetype->GetCompositionDescriptor().HasAll(InDescriptor), TEXT("Some of the elements being removed are already missing from entity\'s composition."));
-			ObserverManager.OnPreCompositionRemoved(Entity, InDescriptor);
+			if (IsDuringEntityCreation())
+			{
+				DirtyCreationContext();
+			}
+			else
+			{
+				ObserverManager.OnPreCompositionRemoved(Entity, InDescriptor);
+			}
 
 			const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(NewDescriptor, FMassArchetypeCreationParams(*OldArchetype));
 
@@ -1005,7 +1104,14 @@ void FMassEntityManager::InternalBuildEntity(FMassEntityHandle Entity, const FMa
 	GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, ArchetypeHandle.DataPtr);
 	NewArchetype->AddEntity(Entity, SharedFragmentValues);
 
-	ObserverManager.OnPostCompositionAdded(Entity, NewArchetype->GetCompositionDescriptor());
+	if (IsDuringEntityCreation())
+	{
+		DirtyCreationContext();
+	}
+	else
+	{
+		ObserverManager.OnPostCompositionAdded(Entity, NewArchetype->GetCompositionDescriptor());
+	}
 }
 
 void FMassEntityManager::InternalReleaseEntity(FMassEntityHandle Entity)
@@ -1063,7 +1169,14 @@ void FMassEntityManager::AddFragmentInstanceListToEntity(FMassEntityHandle Entit
 	check(CurrentArchetype);
 	CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 
-	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	if (IsDuringEntityCreation())
+	{
+		DirtyCreationContext();
+	}
+	else 
+	{
+		ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+	}
 }
 
 void FMassEntityManager::RemoveFragmentFromEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType)
@@ -1095,7 +1208,14 @@ void FMassEntityManager::RemoveFragmentListFromEntity(FMassEntityHandle Entity, 
 		FMassArchetypeCompositionDescriptor CompositionDelta;
 		// Find overlap.  It isn't guaranteed that the old archetype has all of the fragments being removed.
 		CompositionDelta.Fragments = OldArchetype->GetFragmentBitSet().GetOverlap(FragmentsToRemove);
-		ObserverManager.OnPreCompositionRemoved(Entity, CompositionDelta);
+		if (IsDuringEntityCreation())
+		{
+			DirtyCreationContext();
+		}
+		else
+		{
+			ObserverManager.OnPreCompositionRemoved(Entity, CompositionDelta);
+		}
 
 		// Move the entity over
 		FMassArchetypeData& NewArchetype = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(NewArchetypeHandle);
@@ -1159,7 +1279,14 @@ void FMassEntityManager::AddTagToEntity(FMassEntityHandle Entity, const UScriptS
 		FMassTagBitSet TagDelta;
 		TagDelta.Add(*TagType);
 		CompositionDelta.Tags = TagDelta;
-		ObserverManager.OnPostCompositionAdded(Entity, CompositionDelta);
+		if (IsDuringEntityCreation())
+		{
+			DirtyCreationContext();
+		}
+		else
+		{
+			ObserverManager.OnPostCompositionAdded(Entity, CompositionDelta);
+		}
 	}
 }
 	
@@ -1178,7 +1305,14 @@ void FMassEntityManager::RemoveTagFromEntity(FMassEntityHandle Entity, const USc
 		FMassTagBitSet TagDelta;
 		TagDelta.Add(*TagType);
 		CompositionDelta.Tags = TagDelta;
-		ObserverManager.OnPreCompositionRemoved(Entity, CompositionDelta);
+		if (IsDuringEntityCreation())
+		{
+			DirtyCreationContext();
+		}
+		else
+		{
+			ObserverManager.OnPreCompositionRemoved(Entity, CompositionDelta);
+		}
 		
 		// CurrentArchetype->GetTagBitSet() -  *TagType
 		const FMassTagBitSet NewTagComposition = CurrentArchetype->GetTagBitSet() - TagDelta;
@@ -1255,7 +1389,11 @@ void FMassEntityManager::BatchChangeTagsForEntities(TConstArrayView<FMassArchety
 			FMassTagBitSet TagsAdded = TagsToAdd - CurrentArchetype->GetTagBitSet();
 			FMassTagBitSet TagsRemoved = TagsToRemove.GetOverlap(CurrentArchetype->GetTagBitSet());
 
-			if (ObserverManager.HasObserversForBitSet(TagsRemoved, EMassObservedOperation::Remove))
+			if (IsDuringEntityCreation())
+			{
+				DirtyCreationContext();
+			}
+			else if (ObserverManager.HasObserversForBitSet(TagsRemoved, EMassObservedOperation::Remove))
 			{
 				ObserverManager.OnCompositionChanged(Collection, FMassArchetypeCompositionDescriptor(MoveTemp(TagsRemoved)), EMassObservedOperation::Remove);
 			}
@@ -1277,7 +1415,7 @@ void FMassEntityManager::BatchChangeTagsForEntities(TConstArrayView<FMassArchety
 				GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 			}
 
-			if (bTagsAddedAreObserved)
+			if (bTagsAddedAreObserved && !IsDuringEntityCreation())
 			{
 				ObserverManager.OnCompositionChanged(
 					FMassArchetypeEntityCollection(NewArchetypeHandle, MoveTemp(NewArchetypeEntityRanges))
@@ -1306,7 +1444,12 @@ void FMassEntityManager::BatchChangeFragmentCompositionForEntities(TConstArrayVi
 				FMassFragmentBitSet FragmentsAdded = FragmentsToAdd - CurrentArchetype->GetFragmentBitSet();
 				const bool bFragmentsAddedAreObserved = ObserverManager.HasObserversForBitSet(FragmentsAdded, EMassObservedOperation::Add);
 				FMassFragmentBitSet FragmentsRemoved = FragmentsToRemove.GetOverlap(CurrentArchetype->GetFragmentBitSet());
-				if (ObserverManager.HasObserversForBitSet(FragmentsRemoved, EMassObservedOperation::Remove))
+				
+				if (IsDuringEntityCreation())
+				{
+					DirtyCreationContext();
+				}
+				else if (ObserverManager.HasObserversForBitSet(FragmentsRemoved, EMassObservedOperation::Remove))
 				{
 					ObserverManager.OnCompositionChanged(Collection, FMassArchetypeCompositionDescriptor(MoveTemp(FragmentsRemoved)), EMassObservedOperation::Remove);
 				}
@@ -1327,7 +1470,7 @@ void FMassEntityManager::BatchChangeFragmentCompositionForEntities(TConstArrayVi
 					GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
 				}
 
-				if (bFragmentsAddedAreObserved)
+				if (bFragmentsAddedAreObserved && !IsDuringEntityCreation())
 				{
 					ObserverManager.OnCompositionChanged(
 						FMassArchetypeEntityCollection(NewArchetypeHandle, MoveTemp(NewArchetypeEntityRanges))
@@ -1404,7 +1547,11 @@ void FMassEntityManager::BatchAddFragmentInstancesForEntities(TConstArrayView<FM
 			// corresponds to the order in FMassArchetypeEntityCollectionWithPayload's payload
 			TargetArchetypeHandle.DataPtr->BatchSetFragmentValues(TargetArchetypeEntityRanges, EntityRangesWithPayload.GetPayload());
 
-			if (bFragmentsAddedAreObserved)
+			if (IsDuringEntityCreation())
+			{
+				DirtyCreationContext();
+			}
+			else if (bFragmentsAddedAreObserved)
 			{
 				ObserverManager.OnCompositionChanged(
 					FMassArchetypeEntityCollection(TargetArchetypeHandle, MoveTemp(TargetArchetypeEntityRanges))
@@ -1479,14 +1626,30 @@ void FMassEntityManager::SetEntityFragmentsValues(FMassEntityHandle Entity, TArr
 
 void FMassEntityManager::BatchSetEntityFragmentsValues(const FMassArchetypeEntityCollection& SparseEntities, TArrayView<const FInstancedStruct> FragmentInstanceList)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchSetEntityFragmentsValues);
-
-	FMassArchetypeData* Archetype = SparseEntities.GetArchetype().DataPtr.Get();
-	check(Archetype);
-
-	for (const FInstancedStruct& FragmentTemplate : FragmentInstanceList)
+	if (FragmentInstanceList.Num())
 	{
-		Archetype->SetFragmentData(SparseEntities.GetRanges(), FragmentTemplate);
+		BatchSetEntityFragmentsValues(MakeArrayView(&SparseEntities, 1), FragmentInstanceList);
+	}
+}
+
+void FMassEntityManager::BatchSetEntityFragmentsValues(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, TArrayView<const FInstancedStruct> FragmentInstanceList)
+{
+	if (FragmentInstanceList.IsEmpty())
+	{
+		return;
+	}
+
+	for (const FMassArchetypeEntityCollection& SparseEntities : EntityCollections)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchSetEntityFragmentsValues);
+
+		FMassArchetypeData* Archetype = SparseEntities.GetArchetype().DataPtr.Get();
+		check(Archetype);
+
+		for (const FInstancedStruct& FragmentTemplate : FragmentInstanceList)
+		{
+			Archetype->SetFragmentData(SparseEntities.GetRanges(), FragmentTemplate);
+		}
 	}
 }
 
@@ -1722,6 +1885,32 @@ void FMassEntityManager::AppendCommands(TSharedPtr<FMassCommandBuffer>& InOutCom
 	Defer().MoveAppend(*InOutCommandBuffer.Get());
 }
 
+TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::GetOrMakeCreationContext(TConstArrayView<FMassEntityHandle> ReservedEntities)
+{
+	if (ActiveCreationContext.IsValid())
+	{
+		TSharedPtr<FEntityCreationContext> SharedContext = ActiveCreationContext.Pin();
+		CA_ASSUME(SharedContext);
+		SharedContext->AppendEntities(ReservedEntities);
+		return SharedContext.ToSharedRef();
+	}
+	else
+	{
+		FEntityCreationContext* CreationContext = new FEntityCreationContext(*this, ReservedEntities);
+		TSharedRef<FEntityCreationContext> SharedContext = MakeShareable(CreationContext);
+		ActiveCreationContext = SharedContext;
+		return SharedContext;
+	}
+}
+
+void FMassEntityManager::DirtyCreationContext()
+{
+	if (TSharedPtr<FEntityCreationContext> AsSharedPtr = ActiveCreationContext.Pin())
+	{
+		AsSharedPtr->MarkDirty();
+	}
+}
+
 void FMassEntityManager::SetDebugName(const FString& NewDebugGame) 
 { 
 #if WITH_MASSENTITY_DEBUG
@@ -1917,4 +2106,10 @@ void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollection
 	FMassArchetypeCreationParams Params;
 	Params.DebugName = ArchetypeDebugName;
 	BatchBuildEntities(EncodedEntitiesWithPayload, MoveTemp(Composition), SharedFragmentValues, Params);
+}
+
+const FMassArchetypeEntityCollection& FMassEntityManager::FEntityCreationContext::GetEntityCollection() const
+{
+	static FMassArchetypeEntityCollection EmptyCollection;
+	return EntityCollections.Num() ? EntityCollections[0] : EmptyCollection;
 }
