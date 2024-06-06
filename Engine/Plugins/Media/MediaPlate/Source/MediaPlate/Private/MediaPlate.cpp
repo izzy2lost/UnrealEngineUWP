@@ -156,7 +156,7 @@ UMaterialInterface* AMediaPlate::GetCurrentOverlayMaterial() const
 
 void AMediaPlate::UseDefaultMaterial()
 {
-	UMaterial* DefaultMaterial = LoadObject<UMaterial>(NULL, TEXT("/MediaPlate/M_MediaPlate"), NULL, LOAD_None, NULL);
+	UMaterial* DefaultMaterial = LoadObject<UMaterial>(NULL, TEXT("/MediaPlate/M_MediaPlate_Opaque"), NULL, LOAD_None, NULL);
 	
 	ApplyMaterial(DefaultMaterial);
 
