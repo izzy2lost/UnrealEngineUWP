@@ -62,7 +62,7 @@ FStorageServerFileSystemTOC::FDirectory* FStorageServerFileSystemTOC::AddDirecto
 	return Directory;
 }
 
-void FStorageServerFileSystemTOC::AddFile(const FIoChunkId& FileChunkId, FStringView PathView)
+void FStorageServerFileSystemTOC::AddFile(const FIoChunkId& FileChunkId, FStringView PathView, int64 RawSize)
 {
 	FWriteScopeLock _(TocLock);
 
@@ -71,6 +71,7 @@ void FStorageServerFileSystemTOC::AddFile(const FIoChunkId& FileChunkId, FString
 	FFile& NewFile = Files.AddDefaulted_GetRef();
 	NewFile.FileChunkId = FileChunkId;
 	NewFile.FilePath = PathView;
+	NewFile.RawSize = RawSize;
 	
 	FilePathToIndexMap.Add(NewFile.FilePath, FileIndex);
 	
@@ -105,7 +106,30 @@ const FIoChunkId* FStorageServerFileSystemTOC::GetFileChunkId(const FString& Pat
 	return nullptr;
 }
 
-bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*)> Callback)
+int64 FStorageServerFileSystemTOC::GetFileSize(const FString& Path)
+{
+	FReadScopeLock _(TocLock);
+	if (const int32* FileIndex = FilePathToIndexMap.Find(Path))
+	{
+		return Files[*FileIndex].RawSize;
+	}
+	return STORAGE_SERVER_FILE_UNKOWN_SIZE;
+}
+
+bool FStorageServerFileSystemTOC::GetFileData(const FString& Path, FIoChunkId& OutChunkId, int64& OutRawSize)
+{
+	FReadScopeLock _(TocLock);
+	if (const int32* FileIndex = FilePathToIndexMap.Find(Path))
+	{
+		const FFile& File = Files[*FileIndex];
+		OutChunkId = File.FileChunkId;
+		OutRawSize = File.RawSize;
+		return true;
+	}
+	return false;
+}
+
+bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64 RawSize)> Callback)
 {
 	UE_LOG(LogStorageServerPlatformFile, Verbose, TEXT("IterateDirectory '%s'"), *Path);
 
@@ -119,14 +143,14 @@ bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctio
 	for (int32 FileIndex : Directory->Files)
 	{
 		const FFile& File = Files[FileIndex];
-		if (!Callback(File.FileChunkId, *File.FilePath))
+		if (!Callback(File.FileChunkId, *File.FilePath, File.RawSize))
 		{
 			return false;
 		}
 	}
 	for (const FString& ChildDirectoryPath : Directory->Directories)
 	{
-		if (!Callback(FIoChunkId(), *ChildDirectoryPath))
+		if (!Callback(FIoChunkId(), *ChildDirectoryPath, 0))
 		{
 			return false;
 		}
@@ -151,10 +175,11 @@ class FStorageServerFileHandle
 	uint8 Buffer[BufferSize];
 
 public:
-	FStorageServerFileHandle(FStorageServerPlatformFile& InOwner, FIoChunkId InFileChunkId, const TCHAR* InFilename)
+	FStorageServerFileHandle(FStorageServerPlatformFile& InOwner, FIoChunkId InFileChunkId, int64 InFileSize, const TCHAR* InFilename)
 		: Owner(InOwner)
 		, FileChunkId(InFileChunkId)
 		, Filename(InFilename)
+		, FileSize(InFileSize)
 	{
 	}
 
@@ -519,14 +544,13 @@ int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename)
 	TStringBuilder<1024> StorageServerFilename;
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		int64 FileSize = ServerToc.GetFileSize(*StorageServerFilename);
+		if (FileSize > STORAGE_SERVER_FILE_UNKOWN_SIZE)
 		{
-			const FFileStatData FileStatData = SendGetStatDataMessage(*FileChunkId);
-			check(FileStatData.bIsValid);
-			return FileStatData.FileSize;
+			return FileSize;
 		}
 	}
-	return IsNonServerFilenameAllowed(Filename) ? LowerLevel->FileSize(Filename) : -1;
+	return IsNonServerFilenameAllowed(Filename) ? LowerLevel->FileSize(Filename) : STORAGE_SERVER_FILE_UNKOWN_SIZE;
 }
 
 bool FStorageServerPlatformFile::IsReadOnly(const TCHAR* Filename)
@@ -544,9 +568,16 @@ FFileStatData FStorageServerPlatformFile::GetStatData(const TCHAR* FilenameOrDir
 	TStringBuilder<1024> StorageServerFilenameOrDirectory;
 	if (MakeStorageServerPath(FilenameOrDirectory, StorageServerFilenameOrDirectory))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilenameOrDirectory))
+		int64 FileSize = ServerToc.GetFileSize(*StorageServerFilenameOrDirectory);
+		if (FileSize > STORAGE_SERVER_FILE_UNKOWN_SIZE)
 		{
-			return SendGetStatDataMessage(*FileChunkId);
+			return FFileStatData(
+				FDateTime::Now(),
+				FDateTime::Now(),
+				FDateTime::Now(),
+				FileSize,
+				false,
+				true);
 		}
 		else if (ServerToc.DirectoryExists(*StorageServerFilenameOrDirectory))
 		{
@@ -567,9 +598,9 @@ FFileStatData FStorageServerPlatformFile::GetStatData(const TCHAR* FilenameOrDir
 	return FileStatData;
 }
 
-IFileHandle* FStorageServerPlatformFile::InternalOpenFile(const FIoChunkId& FileChunkId, const TCHAR* LocalFilename)
+IFileHandle* FStorageServerPlatformFile::InternalOpenFile(const FIoChunkId& FileChunkId, int64 RawSize, const TCHAR* LocalFilename)
 {
-	return new FStorageServerFileHandle(*this, FileChunkId, LocalFilename);
+	return new FStorageServerFileHandle(*this, FileChunkId, RawSize, LocalFilename);
 }
 
 IFileHandle* FStorageServerPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
@@ -577,9 +608,11 @@ IFileHandle* FStorageServerPlatformFile::OpenRead(const TCHAR* Filename, bool bA
 	TStringBuilder<1024> StorageServerFilename;
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		FIoChunkId FileChunkId;
+		int64 RawSize = STORAGE_SERVER_FILE_UNKOWN_SIZE;
+		if (ServerToc.GetFileData(*StorageServerFilename, FileChunkId, RawSize))
 		{
-			return InternalOpenFile(*FileChunkId, Filename);
+			return InternalOpenFile(FileChunkId, RawSize, Filename);
 		}
 	}
 	return IsNonServerFilenameAllowed(Filename) ? LowerLevel->OpenRead(Filename, bAllowWrite) : nullptr;
@@ -591,7 +624,7 @@ bool FStorageServerPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatf
 	bool bResult = false;
 	if (MakeStorageServerPath(Directory, StorageServerDirectory) && ServerToc.DirectoryExists(*StorageServerDirectory))
 	{
-		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* FilenameOrDirectory)
+		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* FilenameOrDirectory, int64 RawSize)
 		{
 			TStringBuilder<1024> LocalPath;
 			bool bConverted = MakeLocalPath(FilenameOrDirectory, LocalPath);
@@ -613,7 +646,7 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 	bool bResult = false;
 	if (MakeStorageServerPath(Directory, StorageServerDirectory) && ServerToc.DirectoryExists(*StorageServerDirectory))
 	{
-		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* ServerFilenameOrDirectory)
+		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* ServerFilenameOrDirectory, int64 RawSize)
 		{
 			TStringBuilder<1024> LocalPath;
 			bool bConverted = MakeLocalPath(ServerFilenameOrDirectory, LocalPath);
@@ -621,7 +654,13 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 			FFileStatData FileStatData;
 			if (FileChunkId.IsValid())
 			{
-				FileStatData = SendGetStatDataMessage(FileChunkId);
+				FileStatData = FFileStatData(
+					FDateTime::Now(),
+					FDateTime::Now(),
+					FDateTime::Now(),
+					RawSize,
+					false,
+					true);
 				check(FileStatData.bIsValid);
 			}
 			else
@@ -690,7 +729,9 @@ bool FStorageServerPlatformFile::MoveFile(const TCHAR* To, const TCHAR* From)
 	TStringBuilder<1024> StorageServerFrom;
 	if (MakeStorageServerPath(From, StorageServerFrom))
 	{
-		if (const FIoChunkId* FromFileChunkId = ServerToc.GetFileChunkId(*StorageServerFrom))
+		FIoChunkId FromFileChunkId;
+		int64 FromFileRawSize = STORAGE_SERVER_FILE_UNKOWN_SIZE;
+		if (ServerToc.GetFileData(*StorageServerFrom, FromFileChunkId, FromFileRawSize))
 		{
 			TUniquePtr<IFileHandle> ToFile(LowerLevel->OpenWrite(To, false, false));
 			if (!ToFile)
@@ -698,7 +739,7 @@ bool FStorageServerPlatformFile::MoveFile(const TCHAR* To, const TCHAR* From)
 				return false;
 			}
 
-			TUniquePtr<IFileHandle> FromFile(InternalOpenFile(*FromFileChunkId, *StorageServerFrom));
+			TUniquePtr<IFileHandle> FromFile(InternalOpenFile(FromFileChunkId, FromFileRawSize, *StorageServerFrom));
 			if (!FromFile)
 			{
 				return false;
@@ -897,9 +938,9 @@ bool FStorageServerPlatformFile::SendGetFileListMessage()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerPlatformFileGetFileList);
 	
-	Connection->FileManifestRequest([&](FIoChunkId Id, FStringView Path)
+	Connection->FileManifestRequest([&](FIoChunkId Id, FStringView Path, int64 RawSize)
 	{
-		ServerToc.AddFile(Id, Path);
+		ServerToc.AddFile(Id, Path, RawSize);
 	});
 
 	return true;
@@ -983,7 +1024,7 @@ void FStorageServerPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTh
 			for (int32 Idx = 0, Num = Filenames.Num(); Idx < Num; ++Idx)
 			{
 				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Adding file '%s'"), *Filenames[Idx]);
-				ServerToc.AddFile(ChunkIds[Idx], Filenames[Idx]);
+				ServerToc.AddFile(ChunkIds[Idx], Filenames[Idx], STORAGE_SERVER_FILE_UNKOWN_SIZE);
 			}
 
 			break;
