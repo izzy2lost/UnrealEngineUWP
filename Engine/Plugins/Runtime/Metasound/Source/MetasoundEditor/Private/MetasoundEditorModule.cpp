@@ -712,6 +712,11 @@ namespace Metasound
 				return AssetPrimeStatus;
 			}
 
+			virtual EAssetScanStatus GetAssetRegistryScanStatus() const override
+			{
+				return AssetScanStatus;
+			}
+
 			virtual void RegisterExplicitProxyClass(const UClass& InClass) override
 			{
 				using namespace Metasound::Frontend;

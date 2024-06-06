@@ -2227,7 +2227,8 @@ namespace Metasound
 				.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
 				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.30f));
 
-			SAssignNew(RenderStatsWidget, SMetaSoundRenderStats);
+			SAssignNew(RenderStatsWidget, SMetaSoundRenderStats)
+				.Visibility(EVisibility::HitTestInvisible);
 		}
 
 		FGraphAppearanceInfo FEditor::GetGraphAppearance() const
@@ -3349,7 +3350,9 @@ namespace Metasound
 			if (bPrimingRegistry)
 			{
 				IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-				if (MetaSoundEditorModule.GetAssetRegistryPrimeStatus() == EAssetPrimeStatus::Complete)
+				EAssetPrimeStatus PrimeStatus = MetaSoundEditorModule.GetAssetRegistryPrimeStatus();
+				EAssetScanStatus ScanStatus = MetaSoundEditorModule.GetAssetRegistryScanStatus();
+				if (PrimeStatus == EAssetPrimeStatus::Complete || (PrimeStatus == EAssetPrimeStatus::InProgress && ScanStatus == EAssetScanStatus::Complete))
 				{
 					bPrimingRegistry = false;
 					NotifyAssetPrimeComplete();

@@ -103,6 +103,7 @@ namespace Metasound
 			// loaded) & registers them if not already registered with the MetaSound Class Registry.
 			virtual void PrimeAssetRegistryAsync() = 0;
 			virtual EAssetPrimeStatus GetAssetRegistryPrimeStatus() const = 0;
+			virtual EAssetScanStatus GetAssetRegistryScanStatus() const = 0;
 
 			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateMemberDefaultLiteralCustomization(UClass& InClass, IDetailCategoryBuilder& DefaultCategoryBuilder) const = 0;
 
