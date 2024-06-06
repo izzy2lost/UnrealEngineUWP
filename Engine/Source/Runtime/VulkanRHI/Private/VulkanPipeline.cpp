@@ -1781,6 +1781,13 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 		{
 			const FVulkanShaderHeader& PSHeader = Shaders[ShaderStage::Pixel]->GetCodeHeader();
 			DescriptorSetLayoutInfo.ProcessBindingsForStage(VK_SHADER_STAGE_FRAGMENT_BIT, ShaderStage::Pixel, PSHeader, UBGatherInfo);
+
+			if (PSHeader.InputAttachmentInfos.Num())
+			{
+				// input attachements can't exist in a first sub-pass
+				check(PSOInitializer.SubpassHint != ESubpassHint::None);
+				check(PSOInitializer.SubpassIndex != 0);
+			}
 		}
 
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
@@ -1797,14 +1804,6 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 		DescriptorSetLayoutInfo.FinalizeBindings<false>(*Device, UBGatherInfo, ImmutableSamplers);
 	}
 
-	FDescriptorSetRemappingInfo& RemappingInfo = DescriptorSetLayoutInfo.RemappingInfo;
-
-	if (RemappingInfo.InputAttachmentData.Num())
-	{
-		// input attachements can't exist in a first sub-pass
-		check(PSOInitializer.SubpassHint != ESubpassHint::None); 
-		check(PSOInitializer.SubpassIndex != 0);
-	}
 	OutGfxEntry->SubpassIndex = PSOInitializer.SubpassIndex;
 
 	FVulkanBlendState* BlendState = ResourceCast(PSOInitializer.BlendState);

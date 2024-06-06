@@ -628,20 +628,6 @@ void FVulkanLayout::Compile(FVulkanDescriptorSetLayoutMap& DSetLayoutMap)
 	}
 }
 
-bool FVulkanGfxLayout::UsesInputAttachment(FVulkanShaderHeader::EAttachmentType AttachmentType) const
-{
-	const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& InputAttachmentData = GfxPipelineDescriptorInfo.GetInputAttachmentData();
-	for (const FVulkanShaderHeader::FInputAttachmentInfo& Input : InputAttachmentData)
-	{
-		if (Input.Type == AttachmentType)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 uint32 FVulkanDescriptorSetWriter::SetupDescriptorWrites(
 	const TArray<VkDescriptorType>& Types, FVulkanHashableDescriptorInfo* InHashableDescriptorInfos,
 	VkWriteDescriptorSet* InWriteDescriptors, VkDescriptorImageInfo* InImageInfo, VkDescriptorBufferInfo* InBufferInfo, uint8* InBindingToDynamicOffsetMap,
@@ -792,13 +778,6 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 					Binding.descriptorType = DescriptorType;
 					AddDescriptor(Stage, Binding);
 				}
-			}
-
-			if (ShaderHeader->InputAttachmentInfos.Num())
-			{
-				check(Stage == ShaderStage::Pixel);
-				check(RemappingInfo.InputAttachmentData.Num() == 0);
-				RemappingInfo.InputAttachmentData = ShaderHeader->InputAttachmentInfos;
 			}
 		}
 	}

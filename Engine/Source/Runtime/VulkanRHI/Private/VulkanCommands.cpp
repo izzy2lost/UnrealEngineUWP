@@ -455,7 +455,6 @@ void FVulkanCommandListContext::RHISetUniformBufferDynamicOffset(FUniformBufferS
 	check(IsAligned(InOffset, Device->GetLimits().minUniformBufferOffsetAlignment));
 
 	FVulkanUniformBuffer* UniformBuffer = ResourceCast(GlobalUniformBuffers[InSlot]);
-	const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = PendingGfxState->CurrentState->GetGfxPipelineDescriptorInfo();
 
 	static const ShaderStage::EStage Stages[2] = 
 	{

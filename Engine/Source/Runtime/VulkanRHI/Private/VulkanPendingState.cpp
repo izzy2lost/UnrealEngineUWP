@@ -533,34 +533,38 @@ void FVulkanPendingGfxState::InternalUpdateDynamicStates(FVulkanCmdBuffer* Cmd)
 
 void FVulkanPendingGfxState::UpdateInputAttachments(FVulkanFramebuffer* Framebuffer)
 {
-	const FVulkanGfxPipelineDescriptorInfo& GfxDescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-	const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& InputAttachmentData = GfxDescriptorInfo.GetInputAttachmentData();
-
-	for (int32 Index = 0; Index < InputAttachmentData.Num(); ++Index)
+	const FVulkanShader* PixelShader = CurrentPipeline->GetVulkanShader(SF_Pixel);
+	if (PixelShader)
 	{
-		const FVulkanShaderHeader::FInputAttachmentInfo& AttachmentData = InputAttachmentData[Index];
+		const FVulkanShaderHeader& Header = PixelShader->GetCodeHeader();
+		const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& InputAttachmentData = Header.InputAttachmentInfos;
 	
-		switch (AttachmentData.Type)
+		for (int32 Index = 0; Index < InputAttachmentData.Num(); ++Index)
 		{
-		case FVulkanShaderHeader::EAttachmentType::Color0:
-		case FVulkanShaderHeader::EAttachmentType::Color1:
-		case FVulkanShaderHeader::EAttachmentType::Color2:
-		case FVulkanShaderHeader::EAttachmentType::Color3:
-		case FVulkanShaderHeader::EAttachmentType::Color4:
-		case FVulkanShaderHeader::EAttachmentType::Color5:
-		case FVulkanShaderHeader::EAttachmentType::Color6:
-		case FVulkanShaderHeader::EAttachmentType::Color7:
+			const FVulkanShaderHeader::FInputAttachmentInfo& AttachmentData = InputAttachmentData[Index];
+
+			switch (AttachmentData.Type)
+			{
+			case FVulkanShaderHeader::EAttachmentType::Color0:
+			case FVulkanShaderHeader::EAttachmentType::Color1:
+			case FVulkanShaderHeader::EAttachmentType::Color2:
+			case FVulkanShaderHeader::EAttachmentType::Color3:
+			case FVulkanShaderHeader::EAttachmentType::Color4:
+			case FVulkanShaderHeader::EAttachmentType::Color5:
+			case FVulkanShaderHeader::EAttachmentType::Color6:
+			case FVulkanShaderHeader::EAttachmentType::Color7:
 			{
 				const int32 ColorIndex = static_cast<int32>(AttachmentData.Type) - (int32)FVulkanShaderHeader::EAttachmentType::Color0;
 				check((ColorIndex >= 0) && (ColorIndex < (int32)Framebuffer->GetNumColorAttachments()));
 				CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->AttachmentTextureViews[ColorIndex]->GetTextureView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 			}
 			break;
-		case FVulkanShaderHeader::EAttachmentType::Depth:
-			CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->GetPartialDepthTextureView(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
-			break;
-		default:
-			check(0);
+			case FVulkanShaderHeader::EAttachmentType::Depth:
+				CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->GetPartialDepthTextureView(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+				break;
+			default:
+				check(0);
+			}
 		}
 	}
 }

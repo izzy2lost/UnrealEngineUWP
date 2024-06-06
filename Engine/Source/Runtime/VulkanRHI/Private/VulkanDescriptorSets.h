@@ -615,11 +615,6 @@ public:
 		return bInitialized;
 	}
 
-	inline const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& GetInputAttachmentData() const
-	{
-		return RemappingInfo->InputAttachmentData;
-	}
-
 	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo);
 
 protected:
@@ -1128,8 +1123,6 @@ public:
 	{
 		return GfxPipelineDescriptorInfo;
 	}
-
-	bool UsesInputAttachment(FVulkanShaderHeader::EAttachmentType AttachmentType) const;
 
 protected:
 	FVulkanGfxPipelineDescriptorInfo		GfxPipelineDescriptorInfo;
