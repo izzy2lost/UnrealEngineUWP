@@ -296,8 +296,6 @@ namespace Metasound
 			
 			SampleRate = InParams.OperatorSettings.GetSampleRate();
 			BlockSizeFrames = InParams.OperatorSettings.GetNumFramesPerBlock();
-
-			CreatePatchOutput();
 		}
 
 	private:

@@ -187,13 +187,6 @@ void UAudioBusSubsystem::AddPendingConnection(uint64 SoundInstanceID, FPendingCo
 	SoundInstanceConnections.PendingConnections.Add(MoveTemp(PendingConnection));
 }
 
-void UAudioBusSubsystem::ReadyToConnect(uint64 SoundInstanceID)
-{
-	FScopeLock ScopeLock(&Mutex);
-	FSoundInstanceConnections& SoundInstanceConnections = SoundInstanceConnectionMap.FindOrAdd(SoundInstanceID);
-	SoundInstanceConnections.bSoundInstanceReady = true;
-}
-
 void UAudioBusSubsystem::ConnectPatches(uint64 SoundInstanceID)
 {
 	TArray<FPendingConnection> PendingConnections = ExtractPendingConnectionsIfReady(SoundInstanceID);
@@ -227,12 +220,9 @@ TArray<UAudioBusSubsystem::FPendingConnection> UAudioBusSubsystem::ExtractPendin
 	FScopeLock ScopeLock(&Mutex);
 	if (FSoundInstanceConnections* SoundInstanceConnections = SoundInstanceConnectionMap.Find(SoundInstanceID))
 	{
-		if (SoundInstanceConnections->bSoundInstanceReady)
-		{
-			TArray<FPendingConnection> PendingConnections = MoveTemp(SoundInstanceConnections->PendingConnections);
-			SoundInstanceConnections->PendingConnections.Empty();
-			return PendingConnections;
-		}
+		TArray<FPendingConnection> PendingConnections = MoveTemp(SoundInstanceConnections->PendingConnections);
+		SoundInstanceConnections->PendingConnections.Empty();
+		return PendingConnections;
 	}
 	return {};
 }

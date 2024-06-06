@@ -5,8 +5,6 @@
 #include "Algo/Find.h"
 #include "Algo/Transform.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "AudioBusSubsystem.h"
-#include "AudioDevice.h"
 #include "AudioDeviceManager.h"
 #include "Containers/Ticker.h"
 #include "IAudioParameterInterfaceRegistry.h"
@@ -1047,19 +1045,6 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 	if (Generator.IsValid())
 	{
 		TrackGenerator(InParams.AudioComponentId, Generator);
-
-		Generator->AddGraphSetCallback(Metasound::FOnSetGraph::FDelegate::CreateLambda([AudioDeviceID = InParams.AudioDeviceID, InstanceID = InParams.InstanceID]()
-			{
-				if (FAudioDeviceManager* ADM = FAudioDeviceManager::Get())
-				{
-					if (FAudioDevice* AudioDevice = ADM->GetAudioDeviceRaw(AudioDeviceID))
-					{
-						UAudioBusSubsystem* AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
-						check(AudioBusSubsystem);
-						AudioBusSubsystem->ReadyToConnect(InstanceID);
-					}
-				}
-			}));
 	}
 
 	return ISoundGeneratorPtr(Generator);

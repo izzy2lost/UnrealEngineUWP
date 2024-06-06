@@ -88,7 +88,6 @@ public:
 
 	AUDIOMIXER_API Audio::FPatchInput AddPatchInputForSoundAndAudioBus(uint64 SoundInstanceID, Audio::FAudioBusKey AudioBusKey, int32 InFrames, int32 NumChannels, float InGain = 1.f);
 	AUDIOMIXER_API Audio::FPatchOutputStrongPtr AddPatchOutputForSoundAndAudioBus(uint64 SoundInstanceID, Audio::FAudioBusKey AudioBusKey, int32 InFrames, int32 NumChannels, float InGain = 1.f);
-	AUDIOMIXER_API void ReadyToConnect(uint64 SoundInstanceID);
 	AUDIOMIXER_API void ConnectPatches(uint64 SoundInstanceID);
 	AUDIOMIXER_API void RemoveSound(uint64 SoundInstanceID);
 
@@ -122,7 +121,6 @@ private:
 	struct FSoundInstanceConnections
 	{
 		TArray<FPendingConnection> PendingConnections;
-		bool bSoundInstanceReady = false;
 	};
 
 	TArray<FPendingConnection> ExtractPendingConnectionsIfReady(uint64 SoundInstanceID);
