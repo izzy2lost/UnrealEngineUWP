@@ -6,6 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTTaskNode.h"
 #include "BehaviorTree/ValueOrBBKey.h"
+#include "Sound/SoundCue.h"
 #include "BTTask_PlaySound.generated.h"
 
 class USoundCue;

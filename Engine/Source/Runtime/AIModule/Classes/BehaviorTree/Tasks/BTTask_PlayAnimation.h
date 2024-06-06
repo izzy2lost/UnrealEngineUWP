@@ -7,6 +7,7 @@
 #include "Engine/EngineTypes.h"
 #include "TimerManager.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimationAsset.h"
 #include "BehaviorTree/BTTaskNode.h"
 #include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_PlayAnimation.generated.h"
