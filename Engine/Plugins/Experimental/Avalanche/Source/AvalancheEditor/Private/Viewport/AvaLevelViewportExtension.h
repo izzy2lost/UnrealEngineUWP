@@ -26,6 +26,7 @@ public:
 
 	void SetDefaultViewportType();
 	void SetMotionDesignViewportType();
+	void SetViewportType(const TSharedRef<FUICommandInfo>& InViewportCommand, bool bInSetActiveCamera);
 
 	virtual ~FAvaLevelViewportExtension() override;
 
