@@ -77,7 +77,10 @@ namespace PCGGraphExecutionLogging
 				}
 				bFirstInput = false;
 
-				InputString += FString::Printf(TEXT("%" UINT64_FMT "->'%s'"), Input.TaskId, Input.OutPin ? *Input.OutPin->Properties.Label.ToString() : TEXT(""));
+				InputString += FString::Printf(
+					TEXT("%" UINT64_FMT "->'%s'"),
+					Input.TaskId,
+					Input.DownstreamPin.IsSet() ? *Input.DownstreamPin.GetValue().Label.ToString() : TEXT("NoPin"));
 			}
 
 			return InputString;
@@ -368,7 +371,7 @@ namespace PCGGraphExecutionLogging
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
-	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
+	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath, int32 InDataItemCount)
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
@@ -377,12 +380,13 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%u, FromGridSize=%u, ToGridSize=%u, Path=%s, DataItems=%d"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
-			PCGHiGenGrid::GridToGridSize(InGenerationGrid),
+			PCGHiGenGrid::IsValidGrid(InGenerationGrid) ? PCGHiGenGrid::GridToGridSize(InGenerationGrid) : PCGHiGenGrid::UnboundedGridSize(),
 			InFromGridSize,
 			InToGridSize,
-			*InResourcePath);
+			*InResourcePath,
+			InDataItemCount);
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
@@ -395,9 +399,9 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%u, FromGridSize=%u, ToGridSize=%u, Path=%s"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
-			PCGHiGenGrid::GridToGridSize(InGenerationGrid),
+			PCGHiGenGrid::IsValidGrid(InGenerationGrid) ? PCGHiGenGrid::GridToGridSize(InGenerationGrid) : PCGHiGenGrid::UnboundedGridSize(),
 			InFromGridSize,
 			InToGridSize,
 			*InResourcePath);
@@ -413,7 +417,7 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SUCCESS. Path=%s DataItems=%d"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SUCCESS. Path=%s, DataItems=%d"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
 			*InResourcePath,
 			InDataItemCount);
@@ -429,7 +433,7 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SCHEDULE GRAPH. Component=%s Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SCHEDULE GRAPH. Component=%s, Path=%s"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
 			*GetOwnerName(InScheduledComponent),
 			*InResourcePath);
@@ -445,7 +449,7 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WAIT FOR SCHEDULED GRAPH. Component=%s Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WAIT FOR SCHEDULED GRAPH. Component=%s, Path=%s"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
 			*GetOwnerName(InWaitOnComponent),
 			*InResourcePath);

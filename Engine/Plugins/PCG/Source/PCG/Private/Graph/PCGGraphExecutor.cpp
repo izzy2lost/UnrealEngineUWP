@@ -100,8 +100,8 @@ void FPCGGraphTask::LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMe
 bool FPCGGraphTaskInput::operator==(const FPCGGraphTaskInput& Other) const
 {
 	return (TaskId == Other.TaskId)
-		&& (InPin == Other.InPin)
-		&& (OutPin == Other.OutPin)
+		&& (UpstreamPin == Other.UpstreamPin)
+		&& (DownstreamPin == Other.DownstreamPin)
 		&& (bProvideData == Other.bProvideData);
 }
 
@@ -273,7 +273,7 @@ FPCGTaskId FPCGGraphExecutor::Schedule(
 		for (FPCGTaskId ExternalDependency : ExternalDependencies)
 		{
 			// For the pre-task, we don't consume any input
-			PreGraphTask.Inputs.Emplace(ExternalDependency, nullptr, nullptr, /*bConsumeData=*/false);
+			PreGraphTask.Inputs.Emplace(ExternalDependency, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, /*bInProvideData=*/false);
 		}
 
 		ScheduledTask.FirstTaskIndex = ScheduledTask.Tasks.Num() - 2;
@@ -578,13 +578,13 @@ FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGCont
 	for (FPCGTaskId TaskDependency : TaskExecutionDependencies)
 	{
 		ensure(TaskDependency != InvalidPCGTaskId);
-		Task.Inputs.Emplace(TaskDependency, /*InPin=*/nullptr, /*OutPin=*/nullptr, /*bConsumeInputData=*/false);
+		Task.Inputs.Emplace(TaskDependency, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, /*bInProvideData=*/false);
 	}
 
 	for (FPCGTaskId TaskDependency : TaskDataDependencies)
 	{
 		ensure(TaskDependency != InvalidPCGTaskId);
-		Task.Inputs.Emplace(TaskDependency, /*InPin=*/nullptr, /*OutPin=*/nullptr, /*bConsumeInputData=*/true);
+		Task.Inputs.Emplace(TaskDependency);
 	}
 
 	Task.SourceComponent = InSourceComponent;
@@ -1326,7 +1326,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::BuildTaskInput);
 
-	auto LogDiscardedData = [&Task](const UPCGPin* InPin)
+	auto LogDiscardedData = [&Task](const TOptional<FPCGPinProperties>& DownstreamPin)
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		// Turn off eventual errors/warnings when the node is disabled, as this is irrelevant.
@@ -1340,7 +1340,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 			TEXT("[%s] %s - BuildTaskInput - too many data items arriving on single data pin '%s', only first data item will be used"),
 			(Task.SourceComponent.Get() && Task.SourceComponent->GetOwner()) ? *Task.SourceComponent->GetOwner()->GetName() : TEXT("MissingComponent"),
 			Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MissingNode"),
-			InPin ? *InPin->Properties.Label.ToString() : TEXT("MissingPin"));
+			DownstreamPin.IsSet() ? *DownstreamPin.GetValue().Label.ToString() : TEXT("NoPin"));
 
 #if WITH_EDITOR
 		Task.LogVisual(ELogVerbosity::Warning, FText::FromString(Message));
@@ -1376,13 +1376,13 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 			continue;
 		}
 
-		const bool bAllowMultipleData = Input.OutPin ? Input.OutPin->Properties.bAllowMultipleData : true;
-		const uint32 InputPinLabelCrc = Input.OutPin ? GetTypeHash(Input.OutPin->Properties.Label) : DefaultHashForNoOutputPin;
+		const bool bAllowMultipleData = Input.DownstreamPin.IsSet() ? Input.DownstreamPin.GetValue().bAllowMultipleData : true;
+		const uint32 InputPinLabelCrc = Input.DownstreamPin.IsSet() ? GetTypeHash(Input.DownstreamPin.GetValue().Label) : DefaultHashForNoOutputPin;
 
 		// Enforce single data - if already have input for this pin, don't add more. Early check before other side effects below.
-		if (Input.OutPin && !bAllowMultipleData && TaskInput.GetInputCountByPin(Input.OutPin->Properties.Label) > 0)
+		if (Input.DownstreamPin.IsSet() && !bAllowMultipleData && TaskInput.GetInputCountByPin(Input.DownstreamPin.GetValue().Label) > 0)
 		{
-			LogDiscardedData(Input.OutPin);
+			LogDiscardedData(Input.DownstreamPin);
 			continue;
 		}
 
@@ -1395,11 +1395,11 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 		// Get input data at the given pin (or everything). This will add the data and include the input pin Crc to uniquely identify
 		// inputs per-pin, or use a placeholder for symmetry.
 		// Note: The input data CRC will already contain the output pin (calculated in element post execute).
-		if (Input.InPin)
+		if (Input.UpstreamPin.IsSet())
 		{
 			InputDataOnPin.Reset();
 			InputDataCrcsOnPin.Reset();
-			InputCollection.GetInputsAndCrcsByPin(Input.InPin->Properties.Label, InputDataOnPin, InputDataCrcsOnPin);
+			InputCollection.GetInputsAndCrcsByPin(Input.UpstreamPin.GetValue().Label, InputDataOnPin, InputDataCrcsOnPin);
 
 			if (!InputDataOnPin.IsEmpty())
 			{
@@ -1418,7 +1418,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 
 				if (NumberDataItemsToTake < InputDataOnPin.Num())
 				{
-					LogDiscardedData(Input.OutPin);
+					LogDiscardedData(Input.DownstreamPin);
 				}
 			}
 		}
@@ -1429,11 +1429,11 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 
 		// Apply labelling on data; technically, we should ensure that we do this only for pass-through nodes,
 		// Otherwise we could also null out the label on the input...
-		if (Input.OutPin)
+		if (Input.DownstreamPin.IsSet())
 		{
 			for (int32 TaggedDataIndex = TaggedDataOffset; TaggedDataIndex < TaskInput.TaggedData.Num(); ++TaggedDataIndex)
 			{
-				TaskInput.TaggedData[TaggedDataIndex].Pin = Input.OutPin->Properties.Label;
+				TaskInput.TaggedData[TaggedDataIndex].Pin = Input.DownstreamPin.GetValue().Label;
 			}
 		}
 	}
@@ -2068,10 +2068,11 @@ namespace PCGGraphExecutor
 
 		if (!!(InFromGrid & InGenerationGrid) && FromGridSize != ToGridSize)
 		{
-			PCGGraphExecutionLogging::LogGridLinkageTaskExecuteStore(InContext, InGenerationGrid, FromGridSize, ToGridSize, InResourceKey);
-
 			FPCGDataCollection Data;
 			Data.TaggedData = InContext->InputData.GetInputsByPin(InOutputPinLabel);
+
+			PCGGraphExecutionLogging::LogGridLinkageTaskExecuteStore(InContext, InGenerationGrid, FromGridSize, ToGridSize, InResourceKey, Data.TaggedData.Num());
+			
 			InContext->SourceComponent->StoreOutputDataForPin(InResourceKey, Data);
 		}
 		else if (InToGrid == InGenerationGrid && FromGridSize != ToGridSize)

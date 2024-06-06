@@ -4,6 +4,7 @@
 
 #include "PCGContext.h"
 #include "PCGElement.h"
+#include "PCGPin.h"
 #include "PCGSubsystem.h"
 #include "Graph/PCGGraphCache.h"
 #include "Graph/PCGGraphCompiler.h"
@@ -17,7 +18,6 @@
 #include "WorldPartition/WorldPartitionHandle.h" // Needed for FWorldPartitionReference
 #endif
 
-class UPCGPin;
 class UPCGGraph;
 class UPCGNode;
 class UPCGComponent;
@@ -38,10 +38,10 @@ namespace PCGGraphExecutor
 
 struct FPCGGraphTaskInput
 {
-	FPCGGraphTaskInput(FPCGTaskId InTaskId, const UPCGPin* InInboundPin, const UPCGPin* InOutboundPin, bool bInProvideData = true)
+	FPCGGraphTaskInput(FPCGTaskId InTaskId, const TOptional<FPCGPinProperties>& InUpstreamPin = NoPin, const TOptional<FPCGPinProperties>& InDownstreamPin = NoPin, bool bInProvideData = true)
 		: TaskId(InTaskId)
-		, InPin(InInboundPin)
-		, OutPin(InOutboundPin)
+		, UpstreamPin(InUpstreamPin)
+		, DownstreamPin(InDownstreamPin)
 		, bProvideData(bInProvideData)
 	{
 	}
@@ -53,13 +53,15 @@ struct FPCGGraphTaskInput
 	FPCGTaskId TaskId;
 
 	/** The upstream output pin from which the input data comes. */
-	const UPCGPin* InPin;
+	TOptional<FPCGPinProperties> UpstreamPin;
 
 	/** The input pin on the task element. */
-	const UPCGPin* OutPin;
+	TOptional<FPCGPinProperties> DownstreamPin;
 
 	/** Whether the input provides any data. For the post execute task, only the output node will provide data. */
 	bool bProvideData;
+
+	static inline const TOptional<FPCGPinProperties> NoPin = TOptional<FPCGPinProperties>();
 };
 
 struct FPCGGraphTask

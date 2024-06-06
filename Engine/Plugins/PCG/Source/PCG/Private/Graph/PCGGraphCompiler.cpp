@@ -118,7 +118,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 				{
 					if (InboundEdge->IsValid())
 					{
-						PreTask.Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin, InboundEdge->OutputPin);
+						PreTask.Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties);
 					}
 					else
 					{
@@ -130,7 +130,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			// Add pre-task as input to subgraph input node task
 			if (InputNodeTask)
 			{
-				InputNodeTask->Inputs.Emplace(PreId, nullptr, nullptr);
+				InputNodeTask->Inputs.Emplace(PreId);
 			}
 
 			// Hook nodes to the PreTask if they require so.
@@ -148,7 +148,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 				const bool bRequiresDataFromPreTask = Settings && Settings->RequiresDataFromPreTask();
 				if (bRequiresDataFromPreTask || Subtask.Inputs.IsEmpty())
 				{
-					Subtask.Inputs.Emplace(PreId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr, bRequiresDataFromPreTask);
+					Subtask.Inputs.Emplace(PreId, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, bRequiresDataFromPreTask);
 				}
 			}
 
@@ -169,12 +169,12 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			// with something that might become inactive and would then fail to dynamically cull this already-scheduled task.
 			// Additional implementation note: this first depedencency is critical in our ability to do static culling (see CalculateStaticallyActiveRecursive)
 			// and should not be changed here without changing the other.
-			PostTask.Inputs.Emplace(PreId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr, /*bInProvideData=*/false);
+			PostTask.Inputs.Emplace(PreId, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, /*bInProvideData=*/false);
 
 			// Add subgraph output node task as input to the post-task
 			if (OutputNodeTask)
 			{
-				PostTask.Inputs.Emplace(OutputNodeTask->NodeId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr);
+				PostTask.Inputs.Emplace(OutputNodeTask->NodeId);
 			}
 
 			check(!IdMapping.Contains(Node));
@@ -200,7 +200,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 
 					if (FPCGTaskId* InboundId = IdMapping.Find(InboundEdge->InputPin->Node))
 					{
-						Task.Inputs.Emplace(*InboundId, InboundEdge->InputPin, InboundEdge->OutputPin); 
+						Task.Inputs.Emplace(*InboundId, InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties);
 					}
 					else
 					{
@@ -364,7 +364,16 @@ void FPCGGraphCompiler::CreateGridLinkages(
 		const EPCGHiGenGrid GraphGenerationGrid = InOutTaskGenerationGrid[TaskId];
 		for (FPCGGraphTaskInput& TaskInput : InOutCompiledTasks[TaskId].Inputs)
 		{
-			if (!TaskInput.InPin)
+			const UPCGPin* UpstreamPin = nullptr;
+			if (TaskInput.UpstreamPin.IsSet())
+			{
+				if (const UPCGNode* Node = InOutCompiledTasks[TaskInput.TaskId].Node)
+				{
+					UpstreamPin = Node->GetOutputPin(TaskInput.UpstreamPin.GetValue().Label);
+				}
+			}
+
+			if (!UpstreamPin)
 			{
 				// Don't link if we don't have a upstream pin to retrieve data from
 				continue;
@@ -377,7 +386,7 @@ void FPCGGraphCompiler::CreateGridLinkages(
 			{
 				// Build a string identifier for the data
 				FString ResourceKey;
-				if (!ensure(CurrentStack->CreateStackFramePath(ResourceKey, TaskInput.InPin->Node, TaskInput.InPin)))
+				if (!ensure(CurrentStack->CreateStackFramePath(ResourceKey, UpstreamPin->Node, UpstreamPin)))
 				{
 					continue;
 				}
@@ -387,13 +396,13 @@ void FPCGGraphCompiler::CreateGridLinkages(
 				LinkTask.NodeId = InOutCompiledTasks.Num() - 1;
 				LinkTask.StackIndex = InOutCompiledTasks[TaskId].StackIndex;
 
-				LinkTask.Inputs.Emplace(TaskInput.TaskId, TaskInput.InPin, nullptr, /*bConsumeInputData=*/true);
+				LinkTask.Inputs.Emplace(TaskInput.TaskId, UpstreamPin->Properties);
 
 				const EPCGHiGenGrid FromGrid = InOutTaskGenerationGrid[TaskInput.TaskId];
 				const EPCGHiGenGrid ToGrid = InOutTaskGenerationGrid[TaskId];
 
 				// This lambda runs at execution time and attempts to retrieve the data from a larger grid. Capture by value is intentional.
-				auto GridLinkageOperation = [FromGrid, ToGrid, ResourceKey, OutputPinLabel = TaskInput.InPin->Properties.Label,
+				auto GridLinkageOperation = [FromGrid, ToGrid, ResourceKey, OutputPinLabel = TaskInput.UpstreamPin.GetValue().Label,
 					DownstreamNode = InOutCompiledTasks[TaskId].Node, InGenerationGrid](FPCGContext* InContext)
 				{
 					return PCGGraphExecutor::ExecuteGridLinkage(
@@ -559,10 +568,8 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 
 	for (const FPCGGraphTaskInput& Input : InCompiledTasks[InTaskId].Inputs)
 	{
-		const UPCGPin* InputPin = Input.OutPin;
-
 		// Only non-advanced input pins play a part in determining active/inactive state.
-		if (InputPin && InputPin->Properties.IsAdvancedPin())
+		if (Input.DownstreamPin.IsSet() && Input.DownstreamPin.GetValue().IsAdvancedPin())
 		{
 			continue;
 		}
@@ -573,12 +580,12 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 		bool bInputActive = true;
 
 		// If we are connected to an upstream node, evaluate if the output pin is active.
-		if (Input.InPin)
+		if (Input.UpstreamPin.IsSet())
 		{
 			const UPCGNode* UpstreamNode = InCompiledTasks[Input.TaskId].Node;
 			if (const UPCGSettings* UpstreamSettings = UpstreamNode ? UpstreamNode->GetSettings() : nullptr)
 			{
-				bInputActive &= UpstreamSettings->IsPinStaticallyActive(Input.InPin->Properties.Label);
+				bInputActive &= UpstreamSettings->IsPinStaticallyActive(Input.UpstreamPin.GetValue().Label);
 			}
 		}
 
@@ -591,10 +598,10 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 		{
 			bHasAnyActiveNonAdvancedInput = true;
 
-			if (InputPin)
+			if (Input.DownstreamPin.IsSet())
 			{
 				// Register received input on this pin.
-				PinsRequiringActiveConnection.Remove(InputPin->Properties.Label);
+				PinsRequiringActiveConnection.Remove(Input.DownstreamPin.GetValue().Label);
 			}
 		}
 	}
@@ -703,7 +710,7 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, boo
 					const int NewWireCount = CulledInputTask.Inputs.Num();
 					for (int I = 0; I < NewWireCount; ++I)
 					{
-						Task.Inputs[InputIndex + 1 + I].OutPin = Task.Inputs[InputIndex].OutPin;
+						Task.Inputs[InputIndex + 1 + I].DownstreamPin = Task.Inputs[InputIndex].DownstreamPin;
 					}
 
 					// Skip evaluating the newly wired inputs and increment
@@ -823,15 +830,15 @@ void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskI
 
 	for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[InTaskId].Inputs)
 	{
-		if (!Node || !Input.OutPin)
+		if (!Node || !Input.DownstreamPin.IsSet())
 		{
 			continue;
 		}
 
-		const UPCGPin* InputPin = Input.OutPin;
+		const UPCGPin* InputPin = Node->GetInputPin(Input.DownstreamPin.GetValue().Label);
 
 		// Consider only primary input pins in this pass.
-		if (!Node->IsInputPinRequiredByExecution(InputPin))
+		if (!InputPin || !Node->IsInputPinRequiredByExecution(InputPin))
 		{
 			continue;
 		}
@@ -844,14 +851,14 @@ void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskI
 
 		const int PinIndex = UpstreamNode->GetOutputPins().IndexOfByPredicate([&Input](const UPCGPin* InPin)
 		{
-			return InPin == Input.InPin;
+			return InPin->Properties == Input.UpstreamPin;
 		});
 
 		if (PinIndex != INDEX_NONE)
 		{
 			check(PinIndex < PCGPinIdHelpers::MaxOutputPins);
 
-			FPCGPinDependencyExpression& PinDependency = InputPinLabelToPinDependency.FindOrAdd(Input.OutPin->Properties.Label);
+			FPCGPinDependencyExpression& PinDependency = InputPinLabelToPinDependency.FindOrAdd(Input.DownstreamPin.GetValue().Label);
 			PinDependency.AddPinDependency(PCGPinIdHelpers::NodeIdAndPinIndexToPinId(Input.TaskId, PinIndex));
 		}
 	}
@@ -879,13 +886,13 @@ void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskI
 		// is active. We build a disjunction that expresses this.
 		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[InTaskId].Inputs)
 		{
-			if (Input.OutPin && Input.OutPin->Properties.IsAdvancedPin() && !bTreatAdvancedPinsAsNormal)
+			if (Input.DownstreamPin.IsSet() && Input.DownstreamPin.GetValue().IsAdvancedPin() && !bTreatAdvancedPinsAsNormal)
 			{
 				// Advanced input pins never participate in keeping node active.
 				continue;
 			}
-
-			if (const UPCGPin* UpstreamOutputPin = Input.InPin)
+		
+			if (Input.UpstreamPin.IsSet())
 			{
 				// Input connection is via node pins.
 				const UPCGNode* UpstreamNode = InOutCompiledTasks[Input.TaskId].Node;
@@ -894,9 +901,9 @@ void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskI
 					continue;
 				}
 
-				const int PinIndex = UpstreamNode->GetOutputPins().IndexOfByPredicate([UpstreamOutputPin](const UPCGPin* InPin)
+				const int PinIndex = UpstreamNode->GetOutputPins().IndexOfByPredicate([&Input](const UPCGPin* InPin)
 				{
-					return InPin == UpstreamOutputPin;
+					return InPin->Properties == Input.UpstreamPin.GetValue();
 				});
 
 				if (PinIndex != INDEX_NONE)
@@ -1070,7 +1077,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		FPCGGraphTask& Task = CompiledTasks[TaskIndex];
 		if (Task.Inputs.IsEmpty())
 		{
-			Task.Inputs.Emplace(PreExecuteTaskId, nullptr, nullptr);
+			Task.Inputs.Emplace(PreExecuteTaskId);
 		}
 
 		Task.CompiledTaskId = Task.NodeId;
@@ -1096,7 +1103,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 			// It is necessary for any post generation task to get the content of the output node
 			// and only this content.
 			const bool bProvideData = Task.Node == GraphOutputNode;
-			PostExecuteTask.Inputs.Emplace(Task.NodeId, nullptr, nullptr, bProvideData);
+			PostExecuteTask.Inputs.Emplace(Task.NodeId, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, bProvideData);
 		}
 
 		for (const FPCGGraphTaskInput& Input : Task.Inputs)
