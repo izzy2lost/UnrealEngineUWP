@@ -99,7 +99,6 @@ FSpatialHashStreamingGrid::FSpatialHashStreamingGrid()
 	, DebugColor(ForceInitToZero)
 	, WorldBounds(ForceInitToZero)
 	, bClientOnlyVisible(false)
-	, HLODLayer(nullptr)
 	, GridIndex(INDEX_NONE)
 	, GridHelper(nullptr)
 {
@@ -212,10 +211,6 @@ void FSpatialHashStreamingGrid::DumpStateLog(FHierarchicalLogArchive& Ar) const
 	Ar.Printf(TEXT("Block Slow Loading: %s"), bBlockOnSlowStreaming ? TEXT("Yes") : TEXT("No"));
 	Ar.Printf(TEXT(" ClientOnlyVisible: %s"), bClientOnlyVisible ? TEXT("Yes") : TEXT("No"));
 	Ar.Printf(TEXT(""));
-	if (HLODLayer)
-	{
-		Ar.Printf(TEXT("    HLOD Layer: %s"), *HLODLayer->GetName());
-	}
 
 	struct FGridLevelStats
 	{
@@ -1579,7 +1574,6 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 	CurrentStreamingGrid.Origin = FVector(RuntimeGrid.Origin, 0);
 	CurrentStreamingGrid.DebugColor = RuntimeGrid.DebugColor;
 	CurrentStreamingGrid.bClientOnlyVisible = RuntimeGrid.bClientOnlyVisible;
-	CurrentStreamingGrid.HLODLayer = RuntimeGrid.HLODLayer;
 	CurrentStreamingGrid.GridIndex = (StreamingGrids.Num() - 1);
 
 	// Move actors into the final streaming grids
@@ -1995,7 +1989,6 @@ FGuid UWorldPartitionRuntimeSpatialHash::RegisterWorldAssetStreaming(const UWorl
 		CurrentGrid.bBlockOnSlowStreaming = SourceGrid->bBlockOnSlowStreaming;
 		CurrentGrid.DebugColor = FColor::MakeRandomColor();
 		CurrentGrid.bClientOnlyVisible = SourceGrid->bClientOnlyVisible;
-		CurrentGrid.HLODLayer = SourceGrid->HLODLayer;
 		CurrentGrid.GridLevels.SetNum(CurrentGridHelper.Levels.Num());
 
 		if (bIsHLODPass && InParams.WorldAssetHLOD.IsNull())

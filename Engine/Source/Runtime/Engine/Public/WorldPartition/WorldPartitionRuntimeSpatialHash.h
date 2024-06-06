@@ -166,9 +166,6 @@ struct FSpatialHashStreamingGrid
 	bool bClientOnlyVisible;
 
 	UPROPERTY()
-	TObjectPtr<const UHLODLayer> HLODLayer;
-
-	UPROPERTY()
 	int32 GridIndex;
 		
 	UPROPERTY()

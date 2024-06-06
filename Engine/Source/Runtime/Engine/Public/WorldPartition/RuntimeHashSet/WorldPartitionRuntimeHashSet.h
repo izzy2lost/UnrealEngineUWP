@@ -23,6 +23,7 @@ struct FRuntimePartitionHLODSetup
 {
 	GENERATED_USTRUCT_BODY()
 
+#if WITH_EDITORONLY_DATA
 	/** Name for this HLOD layer setup */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	FName Name;
@@ -37,6 +38,7 @@ struct FRuntimePartitionHLODSetup
 
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "bIsSpatiallyLoaded", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> PartitionLayer;
+#endif
 };
 
 /** Holds settings for a runtime partition instance. */
@@ -57,9 +59,11 @@ struct FRuntimePartitionDesc
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> MainLayer;
 
+#if WITH_EDITORONLY_DATA
 	/** HLOD setups used by this partition, one for each layers in the hierarchy */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, ForceInlineRow))
 	TArray<FRuntimePartitionHLODSetup> HLODSetups;
+#endif
 
 #if WITH_EDITOR
 	void UpdateHLODPartitionLayers();
