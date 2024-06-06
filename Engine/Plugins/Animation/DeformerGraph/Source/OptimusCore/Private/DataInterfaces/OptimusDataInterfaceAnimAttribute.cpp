@@ -161,6 +161,8 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 		}
 	}
 }
+#endif
+
 
 void UOptimusAnimAttributeDataInterface::PostLoad()
 {
@@ -190,7 +192,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS	
 	}
 }
-#endif
 
 
 FString UOptimusAnimAttributeDataInterface::GetDisplayName() const
