@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_PlaySound.generated.h"
 
 class USoundCue;
@@ -20,7 +21,7 @@ class UBTTask_PlaySound : public UBTTaskNode
 
 	/** CUE to play */
 	UPROPERTY(Category=Node, EditAnywhere)
-	TObjectPtr<USoundCue> SoundToPlay;
+	FValueOrBBKey_Object SoundToPlay = TObjectPtr<USoundCue>();
 
 	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	AIMODULE_API virtual FString GetStaticDescription() const override;

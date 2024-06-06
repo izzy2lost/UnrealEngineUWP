@@ -23,12 +23,12 @@ EBTNodeResult::Type UBTTask_GameplayTaskBase::StartGameplayTask(UBehaviorTreeCom
 	const UObject* TaskOwnerOb = Cast<const UObject>(Task.GetTaskOwner());
 	UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Log, TEXT("%s is ready to execute gameplay task: %s, finish %s"),
 		*UBehaviorTreeTypes::DescribeNodeHelper(this), *Task.GetName(),
-		!bWaitForGameplayTask ? TEXT("instantly") :
+		!bWaitForGameplayTask.GetValue(OwnerComp) ? TEXT("instantly") :
 		((TaskOwnerOb == this) ? TEXT("with gameplay task") : *FString::Printf(TEXT("UNKNOWN (gameplay task owner: %s)"), *GetNameSafe(TaskOwnerOb))) );
 #endif
 
 	Task.ReadyForActivation();
-	MyMemory->bObserverCanFinishTask = bWaitForGameplayTask;
+	MyMemory->bObserverCanFinishTask = bWaitForGameplayTask.GetValue(OwnerComp);
 
 	return (Task.GetState() != EGameplayTaskState::Finished) ? EBTNodeResult::InProgress : DetermineGameplayTaskResult(Task);
 }
@@ -41,7 +41,7 @@ EBTNodeResult::Type UBTTask_GameplayTaskBase::AbortTask(UBehaviorTreeComponent& 
 	UAITask* TaskOb = MyMemory->Task.Get();
 	if (TaskOb && !TaskOb->IsFinished())
 	{
-		if (bWaitForGameplayTask)
+		if (bWaitForGameplayTask.GetValue(OwnerComp))
 		{
 			TaskOb->ExternalCancel();
 		}

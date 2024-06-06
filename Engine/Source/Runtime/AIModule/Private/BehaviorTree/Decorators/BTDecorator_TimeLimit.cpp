@@ -43,7 +43,7 @@ void UBTDecorator_TimeLimit::OnBecomeRelevant(UBehaviorTreeComponent& OwnerComp,
 {
 	Super::OnBecomeRelevant(OwnerComp, NodeMemory);
 
-	SetNextTickTime(NodeMemory, TimeLimit);
+	SetNextTickTime(NodeMemory, TimeLimit.GetValue(OwnerComp));
 }
 
 void UBTDecorator_TimeLimit::OnCeaseRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
@@ -61,13 +61,14 @@ bool UBTDecorator_TimeLimit::CalculateRawConditionValue(UBehaviorTreeComponent& 
 void UBTDecorator_TimeLimit::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, const float DeltaSeconds)
 {
 	FBTimeLimitMemory* TimeLimitMemory = CastInstanceNodeMemory<FBTimeLimitMemory>(NodeMemory);
-	if (DeltaSeconds < TimeLimit && !FMath::IsNearlyEqual(DeltaSeconds, TimeLimit, UE_KINDA_SMALL_NUMBER))
+	const float Limit = TimeLimit.GetValue(OwnerComp);
+	if (DeltaSeconds < Limit && !FMath::IsNearlyEqual(DeltaSeconds, Limit, UE_KINDA_SMALL_NUMBER))
 	{
 		const FBTAuxiliaryMemory* AuxMemory = GetSpecialNodeMemory<FBTAuxiliaryMemory>(NodeMemory);
 		ensureMsgf(false,
 			TEXT("Using SetNextTickTime in OnBecomeRelevant should guarantee that we are only getting ticked when the time limit is finished. DT=%f, TimeLimit=%f Node:%d, BT: %s, NextTickRemainingTime=%f, AccumulatedDeltaTime=%f, bElapsed=%s"),
 			DeltaSeconds,
-			TimeLimit,
+			Limit,
 			static_cast<int32>(GetExecutionIndex()),
 			*GetNameSafe(GetTreeAsset()),
 			AuxMemory->NextTickRemainingTime,
@@ -88,8 +89,8 @@ void UBTDecorator_TimeLimit::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 FString UBTDecorator_TimeLimit::GetStaticDescription() const
 {
 	// basic info: result after time
-	return FString::Printf(TEXT("%s: %s after %.1fs"), *Super::GetStaticDescription(),
-		*UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed), TimeLimit);
+	return FString::Printf(TEXT("%s: %s after %s s"), *Super::GetStaticDescription(),
+		*UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed), *TimeLimit.ToString());
 }
 
 void UBTDecorator_TimeLimit::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const

@@ -18,22 +18,7 @@ class UBTTask_MoveDirectlyToward : public UBTTask_MoveTo
 {
 	GENERATED_UCLASS_BODY()
 
-	AIMODULE_API virtual void PostLoad() override;
-	AIMODULE_API virtual void InitializeFromAsset(UBehaviorTree& Asset) override;
 #if WITH_EDITOR
 	AIMODULE_API virtual FName GetNodeIconName() const override;
 #endif // WITH_EDITOR
-
-	UE_DEPRECATED_FORGAME(4.12, "This property is now deprecated, use UBTTask_MoveTo::bTrackMovingGoal instead.")
-	UPROPERTY()
-	uint32 bDisablePathUpdateOnGoalLocationChange : 1;
-
-	UE_DEPRECATED_FORGAME(4.12, "This property is now deprecated, use UBTTask_MoveTo::bProjectGoalLocation instead.")
-	UPROPERTY()
-	uint32 bProjectVectorGoalToNavigation : 1;
-
-private:
-
-	UPROPERTY()
-	uint32 bUpdatedDeprecatedProperties : 1;
 };

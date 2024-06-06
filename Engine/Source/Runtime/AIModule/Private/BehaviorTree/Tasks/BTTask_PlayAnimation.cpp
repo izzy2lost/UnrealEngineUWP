@@ -34,7 +34,8 @@ EBTNodeResult::Type UBTTask_PlayAnimation::ExecuteTask(UBehaviorTreeComponent& O
 	TimerHandle.Invalidate();
 	MyOwnerComp = &OwnerComp;
 
-	if (AnimationToPlay && MyController && MyController->GetPawn())
+	UAnimationAsset* AnimToPlay = AnimationToPlay.GetValue<UAnimationAsset>(OwnerComp);
+	if (AnimToPlay && MyController && MyController->GetPawn())
 	{
 		USkeletalMeshComponent* SkelMesh = nullptr;
 		ACharacter* const MyCharacter = Cast<ACharacter>(MyController->GetPawn());
@@ -52,12 +53,12 @@ EBTNodeResult::Type UBTTask_PlayAnimation::ExecuteTask(UBehaviorTreeComponent& O
 			PreviousAnimationMode = SkelMesh->GetAnimationMode();
 			CachedSkelMesh = SkelMesh;
 
-			SkelMesh->PlayAnimation(AnimationToPlay, bLooping);
-			const float FinishDelay = AnimationToPlay->GetPlayLength();
+			SkelMesh->PlayAnimation(AnimToPlay, bLooping.GetValue(OwnerComp));
+			const float FinishDelay = AnimToPlay->GetPlayLength();
 
-			if (bNonBlocking == false && FinishDelay > 0)
+			if (bNonBlocking.GetValue(OwnerComp) == false && FinishDelay > 0)
 			{
-				if (bLooping == false)
+				if (bLooping.GetValue(OwnerComp) == false)
 				{
 					MyController->GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, FinishDelay, /*bLoop=*/false);
 				}
@@ -65,7 +66,7 @@ EBTNodeResult::Type UBTTask_PlayAnimation::ExecuteTask(UBehaviorTreeComponent& O
 			}
 			else
 			{
-				UE_CVLOG(bNonBlocking == false, MyController, LogBehaviorTree, Log, TEXT("%s> Instant success due to having a valid AnimationToPlay and Character with SkelMesh, but 0-length animation"), *GetNodeName());
+				UE_CVLOG(bNonBlocking.GetValue(OwnerComp) == false, MyController, LogBehaviorTree, Log, TEXT("%s> Instant success due to having a valid AnimationToPlay and Character with SkelMesh, but 0-length animation"), *GetNodeName());
 				// we're done here, report success so that BT can pick next task
 				Result = EBTNodeResult::Succeeded;
 			}
@@ -79,7 +80,7 @@ EBTNodeResult::Type UBTTask_PlayAnimation::AbortTask(UBehaviorTreeComponent& Own
 {
 	AAIController* const MyController = OwnerComp.GetAIOwner();
 
-	if (AnimationToPlay && MyController && TimerHandle.IsValid())
+	if (AnimationToPlay.GetValue<UAnimationAsset>(OwnerComp) && MyController && TimerHandle.IsValid())
 	{
 		MyController->GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
 	}
@@ -93,9 +94,9 @@ EBTNodeResult::Type UBTTask_PlayAnimation::AbortTask(UBehaviorTreeComponent& Own
 
 FString UBTTask_PlayAnimation::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s: '%s'%s%s"), *Super::GetStaticDescription(), *GetNameSafe(AnimationToPlay)
-		, bLooping ? TEXT(", looping") : TEXT("")
-		, bNonBlocking ? TEXT(", non-blocking") : TEXT(", blocking"));
+	return FString::Printf(TEXT("%s: Anim:'%s' Looping:%s Blocking:%s"), *Super::GetStaticDescription(), *AnimationToPlay.ToString()
+		, *bLooping.ToString() 
+		, *bNonBlocking.ToString());
 }
 
 void UBTTask_PlayAnimation::OnAnimationTimerDone()

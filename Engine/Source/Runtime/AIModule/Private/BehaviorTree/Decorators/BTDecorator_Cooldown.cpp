@@ -24,7 +24,7 @@ void UBTDecorator_Cooldown::PostLoad()
 bool UBTDecorator_Cooldown::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
 	FBTCooldownDecoratorMemory* DecoratorMemory = CastInstanceNodeMemory<FBTCooldownDecoratorMemory>(NodeMemory);
-	const double RecalcTime = (OwnerComp.GetWorld()->GetTimeSeconds() - CoolDownTime);
+	const double RecalcTime = (OwnerComp.GetWorld()->GetTimeSeconds() - CoolDownTime.GetValue(OwnerComp));
 	return RecalcTime >= DecoratorMemory->LastUseTimestamp;
 }
 
@@ -40,7 +40,7 @@ void UBTDecorator_Cooldown::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* N
 	FBTCooldownDecoratorMemory* DecoratorMemory = CastInstanceNodeMemory<FBTCooldownDecoratorMemory>(NodeMemory);
 	if (!DecoratorMemory->bRequestedRestart)
 	{
-		const double RecalcTime = (OwnerComp.GetWorld()->GetTimeSeconds() - CoolDownTime);
+		const double RecalcTime = (OwnerComp.GetWorld()->GetTimeSeconds() - CoolDownTime.GetValue(OwnerComp));
 		if (RecalcTime >= DecoratorMemory->LastUseTimestamp)
 		{
 			DecoratorMemory->bRequestedRestart = true;
@@ -52,8 +52,8 @@ void UBTDecorator_Cooldown::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* N
 FString UBTDecorator_Cooldown::GetStaticDescription() const
 {
 	// basic info: result after time
-	return FString::Printf(TEXT("%s: lock for %.1fs after execution and return %s"), *Super::GetStaticDescription(),
-		CoolDownTime, *UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed));
+	return FString::Printf(TEXT("%s: lock for %s s after execution and return %s"), *Super::GetStaticDescription(),
+		*CoolDownTime.ToString(), *UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed));
 }
 
 void UBTDecorator_Cooldown::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const
@@ -63,11 +63,11 @@ void UBTDecorator_Cooldown::DescribeRuntimeValues(const UBehaviorTreeComponent& 
 	FBTCooldownDecoratorMemory* DecoratorMemory = CastInstanceNodeMemory<FBTCooldownDecoratorMemory>(NodeMemory);
 	const double TimePassed = OwnerComp.GetWorld()->GetTimeSeconds() - DecoratorMemory->LastUseTimestamp;
 	
-	if (TimePassed < CoolDownTime)
+	if (TimePassed < CoolDownTime.GetValue(OwnerComp))
 	{
 		Values.Add(FString::Printf(TEXT("%s in %ss"),
 			(FlowAbortMode == EBTFlowAbortMode::None) ? TEXT("unlock") : TEXT("restart"),
-			*FString::SanitizeFloat(CoolDownTime - TimePassed)));
+			*FString::SanitizeFloat(CoolDownTime.GetValue(OwnerComp) - TimePassed)));
 	}
 }
 

@@ -75,8 +75,8 @@ bool UBTDecorator_IsAtLocation::CalculateRawConditionValue(UBehaviorTreeComponen
 			AActor* TargetActor = Cast<AActor>(KeyValue);
 			if (TargetActor)
 			{
-				bHasReached = bPathFindingBasedTest 
-					? PathFollowingComponent->HasReached(*TargetActor, EPathFollowingReachMode::OverlapAgentAndGoal, Radius, bUseNavAgentGoalLocation)
+				bHasReached = bPathFindingBasedTest.GetValue(OwnerComp) 
+					? PathFollowingComponent->HasReached(*TargetActor, EPathFollowingReachMode::OverlapAgentAndGoal, Radius, bUseNavAgentGoalLocation.GetValue(OwnerComp))
 					: (AIOwner->GetPawn()
 						? (GetGeometricDistanceSquared(AIOwner->GetPawn()->GetActorLocation(), TargetActor->GetActorLocation()) < FMath::Square(Radius))
 						: false);
@@ -87,7 +87,7 @@ bool UBTDecorator_IsAtLocation::CalculateRawConditionValue(UBehaviorTreeComponen
 			const FVector TargetLocation = MyBlackboard->GetValue<UBlackboardKeyType_Vector>(BlackboardKey.GetSelectedKeyID());
 			if (FAISystem::IsValidLocation(TargetLocation))
 			{
-				bHasReached = bPathFindingBasedTest 
+				bHasReached = bPathFindingBasedTest.GetValue(OwnerComp)
 					? PathFollowingComponent->HasReached(TargetLocation, EPathFollowingReachMode::OverlapAgent, Radius)
 					: (AIOwner->GetPawn()
 						? (GetGeometricDistanceSquared(AIOwner->GetPawn()->GetActorLocation(), TargetLocation) < FMath::Square(Radius))

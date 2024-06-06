@@ -6,6 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BehaviorTreeTypes.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_KeepInCone.generated.h"
 
 class UBehaviorTree;
@@ -28,7 +29,7 @@ class UBTDecorator_KeepInCone : public UBTDecorator
 
 	/** max allowed time for execution of underlying node */
 	UPROPERTY(Category=Decorator, EditAnywhere)
-	float ConeHalfAngle;
+	FValueOrBBKey_Float ConeHalfAngle;
 	
 	/** blackboard key selector */
 	UPROPERTY(EditAnywhere, Category=Blackboard)
@@ -45,8 +46,8 @@ class UBTDecorator_KeepInCone : public UBTDecorator
 	// deprecated, set value of Observed on initialization
 	UPROPERTY()
 	uint32 bUseSelfAsObserved:1;
-	
-	float ConeHalfAngleDot;
+
+	float GetConeHalfAngleDot(const UBehaviorTreeComponent& OwnerComp) const;
 
 	AIMODULE_API virtual void InitializeFromAsset(UBehaviorTree& Asset) override;
 	AIMODULE_API virtual uint16 GetInstanceMemorySize() const override;

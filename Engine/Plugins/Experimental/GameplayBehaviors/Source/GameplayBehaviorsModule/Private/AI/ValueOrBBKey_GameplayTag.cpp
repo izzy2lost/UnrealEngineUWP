@@ -35,6 +35,16 @@ FGameplayTagContainer FValueOrBBKey_GameplayTagContainer::GetValue(const UBehavi
 	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
 }
 
+bool FValueOrBBKey_GameplayTagContainer::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.GetType().IsStruct(FGameplayTagContainer::StaticStruct()->GetFName()))
+	{
+		FGameplayTagContainer::StaticStruct()->SerializeItem(Slot, &DefaultValue, nullptr);
+		return true;
+	}
+	return false;
+}
+
 FGameplayTagContainer UValueOrBBKey_GameplayTagBlueprintUtility::GetTagContainer(const FValueOrBBKey_GameplayTagContainer& Value, const UBehaviorTreeComponent* BehaviorTreeComp)
 {
 	return Value.GetValue(BehaviorTreeComp);

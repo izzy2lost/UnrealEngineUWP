@@ -14,7 +14,9 @@ UBTTask_Wait::UBTTask_Wait(const FObjectInitializer& ObjectInitializer) : Super(
 
 EBTNodeResult::Type UBTTask_Wait::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	const float RemainingWaitTime = FMath::FRandRange(FMath::Max(0.0f, WaitTime - RandomDeviation), (WaitTime + RandomDeviation));
+	const float WaitSecond = WaitTime.GetValue(OwnerComp);
+	const float DeviationSecond = RandomDeviation.GetValue(OwnerComp); 
+	const float RemainingWaitTime = FMath::FRandRange(FMath::Max(0.0f, WaitSecond - DeviationSecond), (WaitSecond + DeviationSecond));
 	SetNextTickTime(NodeMemory, RemainingWaitTime);
 	
 	return EBTNodeResult::InProgress;
@@ -31,13 +33,13 @@ void UBTTask_Wait::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory
 
 FString UBTTask_Wait::GetStaticDescription() const
 {
-	if (FMath::IsNearlyZero(RandomDeviation))
+	if (!RandomDeviation.IsBoundOrNonZero())
 	{
-		return FString::Printf(TEXT("%s: %.1fs"), *Super::GetStaticDescription(), WaitTime);
+		return FString::Printf(TEXT("%s: %s s"), *Super::GetStaticDescription(), *WaitTime.ToString());
 	}
 	else
 	{
-		return FString::Printf(TEXT("%s: %.1f+-%.1fs"), *Super::GetStaticDescription(), WaitTime, RandomDeviation);
+		return FString::Printf(TEXT("%s: %s s +- %s s"), *Super::GetStaticDescription(), *WaitTime.ToString(), *RandomDeviation.ToString());
 	}
 }
 

@@ -13,6 +13,9 @@
 class UBlackboardKeyType;
 class FValueOrBBKeyDetails;
 
+struct FPropertyTag;
+
+// Drop in replacement for Property in bt nodes that allows easy binding to blackboard key. Replace the old property with the corresponding type and call the GetValue() function to retrieve the value.
 struct FValueOrBBKey_Bool;
 struct FValueOrBBKey_Class;
 struct FValueOrBBKey_Enum;
@@ -23,23 +26,6 @@ struct FValueOrBBKey_String;
 struct FValueOrBBKey_Object;
 struct FValueOrBBKey_Rotator;
 struct FValueOrBBKey_Vector;
-
-namespace EValueOrBBKeyVersion
-{
-	enum Type
-	{
-		Initial,
-		// Changed raw property to their EValueOrBBKeyVersion equivalent
-		ChangedPropertyToValueOrBBKey,
-		// -----<new versions can be added before this line>-------------------------------------------------
-		// - this needs to be the last line (see note below)
-		VersionPlusOne,
-		LatestVersion = VersionPlusOne - 1
-	};
-
-	// The GUID for this custom version number
-	AIMODULE_API extern const FGuid Guid;
-} // namespace EValueOrBBKeyVersion
 
 namespace FBlackboard
 {
@@ -98,7 +84,7 @@ struct FValueOrBlackboardKeyBase
 	const FName& GetKey() const { return Key; }
 	void SetKey(FName NewKey) { Key = NewKey; }
 
-	FBlackboard::FKey GetKeyId(const UBehaviorTreeComponent& OwnerComp) const;
+	AIMODULE_API FBlackboard::FKey GetKeyId(const UBehaviorTreeComponent& OwnerComp) const;
 
 protected:
 	template <typename T>
@@ -138,7 +124,12 @@ struct FValueOrBBKey_Bool : public FValueOrBlackboardKeyBase
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 	AIMODULE_API FString ToString() const { return ToStringInternal(DefaultValue); }
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator bool() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -169,11 +160,16 @@ struct FValueOrBBKey_Class : public FValueOrBlackboardKeyBase
 	AIMODULE_API UClass* GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API UClass* GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator UClass*() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -207,11 +203,16 @@ struct FValueOrBBKey_Enum : public FValueOrBlackboardKeyBase
 	AIMODULE_API uint8 GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API uint8 GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator uint8() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -237,11 +238,17 @@ struct FValueOrBBKey_Float : public FValueOrBlackboardKeyBase
 	AIMODULE_API float GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API float GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
+	AIMODULE_API bool IsBoundOrNonZero() const;
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator float() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -259,11 +266,16 @@ struct FValueOrBBKey_Int32 : public FValueOrBlackboardKeyBase
 	AIMODULE_API int32 GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API int32 GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const { return ToStringInternal(DefaultValue); }
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator int32() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -282,11 +294,16 @@ struct FValueOrBBKey_Name : public FValueOrBlackboardKeyBase
 	AIMODULE_API FName GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API FName GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator FName() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -305,9 +322,14 @@ struct FValueOrBBKey_String : public FValueOrBlackboardKeyBase
 	AIMODULE_API FString GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API FString GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator FString() const { return DefaultValue; }
 
 	AIMODULE_API FString ToString() const { return ToStringInternal(DefaultValue); }
 
@@ -339,11 +361,16 @@ struct FValueOrBBKey_Object : public FValueOrBlackboardKeyBase
 	AIMODULE_API UObject* GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API UObject* GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator UObject*() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -365,11 +392,16 @@ struct FValueOrBBKey_Rotator : public FValueOrBlackboardKeyBase
 	AIMODULE_API FRotator GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API FRotator GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
+
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator FRotator() const { return DefaultValue; }
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
@@ -388,13 +420,108 @@ struct FValueOrBBKey_Vector : public FValueOrBlackboardKeyBase
 	AIMODULE_API FVector GetValue(const UBlackboardComponent& Blackboard) const;
 	AIMODULE_API FVector GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
 
 	AIMODULE_API FString ToString() const;
 
+	UE_DEPRECATED_FORGAME(5.5, "Implicit conversion will be removed next version. Call GetValue instead")
+	operator FVector() const { return DefaultValue; }
+
 protected:
 	UPROPERTY(EditAnywhere, Category = "Value")
 	FVector DefaultValue;
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Bool> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Bool>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Class> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Class>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Enum> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Enum>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Float> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Float>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Int32> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Int32>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Name> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Name>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_String> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_String>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Object> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Object>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Rotator> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Rotator>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_Vector> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Vector>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
 };

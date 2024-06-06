@@ -7,6 +7,7 @@
 #include "UObject/ObjectMacros.h"
 #include "DataProviders/AIDataProvider.h"
 #include "BehaviorTree/Decorators/BTDecorator_BlackboardBase.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_IsAtLocation.generated.h"
 
 /**
@@ -32,13 +33,13 @@ class UBTDecorator_IsAtLocation : public UBTDecorator_BlackboardBase
 	uint32 bUseParametrizedRadius : 1;
 
 	/** if moving to an actor and this actor is a nav agent, then we will move to their nav agent location */
-	UPROPERTY(EditAnywhere, Category = Condition, meta = (EditCondition = "bPathFindingBasedTest"))
-	uint32 bUseNavAgentGoalLocation : 1;
+	UPROPERTY(EditAnywhere, Category = Condition, DisplayName = UseNavAgentGoalLocation, meta = (EditCondition = "bPathFindingBasedTest"))
+	FValueOrBBKey_Bool bUseNavAgentGoalLocation;
 
 	/** If true the result will be consistent with tests done while following paths.
 	 *	Set to false to use geometric distance as configured with DistanceType */
-	UPROPERTY(EditAnywhere, Category = Condition)
-	uint32 bPathFindingBasedTest : 1;
+	UPROPERTY(EditAnywhere, Category = Condition, DisplayName = PathFindingBasedTest)
+	FValueOrBBKey_Bool bPathFindingBasedTest;
 
 	AIMODULE_API virtual bool CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const override;
 	

@@ -19,6 +19,8 @@ struct FValueOrBBKey_GameplayTagContainer : public FValueOrBlackboardKeyBase
 	GAMEPLAYBEHAVIORSMODULE_API FGameplayTagContainer GetValue(const UBlackboardComponent& Blackboard) const;
 	GAMEPLAYBEHAVIORSMODULE_API FGameplayTagContainer GetValue(const UBlackboardComponent* Blackboard) const;
 
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 #if WITH_EDITOR
 	GAMEPLAYBEHAVIORSMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const override;
 #endif // WITH_EDITOR
@@ -37,4 +39,13 @@ class UValueOrBBKey_GameplayTagBlueprintUtility : public UBlueprintFunctionLibra
 public:
 	UFUNCTION(BlueprintPure, Category = Blackboard)
 	static FGameplayTagContainer GetTagContainer(const FValueOrBBKey_GameplayTagContainer& Value, const UBehaviorTreeComponent* BehaviorTreeComp);
+};
+
+template<>
+struct TStructOpsTypeTraits<FValueOrBBKey_GameplayTagContainer> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_GameplayTagContainer>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
 };

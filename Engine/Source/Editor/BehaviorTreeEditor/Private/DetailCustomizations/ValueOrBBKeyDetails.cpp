@@ -309,12 +309,12 @@ void FValueOrBBKeyDetails_Class::ValidateData()
 	FValueOrBBKeyDetails::ValidateData();
 	UObject* Object = nullptr;
 	DefaultValueProperty->GetValue(Object);
-	if (Object)
+	if (UClass* SelectedClass = Cast<UClass>(Object))
 	{
 		if (const FValueOrBlackboardKeyBase* DataPtr = GetDataPtr())
 		{
 			const UClass* BaseClass = static_cast<const FValueOrBBKey_Class*>(DataPtr)->BaseClass;
-			if (!BaseClass || !Object->IsA(BaseClass))
+			if (!BaseClass || !SelectedClass->IsChildOf(BaseClass))
 			{
 				DefaultValueProperty->SetValue(static_cast<UObject*>(nullptr));
 			}

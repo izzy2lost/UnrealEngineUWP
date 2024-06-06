@@ -9,6 +9,7 @@
 #include "InputCoreTypes.h"
 #include "Templates/SubclassOf.h"
 #include "BehaviorTree/Decorators/BTDecorator_BlackboardBase.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_IsBBEntryOfClass.generated.h"
 
 class UBlackboardComponent;
@@ -24,7 +25,8 @@ public:
 protected:
 
 	UPROPERTY(Category = Blackboard, EditAnywhere)
-	TSubclassOf<UObject> TestClass;
+	FValueOrBBKey_Class TestClass = TSubclassOf<UObject>();
+
 
 	AIMODULE_API virtual bool CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const override;
 	AIMODULE_API virtual EBlackboardNotificationResult OnBlackboardKeyValueChange(const UBlackboardComponent& Blackboard, FBlackboard::FKey ChangedKeyID) override;

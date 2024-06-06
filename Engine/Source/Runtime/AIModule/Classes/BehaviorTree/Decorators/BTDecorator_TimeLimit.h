@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_TimeLimit.generated.h"
 
 /**
@@ -17,7 +18,7 @@ class UBTDecorator_TimeLimit : public UBTDecorator
 		
 	/** max allowed time for execution of underlying node */
 	UPROPERTY(Category=Decorator, EditAnywhere)
-	float TimeLimit;
+	FValueOrBBKey_Float TimeLimit;
 
 	AIMODULE_API virtual void DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const override;
 	AIMODULE_API virtual FString GetStaticDescription() const override;

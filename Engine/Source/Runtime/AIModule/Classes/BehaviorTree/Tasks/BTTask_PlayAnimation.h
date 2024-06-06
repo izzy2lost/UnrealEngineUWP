@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_PlayAnimation.generated.h"
 
 /**
@@ -22,14 +23,14 @@ class UBTTask_PlayAnimation : public UBTTaskNode
 
 	/** Animation asset to play. Note that it needs to match the skeleton of pawn this BT is controlling */
 	UPROPERTY(Category = Node, EditAnywhere)
-	TObjectPtr<UAnimationAsset> AnimationToPlay;
-	
-	UPROPERTY(Category = Node, EditAnywhere)
-	uint32 bLooping : 1; 
+	FValueOrBBKey_Object AnimationToPlay = TObjectPtr<UAnimationAsset>();
+
+	UPROPERTY(Category = Node, EditAnywhere, DisplayName = Looping)
+	FValueOrBBKey_Bool bLooping = false;
 
 	/** if true the task will just trigger the animation and instantly finish. Fire and Forget. */
-	UPROPERTY(Category = Node, EditAnywhere)
-	uint32 bNonBlocking : 1;
+	UPROPERTY(Category = Node, EditAnywhere, DisplayName = NonBlocking)
+	FValueOrBBKey_Bool bNonBlocking = false;
 
 	UPROPERTY()
 	TObjectPtr<UBehaviorTreeComponent> MyOwnerComp;

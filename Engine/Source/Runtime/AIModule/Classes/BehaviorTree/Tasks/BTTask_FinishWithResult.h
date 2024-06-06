@@ -2,6 +2,7 @@
 #pragma once
 
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_FinishWithResult.generated.h"
 
 /**
@@ -19,7 +20,6 @@ public:
 	AIMODULE_API virtual FString GetStaticDescription() const override;
 	
 protected:
-	/** allows adding random time to wait time */
 	UPROPERTY(Category = Result, EditAnywhere)
-	TEnumAsByte<EBTNodeResult::Type> Result;
+	FValueOrBBKey_Enum Result = EBTNodeResult::Type::Succeeded;
 };

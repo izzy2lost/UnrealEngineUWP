@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_Cooldown.generated.h"
 
 struct FBTCooldownDecoratorMemory
@@ -24,7 +25,7 @@ class UBTDecorator_Cooldown : public UBTDecorator
 
 	/** max allowed time for execution of underlying node */
 	UPROPERTY(Category=Decorator, EditAnywhere)
-	float CoolDownTime;
+	FValueOrBBKey_Float CoolDownTime;
 
 	//~ Begin UObject Interface
 	AIMODULE_API virtual void PostLoad() override;

@@ -19,18 +19,17 @@ UBTTask_MoveTo::UBTTask_MoveTo(const FObjectInitializer& ObjectInitializer) : Su
 	NodeName = "Move To";
 	INIT_TASK_NODE_NOTIFY_FLAGS();
 
-	AcceptableRadius = GET_AI_CONFIG_VAR(AcceptanceRadius);
-	bReachTestIncludesGoalRadius = bReachTestIncludesAgentRadius = bStopOnOverlap = GET_AI_CONFIG_VAR(bFinishMoveOnGoalOverlap);
+	const float AcceptanceRadius = GET_AI_CONFIG_VAR(AcceptanceRadius);
+	AcceptableRadius = AcceptanceRadius;
+	ObservedBlackboardValueTolerance = AcceptanceRadius * 0.95f;
+	bReachTestIncludesGoalRadius = bReachTestIncludesAgentRadius = GET_AI_CONFIG_VAR(bFinishMoveOnGoalOverlap);
 	bAllowStrafe = GET_AI_CONFIG_VAR(bAllowStrafing);
 	bAllowPartialPath = GET_AI_CONFIG_VAR(bAcceptPartialPaths);
 	bTrackMovingGoal = true;
 	bRequireNavigableEndLocation = true;
 	bProjectGoalLocation = true;
 	bUsePathfinding = true;
-	bStopOnOverlapNeedsUpdate = true;
 	bStartFromPreviousPath = false;
-
-	ObservedBlackboardValueTolerance = AcceptableRadius * 0.95f;
 
 	// accept only actors and vectors
 	BlackboardKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_MoveTo, BlackboardKey), AActor::StaticClass());
@@ -82,17 +81,18 @@ EBTNodeResult::Type UBTTask_MoveTo::PerformMoveTask(UBehaviorTreeComponent& Owne
 	EBTNodeResult::Type NodeResult = EBTNodeResult::Failed;
 	if (MyController && MyBlackboard)
 	{
+		TSubclassOf<UNavigationQueryFilter> OverrideFiler = FilterClass.GetValue(*MyBlackboard);
 		FAIMoveRequest MoveReq;
-		MoveReq.SetNavigationFilter(*FilterClass ? FilterClass : MyController->GetDefaultNavigationFilterClass());
-		MoveReq.SetAllowPartialPath(bAllowPartialPath);
-		MoveReq.SetAcceptanceRadius(AcceptableRadius);
-		MoveReq.SetCanStrafe(bAllowStrafe);
-		MoveReq.SetReachTestIncludesAgentRadius(bReachTestIncludesAgentRadius);
-		MoveReq.SetReachTestIncludesGoalRadius(bReachTestIncludesGoalRadius);
-		MoveReq.SetRequireNavigableEndLocation(bRequireNavigableEndLocation);
-		MoveReq.SetProjectGoalLocation(bProjectGoalLocation);
+		MoveReq.SetNavigationFilter(*OverrideFiler ? OverrideFiler : MyController->GetDefaultNavigationFilterClass());
+		MoveReq.SetAllowPartialPath(bAllowPartialPath.GetValue(*MyBlackboard));
+		MoveReq.SetAcceptanceRadius(AcceptableRadius.GetValue(*MyBlackboard));
+		MoveReq.SetCanStrafe(bAllowStrafe.GetValue(*MyBlackboard));
+		MoveReq.SetReachTestIncludesAgentRadius(bReachTestIncludesAgentRadius.GetValue(*MyBlackboard));
+		MoveReq.SetReachTestIncludesGoalRadius(bReachTestIncludesGoalRadius.GetValue(*MyBlackboard));
+		MoveReq.SetRequireNavigableEndLocation(bRequireNavigableEndLocation.GetValue(*MyBlackboard));
+		MoveReq.SetProjectGoalLocation(bProjectGoalLocation.GetValue(*MyBlackboard));
 		MoveReq.SetUsePathfinding(bUsePathfinding);
-		MoveReq.SetStartFromPreviousPath(bStartFromPreviousPath);
+		MoveReq.SetStartFromPreviousPath(bStartFromPreviousPath.GetValue(*MyBlackboard));
 
 		if (BlackboardKey.SelectedKeyType == UBlackboardKeyType_Object::StaticClass())
 		{
@@ -100,7 +100,7 @@ EBTNodeResult::Type UBTTask_MoveTo::PerformMoveTask(UBehaviorTreeComponent& Owne
 			AActor* TargetActor = Cast<AActor>(KeyValue);
 			if (TargetActor)
 			{
-				if (bTrackMovingGoal)
+				if (bTrackMovingGoal.GetValue(*MyBlackboard))
 				{
 					MoveReq.SetGoalActor(TargetActor);
 				}
@@ -208,7 +208,7 @@ EBlackboardNotificationResult UBTTask_MoveTo::OnBlackboardValueChange(const UBla
 		{
 			const FVector TargetLocation = Blackboard.GetValue<UBlackboardKeyType_Vector>(BlackboardKey.GetSelectedKeyID());
 
-			bUpdateMove = (FVector::DistSquared(TargetLocation, MyMemory->PreviousGoalLocation) > FMath::Square(ObservedBlackboardValueTolerance));
+			bUpdateMove = (FVector::DistSquared(TargetLocation, MyMemory->PreviousGoalLocation) > FMath::Square(ObservedBlackboardValueTolerance.GetValue(Blackboard)));
 		}
 
 		if (bUpdateMove)
@@ -349,17 +349,6 @@ void UBTTask_MoveTo::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 	CleanupNodeMemory<FBTMoveToTaskMemory>(NodeMemory, CleanupType);
 }
 
-void UBTTask_MoveTo::PostLoad()
-{
-	Super::PostLoad();
-	
-	if (bStopOnOverlapNeedsUpdate)
-	{
-		bStopOnOverlapNeedsUpdate = false;
-		bReachTestIncludesAgentRadius = bStopOnOverlap;
-		bReachTestIncludesGoalRadius = false;
-	}
-}
 
 #if WITH_EDITOR
 
@@ -367,11 +356,5 @@ FName UBTTask_MoveTo::GetNodeIconName() const
 {
 	return FName("BTEditor.Graph.BTNode.Task.MoveTo.Icon");
 }
-
-void UBTTask_MoveTo::OnNodeCreated()
-{
-	bStopOnOverlapNeedsUpdate = false;
-}
-
 #endif	// WITH_EDITOR
 

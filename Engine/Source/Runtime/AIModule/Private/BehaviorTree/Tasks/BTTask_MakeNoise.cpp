@@ -20,7 +20,7 @@ EBTNodeResult::Type UBTTask_MakeNoise::ExecuteTask(UBehaviorTreeComponent& Owner
 
 	if (MyPawn)
 	{
-		MyPawn->MakeNoise(Loudnes, MyPawn);
+		MyPawn->MakeNoise(Loudnes.GetValue(OwnerComp), MyPawn);
 		return EBTNodeResult::Succeeded;
 	}
 

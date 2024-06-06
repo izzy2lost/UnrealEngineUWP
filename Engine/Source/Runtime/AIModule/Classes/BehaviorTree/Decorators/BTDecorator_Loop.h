@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_Loop.generated.h"
 
 struct FBTLoopDecoratorMemory
@@ -24,7 +25,7 @@ class UBTDecorator_Loop : public UBTDecorator
 
 	/** number of executions */
 	UPROPERTY(Category=Decorator, EditAnywhere, meta=(EditCondition="!bInfiniteLoop", ClampMin="1", ClampMax="255"))
-	int32 NumLoops;
+	FValueOrBBKey_Int32 NumLoops;
 
 	/** infinite loop */
 	UPROPERTY(Category = Decorator, EditAnywhere)
@@ -32,7 +33,7 @@ class UBTDecorator_Loop : public UBTDecorator
 
 	/** timeout (when looping infinitely, when we finish a loop we will check whether we have spent this time looping, if we have we will stop looping). A negative value means loop forever. */
 	UPROPERTY(Category = Decorator, EditAnywhere, meta = (EditCondition = "bInfiniteLoop"))
-	float InfiniteLoopTimeoutTime;
+	FValueOrBBKey_Float InfiniteLoopTimeoutTime;
 
 	AIMODULE_API virtual uint16 GetInstanceMemorySize() const override;
 	AIMODULE_API virtual void InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const override;

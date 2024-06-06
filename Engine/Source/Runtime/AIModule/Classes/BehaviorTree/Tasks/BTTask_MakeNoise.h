@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_MakeNoise.generated.h"
 
 /**
@@ -16,9 +17,9 @@ class UBTTask_MakeNoise : public UBTTaskNode
 {
 	GENERATED_UCLASS_BODY()
 
-	/** Loudnes of generated noise */
-	UPROPERTY(Category=Node, EditAnywhere, meta=(ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
-	float Loudnes;
+	/** Loudness of generated noise */
+	UPROPERTY(Category=Node, EditAnywhere, meta=(ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"), DisplayName = Loudness)
+	FValueOrBBKey_Float Loudnes;
 
 	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 

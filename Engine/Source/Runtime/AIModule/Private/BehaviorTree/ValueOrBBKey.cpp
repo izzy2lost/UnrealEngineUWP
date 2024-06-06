@@ -13,11 +13,6 @@
 #include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
 
-#include "Serialization/CustomVersion.h"
-
-const FGuid EValueOrBBKeyVersion::Guid = FGuid(0x82238A1B, 0xD8DA4083, 0xB5BC56A9, 0x48AA4C22);
-FCustomVersionRegistration GValueOrBBKeyVersion(EValueOrBBKeyVersion::Guid, EValueOrBBKeyVersion::LatestVersion, TEXT("EValueOrBBKeyVersion"));
-
 FBlackboard::FKey FValueOrBlackboardKeyBase::GetKeyId(const UBehaviorTreeComponent& OwnerComp) const
 {
 	if (KeyId == FBlackboard::InvalidKey)
@@ -69,6 +64,11 @@ FString FValueOrBBKey_Float::ToString() const
 	{
 		return FString::Printf(TEXT("%.2f"), DefaultValue);
 	}
+}
+
+bool FValueOrBBKey_Float::IsBoundOrNonZero() const
+{
+	return !Key.IsNone() || !FMath::IsNearlyEqual(DefaultValue, 0.f);
 }
 
 FString FValueOrBBKey_Name::ToString() const
@@ -317,6 +317,106 @@ FVector FValueOrBBKey_Vector::GetValue(const UBehaviorTreeComponent& BehaviorCom
 FVector FValueOrBBKey_Vector::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
 {
 	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
+bool FValueOrBBKey_Bool::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_BoolProperty)
+	{
+		DefaultValue = Tag.BoolVal != 0;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Class::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_ObjectProperty) // Class and object share the same tag
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Enum::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_EnumProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Float::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_FloatProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Int32::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_Int32Property || Tag.Type == NAME_IntProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Name::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_NameProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_String::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_StrProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Object::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_ObjectProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Rotator::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_RotatorProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
+}
+
+bool FValueOrBBKey_Vector::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_VectorProperty)
+	{
+		Slot << DefaultValue;
+		return true;
+	}
+	return false;
 }
 
 #if WITH_EDITOR

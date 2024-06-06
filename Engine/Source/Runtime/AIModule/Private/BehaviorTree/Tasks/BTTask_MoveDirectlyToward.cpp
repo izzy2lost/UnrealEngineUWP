@@ -8,28 +8,6 @@ UBTTask_MoveDirectlyToward::UBTTask_MoveDirectlyToward(const FObjectInitializer&
 {
 	NodeName = "MoveDirectlyToward";
 	bUsePathfinding = false;
-
-	bProjectVectorGoalToNavigation = true;
-	bDisablePathUpdateOnGoalLocationChange = false;
-	bUpdatedDeprecatedProperties = false;
-}
-
-void UBTTask_MoveDirectlyToward::InitializeFromAsset(UBehaviorTree& Asset)
-{
-	bUpdatedDeprecatedProperties = true;
-	Super::InitializeFromAsset(Asset);
-}
-
-void UBTTask_MoveDirectlyToward::PostLoad()
-{
-	Super::PostLoad();
-
-	if (!bUpdatedDeprecatedProperties)
-	{
-		bProjectGoalLocation = bProjectVectorGoalToNavigation;
-		bTrackMovingGoal = bDisablePathUpdateOnGoalLocationChange;
-		bUpdatedDeprecatedProperties = true;
-	}
 }
 
 #if WITH_EDITOR

@@ -31,8 +31,6 @@ void UBTDecorator_ConeCheck::InitializeFromAsset(UBehaviorTree& Asset)
 {
 	Super::InitializeFromAsset(Asset);
 
-	ConeHalfAngleDot = FMath::Cos(FMath::DegreesToRadians(ConeHalfAngle));
-
 	UBlackboardData* BBAsset = GetBlackboardAsset();
 	if (ensure(BBAsset))
 	{
@@ -77,7 +75,12 @@ FORCEINLINE bool UBTDecorator_ConeCheck::CalcConditionImpl(UBehaviorTreeComponen
 
 	return CalculateDirection(BBComponent, ConeOrigin, Observed, DirectionToObserve)
 		&& CalculateDirection(BBComponent, ConeOrigin, ConeDirection, ConeDir)
-		&& ConeDir.CosineAngle2D(DirectionToObserve) > ConeHalfAngleDot;
+		&& ConeDir.CosineAngle2D(DirectionToObserve) > GetConeHalfAngleDot(OwnerComp);
+}
+
+float UBTDecorator_ConeCheck::GetConeHalfAngleDot(const UBehaviorTreeComponent& OwnerComp) const
+{
+	return FMath::Cos(FMath::DegreesToRadians(ConeHalfAngle.GetValue(OwnerComp)));
 }
 
 bool UBTDecorator_ConeCheck::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
@@ -110,9 +113,9 @@ void UBTDecorator_ConeCheck::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 
 FString UBTDecorator_ConeCheck::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s: is %s in %.2f degree %s-%s cone")
+	return FString::Printf(TEXT("%s: is %s in +- %s degrees %s-%s cone")
 		, *Super::GetStaticDescription(), *Observed.SelectedKeyName.ToString()
-		, ConeHalfAngle * 2, *ConeOrigin.SelectedKeyName.ToString(), *ConeDirection.SelectedKeyName.ToString());
+		, *ConeHalfAngle.ToString(), *ConeOrigin.SelectedKeyName.ToString(), *ConeDirection.SelectedKeyName.ToString());
 }
 
 void UBTDecorator_ConeCheck::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const
@@ -130,7 +133,7 @@ void UBTDecorator_ConeCheck::DescribeRuntimeValues(const UBehaviorTreeComponent&
 
 		Values.Add(FString::Printf(TEXT("Angle: %.0f (%s cone)"),
 			FMath::RadiansToDegrees(CurrentAngleRad),
-			CurrentAngleDot < ConeHalfAngleDot ? TEXT("outside") : TEXT("inside")
+			CurrentAngleDot < GetConeHalfAngleDot(OwnerComp) ? TEXT("outside") : TEXT("inside")
 			));
 
 	}

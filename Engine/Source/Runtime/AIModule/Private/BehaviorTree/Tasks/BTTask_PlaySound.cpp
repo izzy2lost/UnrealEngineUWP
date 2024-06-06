@@ -17,11 +17,12 @@ EBTNodeResult::Type UBTTask_PlaySound::ExecuteTask(UBehaviorTreeComponent& Owner
 	const AAIController* MyController = OwnerComp.GetAIOwner();
 
 	UAudioComponent* AC = NULL;
-	if (SoundToPlay && MyController)
+	USoundCue* Sound = SoundToPlay.GetValue<USoundCue>(OwnerComp);
+	if (Sound && MyController)
 	{
 		if (const APawn* MyPawn = MyController->GetPawn())
 		{
-			AC = UGameplayStatics::SpawnSoundAttached(SoundToPlay, MyPawn->GetRootComponent());
+			AC = UGameplayStatics::SpawnSoundAttached(Sound, MyPawn->GetRootComponent());
 		}
 	}
 	return AC ? EBTNodeResult::Succeeded : EBTNodeResult::Failed;
@@ -29,7 +30,7 @@ EBTNodeResult::Type UBTTask_PlaySound::ExecuteTask(UBehaviorTreeComponent& Owner
 
 FString UBTTask_PlaySound::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s: '%s'"), *Super::GetStaticDescription(), SoundToPlay ? *SoundToPlay->GetName() : TEXT(""));
+	return FString::Printf(TEXT("%s: '%s'"), *Super::GetStaticDescription(), *SoundToPlay.ToString());
 }
 
 #if WITH_EDITOR

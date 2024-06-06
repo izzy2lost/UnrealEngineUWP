@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_GameplayTaskBase.generated.h"
 
 struct FBTGameplayTaskMemory
@@ -37,8 +38,8 @@ class UBTTask_GameplayTaskBase : public UBTTaskNode
 protected:
 
 	/** if set, behavior tree task will wait until gameplay tasks finishes */
-	UPROPERTY(EditAnywhere, Category = Task, AdvancedDisplay)
-	uint32 bWaitForGameplayTask : 1;
+	UPROPERTY(EditAnywhere, Category = Task, AdvancedDisplay, DisplayName = WaitForGameplayTask)
+	FValueOrBBKey_Bool bWaitForGameplayTask;
 
 	/** start task and initialize FBTGameplayTaskMemory memory block */
 	AIMODULE_API EBTNodeResult::Type StartGameplayTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, UAITask& Task);

@@ -70,9 +70,10 @@ bool UBTDecorator_DoesPathExist::CalculateRawConditionValue(UBehaviorTreeCompone
 		const ANavigationData* NavData = AIOwner ? NavSys->GetNavDataForProps(AIOwner->GetNavAgentPropertiesRef(), AIOwner->GetNavAgentLocation()) : NULL;
 		if (NavData)
 		{
-			FSharedConstNavQueryFilter QueryFilter = UNavigationQueryFilter::GetQueryFilter(*NavData, AIOwner, FilterClass);
+			FSharedConstNavQueryFilter QueryFilter = UNavigationQueryFilter::GetQueryFilter(*NavData, AIOwner, FilterClass.GetValue(*BlackboardComp));
 
-			if (PathQueryType == EPathExistanceQueryType::NavmeshRaycast2D)
+			const EPathExistanceQueryType::Type QueryType = PathQueryType.GetValue<EPathExistanceQueryType::Type>(OwnerComp);
+			if (QueryType == EPathExistanceQueryType::NavmeshRaycast2D)
 			{
 #if WITH_RECAST
 				const ARecastNavMesh* RecastNavMesh = Cast<const ARecastNavMesh>(NavData);
@@ -81,7 +82,7 @@ bool UBTDecorator_DoesPathExist::CalculateRawConditionValue(UBehaviorTreeCompone
 			}
 			else
 			{
-				EPathFindingMode::Type TestMode = (PathQueryType == EPathExistanceQueryType::HierarchicalQuery) ? EPathFindingMode::Hierarchical : EPathFindingMode::Regular;
+				EPathFindingMode::Type TestMode = (QueryType == EPathExistanceQueryType::HierarchicalQuery) ? EPathFindingMode::Hierarchical : EPathFindingMode::Regular;
 				bHasPath = NavSys->TestPathSync(FPathFindingQuery(AIOwner, *NavData, PointA, PointB, QueryFilter), TestMode);
 			}
 		}
@@ -92,14 +93,11 @@ bool UBTDecorator_DoesPathExist::CalculateRawConditionValue(UBehaviorTreeCompone
 
 FString UBTDecorator_DoesPathExist::GetStaticDescription() const 
 {
-	const UEnum* PathTypeEnum = StaticEnum<EPathExistanceQueryType::Type>();
-	check(PathTypeEnum);
-
 	return FString::Printf(TEXT("%s: Find path from %s to %s (mode:%s)"),
 		*Super::GetStaticDescription(),
 		*BlackboardKeyA.SelectedKeyName.ToString(),
 		*BlackboardKeyB.SelectedKeyName.ToString(),
-		*PathTypeEnum->GetNameStringByValue(PathQueryType));
+		*PathQueryType.ToString());
 }
 
 #if WITH_EDITOR

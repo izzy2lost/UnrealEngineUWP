@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_Wait.generated.h"
 
 struct FBTWaitTaskMemory
@@ -21,11 +22,11 @@ class UBTTask_Wait : public UBTTaskNode
 
 	/** wait time in seconds */
 	UPROPERTY(Category = Wait, EditAnywhere, meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float WaitTime;
+	FValueOrBBKey_Float WaitTime;
 
 	/** allows adding random time to wait time */
 	UPROPERTY(Category = Wait, EditAnywhere, meta = (UIMin = 0, ClampMin = 0))
-	float RandomDeviation;
+	FValueOrBBKey_Float RandomDeviation;
 
 	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	AIMODULE_API virtual void DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const override;
