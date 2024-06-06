@@ -128,7 +128,6 @@ FSceneUniformParameters::FSceneUniformParameters()
 
 FSceneUniformBuffer::FSceneUniformBuffer() :
 	Buffer(nullptr),
-	RHIBuffer(nullptr),
 	bAnyMemberDirty(false),
 	MemberHasBeenSet(false, FRegistry::FImpl::MemberInfos.Num())
 {
@@ -207,13 +206,9 @@ RENDERER_API TRDGUniformBufferRef<FSceneUniformParameters> FSceneUniformBuffer::
 			}
 		}
 		// Create and copy cached parameters into the RDG-lifetime struct
-		//auto DataCopy = GraphBuilder.Alloc(CachedData.Num(), SHADER_PARAMETER_STRUCT_ALIGNMENT);
-		//FPlatformMemory::Memcpy(DataCopy, CachedData.GetData(), CachedData.Num());
-		//Buffer = GraphBuilder.CreateUniformBuffer(GraphBuilder.AllocObject<FSceneUniformParameters>(DataCopy));
 		FSceneUniformParameters* ParameterStruct = GraphBuilder.AllocObject<FSceneUniformParameters>();
 		FPlatformMemory::Memcpy(ParameterStruct->Data, CachedData.GetData(), CachedData.Num());
 		Buffer = GraphBuilder.CreateUniformBuffer(ParameterStruct);
-		RHIBuffer = GraphBuilder.ConvertToExternalUniformBuffer(Buffer); //RT pipeline can't bind RDG UBs, so we must convert to external
 
 		bAnyMemberDirty = false;
 	}
@@ -222,9 +217,7 @@ RENDERER_API TRDGUniformBufferRef<FSceneUniformParameters> FSceneUniformBuffer::
 
 RENDERER_API FRHIUniformBuffer* FSceneUniformBuffer::GetBufferRHI(FRDGBuilder& GraphBuilder)
 {
-	// Ensure the buffer is prepped.
-	GetBuffer(GraphBuilder);
-	return RHIBuffer;
+	return GraphBuilder.ConvertToExternalUniformBuffer(Buffer);
 }
 
 #if !UE_BUILD_SHIPPING
