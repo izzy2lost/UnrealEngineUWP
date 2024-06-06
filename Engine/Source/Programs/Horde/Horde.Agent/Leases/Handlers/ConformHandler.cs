@@ -39,7 +39,7 @@ namespace Horde.Agent.Leases.Handlers
 			environment[HordeHttpClient.HordeTokenEnvVarName] = await session.HordeClient.GetAccessTokenAsync(false, cancellationToken) ?? String.Empty;
 			environment["UE_LOG_JSON_TO_STDOUT"] = "1";
 
-			int exitCode = await RunDotNetProcessAsync(driverAssembly, arguments, environment, false, serverLogger, cancellationToken);
+			int exitCode = await RunDotNetProcessAsync(driverAssembly, arguments, environment, AgentApp.IsSelfContained, serverLogger, cancellationToken);
 			serverLogger.LogInformation("Driver finished with exit code {ExitCode}", exitCode);
 
 			return (exitCode == 0) ? LeaseResult.Success : LeaseResult.Failed;
