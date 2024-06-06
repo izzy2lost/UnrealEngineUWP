@@ -14,10 +14,26 @@ namespace UE::ConcertSharedSlate
 {
 	enum class ESourceType : uint8
 	{
-		/** Display EnumerateSelectableItems in a drop-down or menu list. Example: User wants to search from a list of actors. */
+		/**
+		 * Display EnumerateSelectableItems in a drop-down or menu list. Each entry is a button that closes the menu.
+		 * Example: User wants to search from a list of actors.
+		 */
 		ShowAsList,
-		/** When this option is clicked, instantly add all of EnumerateSelectableItems. Example: User wants to add all actors selected in the world outliner. */
-		AddOnClick
+		/**
+		 * When this option is clicked, instantly add all of EnumerateSelectableItems.
+		 * Example: User wants to add all actors selected in the world outliner.
+		 */
+		AddOnClick,
+		/**
+		 * Display EnumerateSelectableItems in a drop-down or menu list.
+		 *
+		 * Each entry contains a checkbox:
+		 * - FSourceModelBuilders::OnItemsSelected is called when the checkbox is toggled (since you provide IsItemSelected, you can determine whether to add or remove the items).
+		 * - FSourceModelBuilders::IsItemSelected determines whether the checkbox is checked
+		 * 
+		 * Example: User wants to search from a list of actors.
+		 */
+		ShowAsToggleButtonList,
 	};
 
 	struct FBaseDisplayInfo
