@@ -9,16 +9,20 @@
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Editor/Model/Object/IObjectNameModel.h"
 #include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IMultiObjectPropertyAssignmentView.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
-#include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
-#include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 #include "Widgets/ActiveSession/Replication/Client/Context/ContextMenuUtils.h"
+#include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
+#include "Widgets/ActiveSession/Replication/Client/PropertySelection/SPropertySelectionComboButton.h"
+#include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SMultiClientView"
 
@@ -32,12 +36,14 @@ namespace UE::MultiUserClient
 		)
 	{
 		ClientManager = InMultiUserReplicationManager.GetClientManager();
+		UserSelectedProperties = InMultiUserReplicationManager.GetUserPropertySelector();
 		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, *ClientManager);
-
-		ConcertClient = MoveTemp(InConcertClient);
-		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		SelectionModel = &InDisplayClientsModel;
+		ConcertClient = MoveTemp(InConcertClient);
+		
+		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		SelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
+		UserSelectedProperties->OnPropertySelectionChanged().AddRaw(this, &SMultiClientView::RefreshUI);
 
 		TSharedPtr<SVerticalBox> Content;
 		ChildSlot
@@ -71,6 +77,7 @@ namespace UE::MultiUserClient
 	{
 		ClientManager->OnRemoteClientsChanged().RemoveAll(this);
 		CleanClientSubscriptions();
+		UserSelectedProperties->OnPropertySelectionChanged().RemoveAll(this);
 	}
 
 	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
@@ -78,6 +85,7 @@ namespace UE::MultiUserClient
 		using namespace UE::ConcertSharedSlate;
 
 		FMuteStateManager& MuteManager = *InMultiUserReplicationManager.GetMuteManager();
+		FUserPropertySelector& PropertySelector = *InMultiUserReplicationManager.GetUserPropertySelector();
 		
 		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
 		const TSharedRef<IObjectNameModel> NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel();
@@ -97,22 +105,30 @@ namespace UE::MultiUserClient
 			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = ClientManager->GetLocalClient().GetClientEditModel();
 			return StreamModel->GetEditableStreams().Contains(LocalStream) ? LocalStream.ToSharedPtr() : nullptr;
 		});
-		const TSharedRef<ConcertClientSharedSlate::FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>();
 		
-		ConcertClientSharedSlate::FFilterablePropertyTreeViewParams TreeViewParams
+		FCreatePropertyTreeViewParams TreeViewParams
 		{
-			.AdditionalPropertyColumns =
+			.PropertyColumns =
 			{
 				ReplicationColumns::Property::LabelColumn(),
 				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, *ClientManager)
 			},
-			.CreateCategoryRow = CreateDefaultCategoryGenerator(NameModel)
+			.CreateCategoryRow = CreateDefaultCategoryGenerator(NameModel),
 		};
-		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateFilterablePropertyTreeView(MoveTemp(TreeViewParams));
+		TreeViewParams.LeftOfPropertySearchBar.Widget = SAssignNew(PropertySelectionButton, SPropertySelectionComboButton, PropertySelector)
+			.GetObjectDisplayString_Lambda([NameModel](const TSoftObjectPtr<>& Object){ return NameModel->GetObjectDisplayName(Object); });
+		TreeViewParams.NoItemsContent.Widget = CreateNoPropertiesWarning();
+		const TSharedRef<IPropertyTreeView> PropertyTreeView = CreateSearchablePropertyTreeView(MoveTemp(TreeViewParams));
 		
-		TSharedRef<IMultiObjectPropertyAssignmentView> PropertyAssignmentView = CreateMultiObjectAssignmentView(
+		const TSharedRef<IPropertySourceProcessor> PropertySourceModel = PropertySelector.GetPropertySourceProcessor();
+		PropertyAssignmentView = CreateMultiObjectAssignmentView(
 			{ .PropertyTreeView = PropertyTreeView, .ObjectHierarchy = ObjectHierarchy, .PropertySource = PropertySourceModel}
 			);
+		PropertyAssignmentView->OnObjectGroupsChanged().AddLambda([this]()
+		{
+			PropertySelectionButton->RefreshSelectableProperties(PropertyAssignmentView->GetDisplayedGroups());
+		});
+		
 		
 		FCreateMultiStreamEditorParams Params
 		{
@@ -122,11 +138,10 @@ namespace UE::MultiUserClient
 			.PropertySource = PropertySourceModel,
 			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate)
 		};
-		
 		FCreateViewerParams ViewerParams
 		{
-			.PropertyAssignmentView = StaticCastSharedRef<IPropertyAssignmentView>(PropertyAssignmentView),
-			.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
+			.PropertyAssignmentView = PropertyAssignmentView.ToSharedRef(),
+			// .ObjectHierarchy Do not assign so we only show the actors
 			.NameModel = NameModel, // This makes actors use their labels, and components use the names given in the BP editor
 			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 			.ObjectColumns =
@@ -136,10 +151,21 @@ namespace UE::MultiUserClient
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject)
 		};
-		
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
 		check(StreamEditor);
+		
 		return StreamEditor.ToSharedRef();
+	}
+
+	TSharedRef<SWidget> SMultiClientView::CreateNoPropertiesWarning() const
+	{
+		return SNew(SBox)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("NoProperties", "Use Edit button to add replicated properties"))
+			];
 	}
 
 	TSet<FGuid> SMultiClientView::GetDisplayClientIds() const
@@ -174,8 +200,8 @@ namespace UE::MultiUserClient
 		{
 			if (SelectionModel->ContainsClient(Client.GetEndpointId()))
 			{
-				Client.OnModelChanged().AddSP(this, &SMultiClientView::OnClientChanged);
-				Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::OnHierarchyNeedsRefresh);
+				Client.OnModelChanged().AddSP(this, &SMultiClientView::RefreshUI);
+				Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::RefreshUI);
 			}
 			
 			return EBreakBehavior::Continue;
@@ -192,16 +218,8 @@ namespace UE::MultiUserClient
 		});
 	}
 
-	void SMultiClientView::OnClientChanged() const
+	void SMultiClientView::RefreshUI() const
 	{
-		// When reassignment operations complete, the content of the columns changes so a resort is required.
-		StreamEditor->GetEditorBase().RequestObjectColumnResort(MultiStreamColumns::AssignedClientsColumnId);
-		StreamEditor->GetEditorBase().RequestPropertyColumnResort(MultiStreamColumns::AssignPropertyColumnId);
-	}
-
-	void SMultiClientView::OnHierarchyNeedsRefresh() const
-	{
-		// It's a bit excessive to refresh all objects when the hierarchy might have changed but it's simple (and only happens once at end of tick)
 		StreamEditor->GetEditorBase().Refresh();
 	}
 

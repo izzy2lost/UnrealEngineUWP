@@ -13,6 +13,7 @@
 
 #include "Misc/Optional.h"
 #include "Misc/PreventReplicatedPropertyTransaction.h"
+#include "Misc/PropertySelection/UserPropertySelector.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -67,6 +68,10 @@ namespace UE::MultiUserClient
 		FMuteStateManager* GetMuteManager() { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 		const FMuteStateManager* GetMuteManager() const { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 
+		/** @note You're not supposed to keep any reference to the PropertySelector since it can become invalid depending on connection state. */
+		FUserPropertySelector* GetUserPropertySelector() { return ConnectedState ? &ConnectedState->PropertySelector : nullptr; }
+		const FUserPropertySelector* GetUserPropertySelector() const { return ConnectedState ? &ConnectedState->PropertySelector : nullptr; }
+
 		/** Called when the connection to the replication system changes. */
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReplicationConnectionStateChanged, EMultiUserReplicationConnectionState /*NewState*/);
 		FOnReplicationConnectionStateChanged& OnReplicationConnectionStateChanged() { return OnReplicationConnectionStateChangedDelegate; }
@@ -115,6 +120,11 @@ namespace UE::MultiUserClient
 			/** Interacts with the mute global server mute system. */
 			FMuteStateManager MuteManager;
 
+			/**
+			 * Manages the properties the user is iterating on in the replication session.
+			 * The bottom-half property section in the replication UI uses this to keep track of which properties the user has selected for which properties.
+			 */
+			FUserPropertySelector PropertySelector;
 			/** Clears local client's registered objects when leaving map. */
 			FChangeLevelHandler ChangeLevelHandler;
 			/** Prevents recording of transactions that change properties that are being replicated by a client. */

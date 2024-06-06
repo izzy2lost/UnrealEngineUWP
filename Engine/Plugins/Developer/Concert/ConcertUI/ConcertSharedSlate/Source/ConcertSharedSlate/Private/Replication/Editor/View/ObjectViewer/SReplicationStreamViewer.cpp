@@ -73,7 +73,12 @@ namespace UE::ConcertSharedSlate
 
 	TArray<TSoftObjectPtr<>> SReplicationStreamViewer::GetSelectedObjects() const
 	{
-		return PropertySection->GetObjectsSelectedForPropertyEditing();
+		TArray<TSoftObjectPtr<>> Result;
+		Algo::Transform(GetSelectedObjectItems(), Result, [](const TSharedPtr<FReplicatedObjectData>& Item)
+		{
+			return Item->GetObjectPtr();
+		});
+		return Result;
 	}
 
 	void SReplicationStreamViewer::SelectObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bAtEndOfTick)
@@ -87,9 +92,9 @@ namespace UE::ConcertSharedSlate
 		}
 		
 		TArray<TSharedPtr<FReplicatedObjectData>> NewSelectedItems; 
-		Algo::TransformIf(AllObjectRowData, NewSelectedItems, [&Objects](const TSharedPtr<FReplicatedObjectData>& ObjectData)
+		Algo::TransformIf(AllObjectRowData, NewSelectedItems, [this, &Objects](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 			{
-				return Objects.Contains(ObjectData->GetObjectPtr());
+				return Objects.Contains(ObjectData->GetObjectPtr()) && CanDisplayObject(ObjectData->GetObjectPtr());
 			},
 			[](const TSharedPtr<FReplicatedObjectData>& ObjectData){ return ObjectData; }
 		);
@@ -143,7 +148,7 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 	
-	TArray<TSharedPtr<FReplicatedObjectData>> SReplicationStreamViewer::GetSelectedOutlinerObjects() const
+	TArray<TSharedPtr<FReplicatedObjectData>> SReplicationStreamViewer::GetSelectedObjectItems() const
 	{
 		TArray<TSharedPtr<FReplicatedObjectData>> SelectedItems = ReplicatedObjects->GetSelectedItems();
 		// Items may have been removed this tick. However, selected items may not have been updated yet because STreeView processes item changes at the end of tick. 
@@ -183,7 +188,10 @@ namespace UE::ConcertSharedSlate
 		if (bHasRequestedPropertyRefresh)
 		{
 			bHasRequestedPropertyRefresh = false;
-			RefreshPropertyData();
+			PropertySection->RefreshPropertyData(
+				// If we're about to change the selection, pass in those objects
+				PendingToSelect.IsEmpty() ? GetSelectedObjects() : PendingToSelect
+				);
 		}
 
 		if (!PendingToSelect.IsEmpty())
@@ -302,7 +310,6 @@ namespace UE::ConcertSharedSlate
 				.BodyContent()
 				[
 					SAssignNew(PropertySection, SReplicatedPropertyView, InArgs._PropertyAssignmentView.ToSharedRef(), PropertiesModel.ToSharedRef())
-					.GetSelectedRootObjects(this, &SReplicationStreamViewer::GetSelectedOutlinerObjects)
 					.GetObjectClass(this, &SReplicationStreamViewer::GetObjectClass)
 					.NameModel(InArgs._NameModel)
 				]
@@ -325,20 +332,15 @@ namespace UE::ConcertSharedSlate
 		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
 		IterateDisplayableObjects([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
 		{
-			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(TSoftObjectPtr(ObjectPath));
-			const bool bIsActor = !ParentInfo; 
-			if (bIsActor || ShouldDisplayChildObject(ObjectPath, ParentInfo->Relationship))
-			{
-				const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
-				ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
-				const TSharedRef<FReplicatedObjectData> Item = ExistingItem
-					? ExistingItem->ToSharedRef()
-					: Private::AllocateObjectData(ObjectPath);
-				AllObjectRowData.AddUnique(Item);
-				NewPathToObjectDataCache.Emplace(ObjectPath, Item);
-				
-				BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
-			}
+			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
+			ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
+			const TSharedRef<FReplicatedObjectData> Item = ExistingItem
+				? ExistingItem->ToSharedRef()
+				: Private::AllocateObjectData(ObjectPath);
+			AllObjectRowData.AddUnique(Item);
+			NewPathToObjectDataCache.Emplace(ObjectPath, Item);
+			
+			BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
 			
 			return EBreakBehavior::Continue;
 		});
@@ -360,78 +362,49 @@ namespace UE::ConcertSharedSlate
 		// Case: RealModel contains only components but not the owning actor.
 		// In that case, we want the UI to still show the owning actor.
 		// We'll track this with these containers:
-		TSet<FSoftObjectPath> NonActors;
-		TSet<FSoftObjectPath> Actors;
+		TSet<FSoftObjectPath> AddedActors;
+		TSet<FSoftObjectPath> PendingActors;
 
-		// Here we only exposes objects that are top level so we skip components, etc.
-		EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
-		PropertiesModel->ForEachReplicatedObject([this, &Delegate, &NonActors, &Actors, &BreakBehavior](const FSoftObjectPath& Object)
+		PropertiesModel->ForEachReplicatedObject([this, &Delegate, &AddedActors, &PendingActors](const FSoftObjectPath& Object)
 		{
+			if (const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(Object)
+				; OwningActor && CanDisplayObject(*OwningActor))
+			{
+				PendingActors.Add(*OwningActor);
+			}
 			if (!CanDisplayObject(Object))
 			{
 				return EBreakBehavior::Continue;
 			}
 			
 			Delegate(Object);
-			
 			if (ObjectUtils::IsActor(Object))
 			{
-				Actors.Add(Object);
-			}
-			else
-			{
-				NonActors.Add(Object);
+				AddedActors.Add(Object);
 			}
 			
 			return EBreakBehavior::Continue;
 		});
 
-		// No additional objects to show
-		if (BreakBehavior == EBreakBehavior::Break)
+		// Now determine the actors that are not in PropertiesModel but that need to be shown because its subobjects that are in PropertiesModel
+		for (const FSoftObjectPath& PendingActor : PendingActors)
 		{
-			return;
-		}
-
-		// Now determine the top level objects that are not in RealModel but that need to be shown for subobjects that are in RealModel
-		for (const FSoftObjectPath& NonTopLevelObject : NonActors)
-		{
-			const TOptional<FSoftObjectPath> TopLevelObject = ObjectUtils::GetActorOf(NonTopLevelObject);
-			if (!TopLevelObject || !CanDisplayObject(*TopLevelObject))
+			if (!AddedActors.Contains(PendingActor))
 			{
-				continue;
-			}
-			
-			if (!Actors.Contains(*TopLevelObject))
-			{
-				Delegate(*TopLevelObject);
-				
-				// Avoid calling Delegate again for TopLevelObject
-				Actors.Add(*TopLevelObject);
+				Delegate(PendingActor);
+				AddedActors.Add(PendingActor);
 			}
 		}
-	}
-
-	void SReplicationStreamViewer::RefreshPropertyData()
-	{
-		PropertySection->RefreshPropertyData();
 	}
 
 	void SReplicationStreamViewer::BuildRootObjectRowData()
 	{
+		RootObjectRowData.Empty();
+		
 		TSet<TSharedPtr<FReplicatedObjectData>> NonRootNodes;
 		for (const TSharedPtr<FReplicatedObjectData>& Node : AllObjectRowData)
 		{
-			GetObjectRowChildren(Node, [&NonRootNodes](TSharedPtr<FReplicatedObjectData> Child)
-			{
-				NonRootNodes.Add(MoveTemp(Child));
-			});
-		}
-
-		// Make RootObjectRowData only contain those nodes which were not listed as children 
-		RootObjectRowData.Empty(NonRootNodes.Num());
-		for (const TSharedPtr<FReplicatedObjectData>& Node : AllObjectRowData)
-		{
-			if (!NonRootNodes.Contains(Node))
+			if (ObjectUtils::IsActor(Node->GetObjectPath()))
 			{
 				RootObjectRowData.Add(Node);
 			}
@@ -474,9 +447,9 @@ namespace UE::ConcertSharedSlate
 		
 		const TSoftObjectPtr ActorPtr(OwningActor);
 		AddItem(ActorPtr);
-		ObjectHierarchy->ForEachChildRecursive(ActorPtr, [this, &AddItem](const TSoftObjectPtr<>&, const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)
+		ObjectHierarchy->ForEachChildRecursive(ActorPtr, [this, &AddItem](const TSoftObjectPtr<>&, const TSoftObjectPtr<>& ChildObject, EChildRelationship)
 		{
-			if (ShouldDisplayChildObject(ChildObject.GetUniqueID(), Relationship))
+			if (CanDisplayObject(ChildObject))
 			{
 				AddItem(ChildObject);
 			}
@@ -503,9 +476,14 @@ namespace UE::ConcertSharedSlate
 			return EBreakBehavior::Continue;
 		});
 	}
-	bool SReplicationStreamViewer::CanDisplayObject(const FSoftObjectPath& ObjectPath) const
+	bool SReplicationStreamViewer::CanDisplayObject(const TSoftObjectPtr<>& Object) const
 	{
-		return !ShouldDisplayObjectDelegate.IsBound() || ShouldDisplayObjectDelegate.Execute(ObjectPath);
+		const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy ? ObjectHierarchy->GetParentInfo(Object) : TOptional<IObjectHierarchyModel::FParentInfo>{};
+		// If no hierarchy was provided during construction, only show actors. If hierarchy provided, check whether this type of subobject is allowed.
+		const bool bCanShowWithinHierarchy = (ParentInfo && ShouldDisplayObjectRelation(ParentInfo->Relationship))
+			|| ObjectUtils::IsActor(Object.GetUniqueID());
+		const bool bDidDelegateAllow = !ShouldDisplayObjectDelegate.IsBound() || ShouldDisplayObjectDelegate.Execute(Object.GetUniqueID());
+		return bCanShowWithinHierarchy && bDidDelegateAllow;
 	}
 
 	bool SReplicationStreamViewer::ShouldDisplayObjectRelation(EChildRelationship Relationship) const

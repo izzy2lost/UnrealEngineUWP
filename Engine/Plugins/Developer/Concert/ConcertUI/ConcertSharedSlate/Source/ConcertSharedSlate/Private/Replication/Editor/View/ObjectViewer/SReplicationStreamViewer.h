@@ -107,7 +107,7 @@ namespace UE::ConcertSharedSlate
 		void ExpandObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bRecursive, bool bAtEndOfTick = false);
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
-		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const;
+		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedObjectItems() const;
 
 		//~ Begin SWidget Interface
 		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -160,9 +160,6 @@ namespace UE::ConcertSharedSlate
 		/** Lists all objects that need an object in the top-view. */
 		void IterateDisplayableObjects(TFunctionRef<void(const FSoftObjectPath& Object)> Delegate) const;
 		
-		/** Regenerates property row data in the bottom videw */
-		void RefreshPropertyData();
-		
 		/** Sets RootObjectRowData to all non-root nodes from ObjectRowData. */
 		void BuildRootObjectRowData();
 
@@ -180,13 +177,10 @@ namespace UE::ConcertSharedSlate
 			RequestObjectDataRefresh();
 			RequestPropertyDataRefresh();
 		}
-		bool ShouldDisplayChildObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const
-		{
-			return CanDisplayObject(Object) && ShouldDisplayObjectRelation(Relationship);
-		}
 		
 		/** Invokes the ShouldDisplayObjectDelegate to determine whether ObjectPath should be displayed. */
-		bool CanDisplayObject(const FSoftObjectPath& ObjectPath) const;
+		bool CanDisplayObject(const TSoftObjectPtr<>& Object) const;
+		bool CanDisplayObject(const FSoftObjectPath& ObjectPath) const { return CanDisplayObject(TSoftObjectPtr<>(ObjectPath)); }
 		/** Whether the view options allow this type of relationship to be shown. */
 		bool ShouldDisplayObjectRelation(EChildRelationship Relationship) const;
 		

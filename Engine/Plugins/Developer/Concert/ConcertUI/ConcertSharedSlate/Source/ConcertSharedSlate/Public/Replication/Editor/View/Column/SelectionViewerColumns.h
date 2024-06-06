@@ -53,7 +53,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 	/** Shows the object's type. */
 	CONCERTSHAREDSLATE_API FObjectColumnEntry TypeColumn(FGetObjectClass GetObjectClassDelegate);
 	/** Shows the number of widgets assigned to the object. */
-	CONCERTSHAREDSLATE_API FObjectColumnEntry NumPropertiesColumn(const IReplicationStreamModel& Model UE_LIFETIMEBOUND, ENumPropertiesFlags Flags = ENumPropertiesFlags::None);
+	CONCERTSHAREDSLATE_API FObjectColumnEntry NumPropertiesColumn(const IReplicationStreamModel& Model UE_LIFETIMEBOUND, ENumPropertiesFlags Flags = ENumPropertiesFlags::IncludeSubobjectCounts);
 }
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::Property

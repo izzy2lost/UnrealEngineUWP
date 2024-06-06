@@ -468,6 +468,9 @@ namespace UE::ConcertSharedSlate
 	{
 		TSharedPtr<SVerticalBox> VerticalBox;
 		
+		const auto GetTreeVisibility = [this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; };
+		const auto GetWarningVisibility = [this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; };
+		
 		TSharedRef<SWidget> Result = SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 			.BorderBackgroundColor(FSlateColor(FLinearColor(0.6, 0.6, 0.6)))
@@ -479,6 +482,7 @@ namespace UE::ConcertSharedSlate
 				.FillHeight(1.f)
 				[
 					SAssignNew(TreeView, STreeView<TSharedPtr<TItemType>>)
+					.Visibility_Lambda(GetTreeVisibility)
 					.OnGetChildren(this, &SReplicationTreeView::GetRowChildren)
 					.TreeItemsSource(&FilteredRootItems)
 					.OnGenerateRow(this, &SReplicationTreeView::OnGenerateRowWidget)
@@ -500,7 +504,7 @@ namespace UE::ConcertSharedSlate
 				[
 					SNew(SWidgetSwitcher)
 					.WidgetIndex_Lambda([this](){ return AllRootItems->IsEmpty() ? 1 : 0; })
-					.Visibility_Lambda([this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
+					.Visibility_Lambda(GetWarningVisibility)
 					+SWidgetSwitcher::Slot() [ SNew(STextBlock).Text(LOCTEXT("AllFiltered", "All items are filtered.")) ]
 					+SWidgetSwitcher::Slot()
 					[

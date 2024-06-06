@@ -52,7 +52,11 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	/** @return Attempts to resolve this property given the class */
 	FProperty* ResolveProperty(const UStruct& Class, bool bLogOnFail = true) const;
 
+	/** @return The property immediately before the current one in the chain */
 	FConcertPropertyChain GetParent() const;
+	/** @return The root-most parent in the chain. */
+	FConcertPropertyChain GetRootParent() const;
+	/** @return The property path */
 	const TArray<FName>& GetPathToProperty() const { return PathToProperty; }
 
 	enum class EToStringMethod

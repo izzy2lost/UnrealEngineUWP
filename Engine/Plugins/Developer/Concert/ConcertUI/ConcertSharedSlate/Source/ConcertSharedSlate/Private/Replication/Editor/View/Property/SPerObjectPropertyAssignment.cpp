@@ -21,6 +21,8 @@ namespace UE::ConcertSharedSlate
 
 	void SPerObjectPropertyAssignment::RefreshData(const TArray<TSoftObjectPtr<>>& Objects, const IReplicationStreamModel& Model)
 	{
+		DisplayedGroups = { FObjectGroup{ Objects } };
+		
 		FPropertyAssignmentEntry AssignmentEntry { .ContextObjects = Objects };
 		TSet<FConcertPropertyChain>& Properties = AssignmentEntry.PropertiesToDisplay;
 		FSoftClassPath& ClassPath = AssignmentEntry.Class;
@@ -47,7 +49,7 @@ namespace UE::ConcertSharedSlate
 		
 		if (bHasClassPath && !Properties.IsEmpty())
 		{
-			const bool bObjectsHaveChanged = PreviousSelectedObjects == Objects;
+			const bool bObjectsHaveChanged = PreviousSelectedObjects != Objects;
 			PreviousSelectedObjects = Objects;
 			
 			// If the objects have changed, the classes may share properties.
@@ -55,7 +57,7 @@ namespace UE::ConcertSharedSlate
 			// However, we must regenerate all column widgets since they may be referencing the object the row was originally built for. So they'd display the state of the previous object still!
 			// Example: Assign property combo-box in Multi-User All Clients view displays who has the property assigned.
 			// Note: If the objects did not change, we definitely want to reuse item pointers since otherwise the user row selection is reset.
-			const bool bCanReusePropertyData = bObjectsHaveChanged;
+			const bool bCanReusePropertyData = !bObjectsHaveChanged;
 			TreeView->RefreshPropertyData({ AssignmentEntry }, bCanReusePropertyData);
 
 			if (!bObjectsHaveChanged)
@@ -65,7 +67,7 @@ namespace UE::ConcertSharedSlate
 		}
 		else
 		{
-			PreviousSelectedObjects = Objects;
+			PreviousSelectedObjects.Empty();
 			TreeView->RefreshPropertyData({}, false);
 			OnObjectGroupsChangedDelegate.Broadcast();
 		}

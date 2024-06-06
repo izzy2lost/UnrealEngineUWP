@@ -113,7 +113,7 @@ namespace UE::ConcertSharedSlate
 			TreeView->RequestScrollIntoView(PropertyRowData[Index]);
 		}
 	}
-	
+
 	void SPropertyTreeView::RefreshCategoryNodes(const TArray<FPropertyAssignmentEntry>& Entries, TMap<TSoftObjectPtr<>, FCategoryMetaData>& NewCategoryNodes)
 	{
 		SourceEntriesForSorting.Empty();

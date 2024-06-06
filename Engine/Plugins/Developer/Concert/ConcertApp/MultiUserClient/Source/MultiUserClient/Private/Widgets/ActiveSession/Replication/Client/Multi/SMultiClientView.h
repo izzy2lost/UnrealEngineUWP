@@ -5,12 +5,19 @@
 #include "Replication/Editor/UnrealEditor/HideObjectsNotInWorldLogic.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/ActiveSession/Replication/Client/PropertySelection/RootPropertySourceModel.h"
+
+namespace UE::MultiUserClient
+{
+	class FUserPropertySelector;
+}
 
 class IConcertClient;
 class FMenuBuilder;
 
 namespace UE::ConcertSharedSlate
 {
+	class IMultiObjectPropertyAssignmentView;
 	class IObjectHierarchyModel;
 	class IMultiReplicationStreamEditor;
 	class IEditableReplicationStreamModel;
@@ -24,6 +31,7 @@ namespace UE::MultiUserClient
 	class FReplicationClient;
 	class FReplicationClientManager;
 	class IClientSelectionModel;
+	class SPropertySelectionComboButton;
 
 	/** Displays a selection of clients. */
 	class SMultiClientView
@@ -44,6 +52,7 @@ namespace UE::MultiUserClient
 
 		TSharedPtr<IConcertClient> ConcertClient;
 		FReplicationClientManager* ClientManager = nullptr;
+		FUserPropertySelector* UserSelectedProperties = nullptr;
 		IClientSelectionModel* SelectionModel = nullptr;
 		
 		/** Combines the clients */
@@ -53,11 +62,20 @@ namespace UE::MultiUserClient
 		/** Used by widgets in columns. */
 		TSharedPtr<ConcertSharedSlate::IObjectHierarchyModel> ObjectHierarchy;
 
+		/**
+		 * This combo button is shown to the left of the search bar in the bottom half of the replication UI.
+		 * It allows users to specify the properties they want to work on (i.e. these properties should be shown in the property view).
+		 */
+		TSharedPtr<SPropertySelectionComboButton> PropertySelectionButton;
+		/** Displays the properties for the objects displayed in the top view. */
+		TSharedPtr<ConcertSharedSlate::IMultiObjectPropertyAssignmentView> PropertyAssignmentView;
+
 		/** This logic helps us decide whether an object should be displayed and lets us know that the object list needs to be refreshed (e.g. due to world change). */
 		ConcertClientSharedSlate::FHideObjectsNotInWorldLogic HideObjectsNotInEditorWorld;
 
 		/** Creates this widget's editor content */
 		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager);
+		TSharedRef<SWidget> CreateNoPropertiesWarning() const;
 
 		// SClientToolbar attributes
 		TSet<FGuid> GetDisplayClientIds() const;
@@ -65,8 +83,7 @@ namespace UE::MultiUserClient
 		
 		void RebuildClientSubscriptions();
 		void CleanClientSubscriptions() const;
-		void OnClientChanged() const;
-		void OnHierarchyNeedsRefresh() const;
+		void RefreshUI() const;
 		
 		/** Adds additional entries to the context menu for the object tree view. */
 		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects) const;

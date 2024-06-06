@@ -19,9 +19,7 @@ namespace UE::ConcertSharedSlate
 		PropertyAssignmentView = MoveTemp(InPropertyAssignmentView);
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		
-		GetSelectedRootObjectsDelegate = InArgs._GetSelectedRootObjects;
 		GetObjectClassDelegate = InArgs._GetObjectClass;
-		check(GetSelectedRootObjectsDelegate.IsBound() && GetObjectClassDelegate.IsBound());
 		
 		ChildSlot
 		[
@@ -29,10 +27,9 @@ namespace UE::ConcertSharedSlate
 		];
 	}
 	
-	void SReplicatedPropertyView::RefreshPropertyData()
+	void SReplicatedPropertyView::RefreshPropertyData(const TArray<TSoftObjectPtr<>>& SelectedObjects)
 	{
 		SCOPED_CONCERT_TRACE(RefreshPropertyData);
-		TArray<TSoftObjectPtr<>> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
 		{
 			SetPropertyContent(EReplicatedPropertyContent::NoSelection);
@@ -49,16 +46,6 @@ namespace UE::ConcertSharedSlate
 		
 		PropertyAssignmentView->RefreshData(SelectedObjects, *PropertiesModel);
 		SetPropertyContent(EReplicatedPropertyContent::Properties);
-	}
-
-	TArray<TSoftObjectPtr<>> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
-	{
-		TArray<TSoftObjectPtr<>> Result;
-		Algo::Transform(GetSelectedRootObjectsDelegate.Execute(), Result, [](const TSharedPtr<FReplicatedObjectData>& ObjectData)
-		{
-			return ObjectData->GetObjectPtr();
-		});
-		return Result;
 	}
 
 	TSharedRef<SWidget> SReplicatedPropertyView::CreatePropertiesView(const FArguments& InArgs)

@@ -137,6 +137,43 @@ namespace UE::MultiUserClient
 		return Conflict == EAuthorityConflict::Allowed;
 	}
 
+	void FGlobalAuthorityCache::ForEachClientReferencingProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
+	{
+		const TSet<FGuid>* ClientsWithStreams = RegisteredObjectsToClients.Find(Object);
+		if (!ClientsWithStreams)
+		{
+			return;
+		}
+
+		for (const FGuid& ClientId : *ClientsWithStreams)
+		{
+			const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+			if (!ensure(Client))
+			{
+				continue;
+			}
+
+			const FConcertReplicatedObjectInfo* ObjectInfo = Client->GetStreamSynchronizer().GetServerState().ReplicatedObjects.Find(Object);
+			const bool bContainsProperty = ensureMsgf(ObjectInfo, TEXT("RegisteredObjectsToClients lied. Investigate."))
+				&& ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property);
+			if (bContainsProperty && Callback(ClientId) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
+	bool FGlobalAuthorityCache::IsPropertyReferencedByAnyClientStream(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const
+	{
+		bool bIsReferenced = false;
+		ForEachClientReferencingProperty(Object, Property, [&](const FGuid& ClientId)
+		{
+			bIsReferenced = true;
+			return EBreakBehavior::Continue;
+		});
+		return bIsReferenced;
+	}
+
 	TOptional<FGuid> FGlobalAuthorityCache::GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const TArray<FName>& PropertyChain) const
 	{
 		TOptional<FGuid> Result;

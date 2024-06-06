@@ -24,7 +24,8 @@ namespace UE::ConcertClientSharedSlate
 				const UObject* Object = SubobjectData->FindComponentInstanceInActor(&OwningActor);
 				if (Object == &Subbject)
 				{
-					return FText::FromString(SubobjectData->GetDisplayString());
+					constexpr bool bShowNativeComponentNames = false;
+					return FText::FromString(SubobjectData->GetDisplayString(bShowNativeComponentNames));
 				}
 			}
 

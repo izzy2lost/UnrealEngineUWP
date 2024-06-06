@@ -154,7 +154,7 @@ namespace UE::ConcertSharedSlate
 			Algo::TransformIf(AddedObjects, TopLevelObjects,
 				[this, &AddedObjects](const UObject* Object)
 				{
-					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(Object);
+					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy ? ObjectHierarchy->GetParentInfo(Object) : TOptional<IObjectHierarchyModel::FParentInfo>{};
 					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return AddedObject == ParentInfo->Parent; });
 					return bIsTopOfHierarchy;
 				},
@@ -242,7 +242,7 @@ namespace UE::ConcertSharedSlate
 			TAttribute<FText>::CreateLambda([this](){ return GetEditingDisabledText(); }),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects()),
+				FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedObjectItems()),
 				FCanExecuteAction::CreateLambda([this]() { return !IsEditingDisabled(); })
 				),
 			NAME_None,
@@ -250,7 +250,7 @@ namespace UE::ConcertSharedSlate
 		);
 
 		TArray<TSoftObjectPtr<>> SelectedObjects;
-		Algo::Transform(ReplicationViewer->GetSelectedOutlinerObjects(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPtr(); });
+		Algo::Transform(ReplicationViewer->GetSelectedObjectItems(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPtr(); });
 		OnExtendObjectsContextMenuDelegate.ExecuteIfBound(MenuBuilder, SelectedObjects);
 		
 		return MenuBuilder.MakeWidget();
@@ -261,7 +261,7 @@ namespace UE::ConcertSharedSlate
 		using namespace ConcertSharedSlate;
 		
 		// Context menu generation is only supported for single items
-		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = ReplicationViewer->GetSelectedOutlinerObjects();
+		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = ReplicationViewer->GetSelectedObjectItems();
 		if (SelectedObjects.Num() != 1)
 		{
 			return;

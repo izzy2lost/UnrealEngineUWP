@@ -182,6 +182,18 @@ FConcertPropertyChain FConcertPropertyChain::GetParent() const
     return Result;
 }
 
+FConcertPropertyChain FConcertPropertyChain::GetRootParent() const
+{
+	if (PathToProperty.Num() <= 1)
+	{
+		return {};
+	}
+	
+	FConcertPropertyChain Result = *this;
+	Result.PathToProperty = { PathToProperty[0] };
+	return Result;
+}
+
 FString FConcertPropertyChain::ToString(EToStringMethod Method) const
 {
     switch (Method)

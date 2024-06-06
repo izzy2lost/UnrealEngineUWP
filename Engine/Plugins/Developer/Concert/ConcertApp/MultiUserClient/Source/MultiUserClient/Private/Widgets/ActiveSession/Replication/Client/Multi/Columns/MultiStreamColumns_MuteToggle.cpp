@@ -40,7 +40,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 						.HeightOverride(16.f)
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
-						.ToolTipText(LOCTEXT("Mute.ToolTip", "Whether an object is supposed to replicate or not.\nTip: When you pause an actor, you can selectively unpause components."))
+						.ToolTipText(LOCTEXT("Mute.ToolTip", "Whether an object is supposed to replicate or not."))
 						[
 							SNew(SImage)
 							.Image(FMultiUserReplicationStyle::Get()->GetBrush(TEXT("MultiUser.Icons.Play")))

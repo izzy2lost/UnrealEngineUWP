@@ -75,9 +75,9 @@ namespace UE::MultiUserClient
 
 	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession&)
 	{
-		// This clears the UI. The clients' IEditableReplicationStreamModels should no longer be referenced by anyone.
+		// This destroys the UI and tells any other potential system to stop referencing anything in ConnectedState (such as shared ptrs)...
 		SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Disconnected);
-		// Keep in mind the IEditableReplicationStreamModels were referenced by the UI so call this after clearing the UI.
+		// ... so now it is safe to destroy ConnectedState.
 		ConnectedState.Reset();
 	}
 
@@ -200,6 +200,7 @@ namespace UE::MultiUserClient
 		, QueryService(*InClient)
 		, ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer, QueryService.GetStreamAndAuthorityQueryService())
 		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), ClientManager.GetAuthorityCache())
+		, PropertySelector(ClientManager)
 		, ChangeLevelHandler(ClientManager.GetLocalClient().GetClientEditModel().Get())
 		, PreventReplicatedPropertyTransaction(*InClient, ClientManager, MuteManager)
 		, UserNotifier(ClientManager, MuteManager)

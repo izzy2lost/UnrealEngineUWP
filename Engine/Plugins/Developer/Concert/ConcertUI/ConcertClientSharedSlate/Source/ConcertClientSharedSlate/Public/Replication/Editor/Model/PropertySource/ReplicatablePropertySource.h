@@ -17,7 +17,7 @@ namespace UE::ConcertClientSharedSlate
 		{}
 
 		//~ Begin IPropertySource Interface
-		virtual void EnumerateProperties(TFunctionRef<EBreakBehavior(ConcertSharedSlate::FPropertyInfo&& Property)> Delegate) const override
+		virtual void EnumerateProperties(TFunctionRef<EBreakBehavior(const ConcertSharedSlate::FPropertyInfo& Property)> Delegate) const override
 		{
 			if (!Class.IsValid())
 			{
@@ -26,7 +26,7 @@ namespace UE::ConcertClientSharedSlate
 			
 			ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*Class.Get(), [this, &Delegate](FConcertPropertyChain&& Property)
 			{
-				return Delegate(ConcertSharedSlate::FPropertyInfo(MoveTemp(Property)));
+				return Delegate(ConcertSharedSlate::FPropertyInfo(Property));
 			});
 		}
 		//~ End IPropertySource Interface

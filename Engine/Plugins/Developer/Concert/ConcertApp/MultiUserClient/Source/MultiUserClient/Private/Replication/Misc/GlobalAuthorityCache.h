@@ -54,6 +54,11 @@ namespace UE::MultiUserClient
 		/** @return Whether the given client add the given property to the object without causing any conflicts. */
 		bool CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const;
 
+		/** Iterates through every client whose stream is referencing Object's Property. */
+		void ForEachClientReferencingProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
+		/** @return Whether any client is referencing Object in a stream. */
+		bool IsPropertyReferencedByAnyClientStream(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const;
+
 		/** Gets the client that has authority over the given property, if there is any. */
 		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const { return GetClientWithAuthorityOverProperty(Object, Property.GetPathToProperty()); }
 		/** Gets the client that has authority over the given property, if there is any. */
@@ -83,9 +88,9 @@ namespace UE::MultiUserClient
 		/** Used to obtain the clients and their states */
 		FReplicationClientManager& ClientManager;
 		
-		/** Maps objects that are owned to the clients that own them */
+		/** Maps objects that are owned to the clients that own them (have authority) */
 		TMap<FSoftObjectPath, TSet<FGuid>> OwnedObjectsToClients;
-		/** Maps objects that are owned to the clients that own them */
+		/** Maps objects that are owned to the clients that have them in the stream */
 		TMap<FSoftObjectPath, TSet<FGuid>> RegisteredObjectsToClients;
 		
 		/** Called when the cache changes for a specific client. */

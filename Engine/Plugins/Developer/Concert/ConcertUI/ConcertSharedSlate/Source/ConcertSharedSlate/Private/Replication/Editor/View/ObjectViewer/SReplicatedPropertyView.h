@@ -21,14 +21,9 @@ namespace UE::ConcertSharedSlate
 	class SReplicatedPropertyView : public SCompoundWidget
 	{
 	public:
-		
-		DECLARE_DELEGATE_RetVal(TArray<TSharedPtr<FReplicatedObjectData>>, FGetSelectedRootObjects)
 
 		SLATE_BEGIN_ARGS(SReplicatedPropertyView)
 		{}
-			/** Gets the root objects selected in the object outliner. */
-			SLATE_EVENT(FGetSelectedRootObjects, GetSelectedRootObjects)
-
 			/** Gets the class for the object since the object may not be in the model. */
 			SLATE_EVENT(FGetObjectClass, GetObjectClass)
 		
@@ -37,12 +32,11 @@ namespace UE::ConcertSharedSlate
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IPropertyAssignmentView> InPropertyAssignmentView, TSharedRef<IReplicationStreamModel> InPropertiesModel);
-		
-		void RefreshPropertyData();
+
+		/** Updates the displayed properties */
+		void RefreshPropertyData(const TArray<TSoftObjectPtr<>>& SelectedObjects);
 		/** Requests that the given column be resorted, if it currently affects the row sorting. */
 		void RequestResortForColumn(const FName& ColumnId) const { PropertyAssignmentView->RequestResortForColumn(ColumnId); }
-		
-		TArray<TSoftObjectPtr<>> GetObjectsSelectedForPropertyEditing() const;
 
 	private:
 		
@@ -64,8 +58,6 @@ namespace UE::ConcertSharedSlate
 		/** Determines the content displayed for PropertyArea. */
 		TSharedPtr<SWidgetSwitcher> PropertyContent;
 		
-		/** Gets the root objects selected in the object outliner. */
-		FGetSelectedRootObjects GetSelectedRootObjectsDelegate;
 		/** Gets the class for the object since the object may not be in the model. */
 		FGetObjectClass GetObjectClassDelegate;
 
