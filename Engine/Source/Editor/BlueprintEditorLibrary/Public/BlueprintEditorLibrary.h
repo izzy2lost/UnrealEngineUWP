@@ -215,4 +215,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting", meta = (ScriptMethod))
 	static void SetBlueprintVariableInstanceEditable(UBlueprint* Blueprint, const FName& VariableName, bool bInstanceEditable);
+
+	/**
+	 * Creates a blueprint based on a specific parent, honoring registered custom blueprint types
+	 * 
+	 * @param AssetPath				The full path that the asset should be created with
+	 * @param ParentClass			The parent class that the blueprint should be based on
+	 */
+	 UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	 static UBlueprint* CreateBlueprintAssetWithParent(const FString& AssetPath, UClass* ParentClass);
 };
