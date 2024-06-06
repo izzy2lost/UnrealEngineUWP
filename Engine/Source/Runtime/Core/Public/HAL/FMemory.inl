@@ -177,7 +177,16 @@ FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::GetAllocSize(void* Original)
 		else
 		{
 			SIZE_T Size = 0;
-			Result = FMEMORY_INLINE_GMalloc->GetAllocationSize(Original, Size) ? Size : 0;
+			const bool bGotSize = FMEMORY_INLINE_GMalloc->GetAllocationSize(Original, Size);
+			Result = bGotSize ? Size : 0;
+
+			// This folds away at compile time so that the check is only ever performed inside transactional
+			// code paths. The check is to ensure that the allocator used will return the correct allocation
+			// size, which is a cornerstone requirement for AutoRTFM to function.
+			if (AutoRTFM::IsClosed())
+			{
+				checkf(bGotSize, TEXT("For AutoRTFM to function it must be able to get the size of an allocation"));
+			}
 		}
 	};
 
