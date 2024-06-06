@@ -316,7 +316,8 @@ bool UStaticMeshExporterUsd::ExportBinary(UObject* Object, const TCHAR* Type, FA
 		UsdUtils::GetDefaultTimeCode(),
 		&AssetStage,
 		Options->MeshAssetOptions.LowestMeshLOD,
-		Options->MeshAssetOptions.HighestMeshLOD
+		Options->MeshAssetOptions.HighestMeshLOD,
+		Options->MeshAssetOptions.bExportStaticMeshSourceData
 	);
 
 	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())

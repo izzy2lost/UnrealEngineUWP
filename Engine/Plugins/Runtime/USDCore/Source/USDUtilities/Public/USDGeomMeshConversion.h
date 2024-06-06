@@ -205,6 +205,7 @@ namespace UnrealToUsd
 	 * layer, but the material assignments to an asset layer)
 	 * @param LowestMeshLOD - Lowest LOD of the UStaticMesh to export (start of the LOD range)
 	 * @param HighestMeshLOD - Lowest LOD of the UStaticMesh to export (end of the LOD range)
+	 * @param bExportStaticMeshSourceData - Whether to export the source mesh description data (if true) or the render data (if false)
 	 * @return Whether the conversion was successful or not.
 	 */
 	USDUTILITIES_API bool ConvertStaticMesh(
@@ -213,7 +214,8 @@ namespace UnrealToUsd
 		pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default(),
 		UE::FUsdStage* StageForMaterialAssignments = nullptr,
 		int32 LowestMeshLOD = 0,
-		int32 HighestMeshLOD = INT32_MAX
+		int32 HighestMeshLOD = INT32_MAX,
+		bool bExportStaticMeshSourceData = false
 	);
 
 	/**

@@ -76,6 +76,19 @@ struct USDEXPORTER_API FUsdMeshAssetOptions
 	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Material options", meta = (EditCondition = bBakeMaterials))
 	FUsdMaterialBakingOptions MaterialBakingOptions;
 
+	/**
+	 * If true it means we'll try exporting the source data when exporting static meshes.
+	 * Not all meshes contain their source data though. If we fail to find any source data, we'll fall back to exporting the render data instead.
+	 *
+	 * If false it means we'll export the render data instead: This can be closer to what is seen on the viewport, but it can also
+	 * be the most processed. For example, if the mesh has Nanite enabled this render data may be a much coarser version of the
+	 * source mesh.
+	 *
+	 * This is only relevant for StaticMeshes, and has no effect on other mesh types (SkeletalMeshes, GeometryCaches, etc.)
+	 */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options")
+	bool bExportStaticMeshSourceData = true;
+
 	/** Lowest of the LOD indices to export static and skeletal meshes with (use 0 for full detail) */
 	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options", meta = (ClampMin = "0"))
 	int32 LowestMeshLOD = 0;

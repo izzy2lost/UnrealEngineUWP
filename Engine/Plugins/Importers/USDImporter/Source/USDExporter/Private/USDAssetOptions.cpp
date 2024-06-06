@@ -38,6 +38,7 @@ void UsdUtils::AddAnalyticsAttributes(const FUsdMeshAssetOptions& Options, TArra
 	}
 	InOutAttributes.Emplace(TEXT("LowestMeshLOD"), LexToString(Options.LowestMeshLOD));
 	InOutAttributes.Emplace(TEXT("HighestMeshLOD"), LexToString(Options.HighestMeshLOD));
+	InOutAttributes.Emplace(TEXT("ExportStaticMeshSourceData"), Options.bExportStaticMeshSourceData);
 }
 
 void UsdUtils::HashForMaterialExport(const FUsdMaterialBakingOptions& Options, FSHA1& HashToUpdate)
@@ -66,4 +67,5 @@ void UsdUtils::HashForMeshExport(const FUsdMeshAssetOptions& Options, FSHA1& Has
 
 	HashToUpdate.Update(reinterpret_cast<const uint8*>(&Options.LowestMeshLOD), sizeof(Options.LowestMeshLOD));
 	HashToUpdate.Update(reinterpret_cast<const uint8*>(&Options.HighestMeshLOD), sizeof(Options.HighestMeshLOD));
+	HashToUpdate.Update(reinterpret_cast<const uint8*>(&Options.bExportStaticMeshSourceData), sizeof(Options.bExportStaticMeshSourceData));
 }
