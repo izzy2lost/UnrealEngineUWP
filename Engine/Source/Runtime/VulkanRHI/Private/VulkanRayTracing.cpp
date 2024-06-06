@@ -671,7 +671,9 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 
 	SizeInfo = {};
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	check(NumLayers > 0);
 
 	Layers.SetNum(NumLayers);
@@ -680,7 +682,9 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 	{
 		FLayerData& Layer = Layers[LayerIndex];
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Layer.SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.BuildFlags);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Layer.BufferOffset = Align(SizeInfo.ResultSize, GRHIRayTracingAccelerationStructureAlignment);
 		Layer.BuildScratchOffset = Align(SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
 		Layer.UpdateScratchOffset = Align(SizeInfo.UpdateScratchSize, GRHIRayTracingScratchBufferAlignment);
@@ -778,7 +782,9 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		InScratchOffset = 0;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TArray<FVkRtTLASBuildData> BuildDatas;
 	BuildDatas.SetNum(NumLayers);
@@ -800,7 +806,9 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		const FLayerData& Layer = Layers[LayerIndex];
 
 		FVkRtTLASBuildData& BuildData = BuildDatas[LayerIndex];
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstancesPerLayer[LayerIndex], InstanceBufferAddress, Initializer.BuildFlags, BuildMode, BuildData);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const uint64 LayerScratchOffset = bIsUpdate ? Layer.UpdateScratchOffset : Layer.BuildScratchOffset;
 
@@ -812,7 +820,9 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		GeometryInfos[LayerIndex] = BuildData.GeometryInfo;
 
 		VkAccelerationStructureBuildRangeInfoKHR& TLASBuildRangeInfo = BuildRanges[LayerIndex];
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TLASBuildRangeInfo.primitiveCount = Initializer.NumNativeInstancesPerLayer[LayerIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TLASBuildRangeInfo.primitiveOffset = InstanceBaseOffset;
 		TLASBuildRangeInfo.transformOffset = 0;
 		TLASBuildRangeInfo.firstVertex = 0;
@@ -828,7 +838,9 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 			INC_DWORD_STAT(STAT_VulkanRayTracingBuiltTLAS);
 		}
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		InstanceBaseOffset += Initializer.NumNativeInstancesPerLayer[LayerIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FVulkanCommandBufferManager& CommandBufferManager = *CommandContext.GetCommandBufferManager();

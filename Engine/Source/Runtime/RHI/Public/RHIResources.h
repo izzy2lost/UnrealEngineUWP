@@ -3066,6 +3066,7 @@ struct FRayTracingGeometryInstance
 	// If binary AND of instance mask with ray mask is zero, then the instance is considered not intersected / invisible.
 	uint8 Mask = 0xFF;
 
+	UE_DEPRECATED(5.5, "Specify layer when adding instances to FRayTracingScene instead.")
 	uint8 LayerIndex = 0;
 
 	// Flags to control triangle back face culling, whether to allow any-hit shaders, etc.
@@ -3285,9 +3286,9 @@ struct FRayTracingSceneInitializer2
 	TArray<uint32> SegmentPrefixSum;
 
 	// Total flattened number of ray tracing geometry instances (a single FRayTracingGeometryInstance may represent many) per layer.
+	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Use NumNativeInstances and create one FRHIRayTracingScene per layer instead.")
 	TArray<uint32> NumNativeInstancesPerLayer;
 
-	UE_DEPRECATED(5.1, "Use NumNativeInstancesPerLayer instead.")
 	uint32 NumNativeInstances = 0;
 
 	uint32 NumTotalSegments = 0;
@@ -3385,6 +3386,7 @@ public:
 		return nullptr;
 	}
 
+	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Create one FRHIRayTracingScene per layer instead.")
 	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
 
 	UE_DEPRECATED(5.5, "Create standalone FRHIShaderBindingTable instead.")

@@ -201,12 +201,12 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		ScratchBufferCreateInfo);
 
 	FRWBufferStructured InstanceBuffer;
-	InstanceBuffer.Initialize(RHICmdList, TEXT("RayTracingTestBedInstanceBuffer"), GRHIRayTracingInstanceDescriptorSize, SceneInitializer.NumNativeInstancesPerLayer[0]);
+	InstanceBuffer.Initialize(RHICmdList, TEXT("RayTracingTestBedInstanceBuffer"), GRHIRayTracingInstanceDescriptorSize, SceneInitializer.NumNativeInstances);
 
 	FByteAddressBuffer AccelerationStructureAddressesBuffer;
 	AccelerationStructureAddressesBuffer.Initialize(RHICmdList, TEXT("RayTracingTestBedAccelerationStructureAddressesBuffer"), sizeof(FRayTracingAccelerationStructureAddress), BUF_Volatile | BUF_MultiGPUAllocate);
 
-	const uint32 InstanceUploadBufferSize = SceneInitializer.NumNativeInstancesPerLayer[0] * sizeof(FRayTracingInstanceDescriptorInput);
+	const uint32 InstanceUploadBufferSize = SceneInitializer.NumNativeInstances * sizeof(FRayTracingInstanceDescriptorInput);
 	FBufferRHIRef InstanceUploadBuffer;
 	FShaderResourceViewRHIRef InstanceUploadSRV;
 	{
@@ -236,7 +236,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 			RayTracingScene.BaseInstancePrefixSum,
 			RayTracingScene.NumNativeGPUSceneInstances,
 			RayTracingScene.NumNativeCPUInstances,
-			MakeArrayView(InstanceUploadData, SceneInitializer.NumNativeInstancesPerLayer[0]),
+			MakeArrayView(InstanceUploadData, SceneInitializer.NumNativeInstances),
 			MakeArrayView(TransformUploadData, RayTracingScene.NumNativeCPUInstances * 3));
 		RHICmdList.UnlockBuffer(TransformUploadBuffer);
 		RHICmdList.UnlockBuffer(InstanceUploadBuffer);

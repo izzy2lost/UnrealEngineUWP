@@ -435,7 +435,9 @@ FMetalRayTracingScene::FMetalRayTracingScene(FRayTracingSceneInitializer2 InInit
 {
 	SizeInfo = {};
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	check(NumLayers > 0);
 
 	Layers.SetNum(NumLayers);
@@ -445,7 +447,9 @@ FMetalRayTracingScene::FMetalRayTracingScene(FRayTracingSceneInitializer2 InInit
 		FLayerData& Layer = Layers[LayerIndex];
 
 		MTL::InstanceAccelerationStructureDescriptor* InstanceDescriptor;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		InstanceDescriptor.SetInstanceCount(Initializer.NumNativeInstancesPerLayer[LayerIndex]);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		Layer.SizeInfo = CalcRayTracingGeometrySize(InstanceDescriptor);
 
@@ -620,7 +624,9 @@ void FMetalRayTracingScene::BuildAccelerationStructure(
 	MTL::AccelerationStructureCommandEncoder* CommandEncoder = Encoder.GetAccelerationStructureCommandEncoder();
 	check(CommandEncoder.GetPtr());
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FMetalBuffer CurScratchBuffer = InScratchBuffer->GetCurrentBuffer();
 	check(CurScratchBuffer);
@@ -631,7 +637,9 @@ void FMetalRayTracingScene::BuildAccelerationStructure(
 		FLayerData& Layer = Layers[LayerIndex];
 
 		MTL::InstanceAccelerationStructureDescriptor* InstanceDescriptor = MTL::InstanceAccelerationStructureDescriptor();
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		InstanceDescriptor.SetInstanceCount(Initializer.NumNativeInstancesPerLayer[LayerIndex]);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		InstanceDescriptor.SetInstanceDescriptorBuffer(CurInstanceBuffer);
 		InstanceDescriptor.SetInstanceDescriptorBufferOffset(InstanceBufferOffset);
 		InstanceDescriptor.SetInstancedAccelerationStructures((__bridge NSArray*)MutableAccelerationStructures);

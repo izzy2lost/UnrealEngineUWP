@@ -3439,7 +3439,9 @@ FD3D12RayTracingScene::FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracing
 
 	SizeInfo = {};
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	check(NumLayers > 0);
 
 	Layers.SetNum(NumLayers);
@@ -3451,7 +3453,9 @@ FD3D12RayTracingScene::FD3D12RayTracingScene(FD3D12Adapter* Adapter, FRayTracing
 		Layer.BuildInputs = {};
 		Layer.BuildInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 		Layer.BuildInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Layer.BuildInputs.NumDescs = Initializer.NumNativeInstancesPerLayer[LayerIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Layer.BuildInputs.Flags = TranslateRayTracingAccelerationStructureFlags(Initializer.BuildFlags);
 
 		// Get maximum buffer sizes for all GPUs in the system
@@ -3542,7 +3546,9 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 
 	checkf(ScratchBuffer, TEXT("TLAS build requires scratch buffer of at least %lld bytes."), SizeInfo.BuildScratchSize);
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 	{
@@ -3566,21 +3572,25 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 
 		if (bIsUpdate)
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			checkf(ScratchBufferOffset + Layer.UpdateScratchOffset + PrebuildInfo.UpdateScratchDataSizeInBytes <= ScratchBuffer->GetSize(),
 				TEXT("TLAS scratch buffer size is %d bytes with offset %d (%d bytes available), but the update requires %lld bytes. ")
 				TEXT("BuildInputs.NumDescs = %d, Instances.Num = %d, PerInstanceGeometries.Num = %d."),
 				ScratchBuffer->GetSize(), ScratchBufferOffset + Layer.UpdateScratchOffset, ScratchBuffer->GetSize() - ScratchBufferOffset,
 				PrebuildInfo.UpdateScratchDataSizeInBytes,
 				Layer.BuildInputs.NumDescs, Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.PerInstanceGeometries.Num());
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			checkf(ScratchBufferOffset + Layer.BuildScratchOffset + PrebuildInfo.ScratchDataSizeInBytes <= ScratchBuffer->GetSize(),
 				TEXT("TLAS scratch buffer size is %d bytes with offset %d (%d bytes available), but the build requires %lld bytes. ")
 				TEXT("BuildInputs.NumDescs = %d, Instances.Num = %d, PerInstanceGeometries.Num = %d."),
 				ScratchBuffer->GetSize(), ScratchBufferOffset + Layer.BuildScratchOffset, ScratchBuffer->GetSize() - ScratchBufferOffset,
 				PrebuildInfo.ScratchDataSizeInBytes,
 				Layer.BuildInputs.NumDescs, Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.PerInstanceGeometries.Num());
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
@@ -3743,7 +3753,9 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			INC_DWORD_STAT(STAT_D3D12RayTracingBuiltTLAS);
 		}
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		InstanceBaseOffset += Initializer.NumNativeInstancesPerLayer[LayerIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	CommandContext.BuildAccelerationStructuresInternal(BuildDescs);
