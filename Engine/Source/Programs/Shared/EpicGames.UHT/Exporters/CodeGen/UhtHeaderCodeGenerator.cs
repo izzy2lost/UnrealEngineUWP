@@ -277,29 +277,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		// Find the UFUNCTION associated with this event so that we can check
-		// if there is a BP implementation of it
-		protected static StringBuilder AppendFindUFunction(StringBuilder builder, UhtClass classObj, UhtFunction function, int tabs, string endl)
+		protected static StringBuilder AppendEventFunctionPrologue(StringBuilder builder, UhtFunction function, string functionName, int tabs, string endl, bool addEventParameterStruct)
 		{
-			builder
-				.AppendTabs(tabs)
-				.Append("UFunction* Func = FindFunctionChecked(")
-				.Append("NAME_")
-				.Append(classObj.SourceName)
-				.Append('_')
-				.Append(function.EngineName)
-				.Append(");\r\n");
-
-			return builder;
-		}
-
-		protected static StringBuilder AppendEventFunctionPrologue(StringBuilder builder, UhtFunction function, string functionName, int tabs, string endl, bool addEventParameterStruct, bool bAddFunctionScopeBracket = true)
-		{
-			if (bAddFunctionScopeBracket)
-			{
-				builder.AppendTabs(tabs).Append('{').Append(endl);
-			}
-			
+			builder.AppendTabs(tabs).Append('{').Append(endl);
 			if (function.Children.Count == 0)
 			{
 				return builder;
@@ -342,7 +322,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		protected static StringBuilder AppendEventFunctionEpilogue(StringBuilder builder, UhtFunction function, int tabs, string endl, bool bAddFunctionScopeBracket = true)
+		protected static StringBuilder AppendEventFunctionEpilogue(StringBuilder builder, UhtFunction function, int tabs, string endl)
 		{
 			++tabs;
 
@@ -402,12 +382,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			}
 
 			--tabs;
-
-			if (bAddFunctionScopeBracket)
-			{
-				builder.AppendTabs(tabs).Append('}').Append(endl);
-			}
-			
+			builder.AppendTabs(tabs).Append('}').Append(endl);
 			return builder;
 		}
 
