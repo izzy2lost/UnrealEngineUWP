@@ -2403,11 +2403,40 @@ TMap<FString, FString> AllSourceAndDestPackages(const TMap<FString, FString>& So
 	return Result;
 }
 
+// Returns the index of the '_' character found preceding a series of numbers at the end 
+// of a string (i.e. FName number syntax 'namestring_111'). The index is the equivalent to the "PlainString" length.
+// If the string is a malformed numbered FName then INDEX_NONE is returned.
+int32 EndsWithStrippableNumber(const FStringView Name)
+{
+	// Walk backwards verifying we have only numbers until we find a '_'
+	int32 Pos = Name.Len();
+	while (Pos--)
+	{
+		// Uses sign conversion to check if Name[Pos] is within the inclusive bounds of 0->9
+		if ((uint32)(TEXT('9') - Name[Pos]) > (TEXT('9') - TEXT('0')))
+		{
+			// If we didn't find a number, so exit the loop. 
+			// The Name was a numbered name if the non-number we just found 
+			// is '_' but we must ensure we aren't looking at a name
+			// that looks like "_123" (which would be an invalid FName) or "somename_"
+			if (Name[Pos] != TEXT('_') || Pos == 0 || Pos == Name.Len() - 1)
+			{
+				return INDEX_NONE;
+			}
+
+			return Pos;
+		}
+	}
+
+	// If we get here, the whole Name is a number
+	return INDEX_NONE;
+}
+
 TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FString>& SourceAndDestPackages)
 {
 	TMap<FString, FString> Result;
 
-	TCHAR SrcNameBuffer[NAME_SIZE];
+	TStringBuilder<NAME_SIZE> NameBuilder;
 	for (const TTuple<FString, FString>& Package : SourceAndDestPackages)
 	{
 		const FString& SrcNameString = Package.Key;
@@ -2418,49 +2447,113 @@ TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FStri
 		FStringView SrcPackageName = FPathViews::GetBaseFilename(SrcNameString);
 		FStringView DstPackageName = FPathViews::GetBaseFilename(DstNameString);
 
-
-		// We should have this mapping generated however it is causing duplicate name table entries that needs to be 
-		// investigated. Until we resolve FORT-752134 it is disabled
-		//
-		// If the Source Package has a '_[0-9]+' tail, we need a rule to match it without that tail
-		// as the number is not stored in the string in the FName table.
-		//{
-		//	FName SrcName(SrcPackageName);										// vk_0
-		//	int32 SrcNameLen = (int32)SrcName.GetPlainNameString(SrcNameBuffer);
-		//	FStringView SrcNameView{ SrcNameBuffer, SrcNameLen };				// vk
-		//	if (SrcNameLen != SrcPackageName.Len())
-		//	{
-		//		Result.Add({ FString(SrcNameView), FString(DstPackageName) });	// vk		=> Dest
-		//	}
-		//}
-
-		// Inject Path.ObjectName
-		// NOTE: this would be better to use a string builder.
-		Result.Add({ SrcNameString + TCHAR('.') + SrcPackageName, DstNameString + TCHAR('.') + DstPackageName });
-		if (SrcPackageName != DstPackageName)
+		// Path.ObjectName mapping
 		{
-			Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
-			Result.Add({ FString(SrcPackageName) + TEXT("_C"), FString(DstPackageName) + TEXT("_C") }); // catch compiled blueprint names
-			Result.Add({ DEFAULT_OBJECT_PREFIX + FString(SrcPackageName) + TEXT("_C"), DEFAULT_OBJECT_PREFIX + FString(DstPackageName) + TEXT("_C") }); // BPGC default object
+			NameBuilder.Reset();
+			NameBuilder.Append(SrcNameString);
+			NameBuilder.AppendChar(TEXT('.'));
+			NameBuilder.Append(SrcPackageName);
+			FString SrcObjectName = NameBuilder.ToString();
+
+			NameBuilder.Reset();
+			NameBuilder.Append(DstNameString);
+			NameBuilder.AppendChar(TEXT('.'));
+			NameBuilder.Append(DstPackageName);
+			FString DstObjectName = NameBuilder.ToString();
+			Result.Add(MoveTemp(SrcObjectName), MoveTemp(DstObjectName));
 		}
 
+		// For package names with a '_[0-9]+' suffix: Add a mapping with the suffix stripped but 
+		// maintain the full long path provided.
+		// NameTable entries have this suffix removed and we won't match them otherwise.
 		{
-			// We make FName's out of our incoming string package names
-			// as on rare occasion some of them have a '_[0-9]+' tail.
-			// Making FNames parse and strip this number on construction
-			// which then makes it consistent with how the are found in the name and import tables.
-			
-			FName SrcName = *SrcNameString;										// vk_0/vk_0
-			int32 SrcNameLen = (int32)SrcName.GetPlainNameString(SrcNameBuffer);
-			FStringView SrcNameView{ SrcNameBuffer, SrcNameLen };				// vk_0/vk
-
-			if (SrcNameLen != SrcNameString.Len())
+			int32 SrcNameStrPlainStringLen = EndsWithStrippableNumber(SrcNameString);				// PackageRoot_0/PackagePath_0/PackageName_0
+			if (SrcNameStrPlainStringLen != INDEX_NONE)
 			{
-				FStringView ShortSrcPackageName = FPathViews::GetBaseFilename(SrcNameView);	// vk
+				FStringView SrcNamePlainString(*SrcNameString, SrcNameStrPlainStringLen);			// PackageRoot_0/PackagePath_0/PackageName
 
-				Result.Add({ FString(SrcNameView), DstNameString });			// vk_0/vk		=> Destination
-				Result.Add({ SrcNameString + TCHAR('.') + ShortSrcPackageName,	// vk_0/vk_0.vk => Destination.Dest
-							 DstNameString + TCHAR('.') + DstPackageName });
+				// It's valid to rename a numbered name to a non-numbered name, 
+				// default to the original name and use the non-numbered name if found later
+				FStringView DstNamePlainString = DstNameString;
+				int32 DstNameStrPlainStringLen = EndsWithStrippableNumber(DstNameString);
+				if (DstNameStrPlainStringLen != INDEX_NONE)
+				{
+					DstNamePlainString.LeftInline(DstNameStrPlainStringLen);
+				}
+				Result.Add(FString(SrcNamePlainString), FString(DstNamePlainString));				// PackageRoot_0/PackagePath_0/PackageName => DstPackageRoot_0/DstPackagePath_0/DstPackageName
+
+				FStringView SrcShortPackageName = FPathViews::GetBaseFilename(SrcNamePlainString);	// PackageName
+				NameBuilder.Reset();
+				NameBuilder.Append(SrcNameString);
+				NameBuilder.AppendChar(TEXT('.'));
+				NameBuilder.Append(SrcShortPackageName);
+				FString SrcPathWithPlainObjectName = NameBuilder.ToString();
+
+				FStringView DstShortPackageName = FPathViews::GetBaseFilename(DstNamePlainString);	// PackageName
+				NameBuilder.Reset();
+				NameBuilder.Append(DstNameString);
+				NameBuilder.AppendChar(TEXT('.'));
+				NameBuilder.Append(DstShortPackageName);
+				FString DstPathWithObjectName = NameBuilder.ToString();
+				Result.Add(MoveTemp(SrcPathWithPlainObjectName), MoveTemp(DstPathWithObjectName));	// PackageRoot_0/PackagePath_0/PackageName_0.PackageName => DstPackageRoot_0/DstPackagePath_0/DstPackageName_0.DstPackageName
+			}
+		}
+
+		if (SrcPackageName != DstPackageName)
+		{
+			// PackageName (without PackageRoot or PackagePath) mapping (numbered suffix included)
+			{
+				Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
+			}
+
+			// PackageName (without PackageRoot or PackagePath) mapping (numbered suffix excluded)
+			// NameTable entries have this suffix removed and we won't match them otherwise.
+			{
+				int32 SrcPackageNamePlainStringLen = EndsWithStrippableNumber(SrcPackageName);						// PackageName_0
+				if (SrcPackageNamePlainStringLen != INDEX_NONE)
+				{
+					FStringView SrcPlainPackageName(SrcPackageName.GetData(), SrcPackageNamePlainStringLen);
+
+					// It's valid to rename a numbered name to a non-numbered name, 
+					// default to the original name and use the non-numbered name if found later
+					FStringView DstPlainPackageName = DstPackageName;
+					int32 DstPackageNamePlainStringLen = EndsWithStrippableNumber(DstPackageName);
+					if (DstPackageNamePlainStringLen != INDEX_NONE)
+					{
+						DstPlainPackageName = FStringView(DstPackageName.GetData(), DstPackageNamePlainStringLen);
+					}
+					Result.Add(FString(SrcPlainPackageName), FString(DstPlainPackageName));							// PackageName => DstPackageName
+				}
+			}
+
+			// Compiled Blueprint class names
+			{
+				NameBuilder.Reset();
+				NameBuilder.Append(SrcPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString SrcBlueprintClassName = NameBuilder.ToString();
+
+				NameBuilder.Reset();
+				NameBuilder.Append(DstPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString DstBlueprintClassName = NameBuilder.ToString();
+				Result.Add(MoveTemp(SrcBlueprintClassName), MoveTemp(DstBlueprintClassName));
+			}
+
+			// Blueprint generated class default object
+			{
+				NameBuilder.Reset();
+				NameBuilder.Append(DEFAULT_OBJECT_PREFIX);
+				NameBuilder.Append(SrcPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString SrcDefaultGeneratedBlueprintClassName = NameBuilder.ToString();
+
+				NameBuilder.Reset();
+				NameBuilder.Append(DEFAULT_OBJECT_PREFIX);
+				NameBuilder.Append(DstPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString DstDefaultGeneratedBlueprintClassName = NameBuilder.ToString();
+				Result.Add(MoveTemp(SrcDefaultGeneratedBlueprintClassName), MoveTemp(DstDefaultGeneratedBlueprintClassName));
 			}
 		}
 	}
