@@ -1408,9 +1408,9 @@ public:
 #	endif
 #else
 		// any other architecture must implement this function so this is not called, but we can't use any convenience functions 
-		// like unimplemented() or checkf(), so just crash with a comment that if you get here, implement Prefetch!
-		int* A = (int*)3;
-		*A = 13;
+		// like unimplemented() or checkf(), so just crash with a comment that if you get here, implement Prefetch and ALL Prefecth calls below
+		// this is because the Prefetch calls below will end up calling _this one_ not the platform specific functions
+		UE_FORCE_CRASH();
 #endif
 	}
 

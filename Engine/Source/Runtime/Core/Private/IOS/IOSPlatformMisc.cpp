@@ -1916,14 +1916,14 @@ void FIOSPlatformMisc::GPUAssert()
 {
     // make this a fatal error that ends here not in the log
     // changed to 3 from NULL because clang noticed writing to NULL and warned about it
-    *(int32 *)13 = 123;
+	UE_FORCE_CRASH_AT_OFFSET(13);
 }
 
 void FIOSPlatformMisc::MetalAssert()
 {
     // make this a fatal error that ends here not in the log
     // changed to 3 from NULL because clang noticed writing to NULL and warned about it
-    *(int32 *)7 = 123;
+	UE_FORCE_CRASH_AT_OFFSET(7);
 }
 
 struct FCPUFeatures

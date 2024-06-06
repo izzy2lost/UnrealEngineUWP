@@ -10499,7 +10499,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 			{
 				UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
 				FGenericCrashContext::SetCrashTrigger(ECrashTrigger::Debug);
-				*(int32 *)3 = 123;
+				UE_FORCE_CRASH();
 			}
 		};
 		ENQUEUE_RENDER_COMMAND(CauseRenderThreadCrash)(&FRender::GPF);
@@ -10617,7 +10617,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 			{
 				UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
 				FGenericCrashContext::SetCrashTrigger(ECrashTrigger::Debug);
-				*(int32 *)3 = 123;
+				UE_FORCE_CRASH();
 			}
 		};
 
@@ -10725,7 +10725,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 					{
 						UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
 						FGenericCrashContext::SetCrashTrigger(ECrashTrigger::Debug);
-						*(int32 *)3 = 123;
+						UE_FORCE_CRASH();
 						break;
 					}
 					else
@@ -10827,8 +10827,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 		UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
 		Ar.Log(TEXT("Crashing with voluntary GPF"));
 		FGenericCrashContext::SetCrashTrigger(ECrashTrigger::Debug);
-		// changed to 3 from NULL because clang noticed writing to NULL and warned about it
-		*(int32 *)3 = 123;
+		UE_FORCE_CRASH();
 		return true;
 	}
 	else if (FParse::Command(&Cmd, TEXT("ENSURE")))
@@ -11166,8 +11165,8 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 		struct FAudio
 		{
 			static void GPF()
-		{
-			*(int32 *)3 = 123;
+			{
+				UE_FORCE_CRASH();
 			}
 		};
 		FAudioThread::RunCommandOnAudioThread(&FAudio::GPF, TStatId());
@@ -14801,7 +14800,7 @@ EBrowseReturnVal::Type UEngine::Browse( FWorldContext& WorldContext, FURL URL, F
 			HandleBrowseToDefaultMapFailure(WorldContext, DefaultURL.ToString(), Error);
 			return EBrowseReturnVal::Failure;
 		}
-
+		
 		CollectGarbage( GARBAGE_COLLECTION_KEEPFLAGS );
 
 		// now remove "failed" and "closed" options from LastURL so it doesn't get copied on to future URLs
@@ -15199,7 +15198,7 @@ bool UEngine::LoadMap( FWorldContext& WorldContext, FURL URL, class UPendingNetG
 	CleanupPackagesToFullyLoad(WorldContext, FULLYLOAD_Game_PreLoadClass, TEXT(""));
 	CleanupPackagesToFullyLoad(WorldContext, FULLYLOAD_Game_PostLoadClass, TEXT(""));
 	CleanupPackagesToFullyLoad(WorldContext, FULLYLOAD_Mutator, TEXT(""));
-
+	
 
 	// Cancel any pending async map changes after flushing async loading. We flush async loading before canceling the map change
 	// to avoid completion after cancellation to not leave references to the "to be changed to" level around. Async loading is

@@ -957,6 +957,17 @@ int32 main(int32 ArgC, ANSICHAR* Utf8ArgV[]) \
 int32 tchar_main(int32 ArgC, TCHAR* ArgV[])
 #endif
 
+// perform an unaligned write to almost-zero (writing to 0 will throw warnings in some compilers, plus it might actually not crash)
+// this allow some platforms to change how they force a crash, in case this isn't enough
+// a platform can likely just #define UE_FORCE_CRASH_AT_OFFSET to override the crash behavior
+#ifndef UE_FORCE_CRASH_AT_OFFSET
+	#define UE_FORCE_CRASH_AT_OFFSET(x) *(int32 *)x = 123
+#endif
+
+#ifndef UE_FORCE_CRASH
+	#define UE_FORCE_CRASH() UE_FORCE_CRASH_AT_OFFSET(3)
+#endif
+
 //--------------------------------------------------------------------------------------------
 // POD types refactor for porting old code:
 //

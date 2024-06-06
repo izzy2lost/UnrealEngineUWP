@@ -55,8 +55,7 @@ void FIOSPlatformMemory::OnOutOfMemory(uint64 Size, uint32 Alignment)
 		UE_LOG(LogMemory, Warning, TEXT("Ran out of memory allocating %llu bytes with alignment %u. Last error msg: %s."), Size, Alignment, ErrorMsg);
     
 		// make this a fatal error that ends here not in the log
-		// changed to 3 from NULL because clang noticed writing to NULL and warned about it
-		*(int32 *)3 = 123;
+		UE_FORCE_CRASH();
 	};
 	
 	UE_CALL_ONCE(HandleOOM);
