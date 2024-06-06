@@ -1729,6 +1729,15 @@ EMeshResult FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, FMergeEdgesInfo& 
 	{
 		return EMeshResult::Failed_InvalidNeighbourhood;
 	}
+	// the un-matched edge vertices, a/d and b/c, should also not be directly connected, and should not be the same vertex
+	if (a == d || FindEdge(a, d) != InvalidID)
+	{
+		return EMeshResult::Failed_InvalidNeighbourhood;
+	}
+	if (b == c || FindEdge(b, c) != InvalidID)
+	{
+		return EMeshResult::Failed_InvalidNeighbourhood;
+	}
 
 	// if vertices at either end already share a common neighbour vertex, and we
 	// do the merge, that would create duplicate edges. This is something like the
