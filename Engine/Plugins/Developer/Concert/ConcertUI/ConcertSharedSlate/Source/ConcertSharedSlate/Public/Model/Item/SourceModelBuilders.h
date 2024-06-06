@@ -242,7 +242,7 @@ namespace UE::ConcertSharedSlate
 				AddOnClickParams.UserInterfaceActionType = EUserInterfaceActionType::Button; 
 				AddOnClickParams.DirectActions = {
 					FExecuteAction::CreateLambda([Option, Args = MoveTemp(Args)](){ Args.OnItemsSelected.Execute(Option->GetSelectableItems()); }),
-					FCanExecuteAction::CreateLambda([Option](){ return Option->GetNumSelectableItems() > 0; })
+					FCanExecuteAction::CreateLambda([Option](){ return Option->HasOptions(); })
 				};
 				
 				MenuBuilder.AddMenuEntry(AddOnClickParams);
