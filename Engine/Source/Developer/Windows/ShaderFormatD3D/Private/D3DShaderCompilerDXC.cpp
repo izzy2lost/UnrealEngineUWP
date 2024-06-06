@@ -739,15 +739,18 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 		VERIFYHRESULT(CompileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(OutReflectionBlob.GetInitReference()), ReflectionNameBlob.GetInitReference()));
 
 		RetrieveDebugNameAndBlob(CompileResult, OutPdbName, OutPdbBlob.GetInitReference());
-		const bool bHasOutputPDB = OutPdbBlob.IsValid() && !OutPdbName.IsEmpty();
-		const bool bRemovePDB = bHasOutputPDB && !Arguments.ShouldKeepEmbeddedPDB();
-
-		TArray<uint32, TInlineAllocator<4>> PartsToRemove;
-		if (bRemovePDB)
+ 
+ 		TArray<uint32, TInlineAllocator<4>> PartsToRemove;
+		if (!Arguments.ShouldKeepEmbeddedPDB())
 		{
-			// Try and remove both the PDB & Reflection Data
-			PartsToRemove.Add(DXC_PART_PDB);
-			PartsToRemove.Add(DXC_PART_REFLECTION_DATA);
+			if (CompileResult->HasOutput(DXC_OUT_PDB))
+			{
+				PartsToRemove.Add(DXC_PART_PDB);
+			}
+			if (CompileResult->HasOutput(DXC_OUT_REFLECTION))
+			{
+				PartsToRemove.Add(DXC_PART_REFLECTION_DATA);
+			}
 		}
 
 		if (Arguments.ShouldDump())
@@ -762,7 +765,7 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 			SaveDxcBlobToFile(OutDxilBlob, DxilFile);
 
 			// Dump the PDB.
-			if (bHasOutputPDB)
+			if (OutPdbBlob.IsValid() && !OutPdbName.IsEmpty())
 			{
 				const FString PdbFile = Arguments.GetDumpDebugInfoPath() / OutPdbName;
 				SaveDxcBlobToFile(OutPdbBlob, PdbFile);
