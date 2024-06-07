@@ -100,6 +100,17 @@ void UContextualAnimSceneActorComponent::GetLifetimeReplicatedProps(TArray< FLif
 	DOREPLIFETIME_WITH_PARAMS_FAST(UContextualAnimSceneActorComponent, RepTransitionData, Params);
 }
 
+void UContextualAnimSceneActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (OwnerAnimInstance.IsValid())
+	{
+		OwnerAnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
+		OwnerAnimInstance->OnPlayMontageNotifyBegin.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 bool UContextualAnimSceneActorComponent::IsOwnerLocallyControlled() const
 {
 	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
@@ -122,6 +133,9 @@ void UContextualAnimSceneActorComponent::PlayAnimation_Internal(UAnimSequenceBas
 		UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s \t\tUContextualAnimSceneActorComponent::PlayAnimation_Internal Playing Animation. Actor: %s Anim: %s StartTime: %f bSyncPlaybackTime: %d"),
 			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *GetNameSafe(Animation), StartTime, bSyncPlaybackTime);
 
+		// Cache AnimInstance so we don't have to look for it in the bindings in subsequent uses.
+		OwnerAnimInstance = AnimInstance;
+
 		//@TODO: Add support for dynamic montage
 		UAnimMontage* AnimMontage = Cast<UAnimMontage>(Animation);
 
@@ -132,7 +146,6 @@ void UContextualAnimSceneActorComponent::PlayAnimation_Internal(UAnimSequenceBas
 
 		AnimInstance->OnMontageBlendingOut.AddUniqueDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
 		AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
-		
 
 		if (bSyncPlaybackTime)
 		{
@@ -987,18 +1000,20 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *Bindings.GetRoleFromBinding(*Binding).ToString(),
 			Bindings.GetID(), Bindings.GetSectionIdx(), *GetNameSafe(Bindings.GetSceneAsset()));
 
-		if (UAnimInstance* AnimInstance = Binding->GetAnimInstance())
+		if (OwnerAnimInstance.IsValid())
 		{
-			AnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
-			AnimInstance->OnPlayMontageNotifyBegin.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
+			OwnerAnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
+			OwnerAnimInstance->OnPlayMontageNotifyBegin.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
 
 			//@TODO: Add support for dynamic montage
-			const UAnimMontage* AnimMontage = AnimInstance->GetCurrentActiveMontage();
+			const UAnimMontage* AnimMontage = OwnerAnimInstance->GetCurrentActiveMontage();
 			if (AnimMontage)
 			{
 				UE_LOG(LogContextualAnim, VeryVerbose, TEXT("\t\t Stopping animation (%s) from LeaveScene"), *GetNameSafe(AnimMontage));
-				AnimInstance->Montage_Stop(AnimMontage->GetDefaultBlendOutTime());
+				OwnerAnimInstance->Montage_Stop(AnimMontage->GetDefaultBlendOutTime());
 			}
+
+			OwnerAnimInstance.Reset();
 		}
 
 		// Stop listening to TickPose if we were

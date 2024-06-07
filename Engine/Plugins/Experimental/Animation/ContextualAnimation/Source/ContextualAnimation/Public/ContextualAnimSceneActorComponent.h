@@ -171,6 +171,7 @@ public:
 
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	virtual void GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const;
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
 
@@ -224,6 +225,10 @@ public:
 	bool IsOwnerLocallyControlled() const;
 
 protected:
+
+	/** Cache of the owner's AnimInstance for easy access. Only valid while an interaction is active */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UAnimInstance> OwnerAnimInstance = nullptr;
 
 	/** 
 	 * Replicated copy of the bindings so we can start the action on simulated proxies 
