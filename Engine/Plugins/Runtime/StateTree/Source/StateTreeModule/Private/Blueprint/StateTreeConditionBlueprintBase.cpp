@@ -61,19 +61,27 @@ FText FStateTreeBlueprintConditionWrapper::GetDescription(const FGuid& ID, FStat
 
 FName FStateTreeBlueprintConditionWrapper::GetIconName() const
 {
-	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConditionClass))
+	if (ConditionClass)
 	{
-		return NodeCDO->GetIconName();
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConditionClass))
+		{
+			return NodeCDO->GetIconName();
+		}
 	}
+
 	return FStateTreeConditionBase::GetIconName();
 }
 
 FColor FStateTreeBlueprintConditionWrapper::GetIconColor() const
 {
-	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConditionClass))
+	if (ConditionClass)
 	{
-		return NodeCDO->GetIconColor();
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConditionClass))
+		{
+			return NodeCDO->GetIconColor();
+		}
 	}
+
 	return FStateTreeConditionBase::GetIconColor();
 }
 #endif

@@ -163,19 +163,27 @@ FText FStateTreeBlueprintTaskWrapper::GetDescription(const FGuid& ID, FStateTree
 
 FName FStateTreeBlueprintTaskWrapper::GetIconName() const
 {
-	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(TaskClass))
+	if (TaskClass)
 	{
-		return NodeCDO->GetIconName();
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(TaskClass))
+		{
+			return NodeCDO->GetIconName();
+		}
 	}
+
 	return FStateTreeTaskBase::GetIconName();
 }
 
 FColor FStateTreeBlueprintTaskWrapper::GetIconColor() const
 {
-	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(TaskClass))
+	if (TaskClass)
 	{
-		return NodeCDO->GetIconColor();
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(TaskClass))
+		{
+			return NodeCDO->GetIconColor();
+		}
 	}
+
 	return FStateTreeTaskBase::GetIconColor();
 }
 #endif

@@ -54,19 +54,27 @@ FText FStateTreeBlueprintConsiderationWrapper::GetDescription(const FGuid& ID, F
 
 FName FStateTreeBlueprintConsiderationWrapper::GetIconName() const
 {
-	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConsiderationClass))
+	if (ConsiderationClass)
 	{
-		return NodeCDO->GetIconName();
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConsiderationClass))
+		{
+			return NodeCDO->GetIconName();
+		}
 	}
+
 	return FStateTreeConsiderationBase::GetIconName();
 }
 
 FColor FStateTreeBlueprintConsiderationWrapper::GetIconColor() const
 {
-	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConsiderationClass))
+	if (ConsiderationClass)
 	{
-		return NodeCDO->GetIconColor();
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConsiderationClass))
+		{
+			return NodeCDO->GetIconColor();
+		}
 	}
+
 	return FStateTreeConsiderationBase::GetIconColor();
 }
 #endif //WITH_EDITOR
