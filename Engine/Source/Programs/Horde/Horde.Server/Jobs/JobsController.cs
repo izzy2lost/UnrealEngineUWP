@@ -544,7 +544,7 @@ namespace Horde.Server.Jobs
 
 				string artifactKey = $"job:{job.Id}";
 				string artifactStepKeyPrefix = $"job:{job.Id}/step:";
-				await foreach (IArtifact artifact in _artifactCollection.FindAsync(keys: new[] { artifactKey }, cancellationToken: cancellationToken))
+				await foreach (IArtifact artifact in _artifactCollection.FindAsync(keys: new[] { artifactKey }, maxResults: 5000, cancellationToken: cancellationToken))
 				{
 					if (IncludeArtifactInResponse(artifact))
 					{
