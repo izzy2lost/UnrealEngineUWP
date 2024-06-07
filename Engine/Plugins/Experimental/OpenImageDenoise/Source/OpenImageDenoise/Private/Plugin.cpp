@@ -300,7 +300,7 @@ void FOpenImageDenoiseModule::StartupModule()
 	UE_LOG(LogOpenImageDenoise, Log, TEXT("OIDN starting up (built with OIDN %hs)"), OIDN_VERSION_STRING);
 #endif
 
-	GPathTracingDenoiserPlugin = MakeUnique<FOIDNDenoiser>();
+	RegisterSpatialDenoiser(MakeUnique<FOIDNDenoiser>(),TEXT("OIDN"));
 }
 
 void FOpenImageDenoiseModule::ShutdownModule()
@@ -310,5 +310,5 @@ void FOpenImageDenoiseModule::ShutdownModule()
 #endif
 
 	// Release scratch memory and destroy the OIDN device and filters
-	GPathTracingDenoiserPlugin.Reset();
+	UnregisterDenoiser(TEXT("OIDN"));
 }

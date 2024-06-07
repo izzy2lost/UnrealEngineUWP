@@ -106,5 +106,17 @@ public:
 
 } // namespace UE::Renderer::Private
 
+UE_DEPRECATED(5.5, "GPathTracingDenoiserPlugin is deprecated. Use RegisterSpatialDenoiser/RegisterSpatialTemporalDenoiser to register")
 extern RENDERER_API TUniquePtr<UE::Renderer::Private::IPathTracingDenoiser> GPathTracingDenoiserPlugin;
+
+UE_DEPRECATED(5.5, "GPathTracingSpatialTemporalDenoiserPlugin is deprecated. Use RegisterSpatialDenoiser/RegisterSpatialTemporalDenoiser to register")
 extern RENDERER_API TUniquePtr<UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser> GPathTracingSpatialTemporalDenoiserPlugin;
+
+/** Register a spatial denoiser*/
+extern RENDERER_API void RegisterSpatialDenoiser(TUniquePtr<UE::Renderer::Private::IPathTracingDenoiser> PathTracingDenoiser, FString Name);
+
+/** Register a spatial temporal denoiser*/
+extern RENDERER_API void RegisterSpatialTemporalDenoiser(TUniquePtr<UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser> PathTracingDenoiser, FString Name);
+
+/** Unregister all denoisers with the name Name*/
+extern RENDERER_API void UnregisterDenoiser(FString Name);

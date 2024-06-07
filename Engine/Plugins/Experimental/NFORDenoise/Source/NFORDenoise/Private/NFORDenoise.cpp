@@ -262,7 +262,7 @@ void FNFORDenoiseModule::StartupModule()
 		FString ModuleDir = Plugin->GetBaseDir() + TEXT("/Source/NFORDenoise");
 		AddShaderSourceDirectoryMapping(TEXT("/NFORDenoise"), FPaths::Combine(ModuleDir, TEXT("Shaders")));
 
-		GPathTracingSpatialTemporalDenoiserPlugin = MakeUnique<FNFORDenosier>();
+		RegisterSpatialTemporalDenoiser(MakeUnique<FNFORDenosier>(),TEXT("NFOR"));
 	}
 	else
 	{
@@ -273,9 +273,7 @@ void FNFORDenoiseModule::StartupModule()
 void FNFORDenoiseModule::ShutdownModule()
 {
 	UE_LOG(LogNFORDenoise, Log, TEXT("NFORDenoise function shutting down"));
-
-	GPathTracingSpatialTemporalDenoiserPlugin.Reset();
-
+	UnregisterDenoiser(TEXT("NFOR"));
 }
 
 #undef LOCTEXT_NAMESPACE

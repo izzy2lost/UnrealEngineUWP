@@ -326,7 +326,7 @@ void FOptiXDenoiseModule::StartupModule()
 	OptiXDenoiseBaseDLLHandle = FPlatformProcess::GetDllHandle(*OptiXDenoiseBaseDllPath);
 	FOptiXCudaFunctionList::Get().RegisterFunctionInstance<FOptiXDenoiserFunctionInstance>();
 
-	GPathTracingSpatialTemporalDenoiserPlugin = MakeUnique<FOptiXDenosier>();
+	RegisterSpatialTemporalDenoiser(MakeUnique<FOptiXDenosier>(), TEXT("OptiX"));
 }
 
 void FOptiXDenoiseModule::ShutdownModule()
@@ -335,7 +335,7 @@ void FOptiXDenoiseModule::ShutdownModule()
 	UE_LOG(LogOptiXDenoise, Log, TEXT("OptiXDenoise shutting down"));
 #endif
 
-	GPathTracingSpatialTemporalDenoiserPlugin.Reset();
+	UnregisterDenoiser(TEXT("OptiX"));
 
 	// Assure resources related to CUDA is released before the releasing of CUDA module.
 	Denoiser.Reset();

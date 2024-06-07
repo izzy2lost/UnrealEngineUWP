@@ -304,8 +304,8 @@ FViewExtension::~FViewExtension()
 	}
 #endif
 
-	GPathTracingDenoiserPlugin.Reset();
-	GPathTracingSpatialTemporalDenoiserPlugin.Reset();
+	UnregisterDenoiser(TEXT("NNE_OIDN"));
+	UnregisterDenoiser(TEXT("NNE_KPCN"));
 }
 
 void FViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
@@ -317,21 +317,23 @@ void FViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder,
 {
 	if (!bDenoiserEnabled)
 	{
-		GPathTracingDenoiserPlugin.Reset();
-		GPathTracingSpatialTemporalDenoiserPlugin.Reset();
+		UnregisterDenoiser(TEXT("NNE_OIDN"));
+		UnregisterDenoiser(TEXT("NNE_KPCN"));
 	}
 	else
 	{
 		if (DenoiserToSwap.IsValid())
 		{
-			GPathTracingSpatialTemporalDenoiserPlugin.Reset();
-			GPathTracingDenoiserPlugin = MoveTemp(DenoiserToSwap);
+			UnregisterDenoiser(TEXT("NNE_OIDN"));
+			UnregisterDenoiser(TEXT("NNE_KPCN"));
+			RegisterSpatialDenoiser(MoveTemp(DenoiserToSwap),TEXT("NNE_OIDN"));
 		}
 
 		if (SpatialTemporalDenoiserToSwap.IsValid())
 		{
-			GPathTracingDenoiserPlugin.Reset();
-			GPathTracingSpatialTemporalDenoiserPlugin = MoveTemp(SpatialTemporalDenoiserToSwap);
+			UnregisterDenoiser(TEXT("NNE_OIDN"));
+			UnregisterDenoiser(TEXT("NNE_KPCN"));
+			RegisterSpatialTemporalDenoiser(MoveTemp(SpatialTemporalDenoiserToSwap), TEXT("NNE_KPCN"));
 		}
 	}
 }
