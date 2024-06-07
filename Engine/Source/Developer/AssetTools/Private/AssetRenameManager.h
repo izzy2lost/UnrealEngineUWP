@@ -78,7 +78,7 @@ private:
 	void PopulateAssetReferencers(TArray<FAssetRenameDataWithReferencers>& AssetsToPopulate) const;
 
 	/** Updates the source control status of the packages containing the assets to rename */
-	bool UpdatePackageStatus(const TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const;
+	bool UpdatePackageStatus(TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const;
 
 	/**
 	 * Loads all referencing packages to assets in AssetsToRename, finds assets whose references can
