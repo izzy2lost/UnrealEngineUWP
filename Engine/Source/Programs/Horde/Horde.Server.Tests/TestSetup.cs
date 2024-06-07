@@ -387,7 +387,7 @@ namespace Horde.Server.Tests
 		/// <param name="ephemeral">Whether the agent is ephemeral</param>
 		/// <returns>A new agent</returns>
 		public async Task<IAgent> CreateAgentAsync(
-			PoolId poolId,
+			PoolId? poolId,
 			bool enabled = true,
 			bool requestShutdown = false,
 			List<string>? properties = null,
@@ -413,7 +413,7 @@ namespace Horde.Server.Tests
 			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, ephemeral, "");
 			Assert.IsNotNull(agent);
 
-			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = enabled, ExplicitPools = new List<PoolId> { poolId } });
+			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = enabled, ExplicitPools = poolId != null ? [poolId.Value] : [] });
 			Assert.IsNotNull(agent);
 
 			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);

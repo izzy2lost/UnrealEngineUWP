@@ -376,11 +376,16 @@ namespace Horde.Server.Compute
 				span.SetAttribute($"req.res.{name}.min", resReq.Min);
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
 			}
+			
+			if (!_globalConfig.CurrentValue.TryGetComputeCluster(arp.ClusterId, out ComputeClusterConfig? clusterConfig))
+			{
+				throw new ArgumentException($"Cluster '{arp.ClusterId}' not found");
+			}
 
 			byte[] certificate;
 			using (TelemetrySpan _ = _tracer.StartActiveSpan("Generating certificate"))
 			{
-				certificate = GenerateCert(arp.Encryption); // A no-op if certificate is not required	
+				certificate = GenerateCert(arp.Encryption); // A no-op if certificate is not required
 			}
 
 			List<Condition> conditions = [];
@@ -400,7 +405,8 @@ namespace Horde.Server.Compute
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
 
-					bool match = agent.MeetsRequirements(arp.Requirements, assignedResources, conditions);
+					bool isMemberOfCluster = clusterConfig.Condition == null || agent.SatisfiesCondition(clusterConfig.Condition);
+					bool match = isMemberOfCluster && agent.MeetsRequirements(arp.Requirements, assignedResources, conditions);
 					if (match)
 					{
 						using TelemetrySpan matchSpan = _tracer.StartActiveSpan("Found match");
