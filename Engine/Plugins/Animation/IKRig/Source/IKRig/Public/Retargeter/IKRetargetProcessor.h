@@ -478,23 +478,29 @@ public:
 		USkeletalMesh *SourceSkeleton,
 		USkeletalMesh *TargetSkeleton,
 		UIKRetargeter* InRetargeterAsset,
+		const FRetargetProfile& Settings,
 		const bool bSuppressWarnings=false);
 
 	/**
 	* Run the retarget to generate a new pose.
 	* @param InSourceGlobalPose -  is the source mesh input pose in Component/Global space
+	* @param SpeedValuesFromCurves - the speed of each curve used by speed planting (blended in anim graph)
+	* @param DeltaTime -  time since last tick in seconds (used by speed planting)
+	* @param Settings -  the retarget profile to use for this update
 	* @return The retargeted Component/Global space pose for the target skeleton
 	*/
 	TArray<FTransform>& RunRetargeter(
 		const TArray<FTransform>& InSourceGlobalPose,
 		const TMap<FName, float>& SpeedValuesFromCurves,
-		const float DeltaTime);
-
-	/** Apply the settings stored in a retarget profile. Call this before RunRetargeter() to use the settings stored in a profile. */
-	void ApplySettingsFromProfile(const FRetargetProfile& Profile);
+		const float DeltaTime,
+		const FRetargetProfile& Settings);
 	
-	/** Apply the settings stored in the retargeter asset. */
-	void ApplySettingsFromAsset();
+	/** Apply the settings stored in the IKRig asset. */
+	void CopyIKRigSettingsFromAsset();
+
+	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different or if the
+	 * pose has been modified. Does nothing if the pose has not changed. */
+	void UpdateRetargetPoseAtRuntime(const FName NewRetargetPoseName, ERetargetSourceOrTarget SourceOrTarget);
 
 	/** Get read-only access to either source or target skeleton. */
 	const FRetargetSkeleton& GetSkeleton(ERetargetSourceOrTarget SourceOrTarget) const;
@@ -531,10 +537,6 @@ public:
 	
 	/** Reset the IK planting state. */
 	void ResetPlanting();
-
-	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different or if the
-	 * pose has been modified. Does nothing if the pose has not changed. */
-	void UpdateRetargetPoseAtRuntime(const FName NewRetargetPoseName, ERetargetSourceOrTarget SourceOrTarget);
 
 	/** logging system */
 	FIKRigLogger Log;
@@ -609,12 +611,19 @@ private:
 	/** The collection of operations to run in the final phase of retargeting */
 	UPROPERTY(Transient) // must be property to keep from being GC'd
 	TArray<TObjectPtr<URetargetOpBase>> OpStack;
+
+	/** Apply the settings stored in a retarget profile. Called inside RunRetargeter(). */
+	void ApplySettingsFromProfile(const FRetargetProfile& Profile);
+	
+	/** Update chain settings at runtime (for use with a profile)
+	 * Will queue an IK Rig reinitialization if the "Enable IK" state is modified. */
+	void UpdateChainSettingsAtRuntime(const FName ChainName, const FTargetChainSettings& NewChainSettings);
 	
 	/** Initializes the FRootRetargeter */
 	bool InitializeRoots();
 
 	/** Initializes the all the chain pairs */
-	bool InitializeBoneChainPairs();
+	bool InitializeBoneChainPairs(const TMap<FName, FTargetChainSettings>& ChainSettings);
 
 	/** Initializes the IK Rig that evaluates the IK solve for the target IK chains */
 	bool InitializeIKRig(UObject* Outer, const USkeletalMesh* InSkeletalMesh);

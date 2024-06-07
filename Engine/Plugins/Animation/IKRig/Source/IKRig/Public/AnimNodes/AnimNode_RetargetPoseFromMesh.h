@@ -81,6 +81,8 @@ private:
 	void CopyBoneTransformsFromSource(USkeletalMeshComponent* TargetMeshComponent);
 	/** indirection to account for Leader Pose Component setup */
 	TObjectPtr<USkeletalMeshComponent> GetComponentToCopyPoseFrom() const;
+	// get a retarget profile that includes settings from the asset, plus any custom profile overrides
+	FRetargetProfile GetMergedRetargetProfile(bool bEnableIK) const;
 
 	/** the runtime processor used to run the retarget and generate new poses */
 	UPROPERTY(Transient)

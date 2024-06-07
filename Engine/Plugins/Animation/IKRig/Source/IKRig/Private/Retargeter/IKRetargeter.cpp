@@ -400,6 +400,30 @@ const FName UIKRetargeter::GetDefaultPoseName()
 	return DefaultPoseName;
 }
 
+void UIKRetargeter::FillProfileWithAssetSettings(FRetargetProfile& InOutProfile) const
+{
+	// first copy all the asset settings into the profile
+	InOutProfile.bApplyTargetRetargetPose = true;
+	InOutProfile.TargetRetargetPoseName = GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
+	InOutProfile.bApplySourceRetargetPose = true;
+	InOutProfile.SourceRetargetPoseName = GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Source);
+	InOutProfile.bApplyChainSettings = true;
+	for (const TObjectPtr<URetargetChainSettings>& Chain : ChainSettings)
+	{
+		InOutProfile.ChainSettings.Add(Chain->TargetChain, Chain->Settings);
+	}
+	InOutProfile.bApplyRootSettings = true;
+	InOutProfile.RootSettings = RootSettings->Settings;
+	InOutProfile.bApplyGlobalSettings = true;
+	InOutProfile.GlobalSettings = GlobalSettings->Settings;
+
+	// now override any settings in the asset's current profile
+	if (const FRetargetProfile* ProfileToUse = GetCurrentProfile())
+	{
+		InOutProfile.MergeWithOtherProfile(*ProfileToUse);
+	}
+}
+
 const FRetargetProfile* UIKRetargeter::GetCurrentProfile() const
 {
 	return GetProfileByName(CurrentProfile);

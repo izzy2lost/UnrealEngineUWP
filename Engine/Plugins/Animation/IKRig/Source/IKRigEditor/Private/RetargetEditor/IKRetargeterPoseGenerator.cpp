@@ -562,7 +562,9 @@ bool FRetargetAutoPoseGenerator::CheckReadyToAlignBones() const
 	USkeletalMesh* TargetSkeletalMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target);
 	UIKRetargeter* RetargeterAsset = Controller->GetAssetPtr();
 	constexpr bool bSuppressWarnings = true;
-	Processor->Initialize(SourceSkeletalMesh, TargetSkeletalMesh, RetargeterAsset, bSuppressWarnings);
+	FRetargetProfile RetargetProfile;
+	RetargeterAsset->FillProfileWithAssetSettings(RetargetProfile);
+	Processor->Initialize(SourceSkeletalMesh, TargetSkeletalMesh, RetargeterAsset, RetargetProfile, bSuppressWarnings);
 	
 	// can't auto align until processor is initialized because we need a fully resolved chain mapping on source/target
 	// this could happen if the user attempts to edit the retarget pose on an incompatible IK Rig

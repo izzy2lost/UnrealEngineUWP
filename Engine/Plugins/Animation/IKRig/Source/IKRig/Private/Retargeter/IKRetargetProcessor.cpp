@@ -1499,6 +1499,7 @@ void UIKRetargetProcessor::Initialize(
 		USkeletalMesh* SourceSkeletalMesh,
 		USkeletalMesh* TargetSkeletalMesh,
 		UIKRetargeter* InRetargeterAsset,
+		const FRetargetProfile& Settings,
 		const bool bSuppressWarnings)
 {
 	// don't attempt reinitialization unless inputs have changed
@@ -1563,7 +1564,7 @@ void UIKRetargetProcessor::Initialize(
 	bRootsInitialized = InitializeRoots();
 
 	// initialize pairs of bone chains
-	bAtLeastOneValidBoneChainPair = InitializeBoneChainPairs();
+	bAtLeastOneValidBoneChainPair = InitializeBoneChainPairs(Settings.ChainSettings);
 	if (!bAtLeastOneValidBoneChainPair)
 	{
 		// couldn't match up any BoneChain pairs, no limb retargeting possible
@@ -1600,7 +1601,7 @@ void UIKRetargetProcessor::Initialize(
 	}
 
 	// copy the initial settings from the asset
-	ApplySettingsFromAsset();
+	CopyIKRigSettingsFromAsset();
 	
 	bIsInitialized = bRootsInitialized || bAtLeastOneValidBoneChainPair;
 	AssetVersionInitializedWith = RetargeterAsset->GetVersion();
@@ -1637,7 +1638,7 @@ bool UIKRetargetProcessor::InitializeRoots()
 	return bRootEncoderInit && bRootDecoderInit;
 }
 
-bool UIKRetargetProcessor::InitializeBoneChainPairs()
+bool UIKRetargetProcessor::InitializeBoneChainPairs(const TMap<FName, FTargetChainSettings>& ChainSettings)
 {
 	ChainPairsFK.Reset();
 	ChainPairsIK.Reset();
@@ -1684,13 +1685,10 @@ bool UIKRetargetProcessor::InitializeBoneChainPairs()
 		}
 		
 		// load IK chain
-		if (ChainMap->Settings.IK.EnableIK)
+		FRetargetChainPairIK ChainPairIK;
+		if (ChainPairIK.Initialize(*SourceBoneChain, *TargetBoneChain, SourceSkeleton, TargetSkeleton, Log))
 		{
-			FRetargetChainPairIK ChainPairIK;
-			if (ChainPairIK.Initialize(*SourceBoneChain, *TargetBoneChain, SourceSkeleton, TargetSkeleton, Log))
-			{
-				ChainPairsIK.Add(ChainPairIK);
-			}
+			ChainPairsIK.Add(ChainPairIK);
 		}
 
 		// warn user if IK goal is not on the END bone of the target chain. It will still work, but may produce bad results.
@@ -1707,6 +1705,22 @@ bool UIKRetargetProcessor::InitializeBoneChainPairs()
 				}
 				break;
 			}
+		}
+	}
+
+	// set initial chain settings
+	for (FRetargetChainPairFK& FKChain : ChainPairsFK)
+	{
+		if (const FTargetChainSettings* Settings = ChainSettings.Find(FKChain.TargetBoneChainName))
+		{
+			FKChain.Settings = Settings->FK;
+		}
+	}
+	for (FRetargetChainPairIK& IKChain : ChainPairsIK)
+	{
+		if (const FTargetChainSettings* Settings = ChainSettings.Find(IKChain.TargetBoneChainName))
+		{
+			IKChain.Settings = Settings->IK;
 		}
 	}
 
@@ -1761,20 +1775,11 @@ bool UIKRetargetProcessor::InitializeIKRig(UObject* Outer, const USkeletalMesh* 
 	
 	// gather list of excluded goals based on any chain mapping that has it's IK disabled
 	TArray<FName> GoalsToExclude;
-	const TArray<TObjectPtr<URetargetChainSettings>>& ChainMapping = RetargeterAsset->GetAllChainSettings();
-	const TArray<FBoneChain>& IKRigChains = IKRig->GetRetargetChains();
-	for (const URetargetChainSettings* ChainMap : ChainMapping)
+	for (FRetargetChainPairIK ChainPairIK : ChainPairsIK)
 	{
-		if (ChainMap->Settings.IK.EnableIK)
+		if (!ChainPairIK.Settings.EnableIK)
 		{
-			continue;
-		}
-		for (const FBoneChain& Chain : IKRigChains)
-		{
-			if (Chain.ChainName == ChainMap->TargetChain)
-			{
-				GoalsToExclude.Add(Chain.IKGoalName);
-			}
+			GoalsToExclude.Add(ChainPairIK.IKGoalName);
 		}
 	}
 	
@@ -1789,6 +1794,12 @@ bool UIKRetargetProcessor::InitializeIKRig(UObject* Outer, const USkeletalMesh* 
 	// validate that all IK bone chains have an associated Goal
 	for (FRetargetChainPairIK& ChainPair : ChainPairsIK)
 	{
+		// skip chains that have had their IK disabled, these goals won't be in the IK Rig
+		if (GoalsToExclude.Contains(ChainPair.IKGoalName))
+		{
+			continue;
+		}
+		
 		// does the IK rig have the IK goal this bone chain requires?
 		if (!IKRigProcessor->GetGoalContainer().FindGoalByName(ChainPair.IKGoalName))
 		{
@@ -1896,9 +1907,22 @@ bool UIKRetargetProcessor::InitializeOpStack(const TArray<TObjectPtr<URetargetOp
 TArray<FTransform>&  UIKRetargetProcessor::RunRetargeter(
 	const TArray<FTransform>& InSourceGlobalPose,
 	const TMap<FName, float>& SpeedValuesFromCurves,
-	const float DeltaTime)
+	const float DeltaTime,
+	const FRetargetProfile& Settings)
 {
 	check(bIsInitialized);
+
+	// apply the retargeting settings
+	ApplySettingsFromProfile(Settings);
+	// applying settings can cause the retargeter to require reinitialization (when enabling/disabling IK on a chain)
+	// since reinitialization can only currently be done on the main thread, we have to wait for the next frame
+	// in the meantime we return the last generated pose which we know the processor has because it wouldn't have made it past the check()
+	// unless it were already initialized once.
+	// NOTE: In the future hopefully we can reinitialize from any thread by avoiding UObject creation in UIKRetargetProcessor::Initialize()
+	if (!IsInitialized())
+	{
+		return TargetSkeleton.OutputGlobalPose;
+	}
 
 #if WITH_EDITOR
 	// validate system running the retargeter has stripped all the scale out of the incoming pose
@@ -2471,53 +2495,12 @@ FName UIKRetargetProcessor::GetMappedChainName(
 
 #endif
 
-void UIKRetargetProcessor::ApplySettingsFromAsset()
+void UIKRetargetProcessor::CopyIKRigSettingsFromAsset()
 {
 	// copy IK Rig settings
 	if (const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Target))
 	{
 		IKRigProcessor->CopyAllInputsFromSourceAssetAtRuntime(TargetIKRig);
-	}
-	
-	// copy chain settings from the asset
-	const TArray<TObjectPtr<URetargetChainSettings>>& AllChainSettings = RetargeterAsset->GetAllChainSettings();
-	for (const TObjectPtr<URetargetChainSettings>& ChainSettings : AllChainSettings)
-	{
-		for (FRetargetChainPairFK& Chain : ChainPairsFK)
-		{
-			if (Chain.TargetBoneChainName == ChainSettings->TargetChain)
-			{
-				Chain.Settings = ChainSettings->Settings.FK;
-			}
-		}
-		
-		for (FRetargetChainPairIK& Chain : ChainPairsIK)
-		{
-			if (Chain.TargetBoneChainName == ChainSettings->TargetChain)
-			{
-				Chain.Settings = ChainSettings->Settings.IK;
-				Chain.SpeedPlantSettings = ChainSettings->Settings.SpeedPlanting;
-			}
-		}
-	}
-
-	// copy root settings
-	RootRetargeter.Settings = RetargeterAsset->GetRootSettingsUObject()->Settings;
-
-	// copy global settings
-	GlobalSettings = RetargeterAsset->GetGlobalSettings();
-
-	// apply current retarget poses (only applied if the pose has been switched to a different one OR if the current pose was modified)
-	const FName SourcePose = RetargeterAsset->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Source);
-	const FName TargetPose = RetargeterAsset->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
-	UpdateRetargetPoseAtRuntime(SourcePose, ERetargetSourceOrTarget::Source);
-	UpdateRetargetPoseAtRuntime(TargetPose, ERetargetSourceOrTarget::Target);
-
-	// apply the current profile
-	// (this is always applied last so that profile overrides take precedence over asset settings)
-	if (const FRetargetProfile* CurrentProfile = RetargeterAsset->GetCurrentProfile())
-	{
-		ApplySettingsFromProfile(*CurrentProfile);
 	}
 }
 
@@ -2534,49 +2517,20 @@ FName UIKRetargetProcessor::GetRetargetRoot(ERetargetSourceOrTarget SourceOrTarg
 void UIKRetargetProcessor::ApplySettingsFromProfile(const FRetargetProfile& Profile)
 {
 	// assign retarget poses specified in the profile
-	if (Profile.bApplySourceRetargetPose)
-	{
-		UpdateRetargetPoseAtRuntime(Profile.SourceRetargetPoseName, ERetargetSourceOrTarget::Source);
-	}
-	if (Profile.bApplyTargetRetargetPose)
-	{
-		UpdateRetargetPoseAtRuntime(Profile.TargetRetargetPoseName, ERetargetSourceOrTarget::Target);
-	}
+	UpdateRetargetPoseAtRuntime(Profile.SourceRetargetPoseName, ERetargetSourceOrTarget::Source);
+	UpdateRetargetPoseAtRuntime(Profile.TargetRetargetPoseName, ERetargetSourceOrTarget::Target);
 
 	// assign chain settings
-	if (Profile.bApplyChainSettings)
+	for (const TTuple<FName, FTargetChainSettings>& ChainSettings : Profile.ChainSettings)
 	{
-		for (const TTuple<FName, FTargetChainSettings>& ChainSettings : Profile.ChainSettings)
-		{
-			for (FRetargetChainPairFK& Chain : ChainPairsFK)
-			{
-				if (Chain.TargetBoneChainName == ChainSettings.Key)
-				{
-					Chain.Settings = ChainSettings.Value.FK;
-				}
-			}
-		
-			for (FRetargetChainPairIK& Chain : ChainPairsIK)
-			{
-				if (Chain.TargetBoneChainName == ChainSettings.Key)
-				{
-					Chain.Settings = ChainSettings.Value.IK;
-				}
-			}
-		}
+		UpdateChainSettingsAtRuntime(ChainSettings.Key, ChainSettings.Value);
 	}
 
 	// assign root settings
-	if (Profile.bApplyRootSettings)
-	{
-		RootRetargeter.Settings = Profile.RootSettings;
-	}
-
+	RootRetargeter.Settings = Profile.RootSettings;
+	
 	// assign global settings
-	if (Profile.bApplyGlobalSettings)
-	{
-		GlobalSettings = Profile.GlobalSettings;
-	}
+	GlobalSettings = Profile.GlobalSettings;
 }
 
 void UIKRetargetProcessor::UpdateRetargetPoseAtRuntime(
@@ -2630,6 +2584,35 @@ void UIKRetargetProcessor::UpdateRetargetPoseAtRuntime(
 	// re-initialize the root
 	RootRetargeter.InitializeSource(RootRetargeter.Source.BoneName, SourceSkeleton, Log);
 	RootRetargeter.InitializeTarget(RootRetargeter.Target.BoneName, TargetSkeleton, Log);
+}
+
+void UIKRetargetProcessor::UpdateChainSettingsAtRuntime(const FName ChainName, const FTargetChainSettings& NewChainSettings)
+{
+	// update FK chain
+	for (FRetargetChainPairFK& Chain : ChainPairsFK)
+	{
+		if (Chain.TargetBoneChainName == ChainName)
+		{
+			Chain.Settings = NewChainSettings.FK;
+			break;
+		}
+	}
+
+	// update IK chain
+	for (FRetargetChainPairIK& Chain : ChainPairsIK)
+	{
+		if (Chain.TargetBoneChainName == ChainName)
+		{
+			if (Chain.Settings.EnableIK != NewChainSettings.IK.EnableIK)
+			{
+				SetNeedsInitialized();
+			}
+			
+			Chain.Settings = NewChainSettings.IK;
+			Chain.SpeedPlantSettings = NewChainSettings.SpeedPlanting;
+			break;
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

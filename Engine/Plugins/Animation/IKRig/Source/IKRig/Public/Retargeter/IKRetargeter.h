@@ -251,6 +251,8 @@ public:
 	// Get name of default pose 
 	static const FName GetDefaultPoseName();
 	
+	// Fill the provided profile with settings from this asset
+	void FillProfileWithAssetSettings(FRetargetProfile& InOutProfile) const;
 	// Get the current retarget profile (may be null) 
 	const FRetargetProfile* GetCurrentProfile() const;
 	// Get the retarget profile by name (may be null) 

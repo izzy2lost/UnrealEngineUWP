@@ -326,7 +326,9 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 	// initialize the retargeter
 	UObject* TransientOuter = Cast<UObject>(GetTransientPackage());
 	UIKRetargetProcessor* Processor = NewObject<UIKRetargetProcessor>(TransientOuter);
-	Processor->Initialize(Context.SourceMesh, Context.TargetMesh, Context.IKRetargetAsset);
+	FRetargetProfile RetargetProfile;
+	Context.IKRetargetAsset->FillProfileWithAssetSettings(RetargetProfile);
+	Processor->Initialize(Context.SourceMesh, Context.TargetMesh, Context.IKRetargetAsset, RetargetProfile);
 	if (!Processor->IsInitialized())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Unable to initialize the IK Retargeter. Newly created animations were not retargeted!"));
@@ -428,7 +430,7 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 			}
 
 			// update goals 
-			Processor->ApplySettingsFromAsset();
+			Processor->CopyIKRigSettingsFromAsset();
 			
 			// calculate the delta time
 			const float TimeAtCurrentFrame = SourceSequence->GetTimeAtFrame(FrameIndex);
@@ -446,8 +448,12 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 				SpeedCurveValues.Add(SpeedCurveName, SourceSequence->EvaluateCurveData(SpeedCurveName, TimeAtCurrentFrame));
 			}
 
+			// get the settings profile
+			FRetargetProfile SettingsProfile;
+			Context.IKRetargetAsset->FillProfileWithAssetSettings(SettingsProfile);
+
 			// run the retargeter
-			const TArray<FTransform>& TargetComponentPose = Processor->RunRetargeter(SourceComponentPose, SpeedCurveValues, DeltaTime);
+			const TArray<FTransform>& TargetComponentPose = Processor->RunRetargeter(SourceComponentPose, SpeedCurveValues, DeltaTime, SettingsProfile);
 
 			// convert to a local-space pose
 			TArray<FTransform> TargetLocalPose = TargetComponentPose;
