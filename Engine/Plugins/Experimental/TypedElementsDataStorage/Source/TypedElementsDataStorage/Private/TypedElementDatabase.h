@@ -81,20 +81,25 @@ public:
 	TSharedPtr<FMassEntityManager> GetActiveMutableEditorEntityManager();
 	TSharedPtr<const FMassEntityManager> GetActiveEditorEntityManager() const;
 
-	TypedElementTableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
-	TypedElementTableHandle RegisterTable(TypedElementTableHandle SourceTable, TConstArrayView<const UScriptStruct*> ColumnList, 
-		const FName Name) override;
-	TypedElementTableHandle FindTable(const FName Name) override;
+	TypedElementDataStorage::TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
+	TypedElementDataStorage::TableHandle RegisterTable(
+		TypedElementDataStorage::TableHandle SourceTable, TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
+	TypedElementDataStorage::TableHandle FindTable(const FName Name) override;
 
-	TypedElementRowHandle ReserveRow() override;
-	TypedElementRowHandle AddRow(TypedElementTableHandle Table) override;
-	bool AddRow(TypedElementRowHandle ReservedRow, TypedElementTableHandle Table) override;
-	bool BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
-	bool BatchAddRow(TypedElementTableHandle Table, TConstArrayView<TypedElementRowHandle> ReservedHandles,
+	TypedElementDataStorage::RowHandle ReserveRow() override;
+	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table, 
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
-	void RemoveRow(TypedElementRowHandle Row) override;
-	bool IsRowAvailable(TypedElementRowHandle Row) const override;
-	bool IsRowAssigned(TypedElementRowHandle Row) const override;
+	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override;
+	bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) override;
+	bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+	bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count, 
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+	bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+	void RemoveRow(TypedElementDataStorage::RowHandle Row) override;
+	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override;
+	bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override;
 
 	void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
 	void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
@@ -171,7 +176,7 @@ private:
 	static const FName TickGroupName_SyncWidget;
 	
 	TArray<FMassArchetypeHandle> Tables;
-	TMap<FName, TypedElementTableHandle> TableNameLookup;
+	TMap<FName, TypedElementDataStorage::TableHandle> TableNameLookup;
 
 	// Ordered array of factories by the return value of GetOrder()
 	TArray<FFactoryTypePair> Factories;

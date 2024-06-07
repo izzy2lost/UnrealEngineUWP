@@ -111,32 +111,44 @@ public:
 	 * Reserves a row to be assigned to a table at a later point. If the row is no longer needed before it's been assigned
 	 * to a table, it should still be released with RemoveRow.
 	 */
-	virtual TypedElementRowHandle ReserveRow() = 0;
+	virtual TypedElementDataStorage::RowHandle ReserveRow() = 0;
 	/** Adds a new row to the provided table. */
-	virtual TypedElementRowHandle AddRow(TypedElementTableHandle Table) = 0;
-	/** Adds a new row to the provided table using a previously reserved row.. */
-	virtual bool AddRow(TypedElementRowHandle ReservedRow, TypedElementTableHandle Table) = 0;
-	
+	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) = 0;
+	/**
+	 * Adds a new row to the provided table. Callers are expected to use the callback to
+	 * initialize the row if needed.
+	 */
+	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table,
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+	/** Adds a new row to the provided table using a previously reserved row. */
+	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) = 0;
+	/**
+	 * Adds a new row to the provided table using a previously reserved row. Callers are expected to use the callback to
+	 * initialize the row if needed.
+	 */
+	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+
 	/**
 	 * Add multiple rows at once. For each new row the OnCreated callback is called. Callers are expected to use the callback to
 	 * initialize the row if needed.
 	 */
-	virtual bool BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
 	/**
 	 * Add multiple rows at once. For each new row the OnCreated callback is called. Callers are expected to use the callback to
 	 * initialize the row if needed. This version uses a set of previously reserved rows. Any row that can't be used will be 
 	 * released.
 	 */
-	virtual bool BatchAddRow(TypedElementTableHandle Table, TConstArrayView<TypedElementRowHandle> ReservedHandles,
+	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
 
 	/** Removes a previously reserved or added row. If the row handle is invalid or already removed, nothing happens */
-	virtual void RemoveRow(TypedElementRowHandle Row) = 0;
+	virtual void RemoveRow(TypedElementDataStorage::RowHandle Row) = 0;
 
 	/** Checks whether or not a row is in use. This is true even if the row has only been reserved. */
-	virtual bool IsRowAvailable(TypedElementRowHandle Row) const = 0;
+	virtual bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const = 0;
 	/** Checks whether or not a row has been reserved but not yet assigned to a table. */
-	virtual bool IsRowAssigned(TypedElementRowHandle Row) const = 0;
+	virtual bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const = 0;
 
 	
 	/**
