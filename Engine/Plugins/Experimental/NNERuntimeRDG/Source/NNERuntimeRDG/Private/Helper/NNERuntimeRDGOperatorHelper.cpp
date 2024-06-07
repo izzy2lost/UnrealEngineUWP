@@ -4,8 +4,8 @@
 
 namespace UE::NNERuntimeRDG::Private::OperatorHelper
 {
-
-	bool GetInt32ArrayFromConstTensor(TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Attr, const NNE::Internal::FTensorRef Tensor)
+	template<typename Allocator>
+	bool GetInt32ArrayFromConstTensorImpl(TArray<int32, Allocator>& Attr, const NNE::Internal::FTensorRef Tensor)
 	{
 		check(Tensor != nullptr);
 		Attr.Reset();
@@ -32,6 +32,16 @@ namespace UE::NNERuntimeRDG::Private::OperatorHelper
 		}
 
 		return false;
+	}
+	
+	bool GetInt32ArrayFromConstTensor(TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Attr, const NNE::Internal::FTensorRef Tensor)
+	{
+		return GetInt32ArrayFromConstTensorImpl(Attr, Tensor);
+	}
+
+	bool GetInt32ArrayFromConstTensor(TArray<int32>& Attr, const NNE::Internal::FTensorRef Tensor)
+	{
+		return GetInt32ArrayFromConstTensorImpl(Attr, Tensor);
 	}
 
 } // UE::NNERuntimeRDG::Private::OperatorHelper
