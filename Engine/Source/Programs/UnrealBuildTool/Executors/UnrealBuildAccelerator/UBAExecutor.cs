@@ -68,6 +68,35 @@ namespace UnrealBuildTool
 			return EpicGames.UBA.Utils.IsAvailable();
 		}
 
+		public static DirectoryReference UbaBinariesDir
+		{
+			get
+			{
+				if (OperatingSystem.IsWindows())
+				{
+					#pragma warning disable CA1308 // Normalize strings to uppercase
+					return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
+					#pragma warning restore CA1308 // Normalize strings to uppercase
+				}
+				else if (OperatingSystem.IsLinux())
+				{
+					if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
+					{
+						return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
+					}
+					else if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+					{
+						return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "LinuxArm64", "UnrealBuildAccelerator");
+					}
+				}
+				else if (OperatingSystem.IsMacOS())
+				{
+					return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Mac", "UnrealBuildAccelerator");
+				}
+				throw new PlatformNotSupportedException();
+			}
+		}
+
 		public UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
 			: base(maxLocalActions, bAllCores, bCompactOutput, logger)
 		{
@@ -291,6 +320,10 @@ namespace UnrealBuildTool
 				{
 					_ = Task.Run(LaunchVisualizer);
 				}
+
+				string arch = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+				FileReference configFile = FileReference.Combine(UbaBinariesDir, "UbaHost.toml");
+				EpicGames.UBA.IConfig.LoadConfig(configFile.FullName);
 
 				using EpicGames.UBA.ILogger ubaLogger = EpicGames.UBA.ILogger.CreateLogger(logger);
 				using (Server = IServer.CreateServer(UBAConfig.MaxWorkers, UBAConfig.SendSize, ubaLogger, UBAConfig.bUseQuic))

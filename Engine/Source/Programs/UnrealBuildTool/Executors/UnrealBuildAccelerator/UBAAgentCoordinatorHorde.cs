@@ -132,13 +132,10 @@ namespace UnrealBuildTool
 			_client = _serviceProvider.GetRequiredService<IHordeClient>().CreateComputeClient();
 
 			_logger.LogInformation("Creating tool bundle...");
-			DirectoryReference ubaDir;
+			DirectoryReference ubaDir = UBAExecutor.UbaBinariesDir;
 			List<string> agentFiles = new();
 			if (OperatingSystem.IsWindows())
 			{
-#pragma warning disable CA1308 // Normalize strings to uppercase
-				ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
-#pragma warning restore CA1308 // Normalize strings to uppercase
 				agentFiles.Add("UbaAgent.exe");
 				if (useSentry)
 				{
@@ -157,24 +154,10 @@ namespace UnrealBuildTool
 					agentFiles.Add("libclang_rt.tsan.so"); // Needs to be copied from autosdk
 					agentFiles.Add("llvm-symbolizer"); // Needs to be copied from autosdk
 				}
-
-				if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
-				{
-					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
-				}
-				else if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-				{
-					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "LinuxArm64", "UnrealBuildAccelerator");
-				}
-				else
-				{
-					throw new PlatformNotSupportedException();
-				}
 			}
 			else if (OperatingSystem.IsMacOS())
 			{
 				agentFiles.Add("UbaAgent");
-				ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Mac", "UnrealBuildAccelerator");
 			}
 			else
 			{
