@@ -473,10 +473,26 @@ static void BuildShaderOutput(
 				FVulkanShaderHeader::FUniformBufferInfo& UniformBufferInfo = Header.UniformBufferInfos[UniformBufferIndex];
 				UniformBufferInfo.bHasResources = 1;
 
-				const uint32 UBLayoutHash = SerializedOutput.CompilerSRT.ResourceTableLayoutHashes[UniformBufferIndex];
-				checkf(!UniformBufferInfo.LayoutHash || (UniformBufferInfo.LayoutHash == UBLayoutHash), 
-					TEXT("Layout hash should be unset (resource only UB) or identical (UB with constants and resources)!"));
-				UniformBufferInfo.LayoutHash = UBLayoutHash;
+				const bool bIsRootParamStructure = (ParameterName == FShaderParametersMetadata::kRootUniformBufferBindingName) && ShaderInput.RootParametersStructure;
+				if (bIsRootParamStructure)
+				{
+					check(UniformBufferIndex == FShaderParametersMetadata::kRootCBufferBindingIndex);
+					const uint32 UBLayoutHash = SerializedOutput.CompilerSRT.ResourceTableLayoutHashes[UniformBufferIndex];
+
+					checkf(!UBLayoutHash || (UBLayoutHash == ShaderInput.RootParametersStructure->GetLayoutHash()),
+						TEXT("Resource table layout hash for RootParametersStructure (0x%08X) should be unset (0x0) or identical to shader input (0x%08X)!"),
+						UBLayoutHash, ShaderInput.RootParametersStructure->GetLayoutHash());
+
+					SerializedOutput.CompilerSRT.ResourceTableLayoutHashes[UniformBufferIndex] = ShaderInput.RootParametersStructure->GetLayoutHash();
+				}
+				else
+				{
+					const uint32 UBLayoutHash = SerializedOutput.CompilerSRT.ResourceTableLayoutHashes[UniformBufferIndex];
+					checkf(!UniformBufferInfo.LayoutHash || (UniformBufferInfo.LayoutHash == UBLayoutHash),
+						TEXT("Existing layout hash (0x%08X) should be unset (resource only UB) or identical to resource table (0x%08X)!"),
+						UniformBufferInfo.LayoutHash, UBLayoutHash);
+					UniformBufferInfo.LayoutHash = UBLayoutHash;
+				}
 			}
 		}
 	}

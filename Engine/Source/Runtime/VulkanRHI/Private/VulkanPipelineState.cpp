@@ -230,9 +230,10 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 	const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo->StageInfos[Stage];
 
 	TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
-	DescriptorAddressInfos.SetNumZeroed((StageInfo.PackedGlobalsSize ? 1 : 0) + StageInfo.NumBoundUniformBuffers);
+	DescriptorAddressInfos.SetNumZeroed(StageInfo.NumBoundUniformBuffers);
+	uint32 UBIndex = 0;
 
-	// PackedUniformBuffersDirty ?
+	// UBs are currently set from a fresh batch of descriptors for every call, so ignore PackedUniformBuffersDirty
 	check(PackedUniformBuffersMask <= 1);
 	if (PackedUniformBuffersMask != 0)
 	{
@@ -240,6 +241,7 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 		const int32 UBSize = StagedUniformBuffer.Num();
 		const int32 BindingIndex = 0;
 
+		// :todo-jn: Use PackedUniformBuffersDirty and cache last RingBufferOffset to avoid copy when there are no changes (while updating lifetime in UniformBufferUploader)
 		const uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, CmdBuffer);
 
 		// Make sure it wasn't written to already
@@ -253,9 +255,10 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 		FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
 
 		PackedUniformBuffersDirty = 0;
+		++UBIndex;
 	}
 
-	for (uint32 UBIndex = 0; UBIndex < StageInfo.NumBoundUniformBuffers; ++UBIndex)
+	for (;UBIndex < StageInfo.NumBoundUniformBuffers; ++UBIndex)
 	{
 		VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBIndex];
 		check(DescriptorAddressInfo.sType == 0);
@@ -438,9 +441,10 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 			const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo->StageInfos[Stage];
 
 			TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
-			DescriptorAddressInfos.SetNumZeroed((StageInfo.PackedGlobalsSize ? 1 : 0) + StageInfo.NumBoundUniformBuffers);
+			DescriptorAddressInfos.SetNumZeroed(StageInfo.NumBoundUniformBuffers);
+			uint32 UBIndex = 0;
 
-			// PackedUniformBuffersDirty ?
+			// UBs are currently set from a fresh batch of descriptors for every call, so ignore PackedUniformBuffersDirty
 			check(PackedUniformBuffersMask[Stage] <= 1);
 			if (PackedUniformBuffersMask[Stage] != 0)
 			{
@@ -448,6 +452,7 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 				const int32 UBSize = StagedUniformBuffer.Num();
 				const int32 BindingIndex = 0;
 
+				// :todo-jn: Use PackedUniformBuffersDirty and cache last RingBufferOffset to avoid copy when there are no changes (while updating lifetime in UniformBufferUploader)
 				const uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, CmdBuffer);
 
 				// Make sure it wasn't written to already
@@ -461,9 +466,10 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 				FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
 
 				PackedUniformBuffersDirty[Stage] = 0;
+				++UBIndex;
 			}
 
-			for (uint32 UBIndex = 0; UBIndex < StageInfo.NumBoundUniformBuffers; ++UBIndex)
+			for (; UBIndex < StageInfo.NumBoundUniformBuffers; ++UBIndex)
 			{
 				VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBIndex];
 				check(DescriptorAddressInfo.sType == 0);
