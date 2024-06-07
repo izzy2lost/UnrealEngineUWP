@@ -192,47 +192,51 @@ bool FUniformParameterOverrides::GetNumericOverride(EMaterialParameterType Type,
 	return false;
 }
 
-void FUniformParameterOverrides::SetTextureOverride(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, UTexture* Texture)
+void FUniformParameterOverrides::SetTextureOverride(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo, UTexture* Texture)
 {
 	check(IsInGameThread());
 	const uint32 TypeIndex = (uint32)Type;
+	const FTextureParameterKey Key{ ParameterInfo.ParameterInfo, ParameterInfo.TextureIndex };
+
 	if (Texture)
 	{
-		GameThreadTextureOverides[TypeIndex].FindOrAdd(ParameterInfo) = Texture;
+		GameThreadTextureOverides[TypeIndex].FindOrAdd(Key) = Texture;
 	}
 	else
 	{
-		GameThreadTextureOverides[TypeIndex].Remove(ParameterInfo);
+		GameThreadTextureOverides[TypeIndex].Remove(Key);
 	}
 
 	FUniformParameterOverrides* Self = this;
 	ENQUEUE_RENDER_COMMAND(SetTextureOverrideCommand)(
-		[Self, TypeIndex, ParameterInfo, Texture](FRHICommandListImmediate& RHICmdList)
+		[Self, TypeIndex, Key, Texture](FRHICommandListImmediate& RHICmdList)
 	{
 		if (Texture)
 		{
-			Self->RenderThreadTextureOverrides[TypeIndex].FindOrAdd(ParameterInfo) = Texture;
+			Self->RenderThreadTextureOverrides[TypeIndex].FindOrAdd(Key) = Texture;
 		}
 		else
 		{
-			Self->RenderThreadTextureOverrides[TypeIndex].Remove(ParameterInfo);
+			Self->RenderThreadTextureOverrides[TypeIndex].Remove(Key);
 		}
 	});
 }
 
-UTexture* FUniformParameterOverrides::GetTextureOverride_GameThread(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo) const
+UTexture* FUniformParameterOverrides::GetTextureOverride_GameThread(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo) const
 {
 	check(IsInGameThread());
 	const uint32 TypeIndex = (uint32)Type;
-	UTexture* const* Result = GameThreadTextureOverides[TypeIndex].Find(ParameterInfo);
+	const FTextureParameterKey Key{ ParameterInfo.ParameterInfo, ParameterInfo.TextureIndex };
+	UTexture* const* Result = GameThreadTextureOverides[TypeIndex].Find(Key);
 	return Result ? *Result : nullptr;
 }
 
-UTexture* FUniformParameterOverrides::GetTextureOverride_RenderThread(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo) const
+UTexture* FUniformParameterOverrides::GetTextureOverride_RenderThread(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo) const
 {
 	check(IsInParallelRenderingThread());
 	const uint32 TypeIndex = (uint32)Type;
-	UTexture* const* Result = RenderThreadTextureOverrides[TypeIndex].Find(ParameterInfo);
+	const FTextureParameterKey Key{ ParameterInfo.ParameterInfo, ParameterInfo.TextureIndex };
+	UTexture* const* Result = RenderThreadTextureOverrides[TypeIndex].Find(Key);
 	return Result ? *Result : nullptr;
 }
 
@@ -725,7 +729,7 @@ void FUniformExpressionSet::GetGameThreadTextureValue(EMaterialTextureParameterT
 #if WITH_EDITOR
 	if (bAllowOverride)
 	{
-		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_GameThread(Type, Parameter.ParameterInfo);
+		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_GameThread(Type, Parameter);
 		if (OverrideTexture)
 		{
 			OutValue = OverrideTexture;
@@ -742,7 +746,7 @@ void FUniformExpressionSet::GetTextureValue(EMaterialTextureParameterType Type, 
 	const FMaterialTextureParameterInfo& Parameter = GetTextureParameter(Type, Index);
 #if WITH_EDITOR
 	{
-		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_RenderThread(Type, Parameter.ParameterInfo);
+		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_RenderThread(Type, Parameter);
 		if (OverrideTexture)
 		{
 			OutValue = OverrideTexture;

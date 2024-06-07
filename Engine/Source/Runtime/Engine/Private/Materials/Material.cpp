@@ -1316,7 +1316,7 @@ void UMaterial::OverrideTexture(const UTexture* InTextureToOverride, UTexture* O
 					if (Texture != NULL && Texture == InTextureToOverride)
 					{
 						// Override this texture!
-						Resource->TransientOverrides.SetTextureOverride((EMaterialTextureParameterType)TypeIndex, Parameter.ParameterInfo, OverrideTexture);
+						Resource->TransientOverrides.SetTextureOverride((EMaterialTextureParameterType)TypeIndex, Parameter, OverrideTexture);
 						bShouldRecacheMaterialExpressions = true;
 					}
 				}

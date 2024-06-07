@@ -581,9 +581,9 @@ public:
 	void SetNumericOverride(EMaterialParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, const UE::Shader::FValue& Value, bool bOverride);
 	bool GetNumericOverride(EMaterialParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, UE::Shader::FValue& OutValue) const;
 
-	void SetTextureOverride(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, UTexture* Texture);
-	UTexture* GetTextureOverride_GameThread(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo) const;
-	UTexture* GetTextureOverride_RenderThread(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo) const;
+	void SetTextureOverride(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo, UTexture* Texture);
+	UTexture* GetTextureOverride_GameThread(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo) const;
+	UTexture* GetTextureOverride_RenderThread(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo) const;
 
 private:
 	struct FNumericParameterKey
@@ -606,8 +606,28 @@ private:
 	};
 
 	TMap<FNumericParameterKey, UE::Shader::FValue> NumericOverrides;
-	TMap<FHashedMaterialParameterInfo, UTexture*> GameThreadTextureOverides[NumMaterialTextureParameterTypes];
-	TMap<FHashedMaterialParameterInfo, UTexture*> RenderThreadTextureOverrides[NumMaterialTextureParameterTypes];
+
+	struct FTextureParameterKey
+	{
+		FHashedMaterialParameterInfo ParameterInfo;
+		int32 TextureIndex;
+
+		friend inline bool operator==(const FTextureParameterKey& Lhs, const FTextureParameterKey& Rhs)
+		{
+			return Lhs.ParameterInfo == Rhs.ParameterInfo && Lhs.TextureIndex == Rhs.TextureIndex;
+		}
+		friend inline bool operator!=(const FTextureParameterKey& Lhs, const FTextureParameterKey& Rhs)
+		{
+			return !operator==(Lhs, Rhs);
+		}
+		friend inline uint32 GetTypeHash(const FTextureParameterKey& Value)
+		{
+			return HashCombine(GetTypeHash(Value.ParameterInfo), GetTypeHash(Value.TextureIndex));
+		}
+	};
+
+	TMap<FTextureParameterKey, UTexture*> GameThreadTextureOverides[NumMaterialTextureParameterTypes];
+	TMap<FTextureParameterKey, UTexture*> RenderThreadTextureOverrides[NumMaterialTextureParameterTypes];
 };
 
 /** Stores all uniform expressions for a material generated from a material translation. */
