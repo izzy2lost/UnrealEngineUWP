@@ -3,6 +3,7 @@
 #pragma once
 #include "Chaos/Deformable/ChaosDeformableSolverProxy.h"
 #include "CoreMinimal.h"
+#include "Chaos/Deformable/GaussSeidelWeakConstraints.h"
 #include "UObject/ObjectMacros.h"
 
 namespace Chaos::Softs
@@ -65,6 +66,8 @@ namespace Chaos::Softs
 
 		int32 SourceParticleIndex = INDEX_NONE;
 		int32 TargetParticleIndex = INDEX_NONE;
+
+		TArray<const Chaos::Softs::FGaussSeidelWeakConstraints<Softs::FSolverReal, Softs::FSolverParticles>::FGaussSeidelConstraintHandle*> Handles;
 	};
 
 
@@ -102,6 +105,8 @@ namespace Chaos::Softs
 			TArray<FConstraintObjectUpdated> Updated;
 		};
 
+
+		
 		TArray<FConstraintObjectAdded> ConstraintObjectsToAdd;
 		TArray< FConstraintObjectRemoved> ConstraintObjectsToRemove;
 		TMap< FConstraintObjectKey, FConstraintObjectParticleHandel > Constraints;

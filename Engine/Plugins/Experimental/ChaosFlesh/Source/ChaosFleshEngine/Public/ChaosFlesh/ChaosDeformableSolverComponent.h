@@ -165,6 +165,12 @@ struct FSolverGaussSeidelConstraintsGroup
 	float OmegaSOR = 1.6f;
 
 	/**
+	* Enable dynamic springs controlled by constraint manager. 
+	*/
+	UPROPERTY(EditAnywhere, Category = "GaussSeidelConstraints")
+	bool bEnableDynamicSprings = true;
+
+	/**
 	* Collsion detection radius and stiffness
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GaussSeidelConstraints")
