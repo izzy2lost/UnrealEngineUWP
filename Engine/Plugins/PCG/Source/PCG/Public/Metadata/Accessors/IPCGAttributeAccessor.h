@@ -136,6 +136,9 @@ public:
 	int16 GetUnderlyingType() const { return UnderlyingType; }
 	bool IsReadOnly() const { return bReadOnly; }
 
+	// To know if we can do default value operations
+	virtual bool IsAttribute() const { return false; }
+
 protected:
 	IPCGAttributeAccessor(bool bInReadOnly, int16 InUnderlyingType)
 		: bReadOnly(bInReadOnly)

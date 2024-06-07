@@ -111,6 +111,8 @@ public:
 		return true;
 	}
 
+	virtual bool IsAttribute() const override { return true; }
+
 private:
 	FPCGMetadataAttribute<T>* Attribute = nullptr;
 	UPCGMetadata* Metadata = nullptr;

@@ -422,12 +422,6 @@ void PCGMetadataOps::FOperationData::Validate()
 template <typename... InputTypes, typename... Callbacks>
 inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& InOperationData, TTuple<Callbacks...>&& InCallbacks) const
 {
-	// If nothing to do, exit immediately
-	if (InOperationData.NumberOfElementsToProcess == 0)
-	{
-		return true;
-	}
-
 	// Validate that all is good
 	constexpr uint32 NbInputs = (uint32)sizeof...(InputTypes);
 	constexpr uint32 NbOutputs = (uint32)sizeof...(Callbacks);
@@ -444,6 +438,12 @@ inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& In
 	if (!InOperationData.Context->AsyncState.bStarted)
 	{
 		PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, /*StartIndex=*/0, /*Range=*/1, Options, InCallbacks);
+	}
+
+	// If nothing to do now, we can early out.
+	if (InOperationData.NumberOfElementsToProcess == 0)
+	{
+		return true;
 	}
 
 	// Then iterate over all the values

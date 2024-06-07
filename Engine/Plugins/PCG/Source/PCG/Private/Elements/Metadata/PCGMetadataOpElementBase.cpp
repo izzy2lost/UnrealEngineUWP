@@ -540,9 +540,9 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 
-		// Update the number of elements to process
+		// Update the number of elements to process, it's OK to be 0 if it is an attribute, as we can do a default value operation.
 		OperationData.NumberOfElementsToProcess = OperationData.InputKeys[PrimaryPinIndex]->GetNum();
-		if (OperationData.NumberOfElementsToProcess == 0)
+		if (OperationData.NumberOfElementsToProcess == 0 && !OperationData.InputAccessors[PrimaryPinIndex]->IsAttribute())
 		{
 			PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoElementsInForwardedInput", "No elements in data from forwarded pin '{0}'."), FText::FromName(PrimaryPinData.Pin)));
 			return NoOperation();
@@ -569,15 +569,15 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 
 				const int32 ElementNum = OperationData.InputKeys[Index]->GetNum();
 
-				// No elements on secondary pin, early out for no operation
-				if (ElementNum == 0)
+				// No elements on secondary pin, early out for no operation, only if it is not an attribute, as we could still do a default value operation
+				if (ElementNum == 0 && !OperationData.InputAccessors[Index]->IsAttribute())
 				{
 					PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoElementsInInput", "No elements in data from secondary pin '{0}'."), FText::FromName(PrimaryPinData.Pin)));
 					return NoOperation();
 				}
 
 				// Verify that the number of elements makes sense
-				if (OperationData.NumberOfElementsToProcess % ElementNum != 0)
+				if (ElementNum != 0 && OperationData.NumberOfElementsToProcess % ElementNum != 0)
 				{
 					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("MismatchInNumberOfElements", "Mismatch between the number of elements from pin '{0}' ({1}) and from pin '{2}' ({3})."), FText::FromName(PrimaryPinData.Pin), OperationData.NumberOfElementsToProcess, FText::FromName(InputTaggedData[Index].Pin), ElementNum));
 					return EPCGTimeSliceInitResult::AbortExecution;
@@ -625,6 +625,13 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 						OutputTarget.GetDisplayText(),
 						PCG::Private::GetTypeNameText(TempConstAccessor->GetUnderlyingType()),
 						PCG::Private::GetTypeNameText<AttributeType>()));
+					return false;
+				}
+
+				// We have no element to process but we try to write into a property, early out.
+				if (OperationData.NumberOfElementsToProcess == 0 && !TempConstAccessor->IsAttribute())
+				{
+					PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("NoDefaultValue", "Operation is done on the default value, but output attribute '{0}' does not support default values"), OutputTarget.GetDisplayText()), Context);
 					return false;
 				}
 			}

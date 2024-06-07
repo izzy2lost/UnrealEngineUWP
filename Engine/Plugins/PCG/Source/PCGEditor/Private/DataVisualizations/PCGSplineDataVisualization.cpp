@@ -11,6 +11,7 @@ const UPCGPointData* IPCGSplineDataVisualization::CollapseToDebugPointData(FPCGC
 	if (const UPCGSplineData* SplineData = Cast<UPCGSplineData>(Data))
 	{
 		UPCGPointData* PointData = NewObject<UPCGPointData>();
+		PointData->InitializeFromData(SplineData);
 		TArray<FPCGPoint>& Points = PointData->GetMutablePoints();
 
 		const int32 NumControlPoints = SplineData->SplineStruct.SplineCurves.Position.Points.Num();
