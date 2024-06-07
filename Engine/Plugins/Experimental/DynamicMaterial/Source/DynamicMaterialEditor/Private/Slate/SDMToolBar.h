@@ -12,6 +12,8 @@ class SDMEditor;
 class SWidget;
 class UDMMaterialStageExpression;
 class UDynamicMaterialModel;
+class UObject;
+class UPackage;
 enum class EDMExpressionMenu : uint8;
 struct FDMObjectMaterialProperty;
 
@@ -48,6 +50,8 @@ public:
 	FText GetActorName() const;
 
 protected:
+	static UPackage* GetSaveablePackage(UObject* InObject);
+
 	TWeakPtr<SDMEditor> EditorWeak;
 	TWeakObjectPtr<AActor> MaterialActorWeak;
 	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
@@ -58,6 +62,7 @@ protected:
 	int32 SelectedMaterialSlotIndex;
 
 	TSharedPtr<SBox> SlotSelectorContainer;
+	TSharedPtr<SWidget> SaveButton;
 	TSharedPtr<SWidget> BrowseButton;
 	TSharedPtr<SWidget> UseButton;
 
@@ -97,4 +102,10 @@ protected:
 	FText GetAssetName() const;
 
 	FText GetAssetToolTip() const;
+
+	bool CanSave() const;
+
+	const FSlateBrush* GetSaveIcon() const;
+
+	FReply OnSaveClicked();
 };

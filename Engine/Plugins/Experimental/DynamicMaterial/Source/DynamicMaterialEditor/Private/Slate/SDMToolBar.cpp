@@ -10,13 +10,15 @@
 #include "EngineAnalytics.h"
 #include "GameFramework/Actor.h"
 #include "IContentBrowserSingleton.h"
-#include "SDMEditor.h"
-#include "Selection.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
+#include "PackageTools.h"
+#include "SDMEditor.h"
+#include "Selection.h"
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
+#include "UObject/Package.h"
 #include "Utils/DMBlueprintFunctionLibrary.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -170,6 +172,25 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			[
 				SNew(SImage)
 				.Image(FAppStyle::GetBrush(TEXT("Icons.Use")))
+				.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
+			]
+		]
+		
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Top)
+		.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SAssignNew(SaveButton, SButton)
+			.IsEnabled(this, &SDMToolBar::CanSave)
+			.ContentPadding(GetLargeIconToolBarButtonContentPadding())
+			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+			.ToolTipText(LOCTEXT("MaterialDesignerBrowseTooltip", "Save the Material Designer asset\n\nCaution: If this asset lives inside an actor, the actor/level will be saved."))
+			.OnClicked(this, &SDMToolBar::OnSaveClicked)
+			[
+				SNew(SImage)
+				.Image(this, &SDMToolBar::GetSaveIcon)
 				.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
 			]
 		]
@@ -623,6 +644,23 @@ FReply SDMToolBar::OnUseClicked()
 	return FReply::Handled();
 }
 
+UPackage* SDMToolBar::GetSaveablePackage(UObject* InObject)
+{
+	if (!IsValid(InObject))
+	{
+		return nullptr;
+	}
+
+	UPackage* Package = InObject->GetPackage();
+
+	if (!Package || Package->HasAllFlags(RF_Transient))
+	{
+		return nullptr;
+	}
+
+	return Package;
+}
+
 FText SDMToolBar::GetActorName() const
 {
 	if (const AActor* const SlotActor = GetMaterialActor())
@@ -698,6 +736,39 @@ FText SDMToolBar::GetAssetToolTip() const
 	}
 
 	return FText::GetEmpty();
+}
+
+bool SDMToolBar::CanSave() const
+{
+	return !!GetSaveablePackage(GetMaterialModel());
+}
+
+const FSlateBrush* SDMToolBar::GetSaveIcon() const
+{
+	if (UPackage* Package = GetSaveablePackage(GetMaterialModel()))
+	{
+		if (Package->IsDirty())
+		{
+			return FAppStyle::Get().GetBrush("Icons.SaveModified");
+		}
+	}
+
+	return FAppStyle::Get().GetBrush("Icons.Save");
+}
+
+FReply SDMToolBar::OnSaveClicked()
+{
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	{
+		if (UPackage* Package = GetSaveablePackage(MaterialModel))
+		{
+			TArray<UObject*> TexturesToSaveArray;
+			TexturesToSaveArray.Add(MaterialModel);
+			UPackageTools::SavePackagesForObjects(TexturesToSaveArray);
+		}
+	}
+
+	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE
