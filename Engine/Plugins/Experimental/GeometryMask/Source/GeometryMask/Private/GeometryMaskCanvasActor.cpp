@@ -64,7 +64,7 @@ bool AGeometryMaskCanvasActor::TryResolveCanvas()
 	{
 		if (UGeometryMaskWorldSubsystem* Subsystem = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>())
 		{
-			Canvas = Subsystem->GetNamedCanvas(CanvasName);
+			Canvas = Subsystem->GetNamedCanvas(GetLevel(), CanvasName);
 		}
 	}
 	

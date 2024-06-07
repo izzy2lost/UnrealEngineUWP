@@ -78,7 +78,7 @@ struct GEOMETRYMASK_API FGeometryMaskCanvasId
 	GENERATED_BODY()
 
 public:
-	TObjectKey<UWorld> World;
+	TObjectKey<ULevel> Level;
 
 	UPROPERTY()
 	uint8 SceneViewIndex = 0;
@@ -92,7 +92,7 @@ public:
 
 public:
 	FGeometryMaskCanvasId() = default;
-	explicit FGeometryMaskCanvasId(const UWorld* InWorld, const FName InName);
+	explicit FGeometryMaskCanvasId(const ULevel* InLevel, const FName InName);
 	explicit FGeometryMaskCanvasId(EForceInit);
 	
 	bool IsDefault() const;
@@ -104,7 +104,7 @@ public:
 public:
 	bool operator==(const FGeometryMaskCanvasId& InOther) const
 	{
-		return World == InOther.World && Name.IsEqual(InOther.Name) && SceneViewIndex == InOther.SceneViewIndex;
+		return Level == InOther.Level && Name.IsEqual(InOther.Name) && SceneViewIndex == InOther.SceneViewIndex;
 	}
 	
 	bool operator!=(const FGeometryMaskCanvasId& InOther) const
@@ -122,7 +122,7 @@ struct GEOMETRYMASK_API FGeometryMaskDrawingContext
 	GENERATED_BODY()
 
 public:
-	TObjectKey<UWorld> World;
+	TObjectKey<ULevel> Level;
 	
 	UPROPERTY()
 	uint8 SceneViewIndex = 0;
@@ -136,8 +136,8 @@ public:
 
 public:
 	FGeometryMaskDrawingContext() = default;
-	explicit FGeometryMaskDrawingContext(TObjectKey<UWorld> InWorld, const uint8 InSceneViewIndex = 0);
-	explicit FGeometryMaskDrawingContext(const UWorld* InWorld, const uint8 InSceneViewIndex = 0);
+	explicit FGeometryMaskDrawingContext(TObjectKey<ULevel> InLevel, const uint8 InSceneViewIndex = 0);
+	explicit FGeometryMaskDrawingContext(const ULevel* InLevel, const uint8 InSceneViewIndex = 0);
 	explicit FGeometryMaskDrawingContext(EForceInit);
 	
 	bool IsValid() const;
@@ -145,7 +145,7 @@ public:
 public:
 	bool operator==(const FGeometryMaskDrawingContext& InOther) const
 	{
-		return World == InOther.World && SceneViewIndex == InOther.SceneViewIndex;
+		return Level == InOther.Level && SceneViewIndex == InOther.SceneViewIndex;
 	}
 
 	bool operator!=(const FGeometryMaskDrawingContext& InOther) const

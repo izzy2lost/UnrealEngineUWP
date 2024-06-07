@@ -4,6 +4,7 @@
 
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/Level.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
@@ -47,28 +48,14 @@ void UGeometryMaskSubsystem::Update(
 	}
 
 	UE_LOG(LogGeometryMask, VeryVerbose, TEXT("UGeometryMaskSubsystem::Update World: %s, Num. Views: %u"), *InWorld->GetName(), InViewFamily.Views.Num());
-	
+
 	if (UGeometryMaskWorldSubsystem* Subsystem = InWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
 	{
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("UGeometryMaskSubsystem::Update"), STAT_GeometryMask_UpdateAll, STATGROUP_GeometryMask);
 
-		int32 ViewIndex = 0;
-		for (const FSceneView*& View : InViewFamily.Views)
+		for (const ULevel* Level : InWorld->GetLevels())
 		{
-			FSceneView* MutableSceneView = const_cast<FSceneView*>(View);
-
-			for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : Subsystem->NamedCanvases)
-			{
-				NamedCanvas.Value->Update(InWorld, *MutableSceneView);		
-			}
-
-			// Updates the texture resource
-			for (const TObjectPtr<UGeometryMaskCanvasResource>& Resource : CanvasResources)
-			{
-				Resource->Update(InWorld, *MutableSceneView, ViewIndex);
-			}
-
-			++ViewIndex;
+			UpdateLevel(Level, Subsystem, InViewFamily);
 		}
 	}
 }
@@ -80,6 +67,37 @@ void UGeometryMaskSubsystem::ToggleUpdate(const TOptional<bool>& bInShouldUpdate
 	if (bDoUpdates != bShouldUpdate)
 	{
 		bDoUpdates = bShouldUpdate;
+	}
+}
+
+void UGeometryMaskSubsystem::UpdateLevel(const ULevel* InLevel, UGeometryMaskWorldSubsystem* InWorldSubsystem, FSceneViewFamily& InViewFamily)
+{
+	if (!IsValid(InLevel) || !InWorldSubsystem)
+	{
+		return;
+	}
+
+	int32 ViewIndex = 0;
+
+	for (const FSceneView*& View : InViewFamily.Views)
+	{
+		FSceneView* MutableSceneView = const_cast<FSceneView*>(View);
+
+		if (const FGeometryMaskLevelState* LevelState = InWorldSubsystem->FindLevelState(InLevel))
+		{
+			for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : LevelState->NamedCanvases)
+			{
+				NamedCanvas.Value->Update(InLevel, *MutableSceneView);		
+			}
+		}
+
+		// Updates the texture resource
+		for (const TObjectPtr<UGeometryMaskCanvasResource>& Resource : CanvasResources)
+		{
+			Resource->Update(InLevel, *MutableSceneView, ViewIndex);
+		}
+
+		++ViewIndex;
 	}
 }
 

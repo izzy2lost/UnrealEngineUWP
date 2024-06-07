@@ -5,6 +5,7 @@
 #include "Algo/MaxElement.h"
 #include "Engine/Canvas.h"
 #include "Engine/CanvasRenderTarget2D.h"
+#include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GeometryMaskModule.h"
 #include "GeometryMaskSettings.h"
@@ -152,11 +153,13 @@ int32 UGeometryMaskCanvasResource::Compact()
 			if (LastAvailableColorChannel != EGeometryMaskColorChannel::None)
 			{
 				FGeometryMaskCanvasId& UsedCanvasId = DependentCanvasIds[ColorChannel];
-				if (UWorld* CanvasWorld = UsedCanvasId.World.ResolveObjectPtr())
+				const ULevel* Level = UsedCanvasId.Level.ResolveObjectPtr();
+
+				if (Level && Level->OwningWorld)
 				{
-					if (UGeometryMaskWorldSubsystem* MaskSubsystem = CanvasWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
+					if (UGeometryMaskWorldSubsystem* MaskSubsystem = Level->OwningWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
 					{
-						if (UGeometryMaskCanvas* UsedCanvas = MaskSubsystem->GetNamedCanvas(UsedCanvasId.Name))
+						if (UGeometryMaskCanvas* UsedCanvas = MaskSubsystem->GetNamedCanvas(Level, UsedCanvasId.Name))
 						{
 							// Re-assign to that last available channel, freeing this one
 							UsedCanvas->AssignResource(this, LastAvailableColorChannel);						
@@ -434,21 +437,21 @@ UCanvasRenderTarget2D* UGeometryMaskCanvasResource::GetRenderTargetTexture()
 }
 
 void UGeometryMaskCanvasResource::Update(
-	UWorld* InWorld,
+	const ULevel* InLevel,
 	FSceneView& InView,
 	int32 InViewIndex)
 {
-	Draw(InWorld, InView, InViewIndex);
+	Draw(InLevel, InView, InViewIndex);
 }
 
-void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView, int32 InViewIndex)
+void UGeometryMaskCanvasResource::Draw(const ULevel* InLevel, FSceneView& InView, int32 InViewIndex)
 {
-	if (!InWorld)
+	if (!InLevel || !InLevel->OwningWorld)
 	{
 		return;
 	}
 
-	UE_LOG(LogGeometryMask, VeryVerbose, TEXT("UGeometryMaskCanvasResource::Update World: %s"), *InWorld->GetName());
+	UE_LOG(LogGeometryMask, VeryVerbose, TEXT("UGeometryMaskCanvasResource::Update Level: %s"), *InLevel->GetName());
 
 	if (UCanvasRenderTarget2D* Texture = GetRenderTargetTexture())
 	{
@@ -461,15 +464,15 @@ void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView, int3
 			FCanvas* NewCanvas = new FCanvas(
 				RenderTargetResource,
 				nullptr,
-				InWorld,
-				InWorld->GetFeatureLevel(),
+				InLevel->OwningWorld,
+				InLevel->OwningWorld->GetFeatureLevel(),
 				// Draw immediately so that interleaved SetVectorParameter (etc) function calls work as expected
 				FCanvas::CDM_ImmediateDrawing);
 
 			CanvasObject->Init(Texture->SizeX, Texture->SizeY, &InView, NewCanvas);
 		}
 
-		FGeometryMaskDrawingContext* DrawingContextPtr = GetDrawingContextForWorld(InWorld, InViewIndex);
+		FGeometryMaskDrawingContext* DrawingContextPtr = GetDrawingContextForLevel(InLevel, InViewIndex);
         check(DrawingContextPtr); // Should always be valid - world was already checked
 
         FGeometryMaskDrawingContext& DrawingContextRef = *DrawingContextPtr;
@@ -484,8 +487,8 @@ void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView, int3
 			DrawingContextRef.ViewProjectionMatrix.M[2][2] = UE_KINDA_SMALL_NUMBER; // Prevents div by zero later
 
 			UpdateViewportSize();
-			
-			InWorld->FlushDeferredParameterCollectionInstanceUpdates();
+
+			InLevel->OwningWorld->FlushDeferredParameterCollectionInstanceUpdates();
 
 			CanvasObject->SizeX = Texture->SizeX;
 			CanvasObject->SizeY = Texture->SizeY;
@@ -536,14 +539,14 @@ void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView, int3
 	}
 }
 
-FGeometryMaskDrawingContext* UGeometryMaskCanvasResource::GetDrawingContextForWorld(const UWorld* InWorld, uint8 InSceneViewIndex)
+FGeometryMaskDrawingContext* UGeometryMaskCanvasResource::GetDrawingContextForLevel(const ULevel* InLevel, uint8 InSceneViewIndex)
 {
-	if (!ensure(InWorld))
+	if (!ensure(InLevel))
 	{
 		return nullptr;
 	}
 
-	return &DrawingContextCache.FindOrAdd(FGeometryMaskDrawingContext(InWorld, InSceneViewIndex));
+	return &DrawingContextCache.FindOrAdd(FGeometryMaskDrawingContext(InLevel, InSceneViewIndex));
 }
 
 FGeometryMaskDrawingContext* UGeometryMaskCanvasResource::GetDrawingContextForCanvas(const FGeometryMaskCanvasId& InCanvasId)
@@ -553,7 +556,7 @@ FGeometryMaskDrawingContext* UGeometryMaskCanvasResource::GetDrawingContextForCa
 		return &DefaultDrawingContext;
 	}
 	
-	return GetDrawingContextForWorld(InCanvasId.World.ResolveObjectPtr(), 0);
+	return GetDrawingContextForLevel(InCanvasId.Level.ResolveObjectPtr(), 0);
 }
 
 FGeometryMaskDrawingContext* UGeometryMaskCanvasResource::GetDrawingContextForChannel(EGeometryMaskColorChannel InColorChannel)

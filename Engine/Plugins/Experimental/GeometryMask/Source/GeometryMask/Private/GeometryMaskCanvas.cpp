@@ -45,6 +45,11 @@ void UGeometryMaskCanvas::PostEditChangeProperty(FPropertyChangedEvent& InProper
 }
 #endif
 
+ULevel* UGeometryMaskCanvas::GetLevel() const
+{
+	return CanvasId.Level.ResolveObjectPtr();
+}
+
 const TArray<TWeakInterfacePtr<IGeometryMaskWriteInterface>>& UGeometryMaskCanvas::GetWriters() const
 {
 	return Writers;
@@ -255,14 +260,14 @@ void UGeometryMaskCanvas::UpdateRenderParameters()
 	}
 }
 
-void UGeometryMaskCanvas::Initialize(const UWorld* InWorld, FName InCanvasName)
+void UGeometryMaskCanvas::Initialize(const ULevel* InLevel, FName InCanvasName)
 {
 	CanvasName = InCanvasName;
-	CanvasId = FGeometryMaskCanvasId(InWorld, CanvasName);
+	CanvasId = FGeometryMaskCanvasId(InLevel, CanvasName);
 }
 
 void UGeometryMaskCanvas::Update(
-	UWorld* InWorld,
+	const ULevel* InLevel,
 	FSceneView& InView)
 {
 	RemoveInvalidWriters();

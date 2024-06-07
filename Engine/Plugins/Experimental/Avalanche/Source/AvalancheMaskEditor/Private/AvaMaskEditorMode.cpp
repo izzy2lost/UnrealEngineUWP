@@ -322,14 +322,14 @@ UGeometryMaskCanvas* UAvaMaskEditorMode::GetCanvasReferencedByActor(const AActor
 	{
 		const FGeometryMaskWriteParameters WriteComponentParameters = WriteComponent->GetParameters();
 		CanvasName = WriteComponentParameters.CanvasName;
-	}	
+	}
 	else if (const IGeometryMaskReadInterface* ReadComponent = Cast<IGeometryMaskReadInterface>(InActor->FindComponentByInterface<UGeometryMaskReadInterface>()))
 	{
 		const FGeometryMaskReadParameters ReadComponentParameters = ReadComponent->GetParameters();
 		CanvasName = ReadComponentParameters.CanvasName;
 	}
 
-	if (UGeometryMaskCanvas* Canvas = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>()->GetNamedCanvas(CanvasName))
+	if (UGeometryMaskCanvas* Canvas = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>()->GetNamedCanvas(InActor->GetLevel(), CanvasName))
 	{
 		return Canvas;
 	}
@@ -390,7 +390,7 @@ bool UAvaMaskEditorMode::AddMaskToSelected(const TArray<AActor*>& InMaskingActor
 				Subsystem->RemoveWithoutWriters();
 			}
 
-			PreviewCanvasId = FGeometryMaskCanvasId(ParentActor->GetWorld(), ChannelName);
+			PreviewCanvasId = FGeometryMaskCanvasId(ParentActor->GetLevel(), ChannelName);
 			PreviewCanvasChannel = ColorChannel;
 		}
 	}

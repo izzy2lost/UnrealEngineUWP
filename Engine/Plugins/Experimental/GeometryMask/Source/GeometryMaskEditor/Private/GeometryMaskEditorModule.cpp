@@ -146,18 +146,21 @@ void FGeometryMaskEditorModule::ExecuteFlush(const TArray<FString>& InArgs)
 {
 	for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
 	{
-		if (UWorld* World = WorldContext.World())
+		if (const UWorld* World = WorldContext.World())
 		{
 			if (UGeometryMaskWorldSubsystem* GeometryMaskSubsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
 			{
 				const int32 RemovedCanvasNum = GeometryMaskSubsystem->RemoveWithoutWriters();
-				const int32 ActiveCanvasNum = GeometryMaskSubsystem->GetCanvasNames().Num();
+
+				int32 ActiveCanvasNum = 0;
+				for (const ULevel* Level : World->GetLevels())
+				{
+					ActiveCanvasNum += GeometryMaskSubsystem->GetCanvasNames(Level).Num();
+				}
 				UE_LOG(LogGeometryMaskEditor, Display, TEXT("%u canvas's removed because they had no writers - %u canvas's remaining."), RemovedCanvasNum, ActiveCanvasNum);
 			}
 		}
 	}
-	
-
 }
 
 #undef LOCTEXT_NAMESPACE

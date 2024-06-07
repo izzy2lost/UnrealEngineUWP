@@ -52,20 +52,31 @@ bool FGMECanvasListViewModel::RefreshItems()
 
 		for (const TObjectKey<UWorld>& WorldKey : LoadedWorlds)
 		{
-			if (UWorld* World = WorldKey.ResolveObjectPtr())
+			UWorld* World = WorldKey.ResolveObjectPtr();
+			if (!World)
 			{
-				if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+				continue;
+			}
+
+			UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>();
+			if (!Subsystem)
+			{
+				continue;
+			}
+
+			for (const ULevel* Level : World->GetLevels())
+			{
+				TArray<FName> CanvasNames = Subsystem->GetCanvasNames(Level);
+				for (const FName CanvasName : CanvasNames)
 				{
-					TArray<FName> CanvasNames = Subsystem->GetCanvasNames();
-					for (const FName CanvasName : CanvasNames)
+					if (UGeometryMaskCanvas* Canvas = Subsystem->GetNamedCanvas(Level, CanvasName))
 					{
-						UGeometryMaskCanvas* Canvas = Subsystem->GetNamedCanvas(CanvasName);
 						CanvasItems.Add(FGMECanvasItemViewModel::Create(Canvas));
 					}
-
-					OnCanvasCreatedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated));
-					OnCanvasDestroyedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasDestroyed().AddRaw(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
 				}
+
+				OnCanvasCreatedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated));
+				OnCanvasDestroyedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasDestroyed().AddRaw(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
 			}
 		}
 	}

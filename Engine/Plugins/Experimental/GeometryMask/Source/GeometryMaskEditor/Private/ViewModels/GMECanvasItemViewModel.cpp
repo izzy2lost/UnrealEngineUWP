@@ -3,6 +3,7 @@
 #include "GMECanvasItemViewModel.h"
 
 #include "Engine/CanvasRenderTarget2D.h"
+#include "Engine/Level.h"
 #include "Engine/Texture.h"
 #include "GeometryMaskCanvas.h"
 
@@ -22,7 +23,7 @@ FGMECanvasItemViewModel::FGMECanvasItemViewModel(
 {
 	if (const UGeometryMaskCanvas* Canvas = InCanvas.Get())
 	{
-		CanvasId = FGeometryMaskCanvasId(Canvas->GetWorld(), Canvas->GetCanvasName());		
+		CanvasId = Canvas->GetCanvasId();		
 		ColorChannel = Canvas->GetColorChannel();
 		CanvasTextureWeak = Canvas->GetTexture();
 		KnownWriterCount = Canvas->GetWriters().Num();
@@ -59,12 +60,17 @@ void FGMECanvasItemViewModel::UpdateInfoText()
 
 		FString WorldTypeLabel = TEXT("");
 		FString WorldLabel = TEXT("(None)");
-		if (UWorld* CanvasWorld = Id.World.ResolveObjectPtr())
+		FString LevelLabel = TEXT("(None)");
+		if (ULevel* CanvasLevel = Id.Level.ResolveObjectPtr())
 		{
-			WorldTypeLabel = LexToString(CanvasWorld->WorldType);
-			WorldLabel = CanvasWorld->GetName();
+			if (CanvasLevel->OwningWorld)
+			{
+				WorldLabel = CanvasLevel->OwningWorld->GetName();
+				WorldTypeLabel = LexToString(CanvasLevel->OwningWorld->WorldType);
+			}
+			LevelLabel = CanvasLevel->GetName();
 		}
-		
+
 		static const FString DefaultCanvasLabel = FGeometryMaskCanvasId::DefaultCanvasName.ToString();
 		FString CanvasLabel = DefaultCanvasLabel;
 		if (!Id.IsDefault())
@@ -73,10 +79,11 @@ void FGMECanvasItemViewModel::UpdateInfoText()
 		}
 
 		InfoText = FText::FromString(
-			FString::Printf(TEXT("%-s\n%-12s: %s\n%-12s: %s\n%-12s: %s\n%-12s: %u"),
-				*FString::Printf(TEXT("%s.%s"), *WorldLabel, *CanvasLabel),
+			FString::Printf(TEXT("%-s\n%-12s: %s\n%-12s:  %s\n%-12s: %s\n%-12s: %s\n%-12s: %u"),
+				*FString::Printf(TEXT("%s.%s"), *LevelLabel, *CanvasLabel),
 				TEXT("World Type"),	*WorldTypeLabel,
 				TEXT("World"), *WorldLabel,
+				TEXT("Level"), *LevelLabel,
 				TEXT("Name"), *CanvasLabel,
 				TEXT("Num. Writers"), Canvas->GetNumWriters()));
 	}

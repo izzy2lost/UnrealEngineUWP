@@ -4,6 +4,7 @@
 
 #include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "GeometryMaskSubsystem.h"
 #include "GeometryMaskWorldSubsystem.h"
 #include "UObject/UObjectThreadContext.h"
@@ -44,21 +45,21 @@ uint32 GetTypeHash(const FGeometryMaskCanvasId& InCanvasId)
 {
 	return HashCombineFast(
 		HashCombineFast(
-			GetTypeHash(InCanvasId.World),
+			GetTypeHash(InCanvasId.Level),
 			GetTypeHash(InCanvasId.Name)),
 			InCanvasId.SceneViewIndex);
 }
 
 uint32 GetTypeHash(const FGeometryMaskDrawingContext& InUpdateContext)
 {
-	return HashCombineFast(GetTypeHash(InUpdateContext.World), InUpdateContext.SceneViewIndex);
+	return HashCombineFast(GetTypeHash(InUpdateContext.Level), InUpdateContext.SceneViewIndex);
 }
 
 const FGeometryMaskCanvasId& FGeometryMaskCanvasId::None = FGeometryMaskCanvasId(EForceInit::ForceInit);
 const FName FGeometryMaskCanvasId::DefaultCanvasName = TEXT("Default");
 
-FGeometryMaskCanvasId::FGeometryMaskCanvasId(const UWorld* InWorld, const FName InName)
-	: World(InWorld)
+FGeometryMaskCanvasId::FGeometryMaskCanvasId(const ULevel* InLevel, const FName InName)
+	: Level(InLevel)
 	, Name(InName)
 {
 }
@@ -80,34 +81,39 @@ bool FGeometryMaskCanvasId::IsNone() const
 
 void FGeometryMaskCanvasId::ResetToNone()
 {
-	World = nullptr;
+	Level = nullptr;
 	SceneViewIndex = 0;
 	Name = NAME_None;
 }
 
 FString FGeometryMaskCanvasId::ToString() const
 {
+	FString LevelLabel = TEXT("(None)");
 	FString WorldLabel = TEXT("(Transient)");
 	FString WorldTypeLabel = TEXT("");
-	if (const UWorld* ResolvedWorld = World.ResolveObjectPtr())
+	if (const ULevel* ResolvedLevel = Level.ResolveObjectPtr())
 	{
-		WorldLabel = ResolvedWorld->GetName();
-		WorldTypeLabel = LexToString(ResolvedWorld->WorldType);
+		if (ResolvedLevel->OwningWorld)
+		{
+			WorldLabel = ResolvedLevel->OwningWorld->GetName();
+			WorldTypeLabel = LexToString(ResolvedLevel->OwningWorld->WorldType);
+		}
+		LevelLabel = ResolvedLevel->GetName();
 	}
 
-	return FString::Printf(TEXT("%s(%s).%s"), *WorldLabel, *WorldTypeLabel, *Name.ToString());
+	return FString::Printf(TEXT("%s(%s - %s).%s"), *LevelLabel, *WorldLabel, *WorldTypeLabel, *Name.ToString());
 }
 
-FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(TObjectKey<UWorld> InWorld, const uint8 InSceneViewIndex)
-	: World(MoveTemp(InWorld))
+FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(TObjectKey<ULevel> InLevel, const uint8 InSceneViewIndex)
+	: Level(MoveTemp(InLevel))
 	, SceneViewIndex(InSceneViewIndex)
 	, ViewportSize(ForceInit)
 	, ViewProjectionMatrix(ForceInit)
 {
 }
 
-FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(const UWorld* InWorld, const uint8 InSceneViewIndex)
-	: World(InWorld)
+FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(const ULevel* InLevel, const uint8 InSceneViewIndex)
+	: Level(InLevel)
 	, SceneViewIndex(InSceneViewIndex)
 	, ViewportSize(ForceInit)
 	, ViewProjectionMatrix(ForceInit)
@@ -115,7 +121,7 @@ FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(const UWorld* InWorld, 
 }
 
 FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(EForceInit)
-	: World(nullptr)
+	: Level(nullptr)
 	, ViewportSize(ForceInit)
 	, ViewProjectionMatrix(ForceInit)
 {
@@ -123,7 +129,7 @@ FGeometryMaskDrawingContext::FGeometryMaskDrawingContext(EForceInit)
 
 bool FGeometryMaskDrawingContext::IsValid() const
 {
-	return World.ResolveObjectPtr() != nullptr;
+	return Level.ResolveObjectPtr() != nullptr;
 }
 
 UGeometryMaskCanvasReferenceComponentBase::~UGeometryMaskCanvasReferenceComponentBase()
@@ -193,7 +199,7 @@ bool UGeometryMaskCanvasReferenceComponentBase::TryResolveNamedCanvas(FName InCa
 
 	if (UGeometryMaskWorldSubsystem* Subsystem = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>())
 	{
-		Canvas = Subsystem->GetNamedCanvas(InCanvasName);
+		Canvas = Subsystem->GetNamedCanvas(GetComponentLevel(), InCanvasName);
 
 		CanvasWeak = Canvas;
 		

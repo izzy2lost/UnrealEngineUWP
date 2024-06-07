@@ -36,6 +36,8 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 
+	ULevel* GetLevel() const;
+
 	/** Returns all writers. */
     const TArray<TWeakInterfacePtr<IGeometryMaskWriteInterface>>& GetWriters() const;
 
@@ -105,10 +107,10 @@ public:
 	FOnGeometryMaskCanvasDeactivated& OnDeactivated() { return OnDeactivatedDelegate; }
 
 	/** Setup with identifying info. */
-	void Initialize(const UWorld* InWorld, FName InCanvasName);
+	void Initialize(const ULevel* InLevel, FName InCanvasName);
 	
 	/** Updates the canvas, intended to be called every frame. */
-	void Update(UWorld* InWorld, FSceneView& InView);
+	void Update(const ULevel* InLevel, FSceneView& InView);
 	
 	const UGeometryMaskCanvasResource* GetResource() const { return CanvasResource; }
 	void AssignResource(UGeometryMaskCanvasResource* InResource, EGeometryMaskColorChannel InColorChannel);
