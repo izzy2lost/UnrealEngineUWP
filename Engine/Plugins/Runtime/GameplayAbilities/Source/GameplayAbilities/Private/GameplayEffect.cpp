@@ -250,6 +250,14 @@ void UGameplayEffect::GetBlockedAbilityTags(FGameplayTagContainer& OutTagContain
 #if WITH_EDITOR
 EDataValidationResult UGameplayEffect::IsDataValid(FDataValidationContext& Context) const
 {
+	// Report these errors here & now, even though they're not using the DataValidationContext because
+	// these will show-up when saving/presubmit rather than during more extensive testing done at cook time.
+	DurationMagnitude.ReportErrors(GetPathName());
+	for (const FGameplayModifierInfo& CurModInfo : Modifiers)
+	{
+		CurModInfo.ModifierMagnitude.ReportErrors(GetPathName());
+	}
+
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
 	if (ValidationResult != EDataValidationResult::Invalid)
@@ -303,13 +311,6 @@ void UGameplayEffect::PostLoad()
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	HasRemoveGameplayEffectsQuery = !RemoveGameplayEffectQuery.IsEmpty();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	DurationMagnitude.ReportErrors(GetPathName());
-
-	for (FGameplayModifierInfo& CurModInfo : Modifiers)
-	{
-		CurModInfo.ModifierMagnitude.ReportErrors(GetPathName());
-	}
 
 	// Update the EditorStatusText
 	FDataValidationContext DataValidationContext;
