@@ -731,6 +731,16 @@ FRequestCluster::FGraphSearch::~FGraphSearch()
 		constexpr double WaitTime = 1.0;
 		WaitForAsyncQueue(WaitTime);
 	}
+
+	// Call the FVertexData destructors, but do not bother calling DeleteElement or Free on the VertexAllocator
+	// since we are destructing the VertexAllocator.
+	for (TPair<FName, FVertexData*>& VertexPair : this->Vertices)
+	{
+		FVertexData* VertexData = VertexPair.Value;
+		VertexData->~FVertexData();
+	}
+	// Empty frees the struct memory for each FVertexData we allocated, but it does not call the destructor.
+	VertexAllocator.Empty();
 }
 
 void FRequestCluster::FGraphSearch::OnNewReachablePlatforms(FPackageData* PackageData)
