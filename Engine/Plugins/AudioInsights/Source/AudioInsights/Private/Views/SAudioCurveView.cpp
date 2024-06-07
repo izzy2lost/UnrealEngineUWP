@@ -8,6 +8,7 @@
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SToolTip.h"
 
@@ -29,7 +30,7 @@ void SAudioCurveView::Construct( const SAudioCurveView::FArguments& InArgs )
 	Clipping = EWidgetClipping::ClipToBounds;
 	XValueFormattingOptions.MaximumFractionalDigits = 3;
 	LineDrawEffects = ESlateDrawEffect::NoPixelSnapping;
-	LabelFont = FCoreStyle::GetDefaultFontStyle("Regular", 6);
+	LabelFont = FCoreStyle::GetDefaultFontStyle("Bold", 7);
 
 	SetToolTip(CreateCurveTooltip());
 }
@@ -259,12 +260,11 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 		}
 	}
 
-	// Draw and label NumHorizontalGridLines horizontal grid lines 
-	const int32 GridLineLabelLayer = LayerId++;
+	// Draw horizontal grid lines 
 	const float MarginBase = YMargin.Get() * Size.Y;
 	const float MarginTop = (1.0f - YMargin.Get()) * Size.Y;
 	const float GridLineYIncrement = (MarginTop - MarginBase) / (NumHorizontalGridLines - 1);
-	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+
 	for (uint32 HorizontalLineIndex = 0; HorizontalLineIndex < NumHorizontalGridLines; ++HorizontalLineIndex)
 	{
 		const float WidgetY = GridLineYIncrement * HorizontalLineIndex + MarginBase;
@@ -282,20 +282,52 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 			GridLineColor.Get(),
 			false
 		);
+	}
+	return LayerId;
+}
+
+int32 SAudioCurveView::PaintYAxisLabels(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId) const
+{
+	// Draw Background rectangle
+	const FVector2D RectangleSize(32.0f, AllottedGeometry.GetLocalSize().Y);
+	const FVector2D RectanglePosition(0.0f, 0.0f);
+	
+	FSlateDrawElement::MakeBox(
+		OutDrawElements,
+		LayerId++,
+		AllottedGeometry.ToPaintGeometry(RectangleSize, FSlateLayoutTransform(RectanglePosition)),
+		FAppStyle::GetBrush("BlackBrush"),
+		ESlateDrawEffect::None,
+		FLinearColor(0.0f, 0.0f, 0.0f, 0.6f)
+	);
+	
+	// Draw Y axis labels
+	const FVector2f Size = AllottedGeometry.GetLocalSize();
+
+	const float MarginBase = YMargin.Get() * Size.Y;
+	const float MarginTop  = (1.0f - YMargin.Get()) * Size.Y;
+
+	const float GridLineYIncrement = (MarginTop - MarginBase) / (NumHorizontalGridLines - 1);
+
+	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+
+	for (uint32 HorizontalLineIndex = 0; HorizontalLineIndex < NumHorizontalGridLines; ++HorizontalLineIndex)
+	{
+		const float WidgetY = GridLineYIncrement * HorizontalLineIndex + MarginBase;
 
 		// Draw y axis text label every other grid line
 		if (HorizontalLineIndex % 2 == 1)
 		{
-			const float LabelValue = LocalYToValue(Size, WidgetY);
-			FText LabelString = FText::AsNumber(LabelValue, &YValueFormattingOptions);
+			const float LabelValue  = LocalYToValue(Size, WidgetY);
+			const FText LabelString = FText::AsNumber(LabelValue, &YValueFormattingOptions);
 
 			// Position text slightly above the corresponding horizontal line 
 			const FVector2f TextSize = FontMeasureService->Measure(LabelString, LabelFont);
-			FVector2f TextOffset(TextSize.X * 0.5f, WidgetY - TextSize.Y * 0.85f);
+			const FVector2f TextOffset(5.0f, WidgetY - TextSize.Y * 0.85f);
 
 			FSlateDrawElement::MakeText(
 				OutDrawElements,
-				GridLineLabelLayer,
+				LayerId++,
 				AllottedGeometry.ToPaintGeometry(TextSize, FSlateLayoutTransform(TextOffset)),
 				LabelString,
 				LabelFont,
@@ -379,6 +411,9 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 			true
 		);
 	}
+
+	// Draw Y axis labels
+	LayerId = PaintYAxisLabels(AllottedGeometry, OutDrawElements, LayerId);
 
 	return LayerId;
 }

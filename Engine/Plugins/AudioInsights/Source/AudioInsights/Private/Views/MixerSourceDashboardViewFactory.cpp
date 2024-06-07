@@ -664,7 +664,7 @@ namespace UE::Audio::Insights
 				CurrentTimestamp += TimestampsDiff;
 			}
 
-			return TRange<double>(FMath::Max(0, CurrentTimestamp - MaxPlotHistorySeconds - BeginTimestamp), CurrentTimestamp - BeginTimestamp);
+			return TRange<double>(CurrentTimestamp - MaxPlotHistorySeconds - BeginTimestamp, CurrentTimestamp - BeginTimestamp);
 		};
 
 		if (PlotWidgets.IsEmpty())
@@ -718,7 +718,7 @@ namespace UE::Audio::Insights
 				SNew(SSimpleTimeSlider)
 				.ViewRange_Lambda(GetViewRange)
 				.ClampRangeHighlightSize(0.0f) // Hide clamp range
-				.ScrubPosition_Lambda([]() { return -1.0; }) // Hide scrub
+				.ScrubPosition_Lambda([]() { return TNumericLimits<double>::Lowest(); }) // Hide scrub
 				.PixelSnappingMethod(EWidgetPixelSnapping::Disabled)
 			]
 			+ SVerticalBox::Slot()
