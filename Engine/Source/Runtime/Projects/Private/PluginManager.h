@@ -174,6 +174,13 @@ public:
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromPath(const FString& PluginPath) override;
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) override;
 
+	virtual bool CanEnablePluginInCurrentTarget(const FStringView Name) override;
+	virtual bool CanEnablePluginInCurrentTarget(const ANSICHAR* Name) override
+	{
+		FString NameString(Name);
+		return CanEnablePluginInCurrentTarget(FStringView(NameString));
+	}
+
 	virtual void FindPluginsUnderDirectory(const FString& Directory, TArray<FString>& OutPluginFilePaths) override;
 
 	virtual TArray<TSharedRef<IPlugin>> GetEnabledPlugins() override;
@@ -312,6 +319,9 @@ private:
 
 	/** Plugins that need to be configured to see if they should be enabled */
 	TSet<FString> PluginsToConfigure;
+
+	/** Set of plugins enabled for the current target. Plugins in list might not be currently enabled. */
+	TSet<FString> PluginsEnabledForTarget;
 
 #if WITH_EDITOR
 	/** Names of built-in plugins */

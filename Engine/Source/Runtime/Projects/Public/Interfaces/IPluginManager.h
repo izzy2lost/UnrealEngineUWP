@@ -352,6 +352,12 @@ public:
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromPath(const FString& PluginPath) = 0;
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) = 0;
 
+	/**
+	 * Returns true when the given plugin can be enabled for the current running exe.
+	 */
+	virtual bool CanEnablePluginInCurrentTarget(const FStringView Name) = 0;
+	virtual bool CanEnablePluginInCurrentTarget(const ANSICHAR* Name) = 0;
+
 	/** 
 	 * Finds all plugin descriptors underneath a given directory (recursively)
 	 * @param Directory Search folder

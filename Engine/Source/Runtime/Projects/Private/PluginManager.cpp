@@ -1851,6 +1851,15 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			}
 		}
 
+		PluginsEnabledForTarget.Reserve(EnabledPlugins.Num());
+		for (const TPair<FString, FPlugin*>& Pair : EnabledPlugins)
+		{
+			if (Pair.Value->bEnabled)
+			{
+				PluginsEnabledForTarget.Add(Pair.Key);
+			}
+		}
+
 		// If we made it here, we have all the required plugins
 		bHaveAllRequiredPlugins = true;
 
@@ -2858,6 +2867,11 @@ bool FPluginManager::LoadModulesForEnabledPlugins( const ELoadingPhase::Type Loa
 			UE_SCOPED_ENGINE_ACTIVITY("Preloading all plugin binaries");
 			for (const FDiscoveredPluginMap::ElementType& PluginPair : AllPlugins)
 			{
+				if (!CanEnablePluginInCurrentTarget(PluginPair.Key))
+				{
+					UE_LOG(LogPluginManager, Display, TEXT("Skipping loading modules for %s. Plugin is not enabled for current target."), *PluginPair.Key);
+					continue;
+				}
 				for (auto& ModuleName : DiscoveredPluginMapUtils::ResolvePluginFromMapVal(PluginPair.Value)->Descriptor.Modules)
 				{
 					if (ModuleName.IsCompiledInCurrentConfiguration())
@@ -3051,6 +3065,16 @@ TSharedPtr<IPlugin> FPluginManager::FindEnabledPluginFromDescriptor(const FPlugi
 	{
 		return TSharedPtr<IPlugin>();
 	}
+}
+
+bool FPluginManager::CanEnablePluginInCurrentTarget(const FStringView Name)
+{
+	if (ConfigureEnabledPlugins())
+	{
+		const uint32 NameHash = GetTypeHash(Name);
+		return PluginsEnabledForTarget.ContainsByHash(NameHash, Name);
+	}
+	return false;
 }
 
 TArray<TSharedRef<IPlugin>> FPluginManager::GetEnabledPlugins()
@@ -3378,6 +3402,7 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 
 	// Mark the plugin as enabled
 	Plugin->bEnabled = true;
+	PluginsEnabledForTarget.Add(Plugin->GetName());
 
 	// Mount the plugin content directory
 	const bool bHasContentOrVerse = (Plugin->CanContainContent() || Plugin->CanContainVerse()) && ensure(RegisterMountPointDelegate.IsBound());
