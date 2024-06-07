@@ -104,7 +104,8 @@ registerIcons({
       "Play": IconContents.PLAY,
       "Maximize" : IconContents.MAXIMIZE,
       "Star": IconContents.STAR,
-      "Clean" : IconContents.CLEAN
+      "Clean": IconContents.CLEAN,
+      "Info" : IconContents.INFO_SIGN
    }
 });
 
