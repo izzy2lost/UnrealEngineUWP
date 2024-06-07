@@ -685,6 +685,18 @@ namespace Horde.Server.Artifacts
 			IHttpResponseBodyFeature? responseBodyFeature = HttpContext.Features.Get<IHttpResponseBodyFeature>();
 			responseBodyFeature?.DisableBuffering();
 
+			// Merge the legacy block list with the regular one
+			foreach (GetUnsyncFileRequest file in request.Files)
+			{
+				foreach (GetUnsyncBlockRequest block in file.Blocks)
+				{
+					if (block.Hash != null)
+					{
+						request.Blocks.Add(block.Hash);
+					}
+				}
+			}
+
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
 			response.Headers["x-chunk-content-encoding"] = "identity";
