@@ -34,7 +34,7 @@ namespace EpicGames.Localization
 			commonSettings.ResourceName = localizationTargetName + LocalizationFileExtensions.LocalizationResourceFileExtension;
 
 			commonSettings.NativeCulture = "en";
-			commonSettings.CulturesToGenerate = new List<string>() { "en", "fr", "de", "pl", "es-419", "es", "pt-BR", "it", "ru", "ko", "tr", "ar", "ja" };
+			commonSettings.CulturesToGenerate = new List<string>() { "en", "fr", "de", "pl", "es-419", "es", "pt-BR", "it", "ru", "ko", "tr", "ar", "ja", "zh-Hans"};
 			commonSettings.CulturesToGenerate.Sort();
 			commonSettings.bSkipSourceCheck = false;
 			commonSettings.bValidateFormatPatterns = true;
