@@ -44,41 +44,6 @@ namespace Chaos::Softs
 	}
 
 	template <typename T, typename ParticleType>
-	void FGaussSeidelMainConstraint<T, ParticleType>::AddTransientConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements)
-	{
-		if (CheckIncidentElements)
-		{
-			if (!IsClean(ExtraConstraints, ExtraIncidentElements, ExtraIncidentElementsLocal))
-			{
-				ExtraIncidentElements = Chaos::Utilities::ComputeIncidentElements(ExtraConstraints, &ExtraIncidentElementsLocal);
-			}
-		}
-
-		int32 Offset = TransientConstraints.Num();
-		TransientConstraints += ExtraConstraints;
-		for (int32 i = 0; i < ExtraIncidentElements.Num(); i++)
-		{
-			if (ExtraIncidentElements[i].Num() > 0)
-			{
-				TArray<int32> ExtraIncidentElementsWithOffset = ExtraIncidentElements[i];
-				for (int32 j = 0; j < ExtraIncidentElementsWithOffset.Num(); j++)
-				{
-					ExtraIncidentElementsWithOffset[j] += Offset;
-				}
-				TransientIncidentElements[i] += ExtraIncidentElementsWithOffset;
-				TransientIncidentElementsLocal[i] += ExtraIncidentElementsLocal[i];
-			}
-		}
-		if (TransientIncidentElementsOffsets.Num() > 0)
-		{
-			TransientIncidentElementsOffsets.RemoveAt(TransientIncidentElementsOffsets.Num() - 1);
-		}
-		TransientIncidentElementsOffsets.Add(Offset);
-		TransientIncidentElementsOffsets.Add(TransientConstraints.Num());
-	
-	}
-
-	template <typename T, typename ParticleType>
 	void FGaussSeidelMainConstraint<T, ParticleType>::AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements)
 	{
 		if (CheckIncidentElements)
@@ -106,10 +71,11 @@ namespace Chaos::Softs
 		}
 		if (DynamicIncidentElementsOffsets.Num() > 0)
 		{
-			DynamicIncidentElementsOffsets.RemoveAt(DynamicIncidentElementsOffsets.Num() - 1);
+			DynamicIncidentElementsOffsets.RemoveAt(StaticIncidentElementsOffsets.Num() - 1);
 		}
 		DynamicIncidentElementsOffsets.Add(Offset);
 		DynamicIncidentElementsOffsets.Add(DynamicConstraints.Num());
+	
 	}
 
 	template <typename T, typename ParticleType>
@@ -150,14 +116,14 @@ namespace Chaos::Softs
 
 						ConstraintIndex = 0;
 
-						for (int32 i = 0; i < TransientIncidentElements[p].Num(); i++)
+						for (int32 i = 0; i < DynamicIncidentElements[p].Num(); i++)
 						{
-							while (TransientIncidentElements[p][i] >= TransientIncidentElementsOffsets[ConstraintIndex + 1] && ConstraintIndex < TransientIncidentElementsOffsets.Num() - 1)
+							while (DynamicIncidentElements[p][i] >= DynamicIncidentElementsOffsets[ConstraintIndex + 1] && ConstraintIndex < DynamicIncidentElementsOffsets.Num() - 1)
 							{
 								ConstraintIndex += 1;
 							}
 
-							this->AddTransientConstraintResidualAndHessian[ConstraintIndex](Particles, TransientIncidentElements[p][i] - TransientIncidentElementsOffsets[ConstraintIndex], TransientIncidentElementsLocal[p][i], Dt, NewtonResidual[p], ParticleHessian);
+							this->AddDynamicConstraintResidualAndHessian[ConstraintIndex](Particles, DynamicIncidentElements[p][i] - DynamicIncidentElementsOffsets[ConstraintIndex], DynamicIncidentElementsLocal[p][i], Dt, NewtonResidual[p], ParticleHessian);
 						}
 
 						if (AllParticleHessian)
@@ -259,7 +225,5 @@ namespace Chaos::Softs
 template class Chaos::Softs::FGaussSeidelMainConstraint<Chaos::Softs::FSolverReal, Chaos::Softs::FSolverParticles>;
 
 template CHAOS_API void Chaos::Softs::FGaussSeidelMainConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal);
-
-template CHAOS_API void Chaos::Softs::FGaussSeidelMainConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddTransientConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements);
 
 template CHAOS_API void Chaos::Softs::FGaussSeidelMainConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements);
