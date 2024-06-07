@@ -704,6 +704,7 @@ namespace Horde.Server.Artifacts
 
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
+			response.ContentType = "application/x-horde-unsync-blob";
 			response.Headers["x-chunk-content-encoding"] = compress ? "zstd" : "identity";
 			response.StatusCode = (int)HttpStatusCode.OK;
 
