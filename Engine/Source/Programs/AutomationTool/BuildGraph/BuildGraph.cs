@@ -1078,22 +1078,22 @@ namespace AutomationTool
 			Dictionary<string, HashSet<FileReference>> tagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
 
 			// Read all the input tags for this node, and build a list of referenced input storage blocks
-			HashSet<TempStorageBlock> inputStorageBlocks = new HashSet<TempStorageBlock>();
+			HashSet<TempStorageBlockRef> inputStorageBlocks = new HashSet<TempStorageBlockRef>();
 			foreach (BgNodeOutput input in node.Inputs)
 			{
-				TempStorageTagManifest fileList = storage.ReadFileList(input.ProducingNode.Name, input.TagName) ?? throw new InvalidOperationException();
+				TempStorageTagManifest fileList = storage.ReadTagFileList(input.ProducingNode.Name, input.TagName) ?? throw new InvalidOperationException();
 				tagNameToFileSet[input.TagName] = fileList.ToFileSet(rootDir);
 				inputStorageBlocks.UnionWith(fileList.Blocks);
 			}
 
 			// Read the manifests for all the input storage blocks
-			Dictionary<TempStorageBlock, TempStorageManifest> inputManifests = new Dictionary<TempStorageBlock, TempStorageManifest>();
+			Dictionary<TempStorageBlockRef, TempStorageBlockManifest> inputManifests = new Dictionary<TempStorageBlockRef, TempStorageBlockManifest>();
 			using (IScope scope = GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "read").StartActive())
 			{
 				scope.Span.SetTag("blocks", inputStorageBlocks.Count);
-				foreach (TempStorageBlock inputStorageBlock in inputStorageBlocks)
+				foreach (TempStorageBlockRef inputStorageBlock in inputStorageBlocks)
 				{
-					TempStorageManifest manifest = storage.Retrieve(inputStorageBlock.NodeName, inputStorageBlock.OutputName, ignoreModifiedFilter);
+					TempStorageBlockManifest manifest = storage.Retrieve(inputStorageBlock.NodeName, inputStorageBlock.OutputName, ignoreModifiedFilter);
 					inputManifests[inputStorageBlock] = manifest;
 				}
 				scope.Span.SetTag("size", inputManifests.Sum(x => x.Value.GetTotalSize()));
@@ -1101,7 +1101,7 @@ namespace AutomationTool
 
 			// Read all the input storage blocks, keeping track of which block each file came from
 			Dictionary<string, TempStorageFile> inputFiles = new Dictionary<string, TempStorageFile>(FileReference.Comparer);
-			foreach (KeyValuePair<TempStorageBlock, TempStorageManifest> pair in inputManifests)
+			foreach (KeyValuePair<TempStorageBlockRef, TempStorageBlockManifest> pair in inputManifests)
 			{
 				foreach (TempStorageFile newFile in pair.Value.Files)
 				{
@@ -1238,10 +1238,10 @@ namespace AutomationTool
 			// Write all the storage blocks, and update the mapping from file to storage block
 			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
-				Dictionary<FileReference, TempStorageBlock> outputFileToStorageBlock = new Dictionary<FileReference, TempStorageBlock>();
+				Dictionary<FileReference, TempStorageBlockRef> outputFileToStorageBlock = new Dictionary<FileReference, TempStorageBlockRef>();
 				foreach (KeyValuePair<string, HashSet<FileReference>> pair in outputStorageBlockToFiles)
 				{
-					TempStorageBlock outputBlock = new TempStorageBlock(node.Name, pair.Key);
+					TempStorageBlockRef outputBlock = new TempStorageBlockRef(node.Name, pair.Key);
 					foreach (FileReference file in pair.Value)
 					{
 						outputFileToStorageBlock.Add(file, outputBlock);
@@ -1257,10 +1257,10 @@ namespace AutomationTool
 				{
 					HashSet<FileReference> files = tagNameToFileSet[output.TagName];
 
-					HashSet<TempStorageBlock> storageBlocks = new HashSet<TempStorageBlock>();
+					HashSet<TempStorageBlockRef> storageBlocks = new HashSet<TempStorageBlockRef>();
 					foreach (FileReference file in files)
 					{
-						TempStorageBlock? storageBlock;
+						TempStorageBlockRef? storageBlock;
 						if (outputFileToStorageBlock.TryGetValue(file, out storageBlock))
 						{
 							storageBlocks.Add(storageBlock);
