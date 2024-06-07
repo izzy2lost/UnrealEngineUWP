@@ -68,7 +68,8 @@ namespace Horde.Server.Compute
 				ConnectionMode = request.Connection?.ModePreference,
 				RequesterPublicIp = request.Connection?.ClientPublicIp,
 				UsePublicIp = request.Connection?.PreferPublicIp,
-				Encryption = ComputeService.ConvertEncryptionToProto(request.Connection?.Encryption)
+				Encryption = ComputeService.ConvertEncryptionToProto(request.Connection?.Encryption),
+				UserId = User.GetUserId(),
 			};
 
 			ComputeResource? computeResource;
