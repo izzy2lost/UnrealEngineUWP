@@ -272,12 +272,13 @@ FUnsyncProtocolImpl::IsValid() const
 	return bIsConnetedToHost && SocketHandle && SocketValid(*SocketHandle);
 }
 
-static void
-SortBlockRequests(std::vector<FBlockRequest>& Requests)
+template<typename RequestType>
+void
+SortBlockRequestsByFileName(std::vector<RequestType>& Requests)
 {
 	std::sort(Requests.begin(),
 			  Requests.end(),
-			  [](const FBlockRequest& A, const FBlockRequest& B) -> bool
+			  [](const RequestType& A, const RequestType& B) -> bool
 			  {
 				  int32 FileCmp = std::memcmp(A.FilenameMd5.Data, B.FilenameMd5.Data, A.FilenameMd5.Size());
 				  if (FileCmp != 0)
@@ -322,7 +323,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 		}
 	}
 
-	SortBlockRequests(Requests);
+	SortBlockRequestsByFileName(Requests);
 
 	bool bOk = bIsConnetedToHost;
 
@@ -466,22 +467,31 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 	return ResultOk<FDownloadError>();
 }
 
-static std::string
+std::string
 FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNeedBlock> NeedBlocks)
 {
 	const char* StrongHashAlgorithm = ToString(RequestMap.GetStrongHasher());
 
-	std::vector<FBlockRequest> Requests;
+	struct FBlockRequestAndHash : FBlockRequest
+	{
+		FGenericHash FullHash;
+	};
+
+	std::vector<FBlockRequestAndHash> Requests;
 
 	for (const FNeedBlock& Block : NeedBlocks)
 	{
 		if (const FBlockRequest* Request = RequestMap.FindRequest(Block.Hash))
 		{
-			Requests.push_back(*Request);
+			FBlockRequestAndHash Item;
+			static_cast<FBlockRequest&>(Item) = *Request;
+			Item.FullHash					  = Block.Hash;
+
+			Requests.push_back(Item);
 		}
 	}
 
-	SortBlockRequests(Requests);
+	SortBlockRequestsByFileName(Requests);
 
 	std::string Output;
 
@@ -495,7 +505,7 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 	FHash128	   FilenameHash = InvalidHash;
 
 	uint32 BlockIndex = 0;
-	for (const FBlockRequest& Request : Requests)
+	for (const FBlockRequestAndHash& Request : Requests)
 	{
 		if (FilenameHash != Request.FilenameMd5)
 		{
@@ -524,7 +534,7 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 		}
 
 		FGenericBlock Block;
-		Block.HashStrong = FGenericHash::FromBlake3_128(Request.BlockHash);
+		Block.HashStrong = Request.FullHash;
 		Block.Offset	 = Request.Offset;
 		Block.Size		 = CheckedNarrow(Request.Size);
 
@@ -1319,7 +1329,7 @@ FProxyPool::GetAccessToken()
 
 	if (AuthDesc)
 	{
-		TResult<FAuthToken> AuthTokenResult = Authenticate(*AuthDesc);
+		TResult<FAuthToken> AuthTokenResult = Authenticate(*AuthDesc, 120);
 		if (FAuthToken* AuthToken = AuthTokenResult.TryData())
 		{
 			std::swap(Result, AuthToken->Access);

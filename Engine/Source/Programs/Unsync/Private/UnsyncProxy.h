@@ -307,4 +307,7 @@ struct FRemoteFileSystem : public FProxyFileSystem
 	FProxyPool& ProxyPool;
 };
 
+// Build request block batch using Horde/Unsync JSON request format
+std::string FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNeedBlock> NeedBlocks);
+
 }  // namespace unsync

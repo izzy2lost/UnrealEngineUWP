@@ -290,4 +290,14 @@ struct FBlockPacket256
 	FBuffer	 CompressedData;
 };
 
+struct FHordeUnsyncBlobHeaderV1
+{
+	static constexpr uint64 MAGIC = 0x4C5C2AABA992610Cull;
+
+	uint64 Magic = 0;
+	uint64 PayloadSize = 0;
+	uint64 DecompressedSize = 0;
+	FHash160 DecompressedHash = {};
+};
+
 }  // namespace unsync

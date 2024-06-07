@@ -419,11 +419,12 @@ struct FIOReaderStream
 
 	void Seek(uint64 InOffset)
 	{
-		UNSYNC_ASSERT(InOffset < Inner.GetSize());
+		UNSYNC_ASSERT(InOffset <= Inner.GetSize());
 		Offset = InOffset;
 	}
 
 	uint64 Tell() const { return Offset; }
+	void   Skip(uint64 NumBytes) { Seek(Tell() + NumBytes); }
 
 	bool IsValid() const { return Inner.IsValid(); }
 
@@ -432,6 +433,8 @@ struct FIOReaderStream
 	{
 		return Read(&Output, sizeof(T));
 	}
+
+	uint64 RemainingSize() const { return std::max(Offset, Inner.GetSize()) - Offset; }
 
 	FIOReader& Inner;
 	uint64	   Offset = 0;

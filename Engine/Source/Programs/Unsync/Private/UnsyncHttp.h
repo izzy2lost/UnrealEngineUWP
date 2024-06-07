@@ -60,11 +60,15 @@ struct FHttpResponse
 
 	EHttpContentType ContentType = EHttpContentType::Unknown;
 
+	std::vector<std::pair<std::string, std ::string>> Headers;
+
 	bool bConnectionEncrypted = false;
 
 	bool Success() const { return Code >= 200 && Code < 300; }
 
 	std::string_view AsStringView() const { return std::string_view((const char*)Buffer.Data(), Buffer.Size()); }
+
+	std::string_view FindHeader(const std::string_view Name) const;
 };
 
 struct FHttpConnection

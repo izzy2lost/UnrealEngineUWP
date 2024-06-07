@@ -2,6 +2,8 @@
 
 #include "UnsyncHorde.h"
 #include "UnsyncAuth.h"
+#include "UnsyncCompression.h"
+#include "UnsyncFile.h"
 
 #include <regex>
 #include <json11.hpp>
@@ -16,8 +18,97 @@ FHordeProtocolImpl::FHordeProtocolImpl(const FRemoteDesc& InRemoteDesc, const FB
 
 FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
 {
-	UNSYNC_FATAL(L"FHordeProtocolImpl::Download is not implemented");
-	return FDownloadError(EDownloadRetryMode::Abort);
+	std::string RequestJson = FormatBlockRequestJson(*RequestMap, NeedBlocks);
+
+	std::string RequestUrl = fmt::format("/{}/unsync-blobs", ProxyPool.RemoteDesc.RequestPath);
+	//std::string RequestUrl = fmt::format("/{}/unsync-blobs?compress=false", ProxyPool.RemoteDesc.RequestPath);
+
+	const EStrongHashAlgorithmID StrongHasher = RequestMap->GetStrongHasher();
+
+	std::string BearerToken = ProxyPool.GetAccessToken();
+
+	FPooledHttpConnection HttpConnection(ProxyPool);
+
+	FHttpRequest Request;
+	Request.Method			   = EHttpMethod::POST;
+	Request.PayloadContentType = EHttpContentType::Application_Json;
+	Request.Payload.Data	   = reinterpret_cast<const uint8*>(RequestJson.data());
+	Request.Payload.Size	   = RequestJson.length();
+	Request.BearerToken		   = BearerToken;
+	Request.Url				   = RequestUrl;
+
+	FHttpResponse Response = HttpRequest(HttpConnection, Request);
+
+	if (!Response.Success())
+	{
+		UNSYNC_ERROR(L"Failed to complete block request. HTTP error code: %d.", Response.Code);
+		return FDownloadError(EDownloadRetryMode::Abort);
+	}
+
+	//std::string_view TransferEncoding = Response.FindHeader("transfer-encoding");
+	const std::string_view ChunkContentEncoding = Response.FindHeader("x-chunk-content-encoding");
+	const std::string_view ContentType			= Response.FindHeader("content-type");
+
+	if (!UncasedStringEquals(ContentType, "application/x-horde-unsync-blob"))
+	{
+		std::string Value = std::string(ContentType);
+		UNSYNC_ERROR(L"Got unexpected blob content type header: '%hs'", Value.c_str());
+		return FDownloadError(EDownloadRetryMode::Abort);
+	}
+
+	// TODO: read body stream as it arrives using HTTP chunk callbacks
+	FMemReader BufferReader(Response.Buffer);
+	FIOReaderStream Reader(BufferReader);
+
+	while (Reader.RemainingSize())
+	{
+		FHordeUnsyncBlobHeaderV1 BlobHeader = {};
+		Reader.ReadInto(BlobHeader.Magic);
+		Reader.ReadInto(BlobHeader.PayloadSize);
+		Reader.ReadInto(BlobHeader.DecompressedSize);
+		Reader.ReadInto(BlobHeader.DecompressedHash);
+
+		if (BlobHeader.Magic != FHordeUnsyncBlobHeaderV1::MAGIC)
+		{
+			UNSYNC_ERROR(L"Got unexpected blob header identifier");
+			return FDownloadError(EDownloadRetryMode::Abort);
+		}
+
+		FDownloadedBlock DownloadedBlock;
+		DownloadedBlock.bCompressed = false;
+
+		FBufferView Payload = Response.Buffer.View(Reader.Tell(), BlobHeader.PayloadSize);
+		FBuffer		DecompressedBuffer;
+
+		if (ChunkContentEncoding == "zstd")
+		{
+			DecompressedBuffer				 = Decompress(Payload.Data, Payload.Size);
+			DownloadedBlock.Data			 = DecompressedBuffer.Data();
+			DownloadedBlock.DecompressedSize = DecompressedBuffer.Size();
+		}
+		else if (ChunkContentEncoding == "" || ChunkContentEncoding == "identity")
+		{
+			UNSYNC_ASSERT(BlobHeader.DecompressedSize == BlobHeader.PayloadSize);
+			DownloadedBlock.Data			 = Payload.Data;
+			DownloadedBlock.DecompressedSize = Payload.Size;
+		}
+		else
+		{
+			std::string Value = std::string(ChunkContentEncoding);
+			UNSYNC_FATAL(L"Unexpected chunk content encoding: '%hs'", Value.c_str());
+		}
+
+		FGenericHash BlockHash	  = ComputeHash(DownloadedBlock.Data, DownloadedBlock.DecompressedSize, StrongHasher);
+		UNSYNC_ASSERT(BlockHash.ToHash160() == BlobHeader.DecompressedHash);
+
+		FHash128	 BlockHash128 = BlockHash.ToHash128();
+
+		CompletionCallback(DownloadedBlock, BlockHash128);
+
+		Reader.Skip(BlobHeader.PayloadSize);
+	}
+
+	return ResultOk<FDownloadError>();
 }
 
 TResult<FDirectoryManifest>
@@ -186,6 +277,11 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 		{
 			Manifest.Algorithm.ChunkingAlgorithmId = EChunkingAlgorithmID::FixedBlocks;
 		}
+		else if (Value == "rollingbuzhash")
+		{
+			Manifest.Algorithm.ChunkingAlgorithmId = EChunkingAlgorithmID::VariableBlocks;
+			Manifest.Algorithm.WeakHashAlgorithmId = EWeakHashAlgorithmID::BuzHash;
+		}
 		else
 		{
 			return AppError(fmt::format("Unsupported chunking algorithm '{}'", Value));
@@ -205,11 +301,9 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 				continue;
 			}
 
-			std::string ArtifactPathUtf8 = fmt::format("/{}/browse/{}", ArtifactRoot, FileNameUtf8);
-
 			FFileManifest FileManifest;
 			FileManifest.BlockSize = DefaultBlockSize;
-			FileManifest.CurrentPath = ConvertUtf8ToWide(ArtifactPathUtf8);
+			FileManifest.CurrentPath = FileName;
 
 			if (auto& Field = FileObject["size"]; Field.is_number())
 			{

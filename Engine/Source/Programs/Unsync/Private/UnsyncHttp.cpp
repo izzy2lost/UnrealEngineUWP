@@ -38,6 +38,18 @@ UpdateView(std::string_view& View, const char* Data, size_t Size)
 	}
 }
 
+std::string_view FHttpResponse::FindHeader(const std::string_view Name) const
+{
+	for (const auto& It : Headers)
+	{
+		if (UncasedStringEquals(It.first, Name))
+		{
+			return It.second;
+		}
+	}
+	return {};
+}
+
 struct FHttpParser
 {
 	static FHttpParser* ToThis(http_parser* Parser) { return (FHttpParser*)(Parser->data); }
@@ -159,6 +171,9 @@ struct FHttpParser
 				Response.ContentType = EHttpContentType::Text_Plain;
 			}
 		}
+
+		Response.Headers.push_back(std::make_pair(std::string(PendingHeader), std::string(PendingValue)));
+
 		return 0;
 	}
 
