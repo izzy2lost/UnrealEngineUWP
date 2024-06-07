@@ -629,6 +629,7 @@ namespace Horde.Server.Artifacts
 						writer.WriteBoolean("read_only", file.ReadOnly);
 					}
 					writer.WriteNumber("size", file.Length);
+					writer.WriteNumber("block_size", LeafChunkedDataNodeOptions.Default.TargetSize);
 					writer.WriteStartArray("blocks");
 					foreach (UnsyncBlock block in file.Blocks)
 					{
