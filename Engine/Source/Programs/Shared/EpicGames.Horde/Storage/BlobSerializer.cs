@@ -203,6 +203,7 @@ namespace EpicGames.Horde.Storage
 			{
 				options.Converters.Add(new InteriorChunkedDataNodeConverter(2));
 			}
+			options.Converters.Add(new DirectoryNodeConverter(version));
 			return options;
 		}
 	}

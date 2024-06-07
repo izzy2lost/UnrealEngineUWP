@@ -440,7 +440,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				if (file != null)
 				{
 					await file.WriteInteriorNodesAsync(writer, new ChunkingOptions().InteriorOptions, cancellationToken);
-					directoryNode.AddFile(new FileEntry(name, file.Flags, file.Length, file.StreamHash, file.Nodes[0], customData: file.CustomData));
+					directoryNode.AddFile(new FileEntry(name, file.Flags, file.Length, file.StreamHash, file.Nodes[0], file.ModTime, file.CustomData));
 				}
 			}
 		}
@@ -497,7 +497,7 @@ namespace EpicGames.Horde.Storage.Nodes
 						FileInfo file = batch[idx];
 
 						FileEntryFlags flags = FileEntry.GetPermissions(file);
-						FileUpdate entry = new FileUpdate(file.Name, flags, file.Length, leafChunkedFiles[idx]);
+						FileUpdate entry = new FileUpdate(file.Name, flags, file.Length, leafChunkedFiles[idx], file.LastWriteTimeUtc);
 						update.AddFile(new FileReference(file).MakeRelativeTo(baseDir), entry);
 					}
 				}
@@ -595,7 +595,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 
 				ChunkedData chunkedFile = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFile, options.InteriorOptions, writer, cancellationToken);
-				updates.Add(new FileUpdate(entry.FullName, flags, entry.Length, chunkedFile));
+				updates.Add(new FileUpdate(entry.FullName, flags, entry.Length, chunkedFile, entry.LastWriteTime.UtcDateTime));
 			}
 
 			// Update the tree

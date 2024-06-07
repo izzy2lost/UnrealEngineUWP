@@ -341,10 +341,20 @@ namespace EpicGames.Horde.Storage.Nodes
 
 	class DirectoryNodeConverter : BlobConverter<DirectoryNode>
 	{
+		readonly HordeApiVersion _writeVersion;
+
 		/// <summary>
-		/// Type of serialized directory node blobs
+		/// Constructor
 		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType(DirectoryNode.BlobTypeGuid, 2);
+		public DirectoryNodeConverter()
+			: this(HordeApiVersion.AddFileModTimes)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public DirectoryNodeConverter(HordeApiVersion writeVersion)
+			=> _writeVersion = writeVersion;
 
 		/// <inheritdoc/>
 		public override DirectoryNode Read(IBlobReader reader, BlobSerializerOptions options)
@@ -357,7 +367,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				IBlobRef<ChunkedDataNode> targetHandle = reader.ReadBlobRef<ChunkedDataNode>();
 
 				ChunkedDataNodeType targetType = ChunkedDataNodeType.Unknown;
-				if (reader.Version >= 2)
+				if (reader.Version >= 2) // Pre-unification with HordeApiVersion
 				{
 					targetType = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
 				}
@@ -407,12 +417,12 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteBlobRef(fileEntry.Target.Handle);
 				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
 
-				FileEntryFlags flags = fileEntry.Flags & ~FileEntryFlags.HasCustomData;
+				FileEntryFlags flags = fileEntry.Flags & ~(FileEntryFlags.HasCustomData | FileEntryFlags.HasModTime);
 				if (fileEntry.CustomData.Length > 0)
 				{
 					flags |= FileEntryFlags.HasCustomData;
 				}
-				if (fileEntry.ModTime != default)
+				if (_writeVersion >= HordeApiVersion.AddFileModTimes && fileEntry.ModTime != default)
 				{
 					flags |= FileEntryFlags.HasModTime;
 				}
@@ -441,7 +451,21 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteString(directoryEntry.Name);
 			}
 
-			return BlobType;
+			return GetBlobType(_writeVersion);
+		}
+
+		static BlobType GetBlobType(HordeApiVersion version)
+		{
+			int blobVersion;
+			if (version >= HordeApiVersion.AddFileModTimes)
+			{
+				blobVersion = (int)HordeApiVersion.AddFileModTimes;
+			}
+			else
+			{
+				blobVersion = 2;
+			}
+			return new BlobType(DirectoryNode.BlobTypeGuid, blobVersion);
 		}
 	}
 
