@@ -833,7 +833,11 @@ namespace Metasound
 									[
 										InputWidget.ToSharedRef()
 									];
-								InputWidget->SetDesiredSizeOverride(SliderDesiredSizeVertical);
+
+									if (!bUseAudioMaterialWidgets)
+									{
+										InputWidget->SetDesiredSizeOverride(SliderDesiredSizeVertical);
+									}
 							}
 							else // horizontal orientation
 							{
@@ -867,7 +871,11 @@ namespace Metasound
 									[
 										Slot2.ToSharedRef()
 									];
-									InputWidget->SetDesiredSizeOverride(FVector2D(SliderDesiredSizeVertical.Y, SliderDesiredSizeVertical.X));
+
+									if (!bUseAudioMaterialWidgets)
+									{
+										InputWidget->SetDesiredSizeOverride(SliderDesiredSizeVertical);
+									}
 								}
 
 								if (bUseAudioMaterialWidgets)

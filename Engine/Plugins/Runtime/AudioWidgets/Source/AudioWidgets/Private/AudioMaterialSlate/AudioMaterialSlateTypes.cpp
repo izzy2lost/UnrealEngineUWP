@@ -21,7 +21,7 @@ namespace AudioWidgets
 
 		static const FLinearColor BarMainColor(0.008f, 0.008f, 0.008f, 1.f);
 		static const FLinearColor BarAccentColor(0.005f, 0.005f, 0.005f, 1.f);
-		static const FLinearColor HandleMainColor(0.2f, 0.2f, 0.25f, 1.f);
+		static const FLinearColor HandleMainColor(1.f, 1.f, 1.f, 1.f);
 		static const FLinearColor HandleOutlineColor(0.15f, 0.15f, 0.15f, 1.f);
 	}
 }
@@ -81,7 +81,7 @@ FAudioMaterialSliderStyle::FAudioMaterialSliderStyle()
 	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialRoundedSlider.MI_AudioMaterialRoundedSlider";
 	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
 
-	DesiredSize = FVector2f(30.f, 250.f);
+	DesiredSize = FVector2f(25.f, 250.f);
 }
 
 const FName FAudioMaterialSliderStyle::TypeName(TEXT("FAudioMaterialSliderStyle"));

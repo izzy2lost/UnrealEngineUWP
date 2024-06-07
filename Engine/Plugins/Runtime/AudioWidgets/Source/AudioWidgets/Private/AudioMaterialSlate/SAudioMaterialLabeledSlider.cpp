@@ -104,11 +104,11 @@ FVector2D SAudioMaterialLabeledSlider::ComputeDesiredSize(float) const
 	{
 		return DesiredSizeOverride.Get().GetValue();
 	}
-	
-	if (Style)
+
+	if (Style && Label.IsValid())
 	{
-		const float Width = Orientation.Get() == Orient_Vertical ? Style->DesiredSize.X : Style->DesiredSize.Y;
-		const float Heigth = Orientation.Get() == Orient_Vertical ? Style->DesiredSize.Y : Style->DesiredSize.X;
+		const float Width = Orientation.Get() == Orient_Vertical ? Label.Get()->GetDesiredSize().X + 6.f : Style->DesiredSize.Y + Label.Get()->GetDesiredSize().X;
+		const float Heigth = Orientation.Get() == Orient_Vertical ? Style->DesiredSize.Y + Label.Get()->GetDesiredSize().Y + 3.f: Style->DesiredSize.X;
 		return FVector2D(Width, Heigth);
 	}
 
@@ -209,6 +209,7 @@ TSharedRef<SWidgetSwitcher> SAudioMaterialLabeledSlider::CreateWidgetLayout()
 				// SSlider
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Center)
+				.Padding(3.0f, 0.0f)
 				[
 					Slider.ToSharedRef()
 				]
@@ -218,6 +219,7 @@ TSharedRef<SWidgetSwitcher> SAudioMaterialLabeledSlider::CreateWidgetLayout()
 			.AutoWidth()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Center)
+			.Padding(3.0f, 0.0f, 0.0f, 0.0f)
 			[
 				Label.ToSharedRef()
 			]
@@ -234,6 +236,7 @@ TSharedRef<SWidgetSwitcher> SAudioMaterialLabeledSlider::CreateWidgetLayout()
 			SNew(SVerticalBox)
 			// Text Label
 			+ SVerticalBox::Slot()
+			.Padding(0.0f, 0.0f, 0.0f, 3.0f)
 			.AutoHeight()
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
@@ -249,6 +252,7 @@ TSharedRef<SWidgetSwitcher> SAudioMaterialLabeledSlider::CreateWidgetLayout()
 				// Actual SSlider
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Fill)
+				.Padding(0.0f, 3.0f)
 				[
 					Slider.ToSharedRef()
 				]

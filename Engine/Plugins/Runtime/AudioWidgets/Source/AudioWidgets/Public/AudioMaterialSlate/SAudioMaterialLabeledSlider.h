@@ -4,6 +4,7 @@
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioWidgetsEnums.h"
+#include "AudioWidgetsStyle.h"
 #include "Framework/SlateDelegates.h"
 #include "SAudioInputWidget.h"
 #include "Styling/ISlateStyle.h"
@@ -22,6 +23,7 @@ class AUDIOWIDGETS_API SAudioMaterialLabeledSlider
 {
 public:
 	SLATE_BEGIN_ARGS(SAudioMaterialLabeledSlider)
+	: _Style(&FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialSliderStyle>("AudioMaterialSlider.Style"))
 	{}
 
 	/** The style used to draw the slider. */
