@@ -21,38 +21,59 @@ namespace PCGObjectPropertyOverrideHelpers
 		return ObjectOverridePinProperties;
 	}
 
-	void ApplyOverridesFromParams(const TArray<FPCGObjectPropertyOverrideDescription>& InObjectPropertyOverrideDescriptions, AActor* TargetActor, FName OverridesPinLabel, FPCGContext* Context)
+	void ApplyOverrides(const TArray<FPCGObjectPropertyOverrideDescription>& InObjectPropertyOverrideDescriptions, const TArray<TPair<UObject*, int32>>& TargetObjectToOverrideIndices, FName OverridesPinLabel, int32 InInputDataIndex, FPCGContext* Context)
 	{
-		if (!Context)
+		if (!Context || TargetObjectToOverrideIndices.IsEmpty())
 		{
 			return;
 		}
 
 		const TArray<FPCGTaggedData> OverrideInputs = Context->InputData.GetInputsByPin(OverridesPinLabel);
 
+		int32 InputIndex = InInputDataIndex;
+
 		if (OverrideInputs.Num() == 0)
 		{
 			return;
 		}
-		else if (OverrideInputs.Num() > 1)
+		else if (OverrideInputs.Num() == 1)
 		{
-			PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("MoreThanOneData", "More than one data was found on pin '{0}'. Only using the first one."), FText::FromName(OverridesPinLabel)), Context);
+			InputIndex = 0;
+		}
+		else if (OverrideInputs.Num() > 1 && !OverrideInputs.IsValidIndex(InputIndex))
+		{
+			PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("InconsistentDataCount", "The data provided on pin '{0}' does not have a consistent size with the input index '{1}'. Will use the first one."), FText::FromName(OverridesPinLabel), FText::AsNumber(InInputDataIndex)), Context);
+			InputIndex = 0;
 		}
 
-		const UPCGParamData* ParamData = Cast<const UPCGParamData>(OverrideInputs[0].Data);
-
-		if (!ParamData)
+		const UPCGData* OverrideData = OverrideInputs[InputIndex].Data;
+		if (!OverrideData)
 		{
-			PCGLog::LogErrorOnGraph(LOCTEXT("InvalidActorOverrideData", "Invalid input data type for Actor Property Overrides pin, must be of type Param."), Context);
+			PCGLog::LogErrorOnGraph(LOCTEXT("InvalidActorOverrideData", "Invalid input data for Object Property Overrides pin."), Context);
 			return;
 		}
 
-		FPCGObjectOverrides ActorOverrides(TargetActor);
-		ActorOverrides.Initialize(InObjectPropertyOverrideDescriptions, TargetActor, ParamData, Context);
-		if (!ActorOverrides.Apply(/*InputKeyIndex=*/0)) // Use the First Entry of the param data for override (similar to what is done in Parameter Overrides in FPCGContext)
+		for (const TPair<UObject*, int32>& TargetObjectAndIndex : TargetObjectToOverrideIndices)
 		{
-			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("ApplyOverrideFailed", "Failed to apply property overrides to actor '%s' from an attribute set."), FText::FromName(TargetActor->GetClass()->GetFName())), Context);
+			UObject* TargetObject = TargetObjectAndIndex.Key;
+			int32 InputKeyIndex = TargetObjectAndIndex.Value;
+
+			FPCGObjectOverrides ObjectOverrides(TargetObject);
+			ObjectOverrides.Initialize(InObjectPropertyOverrideDescriptions, TargetObject, OverrideData, Context);
+			if (!ObjectOverrides.Apply(InputKeyIndex)) // Use the First Entry of the param data for override (similar to what is done in Parameter Overrides in FPCGContext)
+			{
+				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("ApplyOverrideFailed", "Failed to apply property overrides to object '%s'."), FText::FromName(TargetObject->GetClass()->GetFName())), Context);
+			}
 		}
+	}
+
+	void ApplyOverridesFromParams(const TArray<FPCGObjectPropertyOverrideDescription>& InObjectPropertyOverrideDescriptions, UObject* TargetObject, FName OverridesPinLabel, FPCGContext* Context)
+	{
+		ApplyOverrides(InObjectPropertyOverrideDescriptions,
+			{ TPair<UObject*, int32>(TargetObject, /*Entry index=*/0) },
+			OverridesPinLabel,
+			/*InInputDataIndex=*/0,
+			Context);
 	}
 }
 

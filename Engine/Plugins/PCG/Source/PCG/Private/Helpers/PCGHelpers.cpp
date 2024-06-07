@@ -525,11 +525,11 @@ namespace PCGHelpers
 #endif
 	}
 
-	TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext)
+	TArray<UFunction*> FindUserFunctions(TSubclassOf<UObject> ObjectClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext)
 	{
 		TArray<UFunction*> Functions;
 
-		if (!ActorClass)
+		if (!ObjectClass)
 		{
 			return Functions;
 		}
@@ -541,12 +541,14 @@ namespace PCGHelpers
 				continue;
 			}
 
-			if (UFunction* Function = ActorClass->FindFunctionByName(FunctionName))
+			if (UFunction* Function = ObjectClass->FindFunctionByName(FunctionName))
 			{
 #if WITH_EDITOR
-				if (!Function->GetBoolMetaData(TEXT("CallInEditor")))
+				// Implementation note: for AActors, using ProcessEvent requires the function to either be 'CallInEditor' or GAllowActorScriptExecutionInEditor to be true.
+				// It might not be strictly needed in cases where the object is not an actor.
+				if (ObjectClass->GetDefaultObject()->IsA<AActor>() && !Function->GetBoolMetaData(TEXT("CallInEditor")))
 				{
-					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CallInEditorFailed", "Function '{0}' in class '{1}' requires CallInEditor to be true while in-editor."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CallInEditorFailed", "Function '{0}' in class '{1}' requires CallInEditor to be true while in-editor."), FText::FromName(FunctionName), FText::FromName(ObjectClass->GetFName())), InContext);
 					continue;
 				}
 #endif
@@ -561,12 +563,12 @@ namespace PCGHelpers
 
 				if (Functions.IsEmpty() || Functions.Last() != Function)
 				{
-					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersIncorrect", "Function '{0}' in class '{1}' has incorrect parameters."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersIncorrect", "Function '{0}' in class '{1}' has incorrect parameters."), FText::FromName(FunctionName), FText::FromName(ObjectClass->GetFName())), InContext);
 				}
 			}
 			else
 			{
-				PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FunctionNotFound", "Function '{0}' was not found in class '{1}'."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+				PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FunctionNotFound", "Function '{0}' was not found in class '{1}'."), FText::FromName(FunctionName), FText::FromName(ObjectClass->GetFName())), InContext);
 			}
 		}
 

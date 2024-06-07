@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include "PCGContext.h"
 #include "PCGSettings.h"
-#include "Async/PCGAsyncLoadingContext.h"
+#include "Elements/PCGLoadObjectsContext.h"
 
 #include "PCGGetPropertyFromObjectPath.generated.h"
 
@@ -73,12 +72,7 @@ public:
 	bool bSilenceErrorOnEmptyObjectPath = false;
 };
 
-struct FPCGGetPropertyFromObjectPathContext : public FPCGContext, public IPCGAsyncLoadingContext
-{
-	TArray<TTuple<FSoftObjectPath, int32>> PathsToObjectsToExtractAndIncomingDataIndex;
-};
-
-class FPCGGetPropertyFromObjectPathElement : public IPCGElement
+class FPCGGetPropertyFromObjectPathElement : public IPCGElementWithCustomContext<FPCGLoadObjectsFromPathContext>
 {
 public:
 	// Loading needs to be done on the main thread and accessing objects outside of PCG might not be thread safe, so taking the safe approach
@@ -90,7 +84,6 @@ public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
-	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

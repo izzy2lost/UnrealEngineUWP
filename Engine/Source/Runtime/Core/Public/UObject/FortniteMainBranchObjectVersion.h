@@ -503,6 +503,9 @@ struct FFortniteMainBranchObjectVersion
 		
 		// Changed the precision for the stored rotation on kinematic targets to match the precision used in particles 
 		ChaosStoreKinematicTargetRotationAsSinglePrecision,
+
+		// PCG changes around the ApplyOnActor node, where we collapsed the TargetActor to the input pin.
+		PCGApplyOnActorNodeMoveTargetActorEdgeToInput,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

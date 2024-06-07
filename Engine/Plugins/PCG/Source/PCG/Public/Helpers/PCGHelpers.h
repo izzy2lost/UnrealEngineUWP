@@ -84,7 +84,7 @@ namespace PCGHelpers
 	 * Finds functions on the actor matching the provided function names. Functions must be marked as CallInEditor
 	 * and have parameters matching one of the provided prototypes. Some prototypes are provided in UPCGFunctionPrototypes.
 	 */
-	PCG_API TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext = nullptr);
+	PCG_API TArray<UFunction*> FindUserFunctions(TSubclassOf<UObject> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext = nullptr);
 
 	PCG_API TFunction<float(float, float)> GetDensityMergeFunction(EPCGDensityMergeOperation InOperation);
 };
