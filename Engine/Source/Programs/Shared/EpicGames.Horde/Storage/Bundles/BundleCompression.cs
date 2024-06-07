@@ -9,6 +9,9 @@ using K4os.Compression.LZ4;
 
 namespace EpicGames.Horde.Storage.Bundles
 {
+	using ZstdCompressor = ZstdSharp.Compressor;
+	using ZstdDecompressor = ZstdSharp.Decompressor;
+
 	/// <summary>
 	/// Indicates the compression format in the bundle
 	/// </summary>
@@ -38,6 +41,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// Brotli compression
 		/// </summary>
 		Brotli = 4,
+
+		/// <summary>
+		/// ZStandard compression
+		/// </summary>
+		Zstd = 5,
 	}
 
 	/// <summary>
@@ -106,6 +114,21 @@ namespace EpicGames.Horde.Storage.Bundles
 						writer.Advance(encodedLength);
 						return encodedLength;
 					}
+				case BundleCompressionFormat.Zstd:
+					{
+						int maxSize = ZstdCompressor.GetCompressBound(input.Length);
+
+						ZstdCompressor compressor = new ZstdCompressor();
+
+						Span<byte> buffer = writer.GetSpan(maxSize);
+						if (!compressor.TryWrap(input.Span, buffer, out int encodedLength))
+						{
+							throw new InvalidOperationException("Unable to compress data using Zstd");
+						}
+
+						writer.Advance(encodedLength);
+						return encodedLength;
+					}
 				default:
 					throw new InvalidDataException($"Invalid compression format '{(int)format}'");
 			}
@@ -138,7 +161,18 @@ namespace EpicGames.Horde.Storage.Bundles
 						using ReadOnlyMemoryStream inputStream = new ReadOnlyMemoryStream(input);
 						using GZipStream inflatedStream = new GZipStream(inputStream, CompressionMode.Decompress, true);
 
-						int length = inflatedStream.Read(output.Span);
+						int length = 0;
+						for (; ; )
+						{
+							int count = inflatedStream.Read(output.Span.Slice(length));
+							if (count == 0)
+							{
+								break;
+							}
+
+							length += count;
+						}
+
 						if (length != output.Length)
 						{
 							throw new InvalidDataException($"Decoded data is shorter than expected (expected {output.Length} bytes, got {length} bytes)");
@@ -158,6 +192,15 @@ namespace EpicGames.Horde.Storage.Bundles
 						if (!BrotliDecoder.TryDecompress(input.Span, output.Span, out bytesWritten) || bytesWritten != output.Length)
 						{
 							throw new InvalidOperationException("Unable to decompress data using Brotli");
+						}
+						break;
+					}
+				case BundleCompressionFormat.Zstd:
+					{
+						ZstdDecompressor decompressor = new ZstdDecompressor();
+						if (!decompressor.TryUnwrap(input.Span, output.Span, out int bytesWritten) || bytesWritten != output.Length)
+						{
+							throw new InvalidOperationException("Unable to decompress data using Zstd");
 						}
 						break;
 					}
