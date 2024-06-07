@@ -691,9 +691,9 @@ namespace Horde.Server.Artifacts
 			response.StatusCode = (int)HttpStatusCode.OK;
 
 			await response.StartAsync(cancellationToken);
-			foreach (GetUnsyncBlockRequest block in request.Files.SelectMany(x => x.Blocks))
+			foreach (string block in request.Blocks)
 			{
-				if (block.Hash == null || !IoHash.TryParse(block.Hash, out IoHash hash))
+				if (!IoHash.TryParse(block, out IoHash hash))
 				{
 					throw new InvalidOperationException();
 				}
