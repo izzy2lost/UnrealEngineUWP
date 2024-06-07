@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowEditorModule.h"
+
+#include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorToolkit.h"
@@ -19,17 +21,10 @@ void FDataflowEditorModule::StartupModule()
 	FDataflowEditorStyle::Get();
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-	
-	DataflowSNodeFactory = MakeShareable(new FDataflowSNodeFactory());
-	FEdGraphUtilities::RegisterVisualNodeFactory(DataflowSNodeFactory);
-}
+	}
 
 void FDataflowEditorModule::ShutdownModule()
 {	
-	if (UObjectInitialized())
-	{
-		FEdGraphUtilities::UnregisterVisualNodeFactory(DataflowSNodeFactory);
-	}
 	FEditorModeRegistry::Get().UnregisterMode(UDataflowEditorMode::EM_DataflowEditorModeId);
 }
 

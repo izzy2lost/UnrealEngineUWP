@@ -3,8 +3,10 @@
 #include "Dataflow/DataflowGraphEditor.h"
 
 #include "BoneDragDropOp.h"
+#include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Dataflow/DataflowSEditorInterface.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowNodeParameters.h"
@@ -19,6 +21,8 @@
 
 #define LOCTEXT_NAMESPACE "DataflowGraphEditor"
 
+TSharedPtr<FDataflowGraphEditorNodeFactory> SDataflowGraphEditor::NodeFactory;
+
 void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetOwner)
 {
 	check(InArgs._GraphToEdit);
@@ -27,6 +31,7 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 	DetailsView = InArgs._DetailsView;
 	EvaluateGraphCallback = InArgs._EvaluateGraph;
 	OnDragDropEventCallback = InArgs._OnDragDropEvent;
+	DataflowEditor = InArgs._DataflowEditor;
 
 	FGraphAppearanceInfo AppearanceInfo;
 	AppearanceInfo.CornerText = FText::FromString("Dataflow");
@@ -152,8 +157,20 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 
 	SGraphEditor::Construct(Arguments);
 
+	SetNodeFactory( MakeShared<FDataflowGraphNodeFactory>(this) );
 }
 
+const TSharedPtr<Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflowContext() const
+{
+	if (DataflowEditor)
+	{
+		if (DataflowEditor->GetEditorContent())
+		{
+			return DataflowEditor->GetEditorContent()->GetDataflowContext();
+		}
+	}
+	return TSharedPtr<Dataflow::FEngineContext>(nullptr);
+}
 
 void SDataflowGraphEditor::EvaluateNode()
 {

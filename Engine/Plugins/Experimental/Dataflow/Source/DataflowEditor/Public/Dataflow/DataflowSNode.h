@@ -6,6 +6,7 @@
 #include "SGraphNode.h"
 #include "UObject/GCObject.h"
 #include "Dataflow/DataflowCore.h"
+#include "Dataflow/DataflowSEditorInterface.h"
 
 #include "DataflowSNode.generated.h"
 
@@ -23,11 +24,11 @@ class DATAFLOWEDITOR_API SDataflowEdNode : public SGraphNode , public FGCObject
 public:
 	typedef TFunction<void(UEdGraphNode* InNode, bool InEnabled)> FToggleRenderCallback;
 
-
 	SLATE_BEGIN_ARGS(SDataflowEdNode)
 		: _GraphNodeObj(nullptr)
 	{}
 	SLATE_ARGUMENT(UDataflowEdNode*, GraphNodeObj)
+	SLATE_ARGUMENT(FDataflowSEditorInterface*, DataflowInterface)
 	SLATE_END_ARGS()
 	
 	void Construct(const FArguments& InArgs, UDataflowEdNode* InNode);
@@ -66,6 +67,9 @@ private:
 
 	//FCheckBoxStyle CacheStatusStyle;
 	//TSharedPtr<SCheckBox> CacheStatus;
+
+	FDataflowSEditorInterface* DataflowInterface;
+
 };
 
 //

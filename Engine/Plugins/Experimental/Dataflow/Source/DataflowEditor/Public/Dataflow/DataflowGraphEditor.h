@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "Dataflow/DataflowEditorCommands.h"
+#include "Dataflow/DataflowSEditorInterface.h"
 #include "EdGraphUtilities.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UICommandList.h"
@@ -19,8 +20,10 @@
 
 
 class FDataflowEditorToolkit;
+class FDataflowGraphEditorNodeFactory;
 class FDataflowSNodeFactory;
 class UDataflow;
+class UDataflowEditor;
 struct FDataflowConnection;
 namespace Dataflow {
 	class FContext;
@@ -31,7 +34,7 @@ namespace Dataflow {
  * 
  * see(SDataprepGraphEditor for reference)
  */
-class DATAFLOWEDITOR_API SDataflowGraphEditor : public SGraphEditor, public FGCObject
+class DATAFLOWEDITOR_API SDataflowGraphEditor : public SGraphEditor, public FGCObject, public FDataflowSEditorInterface
 {
 public:
 
@@ -47,6 +50,7 @@ public:
 	SLATE_ARGUMENT(TSharedPtr<IStructureDetailsView>, DetailsView)
 	SLATE_ARGUMENT(FDataflowEditorCommands::FGraphEvaluationCallback, EvaluateGraph)
 	SLATE_ARGUMENT(FDataflowEditorCommands::FOnDragDropEventCallback, OnDragDropEvent)
+	SLATE_ARGUMENT(UDataflowEditor*, DataflowEditor)
 	SLATE_END_ARGS()
 
 	// This delegate exists in SGraphEditor but it is not multicast, and we are going to bind it to OnSelectedNodesChanged().
@@ -137,6 +141,9 @@ public:
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override { return TEXT("SDataflowGraphEditor"); }
 
+	/** FDataflowSNodeInterface */
+	virtual const TSharedPtr<Dataflow::FEngineContext> GetDataflowContext() const override;
+
 private:
 	/** Add an additional option pin to all selected Dataflow nodes for those that overrides the AddPin function. */
 	void OnAddOptionPin();
@@ -162,11 +169,14 @@ private:
 	/** Command list associated with this graph editor */
 	TSharedPtr<FUICommandList> GraphEditorCommands;
 
-	/** Factory to create the associated SGraphNode classes for Dataflow graph's UEdGraph classes */
-	static TSharedPtr<FDataflowSNodeFactory> NodeFactory;
-
 	/** The details view that responds to this widget. */
 	TSharedPtr<IStructureDetailsView> DetailsView;
+
+	/** Factory to create the associated SGraphNode classes for Dataprep graph's UEdGraph classes */
+	static TSharedPtr<FDataflowGraphEditorNodeFactory> NodeFactory;
+
+	/** Editor for the content */
+	UDataflowEditor* DataflowEditor = nullptr;
 
 	bool VKeyDown = false;
 	bool LeftControlKeyDown = false;

@@ -31,6 +31,7 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 {
 	GraphNode = InNode;
 	DataflowGraphNode = Cast<UDataflowEdNode>(InNode);
+	DataflowInterface = InArgs._DataflowInterface;
 	UpdateGraphNode();
 
 	

@@ -859,7 +859,8 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 		.GraphToEdit(DataflowToEdit)
 		.GraphEvents(InEvents)
 		.DetailsView(InNodeDetailsEditor)
-		.EvaluateGraph(Evaluate);
+		.EvaluateGraph(Evaluate)
+		.DataflowEditor(DataflowEditor);
 
 	OnSelectionChangedMulticastDelegateHandle = NewGraphEditor->OnSelectionChangedMulticast.AddSP(this, &FDataflowEditorToolkit::OnNodeSelectionChanged);
 	OnNodeDeletedMulticastDelegateHandle = NewGraphEditor->OnNodeDeletedMulticast.AddSP(this, &FDataflowEditorToolkit::OnNodeDeleted);

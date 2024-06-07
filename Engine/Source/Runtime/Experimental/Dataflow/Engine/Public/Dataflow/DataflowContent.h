@@ -155,6 +155,7 @@ public:
 	*   Dataflow context stores the evaluated state of the graph. 
 	*/
 	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext);
+	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
 	TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() { return DataflowContext; }
 
 	/** Rebuild the owner dependent datas  */
