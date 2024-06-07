@@ -432,7 +432,7 @@ void FChaosClothAssetMergeClothCollectionsNode_v2::Evaluate(Dataflow::FContext& 
 		else
 		{
 			// Otherwise pass through the first input unchanged
-			ForwardInput(Context, GetConnectionReference(0), &Collection);
+			SafeForwardInput(Context, GetConnectionReference(0), &Collection);
 		}
 	}
 }

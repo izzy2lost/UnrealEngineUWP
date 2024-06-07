@@ -95,10 +95,10 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 void FGeometryCollectionTerminalDataflowNode::Evaluate(Dataflow::FContext& Context) const
 {
 	// simply forward all inputs to corresponding outputs
-	ForwardInput(Context, &Collection, &Collection);
-	ForwardInput(Context, &Materials, &Materials);
-	ForwardInput(Context, &MaterialInstances, &MaterialInstances);
-	ForwardInput(Context, &InstancedMeshes, &InstancedMeshes);
+	SafeForwardInput(Context, &Collection, &Collection);
+	SafeForwardInput(Context, &Materials, &Materials);
+	SafeForwardInput(Context, &MaterialInstances, &MaterialInstances);
+	SafeForwardInput(Context, &InstancedMeshes, &InstancedMeshes);
 }
 
 // ===========================================================================================================================

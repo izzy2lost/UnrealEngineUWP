@@ -407,16 +407,45 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	*   ForwardInput(...)
 	*
-	*   Forward an input to this output
-	*	this will not cache the value itself but cache a reference to the input connection cache entry
-	*	this is memory efficient and do not require a runtime copy of the data
-	*	input and output references must match in type
+	*   Forward an input to this output.
+	*   This will not cache the value itself but cache a reference to the input connection cache entry.
+	*   This is memory efficient and do not require a runtime copy of the data.
+	*   Input and output references must match in type.
+	*   Note that forwarding an input never sets a default value when no input is connected, use SafeForwardInput instead.
 	*
 	*   @param Context : The evaluation context that holds the data store.
-	*   @param InputReference : Pointer to a input member of this node that needs to be forwarded
+	*   @param InputReference : Pointer to a input member of this node that needs to be forwarded.
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
 	*/
 	DATAFLOWCORE_API void ForwardInput(Dataflow::FContext& Context, const Dataflow::FConnectionReference& InputReference, const Dataflow::FConnectionReference& Reference) const;
+
+	/**
+	*   SafeForwardInput(...)
+	*
+	*   Forward an input to this output or set a default value if no input is connected.
+	*   This is more memory efficient when an input is connected than setting the value.
+	*   Input and output references must match in type.
+	*
+	*   @param Context : The evaluation context that holds the data store.
+	*   @param InputReference : Pointer to a input member of this node that needs to be forwarded.
+	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
+	*/
+	template<class T>
+	void SafeForwardInput(Dataflow::FContext& Context, const Dataflow::FConnectionReference& InputReference, const T* Reference) const
+	{
+		if (IsConnected(InputReference))
+		{
+			ForwardInput(Context, InputReference, Dataflow::TConnectionReference<T>(Reference));
+		}
+		else if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
+		{
+			SetValue(Context, reinterpret_cast<const T*>(InputReference.Reference)->Value, Reference);
+		}
+		else
+		{
+			SetValue(Context, *reinterpret_cast<const T*>(InputReference.Reference), Reference);
+		}
+	}
 
 	/**
 	*   IsConnected(...)
