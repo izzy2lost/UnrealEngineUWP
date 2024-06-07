@@ -217,6 +217,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
 	FText Description;
+
+	/** Marks the graph to be not refreshed automatically when the landscape changes, even if it is used. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bIgnoreLandscapeTracking = false;
 #endif
 
 	UPROPERTY(EditAnywhere, Category = Settings)

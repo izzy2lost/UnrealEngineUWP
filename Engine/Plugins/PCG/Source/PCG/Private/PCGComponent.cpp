@@ -3452,6 +3452,11 @@ void UPCGComponent::StopIgnoringChangeOriginDuringGeneration(UObject* InChangeOr
 
 bool UPCGComponent::IsIgnoringChangeOrigin(UObject* InChangeOrigin)
 {
+	if ((bIgnoreLandscapeTracking || (GetGraph() && GetGraph()->bIgnoreLandscapeTracking)) && Cast<ALandscapeProxy>(InChangeOrigin))
+	{
+		return true;
+	}
+
 	FReadScopeLock Lock(IgnoredChangeOriginsLock);
 	const int32* Counter = IgnoredChangeOriginsToCounters.Find(InChangeOrigin);
 	return Counter && ensure(*Counter > 0);

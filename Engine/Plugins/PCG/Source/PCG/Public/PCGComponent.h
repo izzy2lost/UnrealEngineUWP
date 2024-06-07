@@ -270,6 +270,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Editing Settings", meta = (DisplayPriority = 450))
 	bool bOnlyTrackItself = false;
 
+	/** Marks the component to be not refreshed automatically when the landscape changes, even if it is used. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Editing Settings", meta = (DisplayPriority = 451))
+	bool bIgnoreLandscapeTracking = false;
+
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = Debug, meta = (NoResetToDefault))
 	bool bDirtyGenerated = false;
 
