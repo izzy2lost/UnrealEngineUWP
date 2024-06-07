@@ -131,6 +131,17 @@ namespace PropertyCustomizationHelpers
 			.IsFocusable( false );
 	}
 
+	TSharedRef<SWidget> MakeEditButton( FSimpleDelegate OnEditClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled )
+	{
+		return
+			SNew( SPropertyEditorButton )
+			.Text( OptionalToolTipText.Get().IsEmpty() ? LOCTEXT( "EditButtonToolTipText", "Edit Element") : OptionalToolTipText )
+			.Image( FAppStyle::GetBrush("Icons.Edit") )
+			.OnClickAction( OnEditClicked )
+			.IsEnabled( IsEnabled )
+			.IsFocusable( false );
+	}
+
 	TSharedRef<SWidget> MakeEmptyButton( FSimpleDelegate OnEmptyClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled )
 	{
 		return
