@@ -256,10 +256,11 @@ namespace UnrealBuildTool
 		}
 
 		private static string[] UATProjectParams = { "-project=", "-scriptsforproject=" };
-		// Before we setup AutoSDK, we check to see if any projects need to override the Main version so that AutoSDK
-		// will set up an alternate SDK
 		private static void InitializePerPlatformSDKs(string[] Args, bool bArgumentsAreForUBT, ILogger Logger)
 		{
+			// Before we setup AutoSDK, we check to see if any projects need to override the Main version so that AutoSDK
+			// will set up an alternate SDK
+		
 			Dictionary<string, string> PlatformToVersionMap = new();
 
 			IEnumerable<FileReference?> ProjectFiles;
@@ -287,6 +288,10 @@ namespace UnrealBuildTool
 			}
 
 			UEBuildPlatformSDK.InitializePerProjectSDKVersions(ProjectFiles.OfType<FileReference>());
+
+
+			// clear the cache used for auto-switching to the best manually-installed SDK
+			UEBuildPlatformSDK.ClearManualSDKEnvVarCache();
 		}
 
 		/// <summary>

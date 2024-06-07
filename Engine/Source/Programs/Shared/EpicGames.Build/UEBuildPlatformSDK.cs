@@ -347,6 +347,15 @@ namespace EpicGames.Core
 			}
 			else
 			{
+				// allow the platform to select the most appropriate manually installed SDK if it hasn't already been set up by AutoSDK
+				if (PlatformSupportsAutoSDKs() && HasAutoSDKSystemEnabled() && !HasParentProcessSetupAutoSDK(out _)) // @todo: PlatformSupportsAutoSDKs & HasAutoSDKSystemEnabled check is not technically needed for manual sdk switching but the editor-side code is heavily tied into this and would require further refactoring first
+				{
+					if (TrySelectBestManualSDK( out string? SelectedSDKVersion ))
+					{
+						Console.WriteLine("Auto-selected best installed sdk for {0} - {1}", GetAutoSDKPlatformName(), SelectedSDKVersion);
+					}
+				}
+
 				CachedManualSDKVersions = new Dictionary<string, string>();
 
 				// if there was no parent, get the SDK version before we run AutoSDK to get the manual version
@@ -651,6 +660,40 @@ namespace EpicGames.Core
 		{
 			return new string[] { };
 		}
+		
+		/// <summary>
+		/// Find the highest valid manually-installed SDK, prioritizing the main version if it's available. Requires that the platform SDK implements GetAllInstalledSDKVersions
+		/// </summary>
+		/// <returns>True if successful</returns>
+		protected virtual string? FindBestInstalledSDKVersion()
+		{
+			string[] InstalledSDKVersions = GetAllInstalledSDKVersions();
+			if (InstalledSDKVersions.Length == 0)
+			{
+				return null;
+			}
+
+			// see if the main version is available
+			string MainVersion = GetMainVersion();
+			if (InstalledSDKVersions.Contains(MainVersion))
+			{
+				return MainVersion;
+			}
+
+			// main version is not available - find highest valid version
+			GetValidVersionRange(out string? MinVersion, out string? MaxVersion);
+			if (TryConvertVersionToInt(MinVersion, out ulong MinVersionInt, null) && TryConvertVersionToInt(MaxVersion, out ulong MaxVersionInt, null))
+			{
+				IGrouping<ulong,string>? ResultGroup = InstalledSDKVersions
+					.GroupBy( X => TryConvertVersionToInt(X, out ulong Value, null) ? Value : 0 )   // group by integer version
+					.Where( X => X.Key >= MinVersionInt && X.Key <= MaxVersionInt)                  // select only valid versions
+					.OrderByDescending( X => X.Key )                                                // sort highest version first
+					.FirstOrDefault();
+				return ResultGroup?.FirstOrDefault();
+			}
+
+			return null;
+		}
 
 		/// <summary>
 		/// Switch to another version of the SDK than what GetInstalledSDKVersion() returns. This will be one of the versions returned from GetAllInstalledSDKVersions()
@@ -660,6 +703,18 @@ namespace EpicGames.Core
 		/// <returns>True if successful</returns>
 		public virtual bool SwitchToAlternateSDK(string Version, bool bSwitchForThisProcessOnly)
 		{
+			return false;
+		}
+
+		/// <summary>
+		/// Allows a platform to switch a different version of a manually-installed SDK, if the platform supports side-by-side installations of different versions
+		/// </summary>
+		/// <returns>True if successful</returns>
+		protected virtual bool TryGetEnvironmentForManualSDK(string SelectedSDKVersion, out Dictionary<string, string>? EnvVarValues, out List<string>? PathAdds, out List<string>? PathRemoves)
+		{
+			EnvVarValues = null;
+			PathAdds = null;
+			PathRemoves = null;
 			return false;
 		}
 
@@ -1263,6 +1318,8 @@ namespace EpicGames.Core
 		/// </summary>
 		protected const string SDKEnvironmentVarsFile = "OutputEnvVars.txt";
 
+		protected const string ManualSDKEnvironmentVarsFile = "ManualSDKEnvVars.txt";
+
 		protected const string SDKRootEnvVar = "UE_SDKS_ROOT";
 
 		protected const string AutoSetupEnvVar = "AutoSDKSetup";
@@ -1523,6 +1580,100 @@ namespace EpicGames.Core
 				}
 			}
 		}
+
+		public static void ClearManualSDKEnvVarCache()
+		{
+			string ManualSDKEnvironmentVarsPath = Path.Combine(Unreal.EngineDirectory.ToString(), "Intermediate", ManualSDKEnvironmentVarsFile);
+			if (File.Exists(ManualSDKEnvironmentVarsPath))
+			{
+				File.Delete(ManualSDKEnvironmentVarsPath);
+			}
+		}
+
+		private bool TrySelectBestManualSDK(out string? SelectedSDKVersion)
+		{
+			// find the best valid manual sdk
+			SelectedSDKVersion = FindBestInstalledSDKVersion();
+			if (SelectedSDKVersion == null)
+			{
+				return false;
+			}
+
+			// query the platform for environment changes
+			if (!TryGetEnvironmentForManualSDK(SelectedSDKVersion, out Dictionary<string, string>? EnvVarValues, out List<string>? PathAdds, out List<string>? PathRemoves))
+			{
+				return false;
+			}
+
+			// apply environment variables
+			if (EnvVarValues != null)
+			{
+				foreach (KeyValuePair<string,string> EnvVarValue in EnvVarValues)
+				{
+					Environment.SetEnvironmentVariable(EnvVarValue.Key, EnvVarValue.Value);
+				}
+			}
+
+			// apply PATH modifications
+			if (PathRemoves != null || PathAdds != null)
+			{
+				string OrigPathVar = Environment.GetEnvironmentVariable("PATH")!;
+				IEnumerable<string> PathVars = OrigPathVar.Split( Path.PathSeparator );
+				if (PathRemoves != null)
+				{
+					PathVars = PathVars.Except(PathRemoves, FileUtils.PlatformPathComparer);
+				}
+				if (PathAdds != null)
+				{
+					PathVars = PathVars.Except(PathAdds, FileUtils.PlatformPathComparer); // remove all of the ADDs so that if this function is executed multiple times, the paths will be guaranteed to be in the same order after each run.
+					PathVars = PathVars.Union(PathAdds, FileUtils.PlatformPathComparer);
+				}
+
+				string NewPathVar = String.Join( Path.PathSeparator, PathVars );
+				Environment.SetEnvironmentVariable("PATH", NewPathVar);
+			}
+
+			// write all environment modifications
+			if ( (EnvVarValues != null && EnvVarValues.Any()) || (PathRemoves != null && PathRemoves.Any()) || (PathAdds != null && PathAdds.Any()) )
+			{
+				string ManualSDKEnvironmentVarsPath = Path.Combine(Unreal.EngineDirectory.ToString(), "Intermediate", ManualSDKEnvironmentVarsFile);
+
+				Directory.CreateDirectory(Path.GetDirectoryName(ManualSDKEnvironmentVarsPath)!);
+				using (StreamWriter Writer = File.AppendText(ManualSDKEnvironmentVarsPath))
+				{
+					// write environment variables
+					if (EnvVarValues != null)
+					{
+						foreach (KeyValuePair<string,string> EnvVarValue in EnvVarValues)
+						{
+							Writer.WriteLine($"{EnvVarValue.Key}={EnvVarValue.Value}");
+							Logger.LogDebug("Setting variable '{Name}' to '{Value}'", EnvVarValue.Key, EnvVarValue.Value);
+						}
+					}
+
+					// write PATH modifications
+					if (PathRemoves != null)
+					{
+						foreach (string PathVar in PathRemoves)
+						{
+							Writer.WriteLine($"strippath={PathVar}");
+							Logger.LogDebug("Removing Path: '{Path}'", PathVar);
+						}
+					}
+					if (PathAdds != null)
+					{
+						foreach (string PathVar in PathAdds)
+						{
+							Writer.WriteLine($"addpath={PathVar}");
+							Logger.LogDebug("Adding Path: '{Path}'", PathVar);
+						}
+					}
+				}
+			}
+
+			return true;
+		}
+
 
 		protected bool SetLastRunAutoSDKScriptVersion(string LastRunScriptVersion)
 		{

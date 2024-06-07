@@ -219,6 +219,12 @@ public:
 					SetupAndValidateAutoSDK(Pair.Value.AutoSDKPath);
 				}
 			}
+
+			FString ManualSDKEnvironmentVarsPath = FPaths::EngineIntermediateDir() / FString(TEXT("ManualSDKEnvVars.txt"));
+			if (IFileManager::Get().FileExists(*ManualSDKEnvironmentVarsPath))
+			{
+				SetupEnvironmentFromManualSDK(ManualSDKEnvironmentVarsPath);
+			}
 		}
 #endif
 
@@ -949,6 +955,16 @@ protected:
 		return true;
 #endif // AUTOSDKS_ENABLED
 	}
+
+	bool SetupEnvironmentFromManualSDK(const FString& EnvVarFileName)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FTargetPlatformManagerModule::SetupEnvironmentFromManualSDK);
+
+		UE_LOG(LogTargetPlatformManager, Verbose, TEXT("Reading the manifest for auto-selected manual sdks") );
+		bool bResult = SetupEnvironmentFromEnvVarFile(EnvVarFileName);
+		IFileManager::Get().Delete(*EnvVarFileName);
+		return bResult;
+	}
 	
 	bool SetupEnvironmentFromAutoSDK(const FString& AutoSDKPath)
 	{
@@ -1016,6 +1032,21 @@ protected:
 		static const FString SDKEnvironmentVarsFile(TEXT("OutputEnvVars.txt"));
 		FString EnvVarFileName = FPaths::Combine(*TargetSDKRoot, *SDKEnvironmentVarsFile);		
 
+		if (!SetupEnvironmentFromEnvVarFile(EnvVarFileName))
+		{
+			UE_LOG(LogTargetPlatformManager, Warning, TEXT("OutputEnvVars.txt not found for platform: '%s'"), *AutoSDKPath);			
+			return false;
+		}
+
+		UE_LOG(LogTargetPlatformManager, Verbose, TEXT("Platform %s has auto sdk install"), *AutoSDKPath);		
+		return true;
+#else
+		return true;
+#endif
+	}
+
+	bool SetupEnvironmentFromEnvVarFile( const FString& EnvVarFileName )
+	{
 		// If we are using a manual install, then it is valid for there to be no OutputEnvVars file.
 		TUniquePtr<FArchive> EnvVarFile(IFileManager::Get().CreateFileReader(*EnvVarFileName));
 		if (EnvVarFile)
@@ -1126,18 +1157,12 @@ protected:
 
 			FString ModifiedPath = FString::Join(ModifiedPathVars, PathDelimiter);
 			FPlatformMisc::SetEnvironmentVar(TEXT("PATH"), *ModifiedPath);			
+			return true;
 		}
 		else
 		{
-			UE_LOG(LogTargetPlatformManager, Warning, TEXT("OutputEnvVars.txt not found for platform: '%s'"), *AutoSDKPath);			
 			return false;
 		}
-
-		UE_LOG(LogTargetPlatformManager, Verbose, TEXT("Platform %s has auto sdk install"), *AutoSDKPath);		
-		return true;
-#else
-		return true;
-#endif
 	}
 
 	bool SetupSDKStatus()
