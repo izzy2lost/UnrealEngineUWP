@@ -10,7 +10,6 @@
 #include "LearningSharedMemoryTraining.h"
 #include "LearningSocketTraining.h"
 
-#include "Misc/MonitoredProcess.h"
 #include "Misc/Guid.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -212,20 +211,10 @@ namespace UE::Learning
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train_imitation.py"))),
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*ConfigPath));
 
-		TrainingProcess = MakeShared<FMonitoredProcess>(
+		TrainingProcess.Launch(
 			FileManager.ConvertToAbsolutePathForExternalAppForRead(*PythonExecutablePath),
 			CommandLineArguments,
-			!(TrainingProcessFlags & ESubprocessFlags::ShowWindow),
-			!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput));
-
-		if (!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput))
-		{
-			TrainingProcess->OnCanceled().BindRaw(this, &FSharedMemoryImitationTrainer::HandleTrainingProcessCanceled);
-			TrainingProcess->OnCompleted().BindRaw(this, &FSharedMemoryImitationTrainer::HandleTrainingProcessCompleted);
-			TrainingProcess->OnOutput().BindStatic(&FSharedMemoryImitationTrainer::HandleTrainingProcessOutput);
-		}
-
-		TrainingProcess->Launch();
+			TrainingProcessFlags);
 	}
 
 	FSharedMemoryImitationTrainer::~FSharedMemoryImitationTrainer()
@@ -250,9 +239,9 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View,
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::PolicySignal,
 			Policy.View,
 			Timeout,
@@ -267,9 +256,9 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View,
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::EncoderSignal,
 			Encoder.View,
 			Timeout,
@@ -284,9 +273,9 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View,
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::DecoderSignal,
 			Decoder.View,
 			Timeout,
@@ -301,9 +290,9 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View,
 			Policy.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::PolicySignal,
 			Network,
 			Timeout,
@@ -318,9 +307,9 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View,
 			Encoder.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::EncoderSignal,
 			Network,
 			Timeout,
@@ -335,9 +324,9 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View,
 			Decoder.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::DecoderSignal,
 			Network,
 			Timeout,
@@ -354,12 +343,12 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendExperience(
-			TrainingProcess.Get(),
 			EpisodeStarts.View,
 			EpisodeLengths.View,
 			Observations.View,
 			Actions.View,
 			Controls.View,
+			TrainingProcess,
 			EpisodeStartsExperience,
 			EpisodeLengthsExperience,
 			ObservationsExperience,
@@ -383,7 +372,7 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsValid())
+		while (TrainingProcess.IsRunning())
 		{
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
@@ -399,44 +388,13 @@ namespace UE::Learning
 
 	void FSharedMemoryImitationTrainer::Terminate()
 	{
-		if (TrainingProcess.IsValid())
-		{
-			TrainingProcess->Cancel(true);
-		}
-
-		TrainingProcess.Reset();
+		TrainingProcess.Terminate();
 
 		if (Policy.Region)
 		{
 			Deallocate();
 		}
 	}
-
-	void FSharedMemoryImitationTrainer::HandleTrainingProcessCanceled()
-	{
-		UE_LOG(LogLearning, Warning, TEXT("Training process canceled"));
-
-		TrainingProcess.Reset();
-	}
-
-	void FSharedMemoryImitationTrainer::HandleTrainingProcessCompleted(int32 ReturnCode)
-	{
-		if (ReturnCode != 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("Training Process finished with warnings or errors"));
-		}
-
-		TrainingProcess.Reset();
-	}
-
-	void FSharedMemoryImitationTrainer::HandleTrainingProcessOutput(FString Output)
-	{
-		if (!Output.IsEmpty())
-		{
-			UE_LOG(LogLearning, Display, TEXT("Training Process: %s"), *Output);
-		}
-	}
-
 
 	FSocketImitationTrainerServerProcess::FSocketImitationTrainerServerProcess(
 		const FString& PythonExecutablePath,
@@ -461,20 +419,10 @@ namespace UE::Learning
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath),
 			LogSettings == ELogSetting::Normal ? 1 : 0);
 
-		TrainingProcess = MakeShared<FMonitoredProcess>(
+		TrainingProcess.Launch(
 			FileManager.ConvertToAbsolutePathForExternalAppForRead(*PythonExecutablePath),
 			CommandLineArguments,
-			!(TrainingProcessFlags & ESubprocessFlags::ShowWindow),
-			!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput));
-
-		if (!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput))
-		{
-			TrainingProcess->OnCanceled().BindRaw(this, &FSocketImitationTrainerServerProcess::HandleTrainingProcessCanceled);
-			TrainingProcess->OnCompleted().BindRaw(this, &FSocketImitationTrainerServerProcess::HandleTrainingProcessCompleted);
-			TrainingProcess->OnOutput().BindStatic(&FSocketImitationTrainerServerProcess::HandleTrainingProcessOutput);
-		}
-
-		TrainingProcess->Launch();
+			TrainingProcessFlags);
 	}
 
 	FSocketImitationTrainerServerProcess::~FSocketImitationTrainerServerProcess()
@@ -484,7 +432,7 @@ namespace UE::Learning
 
 	bool FSocketImitationTrainerServerProcess::IsRunning() const
 	{
-		return TrainingProcess.IsValid();
+		return TrainingProcess.IsRunning();
 	}
 
 	bool FSocketImitationTrainerServerProcess::Wait(float Timeout)
@@ -492,7 +440,7 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsValid())
+		while (TrainingProcess.IsRunning())
 		{
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
@@ -508,37 +456,7 @@ namespace UE::Learning
 
 	void FSocketImitationTrainerServerProcess::Terminate()
 	{
-		if (TrainingProcess.IsValid())
-		{
-			TrainingProcess->Cancel(true);
-		}
-
-		TrainingProcess.Reset();
-	}
-
-	void FSocketImitationTrainerServerProcess::HandleTrainingProcessCanceled()
-	{
-		UE_LOG(LogLearning, Warning, TEXT("Training process canceled"));
-
-		TrainingProcess.Reset();
-	}
-
-	void FSocketImitationTrainerServerProcess::HandleTrainingProcessCompleted(int32 ReturnCode)
-	{
-		if (ReturnCode != 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("Training Process finished with warnings or errors"));
-		}
-
-		TrainingProcess.Reset();
-	}
-
-	void FSocketImitationTrainerServerProcess::HandleTrainingProcessOutput(FString Output)
-	{
-		if (!Output.IsEmpty())
-		{
-			UE_LOG(LogLearning, Display, TEXT("Training Process: %s"), *Output);
-		}
+		TrainingProcess.Terminate();
 	}
 
 	FSocketImitationTrainer::FSocketImitationTrainer(

@@ -13,7 +13,6 @@
 #include "LearningPPOTrainer.generated.h"
 
 class FSocket;
-class FMonitoredProcess;
 class ULearningNeuralNetworkData;
 
 UCLASS()
@@ -468,16 +467,8 @@ namespace UE::Learning
 		// Training Process
 
 		uint16 ProcessIdx = INDEX_NONE;
-		TSharedPtr<FMonitoredProcess> TrainingProcess;
-		TArray<TSharedPtr<FMonitoredProcess>, TInlineAllocator<128>> ExperienceGatheringSubprocesses;
-
-		void HandleSubprocessCanceled();
-		void HandleSubprocessCompleted(int32 ReturnCode);
-		static void HandleSubprocessOutput(FString Output);
-
-		void HandleTrainingProcessCanceled();
-		void HandleTrainingProcessCompleted(int32 ReturnCode);
-		static void HandleTrainingProcessOutput(FString Output);
+		FSubprocess TrainingProcess;
+		TArray<FSubprocess, TInlineAllocator<128>> ExperienceGatheringSubprocesses;
 	};
 
 	/**
@@ -530,11 +521,7 @@ namespace UE::Learning
 
 	private:
 
-		TSharedPtr<FMonitoredProcess> TrainingProcess;
-
-		void HandleTrainingProcessCanceled();
-		void HandleTrainingProcessCompleted(int32 ReturnCode);
-		static void HandleTrainingProcessOutput(FString Output);
+		FSubprocess TrainingProcess;
 	};
 
 	/**

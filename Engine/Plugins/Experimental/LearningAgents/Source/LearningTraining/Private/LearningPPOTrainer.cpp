@@ -13,7 +13,6 @@
 #include "LearningObservation.h"
 #include "LearningAction.h"
 
-#include "Misc/MonitoredProcess.h"
 #include "Misc/Guid.h"
 #include "Misc/FileHelper.h"
 #include "Misc/CommandLine.h"
@@ -198,24 +197,10 @@ namespace UE::Learning
 				SubprocessCommandLine += FString(TEXT(" -LearningMemoryStatesGuid ")) + MemoryStates.Guid.ToString();
 				SubprocessCommandLine += FString(TEXT(" -LearningRewardsGuid ")) + Rewards.Guid.ToString();
 
-				const TSharedPtr<FMonitoredProcess> Subprocess = MakeShared<FMonitoredProcess>(
-					FPlatformProcess::ExecutablePath(), 
-					SubprocessCommandLine, 
-					!(MultiProcessFlags & ESubprocessFlags::ShowWindow),
-					!(MultiProcessFlags & ESubprocessFlags::NoRedirectOutput));
-
-				if (!(MultiProcessFlags & ESubprocessFlags::NoRedirectOutput))
-				{
-					Subprocess->OnCanceled().BindRaw(this, &FSharedMemoryPPOTrainer::HandleSubprocessCanceled);
-					Subprocess->OnCompleted().BindRaw(this, &FSharedMemoryPPOTrainer::HandleSubprocessCompleted);
-					Subprocess->OnOutput().BindStatic(&FSharedMemoryPPOTrainer::HandleSubprocessOutput);
-				}
-
-				Subprocess->Launch();
+				FSubprocess& Subprocess = ExperienceGatheringSubprocesses.AddDefaulted_GetRef();
+				Subprocess.Launch(FPlatformProcess::ExecutablePath(), SubprocessCommandLine, MultiProcessFlags);
 
 				UE_LOG(LogLearning, Display, TEXT("Subprocess Command: %s %s"), FPlatformProcess::ExecutablePath(), *SubprocessCommandLine);
-
-				ExperienceGatheringSubprocesses.Emplace(Subprocess);
 			}
 
 			// Write Config
@@ -308,20 +293,10 @@ namespace UE::Learning
 				*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train_ppo.py"))), 
 				*FileManager.ConvertToAbsolutePathForExternalAppForRead(*ConfigPath));
 
-			TrainingProcess = MakeShared<FMonitoredProcess>(
+			TrainingProcess.Launch(
 				FileManager.ConvertToAbsolutePathForExternalAppForRead(*PythonExecutablePath),
-				CommandLineArguments, 
-				!(TrainingProcessFlags & ESubprocessFlags::ShowWindow),
-				!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput));
-
-			if (!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput))
-			{
-				TrainingProcess->OnCanceled().BindRaw(this, &FSharedMemoryPPOTrainer::HandleTrainingProcessCanceled);
-				TrainingProcess->OnCompleted().BindRaw(this, &FSharedMemoryPPOTrainer::HandleTrainingProcessCompleted);
-				TrainingProcess->OnOutput().BindStatic(&FSharedMemoryPPOTrainer::HandleTrainingProcessOutput);
-			}
-
-			TrainingProcess->Launch();
+				CommandLineArguments,
+				TrainingProcessFlags);
 		}
 		else
 		{
@@ -371,8 +346,9 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsValid())
+		while (TrainingProcess.IsRunning())
 		{
+			TrainingProcess.Update();
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
 
@@ -387,12 +363,7 @@ namespace UE::Learning
 
 	void FSharedMemoryPPOTrainer::Terminate()
 	{
-		if (TrainingProcess.IsValid())
-		{
-			TrainingProcess->Cancel(true);
-		}
-
-		TrainingProcess.Reset();
+		TrainingProcess.Terminate();
 
 		if (Policy.Region)
 		{
@@ -411,10 +382,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::PolicySignal,
 			Policy.View,
 			Timeout,
@@ -428,10 +401,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::CriticSignal,
 			Critic.View,
 			Timeout,
@@ -445,10 +420,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::EncoderSignal,
 			Encoder.View,
 			Timeout,
@@ -462,10 +439,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::RecvNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::DecoderSignal,
 			Decoder.View,
 			Timeout,
@@ -479,10 +458,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Policy.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::PolicySignal,
 			Network,
 			Timeout,
@@ -496,10 +477,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Critic.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::CriticSignal,
 			Network,
 			Timeout,
@@ -513,10 +496,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Encoder.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::EncoderSignal,
 			Network,
 			Timeout,
@@ -530,10 +515,12 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::SendNetwork(
-			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Decoder.View,
+			TrainingProcess,
 			SharedMemoryTraining::EControls::DecoderSignal,
 			Network,
 			Timeout,
@@ -546,8 +533,9 @@ namespace UE::Learning
 		const float Timeout,
 		const ELogSetting LogSettings)
 	{
+		TrainingProcess.Update();
+
 		return SharedMemoryTraining::SendExperience(
-			TrainingProcess.Get(),
 			EpisodeStarts.View[ProcessIdx],
 			EpisodeLengths.View[ProcessIdx],
 			EpisodeCompletionModes.View[ProcessIdx],
@@ -558,6 +546,7 @@ namespace UE::Learning
 			MemoryStates.View[ProcessIdx],
 			Rewards.View[ProcessIdx],
 			Controls.View[ProcessIdx],
+			TrainingProcess,
 			ReplayBuffer,
 			Timeout,
 			LogSettings);
@@ -584,53 +573,6 @@ namespace UE::Learning
 		}
 	}
 
-	void FSharedMemoryPPOTrainer::HandleSubprocessCanceled()
-	{
-		UE_LOG(LogLearning, Warning, TEXT("Subprocess canceled"));
-	}
-
-	void FSharedMemoryPPOTrainer::HandleSubprocessCompleted(int32 ReturnCode)
-	{
-		if (ReturnCode != 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("Subprocess finished with warnings or errors"));
-		}
-	}
-
-	void FSharedMemoryPPOTrainer::HandleSubprocessOutput(FString Output)
-	{
-		if (!Output.IsEmpty())
-		{
-			UE_LOG(LogLearning, Display, TEXT("Subprocess: %s"), *Output);
-		}
-	}
-
-
-	void FSharedMemoryPPOTrainer::HandleTrainingProcessCanceled()
-	{
-		UE_LOG(LogLearning, Warning, TEXT("Training process canceled"));
-
-		TrainingProcess.Reset();
-	}
-
-	void FSharedMemoryPPOTrainer::HandleTrainingProcessCompleted(int32 ReturnCode)
-	{
-		if (ReturnCode != 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("Training Process finished with warnings or errors"));
-		}
-
-		TrainingProcess.Reset();
-	}
-
-	void FSharedMemoryPPOTrainer::HandleTrainingProcessOutput(FString Output)
-	{
-		if (!Output.IsEmpty())
-		{
-			UE_LOG(LogLearning, Display, TEXT("Training Process: %s"), *Output);
-		}
-	}
-
 	FSocketPPOTrainerServerProcess::FSocketPPOTrainerServerProcess(
 		const FString& PythonExecutablePath,
 		const FString& ExtraSitePackagesPath,
@@ -653,20 +595,10 @@ namespace UE::Learning
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath), 
 			LogSettings == ELogSetting::Normal ? 1 : 0);
 
-		TrainingProcess = MakeShared<FMonitoredProcess>(
+		TrainingProcess.Launch(
 			FileManager.ConvertToAbsolutePathForExternalAppForRead(*PythonExecutablePath),
 			CommandLineArguments,
-			!(TrainingProcessFlags & ESubprocessFlags::ShowWindow),
-			!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput));
-
-		if (!(TrainingProcessFlags & ESubprocessFlags::NoRedirectOutput))
-		{
-			TrainingProcess->OnCanceled().BindRaw(this, &FSocketPPOTrainerServerProcess::HandleTrainingProcessCanceled);
-			TrainingProcess->OnCompleted().BindRaw(this, &FSocketPPOTrainerServerProcess::HandleTrainingProcessCompleted);
-			TrainingProcess->OnOutput().BindStatic(&FSocketPPOTrainerServerProcess::HandleTrainingProcessOutput);
-		}
-
-		TrainingProcess->Launch();
+			TrainingProcessFlags);
 	}
 
 	FSocketPPOTrainerServerProcess::~FSocketPPOTrainerServerProcess()
@@ -676,7 +608,7 @@ namespace UE::Learning
 
 	bool FSocketPPOTrainerServerProcess::IsRunning() const
 	{
-		return TrainingProcess.IsValid();
+		return TrainingProcess.IsRunning();
 	}
 
 	bool FSocketPPOTrainerServerProcess::Wait(float Timeout)
@@ -684,8 +616,9 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsValid())
+		while (TrainingProcess.IsRunning())
 		{
+			TrainingProcess.Update();
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
 
@@ -700,37 +633,7 @@ namespace UE::Learning
 
 	void FSocketPPOTrainerServerProcess::Terminate()
 	{
-		if (TrainingProcess.IsValid())
-		{
-			TrainingProcess->Cancel(true);
-		}
-
-		TrainingProcess.Reset();
-	}
-
-	void FSocketPPOTrainerServerProcess::HandleTrainingProcessCanceled()
-	{
-		UE_LOG(LogLearning, Warning, TEXT("Training process canceled"));
-
-		TrainingProcess.Reset();
-	}
-
-	void FSocketPPOTrainerServerProcess::HandleTrainingProcessCompleted(int32 ReturnCode)
-	{
-		if (ReturnCode != 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("Training Process finished with warnings or errors"));
-		}
-
-		TrainingProcess.Reset();
-	}
-
-	void FSocketPPOTrainerServerProcess::HandleTrainingProcessOutput(FString Output)
-	{
-		if (!Output.IsEmpty())
-		{
-			UE_LOG(LogLearning, Display, TEXT("Training Process: %s"), *Output);
-		}
+		TrainingProcess.Terminate();
 	}
 
 	FSocketPPOTrainer::FSocketPPOTrainer(

@@ -13,7 +13,6 @@
 #include "LearningImitationTrainer.generated.h"
 
 class FSocket;
-class FMonitoredProcess;
 class ULearningNeuralNetworkData;
 
 UCLASS()
@@ -352,11 +351,7 @@ namespace UE::Learning
 
 		// Training Process
 
-		TSharedPtr<FMonitoredProcess> TrainingProcess;
-
-		void HandleTrainingProcessCanceled();
-		void HandleTrainingProcessCompleted(int32 ReturnCode);
-		static void HandleTrainingProcessOutput(FString Output);
+		FSubprocess TrainingProcess;
 	};
 
 	/**
@@ -409,11 +404,7 @@ namespace UE::Learning
 
 	private:
 
-		TSharedPtr<FMonitoredProcess> TrainingProcess;
-
-		void HandleTrainingProcessCanceled();
-		void HandleTrainingProcessCompleted(int32 ReturnCode);
-		static void HandleTrainingProcessOutput(FString Output);
+		FSubprocess TrainingProcess;
 	};
 
 	struct LEARNINGTRAINING_API FSocketImitationTrainer : public IImitationTrainer

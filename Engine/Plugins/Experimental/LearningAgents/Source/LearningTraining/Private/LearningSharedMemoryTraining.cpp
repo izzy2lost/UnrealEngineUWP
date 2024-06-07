@@ -7,7 +7,6 @@
 #include "LearningExperience.h"
 #include "LearningCompletion.h"
 
-#include "Misc/MonitoredProcess.h"
 #include "HAL/PlatformProcess.h"
 
 namespace UE::Learning::SharedMemoryTraining
@@ -29,9 +28,9 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse RecvNetwork(
-		FMonitoredProcess* Process, 
 		TLearningArrayView<1, volatile int32> Controls,
 		ULearningNeuralNetworkData& OutNetwork,
+		const FSubprocess& Process,
 		const EControls Signal,
 		const TLearningArrayView<1, const uint8> NetworkData,
 		const float Timeout,
@@ -53,7 +52,7 @@ namespace UE::Learning::SharedMemoryTraining
 			}
 
 			// Check if the process has exited
-			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			if (!Process.IsRunning())
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -112,9 +111,9 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendNetwork(
-		FMonitoredProcess* Process,
 		TLearningArrayView<1, volatile int32> Controls,
 		TLearningArrayView<1, uint8> NetworkData,
+		const FSubprocess& Process,
 		const EControls Signal,
 		const ULearningNeuralNetworkData& Network,
 		const float Timeout,
@@ -128,7 +127,7 @@ namespace UE::Learning::SharedMemoryTraining
 		while (!Controls[(uint8)Signal])
 		{
 			// Check if the process has exited
-			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			if (!Process.IsRunning())
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -179,7 +178,6 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendExperience(
-		FMonitoredProcess* Process,
 		TLearningArrayView<1, int32> EpisodeStarts,
 		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
@@ -190,6 +188,7 @@ namespace UE::Learning::SharedMemoryTraining
 		TLearningArrayView<2, float> MemoryStates,
 		TLearningArrayView<1, float> Rewards,
 		TLearningArrayView<1, volatile int32> Controls,
+		const FSubprocess& Process,
 		const FReplayBuffer& ReplayBuffer,
 		const float Timeout,
 		const ELogSetting LogSettings)
@@ -201,7 +200,7 @@ namespace UE::Learning::SharedMemoryTraining
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
 			// Check if the process has exited
-			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			if (!Process.IsRunning())
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -252,12 +251,12 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendExperience(
-		FMonitoredProcess* Process, 
 		TLearningArrayView<1, int32> EpisodeStarts,
 		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<2, float> Observations,
 		TLearningArrayView<2, float> Actions,
 		TLearningArrayView<1, volatile int32> Controls,
+		const FSubprocess& Process,
 		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
 		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 		const TLearningArrayView<2, const float> ObservationExperience,
@@ -272,7 +271,7 @@ namespace UE::Learning::SharedMemoryTraining
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
 			// Check if the process has exited
-			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			if (!Process.IsRunning())
 			{
 				return ETrainerResponse::Unexpected;
 			}

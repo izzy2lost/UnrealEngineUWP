@@ -4,7 +4,6 @@
 
 #include "LearningTrainer.h"
 
-class FMonitoredProcess;
 class ULearningNeuralNetworkData;
 
 namespace UE::Learning
@@ -33,9 +32,9 @@ namespace UE::Learning
 		LEARNINGTRAINING_API uint8 GetControlNum();
 
 		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
-			FMonitoredProcess* Process,
 			TLearningArrayView<1, volatile int32> Controls,
 			ULearningNeuralNetworkData& OutNetwork,
+			const FSubprocess& Process,
 			const EControls Signal,
 			const TLearningArrayView<1, const uint8> NetworkData,
 			const float Timeout = Trainer::DefaultTimeout,
@@ -48,9 +47,9 @@ namespace UE::Learning
 		LEARNINGTRAINING_API bool HasPolicyOrCompleted(TLearningArrayView<1, volatile int32> Controls);
 
 		LEARNINGTRAINING_API ETrainerResponse SendNetwork(
-			FMonitoredProcess* Process,
 			TLearningArrayView<1, volatile int32> Controls,
 			TLearningArrayView<1, uint8> NetworkData,
+			const FSubprocess& Process,
 			const EControls Signal,
 			const ULearningNeuralNetworkData& Network,
 			const float Timeout = Trainer::DefaultTimeout,
@@ -58,7 +57,6 @@ namespace UE::Learning
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
-			FMonitoredProcess* Process,
 			TLearningArrayView<1, int32> EpisodeStarts,
 			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
@@ -69,17 +67,18 @@ namespace UE::Learning
 			TLearningArrayView<2, float> MemoryStates,
 			TLearningArrayView<1, float> Rewards,
 			TLearningArrayView<1, volatile int32> Controls,
+			const FSubprocess& Process,
 			const FReplayBuffer& ReplayBuffer,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
-			FMonitoredProcess* Process,
 			TLearningArrayView<1, int32> EpisodeStarts,
 			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<2, float> Observations,
 			TLearningArrayView<2, float> Actions,
 			TLearningArrayView<1, volatile int32> Controls,
+			const FSubprocess& Process,
 			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
 			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 			const TLearningArrayView<2, const float> ObservationExperience,

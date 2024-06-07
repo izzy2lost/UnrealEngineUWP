@@ -115,12 +115,6 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 	const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings,
 	const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings)
 {
-	if (!PLATFORM_WINDOWS)
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Training currently only supported on Windows."), *GetName());
-		return;
-	}
-
 	if (!IsSetup())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());

@@ -6,6 +6,7 @@
 #include "LearningLog.h"
 
 #include "Templates/SharedPointer.h"
+#include "HAL/PlatformProcess.h"
 
 class FJsonObject;
 
@@ -67,6 +68,57 @@ namespace UE::Learning
 		NoRedirectOutput = 1 << 1,
 	};
 	ENUM_CLASS_FLAGS(ESubprocessFlags)
+
+	/**
+	* Simple managed subprocess similar to FMonitoredProcess
+	*/
+	struct LEARNINGTRAINING_API FSubprocess
+	{
+		/** Will Terminate the subprocess if it is running. */
+		~FSubprocess();
+
+		/**
+		 * Launches a new subprocess.
+		 *
+		 * @param Path The path of the executable to launch.
+		 * @param Params The command line parameters.
+		 * @param Flags Subprocess flags.
+		 * @returns true if the launch was successful, otherwise false
+		 */
+		bool Launch(const FString& Path, const FString& Params, const ESubprocessFlags Flags);
+
+		/** 
+		* Return true if the Subprocess is launched and running, otherwise false.
+		*/
+		bool IsRunning() const;
+
+		/**
+		* Terminates the subprocess
+		*/
+		void Terminate();
+
+		/**
+		* Outputs anything the subprocess has written to stdout to the log line-by-line, and checks if the subprocess is completed.
+		*/
+		void Update();
+
+	private:
+
+		// Buffer for the subprocess' stdout
+		FString OutputBuffer;
+
+		// If a subprocess has been launched
+		bool bIsLaunched = false;
+
+		// Subprocess handle
+		FProcHandle ProcessHandle;
+
+		// Read pipe for subprocess stdout
+		void* ReadPipe = nullptr;
+
+		// Write pipe for subprocess stdin
+		void* WritePipe = nullptr;
+	};
 
 	namespace Trainer
 	{
