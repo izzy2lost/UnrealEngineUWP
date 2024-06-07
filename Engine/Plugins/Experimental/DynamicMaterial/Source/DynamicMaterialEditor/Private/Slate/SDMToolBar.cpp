@@ -79,13 +79,14 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(SHorizontalBox)
+				.Visibility(this, &SDMToolBar::GetActorVisibility)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.Padding(0.f, 0.f, 5.f, 0.f)
 				[
 					SNew(STextBlock)
 					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
-					.Text(this, &SDMToolBar::GetMaterialContainerTypeName)
+					.Text(LOCTEXT("Actor", "Actor"))
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
@@ -93,7 +94,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 				[
 					SNew(STextBlock)
 					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
-					.Text(this, &SDMToolBar::GetMaterialContainerName)
+					.Text(this, &SDMToolBar::GetActorName)
 				]
 			]
 			+ SWrapBox::Slot()
@@ -103,8 +104,34 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SAssignNew(SlotSelectorContainer, SBox)
+				.Visibility(this, &SDMToolBar::GetActorVisibility)
 				[
 					CreateSlotsComboBoxWidget()
+				]
+			]
+			+ SWrapBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &SDMToolBar::GetAssetVisibility)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.f, 0.f, 5.f, 0.f)
+				[
+					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
+					.Text(LOCTEXT("Asset", "Asset"))
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.f, 0.f, 0.f, 0.f)
+				[
+					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
+					.Text(this, &SDMToolBar::GetAssetName)
+					.ToolTipText(this, &SDMToolBar::GetAssetToolTip)
 				]
 			]
 		]
@@ -303,56 +330,6 @@ void SDMToolBar::OnMaterialSlotChanged(TSharedPtr<FDMObjectMaterialProperty> InS
 EVisibility SDMToolBar::GetSlotsComboBoxWidgetVisibiltiy() const
 {
 	return ActorMaterialProperties.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-FText SDMToolBar::GetMaterialContainerName() const
-{
-	if (const AActor* const SlotActor = GetMaterialActor())
-	{
-		return FText::FromString(SlotActor->GetActorLabel());
-	}
-
-	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
-	{
-		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
-		{
-			if (MaterialInstance->IsAsset())
-			{
-				return FText::FromString(MaterialInstance->GetName());
-			}
-		}
-		else if (MaterialModel->IsAsset())
-		{
-			return FText::FromString(MaterialModel->GetName());
-		}
-	}
-
-	return FText::GetEmpty();
-}
-
-FText SDMToolBar::GetMaterialContainerTypeName() const
-{
-	if (const AActor* const SlotActor = GetMaterialActor())
-	{
-		return LOCTEXT("Actor", "Actor");
-	}
-
-	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
-	{
-		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
-		{
-			if (MaterialInstance->IsAsset())
-			{
-				return LOCTEXT("Asset", "Asset");
-			}
-		}
-		else if (MaterialModel->IsAsset())
-		{
-			return LOCTEXT("Asset", "Asset");
-		}
-	}
-
-	return FText::GetEmpty();
 }
 
 void SDMToolBar::SetMaterialProperties(const TArray<TSharedPtr<FDMObjectMaterialProperty>>& InActorMaterialProperties)
@@ -644,6 +621,83 @@ FReply SDMToolBar::OnUseClicked()
 	}
 
 	return FReply::Handled();
+}
+
+FText SDMToolBar::GetActorName() const
+{
+	if (const AActor* const SlotActor = GetMaterialActor())
+	{
+		return FText::FromString(SlotActor->GetActorLabel());
+	}
+
+	return FText::GetEmpty();
+}
+
+EVisibility SDMToolBar::GetActorVisibility() const
+{
+	return GetMaterialActor()
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
+}
+
+EVisibility SDMToolBar::GetAssetVisibility() const
+{
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	{
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			if (MaterialInstance->IsAsset())
+			{
+				return EVisibility::Visible;
+			}
+		}
+		else if (MaterialModel->IsAsset())
+		{
+			return EVisibility::Visible;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
+FText SDMToolBar::GetAssetName() const
+{
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	{
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			if (MaterialInstance->IsAsset())
+			{
+				return FText::FromString(MaterialInstance->GetName());
+			}
+		}
+		else if (MaterialModel->IsAsset())
+		{
+			return FText::FromString(MaterialModel->GetName());
+		}
+	}
+
+	return FText::GetEmpty();
+}
+
+FText SDMToolBar::GetAssetToolTip() const
+{
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	{
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			if (MaterialInstance->IsAsset())
+			{
+				return FText::FromString(MaterialInstance->GetPathName());
+			}
+		}
+		else if (MaterialModel->IsAsset())
+		{
+			return FText::FromString(MaterialModel->GetPathName());
+		}
+	}
+
+	return FText::GetEmpty();
 }
 
 #undef LOCTEXT_NAMESPACE

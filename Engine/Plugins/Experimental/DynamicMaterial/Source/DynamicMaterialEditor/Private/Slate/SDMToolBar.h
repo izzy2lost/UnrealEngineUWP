@@ -45,9 +45,7 @@ public:
 	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModelWeak.Get(); }
 	void SetMaterialModel(UDynamicMaterialModel* InModel);
 
-	FText GetMaterialContainerName() const;
-
-	FText GetMaterialContainerTypeName() const;
+	FText GetActorName() const;
 
 protected:
 	TWeakPtr<SDMEditor> EditorWeak;
@@ -91,4 +89,12 @@ protected:
 	FReply OnBrowseClicked();
 
 	FReply OnUseClicked();
+
+	EVisibility GetActorVisibility() const;
+
+	EVisibility GetAssetVisibility() const;
+
+	FText GetAssetName() const;
+
+	FText GetAssetToolTip() const;
 };

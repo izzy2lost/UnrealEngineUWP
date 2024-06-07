@@ -653,7 +653,7 @@ TSharedRef<SWidget> SDMEditor::CreateActorMaterialSlotSelector(AActor* InActor)
 		[
 			SNew(STextBlock)
 			.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorNameBig")
-			.Text(Toolbar.Get(), &SDMToolBar::GetMaterialContainerName)
+			.Text(Toolbar.Get(), &SDMToolBar::GetActorName)
 		];
 
 	const UObject* CurrentOuter = nullptr;
