@@ -103,7 +103,7 @@ public:
 	virtual const FIoHash* GetChunkHash() = 0;
 
 	// Launches any async operations necessary in order to access the buffer. CompletionEvent is set once it's ready, which may be immediate.
-	virtual void PrepareSourceBufferAsync(FGraphEventRef CompletionEvent) = 0;
+	virtual void PrepareSourceBufferAsync(UE::Tasks::FTaskEvent& CompletionEvent) = 0;
 
 	// Only valid after the completion event passed to PrepareSourceBufferAsync has fired.
 	virtual const FIoBuffer* GetSourceBuffer() = 0;

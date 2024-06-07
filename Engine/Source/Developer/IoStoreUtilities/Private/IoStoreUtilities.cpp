@@ -80,6 +80,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/ZenPackageHeader.h"
 #include "String/ParseTokens.h"
+#include "Tasks/Task.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, IoStoreUtilities);
 
@@ -1292,37 +1293,13 @@ public:
 		return ZenStoreClient->ReadChunk(ChunkId, ReadOptions.GetOffset(), ReadOptions.GetSize());
 	}
 
-	void ReadChunkAsync(const FIoChunkId& ChunkId, TFunction<void(TIoStatusOr<FIoBuffer>)>&& Callback)
+	UE::Tasks::FTask ReadChunkAsync(const FIoChunkId& ChunkId, TFunction<void(TIoStatusOr<FIoBuffer>)>&& Callback)
 	{
-		class FReadChunkTask
-			: public FNonAbandonableTask
+		return UE::Tasks::Launch(TEXT("ReadChunkAsync"), [this, ChunkId, Callback = MoveTemp(Callback)]()
 		{
-		public:
-			FReadChunkTask(UE::FZenStoreHttpClient* InZenStoreClient, const FIoChunkId& InChunkId, TFunction<void(TIoStatusOr<FIoBuffer>)>&& InCallback)
-				: ZenStoreClient(InZenStoreClient)
-				, ChunkId(InChunkId)
-				, Callback(MoveTemp(InCallback))
-			{
-			}
-
-			void DoWork()
-			{
-				FIoReadOptions ReadOptions;
-				Callback(ZenStoreClient->ReadChunk(ChunkId, ReadOptions.GetOffset(), ReadOptions.GetSize()));
-			}
-
-			TStatId GetStatId() const
-			{
-				return TStatId();
-			}
-
-		private:
-			UE::FZenStoreHttpClient* ZenStoreClient;
-			FIoChunkId ChunkId;
-			TFunction<void(TIoStatusOr<FIoBuffer>)> Callback;
-		};
-
-		(new FAutoDeleteAsyncTask<FReadChunkTask>(ZenStoreClient.Get(), ChunkId, MoveTemp(Callback)))->StartBackgroundTask();
+			FIoReadOptions ReadOptions;
+			Callback(ZenStoreClient->ReadChunk(ChunkId, ReadOptions.GetOffset(), ReadOptions.GetSize()));
+		}, UE::Tasks::ETaskPriority::Normal);
 	}
 
 private:
@@ -3348,10 +3325,18 @@ public:
 	FIoStoreWriteRequestManager(FPackageStoreOptimizer& InPackageStoreOptimizer, FCookedPackageStore* InPackageStore)
 		: PackageStoreOptimizer(InPackageStoreOptimizer)
 		, PackageStore(InPackageStore)
-		, MemoryAvailableEvent(FPlatformProcess::GetSynchEventFromPool(false))
 	{
 		InitiatorThread = Async(EAsyncExecution::Thread, [this]() { InitiatorThreadFunc(); });
 		RetirerThread = Async(EAsyncExecution::Thread, [this]() { RetirerThreadFunc(); });
+
+		MaxSourceBufferMemory = 4ull << 30;
+		FParse::Value(FCommandLine::Get(), TEXT("MaxSourceBufferMemory="), MaxSourceBufferMemory);
+
+		MaxConcurrentSourceReads = uint32(FMath::Clamp(FPlatformMisc::NumberOfCoresIncludingHyperthreads()/2, 4, 32));
+		FParse::Value(FCommandLine::Get(), TEXT("MaxConcurrentSourceReads="), MaxConcurrentSourceReads);
+
+		UE_LOG(LogIoStore, Display, TEXT("Initialized WriteRequestManager with MaxConcurrentSourceReads=%d (%d cores), MaxSourceBufferMemory=%lluMiB"),
+			MaxConcurrentSourceReads, FPlatformMisc::NumberOfCoresIncludingHyperthreads(), MaxSourceBufferMemory >> 20);
 	}
 
 	~FIoStoreWriteRequestManager()
@@ -3360,7 +3345,6 @@ public:
 		RetirerQueue.CompleteAdding();
 		InitiatorThread.Wait();
 		RetirerThread.Wait();
-		FPlatformProcess::ReturnSynchEventToPool(MemoryAvailableEvent);
 	}
 
 	IIoStoreWriteRequest* Read(const FContainerTargetFile& InTargetFile)
@@ -3407,9 +3391,9 @@ private:
 			return TargetFile.ChunkHash.IsZero() ? nullptr : &TargetFile.ChunkHash;
 		}
 		
-		virtual void PrepareSourceBufferAsync(FGraphEventRef InCompletionEvent) override
+		virtual void PrepareSourceBufferAsync(UE::Tasks::FTaskEvent& InCompletionEvent) override
 		{
-			CompletionEvent = InCompletionEvent;
+			CompletionEvent.Emplace(InCompletionEvent);
 			Manager.ScheduleLoad(this);
 		}
 
@@ -3441,12 +3425,15 @@ private:
 			, FileRegions(TargetFile.FileRegions)
 			, SourceBufferSize(TargetFile.SourceSize) { }
 
-		void OnSourceBufferLoaded()
+		void OnSourceBufferLoaded(bool bTriggerCompletionEvent)
 		{
 			TRACE_COUNTER_DECREMENT(IoStoreSourceReadsInflight);
 			TRACE_COUNTER_INCREMENT(IoStoreSourceReadsDone);
 			QueueEntry->ReleaseRef(Manager);
-			CompletionEvent->DispatchSubsequents();
+			if (bTriggerCompletionEvent)
+			{
+				CompletionEvent.GetValue().Trigger();
+			}
 		}
 
 		FIoStoreWriteRequestManager& Manager;
@@ -3457,7 +3444,7 @@ private:
 		// used for IO, however it's not necessarily the size of the resulting input to iostore as
 		// the buffer can be post-processed after i/o (e.g. CreateOptimizedPackage).
 		uint64 SourceBufferSize;
-		FGraphEventRef CompletionEvent;
+		TOptional<UE::Tasks::FTaskEvent> CompletionEvent;
 		FIoBuffer SourceBuffer;
 		FQueueEntry* QueueEntry = nullptr;
 	};
@@ -3474,7 +3461,7 @@ private:
 			Manager.MemorySourceReads[(int8)TargetFile.ChunkId.GetChunkType()].IncrementExchange();
 			SourceBuffer = TargetFile.SourceBuffer.GetValue();
 			Manager.MemorySourceBytes[(int8)TargetFile.ChunkId.GetChunkType()] += SourceBuffer.DataSize();
-			OnSourceBufferLoaded();
+			OnSourceBufferLoaded(/*bTriggerCompletionEvent*/ true);
 		}
 	};
 
@@ -3511,7 +3498,7 @@ private:
 					check(Package->OptimizedOptionalSegmentPackage);
 					SourceBuffer = Manager.PackageStoreOptimizer.CreatePackageBuffer(Package->OptimizedOptionalSegmentPackage, SourceBuffer);
 				}
-				OnSourceBufferLoaded();
+				OnSourceBufferLoaded(/*bTriggerCompletionEvent*/ true);
 			};
 
 			QueueEntry->ReadRequest.Reset(
@@ -3533,14 +3520,16 @@ private:
 		virtual void LoadSourceBufferAsync() override
 		{
 			Manager.ZenSourceReads[(int8)TargetFile.ChunkId.GetChunkType()].IncrementExchange();
-			Manager.PackageStore->ReadChunkAsync(
+			UE::Tasks::FTask ReadTask = Manager.PackageStore->ReadChunkAsync(
 				TargetFile.ChunkId,
 				[this](TIoStatusOr<FIoBuffer> Status)
 				{
 					SourceBuffer = Status.ConsumeValueOrDie();
 					Manager.ZenSourceBytes[(int8)TargetFile.ChunkId.GetChunkType()] += SourceBuffer.DataSize();
-					OnSourceBufferLoaded();
+					OnSourceBufferLoaded(/*bTriggerCompletionEvent*/ false);
 				});
+			CompletionEvent.GetValue().AddPrerequisites(ReadTask);
+			CompletionEvent.GetValue().Trigger();
 		}
 	};
 
@@ -3651,6 +3640,8 @@ private:
 
 	void ScheduleRetire(FQueueEntry* QueueEntry)
 	{
+		--NumConcurrentSourceReads;
+		SourceReadCompletedEvent->Trigger();
 		RetirerQueue.Enqueue(QueueEntry);
 	}
 
@@ -3658,8 +3649,14 @@ private:
 	{
 		const uint64 SourceBufferSize = QueueEntry->WriteRequest->GetSourceBufferSizeEstimate();
 
+		while (NumConcurrentSourceReads >= MaxConcurrentSourceReads)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(WaitForSourceReads);
+			SourceReadCompletedEvent->Wait();
+		}
+
 		uint64 LocalUsedBufferMemory = UsedBufferMemory.Load();
-		while (LocalUsedBufferMemory > 0 && LocalUsedBufferMemory + SourceBufferSize > BufferMemoryLimit)
+		while (LocalUsedBufferMemory > 0 && LocalUsedBufferMemory + SourceBufferSize > MaxSourceBufferMemory)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(WaitForBufferMemory);
 			MemoryAvailableEvent->Wait();
@@ -3670,6 +3667,7 @@ private:
 		TRACE_COUNTER_INCREMENT(IoStoreSourceReadsInflight);
 		TRACE_COUNTER_ADD(IoStoreSourceReadsUsedBufferMemory, SourceBufferSize);
 		QueueEntry->WriteRequest->LoadSourceBufferAsync();
+		++NumConcurrentSourceReads;
 	}
 
 	void Retire(FQueueEntry* QueueEntry)
@@ -3735,8 +3733,12 @@ private:
 	TFuture<void> RetirerThread;
 	FQueue InitiatorQueue;
 	FQueue RetirerQueue;
+	uint64 MaxSourceBufferMemory = 0;
 	TAtomic<uint64> UsedBufferMemory { 0 };
-	FEvent* MemoryAvailableEvent;
+	int32 MaxConcurrentSourceReads = 0;
+	TAtomic<int32> NumConcurrentSourceReads { 0 };
+	FEventRef MemoryAvailableEvent;
+	FEventRef SourceReadCompletedEvent;
 
 public:
 	TAtomic<uint64> ZenSourceReads[(int8)EIoChunkType::MAX] { 0 };
@@ -3745,8 +3747,6 @@ public:
 	TAtomic<uint64> MemorySourceBytes[(int8)EIoChunkType::MAX]{ 0 };
 	TAtomic<uint64> LooseFileSourceReads[(int8)EIoChunkType::MAX]{ 0 };
 	TAtomic<uint64> LooseFileSourceBytes[(int8)EIoChunkType::MAX]{ 0 };
-
-	static constexpr uint64 BufferMemoryLimit = 2ull << 30;
 };
 
 static bool WriteUtf8StringView(FUtf8StringView InView, const FString& InFilename)

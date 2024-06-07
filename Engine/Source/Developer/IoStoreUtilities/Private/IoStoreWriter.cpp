@@ -18,6 +18,7 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "Serialization/LargeMemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "Tasks/Task.h"
 #include "Templates/UniquePtr.h"
 
 TRACE_DECLARE_MEMORY_COUNTER(IoStoreCompressionMemoryUsed, TEXT("IoStoreWriter/CompressionMemoryUsed"));
@@ -72,13 +73,11 @@ struct FIoStoreWriteQueueEntry
 	TArray<FChunkBlock> ChunkBlocks;
 	FIoWriteOptions Options;
 	FName CompressionMethod = NAME_None;
-	FGraphEventRef HashBarrier;
-	FGraphEventRef HashTask;
-	FGraphEventRef BeginCompressionBarrier;
-	FGraphEventRef FinishCompressionBarrier;
-	FGraphEventRef BeginWriteBarrier;
+	UE::Tasks::FTask HashTask;
+	UE::Tasks::FTaskEvent BeginCompressionBarrier{ TEXT("BeginCompression") };
+	UE::Tasks::FTaskEvent FinishCompressionBarrier{ TEXT("FinishCompression") };
+	UE::Tasks::FTaskEvent BeginWriteBarrier{ TEXT("BeginWrite") };
 	TAtomic<int32> CompressedBlocksCount{ 0 };
-	TAtomic<int32> FinishedBlocksCount{ 0 };
 	int32 PartitionIndex = -1;
 	int32 NumChunkBlocks = 0;
 	FString DDCCacheKey;
@@ -592,9 +591,6 @@ public:
 		Entry->CompressionMethod = CompressionMethodForEntry(WriteOptions);
 		Entry->CompressionMemoryEstimate = CalculateCompressionBufferMemory(Request->GetSourceBufferSizeEstimate());
 		Entry->Request = Request;		
-		Entry->BeginCompressionBarrier = FGraphEvent::CreateGraphEvent();
-		Entry->FinishCompressionBarrier = FGraphEvent::CreateGraphEvent();
-		Entry->BeginWriteBarrier = FGraphEvent::CreateGraphEvent();
 
 		// If we can get the hash without reading the whole thing and hashing it, do so to avoid the IO.
 		if (const FIoHash* ChunkHash = Request->GetChunkHash(); ChunkHash != nullptr)
@@ -618,9 +614,8 @@ public:
 			// If we are validating run the normal path to verify it.
 		}
 		// Otherwise, we have to do the load & hash
-
-		Entry->HashBarrier = FGraphEvent::CreateGraphEvent();
-		Entry->HashTask = FFunctionGraphTask::CreateAndDispatchWhenReady([this, Entry]()
+		UE::Tasks::FTaskEvent HashEvent{ TEXT("HashEvent") };
+		Entry->HashTask = UE::Tasks::Launch(TEXT("HashChunk"), [this, Entry]()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(HashChunk);
 			const FIoBuffer* SourceBuffer = Entry->Request->GetSourceBuffer();
@@ -645,10 +640,10 @@ public:
 
 			// Release the source data buffer, it will be reloaded later when we start compressing the chunk
 			Entry->Request->FreeSourceBuffer();
-		}, TStatId(), Entry->HashBarrier, ENamedThreads::AnyHiPriThreadHiPriTask);
+		}, HashEvent, UE::Tasks::ETaskPriority::High);
 
 		// Kick off the source buffer read to run the hash task
-		Entry->Request->PrepareSourceBufferAsync(Entry->HashBarrier);
+		Entry->Request->PrepareSourceBufferAsync(HashEvent);
 	}
 
 	virtual void Append(const FIoChunkId& ChunkId, FIoBuffer Chunk, const FIoWriteOptions& WriteOptions, uint64 OrderHint) override
@@ -665,9 +660,9 @@ public:
 
 			virtual ~FWriteRequest() = default;
 
-			void PrepareSourceBufferAsync(FGraphEventRef CompletionEvent) override
+			void PrepareSourceBufferAsync(UE::Tasks::FTaskEvent& CompletionEvent) override
 			{
-				CompletionEvent->DispatchSubsequents();
+				CompletionEvent.Trigger();
 			}
 
 			const FIoBuffer* GetSourceBuffer() override
@@ -1322,7 +1317,7 @@ private:
 		{
 			if (Entry->NumChunkBlocks == 0)
 			{
-				Entry->FinishCompressionBarrier->DispatchSubsequents();
+				Entry->FinishCompressionBarrier.Trigger();
 				TRACE_COUNTER_INCREMENT(IoStoreRefDbDone);
 				return;
 			}
@@ -1385,7 +1380,7 @@ private:
 				}
 
 				Entry->UncompressedSize.Emplace(TotalUncompressedSize);
-				Entry->FinishCompressionBarrier->DispatchSubsequents();
+				Entry->FinishCompressionBarrier.Trigger();
 				TRACE_COUNTER_DECREMENT(IoStoreRefDbInflight);
 				TRACE_COUNTER_INCREMENT(IoStoreRefDbDone);
 			});
@@ -1406,7 +1401,7 @@ private:
 
 		if (Entry->NumChunkBlocks == 0)
 		{
-			Entry->FinishCompressionBarrier->DispatchSubsequents();
+			Entry->FinishCompressionBarrier.Trigger();
 			return;
 		}
 
@@ -1435,7 +1430,7 @@ private:
 				Block.CompressedSize = Block.UncompressedSize;
 				FMemory::Memcpy(Block.IoBuffer->Data(), Block.UncompressedData, Block.UncompressedSize);
 			}
-			Entry->FinishCompressionBarrier->DispatchSubsequents();
+			Entry->FinishCompressionBarrier.Trigger();
 			return;
 		}
 
@@ -1468,7 +1463,7 @@ private:
 			if (bFoundInDDC)
 			{
 				WriterContext->CompressionDDCHitCount.IncrementExchange();
-				Entry->FinishCompressionBarrier->DispatchSubsequents();
+				Entry->FinishCompressionBarrier.Trigger();
 				return;
 			}
 			else
@@ -1484,39 +1479,49 @@ private:
 	void ScheduleCompressionTasks(FIoStoreWriteQueueEntry* Entry)
 	{
 		TRACE_COUNTER_INCREMENT(IoStoreCompressionInflight);
-		for (FChunkBlock& Block : Entry->ChunkBlocks)
+		constexpr int32 BatchSize = 4;
+		const int32 NumBatches = 1 + (Entry->ChunkBlocks.Num() / BatchSize);
+		for (int32 BatchIndex = 0; BatchIndex < NumBatches; ++BatchIndex)
 		{
+			const int32 BeginIndex = BatchIndex * BatchSize;
+			const int32 EndIndex = FMath::Min(BeginIndex + BatchSize, Entry->ChunkBlocks.Num());
 			WriterContext->ScheduledCompressionTasksCount.IncrementExchange();
-			FFunctionGraphTask::CreateAndDispatchWhenReady([this, Entry, BlockPtr = &Block]()
+			UE::Tasks::FTask CompressTask = UE::Tasks::Launch(TEXT("CompressBlocks"), [this, Entry, BeginIndex, EndIndex]()
 			{
-				CompressBlock(BlockPtr);
-				WriterContext->ScheduledCompressionTasksCount.DecrementExchange();
-				int32 CompressedBlocksCount = Entry->CompressedBlocksCount.IncrementExchange();
-				if (CompressedBlocksCount + 1 == Entry->ChunkBlocks.Num())
+				for (int32 Index = BeginIndex; Index < EndIndex; ++Index)
 				{
-					WriterContext->CompressedChunksByType[(int8)Entry->ChunkId.GetChunkType()].IncrementExchange();
-					WriterContext->CompressedChunksCount.IncrementExchange();
-					Entry->FinishCompressionBarrier->DispatchSubsequents();
-					TRACE_COUNTER_DECREMENT(IoStoreCompressionInflight);
+					FChunkBlock* BlockPtr = &Entry->ChunkBlocks[Index];
+					CompressBlock(BlockPtr);
+					int32 CompressedBlocksCount = Entry->CompressedBlocksCount.IncrementExchange();
+					if (CompressedBlocksCount + 1 == Entry->ChunkBlocks.Num())
+					{
+						WriterContext->CompressedChunksByType[(int8)Entry->ChunkId.GetChunkType()].IncrementExchange();
+						WriterContext->CompressedChunksCount.IncrementExchange();
+						TRACE_COUNTER_DECREMENT(IoStoreCompressionInflight);
+					}
 				}
-			}, TStatId(), nullptr, ENamedThreads::AnyHiPriThreadNormalTask);
+				WriterContext->ScheduledCompressionTasksCount.DecrementExchange();
+			}, UE::Tasks::ETaskPriority::High);
+			Entry->FinishCompressionBarrier.AddPrerequisites(CompressTask);
 		}
+		Entry->FinishCompressionBarrier.Trigger();
 	}
 
 	void BeginEncryptAndSign(FIoStoreWriteQueueEntry* Entry)
 	{
 		if (ContainerSettings.IsEncrypted() || ContainerSettings.IsSigned())
 		{
-			FFunctionGraphTask::CreateAndDispatchWhenReady([this, Entry]()
+			UE::Tasks::FTask EncryptAndSignTask = UE::Tasks::Launch(TEXT("EncryptAndSign"), [this, Entry]()
 			{
 				EncryptAndSign(Entry);
-				Entry->BeginWriteBarrier->DispatchSubsequents();
-			}, TStatId(), nullptr, ENamedThreads::AnyHiPriThreadHiPriTask);
+			}, UE::Tasks::ETaskPriority::High);
+			Entry->BeginWriteBarrier.AddPrerequisites(EncryptAndSignTask);
+			Entry->BeginWriteBarrier.Trigger();
 		}
 		else
 		{
 			EncryptAndSign(Entry);
-			Entry->BeginWriteBarrier->DispatchSubsequents();
+			Entry->BeginWriteBarrier.Trigger();
 		}
 	}
 
@@ -1799,7 +1804,7 @@ void FIoStoreWriterContextImpl::Flush()
 		TRACE_CPUPROFILER_EVENT_SCOPE(WaitForChunkHashes);
 		for (int32 EntryIndex = AllEntries.Num() - 1; EntryIndex >= 0; --EntryIndex)
 		{
-			FTaskGraphInterface::Get().WaitUntilTaskCompletes(AllEntries[EntryIndex]->HashTask);
+			AllEntries[EntryIndex]->HashTask.Wait();
 		}
 	}
 	for (TSharedPtr<FIoStoreWriter> IoStoreWriter : IoStoreWriters)
@@ -1890,7 +1895,7 @@ void FIoStoreWriterContextImpl::ScheduleEntry(FIoStoreWriteQueueEntry* Entry)
 	if (Entry->bLoadingFromReferenceDb)
 	{
 		// We don't need to wait on a source read so we can kick directly.
-		Entry->BeginCompressionBarrier->DispatchSubsequents();
+		Entry->BeginCompressionBarrier.Trigger();
 	}
 	else
 	{
@@ -1911,7 +1916,7 @@ void FIoStoreWriterContextImpl::BeginCompressionThreadFunc()
 		while (Entry)
 		{
 			FIoStoreWriteQueueEntry* Next = Entry->Next;
-			Entry->BeginCompressionBarrier->Wait();
+			Entry->BeginCompressionBarrier.Wait();
 			TRACE_COUNTER_INCREMENT(IoStoreBeginCompressionCount);
 			Entry->Writer->BeginCompress(Entry);
 			BeginEncryptionAndSigningQueue.Enqueue(Entry);
@@ -1934,7 +1939,7 @@ void FIoStoreWriterContextImpl::BeginEncryptionAndSigningThreadFunc()
 		while (Entry)
 		{
 			FIoStoreWriteQueueEntry* Next = Entry->Next;
-			Entry->FinishCompressionBarrier->Wait();
+			Entry->FinishCompressionBarrier.Wait();
 			Entry->Request->FreeSourceBuffer();
 			if (Entry->bStoreCompressedDataInDDC)
 			{
@@ -1968,7 +1973,7 @@ void FIoStoreWriterContextImpl::WriterThreadFunc()
 		while (Entry)
 		{
 			FIoStoreWriteQueueEntry* Next = Entry->Next;
-			Entry->BeginWriteBarrier->Wait();
+			Entry->BeginWriteBarrier.Wait();
 			TRACE_COUNTER_INCREMENT(IoStoreBeginWriteCount);
 			Entry->Writer->WriteEntry(Entry);
 			Entry = Next;
