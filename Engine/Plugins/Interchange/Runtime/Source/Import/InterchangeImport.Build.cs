@@ -60,9 +60,18 @@ namespace UnrealBuildTool.Rules
 						"SkeletalMeshUtilitiesCommon",
 						"UnrealEd",
 						"VariantManager",
-						"MaterialX",
 					}
 				);
+
+				if (Target.Platform == UnrealTargetPlatform.Win64)
+				{
+					PrivateDependencyModuleNames.AddRange(
+						new string[]
+						{
+							"MaterialX"
+						}
+					);
+				}
 			}
 		}
 	}
