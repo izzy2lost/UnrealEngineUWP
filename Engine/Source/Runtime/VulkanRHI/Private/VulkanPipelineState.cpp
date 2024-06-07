@@ -49,7 +49,6 @@ FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVu
 	PackedUniformBuffers.Init(CodeHeader, PackedUniformBuffersMask);
 
 	DescriptorSetsLayout = &InComputePipeline->GetLayout().GetDescriptorSetsLayout();
-	PipelineDescriptorInfo = &InComputePipeline->GetComputeLayout().GetComputePipelineDescriptorInfo();
 
 	UsedSetsMask = (CodeHeader.Bindings.Num() > 0) ? 1 : 0;
 
@@ -225,12 +224,10 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 
 	FVulkanBindlessDescriptorManager::FUniformBufferDescriptorArrays StageUBs;
 
-	const int32 Stage = (int32)ShaderStage::EStage::Compute;
-	const FDescriptorSetRemappingInfo* RESTRICT RemappingInfo = PipelineDescriptorInfo->RemappingInfo;
-	const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo->StageInfos[Stage];
+	const FVulkanShaderHeader& Header = ComputePipeline->GetShaderCodeHeader();
 
-	TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
-	DescriptorAddressInfos.SetNumZeroed(StageInfo.NumBoundUniformBuffers);
+	TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[ShaderStage::EStage::Compute];
+	DescriptorAddressInfos.SetNumZeroed(Header.NumBoundUniformBuffers);
 	uint32 UBIndex = 0;
 
 	// UBs are currently set from a fresh batch of descriptors for every call, so ignore PackedUniformBuffersDirty
@@ -258,12 +255,12 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 		++UBIndex;
 	}
 
-	for (;UBIndex < StageInfo.NumBoundUniformBuffers; ++UBIndex)
+	for (;UBIndex < Header.NumBoundUniformBuffers; ++UBIndex)
 	{
 		VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBIndex];
 		check(DescriptorAddressInfo.sType == 0);
 
-		VkWriteDescriptorSet& WriteDescriptorSet = DSWriter[Stage].WriteDescriptors[UBIndex];
+		VkWriteDescriptorSet& WriteDescriptorSet = DSWriter[ShaderStage::EStage::Compute].WriteDescriptors[UBIndex];
 		check(WriteDescriptorSet.dstBinding == UBIndex);
 		check(WriteDescriptorSet.dstArrayElement == 0);
 		check(WriteDescriptorSet.descriptorCount == 1);
@@ -298,7 +295,6 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 		check(InGfxPipeline->Layout);
 		DescriptorSetsLayout = &InGfxPipeline->Layout->GetDescriptorSetsLayout();
 		FVulkanGfxLayout& GfxLayout  = *(FVulkanGfxLayout*)InGfxPipeline->Layout;
-		PipelineDescriptorInfo = &GfxLayout.GetGfxPipelineDescriptorInfo();
 
 		UsedSetsMask = 0;
 
@@ -431,8 +427,6 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
 	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
 
-	const FDescriptorSetRemappingInfo* RESTRICT RemappingInfo = PipelineDescriptorInfo->RemappingInfo;
-
 	FVulkanBindlessDescriptorManager::FUniformBufferDescriptorArrays StageUBs;
 
 	// Process updates
@@ -442,10 +436,16 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 #endif
 		for (int32 Stage = 0; Stage < ShaderStage::NumStages; ++Stage)
 		{
-			const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo->StageInfos[Stage];
+			const FVulkanShader* VulkanShader = GfxPipeline->GetVulkanShader(GetFrequencyForGfxStage((ShaderStage::EStage)Stage));
+			if (!VulkanShader)
+			{
+				continue;
+			}
+
+			const FVulkanShaderHeader& Header = VulkanShader->GetCodeHeader();
 
 			TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
-			DescriptorAddressInfos.SetNumZeroed(StageInfo.NumBoundUniformBuffers);
+			DescriptorAddressInfos.SetNumZeroed(Header.NumBoundUniformBuffers);
 			uint32 UBIndex = 0;
 
 			// UBs are currently set from a fresh batch of descriptors for every call, so ignore PackedUniformBuffersDirty
@@ -473,7 +473,7 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 				++UBIndex;
 			}
 
-			for (; UBIndex < StageInfo.NumBoundUniformBuffers; ++UBIndex)
+			for (; UBIndex < Header.NumBoundUniformBuffers; ++UBIndex)
 			{
 				VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBIndex];
 				check(DescriptorAddressInfo.sType == 0);

@@ -281,8 +281,6 @@ protected:
 
 	friend class FVulkanPipelineStateCacheManager;
 	friend class FVulkanCommonPipelineDescriptorState;
-	friend class FVulkanGfxPipelineDescriptorInfo;
-	friend class FVulkanComputePipelineDescriptorInfo;
 	friend class FVulkanLayout;
 };
 
@@ -547,72 +545,6 @@ struct FVulkanDescriptorSetWriteContainer
 
 	TArray<uint8> BindingToDynamicOffsetMap;
 };
-
-
-// Smaller data structure for runtime information about descriptor sets and bindings for a pipeline
-class FVulkanComputePipelineDescriptorInfo
-{
-public:
-	FVulkanComputePipelineDescriptorInfo()
-		: RemappingInfo(nullptr)
-	{
-	}
-	
-	inline VkDescriptorType GetDescriptorType(uint8 DescriptorSet, int32 DescriptorIndex) const
-	{
-		check(DescriptorSet == ShaderStage::Compute);
-		return RemappingInfo->StageInfos[DescriptorSet].Types[DescriptorIndex];
-	}
-
-	inline bool IsInitialized() const
-	{
-		return (RemappingInfo != nullptr);
-	}
-
-	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
-	{
-		check(!RemappingInfo);
-		RemappingInfo = &InRemappingInfo;
-	}
-
-protected:
-	const FDescriptorSetRemappingInfo*								RemappingInfo;
-
-	friend class FVulkanComputePipelineDescriptorState;
-};
-
-// Smaller data structure for runtime information about descriptor sets and bindings for a pipeline
-class FVulkanGfxPipelineDescriptorInfo
-{
-public:
-	FVulkanGfxPipelineDescriptorInfo()
-		: RemappingInfo(nullptr)
-	{
-	}
-
-	inline VkDescriptorType GetDescriptorType(uint8 DescriptorSet, int32 DescriptorIndex) const
-	{
-		return RemappingInfo->StageInfos[DescriptorSet].Types[DescriptorIndex];
-	}
-
-	inline bool IsInitialized() const
-	{
-		return (RemappingInfo != nullptr);
-	}
-
-	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
-	{
-		check(!RemappingInfo);
-		RemappingInfo = &InRemappingInfo;
-	}
-
-protected:
-	const FDescriptorSetRemappingInfo*						RemappingInfo;
-
-	friend class FVulkanGraphicsPipelineDescriptorState;
-};
-
-
 
 
 // This class encapsulates updating VkWriteDescriptorSet structures (but doesn't own them), and their flags for dirty ranges; it is intended
@@ -1104,13 +1036,6 @@ public:
 		return true;
 	}
 
-	inline const FVulkanGfxPipelineDescriptorInfo& GetGfxPipelineDescriptorInfo() const
-	{
-		return GfxPipelineDescriptorInfo;
-	}
-
-protected:
-	FVulkanGfxPipelineDescriptorInfo		GfxPipelineDescriptorInfo;
 	friend class FVulkanPipelineStateCacheManager;
 };
 
@@ -1127,13 +1052,6 @@ public:
 		return false;
 	}
 
-	inline const FVulkanComputePipelineDescriptorInfo& GetComputePipelineDescriptorInfo() const
-	{
-		return ComputePipelineDescriptorInfo;
-	}
-
-protected:
-	FVulkanComputePipelineDescriptorInfo		ComputePipelineDescriptorInfo;
 	friend class FVulkanPipelineStateCacheManager;
 };
 

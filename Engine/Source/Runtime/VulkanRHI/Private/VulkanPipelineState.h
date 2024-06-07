@@ -115,6 +115,12 @@ public:
 		DSWriter[DescriptorSet].DynamicOffsets[DynamicOffsetIndex] = DynamicOffset;
 	}
 
+	VkDescriptorType GetDescriptorType(uint8 DescriptorSet, uint32 BindingIndex) const
+	{
+		const TArray<FVulkanDescriptorSetsLayout::FSetLayout>& Layouts = DescriptorSetsLayout->GetLayouts();
+		return Layouts[DescriptorSet].LayoutBindings[BindingIndex].descriptorType;
+	}
+
 protected:
 	void Reset()
 	{
@@ -212,15 +218,7 @@ public:
 		Bind(CmdBuffer, ComputePipeline->GetLayout().GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE);
 	}
 
-	inline const FVulkanComputePipelineDescriptorInfo& GetComputePipelineDescriptorInfo() const
-	{
-		return *PipelineDescriptorInfo;
-		//return GfxPipeline->Pipeline->GetGfxLayout().GetGfxPipelineDescriptorInfo();
-	}
-
 protected:
-	const FVulkanComputePipelineDescriptorInfo* PipelineDescriptorInfo;
-
 	FPackedUniformBuffers PackedUniformBuffers;
 	uint32 PackedUniformBuffersMask;
 	uint32 PackedUniformBuffersDirty;
@@ -278,14 +276,7 @@ public:
 		bIsResourcesDirty = true;
 	}
 
-	inline const FVulkanGfxPipelineDescriptorInfo& GetGfxPipelineDescriptorInfo() const
-	{
-		return *PipelineDescriptorInfo;
-	}
-
 protected:
-	const FVulkanGfxPipelineDescriptorInfo* PipelineDescriptorInfo;
-
 	TStaticArray<FPackedUniformBuffers, ShaderStage::NumStages> PackedUniformBuffers;
 	TStaticArray<uint32, ShaderStage::NumStages> PackedUniformBuffersMask;
 	TStaticArray<uint32, ShaderStage::NumStages> PackedUniformBuffersDirty;

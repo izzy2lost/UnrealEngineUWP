@@ -1727,12 +1727,6 @@ FVulkanLayout* FVulkanPipelineStateCacheManager::FindOrAddLayout(const FVulkanDe
 	Layout->DescriptorSetLayout.CopyFrom(DescriptorSetLayoutInfo);
 	Layout->Compile(DSetLayoutMap);
 
-	if(GfxLayout)
-	{
-		GfxLayout->GfxPipelineDescriptorInfo.Initialize(GfxLayout->GetDescriptorSetsLayout().RemappingInfo);
-	}
-
-
 	LayoutMap.Add(DescriptorSetLayoutInfo, Layout);
 	return Layout;
 }
@@ -2101,7 +2095,6 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 
 			FVulkanLayout* Layout = FindOrAddLayout(DescriptorSetLayoutInfo, true);
 			FVulkanGfxLayout* GfxLayout = (FVulkanGfxLayout*)Layout;
-			check(GfxLayout->GfxPipelineDescriptorInfo.IsInitialized());
 			NewPSO->Layout = GfxLayout;
 			NewPSO->bHasInputAttachments = GfxLayout->GetDescriptorSetsLayout().HasInputAttachments();
 		}
@@ -2264,10 +2257,6 @@ FVulkanComputePipeline* FVulkanPipelineStateCacheManager::CreateComputePipelineF
 	DescriptorSetLayoutInfo.FinalizeBindings<true>(*Device, UBGatherInfo, TArrayView<FRHISamplerState*>());
 	FVulkanLayout* Layout = FindOrAddLayout(DescriptorSetLayoutInfo, false);
 	FVulkanComputeLayout* ComputeLayout = (FVulkanComputeLayout*)Layout;
-	if (!ComputeLayout->ComputePipelineDescriptorInfo.IsInitialized())
-	{
-		ComputeLayout->ComputePipelineDescriptorInfo.Initialize(Layout->GetDescriptorSetsLayout().RemappingInfo);
-	}
 
 	TRefCountPtr<FVulkanShaderModule> ShaderModule = Shader->GetOrCreateHandle(Layout, Layout->GetDescriptorSetLayoutHash());
 

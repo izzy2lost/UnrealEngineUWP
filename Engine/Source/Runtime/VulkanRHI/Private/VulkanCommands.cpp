@@ -503,14 +503,13 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIGraphicsShader* Sh
 	const FVulkanShaderHeader& CodeHeader = Shader->GetCodeHeader();
 	checkfSlow(!CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash || (CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash == UniformBuffer->GetLayout().GetHash()),
 		TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash);
-	const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = PendingGfxState->CurrentState->GetGfxPipelineDescriptorInfo();
 
 	bool bHasResources = false;
 	if (BufferIndex < CodeHeader.NumBoundUniformBuffers)
 	{
 		checkSlow(UniformBuffer->GetLayout().ConstantBufferSize > 0);
-
-		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(Stage, BufferIndex);
+		
+		const VkDescriptorType DescriptorType = PendingGfxState->CurrentState->GetDescriptorType(Stage, BufferIndex);
 
 		if (DescriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
 		{
@@ -553,7 +552,6 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIComputeShader* Com
 	FVulkanComputeShader* Shader = ResourceCast(ComputeShaderRHI);
 	FVulkanUniformBuffer* UniformBuffer = ResourceCast(BufferRHI);
 
-	const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = PendingComputeState->CurrentState->GetComputePipelineDescriptorInfo();
 	const FVulkanShaderHeader& CodeHeader = Shader->GetCodeHeader();
 	checkfSlow(!CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash || (CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash == UniformBuffer->GetLayout().GetHash()), 
 		TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash);
@@ -563,8 +561,8 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIComputeShader* Com
 	if (BufferIndex < CodeHeader.NumBoundUniformBuffers)
 	{
 		checkSlow(UniformBuffer->GetLayout().ConstantBufferSize > 0);
-		
-		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(ShaderStage::Compute, BufferIndex);
+
+		const VkDescriptorType DescriptorType = State.GetDescriptorType(ShaderStage::Compute, BufferIndex);
 
 		if (DescriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
 		{
