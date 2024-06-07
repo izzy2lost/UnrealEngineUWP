@@ -1069,6 +1069,11 @@ bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSu
 						}
 					}
 				}
+				else
+				{
+					// if the bounds overlap but there's no actor we need to say it's a hit, since we cannot rule that out.
+					bHasInstance = true;
+				}
 			}
 			else 
 			{

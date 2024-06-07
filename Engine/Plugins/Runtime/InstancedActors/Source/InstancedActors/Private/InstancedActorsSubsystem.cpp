@@ -19,6 +19,7 @@
 #include "MassEntitySubsystem.h"
 #include "Misc/ArchiveMD5.h"
 #include "Misc/ReverseIterate.h"
+#include "VisualLogger/VisualLogger.h"
 
 #if WITH_EDITOR
 #include "Logging/MessageLog.h"
@@ -578,6 +579,8 @@ void UInstancedActorsSubsystem::ForEachInstance(const FBox& QueryBounds, TFuncti
 bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem::HasInstancesOfClass);
+	
+	UE_VLOG_BOX(this, LogInstancedActors, Log, QueryBounds, FColor::Orange, TEXT(""));
 
 	bool bHasInstances = false;
 	ForEachManager(QueryBounds, [QueryBounds, ActorClass, &bHasInstances, bTestActorsIfSpawned](AInstancedActorsManager& Manager)
