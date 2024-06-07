@@ -167,12 +167,6 @@ namespace UE
 				return true;
 			}
 
-			// reinst classes shouldn't use IDOs
-			if (InObject->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists))
-			{
-				return false;
-			}
-
 			//@todo FH: change to check trait when available or use config object
 			const UClass* ObjClass = InObject->GetClass();
 			while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
