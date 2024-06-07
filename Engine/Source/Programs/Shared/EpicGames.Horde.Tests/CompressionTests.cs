@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Tests
 			RunTests(format, data);
 		}
 
-		void RunTests(BundleCompressionFormat format, byte[] input)
+		static void RunTests(BundleCompressionFormat format, byte[] input)
 		{
 			ArrayMemoryWriter writer = new ArrayMemoryWriter(10 * 1024 * 1024);
 			Stopwatch compressTimer = Stopwatch.StartNew();
