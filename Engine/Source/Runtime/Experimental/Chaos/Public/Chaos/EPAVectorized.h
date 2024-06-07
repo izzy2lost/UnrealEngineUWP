@@ -360,7 +360,6 @@ FORCEINLINE_DEBUGGABLE void VectorEPAComputeVisibilityBorder(TEPAWorkingArray<Ve
 	}
 }
 
-
 FORCEINLINE_DEBUGGABLE void VectorComputeEPAResults(const VectorRegister4Float* VertsA, const VectorRegister4Float* VertsB, const VectorTEPAEntry& Entry, VectorRegister4Float& OutPenetration, VectorRegister4Float& OutDir, VectorRegister4Float& OutA, VectorRegister4Float& OutB, EEPAResult& ResultStatus)
 {
 	//NOTE: We use this function as fallback when robustness breaks. So - do not assume adjacency is valid as these may be new uninitialized traingles that failed
@@ -369,8 +368,7 @@ FORCEINLINE_DEBUGGABLE void VectorComputeEPAResults(const VectorRegister4Float* 
 	VectorRegister4Float Bs[4] = { VertsB[Entry.IdxBuffer[0]], VertsB[Entry.IdxBuffer[1]], VertsB[Entry.IdxBuffer[2]] };
 	VectorRegister4Float Simplex[4] = { VectorSubtract(As[0], Bs[0]), VectorSubtract(As[1], Bs[1]), VectorSubtract(As[2], Bs[2]) };
 	VectorRegister4Float Barycentric;
-	constexpr VectorRegister4Int three = MakeVectorRegisterIntConstant(3, 3, 3, 3);
-	VectorRegister4Int NumVerts = three;
+	int32 NumVerts = 3;
 	OutDir = VectorSimplexFindClosestToOrigin(Simplex, NumVerts, Barycentric, As, Bs);
 
 	const VectorRegister4Float DotDir = VectorDot4(OutDir, OutDir);
@@ -416,12 +414,7 @@ FORCEINLINE_DEBUGGABLE void VectorComputeEPAResults(const VectorRegister4Float* 
 	Barycentrics[2] = VectorSwizzle(Barycentric, 2, 2, 2, 2);
 	Barycentrics[3] = VectorSwizzle(Barycentric, 3, 3, 3, 3);
 
-
-	alignas(16) int32 NumVertsInts[4];
-	VectorIntStoreAligned(NumVerts, NumVertsInts);
-	const int32 NumVertsInt = NumVertsInts[0];
-
-	for (int i = 0; i < NumVertsInt; ++i)
+	for (int i = 0; i < NumVerts; ++i)
 	{
 		OutA = VectorMultiplyAdd(As[i], Barycentrics[i], OutA);
 		OutB = VectorMultiplyAdd(Bs[i], Barycentrics[i], OutB);

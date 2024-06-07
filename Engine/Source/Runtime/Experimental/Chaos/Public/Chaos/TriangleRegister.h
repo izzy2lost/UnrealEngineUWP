@@ -61,6 +61,16 @@ namespace Chaos
 		}
 
 
+		FORCEINLINE bool IsTooBigForSinglePrecision() const
+		{
+			constexpr FRealSingle SqrSideThreshold = 100000.0f*100000.0f;
+			// If two sides are quite small, the third one cannot be huge
+			const VectorRegister4Float BigSide = VectorMax(VectorAbs(VectorSubtract(A, B)), VectorAbs(VectorSubtract(B, C)));
+			// Warning this could 
+			return VectorDot3Scalar(BigSide, BigSide) > SqrSideThreshold;
+		}
+
+
 	private:
 
 		VectorRegister4Float A;

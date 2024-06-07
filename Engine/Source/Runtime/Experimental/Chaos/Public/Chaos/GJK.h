@@ -169,7 +169,7 @@ namespace Chaos
 
 		VectorRegister4Float SimplexSimd[4] = { VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat() };
 		VectorRegister4Float BarycentricSimd;
-		VectorRegister4Int NumVerts = GlobalVectorConstants::IntZero;
+		int32 NumVerts = 0;
 
 		FReal ThicknessA;
 		FReal ThicknessB;
@@ -201,17 +201,9 @@ namespace Chaos
 				return false;
 			}
 
-			{
-				// Convert simdInt to int
-				alignas(16) int32 NumVertsInts[4];
-				VectorIntStoreAligned(NumVerts, NumVertsInts);
-				const int32 NumVertsInt = NumVertsInts[0];
-				SimplexSimd[NumVertsInt] = WSimd;
-			}
+			SimplexSimd[NumVerts++] = WSimd;
 
-			NumVerts = VectorIntAdd(NumVerts, GlobalVectorConstants::IntOne);
-
-			V = VectorSimplexFindClosestToOrigin<false>(SimplexSimd, NumVerts, BarycentricSimd, nullptr, nullptr);
+			V = VectorSimplexFindClosestToOrigin<VectorRegister4Float, false>(SimplexSimd, NumVerts, BarycentricSimd, nullptr, nullptr);
 
 			const VectorRegister4Float NewDist2Simd = VectorDot3(V, V);///
 			bNearZero = VectorMaskBits(VectorCompareLT(NewDist2Simd, Inflation2)) != 0;
@@ -253,8 +245,7 @@ namespace Chaos
 
 		FSimplex SimplexIDs;
 		VectorRegister4Float Simplex[4] = { VectorZero(), VectorZero(), VectorZero(), VectorZero() };
-		VectorRegister4Int NumVerts = GlobalVectorConstants::IntZero;
-		alignas(16) int32 NumVertsInts[4];
+		int32 NumVerts = 0;
 		VectorRegister4Float Barycentric = VectorZero();
 
 		bool bTerminate;
@@ -290,12 +281,9 @@ namespace Chaos
 				return false;
 			}
 
-			VectorIntStoreAligned(NumVerts, NumVertsInts);
-			const int32 NumVertsInt = NumVertsInts[0];
-			Simplex[NumVertsInt] = W;
-			NumVerts = VectorIntAdd(NumVerts, GlobalVectorConstants::IntOne);
+			Simplex[NumVerts++] = W;
 
-			V = VectorSimplexFindClosestToOrigin<false>(Simplex, NumVerts, Barycentric, nullptr, nullptr);
+			V = VectorSimplexFindClosestToOrigin<VectorRegister4Float, false>(Simplex, NumVerts, Barycentric, nullptr, nullptr);
 			const VectorRegister4Float NewDist2 = VectorDot3(V, V);
 			
 			bNearZero = static_cast<bool>(VectorMaskBits(VectorCompareGT(Inflation2Simd, NewDist2)));
@@ -1519,11 +1507,12 @@ namespace Chaos
 	}
 	
 
+
 	/** Sweeps one geometry against the other
 	 @A The first geometry
 	 @B The second geometry
 	 @BToARotation B's starting rotation in A's local space
-         @StartPoint B's starting position in A's local space
+	 @StartPoint B's starting position in A's local space
 	 @RayDir The ray's direction (normalized)
 	 @RayLength The ray's length
 	 @OutTime The time along the ray when the objects first overlap
@@ -1533,9 +1522,9 @@ namespace Chaos
 	 @return True if the geometries overlap during the sweep, False otherwise
 	 @note If A overlaps B at the start of the ray ("initial overlap" condition) then this function returns true, and sets OutTime = 0, but does not set any other output variables.
 	 */
-	template <typename T>
-	bool GJKRaycast2ImplSimd(const FGeomGJKHelperSIMD& A, const FGeomGJKHelperSIMD& B, const VectorRegister4Float& BToARotation, const VectorRegister4Float& StartPoint, const VectorRegister4Float& RayDir,
-		T RayLength, T& OutTime, VectorRegister4Float& OutPosition, VectorRegister4Float& OutNormal, bool bComputeMTD, const VectorRegister4Float& InitialDir)
+	template<typename T>
+	bool GJKRaycast2ImplSimd(const FGeomGJKHelperSIMD& RESTRICT A, const FGeomGJKHelperSIMD& RESTRICT B, const T& BToARotation, const T& StartPoint, const T& RayDir,
+		FRealSingle RayLength, FRealSingle& OutTime, T& OutPosition, T& OutNormal, bool bComputeMTD, const T& InitialDir)
 	{
 		ensure(RayLength > 0);
 
@@ -1544,58 +1533,58 @@ namespace Chaos
 		// Spheres and Capsules: always use the core shape and full "margin" because it represents the radius
 		// Sphere/Capsule versus OtherShape: no margin on other
 		// OtherShape versus OtherShape: use margin of the smaller shape, zero margin on the other
-		const T RadiusA = static_cast<T>(A.GetRadius());
-		const T RadiusB = static_cast<T>(B.GetRadius());
+		const FRealSingle RadiusA = static_cast<FRealSingle>(A.GetRadius());
+		const FRealSingle RadiusB = static_cast<FRealSingle>(B.GetRadius());
 		const bool bHasRadiusA = RadiusA > 0;
 		const bool bHasRadiusB = RadiusB > 0;
 
 		// The sweep margins if required. Only one can be non-zero (we keep the smaller one)
-		const T SweepMarginScale = 0.05f;
+		const FRealSingle SweepMarginScale = 0.05f;
 		const bool bAIsSmallest = A.GetMargin() < B.GetMargin();
-		const T SweepMarginA = (bHasRadiusA || bHasRadiusB) ? 0.0f : (bAIsSmallest ? SweepMarginScale * static_cast<T>(A.GetMargin()) : 0.0f);
-		const T SweepMarginB = (bHasRadiusA || bHasRadiusB) ? 0.0f : (bAIsSmallest ? 0.0f : SweepMarginScale * static_cast<T>(B.GetMargin()));
+		const FRealSingle SweepMarginA = (bHasRadiusA || bHasRadiusB) ? 0.0f : (bAIsSmallest ? SweepMarginScale * static_cast<FRealSingle>(A.GetMargin()) : 0.0f);
+		const FRealSingle SweepMarginB = (bHasRadiusA || bHasRadiusB) ? 0.0f : (bAIsSmallest ? 0.0f : SweepMarginScale * static_cast<FRealSingle>(B.GetMargin()));
 
 		// Net margin (note: both SweepMargins are zero if either Radius is non-zero, and only one SweepMargin can be non-zero)
 		A.Margin = RadiusA + SweepMarginA;
 		B.Margin = RadiusB + SweepMarginB;
 
-		const VectorRegister4Float MarginASimd = VectorLoadFloat1(&A.Margin);
-		const VectorRegister4Float MarginBSimd = VectorLoadFloat1(&B.Margin);
+		const T MarginASimd = T(VectorLoadFloat1(&A.Margin));
+		const T MarginBSimd = T(VectorLoadFloat1(&B.Margin));
 
-		VectorRegister4Float Simplex[4] = { VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat() };
-		VectorRegister4Float As[4] = { VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat() };
-		VectorRegister4Float Bs[4] = { VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat(), VectorZeroFloat() };
+		T Simplex[4] = { TVectorZero<T>(), TVectorZero<T>(), TVectorZero<T>(), TVectorZero<T>() };
+		T As[4] = { TVectorZero<T>(), TVectorZero<T>(), TVectorZero<T>(), TVectorZero<T>() };
+		T Bs[4] = { TVectorZero<T>(), TVectorZero<T>(), TVectorZero<T>(), TVectorZero<T>() };
 
-		VectorRegister4Float Barycentric = VectorZeroFloat();
+		T Barycentric = TVectorZero<T>();
 
-		VectorRegister4Float Inflation = VectorAdd(MarginASimd, MarginBSimd);
-		constexpr VectorRegister4Float Eps2Simd = MakeVectorRegisterFloatConstant(1e-6f, 1e-6f, 1e-6f, 1e-6f);
-		const VectorRegister4Float Inflation2Simd = VectorMultiplyAdd(Inflation, Inflation, Eps2Simd);
+		T Inflation = VectorAdd(MarginASimd, MarginBSimd);
+		const T Eps2Simd = TMakeVectorRegister<T>(1e-6f, 1e-6f, 1e-6f, 1e-6f);
+		const T Inflation2Simd = VectorMultiplyAdd(Inflation, Inflation, Eps2Simd);
 
-		const VectorRegister4Float RayLengthSimd = MakeVectorRegisterFloat(RayLength, RayLength, RayLength, RayLength);
+		const T RayLengthSimd = TMakeVectorRegister<T>(RayLength, RayLength, RayLength, RayLength);
 
-		VectorRegister4Int NumVerts = GlobalVectorConstants::IntZero;
+		int32 NumVerts = 0;
 
-		VectorRegister4Float AToBRotation = VectorQuaternionInverse(BToARotation);
+		T AToBRotation = VectorQuaternionInverse(BToARotation);
 
-		VectorRegister4Float SupportA = A.SupportFunction(InitialDir);
+		T SupportA = A.SupportFunction(TMakeVectorRegisterFloatFromDouble<T>(InitialDir));
 		As[0] = SupportA;
 
-		VectorRegister4Float SupportB = B.SupportFunction(AToBRotation, BToARotation, VectorNegate(InitialDir));
+		T SupportB = B.SupportFunction(TMakeVectorRegisterFloatFromDouble<T>(AToBRotation), TMakeVectorRegisterFloatFromDouble<T>(BToARotation), TMakeVectorRegisterFloatFromDouble<T>(VectorNegate(InitialDir)));
 		Bs[0] = SupportB;
 
-		VectorRegister4Float Lambda = VectorZeroFloat();
-		VectorRegister4Float X = StartPoint;
-		VectorRegister4Float V = VectorSubtract(X, VectorSubtract(SupportA, SupportB));
-		VectorRegister4Float Normal = MakeVectorRegisterFloat(0.f, 0.f, 1.f, 0.f);
+		T Lambda = TVectorZero<T>();
+		T X = StartPoint;
+		T V = VectorSubtract(X, VectorSubtract(SupportA, SupportB));
+		T Normal = MakeVectorRegisterFloat(0.f, 0.f, 1.f, 0.f);
 
-		const VectorRegister4Float InitialPreDist2Simd = VectorDot3(V, V);
+		const T InitialPreDist2Simd = VectorDot3(V, V);
 
 		FRealSingle InitialPreDist2;
 		VectorStoreFloat1(InitialPreDist2Simd, &InitialPreDist2);
 
 		FRealSingle Inflation2;
-		VectorStoreFloat1(Inflation2Simd, &Inflation2);
+		VectorStoreFloat1(Inflation2Simd, &Inflation2); 
 
 		constexpr FRealSingle Eps2 = 1e-6f;
 
@@ -1605,8 +1594,8 @@ namespace Chaos
 		bool bTerminate = bCloseEnough;
 		bool bInflatedCloseEnough = bCloseEnough;
 		int NumIterations = 0;
-		constexpr VectorRegister4Float LimitMax = MakeVectorRegisterFloatConstant(TNumericLimits<T>::Max(), TNumericLimits<T>::Max(), TNumericLimits<T>::Max(), TNumericLimits<T>::Max());
-		VectorRegister4Float GJKPreDist2 = LimitMax;
+		constexpr T LimitMax = TMakeVectorRegisterConstant<T>(TNumericLimits<FRealSingle>::Max(), TNumericLimits<FRealSingle>::Max(), TNumericLimits<FRealSingle>::Max(), TNumericLimits<FRealSingle>::Max());
+		T GJKPreDist2 = LimitMax;
 
 		while (!bTerminate)
 		{
@@ -1617,56 +1606,51 @@ namespace Chaos
 
 			V = VectorNormalizeAccurate(V);
 
-			SupportA = A.SupportFunction(V);
-			SupportB = B.SupportFunction(AToBRotation, BToARotation, VectorNegate(V));
-			const VectorRegister4Float P = VectorSubtract(SupportA, SupportB);
-			const VectorRegister4Float W = VectorSubtract(X, P);
+			SupportA = A.SupportFunction(TMakeVectorRegisterFloatFromDouble<T>(V));
+			SupportB = B.SupportFunction(TMakeVectorRegisterFloatFromDouble<T>(AToBRotation), TMakeVectorRegisterFloatFromDouble<T>(BToARotation), TMakeVectorRegisterFloatFromDouble<T>(VectorNegate(V)));
+			T P = VectorSubtract(SupportA, SupportB);
+			T W = VectorSubtract(X, P);
 
-			// NumVerts store here at the beginning of the loop, it should be safe to reuse it further in the loop 
-			alignas(16) int32 NumVertsInts[4];
-			VectorIntStoreAligned(NumVerts, NumVertsInts);
-			const int32 NumVertsInt = NumVertsInts[0];
 
-			As[NumVertsInt] = SupportA;
-			Bs[NumVertsInt] = SupportB;
+			As[NumVerts] = SupportA;
+			Bs[NumVerts] = SupportB;
 
-			const VectorRegister4Float VDotW = VectorDot3(V, W);
+			const T VDotW = VectorDot3(V, W);
 
-			VectorRegister4Float VDotWGTInflationSimd = VectorCompareGT(VDotW, Inflation);
+			T VDotWGTInflationSimd = VectorCompareGT(VDotW, Inflation);
 
 			if (VectorMaskBits(VDotWGTInflationSimd))
 			{
-				const VectorRegister4Float VDotRayDir = VectorDot3(V, RayDir);
-				VectorRegister4Float VDotRayDirGEZero = VectorCompareGE(VDotRayDir, VectorZeroFloat());
+				const T VDotRayDir = VectorDot3(V, RayDir);
+				T VDotRayDirGEZero = VectorCompareGE(VDotRayDir, TVectorZero<T>());
 
 				if (VectorMaskBits(VDotRayDirGEZero))
 				{
 					return false;
 				}
 
-				const VectorRegister4Float PreLambda = Lambda;	//use to check for no progress
+				const T PreLambda = Lambda;	//use to check for no progress
 				// @todo(ccaulfield): this can still overflow - the comparisons against zero above should be changed (though not sure to what yet)
 				Lambda = VectorSubtract(Lambda, VectorDivide(VectorSubtract(VDotW, Inflation), VDotRayDir));
-				VectorRegister4Float LambdaGTPreLambda = VectorCompareGT(Lambda, PreLambda);
+				T LambdaGTPreLambda = VectorCompareGT(Lambda, PreLambda);
 				if (VectorMaskBits(LambdaGTPreLambda))
 				{
-					VectorRegister4Float LambdaGTRayLength = VectorCompareGT(Lambda, RayLengthSimd);
+					T LambdaGTRayLength = VectorCompareGT(Lambda, RayLengthSimd);
 					if (VectorMaskBits(LambdaGTRayLength))
 					{
 						return false;
 					}
 
-					const VectorRegister4Float OldX = X;
+					const T OldX = X;
 					X = VectorMultiplyAdd(Lambda, RayDir, StartPoint);
 					Normal = V;
 
 					//Update simplex from (OldX - P) to (X - P)
-					VectorRegister4Float XMinusOldX = VectorSubtract(X, OldX);
+					T XMinusOldX = VectorSubtract(X, OldX);
 					Simplex[0] = VectorAdd(Simplex[0], XMinusOldX);
 					Simplex[1] = VectorAdd(Simplex[1], XMinusOldX);
 					Simplex[2] = VectorAdd(Simplex[2], XMinusOldX);
-					Simplex[NumVertsInt] = VectorSubtract(X, P);
-					NumVerts = VectorIntAdd(NumVerts, GlobalVectorConstants::IntOne);
+					Simplex[NumVerts++] = VectorSubtract(X, P);
 
 					GJKPreDist2 = LimitMax; //translated origin so restart gjk search
 					bInflatedCloseEnough = false;
@@ -1674,35 +1658,35 @@ namespace Chaos
 			}
 			else
 			{
-				Simplex[NumVertsInt] = W;	//this is really X - P which is what we need for simplex computation
-				NumVerts = VectorIntAdd(NumVerts, GlobalVectorConstants::IntOne);
+				Simplex[NumVerts++] = W;	//this is really X - P which is what we need for simplex computation
 			}
 
-			if (bInflatedCloseEnough && VectorMaskBits(VectorCompareGE(VDotW, VectorZeroFloat())))
+			if (bInflatedCloseEnough && VectorMaskBits(VectorCompareGE(VDotW, TVectorZero<T>())))
 			{
 				//Inflated shapes are close enough, but we want MTD so we need to find closest point on core shape
-				const VectorRegister4Float VDotW2 = VectorDot3(VDotW, VDotW);
+				const T VDotW2 = VectorDot3(VDotW, VDotW);
 				bCloseEnough = static_cast<bool>(VectorMaskBits(VectorCompareGE(VectorAdd(Eps2Simd, VDotW), GJKPreDist2)));
 			}
 
 			if (!bCloseEnough)
 			{
-				V = VectorSimplexFindClosestToOrigin(Simplex, NumVerts, Barycentric, As, Bs);
 
-				VectorRegister4Float NewDist2 = VectorDot3(V, V);	//todo: relative error
+				V = VectorSimplexFindClosestToOrigin<T>(Simplex, NumVerts, Barycentric, As, Bs);
+
+				T NewDist2 = VectorDot3(V, V);	//todo: relative error
 				bCloseEnough = static_cast<bool>(VectorMaskBits(VectorCompareGT(Inflation2Simd, NewDist2)));
 				bDegenerate = static_cast<bool>(VectorMaskBits(VectorCompareGE(NewDist2, GJKPreDist2)));
 				GJKPreDist2 = NewDist2;
 
 				if (bComputeMTD && bCloseEnough)
 				{
-					const VectorRegister4Float LambdaEqZero = VectorCompareEQ(Lambda, VectorZeroFloat());
-					const VectorRegister4Float InGJKPreDist2GTEps2 = VectorCompareGT(GJKPreDist2, Eps2Simd);
-					const VectorRegister4Float Inflation22GTEps2 = VectorCompareGT(Inflation2Simd, Eps2Simd);
-					constexpr VectorRegister4Int fourInt = MakeVectorRegisterIntConstant(4, 4, 4, 4);
-					const VectorRegister4Int Is4GTNumVerts = VectorIntCompareGT(fourInt, NumVerts);
+					const T LambdaEqZero = VectorCompareEQ(Lambda, TVectorZero<T>());
+					const T InGJKPreDist2GTEps2 = VectorCompareGT(GJKPreDist2, Eps2Simd);
+					const T Inflation22GTEps2 = VectorCompareGT(Inflation2Simd, Eps2Simd);
 
-					const VectorRegister4Float IsInflatCloseEnough = VectorBitwiseAnd(LambdaEqZero, VectorBitwiseAnd(InGJKPreDist2GTEps2, VectorBitwiseAnd(Inflation22GTEps2, VectorCast4IntTo4Float(Is4GTNumVerts))));
+					const bool Is4GTNumVerts = 4 > NumVerts;
+
+					const T IsInflatCloseEnough = VectorBitwiseAnd(LambdaEqZero, VectorBitwiseAnd(InGJKPreDist2GTEps2, Inflation22GTEps2));
 
 					// Leaving the original code, to explain the logic there
 					//if (bComputeMTD && bCloseEnough && Lambda == 0 && GJKPreDist2 > 1e-6 && Inflation2 > 1e-6 && NumVerts < 4)
@@ -1710,14 +1694,14 @@ namespace Chaos
 					//	bCloseEnough = false;
 					//	bInflatedCloseEnough = true;
 					//}
-					bInflatedCloseEnough = static_cast<bool>(VectorMaskBits(IsInflatCloseEnough));
+					bInflatedCloseEnough = static_cast<bool>(VectorMaskBits(IsInflatCloseEnough)) && Is4GTNumVerts;
 					bCloseEnough = !bInflatedCloseEnough;
 				}
 			}
 			else
 			{
 				//It must be that we want MTD and we can terminate. However, we must make one final call to fixup the simplex
-				V = VectorSimplexFindClosestToOrigin(Simplex, NumVerts, Barycentric, As, Bs);
+				V = VectorSimplexFindClosestToOrigin<T>(Simplex, NumVerts, Barycentric, As, Bs);
 			}
 			bTerminate = bCloseEnough || bDegenerate;
 		}
@@ -1726,34 +1710,26 @@ namespace Chaos
 		if (OutTime > 0)
 		{
 			OutNormal = Normal;
-			VectorRegister4Float ClosestB = VectorZeroFloat();
+			T ClosestB = TVectorZero<T>();
 
-			VectorRegister4Float Barycentrics[4];
+			T Barycentrics[4];
 			Barycentrics[0] = VectorSwizzle(Barycentric, 0, 0, 0, 0);
 			Barycentrics[1] = VectorSwizzle(Barycentric, 1, 1, 1, 1);
 			Barycentrics[2] = VectorSwizzle(Barycentric, 2, 2, 2, 2);
 			Barycentrics[3] = VectorSwizzle(Barycentric, 3, 3, 3, 3);
 
 
-			const VectorRegister4Float  ClosestB1 = VectorMultiplyAdd(Bs[0], Barycentrics[0], ClosestB);
-			const VectorRegister4Float  ClosestB2 = VectorMultiplyAdd(Bs[1], Barycentrics[1], ClosestB1);
-			const VectorRegister4Float  ClosestB3 = VectorMultiplyAdd(Bs[2], Barycentrics[2], ClosestB2);
-			const VectorRegister4Float  ClosestB4 = VectorMultiplyAdd(Bs[3], Barycentrics[3], ClosestB3);
+			const T  ClosestB1 = VectorMultiplyAdd(Bs[0], Barycentrics[0], ClosestB);
+			const T  ClosestB2 = VectorMultiplyAdd(Bs[1], Barycentrics[1], ClosestB1);
+			const T  ClosestB3 = VectorMultiplyAdd(Bs[2], Barycentrics[2], ClosestB2);
+			const T  ClosestB4 = VectorMultiplyAdd(Bs[3], Barycentrics[3], ClosestB3);
 
-			constexpr VectorRegister4Int TwoInt = MakeVectorRegisterIntConstant(2, 2, 2, 2);
-			constexpr VectorRegister4Int ThreeInt = MakeVectorRegisterIntConstant(3, 3, 3, 3);
+			ClosestB = NumVerts == 0 ? ClosestB : ClosestB4;
+			ClosestB = NumVerts == 1 ? ClosestB1 : ClosestB;
+			ClosestB = NumVerts == 2 ? ClosestB2 : ClosestB;
+			ClosestB = NumVerts == 3 ? ClosestB3 : ClosestB;
 
-			const VectorRegister4Float IsB0 = VectorCast4IntTo4Float(VectorIntCompareEQ(NumVerts, GlobalVectorConstants::IntZero));
-			const VectorRegister4Float IsB1 = VectorCast4IntTo4Float(VectorIntCompareEQ(NumVerts, GlobalVectorConstants::IntOne));
-			const VectorRegister4Float IsB2 = VectorCast4IntTo4Float(VectorIntCompareEQ(NumVerts, TwoInt));
-			const VectorRegister4Float IsB3 = VectorCast4IntTo4Float(VectorIntCompareEQ(NumVerts, ThreeInt));
-
-			ClosestB = VectorSelect(IsB0, ClosestB, ClosestB4);
-			ClosestB = VectorSelect(IsB1, ClosestB1, ClosestB);
-			ClosestB = VectorSelect(IsB2, ClosestB2, ClosestB);
-			ClosestB = VectorSelect(IsB3, ClosestB3, ClosestB);
-
-			const VectorRegister4Float ClosestLocal = VectorNegateMultiplyAdd(OutNormal, MarginBSimd, ClosestB);
+			const T ClosestLocal = VectorNegateMultiplyAdd(Normal, MarginBSimd, ClosestB);
 
 			OutPosition = VectorAdd(VectorMultiplyAdd(RayDir, Lambda, StartPoint), ClosestLocal);
 
@@ -1763,26 +1739,23 @@ namespace Chaos
 			// If Inflation == 0 we would expect GJKPreDist2 to be 0
 			// However, due to precision we can still end up with GJK failing.
 			// When that happens fall back on EPA
-			VectorRegister4Float InflationGTZero = VectorCompareGT(Inflation, VectorZeroFloat());
-			VectorRegister4Float InGJKPreDist2GTEps2 = VectorCompareGT(GJKPreDist2, Eps2Simd);
-			VectorRegister4Float LimitMaxGTInGJKPreDist2 = VectorCompareGT(LimitMax, GJKPreDist2);
-			VectorRegister4Float IsDone = VectorBitwiseAnd(InflationGTZero, VectorBitwiseAnd(InGJKPreDist2GTEps2, LimitMaxGTInGJKPreDist2));
+			T InflationGTZero = VectorCompareGT(Inflation, TVectorZero<T>());
+			T InGJKPreDist2GTEps2 = VectorCompareGT(GJKPreDist2, Eps2Simd);
+			T LimitMaxGTInGJKPreDist2 = VectorCompareGT(LimitMax, GJKPreDist2);
+			T IsDone = VectorBitwiseAnd(InflationGTZero, VectorBitwiseAnd(InGJKPreDist2GTEps2, LimitMaxGTInGJKPreDist2));
 
-			VectorRegister4Float GJKClosestA = VectorZeroFloat();
-			VectorRegister4Float GJKClosestB = VectorZeroFloat();
+			T GJKClosestA = TVectorZero<T>();
+			T GJKClosestB = TVectorZero<T>();
 
 			if (NumIterations)
 			{
-				VectorRegister4Float Barycentrics[4];
+				T Barycentrics[4];
 				Barycentrics[0] = VectorSwizzle(Barycentric, 0, 0, 0, 0);
 				Barycentrics[1] = VectorSwizzle(Barycentric, 1, 1, 1, 1);
 				Barycentrics[2] = VectorSwizzle(Barycentric, 2, 2, 2, 2);
 				Barycentrics[3] = VectorSwizzle(Barycentric, 3, 3, 3, 3);
 
-				alignas(16) int32 NumVertsInts[4];
-				VectorIntStoreAligned(NumVerts, NumVertsInts);
-				const int NumVertsInt = NumVertsInts[0];
-				for (int i = 0; i < NumVertsInt; ++i)
+				for (int i = 0; i < NumVerts; ++i)
 				{
 					GJKClosestA = VectorMultiplyAdd(As[i], Barycentrics[i], GJKClosestA);
 					GJKClosestB = VectorMultiplyAdd(Bs[i], Barycentrics[i], GJKClosestB);
@@ -1797,17 +1770,15 @@ namespace Chaos
 
 			if (VectorMaskBits(IsDone))
 			{
-				OutNormal = Normal;
-
-				const VectorRegister4Float ClosestBInA = VectorAdd(StartPoint, GJKClosestB);
-				const VectorRegister4Float InGJKPreDist = VectorSqrt(GJKPreDist2);
+				const T ClosestBInA = VectorAdd(StartPoint, GJKClosestB);
+				const T InGJKPreDist = VectorSqrt(GJKPreDist2);
 				OutNormal = VectorNormalizeAccurate(V);
 
-				VectorRegister4Float Penetration = VectorSubtract(VectorAdd(MarginASimd, MarginBSimd), InGJKPreDist);
+				T Penetration = VectorSubtract(VectorAdd(MarginASimd, MarginBSimd), InGJKPreDist);
 				Penetration = VectorMin(Penetration, LimitMax);
-				Penetration = VectorMax(Penetration, VectorZeroFloat());
+				Penetration = VectorMax(Penetration, TVectorZero<T>());
 
-				const VectorRegister4Float ClosestLocal = VectorNegateMultiplyAdd(OutNormal, MarginBSimd, GJKClosestB);
+				const T ClosestLocal = VectorNegateMultiplyAdd(OutNormal, MarginBSimd, GJKClosestB);
 
 				OutPosition = VectorAdd(VectorMultiplyAdd(OutNormal, Penetration, StartPoint), ClosestLocal);
 				Penetration = VectorNegate(Penetration);
@@ -1823,27 +1794,23 @@ namespace Chaos
 					VertsA.Reserve(8);
 					VertsB.Reserve(8);
 
-					alignas(16) int32 NumVertsInts[4];
-					VectorIntStoreAligned(NumVerts, NumVertsInts);
-					const int32 NumVertsInt = NumVertsInts[0];
-
-					for (int i = 0; i < NumVertsInt; ++i)
+					for (int i = 0; i < NumVerts; ++i)
 					{
-						VertsA.Add(As[i]);
-						VertsB.Add(VectorAdd(Bs[i], X));
+						VertsA.Add(TMakeVectorRegisterFloatFromDouble<T>(As[i]));
+						VertsB.Add(TMakeVectorRegisterFloatFromDouble<T>(VectorAdd(Bs[i], X)));
 					}
 
 					struct SupportBAtOriginHelper
 					{
 						const FGeomGJKHelperSIMD& B;
-						const VectorRegister4Float& AToBRotation;
-						const VectorRegister4Float& BToARotation;
-						const VectorRegister4Float& StartPoint;
+						const VectorRegister4Float AToBRotation;
+						const VectorRegister4Float BToARotation;
+						const VectorRegister4Float StartPoint;
 
-						VectorRegister4Float operator()(VectorRegister4Float V) const { return VectorAdd(B.SupportFunction(AToBRotation, BToARotation, V), StartPoint); }
+						VectorRegister4Float operator()(const VectorRegister4Float& V) const { return VectorAdd(B.SupportFunction(AToBRotation, BToARotation, V), StartPoint); }
 					};
 
-					SupportBAtOriginHelper SupportBAtOrigin = { B, AToBRotation, BToARotation, StartPoint };
+					SupportBAtOriginHelper SupportBAtOrigin = { B, TMakeVectorRegisterFloatFromDouble<T>(AToBRotation), TMakeVectorRegisterFloatFromDouble<T>(BToARotation), TMakeVectorRegisterFloatFromDouble<T>(StartPoint) };
 					VectorRegister4Float Penetration;
 					VectorRegister4Float MTD, ClosestA, ClosestBInA;
 					const EEPAResult EPAResult = VectorEPA(VertsA, VertsB, A, SupportBAtOrigin, Penetration, MTD, ClosestA, ClosestBInA);
@@ -1882,7 +1849,7 @@ namespace Chaos
 				{
 					//didn't even go into gjk loop, touching hit
 					OutTime = -(A.Margin + B.Margin);
-					OutNormal = MakeVectorRegisterFloat(0.0f, 0.0f, 1.0f, 0.0f);
+					OutNormal = TMakeVectorRegister<T>(0.0f, 0.0f, 1.0f, 0.0f);
 					OutPosition = VectorMultiplyAdd(OutNormal, MarginASimd, As[0]);
 				}
 			}
@@ -1890,21 +1857,20 @@ namespace Chaos
 		else
 		{
 			// Initial overlap without MTD. These properties are not valid, but assigning them anyway so they don't contain NaNs and cause issues in invoking code.
-			OutNormal = MakeVectorRegisterFloat(0.0f, 0.0f, 1.0f, 0.0f);
-			OutPosition = MakeVectorRegisterFloat(0.0f, 0.0f, 0.0f, 0.0f);
+			OutNormal = TMakeVectorRegister<T>(0.0f, 0.0f, 1.0f, 0.0f);
+			OutPosition = TMakeVectorRegister<T>(0.0f, 0.0f, 0.0f, 0.0f);
 		}
 
 		return true;
 	}
 
-	template <typename T = FReal>
-	bool GJKRaycast2Impl(const FGeomGJKHelperSIMD& A, const FGeomGJKHelperSIMD& B, const TRigidTransform<T, 3>& StartTM, const TVector<T, 3>& RayDir, const T RayLength, 
-		T& OutTime, TVector<T, 3>& OutPosition, TVector<T, 3>& OutNormal, const T GivenThicknessA, bool bComputeMTD, const TVector<T, 3>& InitialDir, const T GivenThicknessB)
+	inline bool GJKRaycast2Impl(const FGeomGJKHelperSIMD& A, const FGeomGJKHelperSIMD& B, const TRigidTransform<FReal, 3>& StartTM, const TVector<FReal, 3>& RayDir, const FReal RayLength, 
+		FReal& OutTime, TVector<FReal, 3>& OutPosition, TVector<FReal, 3>& OutNormal, const FReal GivenThicknessA, bool bComputeMTD, const TVector<FReal, 3>& InitialDir, const FReal GivenThicknessB)
 	{
-		const UE::Math::TQuat<T>& RotationDouble = StartTM.GetRotation();
+		const UE::Math::TQuat<FReal>& RotationDouble = StartTM.GetRotation();
 		VectorRegister4Float Rotation = MakeVectorRegisterFloatFromDouble(MakeVectorRegister(RotationDouble.X, RotationDouble.Y, RotationDouble.Z, RotationDouble.W));
 
-		const UE::Math::TVector<T>& TranslationDouble = StartTM.GetTranslation();
+		const UE::Math::TVector<FReal>& TranslationDouble = StartTM.GetTranslation();
 		const VectorRegister4Float Translation = MakeVectorRegisterFloatFromDouble(MakeVectorRegister(TranslationDouble.X, TranslationDouble.Y, TranslationDouble.Z, 0.0));
 
 		// Normalize rotation
@@ -1915,7 +1881,7 @@ namespace Chaos
 
 		FRealSingle OutTimeFloat = 0.0f;
 		VectorRegister4Float OutPositionSimd, OutNormalSimd;
-		const bool Result = GJKRaycast2ImplSimd(A, B, Rotation, Translation, RayDirSimd, static_cast<FRealSingle>(RayLength), OutTimeFloat, OutPositionSimd, OutNormalSimd, bComputeMTD, InitialDirSimd);
+		const bool Result = GJKRaycast2ImplSimd<VectorRegister4Float>(A, B, Rotation, Translation, RayDirSimd, static_cast<FRealSingle>(RayLength), OutTimeFloat, OutPositionSimd, OutNormalSimd, bComputeMTD, InitialDirSimd);
 
 		OutTime = static_cast<double>(OutTimeFloat);
 

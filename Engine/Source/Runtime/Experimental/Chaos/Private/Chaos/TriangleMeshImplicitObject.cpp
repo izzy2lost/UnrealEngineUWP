@@ -1310,7 +1310,19 @@ struct FTriangleMeshSweepVisitor
 			}
 		}
 		FRealSingle Time;
-		if(GJKRaycast2ImplSimd(Tri, QueryGeom, RotationSimd, TranslationSimd, RayDirSimd, LengthScale * CurDataLength, Time, OutPositionSimd, OutNormalSimd, bComputeMTD, GlobalVectorConstants::Float1000))
+		bool bIsHitting = false;
+		if (UNLIKELY(Tri.IsTooBigForSinglePrecision()))
+		{
+			VectorRegister4Double OutPositionDouble, OutNormalDouble;
+			bIsHitting = GJKRaycast2ImplSimd<VectorRegister4Double>(Tri, QueryGeom, VectorRegister4Double(RotationSimd), VectorRegister4Double(TranslationSimd), VectorRegister4Double(RayDirSimd), LengthScale * CurDataLength, Time, OutPositionDouble, OutNormalDouble, bComputeMTD, GlobalVectorConstants::Double1000);
+			OutPositionSimd = MakeVectorRegisterFloatFromDouble(OutPositionDouble);
+			OutNormalSimd = MakeVectorRegisterFloatFromDouble(OutNormalDouble);
+		}
+		else
+		{
+			bIsHitting = GJKRaycast2ImplSimd(Tri, QueryGeom, RotationSimd, TranslationSimd, RayDirSimd, LengthScale * CurDataLength, Time, OutPositionSimd, OutNormalSimd, bComputeMTD, GlobalVectorConstants::Float1000);
+		}
+		if(bIsHitting)
 		{
 			// Don't return back faces if they are not initially overlapping
 			if (Time > 0 && VectorMaskBits(IsBackFace))
