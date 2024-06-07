@@ -846,13 +846,6 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 			Slot->Modify();
 		}
 
-		const int32 OutputMask = MaterialTexture.Value.TextureChannel == EDMTextureChannelMask::RGBA
-			? FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
-			: (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Red) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0)
-				+ (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Green) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0)
-				+ (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Blue) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0)
-				+ (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Alpha) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0);
-
 		UDMMaterialLayerObject* Layer = nullptr;
 
 		{
@@ -880,7 +873,7 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 				UDMMaterialStageBlend::InputB,
 				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
 				0,
-				OutputMask
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 			);
 
 			if (!ensure(NewExpression))
@@ -912,6 +905,36 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 
 					InputTexture->SetValue(Texture);
 				}
+			}
+
+			if (UDMMaterialStageBlend* Blend = Cast<UDMMaterialStageBlend>(Stage->GetSource()))
+			{
+				EAvaColorChannel AvaColorChannel = EAvaColorChannel::None;
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Red))
+				{
+					AvaColorChannel |= EAvaColorChannel::Red;
+				}
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Green))
+				{
+					AvaColorChannel |= EAvaColorChannel::Green;
+				}
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Blue))
+				{
+					AvaColorChannel |= EAvaColorChannel::Blue;
+				}
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Alpha))
+				{
+					AvaColorChannel |= EAvaColorChannel::Alpha;
+				}
+
+				if (AvaColorChannel != EAvaColorChannel::RGBA)
+				{
+					Blend->SetBaseChannelOverride(AvaColorChannel);
+				}				
 			}
 
 			if (bInReplaceSlots)

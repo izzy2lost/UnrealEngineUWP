@@ -8,10 +8,11 @@
 UENUM(BlueprintType)
 enum class EDMTextureChannelMask : uint8
 {
-	Red = 0,
-	Green = 1 << 0,
-	Blue = 1 << 1,
-	Alpha = 1 << 2,
+	None = 0 UMETA(Hidden),
+	Red = 1 << 0,
+	Green = 1 << 1,
+	Blue = 1 << 2,
+	Alpha = 1 << 3,
 	RGB = Red|Green|Blue,
 	RGBA = Red|Green|Blue|Alpha,
 };

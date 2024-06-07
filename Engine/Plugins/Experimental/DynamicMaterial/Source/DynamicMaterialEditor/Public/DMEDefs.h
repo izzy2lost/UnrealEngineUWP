@@ -149,5 +149,8 @@ enum class EAvaColorChannel : uint8
 	Red = 1 << 0,
 	Green = 1 << 1,
 	Blue = 1 << 2,
-	Alpha = 1 << 3
+	Alpha = 1 << 3,
+	RGB = Red|Green|Blue UMETA(Hidden),
+	RGBA = Red|Green|Blue|Alpha UMETA(Hidden)
 };
+ENUM_CLASS_FLAGS(EAvaColorChannel)
