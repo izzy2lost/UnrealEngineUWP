@@ -176,6 +176,7 @@ namespace Chaos::Softs
 			AllCorotatedCodEMeshArray.Reset(new TArray<FSolverReal>());
 			AllSkinEMeshArray.Reset(new TArray<FSolverReal>());
 			GSWeakConstraints.Reset(new FGaussSeidelWeakConstraints<FSolverReal, FSolverParticles>({}, {}, {}, {}, {}, GDeformableXPBDWeakConstraintParams));
+			GSDynamicWeakConstraints.Reset(new FGaussSeidelDynamicWeakConstraints<FSolverReal, FSolverParticles>(GDeformableXPBDWeakConstraintParams));
 			MuscleActivationConstraints.Reset(new FMuscleActivationConstraints<FSolverReal, FSolverParticles>());
 		}
 		AllUnconstrainedSurfaceElementsCorotatedCod.Reset(new TArray<Chaos::TVec3<int32>>());
@@ -792,7 +793,14 @@ namespace Chaos::Softs
 								if (Geom.Intersection(Samples, TetVertices, Intersections))
 								{
 									UE_LOG(LogChaosDeformableSolver, Log, TEXT("... Intersections : %d"), Intersections.Num());
-									//GSWeakConstraints->AddExtraConstraints(PositionTargetIndices, PositionTargetWeights, PositionTargetStiffness, PositionTargetSecondIndices, PositionTargetSecondWeights);
+									if (GSDynamicWeakConstraints && Property.bEnableDynamicSprings)
+									{
+										float Stiffness = AddConstraints.Parameters.Stiffness;
+										TArray<const FGaussSeidelWeakConstraints<Softs::FSolverReal, Softs::FSolverParticles>::FGaussSeidelConstraintHandle*> ConstraintHandles = GSDynamicWeakConstraints -> AddParticleTetrahedraConstraints(Geom, Evolution->Particles(), Intersections, SampleRange, TargetRange, Stiffness);
+										Chaos::Softs::FConstraintObjectParticleHandel& HandleValue = Proxy.Constraints.FindOrAdd(AddConstraints);
+										HandleValue.Handles = ConstraintHandles;
+										bDynamicConstraintIsUpdated = true;
+									}
 								}
 							}
 						}
@@ -1601,7 +1609,7 @@ namespace Chaos::Softs
 			if (Property.bEnablePositionTargets)
 			{
 				TArray<TArray<int32>> ParticlesPerColor;
-				GSWeakConstraints->ComputeInitialWCData(Evolution->Particles(), GSNeohookeanConstraints->GetMeshArray(), GSNeohookeanConstraints->GetIncidentElements(), GSNeohookeanConstraints->GetIncidentElementsLocal(), ParticlesPerColor);
+				GSWeakConstraints->ComputeInitialWCData(Evolution->Particles());
 
 				TArray<TArray<int32>> StaticIncidentElements, StaticIncidentElementsLocal;
 				TArray<TArray<int32>> StaticConstraints = GSWeakConstraints->GetStaticConstraintArrays(StaticIncidentElements, StaticIncidentElementsLocal);
@@ -1654,7 +1662,7 @@ namespace Chaos::Softs
 			if (Property.bEnablePositionTargets)
 			{
 				TArray<TArray<int32>> ParticlesPerColor;
-				GSWeakConstraints->ComputeInitialWCData(Evolution->Particles(), GSCorotatedConstraints->GetMeshArray(), GSCorotatedConstraints->GetIncidentElements(), GSCorotatedConstraints->GetIncidentElementsLocal(), ParticlesPerColor);
+				GSWeakConstraints->ComputeInitialWCData(Evolution->Particles());
 
 				TArray<TArray<int32>> StaticIncidentElements, StaticIncidentElementsLocal;
 				TArray<TArray<int32>> StaticConstraints = GSWeakConstraints->GetStaticConstraintArrays(StaticIncidentElements, StaticIncidentElementsLocal);
@@ -1687,10 +1695,46 @@ namespace Chaos::Softs
 				};
 		}
 
-		if (Property.bDoSelfCollision)
+		if (Property.bEnableDynamicSprings)
 		{
 			int32 DynamicIndex = GSMainConstraint->AddDynamicConstraintResidualAndHessianRange(1);
 			GSMainConstraint->DynamicConstraintResidualAndHessian()[DynamicIndex] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSDynamicWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
+			};
+
+			int32 PerNodeIndex = GSMainConstraint->AddPerNodeHessianRange(1);
+			GSMainConstraint->PerNodeHessian()[PerNodeIndex] = [this](const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSDynamicWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
+			};
+
+			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
+
+			GSDynamicWeakConstraints->ComputeInitialWCData(Evolution->Particles());
+
+			Evolution->ConstraintInits()[InitIndex1] =
+				[this](FSolverParticles& InParticles, const FSolverReal Dt)
+				{
+					this->GSDynamicWeakConstraints->Init(InParticles, Dt);
+					if (this->bDynamicConstraintIsUpdated)
+					{
+						TArray<TArray<int32>> WCDynamicIncidentElements,WCDynamicIncidentElementsLocal;
+						TArray<TArray<int32>> DynamicConstraints = GSDynamicWeakConstraints->GetStaticConstraintArrays(WCDynamicIncidentElements, WCDynamicIncidentElementsLocal);
+						GSMainConstraint->ResetDynamicConstraints();
+						GSMainConstraint->AddDynamicConstraints(DynamicConstraints, WCDynamicIncidentElements, WCDynamicIncidentElementsLocal, true);
+						this->GSMainConstraint->InitDynamicColor(InParticles);
+					}
+				};
+		}
+
+
+		
+
+		if (Property.bDoSelfCollision)
+		{
+			int32 TransientIndex = GSMainConstraint->AddTransientConstraintResidualAndHessianRange(1);
+			GSMainConstraint->TransientConstraintResidualAndHessian()[TransientIndex] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
 				{
 					this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex + this->GSWeakConstraints->InitialWCSize, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
 				};
@@ -1728,11 +1772,13 @@ namespace Chaos::Softs
 				{
 					TArray<TArray<int32>> WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal;
 					this->GSWeakConstraints->ComputeCollisionWCDataSimplified(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
-					this->GSMainConstraint->AddDynamicConstraints(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
-					this->GSMainConstraint->InitDynamicColor(InParticles);
+					this->GSMainConstraint->AddTransientConstraints(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
+					this->GSMainConstraint->InitTransientColor(InParticles);
 				};
 
 		}
+
+
 	}
 
 	void FDeformableSolver::InitializeMuscleActivationVariables()
@@ -1998,6 +2044,8 @@ namespace Chaos::Softs
 	void FDeformableSolver::Update(FSolverReal DeltaTime)
 	{
 		PERF_SCOPE(STAT_ChaosDeformableSolver_Update);
+
+		bDynamicConstraintIsUpdated = false;
 
 		if (!Proxies.Num()) return;
 

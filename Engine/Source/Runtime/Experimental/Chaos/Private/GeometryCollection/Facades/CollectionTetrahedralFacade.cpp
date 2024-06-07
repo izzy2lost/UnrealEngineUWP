@@ -76,7 +76,9 @@ namespace GeometryCollection::Facades
 			for (int32 Tdx = 0; Tdx < TetCount; Tdx++)
 			{
 				const int32 Idx = TetStart + Tdx;
-				FIntVector4 Tet = Tetrahedron[Idx] - FIntVector4(VrtStart);
+				//Test shows offset VrtStart is not needed:
+				//FIntVector4 Tet = Tetrahedron[Idx] - FIntVector4(VrtStart);
+				FIntVector4 Tet = Tetrahedron[Idx];
 				Tets[Tdx] = FTet(TetarhedronPositions[Tet[0]], TetarhedronPositions[Tet[1]], TetarhedronPositions[Tet[2]], TetarhedronPositions[Tet[3]]);
 				TetPtrs[Tdx] = &Tets[Tdx];
 			}

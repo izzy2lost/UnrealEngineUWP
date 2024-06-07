@@ -44,7 +44,8 @@ namespace Chaos::Softs
 			FSolverReal InCollisionSpringStiffness = (FSolverReal)500.,
 			bool InbAllowSliding = true,
 			bool InbDoMuscleActivation = false,
-			bool InbCollideWithFullMesh = false)
+			bool InbCollideWithFullMesh = false, 
+			bool InbEnableDynamicSprings = true)
 			: NumSolverSubSteps(InNumSolverSubSteps)
 			, NumSolverIterations(InNumSolverIterations)
 			, FixTimeStep(InFixTimeStep)
@@ -74,6 +75,7 @@ namespace Chaos::Softs
 			, bAllowSliding(InbAllowSliding)
 			, bDoMuscleActivation(InbDoMuscleActivation)
 			, bCollideWithFullMesh(InbCollideWithFullMesh)
+			, bEnableDynamicSprings(InbEnableDynamicSprings)
 		{}
 
 		int32 NumSolverSubSteps = 5;
@@ -105,6 +107,7 @@ namespace Chaos::Softs
 		bool bAllowSliding = true;
 		bool bDoMuscleActivation = false;
 		bool bCollideWithFullMesh = false;
+		bool bEnableDynamicSprings = true; 
 	};
 
 
