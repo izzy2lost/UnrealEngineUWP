@@ -53,6 +53,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.AddRange(
 					new string[]
 					{
+						"AudioEditor", // For USoundFactory, which we use for parsing UsdMediaSpatialAudio
 						"BlueprintGraph",
 						"GeometryCacheUSD",
 						"HairStrandsEditor",

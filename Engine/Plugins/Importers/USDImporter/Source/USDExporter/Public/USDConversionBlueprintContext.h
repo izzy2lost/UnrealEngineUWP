@@ -16,6 +16,7 @@
 
 class AInstancedFoliageActor;
 class ALandscapeProxy;
+class UAudioComponent;
 class UCineCameraComponent;
 class UDirectionalLightComponent;
 class UHierarchicalInstancedStaticMeshComponent;
@@ -28,8 +29,8 @@ class USceneComponent;
 class USkyLightComponent;
 class USpotLightComponent;
 class UUsdDrawModeComponent;
-struct FUsdPrimMetadata;
 struct FUsdCombinedPrimMetadata;
+struct FUsdPrimMetadata;
 
 /**
  * Wraps the UnrealToUsd component conversion functions from the USDUtilities module so that they can be used by
@@ -122,6 +123,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Component conversion")
 	bool ConvertDrawModeComponent(const UUsdDrawModeComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F);
+
+	UFUNCTION(BlueprintCallable, Category = "Component conversion")
+	bool ConvertAudioComponent(const UAudioComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F, bool bFilePathOnly = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Component conversion")
 	bool ConvertSceneComponent(const USceneComponent* Component, const FString& PrimPath);

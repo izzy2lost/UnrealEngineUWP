@@ -78,6 +78,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "DataToImport", meta = (DisplayName = "Sparse Volume Textures"))
 	bool bImportSparseVolumeTextures;
 
+	/** Whether to import audio files referenced by UsdMediaSpatialAudio schemas as Unreal sound assets */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "DataToImport", meta = (DisplayName = "Audio"))
+	bool bImportSounds;
+
 	/**
 	 * If this is checked, only materials actively used by the stage and import settings will be parsed.
 	 * If this is unchecked, all materials present on the stage will be parsed.

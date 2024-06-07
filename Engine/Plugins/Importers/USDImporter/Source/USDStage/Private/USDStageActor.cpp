@@ -41,6 +41,7 @@
 #include "Async/ParallelFor.h"
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/LightComponent.h"
@@ -88,15 +89,17 @@
 #include "MovieSceneDynamicBindingUtils.h"
 #include "ScopedTransaction.h"
 #include "Selection.h"
+#include "SequencerUtilities.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UnrealEdGlobals.h"
 #include "USDClassesEditorModule.h"
-#include "SequencerUtilities.h"
+
 #endif	  // WITH_EDITOR
 
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
 #include "pxr/usd/usdGeom/tokens.h"
+#include "pxr/usd/usdMedia/tokens.h"
 #include "pxr/usd/usdPhysics/tokens.h"
 #include "USDIncludesEnd.h"
 #endif	  // USE_USD_SDK
@@ -618,7 +621,12 @@ struct FUsdStageActorImpl
 			return;
 		}
 
-		UMovieSceneReplaceableDirectorBlueprintBinding* NewCustomBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(UMovieSceneReplaceableDirectorBlueprintBinding::StaticClass()->GetDefaultObject<UMovieSceneCustomBinding>()->CreateNewCustomBinding(nullptr, *MovieScene));
+		UMovieSceneReplaceableDirectorBlueprintBinding* NewCustomBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(
+			UMovieSceneReplaceableDirectorBlueprintBinding::StaticClass()->GetDefaultObject<UMovieSceneCustomBinding>()->CreateNewCustomBinding(
+				nullptr,
+				*MovieScene
+			)
+		);
 
 		if (!NewCustomBinding)
 		{
@@ -636,19 +644,16 @@ struct FUsdStageActorImpl
 			);
 			if (DynamicBinding.Function)
 			{
-				DynamicBinding.ResolveParamsProperty = DynamicBinding.Function->FindPropertyByName(
-					DynamicBinding.ResolveParamsPinName
-				);
+				DynamicBinding.ResolveParamsProperty = DynamicBinding.Function->FindPropertyByName(DynamicBinding.ResolveParamsPinName);
 			}
 
 			// Store a path to this very actor on the binding, so that it can find us later and ask how to resolve a particular
 			// prim path
 			FMovieSceneDynamicBindingPayloadVariable& ActorPathVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("StageActorIDNam"
-				"eFilter"));
+																														 "eFilter"));
 			ActorPathVariable.Value = DefaultActorFilter;
 
-			FMovieSceneDynamicBindingPayloadVariable& RootLayerVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("RootLayerFilter"
-			));
+			FMovieSceneDynamicBindingPayloadVariable& RootLayerVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("RootLayerFilter"));
 			RootLayerVariable.Value = FString{};	// No root layer filter by default for more flexibility
 
 			FMovieSceneDynamicBindingPayloadVariable& PrimPathVariable = DynamicBinding.PayloadVariables.FindOrAdd(TEXT("PrimPath"));
@@ -1627,6 +1632,23 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 					bHasResync = true;
 					break;
 				}
+
+				// We put all of the audio info directly on the section, so if any of these change then we need to re-add the prim
+				// to the sequencer, and potentially generate a new audio asset
+				static const TSet<FString> AudioSectionProperties = {
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->filePath),
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->auralMode),
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->playbackMode),
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->startTime),
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->endTime),
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->mediaOffset),
+					*UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->gain)};
+				if (AudioSectionProperties.Contains(AttributeChange.PropertyName))
+				{
+					bIsResync = true;
+					bHasResync = true;
+					break;
+				}
 			}
 
 			// Any sublayer change (even offsets) means we need to regenerate our LevelSequence to add (or shift)
@@ -1683,6 +1705,10 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 		// to update certain info cache maps: For example whenever we delete a prim we need to make sure it's removed from MaterialUsers, etc.
 		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
 		InfoCache->RebuildCacheForSubtree(Stage.GetPseudoRoot(), TranslationContext.Get());
+
+		// Need to update the LevelSequenceHelper with our new cache too, as it will need the new cache to find any
+		// assets we end up creating in this update (e.g. USoundWave assets)
+		LevelSequenceHelper.SetInfoCache(InfoCache);
 	}
 
 	if (BBoxCache.IsValid() && bHasResync)
@@ -2267,7 +2293,13 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 	}
 	if (!bIsAnimated)
 	{
-		bIsAnimated = UsdUtils::IsAnimated(Prim);
+		// Always consider SpatialAudio prims as animated so that we can create LevelSequence tracks for the audio itself.
+		// We exclusively handle the audio stuff via the Sequencer and LevelSequence tracks because there's no way to play audio via Time animation,
+		// and the audio component is not meant to be a fully featured audio player with start/end play times and animated volume controls. In
+		// other words, if we placed our SoundWave asset on the component, the audio component would instantly play it when going into PIE, which is
+		// not what we want. The audio component and actor are only really used for their transforms on the level whenever we'ret trying to play
+		// spatial audio
+		bIsAnimated = UsdUtils::IsAnimated(Prim) || Prim.IsA(TEXT("SpatialAudio"));
 	}
 
 	// Create Sequencer tracks for the prim
@@ -4369,23 +4401,31 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 
 		// If the binding already has another dynamic binding let's not touch it,
 		// regardless of whether we set that dynamic binding up or the user did
-		if (Algo::AnyOf(BindingReferences->GetReferences(Possessable.GetGuid()), [](const FMovieSceneBindingReference& Reference) {
-			if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(Reference.CustomBinding))
-			{
-				if (SpawnableBinding->DynamicBinding.Function != nullptr)
+		if (Algo::AnyOf(
+				BindingReferences->GetReferences(Possessable.GetGuid()),
+				[](const FMovieSceneBindingReference& Reference)
 				{
-					return true;
+					if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(
+							Reference.CustomBinding
+						))
+					{
+						if (SpawnableBinding->DynamicBinding.Function != nullptr)
+						{
+							return true;
+						}
+					}
+					if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(
+							Reference.CustomBinding
+						))
+					{
+						if (ReplaceableBinding->DynamicBinding.Function != nullptr)
+						{
+							return true;
+						}
+					}
+					return false;
 				}
-			}
-			if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(Reference.CustomBinding))
-			{
-				if (ReplaceableBinding->DynamicBinding.Function != nullptr)
-				{
-					return true;
-				}
-			}
-			return false;
-			}))
+			))
 		{
 			continue;
 		}

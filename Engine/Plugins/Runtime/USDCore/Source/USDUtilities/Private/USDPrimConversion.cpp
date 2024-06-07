@@ -28,6 +28,7 @@
 #include "Channels/MovieSceneFloatChannel.h"
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/BrushComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/HeterogeneousVolumeComponent.h"
@@ -53,11 +54,14 @@
 #include "MovieSceneTimeHelpers.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Sections/MovieScene3DTransformSection.h"
+#include "Sections/MovieSceneAudioSection.h"
 #include "Sections/MovieSceneBoolSection.h"
 #include "Sections/MovieSceneColorSection.h"
 #include "Sections/MovieSceneFloatSection.h"
 #include "Sections/MovieSceneVectorSection.h"
 #include "Sections/MovieSceneVisibilitySection.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundWave.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
@@ -104,6 +108,7 @@
 #include "pxr/usd/usdLux/shapingAPI.h"
 #include "pxr/usd/usdLux/sphereLight.h"
 #include "pxr/usd/usdLux/tokens.h"
+#include "pxr/usd/usdMedia/spatialAudio.h"
 #include "pxr/usd/usdShade/connectableAPI.h"
 #include "pxr/usd/usdShade/material.h"
 #include "pxr/usd/usdShade/materialBindingAPI.h"
@@ -288,6 +293,28 @@ namespace UE::USDPrimConversion::Private
 			// scaling when just multiplying them (which is what downstream code within USceneComponent will do).
 			OutTransform = FTransform{OutTransform.ToMatrixWithScale() * ParentToWorld.ToInverseMatrixWithScale()};
 		}
+	}
+
+	void PrepareAttributeForAnimationBake(const pxr::UsdAttribute& Attr)
+	{
+		if (!Attr)
+		{
+			return;
+		}
+
+		// Weirdly enough GetTimeSamples() will return time codes with the offset and scale applied, while
+		// ClearAtTime() expects time codes without offset and scale applied, so we must manually undo them here
+		UE::FSdfLayerOffset CombinedOffset = UsdUtils::GetPrimToStageOffset(UE::FUsdPrim{Attr.GetPrim()});
+
+		std::vector<double> TimeSamples;
+		Attr.GetTimeSamples(&TimeSamples);
+		for (double TimeSample : TimeSamples)
+		{
+			double LocalTime = (TimeSample - CombinedOffset.Offset) / CombinedOffset.Scale;
+			Attr.ClearAtTime(LocalTime);
+		}
+
+		UsdUtils::NotifyIfOverriddenOpinion(Attr);
 	}
 }	 // namespace UE::USDPrimConversion::Private
 
@@ -655,7 +682,8 @@ bool UsdToUnreal::ConvertFloatTimeSamples(
 	const UE::FUsdStage& Stage,
 	const TArray<double>& UsdTimeSamples,
 	const TFunction<float(double)>& ReaderFunc,
-	UMovieSceneFloatTrack& MovieSceneTrack,
+	FMovieSceneFloatChannel& FloatChannel,
+	const UMovieScene& MovieSceneOuter,
 	const FMovieSceneSequenceTransform& SequenceTransform,
 	TOptional<ERichCurveInterpMode> InterpolationModeOverride
 )
@@ -665,14 +693,8 @@ bool UsdToUnreal::ConvertFloatTimeSamples(
 		return false;
 	}
 
-	const UMovieScene* MovieScene = MovieSceneTrack.GetTypedOuter<UMovieScene>();
-	if (!MovieScene)
-	{
-		return false;
-	}
-
-	const FFrameRate Resolution = MovieScene->GetTickResolution();
-	const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+	const FFrameRate Resolution = MovieSceneOuter.GetTickResolution();
+	const FFrameRate DisplayRate = MovieSceneOuter.GetDisplayRate();
 
 	FScopedUsdAllocs Allocs;
 
@@ -716,6 +738,31 @@ bool UsdToUnreal::ConvertFloatTimeSamples(
 		SectionValues.Emplace_GetRef(UEValue).InterpMode = InterpMode;
 	}
 
+	FloatChannel.Set(FrameNumbers, SectionValues);
+
+	return true;
+}
+
+bool UsdToUnreal::ConvertFloatTimeSamples(
+	const UE::FUsdStage& Stage,
+	const TArray<double>& UsdTimeSamples,
+	const TFunction<float(double)>& ReaderFunc,
+	UMovieSceneFloatTrack& MovieSceneTrack,
+	const FMovieSceneSequenceTransform& SequenceTransform,
+	TOptional<ERichCurveInterpMode> InterpolationModeOverride
+)
+{
+	if (!ReaderFunc)
+	{
+		return false;
+	}
+
+	const UMovieScene* MovieScene = MovieSceneTrack.GetTypedOuter<UMovieScene>();
+	if (!MovieScene)
+	{
+		return false;
+	}
+
 	bool bSectionAdded = false;
 	UMovieSceneFloatSection* Section = Cast<UMovieSceneFloatSection>(MovieSceneTrack.FindOrAddSection(0, bSectionAdded));
 	Section->EvalOptions.CompletionMode = EMovieSceneCompletionMode::KeepState;
@@ -723,11 +770,25 @@ bool UsdToUnreal::ConvertFloatTimeSamples(
 	TArrayView<FMovieSceneFloatChannel*> Channels = Section->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
 	if (Channels.Num() > 0)
 	{
-		Channels[0]->Set(FrameNumbers, SectionValues);
+		FMovieSceneFloatChannel* Channel = Channels[0];
+
+		const bool bSuccess = UsdToUnreal::ConvertFloatTimeSamples(
+			Stage,
+			UsdTimeSamples,
+			ReaderFunc,
+			*Channel,
+			*MovieScene,
+			SequenceTransform,
+			InterpolationModeOverride
+		);
+
+		if (!bSuccess)
+		{
+			return false;
+		}
 	}
 
 	Section->SetRange(Section->GetAutoSizeRange().Get(TRange<FFrameNumber>::Empty()));
-
 	return true;
 }
 
@@ -1664,6 +1725,27 @@ UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader(
 			}
 		}
 	}
+	else if (const pxr::UsdMediaSpatialAudio Audio{Prim})
+	{
+		if (PropertyPath == TEXT("Volume"))
+		{
+			if (pxr::UsdAttribute Attr = Audio.GetGainAttr())
+			{
+				double Default = 1.0;
+				Attr.Get<double>(&Default);
+
+				// The VolumeMultiplier property is a float anyway, so we may as well convert
+				// doubles to floats right here
+				Reader.FloatReader = [Attr, Default](double UsdTimeCode)
+				{
+					double Result = Default;
+					Attr.Get<double>(&Result, UsdTimeCode);
+					return static_cast<float>(FMath::Max(Result, 0.0));
+				};
+				return Reader;
+			}
+		}
+	}
 
 	return Reader;
 }
@@ -2050,6 +2132,325 @@ bool UnrealToUsd::ConvertCameraComponent(const UCineCameraComponent& CameraCompo
 	return true;
 }
 
+bool UnrealToUsd::ConvertAudioComponent(const UAudioComponent& AudioComponent, pxr::UsdPrim& Prim, bool bFilePathOnly, double UsdTimeCode)
+{
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdMediaSpatialAudio SpatialAudio{Prim};
+	if (!SpatialAudio)
+	{
+		return false;
+	}
+
+	if (UsdUtils::NotifyIfInstanceProxy(Prim))
+	{
+		return false;
+	}
+
+	if (!bFilePathOnly)
+	{
+		// auralmode
+		if (pxr::UsdAttribute Attr = SpatialAudio.CreateAuralModeAttr())
+		{
+			const bool bIsSpatial = AudioComponent.bAllowSpatialization
+									&& (AudioComponent.bOverrideAttenuation || AudioComponent.AttenuationSettings);
+
+			Attr.Set<pxr::TfToken>(bIsSpatial ? pxr::UsdMediaTokens->spatial : pxr::UsdMediaTokens->nonSpatial);
+			UsdUtils::NotifyIfOverriddenOpinion(Attr);
+		}
+
+		// gain
+		if (pxr::UsdAttribute Attr = SpatialAudio.CreateGainAttr())
+		{
+			Attr.Set<double>(static_cast<double>(AudioComponent.VolumeMultiplier), UsdTimeCode);
+			UsdUtils::NotifyIfOverriddenOpinion(Attr);
+		}
+
+		// playbackMode
+		if (pxr::UsdAttribute Attr = SpatialAudio.CreatePlaybackModeAttr())
+		{
+			if (USoundWave* Sound = Cast<USoundWave>(AudioComponent.Sound))	   // GetSound() is not const so we can't use it
+			{
+				const bool bIsLooping = Sound->IsLooping();
+
+				Attr.Set<pxr::TfToken>(bIsLooping ? pxr::UsdMediaTokens->loopFromStart : pxr::UsdMediaTokens->onceFromStart);
+				UsdUtils::NotifyIfOverriddenOpinion(Attr);
+			}
+		}
+
+		// startTime
+		// We don't really want to author anything here, but since there is no concept of "startTime" on the UE side
+		// we really want this audio to play at startTime zero, so if for some reason this prim already has an opinion
+		// otherwise we need to override it (note how we're just using GetAttr instead of CreateAttr).
+		if (pxr::UsdAttribute Attr = SpatialAudio.GetStartTimeAttr())
+		{
+			Attr.Set<pxr::SdfTimeCode>(0.0);
+			UsdUtils::NotifyIfOverriddenOpinion(Attr);
+		}
+	}
+
+#if WITH_EDITOR
+	// filePath
+	if (pxr::UsdAttribute Attr = SpatialAudio.CreateFilePathAttr())
+	{
+		UsdUtils::NotifyIfOverriddenOpinion(Attr);
+
+		FString FilePath;
+		if (USoundWave* Sound = Cast<USoundWave>(AudioComponent.Sound))	   // GetSound() is not const so we can't use it
+		{
+			if (UAssetImportData* ImportData = Sound->AssetImportData)
+			{
+				FilePath = ImportData->GetFirstFilename();
+			}
+		}
+
+		if (!FilePath.IsEmpty())
+		{
+			if (!FPaths::FileExists(FilePath))
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT(
+						"Used '%s' as the audio file when converting AudioComponent '%s' onto prim '%s', but the file does not exist on the filesystem!"
+					),
+					*FilePath,
+					*AudioComponent.GetPathName(),
+					*UsdToUnreal::ConvertPath(Prim.GetPrimPath())
+				);
+			}
+
+			pxr::SdfAssetPath AssetPath{UnrealToUsd::ConvertString(*FilePath).Get()};
+			Attr.Set(AssetPath);
+		}
+		else
+		{
+			Attr.ClearAtTime(pxr::UsdTimeCode::Default());
+		}
+	}
+#endif	  // WITH_EDITOR
+
+	return true;
+}
+
+bool UnrealToUsd::ConvertAudioSection(
+	const UMovieSceneAudioSection& AudioSection,
+	const FMovieSceneSequenceTransform& SequenceTransform,
+	pxr::UsdPrim& Prim
+)
+{
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdMediaSpatialAudio SpatialAudio{Prim};
+	if (!SpatialAudio)
+	{
+		return false;
+	}
+
+	if (UsdUtils::NotifyIfInstanceProxy(Prim))
+	{
+		return false;
+	}
+
+	UMovieScene* MovieScene = AudioSection.GetTypedOuter<UMovieScene>();
+	if (!MovieScene)
+	{
+		return false;
+	}
+
+	const double StageTimeCodesPerSecond = Prim.GetStage()->GetTimeCodesPerSecond();
+	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
+
+#if WITH_EDITOR
+	// filePath
+	if (pxr::UsdAttribute Attr = SpatialAudio.CreateFilePathAttr())
+	{
+		FString FilePath;
+		if (const USoundWave* Sound = Cast<USoundWave>(AudioSection.GetSound()))
+		{
+			if (UAssetImportData* ImportData = Sound->AssetImportData)
+			{
+				FilePath = ImportData->GetFirstFilename();
+			}
+		}
+
+		if (!FilePath.IsEmpty())
+		{
+			// Don't author anything if we're just trying to set a relative path version
+			// of the same file that is currently set as an absolute path (or vice-versa)
+			bool bSetNewPath = true;
+			if (Attr.HasAuthoredValue())
+			{
+				FString CurrentPath = UsdUtils::GetResolvedAssetPath(Attr, pxr::UsdTimeCode::Default());
+
+				// Both paths should be absolute at this point
+				bSetNewPath = !FPaths::IsSamePath(FilePath, CurrentPath);
+			}
+
+			if (bSetNewPath)
+			{
+				UsdUtils::NotifyIfOverriddenOpinion(Attr);
+				pxr::SdfAssetPath AssetPath{UnrealToUsd::ConvertString(*FilePath).Get()};
+				Attr.Set(AssetPath);
+			}
+		}
+		else
+		{
+			UsdUtils::NotifyIfOverriddenOpinion(Attr);
+			Attr.ClearAtTime(pxr::UsdTimeCode::Default());
+		}
+	}
+#endif	  // WITH_EDITOR
+
+	// mediaOffset
+	if (pxr::UsdAttribute Attr = SpatialAudio.CreateMediaOffsetAttr())
+	{
+		const FFrameNumber& StartOffset = AudioSection.GetStartOffset();
+
+		UsdUtils::NotifyIfOverriddenOpinion(Attr);
+
+		const FFrameRate Resolution = MovieScene->GetTickResolution();
+		double OffsetSeconds = Resolution.AsSeconds(StartOffset);
+
+		Attr.Set(OffsetSeconds);
+	}
+
+	// startTime and endTime
+	double bChangedTimes = false;
+	pxr::UsdAttribute StartAttr = SpatialAudio.CreateStartTimeAttr();
+	pxr::UsdAttribute EndAttr = SpatialAudio.CreateEndTimeAttr();
+	if (StartAttr && EndAttr)
+	{
+		UsdUtils::NotifyIfOverriddenOpinion(StartAttr);
+		UsdUtils::NotifyIfOverriddenOpinion(EndAttr);
+
+		const FFrameRate Resolution = MovieScene->GetTickResolution();
+		const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+
+		TRange<FFrameNumber> Range = AudioSection.GetRange();
+		const FFrameNumber& StartTick = Range.GetLowerBoundValue();
+		const FFrameNumber& EndTick = Range.GetUpperBoundValue();
+
+		FFrameTime UsdStartTickTime = FFrameRate::Snap(StartTick, Resolution, DisplayRate).FloorToFrame();
+		FFrameTime UsdEndTickTime = FFrameRate::Snap(EndTick, Resolution, DisplayRate).FloorToFrame();
+		UsdStartTickTime *= SequenceTransform.InverseNoLooping();
+		UsdEndTickTime *= SequenceTransform.InverseNoLooping();
+		double UsdStartTimeCode = FFrameRate::TransformTime(UsdStartTickTime, Resolution, StageFrameRate).AsDecimal();
+		double UsdEndTimeCode = FFrameRate::TransformTime(UsdEndTickTime, Resolution, StageFrameRate).AsDecimal();
+
+		// Get the previous start/end times from the attribute
+		bool bGotPreviousStart = false;
+		bool bGotPreviousEnd = false;
+		pxr::SdfTimeCode PreviousStartTimeCode = 0.0;
+		pxr::SdfTimeCode PreviousEndTimeCode = 0.0;
+		if (StartAttr.Get(&PreviousStartTimeCode))
+		{
+			bGotPreviousStart = true;
+		}
+		if (EndAttr.Get(&PreviousEndTimeCode))
+		{
+			bGotPreviousEnd = true;
+		}
+
+		StartAttr.Set(pxr::SdfTimeCode{UsdStartTimeCode});
+		EndAttr.Set(pxr::SdfTimeCode{UsdEndTimeCode});
+
+		// Retrieve the new values from the attribute and record whether they changed or not.
+		//
+		// We're not just using the values we just set above (e.g. UsdStartTimeCode) because
+		// USD does automatic layer offset/scale conversions for these, that we would need to manually
+		// undo here anyway in order to properly compare with the previous values.
+		// We may as well just let USD do them by calling Get() instead, and then we can know
+		// for sure whether our actual set values changed
+		pxr::SdfTimeCode SetStartTimeCode = 0.0;
+		pxr::SdfTimeCode SetEndTimeCode = 0.0;
+		if (bGotPreviousStart && StartAttr.Get(&SetStartTimeCode))
+		{
+			if (!FMath::IsNearlyEqual(PreviousStartTimeCode.GetValue(), SetStartTimeCode.GetValue()))
+			{
+				bChangedTimes = true;
+			}
+		}
+		if (!bChangedTimes && bGotPreviousEnd && EndAttr.Get(&SetEndTimeCode))
+		{
+			if (!FMath::IsNearlyEqual(PreviousEndTimeCode.GetValue(), SetEndTimeCode.GetValue()))
+			{
+				bChangedTimes = true;
+			}
+		}
+	}
+
+	// playbackMode
+	// We lose some "degrees of freedom" here by just authoring 2 out of the 5 possible values, but in Unreal
+	// the audio section must always have closed start and end frames, which means only the "FromStartToEnd"
+	// options really make sense. It would probably be more confusing to try and come up with some heuristics
+	// as to when we should guess that the playbackMode really should be something else.
+	// As a small concession though, we'll only change the playback mode in case we have some new value for
+	// start/endTime/looping, so that the user can keep their custom playbackMode until we have to actually
+	// change it
+	if (pxr::UsdAttribute Attr = SpatialAudio.CreatePlaybackModeAttr())
+	{
+		bool bPreviousLooping = false;
+		pxr::TfToken CurrentPlaybackMode;
+		if (Attr.Get(&CurrentPlaybackMode))
+		{
+			bPreviousLooping = (CurrentPlaybackMode != pxr::UsdMediaTokens->onceFromStart)
+							   && (CurrentPlaybackMode != pxr::UsdMediaTokens->onceFromStartToEnd);
+		}
+
+		const bool bNowLooping = AudioSection.GetLooping();
+		const bool bChangedLooping = bNowLooping ^ bPreviousLooping;
+
+		if (bChangedTimes || bChangedLooping)
+		{
+			UsdUtils::NotifyIfOverriddenOpinion(Attr);
+
+			if (bNowLooping)
+			{
+				Attr.Set(pxr::UsdMediaTokens->loopFromStartToEnd);
+			}
+			else
+			{
+				Attr.Set(pxr::UsdMediaTokens->onceFromStartToEnd);
+			}
+		}
+	}
+
+	// auralmode
+	if (pxr::UsdAttribute Attr = SpatialAudio.CreateAuralModeAttr())
+	{
+		const bool bIsSpatial = AudioSection.GetOverrideAttenuation() && AudioSection.GetAttenuationSettings();
+		Attr.Set<pxr::TfToken>(bIsSpatial ? pxr::UsdMediaTokens->spatial : pxr::UsdMediaTokens->nonSpatial);
+		UsdUtils::NotifyIfOverriddenOpinion(Attr);
+	}
+
+	// gain
+	if (pxr::UsdAttribute Attr = SpatialAudio.CreateGainAttr())
+	{
+		const FMovieSceneFloatChannel& VolumeChannel = AudioSection.GetSoundVolumeChannel();
+
+		// Write out default value
+		// Note that even the default is only set on the section and not the component. This because setting the volume
+		// on the component itself will do precisely nothing if the Sequencer is usually the source of the audio anyway
+		if (TOptional<float> Default = VolumeChannel.GetDefault())
+		{
+			Attr.Set(static_cast<double>(Default.GetValue()));
+		}
+
+		UE::USDPrimConversion::Private::PrepareAttributeForAnimationBake(Attr);
+
+		// Write out timeSamples
+		TFunction<void(float, double)> BakerFunc = [Attr](float UEValue, double UsdTimeCode) mutable
+		{
+			Attr.Set(static_cast<double>(UEValue), UsdTimeCode);
+		};
+		UE::FUsdPrim WrappedPrim{Prim};
+		UnrealToUsd::ConvertFloatChannel(VolumeChannel, *MovieScene, SequenceTransform, BakerFunc, WrappedPrim);
+	}
+
+	return true;
+}
+
 bool UnrealToUsd::ConvertBoolTrack(
 	const UMovieSceneBoolTrack& MovieSceneTrack,
 	const FMovieSceneSequenceTransform& SequenceTransform,
@@ -2121,20 +2522,15 @@ bool UnrealToUsd::ConvertBoolTrack(
 	return true;
 }
 
-bool UnrealToUsd::ConvertFloatTrack(
-	const UMovieSceneFloatTrack& MovieSceneTrack,
+bool UnrealToUsd::ConvertFloatChannel(
+	const FMovieSceneFloatChannel& MovieSceneChannel,
+	const UMovieScene& MovieSceneOuter,
 	const FMovieSceneSequenceTransform& SequenceTransform,
 	const TFunction<void(float, double)>& WriterFunc,
 	UE::FUsdPrim& Prim
 )
 {
 	if (!WriterFunc || !Prim)
-	{
-		return false;
-	}
-
-	UMovieScene* MovieScene = MovieSceneTrack.GetTypedOuter<UMovieScene>();
-	if (!MovieScene)
 	{
 		return false;
 	}
@@ -2149,9 +2545,9 @@ bool UnrealToUsd::ConvertFloatTrack(
 																								: ERichCurveInterpMode::RCIM_Constant;
 	}
 
-	const TRange<FFrameNumber> PlaybackRange = MovieScene->GetPlaybackRange();
-	const FFrameRate Resolution = MovieScene->GetTickResolution();
-	const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+	const TRange<FFrameNumber> PlaybackRange = MovieSceneOuter.GetPlaybackRange();
+	const FFrameRate Resolution = MovieSceneOuter.GetTickResolution();
+	const FFrameRate DisplayRate = MovieSceneOuter.GetDisplayRate();
 
 	const double StageTimeCodesPerSecond = Stage.GetTimeCodesPerSecond();
 	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
@@ -2206,24 +2602,38 @@ bool UnrealToUsd::ConvertFloatTrack(
 		return Values;
 	};
 
-	for (UMovieSceneSection* Section : MovieSceneTrack.GetAllSections())
+	for (const TPair<FFrameNumber, float>& Pair : EvaluateChannel(MovieSceneChannel, 0.0f))
 	{
-		if (UMovieSceneFloatSection* FloatSection = Cast<UMovieSceneFloatSection>(Section))
+		FFrameTime TransformedBakedKeyTime{Pair.Key};
+		TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
+		FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+
+		float UEValue = Pair.Value;
+
+		WriterFunc(UEValue, UsdFrameTime.AsDecimal());
+	}
+	return true;
+}
+
+bool UnrealToUsd::ConvertFloatTrack(
+	const UMovieSceneFloatTrack& MovieSceneTrack,
+	const FMovieSceneSequenceTransform& SequenceTransform,
+	const TFunction<void(float, double)>& WriterFunc,
+	UE::FUsdPrim& Prim
+)
+{
+	if (UMovieScene* MovieScene = MovieSceneTrack.GetTypedOuter<UMovieScene>())
+	{
+		for (UMovieSceneSection* Section : MovieSceneTrack.GetAllSections())
 		{
-			for (const TPair<FFrameNumber, float>& Pair : EvaluateChannel(FloatSection->GetChannel(), 0.0f))
+			if (UMovieSceneFloatSection* FloatSection = Cast<UMovieSceneFloatSection>(Section))
 			{
-				FFrameTime TransformedBakedKeyTime{Pair.Key};
-				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
-				FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
-
-				float UEValue = Pair.Value;
-
-				WriterFunc(UEValue, UsdFrameTime.AsDecimal());
+				return ConvertFloatChannel(FloatSection->GetChannel(), *MovieScene, SequenceTransform, WriterFunc, Prim);
 			}
 		}
 	}
 
-	return true;
+	return false;
 }
 
 bool UnrealToUsd::ConvertColorTrack(
@@ -4689,28 +5099,14 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 
 	for (const pxr::UsdAttribute& SomeAttr : Attrs)
 	{
-		if (SomeAttr)
-		{
-			// Weirdly enough GetTimeSamples() will return time codes with the offset and scale applied, while
-			// ClearAtTime() expects time codes without offset and scale applied, so we must manually undo them here
-			UE::FSdfLayerOffset CombinedOffset = UsdUtils::GetPrimToStageOffset(UE::FUsdPrim{SomeAttr.GetPrim()});
-
-			std::vector<double> TimeSamples;
-			SomeAttr.GetTimeSamples(&TimeSamples);
-			for (double TimeSample : TimeSamples)
-			{
-				double LocalTime = (TimeSample - CombinedOffset.Offset) / CombinedOffset.Scale;
-				SomeAttr.ClearAtTime(LocalTime);
-			}
-
-			// Note that we must do this only after the change block is destroyed!
-			// This is important because if we don't have spec for this attribute on the current edit target, we're relying
-			// on the previous code to create it, and we need to let USD emit its internal notices and fully commit the
-			// "attribute creation" spec first. This because NotifyIfOverriddenOpinion will go through the attribute's
-			// spec stack and consider our attribute overriden if it finds a stronger opinion than the one on the edit
-			// target. Well if our own spec hasn't been created yet it will misfire when it runs into any other spec
-			UsdUtils::NotifyIfOverriddenOpinion(SomeAttr);
-		}
+		// Note that we must do this only after the change block is destroyed!
+		// This is important because if we don't have spec for this attribute on the current edit target, we're relying
+		// on the previous code to create it, and we need to let USD emit its internal notices and fully commit the
+		// "attribute creation" spec first. This because PrepareAttributeForAnimationBake will call NotifyIfOverriddenOpinion,
+		// which will go through the attribute's spec stack and consider our attribute overriden if it finds a stronger
+		// opinion than the one on the edit target. Well if our own spec hasn't been created yet it will misfire when
+		// it runs into any other spec
+		UE::USDPrimConversion::Private::PrepareAttributeForAnimationBake(SomeAttr);
 	}
 
 	return Result;
@@ -5140,6 +5536,13 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty(const UE::FUsdPr
 			}
 
 			return Attrs;
+		}
+	}
+	else if (PropertyPath == GET_MEMBER_NAME_CHECKED(UAudioComponent, VolumeMultiplier))
+	{
+		if (pxr::UsdMediaSpatialAudio Audio{Prim})
+		{
+			return {UE::FUsdAttribute{Audio.GetGainAttr()}};
 		}
 	}
 

@@ -40,11 +40,13 @@
 #include "MovieSceneSpawnRegister.h"
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneTrack.h"
+#include "Sections/MovieSceneAudioSection.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Selection.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Tracks/MovieScene3DAttachTrack.h"
+#include "Tracks/MovieSceneAudioTrack.h"
 #include "Tracks/MovieScenePropertyTrack.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
@@ -524,15 +526,18 @@ namespace UE::LevelSequenceExporterUSD::Private
 		return false;
 	}
 
-	TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> GetSequenceHierarchyInstances(UMovieSceneSequence& Sequence, ISequencer& Sequencer)
+	TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> GetSequenceHierarchyInstances(
+		UMovieSceneSequence& Sequence,
+		ISequencer& Sequencer,
+		FMovieSceneSequenceHierarchy& InOutHierarchyCache
+	)
 	{
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances;
 
-		FMovieSceneSequenceHierarchy SequenceHierarchyCache;
-		UMovieSceneCompiledDataManager::CompileHierarchy(&Sequence, &SequenceHierarchyCache, EMovieSceneServerClientMask::All);
+		UMovieSceneCompiledDataManager::CompileHierarchy(&Sequence, &InOutHierarchyCache, EMovieSceneServerClientMask::All);
 
 		SequenceInstances.FindOrAdd(&Sequence).Add(Sequencer.GetRootTemplateID());
-		for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : SequenceHierarchyCache.AllSubSequenceData())
+		for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : InOutHierarchyCache.AllSubSequenceData())
 		{
 			if (ULevelSequence* SubSequence = Cast<ULevelSequence>(Pair.Value.GetSequence()))
 			{
@@ -549,9 +554,11 @@ namespace UE::LevelSequenceExporterUSD::Private
 		UMovieSceneSequence& RootSequence
 	)
 	{
+		FMovieSceneSequenceHierarchy HierarchyCache;
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances = GetSequenceHierarchyInstances(
 			RootSequence,
-			Context.Sequencer.Get()
+			Context.Sequencer.Get(),
+			HierarchyCache
 		);
 
 		UMovieSceneSequence* OrigRootSequence = Context.Sequencer->GetRootMovieSceneSequence();
@@ -778,6 +785,70 @@ namespace UE::LevelSequenceExporterUSD::Private
 		ActorSelection->EndBatchSelectOperation(bNotify);
 	}
 
+	// Export the provided AudioTrack to Prim as UsdMediaSpatialAudio attributes
+	//
+	// Exporting this track type takes a different approach because unlike all other animation types, there is no actual
+	// change on the component on the level while the LevelSequence plays audio. This means that reading the "final output"
+	// of the sequence on the component every EvalFrame with a baker (like all other track cases do) doesn't really do
+	// anything for us, and we actually need to traverse the Sequencer tracks themselves.
+	//
+	// Of course, we won't get the benefit of the previous approach here: If we have multiple audio tracks for the same
+	// actor/component, even if they're placed within different Subsequences, they *will* conflict on the USD files.
+	// There is not much we can do about that at this point other than to emit a warning, but hopefully having multiple
+	// audio tracks on the same audio component is something that doesn't happen very often in practice anyway. If that
+	// is ever requested, in the future we could handle it by creating a separate UsdMediaSpatialAudio prim per audio section,
+	// but that will make a bit of a mess and harm roundtripping, so for now we only handle one section.
+	void ExportAudioTrack(
+		const UMovieSceneAudioTrack& AudioTrack,
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		UE::FUsdPrim& Prim,
+		TMap<FString, int32>& AudioTracksPerPrim
+	)
+	{
+		FString PrimPath = Prim.GetPrimPath().GetString();
+
+		const TArray<UMovieSceneSection*>& Sections = AudioTrack.GetAudioSections();
+		if (Sections.Num() > 1)
+		{
+			// We only support one audio section per track because we need a full UsdMediaSpatialAudio prim for each
+			// section. If we tried exporting another section here we'd need a fully separate prim for it, which opens
+			// a can of worms as we so far only had one prim per binding. Furthermore we'd need to pay attention to this
+			// split when opening the stage as well, otherwise we'd roundtrip the audio track incorrectly
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("The audio track '%s' has %d sections, but only the first audio section of an audio track can be written out to USD for now"),
+				*AudioTrack.GetPathName(),
+				Sections.Num()
+			);
+		}
+
+		if (Sections.Num() > 0)
+		{
+			if (UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(Sections[0]))
+			{
+				UnrealToUsd::ConvertAudioSection(*AudioSection, SequenceTransform, Prim);
+				AudioTracksPerPrim.FindOrAdd(PrimPath) += 1;
+			}
+		}
+
+		if (int32* SourceTracksForPrim = AudioTracksPerPrim.Find(PrimPath))
+		{
+			if (*SourceTracksForPrim > 1)
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT(
+						"Exporting multiple audio tracks (like '%s') to the same prim ('%s') is currently not supported and may lead to incorrect output"
+					),
+					*AudioTrack.GetPathName(),
+					*PrimPath
+				);
+			}
+		}
+	}
+
 	// Appends to InOutComponentBakers all of the component bakers for all components bound to MovieSceneSequence.
 	// In the process it will generate the output prims for each of these components, and keep track of them
 	// within the bakers themselves
@@ -785,6 +856,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 		FLevelSequenceExportContext& Context,
 		UMovieSceneSequence& MovieSceneSequence,
 		const TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>>& SequenceInstances,
+		const FMovieSceneSequenceHierarchy& HierarchyCache,
 		UE::FUsdStage& UsdStage,
 		TMap<USceneComponent*, FCombinedComponentBakers>& InOutComponentBakers
 	)
@@ -931,6 +1003,12 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 						for (USceneComponent* Child : Children)
 						{
+							// Skip hidden billboards/arrows/camera mesh components, etc.
+							if (!Child || !Child->IsVisibleInEditor() || Child->IsVisualizationComponent())
+							{
+								continue;
+							}
+
 							NewEntries.Add(Child, FSpawnedInstanceKey{});
 						}
 					}
@@ -1099,6 +1177,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			bool bHasTransformBaker = false;
 			bool bHasSkeletalBaker = false;
+			TMap<FString, int32> AudioTracksPerPrim;
 			if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(InstanceKey.Key))
 			{
 				for (const UMovieSceneTrack* Track : Binding->GetTracks())
@@ -1136,6 +1215,28 @@ namespace UE::LevelSequenceExporterUSD::Private
 					else if (Track->IsA<UMovieScene3DAttachTrack>())
 					{
 						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, TEXT("Transform"), Baker);
+					}
+					else if (const UMovieSceneAudioTrack* AudioTrack = Cast<UMovieSceneAudioTrack>(Track))
+					{
+						FMovieSceneSequenceID InstanceID = Context.Sequencer->GetRootTemplateID();
+						if (InstancesOfThisSequence && InstancesOfThisSequence->Num() > 0)
+						{
+							InstanceID = (*InstancesOfThisSequence)[0];
+						}
+
+						FMovieSceneSequenceTransform SequenceTransform;
+						if (const FMovieSceneSubSequenceData* SubSequenceData = HierarchyCache.FindSubData(InstanceID))
+						{
+							SequenceTransform = SubSequenceData->RootToSequenceTransform;
+						}
+
+						// This is awkwardly handled here within GenerateBakersForMovieScene (even though it doesn't generate a baker) for two
+						// reasons:
+						//  - It's the first place you'd go do in order to search for how audio is exported, since literally every other type
+						//    of track we support goes through here
+						//  - Getting the Prim to export the audio track *to* is very much non-trivial and requires looking into
+						//    DynamicBindings and etc., which this function already does
+						ExportAudioTrack(*AudioTrack, SequenceTransform, Prim, AudioTracksPerPrim);
 					}
 
 					AddBaker(Baker);
@@ -1246,7 +1347,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 					continue;
 				}
 
-				GenerateBakersForMovieScene(Context, *SubSequence, SequenceInstances, UsdStage, InOutComponentBakers);
+				GenerateBakersForMovieScene(Context, *SubSequence, SequenceInstances, HierarchyCache, UsdStage, InOutComponentBakers);
 			}
 		}
 	}
@@ -1551,13 +1652,15 @@ namespace UE::LevelSequenceExporterUSD::Private
 		// same result as if we had exported that subsequence's LevelSequence by itself
 		Context.Sequencer->ResetToNewRootSequence(MovieSceneSequence);
 
+		FMovieSceneSequenceHierarchy HierarchyCache;
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances = GetSequenceHierarchyInstances(
 			MovieSceneSequence,
-			Context.Sequencer.Get()
+			Context.Sequencer.Get(),
+			HierarchyCache
 		);
 
 		TMap<USceneComponent*, FCombinedComponentBakers> Bakers;
-		GenerateBakersForMovieScene(Context, MovieSceneSequence, SequenceInstances, UsdStage, Bakers);
+		GenerateBakersForMovieScene(Context, MovieSceneSequence, SequenceInstances, HierarchyCache, UsdStage, Bakers);
 
 		// Bake this MovieScene
 		// We bake each MovieScene individually instead of doing one large simultaneous bake because this way

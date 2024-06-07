@@ -39,6 +39,7 @@
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/JsonSerializer.h"
+#include "Sound/SoundWave.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectSaveContext.h"
@@ -447,6 +448,10 @@ TSet<UObject*> IUsdClassesModule::GetAssetDependencies(UObject* Asset)
 	else if (USparseVolumeTexture* SparseVolumeTexture = Cast<USparseVolumeTexture>(Asset))
 	{
 		// Do nothing. SparseVolumeTextures have no additional dependencies
+	}
+	else if (USoundBase* Sound = Cast<USoundBase>(Asset))
+	{
+		// Do nothing. Sounds have no additional dependencies
 	}
 	else
 	{

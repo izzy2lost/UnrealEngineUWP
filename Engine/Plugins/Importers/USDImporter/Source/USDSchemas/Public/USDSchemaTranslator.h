@@ -305,6 +305,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** If true, means we will try generating Sparse Volume Textures */
 	bool bAllowParsingSparseVolumeTextures = true;
 
+	/** If true, means we will try generating SoundWave assets from sound files referenced by UsdMediaSpatialAudio prims */
+	bool bAllowParsingSounds = true;
+
 	/** Skip the import of materials that aren't being used by any prim on the stage */
 	bool bTranslateOnlyUsedMaterials = false;
 

@@ -249,6 +249,21 @@ bool UUsdConversionBlueprintContext::ConvertDrawModeComponent(const UUsdDrawMode
 #endif	  // USE_USD_SDK
 }
 
+bool UUsdConversionBlueprintContext::ConvertAudioComponent(const UAudioComponent* Component, const FString& PrimPath, float TimeCode, bool bFilePathOnly)
+{
+#if USE_USD_SDK
+	UE::FUsdPrim Prim = UnrealToUsdImpl::GetPrim(Stage, PrimPath);
+	if (!Prim || !Component)
+	{
+		return false;
+	}
+
+	return UnrealToUsd::ConvertAudioComponent(*Component, Prim, bFilePathOnly, TimeCode == FLT_MAX ? UsdUtils::GetDefaultTimeCode() : TimeCode);
+#else
+	return false;
+#endif	  // USE_USD_SDK
+}
+
 bool UUsdConversionBlueprintContext::ConvertSceneComponent(const USceneComponent* Component, const FString& PrimPath)
 {
 #if USE_USD_SDK

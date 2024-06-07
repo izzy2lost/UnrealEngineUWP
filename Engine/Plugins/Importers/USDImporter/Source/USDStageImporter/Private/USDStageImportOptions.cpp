@@ -19,6 +19,7 @@ UUsdStageImportOptions::UUsdStageImportOptions(const FObjectInitializer& ObjectI
 	bImportMaterials = true;
 	bImportGroomAssets = true;
 	bImportSparseVolumeTextures = true;
+	bImportSounds = true;
 	bImportOnlyUsedMaterials = false;
 
 	bUseExistingAssetCache = false;
@@ -97,6 +98,7 @@ void UsdUtils::AddAnalyticsAttributes(const UUsdStageImportOptions& Options, TAr
 	InOutAttributes.Emplace(TEXT("ImportMaterials"), LexToString(Options.bImportMaterials));
 	InOutAttributes.Emplace(TEXT("ImportGroomAssets"), LexToString(Options.bImportGroomAssets));
 	InOutAttributes.Emplace(TEXT("ImportSparseVolumeTextures"), LexToString(Options.bImportSparseVolumeTextures));
+	InOutAttributes.Emplace(TEXT("ImportSounds"), LexToString(Options.bImportSounds));
 	InOutAttributes.Emplace(TEXT("ImportOnlyUsedMaterials"), LexToString(Options.bImportOnlyUsedMaterials));
 	if (Options.PrimsToImport != TArray<FString>{TEXT("/")})
 	{

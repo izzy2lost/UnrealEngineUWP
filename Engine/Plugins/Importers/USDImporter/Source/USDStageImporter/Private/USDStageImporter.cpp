@@ -29,6 +29,7 @@
 #include "Animation/Skeleton.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "AudioDeviceManager.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -57,6 +58,8 @@
 #include "PackageTools.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundWave.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/UObjectIterator.h"
@@ -428,7 +431,7 @@ namespace UE::USDStageImporter::Private
 			}
 
 #if USE_USD_SDK
-			if (bAnimatedVisibility || UsdUtils::IsAnimated(Prim))
+			if (bAnimatedVisibility || UsdUtils::IsAnimated(Prim) || Prim.IsA(TEXT("SpatialAudio")))
 			{
 				const TOptional<bool> HasAnimatedBounds = {};
 				ImportAnimation(ImportContext, Prim, bAnimatedVisibility, HasAnimatedBounds, Component);
@@ -530,8 +533,8 @@ namespace UE::USDStageImporter::Private
 
 		if (ImportData)
 		{
-			// Don't force update textures as they will already have this preset to their actual texture path
-			if (!Asset->IsA<UTexture>() && !Asset->IsA<USparseVolumeTexture>())
+			// Don't force update these assets as they will already have this preset to their actual source file path
+			if (!Asset->IsA<UTexture>() && !Asset->IsA<USparseVolumeTexture>() && !Asset->IsA<USoundBase>())
 			{
 				ImportData->UpdateFilenameOnly(MainFilePath);
 			}
@@ -610,6 +613,16 @@ namespace UE::USDStageImporter::Private
 		{
 			AssetEditorSubsystem->CloseAllEditorsForAsset(ExistingAsset);
 			bAssetWasOpen = true;
+		}
+
+		// If the existing asset is an audio file, make sure it's not playing before we stomp it
+		if (USoundWave* Sound = Cast<USoundWave>(ExistingAsset))
+		{
+			if (FAudioDeviceManager* AudioDeviceManager = GEngine->GetAudioDeviceManager())
+			{
+				AudioDeviceManager->StopSoundsUsingResource(Sound);
+			}
+			Sound->FreeResources();
 		}
 
 		UPackage* Package = ExistingPackage ? ExistingPackage : CreatePackage(*TargetPackagePath);
@@ -801,6 +814,7 @@ namespace UE::USDStageImporter::Private
 		TArray<UObject*> GroomCaches;
 		TArray<UObject*> GroomBindings;
 		TArray<UObject*> SparseVolumeTextures;
+		TArray<UObject*> Sounds;
 
 		TSet<FString> UniqueAssetNames;
 		TMap<UObject*, FString> AssetToContentFolder;
@@ -819,6 +833,7 @@ namespace UE::USDStageImporter::Private
 			const static FString LevelSequencesFolder = TEXT("LevelSequences");
 			const static FString GeometryCachesFolder = TEXT("GeometryCaches");
 			const static FString GroomsFolder = TEXT("Grooms");
+			const static FString SoundsFolder = TEXT("Sounds");
 
 			const FString* AssetTypeFolderPtr = nullptr;
 			if (Asset->IsA(UMaterialInterface::StaticClass()))
@@ -890,6 +905,11 @@ namespace UE::USDStageImporter::Private
 			{
 				AssetTypeFolderPtr = &TexturesFolder;
 				SparseVolumeTextures.Add(Asset);
+			}
+			else if (Asset->IsA(USoundBase::StaticClass()))
+			{
+				AssetTypeFolderPtr = &SoundsFolder;
+				Sounds.Add(Asset);
 			}
 			else
 			{
@@ -967,6 +987,7 @@ namespace UE::USDStageImporter::Private
 		PublishAssetType(Materials);
 		PublishAssetType(Textures);
 		PublishAssetType(SparseVolumeTextures);
+		PublishAssetType(Sounds);
 	}
 
 	void ResolveComponentConflict(
@@ -1576,6 +1597,7 @@ namespace UE::USDStageImporter::Private
 			int32 NumGroomBindings = 0;
 			int32 NumGroomCaches = 0;
 			int32 NumSparseVolumeTextures = 0;
+			int32 NumSounds = 0;
 			for (UObject* ImportedAsset : ImportedAssets)
 			{
 				if (!ImportedAsset)
@@ -1627,6 +1649,10 @@ namespace UE::USDStageImporter::Private
 				{
 					++NumSparseVolumeTextures;
 				}
+				else if (ImportedAsset->IsA<USoundBase>())
+				{
+					++NumSounds;
+				}
 			}
 			EventAttributes.Emplace(TEXT("NumStaticMeshes"), LexToString(NumStaticMeshes));
 			EventAttributes.Emplace(TEXT("NumSkeletalMeshes"), LexToString(NumSkeletalMeshes));
@@ -1639,6 +1665,7 @@ namespace UE::USDStageImporter::Private
 			EventAttributes.Emplace(TEXT("NumGroomBindings"), LexToString(NumGroomBindings));
 			EventAttributes.Emplace(TEXT("NumGroomCaches"), LexToString(NumGroomCaches));
 			EventAttributes.Emplace(TEXT("NumSparseVolumeTextures"), LexToString(NumSparseVolumeTextures));
+			EventAttributes.Emplace(TEXT("NumSounds"), LexToString(NumSounds));
 
 			FString RootLayerIdentifier = ImportContext.FilePath;
 			if (ImportContext.Stage)
@@ -1691,7 +1718,8 @@ namespace UE::USDStageImporter::Private
 				(!ImportContext.ImportOptions->bImportLevelSequences && (Asset->IsA<ULevelSequence>())) ||
 				(!ImportContext.ImportOptions->bImportMaterials && (Asset->IsA<UMaterialInterface>() || Asset->IsA<UTexture>())) ||
 				(!ImportContext.ImportOptions->bImportGroomAssets && (Asset->IsA<UGroomAsset>() || Asset->IsA<UGroomCache>() || Asset->IsA<UGroomBindingAsset>())) ||
-				(!ImportContext.ImportOptions->bImportSparseVolumeTextures && (Asset->IsA<USparseVolumeTexture>()))
+				(!ImportContext.ImportOptions->bImportSparseVolumeTextures && (Asset->IsA<USparseVolumeTexture>())) ||
+				(!ImportContext.ImportOptions->bImportSounds && (Asset->IsA<USoundBase>()))
 			)
 			{
 				ObjectsToRemap.Add(Asset, nullptr);
@@ -1924,6 +1952,7 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 														  && ImportContext.ImportOptions->bImportSkeletalAnimations;
 	TranslationContext->bAllowParsingGroomAssets = ImportContext.ImportOptions->bImportGroomAssets;
 	TranslationContext->bAllowParsingSparseVolumeTextures = ImportContext.ImportOptions->bImportSparseVolumeTextures;
+	TranslationContext->bAllowParsingSounds = ImportContext.ImportOptions->bImportSounds;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
 	TranslationContext->InfoCache = InfoCache;
 	TranslationContext->BBoxCache = ImportContext.BBoxCache;
@@ -2129,6 +2158,7 @@ bool UUsdStageImporter::ReimportSingleAsset(
 														  && ImportContext.ImportOptions->bImportSkeletalAnimations;
 	TranslationContext->bAllowParsingGroomAssets = ImportContext.ImportOptions->bImportGroomAssets;
 	TranslationContext->bAllowParsingSparseVolumeTextures = ImportContext.ImportOptions->bImportSparseVolumeTextures;
+	TranslationContext->bAllowParsingSounds = ImportContext.ImportOptions->bImportSounds;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
 	TranslationContext->InfoCache = InfoCache;
 	TranslationContext->BBoxCache = ImportContext.BBoxCache;

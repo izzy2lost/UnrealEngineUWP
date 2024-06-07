@@ -29,12 +29,14 @@ PXR_NAMESPACE_OPEN_SCOPE
 PXR_NAMESPACE_CLOSE_SCOPE
 
 class AInstancedFoliageActor;
+class UAudioComponent;
 class UCineCameraComponent;
 class UHierarchicalInstancedStaticMeshComponent;
 class ULevel;
 class UMeshComponent;
 class UMovieScene;
 class UMovieScene3DTransformTrack;
+class UMovieSceneAudioSection;
 class UMovieSceneBoolTrack;
 class UMovieSceneColorTrack;
 class UMovieSceneDoubleVectorTrack;
@@ -48,6 +50,7 @@ class USkeletalMeshComponent;
 class UUsdDrawModeComponent;
 enum ERichCurveInterpMode : int;
 struct FFrameRate;
+struct FMovieSceneFloatChannel;
 struct FMovieSceneSequenceTransform;
 struct FUsdCombinedPrimMetadata;
 struct FUsdPrimMetadata;
@@ -135,6 +138,15 @@ namespace UsdToUnreal
 		const TFunction<bool(double)>& ReaderFunc,
 		UMovieSceneVisibilityTrack& MovieSceneTrack,
 		const FMovieSceneSequenceTransform& SequenceTransform
+	);
+	USDUTILITIES_API bool ConvertFloatTimeSamples(
+		const UE::FUsdStage& UsdStage,
+		const TArray<double>& UsdTimeSamples,
+		const TFunction<float(double)>& ReaderFunc,
+		FMovieSceneFloatChannel& FloatChannel,
+		const UMovieScene& MovieSceneOuter,
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		TOptional<ERichCurveInterpMode> InterpolationModeOverride = {}
 	);
 	USDUTILITIES_API bool ConvertFloatTimeSamples(
 		const UE::FUsdStage& UsdStage,
@@ -235,11 +247,31 @@ namespace UnrealToUsd
 		double UsdTimeCode = UsdUtils::GetDefaultTimeCode()
 	);
 
+	USDUTILITIES_API bool ConvertAudioComponent(
+		const UAudioComponent& AudioComponent,
+		pxr::UsdPrim& Prim,
+		bool bFilePathOnly,
+		double UsdTimeCode = UsdUtils::GetDefaultTimeCode()
+	);
+
+	USDUTILITIES_API bool ConvertAudioSection(
+		const UMovieSceneAudioSection& AudioSection,
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		pxr::UsdPrim& Prim
+	);
+
 	/**
 	 * Functions that call WriterFunc on each UsdTimeSample that corresponds to the keyframes of MovieSceneTrack, writing out time samples for
 	 * attributes of Prim. Mostly used to write out to USD the modified tracks from the automatically generated ULevelSequence owned by
 	 * AUsdStageActors
 	 */
+	USDUTILITIES_API bool ConvertFloatChannel(
+		const FMovieSceneFloatChannel& MovieSceneChannel,
+		const UMovieScene& MovieSceneOuter,
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		const TFunction<void(float, double)>& WriterFunc,
+		UE::FUsdPrim& Prim
+	);
 	USDUTILITIES_API bool ConvertFloatTrack(
 		const UMovieSceneFloatTrack& MovieSceneTrack,
 		const FMovieSceneSequenceTransform& SequenceTransform,

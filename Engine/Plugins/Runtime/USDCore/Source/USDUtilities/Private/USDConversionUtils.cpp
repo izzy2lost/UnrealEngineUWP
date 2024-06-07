@@ -26,6 +26,7 @@
 #include "Animation/Skeleton.h"
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/HeterogeneousVolumeComponent.h"
 #include "Components/PointLightComponent.h"
@@ -50,6 +51,7 @@
 #include "LandscapeProxy.h"
 #include "Misc/PackageName.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "Sound/AmbientSound.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -81,6 +83,7 @@
 #include "pxr/usd/usdLux/rectLight.h"
 #include "pxr/usd/usdLux/shapingAPI.h"
 #include "pxr/usd/usdLux/sphereLight.h"
+#include "pxr/usd/usdMedia/spatialAudio.h"
 #include "pxr/usd/usdSkel/animation.h"
 #include "pxr/usd/usdSkel/cache.h"
 #include "pxr/usd/usdSkel/root.h"
@@ -473,6 +476,10 @@ UClass* UsdUtils::GetActorTypeForPrim(const pxr::UsdPrim& Prim)
 	{
 		return AHeterogeneousVolume::StaticClass();
 	}
+	else if (Prim.IsA<pxr::UsdMediaSpatialAudio>())
+	{
+		return AAmbientSound::StaticClass();
+	}
 	else
 	{
 		return AActor::StaticClass();
@@ -579,6 +586,10 @@ FString UsdUtils::GetSchemaNameForComponent(const USceneComponent& Component)
 	else if (Component.IsA<USkyLightComponent>())
 	{
 		return TEXT("DomeLight");
+	}
+	else if (Component.IsA<UAudioComponent>())
+	{
+		return TEXT("SpatialAudio");
 	}
 
 	return TEXT("Xform");

@@ -23,6 +23,7 @@
 #include "USDGeomXformableTranslator.h"
 #include "USDGroomTranslator.h"
 #include "USDLuxLightTranslator.h"
+#include "USDMediaSpatialAudioTranslator.h"
 #include "USDMemory.h"
 #include "USDShadeMaterialTranslator.h"
 #include "USDSkelSkeletonTranslator.h"
@@ -76,6 +77,8 @@ public:
 				Registry.Register<FUsdGroomTranslator>(TEXT("UsdGeomXformable")),
 				// The GeometryCacheTranslator also works on UsdGeomXformable through the GroomTranslator
 				Registry.Register<FUsdGeometryCacheTranslator>(TEXT("UsdGeomMesh")),
+				// It doesn't seem possible to create SoundWave assets at runtime at the moment, for whatever reason
+				Registry.Register<FUsdMediaSpatialAudioTranslator>(TEXT("UsdMediaSpatialAudio"))
 			});
 
 			if (IMDLImporterModule* MDLImporterModule = FModuleManager::Get().LoadModulePtr<IMDLImporterModule>(TEXT("MDLImporter")))

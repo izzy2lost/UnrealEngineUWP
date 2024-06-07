@@ -65,13 +65,17 @@
 #include "MovieSceneTrack.h"
 #include "Rigs/FKControlRig.h"
 #include "RigVMBlueprintGeneratedClass.h"
+#include "Sections/MovieSceneAudioSection.h"
 #include "Sections/MovieSceneFloatSection.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Templates/SharedPointer.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
+#include "Tracks/MovieSceneAudioTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneColorTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
@@ -94,6 +98,12 @@
 #include "MovieSceneToolHelpers.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #endif	  // WITH_EDITOR
+
+#if USE_USD_SDK
+#include "USDIncludesStart.h"
+#include "pxr/usd/usdMedia/tokens.h"
+#include "USDIncludesEnd.h"
+#endif	  // USE_USD_SDK
 
 #define LOCTEXT_NAMESPACE "USDLevelSequenceHelper"
 
@@ -698,6 +708,7 @@ private:
 	void AddGroomTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddGeometryCacheTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddVolumeTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
+	void AddAudioTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 
 	template<typename TrackType>
 	TrackType* AddTrack(
@@ -2663,6 +2674,315 @@ void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, 
 	PrimPathByLevelSequenceName.AddUnique(PrimSequence->GetFName(), Prim.GetPrimPath().GetString());
 }
 
+namespace UE::LevelSequenceHelper::Private
+{
+	template<typename T>
+	TOptional<T> GetAuthoredValue(const UE::FUsdPrim& Prim, const FString& AttrName)
+	{
+		if (UE::FUsdAttribute Attr = Prim.GetAttribute(*AttrName))
+		{
+			UE::FVtValue VtValue;
+			if (Attr.HasAuthoredValue() && Attr.Get(VtValue) && !VtValue.IsEmpty())
+			{
+				return UsdUtils::GetUnderlyingValue<T>(VtValue);
+			}
+		}
+
+		return TOptional<T>{};
+	}
+};
+
+void FUsdLevelSequenceHelperImpl::AddAudioTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim)
+{
+	using namespace UnrealIdentifiers;
+	using namespace UE::LevelSequenceHelper::Private;
+
+	UAudioComponent* AudioComponent = Cast<UAudioComponent>(PrimTwin.GetSceneComponent());
+	if (!AudioComponent)
+	{
+		return;
+	}
+
+	// Note: We pull the audio directly from the info cache here, and not the component:
+	// See big comment within FUsdMediaSpatialAudioTranslator::UpdateComponents
+	USoundBase* Sound = InfoCache->GetSingleAssetForPrim<USoundBase>(Prim.GetPrimPath());
+	if (!Sound)
+	{
+		return;
+	}
+
+	static FString FilePathToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->filePath);
+	static FString AuralModeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->auralMode);
+	static FString MediaOffsetSecondsToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->mediaOffset);
+	static FString StartTimeCodeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->startTime);
+	static FString EndTimeCodeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->endTime);
+	static FString PlaybackModeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->playbackMode);
+	static FString GainToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->gain);
+
+	// Set up the actual audio track
+	{
+		// If we're using references so that our prim references another layer with the SpatialAudio prim,
+		// using just "the layer for the prim" here would mean we end up with the referencer layer, and so
+		// we'd end up placing the audio track directly on the LevelSequence for the referencer layer, which
+		// is not what we want.
+		// Instead, we use the file path attribute as the "main attribute" for the audio track: If you author
+		// filePath on the referencer layer, the audio track will end up on the corresponding LevelSequence.
+		// If you author it on the referenced layer, the audio track will end up on that subsequence
+		UE::FUsdAttribute Attr = Prim.GetAttribute(*FilePathToken);
+
+		UE::FSdfLayer SequenceLayer;
+		ULevelSequence* AttributeSequence = FindOrAddSequenceForAttribute(Attr, &SequenceLayer);
+		if (!AttributeSequence)
+		{
+			return;
+		}
+
+		UMovieScene* MovieScene = AttributeSequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return;
+		}
+
+		UsdLevelSequenceHelperImpl::FScopedReadOnlyDisable ReadOnlyGuard{MovieScene, SequenceLayer, UsdStage};
+
+		// Since the schema has fallbacks for these, we should always have values here.
+		//
+		// Note that since startTime and endTime have pxr::SdfTimeCode data types, USD will already do the
+		// proper conversions regarding sublayer/reference offset and scale. In other words, these timeCode
+		// values as retrieved by UE::FUsdAttribute::Get() are *already relative to the stage*.
+		// Example: If startTime was set to 15 for a SpatialAudio prim defined in a sublayer, added to the stage
+		// with offset of 10 and scale of 2, when querying the attribute for the prim we'd get that startTime
+		// actually has the value of 40, because 15 * 2 + 10 = 40
+		TOptional<double> MediaOffset = GetAuthoredValue<double>(Prim, MediaOffsetSecondsToken);
+		TOptional<pxr::SdfTimeCode> StartTimeCode = GetAuthoredValue<pxr::SdfTimeCode>(Prim, StartTimeCodeToken);
+		TOptional<pxr::SdfTimeCode> EndTimeCode = GetAuthoredValue<pxr::SdfTimeCode>(Prim, EndTimeCodeToken);
+		TOptional<pxr::TfToken> PlaybackMode = GetAuthoredValue<pxr::TfToken>(Prim, PlaybackModeToken);
+		TOptional<pxr::TfToken> AuralMode = GetAuthoredValue<pxr::TfToken>(Prim, AuralModeToken);
+
+		// The documentation mentions to swap these in edge cases like negative scaling
+		if (StartTimeCode.IsSet() && EndTimeCode.IsSet())
+		{
+			if (StartTimeCode.GetValue() > EndTimeCode.GetValue())
+			{
+				Swap(StartTimeCode, EndTimeCode);
+			}
+		}
+
+		// Handle the different playback modes
+		bool bIsLooping = false;
+		if (PlaybackMode.IsSet())
+		{
+			const pxr::TfToken PlaybackModeValue = PlaybackMode.GetValue();
+			if (PlaybackModeValue == pxr::UsdMediaTokens->onceFromStart)
+			{
+				// "Play the audio once, starting at startTime, continuing until the audio completes."
+				EndTimeCode.Reset();
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->onceFromStartToEnd)
+			{
+				// "Play the audio once beginning at startTime, continuing until endTime or until the
+				// audio completes, whichever comes first."
+				//
+				// Do nothing: Just continue using startTime and endTime as we have already
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->loopFromStart)
+			{
+				// "Start playing the audio at startTime and continue looping through to the stage's
+				// authored endTimeCode."
+				bIsLooping = true;
+				EndTimeCode = Prim.GetStage().GetEndTimeCode();
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->loopFromStartToEnd)
+			{
+				// "Start playing the audio at startTime and continue looping through, stopping
+				// the audio at endTime."
+				bIsLooping = true;
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->loopFromStage)
+			{
+				// "Start playing the audio at the stage's authored startTimeCode and continue looping
+				// through to the stage's authored endTimeCode. This can be useful for ambient sounds
+				// that should always be active."
+				bIsLooping = true;
+
+				// Fetch time range from the stage instead
+				UE::FSdfLayer RootLayer = Prim.GetStage().GetRootLayer();
+				if (RootLayer)
+				{
+					StartTimeCode = RootLayer.GetStartTimeCode();
+
+					// Since the fallback value for EndTimeCode is also 0, we have to take care to check
+					// whether the stage actually has it authored or not
+					if (RootLayer.HasEndTimeCode())
+					{
+						EndTimeCode = RootLayer.GetEndTimeCode();
+					}
+					else
+					{
+						EndTimeCode.Reset();
+					}
+				}
+			}
+		}
+
+		// Convert time codes to being relative to the stage to being relative to the Subsequence they are in
+		//
+		// This may seem like it undoes the conversions above, and it really does: For cases where we have a
+		// sublayer with an offset and scale, we'll end up adding the layer-local time samples to the subsequence,
+		// like we want. Using PrimToStage AND the SequenceTransform is needed for a different case however: Prim
+		// references with sublayer and offsets. In that case the prim itself may have a sublayer and offset, but
+		// its track will be placed in the levelsequence for the *referencer* layer: This means we want to see the
+		// keys on that layer instead, at times relative to it
+		FFrameNumber StartFrameNumber;
+		TOptional<FFrameNumber> EndFrameNumber;
+		FFrameNumber MediaFrameNumberOffset;
+		{
+			FMovieSceneSequenceTransform SequenceTransform;
+			FMovieSceneSequenceID SequenceID = SequencesID.FindRef(AttributeSequence);
+			if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+			{
+				SequenceTransform = SubSequenceData->RootToSequenceTransform;
+			}
+
+			const FFrameRate Resolution = MovieScene->GetTickResolution();
+			const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+			const double StageTimeCodesPerSecond = Prim.GetStage().GetTimeCodesPerSecond();
+			const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
+
+			if (StartTimeCode.IsSet())
+			{
+				double DoubleValue = static_cast<double>(StartTimeCode.GetValue());
+				int32 FrameNumber = FMath::FloorToInt(DoubleValue);
+				float SubFrameNumber = DoubleValue - FrameNumber;
+				FFrameTime FrameTime(FrameNumber, SubFrameNumber);
+				FFrameTime KeyFrameTime = FFrameRate::TransformTime(FrameTime, StageFrameRate, Resolution);
+				KeyFrameTime *= SequenceTransform;
+				StartFrameNumber = KeyFrameTime.FloorToFrame();
+			}
+
+			if (EndTimeCode.IsSet())
+			{
+				double DoubleValue = static_cast<double>(EndTimeCode.GetValue());
+				int32 FrameNumber = FMath::FloorToInt(DoubleValue);
+				float SubFrameNumber = DoubleValue - FrameNumber;
+				FFrameTime FrameTime(FrameNumber, SubFrameNumber);
+				FFrameTime KeyFrameTime = FFrameRate::TransformTime(FrameTime, StageFrameRate, Resolution);
+				KeyFrameTime *= SequenceTransform;
+				EndFrameNumber = KeyFrameTime.FloorToFrame();
+			}
+
+			if (MediaOffset.IsSet())
+			{
+				double OffsetSeconds = MediaOffset.GetValue();
+				MediaFrameNumberOffset = Resolution.AsFrameNumber(OffsetSeconds);
+			}
+		}
+
+		// Get the attenuation settings we'll use if we're in spatial mode
+		USoundAttenuation* Attenuation = nullptr;
+		if (AuralMode.IsSet() && AuralMode.GetValue() == pxr::UsdMediaTokens->spatial)
+		{
+			const UUsdProjectSettings* ProjectSettings = GetDefault<UUsdProjectSettings>();
+			if (ProjectSettings)
+			{
+				Attenuation = Cast<USoundAttenuation>(ProjectSettings->DefaultSoundAttenuation.TryLoad());
+			}
+		}
+
+		MovieScene->Modify();
+		MovieScene->SetClockSource(EUpdateClockSource::Audio);
+
+		// We name it AudioTrack here instead of prim name because in general we'll already have the actor and component
+		// binding show the prim name anyway... It's not very useful to see "MyPrim / MyPrim / MyPrim" on the Sequencer
+		const bool bIsMuted = false;
+		if (UMovieSceneAudioTrack* AudioTrack = AddTrack<
+				UMovieSceneAudioTrack>(TEXT("Audio track"), PrimTwin, *AudioComponent, *AttributeSequence, bIsMuted))
+		{
+			AudioTrack->RemoveAllAnimationData();
+
+			const FFrameNumber Time = StartFrameNumber;
+			UMovieSceneAudioSection* NewAudioSection = Cast<UMovieSceneAudioSection>(AudioTrack->AddNewSound(Sound, Time));
+
+			if (NewAudioSection)
+			{
+				NewAudioSection->Modify();
+				NewAudioSection->SetLooping(bIsLooping);
+				NewAudioSection->SetStartOffset(MediaFrameNumberOffset);
+
+				// Parse gain into channel volume
+				UE::FUsdAttribute GainAttr = Prim.GetAttribute(*GainToken);
+				if (GainAttr && GainAttr.HasAuthoredValue())
+				{
+					// We have to dig through the channel proxy because UMovieSceneAudioSection doesn't expose non-const access
+					// to the volume channel...
+					FMovieSceneChannelProxy& ChannelProxy = NewAudioSection->GetChannelProxy();
+					FMovieSceneFloatChannel* VolumeChannel = ChannelProxy.GetChannel<FMovieSceneFloatChannel>(0);
+					if (VolumeChannel)
+					{
+						// Set default value into the channel in case we don't have any animation
+						UE::FVtValue DefaultValue;
+						if (GainAttr.Get(DefaultValue))
+						{
+							TOptional<double> DefaultGain = UsdUtils::GetUnderlyingValue<double>(DefaultValue);
+							if (DefaultGain.IsSet())
+							{
+								VolumeChannel->SetDefault(static_cast<float>(DefaultGain.GetValue()));
+							}
+						}
+
+						FMovieSceneSequenceTransform SequenceTransform;
+						FMovieSceneSequenceID SequenceID = SequencesID.FindRef(AttributeSequence);
+						if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+						{
+							SequenceTransform = SubSequenceData->RootToSequenceTransform;
+						}
+
+						// Parse time-sampled animation into the volume channel
+						TArray<double> TimeSamples;
+						if (GainAttr.GetTimeSamples(TimeSamples) && TimeSamples.Num() > 0)
+						{
+							UsdToUnreal::FPropertyTrackReader Reader = UsdToUnreal::CreatePropertyTrackReader(Prim, TEXT("Volume"));
+							UsdToUnreal::ConvertFloatTimeSamples(
+								UsdStage,
+								TimeSamples,
+								Reader.FloatReader,
+								*VolumeChannel,
+								*MovieScene,
+								SequenceTransform
+							);
+						}
+					}
+				}
+
+				// Enable spatial audio if we should
+				if (Attenuation)
+				{
+					const bool bOverrideAttenuation = true;
+					NewAudioSection->SetOverrideAttenuation(bOverrideAttenuation);
+					NewAudioSection->SetAttenuationSettings(Attenuation);
+				}
+
+				// Start with the auto-size range because the section can't be unbounded, so if we want
+				// the audio to play to completion we'd otherwise need to specify the end of the section
+				// ourselves in order to get a valid range
+				TOptional<TRange<FFrameNumber>> Range = NewAudioSection->GetAutoSizeRange();
+				if (Range.IsSet())
+				{
+					TRange<FFrameNumber>& RangeValue = Range.GetValue();
+					RangeValue.SetLowerBound(TRangeBound<FFrameNumber>{StartFrameNumber});
+					if (EndFrameNumber.IsSet())
+					{
+						RangeValue.SetUpperBound(TRangeBound<FFrameNumber>{EndFrameNumber.GetValue()});
+					}
+					NewAudioSection->SetRange(RangeValue);
+				}
+			}
+		}
+
+		PrimPathByLevelSequenceName.AddUnique(AttributeSequence->GetFName(), Prim.GetPrimPath().GetString());
+	}
+}
+
 void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds)
 {
 	if (!UsdStage)
@@ -2731,6 +3051,10 @@ void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVis
 	{
 		AddVolumeTracks(PrimTwin, UsdPrim);
 	}
+	else if (UsdPrim.IsA(TEXT("SpatialAudio")))
+	{
+		AddAudioTracks(PrimTwin, UsdPrim);
+	}
 
 	AddCommonTracks(PrimTwin, UsdPrim, bForceVisibilityTracks);
 
@@ -2780,6 +3104,10 @@ TrackType* FUsdLevelSequenceHelperImpl::AddTrack(
 		}
 #if WITH_EDITOR
 		else if constexpr (std::is_base_of_v<UMovieSceneSkeletalAnimationTrack, TrackType>)
+		{
+			Track->SetDisplayName(FText::FromName(TrackName));
+		}
+		else if constexpr (std::is_base_of_v<UMovieSceneAudioTrack, TrackType>)
 		{
 			Track->SetDisplayName(FText::FromName(TrackName));
 		}
@@ -4247,6 +4575,37 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 					RefreshSequencer();
 				}
 			}
+			else if (const UMovieSceneAudioTrack* AudioTrack = Cast<const UMovieSceneAudioTrack>(&Track))
+			{
+				const TArray<UMovieSceneSection*>& Sections = AudioTrack->GetAudioSections();
+				if (Sections.Num() > 1)
+				{
+					UE_LOG(
+						LogUsd,
+						Warning,
+						TEXT(
+							"The audio track '%s' has %d sections, but only the first audio section of an audio track can be written out to USD for now"
+						),
+						*AudioTrack->GetPathName(),
+						Sections.Num()
+					);
+				}
+
+				if (Sections.Num() > 0)
+				{
+					if (UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(Sections[0]))
+					{
+						FMovieSceneSequenceTransform Identity;
+						UnrealToUsd::ConvertAudioSection(*AudioSection, Identity, UsdPrim);
+					}
+				}
+			}
+		}
+
+		// Notify the USD Stage Editor to refresh this prim the next frame
+		if (AUsdStageActor* StageActorPtr = StageActor.Get())
+		{
+			StageActorPtr->OnPrimChanged.Broadcast(PrimTwin->PrimPath, false);
 		}
 	}
 }

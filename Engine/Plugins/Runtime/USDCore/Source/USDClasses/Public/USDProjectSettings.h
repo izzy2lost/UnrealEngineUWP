@@ -109,7 +109,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
 	EUsdSaveDialogBehavior ShowSaveLayersDialogWhenClosing = EUsdSaveDialogBehavior::ShowPrompt;
 
-	// Note that the below properties being FSoftObjectPath ensure that these materials are cooked into packaged games
+	// Note that the below properties being FSoftObjectPath ensure that these assets are cooked into packaged games
+
+	UPROPERTY(config, EditAnywhere, Category = USD, meta = (AllowedClasses = "/Script/Engine.SoundAttenuation"))
+	FSoftObjectPath DefaultSoundAttenuation = FSoftObjectPath{TEXT("/USDCore/USDDefaultAttenuation.USDDefaultAttenuation")};
 
 	/**
 	 * Material to use when handling .vdb files as Sparse Volume Textures. An instance of this material will be
