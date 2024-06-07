@@ -468,6 +468,13 @@ FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
 
 		AppendToString(TEXT("NativeClass"), NativeClass);
 		AppendFromString(TEXT("Name"), GetActorNameString());
+
+		if (Mode >= EToStringMode::Verbose)
+		{
+			AppendToString(TEXT("ActorPackage"), ActorPackage);
+			AppendToString(TEXT("ActorPath"), ActorPath);
+		}
+
 		AppendToString(TEXT("Label"), GetActorLabel());
 		AppendFromBool(TEXT("SpatiallyLoaded"), bIsSpatiallyLoaded);
 		AppendToString(TEXT("EditorBounds"), EditorBounds);

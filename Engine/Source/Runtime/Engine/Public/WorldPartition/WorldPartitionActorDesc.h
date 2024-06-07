@@ -355,6 +355,7 @@ public:
 		Guid,
 		Compact,
 		Full,
+		Verbose,
 		ForDiff
 	};
 
