@@ -1520,12 +1520,12 @@ namespace uba
 				BinaryWriter writer(fileTableData.data(), 0, fileTableData.size());
 				for (auto& pair : m_fileTableLookup)
 				{
-					FileEntry& entry = pair.second;
-					SCOPED_READ_LOCK(entry.lock, entryLock);
+					FileEntry& fileEntry = pair.second;
+					SCOPED_READ_LOCK(fileEntry.lock, entryLock);
 					writer.WriteStringKey(pair.first);
-					writer.WriteU64(entry.size);
-					writer.WriteU64(entry.lastWritten);
-					writer.WriteCasKey(entry.casKey);
+					writer.WriteU64(fileEntry.size);
+					writer.WriteU64(fileEntry.lastWritten);
+					writer.WriteCasKey(fileEntry.casKey);
 				}
 				if (!tempFile.Write(fileTableData.data(), writer.GetPosition()))
 					return false;
@@ -1551,14 +1551,14 @@ namespace uba
 				for (CasEntry* it = m_newestAccessed; it; it = it->nextAccessed)
 				{
 					last = it;
-					CasEntry& entry = *it;
-					if (entry.verified && !entry.exists)
+					CasEntry& casEntry = *it;
+					if (casEntry.verified && !casEntry.exists)
 						continue;
-					if (entry.dropped)
+					if (casEntry.dropped)
 					{
 #if !UBA_USE_SPARSEFILE
 						StringBuffer<512> casFileName;
-						if (!StorageImpl::GetCasFileName(casFileName, entry.key))
+						if (!StorageImpl::GetCasFileName(casFileName, casEntry.key))
 							continue;
 						DeleteFileW(casFileName.data);
 #else
@@ -1568,12 +1568,12 @@ namespace uba
 					}
 
 #if UBA_USE_SPARSEFILE
-					auto findIt = handleToIndex.find(entry.mappingHandle);
+					auto findIt = handleToIndex.find(casEntry.mappingHandle);
 					if (findIt == handleToIndex.end())
 					{
-						if (m_deferredCasCreationLookup.find(entry.key) != m_deferredCasCreationLookup.end())
+						if (m_deferredCasCreationLookup.find(casEntry.key) != m_deferredCasCreationLookup.end())
 							continue;
-						m_logger.Error(TC("Can't find cas database file with mappingHandle %llu"), uintptr_t(entry.mappingHandle));
+						m_logger.Error(TC("Can't find cas database file with mappingHandle %llu"), uintptr_t(casEntry.mappingHandle));
 						continue;
 					}
 #endif
@@ -1581,14 +1581,14 @@ namespace uba
 					if (writer.GetCapacityLeft() < entrySize + sizeof(CasKey))
 						return m_logger.Error(TC("This should not happen, somehow there are more valid entries in access list than lookup. (Lookup has %llu entries)"), m_casLookup.size());
 
-					UBA_ASSERT(entry.key != CasKeyZero);
-					writer.WriteCasKey(entry.key);
-					writer.WriteU64(entry.size);
+					UBA_ASSERT(casEntry.key != CasKeyZero);
+					writer.WriteCasKey(casEntry.key);
+					writer.WriteU64(casEntry.size);
 
 #if UBA_USE_SPARSEFILE
 					writer.WriteU32(findIt->second);
-					writer.WriteU64(entry.mappingOffset);
-					writer.WriteU64(entry.mappingSize);
+					writer.WriteU64(casEntry.mappingOffset);
+					writer.WriteU64(casEntry.mappingSize);
 #endif
 				}
 				writer.WriteCasKey(CasKeyZero);
@@ -1886,7 +1886,6 @@ namespace uba
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = false;
 		fileEntry.casKey = CasKeyInvalid;
-		fileEntry.lastInvalidationTime = GetSystemTimeAsFileTime();
 		return true;
 	}
 

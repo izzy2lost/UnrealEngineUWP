@@ -265,26 +265,6 @@ namespace uba
 				bool deferCreation = true;
 				bool fileIsCompressed = IsFileCompressed(info, path);
 
-
-
-				CasKey oldOldKey;
-				u64 oldOldSize = 0;
-				u64 oldOldLastWritten = 0;
-				u64 lastInvalidationTime = 0;
-				bool oldOldVerified = false;
-
-				if (shouldValidate)
-				{
-					auto& fileEntry = m_storage.GetOrCreateFileEntry(CaseInsensitiveFs ? ToStringKeyLower(path) : ToStringKey(path));
-					SCOPED_READ_LOCK(fileEntry.lock, lock);
-					oldOldKey = fileEntry.casKey;
-					oldOldSize = fileEntry.size;
-					oldOldLastWritten = fileEntry.lastWritten;
-					oldOldVerified = fileEntry.verified;
-					lastInvalidationTime = fileEntry.lastInvalidationTime;
-				}
-
-
 				if (isOutput)
 				{
 					if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
@@ -340,8 +320,8 @@ namespace uba
 						SCOPED_READ_LOCK(fileEntry.lock, lock);
 
 						auto ToString = [](bool b) { return b ? TC("true") : TC("false"); };
-						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculating it gives us %s (OldEntry: %s/%llu/%llu/%s FileEntry: %llu/%llu/%s, Real: %llu/%llu. Last invalidation: %llu). Will not populate cache for %s"),
-							path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, CasKeyString(oldOldKey).str, oldOldSize, oldOldLastWritten, ToString(oldOldVerified), fileEntry.size, fileEntry.lastWritten, ToString(fileEntry.verified), fileSize, fileInfo.lastWriteTime, lastInvalidationTime, info.description);
+						m_logger.Warning(TC("CasDb claims file %s has caskey %s but recalculating it gives us %s (FileEntry: %llu/%llu/%s, Real: %llu/%llu). Will not populate cache for %s"),
+							path.data, CasKeyString(oldKey).str, CasKeyString(newKey).str, fileEntry.size, fileEntry.lastWritten, ToString(fileEntry.verified), fileSize, fileInfo.lastWriteTime, info.description);
 						return false;
 					}
 				}

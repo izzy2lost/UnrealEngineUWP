@@ -195,7 +195,6 @@ namespace uba
 			u64 size = 0;
 			u64 lastWritten = 0;
 			bool verified = false;
-			u64 lastInvalidationTime = 0; // Remove when we have figured out a bug
 		};
 		UnorderedMap<StringKey, FileEntry> m_fileTableLookup;
 

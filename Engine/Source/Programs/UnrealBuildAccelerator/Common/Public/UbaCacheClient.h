@@ -31,12 +31,12 @@ namespace uba
 
 		void Apply(Config& config);
 
-		bool reportMissReason = false;
-		bool useDirectoryPreparsing = false; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
+		bool reportMissReason = false; // Report the reason no matching cache entry was found
+		bool useDirectoryPreparsing = true; // This is used to minimize syscalls. GetFileAttributes can be very expensive on cloud machines and we can enable this to minimize syscall count
 		bool validateCacheWritesInput = false; // Set to true to validate cas of all input files before sent to cache
-		bool validateCacheWritesOutput = true; // Set to true to validate cas of all output files before sent to cache
-		bool useRoots = true;
-		bool useCacheHit = true;
+		bool validateCacheWritesOutput = false; // Set to true to validate cas of all output files before sent to cache
+		bool useRoots = true; // Set this to false to allow paths that are not under roots and to not fix them up
+		bool useCacheHit = true; // Set this to false to ignore found cache hits.. this is for debugging/testing only
 	};
 
 	class CacheClient
