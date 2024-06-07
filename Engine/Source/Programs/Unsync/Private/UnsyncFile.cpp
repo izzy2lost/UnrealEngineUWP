@@ -964,6 +964,7 @@ bool
 SetFileMtime(const FPath& Path, uint64 Mtime, bool bAllowInDryRun)
 {
 	UNSYNC_ASSERT(!GDryRun || bAllowInDryRun);
+	UNSYNC_ASSERT(Mtime != 0);
 
 	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
 

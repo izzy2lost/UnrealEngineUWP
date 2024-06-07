@@ -340,6 +340,15 @@ ToString(const FPath& Path)
 	return ToString(PathView);
 }
 
+std::string
+StringToLower(const std::string& Input)
+{
+	std::string Result = Input;
+	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return char(::tolower(C)); });
+	return Result;
+}
+
+
 std::wstring
 StringToLower(const std::wstring& Input)
 {
@@ -725,6 +734,8 @@ LooksLikeUrl(std::string_view Str)
 		"https://",
 		"unsync://",
 		"unsync+tls://",
+		"horde+http://",
+		"horde+https://",
 		"unsync+http://",
 		"unsync+https://",
 		"jupiter+http://",

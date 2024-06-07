@@ -11,7 +11,7 @@ enum class ESourceType : uint8 {
 	Unknown,
 	FileSystem,
 	Server,
-	ServerWithManifestHash,
+	ServerWithManifestId,
 };
 
 struct FSourcePath

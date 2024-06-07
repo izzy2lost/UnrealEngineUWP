@@ -154,6 +154,7 @@ ToString(const std::string_view StringView)
 
 std::string ToString(const FPath& Path);
 
+std::string StringToLower(const std::string& Input);
 std::wstring StringToLower(const std::wstring& Input);
 std::wstring StringToUpper(const std::wstring& Input);
 

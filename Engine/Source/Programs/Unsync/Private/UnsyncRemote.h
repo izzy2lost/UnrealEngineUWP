@@ -20,6 +20,7 @@ enum class EProtocolFlavor {
 	Unknown,
 	Unsync,
 	Jupiter,
+	Horde,
 };
 
 enum class ETransportProtocol {

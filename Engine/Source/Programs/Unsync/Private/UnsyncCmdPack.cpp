@@ -931,7 +931,10 @@ SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, cons
 
 			TargetFile.Close();
 
-			SetFileMtime(TargetFilePath, FileManifest.Mtime);
+			if (FileManifest.Mtime)
+			{
+				SetFileMtime(TargetFilePath, FileManifest.Mtime);
+			}
 
 			if (FileManifest.bReadOnly)
 			{

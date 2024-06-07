@@ -715,7 +715,7 @@ FJupiterProtocolImpl::IsValid() const
 	return bConnected;
 }
 
-TResult<FBuffer>
+TResult<FDirectoryManifest>
 FJupiterProtocolImpl::DownloadManifest(std::string_view ManifestName)
 {
 	// Get root manifest reference object
@@ -797,15 +797,25 @@ FJupiterProtocolImpl::DownloadManifest(std::string_view ManifestName)
 						   FBufferView{},
 						   RemoteDesc.HttpHeaders);
 
-	if (Response.Success())
-	{
-		return ResultOk(std::move(Response.Buffer));
-	}
-	else
+	if (!Response.Success())
 	{
 		// TODO: add a helper to quickly map HttpResponse to a TResult
 		return HttpError(L"Failed to download directory manifest from Jupiter.", Response.Code);
 	}
+
+	FDirectoryManifest Manifest;
+
+	FMemReader		   Reader(Response.Buffer);
+	FIOReaderStream	   Stream(Reader);
+	FPath			   EmptyRoot;  // Don't have a sensible path when not using file system as source
+	bool			   bSourceManifestOk = LoadDirectoryManifest(Manifest, EmptyRoot, Stream);
+
+	if (!bSourceManifestOk)
+	{
+		return AppError(L"Failed to deserialize directory manifest from Jupiter.");
+	}
+
+	return ResultOk(std::move(Manifest));
 }
 
 FDownloadResult

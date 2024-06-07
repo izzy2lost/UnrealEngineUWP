@@ -946,6 +946,12 @@ RunTests(const std::string& Preset)
 		extern void TestFileAttrib();
 		TestFileAttrib();
 	}
+
+	if (Preset == "horde_manifest_decode" || Preset == "all")
+	{
+		extern void TestHordeManifestDecode();
+		TestHordeManifestDecode();
+	}
 }
 
 }  // namespace unsync

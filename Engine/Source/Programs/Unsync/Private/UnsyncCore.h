@@ -226,7 +226,7 @@ FFileSyncResult SyncFile(const FPath&			 SourceFilePath,
 
 struct FSyncDirectoryOptions
 {
-	ESourceType		   SourceType;
+	ESourceType		   SourceType = (ESourceType)0;
 	FPath			   Source;			   // remote data location
 	FPath			   Target;			   // output target location
 	FPath			   Base;			   // base data location, which typically is the same as sync target

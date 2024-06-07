@@ -98,7 +98,7 @@ struct FRemoteProtocolFeatures
 	bool bAuthentication   = false;
 	bool bDirectoryListing = false;
 	bool bFileDownload	   = false;
-	bool bDownloadByHash   = false;
+	bool bManifestDownload = false;
 	bool bBlockDownload	   = false;
 };
 
@@ -128,12 +128,12 @@ struct FRemoteProtocolBase
 
 	virtual ~FRemoteProtocolBase(){};
 
-	virtual bool Contains(const FDirectoryManifest& Manifest) = 0;
+	virtual bool Contains(const FDirectoryManifest& Manifest) { return true; }
 	virtual bool IsValid() const							  = 0;
 	virtual void Invalidate()								  = 0;
 
-	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) = 0;
-	virtual TResult<FBuffer> DownloadManifest(std::string_view ManifestName)													 = 0;
+	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) = 0;
+	virtual TResult<FDirectoryManifest> DownloadManifest(std::string_view ManifestName)											= 0;
 
 	const FBlockRequestMap* RequestMap;
 	FRemoteDesc				RemoteDesc;
@@ -155,8 +155,8 @@ public:
 	bool Contains(const FDirectoryManifest& Manifest);
 	bool IsValid() const;
 
-	FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback);
-	TResult<FBuffer> DownloadManifest(std::string_view ManifestName);
+	FDownloadResult				Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback);
+	TResult<FDirectoryManifest> DownloadManifest(std::string_view ManifestName);
 
 private:
 	std::unique_ptr<FRemoteProtocolBase> ProtocolImpl;
@@ -173,6 +173,8 @@ public:
 
 	std::unique_ptr<FHttpConnection> AllocHttp();
 	void							 DeallocHttp(std::unique_ptr<FHttpConnection>&& Connection);
+
+	std::string GetAccessToken();
 
 	bool SupportsHttp() const { return HttpPool.has_value(); }
 

@@ -608,7 +608,7 @@ InnerMain(int Argc, char** Argv)
 					RemoteDesc.StorageNamespace = RemoteDesc.StorageNamespace.substr(0, SlashPos);
 				}
 			}
-			else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
+			else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync || RemoteDesc.Protocol == EProtocolFlavor::Horde)
 			{
 				bShouldLogin = true; // Try to authenticate by default when source is a valid URL
 

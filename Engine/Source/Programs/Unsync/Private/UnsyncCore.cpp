@@ -935,7 +935,10 @@ CopyFileIfPossiblyDifferent(FProxyFileSystem&	   FileSystem,
 		}
 
 		const bool bAllowInDryRun = true;
-		SetFileMtime(Target, Source.Entry.Mtime, bAllowInDryRun);
+		if (Source.Entry.Mtime)
+		{
+			SetFileMtime(Target, Source.Entry.Mtime, bAllowInDryRun);
+		}
 	}
 
 	return true;
@@ -1186,7 +1189,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	const bool bFileSystemSource = SyncOptions.SourceType == ESourceType::FileSystem;
 	const bool bServerSource =
-		SyncOptions.SourceType == ESourceType::Server || SyncOptions.SourceType == ESourceType::ServerWithManifestHash;
+		SyncOptions.SourceType == ESourceType::Server || SyncOptions.SourceType == ESourceType::ServerWithManifestId;
 
 	UNSYNC_ASSERT(bFileSystemSource || bServerSource);
 
@@ -1254,11 +1257,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	std::vector<FPackIndexDatabase> PackIndexFiles;
 
-	if (SyncOptions.SourceType == ESourceType::ServerWithManifestHash)
+	if (SyncOptions.SourceType == ESourceType::ServerWithManifestId)
 	{
 		if (!ProxyPool.IsValid())
 		{
-			UNSYNC_ERROR(L"Remote server connection is required when syncing by manifest hash");
+			UNSYNC_ERROR(L"Remote server connection is required when syncing by manifest ID");
 			return false;
 		}
 
@@ -1266,14 +1269,12 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		std::unique_ptr<FProxy> Proxy = ProxyPool.Alloc();
 
-		std::string		 SourceManifestName = ConvertWideToUtf8(SyncOptions.Source.wstring());
-		TResult<FBuffer> DownloadResult		= Proxy->DownloadManifest(SourceManifestName);
-		if (FBuffer* ManifestBuffer = DownloadResult.TryData())
+		std::string					SourceManifestName = ConvertWideToUtf8(SyncOptions.Source.wstring());
+		TResult<FDirectoryManifest> DownloadResult	   = Proxy->DownloadManifest(SourceManifestName);
+		if (FDirectoryManifest* Manifest = DownloadResult.TryData())
 		{
-			FMemReader		Reader(*ManifestBuffer);
-			FIOReaderStream Stream(Reader);
-			FPath			EmptyRoot;	// Don't have a sensible path when not using file system as source
-			bSourceManifestOk = LoadDirectoryManifest(SourceDirectoryManifest, EmptyRoot, Stream);
+			bSourceManifestOk = true;
+			std::swap(SourceDirectoryManifest, *Manifest);
 		}
 		else
 		{
@@ -1281,6 +1282,8 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			UNSYNC_BREAK_ON_ERROR;
 			return false;
 		}
+
+		ProxyPool.Dealloc(std::move(Proxy)); // TODO: RAII helper for pooled proxy connections
 	}
 	else if (!SyncOptions.SourceManifestOverride.empty())
 	{
@@ -1894,7 +1897,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 				if (!GDryRun)
 				{
 					BaseFile.Close();
-					SetFileMtime(Item.TargetFilePath, Item.SourceManifest->Mtime);
+					if (Item.SourceManifest->Mtime)
+					{
+						SetFileMtime(Item.TargetFilePath, Item.SourceManifest->Mtime);
+					}
+
 					if (Item.SourceManifest->bReadOnly)
 					{
 						SetFileReadOnly(Item.TargetFilePath, true);

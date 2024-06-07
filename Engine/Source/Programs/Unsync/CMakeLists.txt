@@ -71,6 +71,8 @@ set(src
 	Private/UnsyncHash.cpp
 	Private/UnsyncHash.h
 	Private/UnsyncHashTable.h
+	Private/UnsyncHorde.cpp
+	Private/UnsyncHorde.h
 	Private/UnsyncHttp.cpp
 	Private/UnsyncHttp.h
 	Private/UnsyncJupiter.cpp

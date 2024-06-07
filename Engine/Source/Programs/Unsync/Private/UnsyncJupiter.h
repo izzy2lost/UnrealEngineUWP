@@ -35,14 +35,12 @@ TResult<> JupiterCheckAccess(FHttpConnection& Connection, std::string_view Jupit
 
 struct FJupiterProtocolImpl : FRemoteProtocolBase
 {
-	FJupiterProtocolImpl(const FRemoteDesc&		   InSettings,
-						 const FBlockRequestMap*   InRequestMap,
-						 std::string_view		   HttpHeaders);
-	virtual bool			 IsValid() const override;
-	virtual TResult<FBuffer> DownloadManifest(std::string_view ManifestName) override;
-	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
-	virtual void			 Invalidate() override;
-	virtual bool			 Contains(const FDirectoryManifest& Manifest) override;
+	FJupiterProtocolImpl(const FRemoteDesc& InSettings, const FBlockRequestMap* InRequestMap, std::string_view HttpHeaders);
+	virtual bool						IsValid() const override;
+	virtual TResult<FDirectoryManifest> DownloadManifest(std::string_view ManifestName) override;
+	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
+	virtual void			Invalidate() override;
+	virtual bool			Contains(const FDirectoryManifest& Manifest) override;
 
 	FHttpConnection Connection;
 	std::string		HttpHeaders;  // TODO: store this in the HttpConnection instead

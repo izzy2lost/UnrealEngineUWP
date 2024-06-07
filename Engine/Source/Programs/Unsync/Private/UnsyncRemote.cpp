@@ -2,6 +2,7 @@
 
 #include "UnsyncRemote.h"
 #include "UnsyncCore.h"
+#include "UnsyncHorde.h"
 
 namespace unsync {
 
@@ -110,6 +111,15 @@ FRemoteDesc::FromUrl(std::string_view Url)
 		}
 	}
 
+	const size_t RequestPos = HostAddress.find_first_of('/');
+	if (RequestPos != std::string::npos)
+	{
+		Result.RequestPath = HostAddress.substr(RequestPos + 1);
+		HostAddress		   = HostAddress.substr(0, RequestPos);
+	}
+
+	const bool bRequestLooksLikeHordeArtifact = RequestPathLooksLikeHordeArtifact(Result.RequestPath);
+
 	const size_t NamespacePos = HostAddress.find_last_of('#');
 
 	switch (Transport)
@@ -122,6 +132,10 @@ FRemoteDesc::FromUrl(std::string_view Url)
 			if (NamespacePos != std::string::npos || Scheme.starts_with("jupiter"))
 			{
 				Result.Protocol = EProtocolFlavor::Jupiter;
+			}
+			if (bRequestLooksLikeHordeArtifact || Scheme.starts_with("horde"))
+			{
+				Result.Protocol = EProtocolFlavor::Horde;
 			}
 			else
 			{
@@ -138,13 +152,6 @@ FRemoteDesc::FromUrl(std::string_view Url)
 
 	uint16		 HostPort = 0;
 	const size_t PortPos  = HostAddress.find_first_of(':');
-
-	const size_t RequestPos = HostAddress.find_first_of('/');
-	if (RequestPos != std::string::npos)
-	{
-		Result.RequestPath = HostAddress.substr(RequestPos + 1);
-		HostAddress		   = HostAddress.substr(0, RequestPos);
-	}
 
 	if (PortPos == std::string::npos)
 	{

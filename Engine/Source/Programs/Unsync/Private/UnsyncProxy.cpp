@@ -8,6 +8,7 @@
 #include "UnsyncPool.h"
 #include "UnsyncProgress.h"
 #include "UnsyncScheduler.h"
+#include "UnsyncHorde.h"
 
 #include <atomic>
 #include <json11.hpp>
@@ -29,7 +30,7 @@ struct FUnsyncBaseProtocolImpl : FRemoteProtocolBase
 	{
 	}
 
-	virtual TResult<FBuffer> DownloadManifest(std::string_view ManifestName) override
+	virtual TResult<FDirectoryManifest> DownloadManifest(std::string_view ManifestName) override
 	{
 		return AppError(L"Manifests can't be downloaded from UNSYNC proxy.");
 	};
@@ -48,7 +49,6 @@ struct FUnsyncProtocolImpl : FUnsyncBaseProtocolImpl
 	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
 
 	virtual void Invalidate() override;
-	virtual bool Contains(const FDirectoryManifest& Manifest) override { return true; }	 // TODO: check files on the unsync proxy
 
 	ESocketSecurity GetSocketSecurity() const;
 
@@ -71,7 +71,6 @@ struct FUnsyncHttpProtocolImpl : FUnsyncBaseProtocolImpl
 
 	virtual bool			IsValid() const override { return bValid; }
 	virtual void			Invalidate() override { bValid = false; }
-	virtual bool			Contains(const FDirectoryManifest& Manifest) override { return true; }	// TODO: check files on the unsync proxy
 
 	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
 
@@ -91,6 +90,11 @@ FProxy::FProxy(FProxyPool&					  ProxyPool,
 	if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
 	{
 		auto Inner	 = new FJupiterProtocolImpl(RemoteDesc, InRequestMap, RemoteDesc.HttpHeaders);
+		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
+	}
+	else if (RemoteDesc.Protocol == EProtocolFlavor::Horde)
+	{
+		auto Inner	 = new FHordeProtocolImpl(RemoteDesc, InRequestMap, ProxyPool);
 		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
 	}
 	else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
@@ -236,7 +240,7 @@ FProxy::IsValid() const
 	return ProtocolImpl.get() && ProtocolImpl->IsValid();
 }
 
-TResult<FBuffer>
+TResult<FDirectoryManifest>
 FProxy::DownloadManifest(std::string_view ManifestName)
 {
 	if (ProtocolImpl.get())
@@ -616,7 +620,19 @@ ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
 	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
-	return Hello(Connection, OptAuthDesc);
+
+	if (RemoteDesc.Protocol == EProtocolFlavor::Horde)
+	{
+		return FHordeProtocolImpl::QueryHello(Connection);
+	}
+	else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
+	{
+		return Hello(Connection, OptAuthDesc);
+	}
+	else
+	{
+		return AppError("Protocol does not support server information query");
+	}
 }
 
 TResult<ProxyQuery::FHelloResponse>
@@ -1233,7 +1249,14 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 	else if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
 	{
 		Features.bAuthentication = true;
-		Features.bDownloadByHash = true;
+		Features.bManifestDownload = true;
+	}
+	else if (RemoteDesc.Protocol == EProtocolFlavor::Horde)
+	{
+		Features.bAuthentication   = true;
+		Features.bBlockDownload	   = true;
+		Features.bFileDownload	   = true;
+		Features.bManifestDownload = true;
 	}
 }
 
@@ -1287,6 +1310,28 @@ FProxyPool::DeallocHttp(std::unique_ptr<FHttpConnection>&& Connection)
 	{
 		HttpPool->Release(std::move(Connection));
 	}
+}
+
+std::string
+FProxyPool::GetAccessToken()
+{
+	std::string Result;
+
+	if (AuthDesc)
+	{
+		TResult<FAuthToken> AuthTokenResult = Authenticate(*AuthDesc);
+		if (FAuthToken* AuthToken = AuthTokenResult.TryData())
+		{
+			std::swap(Result, AuthToken->Access);
+		}
+		else
+		{
+			LogError(AuthTokenResult.GetError());
+			UNSYNC_FATAL(L"Cannot proceed without a valid authentication token");
+		}
+	}
+
+	return Result;
 }
 
 void

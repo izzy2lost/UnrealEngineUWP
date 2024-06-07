@@ -150,6 +150,8 @@ struct FGenericHash
 	};
 };
 
+bool ParseHashFromHexString(EStrongHashAlgorithmID StrongHasher, std::string_view HexString, FGenericHash& Output);
+
 inline FHash160
 ToHash160(const FHash256& Other)
 {
