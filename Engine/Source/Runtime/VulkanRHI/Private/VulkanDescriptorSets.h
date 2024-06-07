@@ -554,9 +554,7 @@ class FVulkanComputePipelineDescriptorInfo
 {
 public:
 	FVulkanComputePipelineDescriptorInfo()
-		: HasDescriptorsInSetMask(0)
-		, RemappingInfo(nullptr)
-		, bInitialized(false)
+		: RemappingInfo(nullptr)
 	{
 	}
 	
@@ -568,16 +566,17 @@ public:
 
 	inline bool IsInitialized() const
 	{
-		return bInitialized;
+		return (RemappingInfo != nullptr);
 	}
 
-	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo);
+	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
+	{
+		check(!RemappingInfo);
+		RemappingInfo = &InRemappingInfo;
+	}
 
 protected:
-	// Cached data from FDescriptorSetRemappingInfo
-	uint32															HasDescriptorsInSetMask;
 	const FDescriptorSetRemappingInfo*								RemappingInfo;
-	bool															bInitialized;
 
 	friend class FVulkanComputePipelineDescriptorState;
 };
@@ -587,9 +586,7 @@ class FVulkanGfxPipelineDescriptorInfo
 {
 public:
 	FVulkanGfxPipelineDescriptorInfo()
-		: HasDescriptorsInSetMask(0)
-		, RemappingInfo(nullptr)
-		, bInitialized(false)
+		: RemappingInfo(nullptr)
 	{
 	}
 
@@ -600,17 +597,17 @@ public:
 
 	inline bool IsInitialized() const
 	{
-		return bInitialized;
+		return (RemappingInfo != nullptr);
 	}
 
-	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo);
+	void Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
+	{
+		check(!RemappingInfo);
+		RemappingInfo = &InRemappingInfo;
+	}
 
 protected:
-	// Cached data from FDescriptorSetRemappingInfo
-	uint32													HasDescriptorsInSetMask;
-
 	const FDescriptorSetRemappingInfo*						RemappingInfo;
-	bool													bInitialized;
 
 	friend class FVulkanGraphicsPipelineDescriptorState;
 };

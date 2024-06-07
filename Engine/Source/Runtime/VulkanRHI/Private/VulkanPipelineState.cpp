@@ -51,7 +51,7 @@ FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVu
 	DescriptorSetsLayout = &InComputePipeline->GetLayout().GetDescriptorSetsLayout();
 	PipelineDescriptorInfo = &InComputePipeline->GetComputeLayout().GetComputePipelineDescriptorInfo();
 
-	UsedSetsMask = PipelineDescriptorInfo->HasDescriptorsInSetMask;
+	UsedSetsMask = (CodeHeader.Bindings.Num() > 0) ? 1 : 0;
 
 	CreateDescriptorWriteInfos();
 	InComputePipeline->AddRef();
@@ -300,12 +300,14 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 		FVulkanGfxLayout& GfxLayout  = *(FVulkanGfxLayout*)InGfxPipeline->Layout;
 		PipelineDescriptorInfo = &GfxLayout.GetGfxPipelineDescriptorInfo();
 
-		UsedSetsMask = PipelineDescriptorInfo->HasDescriptorsInSetMask;
+		UsedSetsMask = 0;
+
 		const FVulkanShaderFactory& ShaderFactory = Device->GetShaderFactory();
 
 		const FVulkanVertexShader* VertexShader = ShaderFactory.LookupShader<FVulkanVertexShader>(InGfxPipeline->GetShaderKey(SF_Vertex));
 		check(VertexShader);
 		PackedUniformBuffers[ShaderStage::Vertex].Init(VertexShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Vertex]);
+		UsedSetsMask |= VertexShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Vertex) : 0u;
 
 		uint64 PixelShaderKey = InGfxPipeline->GetShaderKey(SF_Pixel);
 		if (PixelShaderKey)
@@ -314,6 +316,7 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 			check(PixelShader);
 
 			PackedUniformBuffers[ShaderStage::Pixel].Init(PixelShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Pixel]);
+			UsedSetsMask |= PixelShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Pixel) : 0u;
 		}
 
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
@@ -324,6 +327,7 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 			check(GeometryShader);
 
 			PackedUniformBuffers[ShaderStage::Geometry].Init(GeometryShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Geometry]);
+			UsedSetsMask |= GeometryShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Geometry) : 0u;
 		}
 #endif
 

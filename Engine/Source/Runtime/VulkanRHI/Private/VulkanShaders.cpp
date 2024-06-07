@@ -790,43 +790,6 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 	GenerateHash(ImmutableSamplers, bIsCompute ? VK_PIPELINE_BIND_POINT_COMPUTE : VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-void FVulkanComputePipelineDescriptorInfo::Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
-{
-	check(!bInitialized);
-
-	const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = InRemappingInfo.StageInfos[ShaderStage::Compute];
-
-	RemappingInfo = &InRemappingInfo;
-
-	if (StageInfo.Types.Num() > 0)
-	{
-		HasDescriptorsInSetMask = HasDescriptorsInSetMask | (1 << 0);
-	}
-
-	bInitialized = true;
-}
-
-void FVulkanGfxPipelineDescriptorInfo::Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
-{
-	check(!bInitialized);
-
-	for (int32 StageIndex = 0; StageIndex < ShaderStage::NumStages; ++StageIndex)
-	{
-		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = InRemappingInfo.StageInfos[StageIndex];
-
-		if (StageInfo.Types.Num() > 0)
-		{
-			check(StageIndex < sizeof(HasDescriptorsInSetMask) * 8);
-			HasDescriptorsInSetMask = HasDescriptorsInSetMask | (1 << StageIndex);
-		}
-	}
-
-	RemappingInfo = &InRemappingInfo;
-
-	bInitialized = true;
-}
-
-
 FVulkanBoundShaderState::FVulkanBoundShaderState(FRHIVertexDeclaration* InVertexDeclarationRHI, FRHIVertexShader* InVertexShaderRHI,
 	FRHIPixelShader* InPixelShaderRHI, FRHIGeometryShader* InGeometryShaderRHI)
 	: CacheLink(InVertexDeclarationRHI, InVertexShaderRHI, InPixelShaderRHI, InGeometryShaderRHI, this)
