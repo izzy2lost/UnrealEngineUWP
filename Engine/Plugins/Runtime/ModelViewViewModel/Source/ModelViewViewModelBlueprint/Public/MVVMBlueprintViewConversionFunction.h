@@ -152,7 +152,7 @@ private:
 	TArray<FMVVMBlueprintPin> SavedPins;
 
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	bool bWrapperGraphTransient = false;
+	bool bWrapperGraphTransient = true;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UEdGraph> CachedWrapperGraph;

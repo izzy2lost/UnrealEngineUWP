@@ -186,7 +186,7 @@ void UMVVMBlueprintViewConversionFunction::Reset()
 {
 	ConversionFunction = FMVVMBlueprintFunctionReference();
 	GraphName = FName();
-	bWrapperGraphTransient = false;
+	bWrapperGraphTransient = true;
 	SavedPins.Reset();
 	SetCachedWrapperGraph(nullptr, nullptr, nullptr);
 }
@@ -200,7 +200,7 @@ void UMVVMBlueprintViewConversionFunction::Initialize(UBlueprint* InContext, FNa
 		ConversionFunction = InFunction;
 		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 		GraphName = InGraphName;
-		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
+		bWrapperGraphTransient = true;
 		GetOrCreateWrapperGraphInternal(InContext);
 		SavePinValues(InContext);
 	}
@@ -215,7 +215,7 @@ void UMVVMBlueprintViewConversionFunction::InitializeFromFunction(UBlueprint* In
 		ConversionFunction = FMVVMBlueprintFunctionReference(InContext, InFunction);
 		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 		GraphName = InGraphName;
-		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
+		bWrapperGraphTransient = true;
 		GetOrCreateWrapperGraphInternal(InContext);
 		SavePinValues(InContext);
 	}
@@ -240,13 +240,14 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_InitializeFromWrapperGrap
 
 		check(GraphName.IsNone());
 		GraphName = CachedWrapperGraph->GetFName();
-		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
+		bWrapperGraphTransient = true;
 
 		SavePinValues(SelfContext);
 
 		if (bWrapperGraphTransient && CachedWrapperNode)
 		{
 			SelfContext->FunctionGraphs.RemoveSingle(CachedWrapperGraph);
+			CachedWrapperGraph->SetFlags(RF_Transient);
 		}
 	}
 }
@@ -259,7 +260,7 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_InitializeFromMemberRefer
 
 	check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 	GraphName = InGraphName;
-	bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
+	bWrapperGraphTransient = true;
 
 	// since it is a new object, we can't create a the graph right away
 	UClass* GeneratedClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
@@ -283,7 +284,7 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_SetWrapperGraphName(UBlue
 	if (ensure(SavedPins.Num() == 0) && ensure(GraphName.IsNone()))
 	{
 		GraphName = InGraphName;
-		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
+		bWrapperGraphTransient = true;
 
 		// since it is a new object, we can't create a the graph right away
 		UClass* GeneratedClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
@@ -360,10 +361,15 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateIntermediateWrapperGr
 	TObjectPtr<UEdGraph>* FoundGraph = !GraphName.IsNone() ? Context.Blueprint->FunctionGraphs.FindByPredicate([GraphName = GetWrapperGraphName()](const UEdGraph* Other) { return Other->GetFName() == GraphName; }) : nullptr;
 	if (FoundGraph)
 	{
-		ensureMsgf(!IsWrapperGraphTransient(), TEXT("The graph is transient. It should not be saved in the editor."));
 		UBlueprint* NullContext = nullptr; // do not register the callback
 		const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(NullContext, *FoundGraph, UE::MVVM::ConversionFunctionHelper::GetWrapperNode(*FoundGraph));
 		LoadPinValuesInternal(Context.Blueprint);
+
+		// Conversion Function graph are not saved in the editor anymore.
+		check(CachedWrapperGraph == *FoundGraph);
+		Context.Blueprint->FunctionGraphs.RemoveSingle(CachedWrapperGraph);
+		CachedWrapperGraph->SetFlags(RF_Transient);
+
 		return CachedWrapperGraph;
 	}
 	else if (IsValid(Context.Blueprint))
@@ -391,9 +397,13 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraph(UBluepri
 	TObjectPtr<UEdGraph>* FoundGraph = Blueprint->FunctionGraphs.FindByPredicate([GraphName = GetWrapperGraphName()](const UEdGraph* Other) { return Other->GetFName() == GraphName; });
 	if (FoundGraph)
 	{
-		ensureMsgf(!IsWrapperGraphTransient(), TEXT("The graph is transient. It should not be saved in the editor."));
 		const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, *FoundGraph, UE::MVVM::ConversionFunctionHelper::GetWrapperNode(*FoundGraph));
 		LoadPinValuesInternal(Blueprint);
+
+		// Conversion Function graph are not saved in the editor anymore.
+		check(CachedWrapperGraph == *FoundGraph);
+		Blueprint->FunctionGraphs.RemoveSingle(CachedWrapperGraph);
+		CachedWrapperGraph->SetFlags(RF_Transient);
 	}
 	else if (IsValid(Blueprint))
 	{

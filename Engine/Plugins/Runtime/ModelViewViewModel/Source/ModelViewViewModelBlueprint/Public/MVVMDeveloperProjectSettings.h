@@ -137,12 +137,13 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "UX")
 	bool bShowDeveloperGenerateGraphSettings = true;
 
+	UE_DEPRECATED(5.5, "MVVM AllowConversionFunctionGeneratedGraphInEditor feature is disable. The graphs are now transient.")
 	/**
 	 * When a conversion function requires a wrapper graph, add and save the generated graph to the blueprint.
-	 * It is strongly suggested to to use this feature. It can easly break deprecation and the graph will not auto update with new features.
+	 * It is strongly suggested to not use this feature. It can easly break deprecation and the graph will not auto update with new features.
 	 */
-	UPROPERTY(EditAnywhere, config, Category = "Features")
-	bool bAllowConversionFunctionGeneratedGraphInEditor = false;
+	UPROPERTY()
+	bool bAllowConversionFunctionGeneratedGraphInEditor_DEPRECATED = false;
 
 	/** When binding to a multicast delegate property, allow to create an event. */
 	UPROPERTY(EditAnywhere, config, Category = "Features")
