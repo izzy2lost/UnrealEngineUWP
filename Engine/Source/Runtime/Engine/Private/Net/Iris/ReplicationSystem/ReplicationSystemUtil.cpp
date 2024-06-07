@@ -68,6 +68,11 @@ UReplicationSystem* FReplicationSystemUtil::GetReplicationSystem(const AActor* A
 	return NetDriver ? NetDriver->GetReplicationSystem() : nullptr;
 }
 
+UReplicationSystem* FReplicationSystemUtil::GetReplicationSystem(const UNetDriver* NetDriver)
+{
+	return NetDriver ? NetDriver->GetReplicationSystem() : nullptr;
+}
+
 UActorReplicationBridge* FReplicationSystemUtil::GetActorReplicationBridge(const AActor* Actor)
 {
 	if (UReplicationSystem* ReplicationSystem = GetReplicationSystem(Actor))

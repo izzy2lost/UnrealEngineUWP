@@ -28,6 +28,8 @@
 #include "Iris/Serialization/NetSerializer.h"
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
 
+#include "Iris/Metrics/NetMetrics.h"
+
 #include "HAL/IConsoleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "UObject/UObjectGlobals.h"
@@ -62,6 +64,9 @@ public:
 	FNetBitArray ConnectionsPendingPostTickDispatchSend;
 	EReplicationSystemSendPass CurrentSendPass = EReplicationSystemSendPass::Invalid;
 
+	FName MetricNameTotalRootObjects;
+	FName MetricNameTotalSubObjects;
+
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
 	, ReplicationSystemInternal(
@@ -73,6 +78,8 @@ public:
 			.MaxReplicationWriterObjectCount = Params.MaxReplicationWriterObjectCount,
 		}))
 	{
+		MetricNameTotalRootObjects = TEXT("TotalSubObjects");
+		MetricNameTotalSubObjects = TEXT("TotalRootObjects");
 	}
 
 	~FReplicationSystemImpl()
@@ -639,6 +646,20 @@ public:
 		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
 		ValidConnections.ForAllSetBits(UpdateUnresolvableReferenceTracking);
 	}
+
+	void CollectNetMetrics(UE::Net::FNetMetrics& OutNetMetrics) const
+	{
+		using namespace UE::Net;
+
+		const FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
+
+		const uint32 TotalNetObjects = NetRefHandleManager.GetActiveObjectCount();
+		const uint32 TotalSubObjects = NetRefHandleManager.GetSubObjectInternalIndicesView().CountSetBits();
+
+		// Collect stats on total replicated objects
+		OutNetMetrics.EmplaceMetric(MetricNameTotalRootObjects, FNetMetric(TotalNetObjects-TotalSubObjects));
+		OutNetMetrics.EmplaceMetric(MetricNameTotalSubObjects, FNetMetric(TotalSubObjects));
+	}
 }; // end class FReplicationSystemImpl
 
 } // end namespace UE::Net::Private
@@ -870,6 +891,11 @@ void UReplicationSystem::PostSendUpdate()
 
 			FNetTypeStats& TypeStats = Impl->ReplicationSystemInternal.GetNetTypeStats();
 			TypeStats.ReportCSVStats();
+
+			if (Impl->ReplicationSystemInternal.IsDirtyNetObjectTrackerInitialized())
+			{
+				Impl->ReplicationSystemInternal.GetDirtyNetObjectTracker().ReportCSVStats();
+			}
 		}
 #endif
 
@@ -1728,6 +1754,11 @@ void UReplicationSystem::ReportErrorWithNetRefHandle(UE::Net::ENetRefHandleError
 	const FNetRefHandle NetRefHandle = FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, GetId());
 
 	Impl->ReplicationSystemInternal.GetReplicationBridge()->OnErrorWithNetRefHandleReported(ErrorType, NetRefHandle, ConnectionId);
+}
+
+void UReplicationSystem::CollectNetMetrics(UE::Net::FNetMetrics& OutNetMetrics) const
+{
+	Impl->CollectNetMetrics(OutNetMetrics);
 }
 
 

@@ -9,6 +9,7 @@
 
 class UNetDriver;
 class UIrisObjectReferencePackageMap;
+struct FAnalyticsEventAttribute;
 
 #if UE_WITH_IRIS
 
@@ -89,6 +90,13 @@ public:
 	
 	/** Updates the level group for an actor that changed levels */
 	void ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel);
+
+	/**
+	 * Add relevant network metrics gathered since the last call to ConsumeNetMetrics.
+	 * Any periodic stat will be reset here too.
+	 * @param OutAttrs A list of Name/Value pairings that will be sent to an AnalyticsProvider
+	 */
+	ENGINE_API void ConsumeNetMetrics(TArray<FAnalyticsEventAttribute>& OutAttrs);
 
 	using UObjectReplicationBridge::EndReplication;
 

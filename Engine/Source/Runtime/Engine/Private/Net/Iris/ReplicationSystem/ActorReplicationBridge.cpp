@@ -23,6 +23,7 @@
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Serialization/ObjectNetSerializer.h"
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
+#include "Iris/Metrics/NetMetrics.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/Level.h"
@@ -30,6 +31,7 @@
 #include "Engine/NetDriver.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
+#include "AnalyticsEventAttribute.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/LowLevelMemStats.h"
@@ -43,6 +45,7 @@
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Templates/Casts.h"
 #include "UObject/Package.h"
+
 #include <limits>
 
 #define UE_LOG_ACTORREPLICATIONBRIDGE(Category, Format, ...)	UE_LOG(LogIrisBridge, Category, TEXT("ActorReplicationBridge(%u)::") Format, GetReplicationSystem()->GetId(), ##__VA_ARGS__)
@@ -1394,6 +1397,52 @@ FString UActorReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
 	{
 		return FString::Printf(TEXT("ConnectionId:%u no NetDriver attached"), ConnectionId);
 	}
+}
+
+void UActorReplicationBridge::ConsumeNetMetrics(TArray<FAnalyticsEventAttribute>& OutAttrs)
+{
+	using namespace UE::Net;
+
+	FNetMetrics MetricsCollector;
+
+	GetReplicationSystem()->CollectNetMetrics(MetricsCollector);
+
+	//$IRIS TODO: Add ResetNetMetrics call if the RepSystem starts caching cumulative stats
+
+	const TMap<FName, FNetMetric>& Metrics = MetricsCollector.GetMetrics();
+
+	for (auto& It : Metrics)
+	{
+		FName MetricName = It.Key;
+		const FNetMetric& Metric = It.Value;
+
+		switch (Metric.GetDataType())
+		{
+			case FNetMetric::EDataType::Signed:
+			{
+				const int32 Value = Metric.GetSigned();
+				OutAttrs.Add(FAnalyticsEventAttribute(MetricName.ToString(), Value));
+			} break;
+
+			case FNetMetric::EDataType::Unsigned:
+			{
+				const uint32 Value = Metric.GetUnsigned();
+				OutAttrs.Add(FAnalyticsEventAttribute(MetricName.ToString(), Value));
+			} break;
+
+			case FNetMetric::EDataType::Double:
+			{
+				const double Value = Metric.GetDouble();
+				OutAttrs.Add(FAnalyticsEventAttribute(MetricName.ToString(), Value));
+			} break;
+
+			default:
+			{
+				checkNoEntry();
+			} break;
+		}
+	}
+
 }
 
 #else //!UE_WITH_IRIS

@@ -24,23 +24,28 @@ class UReplicationBridge;
 class UReplicationSystem;
 namespace UE::Net
 {
-	class FNetBitArray;
-	class FNetCullDistanceOverrides;
-	enum class ENetFilterStatus : uint32;
-	enum class ENetRefHandleError : uint32;
-	class FNetObjectAttachment;
-	enum class ENetObjectDeltaCompressionStatus : unsigned;
 	typedef uint32 FNetObjectFilterHandle;
 	typedef uint32 FNetObjectPrioritizerHandle;
+
+	class FNetBitArray;
+	class FNetCullDistanceOverrides;
+	class FNetObjectAttachment;	
 	class FNetObjectReference;
-	enum class EReplicationCondition : uint32;
-	struct FReplicationProtocol;
 	class FReplicationSystemFactory;
-	struct FReplicationSystemUtil;
-	struct FReplicationView;
 	class FStringTokenStore;
 	class FWorldLocations;
+
+	struct FReplicationSystemUtil;
+	struct FReplicationView;
 	struct FNetDebugName;
+	struct FNetMetrics;
+	struct FReplicationProtocol;
+
+	enum class ENetFilterStatus : uint32;
+	enum class ENetObjectDeltaCompressionStatus : unsigned;
+	enum class ENetRefHandleError : uint32;
+	enum class EReplicationCondition : uint32;
+
 	namespace Private
 	{
 		class FReplicationSystemImpl;
@@ -656,6 +661,9 @@ public:
 
 	/** Called when a connection reports a critical error with a netrefhandle object */
 	IRISCORE_API void ReportErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, uint64 NetRefHandleId, uint32 ConnectionId);
+
+	/** Collect relevant metrics that could be sent to analytics */
+	IRISCORE_API void CollectNetMetrics(UE::Net::FNetMetrics& OutNetMetrics) const;
 
 public:
 	// For internal use and not exported.

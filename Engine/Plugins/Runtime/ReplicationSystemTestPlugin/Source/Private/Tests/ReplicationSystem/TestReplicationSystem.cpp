@@ -7,6 +7,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/NetTokenStore.h"
 #include "Iris/Core/IrisLog.h"
+#include "Iris/Metrics/NetMetrics.h"
 #include "Misc/ScopeExit.h"
 
 namespace UE::Net::Private
@@ -1943,6 +1944,52 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequan
 	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, 1);
 	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
 
+}
+
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestNetMetric)
+{
+	{
+		FNetMetric Metric(50.0);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Double);
+	}
+
+	{
+		FNetMetric Metric(50.f);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Double);
+	}
+
+	{
+		FNetMetric Metric;
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::None);
+		float Value = 100.f;
+		Metric.Set(Value);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Double);
+	}
+
+	{
+		FNetMetric Metric(5U);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Unsigned);
+	}
+
+	{
+		FNetMetric Metric;
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::None);
+		uint32 Value = 100U;
+		Metric.Set(Value);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Unsigned);
+	}
+
+	{
+		FNetMetric Metric(-5);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Signed);
+	}
+
+	{
+		FNetMetric Metric;
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::None);
+		Metric.Set(5);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Signed);
+	}
 }
 
 } // end namespace UE::Net::Private

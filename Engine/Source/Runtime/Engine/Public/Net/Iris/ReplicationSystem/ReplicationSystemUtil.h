@@ -19,6 +19,7 @@ class FRepChangedPropertyTracker;
 class UReplicationSystem;
 class UWorld;
 class UNetConnection;
+class UNetDriver;
 
 namespace UE::Net
 {
@@ -33,6 +34,9 @@ struct FReplicationSystemUtil
 {
 	/** Returns the UReplicationSystem for the main NetDriver assigned to the Actor. Note that an Actor may be replicated by multiple ReplicationSystems. May return null. */
 	ENGINE_API static UReplicationSystem* GetReplicationSystem(const AActor* Actor);
+
+	/** Returns the UReplicationSystem for a specific NetDriver. May return null. */
+	ENGINE_API static UReplicationSystem* GetReplicationSystem(const UNetDriver* NetDriver);
 
 	/** Returns the UActorReplicationBridge of the UReplicationSystem belogning to the main NetDriver assigned to the Actor. May return null. */
 	ENGINE_API static UActorReplicationBridge* GetActorReplicationBridge(const AActor* Actor);

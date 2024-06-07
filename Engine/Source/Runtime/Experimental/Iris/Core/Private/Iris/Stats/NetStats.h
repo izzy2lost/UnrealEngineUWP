@@ -60,9 +60,6 @@ public:
 	/** Add time in seconds waiting to be able to continue sending huge object. */
 	void AddHugeObjectStallTime(double Seconds);
 
-	/** Add time spent on trying to replicate an object in the packet but that ended up not fitting. */
-	void AddReplicationWasteTime(double Seconds);
-
 	/** Add stats from another instance. */
 	IRISCORE_API void Accumulate(const FNetSendStats& Stats);
 
@@ -126,6 +123,11 @@ inline void FNetSendStats::AddNumberOfReplicatedObjectStatesMaskedOut(uint32 Cou
 inline void FNetSendStats::AddNumberOfReplicatedDestructionInfos(uint32 Count)
 {
 	Stats.ReplicatedDestructionInfoCount += Count;
+}
+
+inline uint32 FNetSendStats::GetNumberOfReplicatedRootObjects() const
+{
+	return Stats.ReplicatedRootObjectCount;
 }
 
 inline uint32 FNetSendStats::GetNumberOfReplicatedObjects() const
