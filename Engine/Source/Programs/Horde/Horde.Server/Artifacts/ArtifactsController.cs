@@ -48,19 +48,21 @@ namespace Horde.Server.Artifacts
 		readonly ILeaseCollection _leaseCollection;
 		readonly IJobCollection _jobCollection;
 		readonly AclService _aclService;
+		readonly UnsyncCache _unsyncCache;
 		readonly GlobalConfig _globalConfig;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<ArtifactsController> logger)
+		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, AclService aclService, UnsyncCache unsyncCache, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<ArtifactsController> logger)
 		{
 			_artifactCollection = artifactCollection;
 			_storageService = storageService;
 			_leaseCollection = leaseCollection;
 			_jobCollection = jobCollection;
 			_aclService = aclService;
+			_unsyncCache = unsyncCache;
 			_globalConfig = globalConfig.Value;
 			_logger = logger;
 		}
@@ -590,10 +592,8 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
-
-			IBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
-			if (target == null)
+			UnsyncManifest? manifest = await _unsyncCache.GetManifestAsync(artifact, cancellationToken);
+			if (manifest == null)
 			{
 				return NotFound(id);
 			}
@@ -614,68 +614,98 @@ namespace Horde.Server.Artifacts
 				writer.WriteString("type", "unsync_manifest");
 				writer.WriteString("hash_strong", "Blake3.160");
 				writer.WriteString("chunking", "Variable");
+
 				writer.WriteStartArray("files");
-				await WriteUnsyncFileManifestAsync(new Utf8StringBuilder(), target, writer, cancellationToken);
+				foreach (UnsyncFile file in manifest.Files)
+				{
+					writer.WriteStartObject();
+					writer.WriteString("name", file.Name);
+					if (file.Executable)
+					{
+						writer.WriteBoolean("exec", file.Executable);
+					}
+					if (file.ReadOnly)
+					{
+						writer.WriteBoolean("read_only", file.ReadOnly);
+					}
+					writer.WriteNumber("size", file.Length);
+					writer.WriteStartArray("blocks");
+					foreach (UnsyncBlock block in file.Blocks)
+					{
+						writer.WriteStartObject();
+						writer.WriteNumber("offset", block.Offset);
+						writer.WriteNumber("size", block.Length);
+						writer.WriteString("hash_strong", block.Blob.Hash.ToString());
+						writer.WriteEndObject();
+					}
+					writer.WriteEndArray();
+					writer.WriteEndObject();
+				}
 				writer.WriteEndArray();
+
 				writer.WriteEndObject();
 			}
 
 			await response.CompleteAsync();
-
 			return Ok();
 		}
 
-		static async Task WriteUnsyncFileManifestAsync(Utf8StringBuilder path, IBlobRef<DirectoryNode> blobRef, Utf8JsonWriter writer, CancellationToken cancellationToken)
+		/// <summary>
+		/// Creates an Unsync manifest for an artifact
+		/// </summary>
+		/// <param name="id">The artifact id</param>
+		/// <param name="request">Information about the blobs to return</param>
+		/// <param name="cancellationToken">Cancellation token for the request</param>
+		/// <returns>An unsync manifest stream</returns>
+		[HttpPost]
+		[Route("/api/v2/artifacts/{id}/unsync-blobs")]
+		public async Task<ActionResult> GetUnsyncBlobsAsync(ArtifactId id, [FromBody] GetUnsyncDataRequest request, CancellationToken cancellationToken = default)
 		{
-			int initialPathLen = path.Length;
-			DirectoryNode directoryNode = await blobRef.ReadBlobAsync(cancellationToken);
-
-			foreach (FileEntry fileEntry in directoryNode.Files)
+			IArtifact? artifact = await _artifactCollection.GetAsync(id, cancellationToken);
+			if (artifact == null)
 			{
-				path.Append(fileEntry.Name);
-
-				writer.WriteStartObject();
-				writer.WriteString("name", path.WrittenSpan);
-				writer.WriteBoolean("read_only", (fileEntry.Flags & FileEntryFlags.ReadOnly) != 0);
-				writer.WriteNumber("size", fileEntry.Length);
-				writer.WriteStartArray("blocks");
-				await WriteUnsyncBlockManifestAsync(fileEntry.Target, 0, writer, cancellationToken);
-				writer.WriteEndArray();
-				writer.WriteEndObject();
-
-				path.Length = initialPathLen;
+				return NotFound(id);
+			}
+			if (!_globalConfig.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			{
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			foreach (DirectoryEntry directoryEntry in directoryNode.Directories)
+			if (!String.Equals(request.HashStrong, "Blake3.160", StringComparison.OrdinalIgnoreCase))
 			{
-				path.Append(directoryEntry.Name);
-				path.Append('/');
-				await WriteUnsyncFileManifestAsync(path, directoryEntry.Handle, writer, cancellationToken);
-				path.Length = initialPathLen;
+				return BadRequest($"Unsupported hash algorithm: {request.HashStrong}");
 			}
-		}
 
-		static async Task WriteUnsyncBlockManifestAsync(ChunkedDataNodeRef chunkedDataRef, long offset, Utf8JsonWriter writer, CancellationToken cancellationToken)
-		{
-			if (chunkedDataRef.Type == ChunkedDataNodeType.Leaf)
-			{
-				writer.WriteStartObject();
-				writer.WriteNumber("offset", offset);
-				writer.WriteNumber("size", chunkedDataRef.Length);
-				writer.WriteString("hash_strong", chunkedDataRef.Handle.Hash.ToString());
-				writer.WriteEndObject();
-			}
-			else
-			{
-				InteriorChunkedDataNode node = await chunkedDataRef.Handle.ReadBlobAsync<InteriorChunkedDataNode>(cancellationToken: cancellationToken);
+			// Disable buffering for the response
+			IHttpResponseBodyFeature? responseBodyFeature = HttpContext.Features.Get<IHttpResponseBodyFeature>();
+			responseBodyFeature?.DisableBuffering();
 
-				long childOffset = offset;
-				foreach (ChunkedDataNodeRef childChunkedDataRef in node.Children)
+			// Send the response headers
+			HttpResponse response = HttpContext.Response;
+
+			await response.StartAsync(cancellationToken);
+			foreach (GetUnsyncBlockRequest block in request.Files.SelectMany(x => x.Blocks))
+			{
+				if (block.Hash == null || !IoHash.TryParse(block.Hash, out IoHash hash))
 				{
-					await WriteUnsyncBlockManifestAsync(childChunkedDataRef, childOffset, writer, cancellationToken);
-					childOffset += childChunkedDataRef.Length;
+					throw new InvalidOperationException();
 				}
+
+				BlobData? blobData = await _unsyncCache.ReadBlobAsync(artifact, hash, cancellationToken);
+				if (blobData == null)
+				{
+					throw new InvalidOperationException();
+				}
+
+				Memory<byte> data = response.BodyWriter.GetMemory(blobData.Data.Length);
+				blobData.Data.CopyTo(data);
+				response.BodyWriter.Advance(blobData.Data.Length);
+
+				await response.BodyWriter.FlushAsync(cancellationToken);
 			}
+			await response.CompleteAsync();
+
+			return Ok();
 		}
 
 		/// <summary>

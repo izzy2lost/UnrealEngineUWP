@@ -169,6 +169,30 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <summary>
+		/// Gets the target interior node handle
+		/// </summary>
+		public IBlobRef<InteriorChunkedDataNode> GetInteriorHandle()
+		{
+			if (Type != ChunkedDataNodeType.Interior)
+			{
+				throw new InvalidOperationException("Node is not an interior node");
+			}
+			return BlobRef.Create<InteriorChunkedDataNode>(Handle.Hash, Handle, Handle.SerializerOptions);
+		}
+
+		/// <summary>
+		/// Gets the target leaf node handle
+		/// </summary>
+		public IBlobRef<LeafChunkedDataNode> GetLeafHandle()
+		{
+			if (Type != ChunkedDataNodeType.Leaf)
+			{
+				throw new InvalidOperationException("Node is not a leaf node");
+			}
+			return BlobRef.Create<LeafChunkedDataNode>(Handle.Hash, Handle, Handle.SerializerOptions);
+		}
+
+		/// <summary>
 		/// Read the node which is the target of this ref
 		/// </summary>
 		public async ValueTask<ChunkedDataNode> ReadBlobAsync(BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)

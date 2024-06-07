@@ -577,6 +577,7 @@ namespace Horde.Server
 			services.AddSingleton<LogTailService>();
 			services.AddHostedService(provider => provider.GetRequiredService<LogTailService>()); // NB: Runs even on workers, to receive tail notifications.
 			services.AddSingleton<INotificationService, NotificationService>();
+			services.AddSingleton<UnsyncCache>();
 
 			if (settings.Commits.ReplicateMetadata)
 			{
