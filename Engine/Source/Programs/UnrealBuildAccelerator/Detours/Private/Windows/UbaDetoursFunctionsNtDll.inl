@@ -1371,6 +1371,9 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 				StringBuffer<> fixedName;
 				FixPath(fixedName, fileName);
 				StringKey fileNameKey = fi.fileNameKey;
+				if (!fo->newName.empty())
+					fileNameKey = ToStringKeyLower(fixedName);
+
 				u64 size;
 				Rpc_CreateFileW(fixedName.data, fileNameKey, AccessFlag_Write, temp, sizeof_array(temp), size, fo->closeId, true);
 			}
