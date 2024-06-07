@@ -37,6 +37,11 @@ namespace EpicGames.Horde
 		AddFileModTimes = 3,
 
 		/// <summary>
+		/// Interior nodes in chunked data now include the rolling hash of any leaf nodes
+		/// </summary>
+		AddRollingHashesForLeafNodes = 4,
+
+		/// <summary>
 		/// One past the latest known version number. Add new version numbers above this point.
 		/// </summary>
 		LatestPlusOne,

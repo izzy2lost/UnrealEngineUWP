@@ -174,7 +174,7 @@ namespace EpicGames.Horde.Tests
 			chunkingOptions.InteriorOptions = new InteriorChunkedDataNodeOptions(2, 2, 2);
 
 			BlobSerializerOptions serializerOptions = new BlobSerializerOptions();
-			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(2)); // Does not include length fields in interior nodes
+			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(HordeApiVersion.Initial)); // Does not include length fields in interior nodes
 
 			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
 
@@ -219,7 +219,7 @@ namespace EpicGames.Horde.Tests
 
 			IBlobRef<LeafChunkedDataNode> leafRef = await blobWriter.WriteBlobAsync(new LeafChunkedDataNode(new byte[] { 1, 2, 3 }));
 			int leafRefIndex = MemoryBlobWriter.GetIndex((IBlobRef)leafRef);
-			ChunkedDataNodeRef leafChunkedRef = new ChunkedDataNodeRef(3, leafRef);
+			ChunkedDataNodeRef leafChunkedRef = new ChunkedDataNodeRef(3, 0, leafRef);
 
 			List<ChunkedDataNodeRef> leafNodeRefs = Enumerable.Repeat(leafChunkedRef, 10000).ToList();
 			ChunkedDataNodeRef root = await InteriorChunkedDataNode.CreateTreeAsync(leafNodeRefs, interiorOptions, blobWriter, CancellationToken.None);
@@ -270,7 +270,7 @@ namespace EpicGames.Horde.Tests
 			while (currentOffset != data.Length)
 			{
 				chunks._offsets.Add(currentOffset);
-				int chunkLength = BuzHash.FindChunkLength(data.Slice(currentOffset), minSize, maxSize, targetSize);
+				int chunkLength = BuzHash.FindChunkLength(data.Slice(currentOffset), minSize, maxSize, targetSize, out _);
 				currentOffset += chunkLength;
 				chunks._sizes.Add(currentOffset);
 			}

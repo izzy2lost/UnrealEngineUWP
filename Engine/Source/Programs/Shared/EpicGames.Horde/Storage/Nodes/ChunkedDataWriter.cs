@@ -339,7 +339,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			int leafLength = _writer.WrittenMemory.Length;
 			IBlobRef<LeafChunkedDataNode> leafHandle = await _writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
-			_leafHandles.Add(new ChunkedDataNodeRef(leafLength, leafHandle));
+			_leafHandles.Add(new ChunkedDataNodeRef(leafLength, _leafHash, leafHandle));
 			ResetLeafState();
 		}
 	}

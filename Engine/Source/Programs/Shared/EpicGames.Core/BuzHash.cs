@@ -234,12 +234,14 @@ namespace EpicGames.Core
 		/// <param name="minSize">Minimum size for a chunk</param>
 		/// <param name="maxSize">Maximum size for a chunk</param>
 		/// <param name="targetSize">Desired average size for a chunk</param>
+		/// <param name="rollingHash">Receives the rolling hash for the chunk</param>
 		/// <returns></returns>
-		public static int FindChunkLength(ReadOnlySpan<byte> inputData, int minSize, int maxSize, int targetSize)
+		public static int FindChunkLength(ReadOnlySpan<byte> inputData, int minSize, int maxSize, int targetSize, out uint rollingHash)
 		{
 			// If the target option sizes are fixed, just chunk the data along fixed boundaries
 			if (minSize == targetSize && maxSize == targetSize)
 			{
+				rollingHash = 0;
 				return Math.Min(inputData.Length, maxSize);
 			}
 
@@ -254,7 +256,7 @@ namespace EpicGames.Core
 
 			// Fast path for appending data to the buffer up to the chunk window size
 			int length = Math.Min(windowSize, inputData.Length);
-			uint rollingHash = BuzHash.Add(0, inputData.Slice(0, length));
+			rollingHash = BuzHash.Add(0, inputData.Slice(0, length));
 
 			// Get the threshold for the rolling hash to split the output
 			uint rollingHashThreshold = (uint)((1L << 32) / (targetSize-minSize));

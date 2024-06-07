@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -149,14 +150,15 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// </summary>
 	/// <param name="Type">Type of the referenced node</param>
 	/// <param name="Length">Length of the data stream within this node</param>
+	/// <param name="RollingHash">Rolling hash for this chunk. Only serialized for leaf node references.</param>
 	/// <param name="Handle">Handle to the target node</param>
-	public record class ChunkedDataNodeRef(ChunkedDataNodeType Type, long Length, IBlobRef<ChunkedDataNode> Handle)
+	public record class ChunkedDataNodeRef(ChunkedDataNodeType Type, long Length, uint RollingHash, IBlobRef<ChunkedDataNode> Handle)
 	{
 		/// <summary>
 		/// Leaf node constructor
 		/// </summary>
-		public ChunkedDataNodeRef(long length, IBlobRef<LeafChunkedDataNode> handle)
-			: this(ChunkedDataNodeType.Leaf, length, handle)
+		public ChunkedDataNodeRef(long length, uint rollingHash, IBlobRef<LeafChunkedDataNode> handle)
+			: this(ChunkedDataNodeType.Leaf, length, rollingHash, handle)
 		{
 		}
 
@@ -164,7 +166,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Interior node constructor
 		/// </summary>
 		public ChunkedDataNodeRef(long length, IBlobRef<InteriorChunkedDataNode> handle)
-			: this(ChunkedDataNodeType.Interior, length, handle)
+			: this(ChunkedDataNodeType.Interior, length, 0, handle)
 		{
 		}
 
@@ -332,7 +334,8 @@ namespace EpicGames.Horde.Storage.Nodes
 					break;
 				}
 
-				int nextLength = GetChunkLength(readBuffer.Memory.Span.Slice(0, size), options);
+				uint rollingHash;
+				int nextLength = GetChunkLength(readBuffer.Memory.Span.Slice(0, size), options, out rollingHash);
 
 				ReadOnlyMemory<byte> nextBlobData = readBuffer.Memory.Slice(0, nextLength);
 				writer.WriteFixedLengthBytes(nextBlobData.Span);
@@ -346,7 +349,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 
 				IBlobRef<LeafChunkedDataNode> blobHandle = await writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
-				leafNodeRefs.Add(new ChunkedDataNodeRef(nextLength, blobHandle));
+				leafNodeRefs.Add(new ChunkedDataNodeRef(nextLength, rollingHash, blobHandle));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
 				size -= nextLength;
@@ -363,10 +366,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="inputData">Data to be appended</param>
 		/// <param name="options">Options for chunking the data</param>
+		/// <param name="rollingHash">Receives the rolling hash at the end of this chunk</param>
 		/// <returns>The number of bytes to append</returns>
-		public static int GetChunkLength(ReadOnlySpan<byte> inputData, LeafChunkedDataNodeOptions options)
+		public static int GetChunkLength(ReadOnlySpan<byte> inputData, LeafChunkedDataNodeOptions options, out uint rollingHash)
 		{
-			return BuzHash.FindChunkLength(inputData, options.MinSize, options.MaxSize, options.TargetSize);
+			return BuzHash.FindChunkLength(inputData, options.MinSize, options.MaxSize, options.TargetSize, out rollingHash);
 		}
 	}
 
@@ -476,7 +480,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				foreach ((InteriorChunkedDataNode interiorNode, long interiorLength) in interiorNodes)
 				{
 					IBlobRef<InteriorChunkedDataNode> interiorHandle = await memoryWriter.WriteBlobAsync(interiorNode, cancellationToken);
-					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, interiorLength, interiorHandle));
+					handleBuffer.Add(new ChunkedDataNodeRef(interiorLength, interiorHandle));
 				}
 
 				nodeRefs = handleBuffer;
@@ -563,14 +567,21 @@ namespace EpicGames.Horde.Storage.Nodes
 			while (nodeReader.GetMemory(0).Length > 0)
 			{
 				IBlobRef<ChunkedDataNode> handle = nodeReader.ReadBlobRef<ChunkedDataNode>();
+
+				ChunkedDataNodeType type = ChunkedDataNodeType.Unknown;
 				if (nodeReader.Version >= 2)
 				{
-					_ = nodeReader.ReadUnsignedVarInt(); // Type
+					type = (ChunkedDataNodeType)nodeReader.ReadUnsignedVarInt();
 				}
 				if (nodeReader.Version >= 3)
 				{
 					_ = nodeReader.ReadUnsignedVarInt(); // Length
 				}
+				if (nodeReader.Version >= (int)HordeApiVersion.AddRollingHashesForLeafNodes && type == ChunkedDataNodeType.Leaf)
+				{
+					_ = nodeReader.ReadUInt32(); // Rolling hash
+				}
+
 				await ChunkedDataNode.CopyToStreamAsync(handle, outputStream, cancellationToken);
 			}
 		}
@@ -581,12 +592,12 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// </summary>
 	public class InteriorChunkedDataNodeConverter : BlobConverter<InteriorChunkedDataNode>
 	{
-		readonly int _writeVersion;
+		readonly HordeApiVersion _writeVersion;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public InteriorChunkedDataNodeConverter() : this(3)
+		public InteriorChunkedDataNodeConverter() : this(HordeApiVersion.Latest)
 		{
 		}
 
@@ -594,7 +605,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Constructor
 		/// </summary>
 		/// <param name="writeVersion">Version number for serialized data</param>
-		public InteriorChunkedDataNodeConverter(int writeVersion)
+		public InteriorChunkedDataNodeConverter(HordeApiVersion writeVersion)
 		{
 			_writeVersion = writeVersion;
 		}
@@ -609,18 +620,24 @@ namespace EpicGames.Horde.Storage.Nodes
 				IBlobRef<ChunkedDataNode> handle = reader.ReadBlobRef<ChunkedDataNode>();
 
 				ChunkedDataNodeType type = ChunkedDataNodeType.Unknown;
-				if (reader.Version >= 2)
+				if (reader.Version >= 2) // Pre sync with HordeApiVersion
 				{
 					type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
 				}
 
 				long length = -1;
-				if (reader.Version >= 3)
+				if (reader.Version >= 3) // Pre sync with HordeApiVersion
 				{
 					length = (long)reader.ReadUnsignedVarInt();
 				}
 
-				children.Add(new ChunkedDataNodeRef(type, length, handle));
+				uint rollingHash = 0;
+				if (reader.Version >= (int)HordeApiVersion.AddRollingHashesForLeafNodes && type == ChunkedDataNodeType.Leaf)
+				{
+					rollingHash = reader.ReadUInt32();
+				}
+
+				children.Add(new ChunkedDataNodeRef(type, length, rollingHash, handle));
 			}
 			return new InteriorChunkedDataNode(children);
 		}
@@ -631,16 +648,39 @@ namespace EpicGames.Horde.Storage.Nodes
 			foreach (ChunkedDataNodeRef child in value.Children)
 			{
 				writer.WriteBlobRef(child.Handle);
-				if (_writeVersion >= 2)
-				{
-					writer.WriteUnsignedVarInt((int)child.Type);
-				}
-				if (_writeVersion >= 3)
+				writer.WriteUnsignedVarInt((int)child.Type);
+
+				if (_writeVersion >= HordeApiVersion.AddLengthsToInteriorNodes)
 				{
 					writer.WriteUnsignedVarInt((ulong)child.Length);
 				}
+				if (_writeVersion >= HordeApiVersion.AddRollingHashesForLeafNodes && child.Type == ChunkedDataNodeType.Leaf)
+				{
+					writer.WriteUInt32(child.RollingHash);
+				}
 			}
-			return new BlobType(InteriorChunkedDataNode.BlobTypeGuid, _writeVersion);
+			return GetBlobType(_writeVersion);
+		}
+
+		/// <summary>
+		/// Gets the blob type for a particular Horde api version
+		/// </summary>
+		public static BlobType GetBlobType(HordeApiVersion version)
+		{
+			int blobVersion;
+			if (version >= HordeApiVersion.AddRollingHashesForLeafNodes)
+			{
+				blobVersion = (int)HordeApiVersion.AddRollingHashesForLeafNodes;
+			}
+			else if (version >= HordeApiVersion.AddLengthsToInteriorNodes)
+			{
+				blobVersion = 3;
+			}
+			else
+			{
+				blobVersion = 2;
+			}
+			return new BlobType(InteriorChunkedDataNode.BlobTypeGuid, blobVersion);
 		}
 	}
 }

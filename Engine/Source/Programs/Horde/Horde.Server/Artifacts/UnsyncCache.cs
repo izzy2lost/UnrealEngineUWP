@@ -36,8 +36,9 @@ namespace Horde.Server.Artifacts
 	/// </summary>
 	/// <param name="Offset">Offset within the file</param>
 	/// <param name="Length">Length of the block</param>
+	/// <param name="RollingHash">Rolling hash of the block</param>
 	/// <param name="Blob">Handle to the corresponding blob</param>
-	public record class UnsyncBlock(long Offset, long Length, IBlobRef<LeafChunkedDataNode> Blob);
+	public record class UnsyncBlock(long Offset, long Length, uint RollingHash, IBlobRef<LeafChunkedDataNode> Blob);
 
 	/// <summary>
 	/// Implements a cache for downloading Unsync blobs
@@ -204,7 +205,7 @@ namespace Horde.Server.Artifacts
 		{
 			if (nodeRef.Type == ChunkedDataNodeType.Leaf)
 			{
-				blocks.Add(new UnsyncBlock(offset, nodeRef.Length, nodeRef.GetLeafHandle()));
+				blocks.Add(new UnsyncBlock(offset, nodeRef.Length, nodeRef.RollingHash, nodeRef.GetLeafHandle()));
 			}
 			else
 			{

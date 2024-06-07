@@ -347,7 +347,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Constructor
 		/// </summary>
 		public DirectoryNodeConverter()
-			: this(HordeApiVersion.AddFileModTimes)
+			: this(HordeApiVersion.AddRollingHashesForLeafNodes)
 		{ }
 
 		/// <summary>
@@ -372,11 +372,17 @@ namespace EpicGames.Horde.Storage.Nodes
 					targetType = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
 				}
 
+				uint rollingHash = 0;
+				if (targetType == ChunkedDataNodeType.Leaf && reader.Version >= (int)HordeApiVersion.AddRollingHashesForLeafNodes)
+				{
+					rollingHash = reader.ReadUInt32();
+				}
+
 				string name = reader.ReadString();
 				FileEntryFlags flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
 				long length = (long)reader.ReadUnsignedVarInt();
 				IoHash streamHash = reader.ReadIoHash();
-				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, length, targetHandle);
+				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, length, rollingHash, targetHandle);
 
 				DateTime modTime = default;
 				if ((flags & FileEntryFlags.HasModTime) != 0)
@@ -416,6 +422,11 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				writer.WriteBlobRef(fileEntry.Target.Handle);
 				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
+
+				if (_writeVersion >= HordeApiVersion.AddRollingHashesForLeafNodes && fileEntry.Target.Type == ChunkedDataNodeType.Leaf)
+				{
+					writer.WriteUInt32(fileEntry.Target.RollingHash);
+				}
 
 				FileEntryFlags flags = fileEntry.Flags & ~(FileEntryFlags.HasCustomData | FileEntryFlags.HasModTime);
 				if (fileEntry.CustomData.Length > 0)
@@ -457,7 +468,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		static BlobType GetBlobType(HordeApiVersion version)
 		{
 			int blobVersion;
-			if (version >= HordeApiVersion.AddFileModTimes)
+			if (version >= HordeApiVersion.AddRollingHashesForLeafNodes)
+			{
+				blobVersion = (int)HordeApiVersion.AddRollingHashesForLeafNodes;
+			}
+			else if (version >= HordeApiVersion.AddFileModTimes)
 			{
 				blobVersion = (int)HordeApiVersion.AddFileModTimes;
 			}

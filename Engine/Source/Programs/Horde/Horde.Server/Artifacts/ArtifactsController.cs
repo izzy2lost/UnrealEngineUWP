@@ -613,7 +613,10 @@ namespace Horde.Server.Artifacts
 				writer.WriteStartObject();
 				writer.WriteString("type", "unsync_manifest");
 				writer.WriteString("hash_strong", "Blake3.160");
-				writer.WriteString("chunking", "Variable");
+				writer.WriteString("chunking", "RollingBuzHash");
+				writer.WriteNumber("chunking_block_size_min", LeafChunkedDataNodeOptions.Default.MinSize);
+				writer.WriteNumber("chunking_block_size_max", LeafChunkedDataNodeOptions.Default.MaxSize);
+				writer.WriteNumber("chunking_block_size_target", LeafChunkedDataNodeOptions.Default.TargetSize);
 
 				writer.WriteStartArray("files");
 				foreach (UnsyncFile file in manifest.Files)
@@ -636,6 +639,7 @@ namespace Horde.Server.Artifacts
 						writer.WriteStartObject();
 						writer.WriteNumber("offset", block.Offset);
 						writer.WriteNumber("size", block.Length);
+						writer.WriteNumber("hash_weak", block.RollingHash);
 						writer.WriteString("hash_strong", block.Blob.Hash.ToString());
 						writer.WriteEndObject();
 					}
@@ -683,6 +687,8 @@ namespace Horde.Server.Artifacts
 
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
+			response.Headers["x-chunk-content-encoding"] = "identity";
+			response.StatusCode = (int)HttpStatusCode.OK;
 
 			await response.StartAsync(cancellationToken);
 			foreach (GetUnsyncBlockRequest block in request.Files.SelectMany(x => x.Blocks))

@@ -199,10 +199,7 @@ namespace EpicGames.Horde.Storage
 		public static BlobSerializerOptions Create(HordeApiVersion version)
 		{
 			BlobSerializerOptions options = new BlobSerializerOptions();
-			if (version < HordeApiVersion.AddLengthsToInteriorNodes)
-			{
-				options.Converters.Add(new InteriorChunkedDataNodeConverter(2));
-			}
+			options.Converters.Add(new InteriorChunkedDataNodeConverter(version));
 			options.Converters.Add(new DirectoryNodeConverter(version));
 			return options;
 		}
