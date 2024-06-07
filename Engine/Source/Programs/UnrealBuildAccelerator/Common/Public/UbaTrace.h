@@ -19,7 +19,7 @@ namespace uba
 		~TraceChannel();
 
 		bool Init(const tchar* channelName = TC("Default"));
-		bool Write(const tchar* traceName);
+		bool Write(const tchar* traceName, const tchar* ifMatching = nullptr);
 		bool Read(StringBufferBase& outTraceName);
 
 		Logger& m_logger;
@@ -114,6 +114,7 @@ namespace uba
 		u32 AddString(const tchar* string);
 
 		LoggerWithWriter m_logger;
+		TString m_namedTrace;
 		TraceChannel m_channel;
 		ReaderWriterLock m_memoryLock;
 		FileMappingHandle m_memoryHandle;

@@ -269,6 +269,7 @@ namespace uba
 				}
 				else
 				{
+					written += tempBufferPos;
 					success &= file.Write(tempBuffer, tempBufferPos);
 					tempBufferPos = 0;
 				}
@@ -286,6 +287,7 @@ namespace uba
 		bool Close()
 		{
 			success &= file.Write(tempBuffer, tempBufferPos);
+			written += tempBufferPos;
 
 			if (!success)
 				return false;
@@ -303,6 +305,7 @@ namespace uba
 		bool success = true;
 		u8* tempBuffer = nullptr;
 		u64 tempBufferPos = 0;
+		u64 written = 0;
 		TString fileName;
 		TString tempFileName;
 		FileAccessor file;
@@ -356,7 +359,7 @@ namespace uba
 
 		bucket.lastSavedTime = GetSystemTimeAsFileTime() - m_creationTime;
 
-		m_logger.Detail(TC("    Bucket %u saved (%s)"), bucket.index, TimeToText(GetTime() - saveStart).str);
+		m_logger.Detail(TC("    Bucket %u saved - %s (%s)"), bucket.index, BytesToText(file.written).str, TimeToText(GetTime() - saveStart).str);
 		return true;
 	}
 
@@ -507,6 +510,7 @@ namespace uba
 
 		u64 now = GetSystemTimeAsFileTime();
 		u64 oldest = 0;
+		u64 longestUnused = 0;
 
 		u64 lastUseTimeLimit = 0;
 		if (m_expirationTimeSeconds && GetFileTimeAsSeconds(now - m_creationTime) > m_expirationTimeSeconds)
@@ -533,6 +537,7 @@ namespace uba
 			bool checkInputsForDeletes = m_checkInputsForDeletedCas && !deletedCasFiles.empty();
 
 			oldest = 0;
+			longestUnused = 0;
 			totalEntryCount = 0;
 
 			m_server.ParallelFor(workerCountToUseForBuckets, m_buckets, [&](auto& it)
@@ -671,6 +676,8 @@ namespace uba
 						SCOPED_WRITE_LOCK(existingCasLock, l);
 						if (!oldest || entry.creationTime < oldest)
 							oldest = entry.creationTime;
+						if (!longestUnused || entry.lastUsedTime < longestUnused)
+							longestUnused = entry.lastUsedTime;
 
 						for (u64* v : touchedCas)
 							++(*v);
@@ -893,8 +900,9 @@ namespace uba
 		}
 
 		u64 oldestTime = oldest ? GetFileTimeAsTime(now - (m_creationTime + oldest)) : 0;
+		u64 longestUnusedTime = longestUnused ? GetFileTimeAsTime(now - (m_creationTime + longestUnused)) : 0;
 		u64 duration = GetTime() - startTime;
-		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) Entries: %llu OldestEntry: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, totalEntryCount.load(), TimeToText(oldestTime, true).str);
+		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) Entries: %llu Oldest: %s LongestUnused: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, totalEntryCount.load(), TimeToText(oldestTime, true).str, TimeToText(longestUnusedTime, true).str);
 		
 		m_longestMaintenance = Max(m_longestMaintenance, duration);
 

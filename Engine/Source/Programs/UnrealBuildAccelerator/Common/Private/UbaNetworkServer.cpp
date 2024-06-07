@@ -661,6 +661,8 @@ namespace uba
 
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		m_connections.clear();
+
+		m_workersEnabled = true;
 	}
 
 	bool NetworkServer::AddClient(NetworkBackend& backend, const tchar* ip, u16 port, const u8* cryptoKey128)
@@ -710,8 +712,9 @@ namespace uba
 		if (!m_maxActiveConnections)
 			return;
 
+		m_maxCreatedWorkerCount = Max(m_createdWorkerCount, m_maxCreatedWorkerCount);
 		StringBuffer<> workers;
-		workers.Appendf(TC("%u/%u"), m_createdWorkerCount, m_maxWorkerCount);
+		workers.Appendf(TC("%u/%u"), m_maxCreatedWorkerCount, m_maxWorkerCount);
 
 		logger.Info(TC("  ----- Uba server stats summary ------"));
 		logger.Info(TC("  MaxActiveConnections           %6u"), m_maxActiveConnections);
@@ -1067,6 +1070,8 @@ namespace uba
 			delete temp;
 		}
 		m_firstAvailableWorker = nullptr;
+		m_maxCreatedWorkerCount = Max(m_createdWorkerCount, m_maxCreatedWorkerCount);
+		m_createdWorkerCount = 0;
 	}
 
 	void NetworkServer::RemoveDisconnectedConnections()

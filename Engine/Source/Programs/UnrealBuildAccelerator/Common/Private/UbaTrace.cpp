@@ -84,8 +84,10 @@ namespace uba
 
 
 		if (namedTrace && m_channel.Init())
+		{
+			m_namedTrace = namedTrace;
 			m_channel.Write(namedTrace);
-
+		}
 		return true;
 	}
 
@@ -94,6 +96,9 @@ namespace uba
 		if (!m_memoryBegin)
 			return true;
 		auto g = MakeGuard([this]() { FreeMemory(); });
+
+		if (!m_namedTrace.empty())
+			m_channel.Write(TC(""), m_namedTrace.c_str());
 
 		{
 			WriterScope writer(*this);
@@ -451,10 +456,13 @@ namespace uba
 		#endif
 	}
 
-	bool TraceChannel::Write(const tchar* traceName)
+	bool TraceChannel::Write(const tchar* traceName, const tchar* ifMatching)
 	{
 		#if PLATFORM_WINDOWS
 		WaitForSingleObject((HANDLE)m_mutex, INFINITE);
+		if (ifMatching)
+			if (!Equals((tchar*)m_mem, ifMatching))
+				return true;
 		TStrcpy_s((tchar*)m_mem, 256, traceName);
 		ReleaseMutex((HANDLE)m_mutex);
 		#endif

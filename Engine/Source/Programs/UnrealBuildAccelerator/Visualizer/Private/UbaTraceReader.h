@@ -169,6 +169,7 @@ namespace uba
 		bool ReadTrace(TraceView& out, BinaryReader& reader, u64 maxTime);
 		void StopAllActive(TraceView& out, u64 stopTime);
 		void Reset();
+		void Unmap();
 
 		bool SaveAs(const tchar* fileName);
 

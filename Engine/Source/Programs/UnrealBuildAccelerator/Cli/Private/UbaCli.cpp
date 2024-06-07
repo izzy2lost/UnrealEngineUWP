@@ -619,6 +619,9 @@ namespace uba
 				return -1;
 			}
 
+			if (!storageServer.LoadCasTable(true))
+				return -1;
+
 			if (!cacheCommand.empty())
 			{
 				LoggerWithWriter consoleLogger(g_consoleLogWriter);
@@ -656,8 +659,9 @@ namespace uba
 
 		if (isRemote)
 		{
-			if (!storageServer.LoadCasTable(true))
-				return -1;
+			if (!storageServer.m_casTableLoaded)
+				if (!storageServer.LoadCasTable(true))
+					return -1;
 			if (!networkServer.StartListen(networkBackend, port, listenIp.data))
 				return -1;
 		}
@@ -665,7 +669,7 @@ namespace uba
 
 		auto stopListen = MakeGuard([&]() { networkBackend.StopListen(); });
 
-		auto RunLocal = [&](const TString& app, const TString& arg, bool enableDetour, bool trackInputs = false)
+		auto RunLocal = [&](const TString& app, const TString& arg, bool enableDetour)
 		{
 			u64 start = GetTime();
 			ProcessStartInfo pinfo;
@@ -673,17 +677,31 @@ namespace uba
 			pinfo.application = app.c_str();
 			pinfo.arguments = arg.c_str();
 			pinfo.workingDir = workDir.data;
+
+			u32 bucketId = 1337;
+			if (cacheClient)
+			{
+				bool hit = false;
+				cacheClient->FetchFromCache(hit, RootPaths(), bucketId, pinfo);
+				if (hit)
+				{
+					logger.Info(TC("%s run took %s [cached]"), (enableDetour ? TC("Boxed") : TC("Native")), TimeToText(GetTime() - start).str);
+					return true;
+				}
+			}
+
+
 			pinfo.logFile = logFile.data;
 			pinfo.logLineUserData = &logger;
 			if (enableStdOut)
 				pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
-			pinfo.trackInputs = trackInputs;
+			if (populateCache)
+				pinfo.trackInputs = true;
 			logger.Info(TC("Running %s %s"), app.c_str(), arg.c_str());
 			ProcessHandle process = sessionServer.RunProcess(pinfo, false, enableDetour);
 			if (process.GetExitCode() != 0)
 				return logger.Error(TC("Error exit code: %u"), process.GetExitCode());
-			u64 time = GetTime() - start;
-			logger.Info(TC("%s run took %s"), (enableDetour ? TC("Boxed") : TC("Native")), TimeToText(time).str);
+			logger.Info(TC("%s run took %s"), (enableDetour ? TC("Boxed") : TC("Native")), TimeToText(GetTime() - start).str);
 
 			if (populateCache)
 			{
@@ -716,11 +734,10 @@ namespace uba
 			return true;
 		};
 
-		auto RunWithClient = [&](const Function<bool()>& func)
+		auto RunWithClient = [&](const Function<bool()>& func, u32 clientCount)
 			{
 				Vector<Client> clients;
-				auto slg = MakeGuard([&]() { networkBackend.StopListen(); });
-				clients.resize(maxProcessCount == 1 ? 1 : 4);
+				clients.resize(clientCount);
 				u32 clientIndex = 0;
 				for (auto& c : clients)
 				{
@@ -733,7 +750,7 @@ namespace uba
 
 		auto RunAgent = [&](const TString& app, const TString& arg)
 		{
-			return RunWithClient([&]() { return RunRemote(app, arg); });
+			return RunWithClient([&]() { return RunRemote(app, arg); }, 1);
 		};
 
 		CoordinatorWrapper coordinator;
@@ -828,7 +845,7 @@ namespace uba
 				};
 
 			if (commandType == CommandType_Agent)
-				return RunWithClient([&]() { return RunQueue(); });
+				return RunWithClient([&]() { return RunQueue(); }, maxProcessCount == 1 ? 1 : 4);
 			else
 				return RunQueue();
 		};
@@ -848,7 +865,7 @@ namespace uba
 
 			// TODO: This is very horde specific.. maybe all these parameters should be a string or something
 			cinfo.pool = coordinatorPool.c_str();
-			cinfo.maxCoreCount = 400;
+			cinfo.maxCoreCount = coordinatorMaxCoreCount;
 			cinfo.logging = true;
 			if (!coordinator.Create(logger, coordinatorName.c_str(), cinfo, networkBackend, networkServer))
 				return false;
@@ -883,6 +900,10 @@ namespace uba
 			}
 			if (!success)
 				return -1;
+
+			if (false)
+				networkServer.DisconnectClients();
+
 		}
 
 		logger.BeginScope();

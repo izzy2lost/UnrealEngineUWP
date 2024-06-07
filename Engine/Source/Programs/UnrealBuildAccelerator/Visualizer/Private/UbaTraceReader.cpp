@@ -16,12 +16,7 @@ namespace uba
 
 	TraceReader::~TraceReader()
 	{
-		if (m_hostProcess)
-			CloseHandle(m_hostProcess);
-		if (m_memoryBegin)
-			UnmapViewOfFile(m_memoryBegin, 0, TC("TraceReader"));
-		if (m_memoryHandle.IsValid())
-			CloseFileMapping(m_memoryHandle);
+		Unmap();
 	}
 
 #if PLATFORM_WINDOWS
@@ -213,6 +208,8 @@ namespace uba
 		bool res = ReadMemory(out, true);
 		if (m_hostProcess  && WaitForSingleObject(m_hostProcess, 0) != WAIT_TIMEOUT)
 			StopAllActive(out, GetTime() - m_startTime);
+		if (!res)
+			Unmap();
 		return res;
 	}
 
@@ -817,7 +814,7 @@ namespace uba
 			if (out.version < 15)
 				time = reader.Read7BitEncoded();
 			StopAllActive(out, time);
-			break;
+			return false;
 		}
 		case TraceType_BeginWork:
 		{
@@ -972,6 +969,19 @@ namespace uba
 		m_activeProcesses.clear();
 		m_activeWorkRecords.clear();
 		m_sessionIndexToSession.clear();
+	}
+
+	void TraceReader::Unmap()
+	{
+		if (m_hostProcess)
+			CloseHandle(m_hostProcess);
+		m_hostProcess = 0;
+		if (m_memoryBegin)
+			UnmapViewOfFile(m_memoryBegin, 0, TC("TraceReader"));
+		m_memoryBegin = nullptr;
+		if (m_memoryHandle.IsValid())
+			CloseFileMapping(m_memoryHandle);
+		m_memoryHandle = {};
 	}
 
 	bool TraceReader::SaveAs(const tchar* fileName)

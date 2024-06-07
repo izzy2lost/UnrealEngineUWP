@@ -25,6 +25,7 @@ namespace uba
 		HWND GetHwnd();
 
 	private:
+		bool StartHwndThread();
 		bool Unselect();
 		void Reset();
 		void PaintClient(const Function<void(HDC hdc, HDC memDC, RECT& clientRect)>& paintFunc);
@@ -125,6 +126,7 @@ namespace uba
 		
 		StringBuffer<256>m_listenChannel;
 		StringBuffer<256> m_newTraceName;
+		Event m_listenTimeout;
 
 		int m_contentWidth = 0;
 		int m_contentHeight = 0;

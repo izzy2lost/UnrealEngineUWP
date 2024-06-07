@@ -172,14 +172,20 @@ namespace uba
 			return false;
 		}
 
+		m_listenTimeout.Create(false);
+
 		m_listenChannel.Append(channelName);
 		m_looping = true;
 		m_autoScroll = false;
-		m_thread.Start([this]() { ThreadLoop(); return 0;});
+		if (!StartHwndThread())
+			return true;
 
-		while (!m_hwnd)
-			if (m_thread.Wait(10))
-				return true;
+		{
+			StringBuffer<> title;
+			GetTitlePrefix(title);
+			title.Appendf(L"Listening for new sessions on channel '%s'", m_listenChannel.data);
+			SetWindowTextW(m_hwnd, title.data);
+		}
 
 		StringBuffer<256> traceName;
 		while (m_hwnd)
@@ -191,12 +197,18 @@ namespace uba
 				return false;
 			}
 
-			if (traceName.count && !traceName.Equals(m_newTraceName.data))
+			if (traceName.count)
 			{
-				m_newTraceName.Clear().Append(traceName);
-				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				if (!traceName.Equals(m_newTraceName.data))
+				{
+					m_newTraceName.Clear().Append(traceName);
+					PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				}
 			}
-			Sleep(1000);
+			else
+				m_newTraceName.Clear();
+
+			m_listenTimeout.IsSet(1000);
 		}
 
 		return true;
@@ -204,11 +216,11 @@ namespace uba
 
 	bool Visualizer::ShowUsingNamedTrace(const wchar_t* namedTrace)
 	{
-		if (!m_trace.StartReadNamed(m_traceView, namedTrace))
-			return false;
-		m_namedTrace.Append(namedTrace);
 		m_looping = true;
-		m_thread.Start([this]() { ThreadLoop(); return 0;});
+		if (!StartHwndThread())
+			return true;
+		m_newTraceName.Append(namedTrace);
+		PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
 		return true;
 	}
 
@@ -217,11 +229,8 @@ namespace uba
 		auto destroyClient = MakeGuard([&]() { delete m_client; m_client = nullptr; });
 		m_looping = true;
 		m_autoScroll = false;
-		m_thread.Start([this]() { ThreadLoop(); return 0; });
-
-		while (!m_hwnd)
-			if (m_thread.Wait(10))
-				return true;
+		if (!StartHwndThread())
+			return true;
 
 		wchar_t dots[] = TC("....");
 		u32 dotsCounter = 0;
@@ -262,14 +271,20 @@ namespace uba
 	{
 		m_looping = true;
 		m_autoScroll = false;
-		m_thread.Start([this]() { ThreadLoop(); return 0;});
-
-		while (!m_hwnd)
-			if (m_thread.Wait(10))
-				return true;
+		if (!StartHwndThread())
+			return true;
 		m_fileName.Append(fileName);
 		m_replay = replay;
 		PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+		return true;
+	}
+
+	bool Visualizer::StartHwndThread()
+	{
+		m_thread.Start([this]() { ThreadLoop(); return 0;});
+		while (!m_hwnd)
+			if (m_thread.Wait(10))
+				return false;
 		return true;
 	}
 
@@ -460,14 +475,7 @@ namespace uba
 
 		StringBuffer<> title;
 		GetTitlePrefix(title);
-		if (!m_namedTrace.IsEmpty())
-			title.Append(m_namedTrace);
-		else if (!m_fileName.IsEmpty())
-			title.Append(m_fileName);
-		else if (m_listenChannel.count)
-			title.Appendf(L"Listening for new sessions on channel '%s'", m_listenChannel.data);
-		else
-			title.Append(L"Socket");
+		title.Append(L"Initializing...");
 
 		m_hwnd = CreateWindowEx(0, windowClassName, title.data, windowStyle, winPosX, winPosY, winWidth, winHeight, NULL, NULL, hInstance, this);
 		SetWindowLongPtr(m_hwnd, GWLP_USERDATA, (LONG_PTR)this);
@@ -517,6 +525,7 @@ namespace uba
 					UnregisterClass(windowClassName, hInstance);
 					m_hwnd = 0;
 					m_looping = false;
+					m_listenTimeout.Set();
 					break;
 				}
 			}
@@ -2339,8 +2348,7 @@ namespace uba
 			}
 			else if (!m_fileName.IsEmpty())
 			{
-				if (!m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0))
-					return false;
+				m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0);
 				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 				title.Append(m_fileName);
 				m_traceView.finished = m_replay == 0;
@@ -2405,7 +2413,10 @@ namespace uba
 			{
 				u64 timeOffset = (GetTime() - m_startTime - m_pauseTime) * m_replay;
 				if (!m_namedTrace.IsEmpty())
-					m_trace.UpdateReadNamed(m_traceView, changed);
+				{
+					if (!m_trace.UpdateReadNamed(m_traceView, changed))
+						m_listenTimeout.Set();
+				}
 				else if (!m_fileName.IsEmpty() && m_replay)
 					m_trace.UpdateReadFile(m_traceView, timeOffset, changed);
 				else if (m_client)
@@ -2448,7 +2459,7 @@ namespace uba
 			POINT cursorPos = {};
 			GetCursorPos(&cursorPos);
 			ScreenToClient(m_hwnd, &cursorPos);
-			const float scrollAnchorOffsetX = float(cursorPos.x);
+			const float scrollAnchorOffsetX = float(cursorPos.x) - ProgressRectLeft;
 
 			SHORT controlState = GetAsyncKeyState(VK_CONTROL);
 			if (controlState & (1<<15))

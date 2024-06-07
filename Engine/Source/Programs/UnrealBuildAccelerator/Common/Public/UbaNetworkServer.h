@@ -137,6 +137,7 @@ namespace uba
 		u32 m_sendSize = 0;
 		u32 m_receiveTimeoutMs = 0;
 		u32 m_createdWorkerCount = 0;
+		u32 m_maxCreatedWorkerCount = 0;
 		bool m_workersEnabled = true;
 
 		ReaderWriterLock m_addConnectionsLock;
