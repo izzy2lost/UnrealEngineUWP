@@ -612,6 +612,7 @@ namespace Horde.Server
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
 			services.AddSingleton<StorageService>();
+			services.AddSingleton<IStorageService>(sp => sp.GetRequiredService<StorageService>());
 			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClientFactory(sp.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value));
 			services.AddSingleton<TestDataService>();
 			services.AddSingleton<BundleCache>();

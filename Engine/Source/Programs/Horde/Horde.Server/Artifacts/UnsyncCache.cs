@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
+using Horde.Server.Storage;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Horde.Server.Artifacts
@@ -60,16 +61,16 @@ namespace Horde.Server.Artifacts
 				=> StorageClient.Dispose();
 		}
 
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly IStorageService _storageService;
 		readonly MemoryCache _cache;
 		readonly object _lockObject = new object();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UnsyncCache(IStorageClientFactory storageClientFactory)
+		public UnsyncCache(IStorageService storageService)
 		{
-			_storageClientFactory = storageClientFactory;
+			_storageService = storageService;
 			_cache = new MemoryCache(new MemoryCacheOptions());
 		}
 
@@ -144,7 +145,7 @@ namespace Horde.Server.Artifacts
 			IStorageClient? storageClient = null;
 			try
 			{
-				storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
+				storageClient = _storageService.CreateClient(artifact.NamespaceId);
 
 				IBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
 				if (target == null)

@@ -10,6 +10,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Artifacts;
+using Horde.Server.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
@@ -46,7 +47,7 @@ namespace Horde.Server.Tests.Artifacts
 			RefName refName = new RefName("test");
 			await storageClient.WriteRefAsync(refName, directoryRef);
 
-			Mock<IStorageClientFactory> factory = new Mock<IStorageClientFactory>();
+			Mock<IStorageService> factory = new Mock<IStorageService>();
 			factory.Setup(x => x.TryCreateClient(ns)).Returns(storageClient);
 
 			Mock<IArtifact> artifact = new Mock<IArtifact>();

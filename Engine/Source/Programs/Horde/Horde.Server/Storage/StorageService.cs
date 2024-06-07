@@ -32,9 +32,16 @@ using StackExchange.Redis;
 namespace Horde.Server.Storage
 {
 	/// <summary>
+	/// Interface for the storage service
+	/// </summary>
+	public interface IStorageService : IStorageClientFactory
+	{
+	}
+
+	/// <summary>
 	/// Functionality related to the storage service
 	/// </summary>
-	public sealed class StorageService : IHostedService, IStorageClientFactory, IAsyncDisposable
+	public sealed class StorageService : IHostedService, IStorageService, IAsyncDisposable
 	{
 		class RefCount
 		{
