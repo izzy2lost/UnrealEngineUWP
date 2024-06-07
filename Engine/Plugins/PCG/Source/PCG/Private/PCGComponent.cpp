@@ -2832,6 +2832,20 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 		TaggedData.Data = Data;
 		TaggedData.Tags = ActorTags;
 	}
+	else if (!bParseActor && !!(InDataFilter & EPCGDataType::Param))
+	{
+		UPCGParamData* Data = NewObject<UPCGParamData>();
+		check(Data && Data->MutableMetadata());
+		
+		if (FPCGMetadataAttribute<FSoftObjectPath>* ActorReferenceAttribute = Data->MutableMetadata()->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true))
+		{
+			ActorReferenceAttribute->SetValue(Data->MutableMetadata()->AddEntry(), FSoftObjectPath(Actor));
+		}
+
+		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
+		TaggedData.Data = Data;
+		TaggedData.Tags = ActorTags;
+	}
 	else if (PartitionActor)
 	{
 		check(!Component || Component->GetOwner() == Actor); // Invalid processing otherwise because of the this usage

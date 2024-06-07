@@ -41,9 +41,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 	check(Context);
 
 	const UPCGMergeSettings* Settings = Context->GetInputSettings<UPCGMergeSettings>();
-	check(Settings);
-
-	const bool bMergeMetadata = Settings->bMergeMetadata;
+	const bool bMergeMetadata = !Settings || Settings->bMergeMetadata;
 
 	TArray<FPCGTaggedData> Sources = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;

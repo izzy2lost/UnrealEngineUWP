@@ -48,9 +48,6 @@ bool FPCGMergeAttributesElement::ExecuteInternal(FPCGContext* Context) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMergeAttributesElement::Execute);
 	check(Context);
 
-	const UPCGMergeAttributesSettings* Settings = Context->GetInputSettings<UPCGMergeAttributesSettings>();
-	check(Settings);
-
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	FPCGTaggedData* MergedOutput = nullptr;
