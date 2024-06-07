@@ -339,7 +339,7 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceGridPlacement(const I
 		if (!ActorDescView.GetIsSpatiallyLoaded())
 		{
 			const FString SpatiallyLoadedActor(TEXT("Spatially loaded actor"));
-			const FString NonSpatiallyLoadedActor(TEXT("Non-spatially loaded loaded actor"));
+			const FString NonSpatiallyLoadedActor(TEXT("Non-spatially loaded actor"));
 
 			FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidReferenceGridPlacement", "{0} {1} is referencing {2} {3}."),
 												FText::FromString(ActorDescView.GetIsSpatiallyLoaded() ? *SpatiallyLoadedActor : *NonSpatiallyLoadedActor),

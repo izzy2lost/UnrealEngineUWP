@@ -22,7 +22,7 @@ void FStreamingGenerationLogErrorHandler::OnInvalidReference(const IWorldPartiti
 void FStreamingGenerationLogErrorHandler::OnInvalidReferenceGridPlacement(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
 {
 	static const FString SpatiallyLoadedActor(TEXT("Spatially loaded actor"));
-	static const FString NonSpatiallyLoadedActor(TEXT("Non-spatially loaded loaded actor"));
+	static const FString NonSpatiallyLoadedActor(TEXT("Non-spatially loaded actor"));
 
 	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("%s %s reference %s %s"), ActorDescView.GetIsSpatiallyLoaded() ? *SpatiallyLoadedActor : *NonSpatiallyLoadedActor, *GetActorName(ActorDescView), ReferenceActorDescView.GetIsSpatiallyLoaded() ? *SpatiallyLoadedActor : *NonSpatiallyLoadedActor, *GetActorName(ReferenceActorDescView));
 }
