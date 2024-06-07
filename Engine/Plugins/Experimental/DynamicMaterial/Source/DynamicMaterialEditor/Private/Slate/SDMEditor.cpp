@@ -538,11 +538,7 @@ void SDMEditor::SetMaterialActor(AActor* InActor)
 		);
 	}
 
-
-	if (Toolbar->GetMaterialActor() != InActor)
-	{
-		Toolbar->SetMaterialActor(InActor);
-	}
+	Toolbar->SetMaterialActor(InActor);
 }
 
 void SDMEditor::SetEmptyLayout()
@@ -657,7 +653,7 @@ TSharedRef<SWidget> SDMEditor::CreateActorMaterialSlotSelector(AActor* InActor)
 		[
 			SNew(STextBlock)
 			.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorNameBig")
-			.Text(Toolbar.Get(), &SDMToolBar::GetSlotActorDisplayName)
+			.Text(Toolbar.Get(), &SDMToolBar::GetMaterialContainerName)
 		];
 
 	const UObject* CurrentOuter = nullptr;
@@ -1123,23 +1119,36 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 
 	if (Toolbar.IsValid())
 	{
-		if (Toolbar->GetMaterialModel() != MaterialModel)
+		UDynamicMaterialModel* ToolbarMaterialModel = Toolbar->GetMaterialModel();
+		if (ToolbarMaterialModel != MaterialModel)
 		{
 			Toolbar->SetMaterialModel(MaterialModel);
 		}
 
 		if (ObjectProperty.IsValid())
 		{
-			AActor* Actor = ObjectProperty.GetTypedOuter<AActor>();
+			AActor* MaterialActor = ObjectProperty.GetTypedOuter<AActor>();
 
-			if (Toolbar->GetMaterialActor() != Actor)
+			if (Toolbar->GetMaterialActor() != MaterialActor)
 			{
-				Toolbar->SetMaterialActor(Actor);
+				Toolbar->SetMaterialActor(ObjectProperty.GetTypedOuter<AActor>());
 			}
 		}
 		else if (Toolbar->GetMaterialActor())
 		{
-			Toolbar->SetMaterialActor(nullptr);
+			if (!ToolbarMaterialModel)
+			{
+				Toolbar->SetMaterialActor(nullptr);
+			}
+			else
+			{
+				AActor* Actor = ToolbarMaterialModel->GetTypedOuter<AActor>();
+
+				if (Actor != Toolbar->GetMaterialActor())
+				{
+					Toolbar->SetMaterialActor(Actor);
+				}
+			}
 		}
 	}
 
@@ -1313,10 +1322,7 @@ FReply SDMEditor::OnCreateMaterialButtonClicked(FDMObjectMaterialProperty InMate
 
 		if (AActor* Actor = InMaterialProperty.GetTypedOuter<AActor>())
 		{
-			if (Toolbar->GetMaterialActor() != Actor)
-			{
-				Toolbar->SetMaterialActor(Actor);
-			}
+			Toolbar->SetMaterialActor(Actor);
 		}
 	}
 

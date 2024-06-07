@@ -72,7 +72,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.Orientation(Orient_Horizontal)
 			.UseAllottedSize(true)
 			.HAlign(HAlign_Left)
-			.InnerSlotPadding(FVector2D(20.0f))
+			.InnerSlotPadding(FVector2D(5.0f))
 			+ SWrapBox::Slot()
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Center)
@@ -81,45 +81,28 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.Padding(0.0f, 0.0f, 10.0f, 0.0f)
-				[
-					SNew(STextBlock)
-					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
-					.Text(LOCTEXT("MaterialDesignerInstanceActorLabel", "Actor"))
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
+				.Padding(0.f, 0.f, 5.f, 0.f)
 				[
 					SNew(STextBlock)
 					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
-					.Text(this, &SDMToolBar::GetSlotActorDisplayName)
+					.Text(this, &SDMToolBar::GetMaterialContainerTypeName)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.f, 0.f, 0.f, 0.f)
+				[
+					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
+					.Text(this, &SDMToolBar::GetMaterialContainerName)
 				]
 			]
 			+ SWrapBox::Slot()
-			.FillEmptySpace(true)
-			.HAlign(HAlign_Fill)
+			.FillEmptySpace(false)
+			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
-				SNew(SHorizontalBox)
-				.Visibility(this, &SDMToolBar::GetSlotsComboBoxWidgetVisibiltiy)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.Padding(0.0f, 0.0f, 10.0f, 0.0f)
-				[
-					SNew(STextBlock)
-					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
-					.Text(LOCTEXT("MaterialDesignerInstanceActorSlotLabel", "Property"))
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
+				SAssignNew(SlotSelectorContainer, SBox)
 				[
 					CreateSlotsComboBoxWidget()
 				]
@@ -241,12 +224,12 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarButton(TAttribute<const FSlateBrush
 
 TSharedRef<SWidget> SDMToolBar::CreateSlotsComboBoxWidget()
 {
-	if (!MaterialActorWeak.IsValid() || !MaterialModelWeak.IsValid())
+	if (!MaterialActorWeak.IsValid() || !MaterialModelWeak.IsValid() || ActorMaterialProperties.Num() <= 1)
 	{
 		return SNullWidget::NullWidget;
 	}
 
-	const TSharedPtr<FDMObjectMaterialProperty> InitiallySelectedItem = 
+	const TSharedPtr<FDMObjectMaterialProperty> InitiallySelectedItem =
 		ActorMaterialProperties.IsValidIndex(SelectedMaterialSlotIndex) ? ActorMaterialProperties[SelectedMaterialSlotIndex] : nullptr;
 
 	return 
@@ -322,10 +305,54 @@ EVisibility SDMToolBar::GetSlotsComboBoxWidgetVisibiltiy() const
 	return ActorMaterialProperties.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FText SDMToolBar::GetSlotActorDisplayName() const
+FText SDMToolBar::GetMaterialContainerName() const
 {
-	const AActor* const SlotActor = GetMaterialActor();
-	return IsValid(SlotActor) ? FText::FromString(SlotActor->GetActorLabel()) : FText();
+	if (const AActor* const SlotActor = GetMaterialActor())
+	{
+		return FText::FromString(SlotActor->GetActorLabel());
+	}
+
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	{
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			if (MaterialInstance->IsAsset())
+			{
+				return FText::FromString(MaterialInstance->GetName());
+			}
+		}
+		else if (MaterialModel->IsAsset())
+		{
+			return FText::FromString(MaterialModel->GetName());
+		}
+	}
+
+	return FText::GetEmpty();
+}
+
+FText SDMToolBar::GetMaterialContainerTypeName() const
+{
+	if (const AActor* const SlotActor = GetMaterialActor())
+	{
+		return LOCTEXT("Actor", "Actor");
+	}
+
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	{
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			if (MaterialInstance->IsAsset())
+			{
+				return LOCTEXT("Asset", "Asset");
+			}
+		}
+		else if (MaterialModel->IsAsset())
+		{
+			return LOCTEXT("Asset", "Asset");
+		}
+	}
+
+	return FText::GetEmpty();
 }
 
 void SDMToolBar::SetMaterialProperties(const TArray<TSharedPtr<FDMObjectMaterialProperty>>& InActorMaterialProperties)
@@ -374,25 +401,25 @@ void SDMToolBar::SetMaterialActor(AActor* InActor, const int32 InActiveSlotIndex
 
 	UseButton->SetVisibility(MaterialActorWeak.IsValid() ? EVisibility::Visible : EVisibility::Collapsed);
 
-	if (!IsValid(InActor))
+	if (IsValid(InActor))
 	{
-		return;
-	}
+		TArray<FDMObjectMaterialProperty> ActorProperties = UDMBlueprintFunctionLibrary::GetActorMaterialProperties(InActor);
+		UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
 
-	TArray<FDMObjectMaterialProperty> ActorProperties = UDMBlueprintFunctionLibrary::GetActorMaterialProperties(InActor);
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
-
-	for (int32 MaterialPropertyIdx = 0; MaterialPropertyIdx < ActorProperties.Num(); ++MaterialPropertyIdx)
-	{
-		const FDMObjectMaterialProperty& MaterialProperty = ActorProperties[MaterialPropertyIdx];
-
-		ActorMaterialProperties.Add(MakeShared<FDMObjectMaterialProperty>(MaterialProperty));
-
-		if (MaterialProperty.GetMaterialModel() == MaterialModel)
+		for (int32 MaterialPropertyIdx = 0; MaterialPropertyIdx < ActorProperties.Num(); ++MaterialPropertyIdx)
 		{
-			SelectedMaterialSlotIndex = MaterialPropertyIdx;
+			const FDMObjectMaterialProperty& MaterialProperty = ActorProperties[MaterialPropertyIdx];
+
+			ActorMaterialProperties.Add(MakeShared<FDMObjectMaterialProperty>(MaterialProperty));
+
+			if (MaterialProperty.GetMaterialModel() == MaterialModel)
+			{
+				SelectedMaterialSlotIndex = MaterialPropertyIdx;
+			}
 		}
 	}
+
+	SlotSelectorContainer->SetContent(CreateSlotsComboBoxWidget());
 }
 
 const FSlateBrush* SDMToolBar::GetFollowSelectionBrush() const

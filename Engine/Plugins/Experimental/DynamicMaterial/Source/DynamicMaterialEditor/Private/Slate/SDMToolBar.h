@@ -7,6 +7,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class AActor;
+class SBox;
 class SDMEditor;
 class SWidget;
 class UDMMaterialStageExpression;
@@ -44,7 +45,9 @@ public:
 	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModelWeak.Get(); }
 	void SetMaterialModel(UDynamicMaterialModel* InModel);
 
-	FText GetSlotActorDisplayName() const;
+	FText GetMaterialContainerName() const;
+
+	FText GetMaterialContainerTypeName() const;
 
 protected:
 	TWeakPtr<SDMEditor> EditorWeak;
@@ -56,6 +59,7 @@ protected:
 	TArray<TSharedPtr<FDMObjectMaterialProperty>> ActorMaterialProperties;
 	int32 SelectedMaterialSlotIndex;
 
+	TSharedPtr<SBox> SlotSelectorContainer;
 	TSharedPtr<SWidget> BrowseButton;
 	TSharedPtr<SWidget> UseButton;
 

@@ -253,6 +253,7 @@ FReply SDMMaterialWizard::Accept_OnClick()
 		{
 			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 			{
+				AActor* MaterialActor = Editor->GetMaterialActor();
 				FDMObjectMaterialProperty MaterialProperty = Editor->GetMaterialObjectProperty();
 				Editor->ClearEditor();
 
@@ -268,6 +269,8 @@ FReply SDMMaterialWizard::Accept_OnClick()
 				{
 					Editor->SetMaterialModel(MaterialModel);
 				}
+
+				Editor->SetMaterialActor(MaterialActor);
 			}
 		}
 	}
