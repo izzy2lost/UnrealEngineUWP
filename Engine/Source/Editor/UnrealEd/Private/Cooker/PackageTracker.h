@@ -213,7 +213,12 @@ public:
 			Function(Package);
 		}
 	}
-	void AddExpectedNeverLoadPackages(TArrayView<FName> PackageNames)
+	int32 NumLoadedPackages()
+	{
+		FReadScopeLock ScopeLock(Lock);
+		return LoadedPackages.Num();
+	}
+	void AddExpectedNeverLoadPackages(const TSet<FName>& PackageNames)
 	{
 		FWriteScopeLock ScopeLock(Lock);
 		ExpectedNeverLoadPackages.Append(PackageNames);

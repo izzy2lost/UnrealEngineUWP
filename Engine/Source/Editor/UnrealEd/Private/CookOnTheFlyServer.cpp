@@ -5392,7 +5392,7 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 				}
 			}
 		}
-		ExpectedFreedPackageNames.Reset();
+		ExpectedFreedPackageNames.Empty(PackageTracker->NumLoadedPackages());
 		PackageTracker->ForEachLoadedPackage(
 			[this, &GCKeepPackagesSet](UPackage* Package)
 			{
@@ -5536,6 +5536,10 @@ void UCookOnTheFlyServer::EvaluateGarbageCollectionResults(bool bWasDueToOOM, bo
 {
 	using namespace UE::Cook;
 
+	ON_SCOPE_EXIT
+	{
+		ExpectedFreedPackageNames.Empty();
+	};
 	bWarnedExceededMaxMemoryWithinGCCooldown = false;
 	LastGCTime = FPlatformTime::Seconds();
 	bool bWasSoftGC = ResultFlags & COSR_RequiresGC_Soft_OOM;

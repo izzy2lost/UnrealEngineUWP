@@ -1575,7 +1575,7 @@ private:
 	/** Used during garbagecolletion: a flat array of all the elements in UPackage::SoftGCPackageToObjectList arrayviews. */
 	TArray<UObject*> SoftGCPackageToObjectListBuffer;
 	/** Packages that were expected to be freed by the last Soft GC and we expect not to load again. */
-	TArray<FName> ExpectedFreedPackageNames;
+	TSet<FName> ExpectedFreedPackageNames;
 
 	UE::Cook::FPackageData* SavingPackageData = nullptr;
 	/** Helper struct for running cooking in diagnostic modes */
