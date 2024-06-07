@@ -67,6 +67,10 @@ public:
 	/** Optional call to allow garbage collection of any task resources and check for leaks. Call once per frame. */
 	static void GarbageCollectTasks();
 
+	/** Brute-force flush of all pending readback tasks. Use this when you want to make sure all readbacks are performed. In case of multiple readbacks, this is much more efficient 
+	 than individually flushing each task. */
+	static void FlushAllReadbackTasks();
+
 private:
 	uint64 Hash;
 	TArray<int32> TaskHandles;

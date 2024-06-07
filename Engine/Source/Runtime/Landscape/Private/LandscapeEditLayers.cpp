@@ -298,8 +298,9 @@ struct FTextureToComponentHelper
 	};
 	FRIEND_ENUM_CLASS_FLAGS(ERefreshFlags);
 
-	FTextureToComponentHelper(const ULandscapeInfo& InLandscapeInfo)
+	FTextureToComponentHelper(const ULandscapeInfo& InLandscapeInfo, uint32 InLayerContentUpdateModes)
 		: LandscapeInfo(&InLandscapeInfo)
+		, LayerContentUpdateModes(InLayerContentUpdateModes)
 	{
 		Refresh(ERefreshFlags::RefreshAll);
 	}
@@ -318,6 +319,16 @@ struct FTextureToComponentHelper
 			{
 				LandscapeComponents.Add(Component);
 			});
+		}
+
+		// Restrict the refresh flags to only the type we're trying to update : heightmaps or weightmaps :
+		if ((LayerContentUpdateModes & ELandscapeLayerUpdateMode::Update_Heightmap_Types) == 0)
+		{
+			EnumRemoveFlags(InRefreshFlags, ERefreshFlags::RefreshHeightmaps);
+		}
+		if ((LayerContentUpdateModes & ELandscapeLayerUpdateMode::Update_Weightmap_Types) == 0)
+		{
+			EnumRemoveFlags(InRefreshFlags, ERefreshFlags::RefreshWeightmaps);
 		}
 
 		if (EnumHasAnyFlags(InRefreshFlags, ERefreshFlags::RefreshHeightmaps | ERefreshFlags::RefreshWeightmaps))
@@ -369,6 +380,7 @@ struct FTextureToComponentHelper
 	}
 
 	const ULandscapeInfo* LandscapeInfo = nullptr;
+	uint32 LayerContentUpdateModes = 0;
 	TArray< ULandscapeComponent* > LandscapeComponents;
 	TSet< UTexture2D* > Heightmaps;
 	TMap< UTexture2D*, TArray<ULandscapeComponent*> > HeightmapToComponents;
@@ -3799,8 +3811,9 @@ struct FUpdateLayersContentContext
 	};
 	FRIEND_ENUM_CLASS_FLAGS(ERefreshFlags);
 
-	FUpdateLayersContentContext(const FTextureToComponentHelper& InMapHelper, bool bInPartialUpdate)
+	FUpdateLayersContentContext(const FTextureToComponentHelper& InMapHelper, bool bInPartialUpdate, uint32 InLayerContentUpdateModes)
 		: bPartialUpdate(bInPartialUpdate)
+		, LayerContentUpdateModes(InLayerContentUpdateModes)
 		, MapHelper(InMapHelper)
 	{
 		// No need to update the map helper, it's assumed to be already ready in the constructor
@@ -3828,6 +3841,7 @@ struct FUpdateLayersContentContext
 	void Refresh(ERefreshFlags InRefreshFlags)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UpdateLayersContentContext_Refresh);
+
 		// Start by updating the map helper if necessary (keep track of components/heightmaps/weightmaps relationship) :
 		if (EnumHasAnyFlags(InRefreshFlags, ERefreshFlags::RefreshMapHelper))
 		{
@@ -3853,6 +3867,16 @@ struct FUpdateLayersContentContext
 					NonDirtyLandscapeComponents.Add(Component);
 				}
 			}
+		}
+
+		// At this point, restrict the refresh flags to only the type we're trying to update : heightmaps or weightmaps :
+		if ((LayerContentUpdateModes & ELandscapeLayerUpdateMode::Update_Heightmap_Types) == 0)
+		{
+			EnumRemoveFlags(InRefreshFlags, ERefreshFlags::RefreshHeightmapInfos);
+		}
+		if ((LayerContentUpdateModes & ELandscapeLayerUpdateMode::Update_Weightmap_Types) == 0)
+		{
+			EnumRemoveFlags(InRefreshFlags, ERefreshFlags::RefreshWeightmapInfos);
 		}
 
 		if (EnumHasAnyFlags(InRefreshFlags, ERefreshFlags::RefreshHeightmapInfos | ERefreshFlags::RefreshWeightmapInfos))
@@ -4007,6 +4031,8 @@ struct FUpdateLayersContentContext
 
 	// Indicates whether all components of the landscape are marked dirty :
 	const bool bPartialUpdate = false;
+	// Layer content update flags : helps us track what we really want to update during the run :
+	uint32 LayerContentUpdateModes = 0;
 	// Helper to gather mappings between heightmaps/weightmaps and components :
 	FTextureToComponentHelper MapHelper;
 	// List of landscape components that have been made dirty and need to be updated : 
@@ -5142,10 +5168,9 @@ int32 ALandscape::RegenerateLayersHeightmaps(const FUpdateLayersContentContext& 
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_RegenerateLayersHeightmaps);
 	ULandscapeInfo* Info = GetLandscapeInfo();
 
-	const int32 AllHeightmapUpdateModes = (ELandscapeLayerUpdateMode::Update_Heightmap_All | ELandscapeLayerUpdateMode::Update_Heightmap_Editing | ELandscapeLayerUpdateMode::Update_Heightmap_Editing_NoCollision);
-	const int32 HeightmapUpdateModes = LayerContentUpdateModes & AllHeightmapUpdateModes;
+	const int32 HeightmapUpdateModes = LayerContentUpdateModes & ELandscapeLayerUpdateMode::Update_Heightmap_Types;
 	const bool bForceRender = CVarForceLayersUpdate.GetValueOnAnyThread() != 0;
-	const bool bSkipBrush = CVarLandscapeLayerBrushOptim.GetValueOnAnyThread() == 1 && ((HeightmapUpdateModes & AllHeightmapUpdateModes) == ELandscapeLayerUpdateMode::Update_Heightmap_Editing);
+	const bool bSkipBrush = CVarLandscapeLayerBrushOptim.GetValueOnAnyThread() == 1 && (HeightmapUpdateModes == ELandscapeLayerUpdateMode::Update_Heightmap_Editing);
 
 	if ((HeightmapUpdateModes == 0 && !bForceRender) || Info == nullptr)
 	{
@@ -5246,7 +5271,6 @@ void ALandscape::ResolveLayersHeightmapTexture(
 	FTextureToComponentHelper const& MapHelper,
 	TSet<UTexture2D*> const& HeightmapsToResolve,
 	bool bIntermediateRender,
-	bool bFlushRender,
 	TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_ResolveLayersHeightmapTexture);
@@ -5264,7 +5288,7 @@ void ALandscape::ResolveLayersHeightmapTexture(
 		check(LandscapeProxy);
 		if (FLandscapeEditLayerReadback** CPUReadback = LandscapeProxy->HeightmapsCPUReadback.Find(Heightmap))
 		{
-			const bool bChanged = ResolveLayersTexture(MapHelper, *CPUReadback, Heightmap, bIntermediateRender, bFlushRender, InOutComponentReadbackResults, /*bIsWeightmap = */false);
+			const bool bChanged = ResolveLayersTexture(MapHelper, *CPUReadback, Heightmap, bIntermediateRender, InOutComponentReadbackResults, /*bIsWeightmap = */false);
 			if (bChanged)
 			{
 				ChangedComponents.Append(MapHelper.HeightmapToComponents[Heightmap]);
@@ -5693,20 +5717,12 @@ bool ALandscape::ResolveLayersTexture(
 	FLandscapeEditLayerReadback* InCPUReadback,
 	UTexture2D* InOutputTexture,
 	bool bIntermediateRender,
-	bool bFlushRender,
 	TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults,
 	bool bIsWeightmap)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_ResolveLayersTexture);
 
-	if (bFlushRender)
-	{
-		InCPUReadback->Flush();
-	}
-	else
-	{
-		InCPUReadback->Tick();
-	}
+	InCPUReadback->Tick();
 
 	const int32 CompletedReadbackNum = InCPUReadback->GetCompletedResultNum();
 
@@ -7734,9 +7750,8 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 int32 ALandscape::RegenerateLayersWeightmaps(FUpdateLayersContentContext& InUpdateLayersContentContext)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_RegenerateLayersWeightmaps);
-	const int32 AllWeightmapUpdateModes = (ELandscapeLayerUpdateMode::Update_Weightmap_All | ELandscapeLayerUpdateMode::Update_Weightmap_Editing | ELandscapeLayerUpdateMode::Update_Weightmap_Editing_NoCollision);
-	const int32 WeightmapUpdateModes = LayerContentUpdateModes & AllWeightmapUpdateModes;
-	const bool bSkipBrush = CVarLandscapeLayerBrushOptim.GetValueOnAnyThread() == 1 && ((WeightmapUpdateModes & AllWeightmapUpdateModes) == ELandscapeLayerUpdateMode::Update_Weightmap_Editing);
+	const int32 WeightmapUpdateModes = LayerContentUpdateModes & ELandscapeLayerUpdateMode::Update_Weightmap_Types;
+	const bool bSkipBrush = CVarLandscapeLayerBrushOptim.GetValueOnAnyThread() == 1 && (WeightmapUpdateModes == ELandscapeLayerUpdateMode::Update_Weightmap_Editing);
 	const bool bForceRender = CVarForceLayersUpdate.GetValueOnAnyThread() != 0;
 
 	ULandscapeInfo* Info = GetLandscapeInfo();
@@ -8024,7 +8039,6 @@ void ALandscape::ResolveLayersWeightmapTexture(
 	FTextureToComponentHelper const& MapHelper,
 	TSet<UTexture2D*> const& WeightmapsToResolve,
 	bool bIntermediateRender,
-	bool bFlushRender,
 	TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_ResolveLayersWeightmapTexture);
@@ -8042,7 +8056,7 @@ void ALandscape::ResolveLayersWeightmapTexture(
 		check(LandscapeProxy);
 		if (FLandscapeEditLayerReadback** CPUReadback = LandscapeProxy->WeightmapsCPUReadback.Find(Weightmap))
 		{
-			const bool bChanged = ResolveLayersTexture(MapHelper, *CPUReadback, Weightmap, bIntermediateRender, bFlushRender, InOutComponentReadbackResults, /*bIsWeightmap = */true);
+			const bool bChanged = ResolveLayersTexture(MapHelper, *CPUReadback, Weightmap, bIntermediateRender, InOutComponentReadbackResults, /*bIsWeightmap = */true);
 			if (bChanged)
 			{
 				ChangedComponents.Append(MapHelper.WeightmapToComponents[Weightmap]);
@@ -8589,7 +8603,7 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 	}
 
 	// Gather mappings between heightmaps/weightmaps and components
-	FTextureToComponentHelper MapHelper(*LandscapeInfo);
+	FTextureToComponentHelper MapHelper(*LandscapeInfo, LayerContentUpdateModes);
 
 	// Poll and complete any outstanding resolve work
 	// If bIntermediateRender then we want to flush all work here before we do the intermediate render later on
@@ -8600,9 +8614,15 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 		const bool bDoIntermediateRender = false; // bIntermediateRender flag is for the work queued up this frame not the delayed resolves
 		const bool bDoFlushRender = bIntermediateRender; // Flush before we do an intermediate render later in this frame
 
+		// Flushing once all readback tasks is much faster than asking each to do it so start by doing just this :
+		if (bDoFlushRender)
+		{
+			FLandscapeEditLayerReadback::FlushAllReadbackTasks();
+		}
+
 		TArray<FLandscapeEditLayerComponentReadbackResult> ComponentReadbackResults;
-		ResolveLayersHeightmapTexture(MapHelper, MapHelper.Heightmaps, bDoIntermediateRender, bDoFlushRender, ComponentReadbackResults);
-		ResolveLayersWeightmapTexture(MapHelper, MapHelper.Weightmaps, bDoIntermediateRender, bDoFlushRender, ComponentReadbackResults);
+		ResolveLayersHeightmapTexture(MapHelper, MapHelper.Heightmaps, bDoIntermediateRender, ComponentReadbackResults);
+		ResolveLayersWeightmapTexture(MapHelper, MapHelper.Weightmaps, bDoIntermediateRender, ComponentReadbackResults);
 		LayerContentUpdateModes |= UpdateAfterReadbackResolves(ComponentReadbackResults);
 	}
 
@@ -8614,7 +8634,7 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 	bool bUpdateAll = LayerContentUpdateModes & Update_All;
 	bool bPartialUpdate = !bForceRender && !bUpdateAll && CVarLandscapeLayerOptim.GetValueOnAnyThread() == 1;
 
-	FUpdateLayersContentContext UpdateLayersContentContext(MapHelper, bPartialUpdate);
+	FUpdateLayersContentContext UpdateLayersContentContext(MapHelper, bPartialUpdate, LayerContentUpdateModes);
 
 	// Regenerate any heightmaps and weightmaps
 	int32 ProcessedModes = 0;
@@ -8626,9 +8646,10 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 	// If we are flushing then read back resolved textures immediately
 	if (bFlushRender || CVarLandscapeForceFlush.GetValueOnGameThread() != 0)
 	{
-		const bool bDoFlushRender = true;
-		ResolveLayersHeightmapTexture(UpdateLayersContentContext.MapHelper, UpdateLayersContentContext.HeightmapsToResolve, bIntermediateRender, bDoFlushRender, UpdateLayersContentContext.AllLandscapeComponentReadbackResults);
-		ResolveLayersWeightmapTexture(UpdateLayersContentContext.MapHelper, UpdateLayersContentContext.WeightmapsToResolve, bIntermediateRender, bDoFlushRender, UpdateLayersContentContext.AllLandscapeComponentReadbackResults);
+		// Flushing once all readback tasks is much faster than asking each to do it so start by doing just this :
+		FLandscapeEditLayerReadback::FlushAllReadbackTasks();
+		ResolveLayersHeightmapTexture(UpdateLayersContentContext.MapHelper, UpdateLayersContentContext.HeightmapsToResolve, bIntermediateRender, UpdateLayersContentContext.AllLandscapeComponentReadbackResults);
+		ResolveLayersWeightmapTexture(UpdateLayersContentContext.MapHelper, UpdateLayersContentContext.WeightmapsToResolve, bIntermediateRender, UpdateLayersContentContext.AllLandscapeComponentReadbackResults);
 	}
 
 	// Clear processed mode flags
