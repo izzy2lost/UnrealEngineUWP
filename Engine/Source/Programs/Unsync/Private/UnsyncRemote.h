@@ -16,19 +16,19 @@ class FBuffer;
 
 static constexpr uint16 UNSYNC_DEFAULT_PORT = 53841;
 
-enum class EProtocolFlavor {
+enum class EProtocolFlavor : uint8 {
 	Unknown,
 	Unsync,
 	Jupiter,
 	Horde,
 };
 
-enum class ETransportProtocol {
+enum class ETransportProtocol : uint8 {
 	Http,
 	Unsync,
 };
 
-EProtocolFlavor ProtocolFlavorFromString(const char* Str);
+EProtocolFlavor ProtocolFlavorFromString(std::string_view Str);
 const char*		ToString(EProtocolFlavor Protocol);
 
 struct FHostAddressAndPort
@@ -70,7 +70,7 @@ struct FRemoteDesc
 
 	bool IsValid() const { return Protocol != EProtocolFlavor::Unknown && Host.IsValid(); }
 
-	static TResult<FRemoteDesc> FromUrl(std::string_view Url);
+	static TResult<FRemoteDesc> FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint = EProtocolFlavor::Unknown);
 
 	FTlsClientSettings GetTlsClientSettings() const;
 };

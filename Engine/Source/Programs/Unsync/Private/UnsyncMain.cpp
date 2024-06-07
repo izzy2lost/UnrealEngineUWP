@@ -77,7 +77,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 PresetUtf8		= "all";
 	std::string				 ChunkModeUtf8;
 	std::string				 CacertFilenameUtf8;
-	std::string				 ProtocolName = "jupiter";
+	std::string				 ProtocolName;
 	std::string				 HttpHeaderFilenameUtf8;
 	std::string				 QueryStringUtf8;
 	std::vector<std::string> QueryArgsUtf8;
@@ -134,13 +134,17 @@ InnerMain(int Argc, char** Argv)
 		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation")->group(DangerousGroupId);
 	};
 
-	auto AddProxyOptions = [&RemoteAddressUtf8, &bNoProxySelect](CLI::App* App) {
+	auto AddProxyOptions = [&RemoteAddressUtf8, &ProtocolName, &bNoProxySelect](CLI::App* App)
+	{
 		App->add_option("--proxy, --remote, --server",
 						RemoteAddressUtf8,
-						"Download server address ([transport://]address[:port][/request][#namespace])");
+						"Download server address ([protocol+][transport://]address[:port][/request][#namespace])");
 		App->add_flag("--no-proxy-select",
 					  bNoProxySelect,
 					  "Skip automatic server selection and use the exact one specified by command line or environment variable");
+		App->add_option("--protocol", ProtocolName, "Explicitly specify server protocol instead of inferring it from URL")
+			->required(false)
+			->check(CLI::IsMember({"unsync", "jupiter", "horde"}));
 	};
 
 	// Configure hash
@@ -583,11 +587,18 @@ InnerMain(int Argc, char** Argv)
 		PossibleUrl = QueryArgsUtf8[0];
 	}
 
+	
+	EProtocolFlavor ProtocolFlavorHint = EProtocolFlavor::Unknown;
+	if (!ProtocolName.empty())
+	{
+		ProtocolFlavorHint = ProtocolFlavorFromString(ProtocolName);
+	}
+
 	if (RemoteAddressUtf8.empty() && LooksLikeUrl(PossibleUrl) && (Cli.got_subcommand(SubSync) || Cli.got_subcommand(SubQuery)))
 	{
 		// Derive remote server address from source name if explicit --proxy or --remote option is not provided for sync or query
 
-		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(PossibleUrl);
+		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(PossibleUrl, ProtocolFlavorHint);
 
 		if (ParsedRemoteDesc.IsOk())
 		{
@@ -632,7 +643,8 @@ InnerMain(int Argc, char** Argv)
 	}
 	else
 	{
-		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(RemoteAddressUtf8);
+		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(RemoteAddressUtf8, ProtocolFlavorHint);
+
 		if (ParsedRemoteDesc.IsOk())
 		{
 			RemoteDesc = *ParsedRemoteDesc;

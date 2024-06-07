@@ -32,6 +32,10 @@
 #	include <fmt/xchar.h>
 #endif
 
+#ifdef __GNUC__
+#	define _strnicmp strncasecmp
+#endif
+
 namespace unsync {
 
 static FBuffer GSystemRootCerts;
@@ -363,6 +367,23 @@ StringToUpper(const std::wstring& Input)
 	std::wstring Result = Input;
 	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return wchar_t(::toupper(C)); });
 	return Result;
+}
+
+bool
+StringEquals(const std::string_view A, const std::string_view B, bool bCaseSensitive)
+{
+	if (bCaseSensitive)
+	{
+		return A == B;
+	}
+	else if (A.length() == B.length())
+	{
+		return _strnicmp(A.data(), B.data(), A.length()) == 0;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 std::string

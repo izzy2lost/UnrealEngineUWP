@@ -55,7 +55,20 @@ CmdLogin(const FCmdLoginOptions& Options)
 			FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
 
 			FHttpRequest Request;
-			Request.Url			   = "/api/v1/login";
+
+			if (Options.Remote.Protocol == EProtocolFlavor::Unsync)
+			{
+				Request.Url = "/api/v1/login";
+			}
+			if (Options.Remote.Protocol == EProtocolFlavor::Horde)
+			{
+				Request.Url = "/api/v1/projects";
+			}
+			else
+			{
+				Request.Url = "/";
+			}
+
 			Request.Method		   = EHttpMethod::GET;
 			Request.BearerToken	   = AuthTokenResult->Access;
 			FHttpResponse Response = HttpRequest(Connection, Request);

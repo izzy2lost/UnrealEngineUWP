@@ -32,9 +32,31 @@ ToString(EProtocolFlavor Protocol)
 		case EProtocolFlavor::Unknown:
 			return "Unknown";
 		case EProtocolFlavor::Unsync:
-			return "UNSYNC";
+			return "Unsync";
+		case EProtocolFlavor::Horde:
+			return "Horde";
 		case EProtocolFlavor::Jupiter:
 			return "Jupiter";
+	}
+}
+
+EProtocolFlavor ProtocolFlavorFromString(std::string_view Str)
+{
+	if (UncasedStringEquals(Str, "unsync"))
+	{
+		return EProtocolFlavor::Unsync;
+	}
+	else if (UncasedStringEquals(Str, "horde"))
+	{
+		return EProtocolFlavor::Horde;
+	}
+	else if (UncasedStringEquals(Str, "jupiter"))
+	{
+		return EProtocolFlavor::Jupiter;
+	}
+	else
+	{
+		return EProtocolFlavor::Unknown;
 	}
 }
 
@@ -70,7 +92,7 @@ IsValidUrl(std::string_view Url)
 }
 
 TResult<FRemoteDesc>
-FRemoteDesc::FromUrl(std::string_view Url)
+FRemoteDesc::FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint)
 {
 	if (!IsValidUrl(Url))
 	{
@@ -122,26 +144,35 @@ FRemoteDesc::FromUrl(std::string_view Url)
 
 	const size_t NamespacePos = HostAddress.find_last_of('#');
 
-	switch (Transport)
+	if (ProtocolFlavorHint == EProtocolFlavor::Unknown)
 	{
-		default:
-		case ETransportProtocol::Unsync:
-			Result.Protocol = EProtocolFlavor::Unsync;
-			break;
-		case ETransportProtocol::Http:
-			if (NamespacePos != std::string::npos || Scheme.starts_with("jupiter"))
-			{
-				Result.Protocol = EProtocolFlavor::Jupiter;
-			}
-			if (bRequestLooksLikeHordeArtifact || Scheme.starts_with("horde"))
-			{
-				Result.Protocol = EProtocolFlavor::Horde;
-			}
-			else
-			{
+		// Try to guess protocol flavor
+
+		switch (Transport)
+		{
+			default:
+			case ETransportProtocol::Unsync:
 				Result.Protocol = EProtocolFlavor::Unsync;
-			}
-			break;
+				break;
+			case ETransportProtocol::Http:
+				if (NamespacePos != std::string::npos || Scheme.starts_with("jupiter"))
+				{
+					Result.Protocol = EProtocolFlavor::Jupiter;
+				}
+				if (bRequestLooksLikeHordeArtifact || Scheme.starts_with("horde"))
+				{
+					Result.Protocol = EProtocolFlavor::Horde;
+				}
+				else
+				{
+					Result.Protocol = EProtocolFlavor::Unsync;
+				}
+				break;
+		}
+	}
+	else
+	{
+		Result.Protocol = ProtocolFlavorHint;
 	}
 
 	if (NamespacePos != std::string::npos)

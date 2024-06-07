@@ -160,6 +160,14 @@ std::wstring StringToUpper(const std::wstring& Input);
 
 std::string StringEscape(const std::string_view Input);
 
+bool StringEquals(const std::string_view A, const std::string_view B, bool bCaseSensitive = true);
+
+inline bool
+UncasedStringEquals(const std::string_view A, const std::string_view B)
+{
+	return StringEquals(A, B, false);
+}
+
 // Takes a drive-based path (e.g. P:/Foo/Bar) and converts it to universal form (e.g. //server/Foo/Bar), if possible.
 // Otherwise, returns original path.
 FPath GetUniversalPath(const FPath& Path);
