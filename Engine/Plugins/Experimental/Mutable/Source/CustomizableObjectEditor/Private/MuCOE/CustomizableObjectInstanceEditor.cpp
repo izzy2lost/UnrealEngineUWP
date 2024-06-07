@@ -973,7 +973,7 @@ void FCustomizableObjectInstanceEditor::CreatePreviewActor()
 		CustomizableComponent->RegisterComponent();
 	}
 	
-	Viewport->SetPreviewActor(Actor.Get(), CustomizableObjectInstance, PreviewSkeletalMeshComponents); // TODO GMT
+	Viewport->SetPreviewActor(Actor.Get(), CustomizableObjectInstance, PreviewSkeletalMeshComponents);
 }
 
 
