@@ -281,6 +281,37 @@ namespace Horde.Server.Tests.Compute
 				Assert.AreEqual(agent2.Id, (await ComputeService.TryAllocateResourceAsync(arpBar, CancellationToken.None))!.AgentId);
 			}
 		}
+		
+		[TestMethod]
+		[DataRow("11.0.0.1", "11.0.0.1", null, false)]
+		[DataRow("11.0.0.1", "11.0.0.1", "200.20.20.20", false)]
+		[DataRow("200.20.20.20", "11.0.0.1", "200.20.20.20", true)]
+		[DataRow("11.0.0.1", "11.0.0.1", "bad-ip", true)]
+		[DataRow("200.20.20.20", null, "200.20.20.20", true)]
+		public void Cluster_ResolveRequesterIp(string expectIp, string? internalIp, string? publicIp, bool? usePublicIp)
+		{
+			Assert.AreEqual(IPAddress.Parse(expectIp), ComputeService.ResolveRequesterIp(internalIp == null ? null : IPAddress.Parse(internalIp), usePublicIp, publicIp));
+		}
+		
+		[TestMethod]
+		public void Cluster_FindBest()
+		{
+			GlobalConfig globalConfig = new () { Networks = [
+				new NetworkConfig { CidrBlock = "11.0.0.0/16", Id = "network1", ComputeId = "compute1" },
+				new NetworkConfig { CidrBlock = "12.0.0.0/16", Id = "network2", ComputeId = "compute2" },
+			] };
+			globalConfig.PostLoad(new ServerSettings());
+			Assert.AreEqual(new ClusterId("compute1"), ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("11.0.0.1")));
+			Assert.AreEqual(new ClusterId("compute2"), ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("12.0.1.1")));
+			Assert.ThrowsException<ComputeServiceException>(() => ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("123.123.123.123")));
+			
+			GlobalConfig globalConfigCatchAll = new ()
+			{
+				Networks = [new NetworkConfig { CidrBlock = "0.0.0.0/0", Id = "catchAll", ComputeId = "catchAll" }]
+			};
+			globalConfigCatchAll.PostLoad(new ServerSettings());
+			Assert.AreEqual(new ClusterId("catchAll"), ComputeService.FindBestComputeClusterId(globalConfigCatchAll, IPAddress.Parse("123.123.123.123")));
+		}
 
 		[TestMethod]
 		public async Task Connection_Direct_IpConnection_Async()

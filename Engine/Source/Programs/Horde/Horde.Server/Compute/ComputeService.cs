@@ -50,7 +50,7 @@ namespace Horde.Server.Compute
 		public bool ShowToUser { get; init; } = false;
 
 		/// <inheritdoc/>
-		public ComputeServiceException(string? message, Exception? innerException) : base(message, innerException)
+		public ComputeServiceException(string? message, Exception? innerException = null) : base(message, innerException)
 		{
 		}
 	}
@@ -775,6 +775,54 @@ namespace Horde.Server.Compute
 			}
 
 			throw new Exception("Unable to resolve a suitable connection mode for compute task");
+		}
+		
+		/// <summary>
+		/// Resolve IP of the requester
+		/// </summary>
+		/// <param name="requesterIp"></param>
+		/// <param name="usePublicIp"></param>
+		/// <param name="requesterPublicIp"></param>
+		/// <returns>IP address of request</returns>
+		/// <exception cref="ComputeServiceException"></exception>
+		public static IPAddress ResolveRequesterIp(IPAddress? requesterIp, bool? usePublicIp, string? requesterPublicIp)
+		{
+			if (usePublicIp is true && requesterPublicIp != null)
+			{
+				if (IPAddress.TryParse(requesterPublicIp, out IPAddress? publicIp))
+				{
+					requesterIp = publicIp;
+				}
+			}
+			
+			if (requesterIp == null)
+			{
+				throw new ComputeServiceException("Unable to determine IP of requester");
+			}
+			
+			return requesterIp;
+		}
+		
+		/// <summary>
+		/// Find best compute cluster for given parameters
+		/// </summary>
+		/// <param name="globalConfig">Global config</param>
+		/// <param name="requesterIp">IP of client (initiator) requesting a compute resource</param>
+		/// <returns>Compute cluster ID</returns>
+		/// <exception cref="ComputeServiceException"></exception>
+		public static ClusterId FindBestComputeClusterId(GlobalConfig globalConfig, IPAddress? requesterIp)
+		{
+			if (requesterIp == null || !globalConfig.TryGetNetworkConfig(requesterIp, out NetworkConfig? networkConfig))
+			{
+				throw new ComputeServiceException("Unable to find a matching network config");
+			}
+			
+			if (networkConfig.ComputeId == null)
+			{
+				throw new ComputeServiceException($"Network config '{networkConfig.Id}' has no compute ID set");
+			}
+			
+			return new ClusterId(networkConfig.ComputeId);
 		}
 
 		private static IPAddress FindBestRelayIp(IPAddress? clientIp, IPAddress? publicClientIp, IEnumerable<string> relayIps)

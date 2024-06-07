@@ -37,7 +37,23 @@ namespace Horde.Server.Compute
 			_computeService = computeService;
 			_globalConfig = globalConfig;
 		}
-
+		
+		/// <summary>
+		/// Add tasks to be executed remotely and auto-select appropriate compute cluster to use
+		/// </summary>
+		/// <param name="request">The request parameters</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		[HttpPost]
+		[Authorize]
+		[Route("/api/v2/compute")]
+		public async Task<ActionResult<AssignComputeResponse>> AssignComputeResourceAsync([FromBody] AssignComputeRequest request, CancellationToken cancellationToken)
+		{
+			IPAddress requesterIp = ComputeService.ResolveRequesterIp(HttpContext.Connection.RemoteIpAddress, request.Connection?.PreferPublicIp, request.Connection?.ClientPublicIp);
+			ClusterId clusterId = ComputeService.FindBestComputeClusterId(_globalConfig.Value, requesterIp);
+			return await AssignComputeResourceInClusterAsync(clusterId, request, cancellationToken);
+		}
+		
 		/// <summary>
 		/// Add tasks to be executed remotely
 		/// </summary>
@@ -48,7 +64,7 @@ namespace Horde.Server.Compute
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v2/compute/{clusterId}")]
-		public async Task<ActionResult<AssignComputeResponse>> AssignComputeResourceAsync(ClusterId clusterId, [FromBody] AssignComputeRequest request, CancellationToken cancellationToken)
+		public async Task<ActionResult<AssignComputeResponse>> AssignComputeResourceInClusterAsync(ClusterId clusterId, [FromBody] AssignComputeRequest request, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.TryGetComputeCluster(clusterId, out ComputeClusterConfig? clusterConfig))
 			{
