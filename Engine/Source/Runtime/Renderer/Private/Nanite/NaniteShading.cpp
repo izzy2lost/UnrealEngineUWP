@@ -1764,6 +1764,7 @@ FNaniteRasterPipeline FNaniteRasterPipeline::GetFixedFunctionPipeline(uint8 BinM
 	Pipeline.bHasWPODistance = false;
 	Pipeline.bHasPixelDistance = false;
 	Pipeline.bHasDisplacementFadeOut = false;
+	Pipeline.bCastShadow = (BinMask & NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW) != 0;
 	return Pipeline;
 }
 
@@ -1791,13 +1792,14 @@ uint32 FNaniteRasterPipeline::GetPipelineHash() const
 	} HashKey;
 
 	HashKey.MaterialFlags  = 0;
-	HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
-	HashKey.MaterialFlags |= bWPOEnabled ? 0x2u : 0x0u;
-	HashKey.MaterialFlags |= bDisplacementEnabled ? 0x4u : 0x0u;
-	HashKey.MaterialFlags |= bPerPixelEval ? 0x8u : 0x0u;
-	HashKey.MaterialFlags |= bSplineMesh ? 0x10u : 0x0u;
-	HashKey.MaterialFlags |= bSkinnedMesh ? 0x20u : 0x0u;
-	HashKey.MaterialFlags |= bFixedDisplacementFallback ? 0x40u : 0x0u;
+	HashKey.MaterialFlags |= bIsTwoSided					? 0x1u : 0x0u;
+	HashKey.MaterialFlags |= bWPOEnabled					? 0x2u : 0x0u;
+	HashKey.MaterialFlags |= bDisplacementEnabled			? 0x4u : 0x0u;
+	HashKey.MaterialFlags |= bPerPixelEval					? 0x8u : 0x0u;
+	HashKey.MaterialFlags |= bSplineMesh					? 0x10u : 0x0u;
+	HashKey.MaterialFlags |= bSkinnedMesh					? 0x20u : 0x0u;
+	HashKey.MaterialFlags |= bCastShadow					? 0x40u : 0x0u;
+	HashKey.MaterialFlags |= bFixedDisplacementFallback		? 0x80u : 0x0u;
 	HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
 
 	HashKey.DisplacementScaling = DisplacementScaling;
@@ -1811,9 +1813,10 @@ bool FNaniteRasterPipeline::GetFallbackPipeline(FNaniteRasterPipeline& OutFallba
 {
 	// Get a mask of the required fixed function features for this pipeline to fall back to a fixed function bin.
 	const uint32 FixedBinMask = 
-		(bIsTwoSided ? NANITE_FIXED_FUNCTION_BIN_TWOSIDED : 0) |
-		(bSplineMesh ? NANITE_FIXED_FUNCTION_BIN_SPLINE : 0) |
-		(bSkinnedMesh ? NANITE_FIXED_FUNCTION_BIN_SKINNED : 0);
+		(bIsTwoSided  ? NANITE_FIXED_FUNCTION_BIN_TWOSIDED    : 0) |
+		(bSplineMesh  ? NANITE_FIXED_FUNCTION_BIN_SPLINE      : 0) |
+		(bSkinnedMesh ? NANITE_FIXED_FUNCTION_BIN_SKINNED     : 0) |
+		(bCastShadow  ? NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW : 0);
 
 	// NOTE: Ordering matters here. We don't want to have to create many bins to handle enabled/disabled state of
 	// pixel programmable, WPO, and displacement, so when we have overlap, WPO disabled clusters rely on branching

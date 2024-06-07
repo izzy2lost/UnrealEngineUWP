@@ -375,17 +375,30 @@ uint GetMaterialShadingBinFromIndex(
 
 uint RemapRasterBin(uint InBinIndex, uint InRenderFlags, FNaniteMaterialFlags MaterialFlags)
 {
-	uint RemappedBin = InBinIndex;
+	// Any bins within the fixed function bin mask are special cased
+	const bool bFixedFunctionBin = InBinIndex <= NANITE_FIXED_FUNCTION_BIN_MASK;
+	const bool bDisableProgrammable = (InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0;
+	const bool bShadowPass = (InRenderFlags & NANITE_RENDER_FLAG_IS_SHADOW_PASS) != 0;
 
-	if ((InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0)
+	bool bRemap = bDisableProgrammable;
+
+	// For non-shadow views, remap shadow casting fixed function to non-shadow casting (explicitly skipped)
+	if (!bShadowPass && bFixedFunctionBin)
 	{
-		RemappedBin  = NANITE_FIXED_FUNCTION_BIN;
-		RemappedBin |= select(MaterialFlags.bTwoSided, NANITE_FIXED_FUNCTION_BIN_TWOSIDED, 0x0u);
-		RemappedBin |= select(MaterialFlags.bSplineMesh, NANITE_FIXED_FUNCTION_BIN_SPLINE, 0x0u);
-		RemappedBin |= select(MaterialFlags.bSkinnedMesh, NANITE_FIXED_FUNCTION_BIN_SKINNED, 0x0u);
+		MaterialFlags.bCastShadow = false;
+		bRemap = true;
 	}
 
-	return RemappedBin;
+	if (bRemap)
+	{
+		InBinIndex  = NANITE_FIXED_FUNCTION_BIN;
+		InBinIndex |= select(MaterialFlags.bTwoSided,    NANITE_FIXED_FUNCTION_BIN_TWOSIDED,    0x0u);
+		InBinIndex |= select(MaterialFlags.bSplineMesh,  NANITE_FIXED_FUNCTION_BIN_SPLINE,      0x0u);
+		InBinIndex |= select(MaterialFlags.bSkinnedMesh, NANITE_FIXED_FUNCTION_BIN_SKINNED,     0x0u);
+		InBinIndex |= select(MaterialFlags.bCastShadow,  NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW, 0x0u);
+	}
+
+	return InBinIndex;
 }
 
 uint GetMaterialRasterBinFromIndex(

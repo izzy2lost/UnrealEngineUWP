@@ -1031,7 +1031,7 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 	const TManagedArray<int32>& SimulationType = Collection->SimulationType;
 	const TManagedArray<FGeometryCollectionSection>& SectionsArray = Collection->Sections;
 
-	MaterialSections.SetNumZeroed(SectionsArray.Num());
+	MaterialSections.SetNum(SectionsArray.Num());
 
 	for (int32 SectionIndex = 0; SectionIndex < SectionsArray.Num(); ++SectionIndex)
 	{
@@ -1077,6 +1077,7 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 		MaterialSections[SectionIndex].ShadingMaterialProxy = MaterialInterface->GetRenderProxy();
 		MaterialSections[SectionIndex].RasterMaterialProxy  = MaterialInterface->GetRenderProxy(); // TODO: PROG_RASTER (Implement programmable raster support)
 		MaterialSections[SectionIndex].MaterialIndex = MeshSection.MaterialID;
+		MaterialSections[SectionIndex].bCastShadow = true;
 	}
 
 	const bool bHasGeometryBoundingBoxes = 

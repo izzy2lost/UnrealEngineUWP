@@ -1457,6 +1457,7 @@ static uint32 PackMaterialBitFlags(
 	Flags.bSplineMesh = RasterPipeline.bSplineMesh;
 	Flags.bSkinnedMesh = RasterPipeline.bSkinnedMesh;
 	Flags.bTwoSided = RasterMaterial.IsTwoSided();
+	Flags.bCastShadow = RasterPipeline.bCastShadow;
 	return PackNaniteMaterialBitFlags(Flags);
 }
 
@@ -2168,6 +2169,7 @@ struct FRasterizerPass
 	bool bSplineMesh = false;
 	bool bSkinnedMesh = false;
 	bool bTwoSided = false;
+	bool bCastShadow = false;
 
 	uint32 IndirectOffset = 0u;
 	uint32 RasterBin = ~uint32(0u);
@@ -4558,6 +4560,7 @@ void FRenderer::PrepareRasterizerPasses(
 			RasterizerPass.bSplineMesh = MaterialBitFlags & NANITE_MATERIAL_FLAG_SPLINE_MESH;
 			RasterizerPass.bSkinnedMesh = MaterialBitFlags & NANITE_MATERIAL_FLAG_SKINNED_MESH;
 			RasterizerPass.bTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
+			RasterizerPass.bCastShadow = MaterialBitFlags & NANITE_MATERIAL_FLAG_CAST_SHADOW;
 
 			if (RasterMaterialCache.bFinalized)
 			{
@@ -4685,7 +4688,9 @@ void FRenderer::PrepareRasterizerPasses(
 			ON_SCOPE_EXIT{ RasterBinIndex++; };
 
 			const FNaniteRasterEntry& RasterEntry = RasterBin.Value;
-	
+
+			const bool bIsShadowPass = (RenderFlags & NANITE_RENDER_FLAG_IS_SHADOW_PASS) != 0u;
+
 			// Any bins within the fixed function bin mask are special cased
 			const bool bFixedFunctionBin = RasterEntry.BinIndex <= NANITE_FIXED_FUNCTION_BIN_MASK;
 			if (bFixedFunctionBin)
@@ -4698,6 +4703,12 @@ void FRenderer::PrepareRasterizerPasses(
 					continue;
 				}
 
+				if ((RasterEntry.BinIndex & NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW) != 0 && !bIsShadowPass)
+				{
+					// Raster binning for non shadow views will remap all fixed function bins into non shadow casting
+					continue;
+				}
+
 				if ((RasterEntry.BinIndex & NANITE_FIXED_FUNCTION_BIN_SPLINE) != 0 && !NaniteSplineMeshesSupported())
 				{
 					continue;
@@ -4707,6 +4718,12 @@ void FRenderer::PrepareRasterizerPasses(
 				{
 					continue;
 				}
+			}
+
+			// Skip any non shadow casting raster bin (including fixed function) if shadow view
+			if (bIsShadowPass && !RasterEntry.RasterPipeline.bCastShadow)
+			{
+				continue;
 			}
 	
 			// Fixed function bins are always visible
@@ -4751,6 +4768,7 @@ void FRenderer::PrepareRasterizerPasses(
 				RasterMaterialCacheKey.bHasVirtualShadowMap = bHasVirtualShadowMap;
 				RasterMaterialCacheKey.bIsDepthOnly = RasterMode == EOutputBufferMode::DepthOnly;
 				RasterMaterialCacheKey.bIsTwoSided = RasterizerPass.RasterPipeline.bIsTwoSided;
+				RasterMaterialCacheKey.bCastShadow = RasterizerPass.RasterPipeline.bCastShadow;
 				RasterMaterialCacheKey.bSplineMesh = RasterEntry.RasterPipeline.bSplineMesh;
 				RasterMaterialCacheKey.bSkinnedMesh = RasterEntry.RasterPipeline.bSkinnedMesh;
 				RasterMaterialCacheKey.bFixedDisplacementFallback = RasterEntry.RasterPipeline.bFixedDisplacementFallback;
@@ -4902,7 +4920,7 @@ void FRenderer::PrepareRasterizerPasses(
 			}
 		}
 
-		if(CVarNaniteRasterSort.GetValueOnRenderThread())
+		if (CVarNaniteRasterSort.GetValueOnRenderThread())
 		{
 			auto SortIndirections = [&](FDispatchContext::FDispatchList& List)
 			{

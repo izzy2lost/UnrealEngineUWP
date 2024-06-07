@@ -200,6 +200,7 @@
 #define NANITE_MATERIAL_FLAG_SKINNED_MESH					0x20
 #define NANITE_MATERIAL_FLAG_TWO_SIDED						0x40
 #define NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS				0x80
+#define NANITE_MATERIAL_FLAG_CAST_SHADOW					0x100
 
 #define NANITE_TRANSCODE_PASS_INDEPENDENT					0
 #define NANITE_TRANSCODE_PASS_PARENT_DEPENDENT				1
@@ -212,9 +213,10 @@
 #define NANITE_FIXED_FUNCTION_BIN_TWOSIDED					0x1
 #define NANITE_FIXED_FUNCTION_BIN_SPLINE					0x2
 #define NANITE_FIXED_FUNCTION_BIN_SKINNED					0x4
+#define NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW				0x8
 
 // OR'd mask of the above bits
-#define NANITE_FIXED_FUNCTION_BIN_MASK						0x7
+#define NANITE_FIXED_FUNCTION_BIN_MASK						0xF
 
 // Only available with the DEBUG_FLAGS permutation active.
 // Default value (no debug) is 0
@@ -309,6 +311,7 @@ struct FNaniteMaterialFlags
 	bool bSkinnedMesh;
 	bool bTwoSided;
 	bool bNoDerivativeOps;
+	bool bCastShadow;
 
 	bool bVertexProgrammable;
 	bool bPixelProgrammable;
@@ -325,6 +328,7 @@ INLINE_ATTR FNaniteMaterialFlags UnpackNaniteMaterialFlags(UINT_TYPE Packed)
 	MaterialFlags.bSkinnedMesh = (Packed & NANITE_MATERIAL_FLAG_SKINNED_MESH) != 0u;
 	MaterialFlags.bTwoSided = (Packed & NANITE_MATERIAL_FLAG_TWO_SIDED) != 0u;
 	MaterialFlags.bNoDerivativeOps = (Packed & NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS) != 0u;
+	MaterialFlags.bCastShadow = (Packed & NANITE_MATERIAL_FLAG_CAST_SHADOW) != 0u;
 	MaterialFlags.bVertexProgrammable = (Packed & NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS) != 0u;
 	MaterialFlags.bPixelProgrammable = (Packed & NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS) != 0u;
 	return MaterialFlags;
@@ -387,6 +391,11 @@ INLINE_ATTR UINT_TYPE PackNaniteMaterialBitFlags(FNaniteMaterialFlags Flags)
 	if (Flags.bNoDerivativeOps)
 	{
 		MaterialBitFlags |= NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS;
+	}
+
+	if (Flags.bCastShadow)
+	{
+		MaterialBitFlags |= NANITE_MATERIAL_FLAG_CAST_SHADOW;
 	}
 
 	return MaterialBitFlags;

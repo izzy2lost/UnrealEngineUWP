@@ -197,12 +197,13 @@ public:
 		FMaterialRelevance MaterialRelevance;
 		FVector4f LocalUVDensities = FVector4f(1.0f);
 
-		uint8 bHasPerInstanceRandomID : 1;
-		uint8 bHasPerInstanceCustomData : 1;
-		uint8 bHidden : 1;
-		uint8 bAlwaysEvaluateWPO : 1;
+		uint8 bHasPerInstanceRandomID		: 1 = false;
+		uint8 bHasPerInstanceCustomData		: 1 = false;
+		uint8 bHidden						: 1 = false;
+		uint8 bCastShadow					: 1 = false;
+		uint8 bAlwaysEvaluateWPO			: 1 = false;
 	#if WITH_EDITORONLY_DATA
-		uint8 bSelected : 1;
+		uint8 bSelected						: 1 = false;
 	#endif
 
 		ENGINE_API void ResetToDefaultMaterial(bool bShading = true, bool bRaster = true);

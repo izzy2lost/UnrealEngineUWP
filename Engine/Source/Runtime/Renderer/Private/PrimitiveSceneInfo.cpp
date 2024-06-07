@@ -824,6 +824,7 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 					FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines.Emplace_GetRef();
 					RasterPipeline.RasterMaterial = MaterialSection.RasterMaterialProxy;
 					RasterPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
+					RasterPipeline.bCastShadow = MaterialSection.bCastShadow;
 					// Spline and Skinned mesh are mutually exclusive
 					RasterPipeline.bSkinnedMesh = NaniteProxy->IsSkinnedMesh();
 					if (RasterPipeline.bSkinnedMesh)

@@ -536,6 +536,7 @@ struct FNaniteRasterPipeline
 	bool bHasPixelDistance : 1 = false;
 	bool bHasDisplacementFadeOut : 1 = false;
 	bool bFixedDisplacementFallback : 1 = false;
+	bool bCastShadow : 1 = false;
 
 	static FNaniteRasterPipeline GetFixedFunctionPipeline(uint8 BinMask);
 
@@ -575,23 +576,25 @@ struct FNaniteRasterMaterialCacheKey
 	{
 		struct
 		{
-			uint16 FeatureLevel					: 3;
-			uint16 bWPOEnabled					: 1;
-			uint16 bPerPixelEval				: 1;
-			uint16 bUseMeshShader				: 1;
-			uint16 bUsePrimitiveShader			: 1;
-			uint16 bDisplacementEnabled			: 1;
-			uint16 bVisualizeActive				: 1;
-			uint16 bHasVirtualShadowMap			: 1;
-			uint16 bIsDepthOnly					: 1;
-			uint16 bIsTwoSided					: 1;
-			uint16 bSplineMesh					: 1;
-			uint16 bSkinnedMesh					: 1;
-			uint16 bFixedDisplacementFallback	: 1;
-			uint16 bUseWorkGraph				: 1;
+			uint32 FeatureLevel					: 3;
+			uint32 bWPOEnabled					: 1;
+			uint32 bPerPixelEval				: 1;
+			uint32 bUseMeshShader				: 1;
+			uint32 bUsePrimitiveShader			: 1;
+			uint32 bDisplacementEnabled			: 1;
+			uint32 bVisualizeActive				: 1;
+			uint32 bHasVirtualShadowMap			: 1;
+			uint32 bIsDepthOnly					: 1;
+			uint32 bIsTwoSided					: 1;
+			uint32 bCastShadow					: 1;
+			uint32 bSplineMesh					: 1;
+			uint32 bSkinnedMesh					: 1;
+			uint32 bFixedDisplacementFallback	: 1;
+			uint32 bUseWorkGraph				: 1;
+			uint32 Unused						: 15;
 		};
 
-		uint16 Packed = 0;
+		uint32 Packed = 0;
 	};
 
 	bool operator < (FNaniteRasterMaterialCacheKey Other) const
@@ -611,7 +614,7 @@ struct FNaniteRasterMaterialCacheKey
 };
 
 static_assert((int32)ERHIFeatureLevel::Num <= 8);
-static_assert(sizeof(FNaniteRasterMaterialCacheKey) == sizeof(uint16));
+static_assert(sizeof(FNaniteRasterMaterialCacheKey) == sizeof(uint32));
 
 inline uint32 GetTypeHash(const FNaniteRasterMaterialCacheKey& Key)
 {

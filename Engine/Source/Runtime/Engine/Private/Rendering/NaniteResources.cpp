@@ -683,7 +683,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 	bEvaluateWorldPositionOffset = ProxyDesc.bEvaluateWorldPositionOffset;
 	
-	MaterialSections.SetNumZeroed(MeshSections.Num());
+	MaterialSections.SetNum(MeshSections.Num());
 
 	const bool bIsInstancedMesh = InbIsInstancedMesh;
 
@@ -693,6 +693,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 		FMaterialSection& MaterialSection = MaterialSections[SectionIndex];
 		MaterialSection.MaterialIndex = MeshSection.MaterialIndex;
 		MaterialSection.bHidden = false;
+		MaterialSection.bCastShadow = MeshSection.bCastShadow;
 	#if WITH_EDITORONLY_DATA
 		MaterialSection.bSelected = false;
 		if (GIsEditor)
@@ -1683,7 +1684,7 @@ void FSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& O
 		MeshBatch.bWireframe = bWireframe;
 		MeshBatch.SegmentIndex = SectionIndex;
 		MeshBatch.LODIndex = 0;
-		MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
+		MeshBatch.CastRayTracedShadow = MaterialSection.bCastShadow && CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
 
 		MeshBatchElement.PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
 	}
@@ -1721,7 +1722,7 @@ void FSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshB
 		MeshBatch.bWireframe = bWireframe;
 		MeshBatch.SegmentIndex = SectionIndex;
 		MeshBatch.LODIndex = 0; // CacheRayTracingPrimitive(...) currently assumes that primitives with CacheInstances flag only cache mesh commands for one LOD
-		MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
+		MeshBatch.CastRayTracedShadow = Section.bCastShadow && CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
 
 		MeshBatchElement.PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
 	}
@@ -2229,13 +2230,14 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 
 	const TArray<FSkelMeshRenderSection>& MeshSections = MeshResources.RenderSections;
 
-	MaterialSections.SetNumZeroed(MeshSections.Num());
+	MaterialSections.SetNum(MeshSections.Num());
 
 	for (int32 SectionIndex = 0; SectionIndex < MeshSections.Num(); ++SectionIndex)
 	{
 		const FSkelMeshRenderSection& MeshSection = MeshSections[SectionIndex];
 		FMaterialSection& MaterialSection = MaterialSections[SectionIndex];
 		MaterialSection.MaterialIndex = MeshSection.MaterialIndex;
+		MaterialSection.bCastShadow = MeshSection.bCastShadow;
 	#if WITH_EDITORONLY_DATA
 		MaterialSection.bSelected = false;
 	#endif
