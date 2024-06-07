@@ -969,10 +969,13 @@ private:
 class FVulkanLayout : public VulkanRHI::FDeviceChild
 {
 public:
-	FVulkanLayout(FVulkanDevice* InDevice);
+	FVulkanLayout(FVulkanDevice* InDevice, bool InGfxLayout);
 	virtual ~FVulkanLayout();
 
-	virtual bool IsGfxLayout() const = 0;
+	bool IsGfxLayout() const
+	{
+		return bIsGfxLayout;
+	}
 
 	inline const FVulkanDescriptorSetsLayout& GetDescriptorSetsLayout() const
 	{
@@ -995,6 +998,7 @@ public:
 	}
 
 protected:
+	const bool bIsGfxLayout;
 	FVulkanDescriptorSetsLayout	DescriptorSetLayout;
 	VkPipelineLayout			PipelineLayout;
 
@@ -1022,39 +1026,6 @@ protected:
 	friend class FVulkanPipelineStateCacheManager;
 	friend class FVulkanRayTracingPipelineState;
 };
-
-class FVulkanGfxLayout : public FVulkanLayout
-{
-public:
-	FVulkanGfxLayout(FVulkanDevice* InDevice)
-		: FVulkanLayout(InDevice)
-	{
-	}
-
-	virtual bool IsGfxLayout() const final override
-	{
-		return true;
-	}
-
-	friend class FVulkanPipelineStateCacheManager;
-};
-
-class FVulkanComputeLayout : public FVulkanLayout
-{
-public:
-	FVulkanComputeLayout(FVulkanDevice* InDevice)
-		: FVulkanLayout(InDevice)
-	{
-	}
-
-	virtual bool IsGfxLayout() const final override
-	{
-		return false;
-	}
-
-	friend class FVulkanPipelineStateCacheManager;
-};
-
 
 
 class FVulkanGenericDescriptorPool : FNoncopyable

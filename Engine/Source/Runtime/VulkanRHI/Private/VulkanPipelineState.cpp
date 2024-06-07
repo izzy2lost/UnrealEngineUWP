@@ -289,50 +289,45 @@ FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(F
 	FMemory::Memzero(PackedUniformBuffersMask);
 	FMemory::Memzero(PackedUniformBuffersDirty);
 
-	check(InGfxPipeline);
+	check(InGfxPipeline && InGfxPipeline->Layout && InGfxPipeline->Layout->IsGfxLayout());
+	DescriptorSetsLayout = &InGfxPipeline->Layout->GetDescriptorSetsLayout();
+
+	UsedSetsMask = 0;
+
+	const FVulkanShaderFactory& ShaderFactory = Device->GetShaderFactory();
+
+	const FVulkanVertexShader* VertexShader = ShaderFactory.LookupShader<FVulkanVertexShader>(InGfxPipeline->GetShaderKey(SF_Vertex));
+	check(VertexShader);
+	PackedUniformBuffers[ShaderStage::Vertex].Init(VertexShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Vertex]);
+	UsedSetsMask |= VertexShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Vertex) : 0u;
+
+	uint64 PixelShaderKey = InGfxPipeline->GetShaderKey(SF_Pixel);
+	if (PixelShaderKey)
 	{
-		
-		check(InGfxPipeline->Layout);
-		DescriptorSetsLayout = &InGfxPipeline->Layout->GetDescriptorSetsLayout();
-		FVulkanGfxLayout& GfxLayout  = *(FVulkanGfxLayout*)InGfxPipeline->Layout;
+		const FVulkanPixelShader* PixelShader = ShaderFactory.LookupShader<FVulkanPixelShader>(PixelShaderKey);
+		check(PixelShader);
 
-		UsedSetsMask = 0;
-
-		const FVulkanShaderFactory& ShaderFactory = Device->GetShaderFactory();
-
-		const FVulkanVertexShader* VertexShader = ShaderFactory.LookupShader<FVulkanVertexShader>(InGfxPipeline->GetShaderKey(SF_Vertex));
-		check(VertexShader);
-		PackedUniformBuffers[ShaderStage::Vertex].Init(VertexShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Vertex]);
-		UsedSetsMask |= VertexShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Vertex) : 0u;
-
-		uint64 PixelShaderKey = InGfxPipeline->GetShaderKey(SF_Pixel);
-		if (PixelShaderKey)
-		{
-			const FVulkanPixelShader* PixelShader = ShaderFactory.LookupShader<FVulkanPixelShader>(PixelShaderKey);
-			check(PixelShader);
-
-			PackedUniformBuffers[ShaderStage::Pixel].Init(PixelShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Pixel]);
-			UsedSetsMask |= PixelShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Pixel) : 0u;
-		}
+		PackedUniformBuffers[ShaderStage::Pixel].Init(PixelShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Pixel]);
+		UsedSetsMask |= PixelShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Pixel) : 0u;
+	}
 
 #if VULKAN_SUPPORTS_GEOMETRY_SHADERS
-		uint64 GeometryShaderKey = InGfxPipeline->GetShaderKey(SF_Geometry);
-		if (GeometryShaderKey)
-		{
-			const FVulkanGeometryShader* GeometryShader = ShaderFactory.LookupShader<FVulkanGeometryShader>(GeometryShaderKey);
-			check(GeometryShader);
+	uint64 GeometryShaderKey = InGfxPipeline->GetShaderKey(SF_Geometry);
+	if (GeometryShaderKey)
+	{
+		const FVulkanGeometryShader* GeometryShader = ShaderFactory.LookupShader<FVulkanGeometryShader>(GeometryShaderKey);
+		check(GeometryShader);
 
-			PackedUniformBuffers[ShaderStage::Geometry].Init(GeometryShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Geometry]);
-			UsedSetsMask |= GeometryShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Geometry) : 0u;
-		}
+		PackedUniformBuffers[ShaderStage::Geometry].Init(GeometryShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Geometry]);
+		UsedSetsMask |= GeometryShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Geometry) : 0u;
+	}
 #endif
 
-		CreateDescriptorWriteInfos();
+	CreateDescriptorWriteInfos();
 
-		//UE_LOG(LogVulkanRHI, Warning, TEXT("GfxPSOState %p For PSO %p Writes:%d"), this, InGfxPipeline, DSWriteContainer.DescriptorWrites.Num());
+	//UE_LOG(LogVulkanRHI, Warning, TEXT("GfxPSOState %p For PSO %p Writes:%d"), this, InGfxPipeline, DSWriteContainer.DescriptorWrites.Num());
 
-		InGfxPipeline->AddRef();
-	}
+	InGfxPipeline->AddRef();
 }
 
 template<bool bUseDynamicGlobalUBs>

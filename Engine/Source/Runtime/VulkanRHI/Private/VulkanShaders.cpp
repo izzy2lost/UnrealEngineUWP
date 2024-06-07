@@ -597,8 +597,9 @@ FRayTracingShaderRHIRef FVulkanDynamicRHI::RHICreateRayTracingShader(TArrayView<
 	}
 }
 
-FVulkanLayout::FVulkanLayout(FVulkanDevice* InDevice)
+FVulkanLayout::FVulkanLayout(FVulkanDevice* InDevice, bool InGfxLayout)
 	: VulkanRHI::FDeviceChild(InDevice)
+	, bIsGfxLayout(InGfxLayout)
 	, DescriptorSetLayout(Device)
 	, PipelineLayout(VK_NULL_HANDLE)
 {

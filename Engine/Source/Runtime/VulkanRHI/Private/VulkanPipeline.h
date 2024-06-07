@@ -681,14 +681,14 @@ public:
 		return ResourceCast(GetComputeShader())->GetCodeHeader();
 	}
 
+	inline const FVulkanLayout& GetLayout() const
+	{
+		return *Layout;
+	}
+
 	inline void Bind(VkCommandBuffer CmdBuffer)
 	{
 		VulkanRHI::vkCmdBindPipeline(CmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, Pipeline);
-	}
-
-	inline const FVulkanComputeLayout& GetComputeLayout() const
-	{
-		return *(FVulkanComputeLayout*)Layout;
 	}
 };
 
@@ -706,11 +706,6 @@ public:
 	inline const FVulkanLayout& GetLayout() const
 	{
 		return *Layout;
-	}
-
-	inline const FVulkanGfxLayout& GetGfxLayout() const
-	{
-		return *(FVulkanGfxLayout*)&GetLayout();
 	}
 
 	inline void Bind(VkCommandBuffer CmdBuffer)

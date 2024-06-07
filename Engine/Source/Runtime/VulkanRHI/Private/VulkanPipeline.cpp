@@ -1711,19 +1711,7 @@ FVulkanLayout* FVulkanPipelineStateCacheManager::FindOrAddLayout(const FVulkanDe
 		return *FoundLayout;
 	}
 
-	FVulkanLayout* Layout = nullptr;
-	FVulkanGfxLayout* GfxLayout = nullptr;
-
-	if (bGfxLayout)
-	{
-		GfxLayout = new FVulkanGfxLayout(Device);
-		Layout = GfxLayout;
-	}
-	else
-	{
-		Layout = new FVulkanComputeLayout(Device);
-	}
-
+	FVulkanLayout* Layout = new FVulkanLayout(Device, bGfxLayout);
 	Layout->DescriptorSetLayout.CopyFrom(DescriptorSetLayoutInfo);
 	Layout->Compile(DSetLayoutMap);
 
@@ -2094,9 +2082,8 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 		{
 
 			FVulkanLayout* Layout = FindOrAddLayout(DescriptorSetLayoutInfo, true);
-			FVulkanGfxLayout* GfxLayout = (FVulkanGfxLayout*)Layout;
-			NewPSO->Layout = GfxLayout;
-			NewPSO->bHasInputAttachments = GfxLayout->GetDescriptorSetsLayout().HasInputAttachments();
+			NewPSO->Layout = Layout;
+			NewPSO->bHasInputAttachments = Layout->GetDescriptorSetsLayout().HasInputAttachments();
 		}
 		NewPSO->RenderPass = Device->GetImmediateContext().PrepareRenderPassForPSOCreation(Initializer);
 		{
@@ -2256,7 +2243,7 @@ FVulkanComputePipeline* FVulkanPipelineStateCacheManager::CreateComputePipelineF
 	DescriptorSetLayoutInfo.ProcessBindingsForStage(VK_SHADER_STAGE_COMPUTE_BIT, ShaderStage::Compute, CSHeader, UBGatherInfo);
 	DescriptorSetLayoutInfo.FinalizeBindings<true>(*Device, UBGatherInfo, TArrayView<FRHISamplerState*>());
 	FVulkanLayout* Layout = FindOrAddLayout(DescriptorSetLayoutInfo, false);
-	FVulkanComputeLayout* ComputeLayout = (FVulkanComputeLayout*)Layout;
+	checkSlow(!Layout->IsGfxLayout());
 
 	TRefCountPtr<FVulkanShaderModule> ShaderModule = Shader->GetOrCreateHandle(Layout, Layout->GetDescriptorSetLayoutHash());
 
@@ -2269,7 +2256,7 @@ FVulkanComputePipeline* FVulkanPipelineStateCacheManager::CreateComputePipelineF
 	ANSICHAR EntryPoint[24];
 	Shader->GetEntryPoint(EntryPoint, 24);
 	PipelineInfo.stage.pName = EntryPoint;
-	PipelineInfo.layout = ComputeLayout->GetPipelineLayout();
+	PipelineInfo.layout = Layout->GetPipelineLayout();
 
 	if (Device->SupportsBindless())
 	{
@@ -2307,7 +2294,7 @@ FVulkanComputePipeline* FVulkanPipelineStateCacheManager::CreateComputePipelineF
 		Pipeline->SetValid(false);
 	}
 
-	Pipeline->Layout = ComputeLayout;
+	Pipeline->Layout = Layout;
 
 	INC_DWORD_STAT(STAT_VulkanNumPSOs);
 
