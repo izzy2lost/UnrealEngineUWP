@@ -56,6 +56,7 @@ struct FNiagaraRigidMeshCollisionDIFunctionVersion
 		LargeWorldCoordinates = 1,
 		SetMaxDistance = 2,
 		FindActorRotation = 3,
+		MaxEncodedDistance = 4,
 
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
@@ -105,6 +106,7 @@ static const FName GetClosestDistanceName(TEXT("GetClosestDistance"));
 static const FName GetClosestPointMeshDistanceFieldName(TEXT("GetClosestPointMeshDistanceField"));
 static const FName GetClosestPointMeshDistanceFieldAccurateName(TEXT("GetClosestPointMeshDistanceFieldAccurate"));
 static const FName GetClosestPointMeshDistanceFieldNoNormalName(TEXT("GetClosestPointMeshDistanceFieldNoNormal"));
+static const FName GetMaxEncodedDistanceMeshDistanceFieldName(TEXT("GetMaxEncodedDistanceMeshDistanceField"));
 
 static const FText OverlapOriginDescription = IF_WITH_EDITORONLY_DATA(
 	LOCTEXT("RigidBodyOverlapOriginDescription", "The center point, in world space, where the overlap trace will be performed."),
@@ -1669,6 +1671,7 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Normal")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Velocity")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Normal Is Valid")));		
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Encoded Distance")));
 		OutFunctions.Add(Sig);
 	}
 
@@ -1690,6 +1693,7 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Normal")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Velocity")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Normal Is Valid")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Encoded Distance")));
 		OutFunctions.Add(Sig);
 	}
 
@@ -1712,6 +1716,22 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 
 		OutFunctions.Add(Sig);
 	}
+
+	{
+		FNiagaraFunctionSignature Sig;
+		Sig.Name = GetMaxEncodedDistanceMeshDistanceFieldName;
+		Sig.SetDescription(LOCTEXT("GetClosestPointMeshDistanceFieldNNDescription", "Returns the maximum distance stored in the SDF according to the bandwidth it was created with"));
+		Sig.SetFunctionVersion(FNiagaraRigidMeshCollisionDIFunctionVersion::LatestVersion);
+		Sig.bSupportsGPU = true;
+		Sig.bSupportsCPU = false;
+		Sig.bMemberFunction = true;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Collision DI")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Element Index")));		
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Distance")));
+
+		OutFunctions.Add(Sig);
+	}
+
 }
 #endif
 
@@ -1761,7 +1781,8 @@ bool UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionHLSL(const FNiagar
 		(FunctionInfo.DefinitionName == GetClosestDistanceName) ||
 		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldName) ||
 		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldAccurateName) ||
-		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldNoNormalName) )
+		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldNoNormalName) ||
+		(FunctionInfo.DefinitionName == GetMaxEncodedDistanceMeshDistanceFieldName) )
 	{
 		return true;
 	}
@@ -1848,6 +1869,15 @@ bool UNiagaraDataInterfaceRigidMeshCollisionQuery::UpgradeFunctionCall(FNiagaraF
 
 			FunctionSignature.Inputs.Insert(OverlapRotation, 2);
 			FunctionSignature.InputDescriptions.Add(OverlapRotation, OverlapRotationDescription);
+			bChanged = true;
+		}
+	}
+
+	if (FunctionSignature.FunctionVersion < FNiagaraRigidMeshCollisionDIFunctionVersion::MaxEncodedDistance)
+	{
+		if (FunctionSignature.Name == GetClosestPointMeshDistanceFieldName || FunctionSignature.Name == GetClosestPointMeshDistanceFieldAccurateName)
+		{
+			FunctionSignature.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Encoded Distance")));
 			bChanged = true;
 		}
 	}

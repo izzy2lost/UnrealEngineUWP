@@ -6,7 +6,7 @@ NiagaraDistanceFieldQueries.ush
 
 #pragma once
 
-bool SampleClosestPointMeshDistanceField(int DFIndex, const FDFVector3 LWCWorldPosition, float MaxDistance, out float3 OutClosestPosition, out float3 OutClosestNormal)
+float GetDistanceToMeshDistanceField(int DFIndex, const FDFVector3 LWCWorldPosition, const float MaxDistance)
 {
 	FDFObjectData DFObjectData = LoadDFObjectData(DFIndex);
 
@@ -28,31 +28,41 @@ bool SampleClosestPointMeshDistanceField(int DFIndex, const FDFVector3 LWCWorldP
 		FDFAssetData DFAssetData = LoadDFAssetData(DFObjectData.AssetIndex, NumMips - 1);
 
 		DistanceToOccluder = DistanceToMeshSurfaceStandalone(ClampedVolumePosition, DFObjectData) * DFObjectData.VolumeScale;
-
-		// Don't allow negative SDF distance to stick out of the bounding box
-		DistanceToOccluder = max(DistanceToOccluder, 0.0f);
-
-		float3 VolumeGradient = CalculateMeshSDFGradient(ClampedVolumePosition, DFAssetData);
-		float VolumeGradientLength = length(VolumeGradient);
-		float3 VolumeNormal = VolumeGradientLength > 0.0f ? VolumeGradient / VolumeGradientLength : 0;
-
-		// Transform by transposed inverse to handle non-uniform scaling
-		float4x4 WorldToVolume = DFHackToFloat(DFObjectData.WorldToVolume);
-		float3 WorldGradient = mul(VolumeNormal, transpose((float3x3)WorldToVolume));
-		float WorldGradientLength = length(WorldGradient);
-		const bool bNormalIsValid = WorldGradientLength > 0.0f;
-			
-		// output 			
-		if (bNormalIsValid)
-		{
-			OutClosestNormal = WorldGradient / WorldGradientLength;
-
-			const float3 WorldClampedPosition = DFDemote(DFMultiply(ClampedVolumePosition, DFObjectData.VolumeToWorld));
-			OutClosestPosition = WorldClampedPosition - OutClosestNormal * DistanceToOccluder;
-
-			return true;
-		}
 	}
 
-	return false;
+	return DistanceToOccluder;
+}
+
+void ComputeClosestPointMeshDistanceField(int DFIndex, const FDFVector3 LWCWorldPosition, const float GridSampledDistance, out float3 OutClosestPosition, out float3 OutClosestNormal, out float MaxEncodedDistance, out bool bNormalIsValid)
+{
+	FDFObjectData DFObjectData = LoadDFObjectData(DFIndex);
+	
+	const float3 VolumePosition = DFMultiplyDemote(LWCWorldPosition, DFObjectData.WorldToVolume);
+	const float3 ClampedVolumePosition = clamp(VolumePosition, -DFObjectData.VolumePositionExtent, DFObjectData.VolumePositionExtent);
+	
+	uint NumMips = LoadDFAssetData(DFObjectData.AssetIndex, 0).NumMips;
+	FDFAssetData DFAssetData = LoadDFAssetData(DFObjectData.AssetIndex, NumMips - 1);
+
+	MaxEncodedDistance = (DFAssetData.DistanceFieldToVolumeScaleBias.x + DFAssetData.DistanceFieldToVolumeScaleBias.y) * DFObjectData.VolumeScale;
+		
+	float3 VolumeGradient = CalculateMeshSDFGradient(ClampedVolumePosition, DFAssetData);
+	float VolumeGradientLength = length(VolumeGradient);
+	float3 VolumeNormal = VolumeGradientLength > 0.0f ? VolumeGradient / VolumeGradientLength : 0;
+
+	// Transform by transposed inverse to handle non-uniform scaling
+	float4x4 WorldToVolume = DFHackToFloat(DFObjectData.WorldToVolume);
+	float3 WorldGradient = mul(VolumeNormal, transpose((float3x3)WorldToVolume));
+	float WorldGradientLength = length(WorldGradient);
+
+	// @note: we should include checking if we are within the range of max encoded distance, but this breaks backwards compatibility
+	bNormalIsValid = WorldGradientLength > 0.0f && (MaxEncodedDistance - GridSampledDistance > 1e-8);
+			
+	// output 			
+	if (bNormalIsValid)
+	{
+		OutClosestNormal = WorldGradient / WorldGradientLength;
+
+		const float3 WorldClampedPosition = DFDemote(DFMultiply(ClampedVolumePosition, DFObjectData.VolumeToWorld));
+		OutClosestPosition = WorldClampedPosition - OutClosestNormal * GridSampledDistance;
+	}
 }
