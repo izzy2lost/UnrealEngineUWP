@@ -232,7 +232,7 @@ int GenerateNewGuid()
 }
 
 
-void UModularVehicleBaseComponent::CreateAssociatedSimComponents(UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut)
+void UModularVehicleBaseComponent::CreateAssociatedSimComponents(USceneComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut)
 {
 	using namespace Chaos;
 	if (AttachedComponent == nullptr || ClusterUnionComponent == nullptr)
@@ -246,14 +246,14 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(UPrimitiveCompo
 
 	ensure(TransformIndex < ChildParticles.Num());
 
-	if (const UVehicleSimBaseComponent* Component = Cast<UVehicleSimBaseComponent>(AttachedComponent))
+	if (IVehicleSimBaseComponentInterface* ComponentInterface = Cast<IVehicleSimBaseComponentInterface>(AttachedComponent))
 	{
 		FTransform ClusterUnionComponentTransform = ClusterUnionComponent->GetComponentTransform();
 		FTransform ComponentTransform = AttachedComponent->GetComponentTransform().GetRelativeTransform(ClusterUnionComponentTransform);
 
 		int TreeIndex = INDEX_NONE;
 
-		Chaos::ISimulationModuleBase* NewModule = Component->CreateNewCoreModule();
+		Chaos::ISimulationModuleBase* NewModule = ComponentInterface->CreateNewCoreModule();
 
 		TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
 
@@ -288,37 +288,37 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(UPrimitiveCompo
 		FTransform ClusterredTransform(FQuat::Identity, InitialTransform.GetLocation());
 		NewModule->SetClusteredTransform(ClusterredTransform);
 
-		if (Component->bAnimationEnabled && (Component->BoneName != NAME_None))
+		const bool bIsAnimationEnabled = ComponentInterface->GetAnimationEnabled();
+		const FName ComponentBoneName = ComponentInterface->GetBoneName();
+		if (bIsAnimationEnabled && (ComponentBoneName != NAME_None))
 		{
 			// if bone already exists then use that (seperate wheel and suspension modules can share same bone)
 
 			int FoundIndex = -1;
 			for (int I = 0; I < ModuleAnimationSetups.Num(); I++)
 			{
-				if (ModuleAnimationSetups[I].BoneName == Component->BoneName)
+				if (ModuleAnimationSetups[I].BoneName == ComponentBoneName)
 				{
 					FoundIndex = I;
 					break;
 				}
 			}
 
+			const FVector& ComponentAnimationOffset = ComponentInterface->GetAnimationOffset();
 			if (FoundIndex != -1)
 			{
-				NewModule->SetAnimationData(Component->BoneName, Component->AnimationOffset, FoundIndex);
+				NewModule->SetAnimationData(ComponentBoneName, ComponentAnimationOffset, FoundIndex);
 			}
 			else
 			{
-				NewModule->SetAnimationData(Component->BoneName, Component->AnimationOffset, ModuleAnimationSetups.Num());
+				NewModule->SetAnimationData(ComponentBoneName, ComponentAnimationOffset, ModuleAnimationSetups.Num());
 				FModuleAnimationSetup AnimSetup(NewModule->GetBoneName());
 				ModuleAnimationSetups.Add(AnimSetup);
 			}
 		}
 
 		// store the tree index in the original sim component
-		if (UVehicleSimBaseComponent* SimComponent = Cast<UVehicleSimBaseComponent>(AttachedComponent))
-		{
-			SimComponent->TreeIndex = TreeIndex;
-		}
+		ComponentInterface->SetTreeIndex(TreeIndex);
 		ParentIndex = TreeIndex;
 
 		if (Chaos::FClusterUnionPhysicsProxy* Proxy = ClusterUnionComponent->GetPhysicsProxy())
@@ -334,9 +334,9 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(UPrimitiveCompo
 	// recurse down tree, converting all SimComponents to proper simulation modules
 	for (USceneComponent* Child : Children)
 	{
-		if (UVehicleSimBaseComponent* ChildSimComponent = Cast<UVehicleSimBaseComponent>(Child))
+		if (IVehicleSimBaseComponentInterface* ChildSimComponent = Cast<IVehicleSimBaseComponentInterface>(Child))
 		{
-			CreateAssociatedSimComponents(ChildSimComponent, ParentIndex, TransformIndex, TreeUpdatesOut);
+			CreateAssociatedSimComponents(Child, ParentIndex, TransformIndex, TreeUpdatesOut);
 		}
 	}
 
@@ -789,18 +789,18 @@ void UModularVehicleBaseComponent::ActionTreeUpdates(Chaos::FSimTreeUpdates* Nex
 		});
 }
 
-int UModularVehicleBaseComponent::FindParentsLastSimComponent(const UPrimitiveComponent* AttachedComponent)
+int32 UModularVehicleBaseComponent::FindParentsLastSimComponent(const USceneComponent* AttachedComponent)
 {
 	if (USceneComponent* AttachParent = AttachedComponent->GetAttachParent())
 	{
 		TArray<USceneComponent*> Children;
 		AttachParent->GetChildrenComponents(false, Children);
 
-		for (int I = Children.Num()-1; I>=0; I--)
+		for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)
 		{
-			if (UVehicleSimBaseComponent* ChildSimComponent = Cast<UVehicleSimBaseComponent>(Children[I]))
+			if (IVehicleSimBaseComponentInterface* ChildSimComponent = Cast<IVehicleSimBaseComponentInterface>(Children[ChildIndex]))
 			{
-				return ChildSimComponent->TreeIndex;
+				return ChildSimComponent->GetTreeIndex();
 			}
 		}
 	}
@@ -867,12 +867,12 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 
 		for (USceneComponent* ComponentPart : Components)
 		{
-			if (UVehicleSimBaseComponent* ChangedComponent = Cast<UVehicleSimBaseComponent>(ComponentPart))
+			if (IVehicleSimBaseComponentInterface* ChangedComponent = Cast<IVehicleSimBaseComponentInterface>(ComponentPart))
 			{
-				if (FVehicleComponentData* ComponentData = ComponentToPhysicsObjects.Find(ChangedComponent))
+				if (FVehicleComponentData* ComponentData = ComponentToPhysicsObjects.Find(ComponentPart))
 				{
 					LatestTreeUpdates.RemoveNode(ComponentData->Guid);
-					ComponentToPhysicsObjects.Remove(ChangedComponent);
+					ComponentToPhysicsObjects.Remove(ComponentPart);
 				}
 			}
 		}
@@ -946,14 +946,14 @@ void UModularVehicleBaseComponent::AssimilateComponentInputs(TArray<FModuleInput
 
 			for (USceneComponent* Component : ChildComponents)
 			{
-				if (UVehicleSimBaseComponent* GCComponent = Cast<UVehicleSimBaseComponent>(Component))
+				if (IVehicleSimBaseComponentInterface* GCComponent = Cast<IVehicleSimBaseComponentInterface>(Component))
 				{
 					// don't add duplicates, i.e. 4 wheels could be looking for a single steering input
-					for (FModuleInputSetup& Config : GCComponent->InputConfig)
+					for (FModuleInputSetup& Config : GCComponent->GetInputConfig())
 					{
 						if (OutCombinedInputs.Find(Config) == INDEX_NONE)
 						{
-							OutCombinedInputs.Append(GCComponent->InputConfig);
+							OutCombinedInputs.Append(GCComponent->GetInputConfig());
 						}
 					}
 				}

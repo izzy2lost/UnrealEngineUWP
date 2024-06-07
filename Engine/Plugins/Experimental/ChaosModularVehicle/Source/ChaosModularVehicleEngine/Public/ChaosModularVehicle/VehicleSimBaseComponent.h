@@ -36,33 +36,85 @@ enum class ESimModuleType : uint8
 	Balloon			// TODO: rename anti gravity??
 };
 
-
-UCLASS(BlueprintType, Blueprintable)
-class CHAOSMODULARVEHICLEENGINE_API UVehicleSimBaseComponent : public UPrimitiveComponent
+/** Interface used for shared functionality between types of base components. */
+UINTERFACE(MinimalAPI, BlueprintType, meta = (CannotImplementInterfaceInBlueprint))
+class UVehicleSimBaseComponentInterface : public UInterface
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
+};
+
+class IVehicleSimBaseComponentInterface
+{
+	GENERATED_BODY()
+
 public:
 
 	virtual ESimModuleType GetModuleType() const { return ESimModuleType::Undefined; }
-
-	/**
-	 * Caller takes ownership of pointer to new Sim Module
-	 */
+	/** Caller takes ownership of pointer to new Sim Module. */
 	virtual Chaos::ISimulationModuleBase* CreateNewCoreModule() const { return nullptr; }
+	virtual FName GetBoneName() const { return NAME_None; }
+	virtual const FVector& GetAnimationOffset() const { return FVector::ZeroVector; }
+	virtual bool GetAnimationEnabled() const { return false; }
+	virtual TArray<FModuleInputSetup> GetInputConfig() const { return TArray<FModuleInputSetup>(); }
+	virtual int32 GetAnimationSetupIndex() const { return INDEX_NONE; }
+	virtual void SetTreeIndex(const int32 NewValue) {}
+	virtual int32 GetTreeIndex() const { return INDEX_NONE; }
+};
+
+/** This if for sim components that need scene component properties along with rendering and collision. */
+UCLASS(BlueprintType, Blueprintable)
+class CHAOSMODULARVEHICLEENGINE_API UVehicleSimBaseComponent 
+	: public UPrimitiveComponent
+	, public IVehicleSimBaseComponentInterface
+{
+	GENERATED_BODY()
+
+protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
-	FName BoneName;
+	FName BoneName = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
-	FVector AnimationOffset;
+	FVector AnimationOffset = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
-	bool bAnimationEnabled;
+	bool bAnimationEnabled = false;
 
 	UPROPERTY(EditAnywhere, Category = VehicleInput)
 	TArray<FModuleInputSetup> InputConfig;
 
-	int AnimationSetupIndex;
-	int TreeIndex; // helper - since Component->GetAttachChildren doesn't contain any data
+	int32 AnimationSetupIndex = INDEX_NONE;
+	int32 TreeIndex = INDEX_NONE; // helper - since Component->GetAttachChildren doesn't contain any data
+
+public:
+
+	/** IVehicleSimBaseComponentInterface overrides */
+	virtual FName GetBoneName() const override { return BoneName; }
+	virtual const FVector& GetAnimationOffset() const override { return AnimationOffset; }
+	virtual bool GetAnimationEnabled() const override { return bAnimationEnabled; }
+	virtual TArray<FModuleInputSetup> GetInputConfig() const override { return InputConfig; }
+	virtual int32 GetAnimationSetupIndex() const override { return AnimationSetupIndex; }
+	virtual void SetTreeIndex(const int32 NewValue) override;
+	virtual int32 GetTreeIndex() const override { return TreeIndex; }
+	/** END IVehicleSimBaseComponentInterface overrides */
 };
 
+/** This if for sim components that need transform and attachment, no rendering, no collision. */
+UCLASS(BlueprintType, Blueprintable)
+class CHAOSMODULARVEHICLEENGINE_API UVehicleSimBaseSceneComponent 
+	: public USceneComponent
+	, public IVehicleSimBaseComponentInterface
+{
+	GENERATED_BODY()
+
+protected:
+
+	UPROPERTY(EditAnywhere, Category = VehicleInput)
+	TArray<FModuleInputSetup> InputConfig;
+
+public:
+
+	/** IVehicleSimBaseComponentInterface overrides */
+	virtual TArray<FModuleInputSetup> GetInputConfig() const override { return InputConfig; }
+	/** END IVehicleSimBaseComponentInterface overrides */
+};

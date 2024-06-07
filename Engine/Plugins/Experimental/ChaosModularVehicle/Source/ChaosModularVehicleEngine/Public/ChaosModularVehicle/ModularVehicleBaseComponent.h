@@ -125,7 +125,7 @@ public:
 
 	void ProduceInput(int32 PhysicsStep, int32 NumSteps);
 
-	void CreateAssociatedSimComponents(UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
+	void CreateAssociatedSimComponents(USceneComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
 
 	void PreTickGT(float DeltaTime);
 	void UpdateState(float DeltaTime);
@@ -240,7 +240,7 @@ public:
 	int32 DelayClusteringCount;
 
 	/*** Map simulation component to our vehicle setup data */
-	TMap<TObjectKey<UPrimitiveComponent>, FVehicleComponentData> ComponentToPhysicsObjects;
+	TMap<TObjectKey<USceneComponent>, FVehicleComponentData> ComponentToPhysicsObjects;
 
 	UClusterUnionComponent* ClusterUnionComponent;
 
@@ -275,7 +275,7 @@ protected:
 	void ActionTreeUpdates(Chaos::FSimTreeUpdates* NextTreeUpdates);
 
 	void SetCurrentAsyncDataInternal(FModularVehicleAsyncInput* CurInput, int32 InputIdx, FChaosSimModuleManagerAsyncOutput* CurOutput, FChaosSimModuleManagerAsyncOutput* NextOutput, float Alpha, int32 VehicleManagerTimestamp);
-	int FindParentsLastSimComponent(const UPrimitiveComponent* AttachedComponent);
+	int32 FindParentsLastSimComponent(const USceneComponent* AttachedComponent);
 
 	IPhysicsProxyBase* GetPhysicsProxy() const;
 

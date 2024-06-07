@@ -2,14 +2,7 @@
 
 #include "ChaosModularVehicle/VehicleSimBaseComponent.h"
 
-
-UVehicleSimBaseComponent::UVehicleSimBaseComponent(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+void UVehicleSimBaseComponent::SetTreeIndex(const int32 NewValue)
 {
-	BoneName = NAME_None;
-	AnimationOffset = FVector::ZeroVector;
-	bAnimationEnabled = false;
-	AnimationSetupIndex = -1;
-	TreeIndex = -1;
+	TreeIndex = NewValue;
 }
-
