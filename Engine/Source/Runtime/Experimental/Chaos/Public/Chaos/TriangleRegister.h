@@ -6,6 +6,7 @@
 
 #include "Chaos/Core.h"
 #include "Math/VectorRegister.h"
+#include "Chaos/AABB.h"
 
 namespace Chaos
 {
