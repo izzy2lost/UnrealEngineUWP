@@ -765,6 +765,8 @@ namespace Horde.Server.Artifacts
 
 			payloadData.CopyTo(data);
 			Debug.Assert(data.Length == payloadData.Length);
+
+			writer.Advance(length);
 		}
 
 		/// <summary>
