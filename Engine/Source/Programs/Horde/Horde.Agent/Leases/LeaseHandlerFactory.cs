@@ -38,6 +38,6 @@ namespace Horde.Agent.Leases
 		/// Creates a new lease handler for the given lease definition
 		/// </summary>
 		/// <param name="lease">The lease to create a handler for</param>
-		public override abstract LeaseHandler<T> CreateHandler(RpcLease lease);
+		public abstract override LeaseHandler<T> CreateHandler(RpcLease lease);
 	}
 }
