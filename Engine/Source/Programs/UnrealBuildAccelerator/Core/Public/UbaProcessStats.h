@@ -40,6 +40,9 @@ namespace uba
 		UBA_PROCESS_STAT(writeFiles, 19) \
 		UBA_PROCESS_STAT(queryCache, 24) \
 		UBA_PROCESS_STAT(waitDecompress, 30) \
+		UBA_PROCESS_STAT(preparseObjFiles, 30) \
+		UBA_PROCESS_STAT(fileTable, 30) \
+		UBA_PROCESS_STAT(dirTable, 30) \
 
 
 		#define UBA_PROCESS_STAT(T, ver) Timer T;
@@ -119,6 +122,7 @@ namespace uba
 			UBA_KERNEL_STAT(ExtendedTimer, getFileTime, 0) \
 			UBA_KERNEL_STAT(ExtendedTimer, closeHandle, 0) \
 			UBA_KERNEL_STAT(ExtendedTimer, traverseDir, 27) \
+			UBA_KERNEL_STAT(ExtendedTimer, virtualAlloc, 30) \
 
 		#define UBA_KERNEL_STAT(type, var, ver) type var;
 		UBA_KERNEL_STATS

@@ -878,9 +878,12 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	{
 		TimerScope ts(g_kernelStats.mapViewOfFile);
 		mappedFileTableMem = (u8*)True_MapViewOfFile(mappedFileTableHandle, FILE_MAP_READ, 0, 0, 0);
+		UBA_ASSERT(mappedFileTableMem);
 	}
-	UBA_ASSERT(mappedFileTableMem);
-	g_mappedFileTable.Init(mappedFileTableMem, mappedFileTableCount, mappedFileTableSize);
+	{
+		TimerScope ts2(g_stats.fileTable);
+		g_mappedFileTable.Init(mappedFileTableMem, mappedFileTableCount, mappedFileTableSize);
+	}
 
 	if (!True_DuplicateHandle(g_hostProcess, directoryTableHandle, GetCurrentProcess(), &directoryTableHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
 		UBA_ASSERTF(false, L"Failed to duplicate directorytable handle (%u)", GetLastError());
@@ -889,17 +892,23 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	{
 		TimerScope ts(g_kernelStats.mapViewOfFile);
 		directoryTableMem = (u8*)True_MapViewOfFile(directoryTableHandle, FILE_MAP_READ, 0, 0, 0);
+		UBA_ASSERT(directoryTableMem);
 	}
-	UBA_ASSERT(directoryTableMem);
-	g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
-
-	if (payload.storeObjFilesCompressed && g_rules->ShouldDecompressFiles(StringView()))
-		g_objFilesPreloader.Start(cmdLine);
-	else if (g_rulesIndex == 1 || g_rulesIndex == 7 || g_rulesIndex == 11 || g_rulesIndex == 14)
-		PrepopulatePchIncludedFiles(cmdLine, g_rulesIndex);
+	{
+		TimerScope ts2(g_stats.dirTable);
+		g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
+	}
 
 	g_stats.attach.time += GetTime() - startTime;
 	g_stats.attach.count = 1;
+
+	if (payload.storeObjFilesCompressed && g_rules->ShouldDecompressFiles(StringView()))
+	{
+		TimerScope ts(g_stats.preparseObjFiles);
+		g_objFilesPreloader.Start(cmdLine);
+	}
+	else if (g_rulesIndex == 1 || g_rulesIndex == 7 || g_rulesIndex == 11 || g_rulesIndex == 14)
+		PrepopulatePchIncludedFiles(cmdLine, g_rulesIndex);
 }
 
 void Deinit(u64 startTime)
