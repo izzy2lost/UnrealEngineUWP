@@ -59,6 +59,28 @@ public:
 		FGeometryScriptMeshSelection& Selection,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles );
 
+	/**
+	 * Create a Selection of the SelectionType that contains all mesh elements referencing triangles with the given Material ID
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshElementsByMaterialID(
+		UDynamicMesh* TargetMesh,
+		int MaterialID,
+		FGeometryScriptMeshSelection& Selection,
+		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles );
+
+	/**
+	 * Create a Selection of the SelectionType that contains all mesh elements referencing triangles with the given PolyGroup ID in the given GroupLayer
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshElementsByPolygroup(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptGroupLayer GroupLayer,
+		UPARAM(DisplayName = "PolyGroup ID") int PolygroupID,
+		FGeometryScriptMeshSelection& Selection,
+		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles );
 
 	/**
 	 * Convert a Mesh Selection to a different Type (eg Vertices to Triangles, etc)
