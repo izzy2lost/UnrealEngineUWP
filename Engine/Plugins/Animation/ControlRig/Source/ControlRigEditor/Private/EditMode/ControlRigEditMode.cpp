@@ -4863,7 +4863,10 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 						ControlRig->Evaluate_AnyThread();
 					}
 				}
-				ShapeActor->SetGlobalTransform(CurrentTransform);
+				
+				// Don't set the global transform to the shape actor to avoid drifting
+				//ShapeActor->SetGlobalTransform(CurrentTransform);
+
 				if (bCalcLocal)
 				{
 					FTransform NewLocal = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
