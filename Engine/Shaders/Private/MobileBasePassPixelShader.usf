@@ -782,11 +782,14 @@ void Main(
 		half3 FoggedColor = lerp(float3(1, 1, 1), DualBlendSurfaceTransmittancePreCoverage, Fogging.aaa* DualBlendSurfaceCoverage);
 		OutColor = half4(FoggedColor, 1.0f);
 	#elif SUBSTRATE_BLENDING_ALPHAHOLDOUT
-		float AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, float3(1.0f, 1.0f, 1.0f) / 3.0f));
+		half AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, half3(1.0f, 1.0f, 1.0f) / 3.0f));
 		OutColor = half4(0.0f.xxx, AdjustedAlpha);
+	#elif MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE && MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_DUAL_SRC_BLENDING
+		OutColor = half4(AdjustedDualBlendAdd, 0.0);
+		OutColor1 = half4(AdjustedDualBlendMul, 1.0);
 	#else
 		// Pre multipled alpha blending
-		float AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, float3(1.0f, 1.0f, 1.0f) / 3.0f));
+		half AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, half3(1.0f, 1.0f, 1.0f) / 3.0f));
 		#if SUBSTRATE_USES_CONVERSION_FROM_LEGACY && MATERIALBLENDING_ADDITIVE
 			AdjustedAlpha = 0.0f;
 		#endif

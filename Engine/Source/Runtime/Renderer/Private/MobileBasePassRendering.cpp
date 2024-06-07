@@ -169,6 +169,11 @@ IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy
 IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP>, FMobileMovableDirectionalLightCSMWithLightmapPolicy);
 IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_DIRECTIONAL_LIGHT_CSM>, FMobileDirectionalLightAndCSMPolicy);
 
+bool MaterialRequiresColorTransmittanceBlending(const FMaterial& MaterialResource)
+{
+	return MaterialResource.GetShadingModels().HasShadingModel(MSM_ThinTranslucent) || MaterialResource.GetBlendMode() == BLEND_TranslucentColoredTransmittance;
+}
+
 bool MaterialRequiresColorTransmittanceBlending(const FMaterialShaderParameters& MaterialParameters)
 {
 	return MaterialParameters.ShadingModels.HasShadingModel(MSM_ThinTranslucent) || MaterialParameters.BlendMode == BLEND_TranslucentColoredTransmittance;
