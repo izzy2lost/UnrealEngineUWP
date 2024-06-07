@@ -2127,7 +2127,14 @@ bool UWorldPartitionRuntimeSpatialHash::UnregisterWorldAssetStreaming(const FGui
 			TrashObject(InStreamingObject);
 		};
 
-		TrashExternalStreamingData(*StreamingObject);
+		if (IsValid(*StreamingObject))
+		{
+			if (IsValid(GetOuterUWorldPartition()))
+			{
+				GetOuterUWorldPartition()->RemoveExternalStreamingObject(*StreamingObject);
+			}
+			TrashExternalStreamingData(*StreamingObject);
+		}
 		WorldAssetStreamingObjects.Remove(InWorldAssetStreamingGuid);
 		return true;
 	}
