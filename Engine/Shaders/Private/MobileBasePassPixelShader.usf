@@ -22,6 +22,10 @@
 #define MOBILE_QL_FORCE_DISABLE_PREINTEGRATEDGF 0
 #endif
 
+#if SUBSTRATE_ENABLED && MERGED_LOCAL_LIGHTS_MOBILE == 2
+#define ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION 1
+#endif
+
 #define UseBasePassSkylightDiffuse  (1)
 #define UseBasePassSkylightSpecular (MobileBasePass.ReflectionsParameters.SkyLightParameters.y)
 
