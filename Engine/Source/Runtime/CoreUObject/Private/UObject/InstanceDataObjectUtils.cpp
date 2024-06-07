@@ -132,6 +132,7 @@ namespace UE
 	static const FName NAME_VerseClass(ANSITEXTVIEW("VerseClass"));
 	static const FName NAME_IDOMapKey(ANSITEXTVIEW("Key"));
 	static const FName NAME_IDOMapValue(ANSITEXTVIEW("Value"));
+	bool GMarkPropertiesSetBySerialization = true;
 
 	bool bEnableIDOSupport = false;
 	FAutoConsoleVariableRef EnableIDOSupportCVar(
@@ -139,6 +140,20 @@ namespace UE
 		bEnableIDOSupport,
 		TEXT("Allows property bags and IDOs to be created for supported classes.")
 	);
+
+	FString ExcludedLoosePropertyTypesVar = TEXT("VerseFunctionProperty");
+	FAutoConsoleVariableRef ExcludedLoosePropertyTypesCVar(
+		TEXT("IDO.ExcludedLoosePropertyTypes"),
+		ExcludedLoosePropertyTypesVar,
+		TEXT("Comma separated list of property types that will be excluded from loose properties in IDOs.")
+	);
+
+	static TSet<FString> GetExcludedLoosePropertyTypes()
+	{
+		TArray<FString> Result;
+		ExcludedLoosePropertyTypesVar.ParseIntoArray(Result, TEXT(","));
+		return TSet<FString>(Result);
+	}
 
 	bool IsInstanceDataObjectSupportEnabled(const UObject* InObject)
 	{
@@ -389,6 +404,8 @@ namespace UE
 		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, InstanceDataObjectName));
 		Result->SetSuperStruct(Super);
 
+		TSet<FString> ExcludedLoosePropertyTypes = GetExcludedLoosePropertyTypes();
+
 		// Gather "loose" properties for child Struct
 		TArray<FProperty*> LooseInstanceDataObjectProperties;
 		if (PropertyTree)
@@ -411,6 +428,11 @@ namespace UE
 					FField* Field = FField::TryConstruct(Type.GetName(), Result, Name, RF_NoFlags);
 					if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(Type, It.GetNode().GetTag()))
 					{
+						if (ExcludedLoosePropertyTypes.Contains(Property->GetClass()->GetName()))
+						{
+							// skip loose types that have been explicitly excluded from IDOs
+							continue;
+						}
 						MarkPropertyAsLoose(Property);
 						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetNode().GetSubTree());
 						LooseInstanceDataObjectProperties.Add(Property);
@@ -533,6 +555,10 @@ namespace UE
 
 	void MarkPropertySetBySerialization(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
+		if (!GMarkPropertiesSetBySerialization)
+		{
+			return;
+		}
 		if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
@@ -640,6 +666,13 @@ namespace UE
 				}
 				return nullptr;
 			};
+
+			// clear existing set-flags first
+			if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(NewAsStruct))
+			{
+				ValuesSetBySerializationProperty->InitializeValue_InContainer(NewDataPtr);
+			}
+			
 			for (const FProperty* OldSubProperty : TFieldRange<FProperty>(OldAsStruct))
 			{
 				if (const FProperty* NewSubProperty = FindMatchingProperty(NewAsStruct, OldSubProperty))

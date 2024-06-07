@@ -40,13 +40,15 @@ FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& 
 
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FPropertyInfo& InInfo, const TWeakPtr<FRedirectedPropertyNode>& InParent)
 	: PropertyName(InInfo.Property->GetFName())
-	, Type(InInfo.Property->GetID())
 	, ArrayIndex(InInfo.ArrayIndex)
 	, Parent(InParent)
 {
+	UE::FPropertyTypeNameBuilder TypeBuilder;
+	InInfo.Property->SaveTypeName(TypeBuilder);
+	Type = TypeBuilder.Build();
 }
 
-FRedirectedPropertyNode::FRedirectedPropertyNode(FName InPropertyName, FName InType, int32 InArrayIndex, const TWeakPtr<FRedirectedPropertyNode>& InParent)
+FRedirectedPropertyNode::FRedirectedPropertyNode(FName InPropertyName, const UE::FPropertyTypeName& InType, int32 InArrayIndex, const TWeakPtr<FRedirectedPropertyNode>& InParent)
 	: PropertyName(InPropertyName)
 	, Type(InType)
 	, ArrayIndex(InArrayIndex)
@@ -78,7 +80,7 @@ TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::FindOrAdd(const FPr
 	return Child;
 }
 
-TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::FindOrAdd(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex)
+TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::FindOrAdd(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex)
 {
 	TSharedPtr<FRedirectedPropertyNode> Child = Find(ChildPropertyName, ChildType, ChildArrayIndex);
 	if (!Child)
@@ -118,7 +120,7 @@ bool FRedirectedPropertyNode::Remove(const FPropertyInfo& ChildInfo)
 	return false;
 }
 
-bool FRedirectedPropertyNode::Remove(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex)
+bool FRedirectedPropertyNode::Remove(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex)
 {
 	const int32 Index = FindIndex(ChildPropertyName, ChildType, ChildArrayIndex);
 	if (Index != INDEX_NONE)
@@ -155,7 +157,7 @@ TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::Find(const FPropert
 	return {};
 }
 
-TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::Find(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex) const
+TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::Find(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex) const
 {
 	const int32 Index = FindIndex(ChildPropertyName, ChildType, ChildArrayIndex);
 	if (Index != INDEX_NONE)
@@ -194,10 +196,12 @@ bool FRedirectedPropertyNode::Move(const FPropertyPath& FromPath, const FPropert
 
 int32 FRedirectedPropertyNode::FindIndex(const FPropertyInfo& ChildInfo) const
 {
-	return FindIndex(ChildInfo.Property->GetFName(), ChildInfo.Property->GetID(), ChildInfo.ArrayIndex);
+	UE::FPropertyTypeNameBuilder ChildTypeBuilder;
+	ChildInfo.Property->SaveTypeName(ChildTypeBuilder);
+	return FindIndex(ChildInfo.Property->GetFName(), ChildTypeBuilder.Build(), ChildInfo.ArrayIndex);
 }
 
-int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex) const
+int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex) const
 {
 	return Children.IndexOfByPredicate([ChildPropertyName, ChildType, ChildArrayIndex](const TSharedPtr<FRedirectedPropertyNode>& Child)
 	{
@@ -423,28 +427,14 @@ bool FInstanceDataObjectFixupPanel::ShouldSplitterIgnoreRow(const TWeakPtr<FDeta
 
 bool FInstanceDataObjectFixupPanel::AreAllConflictsRedirected() const
 {
-	bool bFoundConflict = false;
-	if (const TSharedPtr<FAsyncDetailViewDiff> Diff = DiffAgainstRight.Pin())
+	for (UObject* Instance : Instances)
 	{
-		Diff->ForEach(ETreeTraverseOrder::PreOrder,
-		[this, &bFoundConflict](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode)->ETreeTraverseControl
+		if (ObjectHasLoosePropertiesThatNeedFixup(Instance))
 		{
-			const TSharedPtr<FDetailTreeNode> TreeNode = DiffNode->ValueA.Pin();
-			if (DiffNode->DiffResult == ETreeDiffResult::MissingFromTree2 && TreeNode)
-			{
-				if (const TSharedPtr<IPropertyHandle> Handle = TreeNode->CreatePropertyHandle())
-				{
-					if (!Handle->IsCategoryHandle() && !MarkedForDelete.Contains(*Handle->CreateFPropertyPath()))
-					{
-						bFoundConflict = true;
-						return ETreeTraverseControl::Break;
-					}
-				}
-			}
-			return ETreeTraverseControl::Continue;
-		});
+			return false;
+		}
 	}
-	return !bFoundConflict;
+	return true;
 }
 
 void FInstanceDataObjectFixupPanel::AutoApplyMarkDeletedActions()
@@ -758,15 +748,31 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 	
 	if (To != From)
 	{
+		auto OnHidden = [](FProperty* Property)
+		{
+			if (Property->HasMetaData(NAME_IsLooseMetadata))
+			{
+				Property->PropertyFlags |= CPF_Transient;
+				Property->SetMetaData(TEXT("Hidden"), TEXT("True"));
+				Property->SetMetaData(TEXT("Redirected"), TEXT("True"));
+			}
+		};
 		if (To.IsValid())
 		{
 			RedirectedPropertyTree->Move(From, To);
+			for (FPropertyPath Path = From; Path.IsValid(); Path = Path.TrimPath(1).Get())
+			{
+				// because RedirectedPropertyTree->Move could've removed multiple properties in the path, we need to check each of them
+				if (!MarkedForDelete.Find(Path) && RedirectedPropertyTree->Find(Path))
+				{
+					break;
+				}
+				OnHidden(Path.GetLeafMostProperty().Property.Get());
+			}
 		}
-		if (SourceProperty->HasMetaData(NAME_IsLooseMetadata))
+		else
 		{
-			SourceProperty->PropertyFlags |= CPF_Transient;
-			SourceProperty->SetMetaData(TEXT("Hidden"), TEXT("True"));
-			SourceProperty->SetMetaData(TEXT("Redirected"), TEXT("True"));
+			OnHidden(SourceProperty);
 		}
 	}
 

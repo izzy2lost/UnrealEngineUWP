@@ -790,6 +790,8 @@ void FPropertyBagRepository::CopyTaggedProperties(const UObject* Source, UObject
 {
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	TGuardValue<bool> ImpersonatePropertiesScope(SerializeContext->bImpersonateProperties, true);
+	// don't mark properties as set by serialization when performing copy
+	TGuardValue<bool> MarkPropertiesSetBySerializationScope(UE::GMarkPropertiesSetBySerialization, false);
 
 	TArray<uint8> Buffer;
 	Buffer.Reserve(Source->GetClass()->GetStructureSize());

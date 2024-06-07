@@ -65,17 +65,11 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpTool(TypedElementDat
 		if (bRecurseIntoObject)
 		{
 			UObject* Owner = ObjectColumn->Object.Get();
-			TArray<TObjectPtr<UObject>> InstanceDataObjects;
 			UE::FPropertyBagRepository::Get().FindNestedInstanceDataObject(Owner, true,
-				[&InstanceDataObjects](UObject* NestedObject)
+				[Owner](UObject* NestedObject)
 				{
-					InstanceDataObjects.Emplace(NestedObject);
+					FInstanceDataObjectFixupToolModule::Get().CreateInstanceDataObjectFixupDialog({NestedObject}, Owner);
 				});
-
-			if (!InstanceDataObjects.IsEmpty())
-			{
-				FInstanceDataObjectFixupToolModule::Get().CreateInstanceDataObjectFixupDialog(InstanceDataObjects, Owner);
-			}
 		}
 		else
 		{

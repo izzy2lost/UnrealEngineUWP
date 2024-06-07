@@ -30,6 +30,7 @@ bool StructContainsLooseProperties(const UStruct* Struct);
 /** Generate a UClass that contains the union of the properties of PropertyTree and OwnerClass. */
 UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer);
 
+extern bool GMarkPropertiesSetBySerialization;
 /** Notify that a property in an struct was set when the struct was deserialized. */
 void MarkPropertySetBySerialization(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 /** Query whether a property in the struct was set when the struct was deserialized. */
