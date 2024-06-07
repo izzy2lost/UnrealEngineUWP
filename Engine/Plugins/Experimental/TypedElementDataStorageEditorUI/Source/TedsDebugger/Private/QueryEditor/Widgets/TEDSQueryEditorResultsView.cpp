@@ -129,6 +129,7 @@ void SResultsView::Tick(const FGeometry& AllottedGeometry, const double InCurren
 			}
 			return TypedElementDataStorage::FQueryDescription();
 		});
+		Params.HierarchyData = TOptional<FTypedElementOutlinerHierarchyData>(); // We don't want to show hierarchies
 		
 		TypedElementDataStorage::FQueryDescription ColumnQueryDescription = Model->GenerateQueryDescription();
 		if (ColumnQueryHandle != TypedElementDataStorage::InvalidQueryHandle)

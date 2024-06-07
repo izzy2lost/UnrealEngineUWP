@@ -12,11 +12,7 @@ class SDockTab;
 class SWidget;
 class FSpawnTabArgs;
 class ISceneOutliner;
-
-namespace UE::Teds::Debug::QueryEditor
-{
-	class FTedsQueryEditorModel;
-}
+class STedsDebugger;
 
 /**
  * Implements the Scene Outliner module.
@@ -26,29 +22,21 @@ class FTedsDebuggerModule
 {
 public:
 
-	FTedsDebuggerModule();
+	FTedsDebuggerModule() = default;
 
 	// IModuleInterface interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
-	// Open the TEDS Debugger if not already open, and navigate to the given row. Optionally disabling all filters if the given row doesn't pass them
-	void NavigateToRow(TypedElementDataStorage::RowHandle InRow);
+	// Open the TEDS Debugger if not already open, and navigate to the given row in the table viewer tab
+	void NavigateToRow(TypedElementDataStorage::RowHandle InRow) const;
 
 private:
 	void RegisterTabSpawners();
-	void UnregisterTabSpawners();
+	void UnregisterTabSpawners() const;
+	
 	TSharedRef<SDockTab> OpenTedsDebuggerTab(const FSpawnTabArgs& SpawnTabArgs);
-	TSharedRef<SWidget> CreateTedsDebugger();
-
-	TSharedRef<SDockTab> OpenQueryEditorTab(const FSpawnTabArgs& SpawnTabArgs);
 
 private:
-	FDelegateHandle LevelEditorTabManagerChangedHandle;
-	FName TedsDebuggerTabName;
-	TypedElementDataStorage::QueryHandle InitialColumnQuery;
-	TWeakPtr<ISceneOutliner> TedsDebuggerInstance;
-
-	TUniquePtr<UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel> QueryEditorModel;
-
+	TWeakPtr<STedsDebugger> TedsDebuggerInstance;
 };
