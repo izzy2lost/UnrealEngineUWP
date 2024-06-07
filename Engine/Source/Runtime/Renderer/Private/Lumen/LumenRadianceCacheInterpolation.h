@@ -21,6 +21,7 @@ namespace LumenRadianceCache
 		SHADER_PARAMETER(float, ClipmapWorldExtent)
 		SHADER_PARAMETER(float, ClipmapDistributionBase)
 		SHADER_PARAMETER(float, InvClipmapFadeSize)
+		SHADER_PARAMETER(float, ProbeTMinScale)
 		SHADER_PARAMETER(FIntPoint, ProbeAtlasResolutionInProbes)
 		SHADER_PARAMETER(uint32, RadianceProbeClipmapResolution)
 		SHADER_PARAMETER(uint32, NumRadianceProbeClipmaps)

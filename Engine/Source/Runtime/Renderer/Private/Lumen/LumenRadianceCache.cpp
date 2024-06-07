@@ -117,6 +117,7 @@ namespace LumenRadianceCache
 	{
 		FRadianceCacheInputs RadianceCacheInputs;
 		RadianceCacheInputs.CalculateIrradiance = 0;
+		RadianceCacheInputs.ProbeTMinScale = 1.0f;
 		RadianceCacheInputs.IrradianceProbeResolution = 0;
 		RadianceCacheInputs.InvClipmapFadeSize = 1.0f;
 		return RadianceCacheInputs;
@@ -1091,7 +1092,7 @@ bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 		Clipmap.WorldPositionToProbeCoordScale = 1.0f / CellSize;
 		Clipmap.WorldPositionToProbeCoordBias = -ClipmapMin / CellSize;
 		
-		Clipmap.ProbeTMin = RadianceCacheInputs.CalculateIrradiance ? 0.0f : FVector(CellSize, CellSize, CellSize).Size();
+		Clipmap.ProbeTMin = RadianceCacheInputs.CalculateIrradiance ? 0.0f : FVector(CellSize, CellSize, CellSize).Size() * RadianceCacheInputs.ProbeTMinScale;
 	}
 
 	return bResetState;
