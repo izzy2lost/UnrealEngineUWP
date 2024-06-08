@@ -650,10 +650,17 @@ bool UDMMaterialLayerObject::CanMoveLayerBelow(UDMMaterialLayerObject* InLayer) 
 		return false;
 	}
 
+	const UDMMaterialSlot* const ThisSlot = GetSlot();
+
+	if (!IsValid(ThisSlot))
+	{
+		return false;
+	}
+
 	const int32 ThisIndex = FindIndex();
 
-	// Already top level - or invalid.
-	if (ThisIndex == 0 || ThisIndex == INDEX_NONE)
+	// Already bottom level - or invalid.
+	if (ThisIndex == (ThisSlot->GetLayers().Num() - 1) || ThisIndex == INDEX_NONE)
 	{
 		return false;
 	}
@@ -661,13 +668,6 @@ bool UDMMaterialLayerObject::CanMoveLayerBelow(UDMMaterialLayerObject* InLayer) 
 	const int32 DraggedLayerIndex = InLayer->FindIndex();
 
 	if (DraggedLayerIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
-	const UDMMaterialSlot* const ThisSlot = GetSlot();
-
-	if (!IsValid(ThisSlot))
 	{
 		return false;
 	}
