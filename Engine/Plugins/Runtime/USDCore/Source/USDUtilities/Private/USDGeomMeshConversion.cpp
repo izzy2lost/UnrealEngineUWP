@@ -3841,8 +3841,10 @@ bool UnrealToUsd::ConvertStaticMesh(
 	// here, so would our referencer and we wouldn't be able to put a transform on it
 	UsdPrim = Stage->DefinePrim(UsdPrim.GetPath(), UnrealToUsd::ConvertToken(bExportMultipleLODs ? TEXT("Xform") : TEXT("Mesh")).Get());
 
+#if WITH_EDITOR
 	const bool bExportNaniteDataAsSourceData = GExportNaniteSourceMeshData && StaticMesh->IsNaniteEnabled()
 											   && StaticMesh->IsHiResMeshDescriptionValid();
+#endif
 
 	bool bExported = false;
 	for (int32 LODIndex = LowestMeshLOD; LODIndex <= HighestMeshLOD; ++LODIndex)
