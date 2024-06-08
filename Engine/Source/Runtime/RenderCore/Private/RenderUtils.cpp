@@ -1322,8 +1322,15 @@ bool NaniteSkinnedMeshesSupported()
 bool UseNaniteTessellation()
 {
 	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
+	static const auto ProgrammableVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ProgrammableRaster"));
+	static const auto ComputeRasterVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ComputeRasterization"));
+
 	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnAnyThread() != 0);
-	return bTessellation;
+	const bool bProgrammable = (ProgrammableVar && ProgrammableVar->GetValueOnAnyThread() != 0);
+	const bool bComputeRaster = (ComputeRasterVar && ComputeRasterVar->GetValueOnAnyThread() != 0);
+
+	// Tessellation requires programmable and compute raster
+	return bTessellation && ProgrammableVar && bComputeRaster;
 }
 
 bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport, bool bCheckForProjectSetting)

@@ -1450,14 +1450,14 @@ static uint32 PackMaterialBitFlags(
 	bool bMaterialUsesDisplacement)
 {
 	FNaniteMaterialFlags Flags = {0};
-	Flags.bPixelDiscard = RasterPipeline.bPerPixelEval && RasterMaterial.IsMasked();
-	Flags.bPixelDepthOffset = RasterPipeline.bPerPixelEval && bMaterialUsesPixelDepthOffset;
-	Flags.bWorldPositionOffset = RasterPipeline.bWPOEnabled && bMaterialUsesWorldPositionOffset;
-	Flags.bDisplacement = UseNaniteTessellation() && RasterPipeline.bDisplacementEnabled && bMaterialUsesDisplacement;
-	Flags.bSplineMesh = RasterPipeline.bSplineMesh;
-	Flags.bSkinnedMesh = RasterPipeline.bSkinnedMesh;
-	Flags.bTwoSided = RasterMaterial.IsTwoSided();
-	Flags.bCastShadow = RasterPipeline.bCastShadow;
+	Flags.bPixelDiscard			= RasterPipeline.bPerPixelEval && RasterMaterial.IsMasked();
+	Flags.bPixelDepthOffset		= RasterPipeline.bPerPixelEval && bMaterialUsesPixelDepthOffset;
+	Flags.bWorldPositionOffset	= RasterPipeline.bWPOEnabled && bMaterialUsesWorldPositionOffset;
+	Flags.bDisplacement			= UseNaniteTessellation() && RasterPipeline.bDisplacementEnabled && bMaterialUsesDisplacement;
+	Flags.bSplineMesh			= RasterPipeline.bSplineMesh;
+	Flags.bSkinnedMesh			= RasterPipeline.bSkinnedMesh;
+	Flags.bTwoSided				= RasterPipeline.bIsTwoSided;
+	Flags.bCastShadow			= RasterPipeline.bCastShadow;
 	return PackNaniteMaterialBitFlags(Flags);
 }
 
@@ -4680,6 +4680,8 @@ void FRenderer::PrepareRasterizerPasses(
 		const FNaniteRasterBinIndexTranslator BinIndexTranslator = RasterPipelines.GetBinIndexTranslator();
 		const FNaniteVisibilityResults* VisibilityResults = Nanite::GetVisibilityResults(VisibilityQuery);
 
+		const bool bDisableProgrammable = (RenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0u;
+
 		Context.Reserve(RasterPipelines.GetBinCount());
 
 		int32 RasterBinIndex = 0;
@@ -4703,12 +4705,6 @@ void FRenderer::PrepareRasterizerPasses(
 					continue;
 				}
 
-				if ((RasterEntry.BinIndex & NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW) != 0 && !bIsShadowPass)
-				{
-					// Raster binning for non shadow views will remap all fixed function bins into non shadow casting
-					continue;
-				}
-
 				if ((RasterEntry.BinIndex & NANITE_FIXED_FUNCTION_BIN_SPLINE) != 0 && !NaniteSplineMeshesSupported())
 				{
 					continue;
@@ -4729,11 +4725,6 @@ void FRenderer::PrepareRasterizerPasses(
 			// Fixed function bins are always visible
 			if (!bFixedFunctionBin)
 			{
-				if ((RenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0u)
-				{
-					continue;
-				}
-
 				if (bCustomPass && !RasterPipelines.ShouldBinRenderInCustomPass(RasterEntry.BinIndex))
 				{
 					// Predicting that this bin will be empty if we rasterize it in the Custom Pass (i.e. Custom)
@@ -4787,6 +4778,21 @@ void FRenderer::PrepareRasterizerPasses(
 				RasterizerPass.PixelMaterialProxy   == Context.HiddenMaterialProxy &&
 				RasterizerPass.ComputeMaterialProxy == Context.HiddenMaterialProxy)
 			{
+				RasterizerPass.bHidden = true;
+			}
+			else if (bFixedFunctionBin)
+			{
+				const bool bCastShadowBin = (RasterizerPass.RasterBin & NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW) != 0;
+				if (bCastShadowBin != bIsShadowPass)
+				{
+					// Raster binning for non shadow views will remap all fixed function bins into non shadow casting
+					RasterizerPass.bHidden = true;
+				}
+			}
+			else if (bDisableProgrammable)
+			{
+				// If programmable is disabled, hide all programmable bins
+				// Raster binning will remap from these bins to appropriate fixed function bins.
 				RasterizerPass.bHidden = true;
 			}
 

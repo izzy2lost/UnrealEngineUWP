@@ -748,7 +748,7 @@ private:
 		uint8 BinMask;
 	};
 
-	TArray<FFixedFunctionBin, TInlineAllocator<4u>> FixedFunctionBins;
+	TArray<FFixedFunctionBin, TInlineAllocator<6u>> FixedFunctionBins;
 };
 
 struct FNaniteShadingBin
