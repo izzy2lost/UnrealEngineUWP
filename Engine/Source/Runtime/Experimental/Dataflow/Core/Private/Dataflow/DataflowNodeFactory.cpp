@@ -4,6 +4,7 @@
 
 #include "Dataflow/DataflowNode.h"
 #include "Dataflow/DataflowCoreNodes.h"
+#include "Dataflow/DataflowMathNodes.h"
 #include "Misc/MessageDialog.h"
 #include "Logging/LogMacros.h"
 
@@ -16,6 +17,7 @@ namespace Dataflow
 	void FNodeFactory::RegisterDefaultNodes()
 	{
 		Dataflow::RegisterCoreNodes();
+		Dataflow::RegisterDataflowMathNodes();
 	}
 
 	TSharedPtr<FDataflowNode> FNodeFactory::NewNodeFromRegisteredType(FGraph& Graph, const FNewNodeParameters& Param)
@@ -52,7 +54,7 @@ namespace Dataflow
 
 		FFactoryParameters NewParameters(Parameters.TypeName, FName(*NewDisplayNameString), Parameters.Category, Parameters.Tags, Parameters.ToolTip, Parameters.bIsDeprecated, Parameters.bIsExperimental, Parameters.NodeVersion);
 
-		if (ClassMap.Contains(NewParameters.TypeName) || DisplayMap.Contains(NewParameters.DisplayName))
+		if (ClassMap.Contains(NewParameters.TypeName))
 		{
 			if (ParametersMap[NewParameters.TypeName].DisplayName.IsEqual(NewParameters.DisplayName))
 			{
@@ -85,7 +87,6 @@ namespace Dataflow
 		{
 			ClassMap.Add(NewParameters.TypeName, NewFunction);
 			ParametersMap.Add(NewParameters.TypeName, NewParameters);
-			DisplayMap.Add(NewParameters.DisplayName, NewParameters.TypeName);
 
 			const FName TypeNameNoVersion = GetTypeNameNoVersion(NewParameters.TypeName);
 			VersionMap.FindOrAdd(TypeNameNoVersion).AddUnique(NewParameters.TypeName);
@@ -160,15 +161,6 @@ namespace Dataflow
 #else
 		return false;
 #endif // WITH_EDITOR
-	}
-
-	FName FNodeFactory::TypeNameFromDisplayName(const FName& DisplayName)
-	{
-		if (DisplayMap.Contains(DisplayName))
-		{
-			return DisplayMap[DisplayName];
-		}
-		return "";
 	}
 
 	const FFactoryParameters& FNodeFactory::GetParameters(FName InTypeName) const

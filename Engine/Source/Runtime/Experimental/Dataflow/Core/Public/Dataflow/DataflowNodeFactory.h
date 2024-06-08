@@ -58,7 +58,6 @@ namespace Dataflow
 		// All Maps indexed by TypeName
 		TMap<FName, FNewNodeFunction > ClassMap;			// [TypeName] -> NewNodeFunction
 		TMap<FName, FFactoryParameters > ParametersMap;		// [TypeName] -> Parameters
-		TMap<FName, FName > DisplayMap;						// [DisplayName] -> TypeName
 		TMap<FName, TArray<FName>> VersionMap;				// [TypeNameNoVersion] -> Array of TypeName(versions)
 
 		DATAFLOWCORE_API static FNodeFactory* Instance;
@@ -130,8 +129,6 @@ namespace Dataflow
 		DATAFLOWCORE_API static FName GetDisplayNameNoVersion(const FName& DisplayName);
 
 		DATAFLOWCORE_API static FString GetToolTipFromStruct(UScriptStruct* InStruct, const FName& InTypeName, const FName& InDisplayName);
-
-		DATAFLOWCORE_API FName TypeNameFromDisplayName(const FName& DisplayName);
 
 		template<class T> TSharedPtr<T> NewNode(FGraph& Graph, const FNewNodeParameters& Param)
 		{
