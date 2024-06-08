@@ -212,9 +212,9 @@ FSoftObjectPath FStreamingGenerationActorDescView::GetHLODLayer() const
 		return FSoftObjectPath();
 	}
 
-	if (RuntimedHLODLayer.IsSet())
+	if (RuntimeHLODLayer.IsSet())
 	{
-		return RuntimedHLODLayer.GetValue();
+		return RuntimeHLODLayer.GetValue();
 	}
 
 	return Super::GetHLODLayer();
@@ -375,7 +375,7 @@ void FStreamingGenerationActorDescView::SetForcedNoHLODLayer()
 
 void FStreamingGenerationActorDescView::SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer)
 {
-	RuntimedHLODLayer = InHLODLayer;
+	RuntimeHLODLayer = InHLODLayer;
 }
 
 const FDataLayerInstanceNames& FStreamingGenerationActorDescView::GetRuntimeDataLayerInstanceNames() const

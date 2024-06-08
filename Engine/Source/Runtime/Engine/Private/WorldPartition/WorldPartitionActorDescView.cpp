@@ -99,9 +99,9 @@ FSoftObjectPath FWorldPartitionActorDescView::GetHLODLayer() const
 		return FSoftObjectPath();
 	}
 
-	if (RuntimedHLODLayer.IsSet())
+	if (RuntimeHLODLayer.IsSet())
 	{
-		return RuntimedHLODLayer.GetValue();
+		return RuntimeHLODLayer.GetValue();
 	}
 
 	return ActorDesc->GetHLODLayer();
@@ -309,7 +309,7 @@ void FWorldPartitionActorDescView::SetForcedNoHLODLayer()
 
 void FWorldPartitionActorDescView::SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer)
 {
-	RuntimedHLODLayer = InHLODLayer;
+	RuntimeHLODLayer = InHLODLayer;
 }
 
 AActor* FWorldPartitionActorDescView::GetActor() const
