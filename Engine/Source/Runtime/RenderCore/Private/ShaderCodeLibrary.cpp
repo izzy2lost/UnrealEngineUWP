@@ -4314,7 +4314,7 @@ FAutoConsoleCommandWithArgsAndOutputDevice GListShaderLibrariesCmd(
 					uint32 RHILibrarySize = ShaderLibrary->Library->GetSizeBytes();
 					uint32 MapsSize = ShaderLibrary->GetShaderMapsSizeBytes();
 
-					Out.Logf(TEXT("%s,%s,%s,%x,%d,%d,%.3f,%.3f"),
+					Out.Logf(TEXT("%s,%s,%s,%x,%d,%d,%.3f,%.3f,%.3f"),
 						*Name,
 						*LogicalName,
 						*OwnerName,
