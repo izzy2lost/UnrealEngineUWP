@@ -546,7 +546,7 @@ template <typename T> struct TRemovePointer<T*> { typedef T Type; };
  * const object, because we would prefer to be informed when MoveTemp will have no effect.
  */
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE std::remove_reference_t<T>&& MoveTemp(T&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr std::remove_reference_t<T>&& MoveTemp(T&& Obj) noexcept
 {
 	using CastType = std::remove_reference_t<T>;
 
@@ -564,7 +564,7 @@ UE_INTRINSIC_CAST FORCEINLINE std::remove_reference_t<T>&& MoveTemp(T&& Obj)
  * where you can but not stop compilation.
  */
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE std::remove_reference_t<T>&& MoveTempIfPossible(T&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr std::remove_reference_t<T>&& MoveTempIfPossible(T&& Obj) noexcept
 {
 	using CastType = std::remove_reference_t<T>;
 	return (CastType&&)Obj;
@@ -600,7 +600,7 @@ FORCEINLINE T CopyTemp(const T& Val)
  * create a PR value without stopping compilation.
  */
 template <typename T>
-FORCEINLINE std::decay_t<T> CopyTempIfNecessary(T&& Val)
+FORCEINLINE constexpr std::decay_t<T> CopyTempIfNecessary(T&& Val)
 {
 	return (T&&)Val;
 }
@@ -610,13 +610,13 @@ FORCEINLINE std::decay_t<T> CopyTempIfNecessary(T&& Val)
  * This is UE's equivalent of std::forward.
  */
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE T&& Forward(std::remove_reference_t<T>& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr T&& Forward(std::remove_reference_t<T>& Obj) noexcept
 {
 	return (T&&)Obj;
 }
 
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE T&& Forward(std::remove_reference_t<T>&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr T&& Forward(std::remove_reference_t<T>&& Obj) noexcept
 {
 	return (T&&)Obj;
 }

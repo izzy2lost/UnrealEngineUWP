@@ -1390,32 +1390,27 @@ FStreamable* FStreamableManager::StreamInternal(const FSoftObjectPath& InTargetN
 	return Existing;
 }
 
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
+bool FStreamableManager::ShouldStripDebugName()
 {
-	// Make an explicit Copy of the input array
-	return RequestAsyncLoad(TArray<FSoftObjectPath>(TargetsToStream), MoveTemp(DelegateToCall), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftObjectPath>&& TargetsToStream, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	LLM_SCOPE(ELLMTag::StreamingManager);
-
-	// Schedule a new callback, this will get called when all related async loads are completed
-	TSharedRef<FStreamableHandle> NewRequest = MakeShareable(new FStreamableHandle());
-	NewRequest->CompleteDelegate = MoveTemp(DelegateToCall);
-	NewRequest->OwningManager = this;
-	NewRequest->RequestedAssets = Forward<TArray<FSoftObjectPath>>(TargetsToStream);
-
 	bool bShouldStripDebugName = false;
 #if (PLATFORM_IOS || PLATFORM_ANDROID)
 	bShouldStripDebugName = true;
 #elif UE_BUILD_SHIPPING
 	bShouldStripDebugName = GStreamableStripDebugNameInShipping;
 #endif
-	if (!bShouldStripDebugName)
-	{
-		NewRequest->DebugName = MoveTemp(DebugName);
-	}
+	return bShouldStripDebugName;
+}
+
+TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoadInternal(TArray<FSoftObjectPath>&& TargetsToStream, FStreamableDelegate&& DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString&& DebugName)
+{
+	LLM_SCOPE(ELLMTag::StreamingManager);
+
+	// Schedule a new callback, this will get called when all related async loads are completed
+	TSharedRef<FStreamableHandle> NewRequest = MakeShareable(new FStreamableHandle());
+	NewRequest->CompleteDelegate = Forward<FStreamableDelegate>(DelegateToCall);
+	NewRequest->OwningManager = this;
+	NewRequest->RequestedAssets = Forward<TArray<FSoftObjectPath>>(TargetsToStream);
+	NewRequest->DebugName = Forward<FString>(DebugName);
 
 	NewRequest->Priority = Priority;
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
@@ -1520,34 +1515,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftO
 	return NewRequest;
 }
 
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const FSoftObjectPath& TargetToStream, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	return RequestAsyncLoad(TArray<FSoftObjectPath>{TargetToStream}, MoveTemp(DelegateToCall), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	// Make an explicit Copy of the input array
-	return RequestAsyncLoad(TArray<FSoftObjectPath>(TargetsToStream), Forward<TFunction<void()>>(Callback), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftObjectPath>&& TargetsToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	return RequestAsyncLoad(Forward<TArray<FSoftObjectPath>>(TargetsToStream), FStreamableDelegate::CreateLambda( MoveTemp( Callback ) ), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const FSoftObjectPath& TargetToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	return RequestAsyncLoad(TargetToStream, FStreamableDelegate::CreateLambda( MoveTemp( Callback ) ), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, bool bManageActiveHandle, FString DebugName)
-{
-	// Make an explicit Copy of the input array
-	return RequestSyncLoad(TArray<FSoftObjectPath>(TargetsToStream), bManageActiveHandle, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(TArray<FSoftObjectPath>&& TargetsToStream, bool bManageActiveHandle, FString DebugName)
+TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoadInternal(TArray<FSoftObjectPath>&& TargetsToStream, bool bManageActiveHandle, FString&& DebugName)
 {
 	// If in async loading thread or from callback always do sync as recursive tick is unsafe
 	// If in EDL always do sync as EDL internally avoids flushing
@@ -1555,7 +1523,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(TArray<FSoftOb
 	bForceSynchronousLoads = IsInAsyncLoadingThread() || IsEventDrivenLoaderEnabled() || !IsAsyncLoading();
 
 	// Do an async load and wait to complete. In some cases this will do a sync load due to safety issues
-	TSharedPtr<FStreamableHandle> Request = RequestAsyncLoad(Forward<TArray<FSoftObjectPath>>(TargetsToStream), FStreamableDelegate(), AsyncLoadHighPriority, bManageActiveHandle, false, MoveTemp(DebugName));
+	TSharedPtr<FStreamableHandle> Request = RequestAsyncLoadInternal(Forward<TArray<FSoftObjectPath>>(TargetsToStream), FStreamableDelegate(), AsyncLoadHighPriority, bManageActiveHandle, false, Forward<FString>(DebugName));
 
 	bForceSynchronousLoads = false;
 
@@ -1568,11 +1536,6 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(TArray<FSoftOb
 	}
 
 	return Request;
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(const FSoftObjectPath& TargetToStream, bool bManageActiveHandle, FString DebugName)
-{
-	return RequestSyncLoad(TArray<FSoftObjectPath>{TargetToStream}, bManageActiveHandle, MoveTemp(DebugName));
 }
 
 void FStreamableManager::StartHandleRequests(TSharedRef<FStreamableHandle> Handle)
@@ -1638,13 +1601,16 @@ UE_TRACE_EVENT_BEGIN(Cpu, StreamableManager_LoadSynchronous, NoSync)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, AssetPath)
 UE_TRACE_EVENT_END()
 
-UObject* FStreamableManager::LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle, TSharedPtr<FStreamableHandle>* RequestHandlePointer)
+UObject* FStreamableManager::LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle, TSharedPtr<FStreamableHandle>* RequestHandlePointer, UE::FSourceLocation Location)
 {
 #if CPUPROFILERTRACE_ENABLED
 	UE_TRACE_LOG_SCOPED_T(Cpu, StreamableManager_LoadSynchronous, CpuChannel)
 		<< StreamableManager_LoadSynchronous.AssetPath(*WriteToWideString<FName::StringBufferSize>(Target));
 #endif // CPUPROFILERTRACE_ENABLED
-	TSharedPtr<FStreamableHandle> Request = RequestSyncLoad(Target, bManageActiveHandle, FString::Printf(TEXT("LoadSynchronous of %s"), *Target.ToString()));
+	TSharedPtr<FStreamableHandle> Request = RequestSyncLoadInternal(
+		TArray<FSoftObjectPath>{Target},
+		bManageActiveHandle,
+		FString::Printf(TEXT("LoadSynchronous from %s (%d)"), Location.GetFileName(), Location.GetLine()));
 
 	if (RequestHandlePointer)
 	{

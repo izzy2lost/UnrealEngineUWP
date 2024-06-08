@@ -12,6 +12,8 @@
 #include "UObject/GCObject.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/SoftObjectPtr.h"
+#include "Misc/SourceLocation.h"
+#include "Misc/SourceLocationUtils.h"
 
 /** Defines FStreamableDelegate delegate interface */
 DECLARE_DELEGATE(FStreamableDelegate);
@@ -481,31 +483,33 @@ struct FStreamableManager : public FGCObject
 	 * This is the primary streamable operation. Requests streaming of one or more target objects. When complete, a delegate function is called. Returns a Streamable Handle.
 	 *
 	 * @param TargetsToStream		Assets to load off disk
-	 * @param DelegateToCall		Delegate to call when load finishes. Will be called on the next tick if asset is already loaded, or many seconds later
-	 * @param Priority				Priority to pass to the streaming system, higher priority will be loaded first
-	 * @param bManageActiveHandle	If true, the manager will keep the streamable handle active until explicitly released
-	 * @param bStartStalled			If true, the handle will start in a stalled state and will not attempt to actually async load until StartStalledHandle is called on it
-	 * @param DebugName				Name of this handle, will be reported in debug tools
+	 * @param DelegateToCall		[optional] Delegate to call when load finishes. Will be called on the next tick if asset is already loaded, or many seconds later
+	 * @param Priority				[optional] Priority to pass to the streaming system, higher priority will be loaded first
+	 * @param bManageActiveHandle	[optional] If true, the manager will keep the streamable handle active until explicitly released
+	 * @param bStartStalled			[optional] If true, the handle will start in a stalled state and will not attempt to actually async load until StartStalledHandle is called on it
+	 * @param DebugName				[optional] Name of this handle, either FString or anything that can construct FString, will be reported in debug tools, will report Source Location if DebugName is not specified explicitly
 	 */
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = DefaultAsyncLoadPriority, bool bManageActiveHandle = false, bool bStartStalled = false, FString DebugName = TEXT("ArrayDelegate"));
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoad(TArray<FSoftObjectPath>&& TargetsToStream, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = DefaultAsyncLoadPriority, bool bManageActiveHandle = false, bool bStartStalled = false, FString DebugName = TEXT("ArrayDelegate"));
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoad(const FSoftObjectPath& TargetToStream, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = DefaultAsyncLoadPriority, bool bManageActiveHandle = false, bool bStartStalled = false, FString DebugName = TEXT("SingleDelegate"));
-
-	/** Lambda Wrappers. Be aware that Callback may go off multiple seconds in the future. */
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority = DefaultAsyncLoadPriority, bool bManageActiveHandle = false, bool bStartStalled = false, FString DebugName = TEXT("ArrayLambda"));
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoad(TArray<FSoftObjectPath>&& TargetsToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority = DefaultAsyncLoadPriority, bool bManageActiveHandle = false, bool bStartStalled = false, FString DebugName = TEXT("ArrayLambda"));
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoad(const FSoftObjectPath& TargetToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority = DefaultAsyncLoadPriority, bool bManageActiveHandle = false, bool bStartStalled = false, FString DebugName = TEXT("SingleLambda"));
+	template< typename PathContainerType = TArray<FSoftObjectPath>, typename FuncType = FStreamableDelegate, typename DebugNameType = UE::FSourceLocation >
+	TSharedPtr<FStreamableHandle> RequestAsyncLoad(
+		PathContainerType&& TargetsToStream,
+		FuncType&& DelegateToCall = FStreamableDelegate(),
+		TAsyncLoadPriority Priority = DefaultAsyncLoadPriority,
+		bool bManageActiveHandle = false,
+		bool bStartStalled = false,
+		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
 
 	/** 
 	 * Synchronously load a set of assets, and return a handle. This can be very slow and may stall the game thread for several seconds.
 	 * 
 	 * @param TargetsToStream		Assets to load off disk
-	 * @param bManageActiveHandle	If true, the manager will keep the streamable handle active until explicitly released
-	 * @param DebugName				Name of this handle, will be reported in debug tools
+	 * @param bManageActiveHandle	[optional] If true, the manager will keep the streamable handle active until explicitly released
+	 * @param DebugName				[optional] Name of this handle, either FString or anything that can construct FString, will be reported in debug tools, will report Source Location if DebugName is not specified explicitly
 	 */
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestSyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, bool bManageActiveHandle = false, FString DebugName = TEXT("RequestSyncLoad Array"));
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestSyncLoad(TArray<FSoftObjectPath>&& TargetsToStream, bool bManageActiveHandle = false, FString DebugName = TEXT("RequestSyncLoad Array"));
-	ENGINE_API TSharedPtr<FStreamableHandle> RequestSyncLoad(const FSoftObjectPath& TargetToStream, bool bManageActiveHandle = false, FString DebugName = TEXT("RequestSyncLoad Single"));
+	template< typename PathContainerType = TArray<FSoftObjectPath>, typename DebugNameType = UE::FSourceLocation >
+	TSharedPtr<FStreamableHandle> RequestSyncLoad(
+		PathContainerType&& TargetsToStream,
+		bool bManageActiveHandle = false,
+		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
 
 	/** 
 	 * Synchronously load the referred asset and return the loaded object, or nullptr if it can't be found. This can be very slow and may stall the game thread for several seconds.
@@ -514,26 +518,26 @@ struct FStreamableManager : public FGCObject
 	 * @param bManageActiveHandle	If true, the manager will keep the streamable handle active until explicitly released
 	 * @param RequestHandlePointer	If non-null, this will set the handle to the handle used to make this request. This useful for later releasing the handle
 	 */
-	ENGINE_API UObject* LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr);
+	ENGINE_API UObject* LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr, UE::FSourceLocation Location = UE::FSourceLocation::Current());
 
 	/** Typed wrappers */
 	template< typename T >
-	T* LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr)
+	T* LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr, UE::FSourceLocation Location = UE::FSourceLocation::Current())
 	{
-		return Cast<T>(LoadSynchronous(Target, bManageActiveHandle, RequestHandlePointer) );
+		return Cast<T>(LoadSynchronous(Target, bManageActiveHandle, RequestHandlePointer, MoveTemp(Location)) );
 	}
 
 	template< typename T >
-	T* LoadSynchronous(const TSoftObjectPtr<T>& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr)
+	T* LoadSynchronous(const TSoftObjectPtr<T>& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr, UE::FSourceLocation Location = UE::FSourceLocation::Current())
 	{
-		return Cast<T>(LoadSynchronous(Target.ToSoftObjectPath(), bManageActiveHandle, RequestHandlePointer));
+		return Cast<T>(LoadSynchronous(Target.ToSoftObjectPath(), bManageActiveHandle, RequestHandlePointer, MoveTemp(Location)));
 	}
 
 	template< typename T >
-	TSubclassOf<T> LoadSynchronous(const TSoftClassPtr<T>& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr)
+	TSubclassOf<T> LoadSynchronous(const TSoftClassPtr<T>& Target, bool bManageActiveHandle = false, TSharedPtr<FStreamableHandle>* RequestHandlePointer = nullptr, UE::FSourceLocation Location = UE::FSourceLocation::Current())
 	{
 		TSubclassOf<T> ReturnClass;
-		ReturnClass = Cast<UClass>(LoadSynchronous(Target.ToSoftObjectPath(), bManageActiveHandle, RequestHandlePointer));
+		ReturnClass = Cast<UClass>(LoadSynchronous(Target.ToSoftObjectPath(), bManageActiveHandle, RequestHandlePointer, MoveTemp(Location)));
 		return ReturnClass;
 	}
 
@@ -603,6 +607,10 @@ private:
 	ENGINE_API void OnPreGarbageCollect();
 	ENGINE_API void AsyncLoadCallback(FSoftObjectPath Request, UPackage* Package);
 
+	ENGINE_API static bool ShouldStripDebugName();
+	ENGINE_API TSharedPtr<FStreamableHandle> RequestAsyncLoadInternal(TArray<FSoftObjectPath>&& TargetsToStream, FStreamableDelegate&& DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString&& DebugName);
+	ENGINE_API TSharedPtr<FStreamableHandle> RequestSyncLoadInternal(TArray<FSoftObjectPath>&& TargetsToStream, bool bManageActiveHandle, FString&& DebugName);
+
 	/** Map of paths to streamable objects, this will be the post-redirector name */
 	typedef TMap<FSoftObjectPath, struct FStreamable*> TStreamableMap;
 	TStreamableMap StreamableItems;
@@ -669,5 +677,68 @@ void FStreamableHandle::ForEachLoadedAsset(CallableT Callable) const
 				}
 			}
 		}
+	}
+}
+
+template< typename PathContainerType, typename FuncType, typename DebugNameType >
+TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(
+	PathContainerType&& TargetsToStream,
+	FuncType&& Callback,
+	TAsyncLoadPriority Priority,
+	bool bManageActiveHandle,
+	bool bStartStalled,
+	DebugNameType&& DebugNameOrLocation)
+{
+	FStreamableDelegate DelegateToCall;
+	if constexpr (std::is_constructible_v<FStreamableDelegate, FuncType>)
+	{
+		DelegateToCall = FStreamableDelegate(Forward<FuncType>(Callback));
+	}
+	else
+	{
+		DelegateToCall = FStreamableDelegate::CreateLambda(Forward<FuncType>(Callback));
+	}
+
+	if constexpr (std::is_same_v<std::remove_cv_t<DebugNameType>, UE::FSourceLocation>)
+	{
+		return RequestAsyncLoadInternal(
+			TArray<FSoftObjectPath>{ Forward<PathContainerType>(TargetsToStream) },
+			MoveTemp(DelegateToCall),
+			Priority,
+			bManageActiveHandle,
+			bStartStalled,
+			ShouldStripDebugName() ? FString() : UE::SourceLocation::ToFileAndLineString(DebugNameOrLocation));
+	}
+	else
+	{
+		return RequestAsyncLoadInternal(
+			TArray<FSoftObjectPath>{ Forward<PathContainerType>(TargetsToStream) },
+			MoveTemp(DelegateToCall),
+			Priority,
+			bManageActiveHandle,
+			bStartStalled,
+			ShouldStripDebugName() ? FString() : FString{ Forward<DebugNameType>(DebugNameOrLocation) });
+	}
+}
+
+template< typename PathContainerType, typename DebugNameType >
+TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(
+	PathContainerType&& TargetsToStream,
+	bool bManageActiveHandle,
+	DebugNameType&& DebugNameOrLocation)
+{
+	if constexpr (std::is_same_v<std::remove_cv_t<DebugNameType>, UE::FSourceLocation>)
+	{
+		return RequestSyncLoadInternal(
+			TArray<FSoftObjectPath>{ Forward<PathContainerType>(TargetsToStream) },
+			bManageActiveHandle,
+			ShouldStripDebugName() ? FString() : UE::SourceLocation::ToFileAndLineString(DebugNameOrLocation));
+	}
+	else
+	{
+		return RequestSyncLoadInternal(
+			TArray<FSoftObjectPath>{ Forward<PathContainerType>(TargetsToStream) },
+			bManageActiveHandle,
+			ShouldStripDebugName() ? FString() : FString{ Forward<DebugNameType>(DebugNameOrLocation) });
 	}
 }

@@ -9,6 +9,8 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "GenericPlatform/GenericPlatformChunkInstall.h"
 #include "ContentEncryptionConfig.h"
+#include "Misc/SourceLocation.h"
+#include "Misc/SourceLocationUtils.h"
 
 #include "AssetManager.generated.h"
 
@@ -343,9 +345,22 @@ public:
 	 */
 	ENGINE_API virtual TSharedPtr<FStreamableHandle> PreloadPrimaryAssets(const TArray<FPrimaryAssetId>& AssetsToLoad, const TArray<FName>& LoadBundles, bool bLoadRecursive, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority);
 
-	/** Quick wrapper to async load some non primary assets with the primary streamable manager. This will not auto release the handle, release it if needed */
-	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetList(const TArray<FSoftObjectPath>& AssetList, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority, const FString& DebugName = FStreamableHandle::HandleDebugName_AssetList);
-	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetList(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority, const FString& DebugName = FStreamableHandle::HandleDebugName_AssetList);
+	/**
+	 * Load non primary assets with the primary streamable manager.
+	 * This will not auto release the handle, release it if needed.
+	 * 
+	 * @param AssetList			List of non primary assets to load
+	 * @param DelegateToCall	[optional] Delegate that will be called on completion, may be called before function returns if assets are already loaded
+	 * @param Priority			[optional] Async loading priority for this request
+	 * @param DebguName			[optional] Name of this handle, either FString or anything that can construct FString, will be reported in debug tools, will report Source Location if DebugName is not specified explicitly
+	 * @return					Streamable Handle that must be stored to keep the preloaded assets from being freed
+	 */
+	template< typename DebugNameType = UE::FSourceLocation >
+	TSharedPtr<FStreamableHandle> LoadAssetList(
+		TArray<FSoftObjectPath> AssetList,
+		FStreamableDelegate DelegateToCall = FStreamableDelegate(),
+		TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority,
+		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
 
 	/** Returns a single AssetBundleInfo, matching Scope and Name */
 	ENGINE_API virtual FAssetBundleEntry GetAssetBundleEntry(const FPrimaryAssetId& BundleScope, FName BundleName) const;
@@ -716,6 +731,9 @@ protected:
 	/** Called when a new chunk has been downloaded */
 	ENGINE_API virtual void OnChunkDownloaded(uint32 ChunkId, bool bSuccess);
 
+	/** Called to load asset list */
+	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetListInternal(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate&& DelegateToCall, TAsyncLoadPriority Priority, FString&& DebugName);
+
 #if WITH_EDITOR
 	/** Function used during creating Management references to decide when to recurse and set references */
 	ENGINE_API virtual EAssetSetManagerResult::Type ShouldSetManager(const FAssetIdentifier& Manager, const FAssetIdentifier& Source, const FAssetIdentifier& Target,
@@ -924,3 +942,28 @@ private:
 
 	friend struct FCompiledAssetManagerSearchRules;
 };
+
+template< typename DebugNameType >
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(
+	TArray<FSoftObjectPath> AssetList,
+	FStreamableDelegate DelegateToCall,
+	TAsyncLoadPriority Priority,
+	DebugNameType&& DebugNameOrLocation)
+{
+	if constexpr (std::is_same_v<std::remove_cv_t<DebugNameType>, UE::FSourceLocation>)
+	{
+		return LoadAssetListInternal(
+			MoveTemp(AssetList),
+			MoveTemp(DelegateToCall),
+			Priority,
+			UE::SourceLocation::ToFileAndLineString(DebugNameOrLocation));
+	}
+	else
+	{
+		return LoadAssetListInternal(
+			MoveTemp(AssetList),
+			MoveTemp(DelegateToCall),
+			Priority,
+			FString{ Forward<DebugNameType>(DebugNameOrLocation) });
+	}
+}

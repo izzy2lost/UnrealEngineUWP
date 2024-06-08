@@ -2220,13 +2220,7 @@ int32 UAssetManager::UnloadPrimaryAssetsWithType(FPrimaryAssetType PrimaryAssetT
 	return UnloadPrimaryAssets(Assets);
 }
 
-TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(const TArray<FSoftObjectPath>& AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
-{
-	// Make an explicit Copy of the input array
-	return LoadAssetList(TArray<FSoftObjectPath>(AssetList), DelegateToCall, Priority, DebugName);
-}
-
-TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetListInternal(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate&& DelegateToCall, TAsyncLoadPriority Priority, FString&& DebugName)
 {
 	TSharedPtr<FStreamableHandle> NewHandle;
 	TArray<int32> MissingChunks, ErrorChunks;
@@ -2246,12 +2240,12 @@ TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(TArray<FSoftObjectPat
 	// SynchronousLoad doesn't make sense if chunks are missing
 	if (bShouldUseSynchronousLoad && MissingChunks.Num() == 0)
 	{
-		NewHandle = StreamableManager.RequestSyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), false, DebugName);
-		FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
+		NewHandle = StreamableManager.RequestSyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), false, Forward<FString>(DebugName));
+		FStreamableHandle::ExecuteDelegate(Forward<FStreamableDelegate>(DelegateToCall));
 	}
 	else
 	{
-		NewHandle = StreamableManager.RequestAsyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), MoveTemp(DelegateToCall), Priority, false, MissingChunks.Num() > 0, DebugName);
+		NewHandle = StreamableManager.RequestAsyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), Forward<FStreamableDelegate>(DelegateToCall), Priority, false, MissingChunks.Num() > 0, Forward<FString>(DebugName));
 
 		if (MissingChunks.Num() > 0 && NewHandle.IsValid())
 		{
