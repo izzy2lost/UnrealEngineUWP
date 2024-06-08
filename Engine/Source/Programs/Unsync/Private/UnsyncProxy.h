@@ -215,6 +215,7 @@ struct FPooledHttpConnection
 	FHttpConnection& operator*() { return *Get(); }
 	FHttpConnection* operator->() { return Get(); }
 	operator FHttpConnection&() { return *Get(); }
+	bool							 IsValid() const { return ProxyPool.IsValid() && Inner.get(); }
 	FProxyPool&						 ProxyPool;
 	std::unique_ptr<FHttpConnection> Inner;
 };

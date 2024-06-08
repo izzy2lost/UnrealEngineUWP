@@ -143,10 +143,17 @@ struct FIOReader : virtual FIOBase
 	virtual uint64 Read(void* Dest, uint64 SourceOffset, uint64 Size) = 0;
 	virtual bool   ReadAsync(uint64 SourceOffset, uint64 Size, uint64 UserData, IOCallback Callback)
 	{
-		FIOBuffer Buffer   = FIOBuffer::Alloc(Size, L"FIOReader::ReadAsync");
-		uint64	  ReadSize = Read(Buffer.GetData(), SourceOffset, Size);
-		Callback(std::move(Buffer), SourceOffset, ReadSize, UserData);
-		return true;
+		if (Size != 0)
+		{
+			FIOBuffer Buffer   = FIOBuffer::Alloc(Size, L"FIOReader::ReadAsync");
+			uint64	  ReadSize = Read(Buffer.GetData(), SourceOffset, Size);
+			Callback(std::move(Buffer), SourceOffset, ReadSize, UserData);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 };
 
@@ -339,13 +346,18 @@ struct FMemReaderWriter : FMemReader, FIOReaderWriter
 
 struct FNullReaderWriter : FIOReaderWriter
 {
-	FNullReaderWriter(uint64 InDataSize) : DataSize(InDataSize) {}
+	struct FInvalid
+	{
+	};
+
+	explicit FNullReaderWriter(uint64 InDataSize) : DataSize(InDataSize) {}
+	explicit FNullReaderWriter(FInvalid) : DataSize(0), bValid(false) {}
 
 	// IOBase
 	virtual void   FlushAll() override{};
 	virtual void   FlushOne() override{};
 	virtual uint64 GetSize() override { return DataSize; }
-	virtual bool   IsValid() override { return true; }
+	virtual bool   IsValid() override { return bValid; }
 	virtual void   Close() override{};
 	virtual int32  GetError() override { return 0; }
 
@@ -367,6 +379,7 @@ struct FNullReaderWriter : FIOReaderWriter
 	virtual uint64 Write(const void* InData, uint64 DestOffset, uint64 WriteSize) override { return WriteSize; }
 
 	uint64 DataSize;
+	bool   bValid = true;
 };
 
 struct FDeferredOpenReader : FIOReader

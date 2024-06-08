@@ -168,6 +168,7 @@ enum class EFileSyncStatus
 	ErrorFinalRename,
 	ErrorTargetFileCreate,
 	ErrorBuildTargetFailed,
+	ErrorInvalidParameters,
 };
 
 const wchar_t* ToString(EFileSyncStatus Status);
@@ -211,6 +212,8 @@ struct FSyncFileOptions
 	FScavengeDatabase* ScavengeDatabase = nullptr;
 
 	bool bValidateTargetFiles = true;  // WARNING: turning this off is intended only for testing/profiling
+
+	ESourceType SourceType = (ESourceType)0;
 };
 
 FFileSyncResult SyncFile(const FPath&			   SourceFilePath,

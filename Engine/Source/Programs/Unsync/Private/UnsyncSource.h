@@ -14,6 +14,12 @@ enum class ESourceType : uint8 {
 	ServerWithManifestId,
 };
 
+inline bool
+IsFileSystemSource(ESourceType SourceType)
+{
+	return SourceType == ESourceType::FileSystem;
+}
+
 struct FSourcePath
 {
 	ESourceType Type = ESourceType::Unknown;

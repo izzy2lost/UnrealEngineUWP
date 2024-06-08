@@ -309,6 +309,13 @@ SyncFile(const FNeedList&		   NeedList,
 
 	FFileSyncResult Result;
 
+	if (Options.SourceType == ESourceType::Unknown)
+	{
+		Result.Status = EFileSyncStatus::ErrorInvalidParameters;
+		UNSYNC_ERROR(L"Sync source type must be specified");
+		return Result;
+	}
+
 	uint64 NeedFromSource = ComputeSize(NeedList.Source);
 	uint64 NeedFromBase	  = ComputeSize(NeedList.Base);
 	UNSYNC_VERBOSE(L"Need from source %.2f MB, from base: %.2f MB", SizeMb(NeedFromSource), SizeMb(NeedFromBase));
@@ -384,11 +391,21 @@ SyncFile(const FNeedList&		   NeedList,
 
 		LogStatus(TargetFilePath.wstring().c_str(), L"Patching");
 
-		FDeferredOpenReader SourceFile([SourceFilePath, TargetFilePath] {
-			UNSYNC_VERBOSE(L"Opening source file '%ls'", SourceFilePath.wstring().c_str());
-			LogStatus(TargetFilePath.wstring().c_str(), L"Opening source file");
-			return std::unique_ptr<FNativeFile>(new FNativeFile(SourceFilePath, EFileMode::ReadOnlyUnbuffered));
-		});
+		FDeferredOpenReader SourceFile(
+			[SourceFilePath, TargetFilePath, Options]() -> std::unique_ptr<FIOReader>
+			{
+				if (IsFileSystemSource(Options.SourceType))
+				{
+					UNSYNC_VERBOSE(L"Opening source file '%ls'", SourceFilePath.wstring().c_str());
+					LogStatus(TargetFilePath.wstring().c_str(), L"Opening source file");
+					return std::unique_ptr<FNativeFile>(new FNativeFile(SourceFilePath, EFileMode::ReadOnlyUnbuffered));
+				}
+				else
+				{
+					UNSYNC_ERROR(L"Sync source is not directly accessible");
+					return std::unique_ptr<FIOReader>(new FNullReaderWriter(FNullReaderWriter::FInvalid()));
+				}
+			});
 
 		FBuildTargetParams BuildParams;
 		BuildParams.StrongHasher	 = Options.Algorithm.StrongHashAlgorithmId;
@@ -420,10 +437,13 @@ SyncFile(const FNeedList&		   NeedList,
 				TargetFile = std::make_unique<FNativeFile>(TempTargetFilePath, EFileMode::ReadOnlyUnbuffered);
 			}
 
-			if (!ValidateTarget(*TargetFile, NeedList, Options.Algorithm.StrongHashAlgorithmId))
+			if (TargetFileSizeInfo.TotalBytes > 0)
 			{
-				Result.Status = EFileSyncStatus::ErrorValidation;
-				return Result;
+				if (!ValidateTarget(*TargetFile, NeedList, Options.Algorithm.StrongHashAlgorithmId))
+				{
+					Result.Status = EFileSyncStatus::ErrorValidation;
+					return Result;
+				}
 			}
 		}
 
@@ -1882,6 +1902,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			SyncFileOptions.BlockCache			 = BlockCache;
 			SyncFileOptions.ScavengeDatabase	 = ScavengeDatabase.get();
 			SyncFileOptions.bValidateTargetFiles = SyncOptions.bValidateTargetFiles;
+			SyncFileOptions.SourceType			 = SyncOptions.SourceType;
 
 			FFileSyncResult SyncResult =
 				SyncFile(Item.NeedList, Item.ResolvedSourceFilePath, SourceBlocks, BaseFile, Item.TargetFilePath, SyncFileOptions);

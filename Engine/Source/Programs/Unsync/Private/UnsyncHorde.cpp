@@ -29,6 +29,12 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 
 	FPooledHttpConnection HttpConnection(ProxyPool);
 
+	if (!HttpConnection.IsValid())
+	{
+		UNSYNC_ERROR(L"HTTP connection cannot be used");
+		return FDownloadError(EDownloadRetryMode::Abort);
+	}
+
 	FHttpRequest Request;
 	Request.Method			   = EHttpMethod::POST;
 	Request.PayloadContentType = EHttpContentType::Application_Json;
@@ -300,6 +306,8 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 			{
 				continue;
 			}
+
+			ConvertDirectorySeparatorsToNative(FileName);
 
 			FFileManifest FileManifest;
 			FileManifest.BlockSize = DefaultBlockSize;

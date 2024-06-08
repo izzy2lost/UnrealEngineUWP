@@ -256,7 +256,7 @@ FProxy::DownloadManifest(std::string_view ManifestName)
 FDownloadResult
 FProxy::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
 {
-	if (ProtocolImpl.get())
+	if (ProtocolImpl.get() && ProtocolImpl->IsValid())
 	{
 		return ProtocolImpl->Download(NeedBlocks, CompletionCallback);
 	}

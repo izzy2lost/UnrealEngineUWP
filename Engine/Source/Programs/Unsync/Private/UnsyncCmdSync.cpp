@@ -198,6 +198,7 @@ CmdSync(const FCmdSyncOptions& Options)
 			SyncFileOptions.Algorithm			 = Options.Algorithm;
 			SyncFileOptions.BlockSize			 = uint32(64_KB);
 			SyncFileOptions.bValidateTargetFiles = Options.bValidateTargetFiles;
+			SyncFileOptions.SourceType			 = ESourceType::FileSystem;
 
 			return SyncFile(Options.Source, Options.Target, Options.Target, SyncFileOptions).Succeeded() ? 0 : 1;
 		}
