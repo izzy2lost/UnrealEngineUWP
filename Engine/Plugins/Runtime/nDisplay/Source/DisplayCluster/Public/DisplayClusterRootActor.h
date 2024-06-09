@@ -344,7 +344,7 @@ private:
 	FDisplayClusterEditorPropertyReference LightcardPerViewportOCIOProfilesRef;
 
 	// Media
-	UPROPERTY(EditAnywhere, Transient, Category = "Media", meta = (PropertyPath = "CurrentConfigData.MediaSettings"))
+	UPROPERTY(EditDefaultsOnly, Transient, Category = "Media", meta = (PropertyPath = "CurrentConfigData.MediaSettings"))
 	FDisplayClusterEditorPropertyReference MediaSettingsRef;
 
 #endif // WITH_EDITORONLY_DATA

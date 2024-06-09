@@ -41,9 +41,11 @@
 
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/DisplayClusterLog.h"
 #include "TextureResource.h"
-#include "HAL/IConsoleManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace UE::DisplayCluster::Viewport::ConfigurationHelpers_ICVFX
@@ -545,8 +547,30 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	// Set viewport buffer ratio
 	DstViewport.SetViewportBufferRatio(InCameraSettings.GetCameraBufferRatio(*StageSettings));
 
+#if true
+	// UE-211513
+	// This is a temporary workaround that allows to initialize media based on the blueprint data instead of 
+	// the instance data. There is an issue with the propagation of instanced object changes from the parent
+	// blueprints to its instances. To avoid any potential issues, we get media settings for the original nDisplay
+	// blueprint. Once the propagation issue is fixed, we'll be able use the instances again.
+
+	if (const AActor* const OwningActor = InCameraComponent.GetOwner())
+	{
+		if (const UBlueprint* const ParentBP = UBlueprint::GetBlueprintFromClass(OwningActor->GetClass()))
+		{
+			if (const USCS_Node* const CameraSCSNode = ParentBP->SimpleConstructionScript->FindSCSNode(*InCameraComponent.GetName()))
+			{
+				if (const UDisplayClusterICVFXCameraComponent* const ArchetypeCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(CameraSCSNode->ComponentTemplate))
+				{
+					FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(DstViewport, ArchetypeCameraComponent->CameraSettings.RenderSettings.Media);
+				}
+			}
+		}
+	}
+#else
 	// InCamera tile rendering.
 	FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(DstViewport, InCameraSettings.RenderSettings.Media);
+#endif
 }
 
 void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateChromakeyViewportSettings(FDisplayClusterViewport& DstViewport, FDisplayClusterViewport& InCameraViewport, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)

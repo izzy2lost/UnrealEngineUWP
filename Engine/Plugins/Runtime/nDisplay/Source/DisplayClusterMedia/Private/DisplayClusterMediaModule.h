@@ -30,8 +30,11 @@ public:
 	//~ End IModuleInterface Implementation
 
 protected:
-	/** Initialize all media internals */
+	/** Initialize all media internals (from instance) */
 	void InitializeMedia();
+	
+	/** Initialize all media internals (from CDO) */
+	void InitializeMediaFromCDO();
 
 	/** Release all media internals */
 	void ReleaseMedia();
@@ -59,16 +62,16 @@ private:
 	void InitializeViewportOutput(const UDisplayClusterConfigurationViewport* Viewport, const FString& ViewportId, const FString& RootActorName, const FString& ClusterNodeId);
 
 	/** ICVFX camera input initializer (full frame) */
-	void InitializeICVFXCameraFullFrameInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId);
+	void InitializeICVFXCameraFullFrameInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName = FString());
 
 	/** ICVFX camera output initializer (full frame) */
-	void InitializeICVFXCameraFullFrameOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId);
+	void InitializeICVFXCameraFullFrameOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName = FString());
 
 	/** ICVFX camera input initializer (uniform tiles) */
-	void InitializeICVFXCameraUniformTilesInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId);
+	void InitializeICVFXCameraUniformTilesInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName = FString());
 
 	/** ICVFX camera output initializer (uniform tiles) */
-	void InitializeICVFXCameraUniformTilesOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId);
+	void InitializeICVFXCameraUniformTilesOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName = FString());
 
 private:
 	/** PreSubmitViewFamilies event handler. It's used to initialize media on start. */
