@@ -3,9 +3,9 @@
 #if WITH_STATETREE_DEBUGGER
 
 #include "SAvaTransitionStateDebugInstanceContainer.h"
-#include "AvaTransitionEditorStyle.h"
 #include "Debugger/AvaTransitionDebugger.h"
 #include "SAvaTransitionStateDebugInstance.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/State/AvaTransitionStateViewModel.h"
 #include "Widgets/SBoxPanel.h"

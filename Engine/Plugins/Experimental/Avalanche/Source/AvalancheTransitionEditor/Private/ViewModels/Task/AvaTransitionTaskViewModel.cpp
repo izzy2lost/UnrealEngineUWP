@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionTaskViewModel.h"
-#include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "Tasks/AvaTransitionTask.h"
 #include "Textures/SlateIcon.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"

@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaTransitionStateView.h"
-#include "AvaTransitionEditorStyle.h"
 #include "SAvaTransitionStateMetadata.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeTypes.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/Condition/AvaTransitionConditionContainerViewModel.h"
 #include "ViewModels/State/AvaTransitionStateViewModel.h"
 #include "ViewModels/Task/AvaTransitionTaskContainerViewModel.h"

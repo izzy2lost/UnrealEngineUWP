@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionNodeViewModel.h"
-#include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionEditorViewModel.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "AvaTransitionViewModelSharedData.h"
@@ -9,6 +8,7 @@
 #include "State/AvaTransitionStateViewModel.h"
 #include "StateTreeEditorNode.h"
 #include "StateTreeEditorTypes.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 
 FAvaTransitionNodeViewModel::FAvaTransitionNodeViewModel(const FStateTreeEditorNode& InEditorNode)
 	: NodeId(InEditorNode.ID)

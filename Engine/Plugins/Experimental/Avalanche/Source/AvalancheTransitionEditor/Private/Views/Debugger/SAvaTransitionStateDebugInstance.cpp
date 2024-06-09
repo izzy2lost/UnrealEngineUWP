@@ -3,8 +3,8 @@
 #if WITH_STATETREE_DEBUGGER
 
 #include "SAvaTransitionStateDebugInstance.h"
-#include "AvaTransitionEditorStyle.h"
 #include "Debugger/AvaTransitionStateDebugInstance.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/State/AvaTransitionStateViewModel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Images/SThrobber.h"

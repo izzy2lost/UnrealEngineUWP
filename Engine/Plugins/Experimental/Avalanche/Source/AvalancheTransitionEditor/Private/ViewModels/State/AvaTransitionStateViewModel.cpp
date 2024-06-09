@@ -2,11 +2,11 @@
 
 #include "AvaTransitionStateViewModel.h"
 #include "Actions/AvaTransitionStateActions.h"
-#include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionSelection.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "DragDrop/AvaTransitionStateDragDropOp.h"
 #include "StateTreeState.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/AvaTransitionViewModelUtils.h"
