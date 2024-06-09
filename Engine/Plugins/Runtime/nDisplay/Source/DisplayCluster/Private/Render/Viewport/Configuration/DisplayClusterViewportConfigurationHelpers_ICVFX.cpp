@@ -548,7 +548,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	// Set viewport buffer ratio
 	DstViewport.SetViewportBufferRatio(InCameraSettings.GetCameraBufferRatio(*StageSettings));
 
-#if true
+#if WITH_EDITORONLY_DATA
 	// UE-211513
 	// This is a temporary workaround that allows to initialize media based on the blueprint data instead of 
 	// the instance data. There is an issue with the propagation of instanced object changes from the parent
@@ -571,7 +571,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 #else
 	// InCamera tile rendering.
 	FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(DstViewport, InCameraSettings.RenderSettings.Media);
-#endif
+#endif // WITH_EDITORONLY_DATA
 }
 
 void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateChromakeyViewportSettings(FDisplayClusterViewport& DstViewport, FDisplayClusterViewport& InCameraViewport, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)

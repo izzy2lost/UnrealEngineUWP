@@ -54,7 +54,7 @@ void FDisplayClusterMediaModule::OnPreSubmitViewFamilies(TArray<FSceneViewFamily
 	// Unsubscribe after first call. Currently, media initialization is a one time procedure. No need to receive any further callbacks.
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().RemoveAll(this);
 
-#if true
+#if WITH_EDITORONLY_DATA
 	// UE-211513
 	// This is a temporary workaround that allows to initialize media based on the blueprint data instead of 
 	// the instance data. There is an issue with the propagation of instanced object changes from the parent
@@ -141,6 +141,7 @@ void FDisplayClusterMediaModule::InitializeMedia()
 	}
 }
 
+#if WITH_EDITORONLY_DATA
 void FDisplayClusterMediaModule::InitializeMediaFromCDO()
 {
 	// Runtime only for now
@@ -266,6 +267,7 @@ void FDisplayClusterMediaModule::InitializeMediaFromCDO()
 		}
 	}
 }
+#endif // WITH_EDITORONLY_DATA
 
 void FDisplayClusterMediaModule::ReleaseMedia()
 {
