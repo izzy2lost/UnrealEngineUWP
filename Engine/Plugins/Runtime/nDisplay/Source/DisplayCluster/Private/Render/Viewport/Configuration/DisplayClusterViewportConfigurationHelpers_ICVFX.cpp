@@ -41,6 +41,7 @@
 
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 
+#include "Engine/Blueprint.h"
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "HAL/IConsoleManager.h"
