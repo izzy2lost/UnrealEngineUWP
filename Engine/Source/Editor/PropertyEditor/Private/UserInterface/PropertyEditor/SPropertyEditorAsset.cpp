@@ -1242,7 +1242,7 @@ SPropertyEditorAsset::FObjectOrAssetData::FObjectOrAssetData(UObject* InObject, 
 	}
 	else if(InObject != nullptr)
 	{
-		AssetData = FAssetData(InObject);
+		AssetData = FAssetData(InObject, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering);
 		ObjectPath = InObject;
 	}
 }
