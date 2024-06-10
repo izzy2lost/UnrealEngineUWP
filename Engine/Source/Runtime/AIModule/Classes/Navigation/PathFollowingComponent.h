@@ -274,8 +274,16 @@ class UPathFollowingComponent : public UActorComponent, public IAIResourceInterf
 	/** notify about changing current path: new pointer or update from path event */
 	AIMODULE_API virtual void OnPathUpdated();
 
-	/** set associated movement component */
-	AIMODULE_API virtual void SetMovementComponent(UNavMovementComponent* MoveComp);
+	/**
+	 * set associated movement component.
+	 * Note: This function is deprecated and was marked final to purposely alert users that this function should no longer be overriden
+	 * Users should instead override SetNavMovementInterface(INavMovementInterface* NavMovementInterface)!
+	 */
+	UE_DEPRECATED(5.5, "SetMovementComponent(UNavMovementComponent* MoveComp) is deprecated, please use SetNavMoveInterface(INavMoveInterface* NavMoveInterface) instead.")
+	AIMODULE_API virtual void SetMovementComponent(UNavMovementComponent* MoveComp) final;
+
+	/** set associated nav movement interface */
+	AIMODULE_API virtual void SetNavMovementInterface(INavMovementInterface* NavMoveInterface);
 
 	/** get current focal point of movement */
 	AIMODULE_API virtual FVector GetMoveFocus(bool bAllowStrafe) const;
@@ -351,7 +359,7 @@ class UPathFollowingComponent : public UActorComponent, public IAIResourceInterf
 	FVector GetCurrentMoveInput() const { return CurrentMoveInput; }
 
 	/** check if path following has authority over movement (e.g. not falling) and can update own state */
-	FORCEINLINE bool HasMovementAuthority() const { return (MovementComp == nullptr) || MovementComp->CanStopPathFollowing(); }
+	FORCEINLINE bool HasMovementAuthority() const { return (NavMovementInterface == nullptr) || NavMovementInterface->CanStopPathFollowing(); }
 
 	FORCEINLINE const FNavPathSharedPtr GetPath() const { return Path; }
 	FORCEINLINE bool HasValidPath() const { return Path.IsValid() && Path->IsValid(); }
@@ -423,9 +431,13 @@ class UPathFollowingComponent : public UActorComponent, public IAIResourceInterf
 
 protected:
 
-	/** associated movement component */
-	UPROPERTY(transient)
+	/** deprecated associated movement component */
+	UE_DEPRECATED(5.5, "MovementComp is deprecated, please use NavMovementComp and the INavMoveInterface instead.")
+	UPROPERTY(transient, meta = (DeprecatedProperty, DeprecationMessage = "MovementComp is deprecated, please use NavMovementInterface and the INavMoveInterface instead."))
 	TObjectPtr<UNavMovementComponent> MovementComp;
+	
+	/** associated movement interface */
+	TWeakInterfacePtr<INavMovementInterface> NavMovementInterface;
 
 	/** currently traversed custom nav link */
 	FWeakObjectPtr CurrentCustomLinkOb;

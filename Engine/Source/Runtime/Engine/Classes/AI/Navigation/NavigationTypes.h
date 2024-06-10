@@ -444,6 +444,35 @@ struct FMovementProperties
 	}
 };
 
+/**
+ * Struct to hold properties a user might set for navigation movement
+ */
+USTRUCT(BlueprintType)
+struct FNavMovementProperties
+{
+	GENERATED_BODY()
+
+	/** Braking distance override used with acceleration driven path following (bUseAccelerationForPaths) */
+	UPROPERTY(EditAnywhere, Category = NavMovement, meta = (EditCondition = "bUseFixedBrakingDistanceForPaths"))
+	float FixedPathBrakingDistance = 0;
+
+	/** If set to true, NavAgentProperties' radius and height will be updated with Owner's collision capsule size */
+	UPROPERTY(EditAnywhere, Category = NavMovement)
+	bool bUpdateNavAgentWithOwnersCollision = true;
+
+	/** If set, pathfollowing will control character movement via acceleration values. If false, it will set velocities directly. */
+	UPROPERTY(EditAnywhere, Category = NavMovement, GlobalConfig)
+	bool bUseAccelerationForPaths = false;
+
+	/** If set, FixedPathBrakingDistance will be used for path following deceleration */
+	UPROPERTY(EditAnywhere, Category = NavMovement, meta = (EditCondition = "bUseAccelerationForPaths"))
+	bool bUseFixedBrakingDistanceForPaths = false;
+
+	/** If set, StopActiveMovement call will abort current path following request */
+	UPROPERTY(EditAnywhere, Category = NavMovement)
+	bool bStopMovementAbortPaths = true;
+};
+
 /** Properties of representation of an 'agent' (or Pawn) used by AI navigation/pathfinding. */
 USTRUCT(BlueprintType)
 struct FNavAgentProperties : public FMovementProperties

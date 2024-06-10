@@ -12,10 +12,6 @@
 //----------------------------------------------------------------------//
 UNavMovementComponent::UNavMovementComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, bUpdateNavAgentWithOwnersCollision(true)
-	, bUseAccelerationForPaths(false)
-	, bUseFixedBrakingDistanceForPaths(false)
-	, bStopMovementAbortPaths(true)
 {
 	bComponentShouldUpdatePhysicsVolume = true;
 }
@@ -23,6 +19,74 @@ UNavMovementComponent::UNavMovementComponent(const FObjectInitializer& ObjectIni
 FBasedPosition UNavMovementComponent::GetActorFeetLocationBased() const
 {
 	return FBasedPosition(NULL, GetActorFeetLocation());
+}
+
+void UNavMovementComponent::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	
+	// copying over any default values to the new struct that houses the properties
+	if (FixedPathBrakingDistance != 0) 
+	{
+		NavMovementProperties.FixedPathBrakingDistance = FixedPathBrakingDistance;
+		FixedPathBrakingDistance = 0;
+	}
+	
+	if (!bUpdateNavAgentWithOwnersCollision)
+	{
+		NavMovementProperties.bUpdateNavAgentWithOwnersCollision = bUpdateNavAgentWithOwnersCollision;
+		bUpdateNavAgentWithOwnersCollision = true;
+	}
+	
+	if (bUseAccelerationForPaths)
+    {
+    	NavMovementProperties.bUseAccelerationForPaths = bUseAccelerationForPaths;
+    	bUseAccelerationForPaths = false;
+    }
+	
+	if (bUseFixedBrakingDistanceForPaths)
+    {
+    	NavMovementProperties.bUseFixedBrakingDistanceForPaths = bUseFixedBrakingDistanceForPaths;
+    	bUseFixedBrakingDistanceForPaths = false;
+    }
+    
+    if (!bStopMovementAbortPaths)
+    {
+    	NavMovementProperties.bStopMovementAbortPaths = bStopMovementAbortPaths;
+    	bStopMovementAbortPaths = true;
+    }
+	
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA	
+}
+
+void UNavMovementComponent::UpdateNavAgent(const UObject& ObjectToUpdateFrom)
+{
+	if (!NavMovementProperties.bUpdateNavAgentWithOwnersCollision)
+	{
+		return;
+	}
+
+	// initialize properties from navigation system
+	NavAgentProps.NavWalkingSearchHeightScale = FNavigationSystem::GetDefaultSupportedAgent().NavWalkingSearchHeightScale;
+	
+	if (const UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(&ObjectToUpdateFrom))
+	{
+		NavAgentProps.AgentRadius = CapsuleComponent->GetScaledCapsuleRadius();
+		NavAgentProps.AgentHeight = CapsuleComponent->GetScaledCapsuleHalfHeight() * 2.f;;
+	}
+	else if (const AActor* ObjectAsActor = Cast<AActor>(&ObjectToUpdateFrom))
+	{
+		ensureMsgf(&ObjectToUpdateFrom == GetOwner(), TEXT("Object passed to UpdateNavAgent should be the owner actor of the Nav Movement Component"));
+		// Can't call GetSimpleCollisionCylinder(), because no components will be registered.
+		float BoundRadius, BoundHalfHeight;	
+		ObjectAsActor->GetSimpleCollisionCylinder(BoundRadius, BoundHalfHeight);
+		NavAgentProps.AgentRadius = BoundRadius;
+		NavAgentProps.AgentHeight = BoundHalfHeight * 2.f;
+	}
 }
 
 void UNavMovementComponent::RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed)
@@ -40,74 +104,27 @@ bool UNavMovementComponent::CanStopPathFollowing() const
 	return true;
 }
 
-float UNavMovementComponent::GetPathFollowingBrakingDistance(float MaxSpeed) const
-{
-	return bUseFixedBrakingDistanceForPaths ? FixedPathBrakingDistance : MaxSpeed;
-}
-
-void UNavMovementComponent::SetFixedBrakingDistance(float DistanceToEndOfPath)
-{
-	if (DistanceToEndOfPath > UE_KINDA_SMALL_NUMBER)
-	{
-		bUseFixedBrakingDistanceForPaths = true;
-		FixedPathBrakingDistance = DistanceToEndOfPath;
-	}
-}
-
 void UNavMovementComponent::ClearFixedBrakingDistance()
 {
-	bUseFixedBrakingDistanceForPaths = false;
+	NavMovementProperties.bUseFixedBrakingDistanceForPaths = false;
 }
 
-void UNavMovementComponent::StopActiveMovement()
+void UNavMovementComponent::GetSimpleCollisionCylinder(float& CollisionRadius, float& CollisionHalfHeight) const
 {
-	if (!bStopMovementAbortPaths)
-	{
-		return;
-	}
-
-	IPathFollowingAgentInterface* PFAgent = GetPathFollowingAgent();
-	if (PFAgent)
-	{
-		PFAgent->OnUnableToMove(*this);
-	}
+	GetOwner()->GetSimpleCollisionCylinder(CollisionRadius, CollisionHalfHeight);
 }
 
-void UNavMovementComponent::UpdateNavAgent(const AActor& Owner)
+FVector UNavMovementComponent::GetSimpleCollisionCylinderExtent() const
 {
-	ensure(&Owner == GetOwner());
-	if (ShouldUpdateNavAgentWithOwnersCollision() == false)
-	{
-		return;
-	}
-
-	// initialize properties from navigation system
-	NavAgentProps.NavWalkingSearchHeightScale = FNavigationSystem::GetDefaultSupportedAgent().NavWalkingSearchHeightScale;
-	
-	// Can't call GetSimpleCollisionCylinder(), because no components will be registered.
-	float BoundRadius, BoundHalfHeight;	
-	Owner.GetSimpleCollisionCylinder(BoundRadius, BoundHalfHeight);
-	NavAgentProps.AgentRadius = BoundRadius;
-	NavAgentProps.AgentHeight = BoundHalfHeight * 2.f;
+	return GetOwner()->GetSimpleCollisionCylinderExtent();
 }
 
-void UNavMovementComponent::UpdateNavAgent(const UCapsuleComponent& CapsuleComponent)
+FVector UNavMovementComponent::GetForwardVector() const
 {
-	if (ShouldUpdateNavAgentWithOwnersCollision() == false)
-	{
-		return;
-	}
-
-	// initialize properties from navigation system
-	NavAgentProps.NavWalkingSearchHeightScale = FNavigationSystem::GetDefaultSupportedAgent().NavWalkingSearchHeightScale;
-
-	NavAgentProps.AgentRadius = CapsuleComponent.GetScaledCapsuleRadius();
-	NavAgentProps.AgentHeight = CapsuleComponent.GetScaledCapsuleHalfHeight() * 2.f;
+	return GetOwner()->GetActorForwardVector();
 }
 
 void UNavMovementComponent::SetUpdateNavAgentWithOwnersCollisions(bool bUpdateWithOwner)
 {
-	bUpdateNavAgentWithOwnersCollision = bUpdateWithOwner;
+	NavMovementProperties.bUpdateNavAgentWithOwnersCollision = bUpdateWithOwner;
 }
-
-

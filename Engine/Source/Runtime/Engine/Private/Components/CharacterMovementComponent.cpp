@@ -899,7 +899,7 @@ void UCharacterMovementComponent::BeginDestroy()
 
 void UCharacterMovementComponent::Deactivate()
 {
-	bStopMovementAbortPaths = false; // Mirrors StopMovementKeepPathing(), because Super calls StopMovement() and we want that handled differently.
+	NavMovementProperties.bStopMovementAbortPaths = false; // Mirrors StopMovementKeepPathing(), because Super calls StopMovement() and we want that handled differently.
 	Super::Deactivate();
 	if (!IsActive())
 	{
@@ -909,7 +909,7 @@ void UCharacterMovementComponent::Deactivate()
 			CharacterOwner->ResetJumpState();
 		}
 	}
-	bStopMovementAbortPaths = true;
+	NavMovementProperties.bStopMovementAbortPaths = true;
 }
 
 
@@ -3900,9 +3900,9 @@ bool UCharacterMovementComponent::CanStopPathFollowing() const
 
 float UCharacterMovementComponent::GetPathFollowingBrakingDistance(float MaxSpeed) const
 {
-	if (bUseFixedBrakingDistanceForPaths)
+	if (NavMovementProperties.bUseFixedBrakingDistanceForPaths)
 	{
-		return FixedPathBrakingDistance;
+		return NavMovementProperties.FixedPathBrakingDistance;
 	}
 
 	const float BrakingDeceleration = FMath::Abs(GetMaxBrakingDeceleration());
