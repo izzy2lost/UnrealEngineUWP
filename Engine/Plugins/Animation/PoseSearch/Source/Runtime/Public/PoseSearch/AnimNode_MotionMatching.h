@@ -78,7 +78,11 @@ private:
 	// Effective range of play rate that can be applied to the animations to account for discrepancies in estimated velocity between the movement model and the animation.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin = "0.2", ClampMax = "3.0", UIMin = "0.2", UIMax = "3.0"))
 	FFloatInterval PlayRate = FFloatInterval(1.f, 1.f);
-
+	
+	// Experimental: Multiplier applied to the play rate of the selected animation after Motion Matching State has been updated.
+	UPROPERTY(EditAnywhere, Category = "Settings|Experimental", meta = (PinHiddenByDefault))
+	float PlayRateMultiplier = 1.0f;
+	
 	UPROPERTY(EditAnywhere, Category = Settings, Category = Settings)
 	bool bUseInertialBlend = false;
 
