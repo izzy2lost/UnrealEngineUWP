@@ -1,5 +1,5 @@
 //
-// Copyright 2023 Pixar
+// Copyright 2024 Pixar
 //
 // Licensed under the Apache License, Version 2.0 (the "Apache License")
 // with the following modification; you may not use this file except in
@@ -20,34 +20,44 @@
 // distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
-
-#ifndef PXR_USD_IMAGING_USD_IMAGING_FLATTENED_GEOM_MODEL_DATA_SOURCE_PROVIDER_H
-#define PXR_USD_IMAGING_USD_IMAGING_FLATTENED_GEOM_MODEL_DATA_SOURCE_PROVIDER_H
+//
+#ifndef PXR_USD_IMAGING_USD_IMAGING_INSTANCEABLE_PRIM_ADAPTER_H
+#define PXR_USD_IMAGING_USD_IMAGING_INSTANCEABLE_PRIM_ADAPTER_H
 
 #include "pxr/usdImaging/usdImaging/api.h"
+#include "pxr/usdImaging/usdImaging/primAdapter.h"
 
-#include "pxr/imaging/hd/flattenedDataSourceProvider.h"
+#include "pxr/usd/sdf/path.h"
+
+#include "pxr/pxr.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-class UsdImagingFlattenedGeomModelDataSourceProvider
-                        : public HdFlattenedDataSourceProvider
+/// An abstract adapter class for prims that are instanceable. Adapters for
+/// instanceable prims should derive from this class instead of
+/// UsdImaginggPrimAdapter.
+class UsdImagingInstanceablePrimAdapter : public UsdImagingPrimAdapter
 {
-    USDIMAGING_API
-    HdContainerDataSourceHandle GetFlattenedDataSource(
-        const Context&) const override;
-
-    USDIMAGING_API
-    void ComputeDirtyLocatorsForDescendants(
-        HdDataSourceLocatorSet * locators) const override;
-
 public:
+    using BaseAdapter = UsdImagingPrimAdapter;
 
+protected:
+    friend class UsdImagingInstanceAdapter;
+    friend class UsdImagingPointInstancerAdapter;
+    // ---------------------------------------------------------------------- //
+    /// \name Utility
+    // ---------------------------------------------------------------------- //
+    
+    // Given the USD path for a prim of this adapter's type, returns
+    // the prim's Hydra cache path.
     USDIMAGING_API
-    virtual ~UsdImagingFlattenedGeomModelDataSourceProvider();
+    SdfPath
+    ResolveCachePath(
+        const SdfPath& usdPath,
+        const UsdImagingInstancerContext*
+            instancerContext = nullptr) const override;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // PXR_USD_IMAGING_USD_IMAGING_FLATTENED_GEOM_MODEL_DATA_SOURCE_PROVIDER_H
-
+#endif // PXR_USD_IMAGING_USD_IMAGING_INSTANCEABLE_PRIM_ADAPTER_H
