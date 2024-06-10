@@ -216,22 +216,6 @@ namespace UE::DMX::Private
 		return FReply::Handled();
 	}
 
-	FReply SDMXControlConsoleEditorFaderGroupControllerView::OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-	{
-		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
-		{
-			TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton = GetExpandArrowButton();
-			if (ExpandArrowButton.IsValid())
-			{
-				ExpandArrowButton->ToggleExpandArrow();
-
-				return FReply::Handled();
-			}
-		}
-
-		return FReply::Unhandled();
-	}
-
 	void SDMXControlConsoleEditorFaderGroupControllerView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
 		UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController();
