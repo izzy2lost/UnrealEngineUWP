@@ -230,14 +230,14 @@ private:
 	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToPartitionActorsMap;
 	mutable FRWLock ComponentToPartitionActorsMapLock;
 
-	/** Components to be unregister at the next frame. cf. UnregisterComponent for a better understanding on why it is needed. */
-	TSet<UPCGComponent*> DelayedComponentToUnregister;
-	mutable FCriticalSection DelayedComponentToUnregisterLock;
-
 	/** Will hold all the components that are not partitioned (and not local) and are tracking something. Will be use to dispatch actor tracking updates. */
 	FPCGComponentOctreeAndMap NonPartitionedOctree;
 
 #if WITH_EDITOR
+	/** Components to be unregister at the next frame. cf. UnregisterComponent for a better understanding on why it is needed. */
+	TSet<UPCGComponent*> DelayedComponentToUnregister;
+	mutable FCriticalSection DelayedComponentToUnregisterLock;
+	
 	// Tracking actors
 	/** Keep a mapping between tracked keys and the components that track them, and the tracking needs to be culled.*/
 	TMap<FPCGSelectionKey, TSet<UPCGComponent*>> CulledTrackedKeysToComponentsMap;
