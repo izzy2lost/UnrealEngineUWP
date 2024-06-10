@@ -1974,15 +1974,10 @@ void UControlRigBlueprint::PatchPropagateToChildren()
 	}
 }
 
-void UControlRigBlueprint::PatchFunctionsOnLoad()
+void UControlRigBlueprint::GetBackwardsCompatibilityPublicFunctions(TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders)
 {
 	URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass();
 	FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
-
-	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
-
-	// Backwards compatibility. Store public access in the model
-	TArray<FName> BackwardsCompatiblePublicFunctions;
 	if (GetLinkerCustomVersion(FControlRigObjectVersion::GUID) < FControlRigObjectVersion::StoreFunctionsInGeneratedClass)
 	{
 		for (const FRigVMOldPublicFunctionData& OldPublicFunction : PublicFunctions_DEPRECATED)
@@ -2015,55 +2010,6 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 			}
 		}
 	}
-
-	// Lets rebuild the FunctionStore from the model
-	if (FunctionLibrary)
-	{
-		Store.PublicFunctions.Reset();
-		Store.PrivateFunctions.Reset();
-
-		for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
-		{
-			bool bIsPublic = FunctionLibrary->IsFunctionPublic(LibraryNode->GetFName());
-			if (!bIsPublic)
-			{
-				bIsPublic = BackwardsCompatiblePublicFunctions.Contains(LibraryNode->GetFName());
-				if (bIsPublic)
-				{
-					FunctionLibrary->PublicFunctionNames.Add(LibraryNode->GetFName());
-				}
-			}
-
-			FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(CRGeneratedClass);
-			if (FRigVMGraphFunctionHeader* OldHeader = OldHeaders.Find(LibraryNode))
-			{				
-				Header.ExternalVariables = OldHeader->ExternalVariables;
-				Header.Dependencies = OldHeader->Dependencies;
-			}
-
-			const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());
-			if (!Variant)
-			{
-				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.GetLibraryNodePath());
-				FunctionLibrary->FunctionToVariant.FindOrAdd(Header.Name) = Header.Variant;
-			}
-			else
-			{
-				Header.Variant = *Variant;
-			}
-			
-			Store.AddFunction(Header, bIsPublic);
-			
-		}
-
-		// Update dependencies and external variables if needed
-		for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
-		{
-			GetRigVMClient()->UpdateExternalVariablesForFunction(LibraryNode);
-			GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
-		}
-	}
-
 }
 
 void UControlRigBlueprint::CreateMemberVariablesOnLoad()

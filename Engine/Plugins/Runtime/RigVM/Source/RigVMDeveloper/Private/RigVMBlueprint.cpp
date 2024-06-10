@@ -3717,34 +3717,13 @@ void URigVMBlueprint::PatchFunctionsOnLoad()
 {
 	URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass();
 	FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
-	const URigVMFunctionLibrary* Library = GetLocalFunctionLibrary();
+	URigVMFunctionLibrary* FunctionLibrary = GetLocalFunctionLibrary();
 
 	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
 
 	// Backwards compatibility. Store public access in the model
 	TArray<FName> BackwardsCompatiblePublicFunctions;
-	if (GetLinkerCustomVersion(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::RigVMSaveFunctionAccessInModel)
-	{
-		for (const FRigVMGraphFunctionData& FunctionData : Store.PublicFunctions)
-		{
-			BackwardsCompatiblePublicFunctions.Add(FunctionData.Header.Name);
-			URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.GetNodeSoftPath().ResolveObject());
-			OldHeaders.Add(LibraryNode, FunctionData.Header);
-		}
-	}
-
-	// Addressing issue where PublicGraphFunctions is populated, but the model PublicFunctionNames is not
-	URigVMFunctionLibrary* FunctionLibrary = GetLocalFunctionLibrary();
-	if (FunctionLibrary)
-	{
-		if (PublicGraphFunctions.Num() > FunctionLibrary->PublicFunctionNames.Num())
-		{
-			for (const FRigVMGraphFunctionHeader& PublicHeader : PublicGraphFunctions)
-			{
-				BackwardsCompatiblePublicFunctions.Add(PublicHeader.Name);
-			}
-		}
-	}
+	GetBackwardsCompatibilityPublicFunctions(BackwardsCompatiblePublicFunctions, OldHeaders);
 
 	// Lets rebuild the FunctionStore from the model
 	if (FunctionLibrary)
@@ -3775,6 +3754,7 @@ void URigVMBlueprint::PatchFunctionsOnLoad()
 			if (!Variant)
 			{
 				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.GetLibraryNodePath());
+				FunctionLibrary->FunctionToVariant.FindOrAdd(Header.Name) = Header.Variant;
 			}
 			else
 			{
@@ -3782,15 +3762,46 @@ void URigVMBlueprint::PatchFunctionsOnLoad()
 			}
 			
 			Store.AddFunction(Header, bIsPublic);
-			
+			if (bIsPublic)
+			{
+				GetRigVMClient()->UpdateGraphFunctionSerializedGraph(LibraryNode);
+			}
+		}
+
+		// Update dependencies and external variables if needed
+		for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
+		{
+			GetRigVMClient()->UpdateExternalVariablesForFunction(LibraryNode);
+			GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
+		}
+	}
+}
+
+void URigVMBlueprint::GetBackwardsCompatibilityPublicFunctions(TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders)
+{
+	URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass();
+	FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
+	if (GetLinkerCustomVersion(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::RigVMSaveFunctionAccessInModel)
+	{
+		for (const FRigVMGraphFunctionData& FunctionData : Store.PublicFunctions)
+		{
+			BackwardsCompatiblePublicFunctions.Add(FunctionData.Header.Name);
+			URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.GetNodeSoftPath().ResolveObject());
+			OldHeaders.Add(LibraryNode, FunctionData.Header);
 		}
 	}
 
-	// Update dependencies and external variables if needed
-	for (URigVMLibraryNode* LibraryNode : Library->GetFunctions())
+	// Addressing issue where PublicGraphFunctions is populated, but the model PublicFunctionNames is not
+	URigVMFunctionLibrary* FunctionLibrary = GetLocalFunctionLibrary();
+	if (FunctionLibrary)
 	{
-		GetRigVMClient()->UpdateExternalVariablesForFunction(LibraryNode);
-		GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
+		if (PublicGraphFunctions.Num() > FunctionLibrary->PublicFunctionNames.Num())
+		{
+			for (const FRigVMGraphFunctionHeader& PublicHeader : PublicGraphFunctions)
+			{
+				BackwardsCompatiblePublicFunctions.Add(PublicHeader.Name);
+			}
+		}
 	}
 }
 

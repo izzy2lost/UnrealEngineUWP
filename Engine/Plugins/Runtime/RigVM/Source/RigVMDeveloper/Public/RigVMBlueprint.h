@@ -617,6 +617,7 @@ private:
 	virtual void PatchParameterNodesOnLoad() {}
 	virtual void PatchLinksWithCast();
 	virtual void PatchFunctionsOnLoad();
+	virtual void GetBackwardsCompatibilityPublicFunctions(TArray<FName> &BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders);
 
 protected:
 

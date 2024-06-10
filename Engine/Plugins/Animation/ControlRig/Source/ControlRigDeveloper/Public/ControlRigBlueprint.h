@@ -326,7 +326,7 @@ private:
 	static TArray<UControlRigBlueprint*> sCurrentlyOpenedRigBlueprints;
 
 	virtual void PathDomainSpecificContentOnLoad() override;
-	virtual void PatchFunctionsOnLoad() override;
+	virtual void GetBackwardsCompatibilityPublicFunctions(TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders) override;
 	void PatchRigElementKeyCacheOnLoad();
 	void PatchPropagateToChildren();
 
