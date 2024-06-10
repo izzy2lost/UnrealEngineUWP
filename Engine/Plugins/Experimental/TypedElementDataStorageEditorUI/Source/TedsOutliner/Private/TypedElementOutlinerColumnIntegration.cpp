@@ -880,6 +880,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 	}
 }
 
+// TEDS UI TODO: Maybe the widget can specify a user facing name derived from the matched columns instead of trying to find the longest matching name
 FName FTypedElementSceneOutliner::FindLongestMatchingName(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, int32 DefaultNameIndex)
 {
 	switch (ColumnTypes.Num())
@@ -922,8 +923,8 @@ FName FTypedElementSceneOutliner::FindLongestMatchingName(TConstArrayView<TWeakO
 			}
 			else
 			{
-				// There are not enough characters in the string that match.
-				return FName(TEXT("Column"), DefaultNameIndex);
+				// There are not enough characters in the string that match. Just return the name of the first column
+				return FName(ColumnTypes[0]->GetDisplayNameText().ToString());
 			}
 		}
 		return FName(LongestMatch);

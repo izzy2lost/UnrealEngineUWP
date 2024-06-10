@@ -119,13 +119,13 @@ TypedElementDataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutl
 
 	static TypedElementDataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
 		Select()
-			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn, FTypedElementRowReferenceColumn>()
+			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
 		.Compile());
 
 	// Query to also include SCC info
 	static TypedElementDataStorage::QueryHandle SCCQuery = Storage->RegisterQuery(
 		Select()
-			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementPackageReference, FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
+			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementPackageReference, FTypedElementAlertColumn>()
 		.Compile());
 
 	return UE::TedsOutliner::bUseNewSCCWidgets ? SCCQuery : ColumnQuery;
