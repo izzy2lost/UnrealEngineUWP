@@ -1082,9 +1082,7 @@ void SetRayTracingShaderParameters(
 			check(RTBindingsWriter.BindlessParameters.Num() == ConvertedBindings.BindlessParameters.Num());
 			for (int32 i = 0; i < ConvertedBindings.BindlessParameters.Num(); ++i)
 			{
-				const FRHIShaderParameterResource& A = RTBindingsWriter.BindlessParameters[i];
-				const FRHIShaderParameterResource& B = ConvertedBindings.BindlessParameters[i];
-				check(FMemory::Memcmp(&A, &B, sizeof(A)) == 0);
+				check(RTBindingsWriter.BindlessParameters[i] == ConvertedBindings.BindlessParameters[i]);
 			}
 		}
 	}

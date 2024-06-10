@@ -72,6 +72,13 @@ struct FRHIShaderParameterResource
 	{
 	}
 
+	bool operator == (const FRHIShaderParameterResource& Other) const
+	{
+		return Resource == Other.Resource
+			&& Index == Other.Index
+			&& Type == Other.Type;
+	}
+
 	FRHIResource* Resource = nullptr;
 	uint16        Index = 0;
 	EType         Type = EType::Texture;
