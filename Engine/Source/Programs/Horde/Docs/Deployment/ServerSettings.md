@@ -228,6 +228,7 @@ Name | Description
 `Gzip` | Gzip compression
 `Oodle` | Oodle compression (Selkie)
 `Brotli` | Brotli compression
+`Zstd` | ZStandard compression
 
 ## ChunkingOptions
 
