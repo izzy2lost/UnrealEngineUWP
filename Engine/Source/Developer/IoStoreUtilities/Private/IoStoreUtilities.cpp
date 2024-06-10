@@ -417,19 +417,20 @@ public:
 
 	// This function was not written to be thread safe as it's only ever called from
 	// the iostore begindispatch thread (i.e. is not async)
-	virtual bool RetrieveChunk(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, TUniqueFunction<void(TIoStatusOr<FIoStoreCompressedReadResult>)> InCompleteCallback)
+	virtual UE::Tasks::FTask RetrieveChunk(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, TUniqueFunction<void(TIoStatusOr<FIoStoreCompressedReadResult>)> InCompleteCallback)
 	{
 		if (!bValid)
 		{
-			return false;
+			InCompleteCallback(FIoStatus(EIoErrorCode::InvalidCode, TEXT("IoStoreChunkDatabase not initialized")));
+			return UE::Tasks::MakeCompletedTask<void>();
 		}
 
 		TUniquePtr<FReaderChunks>* ReaderChunksPtr = ChunkDatabase.Find(InContainerId);
 		if (ReaderChunksPtr == nullptr)
 		{
 			// This should never happen now as we wrap this in a ChunkExists call.
-			UE_LOG(LogIoStore, Warning, TEXT("RetrieveChunk can't find the container  invariant violated!"));
-			return false;
+			InCompleteCallback(FIoStatus(EIoErrorCode::InvalidCode, TEXT("RetrieveChunk can't find the container - invariant violated!")));
+			return UE::Tasks::MakeCompletedTask<void>();
 		}
 
 		FReaderChunks* ReaderChunks = ReaderChunksPtr->Get();
@@ -438,8 +439,8 @@ public:
 		if (ChunkIndex == nullptr)
 		{
 			// This should never happen now as we wrap this in a ChunkExists call.
-			UE_LOG(LogIoStore, Warning, TEXT("RetrieveChunk can't find the chunk - invariant violated!"));
-			return false;
+			InCompleteCallback(FIoStatus(EIoErrorCode::InvalidCode, TEXT("RetrieveChunk can't find the chunk - invariant violated!")));
+			return UE::Tasks::MakeCompletedTask<void>();
 		}
 
 		FIoStoreTocChunkInfo& ChunkInfo = ReaderChunks->ChunkInfos[*ChunkIndex];
@@ -462,13 +463,11 @@ public:
 		//
 		// At this point we know we can use the block so we can go async.
 		//
-		FFunctionGraphTask::CreateAndDispatchWhenReady([this, Id = InChunkId, ReaderIndex = ReaderChunks->ReaderIndex, CompleteCallback = MoveTemp(InCompleteCallback)]()
+		return UE::Tasks::Launch(TEXT("ReadCompressed"), [this, Id = InChunkId, ReaderIndex = ReaderChunks->ReaderIndex, CompleteCallback = MoveTemp(InCompleteCallback)]()
 		{
 			TIoStatusOr<FIoStoreCompressedReadResult> Result = Readers[ReaderIndex]->ReadCompressed(Id, FIoReadOptions());
 			CompleteCallback(Result);
-		}, TStatId(), nullptr, ENamedThreads::AnyHiPriThreadNormalTask);
-
-		return true;
+		}, UE::Tasks::ETaskPriority::Normal);
 	}
 
 	void WriteCSV(const FString& InOutputFileName, const TArray<struct FCookedPackage*>& InPackages);
