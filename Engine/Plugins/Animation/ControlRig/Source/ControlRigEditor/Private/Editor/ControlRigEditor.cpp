@@ -2314,6 +2314,7 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 			InMenuBuilder.BeginSection("ControlRig", LOCTEXT("ControlRig_Label", "Control Rig"));
 			{
 				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleControlVisibility);
+				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleControlsAsOverlay);
 				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleDrawNulls);
 				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleDrawSockets);
 				InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleDrawAxesOnSelection);
@@ -2484,6 +2485,25 @@ bool FControlRigEditor::AreControlsVisible() const
 	if (FControlRigEditMode* EditMode = GetEditMode())
 	{
 		return EditMode->AreControlsVisible();
+	}
+	return false;
+}
+
+void FControlRigEditor::HandleToggleControlsAsOverlay()
+{
+	if (FControlRigEditMode* EditMode = GetEditMode())
+	{
+		EditMode->bShowControlsAsOverlay = !EditMode->bShowControlsAsOverlay;
+		EditMode->UpdateSelectabilityOnSkeletalMeshes(GetControlRig(), !EditMode->bShowControlsAsOverlay);
+		EditMode->RequestToRecreateControlShapeActors();
+	}
+}
+
+bool FControlRigEditor::AreControlsAsOverlay() const
+{
+	if (FControlRigEditMode* EditMode = GetEditMode())
+	{
+		return EditMode->bShowControlsAsOverlay;
 	}
 	return false;
 }
@@ -3647,6 +3667,12 @@ void FControlRigEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleControlVisibility),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FControlRigEditor::AreControlsVisible));
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().ToggleControlsAsOverlay,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleControlsAsOverlay),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FControlRigEditor::AreControlsAsOverlay));
 
 	GetToolkitCommands()->MapAction(
 		FControlRigEditorCommands::Get().ToggleDrawNulls,

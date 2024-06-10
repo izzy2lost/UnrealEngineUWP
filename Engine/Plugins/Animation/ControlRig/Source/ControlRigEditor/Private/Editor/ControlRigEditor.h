@@ -242,6 +242,8 @@ private:
 	void HandleViewportCreated(const TSharedRef<class IPersonaViewport>& InViewport);
 	void HandleToggleControlVisibility();
 	bool AreControlsVisible() const;
+	void HandleToggleControlsAsOverlay();
+	bool AreControlsAsOverlay() const;
 	bool IsToolbarDrawNullsEnabled() const;
 	bool GetToolbarDrawNulls() const;
 	void HandleToggleToolbarDrawNulls();

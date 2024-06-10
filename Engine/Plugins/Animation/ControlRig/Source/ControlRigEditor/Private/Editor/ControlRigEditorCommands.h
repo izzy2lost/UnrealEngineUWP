@@ -42,6 +42,9 @@ public:
 	/** Toggle visibility of the controls */
 	TSharedPtr< FUICommandInfo > ToggleControlVisibility;
 
+	/** Toggle if controls should be rendered on top of other controls */
+	TSharedPtr< FUICommandInfo > ToggleControlsAsOverlay;
+
 	/** Toggle visibility of nulls */
 	TSharedPtr< FUICommandInfo > ToggleDrawNulls;
 
