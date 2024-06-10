@@ -143,8 +143,8 @@ namespace NFORDenoise
 
 	TAutoConsoleVariable<float> CVarNFORLinearSolverCholeskyLambda(
 		TEXT("r.NFOR.LinearSolver.Cholesky.Lambda"),
-		1e-3,
-		TEXT("The parameter lambda for modified Cholesky decomposition to make it positive definite.\n")
+		2e-5,
+		TEXT("The initial lambda for modified Cholesky decomposition to make it positive definite. It will be scaled by the max of the absolute of the matrix element.\n")
 		TEXT("Large value yields bias with smoothed rendering, while small value leads to variance or artifacts.\n")
 		TEXT("Used when r.NFOR.LinearSolver.Type = 1 and 2. Selected to match the quality of r.NFOR.LinearSolver.Type = 2\n")
 		TEXT("to r.NFOR.LinearSolver.Type 0."),
@@ -1908,6 +1908,7 @@ namespace NFORDenoise
 			CommonPassParameters.NumOfElements = NumOfElements;
 			CommonPassParameters.NumOfElementsPerRow = NumOfElementsPerRow;
 			CommonPassParameters.Lambda = 0.0f;
+			CommonPassParameters.MinLambda = 0.0f;
 		}
 
 		// First multi-pass or the single pass based on SolverType.
@@ -1919,11 +1920,13 @@ namespace NFORDenoise
 				*PassParameters = CommonPassParameters;
 				//Magnitude of X^TWX element value increases with the number of frames, and the number of elements selected to 
 				// estimate the weights. GetLinearSolverCholeskyLambda() returns the lambda for a single frame.
-				PassParameters->Lambda = GetLinearSolverCholeskyLambda() * WeightedLSRDesc.NumOfFrames;
+				PassParameters->Lambda = GetLinearSolverCholeskyLambda();
+				PassParameters->MinLambda = 1e-3 * WeightedLSRDesc.NumOfFrames; // Experimental value.
 				if (bApproximateGroundTruthSolver)
 				{
 					PassParameters->RWSuccessAndFailIndexBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(SuccessAndFailIndexBuffer[0], PF_R32_UINT));
 					PassParameters->Lambda = 0.0f;
+					PassParameters->MinLambda = 0.0f;
 				}
 			}
 

@@ -35,6 +35,8 @@ int2 BDim;
 int NumOfElements;
 int NumOfElementsPerRow;
 
+float MinLambda;
+
 struct FLMatrix
 {
 	FDFScalar M[LOWER_TRIANGLE_MATRIX_SIZE];
@@ -95,6 +97,16 @@ FMatrix  LMatrixMultiply(in FLMatrix A, in FLMatrix B)
 	}
 
 	return Ret;
+}
+
+float LMatrixMaxAbsValue(in FLMatrix A)
+{
+	float MaxAbsValue = 0;
+	for (int i = 0; i < SYMMETRIC_MATRIX_SIZE; ++i)
+	{
+		MaxAbsValue = max(MaxAbsValue, abs(DFDemote(A.M[i])));
+	}
+	return MaxAbsValue;
 }
 
 // Assume A is symmetric, and B is not. However, A*B is symmetric
@@ -440,6 +452,14 @@ bool CholeskeyDecomposition(inout FLMatrix L, FLMatrix AMatrix, float lambda)
 	bool bComplete = true;
 	L = (FLMatrix)0;
 
+	// We need adaptive lambda otherwise, we cannot find a one size fit for all to make 
+	// this decomposition always successful.
+	// To achieve this, we use the max value of the absolute of the matrtix by the lambda
+	lambda *= LMatrixMaxAbsValue(AMatrix);
+	
+	// In case lambda becomes too small, we use the min lambda to provide sufficient regularization. 
+	lambda = max(lambda, MinLambda);
+	
 	for (int i = 0; i < MATRIX_DIM; ++i)
 	{
 		for (int j = 0; j <= i; ++j)

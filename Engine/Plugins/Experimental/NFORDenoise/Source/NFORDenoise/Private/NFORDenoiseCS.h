@@ -701,6 +701,7 @@ namespace NFORDenoise
 				SHADER_PARAMETER(int, NumOfElementsPerRow)
 
 				SHADER_PARAMETER(float, Lambda)
+				SHADER_PARAMETER(float, MinLambda)
 				SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWSuccessAndFailIndexBuffer)
 			END_SHADER_PARAMETER_STRUCT()
 
