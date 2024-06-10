@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "InterchangeManager.h"
+#include "InterchangeTaskSystem.h"
 #include "Stats/Stats.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -12,8 +12,7 @@ namespace UE
 {
 	namespace Interchange
 	{
-
-		class FTaskTranslator
+		class FTaskTranslator : public FInterchangeTaskBase
 		{
 		private:
 			int32 SourceIndex = INDEX_NONE;
@@ -26,29 +25,18 @@ namespace UE
 			{
 			}
 
-			FORCEINLINE ENamedThreads::Type GetDesiredThread()
+			virtual EInterchangeTaskThread GetTaskThread() const override
 			{
 				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
 				{
-					return ENamedThreads::GameThread_Local;
+					return EInterchangeTaskThread::GameThread;
 				}
 
-				return ENamedThreads::AnyBackgroundThreadNormalTask;
-			}
-			static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode()
-			{
-				return ESubsequentsMode::TrackSubsequents;
+				return EInterchangeTaskThread::AsyncThread;
 			}
 
-			FORCEINLINE TStatId GetStatId() const
-			{
-				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskTranslator, STATGROUP_TaskGraphTasks);
-			}
-
-			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+			virtual void Execute();
 		};
-
-
 	} //ns Interchange
 } //ns UE

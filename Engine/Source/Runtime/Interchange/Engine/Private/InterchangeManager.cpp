@@ -23,6 +23,7 @@
 #include "InterchangeProjectSettings.h"
 #include "InterchangePythonPipelineBase.h"
 #include "InterchangeSourceData.h"
+#include "InterchangeTaskSystem.h"
 #include "InterchangeTranslatorBase.h"
 #include "InterchangeWriterBase.h"
 #include "Internationalization/Internationalization.h"
@@ -537,47 +538,56 @@ void UE::Interchange::FImportAsyncHelper::SendAnalyticImportEndData()
 
 void UE::Interchange::FImportAsyncHelper::ReleaseTranslatorsSource()
 {
-	for (UInterchangeTranslatorBase* BaseTranslator : Translators)
+	//Make sure Executing translator task are done before releasing the resource
+	const int32 TranslatorCount = Translators.Num();
+	for (int32 TranslatorIndex = 0; TranslatorIndex < TranslatorCount; ++TranslatorIndex)
 	{
+		const uint64 TaskId = TranslatorTasks.IsValidIndex(TranslatorIndex) ? TranslatorTasks[TranslatorIndex] : INTERCHANGE_INVALID_TASK_ID;
+		UInterchangeTranslatorBase* BaseTranslator = Translators[TranslatorIndex];
+
 		if (BaseTranslator)
 		{
+			//Wait until the translator is done before releasing the resource. This should not happen since resource are free during completion
+			const EInterchangeTaskStatus TaskStatus = UE::Interchange::FInterchangeTaskSystem::Get().GetTaskStatus(TaskId);
+			if (TaskStatus == EInterchangeTaskStatus::Executing)
+			{
+				ensure(TaskStatus != EInterchangeTaskStatus::Executing);
+				UE::Interchange::FInterchangeTaskSystem::Get().WaitUntilTasksComplete({ TaskId });
+			}
 			BaseTranslator->ReleaseSource();
 		}
 	}
 }
 
-FGraphEventArray UE::Interchange::FImportAsyncHelper::GetCompletionTaskGraphEvent()
+TArray<uint64> UE::Interchange::FImportAsyncHelper::GetCompletionTaskGraphEvent()
 {
-	FGraphEventArray TasksToComplete;
+	TArray<uint64> TasksToComplete;
 
 	TasksToComplete.Append(TranslatorTasks);
 	TasksToComplete.Append(PipelineTasks);
 	
-	if (ParsingTask.GetReference())
+	if (ParsingTask != INTERCHANGE_INVALID_TASK_ID)
 	{
 		TasksToComplete.Add(ParsingTask);
 	}
 
 	//Parsing task must be done before the other tasks get added
-	FTaskGraphInterface::Get().WaitUntilTasksComplete(TasksToComplete, ENamedThreads::GameThread);
+	UE::Interchange::FInterchangeTaskSystem::Get().WaitUntilTasksComplete(TasksToComplete);
 	TasksToComplete.Reset();
 
 	TasksToComplete.Append(BeginImportObjectTasks);
 	TasksToComplete.Append(ImportObjectTasks);
 	TasksToComplete.Append(FinalizeImportObjectTasks);
 	TasksToComplete.Append(SceneTasks);
-	if (WaitAssetCompilationTask.GetReference())
-	{
-		TasksToComplete.Add(WaitAssetCompilationTask);
-	}
+	TasksToComplete.Append(WaitAssetCompilationTasks);
 	TasksToComplete.Append(PostImportTasks);
 
-	if (PreCompletionTask.GetReference())
+	if (PreCompletionTask != INTERCHANGE_INVALID_TASK_ID)
 	{
 		TasksToComplete.Add(PreCompletionTask);
 	}
 	
-	if (CompletionTask.GetReference())
+	if (CompletionTask != INTERCHANGE_INVALID_TASK_ID)
 	{
 		//Completion task will make sure any created asset before canceling will be mark for delete
 		TasksToComplete.Add(CompletionTask);
@@ -589,7 +599,6 @@ FGraphEventArray UE::Interchange::FImportAsyncHelper::GetCompletionTaskGraphEven
 void UE::Interchange::FImportAsyncHelper::InitCancel()
 {
 	bCancel = true;
-	ReleaseTranslatorsSource();
 }
 
 void UE::Interchange::FImportAsyncHelper::CleanUp()
@@ -667,10 +676,7 @@ bool UE::Interchange::FImportResult::IsValid() const
 void UE::Interchange::FImportResult::SetInProgress()
 {
 	EStatus ExpectedStatus = EStatus::Invalid;
-	if (ImportStatus.compare_exchange_strong(ExpectedStatus, EStatus::InProgress))
-	{
-		GraphEvent = FGraphEvent::CreateGraphEvent();
-	}
+	ImportStatus.compare_exchange_strong(ExpectedStatus, EStatus::InProgress);
 }
 
 void UE::Interchange::FImportResult::SetDone()
@@ -701,13 +707,12 @@ void UE::Interchange::FImportResult::SetDone()
 				WeakObjects.Emplace(Object);
 			}
 
-			// call the callbacks on the game thread
-			Async(EAsyncExecution::TaskGraphMainThread, [InWeakObjects = MoveTemp(WeakObjects), ImportDoneNative = OnImportDoneNative, ImportDone = OnImportDone]()
+			if(ensure(IsInGameThread()))
 			{
 				TArray<UObject*> ValidObjects;
-				ValidObjects.Reserve(InWeakObjects.Num());
+				ValidObjects.Reserve(WeakObjects.Num());
 
-				for (const TWeakObjectPtr<UObject>& WeakObject : InWeakObjects)
+				for (const TWeakObjectPtr<UObject>& WeakObject : WeakObjects)
 				{
 					if (UObject* ValidObject = WeakObject.Get())
 					{
@@ -715,13 +720,10 @@ void UE::Interchange::FImportResult::SetDone()
 					}
 				}
 
-				ImportDoneNative.ExecuteIfBound(ValidObjects);
-				ImportDone.ExecuteIfBound(ValidObjects);
-			});
+				OnImportDoneNative.ExecuteIfBound(ValidObjects);
+				OnImportDone.ExecuteIfBound(ValidObjects);
+			}
 		}
-
-
-		GraphEvent->DispatchSubsequents();
 	}
 }
 
@@ -729,14 +731,17 @@ void UE::Interchange::FImportResult::WaitUntilDone(bool bSynchronous /*= false*/
 {
 	if (ImportStatus == EStatus::InProgress)
 	{
-		if (bSynchronous)
+		//Pin the weak ptr, do not hold the shared ptr until the end of the import, simply get the completion task id
+		TArray<uint64> TasksIds;
 		{
-			FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread_Local);
+			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> PinAsyncHelper = AsyncHelper.Pin();
+			if (PinAsyncHelper.IsValid())
+			{
+				TasksIds = PinAsyncHelper->GetCompletionTaskGraphEvent();
+			}
 		}
-		else
-		{
-			FTaskGraphInterface::Get().WaitUntilTaskCompletes(GraphEvent);
-		}
+		//Wait until the whole import is done
+		UE::Interchange::FInterchangeTaskSystem::Get().WaitUntilTasksComplete(TasksIds);
 	}
 }
 
@@ -807,6 +812,11 @@ void UE::Interchange::FImportResult::AddReferencedObjects(FReferenceCollector& C
 	FReadScopeLock ReadScopeLock(ImportedObjectsRWLock);
 	Collector.AddReferencedObjects(ImportedObjects);
 	Collector.AddReferencedObject(Results);
+}
+
+void UE::Interchange::FImportResult::SetAsyncHelper(TWeakPtr<FImportAsyncHelper> InAsyncHelper)
+{
+	AsyncHelper = InAsyncHelper;
 }
 
 UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance)
@@ -929,22 +939,6 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 
 		bIsCreatingSingleton = false;
 
-		InterchangeManager->GCEndDelegate = FCoreUObjectDelegates::GetPostGarbageCollect().AddLambda([]()
-			{
-				if (IsInterchangeImportEnabled() && InterchangeManager.IsValid())
-				{
-					InterchangeManager->StartQueuedTasks(InterchangeManager->bGCEndDelegateCancellAllTask);
-				}
-			});
-		InterchangeManager->GCPreDelegate = FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddLambda([]()
-			{
-				if (IsInterchangeImportEnabled() && InterchangeManager.IsValid())
-				{
-					const bool bCancel = !GIsEditor;
-					InterchangeManager->WaitUntilAllTasksDone(bCancel);
-				}
-			});
-
 		//We cancel any running task when we pre exit the engine
 		FCoreDelegates::OnEnginePreExit.AddLambda([]()
 		{
@@ -964,17 +958,6 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 				InterchangeManager->WaitUntilAllTasksDone(bCancel);
 			}
 
-			//Remove any delegate
-			if (InterchangeManager->GCEndDelegate.IsValid())
-			{
-				FCoreUObjectDelegates::GetPostGarbageCollect().Remove(InterchangeManager->GCEndDelegate);
-				InterchangeManager->GCEndDelegate.Reset();
-			}
-			if(InterchangeManager->GCPreDelegate.IsValid())
-			{
-				FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Remove(InterchangeManager->GCPreDelegate);
-				InterchangeManager->GCPreDelegate.Reset();
-			}
 			//Task should have been cancel in the Engine pre exit callback
 			ensure(InterchangeManager->ImportTasks.Num() == 0);
 			InterchangeManager->OnPreDestroyInterchangeManager.Broadcast();
@@ -1470,7 +1453,7 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 			}
 
 			//Create/Start import tasks
-			FGraphEventArray PipelinePrerequistes;
+			TArray<uint64> PipelinePrerequistes;
 			if(QueuedTaskData.AsyncHelper->TranslatorTasks.Num() == 0)
 			{
 				check(QueuedTaskData.AsyncHelper->Translators.Num() == QueuedTaskData.AsyncHelper->SourceDatas.Num());
@@ -1478,18 +1461,20 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 				{
 					//Log the source we begin importing
 					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *QueuedTaskData.AsyncHelper->SourceDatas[SourceDataIndex]->GetFilename());
-					int32 TranslatorTaskIndex = QueuedTaskData.AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask().ConstructAndDispatchWhenReady(SourceDataIndex, WeakAsyncHelper));
+					TSharedPtr<UE::Interchange::FTaskTranslator, ESPMode::ThreadSafe> TaskTranslator = MakeShared<UE::Interchange::FTaskTranslator, ESPMode::ThreadSafe>(SourceDataIndex, WeakAsyncHelper);
+					int32 TranslatorTaskIndex = QueuedTaskData.AsyncHelper->TranslatorTasks.Add(UE::Interchange::FInterchangeTaskSystem::Get().AddTask(TaskTranslator));
 					PipelinePrerequistes.Add(QueuedTaskData.AsyncHelper->TranslatorTasks[TranslatorTaskIndex]);
 				}
 			}
 
-			FGraphEventArray GraphParsingPrerequistes;
+			TArray<uint64> GraphParsingPrerequistes;
 			for (int32 GraphPipelineIndex = 0; GraphPipelineIndex < QueuedTaskData.AsyncHelper->Pipelines.Num(); ++GraphPipelineIndex)
 			{
 				UInterchangePipelineBase* GraphPipeline = QueuedTaskData.AsyncHelper->Pipelines[GraphPipelineIndex];
 				TWeakObjectPtr<UInterchangePipelineBase> WeakPipelinePtr = GraphPipeline;
-				int32 GraphPipelineTaskIndex = INDEX_NONE;
-				GraphPipelineTaskIndex = QueuedTaskData.AsyncHelper->PipelineTasks.Add(TGraphTask<UE::Interchange::FTaskPipeline>::CreateTask(&PipelinePrerequistes).ConstructAndDispatchWhenReady(WeakPipelinePtr, WeakAsyncHelper));
+
+				TSharedPtr<UE::Interchange::FTaskPipeline, ESPMode::ThreadSafe> TaskPipeline = MakeShared<UE::Interchange::FTaskPipeline, ESPMode::ThreadSafe>(WeakPipelinePtr, WeakAsyncHelper);
+				int32 GraphPipelineTaskIndex = QueuedTaskData.AsyncHelper->PipelineTasks.Add(UE::Interchange::FInterchangeTaskSystem::Get().AddTask(TaskPipeline, PipelinePrerequistes));
 				//Ensure we run the pipeline in the same order we create the task, since pipeline modify the node container, its important that its not process in parallel, Adding the one we start to the prerequisites
 				//is the way to go here
 				PipelinePrerequistes.Add(QueuedTaskData.AsyncHelper->PipelineTasks[GraphPipelineTaskIndex]);
@@ -1498,15 +1483,14 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 				GraphParsingPrerequistes.Add(QueuedTaskData.AsyncHelper->PipelineTasks[GraphPipelineTaskIndex]);
 			}
 
-			if (GraphParsingPrerequistes.Num() > 0)
-			{
-				QueuedTaskData.AsyncHelper->ParsingTask = TGraphTask<UE::Interchange::FTaskParsing>::CreateTask(&GraphParsingPrerequistes).ConstructAndDispatchWhenReady(this, WeakAsyncHelper);
-			}
-			else
+			if (GraphParsingPrerequistes.Num() == 0)
 			{
 				//Fallback on the translator pipeline prerequisites (translator must be done if there is no pipeline)
-				QueuedTaskData.AsyncHelper->ParsingTask = TGraphTask<UE::Interchange::FTaskParsing>::CreateTask(&PipelinePrerequistes).ConstructAndDispatchWhenReady(this, WeakAsyncHelper);
+				GraphParsingPrerequistes.Append(PipelinePrerequistes);
 			}
+
+			TSharedPtr<UE::Interchange::FTaskParsing, ESPMode::ThreadSafe> TaskParsing = MakeShared<UE::Interchange::FTaskParsing, ESPMode::ThreadSafe>(this, WeakAsyncHelper);
+			QueuedTaskData.AsyncHelper->ParsingTask = UE::Interchange::FInterchangeTaskSystem::Get().AddTask(TaskParsing, GraphParsingPrerequistes);
 
 			//The graph parsing task will create the FCreateAssetTask that will run after them, the FAssetImportTask will call the appropriate Post asset import pipeline when the asset is completed
 		}
@@ -1917,13 +1901,14 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				Progress.MakeDialog();
 				Progress.EnterProgressFrame(1.f);
 				//Translate the source
-				FGraphEventArray PipelinePrerequistes;
 				for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
 				{
+					constexpr uint64 PipelinePrerequistes = INTERCHANGE_INVALID_TASK_ID;
 					//Log the source we begin importing
 					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->GetFilename());
-					int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread_Local).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
-					AsyncHelper->TranslatorTasks[TranslatorTaskIndex]->Wait();
+					UE::Interchange::FTaskTranslator TaskTranslator(SourceDataIndex, AsyncHelper);
+					TaskTranslator.Execute();
+					AsyncHelper->TranslatorTasks.Add(PipelinePrerequistes);
 				}
 				Progress.EnterProgressFrame(1.f);
 			}
@@ -2390,11 +2375,13 @@ TSharedRef<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> UInterchang
 	AsyncHelper->AssetImportResult->OnObjectDoneNative = ImportAssetParameters.OnAssetDoneNative;
 	AsyncHelper->AssetImportResult->OnImportDone = ImportAssetParameters.OnAssetsImportDone;
 	AsyncHelper->AssetImportResult->OnImportDoneNative = ImportAssetParameters.OnAssetsImportDoneNative;
+	AsyncHelper->AssetImportResult->SetAsyncHelper(AsyncHelper);
 
 	AsyncHelper->SceneImportResult->OnObjectDone = ImportAssetParameters.OnSceneObjectDone;
 	AsyncHelper->SceneImportResult->OnObjectDoneNative = ImportAssetParameters.OnSceneObjectDoneNative;
 	AsyncHelper->SceneImportResult->OnImportDone = ImportAssetParameters.OnSceneImportDone;
 	AsyncHelper->SceneImportResult->OnImportDoneNative = ImportAssetParameters.OnSceneImportDoneNative;
+	AsyncHelper->SceneImportResult->SetAsyncHelper(AsyncHelper);
 
 	AsyncHelper->AssetImportResult->SetInProgress();
 
@@ -2464,7 +2451,7 @@ void UInterchangeManager::ReleaseAsyncHelper(TWeakPtr<UE::Interchange::FImportAs
 		check(!AsyncHelperSharedPtr.IsValid() || AsyncHelperSharedPtr->bCancel);
 	}
 
-	int32 ImportTaskNumber = ImportTasks.Num();
+	int32 ImportTaskNumber = ImportTasks.Num() + QueueTaskCount;
 	FString ImportTaskNumberStr = TEXT(" (") + FString::FromInt(ImportTaskNumber) + TEXT(")");
 	if (ImportTaskNumber == 0)
 	{
@@ -2722,10 +2709,10 @@ void UInterchangeManager::WaitUntilAllTasksDone(bool bCancel)
 		if (AsyncHelper.IsValid())
 		{
 			TWeakPtr<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> WeakAsyncHelper = AsyncHelper;
-			FGraphEventArray TasksToComplete = AsyncHelper->GetCompletionTaskGraphEvent();
+			TArray<uint64> TasksToComplete = AsyncHelper->GetCompletionTaskGraphEvent();
 			//Release the shared pointer before waiting to be sure the async helper can be destroy in the completion task
 			AsyncHelper = nullptr;
-			FTaskGraphInterface::Get().WaitUntilTasksComplete(TasksToComplete, ENamedThreads::GameThread);
+			UE::Interchange::FInterchangeTaskSystem::Get().WaitUntilTasksComplete(TasksToComplete);
 			//We verify that the weak pointer is invalid after the task completed
 			ensure(!WeakAsyncHelper.IsValid());
 		}
