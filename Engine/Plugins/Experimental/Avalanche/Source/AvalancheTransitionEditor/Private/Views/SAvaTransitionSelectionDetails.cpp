@@ -39,9 +39,7 @@ void SAvaTransitionSelectionDetails::Construct(const FArguments& InArgs, const T
 		DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([]{ return false; }));
 	}
 
-	FStateTreeEditorModule& StateTreeEditorModule = FModuleManager::LoadModuleChecked<FStateTreeEditorModule>("StateTreeEditorModule");
-	DetailsView->SetExtensionHandler(StateTreeEditorModule.CreateStateTreeDetailPropertyExtensionHandler());
-
+	FStateTreeEditorModule::SetDetailPropertyHandlers(*DetailsView);
 	OnSelectionChanged(InSelection->GetSelectedItems());
 
 	OnParametersChangedHandle = UE::StateTree::Delegates::OnParametersChanged.AddSP(this, &SAvaTransitionSelectionDetails::Refresh);

@@ -149,9 +149,10 @@ TSharedRef<IStateTreeEditor> FStateTreeEditorModule::CreateStateTreeEditor(const
 	return NewEditor;
 }
 
-TSharedRef<IDetailPropertyExtensionHandler> FStateTreeEditorModule::CreateStateTreeDetailPropertyExtensionHandler()
+void FStateTreeEditorModule::SetDetailPropertyHandlers(IDetailsView& DetailsView)
 {
-	return MakeShared<FStateTreeBindingExtension>();
+	DetailsView.SetExtensionHandler(MakeShared<FStateTreeBindingExtension>());
+	DetailsView.SetChildrenCustomizationHandler(MakeShared<FStateTreeBindingsChildrenCustomization>());
 }
 
 TSharedPtr<FStateTreeNodeClassCache> FStateTreeEditorModule::GetNodeClassCache()

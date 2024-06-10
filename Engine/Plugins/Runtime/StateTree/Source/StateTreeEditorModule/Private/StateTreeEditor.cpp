@@ -337,8 +337,7 @@ TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_SelectionDetails(const FSpawnTab
 	SelectionDetailsView->SetObject(nullptr);
 	SelectionDetailsView->OnFinishedChangingProperties().AddSP(this, &FStateTreeEditor::OnSelectionFinishedChangingProperties);
 
-	SelectionDetailsView->SetExtensionHandler(MakeShared<FStateTreeBindingExtension>());
-	SelectionDetailsView->SetChildrenCustomizationHandler(MakeShared<FStateTreeBindingsChildrenCustomization>());
+	FStateTreeEditorModule::SetDetailPropertyHandlers(*SelectionDetailsView);
 
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 		.Label(NSLOCTEXT("StateTreeEditor", "SelectionDetailsTab", "Details"))
@@ -361,8 +360,7 @@ TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_AssetDetails(const FSpawnTabArgs
 	AssetDetailsView->SetObject(StateTree ? StateTree->EditorData : nullptr);
 	AssetDetailsView->OnFinishedChangingProperties().AddSP(this, &FStateTreeEditor::OnAssetFinishedChangingProperties);
 
-	AssetDetailsView->SetExtensionHandler(MakeShared<FStateTreeBindingExtension>());
-	AssetDetailsView->SetChildrenCustomizationHandler(MakeShared<FStateTreeBindingsChildrenCustomization>());
+	FStateTreeEditorModule::SetDetailPropertyHandlers(*AssetDetailsView);
 
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 		.Label(NSLOCTEXT("StateTreeEditor", "AssetDetailsTabLabel", "Asset Details"))
