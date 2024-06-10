@@ -101,19 +101,19 @@ ENUM_CLASS_FLAGS(FTraceStatus::EUpdateType);
  *
  * Example usage:
  * ```
- * // I've found the session that we want to control
- * FGuid SessionId = ...;
+ * // I've found the session instance that we want to control
+ * FGuid InstanceId = ...;
  * // Get the controller
  * TSharedPtr<ITraceController> TraceController = SessionServicesModule.GetTraceController();
  * 
- * // To control just a single instance use the session id.
- * TraceController->WithInstance(SessionId, [](ITraceControllerCommands& Commands){
+ * // To control just a single instance use the session instance id.
+ * TraceController->WithInstance(InstanceId, [](const FTraceStatus& Status, ITraceControllerCommands& Commands){
  *		Commands.Send("localhost", "audio,audiomixer,bookmark,log");
  *		Commands.Bookmark("My remote bookmark");
  * });
  *
  * // We can also use the "selection" feature in session manager
- * TraceController->WithSelectedInstances([](ITraceControllerCommands& Commands){
+ * TraceController->WithSelectedInstances([](const FTraceStatus& Status, ITraceControllerCommands& Commands){
  *		Commands.SnapshotSend("localhost");
  * });
  * ```
@@ -165,7 +165,7 @@ public:
 	virtual bool HasAvailableSelectedInstance() = 0;
 
 
-	typedef TFunction<void(ITraceControllerCommands&)> FCallback;
+	typedef TFunction<void(const FTraceStatus&, ITraceControllerCommands&)> FCallback;
 	/**
 	 * Execute a function for each instance selected in the session manager.
 	 * @param Func Functor to execute

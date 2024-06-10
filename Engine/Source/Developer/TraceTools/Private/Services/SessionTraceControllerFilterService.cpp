@@ -129,7 +129,7 @@ void FSessionTraceControllerFilterService::OnApplyChannelChanges()
 
 	if (FrameEnabledChannels.Num() || FrameDisabledChannels.Num())
 	{
-		TraceController->WithSelectedInstances([&](ITraceControllerCommands& Commands)
+		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
 		{
 			Commands.SetChannels(FrameEnabledChannels.Array(), FrameDisabledChannels.Array());
 		});

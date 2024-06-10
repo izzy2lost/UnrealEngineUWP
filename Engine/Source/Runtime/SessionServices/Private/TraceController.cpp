@@ -279,7 +279,7 @@ void FTraceController::WithSelectedInstances(FCallback Func)
 		{
 			if(auto* Instance = Instances.Find(*InstanceAddress))
 			{
-				Func(Instance->Commands);
+				Func(Instance->Status, Instance->Commands);
 			}
 		}
 	}
@@ -292,7 +292,7 @@ void FTraceController::WithInstance(FGuid InstanceId, FCallback Func)
 	{
 		if(auto* Instance = Instances.Find(*InstanceAddress))
 		{
-			Func(Instance->Commands);
+			Func(Instance->Status, Instance->Commands);
 		}
 	}
 }
