@@ -50,6 +50,7 @@ private:
 		RouteId_ChaosVDParticleDestroyed,
 		RouteId_ChaosVDNonSolverLocation,
 		RouteId_ChaosVDNonSolverTransform,
+		RouteId_ChaosVDNetworkTickOffset,
 	};
 
 	TraceServices::IAnalysisSession& Session;

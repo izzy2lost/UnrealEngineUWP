@@ -174,6 +174,10 @@ namespace Chaos
 		void SetCurrentFrame(const int32 CurrentFrameIn) { CurrentFrame = CurrentFrameIn; }
 		int32& GetCurrentFrame() { return CurrentFrame; }
 
+#if WITH_CHAOS_VISUAL_DEBUGGER
+		virtual int32 GetCVDFrameNumber() const override { return CurrentFrame; }
+#endif
+
 		/**/
 		void SetPositionIterations(const int32 InNumIterations) { GetEvolution()->SetNumPositionIterations(InNumIterations); }
 		void SetVelocityIterations(const int32 InNumIterations) { GetEvolution()->SetNumVelocityIterations(InNumIterations); }

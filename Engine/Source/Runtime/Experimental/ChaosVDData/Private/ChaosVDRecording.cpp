@@ -65,6 +65,17 @@ FName FChaosVDRecording::GetSolverFName_AssumedLocked(int32 SolverID)
 	return DefaultName;
 }
 
+bool FChaosVDRecording::IsServerSolver_AssumesLocked(int32 SolverID)
+{
+	return GetSolverFName_AssumedLocked(SolverID).ToString().Contains(TEXT("Server"));
+}
+
+bool FChaosVDRecording::IsServerSolver(int32 SolverID)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	return IsServerSolver_AssumesLocked(SolverID);
+}
+
 FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData_AssumesLocked(const int32 SolverID, const int32 FrameNumber, bool bKeyFrameOnly)
 {
 	if (TArray<FChaosVDSolverFrameData>* SolverFrames = RecordedFramesDataPerSolver.Find(SolverID))
@@ -118,6 +129,19 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberAtCycle_AssumesLocked(int32 S
 	{
 		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
 		return Algo::LowerBoundBy(SolverFrames, Cycle, &FChaosVDSolverFrameData::FrameCycle);
+	}
+
+	return INDEX_NONE;
+}
+
+
+int32 FChaosVDRecording::GetLowestSolverFrameNumberAtNetworkFrameNumber_AssumesLocked(int32 SolverID, int32 NetworkFrameNumber)
+{
+	if (TArray<FChaosVDSolverFrameData>* SolverFramesPtr = RecordedFramesDataPerSolver.Find(SolverID))
+	{
+		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
+		
+		return Algo::LowerBoundBy(SolverFrames, NetworkFrameNumber, &FChaosVDSolverFrameData::InternalFrameNumber);
 	}
 
 	return INDEX_NONE;

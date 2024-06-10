@@ -147,11 +147,15 @@ namespace ImmediatePhysics_Chaos
 	FName DebugName;
 #endif
 
+	private:
+
 #if WITH_CHAOS_VISUAL_DEBUGGER
 	private:
 		FChaosVDContext CVDContextData;
 
 	public:
+		int32 GetCVDFrameNumber() const { return INDEX_NONE; }
+
 		FChaosVDContext& GetChaosVDContextData()
 		{
 			return CVDContextData;

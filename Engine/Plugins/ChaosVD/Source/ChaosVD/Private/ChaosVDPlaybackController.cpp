@@ -2,12 +2,11 @@
 
 #include "ChaosVDPlaybackController.h"
 
+#include "Actors/ChaosVDSolverInfoActor.h"
 #include "ChaosVDModule.h"
-#include "ChaosVDPlaybackControllerInstigator.h"
 #include "ChaosVDRecording.h"
 #include "ChaosVDRuntimeModule.h"
 #include "ChaosVDScene.h"
-#include "Actors/ChaosVDSolverInfoActor.h"
 #include "Misc/MessageDialog.h"
 #include "Trace/ChaosVDTraceManager.h"
 #include "Trace/ChaosVDTraceProvider.h"
@@ -254,6 +253,10 @@ void FChaosVDPlaybackController::GoToRecordedSolverStage_AssumesLocked(const int
 				if (CurrentTrackInfo->CurrentFrame != FrameNumber)
 				{
 					CurrentTrackInfo->CurrentFrame = FrameNumber;
+
+					// For server tracks, we only need to have a recorded internal frame number
+					CurrentTrackInfo->bHasNetworkSyncData = SolverFrameData->HasNetworkSyncData(CurrentTrackInfo->bIsServer ? EChaosVDNetworkSyncDataRequirements::InternalFrameNumber : EChaosVDNetworkSyncDataRequirements::All);
+			
 					SceneToControlSharedPtr->HandleEnterNewSolverFrame(FrameNumber, *SolverFrameData);
 				}
 
@@ -339,7 +342,6 @@ void FChaosVDPlaybackController::GoToTrackFrame_AssumesLocked(FGuid InstigatorID
 	}
 }
 
-
 void FChaosVDPlaybackController::GoToTrackFrameAndSync(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 StageNumber)
 {
 	if (!ensure(LoadedRecording.IsValid()))
@@ -352,17 +354,15 @@ void FChaosVDPlaybackController::GoToTrackFrameAndSync(FGuid InstigatorID, EChao
 	GoToTrackFrame_AssumesLockedAndSync(InstigatorID, TrackType, InTrackID, FrameNumber, StageNumber);
 }
 
-
 void FChaosVDPlaybackController::GoToTrackFrame_AssumesLockedAndSync(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 StageNumber)
 {
 	GoToTrackFrame_AssumesLocked(InstigatorID, TrackType, InTrackID, FrameNumber, StageNumber);
 	
 	if (TSharedPtr<const FChaosVDTrackInfo> TrackToSyncWith = GetTrackInfo(TrackType, InTrackID))
 	{
-		SyncTracks_AssumesLocked(TrackToSyncWith.ToSharedRef());
+		SyncTracks_AssumesLocked(TrackToSyncWith.ToSharedRef(), CurrentSyncMode);
 	}
 }
-
 
 int32 FChaosVDPlaybackController::GetTrackStepsNumberAtFrame_AssumesLocked(EChaosVDTrackType TrackType, const int32 InTrackID, const int32 FrameNumber) const
 {
@@ -473,23 +473,60 @@ int32 FChaosVDPlaybackController::ConvertCurrentFrameToOtherTrackFrame_AssumesLo
 
 	switch (InFromTrack->TrackType)
 	{
-	case EChaosVDTrackType::Game:
-		{
-			// Convert from Game Frame to Solver Frame
-			return LoadedRecording->GetLowestSolverFrameNumberGameFrame_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
-		}	
-	case EChaosVDTrackType::Solver:
-		{
-			if (InToTrack->TrackType == EChaosVDTrackType::Solver)
+		case EChaosVDTrackType::Game:
 			{
-				const FChaosVDSolverFrameData* FromSolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
-				return ensure(FromSolverFrameData) ? LoadedRecording->GetLowestSolverFrameNumberAtCycle_AssumesLocked(InToTrack->TrackID, FromSolverFrameData->FrameCycle) : INDEX_NONE;
+				ensureMsgf(TrackSyncMode != EChaosVDSyncTimelinesMode::NetworkTick, TEXT("Game tracks cannot be converted to solver tracks using network sync mode. Falling back to timestamp mode."));
+				// Convert from Game Frame to Solver Frame
+				return LoadedRecording->GetLowestSolverFrameNumberGameFrame_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
+			}	
+		case EChaosVDTrackType::Solver:
+			{
+				if (InToTrack->TrackType == EChaosVDTrackType::Solver)
+				{
+					switch (TrackSyncMode)
+					{
+						case EChaosVDSyncTimelinesMode::RecordedTimestamp:
+							{
+								const FChaosVDSolverFrameData* FromSolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
+								return ensure(FromSolverFrameData) ? LoadedRecording->GetLowestSolverFrameNumberAtCycle_AssumesLocked(InToTrack->TrackID, FromSolverFrameData->FrameCycle) : INDEX_NONE;
+								break;
+							}
+						case EChaosVDSyncTimelinesMode::NetworkTick:
+							{
+								int32 ToFrame = INDEX_NONE;
+								const FChaosVDSolverFrameData* FromSolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
+								const FChaosVDSolverFrameData* ToSolverFrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(InToTrack->TrackID, InToTrack->CurrentFrame);
+								if (FromSolverFrameData && ToSolverFrameData)
+								{
+									if (InFromTrack->bIsServer) // Server --> Client track
+									{
+										ToFrame = FromSolverFrameData->InternalFrameNumber - ToSolverFrameData->GetClampedNetworkTickOffset();
+									}
+									else // Client --> Client Track or Client --> Server Track
+									{
+										// This works for Client --> Server conversion because in that case we want to add the frame offset.
+										// As the tick offset in server tracks is 0,  the following calculation will return a negative offset, which it will result in the intended addition in the last caluclation
+										int32 FrameOffset = ToSolverFrameData->GetClampedNetworkTickOffset() - FromSolverFrameData->GetClampedNetworkTickOffset();
+										ToFrame = FromSolverFrameData->InternalFrameNumber - FrameOffset;
+									}
+								}
+
+								return ensure(ToFrame != INDEX_NONE) ? LoadedRecording->GetLowestSolverFrameNumberAtNetworkFrameNumber_AssumesLocked(InToTrack->TrackID, ToFrame) : INDEX_NONE;
+								break;
+							}
+						default:
+							break;
+					}
+				}
+				
+				// From Solver to Game track, we can only convert a frame based on timestapms
+				// TODO: Techincally we are ignoring the requested sync mode, but the current implementation of CVD relies in this fallback as we always want to sync from solver to game tracks using the original timestamo mode
+				// We should investigate if it is worth coming up with a better API so this default fallback does not catch anyone using it off guard.
+				return LoadedRecording->GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
 			}
-			return LoadedRecording->GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(InFromTrack->TrackID, InFromTrack->CurrentFrame);
-		}
-	default:
-		ensure(false);
-		return INDEX_NONE;
+		default:
+			ensure(false);
+			return INDEX_NONE;
 	}
 }
 
@@ -999,12 +1036,6 @@ void FChaosVDPlaybackController::SyncTracks(const TSharedRef<const FChaosVDTrack
 
 void FChaosVDPlaybackController::SyncTracks_AssumesLocked(const TSharedRef<const FChaosVDTrackInfo>& FromTrack, EChaosVDSyncTimelinesMode TrackSyncMode)
 {
-	if (!ensure(TrackSyncMode == EChaosVDSyncTimelinesMode::RecordedTimestamp))
-	{
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Attempted to Sync tracks using an unsuported mode. |[%s] is not supported yet."), ANSI_TO_TCHAR(__FUNCTION__), *(UEnum::GetDisplayValueAsText(TrackSyncMode).ToString()));
-		return;
-	}
-
 	if (!FromTrack->bTrackSyncEnabled)
 	{
 		return;
@@ -1029,14 +1060,13 @@ void FChaosVDPlaybackController::SyncTracks_AssumesLocked(const TSharedRef<const
 
 				GoToTrackFrame_AssumesLocked(PlaybackSelfInstigatorID, EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber, StageNumber);
 			}
-
 			break;
 		}	
 	case EChaosVDTrackType::Solver:
 		{
 			if (const TSharedPtr<const FChaosVDTrackInfo>& GameFramesTrackInfo = GetTrackInfo(EChaosVDTrackType::Game, GameTrackID))
 			{
-				const int32 TargetGameFrameNumber = ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(FromTrack, GameFramesTrackInfo.ToSharedRef());
+				const int32 TargetGameFrameNumber = ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(FromTrack, GameFramesTrackInfo.ToSharedRef(), TrackSyncMode);
 				constexpr int32 StageNumber = 0;
 				GoToTrackFrame_AssumesLocked(PlaybackSelfInstigatorID, GameFramesTrackInfo->TrackType, GameFramesTrackInfo->TrackID, TargetGameFrameNumber, StageNumber);
 			}
@@ -1053,7 +1083,7 @@ void FChaosVDPlaybackController::SyncTracks_AssumesLocked(const TSharedRef<const
 					continue;
 				}
 
-				const int32 SolverFrameNumber = ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(FromTrack, SolverTrack.ToSharedRef());
+				const int32 SolverFrameNumber = ConvertCurrentFrameToOtherTrackFrame_AssumesLocked(FromTrack, SolverTrack.ToSharedRef(), TrackSyncMode);
 				const int32 StageNumber = GetTrackLastStageAtFrame_AssumesLocked(EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber);
 
 				GoToTrackFrame_AssumesLocked(PlaybackSelfInstigatorID, EChaosVDTrackType::Solver, SolverTrack->TrackID, SolverFrameNumber, StageNumber);
@@ -1106,6 +1136,11 @@ void FChaosVDPlaybackController::UpdateSolverTracksData()
 		SolverTrackInfo->MaxFrames = GetTrackFramesNumber(EChaosVDTrackType::Solver, SolverIDPair.Key);
 		SolverTrackInfo->TrackName = LoadedRecording->GetSolverFName(SolverIDPair.Key);
 		SolverTrackInfo->TrackType = EChaosVDTrackType::Solver;
+		SolverTrackInfo->bIsServer = LoadedRecording->IsServerSolver_AssumesLocked(SolverIDPair.Key);
+		if (SolverTrackInfo->bIsServer)
+		{
+			CachedServerTrack = SolverTrackInfo;
+		}
 	}
 }
 

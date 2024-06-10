@@ -47,7 +47,8 @@ public class ChaosVD : ModuleRules
 				"SubobjectEditor",
 				"SubobjectDataInterface",
 				"PropertyEditor",
-				"CommonMenuExtensions"
+				"CommonMenuExtensions", 
+				"EditorWidgets"
 			}
 			);
 

@@ -16,6 +16,7 @@
 	#define CHAOS_VISUAL_DEBUGGER_ENABLED WITH_CHAOS_VISUAL_DEBUGGER
 #endif
 
+#include "Chaos/Framework/PhysicsSolverBase.h"
 #include "ChaosVisualDebugger/ChaosVDTraceMacros.h"
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
@@ -42,6 +43,7 @@ UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDSolverFrameStart)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, DebugName)
 	UE_TRACE_EVENT_FIELD(bool, IsKeyFrame)
 	UE_TRACE_EVENT_FIELD(bool, IsReSimulated)
+	UE_TRACE_EVENT_FIELD(int32, CurrentFrameNumber)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDSolverFrameEnd)
@@ -112,6 +114,11 @@ UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDNonSolverTransform)
 	CVD_DEFINE_TRACE_VECTOR(Chaos::FReal, Scale)
 	CVD_DEFINE_TRACE_ROTATOR(Chaos::FReal, Rotation)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, DebugName)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDNetworkTickOffset)
+	UE_TRACE_EVENT_FIELD(int32, Offset)
+	UE_TRACE_EVENT_FIELD(int32, SolverID)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDDummyEvent)
@@ -216,7 +223,7 @@ public:
 	static CHAOS_API void TraceConstraintsContainer(TConstArrayView<Chaos::FPBDConstraintContainer*> ConstraintContainersView);
 
 	/** Traces the start of a solver frame and it pushes its context data to the CVD TLS context stack */
-	static CHAOS_API void TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName);
+	static CHAOS_API void TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName, int32 FrameNumber = INDEX_NONE);
 	
 	/** Traces the end of a solver frame and removes its context data to the CVD TLS context stack */
 	static CHAOS_API void TraceSolverFrameEnd(const FChaosVDContext& ContextData);
@@ -258,8 +265,15 @@ public:
 
 	static CHAOS_API void TraceSceneAccelerationStructures(const Chaos::ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>* InAccelerationCollection);
 
+	static CHAOS_API void TraceNetworkTickOffset(int32 TickOffset, int32 SolverID);
+
+	template<typename WorldType>
+	static int32 GetSolverIDFromWorld(WorldType* World);
+
+	static int32 CHAOS_API GetSolverID(Chaos::FPhysicsSolverBase& Solver);
+
 	/** Returns true if the provided solver ID needs a Full Capture */
-	static bool ShouldPerformFullCapture(int32 SolverID);
+	static CHAOS_API bool ShouldPerformFullCapture(int32 SolverID);
 
 	/**
 	 * Gets the CVD Context data form an object that has such data. Usually Solvers
@@ -361,6 +375,21 @@ void FChaosVisualDebuggerTrace::TraceParticlesView(const Chaos::TParticleView<Pa
 		CVD_SCOPE_CONTEXT(CopyContext);
 		TraceParticle(Particle.Handle());
 	});
+}
+
+template <typename WorldType>
+int32 FChaosVisualDebuggerTrace::GetSolverIDFromWorld(WorldType* World)
+{
+	int32 SolverID = INDEX_NONE;
+	if (World)
+	{
+		if (Chaos::FPhysicsSolverBase* Solver = World->GetPhysicsScene() ? World->GetPhysicsScene()->GetSolver() : nullptr)
+		{
+			SolverID = GetSolverID(*Solver);
+		}
+	}
+
+	return SolverID;
 }
 
 template <typename T>

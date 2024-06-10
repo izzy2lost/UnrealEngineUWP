@@ -42,6 +42,7 @@ UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDSolverSimulationSpace)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDDummyEvent)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNonSolverLocation)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNonSolverTransform)
+UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNetworkTickOffset)
 
 namespace Chaos::VisualDebugger::Cvars
 {
@@ -262,6 +263,11 @@ void FChaosVisualDebuggerTrace::SetupForFullCaptureIfNeeded(int32 SolverID, bool
 	}
 }
 
+int32 FChaosVisualDebuggerTrace::GetSolverID(Chaos::FPhysicsSolverBase& Solver)
+{
+	return Solver.GetChaosVDContextData().Id;
+}
+
 bool FChaosVisualDebuggerTrace::ShouldPerformFullCapture(int32 SolverID)
 {
 	FReadScopeLock ReadLock(DeltaRecordingStatesLock);
@@ -463,7 +469,7 @@ void FChaosVisualDebuggerTrace::TraceConstraintsContainer(TConstArrayView<Chaos:
 	}
 }
 
-void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName)
+void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName, int32 FrameNumber)
 {
 	if (!IsTracing())
 	{
@@ -493,7 +499,8 @@ void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& Con
 		<< ChaosVDSolverFrameStart.Cycle(FPlatformTime::Cycles64())
 		<< ChaosVDSolverFrameStart.DebugName(*InDebugName, InDebugName.Len())
 		<< ChaosVDSolverFrameStart.IsKeyFrame(bOutIsFullCaptureRequested)
-		<< ChaosVDSolverFrameStart.IsReSimulated(bIsReSimulatedFrame);
+		<< ChaosVDSolverFrameStart.IsReSimulated(bIsReSimulatedFrame)
+		<< ChaosVDSolverFrameStart.CurrentFrameNumber(FrameNumber);
 }
 
 void FChaosVisualDebuggerTrace::TraceSolverFrameEnd(const FChaosVDContext& ContextData)
@@ -827,6 +834,18 @@ void FChaosVisualDebuggerTrace::TraceSceneAccelerationStructures(const Chaos::IS
 
 		TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDAABBTreeDataWrapper::WrapperTypeName);
 	}
+}
+
+void FChaosVisualDebuggerTrace::TraceNetworkTickOffset(int32 TickOffset, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+	
+	UE_TRACE_LOG(ChaosVDLogger, ChaosVDNetworkTickOffset, ChaosVDChannel)
+		<< ChaosVDNetworkTickOffset.Offset(TickOffset)
+		<< ChaosVDNetworkTickOffset.SolverID(SolverID);
 }
 
 bool FChaosVisualDebuggerTrace::IsTracing()

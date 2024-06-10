@@ -49,6 +49,17 @@ struct FChaosVDTrackedTransform
 	FTransform Transform;
 };
 
+enum class EChaosVDNetworkSyncDataRequirements
+{
+	None = 0,
+	InternalFrameNumber  = 1 << 0,
+	NetworkTickOffset = 1 << 1,
+
+	All = InternalFrameNumber | NetworkTickOffset
+};
+
+ENUM_CLASS_FLAGS(EChaosVDNetworkSyncDataRequirements)
+
 typedef TArray<FChaosVDStepData, TInlineAllocator<16>> FChaosVDStepsContainer;
 
 struct CHAOSVDDATA_API FChaosVDSolverFrameData
@@ -66,6 +77,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.5, "Please use the DebugFName instead")
 	FString DebugName;
 	int32 SolverID = INDEX_NONE;
+	int32 InternalFrameNumber = INDEX_NONE;
+	int32 NetworkTickOffset = INDEX_NONE;
 	uint64 FrameCycle = 0;
 	Chaos::FRigidTransform3 SimulationTransform;
 	bool bIsKeyFrame = false;
@@ -87,6 +100,30 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		return EndTime - StartTime;
+	}
+
+	/** Returns true if we have the necessary data to sync this frame with other frame based on network ticks offsets */
+	bool HasNetworkSyncData(EChaosVDNetworkSyncDataRequirements Requirements = EChaosVDNetworkSyncDataRequirements::All) const
+	{
+		bool bHasRequiredSyncData = true;
+		if (EnumHasAnyFlags(Requirements, EChaosVDNetworkSyncDataRequirements::InternalFrameNumber))
+		{
+			bHasRequiredSyncData &= InternalFrameNumber != INDEX_NONE;
+		}
+		
+		if (EnumHasAnyFlags(Requirements, EChaosVDNetworkSyncDataRequirements::NetworkTickOffset))
+		{
+			bHasRequiredSyncData &= NetworkTickOffset != INDEX_NONE;
+		}
+
+		return bHasRequiredSyncData;
+	}
+
+	/** Returns the current network tick offset. If we didn't have recorded a network tick, we will still return 0 to keep compatibility with other files
+	 */
+	int32 GetClampedNetworkTickOffset() const
+	{
+		return NetworkTickOffset >= 0 ? NetworkTickOffset : 0;
 	}
 };
 
@@ -163,6 +200,9 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 */
 	FName GetSolverFName_AssumedLocked(int32 SolverID);
 
+	bool IsServerSolver_AssumesLocked(int32 SolverID);
+	bool IsServerSolver(int32 SolverID);
+
 	UE_DEPRECATED(5.5, "Please use the GetSolverFName_AssumedLocked instead")
 	FString GetSolverName_AssumedLocked(int32 SolverID) { return TEXT(""); }
 
@@ -191,6 +231,8 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 */
 	int32 GetLowestSolverFrameNumberAtCycle(int32 SolverID, uint64 Cycle);
 	int32 GetLowestSolverFrameNumberAtCycle_AssumesLocked(int32 SolverID, uint64 Cycle);
+
+	int32 GetLowestSolverFrameNumberAtNetworkFrameNumber_AssumesLocked(int32 SolverID, int32 NetworkFrameNumber);
 
 	int32 FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(int32 SolverID, int32 StartFrameNumber);
 	

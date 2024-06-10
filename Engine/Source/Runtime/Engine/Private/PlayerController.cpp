@@ -2325,6 +2325,15 @@ void APlayerController::SetMouseLocation(const int X, const int Y)
 /* PlayerTick is only called if the PlayerController has a PlayerInput object.  Therefore, it will not be called on servers for non-locally controlled playercontrollers. */
 void APlayerController::PlayerTick( float DeltaTime )
 {
+#if WITH_CHAOS_VISUAL_DEBUGGER
+
+	if (bNetworkPhysicsTickOffsetAssigned)
+	{
+		CVD_TRACE_NETWORK_TICK_OFFSET(NetworkPhysicsTickOffset, CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(GetWorld()));
+	}
+
+#endif
+
 	if (!bShortConnectTimeOut)
 	{
 		bShortConnectTimeOut = true;

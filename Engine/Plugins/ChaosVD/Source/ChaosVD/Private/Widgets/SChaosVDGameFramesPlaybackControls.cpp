@@ -67,12 +67,34 @@ bool SChaosVDGameFramesPlaybackControls::CanPlayback() const
 	bool bCanControlPlayback = false;
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
-		bCanControlPlayback = PlaybackControllerPtr->IsRecordingLoaded();
-
-		if (bCanControlPlayback)
+		if (PlaybackControllerPtr->IsRecordingLoaded() && GameTrackInfoRef->TrackType != EChaosVDTrackType::Invalid)
 		{
+			// GameFrames playback controls can only be enabled on the Recorded timestamp sync mode
+			bool bIsCompatibleSyncMode = true;
+
+			if (PlaybackControllerPtr->GetTimelineSyncMode() == EChaosVDSyncTimelinesMode::NetworkTick)
+			{
+				static TArray<TSharedPtr<const FChaosVDTrackInfo>> OutTrackInfo;
+				OutTrackInfo.Reset();
+
+				bool bHasTracksWithNetworkSyncData = false;
+				PlaybackControllerPtr->GetAvailableTrackInfosAtTrackFrame(EChaosVDTrackType::Solver, GameTrackInfoRef, OutTrackInfo);
+				for (const TSharedPtr<const FChaosVDTrackInfo>& TrackInfo : OutTrackInfo)
+				{
+					if (TrackInfo && TrackInfo->bHasNetworkSyncData)
+					{
+						bHasTracksWithNetworkSyncData = true;
+						break;
+					}
+				}
+
+				// If we are on Network tick sync mode, but we don't have ant solver track that supports that mode loaded yet (or ever if this was an old file or recorded a standalone game)
+				// allow the game track playback control to work. The solver track widgets themselves will show the corresponding compatibility warning
+				bIsCompatibleSyncMode &= !bHasTracksWithNetworkSyncData;
+			}
+
 			TSharedPtr<FChaosVDTrackInfo> CurrentTrackBeingPlayed = PlaybackControllerPtr->GetCurrentPlayingTrackInfo();
-			bCanControlPlayback = !CurrentTrackBeingPlayed || (CurrentTrackBeingPlayed && CurrentTrackBeingPlayed->TrackType == EChaosVDTrackType::Game);
+			bCanControlPlayback = (!CurrentTrackBeingPlayed || (CurrentTrackBeingPlayed && CurrentTrackBeingPlayed->TrackType == EChaosVDTrackType::Game)) && bIsCompatibleSyncMode;
 		}
 	}
 

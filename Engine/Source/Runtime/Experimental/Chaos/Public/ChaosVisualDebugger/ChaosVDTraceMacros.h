@@ -58,7 +58,7 @@
 		#define CVD_TRACE_SOLVER_START_FRAME(SolverType, SolverRef) \
 			FChaosVDContext StartContextData; \
 			FChaosVisualDebuggerTrace::GetCVDContext<SolverType>(SolverRef, StartContextData); \
-			FChaosVisualDebuggerTrace::TraceSolverFrameStart(StartContextData, FChaosVisualDebuggerTrace::GetDebugName<SolverType>(SolverRef));
+			FChaosVisualDebuggerTrace::TraceSolverFrameStart(StartContextData, FChaosVisualDebuggerTrace::GetDebugName<SolverType>(SolverRef), SolverRef.GetCVDFrameNumber());
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_END_FRAME
@@ -177,6 +177,18 @@
 			}
 	#endif
 
+#ifndef CVD_TRACE_NETWORK_TICK_OFFSET
+	#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID) \
+	{ \
+		FChaosVisualDebuggerTrace::TraceNetworkTickOffset(TickOffset, SolverID); \
+	}
+#endif
+
+#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
+	#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World) \
+			FChaosVisualDebuggerTrace::GetSolverIDFromWorld(World)
+#endif
+
 #else // WITH_CHAOS_VISUAL_DEBUGGER
 
 	#ifndef CVD_TRACE_PARTICLE
@@ -276,5 +288,13 @@
 	#ifndef CVD_TRACE_ACCELERATION_STRUCTURES
 			#define CVD_TRACE_ACCELERATION_STRUCTURES(AccelerationStructuresCollections, SolverType, SolverRef, DataChannel)
 	#endif
+
+	#ifndef CVD_TRACE_NETWORK_TICK_OFFSET
+		#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID)
+	#endif
+
+#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
+	#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World)
+#endif
 
 #endif // WITH_CHAOS_VISUAL_DEBUGGER

@@ -27,6 +27,8 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, const T
 
 	SolverTrackSyncEnabledBrush = FChaosVDStyle::Get().GetBrush(NAME_TrackSyncEnabledBrush);
 	SolverTrackSyncDisabledBrush = FChaosVDStyle::Get().GetBrush(NAME_TrackSyncDisabledBrush);
+	
+	ResimBadgeButtonStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Menu.Button");
 
 	ChildSlot
 	[
@@ -142,11 +144,19 @@ bool SChaosVDSolverPlaybackControls::CanPlayback() const
 
 	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = PlaybackController.Pin())
 	{
+
 		bCanControlPlayback = !CurrentPlaybackControllerPtr->IsPlayingLiveSession();
 
 		// When it is not a live session, the Game Frames timeline follows the same rule as other timelines. The controls are locked unless we are who started a Play action
 		if (bCanControlPlayback)
 		{
+			bool bIsCompatibleSyncMode = CurrentPlaybackControllerPtr->GetTimelineSyncMode() == EChaosVDSyncTimelinesMode::NetworkTick ? SolverTrackInfoRef->bHasNetworkSyncData : true;
+
+			if(!bIsCompatibleSyncMode)
+			{
+				return false;
+			}
+
 			TSharedPtr<FChaosVDTrackInfo> CurrentTrackBeingPlayed = CurrentPlaybackControllerPtr->GetCurrentPlayingTrackInfo();
 			bCanControlPlayback = !CurrentTrackBeingPlayed || (CurrentTrackBeingPlayed && CurrentTrackBeingPlayed->TrackType == EChaosVDTrackType::Solver && CurrentTrackBeingPlayed->TrackID == SolverTrackInfoRef->TrackID);
 		}
@@ -225,8 +235,7 @@ void SChaosVDSolverPlaybackControls::HandleSolverStagePlaybackButtonClicked(ECha
 
 const FSlateBrush* SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush() const
 {
-	const FButtonStyle& ButtonStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Menu.Button");
-	return bIsReSimFrame ? &ButtonStyle.Pressed : FCoreStyle::Get().GetBrush("Border");
+	return SolverTrackInfoRef->bIsReSimulated ? &ResimBadgeButtonStyle.Pressed : FCoreStyle::Get().GetBrush("Border");
 }
 
 TSharedPtr<SWidget> SChaosVDSolverPlaybackControls::CreateVisibilityWidget()

@@ -79,6 +79,8 @@ public:
 
 	void HandleAnalysisComplete();
 
+	TMap<int32,int32>& GetCurrentTickOffsetsBySolverID() {return CurrentNetworkTickOffsets; };
+
 private:
 
 	void RegisterDefaultDataProcessorsIfNeeded();
@@ -107,4 +109,6 @@ private:
 	bool bDefaultDataProcessorsRegistered = false;
 
 	double StartLastCommitedFrameTimeSeconds = 0.0;
+
+	TMap<int32, int32> CurrentNetworkTickOffsets;
 };

@@ -46,6 +46,8 @@ struct FChaosVDTrackInfo
 	bool bIsReSimulated = false;
 	bool bIsPlaying = false;
 	bool bTrackSyncEnabled = true;
+	bool bIsServer = false;
+	bool bHasNetworkSyncData = false;
 
 	bool operator==(const FChaosVDTrackInfo& Other) const;
 
@@ -76,11 +78,10 @@ ENUM_CLASS_FLAGS(EChaosVDUnloadRecordingFlags)
 UENUM()
 enum class EChaosVDSyncTimelinesMode : uint8
 {
-	None = 0,
-	RecordedTimestamp = 1 << 0,
-	NetworkTick = 1 << 1
+	None UMETA(Hidden),
+	RecordedTimestamp,
+	NetworkTick
 };
-ENUM_CLASS_FLAGS(EChaosVDSyncTimelinesMode)
 
 typedef TMap<int32, TSharedPtr<FChaosVDTrackInfo>> TrackInfoByIDMap;
 
@@ -278,6 +279,9 @@ public:
 
 	bool IsPlaying() const;
 
+	EChaosVDSyncTimelinesMode GetTimelineSyncMode() const { return CurrentSyncMode; }
+	void SetTimelineSyncMode(EChaosVDSyncTimelinesMode SyncMode) { CurrentSyncMode = SyncMode ; }
+
 protected:
 
 	/** Updates (or adds) solvers data from the loaded recording to the solver tracks */
@@ -308,6 +312,8 @@ protected:
 
 	/** Map containing all track info, by track type*/
 	TMap<EChaosVDTrackType, TrackInfoByIDMap> TrackInfoPerType;
+
+	TWeakPtr<FChaosVDTrackInfo> CachedServerTrack;
 
 	/** Ptr to the loaded recording */
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
@@ -349,6 +355,8 @@ protected:
 	TSharedPtr<FChaosVDTrackInfo> CurrentPlayingTrack;
 
 	float CurrentPlaybackTime = 0.0f;
+
+	EChaosVDSyncTimelinesMode CurrentSyncMode = EChaosVDSyncTimelinesMode::RecordedTimestamp;
 };
 
 template <typename TVisitorCallback>

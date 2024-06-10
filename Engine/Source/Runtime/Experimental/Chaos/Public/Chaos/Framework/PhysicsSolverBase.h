@@ -535,6 +535,10 @@ namespace Chaos
 		virtual void ConditionalApplyRewind_Internal(){}
 		virtual bool IsResimming() const {return false;}
 
+#if WITH_CHAOS_VISUAL_DEBUGGER
+		virtual int32 GetCVDFrameNumber() const { return INDEX_NONE; }
+#endif
+
 		FChaosMarshallingManager& GetMarshallingManager() { return MarshallingManager; }
 		FChaosResultsManager& GetResultsManager() { return *PullResultsManager; }
 

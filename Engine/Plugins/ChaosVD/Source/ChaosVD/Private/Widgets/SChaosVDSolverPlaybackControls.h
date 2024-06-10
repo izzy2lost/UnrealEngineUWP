@@ -7,6 +7,7 @@
 #include "ChaosVDPlaybackControllerObserver.h"
 #include "SChaosVDTimelineWidget.h"
 #include "Styling/ISlateStyle.h"
+#include "Styling/SlateTypes.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -99,4 +100,6 @@ private:
 	
 	const FSlateBrush* SolverTrackSyncEnabledBrush = nullptr;
 	const FSlateBrush* SolverTrackSyncDisabledBrush = nullptr;
+
+	FButtonStyle ResimBadgeButtonStyle;
 };

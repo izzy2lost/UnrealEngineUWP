@@ -378,9 +378,13 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 
 void FChaosVDScene::HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDSolverFrameData& InFrameData)
 {
-	if (AChaosVDSolverInfoActor* SolverDataInfoContainer = SolverDataContainerBySolverID.FindChecked(InFrameData.SolverID))
+	if (AChaosVDSolverInfoActor** SolverDataInfoContainerPtrPtr = SolverDataContainerBySolverID.Find(InFrameData.SolverID))
 	{
-		if (UChaosVDSolverCharacterGroundConstraintDataComponent* DataContainer = SolverDataInfoContainer->GetCharacterGroundConstraintDataComponent())
+		UChaosVDSolverCharacterGroundConstraintDataComponent* DataContainer = SolverDataInfoContainerPtrPtr ? (*SolverDataInfoContainerPtrPtr)->GetCharacterGroundConstraintDataComponent() : nullptr;
+
+		// TODO: Some times when playback is stopped, we might not have all the solver info actors ready when we go to the first frame
+		// This should not happen. For now I am making a change to avoid the crash and ensure. I created UE-217610 to find the issue and prepare a proper fix
+		if (ensure(DataContainer))
 		{
 			DataContainer->UpdateConstraintData(InFrameData.RecordedCharacterGroundConstraints);
 		}
