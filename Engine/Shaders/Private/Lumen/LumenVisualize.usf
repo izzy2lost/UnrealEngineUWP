@@ -133,7 +133,7 @@ void VisualizeQuadsCS(
 	{
 		const float CoverageForFog = saturate(1.0 - TraceResult.Transparency);
 		float3 OriginToCollider = CameraVector * TraceResult.OpaqueHitDistance;
-		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TraceInput.ConeTranslatedOrigin, CameraVector, TraceResult.OpaqueHitDistance);
 	}
 
 	float4 FinalColor = 0.0f;

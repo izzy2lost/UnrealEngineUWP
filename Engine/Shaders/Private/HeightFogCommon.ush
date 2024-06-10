@@ -184,18 +184,41 @@ float CalculateLineIntegralShared(float FogHeightFalloff, float RayDirectionZ, f
 	return RayOriginTerms * ( abs(Falloff) > FLT_EPSILON2 ? LineIntegral : LineIntegralTaylor );
 }
 
+float PreComputeFogOriginFactor(float OriginHeight, float FogHeight, float FogFalloff, float FogDensity)
+{
+	// Adapt the precomputed fog parameter to the overriden view origin. See FSceneRenderer::InitFogConstants.
+	const float CollapsedFogParameterPower = clamp(
+		-FogFalloff * (OriginHeight - FogHeight),
+		-126.f + 1.f, // min and max exponent values for IEEE floating points (http://en.wikipedia.org/wiki/IEEE_floating_point)
+		+127.f - 1.f
+	);
+	return FogDensity * pow(2.0f, CollapsedFogParameterPower);
+}
+
 // @param WorldPositionRelativeToCamera = WorldPosition - InCameraPosition
-half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float ExcludeDistance, uint EyeIndex, ViewState InView)
+half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float ExcludeDistance, uint EyeIndex, ViewState InView, bool bOverrideOrigin = false, float3 OverrideRayStartRelativeToCamera=0.0f.xxx, float3 OverrideRayDir = 0.0f.xxx, float OverrideRayLength = 0.0f)
 {
 	FogStructData FogData = GetFogStructData(EyeIndex);
+
+	float3 WorldCameraOrigin = DFHackToFloat(InView.WorldCameraOrigin);
+	float3 CameraToReceiver = WorldPositionRelativeToCamera;
+
+	// Statically removed by the compiler when not requested.
+	if (bOverrideOrigin)
+	{
+		// Adapt fog precomputed parameter, as done on CPU, to a new origin that is not the View (for instance when tracing in lumen with any origin) but a traced ray anywhere in the world.
+		WorldCameraOrigin += OverrideRayStartRelativeToCamera;
+		CameraToReceiver   = OverrideRayDir * OverrideRayLength;	
+		FogData.ExponentialFogParameters.x  = PreComputeFogOriginFactor(WorldCameraOrigin.z, FogData.ExponentialFogParameters3.y, FogData.ExponentialFogParameters.y,  FogData.ExponentialFogParameters3.x);
+		FogData.ExponentialFogParameters2.x = PreComputeFogOriginFactor(WorldCameraOrigin.z, FogData.ExponentialFogParameters2.w, FogData.ExponentialFogParameters2.y, FogData.ExponentialFogParameters2.z);
+	}
 	
 	const half MinFogOpacity = FogData.ExponentialFogColorParameter.w;
 	const float MaxWorldObserverHeight = FogData.ExponentialFogParameters.z;
 
-	const float3 WorldObserverOrigin = float3(DFHackToFloat(InView.WorldCameraOrigin).xy, min(DFHackToFloat(InView.WorldCameraOrigin).z, MaxWorldObserverHeight)); // Clamp z to max height
+	const float3 WorldObserverOrigin = float3(WorldCameraOrigin.xy, min(WorldCameraOrigin.z, MaxWorldObserverHeight)); // Clamp z to max height
 
-	float3 CameraToReceiver = WorldPositionRelativeToCamera;
-	CameraToReceiver.z += DFHackToFloat(InView.WorldCameraOrigin).z - WorldObserverOrigin.z; // Compensate this vector for clamping the observer height
+	CameraToReceiver.z += WorldCameraOrigin.z - WorldObserverOrigin.z; // Compensate this vector for clamping the observer height
 	float CameraToReceiverLengthSqr = dot(CameraToReceiver, CameraToReceiver);
 	float CameraToReceiverLengthInv = rsqrt(max(CameraToReceiverLengthSqr, 0.00000001f));
 	float CameraToReceiverLength = CameraToReceiverLengthSqr * CameraToReceiverLengthInv;

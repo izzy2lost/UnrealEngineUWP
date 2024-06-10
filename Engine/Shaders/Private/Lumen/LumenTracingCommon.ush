@@ -95,12 +95,14 @@ float3 ClampMaxRayIntensity(float3 Radiance, float MaxRayIntensity)
 	return Radiance;
 }
 
-float3 GetFogOnLuminance(in float3 SurfaceLuminance, in float SurfaceCoverage, in float3 OriginToCollider)
+float3 GetFogOnLuminance(in float3 SurfaceLuminance, in float SurfaceCoverage, in float3 RayOrigin, in float3 RayDir, in float HitPosDistance)
 {
-	// LUMEN_TODO Going a very simple way for now using OriginToCollider only, and not ray origin but camera position.
-	// This works already great and we can fix later in main (parameterers needs to be upated)
 	const float ExcludeDistance = 0.0f;
-	float4 HeightFogInscatteringAndTransmittance = GetExponentialHeightFog(OriginToCollider, ExcludeDistance);
+
+	// We override the fog integration origin to match the traced ray.
+	bool bOverrideOrigin = true;
+	float4 HeightFogInscatteringAndTransmittance = GetExponentialHeightFog(0, ExcludeDistance, 0, GetPrimaryView(), bOverrideOrigin, RayOrigin, RayDir, HitPosDistance);
+
 	HeightFogInscatteringAndTransmittance.rgb *= View.PreExposure;
 
 	return SurfaceLuminance * HeightFogInscatteringAndTransmittance.a + HeightFogInscatteringAndTransmittance.rgb * SurfaceCoverage;

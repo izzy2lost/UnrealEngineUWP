@@ -628,7 +628,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		{
 			float CoverageForFog = 1.0; // There is always something or the sky fallback.
 			float3 OriginToCollider = Ray.Direction * TraceResult.OpaqueHitDistance;
-			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, Ray.Origin, Ray.Direction, TraceResult.OpaqueHitDistance);
 		}
 
 		LumenVisualizationFinalize(

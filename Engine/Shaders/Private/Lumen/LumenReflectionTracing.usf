@@ -662,7 +662,7 @@ void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHi
 	{
 		float CoverageForFog = saturate(1.0 - Transparency);	// LUMEN_TODO single evaluation for now even if we can hit translucent hair above.
 		float3 OriginToCollider = RayData.Direction * TraceResult.OpaqueHitDistance;
-		Lighting.rgb = GetFogOnLuminance(Lighting.rgb, CoverageForFog, OriginToCollider);
+		Lighting.rgb = GetFogOnLuminance(Lighting.rgb, CoverageForFog, TranslatedWorldPosition, RayData.Direction, TraceResult.OpaqueHitDistance);
 	}
 
 	Transparency = lerp(Transparency, 1, DistanceFade);
@@ -874,7 +874,7 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 	if (SampleHeightFog > 0)
 	{
 		float3 OriginToCollider = RayData.Direction * TraceHitDistance;
-		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TranslatedWorldPosition, RayData.Direction, TraceHitDistance);
 	}
 
 	float MaxLighting = max3(TraceResult.Lighting.x, TraceResult.Lighting.y, TraceResult.Lighting.z);

@@ -194,7 +194,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		{
 			float3 OriginToCollider = Ray.Direction * Result.TraceHitDistance;
 			float CoverageForFog = 1.0; // There is always something or the sky fallback.
-			Result.Radiance.rgb = GetFogOnLuminance(Result.Radiance.rgb, CoverageForFog, OriginToCollider);
+			Result.Radiance.rgb = GetFogOnLuminance(Result.Radiance.rgb, CoverageForFog, Ray.Origin, Ray.Direction, Result.TraceHitDistance);
 		}
 
 		RWTraceRadiance[ScreenProbeTraceCoord] = Result.Radiance;

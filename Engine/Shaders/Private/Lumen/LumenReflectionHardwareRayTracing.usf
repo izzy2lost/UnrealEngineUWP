@@ -288,7 +288,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		{
 			float CoverageForFog = 1.0; // There is always something of the sky fallback.
 			float3 OriginToCollider = Ray.Direction * TraceResult.OpaqueHitDistance;
-			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TranslatedWorldPosition, Ray.Direction, TraceResult.OpaqueHitDistance);
 		}			
 
 		if (MaxLighting > MaxRayIntensity)

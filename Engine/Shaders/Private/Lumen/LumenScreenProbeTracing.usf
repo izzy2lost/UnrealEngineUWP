@@ -698,7 +698,7 @@ void TraceMeshSDFs(
 				if (SampleHeightFog > 0)
 				{
 					float3 OriginToCollider = RayWorldDirection * OpaqueHitDistance;
-					Lighting.rgb = GetFogOnLuminance(Lighting.rgb, CoverageForFog, OriginToCollider);
+					Lighting.rgb = GetFogOnLuminance(Lighting.rgb, CoverageForFog, SamplePosition, RayWorldDirection, OpaqueHitDistance);
 				}
 
 				#if DEBUG_VISUALIZE_TRACE_TYPES
@@ -901,7 +901,7 @@ void TraceVoxels(
 			if (SampleHeightFog > 0)
 			{
 				float3 OriginToCollider = RayWorldDirection * TraceHitDistance;
-				TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+				TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TranslatedWorldPosition, RayWorldDirection, TraceHitDistance);
 			}
 
 			#if DEBUG_VISUALIZE_TRACE_TYPES
