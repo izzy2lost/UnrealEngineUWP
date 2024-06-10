@@ -279,9 +279,24 @@ void SNiagaraDebugCaptureView::Construct(const FArguments& InArgs, const TShared
 				]
 		);
 	}
-
 	DebugCaptureToolbarBuilder.EndSection();
-	
+
+	DebugCaptureToolbarBuilder.BeginSection("Export");
+	{
+		TSharedRef<FNiagaraSimCacheViewModel> SimCacheViewModelRef = SimCacheViewModel.ToSharedRef();
+		DebugCaptureToolbarBuilder.AddToolBarButton(
+			FUIAction(
+				FExecuteAction::CreateSP(SimCacheViewModelRef, &FNiagaraSimCacheViewModel::CopyActiveToClipboard),
+				FCanExecuteAction::CreateSP(SimCacheViewModelRef, &FNiagaraSimCacheViewModel::CanCopyActiveToClipboard)
+			),
+			NAME_None,
+			LOCTEXT("CopyToCSV", "Copy to CSV"),
+			LOCTEXT("CopyToCSVTooltip", "Copies the currently selected view to the clipboard in CSV format."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Copy")
+		);
+	}
+	DebugCaptureToolbarBuilder.EndSection();
+
 	ChildSlot
 	[
 		DebugCaptureToolbarBuilder.MakeWidget()
@@ -410,8 +425,6 @@ void SNiagaraDebugCaptureView::OnCaptureComplete(UNiagaraSimCache* CapturedSimCa
 	default:
 		break;
 	}
-
-	
 }
 
 #undef LOCTEXT_NAMESPACE

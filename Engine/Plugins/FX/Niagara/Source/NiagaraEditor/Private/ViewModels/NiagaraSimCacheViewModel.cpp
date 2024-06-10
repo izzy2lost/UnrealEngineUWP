@@ -5,6 +5,7 @@
 #include "NiagaraSimCache.h"
 #include "NiagaraEditorCommon.h"
 #include "NiagaraDebuggerCommon.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Serialization/MemoryReader.h"
 #include "Widgets/SNiagaraSimCacheTreeView.h"
 #include "UObject/Package.h"
@@ -71,8 +72,6 @@ void FNiagaraSimCacheViewModel::SetupPreviewComponentAndInstance()
 		PreviewComponent->SetRelativeLocation(FVector::ZeroVector);
 		PreviewComponent->SetDesiredAge(SimCache->GetStartSeconds());
 	}
-
-	
 }
 
 TConstArrayView<FNiagaraSimCacheViewModel::FComponentInfo> FNiagaraSimCacheViewModel::GetComponentInfos(
@@ -176,17 +175,17 @@ void FNiagaraSimCacheViewModel::SetEmitterIndex(const int32 InEmitterIndex, FNia
 	OnViewDataChangedDelegate.Broadcast(true);
 }
 
-bool FNiagaraSimCacheViewModel::IsCacheValid()
+bool FNiagaraSimCacheViewModel::IsCacheValid() const
 {
 	return SimCache ? SimCache->IsCacheValid() : false;
 }
 
-int32 FNiagaraSimCacheViewModel::GetNumEmitterLayouts()
+int32 FNiagaraSimCacheViewModel::GetNumEmitterLayouts() const
 {
 	return SimCache ? SimCache->GetNumEmitters() : 0;
 }
 
-FName FNiagaraSimCacheViewModel::GetEmitterLayoutName(const int32 Index)
+FName FNiagaraSimCacheViewModel::GetEmitterLayoutName(const int32 Index) const
 {
 	return SimCache ? SimCache->GetEmitterName(Index) : NAME_None;
 }
@@ -334,10 +333,9 @@ void FNiagaraSimCacheViewModel::BuildTreeItemChildren(TSharedPtr<FNiagaraSimCach
 		int32 BufferIndex = TreeItem->GetBufferIndex();
 		
 		SimCache->ForEachEmitterAttribute(BufferIndex,
-	[&](const FNiagaraSimCacheVariable& Variable)
+			[&](const FNiagaraSimCacheVariable& Variable)
 			{
 				FNiagaraTypeDefinition TypeDef = Variable.Variable.GetType();
-			
 
 				TSharedRef<FNiagaraSimCacheComponentTreeItem> CurrentItem = MakeShared<FNiagaraSimCacheComponentTreeItem>(OwningTreeView);
 				
@@ -501,6 +499,42 @@ TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* FNiagaraSimCacheViewModel::GetCurr
 TArray<TSharedRef<FNiagaraSimCacheOverviewItem>>* FNiagaraSimCacheViewModel::GetBufferEntries()
 {
 	return &BufferEntries;
+}
+
+bool FNiagaraSimCacheViewModel::CanCopyActiveToClipboard() const
+{
+	return IsCacheValid() && !ActiveDataInterface.IsValid();
+}
+
+void FNiagaraSimCacheViewModel::CopyActiveToClipboard() const
+{
+	if (!CanCopyActiveToClipboard())
+	{
+		return;
+	}
+
+	FString ClipboardString;
+	TConstArrayView<FComponentInfo> ComponentInfos = GetCurrentComponentInfos();
+
+	ClipboardString.Append(TEXT("Instance"));
+	for ( int iComponent=0; iComponent < ComponentInfos.Num(); ++iComponent)
+	{
+		ClipboardString.AppendChar(TEXT(','));
+		ComponentInfos[iComponent].Name.AppendString(ClipboardString);
+	}
+
+	for (int32 iInstance=0; iInstance < NumInstances; ++iInstance)
+	{
+		ClipboardString.AppendChar(TEXT('\n'));
+		ClipboardString.AppendInt(iInstance);
+
+		for (int iComponent = 0; iComponent < ComponentInfos.Num(); ++iComponent)
+		{
+			ClipboardString.AppendChar(TEXT(','));
+			ClipboardString.Append(GetComponentText(ComponentInfos[iComponent].Name, iInstance).ToString());
+		}
+	}
+	FPlatformApplicationMisc::ClipboardCopy(*ClipboardString);
 }
 
 void FNiagaraSimCacheViewModel::AddReferencedObjects(FReferenceCollector& Collector)

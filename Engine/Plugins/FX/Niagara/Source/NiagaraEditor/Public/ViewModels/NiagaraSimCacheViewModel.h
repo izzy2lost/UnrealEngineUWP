@@ -60,14 +60,17 @@ public:
 	void SetEmitterIndex(int32 InEmitterIndex, FNiagaraVariableBase ActiveDataInterface = FNiagaraVariableBase());
 
 	FText GetComponentText(FName ComponentName, int32 InstanceIndex) const;
-	bool IsCacheValid();
-	int32 GetNumEmitterLayouts();
-	FName GetEmitterLayoutName(int32 Index);
+	bool IsCacheValid() const;
+	int32 GetNumEmitterLayouts() const;
+	FName GetEmitterLayoutName(int32 Index) const;
 
 	// Construct entries for the tree view.
 	void BuildEntries(TWeakPtr<SNiagaraSimCacheTreeView> OwningTreeView);
 	TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* GetCurrentRootEntries();
 	TArray<TSharedRef<FNiagaraSimCacheOverviewItem>>* GetBufferEntries();
+
+	bool CanCopyActiveToClipboard() const;
+	void CopyActiveToClipboard() const;
 
 	UNiagaraComponent* GetPreviewComponent() { return PreviewComponent; }
 
