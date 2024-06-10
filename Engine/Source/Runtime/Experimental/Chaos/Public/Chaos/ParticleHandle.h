@@ -2867,6 +2867,7 @@ public:
 		for (FShapeInstanceProxyPtr& Shape : InShapes)
 		{
 			ensure(Idx < MShapesArray.Num());
+			Shape->ModifyShapeIndex(Idx);
 			MShapesArray[Idx++] = MoveTemp(Shape);
 		}
 	}
