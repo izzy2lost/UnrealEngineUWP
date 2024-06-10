@@ -140,8 +140,9 @@ void TargetTextureSet::BindOnTextureUpdate(RenderMaterial_BPPtr InMaterial, FMat
 					// Linear textures are now being displayed in linear gamma.
 					// So turning off the conversion to match UE's convention.
 					// InMaterial->SetInt(TEXT("sRGB"), texture.get()->GetDescriptor().bIsSRGB ? 1 : 0);
-
-					InMaterial->SetInt(TEXT("IsGrayscale"), texture.get()->GetDescriptor().ItemsPerPoint == 1 ? 1 : 0);
+					FString GrayScaleParam = "Is" + BindInfo.Target + "GrayScale";
+					
+					InMaterial->SetInt(FName(GrayScaleParam), texture.get()->GetDescriptor().ItemsPerPoint == 1 ? 1 : 0);
 
 					texture->OnFinalise().then([=]()
 					{

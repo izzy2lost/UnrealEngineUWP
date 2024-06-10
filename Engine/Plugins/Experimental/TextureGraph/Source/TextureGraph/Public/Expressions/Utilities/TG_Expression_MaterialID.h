@@ -22,7 +22,7 @@ public:
 	FTG_Texture MaterialIDMap;
 
 	// List of available colors extracted from the input texture. Selected colors will be shown as white in the output texture. 
-	UPROPERTY(EditAnywhere, EditFixedSize, Category = NoCategory, meta = (TGType = "TG_InputParam", NoResetToDefault, TGPinNotConnectable = "true"))
+	UPROPERTY(EditAnywhere, EditFixedSize, Category = NoCategory, meta = (TGType = "TG_Input", NoResetToDefault, TGPinNotConnectable = "true"))
 	TArray<FMaterialIDMaskInfo> MaterialIDMaskInfos;
 
 	UPROPERTY()

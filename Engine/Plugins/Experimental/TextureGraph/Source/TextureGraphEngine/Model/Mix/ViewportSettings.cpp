@@ -112,6 +112,15 @@ void FViewportSettings::OnMaterialUpdate()
 			}
 		}
 
+		// In case of multiple inputs, sort the inputs in ascending order.
+		if(MaterialMappingInfos.Num() > 1)
+		{
+			MaterialMappingInfos.Sort([](const FMaterialMappingInfo& A, const FMaterialMappingInfo& B)
+			{
+				return A.MaterialInput.LexicalLess(B.MaterialInput);
+			});
+		}
+
 		OnViewportMaterialChangedEvent.Broadcast();
 	}
 }
