@@ -6091,46 +6091,12 @@ FGuid FSequencer::AddEmptyBinding()
 		PossessableNames.Add(*MovieScene->GetPossessable(i).GetName());
 	}
 	FName PossessableName = FSequencerUtilities::GetUniqueName(TEXT("Empty Binding"), PossessableNames);
-	PossessableGuid = MovieScene->AddPossessable(PossessableName.ToString(), UObject::StaticClass());
 
-	if (PossessableGuid.IsValid())
-	{
-		Sequence->GetBindingReferences()->AddBinding(PossessableGuid, FUniversalObjectLocator());
-		OnAddBinding(PossessableGuid, MovieScene);
-
-		// Check if a folder is selected so we can add the actors to the selected folder.
-		TArray<UMovieSceneFolder*> SelectedParentFolders;
-		FString NewNodePath;
-		if (ViewModel->GetSelection()->Outliner.Num() > 0)
-		{
-			for (FViewModelPtr CurrentItem : ViewModel->GetSelection()->Outliner)
-			{
-				if (TSharedPtr<FFolderModel> Folder = CurrentItem->FindAncestorOfType<FFolderModel>(true))
-				{
-					SelectedParentFolders.Add(Folder->GetFolder());
-
-					// The first valid folder we find will be used to put the new binding into, so it's the node that we
-					// want to know the path from.
-					if (NewNodePath.Len() == 0)
-					{
-						// Add an extra delimiter (".") as we know that the new objects will be appended onto the end of this.
-						NewNodePath = FString::Printf(TEXT("%s."), *IOutlinerExtension::GetPathName(*Folder));
-
-						// Make sure the folder is expanded too so that adding objects to hidden folders become visible.
-						Folder->SetExpansion(true);
-					}
-				}
-			}
-		}
-
-		// Add the possessable as child of the first selected folder
-		if (SelectedParentFolders.Num() > 0)
-		{
-			SelectedParentFolders[0]->Modify();
-			SelectedParentFolders[0]->AddChildObjectBinding(PossessableGuid);
-		}
-	}
-	
+	UE::Sequencer::FCreateBindingParams CreateBindingParams;
+	CreateBindingParams.bAllowCustomBinding = false;
+	CreateBindingParams.BindingNameOverride = PossessableName.ToString();
+	CreateBindingParams.bAllowEmptyBinding = true;
+	PossessableGuid = FSequencerUtilities::CreateOrReplaceBinding(SharedThis(this), nullptr, CreateBindingParams);
 	RefreshTree();
 
 	return PossessableGuid;

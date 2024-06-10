@@ -147,10 +147,6 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 			bMultipleBindings = BindingReferences->GetReferences(ObjectBindingID).Num() > 1;
 			UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(ResolutionContext);
 			FMovieSceneBindingResolveParams BindingResolveParams{ Sequencer->GetFocusedMovieSceneSequence(), ObjectBindingID, Sequencer->GetFocusedTemplateID(), ResolutionContext };
-			if (!BindingReferences->ResolveSingleBinding(BindingResolveParams, 0, LocatorResolveParams, Sequencer->GetSharedPlaybackState()))
-			{
-				bShowConvert = false;
-			}
 
 			// Can convert to possessable
 			int32 BindingIndex = 0;

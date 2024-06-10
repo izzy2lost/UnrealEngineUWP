@@ -148,6 +148,18 @@ void FMovieSceneBindingPropertyInfoDetailCustomization::CustomizeChildren(TShare
 			}
 
 			BindingIndex = InStructPropertyHandle->GetArrayIndex();
+
+			uint32 NumBindings = 0;
+			if (TSharedPtr<IPropertyHandle> ParentHandle = InStructPropertyHandle->GetParentHandle())
+			{
+				ParentHandle->GetNumChildren(NumBindings);
+			}
+
+			if (NumBindings > 1)
+			{
+				bShowConvert = false;
+			}
+
 			int32 InitialIndex = 0;
 			BindingTypeNames.Add(MakeShared<FText>(LOCTEXT("BindingType_Possessable", "Possessable")));
 			TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> SupportedBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
@@ -2253,6 +2265,17 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 	}
 	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
+		// A bit hacky, but saves a complicated detail customization. If the change we've just made is to add a new entry, ensure the new entry is initialized
+		// to the same binding type as previous entries.
+		TArrayView<const FMovieSceneBindingReference> PreviousReferences = BindingReferences->GetReferences(ObjectBindingID);
+		if (PreviousReferences.Num() > 0 && PreviousReferences.Num() == BindingPropertyInfoList->Bindings.Num() - 1)
+		{
+			if (UMovieSceneCustomBinding* PreviousCustomBinding = BindingPropertyInfoList->Bindings[BindingPropertyInfoList->Bindings.Num() - 2].CustomBinding)
+			{
+				BindingPropertyInfoList->Bindings[BindingPropertyInfoList->Bindings.Num() - 1].CustomBinding = NewObject<UMovieSceneCustomBinding>(MovieScene, PreviousCustomBinding->GetClass());
+			}
+		}
+
 		MovieScene->Modify();
 		Sequence->Modify();
 		// Clear the previous binding

@@ -60,6 +60,8 @@ struct FCreateBindingParams
 	bool bReplaceable = false;
 	/* If true, will allow the creation of custom bindings if they support the object type.*/
 	bool bAllowCustomBinding = true;
+	/* If true, will allow the creation of an empty binding if a UObject* passed in is nullptr*/
+	bool bAllowEmptyBinding = false;
 	/* If set, will attempt to replace any existing possessable binding at the provided guid and binding index */
 	FGuid ReplacementGuid;
 	/* Optional BindingIndex used if bReplace is true to replace a specific possessable binding*/

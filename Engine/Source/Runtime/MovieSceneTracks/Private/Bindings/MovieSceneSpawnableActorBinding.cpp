@@ -346,9 +346,10 @@ bool UMovieSceneSpawnableActorBinding::SupportsBindingCreationFromObject(const U
 {
 	if (!SourceObject)
 	{
-		return false;
+		// In this case we would just make an empty binding
+		return true;
 	}
-	if (SourceObject->IsA<AActor>())
+	else if (SourceObject->IsA<AActor>())
 	{
 		return true;
 	}
@@ -375,14 +376,9 @@ bool UMovieSceneSpawnableActorBinding::SupportsBindingCreationFromObject(const U
 
 UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene)
 {
-	if (!SourceObject)
-	{
-		return nullptr;
-	}
-
 	UMovieSceneSpawnableActorBinding* NewCustomBinding = nullptr;
 
-	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject->GetFName());
+	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject ? SourceObject->GetFName() : TEXT("Empty Binding"));
 	const FName InstancedBindingName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), *FString(TemplateName.ToString() + TEXT("_CustomBinding")));
 
 	auto CreateBinding = [&]()
@@ -457,7 +453,7 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 
 	if (!NewCustomBinding)
 	{
-		if (UClass* InClass = Cast<UClass>(SourceObject))
+		if (UClass* InClass = Cast<UClass>(SourceObject ? SourceObject : AActor::StaticClass()))
 		{
 			if (!InClass->IsChildOf(AActor::StaticClass()))
 			{		
