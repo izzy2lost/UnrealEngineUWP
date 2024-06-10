@@ -72,6 +72,8 @@ struct FCommerceQueryOffers
 	{
 		/* Local user */
 		FAccountId LocalAccountId;
+		/* Optional catalog namespace to use for this query. Can be left blank to use the "default" namespace */
+		FString OverrideCatalogNamespace;
 	};
 
 	struct Result
@@ -316,6 +318,8 @@ public:
 
 class ICommerce
 {
+public:
+
 	/* Query the list of all offers for the target user */
 	virtual TOnlineAsyncOpHandle<FCommerceQueryOffers> QueryOffers(FCommerceQueryOffers::Params&& Params) = 0;
 
