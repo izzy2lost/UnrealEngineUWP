@@ -700,7 +700,6 @@ void FToolBarBuilder::ApplySectionBeginning()
 			NewSeparatorBlock->SetStyleNameOverride(CurrentStyleOverride);
 
 			MultiBox->AddMultiBlock(NewSeparatorBlock);
-			bSectionShouldHaveSeparator = false;
 		}
 		bSectionNeedsToBeApplied = false;
 	}

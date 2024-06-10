@@ -674,6 +674,7 @@ private:
 	/** True if there is a pending section that needs to be applied */
 	bool bSectionNeedsToBeApplied;
 
+	/** Whether the current section should be preceded by a separator */
 	bool bSectionShouldHaveSeparator;
 
 	/** Whether the buttons created can receive keyboard focus */
