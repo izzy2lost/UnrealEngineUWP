@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "InterchangeManager.h"
-#include "InterchangeTaskSystem.h"
 #include "Stats/Stats.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -12,44 +12,73 @@ namespace UE
 {
 	namespace Interchange
 	{
-		class FTaskPreCompletion_GameThread : public FInterchangeTaskBase
+		class FTaskPreCompletion
 		{
 		private:
 			UInterchangeManager* InterchangeManager;
 			TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> WeakAsyncHelper;
 		public:
-			FTaskPreCompletion_GameThread(UInterchangeManager* InInterchangeManager, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
+			FTaskPreCompletion(UInterchangeManager* InInterchangeManager, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
 				: InterchangeManager(InInterchangeManager)
 				, WeakAsyncHelper(InAsyncHelper)
 			{
 			}
 
-			virtual EInterchangeTaskThread GetTaskThread() const override
+			FORCEINLINE ENamedThreads::Type GetDesiredThread()
 			{
-				return EInterchangeTaskThread::GameThread;
+				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+				{
+					return ENamedThreads::GameThread_Local;
+				}
+				return ENamedThreads::GameThread;
+			}
+			static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode()
+			{
+				return ESubsequentsMode::TrackSubsequents;
 			}
 
-			virtual void Execute() override;
+			FORCEINLINE TStatId GetStatId() const
+			{
+				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskPreCompletion, STATGROUP_TaskGraphTasks);
+			}
+
+			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 		};
 
-		class FTaskCompletion_GameThread : public FInterchangeTaskBase
+		class FTaskCompletion
 		{
 		private:
 			UInterchangeManager* InterchangeManager;
 			TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> WeakAsyncHelper;
 		public:
-			FTaskCompletion_GameThread(UInterchangeManager* InInterchangeManager, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
+			FTaskCompletion(UInterchangeManager* InInterchangeManager, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
 				: InterchangeManager(InInterchangeManager)
 				, WeakAsyncHelper(InAsyncHelper)
 			{
 			}
 
-			virtual EInterchangeTaskThread GetTaskThread() const override
+			FORCEINLINE ENamedThreads::Type GetDesiredThread()
 			{
-				return EInterchangeTaskThread::GameThread;
+				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+				{
+					return ENamedThreads::GameThread_Local;
+				}
+				return ENamedThreads::GameThread;
+			}
+			static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode()
+			{
+				//In case we need to know when the task is done we need track subsequent to get a valid FGraphEventRef when we create the task
+				return ESubsequentsMode::TrackSubsequents;
 			}
 
-			virtual void Execute() override;
+			FORCEINLINE TStatId GetStatId() const
+			{
+				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskCompletion, STATGROUP_TaskGraphTasks);
+			}
+
+			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 		};
 
 	} //ns Interchange

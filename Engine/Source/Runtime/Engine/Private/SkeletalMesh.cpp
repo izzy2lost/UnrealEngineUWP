@@ -1400,15 +1400,9 @@ void USkeletalMesh::PreEditChange(FProperty* PropertyAboutToChange)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(USkeletalMesh::PreEditChange);
 
-	//Don't call finish compile if this skeletal mesh is compiling and we are in a FSkinnedAssetAsyncBuildScope for this skeletal mesh.
-	//If on the game thread we call LockPropertyUntil and we call PreEditChange after, in such a case a deadlock will happen if
-	//we call finish compile on this skeletal mesh.
-	if (FSkinnedAssetAsyncBuildScope::ShouldWaitOnLockedProperties(this))
-	{
-		// Tell the compiler to finish compiling us if we have a pending
-		// compilation ongoing plus any dependency (i.e. UGroomBindings).
-		FAssetCompilingManager::Get().FinishCompilationForObjects({ this });
-	}
+	// Tell the compiler to finish compiling us if we have a pending
+	// compilation ongoing plus any dependency (i.e. UGroomBindings).
+	FAssetCompilingManager::Get().FinishCompilationForObjects({ this });
 
 	Super::PreEditChange(PropertyAboutToChange);
 }

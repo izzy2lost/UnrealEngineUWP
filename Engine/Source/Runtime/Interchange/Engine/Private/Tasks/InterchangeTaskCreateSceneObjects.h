@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
-#include "InterchangeTaskSystem.h"
 #include "Stats/Stats.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Nodes/InterchangeBaseNode.h"
@@ -17,7 +17,7 @@ namespace UE
 	{
 		class FImportAsyncHelper;
 
-		class FTaskCreateSceneObjects_GameThread : public FInterchangeTaskBase
+		class FTaskCreateSceneObjects
 		{
 		private:
 			FString PackageBasePath;
@@ -27,14 +27,23 @@ namespace UE
 			const UClass* FactoryClass;
 
 		public:
-			explicit FTaskCreateSceneObjects_GameThread(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InNodes, const UClass* InFactoryClass);
+			explicit FTaskCreateSceneObjects(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InNodes, const UClass* InFactoryClass);
 
-			virtual EInterchangeTaskThread GetTaskThread() const override
+			ENamedThreads::Type GetDesiredThread();
+
+			static ESubsequentsMode::Type GetSubsequentsMode()
 			{
-				return EInterchangeTaskThread::GameThread;
+				return ESubsequentsMode::TrackSubsequents;
 			}
 
-			virtual void Execute() override;
+			TStatId GetStatId() const
+			{
+				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskCreateSceneObjects, STATGROUP_TaskGraphTasks);
+			}
+
+			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 		};
+
+
 	} //ns Interchange
 }//ns UE

@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "InterchangeManager.h"
 #include "InterchangePipelineBase.h"
-#include "InterchangeTaskSystem.h"
 #include "Stats/Stats.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -14,7 +14,7 @@ namespace UE
 	namespace Interchange
 	{
 
-		class FTaskPipeline : public FInterchangeTaskBase
+		class FTaskPipeline
 		{
 		private:
 			TWeakObjectPtr<UInterchangePipelineBase> PipelineBase;
@@ -26,73 +26,114 @@ namespace UE
 			{
 			}
 
-			virtual EInterchangeTaskThread GetTaskThread() const override
+			ENamedThreads::Type GetDesiredThread()
 			{
 				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
 				{
-					return EInterchangeTaskThread::GameThread;
+					return ENamedThreads::GameThread_Local;
 				}
 
 				if (!ensure(PipelineBase.IsValid()))
 				{
-					return EInterchangeTaskThread::GameThread;
+					return ENamedThreads::GameThread;
 				}
-
+				
 				//Scripted (python) cannot run outside of the game thread, it will lock forever if we do this
 				if (PipelineBase.Get()->IsScripted())
 				{
-					return EInterchangeTaskThread::GameThread;
+					return ENamedThreads::GameThread;
 				}
 
-				return PipelineBase.Get()->CanExecuteOnAnyThread(EInterchangePipelineTask::PostTranslator) ? EInterchangeTaskThread::AsyncThread : EInterchangeTaskThread::GameThread;
+				return PipelineBase.Get()->CanExecuteOnAnyThread(EInterchangePipelineTask::PostTranslator) ? ENamedThreads::AnyBackgroundThreadNormalTask : ENamedThreads::GameThread;
 			}
 
-			virtual void Execute() override;
+			static ESubsequentsMode::Type GetSubsequentsMode()
+			{
+				return ESubsequentsMode::TrackSubsequents;
+			}
+
+			FORCEINLINE TStatId GetStatId() const
+			{
+				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskPipeline, STATGROUP_TaskGraphTasks);
+			}
+
+			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 		};
 
-		//We want to be sure any asset compilation is finish before calling subsequents tasks
-		class FTaskWaitAssetCompilation_GameThread : public FInterchangeTaskBase
+		//We want to be sure any asset compilation is finish before calling FTaskPostImport, we use a async task to wait until they are done
+		class FTaskWaitAssetCompilation
 		{
 		private:
 			int32 SourceIndex;
 			TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> WeakAsyncHelper;
 
 		public:
-			FTaskWaitAssetCompilation_GameThread(int32 InSourceIndex, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
+			FTaskWaitAssetCompilation(int32 InSourceIndex, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
 				: SourceIndex(InSourceIndex)
 				, WeakAsyncHelper(InAsyncHelper)
 			{
 			}
 
-			virtual EInterchangeTaskThread GetTaskThread() const override
+			ENamedThreads::Type GetDesiredThread()
 			{
-				//This task is re-enqueue and don't stall the game thread
-				return EInterchangeTaskThread::GameThread;
+				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+				{
+					return ENamedThreads::GameThread_Local;
+				}
+
+				return ENamedThreads::AnyBackgroundThreadNormalTask;
 			}
 
-			virtual void Execute() override;
+			static ESubsequentsMode::Type GetSubsequentsMode()
+			{
+				return ESubsequentsMode::TrackSubsequents;
+			}
+
+			FORCEINLINE TStatId GetStatId() const
+			{
+				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskWaitAssetCompilation, STATGROUP_TaskGraphTasks);
+			}
+
+			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 		};
 
-		class FTaskPostImport_GameThread : public FInterchangeTaskBase
+		class FTaskPostImport
 		{
 		private:
 			int32 SourceIndex;
 			TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> WeakAsyncHelper;
 
 		public:
-			FTaskPostImport_GameThread(int32 InSourceIndex, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
+			FTaskPostImport(int32 InSourceIndex, TWeakPtr<FImportAsyncHelper, ESPMode::ThreadSafe> InAsyncHelper)
 				: SourceIndex(InSourceIndex)
 				, WeakAsyncHelper(InAsyncHelper)
 			{
 			}
 
-			virtual EInterchangeTaskThread GetTaskThread() const override
+			ENamedThreads::Type GetDesiredThread()
 			{
-				return EInterchangeTaskThread::GameThread;
+				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+				{
+					return ENamedThreads::GameThread_Local;
+				}
+
+				return ENamedThreads::GameThread;
 			}
 
-			virtual void Execute() override;
+			static ESubsequentsMode::Type GetSubsequentsMode()
+			{
+				return ESubsequentsMode::TrackSubsequents;
+			}
+
+			FORCEINLINE TStatId GetStatId() const
+			{
+				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskPostImport, STATGROUP_TaskGraphTasks);
+			}
+
+			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 		};
 	} //ns Interchange
 }//ns UE

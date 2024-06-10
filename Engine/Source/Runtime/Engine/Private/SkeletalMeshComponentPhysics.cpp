@@ -2169,12 +2169,8 @@ void USkeletalMeshComponent::UpdateHasValidBodies()
 		// For each body in physics asset..
 		for( int32 BodyIndex = 0; BodyIndex < PhysicsAsset->SkeletalBodySetups.Num(); BodyIndex++ )
 		{
-			int32 BoneIndex = INDEX_NONE;
 			// .. find the matching graphics bone index
-			if (TObjectPtr<USkeletalBodySetup> SkeletalBodySetup = PhysicsAsset->SkeletalBodySetups[BodyIndex])
-			{
-				BoneIndex = GetBoneIndex(SkeletalBodySetup->BoneName);
-			}
+			int32 BoneIndex = GetBoneIndex( PhysicsAsset->SkeletalBodySetups[ BodyIndex ]->BoneName );
 
 			// If we found a valid graphics bone, set the 'valid' flag
 			if(BoneIndex != INDEX_NONE)

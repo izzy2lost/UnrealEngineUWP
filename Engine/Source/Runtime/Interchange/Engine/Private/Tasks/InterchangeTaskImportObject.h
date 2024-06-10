@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "InterchangeFactoryBase.h"
 #include "InterchangeManager.h"
-#include "InterchangeTaskSystem.h"
 #include "Stats/Stats.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
@@ -15,7 +15,7 @@ namespace UE::Interchange
 	/**
 		* This task create UPackage and UObject, Cook::PackageTracker::NotifyUObjectCreated is not thread safe, so we need to create the packages on the main thread
 		*/
-	class FTaskImportObject_GameThread : public FInterchangeTaskBase
+	class FTaskImportObject_GameThread
 	{
 	private:
 		FString PackageBasePath;
@@ -36,15 +36,30 @@ namespace UE::Interchange
 			check(FactoryClass);
 		}
 
-		virtual EInterchangeTaskThread GetTaskThread() const override
+		ENamedThreads::Type GetDesiredThread() const
 		{
-			return EInterchangeTaskThread::GameThread;
+			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+			if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+			{
+				return ENamedThreads::GameThread_Local;
+			}
+			return ENamedThreads::GameThread;
 		}
 
-		virtual void Execute() override;
+		static ESubsequentsMode::Type GetSubsequentsMode()
+		{
+			return ESubsequentsMode::TrackSubsequents;
+		}
+
+		TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskImportObject_GameThread, STATGROUP_TaskGraphTasks);
+		}
+
+		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 	};
 
-	class FTaskImportObject_Async : public FInterchangeTaskBase
+	class FTaskImportObject_Async
 	{
 	private:
 		FString PackageBasePath;
@@ -62,24 +77,33 @@ namespace UE::Interchange
 			check(FactoryNode);
 		}
 
-		virtual EInterchangeTaskThread GetTaskThread() const override
+		ENamedThreads::Type GetDesiredThread() const
 		{
 			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 			if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
 			{
-				return EInterchangeTaskThread::GameThread;
+				return ENamedThreads::GameThread_Local;
 			}
-
-			return EInterchangeTaskThread::AsyncThread;
+			return ENamedThreads::AnyBackgroundThreadNormalTask;
 		}
 
-		virtual void Execute() override;
+		static ESubsequentsMode::Type GetSubsequentsMode()
+		{
+			return ESubsequentsMode::TrackSubsequents;
+		}
+
+		TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskImportObject_Async, STATGROUP_TaskGraphTasks);
+		}
+
+		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 	};
 
 	/**
 		* This task create UPackage and UObject, Cook::PackageTracker::NotifyUObjectCreated is not thread safe, so we need to create the packages on the main thread
 		*/
-	class FTaskImportObjectFinalize_GameThread : public FInterchangeTaskBase
+	class FTaskImportObjectFinalize_GameThread
 	{
 	private:
 		FString PackageBasePath;
@@ -98,12 +122,27 @@ namespace UE::Interchange
 			check(FactoryNode);
 		}
 
-		virtual EInterchangeTaskThread GetTaskThread() const override
+		ENamedThreads::Type GetDesiredThread() const
 		{
-			return EInterchangeTaskThread::GameThread;
+			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+			if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+			{
+				return ENamedThreads::GameThread_Local;
+			}
+			return ENamedThreads::GameThread;
 		}
 
-		virtual void Execute() override;
+		static ESubsequentsMode::Type GetSubsequentsMode()
+		{
+			return ESubsequentsMode::TrackSubsequents;
+		}
+
+		TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskImportObjectFinalize_GameThread, STATGROUP_TaskGraphTasks);
+		}
+
+		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 	};
 
 }//ns UE::Interchange

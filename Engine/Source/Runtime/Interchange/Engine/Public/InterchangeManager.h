@@ -17,7 +17,6 @@
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeResultsContainer.h"
 #include "InterchangeSourceData.h"
-#include "InterchangeTaskSystem.h"
 #include "InterchangeTranslatorBase.h"
 #include "InterchangeWriterBase.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
@@ -173,9 +172,6 @@ namespace UE
 			// Callback when the status switches to done.
 			INTERCHANGEENGINE_API void OnDone(TFunction< void(FImportResult&) > Callback);
 
-			//Set the async helper that own this import result
-			INTERCHANGEENGINE_API void SetAsyncHelper(TWeakPtr<class FImportAsyncHelper> InAsyncHelper);
-
 			// Internal delegates. To set these, use the FImportAssetParameters when calling the Interchange import functions.
 			FOnObjectImportDoneDynamic OnObjectDone;
 			FOnObjectImportDoneNative OnObjectDoneNative;
@@ -198,7 +194,7 @@ namespace UE
 			mutable FRWLock ImportedObjectsRWLock;
 			TObjectPtr<UInterchangeResultsContainer> Results;
 
-			TWeakPtr<class FImportAsyncHelper> AsyncHelper = nullptr;
+			FGraphEventRef GraphEvent; // WaitUntilDone waits for this event to be triggered.
 
 			TFunction< void(FImportResult&) > DoneCallback;
 		};
@@ -241,18 +237,18 @@ namespace UE
 			//Python class instanced assets cannot be saved, so we have to serialize in JSON the data to restore it when we do a reimport.
 			TArray<UObject*> OriginalPipelines;
 
-			TArray<uint64> TranslatorTasks;
-			TArray<uint64> PipelineTasks;
-			TArray<uint64> WaitAssetCompilationTasks;
-			TArray<uint64> PostImportTasks;
-			uint64 ParsingTask;
-			TArray<uint64> BeginImportObjectTasks;
-			TArray<uint64> ImportObjectTasks;
-			TArray<uint64> FinalizeImportObjectTasks;
-			TArray<uint64> SceneTasks;
+			TArray<FGraphEventRef> TranslatorTasks;
+			TArray<FGraphEventRef> PipelineTasks;
+			FGraphEventRef WaitAssetCompilationTask;
+			TArray<FGraphEventRef> PostImportTasks;
+			FGraphEventRef ParsingTask;
+			TArray<FGraphEventRef> BeginImportObjectTasks;
+			TArray<FGraphEventRef> ImportObjectTasks;
+			TArray<FGraphEventRef> FinalizeImportObjectTasks;
+			TArray<FGraphEventRef> SceneTasks;
 
-			uint64 PreCompletionTask;
-			uint64 CompletionTask;
+			FGraphEventRef PreCompletionTask;
+			FGraphEventRef CompletionTask;
 
 			//Return true if we can import this class, or false otherwise.
 			bool IsClassImportAllowed(UClass* Class);
@@ -301,7 +297,7 @@ namespace UE
 			/**
 			 * Wait synchronously after the graph parsing task is done, and return the GraphEventArray up to the completion TaskGraphEvent.
 			 */
-			TArray<uint64> GetCompletionTaskGraphEvent();
+			FGraphEventArray GetCompletionTaskGraphEvent();
 
 			void InitCancel();
 

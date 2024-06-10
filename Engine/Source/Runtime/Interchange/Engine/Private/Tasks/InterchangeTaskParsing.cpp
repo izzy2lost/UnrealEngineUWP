@@ -87,7 +87,7 @@ private:
 };
 
 
-void UE::Interchange::FTaskParsing::Execute()
+void UE::Interchange::FTaskParsing::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskParsing::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
@@ -95,11 +95,7 @@ void UE::Interchange::FTaskParsing::Execute()
 #endif
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
-	TOptional<FGCScopeGuard> GCScopeGuard;
-	if (!IsInGameThread())
-	{
-		GCScopeGuard.Emplace();
-	}
+	FGCScopeGuard GCScopeGuard;
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	check(AsyncHelper.IsValid());
@@ -111,8 +107,8 @@ void UE::Interchange::FTaskParsing::Execute()
 		int32 SourceIndex = INDEX_NONE;
 		bool bIsSceneNode = false;
 		TArray<FString> Dependencies;
-		uint64 GraphEventRef;
-		TArray<uint64> Prerequisites;
+		FGraphEventRef GraphEventRef;
+		FGraphEventArray Prerequisites;
 		const UClass* FactoryClass;
 
 		TArray<UInterchangeFactoryBaseNode*, TInlineAllocator<1>> Nodes; // For scenes, we can group multiple nodes into a single task as they are usually very light
@@ -200,9 +196,9 @@ void UE::Interchange::FTaskParsing::Execute()
 		}
 	}
 
-	auto CreateTasksForEachTaskData = [](TArray<FTaskData>& TaskDatas, TFunction<uint64(FTaskData&)> CreateTasksFunc) -> TArray<uint64>
+	auto CreateTasksForEachTaskData = [](TArray<FTaskData>& TaskDatas, TFunction<FGraphEventRef(FTaskData&)> CreateTasksFunc) -> FGraphEventArray
 	{
-		TArray<uint64> GraphEvents;
+		FGraphEventArray GraphEvents;
 
 		for (int32 TaskIndex = 0; TaskIndex < TaskDatas.Num(); ++TaskIndex)
 		{
@@ -238,7 +234,7 @@ void UE::Interchange::FTaskParsing::Execute()
 
 	TMap<FString, FTaskParsingRenameInfo> RenameAssets;
 	TSet<FString> CreatedTasksAssetNames; // Tracks for which asset name we have created a task so that we don't have 2 tasks for the same asset name
-	TFunction<uint64(FTaskData&)> CreateTasksFromData = [this, &AsyncHelper, &RenameAssets, &CreatedTasksAssetNames](FTaskData& TaskData)
+	TFunction<FGraphEventRef(FTaskData&)> CreateTasksFromData = [this, &AsyncHelper, &RenameAssets, &CreatedTasksAssetNames](FTaskData& TaskData)
 	{
 		LLM_SCOPE_BYNAME(TEXT("Interchange"));
 		check(TaskData.Nodes.Num() == 1); //We expect 1 node per asset task
@@ -249,13 +245,9 @@ void UE::Interchange::FTaskParsing::Execute()
 
 		if (TaskData.bIsSceneNode)
 		{
-			TSharedPtr<UE::Interchange::FTaskCreateSceneObjects_GameThread, ESPMode::ThreadSafe> TaskCreateSceneObjects = MakeShared<UE::Interchange::FTaskCreateSceneObjects_GameThread, ESPMode::ThreadSafe>(AsyncHelper->ContentBasePath
-				, SourceIndex
-				, WeakAsyncHelper
-				, TaskData.Nodes
-				, FactoryClass);
-
-			return AsyncHelper->SceneTasks.Add_GetRef(UE::Interchange::FInterchangeTaskSystem::Get().AddTask(TaskCreateSceneObjects, TaskData.Prerequisites));
+			return AsyncHelper->SceneTasks.Add_GetRef(
+				TGraphTask<FTaskCreateSceneObjects>::CreateTask(&(TaskData.Prerequisites))
+				.ConstructAndDispatchWhenReady(AsyncHelper->ContentBasePath, SourceIndex, WeakAsyncHelper, TaskData.Nodes, FactoryClass));
 		}
 		else
 		{
@@ -298,31 +290,22 @@ void UE::Interchange::FTaskParsing::Execute()
 				TEXT("Found multiple task data with the same asset name (%s). Only one will be executed."), *AssetFullPath))
 			{
 				LLM_SCOPE_BYNAME(TEXT("Interchange"));
-				TArray<uint64> ImportObjectTasksPrerequistes;
-				TSharedPtr<FTaskImportObject_GameThread, ESPMode::ThreadSafe> TaskImportObject_GameThread = MakeShared<FTaskImportObject_GameThread, ESPMode::ThreadSafe>(AsyncHelper->ContentBasePath
-					, SourceIndex
-					, WeakAsyncHelper
-					, FactoryNode
-					, FactoryClass);
-				int32 BeginImportObjectTaskIndex = AsyncHelper->BeginImportObjectTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskImportObject_GameThread, TaskData.Prerequisites));
+				FGraphEventArray ImportObjectTasksPrerequistes;
+				int32 BeginImportObjectTaskIndex = AsyncHelper->BeginImportObjectTasks.Add(
+					TGraphTask<FTaskImportObject_GameThread>::CreateTask(&(TaskData.Prerequisites)).ConstructAndDispatchWhenReady(AsyncHelper->ContentBasePath, SourceIndex, WeakAsyncHelper, FactoryNode, FactoryClass)
+				);
 				ImportObjectTasksPrerequistes.Add(AsyncHelper->BeginImportObjectTasks[BeginImportObjectTaskIndex]);
 
-				TSharedPtr<FTaskImportObject_Async, ESPMode::ThreadSafe> TaskImportObject_Async = MakeShared<FTaskImportObject_Async, ESPMode::ThreadSafe>(AsyncHelper->ContentBasePath
-					, SourceIndex
-					, WeakAsyncHelper
-					, FactoryNode);
-				int32 ImportObjectTaskIndex = AsyncHelper->ImportObjectTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskImportObject_Async, ImportObjectTasksPrerequistes));
-				
-				TArray<uint64> FinalizeImportObjectTasksPrerequistes;
+				int32 ImportObjectTaskIndex = AsyncHelper->ImportObjectTasks.Add(
+					TGraphTask<FTaskImportObject_Async>::CreateTask(&(ImportObjectTasksPrerequistes)).ConstructAndDispatchWhenReady(AsyncHelper->ContentBasePath, SourceIndex, WeakAsyncHelper, FactoryNode)
+				);
+
+				FGraphEventArray FinalizeImportObjectTasksPrerequistes;
 				FinalizeImportObjectTasksPrerequistes.Add(AsyncHelper->ImportObjectTasks[ImportObjectTaskIndex]);
 
-				
-				
-				TSharedPtr<FTaskImportObjectFinalize_GameThread, ESPMode::ThreadSafe> TaskImportObjectFinalize_GameThread = MakeShared<FTaskImportObjectFinalize_GameThread, ESPMode::ThreadSafe>(AsyncHelper->ContentBasePath
-					, SourceIndex
-					, WeakAsyncHelper
-					, FactoryNode);
-				int32 FinalizeCreateTaskIndex = AsyncHelper->FinalizeImportObjectTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskImportObjectFinalize_GameThread, FinalizeImportObjectTasksPrerequistes));
+				int32 FinalizeCreateTaskIndex = AsyncHelper->FinalizeImportObjectTasks.Add(
+					TGraphTask<FTaskImportObjectFinalize_GameThread>::CreateTask(&(FinalizeImportObjectTasksPrerequistes)).ConstructAndDispatchWhenReady(AsyncHelper->ContentBasePath, SourceIndex, WeakAsyncHelper, FactoryNode)
+				);
 
 				//Only add the name if the factory node is enabled
 				if (FactoryNode->IsEnabled())
@@ -334,7 +317,8 @@ void UE::Interchange::FTaskParsing::Execute()
 			}
 			else
 			{
-				constexpr uint64 EmptyGraphEvent = 0;
+				FGraphEventRef EmptyGraphEvent = FGraphEvent::CreateGraphEvent();
+				EmptyGraphEvent->DispatchSubsequents();
 				return EmptyGraphEvent;
 			}
 		}
@@ -357,10 +341,10 @@ void UE::Interchange::FTaskParsing::Execute()
 		}
 	}
 
-	TArray<uint64> CompletionPrerequistes;
+	FGraphEventArray CompletionPrerequistes;
 	const int32 PoolWorkerThreadCount = FTaskGraphInterface::Get().GetNumWorkerThreads() / 2;
 	const int32 MaxNumWorker = FMath::Max(PoolWorkerThreadCount, 1);
-	TArray<uint64> GroupPrerequistes;
+	FGraphEventArray GroupPrerequistes;
 	for (int32 TaskIndex = 0; TaskIndex < TaskDatas.Num(); ++TaskIndex)
 	{
 		FTaskData& TaskData = TaskDatas[TaskIndex];
@@ -424,32 +408,28 @@ void UE::Interchange::FTaskParsing::Execute()
 	}
 
 	//Add an async task for pre completion
-	TArray<uint64> PreCompletionPrerequistes;
-	TSharedPtr<FTaskPreCompletion_GameThread, ESPMode::ThreadSafe> TaskPreCompletion = MakeShared<FTaskPreCompletion_GameThread, ESPMode::ThreadSafe>(InterchangeManager, WeakAsyncHelper);
-	AsyncHelper->PreCompletionTask = FInterchangeTaskSystem::Get().AddTask(TaskPreCompletion, CompletionPrerequistes);
+	FGraphEventArray PreCompletionPrerequistes;
+	AsyncHelper->PreCompletionTask = TGraphTask<FTaskPreCompletion>::CreateTask(&CompletionPrerequistes).ConstructAndDispatchWhenReady(InterchangeManager, WeakAsyncHelper);
 	PreCompletionPrerequistes.Add(AsyncHelper->PreCompletionTask);
 
-	TArray<uint64> AssetCompilationPrerequistes;
+	FGraphEventArray AssetCompilationPrerequistes;
 	//Start the wait for asset compilation task on a async task
 	for (int32 SourceIndex = 0; SourceIndex < AsyncHelper->SourceDatas.Num(); ++SourceIndex)
 	{
-		TSharedPtr<FTaskWaitAssetCompilation_GameThread, ESPMode::ThreadSafe> TaskWaitAssetCompilation = MakeShared<FTaskWaitAssetCompilation_GameThread, ESPMode::ThreadSafe>(SourceIndex, WeakAsyncHelper);
-		int32 WaitAssetCompilationTaskIndex = AsyncHelper->WaitAssetCompilationTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskWaitAssetCompilation, PreCompletionPrerequistes));
-		AssetCompilationPrerequistes.Add(AsyncHelper->WaitAssetCompilationTasks[WaitAssetCompilationTaskIndex]);
+		AsyncHelper->WaitAssetCompilationTask = TGraphTask<FTaskWaitAssetCompilation>::CreateTask(&PreCompletionPrerequistes).ConstructAndDispatchWhenReady(SourceIndex, WeakAsyncHelper);
+		AssetCompilationPrerequistes.Add(AsyncHelper->WaitAssetCompilationTask);
 	}
 
 	//Start the Post pipeline task
 	for (int32 SourceIndex = 0; SourceIndex < AsyncHelper->SourceDatas.Num(); ++SourceIndex)
 	{
-
-		TSharedPtr<FTaskPostImport_GameThread, ESPMode::ThreadSafe> TaskPostImport = MakeShared<FTaskPostImport_GameThread, ESPMode::ThreadSafe>(SourceIndex, WeakAsyncHelper);
-		int32 PostImportTaskIndex = AsyncHelper->PostImportTasks.Add(FInterchangeTaskSystem::Get().AddTask(TaskPostImport, AssetCompilationPrerequistes));
-
+		int32 GraphTaskIndex = AsyncHelper->PostImportTasks.Add(
+			TGraphTask<FTaskPostImport>::CreateTask(&(AssetCompilationPrerequistes)).ConstructAndDispatchWhenReady(SourceIndex, WeakAsyncHelper)
+		);
 		//Ensure we run the pipeline in the same order we create the task, since the pipeline modifies the node container, its important that its not processed in parallel, Adding the one we start to the prerequisites
 		//is the way to go here
-		AssetCompilationPrerequistes.Add(AsyncHelper->PostImportTasks[PostImportTaskIndex]);
+		AssetCompilationPrerequistes.Add(AsyncHelper->PostImportTasks[GraphTaskIndex]);
 	}
 
-	TSharedPtr<FTaskCompletion_GameThread, ESPMode::ThreadSafe> TaskCompletion = MakeShared<FTaskCompletion_GameThread, ESPMode::ThreadSafe>(InterchangeManager, WeakAsyncHelper);
-	AsyncHelper->CompletionTask = FInterchangeTaskSystem::Get().AddTask(TaskCompletion, AssetCompilationPrerequistes);
+	AsyncHelper->CompletionTask = TGraphTask<FTaskCompletion>::CreateTask(&AssetCompilationPrerequistes).ConstructAndDispatchWhenReady(InterchangeManager, WeakAsyncHelper);
 }

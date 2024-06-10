@@ -239,7 +239,7 @@ namespace UE::Interchange::Private
 	}
 }//ns UE::Interchange::Private
 
-void UE::Interchange::FTaskImportObject_GameThread::Execute()
+void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskImportObject_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
@@ -587,7 +587,7 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 	}
 }
 
-void UE::Interchange::FTaskImportObject_Async::Execute()
+void UE::Interchange::FTaskImportObject_Async::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObject_Async)
@@ -596,12 +596,6 @@ void UE::Interchange::FTaskImportObject_Async::Execute()
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
 	using namespace UE::Interchange;
-
-	TOptional<FGCScopeGuard> GCScopeGuard;
-	if (!IsInGameThread())
-	{
-		GCScopeGuard.Emplace();
-	}
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	check(AsyncHelper.IsValid());
@@ -629,7 +623,7 @@ void UE::Interchange::FTaskImportObject_Async::Execute()
 		});
 }
 
-void UE::Interchange::FTaskImportObjectFinalize_GameThread::Execute()
+void UE::Interchange::FTaskImportObjectFinalize_GameThread::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObjectFinalize_GameThread)
@@ -653,8 +647,6 @@ void UE::Interchange::FTaskImportObjectFinalize_GameThread::Execute()
 	{
 		return;
 	}
-
-	check(IsInGameThread());
 
 	UInterchangeFactoryBase::FImportAssetResult ImportAssetResult = Private::InternalImportObjectStartup(AsyncHelper
 		, FactoryNode
