@@ -113,14 +113,28 @@ int32 UToolMenu::IndexOfSection(const FName InSectionName) const
 	return INDEX_NONE;
 }
 
+// Note: This function is very similar to FToolMenuSection::FindBlockInsertIndex.
 int32 UToolMenu::FindInsertIndex(const FToolMenuSection& InSection) const
 {
 	const FToolMenuInsert InInsertPosition = InSection.InsertPosition;
+
+	// Insert a Default-positioned section after all First and Default-positioned sections but before any
+	// Last-positioned sections.
 	if (InInsertPosition.IsDefault())
 	{
+		for (int32 i = 0; i < Sections.Num(); ++i)
+		{
+			if (Sections[i].InsertPosition.Position == EToolMenuInsertType::Last)
+			{
+				return i;
+			}
+		}
+
 		return Sections.Num();
 	}
 
+	// Insert a First-positioned section after any other First-positioned sections but before all Default and
+	// Last-positioned sections.
 	if (InInsertPosition.Position == EToolMenuInsertType::First)
 	{
 		for (int32 i = 0; i < Sections.Num(); ++i)
@@ -128,6 +142,20 @@ int32 UToolMenu::FindInsertIndex(const FToolMenuSection& InSection) const
 			if (Sections[i].InsertPosition.Position != InInsertPosition.Position)
 			{
 				return i;
+			}
+		}
+
+		return Sections.Num();
+	}
+
+	// Insert a Last-positioned section after all other sections, include other Last-positioned sections.
+	if (InInsertPosition.Position == EToolMenuInsertType::Last)
+	{
+		for (int32 i = Sections.Num() - 1; i >= 0; --i)
+		{
+			if (Sections[i].InsertPosition.Position == InInsertPosition.Position)
+			{
+				return i + 1;
 			}
 		}
 
