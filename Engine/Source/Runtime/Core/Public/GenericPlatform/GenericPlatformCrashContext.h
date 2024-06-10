@@ -153,6 +153,8 @@ CORE_API const TCHAR* AttendedStatusToString(const EUnattendedStatus Status);
 #define CR_MAX_COMMANDLINE_CHARS 1024
 #define CR_MAX_RICHTEXT_FIELD_CHARS 512
 #define CR_MAX_DYNAMIC_BUFFER_CHARS 1024*32
+#define CR_MAX_GPU_BREADCRUMBS_QUEUES 2
+#define CR_MAX_GPU_BREADCRUMBS_STRING_CHARS 1024*8
 
 /**
  * Fixed size structure that holds session specific state.
@@ -222,6 +224,23 @@ struct FUserSettingsContext
 	TCHAR					LogFilePath[CR_MAX_DIRECTORY_CHARS];
 };
 
+/** Fixed size structure holding GPU breadcrumbs information, to be communicated to the crash reporting client. */
+struct FGPUBreadcrumbsSharedContext
+{
+	struct FQueueData {
+		TCHAR QueueName[CR_MAX_GENERIC_FIELD_CHARS];
+		TCHAR FullHash[CR_MAX_GENERIC_FIELD_CHARS];
+		TCHAR ActiveHash[CR_MAX_GENERIC_FIELD_CHARS];
+		TCHAR Breadcrumbs[CR_MAX_GPU_BREADCRUMBS_STRING_CHARS];
+	};
+
+	TCHAR SourceName[CR_MAX_GENERIC_FIELD_CHARS];
+	TCHAR Version[CR_MAX_GENERIC_FIELD_CHARS];
+
+	uint32 NumQueues = 0;
+	FQueueData Queues[CR_MAX_GPU_BREADCRUMBS_QUEUES];
+};
+
 /**
  * Fixed size struct holds crash information and session specific state. It is designed
  * to shared between processes (e.g. Game and CrashReporterClient).
@@ -262,6 +281,9 @@ struct FSharedCrashContext
 
 	// Instruction address where the exception was raised that initiated crash reporting
 	void*					ExceptionProgramCounter;
+
+	// GPU breadcrumbs.
+	FGPUBreadcrumbsSharedContext  GPUBreadcrumbs;
 };
 
 #if WITH_ADDITIONAL_CRASH_CONTEXTS
@@ -305,7 +327,7 @@ struct FGPUBreadcrumbCrashData
 	 * changes, in order to help parsers in dealing with strings from multiple
 	 * versions.
 	 */
-	static constexpr TCHAR const Version[] = TEXT("526BDA74-7A81-44C3-B0FD-9DBF80973C25");
+	static constexpr TCHAR const CurrentVersion[] = TEXT("526BDA74-7A81-44C3-B0FD-9DBF80973C25");
 
 	enum class EState : uint8
 	{
@@ -314,7 +336,7 @@ struct FGPUBreadcrumbCrashData
 		Finished   = 2
 	};
 
-	// These are serialized. Do not change this array without bumping the Version.
+	// These are serialized. Do not change this array without bumping the CurrentVersion.
 	TCHAR const static constexpr StateChars[] =
 	{
 		TEXT('N'),
@@ -332,6 +354,7 @@ struct FGPUBreadcrumbCrashData
 	};
 	TMap<FString, FQueueData> Queues;
 	FString SourceName;
+	FString Version;
 
 	class FSerializer
 	{
@@ -352,8 +375,8 @@ struct FGPUBreadcrumbCrashData
 		CORE_API FQueueData GetResult();
 	};
 
-	FGPUBreadcrumbCrashData(TCHAR const* SourceName)
-		: SourceName(SourceName)
+	FGPUBreadcrumbCrashData(TCHAR const* InSourceName, TCHAR const* InVersion = CurrentVersion)
+		: SourceName(InSourceName), Version(InVersion)
 	{}
 };
 
@@ -431,7 +454,7 @@ public:
 	CORE_API static void Initialize();
 
 	/** Initialized crash context, using a crash context (e.g. shared from another process). */
-	CORE_API static void InitializeFromContext(const FSessionContext& Context, const TCHAR* EnabledPlugins, const TCHAR* EngineData, const TCHAR* GameData);
+	CORE_API static void InitializeFromContext(const FSessionContext& Context, const TCHAR* EnabledPlugins, const TCHAR* EngineData, const TCHAR* GameData, const FGPUBreadcrumbsSharedContext* GPUBreadcrumbs);
 
 	/** Get the current cached session context */
 	CORE_API static const FSessionContext& GetCachedSessionContext();

@@ -92,8 +92,6 @@ const TCHAR* AttendedStatusToString(const EUnattendedStatus Status)
 	}
 }
 
-#if WITH_ADDITIONAL_CRASH_CONTEXTS
-
 // Sanitize the event name string to remove characters that are used as delimiters for parsing.
 FString FGPUBreadcrumbCrashData::FSerializer::Sanitize(FString const& Name)
 {
@@ -174,7 +172,55 @@ CORE_API FGPUBreadcrumbCrashData::FQueueData FGPUBreadcrumbCrashData::FSerialize
 	return Result;
 }
 
-#endif // WITH_ADDITIONAL_CRASH_CONTEXTS
+static FGPUBreadcrumbCrashData GPUBreadcrumbsFromSharedContext(const FGPUBreadcrumbsSharedContext& Context)
+{
+	FGPUBreadcrumbCrashData DstData(Context.SourceName, Context.Version);
+
+	for (uint32 QueueIdx = 0; QueueIdx < Context.NumQueues; ++QueueIdx)
+	{
+		const FGPUBreadcrumbsSharedContext::FQueueData& SrcQueue = Context.Queues[QueueIdx];
+
+		FGPUBreadcrumbCrashData::FQueueData DstQueue;
+		DstQueue.ActiveHash.FromString(SrcQueue.ActiveHash);
+		DstQueue.FullHash.FromString(SrcQueue.FullHash);
+		DstQueue.BreadcrumbString = SrcQueue.Breadcrumbs;
+
+		DstData.Queues.Emplace(SrcQueue.QueueName, MoveTemp(DstQueue));
+	}
+	
+	return DstData;
+}
+
+static void GPUBreadcrumbsToSharedContext(const FGPUBreadcrumbCrashData& GPUBreadcrumbs, FGPUBreadcrumbsSharedContext& OutSharedContext)
+{
+	FCString::Strncpy(OutSharedContext.Version, *GPUBreadcrumbs.Version, CR_MAX_GENERIC_FIELD_CHARS);
+	FCString::Strncpy(OutSharedContext.SourceName, *GPUBreadcrumbs.SourceName, CR_MAX_GENERIC_FIELD_CHARS);
+
+	OutSharedContext.NumQueues = 0;
+	for (const TPair<FString, FGPUBreadcrumbCrashData::FQueueData>& SrcData : GPUBreadcrumbs.Queues)
+	{
+		const FGPUBreadcrumbCrashData::FQueueData& SrcBreadcrumbs = SrcData.Value;
+
+		// Skip queues with no breadcrumb data or with too many breadcrumbs.
+		if (SrcBreadcrumbs.BreadcrumbString.IsEmpty() || SrcBreadcrumbs.BreadcrumbString.Len() >= CR_MAX_GPU_BREADCRUMBS_STRING_CHARS)
+		{
+			continue;
+		}
+
+		FGPUBreadcrumbsSharedContext::FQueueData& DstQueue = OutSharedContext.Queues[OutSharedContext.NumQueues];
+		FCString::Strncpy(DstQueue.QueueName, *SrcData.Key, CR_MAX_GENERIC_FIELD_CHARS);
+		FCString::Strncpy(DstQueue.FullHash, *SrcBreadcrumbs.FullHash.ToString(), CR_MAX_GENERIC_FIELD_CHARS);
+		FCString::Strncpy(DstQueue.ActiveHash, *SrcBreadcrumbs.ActiveHash.ToString(), CR_MAX_GENERIC_FIELD_CHARS);
+		FCString::Strncpy(DstQueue.Breadcrumbs, *SrcBreadcrumbs.BreadcrumbString, CR_MAX_GPU_BREADCRUMBS_STRING_CHARS);
+
+		OutSharedContext.NumQueues++;
+		if (OutSharedContext.NumQueues >= CR_MAX_GPU_BREADCRUMBS_QUEUES)
+		{
+			break;
+		}
+	}
+}
+
 
 /*-----------------------------------------------------------------------------
 	FGenericCrashContext
@@ -471,7 +517,7 @@ void FGenericCrashContext::Initialize()
 const TCHAR* CR_PAIR_DELIM = TEXT("\x01");
 const TCHAR* CR_PAIR_EQ = TEXT("\x02");
 
-void FGenericCrashContext::InitializeFromContext(const FSessionContext& Session, const TCHAR* EnabledPluginsStr, const TCHAR* EngineDataStr, const TCHAR* GameDataStr)
+void FGenericCrashContext::InitializeFromContext(const FSessionContext& Session, const TCHAR* EnabledPluginsStr, const TCHAR* EngineDataStr, const TCHAR* GameDataStr, const FGPUBreadcrumbsSharedContext* GPUBreadcrumbs)
 {
 	static const TCHAR* TokenDelim[] = { CR_PAIR_DELIM, CR_PAIR_EQ };
 
@@ -519,6 +565,11 @@ void FGenericCrashContext::InitializeFromContext(const FSessionContext& Session,
 			const FString& Value = Tokens[i++];
 			NCached::GameData.Add(Key, Value);
 		}
+	}
+
+	if (GPUBreadcrumbs && GPUBreadcrumbs->NumQueues > 0)
+	{
+		SetGPUBreadcrumbs(GPUBreadcrumbsFromSharedContext(*GPUBreadcrumbs));
 	}
 
 	SerializeTempCrashContextToFile();
@@ -587,6 +638,12 @@ void FGenericCrashContext::CopySharedCrashContext(FSharedCrashContext& Dst)
 	DynamicDataPtr += FCString::Strlen(DynamicDataPtr) + 1;
 
 	#undef CR_DYNAMIC_BUFFER_REMAIN
+
+	// Copy GPU breadcrumbs.
+	if (NCached::GPUBreadcrumbs.IsSet())
+	{
+		GPUBreadcrumbsToSharedContext(*NCached::GPUBreadcrumbs, Dst.GPUBreadcrumbs);
+	}
 }
 
 void FGenericCrashContext::SetMemoryStats(const FPlatformMemoryStats& InMemoryStats)
@@ -1165,7 +1222,7 @@ void FGenericCrashContext::AddGPUBreadcrumbs() const
 	// We use a version indicator for the format used by the breadcrumbs
 	// string, so that parsers can know what to expect and don't break
 	// if changes are made in the format exported by the engine.
-	AddCrashProperty(TEXT("FormatVersion"), FGPUBreadcrumbCrashData::Version);
+	AddCrashProperty(TEXT("FormatVersion"), NCached::GPUBreadcrumbs->Version);
 	AddCrashProperty(TEXT("Source"), NCached::GPUBreadcrumbs->SourceName);
 
 	for (auto& [Queue, Breadcrumbs] : NCached::GPUBreadcrumbs->Queues)
