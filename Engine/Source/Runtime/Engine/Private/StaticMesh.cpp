@@ -1648,22 +1648,6 @@ void FStaticMeshRayTracingProxyLOD::ReleaseResources()
 	}
 }
 
-void FStaticMeshRayTracingProxyLOD::DiscardCPUData()
-{
-	if (bOwnsRayTracingGeometry)
-	{
-		RayTracingGeometry->RawData.Discard();
-	}
-
-	if (bOwnsBuffers)
-	{
-		VertexBuffers->StaticMeshVertexBuffer.CleanUp();
-		VertexBuffers->PositionVertexBuffer.CleanUp();
-		VertexBuffers->ColorVertexBuffer.CleanUp();
-		IndexBuffer->Discard();
-	}
-}
-
 void FStaticMeshRayTracingProxyLOD::Serialize(FArchive& Ar, UObject* Owner, int32 Index)
 {
 	UStaticMesh* OwnerStaticMesh = Cast<UStaticMesh>(Owner);
@@ -1705,49 +1689,11 @@ void FStaticMeshRayTracingProxyLOD::Serialize(FArchive& Ar, UObject* Owner, int3
 		RayTracingGeometry = new FRayTracingGeometry();
 	}
 
-	if (bBuffersInlined)
-	{
-		SerializeBuffers(Ar, OwnerStaticMesh, 0);
-	}
-	else
-	{
-#if WITH_EDITOR
-		// Serialize buffers to FByteBulkData when saving to DDC
-		// (don't need to do it again when cooking)
-		if (Ar.IsSaving() && !Ar.IsCooking())
-		{
-			TArray<uint8> TmpBuff;
-			uint32 BuffersSize = 0;
-
-			{
-				FMemoryWriter MemWriter(TmpBuff, /*bIsPersistent=*/ true);
-				MemWriter.SetCookData(Ar.GetCookData());
-				MemWriter.SetByteSwapping(Ar.IsByteSwapping());
-
-				BuffersSize = SerializeBuffers(MemWriter, OwnerStaticMesh, 0);
-			}
-
-			if(BuffersSize > 0)
-			{
-				StreamableData.Lock(LOCK_READ_WRITE);
-
-				void* Ptr = StreamableData.Realloc(TmpBuff.Num());
-				FMemory::Memcpy(Ptr, TmpBuff.GetData(), TmpBuff.Num());
-
-				StreamableData.Unlock();
-				StreamableData.SetBulkDataFlags(BULKDATA_Force_NOT_InlinePayload); // TODO: Support inline LOD
-			}
-		}
-#endif
-		
-		StreamableData.Serialize(Ar, Owner, Index);
-	}
+	SerializeBuffers(Ar, OwnerStaticMesh, 0);
 }
 
-uint32 FStaticMeshRayTracingProxyLOD::SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags)
+void FStaticMeshRayTracingProxyLOD::SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags)
 {
-	uint32 OutSize = 0;
-
 	if (bOwnsBuffers)
 	{
 		VertexBuffers->PositionVertexBuffer.Serialize(Ar, false);
@@ -1755,22 +1701,12 @@ uint32 FStaticMeshRayTracingProxyLOD::SerializeBuffers(FArchive& Ar, UStaticMesh
 		VertexBuffers->ColorVertexBuffer.Serialize(Ar, false);
 
 		IndexBuffer->Serialize(Ar, false);
-
-		OutSize += VertexBuffers->PositionVertexBuffer.GetNumVertices() * VertexBuffers->PositionVertexBuffer.GetStride();
-		OutSize += VertexBuffers->StaticMeshVertexBuffer.GetResourceSize();
-		OutSize += VertexBuffers->ColorVertexBuffer.GetNumVertices() * VertexBuffers->ColorVertexBuffer.GetStride();
-
-		OutSize += IndexBuffer->GetIndexDataSize();
 	}
 
 	if (bOwnsRayTracingGeometry)
 	{
 		RayTracingGeometry->RawData.BulkSerialize(Ar);
-
-		OutSize += RayTracingGeometry->RawData.Num();
 	}
-
-	return OutSize;
 }
 
 /*------------------------------------------------------------------------------
@@ -1830,18 +1766,13 @@ void FStaticMeshRayTracingProxy::Serialize(FArchive& Ar, UObject* Owner, FStatic
 
 				for (int32 Index = 0; Index < LODs.Num(); ++Index)
 				{
-					FStaticMeshRayTracingProxyLOD& RayTracingLOD = LODs[Index];
+					LODs[Index].Sections = &LODResources[Index].Sections;
+					LODs[Index].VertexBuffers = &LODResources[Index].VertexBuffers;
+					LODs[Index].IndexBuffer = &LODResources[Index].IndexBuffer;
+					LODs[Index].bOwnsBuffers = false;
 
-					checkf(RayTracingLOD.bOwnsBuffers == false, TEXT("FStaticMeshRayTracingProxyLOD shouldn't own VB/IB/etc when bUsingRenderingLODs since they're owned by FStaticMeshLODResources"));
-
-					RayTracingLOD.Sections = &LODResources[Index].Sections;
-					RayTracingLOD.VertexBuffers = &LODResources[Index].VertexBuffers;
-					RayTracingLOD.IndexBuffer = &LODResources[Index].IndexBuffer;
-
-					if (!RayTracingLOD.bOwnsRayTracingGeometry)
-					{
-						RayTracingLOD.RayTracingGeometry = LODResources[Index].RayTracingGeometry;
-					}
+					LODs[Index].RayTracingGeometry = LODResources[Index].RayTracingGeometry;
+					LODs[Index].bOwnsRayTracingGeometry = false;
 				}
 
 				LODVertexFactories = &RenderData->LODVertexFactories;
@@ -2296,11 +2227,6 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 			{
 				RayTracingGeometryGroupHandle = GRayTracingGeometryManager->RegisterRayTracingGeometryGroup(LODResources.Num());
 
-				if (IsRayTracingUsingReferenceBasedResidency())
-				{
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->SetRayTracingGeometryGroupCurrentFirstLODIndex(RHICmdList, RayTracingGeometryGroupHandle, CurrentFirstLODIdx);
-				}
-
 				for (int32 LODIndex = 0; LODIndex < LODResources.Num(); ++LODIndex)
 				{
 					// Skip LODs that have their render data stripped
@@ -2317,10 +2243,8 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 						LODResources[LODIndex].RayTracingGeometry->InitResource(RHICmdList);
 					}
 				}
-				
-				FStaticMeshRayTracingProxyLODArray& RayTracingLODs = RayTracingProxy->LODs;
 
-				check(!RayTracingProxy->bUsingRenderingLODs || RayTracingLODs.Num() == LODResources.Num());
+				TIndirectArray<FStaticMeshRayTracingProxyLOD>& RayTracingLODs = RayTracingProxy->LODs;
 
 				for (int32 LODIndex = 0; LODIndex < RayTracingLODs.Num(); ++LODIndex)
 				{
@@ -2331,22 +2255,13 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 					{
 						RayTracingLOD.RayTracingGeometry->GroupHandle = RayTracingGeometryGroupHandle;
 
-						if (LODIndex < CurrentFirstLODIdx || IsRayTracingUsingReferenceBasedResidency())
+						if (LODIndex < CurrentFirstLODIdx)
 						{
 							RayTracingLOD.RayTracingGeometry->Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 						}
 
 						RayTracingLOD.RayTracingGeometry->LODIndex = LODIndex;
 						RayTracingLOD.RayTracingGeometry->InitResource(RHICmdList);
-
-						if (IsRayTracingUsingReferenceBasedResidency())
-						{
-							((FRayTracingGeometryManager*)GRayTracingGeometryManager)->SetRayTracingGeometryStreamingData(
-								RayTracingLOD.RayTracingGeometry,
-								RayTracingLOD.StreamableData,
-								0,
-								RayTracingLOD.StreamableData.GetBulkDataSize());
-						}
 					}
 				}
 			}
@@ -2417,18 +2332,15 @@ void FStaticMeshRenderData::InitializeRayTracingRepresentationFromRenderingLODs(
 {
 	const int32 NumLODs = LODResources.Num();
 
-	if (!IsRayTracingUsingReferenceBasedResidency())
+	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 	{
-		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
-		{
-			FStaticMeshLODResources& LODModel = LODResources[LODIndex];
+		FStaticMeshLODResources& LODModel = LODResources[LODIndex];
 
-			checkf(LODModel.RayTracingGeometry == nullptr, TEXT("LODModel.RayTracingGeometry expected to be null. Was the static mesh ray tracing representation already initialized?"));
-			LODModel.RayTracingGeometry = new FRayTracingGeometry();
-		}
+		check(LODModel.RayTracingGeometry == nullptr);
+		LODModel.RayTracingGeometry = new FRayTracingGeometry();
 	}
 
-	checkf(RayTracingProxy == nullptr, TEXT("RayTracingProxy expected to be null. Was the static mesh ray tracing representation already initialized?"));
+	check(RayTracingProxy == nullptr);
 	RayTracingProxy = new FStaticMeshRayTracingProxy();
 	RayTracingProxy->bUsingRenderingLODs = true;
 
@@ -2442,8 +2354,8 @@ void FStaticMeshRenderData::InitializeRayTracingRepresentationFromRenderingLODs(
 
 		FStaticMeshRayTracingProxyLOD* RayTracingLOD = new FStaticMeshRayTracingProxyLOD;
 
-		RayTracingLOD->bOwnsRayTracingGeometry = IsRayTracingUsingReferenceBasedResidency();
-		RayTracingLOD->RayTracingGeometry = RayTracingLOD->bOwnsRayTracingGeometry ? new FRayTracingGeometry() : LODModel.RayTracingGeometry;
+		RayTracingLOD->RayTracingGeometry = LODModel.RayTracingGeometry;
+		RayTracingLOD->bOwnsRayTracingGeometry = false;
 
 		RayTracingLOD->Sections = &LODModel.Sections;
 		RayTracingLOD->VertexBuffers = &LODModel.VertexBuffers;
@@ -2490,15 +2402,8 @@ void UStaticMesh::RequestUpdateCachedRenderState() const
 #if RHI_RAYTRACING
 	if (IsRayTracingAllowed() && bSupportRayTracing)
 	{
-		if (IsRayTracingUsingReferenceBasedResidency())
-		{
-			((FRayTracingGeometryManager*)GRayTracingGeometryManager)->SetRayTracingGeometryGroupCurrentFirstLODIndex(FRHICommandListImmediate::Get(), GetRenderData()->RayTracingGeometryGroupHandle, GetRenderData()->CurrentFirstLODIdx);
-		}
-		else
-		{
-			// TODO: this should only be necessary when a BLAS build was not requested (ie: non-compressed offline BLAS)
-			GRayTracingGeometryManager->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
-		}
+		// TODO: this should only be necessary when a BLAS build was not requested (ie: non-compressed offline BLAS)
+		GRayTracingGeometryManager->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
 	}
 #endif
 
@@ -3267,19 +3172,7 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 		KeySuffix += TEXT("zzzzzzzz");
 	}
 
-	if (Mesh->bSupportRayTracing)
-	{
-		KeySuffix += TEXT("RT1");
-
-		if (IsRayTracingUsingReferenceBasedResidency())
-		{
-			KeySuffix += TEXT("_RRBR");
-		}
-	}
-	else
-	{
-		KeySuffix += TEXT("RT0");
-	}
+	KeySuffix += Mesh->bSupportRayTracing && TargetPlatform->UsesRayTracing() ? TEXT("RT1") : TEXT("RT0");
 
 	KeySuffix.AppendChar(Mesh->bSupportUniformlyDistributedSampling ? TEXT('1') : TEXT('0'));
 
