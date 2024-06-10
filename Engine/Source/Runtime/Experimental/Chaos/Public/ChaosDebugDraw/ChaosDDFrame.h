@@ -126,7 +126,7 @@ namespace ChaosDD::Private
 
 		bool WasCommandBudgetExceeded() const
 		{
-			return CommandCost > CommandBudget;
+			return (CommandCost > CommandBudget) && (CommandBudget > 0);
 		}
 
 		bool AddToCost(int32 InCost)

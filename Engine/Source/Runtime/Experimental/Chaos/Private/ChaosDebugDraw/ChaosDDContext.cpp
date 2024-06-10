@@ -16,6 +16,8 @@ namespace ChaosDD::Private
 	bool bChaosDebugDraw_EnableGlobalQueue = true;
 	FAutoConsoleVariableRef CVarChaos_DebugDraw_EnableGlobalQueue(TEXT("p.Chaos.DebugDraw.EnableGlobalQueue"), bChaosDebugDraw_EnableGlobalQueue, TEXT(""));
 
+	bool FChaosDDContext::bDebugDrawEnabled = false;
+
 	FCriticalSection FChaosDDContext::GlobalFrameCS;
 	FChaosDDFramePtr FChaosDDContext::GlobalFrame;
 	int32 FChaosDDContext::GlobalCommandBudget = 20000;
@@ -28,32 +30,44 @@ namespace ChaosDD::Private
 
 	void FChaosDDTimelineContext::BeginFrame(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
 	{
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		PreviousFrame = Context.Frame;
+		check(!bInContext);
 
-		if (InTimeline.IsValid())
+		if (FChaosDDContext::IsDebugDrawEnabled())
 		{
-			Timeline = InTimeline;
-			Timeline->BeginFrame(InTime, InDt);
-			Context.Frame = Timeline->GetActiveFrame();
-		}
-		else
-		{
-			Context.Frame.Reset();
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			PreviousFrame = Context.Frame;
+
+			if (InTimeline.IsValid())
+			{
+				Timeline = InTimeline;
+				Timeline->BeginFrame(InTime, InDt);
+				Context.Frame = Timeline->GetActiveFrame();
+			}
+			else
+			{
+				Context.Frame.Reset();
+			}
+
+			bInContext = true;
 		}
 	}
 
 	void FChaosDDTimelineContext::EndFrame()
 	{
-		if (Timeline.IsValid())
+		if (bInContext)
 		{
-			Timeline->EndFrame();
-			Timeline.Reset();
-		}
+			if (Timeline.IsValid())
+			{
+				Timeline->EndFrame();
+				Timeline.Reset();
+			}
 
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		Context.Frame = PreviousFrame;
-		PreviousFrame.Reset();
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			Context.Frame = PreviousFrame;
+			PreviousFrame.Reset();
+
+			bInContext = false;
+		}
 	}
 
 	FChaosDDScopeTimelineContext::FChaosDDScopeTimelineContext(const FChaosDDTimelinePtr& InTimeline, double InTime, double InDt)
@@ -79,21 +93,30 @@ namespace ChaosDD::Private
 
 	void FChaosDDTaskContext::BeginThread(const FChaosDDTaskParentContext& InParentDDContext)
 	{
+		check(!bInContext);
+
 		// NOTE: (UE-216178) We used to pass a reference to the parent FChaosDDContext directly to the
 		// child thread and pulled the FramePointer from it in BeginThread. That is not safe because 
 		// the parent thread may also be helping with tasks and so the Frame on that context will be 
 		// getting set/unset. Instead we copy the Frame pointer on the parent thread and pass it in.
-
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		PreviousFrame = Context.Frame;
-		Context.Frame = InParentDDContext.Frame;
+		if (FChaosDDContext::IsDebugDrawEnabled())
+		{
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			PreviousFrame = Context.Frame;
+			Context.Frame = InParentDDContext.Frame;
+			bInContext = true;
+		}
 	}
 
 	void FChaosDDTaskContext::EndThread()
 	{
-		FChaosDDContext& Context = FChaosDDContext::Get();
-		Context.Frame = PreviousFrame;
-		PreviousFrame.Reset();
+		if (bInContext)
+		{
+			FChaosDDContext& Context = FChaosDDContext::Get();
+			Context.Frame = PreviousFrame;
+			PreviousFrame.Reset();
+			bInContext = false;
+		}
 	}
 
 	FChaosDDScopeTaskContext::FChaosDDScopeTaskContext(const FChaosDDTaskParentContext& InParentDDContext)

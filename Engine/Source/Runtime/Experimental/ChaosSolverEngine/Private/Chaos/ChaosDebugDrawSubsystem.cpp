@@ -19,6 +19,7 @@ FDelegateHandle UChaosDebugDrawSubsystem::OnTickWorldStartDelegate;
 FDelegateHandle UChaosDebugDrawSubsystem::OnTickWorldEndDelegate;
 
 // @todo(chaos): Stuff in ChaosDebugDrawComponent that should move here when we drop that file
+extern bool bChaosDebugDraw_Enabled;
 extern float ChaosDebugDraw_Radius;
 extern int32 bChaosDebugDraw_DrawMode;
 extern int32 ChaosDebugDraw_MaxElements;
@@ -39,6 +40,7 @@ public:
 		: World(InWorld)
 		, DrawRegion(InDrawRegion)
 		, RenderBudget(InRenderBudget)
+		, RenderCost(0)
 		, SphereSegments(8)
 		, DepthPriority(10)
 	{
@@ -54,19 +56,79 @@ public:
 		return DrawRegion;
 	}
 
+	int32 GetRenderCost() const
+	{
+		return RenderCost;
+	}
+
+	int32 GetRenderBudget() const
+	{
+		return RenderBudget;
+	}
+
+	bool WasRenderBudgetExceeded() const
+	{
+		return (RenderCost > RenderBudget) && (RenderBudget > 0);
+	}
+
+	bool IsInDrawRegion(const FBox3d& Bounds) const
+	{
+		const double DistanceSq = Bounds.ComputeSquaredDistanceToPoint(DrawRegion.Center);
+		return DistanceSq <= FMath::Square(DrawRegion.W);
+	}
+
+	virtual void RenderPoint(const FVector3d& Position, const FColor& Color, float PointSize, float Lifetime) override final
+	{
+		constexpr int32 Cost = 1;
+		const FBox3d Bounds = FBox3d(Position, Position);
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
+		{
+			DrawDebugPoint(World, Position, PointSize, Color, false, CommandLifeTime(Lifetime), DepthPriority);
+		}
+	}
+
 	virtual void RenderLine(const FVector3d& A, const FVector3d& B, const FColor& Color, float LineThickness, float Lifetime) override final
 	{
 		constexpr int32 Cost = 1;
-		if (TryAddToCost(Cost))
+		const FBox3d Bounds = FBox3d(FVector3d::Min(A, B), FVector3d::Max(A, B));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
 		{
 			DrawDebugLine(World, A, B, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+		}
+	}
+
+	virtual void RenderArrow(const FVector3d& A, const FVector3d& B, float ArrowSize, const FColor& Color, float LineThickness, float Lifetime) override final
+	{
+		constexpr int32 Cost = 3;
+		const FBox3d Bounds = FBox3d(FVector3d::Min(A, B), FVector3d::Max(A, B));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
+		{
+			DrawDebugDirectionalArrow(World, A, B, ArrowSize, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+		}
+	}
+
+	virtual void RenderCircle(const FVector3d& Center, const FMatrix& Axes, float Radius, const FColor& Color, float LineThickness, float Lifetime) override final
+	{
+		constexpr int32 Cost = 8;
+		const FBox3d Bounds = FBox3d(Center - FVector3d(Radius), Center + FVector3d(Radius));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
+		{
+			FMatrix M = Axes;
+			M.SetOrigin(Center);
+			DrawDebugCircle(World, M, Radius, SphereSegments, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness, false);
 		}
 	}
 
 	virtual void RenderSphere(const FVector3d& Center, float Radius, const FColor& Color, float LineThickness, float Lifetime) override final
 	{
 		constexpr int32 Cost = 16;
-		if (TryAddToCost(Cost))
+		const FBox3d Bounds = FBox3d(Center - FVector3d(Radius), Center + FVector3d(Radius));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
 		{
 			DrawDebugSphere(World, Center, Radius, SphereSegments, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
 		}
@@ -75,7 +137,12 @@ public:
 	virtual void RenderCapsule(const FVector3d& Center, const FQuat4d& Rotation, float HalfHeight, float Radius, const FColor& Color, float LineThickness, float Lifetime) override final
 	{
 		constexpr int32 Cost = 16;
-		if (TryAddToCost(Cost))
+		const FVector3d EndOffset = HalfHeight * (Rotation * FVector3d::UnitZ());
+		const FVector3d A = Center - EndOffset;
+		const FVector3d B = Center + EndOffset;
+		const FBox3d Bounds = FBox3d(FVector3d::Min(A, B), FVector3d::Max(A, B));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
 		{
 			DrawDebugCapsule(World, Center, HalfHeight, Radius, Rotation, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
 		}
@@ -84,7 +151,9 @@ public:
 	virtual void RenderBox(const FVector3d& Position, const FQuat4d& Rotation, const FVector3d& Size, const FColor& Color, float LineThickness, float Lifetime) override final
 	{
 		constexpr int32 Cost = 12;
-		if (TryAddToCost(Cost))
+		const FBox3d Bounds = FBox3d(-0.5 * Size, 0.5 * Size).TransformBy(FTransform(Rotation, Position));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
 		{
 			DrawDebugBox(World, Position, Size, Rotation, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
 		}
@@ -93,11 +162,24 @@ public:
 	virtual void RenderTriangle(const FVector3d& A, const FVector3d& B, const FVector3d& C, const FColor& Color, float LineThickness, float Lifetime) override final
 	{
 		constexpr int32 Cost = 3;
-		if (TryAddToCost(Cost))
+		const FBox3d Bounds = FBox3d(FVector3d::Min3(A, B, C), FVector3d::Max3(A, B, C));
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
 		{
 			DrawDebugLine(World, A, B, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
 			DrawDebugLine(World, B, C, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
 			DrawDebugLine(World, C, A, Color, false, CommandLifeTime(Lifetime), DepthPriority, LineThickness);
+		}
+	}
+
+	virtual void RenderString(const FVector3d& TextLocation, const FString& Text, const FColor& Color, float FontScale, bool bDrawShadow, float Lifetime) override final
+	{
+		constexpr int32 Cost = 10;
+		const FBox3d Bounds = FBox3d(TextLocation, TextLocation);
+
+		if (IsInDrawRegion(Bounds) && TryAddToCost(Cost))
+		{
+			DrawDebugString(World, TextLocation, Text, nullptr, Color, CommandLifeTime(Lifetime), bDrawShadow, FontScale);
 		}
 	}
 
@@ -263,6 +345,9 @@ void UChaosDebugDrawSubsystem::OnWorldTickStart(ELevelTick TickType, float Dt)
 {
 	if (UWorld* World = GetWorld())
 	{
+		// Enable or disable the debug draw system
+		ChaosDD::Private::FChaosDDContext::SetIsDebugDrawEnabled(bChaosDebugDraw_Enabled);
+
 		CDDWorldTimelineContext.BeginFrame(CDDWorldTimeline, World->GetTimeSeconds(), Dt);
 	}
 }
@@ -307,7 +392,7 @@ void UChaosDebugDrawSubsystem::RenderScene()
 		{
 			if (!World->IsPaused())
 			{
-				// @todo(chaos): 
+				// @todo(chaos): command budget and render budget should be two different values
 				FChaosDDRenderer Renderer = FChaosDDRenderer(World, CDDScene->GetDrawRegion(), CDDScene->GetCommandBudget());
 
 				// Render all of the out-of frame commands
@@ -320,6 +405,13 @@ void UChaosDebugDrawSubsystem::RenderScene()
 
 				// Render the commands from this world
 				RenderScene(Renderer, CDDScene);
+
+				if (Renderer.WasRenderBudgetExceeded())
+				{
+					constexpr int32 MsgId = 86421358;
+					const FString Msg = FString::Format(TEXT("Debug Draw Render Budget Exceeded for {0} [{1} / {2}]"), { CDDScene->GetName(), Renderer.GetRenderCost(), Renderer.GetRenderBudget()});
+					GEngine->AddOnScreenDebugMessage(MsgId, 1.0f, FColor::Red, *Msg);
+				}
 			}
 		}
 	}
@@ -347,7 +439,9 @@ void UChaosDebugDrawSubsystem::RenderScene(FChaosDDRenderer& Renderer, const Cha
 
 void UChaosDebugDrawSubsystem::RenderFrame(FChaosDDRenderer& Renderer, const ChaosDD::Private::FChaosDDFramePtr& Frame)
 {
-	if (Frame.IsValid() && (Frame->GetNumCommands() + Frame->GetNumLatentCommands() > 0))
+	const bool bDebugDrawEnabled = ChaosDD::Private::FChaosDDContext::IsDebugDrawEnabled();
+
+	if (bDebugDrawEnabled && Frame.IsValid() && (Frame->GetNumCommands() + Frame->GetNumLatentCommands() > 0))
 	{
 		UE_LOG(LogChaosDD, VeryVerbose, TEXT("Render %s %d %d+%d Commands"), *Frame->GetTimeline()->GetName(), Frame->GetFrameIndex(), Frame->GetNumCommands(), Frame->GetNumLatentCommands());
 

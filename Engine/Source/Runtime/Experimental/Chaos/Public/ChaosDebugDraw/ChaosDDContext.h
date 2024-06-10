@@ -20,11 +20,29 @@ namespace ChaosDD::Private
 	public:
 		FChaosDDContext();
 
-		static FChaosDDFrameWriter GetWriter()
+		// Whether the debug draw system is enabled
+		static bool IsDebugDrawEnabled()
 		{
-			return FChaosDDFrameWriter(Get().GetFrame());
+			return bDebugDrawEnabled;
 		}
 
+		// Enable/Disable the debug draw system
+		static void SetIsDebugDrawEnabled(bool bInEnabled)
+		{
+			bDebugDrawEnabled = bInEnabled;
+		}
+
+		// Write access to the debug draw frame for the current thread
+		static FChaosDDFrameWriter GetWriter()
+		{
+			if (bDebugDrawEnabled)
+			{
+				return FChaosDDFrameWriter(Get().GetFrame());
+			}
+			return FChaosDDFrameWriter({});
+		}
+
+		// For internal use - collect all out-of-frame debug draw commands for rendering
 		static FChaosDDFramePtr ExtractGlobalFrame();
 
 	private:
@@ -57,6 +75,9 @@ namespace ChaosDD::Private
 		// The frame to draw to on this thread (or null)
 		FChaosDDFramePtr Frame;
 
+		// Whether the system is enabled
+		static bool bDebugDrawEnabled;
+
 		// Global frame: fallback for out-of-context debug draw
 		static FCriticalSection GlobalFrameCS;
 		static FChaosDDFramePtr GlobalFrame;
@@ -79,6 +100,7 @@ namespace ChaosDD::Private
 	private:
 		FChaosDDTimelinePtr Timeline;
 		FChaosDDFramePtr PreviousFrame;
+		bool bInContext = false;
 	};
 
 	//
@@ -134,6 +156,7 @@ namespace ChaosDD::Private
 
 	private:
 		FChaosDDFramePtr PreviousFrame;
+		bool bInContext = false;
 	};
 
 	//

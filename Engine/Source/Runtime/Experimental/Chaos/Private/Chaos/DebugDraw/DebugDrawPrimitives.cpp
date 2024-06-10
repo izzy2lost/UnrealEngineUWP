@@ -8,6 +8,18 @@
 
 namespace Chaos
 {
+	void FChaosDDPrimitives::DrawPoint(const FVector3d& Position, const FColor& Color, float PointSize, float Duration)
+	{
+		constexpr int32 Cost = 1;
+		const FBox3d Bounds = FBox3d(Position, Position);
+
+		ChaosDD::Private::FChaosDDContext::GetWriter().TryEnqueueCommand(Cost, Bounds,
+			[=](ChaosDD::Private::IChaosDDRenderer& Renderer)
+			{
+				Renderer.RenderPoint(Position, Color, PointSize, Duration);
+			});
+	}
+
 	void FChaosDDPrimitives::DrawLine(const FVector3d& A, const FVector3d& B, const FColor& Color, float LineThickness, float Duration)
 	{
 		constexpr int32 Cost = 1;
@@ -20,7 +32,30 @@ namespace Chaos
 			});
 	}
 
+	void FChaosDDPrimitives::DrawArrow(const FVector3d& A, const FVector3d& B, float ArrowSize, const FColor& Color, float LineThickness, float Duration)
+	{
+		constexpr int32 Cost = 1;
+		const FBox3d Bounds = FBox3d(FVector3d::Min(A, B), FVector3d::Max(A, B));
+
+		ChaosDD::Private::FChaosDDContext::GetWriter().TryEnqueueCommand(Cost, Bounds,
+			[=](ChaosDD::Private::IChaosDDRenderer& Renderer)
+			{
+				Renderer.RenderArrow(A, B, ArrowSize, Color, LineThickness, Duration);
+			});
+	}
 	
+	void FChaosDDPrimitives::DrawCircle(const FVector3d& Center, const FMatrix& Axes, float Radius, const FColor& Color, float LineThickness, float Duration)
+	{
+		constexpr int32 Cost = 1;
+		const FBox3d Bounds = FBox3d(Center - FVector3d(Radius), Center + FVector3d(Radius));
+
+		ChaosDD::Private::FChaosDDContext::GetWriter().TryEnqueueCommand(Cost, Bounds,
+			[=](ChaosDD::Private::IChaosDDRenderer& Renderer)
+			{
+				Renderer.RenderCircle(Center, Axes, Radius, Color, LineThickness, Duration);
+			});
+	}
+
 	void FChaosDDPrimitives::DrawSphere(const FVector3d& Center, const float Radius, const FColor& Color, float LineThickness, float Duration)
 	{
 		constexpr int32 Cost = 64;
@@ -69,6 +104,18 @@ namespace Chaos
 			[=](ChaosDD::Private::IChaosDDRenderer& Renderer)
 			{
 				Renderer.RenderTriangle(A, B, C, Color, LineThickness, Duration);
+			});
+	}
+
+	void FChaosDDPrimitives::DrawString(const FVector3d& TextLocation, const FString& Text, const FColor& Color, float FontScale, bool bDrawShadow, float Duration)
+	{
+		const int32 Cost = 10;
+		const FBox3d Bounds = FBox3d(TextLocation, TextLocation);
+
+		ChaosDD::Private::FChaosDDContext::GetWriter().TryEnqueueCommand(Cost, Bounds,
+			[=](ChaosDD::Private::IChaosDDRenderer& Renderer)
+			{
+				Renderer.RenderString(TextLocation, Text, Color, FontScale, bDrawShadow, Duration);
 			});
 	}
 }

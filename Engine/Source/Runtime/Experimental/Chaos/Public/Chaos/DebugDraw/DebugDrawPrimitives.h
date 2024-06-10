@@ -28,11 +28,15 @@ namespace Chaos
 	//
 	struct CHAOS_API FChaosDDPrimitives
 	{
+		static void DrawPoint(const FVector3d& Position, const FColor& Color, float PointSize, float Duration);
 		static void DrawLine(const FVector3d& A, const FVector3d& B, const FColor& Color, float LineThickness, float Duration);
+		static void DrawArrow(const FVector3d& A, const FVector3d& B, float ArrowSize, const FColor& Color, float LineThickness, float Duration);
+		static void DrawCircle(const FVector3d& Center, const FMatrix& Axes, float Radius, const FColor& Color, float LineThickness, float Duration);
 		static void DrawSphere(const FVector3d& Center, const float Radius, const FColor& Color, float LineThickness, float Duration);
 		static void DrawCapsule(const FVector3d& Center, const FQuat4d& Rotation, float HalfHeight, float Radius, const FColor& Color, float LineThickness, float Duration);
 		static void DrawBox(const FVector3d& Center, const FQuat4d& Rotation, const FVector3d& Size, const FColor& Color, float LineThickness, float Duration);
 		static void DrawTriangle(const FVector3d& A, const FVector3d& B, const FVector3d& C, const FColor& Color, float LineThickness, float Duration);
+		static void DrawString(const FVector3d& TextLocation, const FString& Text, const FColor& Color, float FontScale, bool bDrawShadow, float Duration);
 	};
 }
 
