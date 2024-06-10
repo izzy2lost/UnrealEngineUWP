@@ -109,7 +109,7 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
+		.VAlign(VAlign_Top)
 		[
 			SNew(SBox)
 			.Padding(2.0f)
@@ -131,7 +131,7 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 
 	+ SHorizontalBox::Slot()
 	.FillWidth(1.0f)
-	.VAlign(VAlign_Center)
+	.VAlign(VAlign_Top)
 	[
 		MessageBox
 	]
@@ -139,7 +139,7 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 	+ SHorizontalBox::Slot()
 	.AutoWidth()
 	.HAlign(HAlign_Right)
-	.VAlign(VAlign_Center)
+	.VAlign(VAlign_Top)
 	.Padding(1.0f)
 	[
 		!HasLinks
