@@ -74,6 +74,7 @@ void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View,
 		OutParameters.DirectionalInscatteringColor = FVector4f(FVector3f(View.DirectionalInscatteringColor), FMath::Clamp(View.DirectionalInscatteringExponent, 0.000001f, 1000.0f));
 		OutParameters.FogInscatteringColorCubemap = Cubemap->TextureRHI;
 		OutParameters.FogInscatteringColorSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		OutParameters.EndDistance = View.FogEndDistance;
 	}
 
 	// Volumetric Fog
@@ -241,6 +242,7 @@ void FSceneRenderer::InitFogConstants()
 				const float InvRange = 1.0f / FMath::Max(FogInfo.FullyDirectionalInscatteringColorDistance - FogInfo.NonDirectionalInscatteringColorDistance, .00001f);
 				float NumMips = 1.0f;
 
+				View.FogEndDistance = FogInfo.EndDistance;
 				View.SkyAtmosphereAmbientContributionColorScale = FogInfo.SkyAtmosphereAmbientContributionColorScale;
 
 				if (FogInfo.InscatteringColorCubemap)

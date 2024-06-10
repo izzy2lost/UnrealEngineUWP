@@ -957,6 +957,7 @@ void FViewInfo::Init()
 	FogMaxOpacity = 1;
 	ExponentialFogParameters3 = FVector4f(0, 0, 0, 0);
 	SinCosInscatteringColorCubemapRotation = FVector2f::ZeroVector;
+	FogEndDistance = 0.0f;
 	FogInscatteringColorCubemap = nullptr;
 	FogInscatteringTextureParameters = FVector::ZeroVector;
 	VolumetricFogStartDistance = false;

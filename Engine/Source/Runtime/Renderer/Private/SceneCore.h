@@ -161,7 +161,8 @@ public:
 	const UExponentialHeightFogComponent* Component;
 	FExponentialHeightFogSceneData FogData[NumFogs];
 	float FogMaxOpacity;
-	float StartDistance; 
+	float StartDistance;
+	float EndDistance;
 	float FogCutoffDistance;
 	FLinearColor FogColor;
 	float DirectionalInscatteringExponent; 

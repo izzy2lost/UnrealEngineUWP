@@ -39,6 +39,7 @@ UExponentialHeightFogComponent::UExponentialHeightFogComponent(const FObjectInit
 
 	FogMaxOpacity = 1.0f;
 	StartDistance = 0.0f;
+	EndDistance = 0.0f;
 
 	// disabled by default
 	FogCutoffDistance = 0;
@@ -125,6 +126,7 @@ void UExponentialHeightFogComponent::PostEditChangeProperty(FPropertyChangedEven
 	FogHeightFalloff = FMath::Clamp(FogHeightFalloff, 0.0f, 2.0f);
 	FogMaxOpacity = FMath::Clamp(FogMaxOpacity, 0.0f, 1.0f);
 	StartDistance = FMath::Clamp(StartDistance, 0.0f, (float)WORLD_MAX);
+	EndDistance = FMath::Clamp(EndDistance, 0.0f, (float)(10 * WORLD_MAX));
 	FogCutoffDistance = FMath::Clamp(FogCutoffDistance, 0.0f, (float)(10 * WORLD_MAX));
 	FullyDirectionalInscatteringColorDistance = FMath::Clamp(FullyDirectionalInscatteringColorDistance, 0.0f, (float)WORLD_MAX);
 	NonDirectionalInscatteringColorDistance = FMath::Clamp(NonDirectionalInscatteringColorDistance, 0.0f, FullyDirectionalInscatteringColorDistance);
@@ -274,6 +276,15 @@ void UExponentialHeightFogComponent::SetStartDistance(float Value)
 	if(StartDistance != Value)
 	{
 		StartDistance = Value;
+		MarkRenderStateDirty();
+	}
+}
+
+void UExponentialHeightFogComponent::SetEndDistance(float Value)
+{
+	if(EndDistance != Value)
+	{
+		EndDistance = Value;
 		MarkRenderStateDirty();
 	}
 }

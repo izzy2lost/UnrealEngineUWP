@@ -1295,6 +1295,7 @@ public:
 	float FogMaxOpacity;
 	FVector4f ExponentialFogParameters3;
 	FVector4f SkyAtmosphereAmbientContributionColorScale;
+	float FogEndDistance;
 	bool bEnableVolumetricFog;
 	float VolumetricFogStartDistance;
 	float VolumetricFogNearFadeInDistanceInv;

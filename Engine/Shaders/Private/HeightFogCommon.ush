@@ -71,6 +71,7 @@ struct FogStructData
 	float4 DirectionalInscatteringColor;
 	float2 SinCosInscatteringColorCubemapRotation;
 	float3 FogInscatteringTextureParameters;
+	float EndDistance;
 	float ApplyVolumetricFog;
 	float VolumetricFogStartDistance;
 	float VolumetricFogNearFadeInDistanceInv;
@@ -97,6 +98,7 @@ FogStructData GetFogStructData(uint EyeIndex)
 		Out.DirectionalInscatteringColor = FogStruct.DirectionalInscatteringColor;
 		Out.SinCosInscatteringColorCubemapRotation = FogStruct.SinCosInscatteringColorCubemapRotation;
 		Out.FogInscatteringTextureParameters = FogStruct.FogInscatteringTextureParameters;
+		Out.EndDistance = FogStruct.EndDistance;
 		Out.ApplyVolumetricFog = FogStruct.ApplyVolumetricFog;
 		Out.VolumetricFogStartDistance = FogStruct.VolumetricFogStartDistance;
 		Out.VolumetricFogNearFadeInDistanceInv = FogStruct.VolumetricFogNearFadeInDistanceInv;
@@ -116,6 +118,7 @@ FogStructData GetFogStructData(uint EyeIndex)
 		Out.DirectionalInscatteringColor = FogStructISR.DirectionalInscatteringColor;
 		Out.SinCosInscatteringColorCubemapRotation = FogStructISR.SinCosInscatteringColorCubemapRotation;
 		Out.FogInscatteringTextureParameters = FogStructISR.FogInscatteringTextureParameters;
+		Out.EndDistance = FogStructISR.EndDistance;
 		Out.ApplyVolumetricFog = FogStructISR.ApplyVolumetricFog;
 		Out.VolumetricFogStartDistance = FogStructISR.VolumetricFogStartDistance;
 		Out.VolumetricFogNearFadeInDistanceInv = FogStructISR.VolumetricFogNearFadeInDistanceInv;
@@ -217,6 +220,13 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 	const float MaxWorldObserverHeight = FogData.ExponentialFogParameters.z;
 
 	const float3 WorldObserverOrigin = float3(WorldCameraOrigin.xy, min(WorldCameraOrigin.z, MaxWorldObserverHeight)); // Clamp z to max height
+
+	// Apply end fog distance from view projected on the XY plane.
+	const float CameraToReceiverLenXYSqr = dot(CameraToReceiver.xy, CameraToReceiver.xy);
+	if (FogData.EndDistance > 0.0f && CameraToReceiverLenXYSqr > (FogData.EndDistance * FogData.EndDistance))
+	{
+		CameraToReceiver *= FogData.EndDistance / sqrt(max(1.0, CameraToReceiverLenXYSqr));
+	}
 
 	CameraToReceiver.z += WorldCameraOrigin.z - WorldObserverOrigin.z; // Compensate this vector for clamping the observer height
 	float CameraToReceiverLengthSqr = dot(CameraToReceiver, CameraToReceiver);
