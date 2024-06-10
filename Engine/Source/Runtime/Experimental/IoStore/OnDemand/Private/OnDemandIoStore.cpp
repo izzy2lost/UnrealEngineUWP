@@ -974,9 +974,30 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 		}
 	}
 
+	// Purge
+	{
+		TMap<FIoHash, uint64> ChunksToInstall;
+		for (const auto& Kv : InstallData)
+		{
+			FOnDemandContainer&						Container = *Kv.Key;
+			const Private::FContainerInstallData&	Data = Kv.Value;
+
+			for (const FIoChunkId& ChunkId : Data.ResolvedChunks)
+			{
+				const FOnDemandChunkEntry& Entry = Container.ChunkEntries.FindRef(ChunkId);
+				ChunksToInstall.Add(Entry.Hash, Entry.EncodedSize);
+			}
+		}
+
+		if (Status = InstallCache->Purge(MoveTemp(ChunksToInstall)); Status.IsOk() == false)
+		{
+			return Status;
+		}
+	}
+
 	// Download all chunks
-	const int32 MaxConcurrentRequests = 32;
-	int32 ConcurrentRequests = 0;
+	const int32 MaxConcurrentRequests = 16;
+	int32		ConcurrentRequests = 0;
 
 	FHttpClientConfig HttpConfig;
 	HttpConfig.MaxConnectionCount = 8;
@@ -1001,19 +1022,19 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 
 		for (const FIoChunkId& ChunkId : Data.ResolvedChunks)
 		{
-			const FOnDemandChunkEntry& Entry = Container.ChunkEntries.FindRef(ChunkId);
-			++TotalChunkCount;
-			TotalBytes += Entry.EncodedSize;
+			FOnDemandChunkEntry* ChunkEntry = Container.ChunkEntries.Find(ChunkId);
 
-			if (InstallCache->ContainsChunk(Entry.Hash))
+			++TotalChunkCount;
+			TotalBytes += ChunkEntry->EncodedSize;
+
+			if (InstallCache->IsChunkCached(ChunkEntry->Hash))
 			{
 				continue;
 			}
 
 			++DownloadedChunkCount;
-			DownloadedBytes += Entry.EncodedSize;
+			DownloadedBytes += ChunkEntry->EncodedSize;
 
-			FOnDemandChunkEntry* ChunkEntry = Container.ChunkEntries.Find(ChunkId);
 			ConcurrentRequests++;
 			HttpClient->Get(
 				GetChunkUrl(FStringView(), Container, *ChunkEntry, ChunkUrl).ToView(),
@@ -1027,7 +1048,14 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 						return;
 					}
 
-					Status = InstallCache->PutChunk(ChunkStatus.ConsumeValueOrDie(), ChunkEntry->Hash);
+					FIoBuffer Chunk			= ChunkStatus.ConsumeValueOrDie();
+					const FIoHash ChunkHash = FIoHash::HashBuffer(Chunk.GetView());
+					if (ChunkHash != ChunkEntry->Hash)
+					{
+						Status = FIoStatus(EIoErrorCode::ReadError, TEXTVIEW("Hash mismatch"));
+						return;
+					}
+					Status = InstallCache->PutChunk(MoveTemp(Chunk), ChunkHash);
 				});
 
 			while (ConcurrentRequests >= MaxConcurrentRequests)
@@ -1044,6 +1072,11 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 
 	while (HttpClient->Tick())
 		;
+	
+	if (Status = InstallCache->Flush(); Status.IsOk() == false)
+	{
+		return FIoStatusBuilder(EIoErrorCode::WriteError) << TEXT("Failed to flush downloded content to cache");
+	}
 
 	// TODO: Only mount what has been installed
 	for (const auto& Kv : InstallData)

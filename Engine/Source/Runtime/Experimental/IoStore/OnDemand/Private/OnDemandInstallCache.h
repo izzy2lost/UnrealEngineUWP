@@ -18,15 +18,18 @@ class IOnDemandInstallCache
 	: public IIoDispatcherBackend
 {
 public:
-	virtual ~IOnDemandInstallCache() = default;
-	virtual bool ContainsChunk(const FIoHash& Hash) = 0;
-	virtual FIoStatus PutChunk(FIoBuffer&& Chunk, const FIoHash& Hash) = 0;
+	virtual				~IOnDemandInstallCache() = default;
+	virtual bool		IsChunkCached(const FIoHash& ChunkHash) = 0;
+	virtual FIoStatus	PutChunk(FIoBuffer&& Chunk, const FIoHash& ChunkHash) = 0;
+	virtual FIoStatus	Purge(TMap<FIoHash, uint64>&& ChunksToInstall) = 0;
+	virtual FIoStatus	Flush() = 0;
 };
 
 struct FOnDemandInstallCacheConfig
 {
 	FString RootDirectory;
-	bool bDropCache = false;
+	uint64	DiskQuota = 1ull << 30;
+	bool	bDropCache = false;
 };
 
 TSharedPtr<IOnDemandInstallCache> MakeOnDemandInstallCache(

@@ -158,6 +158,7 @@ public:
 	FIoStatus				Unmount(FStringView MountId);
 	FOnDemandChunkInfo		GetStreamingChunkInfo(const FIoChunkId& ChunkId);
 	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
+	TArray<FSharedOnDemandContainer> GetMountedContainers();
 
 private:
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
@@ -172,8 +173,6 @@ private:
 								FStringView TocPath,
 								FOnDemandToc& Toc,
 								TArray<FSharedOnDemandContainer>& Out);
-
-	TArray<FSharedOnDemandContainer> GetMountedContainers();
 
 	FSharedInstallCache					InstallCache;
 	FSharedPackageStoreBackend			PackageStoreBackend;
