@@ -2,9 +2,11 @@
 
 #include "RazerChromaDevicesModule.h"
 
+#include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/App.h"
 #include "Misc/Paths.h"
 #include "RazerChromaDeviceLogging.h"
 #include "RazerChromaDevicesDeveloperSettings.h"
@@ -80,9 +82,33 @@ namespace UE::RazerChroma
 
 			FRazerChromaAppInfo WhyMe = {};
 
-			ChromaSDK::APPINFOTYPE AppInfo = {};
+			ChromaSDK::APPINFOTYPE AppInfo = {};			
+
+			// Make sure that the application name will fit with our build config appends
+			ensure(SettingsAppInfo.ApplicationTitle.Len() <= 236);
+
+			// Outside of shipping builds, we will append the build config and target type to the application name
+			// so that Razer Synapse recognizes them as different apps. This makes testing a little easier and ensures 
+			// that the environment is clean for testing shipping builds.
+	#if !UE_BUILD_SHIPPING
+
+			TStringBuilder<256> TitleBuilder;
+
+			TitleBuilder.Append(SettingsAppInfo.ApplicationTitle);
+			TitleBuilder.Append(TEXT("_"));
+			TitleBuilder.Append(LexToString(FApp::GetBuildConfiguration()));
+			TitleBuilder.Append(TEXT("_"));
+			TitleBuilder.Append(LexToString(FApp::GetBuildTargetType()));
+
+			FCString::Strncpy(AppInfo.Title, TitleBuilder.GetData(), 256);
+
+	#else
 
 			FCString::Strncpy(AppInfo.Title, *SettingsAppInfo.ApplicationTitle, 256);
+
+	#endif	// !UE_BUILD_SHIPPPING			
+
+
 			FCString::Strncpy(AppInfo.Description, *SettingsAppInfo.ApplicationDescription, 1024);
 
 			FCString::Strncpy(AppInfo.Author.Name, *SettingsAppInfo.AuthorName, 256);

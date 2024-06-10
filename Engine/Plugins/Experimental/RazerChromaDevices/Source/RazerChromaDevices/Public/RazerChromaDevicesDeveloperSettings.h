@@ -36,11 +36,23 @@ struct FRazerChromaAppInfo
 	/**
 	* The name of your application to report to Razer Synapse.
 	* 
+	* In non-shipping builds, this will have the build target and type appended to it, which will make it show up as :
+	* 
+	*	"ApplicationTitle_<BuildType>_<BuildTarget>" in Razer Synapse. 
+	* 
+	* This is expected, and in a shipping build it will be displayed as only: 
+	* 
+	*	"ApplicationTitle"
+	* 
+	* This is necessary because if you register multiple executable names (i.e. <YourGame>.exe, <YourGame>-Win64-Shipping.exe, and <YourGame>-Win64-Test.exe)
+	* then Razer Synapse will only use the _first_ executable that you ran with this configuration. Appending the target names makes them unique in Synapse and easier
+	* to test.
+	* 
 	* Cannot be empty.
 	* 
-	* Char limit of 256.
+	* Char limit of 236.
 	*/
-	UPROPERTY(EditAnywhere, Category="Razer Chroma App Config", NoClear, meta=(MaxLength=256))
+	UPROPERTY(EditAnywhere, Category="Razer Chroma App Config", NoClear, meta=(MaxLength=236))
 	FString ApplicationTitle = TEXT("Your Game Name here");
 
 	/**
