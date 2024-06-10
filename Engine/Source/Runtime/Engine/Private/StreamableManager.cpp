@@ -1610,7 +1610,7 @@ UObject* FStreamableManager::LoadSynchronous(const FSoftObjectPath& Target, bool
 	TSharedPtr<FStreamableHandle> Request = RequestSyncLoadInternal(
 		TArray<FSoftObjectPath>{Target},
 		bManageActiveHandle,
-		FString::Printf(TEXT("LoadSynchronous from %s (%d)"), Location.GetFileName(), Location.GetLine()));
+		FString::Printf(TEXT("LoadSynchronous from %s (%d)"), StringCast<TCHAR>(Location.GetFileName()).Get(), Location.GetLine()));
 
 	if (RequestHandlePointer)
 	{
