@@ -64,6 +64,8 @@
 	<Option Name="Catch2LibVariation" DefaultValue="VS2019" Description="Catch2 library variation, e.g. VS2022"/>
 	<Option Name="SubmitBuiltCatch2Libs" DefaultValue="false" Description="True if submitting the built Catch2 static libraries"/>
 
+	<Option Name="BuildProject" DefaultValue="" Description="Root relative path to Unreal Project used for build."/>
+
 	<Property Name="Catch2LatestVersion" Value="v3.4.0"/>
 	<Option Name="Catch2VersionBuild" DefaultValue="$(Catch2LatestVersion)" Description="Which version of Catch2 to build" />
 
@@ -138,7 +140,11 @@
 			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$(TargetName) -configuration=$(Configuration) -platform=$(Platform) $(ExtraCompilationArgs)" If="!$(DryRun)"/>
 		</Do>
 		<Do If="'$(StagesWithProjectFile)' != 'True'">
-			<Compile Target="$(TargetName)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $(ExtraCompilationArgs)" If="!$(DryRun)"/>
+			<Property Name="ExtraCompilationArgsFinal" Value="$(ExtraCompilationArgs)"/>
+			<Do If="'$(BuildProject)' != ''">
+				<Property Name="ExtraCompilationArgsFinal" Value="$(ExtraCompilationArgs) -Project=$(RootDir)/$(BuildProject)"/>
+			</Do>
+			<Compile Target="$(TargetName)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $(ExtraCompilationArgsFinal)" If="!$(DryRun)"/>
 		</Do>
 	</Macro>
 	
