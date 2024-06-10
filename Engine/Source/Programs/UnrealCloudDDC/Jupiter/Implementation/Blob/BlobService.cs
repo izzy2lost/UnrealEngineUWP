@@ -205,7 +205,6 @@ public class BlobService : IBlobService
 	{
 		IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 
-		Task insertToReplicationLogTask = _replicationLog.InsertAddBlobEventAsync(ns, identifier, DateTime.UtcNow.ToReplicationBucket(), bucketHint: bucketHint);
 		foreach (IBlobStore store in _blobStores)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob_to_store")
@@ -220,6 +219,8 @@ public class BlobService : IBlobService
 			await using Stream s = bufferedPayload.GetStream();
 			await store.PutObjectAsync(ns, s, identifier);
 		}
+		Task insertToReplicationLogTask = _replicationLog.InsertAddBlobEventAsync(ns, identifier, DateTime.UtcNow.ToReplicationBucket(), bucketHint: bucketHint);
+
 		NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 		if (policy.PopulateFallbackNamespaceOnUpload && policy.FallbackNamespace.HasValue)
 		{
