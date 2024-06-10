@@ -118,7 +118,7 @@ namespace UE::Chaos::ClothAsset::Private
 
 	/** Convert the ClothCollection to DynamicMesh. */
 	static bool ClothToDynamicMesh(
-		const TSharedRef<FManagedArrayCollection>& ClothCollection,
+		const TSharedRef<const FManagedArrayCollection>& ClothCollection,
 		const FReferenceSkeleton& TargetRefSkeleton, // the reference skeleton to add to the dynamic mesh
 		const bool bIsSim, // if true, Mesh will contain the sim mesh, otherwise the render mesh
 		UE::Geometry::FDynamicMesh3& Mesh) // the resulting sim or render mesh
@@ -127,7 +127,7 @@ namespace UE::Chaos::ClothAsset::Private
 		using namespace UE::Chaos::ClothAsset;
 
 		// Check if ClothCollection is empty
-		FCollectionClothFacade ClothFacade(ClothCollection);
+		FCollectionClothConstFacade ClothFacade(ClothCollection);
 		const int32 NumVertices = bIsSim ? ClothFacade.GetNumSimVertices3D() : ClothFacade.GetNumRenderVertices();
 		const int32 NumFaces = bIsSim ? ClothFacade.GetNumSimFaces() :  ClothFacade.GetNumRenderFaces();
 
@@ -590,12 +590,20 @@ namespace UE::Chaos::ClothAsset::Private
 		return true;
 	}
 
+	static bool TransferClosestPointOnSurface(
+		const FReferenceSkeleton& TargetRefSkeleton,
+		const FDynamicMesh3& SkeletalDynamicMesh,
+		const TSharedRef<FManagedArrayCollection>& ClothCollection,
+		const TransferBoneWeightsSettings& TransferSettings,
+		const TSharedPtr<const FManagedArrayCollection>& SimClothCollection);
+
 	/** Transfer skin weights to sim and render cloth. */
 	static bool TransferInpaintWeights(
 		const FReferenceSkeleton& TargetRefSkeleton,
 		const UE::Geometry::FDynamicMesh3& SourceDynamicMesh,
 		const TSharedRef<FManagedArrayCollection>& ClothCollection,
-		const TransferBoneWeightsSettings& TransferSettings)
+		const TransferBoneWeightsSettings& TransferSettings,
+		const TSharedPtr<const FManagedArrayCollection>& SimClothCollection)
 	{
 		using namespace UE::Geometry;
 
@@ -618,30 +626,16 @@ namespace UE::Chaos::ClothAsset::Private
 			// Compute the bone weights for the render mesh by transferring weights from the sim mesh
 			//
 			if (TransferSettings.bTransferToRenderFromSim)
-			{	
-				// If we previously transferred to sim mesh we can just reuse that dynamic mesh
-				if (!TransferSettings.bTransferToSim)
-				{
-					// Otherwise get it from the collection
-					if (!ClothToDynamicMesh(ClothCollection, TargetRefSkeleton, true, WeldedSimMesh))
-					{
-						return false;
-					}
-				}
+			{
+				ensureMsgf(TransferSettings.bTransferToSim, TEXT("The UI shouldn't allow a sim mesh InpaintWeights transfer without the sim mesh set to transfer, check the EditConditions."));
 
-				if (WeldedSimMesh.VertexCount() > 0 && WeldedSimMesh.TriangleCount() > 0)
-				{
-					// Transfer skin weights to render cloth from the sim mesh
-					if (!TransferInpaintWeightsToRender(TargetRefSkeleton, WeldedSimMesh, ClothCollection, TransferSettings))
-					{
-						return false;
-					}
-				}
-				else
-				{
-					UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("TransferSkinWeightsNode: Could not transfer from simulation mesh because its empty."));
-					return false;
-				}
+				// Transfers from the sim mesh most likely mean that a SkeletalMesh InpaintWeights transfer is not working for this render mesh,
+				// therefore it is best to assume that a closest point transfer will always provide a better result in this particular case.
+				TransferBoneWeightsSettings NewTransferSettings = TransferSettings;
+				NewTransferSettings.bTransferToSim = false;
+				NewTransferSettings.TransferMethod = FTransferBoneWeights::ETransferBoneWeightsMethod::ClosestPointOnSurface;
+				
+				return TransferClosestPointOnSurface(TargetRefSkeleton, SourceDynamicMesh, ClothCollection, NewTransferSettings, SimClothCollection);
 			}
 			else 
 			{
@@ -660,10 +654,11 @@ namespace UE::Chaos::ClothAsset::Private
 		const FReferenceSkeleton& TargetRefSkeleton,
 		const FDynamicMesh3& SkeletalDynamicMesh,
 		const TSharedRef<FManagedArrayCollection>& ClothCollection,
-		const UE::Chaos::ClothAsset::Private::TransferBoneWeightsSettings& TransferSettings)
+		const TransferBoneWeightsSettings& TransferSettings,
+		const TSharedPtr<const FManagedArrayCollection>& SimClothCollection)
 	{
 		using namespace UE::Geometry;
-		
+
 		FCollectionClothFacade ClothFacade(ClothCollection);
 
 		//
@@ -713,8 +708,9 @@ namespace UE::Chaos::ClothAsset::Private
 			FDynamicMesh3 WeldedSimMesh;
 			if (TransferSettings.bTransferToRenderFromSim)
 			{
-				// Convert sim cloth to dynamic mesh
-				if (!ClothToDynamicMesh(ClothCollection, TargetRefSkeleton, true, WeldedSimMesh))
+				// Convert sim cloth to dynamic mesh, use a different sim cloth collection if needed
+				constexpr bool bIsSimMesh = true;
+				if (!ClothToDynamicMesh(SimClothCollection.IsValid() ? SimClothCollection.ToSharedRef() : ClothCollection, TargetRefSkeleton, bIsSimMesh, WeldedSimMesh))
 				{
 					return false;
 				}
@@ -752,10 +748,14 @@ FChaosClothAssetTransferSkinWeightsNode::FChaosClothAssetTransferSkinWeightsNode
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
-	RegisterOutputConnection(&Collection, &Collection);
+	RegisterInputConnection(&SkeletalMesh);
+	RegisterInputConnection(&SimCollection)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 	RegisterInputConnection(&InpaintMask.WeightMap, GET_MEMBER_NAME_CHECKED(FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange, WeightMap))
 		.SetCanHidePin(true)
 		.SetPinIsHidden(true);
+	RegisterOutputConnection(&Collection, &Collection);
 }
 
 void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -771,37 +771,115 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 
 		// Evaluate inputs
 		FManagedArrayCollection InputCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+
 		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InputCollection));
+		
+		const TSharedPtr<FManagedArrayCollection> SimClothCollection = IsConnected(&SimCollection) ?
+			MakeShared<FManagedArrayCollection>(GetValue(Context, &SimCollection)) :
+			TSharedPtr<FManagedArrayCollection>();
 
-		if (SkeletalMesh && FCollectionClothFacade(ClothCollection).IsValid())  // Can only act on the collection if it is a valid cloth collection
+		FCollectionClothFacade ClothFacade(ClothCollection);
+		if (ClothFacade.IsValid())  // Can only act on the collection if it is a valid cloth collection
 		{
-			if (!SkeletalMesh->IsValidLODIndex(LodIndex))
-			{
-				FClothDataflowTools::LogAndToastWarning(*this,
-					LOCTEXT("InvalidLodIndexHeadline", "Invalid LOD Index."),
-					FText::Format(
-						LOCTEXT("InvalidLodIndexDetails", "LOD index {0} is not a valid LOD for skeletal mesh {1}."),
-						LodIndex,
-						FText::FromString(SkeletalMesh.GetName())));
-				SetValue(Context, MoveTemp(*ClothCollection), &Collection);
-				return;
-			}
-
+			TStrongObjectPtr<const USkeletalMesh> InSkeletalMesh;
+			const FReferenceSkeleton* TargetRefSkeleton = nullptr;
 			FDynamicMesh3 SourceDynamicMesh;
-			if (!SkeletalMeshToDynamicMesh(SkeletalMesh, LodIndex, SourceDynamicMesh))
+
+			const bool bNeedsSkeletalMesh =
+				TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render ||
+				RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh;
+
+			if (bNeedsSkeletalMesh)
 			{
-				FClothDataflowTools::LogAndToastWarning(*this,
-					LOCTEXT("InvalidLodHeadline", "Could not convert LOD to Dynamic Mesh."),
-					FText::Format(
-						LOCTEXT("InvalidLodDetails", "Could not convert LOD index {0} of the skeletal mesh {1} to dyanamic mesh."),
-						LodIndex,
-						FText::FromString(SkeletalMesh.GetName())));
-				SetValue(Context, MoveTemp(*ClothCollection), &Collection);
-				return;
+				InSkeletalMesh = TStrongObjectPtr<const USkeletalMesh>(GetValue(Context, &SkeletalMesh));
+
+				if (!InSkeletalMesh)
+				{
+					FClothDataflowTools::LogAndToastWarning(*this,
+						LOCTEXT("InvalidSkeletalMeshHeadline", "Invalid Skeletal Mesh."),
+						FText::Format(
+							LOCTEXT("InvalidSkeletalMeshDetails", "No skeletal mesh has been specified and one is required for this type of transfer."),
+							LodIndex));
+					SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+					return;
+				}
+
+				if (!InSkeletalMesh->IsValidLODIndex(LodIndex))
+				{
+					FClothDataflowTools::LogAndToastWarning(*this,
+						LOCTEXT("InvalidLodIndexHeadline", "Invalid LOD Index."),
+						FText::Format(
+							LOCTEXT("InvalidLodIndexDetails", "LOD index {0} is not a valid LOD for skeletal mesh {1}."),
+							LodIndex,
+							FText::FromString(InSkeletalMesh->GetName())));
+					SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+					return;
+				}
+
+				if (!SkeletalMeshToDynamicMesh(InSkeletalMesh.Get(), LodIndex, SourceDynamicMesh))
+				{
+					FClothDataflowTools::LogAndToastWarning(*this,
+						LOCTEXT("InvalidLodHeadline", "Could not convert LOD to Dynamic Mesh."),
+						FText::Format(
+							LOCTEXT("InvalidLodDetails", "Could not convert LOD index {0} of the skeletal mesh {1} to dyanamic mesh."),
+							LodIndex,
+							FText::FromString(InSkeletalMesh->GetName())));
+					SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+					return;
+				}
+
+				MeshTransforms::ApplyTransform(SourceDynamicMesh, Transform, true);
+				TargetRefSkeleton = &InSkeletalMesh->GetRefSkeleton();
+
+				ClothFacade.SetSkeletalMeshPathName(InSkeletalMesh->GetPathName());
+			}
+			else
+			{
+				// Reuse the input sim mesh skeleton
+				auto GetCollectionRefSkeleton = [&InSkeletalMesh](const FCollectionClothConstFacade& ClothFacade) -> const FReferenceSkeleton*
+					{
+						const FString& SkeletalMeshPathName = ClothFacade.GetSkeletalMeshPathName();
+						InSkeletalMesh = TStrongObjectPtr<const USkeletalMesh>(LoadObject<USkeletalMesh>(nullptr, *SkeletalMeshPathName));
+						return InSkeletalMesh ? &InSkeletalMesh->GetRefSkeleton() : nullptr;
+					};
+
+				if (SimClothCollection.IsValid())
+				{
+					FCollectionClothConstFacade SimClothFacade(SimClothCollection.ToSharedRef());
+					if (SimClothFacade.IsValid())
+					{
+						TargetRefSkeleton = GetCollectionRefSkeleton(SimClothFacade);
+					}
+					if (!TargetRefSkeleton)
+					{
+						FClothDataflowTools::LogAndToastWarning(*this,
+							LOCTEXT("InvalidSimRefSkeletonHeadline", "Invalid Reference Skeleton."),
+							LOCTEXT("InvalidSimRefSkeletonDetails", "Couldn't find a valid reference skeleton from the input sim collection."));
+						SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+						return;
+					}
+				}
+				else
+				{
+					TargetRefSkeleton = GetCollectionRefSkeleton(ClothFacade);
+
+					if (!TargetRefSkeleton)
+					{
+						FClothDataflowTools::LogAndToastWarning(*this,
+							LOCTEXT("InvalidRefSkeletonHeadline", "Invalid Reference Skeleton."),
+							LOCTEXT("InvalidRefSkeletonDetails", "Couldn't find a valid reference skeleton from the input collection."));
+						SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+						return;
+					}
+				}
 			}
 
-			MeshTransforms::ApplyTransform(SourceDynamicMesh, Transform, true);
-			const FReferenceSkeleton& TargetRefSkeleton = SkeletalMesh->GetRefSkeleton();
+			// Clean up orphaned vertices
+			UE::Chaos::ClothAsset::FClothGeometryTools::CleanupAndCompactMesh(ClothCollection);
+			if (SimClothCollection.IsValid())
+			{
+				UE::Chaos::ClothAsset::FClothGeometryTools::CleanupAndCompactMesh(SimClothCollection.ToSharedRef());
+			}
 
 			//
 			// Setup the bone weight transfer settings.
@@ -823,52 +901,20 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 			TransferSettings.SmoothingStrength = SmoothingStrength;
 			TransferSettings.InpaintMaskWeightMapName = GetValue<FString>(Context, &InpaintMask.WeightMap);
 			
-			//
-			// Transfer the bone weights from the source Skeletal mesh to the Cloth asset.
-			//
-			FCollectionClothFacade ClothFacade(ClothCollection);
-			ClothFacade.SetSkeletalMeshPathName(SkeletalMesh->GetPathName());
-
-			// Clean up orphaned vertices
-			UE::Chaos::ClothAsset::FClothGeometryTools::CleanupAndCompactMesh(ClothCollection);
-
 			bool bTransferResult = false;
-			if (TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights && 
-				TransferSettings.bTransferToRenderFromSim && 
-				TransferSettings.bTransferToSim && 
-				TransferSettings.bTransferToRender)
+			switch (TransferMethod)
 			{
-				// Custom setup for the default behavior of the node that gives the best results in the common case where:
-				//  - the sim mesh is welded and manifold
-				//  - the render mesh is un-welded and highly non-manifold with many disconnected regions in areas like 
-				//    the armpits
-				//  - the render and the sim mesh have similar shapes
-				//  - we are transferring weight from the sim mesh and not the body
+			case EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights:
+				bTransferResult = TransferInpaintWeights(*TargetRefSkeleton, SourceDynamicMesh, ClothCollection, TransferSettings, SimClothCollection);
+				break;
+			
+			case EChaosClothAssetTransferSkinWeightsMethod::ClosestPointOnSurface:
+				bTransferResult = TransferClosestPointOnSurface(*TargetRefSkeleton, SourceDynamicMesh, ClothCollection, TransferSettings, SimClothCollection);
+				break;
 
-				// First transfer to sim only using inpaint weights algorithm
-				TransferSettings.bTransferToRender = false;
-				bTransferResult = TransferInpaintWeights(TargetRefSkeleton, SourceDynamicMesh, ClothCollection, TransferSettings);
-
-				if (bTransferResult)
-				{
-					// Now transfer to render only using closest point 
-					TransferSettings.bTransferToSim = false;
-					TransferSettings.bTransferToRender = true;
-					TransferSettings.TransferMethod = FTransferBoneWeights::ETransferBoneWeightsMethod::ClosestPointOnSurface;
-					bTransferResult = TransferClosestPointOnSurface(TargetRefSkeleton, SourceDynamicMesh, ClothCollection, TransferSettings);
-				}
-			}
-			else if (TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights)
-			{
-				bTransferResult = TransferInpaintWeights(TargetRefSkeleton, SourceDynamicMesh, ClothCollection, TransferSettings);
-			}
-			else if (TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::ClosestPointOnSurface)
-			{
-				bTransferResult = TransferClosestPointOnSurface(TargetRefSkeleton, SourceDynamicMesh, ClothCollection, TransferSettings);
-			}
-			else
-			{
+			default:
 				checkNoEntry();
+				break;
 			}
 
 			if (!bTransferResult)

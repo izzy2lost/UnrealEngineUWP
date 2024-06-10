@@ -38,23 +38,23 @@ UENUM(BlueprintType)
 enum class EChaosClothAssetTransferTargetMeshType : uint8
 {
 	/** Perform the skin weights transfer for both the simulation and render meshes. */
-	All,
+	All UMETA(DisplayName = "Sim & Render Meshes"),
 
 	/** Perform the skin weights transfer for the simulation mesh only. */
-	Simulation,
+	Simulation UMETA(DisplayName = "Sim Mesh"),
 	
 	/** Perform the skin weights transfer for the render mesh only. */
-	Render
+	Render UMETA(DisplayName = "Render Mesh")
 };
 
 UENUM(BlueprintType)
 enum class EChaosClothAssetTransferRenderMeshSource : uint8
 {
-	/** For render mesh, transfer weights from the source skeletal mesh. */
-	SkeletalMesh,
+	/** For render mesh, transfer weights from the source Skeletal Mesh. */
+	SkeletalMesh UMETA(DisplayName = "Skeletal Mesh"),
 
-	/** For render mesh, transfer weights from the simulation mesh. */
-	SimulationMesh
+	/** For render mesh, transfer weights from the Collection input sim mesh, or Sim Collection input if connected. */
+	SimulationMesh UMETA(DisplayName = "Collection/Sim Collection")
 };
 
 /** Transfer the skinning weights set on a skeletal mesh to the simulation and/or render mesh stored in the cloth collection. */
@@ -68,28 +68,48 @@ public:
 	UPROPERTY(Meta = (Dataflowinput, DataflowOutput, DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
 
+	/** The type of cloth mesh the skeletal mesh transfer will be applied to, simulation, render mesh, or both. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (DisplayName = "Target Mesh(es)"))
+	EChaosClothAssetTransferTargetMeshType TargetMeshType = EChaosClothAssetTransferTargetMeshType::All;
+
+private:
+	/** For the sim mesh, simulation mesh transfers always use the specified skeletal mesh. */
+	UPROPERTY(VisibleAnywhere, Category = "Transfer Skin Weights", Meta = (DisplayName = "Sim Mesh Transfer Source", EditCondition = "TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render", EditConditionHides))
+	FString SimMeshSourceTypeHint = TEXT("Skeletal Mesh");
+
+public:
+	/** For the render mesh, choose which source to use, either the default or specified simulation mesh or the specified skeletal mesh. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (DisplayName = "Render Mesh Transfer Source", EditCondition = "TargetMeshType != EChaosClothAssetTransferTargetMeshType::Simulation", EditConditionHides))
+	EChaosClothAssetTransferRenderMeshSource RenderMeshSourceType = EChaosClothAssetTransferRenderMeshSource::SimulationMesh;
+
 	/** The skeletal mesh to transfer the skin weights from. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Source Mesh")
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (DataflowInput, EditCondition = "TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh", EditConditionHides))
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
 
+	/** The collection containing the sim mesh to use when the Render Mesh Transfer Source is set to Collection/Sim Collection. When this input isn't connected, the Collection input is used instead. */
+	UPROPERTY(Meta = (DataflowPassthrough = "Collection", Dataflowinput))
+	FManagedArrayCollection SimCollection;
+
 	/** The skeletal mesh LOD to transfer the skin weights from. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Source Mesh", Meta = (DisplayName = "LOD Index"))
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (DisplayName = "LOD Index", EditCondition = "TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh", EditConditionHides))
 	int32 LodIndex = 0;
 
 	/** The relative transform between the skeletal mesh and the cloth asset. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Source Mesh")
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (EditCondition = "TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh", EditConditionHides))
 	FTransform Transform;
 
-	/** The type of the mesh the transfer will be applied to. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Target Mesh Type"))
-	EChaosClothAssetTransferTargetMeshType TargetMeshType = EChaosClothAssetTransferTargetMeshType::All;
+private:
+	/** Algorithm used for the transfer method. When the Render Mesh Transfer Source is set to use the sim mesh from the Collection/Sim Collection input, only the ClosestPointOnSurface method is available. */
+	UPROPERTY(VisibleAnywhere, Category = "Transfer Skin Weights", Meta = (DisplayName = "Transfer Method", EditCondition = "TargetMeshType == EChaosClothAssetTransferTargetMeshType::Render && RenderMeshSourceType != EChaosClothAssetTransferRenderMeshSource::SkeletalMesh", EditConditionHides))
+	FString TransferMethodHint = TEXT("Closest Point On Surface");
 
-	/** For the render mesh, choose which source to use. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Render Mesh Source Type", EditCondition="TargetMeshType!=EChaosClothAssetTransferTargetMeshType::Simulation"))
-	EChaosClothAssetTransferRenderMeshSource RenderMeshSourceType = EChaosClothAssetTransferRenderMeshSource::SimulationMesh;
-
-	/** Algorithm used for the transfer method. Use the simple ClosestPointOnSurface method or the more complex InpaintWeights method for better results. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Algorithm"))
+public:
+	/**
+	 * Algorithm used for the transfer method.
+	 * Use the simple ClosestPointOnSurface method or the more complex InpaintWeights method for better results.
+	 * Note: When using the simulation mesh as source for the render mesh transfer, the algorithm will always be the ClosestPointOnSurface method, whatever this setting is.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (EditCondition = "TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh", EditConditionHides))
 	EChaosClothAssetTransferSkinWeightsMethod TransferMethod = EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights;
 
 	/**
@@ -97,14 +117,14 @@ public:
 	 * All points outside of the search radius will be ignored. 
 	 * When set to a negative value (e.g. -1), all points will be considered.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (UIMin = -1, UIMax = 2, ClampMin = -1, ClampMax = 2, EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (UIMin = -1, UIMax = 2, ClampMin = -1, ClampMax = 2, EditCondition = "(TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh) && TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights", EditConditionHides))
 	double RadiusPercentage = 0.05;
 
 	/**
 	 * Maximum angle difference (in degrees) between the target and source point normals to be considered a match for the InpaintWeights method.
 	 * If set to a negative value (e.g. -1), normals will be ignored.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (UIMin = -1, UIMax = 180, ClampMin = -1, ClampMax = 180, EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (UIMin = -1, UIMax = 180, ClampMin = -1, ClampMax = 180, EditCondition = "(TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh) && TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights", EditConditionHides))
 	double NormalThreshold = 30;
 
 	/** 
@@ -112,25 +132,25 @@ public:
 	 * This helps with layered meshes where the "inner" and "outer" layers are close to each other but whose normals 
 	 * are pointing in the opposite directions.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Layered Mesh Support", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (EditCondition = "(TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh) && TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights", EditConditionHides))
 	bool LayeredMeshSupport = true;
 
 	/** The number of smoothing iterations applied to the vertices whose weights were automatically computed. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (UIMin = 0, UIMax = 100, ClampMin = 0, ClampMax = 100, DisplayName = "Smoothing Iterations", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (UIMin = 0, UIMax = 100, ClampMin = 0, ClampMax = 100, DisplayName = "Smoothing Iterations", EditCondition = "(TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh) && TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights", EditConditionHides))
 	int32 NumSmoothingIterations = 10;
 
 	/** The smoothing strength of each smoothing iteration. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (UIMin = 0, UIMax = 1, ClampMin = 0, ClampMax = 1, DisplayName = "Smoothing Strength", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (UIMin = 0, UIMax = 1, ClampMin = 0, ClampMax = 1, EditCondition = "(TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh) && TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights", EditConditionHides))
 	float SmoothingStrength = 0.1;
 	
-	/** The maximum number of bones that will influence each vertex. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Max Bone Influences"))
-	EChaosClothAssetMaxNumInfluences MaxNumInfluences = EChaosClothAssetMaxNumInfluences::Eight;
-	
-    /** Optional mask where a non-zero value indicates that we want the skinning weights for the vertex to be computed automatically instead of it being copied over from the source mesh. */
-	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Inpaint Mask", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
+	/** Optional mask where a non-zero value indicates that we want the skinning weights for the vertex to be computed automatically instead of it being copied over from the source mesh. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (EditCondition = "(TargetMeshType != EChaosClothAssetTransferTargetMeshType::Render || RenderMeshSourceType == EChaosClothAssetTransferRenderMeshSource::SkeletalMesh) && TransferMethod == EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights", EditConditionHides))
 	FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange InpaintMask = { TEXT("InpaintMask") };
 
+	/** The maximum number of bones that will influence each vertex. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights", Meta = (DisplayName = "Max Bone Influences"))
+	EChaosClothAssetMaxNumInfluences MaxNumInfluences = EChaosClothAssetMaxNumInfluences::Eight;
+	
 	FChaosClothAssetTransferSkinWeightsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
