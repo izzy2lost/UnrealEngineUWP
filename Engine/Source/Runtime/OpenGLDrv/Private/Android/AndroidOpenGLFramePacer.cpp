@@ -18,6 +18,7 @@
 #include "swappy/swappy_common.h"
 #include "HAL/Thread.h"
 #include "Misc/ScopeRWLock.h"
+#include "EngineGlobals.h"
 
 struct FSwappyThreadManager : public SwappyThreadFunctions
 {
