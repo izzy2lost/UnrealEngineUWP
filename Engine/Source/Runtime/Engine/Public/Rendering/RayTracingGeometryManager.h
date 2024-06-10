@@ -5,6 +5,8 @@
 
 #include "Containers/SparseArray.h"
 #include "Containers/Map.h"
+#include "IO/IoBuffer.h"
+#include "Serialization/BulkData.h"
 
 #if RHI_RAYTRACING
 
@@ -15,6 +17,7 @@ class FRayTracingGeometryManager : public IRayTracingGeometryManager
 {
 public:
 
+	ENGINE_API FRayTracingGeometryManager();
 	ENGINE_API virtual ~FRayTracingGeometryManager();
 
 	ENGINE_API virtual BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode) override;
@@ -31,6 +34,9 @@ public:
 	ENGINE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) override;
 
 	ENGINE_API virtual void RefreshRegisteredGeometry(RayTracingGeometryHandle Handle) override;
+
+	void SetRayTracingGeometryStreamingData(const FRayTracingGeometry* Geometry, FByteBulkData& BulkData, uint32 Offset, uint32 Size);
+	void SetRayTracingGeometryGroupCurrentFirstLODIndex(FRHICommandListBase& RHICmdList, RayTracing::GeometryGroupHandle Handle, uint8 CurrentFirstLODIdx);
 
 	ENGINE_API virtual void PreRender() override;
 	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList) override;
@@ -65,6 +71,8 @@ private:
 
 	void ReleaseRayTracingGeometryGroupReference(RayTracing::GeometryGroupHandle Handle);
 
+	void ProcessCompletedStreamingRequests(FRHICommandList& RHICmdList);
+
 	FCriticalSection RequestCS;
 
 	TSparseArray<FBuildRequest> GeometryBuildRequests;
@@ -83,6 +91,8 @@ private:
 
 		TSet<FPrimitiveSceneProxy*> ProxiesWithCachedRayTracingState;
 
+		uint8 CurrentFirstLODIdx = INDEX_NONE;
+
 		// Due to the way we batch release FRenderResource and SceneProxies, 
 		// ReleaseRayTracingGeometryGroup(...) can end up being called before all FRayTracingGeometry and SceneProxies are actually released.
 		// To deal with this, we keep track of whether the group is still referenced and only release the group handle once all references are released.
@@ -95,6 +105,27 @@ private:
 	{
 		FRayTracingGeometry* Geometry = nullptr;
 		uint32 Size = 0;
+
+		FByteBulkData* StreamableData = nullptr;
+		uint32 StreamableDataOffset = 0;
+		uint32 StreamableDataSize = 0;
+
+		enum class FStatus : uint8
+		{
+			StreamedOut,
+			Streaming,
+			StreamedIn,
+		};
+
+		FStatus Status = FStatus::StreamedOut;
+	};
+
+	struct FStreamingRequest
+	{
+		FIoBuffer RequestBuffer;
+		FBulkDataBatchRequest Request;
+
+		RayTracingGeometryHandle GeometryHandle;
 	};
 
 	TSparseArray<FRayTracingGeometryGroup> RegisteredGroups;
@@ -107,6 +138,10 @@ private:
 
 	TSet<RayTracingGeometryHandle> ReferencedGeometryHandles;
 	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	TArray<FStreamingRequest> StreamingRequests;
+	int32 NumStreamingRequests = 0;
+	int32 NextStreamingRequestIndex = 0;
 
 	bool bRenderedFrame = false;
 };

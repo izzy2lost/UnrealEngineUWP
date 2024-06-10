@@ -687,8 +687,11 @@ struct FStaticMeshRayTracingProxyLOD
 	FStaticMeshVertexBuffers* VertexBuffers = nullptr;
 	FRawStaticIndexBuffer* IndexBuffer = nullptr;
 
+	FByteBulkData StreamableData;
+
 	bool bOwnsRayTracingGeometry : 1 = true;
 	bool bOwnsBuffers : 1 = true;
+	bool bBuffersInlined : 1 = false;
 
 	ENGINE_API ~FStaticMeshRayTracingProxyLOD();
 
@@ -697,7 +700,10 @@ struct FStaticMeshRayTracingProxyLOD
 
 	void Serialize(FArchive& Ar, UObject* Owner, int32 Index);
 
-	void SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags);
+	uint32 SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags);
+
+	/** Discard loaded data. Used when a streaming request is cancelled */
+	void DiscardCPUData();
 
 #if RHI_RAYTRACING
 	void SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FDebugName& DebugName, const FName& OwnerName) const;
