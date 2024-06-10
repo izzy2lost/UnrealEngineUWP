@@ -63,7 +63,7 @@ namespace UnrealBuildTool.Rules
 					}
 				);
 
-				if (Target.Platform == UnrealTargetPlatform.Win64)
+				if (Target.Platform == UnrealTargetPlatform.Win64 || Target.LinkType == TargetLinkType.Monolithic)
 				{
 					PrivateDependencyModuleNames.AddRange(
 						new string[]
