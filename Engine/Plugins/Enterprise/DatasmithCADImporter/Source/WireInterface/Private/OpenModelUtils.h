@@ -43,6 +43,13 @@ struct FMeshDescription;
 #define UNIT_CONVERSION_CM_TO_MM		10.
 #define UE_TO_CADKERNEL(Distance)		(Distance * 10.)
 
+#define WIRE_ENSURE_ENABLED 0
+#if WIRE_ENSURE_ENABLED
+#define ensureWire(InExpression) ensure(InExpression)
+#else
+#define ensureWire(InExpression)
+#endif
+
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 	typedef double AlMatrix4x4[4][4];

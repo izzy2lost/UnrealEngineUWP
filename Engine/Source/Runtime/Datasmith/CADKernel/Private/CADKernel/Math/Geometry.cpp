@@ -108,7 +108,8 @@ double ComputeCurvature(const FPoint& Normal, const FPoint& Gradient, const FPoi
 
 void FindLoopIntersectionsWithIso(const EIso Iso, const double IsoParameter, const TArray<TArray<FPoint2D>>& Loops, TArray<double>& OutIntersections)
 {
-	OutIntersections.Empty(8);
+	TArray<double> LocalIntersections;
+	LocalIntersections.Reserve(8);
 
 	const int32 UIndex = Iso == EIso::IsoU ? 0 : 1;
 	const int32 VIndex = Iso == EIso::IsoU ? 1 : 0;
@@ -117,8 +118,8 @@ void FindLoopIntersectionsWithIso(const EIso Iso, const double IsoParameter, con
 	{
 		if (IsoParameter > Point1[UIndex] && IsoParameter <= Point2[UIndex])
 		{
-			double Intersection = (IsoParameter - Point1[UIndex]) / (Point2[UIndex] - Point1[UIndex]) * (Point2[VIndex] - Point1[VIndex]) + Point1[VIndex];
-			OutIntersections.Add((IsoParameter - Point1[UIndex]) / (Point2[UIndex] - Point1[UIndex]) * (Point2[VIndex] - Point1[VIndex]) + Point1[VIndex]);
+			const double Intersection = (IsoParameter - Point1[UIndex]) / (Point2[UIndex] - Point1[UIndex]) * (Point2[VIndex] - Point1[VIndex]) + Point1[VIndex];
+			LocalIntersections.Add(Intersection);
 		}
 	};
 
@@ -141,7 +142,25 @@ void FindLoopIntersectionsWithIso(const EIso Iso, const double IsoParameter, con
 			Point1 = &Point2;
 		}
 	}
-	Algo::Sort(OutIntersections);
+
+	if (LocalIntersections.Num() == 0)
+	{
+		return;
+	}
+
+	Algo::Sort(LocalIntersections);
+
+	// Remove any duplicates
+	OutIntersections.Empty(LocalIntersections.Num());
+	OutIntersections.Add(LocalIntersections[0]);
+	for (int32 Index = 1; Index < LocalIntersections.Num(); ++Index)
+	{
+		if (FMath::IsNearlyEqual(LocalIntersections[Index], OutIntersections.Last(), UE_DOUBLE_SMALL_NUMBER))
+		{
+			continue;
+		}
+		OutIntersections.Add(LocalIntersections[Index]);
+	}
 }
 
 bool DoIntersect(const FSegment2D& SegmentAB, const FSegment2D& SegmentCD, TFunction<bool(double, double, double, double)> DoCoincidentSegmentsIntersect, const double Min, const double Max)

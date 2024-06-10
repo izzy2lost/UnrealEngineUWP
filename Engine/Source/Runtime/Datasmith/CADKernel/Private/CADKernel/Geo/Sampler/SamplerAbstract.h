@@ -149,6 +149,13 @@ protected:
 	 */
 	void RunSampling()
 	{
+		if (IsOptimalSegments.Num() == 0)
+		{
+			// #cadkernel_check: What does this mean that IsOptimalSegments is empty.
+			//                   Why only one CandidatePoints?
+			return;
+		}
+
 		// < 100000 : check to avoid that the process loops endlessly
 		int32 CandidatePointsCount = CandidatePoints.Size();
 		while (CandidatePointsCount && Sampling.Coordinates.Num() < 100000)
@@ -187,7 +194,7 @@ protected:
 
 					// if the next candidate point is biggest than the next sampling point, no chord check can be done. 
 					// an intermediate point is added. 
-					// the next segment is processed 
+					// the next segment is processed
 					if ((FirstCandidateIndex >= CandidatePointsCount) || (FirstCandidateIndex < CandidatePointsCount && TmpPolylineCoordinates[FirstCandidateIndex] > EndStudySegment.Polyline->Coordinates[EndStudySegment.Index]))
 					{
 						AddIntermediateCoordinates(Sampling.Coordinates[StartSamplingSegmentIndex], Sampling.Coordinates[EndSamplingSegmentIndex], 1);

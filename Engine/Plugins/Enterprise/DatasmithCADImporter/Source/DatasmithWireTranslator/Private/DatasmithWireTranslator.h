@@ -55,4 +55,5 @@ private:
 
 private:
 	TSharedPtr<IWireInterface> WireInterface;
+	TObjectPtr<UDatasmithWireOptions> WireImportOptions;
 };

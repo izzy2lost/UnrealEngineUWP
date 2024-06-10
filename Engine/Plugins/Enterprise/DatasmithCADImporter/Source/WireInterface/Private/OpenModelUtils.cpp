@@ -80,7 +80,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			}
 		}
 
-		ensure(false);
+		ensureWire(false);
 		return 0;
 	}
 
@@ -144,7 +144,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 				Hash = HashCombine(Hash, ShellNode.GetHash());
 			}
 
-			ensure(LayerSet.Num() == 1);
+			ensureWire(LayerSet.Num() == 1);
 			TAlObjectPtr<AlLayer> GeomLayer = LayerSet.Array()[0];
 			if (GeomLayer != Layer)
 			{

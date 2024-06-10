@@ -54,6 +54,22 @@ namespace WireTranslator
 
 		return TSharedPtr<IWireInterface>();
 	}
+
+	bool IsFileSupported(const TCHAR* Filename)
+	{
+		TSharedPtr<IWireInterface> WireInterface;
+
+		for (const TPair<uint32, FInterfaceMaker>& Entry : RegisteredInterfaces)
+		{
+			WireInterface = Entry.Value();
+			if (WireInterface->Initialize(Filename))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 uint64 IWireInterface::GetRequiredAliasVersion()
@@ -93,12 +109,7 @@ bool FDatasmithWireTranslator::CanTranslate()
 				return false;
 			}
 
-			if (!WireTranslator::GetInterfaceFromFile(nullptr).IsValid())
-			{
-				return false;
-			}
-
-			return true;
+			return RegisteredInterfaces.Num() > 0 ? true : false;
 		}();
 
 		return bCanTranslate;
@@ -127,19 +138,19 @@ void FDatasmithWireTranslator::Initialize(FDatasmithTranslatorCapabilities& OutC
 
 bool FDatasmithWireTranslator::IsSourceSupported(const FDatasmithSceneSource& Source)
 {
-	WireInterface = WireTranslator::GetInterfaceFromFile(*Source.GetSourceFile());
-	return WireInterface.IsValid();
+	return WireTranslator::IsFileSupported(*Source.GetSourceFile());
 }
 
 bool FDatasmithWireTranslator::LoadScene(TSharedRef<IDatasmithScene> OutScene)
 {
-	//WireInterface = WireTranslator::GetInterfaceFromFile(*Filename);
+	ensure(WireImportOptions);
+	WireInterface = WireTranslator::GetInterfaceFromFile(*GetSource().GetSourceFile());
 	if (!WireInterface.IsValid())
 	{
 		return false;
 	}
 
-	//const FString& Filename = GetSource().GetSourceFile();
+	WireInterface->SetImportSettings(WireImportOptions->Settings);
 
 	UE_LOG(LogDatasmithWireTranslator, Display, TEXT("CAD translation [%s]."), *GetSource().GetSourceFile());
 	UE_LOG(LogDatasmithWireTranslator, Display, TEXT(" - Parsing Library:      %s"), TEXT("Alias"));
@@ -205,16 +216,15 @@ void FDatasmithWireTranslator::SetSceneImportOptions(const TArray<TObjectPtr<UDa
 {
 	FParametricSurfaceTranslator::SetSceneImportOptions(Options);
 
-	if (ensure(WireInterface.IsValid()))
+	WireImportOptions = nullptr;
+
+	for (const TObjectPtr<UDatasmithOptionsBase>& OptionPtr : Options)
 	{
-		for (const TObjectPtr<UDatasmithOptionsBase>& OptionPtr : Options)
+		if (UDatasmithWireOptions* ImportOptions = Cast<UDatasmithWireOptions>(OptionPtr))
 		{
-			if (UDatasmithWireOptions* ImportOptions = Cast<UDatasmithWireOptions>(OptionPtr))
-			{
-				ImportOptions->SaveConfig(CPF_Config);
-				WireInterface->SetImportSettings(ImportOptions->Settings);
-				CommonTessellationOptions = ImportOptions->Settings;
-			}
+			ImportOptions->SaveConfig(CPF_Config);
+			WireImportOptions = ImportOptions;
+			CommonTessellationOptions = ImportOptions->Settings;
 		}
 	}
 }

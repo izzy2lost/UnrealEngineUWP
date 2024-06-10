@@ -79,9 +79,7 @@ void FTopologicalFace::UpdateBBox(int32 IsoCount, const double ApproximationFact
 			TArray<double> Intersections;
 			FindLoopIntersectionsWithIso(IsoType, Coordinate, BoundaryApproximation, Intersections);
 			int32 IntersectionCount = Intersections.Num();
-			// #cadkernel_check: Why IntersectionCount can be less than 2 or Intersections has same extremities
-			//if (IntersectionCount < 2 || FMath::IsNearlyEqual(Intersections[0], Intersections.Last(), UE_DOUBLE_SMALL_NUMBER))
-			if (IntersectionCount == 0)
+			if (IntersectionCount < 2)
 			{
 				continue;
 			}
@@ -97,12 +95,10 @@ void FTopologicalFace::UpdateBBox(int32 IsoCount, const double ApproximationFact
 				TArray<FPoint> SubPolyline;
 				FLinearBoundary IntersectionBoundary(Intersections[IntersectionCount - 1], CurveBounds.GetMax());
 
-#ifdef DEBUG_GET_BBOX2
-				Polyline.GetSubPolyline(Boundary, EOrientation::Front, SubPolyline);
-				Draw(SubPolyline, EVisuProperty::Iso);
-#endif
-
-				Polyline.UpdateSubPolylineBBox(IntersectionBoundary, IsoBBox);
+				if (Polyline.Size() > 1)
+				{
+					Polyline.UpdateSubPolylineBBox(IntersectionBoundary, IsoBBox);
+				}
 
 				Intersections.Pop();
 				IntersectionCount--;
@@ -113,25 +109,16 @@ void FTopologicalFace::UpdateBBox(int32 IsoCount, const double ApproximationFact
 				continue;
 			}
 
-			for (int32 ISection = 0; ISection < IntersectionCount; ISection += 2)
+			if (IntersectionCount > 1)
 			{
-				TArray<FPoint> SubPolyline;
-				FLinearBoundary IntersectionBoundary(Intersections[ISection], Intersections[ISection + 1]);
+				for (int32 ISection = 0; ISection < IntersectionCount; ISection += 2)
+				{
+					TArray<FPoint> SubPolyline;
+					FLinearBoundary IntersectionBoundary(Intersections[ISection], Intersections[ISection + 1]);
 
-#ifdef DEBUG_GET_BBOX2
-				Polyline.GetSubPolyline(Boundary, EOrientation::Front, SubPolyline);
-				Draw(SubPolyline, EVisuProperty::Iso);
-#endif
-				Polyline.UpdateSubPolylineBBox(IntersectionBoundary, IsoBBox);
+					Polyline.UpdateSubPolylineBBox(IntersectionBoundary, IsoBBox);
+				}
 			}
-
-#ifdef DEBUG_GET_BBOX2
-			for (int32 Index = 0; Index < 3; ++Index)
-			{
-				UE::CADKernel::DisplayPoint(IsoBBox.MaxPoints[Index], EVisuProperty::YellowPoint);
-				UE::CADKernel::DisplayPoint(IsoBBox.MinPoints[Index], EVisuProperty::YellowPoint);
-			}
-#endif
 
 			BBox.Update(IsoBBox, IsoType, Coordinate);
 		}
@@ -161,6 +148,7 @@ void FTopologicalFace::UpdateBBox(int32 IsoCount, const double ApproximationFact
 #endif
 
 }
+#pragma optimize("",on)
 
 
 void FTopologicalFace::ApplyNaturalLoops()

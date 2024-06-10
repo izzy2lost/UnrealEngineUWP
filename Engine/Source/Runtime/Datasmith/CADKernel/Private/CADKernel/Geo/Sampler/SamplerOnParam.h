@@ -93,34 +93,6 @@ protected:
 			}
 		}
 
-#ifdef DEBUG_CHECKCHORDERROR
-		if (bDisplay)
-		{
-			{
-				int32 Index = 0;
-				F3DDebugSession G(FString::Printf(TEXT("CheckChord %f %d"), MaxChord, FirstIndex));
-
-				UE::CADKernel::Display(APoint, EVisuProperty::BluePoint);
-				UE::CADKernel::Display(BPoint, EVisuProperty::BluePoint);
-
-				for (int32 Index = FirstIndex; Index < EndIndex; ++Index)
-				{
-					const FPoint& Middle = CandidatePoints.GetPoints()[Index];
-					UE::CADKernel::Display(Middle, EVisuProperty::YellowPoint);
-				}
-
-				DisplaySegment(APoint, BPoint, 0, EVisuProperty::BlueCurve);
-				DisplaySegment(APoint, CandidatePoints.GetPoints()[FirstIndex], 0, EVisuProperty::YellowCurve);
-				DisplaySegment(BPoint, CandidatePoints.GetPoints()[EndIndex - 1], 0, EVisuProperty::YellowCurve);
-
-				for (int32 Index = FirstIndex; Index < EndIndex - 1; ++Index)
-				{
-					DisplaySegment(CandidatePoints.GetPoints()[Index], CandidatePoints.GetPoints()[Index + 1], 0, EVisuProperty::YellowCurve);
-				}
-			}
-		}
-#endif
-
 		int32 SegmentNumToRespectParametrizationError = (int32)(MaxParametrizationError / DesiredParameterizationError);
 		if (SegmentNumToRespectParametrizationError > 2)
 		{

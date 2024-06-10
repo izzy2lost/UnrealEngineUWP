@@ -207,7 +207,7 @@ void FAliasModelToCADKernelConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBo
 			continue;
 		}
 
-		ensure(&Loop == (*Edge)->GetLoop());
+		ensureWire(&Loop == (*Edge)->GetLoop());
 
 		// Link edges
 		TAlObjectPtr<AlTrimCurve> TwinCurve(TrimCurve->getTwinCurve());
@@ -290,7 +290,13 @@ void FAliasModelToCADKernelConverter::AddFace(const AlSurface& Surface, EAliasOb
 	{
 		TSharedRef<UE::CADKernel::FTopologicalFace> Face = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FTopologicalFace>(CADKernelSurface);
 		Face->ApplyNaturalLoops();
-		Shell->Add(Face, bInOrientation ? UE::CADKernel::EOrientation::Front : UE::CADKernel::EOrientation::Back);
+		// Surface can be too thin based on tolerances. Skip it
+		// #cadkernel_check: Warn user a surface was too thin
+		if (Face->GetLoops().Num() > 0)
+		{
+			Shell->Add(Face, bInOrientation ? UE::CADKernel::EOrientation::Front : UE::CADKernel::EOrientation::Back);
+		}
+		// #wire_import: Log that this face was not added
 	}
 }
 
@@ -445,7 +451,7 @@ bool FAliasModelToCADKernelConverter::AddGeometry(const CADLibrary::FCADModelGeo
 			bBodyAdded &= bBRepAdded;
 		}
 
-		ensure(bBodyAdded);
+		ensureWire(bBodyAdded);
 		return bBodyAdded;
 	}
 
