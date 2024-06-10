@@ -261,7 +261,11 @@ TWeakPtr<SGameplayTagQueryWidget> OpenGameplayTagQueryWindow(const FGameplayTagQ
 		];
 
 	// NOTE: FGlobalTabmanager::Get()-> is actually dereferencing a SharedReference, not a SharedPtr, so it cannot be null.
-	if (FGlobalTabmanager::Get()->GetRootWindow().IsValid())
+	if (FSlateApplication::Get().GetActiveModalWindow().IsValid())
+	{
+		FSlateApplication::Get().AddWindowAsNativeChild(Window, FSlateApplication::Get().GetActiveModalWindow().ToSharedRef());
+	}
+	else if (FGlobalTabmanager::Get()->GetRootWindow().IsValid())
 	{
 		FSlateApplication::Get().AddWindowAsNativeChild(Window, FGlobalTabmanager::Get()->GetRootWindow().ToSharedRef());
 	}
