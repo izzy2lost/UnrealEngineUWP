@@ -16,8 +16,8 @@ class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendFunction : public UDMMateri
 
 public:
 	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex, UMaterialExpression* InSourceExpression,
-		int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
+	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx, int32 InExpressionInputIndex,
+		UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
 
 protected:
 	UPROPERTY()

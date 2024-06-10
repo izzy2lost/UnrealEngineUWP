@@ -575,7 +575,7 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 		{
 			const TArray<FDMMaterialStageConnector>& ThroughputInputs = Throughput->GetInputConnectors();
 
-			for (int32 InputIdx = 0; InputIdx < ThroughputInputs.Num() && InputIdx < InputConnectionMap.Num(); ++InputIdx)
+			for (int32 ThroughputInputIdx = 0; ThroughputInputIdx < ThroughputInputs.Num() && ThroughputInputIdx < InputConnectionMap.Num(); ++ThroughputInputIdx)
 			{
 				FDMMaterialStageConnectorChannel Channel;
 				TArray<UMaterialExpression*> Expressions;
@@ -589,7 +589,7 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 
 				const int32 NodeOutputIndex = Throughput->ResolveInput(
 					InBuildState, 
-					InputIdx, 
+					ThroughputInputIdx, 
 					Channel, 
 					Expressions
 				);
@@ -600,7 +600,8 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 
 					Throughput->ConnectOutputToInput(
 						InBuildState, 
-						ThroughputInputs[InputIdx].Index,
+						ThroughputInputIdx,
+						ThroughputInputs[ThroughputInputIdx].Index, 
 						Expressions.Last(), 
 						NodeOutputIndex, 
 						Channel.OutputChannel

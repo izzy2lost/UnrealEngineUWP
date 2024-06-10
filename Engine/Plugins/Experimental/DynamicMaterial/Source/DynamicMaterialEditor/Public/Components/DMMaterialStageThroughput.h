@@ -50,19 +50,19 @@ public:
 	const TArray<FDMMaterialStageConnector>& GetInputConnectors() const { return InputConnectors; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual bool CanInputAcceptType(int32 InputIndex, EDMValueType ValueType) const;
+	virtual bool CanInputAcceptType(int32 InThroughputInputIndex, EDMValueType InValueType) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual bool CanInputConnectTo(int32 InputIndex, const FDMMaterialStageConnector& OutputConnector, int32 OutputChannel,
-		bool bCheckSingleFloat = false);
+	virtual bool CanInputConnectTo(int32 InThroughputInputIndex, const FDMMaterialStageConnector& InOutputConnector, int32 InOutputChannel,
+		bool bInCheckSingleFloat = false);
 
-	virtual bool CanChangeInput(int32 InputIndex) const;
-	virtual bool CanChangeInputType(int32 InputIndex) const;
+	virtual bool CanChangeInput(int32 InThroughputInputIndex) const;
+	virtual bool CanChangeInputType(int32 InThroughputInputIndex) const;
 
-	virtual bool IsInputVisible(int32 InputIndex) const;
+	virtual bool IsInputVisible(int32 InThroughputInputIndex) const;
 
-	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex, UMaterialExpression* InSourceExpression,
-		int32 InSourceOutputIndex, int32 InSourceOutputChannel);
+	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, int32 InExpressionInputIndex,
+		UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel);
 
 	/** Returns true if the layer and mask can have their Texture UV linked. */
 	virtual bool SupportsLayerMaskTextureUVLink() const { return false; }
@@ -81,25 +81,26 @@ public:
 	 * Returns the first node in the array by default
 	 * --> In [ ]-[ ]-[ ] Out -->
 	 */
-	virtual UMaterialExpression* GetExpressionForInput(const TArray<UMaterialExpression*>& StageSourceExpressions, int32 InputIdx);
+	virtual UMaterialExpression* GetExpressionForInput(const TArray<UMaterialExpression*>& InStageSourceExpressions, int32 InThroughputInputIndex, 
+		int32 InExpressionInputIndex);
 
 	virtual void AddDefaultInput(int32 InInputIndex) const;
 
 	/** Returns the actual output index of the material expression */
-	virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, FDMMaterialStageConnectorChannel& OutChannel,
+	virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, FDMMaterialStageConnectorChannel& OutChannel,
 		TArray<UMaterialExpression*>& OutExpressions) const;
 
-	virtual int32 ResolveLayerMaskTextureUVLinkInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
+	virtual int32 ResolveLayerMaskTextureUVLinkInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, 
 		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
 
-	virtual void InputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType) { }
+	virtual void InputUpdated(int32 InThroughputInputIndex, EDMUpdateType InUpdateType) { }
 
 protected:
 	static TArray<TStrongObjectPtr<UClass>> Throughputs;
 
 	static void GenerateThroughputList();
 
-	static int32 ResolveLayerMaskTextureUVLinkInputImpl(const TSharedRef<FDMMaterialBuildState>& InBuildState, const UDMMaterialStageSource* StageSource,
+	static int32 ResolveLayerMaskTextureUVLinkInputImpl(const TSharedRef<FDMMaterialBuildState>& InBuildState, const UDMMaterialStageSource* InStageSource,
 		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions);
 
 	UDMMaterialStageThroughput();
@@ -117,12 +118,12 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TArray<FDMMaterialStageConnector> InputConnectors;
 
-	virtual bool ShouldKeepInput(int32 InInputIdx);
+	virtual bool ShouldKeepInput(int32 InThroughputInputIndex);
 
-	void ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* TargetExpression,
-		int32 InputIndex, UMaterialExpression* SourceExpression, int32 SourceOutputIndex, int32 SourceOutputChannel) const;
+	void ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* InTargetExpression,
+		int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) const;
 
-	virtual int32 ResolveInputChannel(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, int32 ChannelIndex, 
+	virtual int32 ResolveInputChannel(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, int32 InChannelIndex, 
 		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
 
 	virtual void UpdatePreviewMaterial(UMaterial* InPreviewMaterial = nullptr);

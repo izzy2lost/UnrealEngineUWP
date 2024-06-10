@@ -675,12 +675,12 @@ void UDMMaterialStageThroughputLayerBlend::NotifyPostChange(const FPropertyChang
 	Super::NotifyPostChange(InPropertyChangedEvent, InPropertyThatChanged);
 }
 
-void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex, 
-	UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
+void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx,
+	int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
 {
 	check(InSourceExpression);
 	check(InSourceExpression->GetOutputs().IsValidIndex(InSourceOutputIndex));
-	check(InInputIndex >= InputPreviousLayer && InInputIndex <= InputMaskSource);
+	check(InExpressionInputIndex >= InputPreviousLayer && InExpressionInputIndex <= InputMaskSource);
  
 	const TArray<UMaterialExpression*>& StageSourceExpressions = InBuildState->GetStageSourceExpressions(this);
 	check(!StageSourceExpressions.IsEmpty());
@@ -720,7 +720,7 @@ void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef
 		}
 	}
  
-	switch (InInputIndex)
+	switch (InExpressionInputIndex)
 	{
 		case InputPreviousLayer:
 			ConnectOutputToInput_Internal(

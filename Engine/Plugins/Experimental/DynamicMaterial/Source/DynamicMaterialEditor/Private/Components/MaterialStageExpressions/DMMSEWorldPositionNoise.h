@@ -5,6 +5,7 @@
 #include "Components/DMMaterialStageExpression.h"
 #include "DMMSEWorldPositionNoise.generated.h"
 
+enum class EDMLocationType : uint8;
 enum EVectorNoiseFunction : int;
 enum EWorldPositionIncludedOffsets : int;
 
@@ -19,6 +20,12 @@ public:
 	//~ Begin UDMMaterialStageExpression
 	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	//~ End UDMMaterialStageExpression
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	virtual EDMLocationType GetLocationType() const { return LocationType; }
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	virtual void SetLocationType(EDMLocationType InLocationType);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	virtual TEnumAsByte<EWorldPositionIncludedOffsets> GetShaderOffset() const { return ShaderOffset; }
@@ -52,7 +59,7 @@ public:
 
 	//~ Begin UDMMaterialStageThroughput
 	virtual void AddDefaultInput(int32 InInputIndex) const override;
-	virtual UMaterialExpression* GetExpressionForInput(const TArray<UMaterialExpression*>& StageSourceExpressions, int32 InputIdx) override;
+	virtual UMaterialExpression* GetExpressionForInput(const TArray<UMaterialExpression*>& InStageSourceExpressions, int32 InInputIndex, int32 InExpressionInputIndex) override;
 	//~ End UDMMaterialStageThroughput
 
 	//~ Begin UObject
@@ -60,6 +67,10 @@ public:
 	//~ End UObject
 
 protected:
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetLocationType, BlueprintSetter = SetLocationType, Category = "Material Designer",
+		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+	EDMLocationType LocationType;
+
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetShaderOffset, BlueprintSetter = SetShaderOffset, Category = "Material Designer",
 		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
 	TEnumAsByte<EWorldPositionIncludedOffsets> ShaderOffset;

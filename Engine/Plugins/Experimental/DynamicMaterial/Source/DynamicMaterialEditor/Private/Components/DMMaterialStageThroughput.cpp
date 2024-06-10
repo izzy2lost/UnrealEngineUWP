@@ -40,33 +40,33 @@ const TArray<TStrongObjectPtr<UClass>>& UDMMaterialStageThroughput::GetAvailable
 	return Throughputs;
 }
 
-bool UDMMaterialStageThroughput::CanInputAcceptType(int32 InputIndex, EDMValueType ValueType) const
+bool UDMMaterialStageThroughput::CanInputAcceptType(int32 InThroughputInputIndex, EDMValueType InValueType) const
 {
-	check(InputConnectors.IsValidIndex(InputIndex));
+	check(InputConnectors.IsValidIndex(InThroughputInputIndex));
 
-	return InputConnectors[InputIndex].IsCompatibleWith(ValueType);
+	return InputConnectors[InThroughputInputIndex].IsCompatibleWith(InValueType);
 }
 
-bool UDMMaterialStageThroughput::CanInputConnectTo(int32 InputIndex, const FDMMaterialStageConnector& OutputConnector, int32 OutputChannel, bool bCheckSingleFloat)
+bool UDMMaterialStageThroughput::CanInputConnectTo(int32 InThroughputInputIndex, const FDMMaterialStageConnector& InOutputConnector, int32 InOutputChannel, bool bInCheckSingleFloat)
 {
-	if (OutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
+	if (InOutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
 	{
-		if (CanInputAcceptType(InputIndex, OutputConnector.Type))
+		if (CanInputAcceptType(InThroughputInputIndex, InOutputConnector.Type))
 		{
 			return true;
 		}
 
-		if (UDMValueDefinitionLibrary::GetValueDefinition(OutputConnector.Type).IsFloatType() && bCheckSingleFloat)
+		if (UDMValueDefinitionLibrary::GetValueDefinition(InOutputConnector.Type).IsFloatType() && bInCheckSingleFloat)
 		{
-			return CanInputAcceptType(InputIndex, EDMValueType::VT_Float1);
+			return CanInputAcceptType(InThroughputInputIndex, EDMValueType::VT_Float1);
 		}
 
 		return false;
 	}
 
-	if (UDMValueDefinitionLibrary::GetValueDefinition(OutputConnector.Type).IsFloatType())
+	if (UDMValueDefinitionLibrary::GetValueDefinition(InOutputConnector.Type).IsFloatType())
 	{
-		return CanInputAcceptType(InputIndex, EDMValueType::VT_Float1);
+		return CanInputAcceptType(InThroughputInputIndex, EDMValueType::VT_Float1);
 	}
 
 	// Only float types can have non-whole channels.
@@ -74,19 +74,19 @@ bool UDMMaterialStageThroughput::CanInputConnectTo(int32 InputIndex, const FDMMa
 	return false;
 }
 
-bool UDMMaterialStageThroughput::CanChangeInput(int32 InputIndex) const
+bool UDMMaterialStageThroughput::CanChangeInput(int32 InThroughputInputIndex) const
 {
 	return true;
 }
 
-bool UDMMaterialStageThroughput::CanChangeInputType(int32 InputIndex) const
+bool UDMMaterialStageThroughput::CanChangeInputType(int32 InThroughputInputIndex) const
 {
-	check(InputConnectors.IsValidIndex(InputIndex));
+	check(InputConnectors.IsValidIndex(InThroughputInputIndex));
 
-	return InputConnectors[InputIndex].Type != EDMValueType::VT_Texture;
+	return InputConnectors[InThroughputInputIndex].Type != EDMValueType::VT_Texture;
 }
 
-bool UDMMaterialStageThroughput::IsInputVisible(int32 InputIndex) const
+bool UDMMaterialStageThroughput::IsInputVisible(int32 InThroughputInputIndex) const
 {
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
@@ -115,7 +115,7 @@ bool UDMMaterialStageThroughput::IsInputVisible(int32 InputIndex) const
 		}
 	}
 
-	if (bSupportsUVLink && InputIndex == GetLayerMaskTextureUVLinkInputIndex())
+	if (bSupportsUVLink && InThroughputInputIndex == GetLayerMaskTextureUVLinkInputIndex())
 	{
 		return !Layer->IsTextureUVLinkEnabled() || Layer->GetStageType(Stage) != EDMMaterialLayerStage::Mask;
 	}
@@ -123,12 +123,12 @@ bool UDMMaterialStageThroughput::IsInputVisible(int32 InputIndex) const
 	return true;
 }
 
-bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InInputIdx)
+bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InThroughputInputIndex)
 {
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
-	if (!CanChangeInput(InInputIdx) || !Stage->IsInputMapped(InInputIdx))
+	if (!CanChangeInput(InThroughputInputIndex) || !Stage->IsInputMapped(InThroughputInputIndex))
 	{
 		return false;
 	}
@@ -139,21 +139,21 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InInputIdx)
 	const EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 	const TArray<FDMMaterialStageConnection>& InputConnectionMap = Stage->GetInputConnectionMap();
 
-	if (!InputConnectionMap.IsValidIndex(InInputIdx))
+	if (!InputConnectionMap.IsValidIndex(InThroughputInputIndex))
 	{
 		return false;
 	}
 
-	if (InputConnectors[InInputIdx].Type == EDMValueType::VT_Float_Any || InputConnectors[InInputIdx].Type == EDMValueType::VT_Texture)
+	if (InputConnectors[InThroughputInputIndex].Type == EDMValueType::VT_Float_Any || InputConnectors[InThroughputInputIndex].Type == EDMValueType::VT_Texture)
 	{
 		return false;
 	}
 
-	const int RequiredInputCount = UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InInputIdx].Type).GetFloatCount();
+	const int RequiredInputCount = UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InThroughputInputIndex].Type).GetFloatCount();
 
 	int ActualInputCount = 0;
 
-	for (const FDMMaterialStageConnectorChannel& Channel : InputConnectionMap[InInputIdx].Channels)
+	for (const FDMMaterialStageConnectorChannel& Channel : InputConnectionMap[InThroughputInputIndex].Channels)
 	{
 		int32 ThisInputCount = 0;
 
@@ -175,9 +175,9 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InInputIdx)
 
 						if (UDMValueDefinitionLibrary::GetValueDefinition(PreviousStageOutputConnectors[Channel.OutputIndex].Type).IsFloatType() == false)
 						{
-							check(InputConnectionMap[InInputIdx].Channels.Num() == 1);
+							check(InputConnectionMap[InThroughputInputIndex].Channels.Num() == 1);
 
-							return InputConnectors[InInputIdx].IsCompatibleWith(PreviousStageOutputConnectors[Channel.OutputIndex]);
+							return InputConnectors[InThroughputInputIndex].IsCompatibleWith(PreviousStageOutputConnectors[Channel.OutputIndex]);
 						}
 						else
 						{
@@ -219,9 +219,9 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InInputIdx)
 
 				if (UDMValueDefinitionLibrary::GetValueDefinition(InputOutputConnectors[Channel.OutputIndex].Type).IsFloatType() == false)
 				{
-					check(InputConnectionMap[InInputIdx].Channels.Num() == 1);
+					check(InputConnectionMap[InThroughputInputIndex].Channels.Num() == 1);
 
-					return InputConnectors[InInputIdx].IsCompatibleWith(InputOutputConnectors[Channel.OutputIndex]);
+					return InputConnectors[InThroughputInputIndex].IsCompatibleWith(InputOutputConnectors[Channel.OutputIndex]);
 				}
 				else
 				{
@@ -256,8 +256,8 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InInputIdx)
 	return (ActualInputCount == RequiredInputCount);
 }
 
-void UDMMaterialStageThroughput::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex,
-	UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
+void UDMMaterialStageThroughput::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex,
+	int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
 {
 	check(InSourceExpression);
 	check(InSourceExpression->GetOutputs().IsValidIndex(InSourceOutputIndex));
@@ -265,52 +265,52 @@ void UDMMaterialStageThroughput::ConnectOutputToInput(const TSharedRef<FDMMateri
 	const TArray<UMaterialExpression*>& TargetExpressions = InBuildState->GetStageSourceExpressions(this);
 	check(!TargetExpressions.IsEmpty());
 
-	UMaterialExpression* TargetExpression = GetExpressionForInput(TargetExpressions, InInputIndex);
-	check(TargetExpression->GetInput(InInputIndex));
+	UMaterialExpression* TargetExpression = GetExpressionForInput(TargetExpressions, InThroughputInputIndex, InExpressionInputIndex);
+	check(TargetExpression->GetInput(InExpressionInputIndex));
 
 	ConnectOutputToInput_Internal(
 		InBuildState, 
 		TargetExpression, 
-		InInputIndex, 
+		InExpressionInputIndex, 
 		InSourceExpression, 
 		InSourceOutputIndex, 
 		InSourceOutputChannel
 	);
 }
 
-void UDMMaterialStageThroughput::ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* TargetExpression,
-	int32 InputIndex, UMaterialExpression* SourceExpression, int32 SourceOutputIndex, int32 SourceOutputChannel) const
+void UDMMaterialStageThroughput::ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* InTargetExpression,
+	int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) const
 {
-	check(TargetExpression != SourceExpression);
+	check(InTargetExpression != InSourceExpression);
 
-	FExpressionInput* ExpressionInput = TargetExpression->GetInput(InputIndex);
+	FExpressionInput* ExpressionInput = InTargetExpression->GetInput(InExpressionInputIndex);
 	
-	if (SourceOutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
+	if (InSourceOutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
 	{
-		SourceExpression->ConnectExpression(ExpressionInput, SourceOutputIndex);
+		InSourceExpression->ConnectExpression(ExpressionInput, InSourceOutputIndex);
 	}
-	else if (SourceExpression->IsA<UMaterialExpressionTextureBase>()
-		&& (SourceOutputChannel == FDMMaterialStageConnectorChannel::FIRST_CHANNEL
-			|| SourceOutputChannel == FDMMaterialStageConnectorChannel::SECOND_CHANNEL
-			|| SourceOutputChannel == FDMMaterialStageConnectorChannel::THIRD_CHANNEL
-			|| SourceOutputChannel == FDMMaterialStageConnectorChannel::FOURTH_CHANNEL))
+	else if (InSourceExpression->IsA<UMaterialExpressionTextureBase>()
+		&& (InSourceOutputChannel == FDMMaterialStageConnectorChannel::FIRST_CHANNEL
+			|| InSourceOutputChannel == FDMMaterialStageConnectorChannel::SECOND_CHANNEL
+			|| InSourceOutputChannel == FDMMaterialStageConnectorChannel::THIRD_CHANNEL
+			|| InSourceOutputChannel == FDMMaterialStageConnectorChannel::FOURTH_CHANNEL))
 	{
-		switch (SourceOutputChannel)
+		switch (InSourceOutputChannel)
 		{
 			case FDMMaterialStageConnectorChannel::FIRST_CHANNEL:
-				SourceExpression->ConnectExpression(ExpressionInput, 1);
+				InSourceExpression->ConnectExpression(ExpressionInput, 1);
 				break;
 
 			case FDMMaterialStageConnectorChannel::SECOND_CHANNEL:
-				SourceExpression->ConnectExpression(ExpressionInput, 2);
+				InSourceExpression->ConnectExpression(ExpressionInput, 2);
 				break;
 
 			case FDMMaterialStageConnectorChannel::THIRD_CHANNEL:
-				SourceExpression->ConnectExpression(ExpressionInput, 3);
+				InSourceExpression->ConnectExpression(ExpressionInput, 3);
 				break;
 
 			case FDMMaterialStageConnectorChannel::FOURTH_CHANNEL:
-				SourceExpression->ConnectExpression(ExpressionInput, 4);
+				InSourceExpression->ConnectExpression(ExpressionInput, 4);
 				break;
 
 			default:
@@ -320,9 +320,9 @@ void UDMMaterialStageThroughput::ConnectOutputToInput_Internal(const TSharedRef<
 	else
 	{
 		UMaterialExpression* MaskExpression = InBuildState->GetBuildUtils().CreateExpressionBitMask(
-			SourceExpression, 
-			SourceOutputIndex, 
-			SourceOutputChannel
+			InSourceExpression, 
+			InSourceOutputIndex, 
+			InSourceOutputChannel
 		);
 
 		MaskExpression->ConnectExpression(ExpressionInput, 0);
@@ -356,11 +356,12 @@ FDMExpressionInput UDMMaterialStageThroughput::GetLayerMaskLinkTextureUVInputExp
 	return ExpressionInput;
 }
 
-UMaterialExpression* UDMMaterialStageThroughput::GetExpressionForInput(const TArray<UMaterialExpression*>& StageSourceExpressions, int32 InputIdx)
+UMaterialExpression* UDMMaterialStageThroughput::GetExpressionForInput(const TArray<UMaterialExpression*>& InStageSourceExpressions, 
+	int32 InThroughputInputIndex, int32 InExpressionInputIndex)
 {
-	check(!StageSourceExpressions.IsEmpty());
+	check(!InStageSourceExpressions.IsEmpty());
 
-	return StageSourceExpressions[0];
+	return InStageSourceExpressions[0];
 }
 
 void UDMMaterialStageThroughput::OnComponentAdded()
@@ -498,7 +499,7 @@ void UDMMaterialStageThroughput::AddDefaultInput(int32 InInputIndex) const
 	}
 }
 
-int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, FDMMaterialStageConnectorChannel& OutChannel,
+int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, FDMMaterialStageConnectorChannel& OutChannel,
 	TArray<UMaterialExpression*>& OutExpressions) const
 {
 	UDMMaterialStage* Stage = GetStage();
@@ -518,11 +519,11 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 		&& Layer->GetStage(EDMMaterialLayerStage::Base, /* Enabled Only */ true)
 		&& Layer->GetStageType(ParentMostStage) == EDMMaterialLayerStage::Mask
 		&& SupportsLayerMaskTextureUVLink() 
-		&& (GetLayerMaskTextureUVLinkInputIndex() == INDEX_NONE || GetLayerMaskTextureUVLinkInputIndex() == InputIndex))
+		&& (GetLayerMaskTextureUVLinkInputIndex() == INDEX_NONE || GetLayerMaskTextureUVLinkInputIndex() == InThroughputInputIndex))
 	{
 		const int32 OutputIndex = ResolveLayerMaskTextureUVLinkInput(
 			InBuildState,
-			InputIndex, 
+			InThroughputInputIndex, 
 			OutChannel, 
 			OutExpressions
 		);
@@ -535,24 +536,24 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 
 	const TArray<FDMMaterialStageConnection>& InputConnectionMap = Stage->GetInputConnectionMap();
 
-	if (!InputConnectionMap.IsValidIndex(InputIndex))
+	if (!InputConnectionMap.IsValidIndex(InThroughputInputIndex))
 	{
 		return INDEX_NONE;
 	}
 
-	if (InputConnectionMap[InputIndex].Channels.IsEmpty())
+	if (InputConnectionMap[InThroughputInputIndex].Channels.IsEmpty())
 	{
 		return INDEX_NONE;
 	}
 
-	if (InputConnectionMap[InputIndex].Channels.Num() == 1)
+	if (InputConnectionMap[InThroughputInputIndex].Channels.Num() == 1)
 	{
 		// Full copy in case it is changed by the channel resolve.
-		OutChannel = InputConnectionMap[InputIndex].Channels[0];
+		OutChannel = InputConnectionMap[InThroughputInputIndex].Channels[0];
 
 		return ResolveInputChannel(
 			InBuildState, 
-			InputIndex, 
+			InThroughputInputIndex, 
 			0, 
 			OutChannel, 
 			OutExpressions
@@ -560,12 +561,12 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 	}
 
 	// Only floats can have sub-channel mapping
-	check(UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InputIndex].Type).IsFloatType());
+	check(UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InThroughputInputIndex].Type).IsFloatType());
 
 	// Valid scalar/vector is from 1 to 4 floats.
-	check(InputConnectionMap[InputIndex].Channels.Num() <= 4);
+	check(InputConnectionMap[InThroughputInputIndex].Channels.Num() <= 4);
 
-	for (const FDMMaterialStageConnectorChannel& Channel : InputConnectionMap[InputIndex].Channels)
+	for (const FDMMaterialStageConnectorChannel& Channel : InputConnectionMap[InThroughputInputIndex].Channels)
 	{
 		check(Channel.OutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 	}
@@ -575,7 +576,7 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 
 	UMaterialExpression* MakeFloat = nullptr;
 
-	switch (InputConnectionMap[InputIndex].Channels.Num())
+	switch (InputConnectionMap[InThroughputInputIndex].Channels.Num())
 	{
 		case 2:
 			MakeFloat = FDMMaterialFunctionLibrary::Get().GetMakeFloat2(InBuildState->GetDynamicMaterial(), UE_DM_NodeComment_Default);
@@ -594,14 +595,14 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 			return INDEX_NONE;
 	}
 
-	for (int32 ChannelIdx = 0; ChannelIdx < InputConnectionMap[InputIndex].Channels.Num(); ++ChannelIdx)
+	for (int32 ChannelIdx = 0; ChannelIdx < InputConnectionMap[InThroughputInputIndex].Channels.Num(); ++ChannelIdx)
 	{
-		FDMMaterialStageConnectorChannel ChannelTemp = InputConnectionMap[InputIndex].Channels[ChannelIdx];
+		FDMMaterialStageConnectorChannel ChannelTemp = InputConnectionMap[InThroughputInputIndex].Channels[ChannelIdx];
 		TArray<UMaterialExpression*> ChannelExpressions;
 
 		ResolveInputChannel(
 			InBuildState, 
-			InputIndex, 
+			InThroughputInputIndex, 
 			ChannelIdx, 
 			ChannelTemp, 
 			ChannelExpressions
@@ -619,7 +620,7 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 	return 0;
 }
 
-int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
+int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, 
 	FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const
 {
 	UDMMaterialStage* Stage = GetStage();
@@ -638,11 +639,11 @@ int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInput(const TShar
 }
 
 int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInputImpl(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
-	const UDMMaterialStageSource* StageSource, FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions)
+	const UDMMaterialStageSource* InStageSource, FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions)
 {
 	FDMExpressionInput ConnectedInputExpressions;
 
-	if (const UDMMaterialStageInputTextureUV* InputTextureUV = Cast<const UDMMaterialStageInputTextureUV>(StageSource))
+	if (const UDMMaterialStageInputTextureUV* InputTextureUV = Cast<const UDMMaterialStageInputTextureUV>(InStageSource))
 	{
 		InputTextureUV->GenerateExpressions(InBuildState);
 		OutExpressions = InBuildState->GetStageSourceExpressions(InputTextureUV);
@@ -652,7 +653,7 @@ int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInputImpl(const T
 		return 0;
 	}
 
-	else if (const UDMMaterialStageThroughput* Throughput = Cast<const UDMMaterialStageThroughput>(StageSource))
+	else if (const UDMMaterialStageThroughput* Throughput = Cast<const UDMMaterialStageThroughput>(InStageSource))
 	{
 		if (Throughput->SupportsLayerMaskTextureUVLink())
 		{
@@ -660,7 +661,7 @@ int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInputImpl(const T
 		}
 	}
 
-	else if (const UDMMaterialStageInputThroughput* InputThroughput = Cast<const UDMMaterialStageInputThroughput>(StageSource))
+	else if (const UDMMaterialStageInputThroughput* InputThroughput = Cast<const UDMMaterialStageInputThroughput>(InStageSource))
 	{
 		if (InputThroughput->GetMaterialStageThroughput())
 		{
@@ -686,7 +687,7 @@ int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInputImpl(const T
 	return INDEX_NONE;
 }
 
-int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, int32 ChannelIndex,
+int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, int32 InChannelIndex,
 	FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const
 {
 	if (OutChannel.SourceIndex == FDMMaterialStageConnectorChannel::NO_SOURCE)
@@ -694,7 +695,7 @@ int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMateri
 		return INDEX_NONE;
 	}
 
-	check(InputConnectors.IsValidIndex(InputIndex));
+	check(InputConnectors.IsValidIndex(InThroughputInputIndex));
 
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
@@ -764,7 +765,7 @@ int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMateri
 	// If our "Previous Stage" is blank, these need default values.
 	const int32 OutputFloatCount = InputSourceOutputConnectors ? UDMValueDefinitionLibrary::GetValueDefinition((*InputSourceOutputConnectors)[OutChannel.OutputIndex].Type).GetFloatCount() : 3;
 	const bool bOutputIsFloatType = InputSourceOutputConnectors ? UDMValueDefinitionLibrary::GetValueDefinition((*InputSourceOutputConnectors)[OutChannel.OutputIndex].Type).IsFloatType() : true;
-	const int32 InputFloatCount = UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InputIndex].Type).GetFloatCount();
+	const int32 InputFloatCount = UDMValueDefinitionLibrary::GetValueDefinition(InputConnectors[InThroughputInputIndex].Type).GetFloatCount();
 
 	if (OutChannel.OutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 		&& bOutputIsFloatType && OutputFloatCount > 0 && InputFloatCount > 0)

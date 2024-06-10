@@ -77,6 +77,13 @@ enum class EDMUVSource : uint8
 	WorldPosition
 };
 
+UENUM(BlueprintType)
+enum class EDMLocationType : uint8
+{
+	World,
+	Actor
+};
+
 /**
  * An individual component of a connector (e.g. G from RGB.)
  */

@@ -6,11 +6,12 @@
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialSubStage.h"
-#include "Components/MaterialStageExpressions/DMMSETextureSample.h"
-#include "CoreGlobals.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
-#include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
+#include "CoreGlobals.h"
+#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionDivide.h"
+#include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionVectorNoise.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #include "Model/DMMaterialBuildState.h"
@@ -23,6 +24,7 @@ UDMMaterialStageExpressionWorldPositionNoise::UDMMaterialStageExpressionWorldPos
 		LOCTEXT("UMaterialExpressionVectorNoise", "Noise"),
 		UMaterialExpressionVectorNoise::StaticClass()
 	)
+	, LocationType(EDMLocationType::World)
 	, ShaderOffset(EWorldPositionIncludedOffsets::WPT_Default)
 	, NoiseFunction(EVectorNoiseFunction::VNF_VectorALU)
 	, Quality(1)
@@ -32,10 +34,12 @@ UDMMaterialStageExpressionWorldPositionNoise::UDMMaterialStageExpressionWorldPos
 	bInputRequired = true;
 	bAllowNestedInputs = true;
 
-	InputConnectors.Add({1, LOCTEXT("Scale", "Scale"), EDMValueType::VT_Float1});
+	InputConnectors.Add({1, LOCTEXT("Scale", "Scale"), EDMValueType::VT_Float3_XYZ});
+	InputConnectors.Add({1, LOCTEXT("Offset", "Offset"), EDMValueType::VT_Float3_XYZ});
 
 	OutputConnectors.Add({0, LOCTEXT("ColorRGB", "Color (RGB)"), EDMValueType::VT_Float3_RGB});
 
+	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, LocationType));
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, ShaderOffset));
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, NoiseFunction));
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, Quality));
@@ -62,7 +66,29 @@ void UDMMaterialStageExpressionWorldPositionNoise::GenerateExpressions(const TSh
 
 	UMaterialExpressionDivide* Divide = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionDivide>(UE_DM_NodeComment_Default);
 
-	WorldPosition->ConnectExpression(&Divide->A, 0);
+	switch (LocationType)
+	{
+		case EDMLocationType::World:
+			WorldPosition->ConnectExpression(&Divide->A, 0);
+			break;
+
+		case EDMLocationType::Actor:
+		{
+			// Not exported
+			TSubclassOf<UMaterialExpression> ActorPositionWSClass = FindClass("MaterialExpressionActorPositionWS");
+			UMaterialExpression* ActorPositionWS = InBuildState->GetBuildUtils().CreateExpression(ActorPositionWSClass, UE_DM_NodeComment_Default);
+
+			UMaterialExpressionSubtract* Subtract = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionSubtract>(UE_DM_NodeComment_Default);
+			WorldPosition->ConnectExpression(&Subtract->A, 0);
+			ActorPositionWS->ConnectExpression(&Subtract->B, 0);
+			Subtract->ConnectExpression(&Divide->A, 0);
+
+			break;
+		}
+	}
+
+	UMaterialExpressionAdd* Add = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionAdd>(UE_DM_NodeComment_Default);
+	Divide->ConnectExpression(&Add->A, 0);
 
 	UMaterialExpressionVectorNoise* VectorNoise = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionVectorNoise>(UE_DM_NodeComment_Default);
 	VectorNoise->NoiseFunction = NoiseFunction;
@@ -70,9 +96,21 @@ void UDMMaterialStageExpressionWorldPositionNoise::GenerateExpressions(const TSh
 	VectorNoise->bTiling = bTiling ? 1 : 0;
 	VectorNoise->TileSize = TileSize;
 
-	Divide->ConnectExpression(&VectorNoise->Position, 0);
+	Add->ConnectExpression(&VectorNoise->Position, 0);
 
-	InBuildState->AddStageSourceExpressions(this, {WorldPosition, Divide, VectorNoise});
+	InBuildState->AddStageSourceExpressions(this, {WorldPosition, Divide, Add, VectorNoise});
+}
+
+void UDMMaterialStageExpressionWorldPositionNoise::SetLocationType(EDMLocationType InLocationType)
+{
+	if (LocationType == InLocationType)
+	{
+		return;
+	}
+
+	LocationType = InLocationType;
+
+	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::SetShaderOffset(EWorldPositionIncludedOffsets InShaderOffset)
@@ -144,16 +182,31 @@ void UDMMaterialStageExpressionWorldPositionNoise::AddDefaultInput(int32 InInput
 
 	switch (InInputIndex)
 	{
+		// Scale
 		case 0:
 		{
 			UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(Stage->GetInputs().Last());
 			check(InputValue);
 
-			UDMMaterialValueFloat1* Float1Value = Cast<UDMMaterialValueFloat1>(InputValue->GetValue());
-			check(Float1Value);
+			UDMMaterialValueFloat3XYZ* Float3Value = Cast<UDMMaterialValueFloat3XYZ>(InputValue->GetValue());
+			check(Float3Value);
 
-			Float1Value->SetDefaultValue(10.f);
-			Float1Value->ApplyDefaultValue();
+			Float3Value->SetDefaultValue({1.f, 10.f, 10.f});
+			Float3Value->ApplyDefaultValue();
+			break;
+		}
+
+		// Offset
+		case 1:
+		{
+			UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(Stage->GetInputs().Last());
+			check(InputValue);
+
+			UDMMaterialValueFloat3XYZ* Float3Value = Cast<UDMMaterialValueFloat3XYZ>(InputValue->GetValue());
+			check(Float3Value);
+
+			Float3Value->SetDefaultValue({0.f, 0.f, 0.f});
+			Float3Value->ApplyDefaultValue();
 			break;
 		}
 
@@ -163,20 +216,36 @@ void UDMMaterialStageExpressionWorldPositionNoise::AddDefaultInput(int32 InInput
 	}
 }
 
-UMaterialExpression* UDMMaterialStageExpressionWorldPositionNoise::GetExpressionForInput(const TArray<UMaterialExpression*>& StageSourceExpressions, int32 InputIdx)
+UMaterialExpression* UDMMaterialStageExpressionWorldPositionNoise::GetExpressionForInput(const TArray<UMaterialExpression*>& InStageSourceExpressions, 
+	int32 InInputIndex, int32 InExpressionInputIndex)
 {
-	if (InputIdx == 1 && StageSourceExpressions.IsValidIndex(1))
+	switch (InInputIndex)
 	{
-		return StageSourceExpressions[1];
+		// Scale
+		case 0:
+			if (InStageSourceExpressions.IsValidIndex(1))
+			{
+				return InStageSourceExpressions[1];
+			}
+			break;
+
+		// Offset
+		case 1:
+			if (InStageSourceExpressions.IsValidIndex(2))
+			{
+				return InStageSourceExpressions[2];
+			}
+			break;
 	}
 
-	return Super::GetExpressionForInput(StageSourceExpressions, InputIdx);
+	return Super::GetExpressionForInput(InStageSourceExpressions, InInputIndex, InExpressionInputIndex);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
+	static const FName LocationTypeName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, LocationType);
 	static const FName ShaderOffsetName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, ShaderOffset);
 	static const FName NoiseFunctionName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, NoiseFunction);
 	static const FName QualityName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionWorldPositionNoise, Quality);
@@ -185,7 +254,8 @@ void UDMMaterialStageExpressionWorldPositionNoise::PostEditChangeProperty(FPrope
 
 	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (PropertyName == ShaderOffsetName
+	if (PropertyName == LocationTypeName
+		|| PropertyName == ShaderOffsetName
 		|| PropertyName == NoiseFunctionName
 		|| PropertyName == QualityName
 		|| PropertyName == TilingName
