@@ -4,7 +4,6 @@
 
 #include "Logging/LogMacros.h"
 
-
 namespace UE::UMGWidgetPreview::Private
 {
 	static const FLazyName MessageLogName = "WidgetPreviewLog";

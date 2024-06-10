@@ -6,6 +6,7 @@
 #include "ContentBrowserMenuContexts.h"
 #include "Editor.h"
 #include "Framework/Commands/UIAction.h"
+#include "Logging/LogMacros.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -22,6 +23,8 @@
 #include "WidgetPreviewStyle.h"
 
 #define LOCTEXT_NAMESPACE "UMGWidgetPreviewModule"
+
+DEFINE_LOG_CATEGORY(LogWidgetPreview);
 
 namespace UE::UMGWidgetPreview::Private
 {
