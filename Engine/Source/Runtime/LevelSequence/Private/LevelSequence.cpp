@@ -580,6 +580,8 @@ void ULevelSequence::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutCons
 {
 	Super::DeclareConstructClasses(OutConstructClasses, SpecificSubclass);
 	OutConstructClasses.Add(FTopLevelAssetPath(UObjectRedirector::StaticClass()));
+	OutConstructClasses.Add(FTopLevelAssetPath(UMovieSceneSpawnableActorBinding::StaticClass()));
+	OutConstructClasses.Add(FTopLevelAssetPath(UMovieSceneSpawnableDirectorBlueprintBinding::StaticClass()));
 }
 #endif
 
