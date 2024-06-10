@@ -76,8 +76,9 @@ static int32 PurlCommandEntry(const FContext& Context)
 	}
 	FRequest Request = Loop.Request(AnsiMethod, AnsiUrl, &RequestParams);
 
-	FIoBuffer Dest;
-	Loop.Send(MoveTemp(Request), [&Dest] (const FTicketStatus& Status)
+	bool bChunked = false;
+	uint32 ContentSize = 0;
+	Loop.Send(MoveTemp(Request), [Dest=FIoBuffer(), &ContentSize, &bChunked] (const FTicketStatus& Status) mutable
 	{
 		if (Status.GetId() == FTicketStatus::EId::Response)
 		{
@@ -99,7 +100,14 @@ static int32 PurlCommandEntry(const FContext& Context)
 				return true;
 			});
 
+			bChunked = (Response.GetContentLength() == -1);
 			Response.SetDestination(&Dest);
+			return;
+		}
+
+		if (Status.GetId() == FTicketStatus::EId::Content)
+		{
+			ContentSize += uint32(Dest.GetSize());
 			return;
 		}
 
@@ -116,7 +124,7 @@ static int32 PurlCommandEntry(const FContext& Context)
 		FPlatformProcess::SleepNoStats(0.1f);
 	}
 
-	std::printf("Data: %u bytes\n", uint32(Dest.GetSize()));
+	std::printf("Data: %u bytes\n", ContentSize);
 
 	return 0;
 }
