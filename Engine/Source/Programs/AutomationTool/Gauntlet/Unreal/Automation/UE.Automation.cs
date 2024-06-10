@@ -529,7 +529,7 @@ namespace UE
 
 			if (GetConfiguration() is AutomationTestConfig Config)
 			{
-				if (Config.ResumeOnCriticalFailure && string.IsNullOrEmpty(Config.ReportExportPath))
+				if ((Config.WriteTestResultsForHorde || Config.ResumeOnCriticalFailure) && string.IsNullOrEmpty(Config.ReportExportPath))
 				{
 					Config.ReportExportPath = Path.Combine(Globals.TempDir, "TestReport");
 				}
@@ -653,10 +653,10 @@ namespace UE
 							switch (Entry.Level)
 							{
 								case UnrealLog.LogLevel.Error:
-									Events.Add(new UnrealAutomationEvent(EventType.Error, Entry.Message));
+									TestNodeEvents.Add(new UnrealTestEvent(EventSeverity.Error, Entry.Message, Enumerable.Empty<string>()));
 									break;
 								case UnrealLog.LogLevel.Warning:
-									Events.Add(new UnrealAutomationEvent(EventType.Warning, Entry.Message));
+									TestNodeEvents.Add(new UnrealTestEvent(EventSeverity.Warning, Entry.Message, Enumerable.Empty<string>()));
 									break;
 							}
 						}
@@ -828,12 +828,11 @@ namespace UE
 							TempReport.SetOutputArtifactPath(HordeArtifactPath);
 							foreach (UnrealRoleArtifacts Artifact in SessionArtifacts)
 							{
-								string LogName = Path.GetFullPath(Artifact.LogPath).Replace(Path.GetFullPath(Context.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
-								TempReport.AttachArtifact(Artifact.LogPath, LogName);
-								// Reference last run instance log
-								if (Artifact.SessionRole.RoleType == MainRole.Type)
+								string LogName = Path.GetRelativePath(Path.GetFullPath(Context.Options.LogDir), Path.GetFullPath(Artifact.LogPath));
+								if (TempReport.AttachArtifact(Artifact.LogPath, LogName) && Artifact.SessionRole.RoleType == MainRole.Type)
 								{
-									JsonTestPassResults.Devices.Last().AppInstanceLog = LogName.Replace("\\", "/");
+									// Reference last run instance log
+									JsonTestPassResults.Devices.Last().AppInstanceLog = Gauntlet.FileUtils.ConvertPathToUri(Path.GetRelativePath(Globals.UnrealRootDir, Path.Combine(HordeArtifactPath, LogName)));
 								}
 							}
 							JsonTestPassResults.WriteToJson();
@@ -1074,19 +1073,19 @@ namespace UE
 					{
 						Log.Error(KnownLogEvents.Gauntlet_TestEvent, " * No tests were executed.");
 
-						IEnumerable<UnrealAutomationEvent> Errors = Events.Where(E => E.IsError).Distinct();
-						IEnumerable<UnrealAutomationEvent> Warnings = Events.Where(E => E.IsWarning).Distinct();
+						IEnumerable<UnrealTestEvent> Errors = TestNodeEvents.Where(E => E.IsError).Distinct();
+						IEnumerable<UnrealTestEvent> Warnings = TestNodeEvents.Where(E => E.IsWarning).Distinct();
 						if (Errors.Any() || Warnings.Any())
 						{
 							Log.Info("   See log above for details.");
 							foreach (var Error in Errors.Take(MaxEventsDisplayPerTest))
 							{
-								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Error.FormatToString());
+								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Error.Summary);
 							}
 							NotifyMoreIfNeeded(Errors);
 							foreach (var Warning in Warnings.Take(MaxEventsDisplayPerTest))
 							{
-								Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Warning.FormatToString());
+								Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Warning.Summary);
 							}
 							NotifyMoreIfNeeded(Warnings);
 							Log.Info("");

@@ -10,6 +10,7 @@ using System.Linq;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using AutomationUtils.Matchers;
+using static Gauntlet.HordeReport;
 
 namespace Gauntlet
 {
@@ -78,11 +79,11 @@ namespace Gauntlet
 		/// </summary>
 		public override IEnumerable<string> GetWarnings()
 		{
-			IEnumerable<string> WarningList = Events.Where(E => E.IsWarning).Select(E => E.Message);
+			IEnumerable<string> WarningList = TestNodeEvents.Where(E => E.IsWarning).Select(E => E.Summary);
 			
 			if (RoleResults != null)
 			{
-				WarningList = WarningList.Union(RoleResults.SelectMany(R => R.Events.Where(E => E.Severity == EventSeverity.Warning)).Select(E => E.Summary));
+				WarningList = WarningList.Union(RoleResults.SelectMany(R => R.Events.Where(E => E.IsWarning)).Select(E => E.Summary));
 			}
 
 			return WarningList.ToArray();
@@ -94,11 +95,11 @@ namespace Gauntlet
 		/// </summary>
 		public override IEnumerable<string> GetErrors()
 		{
-			IEnumerable<string> ErrorList = Events.Where(E => E.IsError).Select(E => E.Message);
+			IEnumerable<string> ErrorList = TestNodeEvents.Where(E => E.IsError).Select(E => E.Summary);
 			
 			if (RoleResults != null)
 			{
-				ErrorList = ErrorList.Union(RoleResults.SelectMany(R => R.Events.Where(E => E.Severity == EventSeverity.Error || E.Severity == EventSeverity.Fatal)).Select(E => E.Summary));
+				ErrorList = ErrorList.Union(RoleResults.SelectMany(R => R.Events.Where(E => E.IsError)).Select(E => E.Summary));
 			}
 
 			return ErrorList.ToArray();			
@@ -121,21 +122,13 @@ namespace Gauntlet
 		}
 
 		/// <summary>
-		/// Returns the test URL Link
-		/// </summary>
-		public virtual string GetURLLink()
-		{
-			return "";
-		}
-
-		/// <summary>
 		/// Report an error
 		/// </summary>
 		/// <param name="Message"></param>
 		public virtual void ReportError(string Message, params object[] Args)
 		{
 			Message = string.Format(Message, Args);
-			Events.Add(new UnrealAutomationEvent(EventType.Error, Message));
+			TestNodeEvents.Add(new UnrealTestEvent(EventSeverity.Error, Message, Enumerable.Empty<string>()));
 			if (!LogWarningsAndErrorsAfterSummary) { Log.Error(KnownLogEvents.Gauntlet_TestEvent, Message); }
 			if (GetTestStatus() == TestStatus.Complete && GetTestResult() == TestResult.Passed)
 			{
@@ -150,7 +143,7 @@ namespace Gauntlet
 		public virtual void ReportWarning(string Message, params object[] Args)
 		{
 			Message = string.Format(Message, Args);
-			Events.Add(new UnrealAutomationEvent(EventType.Warning, Message));
+			TestNodeEvents.Add(new UnrealTestEvent(EventSeverity.Warning, Message, Enumerable.Empty<string>()));
 			if (!LogWarningsAndErrorsAfterSummary) { Log.Warning(KnownLogEvents.Gauntlet_TestEvent, Message); }
 		}
 
@@ -230,12 +223,6 @@ namespace Gauntlet
 		/// After the test completes holds artifacts for each process (clients, servers etc).
 		/// </summary>
 		public IEnumerable<UnrealRoleArtifacts> SessionArtifacts { get; private set; }
-
-		/// <summary>
-		/// Error and warning collection.
-		/// </summary>
-		protected List<UnrealAutomationEvent> Events { get; private set; } = new List<UnrealAutomationEvent>();
-
 
 		/// <summary>
 		/// Collection of events thrown by gauntlet itself during the test run.
@@ -1106,13 +1093,18 @@ namespace Gauntlet
 
 			// Create results from all roles from these artifacts
 			RoleResults = CreateRoleResultsFromArtifacts(InReason, SessionArtifacts);
+			// Update Test node result from Role processed results when they don't match
+			if (GetTestResult() == TestResult.Passed && RoleResults.Any(R => R.ProcessResult != UnrealProcessResult.ExitOk))
+			{
+				SetTestResult(TestResult.Failed);
+			}
 
 			string Message = string.Empty;
 			ITestReport Report = null;
 
 			try
 			{
-				// Check if the deprecated signature is overriden, call it anyway if that the case.
+				// Check if the deprecated signature is overridden, call it anyway if that the case.
 				var OldSignature = new[] { typeof(TestResult), typeof(UnrealTestContext), typeof(UnrealBuildSource), typeof(IEnumerable<UnrealRoleResult>), typeof(string) };
 				var Simplifiedignature = new[] { typeof(TestResult) };
 				if (!Utils.InterfaceHelpers.HasOverriddenMethod(this.GetType(), "CreateReport", Simplifiedignature) && Utils.InterfaceHelpers.HasOverriddenMethod(this.GetType(), "CreateReport", OldSignature))
@@ -1282,8 +1274,7 @@ namespace Gauntlet
 			if (GetCachedConfiguration().WriteTestResultsForHorde)
 			{
 				// write test report for Horde
-				HordeReport.SimpleTestReport HordeTestReport = CreateSimpleReportForHorde(Result);
-				return HordeTestReport;
+				return CreateSimpleReportForHorde(Result);
 			}
 
 			return null;
@@ -1299,11 +1290,31 @@ namespace Gauntlet
 			if (GetCachedConfiguration().WriteTestResultsForHorde)
 			{
 				// write test report for Horde
-				HordeReport.SimpleTestReport HordeTestReport = CreateSimpleReportForHorde(Result);
-				return HordeTestReport;
+				return CreateSimpleReportForHorde(Result);
 			}
 
 			return null;
+		}
+
+		/// <summary>
+		/// Unique key to identify and cross reference test name across test sessions 
+		/// </summary>
+		protected virtual string HordeReportTestKey
+		{
+			get
+			{
+				if (string.IsNullOrEmpty(GetCachedConfiguration().HordeTestDataKey))
+				{
+					if (Globals.Params.ParseParam("UseTestDataV2"))
+					{
+						return Type;
+					}
+
+					return Name + " " + GetMainRoleContextString();
+				}
+
+				return GetCachedConfiguration().HordeTestDataKey;
+			}
 		}
 
 		/// <summary>
@@ -1326,59 +1337,102 @@ namespace Gauntlet
 		/// Generate a Simple Test Report from the results of this test
 		/// </summary>
 		/// <param name="Result"></param>
-		protected virtual HordeReport.SimpleTestReport CreateSimpleReportForHorde(TestResult Result)
+		protected virtual ITestReport CreateSimpleReportForHorde(TestResult Result)
 		{
-			if (string.IsNullOrEmpty(GetCachedConfiguration().HordeTestDataKey))
+			BaseHordeReport HordeTestReport = null;
+			IEnumerable<UnrealTestRole> RoleList = null;
+			if (Globals.Params.ParseParam("UseTestDataV2"))
 			{
-				GetCachedConfiguration().HordeTestDataKey = Name + " " + GetMainRoleContextString();
+				RoleList = new UnrealTestRole[] { GetCachedConfiguration().GetMainRequiredRole() };
+				AutomatedTestSessionData TestReport = new AutomatedTestSessionData(HordeReportTestKey, HordeReportTestName);
+				DateTime SessionTime = SessionStartTime.ToUniversalTime();
+				float TimeElapse = (float)(DateTime.Now - SessionStartTime).TotalSeconds;
+				TestReport.SetSessionTiming(SessionTime, TimeElapse);
+				// Simple report has one phase
+				var Phase = TestReport.AddPhase("Main");
+				Phase.SetTiming(SessionTime, TimeElapse);
+				// Propagate events
+				var Stream = Phase.GetStream();
+				foreach(UnrealTestEvent Event in TestNodeEvents)
+				{
+					Stream.AddEvent(Event);
+				}
+				if (RoleResults != null)
+				{
+					foreach(UnrealRoleResult Item in RoleResults)
+					{
+						string RoleType = Item.Artifacts.SessionRole.RoleType.ToString();
+						foreach (UnrealTestEvent Event in Item.Events)
+						{
+							Stream.AddEvent(Event);
+						}
+						// Add Processed result
+						if (Item.ProcessResult != UnrealProcessResult.ExitOk)
+						{
+							Stream.AddError($"{RoleType}: {Item.Summary}");
+						}
+						// Since we are going through the Role, lets add the related device
+						ITargetDevice TargetDevice = Item.Artifacts.AppInstance.Device;
+						string DeviceName = TargetDevice.Platform == BuildHostPlatform.Current.Platform? System.Environment.MachineName : TargetDevice.Name;
+						string DeviceKey = TargetDevice.Name.Replace(".", "-"); // Key must not contains dot
+						var ReportDevice = TestReport.AddDevice(DeviceName, DeviceKey);
+						ReportDevice.metadata.Add("Platform", TargetDevice.Platform.ToString());
+						ReportDevice.metadata.Add("Role", RoleType);
+						Phase.deviceKeys.Add(DeviceKey);
+					}
+				}
+				// Outcome
+				Phase.SetOutcome(GetTestResult());
+				HordeTestReport = TestReport;
 			}
-
-			HordeReport.SimpleTestReport HordeTestReport = new HordeReport.SimpleTestReport(UnrealTestResult, Context, GetCachedConfiguration());
-			HordeTestReport.TestName = HordeReportTestName;
-			HordeTestReport.ReportCreatedOn = DateTime.Now.ToString();
-			HordeTestReport.TotalDurationSeconds = (float) (DateTime.Now - SessionStartTime).TotalSeconds;
-			HordeTestReport.Description = GetMainRoleContextString();
-			HordeTestReport.URLLink = GetURLLink();
-			HordeTestReport.Errors.AddRange(GetErrorsAndAbnornalExits());
-			if (!string.IsNullOrEmpty(CancellationReason))
+			else
 			{
-				HordeTestReport.Errors.Add(CancellationReason);
+				RoleList = GetCachedConfiguration().RequiredRoles.Values.SelectMany(V => V);
+				SimpleTestReport SimpleReport = new SimpleTestReport(UnrealTestResult, Context, GetCachedConfiguration());
+				SimpleReport.TestName = HordeReportTestName;
+				SimpleReport.ReportCreatedOn = DateTime.UtcNow.ToString();
+				SimpleReport.TotalDurationSeconds = (float)(DateTime.Now - SessionStartTime).TotalSeconds;
+				SimpleReport.Description = GetMainRoleContextString();
+				SimpleReport.Errors.AddRange(GetErrorsAndAbnornalExits());
+				if (!string.IsNullOrEmpty(CancellationReason))
+				{
+					SimpleReport.Errors.Add(CancellationReason);
+				}
+				SimpleReport.Warnings.AddRange(GetWarnings());
+				SimpleReport.HasSucceeded = !(Result == TestResult.Failed || Result == TestResult.TimedOut || SimpleReport.Errors.Count > 0);
+				if (SimpleReport.Errors.Count > 0 && Result == TestResult.Passed)
+				{
+					SetUnrealTestResult(TestResult.Failed);
+				}
+				SimpleReport.Status = GetTestResult().ToString();
+				HordeTestReport = SimpleReport;
 			}
-			HordeTestReport.Warnings.AddRange(GetWarnings());
-			HordeTestReport.HasSucceeded = !(Result == TestResult.Failed || Result == TestResult.TimedOut || HordeTestReport.Errors.Count > 0);
-			if (HordeTestReport.Errors.Count > 0 && Result == TestResult.Passed)
-			{
-				SetUnrealTestResult(TestResult.Failed);
-			}
-			HordeTestReport.Status = GetTestResult().ToString();
-			string HordeArtifactPath = string.IsNullOrEmpty(GetCachedConfiguration().HordeArtifactPath) ? HordeReport.DefaultArtifactsDir : GetCachedConfiguration().HordeArtifactPath;
-			HordeTestReport.SetOutputArtifactPath(HordeArtifactPath);
+			string HordeArtifactPath = string.IsNullOrEmpty(GetCachedConfiguration().HordeArtifactPath) ? DefaultArtifactsDir : GetCachedConfiguration().HordeArtifactPath;
+			string ArtifactPathLabel = new DirectoryInfo(ArtifactPath).Name;
+			HordeTestReport.SetOutputArtifactPath(Path.Combine(HordeArtifactPath, ArtifactPathLabel));
 			if (SessionArtifacts != null)
 			{
 				foreach (UnrealRoleResult RoleResult in RoleResults)
 				{
-					string LogName = string.Empty;
 					string LogPath = RoleResult.Artifacts.LogPath;
 					if(!string.IsNullOrEmpty(LogPath) && File.Exists(LogPath))
 					{
-						LogName = Path.GetFullPath(LogPath).Replace(Path.GetFullPath(Context.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
-						HordeTestReport.AttachArtifact(RoleResult.Artifacts.LogPath, LogName);
-					}
+						string LogName = FileUtils.ConvertPathToUri(Path.GetRelativePath(Path.GetFullPath(ArtifactPath), Path.GetFullPath(LogPath)));
+						if (HordeTestReport is BaseHordeReport Report)
+						{
+							string DeviceKey = RoleResult.Artifacts.AppInstance.Device.Name.Replace(".", "-");
+							Report.AttachDeviceLog(DeviceKey, LogPath, LogName);
+						}
+						else
+						{
+							HordeTestReport.AttachArtifact(LogPath, LogName);
+						}
 
-					UnrealLog LogSummary = RoleResult.LogSummary;
-					if (LogSummary.Errors.Count() > 0)
-					{
-						HordeTestReport.Warnings.Add(
-							string.Format(
-								"Log Parsing: FatalErrors={0}, Ensures={1}, Errors={2}, Warnings={3}, Log={4}",
-								(LogSummary.FatalError != null ? 1 : 0), LogSummary.Ensures.Count(), LogSummary.Errors.Count(), LogSummary.Warnings.Count(), LogName
-							)
-						);
 					}
 				}
 			}
 			// Metadata
-			SetReportMetadata(HordeTestReport, GetCachedConfiguration().RequiredRoles.Values.SelectMany(V => V));
+			SetReportMetadata(HordeTestReport, RoleList);
 
 			return HordeTestReport;
 		}
@@ -1398,35 +1452,51 @@ namespace Gauntlet
 				string HordeArtifactPath = GetCachedConfiguration().HordeArtifactPath;
 				Log.Verbose("Reading json Unreal Automated test report from {Path}", JsonReportPath);
 				UnrealAutomatedTestPassResults JsonTestPassResults = UnrealAutomatedTestPassResults.LoadFromJson(JsonReportPath);
-				var MainRole = GetCachedConfiguration().GetMainRequiredRole();
-				string HordeTestDataKey = string.IsNullOrEmpty(GetCachedConfiguration().HordeTestDataKey) ? Name + " " + GetMainRoleContextString() : GetCachedConfiguration().HordeTestDataKey;
-				GetCachedConfiguration().HordeTestDataKey = HordeTestDataKey;
-				// Convert test results for Horde
-				HordeReport.AutomatedTestSessionData HordeTestPassResults = HordeReport.AutomatedTestSessionData.FromUnrealAutomatedTests(
-					JsonTestPassResults, Type, Suite, UnrealAutomatedTestReportPath, HordeArtifactPath
-				);
-				// Make a copy of the report in the old way - until we decide the transition is over
-				HordeReport.UnrealEngineTestPassResults CopyTestPassResults = HordeReport.UnrealEngineTestPassResults.FromUnrealAutomatedTests(JsonTestPassResults, ReportURL);
-				CopyTestPassResults.CopyTestResultsArtifacts(UnrealAutomatedTestReportPath, HordeArtifactPath);
-				HordeTestPassResults.AttachDependencyReport(CopyTestPassResults, HordeTestDataKey);
-				// Pre Flight information
-				HordeTestPassResults.PreFlightChange = GetCachedConfiguration().PreFlightChange;
-				// Metadata
 				// With UE Test Automation, we care only for one role.
+				var MainRole = GetCachedConfiguration().GetMainRequiredRole();
 				var RoleList = new List<UnrealTestRole>() { MainRole };
+				// Convert test results for Horde
+				ITestReport HordeTestPassResults = null;
+				if (Globals.Params.ParseParam("UseTestDataV2"))
+				{
+					string ArtifactPathLabel = new DirectoryInfo(ArtifactPath).Name;
+					HordeArtifactPath = Path.Combine(HordeArtifactPath, ArtifactPathLabel);
+					HordeTestPassResults = AutomatedTestSessionData.FromUnrealAutomatedTests(
+						JsonTestPassResults, HordeReportTestKey, HordeReportTestName, UnrealAutomatedTestReportPath, HordeArtifactPath
+					);
+				}
+				else
+				{
+					AutomatedTestSessionData_legacy LegacyTestPassResults = AutomatedTestSessionData_legacy.FromUnrealAutomatedTests(
+						JsonTestPassResults, Type, Suite, UnrealAutomatedTestReportPath, HordeArtifactPath
+					);
+					// Make a copy of the report in the old way - until we decide the transition is over
+					UnrealEngineTestPassResults CopyTestPassResults = UnrealEngineTestPassResults.FromUnrealAutomatedTests(JsonTestPassResults, ReportURL);
+					CopyTestPassResults.CopyTestResultsArtifacts(UnrealAutomatedTestReportPath, HordeArtifactPath);
+					SetReportMetadata(CopyTestPassResults, RoleList); // Set the metadata to the old report
+					LegacyTestPassResults.AttachDependencyReport(CopyTestPassResults, HordeReportTestKey);
+					// Pre Flight information
+					LegacyTestPassResults.PreFlightChange = GetCachedConfiguration().PreFlightChange;
+					HordeTestPassResults = LegacyTestPassResults;
+				}
+				// Metadata
 				SetReportMetadata(HordeTestPassResults, RoleList);
-				SetReportMetadata(CopyTestPassResults, RoleList); // Set the metadata to the old report too
-				// Attached test Artifacts
+				// Attached test log artifacts
 				if (SessionArtifacts != null)
 				{
 					foreach (UnrealRoleArtifacts Artifact in SessionArtifacts)
 					{
-						string LogName = Path.GetFullPath(Artifact.LogPath).Replace(Path.GetFullPath(Context.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
-						HordeTestPassResults.AttachArtifact(Artifact.LogPath, LogName);
-						// Reference last run instance log
 						if (Artifact.SessionRole.RoleType == MainRole.Type)
 						{
-							HordeTestPassResults.Devices.Last().AppInstanceLog = LogName.Replace("\\", "/");
+							string LogName = FileUtils.ConvertPathToUri(Path.GetRelativePath(Path.GetFullPath(ArtifactPath), Path.GetFullPath(Artifact.LogPath)));
+							if (HordeTestPassResults is BaseHordeReport Report)
+							{
+								Report.AttachDeviceLog(JsonTestPassResults.Devices.Last().Instance, Artifact.LogPath, LogName);
+							}
+							else
+							{
+								HordeTestPassResults.AttachArtifact(Artifact.LogPath, LogName);
+							}
 						}
 					}
 				}
@@ -1475,7 +1545,7 @@ namespace Gauntlet
 				FileName + ".TestData.json"
 			);
 			HordeReport.TestDataCollection HordeTestDataCollection = new HordeReport.TestDataCollection();
-			HordeTestDataCollection.AddNewTestReport(Report, GetCachedConfiguration().HordeTestDataKey);
+			HordeTestDataCollection.AddNewTestReport(Report, HordeReportTestKey);
 			HordeTestDataCollection.WriteToJson(HordeTestDataFilePath, !AutomationTool.Automation.IsBuildMachine);
 		}
 
@@ -1724,7 +1794,7 @@ namespace Gauntlet
 
 			IEnumerable<UnrealTestEvent> EventList = CreateEventListFromArtifact(InReason, InRoleArtifacts, LogSummary, ProcessResult);
 
-			// if the test is stopping for a reason other than completion, mark this as failing incase derived classes
+			// if the test is stopping for a reason other than completion, mark this as failing in case derived classes
 			// don't do the right thing
 			if (InReason == StopReason.MaxDuration)
 			{

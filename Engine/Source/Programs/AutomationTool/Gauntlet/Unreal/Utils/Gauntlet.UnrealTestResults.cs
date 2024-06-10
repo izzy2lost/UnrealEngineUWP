@@ -12,7 +12,6 @@ using Microsoft.Extensions.Logging;
 using Logging = Microsoft.Extensions.Logging;
 using System.Globalization;
 using AutomationUtils.Matchers;
-using Polly;
 
 namespace Gauntlet
 {
@@ -43,15 +42,6 @@ namespace Gauntlet
 		[JsonPropertyName("appInstanceLog")]
 		public string AppInstanceLog { get; set; }
 	}
-	public class UnrealAutomationComparisonFiles
-	{
-		[JsonPropertyName("difference")]
-		public string Difference { get; set; }
-		[JsonPropertyName("approved")]
-		public string Approved { get; set; }
-		[JsonPropertyName("unapproved")]
-		public string Unapproved { get; set; }
-	}
 	public class UnrealAutomationArtifact
 	{
 		[JsonPropertyName("id")]
@@ -61,7 +51,7 @@ namespace Gauntlet
 		[JsonPropertyName("type")]
 		public string Type { get; set; }
 		[JsonPropertyName("files")]
-		public UnrealAutomationComparisonFiles Files { get; set; }
+		public Dictionary<string, string> Files { get; set; }
 	}
 	public class UnrealAutomationEvent
 	{
@@ -173,21 +163,26 @@ namespace Gauntlet
 		[JsonPropertyName("timeStamp")]
 		public string Timestamp { get; set; }
 
-		private DateTime GetTimestampAsDateTime()
+		public const string InvalidDateTime = "0001.01.01-00.00.00";
+		public const string DateTimeFormat = "yyyy.MM.dd-HH.mm.ss";
+
+		public static DateTime GetTimestampAsDateTime(string StringTime)
 		{
-			if (string.IsNullOrEmpty(Timestamp) || Timestamp == "0001.01.01-00.00.00")
-			{
-				// Special case: when UE Test DateTime is set this way, it means the value was 0 or null before getting converted to json.
-				Timestamp = DateTime.UtcNow.ToString("yyyy.MM.dd-HH.mm.ss");
-			}
 			DateTime Time = DateTime.UtcNow;
-			DateTime.TryParseExact(Timestamp, "yyyy.MM.dd-HH.mm.ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out Time);
+			if (!string.IsNullOrEmpty(StringTime) && StringTime != InvalidDateTime)
+			{
+				DateTime.TryParseExact(StringTime, DateTimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out Time);
+			}
 			return Time;
 		}
 
+		/// <summary>
+		/// Produce a LogEvent instance from this UnrealAutomationEntry
+		/// </summary>
+		/// <returns></returns>
 		public LogEvent AsLogEvent()
 		{
-			DateTime Time = GetTimestampAsDateTime();
+			DateTime Time = GetTimestampAsDateTime(Timestamp);
 			Logging.LogLevel Level = Event.IsError ?
 										(Event.IsCriticalFailure ?
 											Logging.LogLevel.Critical : Logging.LogLevel.Error)
@@ -229,8 +224,14 @@ namespace Gauntlet
 					}
 					Properties.Add("SourceFile", Filename);
 					Properties.Add("Line", LineNumber.ToString());
-					Format = (Format ?? Message) + " [{SourceFile}:{Line}]";
+					Format = (Format ?? Message) + " [{SourceFile}({Line})]";
 				}
+			}
+
+			if (Format != null)
+			{
+				// Make sure Message is produced from Format
+				Message = MessageTemplate.Render(Format, Properties);
 			}
 
 			return new LogEvent(Time, Level, EventIdType, Message, Format, Properties, null);

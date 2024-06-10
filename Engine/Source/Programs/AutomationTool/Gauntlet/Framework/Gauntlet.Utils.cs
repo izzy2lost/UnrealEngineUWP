@@ -500,6 +500,8 @@ namespace Gauntlet
 
 			return SBuilder.ToString();
 		}
+
+		static public HashAlgorithm DefaultAlgo = SHA1.Create();
 	}
 
 	/*
@@ -1949,6 +1951,17 @@ namespace Gauntlet
 		static public string SanitizeFilename(string Name)
 		{
 			return Regex.Replace(Name, @"[^a-z0-9_\-.]+", "_", RegexOptions.IgnoreCase);
+		}
+
+		/// <summary>
+		/// Convert file path to a Uri valid and Url encoded string
+		/// </summary>
+		/// <param name="Path"></param>
+		/// <returns></returns>
+		static public string ConvertPathToUri(string Path)
+		{
+			// Uri.AbsolutPath remove only 'file://', the extra / still need to be removed, enhance using string.Substring(1) 
+			return new Uri($"file:///{Path}").AbsolutePath.Substring(1);
 		}
 	}
 

@@ -4,12 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using AutomationTool;
 using System.Security.Cryptography;
+using Microsoft.CodeAnalysis;
+using EpicGames.Core;
+using Logging = Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace Gauntlet
 {
@@ -42,11 +45,11 @@ namespace Gauntlet
 			/// <summary>
 			/// Horde report version
 			/// </summary>
-			public int Version { get; set; } = 1;
+			public virtual int Version => 1;
 
 			protected string OutputArtifactPath;
 			protected HashSet<string> ArtifactProcessedHashes;
-			protected Dictionary<string, object> ExtraReports;			
+			protected Dictionary<string, object> ExtraReports;
 
 			/// <summary>
 			/// Attach Artifact to the Test Report
@@ -72,14 +75,8 @@ namespace Gauntlet
 					throw new InvalidOperationException("OutputArtifactPath must be set before attaching any artifact");
 				}
 
-				string ArtifactHash;
-				{
-					// Generate a hash from the artifact path
-					using (SHA1 Sha1 = SHA1.Create())
-					{
-						ArtifactHash = Hasher.ComputeHash(ArtifactPath, Sha1, 8);
-					}
-				}
+				// Generate a hash from the artifact path
+				string ArtifactHash = Hasher.ComputeHash(ArtifactPath, Hasher.DefaultAlgo, 8);
 
 				if (ArtifactProcessedHashes == null)
 				{
@@ -134,6 +131,14 @@ namespace Gauntlet
 				Log.Verbose(string.Format("Test Report output artifact path is set to: {0}", OutputArtifactPath));
 			}
 
+			/// <summary>
+			/// Attach a log path to a device instance name
+			/// </summary>
+			/// <param name="DeviceName"></param>
+			/// <param name="LogPath"></param>
+			/// <returns></returns>
+			public abstract bool AttachDeviceLog(string InstanceName, string LogPath, string LogName);
+
 			public void AttachDependencyReport(object InReport, string Key = null)
 			{
 				if(ExtraReports == null)
@@ -157,6 +162,11 @@ namespace Gauntlet
 				return Reports;
 			}
 
+			/// <summary>
+			/// Return the Key to be used for the TestData
+			/// </summary>
+			/// <param name="BaseKey"></param>
+			/// <returns></returns>
 			public virtual string GetTestDataKey(string BaseKey = null)
 			{
 				if(BaseKey == null)
@@ -165,8 +175,36 @@ namespace Gauntlet
 				}
 				return string.Format("{0}::{1}", Type, BaseKey);
 			}
+
+			/// <summary>
+			/// Return the data to be stored in the TestData
+			/// </summary>
+			/// <returns></returns>
+			public virtual object GetTestData()
+			{
+				return this;
+			}
+
+			/// <summary>
+			/// Return the version of the TestData
+			/// </summary>
+			/// <returns></returns>
+			public virtual int GetVersion()
+			{
+				return Version;
+			}
+
+			/// <summary>
+			/// Return the metadata key/value set as Dictionary
+			/// </summary>
+			/// <returns></returns>
+			public virtual Dictionary<string, string> GetMetadata()
+			{
+				return Metadata;
+			}
 		}
 
+		#region Legacy Implementations
 		/// <summary>
 		/// Contains detailed information about device that run tests
 		/// </summary>
@@ -182,6 +220,7 @@ namespace Gauntlet
 			public int RAMInGB { get; set; }
 			public string RenderMode { get; set; }
 			public string RHI { get; set; }
+			public string AppInstanceLog { get; set; }
 		}
 
 		/// <summary>
@@ -375,6 +414,20 @@ namespace Gauntlet
 				return NewDevice;
 			}
 
+			public override bool AttachDeviceLog(string InstanceName, string LogPath, string LogName)
+			{
+				if (AttachArtifact(LogPath, LogName))
+				{
+					Device item = Devices.LastOrDefault(D => D.Instance == InstanceName);
+					if (item != null)
+					{
+						item.AppInstanceLog = LogName;
+						return true;
+					}
+				}
+				return false;
+			}
+
 			/// <summary>
 			/// Add a new TestResult to the pass results and return it 
 			/// </summary>
@@ -386,7 +439,7 @@ namespace Gauntlet
 				return NewTestResult;
 			}
 
-			public override void AddEvent(EventType Type, string Message, object Context = null)
+			public override void AddEvent(EventType Type, string Message, params object[] Args)
 			{
 				throw new System.NotImplementedException("AddEvent not implemented");
 			}
@@ -447,9 +500,9 @@ namespace Gauntlet
 							NewArtifact.Name = InTestArtifact.Name;
 							NewArtifact.Type = InTestArtifact.Type;
 							ComparisonFiles ArtifactFiles = NewArtifact.Files;
-							ArtifactFiles.Difference = InTestArtifact.Files.Difference;
-							ArtifactFiles.Approved = InTestArtifact.Files.Approved;
-							ArtifactFiles.Unapproved = InTestArtifact.Files.Unapproved;
+							ArtifactFiles.Difference = InTestArtifact.Files.GetValueOrDefault("difference");
+							ArtifactFiles.Approved = InTestArtifact.Files.GetValueOrDefault("approved");
+							ArtifactFiles.Unapproved = InTestArtifact.Files.GetValueOrDefault("unapproved");
 						}
 						foreach (UnrealAutomationEntry InTestEntry in InTestResult.Entries)
 						{
@@ -509,7 +562,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Contains information about a test session 
 		/// </summary>
-		public class AutomatedTestSessionData : BaseHordeReport
+		public class AutomatedTestSessionData_legacy : BaseHordeReport
 		{
 			public override string Type
 			{
@@ -545,12 +598,9 @@ namespace Gauntlet
 				}
 				private string GenerateHash(string InName)
 				{
-					using (SHA1 Sha1 = SHA1.Create())
-					{
-						return Hasher.ComputeHash(InName, Sha1, 8);
-					}
+					return Hasher.ComputeHash(InName, Hasher.DefaultAlgo, 8);
 				}
-				public TestEvent NewEvent(EventType InType, string InMessage, string InTag, string InContext, string InDateTime)
+				public TestEvent NewEvent(string InDateTime, EventType InType, string InMessage, string InTag, string InContext = null)
 				{
 					TestEvent NewItem = new TestEvent(InType, InMessage, InTag, InContext ?? "", InDateTime);
 					Events.Add(NewItem);
@@ -685,10 +735,7 @@ namespace Gauntlet
 				private string GenerateEventHash()
 				{
 					string FilteredEvent = FilterEvent(string.Format("{0}{1}{2}{3}", Type.ToString(), Message, Context, Tag));
-					using (SHA1 Sha1 = SHA1.Create())
-					{
-						return Hasher.ComputeHash(FilteredEvent, Sha1, 8);
-					}
+					return Hasher.ComputeHash(FilteredEvent, Hasher.DefaultAlgo, 8);
 				}
 			}
 			public class TestResultData
@@ -717,7 +764,7 @@ namespace Gauntlet
 				}
 			}
 
-			public AutomatedTestSessionData(string InName) : base()
+			public AutomatedTestSessionData_legacy(string InName) : base()
 			{
 				Name = InName;
 				PreFlightChange = "";
@@ -809,25 +856,28 @@ namespace Gauntlet
 			/// <summary>
 			/// Add event to current test
 			/// </summary>
-			/// <param name="InType"></param>
-			/// <param name="InMessage"></param>
-			/// <param name="InContext"></param>
-			public override void AddEvent(EventType InType, string InMessage, object InContext = null)
+			/// <param name="Type"></param>
+			/// <param name="Message"></param>
+			/// <param name="Args"></param>
+			public override void AddEvent(EventType Type, string Message, params object[] Args)
 			{
-				AddEvent(InType, InMessage, "gauntlet", InContext == null ? null : InContext.ToString());
+				Dictionary<string, object> Properties = new Dictionary<string, object>();
+				MessageTemplate.ParsePropertyValues(Message, Args, Properties);
+				Message = MessageTemplate.Render(Message, Properties);
+				AddEvent(DateTime.UtcNow.ToString(UnrealAutomationEntry.DateTimeFormat), Type, Message, "gauntlet", null);
 			}
 			/// <summary>
 			/// Overload of AddEvent, add even to current test with date time
 			/// </summary>
+			/// <param name="InDateTime"></param>
 			/// <param name="InType"></param>
 			/// <param name="InMessage"></param>
 			/// <param name="InTag"></param>
 			/// <param name="InContext"></param>
-			/// <param name="InDateTime"></param>
-			public void AddEvent(EventType InType, string InMessage, string InTag, string InContext = null, string InDateTime = null)
+			public void AddEvent(string InDateTime, EventType InType, string InMessage, string InTag, string InContext)
 			{
 				TestResult CurrentTest = GetCurrentTest();
-				TestEvent Event = CurrentTest.NewEvent(InType, InMessage, InTag, InContext, InDateTime ?? DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss"));
+				TestEvent Event = CurrentTest.NewEvent(InDateTime, InType, InMessage, InTag, InContext);
 				if(InType == EventType.Error)
 				{
 					IndexTestError(Event.Hash, CurrentTest.TestUID, InMessage, InTag);
@@ -856,6 +906,21 @@ namespace Gauntlet
 
 				return false;
 			}
+
+			public override bool AttachDeviceLog(string InstanceName, string LogPath, string LogName)
+			{
+				if (AttachArtifact(LogPath, LogName))
+				{
+					Device item = Devices.LastOrDefault(D => D.AppInstanceName == InstanceName);
+					if (item != null)
+					{
+						item.AppInstanceLog = LogName;
+						return true;
+					}
+				}
+				return false;
+			}
+
 			public override string GetTestDataKey(string BaseKey = null)
 			{
 				return base.GetTestDataKey(); // Ignore BaseKey
@@ -880,9 +945,9 @@ namespace Gauntlet
 			/// <param name="InReportPath"></param>
 			/// <param name="InHordeArtifactPath"></param>
 			/// <returns></returns>
-			public static AutomatedTestSessionData FromUnrealAutomatedTests(UnrealAutomatedTestPassResults InTestPassResults, string InName, string InSuite, string InReportPath, string InHordeArtifactPath)
+			public static AutomatedTestSessionData_legacy FromUnrealAutomatedTests(UnrealAutomatedTestPassResults InTestPassResults, string InName, string InSuite, string InReportPath, string InHordeArtifactPath)
 			{
-				AutomatedTestSessionData OutTestPassResults = new AutomatedTestSessionData(InName);
+				AutomatedTestSessionData_legacy OutTestPassResults = new AutomatedTestSessionData_legacy(InName);
 				OutTestPassResults.SetOutputArtifactPath(InHordeArtifactPath);
 				if (InTestPassResults.Devices != null)
 				{
@@ -939,44 +1004,47 @@ namespace Gauntlet
 								Tag = "crash";
 							}
 
-							OutTestPassResults.AddEvent(InTestEntry.Event.Type, InTestEntry.Event.Message, Tag, Context, InTestEntry.Timestamp);
+							OutTestPassResults.AddEvent(InTestEntry.Timestamp, InTestEntry.Event.Type, InTestEntry.Event.Message, Tag, Context);
 							bool IsInfo = InTestEntry.Event.Type == EventType.Info;
 							// Add Artifacts
 							if (IntArtifactEntry != null)
 							{
 								List<string> FailedToAttached = new List<string>();
-								if (!IsInfo && !string.IsNullOrEmpty(IntArtifactEntry.Files.Difference))
+								string ArtifactFilePath = IntArtifactEntry.Files.GetValueOrDefault("difference");
+								if (!IsInfo && !string.IsNullOrEmpty(ArtifactFilePath))
 								{
 									if(!OutTestPassResults.AddArtifactToLastEvent(
 										"difference",
-										Path.Combine(InReportPath, IntArtifactEntry.Files.Difference),
-										IntArtifactEntry.Files.Difference
+										Path.Combine(InReportPath, ArtifactFilePath),
+										ArtifactFilePath
 									))
 									{
-										FailedToAttached.Add(IntArtifactEntry.Files.Difference);
+										FailedToAttached.Add(ArtifactFilePath);
 									}
 								}
-								if (!IsInfo && !string.IsNullOrEmpty(IntArtifactEntry.Files.Approved))
+								ArtifactFilePath = IntArtifactEntry.Files.GetValueOrDefault("approved");
+								if (!IsInfo && !string.IsNullOrEmpty(ArtifactFilePath))
 								{
 									if(!OutTestPassResults.AddArtifactToLastEvent(
 										"approved",
-										Path.Combine(InReportPath, IntArtifactEntry.Files.Approved),
-										IntArtifactEntry.Files.Approved
+										Path.Combine(InReportPath, ArtifactFilePath),
+										ArtifactFilePath
 									))
 									{
-										FailedToAttached.Add(IntArtifactEntry.Files.Approved);
+										FailedToAttached.Add(ArtifactFilePath);
 									}
 								}
-								if (!string.IsNullOrEmpty(IntArtifactEntry.Files.Unapproved))
+								ArtifactFilePath = IntArtifactEntry.Files.GetValueOrDefault("unapproved");
+								if (!string.IsNullOrEmpty(ArtifactFilePath))
 								{
-									string AbsoluteLocation = Path.Combine(InReportPath, IntArtifactEntry.Files.Unapproved);
+									string AbsoluteLocation = Path.Combine(InReportPath, ArtifactFilePath);
 									if(!OutTestPassResults.AddArtifactToLastEvent(
 										"unapproved",
 										AbsoluteLocation,
-										IntArtifactEntry.Files.Unapproved
+										ArtifactFilePath
 									))
 									{
-										FailedToAttached.Add(IntArtifactEntry.Files.Unapproved);
+										FailedToAttached.Add(ArtifactFilePath);
 									}
 									// Add Json meta data if any
 									string MetadataLocation = Utils.SystemHelpers.GetFullyQualifiedPath(Path.GetDirectoryName(AbsoluteLocation));
@@ -985,13 +1053,13 @@ namespace Gauntlet
 										string[] JsonMetadataFiles = System.IO.Directory.GetFiles(MetadataLocation, "*.json");
 										if (JsonMetadataFiles.Length > 0)
 										{
-											int LastSlash = IntArtifactEntry.Files.Unapproved.LastIndexOf("/");
-											string RelativeLocation = IntArtifactEntry.Files.Unapproved.Substring(0, LastSlash);
+											int LastSlash = ArtifactFilePath.LastIndexOf("/");
+											string RelativeLocation = ArtifactFilePath.Substring(0, LastSlash);
 											OutTestPassResults.AddEvent(
+												InTestEntry.Timestamp,
 												EventType.Info,
 												"The image reference can be updated by pointing the Screen Comparison tab from the Test Automation window to the artifacts from this test.",
-												"image comparison metadata", null,
-												InTestEntry.Timestamp
+												"image comparison metadata", null
 											);
 											foreach (string JsonFile in JsonMetadataFiles)
 											{
@@ -1082,8 +1150,12 @@ namespace Gauntlet
 			public List<String> Errors { get; set; } = new List<String>();
 			public List<String> Warnings { get; set; } = new List<String>();
 
-			public override void AddEvent(EventType Type, string Message, object Context = null)
+			public override void AddEvent(EventType Type, string Message, params object[] Args)
 			{
+				Dictionary<string, object> Properties = new Dictionary<string, object>();
+				MessageTemplate.ParsePropertyValues(Message, Args, Properties);
+				Message = MessageTemplate.Render(Message, Properties);
+
 				switch (Type)
 				{
 					case EventType.Error:
@@ -1105,6 +1177,1060 @@ namespace Gauntlet
 				}
 				return false;
 			}
+
+			public override bool AttachDeviceLog(string InstanceName, string LogPath, string LogName)
+			{
+				if (AttachArtifact(LogPath, LogName))
+				{
+					Logs.Add(string.Format("Attached Log for device {0}: {1}", InstanceName, LogName));
+				}
+				return true;
+			}
+		}
+		#endregion
+
+		/// <summary>
+		/// Contains information about a test session (v2)
+		/// </summary>
+		public class AutomatedTestSessionData : BaseHordeReport
+		{
+			public override string Type => "Automated Test Session";
+
+			public override int Version => 2;
+
+			/// <summary>
+			/// Unique key that identify the test and group the different sessions
+			/// </summary>
+			public string Key { get; set; }
+
+			public override string GetTestDataKey(string BaseKey = null)
+			{
+				return Key; // Ignore BaseKey
+			}
+
+			/// <summary>
+			/// Stored data of the session
+			/// </summary>
+			protected TestSession Data { get; set; }
+
+			public override object GetTestData()
+			{
+				return Data;
+			}
+
+			/// <summary>
+			/// Utility function to generate a valid key from any name
+			/// </summary>
+			/// <param name="InName"></param>
+			/// <returns></returns>
+			private static string GenerateKey(string InName)
+			{
+				return Hasher.ComputeHash(InName, Hasher.DefaultAlgo, 8);
+			}
+
+			/// <summary>
+			/// Cursor to the current phase
+			/// </summary>
+			private TestPhase CurrentPhase { get; set; }
+
+			/// <summary>
+			/// Static constructor
+			/// </summary>
+			static AutomatedTestSessionData()
+			{
+				// Make sure to register the JSON formatter for TestLogValue type
+				LogValueFormatter.RegisterFormatter(typeof(TestLogValue), new TestLogValueFormatter());
+			}
+
+			public AutomatedTestSessionData(string InKey, string InName = null) : base()
+			{
+				Key = InKey;
+				Data = new TestSession(string.IsNullOrEmpty(InName)? InKey : InName, this);
+				CurrentPhase = null;
+			}
+
+			/// <summary>
+			/// Represent a Device used during a test
+			/// </summary>
+			public class TestDevice
+			{
+				public string name { get; set; }
+				public string appInstanceLogPath { get; set; }
+				public Dictionary<string, string> metadata { get; set; }
+
+				public TestDevice(string InName)
+				{
+					name = InName;
+					metadata = new Dictionary<string, string>();
+				}
+			}
+
+			/// <summary>
+			/// Summary for the test session
+			/// </summary>
+			public class TestSessionSummary
+			{
+				public string testName { get; set; }
+				public string dateTime { get; set; }
+				public float timeElapseSec { get; set; }
+				public int phasesTotalCount { get; set; }
+				public int phasesSucceededCount { get; set; }
+				public int phasesUndefinedCount { get; set; }
+				public int phasesFailedCount { get; set; }
+
+				public TestSessionSummary(string InName)
+				{
+					testName = InName;
+				}
+			}
+
+			[JsonConverter(typeof(JsonTryParseEnumConverter))]
+			public enum TestPhaseOutcome
+			{
+				Unknown,
+				NotRun,
+				Interrupted,
+				Failed,
+				Success,
+				Skipped
+			}
+
+			/// <summary>
+			/// Represent a phase of a test
+			/// </summary>
+			public class TestPhase
+			{
+				public string key { get; set; }
+				public string name { get; set; }
+				public string dateTime { get; set; }
+				public float timeElapseSec { get; set; }
+				public TestPhaseOutcome outcome { get; set; }
+				public bool hasError { get; set; }
+				public bool hasWarning { get; set; }
+				public List<string> deviceKeys { get; set; }
+				public string eventStreamPath { get; set; }
+
+				private TestSession session { get; set; }
+
+				private TestEventStream eventStream { get; set; }
+
+				public TestPhase(string InName, string InKey = null, TestSession InSession = null)
+				{
+					key = string.IsNullOrEmpty(InKey) ? GenerateKey(InName) : ValidateKey(InKey);
+					name = InName;
+					deviceKeys = new List<string>();
+					outcome = TestPhaseOutcome.Unknown;
+					eventStream = new TestEventStream(session?.report, this);
+					AttachToSession(InSession);
+				}
+
+				/// <summary>
+				/// Set timing information about the phase
+				/// </summary>
+				/// <param name="StartTime"></param>
+				/// <param name="TimeElapse"></param>
+				public void SetTiming(DateTime StartTime, float TimeElapse)
+				{
+					dateTime = StartTime.ToString("s", CultureInfo.InvariantCulture);
+					timeElapseSec = TimeElapse;
+				}
+
+				/// <summary>
+				/// Set the outcome of the phase, it will update the test session phase counts
+				/// </summary>
+				/// <param name="State"></param>
+				public void SetOutcome(TestStateType State)
+				{
+					UpdatePhasesCount(PhaseCount.Out);
+					outcome = TestStateToPhaseOutcome(State);
+					UpdatePhasesCount();
+				}
+
+				/// <summary>
+				/// Set the outcome of the phase using Gauntlet TestResult type, it will update the test session phase counts
+				/// </summary>
+				/// <param name="State"></param>
+				public void SetOutcome(Gauntlet.TestResult State)
+				{
+					UpdatePhasesCount(PhaseCount.Out);
+					outcome = TestResultToPhaseOutcome(State);
+					UpdatePhasesCount();
+				}
+
+				/// <summary>
+				/// Attach the phase to a session, making changes to the phase outcome tracked in that session
+				/// </summary>
+				/// <param name="InSession"></param>
+				public void AttachToSession(TestSession InSession)
+				{
+					session = InSession;
+					eventStream.AttachToReport(session.report);
+					session.phases.Add(this);
+					session.summary.phasesTotalCount += 1;
+					UpdatePhasesCount();
+				}
+
+				private enum PhaseCount
+				{
+					In,
+					Out
+				}
+				/// <summary>
+				/// Update the phases count in the session based on the phase outcome
+				/// </summary>
+				/// <param name="Direction"></param>
+				private void UpdatePhasesCount(PhaseCount Direction = PhaseCount.In)
+				{
+					if (session == null)
+					{
+						return;
+					}
+					int Incr = Direction == PhaseCount.In ? 1 : -1;
+					switch (outcome)
+					{
+						case TestPhaseOutcome.Failed:
+							session.summary.phasesFailedCount += Incr;
+							break;
+
+						case TestPhaseOutcome.Success:
+							session.summary.phasesSucceededCount += Incr;
+							break;
+
+						case TestPhaseOutcome.Skipped:
+							// Remove from total count
+							session.summary.phasesTotalCount -= Incr;
+							break;
+
+						default:
+							session.summary.phasesUndefinedCount += Incr;
+							break;
+					}
+				}
+
+				/// <summary>
+				/// Get the event stream associated with this phase
+				/// </summary>
+				/// <returns></returns>
+				/// <exception cref="AutomationException"></exception>
+				public TestEventStream GetStream()
+				{
+					return eventStream;
+				}
+			}
+
+			/// <summary>
+			/// fork of the test session data (summary, phases, devices, eventStreams)
+			/// </summary>
+			public class TestSession
+			{
+				public TestSessionSummary summary { get; set; }
+				public List<TestPhase> phases { get; set; }
+				public Dictionary<string, TestDevice> devices { get; set; }
+
+				[JsonIgnore]
+				// back pointer
+				public AutomatedTestSessionData report { get; protected set; }
+
+				public TestSession(string InName, AutomatedTestSessionData InReport = null)
+				{
+					summary = new TestSessionSummary(InName);
+					phases = new List<TestPhase>();
+					devices = new Dictionary<string, TestDevice>();
+					report = InReport;
+				}
+			}
+
+			/// <summary>
+			/// Set the session timing information
+			/// </summary>
+			/// <param name="StartTime"></param>
+			/// <param name="TimeElapse"></param>
+			public virtual void SetSessionTiming(DateTime StartTime, float TimeElapse)
+			{
+				Data.summary.dateTime = StartTime.ToString("s", CultureInfo.InvariantCulture);
+				Data.summary.timeElapseSec = TimeElapse;
+			}
+
+			/// <summary>
+			/// Add a Device to the session (or replace it) and return the new instance.
+			/// </summary>
+			/// <param name="InName"></param>
+			/// <param name="InKey"></param>
+			/// <returns></returns>
+			public virtual TestDevice AddDevice(string InName, string InKey = null)
+			{
+				string Key = ValidateKey(InKey ?? InName);
+				if (Data.devices.ContainsKey(Key))
+				{
+					// remove to replace
+					Data.devices.Remove(Key);
+					Log.Verbose("Device (Key) '{Name}' already exists in the report. It is being replaced.", InName, Key);
+				}
+				TestDevice Device = new TestDevice(InName);
+				Data.devices.Add(Key, Device);
+				return Device;
+			}
+
+			/// <summary>
+			/// Return the device associated with the Key
+			/// </summary>
+			/// <param name="Key"></param>
+			/// <returns></returns>
+			public virtual TestDevice GetDevice(string Key)
+			{
+				return Data.devices.GetValueOrDefault(Key);
+			}
+
+			public override bool AttachDeviceLog(string InstanceName, string LogPath, string LogName)
+			{
+				if (AttachArtifact(LogPath, LogName))
+				{
+					var Device = Data.devices.GetValueOrDefault(InstanceName);
+					if (Device != null)
+					{
+						string LogPathForHorde = Path.GetRelativePath(Globals.UnrealRootDir, Path.Combine(OutputArtifactPath, LogName));
+						Device.appInstanceLogPath = FileUtils.ConvertPathToUri(LogPathForHorde);
+						return true;
+					}
+				}
+
+				return false;
+			}
+
+			/// <summary>
+			/// Add a phase to the test session
+			/// </summary>
+			/// <param name="InName"></param>
+			/// <param name="InKey"></param>
+			/// <returns></returns>
+			public virtual TestPhase AddPhase(string InName, string InKey = null)
+			{
+				TestPhase Phase = new TestPhase(InName, InKey, Data);
+				CurrentPhase = Phase;
+				return Phase;
+			}
+
+			/// <summary>
+			/// Get the phase associated with Key
+			/// </summary>
+			/// <param name="Key"></param>
+			/// <returns></returns>
+			public virtual TestPhase GetPhase(string Key)
+			{
+				return Data.phases.FirstOrDefault(P => P.key == Key);
+			}
+
+			/// <summary>
+			/// Set the current session phase with the phase associated with Key 
+			/// </summary>
+			/// <param name="Key"></param>
+			/// <exception cref="AutomationException"></exception>
+			public virtual void SetCurrentPhase(string Key)
+			{
+				TestPhase Phase = GetPhase(Key);
+				if (Phase == null)
+				{
+					throw new AutomationException("Could not find Phase '{0}'", Key); 
+				}
+				CurrentPhase = Phase;
+			}
+
+			/// <summary>
+			/// Set the current session phase with the input phase (and attach that phase the session with not already)
+			/// </summary>
+			/// <param name="InPhase"></param>
+			public virtual void SetCurrentPhase(TestPhase InPhase)
+			{
+				InPhase.AttachToSession(Data);
+				CurrentPhase = InPhase;
+			}
+
+			/// <summary>
+			/// Attach the input phase to the test session
+			/// </summary>
+			/// <param name="InPhase"></param>
+			public virtual void AttachPhase(TestPhase InPhase)
+			{
+				InPhase.AttachToSession(Data);
+			}
+
+			/// <summary>
+			/// Get the current session phase 
+			/// </summary>
+			/// <returns></returns>
+			public virtual TestPhase GetCurrentPhase()
+			{
+				return CurrentPhase;
+			}
+
+			/// <summary>
+			/// Represent the event stream of a phase
+			/// </summary>
+			public class TestEventStream
+			{
+				private AutomatedTestSessionData report { get; set; }
+				private TestPhase phase { get; set; }
+				private List<LogEvent> stream { get; set; }
+
+				public TestEventStream(AutomatedTestSessionData InReport, TestPhase InPhase)
+				{
+					report = InReport;
+					phase = InPhase;
+					stream = new List<LogEvent>();
+				}
+
+				/// <summary>
+				/// Return true if there is any LogEvent in this stream
+				/// </summary>
+				/// <returns></returns>
+				public bool HasAnyEvent()
+				{
+					return stream.Any();
+				}
+
+				/// <summary>
+				/// Get the list of LogEvents
+				/// </summary>
+				/// <returns></returns>
+				public IEnumerable<LogEvent> GetEvents()
+				{
+					return stream;
+				}
+
+				/// <summary>
+				/// Attach the event stream to a report
+				/// </summary>
+				/// <param name="InReport"></param>
+				public virtual void AttachToReport(AutomatedTestSessionData InReport)
+				{
+					report = InReport;
+				}
+
+				/// <summary>
+				/// Attached the input LogEvent to the stream
+				/// </summary>
+				/// <param name="Event"></param>
+				public virtual void AddEvent(LogEvent Event)
+				{
+					stream.Add(Event);
+					switch (Event.Level)
+					{
+						case Logging.LogLevel.Error:
+							phase.hasError = true;
+							break;
+
+						case Logging.LogLevel.Warning:
+							phase.hasWarning = true;
+							break;
+					}
+				}
+
+				/// <summary>
+				/// Add event with optional formatting inputs
+				/// </summary>
+				/// <param name="Time"></param>
+				/// <param name="Level"></param>
+				/// <param name="Message"></param>
+				/// <param name="Args"></param>
+				public virtual void AddEvent(DateTime Time, Logging.LogLevel Level, string Message, params object[] Args)
+				{
+					string Format = null;
+					Dictionary<string, object> Properties = null;
+					if (Args.Any())
+					{
+						Format = Message;
+						Properties = new Dictionary<string, object>();
+						MessageTemplate.ParsePropertyValues(Format, Args, Properties);
+						Message = MessageTemplate.Render(Format, Properties);
+					}
+					Logging.EventId EventId = Level == Logging.LogLevel.Critical? KnownLogEvents.Gauntlet_FatalEvent : KnownLogEvents.Gauntlet_TestEvent;
+					LogEvent Event = new LogEvent(Time, Level, EventId, Message, Format, Properties, null);
+					AddEvent(Event);
+				}
+
+				/// <summary>
+				/// Add event with optional formatting inputs
+				/// </summary>
+				/// <param name="Level"></param>
+				/// <param name="Message"></param>
+				/// <param name="Args"></param>
+				public virtual void AddEvent(Logging.LogLevel Level, string Message, params object[] Args)
+				{
+					AddEvent(DateTime.UtcNow, Level, Message, Args);
+				}
+
+				/// <summary>
+				/// Add Info event with optional formatting inputs
+				/// </summary>
+				/// <param name="Format"></param>
+				/// <param name="Args"></param>
+				public virtual void AddInfo(string Format, params object[] Args)
+				{
+					AddEvent(Logging.LogLevel.Information, Format, Args);
+				}
+
+				/// <summary>
+				/// Add Warning event with optional formatting inputs
+				/// </summary>
+				/// <param name="Format"></param>
+				/// <param name="Args"></param>
+				public virtual void AddWarning(string Format, params object[] Args)
+				{
+					AddEvent(Logging.LogLevel.Warning, Format, Args);
+				}
+
+				/// <summary>
+				/// Add Error event with optional formatting inputs
+				/// </summary>
+				/// <param name="Format"></param>
+				/// <param name="Args"></param>
+				public virtual void AddError(string Format, params object[] Args)
+				{
+					AddEvent(Logging.LogLevel.Error, Format, Args);
+				}
+
+				/// <summary>
+				/// Add event using ITestEvent as input
+				/// </summary>
+				/// <param name="Event"></param>
+				public virtual void AddEvent(ITestEvent Event)
+				{
+					string Message = Event.Summary;
+					Logging.LogLevel Level = EventSeverityToLogLevel(Event.Severity);
+					List<object> Params = new List<object>();
+					if (Event.Details.Any())
+					{
+						Message += "\n{Details}";
+						Params.Add(string.Join("\n", Event.Details));
+					}
+					if (Event.Callstack.Any())
+					{
+						Message += "\n{Callstack}";
+						Params.Add(string.Join("\n", Event.Callstack));
+					}
+					AddEvent(Event.Time, Level, Message, Args: Params.ToArray());
+				}
+
+				/// <summary>
+				/// Add Artifact event
+				/// </summary>
+				/// <param name="Time"></param>
+				/// <param name="Level"></param>
+				/// <param name="Format"></param>
+				/// <param name="Artifact"></param>
+				public virtual void AddArtifact(DateTime Time, Logging.LogLevel Level, string Format, ILogArtifact Artifact)
+				{
+					if (report == null)
+					{
+						AddWarning("Phase not attached to a report. Failed to attached Artifact {Name}.", Artifact.ToString());
+					}
+					else
+					{
+						Artifact.AttachTo(report);
+					}
+
+					var Properties = Artifact.ToProperties();
+					string Message = MessageTemplate.Render(Format, Properties);
+
+					LogEvent Event = new LogEvent(Time, Level, KnownLogEvents.Gauntlet_TestEvent, Message, Format, Properties, null);
+					AddEvent(Event);
+				}
+
+				/// <summary>
+				/// Add Image Comparison event
+				/// </summary>
+				/// <param name="Time"></param>
+				/// <param name="Level"></param>
+				/// <param name="Format"></param>
+				/// <param name="Artifact"></param>
+				public virtual void AddImageComparison(DateTime Time, Logging.LogLevel Level, string Format, ImageComparisonFiles Artifact)
+				{
+					bool IsError = Level == Logging.LogLevel.Error;
+					if (!IsError)
+					{
+						// Don't push references if it is not a failure
+						Artifact.Files[TestLogValueTypes.approved] = null;
+						Artifact.Files[TestLogValueTypes.approvedMetadata] = null;
+					}
+
+					AddArtifact(Time, Level, Format, Artifact);
+					if (IsError)
+					{
+						AddInfo("The image reference can be updated by pointing the Screen Comparison tab from the Test Automation window to the artifacts from this test.");
+					}
+				}
+			}
+
+			/// <summary>
+			/// Attached the input LogEvent to the stream to current event stream
+			/// </summary>
+			/// <param name="Event"></param>
+			public virtual void AddEvent(LogEvent Event)
+			{
+				GetEventStream().AddEvent(Event);
+			}
+
+			/// <summary>
+			/// Add event with optional formatting inputs to current event stream
+			/// </summary>
+			/// <param name="Time"></param>
+			/// <param name="Level"></param>
+			/// <param name="Message"></param>
+			/// <param name="Args"></param>
+			public virtual void AddEvent(DateTime Time, Logging.LogLevel Level, string Message, params object[] Args)
+			{
+				GetEventStream().AddEvent(Time, Level, Message, Args);
+			}
+
+			/// <summary>
+			/// Add event with optional formatting inputs to current event stream
+			/// </summary>
+			/// <param name="Type"></param>
+			/// <param name="Message"></param>
+			/// <param name="Args"></param>
+			public override void AddEvent(EventType Type, string Message, params object[] Args)
+			{
+				AddEvent(DateTime.UtcNow, EventTypeToLogLevel(Type), Message, Args);
+			}
+
+			/// <summary>
+			/// Attach Artifact to the report
+			/// </summary>
+			/// <param name="FilePath"></param>
+			/// <param name="Name"></param>
+			/// <returns></returns>
+			protected virtual bool AttachArtifact(ref string FilePath, string Name = null)
+			{
+				if (AttachArtifact(FilePath, Name))
+				{
+					FilePath = Path.Combine(OutputArtifactPath, Name ?? Path.GetFileName(FilePath));
+					FilePath = FileUtils.ConvertPathToUri(Path.GetRelativePath(Globals.UnrealRootDir, FilePath));
+					return true;
+				}
+				FilePath = null;
+				return false;
+			}
+
+			/// <summary>
+			/// Attach artifact to the report, warn if it fails to do it
+			/// </summary>
+			/// <param name="FilePath"></param>
+			/// <param name="Name"></param>
+			/// <returns></returns>
+			protected virtual bool AttachArtifactOrWarn(ref string FilePath, string Name = null)
+			{
+				if (!AttachArtifact(ref FilePath, Name))
+				{
+					AddWarning("Failed to attached Artifact {FilePath}.", Path.GetRelativePath(Globals.UnrealRootDir, FilePath));
+					return false;
+				}
+				return true;
+			}
+
+			private static class TestLogValueTypes
+			{
+				// Log entry
+				public static readonly Utf8String Type = new Utf8String("$type");
+				public static readonly Utf8String Text = new Utf8String("$text");
+				// Image compare
+				public static readonly string imageCompare = "Image Compare";
+				public static readonly string unapproved = "unapproved";
+				public static readonly string unapprovedMetadata = "unapproved_metadata";
+				public static readonly string approved = "approved";
+				public static readonly string approvedMetadata = "approved_metadata";
+				public static readonly string difference = "difference";
+				public static readonly string differenceReport = "difference_report";
+			}
+
+			/// <summary>
+			/// Represent a Log value. Necessary to support LogValue annotation in TestData.
+			/// </summary>
+			public class TestLogValue
+			{
+				public Utf8String Type { get; protected set; }
+				public string Text { get; protected set; }
+				public Dictionary<Utf8String, object> Properties { get; protected set; }
+
+				public TestLogValue(string InType, string InText, Dictionary<Utf8String, object> InProperties)
+				{
+					Type = new Utf8String(InType);
+					Text = InText;
+					Properties = InProperties;
+				}
+
+				public override string ToString()
+				{
+					return Text;
+				}
+			}
+
+			/// <summary>
+			/// TestLogValue Formatter
+			/// </summary>
+			public class TestLogValueFormatter : ILogValueFormatter
+			{
+				public void Format(object value, Utf8JsonWriter writer)
+				{
+					TestLogValue entry = (TestLogValue)value;
+					writer.WriteStartObject();
+					writer.WriteString(TestLogValueTypes.Type, entry.Type);
+					writer.WriteString(TestLogValueTypes.Text, entry.ToString());
+					if (entry.Properties != null)
+					{
+						foreach (KeyValuePair<Utf8String, object> pair in entry.Properties)
+						{
+							writer.WritePropertyName(pair.Key);
+							writer.WriteStringValue(pair.Value.ToString());
+						}
+					}
+					writer.WriteEndObject();
+				}
+			}
+
+			/// <summary>
+			/// Interface for artifact in Log event
+			/// </summary>
+			public interface ILogArtifact
+			{
+				public bool AttachTo(AutomatedTestSessionData Report);
+				Dictionary<string, object> ToProperties();
+			}
+
+			/// <summary>
+			/// Generic Artifact Files utility objects to attached files to report and generate event properties
+			/// </summary>
+			public class ArtifactFiles : ILogArtifact
+			{
+				public string Type { get; protected set; }
+				public string Token { get; protected set; }
+				public string Name { get; protected set; }
+				public Dictionary<string, string> Files { get; protected set; }
+				public string RootPath { get; protected set; }
+
+				public ArtifactFiles(string InType, string InName, Dictionary<string, string> InFiles, string InRootPath)
+				{
+					Type = InType;
+					Token = Type.ToLower().Replace(" ", "_");
+					Name = InName;
+					Files = InFiles;
+					RootPath = InRootPath;
+				}
+
+				private bool AttachFileTo(ref string FilePath, AutomatedTestSessionData Report)
+				{
+					if (string.IsNullOrEmpty(FilePath))
+					{
+						// Ignore this file
+						return true;
+					}
+					string Name = null;
+					if (!Path.IsPathFullyQualified(FilePath))
+					{
+						Name = FilePath;
+						if (!string.IsNullOrEmpty(RootPath))
+							FilePath = Path.Combine(RootPath, FilePath);
+					}
+					return Report.AttachArtifactOrWarn(ref FilePath, Name);
+				}
+
+				public bool AttachTo(AutomatedTestSessionData Report)
+				{
+					bool AllAttached = true;
+					foreach (string Key in Files.Keys.ToList())
+					{
+						string FilePath = Files[Key];
+						if (!AttachFileTo(ref FilePath, Report))
+						{
+							AllAttached = AllAttached && false;
+						}
+						Files[Key] = FilePath;
+					}
+
+					return AllAttached;
+				}
+
+				public Dictionary<string, object> ToProperties()
+				{
+					Dictionary<Utf8String, object> Prop = new Dictionary<Utf8String, object>();
+					foreach(var Item in Files)
+					{
+						if (!string.IsNullOrEmpty(Item.Value))
+						{
+							Prop.Add(new Utf8String(Item.Key.ToLower()), Item.Value);
+						}
+					}
+					TestLogValue Value = new TestLogValue(Type, Name, Prop);
+					Dictionary<string, object> EventProperties = new Dictionary<string, object> { { Token, Value } };
+
+					return EventProperties;
+				}
+			}
+
+			/// <summary>
+			/// Utility object to attached ImageComparison artifacts and generate related event properties
+			/// </summary>
+			public class ImageComparisonFiles : ArtifactFiles, ILogArtifact
+			{
+				public ImageComparisonFiles(string InName, Dictionary<string, string> InFiles, string InRootPath) : base(TestLogValueTypes.imageCompare, InName, InFiles, InRootPath)
+				{
+					string FilePath = Files.GetValueOrDefault(TestLogValueTypes.unapproved);
+					if (!string.IsNullOrEmpty(FilePath))
+					{
+						Files.Add(TestLogValueTypes.unapprovedMetadata, Path.ChangeExtension(FilePath, ".json"));
+					}
+					FilePath = Files.GetValueOrDefault(TestLogValueTypes.approved);
+					if (!string.IsNullOrEmpty(FilePath))
+					{
+						Files.Add(TestLogValueTypes.approvedMetadata, Path.ChangeExtension(FilePath, ".json"));
+					}
+					FilePath = Files.GetValueOrDefault(TestLogValueTypes.difference);
+					if (!string.IsNullOrEmpty(FilePath))
+					{
+						Files.Add(TestLogValueTypes.differenceReport, Path.Combine(Path.GetDirectoryName(FilePath), "Report.json"));
+					}
+				}
+			}
+
+			private static Logging.LogLevel EventTypeToLogLevel(EventType Type)
+			{
+				Logging.LogLevel Level = Logging.LogLevel.None;
+				switch (Type)
+				{
+					case EventType.Info:
+						Level = Logging.LogLevel.Information;
+						break;
+
+					case EventType.Warning:
+						Level = Logging.LogLevel.Warning;
+						break;
+
+					case EventType.Error:
+						Level = Logging.LogLevel.Error;
+						break;
+				}
+
+				return Level;
+			}
+
+			private static Logging.LogLevel EventSeverityToLogLevel(EventSeverity Type)
+			{
+				Logging.LogLevel Level = Logging.LogLevel.None;
+				switch (Type)
+				{
+					case EventSeverity.Info:
+						Level = Logging.LogLevel.Information;
+						break;
+
+					case EventSeverity.Warning:
+						Level = Logging.LogLevel.Warning;
+						break;
+
+					case EventSeverity.Error:
+						Level = Logging.LogLevel.Error;
+						break;
+
+					case EventSeverity.Fatal:
+						Level = Logging.LogLevel.Critical;
+						break;
+				}
+
+				return Level;
+			}
+
+			private static TestPhaseOutcome TestStateToPhaseOutcome(TestStateType State)
+			{
+				TestPhaseOutcome Outcome = TestPhaseOutcome.Unknown;
+				switch (State)
+				{
+					case TestStateType.Fail:
+						Outcome = TestPhaseOutcome.Failed;
+						break;
+
+					case TestStateType.InProcess:
+						Outcome = TestPhaseOutcome.Interrupted;
+						break;
+
+					case TestStateType.NotRun:
+						Outcome = TestPhaseOutcome.NotRun;
+						break;
+
+					case TestStateType.Success:
+						Outcome = TestPhaseOutcome.Success;
+						break;
+
+					case TestStateType.Skipped:
+						Outcome = TestPhaseOutcome.Skipped;
+						break;
+				}
+				return Outcome;
+			}
+
+			private static TestPhaseOutcome TestResultToPhaseOutcome(Gauntlet.TestResult State)
+			{
+				TestPhaseOutcome Outcome = TestPhaseOutcome.Unknown;
+				switch (State)
+				{
+					case Gauntlet.TestResult.Failed:
+						Outcome = TestPhaseOutcome.Failed;
+						break;
+
+					case Gauntlet.TestResult.TimedOut:
+					case Gauntlet.TestResult.Cancelled:
+						Outcome = TestPhaseOutcome.Interrupted;
+						break;
+
+					case Gauntlet.TestResult.Invalid:
+						Outcome = TestPhaseOutcome.NotRun;
+						break;
+
+					case Gauntlet.TestResult.Passed:
+						Outcome = TestPhaseOutcome.Success;
+						break;
+
+					case Gauntlet.TestResult.InsufficientDevices:
+						Outcome = TestPhaseOutcome.Skipped;
+						break;
+				}
+				return Outcome;
+			}
+
+			/// <summary>
+			/// Return the event stream of the target phase or current phase if not specified
+			/// </summary>
+			/// <param name="InPhaseKey"></param>
+			/// <returns></returns>
+			/// <exception cref="AutomationException"></exception>
+			public virtual TestEventStream GetEventStream(string InPhaseKey = null)
+			{
+				if (InPhaseKey == null && CurrentPhase == null)
+				{
+					AddPhase("Main");
+				}
+				string PhaseKey = string.IsNullOrEmpty(InPhaseKey) ? CurrentPhase.key : InPhaseKey;
+				TestPhase Phase = GetPhase(PhaseKey);
+				if (Phase == null)
+				{
+					throw new AutomationException("No Phase '{0}' set in Test '{1}'", PhaseKey, Key);
+				}
+				return Phase.GetStream();
+			}
+
+			public override Dictionary<string, object> GetReportDependencies()
+			{
+				// store the event streams
+				string OutputDir = Path.Combine(OutputArtifactPath, "EventStreams");
+				if (!Directory.Exists(OutputDir))
+				{
+					Directory.CreateDirectory(OutputDir);
+				}
+				Log.Verbose("Writing Phase Event Streams at {0}", OutputDir);
+				foreach (TestPhase Phase in Data.phases)
+				{
+					string OutputFilePath = null;
+					TestEventStream Stream = Phase.GetStream();
+					// skip if the event stream is empty
+					if (Stream.HasAnyEvent())
+					{
+						string FileName = $"EventStreams/{Phase.key}.json";
+						OutputFilePath = Path.Combine(OutputArtifactPath, FileName);
+						// write phase event stream
+						try
+						{
+							File.WriteAllText(OutputFilePath, JsonSerializer.Serialize(Stream.GetEvents(), GetDefaultJsonOptions()));
+							AttachArtifact(ref OutputFilePath, FileName);
+						}
+						catch (Exception Ex)
+						{
+							Log.Error("Failed to save Event Stream for '{0}'. {1}", Phase.key, Ex);
+						}
+					}
+					// update phase
+					Phase.eventStreamPath = OutputFilePath;
+				}
+
+				return base.GetReportDependencies();
+			}
+
+			private static DateTime ConvertUETimeStringToDateTime(string StringTime)
+			{
+				return UnrealAutomationEntry.GetTimestampAsDateTime(StringTime);
+			}
+
+			/// <summary>
+			/// Convert UnrealAutomatedTestPassResults to Horde data model
+			/// </summary>
+			/// <param name="InTestPassResults"></param>
+			/// <param name="InName"></param>
+			/// <param name="InReportPath"></param>
+			/// <param name="InHordeArtifactPath"></param>
+			/// <returns></returns>
+			public static AutomatedTestSessionData FromUnrealAutomatedTests(UnrealAutomatedTestPassResults InTestPassResults, string InKey, string InName, string InReportPath, string InHordeArtifactPath)
+			{
+				AutomatedTestSessionData OutTestPassResults = new AutomatedTestSessionData(InKey, InName);
+				OutTestPassResults.SetOutputArtifactPath(InHordeArtifactPath);
+				if (InTestPassResults.Devices != null)
+				{
+					foreach (UnrealAutomationDevice InDevice in InTestPassResults.Devices)
+					{
+						TestDevice ConvertedDevice = OutTestPassResults.AddDevice(InDevice.DeviceName, InDevice.Instance);
+						ConvertedDevice.appInstanceLogPath = InDevice.AppInstanceLog;
+						ConvertedDevice.metadata.Add("platform", InDevice.Platform);
+						ConvertedDevice.metadata.Add("os_version", InDevice.OSVersion);
+						ConvertedDevice.metadata.Add("model", InDevice.Model);
+						ConvertedDevice.metadata.Add("gpu", InDevice.GPU);
+						ConvertedDevice.metadata.Add("cpumodel", InDevice.CPUModel);
+						ConvertedDevice.metadata.Add("ram_in_gb", InDevice.RAMInGB.ToString());
+						ConvertedDevice.metadata.Add("render_mode", InDevice.RenderMode);
+						ConvertedDevice.metadata.Add("rhi", InDevice.RHI);
+					}
+				}
+				DateTime SessionTime = ConvertUETimeStringToDateTime(InTestPassResults.ReportCreatedOn);
+				OutTestPassResults.SetSessionTiming(SessionTime, InTestPassResults.TotalDuration);
+				if (InTestPassResults.Tests != null)
+				{
+					foreach (UnrealAutomatedTestResult InTestResult in InTestPassResults.Tests)
+					{
+						TestPhase Phase = OutTestPassResults.AddPhase(InTestResult.FullTestPath);
+						Phase.deviceKeys = InTestResult.DeviceInstance;
+						string TestDateTime = InTestResult.DateTime;
+						DateTime PhaseTime = ConvertUETimeStringToDateTime(TestDateTime);
+						Phase.SetTiming(PhaseTime, InTestResult.Duration);
+						Phase.SetOutcome(InTestResult.State);
+						TestEventStream Stream = Phase.GetStream();
+						foreach (UnrealAutomationEntry InTestEntry in InTestResult.Entries)
+						{
+							string Artifact = InTestEntry.Event.Artifact;
+							// If Artifact values is not null nor a bunch on 0, then we have a file attachment.
+							if (!string.IsNullOrEmpty(Artifact) && Artifact.Substring(0, 4) != "0000")
+							{
+								UnrealAutomationArtifact ArtifactEntry = InTestResult.Artifacts.Find(A => A.Id == Artifact);
+								if (ArtifactEntry != null)
+								{
+									DateTime EventTime = ConvertUETimeStringToDateTime(InTestEntry.Timestamp);
+									Logging.LogLevel LogLevel = EventTypeToLogLevel(InTestEntry.Event.Type);
+									string EntryName = ArtifactEntry.Name;
+									if (ArtifactEntry.Type == "Comparison")
+									{
+										ImageComparisonFiles ComparisonFiles = new ImageComparisonFiles(EntryName, ArtifactEntry.Files, InReportPath);
+										string Format = InTestEntry.Event.Message.Replace(EntryName, $"{{{ComparisonFiles.Token}}}");
+										Stream.AddImageComparison(EventTime, LogLevel, Format, ComparisonFiles);
+
+									}
+									else
+									{
+										ArtifactFiles Files = new ArtifactFiles(ArtifactEntry.Type, EntryName, ArtifactEntry.Files, InReportPath);
+										string Format = InTestEntry.Event.Message.Replace(EntryName, $"{{{Files.Token}}}");
+										Stream.AddArtifact(EventTime, LogLevel, Format, Files);
+									}
+									continue;
+								}
+							}
+							Stream.AddEvent(InTestEntry.AsLogEvent());
+						}
+					}
+				}
+				return OutTestPassResults;
+			}
 		}
 
 		/// <summary>
@@ -1114,50 +2240,64 @@ namespace Gauntlet
 		{
 			public class DataItem
 			{
-				public string Key { get; set; }
-				public object Data { get; set; }				
+				public string key { get; set; }
+				public object data { get; set; }
+				public int version { get; set; } = 1;
+				public Dictionary<string, string> metadata { get; set; }
 			}
 			public TestDataCollection()
 			{
-				Items = new List<DataItem>();
+				items = new List<DataItem>();
 			}
 
-			public DataItem AddNewTestReport(ITestReport InData, string InKey = null)
+			public DataItem AddNewTestReport(object InData, string InKey = null)
 			{
-				if(InData is BaseHordeReport InHordeReport)
+				int Version = 1;
+				Dictionary<string, string> Metadata = null;
+				Dictionary<string, object> ExtraItems = null;
+				if (InData is BaseHordeReport InHordeReport)
 				{
+					ExtraItems = InHordeReport.GetReportDependencies();
 					InKey = InHordeReport.GetTestDataKey(InKey);
+					InData = InHordeReport.GetTestData();
+					Version = InHordeReport.GetVersion();
+					Metadata = InHordeReport.GetMetadata();
 				}
-				DataItem NewDataItem = new DataItem();
-				NewDataItem.Key = string.IsNullOrEmpty(InKey) ? InData.Type : InKey;
-				NewDataItem.Data = InData;
+				DataItem NewDataItem = new DataItem()
+				{
+					key = InKey,
+					data = InData,
+					version = Version,
+					metadata = Metadata
+				};
 
-				var FoundItemIndex = Items.FindIndex(I => I.Key == InKey);
+				var FoundItemIndex = items.FindIndex(I => I.key == InKey);
 				if (FoundItemIndex == -1)
 				{
-					Items.Add(NewDataItem);
+					items.Add(NewDataItem);
 				}
 				else
 				{
-					Items[FoundItemIndex] = NewDataItem;
+					items[FoundItemIndex] = NewDataItem;
 				}
 
-				var ExtraItems = InData.GetReportDependencies();
-				if (ExtraItems.Count() > 0)
+				if (ExtraItems != null && ExtraItems.Count() > 0)
 				{
 					foreach (string Key in ExtraItems.Keys)
 					{
-						DataItem ExtraDataItem = new DataItem();
-						ExtraDataItem.Key = Key;
-						ExtraDataItem.Data = ExtraItems[Key];
-						Items.Add(ExtraDataItem);
+						DataItem ExtraDataItem = new DataItem()
+						{
+							key = Key,
+							data = ExtraItems[Key]
+						};
+						items.Add(ExtraDataItem);
 					}
 				}
 
 				return NewDataItem;
 			}
 
-			public List<DataItem> Items { get; set; }
+			public List<DataItem> items { get; set; }
 
 			/// <summary>
 			/// Write Test Data Collection to json
@@ -1205,6 +2345,33 @@ namespace Gauntlet
 			{
 				WriteIndented = true
 			};
+		}
+
+		/// <summary>
+		/// Validate Key name, intended to validate a key that is going to be used as property name (ie: Phase key).
+		/// </summary>
+		/// <param name="InKey"></param>
+		/// <returns></returns>
+		/// <exception cref="AutomationException"></exception>
+		private static string ValidateKey(string InKey)
+		{
+			if (string.IsNullOrEmpty(InKey))
+			{
+				throw new AutomationException("Key must not be empty.");
+			}
+			if (InKey.StartsWith("$"))
+			{
+				throw new AutomationException("Key must not start with the '$' character.");
+			}
+			if (InKey.Contains("."))
+			{
+				throw new AutomationException("Key must not contain '.' characters.");
+			}
+			if (InKey.Length > 1024)
+			{
+				throw new AutomationException("Key must not have more than 1024 characters.");
+			}
+			return InKey;
 		}
 	}
 }
