@@ -232,14 +232,24 @@ bool RequiresReinitPose(USkeletalMesh* CurrentSkeletalMesh, USkeletalMesh* Skele
 }
 
 
-void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMesh)
+void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated)
 {
 	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
 
 	if (Parent)
 	{
-		Parent->SetSkeletalMesh(SkeletalMesh, RequiresReinitPose(Parent->GetSkeletalMeshAsset(), SkeletalMesh));
+		if (SkeletalMesh != Parent->GetSkeletalMeshAsset())
+		{
+			Parent->SetSkeletalMesh(SkeletalMesh, RequiresReinitPose(Parent->GetSkeletalMeshAsset(), SkeletalMesh));
 
+			if (bOutSkeletalMeshUpdated)
+			{
+				*bOutSkeletalMeshUpdated = true;
+			}
+		}
+
+		TArray<TObjectPtr<UMaterialInterface>> OldOverridenMaterials = Parent->OverrideMaterials;
+		
 		if (Parent->HasOverrideMaterials())
 		{
 			// For some reason the reference skeletal mesh materials are added as override materials, clear them if necessary
@@ -267,17 +277,28 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMe
 					Parent->SetMaterial(Index, ComponentData->OverrideMaterials[Index]);
 				}
 			}
-		}	
+		}
+
+		if (bOutMaterialsUpdated)
+		{
+			*bOutMaterialsUpdated = OldOverridenMaterials != Parent->OverrideMaterials;
+		}
 	}
 }
 
-void UCustomizableObjectInstanceUsage::SetPhysicsAsset(UPhysicsAsset* PhysicsAsset)
+void UCustomizableObjectInstanceUsage::SetPhysicsAsset(UPhysicsAsset* PhysicsAsset, bool* bOutPhysicsAssetUpdated)
 {
 	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
 
-	if (Parent && Parent->GetWorld())
+	if (Parent && Parent->GetWorld() &&
+		PhysicsAsset != Parent->GetPhysicsAsset())
 	{
 		Parent->SetPhysicsAsset(PhysicsAsset, true);
+		
+		if (bOutPhysicsAssetUpdated)
+		{
+			*bOutPhysicsAssetUpdated = true;
+		}
 	}
 }
 

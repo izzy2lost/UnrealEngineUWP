@@ -569,6 +569,9 @@ public:
 	bool UpdateStarted = false;
 	bool bLevelBegunPlay = false;
 
+	/** true if the update has been optimized (skips all Tasks and calls FinishUpdateGlobal directly on the Enqueue). */
+	bool bOptimizedUpdate = false;
+	
 	// Update stats
 	double StartQueueTime = 0.0;
 	double QueueTime = 0.0;
@@ -590,6 +593,9 @@ public:
 	/** Used for profiling in the editor. */
 	uint32 MutableRuntimeCycles = 0;
 
+	/** If a InstanceUsage is in this set it means that its AttachParent has been modified (USkeletalMesh changed, UMaterial changed...). */
+	TSet<TWeakObjectPtr<UCustomizableObjectInstanceUsage>> AttachedParentUpdated;
+	
 	/** Hard references to objects. Avoids GC to collect them. */
 	TArray<TStrongObjectPtr<const UObject>> Objects;
 };

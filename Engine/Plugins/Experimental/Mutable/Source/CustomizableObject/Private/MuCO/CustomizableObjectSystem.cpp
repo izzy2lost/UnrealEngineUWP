@@ -855,18 +855,23 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		// Call CustomizableObjectInstanceUsages updated callbacks.
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It) // Since iterating objects is expensive, for now CustomizableObjectInstanceUsage does not have a FinishUpdate function.
 		{
+			const UCustomizableObjectInstanceUsage* InstanceUsage = *It;
+			if (!IsValid(InstanceUsage))
+			{
+				continue;
+			}
+
 #if WITH_EDITOR
-			if (IsValid(*It) && It->IsNetMode(NM_DedicatedServer))
+			if (It->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (const UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
-				IsValid(CustomizableObjectInstanceUsage) &&
-				CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == Instance)
+			if (InstanceUsage->GetCustomizableObjectInstance() == Instance &&
+				(!Context->bOptimizedUpdate || Context->AttachedParentUpdated.Find(InstanceUsage)))
 			{
-				CustomizableObjectInstanceUsage->Callbacks();
+				InstanceUsage->Callbacks();
 			}
 		}
 	}
@@ -945,6 +950,10 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 		}
 #endif
 
+		bool bSkeletalMeshUpdated = false;
+		bool bMaterialsUpdated = false;
+		bool bPhysicsAssetUpdated = false;	
+		
 		if (IsValid(CustomizableObjectInstanceUsage) &&
 			(CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CustomizableObjectInstance) &&
 			CustomizableObjectInstancePrivateData->SkeletalMeshes.IsValidIndex(CustomizableObjectInstanceUsage->GetComponentIndex())
@@ -952,14 +961,19 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_SetSkeletalMesh);
 
-			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]);
+			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()], &bSkeletalMeshUpdated, &bMaterialsUpdated);
 
 			if (CustomizableObjectInstancePrivateData->HasCOInstanceFlags(ReplacePhysicsAssets))
 			{
 				CustomizableObjectInstanceUsage->SetPhysicsAsset(
 					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()] ?
-					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]->GetPhysicsAsset() : nullptr);
+					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]->GetPhysicsAsset() : nullptr, &bPhysicsAssetUpdated);
 			}
+		}
+
+		if (bSkeletalMeshUpdated || bMaterialsUpdated || bPhysicsAssetUpdated)
+		{
+			Context->AttachedParentUpdated.Add(CustomizableObjectInstanceUsage);
 		}
 	}
 }
@@ -1213,6 +1227,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 		{
 			if (Context->GetCapturedDescriptorHash().IsSubset(QueueElem->Context->GetCapturedDescriptorHash()))
 			{
+				Context->bOptimizedUpdate = true;
 				Context->UpdateResult = EUpdateResult::ErrorOptimized;
 				FinishUpdateGlobal(Context);			
 				return; // The the requested update is equal to the last enqueued update.
@@ -1223,6 +1238,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 			Instance == CurrentMutableOperation->Instance &&
 			Context->GetCapturedDescriptorHash().IsSubset(CurrentMutableOperation->GetCapturedDescriptorHash()))
 		{
+			Context->bOptimizedUpdate = true;
 			Context->UpdateResult = EUpdateResult::ErrorOptimized;
 			FinishUpdateGlobal(Context);
 			return; // The requested update is equal to the running update.
@@ -1232,8 +1248,13 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 			!(CurrentMutableOperation &&
 			Instance == CurrentMutableOperation->Instance)) // This condition is necessary because even if the descriptor is a subset, it will be replaced by the CurrentMutableOperation
 		{
-			Context->UpdateResult = EUpdateResult::Success;
-			UpdateSkeletalMesh(Context);
+			Context->bOptimizedUpdate = true;
+
+			// The user may have changed the AttachParent and we need to recustomize it.
+			// In case nothing need to be recustomized, the update will be considered ErrorOptimized.
+			UpdateSkeletalMesh(Context); 
+			Context->UpdateResult = Context->AttachedParentUpdated.IsEmpty() ? EUpdateResult::ErrorOptimized : EUpdateResult::Success;
+			
 			FinishUpdateGlobal(Context);
 		}
 		else
