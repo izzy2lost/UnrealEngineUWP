@@ -12,8 +12,8 @@
 namespace UE::IoStore {
 
 ////////////////////////////////////////////////////////////////////////////////
-namespace IasJournaledFileCacheTest { void Tests(const TCHAR*);				}
-namespace HTTP						{ void IasHttpTest(const ANSICHAR*);	}
+namespace IasJournaledFileCacheTest { void Tests(const TCHAR*);					}
+namespace HTTP						{ void IasHttpTest(const ANSICHAR*, uint32);}
 
 namespace Tool {
 
@@ -26,7 +26,8 @@ static void HttpTests(const FContext& Context)
 	auto TestHost = Context.Get<FStringView>(TEXT("-Host"), TEXT("localhost"));
 
 	auto TestHostAnsi = StringCast<ANSICHAR>(TestHost.GetData());
-	HTTP::IasHttpTest(TestHostAnsi.Get());
+	uint32 Seed = Context.Get<uint32>(TEXT("-HttpSeed"), 493);
+	HTTP::IasHttpTest(TestHostAnsi.Get(), Seed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +71,7 @@ static FCommand TestCommand(
 		TArgument<FStringView>(TEXT("-Host"), TEXT("Host of the HTTP test server")),
 		TArgument<FStringView>(TEXT("-Dir"), TEXT("Primary directory to use for cache tests")),
 		TArgument<FStringView>(TEXT("-Only"), TEXT("Only run a particular test (http|cache)")),
+		TArgument<uint32>(TEXT("-HttpSeed"), TEXT("Integer value to seed test HTTP server")),
 	}
 );
 

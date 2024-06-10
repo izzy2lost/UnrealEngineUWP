@@ -422,6 +422,17 @@ static void RedirectTest(const ANSICHAR* TestHost, FCertRootsRef VerifyCert)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static void SeedHttp(const ANSICHAR* TestHost, uint32 Seed)
+{
+	TAnsiStringBuilder<64> Url;
+	Url << "http://" << TestHost << ":9493/seed/" << Seed;
+	FEventLoop Loop;
+	FRequest Request = Loop.Request("GET", Url, nullptr);
+	Loop.Send(MoveTemp(Request), [] (const FTicketStatus&) {});
+	for (; Loop.Tick(-1); FPlatformProcess::SleepNoStats(0.02f));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static void HttpTest(const ANSICHAR* TestHost, FCertRootsRef VerifyCert)
 {
 	const uint32 DefaultPort = (VerifyCert != 0) ? 4939 : 9493;
@@ -542,10 +553,10 @@ static void HttpTest(const ANSICHAR* TestHost, FCertRootsRef VerifyCert)
 
 	// foundational
 	{
-		FRequest Request = Loop.Request("GET", BuildUrl("/seed/493"), ReqParams);
+		FRequest Request = Loop.Request("GET", BuildUrl("/data/67"), ReqParams);
 		Request.Accept(EMimeType::Json);
 
-		FTicket Ticket = Loop.Send(MoveTemp(Request), NullSink);
+		FTicket Ticket = Loop.Send(MoveTemp(Request), HashSink);
 
 		WaitForLoopIdle();
 	}
@@ -825,7 +836,7 @@ static void HttpTest(const ANSICHAR* TestHost, FCertRootsRef VerifyCert)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-IOSTOREHTTPCLIENT_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
+IOSTOREHTTPCLIENT_API void IasHttpTest(const ANSICHAR* TestHost="localhost", uint32 Seed=493)
 {
 #if PLATFORM_WINDOWS
 	WSADATA WsaData;
@@ -858,14 +869,12 @@ IOSTOREHTTPCLIENT_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 
 		TestServerCaChain = FCertRoots(CertBuffer.GetView());
 	}
-
 	FCertRootsRef TestServerCertRef = FCertRoots::Explicit(TestServerCaChain);
 
+	SeedHttp(TestHost, Seed);
 	HttpTest(TestHost, FCertRoots::NoTls());
 	HttpTest(TestHost, TestServerCertRef);
-
 	RedirectTest(TestHost, TestServerCertRef);
-
 	TlsLoadRootCerts();
 	TlsTest();
 }
