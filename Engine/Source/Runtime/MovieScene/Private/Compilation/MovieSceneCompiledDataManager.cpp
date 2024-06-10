@@ -484,6 +484,23 @@ void UMovieSceneCompiledDataManager::LoadCompiledData(UMovieSceneSequence* Seque
 	}
 }
 
+bool UMovieSceneCompiledDataManager::CanMarkSignedObjectAsChangedDuringCook(UMovieSceneSequence* Sequence) const
+{
+	const FMovieSceneCompiledDataID DataID = FindDataID(Sequence);
+	if (!DataID.IsValid())
+	{
+		// No data ID has been created, so this sequence hasn't been compiled yet.
+		// We're OK to modify it.
+		return true;
+	}
+
+	const FMovieSceneCompiledDataEntry* EntryPtr = GetEntryPtr(DataID);
+
+	// If the compiled signature is set, we have already compiled the sequence. In that
+	// case, it's not OK to modify data anymore.
+	return !EntryPtr->CompiledSignature.IsValid();
+}
+
 void UMovieSceneCompiledDataManager::SetEmulatedNetworkMask(EMovieSceneServerClientMask NewMask)
 {
 	DestroyAllData();

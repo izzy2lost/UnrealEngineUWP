@@ -3,6 +3,7 @@
 #include "MovieSceneSignedObject.h"
 #include "Templates/Casts.h"
 #include "MovieSceneSequence.h"
+#include "Compilation/MovieSceneCompiledDataManager.h"
 #include "UObject/Package.h"
 #include "CoreGlobals.h"
 
@@ -115,6 +116,31 @@ void UMovieSceneSignedObject::PostLoad()
 void UMovieSceneSignedObject::MarkAsChanged()
 {
 	using namespace UE::MovieScene;
+
+	if (IsRunningCookCommandlet())
+	{
+		// During cooking, we don't want to regenerate new GUIDs, since they would be different
+		// every time and trigger non-detrministic cooking errors. We therefore bail out early
+		// and leave the original GUID.
+		//
+		// However, we also check that nobody is trying to modify data after we have compiled the
+		// sequence, as this would lead to a mismatch between the source data and the compiled
+		// data we use to run it. We therefore check with the compiled data manager whether our
+		// parent sequence has already been compiled or not.
+		UMovieSceneSequence* OuterSequence = GetTypedOuter<UMovieSceneSequence>();
+		if (OuterSequence)
+		{
+			UMovieSceneCompiledDataManager* CompiledDataManager = UMovieSceneCompiledDataManager::GetPrecompiledData();
+			check(CompiledDataManager);
+			const bool bCanMarkAsChanged = CompiledDataManager->CanMarkSignedObjectAsChangedDuringCook(OuterSequence);
+			ensureAlwaysMsgf(bCanMarkAsChanged,
+					TEXT("This object's signature was locked after its sequence was compiled, "
+						 "but someone attempted to mark it, or one of its inner objects, as changed! "
+						 "Current object: %s ; Current sequence: %s"),
+					*GetPathName(), *OuterSequence->GetPathName());
+		}
+		return;
+	}
 
 	// We always change the signature immediately to ensure that any external code that wants
 	// to directly check our signature (eg, to clear caches) can still do so even while there

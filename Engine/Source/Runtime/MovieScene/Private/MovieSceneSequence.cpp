@@ -199,15 +199,13 @@ void UMovieSceneSequence::Serialize(FArchive& Ar)
 
 #if WITH_EDITOR
 
-bool UMovieSceneSequence::OptimizeForCook()
+void UMovieSceneSequence::OptimizeForCook()
 {
 	UMovieScene* MovieScene = GetMovieScene();
 	if (!MovieScene)
 	{
-		return false;
+		return;
 	}
-
-	bool bModified = false;
 
 	for (int32 TrackIndex = 0; TrackIndex < MovieScene->GetTracks().Num(); )
 	{
@@ -217,7 +215,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 			Track->RemoveForCook();
 			MovieScene->RemoveTrack(*Track);
 			UE_LOG(LogMovieScene, Display, TEXT("Removing muted track: %s from: %s"), *Track->GetDisplayName().ToString(), *GetPathName());
-			bModified = true;
 			continue;
 		}
 		++TrackIndex;
@@ -237,7 +234,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 					Section->RemoveForCook();
 					Track->RemoveSection(*Section);
 					UE_LOG(LogMovieScene, Display, TEXT("Removing muted section: %s from: %s"), *Section->GetPathName(), *Track->GetDisplayName().ToString());
-					bModified = true;
 					continue;
 				}
 				++SectionIndex;
@@ -269,7 +265,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 				Track->RemoveForCook();
 				MovieScene->RemoveTrack(*Track);
 				UE_LOG(LogMovieScene, Display, TEXT("Removing muted track: %s from: %s"), *Track->GetDisplayName().ToString(), *GetPathName());
-				bModified = true;
 				continue;
 			}
 			++TrackIndex;
@@ -289,7 +284,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 						Section->RemoveForCook();
 						Track->RemoveSection(*Section);
 						UE_LOG(LogMovieScene, Display, TEXT("Removing muted section: %s from: %s"), *Section->GetPathName(), *Track->GetDisplayName().ToString());
-						bModified = true;
 						continue;
 					}
 					++SectionIndex;
@@ -301,22 +295,14 @@ bool UMovieSceneSequence::OptimizeForCook()
 		{
 			UE_LOG(LogMovieScene, Display, TEXT("Removing muted object: %s from: %s"), *MovieScene->GetBindings()[ObjectBindingIndex].GetName(), *GetPathName());
 			FGuid GuidToRemove = MovieScene->GetBindings()[ObjectBindingIndex].GetObjectGuid();
-			bModified |= MovieScene->RemoveSpawnable(GuidToRemove);
-			bModified |= MovieScene->RemovePossessable(GuidToRemove);
+			MovieScene->RemoveSpawnable(GuidToRemove);
+			MovieScene->RemovePossessable(GuidToRemove);
 		}
 		else
 		{
 			++ObjectBindingIndex;
 		}
 	}
-
-	if (bModified)
-	{
-		Modify();
-		MovieScene->Modify();
-	}
-
-	return bModified;
 }
 
 #endif

@@ -388,7 +388,7 @@ public:
 private:
 
 #if WITH_EDITOR
-	bool OptimizeForCook();
+	void OptimizeForCook();
 #endif
 
 	/** Serialized compiled data - should only be used through UMovieSceneCompiledDataManager */

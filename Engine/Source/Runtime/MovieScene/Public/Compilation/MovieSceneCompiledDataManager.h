@@ -251,6 +251,12 @@ public:
 	MOVIESCENE_API void CopyCompiledData(UMovieSceneSequence* Sequence);
 	MOVIESCENE_API void LoadCompiledData(UMovieSceneSequence* Sequence);
 
+public:
+
+	// Internal API.
+
+	bool CanMarkSignedObjectAsChangedDuringCook(UMovieSceneSequence* Sequence) const;
+
 private:
 
 	MOVIESCENE_API void Gather(const FMovieSceneCompiledDataEntry& Entry, UMovieSceneSequence* Sequence, const FTrackGatherParameters& Params, FMovieSceneGatheredCompilerData* OutCompilerData) const;
@@ -288,6 +294,12 @@ private:
 private:
 
 	FMovieSceneCompiledDataEntry* GetEntryPtr(FMovieSceneCompiledDataID DataID)
+	{
+		check(CompiledDataEntries.IsValidIndex(DataID.Value));
+		return &CompiledDataEntries[DataID.Value];
+	}
+
+	const FMovieSceneCompiledDataEntry* GetEntryPtr(FMovieSceneCompiledDataID DataID) const
 	{
 		check(CompiledDataEntries.IsValidIndex(DataID.Value));
 		return &CompiledDataEntries[DataID.Value];
