@@ -562,6 +562,11 @@ class FLumenSharedRT
 {
 public:
 	FRDGTextureRef CreateSharedRT(FRDGBuilder& Builder, const FRDGTextureDesc& Desc, FIntPoint VisibleExtent, const TCHAR* Name, ERDGTextureFlags Flags = ERDGTextureFlags::None);
+	
+	FRDGTextureRef GetRenderTarget() const
+	{
+		return RenderTarget;
+	}
 
 private:
 	FRDGTextureRef RenderTarget = nullptr;

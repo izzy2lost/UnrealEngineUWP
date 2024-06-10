@@ -1766,12 +1766,25 @@ void FDeferredShadingSceneRenderer::StoreLumenDepthHistory(FRDGBuilder& GraphBui
 			ComputeShader,
 			PassParameters,
 			FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FStoreLumenSceneHistoryCS::GetGroupSize()));
+	}
+}
 
-		GraphBuilder.QueueTextureExtraction(DepthHistory, &View.ViewState->Lumen.SceneDepthHistory);
-
-		if (bStoreNormal)
+void FDeferredShadingSceneRenderer::QueueExtractLumenOpaqueSceneDepthAndNormal(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries)
+{
+	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
+	{
+		if (FrameTemporaries.DepthHistory.GetRenderTarget())
 		{
-			GraphBuilder.QueueTextureExtraction(NormalHistory, &View.ViewState->Lumen.SceneNormalHistory);
+			GraphBuilder.QueueTextureExtraction(FrameTemporaries.DepthHistory.GetRenderTarget(), &View.ViewState->Lumen.SceneDepthHistory);
+		}
+		else
+		{
+			View.ViewState->Lumen.SceneDepthHistory = nullptr;
+		}
+
+		if (FrameTemporaries.NormalHistory.GetRenderTarget())
+		{
+			GraphBuilder.QueueTextureExtraction(FrameTemporaries.NormalHistory.GetRenderTarget(), &View.ViewState->Lumen.SceneNormalHistory);
 		}
 		else
 		{

@@ -810,6 +810,9 @@ private:
 	void BeginGatheringLumenSurfaceCacheFeedback(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries);
 	void FinishGatheringLumenSurfaceCacheFeedback(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries);
 	
+	/** Extract current frame opaque (no water) depth and normal scene textures to use as history data. */
+	void QueueExtractLumenOpaqueSceneDepthAndNormal(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries);
+
 	/** 
 	 * True if the 'r.UseClusteredDeferredShading' flag is 1 and sufficient feature level. 
 	 */

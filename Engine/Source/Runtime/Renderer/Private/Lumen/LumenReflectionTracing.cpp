@@ -45,7 +45,7 @@ FAutoConsoleVariableRef GVarLumenReflectionHierarchicalScreenTraceRelativeDepthT
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness = .01f;
+float GLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness = .005f;
 FAutoConsoleVariableRef GVarLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness(
 	TEXT("r.Lumen.Reflections.HierarchicalScreenTraces.HistoryDepthTestRelativeThickness"),
 	GLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness,
@@ -93,7 +93,7 @@ FAutoConsoleVariableRef CVarLumenReflectionsSampleSceneColorAtHit(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenReflectionSampleSceneColorRelativeDepthThreshold = .05f;
+float GLumenReflectionSampleSceneColorRelativeDepthThreshold = .01f;
 FAutoConsoleVariableRef GVarLumenReflectionSampleSceneColorRelativeDepthThreshold(
 	TEXT("r.Lumen.Reflections.SampleSceneColorRelativeDepthThickness"),
 	GLumenReflectionSampleSceneColorRelativeDepthThreshold,

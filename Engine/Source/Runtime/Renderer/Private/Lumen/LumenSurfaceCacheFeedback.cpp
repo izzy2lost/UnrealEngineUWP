@@ -573,4 +573,9 @@ void FDeferredShadingSceneRenderer::FinishGatheringLumenSurfaceCacheFeedback(FRD
 			GraphBuilder.QueueTextureExtraction(FrameTemporaries.NumFramesAccumulatedHistoryAtlas, &LumenSceneData.NumFramesAccumulatedHistoryAtlas);
 		}
 	}
+
+	for (const FViewInfo& ViewInfo : Views)
+	{
+		QueueExtractLumenOpaqueSceneDepthAndNormal(GraphBuilder, ViewInfo, FrameTemporaries);
+	}
 }
