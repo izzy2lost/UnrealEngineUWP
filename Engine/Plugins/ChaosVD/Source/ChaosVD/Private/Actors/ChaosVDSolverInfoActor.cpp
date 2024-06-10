@@ -243,17 +243,20 @@ void AChaosVDSolverInfoActor::Destroyed()
 		ColorVisualizationSettings->OnSettingsChanged().RemoveAll(this);
 	}
 
-	constexpr float AmountOfWork = 1.0f;
-	const float PercentagePerElement = 1.0f / SolverParticlesByID.Num();
-
-	FScopedSlowTask CleaningParticleDataSlowTask(AmountOfWork, LOCTEXT("CleaningParticleDataMessage", "Cleaning Up Particle Data ..."));
-	CleaningParticleDataSlowTask.MakeDialog();
-	
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticlesByID)
+	if (SolverParticlesByID.Num() > 0)
 	{
-		World->DestroyActor(ParticleVDInstanceWithID.Value);
+		constexpr float AmountOfWork = 1.0f;
+		const float PercentagePerElement = 1.0f / SolverParticlesByID.Num();
 
-		CleaningParticleDataSlowTask.EnterProgressFrame(PercentagePerElement);
+		FScopedSlowTask CleaningParticleDataSlowTask(AmountOfWork, LOCTEXT("CleaningParticleDataMessage", "Cleaning Up Particle Data ..."));
+		CleaningParticleDataSlowTask.MakeDialog();
+
+		for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticlesByID)
+		{
+			World->DestroyActor(ParticleVDInstanceWithID.Value);
+
+			CleaningParticleDataSlowTask.EnterProgressFrame(PercentagePerElement);
+		}
 	}
 
 	RemoveSolverFolders(World);
