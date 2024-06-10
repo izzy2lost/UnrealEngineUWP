@@ -260,7 +260,8 @@ FViewportCameraTransform::FViewportCameraTransform()
 
 void FViewportCameraTransform::SetLocation( const FVector& Position )
 {
-	ViewLocation = Position;
+	FVector ClampedPosition = Position.BoundToCube(WORLD_MAX);
+	ViewLocation = ClampedPosition;
 	DesiredLocation = ViewLocation;
 }
 

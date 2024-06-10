@@ -2,13 +2,14 @@
 
 #include "Math/DoubleFloat.h"
 
-#define UE_DF_MIN_PRECISION (2e-4)
+constexpr float UE_DF_MIN_PRECISION = 1.0f/(1 << 2);
 // Max value of a float before it's precision is lower than UE_DF_MIN_PRECISION
 // (there may be 1 more implicit bit available in the significant, but this works as a safe upper bound)
-#define UE_DF_FLOAT_MAX_VALUE (2e23 * UE_DF_MIN_PRECISION - 1)
+constexpr float UE_DF_FLOAT_MAX_VALUE = ((float)(1 << 23) * UE_DF_MIN_PRECISION - 1.0f);
 
 FMatrix CheckMatrixPrecision(const FMatrix& Matrix)
 {
+#if !UE_BUILD_SHIPPING
 	const double OriginMax = UE_DF_FLOAT_MAX_VALUE;
 
 	const FVector Origin = Matrix.GetOrigin();
@@ -16,7 +17,10 @@ FMatrix CheckMatrixPrecision(const FMatrix& Matrix)
 	const double OriginY = FMath::Abs(Origin.Y);
 	const double OriginZ = FMath::Abs(Origin.Z);
 	ensureMsgf(OriginX <= OriginMax && OriginY <= OriginMax && OriginZ <= OriginMax, 
-		TEXT("Found precision loss while converting matrix to GPU format, verify the input transforms."));
+		TEXT("Found precision loss while converting matrix to GPU format, verify the input transforms. ")
+		TEXT("This error usually indicates the view transform is invalid, or the PreViewTranslation/ViewOrigin was not set up correctly."));
+#endif //!UE_BUILD_SHIPPING
+
 	return Matrix;
 }
 

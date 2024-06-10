@@ -1227,8 +1227,10 @@ FMatrix FViewMatrices::ScreenToClipProjectionMatrix() const
 
 void FViewMatrices::HackOverrideViewMatrixForShadows(const FMatrix& InViewMatrix)
 {
-	OverriddenTranslatedViewMatrix = ViewMatrix = InViewMatrix;
-	OverriddenInvTranslatedViewMatrix = InvViewMatrix = InViewMatrix.Inverse();
+	OverriddenTranslatedViewMatrix = InViewMatrix;
+	ViewMatrix = FTranslationMatrix(-ViewOrigin) * InViewMatrix;
+	InvViewMatrix = ViewMatrix.Inverse();
+	OverriddenInvTranslatedViewMatrix = OverriddenTranslatedViewMatrix.Inverse();
 }
 
 void FSceneView::UpdateViewMatrix()
