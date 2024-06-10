@@ -51,7 +51,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	// Optional Editor-only preview object
-	UPROPERTY(Instanced, VisibleAnywhere, Category="Editor")
+	UPROPERTY(Instanced, VisibleAnywhere, BlueprintReadOnly, Category="Editor")
 	TObjectPtr<UMovieSceneSpawnableBindingBase> PreviewSpawnable = nullptr;
 #endif
 

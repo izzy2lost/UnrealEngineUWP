@@ -372,7 +372,7 @@ public:
 	static TArray<FMovieSceneBindingProxy> GetBindings(UMovieSceneSequence* Sequence);
 
 	/**
-	* Get all the spawnables in this sequence
+	* Get all the spawnables in this sequence. For Level Sequences, this includes bindings with binding type UMovieSceneSpawnableActorBinding.
 	*
 	* @param Sequence        The sequence to get spawnables for
 	* @return Spawnables in this sequence
@@ -381,7 +381,7 @@ public:
 	static TArray<FMovieSceneBindingProxy> GetSpawnables(UMovieSceneSequence* Sequence);
 
 	/**
-	* Get all the possessables in this sequence
+	* Get all the possessables in this sequence. It is understood for the purpose of this function that this means the bindings are not custom.
 	*
 	* @param Sequence        The sequence to get possessables for
 	* @return Possessables in this sequence
@@ -400,7 +400,8 @@ public:
 	static FMovieSceneBindingProxy AddPossessable(UMovieSceneSequence* Sequence, UObject* ObjectToPossess);
 
 	/**
-	 * Add a new binding to this sequence that will spawn the specified object
+	 * Add a new binding to this sequence that will spawn the specified object.
+	 * For level sequences this will make a custom binding of type UMovieSceneSpawnableActorBinding.
 	 *
 	 * @param Sequence        The sequence to add to
 	 * @param ObjectToSpawn   An object instance to use as a template for spawning
@@ -411,6 +412,7 @@ public:
 
 	/**
 	 * Add a new binding to this sequence that will spawn the specified object
+	 * For level sequences this will make a custom binding of type UMovieSceneSpawnableActorBinding.
 	 *
 	 * @param Sequence        The sequence to add to
 	 * @param ClassToSpawn    A class or blueprint type to spawn for this binding

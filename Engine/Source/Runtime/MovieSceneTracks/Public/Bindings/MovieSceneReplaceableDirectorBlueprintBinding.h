@@ -37,7 +37,7 @@ public:
 	// Preview Spawnable Type to use for this replaceable
 	// TODO: Do I want to consider moving this sort of thing to the base class so any replaceable type can choose any other spawnable type?
 	// TODO: Changing this will require 
-	UPROPERTY(EditAnywhere, Category="Sequencer")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sequencer")
 	TSubclassOf<UMovieSceneSpawnableBindingBase> PreviewSpawnableType;
 
 protected:

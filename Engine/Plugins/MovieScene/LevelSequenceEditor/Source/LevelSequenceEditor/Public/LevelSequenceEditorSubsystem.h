@@ -110,13 +110,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	FMovieSceneBindingProxy CreateCamera(bool bSpawnable, ACineCameraActor*& OutActor);
 
-	/** Convert to spawnable. If there are multiple objects assigned to the possessable, multiple spawnables will be created. */
+	/** 
+	* Convert to spawnable. If there are multiple objects assigned to the possessable, multiple spawnables will be created. 
+	* For level sequences, the bindings created will be custom bindings of type UMovieSceneSpawnableActorBinding.
+	*/
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	TArray<FMovieSceneBindingProxy> ConvertToSpawnable(const FMovieSceneBindingProxy& ObjectBinding);
 
-	/** Convert to possessable */
+	/** Convert to possessable. If there are multiple objects assigned to the spawnable. */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	FMovieSceneBindingProxy ConvertToPossessable(const FMovieSceneBindingProxy& ObjectBinding);
+
+	/** Convert to a custom binding of the given binding type*/
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	FMovieSceneBindingProxy ConvertToCustomBinding(const FMovieSceneBindingProxy& ObjectBinding, UPARAM(meta = (AllowAbstract = "false")) TSubclassOf<UMovieSceneCustomBinding> BindingType);
+
+	/** In the case that the given binding proxy holds custom bindings, returns an array of the binding objects so properties can be accessed. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	TArray<UMovieSceneCustomBinding*> GetCustomBindingObjects(const FMovieSceneBindingProxy& ObjectBinding);
 
 	/** 
 	 * Copy folders 

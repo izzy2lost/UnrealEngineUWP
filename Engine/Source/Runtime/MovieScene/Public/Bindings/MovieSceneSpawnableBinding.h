@@ -67,11 +67,11 @@ public:
 	/*
 	* The spawn ownership setting for this spawnable, allowing spawnables to potentially outlast the lifetime of their sub sequence or sequence altogether.
 	*/
-	UPROPERTY(EditAnywhere, Category=Spawnable)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawnable)
 	ESpawnOwnership SpawnOwnership = ESpawnOwnership::InnerSequence;
 
 	/** When enabled, this spawnable will always be respawned if it gets destroyed externally. When disabled, this object will only ever be spawned once for each binding lifetime section even if destroyed externally. */
-	UPROPERTY(EditAnywhere, Category= Spawnable)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category= Spawnable)
 	bool bContinuouslyRespawn = false;
 
 public:

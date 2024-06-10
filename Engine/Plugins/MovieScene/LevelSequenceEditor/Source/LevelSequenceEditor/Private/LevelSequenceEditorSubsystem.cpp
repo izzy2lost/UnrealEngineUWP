@@ -723,12 +723,94 @@ FMovieSceneBindingProxy ULevelSequenceEditorSubsystem::ConvertToPossessable(cons
 		return PossessableProxy;
 	}
 
-	if (FMovieScenePossessable* Possessable = FSequencerUtilities::ConvertToPossessable(Sequencer.ToSharedRef(), ObjectBinding.BindingID))
+	FMovieScenePossessable* NewPossessable = nullptr;
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
-		PossessableProxy = FMovieSceneBindingProxy(Possessable->GetGuid(), Sequence);
+		int32 NumBindings = BindingReferences->GetReferences(ObjectBinding.BindingID).Num();
+		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
+		{
+			NewPossessable = FSequencerUtilities::ConvertToPossessable(Sequencer.ToSharedRef(), ObjectBinding.BindingID, BindingIndex);
+		}
+	}
+
+	if (NewPossessable)
+	{
+		PossessableProxy = FMovieSceneBindingProxy(NewPossessable->GetGuid(), Sequence);
 	}
 
 	return PossessableProxy;
+}
+
+
+FMovieSceneBindingProxy ULevelSequenceEditorSubsystem::ConvertToCustomBinding(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<UMovieSceneCustomBinding> BindingType)
+{
+	FMovieSceneBindingProxy PossessableProxy;
+
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return PossessableProxy;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return PossessableProxy;
+	}
+
+	FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+	if (!BindingReferences)
+	{
+		return PossessableProxy;
+	}
+
+	FMovieScenePossessable* NewPossessable = nullptr;
+
+	if (FSequencerUtilities::CanConvertToCustomBinding(Sequencer.ToSharedRef(), ObjectBinding.BindingID, BindingType))
+	{
+		int32 NumBindings = BindingReferences->GetReferences(ObjectBinding.BindingID).Num();
+		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
+		{
+			NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer.ToSharedRef(), ObjectBinding.BindingID, BindingType, BindingIndex);
+		}
+
+		if (NewPossessable)
+		{
+			PossessableProxy = FMovieSceneBindingProxy(NewPossessable->GetGuid(), Sequence);
+		}
+	}
+
+	return PossessableProxy;
+}
+
+TArray<UMovieSceneCustomBinding*> ULevelSequenceEditorSubsystem::GetCustomBindingObjects(const FMovieSceneBindingProxy& ObjectBinding)
+{
+	TArray<UMovieSceneCustomBinding*> CustomBindings;
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return CustomBindings;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return CustomBindings;
+	}
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBinding.BindingID))
+		{
+			if (BindingReference.CustomBinding)
+			{
+				CustomBindings.Add(BindingReference.CustomBinding);
+			}
+		}
+	}
+
+	return CustomBindings;
 }
 
 void ULevelSequenceEditorSubsystem::CopyFolders(const TArray<UMovieSceneFolder*>& Folders, FString& ExportedText)

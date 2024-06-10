@@ -64,11 +64,11 @@ public:
 
 public:
 	/** When enabled, the actor will be spawned with a unique name so that it can be addressable between clients and servers. */
-	UPROPERTY(EditAnywhere, Category=Actor)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawnable)
 	bool bNetAddressableName = false;
 
 	/** Name of level to spawn into */
-	UPROPERTY(EditAnywhere, Category = Actor)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Spawnable)
 	FName LevelName;
 
 protected:
@@ -148,10 +148,8 @@ protected:
 	MOVIESCENETRACKS_API TSubclassOf<AActor> GetActorClass() const override;
 	MOVIESCENETRACKS_API AActor* GetActorTemplate() const override { return ActorTemplate; }
 
-
-private:
-
-	UPROPERTY()
+protected:
+	UPROPERTY(VisibleAnywhere, Category="Spawnable")
 	TObjectPtr<AActor> ActorTemplate;
 
 
