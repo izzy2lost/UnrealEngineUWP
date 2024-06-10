@@ -38,6 +38,7 @@ namespace UE::DMX::Private
 	protected:
 		//~ Begin SWidget interface
 		virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+		virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 		//~ End of SWidget interface
 
 	private:

@@ -331,7 +331,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TSharedRef<FDMXControlConsoleElementControllerModel> ElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(ElementController);
+		const TSharedRef<FDMXControlConsoleElementControllerModel> ElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(ElementController, EditorModel);
 		TSharedPtr<SWidget> ElementControllerWidget = nullptr;
 
 		if (Cast<UDMXControlConsoleMatrixCellController>(ElementController))

@@ -216,7 +216,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TSharedRef<FDMXControlConsoleElementControllerModel> NewElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(CellAttributeController);
+		const TSharedRef<FDMXControlConsoleElementControllerModel> NewElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(CellAttributeController, EditorModel);
 		const TSharedRef<SDMXControlConsoleEditorElementControllerView> ElementControllerView =
 			SNew(SDMXControlConsoleEditorElementControllerView, NewElementControllerModel, EditorModel.Get())
 			.Padding(FMargin(2.f, 0.f))

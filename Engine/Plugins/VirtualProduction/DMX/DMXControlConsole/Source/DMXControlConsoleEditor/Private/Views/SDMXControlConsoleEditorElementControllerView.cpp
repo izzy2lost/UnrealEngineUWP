@@ -4,6 +4,7 @@
 
 #include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
+#include "Algo/Transform.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
@@ -259,6 +260,33 @@ namespace UE::DMX::Private
 		}
 
 		return FReply::Unhandled();
+	}
+
+	FReply SDMXControlConsoleEditorElementControllerView::OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+	{
+		if (!ElementControllerModel.IsValid() || MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+		{
+			return FReply::Unhandled();
+		}
+
+		const bool bSameOwnerControllersOnly = MouseEvent.GetModifierKeys().IsAltDown();
+		const TArray<UDMXControlConsoleElementController*> MatchingAttributeElementControllers = ElementControllerModel->GetMatchingAttributeElementControllers(bSameOwnerControllersOnly);
+		TArray<UObject*> ElementControllersToSelect;
+		Algo::TransformIf(MatchingAttributeElementControllers, ElementControllersToSelect,
+			[this](UDMXControlConsoleElementController* ElementController)
+			{
+				return ElementController && ElementController->IsActive();
+			},
+			[](UDMXControlConsoleElementController* ElementController)
+			{
+				return ElementController;
+			});
+
+		// Select all Element Controllers matching this Element Controller's attribute
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		SelectionHandler->AddToSelection(ElementControllersToSelect);
+
+		return FReply::Handled();
 	}
 
 	TSharedRef<SWidget> SDMXControlConsoleEditorElementControllerView::GenerateLockButtonWidget()

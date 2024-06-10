@@ -6,6 +6,7 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleElementController;
 class UDMXControlConsoleFaderBase;
 class UDMXControlConsoleFixturePatchMatrixCell;
@@ -19,7 +20,7 @@ namespace UE::DMX::Private
 	{
 	public:
 		/** Constructor */
-		FDMXControlConsoleElementControllerModel(const TWeakObjectPtr<UDMXControlConsoleElementController> InWeakElementController);
+		FDMXControlConsoleElementControllerModel(const TWeakObjectPtr<UDMXControlConsoleElementController> InWeakElementController, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
 
 		/** Gets the Element Controller this model is based on */
 		UDMXControlConsoleElementController* GetElementController() const;
@@ -29,6 +30,9 @@ namespace UE::DMX::Private
 
 		/** Gets the first Matrix Cell Element in the Controller, if valid */
 		UDMXControlConsoleFixturePatchMatrixCell* GetMatrixCellElement() const;
+
+		/** Gets all Element Controllers in the active layout matching this Element Controller's attribute (or name, if attribute is not valid) */
+		TArray<UDMXControlConsoleElementController*> GetMatchingAttributeElementControllers(bool bSameOwnerControllerOnly = false) const;
 
 		/** Gets the name of the Element Controller, relative to the contained Elements */
 		FString GetRelativeControllerName() const;
@@ -66,5 +70,8 @@ namespace UE::DMX::Private
 	private:
 		/** Weak reference to the Element Controller this model is based on */
 		TWeakObjectPtr<UDMXControlConsoleElementController> WeakElementController;
+
+		/** Weak reference to the Control Console edior model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
 	};
 }
