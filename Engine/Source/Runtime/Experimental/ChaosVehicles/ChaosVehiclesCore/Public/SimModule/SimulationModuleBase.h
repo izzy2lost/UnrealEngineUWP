@@ -117,7 +117,9 @@ namespace Chaos
 		Rudder,			// controls aircraft yaw
 		Elevator,		// controls aircraft pitch
 		Propeller,		// generates thrust when connected to a motor/engine
-		TorqueSim
+		TorqueSim,
+		Booster,		// applies continuous forward force to the center of mass
+		Jump,			// applies burst upward force
 	};
 
 	enum EWheelAxis
