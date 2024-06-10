@@ -20,8 +20,11 @@ public class RHI : ModuleRules
 
 			if (Target.Type != TargetRules.TargetType.Server)   // Dedicated servers should skip loading everything but NullDrv
 			{
-				// Always disable for Shipping, always enable for Development, let the user decide to use for Test and DebugGame
-				if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.bTrackRHIResourceInfo || Target.Configuration == UnrealTargetConfiguration.Development)
+				// Always disable for Shipping, always enable for Development and DebugGame,
+				// let the user decide to use for Test
+				else if (Target.Configuration == UnrealTargetConfiguration.DebugGame ||
+					Target.Configuration == UnrealTargetConfiguration.Development ||
+					Target.Configuration == UnrealTargetConfiguration.Test && Target.bTrackRHIResourceInfo)
 				{
 					PublicDefinitions.Add("RHI_WANT_RESOURCE_INFO=1");
 				}
