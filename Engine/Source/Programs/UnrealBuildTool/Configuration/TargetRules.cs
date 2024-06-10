@@ -1020,7 +1020,7 @@ namespace UnrealBuildTool
 		/// Useful for ListShaderMaps and ListShaderLibraries commands.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		public bool bTrackRHIResourceInfo { get; set; } = false;
+		public bool bTrackRHIResourceInfoForTest { get; set; } = false;
 
 		/// <summary>
 		/// Whether we are compiling editor code or not. Prefer the more explicit bCompileAgainstEditor instead.

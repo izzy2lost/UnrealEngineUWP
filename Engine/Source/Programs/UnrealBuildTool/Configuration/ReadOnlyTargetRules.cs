@@ -172,7 +172,7 @@ namespace UnrealBuildTool
 
 		public bool bUseIris => Inner.bUseIris;
 
-		public bool bTrackRHIResourceInfo => Inner.bTrackRHIResourceInfo;
+		public bool bTrackRHIResourceInfoForTest => Inner.bTrackRHIResourceInfoForTest;
 
 		[Obsolete("Deprecated in UE5.4 - No longer used.")]
 		public bool bCompileIntelMetricsDiscovery => Inner.bCompileIntelMetricsDiscovery;
