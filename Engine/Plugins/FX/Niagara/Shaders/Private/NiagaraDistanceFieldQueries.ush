@@ -55,7 +55,7 @@ void ComputeClosestPointMeshDistanceField(int DFIndex, const FDFVector3 LWCWorld
 	float WorldGradientLength = length(WorldGradient);
 
 	// @note: we should include checking if we are within the range of max encoded distance, but this breaks backwards compatibility
-	bNormalIsValid = WorldGradientLength > 0.0f && (MaxEncodedDistance - GridSampledDistance > 1e-8);
+	bNormalIsValid = WorldGradientLength > 0.0f && (MaxEncodedDistance - abs(GridSampledDistance) > 1e-8);
 			
 	// output 			
 	if (bNormalIsValid)
