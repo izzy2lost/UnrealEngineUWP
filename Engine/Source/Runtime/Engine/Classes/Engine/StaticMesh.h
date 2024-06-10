@@ -39,6 +39,7 @@ class UPackage;
 struct FMeshDescription;
 struct FStaticMeshLODResources;
 class IStaticMeshComponent;
+struct FStaticMeshSection;
 
 /*-----------------------------------------------------------------------------
 	Async Static Mesh Compilation
@@ -1870,8 +1871,10 @@ public:
 	ENGINE_API virtual bool GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const override;
 
 private:
-		bool GetPhysicsTriMeshDataCheckComplex(struct FTriMeshCollisionData* CollisionData, bool bInUseAllTriData, bool bInCheckComplexCollisionMesh);
-		bool ContainsPhysicsTriMeshDataCheckComplex(bool InUseAllTriData, bool bInCheckComplexCollisionMesh) const;
+	bool GetPhysicsTriMeshDataCheckComplex(struct FTriMeshCollisionData* CollisionData, bool bInUseAllTriData, bool bInCheckComplexCollisionMesh);
+	bool ContainsPhysicsTriMeshDataCheckComplex(bool InUseAllTriData, bool bInCheckComplexCollisionMesh) const;
+	bool SectionHasCollisionEnabled(const FStaticMeshSection& Section, int32 LODIndex, int32 SectionIndex) const;
+
 public:
 
 	virtual bool WantsNegXTriMesh() override
