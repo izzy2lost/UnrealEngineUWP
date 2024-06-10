@@ -96,6 +96,10 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 	// In that case we will recreate the geometry as-if it was streamed in.
 	if (EnumHasAnyFlags(GeometryState, FRayTracingGeometry::EGeometryStateFlags::StreamedIn))
 	{
+		FResourceArrayUploadInterface* OfflineData = Initializer.OfflineData;
+
+		Initializer.OfflineData = nullptr;
+
 		// When a mesh is streamed in (FStaticMeshStreamIn::DoFinishUpdate) we update the geometry initializer using just streamed in VB/IB.
 		// That initializer sets a Rendering type but RHI object was created as StreamingDestination and we have a mismatch between geometry initializer and RHI initializer.
 		// It's not an issue unless we try to initialize the geometry again using the geometry's initializer.
@@ -112,8 +116,12 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 			FRHIResourceReplaceBatcher Batcher(RHICmdList, 1);
 			FRayTracingGeometryInitializer IntermediateInitializer = Initializer;
 			IntermediateInitializer.Type = ERayTracingGeometryInitializerType::StreamingSource;
+			IntermediateInitializer.OfflineData = OfflineData;
 
 			FRayTracingGeometryRHIRef IntermediateRayTracingGeometry = RHICmdList.CreateRayTracingGeometry(IntermediateInitializer);
+
+			SetRequiresBuild(IntermediateInitializer.OfflineData == nullptr || IntermediateRayTracingGeometry->IsCompressed());
+
 			InitRHIForStreaming(IntermediateRayTracingGeometry, Batcher);
 
 			// When Batcher goes out of scope it will add commands to copy the BLAS buffers on RHI thread.
@@ -134,6 +142,12 @@ void FRayTracingGeometry::Evict()
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
 	EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
+
+	if (IsRayTracingUsingReferenceBasedResidency() && EnumHasAllFlags(GeometryState, EGeometryStateFlags::StreamedIn))
+	{
+		FRHIResourceReplaceBatcher Batcher(FRHICommandListImmediate::Get(), 1);
+		ReleaseRHIForStreaming(Batcher);
+	}
 	
 	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 	
@@ -199,7 +213,7 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdLi
 				}
 				SetRequiresBuild(false);
 			}
-			else
+			else if (bWithNativeResource)
 			{
 				SetRequiresBuild(true);
 			}

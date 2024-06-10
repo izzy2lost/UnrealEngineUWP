@@ -268,8 +268,8 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 	}
 #endif
 
-	Context.Mesh->RequestUpdateCachedRenderState();
 	Context.RenderData->CurrentFirstLODIdx = ResourceState.LODCountToAssetFirstLODIdx(ResourceState.NumRequestedLODs);
+	Context.Mesh->RequestUpdateCachedRenderState();
 	MarkAsSuccessfullyFinished();
 }
 
