@@ -1407,10 +1407,10 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoadInternal(TArra
 
 	// Schedule a new callback, this will get called when all related async loads are completed
 	TSharedRef<FStreamableHandle> NewRequest = MakeShareable(new FStreamableHandle());
-	NewRequest->CompleteDelegate = Forward<FStreamableDelegate>(DelegateToCall);
+	NewRequest->CompleteDelegate = MoveTemp(DelegateToCall);
 	NewRequest->OwningManager = this;
-	NewRequest->RequestedAssets = Forward<TArray<FSoftObjectPath>>(TargetsToStream);
-	NewRequest->DebugName = Forward<FString>(DebugName);
+	NewRequest->RequestedAssets = MoveTemp(TargetsToStream);
+	NewRequest->DebugName = MoveTemp(DebugName);
 
 	NewRequest->Priority = Priority;
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
@@ -1523,7 +1523,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoadInternal(TArray
 	bForceSynchronousLoads = IsInAsyncLoadingThread() || IsEventDrivenLoaderEnabled() || !IsAsyncLoading();
 
 	// Do an async load and wait to complete. In some cases this will do a sync load due to safety issues
-	TSharedPtr<FStreamableHandle> Request = RequestAsyncLoadInternal(Forward<TArray<FSoftObjectPath>>(TargetsToStream), FStreamableDelegate(), AsyncLoadHighPriority, bManageActiveHandle, false, Forward<FString>(DebugName));
+	TSharedPtr<FStreamableHandle> Request = RequestAsyncLoadInternal(MoveTemp(TargetsToStream), FStreamableDelegate(), AsyncLoadHighPriority, bManageActiveHandle, false, MoveTemp(DebugName));
 
 	bForceSynchronousLoads = false;
 

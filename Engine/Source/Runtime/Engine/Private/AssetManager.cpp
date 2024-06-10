@@ -2240,12 +2240,12 @@ TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetListInternal(TArray<FSoftO
 	// SynchronousLoad doesn't make sense if chunks are missing
 	if (bShouldUseSynchronousLoad && MissingChunks.Num() == 0)
 	{
-		NewHandle = StreamableManager.RequestSyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), false, Forward<FString>(DebugName));
-		FStreamableHandle::ExecuteDelegate(Forward<FStreamableDelegate>(DelegateToCall));
+		NewHandle = StreamableManager.RequestSyncLoad(MoveTemp(AssetList), false, MoveTemp(DebugName));
+		FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 	}
 	else
 	{
-		NewHandle = StreamableManager.RequestAsyncLoad(Forward<TArray<FSoftObjectPath>>(AssetList), Forward<FStreamableDelegate>(DelegateToCall), Priority, false, MissingChunks.Num() > 0, Forward<FString>(DebugName));
+		NewHandle = StreamableManager.RequestAsyncLoad(MoveTemp(AssetList), MoveTemp(DelegateToCall), Priority, false, MissingChunks.Num() > 0, MoveTemp(DebugName));
 
 		if (MissingChunks.Num() > 0 && NewHandle.IsValid())
 		{

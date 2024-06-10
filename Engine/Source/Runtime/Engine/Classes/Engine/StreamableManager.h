@@ -699,7 +699,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(
 		DelegateToCall = FStreamableDelegate::CreateLambda(Forward<FuncType>(Callback));
 	}
 
-	if constexpr (std::is_same_v<std::remove_cv_t<DebugNameType>, UE::FSourceLocation>)
+	if constexpr (std::is_same_v<std::decay_t<DebugNameType>, UE::FSourceLocation>)
 	{
 		return RequestAsyncLoadInternal(
 			TArray<FSoftObjectPath>{ Forward<PathContainerType>(TargetsToStream) },
@@ -727,7 +727,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(
 	bool bManageActiveHandle,
 	DebugNameType&& DebugNameOrLocation)
 {
-	if constexpr (std::is_same_v<std::remove_cv_t<DebugNameType>, UE::FSourceLocation>)
+	if constexpr (std::is_same_v<std::decay_t<DebugNameType>, UE::FSourceLocation>)
 	{
 		return RequestSyncLoadInternal(
 			TArray<FSoftObjectPath>{ Forward<PathContainerType>(TargetsToStream) },

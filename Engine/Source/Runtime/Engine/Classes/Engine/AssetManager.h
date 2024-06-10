@@ -357,7 +357,15 @@ public:
 	 */
 	template< typename DebugNameType = UE::FSourceLocation >
 	TSharedPtr<FStreamableHandle> LoadAssetList(
-		TArray<FSoftObjectPath> AssetList,
+		const TArray<FSoftObjectPath>& AssetList,
+		FStreamableDelegate DelegateToCall = FStreamableDelegate(),
+		TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority,
+		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
+
+	/** rvalue reference overload for Asset List */
+	template< typename DebugNameType = UE::FSourceLocation >
+	TSharedPtr<FStreamableHandle> LoadAssetList(
+		TArray<FSoftObjectPath>&& AssetList,
 		FStreamableDelegate DelegateToCall = FStreamableDelegate(),
 		TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority,
 		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
@@ -945,12 +953,12 @@ private:
 
 template< typename DebugNameType >
 TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(
-	TArray<FSoftObjectPath> AssetList,
+	TArray<FSoftObjectPath>&& AssetList,
 	FStreamableDelegate DelegateToCall,
 	TAsyncLoadPriority Priority,
 	DebugNameType&& DebugNameOrLocation)
 {
-	if constexpr (std::is_same_v<std::remove_cv_t<DebugNameType>, UE::FSourceLocation>)
+	if constexpr (std::is_same_v<std::decay_t<DebugNameType>, UE::FSourceLocation>)
 	{
 		return LoadAssetListInternal(
 			MoveTemp(AssetList),
@@ -966,4 +974,20 @@ TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(
 			Priority,
 			FString{ Forward<DebugNameType>(DebugNameOrLocation) });
 	}
+}
+
+
+template< typename DebugNameType >
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(
+	const TArray<FSoftObjectPath>& AssetList,
+	FStreamableDelegate DelegateToCall,
+	TAsyncLoadPriority Priority,
+	DebugNameType&& DebugNameOrLocation)
+{
+	// explicit copy
+	return LoadAssetList(
+		TArray<FSoftObjectPath>{AssetList},
+		MoveTemp(DelegateToCall),
+		Priority,
+		Forward<DebugNameType>(DebugNameOrLocation));
 }
