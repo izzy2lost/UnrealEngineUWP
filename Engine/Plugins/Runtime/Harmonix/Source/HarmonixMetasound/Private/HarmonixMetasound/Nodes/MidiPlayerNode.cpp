@@ -291,6 +291,7 @@ namespace HarmonixMetasound
 		FMidiPlayerOperator::BindInputs(InVertexData);
 		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiClock), MidiClockIn);
+		MidiClockOut->SetDrivingClock(MidiClockIn->AsShared().ToSharedPtr());
 	}
 
 	void FExternallyClockedMidiPlayerOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
