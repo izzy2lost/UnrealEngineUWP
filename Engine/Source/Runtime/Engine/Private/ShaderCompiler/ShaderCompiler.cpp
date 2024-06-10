@@ -9607,7 +9607,7 @@ static inline bool ShouldCacheGlobalShaderTypeName(const FGlobalShaderType* Glob
 };
 
 
-bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring, FGlobalShaderMap* GlobalShaderMap, EShaderPlatform Platform)
+bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring, FGlobalShaderMap* GlobalShaderMap, EShaderPlatform Platform, FString* FailureReason = nullptr)
 {
 	// look at any shadermap in the GlobalShaderMap for the permutation flags, as they will all be the same
 	if (GlobalShaderMap)
@@ -9631,6 +9631,12 @@ bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring, FGlobalShaderMap*
 				{
 					if (!GlobalShaderMap->HasShader(GlobalShaderType, PermutationId))
 					{
+						if (FailureReason)
+						{
+							FString GlobalShaderTypeName = GlobalShaderType ? GlobalShaderType->GetFName().ToString() : FString(TEXT("Unknown shader type"));
+							*FailureReason = FString::Printf(TEXT("Failed to find global shader \"%s\", permutation %d"), *GlobalShaderTypeName, PermutationId);
+						}
+
 						return false;
 					}
 				}
@@ -9662,6 +9668,11 @@ bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring, FGlobalShaderMap*
 				{
 					if (!GlobalShaderMap->HasShaderPipeline(Pipeline))
 					{
+						if (FailureReason)
+						{
+							*FailureReason = FString::Printf(TEXT("Failed to find global pipeline \"%s\""), *Pipeline->GetFName().ToString());
+						}
+
 						return false;
 					}
 				}
@@ -10649,7 +10660,8 @@ void LoadGlobalShadersForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPla
 		{
 			NewGlobalShaderMap->LoadFromGlobalArchive(Ar);
 
-			bool bIsNewGlobalShaderMapComplete = IsGlobalShaderMapComplete(nullptr, NewGlobalShaderMap, ShaderPlatform);
+			FString FailureReason;
+			bool bIsNewGlobalShaderMapComplete = IsGlobalShaderMapComplete(nullptr, NewGlobalShaderMap, ShaderPlatform, &FailureReason);
 
 			if (bIsNewGlobalShaderMapComplete)
 			{
@@ -10673,7 +10685,14 @@ void LoadGlobalShadersForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPla
 			}
 			else
 			{
-				UE_LOG(LogShaderCompilers, Error, TEXT("New shader map is incomplete. Look at the ODSC server log to see shader errors"));
+				FString ErrorMessage = FString::Printf(TEXT("New global shader map is incomplete and will not be used. Reason:\n%s\n"
+													        "Please check the ODSC server log & that client/editor are compiled"), *FailureReason);
+
+				UE_LOG(LogShaderCompilers, Error, TEXT("%s"), *ErrorMessage);
+#if WITH_ODSC
+				FODSCManager::ReportODSCError(ErrorMessage);
+#endif
+				
 				delete NewGlobalShaderMap;
 			}
 		}

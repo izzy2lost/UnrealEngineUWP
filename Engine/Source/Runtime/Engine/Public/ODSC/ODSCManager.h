@@ -107,6 +107,8 @@ public:
 	static void ResumeODSCForceRecompile();
 	void TryLoadGlobalShaders(EShaderPlatform ShaderPlatform);
 
+	static void ReportODSCError(const FString& InErrorMessage);
+
 private:
 
 	ENGINE_API void OnEnginePreExit();
@@ -115,12 +117,18 @@ private:
 	bool HasAsyncLoadingInstances();
 	bool ShouldForceRecompileInternal(const FMaterialShaderMap* MaterialShaderMap, const FMaterial* Material);
 
+	void RetrieveErrorMessage(FString& OutErrorMessage);
+	void ClearErrorMessage();
+
 	/** Handles communicating directly with the cook on the fly server. */
 	FODSCThread* Thread = nullptr;
 
 	FDelegateHandle OnScreenMessagesHandle;
 	FCriticalSection MaterialInstancesCachedUniformExpressionsCS;
 	TMap<const void*, TWeakObjectPtr<const UMaterialInstance> > MaterialInstancesCachedUniformExpressions;
+
+	FCriticalSection ErrorMessageCS;
+	FString ErrorMessage;
 };
 
 struct FODSCSuspendForceRecompileScope

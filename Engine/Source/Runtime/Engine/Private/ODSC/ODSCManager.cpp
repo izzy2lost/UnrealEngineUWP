@@ -50,9 +50,39 @@ FODSCManager::FODSCManager()
 		Thread->StartThread();
 		OnScreenMessagesHandle = FCoreDelegates::OnGetOnScreenMessages.AddLambda([this](TMultiMap<FCoreDelegates::EOnScreenMessageSeverity, FText >& OutMessages)
 			{
-				if (Thread && Thread->HasPendingRequests())
+				if (Thread)
 				{
-					OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(FString::Printf(TEXT("Recompiling shaders"))));
+					FString LocalErrorMessage;
+					RetrieveErrorMessage(LocalErrorMessage);
+					if (!LocalErrorMessage.IsEmpty())
+					{
+						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Error, FText::FromString(LocalErrorMessage));
+					}
+
+					bool bHasPendingGlobalShaders;
+					uint32 NumPendingMaterialsRecompile;
+					uint32 NumPendingMaterialsShaders;
+					if (Thread->GetPendingShaderData(bHasPendingGlobalShaders, NumPendingMaterialsRecompile, NumPendingMaterialsShaders))
+					{
+						FString Message = TEXT("Recompiling shaders (");
+						if (bHasPendingGlobalShaders)
+						{
+							Message += "global";
+						}
+
+						if (NumPendingMaterialsRecompile > 0)
+						{
+							Message += FString::Printf(TEXT(" %d materials"), NumPendingMaterialsRecompile);
+						}
+
+						if (NumPendingMaterialsShaders > 0)
+						{
+							Message += FString::Printf(TEXT("%d pipelines"), NumPendingMaterialsShaders);
+						}
+
+						Message += ")";
+						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(Message));
+					}
 				}
 			}
 		);
@@ -128,6 +158,8 @@ void FODSCManager::AddThreadedRequest(
 {
 	if (IsHandlingRequests())
 	{
+		ClearErrorMessage();
+
 		if ((RecompileCommandType == ODSCRecompileCommand::Material || RecompileCommandType == ODSCRecompileCommand::Changed)
 			&& (CVarODSCRecompileMode.GetValueOnAnyThread() > 0))
 		{
@@ -264,4 +296,26 @@ void FODSCManager::TryLoadGlobalShaders(EShaderPlatform ShaderPlatform)
 		ProcessCookOnTheFlyShaders(false, CompletedRequest->GetMeshMaterialMaps(), CompletedRequest->GetMaterialsToLoad(), CompletedRequest->GetGlobalShaderMap());
 		delete CompletedRequest;
 	}
+}
+
+void FODSCManager::ReportODSCError(const FString& InErrorMessage)
+{
+	if (GODSCManager && !InErrorMessage.IsEmpty())
+	{
+		FScopeLock Lock(&GODSCManager->ErrorMessageCS);
+		GODSCManager->ErrorMessage += InErrorMessage;
+		GODSCManager->ErrorMessage += FString(TEXT("\n"));
+	}
+}
+
+void FODSCManager::RetrieveErrorMessage(FString& OutErrorMessage)
+{
+	FScopeLock Lock(&ErrorMessageCS);
+	OutErrorMessage = ErrorMessage;
+}
+
+void FODSCManager::ClearErrorMessage()
+{
+	FScopeLock Lock(&ErrorMessageCS);
+	ErrorMessage.Empty();
 }

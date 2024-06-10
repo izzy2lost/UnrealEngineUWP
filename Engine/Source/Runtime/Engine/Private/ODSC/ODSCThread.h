@@ -40,6 +40,7 @@ public:
 	const TArray<uint8>& GetMeshMaterialMaps() const;
 	const TArray<uint8>& GetGlobalShaderMap() const;
 	bool ReloadGlobalShaders() const;
+	ODSCRecompileCommand GetRecompileCommandType() const { return RecompileCommandType; };
 
 private:
 	/** The time when this command was issued.  This isn't serialized to the cooking server. */
@@ -155,7 +156,7 @@ public:
 	*/
 	void WaitUntilAllRequestsDone();
 
-	bool HasPendingRequests() const { return bHasPendingRequests; }
+	bool GetPendingShaderData(bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const;
 
 	void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
 
@@ -222,6 +223,8 @@ private:
 
 	FString ODSCHostIP;
 
-	bool bHasPendingRequests = false;
+	std::atomic<bool> bHasPendingGlobalShaders = false;
+	std::atomic<uint32> NumPendingMaterialsRecompile = 0;
+	std::atomic<uint32> NumPendingMaterialsShaders = 0;
 	bool bHasDefaultConnection = false;
 };

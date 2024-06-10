@@ -324,12 +324,24 @@ void FODSCThread::Process()
 	// cache material requests.
 	FODSCMessageHandler* Request = nullptr;
 	TArray<FODSCMessageHandler*> RequestsToStart;
+	bool bHasGlobalShaders = false;
+	uint32 NumMaterials = 0;
 	while (PendingMaterialThreadedRequests.Dequeue(Request))
 	{
+		if (Request->GetRecompileCommandType() != ODSCRecompileCommand::Material)
+		{
+			bHasGlobalShaders = true;
+		}
+		else
+		{
+			NumMaterials += Request->GetMaterialsToLoad().Num();
+		}
+
 		RequestsToStart.Add(Request);
 	}
 
-	bHasPendingRequests = PayloadsToAggregate.Num() > 0 || RequestsToStart.Num() > 0;
+	bHasPendingGlobalShaders.store(bHasGlobalShaders, std::memory_order_release);
+	NumPendingMaterialsRecompile.store(NumMaterials, std::memory_order_release);
 
 	// process any material or recompile change shader requests or global shader compile requests.
 	for (FODSCMessageHandler* NextRequest : RequestsToStart)
@@ -339,6 +351,10 @@ void FODSCThread::Process()
 
 		CompletedThreadedRequests.Enqueue(NextRequest);
 	}
+
+	bHasPendingGlobalShaders.store(false, std::memory_order_release);
+	NumPendingMaterialsRecompile.store(0, std::memory_order_release);
+	NumPendingMaterialsShaders.store(PayloadsToAggregate.Num(), std::memory_order_release);
 
 	// process any specific mesh material shader requests.
 	if (PayloadsToAggregate.Num())
@@ -355,8 +371,9 @@ void FODSCThread::Process()
 		CompletedThreadedRequests.Enqueue(RequestHandler);
 	}
 
+	NumPendingMaterialsShaders.store(0, std::memory_order_release);
+
 	// SendMessageToServer is synchronous, so when we're here, we know we've processed all the requests
-	bHasPendingRequests = false;
 	WakeupEvent->Reset();
 	AllRequestsDoneEvent->Trigger();
 }
@@ -405,4 +422,12 @@ void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* 
 		UE_LOG(LogODSC, Display, TEXT("Received error response from CookOnTheFlyServerConnection; disconnecting"));
 		CookOnTheFlyServerConnection.Reset();
 	}
+}
+
+bool FODSCThread::GetPendingShaderData(bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const
+{
+	bOutHasPendingGlobalShaders = bHasPendingGlobalShaders.load(std::memory_order_acquire);
+	OutNumPendingMaterialsRecompile = NumPendingMaterialsRecompile.load(std::memory_order_acquire);
+	OutNumPendingMaterialsShaders = NumPendingMaterialsShaders.load(std::memory_order_acquire);
+	return bOutHasPendingGlobalShaders || OutNumPendingMaterialsRecompile > 0 || OutNumPendingMaterialsShaders > 0;
 }
