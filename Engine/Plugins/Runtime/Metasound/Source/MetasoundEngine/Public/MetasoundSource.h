@@ -211,10 +211,9 @@ public:
 		return false;
 	}
 
+	virtual void PreDuplicate(FObjectDuplicationParameters& DupParams) override;
 	virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
-
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InEvent) override;
-
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 
 private:

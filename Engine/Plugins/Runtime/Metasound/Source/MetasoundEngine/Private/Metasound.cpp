@@ -103,6 +103,12 @@ const FMetasoundFrontendDocument& UMetaSoundPatch::GetConstDocument() const
 }
 
 #if WITH_EDITOR
+void UMetaSoundPatch::PreDuplicate(FObjectDuplicationParameters& DupParams)
+{
+	Super::PreDuplicate(DupParams);
+	Metasound::Engine::FAssetHelper::PreDuplicate(this, DupParams);
+}
+
 void UMetaSoundPatch::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);

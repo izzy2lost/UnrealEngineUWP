@@ -29,20 +29,32 @@ namespace Metasound::Engine
 	struct FAssetHelper
 	{
 #if WITH_EDITOR
+		static void PreDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, FObjectDuplicationParameters& DupParams)
+		{
+			FDocumentBuilderRegistry::GetChecked().SetEventLogVerbosity(FDocumentBuilderRegistry::ELogEvent::DuplicateEntries, ELogVerbosity::NoLogging);
+		}
+
 		static void PostDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EDuplicateMode::Type InDuplicateMode, FGuid& OutAssetClassID)
 		{
+			using namespace Engine;
 			using namespace Frontend;
 
 			if (InDuplicateMode == EDuplicateMode::Normal)
 			{
-				// Uses a bespoke builder instead of a registered one to avoid class name collision
-				// that can result in accessing the wrong pre-existing builder for the pre-existing
-				// MetaSound the provided MetaSound was duplicated from. Being that this is a new
-				// MetaSound, it is perfectly safe and should not result in multiple builders existing
-				// for the given asset.
-				FMetaSoundFrontendDocumentBuilder DuplicateBuilder(MetaSound);
-				const FMetasoundFrontendClassName NewName = DuplicateBuilder.GenerateNewClassName();
+				UObject* MetaSoundObject = MetaSound.GetObject();
+				check(MetaSoundObject);
+
+				FDocumentBuilderRegistry& BuilderRegistry = FDocumentBuilderRegistry::GetChecked();
+				UMetaSoundBuilderBase& DuplicateBuilder = BuilderRegistry.FindOrBeginBuilding(*MetaSoundObject);
+
+				FMetaSoundFrontendDocumentBuilder& DocBuilder = DuplicateBuilder.GetBuilder();
+				const FMetasoundFrontendClassName DuplicateName = DocBuilder.GetConstDocumentChecked().RootGraph.Metadata.GetClassName();
+				const FMetasoundFrontendClassName NewName = DocBuilder.GenerateNewClassName();
 				ensureAlwaysMsgf(IMetaSoundAssetManager::GetChecked().TryGetAssetIDFromClassName(NewName, OutAssetClassID), TEXT("Failed to retrieve newly duplicated MetaSoundClassName AssetID"));
+
+				constexpr bool bForceUnregisterNodeClass = true;
+				BuilderRegistry.FinishBuilding(DuplicateName, MetaSound->GetAssetPathChecked(), bForceUnregisterNodeClass);
+				BuilderRegistry.SetEventLogVerbosity(FDocumentBuilderRegistry::ELogEvent::DuplicateEntries, ELogVerbosity::All);
 			}
 		}
 

@@ -41,34 +41,55 @@ namespace Metasound::Engine
 		FScopeLock Lock(&BuildersCriticalSection);
 
 // #if !NO_LOGGING
-// 		const bool bPrintConflicts = Builders.Contains(InClassName);
+//		bool bLogDuplicateEntries = CanPostEventLog(ELogEvent::DuplicateEntries, ELogVerbosity::Error);
+//		if (bLogDuplicateEntries)
+//		{
+//			bLogDuplicateEntries = Builders.Contains(InClassName);
+//		}
 // #endif // !NO_LOGGING
 
 		Builders.Add(InClassName, NewBuilder);
 
 // #if !NO_LOGGING
-// 		if (bPrintConflicts)
+// 		if (bLogDuplicateEntries)
 // 		{
 // 			TArray<TWeakObjectPtr<UMetaSoundBuilderBase>> Entries;
 // 			Builders.MultiFind(InClassName, Entries);
-// 			UE_LOG(LogMetaSound, Error, TEXT("More than one asset registered with class name '%s'. "
-// 				"Look-up may return builder that is not associated with desired object! \n"
-// 				"This can happen if asset was moved using revision control and original location was revived. \n"
-// 				"Remove all but one of the following assets and relink a duplicate or copied replacement asset:"),
-// 				*InClassName.ToString());
-// 			for (const TWeakObjectPtr<UMetaSoundBuilderBase>& BuilderPtr : Entries)
+// 
+// 			// Don't print stale entries as during cook and some editor asset actions,
+// 			// these may be removed after a new valid builder is created.  If stale
+// 			// entries leak, they will show up on registry logging upon destruction.
+// 			Entries.RemoveAllSwap([](const TWeakObjectPtr<UMetaSoundBuilderBase>& Builder) { return !Builder.IsValid(); });
+// 
+// 			if (!Entries.IsEmpty())
 // 			{
-// 				if (BuilderPtr.IsValid())
+// 				UE_LOG(LogMetaSound, Error, TEXT("More than one asset registered with class name '%s'. "
+// 					"Look-up may return builder that is not associated with desired object! \n"
+// 					"This can happen if asset was moved using revision control and original location was revived. \n"
+// 					"Remove all but one of the following assets and relink a duplicate or copied replacement asset:"),
+// 					*InClassName.ToString());
+// 				for (const TWeakObjectPtr<UMetaSoundBuilderBase>& BuilderPtr : Entries)
 // 				{
 // 					UE_LOG(LogMetaSound, Error, TEXT("- %s"), *BuilderPtr->GetConstBuilder().CastDocumentObjectChecked<UObject>().GetPathName());
-// 				}
-// 				else
-// 				{
-// 					UE_LOG(LogMetaSound, Error, TEXT("- STALE ENTRY (Not removed prior to asset removal)"));
 // 				}
 // 			}
 // 		}
 // #endif // !NO_LOGGING
+	}
+
+	bool FDocumentBuilderRegistry::CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const
+	{
+#if NO_LOGGING
+		return false;
+#else // !NO_LOGGING
+
+		if (const ELogVerbosity::Type* SetVerbosity = EventLogVerbosity.Find(Event))
+		{
+			return *SetVerbosity >= Verbosity;
+		}
+
+		return true;
+#endif // !NO_LOGGING
 	}
 
 #if WITH_EDITORONLY_DATA
@@ -287,5 +308,10 @@ namespace Metasound::Engine
 		}
 
 		return bReloaded;
+	}
+
+	void FDocumentBuilderRegistry::SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity)
+	{
+		EventLogVerbosity.FindOrAdd(Event) = Verbosity;
 	}
 } // namespace Metasound::Engine

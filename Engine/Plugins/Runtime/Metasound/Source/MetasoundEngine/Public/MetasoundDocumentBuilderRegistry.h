@@ -29,6 +29,11 @@ namespace Metasound::Engine
 			return static_cast<FDocumentBuilderRegistry&>(IDocumentBuilderRegistry::GetChecked());
 		}
 
+		enum class ELogEvent : uint8
+		{
+			DuplicateEntries
+		};
+
 		template <typename BuilderClass>
 		BuilderClass& CreateTransientBuilder(FName BuilderName = FName())
 		{
@@ -62,10 +67,16 @@ namespace Metasound::Engine
 				return *CastChecked<BuilderClass>(Builder);
 			}
 
+			FNameBuilder BuilderName;
+			BuilderName.Append(InMetaSoundObject.GetName());
+			BuilderName.Append(TEXT("_Builder"));
+			const UClass& BuilderUClass = DocInterface->GetBuilderUClass();
+			const FName NewName = MakeUniqueObjectName(nullptr, &BuilderUClass, FName(*BuilderName));
+
 			TObjectPtr<UMetaSoundBuilderBase> NewBuilder;
 			{
 				FScopeLock Lock(&BuildersCriticalSection);
-				NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &DocInterface->GetBuilderUClass()));
+				NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &BuilderUClass, NewName));
 				FMetaSoundFrontendDocumentBuilder& BuilderRef = NewBuilder->GetBuilder();
 				BuilderRef = FMetaSoundFrontendDocumentBuilder(DocInterface);
 				const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
@@ -110,8 +121,13 @@ namespace Metasound::Engine
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 
+		void SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity);
+
 	private:
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
+		bool CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const;
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
+
+		TSortedMap<ELogEvent, ELogVerbosity::Type> EventLogVerbosity;
 	};
 } // namespace Metasound::Engine

@@ -361,6 +361,12 @@ void UMetaSoundSource::PostEditUndo()
 	Metasound::Engine::FAssetHelper::PostEditUndo(*this);
 }
 
+void UMetaSoundSource::PreDuplicate(FObjectDuplicationParameters& DupParams)
+{
+	Super::PreDuplicate(DupParams);
+	Metasound::Engine::FAssetHelper::PreDuplicate(this, DupParams);
+}
+
 void UMetaSoundSource::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
