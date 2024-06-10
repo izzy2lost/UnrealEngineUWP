@@ -3,7 +3,7 @@
 #include "USDDrawModeComponent.h"
 
 #include "USDAssetUserData.h"
-#include "USDClassesModule.h"
+#include "USDMaterialUtils.h"
 #include "USDProjectSettings.h"
 
 #include "Components/BaseDynamicMeshSceneProxy.h"
@@ -1223,11 +1223,11 @@ void UUsdDrawModeComponent::RefreshMaterialInstances()
 		// Create a new display color instance
 		if (!DisplayColorInstance)
 		{
-			IUsdClassesModule::FDisplayColorMaterial Desc;
+			UsdUnreal::MaterialUtils::FDisplayColorMaterial Desc;
 			Desc.bHasOpacity = false;
 			Desc.bIsDoubleSided = false;
 
-			DisplayColorInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(Desc);
+			DisplayColorInstance = UsdUnreal::MaterialUtils::CreateDisplayColorMaterialInstanceDynamic(Desc);
 
 			if (DisplayColorInstance)
 			{
