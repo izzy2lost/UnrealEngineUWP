@@ -18,15 +18,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshGeometryOperation::Private::s_type =
-			FNodeType( "MeshGeometryOperation", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshGeometryOperation::Private::s_type = FNodeType(Node::EType::MeshGeometryOperation, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshGeometryOperation, EType::GeometryOperation, Node, Node::EType::Mesh)
+	MUTABLE_IMPLEMENT_NODE( NodeMeshGeometryOperation )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -85,22 +84,6 @@ namespace mu
 	{
 		m_pD->m_pMeshB = pNode;
 	}
-
-
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshGeometryOperation::Private::GetLayout( int index ) const
-	{
-		NodeLayoutPtr pResult;
-
-		if (m_pMeshA)
-		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>(m_pMeshA->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
-		}
-
-		return pResult;
-	}
-
 
 }
 

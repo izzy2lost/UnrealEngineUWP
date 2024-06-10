@@ -727,13 +727,14 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	return MutableRoot;
 }
 
+
 void FCustomizableObjectCompiler::LaunchMutableCompile()
 {
 	AddCompileNotification(LOCTEXT("CustomizableObjectCompileInProgress", "Compiling"));
 
 	// Even for async build, we spawn a thread, so that we can set a large stack. 
 	// Thread names need to be unique, apparently.
-	static int ThreadCount = 0;
+	static int32 ThreadCount = 0;
 	FString ThreadName = FString::Printf(TEXT("MutableCompile-%03d"), ++ThreadCount);
 	CompileThread = MakeShareable(FRunnableThread::Create(CompileTask.Get(), *ThreadName, 16 * 1024 * 1024, TPri_Normal));
 }
@@ -1102,7 +1103,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		CurrentObject->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
 #endif
 
-		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot;
+		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumExplicitMeshComponents;
 		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;
 		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
 		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;

@@ -11,10 +11,10 @@
 
 namespace mu
 {
-	FNodeType NodeMeshConstant::Private::s_type = FNodeType( "MeshConstant", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshConstant::Private::s_type = FNodeType(Node::EType::MeshConstant, NodeMesh::GetStaticType() );
 
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshConstant, EType::Constant, Node, Node::EType::Mesh);
+	MUTABLE_IMPLEMENT_NODE( NodeMeshConstant );
 
 
 	Ptr<Mesh> NodeMeshConstant::GetValue() const
@@ -52,19 +52,12 @@ namespace mu
 	{
 		check( index >=0 && index < m_pD->Layouts.Num() );
 
-		return m_pD->GetLayout( index );
-	}
-
-
-	Ptr<NodeLayout> NodeMeshConstant::Private::GetLayout( int32 index ) const
-	{
 		NodeLayoutPtr pResult;
 
-		if ( index >=0 && index < Layouts.Num() )
+		if (index >= 0 && index < m_pD->Layouts.Num())
 		{
-			pResult = Layouts[ index ];
+			pResult = m_pD->Layouts[index];
 		}
-
 		return pResult;
 	}
 

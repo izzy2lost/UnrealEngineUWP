@@ -14,15 +14,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeScalarConstant::Private::s_type =
-			FNodeType( "ScalarConstant", NodeScalar::GetStaticType() );
+	FNodeType NodeScalarConstant::Private::s_type = FNodeType(Node::EType::ScalarConstant, NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeScalarConstant, EType::Constant, Node, Node::EType::Scalar)
+	MUTABLE_IMPLEMENT_NODE( NodeScalarConstant )
 
 
 	//---------------------------------------------------------------------------------------------

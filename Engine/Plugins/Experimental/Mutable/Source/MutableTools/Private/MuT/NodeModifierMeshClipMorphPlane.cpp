@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeModifierMeshClipMorphPlane::Private::s_type =
-            FNodeType( "ModifierMeshClipMorphPlane", NodeModifier::GetStaticType() );
+    FNodeType NodeModifierMeshClipMorphPlane::Private::s_type = FNodeType(Node::EType::ModifierMeshClipMorphPlane, NodeModifier::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeModifierMeshClipMorphPlane, EType::MeshClipMorphPlane, Node, Node::EType::Modifier)
+    MUTABLE_IMPLEMENT_NODE( NodeModifierMeshClipMorphPlane )
 
 
 	//---------------------------------------------------------------------------------------------

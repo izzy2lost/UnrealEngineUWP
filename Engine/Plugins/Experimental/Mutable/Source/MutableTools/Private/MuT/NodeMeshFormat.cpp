@@ -17,15 +17,14 @@ class FMeshBufferSet;
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshFormat::Private::s_type =
-			FNodeType( "MeshFormat", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshFormat::Private::s_type = FNodeType(Node::EType::MeshFormat, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshFormat, EType::Format, Node, Node::EType::Mesh)
+	MUTABLE_IMPLEMENT_NODE( NodeMeshFormat )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -58,20 +57,6 @@ class FMeshBufferSet;
 	void NodeMeshFormat::SetOptimizeBuffers(bool bEnable)
 	{
 		m_pD->bOptimizeBuffers = bEnable;
-	}
-
-
-	Ptr<NodeLayout> NodeMeshFormat::Private::GetLayout( int32 index ) const
-	{
-		Ptr<NodeLayout> Result;
-
-		if ( Source )
-		{
-			NodeMesh::Private* Private = static_cast<NodeMesh::Private*>( Source->GetBasePrivate() );
-			Result = Private->GetLayout( index );
-		}
-
-		return Result;
 	}
 
 }

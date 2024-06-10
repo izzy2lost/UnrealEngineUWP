@@ -89,6 +89,7 @@ public:
 
 	// Allowable PinType.PinCategory values
 	static const FName PC_Object;
+	static const FName PC_Component;
 	static const FName PC_Material;
 	static const FName PC_Mesh;
 	static const FName PC_PassThroughMesh;

@@ -15,14 +15,13 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeColourArithmeticOperation::Private::s_type =
-			FNodeType( "ColourArithmenticOperation", NodeColour::GetStaticType() );
+	FNodeType NodeColourArithmeticOperation::Private::s_type = FNodeType(Node::EType::ColorArithmeticOperation, NodeColour::GetStaticType() );
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeColourArithmeticOperation, EType::ArithmeticOperation, Node, Node::EType::Colour)
+	MUTABLE_IMPLEMENT_NODE( NodeColourArithmeticOperation )
 
 
     //---------------------------------------------------------------------------------------------

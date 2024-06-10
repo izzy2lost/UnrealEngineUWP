@@ -26,7 +26,7 @@ FString UCustomizableObjectNodeExtensionDataSwitch::GetPinPrefix() const
 	return FString::Format(TEXT("{0} "), { GetOutputPinName() });
 }
 
-mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataSwitch::GenerateMutableNode(FExtensionDataCompilerInterface& InCompilerInterface) const
+mu::Ptr<mu::NodeExtensionData> UCustomizableObjectNodeExtensionDataSwitch::GenerateMutableNode(FExtensionDataCompilerInterface& InCompilerInterface) const
 {
 	const int32 NumParameters = FollowInputPinArray(*SwitchParameter()).Num();
 
@@ -35,7 +35,7 @@ mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataSwitch::GenerateMut
 
 	const int32 NumSwitchOptions = GetNumElements();
 
-	mu::NodeExtensionDataSwitchPtr SwitchNode = new mu::NodeExtensionDataSwitch;
+	mu::Ptr<mu::NodeExtensionDataSwitch> SwitchNode = new mu::NodeExtensionDataSwitch;
 	SwitchNode->SetParameter(SwitchParam);
 	SwitchNode->SetOptionCount(NumSwitchOptions);
 
@@ -47,7 +47,7 @@ mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataSwitch::GenerateMut
 			{
 				if (const ICustomizableObjectExtensionNode* ExtensionNode = Cast<ICustomizableObjectExtensionNode>(ConnectedPin->GetOwningNode()))
 				{
-					if (mu::NodeExtensionDataPtr ExtensionMutableNode = ExtensionNode->GenerateMutableNode(InCompilerInterface))
+					if (mu::Ptr<mu::NodeExtensionData> ExtensionMutableNode = ExtensionNode->GenerateMutableNode(InCompilerInterface))
 					{
 						SwitchNode->SetOption(OptionIndex, ExtensionMutableNode);
 					}

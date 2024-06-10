@@ -84,28 +84,13 @@ namespace mu
 		//! \name Meshes
         //! \{
 
-        //! Get the number of meshes in the Surface.
-		int GetMeshCount() const;
-
-        //! Set the number of meshes in the Surface.
-		void SetMeshCount( int );
-
-        //! Get the node generating one of the meshes in the Surface.
+		//! Get the node generating one of the meshes in the Surface.
 		//! \param index index of the mesh, from 0 to GetMeshCount()-1
-		NodeMeshPtr GetMesh( int index ) const;
+		Ptr<NodeMesh> GetMesh() const;
 
         //! Set the node generating one of the meshes in the Surface.
 		//! \param index index of the mesh, from 0 to GetMeshCount()-1
-		void SetMesh( int index, NodeMeshPtr );
-
-		//! Get the name of a mesh in the Surface.
-		//! \param index index of the image, from 0 to GetMeshCount()-1
-		const FString& GetMeshName(int index) const;
-
-        //! Set the name of a mesh in the Surface.
-		//! \param index index of the mesh, from 0 to GetMeshCount()-1
-		//! \param strName name of the mesh
-		void SetMeshName( int index, const FString& strName );
+		void SetMesh( Ptr<NodeMesh> );
 
 		//! \}
 
@@ -243,7 +228,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		class Private;
 		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
 
 	protected:
 

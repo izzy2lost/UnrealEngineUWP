@@ -14,15 +14,14 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Static initialisation
     //---------------------------------------------------------------------------------------------
-    FNodeType NodeImageVariation::Private::s_type =
-        FNodeType( "ImageVariation", NodeImage::GetStaticType() );
+    FNodeType NodeImageVariation::Private::s_type = FNodeType(Node::EType::ImageVariation, NodeImage::GetStaticType() );
 
 
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeImageVariation, EType::Variation, Node, Node::EType::Image)
+    MUTABLE_IMPLEMENT_NODE( NodeImageVariation )
 
 
     //---------------------------------------------------------------------------------------------

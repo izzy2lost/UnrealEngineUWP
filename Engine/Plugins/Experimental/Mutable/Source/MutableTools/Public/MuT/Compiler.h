@@ -198,18 +198,13 @@ namespace mu
 	struct FObjectState
 	{
 		//! Name used to identify the state from the code and user interface.
-		FString m_name;
+		FString Name;
 
 		//! GPU Optimisation options
-		FStateOptimizationOptions m_optimisation;
+		FStateOptimizationOptions Optimisation;
 
 		//! List of names of the runtime parameters in this state
-		TArray<FString> m_runtimeParams;
-
-		void Serialise( OutputArchive& arch ) const;
-
-
-		void Unserialise( InputArchive& arch );
+		TArray<FString> RuntimeParams;
 	};
 
 	

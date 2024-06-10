@@ -18,15 +18,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeScalarArithmeticOperation::Private::s_type =
-            FNodeType( "ScalarArithmenticOperation", NodeScalar::GetStaticType() );
+    FNodeType NodeScalarArithmeticOperation::Private::s_type = FNodeType(Node::EType::ScalarArithmeticOperation, NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeScalarArithmeticOperation, EType::ArithmeticOperation, Node, Node::EType::Scalar)
+    MUTABLE_IMPLEMENT_NODE( NodeScalarArithmeticOperation )
 
 
     //---------------------------------------------------------------------------------------------

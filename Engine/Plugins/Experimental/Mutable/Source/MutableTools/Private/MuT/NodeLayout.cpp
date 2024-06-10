@@ -15,7 +15,7 @@
 namespace mu
 {
 
-	static FNodeType s_nodeLayoutType = FNodeType( "NodeLayout", Node::GetStaticType() );
+	static FNodeType s_nodeLayoutType = FNodeType(Node::EType::Layout, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -33,14 +33,14 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeLayoutBlocks::Private::s_type = FNodeType( "LayoutBlocks", NodeLayout::GetStaticType() );
+	FNodeType NodeLayoutBlocks::Private::s_type = FNodeType(Node::EType::LayoutBlocks, NodeLayout::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeLayoutBlocks, EType::Blocks, Node, Node::EType::Layout)
+	MUTABLE_IMPLEMENT_NODE( NodeLayoutBlocks )
 
 
 	//---------------------------------------------------------------------------------------------

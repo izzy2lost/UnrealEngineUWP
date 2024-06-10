@@ -195,7 +195,7 @@ namespace Impl
 		mu::Instance::ID InstanceID = System->NewInstance(Model);
 		UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
 
-		const mu::Instance* Instance = nullptr;
+		mu::Ptr<const mu::Instance> Instance;
 
 		// Main instance generation step
 		{
@@ -208,12 +208,12 @@ namespace Impl
 
 		const FMutableImageReference& ImageRef = OperationData->RequestedImage;
 
-		int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
+		int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.Component, ImageRef.LOD, ImageRef.SurfaceId);
 		check(SurfaceIndex >= 0);
 
 		// This ID may be different than the ID obtained the first time the image was generated, because the mutable
 		// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
-		mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
+		mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.Component, ImageRef.LOD, SurfaceIndex, ImageRef.Image);
 
 		UE::Tasks::TTask<mu::Ptr<const mu::Image>> GetImageTask = 
 				System->GetImage(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);

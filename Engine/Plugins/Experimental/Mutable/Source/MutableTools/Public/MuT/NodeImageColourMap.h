@@ -55,9 +55,7 @@ namespace mu
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------
 		class Private;
-
 		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
 
 	protected:
 

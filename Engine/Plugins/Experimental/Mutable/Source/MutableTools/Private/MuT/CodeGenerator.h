@@ -144,6 +144,42 @@ namespace mu
 			TArray<FString> ActiveTags;
 		};
 
+		struct FLODGenerationOptions : public FGenericGenerationOptions
+		{
+			FLODGenerationOptions(const FGenericGenerationOptions& BaseOptions, int32 InLODIndex, const NodeComponentNew* InComponent)
+			{
+				Component = InComponent;
+				LODIndex = InLODIndex;
+				State = BaseOptions.State;
+				ActiveTags = BaseOptions.ActiveTags;
+			}
+
+			const NodeComponentNew* Component = nullptr;
+			int32 LODIndex;
+		};
+
+		struct FSurfaceGenerationOptions : public FGenericGenerationOptions
+		{
+			explicit FSurfaceGenerationOptions(const FGenericGenerationOptions& BaseOptions)
+			{
+				Component = nullptr;
+				LODIndex = -1;
+				State = BaseOptions.State;
+				ActiveTags = BaseOptions.ActiveTags;
+			}
+
+			explicit FSurfaceGenerationOptions(const FLODGenerationOptions& BaseOptions)
+			{
+				Component = BaseOptions.Component;
+				LODIndex = BaseOptions.LODIndex;
+				State = BaseOptions.State;
+				ActiveTags = BaseOptions.ActiveTags;
+			}
+
+			const NodeComponentNew* Component = nullptr;
+			int32 LODIndex = -1;
+		};
+
 		struct FGenericGenerationResult
 		{
 			Ptr<ASTOp> op;
@@ -171,9 +207,8 @@ namespace mu
 		typedef TMap<FGeneratedCacheKey, FGenericGenerationResult> FGeneratedGenericNodesMap;
 		FGeneratedGenericNodesMap GeneratedGenericNodes;
 
-		Ptr<ASTOp> Generate(const Ptr<const Node>, const FGenericGenerationOptions& );
-		void Generate_ComponentNew(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeComponentNew*);
-		void Generate_LOD(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeLOD*);
+		Ptr<ASTOp> Generate_Generic(const Ptr<const Node>, const FGenericGenerationOptions& );
+		void Generate_LOD(const FLODGenerationOptions&, FGenericGenerationResult&, const NodeLOD*);
 		void Generate_ObjectNew(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeObjectNew*);
 		void Generate_ObjectGroup(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeObjectGroup*);
 
@@ -214,14 +249,9 @@ namespace mu
 
         struct FParentKey
         {
-            const NodeObjectNew::Private* m_pObject = nullptr;
-            int32 m_state = -1;
+            const NodeObjectNew* m_pObject = nullptr;
             int32 m_lod = -1;
-            int32 m_component = -1;
-            int32 m_surface = -1;
-            int32 m_texture = -1;
-            int32 m_block = -1;
-        };
+         };
 
 		TArray< FParentKey > m_currentParents;
 
@@ -235,7 +265,7 @@ namespace mu
                 m_lod = -1;
             }
 
-            const NodeObjectNew::Private* m_pObject;
+            const NodeObjectNew* m_pObject;
             int32 m_lod;
 
 			FORCEINLINE bool operator==(const FAdditionalComponentKey& Other) const
@@ -293,6 +323,31 @@ namespace mu
 		};
 
 		TArray<FConditionalExtensionDataOp> ConditionalExtensionDataOps;
+
+		struct FGeneratedComponentCacheKey
+		{
+			Ptr<const Node> Node;
+			FGenericGenerationOptions Options;
+
+			friend FORCEINLINE uint32 GetTypeHash(const FGeneratedComponentCacheKey& InKey)
+			{
+				uint32 KeyHash = 0;
+				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.Node.get()));
+				KeyHash = HashCombineFast(KeyHash, GetTypeHash(InKey.Options));
+				return KeyHash;
+			}
+
+			FORCEINLINE bool operator==(const FGeneratedComponentCacheKey& Other) const
+			{
+				return Node == Other.Node && Options == Other.Options;
+			}
+		};
+
+		typedef TMap<FGeneratedComponentCacheKey, FGenericGenerationResult> GeneratedComponentMap;
+		GeneratedComponentMap GeneratedComponents;
+
+		void GenerateComponent(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeComponent*);
+		void GenerateComponent_New(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeComponentNew*);
 
 		//-----------------------------------------------------------------------------------------
 
@@ -582,7 +637,7 @@ namespace mu
 		typedef TMap<FGeneratedExtensionDataCacheKey, FExtensionDataGenerationResult> FGeneratedExtensionDataMap;
 		FGeneratedExtensionDataMap GeneratedExtensionData;
 
-		void GenerateExtensionData(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions&, const NodeExtensionDataPtrConst&);
+		void GenerateExtensionData(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions&, const Ptr<const NodeExtensionData>&);
 		void GenerateExtensionData_Constant(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions&, const class NodeExtensionDataConstant*);
 		void GenerateExtensionData_Switch(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions&, const class NodeExtensionDataSwitch*);
 		void GenerateExtensionData_Variation(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions&, const class NodeExtensionDataVariation*);
@@ -702,7 +757,7 @@ namespace mu
             Ptr<ASTOp> surfaceOp;
         };
 
-        void GenerateSurface( FSurfaceGenerationResult&, const FGenericGenerationOptions&,
+        void GenerateSurface( FSurfaceGenerationResult&, const FSurfaceGenerationOptions&,
                               Ptr<const NodeSurfaceNew>,
                               const TArray<FirstPassGenerator::FSurface::FEdit>& Edits );
 
@@ -741,18 +796,18 @@ namespace mu
 
 		if (NumRows == 0)
 		{
-			m_pErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.m_pNode->GetMessageContext());
 			return nullptr;
 		}
         else if (ColIndex < 0)
         {
-            m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_errorContext);
+            m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_pNode->GetMessageContext());
             return nullptr;
         }
 
         if (NodeTable->GetPrivate()->Columns[ ColIndex ].Type != TYPE )
         {
-            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.m_errorContext);
+            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.m_pNode->GetMessageContext());
             return nullptr;
         }
 

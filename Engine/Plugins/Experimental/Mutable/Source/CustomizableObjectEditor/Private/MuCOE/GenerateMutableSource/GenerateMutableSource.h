@@ -12,10 +12,7 @@
 #include "MuCOE/ExtensionDataCompilerInterface.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
-#include "MuR/MutableMemory.h"
-#include "MuR/Skeleton.h"
 #include "MuT/NodeComponentNew.h"
-#include "MuR/Ptr.h"
 #include "MuT/NodeImageConstant.h"
 #include "MuT/NodeMeshApplyPose.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
@@ -25,6 +22,10 @@
 #include "MuT/NodeScalarParameter.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/Table.h"
+#include "MuR/MutableMemory.h"
+#include "MuR/Skeleton.h"
+#include "MuR/Mesh.h"
+#include "MuR/Ptr.h"
 #include "UObject/Package.h"
 
 class UCustomizableObjectNodeMaterialBase;
@@ -757,10 +758,10 @@ struct FMutableGraphGenerationContext
 
 	TArray<FAnimBpOverridePhysicsAssetsInfo> AnimBpOverridePhysicsAssetsInfo;
 
-	// Hierarchy of current ComponentNew nodes, each stored for every LOD
+	// Hierarchy of current ComponentNew nodes
 	struct ObjectParent
 	{
-		TArray<TArray<mu::NodeComponentNewPtr>> ComponentsPerLOD;
+		TArray<mu::Ptr<mu::NodeComponentNew>> Components;
 	};
 	TArray< ObjectParent > ComponentNewNode;
 
@@ -768,8 +769,15 @@ struct FMutableGraphGenerationContext
 	uint8 CurrentLOD = 0;
 	int32 CurrentMeshComponent = 0;
 
+	/** If this is set, we are genreating materials for a "passthrough" component, with a fixed mesh. */
+	mu::Ptr<mu::NodeMesh> ComponentMeshOverride;
+
 	uint8 NumLODsInRoot = 0;
 	uint8 NumMeshComponentsInRoot = 0;
+
+	/** Number of additional mesh components added with explict Component nodes to the root or another object node. */
+	uint8 NumExplicitMeshComponents = 0;
+
 	uint8 FirstLODAvailable = MAX_MESH_LOD_COUNT;
 	uint8 NumMaxLODsToStream = MAX_MESH_LOD_COUNT;
 
@@ -876,7 +884,8 @@ private:
 
 
 //
-mu::NodeObjectPtr GenerateMutableSource(const class UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext, bool bPartialCompilation);
+mu::Ptr<mu::NodeObject> GenerateMutableSource(const class UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext, bool bPartialCompilation);
+mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
 
 
 /** Populate an array with all the information related to the reference skeletal meshes we might need in-game to generate instances */

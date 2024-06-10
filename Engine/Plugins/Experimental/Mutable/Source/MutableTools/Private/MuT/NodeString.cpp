@@ -12,7 +12,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	static FNodeType s_nodeStringType = FNodeType( "NodeString", Node::GetStaticType() );
+	static FNodeType s_nodeStringType = FNodeType(Node::EType::String, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

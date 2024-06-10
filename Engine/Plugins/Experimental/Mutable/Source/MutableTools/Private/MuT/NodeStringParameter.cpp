@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeStringParameter::Private::s_type =
-			FNodeType( "StringParameter", NodeString::GetStaticType() );
+	FNodeType NodeStringParameter::Private::s_type = FNodeType(Node::EType::StringParameter, NodeString::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeStringParameter, EType::Parameter, Node, Node::EType::String)
+	MUTABLE_IMPLEMENT_NODE( NodeStringParameter )
 
 
 	//---------------------------------------------------------------------------------------------

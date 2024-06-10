@@ -36,7 +36,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
-#include "MuCOE/Nodes/CustomizableObjectNodePassThroughMesh.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshGeometryOperation.h"
@@ -53,7 +52,6 @@
 #include "Hash/CityHash.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
-
 
 void GetLODAndSectionForAutomaticLODs(const FMutableGraphGenerationContext& Context, const UCustomizableObjectNode& Node, const USkeletalMesh& SkeletalMesh,
 	const int32 LODIndexConnected, const int32 SectionIndexConnected, int32& OutLODIndex, int32& OutSectionIndex, const bool bOnlyConnectedLOD)
@@ -3475,27 +3473,6 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			{
 				Result = nullptr;
 			}
-		}
-	}
-
-	else if (const UCustomizableObjectNodePassThroughMesh* TypedNodePassThroughMesh = Cast<UCustomizableObjectNodePassThroughMesh>(Node))
-	{
-		UStreamableRenderAsset* BaseMesh = TypedNodePassThroughMesh->GetMesh();
-		if (BaseMesh)
-		{
-			mu::Ptr<mu::NodeMeshConstant> MeshNode = new mu::NodeMeshConstant();
-			Result = MeshNode;
-
-			FString MeshUniqueTags;
-			constexpr bool bIsReference = true;
-			TSoftClassPtr<UAnimInstance> AnimInstance;
-			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(BaseMesh, AnimInstance, 0, 0, 0, 0, MeshUniqueTags, GenerationContext, TypedNodeSkel, bIsReference);
-
-			MeshNode->SetValue(MutableMesh);
-		}
-		else
-		{
-			GenerationContext.Compiler->CompilerLog(LOCTEXT("MissingImagePassThrough", "Missing image in pass-through texture node."), Node);
 		}
 	}
 

@@ -406,9 +406,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	bool SecondPassGenerator::Generate(
-		ErrorLogPtr pErrorLog,
-		const Node::Private* root)
+	bool SecondPassGenerator::Generate( ErrorLogPtr pErrorLog, const Node* root)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(SecondPassGenerate);
 

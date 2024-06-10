@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeColourParameter::Private::s_type =
-			FNodeType( "ColourParameter", NodeColour::GetStaticType() );
+	FNodeType NodeColourParameter::Private::s_type = FNodeType(Node::EType::ColorParameter, NodeColour::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeColourParameter, EType::Parameter, Node, Node::EType::Colour)
+	MUTABLE_IMPLEMENT_NODE( NodeColourParameter )
 
 
 	//---------------------------------------------------------------------------------------------

@@ -11,48 +11,37 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeExtensionDataConstant;
-	typedef Ptr<NodeExtensionDataConstant> NodeExtensionDataConstantPtr;
-	typedef Ptr<const NodeExtensionDataConstant> NodeExtensionDataConstantPtrConst;
-
 	//! Node that outputs a constant ExtensionData
 	//! \ingroup model
 	class MUTABLETOOLS_API NodeExtensionDataConstant : public NodeExtensionData
 	{
 	public:
 
-		NodeExtensionDataConstant();
+		Ptr<const ExtensionData> Value;
+
+	public:
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the constant ExtensionData that will be returned.
-		ExtensionDataPtrConst GetValue() const;
-
-		//! Set the constant ExtensionData that will be returned.
-		void SetValue(ExtensionDataPtrConst Value);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-		Node::Private* GetBasePrivate() const override;
+		/** Deprecated. Access Value attribute directly. */
+		void SetValue(const Ptr<const ExtensionData>& In) { Value = In; }
 
 	protected:
+
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeExtensionDataConstant();
+		~NodeExtensionDataConstant() {}
 
 	private:
-		Private* m_pD;
+
+		static FNodeType StaticType;
 
 	};
 

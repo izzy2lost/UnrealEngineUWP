@@ -20,8 +20,6 @@ namespace mu
 		NodeScalarPtr m_pParameter;
 		TArray<NodeMeshPtr> m_options;
 
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
 	};
 
 

@@ -48,14 +48,12 @@
 #include "MuT/NodeColour.h"
 #include "MuT/NodeColourConstant.h"
 #include "MuT/NodeComponent.h"
-#include "MuT/NodeComponentNewPrivate.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodeImageFormat.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageMipmap.h"
 #include "MuT/NodeImageMipmapPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
-#include "MuT/NodeLODPrivate.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodeMeshClipMorphPlane.h"
 #include "MuT/NodeMeshClipWithMesh.h"
@@ -74,7 +72,7 @@
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
-#include "MuT/NodeObjectNewPrivate.h"
+#include "MuT/NodeObjectNew.h"
 #include "MuT/NodePatchImagePrivate.h"
 #include "MuT/NodePatchMesh.h"
 #include "MuT/NodePrivate.h"
@@ -118,7 +116,7 @@ namespace mu
 
 		// Second pass
 		SecondPassGenerator SecondPass(&m_firstPass, m_compilerOptions);
-		bool bSuccess = SecondPass.Generate(m_pErrorLog, pNode->GetBasePrivate());
+		bool bSuccess = SecondPass.Generate(m_pErrorLog, pNode.get());
 		if (!bSuccess)
 		{
 			return;
@@ -129,14 +127,14 @@ namespace mu
 			MUTABLE_CPUPROFILER_SCOPE(MainPass);
 
             int32 CurrentStateIndex = 0;
-			for (const TPair<FObjectState, const Node::Private*>& s : m_firstPass.m_states)
+			for (const TPair<FObjectState, const Node*>& s : m_firstPass.m_states)
 			{
 				MUTABLE_CPUPROFILER_SCOPE(MainPassState);
 
 				FGenericGenerationOptions Options;
 				Options.State = CurrentStateIndex;
 
-				Ptr<ASTOp> stateRoot = Generate(pNode, Options);
+				Ptr<ASTOp> stateRoot = Generate_Generic(pNode, Options);
 				m_states.Emplace(s.Key, stateRoot);
 
 				++CurrentStateIndex;
@@ -145,7 +143,7 @@ namespace mu
 	}
 
 
-	Ptr<ASTOp> CodeGenerator::Generate(const Ptr<const Node> pNode, const FGenericGenerationOptions& Options )
+	Ptr<ASTOp> CodeGenerator::Generate_Generic(const Ptr<const Node> pNode, const FGenericGenerationOptions& Options )
 	{
 		if (!pNode)
 		{
@@ -184,7 +182,8 @@ namespace mu
 			// This happens only if we generate a node graph that has a NodeSurfaceNew at the root.
 			FSurfaceGenerationResult surfResult;
 			const TArray<FirstPassGenerator::FSurface::FEdit> edits;
-			GenerateSurface(surfResult, Options, surfNode, edits);
+			FSurfaceGenerationOptions SurfaceOptions(Options);
+			GenerateSurface(surfResult, SurfaceOptions, surfNode, edits);
 			return surfResult.surfaceOp;
 		}
 
@@ -212,6 +211,14 @@ namespace mu
 			return nullptr;
 		}
 
+		else if (pNode->GetType()->IsA(NodeComponent::GetStaticType()))
+		{
+			const NodeComponent* ComponentNode = static_cast<const NodeComponent*>(pNode.get());
+			FGenericGenerationResult Result;
+			GenerateComponent(Options, Result, ComponentNode);
+			return Result.op;
+		}
+
 
 		Ptr<ASTOp> ResultOp;
 
@@ -230,15 +237,7 @@ namespace mu
 			FGenericGenerationResult Result;
 
 			// Generate for each different type of node
-			if (pNode->GetType() == NodeComponentNew::GetStaticType())
-			{
-				Generate_ComponentNew(Options, Result, static_cast<const NodeComponentNew*>(pNode.get()));
-			}
-			else if (pNode->GetType() == NodeComponentEdit::GetStaticType())
-			{
-				// Nothing to do: processed elsewhere.
-			}
-			else if (pNode->GetType() == NodeObjectNew::GetStaticType())
+			if (pNode->GetType() == NodeObjectNew::GetStaticType())
 			{
 				Generate_ObjectNew(Options, Result, static_cast<const NodeObjectNew*>(pNode.get()));
 			}
@@ -443,7 +442,7 @@ namespace mu
 			}
 			else
 			{
-				blend = GenerateMissingImageCode(TEXT("Blend top image"), EImageFormat::IF_RGB_UBYTE, pPatch->GetPrivate()->m_errorContext, ImageOptions);
+				blend = GenerateMissingImageCode(TEXT("Blend top image"), EImageFormat::IF_RGB_UBYTE, pPatch->GetMessageContext(), ImageOptions);
 			}
 			blend = GenerateImageFormat(blend, blockAd->GetImageDesc().m_format);
 			blend = GenerateImageSize(blend, ImageOptions.RectSize);
@@ -495,78 +494,76 @@ namespace mu
 	}
 
 
-	void CodeGenerator::Generate_LOD(const FGenericGenerationOptions& Options, FGenericGenerationResult& Result, const NodeLOD* InNode)
-	{
-		const NodeLOD::Private& node = *InNode->GetPrivate();
 
-		// Build a series of operations to assemble all the LOD components
-		Ptr<ASTOp> lastCompOp;
+	//---------------------------------------------------------------------------------------------
+	void CodeGenerator::GenerateComponent(const FGenericGenerationOptions& InOptions, FGenericGenerationResult& OutResult, const NodeComponent* InUntypedNode)
+	{
+		if (!InUntypedNode)
+		{
+			OutResult = FGenericGenerationResult();
+			return;
+		}
+
+		// See if it was already generated
+		FGeneratedComponentCacheKey Key;
+		Key.Node = InUntypedNode;
+		Key.Options = InOptions;
+		GeneratedComponentMap::ValueType* it = GeneratedComponents.Find(Key);
+		if (it)
+		{
+			OutResult = *it;
+			return;
+		}
+
+		// Generate for each different type of node
+		const FNodeType* Type = InUntypedNode->GetType();
+		if (Type == NodeComponentNew::GetStaticType())
+		{
+			GenerateComponent_New(InOptions, OutResult, static_cast<const NodeComponentNew*>(InUntypedNode));
+		}
+		else if (Type == NodeComponentEdit::GetStaticType())
+		{
+			// Nothing to do because it is all preprocessed in the first code generator stage
+			//GenerateComponent_Edit(InOptions, OutResult, static_cast<const NodeComponentEdit*>(InUntypedNode));
+		}
+		else
+		{
+			check(false);
+		}
+
+		// Cache the result
+		GeneratedComponents.Add(Key, OutResult);
+	}
+
+
+	void CodeGenerator::GenerateComponent_New(const FGenericGenerationOptions& Options, FGenericGenerationResult& Result, const NodeComponentNew* InNode)
+	{
+		const NodeComponentNew& node = *InNode;
 
 		// Create the expression for each component in this object
-		// TODO: More components per operation
-		for (int32 t = 0; t < node.m_components.Num(); ++t)
+		Ptr<ASTOpAddLOD> LODsOp = new ASTOpAddLOD();
+
+		for (int32 LODIndex = 0; LODIndex < node.LODs.Num(); ++LODIndex)
 		{
-			if (const NodeComponent* pComponentNode = node.m_components[t].get())
+			if (const NodeLOD* LODNode = node.LODs[LODIndex].get())
 			{
-				m_currentParents.Last().m_component = (int)t;
+				m_currentParents.Last().m_lod = LODIndex;
 
-				Ptr<ASTOp> componentOp = Generate(pComponentNode, Options);
+				FLODGenerationOptions LODOptions(Options, LODIndex, InNode );
+				FGenericGenerationResult LODResult;
+				Generate_LOD(LODOptions, LODResult, LODNode);
 
-				if (componentOp)
-				{
-					check(componentOp->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
-
-					ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(componentOp.get());
-
-					// Complete the instruction adding the base
-					typedOp->instance = lastCompOp;
-
-					lastCompOp = componentOp;
-				}
+				LODsOp->lods.Emplace(LODsOp, LODResult.op);
 			}
 		}
 
-		// Add components from child objects
-		FAdditionalComponentKey thisKey;
-		thisKey.m_lod = m_currentParents.Last().m_lod;
-		thisKey.m_pObject = m_currentParents.Last().m_pObject;
-		TArray<Ptr<ASTOp>>* addIt = AdditionalComponents.Find(thisKey);
-		if (addIt)
-		{
-			for (const auto& cop : *addIt)
-			{
-				// Add the additional components after the main ones, this means higher up in the
-				// op tree.
+		Ptr<ASTOpInstanceAdd> InstanceOp = new ASTOpInstanceAdd();
+		InstanceOp->type = OP_TYPE::IN_ADDCOMPONENT;
+		InstanceOp->instance = nullptr;
+		InstanceOp->value = LODsOp;
+		InstanceOp->id = node.Id;
 
-                // First find the last op in the chain of IN_ADDCOMPONENT operations
-                check( cop->GetOpType() == OP_TYPE::IN_ADDCOMPONENT );
-				ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(cop.get());
-				ASTOpInstanceAdd* bottomOp = typedOp;
-				while (bottomOp->instance)
-				{
-					// Step down
-					check(bottomOp->instance->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
-					bottomOp = static_cast<ASTOpInstanceAdd*>(bottomOp->instance.child().get());
-				}
-
-				// Chain
-				bottomOp->instance = lastCompOp;
-				lastCompOp = typedOp;
-			}
-		}
-
-		// Store for possible parent objects if necessary
-		// 2 is because there must be a parent and there is always a null element as well.
-		if (lastCompOp && m_currentParents.Num() > 2)
-		{
-			const auto& parentObjectKey = m_currentParents[m_currentParents.Num() - 2];
-			FAdditionalComponentKey parentKey;
-			parentKey.m_lod = m_currentParents.Last().m_lod;
-			parentKey.m_pObject = parentObjectKey.m_pObject;
-			AdditionalComponents.FindOrAdd(parentKey).Add(lastCompOp);
-		}
-
-		Result.op = lastCompOp;
+		Result.op = InstanceOp;
 	}
 
 
@@ -628,7 +625,7 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateSurface( FSurfaceGenerationResult& result, 
-										 const FGenericGenerationOptions& Options,
+										 const FSurfaceGenerationOptions& Options,
                                          Ptr<const NodeSurfaceNew> surfaceNode,
                                          const TArray<FirstPassGenerator::FSurface::FEdit>& edits )
     {
@@ -636,30 +633,12 @@ namespace mu
 
         const NodeSurfaceNew::Private& node = *surfaceNode->GetPrivate();
 
-        // Clear the surface generation state
-//        m_generatedLayouts.Empty();
-//        m_absoluteLayoutIndex = 0;
-//        m_currentLayoutMesh = nullptr;
-//        m_currentLayoutChannel = 0;
-//        m_generatedMeshes.Empty();
-
         // Build a series of operations to assemble the surface
         Ptr<ASTOp> lastSurfOp;
 
         // Generate the mesh
         //------------------------------------------------------------------------
-        NodeMeshPtr pMesh;
-        if ( node.m_meshes.Num()>0 )
-        {
-            pMesh = node.m_meshes[0].m_pMesh;
-
-            // TODO: Support more meshes
-            check( node.m_meshes.Num()==1 );
-        }
-
-
         FMeshGenerationResult meshResults;
-
 
 		// We don't add the mesh here, since it will be added directly at the top of the
 		// component expression in the NodeComponentNew visitor with the right merges
@@ -707,7 +686,7 @@ namespace mu
 		// If this is true, we will reuse the surface properties from a higher LOD, se we can skip the generation of material properties and images.
 		const bool bShareSurface = node.SharedSurfaceId != INDEX_NONE && !bIsBaseForSharedSurface;
 
-        if ( pMesh )
+        if (node.Mesh)
         {
             MUTABLE_CPUPROFILER_SCOPE(SurfaceMesh);
 
@@ -742,7 +721,7 @@ namespace mu
 			// that may cause them to fall on a different block.
 			MeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
 
-            GenerateMesh(MeshOptions, meshResults, pMesh );
+            GenerateMesh(MeshOptions, meshResults, node.Mesh);
             lastMeshOp = meshResults.meshOp;
             meshResults.extraMeshLayouts.SetNum( edits.Num() );
 
@@ -750,7 +729,7 @@ namespace mu
 
             // Let's remember the base mesh of each added mesh, so that we can use them for the
             // "remove mesh" operations that apply to them instead of the base.
-            std::map<const Node::Private*,Ptr<ASTOp>> baseMeshesForEachAddedMesh;
+            std::map<const Node*,Ptr<ASTOp>> baseMeshesForEachAddedMesh;
 
 
             // Apply mesh merges from child objects "edit surface" nodes
@@ -758,19 +737,19 @@ namespace mu
             {
                 const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
 
-                if ( e.node->m_pMesh )
+                if ( e.node->GetPrivate()->m_pMesh)
                 {
-                    if ( NodeMeshPtr pAdd = e.node->m_pMesh->GetAdd() )
+                    if ( NodeMeshPtr pAdd = e.node->GetPrivate()->m_pMesh->GetAdd() )
                     {
 						// Store the data necessary to apply modifiers for the pre-normal operations stage.
-						m_activeTags.Add(e.node->m_tags);
+						m_activeTags.Add(e.node->GetPrivate()->m_tags);
 						
 						FMeshGenerationOptions MergedMeshOptions;
 						MergedMeshOptions.bLayouts = true;
 						MergedMeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
 						MergedMeshOptions.bNormalizeUVs = bNormalizeUVs;
 						MergedMeshOptions.State = Options.State;
-						MergedMeshOptions.ActiveTags = e.node->m_tags;
+						MergedMeshOptions.ActiveTags = e.node->GetPrivate()->m_tags;
 
 						if (SharedMeshResults)
 						{
@@ -788,8 +767,8 @@ namespace mu
 						// Apply the modifier for the post-normal operations stage to the added mesh
 						bool bModifiersForBeforeOperations = false;
 						FGenericGenerationOptions ModifierOptions(Options);
-						ModifierOptions.ActiveTags = e.node->m_tags;
-						lastMeshOp = ApplyMeshModifiers(Options, lastMeshOp, bModifiersForBeforeOperations, node.m_errorContext);
+						ModifierOptions.ActiveTags = e.node->GetPrivate()->m_tags;
+						lastMeshOp = ApplyMeshModifiers(Options, lastMeshOp, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
 
                         FMeshGenerationResult::FExtraLayouts data;
 						data.GeneratedLayouts = addResults.GeneratedLayouts;
@@ -830,15 +809,15 @@ namespace mu
             Ptr<ASTOpMeshRemoveMask> rop;
             for ( const FirstPassGenerator::FSurface::FEdit& e: edits )
             {
-                if ( e.node->m_pMesh )
+                if ( e.node->GetPrivate()->m_pMesh )
                 {
-                    if ( NodeMeshPtr pRemove = e.node->m_pMesh->GetRemove() )
+                    if ( NodeMeshPtr pRemove = e.node->GetPrivate()->m_pMesh->GetRemove() )
                     {
                         FMeshGenerationResult removeResults;
 						FMeshGenerationOptions RemoveMeshOptions;
 						RemoveMeshOptions.bLayouts = false;
 						RemoveMeshOptions.State = Options.State;
-						RemoveMeshOptions.ActiveTags = e.node->m_tags;
+						RemoveMeshOptions.ActiveTags = e.node->GetPrivate()->m_tags;
 
                         GenerateMesh(RemoveMeshOptions, removeResults, pRemove );
 
@@ -848,9 +827,9 @@ namespace mu
                         // By default, remove from the base
                         Ptr<ASTOp> removeFrom = meshResults.baseMeshOp;
                         // See if we want to remove from an added mesh instead.
-                        if ( e.node->m_pParent )
+                        if ( e.node->GetPrivate()->m_pParent )
                         {
-                            auto addedBaseMeshIt = baseMeshesForEachAddedMesh.find(e.node->m_pParent->GetBasePrivate());
+                            auto addedBaseMeshIt = baseMeshesForEachAddedMesh.find(e.node->GetPrivate()->m_pParent.get());
                             if (addedBaseMeshIt!=baseMeshesForEachAddedMesh.end())
                             {
                                 removeFrom = addedBaseMeshIt->second;
@@ -879,7 +858,7 @@ namespace mu
             // Apply mesh morphs from child objects "edit surface" nodes
             for ( const FirstPassGenerator::FSurface::FEdit& e: edits )
             {
-                if ( NodeMeshPtr pMorph = e.node->m_pMorph )
+                if ( NodeMeshPtr pMorph = e.node->GetPrivate()->m_pMorph )
                 {
 					// Not needed because it has been generated before already.
 					// Base mesh
@@ -915,10 +894,10 @@ namespace mu
                         Ptr<ASTOpMeshMorph> op = new ASTOpMeshMorph();
 
 						// Factor
-						if (e.node->m_pFactor)
+						if (e.node->GetPrivate()->m_pFactor)
 						{
 							FScalarGenerationResult ChildResult;
-							GenerateScalar(ChildResult, Options, e.node->m_pFactor);
+							GenerateScalar(ChildResult, Options, e.node->GetPrivate()->m_pFactor);
 							op->Factor = ChildResult.op;
 						}
 						else
@@ -960,7 +939,7 @@ namespace mu
 			bool bModifiersForBeforeOperations = false;
 			FGenericGenerationOptions ModifierOptions(Options);
 			ModifierOptions.ActiveTags = node.m_tags;
-			lastMeshOp = ApplyMeshModifiers(Options, lastMeshOp, bModifiersForBeforeOperations, node.m_errorContext);
+			lastMeshOp = ApplyMeshModifiers(Options, lastMeshOp, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
 
             // Layouts
             for ( int32 LayoutIndex=0; LayoutIndex <meshResults.GeneratedLayouts.Num(); ++LayoutIndex)
@@ -1000,7 +979,7 @@ namespace mu
 
 							if (data.GeneratedLayouts.Num() != meshResults.GeneratedLayouts.Num())
 							{
-								m_pErrorLog->GetPrivate()->Add(TEXT("Merged layout has been ignored because the number of layouts is different."), ELMT_ERROR, node.m_errorContext);
+								m_pErrorLog->GetPrivate()->Add(TEXT("Merged layout has been ignored because the number of layouts is different."), ELMT_ERROR, surfaceNode->GetMessageContext());
 							}
 							else
 							{
@@ -1163,9 +1142,9 @@ namespace mu
 						for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 						{
 							const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
-							if (t < e.node->m_textures.Num())
+							if (t < e.node->GetPrivate()->m_textures.Num())
 							{
-								if (const NodePatchImage* pPatch = e.node->m_textures[t].m_pPatch.get())
+								if (const NodePatchImage* pPatch = e.node->GetPrivate()->m_textures[t].m_pPatch.get())
 								{
 									imageAd = GenerateImageBlockPatch(imageAd, pPatch, e.condition, ImageOptions);
 								}
@@ -1227,7 +1206,7 @@ namespace mu
 						if (LayoutIndex >= meshResults.GeneratedLayouts.Num() ||
 							LayoutIndex >= meshResults.layoutOps.Num())
 						{
-							m_pErrorLog->GetPrivate()->Add("Missing layout in object, or its parent.", ELMT_ERROR, node.m_errorContext);
+							m_pErrorLog->GetPrivate()->Add("Missing layout in object, or its parent.", ELMT_ERROR, surfaceNode->GetMessageContext());
 						}
 						else
 						{
@@ -1263,7 +1242,7 @@ namespace mu
 								imageAd = BlankImageOp;
 							}
 
-							auto UpdateBlockSize = [&BlockPixelsX, &BlockPixelsY, &FinalFormat, &bBlocksHaveMips, &bImageSizeWarning, &formatNode, &BlankImageOp, &node, &t, this]( FImageDesc BlockDesc, UE::Math::TIntVector2<uint16> LayoutCellSize )
+							auto UpdateBlockSize = [&BlockPixelsX, &BlockPixelsY, &FinalFormat, &bBlocksHaveMips, &bImageSizeWarning, &formatNode, &BlankImageOp, &node, surfaceNode, &t, this]( FImageDesc BlockDesc, UE::Math::TIntVector2<uint16> LayoutCellSize )
 							{
 								if (BlockPixelsX == 0)
 								{
@@ -1280,7 +1259,7 @@ namespace mu
 												*node.m_images[t].m_materialName,
 												*node.m_images[t].m_materialParameterName,
 												currentLOD);
-											m_pErrorLog->GetPrivate()->Add(Msg, ELMT_INFO, node.m_errorContext);
+											m_pErrorLog->GetPrivate()->Add(Msg, ELMT_INFO, surfaceNode->GetMessageContext());
 										}
 									}
 
@@ -1351,9 +1330,9 @@ namespace mu
 								for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 								{
 									const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
-									if (t < e.node->m_textures.Num())
+									if (t < e.node->GetPrivate()->m_textures.Num())
 									{
-										if (const NodePatchImage* pPatch = e.node->m_textures[t].m_pPatch.get())
+										if (const NodePatchImage* pPatch = e.node->GetPrivate()->m_textures[t].m_pPatch.get())
 										{
 											// Is the current block to be patched?
 											if (pPatch->GetPrivate()->BlockIndices.Contains(BlockIndex))
@@ -1392,9 +1371,9 @@ namespace mu
 							for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 							{
 								const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
-								if (t < e.node->m_textures.Num())
+								if (t < e.node->GetPrivate()->m_textures.Num())
 								{
-									Ptr<NodeImage> pExtend = e.node->m_textures[t].m_pExtend;
+									Ptr<NodeImage> pExtend = e.node->GetPrivate()->m_textures[t].m_pExtend;
 									if (pExtend)
 									{
 										if (LayoutIndex >= meshResults.extraMeshLayouts[editIndex].GeneratedLayouts.Num()
@@ -1402,10 +1381,10 @@ namespace mu
 											!meshResults.extraMeshLayouts[editIndex].GeneratedLayouts[LayoutIndex])
 										{
 											FString Msg = FString::Printf(TEXT("Trying to extend a layout that doesn't exist in object [%s]."),
-												*m_currentParents.Last().m_pObject->m_name
+												*m_currentParents.Last().m_pObject->Name
 											);
 
-											m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext);
+											m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, surfaceNode->GetMessageContext());
 										}
 										else
 										{
@@ -1682,12 +1661,11 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    //Ptr<ASTOp> CodeGenerator::Visit( const NodeComponentNew::Private& node )
-	void CodeGenerator::Generate_ComponentNew(const FGenericGenerationOptions& Options, FGenericGenerationResult& Result, const NodeComponentNew* InNode)
+	void CodeGenerator::Generate_LOD(const FLODGenerationOptions& Options, FGenericGenerationResult& Result, const NodeLOD* InNode)
 	{
-		const NodeComponentNew::Private& node = *InNode->GetPrivate();
+		const NodeLOD& node = *InNode;
 
-		MUTABLE_CPUPROFILER_SCOPE(NodeComponentNew);
+		MUTABLE_CPUPROFILER_SCOPE(Generate_LOD);
 
 		// Build a series of operations to assemble the component
         Ptr<ASTOp> lastCompOp;
@@ -1697,13 +1675,15 @@ namespace mu
         // This generates a different ID for each surface. It can be used to match it to the
         // mesh surface, or for debugging. It cannot be 0 because it is a special case for the
         // merge operation.
-        int surfaceID=1;
+        int32 surfaceID=1;
 
         // Look for all surfaces that belong to this component
 		for (int32 i = 0; i<m_firstPass.surfaces.Num(); ++i, ++surfaceID)
 		{
 			const FirstPassGenerator::FSurface& its = m_firstPass.surfaces[i];
-			if (its.component==&node)
+			if (its.Component==Options.Component
+				&&
+				its.LOD==Options.LODIndex)
 			{
                 // Apply state conditions: only generate it if it enabled in this state
                 {
@@ -1726,8 +1706,9 @@ namespace mu
                 sop->name = its.node->GetPrivate()->m_name;
                 sop->instance = lastCompOp;
 
+				FSurfaceGenerationOptions SurfaceOptions(Options);
 				FSurfaceGenerationResult surfaceGenerationResult;
-                GenerateSurface( surfaceGenerationResult, Options, its.node, its.edits );
+                GenerateSurface( surfaceGenerationResult, SurfaceOptions, its.node, its.edits );
                 sop->value = surfaceGenerationResult.surfaceOp;
 
                 sop->id = surfaceID;
@@ -1757,16 +1738,10 @@ namespace mu
                 }
 
                 // Add the mesh with its condition
-                Ptr<ASTOp> mergeAd;
-                if (!lastMeshOp && its.node->GetPrivate()->m_meshes.Num())
-                {
-                    // \todo: mesh index in case of multiple meshes.
-                    const int meshIndex = 0;
-                    lastMeshName = its.node->GetPrivate()->m_meshes[ meshIndex ].m_name;
-                }
-
+ 
                 // We add the merge op even for the first mesh, so that we set the surface id.
-                {
+				Ptr<ASTOp> mergeAd;
+				{
                     Ptr<ASTOp> added = its.resultMeshOp;
  
                     Ptr<ASTOpFixed> mop = new ASTOpFixed();
@@ -1807,20 +1782,8 @@ namespace mu
             iop->instance = lastCompOp;
             iop->value = lastMeshOp;
 
-            // Name
-            // \todo: do mesh names make any sense?
-            iop->name = lastMeshName;
-
             lastCompOp = iop;
         }
-
-
-        Ptr<ASTOpInstanceAdd> iop = new ASTOpInstanceAdd();
-        iop->type = OP_TYPE::IN_ADDCOMPONENT;
-        iop->value = lastCompOp;
-        iop->name = node.m_name;
-    	iop->id = node.m_id;
-        lastCompOp = iop;
 
         Result.op = lastCompOp;
     }
@@ -1830,17 +1793,15 @@ namespace mu
    // Ptr<ASTOp> CodeGenerator::Visit( const NodeObjectNew::Private& node )
 	void CodeGenerator::Generate_ObjectNew(const FGenericGenerationOptions& Options, FGenericGenerationResult& Result, const NodeObjectNew* InNode)
 	{
-		const NodeObjectNew::Private& node = *InNode->GetPrivate();
-		
 		MUTABLE_CPUPROFILER_SCOPE(NodeObjectNew);
 
         m_currentParents.Add( FParentKey() );
-        m_currentParents.Last().m_pObject = &node;
+        m_currentParents.Last().m_pObject = InNode;
 
         // Parse the child objects first, which will accumulate operations in the patching lists
-        for ( int32 t=0; t<node.m_children.Num(); ++t )
+        for ( int32 t=0; t< InNode->Children.Num(); ++t )
         {
-            if ( const NodeObject* pChildNode = node.m_children[t].get() )
+            if ( const NodeObject* pChildNode = InNode->Children[t].get() )
             {
                 Ptr<ASTOp> paramOp;
 
@@ -1863,31 +1824,81 @@ namespace mu
                 data.m_condition = paramOp;
                 m_currentObject.Add( data );
 
-                // This op is ignored: everything is stored as patches to apply to the parent when
-                // it is compiled.
-                Generate( pChildNode, Options );
+                // This op is ignored: everything is stored as patches to apply to the parent when it is compiled.
+                Generate_Generic( pChildNode, Options );
 
                 m_currentObject.Pop();
             }
         }
 
-        // Create the expression for each lod
-        Ptr<ASTOpAddLOD> lodsOp = new ASTOpAddLOD();
-        for ( int32 t=0; t<node.m_lods.Num(); ++t )
-        {
-            if ( const NodeLOD* pLODNode = node.m_lods[t].get() )
-            {
-                m_currentParents.Last().m_lod = t;
+        // Create the expression adding all the components
+		Ptr<ASTOp> LastCompOp;
 
-				FGenericGenerationResult LODResult;
-				Generate_LOD(Options, LODResult, pLODNode);
-                lodsOp->lods.Emplace( lodsOp, LODResult.op);
+		// Add the components in this node
+        for ( int32 t=0; t< InNode->Components.Num(); ++t )
+        {
+			const NodeComponent* ComponentNode = InNode->Components[t].get();
+            if (ComponentNode)
+            {
+				FGenericGenerationResult ComponentResult;
+				GenerateComponent(Options, ComponentResult, ComponentNode);
+
+				if (ComponentResult.op)
+				{
+					check(ComponentResult.op->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
+					ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(ComponentResult.op.get());
+
+					check(!typedOp->instance.child());
+					typedOp->instance = LastCompOp;
+					LastCompOp = typedOp;
+				}
             }
         }
-        Ptr<ASTOp> rootOp = lodsOp;
+
+		// Add the components from child objects
+		FAdditionalComponentKey thisKey;
+		thisKey.m_lod = m_currentParents.Last().m_lod;
+		thisKey.m_pObject = m_currentParents.Last().m_pObject;
+		TArray<Ptr<ASTOp>>* addIt = AdditionalComponents.Find(thisKey);
+		if (addIt)
+		{
+			for (const Ptr<ASTOp>& cop : *addIt)
+			{
+				// Add the additional components after the main ones, this means higher up in the op tree.
+
+				// First find the last op in the chain of IN_ADDCOMPONENT operations
+				check(cop->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
+				ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(cop.get());
+				ASTOpInstanceAdd* bottomOp = typedOp;
+				while (bottomOp->instance)
+				{
+					// Step down
+					check(bottomOp->instance->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
+					bottomOp = static_cast<ASTOpInstanceAdd*>(bottomOp->instance.child().get());
+				}
+
+				// Chain
+				bottomOp->instance = LastCompOp;
+				LastCompOp = typedOp;
+			}
+		}
+
+		// Store for possible parent objects if necessary
+		// 2 is because there must be a parent and there is always a null element as well.
+		if (LastCompOp && m_currentParents.Num() > 2)
+		{
+			const auto& parentObjectKey = m_currentParents[m_currentParents.Num() - 2];
+			FAdditionalComponentKey parentKey;
+			parentKey.m_lod = m_currentParents.Last().m_lod;
+			parentKey.m_pObject = parentObjectKey.m_pObject;
+			AdditionalComponents.FindOrAdd(parentKey).Add(LastCompOp);
+		}
+
+
+        Ptr<ASTOp> rootOp = LastCompOp;
 
 		// Add an ASTOpAddExtensionData for each connected ExtensionData node
-		for (const NodeObjectNew::Private::NamedExtensionDataNode& NamedNode : node.m_extensionDataNodes)
+		for (const NodeObjectNew::FNamedExtensionDataNode& NamedNode : InNode->ExtensionDataNodes)
 		{
 			if (!NamedNode.Node.get())
 			{
@@ -1967,7 +1978,7 @@ namespace mu
                 for( int32 i = 0; !found && i != m_firstPass.objects.Num(); i++ )
 				{
 					FirstPassGenerator::FObject& it = m_firstPass.objects[i];
-					if (it.node == pChildNode->GetBasePrivate())
+					if (it.node == pChildNode)
 					{
 						found = true;
 						conditionOp = it.condition;
@@ -1985,7 +1996,7 @@ namespace mu
 
                 // This op is ignored: everything is stored as patches to apply to the parent when
                 // it is compiled.
-                Generate( pChildNode, Options );
+                Generate_Generic( pChildNode, Options );
 
                 m_currentObject.Pop();
 
@@ -1994,7 +2005,7 @@ namespace mu
 				if (usedNames.Contains(strChildName))
 				{
 					FString Msg = FString::Printf(TEXT("Object group has more than one children with the same name [%s]."), *strChildName );
-					m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, node.m_errorContext);
+					m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, InNode->GetMessageContext());
 				}
 				else
 				{
@@ -2039,7 +2050,7 @@ namespace mu
 		for (const FirstPassGenerator::FModifier& m: m_firstPass.modifiers)
 		{
 			// Correct LOD?
-			if (m.lod != LOD)
+			if (m.LOD != LOD)
 			{
 				continue;
 			}
@@ -2123,9 +2134,9 @@ namespace mu
 		Ptr<ASTOpMeshRemoveMask> removeOp;
 		for (const FirstPassGenerator::FModifier& m : modifiers)
 		{
-			if (m.node->m_pNode->GetType()== NodeModifierMeshClipWithMesh::GetStaticType())
+			if (m.node->GetType()== NodeModifierMeshClipWithMesh::GetStaticType())
 			{
-				const NodeModifierMeshClipWithMesh::Private* TypedClipNode = static_cast<const NodeModifierMeshClipWithMesh::Private*>(m.node);
+				const NodeModifierMeshClipWithMesh* TypedClipNode = static_cast<const NodeModifierMeshClipWithMesh*>(m.node);
 				Ptr<ASTOpMeshMaskClipMesh> op = new ASTOpMeshMaskClipMesh();
 				op->source = preModifiersMesh;
 
@@ -2135,7 +2146,7 @@ namespace mu
 				ClipOptions.State = Options.State;
 
 				FMeshGenerationResult clipResult;
-				GenerateMesh(ClipOptions, clipResult, TypedClipNode->ClipMesh);
+				GenerateMesh(ClipOptions, clipResult, TypedClipNode->GetPrivate()->ClipMesh);
 				op->clip = clipResult.meshOp;
 
 				if (!op->clip)
@@ -2166,12 +2177,12 @@ namespace mu
 		// Process clip-with-mask modifiers
 		for (const FirstPassGenerator::FModifier& m : modifiers)
 		{
-			if (m.node->m_pNode->GetType() == NodeModifierMeshClipWithUVMask::GetStaticType())
+			if (m.node->GetType() == NodeModifierMeshClipWithUVMask::GetStaticType())
 			{
-				const NodeModifierMeshClipWithUVMask::Private* TypedClipNode = static_cast<const NodeModifierMeshClipWithUVMask::Private*>(m.node);
+				const NodeModifierMeshClipWithUVMask* TypedClipNode = static_cast<const NodeModifierMeshClipWithUVMask*>(m.node);
 				Ptr<ASTOpMeshMaskClipUVMask> op = new ASTOpMeshMaskClipUVMask();
 				op->Source = preModifiersMesh;
-				op->LayoutIndex = TypedClipNode->LayoutIndex;
+				op->LayoutIndex = TypedClipNode->GetPrivate()->LayoutIndex;
 
 				// Parameters
 				FImageGenerationOptions ClipOptions;
@@ -2180,7 +2191,7 @@ namespace mu
 				ClipOptions.State = Options.State;
 
 				FImageGenerationResult ClipMaskResult;
-				GenerateImage(ClipOptions, ClipMaskResult, TypedClipNode->ClipMask);
+				GenerateImage(ClipOptions, ClipMaskResult, TypedClipNode->GetPrivate()->ClipMask);
 
 				// It could be IF_L_UBIT, but since this should be optimized out at compile time, leave the most cpu efficient.
 				op->Mask = GenerateImageFormat(ClipMaskResult.op, mu::EImageFormat::IF_L_UBYTE);
@@ -2215,9 +2226,9 @@ namespace mu
 		{
 			Ptr<ASTOp> modifiedMeshOp;
 
-			if (m.node->m_pNode->GetType() == NodeModifierMeshClipMorphPlane::GetStaticType())
+			if (m.node->GetType() == NodeModifierMeshClipMorphPlane::GetStaticType())
 			{
-				const NodeModifierMeshClipMorphPlane::Private* TypedNode = static_cast<const NodeModifierMeshClipMorphPlane::Private*>(m.node);
+				const NodeModifierMeshClipMorphPlane::Private* TypedNode = static_cast<const NodeModifierMeshClipMorphPlane*>(m.node)->GetPrivate();
 				Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 				op->source = lastMeshOp;
 
@@ -2296,9 +2307,9 @@ namespace mu
 		{
 			Ptr<ASTOp> ModifiedMeshOp;
 
-			if (M.node->m_pNode->GetType()==NodeModifierMeshClipDeform::GetStaticType())
+			if (M.node->GetType()==NodeModifierMeshClipDeform::GetStaticType())
 			{
-				const NodeModifierMeshClipDeform::Private* TypedClipNode = static_cast<const NodeModifierMeshClipDeform::Private*>(M.node);
+				const NodeModifierMeshClipDeform::Private* TypedClipNode = static_cast<const NodeModifierMeshClipDeform*>(M.node)->GetPrivate();
 				Ptr<ASTOpMeshBindShape>  BindOp = new ASTOpMeshBindShape();
 				Ptr<ASTOpMeshClipDeform> ClipOp = new ASTOpMeshClipDeform();
 

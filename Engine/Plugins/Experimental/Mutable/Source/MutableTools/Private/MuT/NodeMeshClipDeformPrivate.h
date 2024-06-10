@@ -20,9 +20,6 @@ namespace mu
 		Ptr<NodeMesh> m_pClipShape;
 		Ptr<NodeImage> m_pShapeWeights;
 
-		// NodeMesh::Private interface
-        Ptr<NodeLayout> GetLayout( int index ) const override;
-
 	};
 
 }

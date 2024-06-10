@@ -83,6 +83,7 @@ MeshPtr Mesh::Clone() const
 
     pResult->InternalId = InternalId;
 	pResult->Flags = Flags;
+	pResult->ReferenceID = ReferenceID;
 	pResult->Surfaces = Surfaces;
 	pResult->Skeleton = Skeleton;
 	pResult->PhysicsBody = PhysicsBody;
@@ -127,6 +128,7 @@ Ptr<Mesh> Mesh::Clone(EMeshCopyFlags InFlags) const
     pResult->InternalId = InternalId;
 	pResult->MeshIDPrefix = MeshIDPrefix;
 	pResult->Flags = Flags;
+	pResult->ReferenceID = ReferenceID;
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
 	{
@@ -213,6 +215,8 @@ void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags InFlags)
 
     InternalId = From.InternalId;
 	Flags = From.Flags;
+	ReferenceID = From.ReferenceID;
+
 	MeshIDPrefix = From.MeshIDPrefix;
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
@@ -1057,9 +1061,6 @@ void UnserialiseLegacySurfaces(InputArchive& arch, TArray<FMeshSurface>& OutMesh
 
 void FMeshSurface::Serialise(OutputArchive& arch) const
 {
-	const int32 ver = 1;
-	arch << ver;
-
 	arch << FirstVertex;
 	arch << VertexCount;
 	arch << FirstIndex;
@@ -1067,38 +1068,25 @@ void FMeshSurface::Serialise(OutputArchive& arch) const
 	arch << BoneMapIndex;
 	arch << BoneMapCount;
 	arch << bCastShadow;
-
 	arch << Id;
 }
 
 
 void FMeshSurface::Unserialise(InputArchive& arch)
 {
-	int32 ver = 0;
-	arch >> ver;
-	check(ver <= 1);
-
 	arch >> FirstVertex;
 	arch >> VertexCount;
 	arch >> FirstIndex;
 	arch >> IndexCount;
 	arch >> BoneMapIndex;
 	arch >> BoneMapCount;
-
-	if (ver >= 1)
-	{
-		arch >> bCastShadow;
-	}
-
+	arch >> bCastShadow;
 	arch >> Id;
 }
 
 
 void Mesh::FBonePose::Serialise(OutputArchive& arch) const
 {
-	const int32 ver = 2;
-	arch << ver;
-
 	arch << BoneId;
 	arch << BoneUsageFlags;
 	arch << BoneTransform;
@@ -1107,40 +1095,15 @@ void Mesh::FBonePose::Serialise(OutputArchive& arch) const
 
 void Mesh::FBonePose::Unserialise(InputArchive& arch)
 {
-	int32 ver = 0;
-	arch >> ver;
-	check(ver <= 2);
-
-	if (ver <= 1)
-	{
-		std::string DeprecatedBoneName;
-		arch >> DeprecatedBoneName;
-
-		BoneId = FBoneName(0);
-	}
-	else
-	{
-		arch >> BoneId;
-	}
-
-	if (ver == 0)
-	{
-		uint8 Skinned = 0;
-		arch >> Skinned;
-		BoneUsageFlags = Skinned ? EBoneUsageFlags::Skinning : EBoneUsageFlags::None;
-	}
-	else
-	{
-		arch >> BoneUsageFlags;
-	}
-
+	arch >> BoneId;
+	arch >> BoneUsageFlags;
 	arch >> BoneTransform;
 }
 
 
 void Mesh::Serialise(OutputArchive& arch) const
 {
-	uint32 ver = 20;
+	uint32 ver = 22;
 	arch << ver;
 
 	arch << IndexBuffers;
@@ -1165,6 +1128,7 @@ void Mesh::Serialise(OutputArchive& arch) const
 	arch << AdditionalPhysicsBodies;
 
 	arch << MeshIDPrefix;
+	arch << ReferenceID;
 }
 
 
@@ -1172,7 +1136,7 @@ void Mesh::Unserialise(InputArchive& arch)
 {
 	uint32 ver;
 	arch >> ver;
-	check(ver == 20);
+	check(ver == 22);
 
 	arch >> IndexBuffers;
 	arch >> VertexBuffers;
@@ -1199,6 +1163,7 @@ void Mesh::Unserialise(InputArchive& arch)
 	arch >> AdditionalPhysicsBodies;
 
 	arch >> MeshIDPrefix;
+	arch >> ReferenceID;
 }
 
 
@@ -1212,6 +1177,7 @@ bool Mesh::IsSimilar(const Mesh& o, bool bCompareLayouts) const
 	}
 
 	bool equal = IndexBuffers == o.IndexBuffers;
+	if (equal) equal = (ReferenceID==o.ReferenceID);
 	if (equal && bCompareLayouts) equal = (Layouts.Num() == o.Layouts.Num());
 	if (equal && Skeleton != o.Skeleton)
 	{

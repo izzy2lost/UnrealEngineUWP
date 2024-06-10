@@ -20,9 +20,6 @@ namespace mu
 		NodeMeshPtr Source;
 		FMatrix44f Transform;
 
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 

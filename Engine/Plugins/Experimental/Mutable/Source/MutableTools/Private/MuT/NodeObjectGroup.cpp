@@ -18,14 +18,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeObjectGroup::Private::s_type = FNodeType( "ObjectGroup", NodeObject::GetStaticType() );
+	FNodeType NodeObjectGroup::Private::s_type = FNodeType(Node::EType::ObjectGroup, NodeObject::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeObjectGroup, EType::Group, Node, Node::EType::Object)
+	MUTABLE_IMPLEMENT_NODE( NodeObjectGroup )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -103,24 +103,6 @@ namespace mu
 		m_pD->m_children[ index ] = pObject;
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-    NodeLayoutPtr NodeObjectGroup::Private::GetLayout(int lod, int component, int surface, int texture ) const
-	{
-		NodeLayoutPtr pLayout;
-
-		for ( int32 i=0; !pLayout && i<m_children.Num(); ++i )
-		{
-			if (m_children[i])
-			{
-				NodeObject::Private* pPrivate = static_cast<NodeObject::Private*>( m_children[i]->GetBasePrivate() );
-                pLayout = pPrivate->GetLayout( lod, component, surface, texture );
-			}
-		}
-
-		// TODO: layout index
-		return pLayout;
-	}
 
 	void NodeObjectGroup::SetDefaultValue(int32 Value)
 	{

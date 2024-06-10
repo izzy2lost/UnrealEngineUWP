@@ -10,7 +10,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	static FNodeType s_nodeImageType = 	FNodeType( "NodeImage", Node::GetStaticType() );
+	static FNodeType s_nodeImageType = 	FNodeType( Node::EType::Image, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

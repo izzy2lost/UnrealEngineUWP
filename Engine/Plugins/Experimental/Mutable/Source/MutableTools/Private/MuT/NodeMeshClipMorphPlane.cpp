@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeMeshClipMorphPlane::Private::s_type =
-            FNodeType( "MeshClipMorphPlane", NodeMesh::GetStaticType() );
+    FNodeType NodeMeshClipMorphPlane::Private::s_type = FNodeType(Node::EType::MeshClipMorphPlane, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeMeshClipMorphPlane, EType::ClipMorphPlane, Node, Node::EType::Mesh)
+    MUTABLE_IMPLEMENT_NODE( NodeMeshClipMorphPlane )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -80,20 +79,6 @@ namespace mu
 		m_pD->m_vertexSelectionType = Private::VS_BONE_HIERARCHY;
 		m_pD->m_vertexSelectionBone = BoneId;
 		m_pD->m_maxEffectRadius = maxEffectRadius;
-	}
-
-	//---------------------------------------------------------------------------------------------
-    NodeLayoutPtr NodeMeshClipMorphPlane::Private::GetLayout( int index ) const
-	{
-		NodeLayoutPtr pResult;
-
-		if ( m_pSource )
-		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
-		}
-
-		return pResult;
 	}
 
 	//---------------------------------------------------------------------------------------------

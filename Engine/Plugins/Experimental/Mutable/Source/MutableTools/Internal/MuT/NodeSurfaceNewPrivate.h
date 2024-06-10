@@ -29,13 +29,7 @@ namespace mu
         uint32 ExternalId =0;
         int32 SharedSurfaceId =INDEX_NONE;
 
-		struct FMeshData
-		{
-			FString m_name;
-			NodeMeshPtr m_pMesh;
-		};
-
-		TArray<FMeshData> m_meshes;
+		Ptr<NodeMesh> Mesh;
 
 		struct FImageData
 		{
@@ -79,9 +73,6 @@ namespace mu
 
 		//! Find an image node index by name or return -1
 		int32 FindImage( const FString& strName ) const;
-
-		//! Find a mesh node index by name or return -1
-		int32 FindMesh(const FString& strName) const;
 
         //! Find a vector node index by name or return -1
         int32 FindVector(const FString& strName) const;

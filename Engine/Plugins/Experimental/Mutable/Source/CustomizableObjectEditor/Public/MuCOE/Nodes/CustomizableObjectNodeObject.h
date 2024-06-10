@@ -250,6 +250,11 @@ public:
 		return Count;
 	}
 
+	UEdGraphPin* ComponentsPin() const
+	{
+		return FindPin(ComponentsPinName);
+	}
+
 	UEdGraphPin* ChildrenPin() const
 	{
 		return FindPin(ChildrenPinName);
@@ -260,7 +265,7 @@ public:
 		return FindPin(OutputPinName);
 	}
 
-	/** Return the LOD which a LOD pin references to. Retrun -1 if a pin does not belong to any LOD. */
+	/** Return the LOD which a LOD pin references to. Return -1 if a pin does not belong to any LOD. */
 	int32 GetLOD(UEdGraphPin* Pin) const;
 
 	virtual bool CanUserDeleteNode() const override;
@@ -288,6 +293,7 @@ public:
 
 private:
 	static const FName ChildrenPinName;
+	static const FName ComponentsPinName;
 	static const FName OutputPinName;
 	static const TCHAR* LODPinNamePrefix;
 

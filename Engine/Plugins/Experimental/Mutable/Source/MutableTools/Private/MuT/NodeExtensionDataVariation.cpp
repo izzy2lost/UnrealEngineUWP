@@ -3,53 +3,40 @@
 #include "MuT/NodeExtensionDataVariation.h"
 
 #include "Misc/AssertionMacros.h"
-#include "MuT/NodeExtensionDataVariationPrivate.h"
 
 namespace mu
 {
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
-	FNodeType NodeExtensionDataVariation::Private::s_type =
-		FNodeType("ExtensionDataVariation", NodeExtensionData::GetStaticType());
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-	MUTABLE_IMPLEMENT_NODE(NodeExtensionDataVariation, EType::Variation, Node, Node::EType::ExtensionData);
+	FNodeType NodeExtensionDataVariation::StaticType = FNodeType(Node::EType::ExtensionDataVariation, NodeExtensionData::GetStaticType());
 
 
-	//---------------------------------------------------------------------------------------------
-	// Own Interface
-	//---------------------------------------------------------------------------------------------
-	void NodeExtensionDataVariation::SetDefaultValue(NodeExtensionDataPtr InValue)
+	void NodeExtensionDataVariation::SetDefaultValue(Ptr<NodeExtensionData> InValue)
 	{
-		m_pD->DefaultValue = InValue;
+		DefaultValue = InValue;
 	}
 
-	void NodeExtensionDataVariation::SetVariationCount(int InCount)
+	void NodeExtensionDataVariation::SetVariationCount(int32 InCount)
 	{
 		check(InCount >= 0);
-		m_pD->Variations.SetNum(InCount);
+		Variations.SetNum(InCount);
 	}
 
 	int NodeExtensionDataVariation::GetVariationCount() const
 	{
-		return m_pD->Variations.Num();
+		return Variations.Num();
 	}
 
-	void NodeExtensionDataVariation::SetVariationTag(int InIndex, const FString& Tag)
+	void NodeExtensionDataVariation::SetVariationTag(int32 InIndex, const FString& Tag)
 	{
-		check(m_pD->Variations.IsValidIndex(InIndex));
+		check(Variations.IsValidIndex(InIndex));
 
-		m_pD->Variations[InIndex].Tag = Tag;
+		Variations[InIndex].Tag = Tag;
 	}
 	//---------------------------------------------------------------------------------------------
-	void NodeExtensionDataVariation::SetVariationValue(int InIndex, NodeExtensionDataPtr InValue)
+	void NodeExtensionDataVariation::SetVariationValue(int32 InIndex, Ptr<NodeExtensionData> InValue)
 	{
-		check(m_pD->Variations.IsValidIndex(InIndex));
+		check(Variations.IsValidIndex(InIndex));
 
-		m_pD->Variations[InIndex].Value = InValue;
+		Variations[InIndex].Value = InValue;
 	}
 
 }

@@ -26,10 +26,6 @@ namespace mu
 		
 		TArray<FBoneName> BonesToDeform;
 		TArray<FBoneName> PhysicsToDeform;
-
-		// NodeMesh::Private interface
-        Ptr<NodeLayout> GetLayout( int index ) const override;
-
 	};
 
 

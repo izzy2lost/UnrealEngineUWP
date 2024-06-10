@@ -18,9 +18,6 @@ namespace mu
 
 		NodeMeshPtr m_pSource;
 
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 

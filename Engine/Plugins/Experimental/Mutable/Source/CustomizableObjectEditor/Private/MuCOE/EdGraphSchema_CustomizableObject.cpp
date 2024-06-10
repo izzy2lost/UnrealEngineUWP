@@ -47,10 +47,10 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshReshape.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshVariation.h"
-#include "MuCOE/Nodes/CustomizableObjectNodePassThroughMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMorphMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectChild.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorConstant.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeRemoveMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeRemoveMeshBlocks.h"
@@ -220,6 +220,7 @@ UEdGraphNode* FCustomizableObjectSchemaAction_Paste::PerformAction(class UEdGrap
 //////////////////////////////////////////////////////////////////////////
 // DO NOT change the values because it will break the external pin nodes!
 const FName UEdGraphSchema_CustomizableObject::PC_Object("object");
+const FName UEdGraphSchema_CustomizableObject::PC_Component("component");
 const FName UEdGraphSchema_CustomizableObject::PC_Material("material");
 const FName UEdGraphSchema_CustomizableObject::PC_Mesh("mesh");
 const FName UEdGraphSchema_CustomizableObject::PC_PassThroughMesh("passThroughMesh");
@@ -395,11 +396,19 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 	}
 
 	{
+		UCustomizableObjectNode* ComponentTemplateNodes[]
+		{
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeComponentMesh>(),
+		};
+
+		AddNewNodeCategoryActionsFiltered(ComponentTemplateNodes, ContextMenuBuilder, TEXT("Component"), GeneralGrouping, Filter);
+	}
+
+	{
 		UCustomizableObjectNode* MeshTemplateNodes[]
 		{
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeSkeletalMesh>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeStaticMesh>(),
-			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodePassThroughMesh>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeLayoutBlocks>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeMeshMorph>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeMeshSwitch>(),
@@ -690,6 +699,10 @@ FLinearColor UEdGraphSchema_CustomizableObject::GetPinTypeColor(const FName& Typ
 	else if (TypeString == PC_Object)
 	{
 		return FLinearColor(0.000000f, 0.400000f, 0.910000f, 1.000000f); // Light blue
+	}
+	else if (TypeString == PC_Component)
+	{
+		return FLinearColor(FColorList::MediumOrchid); 
 	}
 	else if (TypeString == PC_Stack)
 	{

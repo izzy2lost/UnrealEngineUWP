@@ -50,156 +50,141 @@ namespace mu
         //! or release the instance.
         Instance::ID GetId() const;
 
-		//! Get the number of levels-of-detail of this instance.
-		int32 GetLODCount() const;
+		//! Get the number of components of this instance.
+		int32 GetComponentCount() const;
 
-        //! Get the number of components in a level-of-detail
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        int32 GetComponentCount( int32 lod ) const;
-		
 		//! Get the Id of a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-		uint16 GetComponentId( int32 lod, int32 comp ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		uint16 GetComponentId(int32 ComponentIndex) const;
+
+        //! Get the number of LODs in a component
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+        int32 GetLODCount( int32 ComponentIndex ) const;
 
         //! Get the number of surfaces in a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        int32 GetSurfaceCount( int32 lod, int32 comp ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		int32 GetSurfaceCount( int32 ComponentIndex, int32 LODIndex) const;
 
         //! Get an id that can be used to match the surface data with the mesh surface data.
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        uint32 GetSurfaceId( int32 lod, int32 comp, int32 surf ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        uint32 GetSurfaceId( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
         //! Find a surface index from the internal id (as returned by GetSurfaceId).
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param id ID of the surface to look for.
-        int32 FindSurfaceById( int32 lod, int32 comp, uint32 id ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param id ID of the surface to look for.
+        int32 FindSurfaceById( int32 ComponentIndex, int32 LODIndex, uint32 id ) const;
 
 		//! Find the base surface index and Lod index when reusing surfaces between LODs. Return the surface index
 		//! and the LOD it belongs to.
-		//! \param Comp - Index of the component, from 0 to GetComponentCount(lod)-1
+		//! \param ComponentIndex - Index of the component, from 0 to GetComponentCount()-1
 		//! \param SharedSurfaceId - Id of the surface to look for (as returned by GetSharedSurfaceId).
 		//! \param OutSurfaceIndex - Index of the surface in the OutLODIndex lod. 
 		//! \param OutLODIndex - Index of the first LOD where the surface can be found. 
-		void FindBaseSurfaceBySharedId(int32 CompIndex, int32 SharedId, int32& OutSurfaceIndex, int32& OutLODIndex) const;
+		void FindBaseSurfaceBySharedId(int32 ComponentIndex, int32 SharedId, int32& OutSurfaceIndex, int32& OutLODIndex) const;
 
 		//! Get an id that can be used to find the same surface on other LODs
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
 		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-		//! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-		int32 GetSharedSurfaceId(int32 lod, int32 comp, int32 surf) const;
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+		int32 GetSharedSurfaceId(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
         //! Get an optional, opaque application-defined identifier for this surface. The meaning of
         //! this ID depends on each application, and it is specified when creating the source data
         //! that generates this surface.
         //! See NodeSurfaceNew::SetCustomID.
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        uint32 GetSurfaceCustomId( int32 lod, int32 comp, int32 surf ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        uint32 GetSurfaceCustomId( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
-        //! Get the number of meshes in a surface
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        int32 GetMeshCount( int32 lod, int32 comp ) const;
-
-        //! Get a mesh resource id from a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param mesh Index of the mesh, from 0 to GetMeshCount(lod,comp,surf)-1
-        //! \return an ummodifiable pointer to the requested mesh. The returned object is guaranteed
-        //! to be alive only while this instance is alive. The ownership of the returned object
-        //! remains in the instance, so it should not be deleted.
-		FResourceID GetMeshId( int32 lod, int32 comp, int32 mesh ) const;
+        //! Get the mesh resource id from a component
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+  		FResourceID GetMeshId( int32 ComponentIndex, int32 LODIndex ) const;
 
 		//! Get the number of images in a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        int32 GetImageCount( int32 lod, int32 comp, int32 surf ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        int32 GetImageCount( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
         //! Get an image resource id from a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param img Index of the image, from 0 to GetImageCount(lod,comp,surf)-1
-        //! \return an ummodifiable pointer to the requested image. The returned object is
-        //! guaranteed to be alive only while this instance is alive. The ownership of the returned
-        //! object remains in the instance, so it should not be deleted.
-		FResourceID GetImageId( int32 lod, int32 comp, int32 surf, int32 img ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param ImageIndex Index of the image, from 0 to GetImageCount()-1
+ 		FResourceID GetImageId( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ImageIndex) const;
 
 		//! Get the name of an image in a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param img Index of the image, from 0 to GetImageCount(lod,comp,surf)-1
-		FName GetImageName( int32 lod, int32 comp, int32 surf, int32 img ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param ImageIndex Index of the image, from 0 to GetImageCount()-1
+		FName GetImageName( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ImageIndex ) const;
 
 		//! Get the number of vectors in a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        int32 GetVectorCount( int32 lod, int32 comp, int32 surf ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        int32 GetVectorCount( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
 		//! Get a vector from a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param vec Index of the vector, from 0 to GetVectorCount(lod,comp,surf)-1
-		//! \param pX, pY, pZ, pW are optional to floats to store the components of the vector
-		//!		   value. They can be null.
-        FVector4f GetVector( int32 lod, int32 comp, int32 surf, int32 vec ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param VectorIndex Index of the vector, from 0 to GetVectorCount()-1
+        FVector4f GetVector( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 VectorIndex) const;
 
 		//! Get the name of a vector in a component
-		//! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-		//! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param vec Index of the vector, from 0 to GetVectorCount(lod,comp)-1
-		FName GetVectorName( int32 lod, int32 comp, int32 surf, int32 vec ) const;
+		//! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param VectorIndex Index of the vector, from 0 to GetVectorCount()-1
+		FName GetVectorName( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 VectorIndex ) const;
 
         //! Get the number of scalar values in a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        int32 GetScalarCount( int32 lod, int32 comp, int32 surf ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        int32 GetScalarCount( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
         //! Get a scalar value from a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param sca Index of the scalar, from 0 to GetScalarCount(lod,comp)-1
-        float GetScalar( int32 lod, int32 comp, int32 surf, int32 sca ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param ScalarIndex Index of the scalar, from 0 to GetScalarCount()-1
+        float GetScalar( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ScalarIndex) const;
 
         //! Get the name of a scalar from a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param sca Index of the scalar, from 0 to GetScalarCount(lod,comp)-1
-		FName GetScalarName( int32 lod, int32 comp, int32 surf, int32 sca ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param ScalarIndex Index of the scalar, from 0 to GetScalarCount()-1
+		FName GetScalarName( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ScalarIndex ) const;
 
         //! Get the number of string values in a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        int32 GetStringCount( int32 lod, int32 comp, int32 surf ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        int32 GetStringCount( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const;
 
         //! Get a string value from a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param sca Index of the string, from 0 to GetStringCount(lod,comp)-1
-        FString GetString( int32 lod, int32 comp, int32 surf, int32 str ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param StringIndex Index of the string, from 0 to GetStringCount()-1
+        FString GetString( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 StringIndex) const;
 
         //! Get the name of a string from a component
-        //! \param lod Index of the level of detail, from 0 to GetLODCount()-1
-        //! \param comp Index of the component, from 0 to GetComponentCount(lod)-1
-        //! \param surf Index of the surface, from 0 to GetSurfaceCount(lod,comp)-1
-        //! \param sca Index of the string, from 0 to GetStringCount(lod,comp)-1
-        FName GetStringName( int32 lod, int32 comp, int32 surf, int32 str ) const;
+        //! \param ComponentIndex Index of the component, from 0 to GetComponentCount()-1
+		//! \param LODIndex Index of the level of detail, from 0 to GetLODCount()-1
+		//! \param SurfaceIndex Index of the surface, from 0 to GetSurfaceCount()-1
+        //! \param StringIndex Index of the string, from 0 to GetStringCount()-1
+        FName GetStringName( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 StringIndex ) const;
 
 		//! Get the number of ExtensionData values in a component
 		int32 GetExtensionDataCount() const;

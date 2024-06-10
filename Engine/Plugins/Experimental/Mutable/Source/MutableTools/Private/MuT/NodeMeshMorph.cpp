@@ -18,14 +18,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshMorph::Private::s_type = FNodeType( "MeshMorph", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshMorph::Private::s_type = FNodeType(Node::EType::MeshMorph, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshMorph, EType::Morph, Node, Node::EType::Mesh)
+	MUTABLE_IMPLEMENT_NODE( NodeMeshMorph )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -93,21 +93,6 @@ namespace mu
 	{
 		m_pD->bReshapePhysicsVolumes = bEnable;
 	}
-
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshMorph::Private::GetLayout( int index ) const
-	{
-		NodeLayoutPtr pResult;
-
-		if ( Base )
-		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( Base->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
-		}
-
-		return pResult;
-	}
-
 
 }
 

@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageNormalComposite::Private::s_type =
-			FNodeType( "ImageNormalComposite", NodeImage::GetStaticType() );
+	FNodeType NodeImageNormalComposite::Private::s_type = FNodeType(Node::EType::ImageNormalComposite, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageNormalComposite, EType::NormalComposite, Node, Node::EType::Image )
+	MUTABLE_IMPLEMENT_NODE( NodeImageNormalComposite )
 
 
 	//---------------------------------------------------------------------------------------------

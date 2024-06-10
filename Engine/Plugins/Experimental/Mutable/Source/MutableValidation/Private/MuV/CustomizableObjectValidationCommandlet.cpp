@@ -181,7 +181,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 			{
 				// Force generation of all LODS
 				TArray<uint16> RequestedLodLevels{};
-				RequestedLodLevels.Init(MAX_uint8, GeneratedInstance->GetNumComponents());
+				RequestedLodLevels.Init(0, GeneratedInstance->GetNumComponents());
 				GeneratedInstance->GetPrivate()->GetDescriptor().SetRequestedLODLevels(RequestedLodLevels);
 				
 				// Randomize instance values

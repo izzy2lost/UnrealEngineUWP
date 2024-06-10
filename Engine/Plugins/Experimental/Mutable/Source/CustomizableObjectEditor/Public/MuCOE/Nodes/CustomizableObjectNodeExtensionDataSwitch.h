@@ -26,6 +26,6 @@ public:
 	//~End UCustomizableObjectNodeSwitchBase interface
 
 	//~Begin ICustomizableObjectExtensionNode interface
-	mu::NodeExtensionDataPtr GenerateMutableNode(class FExtensionDataCompilerInterface& InCompilerInterface) const override;
+	mu::Ptr<mu::NodeExtensionData> GenerateMutableNode(class FExtensionDataCompilerInterface& InCompilerInterface) const override;
 	//~End ICustomizableObjectExtensionNode interface
 };

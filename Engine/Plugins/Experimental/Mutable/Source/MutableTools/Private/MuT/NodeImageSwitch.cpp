@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageSwitch::Private::s_type =
-			FNodeType( "ImageSwitch", NodeImage::GetStaticType() );
+	FNodeType NodeImageSwitch::Private::s_type = FNodeType(Node::EType::ImageSwitch, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageSwitch, EType::Switch, Node, Node::EType::Image)
+	MUTABLE_IMPLEMENT_NODE( NodeImageSwitch )
 
 
 	//---------------------------------------------------------------------------------------------

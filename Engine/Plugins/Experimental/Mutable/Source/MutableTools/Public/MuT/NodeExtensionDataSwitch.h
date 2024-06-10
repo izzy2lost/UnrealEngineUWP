@@ -6,55 +6,46 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/NodeExtensionData.h"
+#include "MuT/NodeScalar.h"
 
 namespace mu
 {
-	// Forward declarations
-	class NodeScalar;
-	using NodeScalarPtr = Ptr<NodeScalar>;
-	using NodeScalarPtrConst = Ptr<const NodeScalar>;
-
-	class NodeExtensionDataSwitch;
-	using NodeExtensionDataSwitchPtr = Ptr<NodeExtensionDataSwitch>;
-	using NodeExtensionDataSwitchPtrConst = Ptr<const NodeExtensionDataSwitch>;
 
 	class MUTABLETOOLS_API NodeExtensionDataSwitch : public NodeExtensionData
 	{
 	public:
 
-		NodeExtensionDataSwitch();
+		Ptr<NodeScalar> Parameter;
+		TArray<Ptr<NodeExtensionData>> Options;
+
+	public:
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
-		NodeScalarPtr GetParameter() const;
-		void SetParameter(NodeScalarPtr InParameter);
+		Ptr<NodeScalar> GetParameter() const;
+		void SetParameter(Ptr<NodeScalar> InParameter);
 
 		void SetOptionCount(int);
 
-		NodeExtensionDataPtr GetOption(int t) const;
-		void SetOption(int t, NodeExtensionDataPtr);
+		Ptr<NodeExtensionData> GetOption(int32 t) const;
+		void SetOption(int32 t, Ptr<NodeExtensionData>);
 
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-		Node::Private* GetBasePrivate() const override;
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeExtensionDataSwitch();
+		~NodeExtensionDataSwitch() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
+
 	};
 }

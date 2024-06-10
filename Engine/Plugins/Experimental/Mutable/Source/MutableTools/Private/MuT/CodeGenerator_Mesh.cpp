@@ -732,25 +732,25 @@ namespace mu
 		const NodeMesh* Node = InUntypedNode.get();
 
         // Generate for each different type of node
-		switch (Node->GetMeshNodeType())
+		switch (Node->GetType()->Type)
 		{
-		case NodeMesh::EType::Constant: GenerateMesh_Constant(InOptions, OutResult, static_cast<const NodeMeshConstant*>(Node)); break;
-		case NodeMesh::EType::Format: GenerateMesh_Format(InOptions, OutResult, static_cast<const NodeMeshFormat*>(Node)); break;
-		case NodeMesh::EType::Morph: GenerateMesh_Morph(InOptions, OutResult, static_cast<const NodeMeshMorph*>(Node)); break;
-		case NodeMesh::EType::MakeMorph: GenerateMesh_MakeMorph(InOptions, OutResult, static_cast<const NodeMeshMakeMorph*>(Node)); break;
-		case NodeMesh::EType::Fragment: GenerateMesh_Fragment(InOptions, OutResult, static_cast<const NodeMeshFragment*>(Node)); break;
-		case NodeMesh::EType::Interpolate: GenerateMesh_Interpolate(InOptions, OutResult, static_cast<const NodeMeshInterpolate*>(Node)); break;
-		case NodeMesh::EType::Switch: GenerateMesh_Switch(InOptions, OutResult, static_cast<const NodeMeshSwitch*>(Node)); break;
-		case NodeMesh::EType::Transform: GenerateMesh_Transform(InOptions, OutResult, static_cast<const NodeMeshTransform*>(Node)); break;
-		case NodeMesh::EType::ClipMorphPlane: GenerateMesh_ClipMorphPlane(InOptions, OutResult, static_cast<const NodeMeshClipMorphPlane*>(Node)); break;
-		case NodeMesh::EType::ClipWithMesh: GenerateMesh_ClipWithMesh(InOptions, OutResult, static_cast<const NodeMeshClipWithMesh*>(Node)); break;
-		case NodeMesh::EType::ApplyPose: GenerateMesh_ApplyPose(InOptions, OutResult, static_cast<const NodeMeshApplyPose*>(Node)); break;
-		case NodeMesh::EType::Variation: GenerateMesh_Variation(InOptions, OutResult, static_cast<const NodeMeshVariation*>(Node)); break;
-		case NodeMesh::EType::Table: GenerateMesh_Table(InOptions, OutResult, static_cast<const NodeMeshTable*>(Node)); break;
-		case NodeMesh::EType::GeometryOperation: GenerateMesh_GeometryOperation(InOptions, OutResult, static_cast<const NodeMeshGeometryOperation*>(Node)); break;
-		case NodeMesh::EType::Reshape: GenerateMesh_Reshape(InOptions, OutResult, static_cast<const NodeMeshReshape*>(Node)); break;
-		case NodeMesh::EType::ClipDeform: GenerateMesh_ClipDeform(InOptions, OutResult, static_cast<const NodeMeshClipDeform*>(Node)); break;
-		case NodeMesh::EType::None: check(false);
+		case Node::EType::MeshConstant: GenerateMesh_Constant(InOptions, OutResult, static_cast<const NodeMeshConstant*>(Node)); break;
+		case Node::EType::MeshFormat: GenerateMesh_Format(InOptions, OutResult, static_cast<const NodeMeshFormat*>(Node)); break;
+		case Node::EType::MeshMorph: GenerateMesh_Morph(InOptions, OutResult, static_cast<const NodeMeshMorph*>(Node)); break;
+		case Node::EType::MeshMakeMorph: GenerateMesh_MakeMorph(InOptions, OutResult, static_cast<const NodeMeshMakeMorph*>(Node)); break;
+		case Node::EType::MeshFragment: GenerateMesh_Fragment(InOptions, OutResult, static_cast<const NodeMeshFragment*>(Node)); break;
+		case Node::EType::MeshInterpolate: GenerateMesh_Interpolate(InOptions, OutResult, static_cast<const NodeMeshInterpolate*>(Node)); break;
+		case Node::EType::MeshSwitch: GenerateMesh_Switch(InOptions, OutResult, static_cast<const NodeMeshSwitch*>(Node)); break;
+		case Node::EType::MeshTransform: GenerateMesh_Transform(InOptions, OutResult, static_cast<const NodeMeshTransform*>(Node)); break;
+		case Node::EType::MeshClipMorphPlane: GenerateMesh_ClipMorphPlane(InOptions, OutResult, static_cast<const NodeMeshClipMorphPlane*>(Node)); break;
+		case Node::EType::MeshClipWithMesh: GenerateMesh_ClipWithMesh(InOptions, OutResult, static_cast<const NodeMeshClipWithMesh*>(Node)); break;
+		case Node::EType::MeshApplyPose: GenerateMesh_ApplyPose(InOptions, OutResult, static_cast<const NodeMeshApplyPose*>(Node)); break;
+		case Node::EType::MeshVariation: GenerateMesh_Variation(InOptions, OutResult, static_cast<const NodeMeshVariation*>(Node)); break;
+		case Node::EType::MeshTable: GenerateMesh_Table(InOptions, OutResult, static_cast<const NodeMeshTable*>(Node)); break;
+		case Node::EType::MeshGeometryOperation: GenerateMesh_GeometryOperation(InOptions, OutResult, static_cast<const NodeMeshGeometryOperation*>(Node)); break;
+		case Node::EType::MeshReshape: GenerateMesh_Reshape(InOptions, OutResult, static_cast<const NodeMeshReshape*>(Node)); break;
+		case Node::EType::MeshClipDeform: GenerateMesh_ClipDeform(InOptions, OutResult, static_cast<const NodeMeshClipDeform*>(Node)); break;
+		default: check(false);
 		}
 
         // Cache the result
@@ -772,12 +772,12 @@ namespace mu
         // Factor
         if ( node.Factor )
         {
-            OpMorph->Factor = Generate( node.Factor.get(), InOptions );
+            OpMorph->Factor = Generate_Generic( node.Factor.get(), InOptions );
         }
         else
         {
             // This argument is required
-            OpMorph->Factor = GenerateMissingScalarCode(TEXT("Morph factor"), 0.5f, node.m_errorContext );
+            OpMorph->Factor = GenerateMissingScalarCode(TEXT("Morph factor"), 0.5f, InMorphNode->GetMessageContext());
         }
 
         // Base
@@ -791,7 +791,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add( "Mesh morph base node is not set.",
-                                            ELMT_ERROR, node.m_errorContext );
+                                            ELMT_ERROR, InMorphNode->GetMessageContext());
         }        
 
 		if (node.Morph)
@@ -890,7 +890,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add( "Mesh make morph base node is not set.",
-                                            ELMT_ERROR, node.m_errorContext );
+                                            ELMT_ERROR, InMakeMorphNode->GetMessageContext());
         }
 
         // Target
@@ -909,7 +909,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add( "Mesh make morph target node is not set.",
-                                            ELMT_ERROR, node.m_errorContext );
+                                            ELMT_ERROR, InMakeMorphNode->GetMessageContext());
         }
 
         OutResult.meshOp = op;
@@ -919,9 +919,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_Fragment(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-		const NodeMeshFragment* fragment )
+		const NodeMeshFragment* FragmentNode )
     {
-        NodeMeshFragment::Private& node = *fragment->GetPrivate();
+        NodeMeshFragment::Private& node = *FragmentNode->GetPrivate();
 
         FMeshGenerationResult BaseResult;
         if ( node.m_pMesh )
@@ -955,7 +955,7 @@ namespace mu
                         else
                         {
                             m_pErrorLog->GetPrivate()->Add( "Internal layout block index error.",
-                                                            ELMT_ERROR, node.m_errorContext );
+                                                            ELMT_ERROR, FragmentNode->GetMessageContext());
                         }
                     }
                 }
@@ -963,7 +963,7 @@ namespace mu
                 {
                     // This argument is required
                     m_pErrorLog->GetPrivate()->Add( "Missing layout in mesh fragment source.",
-                                                    ELMT_ERROR, node.m_errorContext );
+                                                    ELMT_ERROR, FragmentNode->GetMessageContext());
                 }
             }
 
@@ -977,7 +977,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add( "Mesh fragment source is not set.",
-                                            ELMT_ERROR, node.m_errorContext );
+                                            ELMT_ERROR, FragmentNode->GetMessageContext());
         }
 
         OutResult.baseMeshOp = BaseResult.baseMeshOp;
@@ -987,9 +987,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_Interpolate(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-		const NodeMeshInterpolate* interpolate )
+		const NodeMeshInterpolate* InterpolateNode )
     {
-        NodeMeshInterpolate::Private& node = *interpolate->GetPrivate();
+        NodeMeshInterpolate::Private& node = *InterpolateNode->GetPrivate();
 
         // Generate the code
         Ptr<ASTOpFixed> op = new ASTOpFixed();
@@ -999,13 +999,13 @@ namespace mu
         // Factor
         if ( Node* pFactor = node.m_pFactor.get() )
         {
-            op->SetChild( op->op.args.MeshInterpolate.factor, Generate( pFactor, InOptions ) );
+            op->SetChild( op->op.args.MeshInterpolate.factor, Generate_Generic( pFactor, InOptions ) );
         }
         else
         {
             // This argument is required
             op->SetChild( op->op.args.MeshInterpolate.factor,
-                          GenerateMissingScalarCode(TEXT("Interpolation factor"), 0.5f, node.m_errorContext ) );
+                          GenerateMissingScalarCode(TEXT("Interpolation factor"), 0.5f, InterpolateNode->GetMessageContext()) );
         }
 
         //
@@ -1066,15 +1066,15 @@ namespace mu
             //op.args.MeshInterpolate.target[0] = GenerateMissingImageCode( "First mesh", IF_RGB_UBYTE );
             m_pErrorLog->GetPrivate()->Add
                 ( "Mesh interpolation: at least the first mesh is required.",
-                  ELMT_ERROR, node.m_errorContext );
+                  ELMT_ERROR, InterpolateNode->GetMessageContext());
         }
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void CodeGenerator::GenerateMesh_Switch(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshSwitch* sw )
+    void CodeGenerator::GenerateMesh_Switch(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshSwitch* SwitchNode )
     {
-        NodeMeshSwitch::Private& node = *sw->GetPrivate();
+        NodeMeshSwitch::Private& node = *SwitchNode->GetPrivate();
 
         if (node.m_options.Num() == 0)
         {
@@ -1090,12 +1090,12 @@ namespace mu
         // Factor
         if ( node.m_pParameter )
         {
-            op->variable = Generate( node.m_pParameter.get(), InOptions);
+            op->variable = Generate_Generic( node.m_pParameter.get(), InOptions);
         }
         else
         {
             // This argument is required
-            op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, node.m_errorContext );
+            op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, SwitchNode->GetMessageContext());
         }
 
         // Options
@@ -1187,9 +1187,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_Variation(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-		const NodeMeshVariation* va )
+		const NodeMeshVariation* VariationNode )
     {
-        NodeMeshVariation::Private& node = *va->GetPrivate();
+        NodeMeshVariation::Private& node = *VariationNode->GetPrivate();
 
         FMeshGenerationResult currentResult;
         Ptr<ASTOp> currentMeshOp;
@@ -1226,7 +1226,7 @@ namespace mu
                 m_pErrorLog->GetPrivate()->Add( 
 					FString::Printf(TEXT("Unknown tag found in mesh variation [%s]."), *tag),
 					ELMT_WARNING,
-					node.m_errorContext,
+					VariationNode->GetMessageContext(),
 					ELMSB_UNKNOWN_TAG
 				);
                 continue;
@@ -1295,7 +1295,7 @@ namespace mu
 			GeneratedConstantMeshes.Add(MeshEntry);
 
 			// Log an error message
-			m_pErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, Node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, InNode->GetMessageContext());
 
 			return;
 		}
@@ -1442,7 +1442,7 @@ namespace mu
 
 						Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
 						Ptr<const Layout> GeneratedLayout = AddLayout(SourceLayout, MeshIDPrefix);
-						const void* Context = InOptions.OverrideContext.Get(Node.m_errorContext);
+						const void* Context = InOptions.OverrideContext.Get(InNode->GetMessageContext());
 
 						bool bUseAbsoluteBlockIds = false;
 						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds);
@@ -1456,7 +1456,7 @@ namespace mu
 					for (int32 LayoutIndex = 0; LayoutIndex < InOptions.OverrideLayouts.Num(); ++LayoutIndex)
 					{
 						Ptr<const Layout> GeneratedLayout = InOptions.OverrideLayouts[LayoutIndex];
-						const void* Context = InOptions.OverrideContext.Get(Node.m_errorContext);
+						const void* Context = InOptions.OverrideContext.Get(InNode->GetMessageContext());
 
 						// In this case we need the layout block ids to use the ids in the parent layout, and not be prefixed with
 						// the current mesh id prefix. For this reason we need them to be absolute.
@@ -1483,7 +1483,7 @@ namespace mu
 
 		// Apply the modifier for the pre-normal operations stage.
 		bool bModifiersForBeforeOperations = true;
-		OutResult.meshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, Node.m_errorContext);
+		OutResult.meshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, InNode->GetMessageContext());
     }
 
 
@@ -1541,9 +1541,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_Transform(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-                                                const NodeMeshTransform* trans )
+                                                const NodeMeshTransform* TransformNode )
     {
-        const auto& node = *trans->GetPrivate();
+        const auto& node = *TransformNode->GetPrivate();
 
         Ptr<ASTOpMeshTransform> op = new ASTOpMeshTransform();
 
@@ -1556,8 +1556,7 @@ namespace mu
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh transform base node is not set.",
-                ELMT_ERROR, node.m_errorContext);
+            m_pErrorLog->GetPrivate()->Add("Mesh transform base node is not set.", ELMT_ERROR, TransformNode->GetMessageContext() );
         }
 
         op->matrix = node.Transform;
@@ -1568,9 +1567,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_ClipMorphPlane(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-                                                     const NodeMeshClipMorphPlane* clip )
+                                                     const NodeMeshClipMorphPlane* ClipNode )
     {
-        const auto& node = *clip->GetPrivate();
+        const auto& node = *ClipNode->GetPrivate();
 
         Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 
@@ -1585,7 +1584,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add("Mesh clip-morph-plane source node is not set.",
-                ELMT_ERROR, node.m_errorContext);
+                ELMT_ERROR, ClipNode->GetMessageContext());
         }
 
         // Morph to an ellipse
@@ -1640,9 +1639,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_ClipWithMesh(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-                                                   const NodeMeshClipWithMesh* clip )
+                                                   const NodeMeshClipWithMesh* ClipNode)
     {
-        const auto& node = *clip->GetPrivate();
+        const auto& node = *ClipNode->GetPrivate();
 
         Ptr<ASTOpFixed> op = new ASTOpFixed();
         op->op.type = OP_TYPE::ME_CLIPWITHMESH;
@@ -1657,7 +1656,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add("Mesh clip-with-mesh source node is not set.",
-                ELMT_ERROR, node.m_errorContext);
+                ELMT_ERROR, ClipNode->GetMessageContext());
         }
 
         // Clipping mesh
@@ -1676,7 +1675,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add("Mesh clip-with-mesh clipping mesh node is not set.",
-                ELMT_ERROR, node.m_errorContext);
+                ELMT_ERROR, ClipNode->GetMessageContext());
         }
 
         OutResult.meshOp = op;
@@ -1699,8 +1698,7 @@ namespace mu
 		else
 		{
 			// This argument is required
-			m_pErrorLog->GetPrivate()->Add("Mesh Clip Deform base mesh node is not set.",
-				ELMT_ERROR, Node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Mesh Clip Deform base mesh node is not set.", ELMT_ERROR, ClipDeform->GetMessageContext());
 		}
 
 		// Base Shape
@@ -1724,9 +1722,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateMesh_ApplyPose(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-                                                const NodeMeshApplyPose* pose )
+                                                const NodeMeshApplyPose* PoseNode )
     {
-        const auto& node = *pose->GetPrivate();
+        const auto& node = *PoseNode->GetPrivate();
 
         Ptr<ASTOpMeshApplyPose> op = new ASTOpMeshApplyPose();
 
@@ -1740,7 +1738,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add("Mesh apply-pose base node is not set.",
-                ELMT_ERROR, node.m_errorContext);
+                ELMT_ERROR, PoseNode->GetMessageContext());
         }
 
         // Pose mesh
@@ -1759,7 +1757,7 @@ namespace mu
         {
             // This argument is required
             m_pErrorLog->GetPrivate()->Add("Mesh apply-pose pose node is not set.",
-                ELMT_ERROR, node.m_errorContext);
+                ELMT_ERROR, PoseNode->GetMessageContext());
         }
 
         OutResult.meshOp = op;
@@ -1767,9 +1765,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateMesh_GeometryOperation(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshGeometryOperation* geom)
+	void CodeGenerator::GenerateMesh_GeometryOperation(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshGeometryOperation* GeomNode)
 	{
-		const auto& node = *geom->GetPrivate();
+		const auto& node = *GeomNode->GetPrivate();
 
 		Ptr<ASTOpMeshGeometryOperation> op = new ASTOpMeshGeometryOperation();
 
@@ -1783,7 +1781,7 @@ namespace mu
 		{
 			// This argument is required
 			m_pErrorLog->GetPrivate()->Add("Mesh geometric op mesh-a node is not set.",
-				ELMT_ERROR, node.m_errorContext);
+				ELMT_ERROR, GeomNode->GetMessageContext());
 		}
 
 		// Mesh B
@@ -1799,8 +1797,8 @@ namespace mu
 			op->meshB = bResult.meshOp;
 		}
 
-		op->scalarA = Generate(node.m_pScalarA, InOptions);
-		op->scalarB = Generate(node.m_pScalarB, InOptions);
+		op->scalarA = Generate_Generic(node.m_pScalarA, InOptions);
+		op->scalarB = Generate_Generic(node.m_pScalarB, InOptions);
 
 		OutResult.meshOp = op;
 	}
@@ -1843,7 +1841,7 @@ namespace mu
 		else
 		{
 			// This argument is required
-			m_pErrorLog->GetPrivate()->Add("Mesh reshape base node is not set.", ELMT_ERROR, Node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Mesh reshape base node is not set.", ELMT_ERROR, Reshape->GetMessageContext());
 		}
 
 		// Base and target shapes shouldn't have layouts or modifiers.

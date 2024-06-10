@@ -25,10 +25,6 @@ namespace mu
 		FString DefaultRowName;
 
 		TArray<NodeLayoutPtr> Layouts;
-
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 }

@@ -23,9 +23,6 @@ namespace mu
 
 		TArray<FString> m_tags;
 
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 

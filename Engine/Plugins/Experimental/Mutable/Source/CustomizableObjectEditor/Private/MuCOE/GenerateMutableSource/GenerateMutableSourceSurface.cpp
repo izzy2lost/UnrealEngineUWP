@@ -228,7 +228,7 @@ void AddModifierToSharedSurface(FMutableGraphGenerationContext& GenerationContex
 }
 
 
-mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext)
+mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext)
 {
 	check(Pin)
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
@@ -243,7 +243,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		return static_cast<mu::NodeSurface*>(Generated->Node.get());
 	}
 	
-	mu::NodeSurfacePtr Result;
+	mu::Ptr<mu::NodeSurface> Result;
 
 	const int32 LOD = Node->IsAffectedByLOD() ? GenerationContext.CurrentLOD : 0;
 	
@@ -257,7 +257,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 	if (UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 	{
-		if (TypedNodeMat->GetMeshComponentIndex() != GenerationContext.CurrentMeshComponent)
+		bool bGeneratingImplicitComponent = GenerationContext.ComponentMeshOverride.get()!=nullptr;
+
+		bool bValidForCurrentComponent = bGeneratingImplicitComponent || (TypedNodeMat->GetMeshComponentIndex() == GenerationContext.CurrentMeshComponent);
+		if (!bValidForCurrentComponent)
 		{
 			return Result;
 		}
@@ -274,7 +277,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 			}
 		}
 
-		mu::NodeSurfaceNewPtr SurfNode = new mu::NodeSurfaceNew();
+		mu::Ptr<mu::NodeSurfaceNew> SurfNode = new mu::NodeSurfaceNew();
 		Result = SurfNode;
 
 		// Add to the list of surfaces that could be reused between LODs for this NodeMaterial.
@@ -339,34 +342,45 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 			}
 		}
 
-		mu::NodeMeshPtr MeshNode;
+		mu::Ptr<mu::NodeMesh> MeshNode;
 		
-		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
+		if (bGeneratingImplicitComponent)
 		{
-			FMutableGraphMeshGenerationData MeshData;
-			MeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, false, false);
+			MeshNode = GenerationContext.ComponentMeshOverride;
+			SurfNode->SetMesh(MeshNode);
 
-			if (MeshNode)
+			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
 			{
-				SurfNode->SetMeshCount(1);
+				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshIgnored", "The mesh nodes connected to a material node will be ignored because it is part of an explicit mesh component."), Node);
+			}
+		}
+		else
+		{
+			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
+			{
+				FMutableGraphMeshGenerationData MeshData;
+				MeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, false, false);
 
-				mu::Ptr<mu::NodeMeshFormat> MeshFormatNode = new mu::NodeMeshFormat();
-				MeshFormatNode->SetSource(MeshNode.get());
-				SetSurfaceFormat(GenerationContext,
+				if (MeshNode)
+				{
+					mu::Ptr<mu::NodeMeshFormat> MeshFormatNode = new mu::NodeMeshFormat();
+					MeshFormatNode->SetSource(MeshNode.get());
+					SetSurfaceFormat(GenerationContext,
 						MeshFormatNode->GetVertexBuffers(), MeshFormatNode->GetIndexBuffers(), MeshData,
 						GenerationContext.Options.CustomizableObjectNumBoneInfluences,
 						GenerationContext.Options.b16BitBoneWeightsEnabled);
 
-				// \TODO: Make it an option?
-				MeshFormatNode->SetOptimizeBuffers(true);
+					// \TODO: Make it an option?
+					MeshFormatNode->SetOptimizeBuffers(true);
 
-				MeshFormatNode->SetMessageContext(Node);
+					MeshFormatNode->SetMessageContext(Node);
 
-				SurfNode->SetMesh(0, MeshFormatNode);
-			}
-			else
-			{
-				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+					SurfNode->SetMesh(MeshFormatNode);
+				}
+				else
+				{
+					GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
+				}
 			}
 		}
 		
@@ -377,19 +391,19 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		FString TableColumnName;
 
 		// Checking if we should not use the material of the table node even if it is linked to the material node
-		const UEdGraphPin* TempConnectedPin = nullptr;
+		const UEdGraphPin* MaterialAssetConnectedPin = nullptr;
 		if (TypedNodeMat->GetMaterialAssetPin())
 		{
-			TempConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin());
+			MaterialAssetConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin());
 		}
 
-		if (TempConnectedPin)
+		if (MaterialAssetConnectedPin)
 		{
-			if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast< UCustomizableObjectNodeTable >(TempConnectedPin->GetOwningNode()))
+			if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast< UCustomizableObjectNodeTable >(MaterialAssetConnectedPin->GetOwningNode()))
 			{
-				TableColumnName = TempConnectedPin->PinFriendlyName.ToString();
+				TableColumnName = MaterialAssetConnectedPin->PinFriendlyName.ToString();
 
-				if (UMaterialInstance * TableMaterial = TypedNodeTable->GetColumnDefaultAssetByType<UMaterialInstance>(TempConnectedPin))
+				if (UMaterialInstance * TableMaterial = TypedNodeTable->GetColumnDefaultAssetByType<UMaterialInstance>(MaterialAssetConnectedPin))
 				{
 					// Checking if the reference material of the Table Node has the same parent as the material of the Material Node 
 					if (!TypedNodeMat->GetMaterial() || TableMaterial->GetMaterial() != TypedNodeMat->GetMaterial()->GetMaterial())
@@ -810,7 +824,13 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						const FString LayerEncoding = LayerIndex != INDEX_NONE ? "-MutableLayerParam:" + FString::FromInt(LayerIndex) : "";
 						
 						SurfNode->SetImageName(ImageIndex, SurfNodeImageName + LayerEncoding);
-						const int32 UVLayout = TypedNodeMat->GetImageUVLayout(ImageIndex);
+
+						// If we are generating an implicit component (with a passthrough mesh) we don't apply any layout.
+						int32 UVLayout = -1;
+						if (!bGeneratingImplicitComponent)
+						{
+							UVLayout = TypedNodeMat->GetImageUVLayout(ImageIndex);;
+						}
 						SurfNode->SetImageLayoutIndex(ImageIndex, UVLayout);
 						SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->GetMaterial()->GetName(), ImageName);
 
@@ -951,8 +971,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 			SurfNode2->SetCustomID(ReferencedMaterialsIndex);
 
-			SurfNode2->SetMeshCount(SurfNode->GetMeshCount());
-			SurfNode2->SetMesh(0, SurfNode->GetMesh(0));
+			SurfNode2->SetMesh(SurfNode->GetMesh());
 
 			SurfNode2->SetVectorCount(SurfNode->GetVectorCount());
 
@@ -1622,5 +1641,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 	return Result;
 }
+
 
 #undef LOCTEXT_NAMESPACE

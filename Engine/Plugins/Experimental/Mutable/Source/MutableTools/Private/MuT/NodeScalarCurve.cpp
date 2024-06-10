@@ -13,9 +13,9 @@
 namespace mu
 {
 
-    FNodeType NodeScalarCurve::Private::s_type = FNodeType( "Curve", NodeScalar::GetStaticType() );
+    FNodeType NodeScalarCurve::Private::s_type = FNodeType(Node::EType::ScalarCurve, NodeScalar::GetStaticType() );
 
-    MUTABLE_IMPLEMENT_NODE( NodeScalarCurve, EType::Curve, Node, Node::EType::Scalar)
+    MUTABLE_IMPLEMENT_NODE( NodeScalarCurve )
 
 }
 

@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeSurfaceSwitch::Private::s_type =
-			FNodeType( "SurfaceSwitch", NodeSurface::GetStaticType() );
+	FNodeType NodeSurfaceSwitch::Private::s_type = FNodeType(Node::EType::SurfaceSwitch, NodeSurface::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeSurfaceSwitch, EType::Switch, Node, Node::EType::Surface)
+	MUTABLE_IMPLEMENT_NODE( NodeSurfaceSwitch )
 
 
 	//---------------------------------------------------------------------------------------------

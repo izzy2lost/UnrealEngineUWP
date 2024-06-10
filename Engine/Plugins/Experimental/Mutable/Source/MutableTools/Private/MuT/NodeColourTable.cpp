@@ -17,15 +17,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeColourTable::Private::s_type =
-			FNodeType( "TableColour", NodeColour::GetStaticType() );
+	FNodeType NodeColourTable::Private::s_type = FNodeType(Node::EType::ColorTable, NodeColour::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeColourTable, EType::Table, Node, Node::EType::Colour)
+	MUTABLE_IMPLEMENT_NODE( NodeColourTable )
 
 
 	//---------------------------------------------------------------------------------------------

@@ -681,6 +681,7 @@ namespace mu
 						break;
 					}
 
+					case OP_TYPE::ME_REFERENCE:
 					case OP_TYPE::IM_REFERENCE:
 						// If we are in a reference-resolution optimization phase, then the ops are not special.
 						if (Pass < 2)

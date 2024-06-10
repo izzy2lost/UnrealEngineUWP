@@ -34,15 +34,6 @@ namespace mu
 	{
 	public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			Constant = 0,
-			Parameter = 1,
-
-			None
-		};
-
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
@@ -60,9 +51,6 @@ namespace mu
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeProjector() {}
-		
-		//!
-		EType Type = EType::None;
 
 	};
 
@@ -101,7 +89,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		class Private;
 		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
 
 	protected:
 
@@ -159,7 +146,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		class Private;
 		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
 
 	protected:
 

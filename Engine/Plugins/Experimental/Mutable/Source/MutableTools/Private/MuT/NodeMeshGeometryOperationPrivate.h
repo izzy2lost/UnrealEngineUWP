@@ -21,9 +21,6 @@ namespace mu
 		NodeScalarPtr m_pScalarA;
 		NodeScalarPtr m_pScalarB;
 
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 }

@@ -51,7 +51,7 @@ namespace mu
 
     bool RuntimeParameterVisitorAST::HasAny( const Ptr<ASTOp>& root )
     {
-        if (!m_pState->nodeState.m_runtimeParams.Num())
+        if (!m_pState->nodeState.RuntimeParams.Num())
         {
             return false;
         }
@@ -142,7 +142,7 @@ namespace mu
                     case OP_TYPE::IM_PARAMETER:
                     {
 						const ASTOpParameter* typed = static_cast<const ASTOpParameter*>(at.get());
-                        const TArray<FString>& params = m_pState->nodeState.m_runtimeParams;
+                        const TArray<FString>& params = m_pState->nodeState.RuntimeParams;
                         if ( params.Find( typed->parameter.m_name)
                              !=
                              INDEX_NONE )
@@ -2000,19 +2000,20 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     void CodeOptimiser::OptimiseStatesAST()
     {
-        MUTABLE_CPUPROFILER_SCOPE(OptimiseStatesAST);
+		MUTABLE_CPUPROFILER_SCOPE(OptimiseStatesAST);
 
-         for ( int32 s=0; s<m_states.Num(); ++s )
-         {
-            // Remove the unnecessary lods
-            if (m_states[s].nodeState.m_optimisation.bOnlyFirstLOD)
-            {
-				LODCountReducerAST(m_states[s].root, m_states[s].nodeState.m_optimisation.FirstLOD + 1 + m_states[s].nodeState.m_optimisation.NumExtraLODsToBuildAfterFirstLOD);
-            }
+		for ( int32 s=0; s<m_states.Num(); ++s )
+		{
+			// Remove the unnecessary lods
+			FStateOptimizationOptions StateOptimization = m_states[s].nodeState.Optimisation;
+			if (StateOptimization.bOnlyFirstLOD)
+			{
+				LODCountReducerAST(m_states[s].root, StateOptimization.FirstLOD + 1 + StateOptimization.NumExtraLODsToBuildAfterFirstLOD);
+			}
 
 			// Apply texture compression strategy
 			bool bModified = false;
-			switch (m_states[s].nodeState.m_optimisation.TextureCompressionStrategy)
+			switch (StateOptimization.TextureCompressionStrategy)
 			{
 			case ETextureCompressionStrategy::DontCompressRuntime:
 			{
@@ -2035,7 +2036,7 @@ namespace mu
 			}
 
             // If a state has no runtime parameters, skip its optimisation alltogether
-            if (bModified || m_states[s].nodeState.m_runtimeParams.Num())
+            if (bModified || m_states[s].nodeState.RuntimeParams.Num())
             {
                 // Promote the intructions that depend on runtime parameters, and sink new
                 // format instructions.

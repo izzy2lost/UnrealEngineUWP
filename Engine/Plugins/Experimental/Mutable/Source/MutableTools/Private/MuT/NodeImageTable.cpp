@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageTable::Private::s_type =
-			FNodeType( "TableImage", NodeImage::GetStaticType() );
+	FNodeType NodeImageTable::Private::s_type = FNodeType(Node::EType::ImageTable, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageTable, EType::Table, Node, Node::EType::Image);
+	MUTABLE_IMPLEMENT_NODE( NodeImageTable );
 
 
 	//---------------------------------------------------------------------------------------------

@@ -9,7 +9,7 @@
 namespace mu
 {
 
-	static FNodeType s_nodeColourType = FNodeType( "NodeColour", Node::GetStaticType() );
+	static FNodeType s_nodeColourType = FNodeType( Node::EType::Color, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

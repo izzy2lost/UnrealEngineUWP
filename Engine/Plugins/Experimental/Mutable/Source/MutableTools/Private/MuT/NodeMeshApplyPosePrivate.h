@@ -19,9 +19,6 @@ namespace mu
         NodeMeshPtr m_pBase;
         NodeMeshPtr m_pPose;
 
-        // NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 

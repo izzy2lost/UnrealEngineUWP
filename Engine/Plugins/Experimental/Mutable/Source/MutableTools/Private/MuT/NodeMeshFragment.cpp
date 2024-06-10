@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshFragment::Private::s_type =
-			FNodeType( "MeshFragment", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshFragment::Private::s_type = FNodeType(Node::EType::MeshFragment, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshFragment, EType::Fragment, Node, Node::EType::Mesh)
+	MUTABLE_IMPLEMENT_NODE( NodeMeshFragment )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -92,24 +91,6 @@ namespace mu
 		check( t>=0 && t<m_pD->Blocks.Num() );
 		m_pD->Blocks[t] = b;
 	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Ptr<NodeLayout> NodeMeshFragment::Private::GetLayout( int32 index ) const
-	{
-		Ptr<NodeLayout> pResult;
-
-		if ( m_pMesh )
-		{
-			// TODO: Cut a fragment out of the layout.
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pMesh->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
-		}
-
-		return pResult;
-	}
-
-
 
 }
 

@@ -12,14 +12,14 @@
 namespace mu
 {
 
-	FNodeType NodeColourConstant::Private::s_type = FNodeType( "ColourConstant", NodeColour::GetStaticType() );
+	FNodeType NodeColourConstant::Private::s_type = FNodeType(Node::EType::ColorConstant, NodeColour::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeColourConstant, EType::Constant, Node, Node::EType::Colour)
+	MUTABLE_IMPLEMENT_NODE( NodeColourConstant)
 
 
 

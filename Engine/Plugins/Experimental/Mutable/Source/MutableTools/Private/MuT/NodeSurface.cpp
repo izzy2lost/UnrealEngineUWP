@@ -11,7 +11,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    static FNodeType s_nodeSurfaceType = FNodeType( "NodeSurface", Node::GetStaticType() );
+    static FNodeType s_nodeSurfaceType = FNodeType(Node::EType::Surface, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

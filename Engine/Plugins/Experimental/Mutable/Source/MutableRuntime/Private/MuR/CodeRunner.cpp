@@ -562,8 +562,7 @@ namespace mu
 
                 if ( args.value )
                 {
-                    Ptr<const String> value =
-                        LoadString( FCacheAddress( args.value, item ) );
+                    Ptr<const String> value = LoadString( FCacheAddress( args.value, item ) );
 
                     OP::ADDRESS nameAd = args.name;
                     check( nameAd < (uint32)Program.m_constantStrings.Num() );
@@ -595,8 +594,8 @@ namespace mu
 
             case 1:
             {
-                InstancePtrConst pBase = LoadInstance( FCacheAddress(args.instance,item) );
-                InstancePtr pResult;
+				Ptr<const Instance> pBase = LoadInstance( FCacheAddress(args.instance,item) );
+				Ptr<Instance> pResult;
                 if (!pBase)
                 {
                     pResult = new Instance();
@@ -608,26 +607,16 @@ namespace mu
 
                 if ( args.value )
                 {
-                    InstancePtrConst pComp = LoadInstance( FCacheAddress(args.value,item) );
+                    Ptr<const Instance> pComp = LoadInstance( FCacheAddress(args.value,item) );
 
-                    int cindex = pResult->GetPrivate()->AddComponent( 0 );
+                    int32 NewComponentIndex = pResult->GetPrivate()->AddComponent();
 
-                    if ( !pComp->GetPrivate()->Lods.IsEmpty()
-                         &&
-                         !pResult->GetPrivate()->Lods.IsEmpty()
-                         &&
-                         !pComp->GetPrivate()->Lods[0].Components.IsEmpty() )
+                    if ( !pComp->GetPrivate()->Components.IsEmpty() )
                     {
-                        pResult->GetPrivate()->Lods[0].Components[cindex] =
-                                pComp->GetPrivate()->Lods[0].Components[0];
+                        pResult->GetPrivate()->Components[NewComponentIndex] = pComp->GetPrivate()->Components[0];
 
-                    	pResult->GetPrivate()->Lods[0].Components[cindex].Id = args.id;
-                    	
-                        // Name
-                        OP::ADDRESS nameAd = args.name;
-                        check( nameAd < (uint32)Program.m_constantStrings.Num() );
-                        const FString& Name = Program.m_constantStrings[ nameAd ];
-                        pResult->GetPrivate()->SetComponentName( 0, cindex, FName(Name) );
+						// Id
+                    	pResult->GetPrivate()->Components[NewComponentIndex].Id = args.id;
                     }
                 }
                 StoreInstance( item, pResult );
@@ -654,9 +643,9 @@ namespace mu
 
             case 1:
             {
-                InstancePtrConst pBase = LoadInstance( FCacheAddress(args.instance,item) );
+				Ptr<const Instance> pBase = LoadInstance( FCacheAddress(args.instance,item) );
 
-                InstancePtr pResult;
+				Ptr<Instance> pResult;
 				if (pBase)
 				{
 					pResult = mu::CloneOrTakeOver<Instance>(pBase.get());
@@ -670,24 +659,21 @@ namespace mu
                 // additional information like internal or external IDs
                 //if ( args.value )
                 {
-                    InstancePtrConst pSurf = LoadInstance( FCacheAddress(args.value,item) );
+					Ptr<const Instance> pSurf = LoadInstance( FCacheAddress(args.value,item) );
 
                     int sindex = pResult->GetPrivate()->AddSurface( 0, 0 );
 
                     // Surface data
                     if (pSurf
                             &&
-                            pSurf->GetPrivate()->Lods.Num()
+                            pSurf->GetPrivate()->Components.Num()
                             &&
-                            pSurf->GetPrivate()->Lods[0].Components.Num()
+                            pSurf->GetPrivate()->Components[0].LODs.Num()
                             &&
-                            pSurf->GetPrivate()->Lods[0].Components[0].Surfaces.Num())
+                            pSurf->GetPrivate()->Components[0].LODs[0].Surfaces.Num())
                     {
-                        pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex] =
-                            pSurf->GetPrivate()->Lods[0].Components[0].Surfaces[0];
-
-                        // Meshes must be added later.
-                        check(!pSurf->GetPrivate()->Lods[0].Components[0].Meshes.Num());
+                        pResult->GetPrivate()->Components[0].LODs[0].Surfaces[sindex] =
+                            pSurf->GetPrivate()->Components[0].LODs[0].Surfaces[0];
                     }
 
                     // Name
@@ -697,9 +683,9 @@ namespace mu
                     pResult->GetPrivate()->SetSurfaceName( 0, 0, sindex, FName(Name) );
 
                     // IDs
-                    pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex].InternalId = args.id;
-                    pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex].ExternalId = args.ExternalId;
-                    pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex].SharedId = args.SharedSurfaceId;
+                    pResult->GetPrivate()->Components[0].LODs[0].Surfaces[sindex].InternalId = args.id;
+                    pResult->GetPrivate()->Components[0].LODs[0].Surfaces[sindex].ExternalId = args.ExternalId;
+                    pResult->GetPrivate()->Components[0].LODs[0].Surfaces[sindex].SharedId = args.SharedSurfaceId;
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -741,31 +727,30 @@ namespace mu
             case 1:
             {
                 // Assemble result
-                InstancePtr pResult = new Instance();
+				Ptr<Instance> pResult = new Instance();
+				int32 ComponentIndex = pResult->GetPrivate()->AddComponent();
 
-                for ( int i=0; i<MUTABLE_OP_MAX_ADD_COUNT; ++i )
+                for ( int32 i=0; i<MUTABLE_OP_MAX_ADD_COUNT; ++i )
                 {
                     if ( args.lod[i] )
                     {
-                        bool selectedLod = ( (1<<i) & lodMask ) != 0;
+                        bool bIsSelectedLod = ( (1<<i) & lodMask ) != 0;
 
-                        if ( selectedLod )
+						// Add an empty LOD even if not selected.
+						int32 LODIndex = pResult->GetPrivate()->AddLOD(ComponentIndex);
+						
+						if (bIsSelectedLod)
                         {
-                            InstancePtrConst pLOD = LoadInstance( FCacheAddress(args.lod[i],item) );
-
-                            int LODIndex = pResult->GetPrivate()->AddLOD();
+							Ptr<const Instance> pLOD = LoadInstance( FCacheAddress(args.lod[i],item) );
 
                             // In a degenerated case, the returned pLOD may not have an LOD inside
-                            if ( pLOD && !pLOD->GetPrivate()->Lods.IsEmpty() )
-                            {
-                                pResult->GetPrivate()->Lods[LODIndex] = pLOD->GetPrivate()->Lods[0];
-                            }
-                        }
-                        else
-                        {
-                            // LOD not selected. Add an empty one
-                            pResult->GetPrivate()->AddLOD();
-                        }
+ 							if (!pLOD->GetPrivate()->Components.IsEmpty()
+								&&
+								!pLOD->GetPrivate()->Components[0].LODs.IsEmpty())
+							{
+								pResult->GetPrivate()->Components[ComponentIndex].LODs[LODIndex] = pLOD->GetPrivate()->Components[0].LODs[0];
+							}
+						}
                     }
                 }
 
@@ -855,11 +840,8 @@ namespace mu
             switch (item.Stage)
             {
             case 0:
-                    AddOp( FScheduledOp( item.At, item, 1),
-                           FScheduledOp( args.instance, item) );
-
-                // We don't build the resources when building instance: just store ids for them.
-                //PushIfNotVisited(args.value, item);
+				// We don't build the resources when building instance: just store ids for them.
+				AddOp( FScheduledOp( item.At, item, 1), FScheduledOp( args.instance, item) );
                 break;
 
             case 1:
@@ -881,7 +863,7 @@ namespace mu
 					OP::ADDRESS NameAd = args.name;
 					check(NameAd < (uint32)Program.m_constantStrings.Num());
 					const FString& Name = Program.m_constantStrings[NameAd];
-					pResult->GetPrivate()->AddMesh(0, 0, MeshId, FName(Name));
+					pResult->GetPrivate()->SetMesh(0, 0, MeshId, FName(Name));
                 }
                 StoreInstance( item, pResult );
                 break;

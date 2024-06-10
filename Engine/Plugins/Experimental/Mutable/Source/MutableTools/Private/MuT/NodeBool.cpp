@@ -9,7 +9,7 @@
 namespace mu
 {
 
-	static FNodeType s_nodeBoolType = FNodeType( "NodeBool", Node::GetStaticType() );
+	static FNodeType s_nodeBoolType = FNodeType(Node::EType::Bool, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

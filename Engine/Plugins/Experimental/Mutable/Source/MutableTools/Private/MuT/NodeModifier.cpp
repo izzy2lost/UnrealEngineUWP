@@ -10,7 +10,7 @@
 namespace mu
 {
 	// Static initialisation
-	static FNodeType s_nodeModifierType = FNodeType( "NodeModifier", Node::GetStaticType() );
+	static FNodeType s_nodeModifierType = FNodeType(Node::EType::Modifier, Node::GetStaticType() );
 
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMutableMultipleTagPolicy);
 
@@ -27,22 +27,19 @@ namespace mu
 
 	void NodeModifier::AddTag(const FString& Value)
 	{
-		NodeModifier::Private* pD = static_cast<NodeModifier::Private*>(GetBasePrivate());
-		pD->RequiredTags.Add(Value);
+		RequiredTags.Add(Value);
 	}
 
 
 	void NodeModifier::SetMultipleTagPolicy(EMutableMultipleTagPolicy Value)
 	{
-		NodeModifier::Private* pD = static_cast<NodeModifier::Private*>(GetBasePrivate());
-		pD->MultipleTagsPolicy = Value;
+		MultipleTagsPolicy = Value;
 	}
 
 
 	void NodeModifier::SetStage(bool bBeforeNormalOperation)
 	{
-		NodeModifier::Private* pD = static_cast<NodeModifier::Private*>(GetBasePrivate());
-		pD->bApplyBeforeNormalOperations = bBeforeNormalOperation; 
+		bApplyBeforeNormalOperations = bBeforeNormalOperation; 
 	}
 
 }

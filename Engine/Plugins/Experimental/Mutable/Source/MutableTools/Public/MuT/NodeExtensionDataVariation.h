@@ -9,49 +9,50 @@
 
 namespace mu
 {
-	// Forward declarations
-	class NodeExtensionDataVariation;
-	using NodeExtensionDataVariationPtr = Ptr<NodeExtensionDataVariation>;
-	using NodeExtensionDataVariationPtrConst = Ptr<const NodeExtensionDataVariation>;
 
 	class MUTABLETOOLS_API NodeExtensionDataVariation : public NodeExtensionData
 	{
 	public:
 
-		NodeExtensionDataVariation();
+		Ptr<NodeExtensionData> DefaultValue;
+
+		struct FVariation
+		{
+			Ptr<NodeExtensionData> Value;
+			FString Tag;
+		};
+
+		TArray<FVariation> Variations;
+
+	public:
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
-		void SetDefaultValue(NodeExtensionDataPtr InValue);
+		void SetDefaultValue(Ptr<NodeExtensionData> InValue);
 
-		void SetVariationCount(int InCount);
+		void SetVariationCount(int32 InCount);
 		int GetVariationCount() const;
 
-		void SetVariationTag(int InIndex, const FString& InTag);
+		void SetVariationTag(int32 InIndex, const FString& InTag);
 
-		void SetVariationValue(int InIndex, NodeExtensionDataPtr InValue);
+		void SetVariationValue(int32 InIndex, Ptr<NodeExtensionData> InValue);
 
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-		Node::Private* GetBasePrivate() const override;
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeExtensionDataVariation();
+		~NodeExtensionDataVariation() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
+
 	};
 }

@@ -1539,7 +1539,7 @@ namespace impl
 
 	struct FGetMeshData
 	{
-		int32 ComponentIndex;
+		int32 LODIndex;
 		mu::FResourceID MeshID;
 	};
 
@@ -1653,15 +1653,32 @@ namespace impl
 	
 	void FixLODs(const TSharedRef<FUpdateContextPrivate>& Operation)
 	{
-		Operation->NumLODsAvailable = Operation->MutableInstance->GetLODCount();
+		// This is set at context creation because for now the component count is a CO constant that includes all components
+		// regardles of what is generated.
+		//Operation->NumComponents = Operation->MutableInstance->GetComponentCount();
+		if (!Operation->NumComponents)
+		{
+			return;
+		}
+
+		// For now this should always match, since components are not optional.
+		check(Operation->NumComponents== Operation->MutableInstance->GetComponentCount());
+
+		Operation->NumLODsAvailablePerComponent.SetNumZeroed(Operation->NumComponents);
+
+		int32 NumComponentsInGeneratedInstance = Operation->MutableInstance->GetComponentCount();
+		for (int32 ComponentIndex = 0; ComponentIndex < NumComponentsInGeneratedInstance; ++ComponentIndex)
+		{
+			Operation->NumLODsAvailablePerComponent[ComponentIndex] = Operation->MutableInstance->GetLODCount(ComponentIndex);
+		}
 		
 		int32 CurrentMinLOD = Operation->bStreamMeshLODs ? 0 : Operation->GetMinLOD();
-		CurrentMinLOD = FMath::Clamp(CurrentMinLOD, Operation->FirstLODAvailable, Operation->NumLODsAvailable - 1);
+		CurrentMinLOD = FMath::Clamp(CurrentMinLOD, Operation->FirstLODAvailable, Operation->NumLODsAvailablePerComponent[0] - 1); 
 		Operation->SetMinLOD(CurrentMinLOD);
 
 		if (Operation->bStreamMeshLODs)
 		{
-			Operation->FirstResidentLOD = FMath::Clamp(Operation->FirstResidentLOD, Operation->FirstLODAvailable, Operation->NumLODsAvailable - 1);
+			Operation->FirstResidentLOD = FMath::Clamp(Operation->FirstResidentLOD, Operation->FirstLODAvailable, Operation->NumLODsAvailablePerComponent[0] - 1); 
 		}
 		else 
 		{
@@ -1681,7 +1698,7 @@ namespace impl
 			else
 			{
 				// Clamp value to the valid LOD range.
-				RequestedLODs[ComponentIndex] = FMath::Min(RequestedLODs[ComponentIndex], (uint16)(Operation->NumLODsAvailable - 1));
+				RequestedLODs[ComponentIndex] = FMath::Min(RequestedLODs[ComponentIndex], (uint16)(Operation->NumLODsAvailablePerComponent[0] - 1));
 			}
 		}
 
@@ -1733,43 +1750,50 @@ namespace impl
 
 		OperationData->InstanceUpdateData.Skeletons.SetNum(OperationData->NumComponents);
 
-		for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
+		for (int32 ComponentIndex = 0; ComponentIndex<OperationData->InstanceUpdateData.Components.Num(); ++ComponentIndex)
 		{
-			mu::MeshPtrConst Mesh = Component.Mesh;
-			if (!Mesh || Mesh->IsReference())
+			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+
+			for (int32 LODIndex = 0; LODIndex < Component.LODCount; ++LODIndex)
 			{
-				continue;
-			}
+				FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD+LODIndex];
 
-			FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[Component.Id];
-
-			// Add SkeletonIds 
-			const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
-			for (int32 SkeletonIndex = 0; SkeletonIndex < SkeletonIDsCount; ++SkeletonIndex)
-			{
-				SkeletonData.SkeletonIds.AddUnique(Mesh->GetSkeletonID(SkeletonIndex));
-			}
-
-			// Append BoneMap to the array of BoneMaps
-			const TArray<mu::FBoneName>& BoneMap = Mesh->GetBoneMap();
-			Component.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
-			Component.BoneMapCount = BoneMap.Num();
-			OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
-
-			// Add active bone indices and poses
-			Component.FirstActiveBone = OperationData->InstanceUpdateData.ActiveBones.Num();
-			Component.ActiveBoneCount = Mesh->GetBonePoseCount();
-			for (uint32 BoneIndex = 0; BoneIndex < Component.ActiveBoneCount; ++BoneIndex)
-			{
-				const mu::FBoneName& BoneId = Mesh->GetBonePoseId(BoneIndex);
-
-				OperationData->InstanceUpdateData.ActiveBones.Add(BoneId);
-
-				if (!SkeletonData.BonePose.FindByKey(BoneId))
+				mu::Ptr<const mu::Mesh> Mesh = LOD.Mesh;
+				if (!Mesh || Mesh->IsReference())
 				{
-					FTransform3f Transform;
-					Mesh->GetBonePoseTransform(BoneIndex, Transform);
-					SkeletonData.BonePose.Add({ BoneId,Transform.Inverse().ToMatrixWithScale() });
+					continue;
+				}
+
+				FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[ComponentIndex];
+
+				// Add SkeletonIds 
+				const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
+				for (int32 SkeletonIndex = 0; SkeletonIndex < SkeletonIDsCount; ++SkeletonIndex)
+				{
+					SkeletonData.SkeletonIds.AddUnique(Mesh->GetSkeletonID(SkeletonIndex));
+				}
+
+				// Append BoneMap to the array of BoneMaps
+				const TArray<mu::FBoneName>& BoneMap = Mesh->GetBoneMap();
+				LOD.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
+				LOD.BoneMapCount = BoneMap.Num();
+				OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
+
+				// Add active bone indices and poses
+				LOD.FirstActiveBone = OperationData->InstanceUpdateData.ActiveBones.Num();
+				LOD.ActiveBoneCount = Mesh->GetBonePoseCount();
+				for (uint32 BoneIndex = 0; BoneIndex < LOD.ActiveBoneCount; ++BoneIndex)
+				{
+					const mu::FBoneName& BoneId = Mesh->GetBonePoseId(BoneIndex);
+
+					OperationData->InstanceUpdateData.ActiveBones.Add(BoneId);
+
+					if (!SkeletonData.BonePose.FindByKey(BoneId))
+					{
+						FTransform3f Transform;
+						Mesh->GetBonePoseTransform(BoneIndex, Transform);
+						SkeletonData.BonePose.Add({ BoneId,Transform.Inverse().ToMatrixWithScale() });
+					}
 				}
 			}
 		}
@@ -1849,21 +1873,21 @@ namespace impl
 			MorphsData.SetNum(MorphTargetNames.Num());
 			for (int32 MorphIndex = 0; MorphIndex < NumMorphs; ++MorphIndex)
 			{
-				MorphsData[MorphIndex].SetNum(OperationData->NumLODsAvailable);
+				MorphsData[MorphIndex].SetNum(OperationData->NumLODsAvailablePerComponent[ComponentIndex]);
 			}
 
 			TArray<int32> SectionMorphTargetVerticesCount;
 			SectionMorphTargetVerticesCount.SetNumZeroed(ComponentMorphTargetsData.RealTimeMorphTargetNames.Num());
 
 			const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
-			for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
+			for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailablePerComponent[ComponentIndex]; ++LODIndex)
 			{
-				const FInstanceUpdateData::FLOD& LOD = UpdateData.LODs[LODIndex];
-				const FInstanceUpdateData::FComponent& Component = UpdateData.Components[LOD.FirstComponent + ComponentIndex];
-				check(Component.bGenerated);
-				check(Component.Mesh);
+				const FInstanceUpdateData::FComponent& Component = UpdateData.Components[ComponentIndex];
+				const FInstanceUpdateData::FLOD& LOD = UpdateData.LODs[Component.FirstLOD+LODIndex];
+				check(LOD.bGenerated);
+				check(LOD.Mesh);
 
-				const mu::FMeshBufferSet& MeshSet = Component.Mesh->GetVertexBuffers();
+				const mu::FMeshBufferSet& MeshSet = LOD.Mesh->GetVertexBuffers();
 
 				int32 VertexMorphsInfoIndexAndCountBufferIndex, VertexMorphsInfoIndexAndCountBufferChannel;
 				MeshSet.FindChannel(mu::MBS_OTHER, 0, &VertexMorphsInfoIndexAndCountBufferIndex, &VertexMorphsInfoIndexAndCountBufferChannel);
@@ -1882,7 +1906,7 @@ namespace impl
 				const uint32* const VertexMorphsResourceIdBuffer = reinterpret_cast<const uint32*>(MeshSet.GetBufferData(VertexMorphsResourceIdBufferIndex));
 				TArrayView<const uint32> VertexMorphsResourceIdView(VertexMorphsResourceIdBuffer, MeshSet.GetElementCount());
 
-				const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
+				const int32 SurfaceCount = LOD.Mesh->GetSurfaceCount();
 				for (int32 Section = 0; Section < SurfaceCount; ++Section)
 				{
 					// Reset SectionMorphTargets.
@@ -1892,7 +1916,7 @@ namespace impl
 					}
 
 					int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount;
-					Component.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
+					LOD.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
 
 					for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
 					{
@@ -2124,54 +2148,48 @@ namespace impl
 		const UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
 		const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-		const mu::Instance* MutableInstance = OperationData->MutableInstance;
+		const mu::Instance* MutableInstance = OperationData->MutableInstance.get();
 
 		TArray<int32> SurfacesSharedId;
 
 		const TSharedRef<TArray<FGetImageData>> GetImagesData = MakeShared<TArray<FGetImageData>>();
 		
-		for (int32 MutableLODIndex = 0; MutableLODIndex < OperationData->NumLODsAvailable; ++MutableLODIndex)
+		for (int32 ComponentIndex = 0; ComponentIndex < OperationData->NumComponents; ++ComponentIndex)
 		{
-			// Skip LODs outside the range we want to generate
-			if (MutableLODIndex < OperationData->GetMinLOD())
+			FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+			for (int32 MutableLODIndex = 0; MutableLODIndex < Component.LODCount; ++MutableLODIndex)
 			{
-				continue;
-			}
+				// Skip LODs outside the range we want to generate
+				if (MutableLODIndex < OperationData->GetMinLOD())
+				{
+					continue;
+				}
 
-			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[MutableLODIndex];
+				FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD + MutableLODIndex];
 
-			for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
-			{
-				FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
-				Component.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
-				Component.SurfaceCount = 0;
+				LOD.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
+				LOD.SurfaceCount = 0;
 
-				if (!Component.Mesh)
+				if (!LOD.Mesh)
 				{
 					continue;
 				}
 				
-				// Materials and images
-				const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
-				for (int32 MeshSurfaceIndex = 0; MeshSurfaceIndex < SurfaceCount; ++MeshSurfaceIndex)
-				{
-					const uint32 SurfaceId = Component.Mesh->GetSurfaceId(MeshSurfaceIndex);
-					const int32 InstanceSurfaceIndex = MutableInstance->FindSurfaceById(MutableLODIndex, ComponentIndex, SurfaceId);
-					check(Component.Mesh->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
 
-					if (InstanceSurfaceIndex >= 0)
+				// This lambda does all the work to fill up the surface data
+				auto AddSurface = [&LOD, &SurfacesSharedId, &ModelResources, &GetImagesData, OperationData, MutableInstance, CustomizableObject, ComponentIndex, MutableLODIndex](uint32 SurfaceId, int32 InstanceSurfaceIndex)
 					{
 						int32 BaseSurfaceIndex = InstanceSurfaceIndex;
 						int32 BaseLODIndex = MutableLODIndex;
 
 						OperationData->InstanceUpdateData.Surfaces.Push({});
 						FInstanceUpdateData::FSurface& Surface = OperationData->InstanceUpdateData.Surfaces.Last();
-						++Component.SurfaceCount;
+						++LOD.SurfaceCount;
 
 						// Now Surface.MaterialIndex is decoded from a parameter at the end of this if()
 						Surface.SurfaceId = SurfaceId;
 
-						const int32 SharedSurfaceId = MutableInstance->GetSharedSurfaceId(MutableLODIndex, ComponentIndex, InstanceSurfaceIndex);
+						const int32 SharedSurfaceId = MutableInstance->GetSharedSurfaceId(ComponentIndex, MutableLODIndex, InstanceSurfaceIndex);
 						const int32 SharedSurfaceIndex = SurfacesSharedId.Find(SharedSurfaceId);
 
 						SurfacesSharedId.Add(SharedSurfaceId);
@@ -2181,44 +2199,44 @@ namespace impl
 							if (SharedSurfaceIndex >= 0)
 							{
 								Surface = OperationData->InstanceUpdateData.Surfaces[SharedSurfaceIndex];
-								continue;
+								return;
 							}
 
 							// Find the first LOD where this surface can be found
 							MutableInstance->FindBaseSurfaceBySharedId(ComponentIndex, SharedSurfaceId, BaseSurfaceIndex, BaseLODIndex);
 
-							Surface.SurfaceId = MutableInstance->GetSurfaceId(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+							Surface.SurfaceId = MutableInstance->GetSurfaceId(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						}
 
 						// Vectors
 						Surface.FirstVector = OperationData->InstanceUpdateData.Vectors.Num();
-						Surface.VectorCount = MutableInstance->GetVectorCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+						Surface.VectorCount = MutableInstance->GetVectorCount(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						for (int32 VectorIndex = 0; VectorIndex < Surface.VectorCount; ++VectorIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetVector);
 							OperationData->InstanceUpdateData.Vectors.Push({});
 							FInstanceUpdateData::FVector& Vector = OperationData->InstanceUpdateData.Vectors.Last();
-							Vector.Name = MutableInstance->GetVectorName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, VectorIndex);
-							Vector.Vector = MutableInstance->GetVector(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, VectorIndex);
+							Vector.Name = MutableInstance->GetVectorName(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, VectorIndex);
+							Vector.Vector = MutableInstance->GetVector(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, VectorIndex);
 						}
 
 						// Scalars
 						Surface.FirstScalar = OperationData->InstanceUpdateData.Scalars.Num();
-						Surface.ScalarCount = MutableInstance->GetScalarCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+						Surface.ScalarCount = MutableInstance->GetScalarCount(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						for (int32 ScalarIndex = 0; ScalarIndex < Surface.ScalarCount; ++ScalarIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetScalar)
 
-							const FName ScalarName = MutableInstance->GetScalarName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ScalarIndex);
-							const float ScalarValue = MutableInstance->GetScalar(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ScalarIndex);
-							
+								const FName ScalarName = MutableInstance->GetScalarName(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ScalarIndex);
+							const float ScalarValue = MutableInstance->GetScalar(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ScalarIndex);
+
 							FString EncodingMaterialIdString = "__MutableMaterialId";
-							
+
 							// Decoding Material Switch from Mutable parameter name
 							if (ScalarName.ToString().Equals(EncodingMaterialIdString))
 							{
 								Surface.MaterialIndex = static_cast<uint32>(ScalarValue);
-							
+
 								// This parameter is not needed in the final material instance
 								Surface.ScalarCount -= 1;
 							}
@@ -2230,15 +2248,15 @@ namespace impl
 
 						// Images
 						Surface.FirstImage = OperationData->InstanceUpdateData.Images.Num();
-						Surface.ImageCount = MutableInstance->GetImageCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+						Surface.ImageCount = MutableInstance->GetImageCount(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						for (int32 ImageIndex = 0; ImageIndex < Surface.ImageCount; ++ImageIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetImageId);
 
 							const int32 UpdateDataImageIndex = OperationData->InstanceUpdateData.Images.AddDefaulted();
 							FInstanceUpdateData::FImage& Image = OperationData->InstanceUpdateData.Images.Last();
-							Image.Name = MutableInstance->GetImageName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ImageIndex);
-							Image.ImageID = MutableInstance->GetImageId(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ImageIndex);
+							Image.Name = MutableInstance->GetImageName(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ImageIndex);
+							Image.ImageID = MutableInstance->GetImageId(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ImageIndex);
 							Image.FullImageSizeX = 0;
 							Image.FullImageSizeY = 0;
 							Image.BaseLOD = BaseLODIndex;
@@ -2267,8 +2285,41 @@ namespace impl
 								UE_LOG(LogMutable, Error, TEXT("CustomizableObject derived data out of sync with asset for [%s]. Try recompiling it."), *CustomizableObject->GetName());
 							}
 						}
+
+					};
+
+				// Materials and images
+
+				// If the mesh is a reference mesh, it won't have the surface information in the mutable mesh. We need to get it from the instance
+				// and all defined surfaces will be present. 
+				if (LOD.Mesh->IsReference())
+				{
+					const int32 SurfaceCount = MutableInstance->GetSurfaceCount(ComponentIndex, MutableLODIndex);
+					for (int32 SurfaceIndex = 0; SurfaceIndex < SurfaceCount; ++SurfaceIndex)
+					{
+						uint32 SurfaceId = MutableInstance->GetSurfaceId(ComponentIndex, MutableLODIndex, SurfaceIndex);
+						AddSurface(SurfaceId, SurfaceIndex);
 					}
 				}
+
+				// If the mesh is a not a reference mesh, we have to add only the materials of the surfaces that appear in the actual final mesh. 
+				else
+				{
+					const int32 SurfaceCount = LOD.Mesh->GetSurfaceCount();
+					for (int32 MeshSurfaceIndex = 0; MeshSurfaceIndex < SurfaceCount; ++MeshSurfaceIndex)
+					{
+						const uint32 SurfaceId = LOD.Mesh->GetSurfaceId(MeshSurfaceIndex);
+
+						const int32 InstanceSurfaceIndex = MutableInstance->FindSurfaceById(ComponentIndex, MutableLODIndex, SurfaceId);
+						check(LOD.Mesh->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
+
+						if (InstanceSurfaceIndex >= 0)
+						{
+							AddSurface(SurfaceId, InstanceSurfaceIndex);
+						}
+					}
+				}
+
 			}	
 		}
 
@@ -2287,18 +2338,18 @@ namespace impl
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_MutableGetMeshes_GetMesh_Post)
 
-		const int32 ComponentIndex = (*GetMeshesData)[GetMeshIndex].ComponentIndex;
-		FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+		const int32 LODIndex = (*GetMeshesData)[GetMeshIndex].LODIndex;
+		FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
-		Component.Mesh = GetMeshTask.GetResult();
+		LOD.Mesh = GetMeshTask.GetResult();
 
-		if (Component.Mesh->IsReference())
+		if (LOD.Mesh->IsReference())
 		{
 			const UCustomizableObjectInstance* Instance = OperationData->Instance.Get();
 			const UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
 			const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-			uint32 ReferenceID = Component.Mesh->GetReferencedMesh();
+			uint32 ReferenceID = LOD.Mesh->GetReferencedMesh();
 
 			if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
 			{
@@ -2378,8 +2429,7 @@ namespace impl
 			}
 
 			// Main instance generation step
-			// LOD mask, set to all ones to build  all LODs
-			const mu::Instance* Instance = OperationData->MutableInstance; // TODO GMTFuture remove
+			const mu::Instance* Instance = OperationData->MutableInstance.get(); // TODO GMTFuture remove
 			if (!Instance)
 			{
 				UE_LOG(LogMutable, Warning, TEXT("An Instace update has failed."));
@@ -2391,39 +2441,40 @@ namespace impl
 
 			const TSharedRef<TArray<FGetMeshData>> GetMeshesData = MakeShared<TArray<FGetMeshData>>();
 		
-			OperationData->InstanceUpdateData.LODs.SetNum(OperationData->NumLODsAvailable);
-			for (int32 MutableLODIndex = 0; MutableLODIndex < OperationData->NumLODsAvailable; ++MutableLODIndex)
+			OperationData->InstanceUpdateData.Components.SetNum(OperationData->NumComponents);
+			for (int32 ComponentIndex = 0; ComponentIndex < Instance->GetComponentCount(); ++ComponentIndex)
 			{
-				// Skip LODs outside the range we want to generate
-				if (MutableLODIndex < OperationData->GetMinLOD())
+				FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+				Component.FirstLOD = OperationData->InstanceUpdateData.LODs.Num();
+				Component.LODCount = OperationData->NumLODsAvailablePerComponent[ComponentIndex];
+				Component.Id = Instance->GetComponentId(ComponentIndex);
+
+				for (int32 MutableLODIndex = 0; MutableLODIndex < OperationData->NumLODsAvailablePerComponent[ComponentIndex]; ++MutableLODIndex)
 				{
-					continue;
-				}
+					// If the LOD is not generated we still add an empty one to keep indexes aligned.
+					const int32 UpdateDataLODIndex = OperationData->InstanceUpdateData.LODs.AddDefaulted();
 
-				FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[MutableLODIndex];
-				LOD.FirstComponent = OperationData->InstanceUpdateData.Components.Num();
-				LOD.ComponentCount = Instance->GetComponentCount(MutableLODIndex);
+					// Skip LODs outside the range we want to generate
+					if (MutableLODIndex < OperationData->GetMinLOD())
+					{
+						continue;
+					}
 
-				for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
-				{
-					const int32 UpdateDataComponentIndex = OperationData->InstanceUpdateData.Components.AddDefaulted();
-					FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components.Last();
-					Component.Id = Instance->GetComponentId(MutableLODIndex, ComponentIndex);
+					FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs.Last();
 
-					const bool bGenerateLOD = RequestedLODs.IsValidIndex(Component.Id) ? RequestedLODs[Component.Id] <= MutableLODIndex : true;
+					const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? RequestedLODs[ComponentIndex] <= MutableLODIndex : true;
 
 					// Mesh
-					if (Instance->GetMeshCount(MutableLODIndex, ComponentIndex) > 0)
 					{
 						MUTABLE_CPUPROFILER_SCOPE(GetMesh);
 
-						Component.MeshID = Instance->GetMeshId(MutableLODIndex, ComponentIndex, 0);
+						LOD.MeshID = Instance->GetMeshId(ComponentIndex, MutableLODIndex);
 
 						if (bGenerateLOD)
 						{
-							Component.bGenerated = true;
+							LOD.bGenerated = true;
 
-							GetMeshesData->Add({ UpdateDataComponentIndex, Component.MeshID});
+							GetMeshesData->Add({ UpdateDataLODIndex, LOD.MeshID});
 						}
 					}
 				}
@@ -3145,12 +3196,12 @@ namespace impl
 			MeshId.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 
 			
-			for (int32 LODIndex = Operation->GetMinLOD(); LODIndex < Operation->NumLODsAvailable; ++LODIndex)
+			for (int32 LODIndex = Operation->GetMinLOD(); LODIndex < Operation->NumLODsAvailablePerComponent[ComponentIndex]; ++LODIndex)
 			{
 				const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? RequestedLODs[ComponentIndex] <= LODIndex : true;
 				if (bGenerateLOD)
 				{
-					MeshId[LODIndex] = Operation->MutableInstance->GetMeshId(LODIndex, ComponentIndex, 0);
+					MeshId[LODIndex] = Operation->MutableInstance->GetMeshId(ComponentIndex, LODIndex);
 				}
 			}
 		}

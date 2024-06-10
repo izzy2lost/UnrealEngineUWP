@@ -20,15 +20,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeSurfaceEdit::Private::s_type =
-            FNodeType( "EditSurface", NodeSurface::GetStaticType() );
+    FNodeType NodeSurfaceEdit::Private::s_type = FNodeType(Node::EType::SurfaceEdit, NodeSurface::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeSurfaceEdit, EType::Edit, Node, Node::EType::Surface)
+    MUTABLE_IMPLEMENT_NODE( NodeSurfaceEdit )
 
 
 	//---------------------------------------------------------------------------------------------

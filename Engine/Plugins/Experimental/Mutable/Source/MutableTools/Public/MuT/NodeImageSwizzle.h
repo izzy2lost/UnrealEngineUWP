@@ -48,14 +48,11 @@ namespace mu
 		void SetSource( int, NodeImagePtr );
 		void SetSourceChannel( int, int );
 
-
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------
 		class Private;
-
 		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
 
 	protected:
 

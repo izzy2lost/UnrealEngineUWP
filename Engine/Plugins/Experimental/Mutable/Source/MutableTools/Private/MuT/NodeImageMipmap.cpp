@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeImageMipmap::Private::s_type =
-            FNodeType( "ImageMipmap", NodeImage::GetStaticType() );
+    FNodeType NodeImageMipmap::Private::s_type = FNodeType(Node::EType::ImageMipmap, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeImageMipmap, EType::Mipmap, Node, Node::EType::Image)
+    MUTABLE_IMPLEMENT_NODE( NodeImageMipmap )
 
 
 	//---------------------------------------------------------------------------------------------

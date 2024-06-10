@@ -27,7 +27,7 @@ namespace mu
 		SecondPassGenerator( FirstPassGenerator* firstPass, const CompilerOptions::Private* options  );
 
 		// Return true on success.
-        bool Generate( ErrorLogPtr pErrorLog, const Node::Private* root );
+        bool Generate( ErrorLogPtr pErrorLog, const Node* root );
 
 	private:
 
@@ -64,6 +64,7 @@ namespace mu
         };
 
         // List of surfaces that activate or deactivate every tag, or another surface that activates a tag in this set.
+		// \TODO: Change to UE containers
 		vector< set<size_t> > m_surfacesPerTag;
 		vector< set<size_t> > m_tagsPerTag;
 

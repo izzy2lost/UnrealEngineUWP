@@ -11,45 +11,27 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeExtensionData;
-	typedef Ptr<NodeExtensionData> NodeExtensionDataPtr;
-	typedef Ptr<const NodeExtensionData> NodeExtensionDataPtrConst;
-
 
 	//! Node that evaluates to an ExtensionData
 	class MUTABLETOOLS_API NodeExtensionData : public Node
 	{
 	public:
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			Constant = 0,
-			Switch,
-			Variation,
-			None
-		};
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		inline EType GetExtensionDataNodeType() const { return Type; }
-
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeExtensionData() {}
 
-		EType Type = EType::None;
+	private:
+
+		static FNodeType StaticType;
+
 	};
 
 

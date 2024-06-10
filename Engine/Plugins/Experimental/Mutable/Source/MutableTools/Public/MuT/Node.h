@@ -5,21 +5,8 @@
 #include "HAL/Platform.h"
 #include "MuR/RefCounted.h"
 
-
 namespace mu
 {
-	//! \defgroup tools Tools library classes
-	//! Tools library classes.
-
-	//! \defgroup model Model nodes
-	//! \ingroup tools
-	//! This group contains the nodes that can be used to compose models.
-
-	//! \defgroup transform Transform nodes
-	//! \ingroup tools
-	//! This group contains the nodes that can be used to compose model transformations.
-
-
 	// Forward declarations
 	class Node;
 	typedef Ptr<Node> NodePtr;
@@ -30,13 +17,175 @@ namespace mu
 	typedef Ptr<const NodeMap> NodeMapPtrConst;
 
 
+
+    //! %Base class for all graphs used in the source data to define models and transforms.
+	class MUTABLETOOLS_API Node : public RefCounted
+	{
+	public:
+
+		/** Non-stable enumeration of all node types. */
+		enum class EType : uint8
+		{
+			None,
+
+			Node,
+
+			Mesh,
+			MeshConstant,
+			MeshInterpolate,
+			MeshTable,
+			MeshFormat,
+			MeshTangents,
+			MeshMorph,
+			MeshMakeMorph,
+			MeshSwitch,
+			MeshFragment,
+			MeshTransform,
+			MeshClipMorphPlane,
+			MeshClipWithMesh,
+			MeshApplyPose,
+			MeshVariation,
+			MeshGeometryOperation,
+			MeshReshape,
+			MeshClipDeform,
+
+			Image,
+			ImageConstant,
+			ImageInterpolate,
+			ImageSaturate,
+			ImageTable,
+			ImageSwizzle,
+			ImageColorMap,
+			ImageGradient,
+			ImageBinarise,
+			ImageLuminance,
+			ImageLayer,
+			ImageLayerColour,
+			ImageResize,
+			ImagePlainColour,
+			ImageProject,
+			ImageMipmap,
+			ImageSwitch,
+			ImageConditional,
+			ImageFormat,
+			ImageParameter, 
+			ImageMultiLayer,
+			ImageInvert,
+			ImageVariation,
+			ImageNormalComposite,
+			ImageTransform,
+
+			Bool,
+			BoolConstant,
+			BoolParameter,
+			BoolNot,
+			BoolAnd,
+
+			Color,
+			ColorConstant,
+			ColorParameter,
+			ColorSampleImage,
+			ColorTable,
+			ColorImageSize,
+			ColorFromScalars,
+			ColorArithmeticOperation,
+			ColorSwitch,
+			ColorVariation,
+
+			Scalar,
+			ScalarConstant,
+			ScalarParameter,
+			ScalarEnumParameter,
+			ScalarCurve,
+			ScalarSwitch,
+			ScalarArithmeticOperation,
+			ScalarVariation,
+			ScalarTable,
+
+			String,
+			StringConstant,
+			StringParameter,
+
+			Projector,
+			ProjectorConstant,
+			ProjectorParameter,
+
+			Range,
+			RangeFromScalar,
+
+			Layout,
+			LayoutBlocks,
+
+			PatchImage,
+			PatchMesh,
+
+			Surface,
+			SurfaceNew,
+			SurfaceEdit,
+			SurfaceSwitch,
+			SurfaceVariation,
+
+			LOD,
+
+			Component,
+			ComponentNew,
+			ComponentEdit,
+
+			Object,
+			ObjectNew,
+			ObjectGroup,
+
+			Modifier,
+			ModifierMeshClipMorphPlane,
+			ModifierMeshClipWithMesh,
+			ModifierMeshClipDeform,
+			ModifierMeshClipWithUVMask,
+
+			ExtensionData,
+			ExtensionDataConstant,
+			ExtensionDataSwitch,
+			ExtensionDataVariation,
+
+			Count
+		};
+
+		//-----------------------------------------------------------------------------------------
+		// Own Interface
+		//-----------------------------------------------------------------------------------------
+
+		/** Node type hierarchy data. */
+        virtual const struct FNodeType* GetType() const;
+		static const struct FNodeType* GetStaticType();
+
+		/** Set the opaque context returned in messages in the compiler log. */
+		void SetMessageContext(const void* context);
+		const void* GetMessageContext() const;
+
+		//-----------------------------------------------------------------------------------------
+        // Interface pattern
+		//-----------------------------------------------------------------------------------------
+		class Private;
+		//virtual Private* GetBasePrivate() const = 0;
+
+	protected:
+
+		inline ~Node() {}
+
+		//!
+		EType Type = EType::None;
+
+		/** This is an opaque context used to attach to reported error messages. */
+		const void* MessageContext = nullptr;
+
+	};
+
 	/** Information about the type of a node, to provide some means to the tools to deal generically with nodes. */
 	struct FNodeType
 	{
 		FNodeType();
-		FNodeType( const char* strName, const FNodeType* pParent );
+		FNodeType(Node::EType, const FNodeType* pParent);
 
-		const char* m_strName;
+		Node::EType Type;
 		const FNodeType* m_pParent;
 
 		inline bool IsA(const FNodeType* CandidateType) const
@@ -54,63 +203,5 @@ namespace mu
 			return false;
 		}
 	};
-
-
-    //! %Base class for all graphs used in the source data to define models and transforms.
-	class MUTABLETOOLS_API Node : public RefCounted
-	{
-	public:
-
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			Colour = 0,
-			Component = 1,
-			Image = 2,
-			Layout = 3,
-			LOD = 4,
-			Mesh = 5,
-			Object = 6,
-			PatchImage = 8,
-			Scalar = 9,
-			PatchMesh = 13,
-			Volume_Deprecated = 14,
-			Projector = 15,
-			Surface = 16,
-			Modifier = 18,
-			Range = 19,
-			String = 20,
-			Bool = 21,
-			ExtensionData = 22,
-
-			None
-		};
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		/** Node type hierarchy data. */
-        virtual const FNodeType* GetType() const;
-		static const FNodeType* GetStaticType();
-
-		/** Set the opaque context returned in messages in the compiler log. */
-		void SetMessageContext( const void* context );
-
-		//-----------------------------------------------------------------------------------------
-        // Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		virtual Private* GetBasePrivate() const = 0;
-
-	protected:
-
-		inline ~Node() {}
-
-		//!
-		EType Type = EType::None;
-
-	};
-
 
 }

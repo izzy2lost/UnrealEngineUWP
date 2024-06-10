@@ -17,15 +17,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshTable::Private::s_type =
-			FNodeType( "TableMesh", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshTable::Private::s_type = FNodeType(Node::EType::MeshTable, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshTable, EType::Table, Node, Node::EType::Mesh);
+	MUTABLE_IMPLEMENT_NODE( NodeMeshTable );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -75,8 +74,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	NodeLayoutPtr NodeMeshTable::GetLayout( int i ) const
 	{
-		check( i>=0 && i<GetLayoutCount() );
-		return m_pD->GetLayout( i );
+		NodeLayoutPtr pResult;
+
+		if (i >= 0 && i < m_pD->Layouts.Num())
+		{
+			pResult = m_pD->Layouts[i];
+		}
+
+		return pResult;
 	}
 
 
@@ -85,20 +90,6 @@ namespace mu
 	{
 		check( i>=0 && i<GetLayoutCount() );
 		m_pD->Layouts[i] = pLayout;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshTable::Private::GetLayout( int i ) const
-	{
-		NodeLayoutPtr pResult;
-
-		if ( i>=0 && i< Layouts.Num() )
-		{
-			pResult = Layouts[i];
-		}
-
-		return pResult;
 	}
 
 

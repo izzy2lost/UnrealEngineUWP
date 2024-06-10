@@ -42,9 +42,6 @@ namespace mu
 
 		TArray<CHANNEL> m_channels;
 
-		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 

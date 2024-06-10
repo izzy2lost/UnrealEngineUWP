@@ -36,16 +36,6 @@ namespace mu
 	{
 	public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			MeshClipMorphPlane = 0,
-			MeshClipWithMesh = 1,
-			MeshClipDeform = 2,
-			
-			None
-		};
-
 		//-----------------------------------------------------------------------------------------
         // Node interface
 		//-----------------------------------------------------------------------------------------
@@ -66,6 +56,15 @@ namespace mu
 		/** Set the stage to apply this modifier in.Default is before normal operations. */
 		void SetStage( bool bBeforeNormalOperation );
 
+		/** Tags that target surface need to have enabled to receive this modifier. */
+		TArray<FString> RequiredTags;
+
+		/** In case of multiple tags in RequiredTags: are they all required, or one is enough? */
+		EMutableMultipleTagPolicy MultipleTagsPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
+
+		// Wether the modifier has to be applied after the normal node operations or before
+		bool bApplyBeforeNormalOperations = true;
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------
@@ -75,9 +74,6 @@ namespace mu
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeModifier() {}
-
-		//!
-		EType Type = EType::None;
 
 	};
 

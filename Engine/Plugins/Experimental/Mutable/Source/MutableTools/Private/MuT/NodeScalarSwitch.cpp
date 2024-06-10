@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeScalarSwitch::Private::s_type =
-            FNodeType( "ScalarSwitch", NodeScalar::GetStaticType() );
+    FNodeType NodeScalarSwitch::Private::s_type = FNodeType(Node::EType::ScalarSwitch, NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeScalarSwitch, EType::Switch, Node, Node::EType::Scalar)
+    MUTABLE_IMPLEMENT_NODE( NodeScalarSwitch )
 
 
 	//---------------------------------------------------------------------------------------------

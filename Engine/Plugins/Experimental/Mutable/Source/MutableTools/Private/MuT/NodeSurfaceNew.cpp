@@ -22,15 +22,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeSurfaceNew::Private::s_type =
-            FNodeType( "NewSurface", NodeSurface::GetStaticType() );
+    FNodeType NodeSurfaceNew::Private::s_type = FNodeType(Node::EType::SurfaceNew, NodeSurface::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeSurfaceNew, EType::New, Node, Node::EType::Surface)
+    MUTABLE_IMPLEMENT_NODE( NodeSurfaceNew )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -57,53 +56,16 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    int NodeSurfaceNew::GetMeshCount() const
+	Ptr<NodeMesh> NodeSurfaceNew::GetMesh() const
 	{
-		return (int)m_pD->m_meshes.Num();
+		return m_pD->Mesh;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    void NodeSurfaceNew::SetMeshCount( int num )
+    void NodeSurfaceNew::SetMesh( Ptr<NodeMesh> InNode)
 	{
-		check( num >=0 );
-		m_pD->m_meshes.SetNum( num );
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    NodeMeshPtr NodeSurfaceNew::GetMesh( int index ) const
-	{
-		check( index >=0 && index < (int)m_pD->m_meshes.Num() );
-
-		return m_pD->m_meshes[ index ].m_pMesh.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeSurfaceNew::SetMesh( int index, NodeMeshPtr pNode )
-	{
-		check( index >=0 && index < (int)m_pD->m_meshes.Num() );
-
-		m_pD->m_meshes[ index ].m_pMesh = pNode;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    const FString& NodeSurfaceNew::GetMeshName( int index ) const
-	{
-		check( index >=0 && index < (int)m_pD->m_meshes.Num() );
-
-		return m_pD->m_meshes[ index ].m_name;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeSurfaceNew::SetMeshName( int index, const FString& strName )
-	{
-		check( index >=0 && index < (int)m_pD->m_meshes.Num() );
-
-		m_pD->m_meshes[ index ].m_name = strName;
+		m_pD->Mesh = InNode;
 	}
 
 
@@ -350,21 +312,6 @@ namespace mu
 		for ( int32 i = 0; i<m_images.Num(); ++i )
 		{
 			if ( m_images[i].m_name == strName)
-			{
-				return i;
-			}
-		}
-
-		return -1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	int NodeSurfaceNew::Private::FindMesh(const FString& strName) const
-	{
-		for ( int32 i = 0; i < m_meshes.Num(); ++i)
-		{
-			if (m_meshes[i].m_name == strName)
 			{
 				return i;
 			}

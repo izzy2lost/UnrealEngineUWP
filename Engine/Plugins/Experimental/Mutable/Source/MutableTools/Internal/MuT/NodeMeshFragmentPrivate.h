@@ -27,10 +27,6 @@ namespace mu
 		TArray<uint64> Blocks;
 
         FRAGMENT_TYPE m_fragmentType;
-
-
-		// NodeMesh::Private interface
-        Ptr<NodeLayout> GetLayout( int32 index ) const override;
 	};
 
 

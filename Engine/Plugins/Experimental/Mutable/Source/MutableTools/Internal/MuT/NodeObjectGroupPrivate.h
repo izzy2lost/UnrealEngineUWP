@@ -30,9 +30,6 @@ namespace mu
 		TArray<NodeObjectPtr> m_children;
 		int32 DefaultValue;
 
-        // NodeObject::Private interface
-        NodeLayoutPtr GetLayout( int lod, int component, int surface, int texture ) const override;
-
-	};
+ 	};
 
 }

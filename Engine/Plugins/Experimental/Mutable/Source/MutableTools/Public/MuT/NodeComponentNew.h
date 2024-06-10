@@ -12,76 +12,40 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeComponent;
-	typedef Ptr<NodeComponent> NodeComponentPtr;
-	typedef Ptr<const NodeComponent> NodeComponentPtrConst;
-
-	class NodeComponentNew;
-	typedef Ptr<NodeComponentNew> NodeComponentNewPtr;
-	typedef Ptr<const NodeComponentNew> NodeComponentNewPtrConst;
-
-    class NodeSurface;
-    typedef Ptr<NodeSurface> NodeSurfacePtr;
-    typedef Ptr<const NodeSurface> NodeSurfacePtrConst;
-
-
-	//! This node makes a new component from several meshes and images.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeComponentNew : public NodeComponent
 	{
 	public:
 
-		NodeComponentNew();
+		/** Externally managed id assign to this component. */
+		uint16 Id = 0;
+
+	public:
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
 		//-----------------------------------------------------------------------------------------		
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
-        // NodeComponent interface
-        //-----------------------------------------------------------------------------------------
-        int GetSurfaceCount() const override;
-        void SetSurfaceCount( int ) override;
-        NodeSurface* GetSurface( int index ) const override;
-        void SetSurface( int index, NodeSurface* ) override;
+		// NodeComponent interface
+		//-----------------------------------------------------------------------------------------		
+		virtual const class NodeComponentNew* GetParentComponentNew() const override { return this;  }
 
 		//-----------------------------------------------------------------------------------------
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the name of the component.
-		const FString& GetName() const;
-
-		//! Set the name of the component.
-		void SetName( const FString& );
-
-		//! Get the id of the component.
-		uint16 GetId() const;
-
-		//! Set the id of the component.
-		void SetId( uint16 );
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
-
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeComponentNew();
+		~NodeComponentNew() {}
 
 	private:
 
-		Private* m_pD;
-
+		static FNodeType StaticType;
+		
 	};
-
 
 }

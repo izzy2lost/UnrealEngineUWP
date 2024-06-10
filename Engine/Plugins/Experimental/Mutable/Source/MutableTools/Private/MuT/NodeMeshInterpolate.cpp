@@ -17,15 +17,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshInterpolate::Private::s_type =
-			FNodeType( "MeshInterpolate", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshInterpolate::Private::s_type = FNodeType(Node::EType::MeshInterpolate, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeMeshInterpolate, EType::Interpolate, Node, Node::EType::Mesh)
+	MUTABLE_IMPLEMENT_NODE( NodeMeshInterpolate )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -92,24 +91,6 @@ namespace mu
 			m_pD->m_channels[i].semantic = semantic;
 			m_pD->m_channels[i].semanticIndex = semanticIndex;
 		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshInterpolate::Private::GetLayout( int index ) const
-	{
-		NodeLayoutPtr pResult;
-
-		// TODO: Substract layouts too? Usually they are ignored.
-		if ( m_targets.Num()>0 && m_targets[0] )
-		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_targets[0]->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
-		}
-
-		return pResult;
 	}
 
 

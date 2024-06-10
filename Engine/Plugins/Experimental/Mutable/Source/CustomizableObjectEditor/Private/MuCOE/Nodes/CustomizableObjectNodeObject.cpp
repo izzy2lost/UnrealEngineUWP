@@ -23,6 +23,7 @@ class UCustomizableObjectNodeRemapPins;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 const FName UCustomizableObjectNodeObject::ChildrenPinName(TEXT("Children"));
+const FName UCustomizableObjectNodeObject::ComponentsPinName(TEXT("Components"));
 const FName UCustomizableObjectNodeObject::OutputPinName(TEXT("Object"));
 const TCHAR* UCustomizableObjectNodeObject::LODPinNamePrefix = TEXT("LOD ");
 
@@ -151,7 +152,10 @@ void UCustomizableObjectNodeObject::AllocateDefaultPins(UCustomizableObjectNodeR
 		Pin->bDefaultValueIsIgnored = true;
 	}
 
-	UEdGraphPin* ChildrenPin = CustomCreatePin(EGPD_Input, Schema->PC_Object, ChildrenPinName, true );
+	UEdGraphPin* ComponentsPin = CustomCreatePin(EGPD_Input, Schema->PC_Component, ComponentsPinName, true);
+	ComponentsPin->bDefaultValueIsIgnored = true;
+
+	UEdGraphPin* ChildrenPin = CustomCreatePin(EGPD_Input, Schema->PC_Object, ChildrenPinName, true);
 	ChildrenPin->bDefaultValueIsIgnored = true;
 
 	for (const FRegisteredObjectNodeInputPin& Pin : ICustomizableObjectModule::Get().GetAdditionalObjectNodePins())
@@ -359,6 +363,7 @@ bool UCustomizableObjectNodeObject::IsSingleOutputNode() const
 bool UCustomizableObjectNodeObject::IsBuiltInPin(FName PinName)
 {
 	return PinName == ChildrenPinName
+		|| PinName == ComponentsPinName
 		|| PinName == OutputPinName
 		|| PinName.ToString().StartsWith(LODPinNamePrefix);
 }

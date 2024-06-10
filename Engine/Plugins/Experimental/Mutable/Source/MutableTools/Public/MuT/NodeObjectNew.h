@@ -1,31 +1,56 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuR/System.h"
 #include "MuT/Node.h"
 #include "MuT/NodeObject.h"
+#include "MuT/NodeComponent.h"
 #include "MuT/NodeExtensionData.h"
+#include "MuT/Compiler.h"
 
 
 namespace mu
 {
-	class NodeLOD;
 
 	//! Node that creates a new object by setting its levels-of-detail and its children.
 	class MUTABLETOOLS_API NodeObjectNew : public NodeObject
 	{
 	public:
 
-		NodeObjectNew();
+		/** Name of the object. */
+		FString Name;
 
+		/** Externally provided id for the object. */
+		FString Uid;
+
+		/** Components defined in the object. */
+		TArray<Ptr<NodeComponent>> Components;
+
+		/** Children objects. */
+		TArray<Ptr<NodeObject>> Children;
+
+		/** Extension data attached to this object. */
+		struct FNamedExtensionDataNode
+		{
+			Ptr<NodeExtensionData> Node;
+			FString Name;
+		};
+		TArray<FNamedExtensionDataNode> ExtensionDataNodes;
+
+		/** States defined in this object. */
+		TArray<FObjectState> States;
+
+
+	public:
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// NodeObject Interface
@@ -38,22 +63,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
-
-		//! Get the number of levels of detail in the object.
-		int GetLODCount() const;
-		void SetLODCount( int );
-
-		//! Get a level of detail node from the object.
-		Ptr<NodeLOD> GetLOD( int index ) const;
-		void SetLOD( int index, Ptr<NodeLOD>);
-
-		//! Get the number of child objects
-		int GetChildCount() const;
-		void SetChildCount( int );
-
-		//! Get a child object node
-		NodeObjectPtr GetChild( int index ) const;
-		void SetChild( int index, NodeObjectPtr );
 
 		//! Set the number of states that the model can be in.
 		int32 GetStateCount() const;
@@ -79,23 +88,17 @@ namespace mu
 			uint8 NumExtraLODsToBuildAfterFirstLOD);
 
 		//! Connect a node that produces ExtensionData to be added to the final Instance, and provide a name to associate with the data
-		void AddExtensionDataNode(NodeExtensionDataPtr Node, const FString& Name);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
+		void AddExtensionDataNode(Ptr<NodeExtensionData> Node, const FString& Name);
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeObjectNew();
+		~NodeObjectNew() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
+
 
 	};
 

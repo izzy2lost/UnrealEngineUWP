@@ -40,7 +40,7 @@ public:
 	//~End UCustomizableObjectNode interface
 
 	//~Begin ICustomizableObjectExtensionNode interface
-	virtual mu::NodeExtensionDataPtr GenerateMutableNode(FExtensionDataCompilerInterface& InCompilerInterface) const override;
+	virtual mu::Ptr<mu::NodeExtensionData> GenerateMutableNode(FExtensionDataCompilerInterface& InCompilerInterface) const override;
 	//~End ICustomizableObjectExtensionNode interface
 
 	virtual FName GetCategory() const PURE_VIRTUAL(GetCategory(), return FName();)

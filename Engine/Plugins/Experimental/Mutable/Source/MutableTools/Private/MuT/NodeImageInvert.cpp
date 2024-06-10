@@ -14,12 +14,11 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageInvert::Private::s_type =
-		FNodeType("ImageInvert", NodeImage::GetStaticType());
+	FNodeType NodeImageInvert::Private::s_type = FNodeType(Node::EType::ImageInvert, NodeImage::GetStaticType());
 
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageInvert, EType::Invert, Node, Node::EType::Image)
+	MUTABLE_IMPLEMENT_NODE( NodeImageInvert )
 
 	//---------------------------------------------------------------------------------------------
 	// Own Interface

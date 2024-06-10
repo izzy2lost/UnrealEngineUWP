@@ -21,11 +21,8 @@
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeExtensionData.h"
 #include "MuT/NodeExtensionDataConstant.h"
-#include "MuT/NodeExtensionDataConstantPrivate.h"
 #include "MuT/NodeExtensionDataSwitch.h"
-#include "MuT/NodeExtensionDataSwitchPrivate.h"
 #include "MuT/NodeExtensionDataVariation.h"
-#include "MuT/NodeExtensionDataVariationPrivate.h"
 
 
 namespace mu
@@ -33,7 +30,7 @@ namespace mu
 class Node;
 
 	//---------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateExtensionData(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions& Options, const NodeExtensionDataPtrConst& InUntypedNode)
+	void CodeGenerator::GenerateExtensionData(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions& Options, const Ptr<const NodeExtensionData>& InUntypedNode)
 	{
 		if (!InUntypedNode)
 		{
@@ -53,12 +50,12 @@ class Node;
 		const NodeExtensionData* Node = InUntypedNode.get();
 
 		// Generate for each different type of node
-		switch (Node->GetExtensionDataNodeType())
+		switch (Node->GetType()->Type)
 		{
-			case NodeExtensionData::EType::Constant:  GenerateExtensionData_Constant(OutResult, Options, static_cast<const NodeExtensionDataConstant*>(Node)); break;
-			case NodeExtensionData::EType::Switch:    GenerateExtensionData_Switch(OutResult, Options, static_cast<const NodeExtensionDataSwitch*>(Node)); break;
-			case NodeExtensionData::EType::Variation: GenerateExtensionData_Variation(OutResult, Options, static_cast<const NodeExtensionDataVariation*>(Node)); break;
-			case NodeExtensionData::EType::None: check(false);
+			case Node::EType::ExtensionDataConstant:  GenerateExtensionData_Constant(OutResult, Options, static_cast<const NodeExtensionDataConstant*>(Node)); break;
+			case Node::EType::ExtensionDataSwitch:    GenerateExtensionData_Switch(OutResult, Options, static_cast<const NodeExtensionDataSwitch*>(Node)); break;
+			case Node::EType::ExtensionDataVariation: GenerateExtensionData_Variation(OutResult, Options, static_cast<const NodeExtensionDataVariation*>(Node)); break;
+			default: check(false);
 		}
 
 		// Cache the result
@@ -68,19 +65,17 @@ class Node;
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateExtensionData_Constant(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions& Options, const NodeExtensionDataConstant* Constant)
 	{
-		NodeExtensionDataConstant::Private& Node = *Constant->GetPrivate();
-
 		Ptr<ASTOpConstantExtensionData> Op = new ASTOpConstantExtensionData();
 		OutResult.Op = Op;
 
-		ExtensionDataPtrConst Data = Node.Value;
+		ExtensionDataPtrConst Data = Constant->Value;
 		if (!Data)
 		{
 			// Data can't be null, so make an empty one
 			Data = new ExtensionData();
 			
 			// Log an error message
-			m_pErrorLog->GetPrivate()->Add("Constant extension data not set", ELMT_WARNING, Node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Constant extension data not set", ELMT_WARNING, Constant->GetMessageContext());
 		}
 
 		Op->Value = Data;
@@ -89,13 +84,11 @@ class Node;
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateExtensionData_Switch(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions& Options, const class NodeExtensionDataSwitch* Switch)
 	{
-		NodeExtensionDataSwitch::Private& Node = *Switch->GetPrivate();
-
 		MUTABLE_CPUPROFILER_SCOPE(NodeExtensionDataSwitch);
 
-		if (Node.Options.IsEmpty())
+		if (Switch->Options.IsEmpty())
 		{
-			Ptr<ASTOp> MissingOp = GenerateMissingExtensionDataCode(TEXT("Switch option"), Node.m_errorContext);
+			Ptr<ASTOp> MissingOp = GenerateMissingExtensionDataCode(TEXT("Switch option"), Switch->GetMessageContext());
 			OutResult.Op = MissingOp;
 			return;
 		}
@@ -104,23 +97,23 @@ class Node;
 		Op->type = OP_TYPE::ED_SWITCH;
 
 		// Variable name
-		if (Node.Parameter)
+		if (Switch->Parameter)
 		{
-			Op->variable = Generate(Node.Parameter.get(), Options);
+			Op->variable = Generate_Generic(Switch->Parameter.get(), Options);
 		}
 		else
 		{
 			// This argument is required
-			Op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Node.m_errorContext);
+			Op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Switch->GetMessageContext());
 		}
 
 		// Options
-		for (int32 OptionIndex = 0; OptionIndex < Node.Options.Num(); ++OptionIndex)
+		for (int32 OptionIndex = 0; OptionIndex < Switch->Options.Num(); ++OptionIndex)
 		{
 			Ptr<ASTOp> Branch;
-			if (Node.Options[OptionIndex])
+			if (Switch->Options[OptionIndex])
 			{
-				NodeExtensionDataPtr SwitchOption = Node.Options[OptionIndex];
+				Ptr<NodeExtensionData> SwitchOption = Switch->Options[OptionIndex];
 
 				FExtensionDataGenerationResult OptionResult;
 				GenerateExtensionData(OptionResult, Options, SwitchOption);
@@ -130,7 +123,7 @@ class Node;
 			else
 			{
 				// This argument is required
-				Branch = GenerateMissingExtensionDataCode(TEXT("Switch option"), Node.m_errorContext);
+				Branch = GenerateMissingExtensionDataCode(TEXT("Switch option"), Switch->GetMessageContext());
 			}
 			Op->cases.Emplace(static_cast<int16_t>(OptionIndex), Op, Branch);
 		}
@@ -141,23 +134,21 @@ class Node;
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateExtensionData_Variation(FExtensionDataGenerationResult& OutResult, const FGenericGenerationOptions& Options, const class NodeExtensionDataVariation* Variation)
 	{
-		const NodeExtensionDataVariation::Private& Node = *Variation->GetPrivate();
-
 		Ptr<ASTOp> CurrentOp;
 
 		// Default case
-		if (Node.DefaultValue)
+		if (Variation->DefaultValue)
 		{
 			FExtensionDataGenerationResult DefaultResult;
-			GenerateExtensionData(DefaultResult, Options, Node.DefaultValue);
+			GenerateExtensionData(DefaultResult, Options, Variation->DefaultValue);
 
 			CurrentOp = DefaultResult.Op;
 		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
-		for (int32 VariationIndex = Node.Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)
+		for (int32 VariationIndex = Variation->Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)
 		{
-			const FString& Tag = Node.Variations[VariationIndex].Tag;
+			const FString& Tag = Variation->Variations[VariationIndex].Tag;
 			const int32 TagIndex = m_firstPass.m_tags.IndexOfByPredicate([Tag](const FirstPassGenerator::FTag& CandidateTag)
 			{
 				return CandidateTag.tag == Tag;
@@ -166,12 +157,12 @@ class Node;
 			if (TagIndex == INDEX_NONE)
 			{
 				const FString Msg = FString::Printf(TEXT("Unknown tag found in Extension Data variation [%s]"), *Tag);
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Node.m_errorContext);
+				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Variation->GetMessageContext());
 				continue;
 			}
 
 			Ptr<ASTOp> VariationOp;
-			if (NodeExtensionDataPtr VariationValue = Node.Variations[VariationIndex].Value)
+			if (Ptr<NodeExtensionData> VariationValue = Variation->Variations[VariationIndex].Value)
 			{
 				FExtensionDataGenerationResult VariationResult;
 				GenerateExtensionData(VariationResult, Options, VariationValue);
@@ -181,7 +172,7 @@ class Node;
 			else
 			{
 				// This argument is required
-				VariationOp = GenerateMissingExtensionDataCode(TEXT("Variation option"), Node.m_errorContext);
+				VariationOp = GenerateMissingExtensionDataCode(TEXT("Variation option"), Variation->GetMessageContext());
 			}
 
 			Ptr<ASTOpConditional> Conditional = new ASTOpConditional;
@@ -203,7 +194,7 @@ class Node;
 		m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, ErrorContext);
 
 		// Create a constant extension data
-		NodeExtensionDataConstantPtrConst Node = new NodeExtensionDataConstant;
+		Ptr<const NodeExtensionDataConstant> Node = new NodeExtensionDataConstant;
 
 		FExtensionDataGenerationResult Result;
 		FGenericGenerationOptions Options;

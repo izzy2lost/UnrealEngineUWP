@@ -664,6 +664,8 @@ struct FModelResources
 	 * properties for everything that Mutable doesn't create or modify. This struct stores the information used from
 	 * the Reference Skeletal Meshes to avoid having them loaded at all times. This includes data like LOD distances,
 	 * LOD render data settings, Mesh sockets, Bounding volumes, etc.
+	 * 
+	 * Index with Component index
 	 */
 	UPROPERTY()
 	TArray<FMutableRefSkeletalMeshData> ReferenceSkeletalMeshesData;
@@ -1074,6 +1076,10 @@ public:
 		AddEditorGamePlayTags,
 
 		AddedParameterThumbnailsToEditor,
+
+		ComponentsLODsRedesign,
+
+		ComponentsLODsRedesign2,
 
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

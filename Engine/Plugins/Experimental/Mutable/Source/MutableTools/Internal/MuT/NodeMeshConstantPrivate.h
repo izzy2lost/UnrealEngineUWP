@@ -21,9 +21,6 @@ namespace mu
 
 		TArray<Ptr<NodeLayout>> Layouts;
 
-		// NodeMesh::Private interface
-		Ptr<NodeLayout> GetLayout(int32 index) const override;
-
 	};
 
 }

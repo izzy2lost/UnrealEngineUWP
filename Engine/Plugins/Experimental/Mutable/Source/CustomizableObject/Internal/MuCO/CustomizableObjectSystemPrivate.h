@@ -356,15 +356,10 @@ struct FInstanceUpdateData
 		uint32 SurfaceId = 0;
 	};
 
-	struct FComponent
-	{
-		uint16 Id = 0;
-		
-		// True if the Mesh is valid
-		bool bGenerated = false;
-
+	struct FLOD
+	{		
 		mu::FResourceID MeshID;
-		mu::MeshPtrConst Mesh;
+		mu::Ptr<const mu::Mesh> Mesh;
 
 		/** Range in the Surfaces array */
 		uint16 FirstSurface = 0;
@@ -377,17 +372,22 @@ struct FInstanceUpdateData
 		/** Range in the external Bones array */
 		uint32 FirstBoneMap = 0;
 		uint32 BoneMapCount = 0;
+
+		// True if the Mesh is valid
+		bool bGenerated = false;
 	};
 
-	struct FLOD
+	struct FComponent
 	{
-		/** Range in the Components array */
-		uint16 FirstComponent = 0;
-		uint16 ComponentCount = 0;
+		uint16 Id = 0;
+		
+		/** Range in the LODs array */
+		uint16 FirstLOD = 0;
+		uint16 LODCount = 0;
 	};
 
-	TArray<FLOD> LODs;
 	TArray<FComponent> Components;
+	TArray<FLOD> LODs;
 	TArray<FSurface> Surfaces;
 	TArray<FImage> Images;
 	TArray<FVector> Vectors;
@@ -443,6 +443,7 @@ struct FInstanceUpdateData
 		TMap<mu::FBoneName, TPair<FName, uint16>> BoneInfoMap;
 	};
 
+	// Access by component index
 	TArray<FSkeletonData> Skeletons;
 
 	struct FNamedExtensionData
@@ -511,7 +512,7 @@ private:
 
 public:
 	/** Instance parameters at the time of the operation request. */
-	mu::ParametersPtr Parameters; 
+	mu::Ptr<mu::Parameters> Parameters; 
 	mu::Ptr<mu::System> MutableSystem;
 
 	bool bOnlyUpdateIfNotGenerated = false;
@@ -538,12 +539,16 @@ public:
 	int32 MipsToSkip = 0;
 
 	mu::Instance::ID InstanceID = 0; // Redundant
-	const mu::Instance* MutableInstance = nullptr;
+	mu::Ptr<const mu::Instance> MutableInstance;
 
 	TSharedPtr<mu::Model> Model;
 
+	// TODO: This is also available in InstanceUpdateData in MutableInstance and in NumLODsAvailablePerComponent
 	uint8 NumComponents = 0;
-	uint8 NumLODsAvailable = 0;
+
+	// TODO: Why is this cached?
+	TArray<uint8> NumLODsAvailablePerComponent;
+
 	uint8 FirstLODAvailable = 0;
 	uint8 FirstResidentLOD = 0;
 
@@ -553,7 +558,7 @@ public:
 
 	mu::FImageOperator::FImagePixelFormatFunc PixelFormatOverride;
 
-	/** Mutable Meshes required for each component. Outermost index is the component, inner index is the LOD. */
+	/** Mutable Meshes required for each component. Outermost index is the component index, inner index is the LOD. */
 	TArray<TArray<mu::FResourceID>> MeshDescriptors;
 
 	/** Used to know if the updated instances' meshes are different from the previous ones. 

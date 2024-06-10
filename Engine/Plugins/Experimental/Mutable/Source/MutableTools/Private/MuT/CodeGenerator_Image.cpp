@@ -133,34 +133,33 @@ namespace mu
 			const NodeImage* Node = Untyped.get();
 
 			// Generate for each different type of node
-			switch (Untyped->GetImageNodeType())
+			switch (Untyped->GetType()->Type)
 			{
-			case NodeImage::EType::Constant: GenerateImage_Constant(Options, Result, static_cast<const NodeImageConstant*>(Node)); break;
-			case NodeImage::EType::Difference_Deprecated: check(false); break;
-			case NodeImage::EType::Interpolate: GenerateImage_Interpolate(Options, Result, static_cast<const NodeImageInterpolate*>(Node)); break;
-			case NodeImage::EType::Saturate: GenerateImage_Saturate(Options, Result, static_cast<const NodeImageSaturate*>(Node)); break;
-			case NodeImage::EType::Table: GenerateImage_Table(Options, Result, static_cast<const NodeImageTable*>(Node)); break;
-			case NodeImage::EType::Swizzle: GenerateImage_Swizzle(Options, Result, static_cast<const NodeImageSwizzle*>(Node)); break;
-			case NodeImage::EType::ColourMap: GenerateImage_ColourMap(Options, Result, static_cast<const NodeImageColourMap*>(Node)); break;
-			case NodeImage::EType::Gradient: GenerateImage_Gradient(Options, Result, static_cast<const NodeImageGradient*>(Node)); break;
-			case NodeImage::EType::Binarise: GenerateImage_Binarise(Options, Result, static_cast<const NodeImageBinarise*>(Node)); break;
-			case NodeImage::EType::Luminance: GenerateImage_Luminance(Options, Result, static_cast<const NodeImageLuminance*>(Node)); break;
-			case NodeImage::EType::Layer: GenerateImage_Layer(Options, Result, static_cast<const NodeImageLayer*>(Node)); break;
-			case NodeImage::EType::LayerColour: GenerateImage_LayerColour(Options, Result, static_cast<const NodeImageLayerColour*>(Node)); break;
-			case NodeImage::EType::Resize: GenerateImage_Resize(Options, Result, static_cast<const NodeImageResize*>(Node)); break;
-			case NodeImage::EType::PlainColour: GenerateImage_PlainColour(Options, Result, static_cast<const NodeImagePlainColour*>(Node)); break;
-			case NodeImage::EType::Project: GenerateImage_Project(Options, Result, static_cast<const NodeImageProject*>(Node)); break;
-			case NodeImage::EType::Mipmap: GenerateImage_Mipmap(Options, Result, static_cast<const NodeImageMipmap*>(Node)); break;
-			case NodeImage::EType::Switch: GenerateImage_Switch(Options, Result, static_cast<const NodeImageSwitch*>(Node)); break;
-			case NodeImage::EType::Conditional: GenerateImage_Conditional(Options, Result, static_cast<const NodeImageConditional*>(Node)); break;
-			case NodeImage::EType::Format: GenerateImage_Format(Options, Result, static_cast<const NodeImageFormat*>(Node)); break;
-			case NodeImage::EType::Parameter: GenerateImage_Parameter(Options, Result, static_cast<const NodeImageParameter*>(Node)); break;
-			case NodeImage::EType::MultiLayer: GenerateImage_MultiLayer(Options, Result, static_cast<const NodeImageMultiLayer*>(Node)); break;
-			case NodeImage::EType::Invert: GenerateImage_Invert(Options, Result, static_cast<const NodeImageInvert*>(Node)); break;
-			case NodeImage::EType::Variation: GenerateImage_Variation(Options, Result, static_cast<const NodeImageVariation*>(Node)); break;
-			case NodeImage::EType::NormalComposite: GenerateImage_NormalComposite(Options, Result, static_cast<const NodeImageNormalComposite*>(Node)); break;
-			case NodeImage::EType::Transform: GenerateImage_Transform(Options, Result, static_cast<const NodeImageTransform*>(Node)); break;
-			case NodeImage::EType::None: check(false);
+			case Node::EType::ImageConstant: GenerateImage_Constant(Options, Result, static_cast<const NodeImageConstant*>(Node)); break;
+			case Node::EType::ImageInterpolate: GenerateImage_Interpolate(Options, Result, static_cast<const NodeImageInterpolate*>(Node)); break;
+			case Node::EType::ImageSaturate: GenerateImage_Saturate(Options, Result, static_cast<const NodeImageSaturate*>(Node)); break;
+			case Node::EType::ImageTable: GenerateImage_Table(Options, Result, static_cast<const NodeImageTable*>(Node)); break;
+			case Node::EType::ImageSwizzle: GenerateImage_Swizzle(Options, Result, static_cast<const NodeImageSwizzle*>(Node)); break;
+			case Node::EType::ImageColorMap: GenerateImage_ColourMap(Options, Result, static_cast<const NodeImageColourMap*>(Node)); break;
+			case Node::EType::ImageGradient: GenerateImage_Gradient(Options, Result, static_cast<const NodeImageGradient*>(Node)); break;
+			case Node::EType::ImageBinarise: GenerateImage_Binarise(Options, Result, static_cast<const NodeImageBinarise*>(Node)); break;
+			case Node::EType::ImageLuminance: GenerateImage_Luminance(Options, Result, static_cast<const NodeImageLuminance*>(Node)); break;
+			case Node::EType::ImageLayer: GenerateImage_Layer(Options, Result, static_cast<const NodeImageLayer*>(Node)); break;
+			case Node::EType::ImageLayerColour: GenerateImage_LayerColour(Options, Result, static_cast<const NodeImageLayerColour*>(Node)); break;
+			case Node::EType::ImageResize: GenerateImage_Resize(Options, Result, static_cast<const NodeImageResize*>(Node)); break;
+			case Node::EType::ImagePlainColour: GenerateImage_PlainColour(Options, Result, static_cast<const NodeImagePlainColour*>(Node)); break;
+			case Node::EType::ImageProject: GenerateImage_Project(Options, Result, static_cast<const NodeImageProject*>(Node)); break;
+			case Node::EType::ImageMipmap: GenerateImage_Mipmap(Options, Result, static_cast<const NodeImageMipmap*>(Node)); break;
+			case Node::EType::ImageSwitch: GenerateImage_Switch(Options, Result, static_cast<const NodeImageSwitch*>(Node)); break;
+			case Node::EType::ImageConditional: GenerateImage_Conditional(Options, Result, static_cast<const NodeImageConditional*>(Node)); break;
+			case Node::EType::ImageFormat: GenerateImage_Format(Options, Result, static_cast<const NodeImageFormat*>(Node)); break;
+			case Node::EType::ImageParameter: GenerateImage_Parameter(Options, Result, static_cast<const NodeImageParameter*>(Node)); break;
+			case Node::EType::ImageMultiLayer: GenerateImage_MultiLayer(Options, Result, static_cast<const NodeImageMultiLayer*>(Node)); break;
+			case Node::EType::ImageInvert: GenerateImage_Invert(Options, Result, static_cast<const NodeImageInvert*>(Node)); break;
+			case Node::EType::ImageVariation: GenerateImage_Variation(Options, Result, static_cast<const NodeImageVariation*>(Node)); break;
+			case Node::EType::ImageNormalComposite: GenerateImage_NormalComposite(Options, Result, static_cast<const NodeImageNormalComposite*>(Node)); break;
+			case Node::EType::ImageTransform: GenerateImage_Transform(Options, Result, static_cast<const NodeImageTransform*>(Node)); break;
+			default: check(false);
 			}
 
 			// Cache the Result
@@ -187,7 +186,7 @@ namespace mu
             pImage = GenerateMissingImage(EImageFormat::IF_RGB_UBYTE );
 
             // Log an error message
-            m_pErrorLog->GetPrivate()->Add( "Constant image not set.", ELMT_WARNING, node.m_errorContext );
+            m_pErrorLog->GetPrivate()->Add( "Constant image not set.", ELMT_WARNING, InNode->GetMessageContext());
         }
 
 
@@ -319,7 +318,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image Layer base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Image Layer base"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 
 		UE::Math::TIntVector2<int32> TargetSize = Options.RectSize;
@@ -395,7 +394,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Layer base image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options );
+            base = GenerateMissingImageCode(TEXT("Layer base image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options );
         }
 
 		UE::Math::TIntVector2<int32> TargetSize = Options.RectSize;
@@ -435,7 +434,7 @@ namespace mu
         else
         {
             // This argument is required
-            colour = GenerateMissingColourCode(TEXT("Layer colour"), node.m_errorContext );
+            colour = GenerateMissingColourCode(TEXT("Layer colour"), InNode->GetMessageContext() );
         }
         op->color = colour;
 
@@ -465,7 +464,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image MultiLayer base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Image MultiLayer base"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 
 		FImageDesc BaseDesc = base->GetImageDesc(true);
@@ -550,7 +549,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image Composite Base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Image Composite Base"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 
 		FImageDesc BaseDesc = base->GetImageDesc(true);
@@ -580,7 +579,7 @@ namespace mu
 		else
 		{
             // This argument is required
-            normal = GenerateMissingImageCode(TEXT("Image Composite Normal"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            normal = GenerateMissingImageCode(TEXT("Image Composite Normal"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
 		}
 
 		normal = GenerateImageSize(normal, TargetSize);
@@ -601,31 +600,41 @@ namespace mu
 		Ptr<ASTOp> OffsetX;
 		if (Node.m_pOffsetX)
 		{
-			OffsetX = Generate(Node.m_pOffsetX, Options);
+			FScalarGenerationResult ScalarResult;
+			GenerateScalar(ScalarResult, Options, Node.m_pOffsetX);
+			OffsetX = ScalarResult.op;
 		}
 
 		Ptr<ASTOp> OffsetY;
 		if (Node.m_pOffsetY)
 		{
-			OffsetY = Generate(Node.m_pOffsetY, Options);
+			FScalarGenerationResult ScalarResult;
+			GenerateScalar(ScalarResult, Options, Node.m_pOffsetY);
+			OffsetY = ScalarResult.op;
 		}
 	
 		Ptr<ASTOp> ScaleX;
 		if (Node.m_pScaleX)
 		{
-			ScaleX = Generate(Node.m_pScaleX, Options);
+			FScalarGenerationResult ScalarResult;
+			GenerateScalar(ScalarResult, Options, Node.m_pScaleX);
+			ScaleX = ScalarResult.op;
 		}
 	
 		Ptr<ASTOp> ScaleY;
 		if (Node.m_pScaleY)
 		{
-			ScaleY = Generate(Node.m_pScaleY, Options);
+			FScalarGenerationResult ScalarResult;
+			GenerateScalar(ScalarResult, Options, Node.m_pScaleY);
+			ScaleY = ScalarResult.op;
 		}
 
 		Ptr<ASTOp> Rotation;
 		if (Node.m_pRotation)
 		{
-			Rotation = Generate(Node.m_pRotation, Options);
+			FScalarGenerationResult ScalarResult;
+			GenerateScalar(ScalarResult, Options, Node.m_pRotation);
+			Rotation = ScalarResult.op;
 		}
 
 		// If one of the inputs (offset or scale) is missig assume unifrom translation/scaling 
@@ -656,7 +665,7 @@ namespace mu
         else
         {
             // This argument is required
-            Base = GenerateMissingImageCode(TEXT("Image Transform Base"), EImageFormat::IF_RGB_UBYTE, Node.m_errorContext, NewOptions);
+            Base = GenerateMissingImageCode(TEXT("Image Transform Base"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), NewOptions);
         }
 		
 		FImageDesc BaseDesc = Base->GetImageDesc();
@@ -681,13 +690,13 @@ namespace mu
         // Factor
         if ( Node* pFactor = node.m_pFactor.get() )
         {
-            op->SetChild( op->op.args.ImageInterpolate.factor, Generate( pFactor, Options));
+            op->SetChild( op->op.args.ImageInterpolate.factor, Generate_Generic( pFactor, Options));
         }
         else
         {
             // This argument is required
             op->SetChild( op->op.args.ImageInterpolate.factor,
-                          GenerateMissingScalarCode(TEXT("Interpolation factor"), 0.5f, node.m_errorContext ));
+                          GenerateMissingScalarCode(TEXT("Interpolation factor"), 0.5f, InNode->GetMessageContext() ));
         }
 
         // Target images
@@ -725,7 +734,7 @@ namespace mu
         // At least one target is required
         if (!op->op.args.ImageInterpolate.targets[0])
         {
-            Ptr<ASTOp> target = GenerateMissingImageCode(TEXT("First interpolation image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            Ptr<ASTOp> target = GenerateMissingImageCode(TEXT("First interpolation image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
             target = GenerateImageSize( target, Options.RectSize);
             op->SetChild( op->op.args.ImageInterpolate.targets[0], target);
         }
@@ -804,7 +813,7 @@ namespace mu
 				if (!source)
 				{
 					// TODO: Warn?
-					source = GenerateMissingImageCode(TEXT("Swizzle channel"), EImageFormat::IF_L_UBYTE, node.m_errorContext, Options);
+					source = GenerateMissingImageCode(TEXT("Swizzle channel"), EImageFormat::IF_L_UBYTE, InNode->GetMessageContext(), Options);
 				}
 
                 Ptr<ASTOp> sizedSource;
@@ -827,7 +836,7 @@ namespace mu
 		// At least one source is required
         if (!op->Sources[0])
 		{
-            Ptr<ASTOp> source = GenerateMissingImageCode(TEXT("First swizzle image"), EImageFormat::IF_RGBA_UBYTE, node.m_errorContext, Options);
+            Ptr<ASTOp> source = GenerateMissingImageCode(TEXT("First swizzle image"), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
             op->Sources[0] = source;
 		}
 
@@ -861,7 +870,7 @@ namespace mu
 		// Source is required
 		if (!node.m_source)
 		{
-            fop->Source = GenerateMissingImageCode(TEXT("Source image for format."), EImageFormat::IF_RGBA_UBYTE, node.m_errorContext, Options);
+            fop->Source = GenerateMissingImageCode(TEXT("Source image for format."), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
 		}
 		else
 		{
@@ -894,7 +903,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Saturate image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Saturate image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 		
         base = GenerateImageFormat(base, GetRGBOrRGBAFormat(base->GetImageDesc().m_format));
@@ -905,12 +914,12 @@ namespace mu
         // Factor
         if ( Node* pFactor = node.m_pFactor.get() )
         {
-            op->SetChild( op->op.args.ImageSaturate.factor, Generate( pFactor, Options));
+            op->SetChild( op->op.args.ImageSaturate.factor, Generate_Generic( pFactor, Options));
         }
         else
         {
             // This argument is required
-            op->SetChild( op->op.args.ImageSaturate.factor, GenerateMissingScalarCode(TEXT("Saturation factor"), 0.5f, node.m_errorContext ) );
+            op->SetChild( op->op.args.ImageSaturate.factor, GenerateMissingScalarCode(TEXT("Saturation factor"), 0.5f, InNode->GetMessageContext() ) );
         }
 
         Result.op = op;
@@ -936,7 +945,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image luminance"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Image luminance"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
         base = GenerateImageFormat( base, EImageFormat::IF_RGB_UBYTE );
         op->SetChild( op->op.args.ImageLuminance.base, base);
@@ -964,7 +973,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Colourmap base image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Colourmap base image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
         base = GenerateImageSize( base, Options.RectSize);
         op->SetChild( op->op.args.ImageColourMap.base, base);
@@ -1005,7 +1014,7 @@ namespace mu
         else
         {
             // This argument is required
-			MapImageOp = GenerateMissingImageCode(TEXT("Map image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+			MapImageOp = GenerateMissingImageCode(TEXT("Map image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
         op->SetChild( op->op.args.ImageColourMap.map, MapImageOp);
 
@@ -1025,12 +1034,12 @@ namespace mu
         Ptr<ASTOp> colour0 = 0;
         if ( Node* pColour0 = node.m_pColour0.get() )
         {
-            colour0 = Generate( pColour0, Options);
+            colour0 = Generate_Generic( pColour0, Options);
         }
         else
         {
             // This argument is required
-            colour0 = GenerateMissingColourCode(TEXT("Gradient colour 0"), node.m_errorContext );
+            colour0 = GenerateMissingColourCode(TEXT("Gradient colour 0"), InNode->GetMessageContext() );
         }
         op->SetChild( op->op.args.ImageGradient.colour0, colour0);
 
@@ -1038,12 +1047,12 @@ namespace mu
         Ptr<ASTOp> colour1 = 0;
         if ( Node* pColour1 = node.m_pColour1.get() )
         {
-            colour1 = Generate( pColour1, Options);
+            colour1 = Generate_Generic( pColour1, Options);
         }
         else
         {
             // This argument is required
-            colour1 = GenerateMissingColourCode(TEXT("Gradient colour 1"), node.m_errorContext );
+            colour1 = GenerateMissingColourCode(TEXT("Gradient colour 1"), InNode->GetMessageContext() );
         }
         op->SetChild( op->op.args.ImageGradient.colour1, colour1);
 
@@ -1073,7 +1082,7 @@ namespace mu
         else
         {
             // This argument is required
-            a = GenerateMissingImageCode(TEXT("Image Binarise Base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            a = GenerateMissingImageCode(TEXT("Image Binarise Base"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
         a = GenerateImageFormat( a, EImageFormat::IF_RGB_UBYTE );
         a = GenerateImageSize( a, Options.RectSize);
@@ -1083,12 +1092,12 @@ namespace mu
         Ptr<ASTOp> b = 0;
         if ( Node* pScalar = node.m_pThreshold.get() )
         {
-            b = Generate( pScalar, Options);
+            b = Generate_Generic( pScalar, Options);
         }
         else
         {
             // This argument is required
-            b = GenerateMissingScalarCode(TEXT("Image Binarise Threshold"), 0.5f, node.m_errorContext );
+            b = GenerateMissingScalarCode(TEXT("Image Binarise Threshold"), 0.5f, InNode->GetMessageContext() );
         }
         op->SetChild( op->op.args.ImageBinarise.threshold, b );
 
@@ -1124,7 +1133,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Image resize base"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Image resize base"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 
         // Size
@@ -1185,12 +1194,12 @@ namespace mu
         Ptr<ASTOp> base = 0;
         if ( node.m_pColour )
         {
-            base = Generate( node.m_pColour.get(), Options);
+            base = Generate_Generic( node.m_pColour.get(), Options);
         }
         else
         {
             // This argument is required
-            base = GenerateMissingColourCode(TEXT("Image plain colour base"), node.m_errorContext );
+            base = GenerateMissingColourCode(TEXT("Image plain colour base"), InNode->GetMessageContext() );
         }
 
 		UE::Math::TIntVector2<int32> FinalImageSize = { 0, 0 };
@@ -1251,7 +1260,7 @@ namespace mu
         if (node.m_options.Num() == 0)
 		{
 			// No options in the switch!
-            Ptr<ASTOp> missingOp = GenerateMissingImageCode(TEXT("Switch option"), EImageFormat::IF_RGBA_UBYTE, node.m_errorContext, Options);
+            Ptr<ASTOp> missingOp = GenerateMissingImageCode(TEXT("Switch option"), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
 			Result.op = missingOp;
 			return;
 		}
@@ -1262,12 +1271,12 @@ namespace mu
 		// Variable value
 		if ( node.m_pParameter )
 		{
-            op->variable = Generate( node.m_pParameter.get(), Options);
+            op->variable = Generate_Generic( node.m_pParameter.get(), Options);
 		}
 		else
 		{
 			// This argument is required
-            op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, node.m_errorContext );
+            op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, InNode->GetMessageContext() );
 		}
 
 		// Options
@@ -1284,7 +1293,7 @@ namespace mu
             else
             {
                 // This argument is required
-                branch = GenerateMissingImageCode(TEXT("Switch option"), EImageFormat::IF_RGBA_UBYTE, node.m_errorContext, Options);
+                branch = GenerateMissingImageCode(TEXT("Switch option"), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
             }
 
             op->cases.Emplace((int16_t)t,op,branch);
@@ -1336,12 +1345,12 @@ namespace mu
         // Condition
         if ( node.m_parameter )
         {
-            op->condition = Generate( node.m_parameter.get(), Options);
+            op->condition = Generate_Generic( node.m_parameter.get(), Options);
         }
         else
         {
             // This argument is required
-            op->condition = GenerateMissingBoolCode(TEXT("Conditional condition"), true, node.m_errorContext );
+            op->condition = GenerateMissingBoolCode(TEXT("Conditional condition"), true, InNode->GetMessageContext() );
         }
 
         // Options
@@ -1381,7 +1390,7 @@ namespace mu
         else
         {
             // This argument is required
-            GenerateMissingProjectorCode( projectorResult, node.m_errorContext );
+            GenerateMissingProjectorCode( projectorResult, InNode->GetMessageContext() );
         }
 
 		ProjectOp->SetChild(ProjectOp->op.args.MeshProject.projector, projectorResult.op );
@@ -1420,7 +1429,7 @@ namespace mu
 			}
 			else
 			{
-				m_pErrorLog->GetPrivate()->Add("Layout or block index error.", ELMT_ERROR, node.m_errorContext);
+				m_pErrorLog->GetPrivate()->Add("Layout or block index error.", ELMT_ERROR, InNode->GetMessageContext());
 			}
 
 
@@ -1488,7 +1497,7 @@ namespace mu
             cop->Type = OP_TYPE::ME_CONSTANT;
             cop->SetValue(TempMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 			ProjectOp->SetChild(ProjectOp->op.args.MeshProject.mesh, cop );
-            m_pErrorLog->GetPrivate()->Add( "Projector mesh not set.", ELMT_ERROR, node.m_errorContext );
+            m_pErrorLog->GetPrivate()->Add( "Projector mesh not set.", ELMT_ERROR, InNode->GetMessageContext() );
         }
 
 
@@ -1561,7 +1570,7 @@ namespace mu
         else
         {
             // This argument is required
-			ImageRasterOp->image = GenerateMissingImageCode(TEXT("Projector image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+			ImageRasterOp->image = GenerateMissingImageCode(TEXT("Projector image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 
 		if (RasterImageSize.X == 0)
@@ -1619,7 +1628,7 @@ namespace mu
 			if (node.m_pAngleFadeEnd) pPropsNode->SetY(node.m_pAngleFadeEnd);
 			else pPropsNode->SetY(pDefaultFade);
 
-			ImageRasterOp->angleFadeProperties = Generate(pPropsNode, Options);
+			ImageRasterOp->angleFadeProperties = Generate_Generic(pPropsNode, Options);
 		}
 
         // Seam correction operations
@@ -1694,7 +1703,7 @@ namespace mu
         else
         {
             // This argument is required
-            base = GenerateMissingImageCode(TEXT("Mipmap image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+            base = GenerateMissingImageCode(TEXT("Mipmap image"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
         }
 
         op->Source = base;
@@ -1751,7 +1760,7 @@ namespace mu
 		else
 		{
 			// This argument is required
-			a = GenerateMissingImageCode(TEXT("Image Invert Color"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, Options);
+			a = GenerateMissingImageCode(TEXT("Image Invert Color"), EImageFormat::IF_RGB_UBYTE, InNode->GetMessageContext(), Options);
 		}
 		a = GenerateImageFormat(a, EImageFormat::IF_RGB_UBYTE);
 		a = GenerateImageSize(a, Options.RectSize);
@@ -1793,7 +1802,7 @@ namespace mu
             {
 				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *tag );
 
-                m_pErrorLog->GetPrivate()->Add( Msg, ELMT_WARNING, node.m_errorContext );
+                m_pErrorLog->GetPrivate()->Add( Msg, ELMT_WARNING, InNode->GetMessageContext() );
                 continue;
             }
 
@@ -1807,7 +1816,7 @@ namespace mu
             else
             {
                 // This argument is required
-                variationOp = GenerateMissingImageCode(TEXT("Variation option"), EImageFormat::IF_RGBA_UBYTE, node.m_errorContext, Options);
+                variationOp = GenerateMissingImageCode(TEXT("Variation option"), EImageFormat::IF_RGBA_UBYTE, InNode->GetMessageContext(), Options);
             }
 
 
@@ -1856,7 +1865,7 @@ namespace mu
 		const NodeImageTable::Private& node = *InNode->GetPrivate();
 
 		Result.op = GenerateTableSwitch<NodeImageTable::Private, ETableColumnType::Image, OP_TYPE::IM_SWITCH>(node,
-			[this,Options](const NodeImageTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
+			[this, InNode, Options](const NodeImageTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				const FTableValue& CellData = node.Table->GetPrivate()->Rows[row].Values[colIndex];
 				ImagePtrConst pImage = nullptr;
@@ -1871,7 +1880,7 @@ namespace mu
 				if (!pImage)
 				{
 					FString Msg = FString::Printf(TEXT("Table has a missing image in column %d, row %d."), colIndex, row);
-					pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext);
+					pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, InNode->GetMessageContext());
 
 					return ImageOp;
 				}

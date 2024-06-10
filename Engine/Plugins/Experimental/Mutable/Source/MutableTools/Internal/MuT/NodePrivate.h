@@ -16,49 +16,39 @@ namespace mu
 		/** Force a virtual destructor. */
 		virtual ~Private() = default; 
 
-        /** This is an opaque context used to attach to reported error messages. */
-		const void* m_errorContext = nullptr;
-
 		/** Generic pointer to the node owning this private. */
 		const Node* m_pNode = nullptr;
     };
 
 
 
-#define MUTABLE_IMPLEMENT_NODE( N, T, PN, PT )				\
-    N::N()													\
-    {														\
-		Type = T;											\
-        m_pD = new Private();								\
-		m_pD->m_pNode = this;								\
-		PN::Type = PT;										\
-	}														\
-                                                            \
-    N::~N()													\
-    {														\
-        check( m_pD );										\
-        delete m_pD;										\
-        m_pD = nullptr;										\
-    }														\
-                                                            \
-    N::Private* N::GetPrivate() const						\
-    {														\
-        return m_pD;										\
-    }														\
-                                                            \
-    Node::Private* N::GetBasePrivate() const				\
-    {														\
-        return m_pD;										\
-    }														\
-                                                            \
-    const FNodeType* N::GetType() const						\
-    {														\
-        return GetStaticType();								\
-    }														\
-                                                            \
-    const FNodeType* N::GetStaticType()						\
-    {														\
-        return &Private::s_type;							\
+#define MUTABLE_IMPLEMENT_NODE( N )				\
+    N::N()										\
+    {											\
+        m_pD = new Private();					\
+		m_pD->m_pNode = this;					\
+	}											\
+                                                \
+    N::~N()										\
+    {											\
+        check( m_pD );							\
+        delete m_pD;							\
+        m_pD = nullptr;							\
+    }											\
+                                                \
+    N::Private* N::GetPrivate() const			\
+    {											\
+        return m_pD;							\
+    }											\
+                                                \
+    const FNodeType* N::GetType() const			\
+    {											\
+        return GetStaticType();					\
+    }											\
+                                                \
+    const FNodeType* N::GetStaticType()			\
+    {											\
+        return &Private::s_type;				\
     }
 
 }

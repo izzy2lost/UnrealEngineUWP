@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageGradient::Private::s_type =
-			FNodeType( "ImageGradient", NodeImage::GetStaticType() );
+	FNodeType NodeImageGradient::Private::s_type = FNodeType(Node::EType::ImageGradient, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageGradient, EType::Gradient, Node, Node::EType::Image)
+	MUTABLE_IMPLEMENT_NODE( NodeImageGradient )
 
 
 	//---------------------------------------------------------------------------------------------

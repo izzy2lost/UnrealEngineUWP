@@ -4,7 +4,6 @@
 #include "MuT/NodeComponentEdit.h"
 
 #include "Misc/AssertionMacros.h"
-#include "MuT/NodeComponentEditPrivate.h"
 #include "MuT/NodeComponentNew.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeSurface.h"
@@ -13,19 +12,7 @@
 namespace mu
 {
 
-
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
-	FNodeType NodeComponentEdit::Private::s_type =
-			FNodeType( "EditComponent", NodeComponent::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-
-    MUTABLE_IMPLEMENT_NODE( NodeComponentEdit, EType::Edit, Node, Node::EType::Component)
+	FNodeType NodeComponentEdit::StaticType = FNodeType(Node::EType::ComponentEdit, NodeComponent::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -33,62 +20,28 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
     void NodeComponentEdit::SetParent( NodeComponent* p )
 	{
-		m_pD->m_pParent = p;
+		m_pParent = p;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
     NodeComponent* NodeComponentEdit::GetParent() const
 	{
-        return m_pD->m_pParent.get();
+        return m_pParent.get();
 	}
 
 
-    //---------------------------------------------------------------------------------------------
-    int NodeComponentEdit::GetSurfaceCount() const
-    {
-        return m_pD->m_surfaces.Num();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void NodeComponentEdit::SetSurfaceCount( int32 num )
-    {
-        check( num >=0 );
-        m_pD->m_surfaces.SetNum( num );
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    NodeSurface* NodeComponentEdit::GetSurface( int32 index ) const
-    {
-        check( index >=0 && index < m_pD->m_surfaces.Num() );
-
-        return m_pD->m_surfaces[ index ].get();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void NodeComponentEdit::SetSurface( int32 index, NodeSurface* pNode )
-    {
-        check( index >=0 && index < m_pD->m_surfaces.Num() );
-
-        m_pD->m_surfaces[ index ] = pNode;
-    }
-
-
 	//---------------------------------------------------------------------------------------------
-	const NodeComponentNew::Private* NodeComponentEdit::Private::GetParentComponentNew() const
+	const NodeComponentNew* NodeComponentEdit::GetParentComponentNew() const
 	{
-		const NodeComponentNew::Private* parent = nullptr;
+		const NodeComponentNew* Parent = nullptr;
 		if (m_pParent)
 		{
-			NodeComponent::Private* ParentPrivate = static_cast<NodeComponent::Private*>(m_pParent->GetBasePrivate());
-			parent = ParentPrivate->GetParentComponentNew();
+			Parent = m_pParent->GetParentComponentNew();
 		}
 
-		check(parent);
-		return parent;
+		check(Parent);
+		return Parent;
 	}
 
 }

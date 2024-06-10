@@ -22,15 +22,6 @@ namespace mu
 	{
 	public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			FromScalar = 0,
-
-			None
-		};
-
-
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
@@ -48,9 +39,6 @@ namespace mu
 
 		//! Forbidden. Manage with the Ptr<> template.
         inline ~NodeRange() {}
-
-		//!
-		EType Type = EType::None;
 
 	};
 

@@ -21,40 +21,11 @@ namespace mu
 	{
 	public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			Constant = 0,
-			Interpolate = 2,
-			Table = 4,
-			Subtract_Deprecated = 6,
-			Format = 7,
-			Tangents = 8,
-			Morph = 9,
-			MakeMorph = 10,
-			Switch = 11,
-			Fragment = 12,
-			Transform = 13,
-			ClipMorphPlane = 14,
-			ClipWithMesh = 15,
-			ApplyPose = 16,
-			Variation = 17,
-			GeometryOperation = 18,
-			Reshape = 19,
-			ClipDeform = 20,
-
-			None
-		};
-
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-
         const FNodeType* GetType() const override;
 		static const FNodeType* GetStaticType();
-
-		inline EType GetMeshNodeType() const { return Type; }
-
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
@@ -65,9 +36,6 @@ namespace mu
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeMesh() {}
-
-		//!
-		EType Type = EType::None;
 	};
 
 

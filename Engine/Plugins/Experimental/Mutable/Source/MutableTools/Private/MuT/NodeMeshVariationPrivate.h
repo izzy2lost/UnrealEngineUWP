@@ -18,11 +18,11 @@ namespace mu
 
         static FNodeType s_type;
 
-        NodeMeshPtr m_defaultMesh;
+        Ptr<NodeMesh> m_defaultMesh;
 
         struct FVariation
         {
-            NodeMeshPtr m_mesh;
+			Ptr<NodeMesh> m_mesh;
             FString m_tag;
         };
 

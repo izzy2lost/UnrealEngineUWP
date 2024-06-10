@@ -17,16 +17,13 @@
 #include "MuT/ErrorLog.h"
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/NodeComponent.h"
-#include "MuT/NodeComponentEditPrivate.h"
-#include "MuT/NodeComponentNewPrivate.h"
-#include "MuT/NodeLODPrivate.h"
 #include "MuT/NodeModifierMeshClipDeformPrivate.h"
 #include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
 #include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
 #include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
-#include "MuT/NodeObjectNewPrivate.h"
+#include "MuT/NodeObjectNew.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeSurface.h"
 #include "MuT/NodeSurfaceEditPrivate.h"
@@ -69,23 +66,23 @@ namespace mu
 		// Step 2: Collect all tags and a list of the surfaces that activate them
 		for (int32 s=0; s<surfaces.Num(); ++s)
 		{
-            // \todo: edit surfaces should also be able to activate tags. T1245
-            for (int32 t=0; t<surfaces[s].node->GetPrivate()->m_tags.Num(); ++t)
+			// Collect the tags in new surfaces
+			for (int32 t=0; t<surfaces[s].node->GetPrivate()->m_tags.Num(); ++t)
 			{
-				int tag = -1;
+				int32 tag = -1;
                 const FString& tagStr = surfaces[s].node->GetPrivate()->m_tags[t];
-                for (std::size_t i = 0; i<m_tags.Num() && tag<0; ++i)
+                for (int32 i = 0; i<m_tags.Num() && tag<0; ++i)
 				{
                     if (m_tags[i].tag == tagStr)
 					{
-						tag = (int)i;
+						tag = i;
 					}
 				}
 
 				// New tag?
 				if (tag < 0)
 				{
-                    tag = (int)m_tags.Num();
+                    tag = m_tags.Num();
 					FTag newTag;
                     newTag.tag = tagStr;
                     m_tags.Add(newTag);
@@ -93,39 +90,39 @@ namespace mu
 
                 if (m_tags[tag].surfaces.Find(s)==INDEX_NONE)
 				{
-                    m_tags[tag].surfaces.Add((int)s);
+                    m_tags[tag].surfaces.Add(s);
 				}
 			}
 
             // Collect the tags in edit surfaces
-            for (std::size_t e=0; e<surfaces[s].edits.Num(); ++e)
+            for (int32 e=0; e<surfaces[s].edits.Num(); ++e)
             {
-                const auto& edit = surfaces[s].edits[e];
-                for (int32 t=0; t<edit.node->m_tags.Num(); ++t)
+                const FSurface::FEdit& edit = surfaces[s].edits[e];
+                for (int32 t=0; t<edit.node->GetPrivate()->m_tags.Num(); ++t)
                 {
-                    int tag = -1;
-                    auto tagStr = edit.node->m_tags[t];
+                    int32 tag = -1;
+					const FString& tagStr = edit.node->GetPrivate()->m_tags[t];
 
                     for (int32 i = 0; i<m_tags.Num() && tag<0; ++i)
                     {
                         if (m_tags[i].tag == tagStr)
                         {
-                            tag = (int)i;
+                            tag = i;
                         }
                     }
 
                     // New tag?
                     if (tag < 0)
                     {
-                        tag = (int)m_tags.Num();
+                        tag = m_tags.Num();
 						FTag newTag;
                         newTag.tag = tagStr;
                         m_tags.Add(newTag);
                     }
 
-                    if (m_tags[tag].edits.Find({int(s),int(e)}) == INDEX_NONE)
+                    if (m_tags[tag].edits.Find({s,e}) == INDEX_NONE)
                     {
-                        m_tags[tag].edits.Add({ int(s),int(e) });
+                        m_tags[tag].edits.Add({s,e});
                     }
                 }
             }
@@ -141,8 +138,8 @@ namespace mu
         if ( m_states.IsEmpty() )
         {
             FObjectState data;
-            data.m_name = "Default";
-            m_states.Emplace( data, Root->GetBasePrivate() );
+            data.Name = "Default";
+            m_states.Emplace( data, Root );
         }
 	}
 
@@ -198,12 +195,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_Modifier(const NodeModifier* InNode)
 	{
+		check(CurrentLOD>=0);
+
 		// Add the data about this modifier
 		FModifier thisData;
-		thisData.node = static_cast<const NodeModifier::Private*>(InNode->GetBasePrivate());
+		thisData.node = InNode;
 		thisData.objectCondition = m_currentCondition.Last().objectCondition;
 		thisData.stateCondition = m_currentStateCondition.Last();
-		thisData.lod = m_currentLOD;
+		thisData.LOD = CurrentLOD;
 		thisData.positiveTags = m_currentPositiveTags;
 		thisData.negativeTags = m_currentNegativeTags;
 		modifiers.Add(thisData);
@@ -216,7 +215,8 @@ namespace mu
 		// Add the data about this surface
 		FSurface thisData;
 		thisData.node = InNode;
-		thisData.component = m_currentComponent;
+		thisData.Component = m_currentComponent;
+		thisData.LOD = CurrentLOD;
 		thisData.objectCondition = m_currentCondition.Last().objectCondition;
 		thisData.stateCondition = m_currentStateCondition.Last();
 		thisData.positiveTags = m_currentPositiveTags;
@@ -240,7 +240,7 @@ namespace mu
             // Are we editing an edit node modifying this surface?
             for (const auto& e: s.edits)
             {
-                if (Private->m_pParent && e.node==Private->m_pParent->GetBasePrivate())
+                if (Private->m_pParent && e.node==Private->m_pParent)
                 {
                     return true;
                 }
@@ -256,13 +256,13 @@ namespace mu
 			FSurface::FEdit edit;
 			edit.PositiveTags = m_currentPositiveTags;
 			edit.NegativeTags = m_currentNegativeTags;
-            edit.node = Private;
+            edit.node = InNode;
             edit.condition = m_currentCondition.Last().objectCondition;
 			Surface->edits.Add(edit);
 		}
 		else
 		{
-			m_pErrorLog->GetPrivate()->Add("Missing parent object for edit node.", ELMT_WARNING, Private->m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Missing parent object for edit node.", ELMT_WARNING, InNode->GetMessageContext());
 		}
 	}
 
@@ -340,7 +340,7 @@ namespace mu
                     {
                         for( size_t s=0; s<stateCount; ++s )
                         {
-                            if (m_states[s].Key.m_name==v.m_tag)
+                            if (m_states[s].Key.Name==v.m_tag)
                             {
                                 // Remove this state from the default options, since it has its own variation
                                 defaultStates[s] = false;
@@ -372,7 +372,7 @@ namespace mu
 
                 for( size_t s=0; s<stateCount; ++s )
                 {
-                    if (m_states[s].Key.m_name==v.m_tag)
+                    if (m_states[s].Key.Name==v.m_tag)
                     {
                         variationStates[s] = true;
                     }
@@ -424,7 +424,7 @@ namespace mu
 		else
 		{
 			// This argument is required
-			ScalarResult.op = Generator->GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Private->m_errorContext);
+			ScalarResult.op = Generator->GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, InNode->GetMessageContext());
 		}
 
 		// Parse the options
@@ -463,17 +463,18 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_ComponentNew(const NodeComponentNew* InNode)
 	{
-		const NodeComponentNew::Private* Private = InNode->GetPrivate();
+        m_currentComponent = InNode;
 
-        m_currentComponent = Private->GetParentComponentNew();
-
-		for (const Ptr<NodeSurface>& c : Private->m_surfaces)
+		CurrentLOD = 0;
+		for (const Ptr<NodeLOD>& c : InNode->LODs)
 		{
 			if (c)
 			{
-				Generate_Generic(c.get());
+				Generate_LOD(c.get());
 			}
+			++CurrentLOD;
 		}
+		CurrentLOD = -1;
 
 		m_currentComponent = nullptr;
 	}
@@ -482,17 +483,18 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_ComponentEdit(const NodeComponentEdit* InNode)
 	{
-		const NodeComponentEdit::Private* Private = InNode->GetPrivate();
+		m_currentComponent = InNode->GetParentComponentNew();
 
-		m_currentComponent = Private->GetParentComponentNew();
-
-		for (const auto& c : Private->m_surfaces)
+		CurrentLOD = 0;
+		for (const Ptr<NodeLOD>& c : InNode->LODs)
 		{
 			if (c)
 			{
-				Generate_Generic(c.get());
+				Generate_LOD(c.get());
 			}
+			++CurrentLOD;
 		}
+		CurrentLOD = -1;
 
 		m_currentComponent = nullptr;
 	}
@@ -501,16 +503,15 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_LOD(const NodeLOD* InNode)
 	{
-		const NodeLOD::Private* Private = InNode->GetPrivate();
-
-		for (const auto& c : Private->m_components)
+		for (const Ptr<NodeSurface>& c : InNode->Surfaces)
 		{
 			if (c)
 			{
 				Generate_Generic(c.get());
 			}
 		}
-		for (const auto& c : Private->m_modifiers)
+
+		for (const Ptr<NodeModifier>& c : InNode->Modifiers)
 		{
 			if (c)
 			{
@@ -523,47 +524,41 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_ObjectNew(const NodeObjectNew* InNode)
 	{
-		const NodeObjectNew::Private* Private = InNode->GetPrivate();
-
 		// Add the data about this object
 		FObject thisData;
-		thisData.node = Private;
+		thisData.node = InNode;
         thisData.condition = m_currentCondition.Last().objectCondition;
 		objects.Add(thisData);
 
         // Accumulate the model states
-        for ( const auto& s: Private->m_states )
+        for ( const FObjectState& s: InNode->States )
         {
-            m_states.Emplace( s, Private );
+            m_states.Emplace( s, InNode );
 
-            if ( s.m_runtimeParams.Num() > MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE )
+            if ( s.RuntimeParams.Num() > MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE )
             {
                 FString Msg = FString::Printf( TEXT("State [%s] has more than %d runtime parameters. Their update may fail."), 
-					*s.m_name,
+					*s.Name,
                     MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE);
-                m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, Private->m_errorContext );
+                m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, InNode->GetMessageContext());
             }
         }
 
-		// Process the lods
-		int i = 0;
-		for (const auto& l : Private->m_lods)
+		// Process the components
+		for (const Ptr<NodeComponent>& Component : InNode->Components)
 		{
-			if (l)
+			if (Component)
 			{
-                m_currentLOD = i++;
-				Generate_Generic(l.get());
+				Generate_Generic(Component.get());
 			}
 		}
 
-		m_currentLOD = -1;
-
 		// Process the children
-		for (const auto& c : Private->m_children)
+		for (const Ptr<NodeObject>& Child : InNode->Children)
 		{
-			if (c)
+			if (Child)
 			{
-				Generate_Generic(c.get());
+				Generate_Generic(Child.get());
 			}
 		}
 	}

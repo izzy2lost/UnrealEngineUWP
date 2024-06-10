@@ -22,5 +22,5 @@ class ICustomizableObjectExtensionNode
 
 public:
 	/** Generate a mu::Node that produces ExtensionData */
-	virtual mu::NodeExtensionDataPtr GenerateMutableNode(FExtensionDataCompilerInterface& CompilerInterface) const = 0;
+	virtual mu::Ptr<mu::NodeExtensionData> GenerateMutableNode(FExtensionDataCompilerInterface& CompilerInterface) const = 0;
 };

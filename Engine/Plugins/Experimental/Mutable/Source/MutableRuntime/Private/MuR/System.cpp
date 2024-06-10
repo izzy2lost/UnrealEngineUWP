@@ -244,7 +244,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    const Instance* System::BeginUpdate( Instance::ID InInstanceID,
+    Ptr<const Instance> System::BeginUpdate( Instance::ID InInstanceID,
                                      const Ptr<const Parameters>& InParams,
                                      int32 InStateIndex,
                                      uint32 InLodMask )
@@ -320,12 +320,17 @@ namespace mu
 		{
 			Result->GetPrivate()->Id = pLiveInstance->InstanceID;
 		}
+		else
+		{
+			// In case of failure return an empty instance, to prevent following code to have to check it every time
+			Result = new Instance;
+		}
 
 		m_pD->WorkingMemoryManager.EndRunnerThread();
 
 		m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
 
-		return Result.get();
+		return Result;
 	}
 
 

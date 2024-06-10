@@ -191,7 +191,7 @@ namespace CustomizableObjectSystem::ImplDeprecated
 
 		// Main instance generation step
 		// LOD mask, set to all ones to build  all LODs
-		const mu::Instance* Instance = OperationData->MutableInstance; // TODO GMTFuture remove
+		const mu::Instance* Instance = OperationData->MutableInstance.get(); // TODO GMTFuture remove
 		if (!Instance)
 		{
 			UE_LOG(LogMutable, Warning, TEXT("An Instace update has failed."));
@@ -204,43 +204,45 @@ namespace CustomizableObjectSystem::ImplDeprecated
 		TArray<int32> SurfacesSharedId;
 
 		// Generate the mesh and gather all the required resource Ids
-		OperationData->InstanceUpdateData.LODs.SetNum(OperationData->NumLODsAvailable);
-		for (int32 MutableLODIndex = 0; MutableLODIndex < OperationData->NumLODsAvailable; ++MutableLODIndex)
+		int32 NumComponents = OperationData->NumComponents;
+		OperationData->InstanceUpdateData.Components.SetNum(NumComponents);
+		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 		{
-			// Skip LODs outside the range we want to generate
-			if (MutableLODIndex < OperationData->GetMinLOD())
+			FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+			Component.FirstLOD = OperationData->InstanceUpdateData.LODs.Num();
+			Component.LODCount = Instance->GetLODCount(ComponentIndex);
+			Component.Id = Instance->GetComponentId(ComponentIndex);
+
+			for (int32 MutableLODIndex = 0; MutableLODIndex < Component.LODCount; ++MutableLODIndex)
 			{
-				continue;
-			}
+				// If the LOD is not generated we still add an empty one to keep indexes aligned.
+				OperationData->InstanceUpdateData.LODs.Push(FInstanceUpdateData::FLOD());
 
-			FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[MutableLODIndex];
-			LOD.FirstComponent = OperationData->InstanceUpdateData.Components.Num();
-			LOD.ComponentCount = Instance->GetComponentCount(MutableLODIndex);
+				// Skip LODs outside the range we want to generate
+				if (MutableLODIndex < OperationData->GetMinLOD())
+				{
+					continue;
+				}
 
-			for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
-			{
-				OperationData->InstanceUpdateData.Components.Push(FInstanceUpdateData::FComponent());
-				FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components.Last();
-				Component.Id = Instance->GetComponentId(MutableLODIndex, ComponentIndex);
-				Component.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
-				Component.SurfaceCount = 0;
+				FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs.Last();
+				LOD.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
+				LOD.SurfaceCount = 0;
 
-				const bool bGenerateLOD = RequestedLODs.IsValidIndex(Component.Id) ? RequestedLODs[Component.Id] <= MutableLODIndex : true;
+				const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? RequestedLODs[ComponentIndex] <= MutableLODIndex : true;
 
 				// Mesh
-				if (Instance->GetMeshCount(MutableLODIndex, ComponentIndex) > 0)
 				{
 					MUTABLE_CPUPROFILER_SCOPE(GetMesh);
 
-					Component.MeshID = Instance->GetMeshId(MutableLODIndex, ComponentIndex, 0);
+					LOD.MeshID = Instance->GetMeshId(ComponentIndex, MutableLODIndex);
 
 					if (bGenerateLOD)
 					{
-						Component.Mesh = System->GetMeshInline(OperationData->InstanceID, Component.MeshID);
+						LOD.Mesh = System->GetMeshInline(OperationData->InstanceID, LOD.MeshID);
 
-						if (Component.Mesh->IsReference())
+						if (LOD.Mesh->IsReference())
 						{
-							uint32 ReferenceID = Component.Mesh->GetReferencedMesh();
+							uint32 ReferenceID = LOD.Mesh->GetReferencedMesh();
 
 							if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
 							{
@@ -256,35 +258,28 @@ namespace CustomizableObjectSystem::ImplDeprecated
 					}
 				}
 
-				if (!Component.Mesh)
+				if (!LOD.Mesh)
 				{
 					continue;
 				}
 
-				Component.bGenerated = true;
+				LOD.bGenerated = true;
 
 
-				// Materials and images
-				const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
-				for (int32 MeshSurfaceIndex = 0; MeshSurfaceIndex < SurfaceCount; ++MeshSurfaceIndex)
-				{
-					const uint32 SurfaceId = Component.Mesh->GetSurfaceId(MeshSurfaceIndex);
-					const int32 InstanceSurfaceIndex = Instance->FindSurfaceById(MutableLODIndex, ComponentIndex, SurfaceId);
-					check(Component.Mesh->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
-
-					int32 BaseSurfaceIndex = InstanceSurfaceIndex;
-					int32 BaseLODIndex = MutableLODIndex;
-
-					if (InstanceSurfaceIndex >= 0)
+				// This lambda does all the work to fill up the surface data
+				auto AddSurface = [&LOD, &SurfacesSharedId, &ModelResources, OperationData, Instance, System, CustomizableObject, CustomizableObjectInstancePrivateData, ComponentIndex, MutableLODIndex ]( uint32 SurfaceId, int32 InstanceSurfaceIndex)
 					{
+						int32 BaseSurfaceIndex = InstanceSurfaceIndex;
+						int32 BaseLODIndex = MutableLODIndex;
+
 						OperationData->InstanceUpdateData.Surfaces.Push({});
 						FInstanceUpdateData::FSurface& Surface = OperationData->InstanceUpdateData.Surfaces.Last();
-						++Component.SurfaceCount;
+						++LOD.SurfaceCount;
 
 						// Now Surface.MaterialIndex is decoded from a parameter at the end of this if()
 						Surface.SurfaceId = SurfaceId;
 
-						const int32 SharedSurfaceId = Instance->GetSharedSurfaceId(MutableLODIndex, ComponentIndex, InstanceSurfaceIndex);
+						const int32 SharedSurfaceId = Instance->GetSharedSurfaceId(ComponentIndex, MutableLODIndex, InstanceSurfaceIndex);
 						const int32 SharedSurfaceIndex = SurfacesSharedId.Find(SharedSurfaceId);
 
 						SurfacesSharedId.Add(SharedSurfaceId);
@@ -294,26 +289,26 @@ namespace CustomizableObjectSystem::ImplDeprecated
 							if (SharedSurfaceIndex >= 0)
 							{
 								Surface = OperationData->InstanceUpdateData.Surfaces[SharedSurfaceIndex];
-								continue;
+								return;
 							}
 
 							// Find the first LOD where this surface can be found
 							Instance->FindBaseSurfaceBySharedId(ComponentIndex, SharedSurfaceId, BaseSurfaceIndex, BaseLODIndex);
 
-							Surface.SurfaceId = Instance->GetSurfaceId(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+							Surface.SurfaceId = Instance->GetSurfaceId(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						}
 
 						// Images
 						Surface.FirstImage = OperationData->InstanceUpdateData.Images.Num();
-						Surface.ImageCount = Instance->GetImageCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+						Surface.ImageCount = Instance->GetImageCount(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						for (int32 ImageIndex = 0; ImageIndex < Surface.ImageCount; ++ImageIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetImageId);
 
 							OperationData->InstanceUpdateData.Images.Push({});
 							FInstanceUpdateData::FImage& Image = OperationData->InstanceUpdateData.Images.Last();
-							Image.Name = Instance->GetImageName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ImageIndex);
-							Image.ImageID = Instance->GetImageId(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ImageIndex);
+							Image.Name = Instance->GetImageName(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ImageIndex);
+							Image.ImageID = Instance->GetImageId(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ImageIndex);
 							Image.FullImageSizeX = 0;
 							Image.FullImageSizeY = 0;
 							Image.BaseLOD = BaseLODIndex;
@@ -325,7 +320,7 @@ namespace CustomizableObjectSystem::ImplDeprecated
 							if (ImageKey >= 0 && ImageKey < ModelResources.ImageProperties.Num())
 							{
 								const FMutableModelImageProperties& Props = ModelResources.ImageProperties[ImageKey];
-								
+
 								// This has beed replicated to the non deperecated code path.
 								Image.bIsNonProgressive = Props.MipGenSettings == TMGS_NoMipmaps;
 
@@ -361,33 +356,33 @@ namespace CustomizableObjectSystem::ImplDeprecated
 
 						// Vectors
 						Surface.FirstVector = OperationData->InstanceUpdateData.Vectors.Num();
-						Surface.VectorCount = Instance->GetVectorCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+						Surface.VectorCount = Instance->GetVectorCount(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						for (int32 VectorIndex = 0; VectorIndex < Surface.VectorCount; ++VectorIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetVector);
 							OperationData->InstanceUpdateData.Vectors.Push({});
 							FInstanceUpdateData::FVector& Vector = OperationData->InstanceUpdateData.Vectors.Last();
-							Vector.Name = Instance->GetVectorName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, VectorIndex);
-							Vector.Vector = Instance->GetVector(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, VectorIndex);
+							Vector.Name = Instance->GetVectorName(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, VectorIndex);
+							Vector.Vector = Instance->GetVector(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, VectorIndex);
 						}
 
 						// Scalars
 						Surface.FirstScalar = OperationData->InstanceUpdateData.Scalars.Num();
-						Surface.ScalarCount = Instance->GetScalarCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
+						Surface.ScalarCount = Instance->GetScalarCount(ComponentIndex, BaseLODIndex, BaseSurfaceIndex);
 						for (int32 ScalarIndex = 0; ScalarIndex < Surface.ScalarCount; ++ScalarIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetScalar)
 
-							const FName ScalarName = Instance->GetScalarName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ScalarIndex);
-							const float ScalarValue = Instance->GetScalar(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ScalarIndex);
-							
+								const FName ScalarName = Instance->GetScalarName(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ScalarIndex);
+							const float ScalarValue = Instance->GetScalar(ComponentIndex, BaseLODIndex, BaseSurfaceIndex, ScalarIndex);
+
 							FString EncodingMaterialIdString = "__MutableMaterialId";
-							
+
 							// Decoding Material Switch from Mutable parameter name
 							if (ScalarName.ToString().Equals(EncodingMaterialIdString))
 							{
 								Surface.MaterialIndex = static_cast<uint32>(ScalarValue);
-							
+
 								// This parameter is not needed in the final material instance
 								Surface.ScalarCount -= 1;
 							}
@@ -395,6 +390,38 @@ namespace CustomizableObjectSystem::ImplDeprecated
 							{
 								OperationData->InstanceUpdateData.Scalars.Push({ ScalarName, ScalarValue });
 							}
+						}
+
+					};
+
+				// Materials and images
+
+				// If the mesh is a reference mesh, it won't have the surface information in the mutable mesh. We need to get it from the instance
+				// and all defined surfaces will be present. 
+				if (LOD.Mesh->IsReference())
+				{
+					const int32 SurfaceCount = Instance->GetSurfaceCount(ComponentIndex, MutableLODIndex);
+					for (int32 SurfaceIndex = 0; SurfaceIndex < SurfaceCount; ++SurfaceIndex)
+					{
+						uint32 SurfaceId = Instance->GetSurfaceId(ComponentIndex, MutableLODIndex, SurfaceIndex);
+						AddSurface( SurfaceId, SurfaceIndex);
+					}
+				}
+
+				// If the mesh is a not a reference mesh, we have to add only the materials of the surfaces that appear in the actual final mesh. 
+				else
+				{
+					const int32 SurfaceCount = LOD.Mesh->GetSurfaceCount();
+					for (int32 MeshSurfaceIndex = 0; MeshSurfaceIndex < SurfaceCount; ++MeshSurfaceIndex)
+					{
+						const uint32 SurfaceId = LOD.Mesh->GetSurfaceId(MeshSurfaceIndex);
+
+						const int32 InstanceSurfaceIndex = Instance->FindSurfaceById(ComponentIndex, MutableLODIndex, SurfaceId);
+						check(LOD.Mesh->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
+
+						if (InstanceSurfaceIndex >= 0)
+						{
+							AddSurface(SurfaceId, InstanceSurfaceIndex);
 						}
 					}
 				}
@@ -470,7 +497,7 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 
 		if (OperationData.IsValid())
 		{
-			mu::SystemPtr System = OperationData->UpdateContext->GetSystem();
+			mu::Ptr<mu::System> System = OperationData->UpdateContext->GetSystem();
 			const TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = OperationData->UpdateContext->GetModel();
 
 #if WITH_EDITOR
@@ -483,7 +510,7 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 				mu::Instance::ID InstanceID = System->NewInstance(Model);
 				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
 
-					const mu::Instance* Instance = nullptr;
+				mu::Ptr<const mu::Instance> Instance;
 
 				// Main instance generation step
 				{
@@ -501,12 +528,12 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 
 					const FMutableImageReference& ImageRef = OperationData->RequestedImage;
 
-					int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
+					int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.Component, ImageRef.LOD, ImageRef.SurfaceId);
 					check(SurfaceIndex >= 0);
 
 					// This ID may be different than the ID obtained the first time the image was generated, because the mutable
 					// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
-					mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
+					mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.Component, ImageRef.LOD, SurfaceIndex, ImageRef.Image);
 
 
 					mu::Ptr<const mu::Image> ResultImage;
@@ -645,7 +672,7 @@ namespace CustomizableObjectMeshUpdate::ImplDeprecated
 		const uint32 LODMask = 0xFFFFFFFF;
 
 		// Main instance generation step
-		const mu::Instance* Instance = System->BeginUpdate(InstanceID, OperationData->Parameters, OperationData->State, LODMask);
+		mu::Ptr<const mu::Instance> Instance = System->BeginUpdate(InstanceID, OperationData->Parameters, OperationData->State, LODMask);
 		check(Instance);
 
 		// Generate the required meshes

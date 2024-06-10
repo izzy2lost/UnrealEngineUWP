@@ -11,7 +11,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    static FNodeType s_nodeRangeType = 	FNodeType( "NodeRange", Node::GetStaticType() );
+    static FNodeType s_nodeRangeType = 	FNodeType(Node::EType::Range, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

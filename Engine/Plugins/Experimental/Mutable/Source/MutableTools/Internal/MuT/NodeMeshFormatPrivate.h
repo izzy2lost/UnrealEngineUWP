@@ -4,6 +4,7 @@
 
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/NodeMeshFormat.h"
+#include "MuR/Mesh.h"
 
 namespace mu
 {
@@ -24,9 +25,6 @@ namespace mu
 		
 		/** */
 		bool bOptimizeBuffers = false;
-
-		// NodeMesh::Private interface
-        Ptr<NodeLayout> GetLayout( int32 index ) const override;
 	};
 
 

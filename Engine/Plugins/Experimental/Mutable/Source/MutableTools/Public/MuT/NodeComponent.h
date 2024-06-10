@@ -6,76 +6,41 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
+#include "MuT/NodeLOD.h"
 
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeComponent;
-	typedef Ptr<NodeComponent> NodeComponentPtr;
-	typedef Ptr<const NodeComponent> NodeComponentPtrConst;
-
-    class NodeSurface;
-
-
-	//! This class is the parent of all nodes that output a component.
-	//! \ingroup model
+	/** */
 	class MUTABLETOOLS_API NodeComponent : public Node
 	{
 	public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			New = 0,
-			Edit = 1,
+		TArray<Ptr<NodeLOD>> LODs;
 
-			None
-		};
+	public:
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
 		//-----------------------------------------------------------------------------------------
-
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
         //-----------------------------------------------------------------------------------------
         // Own interface
         //-----------------------------------------------------------------------------------------
 
-        //! \name Surfaces
-        //! \{
-
-        //! Get the number of meshes in the component.
-        virtual int GetSurfaceCount() const = 0;
-
-        //! Set the number of meshes in the component.
-        virtual void SetSurfaceCount( int ) = 0;
-
-        //! Get the node generating one of the meshes in the component.
-        //! \param index index of the mesh, from 0 to GetSurfaceCount()-1
-        virtual NodeSurface* GetSurface( int index ) const = 0;
-
-        //! Set the node generating one of the meshes in the component.
-        //! \param index index of the mesh, from 0 to GetSurfaceCount()-1
-        virtual void SetSurface( int index, NodeSurface* ) = 0;
-
-        //! \}
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
+		virtual const class NodeComponentNew* GetParentComponentNew() const = 0;
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeComponent() {}
 
-		//!
-		EType Type = EType::None;
+	private:
+
+		static FNodeType StaticType;
 
 	};
 

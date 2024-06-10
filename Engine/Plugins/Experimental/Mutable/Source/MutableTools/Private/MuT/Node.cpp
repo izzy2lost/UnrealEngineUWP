@@ -5,25 +5,38 @@
 #include "MuT/NodePrivate.h"
 #include "Misc/AssertionMacros.h"
 
+#include "MuT/NodeComponent.h"
+#include "MuT/NodeComponentNew.h"
+#include "MuT/NodeLOD.h"
+#include "MuT/NodeExtensionData.h"
+#include "MuT/NodeExtensionDataConstant.h"
 
 namespace mu
 {
 
+	FNodeType NodeComponent::StaticType = FNodeType(Node::EType::Component, Node::GetStaticType());
+	FNodeType NodeComponentNew::StaticType = FNodeType(Node::EType::ComponentNew, NodeComponent::GetStaticType());
+	FNodeType NodeLOD::StaticType = FNodeType(Node::EType::LOD, Node::GetStaticType());
+
+	FNodeType NodeExtensionData::StaticType = FNodeType(Node::EType::ExtensionData, Node::GetStaticType());
+	FNodeType NodeExtensionDataConstant::StaticType = FNodeType(Node::EType::ExtensionDataConstant, NodeExtensionData::GetStaticType());
+
 	// Static initialisation
-	static FNodeType s_nodeType = FNodeType( "Node", 0 );
+	static FNodeType s_nodeType = FNodeType(Node::EType::Node, nullptr );
 
 	FNodeType::FNodeType()
 	{
-		m_strName = "";
+		Type = Node::EType::None;
 		m_pParent = nullptr;
 	}
 
 
-	FNodeType::FNodeType( const char* strName, const FNodeType* pParent )
+	FNodeType::FNodeType(Node::EType InType, const FNodeType* pParent )
 	{
-        m_strName = strName;
+		Type = InType;
 		m_pParent = pParent;
 	}
+
 
 	const FNodeType* Node::GetType() const
 	{
@@ -39,7 +52,12 @@ namespace mu
 
 	void Node::SetMessageContext( const void* context )
 	{
-		GetBasePrivate()->m_errorContext = context;
+		MessageContext = context;
+	}
+
+	const void* Node::GetMessageContext() const 
+	{ 
+		return MessageContext; 
 	}
 
 }

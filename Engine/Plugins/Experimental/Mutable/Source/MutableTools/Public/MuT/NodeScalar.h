@@ -22,22 +22,6 @@ namespace mu
 	{
 	public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			Constant = 0,
-			Parameter = 1,
-			EnumParameter = 2,
-			Curve = 3,
-			Switch = 4,
-			ArithmeticOperation = 5,
-			Variation = 6,
-			Table = 7,
-
-			None
-		};
-
-
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
@@ -55,9 +39,6 @@ namespace mu
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeScalar() {}
-
-		//!
-		EType Type = EType::None;
 
 	};
 

@@ -920,7 +920,6 @@ void SMutableCodeViewer::GenerateNavigationDropdownElements()
 	const int32 OperationTypesCount = ModelOperationTypes.Num();
 	
 	// It must have at least one type, if not may be because we are running this before filling ModelOperationTypes
-	check(OperationTypesCount);
 	FoundModelOperationTypeElements.Empty(OperationTypesCount);
 	
 	for	(int32 OperationTypeIndex = 0; OperationTypeIndex < OperationTypesCount;  OperationTypeIndex++)

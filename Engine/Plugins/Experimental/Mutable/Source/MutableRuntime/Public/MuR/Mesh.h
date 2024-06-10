@@ -225,7 +225,7 @@ namespace mu
 
         //! Get the number of surfaces defined in this mesh. Surfaces are buffer-contiguous mesh
         //! fragments that share common properties (usually material)
-        int GetSurfaceCount() const;
+		int32 GetSurfaceCount() const;
         void GetSurface( int32 surfaceIndex,
                          int32* FirstVertex, int32* VertexCount,
                          int32* FirstIndex, int32* IndexCount,
@@ -234,7 +234,7 @@ namespace mu
 
         //! Return an internal id that can be used to match mesh surfaces and instance surfaces.
         //! Only valid for meshes that are part of instances.
-        uint32 GetSurfaceId( int surfaceIndex ) const;
+        uint32 GetSurfaceId( int32 surfaceIndex ) const;
 
         //! \}
 
@@ -255,13 +255,13 @@ namespace mu
         void AddLayout( Ptr<const Layout> pLayout );
 
         //!
-        int GetLayoutCount() const;
+        int32 GetLayoutCount() const;
 
         //!
-        const Layout* GetLayout( int i ) const;
+        const Layout* GetLayout( int32 i ) const;
 
         //!
-        void SetLayout( int i, Ptr<const Layout> );
+        void SetLayout( int32 i, Ptr<const Layout> );
         //! \}
 
         //! \name Skeleton information
@@ -288,16 +288,16 @@ namespace mu
         //! \{
 
         //!
-        void SetTagCount( int count );
+        void SetTagCount( int32 count );
 
         //!
-        int GetTagCount() const;
+        int32 GetTagCount() const;
 
         //!
-        const FString& GetTag( int tagIndex ) const;
+        const FString& GetTag( int32 tagIndex ) const;
 
         //!
-        void SetTag( int tagIndex, const FString& Name );
+        void SetTag( int32 tagIndex, const FString& Name );
 
 		//!
 		void AddStreamedResource(uint64 ResourceId);
@@ -444,6 +444,7 @@ namespace mu
 		{
 			bool bEqual = true;
 
+			if (bEqual) bEqual = (ReferenceID == o.ReferenceID);
 			if (bEqual) bEqual = (MeshIDPrefix == o.MeshIDPrefix);
 			if (bEqual) bEqual = (IndexBuffers == o.IndexBuffers);
 			if (bEqual) bEqual = (VertexBuffers == o.VertexBuffers);
@@ -516,7 +517,7 @@ namespace mu
 		void GetVertexMap( const Mesh& other, FVertexMatchMap& vertexMap, float tolerance = 1e-3f) const;
 
 		//! Compare the vertex attributes to check if they match.
-		UE::Math::TIntVector3<uint32> GetFaceVertexIndices(int f) const;
+		UE::Math::TIntVector3<uint32> GetFaceVertexIndices(int32 f) const;
 
 		//! Return true if the given mesh has the same vertex and index formats, and in the same
 		//! buffer structure.

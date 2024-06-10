@@ -63,7 +63,7 @@ namespace mu
 		//! Store the conditions that will enable or disable every object
 		struct FObject
 		{
-			const NodeObjectNew::Private* node;
+			const NodeObjectNew* node;
             Ptr<ASTOp> condition;
 		};
 		TArray<FObject> objects;
@@ -82,11 +82,12 @@ namespace mu
         //! it is reached with.
 		struct FSurface
 		{
-            NodeSurfaceNewPtrConst node;
+            Ptr<const NodeSurfaceNew> node;
 
-			// Parent component where this surface will be added. It may be different from the 
-			// component that defined it (if it was an edit component).
-            const NodeComponentNew::Private* component = nullptr;
+			// Parent Component where this surface will be added. It may be different from the 
+			// Component that defined it (if it was an edit component).
+            const NodeComponentNew* Component = nullptr;
+			int32 LOD = 0;
 
             // List of tags that are required for the presence of this surface
 			TArray<FString> positiveTags;
@@ -117,8 +118,8 @@ namespace mu
                 //! Condition that enables the effects of this edit node on the surface
                 Ptr<ASTOp> condition;
 
-                //! Weak reference to the edit node, used during compilation.
-                const NodeSurfaceEdit::Private* node = nullptr;
+                //! Reference to the edit node, used during compilation.
+                const NodeSurfaceEdit* node = nullptr;
             };
 			TArray<FEdit> edits;
 
@@ -131,7 +132,7 @@ namespace mu
 		//! Store the conditions that enable every modifier.
 		struct FModifier
 		{
-            const NodeModifier::Private* node = nullptr;
+            const NodeModifier* node = nullptr;
 
             // List of tags that are required to apply this modifier
 			TArray<FString> positiveTags;
@@ -151,7 +152,7 @@ namespace mu
             StateCondition stateCondition;
 
             //
-            int32 lod = 0;
+            int32 LOD = 0;
         };
 		TArray<FModifier> modifiers;
 
@@ -175,9 +176,8 @@ namespace mu
         };
         TArray<FTag> m_tags;
 
-        //! Accumulate the model states found while generating code, with their generated root
-        //! nodes.
-        typedef TArray< TPair<FObjectState, const Node::Private*> > StateList;
+        //! Accumulate the model states found while generating code, with their generated root nodes.
+        typedef TArray< TPair<FObjectState, const Node*> > StateList;
         StateList m_states;
 
 		/** Parameters added for every node. */
@@ -195,14 +195,14 @@ namespace mu
 		TArray< StateCondition > m_currentStateCondition;
 
 		//! When processing surfaces, this is the parent component the surfaces may be added to
-        const NodeComponentNew::Private* m_currentComponent = nullptr;
+        const NodeComponentNew* m_currentComponent = nullptr;
 
         //! Current relevant tags so far. Used during traversal.
 		TArray<FString> m_currentPositiveTags;
 		TArray<FString> m_currentNegativeTags;
 
-		//! Index of the LOD we are processing
-        int m_currentLOD = -1;
+		//** Index of the LOD we are processing. */
+        int32 CurrentLOD = -1;
 
 		/** Non-owned reference to main code generator. */
 		CodeGenerator* Generator = nullptr;

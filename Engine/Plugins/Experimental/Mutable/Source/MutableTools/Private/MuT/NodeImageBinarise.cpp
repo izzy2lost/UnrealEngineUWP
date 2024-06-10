@@ -15,12 +15,11 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageBinarise::Private::s_type =
-			FNodeType( "ImageMultiply", NodeImage::GetStaticType() );
+	FNodeType NodeImageBinarise::Private::s_type = FNodeType(Node::EType::ImageBinarise, NodeImage::GetStaticType() );
 
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageBinarise, EType::Binarise, Node, Node::EType::Image)
+	MUTABLE_IMPLEMENT_NODE( NodeImageBinarise )
 
 
 	//---------------------------------------------------------------------------------------------

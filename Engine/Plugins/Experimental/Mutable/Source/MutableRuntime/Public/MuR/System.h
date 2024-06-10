@@ -152,18 +152,15 @@ namespace mu
         //!
         //! \warning a call to BeginUpdate must be paired with a call to EndUpdate once the returned
         //! data has been processed.
-        //! \param instanceID The id of the instance to update, as created by a NewInstance call.
-        //! \param pParams The parameters that customise this instance.
-        //! \param stateIndex The index of the state this instance will be set to. The states range
+        //! \param InstanceID The id of the instance to update, as created by a NewInstance call.
+        //! \param Params The parameters that customise this instance.
+        //! \param StateIndex The index of the state this instance will be set to. The states range
         //! from 0 to Model::GetStateCount-1
-        //! \param lodMask Bitmask selecting the levels of detail to build (i-th bit selects i-th lod).
+        //! \param LodMask Bitmask selecting the levels of detail to build (i-th bit selects i-th lod).
         //! \return the instance data with all the LOD, components, and ids to generate the meshes 
-        //! and images.  The returned Instance is only valid until the next call to EndUpdate with 
+        //! and images. The returned Instance is only valid until the next call to EndUpdate with 
         //! the same instanceID parameter.
-        const Instance* BeginUpdate(Instance::ID InstanceID,
-                                    const Ptr<const Parameters>& Params,
-                                    int32 StateIndex,
-                                    uint32 LodMask);
+        Ptr<const Instance> BeginUpdate(Instance::ID InstanceID, const Ptr<const Parameters>& Params, int32 StateIndex, uint32 LodMask);
 
 		//! Only valid between BeginUpdate and EndUpdate
 		//! Calculate the description of an image, without generating it.

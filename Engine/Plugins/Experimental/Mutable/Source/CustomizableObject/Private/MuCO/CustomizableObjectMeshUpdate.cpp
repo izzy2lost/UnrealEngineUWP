@@ -177,7 +177,7 @@ namespace impl
 		const uint32 LODMask = 0xFFFFFFFF;
 
 		// Main instance generation step
-		const mu::Instance* Instance = System->BeginUpdate(InstanceID, OperationData->Parameters, OperationData->State, LODMask);
+		mu::Ptr<const mu::Instance> Instance = System->BeginUpdate(InstanceID, OperationData->Parameters, OperationData->State, LODMask);
 		check(Instance);
 
 		Task_Mutable_UpdateMesh_Loop(OperationData, Task, InstanceID, OperationData->PendingFirstLODIdx);

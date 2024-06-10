@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeImageConditional::Private::s_type =
-            FNodeType( "ImageConditional", NodeImage::GetStaticType() );
+    FNodeType NodeImageConditional::Private::s_type = FNodeType(Node::EType::ImageConditional, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeImageConditional, EType::Conditional, Node, Node::EType::Image)
+    MUTABLE_IMPLEMENT_NODE( NodeImageConditional )
 
 
 	//---------------------------------------------------------------------------------------------

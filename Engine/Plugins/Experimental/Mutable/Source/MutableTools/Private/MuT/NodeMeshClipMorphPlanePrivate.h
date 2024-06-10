@@ -67,9 +67,6 @@ namespace mu
 		// means no limit.
 		float m_maxEffectRadius;
 
-        // NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
-
 	};
 
 

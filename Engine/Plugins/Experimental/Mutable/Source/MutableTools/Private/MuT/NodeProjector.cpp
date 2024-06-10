@@ -8,7 +8,7 @@
 namespace mu
 {
 
-	static FNodeType s_nodeProjectorType = FNodeType( "NodeProjector", Node::GetStaticType() );
+	static FNodeType s_nodeProjectorType = FNodeType(Node::EType::Projector, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

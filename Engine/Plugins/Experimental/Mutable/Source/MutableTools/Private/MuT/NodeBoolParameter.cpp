@@ -17,15 +17,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeBoolParameter::Private::s_type =
-			FNodeType( "BoolParameter", NodeBool::GetStaticType() );
+	FNodeType NodeBoolParameter::Private::s_type = FNodeType(Node::EType::BoolParameter, NodeBool::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeBoolParameter, EType::Parameter, Node, Node::EType::Bool);
+	MUTABLE_IMPLEMENT_NODE( NodeBoolParameter );
 
 
 	//---------------------------------------------------------------------------------------------

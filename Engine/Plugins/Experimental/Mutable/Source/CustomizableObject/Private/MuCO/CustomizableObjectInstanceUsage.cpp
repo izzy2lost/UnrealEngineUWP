@@ -240,18 +240,25 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMe
 	{
 		Parent->SetSkeletalMesh(SkeletalMesh, RequiresReinitPose(Parent->GetSkeletalMeshAsset(), SkeletalMesh));
 
-		const UCustomizableObjectInstance* Instance = GetCustomizableObjectInstance();
-		const UCustomizableObject* CustomizableObject = Instance ? Instance->GetCustomizableObject() : nullptr;
-
 		if (Parent->HasOverrideMaterials())
 		{
 			// For some reason the reference skeletal mesh materials are added as override materials, clear them if necessary
 			Parent->EmptyOverrideMaterials();
 		}
+
+		const UCustomizableObjectInstance* Instance = GetCustomizableObjectInstance();
+		const UCustomizableObject* CustomizableObject = Instance ? Instance->GetCustomizableObject() : nullptr;
+		if (!CustomizableObject)
+		{
+			return;
+		}
 		
-		if (CustomizableObject &&
-			CustomizableObject->bEnableMeshCache &&
-			CVarEnableMeshCache.GetValueOnAnyThread())
+		const bool bIsTransientMesh = SkeletalMesh ? static_cast<bool>(SkeletalMesh->HasAllFlags(EObjectFlags::RF_Transient)) : false;
+		const bool bUseOverrideMaterials = !bIsTransientMesh
+			||
+			(CustomizableObject->bEnableMeshCache && CVarEnableMeshCache.GetValueOnAnyThread());
+
+		if (bUseOverrideMaterials)
 		{
 			if (FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(GetComponentIndex()))
 			{
@@ -554,10 +561,15 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 				Parent->EmptyOverrideMaterials();
 			}
 
+			// 
+			const bool bIsTransientMesh = SkeletalMesh ? static_cast<bool>(SkeletalMesh->HasAllFlags(EObjectFlags::RF_Transient)) : false;
+			const bool bUseOverrideMaterials = !bIsTransientMesh
+				||
+				(CustomizableObject->bEnableMeshCache && CVarEnableMeshCache.GetValueOnAnyThread());
+
 			if (CustomizableObject &&
 				bInstanceGenerated &&
-				CustomizableObject->bEnableMeshCache &&
-				CVarEnableMeshCache.GetValueOnAnyThread())
+				bUseOverrideMaterials)
 			{
 				if (FCustomizableInstanceComponentData* ComponentData = CustomizableObjectInstance->GetPrivate()->GetComponentData(GetComponentIndex()))
 				{

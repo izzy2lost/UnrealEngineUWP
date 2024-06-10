@@ -18,7 +18,6 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshReshape.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshVariation.h"
-#include "MuCOE/Nodes/CustomizableObjectNodePassThroughMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
@@ -375,14 +374,6 @@ const UEdGraphPin* FindMeshBaseSource(const UEdGraphPin& Pin, const bool bOnlyLo
 	check(Node);
 
 	if (Cast<UCustomizableObjectNodeSkeletalMesh>(Node))
-	{
-		if (!bOnlyLookForStaticMesh)
-		{
-			return &Pin;
-		}
-	}
-
-	else if (Cast<UCustomizableObjectNodePassThroughMesh>(Node))
 	{
 		if (!bOnlyLookForStaticMesh)
 		{

@@ -22,23 +22,6 @@ namespace mu
     {
     public:
 
-		// Possible subclasses
-		enum class EType : uint8
-		{
-			Constant = 0,
-			Parameter = 1,
-			SampleImage = 2,
-			Table = 3,
-			ImageSize = 4,
-			FromScalars = 5,
-			ArithmeticOperation = 6,
-			Switch = 7,
-			Variation = 8,
-
-			None
-		};
-
-
         //-----------------------------------------------------------------------------------------
         // Node Interface
         //-----------------------------------------------------------------------------------------
@@ -56,10 +39,6 @@ namespace mu
 
         //! Forbidden. Manage with the Ptr<> template.
         inline ~NodeColour() {}
-
-		//!
-		EType Type = EType::None;
-
     };
 
 }

@@ -8,7 +8,7 @@
 namespace mu
 {
 
-	FNodeType s_nodeObjectType = FNodeType( "NodeObject", Node::GetStaticType() );
+	FNodeType s_nodeObjectType = FNodeType(Node::EType::Object, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

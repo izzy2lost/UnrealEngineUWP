@@ -53,7 +53,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	int32 Instance::GetDataSize() const
 	{
-		return 16 + sizeof(Private) + m_pD->Lods.GetAllocatedSize() + m_pD->ExtensionData.GetAllocatedSize();
+		return 16 + sizeof(Private) + m_pD->Components.GetAllocatedSize() + m_pD->ExtensionData.GetAllocatedSize();
 	}
 
 
@@ -65,32 +65,30 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::GetLODCount() const
+    int32 Instance::GetComponentCount() const
     {
-		return m_pD->Lods.Num();
+		return m_pD->Components.Num();
     }
 
 
 	//---------------------------------------------------------------------------------------------
-	int32 Instance::GetComponentCount( int32 LODIndex ) const
+	int32 Instance::GetLODCount( int32 ComponentIndex ) const
 	{
-		check(LODIndex >= 0 && LODIndex < m_pD->Lods.Num());
-		if (LODIndex >= 0 && LODIndex < m_pD->Lods.Num())
+		if (m_pD->Components.IsValidIndex(ComponentIndex))
 		{
-			return m_pD->Lods[LODIndex].Components.Num();
+			return m_pD->Components[ComponentIndex].LODs.Num();
 		}
-
+		check(false);
 		return 0;
 	}
 
 	
 	//---------------------------------------------------------------------------------------------
-	uint16 Instance::GetComponentId( int32 LODIndex, int32 ComponentIndex ) const
+	uint16 Instance::GetComponentId( int32 ComponentIndex ) const
 	{
-		if ( LODIndex>=0 && LODIndex<m_pD->Lods.Num() &&
-			 ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() )
+		if (m_pD->Components.IsValidIndex(ComponentIndex))
 		{
-			return m_pD->Lods[LODIndex].Components[ComponentIndex].Id;
+			return m_pD->Components[ComponentIndex].Id;
 		}
 		else
 		{
@@ -102,12 +100,12 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::GetSurfaceCount( int32 LODIndex, int32 ComponentIndex ) const
+    int32 Instance::GetSurfaceCount( int32 ComponentIndex, int32 LODIndex ) const
     {
-		if (LODIndex >= 0 && LODIndex < m_pD->Lods.Num() &&
-			ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num())
+		if (m_pD->Components.IsValidIndex(ComponentIndex) &&
+			m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex))
 		{
-			return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num();
+			return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.Num();
 		}
 		else
 		{
@@ -119,13 +117,13 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    uint32 Instance::GetSurfaceId( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex ) const
+    uint32 Instance::GetSurfaceId(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex ) const
     {
-        if ( LODIndex>=0 && LODIndex<m_pD->Lods.Num() &&
-             ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() &&
-             SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() )
+        if (m_pD->Components.IsValidIndex(ComponentIndex) &&
+			m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex) &&
+			m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex) )
         {
-            return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].InternalId;
+            return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].InternalId;
         }
 		else
 		{
@@ -137,14 +135,14 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::FindSurfaceById( int32 LODIndex, int32 ComponentIndex, uint32 id ) const
+    int32 Instance::FindSurfaceById(int32 ComponentIndex, int32 LODIndex, uint32 id ) const
     {
-		if (LODIndex >= 0 && LODIndex < m_pD->Lods.Num() &&
-			ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num())
+		if (m_pD->Components.IsValidIndex(ComponentIndex) &&
+			m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex))
 		{
-			for (int32 i = 0; i < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num(); ++i)
+			for (int32 i = 0; i < m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.Num(); ++i)
 			{
-				if (m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[i].InternalId == id)
+				if (m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[i].InternalId == id)
 				{
 					return i;
 				}
@@ -162,13 +160,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void Instance::FindBaseSurfaceBySharedId(int32 CompIndex, int32 SharedId, int32& OutSurfaceIndex, int32& OutLODIndex) const
 	{
-		for (int32 LodIndex = 0; LodIndex < m_pD->Lods.Num(); LodIndex++)
+		if (m_pD->Components.IsValidIndex(CompIndex))
 		{
-			if (m_pD->Lods[LodIndex].Components.IsValidIndex(CompIndex))
+			for (int32 LodIndex = 0; LodIndex < m_pD->Components[CompIndex].LODs.Num(); LodIndex++)
 			{
-				for (int32 SurfaceIndex = 0; SurfaceIndex < m_pD->Lods[LodIndex].Components[CompIndex].Surfaces.Num(); ++SurfaceIndex)
+				FInstanceLOD& LOD = m_pD->Components[CompIndex].LODs[LodIndex];
+				for (int32 SurfaceIndex = 0; SurfaceIndex < LOD.Surfaces.Num(); ++SurfaceIndex)
 				{
-					if (m_pD->Lods[LodIndex].Components[CompIndex].Surfaces[SurfaceIndex].SharedId == SharedId)
+					if (LOD.Surfaces[SurfaceIndex].SharedId == SharedId)
 					{
 						OutSurfaceIndex = SurfaceIndex;
 						OutLODIndex = LodIndex;
@@ -185,13 +184,13 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int32 Instance::GetSharedSurfaceId(int32 LodIndex, int32 CompIndex, int32 SurfaceIndex) const
+	int32 Instance::GetSharedSurfaceId(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex) const
 	{
-		if (LodIndex >= 0 && LodIndex < m_pD->Lods.Num() &&
-			CompIndex >= 0 && CompIndex < m_pD->Lods[LodIndex].Components.Num() &&
-			SurfaceIndex >= 0 && SurfaceIndex < m_pD->Lods[LodIndex].Components[CompIndex].Surfaces.Num())
+		if (m_pD->Components.IsValidIndex(ComponentIndex) &&
+			m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex) &&
+			m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex))
 		{
-			return m_pD->Lods[LodIndex].Components[CompIndex].Surfaces[SurfaceIndex].SharedId;
+			return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].SharedId;
 		}
 		else
 		{
@@ -203,13 +202,13 @@ namespace mu
 	
 
     //---------------------------------------------------------------------------------------------
-    uint32 Instance::GetSurfaceCustomId( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex ) const
+    uint32 Instance::GetSurfaceCustomId(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex ) const
     {
-        if ( LODIndex>=0 && LODIndex<m_pD->Lods.Num() &&
-             ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() &&
-             SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() )
+        if (m_pD->Components.IsValidIndex(ComponentIndex) &&
+			m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex) &&
+			m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex))
         {
-            return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].ExternalId;
+            return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].ExternalId;
         }
 		else
 		{
@@ -221,164 +220,143 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    int32 Instance::GetMeshCount( int32 LODIndex, int32 ComponentIndex ) const
+    int32 Instance::GetImageCount(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex ) const
 	{
-		check(LODIndex >= 0 && LODIndex < m_pD->Lods.Num());
-		check(ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num());
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
 
-		return m_pD->Lods[LODIndex].Components[ComponentIndex].Meshes.Num();
+		return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Images.Num();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    int32 Instance::GetImageCount( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex ) const
+    int32 Instance::GetVectorCount(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex ) const
 	{
-		check(LODIndex >= 0 && LODIndex < m_pD->Lods.Num());
-		check(ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num());
-		check(SurfaceIndex >= 0 && SurfaceIndex < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num());
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
 
-		return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Images.Num();
+		return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Vectors.Num();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    int32 Instance::GetVectorCount( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex ) const
+    int32 Instance::GetScalarCount(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex ) const
 	{
-		check(LODIndex >= 0 && LODIndex < m_pD->Lods.Num());
-		check(ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num());
-		check(SurfaceIndex >= 0 && SurfaceIndex < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num());
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
 
-		return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Vectors.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    int32 Instance::GetScalarCount( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex ) const
-	{
-		check(LODIndex >= 0 && LODIndex < m_pD->Lods.Num());
-		check(ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num());
-		check(SurfaceIndex >= 0 && SurfaceIndex < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num());
-
-		return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Scalars.Num();
+		return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Scalars.Num();
 	}
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::GetStringCount( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex ) const
+    int32 Instance::GetStringCount(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex ) const
     {
-		check(LODIndex >= 0 && LODIndex < m_pD->Lods.Num());
-		check(ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num());
-		check(SurfaceIndex >= 0 && SurfaceIndex < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num());
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
 
-		return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Strings.Num();
+		return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Strings.Num();
 	}
 
 
     //---------------------------------------------------------------------------------------------
-	FResourceID Instance::GetMeshId( int32 LODIndex, int32 ComponentIndex, int32 mesh ) const
+	FResourceID Instance::GetMeshId(int32 ComponentIndex, int32 LODIndex ) const
     {
-        check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-        check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( mesh>=0 && mesh<m_pD->Lods[LODIndex].Components[ComponentIndex].Meshes.Num() );
+        check(m_pD->Components.IsValidIndex(ComponentIndex));
+        check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
 
-		FResourceID result = m_pD->Lods[LODIndex].Components[ComponentIndex].Meshes[mesh].Id;
-        return result;
+		return m_pD->Components[ComponentIndex].LODs[LODIndex].MeshId;
     }
 
 
 	//---------------------------------------------------------------------------------------------
-	FResourceID Instance::GetImageId( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 img ) const
+	FResourceID Instance::GetImageId(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ImageIndex) const
 	{
-		check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-		check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        check( img>=0 && img<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Images.Num() );
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Images.IsValidIndex(ImageIndex));
 
-		FResourceID result = m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Images[img].Id;
-        return result;
+		return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Images[ImageIndex].Id;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    FName Instance::GetImageName( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 img ) const
+    FName Instance::GetImageName(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ImageIndex ) const
 	{
-		check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-		check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        check( img>=0 && img<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Images.Num() );
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Images.IsValidIndex(ImageIndex));
 
-        return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Images[img].Name;
+        return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Images[ImageIndex].Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	FVector4f Instance::GetVector( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 vec ) const
+	FVector4f Instance::GetVector(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 VectorIndex) const
 	{
-		check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-		check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        check( vec>=0 && vec<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Vectors.Num() );
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Vectors.IsValidIndex(VectorIndex));
 
-        return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Vectors[vec].Value;
+        return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Vectors[VectorIndex].Value;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	FName Instance::GetVectorName( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 vec ) const
+	FName Instance::GetVectorName(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 VectorIndex) const
 	{
-		check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-		check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        check( vec>=0 && vec<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Vectors.Num() );
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Vectors.IsValidIndex(VectorIndex));
 
-        return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Vectors[vec].Name;
+        return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Vectors[VectorIndex].Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    float Instance::GetScalar( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 sca ) const
+    float Instance::GetScalar(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ScalarIndex ) const
 	{
-		check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-		check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        check( sca>=0 && sca<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Scalars.Num() );
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Scalars.IsValidIndex(ScalarIndex));
 
-        return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Scalars[sca].Value;
+        return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Scalars[ScalarIndex].Value;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	FName Instance::GetScalarName( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 sca ) const
+	FName Instance::GetScalarName(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 ScalarIndex) const
 	{
-		check( LODIndex>=0 && LODIndex<m_pD->Lods.Num() );
-		check( ComponentIndex>=0 && ComponentIndex<m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex>=0 && SurfaceIndex<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        check( sca>=0 && sca<m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Scalars.Num() );
+		check(m_pD->Components.IsValidIndex(ComponentIndex));
+		check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Scalars.IsValidIndex(ScalarIndex));
 
-        return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Scalars[sca].Name;
+        return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Scalars[ScalarIndex].Name;
 	}
 
 
     //---------------------------------------------------------------------------------------------
-    FString Instance::GetString( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 str ) const
+    FString Instance::GetString(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 StringIndex ) const
     {
-        check( LODIndex >= 0 && LODIndex < m_pD->Lods.Num() );
-        check( ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex >= 0 &&
-                        SurfaceIndex < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
+        check(m_pD->Components.IsValidIndex(ComponentIndex));
+        check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
+		check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Strings.IsValidIndex(StringIndex));
 
-        bool valid =
-            str >= 0 &&
-            str < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Strings.Num();
-        check(valid);
-
-        if (valid)
+		bool bValid = m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Strings.IsValidIndex(StringIndex);
+		if (bValid)
         {
-            return m_pD->Lods[LODIndex]
-				.Components[ComponentIndex]
-				.Surfaces[SurfaceIndex]
-				.Strings[str]
-				.Value;
+            return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Strings[StringIndex].Value;
         }
 
         return "";
@@ -386,20 +364,16 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-	FName Instance::GetStringName( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, int32 str ) const
+	FName Instance::GetStringName(int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, int32 StringIndex) const
     {
-        check( LODIndex >= 0 && LODIndex < m_pD->Lods.Num() );
-        check( ComponentIndex >= 0 && ComponentIndex < m_pD->Lods[LODIndex].Components.Num() );
-        check( SurfaceIndex >= 0 &&
-                        SurfaceIndex < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() );
-        bool valid =
-            str >= 0 &&
-            str < m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Strings.Num();
-        check( valid );
+        check(m_pD->Components.IsValidIndex(ComponentIndex));
+        check(m_pD->Components[ComponentIndex].LODs.IsValidIndex(LODIndex));
+        check(m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces.IsValidIndex(SurfaceIndex));
 
-        if (valid)
-        {
-            return m_pD->Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex].Strings[str].Name;
+		bool bValid = m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Strings.IsValidIndex(StringIndex);
+		if (bValid)
+		{
+            return m_pD->Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex].Strings[StringIndex].Name;
         }
 
         return NAME_None;
@@ -424,206 +398,169 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-	int32 Instance::Private::AddLOD()
+	int32 Instance::Private::AddComponent()
 	{
-		int32 result = Lods.Num();
-		Lods.Add( INSTANCE_LOD() );
+		int32 result = Components.Emplace();
 		return result;
 	}
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddComponent( int32 LODIndex )
+    int32 Instance::Private::AddLOD( int32 ComponentIndex )
     {
         // Automatically create the necessary lods and components
-        while (LODIndex >= Lods.Num())
+        while (ComponentIndex >= Components.Num())
         {
-            AddLOD();
+            AddComponent();
         }
 
-        int32 result = Lods[LODIndex].Components.Num();
-        Lods[LODIndex].Components.Add( INSTANCE_COMPONENT() );
-        return result;
+        return Components[ComponentIndex].LODs.Emplace();
     }
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddSurface( int32 LODIndex, int32 ComponentIndex )
+    int32 Instance::Private::AddSurface( int32 ComponentIndex, int32 LODIndex )
     {
         // Automatically create the necessary lods and components
-        while (LODIndex >= Lods.Num())
+        while (ComponentIndex >= Components.Num())
         {
-            AddLOD();
+            AddComponent();
         }
-        while (ComponentIndex >= Lods[LODIndex].Components.Num())
+        while (LODIndex >= Components[ComponentIndex].LODs.Num())
         {
-            AddComponent(LODIndex);
+            AddLOD(ComponentIndex);
         }
 
-        int32 result = Lods[LODIndex].Components[ComponentIndex].Surfaces.Num();
-        Lods[LODIndex].Components[ComponentIndex].Surfaces.Add( INSTANCE_SURFACE() );
-        return result;
+        return Components[ComponentIndex].LODs[LODIndex].Surfaces.Emplace();
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void Instance::Private::SetComponentName( int32 LODIndex, int32 ComponentIndex, FName Name)
+    void Instance::Private::SetSurfaceName( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, FName Name)
     {
         // Automatically create the necessary lods and components
-        while (LODIndex >= Lods.Num())
-        {
-            AddLOD();
-        }
-        while (ComponentIndex >= Lods[LODIndex].Components.Num())
-        {
-            AddComponent( LODIndex );
-        }
-
-        INSTANCE_COMPONENT& component = Lods[LODIndex].Components[ComponentIndex];
-        component.Name = Name;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void Instance::Private::SetSurfaceName( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, FName Name)
-    {
-        // Automatically create the necessary lods and components
-        while ( LODIndex>=Lods.Num() )
-        {
-            AddLOD();
-        }
-        while (ComponentIndex >= Lods[LODIndex].Components.Num())
-        {
-            AddComponent( LODIndex );
-        }
-        while ( SurfaceIndex>=Lods[LODIndex].Components[ComponentIndex].Surfaces.Num() )
+		while (ComponentIndex >= Components.Num())
+		{
+			AddComponent();
+		}
+		while (LODIndex >= Components[ComponentIndex].LODs.Num())
+		{
+			AddLOD(ComponentIndex);
+		}
+		while ( SurfaceIndex>=Components[ComponentIndex].LODs[LODIndex].Surfaces.Num() )
         {
             AddSurface( LODIndex, ComponentIndex );
         }
 
-        INSTANCE_SURFACE& surface = Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex];
+        FInstanceSurface& surface = Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex];
         surface.Name = Name;
     }
 
 
 	//---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddMesh( int32 LODIndex, int32 ComponentIndex, FResourceID meshId, FName Name)
+	void Instance::Private::SetMesh(int32 ComponentIndex, int32 LODIndex, FResourceID meshId, FName Name)
 	{
 		// Automatically create the necessary lods and components
-		while (LODIndex >= Lods.Num())
+		while (ComponentIndex >= Components.Num())
 		{
-			AddLOD();
+			AddComponent();
 		}
-		while (ComponentIndex >= Lods[LODIndex].Components.Num())
+		while (LODIndex >= Components[ComponentIndex].LODs.Num())
 		{
-			AddComponent( LODIndex );
+			AddLOD(ComponentIndex);
 		}
 
-		INSTANCE_COMPONENT& component = Lods[LODIndex].Components[ComponentIndex];
-        int32 result = component.Meshes.Num();
-        component.Meshes.Emplace( meshId, Name );
-
-		return result;
+		FInstanceLOD& LOD = Components[ComponentIndex].LODs[LODIndex];
+		LOD.MeshId = meshId;
+		LOD.MeshName = Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddImage( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, FResourceID imageId, FName Name)
+    int32 Instance::Private::AddImage( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, FResourceID imageId, FName Name)
 	{
 		// Automatically create the necessary lods and components
-		while (LODIndex >= Lods.Num())
+		while (ComponentIndex >= Components.Num())
 		{
-			AddLOD();
+			AddComponent();
 		}
-		while (ComponentIndex >= Lods[LODIndex].Components.Num())
+		while (LODIndex >= Components[ComponentIndex].LODs.Num())
 		{
-			AddComponent(LODIndex);
+			AddLOD(ComponentIndex);
 		}
-		while (SurfaceIndex >= Lods[LODIndex].Components[ComponentIndex].Surfaces.Num())
+		while (SurfaceIndex >= Components[ComponentIndex].LODs[LODIndex].Surfaces.Num())
 		{
 			AddSurface(LODIndex, ComponentIndex);
 		}
 
-        INSTANCE_SURFACE& surface = Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex];
-        int32 result = surface.Images.Num();
-        surface.Images.Emplace( imageId, Name);
-
-        return result;
+		FInstanceSurface& Surface = Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex];
+		return Surface.Images.Add({ imageId, Name });
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddVector( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, const FVector4f& vec, FName Name)
+    int32 Instance::Private::AddVector( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, const FVector4f& vec, FName Name)
 	{
 		// Automatically create the necessary lods and components
-		while (LODIndex >= Lods.Num())
+		while (ComponentIndex >= Components.Num())
 		{
-			AddLOD();
+			AddComponent();
 		}
-		while (ComponentIndex >= Lods[LODIndex].Components.Num())
+		while (LODIndex >= Components[ComponentIndex].LODs.Num())
 		{
-			AddComponent(LODIndex);
+			AddLOD(ComponentIndex);
 		}
-		while (SurfaceIndex >= Lods[LODIndex].Components[ComponentIndex].Surfaces.Num())
+		while (SurfaceIndex >= Components[ComponentIndex].LODs[LODIndex].Surfaces.Num())
 		{
 			AddSurface(LODIndex, ComponentIndex);
 		}
 
-        INSTANCE_SURFACE& surface = Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex];
-        int32 result = surface.Vectors.Num();
-        surface.Vectors.Emplace( vec, Name);
-
-        return result;
+		FInstanceSurface& Surface = Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex];
+		return Surface.Vectors.Add({ vec, Name } );
 	}
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddScalar( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, float sca, FName Name)
+    int32 Instance::Private::AddScalar( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, float sca, FName Name)
     {
         // Automatically create the necessary lods and components
-		while (LODIndex >= Lods.Num())
+		while (ComponentIndex >= Components.Num())
 		{
-			AddLOD();
+			AddComponent();
 		}
-		while (ComponentIndex >= Lods[LODIndex].Components.Num())
+		while (LODIndex >= Components[ComponentIndex].LODs.Num())
 		{
-			AddComponent(LODIndex);
+			AddLOD(ComponentIndex);
 		}
-		while (SurfaceIndex >= Lods[LODIndex].Components[ComponentIndex].Surfaces.Num())
+		while (SurfaceIndex >= Components[ComponentIndex].LODs[LODIndex].Surfaces.Num())
 		{
 			AddSurface(LODIndex, ComponentIndex);
 		}
 
-        INSTANCE_SURFACE& surface = Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex];
-        int32 result = surface.Scalars.Num();
-        surface.Scalars.Emplace( sca, Name );
-
-        return result;
+		FInstanceSurface& Surface = Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex];
+		return Surface.Scalars.Add({ sca, Name });
     }
 
 
     //---------------------------------------------------------------------------------------------
-    int32 Instance::Private::AddString( int32 LODIndex, int32 ComponentIndex, int32 SurfaceIndex, const FString& Value, FName Name)
+    int32 Instance::Private::AddString( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, const FString& Value, FName Name)
     {
         // Automatically create the necessary lods and components
-		while (LODIndex >= Lods.Num())
+		while (ComponentIndex >= Components.Num())
 		{
-			AddLOD();
+			AddComponent();
 		}
-		while (ComponentIndex >= Lods[LODIndex].Components.Num())
+		while (LODIndex >= Components[ComponentIndex].LODs.Num())
 		{
-			AddComponent(LODIndex);
+			AddLOD(ComponentIndex);
 		}
-		while (SurfaceIndex >= Lods[LODIndex].Components[ComponentIndex].Surfaces.Num())
+		while (SurfaceIndex >= Components[ComponentIndex].LODs[LODIndex].Surfaces.Num())
 		{
 			AddSurface(LODIndex, ComponentIndex);
 		}
 
-        INSTANCE_SURFACE& surface = Lods[LODIndex].Components[ComponentIndex].Surfaces[SurfaceIndex];
-        int32 result = surface.Strings.Num();
-        surface.Strings.Emplace(Value, Name );
-
-        return result;
+		FInstanceSurface& Surface = Components[ComponentIndex].LODs[LODIndex].Surfaces[SurfaceIndex];
+		return Surface.Strings.Add({ Value, Name });
     }
 
 

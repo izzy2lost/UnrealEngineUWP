@@ -23,98 +23,62 @@ namespace mu
 	}
 
 	/** */
-    struct INSTANCE_SURFACE
+    struct FInstanceSurface
 	{
 		FName Name;
         uint32 InternalId=0;
         uint32 ExternalId =0;
         uint32 SharedId =0;
 
-		struct IMAGE
+		struct FInstanceImage
 		{
-            IMAGE(FResourceID InId, FName InName)
-			{
-				Id = InId;
-				Name = InName;
-			}
-
 			FResourceID Id;
 			FName Name;
 		};
 
-		TArray<IMAGE, TInlineAllocator<4>> Images;
+		TArray<FInstanceImage, TInlineAllocator<4>> Images;
 
-		struct VECTOR
+		struct FInstanceVector
 		{
-			VECTOR( const FVector4f& v, FName InName)
-			{
-				Value = v;
-				Name = InName;
-			}
-
 			FVector4f Value;
 			FName Name;
 		};
 
-		TArray<VECTOR> Vectors;
+		TArray<FInstanceVector> Vectors;
 
-        struct SCALAR
+        struct FInstanceScalar
         {
-            SCALAR( float v, FName InName )
-            {
-                Value = v;
-                Name = InName;
-            }
-
             float Value;
 			FName Name;
 		};
 
-		TArray<SCALAR> Scalars;
+		TArray<FInstanceScalar> Scalars;
 
-        struct STRING
+        struct FInstanceString
         {
-            STRING(const FString& InValue, FName InName)
-            {
-				Value = InValue;
-				Name = InName;
-			}
-
 			FString Value;
 			FName Name;
 		};
 
-		TArray<STRING> Strings;
+		TArray<FInstanceString> Strings;
     };
 
 
-    struct INSTANCE_COMPONENT
+    struct FInstanceLOD
     {
-        FName Name;
-
-    	uint16 Id;
-
-		struct MESH
-		{
-            MESH(FResourceID InId, FName InName)
-			{
-				Id = InId;
-				Name = InName;
-			}
-
-			FResourceID Id;
-			FName Name;
-		};
-		TArray<MESH, TInlineAllocator<2>> Meshes;
+		FResourceID MeshId;
+		FName MeshName;
 
 		// The order must match the meshes surfaces
-		TArray<INSTANCE_SURFACE, TInlineAllocator<4>> Surfaces;
+		TArray<FInstanceSurface, TInlineAllocator<4>> Surfaces;
 	};
 
 
-    struct INSTANCE_LOD
+    struct FInstanceComponent
     {
-		TArray<INSTANCE_COMPONENT, TInlineAllocator<4>> Components;
+		uint16 Id;
+
+		TArray<FInstanceLOD, TInlineAllocator<4>> LODs;
     };
 
 	struct NamedExtensionData
@@ -131,21 +95,20 @@ namespace mu
         Instance::ID Id = 0;
 
 		//!
-		TArray<INSTANCE_LOD,TInlineAllocator<4>> Lods;
+		TArray<FInstanceComponent,TInlineAllocator<4>> Components;
 
 		// Every entry must have a valid ExtensionData and name
 		TArray<NamedExtensionData> ExtensionData;
 
-		int32 AddLOD();
-		int32 AddComponent(int32 lod );
-        void SetComponentName( int32 lod, int32 comp, FName Name );
-		int32 AddMesh(int32 lod, int32 comp, FResourceID, FName Name);
-		int32 AddSurface(int32 lod, int32 comp );
-        void SetSurfaceName( int32 lod, int32 comp, int32 surf, FName Name);
-		int32 AddImage( int32 lod, int32 comp, int32 surf, FResourceID, FName Name);
-        int32 AddVector( int32 lod, int32 comp, int32 surf, const FVector4f&, FName Name);
-        int32 AddScalar( int32 lod, int32 comp, int32 surf, float, FName Name);
-        int32 AddString( int32 lod, int32 comp, int32 surf, const FString& Value, FName Name);
+		int32 AddComponent();
+		int32 AddLOD(int32 ComponentIndex);
+		void SetMesh(int32 ComponentIndex, int32 LODIndex, FResourceID, FName Name);
+		int32 AddSurface(int32 ComponentIndex, int32 LODIndex);
+        void SetSurfaceName( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, FName Name);
+		int32 AddImage( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, FResourceID, FName Name);
+        int32 AddVector( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, const FVector4f&, FName Name);
+        int32 AddScalar( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, float, FName Name);
+        int32 AddString( int32 ComponentIndex, int32 LODIndex, int32 SurfaceIndex, const FString& Value, FName Name);
 		
 		// Data must be non-null
 		void AddExtensionData(const Ptr<const class ExtensionData>& Data, FName Name);

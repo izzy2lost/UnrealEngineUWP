@@ -11,66 +11,43 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeComponentEdit;
-	typedef Ptr<NodeComponentEdit> NodeComponentEditPtr;
-	typedef Ptr<const NodeComponentEdit> NodeComponentEditPtrConst;
-
-    class NodeSurface;
-    typedef Ptr<NodeSurface> NodeSurfacePtr;
-    typedef Ptr<const NodeSurface> NodeSurfacePtrConst;
-
-
 	//! This node modifies a node of the parent object of the object that this node belongs to.
 	//! It allows to extend, cut and morph the parent component's meshes.
 	//! It also allows to patch the parent component's textures.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeComponentEdit : public NodeComponent
 	{
 	public:
-
-		NodeComponentEdit();
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
 		//-----------------------------------------------------------------------------------------
 
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
         //-----------------------------------------------------------------------------------------
         // NodeComponent interface
         //-----------------------------------------------------------------------------------------
-        int GetSurfaceCount() const override;
-        void SetSurfaceCount( int ) override;
-        NodeSurface* GetSurface( int index ) const override;
-        void SetSurface( int index, NodeSurface* ) override;
+		virtual const class NodeComponentNew* GetParentComponentNew() const override;
 
 		//-----------------------------------------------------------------------------------------
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Set the parent component to modify. It should be a node from the same LOD of one of
-		//! the parent objects of this node's object.
+		//! Set the parent component to modify. It should be a node from the parent objects of this node's object.
         void SetParent( NodeComponent* );
         NodeComponent* GetParent() const;
-
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeComponentEdit();
+		~NodeComponentEdit() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
+
+		Ptr<NodeComponent> m_pParent;
 
 	};
 

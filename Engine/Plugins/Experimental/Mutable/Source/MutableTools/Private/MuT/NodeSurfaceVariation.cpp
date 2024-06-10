@@ -17,15 +17,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeSurfaceVariation::Private::s_type =
-            FNodeType( "SurfaceVariation", NodeSurface::GetStaticType() );
+    FNodeType NodeSurfaceVariation::Private::s_type = FNodeType(Node::EType::SurfaceVariation, NodeSurface::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeSurfaceVariation, EType::Variation, Node, Node::EType::Surface)
+    MUTABLE_IMPLEMENT_NODE( NodeSurfaceVariation )
 
 
 	//---------------------------------------------------------------------------------------------

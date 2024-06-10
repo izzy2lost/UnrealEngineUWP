@@ -192,52 +192,6 @@ namespace mu
 		UE_LOG(LogMutableCore, Log, TEXT("   Cache MB Written    : %" PRIu64), m_pD->DiskCacheContext.BytesWritten.load() >> 20);
 		UE_LOG(LogMutableCore, Log, TEXT("   Cache MB Read       : %" PRIu64), m_pD->DiskCacheContext.BytesRead.load()>>20);
 	}
-
-
-	void FObjectState::Serialise(OutputArchive& arch) const
-    {
-    	const int32 ver = 6;
-    	arch << ver;
-
-    	arch << m_name;
-    	arch << m_optimisation;
-    	arch << m_runtimeParams;
-    }
-
-
-	void FObjectState::Unserialise(InputArchive& arch)
-    {
-    	int32 ver = 0;
-    	arch >> ver;
-    	check( ver>=5 && ver<=6 );
-
-    	if (ver <= 5)
-    	{
-    		std::string Temp;
-    		arch >> Temp;
-    		m_name = Temp.c_str();
-    	}
-    	else
-    	{
-    		arch >> m_name;
-    	}
-    	arch >> m_optimisation;
-
-    	if (ver <= 5)
-    	{
-    		TArray<std::string> Temp;
-    		arch >> Temp;
-    		m_runtimeParams.SetNum(Temp.Num());
-    		for ( int32 i=0; i<Temp.Num(); ++i)
-    		{
-    			m_runtimeParams[i] = Temp[i].c_str();
-    		}
-    	}
-    	else
-    	{
-    		arch >> m_runtimeParams;
-    	}
-    }
 	
 	
 	//---------------------------------------------------------------------------------------------
@@ -283,7 +237,7 @@ namespace mu
                 FStateCompilationData data;
                 data.nodeState = s.Key;
                 data.root = s.Value;
-                data.state.Name = s.Key.m_name;
+                data.state.Name = s.Key.Name;
                 states.Add( data );
             }
 
@@ -365,14 +319,14 @@ namespace mu
         // Set the runtime parameter indices.
         for(FStateCompilationData& s: states )
         {
-            for ( int32 p=0; p<s.nodeState.m_runtimeParams.Num(); ++p )
+            for ( int32 p=0; p<s.nodeState.RuntimeParams.Num(); ++p )
             {
                 int32 paramIndex = -1;
                 for ( int32 i=0; paramIndex<0 && i<program.m_parameters.Num(); ++i )
                 {
                     if ( program.m_parameters[i].m_name
                          ==
-                         s.nodeState.m_runtimeParams[p] )
+                         s.nodeState.RuntimeParams[p] )
                     {
                         paramIndex = (int)i;
                     }
@@ -387,9 +341,9 @@ namespace mu
 					FString Temp = FString::Printf(TEXT(
 						"The state [%s] refers to a parameter [%s]  that has not been found in the model. This error can be "
 						"safely dismissed in case of partial compilation."), 
-						*s.nodeState.m_name,
-						*s.nodeState.m_runtimeParams[p]);
-                    m_pD->m_pErrorLog->GetPrivate()->Add(Temp, ELMT_WARNING, pNode->GetBasePrivate()->m_errorContext );
+						*s.nodeState.Name,
+						*s.nodeState.RuntimeParams[p]);
+                    m_pD->m_pErrorLog->GetPrivate()->Add(Temp, ELMT_WARNING, pNode->GetMessageContext() );
                 }
             }
 

@@ -15,15 +15,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageSwizzle::Private::s_type =
-			FNodeType( "ImageSwizzle", NodeImage::GetStaticType() );
+	FNodeType NodeImageSwizzle::Private::s_type = FNodeType(Node::EType::ImageSwizzle, NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeImageSwizzle, EType::Swizzle, Node, Node::EType::Image)
+	MUTABLE_IMPLEMENT_NODE( NodeImageSwizzle )
 
 
 	//---------------------------------------------------------------------------------------------

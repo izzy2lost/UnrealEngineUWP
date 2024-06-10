@@ -15,14 +15,14 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Static initialisation
     //---------------------------------------------------------------------------------------------
-    FNodeType NodePatchImage::Private::s_type = FNodeType( "PatchTexture", Node::GetStaticType() );
+    FNodeType NodePatchImage::Private::s_type = FNodeType(Node::EType::PatchImage, Node::GetStaticType() );
 
 
     //---------------------------------------------------------------------------------------------
     //!
     //---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodePatchImage, EType::PatchImage, Node, Node::EType::None)
+    MUTABLE_IMPLEMENT_NODE( NodePatchImage )
 
 
     //---------------------------------------------------------------------------------------------

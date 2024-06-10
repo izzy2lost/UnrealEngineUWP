@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeScalarTable::Private::s_type =
-			FNodeType( "TableScalar", NodeScalar::GetStaticType() );
+	FNodeType NodeScalarTable::Private::s_type = FNodeType(Node::EType::ScalarTable, NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE(NodeScalarTable, EType::Table, Node, Node::EType::Scalar)
+	MUTABLE_IMPLEMENT_NODE(NodeScalarTable )
 
 
 	//---------------------------------------------------------------------------------------------

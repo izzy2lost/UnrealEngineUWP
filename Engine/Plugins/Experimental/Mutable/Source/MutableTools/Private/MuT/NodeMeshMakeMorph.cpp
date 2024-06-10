@@ -16,15 +16,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    FNodeType NodeMeshMakeMorph::Private::s_type =
-			FNodeType( "MeshMakeMorph", NodeMesh::GetStaticType() );
+    FNodeType NodeMeshMakeMorph::Private::s_type = FNodeType(Node::EType::MeshMakeMorph, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeMeshMakeMorph, EType::MakeMorph, Node, Node::EType::Mesh)
+    MUTABLE_IMPLEMENT_NODE( NodeMeshMakeMorph )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -68,21 +67,5 @@ namespace mu
 	{
 		return m_pD->bOnlyPositionAndNormal;
 	}
-
-	//---------------------------------------------------------------------------------------------
-    NodeLayoutPtr NodeMeshMakeMorph::Private::GetLayout( int index ) const
-	{
-		NodeLayoutPtr pResult;
-
-		// TODO: Substract layouts too? Usually they are ignored.
-		if ( m_pBase )
-		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pBase->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
-		}
-
-		return pResult;
-	}
-
 
 }

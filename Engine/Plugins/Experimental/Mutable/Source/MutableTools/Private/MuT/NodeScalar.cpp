@@ -9,7 +9,7 @@
 namespace mu
 {
 
-	static FNodeType s_nodeScalarType = FNodeType( "NodeScalar", Node::GetStaticType() );
+	static FNodeType s_nodeScalarType = FNodeType(Node::EType::Scalar, Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

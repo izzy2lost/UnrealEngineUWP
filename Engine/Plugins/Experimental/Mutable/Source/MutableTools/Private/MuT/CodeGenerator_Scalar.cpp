@@ -229,7 +229,7 @@ namespace mu
 			// No options in the switch!
 			Ptr<ASTOp> missingOp = GenerateMissingScalarCode(TEXT("Switch option"),
 				1.0f,
-				node.m_errorContext);
+				Typed->GetMessageContext());
 			result.op = missingOp;
 			return;
 		}
@@ -247,7 +247,7 @@ namespace mu
 		else
 		{
 			// This argument is required
-			op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, node.m_errorContext);
+			op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Typed->GetMessageContext());
 		}
 
 		// Options
@@ -263,7 +263,7 @@ namespace mu
 			else
 			{
 				// This argument is required
-				branch = GenerateMissingScalarCode(TEXT("Switch option"), 1.0f, node.m_errorContext);
+				branch = GenerateMissingScalarCode(TEXT("Switch option"), 1.0f, Typed->GetMessageContext());
 			}
 			op->cases.Emplace((int16_t)t, op, branch);
 		}
@@ -306,7 +306,7 @@ namespace mu
 			{
 				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *tag);
 
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, node.m_errorContext);
+				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Typed->GetMessageContext());
 				continue;
 			}
 
@@ -320,7 +320,7 @@ namespace mu
 			else
 			{
 				// This argument is required
-				variationOp = GenerateMissingScalarCode(TEXT("Variation option"), 0.0f, node.m_errorContext);
+				variationOp = GenerateMissingScalarCode(TEXT("Variation option"), 0.0f, Typed->GetMessageContext());
 			}
 
 
@@ -345,11 +345,11 @@ namespace mu
 		// T
 		if (Node* pA = Typed->CurveSampleValue.get())
 		{
-			op->time = Generate(pA, Options);
+			op->time = Generate_Generic(pA, Options);
 		}
 		else
 		{
-			op->time = CodeGenerator::GenerateMissingScalarCode(TEXT("Curve T"), 0.5f, Typed->GetPrivate()->m_errorContext);
+			op->time = CodeGenerator::GenerateMissingScalarCode(TEXT("Curve T"), 0.5f, Typed->GetMessageContext());
 		}
 
 		op->Curve = Typed->Curve;
@@ -381,24 +381,24 @@ namespace mu
 		// A
 		if (Node* pA = node.m_pA.get())
 		{
-			op->SetChild(op->op.args.ScalarArithmetic.a, Generate(pA, Options));
+			op->SetChild(op->op.args.ScalarArithmetic.a, Generate_Generic(pA, Options));
 		}
 		else
 		{
 			op->SetChild(op->op.args.ScalarArithmetic.a,
-				CodeGenerator::GenerateMissingScalarCode( TEXT("ScalarArithmetic A"), 1.0f, node.m_errorContext )
+				CodeGenerator::GenerateMissingScalarCode( TEXT("ScalarArithmetic A"), 1.0f, Typed->GetMessageContext() )
 			);
 		}
 
 		// B
 		if (Node* pB = node.m_pB.get())
 		{
-			op->SetChild(op->op.args.ScalarArithmetic.b, Generate(pB, Options));
+			op->SetChild(op->op.args.ScalarArithmetic.b, Generate_Generic(pB, Options));
 		}
 		else
 		{
 			op->SetChild(op->op.args.ScalarArithmetic.b,
-				CodeGenerator::GenerateMissingScalarCode( TEXT("ScalarArithmetic B"), 1.0f, node.m_errorContext )
+				CodeGenerator::GenerateMissingScalarCode( TEXT("ScalarArithmetic B"), 1.0f, Typed->GetMessageContext() )
 			);
 		}
 
@@ -417,7 +417,7 @@ namespace mu
 				NodeScalarConstantPtr pCell = new NodeScalarConstant();
 				float scalar = node.Table->GetPrivate()->Rows[row].Values[colIndex].Scalar;
 				pCell->SetValue(scalar);
-				return Generate(pCell, Options);
+				return Generate_Generic(pCell, Options);
 			});
 
 		result.op = Op;
@@ -436,7 +436,7 @@ namespace mu
 		pNode->SetValue(value);
 
 		FGenericGenerationOptions Options;
-		Ptr<ASTOp> result = Generate(pNode, Options);
+		Ptr<ASTOp> result = Generate_Generic(pNode, Options);
 
 		return result;
 	}

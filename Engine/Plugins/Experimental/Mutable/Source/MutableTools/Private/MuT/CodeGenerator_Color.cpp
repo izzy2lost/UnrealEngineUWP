@@ -198,7 +198,7 @@ namespace mu
 		if (node.m_options.Num() == 0)
 		{
 			// No options in the switch!
-			Ptr<ASTOp> missingOp = GenerateMissingColourCode(TEXT("Switch option"), node.m_errorContext);
+			Ptr<ASTOp> missingOp = GenerateMissingColourCode(TEXT("Switch option"), Typed->GetMessageContext());
 			result.op = missingOp;
 			return;
 		}
@@ -209,26 +209,26 @@ namespace mu
 		// Variable value
 		if (node.m_pParameter)
 		{
-			op->variable = Generate(node.m_pParameter.get(), Options);
+			op->variable = Generate_Generic(node.m_pParameter.get(), Options);
 		}
 		else
 		{
 			// This argument is required
-			op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, node.m_errorContext);
+			op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Typed->GetMessageContext());
 		}
 
 		// Options
-		for (std::size_t t = 0; t < node.m_options.Num(); ++t)
+		for (int32 t = 0; t < node.m_options.Num(); ++t)
 		{
 			Ptr<ASTOp> branch;
 			if (node.m_options[t])
 			{
-				branch = Generate(node.m_options[t].get(), Options);
+				branch = Generate_Generic(node.m_options[t].get(), Options);
 			}
 			else
 			{
 				// This argument is required
-				branch = GenerateMissingColourCode(TEXT("Switch option"), node.m_errorContext);
+				branch = GenerateMissingColourCode(TEXT("Switch option"), Typed->GetMessageContext());
 			}
 			op->cases.Emplace((int16)t, op, branch);
 		}
@@ -247,8 +247,9 @@ namespace mu
 		// Default case
 		if (node.m_defaultColour)
 		{
-			FMeshGenerationResult branchResults;
-			currentOp = Generate(node.m_defaultColour, Options);
+			FColorGenerationResult BranchResults;
+			GenerateColor(BranchResults, Options, node.m_defaultColour);
+			currentOp = BranchResults.op;
 		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
@@ -267,19 +268,21 @@ namespace mu
 			if (tagIndex < 0)
 			{
 				FString Msg = FString::Printf(TEXT("Unknown tag found in color variation [%s]."), *tag);
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, node.m_errorContext);
+				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Typed->GetMessageContext());
 				continue;
 			}
 
 			Ptr<ASTOp> variationOp;
 			if (node.m_variations[t].m_colour)
 			{
-				variationOp = Generate(node.m_variations[t].m_colour, Options);
+				FColorGenerationResult BranchResults;
+				GenerateColor(BranchResults,Options,node.m_variations[t].m_colour);
+				variationOp = BranchResults.op;
 			}
 			else
 			{
 				// This argument is required
-				variationOp = GenerateMissingColourCode(TEXT("Variation option"), node.m_errorContext);
+				variationOp = GenerateMissingColourCode(TEXT("Variation option"), Typed->GetMessageContext());
 			}
 
 
@@ -324,7 +327,7 @@ namespace mu
 		else
 		{
 			// This argument is required
-			base = GenerateMissingImageCode(TEXT("Sample image"), EImageFormat::IF_RGB_UBYTE, node.m_errorContext, ImageOptions);
+			base = GenerateMissingImageCode(TEXT("Sample image"), EImageFormat::IF_RGB_UBYTE, Typed->GetMessageContext(), ImageOptions);
 		}
 		base = GenerateImageFormat(base, EImageFormat::IF_RGB_UBYTE);
 		op->SetChild(op->op.args.ColourSampleImage.image, base);
@@ -470,7 +473,7 @@ namespace mu
 		else
 		{
 			op->SetChild(op->op.args.ColourArithmetic.a,
-				CodeGenerator::GenerateMissingColourCode(TEXT("ColourArithmetic A"), node.m_errorContext));
+				CodeGenerator::GenerateMissingColourCode(TEXT("ColourArithmetic A"), Typed->GetMessageContext()));
 		}
 
 		// B
@@ -482,7 +485,7 @@ namespace mu
 		else
 		{
 			op->SetChild(op->op.args.ColourArithmetic.b,
-				CodeGenerator::GenerateMissingColourCode(TEXT("ColourArithmetic B"),node.m_errorContext));
+				CodeGenerator::GenerateMissingColourCode(TEXT("ColourArithmetic B"), Typed->GetMessageContext()));
 		}
 
 		result.op = op;
@@ -497,10 +500,12 @@ namespace mu
 		result.op = GenerateTableSwitch<NodeColourTable::Private, ETableColumnType::Color, OP_TYPE::CO_SWITCH>(node,
 			[this, &Options](const NodeColourTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
-				NodeColourConstantPtr CellData = new NodeColourConstant();
+				Ptr<NodeColourConstant> CellData = new NodeColourConstant();
 				FVector4f Colour = node.Table->GetPrivate()->Rows[row].Values[colIndex].Color;
 				CellData->SetValue(Colour);
-				return Generate(CellData, Options);
+				FColorGenerationResult BranchResults;
+				GenerateColor(BranchResults, Options, CellData );
+				return BranchResults.op;
 			});
 	}
 

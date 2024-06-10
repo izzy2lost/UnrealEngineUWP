@@ -5,82 +5,39 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
-
+#include "MuT/NodeSurface.h"
+#include "MuT/NodeModifier.h"
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeComponent;
-	typedef Ptr<NodeComponent> NodeComponentPtr;
-	typedef Ptr<const NodeComponent> NodeComponentPtrConst;
 
-	class NodeModifier;
-	typedef Ptr<NodeModifier> NodeModifierPtr;
-	typedef Ptr<const NodeModifier> NodeModifierPtrConst;
-
-	class NodeLOD;
-	typedef Ptr<NodeLOD> NodeLODPtr;
-	typedef Ptr<const NodeLOD> NodeLODPtrConst;
-
-
-	//! Node that creates a new level of detail by assembling several object components.
 	class MUTABLETOOLS_API NodeLOD : public Node
 	{
 	public:
-
-		NodeLOD();
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the number of components in the LOD to create
-		int GetComponentCount() const;
-
-		//! Set the number of components in the LOD to create
-		void SetComponentCount( int );
-
-		//! Get the node generating one of the components of the LOD.
-		//! \param index index of the component from 0 to GetComponentCount()-1
-		NodeComponentPtr GetComponent( int index ) const;
-
-		//! Set the node generating one of the components of the LOD.
-		//! \param index index of the component from 0 to GetComponentCount()-1
-		void SetComponent( int index, NodeComponentPtr );
-
-		//! Set the number of modifiers in the LOD
-		void SetModifierCount(int);
-
-		//! Get the number of modifiers in the LOD
-		int GetModifierCount() const;
-
-		//! Set the node generating one of the modifiers of the LOD.
-		//! \param index index of the component from 0 to GetModifierCount()-1
-		void SetModifier(int index, NodeModifierPtr);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
+		TArray<Ptr<NodeSurface>> Surfaces;
+		TArray<Ptr<NodeModifier>> Modifiers;
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeLOD();
+		~NodeLOD() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

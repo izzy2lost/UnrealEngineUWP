@@ -57,15 +57,15 @@ void UCustomizableObjectNodeExtensionDataVariation::AllocateDefaultPins(UCustomi
 	DefaultVariation->bDefaultValueIsIgnored = true;
 }
 
-mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataVariation::GenerateMutableNode(FExtensionDataCompilerInterface& InCompilerInterface) const
+mu::Ptr<mu::NodeExtensionData> UCustomizableObjectNodeExtensionDataVariation::GenerateMutableNode(FExtensionDataCompilerInterface& InCompilerInterface) const
 {
-	mu::NodeExtensionDataVariationPtr VariationNode = new mu::NodeExtensionDataVariation;
+	mu::Ptr<mu::NodeExtensionDataVariation> VariationNode = new mu::NodeExtensionDataVariation;
 
 	if (const UEdGraphPin* ConnectedPin = FollowInputPin(*GetDefaultPin()))
 	{
 		if (const ICustomizableObjectExtensionNode* ExtensionNode = Cast<ICustomizableObjectExtensionNode>(ConnectedPin->GetOwningNode()))
 		{
-			if (mu::NodeExtensionDataPtr DefaultValueExtensionData = ExtensionNode->GenerateMutableNode(InCompilerInterface))
+			if (mu::Ptr<mu::NodeExtensionData> DefaultValueExtensionData = ExtensionNode->GenerateMutableNode(InCompilerInterface))
 			{
 				VariationNode->SetDefaultValue(DefaultValueExtensionData);
 			}
@@ -86,7 +86,7 @@ mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataVariation::Generate
 			{
 				if (const ICustomizableObjectExtensionNode* ExtensionNode = Cast<ICustomizableObjectExtensionNode>(ConnectedPin->GetOwningNode()))
 				{
-					if (mu::NodeExtensionDataPtr VariationExtensionData = ExtensionNode->GenerateMutableNode(InCompilerInterface))
+					if (mu::Ptr<mu::NodeExtensionData> VariationExtensionData = ExtensionNode->GenerateMutableNode(InCompilerInterface))
 					{
 						VariationNode->SetVariationValue(VariationIndex, VariationExtensionData);
 					}

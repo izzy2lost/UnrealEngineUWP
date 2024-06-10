@@ -55,21 +55,14 @@
 #include "MuT/NodeScalarCurve.h"
 #include "MuT/NodeScalarSwitch.h"
 #include "MuT/NodeScalarTable.h"
+#include "MuT/NodeObjectNew.h"
 
-
-// This is necessary because of problems with rtti information in other platforms. In any case, this part of the debugger is only useful in the standard editor.
-#if PLATFORM_WINDOWS
-#include "MuT/NodeObjectNewPrivate.h"
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeSurfaceNewPrivate.h"
 #include "MuT/NodeSurfaceEditPrivate.h"
 #include "MuT/NodeSurfaceSwitchPrivate.h"
 #include "MuT/NodeSurfaceVariationPrivate.h"
-#include "MuT/NodeLODPrivate.h"
-#include "MuT/NodeComponentPrivate.h"
 #include "MuT/NodeModifierPrivate.h"
-#include "MuT/NodeComponentNewPrivate.h"
-#include "MuT/NodeComponentEditPrivate.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeMeshFormatPrivate.h"
 #include "MuT/NodePatchImagePrivate.h"
@@ -104,7 +97,6 @@
 #include "MuT/NodeMeshTablePrivate.h"
 #include "MuT/NodeColourFromScalarsPrivate.h"
 #include "MuT/NodeScalarSwitchPrivate.h"
-#endif
 
 class FExtender;
 class FReferenceCollector;
@@ -134,16 +126,16 @@ public:
 		FText MainLabel = FText::GetEmpty();
 		if (RowItem->MutableNode)
 		{
-			const char* TypeName = RowItem->MutableNode->GetType()->m_strName;
+			mu::Node::EType MutableType = RowItem->MutableNode->GetType()->Type;
 			
 			const FString LabelString = RowItem->Prefix.IsEmpty() 
-				? StringCast<TCHAR>(TypeName).Get() 
-				: FString::Printf( TEXT("%s : %s"), *RowItem->Prefix, StringCast<TCHAR>(TypeName).Get() );
+				? FString::Printf(TEXT("%d"), int32(MutableType) )
+				: FString::Printf( TEXT("%s : %d"), *RowItem->Prefix, int32(MutableType) );
 
 			MainLabel = FText::FromString(LabelString);
 			if (RowItem->DuplicatedOf)
 			{
-				MainLabel = FText::FromString( FString::Printf(TEXT("%s (Duplicated)"), StringCast<TCHAR>(TypeName).Get()));
+				MainLabel = FText::FromString( FString::Printf(TEXT("%d (Duplicated)"), int32(MutableType)));
 			}
 		}
 		else
@@ -338,15 +330,14 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	if (ParentNode->GetType() == mu::NodeObjectNew::GetStaticType())
 	{
 		mu::NodeObjectNew* ObjectNew = StaticCast<mu::NodeObjectNew*>(ParentNode);
-		mu::NodeObjectNew::Private* Private = ObjectNew->GetPrivate();
-		for (int32 l = 0; l < Private->m_lods.Num(); ++l)
+		for (int32 l = 0; l < ObjectNew->Components.Num(); ++l)
 		{
-			AddChildFunc(Private->m_lods[l].get(), TEXT("LOD") );
+			AddChildFunc(ObjectNew->Components[l].get(), TEXT("COMP") );
 		}
 
-		for (int32 l = 0; l < Private->m_children.Num(); ++l)
+		for (int32 l = 0; l < ObjectNew->Children.Num(); ++l)
 		{
-			AddChildFunc(Private->m_children[l].get(), TEXT("CHILD"));
+			AddChildFunc(ObjectNew->Children[l].get(), TEXT("CHILD"));
 		}
 	}
 
@@ -364,10 +355,7 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	{
 		mu::NodeSurfaceNew* SurfaceNew = StaticCast<mu::NodeSurfaceNew*>(ParentNode);
 		mu::NodeSurfaceNew::Private* Private = SurfaceNew->GetPrivate();
-		for (int32 l = 0; l < Private->m_meshes.Num(); ++l)
-		{
-			AddChildFunc(Private->m_meshes[l].m_pMesh.get(), TEXT("MESH"));
-		}
+		AddChildFunc(Private->Mesh.get(), TEXT("MESH"));
 
 		for (int32 l = 0; l < Private->m_images.Num(); ++l)
 		{
@@ -441,38 +429,34 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeLOD::GetStaticType())
 	{
 		mu::NodeLOD* LodVar = StaticCast<mu::NodeLOD*>(ParentNode);
-		mu::NodeLOD::Private* Private = LodVar->GetPrivate();
 
-		for (int32 Component = 0; Component < Private->m_components.Num(); Component++)
+		for (int32 SurfaceIndex = 0; SurfaceIndex < LodVar->Surfaces.Num(); SurfaceIndex++)
 		{
-			AddChildFunc(Private->m_components[Component].get(), FString::Printf(TEXT("COMP [%d]"),  Component));
+			AddChildFunc(LodVar->Surfaces[SurfaceIndex].get(), FString::Printf(TEXT("SURFACE [%d]"), SurfaceIndex));
 		}
-		for (int32 Modifier = 0; Modifier < Private->m_modifiers.Num(); Modifier++)
+		for (int32 Modifier = 0; Modifier < LodVar->Modifiers.Num(); Modifier++)
 		{
-			AddChildFunc(Private->m_modifiers[Modifier].get(), FString::Printf(TEXT("MOD [%d]"), Modifier));
+			AddChildFunc(LodVar->Modifiers[Modifier].get(), FString::Printf(TEXT("MOD [%d]"), Modifier));
 		}
 	}
 	
 	else if (ParentNode->GetType() == mu::NodeComponentNew::GetStaticType())
 	{
 		mu::NodeComponentNew* ComponentVar = StaticCast<mu::NodeComponentNew*>(ParentNode);
-		mu::NodeComponentNew::Private* Private = ComponentVar->GetPrivate();
-		for (int32 Surface = 0; Surface < Private->m_surfaces.Num(); Surface++)
+		for (int32 LODIndex = 0; LODIndex < ComponentVar->LODs.Num(); LODIndex++)
 		{
-			AddChildFunc(Private->m_surfaces[Surface].get(), FString::Printf(TEXT("SURF [%d]"), Surface));
+			AddChildFunc(ComponentVar->LODs[LODIndex].get(), FString::Printf(TEXT("LOD [%d]"), LODIndex));
 		}
 	}
 
 	else if (ParentNode->GetType() == mu::NodeComponentEdit::GetStaticType())
 	{
-		mu::NodeComponentEdit* ComponentEditVar = StaticCast<mu::NodeComponentEdit*>(ParentNode);
-		mu::NodeComponentEdit::Private* Private = ComponentEditVar->GetPrivate();
-		for (int32 Surface = 0; Surface < Private->m_surfaces.Num(); Surface++)
+		mu::NodeComponentEdit* ComponentVar = StaticCast<mu::NodeComponentEdit*>(ParentNode);
+		for (int32 LODIndex = 0; LODIndex < ComponentVar->LODs.Num(); LODIndex++)
 		{
-			AddChildFunc(Private->m_surfaces[Surface].get(), FString::Printf(TEXT("SURF [%d]"), Surface));
+			AddChildFunc(ComponentVar->LODs[LODIndex].get(), FString::Printf(TEXT("LOD [%d]"), LODIndex));
 		}
 	}
-	
 
 	else if (ParentNode->GetType() == mu::NodeMeshConstant::GetStaticType())
 	{
@@ -801,11 +785,10 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	
 	else
 	{
-		const FString ParentNodeTypeString = ANSI_TO_TCHAR(ParentNode->GetType()->m_strName);
-		UE_LOG(LogMutable,Error,TEXT("The node of type %s has not been implemented, so its children won't be added to the tree."), *ParentNodeTypeString);
+		UE_LOG(LogMutable,Error,TEXT("The node of type %d has not been implemented, so its children won't be added to the tree."), int32(ParentNode->GetType()->Type));
 
 		// Add a placeholder to the tree
-		const FString Prefix =  FString::Printf(TEXT("[%s] NODE TYPE NOT IMPLEMENTED"), *ParentNodeTypeString);
+		const FString Prefix =  FString::Printf(TEXT("[%d] NODE TYPE NOT IMPLEMENTED"), int32(ParentNode->GetType()->Type));
 		AddChildFunc(nullptr, Prefix);
 	}
 #endif
