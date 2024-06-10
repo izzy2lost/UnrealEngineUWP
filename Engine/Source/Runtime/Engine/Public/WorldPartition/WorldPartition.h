@@ -608,6 +608,8 @@ private:
 #if WITH_EDITOR
 	bool bForceGarbageCollection;
 	bool bForceGarbageCollectionPurge;
+	bool bForceRefreshAlwaysLoaded;
+	bool bForceRefreshEditor;
 	bool bEnablingStreamingJustified;
 	bool bIsPIE;
 	int32 NumUserCreatedLoadedRegions;

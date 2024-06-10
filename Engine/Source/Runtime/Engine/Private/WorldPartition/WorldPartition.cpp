@@ -331,6 +331,8 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 	, bShouldCheckEnableStreamingWarning(false)
 	, bForceGarbageCollection(false)
 	, bForceGarbageCollectionPurge(false)
+	, bForceRefreshAlwaysLoaded(false)
+	, bForceRefreshEditor(false)
 	, bEnablingStreamingJustified(false)
 	, bIsPIE(false)
 	, NumUserCreatedLoadedRegions(0)
@@ -1321,15 +1323,8 @@ void UWorldPartition::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance*
 		ForceLoadedActors->AddActors({ NewActorDescInstance->GetGuid() });
 	}
 
-	if (AlwaysLoadedActors && !NewActorDescInstance->GetIsSpatiallyLoaded())
-	{
-		AlwaysLoadedActors->RefreshLoadedState();
-	}
-
-	if (WorldPartitionEditor)
-	{
-		WorldPartitionEditor->Refresh();
-	}
+	bForceRefreshAlwaysLoaded = !NewActorDescInstance->GetIsSpatiallyLoaded();
+	bForceRefreshEditor = true;
 }
 
 void UWorldPartition::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* ActorDescInstance)
@@ -1346,15 +1341,8 @@ void UWorldPartition::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstanc
 		ForceLoadedActors->RemoveActors({ ActorDescInstance->GetGuid() });
 	}
 
-	if (AlwaysLoadedActors && !ActorDescInstance->GetIsSpatiallyLoaded())
-	{
-		AlwaysLoadedActors->RefreshLoadedState();
-	}
-
-	if (WorldPartitionEditor)
-	{
-		WorldPartitionEditor->Refresh();
-	}
+	bForceRefreshAlwaysLoaded = !ActorDescInstance->GetIsSpatiallyLoaded();
+	bForceRefreshEditor = true;
 }
 
 void UWorldPartition::OnActorDescInstanceUpdating(FWorldPartitionActorDescInstance* ActorDescInstance)
@@ -1371,10 +1359,7 @@ void UWorldPartition::OnActorDescInstanceUpdated(FWorldPartitionActorDescInstanc
 
 	HashActorDescInstance(ActorDescInstance);
 
-	if (WorldPartitionEditor)
-	{
-		WorldPartitionEditor->Refresh();
-	}
+	bForceRefreshEditor = true;
 }
 
 bool UWorldPartition::ShouldHashUnhashActorDescInstances() const
@@ -1657,6 +1642,26 @@ void UWorldPartition::Tick(float DeltaSeconds)
 	if (ExternalDirtyActorsTracker)
 	{
 		ExternalDirtyActorsTracker->Tick(DeltaSeconds);
+	}
+
+	if (bForceRefreshAlwaysLoaded)
+	{
+		if (AlwaysLoadedActors)
+		{
+			AlwaysLoadedActors->RefreshLoadedState();
+		}
+
+		bForceRefreshAlwaysLoaded = false;
+	}
+
+	if (bForceRefreshEditor)
+	{
+		if (WorldPartitionEditor)
+		{
+			WorldPartitionEditor->Refresh();
+		}
+
+		bForceRefreshEditor = false;
 	}
 
 	if (bForceGarbageCollection)
