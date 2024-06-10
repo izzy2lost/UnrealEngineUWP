@@ -320,21 +320,21 @@ namespace mu
 			BlockIds[BlockIndex] = Layout->Blocks[BlockIndex].Id;
 
 			// Get the block rect
-			uint16 MinX, MinY, SizeX, SizeY;
-			Layout->GetBlock(BlockIndex, &MinX, &MinY, &SizeX, &SizeY);
+			FImageSize Min = Layout->Blocks[BlockIndex].Min;
+			FImageSize Size = Layout->Blocks[BlockIndex].Size;
 
 			box<FVector2f>& BlockRect = BlockRects[BlockIndex];
-			BlockRect.min[0] = ((float)MinX) / (float)Grid.X;
-			BlockRect.min[1] = ((float)MinY) / (float)Grid.Y;
-			BlockRect.size[0] = ((float)SizeX) / (float)Grid.X;
-			BlockRect.size[1] = ((float)SizeY) / (float)Grid.Y;
+			BlockRect.min[0] = ((float)Min.X) / (float)Grid.X;
+			BlockRect.min[1] = ((float)Min.Y) / (float)Grid.Y;
+			BlockRect.size[0] = ((float)Size.X) / (float)Grid.X;
+			BlockRect.size[1] = ((float)Size.Y) / (float)Grid.Y;
 
 			// Create block index per cell array
-			for (uint16 Y = MinY; Y < MinY + SizeY; ++Y)
+			for (uint16 Y = Min.Y; Y < Min.Y + Size.Y; ++Y)
 			{
 				const uint16 PositionY = Y * Grid.X;
 
-				for (uint16 X = MinX; X < MinX + SizeX; ++X)
+				for (uint16 X = Min.X; X < Min.X + Size.X; ++X)
 				{
 					if (GridBlockBlockId[PositionY + X] == MAX_uint16)
 					{

@@ -55,7 +55,8 @@ namespace mu
 			FIntPoint grid = pLayout->GetGridSize();
 
 			box< UE::Math::TIntVector2<uint16> > block;
-			pLayout->GetBlock( b, &block.min[0], &block.min[1], &block.size[0], &block.size[1] );
+			block.min = pLayout->Blocks[b].Min;
+			block.size = pLayout->Blocks[b].Size;
 
 			Box rect;
 			rect.min[0] = ( (float)block.min[0] ) / (float) grid[0];

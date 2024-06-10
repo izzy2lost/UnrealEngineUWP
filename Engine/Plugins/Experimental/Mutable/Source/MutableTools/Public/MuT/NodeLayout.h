@@ -72,39 +72,39 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Set the size of the grid where the blocks will be defined
-		void SetGridSize( int x, int y );
+		void SetGridSize( int32 x, int32 y );
 
 		//! Set the maximum size of the grid where the blocks can be defined
-		void SetMaxGridSize(int x, int y);
+		void SetMaxGridSize(int32 x, int32 y);
 
 		//! Get the size of the grid where the blocks will be defined
-		void GetGridSize( int* pX, int* pY ) const;
+		void GetGridSize( int32* pX, int32* pY ) const;
 
 		//! Get the maximum size of the grid where the blocks can be defined
-		void GetMaxGridSize(int* pX, int* pY) const;
+		void GetMaxGridSize(int32* pX, int32* pY) const;
 
 		//! Set the number of blocks in the layout.
 		//! It keeps the current data as much as possible, and the new data is undefined.
-		void SetBlockCount( int );
+		void SetBlockCount( int32 );
 
 		//! Get the number of blocks in the layout
-		int GetBlockCount();
+		int32 GetBlockCount();
 
 		/** */
 		Ptr<const Layout> GetLayout() const;
 
 		//! Set a block of the layout.
 		//! minx and miny refer to the lowest left corner of the block.
-        void SetBlock( int index, int minx, int miny, int sizex, int sizey );
+        void SetBlock( int32 index, int32 minx, int32 miny, int32 sizex, int32 sizey );
 
 		//! Set reduction block options like priority or if the block has to be reduced symmetrically.
-		void SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo);
+		void SetBlockOptions(int32 index, int32 priority, bool bReduceBothAxes, bool bReduceByTwo);
 
 		//! Set the texture layout packing strategy 
 		void SetLayoutPackingStrategy(EPackStrategy strategy);
 
 		//! Generate the blocks of a layout using the UV of the meshes
-		static NodeLayoutBlocksPtr GenerateLayoutBlocks(const MeshPtr pMesh, int layoutIndex, int gridSizeX, int gridSizeY);
+		static NodeLayoutBlocksPtr GenerateLayoutBlocks(const MeshPtr pMesh, int32 layoutIndex, int32 gridSizeX, int32 gridSizeY);
 
 		//! Set at which LOD the unassigned vertices warnings will star to be ignored
 		void SetIgnoreWarningsLOD(int32 LOD);

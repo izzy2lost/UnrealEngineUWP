@@ -225,12 +225,8 @@ namespace mu
 
 			// Block in layout grid units
 			box< UE::Math::TIntVector2<uint16> > RectInCells;
-			Options.LayoutToApply->GetBlock
-			(
-				BlockIndex,
-				&RectInCells.min[0], &RectInCells.min[1],
-				&RectInCells.size[0], &RectInCells.size[1]
-			);
+			RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
+			RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
 			FIntPoint grid = Options.LayoutToApply->GetGridSize();
 			grid[0] = FMath::Max(1, grid[0]);
@@ -1157,12 +1153,8 @@ namespace mu
 
 				// Block in layout grid units
 				box< UE::Math::TIntVector2<uint16> > RectInCells;
-				Options.LayoutToApply->GetBlock
-				(
-					BlockIndex,
-					&RectInCells.min[0], &RectInCells.min[1],
-					&RectInCells.size[0], &RectInCells.size[1]
-				);
+				RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
+				RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
 				FIntPoint grid = Options.LayoutToApply->GetGridSize();
 				grid[0] = FMath::Max(1, grid[0]);
@@ -1220,12 +1212,8 @@ namespace mu
 
 				// Block in layout grid units
 				box< UE::Math::TIntVector2<uint16> > RectInCells;
-				Options.LayoutToApply->GetBlock
-				(
-					BlockIndex,
-					&RectInCells.min[0], &RectInCells.min[1],
-					&RectInCells.size[0], &RectInCells.size[1]
-				);
+				RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
+				RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
 				FIntPoint grid = Options.LayoutToApply->GetGridSize();
 				grid[0] = FMath::Max(1, grid[0]);
@@ -1587,12 +1575,8 @@ namespace mu
 
 			// Block in layout grid units
 			box< UE::Math::TIntVector2<uint16> > RectInCells;
-			Options.LayoutToApply->GetBlock
-			(
-				BlockIndex,
-				&RectInCells.min[0], &RectInCells.min[1],
-				&RectInCells.size[0], &RectInCells.size[1]
-			);
+			RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
+			RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
 			FIntPoint grid = Options.LayoutToApply->GetGridSize();
 			grid[0] = FMath::Max(1, grid[0]);

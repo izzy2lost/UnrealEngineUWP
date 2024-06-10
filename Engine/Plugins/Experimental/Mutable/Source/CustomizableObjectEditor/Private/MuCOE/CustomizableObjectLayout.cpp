@@ -134,11 +134,10 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 			// Generating the layout blocks with the mutable layout
 			for (int i = 0; i < Layout->GetBlockCount(); ++i)
 			{
-				uint16 minX, minY, sizeX, sizeY;
+				mu::FImageSize Min = Layout->GetLayout()->Blocks[i].Min;
+				mu::FImageSize Size = Layout->GetLayout()->Blocks[i].Size;
 		
-				Layout->GetLayout()->GetBlock(i, &minX, &minY, &sizeX, &sizeY);
-		
-				FCustomizableObjectLayoutBlock block(FIntPoint(minX, minY), FIntPoint(minX + sizeX, minY + sizeY));
+				FCustomizableObjectLayoutBlock block(FIntPoint(Min.X, Min.Y), FIntPoint(Min.X + Size.X, Min.Y + Size.Y));
 				Blocks.Add(block);
 			}
 		

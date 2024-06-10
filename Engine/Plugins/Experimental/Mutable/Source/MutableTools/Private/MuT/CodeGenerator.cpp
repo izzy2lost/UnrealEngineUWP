@@ -1313,12 +1313,8 @@ namespace mu
 
 								// Block in layout grid units (cells)
 								box< UE::Math::TIntVector2<uint16> > rectInCells;
-								pLayout->GetBlock
-								(
-									BlockIndex,
-									&rectInCells.min[0], &rectInCells.min[1],
-									&rectInCells.size[0], &rectInCells.size[1]
-								);
+								rectInCells.min = pLayout->Blocks[BlockIndex].Min;
+								rectInCells.size = pLayout->Blocks[BlockIndex].Size;
 
 								// If we don't know the size of a layout block in pixels, calculate it
 								UpdateBlockSize(BlockDesc, rectInCells.size);
@@ -1411,12 +1407,8 @@ namespace mu
 
 												// Block in layout grid units
 												box< UE::Math::TIntVector2<uint16> > rectInCells;
-												pExtendLayout->GetBlock
-												(
-													b,
-													&rectInCells.min[0], &rectInCells.min[1],
-													&rectInCells.size[0], &rectInCells.size[1]
-												);
+												rectInCells.min = pLayout->Blocks[b].Min;
+												rectInCells.size = pLayout->Blocks[b].Size;
 
 												FImageDesc ExtendDesc = fragmentAd->GetImageDesc();
 

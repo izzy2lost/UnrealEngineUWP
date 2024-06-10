@@ -46,21 +46,21 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetGridSize( int x, int y )
+	void NodeLayoutBlocks::SetGridSize( int32 x, int32 y )
 	{
 		m_pD->m_pLayout->SetGridSize( x, y );
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetMaxGridSize(int x, int y)
+	void NodeLayoutBlocks::SetMaxGridSize(int32 x, int32 y)
 	{
 		m_pD->m_pLayout->SetMaxGridSize(x, y);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::GetGridSize( int* pX, int* pY ) const
+	void NodeLayoutBlocks::GetGridSize( int32* pX, int32* pY ) const
 	{
 		FIntPoint grid = m_pD->m_pLayout->GetGridSize();
 		if (pX) *pX = grid[0];
@@ -69,21 +69,21 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::GetMaxGridSize(int* pX, int* pY) const
+	void NodeLayoutBlocks::GetMaxGridSize(int32* pX, int32* pY) const
 	{
 		m_pD->m_pLayout->GetMaxGridSize(pX, pY);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetBlockCount( int n )
+	void NodeLayoutBlocks::SetBlockCount( int32 n )
 	{
 		m_pD->m_pLayout->SetBlockCount( n );
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeLayoutBlocks::GetBlockCount()
+	int32 NodeLayoutBlocks::GetBlockCount()
 	{
 		return m_pD->m_pLayout->GetBlockCount();
 	}
@@ -97,16 +97,19 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    void NodeLayoutBlocks::SetBlock( int index, int minx, int miny, int sizex, int sizey )
+    void NodeLayoutBlocks::SetBlock( int32 index, int32 minx, int32 miny, int32 sizex, int32 sizey )
 	{
-        m_pD->m_pLayout->SetBlock( index, minx, miny, sizex, sizey );
+		m_pD->m_pLayout->Blocks[index].Min = FImageSize( minx, miny );
+		m_pD->m_pLayout->Blocks[index].Size = FImageSize( sizex, sizey );
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo)
+	void NodeLayoutBlocks::SetBlockOptions(int32 index, int32 priority, bool bReduceBothAxes, bool bReduceByTwo)
 	{
-		m_pD->m_pLayout->SetBlockOptions(index, priority, bReduceBothAxes, bReduceByTwo);
+		m_pD->m_pLayout->Blocks[index].Priority = priority;
+		m_pD->m_pLayout->Blocks[index].bReduceBothAxes = bReduceBothAxes;
+		m_pD->m_pLayout->Blocks[index].bReduceByTwo = bReduceByTwo;
 	}
 
 
@@ -118,13 +121,13 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	NodeLayoutBlocksPtr NodeLayoutBlocks::GenerateLayoutBlocks(const MeshPtr pMesh, int layoutIndex, int gridSizeX, int gridSizeY)
+	NodeLayoutBlocksPtr NodeLayoutBlocks::GenerateLayoutBlocks(const MeshPtr pMesh, int32 layoutIndex, int32 gridSizeX, int32 gridSizeY)
 	{
 		NodeLayoutBlocksPtr layout = nullptr;
 
 		if (pMesh && layoutIndex >=0 && gridSizeX+gridSizeY>0)
 		{
-			int indexCount = pMesh->GetIndexCount();
+			int32 indexCount = pMesh->GetIndexCount();
 			TArray< FVector2f > UVs;
 			UVs.SetNumUninitialized(indexCount * 2);
 
@@ -132,7 +135,7 @@ namespace mu
 			UntypedMeshBufferIteratorConst texIt(pMesh->GetVertexBuffers(), MBS_TEXCOORDS, layoutIndex);
 			
 			//Getting UVs face by face
-			for (int v = 0; v < indexCount/3; ++v)
+			for (int32 v = 0; v < indexCount/3; ++v)
 			{
 				uint32_t i_1 = indexIt.GetAsUINT32(); 
 				indexIt++;
@@ -178,15 +181,15 @@ namespace mu
 			TArray<box<FIntVector2>> blocks;
 			
 			//Generating blocks
-			for (int i = 0; i < indexCount; ++i)
+			for (int32 i = 0; i < indexCount; ++i)
 			{
 				FIntVector2 a, b;
 			
-				a[0] = (int)floor(UVs[i * 2][0] * gridSizeX);
-				a[1] = (int)floor(UVs[i * 2][1] * gridSizeY);
+				a[0] = (int32)floor(UVs[i * 2][0] * gridSizeX);
+				a[1] = (int32)floor(UVs[i * 2][1] * gridSizeY);
 									  
-				b[0] = (int)floor(UVs[i * 2 +1][0] * gridSizeX);
-				b[1] = (int)floor(UVs[i * 2 +1][1] * gridSizeY);
+				b[0] = (int32)floor(UVs[i * 2 +1][0] * gridSizeX);
+				b[1] = (int32)floor(UVs[i * 2 +1][1] * gridSizeY);
 
 				//floor of UV = 1*gridSize is gridSize which is not a valid range
 				if (a[0] == gridSizeX){ a[0] = gridSizeX-1; }
@@ -219,19 +222,19 @@ namespace mu
 				}
 				else //they are in different blocks
 				{
-					int idxA = -1;
-					int idxB = -1;
+					int32 idxA = -1;
+					int32 idxB = -1;
 					
 					//Getting the blocks that contain them
 					for (int32 it = 0; it < blocks.Num(); ++it)
 					{
 						if (blocks[it].Contains(a))
 						{
-							idxA = (int)it;
+							idxA = (int32)it;
 						}
 						if (blocks[it].Contains(b))
 						{
-							idxB = (int)it;
+							idxB = (int32)it;
 						}
 					}
 					
@@ -307,13 +310,13 @@ namespace mu
 			{
 				layout->SetBlockCount(numBlocks);
 			
-				for (int i = 0; i < numBlocks; ++i)
+				for (int32 i = 0; i < numBlocks; ++i)
 				{
-					int blockIndex = i;
-					int minX = blocks[i].min[0];
-					int minY = blocks[i].min[1];
-					int sizeX = blocks[i].size[0];
-					int sizeY = blocks[i].size[1];
+					int32 blockIndex = i;
+					int32 minX = blocks[i].min[0];
+					int32 minY = blocks[i].min[1];
+					int32 sizeX = blocks[i].size[0];
+					int32 sizeY = blocks[i].size[1];
 			
 					layout->SetBlock(blockIndex, minX, minY, sizeX, sizeY);
 				}

@@ -1918,12 +1918,8 @@ namespace mu
 		}
 
 		box< UE::Math::TIntVector2<uint16> > RectInblocks;
-		Layout->GetBlock
-		(
-			RelBlockIndex,
-			&RectInblocks.min[0], &RectInblocks.min[1],
-			&RectInblocks.size[0], &RectInblocks.size[1]
-		);
+		RectInblocks.min = Layout->Blocks[RelBlockIndex].Min;
+		RectInblocks.size = Layout->Blocks[RelBlockIndex].Size;
 
 		// Convert the rect from blocks to pixels
 		FIntPoint Grid = Layout->GetGridSize();

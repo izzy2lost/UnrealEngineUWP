@@ -420,11 +420,12 @@ namespace mu
         for ( int index=0; index<blockCount; ++index )
         {
             box< UE::Math::TIntVector2<uint16> > b;
-            pSourceLayout->GetBlock( index, &b.min[0], &b.min[1], &b.size[0], &b.size[1] );
+			b.min = pSourceLayout->Blocks[index].Min;
+			b.size = pSourceLayout->Blocks[index].Size;
 
-			int p;
-			bool bReduceBothAxes, bReduceByTwo;
-			pSourceLayout->GetBlockOptions(index, p, bReduceBothAxes, bReduceByTwo);
+			int32 p = pSourceLayout->Blocks[index].Priority;
+			bool bReduceBothAxes = pSourceLayout->Blocks[index].bReduceBothAxes;
+			bool bReduceByTwo = pSourceLayout->Blocks[index].bReduceByTwo;
 
 			FIntVector2 reductions;
 			reductions[0] = 0;
@@ -637,16 +638,13 @@ namespace mu
 		pResult->SetLayoutPackingStrategy(LayoutStrategy);
 		pResult->SetBlockReductionMethod(ReductionMethod);
 
-        for ( int index=0; index<blockCount; ++index )
+        for ( int32 index=0; index<blockCount; ++index )
         {
-            pResult->SetBlock
-                (
-                    index,
-                    scratch->positions[index][0], scratch->positions[index][1],
-                    scratch->blocks[index][0], scratch->blocks[index][1]
-                );
-
-			pResult->SetBlockOptions(index, scratch->priorities[index], (bool)scratch->ReduceBothAxes[index], (bool)scratch->ReduceByTwo[index]);
+			pResult->Blocks[index].Min = UE::Math::TIntVector2<uint16>(scratch->positions[index]);
+			pResult->Blocks[index].Size = scratch->blocks[index];
+			pResult->Blocks[index].Priority = scratch->priorities[index];
+			pResult->Blocks[index].bReduceBothAxes = scratch->ReduceBothAxes[index];
+			pResult->Blocks[index].bReduceByTwo = scratch->ReduceByTwo[index];
         }
     }
 }

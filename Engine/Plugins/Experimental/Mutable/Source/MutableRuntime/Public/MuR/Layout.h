@@ -99,42 +99,6 @@ namespace mu
 		//! The existing blocks will be kept as much as possible. The new blocks will be undefined.
 		void SetBlockCount( int32 );
 
-		//! Return a block of the layout.
-		//! "Position" here means the lower-left corner of the block.
-		//! \param index Block to get.
-		//! \param[out] pMinX will be set to the x position of the block
-		//! (from 0 to the X size of the grid minus one )
-		//! \param[out] pMinY will be set to the y position of the block
-		//! (from 0 to the Y size of the grid minus one )
-		//! \param[out] pSizeX will be set to the x size of the block
-		//! \param[out] pSizeY will be set to the y size of the block
-		void GetBlock( int32 Index, uint16* MinX, uint16* MinY, uint16* SizeX, uint16* SizeY ) const;
-
-		//! Returns the reduction priority of a block.
-		//! \param index Block to get priority.
-		//! \param[out] priority reduction priority of the block
-		//! \param[out] bReduceBothAxes reduction method of the block
-		//! \param[out] bReduceByTwo reduction method of the block
-		void GetBlockOptions(int32 Index, int32& Priority, bool& bReduceBothAxes, bool& bReduceByTwo) const;
-
-		//! Set a block of the layout.
-		//! "Position" here means the lower-left corner of the block.
-		//! \param index Block to set.
-		//! \param minX will be set to the x position of the block
-		//! (from 0 to the X size of the grid minus one )
-		//! \param minY will be set to the y position of the block
-		//! (from 0 to the Y size of the grid minus one )
-		//! \param sizeX will be set to the x size of the block
-		//! \param sizeY will be set to the y size of the block
-        void SetBlock( int32 Index, int32 MinX, int32 MinY, int32 SizeX, int32 SizeY );
-
-		//! Set the reduction options of a block
-		//! \param index Block to set the options
-		//! \param priority will be set to the reduction priority of the block. The blocks with the highest values will be the last to be reduced
-		//! \param bReduceBothAxes will be set to reduce the block in both axis at the same time.
-		//! \param bReduceByTwo will reduce by two blocks on a unitary reduction.
-		void SetBlockOptions(int32 Index, int32 Priority, bool bReduceBothAxes, bool bReduceByTwo);
-
 		//! Set the texture layout packing strategy
 		//! By default the texture layout packing strategy is set to resizable layout
 		void SetLayoutPackingStrategy(EPackStrategy);
@@ -161,8 +125,6 @@ namespace mu
 
 	public:
 
-		// This used to be the data in the private implementation of the image interface
-		//-----------------------------------------------------------------------------------------
 		struct FBlock
 		{
 			FBlock(UE::Math::TIntVector2<uint16> InMin = UE::Math::TIntVector2<uint16>(), UE::Math::TIntVector2<uint16> InSize = UE::Math::TIntVector2<uint16>())
@@ -185,17 +147,11 @@ namespace mu
 			int32 Priority;
 
 			//! Value to control the method to reduce the block
-			bool bReduceBothAxes;
+			uint32 bReduceBothAxes : 1;
 
 			//! Value to control if a block has to be reduced by two in an unitary reduction strategy
-			bool bReduceByTwo;
+			uint32 bReduceByTwo : 1;
 
-
-			//!
-			void Serialise(OutputArchive& arch) const;
-
-			//!
-			void Unserialise(InputArchive& arch);
 
 			//!
 			inline bool operator==(const FBlock& o) const
@@ -251,6 +207,9 @@ namespace mu
 		//! Return true if the layout is a single block filling all area.
 		bool IsSingleBlockAndFull() const;
 	};
+
+	MUTABLE_DEFINE_POD_SERIALISABLE(Layout::FBlock);
+	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(Layout::FBlock);
 
 }
 

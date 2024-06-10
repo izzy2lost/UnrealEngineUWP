@@ -11,6 +11,9 @@
 
 namespace mu {
 
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(Layout::FBlock);
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(Layout::FBlock);
+
 	//---------------------------------------------------------------------------------------------
 	Layout::Layout()
 	{
@@ -25,20 +28,20 @@ namespace mu {
 
 
 	//---------------------------------------------------------------------------------------------
-	LayoutPtr Layout::StaticUnserialise( InputArchive& arch )
+	Ptr<Layout> Layout::StaticUnserialise( InputArchive& arch )
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		LayoutPtr pResult = new Layout();
+		Ptr<Layout> pResult = new Layout();
 		arch >> *pResult;
 		return pResult;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	LayoutPtr Layout::Clone() const
+	Ptr<Layout> Layout::Clone() const
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		LayoutPtr pResult = new Layout();		
+		Ptr<Layout> pResult = new Layout();
 		pResult->Size = Size;
 		pResult->MaxSize = MaxSize;
 		pResult->Blocks = Blocks;
@@ -124,58 +127,9 @@ namespace mu {
 
 
 	//---------------------------------------------------------------------------------------------
-	void Layout::GetBlock( int32 index, uint16* pMinX, uint16* pMinY, uint16* pSizeX, uint16* pSizeY ) const
+	void Layout::SetLayoutPackingStrategy(EPackStrategy InStrategy)
 	{
-		check( index >=0 && index < Blocks.Num() );
-		check( pMinX && pMinY && pSizeX && pSizeY );
-
-		if (pMinX && pMinY && pSizeX && pSizeY)
-		{
-			*pMinX = Blocks[index].Min[0];
-			*pMinY = Blocks[index].Min[1];
-			*pSizeX = Blocks[index].Size[0];
-			*pSizeY = Blocks[index].Size[1];
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void Layout::GetBlockOptions(int index, int& pPriority, bool& bReduceBothAxes, bool& bReduceByTwo) const
-	{
-		check(index >= 0 && index < Blocks.Num());
-
-		pPriority = Blocks[index].Priority;
-		bReduceBothAxes = Blocks[index].bReduceBothAxes;
-		bReduceByTwo = Blocks[index].bReduceByTwo;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void Layout::SetBlock( int index, int minx, int miny, int sizex, int sizey )
-	{
-		check( index >=0 && index < Blocks.Num() );
-
-		// Keeps the id
-		Blocks[index].Min = UE::Math::TIntVector2<uint16>((uint16)minx, (uint16)miny);
-		Blocks[index].Size = UE::Math::TIntVector2<uint16>((uint16)sizex, (uint16)sizey);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void Layout::SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo)
-	{
-		check(index >= 0 && index < Blocks.Num());
-
-		Blocks[index].Priority = priority;
-		Blocks[index].bReduceBothAxes = bReduceBothAxes;
-		Blocks[index].bReduceByTwo = bReduceByTwo;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void Layout::SetLayoutPackingStrategy(EPackStrategy _strategy)
-	{
-		Strategy = _strategy;
+		Strategy = InStrategy;
 	}
 
 
@@ -189,9 +143,6 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	void Layout::Serialise(OutputArchive& arch) const
 	{
-		uint32 ver = 7;
-		arch << ver;
-
 		arch << Size;
 		arch << Blocks;
 
@@ -205,22 +156,18 @@ namespace mu {
 	//---------------------------------------------------------------------------------------------
 	void Layout::Unserialise(InputArchive& arch)
 	{
-		uint32 ver;
-		arch >> ver;
-		check(ver <= 7);
-
 		arch >> Size;
 		arch >> Blocks;
 		arch >> MaxSize;
 
-		uint32 temp;
-		arch >> temp;
-		Strategy = EPackStrategy(temp);
+		uint32 Temp;
+		arch >> Temp;
+		Strategy = EPackStrategy(Temp);
 
 		arch >> FirstLODToIgnoreWarnings;
 
-		arch >> temp;
-		ReductionMethod = EReductionMethod(temp);
+		arch >> Temp;
+		ReductionMethod = EReductionMethod(Temp);
 	}
 
 
@@ -294,30 +241,6 @@ namespace mu {
 	EReductionMethod Layout::GetBlockReductionMethod() const
 	{
 		return ReductionMethod;
-	}
-
-	
-	//---------------------------------------------------------------------------------------------
-	void Layout::FBlock::Serialise(OutputArchive& arch) const
-	{
-		arch << Min;
-		arch << Size;
-		arch << Id;
-		arch << Priority;
-		arch << bReduceBothAxes;
-		arch << bReduceByTwo;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void Layout::FBlock::Unserialise(InputArchive& arch)
-	{
-		arch >> Min;
-		arch >> Size;
-		arch >> Id;
-		arch >> Priority;
-		arch >> bReduceBothAxes;
-		arch >> bReduceByTwo;
 	}
 
 }
