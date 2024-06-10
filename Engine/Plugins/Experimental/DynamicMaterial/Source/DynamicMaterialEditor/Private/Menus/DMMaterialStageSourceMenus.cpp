@@ -17,6 +17,7 @@
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
+#include "Components/MaterialStageExpressions/DMMSEWorldPositionNoise.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIFunction.h"
 #include "Components/MaterialStageInputs/DMMSIGradient.h"
@@ -776,6 +777,66 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
+	void ChangeSourceToNoiseFromContext(UDMMenuContext* InMenuContext)
+	{
+		if (!IsValid(InMenuContext))
+		{
+			return;
+		}
+
+		UDMMaterialStage* const Stage = InMenuContext->GetStage();
+
+		if (!Stage)
+		{
+			return;
+		}
+
+		UDMMaterialStageSource* const StageSource = Stage->GetSource();
+
+		if (!StageSource)
+		{
+			return;
+		}
+
+		if (StageSource->IsA<UDMMaterialStageBlend>())
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
+			Stage->Modify();
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionWorldPositionNoise::StaticClass(),
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
+		}
+		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
+			Stage->Modify();
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionWorldPositionNoise::StaticClass(),
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
+		}
+
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
+		{
+			EditorWidget->InvalidateComponentEditWidget();
+		}
+	}
+
 	void ChangeSourceToSolidColorRGBFromContext(UDMMenuContext* InMenuContext)
 	{
 		if (!IsValid(InMenuContext))
@@ -1372,6 +1433,18 @@ namespace UE::DynamicMaterialEditor::Private
 			FUIAction(
 				FExecuteAction::CreateStatic(
 					&ChangeSourceToWidgetFromContext,
+					MenuContext
+				)
+			)
+		);
+
+		InSection.AddMenuEntry("Noise",
+			LOCTEXT("ChangeSourceNoise", "Noise"),
+			LOCTEXT("ChangeSourceNoiseTooltip", "Change the source of this stage to a Noise Renderer."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateStatic(
+					&ChangeSourceToNoiseFromContext,
 					MenuContext
 				)
 			)

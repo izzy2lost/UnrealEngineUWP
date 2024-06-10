@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/Generators/DMThroughputPropertyRowGenerator.h"
-#include "DynamicMaterialEditorModule.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageInput.h"
 #include "Components/DMMaterialStageThroughput.h"
+#include "Components/DMMaterialValue.h"
+#include "DynamicMaterialEditorModule.h"
 
 const TSharedRef<FDMThroughputPropertyRowGenerator>& FDMThroughputPropertyRowGenerator::Get()
 {
@@ -68,6 +69,8 @@ void FDMThroughputPropertyRowGenerator::AddComponentProperties(const TSharedRef<
 				continue;
 			}
 
+			const int32 StartRow = InOutPropertyRows.Num();
+
 			for (const FDMMaterialStageConnectorChannel& Channel : InputMap[InputIdx].Channels)
 			{
 				const int32 StageInputIdx = Channel.SourceIndex - FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT;
@@ -76,6 +79,32 @@ void FDMThroughputPropertyRowGenerator::AddComponentProperties(const TSharedRef<
 				{
 					FDynamicMaterialEditorModule::GeneratorComponentPropertyRows(InComponentEditWidget, Inputs[StageInputIdx], InOutPropertyRows, InOutProcessedObjects);
 				}
+			}
+
+			for (int32 PropertyRowIdx = StartRow; PropertyRowIdx < InOutPropertyRows.Num(); ++PropertyRowIdx)
+			{
+				FDMPropertyHandle& PropertyRow = InOutPropertyRows[PropertyRowIdx];
+
+				if (PropertyRow.NameOverride.IsSet())
+				{
+					continue;
+				}
+
+				if (!PropertyRow.PropertyHandle.IsValid()
+					|| !PropertyRow.PropertyHandle->GetProperty())
+				{
+					continue;
+				}
+
+				TArray<UObject*> Outers;
+				PropertyRow.PropertyHandle->GetOuterObjects(Outers);
+
+				if (Outers.IsEmpty() || !Outers[0]->IsA<UDMMaterialValue>())
+				{
+					continue;
+				}
+
+				PropertyRow.NameOverride = InputConnectors[InputIdx].Name;
 			}
 		}
 	}

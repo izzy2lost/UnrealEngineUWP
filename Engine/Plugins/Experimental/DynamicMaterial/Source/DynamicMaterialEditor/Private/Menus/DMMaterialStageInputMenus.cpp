@@ -11,6 +11,7 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
+#include "Components/MaterialStageExpressions/DMMSEWorldPositionNoise.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIGradient.h"
 #include "Components/MaterialStageInputs/DMMSISlot.h"
@@ -213,6 +214,11 @@ EndStageSearch:
 		if (UDMMaterialStageExpression* TextureSampleEdgeColor = Cast<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass()->GetDefaultObject(true)))
 		{
 			GenerateChangeInputMenu_Expression(MenuBuilder, TextureSampleEdgeColor, InThroughput, InInputIndex, InInputChannel);
+		}
+
+		if (UDMMaterialStageExpression* WorldPositionNoise = Cast<UDMMaterialStageExpression>(UDMMaterialStageExpressionWorldPositionNoise::StaticClass()->GetDefaultObject(true)))
+		{
+			GenerateChangeInputMenu_Expression(MenuBuilder, WorldPositionNoise, InThroughput, InInputIndex, InInputChannel);
 		}
 
 		if constexpr (UE::DynamicMaterialEditor::bAdvancedSlotsEnabled)

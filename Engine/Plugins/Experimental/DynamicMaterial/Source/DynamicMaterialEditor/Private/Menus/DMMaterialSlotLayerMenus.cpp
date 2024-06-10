@@ -9,6 +9,7 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
+#include "Components/MaterialStageExpressions/DMMSEWorldPositionNoise.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetUMGWidgetRenderer.h"
 #include "DMDefs.h"
@@ -574,6 +575,19 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_Renderer,
 			TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetUMGWidgetRenderer::StaticClass())
+		))
+	);
+
+	NewSection.AddMenuEntry(
+		NAME_None,
+		LOCTEXT("AddNoise", "Noise"),
+		LOCTEXT("AddNoiseTooltip", "Add a new Material Layer with a noise pattern."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateSP(
+			EditorWidget->GetActiveSlotWidget().Get(),
+			&SDMSlot::AddNewLayer_Expression,
+			TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionWorldPositionNoise::StaticClass()),
+			EDMMaterialLayerStage::All
 		))
 	);
 
