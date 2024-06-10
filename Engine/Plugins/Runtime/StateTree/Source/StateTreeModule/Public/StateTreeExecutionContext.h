@@ -92,7 +92,7 @@ DECLARE_DELEGATE_RetVal_FourParams(bool, FOnCollectStateTreeExternalData, const 
 struct STATETREEMODULE_API FStateTreeExecutionContext
 {
 public:
-	FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& CollectExternalDataCallback = {});
+	FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& CollectExternalDataCallback = {}, const EStateTreeRecordTransitions RecordTransitions = EStateTreeRecordTransitions::No);
 	/** Construct an execution context from a parent context and another tree. Useful to run a subtree from the parent context with the same schema. */
 	FStateTreeExecutionContext(const FStateTreeExecutionContext& InContextToCopy, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData);
 	virtual ~FStateTreeExecutionContext();
@@ -440,6 +440,17 @@ public:
 	{
 		return GetDataViewFromInstanceStorage(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, ParentFrame, CurrentFrame, Handle);
 	}
+
+	/**
+	* Forces transition to a state from a previously recorded state tree transition result.
+	* Primarily used for replication purposes so that a client state tree stay in sync with its server counterpart.
+	* @param Recorded state transition to run on the state tree.
+	* @return The new run status for the state tree.
+	*/
+	EStateTreeRunStatus ForceTransition(const FRecordedStateTreeTransitionResult& Transition);
+
+	/** Returns the recorded transitions for this context. */
+	TConstArrayView<FRecordedStateTreeTransitionResult> GetRecordedTransitions() const { return RecordedTransitions; }
 
 protected:
 	/**
@@ -884,4 +895,10 @@ protected:
 		FStateTreeDataHandle SavedNodeDataHandle;
 		FStateTreeDataView SavedNodeInstanceData;
 	};
+
+	/** If true, the state tree context will create snapshots of transition events and capture them within RecordedTransitions for later use. */
+	bool bRecordTransitions = false;
+
+	/** Captured snapshots for transition results that can be used to recreate transitions. This array is only populated if bRecordTransitions is true. */
+	TArray<FRecordedStateTreeTransitionResult> RecordedTransitions;
 };

@@ -103,7 +103,7 @@ FStateTreeExecutionContext::FCurrentlyProcessedFrameScope::~FCurrentlyProcessedF
 }
 
 
-FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& InCollectExternalDataDelegate)
+FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& InCollectExternalDataDelegate, const EStateTreeRecordTransitions RecordTransitions)
 	: Owner(InOwner)
 	, RootStateTree(InStateTree)
 	, InstanceData(InInstanceData)
@@ -118,6 +118,8 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 		check(InstanceDataStorage);
 		
 		EventQueue = InstanceData.GetSharedMutableEventQueue();
+
+		bRecordTransitions = RecordTransitions == EStateTreeRecordTransitions::Yes;
 	}
 	else
 	{
@@ -1052,6 +1054,15 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 	}
 }
 
+EStateTreeRunStatus FStateTreeExecutionContext::ForceTransition(const FRecordedStateTreeTransitionResult& Transition)
+{
+	FStateTreeTransitionResult TransitionResult = FStateTreeTransitionResult(Transition);
+
+	ExitState(TransitionResult);
+
+	return EnterState(TransitionResult);
+}
+
 FStateTreeDataView FStateTreeExecutionContext::GetDataViewFromInstanceStorage(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
 {
 	switch (Handle.GetSource())
@@ -1540,6 +1551,11 @@ EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionR
 	}
 
 	FStateTreeExecutionState& Exec = GetExecState();
+
+	if (bRecordTransitions)
+	{
+		RecordedTransitions.Add(FRecordedStateTreeTransitionResult(Transition));
+	}
 
 	// Allocate new tasks.
 	UpdateInstanceData(Exec.ActiveFrames, Transition.NextActiveFrames);
