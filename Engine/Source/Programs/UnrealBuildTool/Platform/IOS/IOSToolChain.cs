@@ -171,7 +171,8 @@ namespace UnrealBuildTool
 		{
 			base.GetCompileArguments_Debugging(CompileEnvironment, Arguments);
 
-			Arguments.Add("-fvisibility=hidden"); // hides the linker warnings with PhysX
+			Arguments.Add("-fvisibility=hidden");
+			Arguments.Add("-fvisibility-inlines-hidden");
 		}
 
 		/// <inheritdoc/>
@@ -207,6 +208,19 @@ namespace UnrealBuildTool
 		protected override void GetCompileArguments_Global(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
 			base.GetCompileArguments_Global(CompileEnvironment, Arguments);
+
+			if (CompileEnvironment.Configuration == CppConfiguration.Shipping)
+			{
+				Arguments.Add("-ffunction-sections");
+				Arguments.Add("-fdata-sections");
+				Arguments.Add("-fno-unwind-tables");
+				Arguments.Add("-fno-asynchronous-unwind-tables");
+
+				if (!CompileEnvironment.bPGOProfile)
+				{
+					Arguments.Add("-fno-use-cxa-atexit");
+				}
+			}
 
 			// What architecture(s) to build for
 			Arguments.Add(FormatArchitectureArg(CompileEnvironment.Architectures));
@@ -322,6 +336,8 @@ namespace UnrealBuildTool
 			Arguments.Add("-stdlib=libc++");
 			Arguments.Add("-ObjC");
 			// Arguments.Add("-v");
+
+			Arguments.Add("-Wl,-O3");
 
 			// use LTO if desired (like VCToolchain does)
 			if (LinkEnvironment.bAllowLTCG)

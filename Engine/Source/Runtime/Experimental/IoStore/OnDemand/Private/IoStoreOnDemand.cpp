@@ -339,7 +339,12 @@ static void LoadCaCerts()
  */
 static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPath)
 {
-	const FString AbsPath = FPaths::Combine(FGenericPlatformMisc::RootDir(), RelPath);
+#if PLATFORM_IOS
+    // IOS OpenRead assumes it is in cookeddata, using ~ for the base path tells it to use the package base path instead
+    const FString AbsPath = FPaths::Combine(TEXT("~"), RelPath);
+#else
+    const FString AbsPath = FPaths::Combine(FGenericPlatformMisc::RootDir(), RelPath);
+#endif
 	if (TUniquePtr<IFileHandle> File(IPlatformFile::GetPlatformPhysical().OpenRead(*AbsPath)); File.IsValid())
 	{
 #if PLATFORM_ANDROID

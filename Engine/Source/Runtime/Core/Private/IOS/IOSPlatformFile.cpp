@@ -15,9 +15,9 @@
 #include "Async/MappedFileHandle.h"
 #include <sys/mman.h>
 
-//#if PLATFORM_IOS
-//#include "IPlatformFileSandboxWrapper.h"
-//#endif
+#if PLATFORM_USE_PLATFORM_FILE_MANAGED_STORAGE_WRAPPER
+#include "HAL/IPlatformFileManagedStorageWrapper.h"
+#endif //PLATFORM_USE_PLATFORM_FILE_MANAGED_STORAGE_WRAPPER
 
 // make an FTimeSpan object that represents the "epoch" for time_t (from a stat struct)
 const FDateTime IOSEpoch(1970, 1, 1);
@@ -1047,6 +1047,13 @@ FString FIOSPlatformFile::ConvertToIOSPath(const FString& Filename, bool bForWri
 	if (Result.Contains(TEXT("/OnDemandResources/")) || Result.StartsWith(TEXT("/var/")))
 	{
 		return Result;
+	}
+
+	if (Result.StartsWith(TEXT("~/")))
+	{
+		static FString ReadPathBase = FString([[NSBundle mainBundle]bundlePath] );
+		Result.ReplaceInline(TEXT("~"), TEXT(""));
+		return ReadPathBase + Result;
 	}
 	
 	FPaths::MakePlatformFilename(Result);
