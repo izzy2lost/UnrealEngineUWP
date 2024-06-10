@@ -18,6 +18,7 @@
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture.h"
+#include "Engine/Texture2D.h"
 #include "EngineAnalytics.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "GeometryCache.h"
@@ -27,6 +28,8 @@
 #include "HAL/FileManager.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
+#include "Materials/MaterialInstanceConstant.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
@@ -36,7 +39,7 @@
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/JsonSerializer.h"
-#include "Sound/SoundBase.h"
+#include "Sound/SoundWave.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectSaveContext.h"
@@ -55,6 +58,8 @@ DEFINE_LOG_CATEGORY(LogUsd);
 
 namespace UE::USDClasses::Private
 {
+	static const FString DisplayColorID = TEXT("!DisplayColor");
+
 	TSharedPtr<FJsonObject> ParseJSON(const FString& FileContents)
 	{
 		if (FileContents.IsEmpty())
@@ -594,19 +599,117 @@ FString IUsdClassesModule::SanitizeObjectName(const FString& InObjectName)
 	return UsdUnreal::ObjectUtils::SanitizeObjectName(InObjectName);
 }
 
+FString IUsdClassesModule::FDisplayColorMaterial::ToString()
+{
+	return FString::Printf(TEXT("%s_%d_%d"), *UE::USDClasses::Private::DisplayColorID, bHasOpacity, bIsDoubleSided);
+}
+
+TOptional<IUsdClassesModule::FDisplayColorMaterial> IUsdClassesModule::FDisplayColorMaterial::FromString(const FString& DisplayColorString)
+{
+	TArray<FString> Tokens;
+	DisplayColorString.ParseIntoArray(Tokens, TEXT("_"));
+
+	if (Tokens.Num() != 3 || Tokens[0] != UE::USDClasses::Private::DisplayColorID)
+	{
+		return {};
+	}
+
+	IUsdClassesModule::FDisplayColorMaterial Result;
+	Result.bHasOpacity = static_cast<bool>(FCString::Atoi(*Tokens[1]));
+	Result.bIsDoubleSided = static_cast<bool>(FCString::Atoi(*Tokens[2]));
+	return Result;
+}
+
 const FSoftObjectPath* IUsdClassesModule::GetReferenceMaterialPath(const FDisplayColorMaterial& DisplayColorDescription)
 {
-	return UsdUnreal::MaterialUtils::GetReferenceMaterialPath(DisplayColorDescription);
+	const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
+	if (!Settings)
+	{
+		return nullptr;
+	}
+
+	if (DisplayColorDescription.bHasOpacity)
+	{
+		if (DisplayColorDescription.bIsDoubleSided)
+		{
+			return &Settings->ReferenceDisplayColorAndOpacityTwoSidedMaterial;
+		}
+		else
+		{
+			return &Settings->ReferenceDisplayColorAndOpacityMaterial;
+		}
+	}
+	else
+	{
+		if (DisplayColorDescription.bIsDoubleSided)
+		{
+			return &Settings->ReferenceDisplayColorTwoSidedMaterial;
+		}
+		else
+		{
+			return &Settings->ReferenceDisplayColorMaterial;
+		}
+	}
 }
 
 UMaterialInstanceDynamic* IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(const FDisplayColorMaterial& DisplayColorDescription)
 {
-	return UsdUnreal::MaterialUtils::CreateDisplayColorMaterialInstanceDynamic(DisplayColorDescription);
+	const FSoftObjectPath* ParentPathPtr = GetReferenceMaterialPath(DisplayColorDescription);
+	if (!ParentPathPtr)
+	{
+		return nullptr;
+	}
+
+	if (UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(ParentPathPtr->TryLoad()))
+	{
+		FName AssetName = MakeUniqueObjectName(
+			GetTransientPackage(),
+			UMaterialInstanceConstant::StaticClass(),
+			*FString::Printf(
+				TEXT("DisplayColor%s%s"),
+				DisplayColorDescription.bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+				DisplayColorDescription.bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
+			)
+		);
+
+		if (UMaterialInstanceDynamic* NewMaterial = UMaterialInstanceDynamic::Create(ParentMaterial, GetTransientPackage(), AssetName))
+		{
+			return NewMaterial;
+		}
+	}
+
+	return nullptr;
 }
 
 UMaterialInstanceConstant* IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(const FDisplayColorMaterial& DisplayColorDescription)
 {
-	return UsdUnreal::MaterialUtils::CreateDisplayColorMaterialInstanceConstant(DisplayColorDescription);
+#if WITH_EDITOR
+	const FSoftObjectPath* ParentPathPtr = GetReferenceMaterialPath(DisplayColorDescription);
+	if (!ParentPathPtr)
+	{
+		return nullptr;
+	}
+
+	if (UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(ParentPathPtr->TryLoad()))
+	{
+		FName AssetName = MakeUniqueObjectName(
+			GetTransientPackage(),
+			UMaterialInstanceConstant::StaticClass(),
+			*FString::Printf(
+				TEXT("DisplayColor%s%s"),
+				DisplayColorDescription.bHasOpacity ? TEXT("_Translucent") : TEXT(""),
+				DisplayColorDescription.bIsDoubleSided ? TEXT("_TwoSided") : TEXT("")
+			)
+		);
+
+		if (UMaterialInstanceConstant* MaterialInstance = NewObject<UMaterialInstanceConstant>(GetTransientPackage(), AssetName, RF_NoFlags))
+		{
+			UMaterialEditingLibrary::SetMaterialInstanceParent(MaterialInstance, ParentMaterial);
+			return MaterialInstance;
+		}
+	}
+#endif	  // WITH_EDITOR
+	return nullptr;
 }
 
 class FUsdClassesModule : public IUsdClassesModule

@@ -78,8 +78,7 @@ namespace UE::UsdShadeTranslator::Private
 						// Important to not use GetBaseMaterial() here because if our parent is the translucent we'll
 						// get the reference UsdPreviewSurface instead, as that is also *its* reference
 						UMaterialInterface* ReferenceMaterial = MaterialInstance->Parent.Get();
-						UMaterialInterface* ReferenceMaterialVT = Cast<UMaterialInterface>(
-							UsdUnreal::MaterialUtils::GetVTVersionOfReferencePreviewSurfaceMaterial(ReferenceMaterial).TryLoad()
+						UMaterialInterface* ReferenceMaterialVT = MeshTranslationImpl::GetVTVersionOfReferencePreviewSurfaceMaterial(ReferenceMaterial
 						);
 						if (ReferenceMaterial == ReferenceMaterialVT)
 						{
@@ -407,18 +406,16 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 				UE::UsdShadeTranslator::Private::UpgradeMaterialsAndTexturesToVT(NonVTTextures, Context);
 			}
 
-			EUsdReferenceMaterialProperties Properties = EUsdReferenceMaterialProperties::None;
+			MeshTranslationImpl::EUsdReferenceMaterialProperties Properties = MeshTranslationImpl::EUsdReferenceMaterialProperties::None;
 			if (bIsMaterialTranslucent)
 			{
-				Properties |= EUsdReferenceMaterialProperties::Translucent;
+				Properties |= MeshTranslationImpl::EUsdReferenceMaterialProperties::Translucent;
 			}
 			if (VTTextures.Num() > 0)
 			{
-				Properties |= EUsdReferenceMaterialProperties::VT;
+				Properties |= MeshTranslationImpl::EUsdReferenceMaterialProperties::VT;
 			}
-			UMaterialInterface* ReferenceMaterial = Cast<UMaterialInterface>(
-				UsdUnreal::MaterialUtils::GetReferencePreviewSurfaceMaterial(Properties).TryLoad()
-			);
+			UMaterialInterface* ReferenceMaterial = MeshTranslationImpl::GetReferencePreviewSurfaceMaterial(Properties);
 
 			if (ensure(ReferenceMaterial))
 			{
@@ -457,14 +454,12 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 			Context->ObjectFlags | RF_Transient,	// We never want MIDs to become assets in the content browser
 			[bIsMaterialTranslucent](UPackage* Outer, FName SanitizedName, EObjectFlags FlagsToUse)
 			{
-				EUsdReferenceMaterialProperties Properties = EUsdReferenceMaterialProperties::None;
+				MeshTranslationImpl::EUsdReferenceMaterialProperties Properties = MeshTranslationImpl::EUsdReferenceMaterialProperties::None;
 				if (bIsMaterialTranslucent)
 				{
-					Properties |= EUsdReferenceMaterialProperties::Translucent;
+					Properties |= MeshTranslationImpl::EUsdReferenceMaterialProperties::Translucent;
 				}
-				UMaterialInterface* ReferenceMaterial = Cast<UMaterialInterface>(
-					UsdUnreal::MaterialUtils::GetReferencePreviewSurfaceMaterial(Properties).TryLoad()
-				);
+				UMaterialInterface* ReferenceMaterial = MeshTranslationImpl::GetReferencePreviewSurfaceMaterial(Properties);
 
 				UMaterialInstanceDynamic* CreatedMID = UMaterialInstanceDynamic::Create(ReferenceMaterial, Outer, SanitizedName);
 				CreatedMID->ClearFlags(CreatedMID->GetFlags());
