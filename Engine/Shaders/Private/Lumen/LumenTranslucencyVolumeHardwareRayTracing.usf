@@ -43,7 +43,6 @@ RaytracingAccelerationStructure TLAS;
 
 RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
-Texture3D<float3> VolumeFroxelProbeRadiance;
 uint MaxTraversalIterations;
 uint MeshSectionVisibilityTest;
 
@@ -156,18 +155,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			{
 				float Transparency = 1.0f;
 
-			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_FROXEL
-				if (true) // Froxel probes are always valid for the translucency volume froxels.
-				{
-					const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV);
-			
-					// Lerp according to tracing coverage=1-transparency
-					TraceLightingResult.Radiance += FroxelProbeRadiance * Transparency;
-
-					Transparency = 0.0;
-				}
-				else
-			#elif PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_RADIANCE_CACHE
+			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_RADIANCE_CACHE
 				if (Coverage.bValid)
 				{
 					SampleRadianceCacheAndApply(Coverage, WorldPosition, WorldConeDirection, ConeHalfAngle, TraceLightingResult.Radiance, Transparency);

@@ -622,13 +622,6 @@ private:
 		const FLumenSceneFrameTemporaries& FrameTemporaries,
 		ERDGPassFlags ComputePassFlags);
 
-	void ComputeLumenFroxelProbeVolume(
-		FRDGBuilder& GraphBuilder,
-		FViewInfo& View,
-		const FLumenSceneFrameTemporaries& FrameTemporaries,
-		LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
-		ERDGPassFlags ComputePassFlags);
-
 	void ComputeLumenTranslucencyGIVolume(
 		FRDGBuilder& GraphBuilder,
 		FViewInfo& View,
