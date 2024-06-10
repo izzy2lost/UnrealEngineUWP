@@ -178,6 +178,7 @@ bool ShouldRenderScreenSpaceReflectionsWater(const FViewInfo& View)
 	const bool bSSRDefault = ReflectionsMethod == ESingleLayerWaterReflections::Enabled && View.FinalPostProcessSettings.ReflectionMethod != EReflectionMethod::None;
 
 	if (!View.Family->EngineShowFlags.ScreenSpaceReflections
+		|| !View.Family->EngineShowFlags.Lighting
 		|| (!bSSROverride && !bSSRDefault)
 		|| HasRayTracedOverlay(*View.Family)
 		|| !View.State /*no view state(e.g.thumbnail rendering ? ), no HZB(no screen space reflections or occlusion culling)*/
@@ -202,7 +203,7 @@ bool ShouldRenderScreenSpaceReflectionsWater(const FViewInfo& View)
 bool ShouldRenderLumenReflectionsWater(const FViewInfo& View, bool bSkipTracingDataCheck, bool bSkipProjectCheck)
 {
 	// This only returns true if using the default reflections method and having Lumen enabled in the scene. It can't be forced with r.Water.SingleLayer.Reflection.
-	return !View.bIsReflectionCapture 
+	return !View.bIsReflectionCapture  && View.Family->EngineShowFlags.Lighting
 		&& GetSingleLayerWaterReflectionTechnique() == ESingleLayerWaterReflections::Enabled
 		&& ShouldRenderLumenReflections(View, bSkipTracingDataCheck, bSkipProjectCheck);
 }
@@ -987,7 +988,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 		}
 
 		// ReflectionsMethodWater can also be Disabled when only reflection captures are requested, so check CVarWaterSingleLayerReflection directly before early exiting.
-		if (GetSingleLayerWaterReflectionTechnique() == ESingleLayerWaterReflections::Disabled)
+		if (GetSingleLayerWaterReflectionTechnique() == ESingleLayerWaterReflections::Disabled || !View.Family->EngineShowFlags.Lighting)
 		{
 			continue;
 		}

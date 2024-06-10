@@ -851,6 +851,7 @@ void Main(
 	// We also keep the SpecularColor for sun/water interactions.
 	GBuffer.DiffuseColor *= BaseMaterialCoverageOverWater;
 	DiffuseColor *= BaseMaterialCoverageOverWater;
+	DiffuseColorForIndirect *= BaseMaterialCoverageOverWater;
 #endif
 
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
@@ -981,8 +982,13 @@ void Main(
 		float3 SeparatedWaterMainDirLightLuminance = float3(0, 0, 0);
 
 		const bool CameraIsUnderWater = false;	// Fade out the material contribution over to water contribution according to material opacity.
-		const float3 SunIlluminance = ResolvedView.DirectionalLightColor.rgb * PI;			// times PI because it is divided by PI on CPU (=luminance) and we want illuminance here. 
-		const float3 WaterDiffuseIndirectIlluminance = WaterDiffuseIndirectLuminance * PI;	// DiffuseIndirectLighting is luminance. So we need to multiply by PI to get illuminance.
+		float3 SunIlluminance = ResolvedView.DirectionalLightColor.rgb * PI;			// times PI because it is divided by PI on CPU (=luminance) and we want illuminance here. 
+		float3 WaterDiffuseIndirectIlluminance = WaterDiffuseIndirectLuminance * PI;	// DiffuseIndirectLighting is luminance. So we need to multiply by PI to get illuminance.
+#if MOBILE_EMULATION
+		SunIlluminance = lerp(SunIlluminance, 0.0f, View.UnlitViewmodeMask);
+		WaterDiffuseIndirectIlluminance = lerp(WaterDiffuseIndirectIlluminance, PI, View.UnlitViewmodeMask);
+#endif
+
 		half3 N = GBuffer.WorldNormal;
 		half3 V = MaterialParameters.CameraVector;
 		half NoV = saturate(abs(dot(N, V)) + 1e-5);
@@ -1000,6 +1006,9 @@ void Main(
 		// Accumulate luminance and occlude the background according to transmittance to view and mean transmittance to lights.
 		LightAccumulator_AddSplit(DirectLighting, WaterLighting.Luminance, 0.0f, WaterLighting.Luminance, 1.0f, false);
 		Opacity = 1.0 - ((1.0 - Opacity) * dot(WaterLighting.WaterToSceneToLightTransmittance, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)));
+#if MOBILE_EMULATION
+		DiffuseColorForIndirect += WaterLighting.Luminance;
+#endif
 	}
 #endif // MATERIAL_SHADINGMODEL_SINGLELAYERWATER
 
@@ -1026,14 +1035,14 @@ void Main(
 #endif
 #endif
 	// NEEDS_BASEPASS_PIXEL_FOGGING is not allowed on mobile for the sake of performance.
-				 
-	half3 Emissive = GetMaterialEmissive(PixelMaterialInputs);
-
-	Color += Emissive;
-
+	
 #if !MATERIAL_SHADINGMODEL_UNLIT && MOBILE_EMULATION
 	Color = lerp(Color, DiffuseColorForIndirect, ResolvedView.UnlitViewmodeMask);
 #endif
+
+	half3 Emissive = GetMaterialEmissive(PixelMaterialInputs);
+
+	Color += Emissive;
 
 #if MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT && !SUBSTRATE_ENABLED
 	half3 DualBlendSurfaceLuminancePostCoverage = 0.0f;
