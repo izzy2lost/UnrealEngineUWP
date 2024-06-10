@@ -16,9 +16,12 @@ FText FAvaTransitionRCControllerMatchCondition::GetDescription(const FGuid& InId
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
 
-	return FText::Format(LOCTEXT("ConditionDescription", "'{0}' is {1}")
-		, InstanceData.ControllerId.ToText()
-		, UEnum::GetDisplayValueAsText(InstanceData.ValueComparisonType).ToLower());
+	const FText ControllerIdText = InstanceData.ControllerId.ToText();
+	const FText ComparisonText = UEnum::GetDisplayValueAsText(InstanceData.ValueComparisonType).ToLower();
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "'<b>{0}</>' <s>is</> <b>{1}</>"), ControllerIdText, ComparisonText)
+		: FText::Format(LOCTEXT("Desc", "'{0}' is {1}"), ControllerIdText, ComparisonText);
 }
 #endif
 

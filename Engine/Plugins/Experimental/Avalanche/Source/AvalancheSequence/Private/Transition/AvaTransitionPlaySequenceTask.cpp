@@ -33,11 +33,16 @@ FText FAvaTransitionPlaySequenceTask::GetDescription(const FGuid& InId, FStateTr
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
 
 	TArray<FText> AdditionalArgs;
+	AdditionalArgs.Reserve(2);
 	AdditionalArgs.Add(UEnum::GetDisplayValueAsText(InstanceData.PlaySettings.PlayMode));
 	AdditionalArgs.Add(UEnum::GetDisplayValueAsText(InstanceData.WaitType));
 
-	FText AddOnText = FText::Format(INVTEXT("( {0} )"), FText::Join(FText::FromString(TEXT(" | ")), AdditionalArgs));
-	return FText::Format(LOCTEXT("TaskDescription", "Play {0} {1}"), GetSequenceQueryText(InstanceData), AddOnText);
+	const FText SequenceQueryText = GetSequenceQueryText(InstanceData, InFormatting);
+	const FText AddOnText = FText::Format(INVTEXT("( {0} )"), FText::Join(FText::FromString(TEXT(" | ")), AdditionalArgs));
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "Play {0} <s>{1}</>"), SequenceQueryText, AddOnText)
+		: FText::Format(LOCTEXT("DescRich", "Play {0} <s>{1}</>"), SequenceQueryText, AddOnText);
 }
 #endif
 

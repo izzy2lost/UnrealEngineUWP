@@ -2,6 +2,7 @@
 
 #include "Conditions/AvaTransitionSceneMatchCondition.h"
 #include "AvaTransitionContext.h"
+#include "AvaTransitionLayerUtils.h"
 #include "AvaTransitionScene.h"
 #include "AvaTransitionUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
@@ -14,9 +15,12 @@ FText FAvaTransitionSceneMatchCondition::GetDescription(const FGuid& InId, FStat
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
 
-	return FText::Format(LOCTEXT("ConditionDescription", "{0} scene in {1}")
-		, UEnum::GetDisplayValueAsText(InstanceData.SceneComparisonType).ToLower()
-		, GetLayerQueryText(InstanceData));
+	const FText ComparisonType = UEnum::GetDisplayValueAsText(InstanceData.SceneComparisonType).ToLower();
+	const FText LayerDesc = Super::GetDescription(InId, InInstanceDataView, InBindingLookup, InFormatting);
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "<b>{0}</> <s>scene in</> {1}"), ComparisonType, LayerDesc)
+		: FText::Format(LOCTEXT("Desc", "{0} scene in {1}"), ComparisonType, LayerDesc);
 }
 #endif
 

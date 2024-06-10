@@ -14,12 +14,21 @@
 class UAvaTransitionTreeEditorData;
 class UStateTreeState;
 
+namespace UE::AvaTransitionEditor
+{
+	constexpr FGuid ColorId_Default;
+	constexpr FGuid ColorId_In(0x1DDBC788, 0xD5EB400E, 0xBB71E5DA, 0xB27A784D);
+	constexpr FGuid ColorId_Out(0xE549EFA0, 0xDEFF45A7, 0xA8D907AF, 0xDB8F7643);
+}
+
 UCLASS(MinimalAPI, HideCategories=(Common))
 class UAvaTransitionTreeEditorData : public UStateTreeEditorData
 {
 	GENERATED_BODY()
 
 public:
+	UAvaTransitionTreeEditorData();
+
 	AVALANCHETRANSITIONEDITOR_API UStateTreeState& CreateState(const UStateTreeState& InSiblingState, bool bInAfter);
 
 	FAvaTagHandle GetTransitionLayer() const

@@ -10,7 +10,12 @@
 FText FAvaTransitionDelayTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
-	return FText::Format(LOCTEXT("TaskDescription", "Delay {0} seconds"), FText::AsNumber(InstanceData.Duration));
+
+	const FText DurationDesc = FText::AsNumber(InstanceData.Duration);
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "Delay <b>{0}</> <s>seconds</>"), DurationDesc)
+		: FText::Format(LOCTEXT("Desc", "Delay {0} seconds"), DurationDesc);
 }
 #endif
 

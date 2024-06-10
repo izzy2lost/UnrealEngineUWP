@@ -10,8 +10,11 @@
 #if WITH_EDITOR
 FText FAvaTransitionWaitForLayerTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
-	return FText::Format(LOCTEXT("TaskDescription", "Wait for others in {0} to finish"), GetLayerQueryText(InstanceData));
+	const FText LayerDesc = Super::GetDescription(InId, InInstanceDataView, InBindingLookup, InFormatting);
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "Wait <s>for others in</> {0} <s>to finish</>"), LayerDesc)
+		: FText::Format(LOCTEXT("Desc", "Wait for others in {0} to finish"), LayerDesc);
 }
 #endif
 

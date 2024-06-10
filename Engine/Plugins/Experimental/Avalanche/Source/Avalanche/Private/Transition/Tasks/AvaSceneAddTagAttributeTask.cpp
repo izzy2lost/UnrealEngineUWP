@@ -11,7 +11,12 @@
 FText FAvaSceneAddTagAttributeTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
-	return FText::Format(LOCTEXT("TaskDescription", "Add '{0}' tag attribute to this scene"), FText::FromName(InstanceData.TagAttribute.ToName()));
+
+	const FText TagAttributeDesc = FText::FromName(InstanceData.TagAttribute.ToName());
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", " <b>Add '{0}'</> <s>tag attribute to this scene</>"), TagAttributeDesc)
+		: FText::Format(LOCTEXT("Desc", "Add '{0}' tag attribute to this scene"), TagAttributeDesc);
 }
 #endif
 

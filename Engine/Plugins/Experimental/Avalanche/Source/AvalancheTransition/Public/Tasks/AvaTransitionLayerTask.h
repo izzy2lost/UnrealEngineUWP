@@ -36,11 +36,12 @@ struct AVALANCHETRANSITION_API FAvaTransitionLayerTask : public FAvaTransitionTa
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual void PostLoad(FStateTreeDataView InInstanceDataView) override;
 	//~ End FStateTreeNodeBase
-
-	FText GetLayerQueryText(const FInstanceDataType& InInstanceData) const;
 
 	/** Gets all the Behavior Instances that match the Layer Query. Always excludes the Instance belonging to this Transition */
 	TArray<const FAvaTransitionBehaviorInstance*> QueryBehaviorInstances(const FStateTreeExecutionContext& InContext) const;

@@ -9,6 +9,21 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionLayerTask"
 
+#if WITH_EDITOR
+FText FAvaTransitionLayerTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
+{
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+
+	FAvaTransitionLayerUtils::FLayerQueryTextParams Params;
+	Params.LayerType = InstanceData.LayerType;
+	Params.SpecificLayerName = InstanceData.SpecificLayer.ToName();
+	Params.LayerTypePropertyName = GET_MEMBER_NAME_CHECKED(FInstanceDataType, LayerType);
+	Params.SpecificLayerPropertyName = GET_MEMBER_NAME_CHECKED(FInstanceDataType, SpecificLayer);
+
+	return FAvaTransitionLayerUtils::GetLayerQueryText(MoveTemp(Params), InId, InBindingLookup, InFormatting);
+}
+#endif
+
 void FAvaTransitionLayerTask::PostLoad(FStateTreeDataView InInstanceDataView)
 {
 	Super::PostLoad(InInstanceDataView);
@@ -23,11 +38,6 @@ void FAvaTransitionLayerTask::PostLoad(FStateTreeDataView InInstanceDataView)
 		}
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-FText FAvaTransitionLayerTask::GetLayerQueryText(const FInstanceDataType& InInstanceData) const
-{
-	return FAvaTransitionLayerUtils::GetLayerQueryText(InInstanceData.LayerType, InInstanceData.SpecificLayer.ToName());
 }
 
 TArray<const FAvaTransitionBehaviorInstance*> FAvaTransitionLayerTask::QueryBehaviorInstances(const FStateTreeExecutionContext& InContext) const

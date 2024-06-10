@@ -4,8 +4,8 @@
 #include "AvaTransitionConditionViewModel.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "Conditions/AvaTransitionCondition.h"
-#include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/AvaTransitionViewModelUtils.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
@@ -17,9 +17,19 @@ namespace UE::AvaTransitionEditor::Private
 	FText GetOperandText(int32 InConditionIndex, const FStateTreeEditorNode& InEditorNode)
 	{
 		// First Conditions or Copy operands should not have any operand displayed
-		if (InConditionIndex > 0 && InEditorNode.ExpressionOperand != EStateTreeExpressionOperand::Copy)
+		if (InConditionIndex > 0)
 		{
-			return FText::Format(INVTEXT("{0} "), UEnum::GetDisplayValueAsText(InEditorNode.ExpressionOperand).ToLower());
+			switch (InEditorNode.ExpressionOperand)
+			{
+			case EStateTreeExpressionOperand::Copy:
+				break;
+
+			case EStateTreeExpressionOperand::And:
+				return INVTEXT("<op color=\"Colors.AccentPink\">AND</> ");
+
+			case EStateTreeExpressionOperand::Or:
+				return INVTEXT("<op color=\"Colors.AccentBlue\">OR</> ");
+			}
 		}
 		return FText::GetEmpty();
 	}
@@ -31,7 +41,7 @@ namespace UE::AvaTransitionEditor::Private
 			TArray<FText> Parenthesis;
 			Parenthesis.Reserve(IndentAmount);
 
-			FText ParenthesisType = InDeltaIndent > 0 ? INVTEXT("(") : INVTEXT(")");
+			FText ParenthesisType = InDeltaIndent > 0 ? INVTEXT("( ") : INVTEXT(" )");
 
 			for (int8 IndentCount = 0; IndentCount < IndentAmount; ++IndentCount)
 			{
@@ -102,9 +112,13 @@ FText FAvaTransitionConditionContainerViewModel::UpdateStateDescription() const
 			? LOCTEXT("ConditionFormatOpening", "{Operand}{Parenthesis}{Description}")
 			: LOCTEXT("ConditionFormatClosing", "{Operand}{Description}{Parenthesis}");
 
+		// Formatting set to Text as Titles due to the Background color do not visualize Bold/Subdued/Normal very well
+		// However, the State Text is still using Rich text for things like Operand
+		constexpr EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text;
+
 		FFormatNamedArguments TextArguments;
 		TextArguments.Add(TEXT("Operand"), Private::GetOperandText(ConditionIndex, *EditorNode));
-		TextArguments.Add(TEXT("Description"), EditorData->GetNodeDescription(*EditorNode, EStateTreeNodeFormatting::RichText));
+		TextArguments.Add(TEXT("Description"), EditorData->GetNodeDescription(*EditorNode, Formatting));
 		TextArguments.Add(TEXT("Parenthesis"), Private::GetParenthesisText(DeltaIndent));
 
 		ConditionDescriptions.Add(FText::Format(TextFormat, TextArguments));
@@ -136,7 +150,7 @@ TSharedRef<SWidget> FAvaTransitionConditionContainerViewModel::CreateWidget()
 		[
 			SNew(SImage)
 			.ColorAndOpacity(FLinearColor(1, 1, 1, 0.5f))
-			.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.StateConditions"))
+			.Image(FAvaTransitionEditorStyle::Get().GetBrush("StateTreeEditor.StateConditions"))
 			.ToolTipText(LOCTEXT("StateHasEnterConditions", "State selection is guarded with enter conditions."))
 		];
 }

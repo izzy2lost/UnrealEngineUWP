@@ -2,6 +2,29 @@
 
 #include "AvaTransitionTreeEditorData.h"
 
+UAvaTransitionTreeEditorData::UAvaTransitionTreeEditorData()
+{
+	FStateTreeEditorColor DefaultColor;
+	DefaultColor.ColorRef = FStateTreeEditorColorRef(UE::AvaTransitionEditor::ColorId_Default);
+	DefaultColor.Color = FLinearColor(0, 0.15, 0.2);
+	DefaultColor.DisplayName = TEXT("Default Color");
+
+	FStateTreeEditorColor InColor;
+	InColor.ColorRef = FStateTreeEditorColorRef(UE::AvaTransitionEditor::ColorId_In);
+	InColor.Color = FLinearColor(0, 0.2, 0);
+	InColor.DisplayName = TEXT("In Color");
+
+	FStateTreeEditorColor OutColor;
+	OutColor.ColorRef = FStateTreeEditorColorRef(UE::AvaTransitionEditor::ColorId_Out);
+	OutColor.Color = FLinearColor(0.2, 0, 0.15);
+	OutColor.DisplayName = TEXT("Out Color");
+
+	Colors.Empty(3);
+	Colors.Add(MoveTemp(DefaultColor));
+	Colors.Add(MoveTemp(InColor));
+	Colors.Add(MoveTemp(OutColor));
+}
+
 UStateTreeState& UAvaTransitionTreeEditorData::CreateState(const UStateTreeState& InSiblingState, bool bInAfter)
 {
 	UObject* Outer = this;

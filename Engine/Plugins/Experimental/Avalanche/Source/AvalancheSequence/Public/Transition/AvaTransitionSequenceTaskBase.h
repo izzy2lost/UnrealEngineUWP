@@ -92,7 +92,7 @@ struct AVALANCHESEQUENCE_API FAvaTransitionSequenceTaskBase : public FAvaTransit
 	 */
 	void StopActiveSequences(FStateTreeExecutionContext& InContext) const;
 
-	FText GetSequenceQueryText(const FInstanceDataType& InInstanceData) const;
+	FText GetSequenceQueryText(const FInstanceDataType& InInstanceData, EStateTreeNodeFormatting InFormatting) const;
 
 	//~ Begin FStateTreeTaskBase
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& InContext, const FStateTreeTransitionResult& InTransition) const override;

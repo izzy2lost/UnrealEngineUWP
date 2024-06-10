@@ -11,7 +11,12 @@
 FText FAvaSceneRemoveTagAttributeTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
-	return FText::Format(LOCTEXT("TaskDescription", "Remove '{0}' tag attribute from this scene"), FText::FromName(InstanceData.TagAttribute.ToName()));
+
+	const FText TagAttributeDesc = FText::FromName(InstanceData.TagAttribute.ToName());
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", " <b>Remove'{0}'</> <s>tag attribute from this scene</>"), TagAttributeDesc)
+		: FText::Format(LOCTEXT("Desc", "Remove '{0}' tag attribute from this scene"), TagAttributeDesc);
 }
 #endif
 

@@ -24,25 +24,56 @@ FText FAvaSceneContainsTagAttributeConditionBase::GetDescription(const FGuid& In
 	switch (InstanceData.SceneType)
 	{
 	case EAvaTransitionSceneType::This:
-		Arguments.Add(TEXT("IndefinitePronoun"), FText::GetEmpty());
-
-		Arguments.Add(TEXT("Scene"), LOCTEXT("ThisScene", "this scene"));
-
-		Arguments.Add(TEXT("Contains"), bInvertCondition ? LOCTEXT("ThisDoesntContain", "does not contain") : LOCTEXT("ThisContains", "contains"));
+		{
+			if (InFormatting == EStateTreeNodeFormatting::RichText)
+			{
+				Arguments.Add(TEXT("IndefinitePronoun"), FText::GetEmpty());
+				Arguments.Add(TEXT("Scene"), LOCTEXT("ThisSceneRich", "<b>this</> <s>scene</>"));
+				Arguments.Add(TEXT("Contains"), bInvertCondition ? LOCTEXT("ThisDoesntContainRich", "<s>does</> <b>not</> <s>contain</>") : LOCTEXT("ThisContainsRich", "<s>contains</>"));
+			}
+			else
+			{
+				Arguments.Add(TEXT("IndefinitePronoun"), FText::GetEmpty());
+				Arguments.Add(TEXT("Scene"), LOCTEXT("ThisScene", "this scene"));
+				Arguments.Add(TEXT("Contains"), bInvertCondition ? LOCTEXT("ThisDoesntContain", "does not contain") : LOCTEXT("ThisContains", "contains"));
+			}
+		}
 		break;
 
 	case EAvaTransitionSceneType::Other:
-		Arguments.Add(TEXT("IndefinitePronoun"), bInvertCondition ? LOCTEXT("NoScene", "no ") : LOCTEXT("AnyScene", "a "));
+		{
+			FText LayerDesc;
+			{
+				FAvaTransitionLayerUtils::FLayerQueryTextParams Params;
+				Params.LayerType = InstanceData.LayerType;
+				Params.SpecificLayerName = *InstanceData.SpecificLayers.ToString();
+				Params.LayerTypePropertyName = GET_MEMBER_NAME_CHECKED(FInstanceDataType, LayerType);
+				Params.SpecificLayerPropertyName = GET_MEMBER_NAME_CHECKED(FInstanceDataType, SpecificLayers);
 
-		Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherScene", "scene in {0}"), FAvaTransitionLayerUtils::GetLayerQueryText(InstanceData.LayerType, *InstanceData.SpecificLayers.ToString())));
+				LayerDesc = FAvaTransitionLayerUtils::GetLayerQueryText(MoveTemp(Params), InId, InBindingLookup, InFormatting);
+			}
 
-		Arguments.Add(TEXT("Contains"), LOCTEXT("OtherSceneContains", "contains"));
+			if (InFormatting == EStateTreeNodeFormatting::RichText)
+			{
+				Arguments.Add(TEXT("IndefinitePronoun"), bInvertCondition ? LOCTEXT("NoSceneRich", "<b>no</> ") : LOCTEXT("AnySceneRich", "<s>a</> "));
+				Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherSceneRich", "<s>scene in</> {0}"), LayerDesc));
+				Arguments.Add(TEXT("Contains"), LOCTEXT("OtherSceneContainsRich", "<s>contains</>"));
+			}
+			else
+			{
+				Arguments.Add(TEXT("IndefinitePronoun"), bInvertCondition ? LOCTEXT("NoScene", "no ") : LOCTEXT("AnyScene", "a "));
+				Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherScene", "scene in {0}"), LayerDesc));
+				Arguments.Add(TEXT("Contains"), LOCTEXT("OtherSceneContains", "contains"));
+			}
+		}
 		break;
 	}
 
 	Arguments.Add(TEXT("TagAttribute"), FText::FromName(InstanceData.TagAttribute.ToName()));
 
-	return FText::Format(LOCTEXT("ConditionDescription", "{IndefinitePronoun}{Scene} {Contains} tag attribute '{TagAttribute}'"), Arguments);
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "{IndefinitePronoun}{Scene} {Contains} <s>tag attribute</> <b>'{TagAttribute}'</>"), Arguments)
+		: FText::Format(LOCTEXT("Desc", "{IndefinitePronoun}{Scene} {Contains} tag attribute '{TagAttribute}'"), Arguments);
 }
 #endif
 

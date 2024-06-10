@@ -12,8 +12,11 @@ FText FAvaTransitionTypeMatchCondition::GetDescription(const FGuid& InId, FState
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
 
-	return FText::Format(LOCTEXT("ConditionDescription", "transitioning {0}")
-		, UEnum::GetDisplayValueAsText(InstanceData.TransitionType).ToLower());
+	const FText TransitionTypeDesc = UEnum::GetDisplayValueAsText(InstanceData.TransitionType).ToLower();
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "<s>transitioning</> <b>{0}</>"), TransitionTypeDesc)
+		: FText::Format(LOCTEXT("Desc", "transitioning {0}"), TransitionTypeDesc);
 }
 #endif
 

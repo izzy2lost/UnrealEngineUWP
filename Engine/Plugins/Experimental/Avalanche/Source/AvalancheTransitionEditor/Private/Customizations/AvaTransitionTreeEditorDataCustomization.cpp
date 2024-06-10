@@ -8,7 +8,6 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyBagDetails.h"
 #include "PropertyEditorModule.h"
-#include "StateTreeEditorStyle.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 
 TSharedRef<IDetailCustomization> FAvaTransitionTreeEditorDataCustomization::MakeInstance(TWeakPtr<FAvaTransitionViewModelSharedData> InSharedDataWeak)

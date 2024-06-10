@@ -1,18 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionEditorStyle.h"
-#include "Brushes/SlateImageBrush.h"
 #include "AvaTransitionTree.h"
+#include "Brushes/SlateImageBrush.h"
 #include "Interfaces/IPluginManager.h"
 #include "Layout/Margin.h"
 #include "Misc/Paths.h"
+#include "StateTreeEditorStyle.h"
+#include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
+#include "Styling/SlateTypes.h"
+#include "Styling/StyleColors.h"
 #include "Textures/SlateIcon.h"
 
 FAvaTransitionEditorStyle::FAvaTransitionEditorStyle()
 	: FSlateStyleSet(TEXT("AvaTransitionEditor"))
 {
+	ParentStyleName = FStateTreeEditorStyle::Get().GetStyleSetName();
+
 	const FVector2f Icon16(16.f);
 	const FVector2f Icon20(20.f);
 	const FVector2f Icon64(64.f);
@@ -20,8 +27,8 @@ FAvaTransitionEditorStyle::FAvaTransitionEditorStyle()
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 
-	SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
-	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
+	ContentRootDir = FPaths::EngineContentDir() / TEXT("Editor/Slate");
+	CoreContentRootDir = FPaths::EngineContentDir() / TEXT("Slate");
 
 	// Re-use the Behavior Tree Icon
 	Set("ClassIcon.AvaTransitionTree"     , new IMAGE_BRUSH("Icons/AssetIcons/BehaviorTree_16x", Icon16));
@@ -38,6 +45,12 @@ FAvaTransitionEditorStyle::FAvaTransitionEditorStyle()
 	Set("AvaTransitionEditor.ToggleDebug"           , new IMAGE_BRUSH_SVG("Starship/Common/Debug"         , Icon20));
 
 	Set("DebugIndicatorBorder", new BOX_BRUSH("Images/NamespaceBorder", FMargin(0.25f)));
+
+	FLinearColor OperandBoxColor = FStyleColors::AccentGreen.GetSpecifiedColor().Desaturate(0.3f);
+	OperandBoxColor.A = 1.f;
+	Set("OperandBox", new FSlateRoundedBoxBrush(OperandBoxColor, 4.0f));
+
+	SetupFonts();
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
@@ -90,4 +103,25 @@ FSlateIcon FAvaTransitionEditorStyle::ParseIcon(FName InIconName)
 	}
 
 	return FSlateIcon(IconPathNames[0], IconPathNames[1], IconPathNames[2], IconPathNames[3]);
+}
+
+void FAvaTransitionEditorStyle::SetupFonts()
+{
+	const FTextBlockStyle& NormalText = FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText");
+
+	const FTextBlockStyle TitleText = FTextBlockStyle(NormalText)
+		.SetFont(DEFAULT_FONT("Bold", 12));
+
+	Set("StateTree.State.Title", FTextBlockStyle(TitleText)
+		.SetColorAndOpacity(FLinearColor(FColor(230, 230, 230, 205))));
+
+	Set("StateTree.State.Title.Bold", FTextBlockStyle(TitleText)
+		.SetColorAndOpacity(FLinearColor(FColor(230, 230, 230, 230))));
+
+	Set("StateTree.State.Title.Subdued", FTextBlockStyle(TitleText)
+		.SetColorAndOpacity(FLinearColor(FColor(230, 230, 230, 180))));
+
+	Set("StateTree.State.Operand", FTextBlockStyle(NormalText)
+		.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.BoldFont")))
+		.SetFontSize(10));
 }

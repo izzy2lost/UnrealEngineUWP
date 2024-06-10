@@ -9,6 +9,21 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionLayerCondition"
 
+#if WITH_EDITOR
+FText FAvaTransitionLayerCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
+{
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+
+	FAvaTransitionLayerUtils::FLayerQueryTextParams Params;
+	Params.LayerType = InstanceData.LayerType;
+	Params.SpecificLayerName = InstanceData.SpecificLayer.ToName();
+	Params.LayerTypePropertyName = GET_MEMBER_NAME_CHECKED(FInstanceDataType, LayerType);
+	Params.SpecificLayerPropertyName = GET_MEMBER_NAME_CHECKED(FInstanceDataType, SpecificLayer);
+
+	return FAvaTransitionLayerUtils::GetLayerQueryText(MoveTemp(Params), InId, InBindingLookup, InFormatting);
+}
+#endif
+
 void FAvaTransitionLayerCondition::PostLoad(FStateTreeDataView InInstanceDataView)
 {
 	Super::PostLoad(InInstanceDataView);
@@ -34,11 +49,6 @@ TArray<const FAvaTransitionBehaviorInstance*> FAvaTransitionLayerCondition::Quer
 	const FAvaTransitionLayerComparator Comparator = FAvaTransitionLayerUtils::BuildComparator(TransitionContext, InstanceData.LayerType, InstanceData.SpecificLayer);
 
 	return FAvaTransitionLayerUtils::QueryBehaviorInstances(TransitionSubsystem, Comparator);
-}
-
-FText FAvaTransitionLayerCondition::GetLayerQueryText(const FInstanceDataType& InInstanceData) const
-{
-	return FAvaTransitionLayerUtils::GetLayerQueryText(InInstanceData.LayerType, InInstanceData.SpecificLayer.ToName());
 }
 
 #undef LOCTEXT_NAMESPACE

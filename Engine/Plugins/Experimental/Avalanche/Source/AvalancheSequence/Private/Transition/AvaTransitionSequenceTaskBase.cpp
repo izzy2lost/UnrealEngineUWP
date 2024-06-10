@@ -101,15 +101,19 @@ void FAvaTransitionSequenceTaskBase::StopActiveSequences(FStateTreeExecutionCont
 	}
 }
 
-FText FAvaTransitionSequenceTaskBase::GetSequenceQueryText(const FInstanceDataType& InInstanceData) const
+FText FAvaTransitionSequenceTaskBase::GetSequenceQueryText(const FInstanceDataType& InInstanceData, EStateTreeNodeFormatting InFormatting) const
 {
 	switch (InInstanceData.QueryType)
 	{
 	case EAvaTransitionSequenceQueryType::Name:
-		return FText::Format(INVTEXT("'{0}'"), FText::FromName(InInstanceData.SequenceName));
+		return InFormatting == EStateTreeNodeFormatting::RichText
+			? FText::Format(INVTEXT("'<b>{0}</>'"), FText::FromName(InInstanceData.SequenceName))
+			: FText::Format(INVTEXT("'{0}'"), FText::FromName(InInstanceData.SequenceName));
 
 	case EAvaTransitionSequenceQueryType::Tag:
-		return FText::Format(LOCTEXT("SequenceQueryTag", "tag '{0}'"), FText::FromName(InInstanceData.SequenceTag.ToName()));
+		return InFormatting == EStateTreeNodeFormatting::RichText
+			? FText::Format(LOCTEXT("SequenceQueryTagRich", "<s>tag</> '<b>{0}</>'"), FText::FromName(InInstanceData.SequenceTag.ToName()))
+			: FText::Format(LOCTEXT("SequenceQueryTag", "tag '{0}'"), FText::FromName(InInstanceData.SequenceTag.ToName()));
 	}
 
 	checkNoEntry();

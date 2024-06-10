@@ -21,4 +21,7 @@ public:
 	static FLinearColor LerpColorSRGB(const FLinearColor& InA, const FLinearColor& InB, float InAlpha);
 
 	static FSlateIcon ParseIcon(FName InIconName);
+
+private:
+	void SetupFonts();
 };

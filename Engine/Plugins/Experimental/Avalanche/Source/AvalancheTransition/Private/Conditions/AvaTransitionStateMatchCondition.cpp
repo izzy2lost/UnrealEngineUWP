@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Conditions/AvaTransitionStateMatchCondition.h"
+#include "AvaTransitionLayerUtils.h"
 #include "AvaTransitionUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
 #include "StateTreeExecutionContext.h"
@@ -12,9 +13,12 @@ FText FAvaTransitionStateMatchCondition::GetDescription(const FGuid& InId, FStat
 {
 	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
 
-	return FText::Format(LOCTEXT("ConditionDescription", "{0} scene in {1}")
-		, UEnum::GetDisplayValueAsText(InstanceData.TransitionState).ToLower()
-		, GetLayerQueryText(InstanceData));
+	const FText TransitionState = UEnum::GetDisplayValueAsText(InstanceData.TransitionState).ToLower();
+	const FText LayerDesc = Super::GetDescription(InId, InInstanceDataView, InBindingLookup, InFormatting);
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "<b>{0}</> <s>scene in</> {1}"), TransitionState, LayerDesc)
+		: FText::Format(LOCTEXT("Desc", "{0} scene in {1}"), TransitionState, LayerDesc);
 }
 #endif
 

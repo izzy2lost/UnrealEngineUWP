@@ -3,8 +3,8 @@
 #include "AvaTransitionTransitionViewModel.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "EditorFontGlyphs.h"
-#include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/AvaTransitionViewModelUtils.h"
@@ -68,7 +68,7 @@ const FSlateBrush* FAvaTransitionTransitionViewModel::GetIcon() const
 			const UStateTreeState* State = GetState();
 			if (State && State->Children.IsEmpty() && State->Type == EStateTreeStateType::State && EnumHasAnyFlags(Transition->Trigger, EStateTreeTransitionTrigger::OnStateCompleted))
 			{
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Parent");
+				return FAvaTransitionEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Parent");
 			}
 		}
 		// falls through
@@ -76,11 +76,11 @@ const FSlateBrush* FAvaTransitionTransitionViewModel::GetIcon() const
 	case EStateTreeTransitionType::Succeeded:
 	case EStateTreeTransitionType::Failed:
 	case EStateTreeTransitionType::GotoState:
-		return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Goto");
+		return FAvaTransitionEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Goto");
 
 	case EStateTreeTransitionType::NextState:
 	case EStateTreeTransitionType::NextSelectableState:
-		return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next");
+		return FAvaTransitionEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next");
 
 	default:
 		ensureMsgf(false, TEXT("Unhandled transition type."));
@@ -173,7 +173,7 @@ TSharedRef<SWidget> FAvaTransitionTransitionViewModel::CreateWidget()
 			[
 				SNew(SImage)
 				.DesiredSizeOverride(FVector2D(10, 10))
-				.Image(FStateTreeEditorStyle::Get().GetBrush(TEXT("StateTreeEditor.Debugger.Breakpoint.EnabledAndValid")))
+				.Image(FAvaTransitionEditorStyle::Get().GetBrush(TEXT("StateTreeEditor.Debugger.Breakpoint.EnabledAndValid")))
 				.Visibility(this, &FAvaTransitionTransitionViewModel::GetBreakpointVisibility)
 			]
 		]
@@ -184,7 +184,7 @@ TSharedRef<SWidget> FAvaTransitionTransitionViewModel::CreateWidget()
 		[
 			SNew(STextBlock)
 			.Text(this, &FAvaTransitionTransitionViewModel::GetDescription)
-			.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Details")
+			.TextStyle(FAvaTransitionEditorStyle::Get(), "StateTree.Details")
 		];
 }
 

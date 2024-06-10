@@ -38,14 +38,15 @@ struct AVALANCHETRANSITION_API FAvaTransitionLayerCondition : public FAvaTransit
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual void PostLoad(FStateTreeDataView InInstanceDataView) override;
 	//~ End FStateTreeNodeBase
 
 	/** Gets all the Behavior Instances that match the Layer Query. Always excludes the Instance belonging to this Transition */
 	TArray<const FAvaTransitionBehaviorInstance*> QueryBehaviorInstances(const FStateTreeExecutionContext& InContext) const;
-
-	FText GetLayerQueryText(const FInstanceDataType& InInstanceData) const;
 
 	UE_DEPRECATED(5.5, "LayerType has been moved to Instance Data")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the Instance Data LayerType instead"))

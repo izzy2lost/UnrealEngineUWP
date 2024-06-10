@@ -3,9 +3,9 @@
 #include "AvaTransitionTaskViewModel.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "StateTreeEditorData.h"
-#include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
 #include "Styling/AvaTransitionEditorStyle.h"
+#include "Styling/AvaTransitionTextStyling.h"
 #include "Tasks/AvaTransitionTask.h"
 #include "Textures/SlateIcon.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
@@ -15,7 +15,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
-#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionTaskViewModel"
 
@@ -169,12 +169,15 @@ TSharedRef<SWidget> FAvaTransitionTaskViewModel::CreateWidget()
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Left)
 				[
-					SNew(STextBlock)
+					SNew(SRichTextBlock)
 					.Margin(FMargin(4.f, 0.f))
 					.Text(this, &FAvaTransitionTaskViewModel::GetTaskDescription)
 					.ToolTipText(this, &FAvaTransitionTaskViewModel::GetTaskDescription)
-					.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Task.Title")
+					.TextStyle(&FAvaTransitionEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title"))
 					.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+					+SRichTextBlock::Decorator(FAvaTransitionTextStyleDecorator::Create(TEXT(""), FAvaTransitionEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title")))
+					+SRichTextBlock::Decorator(FAvaTransitionTextStyleDecorator::Create(TEXT("b"), FAvaTransitionEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Bold")))
+					+SRichTextBlock::Decorator(FAvaTransitionTextStyleDecorator::Create(TEXT("s"), FAvaTransitionEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Subdued")))
 				]
 			]
 			// Task Breakpoint
@@ -191,7 +194,7 @@ TSharedRef<SWidget> FAvaTransitionTaskViewModel::CreateWidget()
 					[
 						SNew(SImage)
 						.DesiredSizeOverride(FVector2D(10.f, 10.f))
-						.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Debugger.Breakpoint.EnabledAndValid"))
+						.Image(FAvaTransitionEditorStyle::Get().GetBrush("StateTreeEditor.Debugger.Breakpoint.EnabledAndValid"))
 						.Visibility(this, &FAvaTransitionTaskViewModel::GetBreakpointVisibility)
 						.ToolTipText(this, &FAvaTransitionTaskViewModel::GetBreakpointTooltip)
 					]

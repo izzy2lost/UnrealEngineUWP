@@ -2,16 +2,20 @@
 
 #include "Conditions/AvaTransitionLayerMatchCondition.h"
 #include "AvaTransitionContext.h"
-#include "StateTreeExecutionContext.h"
+#include "AvaTransitionLayerUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
+#include "StateTreeExecutionContext.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionLayerMatchCondition"
 
 #if WITH_EDITOR
 FText FAvaTransitionLayerMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
-	return FText::Format(LOCTEXT("ConditionDescription", "scenes transitioning in {0}"), GetLayerQueryText(InstanceData));
+	const FText LayerDesc = Super::GetDescription(InId, InInstanceDataView, InBindingLookup, InFormatting);
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "<s>scenes transitioning in</> {0}"), LayerDesc)
+		: FText::Format(LOCTEXT("Desc", "scenes transitioning in {0}"), LayerDesc);
 }
 #endif
 
