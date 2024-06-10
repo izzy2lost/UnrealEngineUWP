@@ -220,6 +220,12 @@ namespace UE::DMX::Private
 
 		AdoptSelectionFromData();
 
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		if (!SelectionHandler->GetOnSelectionChanged().IsBoundToObject(this))
+		{
+			SelectionHandler->GetOnSelectionChanged().AddSP(this, &SDMXControlConsoleFixturePatchList::OnLayoutViewSelectionChanged);
+		}
+
 		// Listen to data changes
 		UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
 		UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel->GetControlConsoleEditorData();
@@ -436,6 +442,44 @@ namespace UE::DMX::Private
 	void SDMXControlConsoleFixturePatchList::OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout)
 	{
 		RequestRefresh();
+	}
+
+	void SDMXControlConsoleFixturePatchList::OnLayoutViewSelectionChanged()
+	{
+		if (!EditorModel.IsValid())
+		{
+			return;
+		}
+
+		// Continue only if the current layout is not the default layout
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ActiveLayout || ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		{
+			return;
+		}
+
+		// Select in the list items whose patches are selected in the main layout view
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> SelectedFaderGroups = SelectionHandler->GetSelectedFaderGroups();
+
+		const TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> AllListItems = GetListItems();
+		for (const TSharedPtr<FDMXReadOnlyFixturePatchListItem>& ListItem : AllListItems)
+		{
+			if (!ListItem.IsValid())
+			{
+				continue;
+			}
+
+			const UDMXEntityFixturePatch* FixturePatch = ListItem->GetFixturePatch();
+			const bool bIsItemSelected = Algo::FindByPredicate(SelectedFaderGroups,
+				[FixturePatch](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+				{
+					return FaderGroup.IsValid() && FaderGroup->GetFixturePatch() == FixturePatch;
+				}) != nullptr;
+
+			SetItemSelection(ListItem, bIsItemSelected, ESelectInfo::Direct);
+		}
 	}
 
 	TSharedPtr<SWidget> SDMXControlConsoleFixturePatchList::OnContextMenuOpening()
