@@ -14,6 +14,7 @@
 
 #include "HAL/PlatformApplicationMisc.h" // For clipboard
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSpacer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ToolMenus)
 
@@ -1619,22 +1620,56 @@ void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMe
 		ToolBarBuilder.EndSection();
 	}
 
-	for (FToolMenuSection& Section : MenuData->Sections)
+	// Add the sections grouped by alignment with SSpacers in between. This visually separates them and allows users
+	// to align sections to appear first, middle, or last. Default-aligned sections appear grouped with first-aligned
+	// sections but appear after them.
+	const TArray<EToolMenuSectionAlign> SectionAlignments = { EToolMenuSectionAlign::First,
+															  EToolMenuSectionAlign::Default,
+															  EToolMenuSectionAlign::Middle,
+															  EToolMenuSectionAlign::Last };
+	bool bDidAddSection = false;
+	for (const EToolMenuSectionAlign CurrentAlignment : SectionAlignments)
 	{
-		if (Section.Construct.NewToolBarDelegateLegacy.IsBound())
+		const bool bIsMiddleOrLast = CurrentAlignment == EToolMenuSectionAlign::Middle
+								  || CurrentAlignment == EToolMenuSectionAlign::Last;
+
+		// Add a spacer before the middle and last alignment groups, and only if we've already added a section to a
+		// previous alignment group.
+		if (bIsMiddleOrLast && bDidAddSection)
 		{
-			Section.Construct.NewToolBarDelegateLegacy.Execute(ToolBarBuilder, MenuData);
-			continue;
+			ToolBarBuilder.AddWidget(SNew(SSpacer), NAME_None, true, HAlign_Right);
 		}
 
-		ToolBarBuilder.BeginSection(Section.Name);
-
-		for (FToolMenuEntry& Block : Section.Blocks)
+		// Keep track if this is the first section we're adding for the CurrentAlignment. Make an exception if the
+		// current alignment is Default and we already added a first-aligned section, because in that case this
+		// isn't the first section in the "group" since we're displaying first and default-aligned sections together.
+		bool bFirstSectionInAlignmentGroup = CurrentAlignment == EToolMenuSectionAlign::Default ? !bDidAddSection : true;
+		for (FToolMenuSection& Section : MenuData->Sections)
 		{
-			PopulateToolBarBuilderWithEntry(ToolBarBuilder, MenuData, Block);
-		}
+			if (Section.Alignment != CurrentAlignment)
+			{
+				continue;
+			}
 
-		ToolBarBuilder.EndSection();
+			if (Section.Construct.NewToolBarDelegateLegacy.IsBound())
+			{
+				Section.Construct.NewToolBarDelegateLegacy.Execute(ToolBarBuilder, MenuData);
+				continue;
+			}
+
+			const bool bSectionShouldHaveSeparator = !bFirstSectionInAlignmentGroup;
+			ToolBarBuilder.BeginSection(Section.Name, bSectionShouldHaveSeparator);
+
+			for (FToolMenuEntry& Block : Section.Blocks)
+			{
+				PopulateToolBarBuilderWithEntry(ToolBarBuilder, MenuData, Block);
+			}
+
+			ToolBarBuilder.EndSection();
+
+			bDidAddSection = true;
+			bFirstSectionInAlignmentGroup = false;
+		}
 	}
 
 	AddReferencedContextObjects(ToolBarBuilder.GetMultiBox(), MenuData);

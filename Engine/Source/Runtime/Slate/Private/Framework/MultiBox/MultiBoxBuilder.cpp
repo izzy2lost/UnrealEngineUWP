@@ -646,7 +646,7 @@ void FToolBarBuilder::AddSeparator(FName InExtensionHook)
 	ApplyHook(InExtensionHook, EExtensionHook::After);
 }
 
-void FToolBarBuilder::BeginSection( FName InExtensionHook )
+void FToolBarBuilder::BeginSection(FName InExtensionHook, bool bInSectionShouldHaveSeparator)
 {
 	checkf(CurrentSectionExtensionHook == NAME_None && !bSectionNeedsToBeApplied, TEXT("Did you forget to call EndSection()?"));
 
@@ -655,6 +655,7 @@ void FToolBarBuilder::BeginSection( FName InExtensionHook )
 	// Do not actually apply the section header, because if this section is ended immediately
 	// then nothing ever gets created, preventing empty sections from ever appearing
 	bSectionNeedsToBeApplied = true;
+	bSectionShouldHaveSeparator = bInSectionShouldHaveSeparator;
 	CurrentSectionExtensionHook = InExtensionHook;
 	
 	// Do apply the section beginning if we are in developer "show me all the hooks" mode
@@ -692,12 +693,14 @@ void FToolBarBuilder::ApplySectionBeginning()
 {
 	if (bSectionNeedsToBeApplied)
 	{
-		if( MultiBox->GetBlocks().Num() > 0 || FMultiBoxSettings::DisplayMultiboxHooks.Get() )
+		if (bSectionShouldHaveSeparator
+			&& (MultiBox->GetBlocks().Num() > 0 || FMultiBoxSettings::DisplayMultiboxHooks.Get()))
 		{
 			TSharedRef<FToolBarSeparatorBlock> NewSeparatorBlock = MakeShared<FToolBarSeparatorBlock>(CurrentSectionExtensionHook);
 			NewSeparatorBlock->SetStyleNameOverride(CurrentStyleOverride);
 
 			MultiBox->AddMultiBlock(NewSeparatorBlock);
+			bSectionShouldHaveSeparator = false;
 		}
 		bSectionNeedsToBeApplied = false;
 	}

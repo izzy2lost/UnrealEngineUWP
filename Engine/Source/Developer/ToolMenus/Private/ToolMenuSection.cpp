@@ -14,6 +14,7 @@
 
 FToolMenuSection::FToolMenuSection()
 	: ToolMenuSectionDynamic(nullptr)
+	, Alignment(EToolMenuSectionAlign::Default)
 	, bIsRegistering(false)
 	, bAddedDuringRegister(false)
 {
@@ -33,6 +34,7 @@ void FToolMenuSection::InitGeneratedSectionCopy(const FToolMenuSection& Source, 
 	InsertPosition = Source.InsertPosition;
 	Construct = Source.Construct;
 	Context = InContext;
+	Alignment = Source.Alignment;
 }
 
 bool FToolMenuSection::IsRegistering() const

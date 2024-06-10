@@ -508,6 +508,7 @@ public:
 	FToolBarBuilder(TSharedPtr< const FUICommandList > InCommandList, FMultiBoxCustomization InCustomization, TSharedPtr<FExtender> InExtender, EOrientation Orientation, const bool InForceSmallIcons = false, const bool bUniform = false)
 		: FMultiBoxBuilder(bUniform ? EMultiBoxType::UniformToolBar : (Orientation == Orient_Horizontal) ? EMultiBoxType::ToolBar : EMultiBoxType::VerticalToolBar, InCustomization, false, InCommandList, InExtender)
 		, bSectionNeedsToBeApplied(false)
+		, bSectionShouldHaveSeparator(true)
 		, bIsFocusable(true)
 		, bForceSmallIcons(InForceSmallIcons)
 	{
@@ -521,6 +522,7 @@ public:
 	FToolBarBuilder(TSharedPtr<const FUICommandList> InCommandList, FMultiBoxCustomization InCustomization, TSharedPtr<FExtender> InExtender = nullptr, const bool InForceSmallIcons = false)
 		: FMultiBoxBuilder(EMultiBoxType::ToolBar, InCustomization, false, InCommandList, InExtender)
 		, bSectionNeedsToBeApplied(false)
+		, bSectionShouldHaveSeparator(true)
 		, bIsFocusable(true)
 		, bForceSmallIcons(InForceSmallIcons)
 	{
@@ -612,13 +614,15 @@ public:
 	 * Adds a toolbar separator
 	 */
 	SLATE_API void AddSeparator(FName InExtensionHook = NAME_None);
-	
+
 	/**
 	 * Starts a section on to the extender section hook stack
-	 * 
+	 *
 	 * @param InExtensionHook	The section hook. Can be NAME_None
+	 * @param bInSectionShouldHaveSeparator	Whether this section should have a separator to its left (this doesn't apply
+	 * to the first section added, because that never gets a separator).
 	 */
-	SLATE_API void BeginSection( FName InExtensionHook );
+	SLATE_API void BeginSection(FName InExtensionHook, bool bInSectionShouldHaveSeparator = true);
 
 	/**
 	 * Ends the current section
@@ -646,6 +650,7 @@ protected:
 	FToolBarBuilder(EMultiBoxType InType, TSharedPtr<const FUICommandList> InCommandList, FMultiBoxCustomization InCustomization, TSharedPtr<FExtender> InExtender = TSharedPtr<FExtender>(), const bool InForceSmallIcons = false)
 		: FMultiBoxBuilder(InType, InCustomization, false, InCommandList, InExtender)
 		, bSectionNeedsToBeApplied(false)
+		, bSectionShouldHaveSeparator(true)
 		, bIsFocusable(false)
 		, bForceSmallIcons(InForceSmallIcons)
 	{
@@ -668,6 +673,8 @@ private:
 
 	/** True if there is a pending section that needs to be applied */
 	bool bSectionNeedsToBeApplied;
+
+	bool bSectionShouldHaveSeparator;
 
 	/** Whether the buttons created can receive keyboard focus */
 	bool bIsFocusable;
