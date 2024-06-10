@@ -1620,6 +1620,10 @@ namespace Metasound
 			ToolkitCommands->MapAction(FGenericCommands::Get().Rename,
 				FExecuteAction::CreateSP(this, &FEditor::RenameSelectedInterfaceItem),
 				FCanExecuteAction::CreateSP(this, &FEditor::CanRenameSelectedInterfaceItems));
+			
+			ToolkitCommands->MapAction(FGenericCommands::Get().Duplicate,
+				FExecuteAction::CreateSP(this, &FEditor::DuplicateSelectedMemberItems),
+				FCanExecuteAction::CreateSP(this, &FEditor::CanDuplicateSelectedMemberItems));
 
 			ToolkitCommands->MapAction(
 				FEditorCommands::Get().UpdateNodeClass,
@@ -2817,6 +2821,149 @@ namespace Metasound
 			}
 		}
 
+		bool FEditor::CanDuplicateSelectedMemberItems() const
+		{
+			if (!IsGraphEditable())
+			{
+				return false;
+			}
+
+			if (!GraphMembersMenu.IsValid())
+			{
+				return false;
+			}
+
+			TArray<TSharedPtr<FEdGraphSchemaAction>> Actions;
+			GraphMembersMenu->GetSelectedActions(Actions);
+
+			if (Actions.IsEmpty())
+			{
+				return false;
+			}
+
+			for (const TSharedPtr<FEdGraphSchemaAction>& Action : Actions)
+			{
+				TSharedPtr<FMetasoundGraphMemberSchemaAction> MetasoundAction = StaticCastSharedPtr<FMetasoundGraphMemberSchemaAction>(Action);
+				if (MetasoundAction.IsValid())
+				{						
+					if (const UMetasoundEditorGraphVertex* GraphVertex = Cast<UMetasoundEditorGraphVertex>(MetasoundAction->GetGraphMember()))
+					{
+						if (GraphVertex->IsInterfaceMember())
+						{
+							return false;
+						}
+					}
+				}
+			}		
+
+			return true;
+		}
+
+		void FEditor::DuplicateSelectedMemberItems()
+		{
+			using namespace Frontend;
+
+			if (!GraphMembersMenu.IsValid())
+			{
+				return;
+			}
+
+			TArray<TSharedPtr<FEdGraphSchemaAction>> Actions;
+			GraphMembersMenu->GetSelectedActions(Actions);
+
+			if (Actions.IsEmpty())
+			{
+				return;
+			}
+				
+			UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+			TArray<TObjectPtr<UObject>> SelectedObjects;
+			FName NameToSelect;
+
+			for (const TSharedPtr<FEdGraphSchemaAction>& Action : Actions)
+			{
+				TSharedPtr<FMetasoundGraphMemberSchemaAction> MetasoundAction = StaticCastSharedPtr<FMetasoundGraphMemberSchemaAction>(Action);
+				if (!MetasoundAction.IsValid())
+				{
+					continue;
+				}
+
+				if (const UMetasoundEditorGraphMember* SourceGraphMember = MetasoundAction->GetGraphMember())
+				{								
+					const FScopedTransaction Transaction(TEXT(""), LOCTEXT("MetaSoundEditorDuplicateMember", "Duplicate MetaSound Member"), Metasound);
+					Metasound->Modify();
+
+					UMetasoundEditorGraphMember* NewGraphMember = nullptr;
+										
+					//Duplicate the Sources NodeHandle and add a new member from it
+					if (const UMetasoundEditorGraphVariable* SourceGraphVariable = Cast<UMetasoundEditorGraphVariable>(SourceGraphMember))
+					{
+						FConstVariableHandle VariableHandle = FGraphBuilder::DuplicateVariableHandle(Graph.GetMetasoundChecked(), SourceGraphVariable->GetConstVariableHandle());
+						if (ensure(VariableHandle->IsValid()))
+						{							
+							NewGraphMember = Graph.FindOrAddVariable(VariableHandle);
+						}
+					}
+					else if (const UMetasoundEditorGraphVertex* SourceGraphVertex = Cast<UMetasoundEditorGraphVertex>(SourceGraphMember))
+					{
+						const FName SourceMemberName = SourceGraphVertex->GetMemberName();
+						const EMetasoundFrontendClassType ClassType = SourceGraphVertex->GetClassType();
+						
+						FMetaSoundFrontendDocumentBuilder& DocumentBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&Graph.GetMetasoundChecked());
+						const FName Name = FGraphBuilder::GenerateUniqueNameByClassType(Graph.GetMetasoundChecked(), ClassType, SourceMemberName.ToString());
+
+						if (ClassType == EMetasoundFrontendClassType::Input)
+						{
+							if (const FMetasoundFrontendClassInput* SourceInput = DocumentBuilder.FindGraphInput(SourceMemberName))
+							{							
+								if (const FMetasoundFrontendNode* FrontendNode = DocumentBuilder.DuplicateGraphInput(*SourceInput, SourceInput->DefaultLiteral, Name))
+								{
+									FGraphBuilder::SynchronizeGraphMembers(DocumentBuilder, Graph);
+									NewGraphMember = Graph.FindInput(FrontendNode->Name);
+								}
+							}
+						}
+						else if (ClassType == EMetasoundFrontendClassType::Output)
+						{
+							if (const FMetasoundFrontendClassOutput* SourceOutput = DocumentBuilder.FindGraphOutput(SourceMemberName))
+							{
+								if (const FMetasoundFrontendNode* FrontendNode = DocumentBuilder.DuplicateGraphOutput(*SourceOutput, Name))
+								{
+									FGraphBuilder::SynchronizeGraphMembers(DocumentBuilder, Graph);
+									NewGraphMember = Graph.FindOutput(FrontendNode->Name);
+								}
+							}
+						}
+					}
+
+					//Duplicate the literal from the SourceGraphMember to the NewGraphMember added
+					if (NewGraphMember)
+					{
+						if (UMetaSoundEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMetaSoundEditorSubsystem>())
+						{
+							FMetaSoundFrontendDocumentBuilder& DocumentBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Metasound);
+							TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> SubClass = SourceGraphMember->GetLiteral()->GetClass();
+							EditorSubsystem->BindMemberMetadata(DocumentBuilder, *NewGraphMember, SubClass, SourceGraphMember->GetLiteral());
+
+							NameToSelect = NewGraphMember->GetMemberName();
+							SelectedObjects.Add(NewGraphMember);
+						}
+					}	
+				}
+			}	
+
+			if (GraphMembersMenu.IsValid())
+			{
+				GraphMembersMenu->RefreshAllActions(true);
+				if (!NameToSelect.IsNone())
+				{
+					GraphMembersMenu->SelectItemByName(NameToSelect);
+					SetSelection(SelectedObjects);
+				}
+			}
+		}
+
 		void FEditor::RefreshDetails()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FEditor::RefreshDetails);
@@ -3285,6 +3432,7 @@ namespace Metasound
 
 			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
 			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Rename);
+			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Duplicate);
 
 			MenuBuilder.AddMenuEntry(
 				LOCTEXT("JumpToNodesMenuEntry", "Jump to Node(s) in Graph"),

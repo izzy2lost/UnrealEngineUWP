@@ -319,6 +319,12 @@ namespace Metasound
 			/** Rename selected interface item. */
 			void RenameSelectedInterfaceItem();
 
+			/** Whether the currently selected Member item(s) can be duplicated. */
+			bool CanDuplicateSelectedMemberItems() const;
+
+			/** Duplicate selected Member items. */
+			void DuplicateSelectedMemberItems();
+
 			/** Whether there are nodes to jump to for the currently selected interface item. */
 			bool CanJumpToNodesForSelectedInterfaceItem() const;
 

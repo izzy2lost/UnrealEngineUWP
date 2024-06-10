@@ -1451,7 +1451,7 @@ namespace Metasound
 			return *MetaSoundAsset;
 		}
 
-		Frontend::FVariableHandle FGraphBuilder::AddVariableHandle(UObject& InMetaSound, const FName& InTypeName)
+		Frontend::FVariableHandle FGraphBuilder::AddVariableHandle(UObject& InMetaSound, const FName& InTypeName, const FName* InNameBase)
 		{
 			using namespace Frontend;
 
@@ -1460,16 +1460,22 @@ namespace Metasound
 
 			FGraphHandle FrontendGraph = MetaSoundAsset->GetRootGraphHandle();
 
-			FText BaseDisplayName = LOCTEXT("VariableDefaultDisplayName", "Variable");
-
-			FString BaseName = BaseDisplayName.ToString();
-			FName VariableName = GenerateUniqueVariableName(FrontendGraph, BaseName);
+			FName VariableName = GenerateUniqueVariableName(FrontendGraph, InNameBase ? InNameBase->ToString() : LOCTEXT("VariableDefaultDisplayName", "Variable").ToString());
 			FVariableHandle Variable = FrontendGraph->AddVariable(InTypeName);
 
 			Variable->SetDisplayName(FText::GetEmpty());
 			Variable->SetName(VariableName);
 
 			return Variable;
+		}
+
+		Frontend::FVariableHandle FGraphBuilder::DuplicateVariableHandle(UObject& InMetaSound, const Frontend::FConstVariableHandle& InHandle)
+		{
+			Frontend::FVariableHandle NewHandle = AddVariableHandle(InMetaSound, InHandle->GetDataType(), &InHandle->GetName());
+			NewHandle->SetDisplayName(FText::GetEmpty());
+			NewHandle->SetDescription(InHandle->GetDescription());
+			NewHandle->SetLiteral(InHandle->GetLiteral());
+			return NewHandle;
 		}
 
 		Frontend::FNodeHandle FGraphBuilder::AddVariableNodeHandle(UObject& InMetaSound, const FGuid& InVariableID, const Metasound::FNodeClassName& InVariableNodeClassName, UMetasoundEditorGraphVariableNode* InVariableNode)

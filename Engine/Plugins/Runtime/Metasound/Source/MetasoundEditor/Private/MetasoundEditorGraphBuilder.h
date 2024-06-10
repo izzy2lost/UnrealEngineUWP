@@ -166,9 +166,13 @@ namespace Metasound
 			//
 			// @param InMetaSound - FMetasoundAssetBase derived UObject.
 			// @param InTypeName - Data type of variable.
-			//
+			// @param InNameBase - (optional) Name of the Variable, if not given default naming is used.
+			// 
 			// @return The added frontend variable handle. On error, the returned handle is invalid.
-			static Frontend::FVariableHandle AddVariableHandle(UObject& InMetaSound, const FName& InTypeName);
+			static Frontend::FVariableHandle AddVariableHandle(UObject& InMetaSound, const FName& InTypeName, const FName* InNameBase = nullptr);
+
+			// Generates Duplicate FVariableHandle from the given handle.
+			static Frontend::FVariableHandle DuplicateVariableHandle(UObject& InMetaSound, const Frontend::FConstVariableHandle& InHandle);
 
 			// Adds a frontend variable node to root graph using the supplied node class name.
 			//
