@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CEClonerEffectorShared.h"
+#include "Templates/SubclassOf.h"
 #include "UObject/Object.h"
 #include "CEClonerLayoutBase.generated.h"
 
@@ -103,7 +104,13 @@ public:
 	bool CopyTo(UCEClonerLayoutBase* InOtherLayout) const;
 
 	/** Gets the cloner extensions supported by this layout */
-	virtual TSet<FName> GetSupportedExtensions() const;
+	TSet<TSubclassOf<UCEClonerExtensionBase>> GetSupportedExtensions() const;
+
+	/** Filter supported extension for this layout */
+	virtual bool IsExtensionSupported(const UCEClonerExtensionBase* InExtension) const
+	{
+		return true;
+	}
 
 	/** Request refresh layout next tick */
 	void MarkLayoutDirty(bool bInUpdateCloner = true);

@@ -4,6 +4,7 @@
 
 #include "Cloner/CEClonerActor.h"
 #include "Cloner/CEClonerComponent.h"
+#include "Cloner/Extensions/CEClonerExtensionBase.h"
 #include "Misc/PackageName.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraMeshRendererProperties.h"
@@ -222,16 +223,38 @@ bool UCEClonerLayoutBase::CopyTo(UCEClonerLayoutBase* InOtherLayout) const
 	return true;
 }
 
-TSet<FName> UCEClonerLayoutBase::GetSupportedExtensions() const
+TSet<TSubclassOf<UCEClonerExtensionBase>> UCEClonerLayoutBase::GetSupportedExtensions() const
 {
-	TSet<FName> ModuleSupported;
+	TSet<TSubclassOf<UCEClonerExtensionBase>> ExtensionSupported;
 
-	if (UCEClonerSubsystem* ClonerSubsystem = UCEClonerSubsystem::Get())
+	if (const UCEClonerSubsystem* ClonerSubsystem = UCEClonerSubsystem::Get())
 	{
-		ModuleSupported.Append(ClonerSubsystem->GetExtensionNames());
+		for (const TSubclassOf<UCEClonerExtensionBase>& ExtensionClass : ClonerSubsystem->GetExtensionClasses())
+		{
+			const UCEClonerExtensionBase* Extension = ExtensionClass.GetDefaultObject();
+
+			if (!Extension)
+			{
+				continue;
+			}
+
+			// Does the layout supports this extension
+			if (!IsExtensionSupported(Extension))
+			{
+				continue;
+			}
+
+			// Does the extension supports this layout
+			if (!Extension->IsLayoutSupported(this))
+			{
+				continue;
+			}
+
+			ExtensionSupported.Add(ExtensionClass);
+		}
 	}
 
-	return ModuleSupported;
+	return ExtensionSupported;
 }
 
 bool UCEClonerLayoutBase::IsLayoutDirty() const

@@ -58,7 +58,10 @@ public:
 	CLONEREFFECTOR_API bool IsExtensionClassRegistered(UClass* InClass) const;
 
 	/** Get available cloner extension names to use */
-	TArray<FName> GetExtensionNames() const;
+	TSet<FName> GetExtensionNames() const;
+
+	/** Get available cloner extension classes to use */
+	TSet<TSubclassOf<UCEClonerExtensionBase>> GetExtensionClasses() const;
 
 	/** Based on a extension class, find extension name */
 	FName FindExtensionName(TSubclassOf<UCEClonerExtensionBase> InClass) const;

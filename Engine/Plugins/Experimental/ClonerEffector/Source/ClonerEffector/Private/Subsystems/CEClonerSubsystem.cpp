@@ -216,11 +216,18 @@ bool UCEClonerSubsystem::IsExtensionClassRegistered(UClass* InClass) const
 	return !!ExtensionClasses.FindKey(ExtensionClass);
 }
 
-TArray<FName> UCEClonerSubsystem::GetExtensionNames() const
+TSet<FName> UCEClonerSubsystem::GetExtensionNames() const
 {
 	TArray<FName> ExtensionNames;
 	ExtensionClasses.GenerateKeyArray(ExtensionNames);
-	return ExtensionNames;
+	return TSet<FName>(ExtensionNames);
+}
+
+TSet<TSubclassOf<UCEClonerExtensionBase>> UCEClonerSubsystem::GetExtensionClasses() const
+{
+	TArray<TSubclassOf<UCEClonerExtensionBase>> Extensions;
+	ExtensionClasses.GenerateValueArray(Extensions);
+	return TSet<TSubclassOf<UCEClonerExtensionBase>>(Extensions);
 }
 
 FName UCEClonerSubsystem::FindExtensionName(TSubclassOf<UCEClonerExtensionBase> InClass) const

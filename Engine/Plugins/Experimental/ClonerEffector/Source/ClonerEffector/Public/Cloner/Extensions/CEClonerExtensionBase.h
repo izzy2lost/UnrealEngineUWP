@@ -73,7 +73,14 @@ public:
 	/** Request refresh extension next tick */
 	void MarkExtensionDirty(bool bInUpdateCloner = true);
 
+	/** Is this extension dirty */
 	bool IsExtensionDirty() const;
+
+	/** Filter supported layout for this extension */
+	virtual bool IsLayoutSupported(const UCEClonerLayoutBase* InLayout) const
+	{
+		return true;
+	}
 
 protected:
 	//~ Begin UObject

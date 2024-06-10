@@ -4,6 +4,7 @@
 
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/Extensions/CEClonerCollisionExtension.h"
+#include "Cloner/Extensions/CEClonerConstraintExtension.h"
 #include "Cloner/Extensions/CEClonerEffectorExtension.h"
 #include "Cloner/Extensions/CEClonerEmitterSpawnExtension.h"
 #include "Cloner/Extensions/CEClonerLifetimeExtension.h"
@@ -238,13 +239,24 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 					GridLayout->SetSpacingX(PrevGridLayout->GetSpacingX());
 					GridLayout->SetSpacingY(PrevGridLayout->GetSpacingY());
 					GridLayout->SetSpacingZ(PrevGridLayout->GetSpacingZ());
-					GridLayout->SetConstraint(PrevGridLayout->GetConstraint());
-					GridLayout->SetInvertConstraint(PrevGridLayout->GetInvertConstraint());
-					GridLayout->SetSphereConstraint(PrevGridLayout->GetSphereConstraint());
-					GridLayout->SetCylinderConstraint(PrevGridLayout->GetCylinderConstraint());
-					GridLayout->SetTextureConstraint(PrevGridLayout->GetTextureConstraint());
 					GridLayout->SetTwistAxis(PrevGridLayout->GetTwistAxis());
 					GridLayout->SetTwistFactor(PrevGridLayout->GetTwistFactor() * 100);
+				}
+
+				if (UCEClonerConstraintExtension* ConstraintExtension = ClonerComponent->FindOrAddExtension<UCEClonerConstraintExtension>())
+				{
+					ConstraintExtension->SetConstraint(PrevGridLayout->GetConstraint());
+					ConstraintExtension->SetInvertConstraint(PrevGridLayout->GetInvertConstraint());
+					ConstraintExtension->SetSphereRadius(PrevGridLayout->GetSphereConstraint().Radius);
+					ConstraintExtension->SetSphereCenter(PrevGridLayout->GetSphereConstraint().Center);
+					ConstraintExtension->SetCylinderRadius(PrevGridLayout->GetCylinderConstraint().Radius);
+					ConstraintExtension->SetCylinderHeight(PrevGridLayout->GetCylinderConstraint().Height);
+					ConstraintExtension->SetCylinderCenter(PrevGridLayout->GetCylinderConstraint().Center);
+					ConstraintExtension->SetTextureAsset(PrevGridLayout->GetTextureConstraint().Texture.Get());
+					ConstraintExtension->SetTexturePlane(PrevGridLayout->GetTextureConstraint().Plane);
+					ConstraintExtension->SetTextureSampleMode(PrevGridLayout->GetTextureConstraint().Channel);
+					ConstraintExtension->SetTextureCompareMode(PrevGridLayout->GetTextureConstraint().CompareMode);
+					ConstraintExtension->SetTextureThreshold(PrevGridLayout->GetTextureConstraint().Threshold);
 				}
 			}
 			else if (UCEClonerLineLayout* PrevLineLayout = Cast<UCEClonerLineLayout>(LayoutPair.Value))

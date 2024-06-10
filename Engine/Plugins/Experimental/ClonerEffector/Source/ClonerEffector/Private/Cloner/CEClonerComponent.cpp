@@ -1711,9 +1711,9 @@ void UCEClonerComponent::OnActiveLayoutChanged()
 	TSet<TObjectPtr<UCEClonerExtensionBase>> PrevActiveExtensions(ActiveExtensions);
 	ActiveExtensions.Empty();
 
-	for (const FName& ExtensionName : Layout->GetSupportedExtensions())
+	for (const TSubclassOf<UCEClonerExtensionBase>& ExtensionClass : Layout->GetSupportedExtensions())
 	{
-		if (UCEClonerExtensionBase* Extension = FindOrAddExtension(ExtensionName))
+		if (UCEClonerExtensionBase* Extension = FindOrAddExtension(ExtensionClass.Get()))
 		{
 			if (!PrevActiveExtensions.Contains(Extension))
 			{
