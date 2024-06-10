@@ -102,9 +102,7 @@ FToolMenuEntry& FToolMenuSection::AddMenuEntryWithCommandList(const TSharedPtr< 
 
 FToolMenuEntry& FToolMenuSection::AddDynamicEntry(const FName InName, const FNewToolMenuSectionDelegate& InConstruct)
 {
-	FToolMenuEntry& Entry = AddEntry(FToolMenuEntry(UToolMenus::Get()->CurrentOwner(), InName, EMultiBlockType::MenuEntry));
-	Entry.Construct = InConstruct;
-	return Entry;
+	return AddEntry(FToolMenuEntry::InitDynamicEntry(InName, InConstruct));
 }
 
 FToolMenuEntry& FToolMenuSection::AddDynamicEntry(const FName InName, const FNewToolMenuDelegateLegacy& InConstruct)
