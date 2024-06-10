@@ -49,13 +49,7 @@ PXR_NAMESPACE_OPEN_SCOPE
     ((outBlockArray, "out block array"))        \
     ((uniformBlock, "uniform block"))           \
     ((bufferReadOnly, "buffer readOnly"))       \
-    ((bufferReadWrite, "buffer readWrite"))     \
-    (centroid)                                  \
-    (sample)                                    \
-    (smooth)                                    \
-    (flat)                                      \
-    (noperspective)
-
+    ((bufferReadWrite, "buffer readWrite"))
 
 TF_DECLARE_PUBLIC_TOKENS(HioGlslfxResourceLayoutTokens, HIO_API,
                          HIO_GLSLFX_RESOURCE_LAYOUT_TOKENS);
@@ -112,8 +106,7 @@ public:
     struct Member {
         Member(TfToken const & dataType,
                TfToken const & name,
-               TfToken const & arraySize = TfToken(),
-               TfToken const & qualifiers = TfToken())
+               TfToken const & arraySize = TfToken())
             : dataType(dataType)
             , name(name)
             , arraySize(arraySize)
@@ -121,7 +114,6 @@ public:
         TfToken dataType;
         TfToken name;
         TfToken arraySize;
-        TfToken qualifiers;
     };
     using MemberVector = std::vector<Member>;
 

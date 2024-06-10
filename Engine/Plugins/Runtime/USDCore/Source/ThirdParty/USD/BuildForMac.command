@@ -2,16 +2,26 @@
 
 set -e
 
-OPENUSD_VERSION=24.05
+OPENUSD_VERSION=24.03
 
 # This path may be adjusted to point to wherever the OpenUSD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine OpenUSD version:
-#     git clone --branch v24.05 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
-# Then from inside the cloned OpenUSD_src directory, apply all patches sitting
-# next to this build script:
-#     git apply <build script dir>/OpenUSD_v2405_*.patch
+#     git clone --branch v24.03 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+# We apply a patch for the usdMtlx plugin to ensure that we do not
+# bake a hard-coded path to the MaterialX standard data libraries into the
+# built plugin:
+#     git apply OpenUSD_v2403_usdMtlx_undef_stdlib_dir.patch
+# We apply a patch to explicitly declare, define, and export a destructor for
+# SdfAssetPaths so that allocations of its member strings can be tracked and
+# deallocated using the correct deallocator:
+#     git apply OpenUSD_v2403_explicit_SdfAssetPath_dtor.patch
+# We apply a patch to switch between two alternative set of macros in the Tf
+# library based on whether we're compiling with MSVC *and* whether its
+# "traditional" preprocessor is being used, not just whether we're using
+# MSVC or not:
+#     git apply OpenUSD_v2403_msvc_preprocessor_version_handling.patch
 # Note also that this path may be emitted as part of OpenUSD error messages, so
 # it is suggested that it not reveal any sensitive information.
 OPENUSD_SOURCE_LOCATION="/tmp/OpenUSD_src"
@@ -155,8 +165,8 @@ rm -rf "$INSTALL_LOCATION/share"
 # plugInfo.json files.
 # The OpenUSD plugins all exist at the same directory level, so any of them can
 # be used to generate a relative path.
-USD_PLUGIN_LOCATION="$UE_ENGINE_LOCATION/Plugins/Runtime/USDCore/Resources/UsdResources/Mac/plugins/usd"
-USD_LIBS_LOCATION="$UE_ENGINE_LOCATION/Plugins/Runtime/USDCore/Source/ThirdParty/Mac/bin"
+USD_PLUGIN_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Resources/UsdResources/Mac/plugins/usd"
+USD_LIBS_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Source/ThirdParty/Mac/bin"
 
 echo Adjusting plugInfo.json LibraryPath fields...
 USD_PLUGIN_TO_USD_LIBS_REL_PATH=`python3 -c "import os.path; print(os.path.relpath('$USD_LIBS_LOCATION', '$USD_PLUGIN_LOCATION'))"`

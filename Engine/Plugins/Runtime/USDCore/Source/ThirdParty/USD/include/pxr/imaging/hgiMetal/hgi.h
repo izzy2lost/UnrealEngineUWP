@@ -242,8 +242,9 @@ private:
     int _frameDepth;
     bool _workToFlush;
 
-    struct AutoReleasePool;
-    std::unique_ptr<AutoReleasePool> _pool;
+#if !__has_feature(objc_arc)
+    NSAutoreleasePool *_pool;
+#endif
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

@@ -36,7 +36,6 @@
 
 #include "pxr/imaging/hd/changeTracker.h"
 #include "pxr/imaging/hd/selection.h"
-#include "pxr/usd/sdf/path.h"
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usd/prim.h"
 #include "pxr/usd/usd/timeCode.h"
@@ -67,11 +66,15 @@ using UsdImagingPrimAdapterSharedPtr =
 /// Base class for all PrimAdapters.
 ///
 class UsdImagingPrimAdapter 
-  : public std::enable_shared_from_this<UsdImagingPrimAdapter>
+            : public std::enable_shared_from_this<UsdImagingPrimAdapter>
 {
 public:
+    
+    UsdImagingPrimAdapter()
+    {}
+
     USDIMAGING_API
-    virtual ~UsdImagingPrimAdapter() = default;
+    virtual ~UsdImagingPrimAdapter();
 
     // ---------------------------------------------------------------------- //
     /// \name Scene Index Support
@@ -682,10 +685,10 @@ public:
     // ---------------------------------------------------------------------- //
 
     /// Returns true if the adapter can be populated into the target index.
-    virtual bool IsSupported(UsdImagingIndexProxy const* index) const
-    {
+    virtual bool IsSupported(UsdImagingIndexProxy const* index) const {
         return true;
     }
+
 
     // ---------------------------------------------------------------------- //
     /// \name Utilties
@@ -698,20 +701,6 @@ public:
             TfToken const& paramName);
 
 protected:
-    friend class UsdImagingInstanceAdapter;
-    friend class UsdImagingPointInstancerAdapter;
-    // ---------------------------------------------------------------------- //
-    /// \name Utility
-    // ---------------------------------------------------------------------- //
-    
-    // Given the USD path for a prim of this adapter's type, returns
-    // the prim's Hydra cache path.
-    USDIMAGING_API
-    virtual SdfPath
-    ResolveCachePath(
-        const SdfPath& usdPath,
-        const UsdImagingInstancerContext* instancerContext = nullptr) const;
-
     using Keys = UsdImagingPrimvarDescCache::Key;
 
     template <typename T>
@@ -731,11 +720,9 @@ protected:
     USDIMAGING_API
     UsdImagingPrimvarDescCache* _GetPrimvarDescCache() const;
 
-    USDIMAGING_API
     UsdImaging_NonlinearSampleCountCache*
         _GetNonlinearSampleCountCache() const;
 
-    USDIMAGING_API
     UsdImaging_BlurScaleCache*
         _GetBlurScaleCache() const;
 
@@ -955,6 +942,7 @@ public:
         return std::make_shared<T>();
     }
 };
+
 
 PXR_NAMESPACE_CLOSE_SCOPE
 

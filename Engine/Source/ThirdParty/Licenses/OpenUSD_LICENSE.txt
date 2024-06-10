@@ -1,7 +1,7 @@
 ================================================================================
 Software Name: OpenUSD
-Version: v24.05
-URL: https://github.com/PixarAnimationStudios/OpenUSD/blob/v24.05/LICENSE.txt
+Version: v24.03
+URL: https://github.com/PixarAnimationStudios/OpenUSD/blob/v24.03/LICENSE.txt
 ================================================================================
 
                                Modified Apache 2.0 License

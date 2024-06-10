@@ -3,6 +3,13 @@
         {
             "Info": {
                 "Types": {
+                    "UsdRiPxrImagingBarnLightFilterAdapter": {
+                        "bases": [
+                            "UsdImagingLightFilterAdapter"
+                        ],
+                        "isInternal": true,
+                        "primTypeName": "PxrBarnLightFilter"
+                    },
                     "UsdRiPxrImagingDisplayFilterAdapter": {
                         "bases": [
                             "UsdImagingPrimAdapter"
@@ -18,6 +25,20 @@
                         "isInternal": true,
                         "primTypeName": "PxrIntegratorPluginBase",
                         "includeDerivedPrimTypes" : true 
+                    },
+                    "UsdRiPxrImagingIntMultLightFilterAdapter": {
+                        "bases": [
+                            "UsdImagingLightFilterAdapter"
+                        ],
+                        "isInternal": true,
+                        "primTypeName": "PxrIntMultLightFilter"
+                    },
+                    "UsdRiPxrImagingRodLightFilterAdapter": {
+                        "bases": [
+                            "UsdImagingLightFilterAdapter"
+                        ],
+                        "isInternal": true,
+                        "primTypeName": "PxrRodLightFilter"
                     },
                     "UsdRiPxrImagingSampleFilterAdapter": {
                         "bases": [

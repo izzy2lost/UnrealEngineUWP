@@ -27,9 +27,8 @@
 /// \file usdImaging/lightAdapter.h
 
 #include "pxr/pxr.h"
-#include "pxr/usd/sdf/path.h"
 #include "pxr/usdImaging/usdImaging/api.h"
-#include "pxr/usdImaging/usdImaging/instanceablePrimAdapter.h"
+#include "pxr/usdImaging/usdImaging/primAdapter.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -40,12 +39,19 @@ class UsdPrim;
 ///
 /// Base class for all lights.
 ///
-class UsdImagingLightAdapter : public UsdImagingInstanceablePrimAdapter {
+class UsdImagingLightAdapter : public UsdImagingPrimAdapter {
 public:
-    using BaseAdapter = UsdImagingInstanceablePrimAdapter;
+    typedef UsdImagingPrimAdapter BaseAdapter;
 
     USDIMAGING_API
     static bool IsEnabledSceneLights();
+
+    UsdImagingLightAdapter()
+        : UsdImagingPrimAdapter()
+    {}
+
+    USDIMAGING_API
+    ~UsdImagingLightAdapter() override;
 
     // ---------------------------------------------------------------------- //
     /// \name Scene Index Support
@@ -131,7 +137,7 @@ public:
                               UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkCollectionsDirty(UsdPrim const& prim,
+    virtual void MarkCollectionsDirty(UsdPrim const& prim,
                                       SdfPath const& cachePath,
                                       UsdImagingIndexProxy* index) override;
 
@@ -143,6 +149,14 @@ public:
     VtValue GetMaterialResource(UsdPrim const &prim,
                                 SdfPath const& cachePath, 
                                 UsdTimeCode time) const override;
+
+    // Helper function: map USD path to UsdImaging cache path,
+    // applying any name-encoding required by the instancerContext.
+    USDIMAGING_API
+    static SdfPath
+    _ResolveCachePath(
+        const SdfPath& usdPath,
+        const UsdImagingInstancerContext* instancerContext);
 
     // Helper function: add a given type of sprim, potentially with instancer
     // name mangling
@@ -162,7 +176,6 @@ public:
         UsdImagingIndexProxy* index);
         
 protected:
-    USDIMAGING_API
     void _RemovePrim(SdfPath const& cachePath,
                      UsdImagingIndexProxy* index) override;
 
@@ -176,7 +189,10 @@ private:
     /// Updates the collection cache content
     /// Checks for collection hash change and returns true if they are different
     bool _UpdateCollectionsChanged(UsdPrim const& prim) const;
+
+
 };
+
 
 PXR_NAMESPACE_CLOSE_SCOPE
 

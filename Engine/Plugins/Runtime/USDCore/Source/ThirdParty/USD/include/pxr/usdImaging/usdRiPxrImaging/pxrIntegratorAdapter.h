@@ -53,21 +53,21 @@ public:
     /// \name Scene Index Support
     // ---------------------------------------------------------------------- //
 
-    USDRIPXRIMAGING_API
+    USDIMAGING_API
     TfTokenVector GetImagingSubprims(UsdPrim const& prim) override;
 
-    USDRIPXRIMAGING_API
+    USDIMAGING_API
     TfToken GetImagingSubprimType(
             UsdPrim const& prim,
             TfToken const& subprim) override;
 
-    USDRIPXRIMAGING_API
+    USDIMAGING_API
     HdContainerDataSourceHandle GetImagingSubprimData(
             UsdPrim const& prim,
             TfToken const& subprim,
             const UsdImagingDataSourceStageGlobals &stageGlobals) override;
 
-    USDRIPXRIMAGING_API
+    USDIMAGING_API
     HdDataSourceLocatorSet InvalidateImagingSubprim(
             UsdPrim const& prim,
             TfToken const& subprim,

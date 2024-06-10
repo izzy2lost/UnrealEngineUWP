@@ -309,9 +309,7 @@ protected:
         // +------------------------------------------------------------+
         // The _stride will be the size of a1 + b1 + c1 + padding, while the
         // _elementStride will be the size of a1 + b1 + c1.
-        size_t _elementStride;
-
-        HgiBufferUsage _bufferUsage; 
+        size_t _elementStride; 
 
         HdStBufferResourceNamedList _resourceList;
 

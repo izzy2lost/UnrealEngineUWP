@@ -26,38 +26,37 @@
 
 /// \file usdImaging/pointInstancerAdapter.h
 
-#include "pxr/usdImaging/usdImaging/api.h"
-#include "pxr/usdImaging/usdImaging/instanceablePrimAdapter.h"
-
-#include "pxr/usd/sdf/path.h"
-
-#include "pxr/base/tf/denseHashMap.h"
-
 #include "pxr/pxr.h"
+#include "pxr/base/tf/denseHashMap.h"
+#include "pxr/usdImaging/usdImaging/version.h"
+#include "pxr/usdImaging/usdImaging/primAdapter.h"
+#include "pxr/usdImaging/usdImaging/gprimAdapter.h"
 
-#include <atomic>
 #include <mutex>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
+
 /// Delegate support for UsdGeomPointInstancer
 ///
-class UsdImagingPointInstancerAdapter : public UsdImagingInstanceablePrimAdapter 
+class UsdImagingPointInstancerAdapter : public UsdImagingPrimAdapter 
 {
 public:
-    using BaseAdapter = UsdImagingInstanceablePrimAdapter;
+    using BaseAdapter = UsdImagingPrimAdapter;
 
-    USDIMAGING_API
-    SdfPath Populate(
+    UsdImagingPointInstancerAdapter()
+        : BaseAdapter()
+        { }
+    virtual ~UsdImagingPointInstancerAdapter();
+
+    virtual SdfPath Populate(
         UsdPrim const& prim,
         UsdImagingIndexProxy* index,
         UsdImagingInstancerContext const* instancerContext = nullptr) override;
 
-    USDIMAGING_API
-    bool ShouldCullChildren() const override;
+    virtual bool ShouldCullChildren() const override;
 
-    USDIMAGING_API
-    bool IsInstancerAdapter() const override;
+    virtual bool IsInstancerAdapter() const override;
 
     // ---------------------------------------------------------------------- //
     /// \name Scene Index Support
@@ -88,15 +87,13 @@ public:
     /// \name Parallel Setup and Resolve
     // ---------------------------------------------------------------------- //
     
-    USDIMAGING_API
-    void TrackVariability(UsdPrim const& prim,
+    virtual void TrackVariability(UsdPrim const& prim,
                                   SdfPath const& cachePath,
                                   HdDirtyBits* timeVaryingBits,
                                   UsdImagingInstancerContext const* 
                                       instancerContext = NULL) const override;
 
-    USDIMAGING_API
-    void UpdateForTime(UsdPrim const& prim,
+    virtual void UpdateForTime(UsdPrim const& prim,
                                SdfPath const& cachePath, 
                                UsdTimeCode time,
                                HdDirtyBits requestedBits,
@@ -107,64 +104,52 @@ public:
     /// \name Change Processing 
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
-    HdDirtyBits ProcessPropertyChange(UsdPrim const& prim,
+    virtual HdDirtyBits ProcessPropertyChange(UsdPrim const& prim,
                                               SdfPath const& cachePath,
                                               TfToken const& propertyName) 
                                                 override;
 
-    USDIMAGING_API
-    void ProcessPrimResync(SdfPath const& cachePath,
+    virtual void ProcessPrimResync(SdfPath const& cachePath,
                                    UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void ProcessPrimRemoval(SdfPath const& cachePath,
+    virtual void ProcessPrimRemoval(SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkDirty(UsdPrim const& prim,
+    virtual void MarkDirty(UsdPrim const& prim,
                            SdfPath const& cachePath,
                            HdDirtyBits dirty,
                            UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkRefineLevelDirty(UsdPrim const& prim,
+    virtual void MarkRefineLevelDirty(UsdPrim const& prim,
                                       SdfPath const& cachePath,
                                       UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkReprDirty(UsdPrim const& prim,
+    virtual void MarkReprDirty(UsdPrim const& prim,
                                SdfPath const& cachePath,
                                UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkCullStyleDirty(UsdPrim const& prim,
+    virtual void MarkCullStyleDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkRenderTagDirty(UsdPrim const& prim,
+    virtual void MarkRenderTagDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkTransformDirty(UsdPrim const& prim,
+    virtual void MarkTransformDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkVisibilityDirty(UsdPrim const& prim,
+    virtual void MarkVisibilityDirty(UsdPrim const& prim,
                                      SdfPath const& cachePath,
                                      UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkLightParamsDirty(
+    virtual void MarkLightParamsDirty(
         const UsdPrim& prim,
         const SdfPath& cachePath,
         UsdImagingIndexProxy* index) override;
 
-    USDIMAGING_API
-    void MarkCollectionsDirty(
+    virtual void MarkCollectionsDirty(
         const UsdPrim& prim,
         const SdfPath& cachePath,
         UsdImagingIndexProxy* index) override;
@@ -173,12 +158,10 @@ public:
     /// \name Instancing
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
     GfMatrix4d GetInstancerTransform(UsdPrim const& instancerPrim,
                                      SdfPath const& instancerPath,
                                      UsdTimeCode time) const override;
 
-    USDIMAGING_API
     size_t SampleInstancerTransform(UsdPrim const& instancerPrim,
                                     SdfPath const& instancerPath,
                                     UsdTimeCode time,
@@ -186,23 +169,19 @@ public:
                                     float *sampleTimes,
                                     GfMatrix4d *sampleValues) override;
 
-    USDIMAGING_API
     SdfPath GetInstancerId(
         UsdPrim const& usdPrim,
         SdfPath const& cachePath) const override;
 
-    USDIMAGING_API
     SdfPathVector GetInstancerPrototypes(
         UsdPrim const& usdPrim,
         SdfPath const& cachePath) const override;
 
-    USDIMAGING_API
     GfMatrix4d GetTransform(UsdPrim const& prim, 
                             SdfPath const& cachePath,
                             UsdTimeCode time,
                             bool ignoreRootTransform = false) const override;
 
-    USDIMAGING_API
     size_t SampleTransform(UsdPrim const& prim, 
                            SdfPath const& cachePath,
                            UsdTimeCode time, 
@@ -210,7 +189,6 @@ public:
                            float  *sampleTimes,
                            GfMatrix4d *sampleValues) override;
 
-    USDIMAGING_API
     size_t SamplePrimvar(UsdPrim const& usdPrim,
                          SdfPath const& cachePath,
                          TfToken const& key,
@@ -220,76 +198,63 @@ public:
                          VtValue *sampleValues,
                          VtIntArray *sampleIndices) override;
 
-    USDIMAGING_API
     PxOsdSubdivTags GetSubdivTags(UsdPrim const& usdPrim,
                                   SdfPath const& cachePath,
                                   UsdTimeCode time) const override;
 
-    USDIMAGING_API
     bool GetVisible(UsdPrim const& prim, 
                     SdfPath const& cachePath,
                     UsdTimeCode time) const override;
 
-    USDIMAGING_API
     TfToken GetPurpose(
         UsdPrim const& usdPrim, 
         SdfPath const& cachePath,
         TfToken const& instanceInheritablePurpose) const override;
 
-    USDIMAGING_API
     VtValue GetTopology(UsdPrim const& prim,
                         SdfPath const& cachePath,
                         UsdTimeCode time) const override;
 
-    USDIMAGING_API
     HdCullStyle GetCullStyle(UsdPrim const& prim,
                              SdfPath const& cachePath,
                              UsdTimeCode time) const override;
 
-    USDIMAGING_API
     GfRange3d GetExtent(UsdPrim const& usdPrim, 
                         SdfPath const& cachePath, 
                         UsdTimeCode time) const override;
 
-    USDIMAGING_API
     bool GetDoubleSided(UsdPrim const& usdPrim, 
                    SdfPath const& cachePath, 
                    UsdTimeCode time) const override;
 
 
-    USDIMAGING_API
     SdfPath GetMaterialId(UsdPrim const& prim, 
                           SdfPath const& cachePath, 
                           UsdTimeCode time) const override;
 
-    USDIMAGING_API
     VtValue GetLightParamValue(
         const UsdPrim& prim,
         const SdfPath& cachePath,
         const TfToken& paramName,
         UsdTimeCode time) const override;
     
-    USDIMAGING_API
     VtValue GetMaterialResource(
         const UsdPrim& prim,
         const SdfPath& cachePath,
         UsdTimeCode time) const override;
 
-    USDIMAGING_API
     HdExtComputationInputDescriptorVector
     GetExtComputationInputs(UsdPrim const& prim,
                             SdfPath const& cachePath,
                             const UsdImagingInstancerContext* instancerContext)
                                     const override;
 
-    USDIMAGING_API
     HdExtComputationOutputDescriptorVector
     GetExtComputationOutputs(UsdPrim const& prim,
                              SdfPath const& cachePath,
                              const UsdImagingInstancerContext* instancerContext)
                                     const override;
 
-    USDIMAGING_API
     HdExtComputationPrimvarDescriptorVector
     GetExtComputationPrimvars(
             UsdPrim const& prim,
@@ -297,7 +262,6 @@ public:
             HdInterpolation interpolation,
             const UsdImagingInstancerContext* instancerContext) const override;
 
-    USDIMAGING_API
     VtValue 
     GetExtComputationInput(
             UsdPrim const& prim,
@@ -306,21 +270,18 @@ public:
             UsdTimeCode time,
             const UsdImagingInstancerContext* instancerContext) const override;
 
-    USDIMAGING_API
     std::string 
     GetExtComputationKernel(
             UsdPrim const& prim,
             SdfPath const& cachePath,
             const UsdImagingInstancerContext* instancerContext) const override;
 
-    USDIMAGING_API
     VtValue
     GetInstanceIndices(UsdPrim const& instancerPrim,
                        SdfPath const& instancerCachePath,
                        SdfPath const& prototypeCachePath,
                        UsdTimeCode time) const override;
 
-    USDIMAGING_API
     VtValue Get(UsdPrim const& prim,
                 SdfPath const& cachePath,
                 TfToken const& key,
@@ -331,8 +292,7 @@ public:
     /// \name Nested instancing support
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
-    GfMatrix4d GetRelativeInstancerTransform(
+    virtual GfMatrix4d GetRelativeInstancerTransform(
         SdfPath const &instancerPath,
         SdfPath const &protoInstancerPath,
         UsdTimeCode time) const override;
@@ -341,20 +301,17 @@ public:
     /// \name Picking & selection
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
-    SdfPath GetScenePrimPath(
+    virtual SdfPath GetScenePrimPath(
         SdfPath const& cachePath,
         int instanceIndex,
         HdInstancerContext *instancerContext) const override;
 
-    USDIMAGING_API
-    SdfPathVector GetScenePrimPaths(
+    virtual SdfPathVector GetScenePrimPaths(
         SdfPath const& cachePath,
         std::vector<int> const& instanceIndices,
         std::vector<HdInstancerContext> *instancerCtxs) const override;
 
-    USDIMAGING_API
-    bool PopulateSelection(
+    virtual bool PopulateSelection(
         HdSelection::HighlightMode const& highlightMode,
         SdfPath const &cachePath,
         UsdPrim const &usdPrim,
@@ -366,33 +323,12 @@ public:
     /// \name Volume field information
     // ---------------------------------------------------------------------- //
 
-    USDIMAGING_API
-    HdVolumeFieldDescriptorVector
+    virtual HdVolumeFieldDescriptorVector
     GetVolumeFieldDescriptors(UsdPrim const& usdPrim, SdfPath const &id,
                               UsdTimeCode time) const override;
 
 protected:
-    friend class UsdImagingInstanceAdapter;
-    // ---------------------------------------------------------------------- //
-    /// \name Utility
-    // ---------------------------------------------------------------------- //
-    
-    // Given the USD path for a prim of this adapter's type, returns
-    // the prim's Hydra cache path. This version will reserve a path in
-    // the adapter's instancer data map for the given point instancer USD
-    // path, including any necessary variant selection path.
-    //
-    // This method is marked const, but it is not const! If called with the
-    // path of a populated point instancer, it will modify the instancer data
-    // cache and return a new path. 
-    USDIMAGING_API
-    SdfPath
-    ResolveCachePath(
-        const SdfPath& usdPath,
-        const UsdImagingInstancerContext* ctx = nullptr) const override;
-        
-    USDIMAGING_API
-    void _RemovePrim(SdfPath const& cachePath,
+    virtual void _RemovePrim(SdfPath const& cachePath,
                              UsdImagingIndexProxy* index) override final;
 
 private:
@@ -528,19 +464,18 @@ private:
         mutable bool variableVisibility;
         mutable bool visible;
         mutable UsdTimeCode visibleTime;
-        mutable std::atomic_bool initialized = std::atomic_bool(false);
     };
 
     // A map of instancer data, one entry per instancer prim that has been
-    // populated. This must be mutable so we can modify it in ResolveCachePath.
+    // populated.
     // Note: this is accessed in multithreaded code paths and must be protected
     typedef std::unordered_map<SdfPath /*instancerPath*/, 
                                _InstancerData, 
                                SdfPath::Hash> _InstancerDataMap;
-    mutable _InstancerDataMap _instancerData;
-    
-    inline static std::atomic_int _globalVariantCounter = std::atomic_int(0);
+    _InstancerDataMap _instancerData;
 };
+
+
 
 PXR_NAMESPACE_CLOSE_SCOPE
 

@@ -91,14 +91,9 @@
                         "primTypeName": "Cylinder"
                     },
                     "UsdImagingDrawModeAdapter" : {
-                        "bases": ["UsdImagingInstanceablePrimAdapter"],
-                        "isInternal": true,
-                        "primTypeName": "__drawModeAdapter"
-                    },
-                    "UsdImagingGeomSubsetAdapter" : {
                         "bases": ["UsdImagingPrimAdapter"],
                         "isInternal": true,
-                        "primTypeName": "GeomSubset"
+                        "primTypeName": "__drawModeAdapter"
                     },
                     "UsdImagingHermiteCurvesAdapter": {
                         "bases": [
@@ -174,7 +169,7 @@
                     },
                     "UsdImagingPointInstancerAdapter": {
                         "bases": [
-                            "UsdImagingInstanceablePrimAdapter"
+                            "UsdImagingPrimAdapter"
                         ],
                         "isInternal": true,
                         "primTypeName": "PointInstancer"
@@ -216,7 +211,7 @@
                     },
                     "UsdImagingLightAdapter": {
                         "bases": [
-                            "UsdImagingInstanceablePrimAdapter"
+                            "UsdImagingPrimAdapter"
                         ],
                         "isInternal": true,
                         "primTypeName": "LightAPI",

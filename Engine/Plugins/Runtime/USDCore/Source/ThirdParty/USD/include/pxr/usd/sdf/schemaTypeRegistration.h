@@ -77,7 +77,6 @@ PXR_NAMESPACE_OPEN_SCOPE
 ((SdfFieldKeys->InheritPaths,            SdfPathListOp))                 \
 ((SdfFieldKeys->Instanceable,            bool))                          \
 ((SdfFieldKeys->Kind,                    TfToken))                       \
-((SdfFieldKeys->LayerRelocates,          SdfRelocates))                  \
 ((SdfFieldKeys->Owner,                   std::string))                   \
 ((SdfFieldKeys->PrimOrder,               std::vector<TfToken>))          \
 ((SdfFieldKeys->NoLoadHint,              bool))                          \

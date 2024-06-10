@@ -28,7 +28,7 @@
 
 #include "pxr/pxr.h"
 #include "pxr/usdImaging/usdImaging/api.h"
-#include "pxr/usdImaging/usdImaging/instanceablePrimAdapter.h"
+#include "pxr/usdImaging/usdImaging/primAdapter.h"
 
 #include "pxr/usd/usdGeom/xformCache.h"
 
@@ -45,10 +45,18 @@ class UsdGeomGprim;
 /// Gprim data support, such as visibility, doubleSided, extent, displayColor,
 /// displayOpacity, purpose, and transform.
 ///
-class UsdImagingGprimAdapter : public UsdImagingInstanceablePrimAdapter
+class UsdImagingGprimAdapter : public UsdImagingPrimAdapter
 {
 public:
-    using BaseAdapter = UsdImagingInstanceablePrimAdapter;
+    using BaseAdapter = UsdImagingPrimAdapter;
+
+    UsdImagingGprimAdapter()
+        : UsdImagingPrimAdapter()
+    {}
+
+    USDIMAGING_API
+    ~UsdImagingGprimAdapter() override;
+
 
     // ---------------------------------------------------------------------- //
     /// \name Scene Index Support
@@ -86,53 +94,53 @@ public:
     // ---------------------------------------------------------------------- //
 
     USDIMAGING_API
-    HdDirtyBits ProcessPropertyChange(UsdPrim const& prim,
+    virtual HdDirtyBits ProcessPropertyChange(UsdPrim const& prim,
                                               SdfPath const& cachePath,
                                               TfToken const& property) override;
 
     USDIMAGING_API
-    void MarkDirty(UsdPrim const& prim,
+    virtual void MarkDirty(UsdPrim const& prim,
                            SdfPath const& cachePath,
                            HdDirtyBits dirty,
                            UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkRefineLevelDirty(UsdPrim const& prim,
+    virtual void MarkRefineLevelDirty(UsdPrim const& prim,
                                       SdfPath const& cachePath,
                                       UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkReprDirty(UsdPrim const& prim,
+    virtual void MarkReprDirty(UsdPrim const& prim,
                                SdfPath const& cachePath,
                                UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkCullStyleDirty(UsdPrim const& prim,
+    virtual void MarkCullStyleDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkRenderTagDirty(UsdPrim const& prim,
+    virtual void MarkRenderTagDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkTransformDirty(UsdPrim const& prim,
+    virtual void MarkTransformDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkVisibilityDirty(UsdPrim const& prim,
+    virtual void MarkVisibilityDirty(UsdPrim const& prim,
                                      SdfPath const& cachePath,
                                      UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkMaterialDirty(UsdPrim const& prim,
+    virtual void MarkMaterialDirty(UsdPrim const& prim,
                                    SdfPath const& cachePath,
                                    UsdImagingIndexProxy* index) override;
 
     USDIMAGING_API
-    void MarkCollectionsDirty(UsdPrim const& prim,
+    virtual void MarkCollectionsDirty(UsdPrim const& prim,
                                       SdfPath const& cachePath,
                                       UsdImagingIndexProxy* index) override;
 
@@ -178,6 +186,12 @@ public:
                       SdfPath const& materialUsdPath,
                       UsdImagingInstancerContext const* instancerContext);
 
+    // Helper function: map USD path to UsdImaging cache path,
+    // applying any name-encoding required by the instancerContext.
+    USDIMAGING_API
+    static SdfPath _ResolveCachePath(SdfPath const& usdPath,
+            UsdImagingInstancerContext const* instancerContext);
+
     /// Reads the extent from the given prim. If the extent is not authored,
     /// an empty GfRange3d is returned, the extent will not be computed.
     USDIMAGING_API
@@ -216,7 +230,7 @@ public:
 protected:
 
     USDIMAGING_API
-    void _RemovePrim(SdfPath const& cachePath,
+    virtual void _RemovePrim(SdfPath const& cachePath,
                              UsdImagingIndexProxy* index) override;
 
     // Give derived classes an opportunity to block GprimAdapter processing
@@ -237,6 +251,7 @@ protected:
     USDIMAGING_API
     virtual TfTokenVector const& _GetRprimPrimvarNames() const;
 };
+
 
 PXR_NAMESPACE_CLOSE_SCOPE
 

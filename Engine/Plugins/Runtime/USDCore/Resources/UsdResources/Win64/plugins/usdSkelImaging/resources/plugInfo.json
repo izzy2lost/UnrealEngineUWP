@@ -5,7 +5,7 @@
                 "Types": {
                     "UsdSkelImagingSkeletonAdapter": {
                         "bases": [
-                            "UsdImagingInstanceablePrimAdapter"
+                            "UsdImagingPrimAdapter"
                         ],
                         "isInternal": true,
                         "primTypeName": "Skeleton"

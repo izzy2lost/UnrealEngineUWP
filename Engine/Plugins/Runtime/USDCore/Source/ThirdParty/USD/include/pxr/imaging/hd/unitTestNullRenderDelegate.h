@@ -36,15 +36,10 @@ public:
     Hd_UnitTestNullRenderDelegate() = default;
     ~Hd_UnitTestNullRenderDelegate() override = default;
 
-    HD_API
     const TfTokenVector &GetSupportedRprimTypes() const override;
-    HD_API
     const TfTokenVector &GetSupportedSprimTypes() const override;
-    HD_API
     const TfTokenVector &GetSupportedBprimTypes() const override;
-    HD_API
     HdRenderParam *GetRenderParam() const override;
-    HD_API
     HdResourceRegistrySharedPtr GetResourceRegistry() const override;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -53,7 +48,6 @@ public:
     ///
     ////////////////////////////////////////////////////////////////////////////
 
-    HD_API
     HdRenderPassSharedPtr CreateRenderPass(HdRenderIndex *index,
                 HdRprimCollection const& collection) override;
 
@@ -63,11 +57,9 @@ public:
     ///
     ////////////////////////////////////////////////////////////////////////////
 
-    HD_API
     HdInstancer *CreateInstancer(HdSceneDelegate *delegate,
                                  SdfPath const& id) override;
 
-    HD_API
     void DestroyInstancer(HdInstancer *instancer) override;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -76,30 +68,22 @@ public:
     ///
     ////////////////////////////////////////////////////////////////////////////
 
-    HD_API
     HdRprim *CreateRprim(TfToken const& typeId,
                                  SdfPath const& rprimId) override;
 
-    HD_API
     void DestroyRprim(HdRprim *rPrim) override;
 
-    HD_API
     HdSprim *CreateSprim(TfToken const& typeId,
                          SdfPath const& sprimId) override;
 
-    HD_API
     HdSprim *CreateFallbackSprim(TfToken const& typeId) override;
-    HD_API
     void DestroySprim(HdSprim *sprim) override;
 
-    HD_API
     HdBprim *CreateBprim(TfToken const& typeId,
                          SdfPath const& bprimId) override;
 
-    HD_API
     HdBprim *CreateFallbackBprim(TfToken const& typeId) override;
 
-    HD_API
     void DestroyBprim(HdBprim *bprim) override;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -108,7 +92,6 @@ public:
     ///
     ////////////////////////////////////////////////////////////////////////////
 
-    HD_API
     void CommitResources(HdChangeTracker *tracker) override;
 
 
@@ -118,13 +101,13 @@ public:
     ///
     ////////////////////////////////////////////////////////////////////////////
     
-    HD_API
     HdCommandDescriptors GetCommandDescriptors() const override;
 
-    HD_API
     bool InvokeCommand(
         const TfToken &command,
         const HdCommandArgs &args = HdCommandArgs()) override;
+
+
 
 private:
     static const TfTokenVector SUPPORTED_RPRIM_TYPES;

@@ -28,8 +28,6 @@
 #include "pxr/imaging/hdSt/api.h"
 #include "pxr/imaging/hdSt/strategyBase.h"
 
-#include "pxr/imaging/hgi/enums.h"
-
 #include "pxr/imaging/hd/bufferArray.h"
 #include "pxr/imaging/hdSt/bufferArrayRange.h"
 #include "pxr/imaging/hd/bufferSpec.h"
@@ -319,7 +317,6 @@ protected:
         bool _needsCompaction;
         int _totalCapacity;
         size_t _maxBytesPerElement;
-        HgiBufferUsage _bufferUsage;
 
         HdStBufferResourceNamedList _resourceList;
 

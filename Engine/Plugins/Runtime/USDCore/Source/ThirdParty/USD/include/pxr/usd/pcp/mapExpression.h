@@ -28,7 +28,7 @@
 #include "pxr/usd/pcp/api.h"
 #include "pxr/usd/pcp/mapFunction.h"
 
-#include "pxr/base/tf/delegatedCountPtr.h"
+#include <boost/intrusive_ptr.hpp>
 
 #include <tbb/atomic.h>
 #include <tbb/spin_mutex.h>
@@ -68,8 +68,6 @@ public:
 
     /// Default-construct a NULL expression.
     PcpMapExpression() noexcept = default;
-
-    ~PcpMapExpression() noexcept = default;
 
     /// Swap this expression with the other.
     void Swap(PcpMapExpression &other) noexcept {
@@ -187,7 +185,7 @@ private:
     friend struct Pcp_VariableImpl;
 
     class _Node;
-    using _NodeRefPtr = TfDelegatedCountPtr<_Node>;
+    typedef boost::intrusive_ptr<_Node> _NodeRefPtr;
 
     explicit PcpMapExpression(const _NodeRefPtr & node) : _node(node) {}
 
@@ -203,11 +201,6 @@ private: // data
     class _Node {
         _Node(const _Node&) = delete;
         _Node& operator=(const _Node&) = delete;
-
-        // Ref-counting ops manage _refCount.
-        // Need to friend them here to have access to _refCount.
-        friend PCP_API void TfDelegatedCountIncrement(_Node*);
-        friend PCP_API void TfDelegatedCountDecrement(_Node*) noexcept;
     public:
         // The Key holds all the state needed to uniquely identify
         // this (sub-)expression.
@@ -264,6 +257,11 @@ private: // data
         // will always contains the root identity.
         static bool _ExpressionTreeAlwaysHasIdentity(const Key& key);
 
+        // Ref-counting ops manage _refCount.
+        // Need to friend them here to have access to _refCount.
+        friend PCP_API void intrusive_ptr_add_ref(_Node*);
+        friend PCP_API void intrusive_ptr_release(_Node*);
+
         // Registry of node instances, identified by Key.
         // Note: variable nodes are not tracked by the registry.
         struct _NodeMap;
@@ -278,8 +276,8 @@ private: // data
     };
 
     // Need to friend them here to have visibility to private class _Node.
-    friend PCP_API void TfDelegatedCountIncrement(_Node*);
-    friend PCP_API void TfDelegatedCountDecrement(_Node*) noexcept;
+    friend PCP_API void intrusive_ptr_add_ref(_Node*);
+    friend PCP_API void intrusive_ptr_release(_Node*);
 
     _NodeRefPtr _node;
 };

@@ -24,8 +24,6 @@
 #ifndef PXR_USD_IMAGING_USD_IMAGING_DATA_SOURCE_STAGE_GLOBALS_H
 #define PXR_USD_IMAGING_USD_IMAGING_DATA_SOURCE_STAGE_GLOBALS_H
 
-#include "pxr/usdImaging/usdImaging/api.h"
-
 #include "pxr/usd/usd/prim.h"
 #include "pxr/usd/usd/timeCode.h"
 
@@ -47,7 +45,6 @@ PXR_NAMESPACE_OPEN_SCOPE
 class UsdImagingDataSourceStageGlobals
 {
 public:
-    USDIMAGING_API
     virtual ~UsdImagingDataSourceStageGlobals();
 
     // Datasource API

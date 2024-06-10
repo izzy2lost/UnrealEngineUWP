@@ -64,9 +64,6 @@ public:
     /// instance will allow Hydra to use the GPU to produce images.
     /// The \p renderSettingsPrimPath argument is used to set the active 
     /// render settings prim path in Hydra.
-    /// The \p defaultLights argument determines if the
-    /// UsdAppUtilsFrameRecorder will add a default set of lights,
-    /// in addition to any present in the scene.
     USDAPPUTILS_API
     UsdAppUtilsFrameRecorder(
         const TfToken& rendererPluginId = TfToken(),
@@ -119,13 +116,6 @@ public:
     USDAPPUTILS_API
     void SetColorCorrectionMode(const TfToken& colorCorrectionMode);
 
-    /// Turns the built-in camera light on or off.
-    ///
-    /// When on, this will add a light at the camera's origin.
-    /// This is sometimes called a "headlight".
-    USDAPPUTILS_API
-    void SetCameraLightEnabled(bool cameraLightEnabled);
-
     /// Sets the UsdGeomImageable purposes to be used for rendering
     ///
     /// We will __always__ include "default" purpose, and by default,
@@ -165,7 +155,6 @@ private:
     TfToken _colorCorrectionMode;
     TfTokenVector _purposes;
     SdfPath _renderSettingsPrimPath;
-    bool _cameraLightEnabled;
 };
 
 
