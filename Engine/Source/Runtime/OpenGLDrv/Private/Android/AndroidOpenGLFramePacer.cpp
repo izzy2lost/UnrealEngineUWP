@@ -94,11 +94,11 @@ namespace AndroidGL
 {
 	void SwappyPostWaitCallback(void*, int64_t cpu_time_ns, int64_t gpu_time_ns)
 	{
-		const double Frequency = 1.0;// FGPUTiming::GetTimingFrequency();
-		const double CyclesPerSecond = 1.0 / (Frequency * FPlatformTime::GetSecondsPerCycle64());
 		const double GPUTimeInSeconds = (double)gpu_time_ns / 1000000000.0;
 
-		GetDynamicRHI<FOpenGLDynamicRHI>()->RHISetExternalGPUTime(CyclesPerSecond * GPUTimeInSeconds);
+		GGPUFrameTime = GPUTimeInSeconds / FPlatformTime::GetSecondsPerCycle64();
+
+		GetDynamicRHI<FOpenGLDynamicRHI>()->RHISetExternalGPUTime(GGPUFrameTime);
 	}
 
 	void SetSwappyPostWaitCallback()
@@ -106,6 +106,10 @@ namespace AndroidGL
 		SwappyTracer Tracer = { 0 };
 		Tracer.postWait = AndroidGL::SwappyPostWaitCallback;
 		SwappyGL_injectTracer(&Tracer);
+
+		int32 FrameTimeFenceInMillis = FAndroidPlatformRHIFramePacer::CVarSwappyGPUFrameTimeFence.GetValueOnAnyThread();
+
+		SwappyGL_setFenceTimeoutNS(FrameTimeFenceInMillis * 1000000); // millis to ns (ms * 1000000)
 	}
 };
 

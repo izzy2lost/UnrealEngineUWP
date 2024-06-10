@@ -192,6 +192,24 @@ void FPlatformOpenGLDevice::Init()
 	// AsyncPipelinePrecompile can be enabled on android GL, precompiles are compiled via separate processes and the result is stored in GL's LRU cache as an evicted binary.
 	// The lru cache is a requirement as the precompile produces binary program data only.
 	GRHISupportsAsyncPipelinePrecompile = AreAndroidOpenGLRemoteCompileServicesAvailable();
+
+#if USE_ANDROID_OPENGL_SWAPPY
+	bool bIsSwappyEnabled = FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() == 1;
+	
+	// don't even initialize this if swappy is not enabled
+	if (bIsSwappyEnabled)
+	{
+		IConsoleVariable* CVarAndroidSupportsTimestampQueries = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsTimestampQueries"));
+		IConsoleVariable* CVarAndroidSupportsDynamicResolution = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsDynamicResolution"));
+
+		bool bSupportsTimestampQueries = CVarAndroidSupportsTimestampQueries != nullptr && CVarAndroidSupportsTimestampQueries->GetBool();
+		bool bSupportsDynamicResolution = CVarAndroidSupportsDynamicResolution != nullptr && CVarAndroidSupportsDynamicResolution->GetBool();
+
+		GRHISupportsDynamicResolution = bSupportsDynamicResolution;
+		GSupportsTimestampRenderQueries = bSupportsTimestampQueries;
+		GRHISupportsGPUTimestampBubblesRemoval = true;
+	}
+#endif
 }
 
 FPlatformOpenGLDevice* PlatformCreateOpenGLDevice()

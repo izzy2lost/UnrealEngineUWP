@@ -104,6 +104,9 @@ public:
 
 	virtual bool IsGamepadAttached() const override;
 
+	static TAutoConsoleVariable<bool> CVarAndroidSupportsTimestampQueries;
+	static TAutoConsoleVariable<bool> CVarAndroidSupportsDynamicResolution;
+
 protected:
 
 	FAndroidApplication();

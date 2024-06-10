@@ -31,11 +31,9 @@ namespace AndroidVulkan
 {
 	void VKSwappyPostWaitCallback(void*, int64_t cpu_time_ns, int64_t gpu_time_ns)
 	{
-		const double Frequency = 1.0;// FGPUTiming::GetTimingFrequency();
-		const double CyclesPerSecond = 1.0 / (Frequency * FPlatformTime::GetSecondsPerCycle64());
 		const double GPUTimeInSeconds = (double)gpu_time_ns / 1000000000.0;
 
-		GGPUFrameTime = CyclesPerSecond * GPUTimeInSeconds;
+		GGPUFrameTime = GPUTimeInSeconds / FPlatformTime::GetSecondsPerCycle64();
 	}
 
 	void SetSwappyPostWaitCallback()
@@ -43,10 +41,14 @@ namespace AndroidVulkan
 		SwappyTracer Tracer = { 0 };
 		Tracer.postWait = VKSwappyPostWaitCallback;
 		SwappyVk_injectTracer(&Tracer);
+
+		int32 FrameTimeFenceInMillis = FAndroidPlatformRHIFramePacer::CVarSwappyGPUFrameTimeFence.GetValueOnAnyThread();
+
+		SwappyVk_setFenceTimeoutNS(FrameTimeFenceInMillis * 1000000); // millis to ns (ms * 1000000)
 	}
 };
 
-#endif
+#endif // #if USE_ANDROID_SWAPPY
 
 // From VulklanSwapChain.cpp
 extern int32 GVulkanCPURenderThreadFramePacer;
@@ -58,15 +60,6 @@ static FAutoConsoleVariableRef CVarVulkanExtensionFramePacer(
 	GVulkanExtensionFramePacer,
 	TEXT("Whether to enable the google extension Framepacer for Vulkan (when available on device)"),
 	ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarVulkanSupportsTimestampQueries(
-	TEXT("r.Vulkan.SupportsTimestampQueries"),
-	0,
-	TEXT("State of Vulkan timestamp queries support on an Android device\n")
-	TEXT("  0 = unsupported\n")
-	TEXT("  1 = supported."),
-	ECVF_SetByDeviceProfile
 );
 
 static TAutoConsoleVariable<int32> CVarVulkanSupportsBCTextureFormats(
@@ -501,7 +494,7 @@ void FVulkanAndroidPlatform::GetDeviceExtensions(FVulkanDevice* Device, FVulkanD
 			OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, SwappyRequiredExtension.GetData(), VULKAN_EXTENSION_ENABLED, VULKAN_EXTENSION_NOT_PROMOTED));
 		}
 	}
-	#endif
+#endif
 
 }
 
@@ -598,8 +591,32 @@ void FVulkanAndroidPlatform::NotifyFoundDeviceLayersAndExtensions(VkPhysicalDevi
 
 bool FVulkanAndroidPlatform::SupportsTimestampRenderQueries()
 {
+	IConsoleVariable* CVarAndroidSupportsTimestampQueries = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsTimestampQueries"));
+
 	// standalone devices have newer drivers where timestamp render queries work.
-	return (CVarVulkanSupportsTimestampQueries.GetValueOnAnyThread() == 1);
+	return CVarAndroidSupportsTimestampQueries != nullptr &&
+		CVarAndroidSupportsTimestampQueries->GetBool();
+}
+
+bool FVulkanAndroidPlatform::SupportsDynamicResolution()
+{
+	// separating render timestamp queries from dynres availability
+
+#if USE_ANDROID_SWAPPY
+	
+	IConsoleVariable* CVarAndroidSupportsDynamicResolution = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsDynamicResolution"));
+
+	bool bIsSwappyEnabled = FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() == 1;
+	return bIsSwappyEnabled && 
+		CVarAndroidSupportsDynamicResolution != nullptr &&
+		CVarAndroidSupportsDynamicResolution->GetBool(); // is supported
+
+#else // USE_ANDROID_SWAPPY
+
+	// defaulted to the previous code
+	return SupportsTimestampRenderQueries();
+
+#endif
 }
 
 void FVulkanAndroidPlatform::OverridePlatformHandlers(bool bInit)

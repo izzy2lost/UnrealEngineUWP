@@ -89,7 +89,7 @@ public:
 
 	static bool SupportsTimestampRenderQueries();
 
-	static bool SupportsDynamicResolution() { return SupportsTimestampRenderQueries(); }
+	static bool SupportsDynamicResolution();
 
 	static bool RequiresMobileRenderer()
 	{

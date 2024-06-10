@@ -16,6 +16,23 @@ bool FAndroidApplication::bWindowSizeChanged = false;
 
 FAndroidApplication* FAndroidApplication::_application = nullptr;
 
+TAutoConsoleVariable<bool> CVarAndroidSupportsTimestampQueries(
+	TEXT("r.Android.SupportsTimestampQueries"),
+	0,
+	TEXT("State of Android (GLES and Vulkan) timestamp queries support on an Android device\n")
+	TEXT("  0 = unsupported\n")
+	TEXT("  1 = supported."),
+	ECVF_SetByDeviceProfile);
+
+TAutoConsoleVariable<bool> CVarAndroidSupportsDynamicResolution(
+	TEXT("r.Android.SupportsDynamicResolution"),
+	0,
+	TEXT("State of DynamicResolution (GLES and Vulkan) support on an Android device\n")
+	TEXT("  0 = unsupported\n")
+	TEXT("  1 = supported."),
+	ECVF_SetByDeviceProfile
+);
+
 FAndroidApplication* FAndroidApplication::CreateAndroidApplication()
 {
 	return new FAndroidApplication();
