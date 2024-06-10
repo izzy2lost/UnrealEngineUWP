@@ -778,14 +778,9 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			{
 				CHECK(Batch.Load<FTransform>().Equals(FTransform(), 0.0));
 
-				FTransform TranslateOnly;
-				TranslateOnly.SetTranslation(FVector(10, 20, 30));
-				TranslateOnly.SetRotation(FQuat(1, 2, 3, 4));
-				TranslateOnly.SetScale3D(FVector(5, 6, 7));
-				Batch.LoadInto(TranslateOnly);
-				CHECK(TranslateOnly.GetTranslation() == FVector::UnitY());
-				CHECK(TranslateOnly.GetRotation() == FQuat(1, 2, 3, 4));
-				CHECK(TranslateOnly.GetScale3D() == FVector(5, 6, 7));
+				FTransform TranslateY(				FQuat(1, 2, 3, 4), FVector(5, 5, 5), FVector(6, 7, 8));
+				Batch.LoadInto(TranslateY);
+				CHECK(TranslateY.Equals(FTransform(	FQuat(1, 2, 3, 4), FVector::UnitY(), FVector(6, 7, 8)), 0.0));
 			});
 	}
 

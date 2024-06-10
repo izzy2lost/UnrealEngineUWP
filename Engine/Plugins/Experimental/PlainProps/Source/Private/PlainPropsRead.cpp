@@ -183,19 +183,6 @@ FNestedRangeView FRangeView::AsRanges() const
 
 //////////////////////////////////////////////////////////////////////////
 
-bool FBitCacheReader::GrabNext(FByteReader& Bytes)
-{
-	BitIt <<= 1; // Shift up til overflow
-
-	if (BitIt == 0)
-	{
-		Bits = Bytes.GrabByte();
-		BitIt = 1;
-	}
-
-	return !!(Bits & BitIt);
-}
-
 const FStructSchema& FStructSchemaHandle::ResolveSuper() const
 {
 	return ResolveStructSchema(Batch, Resolve().GetSuperSchema().Get());
@@ -249,10 +236,10 @@ static bool SkipDeclaredSuperSchema(ESuper Inheritance)
 FMemberReader::FMemberReader(const FStructSchema& Schema, FByteReader Values, FReadBatchId InBatch)
 : Footer(Schema.Footer)
 , Batch(InBatch)
-, NumMembers(Schema.NumMembers)
-, NumRangeTypes(Schema.NumRangeTypes)
 , IsSparse(!Schema.IsDense)
 , HasSuper(UsesSuper(Schema.Inheritance))
+, NumMembers(Schema.NumMembers)
+, NumRangeTypes(Schema.NumRangeTypes)
 , InnerSchemaIdx(SkipDeclaredSuperSchema(Schema.Inheritance))
 , ValueIt(Values)
 #if DO_CHECK
@@ -261,18 +248,23 @@ FMemberReader::FMemberReader(const FStructSchema& Schema, FByteReader Values, FR
 {
 	check(InnerSchemaIdx <= NumInnerSchemas);
 	checkf(NumRangeTypes != 0xFFFFu, TEXT("GrabRangeTypes() doesn't check for wrap-around"));
-	SkipMissingSparseMembers();
+
+	if (IsSparse)
+	{
+		SkipMissingSparseMembers();
+	}
 }
 
 FOptionalMemberId FMemberReader::PeekName() const
 {
 	int32 MemberNameIdx = MemberIdx - HasSuper;
-	if (MemberNameIdx == -1)
-	{
-		UE_DEBUG_BREAK();
-	}
-
 	return MemberNameIdx >= 0 ? ToOptional(GetMemberNames()[MemberNameIdx]) : NoId;
+}
+
+FOptionalMemberId FMemberReader::PeekNameUnchecked() const
+{
+	int32 MemberNameIdx = MemberIdx - HasSuper;
+	return GetMemberNames()[MemberNameIdx];
 }
 
 EMemberKind FMemberReader::PeekKind() const
@@ -289,24 +281,25 @@ FMemberType	FMemberReader::PeekType() const
 void FMemberReader::AdvanceToNextMember()
 {
 	++MemberIdx;
-	SkipMissingSparseMembers();
+	if (IsSparse)
+	{
+		SkipMissingSparseMembers();
+	}
 }
 
 void FMemberReader::SkipMissingSparseMembers()
 {
-	if (IsSparse)
+	// Change code in LoadMembers() too
+	while (MemberIdx < NumMembers && GrabBit())
 	{
-		// Change code in LoadMembers() too
-		while (MemberIdx < NumMembers && GrabBit())
-		{
-			FMemberType InnermostType = PeekType().IsRange() ? /* advances RangeTypeIdx */ GrabRangeTypes().Last() : PeekType();
-			SkipSchema(InnermostType);
-			++MemberIdx;
-		}
-	}	
+		FMemberType Type = GetMemberTypes()[MemberIdx];
+		FMemberType InnermostType = Type.IsRange() ? /* advances RangeTypeIdx */ GrabRangeTypes().Last() : Type;
+		SkipSchema(InnermostType);
+		++MemberIdx;
+	}
 }
 
-void FMemberReader::SkipSchema(FMemberType InnermostType)
+inline void FMemberReader::SkipSchema(FMemberType InnermostType)
 {
 	if (InnermostType.IsStruct())
 	{
@@ -353,23 +346,21 @@ FOptionalSchemaId FMemberReader::GrabRangeSchema(FMemberType InnermostType)
 
 FLeafView FMemberReader::GrabLeaf()
 {
-	check(HasMore());
-	FUnpackedLeafType Leaf = PeekType().AsLeaf();
-	FEnumSchemaId Enum = Leaf.Type == ELeafType::Enum ? GrabEnumSchema() : FEnumSchemaId{};
+	FLeafView Out = { PeekType().AsLeaf(), Batch };
+	Out.Enum = Out.Leaf.Type == ELeafType::Enum ? GrabEnumSchema() : FEnumSchemaId{};
 	
-	FMemberValue Value;
-	if (Leaf.Type == ELeafType::Bool)
+	if (Out.Leaf.Type == ELeafType::Bool)
 	{
-		Value.bValue = GrabBit();
+		Out.Value.bValue = GrabBit();
 	}
 	else
 	{
-		Value.Ptr = ValueIt.GrabBytes(SizeOf(Leaf.Width));
+		Out.Value.Ptr = ValueIt.GrabBytes(SizeOf(Out.Leaf.Width));
 	}
 
 	AdvanceToNextMember();
 
-	return { Leaf.Type, Leaf.Width, Batch, Enum, Value };
+	return Out;
 }
 
 FStructView FMemberReader::GrabStruct()
@@ -413,6 +404,44 @@ FRangeView FMemberReader::GrabRange()
 //	
 //	return {Type, Id, BatchId, Value};
 //}
+
+
+void FMemberReader::GrabLeaves(void* Out, uint32 Num, SIZE_T Size)
+{
+	checkSlow(Num);
+	check(MemberIdx + Num <= NumMembers);
+	const FMemberType* Types = GetMemberTypes() + MemberIdx;
+	FLeafType Leaf = Types[0].AsLeaf();
+	checkSlow(Leaf.Type != ELeafType::Enum);
+	checkSlow(SizeOf(Leaf.Width) == Size);
+	for (FMemberType Type : MakeArrayView(Types + 1, Num - 1))
+	{
+		check(Type == Types[0]);
+	}
+
+	
+	if (IsSparse)
+	{
+		uint8* OutIt = static_cast<uint8*>(Out);
+		for (uint8* OutLast = OutIt + Num * Size - Size; OutIt != OutLast; OutIt += Size)
+		{
+			FMemory::Memcpy(OutIt, ValueIt.GrabBytes(Size), Size);
+			bool bSkip = GrabBit();
+			check(!bSkip);
+		}
+
+		FMemory::Memcpy(OutIt, ValueIt.GrabBytes(Size), Size);
+		
+		MemberIdx += Num;
+		SkipMissingSparseMembers();
+	}
+	else
+	{
+		const SIZE_T NumBytes = Num * Size;
+		FMemory::Memcpy(Out, ValueIt.GrabBytes(NumBytes), NumBytes);
+		MemberIdx += Num;
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////
 

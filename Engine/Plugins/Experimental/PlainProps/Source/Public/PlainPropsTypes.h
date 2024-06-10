@@ -315,11 +315,18 @@ struct FUnpackedLeafType
 	ELeafType Type;
 	ELeafWidth Width;
 
-	constexpr FUnpackedLeafType(ELeafType InType, ELeafWidth InWidth) : Type(InType), Width(InWidth) {}
-	constexpr FUnpackedLeafType(FLeafType In) : Type(In.Type), Width(In.Width) {}
+	inline constexpr FUnpackedLeafType(ELeafType InType, ELeafWidth InWidth) : Type(InType), Width(InWidth) {}
+	inline constexpr FUnpackedLeafType(FLeafType In) : Type(In.Type), Width(In.Width) {}
 
-	constexpr bool operator==(FUnpackedLeafType O) const { return Type == O.Type && Width == O.Width; }
-	FMemberType Pack() const { return FMemberType(Type, Width); }
+	inline bool operator==(FUnpackedLeafType O) const { return AsInt() == O.AsInt(); }
+	inline constexpr FMemberType Pack() const { return FMemberType(Type, Width); }
+
+	inline uint16 AsInt() const
+	{
+		uint16 Out = 0;
+		FMemory::Memcpy(&Out, this, sizeof(uint16));
+		return Out;
+	}
 };
 
 template<typename T>

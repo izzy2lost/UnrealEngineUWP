@@ -7,7 +7,7 @@
 namespace PlainProps::UE
 {
 
-void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FTransformIds& Ids) const
+void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default) const
 {
 	static_assert(std::is_same_v<decltype(FTransform().GetTranslation().X), double>);
 
@@ -19,43 +19,45 @@ void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const F
 	{
 		if (T != Default->GetTranslation())
 		{
-			Dst.Add(Ids.Translate[0], T.X);
-			Dst.Add(Ids.Translate[1], T.Y);
-			Dst.Add(Ids.Translate[2], T.Z);
+			Dst.Add(MemberIds.Translate[0], T.X);
+			Dst.Add(MemberIds.Translate[1], T.Y);
+			Dst.Add(MemberIds.Translate[2], T.Z);
 		}
 
 		if (R != Default->GetRotation())
 		{
-			Dst.Add(Ids.Rotate[0], R.X);
-			Dst.Add(Ids.Rotate[1], R.Y);
-			Dst.Add(Ids.Rotate[2], R.Z);
-			Dst.Add(Ids.Rotate[3], R.W);
+			Dst.Add(MemberIds.Rotate[0], R.X);
+			Dst.Add(MemberIds.Rotate[1], R.Y);
+			Dst.Add(MemberIds.Rotate[2], R.Z);
+			Dst.Add(MemberIds.Rotate[3], R.W);
 		}
 
 		if (S != Default->GetScale3D())
 		{
-			Dst.Add(Ids.Scale[0], S.X);
-			Dst.Add(Ids.Scale[1], S.Y);
-			Dst.Add(Ids.Scale[2], S.Z);
+			Dst.Add(MemberIds.Scale[0], S.X);
+			Dst.Add(MemberIds.Scale[1], S.Y);
+			Dst.Add(MemberIds.Scale[2], S.Z);
 		}
 	}
 	else
 	{
-		Dst.Add(Ids.Translate[0],	T.X);
-		Dst.Add(Ids.Translate[1],	T.Y);
-		Dst.Add(Ids.Translate[2],	T.Z);
-		Dst.Add(Ids.Rotate[0],		R.X);
-		Dst.Add(Ids.Rotate[1],		R.Y);
-		Dst.Add(Ids.Rotate[2],		R.Z);
-		Dst.Add(Ids.Rotate[3],		R.W);
-		Dst.Add(Ids.Scale[0],		S.X);
-		Dst.Add(Ids.Scale[1],		S.Y);
-		Dst.Add(Ids.Scale[2],		S.Z);
+		Dst.Add(MemberIds.Translate[0],	T.X);
+		Dst.Add(MemberIds.Translate[1],	T.Y);
+		Dst.Add(MemberIds.Translate[2],	T.Z);
+		Dst.Add(MemberIds.Rotate[0],		R.X);
+		Dst.Add(MemberIds.Rotate[1],		R.Y);
+		Dst.Add(MemberIds.Rotate[2],		R.Z);
+		Dst.Add(MemberIds.Rotate[3],		R.W);
+		Dst.Add(MemberIds.Scale[0],		S.X);
+		Dst.Add(MemberIds.Scale[1],		S.Y);
+		Dst.Add(MemberIds.Scale[2],		S.Z);
 	}
 }
 
-void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch, const FTransformIds& Ids) const
+void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const
 {
+	static_assert(std::is_same_v<decltype(FTransform().GetTranslation().X), double>);
+
 	FMemberReader Members(Src);
 
 	if (Method == ECustomLoadMethod::Construct)
@@ -68,45 +70,35 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		return;
 	}
 
-	FMemberId Name = Members.PeekName().Get();
-	double X = Members.GrabLeaf().AsDouble();
-	double Y = Members.GrabLeaf().AsDouble();
-	double Z = Members.GrabLeaf().AsDouble();
-
-	if (Name == Ids.Translate[0])
+	if (Members.PeekNameUnchecked() == MemberIds.Translate[0])
 	{
-		Dst.SetTranslation({X, Y, Z});
-			
-		if (!Members.HasMore())
-		{
-			return;
-		}
-			
-		Name = Members.PeekName().Get();
-		X = Members.GrabLeaf().AsDouble();
-		Y = Members.GrabLeaf().AsDouble();
-		Z = Members.GrabLeaf().AsDouble();
-	}
-
-	if (Name == Ids.Rotate[0])
-	{
-		double W = Members.GrabLeaf().AsDouble();
-		Dst.SetRotation({X, Y, Z, W});
+		FVector Translation;
+		Members.GrabLeaves(&Translation.X, 3);
+		Dst.SetTranslation(Translation);
 
 		if (!Members.HasMore())
 		{
 			return;
 		}
-
-		Name = Members.PeekName().Get();
-		X = Members.GrabLeaf().AsDouble();
-		Y = Members.GrabLeaf().AsDouble();
-		Z = Members.GrabLeaf().AsDouble();
 	}
 
-	check(Name == Ids.Scale[0]);
-	Dst.SetScale3D({X, Y, Z});
-	check(!Members.HasMore());
+	if (Members.PeekNameUnchecked() == MemberIds.Rotate[0])
+	{
+		FQuat Rotation;
+		Members.GrabLeaves(&Rotation.X, 4);
+		Dst.SetRotation(Rotation);
+
+		if (!Members.HasMore())
+		{
+			return;
+		}
+	}
+
+	checkSlow(Members.PeekNameUnchecked() == MemberIds.Scale[0]);
+	FVector Scale;
+	Members.GrabLeaves(&Scale.X, 3);
+	Dst.SetScale3D(Scale);
+	checkSlow(!Members.HasMore());
 }
 
 bool FTransformBinding::DiffStruct(const void* StructA, const void* StructB) const

@@ -371,16 +371,24 @@ struct FTransformIds
 
 struct FTransformBinding : public ICustomBinding
 {
-	PLAINPROPS_API void			Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FTransformIds& Ids) const;
-	PLAINPROPS_API void			Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch, const FTransformIds& Ids) const;
+	using Type = FTransform;
+	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
+
+
+
+	const FTransformIds& MemberIds;
+	FTransformBinding(const FTransformIds& Ids) : MemberIds(Ids) {}
+	PLAINPROPS_API void			Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default) const;
+	PLAINPROPS_API void			Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const;
 	PLAINPROPS_API virtual bool	DiffStruct(const void* StructA, const void* StructB) const override;
 };
 
 template<class Ids>
 struct TTransformBinding final : public FTransformBinding
 {
-	using Type = FTransform;
-	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
+	TTransformBinding()
+	: FTransformBinding(FTransformIds::Get<Ids>()) 
+	{}
 
 	static TConstArrayView<FMemberId> GetMemberIds()
 	{
@@ -389,12 +397,12 @@ struct TTransformBinding final : public FTransformBinding
 
 	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) override
 	{
-		Save(Dst, *static_cast<const FTransform*>(Src), static_cast<const FTransform*>(Default), FTransformIds::Get<Ids>());
+		Save(Dst, *static_cast<const FTransform*>(Src), static_cast<const FTransform*>(Default));
 	}
 
 	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
 	{
-		Load(*static_cast<FTransform*>(Dst), Src, Method, Batch, FTransformIds::Get<Ids>());
+		Load(*static_cast<FTransform*>(Dst), Src, Method, Batch);
 	}
 };
 

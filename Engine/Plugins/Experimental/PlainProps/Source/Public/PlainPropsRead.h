@@ -63,23 +63,23 @@ public:
 		return Out;
 	}
 
-	[[nodiscard]] FMemoryView GrabSlice(uint64 NumBytes)
+	[[nodiscard]] inline FMemoryView GrabSlice(uint64 NumBytes)
 	{
 		return FMemoryView(GrabBytes(NumBytes), NumBytes);
 	}
 
-	[[nodiscard]] FMemoryView GrabSkippableSlice()
+	[[nodiscard]] inline FMemoryView GrabSkippableSlice()
 	{
 		return GrabSlice(GrabVarIntU());
 	}
 
-	[[nodiscard]] uint8 GrabByte()
+	[[nodiscard]] inline uint8 GrabByte()
 	{
 		return *GrabBytes(1);
 	}
 
 	template<typename T>
-	[[nodiscard]] T Grab()
+	[[nodiscard]] inline T Grab()
 	{
 		return FPlatformMemory::ReadUnaligned<T>(GrabBytes(sizeof(T)));
 	}
@@ -118,65 +118,95 @@ class FBitCacheReader
 	uint8 Bits = 0;
 	uint8 BitIt = 0;
 public:
-	[[nodiscard]] bool GrabNext(FByteReader& Bytes);
+	[[nodiscard]] FORCEINLINE bool GrabNext(FByteReader& Bytes)
+	{
+		BitIt <<= 1; // Shift up til overflow
+
+		if (BitIt == 0)
+		{
+			Bits = Bytes.GrabByte();
+			BitIt = 1;
+		}
+
+		return !!(Bits & BitIt);
+	}
+
+	FORCENOINLINE void Skip(uint32 Num, FByteReader& Bytes)
+	{
+		uint32 NumCached = 1 + FMath::CountLeadingZeros8(BitIt);
+
+		if (NumCached > Num)
+		{
+			BitIt <<= Num;
+		}
+		else
+		{
+			uint32 NumUncached = Num - NumCached;
+
+			// Grab new bytes, keep the last byte and bit within it
+			uint32 NumBytes = Align(NumUncached + 1, 8) / 8;
+			Bits = Bytes.GrabBytes(NumBytes)[NumBytes - 1];
+			BitIt = 1 << (NumUncached % 8);
+		}
+	}
 };
 
 //////////////////////////////////////////////////////////////////////////
 
 struct FStructSchemaHandle
 {
-	FStructSchemaId		Id;
-	FReadBatchId		Batch;
+	FStructSchemaId			Id;
+	FReadBatchId			Batch;
 
-	const FStructSchema& Resolve() const { return ResolveStructSchema(Batch, Id); }
-	const FStructSchema& ResolveSuper() const;
+	const FStructSchema&	Resolve() const { return ResolveStructSchema(Batch, Id); }
+	const FStructSchema&	ResolveSuper() const;
 };
 
 struct FStructView
 {
-	FStructSchemaHandle	Schema;
-	FByteReader			Values;
+	FStructSchemaHandle		Schema;
+	FByteReader				Values;
 };
 
 //////////////////////////////////////////////////////////////////////////
 
 union FMemberValue
 {
-	const uint8*		Ptr;	// From byte stream
-	bool				bValue; // From bit cache
+	const uint8*			Ptr;	// From byte stream
+	bool					bValue; // From bit cache
 };
 
 struct FLeafView
 {
-	ELeafType		Type;
-    ELeafWidth		Width;
-	FReadBatchId	Batch;
-	FEnumSchemaId	Enum;
-	FMemberValue	Value;
+	FUnpackedLeafType		Leaf;
+	FReadBatchId			Batch;
+	FEnumSchemaId			Enum;
+	FMemberValue			Value;
 
-	bool			AsBool() const		{ check(Type == ELeafType::Bool);	return Value.bValue; }
-	int8			AsS8() const		{ check(Type == ELeafType::IntS);	return As<int8>(); }
-	uint8			AsU8() const		{ check(Type == ELeafType::IntU);	return As<uint8>(); }
-	int16			AsS16() const		{ check(Type == ELeafType::IntS);	return As<int16>(); }
-	uint16			AsU16() const		{ check(Type == ELeafType::IntU);	return As<uint16>(); }
-	int32			AsS32() const		{ check(Type == ELeafType::IntS);	return As<int32>(); }
-	uint32			AsU32() const		{ check(Type == ELeafType::IntU);	return As<uint32>(); }
-	int64			AsS64() const		{ check(Type == ELeafType::IntS);	return As<int64>(); }
-	uint64			AsU64() const		{ check(Type == ELeafType::IntU);	return As<uint64>(); }
-	double			AsDouble() const	{ check(Type == ELeafType::Float);	return As<double>(); }
-	float			AsFloat() const		{ check(Type == ELeafType::Float);	return As<float>(); }
-	char8_t			AsChar8() const		{ check(Type == ELeafType::Unicode);return As<char8_t>(); }
-	char16_t		AsChar16() const	{ check(Type == ELeafType::Unicode);return As<char16_t>(); }
-	char32_t		AsChar32() const	{ check(Type == ELeafType::Unicode);return As<char32_t>(); }
-	uint8			AsEnum8() const		{ check(Type == ELeafType::Enum);	return As<uint8>(); }
-	uint16			AsEnum16() const	{ check(Type == ELeafType::Enum);	return As<uint16>(); }
-	uint32			AsEnum32() const	{ check(Type == ELeafType::Enum);	return As<uint32>(); }
-	uint64			AsEnum64() const	{ check(Type == ELeafType::Enum);	return As<uint64>(); }
+	FORCEINLINE bool		AsBool() const		{ return Value.bValue; }
+	FORCEINLINE int8		AsS8() const		{ return As<int8>(); }
+	FORCEINLINE uint8		AsU8() const		{ return As<uint8>(); }
+	FORCEINLINE int16		AsS16() const		{ return As<int16>(); }
+	FORCEINLINE uint16		AsU16() const		{ return As<uint16>(); }
+	FORCEINLINE int32		AsS32() const		{ return As<int32>(); }
+	FORCEINLINE uint32		AsU32() const		{ return As<uint32>(); }
+	FORCEINLINE int64		AsS64() const		{ return As<int64>(); }
+	FORCEINLINE uint64		AsU64() const		{ return As<uint64>(); }
+	FORCEINLINE double		AsDouble() const	{ return As<double>(); }
+	FORCEINLINE float		AsFloat() const		{ return As<float>(); }
+	FORCEINLINE char8_t		AsChar8() const		{ return As<char8_t>(); }
+	FORCEINLINE char16_t	AsChar16() const	{ return As<char16_t>(); }
+	FORCEINLINE char32_t	AsChar32() const	{ return As<char32_t>(); }
+	FORCEINLINE uint8		AsEnum8() const		{ return As<uint8,	FUnpackedLeafType{ELeafType::Enum, ELeafWidth::B8}>(); }
+	FORCEINLINE uint16		AsEnum16() const	{ return As<uint16,	FUnpackedLeafType{ELeafType::Enum, ELeafWidth::B16}>(); }
+	FORCEINLINE uint32		AsEnum32() const	{ return As<uint32,	FUnpackedLeafType{ELeafType::Enum, ELeafWidth::B32}>(); }
+	FORCEINLINE uint64		AsEnum64() const	{ return As<uint64,	FUnpackedLeafType{ELeafType::Enum, ELeafWidth::B64}>(); }
 
 private:
-	template<typename T> T As() const
+	template<typename T, FUnpackedLeafType ExpectedType = ReflectLeaf<T>>
+	FORCEINLINE T As() const
 	{
-		check(SizeOf(Width) == sizeof(T));
+		check(ExpectedType == Leaf);
 		return *reinterpret_cast<const T*>(Value.Ptr);
 	}
 };
@@ -533,6 +563,7 @@ public:
 	bool					HasMore() const			{ return MemberIdx < NumMembers; }
 	
 	FOptionalMemberId		PeekName() const;		// @pre HasMore()
+	FOptionalMemberId		PeekNameUnchecked() const; // @pre HasMore()
 	EMemberKind				PeekKind() const;		// @pre HasMore()
 	FMemberType				PeekType() const;		// @pre HasMore()
 
@@ -541,22 +572,26 @@ public:
 	FStructView				GrabStruct();			// @pre PeekKind() == EMemberKind::Struct
 	//FAnyMemberView		GrabAny();				// @pre HasMore()
 
+	// @pre Has N more contiguous members of the expected leaf type
+	template<typename T>
+	void					GrabLeaves(T* Out, uint32 N);
+
 protected: // for unit tests
 	const FMemberType*		Footer;
 	const FReadBatchId		Batch;					// Needed to resolve schemas
-	const uint16			NumMembers;
-	const uint16			NumRangeTypes;			// Number of ranges and nested ranges
-	const uint16			IsSparse : 1;
-	const uint16			HasSuper : 1;
+	const bool				IsSparse : 1;
+	const bool				HasSuper : 1;
+	const uint32			NumMembers;
+	const uint32			NumRangeTypes;			// Number of ranges and nested ranges
 
-	uint16					MemberIdx = 0;
-	uint16					RangeTypeIdx = 0;		// Types of [nested] ranges
-	uint16					InnerSchemaIdx = 0;		// Types of static structs and enums
+	uint32					MemberIdx = 0;
+	uint32					RangeTypeIdx = 0;		// Types of [nested] ranges
+	uint32					InnerSchemaIdx = 0;		// Types of static structs and enums
 	FBitCacheReader			Bits;
 	FByteReader				ValueIt;
 
 #if DO_CHECK
-	const uint16			NumInnerSchemas;		// Number of static structs and enums
+	const uint32			NumInnerSchemas;		// Number of static structs and enums
 #endif
 
 	FMemberReader(const FStructSchema& Schema, FByteReader Values, FReadBatchId InBatch);
@@ -567,6 +602,7 @@ protected: // for unit tests
 	const FMemberId*		GetMemberNames() const;
 	
 	void					AdvanceToNextMember();
+	void					AdvanceToLaterMember(uint32 Num);
 	void					SkipMissingSparseMembers();
 	void					SkipSchema(FMemberType InnermostType);
 
@@ -576,10 +612,35 @@ protected: // for unit tests
 	FSchemaId				GrabInnerSchema();
 	FStructSchemaId			GrabStructSchema(FStructType Type);
 	FOptionalSchemaId		GrabRangeSchema(FMemberType InnermostType);
-	FEnumSchemaId			GrabEnumSchema()			{ return static_cast<FEnumSchemaId&&>(GrabInnerSchema()); }
-	bool					GrabBit()					{ return Bits.GrabNext(/* in-out */ ValueIt); }
-	uint64					GrabSkipLength()			{ return ValueIt.GrabVarIntU(); }
+	inline FEnumSchemaId	GrabEnumSchema()		{ return static_cast<FEnumSchemaId&&>(GrabInnerSchema()); }
+	inline bool				GrabBit()				{ return Bits.GrabNext(/* in-out */ ValueIt); }
+	inline uint64			GrabSkipLength()		{ return ValueIt.GrabVarIntU(); }
+
+	void					GrabBools(void* Out, uint32 Num);
+	void					GrabEnums(void* Out, uint32 Num, SIZE_T NumBytes);
+	void					GrabLeaves(void* Out, uint32 Num, SIZE_T NumBytes);
 };
+
+template<typename T>
+void FMemberReader::GrabLeaves(T* Out, uint32 N)
+{
+	if (N)
+	{
+		constexpr FUnpackedLeafType Leaf = ReflectLeaf<T>;
+		if constexpr (Leaf.Type == ELeafType::Bool)
+		{
+			GrabBools(Out, N);
+		}
+		else if constexpr (Leaf.Type == ELeafType::Enum)
+		{
+			GrabEnums(Out, N, sizeof(T));
+		}
+		else
+		{
+			GrabLeaves(Out, N, sizeof(T));
+		}
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////
 
