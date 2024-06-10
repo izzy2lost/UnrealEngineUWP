@@ -861,7 +861,7 @@ FRigBaseMetadata* FRigDispatch_GetModuleMetadata::FindMetadata(const FRigVMExten
 			if(Connector->IsPrimary())
 			{
 				const FName Name = ExecuteContext.AdaptMetadataName(InNameSpace, InName);
-				return ExecuteContext.Hierarchy->FindMetadataForElement(Connector, InName, InType);
+				return ExecuteContext.Hierarchy->FindMetadataForElement(Connector, Name, InType);
 			}
 		}
 	}
@@ -989,7 +989,7 @@ FRigBaseMetadata* FRigDispatch_SetModuleMetadata::FindOrAddMetadata(const FContr
 			if(Connector->IsPrimary())
 			{
 				const FName Name = InContext.AdaptMetadataName(InNameSpace, InName);
-				return InContext.Hierarchy->GetMetadataForElement(const_cast<FRigConnectorElement*>(Connector), InName, InType, bNotify);
+				return InContext.Hierarchy->GetMetadataForElement(const_cast<FRigConnectorElement*>(Connector), Name, InType, bNotify);
 			}
 		}
 	}
