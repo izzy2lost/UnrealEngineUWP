@@ -2360,7 +2360,12 @@ void FSceneView::ConfigureBufferVisualizationSettings()
 		// Copy current material list into settings material list
 		for (TArray<UMaterialInterface*>::TConstIterator It = BufferVisualizationData.GetOverviewMaterials().CreateConstIterator(); It; ++It)
 		{
-			FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(*It);
+			UMaterialInterface* VisMat = *It;
+			if(VisMat && bBufferDumpingRequired)
+			{
+				VisMat->EnsureIsComplete();
+			}
+			FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(VisMat);
 		}
 	}
 }
