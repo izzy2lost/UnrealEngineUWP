@@ -44,13 +44,6 @@ enum class EAddSubObjectFlags : uint32
 };
 ENUM_CLASS_FLAGS(EAddSubObjectFlags);
 
-enum class EAddDependentObjectFlags : uint32
-{
-	None = 0U,
-	WarnIfAlreadyDependentObject = 1U,
-};
-ENUM_CLASS_FLAGS(EAddDependentObjectFlags);
-
 enum class ERemoveDependentObjectFlags : uint32
 {
 	None = 0U,
@@ -250,7 +243,7 @@ public:
 	// DependentObjects
 	const FNetBitArrayView GetDependentObjectInternalIndices() const { return MakeNetBitArrayView(DependentObjectInternalIndices); }
 	const FNetBitArrayView GetObjectsWithDependentObjectsInternalIndices() const { return MakeNetBitArrayView(ObjectsWithDependentObjectsInternalIndices); }
-	bool AddDependentObject(FNetRefHandle ParentHandle, FNetRefHandle DependentHandle, EDependentObjectSchedulingHint SchedulingHint, EAddDependentObjectFlags Flags = EAddDependentObjectFlags::WarnIfAlreadyDependentObject);
+	bool AddDependentObject(FNetRefHandle ParentHandle, FNetRefHandle DependentHandle, EDependentObjectSchedulingHint SchedulingHint);
 	void RemoveDependentObject(FNetRefHandle ParentHandle, FNetRefHandle DependentHandle);
 
 	// Remove DependentHandles from all dependent object tracking

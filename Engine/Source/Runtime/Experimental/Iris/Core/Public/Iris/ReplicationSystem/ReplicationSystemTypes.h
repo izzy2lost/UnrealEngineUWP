@@ -78,4 +78,15 @@ inline const TCHAR* LexToString(ENetObjectAttachmentSendPolicyFlags SendFlags)
 	}
 }
 
+inline const TCHAR* LexToString(EDependentObjectSchedulingHint SchedulingHint)
+{
+	switch (SchedulingHint)
+	{
+	case EDependentObjectSchedulingHint::Default: return TEXT("Default");
+	case EDependentObjectSchedulingHint::ScheduleBeforeParent: return TEXT("BeforeParent");
+	case EDependentObjectSchedulingHint::ScheduleBeforeParentIfInitialState: return TEXT("BeforeParentIfInitialState");
+	default: ensure(false); return TEXT("Missing");
+	}
+}
+
 }
