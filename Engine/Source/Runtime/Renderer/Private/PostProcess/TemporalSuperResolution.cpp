@@ -1954,7 +1954,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			{
 				FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 					InputExtent,
-					PF_FloatR11G11B10,
+					bIsOrthoProjection ? PF_A32B32G32R32F : PF_FloatR11G11B10,
 					FClearValueBinding::None,
 					GFastVRamConfig.VelocityFlat | TexCreate_ShaderResource | TexCreate_UAV);
 

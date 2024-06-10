@@ -649,7 +649,7 @@ void AddMotionBlurVelocityPass(
 			// NOTE: Use scene depth's dimensions because velocity can actually be a 1x1 black texture when there are no moving objects in sight.
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 				Inputs.SceneDepth.Texture->Desc.Extent,
-				PF_FloatR11G11B10,
+				View.IsPerspectiveProjection() ? PF_FloatR11G11B10 : PF_A32B32G32R32F,
 				FClearValueBinding::None,
 				GFastVRamConfig.VelocityFlat | TexCreate_ShaderResource | TexCreate_UAV);
 
