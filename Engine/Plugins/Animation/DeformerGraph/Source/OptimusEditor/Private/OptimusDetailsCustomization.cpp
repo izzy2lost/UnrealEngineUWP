@@ -1657,12 +1657,11 @@ void FOptimusSourceDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 	}
 
 	TSharedRef<IPropertyHandle> SourcePropertyHandle = DetailBuilder.GetProperty(TEXT("SourceText"));
+	DetailBuilder.GetDetailsView()->HideFilterArea(true);
 	DetailBuilder.EditDefaultProperty(SourcePropertyHandle)->CustomWidget()
-	.WholeRowContent()
 	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.FillHeight(1.0f)
+		SNew(SBox)
+		.HeightOverride(500)
 		[
 			SAssignNew(SourceTextBox, SOptimusShaderTextDocumentTextBox)
 			.Text(this, &FOptimusSourceDetailsCustomization::GetText)
