@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -429,6 +430,35 @@ namespace EpicGames.Horde.Storage.Nodes
 		#endregion
 
 		#region Group requests by bundles
+
+		/// <summary>
+		/// Compare two blob handles to allow sorting for optimized reads
+		/// </summary>
+		public static int CompareBlobs(IBlobHandle a, IBlobHandle b)
+		{
+			if (a.Innermost is not ExportHandle exportHandleA || exportHandleA.Packet is not FlushedPacketHandle packetHandleA)
+			{
+				return Comparer.Default.Compare(a, b);
+			}
+
+			if (b.Innermost is not ExportHandle exportHandleB || exportHandleB.Packet is not FlushedPacketHandle packetHandleB)
+			{
+				return Comparer.Default.Compare(a, b);
+			}
+
+			if (packetHandleA.Bundle != packetHandleB.Bundle)
+			{
+				return Comparer.Default.Compare(packetHandleA.Bundle, packetHandleB.Bundle);
+			}
+			else if (packetHandleA.PacketOffset != packetHandleB.PacketOffset)
+			{
+				return Comparer.Default.Compare(packetHandleA.PacketOffset, packetHandleB.PacketOffset);
+			}
+			else
+			{
+				return Comparer.Default.Compare(exportHandleA.ExportIdx, exportHandleB.ExportIdx);
+			}
+		}
 
 		record class OutputExport(BundleHandle BundleHandle, int PacketOffset, int ExportIdx, OutputChunk Chunk);
 		record class OutputExportBatch(BundleHandle BundleHandle, List<OutputExport> Exports);

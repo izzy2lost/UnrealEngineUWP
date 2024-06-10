@@ -124,7 +124,7 @@ namespace Horde.Server.Artifacts
 		/// <param name="blobHash"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async ValueTask<BlobData?> ReadBlobAsync(IArtifact artifact, IoHash blobHash, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobRef?> ReadBlobRefAsync(IArtifact artifact, IoHash blobHash, CancellationToken cancellationToken = default)
 		{
 			ArtifactInfo? artifactInfo = await GetArtifactInfoAsync(artifact, cancellationToken);
 			if (artifactInfo == null)
@@ -138,7 +138,7 @@ namespace Horde.Server.Artifacts
 				return null;
 			}
 
-			return await blobRef.ReadBlobDataAsync(cancellationToken);
+			return blobRef;
 		}
 
 		async Task<ArtifactInfo?> ReadArtifactAsync(IArtifact artifact, CancellationToken cancellationToken)

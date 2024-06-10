@@ -706,6 +706,27 @@ namespace Horde.Server.Artifacts
 				}
 			}
 
+			// Find all the blob refs that we need to fetch
+			List<IBlobRef> blobRefs = new List<IBlobRef>();
+			foreach (string block in request.Blocks)
+			{
+				if (!IoHash.TryParse(block, out IoHash hash))
+				{
+					return BadRequest($"Invalid IoHash value: {block}");
+				}
+
+				IBlobRef? blobRef = await _unsyncCache.ReadBlobRefAsync(artifact, hash, cancellationToken);
+				if (blobRef == null)
+				{
+					return NotFound($"Hash '{hash}' is not part of artifact {artifact.Id}");
+				}
+
+				blobRefs.Add(blobRef);
+			}
+
+			// Sort them to optimize for coherency
+			blobRefs.Sort((x, y) => DirectoryNodeExtract.CompareBlobs(x, y));
+
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
 			response.ContentType = "application/x-horde-unsync-blob";
@@ -715,32 +736,21 @@ namespace Horde.Server.Artifacts
 			ArrayMemoryWriter? compressedWriter = null;
 
 			await response.StartAsync(cancellationToken);
-			foreach (string block in request.Blocks)
+			foreach (IBlobRef blobRef in blobRefs)
 			{
-				if (!IoHash.TryParse(block, out IoHash hash))
-				{
-					throw new InvalidOperationException();
-				}
-
-				BlobData? blobData = await _unsyncCache.ReadBlobAsync(artifact, hash, cancellationToken);
-				if (blobData == null)
-				{
-					throw new InvalidOperationException();
-				}
-
+				BlobData? blobData = await blobRef.ReadBlobDataAsync(cancellationToken);
 				if (compress)
 				{
 					compressedWriter ??= new ArrayMemoryWriter(300 * 1024);
 					compressedWriter.Clear();
 					BundleData.Compress(BundleCompressionFormat.Zstd, blobData.Data, compressedWriter);
 
-					WriteBlock(response.BodyWriter, hash, blobData.Data.Length, compressedWriter.WrittenSpan);
+					WriteBlock(response.BodyWriter, blobRef.Hash, blobData.Data.Length, compressedWriter.WrittenSpan);
 				}
 				else
 				{
-					WriteBlock(response.BodyWriter, hash, blobData.Data.Length, blobData.Data.Span);
+					WriteBlock(response.BodyWriter, blobRef.Hash, blobData.Data.Length, blobData.Data.Span);
 				}
-
 				await response.BodyWriter.FlushAsync(cancellationToken);
 			}
 			await response.CompleteAsync();

@@ -65,8 +65,10 @@ namespace Horde.Server.Tests.Artifacts
 			int offset = 0;
 			foreach (UnsyncBlock block in file.Blocks)
 			{
-				using BlobData? blobData = await cache.ReadBlobAsync(artifact.Object, block.Blob.Hash);
-				Assert.IsNotNull(blobData);
+				IBlobRef? blobRef = await cache.ReadBlobRefAsync(artifact.Object, block.Blob.Hash);
+				Assert.IsNotNull(blobRef);
+
+				using BlobData blobData = await blobRef.ReadBlobDataAsync();
 
 				Assert.IsTrue(blobData.Data.Span.SequenceEqual(source.AsSpan(offset, blobData.Data.Length)));
 				offset += (int)block.Length;
