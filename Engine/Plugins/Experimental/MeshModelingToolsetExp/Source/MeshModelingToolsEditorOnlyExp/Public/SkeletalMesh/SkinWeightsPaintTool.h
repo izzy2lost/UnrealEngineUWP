@@ -405,6 +405,7 @@ public:
 
 	// IClickDragBehaviorTarget implementation
 	virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
+	virtual FInputRayHit CanBeginClickDragSequence(const FInputDeviceRay& InPressPos) override;
 
 	// using when ToolChange is applied via Undo/Redo
 	void ExternalUpdateWeights(const int32 BoneIndex, const TMap<int32, float>& IndexValues);

@@ -1129,6 +1129,26 @@ void USkinWeightsPaintTool::OnUpdateModifierState(int ModifierID, bool bIsOn)
 	Super::OnUpdateModifierState(ModifierID, bIsOn);
 }
 
+FInputRayHit USkinWeightsPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& InPressPos)
+{
+	// NOTE: this function is only overridden to prevent left-click fly camera behavior while brushing
+	// this should eventually be removed once we have a clear way of disabling the fly-cam mode
+	
+	if (WeightToolProperties->EditingMode != EWeightEditMode::Brush)
+	{
+		return FInputRayHit(); // allow other behaviors to capture mouse while not brushing
+	}
+	
+	const FInputRayHit Hit = Super::CanBeginClickDragSequence(InPressPos);
+	if (Hit.bHit)
+	{
+		return Hit;
+	}
+
+	// always return a hit so we always capture and prevent accidental camera movement
+	return FInputRayHit(TNumericLimits<float>::Max());
+}
+
 void USkinWeightsPaintTool::OnTick(float DeltaTime)
 {
 	if (bPendingUpdateFromPartialMesh)
