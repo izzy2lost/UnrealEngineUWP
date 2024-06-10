@@ -51,6 +51,7 @@ class SMetaSoundRenderStats;
 class FSlateRect;
 class IDetailsView;
 class IToolkitHost;
+
 namespace Metasound::Editor
 {
 	class SFindInMetasound;
@@ -59,6 +60,7 @@ class SVerticalBox;
 class UAudioComponent;
 class UEdGraphNode;
 class UMetaSoundPatch;
+class UMetaSoundSource;
 class UMetasoundEditorGraph;
 class UMetasoundEditorGraphNode;
 
@@ -99,7 +101,7 @@ namespace Metasound
 			COUNT
 		};
 
-		class FEditor : public IMetasoundEditor, public FGCObject, public FNotifyHook, public FEditorUndoClient, public FTickableEditorObject
+		class FEditor : public IMetasoundEditor, public FNotifyHook, public FEditorUndoClient, public FTickableEditorObject
 		{
 		public:
 			static const FName EditorName;
@@ -137,13 +139,6 @@ namespace Metasound
 			virtual FString GetDocumentationLink() const override
 			{
 				return FString(TEXT("working-with-audio/sound-sources/meta-sounds"));
-			}
-
-			/** FGCObject interface */
-			virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-			virtual FString GetReferencerName() const override
-			{
-				return TEXT("Metasound::Editor::FEditor");
 			}
 
 			/** FEditorUndoClient Interface */
@@ -186,6 +181,9 @@ namespace Metasound
 			/** Updates selected node classes to highest class found in the MetaSound Class Registry. */
 			void UpdateSelectedNodeClasses();
 
+			/** Whether or not MetaSound can be auditioned */
+			bool IsAuditionable() const;
+
 			/* Whether the displayed graph is marked as editable */
 			bool IsGraphEditable() const;
 
@@ -197,7 +195,7 @@ namespace Metasound
 			}
 
 			/** Creates analyzers */
-			void CreateAnalyzers();
+			void CreateAnalyzers(UMetaSoundSource& MetaSoundSource);
 
 			/** Destroys analyzers */
 			void DestroyAnalyzers();
@@ -343,7 +341,7 @@ namespace Metasound
 			/** Called to redo the last undone action */
 			void RedoGraphAction();
 
-			void RefreshEditorContext();
+			void RefreshEditorContext(UObject& MetaSound);
 
 			/** Show and focus the Find in MetaSound tab. */
 			void ShowFindInMetaSound();
@@ -362,7 +360,7 @@ namespace Metasound
 			virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 
 			/** Creates all internal widgets for the tabs to point at */
-			void CreateInternalWidgets();
+			void CreateInternalWidgets(UObject& MetaSound);
 
 			/** Builds the toolbar widget for the Metasound editor */
 			void ExtendToolbarInternal();
@@ -414,7 +412,7 @@ namespace Metasound
 			void OnCreateComment();
 
 			/** Create new graph editor widget */
-			void CreateGraphEditorWidget();
+			void CreateGraphEditorWidget(UObject& MetaSound);
 
 			TSharedPtr<SWidget> BuildAnalyzerWidget() const;
 
@@ -471,10 +469,6 @@ namespace Metasound
 
 			/** Command list for this editor */
 			TSharedPtr<FUICommandList> GraphEditorCommands;
-
-			/** TODO: Deprecate in favor of just accessing the MetaSound document via
-			  * the builder below */
-			TObjectPtr<UObject> Metasound;
 
 			/** Pointer to builder being actively used to mutate MetaSound asset */
 			TStrongObjectPtr<UMetaSoundBuilderBase> Builder;

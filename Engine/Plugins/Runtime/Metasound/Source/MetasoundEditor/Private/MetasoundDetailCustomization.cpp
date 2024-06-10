@@ -14,6 +14,7 @@
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"
 #include "MetasoundAssetBase.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorSettings.h"
@@ -44,534 +45,542 @@
 #define LOCTEXT_NAMESPACE "MetaSoundEditor"
 
 
-namespace Metasound
+namespace Metasound::Editor
 {
-	namespace Editor
+	FName BuildChildPath(const FString& InBasePath, FName InPropertyName)
 	{
-		FName BuildChildPath(const FString& InBasePath, FName InPropertyName)
-		{
-			return FName(InBasePath + TEXT(".") + InPropertyName.ToString());
-		}
+		return FName(InBasePath + TEXT(".") + InPropertyName.ToString());
+	}
 
-		FName BuildChildPath(const FName& InBasePath, FName InPropertyName)
-		{
-			return FName(InBasePath.ToString() + TEXT(".") + InPropertyName.ToString());
-		}
+	FName BuildChildPath(const FName& InBasePath, FName InPropertyName)
+	{
+		return FName(InBasePath.ToString() + TEXT(".") + InPropertyName.ToString());
+	}
 
-		FMetasoundDetailCustomization::FMetasoundDetailCustomization(FName InDocumentPropertyName)
-			: IDetailCustomization()
-			, DocumentPropertyName(InDocumentPropertyName)
+	UObject* FMetaSoundDetailCustomizationBase::GetMetaSound() const
+	{
+		if (Builder.IsValid())
 		{
-			IsGraphEditableAttribute = TAttribute<bool>::Create([this]()
+			const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+			if (DocBuilder.IsValid())
 			{
-				using namespace Metasound;
-				using namespace Metasound::Frontend;
-				if (const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound.Get()))
-				{
-					FConstGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
-					return GraphHandle->GetGraphStyle().bIsGraphEditable;
-				}
-
-				return false;
-			});
-		}
-
-		FName FMetasoundDetailCustomization::GetInterfaceVersionsPath() const
-		{
-			return Metasound::Editor::BuildChildPath(DocumentPropertyName, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendDocument, Interfaces));
-		}
-
-		FName FMetasoundDetailCustomization::GetMetadataRootClassPath() const
-		{
-			return Metasound::Editor::BuildChildPath(DocumentPropertyName, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendDocument, RootGraph));
-		}
-
-		FName FMetasoundDetailCustomization::GetMetadataPropertyPath() const
-		{
-			const FName RootClass = FName(GetMetadataRootClassPath());
-			return Metasound::Editor::BuildChildPath(RootClass, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendClass, Metadata));
-		}
-
-		void FMetasoundDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
-		{
-			using namespace Frontend;
-
-			TArray<TWeakObjectPtr<UObject>> Objects;
-			DetailLayout.GetObjectsBeingCustomized(Objects);
-
-			// Only support modifying a single MetaSound at a time (Multiple
-			// MetaSound editing will be covered most likely by separate tool).
-			if (Objects.Num() > 1)
-			{
-				return;
+				return &DocBuilder.CastDocumentObjectChecked<UObject>();
 			}
-			MetaSound = Objects.Last();
-			if (!MetaSound.IsValid())
-			{
-				return;
-			}
+		}
 
-			TWeakObjectPtr<UMetaSoundSource> MetaSoundSource = Cast<UMetaSoundSource>(MetaSound.Get());
+		return nullptr;
+	}
 
-			// MetaSound patches don't have source settings, so view MetaSound settings by default 
-			EMetasoundActiveDetailView DetailsView = EMetasoundActiveDetailView::Metasound;
-			if (MetaSoundSource.IsValid())
+	void FMetaSoundDetailCustomizationBase::InitBuilder(UObject& MetaSound)
+	{
+		using namespace Engine;
+		Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound));
+
+		IsGraphEditableAttribute = TAttribute<bool>::Create([this]()
+		{
+			using namespace Engine;
+
+			if (Builder.IsValid())
 			{
-				// Show source settings by default unless previously set
-				DetailsView = EMetasoundActiveDetailView::General;
-				if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+				const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+				if (DocBuilder.IsValid())
 				{
-					DetailsView = EditorSettings->DetailView;
+					return DocBuilder.FindConstBuildGraphChecked().Style.bIsGraphEditable;
 				}
 			}
 
-			switch (DetailsView)
+			return false;
+		});
+	}
+
+	FMetasoundDetailCustomization::FMetasoundDetailCustomization(FName InDocumentPropertyName)
+		: DocumentPropertyName(InDocumentPropertyName)
+	{
+	}
+
+	FName FMetasoundDetailCustomization::GetInterfaceVersionsPath() const
+	{
+		return BuildChildPath(DocumentPropertyName, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendDocument, Interfaces));
+	}
+
+	FName FMetasoundDetailCustomization::GetMetadataRootClassPath() const
+	{
+		return BuildChildPath(DocumentPropertyName, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendDocument, RootGraph));
+	}
+
+	FName FMetasoundDetailCustomization::GetMetadataPropertyPath() const
+	{
+		const FName RootClass = FName(GetMetadataRootClassPath());
+		return BuildChildPath(RootClass, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendClass, Metadata));
+	}
+
+	void FMetasoundDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
+	{
+		using namespace Frontend;
+
+		TArray<TWeakObjectPtr<UObject>> Objects;
+		DetailLayout.GetObjectsBeingCustomized(Objects);
+
+		// Only support modifying a single MetaSound at a time (Multiple
+		// MetaSound editing will be covered most likely by separate tool).
+		if (Objects.Num() > 1 || !Objects.Last().IsValid())
+		{
+			return;
+		}
+
+		UObject& MetaSound = *Objects.Last().Get();
+		InitBuilder(MetaSound);
+		TWeakObjectPtr<UMetaSoundSource> MetaSoundSource = Cast<UMetaSoundSource>(&MetaSound);
+
+		// MetaSound patches don't have source settings, so view MetaSound settings by default 
+		EMetasoundActiveDetailView DetailsView = EMetasoundActiveDetailView::Metasound;
+		if (MetaSoundSource.IsValid())
+		{
+			// Show source settings by default unless previously set
+			DetailsView = EMetasoundActiveDetailView::General;
+			if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
 			{
-				case EMetasoundActiveDetailView::Metasound:
+				DetailsView = EditorSettings->DetailView;
+			}
+		}
+
+		switch (DetailsView)
+		{
+			case EMetasoundActiveDetailView::Metasound:
+			{
+				IDetailCategoryBuilder& GeneralCategoryBuilder = DetailLayout.EditCategory("MetaSound");
+				const FName AuthorPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetAuthorPropertyName());
+				const FName CategoryHierarchyPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetCategoryHierarchyPropertyName());
+				const FName DescPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetDescriptionPropertyName());
+				const FName DisplayNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetDisplayNamePropertyName());
+				const FName KeywordsPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetKeywordsPropertyName());
+				const FName IsDeprecatedPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetIsDeprecatedPropertyName());
+
+				const FName ClassNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetClassNamePropertyName());
+				const FName ClassNameNamePropertyPath = BuildChildPath(ClassNamePropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendClassName, Name));
+
+				const FName VersionPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetVersionPropertyName());
+				const FName MajorVersionPropertyPath = BuildChildPath(VersionPropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendVersionNumber, Major));
+				const FName MinorVersionPropertyPath = BuildChildPath(VersionPropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendVersionNumber, Minor));
+
+				const FName InterfaceVersionsPropertyPath = GetInterfaceVersionsPath();
+
+				TSharedPtr<IPropertyHandle> AuthorHandle = DetailLayout.GetProperty(AuthorPropertyPath);
+				TSharedPtr<IPropertyHandle> CategoryHierarchyHandle = DetailLayout.GetProperty(CategoryHierarchyPropertyPath);
+				TSharedPtr<IPropertyHandle> ClassNameHandle = DetailLayout.GetProperty(ClassNameNamePropertyPath);
+				TSharedPtr<IPropertyHandle> DisplayNameHandle = DetailLayout.GetProperty(DisplayNamePropertyPath);
+				TSharedPtr<IPropertyHandle> DescHandle = DetailLayout.GetProperty(DescPropertyPath);
+				TSharedPtr<IPropertyHandle> KeywordsHandle = DetailLayout.GetProperty(KeywordsPropertyPath);
+				TSharedPtr<IPropertyHandle> IsDeprecatedHandle = DetailLayout.GetProperty(IsDeprecatedPropertyPath);
+				TSharedPtr<IPropertyHandle> InterfaceVersionsHandle = DetailLayout.GetProperty(InterfaceVersionsPropertyPath);
+				TSharedPtr<IPropertyHandle> MajorVersionHandle = DetailLayout.GetProperty(MajorVersionPropertyPath);
+				TSharedPtr<IPropertyHandle> MinorVersionHandle = DetailLayout.GetProperty(MinorVersionPropertyPath);
+
+				// Invalid for UMetaSounds
+				TSharedPtr<IPropertyHandle> OutputFormat = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UMetaSoundSource, OutputFormat));
+				if (OutputFormat.IsValid())
 				{
-					IDetailCategoryBuilder& GeneralCategoryBuilder = DetailLayout.EditCategory("MetaSound");
-					const FName AuthorPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetAuthorPropertyName());
-					const FName CategoryHierarchyPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetCategoryHierarchyPropertyName());
-					const FName DescPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetDescriptionPropertyName());
-					const FName DisplayNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetDisplayNamePropertyName());
-					const FName KeywordsPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetKeywordsPropertyName());
-					const FName IsDeprecatedPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetIsDeprecatedPropertyName());
-
-					const FName ClassNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetClassNamePropertyName());
-					const FName ClassNameNamePropertyPath = BuildChildPath(ClassNamePropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendClassName, Name));
-
-					const FName VersionPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetVersionPropertyName());
-					const FName MajorVersionPropertyPath = BuildChildPath(VersionPropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendVersionNumber, Major));
-					const FName MinorVersionPropertyPath = BuildChildPath(VersionPropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendVersionNumber, Minor));
-
-					const FName InterfaceVersionsPropertyPath = GetInterfaceVersionsPath();
-
-					TSharedPtr<IPropertyHandle> AuthorHandle = DetailLayout.GetProperty(AuthorPropertyPath);
-					TSharedPtr<IPropertyHandle> CategoryHierarchyHandle = DetailLayout.GetProperty(CategoryHierarchyPropertyPath);
-					TSharedPtr<IPropertyHandle> ClassNameHandle = DetailLayout.GetProperty(ClassNameNamePropertyPath);
-					TSharedPtr<IPropertyHandle> DisplayNameHandle = DetailLayout.GetProperty(DisplayNamePropertyPath);
-					TSharedPtr<IPropertyHandle> DescHandle = DetailLayout.GetProperty(DescPropertyPath);
-					TSharedPtr<IPropertyHandle> KeywordsHandle = DetailLayout.GetProperty(KeywordsPropertyPath);
-					TSharedPtr<IPropertyHandle> IsDeprecatedHandle = DetailLayout.GetProperty(IsDeprecatedPropertyPath);
-					TSharedPtr<IPropertyHandle> InterfaceVersionsHandle = DetailLayout.GetProperty(InterfaceVersionsPropertyPath);
-					TSharedPtr<IPropertyHandle> MajorVersionHandle = DetailLayout.GetProperty(MajorVersionPropertyPath);
-					TSharedPtr<IPropertyHandle> MinorVersionHandle = DetailLayout.GetProperty(MinorVersionPropertyPath);
-
-					// Invalid for UMetaSounds
-					TSharedPtr<IPropertyHandle> OutputFormat = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UMetaSoundSource, OutputFormat));
-					if (OutputFormat.IsValid())
+					if (MetaSoundSource.IsValid())
 					{
-						if (MetaSoundSource.IsValid())
+						OutputFormat->SetOnPropertyValuePreChange(FSimpleDelegate::CreateLambda([Source = MetaSoundSource]()
 						{
-							OutputFormat->SetOnPropertyValuePreChange(FSimpleDelegate::CreateLambda([Source = MetaSoundSource]()
+							if (Source.IsValid())
 							{
-								if (Source.IsValid())
+								TSharedPtr<FEditor> ParentEditor = FGraphBuilder::GetEditorForMetasound(*Source.Get());
+								if (ParentEditor.IsValid())
 								{
-									TSharedPtr<FEditor> ParentEditor = FGraphBuilder::GetEditorForMetasound(*Source.Get());
-									if (ParentEditor.IsValid())
-									{
-										ParentEditor->Stop();
-									};
-								}
-							}));
+									ParentEditor->Stop();
+								};
+							}
+						}));
 
-							OutputFormat->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([Source = MetaSoundSource]()
+						OutputFormat->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([Source = MetaSoundSource]()
+						{
+							if (Source.IsValid())
 							{
-								if (Source.IsValid())
+								TSharedPtr<FEditor> ParentEditor = FGraphBuilder::GetEditorForMetasound(*Source.Get());
+								if (ParentEditor.IsValid())
 								{
-									TSharedPtr<FEditor> ParentEditor = FGraphBuilder::GetEditorForMetasound(*Source.Get());
-									if (ParentEditor.IsValid())
-									{
-										ParentEditor->CreateAnalyzers();
-									};
-								}
-							}));
-						}
-
-						TSharedRef<SWidget> OutputFormatValueWidget = OutputFormat->CreatePropertyValueWidget();
-						OutputFormatValueWidget->SetEnabled(IsGraphEditableAttribute);
-
-						static const FText OutputFormatName = LOCTEXT("MetasoundOutputFormatPropertyName", "Output Format");
-						GeneralCategoryBuilder.AddCustomRow(OutputFormatName)
-						.NameContent()
-						[
-							OutputFormat->CreatePropertyNameWidget()
-						]
-						.ValueContent()
-						[
-							OutputFormatValueWidget
-						];
-
-						OutputFormat->MarkHiddenByCustomization();
+									ParentEditor->CreateAnalyzers(*Source.Get());
+								};
+							}
+						}));
 					}
 
-					// Updates FText properties on open editors if required
-					{
-						FSimpleDelegate RegisterOnChange = FSimpleDelegate::CreateLambda([this]()
-							{
-								if (MetaSound.IsValid())
-								{
-									if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound.Get()))
-									{
-										MetaSoundAsset->GetDocumentChecked().RootGraph.Style.UpdateChangeID();
-									}
-									constexpr bool bForceViewSynchronization = true;
-									FGraphBuilder::RegisterGraphWithFrontend(*MetaSound.Get(), bForceViewSynchronization);
-								}
-							});
-						AuthorHandle->SetOnChildPropertyValueChanged(RegisterOnChange);
-						DescHandle->SetOnPropertyValueChanged(RegisterOnChange);
-						DisplayNameHandle->SetOnPropertyValueChanged(RegisterOnChange);
-						KeywordsHandle->SetOnPropertyValueChanged(RegisterOnChange);
-						KeywordsHandle->SetOnChildPropertyValueChanged(RegisterOnChange);
-						IsDeprecatedHandle->SetOnPropertyValueChanged(RegisterOnChange);
-					}
+					TSharedRef<SWidget> OutputFormatValueWidget = OutputFormat->CreatePropertyValueWidget();
+					OutputFormatValueWidget->SetEnabled(IsGraphEditableAttribute);
 
-					GeneralCategoryBuilder.AddProperty(DisplayNameHandle);
-					GeneralCategoryBuilder.AddProperty(DescHandle);
-					GeneralCategoryBuilder.AddProperty(AuthorHandle);
-					GeneralCategoryBuilder.AddProperty(IsDeprecatedHandle);
-					GeneralCategoryBuilder.AddProperty(MajorVersionHandle);
-					GeneralCategoryBuilder.AddProperty(MinorVersionHandle);
-
-					static const FText ClassGuidName = LOCTEXT("MetasoundClassGuidPropertyName", "Class Guid");
-					GeneralCategoryBuilder.AddCustomRow(ClassGuidName).NameContent()
+					static const FText OutputFormatName = LOCTEXT("MetasoundOutputFormatPropertyName", "Output Format");
+					GeneralCategoryBuilder.AddCustomRow(OutputFormatName)
+					.NameContent()
 					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.VAlign(VAlign_Center)
-						[
-							SNew(STextBlock)
-							.Text(ClassGuidName)
-							.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-						]
+						OutputFormat->CreatePropertyNameWidget()
 					]
 					.ValueContent()
 					[
-						ClassNameHandle->CreatePropertyValueWidget()
+						OutputFormatValueWidget
 					];
-					GeneralCategoryBuilder.AddProperty(CategoryHierarchyHandle);
-					GeneralCategoryBuilder.AddProperty(KeywordsHandle);
 
-					DetailLayout.HideCategory("Attenuation");
-					DetailLayout.HideCategory("Developer");
-					DetailLayout.HideCategory("Effects");
-					DetailLayout.HideCategory("Loading");
-					DetailLayout.HideCategory("Modulation");
-					DetailLayout.HideCategory("Sound");
-					DetailLayout.HideCategory("Voice Management");
+					OutputFormat->MarkHiddenByCustomization();
 				}
-				break;
 
-				case EMetasoundActiveDetailView::General:
-				default:
-					DetailLayout.HideCategory("MetaSound");
-
-					TArray<TSharedRef<IPropertyHandle>>DeveloperProperties;
-					TArray<TSharedRef<IPropertyHandle>>SoundProperties;
-
-					DetailLayout.EditCategory("Sound")
-						.GetDefaultProperties(SoundProperties);
-					DetailLayout.EditCategory("Developer")
-						.GetDefaultProperties(DeveloperProperties);
-
-					auto HideProperties = [](const TSet<FName>& PropsToHide, const TArray<TSharedRef<IPropertyHandle>>& Properties)
+				// Updates FText properties on open editors if required
+				{
+					FSimpleDelegate RegisterOnChange = FSimpleDelegate::CreateLambda([this]()
 					{
-						for (TSharedRef<IPropertyHandle> Property : Properties)
+						if (Builder.IsValid())
 						{
-							if (PropsToHide.Contains(Property->GetProperty()->GetFName()))
+							FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+							if (DocBuilder.IsValid())
 							{
-								Property->MarkHiddenByCustomization();
+								DocBuilder.GetConstDocumentChecked().RootGraph.Style.UpdateChangeID();
 							}
+							constexpr bool bForceViewSynchronization = true;
+							FGraphBuilder::RegisterGraphWithFrontend(DocBuilder.CastDocumentObjectChecked<UObject>(), bForceViewSynchronization);
 						}
-					};
+					});
+					AuthorHandle->SetOnChildPropertyValueChanged(RegisterOnChange);
+					DescHandle->SetOnPropertyValueChanged(RegisterOnChange);
+					DisplayNameHandle->SetOnPropertyValueChanged(RegisterOnChange);
+					KeywordsHandle->SetOnPropertyValueChanged(RegisterOnChange);
+					KeywordsHandle->SetOnChildPropertyValueChanged(RegisterOnChange);
+					IsDeprecatedHandle->SetOnPropertyValueChanged(RegisterOnChange);
+				}
 
-					static const TSet<FName> SoundPropsToHide =
-					{
-						GET_MEMBER_NAME_CHECKED(USoundWave, bLooping),
-						GET_MEMBER_NAME_CHECKED(USoundWave, SoundGroup)
-					};
-					HideProperties(SoundPropsToHide, SoundProperties);
+				GeneralCategoryBuilder.AddProperty(DisplayNameHandle);
+				GeneralCategoryBuilder.AddProperty(DescHandle);
+				GeneralCategoryBuilder.AddProperty(AuthorHandle);
+				GeneralCategoryBuilder.AddProperty(IsDeprecatedHandle);
+				GeneralCategoryBuilder.AddProperty(MajorVersionHandle);
+				GeneralCategoryBuilder.AddProperty(MinorVersionHandle);
 
-					static const TSet<FName> DeveloperPropsToHide =
-					{
-						GET_MEMBER_NAME_CHECKED(USoundBase, Duration),
-						GET_MEMBER_NAME_CHECKED(USoundBase, MaxDistance),
-						GET_MEMBER_NAME_CHECKED(USoundBase, TotalSamples)
-					};
-					HideProperties(DeveloperPropsToHide, DeveloperProperties);
+				static const FText ClassGuidName = LOCTEXT("MetasoundClassGuidPropertyName", "Class Guid");
+				GeneralCategoryBuilder.AddCustomRow(ClassGuidName).NameContent()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(ClassGuidName)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+					]
+				]
+				.ValueContent()
+				[
+					ClassNameHandle->CreatePropertyValueWidget()
+				];
+				GeneralCategoryBuilder.AddProperty(CategoryHierarchyHandle);
+				GeneralCategoryBuilder.AddProperty(KeywordsHandle);
 
-					break;
+				DetailLayout.HideCategory("Attenuation");
+				DetailLayout.HideCategory("Developer");
+				DetailLayout.HideCategory("Effects");
+				DetailLayout.HideCategory("Loading");
+				DetailLayout.HideCategory("Modulation");
+				DetailLayout.HideCategory("Sound");
+				DetailLayout.HideCategory("Voice Management");
 			}
+			break;
 
-			// Hack to hide parent structs for nested metadata properties
-			DetailLayout.HideCategory("CustomView");
+			case EMetasoundActiveDetailView::General:
+			default:
+				DetailLayout.HideCategory("MetaSound");
 
-			DetailLayout.HideCategory("Analysis");
-			DetailLayout.HideCategory("Curves");
-			DetailLayout.HideCategory("File Path");
-			DetailLayout.HideCategory("Format");
-			DetailLayout.HideCategory("Info");
-			DetailLayout.HideCategory("Loading");
-			DetailLayout.HideCategory("Playback");
-			DetailLayout.HideCategory("Subtitles");
-			DetailLayout.HideCategory("Waveform Processing");
+				TArray<TSharedRef<IPropertyHandle>>DeveloperProperties;
+				TArray<TSharedRef<IPropertyHandle>>SoundProperties;
+
+				DetailLayout.EditCategory("Sound")
+					.GetDefaultProperties(SoundProperties);
+				DetailLayout.EditCategory("Developer")
+					.GetDefaultProperties(DeveloperProperties);
+
+				auto HideProperties = [](const TSet<FName>& PropsToHide, const TArray<TSharedRef<IPropertyHandle>>& Properties)
+				{
+					for (TSharedRef<IPropertyHandle> Property : Properties)
+					{
+						if (PropsToHide.Contains(Property->GetProperty()->GetFName()))
+						{
+							Property->MarkHiddenByCustomization();
+						}
+					}
+				};
+
+				static const TSet<FName> SoundPropsToHide =
+				{
+					GET_MEMBER_NAME_CHECKED(USoundWave, bLooping),
+					GET_MEMBER_NAME_CHECKED(USoundWave, SoundGroup)
+				};
+				HideProperties(SoundPropsToHide, SoundProperties);
+
+				static const TSet<FName> DeveloperPropsToHide =
+				{
+					GET_MEMBER_NAME_CHECKED(USoundBase, Duration),
+					GET_MEMBER_NAME_CHECKED(USoundBase, MaxDistance),
+					GET_MEMBER_NAME_CHECKED(USoundBase, TotalSamples)
+				};
+				HideProperties(DeveloperPropsToHide, DeveloperProperties);
+
+				break;
 		}
 
-		FMetasoundInterfacesDetailCustomization::FMetasoundInterfacesDetailCustomization()
+		// Hack to hide parent structs for nested metadata properties
+		DetailLayout.HideCategory("CustomView");
+
+		DetailLayout.HideCategory("Analysis");
+		DetailLayout.HideCategory("Curves");
+		DetailLayout.HideCategory("File Path");
+		DetailLayout.HideCategory("Format");
+		DetailLayout.HideCategory("Info");
+		DetailLayout.HideCategory("Loading");
+		DetailLayout.HideCategory("Playback");
+		DetailLayout.HideCategory("Subtitles");
+		DetailLayout.HideCategory("Waveform Processing");
+	}
+
+	void FMetasoundInterfacesDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
+	{
+		TArray<TWeakObjectPtr<UObject>> Objects;
+		DetailLayout.GetObjectsBeingCustomized(Objects);
+
+		// Only support modifying a single MetaSound at a time (Multiple
+		// MetaSound editing will be covered most likely by separate tool).
+		if (Objects.Num() > 1)
 		{
-			IsGraphEditableAttribute = TAttribute<bool>::Create([this]()
+			return;
+		}
+		if (UMetasoundInterfacesView* InterfacesView = CastChecked<UMetasoundInterfacesView>(Objects.Last()))
+		{
+			if (UObject* MetaSound = InterfacesView->GetMetasound().Get())
+			{
+				InitBuilder(*MetaSound);
+			}
+		}
+
+		UpdateInterfaceNames();
+
+		SAssignNew(InterfaceComboBox, SSearchableComboBox)
+			.OptionsSource(&AddableInterfaceNames)
+			.OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
+			{
+				return SNew(STextBlock)
+					.Text(FText::FromString(*InItem));
+			})
+			.OnSelectionChanged_Lambda([this](TSharedPtr<FString> NameToAdd, ESelectInfo::Type InSelectInfo)
 			{
 				using namespace Metasound;
 				using namespace Metasound::Frontend;
-				if (const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound.Get()))
+
+				if (Builder.IsValid() && InSelectInfo != ESelectInfo::OnNavigation)
 				{
-					FConstGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
-					return GraphHandle->GetGraphStyle().bIsGraphEditable;
-				}
-
-				return false;
-			});
-		}
-
-		void FMetasoundInterfacesDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
-		{
-			TArray<TWeakObjectPtr<UObject>> Objects;
-			DetailLayout.GetObjectsBeingCustomized(Objects);
-
-			// Only support modifying a single MetaSound at a time (Multiple
-			// MetaSound editing will be covered most likely by separate tool).
-			if (Objects.Num() > 1)
-			{
-				return;
-			}
-			if (UMetasoundInterfacesView* InterfacesView = CastChecked<UMetasoundInterfacesView>(Objects.Last()))
-			{
-				MetaSound = InterfacesView->GetMetasound();
-			}
-
-			UpdateInterfaceNames();
-
-			SAssignNew(InterfaceComboBox, SSearchableComboBox)
-				.OptionsSource(&AddableInterfaceNames)
-				.OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
-				{
-					return SNew(STextBlock)
-						.Text(FText::FromString(*InItem));
-				})
-				.OnSelectionChanged_Lambda([this](TSharedPtr<FString> NameToAdd, ESelectInfo::Type InSelectInfo)
-				{
-					using namespace Metasound;
-					using namespace Metasound::Frontend;
-
-					FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound.Get());
-					if (!ensure(MetaSoundAsset))
+					FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+					UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
+					FMetasoundFrontendInterface InterfaceToAdd;
+					const FName InterfaceName { *NameToAdd.Get() };
+					if (ensure(ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceName, InterfaceToAdd)))
 					{
-						return;
-					}
-
-					if (InSelectInfo != ESelectInfo::OnNavigation)
-					{
-						FMetasoundFrontendInterface InterfaceToAdd;
-						const FName InterfaceName { *NameToAdd.Get() };
-						if (ensure(ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceName, InterfaceToAdd)))
-						{
-							const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddInterfaceTransactionFormat", "Add MetaSound Interface '{0}'"), FText::FromString(InterfaceToAdd.Version.ToString())));
-							MetaSound.Get()->Modify();
-							MetaSoundAsset->GetGraphChecked().Modify();
-							FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound.Get());
-							FModifyInterfaceOptions Options({ }, { InterfaceToAdd });
-							Options.bSetDefaultNodeLocations = false; // Don't automatically add nodes to ed graph
-							Builder.ModifyInterfaces(MoveTemp(Options));
-						}
-
-						UpdateInterfaceNames();
-						InterfaceComboBox->RefreshOptions();
-						FGraphBuilder::RegisterGraphWithFrontend(*MetaSound.Get());
-					}
-				})
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("UpdateInterfaceAction", "Add Interface..."))
-					.IsEnabled(IsGraphEditableAttribute)
-				];
-
-			TSharedRef<SWidget> InterfaceUtilities = SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.Padding(2.0f)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					InterfaceComboBox->AsShared()
-				]
-			+ SHorizontalBox::Slot()
-				.Padding(2.0f)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this]()
-					{
-						using namespace Frontend;
-
-						FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound.Get());
-						if (!ensure(MetaSoundAsset))
-						{
-							return;
-						}
-
-						TArray<FMetasoundFrontendInterface> ImplementedInterfaces;
-						Algo::Transform(ImplementedInterfaceNames, ImplementedInterfaces, [](const FName& Name)
-						{
-							FMetasoundFrontendInterface Interface;
-							ISearchEngine::Get().FindInterfaceWithHighestVersion(Name, Interface);
-							return Interface;
-						});
-
-						{
-							const FScopedTransaction Transaction(LOCTEXT("RemoveAllInterfacesTransaction", "Remove All MetaSound Interfaces"));
-							MetaSound.Get()->Modify();
-							MetaSoundAsset->GetGraphChecked().Modify();
-
-							FDocumentHandle DocumentHandle = MetaSoundAsset->GetDocumentHandle();
-							FModifyRootGraphInterfaces({ ImplementedInterfaces }, { }).Transform(DocumentHandle);
-						}
-
-						UpdateInterfaceNames();
-						InterfaceComboBox->RefreshOptions();
-						FGraphBuilder::RegisterGraphWithFrontend(*MetaSound.Get());
-
-					}), LOCTEXT("RemoveInterfaceTooltip1", "Removes all interfaces from the given MetaSound."))
-				];
-			InterfaceUtilities->SetEnabled(IsGraphEditableAttribute);
-
-			const FText HeaderName = LOCTEXT("InterfacesGroupDisplayName", "Interfaces");
-			IDetailCategoryBuilder& InterfaceCategory = DetailLayout.EditCategory("Interfaces", HeaderName);
-
-			InterfaceCategory.AddCustomRow(HeaderName)
-			[
-				InterfaceUtilities
-			];
-
-			auto CreateInterfaceEntryWidget = [&](FName InInterfaceName) -> TSharedRef<SWidget>
-			{
-				using namespace Frontend;
-
-				FMetasoundFrontendInterface InterfaceEntry;
-				if (!ensure(ISearchEngine::Get().FindInterfaceWithHighestVersion(InInterfaceName, InterfaceEntry)))
-				{
-					return SNullWidget::NullWidget;
-				}
-
-				TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, InInterfaceName, InterfaceEntry]()
-				{
-					using namespace Frontend;
-
-					FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSound.Get());
-					if (!ensure(MetaSoundAsset))
-					{
-						return;
-					}
-
-					{
-						const FScopedTransaction Transaction(FText::Format(LOCTEXT("RemoveInterfaceTransactionFormat", "Remove MetaSound Interface '{0}'"), FText::FromString(InterfaceEntry.Version.ToString())));
-						MetaSound.Get()->Modify();
-						MetaSoundAsset->GetGraphChecked().Modify();
-
-						FDocumentHandle DocumentHandle = MetaSoundAsset->GetDocumentHandle();
-						FModifyRootGraphInterfaces({ InterfaceEntry }, { }).Transform(DocumentHandle);
+						const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddInterfaceTransactionFormat", "Add MetaSound Interface '{0}'"), FText::FromString(InterfaceToAdd.Version.ToString())));
+						MetaSound.Modify();
+						FModifyInterfaceOptions Options({ }, { InterfaceToAdd });
+						Options.bSetDefaultNodeLocations = false; // Don't automatically add nodes to ed graph
+						DocBuilder.ModifyInterfaces(MoveTemp(Options));
 					}
 
 					UpdateInterfaceNames();
 					InterfaceComboBox->RefreshOptions();
-					FGraphBuilder::RegisterGraphWithFrontend(*MetaSound.Get());
+					FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
+				}
+			})
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("UpdateInterfaceAction", "Add Interface..."))
+				.IsEnabled(IsGraphEditableAttribute)
+			];
 
-				}), LOCTEXT("RemoveInterfaceTooltip2", "Removes the associated interface from the MetaSound."));
-
-				TSharedRef<SWidget> EntryWidget = SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.Padding(2.0f)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(STextBlock)
-						.Text(FText::FromName(InterfaceEntry.Version.Name))
-					]
-				+ SHorizontalBox::Slot()
-					.Padding(2.0f)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						RemoveButtonWidget
-					];
-
-				EntryWidget->SetEnabled(IsGraphEditableAttribute);
-				return EntryWidget;
-			};
-
-			TArray<FName> InterfaceNames = ImplementedInterfaceNames.Array();
-			InterfaceNames.Sort([](const FName& A, const FName& B) { return A.LexicalLess(B); });
-			for (const FName& InterfaceName : InterfaceNames)
-			{
-				InterfaceCategory.AddCustomRow(FText::FromName(InterfaceName))
-				[
-					CreateInterfaceEntryWidget(InterfaceName)
-				];
-			}
-		}
-
-		void FMetasoundInterfacesDetailCustomization::UpdateInterfaceNames()
-		{
-			AddableInterfaceNames.Reset();
-			ImplementedInterfaceNames.Reset();
-
-			const UObject* MetaSoundObject = MetaSound.Get();
-			if (const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSoundObject))
-			{
-				auto GetVersionName = [](const FMetasoundFrontendVersion& Version) { return Version.Name; };
-				const UClass* MetaSoundClass = MetaSoundObject->GetClass();
-				auto CanAddOrRemoveInterface = [ClassName = MetaSoundClass->GetClassPathName()](const FMetasoundFrontendVersion& Version)
+		TSharedRef<SWidget> InterfaceUtilities = SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.Padding(2.0f)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				InterfaceComboBox->AsShared()
+			]
+		+ SHorizontalBox::Slot()
+			.Padding(2.0f)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this]()
 				{
 					using namespace Frontend;
 
-					const FInterfaceRegistryKey Key = GetInterfaceRegistryKey(Version);
-					if (const IInterfaceRegistryEntry* Entry = IInterfaceRegistry::Get().FindInterfaceRegistryEntry(Key))
+					if (!Builder.IsValid())
 					{
-						if (const FMetasoundFrontendInterfaceUClassOptions* Options = Entry->GetInterface().FindClassOptions(ClassName))
-						{
-							return Options->bIsModifiable;
-						}
-
-						// If no options are found for the given class, interface is modifiable by default.
-						return true;
+						return;
 					}
 
-					return false;
-				};
+					FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+					if (!DocBuilder.IsValid())
+					{
+						return;
+					}
 
-				const TSet<FMetasoundFrontendVersion>& ImplementedInterfaces = MetaSoundAsset->GetConstDocumentChecked().Interfaces;
-				Algo::TransformIf(ImplementedInterfaces, ImplementedInterfaceNames, CanAddOrRemoveInterface, GetVersionName);
+					TArray<FMetasoundFrontendInterface> ImplementedInterfaces;
+					Algo::Transform(ImplementedInterfaceNames, ImplementedInterfaces, [](const FName& Name)
+					{
+						FMetasoundFrontendInterface Interface;
+						ISearchEngine::Get().FindInterfaceWithHighestVersion(Name, Interface);
+						return Interface;
+					});
 
-				TArray<FMetasoundFrontendInterface> Interfaces = Frontend::ISearchEngine::Get().FindAllInterfaces();
-				for (const FMetasoundFrontendInterface& Interface : Interfaces)
+					UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
+					{
+						const FScopedTransaction Transaction(LOCTEXT("RemoveAllInterfacesTransaction", "Remove All MetaSound Interfaces"));
+						MetaSound.Modify();
+						FModifyInterfaceOptions Options(ImplementedInterfaces, { });
+						Options.bSetDefaultNodeLocations = false; // Don't automatically add nodes to ed graph
+						DocBuilder.ModifyInterfaces(MoveTemp(Options));
+					}
+
+					UpdateInterfaceNames();
+					InterfaceComboBox->RefreshOptions();
+					FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
+
+				}), LOCTEXT("RemoveInterfaceTooltip1", "Removes all interfaces from the given MetaSound."))
+			];
+		InterfaceUtilities->SetEnabled(IsGraphEditableAttribute);
+
+		const FText HeaderName = LOCTEXT("InterfacesGroupDisplayName", "Interfaces");
+		IDetailCategoryBuilder& InterfaceCategory = DetailLayout.EditCategory("Interfaces", HeaderName);
+
+		InterfaceCategory.AddCustomRow(HeaderName)
+		[
+			InterfaceUtilities
+		];
+
+		auto CreateInterfaceEntryWidget = [&](FName InInterfaceName) -> TSharedRef<SWidget>
+		{
+			using namespace Frontend;
+
+			FMetasoundFrontendInterface InterfaceEntry;
+			if (!ensure(ISearchEngine::Get().FindInterfaceWithHighestVersion(InInterfaceName, InterfaceEntry)))
+			{
+				return SNullWidget::NullWidget;
+			}
+
+			TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, InInterfaceName, InterfaceEntry]()
+			{
+				using namespace Frontend;
+
+				if (!Builder.IsValid())
 				{
-					if (!ImplementedInterfaceNames.Contains(Interface.Version.Name))
-					{
-						if (CanAddOrRemoveInterface(Interface.Version))
-						{
-							FString Name = Interface.Version.Name.ToString();
-							AddableInterfaceNames.Add(MakeShared<FString>(MoveTemp(Name)));
-						}
-					}
+					return;
 				}
 
-				AddableInterfaceNames.Sort([](const TSharedPtr<FString>& A, const TSharedPtr<FString>& B) { return A->Compare(*B) < 0; });
-			}
+				FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+				if (!DocBuilder.IsValid())
+				{
+					return;
+				}
+
+				UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
+				{
+					const FScopedTransaction Transaction(FText::Format(LOCTEXT("RemoveInterfaceTransactionFormat", "Remove MetaSound Interface '{0}'"), FText::FromString(InterfaceEntry.Version.ToString())));
+					MetaSound.Modify();
+					FModifyInterfaceOptions Options({ InterfaceEntry }, {});
+					Options.bSetDefaultNodeLocations = false; // Don't automatically add nodes to ed graph
+					DocBuilder.ModifyInterfaces(MoveTemp(Options));
+				}
+
+				UpdateInterfaceNames();
+				InterfaceComboBox->RefreshOptions();
+				FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
+
+			}), LOCTEXT("RemoveInterfaceTooltip2", "Removes the associated interface from the MetaSound."));
+
+			TSharedRef<SWidget> EntryWidget = SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(2.0f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(FText::FromName(InterfaceEntry.Version.Name))
+				]
+			+ SHorizontalBox::Slot()
+				.Padding(2.0f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					RemoveButtonWidget
+				];
+
+			EntryWidget->SetEnabled(IsGraphEditableAttribute);
+			return EntryWidget;
+		};
+
+		TArray<FName> InterfaceNames = ImplementedInterfaceNames.Array();
+		InterfaceNames.Sort([](const FName& A, const FName& B) { return A.LexicalLess(B); });
+		for (const FName& InterfaceName : InterfaceNames)
+		{
+			InterfaceCategory.AddCustomRow(FText::FromName(InterfaceName))
+			[
+				CreateInterfaceEntryWidget(InterfaceName)
+			];
 		}
-	} // namespace Editor
-} // namespace Metasound
+	}
+
+	void FMetasoundInterfacesDetailCustomization::UpdateInterfaceNames()
+	{
+		AddableInterfaceNames.Reset();
+		ImplementedInterfaceNames.Reset();
+
+		if (const UObject* MetaSoundObject = GetMetaSound())
+		{
+			auto GetVersionName = [](const FMetasoundFrontendVersion& Version) { return Version.Name; };
+			const UClass* MetaSoundClass = MetaSoundObject->GetClass();
+			auto CanAddOrRemoveInterface = [ClassName = MetaSoundClass->GetClassPathName()](const FMetasoundFrontendVersion& Version)
+			{
+				using namespace Frontend;
+
+				const FInterfaceRegistryKey Key = GetInterfaceRegistryKey(Version);
+				if (const IInterfaceRegistryEntry* Entry = IInterfaceRegistry::Get().FindInterfaceRegistryEntry(Key))
+				{
+					if (const FMetasoundFrontendInterfaceUClassOptions* Options = Entry->GetInterface().FindClassOptions(ClassName))
+					{
+						return Options->bIsModifiable;
+					}
+
+					// If no options are found for the given class, interface is modifiable by default.
+					return true;
+				}
+
+				return false;
+			};
+
+			const TSet<FMetasoundFrontendVersion>& ImplementedInterfaces = Builder->GetBuilder().GetConstDocumentChecked().Interfaces;
+			Algo::TransformIf(ImplementedInterfaces, ImplementedInterfaceNames, CanAddOrRemoveInterface, GetVersionName);
+
+			TArray<FMetasoundFrontendInterface> Interfaces = Frontend::ISearchEngine::Get().FindAllInterfaces();
+			for (const FMetasoundFrontendInterface& Interface : Interfaces)
+			{
+				if (!ImplementedInterfaceNames.Contains(Interface.Version.Name))
+				{
+					if (CanAddOrRemoveInterface(Interface.Version))
+					{
+						FString Name = Interface.Version.Name.ToString();
+						AddableInterfaceNames.Add(MakeShared<FString>(MoveTemp(Name)));
+					}
+				}
+			}
+
+			AddableInterfaceNames.Sort([](const TSharedPtr<FString>& A, const TSharedPtr<FString>& B) { return A->Compare(*B) < 0; });
+		}
+	}
+} // namespace Metasound::Editor
 #undef LOCTEXT_NAMESPACE

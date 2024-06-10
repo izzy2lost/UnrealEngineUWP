@@ -12,16 +12,31 @@
 // Forward Declarations
 class FPropertyRestriction;
 class IDetailLayoutBuilder;
+class UMetaSoundBuilderBase;
 struct FPointerEvent;
 
 namespace Metasound
 {
 	namespace Editor
 	{
-		class FMetasoundDetailCustomization : public IDetailCustomization
+		class FMetaSoundDetailCustomizationBase : public IDetailCustomization
+		{
+		public:
+			virtual ~FMetaSoundDetailCustomizationBase() = default;
+
+		protected:
+			UObject* GetMetaSound() const;
+			void InitBuilder(UObject& MetaSound);
+
+			TAttribute<bool> IsGraphEditableAttribute;
+			TStrongObjectPtr<UMetaSoundBuilderBase> Builder;
+		};
+
+		class FMetasoundDetailCustomization : public FMetaSoundDetailCustomizationBase
 		{
 		public:
 			FMetasoundDetailCustomization(FName InDocumentPropertyName);
+			virtual ~FMetasoundDetailCustomization() = default;
 
 			// IDetailCustomization interface
 			virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
@@ -32,18 +47,12 @@ namespace Metasound
 			FName GetMetadataRootClassPath() const;
 			FName GetMetadataPropertyPath() const;
 
-			TAttribute<bool> IsGraphEditableAttribute;
-
-			TWeakObjectPtr<UObject> MetaSound;
-
 			FName DocumentPropertyName;
 		};
 
-		class FMetasoundInterfacesDetailCustomization : public IDetailCustomization
+		class FMetasoundInterfacesDetailCustomization : public FMetaSoundDetailCustomizationBase
 		{
 		public:
-			FMetasoundInterfacesDetailCustomization();
-
 			// IDetailCustomization interface
 			virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 			// End of IDetailCustomization interface
@@ -56,8 +65,6 @@ namespace Metasound
 			TSet<FName> ImplementedInterfaceNames;
 			TSharedPtr<SSearchableComboBox> InterfaceComboBox;
 			TAttribute<bool> IsGraphEditableAttribute;
-
-			TWeakObjectPtr<UObject> MetaSound;
 		};
 	} // namespace Editor
 } // namespace Metasound

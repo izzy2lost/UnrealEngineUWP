@@ -1571,7 +1571,7 @@ struct FMetasoundFrontendClassStyle
 	static FMetasoundFrontendClassStyle GenerateClassStyle(const Metasound::FNodeDisplayStyle& InNodeDisplayStyle);
 
 	// Editor only ID that allows for pumping view to reflect changes to class.
-	void UpdateChangeID()
+	void UpdateChangeID() const
 	{
 		ChangeID = FGuid::NewGuid();
 	}
@@ -1582,8 +1582,9 @@ struct FMetasoundFrontendClassStyle
 	}
 
 private:
+	// TODO: Deprecate this change behavior in favor of using the builder API transaction counters
 	UPROPERTY(Transient)
-	FGuid ChangeID;
+	mutable FGuid ChangeID;
 #endif // WITH_EDITORONLY_DATA
 };
 
