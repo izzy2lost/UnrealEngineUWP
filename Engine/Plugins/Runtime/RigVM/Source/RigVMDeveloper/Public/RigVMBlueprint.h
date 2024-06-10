@@ -581,6 +581,9 @@ private:
 
 	UPROPERTY(transient, DuplicateTransient)
 	int32 VMRecompilationBracket;
+	
+	UPROPERTY(transient, DuplicateTransient)
+    bool bSkipDirtyBlueprintStatus;
 
 	FRigVMGraphModifiedEvent ModifiedEvent;
 	void Notify(ERigVMGraphNotifType InNotifType, UObject* InSubject);
@@ -832,6 +835,7 @@ private:
 	friend class FRigVMVariantDetailCustomization;
 	friend class FRigVMTreeAssetVariantFilter;
 	friend class FRigVMTreePackageNode;
+	friend class SRigVMGraphNode;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope

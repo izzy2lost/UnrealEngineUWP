@@ -174,6 +174,7 @@ URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 	bVMRecompilationRequired = false;
 	bIsCompiling = false;
 	VMRecompilationBracket = 0;
+	bSkipDirtyBlueprintStatus = false;
 
 	bUpdatingExternalVariables = false;
 	
@@ -3024,8 +3025,13 @@ void URigVMBlueprint::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 		{
 			if(bMarkBlueprintAsStructurallyModifiedPending)
 			{
+				const TEnumAsByte<EBlueprintStatus> OldStatus = Status;
 				bMarkBlueprintAsStructurallyModifiedPending = false;
 				FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(this);
+				if (bSkipDirtyBlueprintStatus)
+				{
+					Status = OldStatus;
+				}
 			}
 		}
 		else
