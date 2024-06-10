@@ -22,12 +22,9 @@ struct FSubstrateSingleSlabData
 	float3 F90;
 	float2 Alpha0;
 	float2 Alpha1;
-	float FuzzRoughness;
-
-	float FuzzAttenuation;
 	float3 Spec0W;
 	float3 Spec1W;
-	float FuzzAmount;
+	FSubstrateSheenData Fuzz;
 
 	float3 LobeCdf;
 	float4 LobePdf;
@@ -43,27 +40,23 @@ struct FSubstrateSingleSlabData
 		F0 = Payload.SpecularColor;
 		F90 = Payload.SpecularEdgeColor * F0RGBToMicroOcclusion(F0);
 
-		FuzzRoughness = MakeRoughnessSafe(Payload.FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
-
 		const float NoV = saturate(V.z);
 		// SUBSTRATE_TODO: Add support for F82 model?
 		FBxDFEnergyTermsRGB Spec0 = ComputeGGXSpecEnergyTermsRGB(Payload.RoughnessData.x, NoV, F0, F90);
 		FBxDFEnergyTermsRGB Spec1 = ComputeGGXSpecEnergyTermsRGB(Payload.RoughnessData.y, NoV, F0, F90);
-		FBxDFEnergyTermsA Fuzz = ComputeSheenEnergyTerms(NoV, FuzzRoughness);
+		Fuzz.Prepare(V, Payload.FuzzRoughness, Payload.FuzzAmount);
 
 		// save the parts needed during eval/sampling
 		Spec0W = Spec0.W;
 		Spec1W = Spec1.W;
-		FuzzAmount = Payload.FuzzAmount * Fuzz.W;
-		
+
 		const float3 SpecE = lerp(Spec0.E, Spec1.E, Payload.RoughnessData.z);
 
-		FuzzAttenuation = 1.0 - Payload.FuzzAmount * Fuzz.E;
-		DiffuseWeight = FuzzAttenuation * (1.0 - Luminance(SpecE));
+		DiffuseWeight = Fuzz.Attenuation * (1.0 - Luminance(SpecE));
 
-		const float3 Spec0Albedo = FuzzAttenuation * (1.0 - Payload.RoughnessData.z) * Spec0.E;
-		const float3 Spec1Albedo = FuzzAttenuation * (      Payload.RoughnessData.z) * Spec1.E;
-		const float3 FuzzAlbedo = Payload.FuzzAmount * Fuzz.E * Payload.FuzzColor;
+		const float3 Spec0Albedo = Fuzz.Attenuation * (1.0 - Payload.RoughnessData.z) * Spec0.E;
+		const float3 Spec1Albedo = Fuzz.Attenuation * (      Payload.RoughnessData.z) * Spec1.E;
+		const float3 FuzzAlbedo = Fuzz.Scale * Payload.FuzzColor;
 
 		// Now prepare a cdf/pdf for lobe selection
 		float3 MaxLobeWeight = Payload.GetMaxLobeWeight();
@@ -125,7 +118,7 @@ FMaterialSample Substrate_SampleMaterial(
 	{
 		// cloth lobe
 		RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.z, 1.0);
-		L = SampleSheenDirection(V, Data.FuzzRoughness, RandSample.xy);
+		L = Data.Fuzz.Sample(RandSample.xy);
 		H = normalize(L + V);
 	}
 
@@ -144,7 +137,8 @@ FMaterialSample Substrate_SampleMaterial(
 	const float2 GGXResult1 = GGXEvalReflection(L, V, H, Data.Alpha1);
 	const float Spec0Pdf = GGXResult0.y;
 	const float Spec1Pdf = GGXResult1.y;
-	const float ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
+	const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+	const float ClothPdf = ClothResult.w;
 
 	const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
 	if (bSampledDiffuse)
@@ -164,9 +158,9 @@ FMaterialSample Substrate_SampleMaterial(
 		const float3 FTint = SubstrateSpecularTint(Payload, NoV, NoL, VoH, NoH);
 #if SUBSTRATE_FRESNEL_F82
 		// SUBSTRATE_TODO: Need to tune the logic for specular micro-occlusion ...
-		const float3 F = Data.FuzzAttenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
+		const float3 F = Data.Fuzz.Attenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
 #else
-		const float3 F = Data.FuzzAttenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
+		const float3 F = Data.Fuzz.Attenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
 #endif
 
 		Result.AddLobeWithMIS((1.0 - Payload.RoughnessData.z) * F * GGXResult0.x * Data.Spec0W, Spec0Pdf, Data.LobePdf.y);
@@ -179,12 +173,7 @@ FMaterialSample Substrate_SampleMaterial(
 	else
 	{
 		// Cloth Lobe
-		float3 ClothWeight = 0;
-		if (NoV > 0 && NoL > 0)
-		{
-			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-		}
-		Result.AddLobeWithMIS(ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.w);
+		Result.AddLobeWithMIS(ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.w);
 		Result.ScatterType = PATHTRACER_SCATTER_SPECULAR;
 
 		Result.Pdf += Data.LobePdf.x * DiffPdf;
@@ -230,9 +219,9 @@ FMaterialEval Substrate_EvalMaterial(
 		const float2 GGXResult1 = GGXEvalReflection(L, V, H, Data.Alpha1);
 		const float3 FTint = SubstrateSpecularTint(Payload, NoV, NoL, VoH, NoH);
 #if SUBSTRATE_FRESNEL_F82
-		const float3 F = Data.FuzzAttenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
+		const float3 F = Data.Fuzz.Attenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
 #else
-		const float3 F = Data.FuzzAttenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
+		const float3 F = Data.Fuzz.Attenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
 #endif
 		SubstrateGlint(Payload, V, L, Data.Alpha0, GGXResult0.y /*Pdf*/, GGXResult0.x /*Weight*/);
 
@@ -241,14 +230,9 @@ FMaterialEval Substrate_EvalMaterial(
 	}
 	{
 		// Cloth Lobe
-		float3 ClothWeight = 0;
-		float ClothPdf = 0;
-		if (NoV > 0 && NoL > 0)
-		{
-			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-			ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
-		}
-		Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.w);
+		const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+		const float ClothPdf = ClothResult.w;
+		Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.w);
 	}
 
 	Result.Weight *= SubstrateLobeWeight(Payload, NoL);
@@ -266,13 +250,11 @@ struct FSubstrateClearCoatData
 	float3 F90;
 	float2 BaseAlpha;
 	float2 CoatAlpha;
-	float FuzzRoughness;
 
 	float CoatAttenuation;
 	FBxDFEnergyTermsRGB BaseSpec;
 	FBxDFEnergyTermsA   CoatSpec;
-	float FuzzAttenuation;
-	float FuzzAmount;
+	FSubstrateSheenData Fuzz;
 
 	float3 LobeCdf;
 	float4 LobePdf;
@@ -288,22 +270,18 @@ struct FSubstrateClearCoatData
 		F0 = Payload.SpecularColor;
 		F90 = Payload.SpecularEdgeColor * F0RGBToMicroOcclusion(F0);
 
-		FuzzRoughness = MakeRoughnessSafe(Payload.FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
-
 		const float NoV = saturate(V.z);
 		// SUBSTRATE_TODO: Add support for F82 model?
 		BaseSpec = ComputeGGXSpecEnergyTermsRGB(Payload.RoughnessData.x, NoV, F0, F90);
 		CoatSpec = ComputeGGXSpecEnergyTermsA(Payload.RoughnessData.y, NoV, CLEAR_COAT_F0);
-		FBxDFEnergyTermsA Fuzz = ComputeClothEnergyTermsA(FuzzRoughness, NoV);
+		Fuzz.Prepare(V, Payload.FuzzRoughness, Payload.FuzzAmount);
 
-		FuzzAttenuation = 1.0 - Payload.FuzzAmount * Fuzz.E;
-		FuzzAmount      = Payload.FuzzAmount * Fuzz.W;
 		CoatAttenuation = 1.0 - Payload.RoughnessData.z * CoatSpec.E;
-		DiffuseWeight = FuzzAttenuation * CoatAttenuation * (1.0 - Luminance(BaseSpec.E));
+		DiffuseWeight = Fuzz.Attenuation * CoatAttenuation * (1.0 - Luminance(BaseSpec.E));
 
-		const float3 BaseSpecAlbedo = FuzzAttenuation * CoatAttenuation * BaseSpec.E;
-		const float  CoatSpecAlbedo = FuzzAttenuation * Payload.RoughnessData.z * CoatSpec.E;
-		const float3 FuzzAlbedo = Payload.FuzzAmount * Fuzz.E * Payload.FuzzColor;
+		const float3 BaseSpecAlbedo = Fuzz.Attenuation * CoatAttenuation * BaseSpec.E;
+		const float  CoatSpecAlbedo = Fuzz.Attenuation * Payload.RoughnessData.z * CoatSpec.E;
+		const float3 FuzzAlbedo = Fuzz.Scale * Payload.FuzzColor;
 
 		// Now prepare a cdf/pdf for lobe selection
 		float3 MaxLobeWeight = Payload.GetMaxLobeWeight();
@@ -366,7 +344,7 @@ FMaterialSample SubstrateClearCoat_SampleMaterial(
 	{
 		// cloth lobe
 		RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.z, 1.0);
-		L = SampleSheenDirection(V, Data.FuzzRoughness, RandSample.xy);
+		L = Data.Fuzz.Sample(RandSample.xy);
 		H = normalize(L + V);
 	}
 
@@ -389,7 +367,8 @@ FMaterialSample SubstrateClearCoat_SampleMaterial(
 	const float2 CoatGGXResult = GGXEvalReflection(L, V, H, Data.CoatAlpha);
 	const float BaseSpecPdf = BaseGGXResult.y;
 	const float CoatSpecPdf = CoatGGXResult.y;
-	const float ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
+	const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+	const float ClothPdf = ClothResult.w;
 
 	const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
 	if (bSampledDiffuse)
@@ -407,14 +386,14 @@ FMaterialSample SubstrateClearCoat_SampleMaterial(
 		const float3 FTint = SubstrateSpecularTint(Payload, NoV, NoL, VoH, NoH);
 #if SUBSTRATE_FRESNEL_F82
 		// SUBSTRATE_TODO: Need to tune the logic for specular micro-occlusion ...
-		const float3 F = Data.FuzzAttenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
+		const float3 FBase = Data.Fuzz.Attenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
 #else
-		const float3 FBase = Data.FuzzAttenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
+		const float3 FBase = Data.Fuzz.Attenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
 #endif
 		const float3 FCoat = Payload.RoughnessData.z * ClearCoatFresnel(VoH) * FTint;
 
 		Result.AddLobeWithMIS(Data.CoatAttenuation * FBase * BaseGGXResult.x * Data.BaseSpec.W * Transmission, BaseSpecPdf, Data.LobePdf.y);
-		Result.AddLobeWithMIS(Data.FuzzAttenuation * FCoat * CoatGGXResult.x * Data.CoatSpec.W               , CoatSpecPdf, Data.LobePdf.z);
+		Result.AddLobeWithMIS(Data.Fuzz.Attenuation * FCoat * CoatGGXResult.x * Data.CoatSpec.W               , CoatSpecPdf, Data.LobePdf.z);
 		Result.Pdf += Data.LobePdf.x * DiffPdf;
 		Result.Pdf += Data.LobePdf.w * ClothPdf;
 
@@ -423,12 +402,7 @@ FMaterialSample SubstrateClearCoat_SampleMaterial(
 	else
 	{
 		// Cloth Lobe
-		float3 ClothWeight = 0;
-		if (NoL > 0 && NoV > 0)
-		{
-			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-		}
-		Result.AddLobeWithMIS(ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.w);
+		Result.AddLobeWithMIS(ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.w);
 		Result.ScatterType = PATHTRACER_SCATTER_SPECULAR;
 
 		Result.Pdf += Data.LobePdf.x * DiffPdf;
@@ -483,25 +457,20 @@ FMaterialEval SubstrateClearCoat_EvalMaterial(
 		const float3 FTint = SubstrateSpecularTint(Payload, NoV, NoL, VoH, NoH);
 #if SUBSTRATE_FRESNEL_F82
 		// SUBSTRATE_TODO: Need to tune the logic for specular micro-occlusion ...
-		const float3 F = Data.FuzzAttenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
+		const float3 FBase = Data.Fuzz.Attenuation * F_AdobeF82(Data.F0, Data.F90, VoH) * FTint;
 #else
-		const float3 FBase = Data.FuzzAttenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
+		const float3 FBase = Data.Fuzz.Attenuation * F_Schlick(Data.F0, Data.F90, VoH) * FTint;
 #endif
 		const float3 FCoat = Payload.RoughnessData.z * ClearCoatFresnel(VoH) * FTint;
 
 		Result.AddLobeWithMIS(Data.CoatAttenuation * FBase * BaseGGXResult.x * Data.BaseSpec.W * Transmission, BaseSpecPdf, Data.LobePdf.y);
-		Result.AddLobeWithMIS(Data.FuzzAttenuation * FCoat * CoatGGXResult.x * Data.CoatSpec.W               , CoatSpecPdf, Data.LobePdf.z);
+		Result.AddLobeWithMIS(Data.Fuzz.Attenuation * FCoat * CoatGGXResult.x * Data.CoatSpec.W               , CoatSpecPdf, Data.LobePdf.z);
 	}
 	{
 		// Cloth Lobe
-		float3 ClothWeight = 0;
-		float ClothPdf = 0;
-		if (NoV > 0 && NoL > 0)
-		{
-			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-			ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
-		}
-		Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.w);
+		const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+		const float ClothPdf = ClothResult.w;
+		Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.w);
 	}
 
 	Result.Weight *= SubstrateLobeWeight(Payload, NoL);

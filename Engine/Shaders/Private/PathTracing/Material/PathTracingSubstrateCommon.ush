@@ -55,6 +55,111 @@ void SubstrateGlint(FPathTracingPayload Payload, float3 InTangentV, float3 InTan
 #endif
 }
 
+#define USE_SHEEN_LTC_SAMPLER 1 // 0: fallback to uniform sampling (for reference)
+								// 1: use the LTC coefficients for importance sampling
+
+struct FSubstrateSheenData
+{
+#if SUBSTRATE_SHEEN_QUALITY == 1
+	float2 Tangent; 	// Captures rotation within the local tangent frame
+	float aInv; 		// LTC Coefficients
+	float bInv;
+#else
+	float Roughness;
+#endif
+	float Scale;      	// overall scale factor for the sheen lobe
+	float Attenuation; 	// amount by which other lobes have to be scaled
+
+	void Prepare(float3 V, float FuzzRoughness, float FuzzAmount)
+	{
+#if SUBSTRATE_SHEEN_QUALITY == 1
+		Tangent = V.xy;
+		const float Len2 = length2(Tangent);
+		if (Len2 > 0)
+		{
+			Tangent *= rsqrt(Len2);
+		}
+		else
+		{
+			Tangent = float2(1, 0);
+		}
+		float4 LTC = SheenLTC_Cofficients(V.z, FuzzRoughness, View.SheenLTCTexture, View.SheenLTCSampler);
+		aInv = LTC.x;
+		bInv = LTC.y;
+		Scale = FuzzAmount * LTC.z;
+		Attenuation = 1 - FuzzAmount;
+#else
+		Roughness = MakeRoughnessSafe(FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
+		FBxDFEnergyTermsA Fuzz = ComputeClothEnergyTermsA(Roughness, V.z);
+		Scale = FuzzAmount * Fuzz.W;
+		Attenuation = 1 - FuzzAmount * Fuzz.E;
+#endif
+	}
+
+
+
+	float4 Eval(float3 L, float3 V, float3 H, float3 FuzzColor)
+	{
+#if SUBSTRATE_SHEEN_QUALITY == 1
+		if (L.z > 0)
+		{
+			const float3 LocalL = float3(
+				L.x * Tangent.x + L.y * Tangent.y,
+				L.y * Tangent.x - L.x * Tangent.y,
+				L.z);
+
+			const float3 WrappedLocalL = float3(
+				aInv * LocalL.x + bInv * LocalL.z,
+				aInv * LocalL.y,
+				LocalL.z);
+
+			const float InvLenWrappedLocalL2 = rcp(length2(WrappedLocalL));
+			// Jabobian is defined as: det(InvLTC) / ||InvLTC . L||
+			// Jacobian should be aInv^2/Length^3 but since we skip the normalization
+			// we end up with aInv^2/Length^4 which is cheaper to compute
+			const float Jacobian = Pow2(aInv * InvLenWrappedLocalL2);
+
+
+			// Evaluation a normalized cos distribution (note: WrappedLocalL was not normalized, we folded the extra length division into the Jacobian)
+#if USE_SHEEN_LTC_SAMPLER == 1
+			const float Weight = Scale;
+			const float Pdf = WrappedLocalL.z * Jacobian / PI;
+#else
+			const float Weight = Scale * WrappedLocalL.z * Jacobian * 2; // multiply by 2PI
+			const float Pdf = 1.0 / (2 * PI);
+#endif
+			return float4(Weight * FuzzColor, Pdf);
+		}
+#else
+		// Charlie's Cloth Lobe
+		if (V.z > 0 && L.z > 0)
+		{
+			const float DCloth = D_Charlie(Roughness, H.z);
+			const float3 FCloth = F_Schlick(FuzzColor, dot(V, H));
+			const float3 Weight = (2 * PI * L.z * DCloth * Vis_Ashikhmin(V.z, L.z)) * FCloth;
+			const float Pdf = 1.0 / (2 * PI);
+			return float4(Weight, Pdf);
+		}
+#endif
+		return 0;
+	}
+
+	float3 Sample(float2 Rand)
+	{
+#if SUBSTRATE_SHEEN_QUALITY == 1 && USE_SHEEN_LTC_SAMPLER == 1
+		const float3 CosSample = CosineSampleHemisphere(Rand).xyz;
+		// NOTE: The vector is scaled by aInv compared to the reference implementation to avoid unecessary divides
+		const float3 LocalL = normalize(float3(CosSample.x - CosSample.z * bInv, CosSample.y, aInv * CosSample.z));
+		return float3(
+			LocalL.x * Tangent.x - LocalL.y * Tangent.y,
+			LocalL.x * Tangent.y + LocalL.y * Tangent.x,
+			LocalL.z);
+#else
+		return UniformSampleHemisphere(Rand).xyz;
+#endif
+	}
+};
+
 FBxDFEnergyTermsA ComputeSheenEnergyTerms(float NoV, float SheenRoughness)
 {
 #if SUBSTRATE_SHEEN_QUALITY == 1
@@ -64,55 +169,5 @@ FBxDFEnergyTermsA ComputeSheenEnergyTerms(float NoV, float SheenRoughness)
 	return Result;
 #else
 	return ComputeClothEnergyTermsA(SheenRoughness, NoV);
-#endif
-}
-
-#define USE_SHEEN_LTC_SAMPLER 1 // 0: fallback to uniform sampling (for reference)
-								// 1: use the LTC coefficients for importance sampling
-
-float ComputeSheenPdf(float3 V, float3 L, float3 N, float NoV, float SheenRoughness)
-{
-#if USE_SHEEN_LTC_SAMPLER != 0 && SUBSTRATE_SHEEN_QUALITY == 1
-	// Disney's Cloth Lobe
-	float FuzzDirectionalAlbedo = 1;
-	float FuzzSpecularPathValueNoL = SheenLTC_Eval(V, L, N, NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler, FuzzDirectionalAlbedo);
-	return FuzzSpecularPathValueNoL;
-#else
-	// uniform sampling (for legacy cloth lobe, or naive sampling of the LTC lobe)
-	const float Pdf = 1 / (2 * PI);
-	return Pdf;
-#endif
-
-}
-
-float3 ComputeSheenWeight(float3 V, float3 L, float3 N, float NoV, float NoL, float NoH, float VoH, float SheenRoughness, float3 SheenColor)
-{
-#if SUBSTRATE_SHEEN_QUALITY == 1
-	// Disney's Cloth Lobe
-	float FuzzDirectionalAlbedo = 1; // NOTE: Path Tracer includes this term in the weight applied outside
-	float FuzzSpecularPathValueNoL = SheenLTC_Eval(V, L, N, NoV, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler, FuzzDirectionalAlbedo);
-#if USE_SHEEN_LTC_SAMPLER == 0
-	// using naive sampling, weight will include Brdf evaluation
-	// uniform sampling, pdf is just 1/2pi
-	return SheenColor * (FuzzSpecularPathValueNoL * 2 * PI);
-#else
-	// LTC sampling - pdf is equal to the brdf, so sample weight is just the color
-	return SheenColor;
-#endif
-
-#else
-	// Charlie's Cloth Lobe
-	const float DCloth = D_Charlie(SheenRoughness, NoH);
-	const float3 FCloth = F_Schlick(SheenColor, VoH);
-	return (2 * PI * NoL * DCloth * Vis_Ashikhmin(NoV, NoL)) * FCloth;
-#endif
-}
-
-float3 SampleSheenDirection(float3 V, float SheenRoughness, float2 Rand)
-{
-#if USE_SHEEN_LTC_SAMPLER != 0 && SUBSTRATE_SHEEN_QUALITY == 1
-	return SheenLTC_Sample(CosineSampleHemisphere(Rand).xyz, V, float3(0, 0, 1), V.z, SheenRoughness, View.SheenLTCTexture, View.SheenLTCSampler);
-#else
-	return UniformSampleHemisphere(Rand).xyz;
 #endif
 }

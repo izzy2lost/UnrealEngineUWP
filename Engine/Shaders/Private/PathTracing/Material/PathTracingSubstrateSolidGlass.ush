@@ -22,12 +22,11 @@ struct FSubstrateSolidGlassSlabData
 	float  Eta;
 	float2 Alpha0;
 	float2 Alpha1;
-	float  FuzzRoughness;
 
-	float  FuzzAttenuation;
 	float  EGlass0;
 	float  EGlass1;
-	float FuzzAmount;
+
+	FSubstrateSheenData Fuzz;
 
 	float2 LobeCdf;
 	float3 LobePdf;
@@ -44,21 +43,16 @@ struct FSubstrateSolidGlassSlabData
 		// NOTE: IsFrontFace() determines polygon orientation, because the normal is always flipped towards in the incoming ray
 		Eta = Payload.IsFrontFace() ? Payload.Ior : rcp(Payload.Ior);
 		
-
-		FuzzRoughness = MakeRoughnessSafe(Payload.FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
-
 		const float NoV = saturate(V.z);
 		// correct for energy loss by scaling the whole BSDF
 		EGlass0 = GGXEnergyLookup(Payload.RoughnessData.x, NoV, Eta);
 		EGlass1 = GGXEnergyLookup(Payload.RoughnessData.y, NoV, Eta);
-		FBxDFEnergyTermsA Fuzz = ComputeClothEnergyTermsA(FuzzRoughness, NoV);
 
-		FuzzAttenuation = 1.0 - Payload.FuzzAmount * Fuzz.E;
-		FuzzAmount = Payload.FuzzAmount * Fuzz.W;
+		Fuzz.Prepare(V, Payload.FuzzRoughness, Payload.FuzzAmount);
 
-		const float3 Glass0Albedo = FuzzAttenuation * (1.0 - Payload.RoughnessData.z);
-		const float3 Glass1Albedo = FuzzAttenuation * (      Payload.RoughnessData.z);
-		const float3 FuzzAlbedo = Payload.FuzzAmount * Fuzz.E * Payload.FuzzColor;
+		const float3 Glass0Albedo = Fuzz.Attenuation * (1.0 - Payload.RoughnessData.z);
+		const float3 Glass1Albedo = Fuzz.Attenuation * (      Payload.RoughnessData.z);
+		const float3 FuzzAlbedo = Fuzz.Scale * Payload.FuzzColor;
 
 		// Now prepare a cdf/pdf for lobe selection
 		float3 MaxLobeWeight = Payload.GetMaxLobeWeight();
@@ -120,7 +114,7 @@ FMaterialSample SubstrateSolidGlass_SampleMaterial(
 		if (bRefract)
 		{
 			// only need to account for overall BSDF scaling
-			Result.Weight *= Data.FuzzAttenuation * Payload.BSDFOpacity * Payload.WeightV;
+			Result.Weight *= Data.Fuzz.Attenuation * Payload.BSDFOpacity * Payload.WeightV;
 		}
 		else
 		{
@@ -133,9 +127,9 @@ FMaterialSample SubstrateSolidGlass_SampleMaterial(
 
 			// reflection side, apply full lobe weight and attenuation along L
 			// and account for probability of picking the fuzz layer
-			const float ClothPdf = ComputeSheenPdf(V, L, float3(0, 0, 1), NoV, Data.FuzzRoughness);
+			const float ClothPdf = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor).w;
 			Result.Pdf += Data.LobePdf.z * ClothPdf;
-			Result.Weight *= Data.FuzzAttenuation * SubstrateLobeWeight(Payload, saturate(L.z)) * FTint;
+			Result.Weight *= Data.Fuzz.Attenuation * SubstrateLobeWeight(Payload, saturate(L.z)) * FTint;
 		}
 
 		return Result;
@@ -144,7 +138,7 @@ FMaterialSample SubstrateSolidGlass_SampleMaterial(
 	{
 		// cloth lobe
 		RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.y, 1.0);
-		L = SampleSheenDirection(V, Data.FuzzRoughness, RandSample.xy);
+		L = Data.Fuzz.Sample(RandSample.xy);
 		H = normalize(L + V);
 
 		// transform to world space
@@ -166,14 +160,9 @@ FMaterialSample SubstrateSolidGlass_SampleMaterial(
 
 		// Cloth Lobe
 		const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
-		float3 ClothWeight = 0;
-		float ClothPdf = 0;
-		if (NoV > 0 && NoL > 0)
-		{
-			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-			ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
-		}
-		Result.AddLobeWithMIS(ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.z);
+		const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+		const float ClothPdf = ClothResult.w;
+		Result.AddLobeWithMIS(ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.z);
 		Result.ScatterType = PATHTRACER_SCATTER_SPECULAR;
 
 		Result.Pdf += Data.LobePdf.y * Spec0Pdf;
@@ -220,20 +209,15 @@ FMaterialEval SubstrateSolidGlass_EvalMaterial(
 			const float Fg = FresnelReflectance(VoH, Data.Eta, Data.F0);
 			const float3 FTint = SubstrateSpecularTint(Payload, NoV, NoL, VoH, NoH);
 
-			Result.AddLobeWithMIS(FTint * DiffuseSpecularScale.y * Data.FuzzAttenuation * (1.0 - Payload.RoughnessData.z) * GGXResult0.x / Data.EGlass0, Fg * GGXResult0.y, Data.LobePdf.x);
-			Result.AddLobeWithMIS(FTint * DiffuseSpecularScale.y * Data.FuzzAttenuation * (      Payload.RoughnessData.z) * GGXResult1.x / Data.EGlass1, Fg * GGXResult1.y, Data.LobePdf.y);
+			Result.AddLobeWithMIS(FTint * DiffuseSpecularScale.y * Data.Fuzz.Attenuation * (1.0 - Payload.RoughnessData.z) * GGXResult0.x / Data.EGlass0, Fg * GGXResult0.y, Data.LobePdf.x);
+			Result.AddLobeWithMIS(FTint * DiffuseSpecularScale.y * Data.Fuzz.Attenuation * (      Payload.RoughnessData.z) * GGXResult1.x / Data.EGlass1, Fg * GGXResult1.y, Data.LobePdf.y);
 		}
 		{
 			// Cloth Lobe
 			const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
-			float3 ClothWeight = 0;
-			float ClothPdf = 0;
-			if (NoV > 0 && NoL > 0)
-			{
-				ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-				ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
-			}
-			Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.z);
+			const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+			const float ClothPdf = ClothResult.w;
+			Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.z);
 		}
 
 		Result.Weight *= SubstrateLobeWeight(Payload, NoL);
@@ -257,7 +241,7 @@ FMaterialEval SubstrateSolidGlass_EvalMaterial(
 			Result.AddLobeWithMIS((      Payload.RoughnessData.z) * GGXResult1.x / Data.EGlass1 * DiffuseSpecularScale.y, GGXResult1.y * Fg, Data.LobePdf.y);
 		}
 
-		Result.Weight *= Payload.BSDFOpacity * Payload.WeightV * Data.FuzzAttenuation;
+		Result.Weight *= Payload.BSDFOpacity * Payload.WeightV * Data.Fuzz.Attenuation;
 	}
 	return Result;
 }

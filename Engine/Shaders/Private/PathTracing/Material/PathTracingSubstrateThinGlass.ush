@@ -26,12 +26,10 @@ struct FSubstrateThinGlassSlabData
 	float2 AlphaR0, AlphaT0;
 	float2 AlphaR1, AlphaT1;
 
-	float  FuzzRoughness;
-	float  FuzzAttenuation;
-	float  FuzzAmount;
-
 	float SpecR0W, SpecR1W;
 	float SpecT0W, SpecT1W;
+
+	FSubstrateSheenData Fuzz;
 
 	float2 LobeCdf;
 	float3 LobePdf;
@@ -53,7 +51,6 @@ struct FSubstrateThinGlassSlabData
 		F0 = F0RGBToF0(Payload.SpecularColor);
 		F90 = F0ToMicroOcclusion(F0);
 		TransmissionColor = Payload.GetTransmittanceColor();
-		FuzzRoughness = MakeRoughnessSafe(Payload.FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
 
 		const float NoV = saturate(V.z);
 		FBxDFEnergyTermsA SpecR0 = ComputeGGXSpecEnergyTermsA(RoughnessR.x, NoV, F0, F90);
@@ -64,13 +61,12 @@ struct FSubstrateThinGlassSlabData
 			rcp(SpecR0.E + SpecT0.E),
 			rcp(SpecR1.E + SpecT1.E));
 
-		FBxDFEnergyTermsA Fuzz = ComputeClothEnergyTermsA(FuzzRoughness, NoV);
+		Fuzz.Prepare(V, Payload.FuzzRoughness, Payload.FuzzAmount);
 
-		FuzzAttenuation = 1.0 - Payload.FuzzAmount * Fuzz.E;
 
-		const float3 GlassR = FuzzAttenuation * lerp(SpecR0.E * NudgeE.x, SpecR1.E * NudgeE.y, Payload.RoughnessData.z);
-		const float3 GlassT = FuzzAttenuation * lerp(SpecT0.E * NudgeE.x, SpecT1.E * NudgeE.y, Payload.RoughnessData.z);
-		const float3 FuzzAlbedo = Payload.FuzzAmount * Fuzz.E * Payload.FuzzColor;
+		const float3 GlassR = Fuzz.Attenuation * lerp(SpecR0.E * NudgeE.x, SpecR1.E * NudgeE.y, Payload.RoughnessData.z);
+		const float3 GlassT = Fuzz.Attenuation * lerp(SpecT0.E * NudgeE.x, SpecT1.E * NudgeE.y, Payload.RoughnessData.z);
+		const float3 FuzzAlbedo = Fuzz.Scale * Payload.FuzzColor;
 
 		SpecR0W = SpecR0.W * NudgeE.x;
 		SpecR1W = SpecR1.W * NudgeE.y;
@@ -137,7 +133,7 @@ FMaterialSample SubstrateThinGlass_SampleMaterial(
 	{
 		// cloth lobe
 		RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.y, 1.0);
-		L = SampleSheenDirection(V, Data.FuzzRoughness, RandSample.xy);
+		L = Data.Fuzz.Sample(RandSample.xy);
 		H = normalize(L + V);
 	}
 	// transform to world space
@@ -157,7 +153,8 @@ FMaterialSample SubstrateThinGlass_SampleMaterial(
 	const float2 GGXResult0 = GGXEvalReflection(L, V, H, bIsReflection ? Data.AlphaR0 : Data.AlphaT0);
 	const float2 GGXResult1 = GGXEvalReflection(L, V, H, bIsReflection ? Data.AlphaR1 : Data.AlphaT1);
 	const float LobePdf = bIsReflection ? Data.LobePdf.y : Data.LobePdf.x;
-	const float ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
+	const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+	const float ClothPdf = ClothResult.w;
 	if (bSampleGlass)
 	{
 		FThinSlabWeights SlabResult = ComputeThinSlabWeights(Data.TransmissionColor, VoH, Payload.Ior, Data.F0);
@@ -168,8 +165,8 @@ FMaterialSample SubstrateThinGlass_SampleMaterial(
 		const float SlabW1 = (bIsReflection ? Data.SpecR1W : Data.SpecT1W);
 
 
-		Result.AddLobeWithMIS(Data.FuzzAttenuation * (1 - Payload.RoughnessData.z) * GGXResult0.x * SlabW0 * SlabTint, GGXResult0.y, LobePdf * (1 - Payload.RoughnessData.z));
-		Result.AddLobeWithMIS(Data.FuzzAttenuation * (    Payload.RoughnessData.z) * GGXResult1.x * SlabW1 * SlabTint, GGXResult1.y, LobePdf * (    Payload.RoughnessData.z));
+		Result.AddLobeWithMIS(Data.Fuzz.Attenuation * (1 - Payload.RoughnessData.z) * GGXResult0.x * SlabW0 * SlabTint, GGXResult0.y, LobePdf * (1 - Payload.RoughnessData.z));
+		Result.AddLobeWithMIS(Data.Fuzz.Attenuation * (    Payload.RoughnessData.z) * GGXResult1.x * SlabW1 * SlabTint, GGXResult1.y, LobePdf * (    Payload.RoughnessData.z));
 
 		if (bIsReflection)
 		{
@@ -180,13 +177,7 @@ FMaterialSample SubstrateThinGlass_SampleMaterial(
 	{
 		// Cloth Lobe
 		const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
-		float3 ClothWeight = 0;
-		float ClothPdf = 0;
-		if (NoV > 0 && NoL > 0)
-		{
-			ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-		}
-		Result.AddLobeWithMIS(ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.z);
+		Result.AddLobeWithMIS(ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.z);
 
 		Result.Pdf += LobePdf * (1.0 - Payload.RoughnessData.z) * GGXResult0.y;
 		Result.Pdf += LobePdf * (      Payload.RoughnessData.z) * GGXResult1.y;
@@ -245,8 +236,8 @@ FMaterialEval SubstrateThinGlass_EvalMaterial(
 
 	FMaterialEval Result = NullMaterialEval();
 
-	Result.AddLobeWithMIS(DiffuseSpecularScale.y * Data.FuzzAttenuation * (1 - Payload.RoughnessData.z) * GGXResult0.x * SlabW0 * SlabTint, GGXResult0.y, LobePdf * (1 - Payload.RoughnessData.z));
-	Result.AddLobeWithMIS(DiffuseSpecularScale.y * Data.FuzzAttenuation * (    Payload.RoughnessData.z) * GGXResult1.x * SlabW1 * SlabTint, GGXResult1.y, LobePdf * (    Payload.RoughnessData.z));
+	Result.AddLobeWithMIS(DiffuseSpecularScale.y * Data.Fuzz.Attenuation * (1 - Payload.RoughnessData.z) * GGXResult0.x * SlabW0 * SlabTint, GGXResult0.y, LobePdf * (1 - Payload.RoughnessData.z));
+	Result.AddLobeWithMIS(DiffuseSpecularScale.y * Data.Fuzz.Attenuation * (    Payload.RoughnessData.z) * GGXResult1.x * SlabW1 * SlabTint, GGXResult1.y, LobePdf * (    Payload.RoughnessData.z));
 
 
 	if (bIsReflection)
@@ -254,14 +245,9 @@ FMaterialEval SubstrateThinGlass_EvalMaterial(
 		{
 			// Cloth Lobe
 			const float ShadowTerminator = ShadowTerminatorTerm(L_World, N_World, Payload.WorldSmoothNormal);
-			float3 ClothWeight = 0;
-			float ClothPdf = 0;
-			if (NoV > 0 && NoL > 0)
-			{
-				ClothWeight = Data.FuzzAmount * ComputeSheenWeight(V_World, L_World, N_World, NoV, NoL, NoH, VoH, Data.FuzzRoughness, Payload.FuzzColor);
-				ClothPdf = ComputeSheenPdf(V_World, L_World, N_World, NoV, Data.FuzzRoughness);
-			}
-			Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothWeight * ShadowTerminator, ClothPdf, Data.LobePdf.z);
+			const float4 ClothResult = Data.Fuzz.Eval(L, V, H, Payload.FuzzColor);
+			const float ClothPdf = ClothResult.w;
+			Result.AddLobeWithMIS(DiffuseSpecularScale.y * ClothResult.xyz * ShadowTerminator, ClothPdf, Data.LobePdf.z);
 		}
 		Result.Weight *= SubstrateLobeWeight(Payload, NoL);
 	}
