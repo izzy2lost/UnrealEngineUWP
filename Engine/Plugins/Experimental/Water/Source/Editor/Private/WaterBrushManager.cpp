@@ -1278,12 +1278,6 @@ void AWaterBrushManager::RenderBrushActorContext(FBrushRenderContext& BrushRende
 	}
 	++BrushRenderContext.RTIndex;
 
-	if (WaterBody != nullptr)
-	{
-		// rebuilding the water mesh is expensive and not necessary : 
-		WaterBody->GetWaterBodyComponent()->UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */false);
-	}
-
 	ApplyToCompositeWaterBodyTexture(BrushRenderContext, BrushActorRenderContext);
 }
 

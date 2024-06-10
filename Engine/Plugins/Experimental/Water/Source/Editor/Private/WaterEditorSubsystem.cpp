@@ -228,5 +228,10 @@ void UWaterEditorSubsystem::DirtyAllModifiedPackages()
 	ClearModifiedPackages();
 }
 
+bool UWaterEditorSubsystem::GetShouldUpdateWaterMeshDuringInteractiveChanges() const
+{
+	return GetDefault<UWaterEditorSettings>()->GetShouldUpdateWaterMeshDuringInteractiveChanges();
+}
+
 #undef LOCTEXT_NAMESPACE
 

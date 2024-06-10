@@ -721,7 +721,7 @@ void AWaterBody::SetActorHiddenInGame(bool bNewHidden)
 
 		if (WaterBodyComponent)
 		{
-			WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterMeshRebuild = */true);
+			WaterBodyComponent->UpdateVisibility();
 		}
 	}
 }
@@ -736,7 +736,7 @@ void AWaterBody::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
 
 		if (WaterBodyComponent)
 		{
-			WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterMeshRebuild = */true);
+			WaterBodyComponent->UpdateVisibility();
 		}
 	}
 }
@@ -749,7 +749,7 @@ bool AWaterBody::SetIsHiddenEdLayer(bool bIsHiddenEdLayer)
 	{
 		if (WaterBodyComponent)
 		{
-			WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterMeshRebuild = */true);
+			WaterBodyComponent->UpdateVisibility();
 		}
 		return true;
 	}

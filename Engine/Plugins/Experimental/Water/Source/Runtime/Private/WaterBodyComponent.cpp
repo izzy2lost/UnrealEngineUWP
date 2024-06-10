@@ -80,6 +80,25 @@ const FName UWaterBodyComponent::WaterVelocityAndHeightName(TEXT("WaterVelocityA
 const FName UWaterBodyComponent::GlobalOceanHeightName(TEXT("GlobalOceanHeight"));
 const FName UWaterBodyComponent::MaxFlowVelocityParamName(TEXT("MaxFlowVelocity"));
 
+namespace UE::Water
+{
+	static bool ShouldUpdateWaterMeshForPropertyChange(const FPropertyChangedEvent& InPropertyChangedEvent)
+	{
+#if WITH_EDITOR
+		if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+		{
+			const IWaterModuleInterface& WaterModule = FModuleManager::GetModuleChecked<IWaterModuleInterface>("Water");
+			if (const IWaterEditorServices* WaterEditorServices = WaterModule.GetWaterEditorServices())
+			{
+				return WaterEditorServices->GetShouldUpdateWaterMeshDuringInteractiveChanges();
+			}
+		}
+#endif // WITH_EDITOR
+
+		return true;
+	}
+}
+
 UWaterBodyComponent::UWaterBodyComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -119,14 +138,14 @@ void UWaterBodyComponent::OnVisibilityChanged()
 {
 	Super::OnVisibilityChanged();
 
-	UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
+	UpdateVisibility();
 }
 
 void UWaterBodyComponent::OnHiddenInGameChanged()
 {
 	Super::OnHiddenInGameChanged();
 
-	UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
+	UpdateVisibility();
 }
 
 bool UWaterBodyComponent::IsFlatSurface() const
@@ -1034,41 +1053,41 @@ ALandscapeProxy* UWaterBodyComponent::FindLandscape() const
 	return Landscape.Get();
 }
 
+// Deprecated
 void UWaterBodyComponent::UpdateComponentVisibility(bool bAllowWaterZoneRebuild)
+{
+	UpdateVisibility();
+}
+
+void UWaterBodyComponent::UpdateVisibility()
 {
 	if (UWorld* World = GetWorld())
 	{
 	 	const bool bIsWaterRenderingEnabled = FWaterUtils::IsWaterEnabled(/*bIsRenderThread = */false);
 	 
 		bool bIsRenderedByWaterMesh = ShouldGenerateWaterMeshTile();
-		bool bLocalVisible = bIsWaterRenderingEnabled && !bIsRenderedByWaterMesh && GetVisibleFlag();
-		bool bLocalHiddenInGame = !bIsWaterRenderingEnabled || bIsRenderedByWaterMesh || bHiddenInGame;
 
-	 	for (UPrimitiveComponent* Component : GetStandardRenderableComponents())
-	 	{
-	 		Component->SetVisibility(bLocalVisible);
-	 		Component->SetHiddenInGame(bLocalHiddenInGame);
-	 	}
-
-		if (bAllowWaterZoneRebuild)
+		// Handle the standard renderable components (i.e. when the water body is not rendered by the water mesh) : 
 		{
-			if (AWaterZone* WaterZone = GetWaterZone())
+			bool bLocalVisible = bIsWaterRenderingEnabled && !bIsRenderedByWaterMesh && GetVisibleFlag();
+			bool bLocalHiddenInGame = !bIsWaterRenderingEnabled || bIsRenderedByWaterMesh || bHiddenInGame;
+
+			for (UPrimitiveComponent* Component : GetStandardRenderableComponents())
 			{
-				// If the component is being or can be rendered by the water mesh or renders into the water info texture, rebuild it in case its visibility has changed : 
-
-				EWaterZoneRebuildFlags RebuildFlags = EWaterZoneRebuildFlags::None;
-				if (AffectsWaterMesh())
-				{
-					RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterMesh;
-				}
-
-				if (AffectsWaterInfo())
-				{
-					RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterInfoTexture;
-				}
-
-				MarkOwningWaterZoneForRebuild(RebuildFlags);
+				Component->SetVisibility(bLocalVisible);
+				Component->SetHiddenInGame(bLocalHiddenInGame);
 			}
+		}
+
+		// Keep track of the visibility state when the water body is being rendered by the water mesh, to avoid calling MarkOwningWaterZoneForRebuild every time UpdateVisibility is called :
+		const bool bPreviousIsRenderedByWaterMeshAndVisible = bIsRenderedByWaterMeshAndVisible;
+		bIsRenderedByWaterMeshAndVisible = bIsRenderedByWaterMesh && ShouldRender();
+		const bool bHasVisibilityChanged = (bIsRenderedByWaterMeshAndVisible != bPreviousIsRenderedByWaterMeshAndVisible);
+
+		if (bHasVisibilityChanged)
+		{
+			// If the component is being or can be rendered by the water mesh or renders into the water info texture, rebuild it in case its visibility has changed : 
+			MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags::All);
 		}
 	}
 }
@@ -1443,6 +1462,7 @@ void UWaterBodyComponent::UpdateAll(const FOnWaterBodyChangedParams& InParams)
 	const bool bUserTriggered = InParams.bUserTriggered;
 	bool bShapeOrPositionChanged = InParams.bShapeOrPositionChanged;
 	
+	// TODO [jonathan.bard] : Replace GIsEditor by World->IsEditorWorld
 	if (GIsEditor || IsBodyDynamic())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UWaterBodyComponent::UpdateAll);
@@ -1481,15 +1501,24 @@ void UWaterBodyComponent::UpdateAll(const FOnWaterBodyChangedParams& InParams)
 
 		if (bShapeOrPositionChanged)
 		{
+			EWaterZoneRebuildFlags RebuildFlags = EWaterZoneRebuildFlags::All;
+			if (!UE::Water::ShouldUpdateWaterMeshForPropertyChange(InParams.PropertyChangedEvent))
+			{
+				EnumRemoveFlags(RebuildFlags, EWaterZoneRebuildFlags::UpdateWaterMesh);
+			}
+
+			MarkOwningWaterZoneForRebuild(RebuildFlags);
+
 			FNavigationSystem::UpdateActorAndComponentData(*WaterBodyOwner);
 		}
-
-		UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
 
 #if WITH_EDITOR
 		UpdateWaterSpriteComponent();
 #endif
 	}
+
+	// Always update the visibility, since it might change based on CVars and there's a transient boolean (bIsComponent
+	UpdateVisibility();
 }
 
 void UWaterBodyComponent::OnPostRegisterAllComponents()
@@ -1556,7 +1585,7 @@ void UWaterBodyComponent::OnWaterBodyChanged(const FOnWaterBodyChangedParams& In
 	}
 
 #if WITH_EDITOR
-	if (InParams.PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	if (UE::Water::ShouldUpdateWaterMeshForPropertyChange(InParams.PropertyChangedEvent))
 	{
 		UpdateWaterBodyRenderData();
 	}

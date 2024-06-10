@@ -36,6 +36,8 @@ public:
 	virtual void ForEachModifiedPackage(const TFunctionRef<bool(UPackage*)>& Func) const override;
 	virtual void ClearModifiedPackages() override;
 	virtual void DirtyAllModifiedPackages() override;
+
+	virtual bool GetShouldUpdateWaterMeshDuringInteractiveChanges() const override;
 	//~ End IWaterEditorServices interface
 
 private:

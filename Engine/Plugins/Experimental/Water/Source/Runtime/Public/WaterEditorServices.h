@@ -28,6 +28,8 @@ public:
 	virtual void ForEachModifiedPackage(const TFunctionRef<bool(UPackage*)>& Func) const = 0;
 	virtual void ClearModifiedPackages() = 0;
 	virtual void DirtyAllModifiedPackages() = 0;
+
+	virtual bool GetShouldUpdateWaterMeshDuringInteractiveChanges() const = 0;
 };
 #endif // WITH_EDITORONLY_DATA
 

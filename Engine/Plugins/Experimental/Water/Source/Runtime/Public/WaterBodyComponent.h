@@ -365,10 +365,11 @@ public:
 	/** Returns true if the location is within one of this water body's exclusion volumes */
 	bool IsWorldLocationInExclusionVolume(const FVector& InWorldLocation) const;
 
-	/** Updates the bVisible/bHiddenInGame flags on the component and eventually the child renderable components (e.g. custom water body)
-	 - bAllowWaterZoneRebuild : if true, the function will request a rebuild of the water zone (expensive), which is necessary to take into account visibility changes
-	*/
+	UE_DEPRECATED(5.5, "Use UpdateComponentVisibility")
 	virtual void UpdateComponentVisibility(bool bAllowWaterZoneRebuild);
+
+	/** Updates the bVisible/bHiddenInGame flags on the component and eventually the child renderable components (e.g. custom water body) */
+	void UpdateVisibility();
 
 	/** Creates/Destroys/Updates necessary MIDS */
 	virtual void UpdateMaterialInstances();
@@ -701,4 +702,9 @@ protected:
 	UPROPERTY()
 	bool bOverrideWaterMesh_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
+
+private:
+	/** Boolean to keep track of whether the water body is visible in the water mesh. This avoids unnecessary calls to rebuild the water mesh whenever UpdateComponentVisibility is called */
+	bool bIsRenderedByWaterMeshAndVisible = false;
+
 };

@@ -19,8 +19,8 @@ class UWaterBodyComponent;
 enum class EWaterZoneRebuildFlags
 {
 	None = 0,
-	UpdateWaterInfoTexture = (1 << 1),
-	UpdateWaterMesh = (1 << 2),
+	UpdateWaterInfoTexture = (1 << 0),
+	UpdateWaterMesh = (1 << 1),
 	All = (~0),
 };
 ENUM_CLASS_FLAGS(EWaterZoneRebuildFlags);

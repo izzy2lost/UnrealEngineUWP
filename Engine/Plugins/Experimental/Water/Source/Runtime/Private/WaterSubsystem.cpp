@@ -734,7 +734,7 @@ void UWaterSubsystem::NotifyWaterVisibilityChangedInternal(IConsoleVariable* CVa
 	// Water body visibility depends on various CVars. All need to update the visibility in water body components : 
 	GetWaterBodyManagerInternal().ForEachWaterBodyComponent([](UWaterBodyComponent* WaterBodyComponent)
 	{
-		WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
+		WaterBodyComponent->UpdateVisibility();
 		return true;
 	});
 }
