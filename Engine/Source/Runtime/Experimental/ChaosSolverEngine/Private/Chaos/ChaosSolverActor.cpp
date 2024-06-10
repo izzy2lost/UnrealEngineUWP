@@ -305,6 +305,8 @@ void AChaosSolverActor::BeginPlay()
 
 void AChaosSolverActor::EndPlay(const EEndPlayReason::Type ReasonEnd)
 {
+	Super::EndPlay(ReasonEnd);
+
 	if(!Solver)
 	{
 		return;
