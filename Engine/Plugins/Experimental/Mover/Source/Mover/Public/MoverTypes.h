@@ -11,10 +11,10 @@
 #include "MoverTypes.generated.h"
 
 // Gameplay tags
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsOnGround)
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsInAir)
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsFalling)
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsSwimming)
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsOnGround);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsInAir);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsFalling);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsSwimming);
 
 // Struct to hold params for when an impact happens. This contains all of the data for impacts including what gets passed to the FMover_OnImpact delegate
 USTRUCT(BlueprintType, meta = (DisplayName = "Impact Data"))
