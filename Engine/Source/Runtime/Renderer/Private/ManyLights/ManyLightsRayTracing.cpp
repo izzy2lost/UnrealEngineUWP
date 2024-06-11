@@ -634,7 +634,7 @@ void ManyLights::RayTraceLightSamples(
 		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 		PassParameters->RWLightSampleRayDistance = GraphBuilder.CreateUAV(LightSampleRayDistance);
-		PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures, /*bBindLumenHistory*/ false);
+		PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures);
 		PassParameters->MaxHierarchicalScreenTraceIterations = CVarManyLightsScreenTracesMaxIterations.GetValueOnRenderThread();
 		PassParameters->MaxTraceDistance = CVarManyLightsScreenTracesMaxDistance.GetValueOnRenderThread();
 		PassParameters->RelativeDepthThickness = CVarManyLightsScreenTraceRelativeDepthThreshold.GetValueOnRenderThread() * View.ViewMatrices.GetPerProjectionDepthThicknessScale();

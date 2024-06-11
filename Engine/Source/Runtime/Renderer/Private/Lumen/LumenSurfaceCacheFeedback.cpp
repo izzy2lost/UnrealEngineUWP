@@ -574,8 +574,5 @@ void FDeferredShadingSceneRenderer::FinishGatheringLumenSurfaceCacheFeedback(FRD
 		}
 	}
 
-	for (const FViewInfo& ViewInfo : Views)
-	{
-		QueueExtractLumenOpaqueSceneDepthAndNormal(GraphBuilder, ViewInfo, FrameTemporaries);
-	}
+	QueueExtractRayTracedLighting(GraphBuilder, FrameTemporaries);
 }

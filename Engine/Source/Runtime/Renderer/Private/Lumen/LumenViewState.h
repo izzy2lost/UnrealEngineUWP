@@ -325,8 +325,6 @@ public:
 	FReSTIRGatherTemporalState ReSTIRGatherState;
 	FReflectionTemporalState ReflectionState;
 	FReflectionTemporalState TranslucentReflectionState;
-	TRefCountPtr<IPooledRenderTarget> SceneDepthHistory;
-	TRefCountPtr<IPooledRenderTarget> SceneNormalHistory;
 
 	// Translucency
 	TRefCountPtr<IPooledRenderTarget> TranslucencyVolume0;
@@ -341,8 +339,6 @@ public:
 		ReSTIRGatherState.SafeRelease();
 		ReflectionState.SafeRelease();
 		TranslucentReflectionState.SafeRelease();
-		SceneDepthHistory.SafeRelease();
-		SceneNormalHistory.SafeRelease();
 
 		TranslucencyVolume0.SafeRelease();
 		TranslucencyVolume1.SafeRelease();
@@ -357,8 +353,6 @@ public:
 		#define TRANSFER_LUMEN_RESOURCE(NAME) \
 			if (NAME) OutTransfers.Add(FTransferResourceParams(NAME->GetRHI(), SourceGPUIndex, DestGPUIndex, false, false))
 
-		TRANSFER_LUMEN_RESOURCE(SceneDepthHistory);
-		TRANSFER_LUMEN_RESOURCE(SceneNormalHistory);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume0);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume1);
 

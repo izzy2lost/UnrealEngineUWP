@@ -2813,6 +2813,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					SceneTextures);
 			}
 
+			// Copy depth history without water and translucency for ray traced lighting denoising
+			StoreRayTracedLightingSceneHistory(GraphBuilder, LumenFrameTemporaries, SceneTextures);
+
 			InjectTranslucencyLightingVolumeAmbientCubemap(GraphBuilder, Views, TranslucencyLightingVolumeTextures);
 			FilterTranslucencyLightingVolume(GraphBuilder, Views, TranslucencyLightingVolumeTextures);
 

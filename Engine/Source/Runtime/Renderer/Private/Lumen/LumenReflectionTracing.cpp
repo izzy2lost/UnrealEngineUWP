@@ -801,8 +801,7 @@ void SetupIndirectTracingParametersForReflections(const FViewInfo& View, FLumenI
 FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	FRDGBuilder& GraphBuilder, 
 	const FViewInfo& View,
-	const FSceneTextures& SceneTextures,
-	bool bBindLumenHistory)
+	const FSceneTextures& SceneTextures)
 {
 	FRDGTextureRef CurrentSceneColor = SceneTextures.Color.Resolve;
 
@@ -873,7 +872,7 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	Parameters.PrevSceneColorPreExposureCorrection = InputColor != CurrentSceneColor ? View.PreExposure / View.PrevViewInfo.SceneColorPreExposure : 1.0f;
 
 	Parameters.PrevSceneColorTexture = InputColor;
-	Parameters.HistorySceneDepth = bBindLumenHistory && View.ViewState->Lumen.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.SceneDepthHistory) : SceneTextures.Depth.Target;
+	Parameters.HistorySceneDepth = View.ViewState && View.ViewState->RayTracedLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->RayTracedLighting.SceneDepthHistory) : SceneTextures.Depth.Target;
 
 	checkf(View.ClosestHZB, TEXT("Lumen screen tracing: ClosestHZB was not setup, should have been setup by FDeferredShadingSceneRenderer::RenderHzb"));
 	Parameters.ClosestHZBTexture = View.ClosestHZB;

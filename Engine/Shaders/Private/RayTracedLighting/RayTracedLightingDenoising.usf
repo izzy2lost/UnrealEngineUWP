@@ -3,7 +3,7 @@
 #define USE_HAIR_COMPLEX_TRANSMITTANCE 1
 
 #include "../Common.ush"
-#include "LumenMaterial.ush"
+#include "../Lumen/LumenMaterial.ush"
 
 RWTexture2D<float> RWDepthTexture;
 RWTexture2D<float4> RWNormalTexture;
@@ -12,7 +12,7 @@ RWTexture2D<float4> RWNormalTexture;
  * Copy depth and normal for opaque before it gets overwritten by water or other translucency writing depth
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void StoreLumenSceneHistoryCS(
+void StoreSceneHistoryCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
 {
 	uint2 ScreenCoord = DispatchThreadId + View.ViewRectMinAndSize.xy;

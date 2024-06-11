@@ -185,8 +185,7 @@ extern void SetupLumenMeshSDFTracingParameters(FRDGBuilder& GraphBuilder, const 
 extern FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	FRDGBuilder& GraphBuilder, 
 	const FViewInfo& View,
-	const FSceneTextures& SceneTextures,
-	bool bBindLumenHistory = true);
+	const FSceneTextures& SceneTextures);
 
 extern int32 GLumenIrradianceFieldGather;
 

@@ -10,7 +10,6 @@ class FManyLightsViewState
 public:
 	TRefCountPtr<IPooledRenderTarget> DiffuseLightingAndSecondMomentHistory;
 	TRefCountPtr<IPooledRenderTarget> SpecularLightingAndSecondMomentHistory;
-	TRefCountPtr<IPooledRenderTarget> SceneDepthHistory;
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedHistory;
 
 	FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
@@ -21,7 +20,6 @@ public:
 	{
 		DiffuseLightingAndSecondMomentHistory.SafeRelease();
 		SpecularLightingAndSecondMomentHistory.SafeRelease();
-		SceneDepthHistory.SafeRelease();
 		NumFramesAccumulatedHistory.SafeRelease();
 	}
 

@@ -982,8 +982,6 @@ uint64 FLumenViewState::GetGPUSizeBytes(bool bLogSizes) const
 		ScreenProbeGatherState.GetGPUSizeBytes(bLogSizes) +
 		ReflectionState.GetGPUSizeBytes(bLogSizes) +
 		TranslucentReflectionState.GetGPUSizeBytes(bLogSizes) +
-		GetRenderTargetGPUSizeBytes(SceneDepthHistory, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(SceneNormalHistory, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(TranslucencyVolume0, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(TranslucencyVolume1, bLogSizes) +
 		RadianceCacheState.GetGPUSizeBytes(bLogSizes) +
@@ -1042,8 +1040,14 @@ uint64 FManyLightsViewState::GetGPUSizeBytes(bool bLogSizes) const
 	return
 		GetRenderTargetGPUSizeBytes(DiffuseLightingAndSecondMomentHistory, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(SpecularLightingAndSecondMomentHistory, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(SceneDepthHistory, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistory, bLogSizes);
+}
+
+uint64 FRayTracedLightingViewState::GetGPUSizeBytes(bool bLogSizes) const
+{
+	return
+		GetRenderTargetGPUSizeBytes(SceneDepthHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(SceneNormalHistory, bLogSizes);
 }
 
 uint64 FPersistentGlobalDistanceFieldData::GetGPUSizeBytes(bool bLogSizes) const

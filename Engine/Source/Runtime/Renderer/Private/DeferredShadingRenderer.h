@@ -102,9 +102,8 @@ enum class ELumenIndirectLightingSteps
 	None = 0,
 	ScreenProbeGather = 1u << 0,
 	Reflections = 1u << 1,
-	StoreDepthHistory = 1u << 2,
 	Composite = 1u << 3,
-	All = ScreenProbeGather | Reflections | StoreDepthHistory | Composite
+	All = ScreenProbeGather | Reflections | Composite
 };
 ENUM_CLASS_FLAGS(ELumenIndirectLightingSteps)
 
@@ -134,7 +133,7 @@ struct FAsyncLumenIndirectLightingOutputs
 		EnumRemoveFlags(StepsLeft, ELumenIndirectLightingSteps::ScreenProbeGather);
 		if (bAsyncReflections)
 		{
-			EnumRemoveFlags(StepsLeft, ELumenIndirectLightingSteps::Reflections | ELumenIndirectLightingSteps::StoreDepthHistory);
+			EnumRemoveFlags(StepsLeft, ELumenIndirectLightingSteps::Reflections);
 		}
 	}
 
@@ -764,7 +763,10 @@ private:
 		ERDGPassFlags ComputePassFlags,
 		FLumenScreenSpaceBentNormalParameters& ScreenSpaceBentNormalParameters);
 
-	void StoreLumenDepthHistory(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures, FLumenSceneFrameTemporaries& FrameTemporaries, FViewInfo& View);
+	void StoreRayTracedLightingSceneHistory(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneTextures& SceneTextures);
+
+	/** Extract current frame opaque (no water) depth and normal scene textures to use as history data. */
+	void QueueExtractRayTracedLighting(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
 
 	FSSDSignalTextures RenderLumenIrradianceFieldGather(
 		FRDGBuilder& GraphBuilder,
@@ -809,9 +811,6 @@ private:
 	/** Mark time line for gathering Lumen virtual surface cache feedback. */
 	void BeginGatheringLumenSurfaceCacheFeedback(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries);
 	void FinishGatheringLumenSurfaceCacheFeedback(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries);
-	
-	/** Extract current frame opaque (no water) depth and normal scene textures to use as history data. */
-	void QueueExtractLumenOpaqueSceneDepthAndNormal(FRDGBuilder& GraphBuilder, const FViewInfo& View, FLumenSceneFrameTemporaries& FrameTemporaries);
 
 	/** 
 	 * True if the 'r.UseClusteredDeferredShading' flag is 1 and sufficient feature level. 

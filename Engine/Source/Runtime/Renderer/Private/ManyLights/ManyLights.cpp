@@ -601,7 +601,6 @@ class FDenoiserTemporalCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWDiffuseLightingAndSecondMoment)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSpecularLightingAndSecondMoment)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float>, RWNumFramesAccumulated)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWSceneDepth)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FValidHistory : SHADER_PERMUTATION_BOOL("VALID_HISTORY");
@@ -664,6 +663,8 @@ class FDenoiserSpatialCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FDenoiserSpatialCS, "/Engine/Private/ManyLights/ManyLightsDenoiserSpatial.usf", "DenoiserSpatialCS", SF_Compute);
 
+DECLARE_GPU_STAT(ManyLights);
+
 /**
  * Single pass batched light rendering using ray tracing (distance field or triangle) for stochastic light (BRDF and visibility) sampling.
  */
@@ -676,6 +677,7 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 
 	check(AreLightsInLightGrid());
 	RDG_EVENT_SCOPE(GraphBuilder, "ManyLights");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, ManyLights);
 
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	TUniformBufferRef<FBlueNoise> BlueNoiseUniformBuffer = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
@@ -749,26 +751,27 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 
 		if (View.ViewState)
 		{
-			const FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
+			const FManyLightsViewState& ManyLightsViewState = View.ViewState->ManyLights;
+			const FRayTracedLightingViewState& RayTracedLightingViewState = View.ViewState->RayTracedLighting;
 
 			if (!View.bCameraCut && !bResetHistory && bTemporal)
 			{
-				HistoryScreenPositionScaleBias = LightingViewState.HistoryScreenPositionScaleBias;
-				HistoryUVMinMax = LightingViewState.HistoryUVMinMax;
-				HistoryGatherUVMinMax = LightingViewState.HistoryGatherUVMinMax;
+				HistoryScreenPositionScaleBias = ManyLightsViewState.HistoryScreenPositionScaleBias;
+				HistoryUVMinMax = ManyLightsViewState.HistoryUVMinMax;
+				HistoryGatherUVMinMax = ManyLightsViewState.HistoryGatherUVMinMax;
 
-				if (LightingViewState.DiffuseLightingAndSecondMomentHistory
-					&& LightingViewState.SpecularLightingAndSecondMomentHistory
-					&& LightingViewState.SceneDepthHistory
-					&& LightingViewState.NumFramesAccumulatedHistory
-					&& LightingViewState.DiffuseLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
-					&& LightingViewState.SpecularLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
-					&& LightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				if (ManyLightsViewState.DiffuseLightingAndSecondMomentHistory
+					&& ManyLightsViewState.SpecularLightingAndSecondMomentHistory
+					&& RayTracedLightingViewState.SceneDepthHistory
+					&& ManyLightsViewState.NumFramesAccumulatedHistory
+					&& ManyLightsViewState.DiffuseLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
+					&& ManyLightsViewState.SpecularLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
+					&& RayTracedLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
 				{
-					DiffuseLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.DiffuseLightingAndSecondMomentHistory);
-					SpecularLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SpecularLightingAndSecondMomentHistory);
-					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SceneDepthHistory);
-					NumFramesAccumulatedHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.NumFramesAccumulatedHistory);
+					DiffuseLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(ManyLightsViewState.DiffuseLightingAndSecondMomentHistory);
+					SpecularLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(ManyLightsViewState.SpecularLightingAndSecondMomentHistory);
+					NumFramesAccumulatedHistory = GraphBuilder.RegisterExternalTexture(ManyLightsViewState.NumFramesAccumulatedHistory);
+					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(RayTracedLightingViewState.SceneDepthHistory);
 				}
 			}
 		}
@@ -1150,10 +1153,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("ManyLights.SpecularLightingAndSecondMoment"));
 
-		FRDGTextureRef SceneDepthCopy = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(SceneTextures.Depth.Resolve->Desc.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-			TEXT("ManyLights.DepthHistory"));
-
 		FRDGTextureRef NumFramesAccumulated = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("ManyLights.NumFramesAccumulated"));
@@ -1177,10 +1176,9 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->RWDiffuseLightingAndSecondMoment = GraphBuilder.CreateUAV(DiffuseLightingAndSecondMoment);
 			PassParameters->RWSpecularLightingAndSecondMoment = GraphBuilder.CreateUAV(SpecularLightingAndSecondMoment);
 			PassParameters->RWNumFramesAccumulated = GraphBuilder.CreateUAV(NumFramesAccumulated);
-			PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(SceneDepthCopy);
 
 			FDenoiserTemporalCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
+			PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && SceneDepthHistory && bTemporal);
 			PermutationVector.Set<FDenoiserTemporalCS::FDebugMode>(bDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FDenoiserTemporalCS>(PermutationVector);
 
@@ -1221,38 +1219,36 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 
 		if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 		{
-			FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
+			FManyLightsViewState& ManyLightsViewState = View.ViewState->ManyLights;
 
-			LightingViewState.HistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(View.GetSceneTexturesConfig().Extent, View.ViewRect);
+			ManyLightsViewState.HistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(View.GetSceneTexturesConfig().Extent, View.ViewRect);
 
 			const FVector2f InvBufferSize(1.0f / SceneTextures.Config.Extent.X, 1.0f / SceneTextures.Config.Extent.Y);
 
-			LightingViewState.HistoryUVMinMax = FVector4f(
+			ManyLightsViewState.HistoryUVMinMax = FVector4f(
 				View.ViewRect.Min.X * InvBufferSize.X,
 				View.ViewRect.Min.Y * InvBufferSize.Y,
 				View.ViewRect.Max.X * InvBufferSize.X,
 				View.ViewRect.Max.Y * InvBufferSize.Y);
 
 			// Clamp gather4 to a valid bilinear footprint in order to avoid sampling outside of valid bounds
-			LightingViewState.HistoryGatherUVMinMax = FVector4f(
+			ManyLightsViewState.HistoryGatherUVMinMax = FVector4f(
 				(View.ViewRect.Min.X + 0.51f) * InvBufferSize.X,
 				(View.ViewRect.Min.Y + 0.51f) * InvBufferSize.Y,
 				(View.ViewRect.Max.X - 0.51f) * InvBufferSize.X,
 				(View.ViewRect.Max.Y - 0.51f) * InvBufferSize.Y);
 
-			if (DiffuseLightingAndSecondMoment && SpecularLightingAndSecondMoment && SceneDepthCopy && NumFramesAccumulated && bTemporal)
+			if (DiffuseLightingAndSecondMoment && SpecularLightingAndSecondMoment && NumFramesAccumulated && bTemporal)
 			{
-				GraphBuilder.QueueTextureExtraction(DiffuseLightingAndSecondMoment, &LightingViewState.DiffuseLightingAndSecondMomentHistory);
-				GraphBuilder.QueueTextureExtraction(SpecularLightingAndSecondMoment, &LightingViewState.SpecularLightingAndSecondMomentHistory);
-				GraphBuilder.QueueTextureExtraction(SceneDepthCopy, &LightingViewState.SceneDepthHistory);
-				GraphBuilder.QueueTextureExtraction(NumFramesAccumulated, &LightingViewState.NumFramesAccumulatedHistory);
+				GraphBuilder.QueueTextureExtraction(DiffuseLightingAndSecondMoment, &ManyLightsViewState.DiffuseLightingAndSecondMomentHistory);
+				GraphBuilder.QueueTextureExtraction(SpecularLightingAndSecondMoment, &ManyLightsViewState.SpecularLightingAndSecondMomentHistory);
+				GraphBuilder.QueueTextureExtraction(NumFramesAccumulated, &ManyLightsViewState.NumFramesAccumulatedHistory);
 			}
 			else
 			{
-				LightingViewState.DiffuseLightingAndSecondMomentHistory = nullptr;
-				LightingViewState.SpecularLightingAndSecondMomentHistory = nullptr;
-				LightingViewState.SceneDepthHistory = nullptr;
-				LightingViewState.NumFramesAccumulatedHistory = nullptr;
+				ManyLightsViewState.DiffuseLightingAndSecondMomentHistory = nullptr;
+				ManyLightsViewState.SpecularLightingAndSecondMomentHistory = nullptr;
+				ManyLightsViewState.NumFramesAccumulatedHistory = nullptr;
 			}
 		}
 	}

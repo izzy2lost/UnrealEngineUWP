@@ -44,6 +44,7 @@
 #include "Nanite/Nanite.h"
 #include "Lumen/LumenViewState.h"
 #include "ManyLights/ManyLightsViewState.h"
+#include "RayTracedLighting/RayTracedLightingViewState.h"
 #include "VolumetricRenderTargetViewStateData.h"
 #include "GPUScene.h"
 #include "DynamicBVH.h"
@@ -1028,6 +1029,9 @@ public:
 
 	FLumenViewState Lumen;
 	FManyLightsViewState ManyLights;
+
+	// Shared by Lumen and Many Lights
+	FRayTracedLightingViewState RayTracedLighting;
 
 	// Heterogeneous Volumes cached data stores
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoVoxelGridUniformBuffer = nullptr;

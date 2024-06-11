@@ -30,6 +30,7 @@
 #include "Lumen/LumenTracingUtils.h"
 #include "Lumen/LumenSceneLighting.h"
 #include "Lumen/LumenReflections.h"
+#include "ManyLights/ManyLights.h"
 
 // This is the project default dynamic global illumination, NOT the scalability setting (see r.Lumen.DiffuseIndirect.Allow for scalability)
 // Must match EDynamicGlobalIlluminationMethod
@@ -958,8 +959,6 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 					nullptr,
 					nullptr,
 					ERDGPassFlags::AsyncCompute);
-
-				StoreLumenDepthHistory(GraphBuilder, SceneTextures, LumenFrameTemporaries, View);
 			}
 
 		}
@@ -1122,11 +1121,6 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 				OutTextures.Textures[3] = SystemTextures.Black;
 			}
 
-			if (EnumHasAnyFlags(StepsLeft, ELumenIndirectLightingSteps::StoreDepthHistory))
-			{
-				StoreLumenDepthHistory(GraphBuilder, SceneTextures, LumenFrameTemporaries, View);
-			}
-
 			if (!bDoComposite)
 			{
 				continue;
@@ -1155,12 +1149,27 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			Delegate.Broadcast(*Scene, View, GraphBuilder, GIPluginResources);
 		}
 
-		// Free Lumen view state resources when no longer enabled, ie scalability change
-		if (ViewPipelineState.DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen 
-			&& ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen
-			&& View.ViewState)
+		// Free view state resources when no longer enabled, ie scalability change
+		if (View.ViewState)
 		{
-			View.ViewState->Lumen.SafeRelease();
+			const bool bLumen = View.ViewState
+				&& (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen);
+			const bool bManyLights = View.ViewState && ManyLights::IsEnabled();
+
+			if (!bLumen)
+			{
+				View.ViewState->Lumen.SafeRelease();
+			}
+
+			if (!bManyLights)
+			{
+				View.ViewState->ManyLights.SafeRelease();
+			}
+
+			if (!bLumen && !bManyLights)
+			{
+				View.ViewState->RayTracedLighting.SafeRelease();
+			}
 		}
 
 		FRDGTextureRef AmbientOcclusionMask = DenoiserInputs.AmbientOcclusionMask;
@@ -2030,8 +2039,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 				nullptr,
 				nullptr,
 				ERDGPassFlags::Compute);
-
-			StoreLumenDepthHistory(GraphBuilder, SceneTextures, LumenFrameTemporaries, View);
 		}
 		else if (ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR)
 		{

@@ -25,7 +25,6 @@ uint2 DownsampledViewSize;
 RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
 RWTexture2D<float4> RWSpecularLightingAndSecondMoment;
 RWTexture2D<UNORM float> RWNumFramesAccumulated;
-RWTexture2D<float> RWSceneDepth;
 
 struct FNeighborhood
 {
@@ -152,6 +151,10 @@ void DenoiserTemporalCS(
 					float2 HistoryGatherUV = (HistoryScreenCoord + 1.0f) * View.BufferSizeAndInvSize.zw;
 
 					float4 HistorySampleSceneDepth4 = ManyLightsDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
+					HistorySampleSceneDepth4.x = ConvertFromDeviceZ(HistorySampleSceneDepth4.x);
+					HistorySampleSceneDepth4.y = ConvertFromDeviceZ(HistorySampleSceneDepth4.y);
+					HistorySampleSceneDepth4.z = ConvertFromDeviceZ(HistorySampleSceneDepth4.z);
+					HistorySampleSceneDepth4.w = ConvertFromDeviceZ(HistorySampleSceneDepth4.w);
 
 					// #ml_todo: plane weighting
 					float ReprojectedSceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
@@ -280,6 +283,5 @@ void DenoiserTemporalCS(
 		RWDiffuseLightingAndSecondMoment[ScreenCoord] = float4(DiffuseLighting, DiffuseSecondMoment);
 		RWSpecularLightingAndSecondMoment[ScreenCoord] = float4(SpecularLighting, SpecularSecondMoment);
 		RWNumFramesAccumulated[ScreenCoord] = (NumFramesAccumulated + 0.5f) / TemporalMaxFramesAccumulated;
-		RWSceneDepth[ScreenCoord] = GBuffer.Depth;
 	}
 }
