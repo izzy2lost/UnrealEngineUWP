@@ -17,6 +17,8 @@ namespace UE
 #if WITH_EDITORONLY_DATA
 
 class FPropertyPathNameTree;
+class FPropertyTypeName;
+class FUnknownEnumNames;
 
 // Singleton class tracking property bag association with objects
 class FPropertyBagRepository : public FGCObject
@@ -26,6 +28,7 @@ class FPropertyBagRepository : public FGCObject
 		void Destroy();
 
 		FPropertyPathNameTree* Tree = nullptr;
+		FUnknownEnumNames* EnumNames = nullptr;
 		TObjectPtr<UObject> InstanceDataObject = nullptr;
 		bool bNeedsFixup = false;
 	};
@@ -66,6 +69,31 @@ public:
 	 * Finds or creates a property path name tree to collect unknown property paths within the owner.
 	 */
 	FPropertyPathNameTree* FindOrCreateUnknownPropertyTree(const UObject* Owner);
+
+	/**
+	 * Adds an unknown enum name to the names tracked for an object.
+	 *
+	 * @param Owner			The owner to associate the unknown name with.
+	 * @param Enum			The enum associated with the property being serialized. May be null or the wrong type.
+	 * @param EnumTypeName	The type name of the enum containing the unknown name.
+	 * @param EnumValueName	The unknown name to track.
+	 */
+	void AddUnknownEnumName(const UObject* Owner, const UEnum* Enum, FPropertyTypeName EnumTypeName, FName EnumValueName);
+
+	/**
+	 * Finds tracked unknown enum names associated with the object.
+	 *
+	 * @param Owner			The owner associated with the unknown names to find.
+	 * @param EnumTypeName	The type name of the enum containing the unknown names to find.
+	 * @param OutNames		Array to assign the unknown names to. Empty on return if no names are found.
+	 * @param bOutHasFlags	Assigned to true if the enum is known to have flags, otherwise false.
+	 */
+	void FindUnknownEnumNames(const UObject* Owner, FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags);
+
+	/**
+	 * Resets tracked unknown enum names associated with the object.
+	 */
+	void ResetUnknownEnumNames(const UObject* Owner);
 
 	// Future version for reworked InstanceDataObjects - track InstanceDataObject rather than bag (directly):
 	/**

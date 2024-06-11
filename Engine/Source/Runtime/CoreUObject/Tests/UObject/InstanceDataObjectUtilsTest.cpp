@@ -23,7 +23,7 @@
 namespace UE
 {
 
-TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::InstanceDataObjectUtils", "[Core][UObject][EngineFilter]")
+TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::InstanceDataObjectUtils", "[CoreUObject][EngineFilter]")
 {
 	UTestInstanceDataObjectClass* BaseObject = NewObject<UTestInstanceDataObjectClass>();
 	UClass* TestClass = CreateInstanceDataObjectClass(nullptr, BaseObject->GetClass(), BaseObject->GetOuter());
@@ -89,7 +89,7 @@ TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::Insta
 	CHECK_FALSE(IsPropertyValueInitialized(StructProperty->Struct, StructData, DProperty));
 }
 
-TEST_CASE_NAMED(FTrackInitializedPropertiesTest, "CoreUObject::Serialization::TrackInitializedProperties", "[Core][UObject][EngineFilter]")
+TEST_CASE_NAMED(FTrackInitializedPropertiesTest, "CoreUObject::Serialization::TrackInitializedProperties", "[CoreUObject][EngineFilter]")
 {
 	UTestInstanceDataObjectClass* BaseObject = NewObject<UTestInstanceDataObjectClass>();
 	UClass* TestClass = CreateInstanceDataObjectClass(nullptr, BaseObject->GetClass(), BaseObject->GetOuter());
@@ -201,7 +201,7 @@ TEST_CASE_NAMED(FTrackInitializedPropertiesTest, "CoreUObject::Serialization::Tr
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
 }
 
-TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackUnknownProperties", "[Core][UObject][EngineFilter]")
+TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackUnknownProperties", "[CoreUObject][EngineFilter]")
 {
 	const auto MakePropertyTypeName = [](FName Name)
 	{
@@ -291,6 +291,99 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 
 	// Testing of the unknown property tree is skipped because it is not supported by the text format.
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
+}
+
+TEST_CASE_NAMED(FUnknownEnumNamesTest, "CoreUObject::Serialization::UnknownEnumNames", "[CoreUObject][EngineFilter]")
+{
+	UObject* Owner = NewObject<UTestInstanceDataObjectClass>();
+
+	FPropertyBagRepository& Repo = FPropertyBagRepository::Get();
+
+	TArray<FName> Names{NAME_None};
+	bool bHasFlags = true;
+
+	// Test a non-flags enum...
+
+	FPropertyTypeName FruitTypeName = []
+	{
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddPath(StaticEnum<ETestInstanceDataObjectFruit>());
+		return Builder.Build();
+	}();
+
+	Repo.FindUnknownEnumNames(Owner, FruitTypeName, Names, bHasFlags);
+	CHECK(Names.IsEmpty());
+	CHECK_FALSE(bHasFlags);
+
+	const FName NAME_Cherry = "Cherry";
+	const FName NAME_Pear = "Pear";
+
+	Repo.AddUnknownEnumName(Owner, nullptr, FruitTypeName, NAME_Pear);
+	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectFruit>(), {}, NAME_Cherry);
+	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectFruit>(), {}, NAME_Pear);
+	Repo.AddUnknownEnumName(Owner, nullptr, FruitTypeName, NAME_Cherry);
+
+	Repo.FindUnknownEnumNames(Owner, FruitTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 2)
+	{
+		CHECK(Names[0] == NAME_Pear);
+		CHECK(Names[1] == NAME_Cherry);
+	}
+	CHECK_FALSE(bHasFlags);
+
+	// Test a flags enum by name only...
+
+	FPropertyTypeName FlagsTypeName = []
+	{
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddPath(StaticEnum<ETestInstanceDataObjectFlags>());
+		return Builder.Build();
+	}();
+
+	const FName NAME_South = "South";
+	const FName NAME_Down = "Down";
+	const FName NAME_Up = "Up";
+
+	TStringBuilder<128> FlagsString;
+	FlagsString.Join(MakeArrayView({NAME_Up, NAME_Down, NAME_South}), TEXTVIEW(" | "));
+
+	Repo.AddUnknownEnumName(Owner, nullptr, FlagsTypeName, NAME_Down);
+	Repo.AddUnknownEnumName(Owner, nullptr, FlagsTypeName, *FlagsString);
+
+	Repo.FindUnknownEnumNames(Owner, FlagsTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 3)
+	{
+		CHECK(Names[0] == NAME_Down);
+		CHECK(Names[1] == NAME_Up);
+		CHECK(Names[2] == NAME_South);
+	}
+	CHECK(bHasFlags);
+
+	// Test resetting unknown enum names for an owner...
+
+	Repo.ResetUnknownEnumNames(Owner);
+
+	Repo.FindUnknownEnumNames(Owner, FlagsTypeName, Names, bHasFlags);
+	CHECK(Names.IsEmpty());
+	CHECK_FALSE(bHasFlags);
+
+	// Test a flags enum by enum...
+
+	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectFlags>(), {}, NAME_Up);
+
+	Repo.FindUnknownEnumNames(Owner, FlagsTypeName, Names, bHasFlags);
+	CHECK(Names.Num() == 1);
+	CHECK(bHasFlags);
+
+	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectFlags>(), FlagsTypeName, *FlagsString);
+
+	Repo.FindUnknownEnumNames(Owner, FlagsTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 2)
+	{
+		CHECK(Names[0] == NAME_Up);
+		CHECK(Names[1] == NAME_Down);
+	}
+	CHECK(bHasFlags);
 }
 
 } // UE

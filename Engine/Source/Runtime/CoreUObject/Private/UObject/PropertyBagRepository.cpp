@@ -5,19 +5,21 @@
 #if WITH_EDITORONLY_DATA
 
 #include "Containers/Queue.h"
+#include "Misc/StringBuilder.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
+#include "String/ParseTokens.h"
 #include "UObject/GarbageCollection.h"
+#include "UObject/InstanceDataObjectUtils.h"
+#include "UObject/LinkerLoad.h"
 #include "UObject/Object.h"
-#include "UObject/UObjectGlobals.h"
+#include "UObject/Package.h"
+#include "UObject/PropertyOptional.h"
 #include "UObject/PropertyPathNameTree.h"
+#include "UObject/UObjectGlobals.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectThreadContext.h"
-#include "UObject/LinkerLoad.h"
-#include "UObject/InstanceDataObjectUtils.h"
-#include "UObject/Package.h"
 #include "Templates/UnrealTemplate.h"
-#include "UObject/PropertyOptional.h"
 
 #if WITH_EDITOR
 #include "HAL/IConsoleManager.h"
@@ -123,10 +125,25 @@ public:
 	}
 };
 
+class FUnknownEnumNames
+{
+public:
+	struct FInfo
+	{
+		TSet<FName> Names;
+		bool bHasFlags = false;
+	};
+
+	TMap<FPropertyTypeName, FInfo> Enums;
+};
+
 void FPropertyBagRepository::FPropertyBagAssociationData::Destroy()
 {
 	delete Tree;
 	Tree = nullptr;
+
+	delete EnumNames;
+	EnumNames = nullptr;
 
 	if (InstanceDataObject && InstanceDataObject->IsValidLowLevel())
 	{
@@ -512,14 +529,93 @@ FPropertyPathNameTree* FPropertyBagRepository::FindOrCreateUnknownPropertyTree(c
 	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
 	if (!BagData)
 	{
-		FPropertyBagAssociationData NewBagData;
-		BagData = &AssociatedData.Emplace(Owner, NewBagData);
+		BagData = &AssociatedData.Emplace(Owner);
 	}
 	if (!BagData->Tree)
 	{
 		BagData->Tree = new FPropertyPathNameTree;
 	}
 	return BagData->Tree;
+}
+
+void FPropertyBagRepository::AddUnknownEnumName(const UObject* Owner, const UEnum* Enum, FPropertyTypeName EnumTypeName, FName EnumValueName)
+{
+	check(Owner);
+	checkf(Enum || !EnumTypeName.IsEmpty(), TEXT("AddUnknownEnumName requires an enum or its type name. Owner: %s"), *Owner->GetPathName());
+
+	FPropertyBagRepositoryLock LockRepo(this);
+	FPropertyBagAssociationData& BagData = AssociatedData.FindOrAdd(Owner);
+	if (!BagData.EnumNames)
+	{
+		BagData.EnumNames = new FUnknownEnumNames;
+	}
+
+	if (EnumTypeName.IsEmpty())
+	{
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddPath(Enum);
+		EnumTypeName = Builder.Build();
+	}
+
+	FUnknownEnumNames::FInfo& Info = BagData.EnumNames->Enums.FindOrAdd(EnumTypeName);
+
+	TStringBuilder<128> EnumValueString(InPlace, EnumValueName);
+	if (String::FindFirstChar(EnumValueString, TEXT('|')) == INDEX_NONE)
+	{
+		Info.Names.Add(EnumValueName);
+	}
+	else
+	{
+		Info.bHasFlags = true;
+		String::ParseTokens(EnumValueString, TEXT('|'), [&Info, Enum](FStringView Token)
+		{
+			FName Name(Token);
+			if (!Enum || Enum->GetIndexByName(Name) == INDEX_NONE)
+			{
+				Info.Names.Add(Name);
+			}
+		}, String::EParseTokensOptions::SkipEmpty | String::EParseTokensOptions::Trim);
+	}
+
+	if (!Info.bHasFlags && Enum && Enum->HasAnyEnumFlags(EEnumFlags::Flags))
+	{
+		Info.bHasFlags = true;
+	}
+}
+
+void FPropertyBagRepository::FindUnknownEnumNames(const UObject* Owner, FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags)
+{
+	check(Owner);
+	checkf(!EnumTypeName.IsEmpty(), TEXT("FindUnknownEnumNames requires an enum type name. Owner: %s"), *Owner->GetPathName());
+
+	OutNames.Empty();
+	bOutHasFlags = false;
+
+	FPropertyBagRepositoryLock LockRepo(this);
+	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
+	if (!BagData || !BagData->EnumNames)
+	{
+		return;
+	}
+
+	if (const FUnknownEnumNames::FInfo* Info = BagData->EnumNames->Enums.Find(EnumTypeName))
+	{
+		OutNames = Info->Names.Array();
+		bOutHasFlags = Info->bHasFlags;
+	}
+}
+
+void FPropertyBagRepository::ResetUnknownEnumNames(const UObject* Owner)
+{
+	check(Owner);
+
+	FPropertyBagRepositoryLock LockRepo(this);
+	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
+	if (BagData)
+	{
+		delete BagData->EnumNames;
+		BagData->EnumNames = nullptr;
+	}
 }
 
 UObject* FPropertyBagRepository::CreateInstanceDataObject(UObject* Owner, FArchive* Archive)

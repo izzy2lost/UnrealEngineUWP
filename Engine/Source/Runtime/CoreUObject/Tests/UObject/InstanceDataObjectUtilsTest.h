@@ -6,6 +6,25 @@
 #include "UObject/Object.h"
 #include "InstanceDataObjectUtilsTest.generated.h"
 
+UENUM()
+enum class ETestInstanceDataObjectFruit : uint8
+{
+	None = 0,
+	Apple,
+	Banana,
+	Orange,
+};
+
+UENUM(Flags)
+enum class ETestInstanceDataObjectFlags : uint16
+{
+	None = 0,
+	North = 1 << 0,
+	East = 1 << 1,
+	South = 1 << 2,
+	West = 1 << 3,
+};
+
 USTRUCT()
 struct FTestInstanceDataObjectStruct
 {
