@@ -13,7 +13,7 @@ namespace Horde.Server.Jobs.Templates
 	/// Base class for parameters used to configure templates via the new build dialog
 	/// </summary>
 	[BsonDiscriminator(RootClass = true)]
-	[BsonKnownTypes(typeof(GroupParameter), typeof(TextParameter), typeof(ListParameter), typeof(BoolParameter))]
+	[BsonKnownTypes(typeof(TextParameter), typeof(ListParameter), typeof(BoolParameter))]
 	public abstract class Parameter
 	{
 		/// <summary>
@@ -36,76 +36,6 @@ namespace Horde.Server.Jobs.Templates
 		/// </summary>
 		/// <returns>Serializable parameter data</returns>
 		public abstract ParameterData ToData();
-	}
-
-	/// <summary>
-	/// Used to group a number of other parameters
-	/// </summary>
-	public class GroupParameter : Parameter
-	{
-		/// <summary>
-		/// Label to display next to this parameter
-		/// </summary>
-		public string Label { get; set; }
-
-		/// <summary>
-		/// How to display this group
-		/// </summary>
-		public GroupParameterStyle Style { get; set; }
-
-		/// <summary>
-		/// List of child parameters
-		/// </summary>
-		public List<Parameter> Children { get; set; }
-
-		/// <summary>
-		/// Private constructor for serialization
-		/// </summary>
-		public GroupParameter()
-		{
-			Label = null!;
-			Children = null!;
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="label">Name of the group</param>
-		/// <param name="style">How to display this group</param>
-		/// <param name="children">List of child parameters</param>
-		public GroupParameter(string label, GroupParameterStyle style, List<Parameter> children)
-		{
-			Label = label;
-			Style = style;
-			Children = children;
-		}
-
-		/// <inheritdoc/>
-		public override void GetArguments(IReadOnlyDictionary<ParameterId, string> parameters, bool scheduledBuild, List<string> arguments)
-		{
-			foreach (Parameter child in Children)
-			{
-				child.GetArguments(parameters, scheduledBuild, arguments);
-			}
-		}
-
-		/// <inheritdoc/>
-		public override void GetDefaultParameters(Dictionary<ParameterId, string> parameters, bool scheduledBuild)
-		{
-			foreach (Parameter child in Children)
-			{
-				child.GetDefaultParameters(parameters, scheduledBuild);
-			}
-		}
-
-		/// <summary>
-		/// Convert this parameter to data for serialization
-		/// </summary>
-		/// <returns>Serializable parameter data</returns>
-		public override ParameterData ToData()
-		{
-			return new GroupParameterData(Label, Style, Children.ConvertAll(x => x.ToData()));
-		}
 	}
 
 	/// <summary>

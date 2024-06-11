@@ -98,7 +98,7 @@ namespace Horde.Server.Jobs.Templates
 	/// <summary>
 	/// Base class for template parameters
 	/// </summary>
-	[JsonKnownTypes(typeof(GroupParameterData), typeof(TextParameterData), typeof(ListParameterData), typeof(BoolParameterData))]
+	[JsonKnownTypes(typeof(TextParameterData), typeof(ListParameterData), typeof(BoolParameterData))]
 	public abstract class ParameterData
 	{
 		/// <summary>
@@ -161,77 +161,6 @@ namespace Horde.Server.Jobs.Templates
 			}
 
 			return parameterId;
-		}
-	}
-
-	/// <summary>
-	/// Describes how to render a group parameter
-	/// </summary>
-	public enum GroupParameterStyle
-	{
-		/// <summary>
-		/// Separate tab on the form
-		/// </summary>
-		Tab,
-
-		/// <summary>
-		/// Section with heading
-		/// </summary>
-		Section,
-	}
-
-	/// <summary>
-	/// Used to group a number of other parameters
-	/// </summary>
-	[JsonDiscriminator("Group")]
-	public class GroupParameterData : ParameterData
-	{
-		/// <summary>
-		/// Label to display next to this parameter
-		/// </summary>
-		public string Label { get; set; }
-
-		/// <summary>
-		/// How to display this group
-		/// </summary>
-		public GroupParameterStyle Style { get; set; }
-
-		/// <summary>
-		/// List of child parameters
-		/// </summary>
-		public List<ParameterData> Children { get; set; }
-
-		/// <summary>
-		/// Private constructor for serialization
-		/// </summary>
-		public GroupParameterData()
-		{
-			Label = null!;
-			Children = null!;
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="label">Name of the group</param>
-		/// <param name="style">How to display this group</param>
-		/// <param name="children">List of child parameters</param>
-		public GroupParameterData(string label, GroupParameterStyle style, List<ParameterData> children)
-		{
-			Label = label;
-			Style = style;
-			Children = children;
-		}
-
-		/// <inheritdoc/>
-		public override void PostLoad(HashSet<ParameterId> parameterIds)
-		{
-		}
-
-		/// <inheritdoc/>
-		public override Parameter ToModel()
-		{
-			return new GroupParameter(Label, Style, Children.ConvertAll(x => x.ToModel()));
 		}
 	}
 
