@@ -2176,23 +2176,23 @@ public:
 		const FSceneTextures& SceneTextures,
 		FIntVector VolumetricFogGridSize,
 		float VolumetricFogMaxDistance,
+		FLightSceneInfo* DirectionalLightSceneInfo,
 		FMatrix44f& OutLightFunctionTranslatedWorldToShadow,
-		FRDGTexture*& OutLightFunctionTexture,
-		bool& bOutUseDirectionalLightShadowing,
-		FLightSceneInfo*& OutDirectionalLightSceneInfo);
+		FRDGTexture*& OutLightFunctionTexture);
 
 	void RenderLocalLightsForVolumetricFog(
 		FRDGBuilder& GraphBuilder,
 		FViewInfo& View,
-		uint32 ViewIndex,
 		bool bUseTemporalReprojection,
 		const struct FVolumetricFogIntegrationParameterData& IntegrationData,
 		const FExponentialHeightFogSceneInfo& FogInfo,
 		FIntVector VolumetricFogGridSize,
 		FVector GridZParams,
 		const FRDGTextureDesc& VolumeDesc,
-		FRDGTexture*& OutLocalShadowedLightScattering,
-		FRDGTextureRef ConservativeDepthTexture);
+		FRDGTextureRef ConservativeDepthTexture,
+		TConstArrayView<const FLightSceneInfo*> LightsToInject,
+		TConstArrayView<const FLightSceneInfo*> RayTracedLightsToInject,
+		FRDGTexture*& OutLocalShadowedLightScattering);
 
 	void SetupVolumetricFog();
 

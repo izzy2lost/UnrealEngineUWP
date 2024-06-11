@@ -208,6 +208,8 @@ public:
 	/** The light's scene proxy. */
 	FLightSceneProxy* Proxy;
 
+	ELightComponentType Type;
+
 	/** If bVisible == true, this is the index of the primitive in Scene->Lights. */
 	int32 Id;
 

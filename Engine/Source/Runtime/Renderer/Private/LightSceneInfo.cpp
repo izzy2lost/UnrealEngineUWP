@@ -59,6 +59,7 @@ FLightSceneInfo::FLightSceneInfo(FLightSceneProxy* InProxy, bool InbVisible)
 	, DynamicInteractionOftenMovingPrimitiveList(NULL)
 	, DynamicInteractionStaticPrimitiveList(NULL)
 	, Proxy(InProxy)
+	, Type((ELightComponentType)InProxy->GetLightType())
 	, Id(INDEX_NONE)
 	, DynamicShadowMapChannel(-1)
 	, bPrecomputedLightingIsValid(InProxy->GetLightComponent()->IsPrecomputedLightingValid())
@@ -207,8 +208,6 @@ bool FLightSceneInfo::ShouldRenderLight(const FViewInfo& View, bool bOffscreen) 
 	bool bLocalVisible = bVisible && (bOffscreen ? View.VisibleLightInfos[Id].bInDrawRange : View.VisibleLightInfos[Id].bInViewFrustum);
 
 #if !UE_BUILD_SHIPPING
-	ELightComponentType Type = (ELightComponentType)Proxy->GetLightType();
-
 	switch(Type)
 	{
 		case LightType_Directional:
