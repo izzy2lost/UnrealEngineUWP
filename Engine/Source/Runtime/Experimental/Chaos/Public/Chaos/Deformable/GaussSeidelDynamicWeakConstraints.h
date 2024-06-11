@@ -83,8 +83,10 @@ namespace Chaos::Softs
 			delete DeletedSingleConstraint;
 
 			ConstraintsData.RemoveConstraint(OldConstraintIndex);
-			Handles[OldConstraintIndex].ConstraintIndex = OldConstraintIndex;
-			
+			if (ConstraintsData.Size() > 0)
+			{
+				Handles[OldConstraintIndex]->ConstraintIndex = OldConstraintIndex;
+			}
 			//Update incident element information:
 			const int32 IndicesOffset = SingleData.SingleIndices.Num();
 			for (int32 i = 0; i < SingleData.SingleIndices.Num(); i++)
