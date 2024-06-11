@@ -30,13 +30,28 @@ TSharedRef<SWidget> FCategoryDrivenContentBuilder::CreateFavoritesContextMenu( F
 	
 	FMenuBuilder MenuBuilder(bInShouldCloseWindowAfterMenuSelection, InCommandList);
 
-	UBuilderPersistenceManager::Get()->PersistArrayOfNames( BuilderKey, BuilderKey.ToName(), Favorites );
-
 	const FText ItemText = Favorites.Contains( FavoritesItemName ) ?
 		LOCTEXT("CategoryDrivenContentBuilder_RemoveFromFavorites", "Remove from Favorites") :
 		LOCTEXT("CategoryDrivenContentBuilder_AddToFavorites", "Add to Favorites");
 		
 	const FUIAction ItemAction(FExecuteAction::CreateSP( this, &FCategoryDrivenContentBuilder::ToggleFavorite, FName( FavoritesItemName ) ) );
+	MenuBuilder.AddMenuEntry(ItemText, ItemText, FSlateIcon(), ItemAction);
+		
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> FCategoryDrivenContentBuilder::CreateShowCategoryLabelsContextMenu()
+{
+	const bool bInShouldCloseWindowAfterMenuSelection = true;
+	const TSharedPtr< const FUICommandList > CommandList = nullptr;
+	
+	FMenuBuilder MenuBuilder(bInShouldCloseWindowAfterMenuSelection, CommandList);
+
+	const FText ItemText = CategoryButtonLabelVisibility.IsVisible() ?
+		LOCTEXT("CategoryDrivenContentBuilder_HideLabels", "Hide Labels") :
+		LOCTEXT("CategoryDrivenContentBuilder_ShowLabels", "Show Labels");
+		
+	const FUIAction ItemAction(FExecuteAction::CreateSP(this, &FCategoryDrivenContentBuilder::ToggleShowLabels));
 	MenuBuilder.AddMenuEntry(ItemText, ItemText, FSlateIcon(), ItemAction);
 		
 	return MenuBuilder.MakeWidget();
@@ -50,7 +65,9 @@ FCategoryDrivenContentBuilder::FCategoryDrivenContentBuilder(FCategoryDrivenCont
 	, bIsFilledWithWidget( false )
 	, bShowNoCategorySelection( false )
 {
-	Favorites = UBuilderPersistenceManager::Get()->GetPersistedFavoritesNamesArray( BuilderKey );
+	Favorites = UBuilderPersistenceManager::Get()->GetFavoritesNames( BuilderKey );
+	const bool bCategoryButtonLabelVisibilityBool = UBuilderPersistenceManager::Get()->GetShowButtonLabels( BuilderKey, CategoryButtonLabelVisibility.IsVisible() );
+	CategoryButtonLabelVisibility = bCategoryButtonLabelVisibilityBool ? EVisibility::Visible : EVisibility::Collapsed;
 	ActiveCategoryName = Args.ActiveCategoryName;
 }
 
@@ -80,8 +97,19 @@ void FCategoryDrivenContentBuilder::ToggleFavorite( FName InFavoriteCommandName 
 		Favorites.Add( InFavoriteCommandName );
 	}
 
-	UBuilderPersistenceManager::Get()->SetPersistedFavoritesNamesArray( BuilderKey, Favorites );
+	UBuilderPersistenceManager::Get()->PersistFavoritesNames( BuilderKey, Favorites );
 	UpdateWidget();
+}
+
+void FCategoryDrivenContentBuilder::ToggleShowLabels()
+{
+	CategoryButtonLabelVisibility = CategoryButtonLabelVisibility.IsVisible() ? EVisibility::Collapsed : EVisibility::Visible;
+	UBuilderPersistenceManager::Get()->PersistShowButtonLabels( BuilderKey, CategoryButtonLabelVisibility.IsVisible() );
+
+	const bool bShowReinitialize = true;
+	RefreshCategoryToolbarWidget( bShowReinitialize );
+	InitializeCategoryButtons();
+	CreateWidget();
 }
 
 void FCategoryDrivenContentBuilder::AddFavorite(FName InFavoriteCommandName)
@@ -113,11 +141,19 @@ void FCategoryDrivenContentBuilder::ClearCategoryContent()
 
 void FCategoryDrivenContentBuilder::InitializeCategoryToolbar()
 {
+	if (!LoadPaletteToolBarBuilder)
+	{
+		return;
+	}
+
+	LoadPaletteToolBarBuilder->SetLabelVisibility(CategoryButtonLabelVisibility);
+	
 	for ( TTuple<FName, UE::DisplayBuilders::FBuilderInput>  Pair : CategoryNameToBuilderInputMap )
 	{
 		FButtonArgs ButtonArgs = Pair.Value.ButtonArgs;
 		const TSharedPtr<const FUICommandInfo> Command = ButtonArgs.Command;
 		const FName CommandName = Command->GetCommandName();
+		ButtonArgs.OnGetMenuContent.BindSP(this, &FCategoryDrivenContentBuilder::CreateShowCategoryLabelsContextMenu );
 		
 		LoadToolPaletteCommandList->MapAction(
 			Command,

@@ -44,6 +44,13 @@ public:
 	WIDGETREGISTRATION_API TSharedRef<SWidget> CreateFavoritesContextMenu( FString FavoritesItemName );
 
 	/**
+	 * Returns the context menu containing an item to show or hide category labels.
+	 * 
+	 * @param bInShowCategoryLabelsItemName the name of the Show Category Labels item that would be toggled with the menu
+	 */
+	WIDGETREGISTRATION_API TSharedRef<SWidget> CreateShowCategoryLabelsContextMenu();
+
+	/**
 	 * A delegate which provides the const FName& Command name as a parameter to indicates which category was clicked.
 	 * The bound method should update this FCategoryDrivenContentBuilder's content based on the category that was chosen.
 	 */ 
@@ -127,9 +134,9 @@ private:
      * 
      * @param ActiveCategoryName the name of the Category that will be loaded, which will be the title in the header of the returned content
      */
-	WIDGETREGISTRATION_API virtual void UpdateContentForCategory(
-		FName ActiveCategoryName = NAME_None
-		, FText InActiveCategoryText = FText::GetEmpty() ) override;
+	virtual void UpdateContentForCategory(
+		FName ActiveCategoryName = NAME_None,
+		FText InActiveCategoryText = FText::GetEmpty() ) override;
 
 	/**
 	* A map of the Category FName to the TSharedRef<FBuilderInput> providing the information to instantiate the category buttons
@@ -150,6 +157,11 @@ private:
 	 * Toggles the favorite with the name InFavoriteCommandName
 	 */
 	void ToggleFavorite( FName InFavoriteCommandName );
+
+	/**
+	 * Toggles the visibility of the categories names
+	 */
+	void ToggleShowLabels();
 
 private:
 
