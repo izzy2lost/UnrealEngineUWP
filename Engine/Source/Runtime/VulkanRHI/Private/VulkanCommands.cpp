@@ -128,11 +128,15 @@ struct FVulkanResourceBinder
 	const ShaderStage::EStage Stage;
 	PendingStateType* PendingState;
 
+	// Even if no resource are bound when bindless is enabled, we still need to process the Resource Table to go through proper validation
+	const bool bBindless;
+
 	FVulkanResourceBinder(FVulkanCommandListContext& InContext, EShaderFrequency InFrequency, PendingStateType* InPendingState)
 		: Context(InContext)
 		, Frequency(InFrequency)
 		, Stage((InFrequency == SF_Compute) ? ShaderStage::Compute : ShaderStage::GetStageForFrequency(InFrequency))
 		, PendingState(InPendingState)
+		, bBindless(InContext.GetDevice()->SupportsBindless())
 	{
 	}
 
@@ -143,25 +147,37 @@ struct FVulkanResourceBinder
 			//Context.ClearShaderResources(UAV);
 		}
 
-		PendingState->SetUAVForUBResource(Stage, Index, ResourceCast(UAV));
+		if (!bBindless)
+		{
+			PendingState->SetUAVForUBResource(Stage, Index, ResourceCast(UAV));
+		}
 	}
 
 	void SetSRV(FRHIShaderResourceView* SRV, uint16 Index)
 	{
-		PendingState->SetSRVForUBResource(Stage, Index, ResourceCast(SRV));
+		if (!bBindless)
+		{
+			PendingState->SetSRVForUBResource(Stage, Index, ResourceCast(SRV));
+		}
 	}
 
 	void SetTexture(FRHITexture* TextureRHI, uint16 Index)
 	{
-		FVulkanTexture* VulkanTexture = ResourceCast(TextureRHI);
-		const ERHIAccess RHIAccess = (Frequency == SF_Compute) ? ERHIAccess::SRVCompute : ERHIAccess::SRVGraphics;
-		const VkImageLayout ExpectedLayout = FVulkanLayoutManager::GetDefaultLayout(Context.GetCommandBufferManager()->GetActiveCmdBuffer(), *VulkanTexture, RHIAccess);
-		PendingState->SetTextureForUBResource(Stage, Index, VulkanTexture, ExpectedLayout);
+		if (!bBindless)
+		{
+			FVulkanTexture* VulkanTexture = ResourceCast(TextureRHI);
+			const ERHIAccess RHIAccess = (Frequency == SF_Compute) ? ERHIAccess::SRVCompute : ERHIAccess::SRVGraphics;
+			const VkImageLayout ExpectedLayout = FVulkanLayoutManager::GetDefaultLayout(Context.GetCommandBufferManager()->GetActiveCmdBuffer(), *VulkanTexture, RHIAccess);
+			PendingState->SetTextureForUBResource(Stage, Index, VulkanTexture, ExpectedLayout);
+		}
 	}
 
 	void SetSampler(FRHISamplerState* Sampler, uint16 Index)
 	{
-		PendingState->SetSamplerStateForUBResource(Stage, Index, ResourceCast(Sampler));
+		if (!bBindless)
+		{
+			PendingState->SetSamplerStateForUBResource(Stage, Index, ResourceCast(Sampler));
+		}
 	}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING

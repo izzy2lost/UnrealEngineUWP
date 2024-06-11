@@ -821,7 +821,7 @@ static bool BuildShaderOutputFromSpirv(
 							{
 								const SpvReflectBlockVariable& Member = Binding->block.members[MemberIndex];
 
-								FString MemberName(ANSI_TO_TCHAR(Member.name));
+								FString MemberName(Member.name);
 								FStringView AdjustedMemberName(MemberName);
 
 								const EShaderParameterType BindlessParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(AdjustedMemberName);
@@ -849,6 +849,26 @@ static bool BuildShaderOutputFromSpirv(
 							check(!UsedUniformBufferSlots[ReflectionSlot]);
 							HandleReflectedUniformBuffer(ResourceName, ReflectionSlot, Output);
 							AddShaderValidationUBSize(BindingTypeCount, Binding->block.padded_size, Output);
+
+							// Register uniform buffer members that are in use
+							for (uint32 MemberIndex = 0; MemberIndex < Binding->block.member_count; ++MemberIndex)
+							{
+								const SpvReflectBlockVariable& Member = Binding->block.members[MemberIndex];
+
+								if ((Member.flags & SPV_REFLECT_VARIABLE_FLAGS_UNUSED) != 0)
+								{
+									continue;
+								}
+
+								const FString MemberName(Member.name);
+								HandleReflectedUniformBufferConstantBufferMember(
+									ReflectionSlot,
+									MemberName,
+									Member.absolute_offset,
+									Member.size,
+									Output
+								);
+							}
 						}
 
 						check(!UsedUniformBufferSlots[ReflectionSlot]);
