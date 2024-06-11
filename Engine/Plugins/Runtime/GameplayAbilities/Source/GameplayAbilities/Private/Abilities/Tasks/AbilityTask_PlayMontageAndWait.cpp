@@ -52,6 +52,14 @@ void UAbilityTask_PlayMontageAndWait::OnMontageBlendingOut(UAnimMontage* Montage
 	}
 }
 
+void UAbilityTask_PlayMontageAndWait::OnMontageBlendedIn(UAnimMontage* Montage)
+{
+	if (ShouldBroadcastAbilityTaskDelegates())
+	{
+		OnBlendedIn.Broadcast();
+	}
+}
+
 void UAbilityTask_PlayMontageAndWait::OnMontageInterrupted()
 {
 	// Call the new function
@@ -130,6 +138,9 @@ void UAbilityTask_PlayMontageAndWait::Activate()
 				}
 
 				InterruptedHandle = Ability->OnGameplayAbilityCancelled.AddUObject(this, &UAbilityTask_PlayMontageAndWait::OnGameplayAbilityCancelled);
+
+				BlendedInDelegate.BindUObject(this, &UAbilityTask_PlayMontageAndWait::OnMontageBlendedIn);
+				AnimInstance->Montage_SetBlendedInDelegate(BlendedInDelegate, MontageToPlay);
 
 				BlendingOutDelegate.BindUObject(this, &UAbilityTask_PlayMontageAndWait::OnMontageBlendingOut);
 				AnimInstance->Montage_SetBlendingOutDelegate(BlendingOutDelegate, MontageToPlay);
@@ -228,6 +239,7 @@ bool UAbilityTask_PlayMontageAndWait::StopPlayingMontage()
 			FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(MontageToPlay);
 			if (MontageInstance)
 			{
+				MontageInstance->OnMontageBlendedInEnded.Unbind();
 				MontageInstance->OnMontageBlendingOutStarted.Unbind();
 				MontageInstance->OnMontageEnded.Unbind();
 			}
