@@ -400,7 +400,6 @@ RENDERCORE_API bool UseVirtualTexturing(const FStaticFeatureLevel InFeatureLevel
 
 RENDERCORE_API bool NaniteAtomicsSupported();
 RENDERCORE_API bool NaniteWorkGraphMaterialsSupported();
-RENDERCORE_API bool NaniteLegacyMaterialsSupported(); // TODO: Remove PS Materials
 RENDERCORE_API bool NaniteSplineMeshesSupported();
 RENDERCORE_API bool NaniteSkinnedMeshesSupported();
 

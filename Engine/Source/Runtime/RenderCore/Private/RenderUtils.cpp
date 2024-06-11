@@ -1294,11 +1294,6 @@ bool NaniteWorkGraphMaterialsSupported()
 	return bAllowWorkGraphMaterials;
 }
 
-bool NaniteLegacyMaterialsSupported()
-{
-	return true; // TODO: Remove PS Materials
-}
-
 bool UseNaniteFastTileClear()
 {
 	static const IConsoleVariable* CVarNaniteFastTileClear = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.FastTileClear"));

@@ -81,7 +81,7 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowSplineMeshes(
 
 static TAutoConsoleVariable<int32> CVarNaniteAllowSkinnedMeshes(
 	TEXT("r.Nanite.AllowSkinnedMeshes"),
-	0, // TODO: Nanite-Skinning - HEAVY WIP
+	1,
 	TEXT("Whether to enable support for Nanite skinned meshes"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
