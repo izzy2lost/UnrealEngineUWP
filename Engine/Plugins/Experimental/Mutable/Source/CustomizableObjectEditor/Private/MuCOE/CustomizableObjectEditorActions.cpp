@@ -29,6 +29,9 @@ void FCustomizableObjectEditorCommands::RegisterCommands()
 
 	UI_COMMAND(PerformanceReport, "Performance Report", "Open the Performance Report window to set up and perform all tests relevant to Customizable Objects and access worst cases data.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(TextureAnalyzer, "Texture Memory Analyzer", "Open the Texture Analyzer window to check all the information of the textures created by Mutable.", EUserInterfaceActionType::Button, FInputChord());
+
+	UI_COMMAND(CompileGatherReferences, "Compile and Gather References", "Compile and gather all asset references used in this Customizable Object. Marks the object as modified.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ClearGatheredReferences, "Clear References", "Clear gathered asset references. Marks the object as modified.", EUserInterfaceActionType::Button, FInputChord());
 }
 
 

@@ -549,7 +549,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 		}
 		else
 		{
-			return false;
+			return true;
 		}
 	}
 	
@@ -572,7 +572,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 				}
 				else
 				{
-					return false;
+					return true;
 				}
 			}
 		}
@@ -589,7 +589,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 				}
 				else
 				{
-					return false;
+					return true;
 				}
 			}
 
@@ -605,7 +605,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 				}
 				else
 				{
-					return false;
+					return true;
 				}
 			}
 		}
@@ -627,12 +627,19 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 			}
 			else
 			{
-				return false;
+				return true;
 			}
 		}
 	}
 
-	return !OutOfDatePackages->IsEmpty();	
+	if (OutOfDatePackages)
+	{
+		return !OutOfDatePackages->IsEmpty();	
+	}
+	else
+	{
+		return false;
+	}
 }
 
 
@@ -661,14 +668,6 @@ void FCustomizableObjectEditorModule::BakeCustomizableObjectInstance(UCustomizab
 }
 
 
-void CompileCustomizableObjectsSync(const TSharedRef<FCompilationRequest>& CompilationRequest)
-{
-	FCustomizableObjectCompiler* SyncCompiler = new FCustomizableObjectCompiler();
-	SyncCompiler->Compile(CompilationRequest);
-	delete SyncCompiler;
-}
-
-
 void FCustomizableObjectEditorModule::CompileCustomizableObject(const TSharedRef<FCompilationRequest>& InCompilationRequest, bool bForceRequest)
 {
 	if (IsRunningGame())
@@ -676,14 +675,7 @@ void FCustomizableObjectEditorModule::CompileCustomizableObject(const TSharedRef
 		return;
 	}
 
-	if (InCompilationRequest->IsAsyncCompilation())
-	{
-		CompileCustomizableObjects({ InCompilationRequest }, bForceRequest);
-	}
-	else
-	{
-		CompileCustomizableObjectsSync(InCompilationRequest);
-	}
+	CompileCustomizableObjects({ InCompilationRequest }, bForceRequest);
 }
 
 void FCustomizableObjectEditorModule::CompileCustomizableObjects(const TArray<TSharedRef<FCompilationRequest>>& InCompilationRequests, bool bForceRequests)
@@ -705,10 +697,12 @@ void FCustomizableObjectEditorModule::CompileCustomizableObjects(const TArray<TS
 		{
 			continue;
 		}
-
+		
 		if (!Request->IsAsyncCompilation())
 		{
-			CompileCustomizableObjectsSync(Request);
+			FCustomizableObjectCompiler* SyncCompiler = new FCustomizableObjectCompiler();
+			SyncCompiler->Compile(Request);
+			delete SyncCompiler;
 		}
 
 		else if (bForceRequests ||

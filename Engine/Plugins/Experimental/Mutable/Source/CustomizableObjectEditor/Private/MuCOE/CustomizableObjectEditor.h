@@ -264,6 +264,9 @@ public:
 
 	/** Debug the object as a raw mutable data in the internal tools. */
 	void DebugObject() const;
+
+	/** Clear game asset references saved in the Customizable Object. */
+	void ClearGatheredReferences();
 	
 private:
 	TSharedRef<SDockTab> SpawnTab_Viewport(const FSpawnTabArgs& Args);
@@ -282,8 +285,11 @@ private:
 	/** Command list for the graph editor */
 	TSharedPtr<FUICommandList> GraphEditorCommands;
 
-	// Compile the customizable object.
-	void CompileObject(bool bOnlySelectedParameters);
+	/** Compile the Customizable Object.
+	 * 
+	 * @param bOnlySelectedParameters If true, compile only selected int parameters.
+	 * @param bGatherReferences If true, also gather asset references and save them in the Customizable Object. Marks the objects as modified. */
+	void CompileObject(bool bOnlySelectedParameters, bool bGatherReferences);
 	
 	// Compile options menu callbacks
 	TSharedRef<SWidget> GenerateCompileOptionsMenuContent(TSharedRef<FUICommandList> InCommandList);

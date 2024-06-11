@@ -99,6 +99,9 @@ struct FCompilationOptions
 
 	// Control image tiled generation
 	int32 ImageTiling = 0;
+
+	/** If true, gather all game asset references and save them in the Customizable Object. */
+	bool bGatherReferences = false;
 };
 
 

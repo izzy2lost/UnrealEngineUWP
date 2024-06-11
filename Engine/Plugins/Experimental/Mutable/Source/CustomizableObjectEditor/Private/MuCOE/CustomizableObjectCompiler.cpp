@@ -895,9 +895,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	}
 	else
 	{
-		// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
-		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(false);
-		ModelResources = FModelResources();
+		FModelResources ModelResources;
 		
 		ModelResources.ReferenceSkeletalMeshesData = MoveTemp(GenerationContext.ReferenceSkeletalMeshesData);
 
@@ -1107,6 +1105,16 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;
 		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
 		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;
+
+		if (CurrentOptions.bGatherReferences)
+		{
+			CurrentObject->GetPrivate()->References = ModelResources;
+			CurrentObject->GetPrivate()->References.RuntimeReferencedTextures.Empty(); // Empty in case the of none optimization. In maximum optimization, they are Mutable textures. 
+			CurrentObject->Modify();
+		}
+
+		// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
+		CurrentObject->GetPrivate()->GetModelResources(false) = MoveTemp(ModelResources);
 
 		CurrentObject->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
 

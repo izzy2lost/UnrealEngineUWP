@@ -602,13 +602,13 @@ void FCustomizableObjectEditor::BindCommands()
 	// Compile and options
 	ToolkitCommands->MapAction(
 		Commands.Compile,
-		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, false),
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, false, false),
 		FCanExecuteAction::CreateStatic(&UCustomizableObjectSystem::IsActive),
 		FIsActionChecked());
 
 	ToolkitCommands->MapAction(
 		Commands.CompileOnlySelected,
-		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, true),
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, true, false),
 		FCanExecuteAction::CreateStatic(&UCustomizableObjectSystem::IsActive),
 		FIsActionChecked());
 
@@ -632,6 +632,19 @@ void FCustomizableObjectEditor::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked());
 
+	// References
+	ToolkitCommands->MapAction(
+		Commands.CompileGatherReferences,
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObject, false, true),
+		FCanExecuteAction(),
+		FIsActionChecked());
+
+	ToolkitCommands->MapAction(
+		Commands.ClearGatheredReferences,
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::ClearGatheredReferences),
+		FCanExecuteAction(),
+		FIsActionChecked());
+	
 	// Texture Analyzer
 	ToolkitCommands->MapAction(
 		Commands.TextureAnalyzer,
@@ -1181,7 +1194,6 @@ void FCustomizableObjectEditor::ExtendToolbar()
 				LOCTEXT("Compile_Options_Tooltip", "Change Compile Options"),
 				TAttribute<FSlateIcon>(),
 				true);
-
 			ToolbarBuilder.EndSection();
 			
 			ToolbarBuilder.BeginSection("Information");
@@ -1354,6 +1366,13 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 	}
 	MenuBuilder.EndSection();
 
+	MenuBuilder.BeginSection("References", LOCTEXT("References", "References"));
+	{
+		MenuBuilder.AddMenuEntry(FCustomizableObjectEditorCommands::Get().CompileGatherReferences);
+		MenuBuilder.AddMenuEntry(FCustomizableObjectEditorCommands::Get().ClearGatheredReferences);
+	}
+	MenuBuilder.EndSection();
+
 	return MenuBuilder.MakeWidget();
 }
 
@@ -1450,7 +1469,7 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 }
 
 
-void FCustomizableObjectEditor::CompileObject(bool bOnlySelectedParameters)
+void FCustomizableObjectEditor::CompileObject(bool bOnlySelectedParameters, bool bGatherReferences)
 {
 	// Resetting viewport parameters
 	Viewport->SetDrawDefaultUVMaterial();
@@ -1473,6 +1492,7 @@ void FCustomizableObjectEditor::CompileObject(bool bOnlySelectedParameters)
 
 	TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(*CustomizableObject, true);
 	CompileRequest->GetCompileOptions().bSilentCompilation = false;
+	CompileRequest->GetCompileOptions().bGatherReferences = bGatherReferences;
 
 	if (bOnlySelectedParameters && PreviewInstance)
 	{
@@ -1502,6 +1522,13 @@ void FCustomizableObjectEditor::DebugObject() const
 	
 	// Spawn the debugger tab alongside the Graph Tab 
 	TabManager->InsertNewDocumentTab(GraphTabId, FTabManager::ESearchPreference::PreferLiveTab, NewMutableObjectTab.ToSharedRef());
+}
+
+
+void FCustomizableObjectEditor::ClearGatheredReferences()
+{
+	CustomizableObject->GetPrivate()->References = {};
+	CustomizableObject->Modify();
 }
 
 

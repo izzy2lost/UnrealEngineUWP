@@ -1017,6 +1017,10 @@ public:
 	UPROPERTY(Transient)
 	TArray<FMutableModelParameterProperties> ParameterProperties;
 
+	/** Reference to all UObject used in game. Only updated during the compilation if the user explicitly wants to save all references. */
+	UPROPERTY()
+	FModelResources References;
+	
 	// Map of name to index of ParameterProperties.
 	// use this to lookup fast by Name
 	TMap<FString, FMutableParameterIndex> ParameterPropertiesLookupTable;

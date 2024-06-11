@@ -71,7 +71,8 @@ public:
 	static ECustomizableObjectCompilationState CompileCustomizableObjectSynchronously(
 		UCustomizableObject* CustomizableObject, 
 		ECustomizableObjectOptimizationLevel OptimizationLevel = ECustomizableObjectOptimizationLevel::Minimal, 
-		ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast);
+		ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast,
+		bool bGatherReferences = false);
 
 	/** Create a new Customizable Object inside a package. */
 	UFUNCTION(BlueprintCallable, Category = "CustomizableObject")

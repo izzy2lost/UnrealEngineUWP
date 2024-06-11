@@ -11,7 +11,6 @@ class FUICommandInfo;
  */
 class FCustomizableObjectEditorCommands : public TCommands<FCustomizableObjectEditorCommands>
 {
-
 public:
 	FCustomizableObjectEditorCommands();
 	
@@ -25,13 +24,14 @@ public:
 	TSharedPtr< FUICommandInfo > ResetPerformanceReportOptions;
 	TSharedPtr< FUICommandInfo > TextureAnalyzer;
 
+	TSharedPtr< FUICommandInfo > CompileGatherReferences;
+	TSharedPtr< FUICommandInfo > ClearGatheredReferences;
+	
 	/**
 	 * Initialize commands
 	 */
 	virtual void RegisterCommands() override;
-
 };
-
 
 
 /**

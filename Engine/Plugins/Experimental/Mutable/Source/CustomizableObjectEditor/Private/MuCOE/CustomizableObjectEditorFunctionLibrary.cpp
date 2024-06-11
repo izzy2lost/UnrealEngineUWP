@@ -16,7 +16,8 @@
 ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::CompileCustomizableObjectSynchronously(
 	UCustomizableObject* CustomizableObject,
 	ECustomizableObjectOptimizationLevel InOptimizationLevel,
-	ECustomizableObjectTextureCompression InTextureCompression)
+	ECustomizableObjectTextureCompression InTextureCompression,
+	bool bGatherReferences)
 {
 	// store package dirty state so that we can restore it - compile is not an edit:
 	const bool bPackageWasDirty = CustomizableObject->GetOutermost()->IsDirty();
@@ -28,6 +29,7 @@ ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::Co
 	Options.OptimizationLevel = static_cast<int32>(InOptimizationLevel);
 	Options.TextureCompression = InTextureCompression;
 	Options.bSilentCompilation = false;
+	Options.bGatherReferences = bGatherReferences;
 	ICustomizableObjectEditorModule::GetChecked().CompileCustomizableObject(CompileRequest);
 
 	check(CompileRequest->GetCompilationState() == ECompilationStatePrivate::Completed);
