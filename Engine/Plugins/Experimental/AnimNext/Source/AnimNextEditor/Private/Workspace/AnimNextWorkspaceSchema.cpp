@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextWorkspaceSchema.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Scheduler/AnimNextSchedule.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextWorkspaceSchema"
@@ -16,7 +16,7 @@ TConstArrayView<FTopLevelAssetPath> UAnimNextWorkspaceSchema::GetSupportedAssetC
 	static const FTopLevelAssetPath Assets[] =
 	{
 		UAnimNextSchedule::StaticClass()->GetClassPathName(),
-		UAnimNextGraph::StaticClass()->GetClassPathName(),
+		UAnimNextModule::StaticClass()->GetClassPathName(),
 	};
 	
 	return Assets;

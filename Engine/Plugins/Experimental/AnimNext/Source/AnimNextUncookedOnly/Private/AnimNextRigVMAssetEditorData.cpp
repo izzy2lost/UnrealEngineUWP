@@ -5,7 +5,7 @@
 #include "AnimNextRigVMAsset.h"
 #include "AnimNextRigVMAssetEntry.h"
 #include "AnimNextRigVMAssetSchema.h"
-#include "AnimNextRigVMWorkspaceAssetUserData.h"
+#include "Module/AnimNextModuleWorkspaceAssetUserData.h"
 #include "ControlRigDefines.h"
 #include "ExternalPackageHelper.h"
 #include "IAnimNextRigVMGraphInterface.h"
@@ -119,9 +119,9 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 
 	if (IInterface_AssetUserData* OuterUserData = Cast<IInterface_AssetUserData>(GetOuter()))
 	{
-		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass()))
+		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextModuleWorkspaceAssetUserData::StaticClass()))
 		{
-			OuterUserData->AddAssetUserDataOfClass(UAnimNextGraphWorkspaceAssetUserData::StaticClass());
+			OuterUserData->AddAssetUserDataOfClass(UAnimNextModuleWorkspaceAssetUserData::StaticClass());
 		}
 	}
 }

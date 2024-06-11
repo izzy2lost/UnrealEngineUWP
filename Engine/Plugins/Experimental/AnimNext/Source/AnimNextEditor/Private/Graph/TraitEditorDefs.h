@@ -9,7 +9,7 @@
 #include "DragAndDrop/DecoratedDragDropOp.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 
-class UAnimNextGraph_EdGraphNode;
+class UAnimNextEdGraphNode;
 struct FSlateColor;
 
 namespace UE::Workspace
@@ -124,7 +124,7 @@ struct FTraitCategoryData
 struct FTraitEditorSharedData
 {
 	TWeakPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorWeak;
-	TWeakObjectPtr<UAnimNextGraph_EdGraphNode> EdGraphNodeWeak = nullptr;
+	TWeakObjectPtr<UAnimNextEdGraphNode> EdGraphNodeWeak = nullptr;
 	TSharedPtr<TArray<TSharedPtr<FTraitDataEditorDef>>> CurrentTraitsDataShared;
 
 	TArray<FTraitInterfaceUID> StackUsedInterfaces;

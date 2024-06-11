@@ -8,7 +8,7 @@
 #include "Param/PropertyBagProxy.h"
 #include "Scheduler/ScheduleTaskContext.h"
 #include "Scheduler/ScheduleInitializationContext.h"
-#include "IAnimNextModule.h"
+#include "IAnimNextModuleInterface.h"
 
 namespace UE::AnimNext::Private
 {

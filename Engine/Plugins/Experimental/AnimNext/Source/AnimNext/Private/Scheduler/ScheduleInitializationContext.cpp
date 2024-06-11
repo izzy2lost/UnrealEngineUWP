@@ -2,7 +2,7 @@
 
 #include "Scheduler/ScheduleInitializationContext.h"
 
-#include "AnimNextModule.h"
+#include "AnimNextModuleImpl.h"
 #include "Modules/ModuleManager.h"
 #include "Param/ObjectProxy.h"
 #include "Param/ObjectProxyFactory.h"
@@ -19,7 +19,7 @@ FScheduleInitializationContext::FScheduleInitializationContext(const FScheduleCo
 
 void FScheduleInitializationContext::ApplyParametersToScope(FName InScope, EParameterScopeOrdering InOrdering, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, const FParameterSourceContext& InContext, TConstArrayView<FName> InRequiredParameters) const
 {
-	FModule& AnimNextModule = FModuleManager::GetModuleChecked<FModule>("AnimNext");
+	FAnimNextModuleImpl& AnimNextModule = FModuleManager::GetModuleChecked<FAnimNextModuleImpl>("AnimNext");
 	TUniquePtr<IParameterSource> ParameterSource = AnimNextModule.CreateParameterSource(InContext, InInstanceId, InRequiredParameters);
 	Context.GetInstanceData().ApplyParametersToScope(InScope, InOrdering, MoveTemp(ParameterSource));
 }

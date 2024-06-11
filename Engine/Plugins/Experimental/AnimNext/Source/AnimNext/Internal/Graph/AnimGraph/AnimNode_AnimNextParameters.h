@@ -6,7 +6,7 @@
 #include "Animation/AnimNodeBase.h"
 #include "AnimNode_AnimNextParameters.generated.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 
 namespace UE::AnimNext
 {
@@ -32,10 +32,10 @@ private:
 	FPoseLink Source;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
-	TObjectPtr<UAnimNextGraph> Parameters;
+	TObjectPtr<UAnimNextModule> Parameters;
 
 	// Cache previous parameters so we know when it changes via pin
-	TObjectPtr<UAnimNextGraph> PreviousParameters;
+	TObjectPtr<UAnimNextModule> PreviousParameters;
 
 	// Cached proxy
 	TUniquePtr<UE::AnimNext::FParametersProxy> ParametersProxy;

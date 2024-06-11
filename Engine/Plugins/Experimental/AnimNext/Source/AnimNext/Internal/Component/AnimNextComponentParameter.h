@@ -7,7 +7,7 @@
 #include "Param/ParamTypeHandle.h"
 #include "AnimNextComponentParameter.generated.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 
 // Boilerplate macro that all derived types of UAnimNextComponentParameter should use.
 // Usage is: IMPLEMENT_ANIMNEXT_COMPONENT_PARAMETER(UAnimNextComponentParameter_DerivedType)
@@ -68,10 +68,10 @@ class UAnimNextComponentParameter_AnimNextGraph : public UAnimNextComponentParam
 	IMPLEMENT_ANIMNEXT_COMPONENT_PARAMETER(UAnimNextComponentParameter_AnimNextGraph);
 
 	// The parameter to set the value to
-	UPROPERTY(EditAnywhere, Category = "Parameter", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UAnimNextGraph>"))
+	UPROPERTY(EditAnywhere, Category = "Parameter", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UAnimNextModule>"))
 	FName Parameter;
 
 	// The value to set
 	UPROPERTY(EditAnywhere, Category = "Parameter")
-	TObjectPtr<UAnimNextGraph> Value;
+	TObjectPtr<UAnimNextModule> Value;
 };

@@ -2,7 +2,7 @@
 
 #include "AnimNextUncookedOnlyModule.h"
 
-#include "AnimNextRigVMWorkspaceAssetUserData.h"
+#include "Module/AnimNextModuleWorkspaceAssetUserData.h"
 #include "UncookedOnlyUtils.h"
 #include "Engine/Blueprint.h"
 #include "Modules/ModuleManager.h"

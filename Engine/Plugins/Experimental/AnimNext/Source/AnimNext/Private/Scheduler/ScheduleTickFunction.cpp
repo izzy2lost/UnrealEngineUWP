@@ -212,7 +212,7 @@ void FScheduleTickFunction::RunScheduleHelper(const FScheduleContext& InSchedule
 				FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->GraphTasks[GraphTaskIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
 
-				Schedule->GraphTasks[GraphTaskIndex].RunGraph(InScheduleContext);
+				Schedule->GraphTasks[GraphTaskIndex].RunModule(InScheduleContext);
 
 				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
 				break;

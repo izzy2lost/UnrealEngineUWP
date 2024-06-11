@@ -3,10 +3,10 @@
 #include "EditorUtils.h"
 
 #include "AnimNextRigVMAssetEntry.h"
-#include "Graph/AnimNextGraph_EditorData.h"
+#include "Module/AnimNextModule_EditorData.h"
 #include "Param/ParamType.h"
 #include "Kismet2/Kismet2NameValidators.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "PropertyBagDetails.h"
 #include "UncookedOnlyUtils.h"
 #include "Param/RigVMDispatch_GetParameter.h"

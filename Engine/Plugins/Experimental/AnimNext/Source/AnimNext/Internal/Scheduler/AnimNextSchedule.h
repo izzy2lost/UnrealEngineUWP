@@ -14,7 +14,7 @@
 #include "Scheduler/IAnimNextScheduleTermInterface.h"
 #include "AnimNextSchedule.generated.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 class UAnimNextSchedule;
 class UAnimNextSchedulerWorldSubsystem;
 class UAnimNextComponent;
@@ -82,12 +82,12 @@ private:
 	// UObject interface
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
-	// The graph to run by default
+	// The module to run by default
 	UPROPERTY(EditAnywhere, Category = "Graph")
-	TObjectPtr<UAnimNextGraph> Graph = nullptr;
+	TObjectPtr<UAnimNextModule> Module = nullptr;
 
 	// Parameter to get the graph from dynamically
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "TObjectPtr<UAnimNextGraph>"))
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "TObjectPtr<UAnimNextModule>"))
 	FAnimNextEditorParam DynamicGraph;
 
 	// An optional entry point to use when running the supplied graph
@@ -158,7 +158,7 @@ private:
 
 	// Parameters to apply in this scope
 	UPROPERTY(EditAnywhere, Category = "Parameters")
-	TArray<TObjectPtr<UAnimNextGraph>> Parameters;
+	TArray<TObjectPtr<UAnimNextModule>> Parameters;
 
 	// Entries that are part of this scope
 	UPROPERTY(EditAnywhere, Category = "Parameters", Instanced)

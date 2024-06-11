@@ -4,7 +4,7 @@
 
 #include "Param/IParameterSource.h"
 #include "PropertyBag.h"
-#include "IAnimNextModule.h"
+#include "IAnimNextModuleInterface.h"
 
 namespace UE::AnimNext
 {

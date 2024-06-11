@@ -10,7 +10,7 @@
 
 class SWrapBox;
 class UAnimNextParameterLibrary;
-class UAnimNextGraph_EditorData;
+class UAnimNextModule_EditorData;
 
 namespace UE::AnimNext::Editor
 {

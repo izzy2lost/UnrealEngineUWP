@@ -3,7 +3,7 @@
 #include "ObjectPropertyLocatorEditor.h"
 
 #include "ClassViewerModule.h"
-#include "IAnimNextModule.h"
+#include "IAnimNextModuleInterface.h"
 #include "IUniversalObjectLocatorCustomization.h"
 #include "SParameterPicker.h"
 #include "UniversalObjectLocator.h"

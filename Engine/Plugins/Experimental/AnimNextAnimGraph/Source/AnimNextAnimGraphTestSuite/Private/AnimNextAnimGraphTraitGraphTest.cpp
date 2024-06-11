@@ -12,9 +12,9 @@
 #include "TraitInterfaces/IUpdate.h"
 #include "Editor/Transactor.h"
 #include "AnimNextExecuteContext.h"
-#include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraph_EditorData.h"
-#include "Graph/GraphFactory.h"
+#include "Module/AnimNextModule.h"
+#include "Module/AnimNextModule_EditorData.h"
+#include "Module/ModuleFactory.h"
 #include "Graph/RigDecorator_AnimNextCppTrait.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Graph/RigUnit_AnimNextTraitStack.h"
@@ -102,12 +102,12 @@ bool FAnimationAnimNextEditorTest_GraphAddTrait::RunTest(const FString& InParame
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextEditorTest_GraphAddTrait -> Failed to create animation graph");
+		UFactory* GraphFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(GraphFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextEditorTest_GraphAddTrait -> Failed to create module");
 
-		UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(AnimNextGraph);
-		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextEditorTest_GraphAddTrait -> Failed to find animation graph editor data");
+		UAnimNextModule_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Module);
+		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextEditorTest_GraphAddTrait -> Failed to find module editor data");
 
 		UE_RETURN_ON_ERROR(EditorData->AddAnimationGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false) != nullptr, "FAnimationAnimNextEditorTest_GraphAddTrait -> Failed to add animation graph");
 
@@ -208,16 +208,16 @@ bool FAnimationAnimNextEditorTest_GraphTraitOperations::RunTest(const FString& I
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextEditorTest_GraphTraitOperations -> Failed to create animation graph");
+		UFactory* GraphFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(GraphFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextEditorTest_GraphTraitOperations -> Failed to create module");
 
-		UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(AnimNextGraph);
-		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextEditorTest_GraphTraitOperations -> Failed to find animation graph editor data");
+		UAnimNextModule_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Module);
+		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextEditorTest_GraphTraitOperations -> Failed to find module editor data");
 
 		UE_RETURN_ON_ERROR(EditorData->AddAnimationGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false) != nullptr, "FAnimationAnimNextEditorTest_GraphTraitOperations -> Failed to add animation graph");
 
-		UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EditorData->GetRigVMClient()->GetController(EditorData->GetRigVMClient()->GetDefaultModel()));
+		UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EditorData->GetRigVMClient()->GetController(EditorData->GetRigVMClient()->GetDefaultModel()));
 		UE_RETURN_ON_ERROR(Controller != nullptr, "FAnimationAnimNextEditorTest_GraphTraitOperations -> Failed to get RigVM controller");
 
 		// Create an empty trait stack node
@@ -370,12 +370,12 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecute -> Failed to create animation graph");
+		UFactory* GraphFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(GraphFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecute -> Failed to create module");
 
-		UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(AnimNextGraph);
-		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecute -> Failed to find animation graph editor data");
+		UAnimNextModule_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Module);
+		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecute -> Failed to find module editor data");
 
 		UE_RETURN_ON_ERROR(EditorData->AddAnimationGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false) != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecute -> Failed to add animation graph");
 
@@ -442,7 +442,7 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 		FParamStack::AttachToCurrentThread(ParamStack);
 
 		FAnimNextGraphInstancePtr GraphInstance;
-		AnimNextGraph->AllocateInstance(GraphInstance);
+		Module->AllocateInstance(GraphInstance);
 
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack->PushValues(
 			"/Engine/Transient.TestAnimNextGraph:UpdateCount", (int32)0,
@@ -490,16 +490,16 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 		AUTO_REGISTER_ANIM_TRAIT(FTestTrait)
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to create animation graph");
+		UFactory* GraphFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(GraphFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to create module");
 
-		UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(AnimNextGraph);
-		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to find animation graph editor data");
+		UAnimNextModule_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Module);
+		UE_RETURN_ON_ERROR(EditorData != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to find module editor data");
 
 		UE_RETURN_ON_ERROR(EditorData->AddAnimationGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false) != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to add animation graph");
 
-		UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EditorData->GetRigVMClient()->GetController(EditorData->GetRigVMClient()->GetDefaultModel()));
+		UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EditorData->GetRigVMClient()->GetController(EditorData->GetRigVMClient()->GetDefaultModel()));
 		UE_RETURN_ON_ERROR(Controller != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to get RigVM controller");
 
 		// Find graph entry point
@@ -574,7 +574,7 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 		}
 
 		{
-			URigVMNode* GetParameterNode = Controller->AddGetAnimNextParameterNode(FVector2D::ZeroVector, UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeSourceInt"), FAnimNextParamType::GetType<int32>());
+			URigVMNode* GetParameterNode = Controller->AddGetAnimNextParameterNode(FVector2D::ZeroVector, UncookedOnly::FUtils::GetQualifiedName(Module, "SomeSourceInt"), FAnimNextParamType::GetType<int32>());
 			UE_RETURN_ON_ERROR(GetParameterNode != nullptr, TEXT("FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to create GetParameter node"));
 
 			Controller->AddLink(
@@ -586,17 +586,17 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 		FParamStack::AttachToCurrentThread(ParamStack);
 
 		FAnimNextGraphInstancePtr GraphInstance;
-		AnimNextGraph->AllocateInstance(GraphInstance);
+		Module->AllocateInstance(GraphInstance);
 
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack->PushValues(
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "UpdateCount"), (int32)0,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "EvaluateCount"), (int32)0,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeSourceInt"), (int32)1223,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeInt32"), (int32)0,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeFloat"), 0.0f,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentInt32"), (int32)0,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeOtherLatentInt32"), (int32)0,
-			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentFloat"), 0.0f
+			UncookedOnly::FUtils::GetQualifiedName(Module, "UpdateCount"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "EvaluateCount"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "SomeSourceInt"), (int32)1223,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "SomeInt32"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "SomeFloat"), 0.0f,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "SomeLatentInt32"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "SomeOtherLatentInt32"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(Module, "SomeLatentFloat"), 0.0f
 		);
 
 		{
@@ -606,13 +606,13 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 			(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 		}
 
-		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "UpdateCount")) == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected update count");
-		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "EvaluateCount")) == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected evaluate count");
-		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeInt32")) == 78, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<float>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeFloat")) == 142.33f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeFloat value");
-		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentInt32")) == 33, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeOtherLatentInt32")) == 1223, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeOtherLatentInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<float>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentFloat")) == 1123.31f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentFloat value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(Module, "UpdateCount")) == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected update count");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(Module, "EvaluateCount")) == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected evaluate count");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(Module, "SomeInt32")) == 78, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<float>(UncookedOnly::FUtils::GetQualifiedName(Module, "SomeFloat")) == 142.33f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeFloat value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(Module, "SomeLatentInt32")) == 33, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(Module, "SomeOtherLatentInt32")) == 1223, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeOtherLatentInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<float>(UncookedOnly::FUtils::GetQualifiedName(Module, "SomeLatentFloat")) == 1123.31f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentFloat value");
 
 		ParamStack->PopLayer(LayerHandle);
 		GraphInstance.Release();

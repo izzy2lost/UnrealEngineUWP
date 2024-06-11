@@ -31,14 +31,14 @@ namespace UE::AnimNext
 	#undef TRAIT_INTERFACE_ENUMERATOR
 	#undef TRAIT_EVENT_ENUMERATOR
 
-	void FPlayAnimSlotTrait::FPlayAnimSlotRequest::Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextGraph* InSubGraph)
+	void FPlayAnimSlotTrait::FPlayAnimSlotRequest::Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextModule* InModule)
 	{
 		Request = InRequest;
 		BlendSettings = InBlendSettings;
-		SubGraph = InSubGraph;
+		Module = InModule;
 
 		// If no input is provided, we'll use the source
-		State = InSubGraph != nullptr ? EPlayAnimRequestState::Active : EPlayAnimRequestState::ActiveSource;
+		State = InModule != nullptr ? EPlayAnimRequestState::Active : EPlayAnimRequestState::ActiveSource;
 		bWasRelevant = false;
 	}
 
@@ -155,7 +155,7 @@ namespace UE::AnimNext
 			InstanceData->PendingRequest.Reset();
 
 			FPlayAnimBlendSettings BlendSettings;
-			const UAnimNextGraph* SubGraph = nullptr;
+			const UAnimNextModule* Module = nullptr;
 			if (Request)
 			{
 				// This is a new pending request, lookup the sub-graph to use with our chooser and the desired animation object
@@ -170,21 +170,21 @@ namespace UE::AnimNext
 						FChooserEvaluationContext ChooserContext;
 						ChooserContext.AddStructParam(ChooserParameters);
 
-						UChooserTable::EvaluateChooser(ChooserContext, Chooser, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&SubGraph](UObject* InResult)
+						UChooserTable::EvaluateChooser(ChooserContext, Chooser, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&Module](UObject* InResult)
 							{
-								SubGraph = Cast<UAnimNextGraph>(InResult);
+								Module = Cast<UAnimNextModule>(InResult);
 								return FObjectChooserBase::EIteratorStatus::Stop;
 							}));
 					}
 
-					if (SubGraph != nullptr)
+					if (Module != nullptr)
 					{
 						// Check for re-entrancy and early-out if we are linking back to the current instance or one of its parents
-						const FName EntryPoint = SubGraph->GetDefaultEntryPoint();
+						const FName EntryPoint = Module->GetDefaultEntryPoint();
 						const FAnimNextGraphInstance* OwnerGraphInstance = &Binding.GetTraitPtr().GetNodeInstance()->GetOwner();
 						while (OwnerGraphInstance != nullptr)
 						{
-							if (OwnerGraphInstance->UsesGraph(SubGraph) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
+							if (OwnerGraphInstance->UsesModule(Module) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
 							{
 								return;
 							}
@@ -215,7 +215,7 @@ namespace UE::AnimNext
 			const int32 FreeRequestIndex = FindFreeRequestIndexOrAdd(*InstanceData);
 
 			FPlayAnimSlotRequest& SlotRequest = InstanceData->SlotRequests[FreeRequestIndex];
-			SlotRequest.Initialize(Request, BlendSettings, SubGraph);
+			SlotRequest.Initialize(Request, BlendSettings, Module);
 
 			const int32 OldChildIndex = InstanceData->CurrentlyActiveRequestIndex;
 			const int32 NewChildIndex = FreeRequestIndex;
@@ -397,14 +397,14 @@ namespace UE::AnimNext
 
 			if (SlotRequest.State == EPlayAnimRequestState::Active)
 			{
-				const FName EntryPoint = SlotRequest.SubGraph->GetDefaultEntryPoint();
-				SlotRequest.SubGraph->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SlotRequest.GraphInstance, EntryPoint);
+				const FName EntryPoint = SlotRequest.Module->GetDefaultEntryPoint();
+				SlotRequest.Module->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SlotRequest.GraphInstance, EntryPoint);
 				SlotRequest.ChildPtr = SlotRequest.GraphInstance.GetGraphRootPtr();
 
 				// Setup our graph parameters
 				const FAnimNextPlayAnimRequestArgs& RequestArgs = SlotRequest.Request->GetArgs();
 
-				const FString SubGraphPath = SlotRequest.SubGraph->GetPathName();
+				const FString SubGraphPath = SlotRequest.Module->GetPathName();
 
 				const FName AnimationObjectName(FString::Printf(TEXT("%s:AnimationObject"), *SubGraphPath));
 				const FName StartPositionName(FString::Printf(TEXT("%s:StartPosition"), *SubGraphPath));
@@ -559,7 +559,7 @@ namespace UE::AnimNext
 				SlotRequest.Request->AddReferencedObjects(Collector);
 			}
 
-			Collector.AddReferencedObject(SlotRequest.SubGraph);
+			Collector.AddReferencedObject(SlotRequest.Module);
 		}
 	}
 }

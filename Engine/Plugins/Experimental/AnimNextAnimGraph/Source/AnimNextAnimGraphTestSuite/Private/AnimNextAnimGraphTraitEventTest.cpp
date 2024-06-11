@@ -14,8 +14,8 @@
 #include "TraitCore/NodeTemplateRegistry.h"
 #include "TraitInterfaces/IHierarchy.h"
 #include "TraitInterfaces/IUpdate.h"
-#include "Graph/AnimNextGraph.h"
-#include "Graph/GraphFactory.h"
+#include "Module/AnimNextModule.h"
+#include "Module/ModuleFactory.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -194,9 +194,9 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 		AUTO_REGISTER_ANIM_TRAIT(FTraitGraphTest_EventAB_OneChild)
 		AUTO_REGISTER_ANIM_TRAIT(FTraitGraphTest_EventAB_TwoChildren)
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Failed to create animation graph");
+		UFactory* GraphFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(GraphFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Failed to create module");
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 		FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
@@ -296,10 +296,10 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 		}
 
 		// Read our graph
-		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
+		FTestUtils::LoadFromArchiveBuffer(*Module, NodeHandles, GraphSharedDataArchiveBuffer);
 
 		FAnimNextGraphInstancePtr GraphInstance;
-		AnimNextGraph->AllocateInstance(GraphInstance);
+		Module->AllocateInstance(GraphInstance);
 
 		{
 			// Raise EventA and EventB on graph, every node sees them

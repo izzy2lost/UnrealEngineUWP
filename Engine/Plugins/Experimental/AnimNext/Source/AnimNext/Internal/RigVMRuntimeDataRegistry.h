@@ -78,7 +78,7 @@ private:
 	static void Init();
 	static void Destroy();
 
-	friend class FModule;
+	friend class FAnimNextModuleImpl;
 };
 
 } // end namespace UE::AnimNext

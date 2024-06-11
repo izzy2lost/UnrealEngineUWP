@@ -60,7 +60,7 @@ namespace UE::AnimNext
 
 		TMap<FTraitInterfaceUIDRaw, FRegistryEntry>	TraitInterfaceUIDToEntryMap;
 
-		friend class FModule;
+		friend class FAnimNextModuleImpl;
 		friend struct FTraitInterfaceStaticInitHook;
 	};
 }

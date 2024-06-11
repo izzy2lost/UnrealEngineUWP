@@ -6,7 +6,7 @@
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
 #include "Scheduler/AnimNextSchedulerEntry.h"
 #include "AnimNextStats.h"
-#include "AnimNextModule.h"
+#include "AnimNextModuleImpl.h"
 #include "Modules/ModuleManager.h"
 #include "Param/IParameterSourceFactory.h"
 #include "Param/ParametersProxy.h"
@@ -34,11 +34,11 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 		const FAnimNextScheduleParamScopeEntryTask& EntryTask = InSchedule->ParamScopeEntryTasks[EntryIndex];
 		FScopeCache& ScopeCache = ScopeCaches[EntryTask.ParamScopeIndex];
 		ScopeCache.ParameterSources.Reserve(EntryTask.Parameters.Num());
-		for(UAnimNextGraph* Graph : EntryTask.Parameters)
+		for(UAnimNextModule* Module : EntryTask.Parameters)
 		{
-			if(Graph)
+			if(Module)
 			{
-				ScopeCache.ParameterSources.Emplace(MakeUnique<FParametersProxy>(Graph));
+				ScopeCache.ParameterSources.Emplace(MakeUnique<FParametersProxy>(Module));
 			}
 		}
 
@@ -72,7 +72,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	}
 
 	// Set up external parameters
-	UE::AnimNext::FModule& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FModule>("AnimNext");
+	UE::AnimNext::FAnimNextModuleImpl& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FAnimNextModuleImpl>("AnimNext");
 
 	FParameterSourceContext ParameterSourceContext;
 	ParameterSourceContext.Object = Entry->WeakObject.Get();

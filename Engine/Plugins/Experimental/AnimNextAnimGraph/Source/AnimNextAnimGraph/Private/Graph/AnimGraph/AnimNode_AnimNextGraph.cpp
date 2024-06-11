@@ -26,7 +26,7 @@ TAutoConsoleVariable<int32> CVarAnimNextForceAnimBP(TEXT("a.AnimNextForceAnimBP"
 
 FAnimNode_AnimNextGraph::FAnimNode_AnimNextGraph()
 	: FAnimNode_CustomProperty()
-	, AnimNextGraph(nullptr)
+	, Module(nullptr)
 	, LODThreshold(INDEX_NONE)
 {
 }
@@ -79,9 +79,9 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 
 	SourceLink.Initialize(Context);
 
-	if (!GraphInstance.IsValid() && AnimNextGraph)
+	if (!GraphInstance.IsValid() && Module)
 	{
-		AnimNextGraph->AllocateInstance(GraphInstance);
+		Module->AllocateInstance(GraphInstance);
 	}
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
@@ -163,7 +163,7 @@ void FAnimNode_AnimNextGraph::PostSerialize(const FArchive& Ar)
 	// since memory has changed
 	if (Ar.IsObjectReferenceCollector())
 	{
-		if (AnimNextGraph)
+		if (Module)
 		{
 			//AnimNextGraph->Initialize();
 		}

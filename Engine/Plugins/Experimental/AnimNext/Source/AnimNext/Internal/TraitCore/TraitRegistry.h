@@ -105,7 +105,7 @@ namespace UE::AnimNext
 		TMap<FTraitUIDRaw, FRegistryEntry>	TraitUIDToEntryMap;
 		TMap<FName, FTraitUIDRaw>			TraitNameToUIDMap;
 
-		friend class FModule;
+		friend class FAnimNextModuleImpl;
 		friend struct FTraitStaticInitHook;
 	};
 }

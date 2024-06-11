@@ -2,9 +2,9 @@
 
 #include "Scheduler/AnimNextScheduleGraphTask.h"
 
-#include "IAnimNextModule.h"
+#include "IAnimNextModuleInterface.h"
 #include "Scheduler/ScheduleContext.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Context.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "AnimNextStats.h"
@@ -18,27 +18,27 @@
 
 DEFINE_STAT(STAT_AnimNext_Task_Graph);
 
-UAnimNextGraph* FAnimNextScheduleGraphTask::GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const
+UAnimNextModule* FAnimNextScheduleGraphTask::GetModuleToRun(UE::AnimNext::FParamStack& ParamStack) const
 {
-	UAnimNextGraph* GraphToRun = Graph;
-	if (GraphToRun == nullptr && DynamicGraph.IsValid())
+	UAnimNextModule* ModuleToRun = Module;
+	if (ModuleToRun == nullptr && DynamicModule.IsValid())
 	{
-		if(const TObjectPtr<UAnimNextGraph>* FoundGraph = ParamStack.GetParamPtr<TObjectPtr<UAnimNextGraph>>(DynamicGraph.GetParamId()))
+		if(const TObjectPtr<UAnimNextModule>* FoundModule = ParamStack.GetParamPtr<TObjectPtr<UAnimNextModule>>(DynamicModule.GetParamId()))
 		{
-			GraphToRun = *FoundGraph;
+			ModuleToRun = *FoundModule;
 		}
 	}
 
-	return GraphToRun;
+	return ModuleToRun;
 }
 
-void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGraphToRun) const
+void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextModule* InModuleToRun) const
 {
-	if(SuppliedParametersHash != InGraphToRun->RequiredParametersHash)
+	if(SuppliedParametersHash != InModuleToRun->RequiredParametersHash)
 	{
 		bool bWarningOutput = false;
 
-		for(const FAnimNextParam& RequiredParameter : InGraphToRun->RequiredParameters)
+		for(const FAnimNextParam& RequiredParameter : InModuleToRun->RequiredParameters)
 		{
 			bool bFound = false;
 			bool bFoundCorrectType = true;
@@ -59,7 +59,7 @@ void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGrap
 
 			if(!bWarningOutput && (!bFound || !bFoundCorrectType))
 			{
-				UE_LOGFMT(LogAnimation, Warning, "AnimNext: Graph {GraphToRun} has different required parameters, it may not run correctly.", InGraphToRun->GetFName());
+				UE_LOGFMT(LogAnimation, Warning, "AnimNext: Graph {ModuleToRun} has different required parameters, it may not run correctly.", InModuleToRun->GetFName());
 				bWarningOutput = true;
 			}
 			
@@ -75,7 +75,7 @@ void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGrap
 	}
 }
 
-void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& InContext) const
+void FAnimNextScheduleGraphTask::RunModule(const UE::AnimNext::FScheduleContext& InContext) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Task_Graph);
 
@@ -83,8 +83,8 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 
 	FParamStack& ParamStack = FParamStack::Get();
 
-	UAnimNextGraph* GraphToRun = GetGraphToRun(ParamStack);
-	if(GraphToRun == nullptr)
+	UAnimNextModule* ModuleToRun = GetModuleToRun(ParamStack);
+	if(ModuleToRun == nullptr)
 	{
 		return;
 	}
@@ -93,7 +93,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	FScheduleInstanceData::FGraphCache& GraphCache = InstanceData.GraphCaches[TaskIndex];
 
 	// Check if we are running the correct graph and release (and any term mapping layers) it if not
-	if(GraphCache.GraphInstanceData.IsValid() && !GraphCache.GraphInstanceData.UsesGraph(GraphToRun))
+	if(GraphCache.GraphInstanceData.IsValid() && !GraphCache.GraphInstanceData.UsesModule(ModuleToRun))
 	{
 		GraphCache.GraphInstanceData.Release();
 		GraphCache.GraphTermLayer.Invalidate();
@@ -102,12 +102,12 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// Allocate our graph instance data
 	if (!GraphCache.GraphInstanceData.IsValid())
 	{
-		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData, EntryPoint.Name);
+		ModuleToRun->AllocateInstance(GraphCache.GraphInstanceData, EntryPoint.Name);
 
 		// Only do dynamic verification for dynamic graphs. Static graphs get verified at compile time. 
-		if (Graph == nullptr && DynamicGraph.IsValid())
+		if (Module == nullptr && DynamicModule.IsValid())
 		{
-			VerifyRequiredParameters(GraphToRun);
+			VerifyRequiredParameters(ModuleToRun);
 		}
 	}
 
@@ -127,7 +127,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// Check and allocate remapped term layer
 	if(!GraphCache.GraphTermLayer.IsValid())
 	{
-		TConstArrayView<FScheduleTerm> GraphTerms = GraphToRun->GetTerms();
+		TConstArrayView<FScheduleTerm> GraphTerms = ModuleToRun->GetTerms();
 		check(Terms.Num() == GraphTerms.Num());
 
 		TMap<FName, FName> Mapping;
@@ -143,7 +143,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	}
 
 	// TODO: This should not be fixed at arg 0, we should define this in the graph asset
-	FAnimNextGraphLODPose* OutputPose = GraphCache.GraphTermLayer.GetMutableParamPtr<FAnimNextGraphLODPose>(GraphToRun->GetTerms()[0].GetId());
+	FAnimNextGraphLODPose* OutputPose = GraphCache.GraphTermLayer.GetMutableParamPtr<FAnimNextGraphLODPose>(ModuleToRun->GetTerms()[0].GetId());
 	if(OutputPose == nullptr)
 	{
 		return;
@@ -181,7 +181,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
-	IAnimNextModule& AnimNextModule = IAnimNextModule::Get();
+	IAnimNextModuleInterface& AnimNextModule = IAnimNextModuleInterface::Get();
 	AnimNextModule.UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime(), InputEventList, OutputEventList);
 	AnimNextModule.EvaluateGraph(GraphCache.GraphInstanceData, RefPose, LODIndex, OutputPose->LODPose);
 

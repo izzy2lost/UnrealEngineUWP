@@ -19,8 +19,8 @@
 #include "TraitCore/NodeInstance.h"
 #include "TraitCore/NodeTemplateBuilder.h"
 #include "TraitCore/NodeTemplateRegistry.h"
-#include "Graph/AnimNextGraph.h"
-#include "Graph/GraphFactory.h"
+#include "Module/AnimNextModule.h"
+#include "Module/ModuleFactory.h"
 
 //****************************************************************************
 // AnimNext Runtime TraitBase Tests
@@ -521,9 +521,9 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 		AUTO_REGISTER_ANIM_TRAIT(FTraitAB_Add)
 		AUTO_REGISTER_ANIM_TRAIT(FTraitAC_Add)
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to create animation graph");
+		UFactory* ModuleFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(ModuleFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextModule"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to create module");
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 		FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
@@ -582,10 +582,10 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 		}
 
 		// Read our graph
-		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
+		FTestUtils::LoadFromArchiveBuffer(*Module, NodeHandles, GraphSharedDataArchiveBuffer);
 
 		FAnimNextGraphInstancePtr GraphInstance;
-		AnimNextGraph->AllocateInstance(GraphInstance);
+		Module->AllocateInstance(GraphInstance);
 
 		FExecutionContext Context(GraphInstance);
 
@@ -730,8 +730,8 @@ bool FAnimationAnimNextRuntimeTest_TraitStackBinding::RunTest(const FString& InP
 		AUTO_REGISTER_ANIM_TRAIT(FTraitAB_Add)
 		AUTO_REGISTER_ANIM_TRAIT(FTraitAC_Add)
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UFactory* GraphFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* AnimNextGraph = CastChecked<UAnimNextModule>(GraphFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
 		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to create animation graph");
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
@@ -1154,9 +1154,9 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 		AUTO_REGISTER_ANIM_TRAIT(FTraitSerialization_Add)
 		AUTO_REGISTER_ANIM_TRAIT(FTraitNativeSerialization_Add)
 
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_TraitSerialization -> Failed to create animation graph");
+		UFactory* ModuleFactory = NewObject<UAnimNextModuleFactory>();
+		UAnimNextModule* Module = CastChecked<UAnimNextModule>(ModuleFactory->FactoryCreateNew(UAnimNextModule::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(Module != nullptr, "FAnimationAnimNextRuntimeTest_TraitSerialization -> Failed to create module");
 
 		TArray<FTraitUID> NodeTemplateTraitList;
 		NodeTemplateTraitList.Add(FTraitSerialization_Base::TraitUID);
@@ -1359,10 +1359,10 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 			AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_TraitSerialization -> Registry should contain 0 templates");
 
 			// Read our graph
-			FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
+			FTestUtils::LoadFromArchiveBuffer(*Module, NodeHandles, GraphSharedDataArchiveBuffer);
 
 			FAnimNextGraphInstancePtr GraphInstance;
-			AnimNextGraph->AllocateInstance(GraphInstance);
+			Module->AllocateInstance(GraphInstance);
 
 			FExecutionContext Context(GraphInstance);
 

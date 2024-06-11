@@ -16,12 +16,12 @@ struct FAnimNextParam;
 struct FEdGraphPinType;
 struct FWorkspaceOutlinerItemExports;
 class UAnimNextSchedule;
-class UAnimNextGraph;
-class UAnimNextGraph_EditorData;
-class UAnimNextGraph_EdGraph;
+class UAnimNextModule;
+class UAnimNextModule_EditorData;
+class UAnimNextEdGraph;
 class URigVMController;
 class URigVMGraph;
-class UAnimNextGraph_EdGraph;
+class UAnimNextEdGraph;
 class UAnimNextRigVMAsset;
 class UAnimNextRigVMAssetEditorData;
 class UAnimNextRigVMAssetEntry;
@@ -104,19 +104,19 @@ namespace UE::AnimNext::UncookedOnly
 
 struct ANIMNEXTUNCOOKEDONLY_API FUtils
 {
-	static void Compile(UAnimNextGraph* InGraph);
+	static void Compile(UAnimNextModule* InModule);
 
-	static void CompileVM(UAnimNextGraph* InGraph);
+	static void CompileVM(UAnimNextModule* InModule);
 
-	static void CompileStruct(UAnimNextGraph* InGraph);
+	static void CompileStruct(UAnimNextModule* InModule);
 
-	static UAnimNextGraph_EditorData* GetEditorData(const UAnimNextGraph* InAnimNextGraph);
+	static UAnimNextModule_EditorData* GetEditorData(const UAnimNextModule* InModule);
 
-	static UAnimNextGraph* GetGraph(const UAnimNextGraph_EditorData* InEditorData);
+	static UAnimNextModule* GetGraph(const UAnimNextModule_EditorData* InEditorData);
 
-	static FInstancedPropertyBag* GetPropertyBag(UAnimNextGraph* InAnimNextGraph);
+	static FInstancedPropertyBag* GetPropertyBag(UAnimNextModule* InModule);
 
-	static void RecreateVM(UAnimNextGraph* InGraph);
+	static void RecreateVM(UAnimNextModule* InModule);
 
 	/**
 	 * Get an AnimNext parameter type handle from an FEdGraphPinType.

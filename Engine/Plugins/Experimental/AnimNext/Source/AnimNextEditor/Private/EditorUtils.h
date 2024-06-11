@@ -6,7 +6,7 @@
 #include "Param/ParamType.h"
 #include "EdGraphSchema_K2.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 class UAnimNextRigVMAssetEditorData;
 struct FAnimNextParamType;
 class URigVMController;

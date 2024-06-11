@@ -10,7 +10,7 @@
 #include "TraitCore/TraitMode.h"
 #include "Graph/TraitEditorDefs.h"
 
-class UAnimNextGraph_EdGraphNode;
+class UAnimNextEdGraphNode;
 
 namespace UE::Workspace
 {

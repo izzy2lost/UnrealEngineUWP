@@ -3,18 +3,19 @@
 #include "Param/ParametersProxy.h"
 
 #include "ParamHelpers.h"
-#include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraphState.h"
+#include "Module/AnimNextModule.h"
 #include "Param/ParamStack.h"
 
 namespace UE::AnimNext
 {
 
-FParametersProxy::FParametersProxy(const UAnimNextGraph* InGraph)
-	: Graph(InGraph)
-	, PropertyBag(InGraph->DefaultState.State)
+FParametersProxy::FParametersProxy(const UAnimNextModule* InModule)
+	: Module(InModule)
+	, PropertyBag(InModule->DefaultState.State)
 	, LayerHandle(FParamStack::MakeReferenceLayer(NAME_None, PropertyBag))
 {
-	check(Graph);
+	check(Module);
 	UpdateCachedExternalParamData();
 }
 
@@ -22,9 +23,9 @@ void FParametersProxy::Update(float DeltaTime)
 {
 #if WITH_EDITOR	// Layout should only be changing in editor
 	const FInstancedPropertyBag* HandlePropertyBag = LayerHandle.As<FInstancedPropertyBag>();
-	if(HandlePropertyBag == nullptr || HandlePropertyBag->GetPropertyBagStruct() != Graph->DefaultState.State.GetPropertyBagStruct())
+	if(HandlePropertyBag == nullptr || HandlePropertyBag->GetPropertyBagStruct() != Module->DefaultState.State.GetPropertyBagStruct())
 	{
-		PropertyBag = Graph->DefaultState.State;
+		PropertyBag = Module->DefaultState.State;
 		LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
 		UpdateCachedExternalParamData();
 	}
@@ -47,19 +48,19 @@ void FParametersProxy::Update(float DeltaTime)
 	}
 
 	// Next we update the layer
-	Graph->UpdateLayer(LayerHandle, DeltaTime);
+	Module->UpdateLayer(LayerHandle, DeltaTime);
 }
 
 void FParametersProxy::UpdateCachedExternalParamData()
 {
 	ExternalParamData.Reset();
 
-	if(Graph->DefaultState.PublicParameterStartIndex != INDEX_NONE)
+	if(Module->DefaultState.PublicParameterStartIndex != INDEX_NONE)
 	{
-		TConstArrayView<FPropertyBagPropertyDesc> Descs = Graph->DefaultState.State.GetPropertyBagStruct()->GetPropertyDescs();
+		TConstArrayView<FPropertyBagPropertyDesc> Descs = Module->DefaultState.State.GetPropertyBagStruct()->GetPropertyDescs();
 		const int32 NumProperties = Descs.Num();
-		ExternalParamData.Reserve(NumProperties - Graph->DefaultState.PublicParameterStartIndex);
-		for(int32 PropertyIndex = Graph->DefaultState.PublicParameterStartIndex; PropertyIndex < NumProperties; ++PropertyIndex)
+		ExternalParamData.Reserve(NumProperties - Module->DefaultState.PublicParameterStartIndex);
+		for(int32 PropertyIndex = Module->DefaultState.PublicParameterStartIndex; PropertyIndex < NumProperties; ++PropertyIndex)
 		{
 			const FPropertyBagPropertyDesc& Desc = Descs[PropertyIndex];
 			check(Desc.CachedProperty);
@@ -72,7 +73,7 @@ void FParametersProxy::UpdateCachedExternalParamData()
 
 void FParametersProxy::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	Collector.AddReferencedObject(Graph);
+	Collector.AddReferencedObject(Module);
 	PropertyBag.AddStructReferencedObjects(Collector);
 }
 

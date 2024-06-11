@@ -13,7 +13,7 @@
 #include "TraitCore/NodeTemplate.h"
 #include "TraitCore/NodeTemplateRegistry.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 
 namespace UE::AnimNext
 {
@@ -82,9 +82,9 @@ namespace UE::AnimNext
 
 	struct ANIMNEXTTESTSUITE_API FTestUtils final
 	{
-		// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
+		// Loads the module data from the provided archive buffer and returns true on success, false otherwise
 		// On success, we resolve every node handle provided as argument
-		static bool LoadFromArchiveBuffer(UAnimNextGraph& Graph, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer);
+		static bool LoadFromArchiveBuffer(UAnimNextModule& Module, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer);
 	};
 }
 

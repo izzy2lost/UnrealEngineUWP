@@ -69,25 +69,25 @@ namespace UE::AnimNext
 
 		const bool bHasActiveSubGraph = InstanceData->CurrentlyActiveSubGraphIndex != INDEX_NONE;
 
-		TObjectPtr<const UAnimNextGraph> CurrentActiveSubGraph;
+		TObjectPtr<const UAnimNextModule> CurrentActiveModule;
 		FName CurrentActiveEntryPoint = NAME_None;
 		if (bHasActiveSubGraph)
 		{
 			FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex];
-			CurrentActiveSubGraph = SubGraphSlot.SubGraph;
+			CurrentActiveModule = SubGraphSlot.Module;
 			CurrentActiveEntryPoint = SubGraphSlot.EntryPoint;
 
 			SubGraphSlot.bWasRelevant = true;
 		}
 
-		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Binding);
+		const TObjectPtr<const UAnimNextModule> DesiredModule = SharedData->GetModule(Binding);
 		const FName EntryPoint = SharedData->GetEntryPoint(Binding);
 
 		// Check for re-entrancy and early-out if we are linking back to the current instance or one of its parents
 		const FAnimNextGraphInstance* OwnerGraphInstance = &Binding.GetTraitPtr().GetNodeInstance()->GetOwner();
 		while (OwnerGraphInstance != nullptr)
 		{
-			if (OwnerGraphInstance->UsesGraph(DesiredSubGraph) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
+			if (OwnerGraphInstance->UsesModule(DesiredModule) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
 			{
 				return;
 			}
@@ -95,7 +95,7 @@ namespace UE::AnimNext
 			OwnerGraphInstance = OwnerGraphInstance->GetParentGraphInstance();
 		}
 
-		if (!bHasActiveSubGraph || CurrentActiveSubGraph != DesiredSubGraph || CurrentActiveEntryPoint != EntryPoint)
+		if (!bHasActiveSubGraph || CurrentActiveModule != DesiredModule || CurrentActiveEntryPoint != EntryPoint)
 		{
 			// Find an empty slot we can use
 			int32 FreeSlotIndex = INDEX_NONE;
@@ -118,8 +118,8 @@ namespace UE::AnimNext
 			}
 
 			FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[FreeSlotIndex];
-			SubGraphSlot.SubGraph = DesiredSubGraph;
-			SubGraphSlot.State = DesiredSubGraph ? ESlotState::ActiveWithGraph : ESlotState::ActiveWithReferencePose;
+			SubGraphSlot.Module = DesiredModule;
+			SubGraphSlot.State = DesiredModule ? ESlotState::ActiveWithGraph : ESlotState::ActiveWithReferencePose;
 			SubGraphSlot.EntryPoint = EntryPoint;
 
 			const int32 OldChildIndex = InstanceData->CurrentlyActiveSubGraphIndex;
@@ -210,7 +210,7 @@ namespace UE::AnimNext
 
 			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
 			{
-				SubGraphEntry.SubGraph->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SubGraphEntry.GraphInstance, SubGraphEntry.EntryPoint);
+				SubGraphEntry.Module->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SubGraphEntry.GraphInstance, SubGraphEntry.EntryPoint);
 			}
 		}
 	}

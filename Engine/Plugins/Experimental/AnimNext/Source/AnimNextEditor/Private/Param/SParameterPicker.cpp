@@ -9,7 +9,7 @@
 #include "Param/ParamType.h"
 #include "DetailLayoutBuilder.h"
 #include "EditorUtils.h"
-#include "IAnimNextModule.h"
+#include "IAnimNextModuleInterface.h"
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
 #include "IStructureDataProvider.h"
@@ -27,7 +27,7 @@
 #include "AnimNextUncookedOnly/Private/AnimNextUncookedOnlyModule.h"
 #include "Component/AnimNextComponent.h"
 #include "Editor/PropertyEditor/Private/SSingleProperty.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Param/AnimNextParam.h"
 #include "Param/IParameterSourceType.h"
 #include "Param/ParamUtils.h"
@@ -209,7 +209,7 @@ void SParameterPicker::RefreshEntries()
 		}
 	}
 
-	if(Struct == nullptr || Struct == UAnimNextGraph::StaticClass())
+	if(Struct == nullptr || Struct == UAnimNextModule::StaticClass())
 	{
 		// For AnimNext graphs, we add the structs that are exposed via parameters
 		TMap<FAssetData, FAnimNextParameterProviderAssetRegistryExports> Exports;
@@ -401,7 +401,7 @@ void SParameterPicker::HandleFieldPicked(UE::PropertyViewer::SPropertyViewer::FH
 					if(SourceType.IsValid())
 					{
 						const UStruct* Struct = SourceType->GetStruct(InstanceId);
-						if(Struct && Struct == UAnimNextGraph::StaticClass())
+						if(Struct && Struct == UAnimNextModule::StaticClass())
 						{
 							// Invalidate the instance ID if this is an AnimNext graph, as they dont have instances
 							InstanceId.Reset();

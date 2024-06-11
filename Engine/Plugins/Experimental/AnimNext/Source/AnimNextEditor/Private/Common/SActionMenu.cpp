@@ -6,7 +6,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "IDocumentation.h"
 #include "SSubobjectEditor.h"
-#include "Graph/AnimNextGraph_EdGraphSchema.h"
+#include "AnimNextEdGraphSchema.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"

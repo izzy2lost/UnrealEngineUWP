@@ -27,7 +27,7 @@ public:
 	virtual URigVMEdGraph* GetEdGraph() const = 0;
 
 private:
-	friend class UAnimNextGraph_EditorData;
+	friend class UAnimNextModule_EditorData;
 
 	// Set the RigVM graph
 	virtual void SetRigVMGraph(URigVMGraph* InGraph) = 0;

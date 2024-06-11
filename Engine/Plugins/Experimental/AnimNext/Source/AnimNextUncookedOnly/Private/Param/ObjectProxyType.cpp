@@ -2,7 +2,7 @@
 
 #include "ObjectProxyType.h"
 
-#include "AnimNextModule.h"
+#include "AnimNextModuleImpl.h"
 #include "IUniversalObjectLocatorEditorModule.h"
 #include "UniversalObjectLocatorEditor.h"
 #include "UniversalObjectLocatorFragmentType.h"
@@ -135,7 +135,7 @@ bool FObjectProxyType::FindParameterInfo(const TInstancedStruct<FAnimNextParamIn
 		return false;
 	}
 
-	UE::AnimNext::FModule& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FModule>("AnimNext");
+	UE::AnimNext::FAnimNextModuleImpl& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FAnimNextModuleImpl>("AnimNext");
 	TSharedPtr<FObjectProxyFactory> ObjectProxyFactory = StaticCastSharedPtr<FObjectProxyFactory>(AnimNextModule.FindParameterSourceFactory("ObjectProxy"));
 	if(!ObjectProxyFactory.IsValid())
 	{
@@ -179,7 +179,7 @@ void FObjectProxyType::ForEachParameter(const TInstancedStruct<FAnimNextParamIns
 		return;
 	}
 
-	UE::AnimNext::FModule& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FModule>("AnimNext");
+	UE::AnimNext::FAnimNextModuleImpl& AnimNextModule = FModuleManager::GetModuleChecked<UE::AnimNext::FAnimNextModuleImpl>("AnimNext");
 	TSharedPtr<FObjectProxyFactory> ObjectProxyFactory = StaticCastSharedPtr<FObjectProxyFactory>(AnimNextModule.FindParameterSourceFactory("ObjectProxy"));
 	if(!ObjectProxyFactory.IsValid())
 	{

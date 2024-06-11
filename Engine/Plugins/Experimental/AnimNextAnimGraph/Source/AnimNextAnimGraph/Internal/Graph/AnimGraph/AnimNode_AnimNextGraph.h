@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Animation/AnimNode_CustomProperty.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
 #include "TraitCore/TraitPtr.h"
 #include "Context.h"
@@ -42,7 +42,7 @@ private:
 	FPoseLink SourceLink;
 
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
-	TObjectPtr<UAnimNextGraph> AnimNextGraph;
+	TObjectPtr<UAnimNextModule> Module;
 
 	// Our graph instance, we own it
 	UPROPERTY()
@@ -58,7 +58,7 @@ private:
 	int32 LODThreshold;
 
 protected:
-	virtual UClass* GetTargetClass() const override { return AnimNextGraph ? AnimNextGraph->StaticClass() : nullptr; }
+	virtual UClass* GetTargetClass() const override { return Module ? Module->StaticClass() : nullptr; }
 	
 public:
 

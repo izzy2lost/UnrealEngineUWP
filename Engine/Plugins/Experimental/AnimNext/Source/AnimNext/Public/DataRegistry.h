@@ -12,7 +12,7 @@ struct FReferenceSkeleton;
 namespace UE::AnimNext
 {
 
-class FModule;
+class FAnimNextModuleImpl;
 
 struct FDataHandle;
 
@@ -222,7 +222,7 @@ private:
 
 // --- ---
 private:
-	friend class FModule;
+	friend class FAnimNextModuleImpl;
 	friend struct FDataHandle;
 
 	// Initialize the global registry

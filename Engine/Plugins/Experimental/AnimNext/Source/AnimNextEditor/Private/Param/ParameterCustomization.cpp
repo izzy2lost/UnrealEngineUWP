@@ -8,9 +8,9 @@
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
 #include "PropertyHandle.h"
-#include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraph_Parameter.h"
-#include "Graph/AnimNextGraph_EditorData.h"
+#include "Module/AnimNextModule.h"
+#include "Module/AnimNextModule_Parameter.h"
+#include "Module/AnimNextModule_EditorData.h"
 
 #define LOCTEXT_NAMESPACE "ParamTypePropertyCustomization"
 
@@ -27,7 +27,7 @@ void FParameterCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 		return;
 	}
 
-	if (UAnimNextGraph_Parameter* Parameter = Cast<UAnimNextGraph_Parameter>(Objects[0].Get()))
+	if (UAnimNextModule_Parameter* Parameter = Cast<UAnimNextModule_Parameter>(Objects[0].Get()))
 	{
 		IDetailCategoryBuilder& ParameterCategory = DetailBuilder.EditCategory(TEXT("Parameter"), FText::GetEmpty(), ECategoryPriority::Important);
 
@@ -35,37 +35,37 @@ void FParameterCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 
 		TSharedRef< SWidget > ColumnWidget = SNullWidget::NullWidget;
 
-		if (UAnimNextGraph_EditorData* EditorData = Cast<UAnimNextGraph_EditorData>(Parameter->GetOuter()))
+		if (UAnimNextModule_EditorData* EditorData = Cast<UAnimNextModule_EditorData>(Parameter->GetOuter()))
 		{
 			const FName EntryName = Parameter->GetEntryName();
 			if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(EntryName)) 
 			{
-				if (UAnimNextGraph* ReferencedGraph = UE::AnimNext::UncookedOnly::FUtils::GetGraph(EditorData))
+				if (UAnimNextModule* ReferencedModule = UE::AnimNext::UncookedOnly::FUtils::GetGraph(EditorData))
 				{
 					FAddPropertyParams AddPropertyParams;
 					TArray<IDetailPropertyRow*> DetailPropertyRows;
 
-					if (const FPropertyBagPropertyDesc* PropertyDesc = ReferencedGraph->DefaultState.State.FindPropertyDescByName(Parameter->GetParamName()))
+					if (const FPropertyBagPropertyDesc* PropertyDesc = ReferencedModule->DefaultState.State.FindPropertyDescByName(Parameter->GetParamName()))
 					{
-						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedGraph->DefaultState.State), Parameter->GetParamName(), EPropertyLocation::Default, AddPropertyParams);
+						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedModule->DefaultState.State), Parameter->GetParamName(), EPropertyLocation::Default, AddPropertyParams);
 						if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
 						{
 							Handle->SetPropertyDisplayName(FText::FromName(EntryName));
 							
-							const TWeakObjectPtr<UAnimNextGraph> ReferencedGraphWeak = ReferencedGraph;
+							const TWeakObjectPtr<UAnimNextModule> ReferencedModuleWeak = ReferencedModule;
 
-							const auto OnPropertyValuePreChange = [ReferencedGraphWeak]()
+							const auto OnPropertyValuePreChange = [ReferencedModuleWeak]()
 								{
-									if (ReferencedGraphWeak.IsValid())
+									if (ReferencedModuleWeak.IsValid())
 									{
-										ReferencedGraphWeak->Modify(); // needed to enable the transaction when we modify the PropertyBag
+										ReferencedModuleWeak->Modify(); // needed to enable the transaction when we modify the PropertyBag
 									}
 								};
-							const auto OnPropertyValueChange = [ReferencedGraphWeak](const FPropertyChangedEvent& InEvent)
+							const auto OnPropertyValueChange = [ReferencedModuleWeak](const FPropertyChangedEvent& InEvent)
 								{
-									if (ReferencedGraphWeak.IsValid())
+									if (ReferencedModuleWeak.IsValid())
 									{
-										if (UAnimNextGraph_EditorData* EditorData = Cast<UAnimNextGraph_EditorData>(ReferencedGraphWeak->EditorData))
+										if (UAnimNextModule_EditorData* EditorData = Cast<UAnimNextModule_EditorData>(ReferencedModuleWeak->EditorData))
 										{
 											if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(UncookedOnly::FUtils::GetParameterNameFromQualifiedName(InEvent.GetPropertyName())))
 											{

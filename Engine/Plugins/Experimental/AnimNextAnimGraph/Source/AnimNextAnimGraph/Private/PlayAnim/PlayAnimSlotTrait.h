@@ -11,7 +11,7 @@
 #include "TraitInterfaces/IInertializerBlend.h"
 #include "TraitInterfaces/ISmoothBlend.h"
 #include "TraitInterfaces/IUpdate.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
 #include "PlayAnim/PlayAnimEvents.h"
 #include "Param/PropertyBagProxy.h"
@@ -108,8 +108,8 @@ namespace UE::AnimNext
 			// The blend settings to use
 			FPlayAnimBlendSettings BlendSettings;
 
-			// The sub-graph used by the graph instance, as selected by the chooser
-			TObjectPtr<const UAnimNextGraph> SubGraph;
+			// The module used by the graph instance, as selected by the chooser
+			TObjectPtr<const UAnimNextModule> Module;
 
 			// The graph instance
 			FAnimNextGraphInstancePtr GraphInstance;
@@ -125,7 +125,7 @@ namespace UE::AnimNext
 			bool bWasRelevant = false;
 
 			// Initializes a request to begin playing
-			void Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextGraph* InSubGraph);
+			void Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextModule* InModule);
 		};
 
 		using FSharedData = FAnimNextPlayAnimSlotTraitSharedData;

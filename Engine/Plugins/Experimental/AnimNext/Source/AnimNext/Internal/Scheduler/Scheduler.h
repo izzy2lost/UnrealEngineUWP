@@ -6,7 +6,7 @@
 #include "Scheduler/ScheduleHandle.h"
 
 enum class EAnimNextScheduleInitMethod : uint8;
-class UAnimNextGraph;
+class UAnimNextModule;
 class UAnimNextSchedule;
 
 namespace UE::AnimNext

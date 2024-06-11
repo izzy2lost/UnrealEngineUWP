@@ -10,13 +10,13 @@
 #include "TraitCore/TraitInterfaceRegistry.h"
 #include "TraitCore/TraitRegistry.h"
 #include "ObjectEditorUtils.h"
-#include "Graph/AnimNextGraph_EdGraphNode.h"
+#include "AnimNextEdGraphNode.h"
 #include "STraitListView.h"
 #include "STraitStackView.h"
 #include "MessageLogModule.h"
 #include "IWorkspaceEditor.h"
 #include "IMessageLogListing.h"
-#include "Graph/AnimNextGraph_Controller.h"
+#include "Module/AnimNextModule_Controller.h"
 #include "Graph/AnimNextCompilerResultsTabSummoner.h"
 #include "Logging/MessageLog.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -39,7 +39,7 @@ void STraitEditorView::Construct(const FArguments& InArgs, TWeakPtr<UE::Workspac
 {
 	WorkspaceEditorWeak = MoveTemp(InWorkspaceEditorWeak);
 
-	TWeakObjectPtr<UAnimNextGraph_EdGraphNode> EdGraphNodeWeak = TraitEditorSharedData->EdGraphNodeWeak;
+	TWeakObjectPtr<UAnimNextEdGraphNode> EdGraphNodeWeak = TraitEditorSharedData->EdGraphNodeWeak;
 
 	ChildSlot
 	[
@@ -100,9 +100,9 @@ FReply STraitEditorView::OnTraitClicked(const FTraitUID InClickedTraitUID)
 	FTraitRegistry& TraitRegistry = FTraitRegistry::Get();
 	if (const FTrait* Trait = TraitRegistry.Find(InClickedTraitUID))
 	{
-		if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak))
+		if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak))
 		{
-			if (UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EdGraphNode->GetController()))
+			if (UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EdGraphNode->GetController()))
 			{
 				int32 TraitIndex = INDEX_NONE;
 				TSharedPtr<FTraitDataEditorDef> SwapTraitData = FTraitEditorUtils::FindTraitInCurrentStackData(SelectedTraitUID, TraitEditorSharedData->CurrentTraitsDataShared, &TraitIndex);
@@ -145,9 +145,9 @@ FReply STraitEditorView::OnTraitDeleteRequest(const FTraitUID InTraitUIDToDelete
 			{
 				if (TraitEditorSharedData->EdGraphNodeWeak.IsValid())
 				{
-					if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak.Get()))
+					if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak.Get()))
 					{
-						if (UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EdGraphNode->GetController()))
+						if (UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EdGraphNode->GetController()))
 						{
 							Controller->RemoveTraitByName(EdGraphNode->GetFName(), TraitDataEditorDef->TraitName);
 						}
@@ -180,9 +180,9 @@ void STraitEditorView::ExecuteTraitDrag(const FTraitUID DraggedTraitUID, const F
 	
 	if (DraggedTrait != nullptr)
 	{
-		if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak))
+		if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak))
 		{
-			if (UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EdGraphNode->GetController()))
+			if (UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EdGraphNode->GetController()))
 			{
 				int32 TargetTraitIndex = INDEX_NONE;
 				TSharedPtr<FTraitDataEditorDef> SwapTraitData = FTraitEditorUtils::FindTraitInCurrentStackData(TargetTraitUID, TraitEditorSharedData->CurrentTraitsDataShared, &TargetTraitIndex);
@@ -507,7 +507,7 @@ TSharedRef<SWidget> STraitEditorView::GetOptionsMenuWidget()
 		];
 }
 
-int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNode, const TSharedPtr<FTraitDataEditorDef>& InTraitData, int32 InTraitIndex)
+int32 STraitEditorView::GetTraitPinIndex(UAnimNextEdGraphNode* InEdGraphNode, const TSharedPtr<FTraitDataEditorDef>& InTraitData, int32 InTraitIndex)
 {
 	if (InEdGraphNode == nullptr || !InTraitData.IsValid())
 	{
@@ -556,7 +556,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 	return INDEX_NONE;
 }
 
-/*static*/ void STraitEditorView::GenerateTraitStackData(const TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& EdGraphNodeWeak, TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedData)
+/*static*/ void STraitEditorView::GenerateTraitStackData(const TWeakObjectPtr<UAnimNextEdGraphNode>& EdGraphNodeWeak, TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedData)
 {
 	if (!ensure(InTraitEditorSharedData.IsValid() && InTraitEditorSharedData->CurrentTraitsDataShared.IsValid()))
 	{
@@ -571,7 +571,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 	StackUsedInterfaces.Reset();
 	StackMissingInterfaces.Reset();
 
-	if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraphNodeWeak.Get()))
+	if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(EdGraphNodeWeak.Get()))
 	{
 		if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
 		{

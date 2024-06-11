@@ -5,7 +5,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "EngineLogs.h"
 #include "UObject/AssetRegistryTagsContext.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 
 #if WITH_EDITOR
 TUniqueFunction<void(UAnimNextSchedule*)> UAnimNextSchedule::CompileFunction;
@@ -16,16 +16,16 @@ void UAnimNextScheduleEntry_AnimNextGraph::GetPreloadDependencies(TArray<UObject
 {
 	Super::GetPreloadDependencies(OutDeps);
 
-	OutDeps.Add(Graph);
+	OutDeps.Add(Module);
 }
 
 void UAnimNextScheduleEntry_ParamScope::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 {
 	Super::GetPreloadDependencies(OutDeps);
 
-	for(UAnimNextGraph* Graph : Parameters)
+	for(UAnimNextModule* Module : Parameters)
 	{
-		OutDeps.Add(Graph);
+		OutDeps.Add(Module);
 	}
 
 	for(UAnimNextScheduleEntry* SubEntry : SubEntries)

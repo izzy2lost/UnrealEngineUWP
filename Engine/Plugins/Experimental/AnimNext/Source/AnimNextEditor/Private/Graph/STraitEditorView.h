@@ -9,8 +9,8 @@
 #include "Graph/TraitEditorDefs.h"
 
 
-class UAnimNextGraph_Controller;
-class UAnimNextGraph_EdGraphNode;
+class UAnimNextModule_Controller;
+class UAnimNextEdGraphNode;
 class IMessageLogListing;
 
 namespace UE::Workspace
@@ -37,11 +37,11 @@ namespace UE::AnimNext::Editor
 struct FTraitStackData
 {
 	FTraitStackData() = default;
-	explicit FTraitStackData(const TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& InEdGraphNodeWeak)
+	explicit FTraitStackData(const TWeakObjectPtr<UAnimNextEdGraphNode>& InEdGraphNodeWeak)
 		: EdGraphNodeWeak(InEdGraphNodeWeak)
 	{}
 
-	TWeakObjectPtr<UAnimNextGraph_EdGraphNode> EdGraphNodeWeak = nullptr;
+	TWeakObjectPtr<UAnimNextEdGraphNode> EdGraphNodeWeak = nullptr;
 };
 
 class STraitEditorView : public SCompoundWidget
@@ -75,9 +75,9 @@ private:
 
 	TSharedRef<SWidget> GetOptionsMenuWidget();
 
-	int32 GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNode, const TSharedPtr<FTraitDataEditorDef>& InTraitData, int32 TraitIndex = INDEX_NONE);
+	int32 GetTraitPinIndex(UAnimNextEdGraphNode* InEdGraphNode, const TSharedPtr<FTraitDataEditorDef>& InTraitData, int32 TraitIndex = INDEX_NONE);
 
-	static void GenerateTraitStackData(const TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& EdGraphNodeWeak, TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedData);
+	static void GenerateTraitStackData(const TWeakObjectPtr<UAnimNextEdGraphNode>& EdGraphNodeWeak, TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedData);
 
 	TWeakPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditorWeak;
 	TSharedPtr<FTraitEditorSharedData> TraitEditorSharedData;

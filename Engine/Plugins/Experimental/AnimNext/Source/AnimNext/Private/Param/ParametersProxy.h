@@ -6,7 +6,7 @@
 #include "PropertyBag.h"
 #include "UObject/StrongObjectPtr.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 
 namespace UE::AnimNext
 {
@@ -16,7 +16,7 @@ struct FParametersProxy : public IParameterSource
 {
 	FParametersProxy() = delete;
 
-	FParametersProxy(const UAnimNextGraph* InGraph);
+	FParametersProxy(const UAnimNextModule* InModule);
 
 	// IParameterSource interface
 	virtual FName GetInstanceId() const override { return NAME_None; }
@@ -28,7 +28,7 @@ struct FParametersProxy : public IParameterSource
 	void UpdateCachedExternalParamData();
 
 	// The object that this proxy wraps
-	TObjectPtr<const UAnimNextGraph> Graph;
+	TObjectPtr<const UAnimNextModule> Module;
 
 	// Copy of the parameter data
 	FInstancedPropertyBag PropertyBag;

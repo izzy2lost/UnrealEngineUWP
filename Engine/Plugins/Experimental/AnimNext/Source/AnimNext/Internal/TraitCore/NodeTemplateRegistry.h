@@ -60,7 +60,7 @@ namespace UE::AnimNext
 		TArray<uint8>								TemplateBuffer;
 		TMap<uint32, FNodeTemplateRegistryHandle>	TemplateUIDToHandleMap;
 
-		friend class FModule;
+		friend class FAnimNextModuleImpl;
 		friend class FTraitWriter;
 		friend struct FScopedClearNodeTemplateRegistry;
 	};

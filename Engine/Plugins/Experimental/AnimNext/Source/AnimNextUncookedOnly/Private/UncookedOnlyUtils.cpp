@@ -7,9 +7,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Component/AnimNextComponentParameter.h"
-#include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraph_Controller.h"
-#include "Graph/AnimNextGraph_EditorData.h"
+#include "Module/AnimNextModule.h"
+#include "Module/AnimNextModule_Controller.h"
+#include "Module/AnimNextModule_EditorData.h"
 #include "Graph/RigUnit_AnimNextTraitStack.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
@@ -44,12 +44,12 @@
 #include "IAnimNextRigVMExportInterface.h"
 #include "GameFramework/Character.h"
 #include "Graph/AnimNextGraphEntryPoint.h"
-#include "Graph/AnimNextGraph_AnimationGraphSchema.h"
+#include "Graph/AnimNextAnimationGraphSchema.h"
 #include "Logging/StructuredLog.h"
 #include "Param/AnimNextParamInstanceIdentifier.h"
 #include "Param/IParameterSourceType.h"
 #include "Param/RigVMDispatch_GetScopedParameter.h"
-#include "AnimNextRigVMWorkspaceAssetUserData.h"
+#include "Module/AnimNextModuleWorkspaceAssetUserData.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextUncookedOnlyUtils"
 
@@ -102,11 +102,11 @@ namespace Private
 		URigVMNode* RootNode;
 		TArray<FTraitStackMapping> TraitStackNodes;
 
-		explicit FTraitGraph(const UAnimNextGraph* InGraph, URigVMNode* InRootNode)
+		explicit FTraitGraph(const UAnimNextModule* InModule, URigVMNode* InRootNode)
 			: RootNode(InRootNode)
 		{
 			TStringBuilder<256> StringBuilder;
-			StringBuilder.Append(InGraph->GetPathName());
+			StringBuilder.Append(InModule->GetPathName());
 			StringBuilder.Append(TEXT(":"));
 			StringBuilder.Append(InRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphRoot, EntryPoint))->GetDefaultValue());
 			EntryPoint = FName(StringBuilder.ToView());
@@ -349,7 +349,7 @@ namespace Private
 		}
 	}
 
-	FTraitGraph CollectGraphInfo(const UAnimNextGraph* InGraph,  const URigVMGraph* VMGraph, URigVMController* VMController)
+	FTraitGraph CollectGraphInfo(const UAnimNextModule* InModule, const URigVMGraph* VMGraph, URigVMController* VMController)
 	{
 		const TArray<URigVMNode*>& VMNodes = VMGraph->GetNodes();
 		URigVMUnitNode* VMRootNode = FindRootNode(VMNodes);
@@ -363,7 +363,7 @@ namespace Private
 		// Make sure we don't have empty input pins
 		AddMissingInputLinks(VMGraph, VMController);
 
-		FTraitGraph TraitGraph(InGraph, VMRootNode);
+		FTraitGraph TraitGraph(InModule, VMRootNode);
 
 		TArray<const URigVMNode*> NodesToVisit;
 		NodesToVisit.Add(VMRootNode);
@@ -500,21 +500,21 @@ namespace Private
 	}
 }
 
-void FUtils::Compile(UAnimNextGraph* InGraph)
+void FUtils::Compile(UAnimNextModule* InModule)
 {
-	check(InGraph);
+	check(InModule);
 
-	FMessageLog("AnimNextCompilerResults").NewPage(FText::FromName(InGraph->GetFName()));
+	FMessageLog("AnimNextCompilerResults").NewPage(FText::FromName(InModule->GetFName()));
 
-	CompileStruct(InGraph);
-	CompileVM(InGraph);
+	CompileStruct(InModule);
+	CompileVM(InModule);
 }
 
-void FUtils::CompileVM(UAnimNextGraph* InGraph)
+void FUtils::CompileVM(UAnimNextModule* InModule)
 {
-	check(InGraph);
+	check(InModule);
 
-	UAnimNextGraph_EditorData* EditorData = GetEditorData(InGraph);
+	UAnimNextModule_EditorData* EditorData = GetEditorData(InModule);
 
 	if (EditorData->bIsCompiling)
 	{
@@ -525,7 +525,7 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	
 	// Before we re-compile a graph, we need to release and live instances since we need the metadata we are about to replace
 	// to call trait destructors etc
-	InGraph->FreezeGraphInstances();
+	InModule->FreezeGraphInstances();
 
 	EditorData->bErrorsDuringCompilation = false;
 
@@ -535,17 +535,17 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	TGuardValue<bool> ReentrantGuardSelf(EditorData->bSuspendModelNotificationsForSelf, true);
 	TGuardValue<bool> ReentrantGuardOthers(EditorData->bSuspendModelNotificationsForOthers, true);
 
-	RecreateVM(InGraph);
+	RecreateVM(InModule);
 
-	InGraph->VMRuntimeSettings = EditorData->VMRuntimeSettings;
-	InGraph->EntryPoints.Empty();
-	InGraph->ResolvedRootTraitHandles.Empty();
-	InGraph->ResolvedEntryPoints.Empty();
-	InGraph->ExecuteDefinition = FAnimNextGraphEvaluatorExecuteDefinition();
-	InGraph->SharedDataBuffer.Empty();
-	InGraph->GraphReferencedObjects.Empty();
-	InGraph->RequiredParametersHash = 0;
-	InGraph->RequiredParameters.Empty();
+	InModule->VMRuntimeSettings = EditorData->VMRuntimeSettings;
+	InModule->EntryPoints.Empty();
+	InModule->ResolvedRootTraitHandles.Empty();
+	InModule->ResolvedEntryPoints.Empty();
+	InModule->ExecuteDefinition = FAnimNextGraphEvaluatorExecuteDefinition();
+	InModule->SharedDataBuffer.Empty();
+	InModule->GraphReferencedObjects.Empty();
+	InModule->RequiredParametersHash = 0;
+	InModule->RequiredParameters.Empty();
 
 	FRigVMClient* VMClient = EditorData->GetRigVMClient();
 	URigVMGraph* VMRootGraph = VMClient->GetDefaultModel();
@@ -569,7 +569,7 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 		return;
 	}
 
-	UAnimNextGraph_Controller* TempController = CastChecked<UAnimNextGraph_Controller>(VMClient->GetOrCreateController(TempGraphs[0]));
+	UAnimNextModule_Controller* TempController = CastChecked<UAnimNextModule_Controller>(VMClient->GetOrCreateController(TempGraphs[0]));
 
 	FTraitWriter TraitWriter;
 
@@ -580,13 +580,13 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	// Build entry points and extract their required latent pins
 	for(const URigVMGraph* TempGraph : TempGraphs)
 	{
-		if(TempGraph->GetSchemaClass() == UAnimNextGraph_AnimationGraphSchema::StaticClass())
+		if(TempGraph->GetSchemaClass() == UAnimNextAnimationGraphSchema::StaticClass())
 		{
 			// Gather our trait stacks
-			Private::FTraitGraph& TraitGraph = TraitGraphs.Add_GetRef(Private::CollectGraphInfo(InGraph, TempGraph, TempController->GetControllerForGraph(TempGraph)));
+			Private::FTraitGraph& TraitGraph = TraitGraphs.Add_GetRef(Private::CollectGraphInfo(InModule, TempGraph, TempController->GetControllerForGraph(TempGraph)));
 			check(!TraitGraph.TraitStackNodes.IsEmpty());
 
-			FAnimNextGraphEntryPoint& EntryPoint = InGraph->EntryPoints.AddDefaulted_GetRef();
+			FAnimNextGraphEntryPoint& EntryPoint = InModule->EntryPoints.AddDefaulted_GetRef();
 			EntryPoint.EntryPointName = TraitGraph.EntryPoint;
 
 			// Extract latent pins for this graph
@@ -616,11 +616,11 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	if(LatentPins.Num() > 0)
 	{
 		// We need a unique method name to match our unique argument list
-		InGraph->ExecuteDefinition = Private::GetGraphEvaluatorExecuteMethod(LatentPins);
+		InModule->ExecuteDefinition = Private::GetGraphEvaluatorExecuteMethod(LatentPins);
 
 		// Add our runtime shim root node
 		URigVMUnitNode* TempShimRootNode = TempController->AddUnitNode(FRigUnit_AnimNextShimRoot::StaticStruct(), FRigUnit_AnimNextShimRoot::EventName, FVector2D::ZeroVector, FString(), false);
-		URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *InGraph->ExecuteDefinition.MethodName, FVector2D::ZeroVector, FString(), false);
+		URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *InModule->ExecuteDefinition.MethodName, FVector2D::ZeroVector, FString(), false);
 
 		// Link our shim and evaluator nodes together using the execution context
 		TempController->AddLink(
@@ -652,42 +652,42 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	TraitWriter.EndNodeWriting();
 
 	// Cache our compiled metadata
-	InGraph->SharedDataArchiveBuffer = TraitWriter.GetGraphSharedData();
-	InGraph->GraphReferencedObjects = TraitWriter.GetGraphReferencedObjects();
+	InModule->SharedDataArchiveBuffer = TraitWriter.GetGraphSharedData();
+	InModule->GraphReferencedObjects = TraitWriter.GetGraphReferencedObjects();
 
 	// Populate our runtime metadata
-	InGraph->LoadFromArchiveBuffer(InGraph->SharedDataArchiveBuffer);
+	InModule->LoadFromArchiveBuffer(InModule->SharedDataArchiveBuffer);
 
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 	FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
 	Settings.ASTSettings.bSetupTraits = false; // disable the default implementation of decorators for now
-	Settings.ASTSettings.ReportDelegate.BindLambda([InGraph](EMessageSeverity::Type InType, UObject* InObject, const FString& InString)
+	Settings.ASTSettings.ReportDelegate.BindLambda([InModule](EMessageSeverity::Type InType, UObject* InObject, const FString& InString)
 	{
 		FMessageLog("AnimNextCompilerResults").Message(InType, FText::FromString(InString));
 	});
 
-	Compiler->Compile(Settings, TempGraphs, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, TArray<FRigVMExternalVariable>(), & EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, TempGraphs, TempController, InModule->VM, InModule->ExtendedExecuteContext, TArray<FRigVMExternalVariable>(), & EditorData->PinToOperandMap);
 
 	// Initialize right away, in packaged builds we initialize during PostLoad
-	InGraph->VM->Initialize(InGraph->ExtendedExecuteContext);
-	InGraph->GenerateUserDefinedDependenciesData(InGraph->ExtendedExecuteContext);
+	InModule->VM->Initialize(InModule->ExtendedExecuteContext);
+	InModule->GenerateUserDefinedDependenciesData(InModule->ExtendedExecuteContext);
 
 	// Notable difference with vanilla RigVM host behavior - we init the VM here at the moment as we only have one 'instance'
-	InGraph->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
+	InModule->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
 		if(Settings.SurpressErrors)
 		{
-			Settings.Reportf(EMessageSeverity::Info, InGraph,TEXT("Compilation Errors may be suppressed for AnimNext Interface Graph: %s. See VM Compile Settings for more Details"), *InGraph->GetName());
+			Settings.Reportf(EMessageSeverity::Info, InModule, TEXT("Compilation Errors may be suppressed for AnimNext Interface Graph: %s. See VM Compile Settings for more Details"), *InModule->GetName());
 		}
 	}
 
 	EditorData->bVMRecompilationRequired = false;
-	if(InGraph->VM)
+	if(InModule->VM)
 	{
-		EditorData->RigVMCompiledEvent.Broadcast(InGraph, InGraph->VM, InGraph->ExtendedExecuteContext);
+		EditorData->RigVMCompiledEvent.Broadcast(InModule, InModule->VM, InModule->ExtendedExecuteContext);
 	}
 
 	for(URigVMGraph* TempGraph : TempGraphs)
@@ -696,7 +696,7 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	}
 
 	// Now that the graph has been re-compiled, re-allocate the previous live instances
-	InGraph->ThawGraphInstances();
+	InModule->ThawGraphInstances();
 	
 	FAnimNextParameterProviderAssetRegistryExports Exports;
 	GetAssetParameters(EditorData, Exports);
@@ -706,39 +706,39 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 		// Required parameters are those that are read in this asset but not declared in this asset as state
 		if(EnumHasAllFlags(Entry.GetFlags(), EAnimNextParameterFlags::Read) && !EnumHasAnyFlags(Entry.GetFlags(), EAnimNextParameterFlags::Declared))
 		{
-			InGraph->RequiredParameters.Emplace(Entry.Name, Entry.Type, Entry.InstanceId);
+			InModule->RequiredParameters.Emplace(Entry.Name, Entry.Type, Entry.InstanceId);
 		}
 	}
 
-	InGraph->RequiredParametersHash = SortAndHashParameters(InGraph->RequiredParameters);
+	InModule->RequiredParametersHash = SortAndHashParameters(InModule->RequiredParameters);
 
 #if WITH_EDITOR
 //	RefreshBreakpoints(EditorData);
 #endif
 }
 
-void FUtils::RecreateVM(UAnimNextGraph* InGraph)
+void FUtils::RecreateVM(UAnimNextModule* InModule)
 {
-	if (InGraph->VM == nullptr)
+	if (InModule->VM == nullptr)
 	{
-		InGraph->VM = NewObject<URigVM>(InGraph, TEXT("VM"), RF_NoFlags);
+		InModule->VM = NewObject<URigVM>(InModule, TEXT("VM"), RF_NoFlags);
 	}
-	InGraph->VM->Reset(InGraph->ExtendedExecuteContext);
-	InGraph->RigVM = InGraph->VM; // Local serialization
+	InModule->VM->Reset(InModule->ExtendedExecuteContext);
+	InModule->RigVM = InModule->VM; // Local serialization
 }
 
-UAnimNextGraph_EditorData* FUtils::GetEditorData(const UAnimNextGraph* InAnimNextGraph)
+UAnimNextModule_EditorData* FUtils::GetEditorData(const UAnimNextModule* InModule)
 {
-	check(InAnimNextGraph);
+	check(InModule);
 	
-	return CastChecked<UAnimNextGraph_EditorData>(InAnimNextGraph->EditorData);
+	return CastChecked<UAnimNextModule_EditorData>(InModule->EditorData);
 }
 
-UAnimNextGraph* FUtils::GetGraph(const UAnimNextGraph_EditorData* InEditorData)
+UAnimNextModule* FUtils::GetGraph(const UAnimNextModule_EditorData* InEditorData)
 {
 	check(InEditorData);
 
-	return CastChecked<UAnimNextGraph>(InEditorData->GetOuter());
+	return CastChecked<UAnimNextModule>(InEditorData->GetOuter());
 }
 
 FParamTypeHandle FUtils::GetParameterHandleFromPin(const FEdGraphPinType& InPinType)
@@ -845,11 +845,11 @@ FParamTypeHandle FUtils::GetParameterHandleFromPin(const FEdGraphPinType& InPinT
 	return FAnimNextParamType(ValueType, ContainerType, ValueTypeObject).GetHandle();
 }
 
-void FUtils::CompileStruct(UAnimNextGraph* InGraph)
+void FUtils::CompileStruct(UAnimNextModule* InModule)
 {
-	check(InGraph);
+	check(InModule);
 
-	UAnimNextGraph_EditorData* EditorData = GetEditorData(InGraph);
+	UAnimNextModule_EditorData* EditorData = GetEditorData(InModule);
 	if(EditorData->bIsCompiling)
 	{
 		return;
@@ -903,7 +903,7 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 		TArray<FPropertyBagPropertyDesc> PropertyDescs;
 		PropertyDescs.Reserve(StructEntryInfos.Num());
 
-		InGraph->DefaultState.PublicParameterStartIndex = INDEX_NONE;
+		InModule->DefaultState.PublicParameterStartIndex = INDEX_NONE;
 
 		for(int32 EntryIndex = 0; EntryIndex < StructEntryInfos.Num(); ++EntryIndex)
 		{
@@ -911,7 +911,7 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 			// Find the first parameter that is public and record it
 			if(StructEntryInfo.AccessSpecifier == EAnimNextExportAccessSpecifier::Public)
 			{
-				InGraph->DefaultState.PublicParameterStartIndex = EntryIndex;
+				InModule->DefaultState.PublicParameterStartIndex = EntryIndex;
 			}
 			PropertyDescs.Emplace(StructEntryInfo.Name, StructEntryInfo.Type.ContainerType, StructEntryInfo.Type.ValueType, StructEntryInfo.Type.ValueTypeObject);
 		}
@@ -920,9 +920,9 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 		// TODO: linear search - we could cache the name->GUID lookup in editor to accelerate this.
 		for(FPropertyBagPropertyDesc& NewDesc : PropertyDescs)
 		{
-			if(InGraph->DefaultState.State.GetPropertyBagStruct())
+			if(InModule->DefaultState.State.GetPropertyBagStruct())
 			{
-				for(const FPropertyBagPropertyDesc& ExistingDesc : InGraph->DefaultState.State.GetPropertyBagStruct()->GetPropertyDescs())
+				for(const FPropertyBagPropertyDesc& ExistingDesc : InModule->DefaultState.State.GetPropertyBagStruct()->GetPropertyDescs())
 				{
 					if(ExistingDesc.Name == NewDesc.Name)
 					{
@@ -935,11 +935,11 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 
 		// Create new property bag and migrate
 		const UPropertyBag* NewBagStruct = UPropertyBag::GetOrCreateFromDescs(PropertyDescs);
-		InGraph->DefaultState.State.MigrateToNewBagStruct(NewBagStruct);
+		InModule->DefaultState.State.MigrateToNewBagStruct(NewBagStruct);
 	}
 	else
 	{
-		InGraph->DefaultState.Reset();
+		InModule->DefaultState.Reset();
 	}
 }
 
@@ -955,9 +955,9 @@ UAnimNextRigVMAssetEditorData* FUtils::GetEditorData(UAnimNextRigVMAsset* InAsse
 	return CastChecked<UAnimNextRigVMAssetEditorData>(InAsset->EditorData);
 }
 
-FInstancedPropertyBag* FUtils::GetPropertyBag(UAnimNextGraph* InAnimNextGraph)
+FInstancedPropertyBag* FUtils::GetPropertyBag(UAnimNextModule* InModule)
 {
-	FInstancedPropertyBag* InstancedPropertyBag = &InAnimNextGraph->DefaultState.State;
+	FInstancedPropertyBag* InstancedPropertyBag = &InModule->DefaultState.State;
 
 	return InstancedPropertyBag;
 }
@@ -1872,14 +1872,14 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 			{
 				bool bValid = true;
 
-				if(GraphEntry->Graph == nullptr && !GraphEntry->DynamicGraph.IsValid())
+				if(GraphEntry->Module == nullptr && !GraphEntry->DynamicGraph.IsValid())
 				{
 					Log.Error(LOCTEXT("InvalidGraphOrParameterError", "Invalid graph or invalid parameter supplied in graph task"));
 					bValid = false;
 				}
-				else if(GraphEntry->Graph != nullptr)
+				else if(GraphEntry->Module != nullptr)
 				{
-					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
+					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Module->GetTerms();
 					if(GraphEntry->Terms.Num() != Terms.Num())
 					{
 						Log.Error(FText::Format(LOCTEXT("GraphIncorrectTermCountError", "Incorrect term count for graph: {0}"), FText::AsNumber(GraphEntry->Terms.Num())));
@@ -1951,11 +1951,11 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					GraphTask.ParamScopeIndex = InSchedule->NumParameterScopes++;
 					GraphTask.ParamParentScopeIndex = ParentScopeIndex;
 					GraphTask.EntryPoint = FAnimNextParam(GraphEntry->EntryPoint);
-					GraphTask.Graph = GraphEntry->Graph;
-					GraphTask.DynamicGraph = FAnimNextParam(GraphEntry->DynamicGraph);
+					GraphTask.Module = GraphEntry->Module;
+					GraphTask.DynamicModule = FAnimNextParam(GraphEntry->DynamicGraph);
 					GraphTask.ReferencePose = FAnimNextParam(GraphEntry->ReferencePose);
 					GraphTask.LOD = FAnimNextParam(GraphEntry->LOD);
-					if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph.IsValid())
+					if(GraphEntry->Module == nullptr && GraphEntry->DynamicGraph.IsValid())
 					{
 						Algo::Transform(GraphEntry->RequiredParameters, GraphTask.SuppliedParameters, [](const FAnimNextEditorParam& InParam){ return FAnimNextParam(InParam); });
 						GraphTask.SuppliedParametersHash = SortAndHashParameters(GraphTask.SuppliedParameters);
@@ -2126,10 +2126,10 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 			{
 				if (UAnimNextScheduleEntry_AnimNextGraph* GraphEntry = Cast<UAnimNextScheduleEntry_AnimNextGraph>(Entry))
 				{
-					if(GraphEntry->Graph)
+					if(GraphEntry->Module)
 					{
 						FAnimNextParameterProviderAssetRegistryExports Exports;
-						if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(GraphEntry->Graph), Exports))
+						if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(GraphEntry->Module), Exports))
 						{
 							TArray<FAnimNextEditorParam> RequiredParameters;
 							RequiredParameters.Reserve(Exports.Parameters.Num());
@@ -2161,7 +2161,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				}
 				else if (UAnimNextScheduleEntry_ParamScope* ParamScopeTaskEntry = Cast<UAnimNextScheduleEntry_ParamScope>(Entry))
 				{
-					for(UAnimNextGraph* Parameters : ParamScopeTaskEntry->Parameters)
+					for(UAnimNextModule* Parameters : ParamScopeTaskEntry->Parameters)
 					{
 						if(Parameters)
 						{

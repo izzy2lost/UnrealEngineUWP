@@ -13,7 +13,7 @@ class FReferenceCollector;
 
 struct FAnimNextGraphInstance;
 struct FRigUnit_AnimNextGraphEvaluator;
-class UAnimNextGraph;
+class UAnimNextModule;
 
 namespace UE::AnimNext
 {
@@ -49,8 +49,8 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 	// Returns true if we have a live graph instance, false otherwise
 	bool IsValid() const;
 
-	// Returns the graph used by this instance or nullptr if the instance is invalid
-	const UAnimNextGraph* GetGraph() const;
+	// Returns the module used by this instance or nullptr if the instance is invalid
+	const UAnimNextModule* GetModule() const;
 
 	// Returns a weak handle to the root trait instance
 	UE::AnimNext::FWeakTraitPtr GetGraphRootPtr() const;
@@ -58,8 +58,8 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 	// Returns the graph instance implementation
 	FAnimNextGraphInstance* GetImpl() const;
 
-	// Check to see if this instance data matches the provided graph
-	bool UsesGraph(const UAnimNextGraph* InGraph) const;
+	// Check to see if this instance data matches the provided module
+	bool UsesModule(const UAnimNextModule* InModule) const;
 
 	// Returns whether or not this graph instance is the root graph instance or false otherwise
 	bool IsRoot() const;
@@ -104,7 +104,7 @@ private:
 	// Indirection to hide implementation details and to fix the graph instance into a single memory location
 	TUniquePtr<FAnimNextGraphInstance> Impl;
 
-	friend UAnimNextGraph;					// The graph is the one that allocates instances
+	friend UAnimNextModule;					// The graph is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
 	friend UE::AnimNext::FExecutionContext;
 };

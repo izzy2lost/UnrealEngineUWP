@@ -4,7 +4,7 @@
 
 #include "AnimNextStats.h"
 #include "TraitCore/ExecutionContext.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/GC_GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
 #include "Misc/ScopeRWLock.h"
@@ -32,7 +32,7 @@ void FAnimNextGraphInstance::Release()
 	RootGraphInstance = nullptr;
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
-	Graph = nullptr;
+	Module = nullptr;
 	GraphState = nullptr;
 }
 
@@ -41,9 +41,9 @@ bool FAnimNextGraphInstance::IsValid() const
 	return GraphInstancePtr.IsValid();
 }
 
-const UAnimNextGraph* FAnimNextGraphInstance::GetGraph() const
+const UAnimNextModule* FAnimNextGraphInstance::GetModule() const
 {
-	return Graph;
+	return Module;
 }
 
 FName FAnimNextGraphInstance::GetEntryPoint() const
@@ -66,18 +66,18 @@ FAnimNextGraphInstance* FAnimNextGraphInstance::GetRootGraphInstance() const
 	return RootGraphInstance;
 }
 
-bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
+bool FAnimNextGraphInstance::UsesModule(const UAnimNextModule* InModule) const
 {
-	return Graph == InGraph;
+	return Module == InModule;
 }
 
 bool FAnimNextGraphInstance::UsesEntryPoint(FName InEntryPoint) const
 {
-	if(Graph != nullptr)
+	if(Module != nullptr)
 	{
 		if(InEntryPoint == NAME_None)
 		{
-			return EntryPoint == Graph->DefaultEntryPoint;
+			return EntryPoint == Module->DefaultEntryPoint;
 		}
 
 		return InEntryPoint == EntryPoint;
@@ -147,7 +147,7 @@ void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNex
 		return;
 	}
 
-	if (URigVM* VM = Graph->VM)
+	if (URigVM* VM = Module->VM)
 	{
 		FAnimNextExecuteContext& AnimNextContext = ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData<FAnimNextGraphContextData>(this, LatentHandles, DestinationBasePtr, bIsFrozen);
@@ -175,16 +175,16 @@ void FAnimNextGraphInstance::Freeze()
 
 void FAnimNextGraphInstance::Thaw()
 {
-	if (const UAnimNextGraph* GraphPtr = Graph)
+	if (const UAnimNextModule* ModulePtr = Module)
 	{
-		GraphState = MakeUnique<UE::AnimNext::FParametersProxy>(Graph);
+		GraphState = MakeUnique<UE::AnimNext::FParametersProxy>(Module);
 
-		ExtendedExecuteContext.CopyMemoryStorage(GraphPtr->ExtendedExecuteContext);
-		GraphPtr->VM->InitializeInstance(ExtendedExecuteContext);
+		ExtendedExecuteContext.CopyMemoryStorage(ModulePtr->ExtendedExecuteContext);
+		ModulePtr->VM->InitializeInstance(ExtendedExecuteContext);
 
 		{
 			UE::AnimNext::FExecutionContext Context(*this);
-			if(const FAnimNextTraitHandle* FoundHandle = GraphPtr->ResolvedRootTraitHandles.Find(EntryPoint))
+			if(const FAnimNextTraitHandle* FoundHandle = ModulePtr->ResolvedRootTraitHandles.Find(EntryPoint))
 			{
 				GraphInstancePtr = Context.AllocateNodeInstance(*this, *FoundHandle);
 			}

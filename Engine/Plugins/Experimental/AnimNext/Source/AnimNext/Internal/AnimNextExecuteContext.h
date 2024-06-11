@@ -57,6 +57,6 @@ protected:
 	TVariant<FAnimNextGraphContextData, FAnimNextParamContextData> ContextData;
 
 	friend struct FAnimNextGraphInstance;
-	friend class UAnimNextGraph;
+	friend class UAnimNextModule;
 };
 

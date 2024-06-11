@@ -16,7 +16,7 @@
 #include "RigVMModel/RigVMClient.h"
 #include "AnimNextRigVMAsset.h"
 #include "EdGraph/RigVMEdGraphNode.h"
-#include "Graph/AnimNextGraph_Controller.h"
+#include "Module/AnimNextModule_Controller.h"
 #include "UniversalObjectLocators/AssetLocatorFragment.h"
 
 #define LOCTEXT_NAMESPACE "SGraphPinParamName"
@@ -73,7 +73,7 @@ TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 
 		if(ModelPin && Node)
 		{
-			UAnimNextGraph_Controller* Controller = CastChecked<UAnimNextGraph_Controller>(Node->GetController());
+			UAnimNextModule_Controller* Controller = CastChecked<UAnimNextModule_Controller>(Node->GetController());
 			Controller->SetAnimNextParameterNode(Node->GetModelNode(), InParameterBinding.Parameter, InParameterBinding.Type, InstanceId);
 		}
 		else

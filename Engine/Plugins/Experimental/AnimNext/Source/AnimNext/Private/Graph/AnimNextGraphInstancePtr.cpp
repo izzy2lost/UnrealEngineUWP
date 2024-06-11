@@ -2,7 +2,7 @@
 
 #include "Graph/AnimNextGraphInstancePtr.h"
 
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/AnimNextGraphInstance.h"
 #include "Param/IParameterSource.h"
 
@@ -21,9 +21,9 @@ void FAnimNextGraphInstancePtr::Release()
 	{
 #if WITH_EDITORONLY_DATA
 		{
-			const UAnimNextGraph* Graph = Impl->GetGraph();
-			FScopeLock Lock(&Graph->GraphInstancesLock);
-			Graph->GraphInstances.Remove(Impl.Get());
+			const UAnimNextModule* Module = Impl->GetModule();
+			FScopeLock Lock(&Module->GraphInstancesLock);
+			Module->GraphInstances.Remove(Impl.Get());
 		}
 #endif
 
@@ -40,9 +40,9 @@ bool FAnimNextGraphInstancePtr::IsValid() const
 	return Impl && Impl->IsValid();
 }
 
-const UAnimNextGraph* FAnimNextGraphInstancePtr::GetGraph() const
+const UAnimNextModule* FAnimNextGraphInstancePtr::GetModule() const
 {
-	return Impl ? Impl->GetGraph() : nullptr;
+	return Impl ? Impl->GetModule() : nullptr;
 }
 
 UE::AnimNext::FWeakTraitPtr FAnimNextGraphInstancePtr::GetGraphRootPtr() const
@@ -55,9 +55,9 @@ FAnimNextGraphInstance* FAnimNextGraphInstancePtr::GetImpl() const
 	return Impl.Get();
 }
 
-bool FAnimNextGraphInstancePtr::UsesGraph(const UAnimNextGraph* InGraph) const
+bool FAnimNextGraphInstancePtr::UsesModule(const UAnimNextModule* InModule) const
 {
-	return Impl ? Impl->UsesGraph(InGraph) : false;
+	return Impl ? Impl->UsesModule(InModule) : false;
 }
 
 bool FAnimNextGraphInstancePtr::IsRoot() const

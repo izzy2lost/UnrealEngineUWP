@@ -2,7 +2,7 @@
 
 #include "Graph/AnimGraph/AnimNode_AnimNextParameters.h"
 #include "Param/ParamStack.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/AnimGraphParamStackScope.h"
 #include "Param/ParametersProxy.h"
 
@@ -57,7 +57,7 @@ void FAnimNode_AnimNextParameters::Update_AnyThread(const FAnimationUpdateContex
 
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	UAnimNextGraph* CurrentParameters = Parameters;
+	UAnimNextModule* CurrentParameters = Parameters;
 
 	// Reconstruct parameter's cached layer if required
 	if (CurrentParameters != PreviousParameters || !ParametersProxy.IsValid())

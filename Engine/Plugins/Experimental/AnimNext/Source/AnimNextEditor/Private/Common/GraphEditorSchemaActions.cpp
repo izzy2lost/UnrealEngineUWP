@@ -2,9 +2,9 @@
 
 #include "GraphEditorSchemaActions.h"
 #include "EditorUtils.h"
-#include "Graph/AnimNextGraph_EdGraph.h"
-#include "Graph/AnimNextGraph_EdGraphNode.h"
-#include "Graph/AnimNextGraph_EditorData.h"
+#include "AnimNextEdGraph.h"
+#include "AnimNextEdGraphNode.h"
+#include "Module/AnimNextModule_EditorData.h"
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
 #include "Settings/ControlRigSettings.h"
 #include "Units/RigUnit.h"

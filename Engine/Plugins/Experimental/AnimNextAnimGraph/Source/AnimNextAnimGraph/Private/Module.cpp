@@ -3,14 +3,14 @@
 #include "CoreMinimal.h"
 #include "Animation/BlendProfile.h"
 #include "Curves/CurveFloat.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "Animation/AnimSequence.h"
 #include "Chooser.h"
 
-#include "IAnimNextModule.h"
+#include "IAnimNextModuleInterface.h"
 #include "TraitInterfaces/IEvaluate.h"
 #include "TraitInterfaces/IUpdate.h"
 #include "EvaluationVM/EvaluationVM.h"
@@ -29,18 +29,18 @@ public:
 			{ UScriptStruct::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UBlendProfile::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UCurveFloat::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
-			{ UAnimNextGraph::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UAnimNextModule::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UChooserTable::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 		};
 
 		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);
 
-		IAnimNextModule::Get().RegisterAnimNextAnimGraph(*this);
+		IAnimNextModuleInterface::Get().RegisterAnimNextAnimGraph(*this);
 	}
 
 	virtual void ShutdownModule() override
 	{
-		IAnimNextModule::Get().UnregisterAnimNextAnimGraph();
+		IAnimNextModuleInterface::Get().UnregisterAnimNextAnimGraph();
 	}
 
 	virtual void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, UE::AnimNext::FTraitEventList& InputEventList, FTraitEventList& OutputEventList) const override

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Scheduler/ScheduleHandle.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
 #include "Param/ParamStack.h"
 #include "TraitCore/TraitEvent.h"

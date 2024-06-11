@@ -9,7 +9,7 @@
 #include "TraitCore/NodeInstance.h"
 #include "TraitCore/NodeTemplate.h"
 #include "TraitCore/NodeTemplateRegistry.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 #include "Graph/AnimNextGraphInstance.h"
 
 namespace UE::AnimNext
@@ -153,7 +153,7 @@ namespace UE::AnimNext
 			return FTraitPtr();	// The execution context must be bound to a valid graph instance
 		}
 
-		if (!ensure(GraphInstance.GetGraph() != nullptr))
+		if (!ensure(GraphInstance.GetModule() != nullptr))
 		{
 			return FTraitPtr();	// We need a valid graph instance to allocate into
 		}
@@ -565,8 +565,8 @@ namespace UE::AnimNext
 	const FNodeDescription& FExecutionContext::GetNodeDescription(const FAnimNextGraphInstance& GraphInstance, FNodeHandle NodeHandle) const
 	{
 		// Grab the node description from the specified graph
-		const UAnimNextGraph* Graph = GraphInstance.GetGraph();
-		return *reinterpret_cast<const FNodeDescription*>(&Graph->SharedDataBuffer[NodeHandle.GetSharedOffset()]);
+		const UAnimNextModule* Module = GraphInstance.GetModule();
+		return *reinterpret_cast<const FNodeDescription*>(&Module->SharedDataBuffer[NodeHandle.GetSharedOffset()]);
 	}
 
 	const FNodeDescription& FExecutionContext::GetNodeDescription(const FNodeInstance& NodeInstance) const

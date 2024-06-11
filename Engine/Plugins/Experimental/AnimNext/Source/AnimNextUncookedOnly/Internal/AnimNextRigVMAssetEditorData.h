@@ -13,7 +13,7 @@
 enum class ERigVMGraphNotifType : uint8;
 class UAnimNextRigVMAssetEntry;
 class UAnimNextRigVMAssetEditorData;
-class UAnimNextGraph_EdGraph;
+class UAnimNextEdGraph;
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -78,7 +78,7 @@ protected:
 	friend class UE::AnimNext::Editor::FWorkspaceEditor;
 	friend class UAnimNextRigVMAssetEntry;
 	friend class UAnimNextRigVMAssetLibrary;
-	friend class UAnimNextGraph_EdGraph;
+	friend class UAnimNextEdGraph;
 	friend class UE::AnimNext::Tests::FEditor_Graph;
 	friend class UE::AnimNext::Tests::FEditor_Parameters;
 	friend class UE::AnimNext::Editor::FParameterCustomization;

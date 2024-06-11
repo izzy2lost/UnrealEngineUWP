@@ -3,7 +3,7 @@
 #include "STraitStackView.h"
 #include "ContentBrowserModule.h"
 #include "Framework/Commands/GenericCommands.h"
-#include "Graph/AnimNextGraph_EdGraphNode.h"
+#include "AnimNextEdGraphNode.h"
 #include "IContentBrowserSingleton.h"
 #include "RigVMModel/RigVMNode.h"
 #include "SAssetDropTarget.h"
@@ -76,7 +76,7 @@ void STraitStackView::Construct(const FArguments& InArgs, TSharedPtr<FTraitEdito
 		FCanExecuteAction::CreateSP(this, &STraitStackView::HasValidSelection));
 
 	const TSharedPtr<FTraitEditorSharedData>& TraitEditorSharedDataLocal = TraitEditorSharedData;
-	const TWeakObjectPtr<UAnimNextGraph_EdGraphNode> EdGraphNodeWeak = TraitEditorSharedData->EdGraphNodeWeak;
+	const TWeakObjectPtr<UAnimNextEdGraphNode> EdGraphNodeWeak = TraitEditorSharedData->EdGraphNodeWeak;
 
 	ChildSlot
 	[
@@ -114,7 +114,7 @@ void STraitStackView::Construct(const FArguments& InArgs, TSharedPtr<FTraitEdito
 							.IsReadOnly_Lambda([EdGraphNodeWeak]()->bool
 							{
 								bool bIsReadOnly = false;
-								if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraphNodeWeak.Get()))
+								if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(EdGraphNodeWeak.Get()))
 								{
 									bIsReadOnly = EdGraphNode->IsDeprecated() || EdGraphNode->IsOutDated();
 								}
@@ -124,7 +124,7 @@ void STraitStackView::Construct(const FArguments& InArgs, TSharedPtr<FTraitEdito
 							{
 								if(InCommitType == ETextCommit::OnEnter)
 								{
-									if(UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraphNodeWeak.Get()))
+									if(UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(EdGraphNodeWeak.Get()))
 									{
 										// TODO zzz : Find the correct way to change the DisplayName / Title
 										//FScopedTransaction Transaction(LOCTEXT("SetNodeName", "Set Node title"));

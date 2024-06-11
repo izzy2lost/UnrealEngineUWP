@@ -36,6 +36,6 @@ private:
 	// Parameter scope context
 	UE::AnimNext::FParamStackLayerHandle* LayerHandle = nullptr;
 
-	friend class UAnimNextGraph;
+	friend class UAnimNextModule;
 	friend struct FAnimNextExecuteContext;
 };

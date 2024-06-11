@@ -36,6 +36,11 @@
 		{
 			"Name": "Workspace",
 			"Enabled": true
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true,
+			"TargetAllowList": [ "Editor" ]
 		}
 	],
 	"Modules" :

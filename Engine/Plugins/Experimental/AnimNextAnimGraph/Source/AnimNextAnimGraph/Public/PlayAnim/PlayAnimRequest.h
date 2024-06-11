@@ -12,7 +12,7 @@
 #include "PlayAnimRequest.generated.h"
 
 class FReferenceCollector;
-class UAnimNextGraph;
+class UAnimNextModule;
 class UAnimNextComponent;
 class UAnimSequence;
 class UBlendProfile;

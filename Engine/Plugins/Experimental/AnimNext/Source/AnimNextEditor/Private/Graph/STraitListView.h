@@ -9,7 +9,7 @@
 #include "Widgets/Views/ITableRow.h"
 #include "Graph/TraitEditorDefs.h"
 
-class UAnimNextGraph_EdGraphNode;
+class UAnimNextEdGraphNode;
 
 namespace UE::Workspace
 {

@@ -6,8 +6,8 @@
 #include "ScopedTransaction.h"
 #include "UncookedOnlyUtils.h"
 #include "EdGraph/RigVMEdGraphNode.h"
-#include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraph_Controller.h"
+#include "Module/AnimNextModule.h"
+#include "Module/AnimNextModule_Controller.h"
 #include "Param/ParamCompatibility.h"
 #include "Param/ParamUtils.h"
 #include "Param/RigVMDispatch_GetLayerParameter.h"
@@ -55,7 +55,7 @@ TSharedRef<SWidget> SGraphPinParam::GetDefaultValueWidget()
 
 			if(Node && ModelPin)
 			{
-				UAnimNextGraph_Controller* Controller = CastChecked<UAnimNextGraph_Controller>(Node->GetController());
+				UAnimNextModule_Controller* Controller = CastChecked<UAnimNextModule_Controller>(Node->GetController());
 				Controller->SetAnimNextParameterNode(Node->GetModelNode(), InParameterBinding.Parameter, InParameterBinding.Type.GetValueType(), InParameterBinding.Type.GetContainerType(), InParameterBinding.Type.GetValueTypeObject(), InParameterBinding.InstanceId);
 			}
 			else
@@ -119,7 +119,7 @@ TSharedRef<SWidget> SGraphPinParam::GetDefaultValueWidget()
 			
 			if(Node && ModelPin)
 			{
-				UAnimNextGraph_Controller* Controller = CastChecked<UAnimNextGraph_Controller>(Node->GetController());
+				UAnimNextModule_Controller* Controller = CastChecked<UAnimNextModule_Controller>(Node->GetController());
 				Controller->SetAnimNextParameterNode(Node->GetModelNode(), NAME_None, EPropertyBagPropertyType::None, EPropertyBagContainerType::None, nullptr, InInstanceId);
 			}
 			else

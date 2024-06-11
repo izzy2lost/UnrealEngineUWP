@@ -16,7 +16,7 @@ class FReferenceCollector;
 
 struct FAnimNextGraphInstancePtr;
 struct FRigUnit_AnimNextGraphEvaluator;
-class UAnimNextGraph;
+class UAnimNextModule;
 
 namespace UE::AnimNext
 {
@@ -53,8 +53,8 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns true if we have a live graph instance, false otherwise
 	bool IsValid() const;
 
-	// Returns the graph used by this instance or nullptr if the instance is invalid
-	const UAnimNextGraph* GetGraph() const;
+	// Returns the module used by this instance or nullptr if the instance is invalid
+	const UAnimNextModule* GetModule() const;
 
 	// Returns the entry point in Graph that this instance corresponds to 
 	FName GetEntryPoint() const;
@@ -68,8 +68,8 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns the root graph instance that owns us and the components or nullptr if we are invalid
 	FAnimNextGraphInstance* GetRootGraphInstance() const;
 
-	// Check to see if this instance data matches the provided graph
-	bool UsesGraph(const UAnimNextGraph* InGraph) const;
+	// Check to see if this instance data matches the provided module
+	bool UsesModule(const UAnimNextModule* InModule) const;
 
 	// Check to see if this instance data matches the provided graph entry point
 	bool UsesEntryPoint(FName InEntryPoint) const;
@@ -127,7 +127,7 @@ private:
 
 	// Hard reference to the graph used to create this instance to ensure we can release it safely
 	UPROPERTY()
-	TObjectPtr<const UAnimNextGraph> Graph;
+	TObjectPtr<const UAnimNextModule> Module;
 
 	// The entry point in Graph that this instance corresponds to 
 	FName EntryPoint;
@@ -154,7 +154,7 @@ private:
 	// Whether or not this graph has updated once
 	bool bHasUpdatedOnce = false;
 
-	friend UAnimNextGraph;					// The graph is the one that allocates instances
+	friend UAnimNextModule;					// The module is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
 	friend UE::AnimNext::FExecutionContext;
 	friend FAnimNextGraphInstancePtr;

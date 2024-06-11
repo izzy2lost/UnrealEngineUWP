@@ -6,7 +6,7 @@
 
 #include "TraitCore/TraitBinding.h"
 #include "TraitCore/TraitSharedData.h"
-#include "Graph/AnimNextGraph.h"
+#include "Module/AnimNextModule.h"
 
 #include "AnimNextAnimGraphTraitGraphTest.generated.h"
 

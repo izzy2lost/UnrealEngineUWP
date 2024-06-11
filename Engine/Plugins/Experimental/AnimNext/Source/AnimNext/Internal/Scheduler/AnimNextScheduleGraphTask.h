@@ -8,7 +8,7 @@
 #include "Param/ParamId.h"
 #include "AnimNextScheduleGraphTask.generated.h"
 
-class UAnimNextGraph;
+class UAnimNextModule;
 struct FAnimNextEditorParam;
 struct FAnimNextParamUniversalObjectLocator;
 template<typename T> struct TInstancedStruct;
@@ -39,12 +39,12 @@ private:
 	friend struct UE::AnimNext::FScheduleInstanceData;
 	friend struct UE::AnimNext::FScheduleTickFunction;
 
-	void RunGraph(const UE::AnimNext::FScheduleContext& InContext) const;
+	void RunModule(const UE::AnimNext::FScheduleContext& InContext) const;
 
-	UAnimNextGraph* GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const;
+	UAnimNextModule* GetModuleToRun(UE::AnimNext::FParamStack& ParamStack) const;
 
 	// Verify graph's required parameters are satisfied by this task's supplied parameters
-	void VerifyRequiredParameters(UAnimNextGraph* InGraphToRun) const;
+	void VerifyRequiredParameters(UAnimNextModule* InModuleToRun) const;
 
 private:
 	UPROPERTY()
@@ -60,10 +60,10 @@ private:
 	FAnimNextParam EntryPoint;
 
 	UPROPERTY()
-	TObjectPtr<UAnimNextGraph> Graph = nullptr;
+	TObjectPtr<UAnimNextModule> Module = nullptr;
 
 	UPROPERTY()
-	FAnimNextParam DynamicGraph;
+	FAnimNextParam DynamicModule;
 
 	UPROPERTY()
 	FAnimNextParam ReferencePose;

@@ -24,13 +24,13 @@ UAnimGraphNode_AnimNextGraph::UAnimGraphNode_AnimNextGraph(const FObjectInitiali
 FText UAnimGraphNode_AnimNextGraph::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	// display control rig here
-	return LOCTEXT("AnimGraphNode_AnimNextGraph_Title", "AnimNext Graph");
+	return LOCTEXT("AnimGraphNode_AnimNextModule_Title", "AnimNext Module");
 }
 
 FText UAnimGraphNode_AnimNextGraph::GetTooltipText() const
 {
 	// display control rig here
-	return LOCTEXT("AnimGraphNode_AnimNextGraph_Tooltip", "Evaluates a AnimNext Graph");
+	return LOCTEXT("AnimGraphNode_AnimNextModule_Tooltip", "Evaluates a AnimNext Module");
 }
 
 FText UAnimGraphNode_AnimNextGraph::GetMenuCategory() const
@@ -42,10 +42,10 @@ void UAnimGraphNode_AnimNextGraph::PreloadRequiredAssets()
 {
 	Super::PreloadRequiredAssets();
 
-	if (Node.AnimNextGraph)
+	if (Node.Module)
 	{
-		PreloadObject(Node.AnimNextGraph);
-		PreloadObject(Node.AnimNextGraph->EditorData);
+		PreloadObject(Node.Module);
+		PreloadObject(Node.Module->EditorData);
 	}
 }
 
@@ -184,7 +184,7 @@ void UAnimGraphNode_AnimNextGraph::PostEditChangeProperty(FPropertyChangedEvent&
 
 	if (ChangedProperty)
 	{
-		if (ChangedProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FAnimNode_AnimNextGraph, AnimNextGraph))
+		if (ChangedProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FAnimNode_AnimNextGraph, Module))
 		{
 			bRequiresNodeReconstruct = true;
 			RebuildExposedProperties();
@@ -210,7 +210,7 @@ void UAnimGraphNode_AnimNextGraph::CustomizePinData(UEdGraphPin* Pin, FName Sour
 
 UObject* UAnimGraphNode_AnimNextGraph::GetJumpTargetForDoubleClick() const
 {
-	return Node.AnimNextGraph;
+	return Node.Module;
 }
 
 #undef LOCTEXT_NAMESPACE
