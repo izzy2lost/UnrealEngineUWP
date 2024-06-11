@@ -16,6 +16,7 @@
 #include "RenderResource.h"
 #include "ShowFlags.h"
 #include "StereoRendering.h"
+#include "StereoRenderUtils.h"
 
 #define MAX_PHYSICS_FIELD_TARGETS 32
 
@@ -1624,6 +1625,9 @@ public:
 
 	/** Use to allow ray tracing on this view. */
 	bool bAllowRayTracing = true;
+
+	/**  Stereo aspects of the shader pipeline based on this view's shader platform */
+	UE::StereoRenderUtils::FStereoShaderAspects Aspects;
 
 protected:
 	friend class FSceneRenderer;

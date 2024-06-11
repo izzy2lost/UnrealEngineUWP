@@ -24,6 +24,11 @@ public:
 	*/
 	RENDERCORE_API FStereoShaderAspects(EShaderPlatform Platform);
 
+	/**  
+	* Default empty constructor for object in FSceneView. Do not use! 
+	*/
+	RENDERCORE_API FStereoShaderAspects();
+
 	/**
 	* Whether instanced stereo rendering is enabled - i.e. using a single instanced drawcall to render to both stereo views.
 	* The output is redirected via the viewport index.

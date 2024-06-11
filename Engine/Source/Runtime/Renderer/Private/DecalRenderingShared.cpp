@@ -526,7 +526,7 @@ namespace DecalRendering
 
 	FMatrix ComputeComponentToClipMatrix(const FViewInfo& View, const FMatrix& DecalComponentToWorld)
 	{
-		if (View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled())
+		if (View.bIsMobileMultiViewEnabled || View.Aspects.IsMobileMultiViewEnabled())
 		{
 			// In multi view, the rest of the matrix that is multiplied with DecalComponentToWorld in the non-multi view
 			// case is split out in ViewUniformShaderParameters.MobileMultiviewDecalTransform so we can multiply

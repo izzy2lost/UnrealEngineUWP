@@ -128,6 +128,14 @@ RENDERCORE_API FStereoShaderAspects::FStereoShaderAspects(EShaderPlatform Platfo
 	checkf(!bInstancedStereoEnabled || (bInstancedMultiViewportEnabled || bMobileMultiViewFallback), TEXT("If ISR is enabled, we need either multi-viewport (since we no longer support clip-distance method) or MMV fallback (which uses vertex layer)."));
 }
 	
+RENDERCORE_API FStereoShaderAspects::FStereoShaderAspects() :
+	bInstancedStereoEnabled(false)
+	, bMobileMultiViewEnabled(false)
+	, bInstancedMultiViewportEnabled(false)
+	, bInstancedStereoNative(false)
+	, bMobileMultiViewNative(false)
+	, bMobileMultiViewFallback(false)
+{}
 
 RENDERCORE_API void LogISRInit(const UE::StereoRenderUtils::FStereoShaderAspects& Aspects)
 {

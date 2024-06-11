@@ -261,7 +261,7 @@ void SetupMobileBasePassUniformParameters(
 	const FViewInfo* InstancedView = View.GetInstancedView();
 
 	SetupFogUniformParameters(GraphBuilder, View, BasePassParameters.Fog);
-	if (InstancedView && (View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled()))
+	if (InstancedView && (View.bIsMobileMultiViewEnabled || View.Aspects.IsMobileMultiViewEnabled()))
 	{
 		SetupFogUniformParameters(GraphBuilder, *InstancedView, BasePassParameters.FogMMV);
 	}
@@ -324,7 +324,7 @@ void SetupMobileBasePassUniformParameters(
 	BasePassParameters.AmbientOcclusionSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	BasePassParameters.AmbientOcclusionStaticFraction = FMath::Clamp(View.FinalPostProcessSettings.AmbientOcclusionStaticFraction, 0.0f, 1.0f);
 	
-	const bool bIsMobileMultiViewEnabled = View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled();
+	const bool bIsMobileMultiViewEnabled = View.bIsMobileMultiViewEnabled || View.Aspects.IsMobileMultiViewEnabled();
 	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, MobileBasePassTextures.DBufferTextures, View.GetShaderPlatform(), bIsMobileMultiViewEnabled);
 
 	const bool bMobileUsesShadowMaskTexture = MobileUsesShadowMaskTexture(View.GetShaderPlatform());

@@ -1739,16 +1739,10 @@ FMatrix FProjectedShadowInfo::GetScreenToShadowMatrix(const FSceneView& View, ui
 				1
 				)
 			);
-
-	// Aspects creation is embedded in lambda so we don't pay the price for it when it's not needed.
-	auto IsMobileMultiViewEnabledInAspects = [](const FSceneView& View) {
-		const UE::StereoRenderUtils::FStereoShaderAspects Aspects(View.GetShaderPlatform());
-		return Aspects.IsMobileMultiViewEnabled();
-	};
 	
 	// Checking the Aspects is a workaround for editor windows or scene captures where View.bIsMobileMultiViewEnabled
 	// is false but shaders have been compiled with MOBILE_MULTI_VIEW enabled.
-	if (View.bIsMobileMultiViewEnabled || IsMobileMultiViewEnabledInAspects(View))
+	if (View.bIsMobileMultiViewEnabled || View.Aspects.IsMobileMultiViewEnabled())
 	{
 		// In Multiview, we split ViewDependentTransform out into ViewUniformShaderParameters.MobileMultiviewShadowTransform
 		// So we can multiply it later in shader.
