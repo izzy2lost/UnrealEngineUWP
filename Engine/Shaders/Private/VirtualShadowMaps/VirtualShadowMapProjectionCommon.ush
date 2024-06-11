@@ -104,9 +104,9 @@ FVirtualShadowMapSample SampleVirtualShadowMapLevel(int VirtualShadowMapId, floa
 FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 ShadowMapUV)
 {
 	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(VirtualShadowMapId, ShadowMapUV);
+	FVirtualShadowMapSample Result = InitVirtualShadowMapSample();
 	if (Page.bValid)
 	{
-		FVirtualShadowMapSample Result = InitVirtualShadowMapSample();
 		Result.bValid = true;
 		Result.MipLevel = Page.LODOffset;
 		Result.VirtualShadowMapId = VirtualShadowMapId;
@@ -114,10 +114,9 @@ FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 Sh
 		Result.VirtualTexelAddressFloat = Page.VirtualTexelAddressFloat;
 		Result.PhysicalTexelAddress = Page.PhysicalTexelAddress;
 		Result.Depth = SampleVirtualShadowMapPhysicalDepth(Result.PhysicalTexelAddress);
-		return Result;
 	}
 
-	return InitVirtualShadowMapSample();
+	return Result;
 }
 
 

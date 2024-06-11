@@ -173,7 +173,7 @@ void MaterialSetupCS(
 
 		uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
 
-		for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
+		for (uint LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
 		{
 			uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
 
