@@ -477,7 +477,7 @@ void FConnectionDrawingPolicy::DrawPinGeometries(TMap<TSharedRef<SWidget>, FArra
 		SGraphPin& PinWidget = static_cast<SGraphPin&>(SomePinWidget.Get());
 		UEdGraphPin* ThePin = PinWidget.GetPinObj();
 
-		if (ThePin->Direction == EGPD_Output)
+		if (ThePin && ThePin->Direction == EGPD_Output)
 		{
 			for (int32 LinkIndex=0; LinkIndex < ThePin->LinkedTo.Num(); ++LinkIndex)
 			{

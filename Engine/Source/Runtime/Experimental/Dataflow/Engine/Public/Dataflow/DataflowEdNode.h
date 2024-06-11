@@ -50,6 +50,7 @@ public:
 	DATAFLOWENGINE_API virtual void AutowireNewNode(UEdGraphPin* FromPin) override;
 	DATAFLOWENGINE_API virtual void OnPinRemoved(UEdGraphPin* InRemovedPin) override;
 	DATAFLOWENGINE_API virtual bool ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, int32& OutOutputPinIndex) const override;
+	DATAFLOWENGINE_API virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 	// End of UEdGraphNode interface
 

@@ -629,6 +629,15 @@ bool UDataflowEdNode::ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, 
 	return false;
 }
 
+void UDataflowEdNode::PostEditUndo()
+{
+	// Refresh the current graph, so the pins or whatever happened to this object can be reflected to the graph
+	if (UEdGraph* const ParentGraph = GetGraph())
+	{
+		ParentGraph->NotifyGraphChanged();
+	}
+}
+
 void UDataflowEdNode::HideAllInputPins()
 {
 	bool bAnyHidden = false;
