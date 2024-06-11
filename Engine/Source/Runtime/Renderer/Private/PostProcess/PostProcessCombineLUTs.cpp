@@ -37,7 +37,7 @@ TAutoConsoleVariable<int32> CVarLUTSize(
 	TEXT("r.LUT.Size"),
 	32,
 	TEXT("Size of film LUT"),
-	ECVF_RenderThreadSafe);
+	ECVF_RenderThreadSafe | ECVF_Scalability);
 
 TAutoConsoleVariable<int32> CVarColorGrading(
 	TEXT("r.Color.Grading"), 1,
