@@ -269,9 +269,26 @@ void FPCGContext::OverrideSettings()
 						}
 						else if constexpr (std::is_same_v<FSoftClassPath, PropertyType>)
 						{
-							if (const UClass* Class = Cast<UClass>(Value.ResolveObject()))
+							UClass* Subclass = nullptr;
+							if (const FClassProperty* ClassProp = CastField<const FClassProperty>(Param.Properties.Last()))
 							{
-								bInvalid = ObjectProperty->PropertyClass && !Class->IsChildOf(ObjectProperty->PropertyClass);
+								Subclass = ClassProp->MetaClass;
+							}
+							else if (const FSoftClassProperty* SoftClassProp = CastField<const FSoftClassProperty>(Param.Properties.Last()))
+							{
+								Subclass = SoftClassProp->MetaClass;
+							}
+							else
+							{
+								// TODO: should we use prop -> GetOwnerProperty()->GetClassMetadata(TEXT("MetaClass")) ?
+								bInvalid = true;
+							}
+
+							const UClass* ValueClass = (bInvalid ? nullptr : Cast<UClass>(Value.ResolveObject()));
+
+							if (ValueClass)
+							{
+								bInvalid = !Subclass || !ValueClass->IsChildOf(Subclass);
 							}
 						}
 

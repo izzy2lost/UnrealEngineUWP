@@ -73,7 +73,7 @@ namespace PCGActorSelector
 		return {};
 	}
 
-	TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck)
+	TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCGActorSelector::FindActor);
 
@@ -173,6 +173,11 @@ namespace PCGActorSelector
 			}
 		}
 
+		case EPCGActorFilter::FromInput:
+		{
+			ActorsToCheck.Append(InputActors);
+		}
+
 		default:
 			break;
 		}
@@ -198,20 +203,40 @@ namespace PCGActorSelector
 		return FoundActors;
 	}
 
-	AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck)
+	AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors)
 	{
 		// In order to make sure we don't try to select multiple, we'll do a copy of the settings here.
 		FPCGActorSelectorSettings Settings = InSettings;
 		Settings.bSelectMultiple = false;
 
-		TArray<AActor*> Actors = FindActors(Settings, InComponent, BoundsCheck, SelfIgnoreCheck);
+		TArray<AActor*> Actors = FindActors(Settings, InComponent, BoundsCheck, SelfIgnoreCheck, InputActors);
 		return Actors.IsEmpty() ? nullptr : Actors[0];
+	}
+}
+
+FPCGSelectionKey::FPCGSelectionKey(const FPCGActorSelectorSettings& InActorSelector)
+{
+	check(InActorSelector.ActorFilter != EPCGActorFilter::FromInput);
+	ActorFilter = InActorSelector.ActorFilter;
+	if (ActorFilter == EPCGActorFilter::AllWorldActors)
+	{
+		check(InActorSelector.ActorSelection == EPCGActorSelection::ByTag || InActorSelector.ActorSelection == EPCGActorSelection::ByClass);
+		Selection = InActorSelector.ActorSelection;
+
+		if (Selection == EPCGActorSelection::ByTag)
+		{
+			Tag = InActorSelector.ActorSelectionTag;
+		}
+		else
+		{
+			SelectionClass = InActorSelector.ActorSelectionClass;
+		}
 	}
 }
 
 FPCGSelectionKey::FPCGSelectionKey(EPCGActorFilter InFilter)
 {
-	check(InFilter != EPCGActorFilter::AllWorldActors);
+	check(InFilter != EPCGActorFilter::AllWorldActors && InFilter != EPCGActorFilter::FromInput);
 	ActorFilter = InFilter;
 }
 
@@ -468,19 +493,25 @@ FName FPCGActorSelectorSettings::GetTaskName(const FText& Prefix) const
 
 FPCGSelectionKey FPCGActorSelectorSettings::GetAssociatedKey() const
 {
-	if (ActorFilter != EPCGActorFilter::AllWorldActors)
+	if (ActorFilter == EPCGActorFilter::AllWorldActors)
+	{
+		switch (ActorSelection)
+		{
+		case EPCGActorSelection::ByTag:
+			return FPCGSelectionKey(ActorSelectionTag);
+		case EPCGActorSelection::ByClass:
+			return FPCGSelectionKey(ActorSelectionClass);
+		default:
+			return FPCGSelectionKey();
+		}
+	}
+	else if (ActorFilter == EPCGActorFilter::FromInput)
+	{
+		return FPCGSelectionKey();
+	}
+	else
 	{
 		return FPCGSelectionKey(ActorFilter);
-	}
-
-	switch (ActorSelection)
-	{
-	case EPCGActorSelection::ByTag:
-		return FPCGSelectionKey(ActorSelectionTag);
-	case EPCGActorSelection::ByClass:
-		return FPCGSelectionKey(ActorSelectionClass);
-	default:
-		return FPCGSelectionKey();
 	}
 }
 

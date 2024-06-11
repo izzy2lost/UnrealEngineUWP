@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Metadata/PCGAttributePropertySelector.h"
+
 #include "Templates/SubclassOf.h"
 #include "UObject/NameTypes.h"
 
@@ -10,6 +12,7 @@
 class AActor;
 class UPCGComponent;
 class UWorld;
+struct FPCGActorSelectorSettings;
 
 UENUM()
 enum class EPCGActorSelection : uint8
@@ -35,6 +38,8 @@ enum class EPCGActorFilter : uint8
 	AllWorldActors,
 	/** The source PCG actor (rather than the generated partition actor). */
 	Original,
+	/** Consider only the provided list of actors */
+	FromInput
 };
 
 /**
@@ -49,9 +54,11 @@ struct PCG_API FPCGSelectionKey
 
 	FPCGSelectionKey() = default;
 
+	// For all filters except FromInput
+	explicit FPCGSelectionKey(const FPCGActorSelectorSettings& InActorSelector);
+
 	// For all filters others than AllWorldActor. For AllWorldActors Filter, use the other constructors.
 	explicit FPCGSelectionKey(EPCGActorFilter InFilter);
-
 	explicit FPCGSelectionKey(FName InTag);
 	explicit FPCGSelectionKey(TSubclassOf<UObject> InSelectionClass);
 
@@ -109,7 +116,7 @@ struct PCG_API FPCGActorSelectorSettings
 	bool bIncludeChildren = false;
 
 	/** Enables/disables fine-grained actor filtering options. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Actor Selector Settings", meta = (EditCondition = "ActorFilter!=EPCGActorFilter::AllWorldActors && bIncludeChildren", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Actor Selector Settings", meta = (PCG_NotOverridable, EditCondition = "ActorFilter!=EPCGActorFilter::AllWorldActors && bIncludeChildren", EditConditionHides))
 	bool bDisableFilter = false;
 
 	/** How to select when filtering actors. */
@@ -123,6 +130,10 @@ struct PCG_API FPCGActorSelectorSettings
 	/** Actor class to match against when filtering actors. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Actor Selector Settings", meta = (EditCondition = "bShowActorSelectionClass && bShowActorSelection && (ActorFilter==EPCGActorFilter::AllWorldActors || (bIncludeChildren && !bDisableFilter)) && ActorSelection==EPCGActorSelection::ByClass", EditConditionHides, AllowAbstract = "true"))
 	TSubclassOf<AActor> ActorSelectionClass;
+
+	/** Controls what attribute to read from when the actor selector uses the "FromInput" actor filter. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Actor Selector Settings", meta = (EditCondition = "ActorFilter==EPCGActorFilter::FromInput", EditConditionHides))
+	FPCGAttributePropertyInputSelector ActorReferenceSelector;
 
 	/** If true processes all matching actors, otherwise returns data from first match. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Actor Selector Settings", meta = (EditCondition = "bShowSelectMultiple && ActorFilter==EPCGActorFilter::AllWorldActors && ActorSelection!=EPCGActorSelection::ByName", EditConditionHides))
@@ -162,6 +173,6 @@ struct PCG_API FPCGActorSelectorSettings
 
 namespace PCGActorSelector
 {
-	PCG_API TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck);
-	PCG_API AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck);
+	PCG_API TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors = TArrayView<AActor*>());
+	PCG_API AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors = TArrayView<AActor*>());
 }

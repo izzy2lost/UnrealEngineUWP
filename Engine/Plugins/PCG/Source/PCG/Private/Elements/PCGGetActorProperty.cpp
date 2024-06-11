@@ -82,6 +82,21 @@ FString UPCGGetActorPropertySettings::GetAdditionalTitleInformation() const
 #endif
 }
 
+TArray<FPCGPinProperties> UPCGGetActorPropertySettings::InputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+
+	if (ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+	{
+		PinProperties.Emplace(PCGPinConstants::DefaultInputLabel,
+			EPCGDataType::Any,
+			/*bAllowMultipleConnections=*/true,
+			/*bAllowMultipleData=*/true);
+	}
+
+	return PinProperties;
+}
+
 TArray<FPCGPinProperties> UPCGGetActorPropertySettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
@@ -90,16 +105,50 @@ TArray<FPCGPinProperties> UPCGGetActorPropertySettings::OutputPinProperties() co
 	return PinProperties;
 }
 
+EPCGDataType UPCGGetActorPropertySettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	check(InPin);
+	// Implementation note: since we can have an input pin in some instances, we can't rely on the
+	// base class to provide the proper output type, as this will override the values set in the OutputPinProperties.
+	return InPin->Properties.AllowedTypes;
+}
+
 FPCGElementPtr UPCGGetActorPropertySettings::CreateElement() const
 {
 	return MakeShared<FPCGGetActorPropertyElement>();
 }
 
-bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGGetActorPropertyElement::PrepareDataInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGetActorPropertyElement::PrepareData);
+	check(Context);
+
+	const UPCGGetActorPropertySettings* Settings = Context->GetInputSettings<UPCGGetActorPropertySettings>();
+	check(Settings);
+
+	if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+	{
+		FPCGLoadObjectsFromPathContext* ThisContext = static_cast<FPCGLoadObjectsFromPathContext*>(Context);
+		return ThisContext->InitializeAndRequestLoad(PCGPinConstants::DefaultInputLabel,
+			Settings->ActorSelector.ActorReferenceSelector,
+			{},
+			/*bPersistAllData=*/false,
+			/*bSilenceErrorOnEmptyObjectPath=*/true,
+			/*bSynchronousLoad=*/false);
+	}
+	else
+	{
+		return true;
+	}
+
+}
+
+bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGetActorPropertyElement::Execute);
 
-	check(Context);
+	check(InContext);
+	FPCGLoadObjectsFromPathContext* Context = static_cast<FPCGLoadObjectsFromPathContext*>(InContext);
 
 	const UPCGGetActorPropertySettings* Settings = Context->GetInputSettings<UPCGGetActorPropertySettings>();
 	check(Settings);
@@ -136,7 +185,32 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 		};
 	}
 
-	TArray<AActor*> FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, OriginalComponent, BoundsCheck, NoSelfIgnoreCheck);
+	TArray<AActor*> ActorsFromInput;
+	if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+	{
+		Algo::Transform(Context->PathsToObjectsAndDataIndex, ActorsFromInput, [](const TTuple<FSoftObjectPath, int32, int32>& InPath) { return Cast<AActor>(InPath.Get<0>().ResolveObject()); });
+	}
+
+	TArray<AActor*> FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, OriginalComponent, BoundsCheck, NoSelfIgnoreCheck, ActorsFromInput);
+
+#if WITH_EDITOR
+	// Setup dynamic tracking if needed
+	if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+	{
+		FPCGDynamicTrackingHelper DynamicTracking;
+		DynamicTracking.EnableAndInitialize(Context, Context->PathsToObjectsAndDataIndex.Num());
+		for (const TTuple<FSoftObjectPath, int32, int32>& Path : Context->PathsToObjectsAndDataIndex)
+		{
+			DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(Path.Get<0>()), Settings->ActorSelector.bMustOverlapSelf);
+		}
+
+		DynamicTracking.Finalize(Context);
+	}
+	else if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGGetActorPropertySettings, ActorSelector)))
+	{
+		FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, Settings->ActorSelector);
+	}
+#endif // WITH_EDITOR
 
 	if (FoundActors.IsEmpty())
 	{
@@ -207,9 +281,9 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 		{
 			FPCGDynamicTrackingHelper DynamicTracking;
 			DynamicTracking.EnableAndInitialize(Context, ObjectTraversed.Num());
-			for (FSoftObjectPath& Path : ObjectTraversed)
+			for (const FSoftObjectPath& Path : ObjectTraversed)
 			{
-				DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(std::move(Path)), /*bCulled=*/false);
+				DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(Path), /*bCulled=*/false);
 			}
 
 			DynamicTracking.Finalize(Context);

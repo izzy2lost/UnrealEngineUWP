@@ -5,6 +5,7 @@
 #include "PCGContext.h"
 #include "PCGSettings.h"
 #include "Elements/PCGActorSelector.h"
+#include "Elements/PCGLoadObjectsContext.h"
 
 #include "UObject/ObjectKey.h"
 
@@ -35,6 +36,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 	virtual bool HasDynamicPins() const override { return true; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
@@ -46,7 +48,7 @@ protected:
 #if WITH_EDITOR
 	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override { return Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic; }
 #endif
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return TArray<FPCGPinProperties>(); }
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 
 	virtual FPCGElementPtr CreateElement() const override;
@@ -75,7 +77,7 @@ protected:
 
 public:
 	/** Describes which actors to select for data collection. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ShowOnlyInnerProperties))
 	FPCGActorSelectorSettings ActorSelector;
 
 	/** Describes what kind of data we will collect from the found actor(s). */
@@ -125,7 +127,7 @@ public:
 	bool bDisplayModeSettings = true;
 };
 
-struct FPCGDataFromActorContext : public FPCGContext
+struct FPCGDataFromActorContext : public FPCGLoadObjectsFromPathContext
 {
 	TArray<AActor*> FoundActors;
 	bool bPerformedQuery = false;
@@ -136,7 +138,7 @@ struct FPCGDataFromActorContext : public FPCGContext
 #endif
 };
 
-class PCG_API FPCGDataFromActorElement : public IPCGElement
+class PCG_API FPCGDataFromActorElement : public IPCGElementWithCustomContext<FPCGDataFromActorContext>
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
@@ -144,7 +146,7 @@ public:
 	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const override { return true; }
 
 protected:
-	virtual FPCGContext* CreateContext() override;
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	void GatherWaitTasks(AActor* FoundActor, FPCGContext* InContext, TArray<FPCGTaskId>& OutWaitTasks) const;
 	virtual void ProcessActors(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& FoundActors) const;

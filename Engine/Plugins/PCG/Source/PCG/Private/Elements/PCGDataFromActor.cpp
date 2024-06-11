@@ -13,6 +13,7 @@
 #include "Elements/PCGMergeElement.h"
 #include "Elements/PCGMergeAttributes.h"
 #include "Grid/PCGPartitionActor.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "Utils/PCGGraphExecutionLogging.h"
 
@@ -230,7 +231,24 @@ EPCGDataType UPCGDataFromActorSettings::GetCurrentPinTypes(const UPCGPin* InPin)
 		}
 	}
 
-	return Super::GetCurrentPinTypes(InPin);
+	// Implementation note: since we can have an input pin in some instances, we can't rely on the
+	// base class to provide the proper output type, as this will override the values set in the OutputPinProperties.
+	return InPin->Properties.AllowedTypes;
+}
+
+TArray<FPCGPinProperties> UPCGDataFromActorSettings::InputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+
+	if (ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+	{
+		PinProperties.Emplace(PCGPinConstants::DefaultInputLabel,
+			EPCGDataType::Any,
+			/*bAllowMultipleConnections=*/true,
+			/*bAllowMultipleData=*/true);
+	}
+
+	return PinProperties;
 }
 
 TArray<FPCGPinProperties> UPCGDataFromActorSettings::OutputPinProperties() const
@@ -257,9 +275,28 @@ TArray<FPCGPinProperties> UPCGDataFromActorSettings::OutputPinProperties() const
 	return Pins;
 }
 
-FPCGContext* FPCGDataFromActorElement::CreateContext()
+bool FPCGDataFromActorElement::PrepareDataInternal(FPCGContext* Context) const
 {
-	return new FPCGDataFromActorContext();
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataFromActorElement::PrepareData);
+	check(Context);
+
+	const UPCGDataFromActorSettings* Settings = Context->GetInputSettings<UPCGDataFromActorSettings>();
+	check(Settings);
+
+	if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+	{
+		FPCGDataFromActorContext* ThisContext = static_cast<FPCGDataFromActorContext*>(Context);
+		return ThisContext->InitializeAndRequestLoad(PCGPinConstants::DefaultInputLabel,
+			Settings->ActorSelector.ActorReferenceSelector,
+			{},
+			/*bPersistAllData=*/false,
+			/*bSilenceErrorOnEmptyObjectPath=*/true,
+			/*bSynchronousLoad=*/false);
+	}
+	else
+	{
+		return true;
+	}
 }
 
 bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
@@ -368,8 +405,34 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 		if (!Context->bPerformedQuery)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataFromActorElement::Execute::FindActors);
-			Context->FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck);
+			TArray<AActor*> ActorsFromInput;
+
+			if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+			{
+				Algo::Transform(Context->PathsToObjectsAndDataIndex, ActorsFromInput, [](const TTuple<FSoftObjectPath, int32, int32>& InPath) { return Cast<AActor>(InPath.Get<0>().ResolveObject()); });
+			}
+
+			Context->FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck, ActorsFromInput);
 			Context->bPerformedQuery = true;
+
+#if WITH_EDITOR
+			// Setup dynamic tracking if needed
+			if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
+			{
+				FPCGDynamicTrackingHelper DynamicTracking;
+				DynamicTracking.EnableAndInitialize(Context, Context->PathsToObjectsAndDataIndex.Num());
+				for (const TTuple<FSoftObjectPath, int32, int32>& Path : Context->PathsToObjectsAndDataIndex)
+				{
+					DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(Path.Get<0>()), Settings->ActorSelector.bMustOverlapSelf);
+				}
+
+				DynamicTracking.Finalize(Context);
+			}
+			else if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGDataFromActorSettings, ActorSelector)))
+			{
+				FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, Settings->ActorSelector);
+			}
+#endif // WITH_EDITOR
 		}
 
 		if (Context->FoundActors.IsEmpty())

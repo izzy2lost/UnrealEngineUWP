@@ -52,4 +52,9 @@ void FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(FPCGContext* InConte
 	}
 }
 
+void FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(FPCGContext* InContext, const FPCGActorSelectorSettings& InSelector)
+{
+	AddSingleDynamicTrackingKey(InContext, FPCGSelectionKey(InSelector), InSelector.bMustOverlapSelf);
+}
+
 #endif // WITH_EDITOR

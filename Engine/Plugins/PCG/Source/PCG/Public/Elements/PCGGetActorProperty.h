@@ -4,6 +4,7 @@
 
 #include "PCGSettings.h"
 #include "Elements/PCGActorSelector.h"
+#include "Elements/PCGLoadObjectsContext.h"
 #include "Metadata/PCGMetadataAttribute.h"
 
 #include "PCGGetActorProperty.generated.h"
@@ -33,11 +34,13 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Param; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
 	virtual bool CanDynamicallyTrackKeys() const override { return true; }
+	virtual bool HasDynamicPins() const override { return true; }
 #endif
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return TArray<FPCGPinProperties>(); }
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 
 protected:
 #if WITH_EDITOR
@@ -47,7 +50,7 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ShowOnlyInnerProperties))
 	FPCGActorSelectorSettings ActorSelector;
 
 	/** Allow to look for an actor component instead of an actor. It will need to be attached to the found actor. */
@@ -106,11 +109,12 @@ private:
 #endif
 };
 
-class FPCGGetActorPropertyElement : public IPCGElement
+class FPCGGetActorPropertyElement : public IPCGElementWithCustomContext<FPCGLoadObjectsFromPathContext>
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return !CastChecked<UPCGGetActorPropertySettings>(InSettings)->bAlwaysRequeryActors; }
 protected:
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
