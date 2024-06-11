@@ -368,6 +368,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 	int ClipmapIndex = max(0, ClipmapLevel - BaseProjectionData.ClipmapLevel);
 
 	// Check if sample is within the clipmap range (from camera)
+	FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
 	if (ClipmapIndex < BaseProjectionData.ClipmapLevelCountRemaining)
 	{
 		int ClipmapLevelVirtualShadowMapId = VirtualShadowMapId + ClipmapIndex;
@@ -385,7 +386,6 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 		{
 			int SampledClipmapIndex = SmSample.VirtualShadowMapId - VirtualShadowMapId;
 
-			FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
 			Result.bValid = true;
 			Result.ShadowFactor = 1.0f;
 			Result.OccluderDistance = -1.0f;
@@ -412,13 +412,10 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 					SmSample.Depth,
 					ShadowUVz.z);
 			}
-
-			return Result;
 		}
 	}
 
-	// Invalid
-	return InitVirtualShadowMapSampleResult();
+	return Result;
 }
 
 

@@ -53,7 +53,7 @@
 
 bool IsSinglePageVirtualShadowMap(int VirtualShadowMapId)
 {
-	return VirtualShadowMapId < VSM_MAX_SINGLE_PAGE_SHADOW_MAPS;
+	return VirtualShadowMapId < int(VSM_MAX_SINGLE_PAGE_SHADOW_MAPS);
 }
 
 struct FPhysicalPageMetaData
