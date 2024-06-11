@@ -239,7 +239,7 @@ TSharedPtr<FGraphActionNode> FGraphActionNode::AddChildAlphabetical(const TShare
 	}
 
 	// if a divider hasn't been created for the grouping, create one:
-	AddChildGrouping(ActionNode, this->AsShared());
+	AddChildGrouping(ActionNode, this->AsShared(), true);
 
 	// find or add categories iteratively, inserting as needed:
 	FGraphActionNode* OwningCategory = this;
@@ -273,7 +273,7 @@ TSharedPtr<FGraphActionNode> FGraphActionNode::AddChildAlphabetical(FGraphAction
 	}
 
 	// if a divider hasn't been created for the grouping, create one:
-	AddChildGrouping(ActionNode, this->AsShared());
+	AddChildGrouping(ActionNode, this->AsShared(), true);
 
 	// find or add categories iteratively, inserting as needed:
 	FGraphActionNode* OwningCategory = this;
@@ -697,7 +697,7 @@ void FGraphActionNode::InsertChild(TSharedPtr<FGraphActionNode> NodeToAdd)
 	// hardcode the order), but if this isn't in a section...
 	else
 	{
-		AddChildGrouping(NodeToAdd, NodeToAdd->ParentNode);
+		AddChildGrouping(NodeToAdd, NodeToAdd->ParentNode, false);
 	}
 
 	NodeToAdd->InsertOrder = Children.Num();
@@ -709,7 +709,7 @@ void FGraphActionNode::InsertChild(TSharedPtr<FGraphActionNode> NodeToAdd)
 }
 
 //------------------------------------------------------------------------------
-void FGraphActionNode::AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent)
+void FGraphActionNode::AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent, bool bInsertAlphabetically)
 {
 	if (ChildGroupings.Find(ActionNode->Grouping))
 	{
@@ -729,8 +729,15 @@ void FGraphActionNode::AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode,
 		// divider associated with it)
 		int32 DividerGrouping = FMath::Max(LowestGrouping, ActionNode->Grouping);
 
-		ChildGroupings.Add(ActionNode->Grouping); // to avoid recursion, add before we insert
-		InsertChild(NewGroupDividerNode(this->AsShared(), DividerGrouping));
+		ChildGroupings.Add(ActionNode->Grouping);  // to avoid recursion, add before we insert
+		if(bInsertAlphabetically)
+		{
+			InsertChildAlphabetical(NewGroupDividerNode(this->AsShared(), DividerGrouping));
+		}
+		else
+		{
+			InsertChild(NewGroupDividerNode(this->AsShared(), DividerGrouping));
+		}
 	}
 	else
 	{

@@ -24,6 +24,9 @@ void FEdGraphSchemaAction::CosmeticUpdateCategory(FText NewCategory)
 	Category.BuildSourceString().ParseIntoArray(FullSearchCategoryArray, TEXT(" "), true);
 
 	// Glob search text together, we use the SearchText string for basic filtering:
+#if WITH_EDITORONLY_DATA
+	CategoryChain.Reset();
+#endif // WITH_EDITORONLY_DATA
 	UpdateSearchText();
 }
 

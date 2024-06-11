@@ -305,7 +305,7 @@ private:
 	 */
 	void InsertChild(TSharedPtr<FGraphActionNode> NodeToAdd);
 
-	void AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent);
+	void AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent, bool bInsertAlphabetically);
 	void InsertChildAlphabetical(TSharedPtr<FGraphActionNode> NodeToAdd);
 
 	/** Recursive implementation helper for GetLinearizedIndex */
