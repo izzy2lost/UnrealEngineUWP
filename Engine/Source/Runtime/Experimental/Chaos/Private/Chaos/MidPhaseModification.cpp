@@ -33,6 +33,24 @@ namespace Chaos
 		*Particle1 = MidPhase->GetParticle1();
 	}
 
+	FGeometryParticleHandle* FMidPhaseModifier::GetOtherParticle(const FGeometryParticleHandle* InParticle) 
+	{
+		if (MidPhase)
+		{
+			FGeometryParticleHandle* Particle0 = MidPhase->GetParticle0();
+			FGeometryParticleHandle* Particle1 = MidPhase->GetParticle1();
+			if (InParticle == Particle0)
+			{
+				return Particle1;
+			}
+			else if (InParticle == Particle1)
+			{
+				return Particle0;
+			}
+		}
+		return nullptr;
+	}
+
 	const FGeometryParticleHandle* FMidPhaseModifier::GetOtherParticle(const FGeometryParticleHandle* InParticle) const
 	{
 		if (MidPhase)
