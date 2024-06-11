@@ -78,10 +78,11 @@ namespace EpicGames.UBA
 		/// </summary>
 		/// <param name="session">The session</param>
 		/// <param name="reportMissReason">Output reason for cache miss to log.</param>
+		/// <param name="crypto">Enable crypto by using a 32 character crypto string (representing a 16 byte value)</param>
 		/// <returns>The ICacheClient</returns>
-		public static ICacheClient CreateCacheClient(ISessionServer session, bool reportMissReason)
+		public static ICacheClient CreateCacheClient(ISessionServer session, bool reportMissReason, string crypto = "")
 		{
-			return new CacheClientImpl(session, reportMissReason);
+			return new CacheClientImpl(session, reportMissReason, crypto);
 		}
 	}
 }

@@ -81,7 +81,7 @@ namespace EpicGames.UBA
 		static extern void ProcessStartInfo_Destroy(IntPtr server);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CacheClient_Create(IntPtr session, bool reportMissReason);
+		static extern IntPtr CacheClient_Create(IntPtr session, bool reportMissReason, string crypto);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern bool CacheClient_Connect(IntPtr cacheClient, string host, int port);
@@ -122,10 +122,10 @@ namespace EpicGames.UBA
 		}
 		#endregion
 
-		public CacheClientImpl(ISessionServer server, bool reportMissReason)
+		public CacheClientImpl(ISessionServer server, bool reportMissReason, string crypto)
 		{
 			_sessionServer = server;
-			_handle = CacheClient_Create(_sessionServer.GetHandle(), reportMissReason);
+			_handle = CacheClient_Create(_sessionServer.GetHandle(), reportMissReason, crypto);
 		}
 
 		public bool Connect(string host, int port)
