@@ -472,7 +472,7 @@ namespace VulkanRHI
 		void Free(FVulkanDevice& Device);
 		void Swap(FVulkanAllocation& Other);
 		void Reference(const FVulkanAllocation& Other); //point to other, but don't take ownership
-		bool HasAllocation();
+		bool HasAllocation() const;
 
 		void Disown(); //disown & own should be used if ownership is transferred.
 		void Own();

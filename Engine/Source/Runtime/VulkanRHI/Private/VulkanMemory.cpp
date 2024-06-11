@@ -3810,7 +3810,7 @@ namespace VulkanRHI
 		FMemory::Memcpy(*this, Other);
 		bHasOwnership = 0;
 	}
-	bool FVulkanAllocation::HasAllocation()
+	bool FVulkanAllocation::HasAllocation() const
 	{
 		return Type != EVulkanAllocationEmpty && bHasOwnership;
 	}
