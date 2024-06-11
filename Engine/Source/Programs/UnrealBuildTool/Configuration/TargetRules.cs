@@ -640,6 +640,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The type of target.
 		/// </summary>
+		[RequiresUniqueBuildEnvironment]
 		public global::UnrealBuildTool.TargetType Type { get; set; } = global::UnrealBuildTool.TargetType.Game;
 
 		/// <summary>
