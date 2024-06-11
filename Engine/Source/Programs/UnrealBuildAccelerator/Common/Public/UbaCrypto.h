@@ -22,5 +22,5 @@ namespace uba
 		static bool Decrypt(Logger& logger, CryptoKey key, u8* data, u32 size);
 	};
 
-
+	bool CryptoFromString(u8* out, u32 outSize, const tchar* str);
 }

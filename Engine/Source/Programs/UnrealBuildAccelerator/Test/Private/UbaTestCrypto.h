@@ -11,34 +11,42 @@ namespace uba
 	{
 		u64 key128[] = { 0x1234567812345678llu, 0x1234567812345678llu };
 
-		CryptoKey key = Crypto::CreateKey(logger, (const u8*)key128);
+		CryptoKey encryptKey = Crypto::CreateKey(logger, (const u8*)key128);
 
-		u8 encryptedData[sizeof(EncryptionHandshakeString)];
-		memcpy(encryptedData, EncryptionHandshakeString, sizeof(EncryptionHandshakeString));
-
-		for (u32 i=0; i!=3; ++i)
+		for (u32 dataSize=1;dataSize!=135; ++dataSize)
 		{
-			if (!Crypto::Encrypt(logger, key, encryptedData, sizeof(encryptedData)))
-				return false;
+			CryptoKey decryptKey = encryptKey;
 
-			if (memcmp(encryptedData, EncryptionHandshakeString, sizeof(EncryptionHandshakeString)) == 0)
-				return false;
+			u8* originalData = new u8[dataSize];
+			for (u32 i=0;i!=dataSize; ++i)
+				originalData[i] = u8(rand() % 256);
 
-			if (!Crypto::Decrypt(logger, key, encryptedData, sizeof(encryptedData)))
-				return false;
+			u8* encryptedData = new u8[dataSize];
+			memcpy(encryptedData, originalData, dataSize);
 
-			if (memcmp(encryptedData, EncryptionHandshakeString, sizeof(EncryptionHandshakeString)) != 0)
-				return false;
-
-			if (i == 1)
+			for (u32 i=0; i!=3; ++i)
 			{
-				CryptoKey newKey = Crypto::DuplicateKey(logger, key);
-				Crypto::DestroyKey(key);
-				key = newKey;
+				if (!Crypto::Encrypt(logger, encryptKey, encryptedData, dataSize))
+					return false;
+
+				if (dataSize > 16 && memcmp(encryptedData, originalData, dataSize) == 0)
+					return false;
+
+				if (!Crypto::Decrypt(logger, decryptKey, encryptedData, dataSize))
+					return false;
+
+				if (memcmp(encryptedData, originalData, dataSize) != 0)
+					return false;
+
+				if (i == 1)
+					decryptKey = Crypto::DuplicateKey(logger, encryptKey);
 			}
+			delete[] encryptedData;
+			delete[] originalData;
+			Crypto::DestroyKey(decryptKey);
 		}
 
-		Crypto::DestroyKey(key);
+		Crypto::DestroyKey(encryptKey);
 		return true;
 	}
 }

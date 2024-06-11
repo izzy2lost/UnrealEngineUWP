@@ -2,6 +2,7 @@
 
 #include "UbaCrypto.h"
 #include "UbaLogger.h"
+#include "UbaMemory.h"
 #include "UbaPlatform.h"
 #include "UbaSynchronization.h"
 
@@ -139,6 +140,22 @@ namespace uba
 		}
 		return true;
 	}
+#elif UBA_CRYPTO_TYPE == 2
+	bool OpenSslEncryptDecrypt(CryptoKey key, u8* data, u32 size, int enc)
+	{
+		auto& keyData = *(KeyData*)uintptr_t(key);
+		u8 iv[AES_BLOCK_SIZE];
+		memcpy(iv, (u8*)uintptr_t(key), AES_BLOCK_SIZE);
+
+		u32 alignedSize = size & 0xfffffff0;
+		if (alignedSize)
+			AES_cbc_encrypt(data, data, alignedSize, &(enc ? keyData.encryptKey : keyData.decryptKey), iv, enc);
+
+		u8* data2 = data + alignedSize;
+		for (u32 i=0, left=u32(size-alignedSize);i!=left; ++i)
+			data2[i] = data2[i] ^ iv[i];
+		return true;
+	}
 #endif
 
 	bool Crypto::Encrypt(Logger& logger, CryptoKey key, u8* data, u32 size)
@@ -146,11 +163,7 @@ namespace uba
 #if UBA_CRYPTO_TYPE == 1
 		return BCryptEncryptDecrypt(logger, true, key, data, size);
 #elif UBA_CRYPTO_TYPE == 2
-		auto& keyData = *(KeyData*)uintptr_t(key);
-		unsigned char iv[AES_BLOCK_SIZE];
-		memset(iv, 0x00, AES_BLOCK_SIZE);
-		AES_cbc_encrypt(data, data, size, &keyData.encryptKey, iv, AES_ENCRYPT);
-		return true;
+		return OpenSslEncryptDecrypt(key, data, size, AES_ENCRYPT);
 #else
 		return false;
 #endif
@@ -161,14 +174,19 @@ namespace uba
 #if UBA_CRYPTO_TYPE == 1
 		return BCryptEncryptDecrypt(logger, false, key, data, size);
 #elif UBA_CRYPTO_TYPE == 2
-		auto& keyData = *(KeyData*)uintptr_t(key);
-		unsigned char iv[AES_BLOCK_SIZE];
-		memset(iv, 0x00, AES_BLOCK_SIZE);
-		AES_cbc_encrypt(data, data, size, &keyData.decryptKey, iv, AES_DECRYPT);
-		return true;
+		return OpenSslEncryptDecrypt(key, data, size, AES_DECRYPT);
 #else
 		return false;
 #endif
+	}
+	
+	bool CryptoFromString(u8* out, u32 outSize, const tchar* str)
+	{
+		if (!str || !*str || outSize != 16 || TStrlen(str) != 32)
+			return false;
+		((u64*)out)[0] = StringToValue(str, 16);
+		((u64*)out)[1] = StringToValue(str + 16, 16);
+		return true;
 	}
 
 }
