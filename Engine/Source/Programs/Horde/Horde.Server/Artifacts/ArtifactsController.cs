@@ -725,7 +725,7 @@ namespace Horde.Server.Artifacts
 			}
 
 			// Sort them to optimize for coherency
-			blobRefs.Sort((x, y) => DirectoryNodeExtract.CompareBlobs(x, y));
+//			blobRefs.Sort((x, y) => DirectoryNodeExtract.CompareBlobs(x, y));
 
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
