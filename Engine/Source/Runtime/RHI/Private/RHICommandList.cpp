@@ -2181,6 +2181,8 @@ FRayTracingShaderBindings UE::RHI::ConvertRayTracingShaderBindings(const FRHIBat
 		}
 	}
 
+	Result.BindlessParameters = BatchedParameters.BindlessParameters;
+
 #else // // RHI_RAYTRACING
 
 	checkNoEntry();
