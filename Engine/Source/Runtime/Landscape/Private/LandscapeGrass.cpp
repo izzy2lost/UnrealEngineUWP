@@ -918,6 +918,7 @@ bool ULandscapeComponent::UpdateGrassTypes(bool bForceUpdate)
 namespace UE::Landscape
 {
 	extern uint32 ComputeGrassMapGenerationHash(const ULandscapeComponent* Component, UMaterialInterface* Material);
+	extern void SubmitGPUCommands(bool bBlockUntilRTComplete, bool bBlockRTUntilGPUComplete);
 }
 
 uint32 ULandscapeComponent::ComputeGrassMapGenerationHash() const
@@ -965,16 +966,30 @@ TArray<uint16> ULandscapeComponent::RenderWPOHeightmap(int32 LOD)
 {
 	TArray<uint16> Results;
 
-	if (!CanRenderGrassMap())
-	{
-		GetMaterialInstance(0)->GetMaterialResource(GetWorld()->GetFeatureLevel())->FinishCompilation();
-	}
-
 	if (ensure(SceneProxy))
 	{
+		if (!CanRenderGrassMap())
+		{
+			GetMaterialInstance(0)->GetMaterialResource(GetWorld()->GetFeatureLevel())->FinishCompilation();
+
+			if (!CanRenderGrassMap())
+			{
+				UE_LOG(LogGrass, Verbose, TEXT("Failed to calculate Landscape WPO height for static lighting. Grass map generation shader could not be compiled."));
+				return Results;
+			}
+		}
+
 		if (LOD == 0)
 		{
 			FLandscapeGrassWeightExporter Exporter(GetLandscapeProxy(), { this }, /*bInNeedsGrassmap = */ false, /*bInNeedsHeightmap =*/ true, {});
+
+			while (!Exporter.IsAsyncReadbackComplete())
+			{
+				UE::Landscape::SubmitGPUCommands(/* bBlockUntilRTComplete =  */ true, /* bBlockRTUntilGPUComplete =  */ true);
+				bool bOutRenderCommandsQueued;
+				Exporter.CheckAndUpdateAsyncReadback(bOutRenderCommandsQueued, true);
+			}
+
 			TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> TempGrassData;
 			TempGrassData = Exporter.FetchResults(/* bFreeAsyncReadback= */ true);
 			Results = TArray<uint16>(TempGrassData[this]->GetHeightData());
@@ -984,6 +999,14 @@ TArray<uint16> ULandscapeComponent::RenderWPOHeightmap(int32 LOD)
 			TArray<int32> HeightMips;
 			HeightMips.Add(LOD);
 			FLandscapeGrassWeightExporter Exporter(GetLandscapeProxy(), { this }, /*bInNeedsGrassmap = */ false, /*bInNeedsHeightmap =*/ false, MoveTemp(HeightMips));
+
+			while (!Exporter.IsAsyncReadbackComplete())
+			{
+				UE::Landscape::SubmitGPUCommands(/* bBlockUntilRTComplete =  */ true, /* bBlockRTUntilGPUComplete =  */ true);
+				bool bOutRenderCommandsQueued;
+				Exporter.CheckAndUpdateAsyncReadback(bOutRenderCommandsQueued, true);
+			}
+
 			TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> TempGrassData;
 			TempGrassData = Exporter.FetchResults(/* bFreeAsyncReadback= */ true);
 			Results = MoveTemp(TempGrassData[this]->HeightMipData[LOD]);

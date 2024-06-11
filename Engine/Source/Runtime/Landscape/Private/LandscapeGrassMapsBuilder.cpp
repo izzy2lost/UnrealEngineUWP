@@ -248,7 +248,7 @@ namespace UE::Landscape
 		return MinSqrDistance;
 	}
 
-	static void SubmitGPUCommands(bool bBlockUntilRTComplete, bool bBlockRTUntilGPUComplete)
+	void SubmitGPUCommands(bool bBlockUntilRTComplete, bool bBlockRTUntilGPUComplete)
 	{
 		FEvent* ResultsReadyEvent = nullptr;
 		if (bBlockUntilRTComplete)
