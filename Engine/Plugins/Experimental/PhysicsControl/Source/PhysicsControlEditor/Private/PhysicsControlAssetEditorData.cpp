@@ -71,26 +71,36 @@ void FPhysicsControlAssetEditorData::CachePreviewMesh()
 		// Fall back to the default skeletal mesh in the EngineMeshes package.
 		// This is statically loaded as the package is likely not fully loaded
 		// (otherwise, it would have been found in the above iteration).
-		PreviewMesh = (USkeletalMesh*)StaticLoadObject(USkeletalMesh::StaticClass(), NULL, TEXT("/Engine/EngineMeshes/SkeletalCube.SkeletalCube"), NULL, LOAD_None, NULL);
+		PreviewMesh = (USkeletalMesh*)StaticLoadObject(
+			USkeletalMesh::StaticClass(), NULL, 
+			TEXT("/Engine/EngineMeshes/SkeletalCube.SkeletalCube"), NULL, LOAD_None, NULL);
 		check(PreviewMesh);
 
 		PhysicsControlAsset->SetPreviewMesh(PreviewMesh);
 
-		FMessageDialog::Open(EAppMsgType::Ok, FText::Format(
-			LOCTEXT("Error_PhysicsControlAssetHasNoSkelMesh", "Warning: Physics Control Asset has no skeletal mesh assigned.\nFor now, a simple default skeletal mesh ({0}) will be used.\nYou can fix this by opening the asset and choosing another skeletal mesh from the toolbar."),
-			FText::FromString(PreviewMesh->GetFullName())));
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT(
+			"Error_PhysicsControlAssetHasNoSkelMesh",
+			"Warning: Physics Control Asset has no skeletal mesh assigned.\n"
+			"This is likely to be because there is no valid Physics Asset. "
+			"Fix this by assigning a Preview Physics Asset/Mesh in the Physics Control Asset.")
+		);
 	}
 	else if (PreviewMesh->GetSkeleton() == nullptr)
 	{
 		// Fall back in the case of a deleted skeleton
-		PreviewMesh = (USkeletalMesh*)StaticLoadObject(USkeletalMesh::StaticClass(), NULL, TEXT("/Engine/EngineMeshes/SkeletalCube.SkeletalCube"), NULL, LOAD_None, NULL);
+		PreviewMesh = (USkeletalMesh*)StaticLoadObject(
+			USkeletalMesh::StaticClass(), NULL, 
+			TEXT("/Engine/EngineMeshes/SkeletalCube.SkeletalCube"), NULL, LOAD_None, NULL);
 		check(PreviewMesh);
 
 		PhysicsControlAsset->SetPreviewMesh(PreviewMesh);
 
-		FMessageDialog::Open(EAppMsgType::Ok, FText::Format(
-			LOCTEXT("Error_PhysicsControlAssetHasNoSkelMeshSkeleton", "Warning: Physics Control Asset has a skeletal mesh with no skeleton assigned.\nFor now, a simple default skeletal mesh ({0}) will be used.\nYou can fix this by opening the asset and choosing another skeletal mesh from the toolbar, or repairing the skeleton."),
-			FText::FromString(PreviewMesh->GetFullName())));
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT(
+			"Error_PhysicsControlAssetHasNoSkelMeshSkeleton", 
+			"Warning: Physics Control Asset has no skeletal mesh skeleton assigned.\n"
+			"This is likely to be because there is no valid Physics Asset. "
+			"Fix this by assigning a Preview Physics Asset/Mesh in the Physics Control Asset.")
+		);
 	}
 }
 
