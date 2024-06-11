@@ -14,30 +14,6 @@ namespace Horde.Server.Tests.Artifacts
 	public class BlockCacheTests
 	{
 		[TestMethod]
-		public void RecycleTest()
-		{
-			using BlockCache blockCache = BlockCache.CreateInMemory(1, 2, 4096);
-			blockCache.Add("foo", new byte[] { 1, 2, 3 });
-			blockCache.Add("bar", new byte[] { 1, 2, 3 });
-
-			Assert.IsTrue(blockCache.Contains("foo"));
-			Assert.IsTrue(blockCache.Contains("bar"));
-
-			blockCache.Add("baz", new byte[] { 4, 5, 6 });
-
-			Assert.IsFalse(blockCache.Contains("foo"));
-			Assert.IsTrue(blockCache.Contains("bar"));
-			Assert.IsTrue(blockCache.Contains("baz"));
-
-			blockCache.Get("bar")?.Dispose();
-			blockCache.Add("foo", new byte[] { 4, 5, 6 });
-
-			Assert.IsTrue(blockCache.Contains("foo"));
-			Assert.IsTrue(blockCache.Contains("bar"));
-			Assert.IsFalse(blockCache.Contains("baz"));
-		}
-
-		[TestMethod]
 		public void BasicTest()
 		{
 			using BlockCache blockCache = BlockCache.CreateInMemory(1, 4096, 4096);
