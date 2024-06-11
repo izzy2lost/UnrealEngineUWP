@@ -394,7 +394,7 @@ private:
 template <typename TParent>
 struct FD3D12DeferredInitView : public FD3D12LinkedAdapterObject<TParent>
 {
-	void CreateViews(FRHICommandListBase& RHICmdList, bool bDynamic)
+	void CreateViews(FRHICommandListBase& RHICmdList)
 	{
 		auto InitLambda = [this](FRHICommandListBase&)
 		{
@@ -404,7 +404,7 @@ struct FD3D12DeferredInitView : public FD3D12LinkedAdapterObject<TParent>
 			}
 		};
 
-		if (RHICmdList.IsTopOfPipe() && bDynamic)
+		if (RHICmdList.IsTopOfPipe())
 		{
 			// We have to defer the view initialization to the RHI thread if the resource is dynamic (and RHI threading is enabled), since dynamic resources can be renamed.
 			// Also insert an RHI thread fence to prevent parallel translate tasks running until this command has completed.

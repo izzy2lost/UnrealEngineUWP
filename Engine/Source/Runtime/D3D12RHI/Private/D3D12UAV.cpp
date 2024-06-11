@@ -266,9 +266,7 @@ FUnorderedAccessViewRHIRef FD3D12DynamicRHI::RHICreateUnorderedAccessView(FRHICo
 		return new FD3D12UnorderedAccessView_RHI(Device, TargetResource, ViewDesc);
 	});
 
-	bool bDynamic = View->IsBuffer() && EnumHasAnyFlags(View->GetBuffer()->GetUsage(), EBufferUsageFlags::AnyDynamic);
-	View->CreateViews(RHICmdList, bDynamic);
-
+	View->CreateViews(RHICmdList);
 	return View;
 }
 

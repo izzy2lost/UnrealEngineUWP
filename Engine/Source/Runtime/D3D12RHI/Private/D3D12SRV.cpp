@@ -325,8 +325,6 @@ FShaderResourceViewRHIRef FD3D12DynamicRHI::RHICreateShaderResourceView(class FR
 		return new FD3D12ShaderResourceView_RHI(Device, TargetResource, ViewDesc);
 	});
 
-	bool bDynamic = View->IsBuffer() && EnumHasAnyFlags(View->GetBuffer()->GetUsage(), EBufferUsageFlags::AnyDynamic);
-	View->CreateViews(RHICmdList, bDynamic);
-
+	View->CreateViews(RHICmdList);
 	return View;
 }
