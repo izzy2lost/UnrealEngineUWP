@@ -19,6 +19,8 @@ class FCbObject;
 namespace UE {
 	namespace Zen {
 		struct FZenHttpRequestPool;
+		class FZenHttpRequest;
+		enum class EContentType;
 	}
 
 /**
@@ -68,6 +70,11 @@ public:
 
 private:
 	TIoStatusOr<FIoBuffer> ReadOpLogUri(FStringBuilderBase& ChunkUri, uint64 Offset = 0, uint64 Size = ~0ull);
+	bool Download(Zen::FZenHttpRequest& Request, FStringView Uri, TArray64<uint8>* Buffer, Zen::EContentType AcceptType);
+	bool Post(Zen::FZenHttpRequest& Request, FStringView Uri, FCbObjectView Obj);
+	bool Post(Zen::FZenHttpRequest& Request, FStringView Uri, FMemoryView Payload);
+	bool Delete(Zen::FZenHttpRequest& Request, FStringView Uri);
+	bool ShouldRecoverAndRetry(Zen::FZenHttpRequest& Request);
 
 	static const uint32 PoolEntryCount;
 	struct SaltGenerator
