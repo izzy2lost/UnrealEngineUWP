@@ -72,7 +72,9 @@ namespace EpicGames.Horde.Compute.Transports
 
 			_inner = inner;
 			_readPipe = new Pipe();
+#pragma warning disable SYSLIB0053 // Type or member is obsolete
 			_aesGcm = new AesGcm(key);
+#pragma warning restore SYSLIB0053 // Type or member is obsolete
 			_readNonce = nonce.Slice(0, NonceLength).ToArray();
 			_writeNonce = nonce.Slice(0, NonceLength).ToArray();
 			_leaveInnerOpen = leaveInnerOpen;
