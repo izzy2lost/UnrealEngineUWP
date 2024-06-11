@@ -1189,12 +1189,16 @@ public:
 	{
 		NewAlloc.Swap(Allocation);
 	}
+
+	inline bool IsUniformView() const
+	{
+		return UniformViewSRV != nullptr;
+	}
 	
 	FRHIDescriptorHandle GetBindlessHandle();
 	VkDeviceAddress GetDeviceAddress() const;
 
-protected:
-	bool SetupUniformBufferView(const FRHIUniformBufferLayout* InLayout, const void* Contents);
+	void SetupUniformBufferView();
 
 public:
 	FVulkanDevice* Device;
@@ -1203,7 +1207,7 @@ public:
 
 	FRHIDescriptorHandle BindlessHandle;
 	VkDeviceAddress CachedDeviceAddress = 0;
-	bool bUniformView = false;
+	FRHIShaderResourceView* UniformViewSRV;
 };
 
 class FVulkanUnorderedAccessView final : public FRHIUnorderedAccessView, public FVulkanLinkedView

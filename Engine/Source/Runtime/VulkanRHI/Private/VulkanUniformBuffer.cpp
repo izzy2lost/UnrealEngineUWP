@@ -101,48 +101,24 @@ static void UpdateUniformBufferHelper(FVulkanCommandListContext& Context, FVulka
 	}
 };
 
-bool FVulkanUniformBuffer::SetupUniformBufferView(const FRHIUniformBufferLayout* InLayout, const void* Contents)
+void FVulkanUniformBuffer::SetupUniformBufferView()
 {
-	bUniformView = false;
-
-	if (InLayout->bUniformView)
+	if (UniformViewSRV && GetBufferHandle() == VK_NULL_HANDLE)
 	{
-		FRHIShaderResourceView* UniformViewSRV = nullptr;
-		for (int32 Index = 0; Index < InLayout->Resources.Num() && !UniformViewSRV; ++Index)
-		{
-			EUniformBufferBaseType ResourceBaseType = InLayout->Resources[Index].MemberType;
-			if (ResourceBaseType == UBMT_SRV || 
-				ResourceBaseType == UBMT_RDG_BUFFER_SRV)
-			{
-				UniformViewSRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[Index].MemberOffset, ResourceBaseType);
-			}
-		}
-
-		check(UniformViewSRV)
-
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		RHICmdList.EnqueueLambda([this, UniformViewSRV](FRHICommandList& CmdList)
-		{
-			FVulkanResourceMultiBuffer* Buffer = ResourceCast(UniformViewSRV->GetBuffer());
-			const FRHIViewDesc::FBufferSRV& SRVInfo = UniformViewSRV->GetDesc().Buffer.SRV;
-			Allocation.Reference(Buffer->GetCurrentAllocation());
-			check(Allocation.Size >= PLATFORM_MAX_UNIFORM_BUFFER_RANGE);
-			//Adjust Allocation.Size ???
-			Allocation.Offset += SRVInfo.OffsetInBytes;
-			bUniformView = true;
-		});
-		
-		return true;
+		const FRHIViewDesc::FBufferSRV& SRVInfo = UniformViewSRV->GetDesc().Buffer.SRV;
+		FVulkanResourceMultiBuffer* Buffer = ResourceCast(UniformViewSRV->GetBuffer());
+		Allocation.Reference(Buffer->GetCurrentAllocation());
+		check(Allocation.Size >= PLATFORM_MAX_UNIFORM_BUFFER_RANGE);
+		//Adjust Allocation.Size ???
+		Allocation.Offset += SRVInfo.OffsetInBytes;
 	}
-	
-	return false;
 }
 
 FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUniformBufferLayout* InLayout, const void* Contents, EUniformBufferUsage InUsage, EUniformBufferValidation Validation)
 	: FRHIUniformBuffer(InLayout)
 	, Device(&InDevice)
 	, Usage(InUsage)
-	, bUniformView(false)
+	, UniformViewSRV(nullptr)
 {
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 	SCOPE_CYCLE_COUNTER(STAT_VulkanUniformBufferCreateTime);
@@ -170,8 +146,16 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 		}
 	}
 
-	if (SetupUniformBufferView(InLayout, Contents))
+	if (InLayout->bUniformView)
 	{
+		// For uniform view we expect an buffer SRV as a first resource
+		check(InLayout->Resources.Num() > 0);
+		EUniformBufferBaseType ResourceBaseType = InLayout->Resources[0].MemberType;
+		if (ResourceBaseType == UBMT_SRV || ResourceBaseType == UBMT_RDG_BUFFER_SRV)
+		{
+			UniformViewSRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[0].MemberOffset, ResourceBaseType);
+		}
+		check(UniformViewSRV)
 		return;
 	}
 

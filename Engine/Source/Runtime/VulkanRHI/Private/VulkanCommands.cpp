@@ -504,6 +504,11 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIGraphicsShader* Sh
 	checkfSlow(!CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash || (CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash == UniformBuffer->GetLayout().GetHash()),
 		TEXT("Mismatched UB layout! Got hash 0x%x, expected 0x%x!"), UniformBuffer->GetLayout().GetHash(), CodeHeader.UniformBufferInfos[BufferIndex].LayoutHash);
 
+	if (UniformBuffer->IsUniformView())
+	{
+		UniformBuffer->SetupUniformBufferView();
+	}
+
 	bool bHasResources = false;
 	if (BufferIndex < CodeHeader.NumBoundUniformBuffers)
 	{
