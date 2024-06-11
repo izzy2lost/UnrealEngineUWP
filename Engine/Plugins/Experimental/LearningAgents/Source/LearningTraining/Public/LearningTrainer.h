@@ -98,9 +98,9 @@ namespace UE::Learning
 		void Terminate();
 
 		/**
-		* Outputs anything the subprocess has written to stdout to the log line-by-line, and checks if the subprocess is completed.
+		* Outputs anything the subprocess has written to stdout to the log line-by-line and returns true if the subprocess is still running.
 		*/
-		void Update();
+		bool Update();
 
 	private:
 

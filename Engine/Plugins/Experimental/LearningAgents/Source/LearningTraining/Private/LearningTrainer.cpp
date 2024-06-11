@@ -52,12 +52,12 @@ namespace UE::Learning
 		Update();
 	}
 
-	void FSubprocess::Update()
+	bool FSubprocess::Update()
 	{
 		// Do nothing if the process is not launched
 		if (!bIsLaunched)
 		{
-			return;
+			return false;
 		}
 
 		// Append the process stdout to the buffer
@@ -90,7 +90,10 @@ namespace UE::Learning
 			ReadPipe = nullptr;
 			WritePipe = nullptr;
 			bIsLaunched = false;
+			return false;
 		}
+		
+		return true;
 	}
 
 }

@@ -34,7 +34,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
 			TLearningArrayView<1, volatile int32> Controls,
 			ULearningNeuralNetworkData& OutNetwork,
-			const FSubprocess& Process,
+			FSubprocess& Process,
 			const EControls Signal,
 			const TLearningArrayView<1, const uint8> NetworkData,
 			const float Timeout = Trainer::DefaultTimeout,
@@ -49,7 +49,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendNetwork(
 			TLearningArrayView<1, volatile int32> Controls,
 			TLearningArrayView<1, uint8> NetworkData,
-			const FSubprocess& Process,
+			FSubprocess& Process,
 			const EControls Signal,
 			const ULearningNeuralNetworkData& Network,
 			const float Timeout = Trainer::DefaultTimeout,
@@ -67,7 +67,7 @@ namespace UE::Learning
 			TLearningArrayView<2, float> MemoryStates,
 			TLearningArrayView<1, float> Rewards,
 			TLearningArrayView<1, volatile int32> Controls,
-			const FSubprocess& Process,
+			FSubprocess& Process,
 			const FReplayBuffer& ReplayBuffer,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
@@ -78,7 +78,7 @@ namespace UE::Learning
 			TLearningArrayView<2, float> Observations,
 			TLearningArrayView<2, float> Actions,
 			TLearningArrayView<1, volatile int32> Controls,
-			const FSubprocess& Process,
+			FSubprocess& Process,
 			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
 			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 			const TLearningArrayView<2, const float> ObservationExperience,

@@ -346,9 +346,8 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsRunning())
+		while (TrainingProcess.Update())
 		{
-			TrainingProcess.Update();
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
 
@@ -382,8 +381,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::RecvNetwork(
 			Controls.View[ProcessIdx],
 			OutNetwork,
@@ -401,8 +398,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::RecvNetwork(
 			Controls.View[ProcessIdx],
 			OutNetwork,
@@ -420,8 +415,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::RecvNetwork(
 			Controls.View[ProcessIdx],
 			OutNetwork,
@@ -439,8 +432,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::RecvNetwork(
 			Controls.View[ProcessIdx],
 			OutNetwork,
@@ -458,8 +449,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::SendNetwork(
 			Controls.View[ProcessIdx],
 			Policy.View,
@@ -477,8 +466,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::SendNetwork(
 			Controls.View[ProcessIdx],
 			Critic.View,
@@ -496,8 +483,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::SendNetwork(
 			Controls.View[ProcessIdx],
 			Encoder.View,
@@ -515,8 +500,6 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::SendNetwork(
 			Controls.View[ProcessIdx],
 			Decoder.View,
@@ -533,8 +516,6 @@ namespace UE::Learning
 		const float Timeout,
 		const ELogSetting LogSettings)
 	{
-		TrainingProcess.Update();
-
 		return SharedMemoryTraining::SendExperience(
 			EpisodeStarts.View[ProcessIdx],
 			EpisodeLengths.View[ProcessIdx],
@@ -616,9 +597,8 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsRunning())
+		while (TrainingProcess.Update())
 		{
-			TrainingProcess.Update();
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
 

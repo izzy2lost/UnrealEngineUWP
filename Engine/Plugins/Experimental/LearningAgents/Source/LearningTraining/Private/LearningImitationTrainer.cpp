@@ -372,7 +372,7 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsRunning())
+		while (TrainingProcess.Update())
 		{
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
@@ -440,7 +440,7 @@ namespace UE::Learning
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		while (TrainingProcess.IsRunning())
+		while (TrainingProcess.Update())
 		{
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;

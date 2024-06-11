@@ -30,7 +30,7 @@ namespace UE::Learning::SharedMemoryTraining
 	ETrainerResponse RecvNetwork(
 		TLearningArrayView<1, volatile int32> Controls,
 		ULearningNeuralNetworkData& OutNetwork,
-		const FSubprocess& Process,
+		FSubprocess& Process,
 		const EControls Signal,
 		const TLearningArrayView<1, const uint8> NetworkData,
 		const float Timeout,
@@ -52,7 +52,7 @@ namespace UE::Learning::SharedMemoryTraining
 			}
 
 			// Check if the process has exited
-			if (!Process.IsRunning())
+			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -113,7 +113,7 @@ namespace UE::Learning::SharedMemoryTraining
 	ETrainerResponse SendNetwork(
 		TLearningArrayView<1, volatile int32> Controls,
 		TLearningArrayView<1, uint8> NetworkData,
-		const FSubprocess& Process,
+		FSubprocess& Process,
 		const EControls Signal,
 		const ULearningNeuralNetworkData& Network,
 		const float Timeout,
@@ -127,7 +127,7 @@ namespace UE::Learning::SharedMemoryTraining
 		while (!Controls[(uint8)Signal])
 		{
 			// Check if the process has exited
-			if (!Process.IsRunning())
+			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -188,7 +188,7 @@ namespace UE::Learning::SharedMemoryTraining
 		TLearningArrayView<2, float> MemoryStates,
 		TLearningArrayView<1, float> Rewards,
 		TLearningArrayView<1, volatile int32> Controls,
-		const FSubprocess& Process,
+		FSubprocess& Process,
 		const FReplayBuffer& ReplayBuffer,
 		const float Timeout,
 		const ELogSetting LogSettings)
@@ -200,7 +200,7 @@ namespace UE::Learning::SharedMemoryTraining
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
 			// Check if the process has exited
-			if (!Process.IsRunning())
+			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -256,7 +256,7 @@ namespace UE::Learning::SharedMemoryTraining
 		TLearningArrayView<2, float> Observations,
 		TLearningArrayView<2, float> Actions,
 		TLearningArrayView<1, volatile int32> Controls,
-		const FSubprocess& Process,
+		FSubprocess& Process,
 		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
 		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 		const TLearningArrayView<2, const float> ObservationExperience,
@@ -271,7 +271,7 @@ namespace UE::Learning::SharedMemoryTraining
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
 			// Check if the process has exited
-			if (!Process.IsRunning())
+			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
 			}
