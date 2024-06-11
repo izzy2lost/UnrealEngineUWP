@@ -41,11 +41,11 @@ private:
 	void OnCanvasDestroyed(const FGeometryMaskCanvasId& InGeometryMaskCanvasId);
 
 private:
-	TMap<TObjectKey<UWorld>, FDelegateHandle> OnCanvasCreatedHandles;
-	TMap<TObjectKey<UWorld>, FDelegateHandle> OnCanvasDestroyedHandles;
+	TMap<TObjectKey<ULevel>, FDelegateHandle> OnCanvasCreatedHandles;
+	TMap<TObjectKey<ULevel>, FDelegateHandle> OnCanvasDestroyedHandles;
 
 	/** Cached canvas names for comparison/refresh. */
-	TMap<TObjectKey<UWorld>, TArray<FName>> LastCanvasNames;
+	TMap<TObjectKey<ULevel>, TArray<FName>> LastCanvasNames;
 
 	/** Canvas ViewModels */
 	TArray<TSharedPtr<FGMECanvasItemViewModel>> CanvasItems;
