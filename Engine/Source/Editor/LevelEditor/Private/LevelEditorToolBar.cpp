@@ -1749,8 +1749,8 @@ void FLevelEditorToolBar::RegisterQuickSettingsMenu()
 			LOCTEXT( "ScalabilitySubMenu_ToolTip", "Open the engine scalability settings" ),
 			FNewToolMenuDelegate::CreateStatic( &MakeScalabilityMenu ) );
 
-		UE::LevelEditor::AddMaterialQualityLevelSubmenu(Section);
-		UE::LevelEditor::AddFeatureLevelPreviewSubmenu(Section);
+		Section.AddEntry(UE::LevelEditor::CreateMaterialQualityLevelSubmenu());
+		Section.AddEntry(UE::LevelEditor::CreateFeatureLevelPreviewSubmenu());
 	}
 
 	{

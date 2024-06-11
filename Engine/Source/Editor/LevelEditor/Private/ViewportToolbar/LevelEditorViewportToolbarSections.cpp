@@ -77,9 +77,9 @@ bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient)
 }
 
 // TODO: Move this outside the level editor and make it publicly available to anyone building a viewport toolbar.
-void AddViewportToolbarTransformsSection(FToolMenuSection& InSection)
+FToolMenuEntry CreateViewportToolbarTransformsSection()
 {
-	InSection.AddSubMenu(
+	return FToolMenuEntry::InitSubMenu(
 		"Transforms",
 		LOCTEXT("TransformsSubmenuLabel", "Transforms"),
 		LOCTEXT("TransformsSubmenuTooltip", "Viewport-related transforms tools"),
@@ -495,10 +495,10 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 	}
 }
 
-void AddViewportToolbarViewModesSubmenu(FToolMenuSection& InSection)
+FToolMenuEntry CreateViewportToolbarViewModesSubmenu()
 {
 	// This has to be a dynamic entry for the ViewModes submenu's label to be able to access the context.
-	InSection.AddDynamicEntry(
+	return FToolMenuEntry::InitDynamicEntry(
 		"DynamicViewModes",
 		FNewToolMenuSectionDelegate::CreateLambda(
 			[](FToolMenuSection& InDynamicSection) -> void
@@ -543,9 +543,9 @@ void AddViewportToolbarViewModesSubmenu(FToolMenuSection& InSection)
 	);
 }
 
-void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section)
+FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 {
-	Section.AddSubMenu(
+	return FToolMenuEntry::InitSubMenu(
 		"FeatureLevelPreview",
 		NSLOCTEXT("LevelToolBarViewMenu", "PreviewPlatformSubMenu", "Preview Platform"),
 		NSLOCTEXT("LevelToolBarViewMenu", "PreviewPlatformSubMenu_ToolTip", "Sets the preview platform used by the main editor"),
@@ -564,9 +564,9 @@ void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section)
 	);
 }
 
-void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section)
+FToolMenuEntry CreateMaterialQualityLevelSubmenu()
 {
-	Section.AddSubMenu(
+	return FToolMenuEntry::InitSubMenu(
 		"MaterialQualityLevel",
 		NSLOCTEXT("LevelToolBarViewMenu", "MaterialQualityLevelSubMenu", "Material Quality Level"),
 		NSLOCTEXT(
@@ -591,9 +591,9 @@ void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section)
 	);
 }
 
-void AddViewportToolbarPerformanceAndScalabilitySubmenu(FToolMenuSection& InSection)
+FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 {
-	InSection.AddSubMenu(
+	return FToolMenuEntry::InitSubMenu(
 		"PerformanceAndScalability",
 		LOCTEXT("PerformanceAndScalabilityLabel", "Performance & Scalability"),
 		LOCTEXT("PerformanceAndScalabilityTooltip", "Performance and scalability tools tied to this viewport."),
@@ -702,7 +702,7 @@ void AddViewportToolbarPerformanceAndScalabilitySubmenu(FToolMenuSection& InSect
 						LOCTEXT("PerformanceAndScalabilitySectionLabel", "Performance & Scalability")
 					);
 
-					AddFeatureLevelPreviewSubmenu(PerformanceAndScalabilitySection);
+					PerformanceAndScalabilitySection.AddEntry(CreateFeatureLevelPreviewSubmenu());
 
 					PerformanceAndScalabilitySection.AddSeparator("PerformanceAndScalabilitySettings");
 
@@ -721,7 +721,7 @@ void AddViewportToolbarPerformanceAndScalabilitySubmenu(FToolMenuSection& InSect
 						)
 					);
 
-					AddMaterialQualityLevelSubmenu(PerformanceAndScalabilitySection);
+					PerformanceAndScalabilitySection.AddEntry(CreateMaterialQualityLevelSubmenu());
 
 					// FEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
 					PerformanceAndScalabilitySection.AddSubMenu(
@@ -920,9 +920,9 @@ TSharedRef<SWidget> BuildVolumeControlCustomWidget()
 	// clang-format on
 }
 
-void AddLevelEditorViewportToolbarSettingsSubmenu(FToolMenuSection& InSection)
+FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 {
-	InSection.AddSubMenu(
+	return FToolMenuEntry::InitSubMenu(
 		"Settings",
 		LOCTEXT("SettingsSubmenuLabel", "Settings"),
 		LOCTEXT("SettingsSubmenuTooltip", "Viewport-related settings"),

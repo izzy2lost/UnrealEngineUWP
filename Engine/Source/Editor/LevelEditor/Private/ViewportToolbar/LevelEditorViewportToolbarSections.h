@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Templates/SharedPointerFwd.h"
+#include "ToolMenuEntry.h"
 
 class FExtender;
 class FLevelEditorViewportClient;
@@ -16,18 +17,18 @@ namespace UE::LevelEditor
 
 bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 
-void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
+FToolMenuEntry CreateViewportToolbarTransformsSection();
 
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
 void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<SLevelViewport> InViewport);
-void AddViewportToolbarViewModesSubmenu(FToolMenuSection& InSection);
+FToolMenuEntry CreateViewportToolbarViewModesSubmenu();
 
-void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
-void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
-void AddViewportToolbarPerformanceAndScalabilitySubmenu(FToolMenuSection& InSection);
+FToolMenuEntry CreateFeatureLevelPreviewSubmenu();
+FToolMenuEntry CreateMaterialQualityLevelSubmenu();
+FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu();
 
 void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport);
 TSharedRef<SWidget> BuildVolumeControlCustomWidget();
-void AddLevelEditorViewportToolbarSettingsSubmenu(FToolMenuSection& InSection);
+FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu();
 
 } // namespace UE::LevelEditor

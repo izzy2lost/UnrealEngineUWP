@@ -102,6 +102,7 @@
 #include "LevelViewportLayout.h"
 #include "EditorViewportTabContent.h"
 #include "EditorViewportCommands.h"
+#include "SkeletalRenderPublic.h"
 #include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 #include "ViewportToolbar/LevelViewportContext.h"
 
@@ -1928,22 +1929,39 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 
 			{
 				FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
-				UE::LevelEditor::AddViewportToolbarTransformsSection(LeftSection);
+
+				FToolMenuEntry TransformsSubmenu = UE::LevelEditor::CreateViewportToolbarTransformsSection();
+				TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(TransformsSubmenu);
 			}
 
 			{
+				// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
+				// default-positioned submenus external code might add.
 				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
 				RightSection.Alignment = EToolMenuSectionAlign::Last;
 
 				{
 					// Stay backward-compatible with the old viewport toolbar.
 					UToolMenus::Get()->RegisterMenu(
-						"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View");
-					UE::LevelEditor::AddViewportToolbarViewModesSubmenu(RightSection);
+						"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View"
+					);
+					FToolMenuEntry LitSubmenu = UE::LevelEditor::CreateViewportToolbarViewModesSubmenu();
+					LitSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(LitSubmenu);
 				}
 
-				UE::LevelEditor::AddViewportToolbarPerformanceAndScalabilitySubmenu(RightSection);
-				UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSubmenu(RightSection);
+				{
+					FToolMenuEntry PerfSubmenu = UE::LevelEditor::CreateViewportToolbarPerformanceAndScalabilitySubmenu();
+					PerfSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(PerfSubmenu);
+				}
+
+				{
+					FToolMenuEntry SettingsSubmenu = UE::LevelEditor::CreateLevelEditorViewportToolbarSettingsSubmenu();
+					SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(SettingsSubmenu);
+				}
 			}
 		}
 	}
