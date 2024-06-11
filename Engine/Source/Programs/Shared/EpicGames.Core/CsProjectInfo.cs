@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 namespace EpicGames.Core
@@ -64,6 +65,8 @@ namespace EpicGames.Core
 		{
 			ProjectPath = inProjectPath;
 			Properties = new Dictionary<string, string>(inProperties);
+			Properties.TryAdd("MSBuildProjectFile", inProjectPath.FullName);
+			Properties.TryAdd("MSBuildThisFileDirectory", inProjectPath.Directory.FullName);
 		}
 
 		/// <summary>
@@ -336,6 +339,12 @@ namespace EpicGames.Core
 			{
 				switch (element.Name)
 				{
+					case "Import":
+						if (EvaluateCondition(element, projectInfo))
+						{
+							ParseImportProject(element, projectInfo);
+						}
+						break;
 					case "PropertyGroup":
 						if (EvaluateCondition(element, projectInfo))
 						{
@@ -415,6 +424,46 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
+		/// Parses a 'Import' emenebt
+		/// </summary>
+		/// <param name="element">The element</param>
+		/// <param name="projectInfo">Dictionary mapping property names to values</param>
+		static void ParseImportProject(XmlElement element, CsProjectInfo projectInfo)
+		{
+			string importProjectStr = element.GetAttribute("Project");
+			foreach (Match match in Regex.Matches(importProjectStr, @"(\$\(.*?\))").OfType<Match>())
+			{
+				importProjectStr = importProjectStr.Replace(match.Value, projectInfo.Properties.GetValueOrDefault(match.Value.Substring(2, match.Length - 3), String.Empty), StringComparison.Ordinal);
+			}
+			FileReference importProject = Path.IsPathFullyQualified(importProjectStr) ? new FileReference(importProjectStr) : FileReference.Combine(projectInfo.ProjectPath.Directory, importProjectStr);
+			if (!FileReference.Exists(importProject))
+			{
+				return;
+			}
+			XmlDocument document = new XmlDocument();
+			document.Load(importProject.FullName);
+			if (document.DocumentElement?.Name == "Project")
+			{
+				projectInfo.Properties.TryGetValue("MSBuildThisFileDirectory", out string? msBuildThisFileDirectory);
+				projectInfo.Properties.Remove("MSBuildThisFileDirectory");
+				projectInfo.Properties.Add("MSBuildThisFileDirectory", importProject.Directory.FullName);
+				try
+				{
+					ParseNode(document.DocumentElement, projectInfo);
+				}
+				catch (Exception)
+				{
+					// Ignore issues in imported .props files
+				}
+				projectInfo.Properties.Remove("MSBuildThisFileDirectory");
+				if (msBuildThisFileDirectory != null)
+				{
+					projectInfo.Properties.Add("MSBuildThisFileDirectory", msBuildThisFileDirectory);
+				}
+			}
+		}
+
+		/// <summary>
 		/// Parses a 'PropertyGroup' element.
 		/// </summary>
 		/// <param name="parentElement">The parent 'PropertyGroup' element</param>
@@ -424,6 +473,28 @@ namespace EpicGames.Core
 			// We need to know the overridden output type and output path for the selected configuration.
 			foreach (XmlElement element in parentElement.ChildNodes.OfType<XmlElement>())
 			{
+				// Common properties used by UnrealEngine.csproj.props, manually handle because the parsing is awful
+				switch (element.Name)
+				{
+					case "IsLinux": projectInfo.Properties[element.Name] = OperatingSystem.IsLinux().ToString(); continue;
+					case "IsMacOS": projectInfo.Properties[element.Name] = OperatingSystem.IsMacOS().ToString(); continue;
+					case "IsWindows": projectInfo.Properties[element.Name] = OperatingSystem.IsWindows().ToString(); continue;
+					case "OSArchitecture": projectInfo.Properties[element.Name] = RuntimeInformation.OSArchitecture.ToString(); continue;
+					case "EngineDirectory": projectInfo.Properties.TryAdd(element.Name, String.Empty); continue;
+					case "IsEngineProject":
+					{
+						projectInfo.Properties[element.Name] = "False";
+						if (projectInfo.Properties.TryGetValue("EngineDirectory", out string? engineDirectory) && !String.IsNullOrEmpty(engineDirectory))
+						{
+							projectInfo.Properties[element.Name] = projectInfo.ProjectPath.IsUnderDirectory(new DirectoryReference(engineDirectory)).ToString();
+						}
+						continue;
+					}
+					case "IsAutomationProject": projectInfo.Properties[element.Name] = projectInfo.ProjectPath.FullName.EndsWith(".automation.csproj", StringComparison.OrdinalIgnoreCase).ToString(); continue;
+					case "HasAssemblyInfo": projectInfo.Properties[element.Name] = FileReference.Exists(FileReference.Combine(projectInfo.ProjectPath.Directory, "Properties", "AssemblyInfo.cs")).ToString(); continue;
+					default: break;
+				}
+
 				if (EvaluateCondition(element, projectInfo))
 				{
 					projectInfo.Properties[element.Name] = ExpandProperties(element.InnerText, projectInfo.Properties);
@@ -655,7 +726,7 @@ namespace EpicGames.Core
 				string? copyTo = GetChildElementString(parentElement, "CopyToOutputDirectory", null);
 				bool shouldCopy = !String.IsNullOrEmpty(copyTo) && (copyTo.Equals("Always", StringComparison.OrdinalIgnoreCase) || copyTo.Equals("PreserveNewest", StringComparison.OrdinalIgnoreCase));
 				FileReference contentFile = FileReference.Combine(baseDirectory, includePath);
-				contents.Add(contentFile, shouldCopy);
+				contents.TryAdd(contentFile, shouldCopy);
 			}
 		}
 

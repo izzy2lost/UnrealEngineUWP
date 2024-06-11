@@ -2584,38 +2584,46 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					bool ConfigurationsFound = false;
-					foreach (XmlElement PropertyGroup in Document.DocumentElement.ChildNodes.OfType<XmlElement>()
-						.Where(element => element.Name == "PropertyGroup"))
+					foreach (string c in GetProjectProperty("Configurations").Split(';'))
 					{
-						XmlNodeList ConfigNodeList = PropertyGroup.GetElementsByTagName("Configurations");
-						// if this property group does not set configurations we do not care about it
-						if (ConfigNodeList.Count == 0)
-						{
-							continue;
-						}
+						Configurations.Add(c);
+					}
+					bool ConfigurationsFound = Configurations.Any();
 
-						if (PropertyGroup.HasAttribute("Condition"))
+					if (!ConfigurationsFound)
+					{
+						foreach (XmlElement PropertyGroup in Document.DocumentElement.ChildNodes.OfType<XmlElement>()
+							.Where(element => element.Name == "PropertyGroup"))
 						{
-							string Condition = PropertyGroup.GetAttribute("Condition");
-							Logger.LogWarning("Unable to parse configuration from property group with condition '{InitFilePath}': {Condition}. UBT Requires you to set the configuration without conditionals.", InitFilePath, Condition);
-							continue;
-						}
-						string[]? ParsedConfigurations = ConfigNodeList[0]?.FirstChild?.Value?.Split(';');
-						if (ParsedConfigurations != null)
-						{
-							foreach (string c in ParsedConfigurations)
+							XmlNodeList ConfigNodeList = PropertyGroup.GetElementsByTagName("Configurations");
+							// if this property group does not set configurations we do not care about it
+							if (ConfigNodeList.Count == 0)
 							{
-								Configurations.Add(c);
+								continue;
 							}
+
+							if (PropertyGroup.HasAttribute("Condition"))
+							{
+								string Condition = PropertyGroup.GetAttribute("Condition");
+								Logger.LogWarning("Unable to parse configuration from property group with condition '{InitFilePath}': {Condition}. UBT Requires you to set the configuration without conditionals.", InitFilePath, Condition);
+								continue;
+							}
+							string[]? ParsedConfigurations = ConfigNodeList[0]?.FirstChild?.Value?.Split(';');
+							if (ParsedConfigurations != null)
+							{
+								foreach (string c in ParsedConfigurations)
+								{
+									Configurations.Add(c);
+								}
+							}
+
+							// platforms change meaning quite a bit in .net core but typically you do not specify this and its derived from the build instead
+							// for most intents it is just Any CPU from .net framework
+							Platforms.Add("AnyCPU");
+
+							ConfigurationsFound = true;
+							break;
 						}
-
-						// platforms change meaning quite a bit in .net core but typically you do not specify this and its derived from the build instead
-						// for most intents it is just Any CPU from .net framework
-						Platforms.Add("AnyCPU");
-
-						ConfigurationsFound = true;
-						break;
 					}
 
 					// dotnet does not require you to specify configurations or platforms, if you do not debug and release are the defaults
@@ -2648,6 +2656,7 @@ namespace UnrealBuildTool
 			Dictionary<string, string> Properties = new Dictionary<string, string>();
 			Properties.Add("Platform", "AnyCPU");
 			Properties.Add("Configuration", InConfiguration.ToString());
+			Properties.Add("EngineDirectory", Unreal.EngineDirectory.FullName);
 			if (CsProjectInfo.TryRead(ProjectFilePath, Properties, out Info))
 			{
 				CachedProjectInfo.Add(InConfiguration, Info);
@@ -2663,6 +2672,17 @@ namespace UnrealBuildTool
 		{
 			CsProjectInfo Info = GetProjectInfo(UnrealTargetConfiguration.Debug)!;
 			return Info.IsDotNETCoreProject();
+		}
+
+
+		/// <summary>
+		/// Gets a property from the project
+		/// </summary>
+		public string GetProjectProperty(string property)
+		{
+			CsProjectInfo Info = GetProjectInfo(UnrealTargetConfiguration.Debug)!;
+			Info.Properties.TryGetValue(property, out string? value);
+			return value ?? String.Empty;
 		}
 
 		/// <inheritdoc/>

@@ -3456,22 +3456,32 @@ namespace UnrealBuildTool
 
 				try
 				{
-
+					// Parse the project and check if UnrealEngine.csproj.props is imported
 					bool configsFound = false;
-					// Parse the project and ensure both Development and Debug configurations are present
-					foreach (string Config in XElement.Load(InProject.ProjectFilePath.FullName).Elements("{http://schemas.microsoft.com/developer/msbuild/2003}PropertyGroup")
-										   .Where(node => node.Attribute("Condition") != null)
-										   .Select(node => node.Attribute("Condition")!.ToString()))
+					if (InProject is VCSharpProjectFile csProject && csProject.IsDotNETCoreProject())
 					{
 						configsFound = true;
+						bFoundDevelopmentConfig = csProject.Configurations.Contains("Development");
+						bFoundDebugConfig = csProject.Configurations.Contains("Debug");
+					}
 
-						if (Config.Contains("Development|"))
+					// Parse the project and ensure both Development and Debug configurations are present
+					if (!configsFound)
+					{
+						foreach (string Config in XElement.Load(InProject.ProjectFilePath.FullName).Elements("{http://schemas.microsoft.com/developer/msbuild/2003}PropertyGroup")
+										   .Where(node => node.Attribute("Condition") != null)
+										   .Select(node => node.Attribute("Condition")!.ToString()))
 						{
-							bFoundDevelopmentConfig = true;
-						}
-						else if (Config.Contains("Debug|"))
-						{
-							bFoundDebugConfig = true;
+							configsFound = true;
+
+							if (Config.Contains("Development|"))
+							{
+								bFoundDevelopmentConfig = true;
+							}
+							else if (Config.Contains("Debug|"))
+							{
+								bFoundDebugConfig = true;
+							}
 						}
 					}
 
