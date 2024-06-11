@@ -2484,6 +2484,13 @@ namespace UnrealBuildTool
 					VCProjectFileContent.AppendLine("    <NMakeCompile>");
 					VCProjectFileContent.AppendLine("      <NMakeCompileFileCommandLine>$(BuildBatchScript) {0} -WorkingDir=$(MSBuildProjectDirectory) -Files=$(SelectedFiles)</NMakeCompileFileCommandLine>", BuildArguments);
 					VCProjectFileContent.AppendLine("    </NMakeCompile>");
+					if (TargetRulesObject.bIsBuildingConsoleApplication)
+					{
+						// Let Visual Studio keep the console window open when debugging stops. Ignored by the build.
+						VCProjectFileContent.AppendLine("    <Link>");
+						VCProjectFileContent.AppendLine("      <SubSystem>Console</SubSystem>");
+						VCProjectFileContent.AppendLine("    </Link>");
+					}
 					if (ProjectFileGenerator.bVisualStudioLinux && TargetRulesObject.Platform.IsInGroup(UnrealPlatformGroup.Linux))
 					{
 						VCProjectFileContent.AppendLine("    <PostBuildEvent>");
