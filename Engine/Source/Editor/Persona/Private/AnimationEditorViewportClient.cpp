@@ -2451,10 +2451,22 @@ void FAnimationViewportClient::OnAssetViewerSettingsChanged(const FName& InPrope
 		if (Settings->Profiles.IsValidIndex(ProfileIndex))
 		{			
 			Settings->Profiles[ProfileIndex].SetShowFlags(EngineShowFlags);
+			SetAdvancedShowFlagsForScene(Settings->Profiles[ProfileIndex].bPostProcessingEnabled);
 		}
 	}
 }
 
+void FAnimationViewportClient::SetAdvancedShowFlagsForScene(const bool bAdvancedShowFlags)
+{	
+	if (bAdvancedShowFlags)
+	{
+		EngineShowFlags.EnableAdvancedFeatures();
+	}
+	else
+	{
+		EngineShowFlags.DisableAdvancedFeatures();
+	}
+}
 void FAnimationViewportClient::SetPlaybackSpeedMode(EAnimationPlaybackSpeeds::Type InMode)
 {
 	AnimationPlaybackSpeedMode = InMode;
