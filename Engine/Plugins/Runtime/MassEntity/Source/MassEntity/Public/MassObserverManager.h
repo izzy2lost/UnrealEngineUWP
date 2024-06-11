@@ -70,25 +70,41 @@ public:
 		return HasObserversForBitSet(Composition.Fragments, Operation) || HasObserversForBitSet(Composition.Tags, Operation);
 	}
 
+	/** @return whether any observers have been executed */
 	bool OnPostEntitiesCreated(const FMassArchetypeEntityCollection& EntityCollection);
-	bool OnPostEntitiesCreated(FMassProcessingContext& InProcessingContext, const FMassArchetypeEntityCollection& EntityCollection);
 
+	/** @return whether any observers have been executed */
+	bool OnPostEntitiesCreated(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections);
+
+	/** @return whether any observers have been executed */
+	bool OnPostEntitiesCreated(FMassProcessingContext& InProcessingContext, TConstArrayView<FMassArchetypeEntityCollection> EntityCollections);
+
+	/** @return whether any observers have been executed */
 	bool OnPreEntitiesDestroyed(const FMassArchetypeEntityCollection& EntityCollection);
+
+	/** @return whether any observers have been executed */
 	bool OnPreEntitiesDestroyed(FMassProcessingContext& ProcessingContext, const FMassArchetypeEntityCollection& EntityCollection);
+
+	/** @return whether any observers have been executed */
 	bool OnPreEntityDestroyed(const FMassArchetypeCompositionDescriptor& ArchetypeComposition, const FMassEntityHandle Entity);
 
+	/** @return whether any observers have been executed */
 	bool OnCompositionChanged(const FMassEntityHandle Entity, const FMassArchetypeCompositionDescriptor& CompositionDelta, const EMassObservedOperation Operation);
+
+	/** @return whether any observers have been executed */
 	bool OnPostCompositionAdded(const FMassEntityHandle Entity, const FMassArchetypeCompositionDescriptor& Composition)
 	{
 		return OnCompositionChanged(Entity, Composition, EMassObservedOperation::Add);
 	}
+	/** @return whether any observers have been executed */
 	bool OnPreCompositionRemoved(const FMassEntityHandle Entity, const FMassArchetypeCompositionDescriptor& Composition)
 	{
 		return OnCompositionChanged(Entity, Composition, EMassObservedOperation::Remove);
 	}
 
+	/** @return whether any observers have been executed */
 	bool OnCompositionChanged(FMassProcessingContext& InProcessingContext, const FMassArchetypeEntityCollection& EntityCollection, const FMassArchetypeCompositionDescriptor& Composition, const EMassObservedOperation Operation);
-
+	/** @return whether any observers have been executed */
 	bool OnCompositionChanged(const FMassArchetypeEntityCollection& EntityCollection, const FMassArchetypeCompositionDescriptor& Composition, const EMassObservedOperation Operation)
 	{
 		FMassProcessingContext LocalContext(EntityManager, /*DeltaSeconds=*/0.f);
@@ -145,6 +161,9 @@ public:
 		}
 		return OnCompositionChanged(EntityCollection, Composition, Operation);
 	}
+
+	UE_DEPRECATED(5.5, "This flavor of OnPostEntitiesCreated is deprecated. Please use the one taking a TConstArrayView<FMassArchetypeEntityCollection> parameter instead")
+	bool OnPostEntitiesCreated(FMassProcessingContext& InProcessingContext, const FMassArchetypeEntityCollection& EntityCollection);
 };
 
 template<>

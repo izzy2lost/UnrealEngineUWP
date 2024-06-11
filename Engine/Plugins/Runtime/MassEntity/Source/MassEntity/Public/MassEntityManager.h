@@ -208,21 +208,51 @@ public:
 
 	/**
 	 * A dedicated structure for ensuring the "on entities creation" observers get notified only once all other 
-	 * initialization operations are done and this creation context instance gets released. */
-	struct FEntityCreationContext
+	 * initialization operations are done and this creation context instance gets released. 
+	 * 
+	 * @NOTE the whole concept relies on the assumption we only ever create or "build" entities in a single thread (usually the GameThread).
+	 */
+	struct MASSENTITY_API FEntityCreationContext
 	{
-		explicit FEntityCreationContext(const int32 InNumSpawned = 0)
-			: NumberSpawned(InNumSpawned)
-		{}
-		~FEntityCreationContext() { if (OnSpawningFinished) OnSpawningFinished(*this); }
+	private:
+		FEntityCreationContext() = default;
+		explicit FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities = {});
+		FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities, FMassArchetypeEntityCollection&& EntityCollection);
+		
+	public:
+		~FEntityCreationContext();
 
-		const FMassArchetypeEntityCollection& GetEntityCollection() const { return EntityCollection; }
+		/** Returns EntityCollections, reconstructing them if needed (empty or dirtied). */
+		TConstArrayView<FMassArchetypeEntityCollection> GetEntityCollections() const;
+		int32 GetSpawnedNum() const { return CreatedEntities.Num(); }
+		void MarkDirty();
+		FORCEINLINE bool IsDirty() const { return EntityCollections.IsEmpty() && (CreatedEntities.IsEmpty() == false); }
+		void AppendEntities(const TConstArrayView<FMassEntityHandle> EntitiesToAppend);
+		void AppendEntities(const TConstArrayView<FMassEntityHandle> EntitiesToAppend, FMassArchetypeEntityCollection&& EntityCollection);
+
+		/** Function for debugging/testing purposes. We don't expect users to ever call it, always get collections via GetEntityCollections */
+		bool DebugAreEntityCollectionsUpToDate() const { return EntityCollections.IsEmpty() == CreatedEntities.IsEmpty(); }
+
+		UE_DEPRECATED(5.5, "This constructor is now deprecated and defunct. Use one of the others instead.")
+		explicit FEntityCreationContext(const int32 InNumSpawned) : FEntityCreationContext() {}
+		UE_DEPRECATED(5.5, "This function is now deprecated since FEntityCreationContext can contain more than a single collection now. Use GetEntityCollections instead.")
+		const FMassArchetypeEntityCollection& GetEntityCollection() const;
+
 	private:
 		friend FMassEntityManager;
-		int32 NumberSpawned;
-		FMassArchetypeEntityCollection EntityCollection;
-		TFunction<void(FEntityCreationContext&)> OnSpawningFinished;
+		mutable TArray<FMassArchetypeEntityCollection> EntityCollections;
+		TArray<FMassEntityHandle> CreatedEntities;
+		FMassArchetypeEntityCollection::EDuplicatesHandling CollectionCreationDuplicatesHandling = FMassArchetypeEntityCollection::EDuplicatesHandling::NoDuplicates;
+		TSharedPtr<FMassEntityManager> Manager;
 	};
+	/**
+	 * The main use-case for this function is to create a blank FEntityCreationContext and hold on to it while creating 
+	 * a bunch of entities (with multiple calls to BatchCreate* and/or BatchBuild*) and modifying them (with mutating batched API)
+	 * while not causing multiple Observers to trigger. All the observers will be triggered at one go, once the FEntityCreationContext 
+	 * instance gets destroyed. 
+	 * @return ActiveCreationContext. If it's valid FEntityCreationContext instance will be created and assigned to ActiveCreationContext first.
+	 */
+	TSharedRef<FEntityCreationContext> GetOrMakeCreationContext();
 
 	/**
 	 * A version of CreateEntity that's creating a number of entities (Count) in one go
@@ -321,9 +351,9 @@ public:
 	 * @return a view into InOutEntities containing only the freshly reserved entities
 	 */
 	TConstArrayView<FMassEntityHandle> BatchReserveEntities(const int32 Count, TArray<FMassEntityHandle>& InOutEntities);
-	void BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, const FMassFragmentBitSet& FragmentsAffected
+	TSharedRef<FEntityCreationContext> BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, const FMassFragmentBitSet& FragmentsAffected
 		, const FMassArchetypeSharedFragmentValues& SharedFragmentValues = {}, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
-	void BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, FMassArchetypeCompositionDescriptor&& Composition
+	TSharedRef<FEntityCreationContext> BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, FMassArchetypeCompositionDescriptor&& Composition
 		, const FMassArchetypeSharedFragmentValues& SharedFragmentValues = {}, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
 	void BatchChangeTagsForEntities(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, const FMassTagBitSet& TagsToAdd, const FMassTagBitSet& TagsToRemove);
 	void BatchChangeFragmentCompositionForEntities(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, const FMassFragmentBitSet& FragmentsToAdd, const FMassFragmentBitSet& FragmentsToRemove);
@@ -358,6 +388,8 @@ public:
 	 *  for ensuring that the given entity archetype (FMassArchetypeEntityCollection .Archetype) does have given fragments. 
 	 *  Failing this assumption will cause a check-fail. */
 	static void BatchSetEntityFragmentsValues(const FMassArchetypeEntityCollection& SparseEntities, TArrayView<const FInstancedStruct> FragmentInstanceList);
+
+	static void BatchSetEntityFragmentsValues(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, TArrayView<const FInstancedStruct> FragmentInstanceList);
 
 	// Return true if it is an valid built entity
 	bool IsEntityActive(FMassEntityHandle Entity) const 
@@ -650,7 +682,52 @@ private:
 	UE::Mass::FSingleThreadedEntityStorage& GetEntityStorageInterface();
 	const UE::Mass::FSingleThreadedEntityStorage& GetEntityStorageInterface() const;
 #endif
+
+	/**
+	 * If ActiveCreationContext is not valid the function creates a new shared FEntityCreationContext instance and returns that.
+	 * Otherwise ActiveCreationContext will get extended with ReservedEntities and EntityCollection, and returned by the function.
+	 */
+	TSharedRef<FEntityCreationContext> GetOrMakeCreationContext(TConstArrayView<FMassEntityHandle> ReservedEntities, FMassArchetypeEntityCollection&& EntityCollection);
+	bool IsDuringEntityCreation() const { return ActiveCreationContext.IsValid(); }
 	
+	/** 
+	 * This type is used in entity mutating batched API to ensure the active FEntityCreationContext gets dirtied 
+	 * upon function's end (since the mutating operations render FEntityCreationContext.EntityCollections invalid).
+	 * It also serves as a cached IsDuringEntityCreation value.
+	 */
+	struct FScopedCreationContextOperations
+	{
+		FScopedCreationContextOperations(FMassEntityManager& InManager)
+			: bIsDuringEntityCreation(InManager.IsDuringEntityCreation())
+			, Manager(InManager)
+		{}
+		~FScopedCreationContextOperations()
+		{
+			if (bIsDuringEntityCreation)
+			{
+				Manager.DirtyCreationContext();
+			}
+			// else, there's nothing to do, there's no creation context to call functions for
+		}
+
+		bool IsAllowedToTriggerObservers() const { return (bIsDuringEntityCreation == false); }
+
+	private:
+		const bool bIsDuringEntityCreation = false;
+		FMassEntityManager& Manager;
+	};
+	friend FScopedCreationContextOperations;
+
+	/** @return whether actual context dirtying took place which is equivalent to IsDuringEntityCreation */
+	bool DirtyCreationContext();
+
+	/** 
+	 * @return whether it's allowed for observers to get triggered. If not then the active creation context will be dirtied
+	 *	to cause observers triggering upon context's destruction
+	 */
+	bool IsAllowedToTriggerObservers() { return DirtyCreationContext() == false; }
+	bool DebugDoCollectionsOverlapCreationContext(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections) const;
+		
 private:
 
 	friend struct UE::Mass::Private::FEntityStorageInitializer;
@@ -660,7 +737,11 @@ private:
 		UE::Mass::FConcurrentEntityStorage>;
 	FEntityStorageContainerType EntityStorage;
 
+	/** Never access directly, use GetOrMakeCreationContext instead. */
+	TWeakPtr<FEntityCreationContext> ActiveCreationContext;
+
 	std::atomic<bool> bCommandBufferFlushingInProgress = false;
+
 	/**
 	 * This index will be enough to control which buffer is available for pushing commands since flashing is taking place 
 	 * in the game thread and pushing commands to the buffer fetched by Defer() is only supported also on the game thread

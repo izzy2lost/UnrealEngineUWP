@@ -511,7 +511,7 @@ struct FSharedFragment_BatchSetAttempt : FEntityTestBase
 		SharedIntValues.AddConstSharedFragment(ConstSharedFragment);
 
 		TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchCreateEntities(FloatsArchetype, SharedIntValues, EntitiesToCreateNum, CreatedEntityHandles);
-		const FMassArchetypeHandle ResultingArchetype = CreationContext->GetEntityCollection().GetArchetype();
+		const FMassArchetypeHandle ResultingArchetype = CreationContext->GetEntityCollections()[0].GetArchetype();
 
 		FMassArchetypeEntityCollection EntityCollection(ResultingArchetype, CreatedEntityHandles, FMassArchetypeEntityCollection::EDuplicatesHandling::NoDuplicates);
 		

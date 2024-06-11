@@ -24,23 +24,25 @@ auto EntityIndexSorted = [](const FMassEntityHandle& A, const FMassEntityHandle&
 
 struct FTagBaseOperation : FEntityTestBase
 {
+	using FTagStruct = FTestTag_A;
+
 	TArray<FMassEntityHandle> AffectedEntities;
-	UMassTestProcessorBase* TagObserver = nullptr;
+	UMassTestProcessorBase* ObserverProcessor = nullptr;
 	EMassObservedOperation OperationObserved = EMassObservedOperation::MAX;
 	TArray<FMassEntityHandle> EntitiesInt;
 	TArray<FMassEntityHandle> EntitiesIntsFloat;
 	TArray<FMassEntityHandle> ExpectedEntities;
 	// @return signifies if the test can continue
-	virtual bool PerformOperation() = 0;
+	virtual bool PerformOperation() { return false; }
 
 	virtual bool SetUp() override
 	{
 		if (FEntityTestBase::SetUp())
 		{
-			TagObserver = NewObject<UMassTestProcessorBase>();
-			TagObserver->EntityQuery.AddRequirement<FTestFragment_Int>(EMassFragmentAccess::ReadOnly);
-			TagObserver->EntityQuery.AddTagRequirement<FTestTag_A>(EMassFragmentPresence::All);
-			TagObserver->ForEachEntityChunkExecutionFunction = [this](FMassExecutionContext& Context)
+			ObserverProcessor = NewObject<UMassTestProcessorBase>();
+			ObserverProcessor->EntityQuery.AddRequirement<FTestFragment_Int>(EMassFragmentAccess::ReadOnly);
+			ObserverProcessor->EntityQuery.AddTagRequirement<FTagStruct>(EMassFragmentPresence::All);
+			ObserverProcessor->ForEachEntityChunkExecutionFunction = [this](FMassExecutionContext& Context)
 			{
 				AffectedEntities.Append(Context.GetEntities().GetData(), Context.GetEntities().Num());
 			};
@@ -53,7 +55,7 @@ struct FTagBaseOperation : FEntityTestBase
 	virtual bool InstantTest() override
 	{
 		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
-		ObserverManager.AddObserverInstance(*FTestTag_A::StaticStruct(), OperationObserved, *TagObserver);
+		ObserverManager.AddObserverInstance(*FTagStruct::StaticStruct(), OperationObserved, *ObserverProcessor);
 
 		EntityManager->BatchCreateEntities(IntsArchetype, 3, EntitiesInt);
 		EntityManager->BatchCreateEntities(FloatsIntsArchetype, 3, EntitiesIntsFloat);
@@ -70,51 +72,48 @@ struct FTagBaseOperation : FEntityTestBase
 			{
 				AITEST_EQUAL(TEXT("Expected and affected sets should be the same"), AffectedEntities[i], ExpectedEntities[i]);
 			}
-
-			/*AITEST_EQUAL(TEXT("The tag observer is expected to be run for a single entity"), AffectedEntities.Num(), 1);
-			AITEST_EQUAL(TEXT("The tag observer is expected to be run for the entity that received the tag"), AffectedEntities[0], Entities[1]);*/
 		}
 
 		return true;
 	}
 };
 
-struct FTag_SingleEntitySingleArchetypeAdd : FTagBaseOperation
+struct FObserverProcessorTest_SingleEntitySingleArchetypeAdd : FTagBaseOperation
 {
-	FTag_SingleEntitySingleArchetypeAdd() { OperationObserved = EMassObservedOperation::Add; }
+	FObserverProcessorTest_SingleEntitySingleArchetypeAdd() { OperationObserved = EMassObservedOperation::Add; }
 	virtual bool PerformOperation() override 
 	{
 		ExpectedEntities = { EntitiesInt[1] };
-		EntityManager->Defer().AddTag<FTestTag_A>(EntitiesInt[1]);
+		EntityManager->Defer().AddTag<FTagStruct>(EntitiesInt[1]);
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_SingleEntitySingleArchetypeAdd, "System.Mass.Observer.Tag.SingleEntitySingleArchetypeAdd");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_SingleEntitySingleArchetypeAdd, "System.Mass.Observer.Tag.SingleEntitySingleArchetypeAdd");
 
-struct FTag_SingleEntitySingleArchetypeRemove : FTagBaseOperation
+struct FObserverProcessorTest_SingleEntitySingleArchetypeRemove : FTagBaseOperation
 {
-	FTag_SingleEntitySingleArchetypeRemove() { OperationObserved = EMassObservedOperation::Remove; }
+	FObserverProcessorTest_SingleEntitySingleArchetypeRemove() { OperationObserved = EMassObservedOperation::Remove; }
 	virtual bool PerformOperation() override
 	{
 		ExpectedEntities = { EntitiesInt[1] };
 
-		EntityManager->Defer().AddTag<FTestTag_A>(EntitiesInt[1]);
+		EntityManager->Defer().AddTag<FTagStruct>(EntitiesInt[1]);
 		EntityManager->FlushCommands();
 		// since we're only observing tag removal we don't expect AffectedEntities to contain any data at this point
 		AITEST_EQUAL(TEXT("Tag addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
-		EntityManager->Defer().RemoveTag<FTestTag_A>(EntitiesInt[1]);
+		EntityManager->Defer().RemoveTag<FTagStruct>(EntitiesInt[1]);
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_SingleEntitySingleArchetypeRemove, "System.Mass.Observer.Tag.SingleEntitySingleArchetypeRemove");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_SingleEntitySingleArchetypeRemove, "System.Mass.Observer.Tag.SingleEntitySingleArchetypeRemove");
 
-struct FTag_SingleEntitySingleArchetypeDestroy : FTagBaseOperation
+struct FObserverProcessorTest_SingleEntitySingleArchetypeDestroy : FTagBaseOperation
 {
-	FTag_SingleEntitySingleArchetypeDestroy() { OperationObserved = EMassObservedOperation::Remove; }
+	FObserverProcessorTest_SingleEntitySingleArchetypeDestroy() { OperationObserved = EMassObservedOperation::Remove; }
 	virtual bool PerformOperation() override
 	{
 		ExpectedEntities = { EntitiesInt[1] };
-		EntityManager->Defer().AddTag<FTestTag_A>(EntitiesInt[1]); 
+		EntityManager->Defer().AddTag<FTagStruct>(EntitiesInt[1]);
 		EntityManager->FlushCommands();
 		// since we're only observing tag removal we don't expect AffectedEntities to contain any data at this point
 		AITEST_EQUAL(TEXT("Tag addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
@@ -122,57 +121,57 @@ struct FTag_SingleEntitySingleArchetypeDestroy : FTagBaseOperation
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_SingleEntitySingleArchetypeDestroy, "System.Mass.Observer.Tag.SingleEntitySingleArchetypeDestroy");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_SingleEntitySingleArchetypeDestroy, "System.Mass.Observer.Tag.SingleEntitySingleArchetypeDestroy");
 
-struct FTag_MultipleArchetypeAdd : FTagBaseOperation
+struct FObserverProcessorTest_MultipleArchetypeAdd : FTagBaseOperation
 {
-	FTag_MultipleArchetypeAdd() { OperationObserved = EMassObservedOperation::Add; }
+	FObserverProcessorTest_MultipleArchetypeAdd() { OperationObserved = EMassObservedOperation::Add; }
 
 	virtual bool PerformOperation() override
 	{
 		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesIntsFloat[1] };
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
-			EntityManager->Defer().AddTag<FTestTag_A>(ModifiedEntity);
+			EntityManager->Defer().AddTag<FTagStruct>(ModifiedEntity);
 		}
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_MultipleArchetypeAdd, "System.Mass.Observer.Tag.MultipleArchetypesAdd");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_MultipleArchetypeAdd, "System.Mass.Observer.Tag.MultipleArchetypesAdd");
 
-struct FTag_MultipleArchetypeRemove : FTagBaseOperation
+struct FObserverProcessorTest_MultipleArchetypeRemove : FTagBaseOperation
 {
-	FTag_MultipleArchetypeRemove() { OperationObserved = EMassObservedOperation::Remove; }
+	FObserverProcessorTest_MultipleArchetypeRemove() { OperationObserved = EMassObservedOperation::Remove; }
 
 	virtual bool PerformOperation() override
 	{
 		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesIntsFloat[1] };
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
-			EntityManager->Defer().AddTag<FTestTag_A>(ModifiedEntity);
+			EntityManager->Defer().AddTag<FTagStruct>(ModifiedEntity);
 		}
 		EntityManager->FlushCommands();
 		// since we're only observing tag removal we don't expect AffectedEntities to contain any data at this point
 		AITEST_EQUAL(TEXT("Tag addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
-			EntityManager->Defer().RemoveTag<FTestTag_A>(ModifiedEntity);
+			EntityManager->Defer().RemoveTag<FTagStruct>(ModifiedEntity);
 		}
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_MultipleArchetypeRemove, "System.Mass.Observer.Tag.MultipleArchetypesRemove");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_MultipleArchetypeRemove, "System.Mass.Observer.Tag.MultipleArchetypesRemove");
 
-struct FTag_MultipleArchetypeDestroy : FTagBaseOperation
+struct FObserverProcessorTest_MultipleArchetypeDestroy : FTagBaseOperation
 {
-	FTag_MultipleArchetypeDestroy() { OperationObserved = EMassObservedOperation::Remove; }
+	FObserverProcessorTest_MultipleArchetypeDestroy() { OperationObserved = EMassObservedOperation::Remove; }
 
 	virtual bool PerformOperation() override
 	{
 		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesIntsFloat[1] };
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
-			EntityManager->Defer().AddTag<FTestTag_A>(ModifiedEntity);
+			EntityManager->Defer().AddTag<FTagStruct>(ModifiedEntity);
 		}
 		EntityManager->FlushCommands();
 		// since we're only observing tag removal we don't expect AffectedEntities to contain any data at this point
@@ -184,30 +183,390 @@ struct FTag_MultipleArchetypeDestroy : FTagBaseOperation
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_MultipleArchetypeDestroy, "System.Mass.Observer.Tag.MultipleArchetypesDestroy");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_MultipleArchetypeDestroy, "System.Mass.Observer.Tag.MultipleArchetypesDestroy");
 
-struct FTag_MultipleArchetypeSwap : FTagBaseOperation
+struct FObserverProcessorTest_MultipleArchetypeSwap : FTagBaseOperation
 {
-	FTag_MultipleArchetypeSwap() { OperationObserved = EMassObservedOperation::Remove; }
+	FObserverProcessorTest_MultipleArchetypeSwap() { OperationObserved = EMassObservedOperation::Remove; }
 
 	virtual bool PerformOperation() override
 	{
 		ExpectedEntities = { EntitiesIntsFloat[1], EntitiesInt[0], EntitiesInt[2] };
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
-			EntityManager->Defer().AddTag<FTestTag_A>(ModifiedEntity);
+			EntityManager->Defer().AddTag<FTagStruct>(ModifiedEntity);
 		}
 		EntityManager->FlushCommands();
 		// since we're only observing tag removal we don't expect AffectedEntities to contain any data at this point
 		AITEST_EQUAL(TEXT("Tag addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
-			EntityManager->Defer().SwapTags<FTestTag_A, FTestTag_B>(ModifiedEntity);
+			EntityManager->Defer().SwapTags<FTagStruct, FTestTag_B>(ModifiedEntity);
 		}
 		return true;
 	}
 };
-IMPLEMENT_AI_INSTANT_TEST(FTag_MultipleArchetypeSwap, "System.Mass.Observer.Tag.MultipleArchetypesSwap");
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_MultipleArchetypeSwap, "System.Mass.Observer.Tag.MultipleArchetypesSwap");
+
+struct FObserverProcessorTest_EntityCreation_Individuals : FTagBaseOperation
+{
+	FObserverProcessorTest_EntityCreation_Individuals() { OperationObserved = EMassObservedOperation::Add; }
+
+	virtual bool InstantTest() override
+	{
+		constexpr int32 EntitiesToSpawnCount = 6;
+		
+		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
+		ObserverManager.AddObserverInstance(*FTagStruct::StaticStruct(), OperationObserved, *ObserverProcessor);
+
+		int32 ArrayMidPoint = 0;
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchCreateEntities(IntsArchetype, EntitiesToSpawnCount, EntitiesInt);
+			ArrayMidPoint = EntitiesInt.Num() / 2;
+
+			for (int32 Index = 0; Index < ArrayMidPoint; ++Index)
+			{
+				EntityManager->AddTagToEntity(EntitiesInt[Index], FTagStruct::StaticStruct());
+			}
+			AITEST_EQUAL(TEXT("The tag observer is not expected to run yet"), AffectedEntities.Num(), 0);
+		}
+		AITEST_EQUAL(TEXT("The tag observer is expected to run just after FEntityCreationContext's destruction"), AffectedEntities.Num(), ArrayMidPoint);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_EntityCreation_Individuals, "System.Mass.Observer.Create.TagInvididualEntities");
+
+struct FObserverProcessorTest_EntityCreation_Batched : FTagBaseOperation
+{
+	FObserverProcessorTest_EntityCreation_Batched() { OperationObserved = EMassObservedOperation::Add; }
+
+	virtual bool InstantTest() override
+	{
+		constexpr int32 EntitiesToSpawnCount = 6;
+
+		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
+		ObserverManager.AddObserverInstance(*FTagStruct::StaticStruct(), OperationObserved, *ObserverProcessor);
+
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchCreateEntities(IntsArchetype, EntitiesToSpawnCount, EntitiesInt);
+
+			EntityManager->BatchChangeTagsForEntities(CreationContext->GetEntityCollections(), FMassTagBitSet(*FTagStruct::StaticStruct()), FMassTagBitSet());
+			AITEST_TRUE(TEXT("The tag observer is not expected to run yet"), AffectedEntities.Num() == 0);
+			AITEST_FALSE(TEXT("CreationContext's entity collection should be invalidated at this moment"), CreationContext->DebugAreEntityCollectionsUpToDate());
+
+			EntityManager->BatchChangeTagsForEntities(CreationContext->GetEntityCollections(), FMassTagBitSet(*FTagStruct::StaticStruct()), FMassTagBitSet());
+			AITEST_TRUE(TEXT("The tag observer is still not expected to run"), AffectedEntities.Num() == 0);
+		}
+		AITEST_TRUE(TEXT("The tag observer is expected to run just after FEntityCreationContext's destruction"), AffectedEntities.Num() > 0);
+		AITEST_EQUAL(TEXT("The tag observer is expected to process every entity just once"), AffectedEntities.Num(), EntitiesInt.Num());
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FObserverProcessorTest_EntityCreation_Batched, "System.Mass.Observer.Create.TagBatchedEntities");
+
+//-----------------------------------------------------------------------------
+// fragments
+//-----------------------------------------------------------------------------
+struct FFragmentTestBase : FEntityTestBase
+{
+	using FFragmentStruct = FTestFragment_Float;
+
+	TArray<FMassEntityHandle> AffectedEntities;
+	UMassTestProcessorBase* ObserverProcessor = nullptr;
+	EMassObservedOperation OperationObserved = EMassObservedOperation::MAX;
+	TArray<FMassEntityHandle> EntitiesInt;
+	TArray<FMassEntityHandle> EntitiesIntsFloat;
+	TArray<FMassEntityHandle> ExpectedEntities;
+	// @return signifies if the test can continue
+	virtual bool PerformOperation() { return false; }
+
+	virtual bool SetUp() override
+	{
+		if (FEntityTestBase::SetUp())
+		{
+			ObserverProcessor = NewObject<UMassTestProcessorBase>();
+			ObserverProcessor->EntityQuery.AddRequirement(FFragmentStruct::StaticStruct(), EMassFragmentAccess::ReadOnly);
+			ObserverProcessor->ForEachEntityChunkExecutionFunction = [this](FMassExecutionContext& Context)
+				{
+					AffectedEntities.Append(Context.GetEntities().GetData(), Context.GetEntities().Num());
+				};
+
+			return true;
+		}
+		return false;
+	}
+
+	virtual bool InstantTest() override
+	{
+		EntityManager->BatchCreateEntities(IntsArchetype, 3, EntitiesInt);
+		EntityManager->BatchCreateEntities(FloatsIntsArchetype, 3, EntitiesIntsFloat);
+
+		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
+		ObserverManager.AddObserverInstance(*FFragmentStruct::StaticStruct(), OperationObserved, *ObserverProcessor);
+				
+		if (PerformOperation())
+		{
+			EntityManager->FlushCommands();
+			AITEST_EQUAL(TEXT("The fragment observer is expected to be run for predicted number of entities"), AffectedEntities.Num(), ExpectedEntities.Num());
+
+			ExpectedEntities.Sort(EntityIndexSorted);
+			AffectedEntities.Sort(EntityIndexSorted);
+
+			for (int i = 0; i < ExpectedEntities.Num(); ++i)
+			{
+				AITEST_EQUAL(TEXT("Expected and affected sets should be the same"), AffectedEntities[i], ExpectedEntities[i]);
+			}
+		}
+
+		return true;
+	}
+};
+
+struct FFragmentObserverTest_SingleEntitySingleArchetypeAdd : FFragmentTestBase
+{
+	FFragmentObserverTest_SingleEntitySingleArchetypeAdd() { OperationObserved = EMassObservedOperation::Add; }
+	virtual bool PerformOperation() override
+	{
+		ExpectedEntities = { EntitiesInt[1] };
+		EntityManager->Defer().AddFragment<FFragmentStruct>(EntitiesInt[1]);
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_SingleEntitySingleArchetypeAdd, "System.Mass.Observer.Fragment.SingleEntitySingleArchetypeAdd");
+
+struct FFragmentObserverTest_SingleEntitySingleArchetypeRemove : FFragmentTestBase
+{
+	FFragmentObserverTest_SingleEntitySingleArchetypeRemove() { OperationObserved = EMassObservedOperation::Remove; }
+	virtual bool PerformOperation() override
+	{
+		ExpectedEntities = { EntitiesInt[1] };
+
+		EntityManager->Defer().AddFragment<FFragmentStruct>(EntitiesInt[1]);
+		EntityManager->FlushCommands();
+		// since we're only observing Fragment removal we don't expect AffectedEntities to contain any data at this point
+		AITEST_EQUAL(TEXT("Fragment addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
+		EntityManager->Defer().RemoveFragment<FFragmentStruct>(EntitiesInt[1]);
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_SingleEntitySingleArchetypeRemove, "System.Mass.Observer.Fragment.SingleEntitySingleArchetypeRemove");
+
+struct FFragmentObserverTest_SingleEntitySingleArchetypeDestroy : FFragmentTestBase
+{
+	FFragmentObserverTest_SingleEntitySingleArchetypeDestroy() { OperationObserved = EMassObservedOperation::Remove; }
+	virtual bool PerformOperation() override
+	{
+		ExpectedEntities = { EntitiesInt[1] };
+		EntityManager->Defer().AddFragment<FFragmentStruct>(EntitiesInt[1]);
+		EntityManager->FlushCommands();
+		// since we're only observing Fragment removal we don't expect AffectedEntities to contain any data at this point
+		AITEST_EQUAL(TEXT("Fragment addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
+		EntityManager->Defer().DestroyEntity(EntitiesInt[1]);
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_SingleEntitySingleArchetypeDestroy, "System.Mass.Observer.Fragment.SingleEntitySingleArchetypeDestroy");
+
+struct FFragmentObserverTest_MultipleArchetypeAdd : FFragmentTestBase
+{
+	FFragmentObserverTest_MultipleArchetypeAdd() { OperationObserved = EMassObservedOperation::Add; }
+
+	virtual bool PerformOperation() override
+	{
+		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesInt[1] };
+		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
+		{
+			EntityManager->Defer().AddFragment<FFragmentStruct>(ModifiedEntity);
+		}
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_MultipleArchetypeAdd, "System.Mass.Observer.Fragment.MultipleArchetypesAdd");
+
+struct FFragmentObserverTest_MultipleArchetypeRemove : FFragmentTestBase
+{
+	FFragmentObserverTest_MultipleArchetypeRemove() { OperationObserved = EMassObservedOperation::Remove; }
+
+	virtual bool PerformOperation() override
+	{
+		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesInt[1] };
+		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
+		{
+			EntityManager->Defer().AddFragment<FFragmentStruct>(ModifiedEntity);
+		}
+		EntityManager->FlushCommands();
+		// since we're only observing Fragment removal we don't expect AffectedEntities to contain any data at this point
+		AITEST_EQUAL(TEXT("Fragment addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
+		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
+		{
+			EntityManager->Defer().RemoveFragment<FFragmentStruct>(ModifiedEntity);
+		}
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_MultipleArchetypeRemove, "System.Mass.Observer.Fragment.MultipleArchetypesRemove");
+
+struct FFragmentObserverTest_MultipleArchetypeDestroy : FFragmentTestBase
+{
+	FFragmentObserverTest_MultipleArchetypeDestroy() { OperationObserved = EMassObservedOperation::Remove; }
+
+	virtual bool PerformOperation() override
+	{
+		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesInt[1] };
+		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
+		{
+			EntityManager->Defer().AddFragment<FFragmentStruct>(ModifiedEntity);
+		}
+		EntityManager->FlushCommands();
+		// since we're only observing Fragment removal we don't expect AffectedEntities to contain any data at this point
+		AITEST_EQUAL(TEXT("Fragment addition is not being observed and is not expected to produce results yet"), AffectedEntities.Num(), 0);
+		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
+		{
+			EntityManager->Defer().DestroyEntity(ModifiedEntity);
+		}
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_MultipleArchetypeDestroy, "System.Mass.Observer.Fragment.MultipleArchetypesDestroy");
+
+struct FFragmentObserverTest_EntityCreation_Individuals : FFragmentTestBase
+{
+	FFragmentObserverTest_EntityCreation_Individuals() { OperationObserved = EMassObservedOperation::Add; }
+
+	virtual bool InstantTest() override
+	{
+		constexpr int32 EntitiesToSpawnCount = 6;
+
+		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
+		ObserverManager.AddObserverInstance(*FFragmentStruct::StaticStruct(), OperationObserved, *ObserverProcessor);
+
+		int32 ArrayMidPoint = 0;
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchCreateEntities(IntsArchetype, EntitiesToSpawnCount, EntitiesInt);
+			ArrayMidPoint = EntitiesInt.Num() / 2;
+
+			for (int32 Index = 0; Index < ArrayMidPoint; ++Index)
+			{
+				EntityManager->AddFragmentToEntity(EntitiesInt[Index], FFragmentStruct::StaticStruct());
+			}
+			AITEST_EQUAL(TEXT("The fragment observer is not expected to run yet"), AffectedEntities.Num(), 0);
+		}
+		AITEST_EQUAL(TEXT("The fragment observer is expected to run just after FEntityCreationContext's destruction"), AffectedEntities.Num(), ArrayMidPoint);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_EntityCreation_Individuals, "System.Mass.Observer.Create.FragmentInvididualEntities");
+
+//-----------------------------------------------------------------------------
+// creation context 
+//-----------------------------------------------------------------------------
+struct FCreationContextTest : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 IntEntitiesToSpawnCount = 6;
+		constexpr int32 FloatEntitiesToSpawnCount = 7;
+
+		TArray<FMassEntityHandle> Entities;
+		TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContextInt = EntityManager->BatchCreateEntities(IntsArchetype, IntEntitiesToSpawnCount, Entities);
+		TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContextFloat = EntityManager->BatchCreateEntities(FloatsArchetype, FloatEntitiesToSpawnCount, Entities);
+		const int32 NumDifferentArchetypesUsed = 2;
+
+		AITEST_EQUAL(TEXT("Two back to back entity creation operations should result in the same creation context"), CreationContextInt, CreationContextFloat);
+		AITEST_FALSE(TEXT("CreationContext's entity collection should be invalidated at this moment"), CreationContextInt->DebugAreEntityCollectionsUpToDate());
+
+		TConstArrayView<FMassArchetypeEntityCollection> EntityCollections = CreationContextInt->GetEntityCollections();
+		AITEST_EQUAL(TEXT("We expect the number of resulting collections to match expectations"), EntityCollections.Num(), NumDifferentArchetypesUsed);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FCreationContextTest, "System.Mass.CreationContext.Append");
+
+struct FCreationContextTest_ManualCreate : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 IntEntitiesToSpawnCount = 6;
+		constexpr int32 FloatEntitiesToSpawnCount = 7;
+		int NumDifferentArchetypesUsed = 0;
+
+		TArray<FMassEntityHandle> Entities;
+		TSharedRef<FMassEntityManager::FEntityCreationContext> ObtainedContext = EntityManager->GetOrMakeCreationContext();
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> ObtainedContextCopy = EntityManager->GetOrMakeCreationContext();
+			AITEST_EQUAL(TEXT("Two back to back creation context fetching should result in the same instance"), ObtainedContext, ObtainedContextCopy);
+		}
+
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContextInt = EntityManager->BatchCreateEntities(IntsArchetype, IntEntitiesToSpawnCount, Entities);
+			AITEST_EQUAL(TEXT("Creating entities should return the original context"), ObtainedContext, CreationContextInt);
+			++NumDifferentArchetypesUsed;
+		}
+		
+		AITEST_TRUE(TEXT("CreationContext's entity collection should be still valid at this moment since we only added one entity collection/array")
+			, ObtainedContext->DebugAreEntityCollectionsUpToDate());
+
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> TempContext = EntityManager->BatchCreateEntities(IntsArchetype, IntEntitiesToSpawnCount, Entities);
+			AITEST_EQUAL(TEXT("Creating entities should return the original context"), ObtainedContext, TempContext);
+
+			AITEST_FALSE(TEXT("CreationContext's entity collection should be invalidated at this moment")
+				, TempContext->DebugAreEntityCollectionsUpToDate());
+		}
+
+		TConstArrayView<FMassArchetypeEntityCollection> EntityCollections = ObtainedContext->GetEntityCollections();
+		AITEST_EQUAL(TEXT("We expect the number of resulting collections to match expectations"), EntityCollections.Num(), NumDifferentArchetypesUsed);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FCreationContextTest_ManualCreate, "System.Mass.CreationContext.ManualCreate");
+
+struct FCreationContextTest_ManualBuild : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 FloatEntitiesToSpawnCount = 7;
+		int NumDifferentArchetypesUsed = 0;
+
+		TArray<FTestFragment_Float> Payload;
+		for (int Index = 0; Index < FloatEntitiesToSpawnCount; ++Index)
+		{ 
+			Payload.Add(FTestFragment_Float(float(Index)));
+		}
+
+		TSharedRef<FMassEntityManager::FEntityCreationContext> ObtainedContext = EntityManager->GetOrMakeCreationContext();
+		
+		TArray<FMassEntityHandle> Entities;
+		EntityManager->BatchReserveEntities(FloatEntitiesToSpawnCount, Entities);
+
+		FStructArrayView PaloadView(Payload);
+		TArray<FMassArchetypeEntityCollectionWithPayload> EntityCollections;
+		FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(*EntityManager, Entities, FMassArchetypeEntityCollection::NoDuplicates
+			, FMassGenericPayloadView(MakeArrayView(&PaloadView, 1)), EntityCollections);
+
+		checkf(EntityCollections.Num() <= 1, TEXT("We expect TargetEntities to only contain archetype-less entities, ones that need to be \'build\'"));
+
+		{
+			TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchBuildEntities(EntityCollections[0], FMassFragmentBitSet(*FTestFragment_Float::StaticStruct()));
+			AITEST_EQUAL(TEXT("Creating entities should return the original context"), ObtainedContext, CreationContext);
+			++NumDifferentArchetypesUsed;
+		}
+
+		AITEST_TRUE(TEXT("CreationContext's entity collection should be still valid at this moment since we only added one entity collection/array")
+			, ObtainedContext->DebugAreEntityCollectionsUpToDate());
+
+		TConstArrayView<FMassArchetypeEntityCollection> ContextEntityCollections = ObtainedContext->GetEntityCollections();
+		AITEST_EQUAL(TEXT("We expect the number of resulting collections to match expectations"), ContextEntityCollections.Num(), NumDifferentArchetypesUsed);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FCreationContextTest_ManualBuild, "System.Mass.CreationContext.ManualBuild");
 
 } // FMassObserverTest
 

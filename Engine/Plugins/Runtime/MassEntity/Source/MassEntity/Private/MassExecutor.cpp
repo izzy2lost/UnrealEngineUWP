@@ -9,6 +9,15 @@
 
 namespace UE::Mass::Executor
 {
+
+FORCEINLINE void ExecuteProcessors(FMassEntityManager& EntityManager, TArrayView<UMassProcessor* const> Processors, FMassExecutionContext& ExecutionContext)
+{
+	for (UMassProcessor* Proc : Processors)
+	{
+		Proc->CallExecute(EntityManager, ExecutionContext);
+	}
+}
+
 void Run(FMassRuntimePipeline& RuntimePipeline, FMassProcessingContext& ProcessingContext)
 {
 	if (!ensure(ProcessingContext.EntityManager) || 
@@ -35,7 +44,7 @@ void RunSparse(FMassRuntimePipeline& RuntimePipeline, FMassProcessingContext& Pr
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassExecutor RunSparseEntities");
 
 	const FMassArchetypeEntityCollection EntityCollection(Archetype, Entities, FMassArchetypeEntityCollection::NoDuplicates);
-	RunProcessorsView(RuntimePipeline.GetMutableProcessors(), ProcessingContext, &EntityCollection);
+	RunProcessorsView(RuntimePipeline.GetMutableProcessors(), ProcessingContext, MakeArrayView(&EntityCollection, 1));
 }
 
 void RunSparse(FMassRuntimePipeline& RuntimePipeline, FMassProcessingContext& ProcessingContext, const FMassArchetypeEntityCollection& EntityCollection)
@@ -50,7 +59,7 @@ void RunSparse(FMassRuntimePipeline& RuntimePipeline, FMassProcessingContext& Pr
 
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassExecutor RunSparse");
 
-	RunProcessorsView(RuntimePipeline.GetMutableProcessors(), ProcessingContext, &EntityCollection);
+	RunProcessorsView(RuntimePipeline.GetMutableProcessors(), ProcessingContext, MakeArrayView(&EntityCollection, 1));
 }
 
 void Run(UMassProcessor& Processor, FMassProcessingContext& ProcessingContext)
@@ -66,7 +75,7 @@ void Run(UMassProcessor& Processor, FMassProcessingContext& ProcessingContext)
 	RunProcessorsView(MakeArrayView(&ProcPtr, 1), ProcessingContext);
 }
 
-void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProcessingContext& ProcessingContext, const FMassArchetypeEntityCollection* EntityCollection)
+void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProcessingContext& ProcessingContext, TConstArrayView<FMassArchetypeEntityCollection> EntityCollections)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RunProcessorsView);
 
@@ -86,11 +95,7 @@ void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProces
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassExecutor RunProcessorsView")
 
 	FMassExecutionContext ExecutionContext(*ProcessingContext.EntityManager.Get(), ProcessingContext.DeltaSeconds);
-	if (EntityCollection)
-	{
-		ExecutionContext.SetEntityCollection(*EntityCollection);
-	}
-	
+
 	// if ProcessingContext points at a valid CommandBuffer use that one, otherwise manually create a new command buffer 
 	// to let the default one still be used by code unaware of mass processing
 	TSharedPtr<FMassCommandBuffer> CommandBuffer = ProcessingContext.CommandBuffer 
@@ -106,9 +111,18 @@ void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProces
 		
 		FMassEntityManager::FScopedProcessing ProcessingScope = EntityManager.NewProcessingScope();
 
-		for (UMassProcessor* Proc : Processors)
+		if (EntityCollections.Num() == 0)
 		{
-			Proc->CallExecute(*ProcessingContext.EntityManager, ExecutionContext);
+			ExecuteProcessors(*ProcessingContext.EntityManager, Processors, ExecutionContext);
+		}
+		else
+		{
+			// @todo change ExecutionContext to contain a TConstArrayView of collections. Will lead up to changes in the entity query as well.
+			for (const FMassArchetypeEntityCollection& Collection : EntityCollections)
+			{
+				ExecutionContext.SetEntityCollection(Collection);
+				ExecuteProcessors(*ProcessingContext.EntityManager, Processors, ExecutionContext);
+			}
 		}
 	}
 	
@@ -210,6 +224,21 @@ FGraphEventRef TriggerParallelTasks(UMassProcessor& Processor, FMassProcessingCo
 	}
 
 	return CompletionEvent;
+}
+
+//-----------------------------------------------------------------------------
+// DEPRECATED
+//-----------------------------------------------------------------------------
+void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProcessingContext& ProcessingContext, const FMassArchetypeEntityCollection* EntityCollection)
+{
+	if (EntityCollection)
+	{
+		RunProcessorsView(Processors, ProcessingContext, MakeArrayView(EntityCollection, 1));
+	}
+	else
+	{
+		RunProcessorsView(Processors, ProcessingContext);
+	}
 }
 
 } // namespace UE::Mass::Executor
