@@ -125,6 +125,19 @@ class UStateTreeEditorPropertyBindingsOwner : public UInterface
 	GENERATED_UINTERFACE_BODY()
 };
 
+/** Struct of Parameters used to Create a Property */
+struct FStateTreeEditorPropertyCreationDesc
+{
+	/** Property Bag Description of the Property to Create */
+	FPropertyBagPropertyDesc PropertyDesc;
+
+	/** Optional: property to copy into the new created property */
+	const FProperty* SourceProperty = nullptr;
+
+	/** Optional: container address of the property to copy */
+	const void* SourceContainerAddress = nullptr;
+};
+
 class STATETREEEDITORMODULE_API IStateTreeEditorPropertyBindingsOwner
 {
 	GENERATED_IINTERFACE_BODY()
@@ -166,6 +179,20 @@ class STATETREEEDITORMODULE_API IStateTreeEditorPropertyBindingsOwner
 	virtual const FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::GetPropertyEditorBindings, return nullptr; );
 
 	virtual EStateTreeVisitor EnumerateBindablePropertyFunctionNodes(TFunctionRef<EStateTreeVisitor(const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::EnumerateBindablePropertyFunctionNodes, return static_cast<EStateTreeVisitor>(0); );
+
+	/**
+	 * Determines whether the struct matching the given struct id is capable of adding new properties
+	 * @param StructID Target struct ID
+	 * @return True if struct supports adding new properties
+	 */
+	virtual bool CanCreateParameter(const FGuid StructID) const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::CanCreateProperty, return false;);
+
+	/**
+	 * Creates the given properties in the property bag of the struct matching the given struct ID
+	 * @param StructID Target struct ID
+	 * @param InOutCreationDescs the descriptions of the properties to create. This is modified to update the property names that actually got created
+	 */
+	virtual void CreateParameters(const FGuid StructID, TArrayView<FStateTreeEditorPropertyCreationDesc> InOutCreationDescs) PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::CreateProperties);
 };
 
 // TODO: We should merge this with IStateTreeEditorPropertyBindingsOwner and FStateTreeEditorPropertyBindings.

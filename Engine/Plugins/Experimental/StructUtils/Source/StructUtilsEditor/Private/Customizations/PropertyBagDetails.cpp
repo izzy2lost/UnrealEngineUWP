@@ -23,7 +23,128 @@
 
 ////////////////////////////////////
 
-namespace UE::StructUtils::Private
+namespace UE::StructUtils
+{
+
+/** Sets property descriptor based on a Blueprint pin type. */
+void SetPropertyDescFromPin(FPropertyBagPropertyDesc& Desc, const FEdGraphPinType& PinType)
+{
+	const UPropertyBagSchema* Schema = GetDefault<UPropertyBagSchema>();
+	check(Schema);
+
+	// remove any existing containers
+	Desc.ContainerTypes.Reset();
+
+	// Fill Container types, if any
+	switch (PinType.ContainerType)
+	{
+	case EPinContainerType::Array:
+		Desc.ContainerTypes.Add(EPropertyBagContainerType::Array);
+		break;
+	case EPinContainerType::Set:
+		ensureMsgf(false, TEXT("Unsuported container type [Set] "));
+		break;
+	case EPinContainerType::Map:
+		ensureMsgf(false, TEXT("Unsuported container type [Map] "));
+		break;
+	default:
+		break;
+	}
+	
+	// Value type
+	if (PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Bool;
+		Desc.ValueTypeObject = nullptr;
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Byte)
+	{
+		if (UEnum* Enum = Cast<UEnum>(PinType.PinSubCategoryObject))
+		{
+			Desc.ValueType = EPropertyBagPropertyType::Enum;
+			Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+		}
+		else
+		{
+			Desc.ValueType = EPropertyBagPropertyType::Byte;
+			Desc.ValueTypeObject = nullptr;
+		}
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Int32;
+		Desc.ValueTypeObject = nullptr;
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int64)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Int64;
+		Desc.ValueTypeObject = nullptr;
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
+	{
+		if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Float)
+		{
+			Desc.ValueType = EPropertyBagPropertyType::Float;
+			Desc.ValueTypeObject = nullptr;
+		}
+		else if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Double)
+		{
+			Desc.ValueType = EPropertyBagPropertyType::Double;
+			Desc.ValueTypeObject = nullptr;
+		}		
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Name)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Name;
+		Desc.ValueTypeObject = nullptr;
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::String;
+		Desc.ValueTypeObject = nullptr;
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Text)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Text;
+		Desc.ValueTypeObject = nullptr;
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Enum)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Enum;
+		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Struct)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Struct;
+		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Object;
+		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_SoftObject)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::SoftObject;
+		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Class)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::Class;
+		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+	}
+	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_SoftClass)
+	{
+		Desc.ValueType = EPropertyBagPropertyType::SoftClass;
+		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
+	}
+	else
+	{
+		ensureMsgf(false, TEXT("Unhandled pin category %s"), *PinType.PinCategory.ToString());
+	}
+}
+
+namespace Private
 {
 
 /** @return true property handle holds struct property of type T.  */ 
@@ -300,124 +421,6 @@ FEdGraphPinType GetPropertyDescAsPin(const FPropertyBagPropertyDesc& Desc)
 	}
 
 	return PinType;
-}
-
-/** Sets property descriptor based on a Blueprint pin type. */
-void SetPropertyDescFromPin(FPropertyBagPropertyDesc& Desc, const FEdGraphPinType& PinType)
-{
-	const UPropertyBagSchema* Schema = GetDefault<UPropertyBagSchema>();
-	check(Schema);
-
-	// remove any existing containers
-	Desc.ContainerTypes.Reset();
-
-	// Fill Container types, if any
-	switch (PinType.ContainerType)
-	{
-	case EPinContainerType::Array:
-		Desc.ContainerTypes.Add(EPropertyBagContainerType::Array);
-		break;
-	case EPinContainerType::Set:
-		ensureMsgf(false, TEXT("Unsuported container type [Set] "));
-		break;
-	case EPinContainerType::Map:
-		ensureMsgf(false, TEXT("Unsuported container type [Map] "));
-		break;
-	default:
-		break;
-	}
-	
-	// Value type
-	if (PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Bool;
-		Desc.ValueTypeObject = nullptr;
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Byte)
-	{
-		if (UEnum* Enum = Cast<UEnum>(PinType.PinSubCategoryObject))
-		{
-			Desc.ValueType = EPropertyBagPropertyType::Enum;
-			Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-		}
-		else
-		{
-			Desc.ValueType = EPropertyBagPropertyType::Byte;
-			Desc.ValueTypeObject = nullptr;
-		}
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Int32;
-		Desc.ValueTypeObject = nullptr;
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int64)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Int64;
-		Desc.ValueTypeObject = nullptr;
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
-	{
-		if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Float)
-		{
-			Desc.ValueType = EPropertyBagPropertyType::Float;
-			Desc.ValueTypeObject = nullptr;
-		}
-		else if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Double)
-		{
-			Desc.ValueType = EPropertyBagPropertyType::Double;
-			Desc.ValueTypeObject = nullptr;
-		}		
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Name)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Name;
-		Desc.ValueTypeObject = nullptr;
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_String)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::String;
-		Desc.ValueTypeObject = nullptr;
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Text)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Text;
-		Desc.ValueTypeObject = nullptr;
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Enum)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Enum;
-		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Struct)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Struct;
-		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Object;
-		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_SoftObject)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::SoftObject;
-		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Class)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::Class;
-		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-	}
-	else if (PinType.PinCategory == UEdGraphSchema_K2::PC_SoftClass)
-	{
-		Desc.ValueType = EPropertyBagPropertyType::SoftClass;
-		Desc.ValueTypeObject = PinType.PinSubCategoryObject.Get();
-	}
-	else
-	{
-		ensureMsgf(false, TEXT("Unhandled pin category %s"), *PinType.PinCategory.ToString());
-	}
 }
 
 template<typename TFunc>
@@ -769,6 +772,7 @@ void CopyPropertyValue(const FPropertyBagPropertyDesc* InSourcePropertyDesc, con
 
 } // UE::StructUtils::Private
 
+} // UE::StructUtils
 
 //----------------------------------------------------------------//
 //  FPropertyBagInstanceDataDetails
@@ -1245,7 +1249,7 @@ TSharedRef<SWidget> FPropertyBagInstanceDataDetails::OnPropertyNameContent(TShar
 				const FProperty* Property = ChildPropertyHandle ? ChildPropertyHandle->GetProperty() : nullptr;
 				if (FPropertyBagPropertyDesc* Desc = PropertyDescs.FindByPredicate([Property](const FPropertyBagPropertyDesc& Desc){ return Desc.CachedProperty == Property; }))
 				{
-					UE::StructUtils::Private::SetPropertyDescFromPin(*Desc, PinType);
+					UE::StructUtils::SetPropertyDescFromPin(*Desc, PinType);
 				}
 			});
 	};

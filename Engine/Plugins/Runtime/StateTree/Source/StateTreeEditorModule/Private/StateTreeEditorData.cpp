@@ -520,6 +520,86 @@ EStateTreeVisitor UStateTreeEditorData::EnumerateBindablePropertyFunctionNodes(T
 	return EStateTreeVisitor::Continue;
 }
 
+bool UStateTreeEditorData::CanCreateParameter(const FGuid StructID) const
+{
+	if (RootParameters.ID == StructID)
+	{
+		return true;
+	}
+
+	bool bFoundStructID = false;
+
+	VisitHierarchy([&StructID, &bFoundStructID](UStateTreeState& State, UStateTreeState* ParentState)->EStateTreeVisitor
+	{
+		if (State.Parameters.ID == StructID)
+		{
+			bFoundStructID = true;
+			return EStateTreeVisitor::Break;
+		}
+		return EStateTreeVisitor::Continue;
+	});
+
+	return bFoundStructID;
+}
+
+void UStateTreeEditorData::CreateParameters(const FGuid StructID, TArrayView<FStateTreeEditorPropertyCreationDesc> InOutCreationDescs)
+{
+	if (InOutCreationDescs.IsEmpty())
+	{
+		return;
+	}
+
+	auto CreateProperties = [&InOutCreationDescs](FInstancedPropertyBag& PropertyBag)
+	{
+		TArray<FPropertyBagPropertyDesc, TInlineAllocator<1>> PropertyDescs;
+		PropertyDescs.Reserve(InOutCreationDescs.Num());
+
+		// Generate unique names for the incoming property descs to avoid changing the existing properties in the bag
+		for (FStateTreeEditorPropertyCreationDesc& CreationDesc : InOutCreationDescs)
+		{
+			int32 Index = CreationDesc.PropertyDesc.Name.GetNumber();
+			while (PropertyBag.FindPropertyDescByName(CreationDesc.PropertyDesc.Name))
+			{
+				CreationDesc.PropertyDesc.Name = FName(CreationDesc.PropertyDesc.Name, Index++);
+			}
+			PropertyDescs.Add(CreationDesc.PropertyDesc);
+		}
+
+		PropertyBag.AddProperties(PropertyDescs);
+
+		for (const FStateTreeEditorPropertyCreationDesc& CreationDesc : InOutCreationDescs)
+		{
+			// Attempt to copy the value from the Source Property / Addr to Property Desc
+			// There could be Type Mismatches if the Descs don't match the Source Property, but attempt to do it on all property descs
+			if (CreationDesc.SourceProperty && CreationDesc.SourceContainerAddress)
+			{
+				PropertyBag.SetValue(CreationDesc.PropertyDesc.Name, CreationDesc.SourceProperty, CreationDesc.SourceContainerAddress);
+			}
+		}
+	};
+
+	const UStateTree* StateTree = GetTypedOuter<UStateTree>();
+	checkf(StateTree, TEXT("UStateTreeEditorData should only be allocated within a UStateTree"));
+
+	if (RootParameters.ID == StructID)
+	{
+		CreateProperties(RootParameters.Parameters);
+		UE::StateTree::Delegates::OnParametersChanged.Broadcast(*StateTree);
+		return;
+	}
+
+	VisitHierarchy([&StructID, &CreateProperties, StateTree](UStateTreeState& State, UStateTreeState* ParentState)->EStateTreeVisitor
+	{
+		if (State.Parameters.ID == StructID)
+		{
+			CreateProperties(State.Parameters.Parameters);
+			UE::StateTree::Delegates::OnStateParametersChanged.Broadcast(*StateTree, State.ID);
+			return EStateTreeVisitor::Break;
+		}
+		return EStateTreeVisitor::Continue;
+	});
+}
+
 bool UStateTreeEditorData::GetStructByID(const FGuid StructID, FStateTreeBindableStructDesc& OutStructDesc) const
 {
 	VisitAllNodes([&OutStructDesc, StructID](const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)

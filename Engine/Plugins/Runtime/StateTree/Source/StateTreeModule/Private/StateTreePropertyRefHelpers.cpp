@@ -359,87 +359,12 @@ namespace UE::StateTree::PropertyRefHelpers
 
 	FEdGraphPinType GetNativePropertyRefInternalTypeAsPin(const FProperty& RefProperty)
 	{
-		ensure(IsPropertyRef(RefProperty));
-
-		FEdGraphPinType PinType;
-		PinType.PinSubCategory = NAME_None;
-
-		PinType.ContainerType = RefProperty.HasMetaData(IsRefToArrayName) ? EPinContainerType::Array : EPinContainerType::None;
-		const FString& TargetTypeNameStr = RefProperty.GetMetaData(RefTypeName);
-		const FName TargetTypeName = FName(*TargetTypeNameStr);
-
-		if(TargetTypeName == BoolName)
+		TArray<FEdGraphPinType, TInlineAllocator<1>> PinTypes = GetPropertyRefInternalTypesAsPins(RefProperty);
+		if (PinTypes.Num() == 1)
 		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+			return PinTypes[0];
 		}
-		else if(TargetTypeName == ByteName)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
-		}
-		else if(TargetTypeName == Int32Name)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-		}
-		else if(TargetTypeName == Int64Name)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Int64;
-		}
-		else if(TargetTypeName == FloatName)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
-			PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
-		}
-		else if(TargetTypeName == DoubleName)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
-			PinType.PinSubCategory = UEdGraphSchema_K2::PC_Double;
-		}
-		else if(TargetTypeName == NameName)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
-		}
-		else if(TargetTypeName == StringName)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_String;
-		}
-		else if(TargetTypeName == TextName)
-		{
-			PinType.PinCategory = UEdGraphSchema_K2::PC_Text;
-		}
-		else
-		{
-			UField* TargetRefField = UClass::TryFindTypeSlow<UField>(TargetTypeNameStr);
-			if (!TargetRefField)
-			{
-				TargetRefField = LoadObject<UField>(nullptr, *TargetTypeNameStr);
-			}
-
-			if (UStruct* Struct = Cast<UStruct>(TargetRefField))
-			{
-				PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-				PinType.PinSubCategoryObject = Struct;
-			}
-			else if (UObject* Object = Cast<UObject>(TargetRefField))
-			{
-				PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-				PinType.PinSubCategoryObject = Object;
-			}
-			else if (UEnum* Enum = Cast<UEnum>(TargetRefField))
-			{
-				PinType.PinCategory = UEdGraphSchema_K2::PC_Enum;
-				PinType.PinSubCategoryObject = Enum;
-			}
-			else
-			{
-				checkCode(
-					TArray<FString> AllowedTypes;
-					TargetTypeNameStr.ParseIntoArray(AllowedTypes, TEXT(","), true);
-					check(AllowedTypes.Num() > 1); // We are trying to bind to multiple type so its normal we can't find what the pin type should be.
-				)
-			}
-		}
-
-		return PinType;
+		return FEdGraphPinType();
 	}
 
 	FEdGraphPinType GetPropertyRefInternalTypeAsPin(const FProperty& RefProperty, const void* PropertyRefAddress)
@@ -584,6 +509,101 @@ namespace UE::StateTree::PropertyRefHelpers
 
 		checkNoEntry();
 		return false;
+	}
+
+	TArray<FEdGraphPinType, TInlineAllocator<1>> GetPropertyRefInternalTypesAsPins(const FProperty& RefProperty)
+	{
+		ensure(IsPropertyRef(RefProperty));
+
+		const EPinContainerType ContainerType = RefProperty.HasMetaData(IsRefToArrayName) ? EPinContainerType::Array : EPinContainerType::None;
+
+		TArray<FEdGraphPinType, TInlineAllocator<1>> PinTypes;
+
+		FString TargetTypesString = RefProperty.GetMetaData(RefTypeName);
+		if (TargetTypesString.IsEmpty())
+		{
+			return PinTypes;
+		}
+
+		TArray<FString> TargetTypes;
+		TargetTypesString.RemoveSpacesInline();
+		TargetTypesString.ParseIntoArray(TargetTypes, TEXT(","), true);
+
+		for (const FString& TargetType : TargetTypes)
+		{
+			const FName TargetTypeName = *TargetType;
+
+			FEdGraphPinType& PinType = PinTypes.AddDefaulted_GetRef();
+			PinType.ContainerType = ContainerType;
+
+			if (TargetTypeName == BoolName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+			}
+			else if (TargetTypeName == ByteName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+			}
+			else if (TargetTypeName == Int32Name)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+			}
+			else if (TargetTypeName == Int64Name)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Int64;
+			}
+			else if (TargetTypeName == FloatName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+				PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+			}
+			else if (TargetTypeName == DoubleName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+				PinType.PinSubCategory = UEdGraphSchema_K2::PC_Double;
+			}
+			else if (TargetTypeName == NameName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+			}
+			else if (TargetTypeName == StringName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+			}
+			else if (TargetTypeName == TextName)
+			{
+				PinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+			}
+			else
+			{
+				UField* TargetRefField = UClass::TryFindTypeSlow<UField>(TargetType);
+				if (!TargetRefField)
+				{
+					TargetRefField = LoadObject<UField>(nullptr, *TargetType);
+				}
+
+				if (UClass* ObjectClass = Cast<UClass>(TargetRefField))
+				{
+					PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+					PinType.PinSubCategoryObject = ObjectClass;
+				}
+				else if (UStruct* Struct = Cast<UStruct>(TargetRefField))
+				{
+					PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+					PinType.PinSubCategoryObject = Struct;
+				}
+				else if (UEnum* Enum = Cast<UEnum>(TargetRefField))
+				{
+					PinType.PinCategory = UEdGraphSchema_K2::PC_Enum;
+					PinType.PinSubCategoryObject = Enum;
+				}
+				else
+				{
+					checkf(false, TEXT("Typename in meta-data (%s) is invalid"), *TargetType);
+				}
+			}
+		}
+		return PinTypes;
 	}
 #endif
 

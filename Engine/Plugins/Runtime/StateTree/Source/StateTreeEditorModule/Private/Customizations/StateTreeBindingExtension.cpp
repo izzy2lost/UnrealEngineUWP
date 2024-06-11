@@ -10,6 +10,7 @@
 #include "StateTreeNodeBase.h"
 #include "Styling/AppStyle.h"
 #include "UObject/EnumProperty.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
 #include "StateTreePropertyRef.h"
 #include "StateTreePropertyRefHelpers.h"
@@ -17,6 +18,8 @@
 #include "IPropertyUtilities.h"
 #include "IDetailChildrenBuilder.h"
 #include "IStructureDataProvider.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "PropertyBagDetails.h"
 #include "StateTreeEditorNodeUtils.h"
 #include "StateTreeEditorModule.h"
 #include "StateTreeNodeClassCache.h"
@@ -27,7 +30,17 @@
 
 namespace UE::StateTree::PropertyBinding
 {
-	
+
+/** Information for the types gathered from a FStateTreePropertyRef property meta-data */
+struct FRefTypeInfo
+{
+	/** Display Name Text of the Ref Type */
+	FText TypeNameText;
+
+	/** Ref Type expressed as a Pin Type */
+	FEdGraphPinType PinType;
+};
+
 const FName StateTreeNodeIDName(TEXT("StateTreeNodeID"));
 const FName AllowAnyBindingName(TEXT("AllowAnyBinding"));
 
@@ -238,6 +251,118 @@ FText GetPropertyTypeText(const FProperty* Property)
 	return UEdGraphSchema_K2::GetCategoryText(PinType.PinCategory, NAME_None, true);
 }
 
+TSharedRef<SWidget> MakeContextStructWidget(const FStateTreeBindableStructDesc& InContextStruct)
+{
+	FEdGraphPinType PinType;
+
+	UStruct* Struct = const_cast<UStruct*>(InContextStruct.Struct.Get());
+
+	if (UClass* Class = Cast<UClass>(Struct))
+	{
+		PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+		PinType.PinSubCategory = NAME_None;
+		PinType.PinSubCategoryObject = Class;
+	}
+	else if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Struct))
+	{
+		PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+		PinType.PinSubCategory = NAME_None;
+		PinType.PinSubCategoryObject = ScriptStruct;
+	}
+
+	const FSlateBrush* Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
+	const FLinearColor IconColor = GetDefault<UEdGraphSchema_K2>()->GetPinTypeColor(PinType);
+
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			SNew(SSpacer)
+			.Size(FVector2D(18.0f, 0.0f))
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(1.0f, 0.0f)
+		[
+			SNew(SImage)
+			.Image(Icon)
+			.ColorAndOpacity(IconColor)
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(4.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromName(InContextStruct.Name))
+		];
+}
+
+TSharedRef<SWidget> MakeBindingPropertyInfoWidget(const FText& InDisplayText, const FEdGraphPinType& InPinType)
+{
+	const FSlateBrush* Icon = FBlueprintEditorUtils::GetIconFromPin(InPinType, /*bIsLarge*/true);
+	const FLinearColor IconColor = GetDefault<UEdGraphSchema_K2>()->GetPinTypeColor(InPinType);
+
+	return SNew(SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			SNew(SSpacer)
+			.Size(FVector2D(18.0f, 0.0f))
+		]
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(1.0f, 0.0f)
+		[
+			SNew(SImage)
+			.Image(Icon)
+			.ColorAndOpacity(IconColor)
+		]
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(4.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Text(InDisplayText)
+		];
+}
+	
+/** Helper struct to Begin/End Sections */
+struct FSectionHelper
+{
+	FSectionHelper(FMenuBuilder& MenuBuilder)
+		: MenuBuilder(MenuBuilder)
+	{
+	}
+	~FSectionHelper()
+	{
+		if (bSectionOpened)
+		{
+			MenuBuilder.EndSection();
+		}
+	}
+	void SetSection(const FText& InSection)
+	{
+		if (!InSection.IdenticalTo(CurrentSection))
+		{
+			if (bSectionOpened)
+			{
+				MenuBuilder.EndSection();
+			}
+			CurrentSection = InSection;
+			MenuBuilder.BeginSection(NAME_None, CurrentSection);
+			bSectionOpened = true;
+		}
+	}
+private:
+	FText CurrentSection;
+	FMenuBuilder& MenuBuilder;
+	bool bSectionOpened = false;
+};
+
 FOnStateTreePropertyBindingChanged STATETREEEDITORMODULE_API OnStateTreePropertyBindingChanged;
 
 struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
@@ -368,6 +493,173 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.Broadcast(SourcePath, TargetPath);
 	}
 
+	bool CanCreateParameter(const FStateTreeBindableStructDesc& InStructDesc, TArray<TSharedPtr<const FRefTypeInfo>>& OutRefTypeInfos) const
+	{
+		const FProperty* Property = PropertyHandle->GetProperty();
+		if (!Property)
+		{
+			return false;
+		}
+
+		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(WeakOwnerObject.Get());
+		if (!BindingOwner)
+		{
+			return false;
+		}
+
+		if (!BindingOwner->CanCreateParameter(InStructDesc.ID))
+		{
+			return false;
+		}
+
+		// Add the PropertyRef property type with its RefTypes
+		const FStructProperty* StructProperty = CastField<const FStructProperty>(Property);
+		if (StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FStateTreePropertyRef::StaticStruct()))
+		{
+			TArray<FEdGraphPinType, TInlineAllocator<1>> PinTypes;
+
+			const bool bCanTargetRefArray = PropertyHandle->HasMetaData(PropertyRefHelpers::CanRefToArrayName);
+
+			if (StructProperty->Struct->IsChildOf(FStateTreeBlueprintPropertyRef::StaticStruct()))
+			{
+				void* PropertyRefAddress = nullptr;
+				if (PropertyHandle->GetValueData(PropertyRefAddress) == FPropertyAccess::Result::Success)
+				{
+					check(PropertyRefAddress);
+					PinTypes.Add(PropertyRefHelpers::GetBlueprintPropertyRefInternalTypeAsPin(*static_cast<const FStateTreeBlueprintPropertyRef*>(PropertyRefAddress)));
+				}
+			}
+			else
+			{
+				PinTypes = PropertyRefHelpers::GetPropertyRefInternalTypesAsPins(*Property);
+			}
+
+			// If Property supports Arrays, add the Array version of these pin types
+			if (PropertyHandle->HasMetaData(PropertyRefHelpers::CanRefToArrayName))
+			{
+				const int32 PinTypeNum = PinTypes.Num();
+				for (int32 Index = 0; Index < PinTypeNum; ++Index)
+				{
+					const FEdGraphPinType& SourcePinType = PinTypes[Index];
+					if (!SourcePinType.IsArray())
+					{
+						FEdGraphPinType& PinType = PinTypes.Emplace_GetRef(SourcePinType);
+						PinType.ContainerType = EPinContainerType::Array;
+					}
+				}
+			}
+
+			const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+
+			for (const FEdGraphPinType& PinType : PinTypes)
+			{
+				TSharedRef<FRefTypeInfo> RefTypeInfo = MakeShared<FRefTypeInfo>();
+				RefTypeInfo->PinType = PinType;
+
+				FString TypeName;
+				if(UObject* SubCategoryObject = PinType.PinSubCategoryObject.Get()) 
+				{
+					TypeName = SubCategoryObject->GetName();
+				}
+				else
+				{
+					TypeName = PinType.PinCategory.ToString() + TEXT(" ") + PinType.PinSubCategory.ToString();
+				}
+
+				RefTypeInfo->TypeNameText = FText::FromString(TypeName);
+				OutRefTypeInfos.Emplace(MoveTemp(RefTypeInfo));
+			}
+		}
+
+		return true;
+	}
+
+	void PromoteToParameter(FName InPropertyName, FStateTreeBindableStructDesc InStructDesc, TSharedPtr<const FRefTypeInfo> InPropertyInfoOverride)
+	{
+		if (!TargetPath.GetStructID().IsValid())
+		{
+			return;
+		}
+		
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		if (!OwnerObject)
+		{
+			return;
+		}
+
+		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(OwnerObject);
+		if (!BindingOwner)
+		{
+			return;
+		}
+
+		const FProperty* Property = PropertyHandle->GetProperty();
+		if (!Property)
+		{
+			return;
+		}
+
+		const FProperty* TargetProperty = nullptr;
+		const void* TargetContainerAddress = nullptr;
+
+		FStateTreeDataView TargetDataView;
+		if (BindingOwner->GetDataViewByID(TargetPath.GetStructID(), TargetDataView) && TargetDataView.IsValid())
+		{
+			TArray<FStateTreePropertyPathIndirection> TargetIndirections;
+			if (ensure(TargetPath.ResolveIndirectionsWithValue(TargetDataView, TargetIndirections)))
+			{
+				const FStateTreePropertyPathIndirection& LastIndirection = TargetIndirections.Last();
+				TargetProperty = LastIndirection.GetProperty();
+				TargetContainerAddress = LastIndirection.GetContainerAddress();
+			}
+		}
+
+		FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
+		if (!EditorBindings)
+		{
+			return;
+		}
+
+		const FGuid StructID = InStructDesc.ID;
+
+		TArray<FStateTreeEditorPropertyCreationDesc, TFixedAllocator<1>> PropertyCreationDescs;
+		{
+			FStateTreeEditorPropertyCreationDesc& PropertyCreationDesc = PropertyCreationDescs.AddDefaulted_GetRef();
+
+			if (InPropertyInfoOverride)
+			{
+				PropertyCreationDesc.PropertyDesc.Name = InPropertyName;
+				UE::StructUtils::SetPropertyDescFromPin(PropertyCreationDesc.PropertyDesc, InPropertyInfoOverride->PinType);
+			}
+			else
+			{
+				PropertyCreationDesc.PropertyDesc = FPropertyBagPropertyDesc(InPropertyName, Property);
+			}
+
+			// Create desc based on the Target Property, but without the meta-data.
+			// This functionality mirrors the user action of adding a new property from the UI, where meta-data is not available.
+			// Additionally, meta-data like EditCondition is not desirable here
+			PropertyCreationDesc.PropertyDesc.MetaClass = nullptr;
+			PropertyCreationDesc.PropertyDesc.MetaData.Reset();
+
+			// Set the Property & Container Address to copy
+			if (TargetProperty && TargetContainerAddress)
+			{
+				PropertyCreationDesc.SourceProperty = TargetProperty;
+				PropertyCreationDesc.SourceContainerAddress = TargetContainerAddress;
+			}
+		}
+
+		OwnerObject->Modify();
+		BindingOwner->CreateParameters(StructID, /*InOut*/PropertyCreationDescs);
+
+		// Use the name in PropertyDescs, as it might contain a different name than the desired InPropertyName (for uniquness)
+		FStateTreePropertyPath SourcePath(StructID, PropertyCreationDescs[0].PropertyDesc.Name);
+		EditorBindings->AddPropertyBinding(SourcePath, TargetPath);
+
+		UpdateData();
+		UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.Broadcast(SourcePath, TargetPath);
+	}
 
 	void UpdateData()
 	{
@@ -1335,10 +1627,118 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 	Args.bAllowArrayElementBindings = false;
 	Args.bAllowUObjectFunctions = false;
 
+	if (CanPromoteToParameter(InPropertyHandle))
+	{
+		Args.MenuExtender = MakeShared<FExtender>();
+		Args.MenuExtender->AddMenuExtension(
+			TEXT("BindingActions"),
+			EExtensionHook::After,
+			nullptr,
+			FMenuExtensionDelegate::CreateLambda([CachedBindingData, AccessibleStructs = MoveTemp(AccessibleStructs), InPropertyHandle](FMenuBuilder& MenuBuilder)
+			{
+				MenuBuilder.AddSubMenu(
+					LOCTEXT("PromoteToParameter", "Promote to Parameter"),
+					LOCTEXT("PromoteToParameterTooltip", "Create a new parameter of the same type as the property, copy value over, and bind the property to the new parameter."),
+					FNewMenuDelegate::CreateLambda([&CachedBindingData, &AccessibleStructs, &InPropertyHandle](FMenuBuilder& InMenuBuilder)
+					{
+						using namespace UE::StateTree::PropertyBinding;
+
+						const FProperty* Property = InPropertyHandle->GetProperty();
+						check(Property);
+						const FName PropertyName = Property->GetFName();
+
+						TSharedRef<FCachedBindingData> CachedBindingDataRef = CachedBindingData.ToSharedRef();
+
+						FSectionHelper SectionHelper(InMenuBuilder);
+						for (const FStateTreeBindableStructDesc& ContextStruct : AccessibleStructs)
+						{
+							TArray<TSharedPtr<const FRefTypeInfo>> RefTypeInfos;
+							if (CachedBindingData->CanCreateParameter(ContextStruct, /*out*/RefTypeInfos))
+							{
+								SectionHelper.SetSection(FText::FromString(ContextStruct.StatePath));
+
+								if (RefTypeInfos.IsEmpty())
+								{
+									InMenuBuilder.AddMenuEntry(FExecuteAction::CreateSP(CachedBindingDataRef, &FCachedBindingData::PromoteToParameter, PropertyName, ContextStruct, TSharedPtr<const FRefTypeInfo>()),
+										MakeContextStructWidget(ContextStruct));
+								}
+								else
+								{
+									InMenuBuilder.AddSubMenu(MakeContextStructWidget(ContextStruct),
+										FNewMenuDelegate::CreateLambda([&CachedBindingDataRef, PropertyName, &ContextStruct, RefTypeInfos = MoveTemp(RefTypeInfos)](FMenuBuilder& InSubMenuBuilder)
+										{
+											FSectionHelper SectionHelper(InSubMenuBuilder);
+											SectionHelper.SetSection(LOCTEXT("RefTypeParams", "Reference Types"));
+											for (const TSharedPtr<const FRefTypeInfo>& RefTypeInfo : RefTypeInfos)
+											{
+												InSubMenuBuilder.AddMenuEntry(FExecuteAction::CreateSP(CachedBindingDataRef, &FCachedBindingData::PromoteToParameter, PropertyName, ContextStruct, RefTypeInfo),
+													MakeBindingPropertyInfoWidget(RefTypeInfo->TypeNameText, RefTypeInfo->PinType));
+											}
+										}));
+								}
+							}
+						}
+					})
+				);
+			})
+		);
+	}
+
 	InWidgetRow.ExtensionContent()
 	[
 		PropertyAccessEditor.MakePropertyBindingWidget(BindingContextStructs, Args)
 	];
+}
+
+bool FStateTreeBindingExtension::CanPromoteToParameter(const TSharedPtr<IPropertyHandle>& InPropertyHandle) const
+{
+	const FProperty* Property = InPropertyHandle->GetProperty();
+	if (!Property)
+	{
+		return false;
+	}
+
+	// Property Bag picker only detects Blueprint Types, so only allow properties that are blueprint types
+	// FPropertyBagInstanceDataDetails::OnPropertyNameContent uses SPinTypeSelector to generate the property type picker.
+	// UEdGraphSchema_K2::GetVariableTypeTree (GatherPinsImpl: FindEnums, FindStructs, FindObjectsAndInterfaces) is used there which only allows bp types.
+	// The below behavior mirrors the behavior in the pin gathering but for properties
+
+	if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		if (!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(EnumProperty->GetEnum()))
+		{
+			return false;
+		}
+	}
+	else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		// Support Property Refs as even though these aren't bp types, the actual types that would be added are the ones in the meta-data RefType
+		if (StructProperty->Struct && StructProperty->Struct->IsChildOf(FStateTreePropertyRef::StaticStruct()))
+		{
+			return true;
+		}
+
+		if (!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(StructProperty->Struct))
+		{
+			return false;
+		}
+	}
+	else if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+	{
+		if (!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(ObjectProperty->PropertyClass))
+		{
+			return false;
+		}
+	}
+	else if (const FInterfaceProperty* InterfaceProperty = CastField<FInterfaceProperty>(Property))
+	{
+		if (!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(InterfaceProperty->InterfaceClass))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 void FStateTreeBindingsChildrenCustomization::CustomizeChildren(IDetailChildrenBuilder& ChildrenBuilder, TSharedPtr<IPropertyHandle> InPropertyHandle)

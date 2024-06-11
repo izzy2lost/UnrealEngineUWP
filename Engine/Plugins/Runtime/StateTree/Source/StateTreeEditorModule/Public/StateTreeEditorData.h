@@ -74,6 +74,8 @@ public:
 
 	virtual EStateTreeVisitor EnumerateBindablePropertyFunctionNodes(TFunctionRef<EStateTreeVisitor(const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
+	virtual bool CanCreateParameter(const FGuid StructID) const override;
+	virtual void CreateParameters(const FGuid StructID, TArrayView<FStateTreeEditorPropertyCreationDesc> InOutCreationDescs) override;
 	// ~IStateTreeEditorPropertyBindingsOwner
 
 	/**

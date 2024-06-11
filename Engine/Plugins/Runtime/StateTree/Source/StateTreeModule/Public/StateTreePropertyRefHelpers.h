@@ -57,6 +57,12 @@ namespace UE::StateTree::PropertyRefHelpers
 
 	/**
 	 * @param RefProperty Property of PropertyRef type
+	 * @return PinTypes for PropertyRef's internal types
+	 */
+	TArray<FEdGraphPinType, TInlineAllocator<1>> STATETREEMODULE_API GetPropertyRefInternalTypesAsPins(const FProperty& RefProperty);
+
+	/**
+	 * @param RefProperty Property of PropertyRef type
 	 * @param PropertyRefAddress Address of PropertyRef.
 	 * @return PinType for PropertyRef's internal type
 	 */

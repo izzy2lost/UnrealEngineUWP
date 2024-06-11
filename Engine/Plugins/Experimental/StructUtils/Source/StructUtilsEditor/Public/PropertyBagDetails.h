@@ -17,6 +17,11 @@ class IDetailPropertyRow;
 class SInlineEditableTextBlock;
 class SWidget;
 
+namespace UE::StructUtils
+{
+	STRUCTUTILSEDITOR_API void SetPropertyDescFromPin(FPropertyBagPropertyDesc& Desc, const FEdGraphPinType& PinType);
+}
+
 /**
  * Type customization for FInstancedPropertyBag.
  */
