@@ -676,7 +676,7 @@ void AddPostProcessingPasses(
 
 		for (int32 ViewExt = 0; ViewExt < View.Family->ViewExtensions.Num(); ++ViewExt)
 		{
-			View.Family->ViewExtensions[ViewExt]->SubscribeToPostProcessingPass(ISceneViewExtension::EPostProcessingPass::SSRInput, SSRInputDelegates, true);
+			View.Family->ViewExtensions[ViewExt]->SubscribeToPostProcessingPass(ISceneViewExtension::EPostProcessingPass::SSRInput, View, SSRInputDelegates, true);
 
 			for (int32 SceneViewPassId = static_cast<int32>(ISceneViewExtension::EPostProcessingPass::MotionBlur); SceneViewPassId != static_cast<int32>(ISceneViewExtension::EPostProcessingPass::MAX); SceneViewPassId++)
 			{
@@ -685,6 +685,7 @@ void AddPostProcessingPasses(
 
 				View.Family->ViewExtensions[ViewExt]->SubscribeToPostProcessingPass(
 					SceneViewPass,
+					View,
 					PassSequence.GetAfterPassCallbacks(PostProcessingPass),
 					PassSequence.IsEnabled(PostProcessingPass));
 			}

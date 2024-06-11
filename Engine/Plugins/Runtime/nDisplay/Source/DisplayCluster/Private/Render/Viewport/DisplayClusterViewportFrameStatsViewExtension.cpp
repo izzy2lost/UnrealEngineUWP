@@ -81,7 +81,7 @@ FDisplayClusterViewportFrameStatsViewExtension::FDisplayClusterViewportFrameStat
 	, Configuration(InConfiguration)
 { }
 
-void FDisplayClusterViewportFrameStatsViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+void FDisplayClusterViewportFrameStatsViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 {
 	if (IsActive() && PassId == EPostProcessingPass::Tonemap)
 	{
