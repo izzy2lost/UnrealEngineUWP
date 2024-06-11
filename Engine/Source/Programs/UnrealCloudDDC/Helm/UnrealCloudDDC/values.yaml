@@ -42,8 +42,7 @@ env: []
 ## Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
 ##
-securityContext:
-  enabled: false
+securityContext: {}
 
 ## Pod annotations
 ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -169,6 +168,37 @@ persistence:
   ## Persistent Volume Claim annotations
   ##
   annotations: {}
+
+
+autoscaling:
+  ## Horizontal Pod Autoscaler configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+  ##
+  hpa:
+    ## Annotations for HPA resource
+    ##
+    annotations: {}
+    ## Enable HPA
+    ##
+    enabled: false
+    ## Min replicas
+    ##
+    minReplicas: 2
+    ## Max replicas
+    ##
+    maxReplicas: 4
+    ## Target CPU utilization percentage
+    ##
+    targetCPUUtilizationPercentage: 75
+    ## Target Memory utilization percentage
+    ##
+    targetMemoryUtilizationPercentage: ""
+    ## Custom rules
+    ##
+    customRules: []
+    ## HPA Behavior
+    ##
+    behavior: {}
 
 ## Service properties
 ##
