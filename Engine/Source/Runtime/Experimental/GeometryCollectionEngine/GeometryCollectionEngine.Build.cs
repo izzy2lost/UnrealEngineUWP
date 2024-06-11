@@ -7,6 +7,7 @@ namespace UnrealBuildTool.Rules
         public GeometryCollectionEngine(ReadOnlyTargetRules Target) : base(Target)
 		{
 			SetupModulePhysicsSupport(Target);
+			SetupIrisSupport(Target);
 
 			PublicDependencyModuleNames.AddRange(
 				new string[]

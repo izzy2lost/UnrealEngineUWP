@@ -80,6 +80,10 @@
 #include "Misc/UObjectToken.h"
 #endif //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
+#if UE_WITH_IRIS
+#include "Iris/ReplicationState/PropertyNetSerializerInfoRegistry.h"
+#endif
+
 #if INTEL_ISPC
 
 #if USING_CODE_ANALYSIS
@@ -239,6 +243,10 @@ bool FGeometryCollectionRepData::HasChanged(const FGeometryCollectionRepData& Ba
 	return false;
 }
 
+#if UE_WITH_IRIS
+UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(GeometryCollectionRepData);
+#endif //  UE_WITH_IRIS
+
 bool FGeometryCollectionRepData::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	bOutSuccess = true;
@@ -322,6 +330,10 @@ bool  FGeometryCollectionRepStateData::HasChanged(const FGeometryCollectionRepSt
 	// We are not using the ReleasedData to check if something has changed since this array is fully controlled by the brokenstate one
 	return (Version == 0) || (BrokenState != BaseData.BrokenState) || (bIsRootAnchored != BaseData.bIsRootAnchored);
 }
+
+#if UE_WITH_IRIS
+UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(GeometryCollectionRepStateData);
+#endif //  UE_WITH_IRIS
 
 bool FGeometryCollectionRepStateData::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
@@ -417,6 +429,10 @@ bool FGeometryCollectionRepDynamicData::HasChanged(const FGeometryCollectionRepD
 	}
 	return false;
 }
+
+#if UE_WITH_IRIS
+UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(GeometryCollectionRepDynamicData);
+#endif //  UE_WITH_IRIS
 
 bool FGeometryCollectionRepDynamicData::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
