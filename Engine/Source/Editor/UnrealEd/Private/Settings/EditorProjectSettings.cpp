@@ -180,8 +180,13 @@ void UEditorProjectAppearanceSettings::PostInitProperties()
 	Settings.SetDisplayUnits(EUnitType::Time, TimeUnits);
 	Settings.SetDisplayUnits(EUnitType::Angle, AngleUnits);
 	Settings.SetDisplayUnits(EUnitType::Speed, SpeedUnits);
+	Settings.SetDisplayUnits(EUnitType::AngularSpeed, AngularSpeedUnits);
+	Settings.SetDisplayUnits(EUnitType::Acceleration, AccelerationUnits);
 	Settings.SetDisplayUnits(EUnitType::Temperature, TemperatureUnits);
 	Settings.SetDisplayUnits(EUnitType::Force, ForceUnits);
+	Settings.SetDisplayUnits(EUnitType::Torque, TorqueUnits);
+	Settings.SetDisplayUnits(EUnitType::Impulse, ImpulseUnits);
+	Settings.SetDisplayUnits(EUnitType::PositionalImpulse, PositionalImpulseUnits);
 
 	Settings.SetShouldDisplayUnits(bDisplayUnits);
 }
