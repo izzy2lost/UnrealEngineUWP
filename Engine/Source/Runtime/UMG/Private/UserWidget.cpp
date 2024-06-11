@@ -2509,9 +2509,12 @@ UUserWidgetExtension* UUserWidget::GetExtension(TSubclassOf<UUserWidgetExtension
 {
 	for (UUserWidgetExtension* Extension : Extensions)
 	{
-		if (Extension->IsA(InExtensionType))
+		if (ensure(Extension))
 		{
-			return Extension;
+			if (Extension->IsA(InExtensionType))
+			{
+				return Extension;
+			}
 		}
 	}
 	return nullptr;
