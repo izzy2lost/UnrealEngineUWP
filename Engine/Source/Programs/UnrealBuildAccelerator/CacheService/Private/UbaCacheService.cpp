@@ -2,6 +2,7 @@
 
 #include "UbaCacheServer.h"
 #include "UbaFile.h"
+#include "UbaHttpServer.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaNetworkServer.h"
 #include "UbaPlatform.h"
@@ -47,6 +48,7 @@ namespace uba
 		logger.Info(TC("  -port=[<host>:]<port>   The ip/name and port (default: %u) to listen for clients on"), DefaultCachePort);
 		logger.Info(TC("  -capacity=<gigaby>      Capacity of local store. Defaults to %u gigabytes"), DefaultCapacityGb);
 		logger.Info(TC("  -expiration=<seconds>   Time until unused cache entries get deleted. Defaults to %s (%u seconds)"), TimeToText(MsToTime(DefaultExpiration*1000)).str, DefaultExpiration);
+		logger.Info(TC("  -http=<port>            If set, a http server will be started and listen on <port>"));
 		logger.Info(TC(""));
 		return -1;
 	}
@@ -115,6 +117,7 @@ namespace uba
 		StringBuffer<256> workDir;
 		StringBuffer<128> listenIp;
 		u16 port = DefaultCachePort;
+		u16 httpPort = 0;
 		bool quiet = false;
 		bool storeCompressed = true;
 		u32 expirationTimeSeconds = DefaultExpiration;
@@ -165,6 +168,11 @@ namespace uba
 			{
 				if (!value.Parse(expirationTimeSeconds))
 					return PrintHelp(TC("Invalid value for -expire"));
+			}
+			else if (name.Equals(TC("-http")))
+			{
+				if (!value.Parse(httpPort))
+					httpPort = 80;
 			}
 			else if (name.Equals(TC("-?")))
 			{
@@ -244,6 +252,32 @@ namespace uba
 
 		if (!cacheServer.RunMaintenance(true, ShouldExit))
 			return -1;
+
+		HttpServer httpServer(logWriter, networkBackend);
+
+		if (httpPort)
+		{
+			httpServer.AddCommandHandler([&](const tchar* command, tchar* arguments)
+				{
+					if (!Equals(command, TC("addcrypto")))
+						return "Unknown command ('addcrypto' only available)";
+					u64 expirationSeconds = 60;
+					if (tchar* comma  = TStrchr(arguments, ','))
+					{
+						*comma = 0;
+						if (!Parse(expirationSeconds, comma+1, TStrlen(comma+1)))
+							return "Failed to parse expiration seconds";
+					}
+
+					u8 crypto128Data[16];
+					if (!CryptoFromString(crypto128Data, 16, arguments))
+						return "Failed to read crypto argument";
+					u64 expirationTime = GetTime() + MsToTime(expirationSeconds*1000);
+					networkServer.RegisterCryptoKey(crypto128Data, expirationTime);
+					return (const char*)nullptr;
+				});
+			httpServer.StartListen(httpPort);
+		}
 
 		{
 			auto stopListen = MakeGuard([&]() { networkBackend.StopListen(); });

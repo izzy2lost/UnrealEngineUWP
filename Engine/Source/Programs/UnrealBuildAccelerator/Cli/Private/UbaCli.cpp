@@ -80,6 +80,7 @@ namespace uba
 		logger.Info(TC("   -storeraw               Disable compression of storage. This will use more storage and might improve performance"));
 		logger.Info(TC("   -maxcpu=<number>        Max number of processes that can be started. Defaults to \"%u\" on this machine"), DefaultProcessorCount);
 		logger.Info(TC("   -visualizer             Spawn a visualizer that visualizes progress"));
+		logger.Info(TC("   -crypto=<32chars>       Will enable crypto on network client/server"));
 		logger.Info(TC("   -coordinator=<name>     Load a UbaCoordinator<name>.dll to instantiate a coordinator to get helpers"));
 		logger.Info(TC("   -cache=<host>[:<port>]  Connect to cache server. Will fetch from cache unless -populatecache is set"));
 		logger.Info(TC("   -populatecache          Populate cache server if connected to one"));
@@ -153,6 +154,7 @@ namespace uba
 		StringBuffer<256> workDir;
 		StringBuffer<128> listenIp;
 		StringBuffer<128> cacheHost;
+		TString crypto;
 		TString coordinatorName;
 		TString coordinatorPool;
 		u32 coordinatorMaxCoreCount = 400;
@@ -242,6 +244,12 @@ namespace uba
 			else if (IsWindows && name.Equals(TC("-visualizer")))
 			{
 				launchVisualizer = true;
+			}
+			else if (name.Equals(TC("-crypto")))
+			{
+				if (value.IsEmpty())
+					value.Append(TC("0123456789abcdef0123456789abcdef"));
+				crypto = value.data;
 			}
 			else if (name.Equals(TC("-coordinator")))
 			{
@@ -572,6 +580,16 @@ namespace uba
 		auto destroyServer = MakeGuard([&]() { delete &networkServer; });
 		if (!ctorSuccess)
 			return -1;
+
+		if (!crypto.empty())
+		{
+			u8 crypto128Data[16];
+			if (!CryptoFromString(crypto128Data, 16, crypto.c_str()))
+				return logger.Error(TC("Failed to parse crypto key %s"), crypto.c_str());
+			networkServer.RegisterCryptoKey(crypto128Data);
+			logger.Info(TC("Using crypto key %s for connections"), crypto.c_str());
+		}
+
 
 		bool isRemote = commandType == CommandType_Remote || commandType == CommandType_Agent;
 		bool useScheduler = EndsWith(application.c_str(), application.size(), TC(".yaml"));

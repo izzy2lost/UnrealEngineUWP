@@ -50,6 +50,7 @@ namespace uba
 		// Disconnect callback. This is called as soon as connection is interrupted from send, recv or shutdown.
 		using DisconnectCallback = void(void* context, const Guid& connectionUid, void* connection);
 		virtual void SetDisconnectCallback(void* connection, void* context, DisconnectCallback* callback) = 0;
+		virtual void SetAllowLessThanBodySize(void* connection, bool allow) = 0;
 
 		// Start listen on port/ip.
 		using ListenConnectedFunc = Function<bool(void* connection, const sockaddr& remoteSocketAddr)>;

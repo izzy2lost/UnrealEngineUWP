@@ -47,9 +47,11 @@ namespace uba
 		NetworkServer(bool& outCtorSuccess, const NetworkServerCreateInfo& info = {}, const tchar* name = TC("UbaServer"));
 		virtual ~NetworkServer();
 
-		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort, const tchar* ip = nullptr, const u8* cryptoKey128 = nullptr); // Start listen for new connections/clients
+		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort, const tchar* ip = nullptr, bool requiresCrypto = false); // Start listen for new connections/clients
 		void DisallowNewClients();	// Disallow new clients to connect but old clients can still create more connections
 		void DisconnectClients();				// Stops all listen and disconnect all active connections
+
+		bool RegisterCryptoKey(const u8* cryptoKey128, u64 expirationTime = ~u64(0));
 
 		bool AddClient(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, const u8* cryptoKey128 = nullptr); // Adds a client that server will create one or more connections to (note this will return before we know if it was a success or not)
 
@@ -106,13 +108,20 @@ namespace uba
 		void FlushWorkers();
 
 		bool HandleSystemMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
-		bool AddConnection(NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSocketAddr, CryptoKey cryptoKey);
+		bool AddConnection(NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSocketAddr, bool requiresCrypto, CryptoKey cryptoKey);
 
 		void RemoveDisconnectedConnections();
 
 		MutableLogger m_logger;
 
-		CryptoKey m_listenCrypto = InvalidCryptoKey;
+		struct CryptoEntry
+		{
+			CryptoKey key;
+			u64 expirationTime;
+		};
+		ReaderWriterLock m_cryptoKeysLock;
+		List<CryptoEntry> m_cryptoKeys;
+
 		Guid m_uid;
 		bool m_allowNewClients = true;
 

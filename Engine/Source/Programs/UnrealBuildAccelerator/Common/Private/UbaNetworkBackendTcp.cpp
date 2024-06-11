@@ -84,6 +84,8 @@ namespace uba
 
 		Thread recvThread;
 
+		bool allowLess = false;
+
 		Connection(const Connection&) = delete;
 		void operator=(const Connection&) = delete;
 	};
@@ -93,7 +95,7 @@ namespace uba
 	bool DisableNagle(Logger& logger, SOCKET socket);
 	bool EnableFastLoopback(Logger& logger, SOCKET socket);
 	bool SendSocket(Logger& logger, SOCKET socket, const void* b, u64 bufferLen);
-	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32 bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall);
+	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32& bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall, bool allowLess);
 
 	bool NetworkBackendTcp::EnsureInitialized(Logger& logger)
 	{
@@ -226,6 +228,13 @@ namespace uba
 		ScopedCriticalSection lock(conn.shutdownLock);
 		conn.disconnectCallback = callback;
 		conn.disconnectContext = context;
+	}
+
+	void NetworkBackendTcp::SetAllowLessThanBodySize(void* connection, bool allow)
+	{
+		auto& conn = *(Connection*)connection;
+		ScopedCriticalSection lock(conn.shutdownLock);
+		conn.allowLess = allow;
 	}
 
 	bool NetworkBackendTcp::StartListen(Logger& logger, u16 port, const tchar* ip, const ListenConnectedFunc& connectedFunc)
@@ -444,7 +453,7 @@ namespace uba
 				u32 bodySize = 0;
 
 				u8 headerData[MaxHeaderSize];
-				if (!RecvSocket(logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC(""), isFirst))
+				if (!RecvSocket(logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC(""), isFirst, false))
 					break;
 				isFirst = false;
 
@@ -462,7 +471,7 @@ namespace uba
 				if (!bodySize)
 					continue;
 
-				bool success = RecvSocket(logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC("Body"), false);
+				bool success = RecvSocket(logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC("Body"), false, connection.allowLess);
 
 				m_totalRecv += bodySize;
 
@@ -772,7 +781,7 @@ namespace uba
 		return true;
 	}
 
-	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32 bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall)
+	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32& bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall, bool allowLess)
 	{
 		u8* buffer = (u8*)b;
 		u32 recvLeft = bufferLen;
@@ -827,6 +836,12 @@ namespace uba
 			}
 			recvLeft -= (u32)read;
 			buffer += read;
+
+			if (allowLess)
+			{
+				bufferLen = read;
+				break;
+			}
 		}
 		return true;
 	}

@@ -174,17 +174,21 @@ extern "C"
 	bool NetworkServer_StartListen(uba::NetworkServer* server, int port, const uba::tchar* ip, const uba::tchar* crypto)
 	{
 		using namespace uba;
-		u8 crypto128Data[16];
-		u8* crypto128 = nullptr;
-		if (crypto && *crypto)
-		{
-			((u64*)crypto128Data)[0] = StringToValue(crypto, 16);
-			((u64*)crypto128Data)[1] = StringToValue(crypto + 16, 16);
-			crypto128 = crypto128Data;
-		}
 
 		auto s = (NetworkServerWithBackend*)server;
-		return s->StartListen(*s->backend, u16(port), ip, crypto128);
+
+		bool requiresCrypto = false;
+		if (crypto && *crypto)
+		{
+			//server->GetLogger().Error(TC("CRYPTO: %s"), crypto);
+			u8 crypto128Data[16];
+			if (!CryptoFromString(crypto128Data, 16, crypto))
+				return server->GetLogger().Error(TC("Failed to parse crypto key %s"), crypto);
+			s->RegisterCryptoKey(crypto128Data);
+			requiresCrypto = true;
+		}
+
+		return s->StartListen(*s->backend, u16(port), ip, requiresCrypto);
 	}
 
 	void NetworkServer_Stop(uba::NetworkServer* server)
@@ -201,12 +205,8 @@ extern "C"
 		using namespace uba;
 		u8 crypto128Data[16];
 		u8* crypto128 = nullptr;
-		if (crypto && *crypto)
-		{
-			((u64*)crypto128Data)[0] = StringToValue(crypto, 16);
-			((u64*)crypto128Data)[1] = StringToValue(crypto + 16, 16);
+		if (CryptoFromString(crypto128Data, 16, crypto))
 			crypto128 = crypto128Data;
-		}
 
 		auto s = (NetworkServerWithBackend*)server;
 		return s->AddClient(*s->backend, ip, u16(port), crypto128);
@@ -530,15 +530,28 @@ extern "C"
 		scheduler->GetStats(outQueued, outActiveLocal, outActiveRemote, outFinished);
 	}
 
-	uba::CacheClient* CacheClient_Create(uba::SessionServer* session, bool reportMissReason)
+	uba::CacheClient* CacheClient_Create(uba::SessionServer* session, bool reportMissReason, const uba::tchar* crypto)
 	{
 		using namespace uba;
 		LogWriter& writer = session->GetLogWriter();
 		StorageImpl& storage = (StorageImpl&)session->GetStorage();
 		auto& server = (NetworkServerWithBackend&)session->GetServer();
 
+		u8 crypto128Data[16];
+		u8* crypto128 = nullptr;
+		if (crypto && *crypto)
+		{
+			if (!CryptoFromString(crypto128Data, 16, crypto))
+			{
+				LoggerWithWriter(writer, TC("UbaCacheClient")).Error(TC("Failed to parse crypto key %s"), crypto);
+				return nullptr;
+			}
+			crypto128 = crypto128Data;
+		}
+
 		NetworkClientCreateInfo ncci(writer);
 		ncci.receiveTimeoutSeconds = 60;
+		ncci.cryptoKey128 = crypto128;
 		bool ctorSuccess = false;
 		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, server.backend);
 		if (!ctorSuccess)

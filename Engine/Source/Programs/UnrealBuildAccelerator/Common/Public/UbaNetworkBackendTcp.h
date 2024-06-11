@@ -19,6 +19,7 @@ namespace uba
 		virtual void SetRecvCallbacks(void* connection, void* context, u32 headerSize, RecvHeaderCallback* h, RecvBodyCallback* b, const tchar* recvHint) override;
 		virtual void SetRecvTimeout(void* connection, u32 timeoutMs) override;
 		virtual void SetDisconnectCallback(void* connection, void* context, DisconnectCallback* callback) override;
+		virtual void SetAllowLessThanBodySize(void* connection, bool allow) override;
 
 		virtual bool StartListen(Logger& logger, u16 port, const tchar* ip, const ListenConnectedFunc& connectedFunc) override;
 		virtual void StopListen() override;
