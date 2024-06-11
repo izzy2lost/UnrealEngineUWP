@@ -269,7 +269,7 @@ FBuiltStructPtr SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveCo
 	FMemberBuilder Out;
 	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
 	{
-		Custom->SaveStruct(Out, Struct, nullptr, Ctx.Declarations.GetDebug());
+		Custom->SaveStruct(Out, Struct, nullptr, Ctx);
 	}
 	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )
 	{
@@ -485,7 +485,7 @@ FBuiltStructPtr SaveStructDelta(const void* Struct, const void* Default, FStruct
 	{
 		if (Custom->DiffStruct(Struct, Default))
 		{
-			Custom->SaveStruct(Out, Struct, Default, Ctx.Declarations.GetDebug());
+			Custom->SaveStruct(Out, Struct, Default, Ctx);
 		}
 	}
 	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )

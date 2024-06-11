@@ -7,7 +7,7 @@
 namespace PlainProps::UE
 {
 
-void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default) const
+void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const
 {
 	static_assert(std::is_same_v<decltype(FTransform().GetTranslation().X), double>);
 
@@ -19,38 +19,38 @@ void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const F
 	{
 		if (T != Default->GetTranslation())
 		{
-			Dst.Add(MemberIds.Translate[0], T.X);
-			Dst.Add(MemberIds.Translate[1], T.Y);
-			Dst.Add(MemberIds.Translate[2], T.Z);
+			Dst.Add(MemberIds[(uint8)EMember::TranslateX], T.X);
+			Dst.Add(MemberIds[(uint8)EMember::TranslateY], T.Y);
+			Dst.Add(MemberIds[(uint8)EMember::TranslateZ], T.Z);
 		}
 
 		if (R != Default->GetRotation())
 		{
-			Dst.Add(MemberIds.Rotate[0], R.X);
-			Dst.Add(MemberIds.Rotate[1], R.Y);
-			Dst.Add(MemberIds.Rotate[2], R.Z);
-			Dst.Add(MemberIds.Rotate[3], R.W);
+			Dst.Add(MemberIds[(uint8)EMember::RotateX], R.X);
+			Dst.Add(MemberIds[(uint8)EMember::RotateY], R.Y);
+			Dst.Add(MemberIds[(uint8)EMember::RotateZ], R.Z);
+			Dst.Add(MemberIds[(uint8)EMember::RotateW], R.W);
 		}
 
 		if (S != Default->GetScale3D())
 		{
-			Dst.Add(MemberIds.Scale[0], S.X);
-			Dst.Add(MemberIds.Scale[1], S.Y);
-			Dst.Add(MemberIds.Scale[2], S.Z);
+			Dst.Add(MemberIds[(uint8)EMember::ScaleX], S.X);
+			Dst.Add(MemberIds[(uint8)EMember::ScaleY], S.Y);
+			Dst.Add(MemberIds[(uint8)EMember::ScaleZ], S.Z);
 		}
 	}
 	else
 	{
-		Dst.Add(MemberIds.Translate[0],	T.X);
-		Dst.Add(MemberIds.Translate[1],	T.Y);
-		Dst.Add(MemberIds.Translate[2],	T.Z);
-		Dst.Add(MemberIds.Rotate[0],		R.X);
-		Dst.Add(MemberIds.Rotate[1],		R.Y);
-		Dst.Add(MemberIds.Rotate[2],		R.Z);
-		Dst.Add(MemberIds.Rotate[3],		R.W);
-		Dst.Add(MemberIds.Scale[0],		S.X);
-		Dst.Add(MemberIds.Scale[1],		S.Y);
-		Dst.Add(MemberIds.Scale[2],		S.Z);
+		Dst.Add(MemberIds[(uint8)EMember::TranslateX],	T.X);
+		Dst.Add(MemberIds[(uint8)EMember::TranslateY],	T.Y);
+		Dst.Add(MemberIds[(uint8)EMember::TranslateZ],	T.Z);
+		Dst.Add(MemberIds[(uint8)EMember::RotateX], R.X);
+		Dst.Add(MemberIds[(uint8)EMember::RotateY], R.Y);
+		Dst.Add(MemberIds[(uint8)EMember::RotateZ], R.Z);
+		Dst.Add(MemberIds[(uint8)EMember::RotateW], R.W);
+		Dst.Add(MemberIds[(uint8)EMember::ScaleX],	S.X);
+		Dst.Add(MemberIds[(uint8)EMember::ScaleY],	S.Y);
+		Dst.Add(MemberIds[(uint8)EMember::ScaleZ],	S.Z);
 	}
 }
 
@@ -70,7 +70,7 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		return;
 	}
 
-	if (Members.PeekNameUnchecked() == MemberIds.Translate[0])
+	if (Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::TranslateX])
 	{
 		FVector Translation;
 		Members.GrabLeaves(&Translation.X, 3);
@@ -82,7 +82,7 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		}
 	}
 
-	if (Members.PeekNameUnchecked() == MemberIds.Rotate[0])
+	if (Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::RotateX])
 	{
 		FQuat Rotation;
 		Members.GrabLeaves(&Rotation.X, 4);
@@ -94,16 +94,11 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		}
 	}
 
-	checkSlow(Members.PeekNameUnchecked() == MemberIds.Scale[0]);
+	checkSlow(Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::ScaleX]);
 	FVector Scale;
 	Members.GrabLeaves(&Scale.X, 3);
 	Dst.SetScale3D(Scale);
 	checkSlow(!Members.HasMore());
-}
-
-bool FTransformBinding::DiffStruct(const void* StructA, const void* StructB) const
-{
-	return !static_cast<const FTransform*>(StructA)->Equals(*static_cast<const FTransform*>(StructB), 0.0);
 }
 
 } // namespace PlainProps::UE

@@ -3,12 +3,25 @@
 #pragma once
 
 #include "Containers/Set.h"
-#include "Math/MathFwd.h"
+#include "Math/Quat.h"
+#include "Math/Vector.h"
+#include "Math/Transform.h"
 #include "PlainPropsBind.h"
 #include "PlainPropsLoad.h"
 #include "PlainPropsRead.h"
 #include "PlainPropsIndex.h"
 #include "UObject/NameTypes.h"
+
+
+PP_NAME_STRUCT(, FName);
+
+namespace UE::Math
+{
+PP_REFLECT_STRUCT(, FVector, void, X, Y, Z);
+PP_REFLECT_STRUCT(, FVector4, void, X, Y, Z, W);
+PP_REFLECT_STRUCT(, FQuat, void, X, Y, Z, W);
+PP_NAME_STRUCT(, FTransform);
+}
 
 
 namespace PlainProps::UE
@@ -344,66 +357,44 @@ struct TSetBinding : public IItemRangeBinding
 
 //////////////////////////////////////////////////////////////////////////
 
-struct FTransformIds
-{
-	FMemberId Translate[3];
-	FMemberId Rotate[4];
-	FMemberId Scale[3];
-
-	TConstArrayView<FMemberId> GetAll() const
-	{
-		static_assert(offsetof(FTransformIds, Rotate)	== offsetof(FTransformIds, Translate) + sizeof(Translate));
-		static_assert(offsetof(FTransformIds, Scale)	== offsetof(FTransformIds, Rotate) + sizeof(Rotate));
-		return MakeArrayView(&Translate[0], 3 + 4 + 3);
-	}
-	
-	template<class Ids>	
-	static const FTransformIds& Get()
-	{
-		static FTransformIds Out = {	//Ids::IndexMember("Mask"),
-			{ Ids::IndexMember("TranslateX"), Ids::IndexMember("TranslateY"), Ids::IndexMember("TranslateZ") },
-			{ Ids::IndexMember("RotateX"), Ids::IndexMember("RotateY"),	Ids::IndexMember("RotateZ"), Ids::IndexMember("RotateW") },
-			{ Ids::IndexMember("ScaleX"), Ids::IndexMember("ScaleY"), Ids::IndexMember("ScaleZ") }};
-
-		return Out;
-	}
-};
-
+//TODO: macroify, e.g PP_CUSTOM_BIND(PLAINPROPS_API, FTransform, Transform, Translate, Rotate, Scale)
 struct FTransformBinding : public ICustomBinding
 {
 	using Type = FTransform;
-	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
+	inline static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
+	//inline static constexpr uint8 NumMembers = 3;
+	//enum class EMember : uint8 { Translate, Rotate, Scale };
+	//FMemberId MemberIds[3];
+	//FStructSchemaId VectorId;
+	//FStructSchemaId QuatId;
 
+	enum class EMember : uint8 { TranslateX, TranslateY, TranslateZ, RotateX, RotateY, RotateZ, RotateW, ScaleX, ScaleY, ScaleZ };
+	FMemberId MemberIds[11];
 
-
-	const FTransformIds& MemberIds;
-	FTransformBinding(const FTransformIds& Ids) : MemberIds(Ids) {}
-	PLAINPROPS_API void			Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default) const;
-	PLAINPROPS_API void			Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const;
-	PLAINPROPS_API virtual bool	DiffStruct(const void* StructA, const void* StructB) const override;
-};
-
-template<class Ids>
-struct TTransformBinding final : public FTransformBinding
-{
-	TTransformBinding()
-	: FTransformBinding(FTransformIds::Get<Ids>()) 
-	{}
-
-	static TConstArrayView<FMemberId> GetMemberIds()
+	template<typename Ids>
+	void InitIds() 
 	{
-		return FTransformIds::Get<Ids>().GetAll();
+		//MemberIds[EMember::Translate] = Ids::IndexMember("Translate");
+		//MemberIds[EMember::Rotate] = Ids::IndexMember("Rotate");
+		//MemberIds[EMember::Scale] = Ids::IndexMember("Scale");
+		//VectorId = IndexNativeStruct<FVector, Ids>();
+		//QuatId = IndexNativeStruct<FVector, Ids>();
+		
+		MemberIds[(uint8)EMember::TranslateX] = Ids::IndexMember("TranslateX");
+		MemberIds[(uint8)EMember::TranslateY] = Ids::IndexMember("TranslateY");
+		MemberIds[(uint8)EMember::TranslateZ] = Ids::IndexMember("TranslateZ");
+		MemberIds[(uint8)EMember::RotateX] = Ids::IndexMember("RotateX");
+		MemberIds[(uint8)EMember::RotateY] = Ids::IndexMember("RotateY");
+		MemberIds[(uint8)EMember::RotateZ] = Ids::IndexMember("RotateZ");
+		MemberIds[(uint8)EMember::RotateW] = Ids::IndexMember("RotateW");
+		MemberIds[(uint8)EMember::ScaleX] = Ids::IndexMember("ScaleX");
+		MemberIds[(uint8)EMember::ScaleY] = Ids::IndexMember("ScaleY");
+		MemberIds[(uint8)EMember::ScaleZ] = Ids::IndexMember("ScaleZ");
 	}
 
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) override
-	{
-		Save(Dst, *static_cast<const FTransform*>(Src), static_cast<const FTransform*>(Default));
-	}
-
-	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
-	{
-		Load(*static_cast<FTransform*>(Dst), Src, Method, Batch);
-	}
+	PLAINPROPS_API void	Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const;
+	PLAINPROPS_API void	Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const;
+	inline static bool	Diff(const FTransform& A, const FTransform& B) { return !A.Equals(B, 0.0); }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -438,7 +429,7 @@ struct TSetDeltaBinding : public ICustomBinding
 	
 	static TConstArrayView<FMemberId> GetMemberIds() { return FSetOps::Get<Ids>().All; }
 
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) override;
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override;
 
 	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
 	{
@@ -622,9 +613,6 @@ struct TSetDeltaBinding : public ICustomBinding
 }
 
 
-PP_NAME_STRUCT(, FName);
-
-namespace UE::Math { PP_NAME_STRUCT(, FTransform); }
 
 
 namespace PlainProps
@@ -657,9 +645,9 @@ struct TRangeBind<TSet<T>>
 	using Type = UE::TSetBinding<T>;
 };
 
-template<typename Ids>
-struct TCustomBind<FTransform, Ids>
+template<>
+struct TCustomBind<FTransform>
 {
-	using Type = UE::TTransformBinding<Ids>;
+	using Type = UE::FTransformBinding;
 };
 }

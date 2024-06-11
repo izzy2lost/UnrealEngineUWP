@@ -43,18 +43,10 @@ struct FIds
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
-struct TCustomBindings
-{
-	using Type = CustomBind<T, FIds>;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct FDefaultRuntime
 {
 	using Ids = FIds;
-	template<class T> using CustomBindings = TCustomBindings<T>;
+	template<class T> using CustomBindings = TCustomBind<T>;
 
 	static FDeclarations&			GetTypes()			{ return GTypes; }
 	static FSchemaBindings&			GetSchemas()		{ return GSchemas; }
@@ -140,7 +132,7 @@ struct FTestCustomBinding : public ICustomBinding
 
 struct FNameBinding : public FTestCustomBinding
 {
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FDebugIds& Debug) override
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FSaveContext& Ctx) override
 	{
 		FSetElementId Idx = Names.Add(*static_cast<const FName*>(Src));
 		Dst.Add(Declaration.Idx, Idx.AsInteger());
@@ -546,7 +538,7 @@ static bool operator==(const FDelta& A, const FDelta& B) { return A.A == B.A && 
 //		return MakeArrayView(Ids, 2);
 //	}
 //
-//	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FDebugIds&) const override
+//	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FSaveContext&) const override
 //	{
 //		if (const FObject* Object = reinterpret_cast<const FObject*>(Src))
 //		{
@@ -762,7 +754,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 
 	SECTION("Transform")
 	{
-		BindCustomStructOnce<TTransformBinding<FIds>, FDefaultRuntime>();
+		BindCustomStructOnce<FTransformBinding, FDefaultRuntime>();
 
 		Run([](FBatchSaver& Batch)
 			{

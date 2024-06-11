@@ -22,6 +22,7 @@ struct FSchemaBatch;
 class FScratchAllocator;
 class FStructBinding;
 class FRangeBinding;
+struct FSaveContext;
 struct FTypedRange;
 class IItemRangeBinding;
 template<class T> class TIdIndexer;
@@ -238,7 +239,7 @@ class ICustomBinding
 {
 public:
 	virtual ~ICustomBinding() {}
-	virtual void				SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) = 0;
+	virtual void				SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) = 0;
 	virtual void				LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
 	virtual bool				DiffStruct(const void* StructA, const void* StructB) const = 0;
 };
@@ -269,11 +270,11 @@ private:
 	const FDebugIds&						Debug;
 };
 
-template<typename T, typename Ids>
+template<typename T>
 struct TCustomBind{ using Type = void; };
 
-template<typename T, typename Ids>
-using CustomBind = typename TCustomBind<T, Ids>::Type;
+template<typename T>
+using CustomBind = typename TCustomBind<T>::Type;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -569,7 +570,7 @@ FMemberBindType BindMemberLeaf(FOptionalSchemaId& OutSchema)
 template<typename CustomBinding, class Runtime>
 FStructSchemaId BindCustomStructOnce()
 {
-	struct FBinding
+	struct FBinding : CustomBinding
 	{
 		using Type = typename CustomBinding::Type;
 		using Ids = typename Runtime::Ids;
@@ -578,8 +579,9 @@ FStructSchemaId BindCustomStructOnce()
 		{
 			FTypeId Name = Ids::IndexNativeType(CttiOf<Type>::Name);
 			Id = Ids::IndexStruct(Name);
-			Runtime::GetTypes().DeclareStruct(Id, Name, CustomBinding::GetMemberIds(), CustomBinding::Occupancy);
-			Runtime::GetCustoms().BindStruct(Id, Instance);
+			CustomBinding::template InitIds<Ids>();
+			Runtime::GetTypes().DeclareStruct(Id, Name, CustomBinding::MemberIds, CustomBinding::Occupancy);
+			Runtime::GetCustoms().BindStruct(Id, *this);
 		}
 
 		~FBinding()
@@ -588,7 +590,21 @@ FStructSchemaId BindCustomStructOnce()
 			Runtime::GetTypes().DropStruct(Id);
 		}
 
-		CustomBinding Instance;
+		virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override
+		{
+			CustomBinding::Save(Dst, *static_cast<const Type*>(Src), static_cast<const Type*>(Default), Ctx);
+		}
+
+		virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
+		{
+			CustomBinding::Load(*static_cast<Type*>(Dst), Src, Method, Batch);
+		}
+
+		virtual bool DiffStruct(const void* A, const void* B) const override
+		{
+			return CustomBinding::Diff(*static_cast<const Type*>(A), *static_cast<const Type*>(B));
+		}
+
 		FStructSchemaId Id;
 	};
 
