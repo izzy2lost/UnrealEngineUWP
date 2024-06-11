@@ -5447,6 +5447,7 @@ bool MakeBinaryConfig(const TCHAR* CmdLine)
  */
 bool ExecuteUnrealPak(const TCHAR* CmdLine)
 {
+	UE_LOG(LogPakFile, Display, TEXT("ProjectDir: %s"), *FPaths::ProjectDir());
 	{
 		FString IoStoreArg;
 		if (FParse::Value(CmdLine, TEXT("-CreateGlobalContainer="), IoStoreArg) ||

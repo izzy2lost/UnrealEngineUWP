@@ -8247,48 +8247,51 @@ bool FPakPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* CmdLine)
 	bLookLooseFirst = FParse::Param(FCommandLine::Get(), TEXT("LookLooseFirst"));
 #endif
 
-	FString GlobalUTocPath = FString::Printf(TEXT("%sPaks/global.utoc"), *FPaths::ProjectContentDir());
-	const bool bShouldMountGlobal = FPlatformFileManager::Get().GetPlatformFile().FileExists(*GlobalUTocPath);
-	if (bShouldMountGlobal || PakPlatformFile_IsForceUseIoStore(CmdLine))
+	if (FIoDispatcher::IsInitialized())
 	{
-		if (ShouldCheckPak())
+		FString GlobalUTocPath = FString::Printf(TEXT("%sPaks/global.utoc"), *FPaths::ProjectContentDir());
+		const bool bShouldMountGlobal = FPlatformFileManager::Get().GetPlatformFile().FileExists(*GlobalUTocPath);
+		if (bShouldMountGlobal || PakPlatformFile_IsForceUseIoStore(CmdLine))
 		{
-			ensure(CheckIoStoreContainerBlockSignatures(*GlobalUTocPath));
-		}
-
-		FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
-		IoDispatcherFileBackend = CreateIoDispatcherFileBackend();
-		IoDispatcher.Mount(IoDispatcherFileBackend.ToSharedRef());
-		PackageStoreBackend = MakeShared<FFilePackageStoreBackend>();
-		FPackageStore::Get().Mount(PackageStoreBackend.ToSharedRef());
-
-		if (bShouldMountGlobal)
-		{
-			TIoStatusOr<FIoContainerHeader> IoDispatcherMountStatus = IoDispatcherFileBackend->Mount(*GlobalUTocPath, 0, FGuid(), FAES::FAESKey());
-			if (IoDispatcherMountStatus.IsOk())
+			if (ShouldCheckPak())
 			{
-				UE_LOG(LogPakFile, Display, TEXT("Initialized I/O dispatcher file backend. Mounted the global container: %s"), *GlobalUTocPath);
-				IoDispatcher.OnSignatureError().AddLambda([](const FIoSignatureError& Error)
+				ensure(CheckIoStoreContainerBlockSignatures(*GlobalUTocPath));
+			}
+
+			FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
+			IoDispatcherFileBackend = CreateIoDispatcherFileBackend();
+			IoDispatcher.Mount(IoDispatcherFileBackend.ToSharedRef());
+			PackageStoreBackend = MakeShared<FFilePackageStoreBackend>();
+			FPackageStore::Get().Mount(PackageStoreBackend.ToSharedRef());
+
+			if (bShouldMountGlobal)
+			{
+				TIoStatusOr<FIoContainerHeader> IoDispatcherMountStatus = IoDispatcherFileBackend->Mount(*GlobalUTocPath, 0, FGuid(), FAES::FAESKey());
+				if (IoDispatcherMountStatus.IsOk())
 				{
-					FPakChunkSignatureCheckFailedData FailedData(Error.ContainerName, TPakChunkHash(), TPakChunkHash(), Error.BlockIndex);
+					UE_LOG(LogPakFile, Display, TEXT("Initialized I/O dispatcher file backend. Mounted the global container: %s"), *GlobalUTocPath);
+					IoDispatcher.OnSignatureError().AddLambda([](const FIoSignatureError& Error)
+					{
+						FPakChunkSignatureCheckFailedData FailedData(Error.ContainerName, TPakChunkHash(), TPakChunkHash(), Error.BlockIndex);
 #if PAKHASH_USE_CRC
-					FailedData.ExpectedHash = GetTypeHash(Error.ExpectedHash);
-					FailedData.ReceivedHash = GetTypeHash(Error.ActualHash);
+						FailedData.ExpectedHash = GetTypeHash(Error.ExpectedHash);
+						FailedData.ReceivedHash = GetTypeHash(Error.ActualHash);
 #else
-					FailedData.ExpectedHash = Error.ExpectedHash;
-					FailedData.ReceivedHash = Error.ActualHash;
+						FailedData.ExpectedHash = Error.ExpectedHash;
+						FailedData.ReceivedHash = Error.ActualHash;
 #endif
-					FPakPlatformFile::BroadcastPakChunkSignatureCheckFailure(FailedData);
-				});
+						FPakPlatformFile::BroadcastPakChunkSignatureCheckFailure(FailedData);
+					});
+				}
+				else
+				{
+					UE_LOG(LogPakFile, Error, TEXT("Initialized I/O dispatcher file backend. Failed to mount the global container: '%s'"), *IoDispatcherMountStatus.Status().ToString());
+				}
 			}
 			else
 			{
-				UE_LOG(LogPakFile, Error, TEXT("Initialized I/O dispatcher file backend. Failed to mount the global container: '%s'"), *IoDispatcherMountStatus.Status().ToString());
+				UE_LOG(LogPakFile, Display, TEXT("Initialized I/O dispatcher file backend. Running with -useiostore without the global container."));
 			}
-		}
-		else
-		{
-			UE_LOG(LogPakFile, Display, TEXT("Initialized I/O dispatcher file backend. Running with -useiostore without the global container."));
 		}
 	}
 
