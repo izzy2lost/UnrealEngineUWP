@@ -1665,7 +1665,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 								else
 								{
 									InMenuBuilder.AddSubMenu(MakeContextStructWidget(ContextStruct),
-										FNewMenuDelegate::CreateLambda([&CachedBindingDataRef, PropertyName, &ContextStruct, RefTypeInfos = MoveTemp(RefTypeInfos)](FMenuBuilder& InSubMenuBuilder)
+										FNewMenuDelegate::CreateLambda([CachedBindingDataRef, PropertyName, &ContextStruct, RefTypeInfos = MoveTemp(RefTypeInfos)](FMenuBuilder& InSubMenuBuilder)
 										{
 											FSectionHelper SectionHelper(InSubMenuBuilder);
 											SectionHelper.SetSection(LOCTEXT("RefTypeParams", "Reference Types"));
