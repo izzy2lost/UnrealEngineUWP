@@ -815,7 +815,7 @@ float2 GetBranchOffset(FSubstrateOperator Op, bool bIsLeft)
 void MaterialDebugSubstrateTreeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 // UE-194712 - Temporary workaround with Vulkan shader compilation
-#if !COMPILER_VULKAN
+#if !COMPILER_VULKAN && !COMPILER_FXC
 	const uint2 PixelPos = (float2(GetCursorPosition()) * View.ViewResolutionFraction);
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
@@ -1423,7 +1423,7 @@ void MaterialDebugSubstrateTreePS(
 	OutColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
 	// Workaround on Vulkan where this shader does not compile correctly
-#if !VULKAN_PROFILE & !VULKAN_PROFILE_SM5 && !VULKAN_PROFILE_SM6
+#if !VULKAN_PROFILE & !VULKAN_PROFILE_SM5 && !VULKAN_PROFILE_SM6 && !COMPILER_FXC
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset((float2(GetCursorPosition()) * View.ViewResolutionFraction), uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);

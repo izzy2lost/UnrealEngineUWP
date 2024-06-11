@@ -2342,7 +2342,11 @@ void FHLSLMaterialTranslator::TranslateMaterial()
 					ResourcesString += "{\n";
 					for (uint32 ClosureIndex = 0; ClosureIndex < SubstrateCtx.SubstrateMaterialEffectiveClosureCount; ++ClosureIndex)
 					{
+						ResourcesString += FString::Printf(TEXT("\t #if SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION\n"), ClosureIndex);
 						ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateSingleBSDFOperatorCoverageTransmittance(this, %d, Settings, V);\n"), ClosureIndex);
+						ResourcesString += FString::Printf(TEXT("\t #else\n"), ClosureIndex);
+						ResourcesString += FString::Printf(TEXT("\t UpdateSingleBSDFOperatorCoverageTransmittance(SubstrateTree, this, %d, Settings, V);\n"), ClosureIndex);
+						ResourcesString += FString::Printf(TEXT("\t #endif\n"), ClosureIndex);
 					}
 					ResourcesString += "}\n";
 				}

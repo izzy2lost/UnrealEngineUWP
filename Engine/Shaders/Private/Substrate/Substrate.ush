@@ -39,6 +39,8 @@
 #define SUBSTRATE_UNROLL_N(X) UNROLL_N(X)
 #endif
 
+#define SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION (!COMPILER_FXC)
+
 // During the base pass or forward rendering, shared local bases are simply available from registers.
 // If a BSDF is loaded for processing from the Substrate buffer, normals are unpacked on demand to reduce VGPR pressure and increase occupancy.
 #ifndef SUBSTRATE_INLINE_SHADING
@@ -133,13 +135,6 @@
 
 // Disable SSS diffusion based when the pixel's footprint is larger than x times the MFPs
 #define SUBSTRATE_DISABLE_SSS_DIFFUSION_BASED_ON_PIXEL_FOOTPRINT 0
-
-// Forward declaration
-struct FSubstratePixelHeader;			// only needed due to UpdateSingleBSDFOperatorCoverageTransmittance. We canb likely only senc the local bases then onstead ofthe full header....
-struct FSubstrateIntegrationSettings;	// can be moved up
-struct FSubstrateAddressing;			// can be moved up
-struct FSubstrateDBuffer;				// can be moved up
-struct FSubstrateData;					// can be moved up, only depend on Substrate BSDF
 
 ///////////////////////////////////////////////////////////////////////////////
 // BSDFs representation
@@ -991,6 +986,26 @@ void SubstrateComputeHazeRoughnessAndWeight(
 float SubstrateComputeHazeRoughness(float Roughness0)				{ float Roughness1=0; float MixLobe=0; SubstrateComputeHazeRoughnessAndWeight(Roughness0, 1.0f,     Roughness1, MixLobe);	return Roughness1; }
 float SubstrateComputeHazeWeight(float Roughness0, float Haziness)	{ float Roughness1=0; float MixLobe=0; SubstrateComputeHazeRoughnessAndWeight(Roughness0, Haziness, Roughness1, MixLobe);	return MixLobe; }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct FSubstrateData
+{
+	FSubstrateBSDF InlinedBSDF;// Used for parameter blending or special BSDF such as hair, cloud or water.
+
+	int  OperatorIndex;		// Used as entry point ot the material graph with multiple BSDF and operators.
+
+	#if USE_DEVELOPMENT_SHADERS
+	float3 PreviewColor;	// Used as preview in the material graph within the editor.
+	#endif
+};
+
+FSubstrateData GetInitialisedSubstrateData()
+{
+	FSubstrateData SubstrateData = (FSubstrateData)0;
+	return SubstrateData;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Material & BSDF description
 
@@ -1043,6 +1058,13 @@ FSubstrateOperator GetInitialisedSubstrateOperator()
 	return SubstrateOp;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION
+struct FSubstratePixelHeader;
+struct FSubstrateIntegrationSettings;
+#endif
+
 // Representes a Substrate material as BSDFs organised in a tree repreesnting its topology 
 struct FSubstrateTree
 {
@@ -1052,11 +1074,16 @@ struct FSubstrateTree
 	FSubstrateBSDF BSDFs[SUBSTRATE_MAX_CLOSURE_COUNT];
 	FSubstrateOperator Operators[SUBSTRATE_MAX_OPERATOR_COUNT];
 
+	// Certain compiler don't support struct forward declaration. This function depends on FSubstratePixelHeader, 
+	// which depends on FSubstrateTree. To overcome circular dependency without forward declaration, a standalone 
+	// version of this function exists as well.
+	#if SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION
 	void UpdateSingleBSDFOperatorCoverageTransmittance(
 		FSubstratePixelHeader SubstratePixelHeader,
 		int BSDFIndex,
 		FSubstrateIntegrationSettings Settings,
 		float3 V);
+	#endif
 
 	void UpdateSingleOperatorCoverageTransmittance(
 		int OpIndex);
@@ -1085,10 +1112,14 @@ struct FSubstrateTree
 
 FSubstrateTree GetInitialisedSubstrateTree()
 {
+#if !COMPILER_FXC
 	FSubstrateTree Out;
 	Out.BSDFCount = 0;
 	Out.OperatorCount = 0;
 	return Out;
+#else
+	return (FSubstrateTree)0;
+#endif
 }
 
 void SubstratePackOutSubstrateTree(
@@ -1270,24 +1301,6 @@ FSubstrateOperator SubstrateUnpackInSubstrateTreeOperator(
 #undef READ_FLOAT
 #undef READ_FLOAT3
 #undef READ_FLOAT4
-
-
-struct FSubstrateData
-{
-	FSubstrateBSDF InlinedBSDF;// Used for parameter blending or special BSDF such as hair, cloud or water.
-
-	int  OperatorIndex;		// Used as entry point ot the material graph with multiple BSDF and operators.
-
-#if USE_DEVELOPMENT_SHADERS
-	float3 PreviewColor;	// Used as preview in the material graph within the editor.
-#endif
-};
-
-FSubstrateData GetInitialisedSubstrateData()
-{
-	FSubstrateData SubstrateData = (FSubstrateData)0;
-	return SubstrateData;
-}
 
 struct FSubstratePixelFootprint
 {
@@ -1933,6 +1946,69 @@ SUBSTRATE_TOP_LAYER_TYPE SubstrateLoadTopLayerData(FSubstrateTopLayerDataContain
 #endif // SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
 
 ///////////////////////////////////////////////////////////////////////////////
+// Substrate decal
+
+// Dbuffer support only a single layer, with minimal set of feature (i.e., no anisotropy, ...);
+// This special structure is for easing data processing
+
+struct FSubstrateDBuffer
+{
+	float3 WorldNormal;
+	float  Roughness;
+	float3 BaseColor;
+	float  Specular;
+	float3 Emissive;
+	float  Metallic;
+	float  Coverage;
+
+	// Per-component coverage 
+	// Since DBuffer properties are blended independently, they can end-up with varying coverage per-property. 
+	// These values are only valid when *reading* DBuffer Value
+	float  OneMinusCoverage;
+	float  OneMinusCoverage_BaseColor;
+	float  OneMinusCoverage_WorldNormal;
+	float  OneMinusCoverage_Roughness;
+};
+
+void SubstratePackDBuffer(
+	in FSubstrateDBuffer In,
+	out float4 Out1,
+	out float4 Out2,
+	out float4 Out3)
+{
+	// DBuffer packing needs to be blendable
+	Out1 = float4(In.BaseColor, In.Coverage);
+	Out2 = float4(In.WorldNormal * 0.5f + 128.0f / 255.0f, In.Coverage);
+	Out3 = float4(In.Metallic, In.Specular, In.Roughness, In.Coverage);
+}
+
+FSubstrateDBuffer SubstrateUnpackDBuffer(
+	in float4 In1,
+	in float4 In2,
+	in float4 In3)
+{
+	FSubstrateDBuffer Out = (FSubstrateDBuffer)0;
+
+	// Per-component coverage
+	Out.OneMinusCoverage			 = (In1.w + In2.w + In3.w) / 3.0f;
+	Out.OneMinusCoverage_BaseColor   = In1.w;
+	Out.OneMinusCoverage_WorldNormal = In2.w;
+	Out.OneMinusCoverage_Roughness   = In3.w;
+
+	// Unpack data
+	Out.BaseColor   = In1.xyz;
+	Out.Coverage    = 1.f - Out.OneMinusCoverage;
+	Out.WorldNormal = In2.rgb * 2 - (256.0 / 255.0);
+	Out.Metallic    = In3.x;
+	Out.Specular    = In3.y;
+	Out.Roughness   = In3.z;
+	Out.Emissive    = 0.f;
+
+
+	return Out;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // Integration settings
 
 struct FSubstrateIntegrationSettings
@@ -2130,6 +2206,84 @@ FSubstratePixelHeader InitialiseSubstratePixelHeader()
 	Out.State = 0;
 	Out.SetMaterialMode(HEADER_MATERIALMODE_SLAB_SIMPLE); // Should be a NOP since SIMPLE=0. This is for non Substrate material or sky pixels to be considered as simple (so that (Substrate simple pixels) + (non-Substrate pixels) can build a simple tile).
 	return Out;
+}
+
+FSubstrateDBuffer FSubstratePixelHeader::SubstrateConvertToDBuffer(
+	in FSubstrateBSDF InBSDF)
+{
+	FSubstrateDBuffer Out = (FSubstrateDBuffer)0;
+
+	#if SUBSTRATE_INLINE_SHADING
+
+	const float3 DiffuseColor = SLAB_DIFFUSEALBEDO(InBSDF);
+	const float3 F0 = SLAB_F0(InBSDF);
+
+	Out.Roughness = SLAB_ROUGHNESS(InBSDF);
+	Out.Metallic = F0RGBToMetallic(F0);
+	Out.Specular = F0RGBToDielectricSpecular(F0);
+	Out.BaseColor = lerp(DiffuseColor, F0, Out.Metallic);
+	Out.Emissive = BSDF_GETEMISSIVE(InBSDF);
+	Out.WorldNormal = this.SharedLocalBases.Normals[BSDF_GETSHAREDLOCALBASISID(InBSDF)];
+	Out.Coverage = InBSDF.Coverage;
+
+	#else
+	Out.WorldNormal = float3(0,0,1);
+	Out.Coverage = 1.f;
+	#endif
+	return Out;
+}
+
+void FSubstratePixelHeader::SubstrateConvertFromDBuffer(
+	in FSubstrateDBuffer In,
+	inout FSubstrateData OutData)
+{
+	// Header
+	const uint SharedLocalBasisIndex = 0;
+	uint SharedLocalBasisTypes = 0;
+	this.ClosureCount = 1;
+	#if SUBSTRATE_INLINE_SHADING
+	this.SharedLocalBases = SubstrateInitialiseSharedLocalBases();
+	this.SharedLocalBases.Normals[SharedLocalBasisIndex] = In.WorldNormal;
+	this.SharedLocalBases.Tangents[SharedLocalBasisIndex] = 0.f;
+	this.IrradianceAO = InitIrradianceAndOcclusion();
+	#endif
+	this.State = 0;
+	this.SetMaterialMode(HEADER_MATERIALMODE_SLAB_SIMPLE);
+
+	// Decal only support a single Slab BSDF with no-anisotropy
+	const FSubstratePixelFootprint PixelFootprint = (FSubstratePixelFootprint)0;
+	const float DefaultThicknessCm = SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM;
+	OutData = GetSubstrateSlabBSDF(
+		PixelFootprint,		// PixelFootprint
+		ComputeDiffuseAlbedo(In.BaseColor, In.Metallic),
+		ComputeF0(In.Specular, In.BaseColor, In.Metallic),
+		1.0f,				// F90
+		In.Roughness,		// Roughness
+		0.f,				// Anisotropy
+		0.f,				// SSSProfileID
+		0.f,				// SSSMFP
+		0.f,				// SSSMFPScale
+		0.f,				// SSSPhaseAniso
+		0.f,				// UseSSSDiffusion
+		0.f,				// Emissive
+		0.f,				// SecondRoughness
+		0.f,				// SecondRoughnessWeight
+		0.f,				// SecondRoughnessAsSimpleClearCoat
+		0.f,				// FuzzAmount
+		0.f,				// FuzzColor
+		In.Roughness,		// FuzzRoughness
+		0.f,				// GlintValue, 
+		(GLINT_UV_TYPE)0,	// GlintUV,
+		0.f, 				// SpecularProfileId
+		DefaultThicknessCm,
+		false,				// bIsThinSurface,
+		false,				// bIsAtTheBottomOfTopology, this will disable many unneeded features.
+		SharedLocalBasisIndex,
+		SharedLocalBasisTypes);
+	#if SUBSTRATE_INLINE_SHADING
+	OutData.InlinedBSDF.Emissive = In.Emissive;
+	OutData.InlinedBSDF.Coverage = In.Coverage;
+	#endif
 }
 
 float3x3 SubstrateGetBSDFSharedBasis_InlineShading(in FSubstratePixelHeader SubstratePixelHeader, in FSubstrateBSDF BSDF)
@@ -2881,6 +3035,7 @@ void FSubstrateBSDF::SubstrateSanitizeBSDF()
 		#endif
 			UNLIT_TRANSMITTANCE(this) = saturate(UNLIT_TRANSMITTANCE(this));
 			UNLIT_NORMAL(this) = normalize(UNLIT_NORMAL(this));
+			break;
 		}
 	}
 }
@@ -2992,6 +3147,15 @@ float DitherIfNonBlack(float Input, float Dither)
 	float NewInput = Input + Dither * IsNonZeroFast(Input);
 	return saturate(NewInput);
 }
+
+#if !SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION
+void UpdateSingleBSDFOperatorCoverageTransmittance(
+	inout FSubstrateTree SubstrateTree,
+	FSubstratePixelHeader SubstratePixelHeader,
+	int BSDFIndex,
+	FSubstrateIntegrationSettings Settings,
+	float3 V);
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // Other tools
@@ -3572,146 +3736,6 @@ void SubstrateLoad_ColorGamma2ToLinearAlphaLinear(FSubstrateMaterialContainer Su
 	float4 Data = UnpackColorGamma2ToLinearAlphaLinear(SubstrateLoadUint1(SubstrateBuffer, SubstrateAddressing));
 	RGB = Data.rgb;
 	A = Data.a;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Substrate decal
-
-// Dbuffer support only a single layer, with minimal set of feature (i.e., no anisotropy, ...);
-// This special structure is for easing data processing
-struct FSubstrateDBuffer
-{
-	float3 WorldNormal;
-	float  Roughness;
-	float3 BaseColor;
-	float  Specular;
-	float3 Emissive;
-	float  Metallic;
-	float  Coverage;
-
-	// Per-component coverage 
-	// Since DBuffer properties are blended independently, they can end-up with varying coverage per-property. 
-	// These values are only valid when *reading* DBuffer Value
-	float  OneMinusCoverage;
-	float  OneMinusCoverage_BaseColor;
-	float  OneMinusCoverage_WorldNormal;
-	float  OneMinusCoverage_Roughness;
-};
-
-void SubstratePackDBuffer(
-	in FSubstrateDBuffer In,
-	out float4 Out1,
-	out float4 Out2,
-	out float4 Out3)
-{
-	// DBuffer packing needs to be blendable
-	Out1 = float4(In.BaseColor, In.Coverage);
-	Out2 = float4(In.WorldNormal * 0.5f + 128.0f / 255.0f, In.Coverage);
-	Out3 = float4(In.Metallic, In.Specular, In.Roughness, In.Coverage);
-}
-
-FSubstrateDBuffer SubstrateUnpackDBuffer(
-	in float4 In1,
-	in float4 In2,
-	in float4 In3)
-{
-	FSubstrateDBuffer Out = (FSubstrateDBuffer)0;
-
-	// Per-component coverage
-	Out.OneMinusCoverage			 = (In1.w + In2.w + In3.w) / 3.0f;
-	Out.OneMinusCoverage_BaseColor   = In1.w;
-	Out.OneMinusCoverage_WorldNormal = In2.w;
-	Out.OneMinusCoverage_Roughness   = In3.w;
-
-	// Unpack data
-	Out.BaseColor   = In1.xyz;
-	Out.Coverage    = 1.f - Out.OneMinusCoverage;
-	Out.WorldNormal = In2.rgb * 2 - (256.0 / 255.0);
-	Out.Metallic    = In3.x;
-	Out.Specular    = In3.y;
-	Out.Roughness   = In3.z;
-	Out.Emissive    = 0.f;
-
-
-	return Out;
-}
-
-FSubstrateDBuffer FSubstratePixelHeader::SubstrateConvertToDBuffer(
-	in FSubstrateBSDF InBSDF)
-{
-	FSubstrateDBuffer Out = (FSubstrateDBuffer)0;
-
-#if SUBSTRATE_INLINE_SHADING
-
-	const float3 DiffuseColor = SLAB_DIFFUSEALBEDO(InBSDF);
-	const float3 F0 = SLAB_F0(InBSDF);
-
-	Out.Roughness = SLAB_ROUGHNESS(InBSDF);
-	Out.Metallic = F0RGBToMetallic(F0);
-	Out.Specular = F0RGBToDielectricSpecular(F0);
-	Out.BaseColor = lerp(DiffuseColor, F0, Out.Metallic);
-	Out.Emissive = BSDF_GETEMISSIVE(InBSDF);
-	Out.WorldNormal = this.SharedLocalBases.Normals[BSDF_GETSHAREDLOCALBASISID(InBSDF)];
-	Out.Coverage = InBSDF.Coverage;
-
-#else
-	Out.WorldNormal = float3(0,0,1);
-	Out.Coverage = 1.f;
-#endif
-	return Out;
-}
-
-void FSubstratePixelHeader::SubstrateConvertFromDBuffer(
-	in FSubstrateDBuffer In,
-	inout FSubstrateData OutData)
-{
-	// Header
-	const uint SharedLocalBasisIndex = 0;
-	uint SharedLocalBasisTypes = 0;
-	this.ClosureCount = 1;
-#if SUBSTRATE_INLINE_SHADING
-	this.SharedLocalBases = SubstrateInitialiseSharedLocalBases();
-	this.SharedLocalBases.Normals[SharedLocalBasisIndex] = In.WorldNormal;
-	this.SharedLocalBases.Tangents[SharedLocalBasisIndex] = 0.f;
-	this.IrradianceAO = InitIrradianceAndOcclusion();
-#endif
-	this.State = 0;
-	this.SetMaterialMode(HEADER_MATERIALMODE_SLAB_SIMPLE);
-
-	// Decal only support a single Slab BSDF with no-anisotropy
-	const FSubstratePixelFootprint PixelFootprint = (FSubstratePixelFootprint)0;
-	const float DefaultThicknessCm = SUBSTRATE_LAYER_DEFAULT_THICKNESS_CM;
-	OutData = GetSubstrateSlabBSDF(
-		PixelFootprint,		// PixelFootprint
-		ComputeDiffuseAlbedo(In.BaseColor, In.Metallic),
-		ComputeF0(In.Specular, In.BaseColor, In.Metallic),
-		1.0f,				// F90
-		In.Roughness,		// Roughness
-		0.f,				// Anisotropy
-		0.f,				// SSSProfileID
-		0.f,				// SSSMFP
-		0.f,				// SSSMFPScale
-		0.f,				// SSSPhaseAniso
-		0.f,				// UseSSSDiffusion
-		0.f,				// Emissive
-		0.f,				// SecondRoughness
-		0.f,				// SecondRoughnessWeight
-		0.f,				// SecondRoughnessAsSimpleClearCoat
-		0.f,				// FuzzAmount
-		0.f,				// FuzzColor
-		In.Roughness,		// FuzzRoughness
-		0.f,				// GlintValue, 
-		(GLINT_UV_TYPE)0,	// GlintUV,
-		0.f, 				// SpecularProfileId
-		DefaultThicknessCm,
-		false,				// bIsThinSurface,
-		false,				// bIsAtTheBottomOfTopology, this will disable many unneeded features.
-		SharedLocalBasisIndex,
-		SharedLocalBasisTypes);
-#if SUBSTRATE_INLINE_SHADING
-	OutData.InlinedBSDF.Emissive = In.Emissive;
-	OutData.InlinedBSDF.Coverage = In.Coverage;
-#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
