@@ -222,6 +222,7 @@ namespace HarmonixMetasound
 		int32 LoopLengthTicks;
 
 		bool MidiDataChangedInBlock;
+		bool NeedsSeekToDrivingClock;
 
 		FMidiClockEvents MidiClockEventsInBlock;
 	};
