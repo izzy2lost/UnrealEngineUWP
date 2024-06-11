@@ -705,7 +705,7 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 						check(Package);
 
 						TArray<UObject*> DependantObjects;
-						ForEachObjectWithPackage(Package, [this, &bSavePackage](UObject* Object)
+						ForEachObjectWithPackage(Package, [this, &bSavePackage, &DependantObjects](UObject* Object)
 							{
 								if (!IsValid(Object))
 								{
@@ -713,10 +713,15 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 								}
 								if (!Cast<UMetaData>(Object))
 								{
-									PerformWorldBuilderAdditionalOperations(Object, bSavePackage);
+									DependantObjects.Add(Object);
 								}
 								return true;
 							}, true);
+
+						for (UObject* Object : DependantObjects)
+						{
+							PerformWorldBuilderAdditionalOperations(Object, bSavePackage);
+						}
 
 						if (bSavePackage)
 						{
