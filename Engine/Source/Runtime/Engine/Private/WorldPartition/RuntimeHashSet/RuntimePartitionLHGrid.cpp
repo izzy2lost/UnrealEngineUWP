@@ -155,6 +155,7 @@ void URuntimePartitionLHGrid::SetDefaultValues()
 {
 	Super::SetDefaultValues();
 	CellSize = LoadingRange / 2;
+	bIs2D = true;
 }
 #endif
 

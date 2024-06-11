@@ -97,28 +97,28 @@ void FWorldPartitionDetails::CustomizeDetails(IDetailLayoutBuilder& InDetailBuil
 					]
 				]
 			];
-
-		// Runtime hash class selector
-		WorldPartitionCategory.AddCustomRow(LOCTEXT("RuntimeHashClass", "Runtime Hash Class"), false)
-			.RowTag(TEXT("RuntimeHashClass"))
-			.NameContent()
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("WorldPartitionRuntimeHashClass", "Runtime Hash Class"))
-				.ToolTipText(LOCTEXT("WorldPartitionRuntimeHashClass_ToolTip", "Set the world partition runtime hash class."))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-			]
-			.ValueContent()
-			[
-				SNew(SClassPropertyEntryBox)
-				.MetaClass(UWorldPartitionRuntimeHash::StaticClass())
-				.AllowNone(false)
-				.HideViewOptions(true)
-				.SelectedClass_Lambda([this]() { return RuntimeHashClass; })
-				.OnSetClass_Lambda([this](const UClass* Class) { HandleWorldPartitionRuntimeHashClassChanged(Class); })
-			]
-			.Visibility(TAttribute<EVisibility>::CreateLambda([this]() { return WorldPartition.IsValid() && WorldPartition->IsStreamingEnabled() ? EVisibility::Visible : EVisibility::Hidden; }));
 	}
+
+	// Runtime hash class selector
+	WorldPartitionCategory.AddCustomRow(LOCTEXT("RuntimeHashClass", "Runtime Hash Class"), false)
+		.RowTag(TEXT("RuntimeHashClass"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("WorldPartitionRuntimeHashClass", "Runtime Hash Class"))
+			.ToolTipText(LOCTEXT("WorldPartitionRuntimeHashClass_ToolTip", "Set the world partition runtime hash class."))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SNew(SClassPropertyEntryBox)
+			.MetaClass(UWorldPartitionRuntimeHash::StaticClass())
+			.AllowNone(false)
+			.HideViewOptions(true)
+			.SelectedClass_Lambda([this]() { return RuntimeHashClass; })
+			.OnSetClass_Lambda([this](const UClass* Class) { HandleWorldPartitionRuntimeHashClassChanged(Class); })
+		]
+		.Visibility(TAttribute<EVisibility>::CreateLambda([this]() { return WorldPartition.IsValid() && WorldPartition->IsStreamingEnabled() ? EVisibility::Visible : EVisibility::Hidden; }));
 
 	// Runtime hash properties
 	if (WorldPartition->RuntimeHash)
