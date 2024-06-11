@@ -554,7 +554,24 @@ static bool PatchHlslWithReorderedIOVariables(
 
 		// Now compare the semantic to search for with the source line range
 		const int32 SemanticLen = EndPosition - StartPosition;
-		return SemanticToSearch.Len() == SemanticLen && FCString::Strnicmp(*SemanticToSearch, &SourceLine[StartPosition], SemanticLen) == 0;
+		if (SemanticToSearch.Len() == SemanticLen && FCString::Strnicmp(*SemanticToSearch, &SourceLine[StartPosition], SemanticLen) == 0)
+		{
+			return true;
+		}
+
+		// Check for special case if semantic contains default index in source line, e.g. "SV_ClipDinstance0"
+		if (SemanticToSearch.Len() == SemanticLen - 1 && SourceLine[StartPosition + SemanticLen - 1] == TEXT('0') && FCString::Strnicmp(*SemanticToSearch, &SourceLine[StartPosition], SemanticLen - 1) == 0)
+		{
+			return true;
+		}
+
+		// Check for special case if semantic contains default index as subscript in source line, e.g. "SV_ClipDinstance[0]"
+		if (SemanticToSearch.Len() == SemanticLen - 3 && FCString::Strncmp(TEXT("[0]"), &SourceLine[StartPosition + SemanticLen - 3], 3) == 0 && FCString::Strnicmp(*SemanticToSearch, &SourceLine[StartPosition], SemanticLen - 3) == 0)
+		{
+			return true;
+		}
+
+		return false;
 	};
 
 	// Returns true if the specified semantic name starts with "SV_" (case insensitive).
