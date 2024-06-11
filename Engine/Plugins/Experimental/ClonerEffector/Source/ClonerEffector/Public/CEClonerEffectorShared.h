@@ -440,7 +440,7 @@ struct FCEClonerEffectorChannelData
 
 protected:
 	/** Cached effector identifier to detect a change and update cloners DI */
-	UPROPERTY(EditInstanceOnly, Category="Effector")
+	UPROPERTY(VisibleInstanceOnly, Category="Effector", meta=(NoResetToDefault))
 	int32 Identifier = INDEX_NONE;
 
 	void Write(UNiagaraDataChannelWriter* InWriter) const;

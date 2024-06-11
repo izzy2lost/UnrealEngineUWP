@@ -493,6 +493,14 @@ void UCEEffectorComponent::OnEffectorOptionsChanged()
 
 void UCEEffectorComponent::OnTypeNameChanged()
 {
+	const TArray<FName> TypeNames = GetEffectorTypeNames();
+
+	// Set default if value does not exists
+	if (!TypeNames.Contains(TypeName) && !TypeNames.IsEmpty())
+	{
+		TypeName = TypeNames[0];
+	}
+
 	if (UCEEffectorTypeBase* Type = Cast<UCEEffectorTypeBase>(FindOrAddExtension(TypeName)))
 	{
 		if (ActiveType != Type)
@@ -519,6 +527,14 @@ void UCEEffectorComponent::OnTypeNameChanged()
 
 void UCEEffectorComponent::OnModeNameChanged()
 {
+	const TArray<FName> ModeNames = GetEffectorModeNames();
+
+	// Set default if value does not exists
+	if (!ModeNames.Contains(ModeName) && !ModeNames.IsEmpty())
+	{
+		ModeName = ModeNames[0];
+	}
+
 	if (UCEEffectorModeBase* Mode = Cast<UCEEffectorModeBase>(FindOrAddExtension(ModeName)))
 	{
 		if (ActiveMode != Mode)

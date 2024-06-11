@@ -395,7 +395,7 @@ private:
 
 	/** Gets all layout names available */
 	UFUNCTION()
-	TArray<FString> GetClonerLayoutNames() const;
+	TArray<FName> GetClonerLayoutNames() const;
 
 	/** Attachment tree view */
 	UPROPERTY(Transient, NonTransactional)

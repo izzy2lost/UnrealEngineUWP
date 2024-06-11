@@ -258,7 +258,7 @@ private:
 	TArray<FName> GetEffectorModeNames() const;
 
 	/** Transient effector channel data */
-	UPROPERTY(VisibleInstanceOnly, Transient, DuplicateTransient, TextExportTransient, NonTransactional, AdvancedDisplay, Category="Effector")
+	UPROPERTY(VisibleInstanceOnly, Transient, DuplicateTransient, TextExportTransient, NonTransactional, AdvancedDisplay, Category="Effector", meta=(NoResetToDefault))
 	FCEClonerEffectorChannelData ChannelData;
 
 	/** Cloners linked to this effector, used to refresh or relink on duplicate */

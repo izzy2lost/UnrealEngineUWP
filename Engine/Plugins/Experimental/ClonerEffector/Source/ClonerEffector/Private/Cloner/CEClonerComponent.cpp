@@ -73,8 +73,8 @@ UCEClonerComponent::UCEClonerComponent()
 #endif
 
 		// Apply default layout
-		const TArray<FString> LayoutNames = GetClonerLayoutNames();
-		LayoutName = !LayoutNames.IsEmpty() ? FName(LayoutNames[0]) : NAME_None;
+		const TArray<FName> LayoutNames = GetClonerLayoutNames();
+		LayoutName = !LayoutNames.IsEmpty() ? LayoutNames[0] : NAME_None;
 	}
 }
 
@@ -1140,7 +1140,7 @@ void UCEClonerComponent::SetLayoutName(FName InLayoutName)
 		return;
 	}
 
-	const TArray<FString> LayoutNames = GetClonerLayoutNames();
+	const TArray<FName> LayoutNames = GetClonerLayoutNames();
 	if (!LayoutNames.Contains(InLayoutName))
 	{
 		return;
@@ -1455,6 +1455,14 @@ void UCEClonerComponent::OnLayoutNameChanged()
 		return;
 	}
 
+	const TArray<FName> LayoutNames = GetClonerLayoutNames();
+
+	// Set default if value does not exists
+	if (!LayoutNames.Contains(LayoutName) && !LayoutNames.IsEmpty())
+	{
+		LayoutName = LayoutNames[0];
+	}
+
 	UCEClonerLayoutBase* NewActiveLayout = FindOrAddLayout(LayoutName);
 
 	// Apply layout
@@ -1577,22 +1585,16 @@ UCEClonerExtensionBase* UCEClonerComponent::FindOrAddExtension(FName InExtension
 	return NewActiveExtension;
 }
 
-TArray<FString> UCEClonerComponent::GetClonerLayoutNames() const
+TArray<FName> UCEClonerComponent::GetClonerLayoutNames() const
 {
-	TArray<FString> LayoutNamesStrings;
+	TArray<FName> LayoutNames;
 
 	if (const UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get())
 	{
-		const TArray<FName>& LayoutNames = Subsystem->GetLayoutNames();
-		LayoutNamesStrings.Reserve(LayoutNames.Num());
-
-		Algo::Transform(LayoutNames, LayoutNamesStrings, [](const FName& InName)
-		{
-			return InName.ToString();
-		});
+		LayoutNames = Subsystem->GetLayoutNames();
 	}
 
-	return LayoutNamesStrings;
+	return LayoutNames;
 }
 
 void UCEClonerComponent::RefreshClonerMeshes()
