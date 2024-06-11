@@ -149,34 +149,30 @@ namespace Metasound::Frontend
 	}
 
 #if WITH_EDITOR
-	FText FInputNodeTemplate::GetOutputPinDisplayName(const IOutputController& InOutput) const
+	FText FInputNodeTemplate::GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const
 	{
-		FConstNodeHandle OwningNode = InOutput.GetOwningNode();
-		FConstOutputHandle ConnectedOutput = OwningNode->GetConstInputs().Last()->GetConnectedOutput();
-		if (ensureMsgf(ConnectedOutput->IsValid(), TEXT("Input template node should always be connected to associated input node's only output")))
+		const FMetasoundFrontendNode* OwningNode = InBuilder.FindNode(InNodeID);
+		if (!OwningNode)
 		{
-			FConstNodeHandle ConnectedInputNode = ConnectedOutput->GetOwningNode();
-
-			FName NodeName = ConnectedInputNode->GetNodeName();
-			FName Namespace;
-			FName ParameterName;
-			Audio::FParameterPath::SplitName(NodeName, Namespace, ParameterName);
-
-			FText DisplayName = ConnectedInputNode->GetDisplayName();
-			if (DisplayName.IsEmpty())
-			{
-				DisplayName = FText::FromName(NodeName);
-			}
-
-			if (!Namespace.IsNone())
-			{
-				return FText::Format(NSLOCTEXT("MetasoundFrontend", "InputNodeTemplate_DisplayNameWithNamespaceFormat", "{0} ({1})"), DisplayName, FText::FromName(Namespace));
-			}
-
-			return DisplayName;
+			return FText::FromName(OutputName);
 		}
 
-		return FRerouteNodeTemplate::GetOutputPinDisplayName(InOutput);
+		const FMetasoundFrontendNode* ConnectedInputNode = nullptr;
+		const FMetasoundFrontendVertex* ConnectedOutput = InBuilder.FindNodeOutputConnectedToNodeInput(InNodeID, OwningNode->Interface.Inputs.Last().VertexID, &ConnectedInputNode);
+		if (ensureMsgf(ConnectedInputNode, TEXT("Input template node should always be connected to associated input node's only output")))
+		{
+			FName NodeName = ConnectedInputNode->Name;
+			FText DisplayName;
+			if (const FMetasoundFrontendClassInput* Input = InBuilder.FindGraphInput(NodeName))
+			{
+				DisplayName = Input->Metadata.GetDisplayName();
+			}
+
+			constexpr bool bIncludeNamespace = true;
+			return INodeTemplate::ResolveMemberDisplayName(NodeName, DisplayName, bIncludeNamespace);
+		}
+
+		return FRerouteNodeTemplate::GetOutputVertexDisplayName(InBuilder, InNodeID, OutputName);
 	}
 
 	bool FInputNodeTemplate::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage) const

@@ -65,8 +65,18 @@ namespace Metasound::Frontend
 
 #if WITH_EDITOR
 		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InNodeID) const = 0;
-		virtual FText GetInputPinDisplayName(const Frontend::IInputController& InInput) const = 0;
-		virtual FText GetOutputPinDisplayName(const Frontend::IOutputController& InOutput) const = 0;
+
+		UE_DEPRECATED(5.5, "Use overload GetOutputVertexDisplayName with supplied builder instead")
+		virtual FText GetInputPinDisplayName(const Frontend::IInputController& InInput) const { return FText(); }
+
+		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName InputName) const = 0;
+
+		UE_DEPRECATED(5.5, "Use overload GetOutputVertexDisplayName with supplied builder instead")
+		virtual FText GetOutputPinDisplayName(const Frontend::IOutputController& InOutput) const { return FText(); };
+
+		virtual FText GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const = 0;
+
+		static FText ResolveMemberDisplayName(FName VertexName, FText DisplayName, bool bIncludeNamespace);
 #endif // WITH_EDITOR
 
 		// Generates node transform that is used to preprocess nodes.
@@ -133,8 +143,8 @@ namespace Metasound::Frontend
 	public:
 #if WITH_EDITOR
 		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InNodeID) const override;
-		virtual FText GetInputPinDisplayName(const IInputController& InInput) const override;
-		virtual FText GetOutputPinDisplayName(const IOutputController& InOutput) const override;
+		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName InputName) const override;
+		virtual FText GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const override;
 		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage = nullptr) const override;
 #endif // WITH_EDITOR
 	};

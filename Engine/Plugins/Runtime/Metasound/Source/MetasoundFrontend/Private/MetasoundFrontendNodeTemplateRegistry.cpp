@@ -12,6 +12,26 @@
 
 namespace Metasound::Frontend
 {
+#if WITH_EDITOR
+	FText INodeTemplate::ResolveMemberDisplayName(FName FullName, FText DisplayName, bool bIncludeNamespace)
+	{
+		FName Namespace;
+		FName ShortParamName;
+		Audio::FParameterPath::SplitName(FullName, Namespace, ShortParamName);
+		if (DisplayName.IsEmpty())
+		{
+			DisplayName = FText::FromName(ShortParamName);
+		}
+
+		if (bIncludeNamespace && !Namespace.IsNone())
+		{
+			return FText::Format(NSLOCTEXT("MetasoundFrontend", "DisplayNameWithNamespaceFormat", "{0} ({1})"), DisplayName, FText::FromName(Namespace));
+		}
+
+		return DisplayName;
+	}
+#endif // WITH_EDITOR
+
 	class FNodeTemplateRegistry : public INodeTemplateRegistry
 	{
 	public:
@@ -93,14 +113,14 @@ namespace Metasound::Frontend
 		return { };
 	}
 
-	FText FNodeTemplateBase::GetInputPinDisplayName(const Frontend::IInputController& InInput) const
+	FText FNodeTemplateBase::GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName InputName) const
 	{
-		return InInput.GetDisplayName();
+		return FText::FromName(InputName);
 	}
 
-	FText FNodeTemplateBase::GetOutputPinDisplayName(const Frontend::IOutputController& InOutput) const
+	FText FNodeTemplateBase::GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const
 	{
-		return InOutput.GetDisplayName();
+		return FText::FromName(OutputName);
 	}
 
 	bool FNodeTemplateBase::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage) const

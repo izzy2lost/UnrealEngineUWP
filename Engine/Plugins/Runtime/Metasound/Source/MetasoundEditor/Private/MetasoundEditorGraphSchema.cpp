@@ -1716,11 +1716,22 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 
 	check(Pin);
 
-	UMetasoundEditorGraphNode* Node = CastChecked<UMetasoundEditorGraphNode>(Pin->GetOwningNode());
-	FConstNodeHandle NodeHandle = Node->GetConstNodeHandle();
-	const FMetasoundFrontendClassMetadata& ClassMetadata = NodeHandle->GetClassMetadata();
-	const EMetasoundFrontendClassType ClassType = ClassMetadata.GetType();
+	UMetasoundEditorGraphNode* EdNode = CastChecked<UMetasoundEditorGraphNode>(Pin->GetOwningNode());
+	const FMetaSoundFrontendDocumentBuilder& Builder = EdNode->GetBuilderChecked().GetBuilder();
 
+	const FMetasoundFrontendNode* Node = Builder.FindNode(EdNode->GetNodeID());
+	if (!Node)
+	{
+		return Super::GetPinDisplayName(Pin);
+	}
+
+	const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID);
+	if (!Class)
+	{
+		return Super::GetPinDisplayName(Pin);
+	}
+
+	const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
 	switch (ClassType)
 	{
 		case EMetasoundFrontendClassType::Input:
@@ -1730,7 +1741,7 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 		case EMetasoundFrontendClassType::VariableDeferredAccessor:
 		case EMetasoundFrontendClassType::VariableMutator:
 		{
-			UMetasoundEditorGraphMemberNode* MemberNode = Cast<UMetasoundEditorGraphMemberNode>(Node);
+			UMetasoundEditorGraphMemberNode* MemberNode = Cast<UMetasoundEditorGraphMemberNode>(EdNode);
 			if (ensure(MemberNode))
 			{
 				UMetasoundEditorGraphMember* Member = MemberNode->GetMember();
@@ -1739,56 +1750,55 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 					return MemberNode->GetMember()->GetDisplayName();
 				}
 			}
-			return Super::GetPinDisplayName(Pin);
 		}
+		break;
 
 		case EMetasoundFrontendClassType::Literal:
 		case EMetasoundFrontendClassType::External:
 		{
+			auto PinMatchesClassVertex = [&Pin](const FMetasoundFrontendClassVertex& OtherVertex) { return OtherVertex.Name == Pin->GetFName(); };
+			const FMetasoundFrontendVertex* Vertex = nullptr;
+			const FMetasoundFrontendClassVertex* ClassVertex = nullptr;
 			if (Pin->Direction == EGPD_Input)
 			{
-				FConstInputHandle InputHandle = NodeHandle->GetConstInputWithVertexName(Pin->GetFName());
-				if (InputHandle->IsValid())
-				{
-					return FGraphBuilder::GetDisplayName(*InputHandle);
-				}
+				Vertex = Builder.FindNodeInput(EdNode->GetNodeID(), Pin->GetFName());
+				ClassVertex = Class->Interface.Inputs.FindByPredicate(PinMatchesClassVertex);
 			}
 			else
 			{
-				FConstOutputHandle OutputHandle = NodeHandle->GetConstOutputWithVertexName(Pin->GetFName());
-				if (OutputHandle->IsValid())
-				{
-					return FGraphBuilder::GetDisplayName(*OutputHandle);
-				}
+				Vertex = Builder.FindNodeOutput(EdNode->GetNodeID(), Pin->GetFName());
+				ClassVertex = Class->Interface.Outputs.FindByPredicate(PinMatchesClassVertex);
 			}
 
-			return Super::GetPinDisplayName(Pin);
+			if (Vertex && ClassVertex)
+			{
+				FName Namespace, ParamName;
+				ClassVertex->SplitName(Namespace, ParamName);
+				FText DisplayName = ClassVertex->Metadata.GetDisplayName();
+				if (DisplayName.IsEmptyOrWhitespace())
+				{
+					DisplayName = FText::FromName(ParamName);
+				}
+
+				return DisplayName;
+			}
 		}
+		break;
 
 		case EMetasoundFrontendClassType::Template:
 		{
-			const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(ClassMetadata.GetClassName());
+			const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Class->Metadata.GetClassName());
 			if (ensure(Template))
 			{
 				if (Pin->Direction == EGPD_Input)
 				{
-					FConstInputHandle InputHandle = NodeHandle->GetConstInputWithVertexName(Pin->GetFName());
-					if (InputHandle->IsValid())
-					{
-						return Template->GetInputPinDisplayName(*InputHandle);
-					}
+					return Template->GetInputVertexDisplayName(Builder, Node->GetID(), Pin->GetFName());
 				}
 				else
 				{
-					FConstOutputHandle OutputHandle = NodeHandle->GetConstOutputWithVertexName(Pin->GetFName());
-					if (OutputHandle->IsValid())
-					{
-						return Template->GetOutputPinDisplayName(*OutputHandle);
-					}
+					return Template->GetOutputVertexDisplayName(Builder, Node->GetID(), Pin->GetFName());
 				}
 			}
-
-			return Super::GetPinDisplayName(Pin);
 		}
 		break;
 
@@ -1797,9 +1807,11 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 		default:
 		{
 			static_assert(static_cast<int32>(EMetasoundFrontendClassType::Invalid) == 10, "Possible missing EMetasoundFrontendClassType case coverage");
-			return Super::GetPinDisplayName(Pin);
 		}
+		break;
 	}
+
+	return Super::GetPinDisplayName(Pin);
 }
 
 FLinearColor UMetasoundEditorGraphSchema::GetPinTypeColor(const FEdGraphPinType& PinType) const

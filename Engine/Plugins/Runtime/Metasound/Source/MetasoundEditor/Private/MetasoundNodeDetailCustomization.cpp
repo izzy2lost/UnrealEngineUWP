@@ -1365,6 +1365,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			if (!bIsNameInvalid && GraphMember.IsValid())
 			{
+				if (GraphMember->GetMemberName() == InNewName.ToString())
+				{
+					return;
+				}
+
 				const FText TransactionLabel = FText::Format(LOCTEXT("RenameGraphMember_Format", "Set MetaSound {0}'s Name"), GraphMember->GetGraphMemberLabel());
 				const FScopedTransaction Transaction(TransactionLabel);
 

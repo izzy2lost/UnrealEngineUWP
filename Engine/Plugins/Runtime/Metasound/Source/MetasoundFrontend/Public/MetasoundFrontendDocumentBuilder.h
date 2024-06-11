@@ -347,11 +347,26 @@ public:
 	// induce cash thrashing.
 	bool SetBuildPageID(const FGuid& InBuildPageID);
 
+	// Sets the given graph input's access type. If connected to other nodes and access type is not compatible,
+	// associated edges/connections are removed.  Returns true if either DataType was successfully set to new
+	// value or if AccessType is already the given AccessType.
 	bool SetGraphInputAccessType(FName InputName, EMetasoundFrontendVertexAccessType AccessType);
+
+	// Sets the given graph input's data type. If connected to other nodes, associated edges/connections
+	// are removed.  Returns true if either DataType was successfully set to new value or if DataType is
+	// already the given DataType.
 	bool SetGraphInputDataType(FName InputName, FName DataType);
+
 	bool SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral);
 
+	// Sets the given graph output's access type. If connected to other nodes and access type is not compatible,
+	// associated edges/connections are removed.  Returns true if either DataType was successfully set to new
+	// value or if AccessType is already the given AccessType.
 	bool SetGraphOutputAccessType(FName OutputName, EMetasoundFrontendVertexAccessType AccessType);
+
+	// Sets the given graph output's data type. If connected to other nodes, associated edges/connections
+	// are removed.  Returns true if either DataType was successfully set to new value or if DataType is
+	// already the given DataType.
 	bool SetGraphOutputDataType(FName OutputName, FName DataType);
 
 #if WITH_EDITOR

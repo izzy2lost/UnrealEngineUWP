@@ -30,17 +30,8 @@
 
 void UMetasoundEditorGraphInputNode::CacheTitle()
 {
-	using namespace Metasound::Frontend;
-
-	if (Input)
-	{
-		FConstNodeHandle NodeHandle = Input->GetNodeHandle();
-		CachedTitle = NodeHandle->GetDisplayTitle();
-	}
-	else
-	{
-		CachedTitle = FText::FromName(Breadcrumb.MemberName);
-	}
+	static FText InputDisplayTitle = LOCTEXT("InputNode_Title", "Input");
+	CachedTitle = InputDisplayTitle;
 }
 
 const FMetasoundEditorGraphVertexNodeBreadcrumb& UMetasoundEditorGraphInputNode::GetBreadcrumb() const
@@ -86,8 +77,14 @@ FMetasoundFrontendClassName UMetasoundEditorGraphInputNode::GetClassName() const
 
 	if (Input)
 	{
-		FConstNodeHandle NodeHandle = Input->GetConstNodeHandle();
-		return NodeHandle->GetClassMetadata().GetClassName();
+		const FMetaSoundFrontendDocumentBuilder& Builder = Input->GetFrontendBuilderChecked();
+		if (const FMetasoundFrontendNode* Node = Builder.FindNode(Input->NodeID))
+		{
+			if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
+			{
+				return Class->Metadata.GetClassName();
+			}
+		}
 	}
 
 	return Breadcrumb.ClassName;

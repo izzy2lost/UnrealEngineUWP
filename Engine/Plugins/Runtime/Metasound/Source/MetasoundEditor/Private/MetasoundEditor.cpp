@@ -3169,6 +3169,8 @@ namespace Metasound
 
 		void FEditor::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 		{
+			using namespace Frontend;
+
 			// Uses the builder rather than the local edit object as it may not be set
 			// initially when loading the editor prior to init call on the underlying AssetToolKit.
 			if (!Builder.IsValid())
@@ -3203,6 +3205,7 @@ namespace Metasound
 				const FGuid MemberID;
 			};
 
+			constexpr bool bDisplayNamespace = false;
 			const FMetasoundAssetBase& AssetBase = DocBuilder.GetMetasoundAsset();
 			UEdGraph& EdGraph = AssetBase.GetGraphChecked();
 			auto AddMemberAction = [&](const FAddActionParams& Params)
@@ -3220,28 +3223,23 @@ namespace Metasound
 				OutAllActions.AddAction(NewFuncAction);
 			};
 
-			auto GetVertexDisplayName = [&](const FMetasoundFrontendNode& Node)
-			{
-				if (const FMetasoundFrontendClass* Class = DocBuilder.FindDependency(Node.ClassID))
-				{
-					constexpr bool bDisplayNamespace = false;
-					return FGraphBuilder::GetDisplayName(Class->Metadata, Node.Name, bDisplayNamespace);
-				}
-
-				return FText();
-			};
-
 			for (const FMetasoundFrontendClassInput& Input : DocBuilder.GetConstDocumentChecked().RootGraph.Interface.Inputs)
 			{
 				if (const FMetasoundFrontendNode* Node = DocBuilder.FindGraphInputNode(Input.Name))
 				{
+					FText DisplayName;
+					if (const FMetasoundFrontendClassInput* ClassInput = DocBuilder.FindGraphInput(Node->Name))
+					{
+						DisplayName = ClassInput->Metadata.GetDisplayName();
+					}
+
 					AddMemberAction(FAddActionParams
 					{
-						Input.Name,							// FullName
-						Input.Metadata.GetDescription(),	// Tooltip
-						GetVertexDisplayName(*Node),		// MenuDesc
-						ENodeSection::Inputs,				// Section
-						Node->GetID()						// MemberID
+						Input.Name, // FullName
+						Input.Metadata.GetDescription(), // Tooltip
+						INodeTemplate::ResolveMemberDisplayName(Node->Name, DisplayName, bDisplayNamespace), // MenuDesc
+						ENodeSection::Inputs, // Section
+						Node->GetID() // MemberID
 					});
 				}
 			}
@@ -3251,13 +3249,19 @@ namespace Metasound
 			{
 				if (const FMetasoundFrontendNode* Node = DocBuilder.FindGraphOutputNode(Output.Name))
 				{
+					FText DisplayName;
+					if (const FMetasoundFrontendClassOutput* ClassOutput = DocBuilder.FindGraphOutput(Node->Name))
+					{
+						DisplayName = ClassOutput->Metadata.GetDisplayName();
+					}
+
 					AddMemberAction(FAddActionParams
 					{
-						Output.Name,						// FullName
-						Output.Metadata.GetDescription(),	// Tooltip
-						GetVertexDisplayName(*Node),		// MenuDesc
-						ENodeSection::Outputs,				// Section
-						Node->GetID()						// MemberID
+						Output.Name, // FullName
+						Output.Metadata.GetDescription(), // Tooltip
+						INodeTemplate::ResolveMemberDisplayName(Node->Name, DisplayName, bDisplayNamespace), // MenuDesc
+						ENodeSection::Outputs, // Section
+						Node->GetID() // MemberID
 					});
 				}
 			}
@@ -3265,22 +3269,13 @@ namespace Metasound
 			const FMetasoundFrontendGraph& Graph = DocBuilder.FindConstBuildGraphChecked();
 			for (const FMetasoundFrontendVariable& Variable : Graph.Variables)
 			{
-				FText MenuDesc = Variable.DisplayName;
-				if (MenuDesc.IsEmptyOrWhitespace())
-				{
-					FName Namespace;
-					FName ParameterName;
-					Audio::FParameterPath::SplitName(Variable.Name, Namespace, ParameterName);
-					MenuDesc = FText::FromName(ParameterName);
-				}
-
 				AddMemberAction(FAddActionParams
 				{
-					Variable.Name,				// FullName
-					Variable.Description,		// Tooltip
-					MenuDesc,					// MenuDesc
-					ENodeSection::Variables,	// Section
-					Variable.ID					 // MemberID
+					Variable.Name, // FullName
+					Variable.Description, // Tooltip
+					INodeTemplate::ResolveMemberDisplayName(Variable.Name, Variable.DisplayName, bDisplayNamespace), // MenuDesc
+					ENodeSection::Variables, // Section
+					Variable.ID // MemberID
 				});
 			}
 		}
