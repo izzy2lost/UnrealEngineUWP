@@ -102,8 +102,8 @@ namespace DashUtils
 			int64 nr = -1;
 			if (LoadChunk(InNumBytesToRead, InFromOffset) && ResponseBuffer.IsValid())
 			{
-				nr = ResponseBuffer->Buffer.GetLinearReadSize();
-				FMemory::Memcpy(InDestinationBuffer, ResponseBuffer->Buffer.GetLinearReadData(), nr);
+				nr = ResponseBuffer->GetLinearReadSize();
+				FMemory::Memcpy(InDestinationBuffer, ResponseBuffer->GetLinearReadData(), nr);
 			}
 			return nr;
 		}
@@ -160,7 +160,7 @@ namespace DashUtils
 
 
 		TSharedPtrTS<FMPDLoadRequestDASH> LoadRequest;
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer;
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer;
 		int64 FileSize = -1;
 	};
 }

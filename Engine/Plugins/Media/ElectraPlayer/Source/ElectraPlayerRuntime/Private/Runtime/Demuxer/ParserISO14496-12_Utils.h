@@ -15,11 +15,11 @@ namespace Electra
 	public:
 		FMP4StaticDataReader() = default;
 		virtual ~FMP4StaticDataReader() = default;
-		virtual void SetParseData(TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> InResponseBuffer)
+		virtual void SetParseData(TSharedPtrTS<FWaitableBuffer> InResponseBuffer)
 		{
 			ResponseBuffer = InResponseBuffer;
-			DataSize = ResponseBuffer->Buffer.Num();
-			Data = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+			DataSize = ResponseBuffer->Num();
+			Data = (const uint8*)ResponseBuffer->GetLinearReadData();
 			CurrentOffset = 0;
 		}
 		virtual bool HaveParseData() const
@@ -45,18 +45,18 @@ namespace Electra
 		}
 		virtual bool HasReachedEOF() const override
 		{
-			return ResponseBuffer.IsValid() ? ResponseBuffer->Buffer.GetEOD() && CurrentOffset >= DataSize : true;
+			return ResponseBuffer.IsValid() ? ResponseBuffer->GetEOD() && CurrentOffset >= DataSize : true;
 		}
 		virtual bool HasReadBeenAborted() const override
 		{
-			return ResponseBuffer.IsValid() ? ResponseBuffer->Buffer.WasAborted() : true;
+			return ResponseBuffer.IsValid() ? ResponseBuffer->WasAborted() : true;
 		}
 		virtual int64 GetCurrentOffset() const override
 		{
 			return CurrentOffset;
 		}
 
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer;
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer;
 		const uint8* Data = nullptr;
 		int64 DataSize = 0;
 		int64 CurrentOffset = 0;

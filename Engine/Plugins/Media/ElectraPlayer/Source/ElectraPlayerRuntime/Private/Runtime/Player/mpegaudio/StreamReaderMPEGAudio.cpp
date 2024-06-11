@@ -75,7 +75,7 @@ struct FStreamReaderMPEGAudio::FLiveRequest : public TSharedFromThis<FStreamRead
 	int32 StatusCode = 0;
 	TMediaMessageQueueWithTimeout<EEvent> Events;
 	TMultiMap<FString, FString> Headers;
-	TWeakPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+	TWeakPtrTS<FWaitableBuffer> ReceiveBuffer;
 	bool bCanceled = false;
 	int32 MetaDataEveryNBytes = 0;
 	int32 MetaDataBytesToGo = 0;
@@ -166,10 +166,10 @@ void FStreamReaderMPEGAudio::CancelRequest(EStreamType StreamType, bool bSilent)
 void FStreamReaderMPEGAudio::CancelRequests()
 {
 	bRequestCanceled = true;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> RcvBuf = ReceiveBuffer;
+	TSharedPtrTS<FWaitableBuffer> RcvBuf = ReceiveBuffer;
 	if (RcvBuf.IsValid())
 	{
-		RcvBuf->Buffer.Abort();
+		RcvBuf->Abort();
 	}
 	TSharedPtrTS<FLiveRequest> lr(LiveRequest);
 	if (lr.IsValid())
@@ -180,8 +180,8 @@ void FStreamReaderMPEGAudio::CancelRequests()
 
 bool FStreamReaderMPEGAudio::HasBeenAborted() const
 {
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> RcvBuf = ReceiveBuffer;
-	return bRequestCanceled || (RcvBuf.IsValid() && RcvBuf->Buffer.WasAborted());
+	TSharedPtrTS<FWaitableBuffer> RcvBuf = ReceiveBuffer;
+	return bRequestCanceled || (RcvBuf.IsValid() && RcvBuf->WasAborted());
 }
 
 bool FStreamReaderMPEGAudio::HasErrored() const
@@ -288,17 +288,17 @@ void FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPt
 			else
 			{
 				int32 DataBytesNow = BytesUntilNextMetadata > 0 ? Utils::Min((int32) InLength, BytesUntilNextMetadata) : InLength;
-				TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> rb = ReceiveBuffer.Pin();
+				TSharedPtrTS<FWaitableBuffer> rb = ReceiveBuffer.Pin();
 				if (rb.IsValid())
 				{
-					FScopeLock Lock(rb->Buffer.GetLock());
-					int64 BufSizeRequired = rb->Buffer.Num() + DataBytesNow;
-					if (!rb->Buffer.EnlargeTo(BufSizeRequired))
+					FScopeLock Lock(rb->GetLock());
+					int64 BufSizeRequired = rb->Num() + DataBytesNow;
+					if (!rb->EnlargeTo(BufSizeRequired))
 					{
 						InLength = 0;
 						return;
 					}
-					if (!rb->Buffer.PushData(reinterpret_cast<const uint8*>(InDataPtr), DataBytesNow))
+					if (!rb->PushData(reinterpret_cast<const uint8*>(InDataPtr), DataBytesNow))
 					{
 						InLength = 0;
 						return;
@@ -306,7 +306,7 @@ void FStreamReaderMPEGAudio::FLiveRequest::OnProcessRequestStream(void* InDataPt
 
 					// Sanity check that we are not reading excessive data, which is the case when the
 					// player has been paused for instance.
-					if (MaxDataBytes && rb->Buffer.Num() > MaxDataBytes)
+					if (MaxDataBytes && rb->Num() > MaxDataBytes)
 					{
 						bHasFailed = true;
 						InLength = 0;
@@ -381,7 +381,7 @@ void FStreamReaderMPEGAudio::HandleRequest()
 
 	TSharedPtrTS<IElectraHttpManager::FRequest> HTTP(new IElectraHttpManager::FRequest);
 	TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener;
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 	if (!bIsLivePlayback)
 	{
 		ProgressListener = MakeSharedTS<IElectraHttpManager::FProgressListener>();
@@ -451,11 +451,11 @@ void FStreamReaderMPEGAudio::HandleRequest()
 	TArray<int32> SyncMarkerOffsets;
 	while(!bDone && !HasErrored() && !HasBeenAborted() && !bTerminate)
 	{
-		if (ReceiveBuffer->Buffer.WaitUntilSizeAvailable(SyncMarkerCheckPos + FrameCheckSize, 1000 * 20))
+		if (ReceiveBuffer->WaitUntilSizeAvailable(SyncMarkerCheckPos + FrameCheckSize, 1000 * 20))
 		{
-			FScopeLock Lock(ReceiveBuffer->Buffer.GetLock());
-			const uint8* BufferBaseData = ReceiveBuffer->Buffer.GetLinearReadData();
-			int64 BufferDataSize = ReceiveBuffer->Buffer.GetLinearReadSize();
+			FScopeLock Lock(ReceiveBuffer->GetLock());
+			const uint8* BufferBaseData = ReceiveBuffer->GetLinearReadData();
+			int64 BufferDataSize = ReceiveBuffer->GetLinearReadSize();
 			if (!BufferBaseData)
 			{
 				bDone = true;
@@ -483,7 +483,7 @@ void FStreamReaderMPEGAudio::HandleRequest()
 				}
 			}
 			SyncMarkerCheckPos = BufferDataSize - 1;
-			if (ReceiveBuffer->Buffer.GetEOD())
+			if (ReceiveBuffer->GetEOD())
 			{
 				bDone = true;
 			}
@@ -494,8 +494,8 @@ void FStreamReaderMPEGAudio::HandleRequest()
 	// Probe that we are properly locked on to the frames.
 	if (!HasErrored() && !HasBeenAborted() && !bTerminate)
 	{
-		FScopeLock Lock(ReceiveBuffer->Buffer.GetLock());
-		const uint8* BufferBaseData = ReceiveBuffer->Buffer.GetLinearReadData();
+		FScopeLock Lock(ReceiveBuffer->GetLock());
+		const uint8* BufferBaseData = ReceiveBuffer->GetLinearReadData();
 		if (BufferBaseData)
 		{
 			const int32 MaxCheckFrames = FMath::Min(10, SyncMarkerOffsets.Num());
@@ -573,22 +573,22 @@ void FStreamReaderMPEGAudio::HandleRequest()
 		// With Live playback we have to remove the data bytes we already passed along from the start of the buffer.
 		if (LiveRequest.IsValid() && NumLiveStreamBytesToRemove && NextAUBufferOffset >= NumLiveStreamBytesToRemove)
 		{
-			ReceiveBuffer->Buffer.RemoveFromBeginning(NextAUBufferOffset);
+			ReceiveBuffer->RemoveFromBeginning(NextAUBufferOffset);
 			NextAUBufferOffset = 0;
 		}
 
 		// Wait until we get the next AU's data plus the following 4 bytes that are the header of the following frame.
 		const int64 TotalNumNeeded = NextAUBufferOffset + NextAUFrameSize + 4;
-		if (ReceiveBuffer->Buffer.WaitUntilSizeAvailable(TotalNumNeeded, 1000 * 20))
+		if (ReceiveBuffer->WaitUntilSizeAvailable(TotalNumNeeded, 1000 * 20))
 		{
-			FScopeLock Lock(ReceiveBuffer->Buffer.GetLock());
+			FScopeLock Lock(ReceiveBuffer->GetLock());
 
-			const uint8* BufferBaseData = ReceiveBuffer->Buffer.GetLinearReadData();
+			const uint8* BufferBaseData = ReceiveBuffer->GetLinearReadData();
 			if (!BufferBaseData)
 			{
 				break;
 			}
-			int64 BufferDataSize = ReceiveBuffer->Buffer.GetLinearReadSize();
+			int64 BufferDataSize = ReceiveBuffer->GetLinearReadSize();
 
 			int64 NumGot = BufferDataSize - NextAUBufferOffset;
 			// Did we get the next frame's worth?
@@ -758,8 +758,8 @@ void FStreamReaderMPEGAudio::HandleRequest()
 				// Did we also get the next 4 bytes?
 				if (NumGot >= 4)
 				{
-					FScopeLock Lock2(ReceiveBuffer->Buffer.GetLock());
-					HeaderValue = GetUINT32BE(ReceiveBuffer->Buffer.GetLinearReadData() + NextAUBufferOffset + NextAUFrameSize);
+					FScopeLock Lock2(ReceiveBuffer->GetLock());
+					HeaderValue = GetUINT32BE(ReceiveBuffer->GetLinearReadData() + NextAUBufferOffset + NextAUFrameSize);
 					NextAUFrameSize = ElectraDecodersUtil::MPEG::UtilsMPEG123::GetFrameSize(HeaderValue);
 				}
 				else

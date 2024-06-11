@@ -134,10 +134,10 @@ private:
 				MaxParsePos = TNumericLimits<int64>::Max();
 				DecryptedPos = 0;
 			}
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer>	ReceiveBuffer;
-			int64												ParsePos;
-			int64												MaxParsePos;
-			int32												DecryptedPos;
+			TSharedPtrTS<FWaitableBuffer>	ReceiveBuffer;
+			int64							ParsePos;
+			int64							MaxParsePos;
+			int32							DecryptedPos;
 		};
 
 

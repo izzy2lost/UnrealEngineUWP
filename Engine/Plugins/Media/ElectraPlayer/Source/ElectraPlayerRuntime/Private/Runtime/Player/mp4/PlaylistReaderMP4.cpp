@@ -101,7 +101,7 @@ private:
 	HTTP::FConnectionInfo ConnectionInfo;
 
 	TSharedPtrTS<IParserISO14496_12> MP4Parser;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ParseBuffer;
+	TSharedPtrTS<FWaitableBuffer> ParseBuffer;
 	int64 ParsePos = 0;
 	int64 ParseBufferSize = 0;
 
@@ -268,7 +268,7 @@ void FPlaylistReaderMP4::WorkerThread()
 
 			ParseBuffer = BoxInfos.FindByPredicate([InType=UtilsMP4::Make4CC('m','o','o','v')](const UtilsMP4::FMP4RootBoxLocator::FBoxInfo& InBox){return InBox.Type == InType;})->DataBuffer;
 			ParsePos = 0;
-			ParseBufferSize = ParseBuffer->Buffer.Num();
+			ParseBufferSize = ParseBuffer->Num();
 
 			MP4Parser = IParserISO14496_12::CreateParser();
 			UEMediaError parseError = MP4Parser->ParseHeader(this, this, PlayerSessionServices, nullptr);
@@ -334,7 +334,7 @@ int64 FPlaylistReaderMP4::ReadData(void* IntoBuffer, int64 NumBytesToRead)
 	{
 		return 0;
 	}
-	const uint8* Src = ParseBuffer->Buffer.GetLinearReadData() + ParsePos;
+	const uint8* Src = ParseBuffer->GetLinearReadData() + ParsePos;
 	if (IntoBuffer)
 	{
 		FMemory::Memcpy(IntoBuffer, Src, NumBytesToRead);

@@ -413,7 +413,7 @@ FStreamReaderHLSfmp4::FStreamHandler::ELicenseKeyResult FStreamReaderHLSfmp4::FS
 		{
 			TSharedPtrTS<IElectraHttpManager::FRequest> HTTP(new IElectraHttpManager::FRequest);
 			ReadBuffer.Reset();
-			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+			ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 			Metrics::FSegmentDownloadStats& ds = InRequest->DownloadStats;
 			ds.URL = LicenseKeyInfo->URI;
@@ -439,9 +439,9 @@ FStreamReaderHLSfmp4::FStreamHandler::ELicenseKeyResult FStreamReaderHLSfmp4::FS
 						if (KeyData.IsValid())
 						{
 							// Copy the response over into the receive buffer as if it was received through the http request.
-							ReadBuffer.ReceiveBuffer->Buffer.Reserve(KeyData->Num());
-							ReadBuffer.ReceiveBuffer->Buffer.PushData(KeyData->GetData(), KeyData->Num());
-							ReadBuffer.ReceiveBuffer->Buffer.SetEOD();
+							ReadBuffer.ReceiveBuffer->Reserve(KeyData->Num());
+							ReadBuffer.ReceiveBuffer->PushData(KeyData->GetData(), KeyData->Num());
+							ReadBuffer.ReceiveBuffer->SetEOD();
 							bHaveStaticResponse = true;
 						}
 						break;
@@ -477,11 +477,11 @@ FStreamReaderHLSfmp4::FStreamHandler::ELicenseKeyResult FStreamReaderHLSfmp4::FS
 				PlayerSessionService->SendMessageToPlayer(FLicenseKeyMessage::Create(FLicenseKeyMessage::EReason::LicenseKeyDownload, FErrorDetail(), &HTTP->ConnectionInfo));
 
 				// There is not much we can validate here. The key is the direct key data without any wrapping.
-				if (ReadBuffer.ReceiveBuffer->Buffer.Num() == 16)
+				if (ReadBuffer.ReceiveBuffer->Num() == 16)
 				{
 					LicenseKeyData = MakeShared<TArray<uint8>, ESPMode::ThreadSafe>();
-					LicenseKeyData->AddUninitialized(ReadBuffer.ReceiveBuffer->Buffer.Num());
-					FMemory::Memcpy(LicenseKeyData->GetData(), ReadBuffer.ReceiveBuffer->Buffer.GetLinearReadData(), ReadBuffer.ReceiveBuffer->Buffer.GetLinearReadSize());
+					LicenseKeyData->AddUninitialized(ReadBuffer.ReceiveBuffer->Num());
+					FMemory::Memcpy(LicenseKeyData->GetData(), ReadBuffer.ReceiveBuffer->GetLinearReadData(), ReadBuffer.ReceiveBuffer->GetLinearReadSize());
 					if (InRequest->LicenseKeyCache.IsValid())
 					{
 						InRequest->LicenseKeyCache->AddLicenseKey(LicenseKeyData, LicenseKeyInfo, FTimeValue::GetPositiveInfinity());
@@ -541,7 +541,7 @@ FStreamReaderHLSfmp4::FStreamHandler::EInitSegmentResult FStreamReaderHLSfmp4::F
 			ProgressListener->ProgressDelegate = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FStreamHandler::HTTPProgressCallback);
 			ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateRaw(this, &FStreamHandler::HTTPCompletionCallback);
 			ReadBuffer.Reset();
-			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+			ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 			FString RequestURL = Request->InitSegmentInfo->URI;
 
@@ -819,7 +819,7 @@ void FStreamReaderHLSfmp4::FStreamHandler::HandleRequest()
 			if (!bHasErrored)
 			{
 				ReadBuffer.Reset();
-				ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+				ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 				// Start downloading the segment. Clear any stats that may have been set by the init segment download.
 				FString RequestURL = Request->URL;
@@ -1356,7 +1356,7 @@ bool FStreamReaderHLSfmp4::FStreamHandler::HasErrored() const
  */
 int64 FStreamReaderHLSfmp4::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead)
 {
-	FWaitableBuffer& SourceBuffer = ReadBuffer.ReceiveBuffer->Buffer;
+	FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
 	while(1)
 	{
@@ -1570,7 +1570,7 @@ int64 FStreamReaderHLSfmp4::FStreamHandler::ReadData(void* IntoBuffer, int64 Num
  */
 bool FStreamReaderHLSfmp4::FStreamHandler::HasReachedEOF() const
 {
-	const FWaitableBuffer& SourceBuffer = ReadBuffer.ReceiveBuffer->Buffer;
+	const FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	return !HasErrored() && SourceBuffer.GetEOD() && (ReadBuffer.ParsePos >= SourceBuffer.Num() || ReadBuffer.ParsePos >= ReadBuffer.MaxParsePos);
 }
 

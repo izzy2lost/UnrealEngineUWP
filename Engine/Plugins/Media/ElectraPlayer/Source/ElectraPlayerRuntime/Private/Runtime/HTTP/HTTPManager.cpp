@@ -76,7 +76,7 @@ namespace Electra
 		{
 			virtual ~FLocalByteStream() = default;
 			virtual void SetConnected(TSharedPtrTS<FRequest> Request) = 0;
-			virtual int32 Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) = 0;
+			virtual int32 Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) = 0;
 
 			bool										bIsConnected = false;
 			int64										FileStartOffset = 0;		//!< The base offset into the file data is requested at.
@@ -88,7 +88,7 @@ namespace Electra
 		{
 			virtual ~FFileStream() = default;
 			void SetConnected(TSharedPtrTS<FRequest> Request) override;
-			int32 Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) override;
+			int32 Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) override;
 			TSharedPtr<FArchive, ESPMode::ThreadSafe>	Archive;
 			FString										Filename;
 		};
@@ -98,7 +98,7 @@ namespace Electra
 			virtual ~FDataUrl() = default;
 			bool SetData(const FString& InUrl);
 			void SetConnected(TSharedPtrTS<FRequest> Request) override;
-			int32 Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) override;
+			int32 Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) override;
 			TArray<uint8>								Data;
 			FString										MimeType;
 		};
@@ -107,7 +107,7 @@ namespace Electra
 		{
 			virtual ~FExternalReader() = default;
 			void SetConnected(TSharedPtrTS<FRequest> Request) override;
-			int32 Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) override;
+			int32 Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request) override;
 			void OnReadComplete(IExternalDataReader::FResponseDataPtr InResponseData, int64 InTotalFileSize, const IExternalDataReader::FReadParams& InFromRequestParams)
 			{
 				ResponseData = MoveTemp(InResponseData);
@@ -499,10 +499,10 @@ namespace Electra
 				SetMessage(FString::Printf(TEXT("FElectraHttpManager did not initialize")));
 			Request->ConnectionInfo.RequestEndTime = MEDIAutcTime::Current();
 			Request->ConnectionInfo.bHasFinished = true;
-			TSharedPtrTS<FReceiveBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
+			TSharedPtrTS<FWaitableBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
 			if (ReceiveBuffer.IsValid())
 			{
-				ReceiveBuffer->Buffer.SetEOD();
+				ReceiveBuffer->SetEOD();
 			}
 			TSharedPtrTS<FProgressListener> ProgressListener = Request->ProgressListener.Pin();
 			if (ProgressListener.IsValid())
@@ -884,10 +884,10 @@ namespace Electra
 			}
 
 			Request->ConnectionInfo.bHasFinished = true;
-			TSharedPtrTS<FReceiveBuffer>	ReceiveBuffer = Request->ReceiveBuffer.Pin();
+			TSharedPtrTS<FWaitableBuffer>	ReceiveBuffer = Request->ReceiveBuffer.Pin();
 			if (ReceiveBuffer.IsValid())
 			{
-				ReceiveBuffer->Buffer.SetEOD();
+				ReceiveBuffer->SetEOD();
 			}
 
 			// Call completion delegate.
@@ -1111,7 +1111,7 @@ namespace Electra
 				// Establish the file handle as "connected"
 				Handle->LocalByteStream->SetConnected(Request);
 				// Read from local file
-				TSharedPtrTS<FReceiveBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
+				TSharedPtrTS<FWaitableBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
 				if (ReceiveBuffer.IsValid())
 				{
 					int32 NumBytesRead = Handle->LocalByteStream->Read(ReceiveBuffer, Request);
@@ -1148,7 +1148,7 @@ namespace Electra
 				// Establish the file handle as "connected"
 				Handle->LocalByteStream->SetConnected(Request);
 				// Read data
-				TSharedPtrTS<FReceiveBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
+				TSharedPtrTS<FWaitableBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
 				if (ReceiveBuffer.IsValid())
 				{
 					int32 NumBytesRead = Handle->LocalByteStream->Read(ReceiveBuffer, Request);
@@ -1442,16 +1442,16 @@ namespace Electra
 						Handle->LastTimeDataReceived = Now;
 
 						// Receive buffer still there?
-						TSharedPtrTS<FReceiveBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
+						TSharedPtrTS<FWaitableBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
 						if (ReceiveBuffer.IsValid())
 						{
 							int64 RequiredBufferSize = ci.ContentLength > 0 ? ci.ContentLength : 0;
-							int64 BufferSizeAfterPush = ReceiveBuffer->Buffer.Num() + NumDataAvailable;
+							int64 BufferSizeAfterPush = ReceiveBuffer->Num() + NumDataAvailable;
 							if (BufferSizeAfterPush > RequiredBufferSize)
 							{
 								RequiredBufferSize = BufferSizeAfterPush;
 							}
-							bool bBufferUsable = ReceiveBuffer->Buffer.EnlargeTo(RequiredBufferSize);
+							bool bBufferUsable = ReceiveBuffer->EnlargeTo(RequiredBufferSize);
 							int64 BufferPushableSize = bBufferUsable ? NumDataAvailable : 0;
 							if (bBufferUsable)
 							{
@@ -1461,7 +1461,7 @@ namespace Electra
 									int64 NewDataSize = 0;
 									Response->GetResponseData().LockBuffer(NewDataPtr, NewDataSize);
 									int64 NumToCopy = BufferPushableSize < NewDataSize ? BufferPushableSize : NewDataSize;
-									bBufferUsable = ReceiveBuffer->Buffer.PushData(NewDataPtr, NumToCopy);
+									bBufferUsable = ReceiveBuffer->PushData(NewDataPtr, NumToCopy);
 									Response->GetResponseData().UnlockBuffer(bBufferUsable ? NumToCopy : 0);
 									if (bBufferUsable)
 									{
@@ -1521,10 +1521,10 @@ namespace Electra
 							if (Handle->ActiveResponse.SizeRemaining() == 0)
 							{
 								// All done now.
-								TSharedPtrTS<FReceiveBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
+								TSharedPtrTS<FWaitableBuffer> ReceiveBuffer = Request->ReceiveBuffer.Pin();
 								if (ReceiveBuffer.IsValid())
 								{
-									ReceiveBuffer->Buffer.SetEOD();
+									ReceiveBuffer->SetEOD();
 								}
 							}
 							else
@@ -1658,16 +1658,16 @@ namespace Electra
 		}
 	}
 
-	int32 FElectraHttpManager::FFileStream::Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request)
+	int32 FElectraHttpManager::FFileStream::Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request)
 	{
 		int64 NumToRead = FileSizeToGo;
 		if (NumToRead)
 		{
-			void* Dst = (void*) RcvBuffer->Buffer.GetLinearWriteData(NumToRead);
+			void* Dst = (void*) RcvBuffer->GetLinearWriteData(NumToRead);
 			if (Dst)
 			{
 				Archive->Serialize(Dst, NumToRead);
-				RcvBuffer->Buffer.AppendedNewData(NumToRead);
+				RcvBuffer->AppendedNewData(NumToRead);
 				Request->ConnectionInfo.BytesReadSoFar += NumToRead;
 				FileSizeToGo -= NumToRead;
 			}
@@ -1716,7 +1716,7 @@ namespace Electra
 		}
 	}
 
-	int32 FElectraHttpManager::FExternalReader::Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request)
+	int32 FElectraHttpManager::FExternalReader::Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request)
 	{
 		if (bCompleted)
 		{
@@ -1725,7 +1725,7 @@ namespace Electra
 			FileSizeToGo = 0;
 			if (FileSize >= 0)
 			{
-				RcvBuffer->Buffer.SetExternalData(MoveTemp(ResponseData));
+				RcvBuffer->SetExternalData(MoveTemp(ResponseData));
 				if (!bRangedRequest)
 				{
 					Request->ConnectionInfo.StatusInfo.HTTPStatus = 200;
@@ -1847,11 +1847,11 @@ namespace Electra
 		}
 	}
 
-	int32 FElectraHttpManager::FDataUrl::Read(TSharedPtrTS<FReceiveBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request)
+	int32 FElectraHttpManager::FDataUrl::Read(TSharedPtrTS<FWaitableBuffer> RcvBuffer, TSharedPtrTS<FRequest> Request)
 	{
-		if (RcvBuffer->Buffer.EnlargeTo(FileSizeToGo))
+		if (RcvBuffer->EnlargeTo(FileSizeToGo))
 		{
-			if (RcvBuffer->Buffer.PushData(Data.GetData() + FileStartOffset, FileSizeToGo))
+			if (RcvBuffer->PushData(Data.GetData() + FileStartOffset, FileSizeToGo))
 			{
 				Request->ConnectionInfo.BytesReadSoFar += FileSizeToGo;
 			}

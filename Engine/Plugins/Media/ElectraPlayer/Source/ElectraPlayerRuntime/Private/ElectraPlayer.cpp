@@ -736,10 +736,10 @@ void FElectraPlayer::HandleBlobDownload()
 																	ErrCode > 0 && ErrCode < 100 ? IElectraPlayerAdapterDelegate::EBlobResultType::TimedOut :
 																	IElectraPlayerAdapterDelegate::EBlobResultType::HttpFailure;
 			TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> BlobData = MakeShared<TArray<uint8>, ESPMode::ThreadSafe>();
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = PendingBlobRequest->Request->GetResponseBuffer();
+			TSharedPtrTS<FWaitableBuffer> ResponseBuffer = PendingBlobRequest->Request->GetResponseBuffer();
 			if (ResponseBuffer.IsValid())
 			{
-				BlobData->Append((const uint8*)ResponseBuffer->Buffer.GetLinearReadData(), ResponseBuffer->Buffer.Num());
+				BlobData->Append((const uint8*)ResponseBuffer->GetLinearReadData(), ResponseBuffer->Num());
 			}
 			TSharedPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe> PinnedAdapterDelegate = AdapterDelegate.Pin();
 			if (PinnedAdapterDelegate.IsValid())

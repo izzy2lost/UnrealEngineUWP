@@ -516,10 +516,10 @@ private:
 			{
 				ErrorCode = InRequest->GetError();
 				BlobData = MakeShared<TArray<uint8>, ESPMode::ThreadSafe>();
-				TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = InRequest->GetResponseBuffer();
+				TSharedPtrTS<FWaitableBuffer> ResponseBuffer = InRequest->GetResponseBuffer();
 				if (ResponseBuffer.IsValid())
 				{
-					BlobData->Append((const uint8*)ResponseBuffer->Buffer.GetLinearReadData(), ResponseBuffer->Buffer.Num());
+					BlobData->Append((const uint8*)ResponseBuffer->GetLinearReadData(), ResponseBuffer->Num());
 				}
 			}
 			bIsComplete = true;

@@ -362,7 +362,7 @@ void FStreamReaderMKV::HandleRequest()
 	ProgressListener->ProgressDelegate = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FStreamReaderMKV::HTTPProgressCallback);
 
 	ReadBuffer.Reset();
-	ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+	ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 	ReadBuffer.SetStartOffset(Request->FileStartOffset);
 	ReadBuffer.SetCurrentOffset(0);
 	ReadBuffer.SetEndOffset(Request->FileEndOffset);
@@ -910,7 +910,7 @@ void FStreamReaderMKV::WorkerThread()
 
 int32 FStreamReaderMKV::FReadBuffer::ReadTo(void* IntoBuffer, int64 NumBytesToRead)
 {
-	FWaitableBuffer& SourceBuffer = ReceiveBuffer->Buffer;
+	FWaitableBuffer& SourceBuffer = *ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
 	while(1)
 	{

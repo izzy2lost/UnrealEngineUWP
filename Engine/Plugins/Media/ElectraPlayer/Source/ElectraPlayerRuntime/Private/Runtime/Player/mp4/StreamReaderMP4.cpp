@@ -369,7 +369,7 @@ void FStreamReaderMP4::HandleRequest()
 	ProgressListener->ProgressDelegate   = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FStreamReaderMP4::HTTPProgressCallback);
 
 	ReadBuffer.Reset();
-	ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+	ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 	ReadBuffer.SetCurrentPos(Request->FileStartOffset);
 
 	TSharedPtrTS<IElectraHttpManager::FRequest> HTTP(new IElectraHttpManager::FRequest);
@@ -745,7 +745,7 @@ void FStreamReaderMP4::WorkerThread()
 
 int32 FStreamReaderMP4::FReadBuffer::ReadTo(void* IntoBuffer, int64 NumBytesToRead)
 {
-	FWaitableBuffer& SourceBuffer = ReceiveBuffer->Buffer;
+	FWaitableBuffer& SourceBuffer = *ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
 	while(1)
 	{

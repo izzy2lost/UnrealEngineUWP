@@ -595,7 +595,7 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 	});
 
 
-	auto CreateReadRequestAndBuffer = [&](TSharedPtrTS<IElectraHttpManager::FReceiveBuffer>& OutReceiveBuffer, int64 InFromOffset, int64 InNumBytes) -> TSharedPtrTS<IElectraHttpManager::FRequest>
+	auto CreateReadRequestAndBuffer = [&](TSharedPtrTS<FWaitableBuffer>& OutReceiveBuffer, int64 InFromOffset, int64 InNumBytes) -> TSharedPtrTS<IElectraHttpManager::FRequest>
 	{
 		TSharedPtrTS<IElectraHttpManager::FRequest> Req = MakeSharedTS<IElectraHttpManager::FRequest>();
 		Req->Parameters.URL = URL;
@@ -608,8 +608,8 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 		Req->Parameters.Range.SetEndIncluding(LastByte);
 		Req->Parameters.ConnectTimeout = FTimeValue().SetFromMilliseconds(1000 * 8);
 		Req->Parameters.NoDataTimeout = FTimeValue().SetFromMilliseconds(1000 * 6);
-		OutReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
-		OutReceiveBuffer->Buffer.Reserve(InNumBytes);
+		OutReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
+		OutReceiveBuffer->Reserve(InNumBytes);
 		Req->ReceiveBuffer = OutReceiveBuffer;
 		Req->ProgressListener = ProgressListener;
 		Req->ResponseCache = LocalCache;
@@ -623,7 +623,7 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 	bool bSuccess = false;
 	bool bIsFirst = true;
 	TSharedPtrTS<IElectraHttpManager::FRequest> Request;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 	while(1)
 	{
 		int64 SizeToRead = CurrentEndOffset < StartOffset+MinRequiredReadSize ? ChunkSize : MinRequiredReadSize;
@@ -634,17 +634,17 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 		{
 			break;
 		}
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> DataBuffer(MoveTemp(ReceiveBuffer));
+		TSharedPtrTS<FWaitableBuffer> DataBuffer(MoveTemp(ReceiveBuffer));
 		InHTTPManager->RemoveRequest(Request, false);
 		Request.Reset();
 
-		if (DataBuffer.IsValid() && DataBuffer->Buffer.Num() >= 8)
+		if (DataBuffer.IsValid() && DataBuffer->Num() >= 8)
 		{
-			const int64 End = StartOffset + DataBuffer->Buffer.Num();
+			const int64 End = StartOffset + DataBuffer->Num();
 			CurrentEndOffset = CurrentEndOffset < End ? End : CurrentEndOffset;
 
 			FBoxInfo bi;
-			const uint32* Data = reinterpret_cast<const uint32*>(DataBuffer->Buffer.GetLinearReadData());
+			const uint32* Data = reinterpret_cast<const uint32*>(DataBuffer->GetLinearReadData());
 			bi.Size = (int64) MEDIA_FROM_BIG_ENDIAN(Data[0]);
 			bi.Type = MEDIA_FROM_BIG_ENDIAN(Data[1]);
 			bi.Offset = StartOffset;
@@ -676,7 +676,7 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 			else if (bi.Size == 1)
 			{
 				// A size of 1 indicates that the size is expressed as a 64 bit value following the box type.
-				if (DataBuffer->Buffer.Num() < 16)
+				if (DataBuffer->Num() < 16)
 				{
 					ErrorMsg = TEXT("Invalid mp4 file: Box requiring 64 bit size value is truncated");
 					break;
@@ -687,7 +687,7 @@ bool UtilsMP4::FMP4RootBoxLocator::LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos
 
 			if (bi.Type == Make4CC('u','u','i','d'))
 			{
-				if (DataBuffer->Buffer.Num() < BoxInternalOffset + 16)
+				if (DataBuffer->Num() < BoxInternalOffset + 16)
 				{
 					ErrorMsg = TEXT("Invalid mp4 file: UUID box is truncated");
 					break;

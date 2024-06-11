@@ -1080,9 +1080,9 @@ FErrorDetail FPlaylistReaderDASH::GetXMLResponseString(FString& OutXMLString, FR
 {
 	if (FromRequest.IsValid() && FromRequest->Request.IsValid())
 	{
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
-		int32 NumResponseBytes = ResponseBuffer->Buffer.Num();
-		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
+		int32 NumResponseBytes = ResponseBuffer->Num();
+		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->GetLinearReadData();
 		// Check for potential BOMs
 		if (NumResponseBytes > 3 && ResponseBytes[0] == 0xEF && ResponseBytes[1] == 0xBB && ResponseBytes[2] == 0xBF)
 		{
@@ -1122,9 +1122,9 @@ FErrorDetail FPlaylistReaderDASH::GetResponseString(FString& OutString, FResourc
 {
 	if (FromRequest.IsValid() && FromRequest->Request.IsValid())
 	{
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
-		int32 NumResponseBytes = ResponseBuffer->Buffer.Num();
-		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
+		int32 NumResponseBytes = ResponseBuffer->Num();
+		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->GetLinearReadData();
 		FUTF8ToTCHAR TextConv((const ANSICHAR*)ResponseBytes, NumResponseBytes);
 		FString UTF8Text(TextConv.Length(), TextConv.Get());
 		OutString = MoveTemp(UTF8Text);

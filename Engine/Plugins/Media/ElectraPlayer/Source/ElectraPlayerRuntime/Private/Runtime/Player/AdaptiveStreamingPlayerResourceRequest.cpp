@@ -15,7 +15,7 @@ namespace Electra
 FHTTPResourceRequest::FHTTPResourceRequest()
 {
 	Request = MakeSharedTS<IElectraHttpManager::FRequest>();
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 	ProgressListener = MakeSharedTS<IElectraHttpManager::FProgressListener>();
 	ProgressListener->ProgressDelegate   = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FHTTPResourceRequest::HTTPProgressCallback);
 	ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateRaw(this, &FHTTPResourceRequest::HTTPCompletionCallback);
@@ -180,7 +180,7 @@ void FHTTPResourceRequest::StaticDataReady()
 			ci.bHasFinished = true;
 			ci.HTTPVersionReceived = 11;
 			ci.StatusInfo.HTTPStatus = Request->Parameters.Range.IsSet() ? 206 : 200;
-			ci.ContentLength = ci.BytesReadSoFar = ReceiveBuffer.IsValid() ? ReceiveBuffer->Buffer.Num() : 0;
+			ci.ContentLength = ci.BytesReadSoFar = ReceiveBuffer.IsValid() ? ReceiveBuffer->Num() : 0;
 
 			bInCallback = true;
 			CompletedCallback.ExecuteIfBound(AsShared());

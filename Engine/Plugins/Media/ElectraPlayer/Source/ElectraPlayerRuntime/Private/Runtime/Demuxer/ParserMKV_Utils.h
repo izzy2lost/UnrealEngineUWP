@@ -16,11 +16,11 @@ namespace Electra
 	public:
 		FMKVStaticDataReader() = default;
 		virtual ~FMKVStaticDataReader() = default;
-		virtual void SetParseData(TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> InResponseBuffer)
+		virtual void SetParseData(TSharedPtrTS<FWaitableBuffer> InResponseBuffer)
 		{
 			ResponseBuffer = InResponseBuffer;
-			DataSize = ResponseBuffer->Buffer.Num();
-			Data = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+			DataSize = ResponseBuffer->Num();
+			Data = (const uint8*)ResponseBuffer->GetLinearReadData();
 			CurrentOffset = 0;
 		}
 	private:
@@ -49,7 +49,7 @@ namespace Electra
 		bool MKVHasReadBeenAborted() const override
 		{ return false; }
 
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer;
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer;
 		const uint8* Data = nullptr;
 		int64 DataSize = 0;
 		int64 CurrentOffset = 0;

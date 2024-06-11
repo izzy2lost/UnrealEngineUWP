@@ -114,7 +114,7 @@ private:
 
 	FCriticalSection Lock;
 	TSharedPtrTS<IElectraHttpManager::FRequest> Request;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 	TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener;
 	HTTP::FConnectionInfo ConnectionInfo;
 	FMediaEvent RequestFinished;
@@ -300,8 +300,8 @@ void FPlaylistReaderMKV::ReadChunk(uint8* DestinationBuffer, int64 InFromOffset,
 	ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateRaw(this, &FPlaylistReaderMKV::HTTPCompletionCallback);
 	ProgressListener->ProgressDelegate   = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FPlaylistReaderMKV::HTTPProgressCallback);
 
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
-	ReceiveBuffer->Buffer.SetExternalBuffer(DestinationBuffer, ChunkSize);
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
+	ReceiveBuffer->SetExternalBuffer(DestinationBuffer, ChunkSize);
 
 	Request = MakeSharedTS<IElectraHttpManager::FRequest>();
 	Request->Parameters.URL = PlaylistURL;
@@ -393,7 +393,7 @@ int64 FPlaylistReaderMKV::MKVReadData(void* IntoBuffer, int64 NumBytesToRead, in
 	ReadChunk(reinterpret_cast<uint8*>(IntoBuffer), InFromOffset, NumBytesToRead);
 	while(1)
 	{
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> rb = ReceiveBuffer;
+		TSharedPtrTS<FWaitableBuffer> rb = ReceiveBuffer;
 		if (bHasErrored || bAbort || !rb.IsValid())
 		{
 			return -1;

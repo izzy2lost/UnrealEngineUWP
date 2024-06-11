@@ -222,11 +222,6 @@ namespace Electra
 			FCompletionDelegate		CompletionDelegate;
 		};
 
-		struct FReceiveBuffer
-		{
-			FWaitableBuffer		Buffer;
-		};
-
 		struct FParams
 		{
 			void AddFromHeaderList(const TArray<FString>& InHeaderList)
@@ -261,7 +256,7 @@ namespace Electra
 			FParams								Parameters;
 			FParamDict							Options;
 			HTTP::FConnectionInfo				ConnectionInfo;
-			TWeakPtrTS<FReceiveBuffer>			ReceiveBuffer;
+			TWeakPtrTS<FWaitableBuffer>			ReceiveBuffer;
 			TWeakPtrTS<FProgressListener>		ProgressListener;
 			TSharedPtrTS<IHTTPResponseCache>	ResponseCache;
 			TWeakPtrTS<IExternalDataReader>		ExternalDataReader;

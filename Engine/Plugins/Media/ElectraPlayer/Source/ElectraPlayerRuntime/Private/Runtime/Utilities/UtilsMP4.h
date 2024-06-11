@@ -97,7 +97,7 @@ public:
 			int64 Offset = 0;
 			uint32 Type = 0;
 			uint8 UUID[16] {};
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> DataBuffer;
+			TSharedPtrTS<FWaitableBuffer> DataBuffer;
 		};
 		FMP4RootBoxLocator() = default;
 		~FMP4RootBoxLocator();

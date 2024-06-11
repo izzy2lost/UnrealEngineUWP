@@ -625,8 +625,8 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 		else
 		{
 			// Pass an empty buffer so parsing will fail below.
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> EmptyBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
-			EmptyBuffer->Buffer.SetEOD();
+			TSharedPtrTS<FWaitableBuffer> EmptyBuffer = MakeSharedTS<FWaitableBuffer>();
+			EmptyBuffer->SetEOD();
 			StaticDataReader.SetParseData(EmptyBuffer);
 		}
 	}
@@ -873,7 +873,7 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::RetrieveSideloadedFile(TSharedPt
 		return CreateError(FString::Printf(TEXT("Sideloaded media download error: %s"), *Request->ConnectionInfo.StatusInfo.ErrorDetail.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_DOWNLOAD_ERROR);
 	}
 
-	OutData = MakeSharedTS<const TArray<uint8>>(TArrayView<uint8>(LoadReq->Request->GetResponseBuffer()->Buffer.GetLinearReadData(), LoadReq->Request->GetResponseBuffer()->Buffer.GetLinearReadSize()));
+	OutData = MakeSharedTS<const TArray<uint8>>(TArrayView<uint8>(LoadReq->Request->GetResponseBuffer()->GetLinearReadData(), LoadReq->Request->GetResponseBuffer()->GetLinearReadSize()));
 
 	// Add this to the entity cache in case it needs to be retrieved again.
 	IPlayerEntityCache::FCacheItem CacheItem;
@@ -1175,7 +1175,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 		else if (!bIsEmptyFillerSegment)
 		{
 			ReadBuffer.Reset();
-			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+			ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 			// Start downloading the segment.
 			TSharedPtrTS<IElectraHttpManager::FProgressListener>	ProgressListener(new IElectraHttpManager::FProgressListener);
@@ -2017,7 +2017,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 		if (!bIsEmptyFillerSegment)
 		{
 			ReadBuffer.Reset();
-			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+			ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 			// Start downloading the segment.
 			TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener(new IElectraHttpManager::FProgressListener);
@@ -2683,7 +2683,7 @@ bool FStreamReaderDASH::FStreamHandler::HasErrored() const
  */
 int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead)
 {
-	FWaitableBuffer& SourceBuffer = ReadBuffer.ReceiveBuffer->Buffer;
+	FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
 	while(1)
 	{
@@ -2769,7 +2769,7 @@ int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumByt
  */
 bool FStreamReaderDASH::FStreamHandler::HasReachedEOF() const
 {
-	const FWaitableBuffer& SourceBuffer = ReadBuffer.ReceiveBuffer->Buffer;
+	const FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	return !HasErrored() && SourceBuffer.GetEOD() && (ReadBuffer.ParsePos >= SourceBuffer.Num() || ReadBuffer.ParsePos >= ReadBuffer.MaxParsePos);
 }
 

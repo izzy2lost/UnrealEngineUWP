@@ -125,7 +125,7 @@ private:
 	struct FLiveRequest;
 	TSharedPtrTS<FLiveRequest> LiveRequest;
 	TSharedPtrTS<FStreamSegmentRequestMPEGAudio> CurrentRequest;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 	FMediaEvent WorkSignal;
 
 	static uint32 UniqueDownloadID;

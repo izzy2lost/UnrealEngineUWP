@@ -118,7 +118,7 @@ private:
 			HTTPRequest.Reset();
 		}
 
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> GetReceiveBuffer() const
+		TSharedPtrTS<FWaitableBuffer> GetReceiveBuffer() const
 		{
 			return ReceiveBuffer;
 		}
@@ -221,7 +221,7 @@ private:
 
 		FPlaylistLoadRequestHLS									PlaylistLoadRequest;
 		FTimeValue												ExecuteAtUTC;
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer>		ReceiveBuffer;
+		TSharedPtrTS<FWaitableBuffer>							ReceiveBuffer;
 		TSharedPtrTS<IElectraHttpManager::FRequest>				HTTPRequest;
 		TSharedPtrTS<HTTP::FRetryInfo>							RetryInfo;
 		bool													bIsMasterPlaylist;
@@ -632,8 +632,8 @@ void FPlaylistReaderHLS::FPlaylistRequest::PrepareStaticResult()
 	StaticRequestConnectionInfo.HTTPVersionReceived   = 11;
 	StaticRequestConnectionInfo.StatusInfo.HTTPStatus = 200;
 
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
-	ReceiveBuffer->Buffer.SetEOD();
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
+	ReceiveBuffer->SetEOD();
 
 	TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> DataPtr = StaticRequest->GetData();
 	if (DataPtr.IsValid())
@@ -641,8 +641,8 @@ void FPlaylistReaderHLS::FPlaylistRequest::PrepareStaticResult()
 		TArray<uint8>& DataArray = *DataPtr;
 		if (DataArray.Num())
 		{
-			ReceiveBuffer->Buffer.EnlargeTo(DataArray.Num());
-			ReceiveBuffer->Buffer.PushData(DataArray.GetData(), DataArray.Num());
+			ReceiveBuffer->EnlargeTo(DataArray.Num());
+			ReceiveBuffer->PushData(DataArray.GetData(), DataArray.Num());
 			StaticRequestConnectionInfo.ContentLength = StaticRequestConnectionInfo.BytesReadSoFar = DataArray.Num();
 		}
 	}
@@ -652,7 +652,7 @@ void FPlaylistReaderHLS::FPlaylistRequest::PrepareStaticResult()
 
 void FPlaylistReaderHLS::FPlaylistRequest::Execute(TSharedPtrTS<IElectraHttpManager::FProgressListener> InProgressListener, IPlayerSessionServices* InPlayerSessionServices)
 {
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 	HTTPRequest = MakeSharedTS<IElectraHttpManager::FRequest>();
 	HTTPRequest->Parameters.URL = PlaylistLoadRequest.URL;
 	HTTPRequest->Parameters.AcceptEncoding.Set("");		// setting an empty string enables all supported encodings (ie. gzip)
@@ -1026,8 +1026,8 @@ void FPlaylistReaderHLS::HandleCompletedPlaylistDownloads(FTimeValue& TimeNow)
 FErrorDetail FPlaylistReaderHLS::ParsePlaylist(FPlaylistRequestPtr FromRequest)
 {
 	// Calculate checksum over the response to see if the playlist has changed
-	check(FromRequest->GetReceiveBuffer()->Buffer.GetLinearReadSize() >= FromRequest->GetReceiveBuffer()->Buffer.Num());	// The buffer must be linear!
-	uint32 crc = HashFunctions::CRC::Calc32(FromRequest->GetReceiveBuffer()->Buffer.GetLinearReadData(), FromRequest->GetReceiveBuffer()->Buffer.Num());
+	check(FromRequest->GetReceiveBuffer()->GetLinearReadSize() >= FromRequest->GetReceiveBuffer()->Num());	// The buffer must be linear!
+	uint32 crc = HashFunctions::CRC::Calc32(FromRequest->GetReceiveBuffer()->GetLinearReadData(), FromRequest->GetReceiveBuffer()->Num());
 	bool bNoChange = FromRequest->GetPlaylistLoadRequest().LoadType == FPlaylistLoadRequestHLS::ELoadType::Update && FromRequest->GetPlaylistLoadRequest().LastUpdateCRC32 == crc;
 
 	HLSPlaylistParser::FPlaylist		Playlist;
@@ -1042,9 +1042,9 @@ FErrorDetail FPlaylistReaderHLS::ParsePlaylist(FPlaylistRequestPtr FromRequest)
 	}
 	else
 	{
-		int32 RequestBytes = FromRequest->GetReceiveBuffer()->Buffer.Num();
+		int32 RequestBytes = FromRequest->GetReceiveBuffer()->Num();
 		// The FromRequest buffer is not zero terminated. We need to pick the correct FString constructor for converting the chars into TCHARs while adding the terminating zero!
-		FUTF8ToTCHAR TextConv((const ANSICHAR*)FromRequest->GetReceiveBuffer()->Buffer.GetLinearReadData(), RequestBytes);
+		FUTF8ToTCHAR TextConv((const ANSICHAR*)FromRequest->GetReceiveBuffer()->GetLinearReadData(), RequestBytes);
 		FString UTF8String(TextConv.Length(), TextConv.Get());
 		ParseError = Parser.Parse(UTF8String, Playlist);
 	}

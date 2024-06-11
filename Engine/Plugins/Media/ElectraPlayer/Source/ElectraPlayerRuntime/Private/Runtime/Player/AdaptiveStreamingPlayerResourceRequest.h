@@ -150,7 +150,7 @@ public:
 	virtual TSharedPtrTS<IHTTPResourceRequestObject> GetObject() const
 	{ return UserObject.Pin(); }
 
-	virtual TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> GetResponseBuffer() const
+	virtual TSharedPtrTS<FWaitableBuffer> GetResponseBuffer() const
 	{ return ReceiveBuffer; }
 
 	virtual const HTTP::FConnectionInfo* GetConnectionInfo() const
@@ -192,12 +192,12 @@ private:
 				TSharedPtrTS<FHTTPResourceRequest> p(Owner.Pin());
 				if (p.IsValid())
 				{
-					TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> Buf = p->GetResponseBuffer();
+					TSharedPtrTS<FWaitableBuffer> Buf = p->GetResponseBuffer();
 					if (Buf.IsValid())
 					{
-						Buf->Buffer.Reserve(PlaybackData->Num());
-						Buf->Buffer.PushData(PlaybackData->GetData(), PlaybackData->Num());
-						Buf->Buffer.SetEOD();
+						Buf->Reserve(PlaybackData->Num());
+						Buf->PushData(PlaybackData->GetData(), PlaybackData->Num());
+						Buf->SetEOD();
 					}
 					p->SetStaticDataReady();
 				}
@@ -224,7 +224,7 @@ private:
 	{ bStaticDataReady = true; }
 	void StaticDataReady();
 	TSharedPtrTS<IElectraHttpManager::FRequest> Request;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 	TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener;
 	FOnRequestCompletedCallback CompletedCallback;
 	TWeakPtrTS<IHTTPResourceRequestObject> UserObject;
