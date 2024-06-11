@@ -23,7 +23,6 @@ public:
 	virtual void ProduceInput(int32 PhysicsStep, int32 NumSteps, const FInputNameMap& InNameMap, FModuleInputContainer& InOutContainer) override;
 
 	FModuleInputContainer MergedInput;
-	uint32 BufferedCount = 0;
 };
 
 

@@ -13,22 +13,9 @@ void UVehicleDefaultInputProducer::BufferInput(const FInputNameMap& InNameMap, c
 {
 	//UE_LOG(LogTemp, Warning, TEXT("BufferInput - InName %s Val=%s"), *InName.ToString(), *InValue.ToString());
 
-	if (BufferedCount == 0)
-	{
-		MergedInput.ZeroValues();
-
-		FInputInterface Inputs(InNameMap, MergedInput);
-		Inputs.SetValue(InName, InValue);
-	}
-	else
-	{
-		// inputs are merged here rather than waiting to do the merge in ProduceInput
-		FInputInterface Inputs(InNameMap, MergedInput);
-		Inputs.MergeValue(InName, InValue);
-	}
-
-	// how many times input has been buffered in between being used by ProduceInput
-	BufferedCount++;
+	// inputs are merged here rather than buffered, since they would be merged anyway before use in ProduceInput
+	FInputInterface Inputs(InNameMap, MergedInput);
+	Inputs.MergeValue(InName, InValue);
 }
 
 void UVehicleDefaultInputProducer::ProduceInput(int32 PhysicsStep, int32 NumSteps, const FInputNameMap& InNameMap, FModuleInputContainer& InOutContainer)
@@ -39,7 +26,9 @@ void UVehicleDefaultInputProducer::ProduceInput(int32 PhysicsStep, int32 NumStep
 
 	// copy state out
 	InOutContainer = MergedInput;
-	BufferedCount = 0;
+
+	// reset state for next frame
+	MergedInput.ZeroValues();
 }
 
 
