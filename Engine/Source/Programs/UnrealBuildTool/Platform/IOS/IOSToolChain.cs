@@ -337,7 +337,7 @@ namespace UnrealBuildTool
 			Arguments.Add("-ObjC");
 			// Arguments.Add("-v");
 
-			Arguments.Add("-Wl,-O3");
+			//Arguments.Add("-Wl,-O3");
 
 			// use LTO if desired (like VCToolchain does)
 			if (LinkEnvironment.bAllowLTCG)
