@@ -38,7 +38,7 @@ int32 FAvaRundownPlaybackUtils::GetPageIdToPlayNext(const UAvaRundown* InRundown
 			if (bIsHeadPlaying)
 			{
 				const int32 NextPageId = InRundown->GetNextPage(PlaybackContext->PlayHeadPageId, InPageListReference).GetPageId();
-				if (IsPageIdValid(NextPageId) && InRundown->CanPlayPage(NextPageId, true))
+				if (IsPageIdValid(NextPageId) && InRundown->CanPlayPage(NextPageId, bInPreview))
 				{
 					return NextPageId;
 				}
