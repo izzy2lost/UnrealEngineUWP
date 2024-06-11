@@ -486,7 +486,8 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(
 	TArray<FLevelSetCollisionData>& LevelSetCollisions,
 	TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions,
 	TArray<int32>& UsedBoneIndices,
-	bool bUseSphylsOnly)
+	bool bUseSphylsOnly,
+	bool bSkipMissingBones)
 {
 	ClothCollisionData.Reset();
 	UsedBoneIndices.Reset();
@@ -503,6 +504,11 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(
 			}
 
 			const int32 MeshBoneIndex = ReferenceSkeleton ? ReferenceSkeleton->FindBoneIndex(BodySetup->BoneName) : INDEX_NONE;
+			if (bSkipMissingBones && MeshBoneIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
 			const int32 MappedBoneIndex = UsedBoneIndices.Add(MeshBoneIndex);
 			
 			// Add capsules

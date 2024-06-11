@@ -100,7 +100,8 @@ namespace Chaos
 			TArray<FLevelSetCollisionData>& LevelSetCollisions,
 			TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions,
 			TArray<int32>& UsedBoneIndices,
-			bool bUseSphylOnly = false);
+			bool bUseSphylOnly = false,
+			bool bSkipMissingBones = false);
 
 	private:
 		CHAOSCLOTH_API int32 GetNumGeometries(int32 InSlotIndex) const;

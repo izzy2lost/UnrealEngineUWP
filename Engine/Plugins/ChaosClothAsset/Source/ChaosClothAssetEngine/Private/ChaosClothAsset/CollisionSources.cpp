@@ -163,6 +163,7 @@ namespace UE::Chaos::ClothAsset
 					TArray<::Chaos::FClothingSimulationCollider::FLevelSetCollisionData> LevelSetCollisions;
 					TArray<::Chaos::FClothingSimulationCollider::FSkinnedLevelSetCollisionData> SkinnedLevelSetCollisions;
 
+					constexpr bool bSkipMissingBones = true;
 					::Chaos::FClothingSimulationCollider::ExtractPhysicsAssetCollision(
 						PhysicsAsset,
 						&SkinnedAsset->GetRefSkeleton(),
@@ -170,7 +171,8 @@ namespace UE::Chaos::ClothAsset
 						LevelSetCollisions,
 						SkinnedLevelSetCollisions,
 						CachedUsedBoneIndices,
-						bUseSphylsOnly);
+						bUseSphylsOnly,
+						bSkipMissingBones);
 				}
 			}
 
