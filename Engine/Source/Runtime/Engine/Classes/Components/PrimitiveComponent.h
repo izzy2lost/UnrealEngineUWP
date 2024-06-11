@@ -670,8 +670,9 @@ protected:
 	/** Helper flag to check if PSOs have been precached already */
 	uint8 bPSOPrecacheCalled : 1;
 
-	/** Have the PSO requests already been priority boosted? */
-	uint8 bPSOPrecacheRequestBoosted : 1;
+	/** PSOs requested priority */
+	EPSOPrecachePriority PSOPrecacheRequestPriority : 2;
+	static_assert((int)EPSOPrecachePriority::Highest < 1 << 2);
 
 	/** Cached array of material PSO requests which can be used to boost the priority */
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
@@ -936,9 +937,10 @@ public:
 
 	/**
 	 * Check if PSOs are still precaching and boost priority if not done yet.
+	 * PSOPrecachePriority specifies the new priority to boost to. calls that would reduce the current priority are ignored, highest pri is used for components that are actively rendering.
 	 * Returns true if the PSOs are still precaching.
 	 */
-	ENGINE_API bool CheckPSOPrecachingAndBoostPriority();
+	ENGINE_API bool CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriority PSOPrecachePriority = EPSOPrecachePriority::High);
 
 protected:
 

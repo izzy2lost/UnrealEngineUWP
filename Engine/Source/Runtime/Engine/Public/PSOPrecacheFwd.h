@@ -8,6 +8,7 @@
 
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
+#include "PipelineStateCache.h"
 
 // General switch that decides whether to compile out some PSO precaching code (most importantly, reduce sizeofs of common classes)
 #ifndef UE_WITH_PSO_PRECACHING

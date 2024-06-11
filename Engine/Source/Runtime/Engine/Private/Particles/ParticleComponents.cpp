@@ -3551,7 +3551,7 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 
 	MaterialPSOPrecacheRequestIDs.Empty();
 	PSOPrecacheCompileEvent = nullptr;
-	bPSOPrecacheRequestBoosted = false;
+	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// The asset will keep the Precache events alive, but these might be over. Avoid delaying scene proxy creation if everything is finished
 	bool bAllEventsDone = GraphEvent == nullptr || GraphEvent->IsComplete();

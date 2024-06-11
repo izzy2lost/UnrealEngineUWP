@@ -25,6 +25,16 @@ enum class EApplyRendertargetOption : int
 
 ENUM_CLASS_FLAGS(EApplyRendertargetOption);
 
+/**
+ * PSO Precache request priority
+ */
+enum class EPSOPrecachePriority : uint8
+{
+	Medium,
+	High,
+	Highest,
+};
+
 enum class ERayTracingPipelineCacheFlags : uint8
 {
 	// Query the pipeline cache, create pipeline if necessary.
@@ -177,10 +187,13 @@ namespace PipelineStateCache
 	extern RHI_API bool						IsPrecaching();
 
 	/* Boost the priority of the given PSO request ID */
-	extern RHI_API void						BoostPrecachePriority(const FPSOPrecacheRequestID& PSOPrecacheRequestID);
+	extern RHI_API void						BoostPrecachePriority(EPSOPrecachePriority PSOPrecachePriority, const FPSOPrecacheRequestID& PSOPrecacheRequestID);
 
 	/* Return number of active or pending PSO precache requests */
 	extern RHI_API uint32					NumActivePrecacheRequests();
+
+	/* Set all subsequent high priority requests to highest priority, useful in non-interactive scenarios where maximum PSO throughput is preferable. */
+	extern RHI_API void						PrecachePSOsBoostToHighestPriority(bool bForceHighest);
 
 	/* Reset the PSO hitch tracking counters */
 	extern RHI_API void						ResetPSOHitchTrackingStats();

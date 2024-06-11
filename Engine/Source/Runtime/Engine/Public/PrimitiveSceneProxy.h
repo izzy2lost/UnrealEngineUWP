@@ -23,6 +23,7 @@
 #include "SceneDefinitions.h"
 #include "MeshDrawCommandStatsDefines.h"
 #include "InstanceDataTypes.h"
+#include "PSOPrecacheFwd.h"
 
 class FLightSceneInfo;
 class FLightSceneProxy;
@@ -1150,6 +1151,11 @@ public:
 	 */
 	FInstanceDataBufferHeader GetInstanceDataHeader() const;
 
+#if UE_WITH_PSO_PRECACHING
+	ENGINE_API void BoostPrecachedPSORequestsOnDraw();
+	ENGINE_API void SetPSORequestsToBoostOnDraw(const TArray<FMaterialPSOPrecacheRequestID>& PSORequestsToBoostOnDrawIN);
+#endif
+
 protected:
 	ENGINE_API void SetupInstanceSceneDataBuffers(const FInstanceSceneDataBuffers* InInstanceSceneDataBuffers);
 
@@ -1605,7 +1611,10 @@ private:
 
 	TArray<UMaterialInterface*> UsedMaterialsForVerification;
 #endif
-
+#if UE_WITH_PSO_PRECACHING
+	// The pso precache request IDs that will be boosted to the highest priority when drawn.
+	TArray<FMaterialPSOPrecacheRequestID> PSOPrecacheRequestsToBoostOnDraw;
+#endif
 	/**
 	 * Updates the primitive proxy's cached transforms, and calls OnUpdateTransform to notify it of the change.
 	 * Called in the thread that owns the proxy; game or rendering.

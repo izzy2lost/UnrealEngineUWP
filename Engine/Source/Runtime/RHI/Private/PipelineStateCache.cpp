@@ -50,6 +50,9 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Active Compute PSO Precache Requests"), STA
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("High Priority Graphics PSO Precache Requests"), STAT_HighPriorityGraphicsPSOPrecacheRequests, STATGROUP_PipelineStateCache);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("High Priority Compute PSO Precache Requests"), STAT_HighPriorityComputePSOPrecacheRequests, STATGROUP_PipelineStateCache);
 
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Highest Priority Graphics PSO Precache Requests"), STAT_HighestPriorityGraphicsPSOPrecacheRequests, STATGROUP_PipelineStateCache);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Highest Priority Compute PSO Precache Requests"), STAT_HighestPriorityComputePSOPrecacheRequests, STATGROUP_PipelineStateCache);
+
 static inline uint32 GetTypeHash(const FBoundShaderStateInput& Input)
 {
 	uint32 Hash = GetTypeHash(Input.VertexDeclarationRHI);
@@ -479,51 +482,106 @@ static void HandlePipelineCreationFailure(const FRHIComputeShader* ComputeShader
 	}
 }
 
-// FAsyncTask used by the PSO threadpool that will reschedule once only.
-template<typename TTask>
-class FAsyncTaskLimitedReschedule : public FAsyncTask<TTask>
+#if PSO_TRACK_CACHE_STATS
+
+static std::atomic_uint64_t TotalPrecompileCompleteTime[(int)EQueuedWorkPriority::Count];
+static std::atomic_uint64_t TotalPrecompileCompileTime[(int)EQueuedWorkPriority::Count];
+static std::atomic_uint64_t TotalPrecompileTimeToBegin[(int)EQueuedWorkPriority::Count];
+
+static std::atomic_int64_t TotalNumPrecompileJobs[(int)EQueuedWorkPriority::Count];
+static std::atomic_int64_t TotalNumPrecompileJobsCompleted[(int)EQueuedWorkPriority::Count];
+
+static std::atomic_int64_t MaxPrecompileJobTime[(int)EQueuedWorkPriority::Count];
+static std::atomic_int64_t MaxPrecompileTimeToCompile[(int)EQueuedWorkPriority::Count];
+static std::atomic_int64_t MaxPrecompileTimeToBegin[(int)EQueuedWorkPriority::Count];
+
+void ResetPrecompileStats()
 {
+	for (int i = 0; i < (int)EQueuedWorkPriority::Count; i++)
+	{
+		TotalPrecompileCompleteTime[i] = 0;
+		TotalPrecompileCompileTime[i] = 0;
+		TotalPrecompileTimeToBegin[i] = 0;
+
+		TotalNumPrecompileJobs[i] = 0;
+		TotalNumPrecompileJobsCompleted[i] = 0;
+
+		MaxPrecompileJobTime[i] = 0;
+		MaxPrecompileTimeToCompile[i] = 0;
+		MaxPrecompileTimeToBegin[i] = 0;
+	}
+}
+
+void StatsEndPrecompile(uint64 CreateTime, uint64 RescheduleTime, uint64 TaskBeginTime, uint64 EndTime, EQueuedWorkPriority TaskPri)
+{
+	uint64 TaskIssueTime = FMath::Max(CreateTime, RescheduleTime);
+	uint64 TimeToComplete = EndTime - TaskIssueTime;
+	uint64 TimeToCompile = EndTime - TaskBeginTime;
+	uint64 TimeToBegin = TaskBeginTime - TaskIssueTime;
+	check (TaskBeginTime > TaskIssueTime);
+
+	TotalPrecompileCompleteTime[(int)TaskPri] += TimeToComplete;
+	TotalPrecompileCompileTime[(int)TaskPri] += TimeToCompile;
+	TotalPrecompileTimeToBegin[(int)TaskPri] += TimeToBegin;
+
+	MaxPrecompileJobTime[(int)TaskPri] = FMath::Max((uint64)MaxPrecompileJobTime[(int)TaskPri].load(), (uint64)TimeToComplete);
+	MaxPrecompileTimeToCompile[(int)TaskPri] = FMath::Max((uint64)MaxPrecompileTimeToCompile[(int)TaskPri].load(), (uint64)TimeToCompile);
+	MaxPrecompileTimeToBegin[(int)TaskPri] = FMath::Max((uint64)MaxPrecompileTimeToBegin[(int)TaskPri].load(), (uint64)TimeToBegin);
+
+	TotalNumPrecompileJobsCompleted[(int)TaskPri]++;
+}
+#endif
+
+class FPSOPrecacheAsyncTask
+	: public FAsyncTaskBase
+{
+	TUniqueFunction<void(const FPSOPrecacheAsyncTask*)> AsyncTaskFunc;
 public:
-	/** Forwarding constructor. */
-	template<typename...T>
-	explicit FAsyncTaskLimitedReschedule(T&&... Args) : FAsyncTask<TTask>(Forward<T>(Args)...)	{ }
+
+	FPSOPrecacheAsyncTask(TUniqueFunction<void(const FPSOPrecacheAsyncTask*)> InFunc) : AsyncTaskFunc(MoveTemp(InFunc))
+	{
+#if PSO_TRACK_CACHE_STATS
+		CreateTime = FPlatformTime::Cycles64();
+#endif
+		// Cache the StatId to remain backward compatible with TTask that declare GetStatId as non-const.
+		Init(GetStatId());
+	}
+	bool TryAbandonTask() final 	{ 	return false;	}
 
 	bool Reschedule(FQueuedThreadPool* InQueuedPool, EQueuedWorkPriority InQueuedWorkPriority)
 	{
-		if (bCanReschedule.exchange(false))
+		uint64 RescheduleAttemptTime = FPlatformTime::Cycles64();
+		bool bSuccess = FAsyncTaskBase::Reschedule(InQueuedPool, InQueuedWorkPriority);
+#if PSO_TRACK_CACHE_STATS
+		if (bSuccess)
 		{
-			return FAsyncTask<TTask>::Reschedule(InQueuedPool, InQueuedWorkPriority);
+			RescheduleTime = RescheduleAttemptTime;
 		}
-		return false;
+#endif
+		return bSuccess;
 	}
-private:
-	std::atomic_bool bCanReschedule = true;
-};
 
-class FPSOPrecompileTask : public FNonAbandonableTask
-{
-	friend class FAsyncTask<FPSOPrecompileTask>;
-private:
-	TUniqueFunction<void()> Func;
-	TUniqueFunction<void()> OnComplete;
-public:
-	FPSOPrecompileTask(TUniqueFunction<void()> InFunc, TUniqueFunction<void()> InOnComplete) : Func(MoveTemp(InFunc)), OnComplete(MoveTemp(InOnComplete)) {}
-
-protected:
-	void DoWork() 
-	{ 
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FPSOPrecompileTask_Work);
-
-		Func(); 
-		Func = nullptr;
-		OnComplete(); 
-		OnComplete = nullptr;
+	void DoTaskWork() final
+	{
+#if PSO_TRACK_CACHE_STATS
+		TaskBeginTime = FPlatformTime::Cycles64();
+#endif
+		AsyncTaskFunc(this);
+#if PSO_TRACK_CACHE_STATS
+		StatsEndPrecompile(CreateTime, RescheduleTime, TaskBeginTime, FPlatformTime::Cycles64(), GetPriority());
+#endif
 	}
 
 	FORCEINLINE TStatId GetStatId() const
 	{
-		RETURN_QUICK_DECLARE_CYCLE_STAT(FPSOPrecompileTask, STATGROUP_ThreadPoolAsyncTasks);
+		RETURN_QUICK_DECLARE_CYCLE_STAT(FPSOPrecacheAsyncTask, STATGROUP_ThreadPoolAsyncTasks);
 	}
+
+#if PSO_TRACK_CACHE_STATS
+	uint64 CreateTime = 0;
+	uint64 RescheduleTime = 0;
+	uint64 TaskBeginTime = 0;
+#endif
 };
 
 /**
@@ -549,7 +607,7 @@ public:
 	virtual bool IsCompute() const = 0;
 
 	FGraphEventRef CompletionEvent;
-	TUniquePtr<FAsyncTaskLimitedReschedule<FPSOPrecompileTask>> PrecompileTask;
+	TUniquePtr<FPSOPrecacheAsyncTask> PrecompileTask;
 
 	bool IsComplete()
 	{
@@ -1306,9 +1364,11 @@ enum class EPSOPrecacheStateMask : uint8
 	Succeeded = 1 << 1, // once compilation is finished
 	Failed = 1 << 2,    // once compilation is finished
 	Boosted = 1 << 3,
+	HighestPri = 1 << 4,
 };
 
 ENUM_CLASS_FLAGS(EPSOPrecacheStateMask)
+static bool GForceHighToHighestPri = false;
 
 template<class TPrecachePipelineCacheDerived, class TPrecachedPSOInitializer, class TPipelineState>
 class TPrecachePipelineCacheBase
@@ -1325,15 +1385,40 @@ public:
 	
 protected:
 
-	void RescheduleTaskToHighPriority(TPipelineState* PipelineState)
+	void RescheduleTaskToHighPriority(EPSOPrecacheStateMask NewState, EPSOPrecacheStateMask PrevState, TPipelineState* PipelineState)
 	{
+		bool bHighestPriority = EnumHasAnyFlags(NewState, EPSOPrecacheStateMask::HighestPri);
+		bool bWasPreviouslyHigh = EnumHasAnyFlags(PrevState, EPSOPrecacheStateMask::Boosted);
+
+		check(!EnumHasAnyFlags(PrevState, EPSOPrecacheStateMask::HighestPri));
+
+		bool bCompleted = EnumHasAnyFlags(PrevState, EPSOPrecacheStateMask::Failed | EPSOPrecacheStateMask::Succeeded);
+		UE_CLOG(bCompleted, LogRHI, Error, TEXT("pso request has completed? prev %x, new %x"), (uint32)PrevState, (uint32)NewState);
+
 		if (FPSOPrecacheThreadPool::UsePool())
 		{
 			check(PipelineState->PrecompileTask);
-			PipelineState->PrecompileTask->Reschedule(&GPSOPrecacheThreadPool.Get(), EQueuedWorkPriority::Highest);
+			EQueuedWorkPriority NewPriority = bHighestPriority ? EQueuedWorkPriority::Highest : EQueuedWorkPriority::High;
+			if(PipelineState->PrecompileTask)
+			{
+				EQueuedWorkPriority PrevPriority = PipelineState->PrecompileTask->GetPriority();
+				check(PrevPriority > NewPriority);
+				PipelineState->PrecompileTask->Reschedule(&GPSOPrecacheThreadPool.Get(), NewPriority);
+			}
 		}
 
-		UpdateHighPriorityCompileCount(true /*Increment*/);
+		if (bHighestPriority)
+		{
+			UpdateHighestPriorityCompileCount(true);
+			if (bWasPreviouslyHigh)
+			{
+				UpdateHighPriorityCompileCount(false /*decrement*/);
+			}
+		}
+		else
+		{
+			UpdateHighPriorityCompileCount(true);
+		}
 	}
 
 	FPSOPrecacheRequestResult TryAddNewState(const TPrecachedPSOInitializer& Initializer, const FString& PSOCompilationEventName, bool bDoAsyncCompile)
@@ -1395,9 +1480,9 @@ protected:
 			{
 				EPSOPrecacheStateMask PreviousStateMask = FindResult->AddPSOPrecacheState(EPSOPrecacheStateMask::Compiling);
 				// by the time we're here, PrecacheFinished might already have been called, so boost it only if we know we will call it
-				if ( PreviousStateMask == EPSOPrecacheStateMask::Boosted)
+				if (!IsCompilationDone(PreviousStateMask) && EnumHasAnyFlags(PreviousStateMask, EPSOPrecacheStateMask::Boosted) )
 				{
-					RescheduleTaskToHighPriority(FindResult->PipelineState);
+					RescheduleTaskToHighPriority(PreviousStateMask, (EPSOPrecacheStateMask)0, FindResult->PipelineState);
 				}
 			}
 		}
@@ -1471,7 +1556,7 @@ public:
 		return ActiveCompileCount != 0;
 	}
 
-	void BoostPriority(const FPSOPrecacheRequestID& RequestID)
+	void BoostPriority(EPSOPrecachePriority PSOPrecachePriority, const FPSOPrecacheRequestID& RequestID)
 	{
 		check(RequestID.GetType() == PSOType);
 
@@ -1480,12 +1565,17 @@ public:
 		const TPrecachedPSOInitializer& Initializer = PrecachedPSOInitializers[RequestID.RequestID];
 		FPrecacheTask* FindResult = PrecachedPSOInitializerData.Find(Initializer);
 		check(FindResult);
-		EPSOPrecacheStateMask PreviousStateMask = FindResult->AddPSOPrecacheState(EPSOPrecacheStateMask::Boosted);
+
+		EPSOPrecacheStateMask NewMask = EPSOPrecacheStateMask::Boosted | (PSOPrecachePriority == EPSOPrecachePriority::Highest ? EPSOPrecacheStateMask::HighestPri : (EPSOPrecacheStateMask)0);
+		EPSOPrecacheStateMask PreviousStateMask = FindResult->AddPSOPrecacheState(NewMask);
 		// It's possible to get a boost request while the task has not been started yet. In this case, TryAddNewState will take care of it
 		// if TryAddNewState is done, then we can proceed to boost it, if the task is not done yet
-		if (PreviousStateMask == EPSOPrecacheStateMask::Compiling)
+		if (!IsCompilationDone(PreviousStateMask) && EnumHasAnyFlags(PreviousStateMask, EPSOPrecacheStateMask::Compiling) && !EnumHasAnyFlags(PreviousStateMask, EPSOPrecacheStateMask::HighestPri) )
 		{
-			RescheduleTaskToHighPriority(FindResult->PipelineState);
+			if (!EnumHasAnyFlags(PreviousStateMask, EPSOPrecacheStateMask::Boosted) || EnumHasAnyFlags(NewMask, EPSOPrecacheStateMask::HighestPri))
+			{
+				RescheduleTaskToHighPriority(NewMask, PreviousStateMask, FindResult->PipelineState);
+			}
 		}
 	}
 
@@ -1493,7 +1583,7 @@ public:
 	{
 		if (GPSOWaitForHighPriorityRequestsOnly)
 		{
-			return FPlatformAtomics::AtomicRead(&HighPriorityCompileCount);
+			return FPlatformAtomics::AtomicRead(&HighPriorityCompileCount) + FPlatformAtomics::AtomicRead(&HighestPriorityCompileCount);
 		}
 		else
 		{
@@ -1524,7 +1614,14 @@ public:
         // yet) then we must ignore the request
 		if (EnumHasAllFlags(PreviousStateMask, EPSOPrecacheStateMask::Boosted | EPSOPrecacheStateMask::Compiling))
 		{
-			UpdateHighPriorityCompileCount(false /*Increment*/);
+			if (EnumHasAnyFlags(PreviousStateMask, EPSOPrecacheStateMask::HighestPri))
+			{
+				UpdateHighestPriorityCompileCount(false  /*Increment*/);
+			}
+			else
+			{
+				UpdateHighPriorityCompileCount(false /*Increment*/);
+			}
 		}
 		UpdateActiveCompileCount(false /*Increment*/);
 	}
@@ -1538,7 +1635,8 @@ public:
 	{
 		SET_DWORD_STAT_FName(TPrecachePipelineCacheDerived::GetActiveCompileStatName(), ActiveCompileCount);
 		SET_DWORD_STAT_FName(TPrecachePipelineCacheDerived::GetHighPriorityCompileStatName(), HighPriorityCompileCount);
-
+		SET_DWORD_STAT_FName(TPrecachePipelineCacheDerived::GetHighestPriorityCompileStatName(), HighestPriorityCompileCount);
+		
 		FRWScopeLock WriteLock(PrecachePSOsRWLock, SLT_Write);
 		for (int32 Index = 0; Index < PrecachedPSOs.Num(); ++Index)		
 		{
@@ -1628,6 +1726,20 @@ protected:
 		else
 		{
 			FPlatformAtomics::InterlockedDecrement(&HighPriorityCompileCount);
+			check(HighPriorityCompileCount >= 0);
+		}
+	}
+
+	void UpdateHighestPriorityCompileCount(bool bIncrement)
+	{
+		if (bIncrement)
+		{
+			FPlatformAtomics::InterlockedIncrement(&HighestPriorityCompileCount);
+		}
+		else
+		{
+			FPlatformAtomics::InterlockedDecrement(&HighestPriorityCompileCount);
+			check(HighestPriorityCompileCount >= 0);
 		}
 	}
 
@@ -1682,6 +1794,8 @@ protected:
 	// Number of open high priority compiles
 	volatile int32 HighPriorityCompileCount = 0;
 
+	volatile int32 HighestPriorityCompileCount = 0;
+
 	// Finished Precached PSOs which can be garbage collected
 	TArray<TPrecachedPSOInitializer> PrecachedPSOs;
 };
@@ -1721,7 +1835,10 @@ public:
 	{
 		return GET_STATFNAME(STAT_HighPriorityComputePSOPrecacheRequests);
 	}
-
+	static const FName GetHighestPriorityCompileStatName()
+	{
+		return GET_STATFNAME(STAT_HighestPriorityComputePSOPrecacheRequests);
+	}
 	static FORCEINLINE bool PipelineStateInitializerMatch(const FPrecacheComputeInitializer& ComputeShaderInitializerA, const FPrecacheComputeInitializer& ComputeShaderInitializerB)
 	{
 		// todo: would be good/more robust to have the CS equivalent of RHIMatchPrecachePSOInitializers instead of relying on pointers
@@ -1762,7 +1879,10 @@ public:
 	{
 		return GET_STATFNAME(STAT_HighPriorityGraphicsPSOPrecacheRequests);
 	}
-
+	static const FName GetHighestPriorityCompileStatName()
+	{
+		return GET_STATFNAME(STAT_HighestPriorityGraphicsPSOPrecacheRequests);
+	}
 	FPrecacheGraphicsPipelineCache() : TPrecachePipelineCacheBase(FPSOPrecacheRequestID::EType::Graphics) {}
 	FPSOPrecacheRequestResult PrecacheGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer);
 
@@ -2107,7 +2227,7 @@ public:
 		CompilePSO();
 	}
 
-	void CompilePSO()
+	void CompilePSO(const FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType* OptionalPriorityOverride = nullptr)
 	{
 		LLM_SCOPE(ELLMTag::PSO);
 		FTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
@@ -2184,6 +2304,11 @@ public:
 			    {
 				    UE_LOG(LogRHI, Verbose, TEXT("Skipping a precache compile due to engine shutdown."));
 				    bSkipCreation = true;
+			    }
+
+			    if(OptionalPriorityOverride)
+			    {
+				    Initializer.PrecacheCompileType = (uint32)FMath::Clamp((uint32)*OptionalPriorityOverride, (uint32)FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::MinPri, (uint32)FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::MaxPri);
 			    }
 
 				FGraphicsPipelineState* GfxPipeline = static_cast<FGraphicsPipelineState*>(Pipeline);
@@ -2831,24 +2956,6 @@ FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* 
 	return PipelineState->RHIPipeline;
 }
 
-#if PSO_TRACK_CACHE_STATS
-
-static std::atomic_uint64_t TotalPrecompileWaitTime;
-static std::atomic_int64_t TotalNumPrecompileJobs;
-static std::atomic_int64_t TotalNumPrecompileJobsCompleted;
-
-void StatsStartPrecompile()
-{
-	TotalNumPrecompileJobs++;
-}
-
-void StatsEndPrecompile(uint64 TimeToComplete)
-{
-	TotalPrecompileWaitTime += TimeToComplete;
-	TotalNumPrecompileJobsCompleted++;
-}
-
-#endif
 
 inline void ValidateGraphicsPipelineStateInitializer(const FGraphicsPipelineStateInitializer& Initializer)
 {
@@ -2882,22 +2989,30 @@ static void InternalCreateGraphicsPipelineState(const FGraphicsPipelineStateInit
 			// Here, PSO precompiles use a separate thread pool.
 			// Note that we do not add precompile tasks as cmdlist prerequisites.
 			TUniquePtr<FCompilePipelineStateTask> ThreadPoolTask = MakeUnique<FCompilePipelineStateTask>(CachedState, Initializer, PSOPrecacheResult, bInImmediateCmdList, PSOCompilationDebugData);
-			uint64 StartTime = FPlatformTime::Cycles64();
-#if	PSO_TRACK_CACHE_STATS
-			StatsStartPrecompile();
-#endif
-			CachedState->PrecompileTask = MakeUnique<FAsyncTaskLimitedReschedule<FPSOPrecompileTask>>(
-				[ThreadPoolTask = MoveTemp(ThreadPoolTask)]()
-			{
-				ThreadPoolTask->CompilePSO();
-			}
-			,
-				[StartTime]()
-			{
-#if PSO_TRACK_CACHE_STATS
-				StatsEndPrecompile(FPlatformTime::Cycles64() - StartTime);
-#endif
-			}
+			CachedState->PrecompileTask = MakeUnique<FPSOPrecacheAsyncTask>(
+				[ThreadPoolTask = MoveTemp(ThreadPoolTask)](const FPSOPrecacheAsyncTask* ThisTask)
+				{
+					// Convert the task priority to PSO precompile priority.
+					// Update here as the task's priority may have changed since creation.
+					FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PriOverride;
+					switch (ThisTask->GetPriority())
+					{
+						case EQueuedWorkPriority::Blocking:
+						case EQueuedWorkPriority::Highest:
+							PriOverride = FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::MaxPri;
+						break;
+						case EQueuedWorkPriority::High:
+						case EQueuedWorkPriority::Normal:
+							PriOverride = FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NormalPri;
+						break;
+						default: checkNoEntry(); [[fallthrough]];
+						case EQueuedWorkPriority::Low:
+						case EQueuedWorkPriority::Lowest:
+							PriOverride = FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::MinPri;
+						break;
+					}
+					ThreadPoolTask->CompilePSO(&PriOverride);
+				}
 			);
 			CachedState->PrecompileTask->StartBackgroundTask(&GPSOPrecacheThreadPool.Get(), Initializer.bFromPSOFileCache ? EQueuedWorkPriority::Normal : EQueuedWorkPriority::Low);
 		}
@@ -3171,22 +3286,11 @@ void FPrecacheComputePipelineCache::OnNewPipelineStateCreated(const FPrecacheCom
 			// Here, PSO precompiles use a separate thread pool.
 			// Note that we do not add precompile tasks as cmdlist prerequisites.
 			TUniquePtr<FCompilePipelineStateTask> ThreadPoolTask = MakeUnique<FCompilePipelineStateTask>(CachedState, GraphicsPipelineStateInitializer, EPSOPrecacheResult::Active, false, PSOCompilationDebugData);
-			uint64 StartTime = FPlatformTime::Cycles64();
-#if	PSO_TRACK_CACHE_STATS
-			StatsStartPrecompile();
-#endif
-			CachedState->PrecompileTask = MakeUnique<FAsyncTaskLimitedReschedule<FPSOPrecompileTask>>(
-				[ThreadPoolTask = MoveTemp(ThreadPoolTask)]()
-			{
-				ThreadPoolTask->CompilePSO();
-			}
-			,
-				[StartTime]()
-			{
-#if PSO_TRACK_CACHE_STATS
-				StatsEndPrecompile(FPlatformTime::Cycles64() - StartTime);
-#endif
-			}
+			CachedState->PrecompileTask = MakeUnique<FPSOPrecacheAsyncTask>(
+				[ThreadPoolTask = MoveTemp(ThreadPoolTask)](const FPSOPrecacheAsyncTask* ThisTask)
+				{
+					ThreadPoolTask->CompilePSO();
+				}
 			);
 			CachedState->PrecompileTask->StartBackgroundTask(&GPSOPrecacheThreadPool.Get(), EQueuedWorkPriority::Normal);
 		}
@@ -3314,19 +3418,31 @@ bool PipelineStateCache::IsPrecaching()
 	return GPrecacheGraphicsPipelineCache.IsPrecaching() || GPrecacheComputePipelineCache.IsPrecaching();
 }
 
-void PipelineStateCache::BoostPrecachePriority(const FPSOPrecacheRequestID& PSOPrecacheRequestID)
+void PipelineStateCache::BoostPrecachePriority(EPSOPrecachePriority PSOPrecachePriority, const FPSOPrecacheRequestID& PSOPrecacheRequestID)
 {
 	if (IsPSOPrecachingEnabled())
 	{
+		PSOPrecachePriority = GForceHighToHighestPri && PSOPrecachePriority == EPSOPrecachePriority::High ? EPSOPrecachePriority::Highest : PSOPrecachePriority;
+
 		if (PSOPrecacheRequestID.GetType() == FPSOPrecacheRequestID::EType::Graphics)
 		{
-			GPrecacheGraphicsPipelineCache.BoostPriority(PSOPrecacheRequestID);
+			GPrecacheGraphicsPipelineCache.BoostPriority(PSOPrecachePriority, PSOPrecacheRequestID);
 		}
 		else
 		{
-			GPrecacheComputePipelineCache.BoostPriority(PSOPrecacheRequestID);
+			GPrecacheComputePipelineCache.BoostPriority(PSOPrecachePriority, PSOPrecacheRequestID);
 		}
 	}
+}
+
+
+void PipelineStateCache::PrecachePSOsBoostToHighestPriority(bool bForceHighest)
+{
+	UE_LOG(LogRHI, Log, TEXT("PipelineStateCache: PSO precaching %s highest priority boost"), bForceHighest ? TEXT("enabling") : TEXT("disabling"));
+	GForceHighToHighestPri = bForceHighest;
+#if PSO_TRACK_CACHE_STATS
+	DumpPipelineCacheStats();
+#endif
 }
 
 uint32 PipelineStateCache::NumActivePrecacheRequests()
@@ -3412,8 +3528,21 @@ void DumpPipelineCacheStats()
 	}
 
 	UE_LOG(LogRHI, Log, TEXT("Have %d GraphicsPipeline entries"), NumCachedItems);
-	UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: %d GraphicsPipeline in flight, %d Jobs started, %d completed"), GPipelinePrecompileTasksInFlight.load(), TotalNumPrecompileJobs.load(), TotalNumPrecompileJobsCompleted.load());
-	UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: %f s avg precompile time"), FPlatformTime::GetSecondsPerCycle64() * (TotalPrecompileWaitTime.load()/FMath::Max((int64_t)1, TotalNumPrecompileJobsCompleted.load())));
+	for (int i = 0; i < (int)EQueuedWorkPriority::Count; i++)
+	{
+		if(TotalPrecompileCompleteTime[i].load() > 0)
+		{
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %d GraphicsPipeline in flight, %d Jobs started, %d completed"), i, GPipelinePrecompileTasksInFlight.load(), TotalNumPrecompileJobs[i].load(), TotalNumPrecompileJobsCompleted[i].load());
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %f s avg precompile time"), i, FPlatformTime::GetSecondsPerCycle64() * (TotalPrecompileCompleteTime[i].load() / FMath::Max((int64_t)1, TotalNumPrecompileJobsCompleted[i].load())));
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %f s max precompile time"), i, FPlatformTime::GetSecondsPerCycle64() * (MaxPrecompileJobTime[i].load()));
+
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %f s avg precompile compile time"), i, FPlatformTime::GetSecondsPerCycle64() * (TotalPrecompileCompileTime[i].load() / FMath::Max((int64_t)1, TotalNumPrecompileJobsCompleted[i].load())));
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %f s max precompile compile time"), i, FPlatformTime::GetSecondsPerCycle64() * (MaxPrecompileTimeToCompile[i].load()));
+
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %f s avg precompile latency time"), i, FPlatformTime::GetSecondsPerCycle64() * (TotalPrecompileTimeToBegin[i].load() / FMath::Max((int64_t)1, TotalNumPrecompileJobsCompleted[i].load())));
+			UE_LOG(LogRHI, Log, TEXT("Threadpool precompile: pri %d: %f s max precompile latency time"), i, FPlatformTime::GetSecondsPerCycle64() * (MaxPrecompileTimeToBegin[i].load()));
+		}
+	}
 
 	UE_LOG(LogRHI, Log, TEXT("Secs Used: Min=%.02f, Max=%.02f, Avg=%.02f. %d used in last 30 secs"), MinTime, MaxTime, TotalTime / NumCachedItems, NumUsedLastMin);
 	UE_LOG(LogRHI, Log, TEXT("Frames Used: Min=%d, Max=%d, Avg=%d"), MinFrames, MaxFrames, TotalFrames / NumCachedItems);

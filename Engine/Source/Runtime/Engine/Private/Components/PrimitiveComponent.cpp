@@ -384,7 +384,7 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 
 #if UE_WITH_PSO_PRECACHING
 	bPSOPrecacheCalled = false;
-	bPSOPrecacheRequestBoosted = false;
+	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 #endif // UE_WITH_PSO_PRECACHING
 	
 	bApplyImpulseOnDamage = true;
@@ -4763,7 +4763,7 @@ void UPrimitiveComponent::PrecachePSOs()
 	// clear the current request data
 	MaterialPSOPrecacheRequestIDs.Empty();
 	PSOPrecacheCompileEvent = nullptr;
-	bPSOPrecacheRequestBoosted = false;
+	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// Collect the data from the derived classes
 	FPSOPrecacheParams PSOPrecacheParams;
@@ -4778,6 +4778,20 @@ void UPrimitiveComponent::PrecachePSOs()
 #endif
 }
 
+class FPSOPrecacheFinishedTask : public FMarkActorRenderStateDirtyTask
+{
+public:
+	explicit FPSOPrecacheFinishedTask(UActorComponent* InActorComponent)
+		: FMarkActorRenderStateDirtyTask(InActorComponent)
+	{ }
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_PSOPrecacheFinishedTask);
+		FMarkActorRenderStateDirtyTask::DoTask(CurrentThread, MyCompletionGraphEvent);
+	}
+};
+
 void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(const FGraphEventArray& PSOPrecacheCompileEvents)
 {
 #if UE_WITH_PSO_PRECACHING
@@ -4785,7 +4799,7 @@ void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(cons
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
 	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate && !PSOPrecacheCompileEvents.IsEmpty())
 	{
-		PSOPrecacheCompileEvent = TGraphTask<FMarkActorRenderStateDirtyTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
+		PSOPrecacheCompileEvent = TGraphTask<FPSOPrecacheFinishedTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
 	}
 
 	bPSOPrecacheCalled = true;
@@ -4819,17 +4833,18 @@ bool UPrimitiveComponent::ShouldRenderProxyFallbackToDefaultMaterial() const
 #endif // UE_WITH_PSO_PRECACHING
 }
 
-bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority()
+bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriority NewPSOPrecachePriority)
 {
 #if UE_WITH_PSO_PRECACHING
 	ensure(!IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
+	check(NewPSOPrecachePriority == EPSOPrecachePriority::High || NewPSOPrecachePriority == EPSOPrecachePriority::Highest);
 
 	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete())
 	{
-		if (!bPSOPrecacheRequestBoosted)
+		if (PSOPrecacheRequestPriority< NewPSOPrecachePriority)
 		{
-			BoostPSOPriority(MaterialPSOPrecacheRequestIDs);
-			bPSOPrecacheRequestBoosted = true;
+			BoostPSOPriority(NewPSOPrecachePriority, MaterialPSOPrecacheRequestIDs);
+			PSOPrecacheRequestPriority = NewPSOPrecachePriority;
 		}
 	}
 	else
@@ -5121,6 +5136,13 @@ FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::CreateSceneProxy()
 	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);
 	FPrimitiveSceneProxy* SceneProxy = Component->CreateSceneProxy();
 	Component->AssignSceneProxy(SceneProxy);
+
+#if UE_WITH_PSO_PRECACHING
+	if (ShouldBoostPSOPrecachePriorityOnDraw() && Component->IsPSOPrecaching() && Component->PSOPrecacheRequestPriority == EPSOPrecachePriority::High && SceneProxy)
+	{
+		SceneProxy->SetPSORequestsToBoostOnDraw(Component->MaterialPSOPrecacheRequestIDs);
+	}
+#endif
 	return SceneProxy;
 }
 

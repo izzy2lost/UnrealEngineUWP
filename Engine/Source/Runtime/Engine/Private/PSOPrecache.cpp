@@ -51,6 +51,16 @@ static FAutoConsoleVariableRef CVarPSOProxyCreationDelayStrategy(
 	ECVF_ReadOnly
 );
 
+static int32 GPSODrawnComponentBoostStrategy = 0;
+static FAutoConsoleVariableRef CVarPSOComponentBoostStrategy(
+	TEXT("r.PSOPrecache.DrawnComponentBoostStrategy"),
+	GPSODrawnComponentBoostStrategy,
+	TEXT("Increase priority of queued precache PSOs which are also required by the component for rendering.\n")
+	TEXT("0 do not increase priority of drawn PSOs (default)\n")
+	TEXT("1 if the component has been rendered then increase the priority of it's PSO precache requests. (this requires r.PSOPrecache.ProxyCreationDelayStrategy == 1.)"),
+	ECVF_ReadOnly
+);
+
 bool IsComponentPSOPrecachingEnabled()
 {
 	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSOPrecacheComponents && !GIsEditor;
@@ -59,6 +69,11 @@ bool IsComponentPSOPrecachingEnabled()
 bool IsResourcePSOPrecachingEnabled()
 {
 	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSOPrecacheResources && !GIsEditor;
+}
+
+bool ShouldBoostPSOPrecachePriorityOnDraw()
+{
+	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSODrawnComponentBoostStrategy && !GIsEditor;
 }
 
 EPSOPrecacheProxyCreationStrategy GetPSOPrecacheProxyCreationStrategy()

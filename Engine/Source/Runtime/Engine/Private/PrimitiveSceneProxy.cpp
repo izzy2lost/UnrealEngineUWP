@@ -1812,6 +1812,22 @@ bool FPrimitiveSceneProxy::GetMaterialTextureScales(int32 LODIndex, int32 Sectio
 
 #endif // WITH_EDITORONLY_DATA
 
+#if UE_WITH_PSO_PRECACHING
+void FPrimitiveSceneProxy::BoostPrecachedPSORequestsOnDraw()
+{
+	if (!PSOPrecacheRequestsToBoostOnDraw.IsEmpty())
+	{
+		BoostPSOPriority(EPSOPrecachePriority::Highest, PSOPrecacheRequestsToBoostOnDraw);
+		PSOPrecacheRequestsToBoostOnDraw.Empty();
+	}
+}
+
+void FPrimitiveSceneProxy::SetPSORequestsToBoostOnDraw(const TArray<FMaterialPSOPrecacheRequestID>& PSORequestsToBoostOnDrawIN)
+{
+	PSOPrecacheRequestsToBoostOnDraw = PSORequestsToBoostOnDrawIN;
+}
+#endif // UE_WITH_PSO_PRECACHING
+
 #if RHI_RAYTRACING
 ERayTracingPrimitiveFlags FPrimitiveSceneProxy::GetCachedRayTracingInstance(FRayTracingInstance& OutRayTracingInstance)
 {

@@ -2394,9 +2394,12 @@ void FPrimitiveSceneInfo::RemoveCachedReflectionCaptures()
 	bNeedsCachedReflectionCaptureUpdate = true;
 }
 
-void FPrimitiveSceneInfo::UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen) const
+void FPrimitiveSceneInfo::UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen)
 {
 	SceneData->SetLastRenderTime(CurrentWorldTime, bUpdateLastRenderTimeOnScreen);
+#if UE_WITH_PSO_PRECACHING
+	Proxy->BoostPrecachedPSORequestsOnDraw();
+#endif
 }
 
 void FPrimitiveOctreeSemantics::SetOctreeNodeIndex(const FPrimitiveSceneInfoCompact& Element, FOctreeElementId2 Id)

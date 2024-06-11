@@ -535,7 +535,7 @@ public:
 	void RemoveCachedReflectionCaptures();
 
 	/** Helper function for writing out to the last render times to the game thread */
-	void UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen) const;
+	void UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen);
 
 	/** Updates static lighting uniform buffer, returns the number of entries needed for GPUScene */
 	RENDERER_API int32 UpdateStaticLightingBuffer();

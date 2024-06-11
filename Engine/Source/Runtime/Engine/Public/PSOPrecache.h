@@ -130,15 +130,6 @@ struct FPSOPrecacheParams
 using FVertexDeclarationElementListID = uint16;
 
 /**
- * PSO Precache request priority
- */
-enum class EPSOPrecachePriority : uint8
-{
-	Medium,
-	High
-};
-
-/**
  * Wraps vertex factory data used during PSO precaching - optional element list ID can be used if manual vertex fetch is not possible for the given vertex factory type
  */
 struct FPSOPrecacheVertexFactoryData
@@ -265,6 +256,11 @@ extern ENGINE_API bool IsComponentPSOPrecachingEnabled();
  * Precaching PSOs for resources?
  */
 extern ENGINE_API bool IsResourcePSOPrecachingEnabled();
+
+/**
+ * Boost drawn PSO precache request priority
+ */
+extern ENGINE_API bool ShouldBoostPSOPrecachePriorityOnDraw();
 
 enum class EPSOPrecacheProxyCreationStrategy : uint8
 {

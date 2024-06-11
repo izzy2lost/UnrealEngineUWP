@@ -101,6 +101,16 @@ static FAutoConsoleVariableRef CVarNiagaraForceWaitForCompilationOnActivate(
 	ECVF_Default
 );
 
+static bool GNiagaraComponentBoostPSOPrecacheHighest = false;
+static FAutoConsoleVariableRef CVarNiagaraComponentBoostPSOPrecacheHighest(
+	TEXT("r.PSOPrecache.NiagaraComponentPSOPrecachePriority"),
+	GNiagaraComponentBoostPSOPrecacheHighest,
+	TEXT("Niagara component PSO precache priority level.\n")
+	TEXT(" 0. Niagara component's PSO precache requests are set to high priority (default)\n")
+	TEXT(" 1. Niagara component's PSO precache requests are set to highest priority"),
+	ECVF_Default
+);
+
 FAutoConsoleCommandWithWorldAndArgs DumpNiagaraComponentsCommand(
 	TEXT("fx.Niagara.DumpComponents"),
 	TEXT("Dump Information about all Niagara Components"),
@@ -2329,7 +2339,8 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 			PrecacheAssetPSOs(Asset);
 		}
 
-		if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
+		EPSOPrecachePriority PSOPrecachePriority = GNiagaraComponentBoostPSOPrecacheHighest ? EPSOPrecachePriority::Highest : EPSOPrecachePriority::High;
+		if (CheckPSOPrecachingAndBoostPriority(PSOPrecachePriority) && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 		{
 			UE_LOG(LogNiagara, Verbose, TEXT("Skipping CreateSceneProxy for UNiagaraComponent %s (UNiagaraSystem PSOs are still compiling)"), *GetFullName());
 			return nullptr;

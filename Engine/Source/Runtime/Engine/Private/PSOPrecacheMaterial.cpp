@@ -118,6 +118,11 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 
+	~FMaterialPSOPrecacheCollectionTask()
+	{
+		//check(MaterialInterface == nullptr);  // TODO: reinstate this or replace TStrongObjectPtr* with TStrongObjectPtr..
+	}
+
 public:
 
 	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
@@ -281,7 +286,7 @@ public:
 		}
 
 		// Boost priority if requested already
-		if (FindResult->Priority == EPSOPrecachePriority::High)
+		if (FindResult->Priority >= EPSOPrecachePriority::High)
 		{
 			CheckCompilingPSOs(*FindResult, true /*bBoostPriority*/);
 		}
@@ -299,7 +304,7 @@ public:
 		MaterialPSORequests[MaterialPSORequestID] = FMaterialPSOPrecacheParams();
 	}
 
-	void BoostPriority(FMaterialPSOPrecacheRequestID MaterialPSORequestID)
+	void BoostPriority(EPSOPrecachePriority NewPri, FMaterialPSOPrecacheRequestID MaterialPSORequestID)
 	{
 		check(MaterialPSORequestID != INDEX_NONE);
 
@@ -315,7 +320,7 @@ public:
 			FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
 
 			// Only process if not boosted yet and not completed yet
-			if (FindResult == nullptr || FindResult->Priority == EPSOPrecachePriority::High || FindResult->State == EState::Completed)
+			if (FindResult == nullptr || NewPri <= FindResult->Priority || FindResult->State == EState::Completed)
 			{
 				return;
 			}
@@ -325,8 +330,7 @@ public:
 		const FMaterialPSOPrecacheParams& Params = MaterialPSORequests[MaterialPSORequestID];
 		FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
 		check(FindResult);
-		FindResult->Priority = EPSOPrecachePriority::High;
-
+		FindResult->Priority = NewPri;
 		// Boost PSOs which are still compiling
 		CheckCompilingPSOs(*FindResult, true /*bBoostPriority*/);
 	}
@@ -431,7 +435,7 @@ private:
 				}
 				else if (bBoostPriority)
 				{
-					PipelineStateCache::BoostPrecachePriority(RequestResult.RequestID);
+					PipelineStateCache::BoostPrecachePriority(PrecacheData.Priority, RequestResult.RequestID);
 				}
 			}
 
@@ -477,6 +481,7 @@ void FMaterialPSOPrecacheCollectionTask::DoTask(ENamedThreads::Type CurrentThrea
 	if (RequestLifecycleID != GMaterialPSORequestManager.GetLifecycleID())
 	{
 		CollectionGraphEvent->DispatchSubsequents();
+		MaterialInterface->Reset();
 		return;
 	}
 
@@ -535,13 +540,13 @@ void ReleasePSOPrecacheData(const TArray<FMaterialPSOPrecacheRequestID>& Materia
 	}
 }
 
-void BoostPSOPriority(const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs)
+void BoostPSOPriority(EPSOPrecachePriority NewPri, const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BoostPSOPriority);
 
 	for (FMaterialPSOPrecacheRequestID RequestID : MaterialPSORequestIDs)
 	{
-		GMaterialPSORequestManager.BoostPriority(RequestID);
+		GMaterialPSORequestManager.BoostPriority(NewPri, RequestID);
 	}
 }
 
