@@ -45,7 +45,7 @@ struct FDBufferTextures
 };
 
 FDBufferTexturesDesc GetDBufferTexturesDesc(FIntPoint Extent, EShaderPlatform ShaderPlatform);
-FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Extent, EShaderPlatform ShaderPlatform);
+FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Extent, EShaderPlatform ShaderPlatform, const bool bIsMobileMultiView = false);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FDBufferParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DBufferATexture)

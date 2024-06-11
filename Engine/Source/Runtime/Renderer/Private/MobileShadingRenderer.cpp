@@ -1322,7 +1322,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			if (bRequiresDBufferDecals)
 			{
-				DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform);
+				FViewInfo* MainView = Views.Num() > 0 ? &Views[0] : nullptr;
+				bool bIsMobileMultiView = SceneTextures.Config.bRequireMultiView || (MainView && MainView->Aspects.IsMobileMultiViewEnabled());
+				DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform, bIsMobileMultiView);
 				RenderDBuffer(GraphBuilder, SceneTextures, DBufferTextures, InstanceCullingManager);
 			}
 		}

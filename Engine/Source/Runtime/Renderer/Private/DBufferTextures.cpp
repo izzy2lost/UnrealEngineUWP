@@ -80,7 +80,7 @@ FDBufferTexturesDesc GetDBufferTexturesDesc(FIntPoint Extent, EShaderPlatform Sh
 	return DBufferTexturesDesc;
 }
 
-FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Extent, EShaderPlatform ShaderPlatform)
+FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Extent, EShaderPlatform ShaderPlatform, const bool bIsMobileMultiView)
 {
 	FDBufferTextures DBufferTextures;
 
@@ -92,14 +92,18 @@ FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Exte
 		const ERDGTextureFlags TextureFlags = DBufferMaskTechnique != EDecalDBufferMaskTechnique::Disabled
 			? ERDGTextureFlags::MaintainCompression
 			: ERDGTextureFlags::None;
-				
-		DBufferTextures.DBufferA = GraphBuilder.CreateTexture(TexturesDesc.DBufferADesc, TEXT("DBufferA"), TextureFlags);
-		DBufferTextures.DBufferB = GraphBuilder.CreateTexture(TexturesDesc.DBufferBDesc, TEXT("DBufferB"), TextureFlags);
-		DBufferTextures.DBufferC = GraphBuilder.CreateTexture(TexturesDesc.DBufferCDesc, TEXT("DBufferC"), TextureFlags);
-
-		DBufferTextures.DBufferATexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferATexArrayDesc, TEXT("DBufferATexArray"), TextureFlags);
-		DBufferTextures.DBufferBTexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferBTexArrayDesc, TEXT("DBufferBTexArray"), TextureFlags);
-		DBufferTextures.DBufferCTexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferCTexArrayDesc, TEXT("DBufferCTexArray"), TextureFlags);
+		if (!bIsMobileMultiView)
+		{
+			DBufferTextures.DBufferA = GraphBuilder.CreateTexture(TexturesDesc.DBufferADesc, TEXT("DBufferA"), TextureFlags);
+			DBufferTextures.DBufferB = GraphBuilder.CreateTexture(TexturesDesc.DBufferBDesc, TEXT("DBufferB"), TextureFlags);
+			DBufferTextures.DBufferC = GraphBuilder.CreateTexture(TexturesDesc.DBufferCDesc, TEXT("DBufferC"), TextureFlags);
+		}
+		else
+		{
+			DBufferTextures.DBufferATexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferATexArrayDesc, TEXT("DBufferATexArray"), TextureFlags);
+			DBufferTextures.DBufferBTexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferBTexArrayDesc, TEXT("DBufferBTexArray"), TextureFlags);
+			DBufferTextures.DBufferCTexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferCTexArrayDesc, TEXT("DBufferCTexArray"), TextureFlags);
+		}
 
 		if (DBufferMaskTechnique == EDecalDBufferMaskTechnique::PerPixel)
 		{
