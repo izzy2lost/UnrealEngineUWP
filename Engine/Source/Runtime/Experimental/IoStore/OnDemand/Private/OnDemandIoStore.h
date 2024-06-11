@@ -33,6 +33,7 @@ enum class EOnDemandContainerFlags : uint8
 	Mounted					= (1 << 1),
 	Streaming				= (1 << 2),
 	Installed				= (1 << 3),
+	Encrypted				= (1 << 4),
 	Count
 };
 ENUM_CLASS_FLAGS(EOnDemandContainerFlags);
