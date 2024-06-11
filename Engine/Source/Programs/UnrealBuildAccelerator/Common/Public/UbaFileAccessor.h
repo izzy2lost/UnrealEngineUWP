@@ -40,6 +40,7 @@ namespace uba
 		FileMappingHandle m_mappingHandle;
 		u64 m_size = 0;
 		u8* m_data = nullptr;
+		u32 m_flagsAndAttributes = 0;
 		bool m_isWrite = false;
 
 		#if !PLATFORM_WINDOWS

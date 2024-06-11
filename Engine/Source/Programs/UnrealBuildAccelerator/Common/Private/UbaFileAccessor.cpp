@@ -50,6 +50,7 @@ namespace uba
 	{
 		UBA_ASSERT(flagsAndAttributes != 0);
 		m_size = fileSize;
+		m_flagsAndAttributes = flagsAndAttributes;
 
 		const tchar* realFileName = m_fileName;
 
@@ -128,8 +129,6 @@ namespace uba
 	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath)
 	{
 		allowRead = true; // It is not possible to have write only access to file mappings it seems
-
-		m_size = size;
 
 		UBA_ASSERT(flagsAndAttributes != 0);
 		if (!CreateWrite(allowRead, flagsAndAttributes, size, tempPath))
@@ -405,7 +404,7 @@ namespace uba
 							return m_logger.Error(TC("Failed to rename temporary file %s to %s (%s)"), realFileName, m_fileName, strerror(errno));
 
 						// Need to copy, can't rename over devices
-						int targetFd = open(m_fileName, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC);
+						int targetFd = open(m_fileName, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, m_flagsAndAttributes);
 						auto g = MakeGuard([targetFd]() { close(targetFd); });
 						if (targetFd == -1)
 							return m_logger.Error(TC("Failed to create file %s for move from temporary file %s (%s)"), m_fileName, realFileName, strerror(errno));

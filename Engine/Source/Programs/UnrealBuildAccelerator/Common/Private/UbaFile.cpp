@@ -703,7 +703,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 		return FILE_ATTRIBUTE_NORMAL;
 #else
-		return S_IRUSR | S_IWUSR | (execute ? S_IXUSR : 0);
+		return S_IRUSR | S_IWUSR | (execute ? S_IXUSR : 0) | S_IRGRP | S_IROTH;
 #endif
 	}
 
