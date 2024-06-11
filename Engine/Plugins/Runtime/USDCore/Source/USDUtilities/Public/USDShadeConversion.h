@@ -7,6 +7,8 @@
 #include "CoreMinimal.h"
 #include "Engine/TextureDefines.h"
 #include "Materials/MaterialInterface.h"
+#include "Math/TransformCalculus2D.h"
+#include "Misc/TVariant.h"
 #include "UObject/Package.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -45,29 +47,84 @@ namespace UE
 
 namespace UsdToUnreal
 {
+	struct USDUTILITIES_API FTextureParameterValue
+	{
+		UTexture* Texture = nullptr;	  // Only used for the ConvertMaterial overloads that receive TexturesCache
+
+		// Parameters of the texture asset itself
+		FString TextureFilePath;
+		TextureGroup Group = TEXTUREGROUP_World;
+		TOptional<bool> bSRGB;
+		bool bIsUDIM = false;
+		TextureAddress AddressX = TA_Wrap;
+		TextureAddress AddressY = TA_Wrap;
+
+		// Parameters about the texture usage
+		FString Primvar;
+		int32 OutputIndex = 0;
+		FVector2f UVTranslation;
+		float UVRotation = 0.0f;
+		FScale2f UVScale;
+
+	public:
+		// Returns whether the texture should be parsed as sRGB or not, given the actually
+		// authored "bSRGB" member and the fallback opinion provided by the texture group
+		bool GetSRGBValue() const;
+	};
+
+	struct USDUTILITIES_API FPrimvarReaderParameterValue
+	{
+		FString PrimvarName;
+		FVector FallbackValue;
+	};
+
+	using FParameterValue = TVariant<float, FVector, FTextureParameterValue, FPrimvarReaderParameterValue, bool>;
+
+	struct USDUTILITIES_API FUsdPreviewSurfaceMaterialData
+	{
+		TMap<FString, FParameterValue> Parameters;
+
+		/**
+		 * Describes which UV set this material will target with each primvar e.g. {'firstPrimvar': 0, 'st': 1, 'st1': 2}.
+		 *
+		 * We store this here because deciding this assignment involves combining and sorting all the existing primvars
+		 * that the texture parameters want to read, which we do when first calling ConvertMaterial().
+		 *
+		 * This will later be compared with the primvar to UV index mapping we generate when parsing mesh data. If they
+		 * are compatible, we'll be able to use the material directly on that mesh. Otherwise we'll need to generate a
+		 * new instance of this material that assigns different primvars to each UV index (check
+		 * CreatePrimvarCompatibleVersionOfMaterial).
+		 */
+		TMap<FString, int32> PrimvarToUVIndex;
+	};
+
 	/**
 	 * Extracts material data from UsdShadeMaterial and places the results in Material. Note that since this is used for UMaterialInstanceDynamics at
 	 * runtime as well, it will not set base property overrides (e.g. BlendMode) or the parent material, and will just assume that the caller handles
 	 * that. Note that in order to receive the primvar to UV index mapping calculated within this function, the provided Material should have an
 	 * UUsdMaterialAssetImportData object as its AssetImportData.
 	 * @param UsdShadeMaterial - Shade material with the data to convert
-	 * @param Material - Output parameter that will be filled with the converted data. Only the versions that receive a dynamic material instance will
-	 * work at runtime
+	 * @param OutMaterial - Output parameter that will be filled with the converted data
 	 * @param TexturesCache - Cache to prevent importing a texture more than once
 	 * @param RenderContext - Which render context output to read from the UsdShadeMaterial
 	 * @param ReuseIdenticalAssets - Whether to reuse identical textures found in the TextureCache or to create dedicated textures for each material
 	 * @return Whether the conversion was successful or not.
 	 */
 	USDUTILITIES_API bool ConvertMaterial(
+		const pxr::UsdPrim& InUsdShadeMaterialPrim,
+		FUsdPreviewSurfaceMaterialData& OutMaterial,
+		const TCHAR* InRenderContext = nullptr
+	);
+	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
-		UMaterialInstance& Material,
+		UMaterialInstance& OutMaterial,
 		UUsdAssetCache3* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
 		bool bShareAssetsForIdenticalPrims = true
 	);
 	USDUTILITIES_API bool ConvertMaterial(
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,
-		UMaterial& Material,
+		UMaterial& OutMaterial,
 		UUsdAssetCache3* TexturesCache = nullptr,
 		const TCHAR* RenderContext = nullptr,
 		bool bShareAssetsForIdenticalPrims = true
@@ -118,7 +175,7 @@ namespace UsdToUnreal
 		bool bShareAssetsForIdenticalPrims = true
 	);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
+}	 // namespace UsdToUnreal
 
 #if WITH_EDITOR
 namespace UnrealToUsd
@@ -203,6 +260,7 @@ namespace UsdUtils
 	 * This function exists because we need this information *before* we pick the right parent for a material instance and properly convert it.
 	 */
 	USDUTILITIES_API bool IsMaterialTranslucent(const pxr::UsdShadeMaterial& UsdShadeMaterial);
+	USDUTILITIES_API bool IsMaterialTranslucent(const UsdToUnreal::FUsdPreviewSurfaceMaterialData& ConvertedMaterial);
 
 	USDUTILITIES_API FSHAHash HashShadeMaterial(	//
 		const pxr::UsdShadeMaterial& UsdShadeMaterial,

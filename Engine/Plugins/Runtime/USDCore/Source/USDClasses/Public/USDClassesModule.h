@@ -2,23 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "USDMaterialUtils.h"	 // For backwards compatibility for a few releases since we moved the EUsdReferenceMaterialProperties enum
 
+#include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 
 class UMaterialInstanceConstant;
 class UMaterialInstanceDynamic;
 class UUsdAssetCache3;
 struct FAnalyticsEventAttribute;
-
-enum class EUsdReferenceMaterialProperties : uint8
-{
-	None = 0,
-	Translucent = 1,
-	VT = 2,
-	TwoSided = 4
-};
-ENUM_CLASS_FLAGS(EUsdReferenceMaterialProperties)
 
 class IUsdClassesModule : public IModuleInterface
 {
@@ -68,18 +60,15 @@ public:
 	UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h")
 	USDCLASSES_API static FString SanitizeObjectName(const FString& InObjectName);
 
-	/** Describes the type of vertex color/DisplayColor material that we would need in order to render a prim's displayColor data as intended */
-	struct USDCLASSES_API FDisplayColorMaterial
-	{
-		bool bHasOpacity = false;
-		bool bIsDoubleSided = false;
+	// Backwards compatibility for 5.5 as we moved this struct into MaterialUtils
+	using FDisplayColorMaterial = UsdUnreal::MaterialUtils::FDisplayColorMaterial;
 
-		FString ToString();
-		static TOptional<FDisplayColorMaterial> FromString(const FString& DisplayColorString);
-	};
-
+	UE_DEPRECATED(5.5, "This function has been moved to USDMaterialUtils.h")
 	USDCLASSES_API static const FSoftObjectPath* GetReferenceMaterialPath(const FDisplayColorMaterial& DisplayColorDescription);
 
+	UE_DEPRECATED(5.5, "This function has been moved to USDMaterialUtils.h")
 	USDCLASSES_API static UMaterialInstanceDynamic* CreateDisplayColorMaterialInstanceDynamic(const FDisplayColorMaterial& DisplayColorDescription);
+
+	UE_DEPRECATED(5.5, "This function has been moved to USDMaterialUtils.h")
 	USDCLASSES_API static UMaterialInstanceConstant* CreateDisplayColorMaterialInstanceConstant(const FDisplayColorMaterial& DisplayColorDescription);
 };

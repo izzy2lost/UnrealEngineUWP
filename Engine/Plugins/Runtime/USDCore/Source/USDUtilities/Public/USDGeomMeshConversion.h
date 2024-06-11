@@ -9,7 +9,6 @@
 #include "UsdWrappers/ForwardDeclarations.h"
 
 #if USE_USD_SDK
-
 #include "USDIncludesStart.h"
 #include "pxr/usd/usd/timeCode.h"
 #include "pxr/usd/usdShade/tokens.h"
@@ -24,6 +23,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 	class UsdShadeMaterial;
 	class UsdTyped;
 PXR_NAMESPACE_CLOSE_SCOPE
+#endif	  // USE_USD_SDK
 
 class UGeometryCache;
 class UMaterialInstanceConstant;
@@ -49,6 +49,7 @@ namespace MeshAttribute::VertexInstance
 	extern USDUTILITIES_API const FName Velocity;
 }
 
+#if USE_USD_SDK
 namespace UsdToUnreal
 {
 	/** Common options to mesh conversion functions */
@@ -109,6 +110,12 @@ namespace UsdToUnreal
 	 */
 	USDUTILITIES_API bool ConvertGeomMesh(
 		const pxr::UsdGeomMesh& Mesh,
+		FMeshDescription& InOutMeshDescription,
+		UsdUtils::FUsdPrimMaterialAssignmentInfo& InOutMaterialAssignments,
+		const FUsdMeshConversionOptions& CommonOptions = FUsdMeshConversionOptions::DefaultOptions
+	);
+	USDUTILITIES_API bool ConvertGeomMesh(
+		const pxr::UsdPrim& MeshPrim,
 		FMeshDescription& InOutMeshDescription,
 		UsdUtils::FUsdPrimMaterialAssignmentInfo& InOutMaterialAssignments,
 		const FUsdMeshConversionOptions& CommonOptions = FUsdMeshConversionOptions::DefaultOptions
@@ -266,6 +273,10 @@ namespace UsdUtils
 	 */
 	struct FUsdPrimMaterialSlot
 	{
+		// This carries the name of the UsdGeomSubset if applicable, or just "Main" for the single material slot
+		// directly on the Mesh prim
+		FString SlotName;
+
 		/**
 		 * Path to the prims that contain this material assignment (e.g. '/Root/my_cube' or '/Root/my_cube/geomsubset_0'.
 		 * This is a set because this single material slot in UE may be merged from N identical prims.
@@ -279,17 +290,29 @@ namespace UsdUtils
 
 		friend bool operator==(const FUsdPrimMaterialSlot& Lhs, const FUsdPrimMaterialSlot& Rhs)
 		{
-			return Lhs.AssignmentType == Rhs.AssignmentType && Lhs.MaterialSource.Equals(Rhs.MaterialSource, ESearchCase::CaseSensitive)
-				   && Lhs.bMeshIsDoubleSided == Rhs.bMeshIsDoubleSided;
+			// Note: We intentionally don't compare the slot name itself, so that otherwise identical
+			// slots with different names can be merged together
+			return Lhs.AssignmentType == Rhs.AssignmentType &&									   //
+				   Lhs.MaterialSource.Equals(Rhs.MaterialSource, ESearchCase::CaseSensitive) &&	   //
+				   Lhs.bMeshIsDoubleSided == Rhs.bMeshIsDoubleSided;
 		}
 
 		friend uint32 GetTypeHash(const FUsdPrimMaterialSlot& Slot)
 		{
-			return HashCombine(Slot.bMeshIsDoubleSided, HashCombine(GetTypeHash(Slot.MaterialSource), static_cast<uint32>(Slot.AssignmentType)));
+			// Note: We intentionally don't hash the slot name itself, so that otherwise identical
+			// slots with different names can be merged together
+			return HashCombine(
+				Slot.bMeshIsDoubleSided,	//
+				HashCombine(				//
+					GetTypeHash(Slot.MaterialSource),
+					static_cast<uint32>(Slot.AssignmentType)
+				)
+			);
 		}
 
 		friend FArchive& operator<<(FArchive& Ar, FUsdPrimMaterialSlot& Slot)
 		{
+			Ar << Slot.SlotName;
 			Ar << Slot.MaterialSource;
 			Ar << Slot.AssignmentType;
 			Ar << Slot.bMeshIsDoubleSided;
@@ -310,6 +333,8 @@ namespace UsdUtils
 		/** Describes which primvars should be assigned to each UV index for this mesh. */
 		TMap<FString, int32> PrimvarToUVIndex;
 	};
+
+	USDUTILITIES_API void RepairNormalsAndTangents(const FString& PrimPath, FMeshDescription& MeshDescription);
 
 #if USE_USD_SDK
 	/** Creates a FDisplayColorMaterial object describing the vertex color/opacity data from Gprim at time TimeCode */
@@ -449,6 +474,5 @@ namespace UsdUtils
 	USDUTILITIES_API uint64 GetGprimVertexCount(const pxr::UsdGeomGprim& Gprim, double TimeCode);
 
 	USDUTILITIES_API void AuthorIdentityTransformGprimAttributes(const pxr::UsdPrim& Gprim, bool bDefaultValues, bool bTimeSampleValues);
-
 #endif	  // #if USE_USD_SDK
 }	 // namespace UsdUtils

@@ -105,6 +105,21 @@ static FAutoConsoleVariableRef CVarMaxSubdivLevel(
 	TEXT("Maximum allowed level of subdivision (1 means a single iteration of subdivision)")
 );
 
+static float GMeshNormalRepairThreshold = 0.05f;
+static FAutoConsoleVariableRef CVarMeshNormalRepairThreshold(
+	TEXT("USD.MeshNormalRepairThreshold"),
+	GMeshNormalRepairThreshold,
+	TEXT("We will try repairing up to this fraction of a Mesh's normals when invalid. If a Mesh has more invalid normals than this, we will "
+		 "recompute all of them. Defaults to 0.05 (5% of all normals).")
+);
+
+static bool GSkipMeshTangentComputation = false;
+static FAutoConsoleVariableRef CVarSkipMeshTangentComputation(
+	TEXT("USD.SkipMeshTangentComputation"),
+	GSkipMeshTangentComputation,
+	TEXT("Skip computing tangents for meshes. With meshes with a huge numer of vertices, it can take a very long time to compute them.")
+);
+
 const FName MeshAttribute::VertexInstance::Velocity("Velocity");
 
 namespace UE::UsdGeomMeshConversion::Private
@@ -2227,6 +2242,7 @@ namespace UE::UsdGeomMeshConversion::Private
 		const int32 VertexInstanceOffset = OutMeshDescription.VertexInstances().Num();
 
 		FStaticMeshAttributes StaticMeshAttributes(OutMeshDescription);
+		StaticMeshAttributes.Register();
 
 		// Vertex positions
 		TVertexAttributesRef<FVector3f> MeshDescriptionVertexPositions = StaticMeshAttributes.GetVertexPositions();
@@ -2291,8 +2307,8 @@ namespace UE::UsdGeomMeshConversion::Private
 					FPolygonGroupID NewPolygonGroup = OutMeshDescription.CreatePolygonGroup();
 					PolygonGroupMapping.Add(CombinedMaterialIndex, NewPolygonGroup);
 
-					// This is important for runtime, where the material slots are matched to LOD sections based on their material slot name
-					MaterialSlotNames[NewPolygonGroup] = *LexToString(NewPolygonGroup.GetValue());
+					const FString& SlotName = InMeshData.LocalMaterialInfo.Slots[LocalMaterialIndex].SlotName;
+					MaterialSlotNames[NewPolygonGroup] = *SlotName;
 				}
 			}
 
@@ -2659,6 +2675,22 @@ bool UsdToUnreal::ConvertGeomMesh(
 	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
 	const FUsdStageInfo StageInfo(Stage);
 	return UsdGeomMeshImpl::ConvertMeshData(MeshData, StageInfo, Options, OutMeshDescription, OutMaterialAssignments);
+}
+
+bool UsdToUnreal::ConvertGeomMesh(
+	const pxr::UsdPrim& MeshPrim,
+	FMeshDescription& InOutMeshDescription,
+	UsdUtils::FUsdPrimMaterialAssignmentInfo& InOutMaterialAssignments,
+	const FUsdMeshConversionOptions& CommonOptions
+)
+{
+	pxr::UsdGeomMesh GeomMesh{MeshPrim};
+	if (!GeomMesh)
+	{
+		return false;
+	}
+
+	return ConvertGeomMesh(GeomMesh, InOutMeshDescription, InOutMaterialAssignments, CommonOptions);
 }
 
 bool UsdToUnreal::ConvertPointInstancerToMesh(
@@ -3321,6 +3353,8 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 		return {};
 	}
 
+	FScopedUsdAllocs Allocs;
+
 	auto FetchFirstUEMaterialFromAttribute = [](const pxr::UsdPrim& UsdPrim, const pxr::UsdTimeCode TimeCode) -> TOptional<FString>
 	{
 		FString ValidPackagePath;
@@ -3442,6 +3476,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 		{
 			const pxr::UsdGeomSubset& GeomSubset = GeomSubsets[GeomSubsetIndex];
 			pxr::UsdPrim GeomSubsetPrim = GeomSubset.GetPrim();
+			FString SlotName = UsdToUnreal::ConvertString(GeomSubsetPrim.GetName());
 			FString GeomSubsetPath = UsdToUnreal::ConvertPath(GeomSubsetPrim.GetPath());
 			bool bHasAssignment = false;
 
@@ -3457,6 +3492,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 						if (TOptional<FString> UnrealMaterial = UsdUtils::GetUnrealSurfaceOutput(ShadeMaterial.GetPrim()))
 						{
 							FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+							Slot.SlotName = SlotName;
 							Slot.MaterialSource = UnrealMaterial.GetValue();
 							Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 							Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3472,6 +3508,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 					if (TOptional<FString> UnrealMaterial = FetchFirstUEMaterialFromAttribute(GeomSubsetPrim, TimeCode))
 					{
 						FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+						Slot.SlotName = SlotName;
 						Slot.MaterialSource = UnrealMaterial.GetValue();
 						Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 						Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3487,6 +3524,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				if (TOptional<FString> BoundMaterial = FetchMaterialByComputingBoundMaterial(GeomSubsetPrim))
 				{
 					FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+					Slot.SlotName = SlotName;
 					Slot.MaterialSource = BoundMaterial.GetValue();
 					Slot.AssignmentType = UsdUtils::EPrimAssignmentType::MaterialPrim;
 					Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3503,6 +3541,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			if (!bHasAssignment)
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+				Slot.SlotName = SlotName;
 				Slot.PrimPaths.Add(GeomSubsetPath);
 				bHasAssignment = true;
 			}
@@ -3551,6 +3590,8 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 	bool bHasMainAssignment = false;
 	if (bNeedsMainAssignment)
 	{
+		const FString MainSlotName = TEXT("Main");
+
 		// Priority 1: Material is an unreal asset
 		if (RenderContext == UnrealIdentifiers::Unreal)
 		{
@@ -3563,6 +3604,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				if (TOptional<FString> UnrealMaterial = UsdUtils::GetUnrealSurfaceOutput(ShadeMaterial.GetPrim()))
 				{
 					FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+					Slot.SlotName = MainSlotName;
 					Slot.MaterialSource = UnrealMaterial.GetValue();
 					Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 					Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3578,6 +3620,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				if (TOptional<FString> UnrealMaterial = FetchFirstUEMaterialFromAttribute(UsdPrim, TimeCode))
 				{
 					FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+					Slot.SlotName = MainSlotName;
 					Slot.MaterialSource = UnrealMaterial.GetValue();
 					Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 					Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3594,6 +3637,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			if (TOptional<FString> BoundMaterial = FetchMaterialByComputingBoundMaterial(UsdPrim))
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+				Slot.SlotName = MainSlotName;
 				Slot.MaterialSource = BoundMaterial.GetValue();
 				Slot.AssignmentType = UsdUtils::EPrimAssignmentType::MaterialPrim;
 				Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3612,6 +3656,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			if (DisplayColor)
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
+				Slot.SlotName = MainSlotName;
 				Slot.MaterialSource = DisplayColor.GetValue().ToString();
 				Slot.AssignmentType = UsdUtils::EPrimAssignmentType::DisplayColor;
 				Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -4512,6 +4557,74 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 	UsdStage.SetTimeCodesPerSecond(ExportContext.FrameRate);
 
 	return true;
+}
+
+void UsdUtils::RepairNormalsAndTangents(const FString& PrimPath, FMeshDescription& MeshDescription)
+{
+	FStaticMeshConstAttributes Attributes{MeshDescription};
+	TArrayView<const FVector3f> VertexInstanceNormals = Attributes.GetVertexInstanceNormals().GetRawArray();
+
+	// Similar to FStaticMeshOperations::AreNormalsAndTangentsValid but we don't care about tangents since we never
+	// read those from USD
+	uint64 InvalidNormalCount = 0;
+	for (const FVertexInstanceID VertexInstanceID : MeshDescription.VertexInstances().GetElementIDs())
+	{
+		if (VertexInstanceNormals[VertexInstanceID].IsNearlyZero() || VertexInstanceNormals[VertexInstanceID].ContainsNaN())
+		{
+			++InvalidNormalCount;
+		}
+	}
+	if (InvalidNormalCount == 0)
+	{
+		return;
+	}
+
+	const float InvalidNormalFraction = (float)InvalidNormalCount / (float)VertexInstanceNormals.Num();
+
+	// We always need to do this at this point as ComputeTangentsAndNormals will end up computing tangents anyway
+	// and our triangle tangents are always invalid
+	FStaticMeshOperations::ComputeTriangleTangentsAndNormals(MeshDescription);
+
+	const static FString MeshNormalRepairThresholdText = TEXT("USD.MeshNormalRepairThreshold");
+
+	// Make sure our normals can be rebuilt from MeshDescription::InitializeAutoGeneratedAttributes in case some tool needs them.
+	// Always force-compute tangents here as we never have them anyway. If we don't force them to be recomputed we'll get
+	// the worst of both worlds as some of these will be arbitrarily recomputed anyway, and some will be left invalid
+	EComputeNTBsFlags Options = GSkipMeshTangentComputation ? EComputeNTBsFlags::None
+															: EComputeNTBsFlags::UseMikkTSpace | EComputeNTBsFlags::Tangents;
+
+	// Repairing can take a long time for degenerate triangles (UE-194839)
+	Options |= EComputeNTBsFlags::IgnoreDegenerateTriangles;
+
+	if (InvalidNormalFraction >= GMeshNormalRepairThreshold)
+	{
+		Options |= EComputeNTBsFlags::Normals;
+		UE_LOG(
+			LogUsd,
+			Verbose,
+			TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is at or above the threshold of '%f%%' (configurable via "
+				 "the cvar '%s'), so normals will be discarded and fully recomputed. Note that when the cvar "
+				 "'USD.Subdiv.IgnoreNormalsWhenSubdividing' is true it is expected for subdivision meshes to have their normals discarded."),
+			InvalidNormalFraction * 100.0f,
+			*PrimPath,
+			GMeshNormalRepairThreshold * 100.0f,
+			*MeshNormalRepairThresholdText
+		);
+	}
+	else if (InvalidNormalFraction > 0)
+	{
+		UE_LOG(
+			LogUsd,
+			Verbose,
+			TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is below the threshold of '%f%%' (configurable via the "
+				 "cvar '%s'), so the invalid normals will be repaired."),
+			InvalidNormalFraction * 100.0f,
+			*PrimPath,
+			GMeshNormalRepairThreshold * 100.0f,
+			*MeshNormalRepairThresholdText
+		);
+	}
+	FStaticMeshOperations::ComputeTangentsAndNormals(MeshDescription, Options);
 }
 
 TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::ExtractDisplayColorMaterial(const pxr::UsdGeomGprim& Gprim, const pxr::UsdTimeCode TimeCode)

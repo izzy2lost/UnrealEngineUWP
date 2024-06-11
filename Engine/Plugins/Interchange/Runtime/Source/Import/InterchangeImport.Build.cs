@@ -44,6 +44,7 @@ namespace UnrealBuildTool.Rules
 					"RHI",
 					"TextureUtilitiesCommon",
 					"UnrealUSDWrapper",
+					"USDClasses",
 					"USDUtilities",
 					"VariantManagerContent",
 				}
