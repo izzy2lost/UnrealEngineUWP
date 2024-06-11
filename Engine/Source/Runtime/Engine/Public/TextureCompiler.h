@@ -108,6 +108,9 @@ private:
 
 	void ProcessDeferredRequests();
 
+
+	FString CurrentPostCompilationDDCKey;
+	UTexture* CurrentPostCompilationTexture = nullptr;
 	double LastReschedule = 0.0f;
 	bool bHasShutdown = false;
 	bool bIsRoutingPostCompilation = false;
