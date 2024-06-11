@@ -57,6 +57,7 @@ bool FTempoMap::operator==(const FTempoMap& Other) const
 void FTempoMap::Empty()
 {
 	Points.Empty();
+	bEarlyMapIsEstimate = false;
 }
 
 void FTempoMap::Copy(const FTempoMap& Other, int32 StartTick, int32 EndTick)
@@ -212,10 +213,9 @@ bool FTempoMap::AddTempoInfoPoint(int32 Tempo, int32 Tick, bool SortNow)
 {
 	if (Points.Num() == 0)
 	{
-		ensureMsgf(Tick == 0, TEXT("FTempoMap::AddTempoInfoPoint(): tried to add point (%d, %d) to an empty tempo map! First tempo point must be at tick 0."), Tick, Tempo);
-		if (Tick != 0)
+		if (!ensureMsgf(Tick == 0, TEXT("FTempoMap::AddTempoInfoPoint(): tried to add point (%d, %d) to an empty tempo map! First tempo point must be at tick 0. Adding at tick 0."), Tick, Tempo))
 		{
-			return false;
+			Tick = 0;
 		}
 	}
 	else
@@ -227,8 +227,124 @@ bool FTempoMap::AddTempoInfoPoint(int32 Tempo, int32 Tick, bool SortNow)
 			return false;
 		}
 	}
+
 	FMusicMapUtl::AddPoint<FTempoInfoPoint,float,int32>(TickToMs(Tick), Tempo, Points, Tick, SortNow);
 	return true;
+}
+
+void FTempoMap::AddTempo(float Bpm, int32 Tick, int32 MaxLength)
+{
+	float MsToNewPoint = TickToMs(Tick);
+
+	int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Bpm);
+
+	if (Points.IsEmpty())
+	{
+		Tick = 0;
+	}
+
+	if (Points.Max() < MaxLength && MaxLength < std::numeric_limits<int32>::max())
+	{
+		Points.Reserve(MaxLength);
+	}
+
+	if (Points.Num() < MaxLength)
+	{
+		AddTempoInfoPoint(MidiTempo, Tick);
+	}
+	else
+	{
+		check(TicksPerQuarterNote > 0);
+
+		bEarlyMapIsEstimate = true;
+
+		if (MaxLength < 3)
+		{
+			// If HistoryLengthEntries == 2 we don't do any "shifting" of the history.
+			// We just need to update the first and last entry...
+			float QuartersToHere = (float)Tick / (float)TicksPerQuarterNote;
+			float UsPerQuarterToHere = (MsToNewPoint * 1000.0f) / QuartersToHere;
+			Points[0].MidiTempo = FMath::RoundToInt32(UsPerQuarterToHere);
+			Points[1].Ms = MsToNewPoint;
+			Points[1].StartTick = Tick;
+			Points[1].MidiTempo = MidiTempo;
+		}
+		else
+		{
+			// We have to shift the history...
+			// It is possible we now want less history than we already have.
+			int32 FirstEntryToShift = 2;
+			if (Points.Num() > MaxLength)
+			{
+				FirstEntryToShift += Points.Num() - MaxLength;
+			}
+			ShiftEntriesAndFixUpPoints(FirstEntryToShift, MsToNewPoint, Tick, MidiTempo);
+		}
+	}
+}
+
+void FTempoMap::AddTempo(float Bpm, int32 Tick, float MaxLengthSecs)
+{
+	check(TicksPerQuarterNote > 0);
+
+	int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Bpm);
+
+	if (Points.IsEmpty())
+	{
+		Tick = 0;
+	}
+
+	if (Points.Num() < 3)
+	{
+		AddTempoInfoPoint(MidiTempo, Tick);
+		return;
+	}
+
+	float MsToNewPoint = TickToMs(Tick);
+	float SecondsOfHistory = (MsToNewPoint - Points[1].Ms) / 1000.0f;
+	if (SecondsOfHistory < MaxLengthSecs)
+	{
+		AddTempoInfoPoint(MidiTempo, Tick);
+		return;
+	}
+
+	int32 NewHistoryStartIndex = 2;
+	SecondsOfHistory = (MsToNewPoint - Points[NewHistoryStartIndex].Ms) / 1000.0f;
+	while (NewHistoryStartIndex < (Points.Num() - 1) && SecondsOfHistory > MaxLengthSecs)
+	{
+		NewHistoryStartIndex++;
+		SecondsOfHistory = (MsToNewPoint - Points[NewHistoryStartIndex].Ms) / 1000.0f;
+	}
+	NewHistoryStartIndex--;
+	if (NewHistoryStartIndex == 1)
+	{
+		AddTempoInfoPoint(MidiTempo, Tick);
+		return;
+	}
+
+	ShiftEntriesAndFixUpPoints(NewHistoryStartIndex, MsToNewPoint, Tick, MidiTempo);
+}
+
+
+void FTempoMap::ShiftEntriesAndFixUpPoints(int32 NewHistoryStartIndex, float MsToNewPoint, int32 TickOfNewPoint, int32 MidiTempoOfNewPoint)
+{
+	check(TicksPerQuarterNote > 0);
+
+	int32 NumToMove = Points.Num() - NewHistoryStartIndex;
+	FMemory::Memmove(&Points[1], &Points[NewHistoryStartIndex], sizeof(FTempoInfoPoint) * NumToMove);
+	Points.SetNum(NumToMove + 2, EAllowShrinking::Yes); // +2 because... point 0 (root point) + last point (new point)
+
+	// Now update point 0...
+	float QuartersToFirstHistory = (float)Points[1].StartTick / (float)TicksPerQuarterNote;
+	float UsPerQuarterToHistory = (Points[1].Ms * 1000.0f) / QuartersToFirstHistory;
+	Points[0].MidiTempo = FMath::RoundToInt32(UsPerQuarterToHistory);
+
+	// Update the last entry...
+	Points.Last().Ms = MsToNewPoint;
+	Points.Last().StartTick = TickOfNewPoint;
+	Points.Last().MidiTempo = MidiTempoOfNewPoint;
+
+	bEarlyMapIsEstimate = true;
 }
 
 void FTempoMap::WipeTempoInfoPoints(const int32 Tick)

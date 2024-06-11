@@ -14,16 +14,35 @@
 #include <algorithm>
 
 #include "HAL/PlatformMath.h"
+#include "Harmonix.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMetronomeNode, Log, All);
 
-namespace HarmonixMetasound
+namespace HarmonixMetasound::Nodes::MetronomeNode
 {
 	using namespace Metasound;
 
-	class FMetronomeOperator : public TExecutableOperator<FMetronomeOperator>, public FMusicTransportControllable
+	namespace Inputs
+	{
+		DEFINE_METASOUND_PARAM_ALIAS(Transport, CommonPinNames::Inputs::Transport);
+		DEFINE_METASOUND_PARAM_ALIAS(Loop, CommonPinNames::Inputs::Loop);
+		DEFINE_METASOUND_PARAM_ALIAS(LoopLengthBars, CommonPinNames::Inputs::LoopLengthBars);
+		DEFINE_METASOUND_PARAM_ALIAS(TimeSigNumerator, CommonPinNames::Inputs::TimeSigNumerator);
+		DEFINE_METASOUND_PARAM_ALIAS(TimeSigDenominator, CommonPinNames::Inputs::TimeSigDenominator);
+		DEFINE_METASOUND_PARAM_ALIAS(Tempo, CommonPinNames::Inputs::Tempo);
+		DEFINE_METASOUND_PARAM_ALIAS(Speed, CommonPinNames::Inputs::Speed);
+		DEFINE_METASOUND_PARAM_ALIAS(PrerollBars, CommonPinNames::Inputs::PrerollBars);
+		DEFINE_INPUT_METASOUND_PARAM(HistoryLengthSeconds, "History Length Secs.", "Amount of accurate tempo change history to maintain. Any game system queries earlier than this number of second behind the current render time will be estimates and prone to jitter!");
+	}
+
+	namespace Outputs
+	{
+		DEFINE_METASOUND_PARAM_ALIAS(MidiClock, CommonPinNames::Outputs::MidiClock);
+	}
+
+	class FMetronomeOperator final : public TExecutableOperator<FMetronomeOperator>, public FMusicTransportControllable
 	{
 	public:
 		static const FNodeClassMetadata& GetNodeInfo();
@@ -38,7 +57,8 @@ namespace HarmonixMetasound
 						   const FInt32ReadRef& InTimeSigDenominator,
 						   const FFloatReadRef& InTempo,
 		                   const FFloatReadRef& InSpeedMultiplier,
-		                   const int32 InSeekPrerollBars);
+		                   const int32 InSeekPrerollBars,
+					       const FFloatReadRef& InHistoryLength);
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
@@ -58,9 +78,12 @@ namespace HarmonixMetasound
 		FFloatReadRef TempoInPin;
 		FFloatReadRef SpeedMultInPin;
 		const int32 SeekPreRollBarsInPin;
+		FFloatReadRef HistoryLengthSecondsInPin;
 
 		//** OUTPUTS
 		FMidiClockWriteRef MidiClockOutPin;
+
+		static constexpr float kExtraHistoryForCalibrationMs = 100.0f;
 
 		//** DATA
 		TSharedPtr<FMidiClock, ESPMode::NotThreadSafe> MonotonicallyIncreasingClock;
@@ -121,8 +144,6 @@ namespace HarmonixMetasound
 
 	const FVertexInterface& FMetronomeOperator::GetVertexInterface()
 	{
-		using namespace CommonPinNames;
-
 		static const FVertexInterface Interface(
 			FInputVertexInterface(
 				TInputDataVertex<FMusicTransportEventStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Transport)),
@@ -132,8 +153,9 @@ namespace HarmonixMetasound
 				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::TimeSigDenominator), 4),
 				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Tempo), 120.0f),
 				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Speed), 1.0f),
-				TInputConstructorVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::PrerollBars), 8)
-			),
+				TInputConstructorVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::PrerollBars), 8),
+				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::HistoryLengthSeconds), 0.5f)
+				),
 			FOutputVertexInterface(
 				TOutputDataVertex<FMidiClock>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::MidiClock))
 			)
@@ -144,8 +166,6 @@ namespace HarmonixMetasound
 
 	TUniquePtr<IOperator> FMetronomeOperator::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 	{
-		using namespace CommonPinNames;
-
 		const FMetronomeNode& TempoClockNode = static_cast<const FMetronomeNode&>(InParams.Node);
 
 		const FInputVertexInterfaceData& InputData = InParams.InputData;
@@ -159,8 +179,9 @@ namespace HarmonixMetasound
 		FFloatReadRef InTempo = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(Inputs::Tempo), Settings);
 		FFloatReadRef InSpeed = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(Inputs::Speed), Settings);
 		int32 InPreRollBars = InputData.GetOrCreateDefaultValue<int32>(METASOUND_GET_PARAM_NAME(Inputs::PrerollBars), Settings);
+		FFloatReadRef InHistorySecs = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(Inputs::HistoryLengthSeconds), Settings);
 
-		return MakeUnique<FMetronomeOperator>(InParams, InTransport, InLoop, InLoopLengthBars, InTimeSigNumerator, InTimeSigDenominator, InTempo, InSpeed, InPreRollBars);
+		return MakeUnique<FMetronomeOperator>(InParams, InTransport, InLoop, InLoopLengthBars, InTimeSigNumerator, InTimeSigDenominator, InTempo, InSpeed, InPreRollBars, InHistorySecs);
 	}
 
 	FMetronomeOperator::FMetronomeOperator(const FBuildOperatorParams& InParams, 
@@ -171,7 +192,8 @@ namespace HarmonixMetasound
 	                                       const FInt32ReadRef& InTimeSigDenominator,
 	                                       const FFloatReadRef& InTempo,
 	                                       const FFloatReadRef& InSpeedMultiplier,
-		                                   const int32 InPreRollBars)
+		                                   const int32 InPreRollBars,
+										   const FFloatReadRef& InHistoryLength)
 		: FMusicTransportControllable(EMusicPlayerTransportState::Prepared) 
 		, TransportInPin(InTransport)
 		, LoopInPin(InLoop)
@@ -181,6 +203,7 @@ namespace HarmonixMetasound
 		, TempoInPin(InTempo)
 		, SpeedMultInPin(InSpeedMultiplier)
 		, SeekPreRollBarsInPin(InPreRollBars)
+		, HistoryLengthSecondsInPin(InHistoryLength)
 		, MidiClockOutPin(FMidiClockWriteRef::CreateNew(InParams.OperatorSettings))
 		, MonotonicallyIncreasingClock(MakeShared<FMidiClock, ESPMode::NotThreadSafe>(InParams.OperatorSettings))
 		, BlockSize(InParams.OperatorSettings.GetNumFramesPerBlock())
@@ -195,7 +218,6 @@ namespace HarmonixMetasound
 
 	void FMetronomeOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
 	{
-		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Transport), TransportInPin);
 		InVertexData.SetValue(METASOUND_GET_PARAM_NAME(Inputs::Loop), LoopInPin);
 		InVertexData.SetValue(METASOUND_GET_PARAM_NAME(Inputs::LoopLengthBars), LoopLengthBarsInPin);
@@ -204,13 +226,13 @@ namespace HarmonixMetasound
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Tempo), TempoInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Speed), SpeedMultInPin);
 		InVertexData.SetValue(METASOUND_GET_PARAM_NAME(Inputs::PrerollBars), SeekPreRollBarsInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::HistoryLengthSeconds), HistoryLengthSecondsInPin);
 
 		Init();
 	}
 
 	void FMetronomeOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
 	{
-		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiClock), MidiClockOutPin);
 	}
 
@@ -399,7 +421,12 @@ namespace HarmonixMetasound
 	{
 		CurrentTempo = InTempoBPM;
 		int32 AtTick = GetDrivingMidiClock().GetNextMidiTickToProcess();
-		SongMaps->AddTempoChange(AtTick, CurrentTempo);
+		
+		float HistoryLengthSeconds = FMath::Max(*HistoryLengthSecondsInPin, (FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs() + kExtraHistoryForCalibrationMs) / 1000.0f);
+		HistoryLengthSeconds = FMath::Max(HistoryLengthSeconds, (FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs() + kExtraHistoryForCalibrationMs) / 1000.0f);
+		
+		FTempoMap& TempoMap = SongMaps->GetTempoMap();
+		TempoMap.AddTempo(InTempoBPM, AtTick, HistoryLengthSeconds);
 	}
 
 	void FMetronomeOperator::AddTimeSigChangeForMidi(int32 InTimeSigNum, int32 InTimeSigDenom)
