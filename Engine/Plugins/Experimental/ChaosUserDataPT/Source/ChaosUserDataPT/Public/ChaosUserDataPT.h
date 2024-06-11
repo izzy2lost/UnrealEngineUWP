@@ -57,9 +57,6 @@ namespace Chaos
 		// Flag for clearing all data
 		bool bClear = false;
 
-		// Flag for whether or not data resize is allowed from changes
-		bool bResizeOnClear = true;
-
 		// Monotonically increasing identifier for the input object. Each
 		// newly constructed input will store and increment this;
 		int32 Identifier = -1;
@@ -193,21 +190,8 @@ namespace Chaos
 			return UserDataMap_PT.IsValidIndex(Idx) ? UserDataMap_PT[Idx].Get() : nullptr;
 		}
 
-		// Execute a lambda on each data entry
-		void VisitAllData_PT(const TFunction<void(Chaos::FUniqueIdx, const TUserData&)>& Lambda)
-		{
-			for (auto It = UserDataMap_PT.CreateIterator(); It; ++It)
-			{
-				// If the unique ptr has data
-				if (It->IsValid())
-				{
-					Lambda(Chaos::FUniqueIdx(It.GetIndex()), *It->Get());
-				}
-			}
-		}
-
 		// Clear all data
-		bool ClearData_GT(const bool bResize = true)
+		bool ClearData_GT()
 		{
 			if (TInput* Input = this->GetProducerInputData_External())
 			{
@@ -218,9 +202,6 @@ namespace Chaos
 
 				// Mark the flag for clear all data
 				Input->bClear = true;
-
-				// Mark whether or not we're allowed to resize
-				Input->bResizeOnClear = bResize;
 			}
 
 			// Failed to queue removal
@@ -257,12 +238,7 @@ namespace Chaos
 
 						// Empty the userdata map
 						UserDataMap_PT.Empty();
-
-						// If resize is allowed, do it
-						if (Input->bResizeOnClear)
-						{
-							UserDataMap_PT.Shrink();
-						}
+						UserDataMap_PT.Shrink();
 					}
 
 					// Add new data

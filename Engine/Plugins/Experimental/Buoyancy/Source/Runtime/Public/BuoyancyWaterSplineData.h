@@ -20,7 +20,6 @@ struct FBuoyancyWaterSplineData
 		, Velocity(InVelocity)
 	{ }
 
-
 	// Parameters that all water bodies have
 	Chaos::FRigidTransform3 Transform;
 	FInterpCurveVector Position;
