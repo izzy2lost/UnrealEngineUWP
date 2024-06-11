@@ -10,6 +10,12 @@ struct AVALANCHESEQUENCE_API FAvaTransitionWaitForSequenceTask : public FAvaTran
 {
 	GENERATED_BODY()
 
+	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
+	//~ End FStateTreeNodeBase
+
 	//~ Begin FAvaTransitionSequenceTaskBase
 	virtual TArray<UAvaSequencePlayer*> ExecuteSequenceTask(FStateTreeExecutionContext& InContext) const override;
 	//~ End FAvaTransitionSequenceTaskBase

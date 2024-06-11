@@ -42,7 +42,7 @@ FText FAvaTransitionPlaySequenceTask::GetDescription(const FGuid& InId, FStateTr
 
 	return InFormatting == EStateTreeNodeFormatting::RichText
 		? FText::Format(LOCTEXT("DescRich", "Play {0} <s>{1}</>"), SequenceQueryText, AddOnText)
-		: FText::Format(LOCTEXT("DescRich", "Play {0} <s>{1}</>"), SequenceQueryText, AddOnText);
+		: FText::Format(LOCTEXT("Desc", "Play {0} {1}"), SequenceQueryText, AddOnText);
 }
 #endif
 
