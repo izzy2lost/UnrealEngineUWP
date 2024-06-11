@@ -61,6 +61,7 @@ private:
 	void HideConsole();
 	void EnableConsoleCommand(FOutputDevice& out);
 	void StartLiveCodingAsync(ELiveCodingStartupMode StartupMode);
+	bool SetupConsolePath();
 	bool StartLiveCoding(ELiveCodingStartupMode StartupMode);
 	void OnModulesChanged(FName ModuleName, EModuleChangeReason Reason);
 	void UpdateModules(bool bAllowStarting);
