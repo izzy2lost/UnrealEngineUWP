@@ -110,12 +110,21 @@ public:
 private:
 	struct FObjectOrAssetData
 	{
-		UObject* Object;
+		enum class EAssetDataOptions
+		{
+			None,
+			// Will not populate AssetRegistry Tags for an AssetData
+			SkipAssetRegistryTagsGathering
+		};
+		
+		UObject* Object = nullptr;
 		FSoftObjectPath ObjectPath;
 		FAssetData AssetData;
-		UObject* EditorPathOwner;
+		UObject* EditorPathOwner = nullptr;
+		
+		FObjectOrAssetData() = default;
 
-		FObjectOrAssetData(UObject* InObject = nullptr, UObject* EditorPathOwner = nullptr);
+		FObjectOrAssetData(UObject* InObject, UObject* EditorPathOwner, EAssetDataOptions AssetDataOptions);
 
 		FObjectOrAssetData( const FSoftObjectPath& InObjectPath )
 			: Object(nullptr)
@@ -213,7 +222,7 @@ private:
 	 * Get the value referenced by this widget.
 	 * @returns the referenced object
 	 */
-	FPropertyAccess::Result GetValue( FObjectOrAssetData& OutValue ) const;
+	FPropertyAccess::Result GetValue( FObjectOrAssetData& OutValue, FObjectOrAssetData::EAssetDataOptions GetValueOptions ) const;
 
 	/** 
 	 * Get the UClass we will display in the UI.
