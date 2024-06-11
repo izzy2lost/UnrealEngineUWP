@@ -11,9 +11,9 @@
 	#define FNiagaraStatelessBuiltDistributionTypeIn	uint3
 #endif
 
-#define ENiagaraStatelessBuiltDistributionFlag_Binding			0x10000000u
-#define ENiagaraStatelessBuiltDistributionFlag_Random			0x20000000u
-#define ENiagaraStatelessBuiltDistributionFlag_Uniform			0x40000000u
+#define ENiagaraStatelessBuiltDistributionFlag_Binding			0x20000000u
+#define ENiagaraStatelessBuiltDistributionFlag_Random			0x40000000u
+#define ENiagaraStatelessBuiltDistributionFlag_Uniform			0x80000000u
 #define ENiagaraStatelessBuiltDistributionFlag_TableLengthBits	9u				// 512 entries in LUT
 #define ENiagaraStatelessBuiltDistributionFlag_TableLengthShift	20u
 #define ENiagaraStatelessBuiltDistributionFlag_TableLengthMask	((1u << ENiagaraStatelessBuiltDistributionFlag_TableLengthBits) - 1u)
@@ -55,6 +55,19 @@ struct FNiagaraStatelessBuiltDistribution
 	static void SetIsBinding(FNiagaraStatelessBuiltDistributionType& BuiltData) { BuiltData[0] |= ENiagaraStatelessBuiltDistributionFlag_Binding; }
 	static void SetIsRandom(FNiagaraStatelessBuiltDistributionType& BuiltData) { BuiltData[0] |= ENiagaraStatelessBuiltDistributionFlag_Random; }
 	static void SetIsUniform(FNiagaraStatelessBuiltDistributionType& BuiltData) { BuiltData[0] |= ENiagaraStatelessBuiltDistributionFlag_Uniform; }
+
+	static void SetLookupParameters(FNiagaraStatelessBuiltDistributionType& BuiltData, uint DataOffset)
+	{
+		check(IsBinding(BuiltData));
+		check(DataOffset <= ENiagaraStatelessBuiltDistributionFlag_DataOffsetMask);
+
+		BuiltData[0] &= ~(ENiagaraStatelessBuiltDistributionFlag_DataOffsetMask << ENiagaraStatelessBuiltDistributionFlag_DataOffsetShift);
+		BuiltData[0] &= ~(ENiagaraStatelessBuiltDistributionFlag_TableLengthMask << ENiagaraStatelessBuiltDistributionFlag_TableLengthShift);
+		BuiltData[0] |= DataOffset << ENiagaraStatelessBuiltDistributionFlag_DataOffsetShift;
+
+		reinterpret_cast<float&>(BuiltData[1]) = 0.0f;
+		reinterpret_cast<float&>(BuiltData[2]) = 1.0f;
+	}
 
 	static void SetLookupParameters(FNiagaraStatelessBuiltDistributionType& BuiltData, uint DataOffset, uint TableLength, const FVector2f& TimeRange)
 	{

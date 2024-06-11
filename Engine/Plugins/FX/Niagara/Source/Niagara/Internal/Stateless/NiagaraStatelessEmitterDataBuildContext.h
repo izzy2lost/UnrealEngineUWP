@@ -104,7 +104,7 @@ public:
 			if (ParameterOffset >= 0)
 			{
 				FNiagaraStatelessBuiltDistribution::SetIsBinding(BuiltDistribution);
-				FNiagaraStatelessBuiltDistribution::SetLookupParameters(BuiltDistribution, ParameterOffset, 1, FVector2f(0.0f, 1.0f));
+				FNiagaraStatelessBuiltDistribution::SetLookupParameters(BuiltDistribution, ParameterOffset);
 			}
 		}
 		else
