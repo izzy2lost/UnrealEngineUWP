@@ -15,8 +15,8 @@ Texture2D CustomTexture;
 SamplerState CustomSampler;
 
 StructuredBuffer<float4> EyeAdaptationBuffer;
-uint SourceEncoding;
-float DisplayGamma;
+uint2 Encodings;
+float2 DisplayGamma;
 
 void MainPS(
     float4 SvPosition : SV_POSITION,
@@ -37,16 +37,26 @@ void MainPS(
 #endif
 
     BRANCH
-    if(SourceEncoding == 1)
+    if(Encodings.x == 1)
     {
-        SceneColor.rgb = pow(SceneColor.rgb, DisplayGamma);
+        SceneColor.rgb = pow(SceneColor.rgb, DisplayGamma.x);
     }
-    else if(SourceEncoding == 2)
+    else if(Encodings.x == 2)
     {
         SceneColor.rgb = sRGBToLinear(SceneColor.rgb);
     }
 
     // TODO: HDR cases will need to be handled explicitely.
-    OutColor.rgb = LinearToSrgb(CustomColor.rgb * SceneColor.a + SceneColor.rgb);
+    OutColor.rgb = CustomColor.rgb * SceneColor.a + SceneColor.rgb;
     OutColor.a = CustomColor.a * SceneColor.a;
+
+    BRANCH
+    if(Encodings.y == 1)
+    {
+        OutColor.rgb = pow(OutColor.rgb, DisplayGamma.y);
+    }
+    else if(Encodings.y == 2)
+    {
+        OutColor.rgb = LinearToSrgb(OutColor.rgb);
+    }
 }

@@ -47,7 +47,10 @@ private:
 	// Custom render pass render targets for each active view
 	TMap<uint32, FRDGTextureRef> CustomRenderTargetPerView_RenderThread;
 
-	// Flat to enable global exposure on the composited render
-	std::atomic_bool bCompositeWithGlobalExposure = false;
+	// Flag to enable global exposure on the composited render
+	std::atomic_bool bCompositeFollowsSceneExposure = false;
+
+	// Track the original view family encoding
+	ESceneCaptureSource OriginalSceneCaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 };
 

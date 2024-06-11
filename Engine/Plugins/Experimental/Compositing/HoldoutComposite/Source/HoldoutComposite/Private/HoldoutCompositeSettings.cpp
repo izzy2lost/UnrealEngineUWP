@@ -5,7 +5,8 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HoldoutCompositeSettings)
 
 UHoldoutCompositeSettings::UHoldoutCompositeSettings()
-	: bEnableGlobalExposureComposite(false)
+	: bCompositeFollowsSceneExposure(true)
+	, SceneViewExtensionPriority(100 + 1 /* OPENCOLORIO_SCENE_VIEW_EXTENSION_PRIORITY + 1 */)
 { }
 
 FName UHoldoutCompositeSettings::GetCategoryName() const

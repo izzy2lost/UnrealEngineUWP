@@ -76,8 +76,8 @@ class FCompositeHoldoutCompositePS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, CustomTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, CustomSampler)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
-		SHADER_PARAMETER(uint32, SourceEncoding)
-		SHADER_PARAMETER(float, DisplayGamma)
+		SHADER_PARAMETER(FUint32Vector2, Encodings)
+		SHADER_PARAMETER(FVector2f, DisplayGamma)
 
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -232,8 +232,13 @@ bool FHoldoutCompositeSceneViewExtension::IsActiveThisFrame_Internal(const FScen
 
 int32 FHoldoutCompositeSceneViewExtension::GetPriority() const
 {
-	constexpr int32 OPENCOLORIO_SCENE_VIEW_EXTENSION_PRIORITY = 100;
-	return OPENCOLORIO_SCENE_VIEW_EXTENSION_PRIORITY - 1;
+	const UHoldoutCompositeSettings* Settings = GetDefault<UHoldoutCompositeSettings>();
+	if (Settings != nullptr)
+	{
+		return Settings->SceneViewExtensionPriority;
+	}
+
+	return 0;
 }
 
 void FHoldoutCompositeSceneViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
@@ -241,7 +246,7 @@ void FHoldoutCompositeSceneViewExtension::SetupViewFamily(FSceneViewFamily& InVi
 	const UHoldoutCompositeSettings* Settings = GetDefault<UHoldoutCompositeSettings>();
 	if (Settings != nullptr)
 	{
-		bCompositeWithGlobalExposure = Settings->bEnableGlobalExposureComposite;
+		bCompositeFollowsSceneExposure = Settings->bCompositeFollowsSceneExposure;
 	}
 
 	/**
@@ -249,6 +254,7 @@ void FHoldoutCompositeSceneViewExtension::SetupViewFamily(FSceneViewFamily& InVi
 	 * This also ensures the tonemap post-processing pass preserves alpha precision.
 	 * The usual sRGB encoding is instead applied at the end of the composite.
 	 **/ 
+	OriginalSceneCaptureSource = InViewFamily.SceneCaptureSource;
 	InViewFamily.SceneCaptureSource = SCS_FinalToneCurveHDR;
 }
 
@@ -316,6 +322,7 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 {
 	RDG_EVENT_SCOPE(GraphBuilder, "HoldoutComposite.Final");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FHoldoutCompositeFinal);
+	using namespace HoldoutComposite;
 
 	FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
 	check(SceneColor.IsValid());
@@ -331,14 +338,22 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(InView.GetFeatureLevel());
 	const FSceneViewFamily* Family = InView.Family;
 
-	HoldoutComposite::ESceneColorSourceEncoding SourceEncoding = HoldoutComposite::ESceneColorSourceEncoding::Linear;
+	FUint32Vector2 Encodings = FUint32Vector2::ZeroValue; // ESceneColorSourceEncoding::Linear
 	if ((Family->EngineShowFlags.Tonemapper == 0) || (Family->EngineShowFlags.PostProcessing == 0))
 	{
-		SourceEncoding = HoldoutComposite::ESceneColorSourceEncoding::Gamma;
+		Encodings.X = static_cast<uint32>(ESceneColorSourceEncoding::Gamma);
+		Encodings.Y = static_cast<uint32>(ESceneColorSourceEncoding::Gamma);
 	}
 	else if (Family->SceneCaptureSource == SCS_FinalColorLDR)
 	{
-		SourceEncoding = HoldoutComposite::ESceneColorSourceEncoding::sRGB;
+		Encodings.X = static_cast<uint32>(ESceneColorSourceEncoding::sRGB);
+		Encodings.Y = static_cast<uint32>(ESceneColorSourceEncoding::sRGB);
+	}
+	else if (Family->SceneCaptureSource == SCS_FinalToneCurveHDR
+		&& OriginalSceneCaptureSource != ESceneCaptureSource::SCS_FinalToneCurveHDR)
+	{
+		// Special setup to preserve alpha precision, per earlier note.
+		Encodings.Y = static_cast<uint32>(ESceneColorSourceEncoding::sRGB);
 	}
 
 	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
@@ -350,7 +365,7 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 	// Compositing pass
 	{
 		FCompositeHoldoutCompositePS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FCompositeHoldoutCompositePS::FApplyGlobalExposure>(bCompositeWithGlobalExposure.load());
+		PermutationVector.Set<FCompositeHoldoutCompositePS::FApplyGlobalExposure>(bCompositeFollowsSceneExposure.load());
 
 		FRDGBufferRef EyeAdaptationBuffer = GraphBuilder.RegisterExternalBuffer(InView.GetEyeAdaptationBuffer(), ERDGBufferFlags::MultiFrame);
 
@@ -364,8 +379,8 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 		PassParameters->CustomTexture = CustomRenderPassTexture;
 		PassParameters->CustomSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);
-		PassParameters->SourceEncoding = static_cast<uint32>(SourceEncoding);
-		PassParameters->DisplayGamma = Family->RenderTarget->GetDisplayGamma();
+		PassParameters->Encodings = Encodings;
+		PassParameters->DisplayGamma = FVector2f(Family->RenderTarget->GetDisplayGamma(), 1.0f / Family->RenderTarget->GetDisplayGamma());
 		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
 		TShaderMapRef<FCompositeHoldoutCompositePS> PixelShader(GlobalShaderMap, PermutationVector);

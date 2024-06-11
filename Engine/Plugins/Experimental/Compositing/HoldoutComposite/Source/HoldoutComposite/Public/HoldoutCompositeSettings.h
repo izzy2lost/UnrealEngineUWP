@@ -31,6 +31,10 @@ public:
 public:
 	/** When enabled, the view global exposure is applied onto the separate render when composited. */
 	UPROPERTY(config, EditAnywhere, Category = General)
-	bool bEnableGlobalExposureComposite;
+	bool bCompositeFollowsSceneExposure;
+
+	/** Composite (scene view extension) pass priority, which defaults to before OpenColorIO. */
+	UPROPERTY(config, EditAnywhere, Category = General, AdvancedDisplay)
+	int32 SceneViewExtensionPriority;
 };
 
