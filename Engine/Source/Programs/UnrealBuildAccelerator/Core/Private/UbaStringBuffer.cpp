@@ -132,6 +132,19 @@ namespace uba
 		Replace(str, NonPathSeparator, PathSeparator);
 	}
 
+	bool Parse(u64& out, const tchar* str, u64 strLen)
+	{
+		if (!strLen)
+			return false;
+
+		#if PLATFORM_WINDOWS
+		out = wcstoull(str, nullptr, 10);
+		#else
+		out = strtoull(str, nullptr, 10);
+		#endif
+		return out != 0 || Equals(str, TC("0"));
+	}
+
 	StringBufferBase& StringBufferBase::Append(const tchar* str)
 	{
 		return Append(str, u32(TStrlen(str)));
@@ -325,15 +338,7 @@ namespace uba
 
 	bool StringBufferBase::Parse(u64& out)
 	{
-		if (!count)
-			return false;
-
-		#if PLATFORM_WINDOWS
-		out = wcstoull(data, nullptr, 10);
-		#else
-		out = strtoull(data, nullptr, 10);
-		#endif
-		return out != 0 || Equals(TC("0"));
+		return uba::Parse(out, data, count);
 	}
 
 	bool StringBufferBase::Parse(u32& out)

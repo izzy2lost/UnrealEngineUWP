@@ -15,6 +15,7 @@ namespace uba
 	bool Equals(const tchar* str1, const tchar* str2, u64 count, bool ignoreCase = true);
 	void Replace(tchar* str, tchar from, tchar to);
 	void FixPathSeparators(tchar* str);
+	bool Parse(u64& out, const tchar* str, u64 strLen);
 	inline void ToLower(tchar* str) { while (tchar c = *str) { if (c >= 'A' && c <= 'Z') *str = c - 'A' + 'a'; ++str; } }
 	inline tchar ToLower(tchar c) { return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;}
 	inline tchar ToUpper(tchar c) { return (c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c;}
