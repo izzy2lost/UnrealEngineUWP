@@ -2894,3 +2894,5 @@ inline const FViewFamilyInfo& GetViewFamilyInfo(const TArrayView<const FViewInfo
 	check(Views.Num() == 1 || Views[0].Family == Views.Last().Family);
 	return *(const FViewFamilyInfo*)Views[0].Family;
 }
+
+bool SceneCaptureRequiresAlphaChannel(const FSceneView& View);

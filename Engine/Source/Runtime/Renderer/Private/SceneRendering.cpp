@@ -6502,3 +6502,28 @@ FRDGTextureRef CreateQuarterResolutionDepthMinAndMax(FRDGBuilder& GraphBuilder, 
 
 	return SmallTexture;
 }
+
+bool SceneCaptureRequiresAlphaChannel(const FSceneView& View)
+{
+	// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
+	if (View.bIsPlanarReflection)
+	{
+		return true;
+	}
+
+	if (View.bIsSceneCapture)
+	{
+		// Depth capture modes do not require alpha channel
+		if (View.CustomRenderPass)
+		{
+			return View.CustomRenderPass->GetRenderOutput() != FCustomRenderPassBase::ERenderOutput::SceneDepth
+				&& View.CustomRenderPass->GetRenderOutput() != FCustomRenderPassBase::ERenderOutput::DeviceDepth;
+		}
+		else if(View.Family)
+		{
+			return View.Family->SceneCaptureSource != SCS_SceneDepth 
+				&& View.Family->SceneCaptureSource != SCS_DeviceDepth;
+		}
+	}
+	return false;
+}

@@ -873,14 +873,20 @@ void FMobileSceneRenderer::RenderMaskedPrePass(FRHICommandList& RHICmdList, cons
 void FMobileSceneRenderer::RenderCustomRenderPassBasePass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef ViewFamilyTexture, FSceneTextures& SceneTextures)
 {
 	FRenderTargetBindingSlots BasePassRenderTargets;
+	// Use the same subpass hints as main render, to avoid generating new PSOs 
+	int32 NumAdditionalSubpasses = 0;
 	if (bDeferredShading)
 	{
 		FColorTargets ColorTargets = GetColorTargets_Deferred(SceneTextures);
 		BasePassRenderTargets = InitRenderTargetBindings_Deferred(SceneTextures, ColorTargets);
+		BasePassRenderTargets.SubpassHint = ESubpassHint::DeferredShadingSubpass;
+		NumAdditionalSubpasses = 2;
 	}
 	else
 	{
 		BasePassRenderTargets = InitRenderTargetBindings_Forward(ViewFamilyTexture, SceneTextures);
+		BasePassRenderTargets.SubpassHint = ESubpassHint::DepthReadSubpass;
+		NumAdditionalSubpasses = 1;
 	}
 
 	FRenderViewContextArray RenderViews;
@@ -905,10 +911,15 @@ void FMobileSceneRenderer::RenderCustomRenderPassBasePass(FRDGBuilder& GraphBuil
 			RDG_EVENT_NAME("RenderMobileBasePass"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, PassParameters, ViewContext, &SceneTextures](FRHICommandList& RHICmdList)
+			[this, PassParameters, ViewContext, &SceneTextures, NumAdditionalSubpasses](FRHICommandList& RHICmdList)
 			{
 				FViewInfo& View = *ViewContext.ViewInfo;
 				RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
+
+				for (int32 AddSubpass = 0; AddSubpass < NumAdditionalSubpasses; ++AddSubpass)
+				{
+					RHICmdList.NextSubpass();
+				}
 			});
 
 		if (!bIsFullDepthPrepassEnabled)
