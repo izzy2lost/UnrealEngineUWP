@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Commandlets/DiffAssetBulkDataCommandlet.h"
+#include "RequiredProgramMainCPPInclude.h"
 
 #include "Algo/Sort.h"
 #include "AssetRegistry/AssetData.h"
@@ -14,15 +14,14 @@
 #include "HAL/PlatformCrt.h"
 #include "IO/IoDispatcher.h"
 #include "IO/IoHash.h"
-#include "Logging/LogCategory.h"
-#include "Logging/LogMacros.h"
-#include "Misc/AssertionMacros.h"
 #include "Misc/CString.h"
 #include "Misc/Parse.h"
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/NameTypes.h"
 #include "UObject/TopLevelAssetPath.h"
+
+IMPLEMENT_APPLICATION(DiffAssetBulkData, "DiffAssetBulkData");
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogDiffAssetBulk, Display, All);
@@ -68,19 +67,10 @@ static struct FBuiltinDiffTagHelp {const TCHAR* TagName; const TCHAR* TagHelp;} 
 };
 
 
-UDiffAssetBulkDataCommandlet::UDiffAssetBulkDataCommandlet(const FObjectInitializer& ObjectInitializer)
-: Super(ObjectInitializer)
+static int32 RunDiffAssetBulkData()
 {
-
-}
-
-
-int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
-{
-	UE_LOG(LogDiffAssetBulk, Error, TEXT("Has been moved, use the Program DiffAssetBulkData"));
-
 	FString BaseFileName, CurrentFileName;
-	const TCHAR* CmdLine = *FullCommandLine;
+	const TCHAR* CmdLine = FCommandLine::Get();
 	if (FParse::Value(CmdLine, TEXT("Base="), BaseFileName) == false ||
 		FParse::Value(CmdLine, TEXT("Current="), CurrentFileName) == false)
 	{
@@ -102,6 +92,7 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 		UE_LOG(LogDiffAssetBulk, Display, TEXT("                                      tag or \"All\" to list all changed assets with known blame."));
 		UE_LOG(LogDiffAssetBulk, Display, TEXT("    -ListUnrepresented                Show the list of packages where a representative asset couldn't be found.")); 
 		UE_LOG(LogDiffAssetBulk, Display, TEXT("    -ListNoBlame=<class>              Show the list of assets that changed for a specific class, or \"All\""));
+		UE_LOG(LogDiffAssetBulk, Display, TEXT("    -ListCSV=<filename>               Write all changed packages to the given CSV file."));
 		return 1;
 	}
 
@@ -113,6 +104,18 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 	FString ListNoBlame;
 	FParse::Value(CmdLine, TEXT("ListNoBlame="), ListNoBlame);
 
+	FString ListCSV;
+	TUniquePtr<FArchive> OutputCSVAr;
+	if (FParse::Value(CmdLine, TEXT("ListCSV="), ListCSV))
+	{
+		OutputCSVAr.Reset(IFileManager::Get().CreateFileWriter(*ListCSV, 0));
+		if (!OutputCSVAr)
+		{
+			UE_LOG(LogDiffAssetBulk, Error, TEXT("Unable to open output CSV file: %s"), *ListCSV);
+			return false;
+		}
+		OutputCSVAr->Logf(TEXT("Blame, Class, PackageName, BlameBefore, BlameAfter"));
+	}
 
 	// Convert the static init help text to a map
 	TMap<FName, const TCHAR*> BuiltinDiffTagHelpMap;
@@ -123,11 +126,13 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 
 	FAssetRegistryState BaseState, CurrentState;
 	FAssetRegistryVersion::Type BaseVersion, CurrentVersion;
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("Loading Base... (%s)"), *BaseFileName);
 	if (FAssetRegistryState::LoadFromDisk(*BaseFileName, FAssetRegistryLoadOptions(), BaseState, &BaseVersion) == false)
 	{
 		UE_LOG(LogDiffAssetBulk, Error, TEXT("Failed load base (%s)"), *BaseFileName);
 		return 1;
 	}
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("Loading Current... (%s)"), *CurrentFileName);
 	if (FAssetRegistryState::LoadFromDisk(*CurrentFileName, FAssetRegistryLoadOptions(), CurrentState, &CurrentVersion) == false)
 	{
 		UE_LOG(LogDiffAssetBulk, Error, TEXT("Failed load current (%s)"), *CurrentFileName);
@@ -521,7 +526,7 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Base Packages:                %8d (%s bytes)"), BasePackages.Num(), *FText::AsNumber(BaseTotalSize).ToString());
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Current Packages:             %8d (%s bytes)"), CurrentPackages.Num(), *FText::AsNumber(CurrentTotalSize).ToString());
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Added:     %8d (%s bytes"), NewPackages.Num(), *FText::AsNumber(NewSize).ToString());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Added:     %8d (%s bytes)"), NewPackages.Num(), *FText::AsNumber(NewSize).ToString());
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Deleted:   %8d (%s bytes)"), DeletedPackages.Num(), *FText::AsNumber(DeletedSize).ToString());
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Changed:   %8d (%s bytes -- all chunks!)"), ChangedPackages.Num(), *FText::AsNumber(TotalChangedSize).ToString());
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Packages with no size info:   %8d"), PackagesWithNoSize);
@@ -548,6 +553,13 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 				UE_LOG(LogDiffAssetBulk, Display, TEXT("            %s"), *PackageName.ToString());
 			}
 		}
+		if (OutputCSVAr.IsValid())
+		{
+			for (const FName& PackageName : CantDetermineAssetClassPackages)
+			{
+				OutputCSVAr->Logf(TEXT("NoBlameInfo, Unknown, %s,,"), *WriteToString<64>(PackageName));
+			}
+		}
 	}
 	for (TPair<FTopLevelAssetPath, TArray<FName>>& ClassPackages : NoTagPackagesByAssumedClass)
 	{
@@ -566,13 +578,23 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 			}
 		}
 
-		UE_LOG(LogDiffAssetBulk, Display, TEXT("        %-30s: %d (%s bytes)  // -ListNoBlame=%s"), *ClassPackages.Key.ToString(), ClassPackages.Value.Num(), *FText::AsNumber(TotalSizes).ToString(), *ClassPackages.Key.ToString());
+		TStringBuilder<64> ClassName;
+		ClassName << ClassPackages.Key;
+
+		UE_LOG(LogDiffAssetBulk, Display, TEXT("        %-30s: %d (%s bytes)  // -ListNoBlame=%s"), *ClassName, ClassPackages.Value.Num(), *FText::AsNumber(TotalSizes).ToString(), *ClassName);
 		if (ListNoBlame.Compare(TEXT("All"), ESearchCase::IgnoreCase) == 0 ||
 			ListNoBlame.Compare(ClassPackages.Key.ToString(), ESearchCase::IgnoreCase) == 0)
 		{
 			for (const FName& PackageName : ClassPackages.Value)
 			{
-				UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s"), *PackageName.ToString());
+				UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s"), *WriteToString<64>(PackageName));
+			}
+		}
+		if (OutputCSVAr.IsValid())
+		{
+			for (const FName& PackageName : ClassPackages.Value)
+			{
+				OutputCSVAr->Logf(TEXT("NoBlameInfo, %s, %s,,"), *ClassName, *WriteToString<64>(PackageName));
 			}
 		}
 	}
@@ -601,13 +623,23 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 				}
 			}
 
-			UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s : %d (%s bytes)"), *ClassPackages.Key.ToString(), ClassPackages.Value.Num(), *FText::AsNumber(TotalSizes).ToString());
+			TStringBuilder<64> ClassName;
+			ClassName << ClassPackages.Key;
+
+			UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s : %d (%s bytes)"), *ClassName, ClassPackages.Value.Num(), *FText::AsNumber(TotalSizes).ToString());
 			Algo::Sort(ClassPackages.Value, FNameLexicalLess());
 			if (bListDeterminism)
 			{
 				for (const FName& PackageName : ClassPackages.Value)
 				{
-					UE_LOG(LogDiffAssetBulk, Display, TEXT("            %s"), *PackageName.ToString());
+					UE_LOG(LogDiffAssetBulk, Display, TEXT("            %s"), *WriteToString<64>(PackageName));
+				}
+			}
+			if (OutputCSVAr.IsValid())
+			{
+				for (const FName& PackageName : ClassPackages.Value)
+				{
+					OutputCSVAr->Logf(TEXT("NonDetermistic, %s, %s,,"), *ClassName, *WriteToString<64>(PackageName));
 				}
 			}
 		}
@@ -623,6 +655,13 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 			for (const FName& PackageName : PackagesWithUnassignableDiffsAndUntaggedAssets)
 			{
 				UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s"), *PackageName.ToString());
+			}
+		}
+		if (OutputCSVAr.IsValid())
+		{
+			for (const FName& PackageName : PackagesWithUnassignableDiffsAndUntaggedAssets)
+			{
+				OutputCSVAr->Logf(TEXT("Mixed, Unknown, %s,,"), *WriteToString<64>(PackageName));
 			}
 		}
 	}
@@ -669,9 +708,44 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 						UE_LOG(LogDiffAssetBulk, Display, TEXT("                %s [%s -> %s]"), *Result.ChangedAssetObjectPath, *Result.TagBaseValue, *Result.TagCurrentValue);
 					}
 				}
+				if (OutputCSVAr.IsValid())
+				{
+					for (FDiffResult& Result : ClassResults.Value)
+					{
+						OutputCSVAr->Logf(TEXT("%s, %s, %s, %s, %s"), *TagResults.Key.ToString(), *ClassResults.Key.ToString(), *WriteToString<64>(Result.ChangedAssetObjectPath), *Result.TagBaseValue, *Result.TagCurrentValue);
+					}
+				}
 			}
 		}
 	}
 
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("Done."));
+
 	return 0;
 }
+
+
+INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
+{
+	FTaskTagScope Scope(ETaskTag::EGameThread);
+
+	// start up the main loop
+	GEngineLoop.PreInit(ArgC, ArgV);
+
+	double StartTime = FPlatformTime::Seconds();
+
+	int32 Result = RunDiffAssetBulkData();
+
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("Logging.."));
+
+	GLog->Flush();
+
+	RequestEngineExit(TEXT("DiffAssetBulkData Exiting"));
+
+	FEngineLoop::AppPreExit();
+	FModuleManager::Get().UnloadModulesAtShutdown();
+	FEngineLoop::AppExit();
+
+	return Result;
+}
+
