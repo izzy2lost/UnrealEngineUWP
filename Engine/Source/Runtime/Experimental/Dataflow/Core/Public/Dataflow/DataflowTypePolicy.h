@@ -4,6 +4,42 @@
 
 #include "CoreMinimal.h"
 #include "Misc/TVariant.h"
+#include "UObject/Object.h"
+#include <string>
+
+class UObject;
+
+template<typename TType>
+struct TDataflowPolicyTypeName
+{
+};
+
+#define UE_DATAFLOW_POLICY_DECLARE_TYPENAME(TType) \
+template<> \
+struct TDataflowPolicyTypeName<TType> \
+{  \
+	FORCEINLINE static const TCHAR* GetName() \
+	{ \
+		return TEXT(#TType); \
+	} \
+};
+
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(bool)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(uint8)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(uint16)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(uint32)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(uint64)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(int8)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(int16)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(int32)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(int64)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(float)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(double)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FName)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(FString)
+UE_DATAFLOW_POLICY_DECLARE_TYPENAME(TObjectPtr<UObject>)
+
+#undef UE_DATAFLOW_POLICY_DECLARE_TYPENAME
 
 struct IDataflowTypePolicy
 {
@@ -57,7 +93,7 @@ struct TDataflowSingleTypePolicy : public IDataflowTypePolicy
 		return &Instance;
 	}
 
-	inline static const FName TypeName = FName(TNameOf<T>::GetName());
+	inline static const FName TypeName = FName(TDataflowPolicyTypeName<T>::GetName());
 };
 
 template <typename... TTypes>
@@ -82,8 +118,6 @@ struct TDataflowMultiTypePolicy<>: public IDataflowTypePolicy
 		return false;
 	}
 };
-
-Expose_TNameOf(bool);
 
 template <typename T, typename... TTypes>
 struct TDataflowMultiTypePolicy<T, TTypes...>: public TDataflowMultiTypePolicy<TTypes...>
@@ -162,6 +196,62 @@ struct FDataflowStringConvertibleTypePolicy : IDataflowTypePolicy
 	{
 		static FDataflowStringConvertibleTypePolicy Instance;
 		return &Instance;
+	}
+};
+
+struct FDataflowUObjectConvertibleTypePolicy : IDataflowTypePolicy
+{
+	virtual bool SupportsType(FName InType) const override
+	{
+		return SupportsTypeStatic(InType);
+	}
+
+	static bool SupportsTypeStatic(FName InType)
+	{
+		FString InnerTypeStr;
+		if (GetObjectPtrInnerType(InType.ToString(), InnerTypeStr))
+		{
+			if (StaticFindFirstObject(UObject::StaticClass(), *InnerTypeStr, EFindFirstObjectOptions::NativeFirst))
+			{
+				return true;
+			}
+		}
+		// not a proper object pointer 
+		return false;
+	}
+
+	template <typename TVisitor>
+	static bool VisitPolicyByType(FName RequestedType, TVisitor Visitor)
+	{
+		if (SupportsTypeStatic(RequestedType))
+		{
+			TDataflowSingleTypePolicy<TObjectPtr<UObject>> SingleTypePolicy;
+			Visitor(SingleTypePolicy);
+			return true;
+		}
+		return false;
+	}
+
+	static IDataflowTypePolicy* GetInterface()
+	{
+		static FDataflowUObjectConvertibleTypePolicy Instance;
+		return &Instance;
+	}
+
+	// returns true if the type was a TObjectPtr and the inner type was properly extracted
+	static bool GetObjectPtrInnerType(const FString& InTypeStr, FString& InnerType)
+	{
+		static constexpr const TCHAR* ObjectPtrPrefix = TEXT("TObjectPtr<U");
+		static constexpr size_t ObjectPtrPrefixLen = std::char_traits<TCHAR>::length(ObjectPtrPrefix);
+		if (InTypeStr.StartsWith(ObjectPtrPrefix))
+		{
+			InnerType = InTypeStr
+				.RightChop(ObjectPtrPrefixLen) // remove the TObjectPtr< type
+				.LeftChop(1) // remove the last ">"
+				.TrimStartAndEnd();
+				return true;
+		}
+		return false;
 	}
 };
 

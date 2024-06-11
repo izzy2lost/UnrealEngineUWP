@@ -61,3 +61,15 @@ struct FDataflowStringConvertibleTypes : public FDataflowAnyType
 	FString Value;
 };
 
+
+USTRUCT()
+struct FDataflowUObjectConvertibleTypes : public FDataflowAnyType
+{
+	using FPolicyType = FDataflowUObjectConvertibleTypePolicy;
+	using FStorageType = TObjectPtr<UObject>;
+
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Value)
+	TObjectPtr<UObject> Value;
+};
