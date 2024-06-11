@@ -22,8 +22,7 @@ public:
 	virtual void OnRenameNode(const FString& NewName) override;
 	virtual bool ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, int32& OutOutputPinIndex) const override;
 	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
-	void NotifyPinConnectionListChanged(UEdGraphPin* Pin);
-	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
+	virtual void NodeConnectionListChanged() override;
 	virtual UCustomizableObjectNodeRemapPins* CreateRemapPinsDefault() const override;
 
 	// UCustomizableObjectNode interface

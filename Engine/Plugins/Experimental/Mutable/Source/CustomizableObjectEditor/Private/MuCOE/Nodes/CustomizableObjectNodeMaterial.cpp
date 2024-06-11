@@ -1297,6 +1297,8 @@ void UCustomizableObjectNodeMaterial::SetDefaultMaterial()
 
 void UCustomizableObjectNodeMaterial::PinConnectionListChanged(UEdGraphPin* Pin)
 {
+	Super::PinConnectionListChanged(Pin);
+	
 	if (Pin == GetMeshPin())
 	{
 		if (LastMeshNodeConnected.IsValid())
@@ -1396,7 +1398,10 @@ void UCustomizableObjectNodeMaterial::BreakExistingConnectionsPostConnection(UEd
 			}
 		}
 
-		OutputPin->BreakLinkTo(RemovePin); // Can not be called inside the range for loop. Can be called with a null value.
+		if (RemovePin)
+		{
+			GetSchema()->BreakSinglePinLink(OutputPin, RemovePin); // Can not be called inside the range for loop.
+		}
 	}
 }
 

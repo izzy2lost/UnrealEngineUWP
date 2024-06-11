@@ -10,6 +10,17 @@ class UEdGraph;
 class UEdGraphPin;
 class UCustomizableObjectNode;
 
+
+/** Follow the given pin returning its connected pin.
+ *
+ * - Skips all orphan pins.
+ * - Follows External Pin and Reroute nodes.
+ *
+ * @param Pin Pin to follow.
+ * @param bIgnoreOrphan If true, it will not follow orphan pins.
+ * @param bOutCycleDetected If provided, it will set to true if a cycle has been found. */
+TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool bIgnoreOrphan = false, bool* bOutCycleDetected = nullptr);
+
 /** Follow the given input pin returning the output connected pin.
  *
  * - Skips all orphan pins.
@@ -36,6 +47,10 @@ TArray<UEdGraphPin*> FollowOutputPinArray(const UEdGraphPin& Pin, bool* bOutCycl
 
 /** Non-array version of FollowOutputPinArray. The pin can only have one connected pin. */
 UEdGraphPin* FollowOutputPin(const UEdGraphPin& Pin, bool* CycleDetected = nullptr);
+
+/** See FollowPinArray.
+ * Given a pin, follow it in reverse (through the owning node instead of the linked pins). */
+TArray<UEdGraphPin*> ReverseFollowPinArray(const UEdGraphPin& Pin, bool bIgnoreOrphan = false, bool* bOutCycleDetected = nullptr);
 
 /** Returns the root Object Node of the Customizable Object's graph */
 UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool& bOutMultipleBaseObjectsFound);
@@ -79,3 +94,7 @@ namespace GraphTraversal
     /** Return ture if the given Customizable Object is Root Object (not a Child Object). */
     bool IsRootObject(const UCustomizableObject& Object); 
 }
+
+/** For each given pin, call PinConnectionListChanged and NodeConnectionListChanged in the correct order.
+ *  Order: For each node, first call all PinConnectionListChanged, then NodeConnectionListChanged. */
+void NodePinConnectionListChanged(const TArray<UEdGraphPin*>& Pins);

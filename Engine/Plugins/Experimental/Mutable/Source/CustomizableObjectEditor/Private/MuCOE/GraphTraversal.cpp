@@ -28,18 +28,8 @@
 #include "UObject/UObjectIterator.h"
 
 
-/** Follow the given pin returning its connected pin.
- *
- * - Skips all orphan pins.
- * - Follows External Pin and Reroute nodes.
- *
- * @param Pin Pin to follow.
- * @param bOutCycleDetected If provided, it will set to true if a cycle has been found.
- * @param Direction Direction of the pin to explore.  */
-TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetected, const EEdGraphPinDirection Direction)
+TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool bIgnoreOrphan, bool* bOutCycleDetected)
 {
-	check(Pin.Direction == Direction); // Can only follow input pins. To follow output pins see FollowOutputPin, but be aware of its limitations!
-
 	bool bCycleDetected = false;
 		
 	TArray<UEdGraphPin*> Result;
@@ -52,7 +42,7 @@ TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetec
 	{
 		const UEdGraphPin& CurrentPin = *PinsToVisit.Pop();
 
-		if (IsPinOrphan(CurrentPin))
+		if (!bIgnoreOrphan && IsPinOrphan(CurrentPin))
 		{
 			continue;
 		}
@@ -65,48 +55,43 @@ TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetec
 
 		for (UEdGraphPin* LinkedPin : CurrentPin.LinkedTo)
 		{
-			if (IsPinOrphan(*LinkedPin))
+			if (!bIgnoreOrphan && IsPinOrphan(*LinkedPin))
 			{
 				continue;
 			}
 			
-			if (const UCustomizableObjectNodeExposePin* ExposePinNode = Cast<UCustomizableObjectNodeExposePin>(LinkedPin->GetOwningNode()))
+			if (const UCustomizableObjectNodeExposePin* ExposePinNode = Cast<UCustomizableObjectNodeExposePin>(LinkedPin->GetOwningNodeUnchecked()))
 			{
-				check(Direction == EGPD_Output);
+				check(Pin.Direction == EGPD_Output);
 
-				const UCustomizableObjectNodeExternalPin* LinkedNode = nullptr;
 				for (TObjectIterator<UCustomizableObjectNodeExternalPin> It; It; ++It)
 				{
-					if (IsValid(*It) && (*It)->GetNodeExposePin() == ExposePinNode)
+					const UCustomizableObjectNodeExternalPin* LinkedNode = *It;
+					
+					if (IsValid(LinkedNode) &&
+						!LinkedNode->IsTemplate() &&
+						LinkedNode->GetNodeExposePin() == ExposePinNode)
 					{
-						LinkedNode = *It;
-						break;
-					}
-				}
-	
-				if (LinkedNode)
-				{
-					if (const UEdGraphPin* ExternalPin = LinkedNode->GetExternalPin())
-					{
+						const UEdGraphPin* ExternalPin = LinkedNode->GetExternalPin();
+						check(ExternalPin);
 						PinsToVisit.Add(ExternalPin);
 					}
 				}
 			}
-			else if (const UCustomizableObjectNodeExternalPin* ExternalPinNode = Cast<UCustomizableObjectNodeExternalPin>(LinkedPin->GetOwningNode()))
+			else if (const UCustomizableObjectNodeExternalPin* ExternalPinNode = Cast<UCustomizableObjectNodeExternalPin>(LinkedPin->GetOwningNodeUnchecked()))
 			{
-				check(Direction == EGPD_Input);
+				check(Pin.Direction == EGPD_Input);
 				
 				if (const UCustomizableObjectNodeExposePin* LinkedNode = ExternalPinNode->GetNodeExposePin())
 				{
-					if (const UEdGraphPin* ExposePin = LinkedNode->InputPin())
-					{
-						PinsToVisit.Add(ExposePin);
-					}
+					const UEdGraphPin* ExposePin = LinkedNode->InputPin();
+					check(ExposePin);
+					PinsToVisit.Add(ExposePin);
 				}
 			}
-			else if (const UCustomizableObjectNodeReroute* NodeReroute = Cast<UCustomizableObjectNodeReroute>(LinkedPin->GetOwningNode()))
+			else if (const UCustomizableObjectNodeReroute* NodeReroute = Cast<UCustomizableObjectNodeReroute>(LinkedPin->GetOwningNodeUnchecked()))
 			{
-				PinsToVisit.Add(Direction == EGPD_Input ? NodeReroute->GetInputPin() : NodeReroute->GetOutputPin());
+				PinsToVisit.Add(Pin.Direction == EGPD_Input ? NodeReroute->GetInputPin() : NodeReroute->GetOutputPin());
 			}
 			else
 			{
@@ -126,7 +111,8 @@ TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetec
 
 TArray<UEdGraphPin*> FollowInputPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetected)
 {
-	return FollowPinArray(Pin, bOutCycleDetected, EGPD_Input);
+	check(Pin.Direction == EGPD_Input);
+	return FollowPinArray(Pin, true, bOutCycleDetected);
 }
 
 
@@ -148,7 +134,8 @@ UEdGraphPin* FollowInputPin(const UEdGraphPin& Pin, bool* CycleDetected)
 
 TArray<UEdGraphPin*> FollowOutputPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetected)
 {
-	return FollowPinArray(Pin, bOutCycleDetected, EGPD_Output);
+	check(Pin.Direction == EGPD_Output);
+	return FollowPinArray(Pin, true, bOutCycleDetected);
 }
 
 
@@ -165,6 +152,95 @@ UEdGraphPin* FollowOutputPin(const UEdGraphPin& Pin, bool* CycleDetected)
 	{
 		return nullptr;
 	}
+}
+
+
+TArray<UEdGraphPin*> ReverseFollowPinArray(const UEdGraphPin& Pin, bool bIgnoreOrphan, bool* bOutCycleDetected)
+{
+	bool bCycleDetected = false;
+		
+	TArray<UEdGraphPin*> Result;
+	
+	TSet<const UEdGraphPin*> Visited;
+
+	TArray<UEdGraphPin*> PinsToVisit;
+	PinsToVisit.Add(const_cast<UEdGraphPin*>(&Pin));
+	while (PinsToVisit.Num())
+	{
+		UEdGraphPin& CurrentPin = *PinsToVisit.Pop();
+
+		if (!bIgnoreOrphan && IsPinOrphan(CurrentPin))
+		{
+			continue;
+		}
+
+		Visited.FindOrAdd(&CurrentPin, &bCycleDetected);
+		if (bCycleDetected)
+		{
+			continue;
+		}
+		
+		if (const UCustomizableObjectNodeExposePin* ExposePinNode = Cast<UCustomizableObjectNodeExposePin>(CurrentPin.GetOwningNodeUnchecked()))
+		{
+			check(Pin.Direction == EGPD_Input);
+
+			for (TObjectIterator<UCustomizableObjectNodeExternalPin> It; It; ++It)
+			{
+				const UCustomizableObjectNodeExternalPin* LinkedNode = *It;
+
+				if (IsValid(LinkedNode) &&
+					!LinkedNode->IsTemplate() &&
+					LinkedNode->GetNodeExposePin() == ExposePinNode)
+				{
+					const UEdGraphPin* ExternalPin = LinkedNode->GetExternalPin();
+					check(ExternalPin);
+
+					for (UEdGraphPin* LinkedPin : ExternalPin->LinkedTo)
+					{
+						PinsToVisit.Add(LinkedPin);
+					}
+				}
+			}
+		}
+		else if (const UCustomizableObjectNodeExternalPin* ExternalPinNode = Cast<UCustomizableObjectNodeExternalPin>(CurrentPin.GetOwningNodeUnchecked()))
+		{
+			check(Pin.Direction == EGPD_Output);
+				
+			if (const UCustomizableObjectNodeExposePin* LinkedNode = ExternalPinNode->GetNodeExposePin())
+			{
+				const UEdGraphPin* ExposePin = LinkedNode->InputPin();
+				check(ExposePin);
+
+				for (UEdGraphPin* LinkedPin : ExposePin->LinkedTo)
+				{
+					PinsToVisit.Add(LinkedPin);
+				}
+			}
+		}
+		else if (const UCustomizableObjectNodeReroute* NodeReroute = Cast<UCustomizableObjectNodeReroute>(CurrentPin.GetOwningNodeUnchecked()))
+		{
+			UEdGraphPin* ReroutePin = Pin.Direction == EGPD_Output ? NodeReroute->GetInputPin() : NodeReroute->GetOutputPin();
+
+			for (UEdGraphPin* LinkedPin : ReroutePin->LinkedTo)
+			{
+				PinsToVisit.Add(LinkedPin);
+			}
+		}
+		else
+		{
+			if (bIgnoreOrphan || !IsPinOrphan(CurrentPin))
+			{
+				Result.Add(&CurrentPin);
+			}
+		}
+	}
+	
+	if (bOutCycleDetected)
+	{
+		*bOutCycleDetected = bCycleDetected;	
+	}
+	
+	return Result;
 }
 
 
@@ -621,5 +697,28 @@ namespace GraphTraversal
 		}
 
 		return Root && !Root->ParentObject;
+	}
+}
+
+
+void NodePinConnectionListChanged(const TArray<UEdGraphPin*>& Pins)
+{
+	TMap<UEdGraphNode*, TSet<UEdGraphPin*>> SortedPins;
+	for (UEdGraphPin* Pin : Pins) 
+	{
+		if (UEdGraphNode* Node = Pin->GetOwningNodeUnchecked())
+		{
+			SortedPins.FindOrAdd(Node).Add(Pin);
+		}
+	}
+
+	for (TTuple<UEdGraphNode*, TSet<UEdGraphPin*>> Pair : SortedPins)
+	{
+		for (UEdGraphPin* ConnectedPin : Pair.Value)
+		{
+			Pair.Key->PinConnectionListChanged(ConnectedPin);
+		}
+		
+		Pair.Key->NodeConnectionListChanged();
 	}
 }

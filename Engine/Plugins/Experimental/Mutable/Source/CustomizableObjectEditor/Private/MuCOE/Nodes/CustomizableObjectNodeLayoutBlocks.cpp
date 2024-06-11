@@ -75,6 +75,8 @@ FLinearColor UCustomizableObjectNodeLayoutBlocks::GetNodeTitleColor() const
 
 void UCustomizableObjectNodeLayoutBlocks::PinConnectionListChanged(UEdGraphPin* Pin)
 {
+	Super::PinConnectionListChanged(Pin);
+	
 	if (Layout && Pin == OutputPin())
 	{
 		LinkPostEditChangePropertyDelegate(Pin);

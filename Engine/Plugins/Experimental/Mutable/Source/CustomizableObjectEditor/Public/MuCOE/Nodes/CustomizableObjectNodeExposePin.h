@@ -16,6 +16,8 @@ struct FPropertyChangedEvent;
 
 DECLARE_MULTICAST_DELEGATE(FOnNameChangedDelegate);
 
+
+/** Export Node. */
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeExposePin : public UCustomizableObjectNode
 {

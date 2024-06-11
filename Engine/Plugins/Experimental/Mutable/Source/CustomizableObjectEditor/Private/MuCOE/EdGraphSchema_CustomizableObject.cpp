@@ -84,6 +84,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeReroute.h"
 #include "Toolkits/ToolkitManager.h"
 #include "PropertyEditorModule.h"
+#include "MuCOE/GraphTraversal.h"
 
 class IToolkit;
 
@@ -922,11 +923,38 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 }
 
 
+void UEdGraphSchema_CustomizableObject::BreakNodeLinks(UEdGraphNode& TargetNode) const
+{
+#if WITH_EDITOR
+	TArray<UEdGraphPin*> Pins;
+
+	for (UEdGraphPin* Pin : TargetNode.Pins)
+	{
+		Pins.Append(ReverseFollowPinArray(*Pin, false));
+	}
+#endif
+	
+	Super::BreakNodeLinks(TargetNode);
+
+#if WITH_EDITOR
+	NodePinConnectionListChanged(Pins);
+#endif
+}
+
+
 void UEdGraphSchema_CustomizableObject::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotification) const
 {
 	const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "GraphEd_BreakPinLinks", "Break Pin Links"));
+
+	TArray<UEdGraphPin*> Pins;
+	Pins.Append(FollowPinArray(TargetPin, false));
+	Pins.Append(ReverseFollowPinArray(TargetPin, false));
 	
 	Super::BreakPinLinks(TargetPin, bSendsNodeNotification);
+
+#if WITH_EDITOR
+	NodePinConnectionListChanged(Pins);
+#endif
 }
 
 
@@ -934,7 +962,15 @@ void UEdGraphSchema_CustomizableObject::BreakSinglePinLink(UEdGraphPin* SourcePi
 {
 	const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "GraphEd_BreakSinglePinLink", "Break Pin Link"));
 
+	TArray<UEdGraphPin*> SourceConnectedPins = ReverseFollowPinArray(*SourcePin, false);
+	TArray<UEdGraphPin*> TargetConnectedPins = ReverseFollowPinArray(*TargetPin, false);
+	
 	Super::BreakSinglePinLink(SourcePin, TargetPin);
+
+#if WITH_EDITOR
+	NodePinConnectionListChanged(SourceConnectedPins);
+	NodePinConnectionListChanged(TargetConnectedPins);
+#endif
 }
 
 
@@ -1200,18 +1236,27 @@ void UEdGraphSchema_CustomizableObject::GetAssetsGraphHoverMessage(const TArray<
 
 bool UEdGraphSchema_CustomizableObject::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
 {
-	bool Result = Super::TryCreateConnection(PinA, PinB);
+	UEdGraphNode* PinAOwningNode = PinA->GetOwningNode(); // TryCreateConnection can reconstruct the node invalidating the FromPin. Get the OwningNode before.
+	UEdGraphNode* PinBOwningNode = PinB->GetOwningNode();
 
+	bool bResult = Super::TryCreateConnection(PinA, PinB);
+
+	if (bResult)
+	{
+		PinAOwningNode->NodeConnectionListChanged();
+		PinBOwningNode->NodeConnectionListChanged();
+	}
+	
 	if (!PinA || PinA->bWasTrashed || !PinB || PinB->bWasTrashed)
 	{
-		return Result;
+		return bResult;
 	}
 	
 	UEdGraphPin* InputPin;
 	UEdGraphPin* OutputPin;
 	if (!CategorizePinsByDirection(PinA, PinB, InputPin, OutputPin))
 	{
-		return Result;
+		return bResult;
 	}
 
 	if (UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(InputPin->GetOwningNode()))
@@ -1223,8 +1268,24 @@ bool UEdGraphSchema_CustomizableObject::TryCreateConnection(UEdGraphPin* PinA, U
 	{
 		Node->BreakExistingConnectionsPostConnection(InputPin, OutputPin);
 	}
+	
+#if WITH_EDITOR
+	if (bResult)
+	{
+		NodePinConnectionListChanged(ReverseFollowPinArray(*PinA, false));
+		NodePinConnectionListChanged(ReverseFollowPinArray(*PinB, false));
+	}
+#endif
 
-	return Result;
+	return bResult;
+}
+
+
+FPinConnectionResponse UEdGraphSchema_CustomizableObject::MovePinLinks(UEdGraphPin& MoveFromPin, UEdGraphPin& MoveToPin, bool bIsIntermediateMove, bool bNotifyLinkedNodes) const
+{
+    // Mutable graph and its super does not use it. If we ever want to use it we should call NotifyIndirectConnections.
+	unimplemented();
+	return {};
 }
 
 

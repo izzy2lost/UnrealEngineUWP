@@ -66,6 +66,7 @@ bool UCustomizableObjectNode::ShouldBreakExistingConnections(const UEdGraphPin* 
 	return IsSingleOutputNode();
 }
 
+
 void UCustomizableObjectNode::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -319,13 +320,8 @@ void UCustomizableObjectNode::AutowireNewNode(UEdGraphPin* FromPin)
 
 	for (UEdGraphPin* Pin : GetAllNonOrphanPins())
 	{	
-		UEdGraphNode* OwningNode = FromPin->GetOwningNode(); // TryCreateConnection can reconstruct the node invalidating the FromPin. Get the OwningNode before.
-
 		if (Schema->TryCreateConnection(FromPin, Pin))
 		{
-			OwningNode->NodeConnectionListChanged();
-			NodeConnectionListChanged();
-
 			break;
 		}		
 	}

@@ -4,6 +4,7 @@
 
 #include "SGraphNodeKnot.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
+#include "MuCOE/GraphTraversal.h"
 #include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByPosition.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
@@ -85,15 +86,10 @@ TSharedPtr<SGraphNode> UCustomizableObjectNodeReroute::CreateVisualWidget()
 }
 
 
-void UCustomizableObjectNodeReroute::NotifyPinConnectionListChanged(UEdGraphPin* Pin)
+void UCustomizableObjectNodeReroute::NodeConnectionListChanged()
 {
-	PropagatePinType();
-}
-
-
-void UCustomizableObjectNodeReroute::PinConnectionListChanged(UEdGraphPin* Pin)
-{
-	Super::PinConnectionListChanged(Pin);
+	Super::NodeConnectionListChanged();
+	
 	PropagatePinType();
 }
 

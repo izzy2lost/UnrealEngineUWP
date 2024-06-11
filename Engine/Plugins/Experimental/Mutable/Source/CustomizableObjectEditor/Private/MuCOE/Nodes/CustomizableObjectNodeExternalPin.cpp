@@ -6,6 +6,7 @@
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/CustomizableObjectPin.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
+#include "MuCOE/GraphTraversal.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeExposePin.h"
 #include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByPosition.h"
 
@@ -52,6 +53,8 @@ void UCustomizableObjectNodeExternalPin::PostBackwardsCompatibleFixup()
 
 void UCustomizableObjectNodeExternalPin::SetExternalObjectNodeId(FGuid Guid)
 {
+	PrePropagateConnectionChanged();
+
 	if (UCustomizableObjectNodeExposePin* NodeExposePin = GetNodeExposePin())
 	{
 		NodeExposePin->OnNameChangedDelegate.Remove(OnNameChangedDelegateHandle);
@@ -65,28 +68,39 @@ void UCustomizableObjectNodeExternalPin::SetExternalObjectNodeId(FGuid Guid)
 		OnNameChangedDelegateHandle = NodeExposePin->OnNameChangedDelegate.AddUObject(this, &Super::ReconstructNode);
 		DestroyNodeDelegateHandle = NodeExposePin->DestroyNodeDelegate.AddUObject(this, &Super::ReconstructNode);
 	}
-
+	
 	Super::ReconstructNode();
+
+	PropagateConnectionChanged();
 }
 
 
 UEdGraphPin* UCustomizableObjectNodeExternalPin::GetExternalPin() const
 {
-	const TArray<UEdGraphPin*> NonOrphanPins = GetAllNonOrphanPins();
-	if (NonOrphanPins.Num())
-	{
-		return NonOrphanPins[0];
-	}
-	else
-	{
-		return nullptr;
-	}
+	return Pins[0];
 }
 
 
 UCustomizableObjectNodeExposePin* UCustomizableObjectNodeExternalPin::GetNodeExposePin() const
 {
 	return GetCustomizableObjectExternalNode<UCustomizableObjectNodeExposePin>(ExternalObject, ExternalObjectNodeId);
+}
+
+
+void UCustomizableObjectNodeExternalPin::PrePropagateConnectionChanged()
+{
+	PropagatePreviousPin = ReverseFollowPinArray(*Pins[0]);
+}
+
+
+void UCustomizableObjectNodeExternalPin::PropagateConnectionChanged()
+{
+	// Propagate new left.
+	PropagatePreviousPin.Append(ReverseFollowPinArray(*Pins[0])); // Notify old connections and new connections.
+	NodePinConnectionListChanged(PropagatePreviousPin); // This function avoids double notifications.
+	
+	// Propagate right.
+	NodePinConnectionListChanged(FollowOutputPinArray(*Pins[0]));
 }
 
 
@@ -167,6 +181,34 @@ void UCustomizableObjectNodeExternalPin::BeginPostDuplicate(bool bDuplicateForPI
 void UCustomizableObjectNodeExternalPin::UpdateReferencedNodeId(const FGuid& NewGuid)
 {
 	ExternalObjectNodeId = NewGuid;
+}
+
+
+void UCustomizableObjectNodeExternalPin::PreEditChange(FProperty* PropertyAboutToChange)
+{
+	Super::PreEditChange(PropertyAboutToChange);
+	
+	if (PropertyAboutToChange)
+	{
+		if (PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeExternalPin, ExternalObject))
+		{
+			PrePropagateConnectionChanged();
+		}
+	}
+}
+
+
+void UCustomizableObjectNodeExternalPin::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (const FProperty* PropertyThatChanged = PropertyChangedEvent.Property)
+	{
+		if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeExternalPin, ExternalObject))
+		{
+			PropagateConnectionChanged();
+		}
+	}
 }
 
 

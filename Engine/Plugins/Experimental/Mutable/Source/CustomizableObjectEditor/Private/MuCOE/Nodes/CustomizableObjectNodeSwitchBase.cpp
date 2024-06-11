@@ -13,6 +13,8 @@ class UCustomizableObjectNodeRemapPins;
 
 void UCustomizableObjectNodeSwitchBase::ReloadEnumParam()
 {
+	ReloadingElementsNames.Empty();
+
 	// Get the names of the enum parameter for the element pins
 	if (const UEdGraphPin* EnumPin = SwitchParameter())
 	{
@@ -20,7 +22,6 @@ void UCustomizableObjectNodeSwitchBase::ReloadEnumParam()
 		{
 			if (UCustomizableObjectNodeEnumParameter* EnumNode = Cast<UCustomizableObjectNodeEnumParameter>(LinkedPin->GetOwningNode()))
 			{
-				ReloadingElementsNames.Empty(EnumNode->Values.Num());
 				for (int i = 0; i < EnumNode->Values.Num(); ++i)
 				{
 					ReloadingElementsNames.Add(EnumNode->Values[i].Name);
@@ -193,12 +194,9 @@ void UCustomizableObjectNodeSwitchBase::LinkPostEditChangePropertyDelegate(const
 		{
 			LastNodeEnumParameterConnected->PostEditChangePropertyDelegate.AddUniqueDynamic(this, &UCustomizableObjectNodeSwitchBase::EnumParameterPostEditChangeProperty);
 		}
-
-		if (Cast<UCustomizableObjectNodeEnumParameter>(ConnectedPin->GetOwningNode()))
-		{
-			Super::ReconstructNode();
-		}
 	}
+
+	Super::ReconstructNode();
 }
 
 

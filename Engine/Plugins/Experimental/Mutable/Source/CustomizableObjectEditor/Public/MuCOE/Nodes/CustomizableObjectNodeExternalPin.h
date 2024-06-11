@@ -17,6 +17,7 @@ class UEdGraphPin;
 class UObject;
 
 
+/** Import Node. */
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeExternalPin : public UCustomizableObjectNode
 {
@@ -27,21 +28,23 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	
 	// EdGraphNode interface 
-	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	FLinearColor GetNodeTitleColor() const override;
-	FText GetTooltipText() const override;
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+	virtual FLinearColor GetNodeTitleColor() const override;
+	virtual FText GetTooltipText() const override;
 	
 	// UCustomizableObjectNode interface
 	virtual void BackwardsCompatibleFixup() override;
 	virtual void PostBackwardsCompatibleFixup() override;
-	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-	UCustomizableObjectNodeRemapPins* CreateRemapPinsDefault() const override;
-	void BeginPostDuplicate(bool bDuplicateForPIE) override;
+	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
+	virtual UCustomizableObjectNodeRemapPins* CreateRemapPinsDefault() const override;
+	virtual void BeginPostDuplicate(bool bDuplicateForPIE) override;
 	virtual bool CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const override;
-	
 	virtual void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode) override;
-
-	void UpdateReferencedNodeId(const FGuid& NewGuid) override;
+	virtual void UpdateReferencedNodeId(const FGuid& NewGuid) override;
+	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	
+	// Own interface
 	
 	/** Set the linked Node Expose Pin node guid. */
 	void SetExternalObjectNodeId(FGuid Guid);
@@ -52,6 +55,11 @@ public:
 	/** Return the linked Expose Pin node. Return nullptr if not set. */
 	UCustomizableObjectNodeExposePin* GetNodeExposePin() const;
 
+private:
+	void PrePropagateConnectionChanged();
+	void PropagateConnectionChanged();
+	
+public:
 	// This is actually PinCategory
 	UPROPERTY()
 	FName PinType;
@@ -67,5 +75,8 @@ private:
 	
 	FDelegateHandle OnNameChangedDelegateHandle;
 	FDelegateHandle DestroyNodeDelegateHandle;
+
+	/** Connected pins (pins connected to the Export Node pin) before changing the import/export implicit connection. */
+	TArray<UEdGraphPin*> PropagatePreviousPin;
 };
 
