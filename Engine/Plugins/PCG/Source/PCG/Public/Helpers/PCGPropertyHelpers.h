@@ -47,6 +47,19 @@ namespace PCGPropertyHelpers
 
 	struct FExtractorParameters
 	{
+		// Disable deprecation warning on the rule of 5 because of the PropertySelector member.
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FExtractorParameters() = default;
+		FExtractorParameters(const FExtractorParameters&) = default;
+		FExtractorParameters(FExtractorParameters&&) = default;
+		FExtractorParameters& operator=(const FExtractorParameters&) = default;
+		FExtractorParameters& operator=(FExtractorParameters&&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		FExtractorParameters(const void* InContainer, const UStruct* InClass, const FPCGAttributePropertySelector& InPropertySelector, FName InOutputAttributeName, bool bInShouldExtract, bool bInPropertyNeedsToBeVisible);
+		FExtractorParameters(const void* InContainer, const UStruct* InClass, const TArray<FPCGAttributePropertySelector>& InPropertySelectors, FName InOutputAttributeName, bool bInShouldExtract, bool bInPropertyNeedsToBeVisible);
+		FExtractorParameters(const void* InContainer, const UStruct* InClass, const FString& InPropertySelectorString, FName InOutputAttributeName, bool bInShouldExtract, bool bInPropertyNeedsToBeVisible);
+		
 		// Pointer to the container containing the data we want to extract
 		const void* Container = nullptr;
 
@@ -54,7 +67,10 @@ namespace PCGPropertyHelpers
 		const UStruct* Class = nullptr;
 
 		// Selector of the property we want to extract
+		UE_DEPRECATED(5.5, "Use the selector array (PropertySelectors) instead.")
 		FPCGAttributePropertySelector PropertySelector;
+
+		TArray<FPCGAttributePropertySelector> PropertySelectors;
 
 		// Optional name of the attribute that will receive the extracted property. If None, will take the property name. 
 		// Also not used for Structs/Object extraction, as we will create multiple attributes, and they will be the name of all the extracted members.

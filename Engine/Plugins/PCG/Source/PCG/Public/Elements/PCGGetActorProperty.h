@@ -58,17 +58,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSelectComponent", EditConditionHides))
 	TSubclassOf<UActorComponent> ComponentClass;
 
-	/** Property name to extract. Can only extract properties that are compatible with metadata types. If None, extract the actor/component directly.*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	/** Property name to extract. Can only extract properties that are compatible with metadata types. If None, extract the actor/component directly. Can be a comma-separated list, assuming they have the same cardinality. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FName PropertyName = NAME_None;
 
 	/** If the property is a struct/object supported by metadata, this option can be toggled to force extracting all (compatible) properties contained in this property. Automatically true if unsupported by metadata. For now, only supports direct child properties (and not deeper). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bForceObjectAndStructExtraction = false;
 
-	/** By default, attribute name will be None, but it can be overridden by this name. Use @SourceName to use the property name (only works when not extracting). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bForceObjectAndStructExtraction", EditConditionHides))
+	/** By default, attribute name will be None, but it can be overridden by this name. Use @SourceName to use the property name (only works when not extracting). Will be ignored if multiple properties are extracted at the same time. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "!bForceObjectAndStructExtraction", EditConditionHides))
 	FName OutputAttributeName = NAME_None;
+
+	/** Controls whether an actor reference attribute will be added to the result */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bOutputActorReference = false;
 
 	/** If this is true, we will never put this element in cache, and will always try to re-query the actors and read the latest properties from them. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
@@ -81,6 +85,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 private:
+#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	EPCGActorSelection ActorSelection_DEPRECATED;
 
@@ -98,6 +103,7 @@ private:
 
 	UPROPERTY()
 	bool bIncludeChildren_DEPRECATED = false;
+#endif
 };
 
 class FPCGGetActorPropertyElement : public IPCGElement

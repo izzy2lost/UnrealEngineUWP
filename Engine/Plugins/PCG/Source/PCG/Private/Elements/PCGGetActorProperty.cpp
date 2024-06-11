@@ -6,6 +6,7 @@
 #include "PCGContext.h"
 #include "PCGComponent.h"
 #include "PCGParamData.h"
+#include "Data/PCGPointData.h"
 #include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGPropertyHelpers.h"
@@ -42,6 +43,7 @@ void UPCGGetActorPropertySettings::PostLoad()
 {
 	Super::PostLoad();
 
+#if WITH_EDITOR
 	// Migrate deprecated actor selection settings to struct if needed
 	if (ActorSelection_DEPRECATED != EPCGActorSelection::ByTag ||
 		ActorSelectionTag_DEPRECATED != NAME_None ||
@@ -68,6 +70,7 @@ void UPCGGetActorPropertySettings::PostLoad()
 	{
 		ActorSelector.ActorSelectionClass = TSubclassOf<AActor>();
 	}
+#endif // WITH_EDITOR
 }
 
 FString UPCGGetActorPropertySettings::GetAdditionalTitleInformation() const
@@ -160,9 +163,7 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 			}
 		}
 
-		const FPCGAttributePropertySelector Selector = FPCGAttributePropertySelector::CreateSelectorFromString(Settings->PropertyName.ToString());
-
-		PCGPropertyHelpers::FExtractorParameters Parameters{ ObjectToInspect, ObjectToInspect->GetClass(), Selector, Settings->OutputAttributeName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/true };
+		PCGPropertyHelpers::FExtractorParameters Parameters(ObjectToInspect, ObjectToInspect->GetClass(), Settings->PropertyName.ToString(), Settings->OutputAttributeName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/true);
 
 		// Don't care for object traversed in non-editor build, since it is only useful for tracking.
 		TSet<FSoftObjectPath>* ObjectTraversedPtr = nullptr;
@@ -176,16 +177,27 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 			TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 			FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 			Output.Data = ParamData;
+			
+			for (FName ActorTag : FoundActor->Tags)
+			{
+				Output.Tags.Add(ActorTag.ToString());
+			}
+
+			if (Settings->bOutputActorReference)
+			{
+				check(ParamData->MutableMetadata());
+				ParamData->MutableMetadata()->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(FoundActor), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true);
+			}
 		}
 		else
 		{
-			if (Selector.GetName() == NAME_None)
+			if(Parameters.PropertySelectors.IsEmpty() || Parameters.PropertySelectors[0].GetName() == NAME_None)
 			{
 				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtractActor", "Fail to extract actor {0}."), FText::FromString(FoundActor->GetName())));
 			}
 			else
 			{
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtract", "Fail to extract the property '{0}' on actor {1}."), Selector.GetDisplayText(), FText::FromString(FoundActor->GetName())));
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtract", "Fail to extract the property '{0}' on actor {1}."), Parameters.PropertySelectors[0].GetDisplayText(), FText::FromString(FoundActor->GetName())));
 			}
 		}
 
