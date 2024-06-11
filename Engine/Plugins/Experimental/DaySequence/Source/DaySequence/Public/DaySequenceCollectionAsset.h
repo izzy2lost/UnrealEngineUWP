@@ -1,0 +1,57 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "DaySequenceConditionSet.h"
+#include "Engine/DataAsset.h"
+
+#include "DaySequenceCollectionAsset.generated.h"
+
+class UDaySequence;
+
+USTRUCT()
+struct FDaySequenceCollectionEntry
+{
+	GENERATED_BODY()
+
+	FDaySequenceCollectionEntry() = default;
+
+	FDaySequenceCollectionEntry(UDaySequence* InDaySequence)
+	: Sequence(InDaySequence)
+	, BiasOffset(0)
+	, Conditions(FDaySequenceConditionSet())
+	{}
+
+	FDaySequenceCollectionEntry(TObjectPtr<UDaySequence> InDaySequence)
+	: FDaySequenceCollectionEntry(InDaySequence.Get())
+	{}
+
+	/* The day sequence asset for this collection entry. */
+	UPROPERTY(EditAnywhere, Category="Day Sequence", meta=(AllowedClasses="/Script/DaySequence.DaySequence"))
+	TObjectPtr<UDaySequence> Sequence;
+	
+	/* The offset hierarchical bias assigned to this collection entry. */
+	UPROPERTY(EditAnywhere, Category="Day Sequence")
+	int BiasOffset;
+	
+	/* The set of conditions which must evaluate to their expected values for this entry to be active. */
+	UPROPERTY(EditAnywhere, Category="Day Sequence")
+	FDaySequenceConditionSet Conditions;
+};
+
+UCLASS(MinimalAPI)
+class UDaySequenceCollectionAsset : public UDataAsset
+{
+	GENERATED_BODY()
+	
+public:
+	UPROPERTY(EditAnywhere, Category="Day Sequence")
+	TArray<FDaySequenceCollectionEntry> DaySequences;
+
+	/**
+	 * TODO [nickolas.drake]
+	 * Add an API which:
+	 * 1) Exposes a function called something like "GenerateTransientSequence()" which bakes all sequences into a single transient sequence.
+	 * 2) Exposes a delegate which is broadcast when the transient sequence should be considered invalid (most likely due to scalabilty changes).
+	 */
+};
