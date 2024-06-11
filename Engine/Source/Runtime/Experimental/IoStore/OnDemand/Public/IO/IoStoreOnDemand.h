@@ -60,6 +60,7 @@ enum class EOnDemandTocVersion : uint32
 	ContainerId		= 6,
 	AdditionalFiles	= 7,
 	TagSets			= 8,
+	ContainerFlags	= 9,
 
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
@@ -129,6 +130,7 @@ struct FOnDemandTocContainerEntry
 
 	/** Hash of the .utoc file (on disk) used to generate this data */
 	FIoHash UTocHash;
+	uint8 ContainerFlags = 0;
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry);
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocContainerEntry& ContainerEntry);

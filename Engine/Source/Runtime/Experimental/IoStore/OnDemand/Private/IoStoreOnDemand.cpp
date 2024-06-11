@@ -513,13 +513,15 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocEntry& OutTocEntry)
 
 FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry)
 {
+	EOnDemandTocVersion TocVersion = EOnDemandTocVersion::Latest;
+
 	if (Ar.IsLoading())
 	{
 		const FCustomVersion* CustomVersion = Ar.GetCustomVersions().GetVersion(FOnDemandToc::VersionGuid);
 		check(CustomVersion);
-		const uint32 TocVersion = IntCastChecked<uint32>(CustomVersion->Version);
+		TocVersion = static_cast<EOnDemandTocVersion>(CustomVersion->Version);
 
-		if (TocVersion >= uint32(EOnDemandTocVersion::ContainerId))
+		if (TocVersion >= EOnDemandTocVersion::ContainerId)
 		{
 			Ar << ContainerEntry.ContainerId;
 		}
@@ -535,6 +537,11 @@ FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry)
 	Ar << ContainerEntry.BlockSizes;
 	Ar << ContainerEntry.BlockHashes;
 	Ar << ContainerEntry.UTocHash;
+
+	if (!Ar.IsLoading() || (TocVersion >= EOnDemandTocVersion::ContainerFlags))
+	{
+		Ar << ContainerEntry.ContainerFlags;
+	}
 
 	return Ar;
 }
