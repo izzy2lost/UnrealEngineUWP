@@ -119,6 +119,7 @@ private:
 	void OnCookOnTheFlyMessage(const UE::Cook::FCookOnTheFlyMessage& Message);
 #endif
 	TUniquePtr<FArchive> TryFindProjectStoreMarkerFile(IPlatformFile* Inner) const;
+	FAnsiString MakeBaseURI();
 
 	TSet<FName> ExcludedNonServerExtensions;
 	IPlatformFile* LowerLevel = nullptr;
@@ -131,6 +132,7 @@ private:
 	FStorageServerFileSystemTOC ServerToc;
 	FString ServerProject;
 	FString ServerPlatform;
+	FString BaseURI;
 	mutable TArray<FString> HostAddrs;
 	mutable uint16 HostPort = 8558;
 };

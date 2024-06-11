@@ -207,7 +207,7 @@ bool FStorageSocketConnectionBackend::InitializeInternal(TArrayView<const FStrin
 int32 FStorageSocketConnectionBackend::HandshakeRequest(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses)
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath);
+	ResourceBuilder.Append(BaseURI);
 
 	TArray<TSharedPtr<FInternetAddr>> SortedAddresses;
 	SortHostAddressesByLocalSubnet(HostAddresses, SortedAddresses);

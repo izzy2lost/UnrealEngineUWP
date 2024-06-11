@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Compression/CompressedBuffer.h"
 #include "Containers/UnrealString.h"
+#include "Containers/AnsiString.h"
 #include "Misc/StringBuilder.h"
 #include "Memory/MemoryFwd.h"
 #include "Templates/SharedPointer.h"
@@ -218,7 +219,7 @@ public:
 	FStorageConnectionBackend(FStorageServerConnection& InOwner);
 	virtual ~FStorageConnectionBackend() = default;
 
-	bool Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride);
+	bool Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const FAnsiStringView& InBaseURI);
 
 	virtual IStorageConnectionSocket* AcquireSocketFromPool() = 0;
 	virtual IStorageConnectionSocket* AcquireNewSocket(float TimeoutSeconds = -1.f) = 0;
@@ -226,12 +227,11 @@ public:
 	virtual FString GetHostName() = 0;
 	
 protected:
-	void InitOplog(const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride);
 	virtual bool InitializeInternal(TArrayView<const FString> InHostAddresses, int32 Port) = 0;
 
 protected:
 	FStorageServerConnection& Owner;
-	TAnsiStringBuilder<1024> OplogPath;
+	FAnsiString BaseURI;
 };
 
 class UDebugStorageServerConnection;
@@ -242,7 +242,7 @@ public:
 	STORAGESERVERCLIENT_API FStorageServerConnection();
 	STORAGESERVERCLIENT_API ~FStorageServerConnection();
 
-	STORAGESERVERCLIENT_API bool Initialize(TArrayView<const FString> HostAddresses, int32 Port, const TCHAR* ProjectNameOverride = nullptr, const TCHAR* PlatformNameOverride = nullptr);
+	STORAGESERVERCLIENT_API bool Initialize(TArrayView<const FString> HostAddresses, int32 Port, const FAnsiStringView& InBaseURI);
 
 	STORAGESERVERCLIENT_API void PackageStoreRequest(TFunctionRef<void(FPackageStoreEntryResource&&)> Callback);
 	STORAGESERVERCLIENT_API void FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path, int64 RawSize)> Callback);
@@ -265,7 +265,7 @@ private:
 	void AddTimingInstance(double duration, uint64 bytes);
 
 	ISocketSubsystem& SocketSubsystem;
-	TAnsiStringBuilder<1024> OplogPath;
+	FAnsiString BaseURI;
 	TSharedPtr<FInternetAddr> ServerAddr;
 	TAnsiStringBuilder<1024> Hostname;
 	TUniquePtr<FStorageConnectionBackend> ConnectionBackend;

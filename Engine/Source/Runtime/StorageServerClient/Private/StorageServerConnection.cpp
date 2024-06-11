@@ -434,36 +434,10 @@ FStorageConnectionBackend::FStorageConnectionBackend(FStorageServerConnection& I
 {
 }
 
-bool FStorageConnectionBackend::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
+bool FStorageConnectionBackend::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const FAnsiStringView& InBaseURI)
 {
-	InitOplog(InProjectNameOverride, InPlatformNameOverride);
-
+	BaseURI = InBaseURI;
 	return InitializeInternal(InHostAddresses, InPort);
-}
-
-void FStorageConnectionBackend::InitOplog(const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
-{
-	OplogPath.Append("/prj/");
-	if (InProjectNameOverride)
-	{
-		OplogPath.Append(TCHAR_TO_ANSI(InProjectNameOverride));
-	}
-	else
-	{
-		OplogPath.Append(TCHAR_TO_ANSI(*FApp::GetZenStoreProjectId()));
-	}
-	OplogPath.Append("/oplog/");
-	if (InPlatformNameOverride)
-	{
-		OplogPath.Append(TCHAR_TO_ANSI(InPlatformNameOverride));
-	}
-	else
-	{
-		TArray<FString> TargetPlatformNames;
-		FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
-		check(TargetPlatformNames.Num() > 0);
-		OplogPath.Append(TCHAR_TO_ANSI(*TargetPlatformNames[0]));
-	}
 }
 
 FStorageServerConnection::FStorageServerConnection()
@@ -480,36 +454,14 @@ FStorageServerConnection::~FStorageServerConnection()
 	}
 }
 
-bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
+bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const FAnsiStringView& InBaseURI)
 {
-	OplogPath.Append("/prj/");
-	if (InProjectNameOverride)
-	{
-		OplogPath.Append(TCHAR_TO_ANSI(InProjectNameOverride));
-	}
-	else
-	{
-		OplogPath.Append(TCHAR_TO_ANSI(*FApp::GetZenStoreProjectId()));
-	}
-	OplogPath.Append("/oplog/");
-	if (InPlatformNameOverride)
-	{
-		OplogPath.Append(TCHAR_TO_ANSI(InPlatformNameOverride));
-	}
-	else
-	{
-		TArray<FString> TargetPlatformNames;
-		FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
-		check(TargetPlatformNames.Num() > 0);
-		OplogPath.Append(TCHAR_TO_ANSI(*TargetPlatformNames[0]));
-	}
-
+	BaseURI = InBaseURI;
 	if (!CreateConnectionBackend(InHostAddresses, InPort))
 	{
 		return false;
 	}
-	
-	return ConnectionBackend->Initialize(InHostAddresses, InPort, InProjectNameOverride, InPlatformNameOverride);
+	return ConnectionBackend->Initialize(InHostAddresses, InPort, BaseURI);
 }
 
 void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageStoreEntryResource&&)> Callback)
@@ -517,7 +469,7 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 	TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerPackageStoreRequest);
 
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath).Append("/entries?fieldfilter=packagestoreentry");
+	ResourceBuilder.Append(BaseURI).Append("/entries?fieldfilter=packagestoreentry");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CompressedBinary);
 	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
@@ -547,7 +499,7 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path, int64 RawSize)> Callback)
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath).Append("/files?fieldnames=id,clientpath,rawsize");
+	ResourceBuilder.Append(BaseURI).Append("/files?fieldnames=id,clientpath,rawsize");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
 	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
@@ -586,7 +538,7 @@ void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId 
 int64 FStorageServerConnection::ChunkSizeRequest(const FIoChunkId& ChunkId)
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath);
+	ResourceBuilder.Append(BaseURI);
 	ResourceBuilder << "/" << ChunkId << "/info";
 
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
@@ -622,7 +574,7 @@ bool FStorageServerConnection::ReadChunkRequest(const FIoChunkId& ChunkId, uint6
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ZenHttpClient::ReadChunkRequest);
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath) << "/" << ChunkId;
+	ResourceBuilder.Append(BaseURI) << "/" << ChunkId;
 
 	bool HaveQuery = false;
 
@@ -679,7 +631,7 @@ bool FStorageServerConnection::ReadChunkRequest(const FIoChunkId& ChunkId, uint6
 FStorageServerChunkBatchRequest FStorageServerConnection::NewChunkBatchRequest()
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath).Append("/batch");
+	ResourceBuilder.Append(BaseURI).Append("/batch");
 	return FStorageServerChunkBatchRequest(*this, *ResourceBuilder, Hostname);
 }
 

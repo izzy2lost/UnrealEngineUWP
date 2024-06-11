@@ -323,6 +323,41 @@ TUniquePtr<FArchive> FStorageServerPlatformFile::TryFindProjectStoreMarkerFile(I
 	return nullptr;
 }
 
+FAnsiString FStorageServerPlatformFile::MakeBaseURI()
+{
+	TAnsiStringBuilder<256> BaseURIBuilder;
+	if (!BaseURI.IsEmpty())
+	{
+		BaseURIBuilder.Append(BaseURI);
+	}
+	else
+	{
+		BaseURIBuilder.Append("/prj/");
+		if (ServerProject.IsEmpty())
+		{
+			BaseURIBuilder.Append(TCHAR_TO_ANSI(*FApp::GetZenStoreProjectId()));
+		}
+		else
+		{
+			BaseURIBuilder.Append(ServerProject);
+		}
+		BaseURIBuilder.Append("/oplog/");
+		if (ServerPlatform.IsEmpty())
+		{
+			TArray<FString> TargetPlatformNames;
+			FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
+			check(TargetPlatformNames.Num() > 0);
+			BaseURIBuilder.Append(TCHAR_TO_ANSI(*TargetPlatformNames[0]));
+		}
+		else
+		{
+			BaseURIBuilder.Append(ServerPlatform);
+		}
+	}
+	return BaseURIBuilder.ToString();
+}
+
+
 bool FStorageServerPlatformFile::ShouldBeUsed(IPlatformFile* Inner, const TCHAR* CmdLine) const
 {
 #if WITH_COTF
@@ -425,6 +460,7 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 					const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
 					ServerProject = ZenServerObject->GetStringField(TEXT("projectid"));
 					ServerPlatform = ZenServerObject->GetStringField(TEXT("oplogid"));
+					BaseURI = ZenServerObject->GetStringField(TEXT("baseuri"));
 					UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from ue.projectstore: ServerProject='%s' and ServerPlatform='%s'"), *ServerProject, *ServerPlatform);
 				}
 			}
@@ -437,6 +473,10 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 		if (FParse::Value(CmdLine, TEXT("-ZenStorePlatform="), ServerPlatform))
 		{
 			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from command line: -ZenStorePlatform='%s'"), *ServerPlatform);
+		}
+		if (FParse::Value(CmdLine, TEXT("-ZenStoreBaseURI="), BaseURI))
+		{
+			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from command line: -ZenStoreBaseURI='%s'"), *BaseURI);
 		}
 		return true;
 	}
@@ -456,9 +496,7 @@ void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 	}
 #endif
 	Connection.Reset(new FStorageServerConnection());
-	const TCHAR* ProjectOverride = ServerProject.IsEmpty() ? nullptr : *ServerProject;
-	const TCHAR* PlatformOverride = ServerPlatform.IsEmpty() ? nullptr : *ServerPlatform;
-	if (Connection->Initialize(HostAddrs, HostPort, ProjectOverride, PlatformOverride))
+	if (Connection->Initialize(HostAddrs, HostPort, MakeBaseURI()))
 	{
 		if (SendGetFileListMessage())
 		{

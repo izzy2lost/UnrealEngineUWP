@@ -223,7 +223,7 @@ bool FStorageServerPlatformConnectionBackend::InitializeInternal(TArrayView<cons
 int32 FStorageServerPlatformConnectionBackend::HandshakeRequest(TArrayView<const FString> HostAddresses)
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath);
+	ResourceBuilder.Append(BaseURI);
 
 	for (const FString& Addr : HostAddresses)
 	{
