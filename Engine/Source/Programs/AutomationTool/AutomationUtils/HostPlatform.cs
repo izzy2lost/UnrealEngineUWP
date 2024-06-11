@@ -69,7 +69,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Creates a process and sets it up for the current platform.
 		/// </summary>
-		/// <param name="LogName"></param>
+		/// <param name="AppName"></param>
 		/// <returns></returns>
 		abstract public Process CreateProcess(string AppName);
 

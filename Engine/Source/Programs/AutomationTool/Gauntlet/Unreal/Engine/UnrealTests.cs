@@ -204,8 +204,11 @@ namespace Gauntlet
 			/// <summary>
 			/// Override GetExitCodeAndReason to provide additional checking of success / failure based on what occurred
 			/// </summary>
+			/// <param name="InReason"></param>
+			/// <param name="InLog"></param>
 			/// <param name="InArtifacts"></param>
 			/// <param name="ExitReason"></param>
+			/// <param name="ExitCode"></param>
 			/// <returns></returns>
 			protected override UnrealProcessResult GetExitCodeAndReason(StopReason InReason, UnrealLog InLog, UnrealRoleArtifacts InArtifacts, out string ExitReason, out int ExitCode)
 			{

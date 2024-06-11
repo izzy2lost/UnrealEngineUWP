@@ -56,7 +56,9 @@ namespace AutomationTool.DeviceReservation
 		/// Creates a device reservation for the specified type and number of devices.
 		/// Blocks until the devices are available.
 		/// </summary>
-		/// <param name="InWorkingDirectory">Working directory which contains the devices.xml and reservations.xml files. Usually a network share.</param>
+		/// <param name="InReservationBaseUri">Working directory which contains the devices.xml and reservations.xml files. Usually a network share</param>
+		/// <param name="RetryMax"></param>
+		/// <param name="PoolID"></param>
 		/// <param name="InDeviceTypes">An array of device types to reserve, one for each device requested. These must match the device types listed in devices.xml.</param>
 		public DeviceReservationAutoRenew(string InReservationBaseUri, int RetryMax, string PoolID, params string[] InDeviceTypes)
 		{

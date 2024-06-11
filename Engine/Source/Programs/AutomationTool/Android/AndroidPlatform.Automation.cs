@@ -3708,7 +3708,7 @@ public class AndroidPlatform : Platform
 
 		if (ReturnValue == null || ReturnValue.Length == 0)
 		{
-			/** If APK does not exist or we cant find package info in apk use the packageInfo file */
+			// If APK does not exist or we cant find package info in apk use the packageInfo file
 			ReturnValue = GetPackageInfoFromInfoFile(ApkName, SC, bRetrieveVersionCode);
 		}
 

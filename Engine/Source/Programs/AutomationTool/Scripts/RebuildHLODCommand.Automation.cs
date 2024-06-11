@@ -12,21 +12,21 @@ using EpicGames.Core;
 using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
 
-/// <summary>
-/// Helper command used for rebuilding a projects Hierarchical LODs.
-/// </summary>
-/// <remarks>
-/// Command line parameters used by this command:
-/// -project					- Absolute path to a .uproject file
-/// -MapsToRebuildHLODMaps		- A list of '+' delimited maps we wish to build HLOD data for.
-/// -CommandletTargetName		- The Target used in running the commandlet
-/// -StakeholdersEmailAddresses	- Users to notify of completion
-/// -Robomerge					- none: do nothing, all: robomerge all changes, deadend: null merge all changes
-/// 													(defaults to all)
-/// 
-/// </remarks>
 namespace AutomationScripts.Automation
 {
+	/// <summary>
+	/// Helper command used for rebuilding a projects Hierarchical LODs.
+	/// </summary>
+	/// <remarks>
+	/// Command line parameters used by this command:
+	/// -project					- Absolute path to a .uproject file
+	/// -MapsToRebuildHLODMaps		- A list of '+' delimited maps we wish to build HLOD data for.
+	/// -CommandletTargetName		- The Target used in running the commandlet
+	/// -StakeholdersEmailAddresses	- Users to notify of completion
+	/// -Robomerge					- none: do nothing, all: robomerge all changes, deadend: null merge all changes
+	/// 													(defaults to all)
+	/// 
+	/// </remarks>
 	[RequireP4]
 	public class RebuildHLOD : BuildCommand
 	{

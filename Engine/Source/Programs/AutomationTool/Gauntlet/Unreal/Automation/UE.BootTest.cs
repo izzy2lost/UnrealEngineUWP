@@ -148,9 +148,10 @@ namespace UE
 		/// Called after a test finishes to create an overall summary based on looking at the artifacts
 		/// </summary>
 		/// <param name="Result"></param>
+		/// <param name="Context"></param>
 		/// <returns>ITestReport</returns>
 		/// <param name="Build"></param>
-		/// <param name="Artifacts"></param>
+		/// <param name="InResults"></param>
 		/// <param name="InArtifactPath"></param>
 		public override ITestReport CreateReport(TestResult Result, UnrealTestContext Context, UnrealBuildSource Build, IEnumerable<UnrealRoleResult> InResults, string InArtifactPath)
 		{

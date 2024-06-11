@@ -262,6 +262,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Hasher"></param>
 		/// <param name="Project"></param>
+		/// <param name="HashType"></param>
 		/// <returns></returns>
 		public static bool AddCsProjectInfo(this HashCollection Hasher, CsProjectInfo Project, HashCollection.HashType HashType)
 		{

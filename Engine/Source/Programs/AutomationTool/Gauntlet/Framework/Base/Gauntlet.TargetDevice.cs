@@ -50,7 +50,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Disconnect the device.
 		/// </summary>
-		/// <param name="Force">If supported force the device into a disconnected state (e.g. kick other users) </param>
+		/// <param name="bForce">If supported force the device into a disconnected state (e.g. kick other users) </param>
 		/// <returns></returns>
 		bool Disconnect(bool bForce=false);
 
@@ -122,7 +122,7 @@ namespace Gauntlet
 		/// <param name="FilesToCopy">The collection of files to copy</param>
 		void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy);
 
-		/// End new flow ///
+		// End new flow //
 	};
 
 	/// <summary>

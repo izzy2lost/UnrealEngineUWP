@@ -632,8 +632,8 @@ namespace Gauntlet
 		/// <summary>
 		/// Created a list of device definitions from the passed in reference. Needs work....
 		/// </summary>
+		/// <param name="DefaultPlatform"></param>
 		/// <param name="InputReference"></param>
-		/// <param name="InLocalTempDir"></param>
 		/// <param name="ObeyConstraints"></param>
 		public void AddDevices(UnrealTargetPlatform DefaultPlatform, string InputReference, bool ObeyConstraints = true)
 		{
@@ -795,6 +795,7 @@ namespace Gauntlet
 		/// Registers the provided device for availability
 		/// </summary>
 		/// <param name="Device"></param>
+		/// <param name="Constraint"></param>
 		public void RegisterDevice(ITargetDevice Device, UnrealDeviceTargetConstraint Constraint = null)
 		{
 			lock (LockObject)

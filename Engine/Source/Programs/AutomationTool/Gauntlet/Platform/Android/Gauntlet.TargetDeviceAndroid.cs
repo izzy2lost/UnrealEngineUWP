@@ -543,6 +543,8 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Args"></param>
 		/// <param name="Wait"></param>
+		/// <param name="bShouldLogCommand"></param>
+		/// <param name="bPauseErrorParsing"></param>
 		/// <returns></returns>
 		public IProcessResult RunAdbDeviceCommand(string Args, bool Wait = true, bool bShouldLogCommand = false, bool bPauseErrorParsing = false)
 		{
@@ -569,8 +571,6 @@ namespace Gauntlet
 		/// the arguments sent to adb
 		/// </summary>
 		/// <param name="Args"></param>
-		/// <param name="Wait"></param>
-		/// <param name="Input"></param>
 		/// <returns></returns>
 		public string RunAdbDeviceCommandAndGetOutput(string Args)
 		{
@@ -594,6 +594,8 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Args"></param>
 		/// <param name="Wait"></param>
+		/// <param name="bShouldLogCommand"></param>
+		/// <param name="bPauseErrorParsing"></param>
 		/// <returns></returns>
 		public static IProcessResult RunAdbGlobalCommand(string Args, bool Wait = true, bool bShouldLogCommand = false, bool bPauseErrorParsing = false)
 		{

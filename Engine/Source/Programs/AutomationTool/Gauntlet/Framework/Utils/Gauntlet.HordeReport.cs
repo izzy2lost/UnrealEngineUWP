@@ -134,8 +134,9 @@ namespace Gauntlet
 			/// <summary>
 			/// Attach a log path to a device instance name
 			/// </summary>
-			/// <param name="DeviceName"></param>
+			/// <param name="InstanceName"></param>
 			/// <param name="LogPath"></param>
+			/// <param name="LogName"></param>
 			/// <returns></returns>
 			public abstract bool AttachDeviceLog(string InstanceName, string LogPath, string LogName);
 
@@ -525,7 +526,7 @@ namespace Gauntlet
 			/// Copy Test Results Artifacts
 			/// </summary>
 			/// <param name="ReportPath"></param>
-			/// <param name="OutputArtifactPath"></param>
+			/// <param name="InOutputArtifactPath"></param>
 			public void CopyTestResultsArtifacts(string ReportPath, string InOutputArtifactPath)
 			{
 				SetOutputArtifactPath(InOutputArtifactPath);
@@ -826,7 +827,7 @@ namespace Gauntlet
 			/// </summary>
 			/// <param name="InName"></param>
 			/// <param name="InSuite"></param>
-			/// <param name="InDevice"></param>
+			/// <param name="InDevices"></param>
 			/// <param name="InDateTime"></param>
 			public void SetTest(string InName, string InSuite, List<string> InDevices, string InDateTime = null)
 			{
@@ -2160,6 +2161,7 @@ namespace Gauntlet
 			/// Convert UnrealAutomatedTestPassResults to Horde data model
 			/// </summary>
 			/// <param name="InTestPassResults"></param>
+			/// <param name="InKey"></param>
 			/// <param name="InName"></param>
 			/// <param name="InReportPath"></param>
 			/// <param name="InHordeArtifactPath"></param>
@@ -2303,6 +2305,7 @@ namespace Gauntlet
 			/// Write Test Data Collection to json
 			/// </summary>
 			/// <param name="OutputTestDataFilePath"></param>
+			/// <param name="bIncrementNameIfFileExists"></param>
 			public void WriteToJson(string OutputTestDataFilePath, bool bIncrementNameIfFileExists = false)
 			{
 				string OutputTestDataDir = Path.GetDirectoryName(OutputTestDataFilePath);

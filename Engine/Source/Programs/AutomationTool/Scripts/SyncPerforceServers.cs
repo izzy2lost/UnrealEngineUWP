@@ -11,21 +11,20 @@ using UnrealBuildBase;
 using Amazon.S3.Model;
 
 
-/**
- * Setup of the two servers:
- * 
- * Main (source) Server - the server where you do your main UE work
- *   Clients:
- *     CleanOutgoing - this should be a client that you NEVER work from, it is used solely to sync from p4, to a clean directory
- * Target Server - the server that wants to mirror/sync changes from main UE
- *   Streams/Clients:
- *     Main - a normal Main stream, where you do work on the target server
- *     Staging - a development stream, parent is Main, where conflicts between Source Server and Target Server work are managed. Do no work here other than resolving conflicts.
- *     Incoming - a release stream, parent is Staging, with a client that maps to EXACT SAME directory on disk as CleanOutgoing on Source Server. Do no work here, not even a little.
- */
-
 namespace BuildScripts.Automation
 {
+	/**
+	 * Setup of the two servers:
+	 * 
+	 * Main (source) Server - the server where you do your main UE work
+	 *   Clients:
+	 *     CleanOutgoing - this should be a client that you NEVER work from, it is used solely to sync from p4, to a clean directory
+	 * Target Server - the server that wants to mirror/sync changes from main UE
+	 *   Streams/Clients:
+	 *     Main - a normal Main stream, where you do work on the target server
+	 *     Staging - a development stream, parent is Main, where conflicts between Source Server and Target Server work are managed. Do no work here other than resolving conflicts.
+	 *     Incoming - a release stream, parent is Staging, with a client that maps to EXACT SAME directory on disk as CleanOutgoing on Source Server. Do no work here, not even a little.
+	 */
 	[RequireP4]
 	[DoesNotNeedP4CL]
 	[Help("Syncs a clean clientspec (should NOT be the client you are running this out of), and mirrors it into another p4 server via 3 streams. See the SyncPerforceServers.cs for details")]

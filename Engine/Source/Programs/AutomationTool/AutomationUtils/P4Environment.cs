@@ -335,9 +335,10 @@ namespace AutomationTool
 		/// <summary>
 		/// Detects a workspace given the current user name, host name and depot path.
 		/// </summary>
+		/// <param name="Connection"></param>
 		/// <param name="UserName">User name</param>
 		/// <param name="HostName">Host</param>
-		/// <param name="UATLocation">Path to UAT exe, this will be checked agains the root path.</param>
+		/// <param name="AutomationToolDll">Path to UAT dll, this will be checked agains the root path</param>
 		/// <returns>Client to use.</returns>
 		private static P4ClientInfo DetectClient(P4Connection Connection, string UserName, string HostName, string AutomationToolDll)
 		{
@@ -431,6 +432,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Detects the current changelist the workspace is synced to.
 		/// </summary>
+		/// <param name="Connection"></param>
 		/// <param name="ClientRootPath">Workspace path.</param>
 		/// <returns>Changelist number as a string.</returns>
 		private static string DetectCurrentCL(P4Connection Connection, string ClientRootPath)
@@ -509,7 +511,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Detects root paths for the specified client.
 		/// </summary>
-		/// <param name="UATLocation">AutomationTool.exe location</param>
+		/// <param name="Connection"></param>
 		/// <param name="ThisClient">Client to detect the root paths for</param>
 		/// <param name="BuildRootPath">Build root</param>
 		/// <param name="LocalRootPath">Local root</param>

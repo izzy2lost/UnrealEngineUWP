@@ -197,7 +197,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Writes formatted text to log (with LogEventType.Verbose).
 		/// </summary>
-		/// <param name="Foramt">Format string</param>
+		/// <param name="Format">Format string</param>
 		/// <param name="Args">Arguments</param>
 		[StringFormatMethod("Format")]
 		[Obsolete("Use Logger.LogDebug with a message template instead; see https://tinyurl.com/bp96bk2r.", false)]
@@ -339,7 +339,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="SearchPattern">Pattern</param>
 		/// <param name="Recursive">Recursive search</param>
-		/// <param name="Paths">Paths to search</param>
+		/// <param name="PathToSearch">Paths to search</param>
 		/// <returns>An array of files found in the specified paths</returns>
 		public static string[] FindFiles(string SearchPattern, bool Recursive, string PathToSearch)
 		{
@@ -364,7 +364,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="SearchPattern">Pattern</param>
 		/// <param name="Recursive">Recursive search</param>
-		/// <param name="Paths">Paths to search</param>
+		/// <param name="PathToSearch">Paths to search</param>
 		/// <returns>An array of files found in the specified paths</returns>
 		public static FileReference[] FindFiles(string SearchPattern, bool Recursive, DirectoryReference PathToSearch)
 		{
@@ -376,7 +376,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="SearchPattern">Pattern</param>
 		/// <param name="Recursive">Recursive search</param>
-		/// <param name="Paths">Paths to search</param>
+		/// <param name="PathToSearch">Paths to search</param>
 		/// <returns>An array of files found in the specified paths</returns>
 		public static string[] FindFiles_NoExceptions(string SearchPattern, bool Recursive, string PathToSearch)
 		{
@@ -394,15 +394,15 @@ namespace AutomationTool
 
 			return FoundFiles.ToArray();
 		}
-        /// <summary>
-        /// Finds files in specified paths. 
-        /// </summary>
-        /// <param name="bQuiet">When true, logging is suppressed.</param>
-        /// <param name="SearchPattern">Pattern</param>
-        /// <param name="Recursive">Recursive search</param>
-        /// <param name="Paths">Paths to search</param>
-        /// <returns>An array of files found in the specified paths</returns>
-        public static string[] FindFiles_NoExceptions(bool bQuiet, string SearchPattern, bool Recursive, string PathToSearch)
+		/// <summary>
+		/// Finds files in specified paths. 
+		/// </summary>
+		/// <param name="bQuiet">When true, logging is suppressed.</param>
+		/// <param name="SearchPattern">Pattern</param>
+		/// <param name="Recursive">Recursive search</param>
+		/// <param name="PathToSearch">Paths to search</param>
+		/// <returns>An array of files found in the specified paths</returns>
+		public static string[] FindFiles_NoExceptions(bool bQuiet, string SearchPattern, bool Recursive, string PathToSearch)
         {
             List<string> FoundFiles = new List<string>();
 
@@ -421,10 +421,10 @@ namespace AutomationTool
 		/// <summary>
 		/// Finds files in specified paths. 
 		/// </summary>
-        /// <param name="bQuiet">When true, logging is suppressed.</param>
-        /// <param name="SearchPattern">Pattern</param>
+		/// <param name="bQuiet">When true, logging is suppressed.</param>
+		/// <param name="SearchPattern">Pattern</param>
 		/// <param name="Recursive">Recursive search</param>
-		/// <param name="Paths">Paths to search</param>
+		/// <param name="PathToSearch">Paths to search</param>
 		/// <returns>An array of files found in the specified paths</returns>
 		public static string[] FindDirectories(bool bQuiet, string SearchPattern, bool Recursive, string PathToSearch)
 		{
@@ -446,10 +446,10 @@ namespace AutomationTool
 		/// <summary>
 		/// Finds Directories in specified paths. 
 		/// </summary>
-        /// <param name="bQuiet">When true, logging is suppressed.</param>
-        /// <param name="SearchPattern">Pattern</param>
+		/// <param name="bQuiet">When true, logging is suppressed.</param>
+		/// <param name="SearchPattern">Pattern</param>
 		/// <param name="Recursive">Recursive search</param>
-		/// <param name="Paths">Paths to search</param>
+		/// <param name="PathToSearch">Paths to search</param>
 		/// <returns>An array of files found in the specified paths</returns>
 		public static string[] FindDirectories_NoExceptions(bool bQuiet, string SearchPattern, bool Recursive, string PathToSearch)
 		{
@@ -472,7 +472,7 @@ namespace AutomationTool
 		/// If the file does not exist, silently succeeds.
 		/// If the deletion of the file fails, this function throws an Exception.
 		/// </summary>
-		/// <param name="Filenames">Filename</param>
+		/// <param name="FileName">Filename</param>
 		public static void DeleteFile(string FileName)
 		{
 			var NormalizedFilename = ConvertSeparators(PathSeparator.Default, FileName);
@@ -487,20 +487,20 @@ namespace AutomationTool
 		/// If the file does not exist, silently succeeds.
 		/// If the deletion of the file fails, this function throws an Exception.
 		/// </summary>
-		/// <param name="Filenames">Filename</param>
+		/// <param name="FileName">Filename</param>
 		public static void DeleteFile(FileReference FileName)
 		{
 			DeleteFile(FileName.FullName);
 		}
 
-        /// <summary>
-        /// Deletes a file(s). 
-        /// If the file does not exist, silently succeeds.
-        /// If the deletion of the file fails, this function throws an Exception.
-        /// </summary>
-        /// <param name="bQuiet">When true, logging is suppressed.</param>
-        /// <param name="Filenames">Filename</param>
-        public static void DeleteFile(bool bQuiet, string FileName)
+		/// <summary>
+		/// Deletes a file(s). 
+		/// If the file does not exist, silently succeeds.
+		/// If the deletion of the file fails, this function throws an Exception.
+		/// </summary>
+		/// <param name="bQuiet">When true, logging is suppressed.</param>
+		/// <param name="FileName">Filename</param>
+		public static void DeleteFile(bool bQuiet, string FileName)
         {
             var NormalizedFilename = ConvertSeparators(PathSeparator.Default, FileName);
             if (!InternalUtils.SafeDeleteFile(NormalizedFilename, bQuiet))
@@ -513,8 +513,8 @@ namespace AutomationTool
 		/// Deletes a file(s). 
 		/// If the deletion of the file fails, prints a warning.
 		/// </summary>
-		/// <param name="Filenames">Filename</param>
-        public static bool DeleteFile_NoExceptions(string FileName)
+		/// <param name="FileName">Filename</param>
+		public static bool DeleteFile_NoExceptions(string FileName)
 		{
 			bool Result = true;
 
@@ -549,7 +549,7 @@ namespace AutomationTool
 		/// If the deletion of the directory fails, this function throws an Exception.
 		/// </summary>
 		/// <param name="bQuiet">Suppresses log output if true</param>
-		/// <param name="Directories">Directories</param>
+		/// <param name="Directory">Directories</param>
 		public static void DeleteDirectory(bool bQuiet, string Directory)
 		{
 			var NormalizedDirectory = ConvertSeparators(PathSeparator.Default, Directory);
@@ -563,8 +563,8 @@ namespace AutomationTool
 		/// Deletes a directory(or directories) including its contents (recursively, will delete read-only files).
 		/// If the deletion of the directory fails, this function throws an Exception.
 		/// </summary>
-        /// <param name="Directories">Directories</param>
-        public static void DeleteDirectory(string Directory)
+		/// <param name="Directory">Directories</param>
+		public static void DeleteDirectory(string Directory)
 		{
 			DeleteDirectory(false, Directory);
 		}
@@ -573,8 +573,8 @@ namespace AutomationTool
 		/// Deletes a directory(or directories) including its contents (recursively, will delete read-only files).
 		/// If the deletion of the directory fails, this function throws an Exception.
 		/// </summary>
-        /// <param name="Directories">Directories</param>
-        public static void DeleteDirectory(DirectoryReference Directory)
+		/// <param name="Directory">Directories</param>
+		public static void DeleteDirectory(DirectoryReference Directory)
 		{
 			DeleteDirectory(Directory.FullName);
 		}
@@ -584,8 +584,8 @@ namespace AutomationTool
 		/// If the deletion of the directory fails, prints a warning.
 		/// </summary>
 		/// <param name="bQuiet">Suppresses log output if true</param>
-        /// <param name="Directories">Directories</param>
-        public static bool DeleteDirectory_NoExceptions(bool bQuiet, string Directory)
+		/// <param name="Directory">Directories</param>
+		public static bool DeleteDirectory_NoExceptions(bool bQuiet, string Directory)
 		{
 			bool Result = true;
 
@@ -615,8 +615,8 @@ namespace AutomationTool
 		/// Deletes a directory(or directories) including its contents (recursively, will delete read-only files).
 		/// If the deletion of the directory fails, prints a warning.
 		/// </summary>
-        /// <param name="Directories">Directories</param>
-        public static bool DeleteDirectory_NoExceptions(string DirectoryName)
+		/// <param name="DirectoryName">Directories</param>
+		public static bool DeleteDirectory_NoExceptions(string DirectoryName)
 		{
 			return DeleteDirectory_NoExceptions(false, DirectoryName);
 		}
@@ -658,8 +658,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Checks if a directory(or directories) exists.
 		/// </summary>
-        /// <param name="Directories">Directories</param>
-        /// <returns>True if the directory exists, false otherwise.</returns>
+		/// <param name="DirectoryName">Directories</param>
+		/// <returns>True if the directory exists, false otherwise.</returns>
 		public static bool DirectoryExists(string DirectoryName)
 		{
 			var NormalizedDirectory = ConvertSeparators(PathSeparator.Default, DirectoryName);
@@ -669,8 +669,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Checks if a directory(or directories) exists.
 		/// </summary>
-        /// <param name="Directories">Directories</param>
-        /// <returns>True if the directory exists, false otherwise.</returns>
+		/// <param name="DirectoryName">Directories</param>
+		/// <returns>True if the directory exists, false otherwise.</returns>
 		public static bool DirectoryExists_NoExceptions(string DirectoryName)
 		{
 			var NormalizedDirectory = ConvertSeparators(PathSeparator.Default, DirectoryName);
@@ -692,6 +692,8 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="OldName">Old name</param>
 		/// <param name="NewName">new name</param>
+		/// <param name="bQuiet"></param>
+		/// <param name="bRetry"></param>
 		public static void RenameDirectory(string OldName, string NewName, bool bQuiet = false, bool bRetry = true)
 		{
 			var OldNormalized = ConvertSeparators(PathSeparator.Default, OldName);
@@ -705,6 +707,8 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="OldName">Old name</param>
 		/// <param name="NewName">new name</param>
+		/// <param name="bQuiet"></param>
+		/// <param name="bRetry"></param>
 		public static bool RenameDirectory_NoExceptions(string OldName, string NewName, bool bQuiet = false, bool bRetry = true)
 		{
 			var OldNormalized = ConvertSeparators(PathSeparator.Default, OldName);
@@ -776,7 +780,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Checks if a file(s) exists.
 		/// </summary>
-		/// <param name="Filenames">Filename.</param>
+		/// <param name="FileName">Filename.</param>
 		/// <returns>True if the file exists, false otherwise.</returns>
 		public static bool FileExists(string FileName)
         {
@@ -784,11 +788,11 @@ namespace AutomationTool
 			var NormalizedFilename = ConvertSeparators(PathSeparator.Default, FileName).Replace("\"", "");
 			return InternalUtils.SafeFileExists(NormalizedFilename);
         }
-		
+
 		/// <summary>
 		/// Checks if a file(s) exists.
 		/// </summary>
-		/// <param name="Filenames">Filename.</param>
+		/// <param name="FileName">Filename.</param>
 		/// <returns>True if the file exists, false otherwise.</returns>
 		public static bool FileExists_NoExceptions(string FileName)
 		{
@@ -796,26 +800,26 @@ namespace AutomationTool
 			return FileExists(FileName);
 		}
 
-        /// <summary>
-        /// Checks if a file(s) exists.
-        /// </summary>
-        /// <param name="bQuiet">When true, logging is suppressed.</param>
-        /// <param name="Filenames">Filename.</param>
-        /// <returns>True if the file exists, false otherwise.</returns>
-        public static bool FileExists(bool bQuiet, string FileName)
+		/// <summary>
+		/// Checks if a file(s) exists.
+		/// </summary>
+		/// <param name="bQuiet">When true, logging is suppressed.</param>
+		/// <param name="FileName">Filename.</param>
+		/// <returns>True if the file exists, false otherwise.</returns>
+		public static bool FileExists(bool bQuiet, string FileName)
         {
 			// need to remove the quotes before checking to see if it exists
 			var NormalizedFilename = ConvertSeparators(PathSeparator.Default, FileName).Replace("\"", "");
 			return InternalUtils.SafeFileExists(NormalizedFilename, bQuiet);
         }
 
-        /// <summary>
-        /// Checks if a file(s) exists.
-        /// </summary>
-        /// <param name="bQuiet">When true, logging is suppressed.</param>
-        /// <param name="Filenames">Filename.</param>
-        /// <returns>True if the file exists, false otherwise.</returns>
-        public static bool FileExists_NoExceptions(bool bQuiet, string FileName)
+		/// <summary>
+		/// Checks if a file(s) exists.
+		/// </summary>
+		/// <param name="bQuiet">When true, logging is suppressed.</param>
+		/// <param name="FileName">Filename.</param>
+		/// <returns>True if the file exists, false otherwise.</returns>
+		public static bool FileExists_NoExceptions(bool bQuiet, string FileName)
         {
             // Standard version doesn't throw, but keep this function for consistency.
             return FileExists(bQuiet, FileName);
@@ -1415,7 +1419,10 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Source">The full path to the source file</param>
 		/// <param name="Dest">The full path to the destination file</param>
+		/// <param name="OverrideCopyHandler"></param>
 		/// <param name="bAllowDifferingTimestamps">If true, will always skip a file if the destination exists, even if timestamp differs; defaults to false</param>
+		/// <param name="IniKeyDenyList"></param>
+		/// <param name="IniSectionDenyList"></param>
 		/// <returns>True if the operation was successful, false otherwise.</returns>
 		public static void CopyFileIncremental(FileReference Source, FileReference Dest, OverrideCopyDelegate OverrideCopyHandler = null, bool bAllowDifferingTimestamps = false, List<string> IniKeyDenyList = null, List<string> IniSectionDenyList = null)
 		{
@@ -1798,6 +1805,7 @@ namespace AutomationTool
 		/// <param name="Source"></param>
 		/// <param name="Dest"></param>
 		/// <param name="MaxThreads"></param>
+		/// <param name="bQuiet"></param>
 		/// <param name="bRetry"></param>
 		public static void ThreadedCopyFiles(List<string> Source, List<string> Dest, int MaxThreads = 64, bool bQuiet = false, bool bRetry = false)
 		{
@@ -1881,7 +1889,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Move a file from one place to another 
 		/// </summary>
-		/// <param name="SourceAndTarget">Source and target file</param>
+		/// <param name="SourceFile"></param>
+		/// <param name="TargetFile"></param>
 		public static void MoveFile(FileReference SourceFile, FileReference TargetFile)
 		{
 			MoveFile(SourceFile, TargetFile, false);
@@ -1890,7 +1899,9 @@ namespace AutomationTool
 		/// <summary>
 		/// Move a file from one place to another 
 		/// </summary>
-		/// <param name="SourceAndTarget">Source and target file</param>
+		/// <param name="SourceFile"></param>
+		/// <param name="TargetFile"></param>
+		/// <param name="Overwrite"></param>
 		public static void MoveFile(FileReference SourceFile, FileReference TargetFile, bool Overwrite)
 		{
 			// Create the directory for the target file
@@ -2099,6 +2110,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="ArgList">Argument list.</param>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public static string ParseParamValue(object[] ArgList, string Param, string Default = null)
 		{
@@ -3337,7 +3349,9 @@ namespace AutomationTool
 		/// Codesigns multiple files, but skips anything that's not an EXE or DLL file
 		/// Will automatically skip signing if -NoSign is specified in the command line.
 		/// </summary>
+		/// <param name="Command"></param>
 		/// <param name="Files">List of files to sign</param>
+		/// <param name="Description"></param>
 		/// <param name="bRunInParallel">Run the sign operation in paralle, Windows only</param>
 		public static void SignMultipleIfEXEOrDLL(BuildCommand Command, IEnumerable<string> Files, string Description = null, bool bRunInParallel = false)
 		{

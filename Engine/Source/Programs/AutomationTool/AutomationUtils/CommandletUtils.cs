@@ -168,9 +168,9 @@ namespace AutomationTool
 		/// Runs GenerateDistillFileSets commandlet.
 		/// </summary>
 		/// <param name="ProjectFile">Project file.</param>
+		/// <param name="ManifestFile"></param>
 		/// <param name="UnrealExe">The name of the Unreal Editor executable to use.</param>
 		/// <param name="Maps">List of maps to cook, can be null in which case -MapIniSection=AllMaps is used.</param>
-		/// <param name="TargetPlatform">Target platform.</param>
 		/// <param name="Parameters">List of additional parameters.</param>
 		public static List<FileReference> GenerateDistillFileSetsCommandlet(FileReference ProjectFile, string ManifestFile, string UnrealExe = null, string[] Maps = null, string Parameters = "")
         {
@@ -284,7 +284,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Runs a commandlet using Engine/Binaries/Win64/UnrealEditor-Cmd.exe.
 		/// </summary>
-		/// <param name="ProjectName">Project name.</param>
+		/// <param name="ProjectFile">Project file</param>
 		/// <param name="UnrealExe">The name of the Unreal Editor executable to use.</param>
 		/// <param name="Commandlet">Commandlet name.</param>
 		/// <param name="Parameters">Command line parameters (without -run=)</param>
@@ -511,6 +511,7 @@ namespace AutomationTool
 		/// For example: Map1+Map2+Map3
 		/// </summary>
 		/// <param name="ParamValues">List of parameters (must not be empty)</param>
+		/// <param name="Separator"></param>
 		/// <returns>Combined param</returns>
 		public static string CombineCommandletParams(IEnumerable<string> ParamValues, string Separator = "+")
 		{

@@ -659,8 +659,7 @@ namespace Gauntlet
 			/// Helper function that returns all types within the specified namespace that are or derive from
 			/// the specified type
 			/// </summary>
-			/// <param name="OfType"></param>
-			/// <param name="TestName"></param>
+			/// <param name="Namespaces"></param>
 			/// <returns></returns>
 			public static IEnumerable<Type> GetTypesInNamespaces<BaseType>(IEnumerable<string> Namespaces)
 				where BaseType : class
@@ -679,10 +678,10 @@ namespace Gauntlet
 			/// Constructs by name a new test of type "TestType" that takes no construction parameters
 			/// </summary>
 			/// <typeparam name="TestType"></typeparam>
-			/// <typeparam name="ContextType"></typeparam>
-			/// <param name="Namespace"></param>
+			/// <typeparam name="ParamType"></typeparam>
 			/// <param name="TestName"></param>
-			/// <param name="Context"></param>
+			/// <param name="Arg"></param>
+			/// <param name="Namespaces"></param>
 			/// <returns></returns>
 			public static TestType ConstructTest<TestType, ParamType>(string TestName, ParamType Arg, IEnumerable<string> Namespaces)
 					where TestType : class
@@ -729,8 +728,10 @@ namespace Gauntlet
 			/// Constructs by name a list of tests of type "TestType" that take no construction params
 			/// </summary>
 			/// <typeparam name="TestType"></typeparam>
-			/// <param name="Namespace"></param>
+			/// <typeparam name="ParamType"></typeparam>
 			/// <param name="TestNames"></param>
+			/// <param name="Arg"></param>
+			/// <param name="Namespaces"></param>
 			/// <returns></returns>
 			public static IEnumerable<TestType> ConstructTests<TestType, ParamType>(IEnumerable<string> TestNames, ParamType Arg, IEnumerable<string> Namespaces)
 					where TestType : class
@@ -749,8 +750,8 @@ namespace Gauntlet
 			/// Constructs by name a list of tests of type "TestType" that take no construction params
 			/// </summary>
 			/// <typeparam name="TestType"></typeparam>
-			/// <param name="Namespace"></param>
 			/// <param name="TestNames"></param>
+			/// <param name="Namespaces"></param>
 			/// <returns></returns>
 			public static IEnumerable<TestType> ConstructTests<TestType>(IEnumerable<string> TestNames, IEnumerable<string> Namespaces)
 					where TestType : class
@@ -769,8 +770,8 @@ namespace Gauntlet
 			/// Constructs by name a list of tests of type "TestType" that take no construction params
 			/// </summary>
 			/// <typeparam name="TestType"></typeparam>
-			/// <param name="Namespace"></param>
-			/// <param name="TestNames"></param>
+			/// <param name="Group"></param>
+			/// <param name="Namespaces"></param>
 			/// <returns></returns>
 			public static IEnumerable<string> GetTestNamesByGroup<TestType>(string Group, IEnumerable<string> Namespaces)
 					where TestType : class
@@ -929,13 +930,13 @@ namespace Gauntlet
 					}
 				}
 			}
-			
+
 			/// <summary>
 			/// Convenience function that removes some of the more esoteric options
 			/// </summary>
 			/// <param name="SourceDirPath"></param>
 			/// <param name="DestDirPath"></param>
-			/// <param name="Options"></param>
+			/// <param name="Mode"></param>
 			/// <param name="RetryCount"></param>
 			public static void CopyDirectory(string SourceDirPath, string DestDirPath, CopyOptions Mode = CopyOptions.Default, int RetryCount = 5)
 			{
@@ -964,9 +965,9 @@ namespace Gauntlet
 			/// Copies src to dest by comparing files sizes and time stamps and only copying files that are different in src. Basically a more flexible
 			/// robocopy
 			/// </summary>
-			/// <param name="SourcePath"></param>
-			/// <param name="DestPath"></param>
-			/// <param name="Verbose"></param>
+			/// <param name="SourceDirPath"></param>
+			/// <param name="DestDirPath"></param>
+			/// <param name="Options"></param>
 			public static void CopyDirectory(string SourceDirPath, string DestDirPath, CopyDirectoryOptions Options)
 			{
 				DateTime StartTime = DateTime.Now;
@@ -1362,7 +1363,6 @@ namespace Gauntlet
 			/// folders
 			/// </summary>
 			/// <param name="InPath"></param>
-			/// <param name="FileName"></param>
 			/// <param name="Days"></param>
 			public static void CleanupMarkedDirectories(string InPath, int Days)
 			{
@@ -1824,7 +1824,6 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="BaseDir">Base directory to search in</param>
 		/// <param name="Pattern">Pattern for matching files</param>
-		/// <param name="Option">Options for the search</param>
 		/// <returns>Sequence of file references</returns>
 		public static IEnumerable<string> FindFiles(string BaseDir, Regex Pattern)
 		{

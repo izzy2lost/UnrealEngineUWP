@@ -50,6 +50,7 @@ namespace Gauntlet
 		/// Will override current set values in the dictionary when conflicts arise.
 		/// </summary>
 		/// <param name="InRawCommandline"></param>
+		/// <param name="bOverrideExistingValues"></param>
 		public void AddRawCommandline(string InRawCommandline, bool bOverrideExistingValues = true)
 		{
 			// turn Name(p1,etc) into a collection of Name|(p1,etc) groups
@@ -76,7 +77,8 @@ namespace Gauntlet
 		/// Breaks down a raw commandline and adds it to the commandline dictionary.
 		/// Will override current set values in the dictionary when conflicts arise.
 		/// </summary>
-		/// <param name="InRawCommandline"></param>
+		/// <param name="InCommandline"></param>
+		/// <param name="bOverrideExistingValues"></param>
 		public void CombineCommandLines(GauntletCommandLine InCommandline, bool bOverrideExistingValues = true)
 		{
 			foreach (string Key in InCommandline.Params.Keys)
@@ -122,6 +124,7 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="ParamName"></param>
 		/// <param name="ParamVal"></param>
+		/// <param name="IsNonOption"></param>
 		public void Add(string ParamName, object ParamVal = null, bool IsNonOption = false)
 		{
 			if (IsNonOption)
@@ -374,6 +377,7 @@ namespace Gauntlet
 		/// the configuration class and take care to append properties.
 		/// </summary>
 		/// <param name="InType"></param>
+		/// <param name="InPlatformOverride"></param>
 		public UnrealTestRole(UnrealTargetRole InType, UnrealTargetPlatform? InPlatformOverride)
 		{
 			Type = InType;
@@ -756,7 +760,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Set this test to use dummy, renderless clients.
 		/// </summary>
-		/// <param name="quantity">Number of dummy clients to spawn.</param>
+		/// <param name="Quantity">Number of dummy clients to spawn.</param>
 		/// <param name="AdditionalCommandLine"></param>
 		public void AddDummyClients(int Quantity, string AdditionalCommandLine = "")
 		{
@@ -771,7 +775,7 @@ namespace Gauntlet
 		/// Adds one role of the specified type to this test. With inherited tests this could
 		/// return an existing role so care should be added to append commandlines, controllers etc
 		/// </summary>
-		/// <param name="Role"></param>
+		/// <param name="InRole"></param>
 		/// <returns></returns>
 		public UnrealTestRole RequireRole(UnrealTargetRole InRole)
 		{
@@ -800,7 +804,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Adds 'Count' of the specified roles to this test
 		/// </summary>
-		/// <param name="Role"></param>
+		/// <param name="InRole"></param>
 		/// <param name="Count"></param>
 		/// <returns></returns>
 		public IEnumerable<UnrealTestRole> RequireRoles(UnrealTargetRole InRole, int Count)
@@ -915,6 +919,8 @@ namespace Gauntlet
 		/// Apply our options to the provided app config
 		/// </summary>
 		/// <param name="AppConfig"></param>
+		/// <param name="ConfigRole"></param>
+		/// <param name="OtherRoles"></param>
 		/// <returns></returns>
 		public virtual void ApplyToConfig(UnrealAppConfig AppConfig, UnrealSessionRole ConfigRole, IEnumerable<UnrealSessionRole> OtherRoles)
 		{

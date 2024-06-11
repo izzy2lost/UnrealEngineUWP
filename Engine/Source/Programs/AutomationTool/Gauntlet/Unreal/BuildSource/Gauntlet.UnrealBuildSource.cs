@@ -247,7 +247,6 @@ namespace Gauntlet
 		/// <summary>
 		/// Adds the provided build to our list (calls ShouldMakeBuildAvailable to verify).
 		/// </summary>
-		/// <param name="InPlatform"></param>
 		/// <param name="NewBuild"></param>
 		virtual protected void AddBuild(IBuild NewBuild)
 		{
@@ -278,6 +277,7 @@ namespace Gauntlet
 		/// Adds an Editor build to our list of available builds if one exists
 		/// </summary>
 		/// <param name="InUnrealPath"></param>
+		/// <param name="InConfiguration"></param>
 		virtual protected IBuild CreateEditorBuild(DirectoryReference InUnrealPath, UnrealTargetConfiguration InConfiguration = UnrealTargetConfiguration.Development)
 		{
 			if (InUnrealPath != null)
@@ -320,6 +320,7 @@ namespace Gauntlet
 		/// for the provided platform
 		/// </summary>
 		/// <param name="InPlatform"></param>
+		/// <param name="InConfiguration"></param>
 		virtual protected void DiscoverBuilds(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration = UnrealTargetConfiguration.Development)
 		{
 			if (!HaveDiscoveredBuilds(InPlatform))
@@ -697,8 +698,8 @@ namespace Gauntlet
 					ExePath = EditorExe.FullName;
 					if (!string.IsNullOrEmpty(Globals.Params.ParseValue("EditorDir", null)))
 					{
-						/// Trim the Editor absolute path from what the target file provided as the editor dir is being overriden
-						/// https://regex101.com/r/7BttxH/1
+						// Trim the Editor absolute path from what the target file provided as the editor dir is being overriden
+						// https://regex101.com/r/7BttxH/1
 						ExePath = Regex.Replace(ExePath, @"(.+?)[/\\]((Engine[/\\])?Binaries[/\\].+)", "$2");
 					}
 				}

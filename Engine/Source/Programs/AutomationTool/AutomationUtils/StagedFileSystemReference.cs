@@ -29,7 +29,7 @@ public abstract class StagedFileSystemReference
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	/// <param name="Name">The file system reference referred to. Either type of directory separator is permitted and will be normalized. Empty path fragments and leading/trailing slashes are not permitted.</param>
+	/// <param name="InName">The file system reference referred to. Either type of directory separator is permitted and will be normalized. Empty path fragments and leading/trailing slashes are not permitted.</param>
 	public StagedFileSystemReference(string InName)
 	{
 		Name = InName.Replace('\\', '/');

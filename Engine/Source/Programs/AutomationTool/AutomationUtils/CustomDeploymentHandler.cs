@@ -39,7 +39,7 @@ public abstract class CustomDeploymentHandler
 	#region Private/boilerplate
 
 	/// <summary>
-	/// Validate & instantiate the given custom deployment handler
+	/// Validate and instantiate the given custom deployment handler
 	/// </summary>
 	public static CustomDeploymentHandler Create(string Name, Platform AutomationPlatform)
 	{

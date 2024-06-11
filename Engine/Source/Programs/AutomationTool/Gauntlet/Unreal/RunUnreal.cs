@@ -95,7 +95,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Execute all tests according to the provided context
 		/// </summary>
-		/// <param name="Context"></param>
+		/// <param name="ContextOptions"></param>
 		/// <returns></returns>
 		public virtual ExitCode RunTests(UnrealTestOptions ContextOptions)
 		{
@@ -377,6 +377,8 @@ namespace Gauntlet
 		/// Create the list of tests specified by the context. 
 		/// </summary>
 		/// <param name="Context"></param>
+		/// <param name="DefaultParams"></param>
+		/// <param name="PlatformParams"></param>
 		/// <returns></returns>
 		IEnumerable<ITestNode> CreateTestList(UnrealTestContext Context, Params DefaultParams, ArgumentWithParams PlatformParams = null)
 		{

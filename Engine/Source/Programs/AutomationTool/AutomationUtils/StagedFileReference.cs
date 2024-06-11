@@ -25,7 +25,7 @@ public class StagedFileReference : StagedFileSystemReference, IEquatable<StagedF
 	/// Protected constructor. Initializes to the given parameters without validation.
 	/// </summary>
 	/// <param name="Name">The name of this entity.</param>
-	/// <param name="CanonicalName">Canonical name of this entity. Should be equal to Name.ToLowerInvariant().</param>
+	/// <param name="Sanitize"></param>
 	private StagedFileReference(string Name, Sanitize Sanitize) : base(Name, Sanitize)
 	{
 	}
@@ -79,6 +79,7 @@ public class StagedFileReference : StagedFileSystemReference, IEquatable<StagedF
 	/// <summary>
 	/// Attempts to remap this file reference from one directory to another
 	/// </summary>
+	/// <param name="InputFile"></param>
 	/// <param name="SourceDir">Directory to map from</param>
 	/// <param name="TargetDir">Directory to map to</param>
 	/// <param name="RemappedFile">On success, receives the new staged file location</param>

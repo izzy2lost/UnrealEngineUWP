@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -33,6 +33,8 @@ namespace Turnkey
 		/// Perform the copy operation
 		/// </summary>
 		/// <param name="Operation">Description for the operation</param>
+		/// <param name="SpecialMode"></param>
+		/// <param name="SpecialModeHint"></param>
 		/// <returns>The output path of the copied file, or a directory that contains all of the wildcards in the operation ("perforce://depot/CarefullyRedist/.../Windows/*" would return something like "d:\\sdks")</returns>
 		public abstract string Execute(string Operation, CopyExecuteSpecialMode SpecialMode, string SpecialModeHint);
 
@@ -99,6 +101,8 @@ namespace Turnkey
 		/// Runs a Copy command, and returns the local path (either a directory or a file, depending on the operation
 		/// </summary>
 		/// <param name="CopyOperation"></param>
+		/// <param name="SpecialMode"></param>
+		/// <param name="SpecialModeHint"></param>
 		/// <returns>Output path, which could then be used as $(OutputPath) in later operations</returns>
 		public static string ExecuteCopy(string CopyOperation, CopyExecuteSpecialMode SpecialMode = CopyExecuteSpecialMode.None, string SpecialModeHint = null)
 		{

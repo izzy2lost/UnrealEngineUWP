@@ -46,11 +46,11 @@ namespace EpicGames.MCP.Automation
             IsCommitted = true;
         }
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="RollbackAction">Action to be executed to rollback the transaction.</param>
-        public CommitRollbackTransaction(System.Action InRollbackAction)
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="InRollbackAction">Action to be executed to rollback the transaction.</param>
+		public CommitRollbackTransaction(System.Action InRollbackAction)
         {
             RollbackAction = InRollbackAction;
         }
@@ -439,14 +439,16 @@ namespace EpicGames.MCP.Automation
                 : CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "LocalBuilds");
         }
 
-        /// <summary>
-        /// Basic constructor. 
-        /// </summary>
-        /// <param name="InAppName"></param>
-        /// <param name="InAppID"></param>
-        /// <param name="InBuildVersion"></param>
-        /// <param name="platform"></param>
-        /// <param name="stagingDirRelativePath">Relative path from the BuildRootPath where files will be staged. Commonly matches the AppName.</param>
+		/// <summary>
+		/// Basic constructor. 
+		/// </summary>
+		/// <param name="InOwnerCommand"></param>
+		/// <param name="InAppName"></param>
+		/// <param name="InMcpConfigKey"></param>
+		/// <param name="InAppID"></param>
+		/// <param name="InBuildVersion"></param>
+		/// <param name="platform"></param>
+		/// <param name="stagingDirRelativePath">Relative path from the BuildRootPath where files will be staged. Commonly matches the AppName.</param>
 		public BuildPatchToolStagingInfo(BuildCommand InOwnerCommand, string InAppName, string InMcpConfigKey, int InAppID, string InBuildVersion, MCPPlatform platform, string stagingDirRelativePath)
         {
             OwnerCommand = InOwnerCommand;
@@ -1680,7 +1682,6 @@ namespace EpicGames.MCP.Automation
 		/// </summary>
 		/// <param name="Opts">Parameters which will be passed to the Build Patch Tool generation process.</param>
 		/// <param name="Version">Which version of BuildPatchTool is desired.</param>
-		/// <param name="bAllowManifestClobbering">If set to true, will allow an existing manifest file to be overwritten with this execution. Default is false.</param>
 		public abstract void Execute(UploadBinaryOptions Opts, ToolVersion Version = ToolVersion.Online_Live);
 
 		/// <summary>
@@ -1688,6 +1689,7 @@ namespace EpicGames.MCP.Automation
 		/// V2 is only available when using online version of bpt
 		/// </summary>
 		/// <param name="Opts">Parameters which will be passed to the Build Patch Tool generation process.</param>
+		/// <param name="Output"></param>
 		/// <param name="Version">Which version of BuildPatchTool is desired.</param>
 		public abstract void Execute(ListBinariesOptions Opts, out ListBinariesOutput Output, ToolVersion Version = ToolVersion.Online_Live);
 
@@ -1850,7 +1852,7 @@ namespace EpicGames.MCP.Automation
 		/// <summary>
 		/// Sets a value in the key/value pair metadata associated with the specified build.
 		/// </summary>
-		/// <param name="StagingIfno">StagingInfo describing the build info to edit.</param>
+		/// <param name="StagingInfo">StagingInfo describing the build info to edit.</param>
 		/// <param name="Key">The key for the metadata item.</param>
 		/// <param name="Value">The value to associate with the key.</param>
 		/// <param name="McpConfigName">Name of which MCP config to post to.</param>
@@ -1859,7 +1861,7 @@ namespace EpicGames.MCP.Automation
 		/// <summary>
 		/// Given a BuildVersion defining our a build, return the labels applied to that build
 		/// </summary>
-		/// <param name="BuildVersion">Build version to return labels for.</param>
+		/// <param name="StagingInfo">StagingInfo describing the build info to edit.</param>
 		/// <param name="McpConfigName">Which BuildInfo backend to get labels from for this promotion attempt.</param>
 		/// <returns>The list of build labels applied.</returns>
 		abstract public List<string> GetBuildLabels(BuildPatchToolStagingInfo StagingInfo, string McpConfigName);
@@ -1876,7 +1878,7 @@ namespace EpicGames.MCP.Automation
 		/// Given a staging info defining our build, return the manifest url for that registered build
 		/// </summary>
 		/// <param name="AppName">Application name to check the label in</param>
-		/// <param name="BuildVersion">Build version to manifest for.</param>
+		/// <param name="BuildVersionWithPlatform">Build version to manifest for.</param>
 		/// <param name="McpConfigName">Name of which MCP config to query.</param>
 		/// <returns></returns>
 		abstract public string GetBuildManifestUrl(string AppName, string BuildVersionWithPlatform, string McpConfigName);
@@ -1909,8 +1911,7 @@ namespace EpicGames.MCP.Automation
 		/// <summary>
 		/// Get a BuildVersion string with the Platform concatenated on.
 		/// </summary>
-		/// <param name="DestinationLabel">Base of label</param>
-		/// <param name="Platform">Platform to add to base label.</param>
+		/// <param name="StagingInfo">StagingInfo describing the build info to edit.</param>
 		/// <returns>The BuildVersion string including platform postfix.</returns>
 		abstract public string GetBuildVersionWithPlatform(BuildPatchToolStagingInfo StagingInfo);
 
@@ -1935,10 +1936,11 @@ namespace EpicGames.MCP.Automation
 		/// Informs Patcher Service of a new build availability after async labeling is complete
 		/// (this usually means the build was copied to a public file server before the label could be applied).
 		/// </summary>
-		/// <param name="Command">Parent command</param>
+		/// <param name="stagingInfo">StagingInfo describing the build info to edit.</param>
 		/// <param name="AppName">Application name that the patcher service will use.</param>
 		/// <param name="BuildVersion">BuildVersion string that the patcher service will use.</param>
 		/// <param name="ManifestRelativePath">Relative path to the Manifest file relative to the global build root (which is like P:\Builds) </param>
+		/// <param name="PlatformName"></param>
 		/// <param name="LabelName">Name of the label that we will be setting.</param>
 		abstract public void BuildPromotionCompleted(BuildPatchToolStagingInfo stagingInfo, string AppName, string BuildVersion, string ManifestRelativePath, string PlatformName, string LabelName);
 	}
@@ -2133,6 +2135,7 @@ namespace EpicGames.MCP.Automation
 		/// <summary>
 		/// Initializes the provider.
 		/// <param name="Config">Configuration data to initialize the provider. The exact format of the data is provider specific. It might, for example, contain an API key.</param>
+		/// <param name="bForce"></param>
 		/// </summary>
 		abstract public void Init(Dictionary<string,object> Config, bool bForce = false);
 
@@ -2303,7 +2306,7 @@ namespace EpicGames.MCP.Automation
 		/// </summary>
 		/// <param name="Container">The name of the folder or container from which to list files.</param>
 		/// <param name="Prefix">A string with which the identifier or filename should start. Typically used to specify a relative directory within the container to list all of its files recursively. Specify null to return all files.</param>
-		/// <param name="Recursive">Indicates whether the list of files returned should traverse subdirectories</param>
+		/// <param name="bRecursive">Indicates whether the list of files returned should traverse subdirectories</param>
 		/// <param name="bQuiet">If set to true, all log output for the operation is supressed.</param>
 		/// <returns>An array of paths to the files in the specified location and matching the prefix constraint.</returns>
 		public string[] ListFiles(string Container, string Prefix = null, bool bRecursive = true, bool bQuiet = false)
@@ -2402,7 +2405,7 @@ namespace EpicGames.MCP.Automation
 		/// Copies manifest and chunks from a staged location to cloud storage.
 		/// </summary>
 		/// <param name="Container">The name of the container in which to store files.</param>
-		/// <param name="stagingInfo">Staging info used to determine where the chunks are to copy.</param>
+		/// <param name="StagingInfo">Staging info used to determine where the chunks are to copy.</param>
 		/// <param name="bForce">If true, will always copy the manifest and chunks to cloud storage. Otherwise, will only copy if the manifest isn't already present on cloud storage.</param>
 		/// <returns>True if the build was copied to cloud storage, false otherwise.</returns>
 		abstract public bool CopyChunksToCloudStorage(string Container, BuildPatchToolStagingInfo StagingInfo, bool bForce = false);
@@ -2421,7 +2424,7 @@ namespace EpicGames.MCP.Automation
 		/// Verifies whether a manifest for a given build is in cloud storage.
 		/// </summary>
 		/// <param name="Container">The name of the folder or container in which to store files.</param>
-		/// <param name="stagingInfo">Staging info representing the build to check.</param>
+		/// <param name="StagingInfo">Staging info used to determine where the chunks are to copy.</param>
 		/// <returns>True if the manifest exists in cloud storage, false otherwise.</returns>
 		abstract public bool IsManifestOnCloudStorage(string Container, BuildPatchToolStagingInfo StagingInfo);
 

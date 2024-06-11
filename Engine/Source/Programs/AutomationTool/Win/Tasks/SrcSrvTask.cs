@@ -62,7 +62,7 @@ namespace Win.Automation
 		/// <summary>
 		/// Construct a spawn task
 		/// </summary>
-		/// <param name="Parameters">Parameters for the task</param>
+		/// <param name="InParameters">Parameters for the task</param>
 		public SrcSrvTask(SrcSrvTaskParameters InParameters)
 		{
 			Parameters = InParameters;
@@ -131,6 +131,7 @@ namespace Win.Automation
 		/// <summary>
 		/// Uploads symbols to a symbol server
 		/// </summary>
+		/// <param name="State"></param>
 		/// <param name="BinaryFiles">List of output files. PDBs will be extracted from this list.</param>
 		/// <param name="SourceFiles">List of source files to index and embed into the PDBs.</param>
 		/// <param name="Branch">Branch to base all the depot source files from.</param>

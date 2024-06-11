@@ -332,7 +332,6 @@ namespace LyraTest
 		/// <summary>
 		/// Returns true if files with extensions in the provided list are  open locally
 		/// </summary>
-		/// <param name="ShelvedChangelist"></param>
 		/// <param name="ExtensionTypeList"></param>
 		/// <returns></returns>
 		private bool AreFileTypesModifiedInOpenChangelists(List<string> ExtensionTypeList)

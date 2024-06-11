@@ -174,7 +174,7 @@ public class DeploymentContext //: ProjectParams
 
 	/// <summary>
 	/// The list of AdditionalPluginDirectories from the project.uproject. Files in plugins in these
-	/// directories are staged into <StageRoot>/RemappedPlugins/PluginName.
+	/// directories are staged into $(StageRoot)/RemappedPlugins/PluginName.
 	/// </summary>
 	public List<DirectoryReference> AdditionalPluginDirectories;
 
@@ -678,7 +678,7 @@ public class DeploymentContext //: ProjectParams
 	/// <param name="Config">The config hierarchy to read from</param>
 	/// <param name="SectionName">The section name</param>
 	/// <param name="KeyName">The key name to read from</param>
-	/// <param name="Files">Receives a list of file paths</param>
+	/// <param name="FilesRef">Receives a list of file paths</param>
 	private static void ReadAllowDenyFileList(ConfigHierarchy Config, string SectionName, string KeyName, HashSet<StagedFileReference> FilesRef)
 	{
 		List<string> FileNames;
@@ -721,7 +721,6 @@ public class DeploymentContext //: ProjectParams
 	/// </summary>
 	/// <param name="BaseDir">The directory to search under</param>
 	/// <param name="Pattern">Pattern for files to match</param>
-	/// <param name="ExcludePatterns">Patterns to exclude from staging</param>
 	/// <param name="Option">Options for the search</param>
 	/// <param name="Files">List to receive the enumerated files</param>
 	private void FindFilesToStageInternal(DirectoryReference BaseDir, string Pattern, StageFilesSearch Option, List<FileReference> Files)
@@ -827,7 +826,9 @@ public class DeploymentContext //: ProjectParams
 	/// Stage multiple files
 	/// </summary>
 	/// <param name="FileType">The type for the staged files</param>
+	/// <param name="InputDir"></param>
 	/// <param name="Files">The files to stage</param>
+	/// <param name="OutputDir"></param>
 	public void StageFiles(StagedFileType FileType, DirectoryReference InputDir, IEnumerable<FileReference> Files, StagedDirectoryReference OutputDir)
 	{
 		foreach (FileReference File in Files)
@@ -865,7 +866,8 @@ public class DeploymentContext //: ProjectParams
 	/// </summary>
 	/// <param name="FileType">The type for the staged files</param>
 	/// <param name="InputDir">Input directory</param>
-	/// <param name="InputFiles">List of input files</param>
+	/// <param name="Pattern"></param>
+	/// <param name="Option"></param>
 	public void StageFiles(StagedFileType FileType, DirectoryReference InputDir, string Pattern, StageFilesSearch Option)
 	{
 		List<FileReference> InputFiles = FindFilesToStage(InputDir, Pattern, Option);
@@ -880,7 +882,8 @@ public class DeploymentContext //: ProjectParams
 	/// </summary>
 	/// <param name="FileType">The type for the staged files</param>
 	/// <param name="InputDir">Input directory</param>
-	/// <param name="InputFiles">List of input files</param>
+	/// <param name="Pattern"></param>
+	/// <param name="Option"></param>
 	/// <param name="OutputDir">Output directory</param>
 	public void StageFiles(StagedFileType FileType, DirectoryReference InputDir, string Pattern, StageFilesSearch Option, StagedDirectoryReference OutputDir)
 	{

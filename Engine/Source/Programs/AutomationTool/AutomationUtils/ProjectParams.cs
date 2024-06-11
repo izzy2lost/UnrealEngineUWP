@@ -127,6 +127,8 @@ namespace AutomationTool
 		/// <param name="ParamName">Command line parameter name to parse.</param>
 		/// <param name="Default">Default value</param>
 		/// <param name="bTrimQuotes">If set, the leading and trailing quotes will be removed, e.g. instead of "/home/User Name" it will return /home/User Name</param>
+		/// <param name="ObsoleteParamName"></param>
+		/// <param name="ObsoleteSpecifiedValue"></param>
 		/// <returns>Parameter value.</returns>
 		string ParseParamValueIfNotSpecified(BuildCommand Command, string SpecifiedValue, string ParamName, string Default = "", bool bTrimQuotes = false, string ObsoleteParamName = null, string ObsoleteSpecifiedValue = null)
 		{
@@ -2826,7 +2828,7 @@ namespace AutomationTool
 
 		/// <summary>
 		/// Get the relative path to the DLC plugin's cooked output from the deployment
-		/// root of the DLC. e.g. <ProjectName>\Plugins\<PluginName> for plugins under the Project's plugin
+		/// root of the DLC. e.g. $(ProjectName)\Plugins\$(PluginName) for plugins under the Project's plugin
 		/// directories.
 		/// </summary>
 		public string FindPluginRelativePathFromPlatformCookDir(FileReference PluginFile,

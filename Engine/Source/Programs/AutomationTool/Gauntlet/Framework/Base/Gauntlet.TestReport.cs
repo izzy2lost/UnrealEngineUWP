@@ -75,6 +75,7 @@ namespace Gauntlet
 		/// Attach an Artifact to the ITestReport
 		/// </summary>
 		/// <param name="ArtifactPath"></param>
+		/// <param name="Name"></param>
 		/// <returns></returns>
 		bool AttachArtifact(string ArtifactPath, string Name = null);
 

@@ -40,6 +40,8 @@ namespace AutomationTool
 		/// Ex. ParseParamValue(Args, "map=")
 		/// </summary>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
+		/// <param name="ObsoleteParam"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public string ParseParamValue(string Param, string Default = null, string ObsoleteParam = null)
 		{
@@ -198,7 +200,6 @@ namespace AutomationTool
 		/// <summary>
 		/// Parses the argument list for any number of parameters.
 		/// </summary>
-		/// <param name="ArgList">Argument list.</param>
 		/// <param name="Param">Param to read its value.</param>
 		/// <returns>Returns an array of values for this parameter (or an empty array if one was not found.</returns>
 		public string[] ParseParamValues(string Param)
@@ -211,6 +212,7 @@ namespace AutomationTool
 		/// Ex. ParseParamValue(Args, "map=")
 		/// </summary>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public bool ParseParamBool(string Param, bool Default = false)
 		{
@@ -223,6 +225,7 @@ namespace AutomationTool
 		/// Ex. ParseParamValue(Args, "map=")
 		/// </summary>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public int ParseParamInt(string Param, int Default = 0)
 		{

@@ -208,6 +208,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Insert a hyperlink
 		/// </summary>
+		/// <param name="URL"></param>
 		/// <param name="Text"></param>
 		/// <returns></returns>
 		public HtmlBuilder Hyperlink(string URL, string Text)
@@ -343,6 +344,7 @@ namespace Gauntlet
 		/// Append the provided text to our body. No formatting will be applied
 		/// </summary>
 		/// <param name="RHS"></param>
+		/// <param name="InOptions"></param>
 		/// <returns></returns>
 		public HtmlBuilder AppendFormatted(string RHS, TextOptions InOptions)
 		{

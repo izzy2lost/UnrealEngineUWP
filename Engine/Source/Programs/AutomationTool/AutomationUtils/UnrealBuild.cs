@@ -521,13 +521,14 @@ namespace AutomationTool
 		/// <summary>
 		/// Executes a build.
 		/// </summary>
-		/// <param name="Agenda">Build agenda.</param>
+		/// <param name="InAgenda">Build agenda.</param>
 		/// <param name="InDeleteBuildProducts">if specified, determines if the build products will be deleted before building. If not specified -clean parameter will be used,</param>
 		/// <param name="InUpdateVersionFiles">True if the version files are to be updated </param>
 		/// <param name="InForceNoXGE">If true will force XGE off</param>
 		/// <param name="InAllCores">If true AND XGE not present or not being used then ensure UBT uses all available cores</param>
 		/// <param name="InChangelistNumberOverride"></param>
 		/// <param name="InTargetToManifest"></param>
+		/// <param name="InSkipBuild"></param>
 		public void Build(BuildAgenda InAgenda, bool? InDeleteBuildProducts = null, bool InUpdateVersionFiles = true, bool InForceNoXGE = false, bool InAllCores = false, int? InChangelistNumberOverride = null, Dictionary<BuildTarget, BuildManifest> InTargetToManifest = null, bool InSkipBuild = false)
 		{
 			if (!CommandUtils.CmdEnv.HasCapabilityToCompile)
@@ -654,6 +655,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Adds or edits existing files at head revision, expecting an exclusive lock, resolving by clobbering any existing version
 		/// </summary>
+		/// <param name="WorkingCL"></param>
 		/// <param name="Files">List of files to check out</param>
 		public static void AddBuildProductsToChangelist(int WorkingCL, IEnumerable<string> Files)
 		{

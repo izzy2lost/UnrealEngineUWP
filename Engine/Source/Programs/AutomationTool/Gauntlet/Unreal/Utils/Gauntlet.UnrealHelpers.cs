@@ -114,8 +114,9 @@ namespace Gauntlet
 		/// <summary>
 		/// Given a platform and a client/server flag, returns the name Unreal refers to it as. E.g. "WindowsClient", "LinuxServer".
 		/// </summary>
-		/// <param name="InTargetPlatform"></param>
-		/// <param name="InTargetType"></param>
+		/// <param name="TargetPlatform"></param>
+		/// <param name="ProcessType"></param>
+		/// <param name="UsesSharedBuildType"></param>
 		/// <returns></returns>
 		public static string GetPlatformName(UnrealTargetPlatform TargetPlatform, UnrealTargetRole ProcessType, bool UsesSharedBuildType)
 		{

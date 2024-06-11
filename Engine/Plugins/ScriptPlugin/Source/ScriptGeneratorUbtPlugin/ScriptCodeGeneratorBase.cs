@@ -165,7 +165,6 @@ namespace ScriptGeneratorUbtPlugin
 		/// <summary>
 		/// Export the given class
 		/// </summary>
-		/// <param name="Factory">Factory associated with the export</param>
 		/// <param name="classObj">Class to export</param>
 		private void ExportClass(UhtClass classObj)
 		{

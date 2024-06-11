@@ -546,7 +546,7 @@ namespace Gauntlet
 		/// <param name="InSessionRole"></param>
 		/// <param name="InAppInstance"></param>
 		/// <param name="InArtifactPath"></param>
-		/// <param name="InLogSummary"></param>
+		/// <param name="InLogPath"></param>
 		public UnrealRoleArtifacts(UnrealSessionRole InSessionRole, IAppInstance InAppInstance, string InArtifactPath, string InLogPath)
 		{
 			SessionRole = InSessionRole;
@@ -699,7 +699,6 @@ namespace Gauntlet
 		/// <summary>
 		/// Helper that reserves and returns a list of available devices based on the passed in roles
 		/// </summary>
-		/// <param name="Configs"></param>
 		/// <returns></returns>
 		public bool TryReserveDevices()
 		{

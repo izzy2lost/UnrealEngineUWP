@@ -80,6 +80,7 @@ namespace Gauntlet
 			/// <summary>
 			/// Constructor that requires all info
 			/// </summary>
+			/// <param name="InPrefix"></param>
 			/// <param name="InCategory"></param>
 			/// <param name="InLevel"></param>
 			/// <param name="InMessage"></param>
@@ -825,7 +826,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Returns all entries from the log that have the specified level
 		/// </summary>
-		/// <param name="InChannel">Optional channel to restrict search to</param>
+		/// <param name="InLevel"></param>
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.LogEntry> GetEntriesOfLevel(UnrealLog.LogLevel InLevel)
 		{
@@ -836,7 +837,8 @@ namespace Gauntlet
 		/// <summary>
 		/// Returns all warnings from the log
 		/// </summary>
-		/// <param name="InChannel">Optional channel to restrict search to</param>
+		/// <param name="InCategories"></param>
+		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.LogEntry> GetEntriesOfCategories(IEnumerable<string> InCategories, bool ExactMatch = false)
 		{
@@ -871,7 +873,8 @@ namespace Gauntlet
 		/// Return all entries for the specified channel. E.g. "OrionGame" will
 		/// return all entries starting with LogOrionGame
 		/// </summary>
-		/// <param name="Channel"></param>
+		/// <param name="Channels"></param>
+		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
 		public IEnumerable<string> GetLogChannels(IEnumerable<string> Channels, bool ExactMatch = true)
 		{
@@ -892,6 +895,7 @@ namespace Gauntlet
 		/// return all entries starting with LogOrionGame
 		/// </summary>
 		/// <param name="Channel"></param>
+		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
 		public IEnumerable<string> GetLogChannel(string Channel, bool ExactMatch = true)
 		{
@@ -952,7 +956,6 @@ namespace Gauntlet
 		/// <summary>
 		/// If the log contains a fatal error return that information
 		/// </summary>
-		/// <param name="ErrorInfo"></param>
 		/// <returns></returns>
 		public UnrealLog.CallstackMessage GetFatalError()
 		{
@@ -970,11 +973,11 @@ namespace Gauntlet
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.CallstackMessage> GetASanErrors()
 		{
-			/// Match:
-			/// ==5077==ERROR: AddressSanitizer: alloc - dealloc - mismatch(operator new vs free) on 0x602014ab4790
-			/// Then for gathering the callstack, match
-			/// ==5077==ABORTING
-			/// remove anything inside the callstack starting with [2022.12.02-15.22.40:688][618]
+			// Match:
+			// ==5077==ERROR: AddressSanitizer: alloc - dealloc - mismatch(operator new vs free) on 0x602014ab4790
+			// Then for gathering the callstack, match
+			// ==5077==ABORTING
+			// remove anything inside the callstack starting with [2022.12.02-15.22.40:688][618]
 
 			List<UnrealLog.CallstackMessage> ASanReports = new List<UnrealLog.CallstackMessage>();
 			Regex InitPattern = SanitizerEventMatcher.ReportLevelPattern;
@@ -1088,6 +1091,7 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Pattern">Regex to match the first line</param>
 		/// <param name="LineCount">Number of lines in the returned block</param>
+		/// <param name="PatternOptions"></param>
 		/// <returns>Array of strings for each found block of lines. Lines within each string are delimited by newline character.</returns>
 		public string[] GetGroupsOfLinesStartingWith(string Pattern, int LineCount, RegexOptions PatternOptions = RegexOptions.IgnoreCase)
 		{
@@ -1122,6 +1126,7 @@ namespace Gauntlet
 		/// Finds all callstack-based errors with the specified pattern
 		/// </summary>
 		/// <param name="Patterns"></param>
+		/// <param name="IncludePostmortem"></param>
 		/// <returns></returns>
 		protected IEnumerable<UnrealLog.CallstackMessage> ParseTracedErrors(string[] Patterns, bool IncludePostmortem = true)
 		{

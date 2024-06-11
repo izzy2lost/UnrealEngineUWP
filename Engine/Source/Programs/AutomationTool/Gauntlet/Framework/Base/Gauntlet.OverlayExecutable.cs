@@ -36,6 +36,7 @@ namespace Gauntlet
 		/// Attempts to get the path to a local executable if it is newer than the base executable
 		/// </summary>
 		/// <param name="BaseExecutable">The base executable to use if an overlay does not exist</param>
+		/// <param name="OverlayExecutable"></param>
 		/// <param name="ExtensionOverride">What extension the overlay file should have</param>
 		/// <returns>True if a local, newer executable that matches the role's requirements exists</returns>
 		/// <exception cref="AutomationException"></exception>

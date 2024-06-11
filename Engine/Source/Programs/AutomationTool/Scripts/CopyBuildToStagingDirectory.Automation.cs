@@ -205,6 +205,10 @@ namespace AutomationScripts
 		/// </summary>
 		/// <param name="Filename"></param>
 		/// <param name="ResponseFile"></param>
+		/// <param name="Compressed"></param>
+		/// <param name="RehydrateAssets"></param>
+		/// <param name="CryptoSettings"></param>
+		/// <param name="bForceFullEncryption"></param>
 		private static void WritePakResponseFile(string Filename, Dictionary<string, string> ResponseFile, bool Compressed, bool RehydrateAssets, EncryptionAndSigning.CryptoSettings CryptoSettings, bool bForceFullEncryption)
 		{
 			using (var Writer = new StreamWriter(Filename, false, new System.Text.UTF8Encoding(true)))
@@ -753,6 +757,7 @@ namespace AutomationScripts
 		/// </summary>
 		/// <param name="ProjectFile">The project being built</param>
 		/// <param name="Targets">List of targets being staged</param>
+		/// <param name="AdditionalPluginDirectories"></param>
 		/// <returns>List of plugin files that should be staged</returns>
 		private static List<FileReference> GetPluginsForContentProject(FileReference ProjectFile,
 			List<TargetReceipt> Targets, List<DirectoryReference> AdditionalPluginDirectories)
@@ -1852,7 +1857,7 @@ namespace AutomationScripts
 		/// <param name="SC">The staging context</param>
 		/// <param name="ConfigDir">Directory containing the config files</param>
 		/// <param name="ConfigFile">The config file to check</param>
-		/// <param name="PlatformExtenionName">Name of platform to scan outside the main directory</param>
+		/// <param name="PlatformExtensionName">Name of platform to scan outside the main directory</param>
 		/// <returns>True if the file should be staged, false otherwise</returns>
 		static Nullable<bool> ShouldStageConfigFile(DeploymentContext SC, DirectoryReference ConfigDir, FileReference ConfigFile, string PlatformExtensionName)
 		{
@@ -2557,8 +2562,11 @@ namespace AutomationScripts
 		/// <summary>
 		/// Attempts to apply the pak file rules to a specific staging file, returns false if it should be excluded
 		/// </summary>
-		/// <param name="Params"></param>
-		/// <param name="SC"></param>
+		/// <param name="RulesList"></param>
+		/// <param name="StagingFile"></param>
+		/// <param name="ModifyPakList"></param>
+		/// <param name="ChunkNameToDefinition"></param>
+		/// <param name="bExcludeFromPaks"></param>
 		private static PakFileRules? ApplyPakFileRules(
 			List<PakFileRules> RulesList,
 			KeyValuePair<string, string> StagingFile,
@@ -2704,6 +2712,7 @@ namespace AutomationScripts
 		/// Creates a pak response file using stage context
 		/// </summary>
 		/// <param name="SC"></param>
+		/// <param name="FilesToStage"></param>
 		/// <returns></returns>
 		private static Dictionary<string, string> CreatePakResponseFileFromStagingManifest(DeploymentContext SC, Dictionary<StagedFileReference, FileReference> FilesToStage)
 		{
@@ -2860,6 +2869,11 @@ namespace AutomationScripts
 			/// <param name="PakName">Path to the base output file for this pak file</param>
 			/// <param name="UnrealPakResponseFile">Map of files within the pak file to their source file on disk</param>
 			/// <param name="bCompressed">Whether to enable compression</param>
+			/// <param name="RehydrateAssets"></param>
+			/// <param name="EncryptionKeyGuid"></param>
+			/// <param name="bOnDemand"></param>
+			/// <param name="bStageLoose"></param>
+			/// <param name="bAllowPerChunkCompression"></param>
 			public CreatePakParams(
 				string PakName, 
 				Dictionary<string, string> UnrealPakResponseFile, 
@@ -2975,8 +2989,9 @@ namespace AutomationScripts
 		/// </summary>
 		/// <param name="Params"></param>
 		/// <param name="SC"></param>
-		/// <param name="UnrealPakResponseFile"></param>
-		/// <param name="PakName"></param>
+		/// <param name="PakParamsList"></param>
+		/// <param name="CryptoSettings"></param>
+		/// <param name="CryptoKeysCacheFilename"></param>
 		private static void CreatePaks(ProjectParams Params, DeploymentContext SC, List<CreatePakParams> PakParamsList, EncryptionAndSigning.CryptoSettings CryptoSettings, FileReference CryptoKeysCacheFilename)
 		{
 			bool? bCustomDeploymentNeedsDiffPak = SC.CustomDeployment?.GetPlatformPatchesWithDiffPak(Params, SC);

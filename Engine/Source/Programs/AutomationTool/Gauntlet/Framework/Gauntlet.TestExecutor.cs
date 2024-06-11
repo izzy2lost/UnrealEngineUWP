@@ -122,7 +122,8 @@ namespace Gauntlet
 		/// <summary>
 		/// Executes the provided tests. Currently tests are executed synchronously
 		/// </summary>
-		/// <param name="Context"></param>
+		/// <param name="InOptions"></param>
+		/// <param name="RequiredTests"></param>
 		public bool ExecuteTests(TestExecutorOptions InOptions, IEnumerable<ITestNode> RequiredTests)
 		{
 			Options = InOptions;
@@ -550,12 +551,13 @@ namespace Gauntlet
 			
 			return FailedTestCount == 0 && !IsCancelled;
 		}
-		
+
 		/// <summary>
 		/// Executes a single test
 		/// </summary>
-		/// <param name="Test">Test to execute</param>
-		/// <param name="Context">The context to execute this test under</param>
+		/// <param name="TestInfo">Test to execute</param>
+		/// <param name="Pass"></param>
+		/// <param name="NumPasses"></param>
 		/// <returns></returns>
 		private bool StartTest(TestExecutionInfo TestInfo, int Pass, int NumPasses)
 		{

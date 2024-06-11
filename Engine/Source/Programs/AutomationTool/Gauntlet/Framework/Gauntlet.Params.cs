@@ -24,7 +24,6 @@ namespace Gauntlet
 		/// <summary>
 		/// Parses the argument list for a parameter and returns whether it is defined or not.
 		/// </summary>
-		/// <param name="ArgList">Argument list.</param>
 		/// <param name="Param">Param to check for.</param>
 		/// <returns>True if param was found, false otherwise.</returns>
 		public bool ParseParam(string Param)
@@ -115,8 +114,8 @@ namespace Gauntlet
 		/// Parses the argument list for a string parameter and reads its value. 
 		/// Ex. ParseParamValue(Args, "map=")
 		/// </summary>
-		/// <param name="ArgList">Argument list.</param>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public string ParseValue(string Param, string Default = null)
 		{
@@ -129,8 +128,8 @@ namespace Gauntlet
 		/// Parses the argument list for an int parameter and reads its value. 
 		/// Ex. ParseParamValue(Args, "timeout=")
 		/// </summary>
-		/// <param name="ArgList">Argument list.</param>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public int ParseValue(string Param, int Default = 0)
 		{
@@ -148,8 +147,8 @@ namespace Gauntlet
 		/// Parses the argument list for a float parameter and reads its value. 
 		/// Ex. ParseParamValue(Args, "timeout=")
 		/// </summary>
-		/// <param name="ArgList">Argument list.</param>
 		/// <param name="Param">Param to read its value.</param>
+		/// <param name="Default"></param>
 		/// <returns>Returns the value or Default if the parameter was not found.</returns>
 		public float ParseValue(string Param, float Default = 0)
 		{

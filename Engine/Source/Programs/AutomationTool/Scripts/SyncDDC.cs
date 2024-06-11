@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Concurrent;
@@ -50,7 +50,9 @@ namespace AutomationTool
 			/// Constructor
 			/// </summary>
 			/// <param name="RelativePath">Relative path for this file</param>
-			/// <param name="File">File information</param>
+			/// <param name="FullName"></param>
+			/// <param name="Length"></param>
+			/// <param name="LastWriteTimeUtc"></param>
 			public CacheFile(string RelativePath, string FullName, long Length, DateTime LastWriteTimeUtc)
 			{
 				this.RelativePath = RelativePath;
@@ -267,6 +269,7 @@ namespace AutomationTool
 		/// <param name="Items">List of items</param>
 		/// <param name="CreateAction">Delegate which will create an action to execute for an item</param>
 		/// <param name="Message">Prefix to add to progress messages</param>
+		/// <param name="CancellationToken"></param>
 		static void ForEach<T>(IList<T> Items, Func<T, ConcurrentQueue<string>, Action> CreateAction, string Message, CancellationToken? CancellationToken = null)
 		{
 			using (ThreadPoolWorkQueue Queue = new ThreadPoolWorkQueue())
@@ -500,7 +503,7 @@ namespace AutomationTool
 		/// Parses a time argument as number of seconds, which may be specified in h/m/s units.
 		/// </summary>
 		/// <param name="Text">Text to parse</param>
-		/// <param name="TimeSection">Receives the parsed argument, in seconds</param>
+		/// <param name="TimeSeconds">Receives the parsed argument, in seconds</param>
 		/// <returns>True if a size could be parsed</returns>
 		static bool TryParseTime(string Text, out int TimeSeconds)
 		{

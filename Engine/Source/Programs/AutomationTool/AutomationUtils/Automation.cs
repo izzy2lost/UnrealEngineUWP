@@ -51,7 +51,9 @@ namespace AutomationTool
 		/// <summary>
 		/// Main method.
 		/// </summary>
-		/// <param name="Arguments">Command line</param>
+		/// <param name="AutomationToolCommandLine">Command line</param>
+		/// <param name="StartupListener"></param>
+		/// <param name="ScriptModuleAssemblies"></param>
 		public static async Task<ExitCode> ProcessAsync(ParsedCommandLine AutomationToolCommandLine, StartupTraceListener StartupListener, HashSet<FileReference> ScriptModuleAssemblies)
 		{
 			GlobalCommandLine.Initialize(AutomationToolCommandLine);
@@ -233,6 +235,7 @@ namespace AutomationTool
 		/// Useful for shutdown code where shutdown may be in several stages and it's important that all stages get a chance to run.
 		/// </summary>
 		/// <param name="Action"></param>
+		/// <param name="ActionDesc"></param>
 		private static void NoThrow(System.Action Action, string ActionDesc)
         {
             try

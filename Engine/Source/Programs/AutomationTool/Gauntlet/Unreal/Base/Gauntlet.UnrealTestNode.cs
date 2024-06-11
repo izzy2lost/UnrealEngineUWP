@@ -125,6 +125,7 @@ namespace Gauntlet
 		/// Report an error
 		/// </summary>
 		/// <param name="Message"></param>
+		/// <param name="Args"></param>
 		public virtual void ReportError(string Message, params object[] Args)
 		{
 			Message = string.Format(Message, Args);
@@ -140,6 +141,7 @@ namespace Gauntlet
 		/// Report a warning
 		/// </summary>
 		/// <param name="Message"></param>
+		/// <param name="Args"></param>
 		public virtual void ReportWarning(string Message, params object[] Args)
 		{
 			Message = string.Format(Message, Args);
@@ -942,7 +944,6 @@ namespace Gauntlet
 		/// <summary>
 		/// Cleanup all resources
 		/// </summary>
-		/// <param name="Node"></param>
 		/// <returns></returns>
 		public override void CleanupTest()
 		{
@@ -970,7 +971,6 @@ namespace Gauntlet
 		/// Restarts the provided test. Only called if one of our derived
 		/// classes requests it via the Status result
 		/// </summary>
-		/// <param name="Node"></param>
 		/// <returns></returns>
 		public override bool RestartTest()
 		{
@@ -1044,7 +1044,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Called when a test has completed. By default saves artifacts and calles CreateReport
 		/// </summary>
-		/// <param name="Result"></param>
+		/// <param name="InReason"></param>
 		/// <returns></returns>
 		public override void StopTest(StopReason InReason)
 		{
@@ -1513,6 +1513,7 @@ namespace Gauntlet
 		/// Set Metadata on ITestReport
 		/// </summary>
 		/// <param name="Report"></param>
+		/// <param name="Roles"></param>
 		protected virtual void SetReportMetadata(ITestReport Report, IEnumerable<UnrealTestRole> Roles)
 		{
 			var AllRoleTypes = Roles.Select(R =>  R.Type);
@@ -1592,8 +1593,6 @@ namespace Gauntlet
 		/// Called to request that the test save all artifacts from the completed test to the specified 
 		/// output path. By default the app will save all logs and crash dumps
 		/// </summary>
-		/// <param name="Completed"></param>
-		/// <param name="Node"></param>
 		/// <param name="OutputPath"></param>
 		/// <returns></returns>
 		public virtual void SaveArtifacts_DEPRECATED(string OutputPath)
@@ -1605,8 +1604,6 @@ namespace Gauntlet
 		/// Called to request that the test save all artifacts from the completed test to the specified 
 		/// output path. By default the app will save all logs and crash dumps
 		/// </summary>
-		/// <param name="Completed"></param>
-		/// <param name="Node"></param>
 		/// <param name="OutputPath"></param>
 		/// <returns></returns>
 		public virtual IEnumerable<UnrealRoleArtifacts> SaveRoleArtifacts(string OutputPath)
@@ -1617,9 +1614,11 @@ namespace Gauntlet
 		/// <summary>
 		/// Parses the provided artifacts to determine the cause of an exit and whether it was abnormal
 		/// </summary>
+		/// <param name="InReason"></param>
+		/// <param name="InLog"></param>
 		/// <param name="InArtifacts"></param>
-		/// <param name="Reason"></param>
-		/// <param name="WasAbnormal"></param>
+		/// <param name="ExitReason"></param>
+		/// <param name="ExitCode"></param>
 		/// <returns></returns>
 		protected virtual UnrealProcessResult GetExitCodeAndReason(StopReason InReason, UnrealLog InLog, UnrealRoleArtifacts InArtifacts, out string ExitReason, out int ExitCode)
 		{
@@ -1722,6 +1721,7 @@ namespace Gauntlet
 		/// <param name="InReason"></param>
 		/// <param name="InRoleArtifacts"></param>
 		/// <param name="InLog"></param>
+		/// <param name="ProcessResult"></param>
 		/// <returns></returns>
 		protected virtual IEnumerable<UnrealTestEvent> CreateEventListFromArtifact(StopReason InReason, UnrealRoleArtifacts InRoleArtifacts, UnrealLog InLog, UnrealProcessResult ProcessResult)
 		{
@@ -1780,6 +1780,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Returns a RoleResult, a representation of this roles result from the test, for the provided artifact
 		/// </summary>
+		/// <param name="InReason"></param>
 		/// <param name="InRoleArtifacts"></param>
 		/// <returns></returns>
 		protected virtual UnrealRoleResult CreateRoleResultFromArtifact(StopReason InReason, UnrealRoleArtifacts InRoleArtifacts)
@@ -1819,6 +1820,7 @@ namespace Gauntlet
 		/// Returns a list of all results for the roles involved in this test by calling CreateRoleResultFromArtifact for all
 		/// artifacts in the list
 		/// </summary>
+		/// <param name="InReason"></param>
 		/// <param name="InAllArtifacts"></param>
 		/// <returns></returns>
 		protected virtual IEnumerable<UnrealRoleResult> CreateRoleResultsFromArtifacts(StopReason InReason, IEnumerable<UnrealRoleArtifacts> InAllArtifacts)
@@ -1968,7 +1970,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Returns a hash that represents the results of a role. Should be 0 if no fatal errors or ensures
 		/// </summary>
-		/// <param name="InArtifacts"></param>
+		/// <param name="InResult"></param>
 		/// <returns></returns>
 		protected virtual string GetRoleResultHash(UnrealRoleResult InResult)
 		{
