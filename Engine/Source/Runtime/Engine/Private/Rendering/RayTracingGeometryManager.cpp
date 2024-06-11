@@ -338,6 +338,11 @@ void FRayTracingGeometryManager::PreRender()
 
 void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 {
+	if (IsRunningCommandlet())
+	{
+		return;
+	}
+
 	check(IsInRenderingThread());
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingGeometryManager::Tick);
