@@ -26,6 +26,18 @@ FPhysicsControlAndBodyModifierCreationDatas& FPhysicsControlAndBodyModifierCreat
 }
 
 //======================================================================================================================
+bool FPhysicsControlAndBodyModifierCreationDatas::operator==(const FPhysicsControlAndBodyModifierCreationDatas& other) const
+{
+	if (Controls.OrderIndependentCompareEqual(other.Controls) &&
+		Modifiers.OrderIndependentCompareEqual(other.Modifiers))
+	{
+		return true;
+	}
+	return false;
+}
+
+
+//======================================================================================================================
 FPhysicsControlData Interpolate(
 	const FPhysicsControlData& A, const FPhysicsControlData& B, const float Weight)
 {

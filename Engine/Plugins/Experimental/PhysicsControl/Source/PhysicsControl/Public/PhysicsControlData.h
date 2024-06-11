@@ -82,6 +82,8 @@ struct PHYSICSCONTROL_API FPhysicsControlSetUpdate
 {
 	GENERATED_BODY();
 
+	bool operator==(const FPhysicsControlSetUpdate& other) const = default;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FName SetName;
 
@@ -99,6 +101,8 @@ struct PHYSICSCONTROL_API FPhysicsControlSetUpdates
 	GENERATED_BODY();
 
 	FPhysicsControlSetUpdates& operator+=(const FPhysicsControlSetUpdates& Other);
+
+	bool operator==(const FPhysicsControlSetUpdates& other) const = default;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	TArray<FPhysicsControlSetUpdate> ControlSetUpdates;
@@ -138,6 +142,8 @@ struct PHYSICSCONTROL_API FPhysicsControlModifierSparseData
 		, bEnablebUpdateKinematicFromSimulation(true)
 	{
 	}
+
+	bool operator==(const FPhysicsControlModifierSparseData& other) const = default;
 
 	/**
 	 * How the body should move.
@@ -221,6 +227,8 @@ struct PHYSICSCONTROL_API FPhysicsControlModifierData
 	{
 	}
 
+	bool operator==(const FPhysicsControlModifierData& other) const = default;
+
 	void UpdateFromSparseData(const FPhysicsControlModifierSparseData& SparseData);
 
 	/**
@@ -281,6 +289,8 @@ struct PHYSICSCONTROL_API FPhysicsBodyModifier
 	FPhysicsBodyModifier(FName InBoneName, const FPhysicsControlModifierData& InModifierData)
 		: BoneName(InBoneName), ModifierData(InModifierData) {}
 
+	bool operator==(const FPhysicsBodyModifier& other) const = default;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FName BoneName;
 
@@ -295,6 +305,8 @@ USTRUCT(BlueprintType)
 struct PHYSICSCONTROL_API FPhysicsBodyModifierCreationData
 {
 	GENERATED_BODY();
+
+	bool operator==(const FPhysicsBodyModifierCreationData& other) const = default;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FPhysicsBodyModifier Modifier;
@@ -350,6 +362,8 @@ struct PHYSICSCONTROL_API FPhysicsControlSparseData
 		, bEnablebOnlyControlChildObject(true)
 	{
 	}
+
+	bool operator==(const FPhysicsControlSparseData& other) const = default;
 
 	/** The strength used to drive linear motion */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableLinearStrength"))
@@ -543,6 +557,8 @@ struct PHYSICSCONTROL_API FPhysicsControlData
 	{
 	}
 
+	bool operator==(const FPhysicsControlData& other) const = default;
+
 	/** Applies the values that have been flagged as enabled from the sparse data */
 	void UpdateFromSparseData(const FPhysicsControlSparseData& SparseData);
 
@@ -679,6 +695,8 @@ struct PHYSICSCONTROL_API FPhysicsControlSparseMultiplier
 	{
 	}
 
+	bool operator==(const FPhysicsControlSparseMultiplier& other) const = default;
+
 	// Per-direction multiplier on the linear strength.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (ClampMin = "0.0", editcondition = "bEnableLinearStrengthMultiplier"))
 	FVector LinearStrengthMultiplier;
@@ -764,6 +782,8 @@ struct PHYSICSCONTROL_API FPhysicsControlMultiplier
 		, MaxTorqueMultiplier(1.0)
 	{
 	}
+
+	bool operator==(const FPhysicsControlMultiplier& other) const = default;
 
 	/** Applies the values that have been flagged as enabled from the sparse data */
 	void UpdateFromSparseData(const FPhysicsControlSparseMultiplier& SparseData);
@@ -870,6 +890,8 @@ struct PHYSICSCONTROL_API FPhysicsControl
 	{
 	}
 
+	bool operator==(const FPhysicsControl& other) const = default;
+
 	// Indicates if the control is enabled
 	bool IsEnabled() const { return ControlData.bEnabled; }
 
@@ -906,6 +928,8 @@ struct PHYSICSCONTROL_API FPhysicsControlCreationData
 {
 	GENERATED_BODY();
 
+	bool operator==(const FPhysicsControlCreationData& other) const = default;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FPhysicsControl Control;
 
@@ -925,6 +949,8 @@ struct PHYSICSCONTROL_API FPhysicsControlNamedControlParameters
 
 	FPhysicsControlNamedControlParameters(FName InName, const FPhysicsControlSparseData& InData)
 		: Name(InName), Data(InData) {}
+
+	bool operator==(const FPhysicsControlNamedControlParameters& other) const = default;
 
 	// The name of the control (or set of controls) to update
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
@@ -947,6 +973,8 @@ struct PHYSICSCONTROL_API FPhysicsControlNamedControlMultiplierParameters
 	FPhysicsControlNamedControlMultiplierParameters(FName InName, const FPhysicsControlSparseMultiplier& InData)
 		: Name(InName), Data(InData) {}
 
+	bool operator==(const FPhysicsControlNamedControlMultiplierParameters& other) const = default;
+
 	// The name of the control (or set of controls) to update
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FName Name;
@@ -968,6 +996,8 @@ struct PHYSICSCONTROL_API FPhysicsControlNamedModifierParameters
 
 	FPhysicsControlNamedModifierParameters(FName InName, const FPhysicsControlModifierSparseData& InData)
 		: Name(InName), Data(InData) {}
+
+	bool operator==(const FPhysicsControlNamedModifierParameters& other) const = default;
 
 	// The name of the modifier (or set of modifiers) to update
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
@@ -1022,6 +1052,8 @@ struct PHYSICSCONTROL_API FPhysicsControlControlAndModifierUpdates
 {
 	GENERATED_BODY();
 
+	bool operator==(const FPhysicsControlControlAndModifierUpdates& other) const = default;
+
 	/** Modifications to the underlying controls */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	TArray<FPhysicsControlNamedControlParameters> ControlUpdates;
@@ -1044,6 +1076,8 @@ struct PHYSICSCONTROL_API FPhysicsControlAndBodyModifierCreationDatas
 	GENERATED_BODY();
 
 	FPhysicsControlAndBodyModifierCreationDatas& operator+=(const FPhysicsControlAndBodyModifierCreationDatas& other);
+
+	bool operator==(const FPhysicsControlAndBodyModifierCreationDatas& other) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	TMap<FName, FPhysicsControlCreationData> Controls;

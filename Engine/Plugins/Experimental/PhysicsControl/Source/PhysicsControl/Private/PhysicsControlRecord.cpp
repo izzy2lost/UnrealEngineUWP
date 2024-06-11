@@ -10,7 +10,7 @@
 //======================================================================================================================
 void FPhysicsControlRecord::ResetConstraint()
 {
-	if (ConstraintInstance)
+	if (ConstraintInstance.IsValid())
 	{
 		ConstraintInstance->TermConstraint();
 	}
@@ -34,11 +34,11 @@ FVector FPhysicsControlRecord::GetControlPoint() const
 //======================================================================================================================
 bool FPhysicsControlRecord::InitConstraint(UObject* ConstraintDebugOwner, FName ControlName)
 {
-	if (!ConstraintInstance)
+	if (!ConstraintInstance.IsValid())
 	{
 		ConstraintInstance = MakeShared<FConstraintInstance>();
 	}
-	check(ConstraintInstance);
+	check(ConstraintInstance.IsValid());
 
 	FBodyInstance* ParentBody = UE::PhysicsControl::GetBodyInstance(
 		ParentComponent.Get(), PhysicsControl.ParentBoneName);
@@ -89,7 +89,7 @@ bool FPhysicsControlRecord::InitConstraint(UObject* ConstraintDebugOwner, FName 
 // corresponds to the child frame. Frame2 will always be identity, because we never change it.
 void FPhysicsControlRecord::UpdateConstraintControlPoint()
 {
-	if (ConstraintInstance)
+	if (ConstraintInstance.IsValid())
 	{
 		// Constraints are child then parent
 		FTransform Frame1 = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame1);

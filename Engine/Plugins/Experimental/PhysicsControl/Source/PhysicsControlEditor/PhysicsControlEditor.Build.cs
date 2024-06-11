@@ -35,21 +35,26 @@ public class PhysicsControlEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AdvancedPreviewScene",
 				"AnimationCore",
 				"AnimationEditMode",
 				"AnimGraph",
 				"AnimGraphRuntime",
 				"ApplicationCore",
 				"BlueprintGraph",
+				"Chaos",
 				"ComponentVisualizers",
 				"Core",
 				"CoreUObject",
 				"EditorFramework",
+				"EditorStyle",
 				"Engine",
 				"InputCore",
 				"Persona",
+				"PinnedCommandList",
 				"PhysicsControl",
 				"PhysicsControlUncookedOnly",
+				"SkeletonEditor",
 				"Slate",
 				"SlateCore",
 				"ToolMenus",
@@ -63,12 +68,12 @@ public class PhysicsControlEditor : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-						"AnimationEditor",
-						"AnimGraph",
-						"BlueprintGraph",
-						"EditorFramework",
-						"Kismet",
-						"UnrealEd",
+					"AnimationEditor",
+					"AnimGraph",
+					"BlueprintGraph",
+					"EditorFramework",
+					"Kismet",
+					"UnrealEd",
 				}
 			);
 		}

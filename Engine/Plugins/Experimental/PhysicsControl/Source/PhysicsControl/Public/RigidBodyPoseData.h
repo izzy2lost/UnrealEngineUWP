@@ -19,6 +19,7 @@ struct FOutputBoneData
 {
 	FOutputBoneData()
 		: CompactPoseBoneIndex(INDEX_NONE), CompactPoseParentBoneIndex(INDEX_NONE)
+		, BodyIndex(0), ParentBodyIndex(0)
 	{}
 
 	TArray<FCompactPoseBoneIndex> BoneIndicesToParentBody;

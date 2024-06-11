@@ -12,7 +12,7 @@
 class USkeletalMesh;
 
 /**
- * Asset for storing Physics Control Profiles. These will contain data that define:
+ * Asset for storing Physics Control Profiles. The asset will contain data that define:
  * - Controls and body modifiers to be created on a mesh
  * - Sets referencing those controls and body modifiers
  * - Full profiles containing settings for all the controls/modifiers
@@ -76,12 +76,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Inheritance)
 	TArray<TSoftObjectPtr<UPhysicsControlAsset>> AdditionalProfileAssets;
 
-	/**
-	* The skeletal mesh to use for generating controls and previewing. If it turns out this 
-	* doesn't need to be stored in the asset, it will get moved out of here.
-	*/
+	/** The PhysicsAsset that this control asset is targeting. Can also get the preview mesh from this */
 	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = PreviewMesh)
-	TSoftObjectPtr<USkeletalMesh> PreviewSkeletalMesh;
+	TSoftObjectPtr<UPhysicsAsset> PhysicsAsset;
 
 public:
 	// "My" runtime data - i.e. the data that will be combined with what has been inherited
@@ -90,32 +87,32 @@ public:
 	/**
 	 * We can define controls in the form of limbs etc here
 	 */
-	UPROPERTY(EditAnywhere, Category = ProfileData, meta=(DisplayName="Character Setup Data"))
+	UPROPERTY(EditAnywhere, Category = Setup, meta=(DisplayName="Character Setup Data"))
 	FPhysicsControlCharacterSetupData MyCharacterSetupData;
 
 	/**
 	 * Additional controls and modifiers. If these have the same name as one that's 
 	 * already created, they'll just override it.
 	 */
-	UPROPERTY(EditAnywhere, Category = ProfileData, meta = (DisplayName = "Additional Controls and Modifiers"))
+	UPROPERTY(EditAnywhere, Category = Setup, meta = (DisplayName = "Additional Controls and Modifiers"))
 	FPhysicsControlAndBodyModifierCreationDatas MyAdditionalControlsAndModifiers;
 
 	/**
 	 * Additional control and body modifier sets
 	 */
-	UPROPERTY(EditAnywhere, Category = ProfileData, meta = (DisplayName = "Additional Sets"))
+	UPROPERTY(EditAnywhere, Category = Setup, meta = (DisplayName = "Additional Sets"))
 	FPhysicsControlSetUpdates MyAdditionalSets;
 
 	/**
 	 * Initial updates to apply immediately after controls and modifiers are created
 	 */
-	UPROPERTY(EditAnywhere, Category = ProfileData, meta = (DisplayName = "Initial Control and Modifier Updates"))
+	UPROPERTY(EditAnywhere, Category = Setup, meta = (DisplayName = "Initial Control and Modifier Updates"))
 	TArray<FPhysicsControlControlAndModifierUpdates> MyInitialControlAndModifierUpdates;
 
 	/**
 	 * The named profiles, which are essentially control and modifier updates
 	 */
-	UPROPERTY(EditAnywhere, Category = ProfileData, meta = (DisplayName = "Profiles"))
+	UPROPERTY(EditAnywhere, Category = Profiles, meta = (DisplayName = "Profiles"))
 	TMap<FName, FPhysicsControlControlAndModifierUpdates> MyProfiles;
 #endif
 
@@ -124,15 +121,22 @@ public:
 
 #if WITH_EDITOR
 	/** Shows all the controls etc that would be made */
-	UFUNCTION(CallInEditor, Category = Development)
+	UFUNCTION(CallInEditor, Category = Actions)
 	void ShowCompiledData() const;
 
 	/** 
 	 * Collapses inherited and authored profiles etc to make a profile asset that can be read without 
 	 * need for subsequent processing.
 	 */
-	UFUNCTION(CallInEditor)
+	UFUNCTION(CallInEditor, Category = Actions)
 	void Compile();
+
+	/** 
+	 * Returns true if compilation would change any of our compiled data. Note that this is potentially slow as
+	 * it simply compiles and compares the result with the data we already have.
+	 */
+	UFUNCTION(CallInEditor, Category = Actions)
+	bool IsCompilationNeeded() const;
 
 	/** Combines and returns data from our parent and ourself */
 	FPhysicsControlCharacterSetupData GetCharacterSetupData() const;
@@ -159,8 +163,14 @@ public:
 	/** END IInterface_PreviewMeshProvider interface */
 
 #if WITH_EDITOR
-	/* Get name of Preview Mesh property */
+	/** This loads the asset if necessary */
+	UPhysicsAsset* GetPhysicsAsset() const;
+	void SetPhysicsAsset(UPhysicsAsset* InPhysicsAsset);
+
 	static const FName GetPreviewMeshPropertyName();
 #endif
+
+
+
 
 };

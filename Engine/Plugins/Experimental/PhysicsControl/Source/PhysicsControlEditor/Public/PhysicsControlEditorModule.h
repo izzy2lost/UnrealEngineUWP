@@ -11,7 +11,7 @@ class FPhysicsControlOperatorEditor;
 class FPhysicsControlAssetActions;
 
 /**
- * Module handles the Physics Control Profile editor, and also the Physics Control Visualizer
+ * Module handles the Physics Control Asset editor, and also the Physics Control Visualizer
  */
 class FPhysicsControlEditorModule : public IModuleInterface
 {

@@ -7,11 +7,12 @@
 
 class FWorkflowCentricApplication;
 class IPersonaPreviewScene;
+class ISkeletonTree;
 
-class FPhysicsControlAssetEditorToolkit;
+class FPhysicsControlAssetEditor;
 
 /**
- * The application mode for the Physics Control Profile Editor
+ * The application mode for the Physics Control Asset Editor
  * This defines the layout of the UI. It basically spawns all the tabs, such as the viewport, details panels, etc.
  */
 class PHYSICSCONTROLEDITOR_API FPhysicsControlAssetApplicationMode : public FApplicationMode
@@ -22,6 +23,7 @@ public:
 
 	FPhysicsControlAssetApplicationMode(
 		TSharedRef<FWorkflowCentricApplication> InHostingApp, 
+		TSharedPtr<ISkeletonTree>               SkeletonTree,
 		TSharedRef<IPersonaPreviewScene>        InPreviewScene);
 
 	// FApplicationMode overrides.
@@ -30,7 +32,7 @@ public:
 
 protected:
 	/** The hosting app. */
-	TWeakPtr<FPhysicsControlAssetEditorToolkit> EditorToolkit = nullptr;
+	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor = nullptr;
 
 	/** The tab factories we support. */
 	FWorkflowAllowedTabSet TabFactories;

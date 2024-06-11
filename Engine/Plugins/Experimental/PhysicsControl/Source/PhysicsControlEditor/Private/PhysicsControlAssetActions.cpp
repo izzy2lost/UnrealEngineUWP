@@ -2,7 +2,7 @@
 
 #include "PhysicsControlAssetActions.h"
 #include "PhysicsControlAsset.h"
-#include "PhysicsControlAssetEditorToolkit.h"
+#include "PhysicsControlAssetEditor.h"
 
 //======================================================================================================================
 UClass* FPhysicsControlAssetActions::GetSupportedClass() const
@@ -13,7 +13,7 @@ UClass* FPhysicsControlAssetActions::GetSupportedClass() const
 //======================================================================================================================
 FText FPhysicsControlAssetActions::GetName() const
 {
-	return INVTEXT("Physics Control Profile");
+	return INVTEXT("Physics Control Asset");
 }
 
 //======================================================================================================================
@@ -40,7 +40,7 @@ void FPhysicsControlAssetActions::OpenAssetEditor(
 	{
 		if (UPhysicsControlAsset* Asset = Cast<UPhysicsControlAsset>(Object))
 		{
-			TSharedRef<FPhysicsControlAssetEditorToolkit> NewEditor(new FPhysicsControlAssetEditorToolkit());
+			TSharedRef<FPhysicsControlAssetEditor> NewEditor(new FPhysicsControlAssetEditor());
 			NewEditor->InitAssetEditor(Mode, EditWithinLevelEditor, Asset);
 		}
 	}

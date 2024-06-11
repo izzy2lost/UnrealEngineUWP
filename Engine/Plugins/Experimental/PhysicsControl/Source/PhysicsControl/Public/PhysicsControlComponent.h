@@ -1679,11 +1679,14 @@ public:
 	bool bWarnAboutInvalidNames = true;
 
 public:
-#if WITH_EDITOR
 	//Begin ActorComponent interface
 	virtual void OnRegister() override;
+	virtual bool ShouldCreatePhysicsState() const override;
+	virtual void OnCreatePhysicsState() override;
+	virtual void OnDestroyPhysicsState() override;
 	//End ActorComponent interface
 
+#if WITH_EDITOR
 	// Used by the component visualizer
 	virtual void DebugDraw(FPrimitiveDrawInterface* PDI) const;
 	virtual void DebugDrawControl(FPrimitiveDrawInterface* PDI, const FPhysicsControlRecord& Record, const FName ControlName) const;
@@ -1697,6 +1700,8 @@ protected:
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	// End UActorComponent Interface
 
+	// Terminates everything we have made in physics
+	void DestroyPhysicsState();
 
 	/**
 	 * Retrieves the bone data for the specified bone given the skeletal mesh component.

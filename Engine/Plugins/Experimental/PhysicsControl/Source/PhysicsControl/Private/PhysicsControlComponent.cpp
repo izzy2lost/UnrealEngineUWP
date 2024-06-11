@@ -70,18 +70,7 @@ void UPhysicsControlComponent::InitializeComponent()
 //======================================================================================================================
 void UPhysicsControlComponent::BeginDestroy()
 {
-	for (TPair<FName, FPhysicsControlRecord>& ControlRecordPair : ControlRecords)
-	{
-		DestroyControl(ControlRecordPair.Key, EDestroyBehavior::KeepRecord);
-	}
-	ControlRecords.Empty();
-
-	for (TPair<FName, FPhysicsBodyModifierRecord>& BodyModifierPair : BodyModifierRecords)
-	{
-		DestroyBodyModifier(BodyModifierPair.Key, EDestroyBehavior::KeepRecord);
-	}
-	BodyModifierRecords.Empty();
-
+	DestroyPhysicsState();
 	Super::BeginDestroy();
 }
 
@@ -2386,6 +2375,11 @@ TArray<FTransform> UPhysicsControlComponent::GetCachedBoneTransforms(
 		}
 		else
 		{
+			if (bWarnAboutInvalidNames)
+			{
+				UE_LOG(LogPhysicsControl, Warning,
+					TEXT("GetCachedBoneTransforms - unable to get bone data for %s"), *BoneName.ToString());
+			}
 			Result.Add(FTransform::Identity);
 		}
 	}
@@ -2410,6 +2404,11 @@ TArray<FVector> UPhysicsControlComponent::GetCachedBonePositions(
 		}
 		else
 		{
+			if (bWarnAboutInvalidNames)
+			{
+				UE_LOG(LogPhysicsControl, Warning,
+					TEXT("GetCachedBonePositions - unable to get bone data for %s"), *BoneName.ToString());
+			}
 			Result.Add(FVector::ZeroVector);
 		}
 	}
@@ -2434,6 +2433,11 @@ TArray<FRotator> UPhysicsControlComponent::GetCachedBoneOrientations(
 		}
 		else
 		{
+			if (bWarnAboutInvalidNames)
+			{
+				UE_LOG(LogPhysicsControl, Warning,
+					TEXT("GetCachedBoneOrientations - unable to get bone data for %s"), *BoneName.ToString());
+			}
 			Result.Add(FRotator::ZeroRotator);
 		}
 	}
@@ -2443,18 +2447,18 @@ TArray<FRotator> UPhysicsControlComponent::GetCachedBoneOrientations(
 //======================================================================================================================
 FTransform UPhysicsControlComponent::GetCachedBoneTransform(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const FName                   Name)
+	const FName                   BoneName)
 {
 	UE::PhysicsControl::FBoneData BoneData;
 	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
-	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Name))
+	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, BoneName))
 	{
 		return FTransform(BoneData.CurrentTM.GetRotation(), BoneData.CurrentTM.GetTranslation());
 	}
 	if (bWarnAboutInvalidNames)
 	{
 		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("GetCachedBoneTransform - invalid name %s"), *Name.ToString());
+			TEXT("GetCachedBoneTransform - invalid bone name %s"), *BoneName.ToString());
 	}
 	return FTransform();
 }
@@ -2462,18 +2466,18 @@ FTransform UPhysicsControlComponent::GetCachedBoneTransform(
 //======================================================================================================================
 FVector UPhysicsControlComponent::GetCachedBonePosition(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const FName                   Name)
+	const FName                   BoneName)
 {
 	UE::PhysicsControl::FBoneData BoneData;
 	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
-	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Name))
+	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, BoneName))
 	{
 		return BoneData.CurrentTM.GetTranslation();
 	}
 	if (bWarnAboutInvalidNames)
 	{
 		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("GetCachedBonePosition - invalid name %s"), *Name.ToString());
+			TEXT("GetCachedBonePosition - invalid bone name %s"), *BoneName.ToString());
 	}
 	return FVector::ZeroVector;
 }
@@ -2481,18 +2485,18 @@ FVector UPhysicsControlComponent::GetCachedBonePosition(
 //======================================================================================================================
 FRotator UPhysicsControlComponent::GetCachedBoneOrientation(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const FName                   Name)
+	const FName                   BoneName)
 {
 	UE::PhysicsControl::FBoneData BoneData;
 	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
-	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Name))
+	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, BoneName))
 	{
 		return BoneData.CurrentTM.GetRotation().Rotator();
 	}
 	if (bWarnAboutInvalidNames)
 	{
 		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("GetCachedBoneOrientation - invalid name %s"), *Name.ToString());
+			TEXT("GetCachedBoneOrientation - invalid bone name %s"), *BoneName.ToString());
 	}
 	return FRotator::ZeroRotator;
 }
@@ -2500,11 +2504,11 @@ FRotator UPhysicsControlComponent::GetCachedBoneOrientation(
 //======================================================================================================================
 bool UPhysicsControlComponent::SetCachedBoneData(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const FName                   Name,
+	const FName                   BoneName,
 	const FTransform&             TM)
 {
 	UE::PhysicsControl::FBoneData* BoneData;
-	if (GetModifiableBoneData(BoneData, SkeletalMeshComponent, Name))
+	if (GetModifiableBoneData(BoneData, SkeletalMeshComponent, BoneName))
 	{
 		BoneData->CurrentTM = TM;
 		return true;
@@ -2512,7 +2516,7 @@ bool UPhysicsControlComponent::SetCachedBoneData(
 	if (bWarnAboutInvalidNames)
 	{
 		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("SetCachedBoneData - invalid name %s"), *Name.ToString());
+			TEXT("SetCachedBoneData - invalid bone name %s"), *BoneName.ToString());
 	}
 	return false;
 }
@@ -2585,12 +2589,47 @@ bool UPhysicsControlComponent::GetBodyModifierExists(const FName Name) const
 	return FindBodyModifierRecord(Name) != nullptr;
 }
 
-#if WITH_EDITOR
+//======================================================================================================================
+bool UPhysicsControlComponent::ShouldCreatePhysicsState() const
+{
+	// This is needed to ensure we get the destroy call
+	return true;
+}
+
+//======================================================================================================================
+void UPhysicsControlComponent::OnCreatePhysicsState()
+{
+	Super::OnCreatePhysicsState();
+}
+
+//======================================================================================================================
+void UPhysicsControlComponent::DestroyPhysicsState()
+{
+	for (TPair<FName, FPhysicsControlRecord>& ControlRecordPair : ControlRecords)
+	{
+		DestroyControl(ControlRecordPair.Key, EDestroyBehavior::KeepRecord);
+	}
+	ControlRecords.Empty();
+
+	for (TPair<FName, FPhysicsBodyModifierRecord>& BodyModifierPair : BodyModifierRecords)
+	{
+		DestroyBodyModifier(BodyModifierPair.Key, EDestroyBehavior::KeepRecord);
+	}
+	BodyModifierRecords.Empty();
+}
+
+//======================================================================================================================
+void UPhysicsControlComponent::OnDestroyPhysicsState()
+{
+	DestroyPhysicsState();
+	Super::OnDestroyPhysicsState();
+}
 
 //======================================================================================================================
 void UPhysicsControlComponent::OnRegister()
 {
 	Super::OnRegister();
+#if WITH_EDITOR
 
 	if (SpriteComponent)
 	{
@@ -2598,8 +2637,10 @@ void UPhysicsControlComponent::OnRegister()
 		SpriteComponent->SpriteInfo.Category = TEXT("Physics");
 		SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("SpriteCategory", "Physics", "Physics");
 	}
+#endif
 }
 
+#if WITH_EDITOR
 //======================================================================================================================
 void UPhysicsControlComponent::DebugDraw(FPrimitiveDrawInterface* PDI) const
 {

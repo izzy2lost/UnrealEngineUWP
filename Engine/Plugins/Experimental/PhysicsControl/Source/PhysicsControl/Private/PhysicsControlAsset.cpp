@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PhysicsControlAsset.h"
+
 #include "Engine/SkeletalMesh.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 
 //#ifdef WITH_EDITOR
 //#include "Editor.h"
@@ -64,6 +66,32 @@ void UPhysicsControlAsset::Compile()
 	Profiles = GetProfiles();
 
 	Modify();
+}
+
+//======================================================================================================================
+bool UPhysicsControlAsset::IsCompilationNeeded() const
+{
+	if (CharacterSetupData != GetCharacterSetupData())
+	{
+		return true;
+	}
+	if (AdditionalControlsAndModifiers != GetAdditionalControlsAndModifiers())
+	{
+		return true;
+	}
+	if (AdditionalSets != GetAdditionalSets())
+	{
+		return true;
+	}
+	if (InitialControlAndModifierUpdates != GetInitialControlAndModifierUpdates())
+	{
+		return true;
+	}
+	if (!Profiles.OrderIndependentCompareEqual(GetProfiles()))
+	{
+		return true;
+	}
+	return false;
 }
 
 //======================================================================================================================
@@ -138,17 +166,33 @@ TMap<FName, FPhysicsControlControlAndModifierUpdates> UPhysicsControlAsset::GetP
 
 #if WITH_EDITOR
 //======================================================================================================================
+UPhysicsAsset* UPhysicsControlAsset::GetPhysicsAsset() const
+{
+	return PhysicsAsset.LoadSynchronous();
+}
+
+//======================================================================================================================
+void UPhysicsControlAsset::SetPhysicsAsset(UPhysicsAsset* InPhysicsAsset)
+{
+	PhysicsAsset = InPhysicsAsset;
+}
+
+//======================================================================================================================
 const FName UPhysicsControlAsset::GetPreviewMeshPropertyName()
 {
-	return GET_MEMBER_NAME_STRING_CHECKED(UPhysicsControlAsset, PreviewSkeletalMesh);
+	return GET_MEMBER_NAME_STRING_CHECKED(UPhysicsAsset, PreviewSkeletalMesh);
 };
+
 #endif
 
 //======================================================================================================================
 void UPhysicsControlAsset::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty)
 {
 #if WITH_EDITOR
-	PreviewSkeletalMesh = PreviewMesh;
+	if (UPhysicsAsset* PA = GetPhysicsAsset())
+	{
+		PA->SetPreviewMesh(PreviewMesh, bMarkAsDirty);
+	}
 #endif
 }
 
@@ -156,8 +200,10 @@ void UPhysicsControlAsset::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMark
 USkeletalMesh* UPhysicsControlAsset::GetPreviewMesh() const
 {
 #if WITH_EDITOR
-	return PreviewSkeletalMesh.LoadSynchronous();
-#else
-	return nullptr;
+	if (UPhysicsAsset* PA = GetPhysicsAsset())
+	{
+		return PA->GetPreviewMesh();
+	}
 #endif
+	return nullptr;
 }
