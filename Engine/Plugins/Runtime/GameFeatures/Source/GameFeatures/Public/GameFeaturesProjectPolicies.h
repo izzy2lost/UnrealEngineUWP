@@ -47,7 +47,7 @@ public:
 	virtual TValueOrError<FString, FString> ResolvePluginDependency(const FString& PluginURL, const FString& DependencyName) const;
 
 	// Called to resolve install bundles for streaming asset dependencies
-	virtual TValueOrError<TArray<FName>, FString> GetStreamingAssetInstallBundles(const FString& PluginURL) const { return MakeValue(); }
+	virtual TValueOrError<TArray<FName>, FString> GetStreamingAssetInstallBundles(FStringView PluginURL) const { return MakeValue(); }
 
 	// Called by code that explicitly wants to load a specific plugin
 	// (e.g., when using a fast cook a game might want to allow explicitly loaded game feature plugins)

@@ -1494,23 +1494,44 @@ bool UGameFeaturesSubsystem::ShouldUpdatePluginProtocolOptions(const UGameFeatur
 
 bool UGameFeaturesSubsystem::GetGameFeaturePluginInstallPercent(const FString& PluginURL, float& Install_Percent) const
 {
+	// TODO: figure out if doing IAD streaming and include IAD progress if needed
+
 	if (const UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL))
 	{
 		if (StateMachine->IsStatusKnown() && StateMachine->IsAvailable())
 		{
 			const FGameFeaturePluginStateInfo& StateInfo = StateMachine->GetCurrentStateInfo();
+
+			float InstallProgress = 0.0f;
 			if (StateInfo.State == EGameFeaturePluginState::Downloading)
 			{
-				Install_Percent = StateInfo.Progress;
+				InstallProgress = StateInfo.Progress;
 			}
 			else if (StateInfo.State >= EGameFeaturePluginState::Installed)
 			{
-				Install_Percent = 1.0f;
+				InstallProgress = 1.0f;
 			}
-			else
+
+			if (!StateMachine->HasAssetStreamingDependencies())
 			{
-				Install_Percent = 0.0f;
+				Install_Percent = InstallProgress;
+				return true;
 			}
+
+			float AssetDependencyProgress = 0.0f;
+			if (StateInfo.State == EGameFeaturePluginState::AssetDependencyStreaming)
+			{
+				AssetDependencyProgress = StateInfo.Progress;
+			}
+			else if(StateInfo.State >= EGameFeaturePluginState::Registering)
+			{
+				AssetDependencyProgress = 1.0f;
+			}
+
+			// Assumuption that most of the progress will be from asset dependencies in this case
+			// For this to be more accurate we'd need to figure out the actual sizes during 
+			// EGameFeaturePluginState::CheckingStatus but this is most likely good enough
+			Install_Percent = 0.2f * InstallProgress + 0.8f * AssetDependencyProgress;
 			return true;
 		}
 	}
@@ -2361,13 +2382,13 @@ struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownlo
 				continue;
 			}
 
-			TValueOrError<FInstallBundlePluginProtocolMetaData, void> MaybeInstallBundleOptions = FInstallBundlePluginProtocolMetaData::FromString(URL);
+			TValueOrError<FInstallBundlePluginProtocolMetaData, FString> MaybeInstallBundleOptions = FInstallBundlePluginProtocolMetaData::FromString(URL);
 			if (MaybeInstallBundleOptions.HasError())
 			{
 				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to parse URL {URL}", ("URL", URL));
 				UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
 					PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
-					TEXT("BadUrl")));
+					*MaybeInstallBundleOptions.GetError()));
 				SetComplete(MoveTemp(ErrorResult));
 				return;
 			}

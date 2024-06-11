@@ -672,7 +672,7 @@ private:
 	friend struct FGameFeaturePluginState_Unloading;
 
 	void OnGameFeaturePauseChange(const FGameFeaturePluginIdentifier& PluginIdentifier, const FString& PluginName, FGameFeaturePauseStateChangeContext& Context);
-	friend struct FGameFeaturePluginState_Downloading;
+	friend struct FBaseDownloadGameFeaturePluginState;
 	friend struct FGameFeaturePluginState_Deactivating;
 
 	void OnAssetManagerCreated();

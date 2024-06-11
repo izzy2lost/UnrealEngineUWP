@@ -65,7 +65,7 @@ FText SGameFeatureStateWidget::GetDisplayNameOfState(EGameFeaturePluginState Sta
 
 FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 {
-	static_assert((int32)EGameFeaturePluginState::MAX == 35, "");
+	static_assert((int32)EGameFeaturePluginState::MAX == 37, "");
 
 	switch (State)
 	{
@@ -105,6 +105,10 @@ FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 		return LOCTEXT("StateTooltip_ErrorRegistering", "Error state for Installed -> Registered and Registered -> Installed transitions.");
 	case EGameFeaturePluginState::WaitingForDependencies:
 		return LOCTEXT("StateTooltip_WaitingForDependencies", "Transition state Installed -> Registered. In the process of loading code/content for all dependencies into memory.");
+	case EGameFeaturePluginState::AssetDependencyStreamOut:
+		return LOCTEXT("StateTooltip_AssetDependencyStreamout", "Transition state Registered -> Installed. In the process of streaming out individual assets from dependencies.");
+	case EGameFeaturePluginState::ErrorAssetDependencyStreaming:
+		return LOCTEXT("StateTooltip_ErrorAssetDependencyStreaming", "Error state for Installed -> Registered and Registered -> Installed transitions.");
 	case EGameFeaturePluginState::AssetDependencyStreaming:
 		return LOCTEXT("StateTooltip_AssetDependencyStreaming", "Transition state Installed -> Registered. In the process of streaming individual assets from dependencies.");
 	case EGameFeaturePluginState::Unmounting:
