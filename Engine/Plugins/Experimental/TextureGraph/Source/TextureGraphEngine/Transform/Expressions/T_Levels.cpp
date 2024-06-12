@@ -80,11 +80,14 @@ bool FLevels::SetMidFromMidExponent(float InExponent)
 	return false;
 }
 
-void FLevels::InitFromLowMidHigh(float LowValue, float MidValue, float HighValue)
+void FLevels::InitFromLowMidHigh(float LowValue, float MidValue, float HighValue, float OutLowValue, float OutHighValue)
 {
 	Low = std::max(0.0f, LowValue);
 	Mid = MidValue;
 	High = std::min(1.0f, HighValue);
+
+	OutLow = OutLowValue;
+	OutHigh = OutHighValue;
 
 	IsAutoLevels = false;
 }
@@ -270,34 +273,39 @@ TiledBlobPtr	T_Levels::Create(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredO
 {
 	bool NeedsConvertToGrayscale = (Source->GetDescriptor().ItemsPerPoint > 1) ;
 	
-	FSH_Levels::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FSH_Levels::FConvertToGrayscale>(NeedsConvertToGrayscale);
-	//PermutationVector.Set<FSH_Levels::FIsAutoLevels>(InLevels->IsAutoLevels);
-	PermutationVector.Set<FSH_Levels::FIsAutoLevels>(false);
-
-
 	if (!Source)
 	{
 		return TextureHelper::GBlack;
 	}
 
-	bool NeedHistogramRaw = false;
+	bool bNeedHistogramRaw = false;
 	TiledBlobPtr Histogram = TextureHelper::GBlack;
-	if (InLevels->IsAutoLevels)
+	bool bIsModifyingOut = InLevels->OutLow > 0 || InLevels->OutHigh < 1;
+
+	if (InLevels->IsAutoLevels || bIsModifyingOut)
 	{
-		NeedHistogramRaw = true;
+		bNeedHistogramRaw = true;
 		Histogram = T_TextureHistogram::Create(Cycle, Source, TargetId);
 	}
 
 	if (!Histogram)
 	{
 		Histogram = TextureHelper::GBlack;
-		NeedHistogramRaw = false;
+		bNeedHistogramRaw = false;
 	}
 	
-	std::shared_ptr<FxMaterial_Normal<VSH_Simple, FSH_Levels>> Mat = std::make_shared<FxMaterial_Normal<VSH_Simple, FSH_Levels>>();
+	FSH_Levels::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FSH_Levels::FConvertToGrayscale>(NeedsConvertToGrayscale);
+	PermutationVector.Set<FSH_Levels::FIsAutoLevels>(InLevels->IsAutoLevels);
+	PermutationVector.Set<FSH_Levels::FIsOutLevels>(bIsModifyingOut);
+
+	std::shared_ptr<FxMaterial_Normal<VSH_Simple, FSH_Levels>> Mat = 
+		std::make_shared<FxMaterial_Normal<VSH_Simple, FSH_Levels>>(typename VSH_Simple::FPermutationDomain(), PermutationVector);
+
 	const RenderMaterial_FXPtr RenderMaterial = std::make_shared<RenderMaterial_FX_Levels>(TEXT("T_Levels"), Mat, InLevels);
 	check(RenderMaterial);
+
+	float OutputRange = FMath::Clamp(InLevels->OutHigh - InLevels->OutLow, 0.0f, 1.0f);
 
 	JobUPtr RenderJob = std::make_unique<Job_Levels>(Cycle->GetMix(), TargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial), Histogram, InLevels);
 	RenderJob
@@ -307,6 +315,9 @@ TiledBlobPtr	T_Levels::Create(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredO
 		->AddArg(ARG_FLOAT(InLevels->Mid, "MidValue"))
 		->AddArg(ARG_FLOAT(float(InLevels->IsAutoLevels), "DoAutoLevel"))
 		->AddArg(ARG_FLOAT(InLevels->MidPercentage, "MidPercentage"))
+		->AddArg(ARG_FLOAT(InLevels->OutLow, "OutLow"))
+		->AddArg(ARG_FLOAT(InLevels->OutHigh, "OutHigh"))
+		->AddArg(ARG_FLOAT(OutputRange, "OutputRange"))
 		->AddArg(std::make_shared<JobArg_Blob>(JobArg_Blob(Histogram, "Histogram").WithNotHandleTiles()))
 		;
 

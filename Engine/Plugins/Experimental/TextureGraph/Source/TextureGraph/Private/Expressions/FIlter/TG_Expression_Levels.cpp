@@ -109,14 +109,23 @@ void UTG_Expression_Levels::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		SetLowValue(LowValue);
 	}
 	// High
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, HighValue))
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, HighValue))
 	{
 		SetHighValue(HighValue);
 	}
 	// Mid
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue))
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue))
 	{
 		SetMidValue(MidValue);
+	}
+
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, OutLowValue))
+	{
+		OutLowValue = FMath::Clamp(OutLowValue, 0, OutHighValue);
+	}
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, OutHighValue))
+	{
+		OutHighValue = FMath::Clamp(OutHighValue, OutLowValue, 1.0f);
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -205,7 +214,7 @@ void UTG_Expression_Levels::Evaluate(FTG_EvaluationContext* InContext)
 	switch (LevelsExpressionType)
 	{
 	case ELevelsExpressionType::LowMidHigh:
-		LevelsControl->InitFromLowMidHigh(LowValue, MidValue, HighValue);
+		LevelsControl->InitFromLowMidHigh(LowValue, MidValue, HighValue, OutLowValue, OutHighValue);
 		break;
 	case ELevelsExpressionType::AutoLowHigh:
 		LevelsControl->InitFromAutoLevels(MidAutoLevels);
@@ -225,6 +234,18 @@ void UTG_Expression_HistogramScan::Evaluate(FTG_EvaluationContext* InContext)
 		Output = FTG_Texture::GetBlack();
 		return;
 	}
+
+	if (Position < 0.00001f)
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+	else if (Position >= 0.99999f)
+	{
+		Output = FTG_Texture::GetWhite();
+		return;
+	}
+
 	LevelsControl = MakeShared<FLevels>();
 	LevelsControl->InitFromPositionContrast(Position, Contrast);
 

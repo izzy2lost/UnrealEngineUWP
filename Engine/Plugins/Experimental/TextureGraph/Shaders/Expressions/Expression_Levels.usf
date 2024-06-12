@@ -12,10 +12,18 @@
 #define AUTO_LEVELS 0
 #endif
 
+#ifndef OUT_LEVELS
+#define OUT_LEVELS 0
+#endif
+
 Texture2D SourceTexture;
 float LowValue;
 float HighValue;
 float MidValue;
+
+float OutLow;
+float OutHigh;
+float OutputRange;
 
 float DoAutoLevel;
 float MidPercentage;
@@ -38,8 +46,21 @@ float LevelsControlInputCurve(float Value, float LowInput, float HighInput, floa
 	MidRanged = max(0.001, min(0.9999, MidRanged));
 
 	float InvGammaValue = log(MidRanged) / log(0.5);
+	float NewValue = pow(ValueRanged, InvGammaValue);
 
-	return pow(ValueRanged, InvGammaValue);
+#if OUT_LEVELS
+	float4 HistoMin			= Histogram.Load(int3(2, 1, 0));
+	float4 HistoMax			= Histogram.Load(int3(3, 1, 0));
+		
+	LowInput = 	HistoMin.w;
+	HighInput = HistoMax.w;
+	
+	float InputRange = clamp(HighInput - LowInput, 0, 1);
+	
+	NewValue = OutLow + ((NewValue - LowInput) / InputRange) * OutputRange;
+#endif /// OUT_LEVELS
+
+	return NewValue;
 }
 
 float4 FSH_Levels(float2 uv : TEXCOORD0) : SV_Target0
@@ -69,7 +90,7 @@ float4 FSH_Levels(float2 uv : TEXCOORD0) : SV_Target0
 		
 	LowInput = 	HistoMin.w;
 	HighInput = HistoMax.w;
-#endif
+#endif /// AUTO_LEVELS
 
 	float3 LeveledColor = LevelsControlInputCurve(SourceValue, LowInput, HighInput, MidValue);
 	

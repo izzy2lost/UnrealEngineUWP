@@ -25,12 +25,16 @@ public:
 		SHADER_PARAMETER(float, MidValue)
 		SHADER_PARAMETER(float, DoAutoLevel)
 		SHADER_PARAMETER(float, MidPercentage)
+		SHADER_PARAMETER(float, OutLow)
+		SHADER_PARAMETER(float, OutHigh)
+		SHADER_PARAMETER(float, OutputRange)
 		SHADER_PARAMETER_TEXTURE(Texture2D, Histogram)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FConvertToGrayscale : SHADER_PERMUTATION_BOOL("CONVERT_TO_GRAYSCALE");
 	class FIsAutoLevels : SHADER_PERMUTATION_BOOL("AUTO_LEVELS");
-	using FPermutationDomain = TShaderPermutationDomain<FConvertToGrayscale, FIsAutoLevels>;
+	class FIsOutLevels : SHADER_PERMUTATION_BOOL("OUT_LEVELS");
+	using FPermutationDomain = TShaderPermutationDomain<FConvertToGrayscale, FIsAutoLevels, FIsOutLevels>;
 
 	static bool						ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
 	{
@@ -62,6 +66,12 @@ struct TEXTUREGRAPHENGINE_API FLevels
 	bool 								IsAutoLevels = false;
 	float 								MidPercentage = 0.5f;
 
+	// The black point of the output. Moving this will remap the dark point to this value. Default is 0
+	float								OutLow = 0;
+
+	// The white point of the output. Moving this will remap the white point to this value. Default is 1
+	float								OutHigh = 1;
+
 	bool SetLow(float InValue);
 	bool SetMid(float InValue);
 	bool SetHigh(float InValue);
@@ -75,7 +85,7 @@ struct TEXTUREGRAPHENGINE_API FLevels
 	float EvalMidExponent() const;
 	bool SetMidFromMidExponent(float InExponent);
 
-	void InitFromLowMidHigh(float LowValue, float MidValue, float HighValue);
+	void InitFromLowMidHigh(float LowValue, float MidValue, float HighValue, float OutLow, float OutHigh);
 	void InitFromAutoLevels(float MidPercentage);
 	void InitFromPositionContrast(float MidValue, float Contrast);
 
