@@ -4,18 +4,83 @@
 #include "NNEDenoiserLog.h"
 #include "NNEDenoiserModelInstance.h"
 #include "NNEDenoiserParameters.h"
-#include "NNEDenoiserShadersDefaultCS.h"
+#include "NNEDenoiserShadersMappedCopyCS.h"
+#include "NNEDenoiserShadersDefaultIOProcessCS.h"
+#include "NNEDenoiserTransferFunction.h"
 #include "NNEDenoiserUtils.h"
 #include "RHIStaticStates.h"
 
 DECLARE_GPU_STAT_NAMED(FNNEDenoiserReadInput, TEXT("NNEDenoiser.ReadInput"));
 DECLARE_GPU_STAT_NAMED(FNNEDenoiserWriteOutput, TEXT("NNEDenoiser.WriteOutput"));
+DECLARE_GPU_STAT_NAMED(FNNEDenoiserDefaultIOProcess, TEXT("NNEDenoiser.DefaultIOProcess"));
 
 namespace UE::NNEDenoiser::Private
 {
 
 namespace IOProcessBaseHelper
 {
+
+NNEDenoiserShaders::Internal::EDefaultIOProcessInputKind GetInputKind(EResourceName TensorName)
+{
+	using NNEDenoiserShaders::Internal::EDefaultIOProcessInputKind;
+	
+	switch(TensorName)
+	{
+		case EResourceName::Color:	return EDefaultIOProcessInputKind::Color;
+		case EResourceName::Albedo:	return EDefaultIOProcessInputKind::Albedo;
+		case EResourceName::Normal:	return EDefaultIOProcessInputKind::Normal;
+		case EResourceName::Flow:	return EDefaultIOProcessInputKind::Flow;
+		case EResourceName::Output:	return EDefaultIOProcessInputKind::Output;
+	}
+
+	// There should be a case for every resource name
+	checkNoEntry();
+	
+	return EDefaultIOProcessInputKind::Color;
+}
+
+void AddPreOrPostProcess(
+	FRDGBuilder& GraphBuilder,
+	FRDGTextureRef InputTexture,
+	EResourceName TensorName,
+	int32 FrameIdx,
+	FRDGTextureRef OutputTexture)
+{
+	using namespace UE::NNEDenoiserShaders::Internal;
+
+	const FIntVector InputTextureSize = InputTexture->Desc.GetSize();
+	const FIntVector OutputTextureSize = OutputTexture->Desc.GetSize();
+
+	FDefaultIOProcessCS::FParameters *ShaderParameters = GraphBuilder.AllocParameters<FDefaultIOProcessCS::FParameters>();
+	ShaderParameters->InputTextureWidth = InputTextureSize.X;
+	ShaderParameters->InputTextureHeight = InputTextureSize.Y;
+	ShaderParameters->InputTexture = InputTexture;
+	ShaderParameters->OutputTextureWidth = OutputTextureSize.X;
+	ShaderParameters->OutputTextureHeight = OutputTextureSize.Y;
+	ShaderParameters->OutputTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
+
+	FDefaultIOProcessCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FDefaultIOProcessCS::FDefaultIOProcessInputKind>(GetInputKind(TensorName));
+
+	FIntVector ThreadGroupCount = FIntVector(
+		FMath::DivideAndRoundUp(OutputTextureSize.X, FDefaultIOProcessConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(OutputTextureSize.Y, FDefaultIOProcessConstants::THREAD_GROUP_SIZE),
+		1);
+
+	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+	TShaderMapRef<FDefaultIOProcessCS> Shader(GlobalShaderMap, PermutationVector);
+
+	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.DefaultIOProcess");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserDefaultIOProcess);
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("NNEDenoiser.DefaultIOProcess"),
+		ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+		Shader,
+		ShaderParameters,
+		ThreadGroupCount);
+}
 
 void AddReadInputPass(
 	FRDGBuilder& GraphBuilder,
@@ -33,7 +98,7 @@ void AddReadInputPass(
 		return;
 	}
 	
-	if (ChannelMapping.Num() >= FNNEDenoiserConstants::MAX_NUM_MAPPED_CHANNELS)
+	if (ChannelMapping.Num() >= FMappedCopyConstants::MAX_NUM_MAPPED_CHANNELS)
 	{
 		UE_LOG(LogNNEDenoiser, Warning, TEXT("AddReadInputPass: ChannelMapping has too many entries!"));
 		return;
@@ -56,8 +121,8 @@ void AddReadInputPass(
 	PermutationVector.Set<FNNEDenoiserTextureBufferMappedCopyCS::FNNEDenoiserNumMappedChannels>(ChannelMapping.Num());
 
 	FIntVector ReadInputThreadGroupCount = FIntVector(
-		FMath::DivideAndRoundUp(InputBufferSize.X, FNNEDenoiserConstants::THREAD_GROUP_SIZE),
-		FMath::DivideAndRoundUp(InputBufferSize.Y, FNNEDenoiserConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(InputBufferSize.X, FMappedCopyConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(InputBufferSize.Y, FMappedCopyConstants::THREAD_GROUP_SIZE),
 		1);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
@@ -102,8 +167,8 @@ void AddWriteOutputPass(
 	PermutationVector.Set<FNNEDenoiserBufferTextureMappedCopyCS::FNNEDenoiserNumMappedChannels>(ChannelMapping.Num());
 
 	FIntVector WriteOutputThreadGroupCount = FIntVector(
-		FMath::DivideAndRoundUp(OutputTextureSize.X, FNNEDenoiserConstants::THREAD_GROUP_SIZE),
-		FMath::DivideAndRoundUp(OutputTextureSize.Y, FNNEDenoiserConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(OutputTextureSize.X, FMappedCopyConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(OutputTextureSize.Y, FMappedCopyConstants::THREAD_GROUP_SIZE),
 		1);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
@@ -278,6 +343,35 @@ void FInputProcessBase::AddPasses(
 	}
 }
 
+bool FInputProcessBase::HasPreprocessInput(EResourceName TensorName, int32 FrameIdx) const
+{
+	check(FrameIdx == 0);
+
+	switch(TensorName)
+	{
+		case EResourceName::Color:
+		case EResourceName::Albedo:
+		case EResourceName::Normal:
+			return true;
+	}
+	return false;
+}
+
+void FInputProcessBase::PreprocessInput(
+		FRDGBuilder& GraphBuilder,
+		FRDGTextureRef Texture,
+		EResourceName TensorName,
+		int32 FrameIdx,
+		FRDGTextureRef PreprocessedTexture) const
+{
+	IOProcessBaseHelper::AddPreOrPostProcess(GraphBuilder, Texture, TensorName, FrameIdx, PreprocessedTexture);
+
+	if (TransferFunction.IsValid() && TensorName == EResourceName::Color)
+	{
+		TransferFunction->RDGForward(GraphBuilder, PreprocessedTexture, PreprocessedTexture);
+	}
+}
+
 void FInputProcessBase::WriteInputBuffer(
 	FRDGBuilder& GraphBuilder,
 	const UE::NNE::FTensorDesc& TensorDesc,
@@ -384,6 +478,13 @@ void FOutputProcessBase::AddPasses(
 	}
 }
 
+bool FOutputProcessBase::HasPostprocessOutput(EResourceName TensorName, int32 FrameIdx) const
+{
+	check(FrameIdx == 0);
+
+	return TensorName == EResourceName::Output;
+}
+
 void FOutputProcessBase::ReadOutputBuffer(
 	FRDGBuilder& GraphBuilder,
 	const UE::NNE::FTensorDesc& TensorDesc,
@@ -405,6 +506,19 @@ void FOutputProcessBase::ReadOutputBuffer(
 	FRDGTextureUAVRef TextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Texture));
 
 	IOProcessBaseHelper::AddWriteOutputPass(GraphBuilder, BufferUAV, BufferSize, TextureUAV, DataType, ChannelMapping);
+}
+
+void FOutputProcessBase::PostprocessOutput(
+		FRDGBuilder& GraphBuilder,
+		FRDGTextureRef Texture,
+		FRDGTextureRef PostprocessedTexture) const
+{
+	if (TransferFunction.IsValid())
+	{
+		TransferFunction->RDGInverse(GraphBuilder, Texture, PostprocessedTexture);
+	}
+
+	IOProcessBaseHelper::AddPreOrPostProcess(GraphBuilder, PostprocessedTexture, EResourceName::Output, 0, PostprocessedTexture);
 }
 
 } // namespace UE::NNEDenoiser::Private

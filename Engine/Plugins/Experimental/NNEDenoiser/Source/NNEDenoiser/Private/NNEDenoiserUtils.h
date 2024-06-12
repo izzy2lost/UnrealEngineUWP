@@ -5,8 +5,7 @@
 #include "NNEDenoiserLog.h"
 #include "NNEDenoiserModelIOMappingData.h"
 #include "NNEDenoiserParameters.h"
-#include "NNEDenoiserShadersDefaultCS.h"
-#include "NNEDenoiserShadersOidnCS.h"
+#include "NNEDenoiserShadersMappedCopyCS.h"
 #include "NNETypes.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
@@ -74,9 +73,9 @@ namespace UE::NNEDenoiser::Private
 		SCOPED_NAMED_EVENT_TEXT("NNEDenoiser.CopyTextureFromCPUToGPU", FColor::Magenta);
 
 		uint32 DestStride;
-		FLinearColor* DstBuffer = static_cast<PixelType*>(RHICmdList.LockTexture2D(DstTexture, 0, RLM_WriteOnly, DestStride, false));
+		PixelType* DstBuffer = static_cast<PixelType*>(RHICmdList.LockTexture2D(DstTexture, 0, RLM_WriteOnly, DestStride, false));
 		DestStride /= sizeof(PixelType);
-		const FLinearColor* SrcBuffer = SrcArray.GetData();
+		const PixelType* SrcBuffer = SrcArray.GetData();
 		for (int32 Y = 0; Y < Size.Y; Y++, SrcBuffer += Size.X, DstBuffer += DestStride)
 		{
 			FPlatformMemory::Memcpy(DstBuffer, SrcBuffer, Size.X * sizeof(PixelType));
@@ -84,26 +83,28 @@ namespace UE::NNEDenoiser::Private
 		RHICmdList.UnlockTexture2D(DstTexture, 0, false);
 	}
 
-	inline void CopyBufferFromGPUToCPU(FRHICommandListImmediate& RHICmdList, FRHIBuffer* SrcBuffer, int32 Count, TArray<uint8>& DstArray)
+	template <typename ElementType>
+	void CopyBufferFromGPUToCPU(FRHICommandListImmediate& RHICmdList, FRHIBuffer* SrcBuffer, int32 Count, TArray<ElementType>& DstArray)
 	{
 		SCOPED_NAMED_EVENT_TEXT("NNEDenoiser.CopyBufferFromGPUToCPU", FColor::Magenta);
 
-		const uint8* Src = static_cast<uint8*>(RHICmdList.LockBuffer(SrcBuffer, 0, Count, RLM_ReadOnly));
-		uint8* Dst = DstArray.GetData();
+		const ElementType* Src = static_cast<ElementType*>(RHICmdList.LockBuffer(SrcBuffer, 0, Count * sizeof(ElementType), RLM_ReadOnly));
+		ElementType* Dst = DstArray.GetData();
 		
-		FPlatformMemory::Memcpy(Dst, Src, Count);
+		FPlatformMemory::Memcpy(Dst, Src, Count * sizeof(ElementType));
 
 		RHICmdList.UnlockBuffer(SrcBuffer);
 	}
 
-	inline void CopyBufferFromCPUToGPU(FRHICommandListImmediate& RHICmdList, const TArray<uint8>& SrcArray, int32 Count, FRHIBuffer* DstBuffer)
+	template <typename ElementType>
+	void CopyBufferFromCPUToGPU(FRHICommandListImmediate& RHICmdList, const TArray<ElementType>& SrcArray, int32 Count, FRHIBuffer* DstBuffer)
 	{
 		SCOPED_NAMED_EVENT_TEXT("NNEDenoiser.CopyBufferFromCPUToGPU", FColor::Magenta);
 
-		uint8* Dst = static_cast<uint8*>(RHICmdList.LockBuffer(DstBuffer, 0, Count, RLM_WriteOnly));
-		const uint8* Src = SrcArray.GetData();
+		ElementType* Dst = static_cast<ElementType*>(RHICmdList.LockBuffer(DstBuffer, 0, Count * sizeof(ElementType), RLM_WriteOnly));
+		const ElementType* Src = SrcArray.GetData();
 		
-		FPlatformMemory::Memcpy(Dst, Src, Count);
+		FPlatformMemory::Memcpy(Dst, Src, Count * sizeof(ElementType));
 
 		RHICmdList.UnlockBuffer(DstBuffer);
 	}
@@ -128,25 +129,6 @@ namespace UE::NNEDenoiser::Private
 			case ENNETensorDataType::Float: return ENNEDenoiserDataType::Float;
 		}
 		return ENNEDenoiserDataType::None;
-	}
-
-	inline NNEDenoiserShaders::Internal::ENNEDenoiserInputKind GetInputKind(EResourceName TensorName)
-	{
-		using NNEDenoiserShaders::Internal::ENNEDenoiserInputKind;
-		
-		switch(TensorName)
-		{
-			case EResourceName::Color:	return ENNEDenoiserInputKind::Color;
-			case EResourceName::Albedo:	return ENNEDenoiserInputKind::Albedo;
-			case EResourceName::Normal:	return ENNEDenoiserInputKind::Normal;
-			case EResourceName::Flow:	return ENNEDenoiserInputKind::Flow;
-			case EResourceName::Output:	return ENNEDenoiserInputKind::Output;
-		}
-
-		// There should be a case for every resource name
-		checkNoEntry();
-		
-		return ENNEDenoiserInputKind::Color;
 	}
 
 }

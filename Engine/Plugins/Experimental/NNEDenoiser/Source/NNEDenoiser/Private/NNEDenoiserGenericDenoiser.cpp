@@ -2,6 +2,7 @@
 
 #include "NNEDenoiserGenericDenoiser.h"
 #include "Algo/Transform.h"
+#include "NNEDenoiserAutoExposure.h"
 #include "NNEDenoiserHistory.h"
 #include "NNEDenoiserIOProcess.h"
 #include "NNEDenoiserLog.h"
@@ -131,8 +132,19 @@ void AddTilePasses(FRDGBuilder& GraphBuilder, IModelInstance& ModelInstance, con
 	OutputProcess.AddPasses(GraphBuilder, ModelInstance.GetOutputTensorDescs(), GetOutputTensorShapes(ModelInstance), ResourceAccess, OutputBuffers, OutputTexture);
 }
 
-FGenericDenoiser::FGenericDenoiser(TUniquePtr<IModelInstance> ModelInstance, TUniquePtr<IInputProcess> InputProcess, TUniquePtr<IOutputProcess> OutputProcess, FParameters DenoiserParameters) :
-	ModelInstance(MoveTemp(ModelInstance)), InputProcess(MoveTemp(InputProcess)), OutputProcess(MoveTemp(OutputProcess)), DenoiserParameters(DenoiserParameters)
+FGenericDenoiser::FGenericDenoiser(
+	TUniquePtr<IModelInstance> ModelInstance,
+	TUniquePtr<IInputProcess> InputProcess,
+	TUniquePtr<IOutputProcess> OutputProcess,
+	FParameters DenoiserParameters,
+	TUniquePtr<IAutoExposure> AutoExposure,
+	TSharedPtr<ITransferFunction> TransferFunction) :
+		ModelInstance(MoveTemp(ModelInstance)),
+		InputProcess(MoveTemp(InputProcess)),
+		OutputProcess(MoveTemp(OutputProcess)),
+		DenoiserParameters(DenoiserParameters),
+		AutoExposure(MoveTemp(AutoExposure)),
+		TransferFunction(TransferFunction)
 {
 
 }
@@ -228,6 +240,20 @@ TUniquePtr<FHistory> FGenericDenoiser::AddPasses(
 
 	TArray<FRDGBufferRef> InputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetInputTensorDescs(), ModelInstance->GetInputTensorShapes());
 	TArray<FRDGBufferRef> OutputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetOutputTensorDescs(), GetOutputTensorShapes(*ModelInstance));
+
+	if (TransferFunction.IsValid() && AutoExposure.IsValid())
+	{
+		FRDGBufferDesc InputBufferDesc = FRDGBufferDesc::CreateBufferDesc(sizeof(float), 2);
+		FRDGBufferRef InputScaleBuffer = GraphBuilder.CreateBuffer(InputBufferDesc, TEXT("AutoExposureOutputBuffer"));
+
+		AutoExposure->EnqueueRDG(GraphBuilder, ColorTex, InputScaleBuffer);
+
+		TransferFunction->RDGSetInputScale(InputScaleBuffer);
+	}
+	else
+	{
+		checkf(!TransferFunction.IsValid() && !AutoExposure.IsValid(), TEXT("TransferFunction and AutoExposure either both need to be set or not set."))
+	}
 
 	for (int32 I = 0; I < Tiling.Tiles.Num(); I++)
 	{

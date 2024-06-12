@@ -18,11 +18,20 @@ class FHistory;
 class IModelInstance;
 class IInputProcess;
 class IOutputProcess;
+class IAutoExposure;
+class ITransferFunction;
 
 class FGenericDenoiser
 {
 public:
-	FGenericDenoiser(TUniquePtr<IModelInstance> ModelInstance, TUniquePtr<IInputProcess> InputProcess, TUniquePtr<IOutputProcess> OutputProcess, FParameters DenoiserParameters);
+	FGenericDenoiser(
+		TUniquePtr<IModelInstance> ModelInstance,
+		TUniquePtr<IInputProcess> InputProcess,
+		TUniquePtr<IOutputProcess> OutputProcess,
+		FParameters DenoiserParameters,
+		TUniquePtr<IAutoExposure> AutoExposure,
+		TSharedPtr<ITransferFunction> TransferFunction
+	);
 
 	~FGenericDenoiser();
 
@@ -48,6 +57,8 @@ private:
 	TUniquePtr<IInputProcess> InputProcess;
 	TUniquePtr<IOutputProcess> OutputProcess;
 	FParameters DenoiserParameters;
+	TUniquePtr<IAutoExposure> AutoExposure;
+	TSharedPtr<ITransferFunction> TransferFunction;
 
 	FIntPoint LastExtent = { -1, -1 };
 	FTiling Tiling{};

@@ -9,29 +9,26 @@
 namespace UE::NNEDenoiserShaders::Internal
 {
 
-	enum class ENNEDenoiserInputKind : uint8
+	enum class ETransferFunctionOidnMode : uint8
 	{
-		Color = 0,
-		Albedo,
-		Normal,
-		Flow,
-		Output,
+		Forwward = 0,
+		Inverse,
 		MAX
 	};
 
-	class FNNEDenoiserOidnConstants
+	class FTransferFunctionOidnConstants
 	{
 	public:
-		static constexpr int32 THREAD_GROUP_SIZE{ 32 };
+		static constexpr int32 THREAD_GROUP_SIZE{16};
 	};
 	
-	class NNEDENOISERSHADERS_API FNNEDenoiserOidnCS : public FGlobalShader
+	class NNEDENOISERSHADERS_API FTransferFunctionOidnCS : public FGlobalShader
 	{
-		DECLARE_GLOBAL_SHADER(FNNEDenoiserOidnCS);
-		SHADER_USE_PARAMETER_STRUCT(FNNEDenoiserOidnCS, FGlobalShader)
+		DECLARE_GLOBAL_SHADER(FTransferFunctionOidnCS);
+		SHADER_USE_PARAMETER_STRUCT(FTransferFunctionOidnCS, FGlobalShader)
 
-		class FNNEDenoiserInputKind : SHADER_PERMUTATION_ENUM_CLASS("INPUT_KIND_INDEX", ENNEDenoiserInputKind);
-		using FPermutationDomain = TShaderPermutationDomain<FNNEDenoiserInputKind>;
+		class FTransferFunctionOidnMode : SHADER_PERMUTATION_ENUM_CLASS("MODE", ETransferFunctionOidnMode);
+		using FPermutationDomain = TShaderPermutationDomain<FTransferFunctionOidnMode>;
 
 	public:
 
@@ -42,6 +39,7 @@ namespace UE::NNEDenoiserShaders::Internal
 			SHADER_PARAMETER(int32, OutputTextureWidth)
 			SHADER_PARAMETER(int32, OutputTextureHeight)
 			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputTexture)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputScaleBuffer)
 			SHADER_PARAMETER(float, NormScale)
 			SHADER_PARAMETER(float, InvNormScale)
 		END_SHADER_PARAMETER_STRUCT()

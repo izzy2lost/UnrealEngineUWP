@@ -85,6 +85,7 @@ void FResourceManager::BeginTile(int32 TileIndex)
 	// Only clear if we don't overwrite the whole texture
 	const bool bNeedClear = Tile.InputOffsets.Width() != 0 || Tile.InputOffsets.Height() != 0;
 	const FLinearColor ClearColor = {.0f, 0.f, .0f, .0f};
+	const FLinearColor ClearNormal = {-1.0f, -1.0f, -1.0f, -1.0f};
 
 	for (const auto& KeyValue : TextureMap)
 	{
@@ -102,7 +103,7 @@ void FResourceManager::BeginTile(int32 TileIndex)
 		{
 			if (bNeedClear)
 			{
-				AddClearRenderTargetPass(GraphBuilder, IntermediateTextures[I], ClearColor);
+				AddClearRenderTargetPass(GraphBuilder, IntermediateTextures[I], KeyValue.Key == EResourceName::Normal ? ClearNormal : ClearColor);
 			}
 			AddCopyTexturePass(GraphBuilder, Textures[I], IntermediateTextures[I], CopyInputInfo);
 		}

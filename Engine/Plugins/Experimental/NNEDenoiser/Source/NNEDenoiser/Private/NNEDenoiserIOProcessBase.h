@@ -8,10 +8,12 @@
 namespace UE::NNEDenoiser::Private
 {
 
+class ITransferFunction;
+
 class FInputProcessBase : public IInputProcess
 {
 public:
-	FInputProcessBase(FResourceMappingList InputLayout) : InputLayout(InputLayout)
+	FInputProcessBase(FResourceMappingList InputLayout, TSharedPtr<ITransferFunction> TransferFunction) : InputLayout(InputLayout), TransferFunction(TransferFunction)
 	{
 
 	}
@@ -32,20 +34,14 @@ public:
 		TConstArrayView<FRDGBufferRef> OutputBuffers) const override;
 
 protected:
-	virtual bool HasPreprocessInput(EResourceName TensorName, int32 FrameIdx) const
-	{
-		return false;
-	}
+	virtual bool HasPreprocessInput(EResourceName TensorName, int32 FrameIdx) const;
 
 	virtual void PreprocessInput(
 		FRDGBuilder& GraphBuilder,
 		FRDGTextureRef Texture,
 		EResourceName TensorName,
 		int32 FrameIdx,
-		FRDGTextureRef PreprocessedTexture) const
-	{
-		
-	}
+		FRDGTextureRef PreprocessedTexture) const;
 
 	virtual void WriteInputBuffer(
 		FRDGBuilder& GraphBuilder,
@@ -57,12 +53,13 @@ protected:
 
 private:
 	FResourceMappingList InputLayout;
+	TSharedPtr<ITransferFunction> TransferFunction;
 };
 
 class FOutputProcessBase : public IOutputProcess
 {
 public:
-	FOutputProcessBase(FResourceMappingList OutputLayout) : OutputLayout(OutputLayout)
+	FOutputProcessBase(FResourceMappingList OutputLayout, TSharedPtr<ITransferFunction> TransferFunction) : OutputLayout(OutputLayout), TransferFunction(TransferFunction)
 	{
 
 	}
@@ -80,10 +77,7 @@ public:
 		FRDGTextureRef OutputTexture) const override;
 
 protected:
-	virtual bool HasPostprocessOutput(EResourceName TensorName, int32 FrameIdx) const
-	{
-		return false;
-	}
+	virtual bool HasPostprocessOutput(EResourceName TensorName, int32 FrameIdx) const;
 
 	virtual void ReadOutputBuffer(
 		FRDGBuilder& GraphBuilder,
@@ -97,13 +91,11 @@ protected:
 	virtual void PostprocessOutput(
 		FRDGBuilder& GraphBuilder,
 		FRDGTextureRef Texture,
-		FRDGTextureRef PostprocessedTexture) const
-	{
-		
-	}
+		FRDGTextureRef PostprocessedTexture) const;
 
 private:
 	FResourceMappingList OutputLayout;
+	TSharedPtr<ITransferFunction> TransferFunction;
 };
 
 } // namespace UE::NNEDenoiser::Private

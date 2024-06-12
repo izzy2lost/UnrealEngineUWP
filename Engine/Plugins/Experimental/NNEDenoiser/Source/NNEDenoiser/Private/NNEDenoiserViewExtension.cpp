@@ -2,9 +2,9 @@
 
 #include "NNEDenoiserViewExtension.h"
 #include "NNE.h"
+#include "NNEDenoiserAutoExposure.h"
 #include "NNEDenoiserGenericDenoiser.h"
 #include "NNEDenoiserIOProcessBase.h"
-#include "NNEDenoiserIOProcessOidn.h"
 #include "NNEDenoiserLog.h"
 #include "NNEDenoiserModelData.h"
 #include "NNEDenoiserModelInstanceCPU.h"
@@ -13,6 +13,7 @@
 #include "NNEDenoiserModelIOMappingData.h"
 #include "NNEDenoiserPathTracingDenoiser.h"
 #include "NNEDenoiserPathTracingSpatialTemporalDenoiser.h"
+#include "NNEDenoiserTransferFunctionOidn.h"
 #include "NNEDenoiserUtils.h"
 #include "NNEModelData.h"
 #include "PathTracingDenoiser.h"
@@ -99,8 +100,15 @@ FString GetDenoiserModelDataNameFromCVarAndSettings(const UNNEDenoiserSettings* 
 	return FString();
 }
 
-TUniquePtr<FGenericDenoiser> CreateNNEDenoiser(UNNEModelData& ModelData, EDenoiserRuntimeType RuntimeType, const FString& RuntimeNameOverride,
-	TUniquePtr<IInputProcess> InputProcess, TUniquePtr<IOutputProcess> OutputProcess, FParameters Parameters)
+TUniquePtr<FGenericDenoiser> CreateNNEDenoiser(
+	UNNEModelData& ModelData,
+	EDenoiserRuntimeType RuntimeType,
+	const FString& RuntimeNameOverride,
+	TUniquePtr<IInputProcess> InputProcess,
+	TUniquePtr<IOutputProcess> OutputProcess,
+	FParameters Parameters,
+	TUniquePtr<IAutoExposure> AutoExposure,
+	TSharedPtr<ITransferFunction> TransferFunction)
 {
 	TUniquePtr<IModelInstance> ModelInstance;
 	if (RuntimeType == EDenoiserRuntimeType::CPU)
@@ -122,7 +130,13 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiser(UNNEModelData& ModelData, EDenois
 		return {};
 	}
 
-	return MakeUnique<FGenericDenoiser>(MoveTemp(ModelInstance), MoveTemp(InputProcess), MoveTemp(OutputProcess), MoveTemp(Parameters));
+	return MakeUnique<FGenericDenoiser>(
+		MoveTemp(ModelInstance),
+		MoveTemp(InputProcess),
+		MoveTemp(OutputProcess),
+		MoveTemp(Parameters),
+		MoveTemp(AutoExposure),
+		TransferFunction);
 }
 
 static FResourceMappingList MakeTensorLayout(UDataTable* DataTable)
@@ -263,29 +277,28 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName
 
 	check(!bIsOidnModel || !bIsInHouseModel);
 
-	TUniquePtr<IInputProcess> InputProcess;
+	TUniquePtr<FAutoExposure> AutoExposure;
+	TSharedPtr<ITransferFunction> TransferFunction;
 	if (bIsOidnModel)
 	{
-		InputProcess = MakeUnique<FInputProcessOidn>(MoveTemp(InputLayout));
-	}
-	else
-	{
-		InputProcess = MakeUnique<FInputProcessBase>(MoveTemp(InputLayout));
+		AutoExposure = MakeUnique<FAutoExposure>();
+		TransferFunction = MakeShared<Oidn::FTransferFunction>();
 	}
 
-	TUniquePtr<IOutputProcess> OutputProcess;
-	if (bIsOidnModel)
-	{
-		OutputProcess = MakeUnique<FOutputProcessOidn>(MoveTemp(OutputLayout));
-	}
-	else
-	{
-		OutputProcess = MakeUnique<FOutputProcessBase>(MoveTemp(OutputLayout));
-	}
+	TUniquePtr<IInputProcess> InputProcess = MakeUnique<FInputProcessBase>(MoveTemp(InputLayout), TransferFunction);
+	TUniquePtr<IOutputProcess> OutputProcess = MakeUnique<FOutputProcessBase>(MoveTemp(OutputLayout), TransferFunction);
 
 	FParameters Parameters = GetParametersValidated(*DenoiserModelData);
 
-	return CreateNNEDenoiser(*ModelData, RuntimeType, RuntimeNameOverride, MoveTemp(InputProcess), MoveTemp(OutputProcess), MoveTemp(Parameters));
+	return CreateNNEDenoiser(
+		*ModelData,
+		RuntimeType,
+		RuntimeNameOverride,
+		MoveTemp(InputProcess),
+		MoveTemp(OutputProcess),
+		MoveTemp(Parameters),
+		MoveTemp(AutoExposure),
+		TransferFunction);
 }
 
 FViewExtension::FViewExtension(const FAutoRegister& AutoRegister) : FSceneViewExtensionBase(AutoRegister)
