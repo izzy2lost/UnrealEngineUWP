@@ -3470,19 +3470,30 @@ IMPLEMENT_GLOBAL_SHADER(FDesaturatePS, "/Engine/Private/VirtualShadowMaps/Desatu
 
 FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, EVSMVisualizationPostPass Pass, FScreenPassTexture& SceneColor, FScreenPassRenderTarget& OverrideOutput)
 {
-	FScreenPassTexture Output = SceneColor;
+	FScreenPassTexture Output = MoveTemp(SceneColor);
+
+	auto FinalizeOutput = [](FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& Output, FScreenPassRenderTarget& OverrideOutput) -> FScreenPassTexture&
+	{
+		if (OverrideOutput.IsValid())
+		{
+			AddDrawTexturePass(GraphBuilder, View, Output, OverrideOutput);
+			return OverrideOutput;
+		}
+
+		return Output;
+	};
 
 #if !UE_BUILD_SHIPPING
 
 	if (!IsAllocated() || DebugVisualizationOutput.IsEmpty())
 	{
-		return MoveTemp(SceneColor);
+		return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
 	}
 
 	const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
 	if (!VisualizationData.IsActive() || !VisualizeLight[ViewIndex].IsValid())
 	{
-		return MoveTemp(SceneColor);
+		return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
 	}
 
 	RDG_EVENT_SCOPE(GraphBuilder, "VirtualShadowMapsVisualization");
@@ -3588,16 +3599,9 @@ FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBu
 			});
 	}
 
-
-	if (OverrideOutput.IsValid())
-	{
-		AddDrawTexturePass(GraphBuilder, View, Output, OverrideOutput);
-		return OverrideOutput;
-	}
-
 #endif //!UE_BUILD_SHIPPING
 
-	return MoveTemp(Output);
+	return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
 }
 
 float FVirtualShadowMapArray::InterpolateResolutionBias(float BiasNonMoving, float BiasMoving, float LightMobilityFactor)
