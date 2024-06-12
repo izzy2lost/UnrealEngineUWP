@@ -47,6 +47,9 @@ protected:
 #endif
 
 private:
+	UPROPERTY(EditAnywhere, Category = "Water")
+	bool bFindWaterBodyOnSpawn = true;
+
 	UPROPERTY(EditAnywhere, Category = "Water") 
 	TObjectPtr<UWaterBodyComponent> SourceBodyComponent;
 };
