@@ -1720,9 +1720,9 @@ void FNiagaraSystemCompilationTask::WaitTillCompileCompletion()
 	const FTimespan WaitTimeout = FTimespan::FromMilliseconds(50.0);
 	while (!CompileCompletionEvent.IsCompleted())
 	{
-		// if the busy wait doesn't complete the task then we need to make sure to poke the
+		// if the wait doesn't complete the task then we need to make sure to poke the
 		// compilation manager since there we may be waiting on it
-		if (!CompileCompletionEvent.BusyWait(WaitTimeout))
+		if (!CompileCompletionEvent.Wait(WaitTimeout))
 		{
 			FAssetCompilingManager::Get().ProcessAsyncTasks();
 		}

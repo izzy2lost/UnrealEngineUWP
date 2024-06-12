@@ -1622,18 +1622,10 @@ void FNiagaraSystemSimulation::WaitForConcurrentTickComplete(bool bEnsureComplet
 
 		if (GNiagaraSystemSimulationTaskStallTimeout > 0)
 		{
-			const double EndTimeoutSeconds = FPlatformTime::Seconds() + (double(GNiagaraSystemSimulationTaskStallTimeout) / 1000.0);
-			LowLevelTasks::BusyWaitUntil(
-				[this, EndTimeoutSeconds]()
-				{
-					if (FPlatformTime::Seconds() > EndTimeoutSeconds)
-					{
-						DumpStalledInfo();
-						return true;
-					}
-					return ConcurrentTickGraphEvent->IsComplete();
-				}
-			);
+			if (WaitForAnyTaskCompleted({ ConcurrentTickGraphEvent }, FTimespan::FromMicroseconds(GNiagaraSystemSimulationTaskStallTimeout)) == INDEX_NONE)
+			{
+				DumpStalledInfo();
+			}
 		}
 		else
 		{
