@@ -1296,6 +1296,9 @@ void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 Connec
 	{
 		FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 		Filtering.SetSubObjectFilterStatus(GroupHandle, ConnectionId, ReplicationStatus);
+
+		FReplicationConditionals& Conditionals = Impl->ReplicationSystemInternal.GetConditionals();
+		Conditionals.MarkLifeTimeConditionalsDirtyForObjectsInGroup(GroupHandle);
 	}
 }
 

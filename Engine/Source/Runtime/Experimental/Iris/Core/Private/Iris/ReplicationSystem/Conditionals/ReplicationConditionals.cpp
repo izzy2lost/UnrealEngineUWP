@@ -78,6 +78,26 @@ void FReplicationConditionals::OnMaxInternalNetRefIndexIncreased(FInternalNetRef
 	}
 }
 
+void FReplicationConditionals::MarkLifeTimeConditionalsDirtyForObjectsInGroup(FNetObjectGroupHandle GroupHandle)
+{
+	IRIS_PROFILER_SCOPE(MarkLifeTimeConditionalsDirtyForObjectsInGroup)
+
+	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
+	if (GroupHandle.IsReservedNetObjectGroup())
+	{
+		UE_LOG(LogIris, Warning, TEXT("FReplicationConditionals::MarkLifeTimeConditionalsDirtyForObjectsInGroup - Marking reserved group dirty is not allowed. GroupIndex: %u which is not allowed."), GroupIndex);
+		return;
+	}
+
+	if (const FNetObjectGroup* Group = NetObjectGroups->GetGroup(GroupHandle))
+	{
+		for (FInternalNetRefIndex InternalObjectIndex : Group->Members)
+		{
+			ObjectsWithDirtyLifetimeConditionals.SetBit(InternalObjectIndex);
+		}
+	}
+}
+
 bool FReplicationConditionals::SetConditionConnectionFilter(FInternalNetRefIndex ObjectIndex, EReplicationCondition Condition, uint32 ConnectionId, bool bEnable)
 {
 	if (ConnectionId >= MaxConnectionCount)

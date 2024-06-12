@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
+#include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Net/Core/NetBitArray.h"
 
 enum ELifetimeCondition : int;
@@ -18,6 +19,7 @@ namespace UE::Net
 		typedef uint32 FInternalNetRefIndex;
 		class FNetRefHandleManager;
 		class FReplicationConnections;
+		class FNetObjectGroups;
 		class FReplicationFiltering;
 		class FNetObjectGroups;
 	}
@@ -66,6 +68,8 @@ public:
 	void InitPropertyCustomConditions(FInternalNetRefIndex ObjectIndex);
 	bool SetPropertyCustomCondition(FInternalNetRefIndex ObjectIndex, const void* Owner, uint16 RepIndex, bool bIsActive);
 	bool SetPropertyDynamicCondition(FInternalNetRefIndex ObjectIndex, const void* Owner, uint16 RepIndex, ELifetimeCondition Condition);
+
+	void MarkLifeTimeConditionalsDirtyForObjectsInGroup(FNetObjectGroupHandle GroupHandle);
 	
 	/** Unconditionally marks a property as dirty, causing it to replicate with the object at the earliest convenience. */
 	void MarkPropertyDirty(FInternalNetRefIndex ObjectIndex, uint16 RepIndex);
