@@ -292,6 +292,9 @@ public:
 
 	static const FNiagaraAssetTagDefinition TemplateTagDefinition;
 	static const FNiagaraAssetTagDefinition LearningContentTagDefinition;
+	static NIAGARA_API const FNiagaraAssetTagDefinition HiddenAssetTagDefinition;
+	static NIAGARA_API const FNiagaraAssetTagDefinition DeprecatedTagDefinition;
+
 	TArray<const FNiagaraAssetTagDefinition*> InternalAssetTagDefinitions;
 private:
 	static NIAGARA_API FNiagaraVariable Engine_WorldDeltaTime;

@@ -252,6 +252,19 @@ public:
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 
+/** This validation rule will check if a system uses emitters that are tagged as Deprecated using the Niagara Asset Tags.
+ *  This is distinct from a Niagara Emitter version that is marked as deprecated, but might have a new, non-deprecated version. */
+UCLASS(Category = "Validation", DisplayName = "Check for Deprecated Emitters")
+class UNiagaraValidationRule_CheckDeprecatedEmitters : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+	
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
 /** This validation rule checks for various common issue with Large World Coordinates like mixing vector and position types. */
 UCLASS(Category = "Validation", DisplayName = "Large World Coordinates")
 class UNiagaraValidationRule_LWC : public UNiagaraValidationRule

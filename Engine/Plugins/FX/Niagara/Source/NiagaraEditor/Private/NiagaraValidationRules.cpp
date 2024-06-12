@@ -1034,6 +1034,26 @@ void UNiagaraValidationRule_HasEffectType::CheckValidity(const FNiagaraValidatio
 	}
 }
 
+void UNiagaraValidationRule_CheckDeprecatedEmitters::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const
+{
+	TArray<TSharedRef<FNiagaraEmitterHandleViewModel>> EmitterHandleViewModels = Context.ViewModel->GetEmitterHandleViewModels();
+	for (TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel : EmitterHandleViewModels)
+	{
+		if(EmitterHandleViewModel->GetEmitterHandle()->GetInstance().Emitter->AssetTags.ContainsByPredicate([](const FNiagaraAssetTagDefinitionReference& AssetTagReferenceCandidate)
+		{
+			return INiagaraModule::Get().DeprecatedTagDefinition.TagGuid == AssetTagReferenceCandidate.GetTagDefinitionReferenceGuid();
+		}))
+		{
+			UNiagaraStackEmitterPropertiesItem* EmitterProperties = NiagaraValidation::GetStackEntry<UNiagaraStackEmitterPropertiesItem>(EmitterHandleViewModel.Get().GetEmitterStackViewModel());
+
+			FNiagaraValidationResult Result(Severity, FText::Format(
+				LOCTEXT("DeprecatedEmitterUsedTitle", "Emitter '{0}' is deprecated."), FText::FromName(EmitterHandleViewModel->GetEmitterHandle()->GetName())),
+				LOCTEXT("DeprecatedEmitterUsedDescription", "The emitter is deprecated and should not be used. Consider replacing it."), EmitterProperties);
+			OutResults.Add(Result);
+		}
+	}
+}
+
 void UNiagaraValidationRule_LWC::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& Results)  const
 {
 	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();

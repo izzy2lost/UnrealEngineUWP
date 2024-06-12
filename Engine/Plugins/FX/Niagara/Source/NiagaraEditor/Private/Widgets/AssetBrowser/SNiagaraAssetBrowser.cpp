@@ -9,6 +9,7 @@
 #include "NiagaraEmitter.h"
 #include "NiagaraRecentAndFavoritesManager.h"
 #include "NiagaraSystem.h"
+#include "SAssetView.h"
 #include "SlateOptMacros.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Toolkits/GlobalEditorCommonCommands.h"
@@ -87,14 +88,17 @@ void SNiagaraAssetBrowser::Construct(const FArguments& InArgs)
 
 	bSuppressSaveAndLoad = false;
 	LoadSettings();
-
+	
 	InitContextMenu();
+
+	UNiagaraAssetBrowserConfig::Get()->OnPropertyChanged().AddSP(this, &SNiagaraAssetBrowser::OnAssetBrowserConfigPropertyChanged);
 }
 
 SNiagaraAssetBrowser::~SNiagaraAssetBrowser()
 {
 	PreviewViewport.Reset();
 	SaveSettings();
+	UNiagaraAssetBrowserConfig::Get()->OnPropertyChanged().RemoveAll(this);
 }
 
 TArray<UClass*> SNiagaraAssetBrowser::GetDisplayedAssetTypes() const
@@ -166,6 +170,16 @@ bool SNiagaraAssetBrowser::ShouldFilterAsset(const FAssetData& AssetData) const
 	}
 	
 	if(Settings->IsAllowedAssetByClassUsage(AssetData) == false)
+	{
+		return true;
+	}
+
+	if(UNiagaraAssetBrowserConfig::Get()->bShowHiddenAssets == false && INiagaraModule::Get().HiddenAssetTagDefinition.DoesAssetDataContainTag(AssetData))
+	{
+		return true;
+	}
+	
+	if(UNiagaraAssetBrowserConfig::Get()->bShowDeprecatedAssets == false && INiagaraModule::Get().DeprecatedTagDefinition.DoesAssetDataContainTag(AssetData))
 	{
 		return true;
 	}
@@ -311,7 +325,7 @@ void SNiagaraAssetBrowser::PopulateAssetBrowserDetailsSlot()
 TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMainFilters() const
 {
 	using namespace FNiagaraEditorUtilities::AssetBrowser;
-
+	
 	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> MainFilters;
 
 	// Recent
@@ -361,7 +375,7 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 			if(AssetTagDefinitionData.DefinitionsAsset == nullptr)
 			{
 				for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionData.AssetTagDefinitions)
-				{
+				{					
 					if(IsAssetTagDefinitionValid(AssetTagDefinition))
 					{
 						DisplayedFlatAssetTagDefinitionsList.Add(AssetTagDefinition);
@@ -959,6 +973,11 @@ void SNiagaraAssetBrowser::OnShouldDisplayViewportChanged(ECheckBoxState CheckBo
 FText SNiagaraAssetBrowser::OnGetShouldDisplayViewportTooltip() const
 {
 	return LOCTEXT("ShouldDisplayViewportTooltip", "If activated, displays Niagara Systems live in a viewport instead of a thumbnail.\nThis will compile the Niagara System if necessary and might slow down performance.");
+}
+
+void SNiagaraAssetBrowser::OnAssetBrowserConfigPropertyChanged(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	OnFilterChanged();
 }
 
 void SNiagaraAssetBrowser::SaveSettings() const

@@ -83,6 +83,22 @@ const FNiagaraAssetTagDefinition INiagaraModule::LearningContentTagDefinition = 
 	, FLinearColor::Green
 	, FGuid(0xFCF21AFA, 0x50764BFA, 0xB9B2E618, 0xF2A0CD6F)};
 
+const FNiagaraAssetTagDefinition INiagaraModule::HiddenAssetTagDefinition = {
+	LOCTEXT("HiddenDisplayName", "Hidden in Asset Browser")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems) | (int32) (ENiagaraAssetLibraryAssetTypes::Scripts)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Internal
+	, FLinearColor::Black
+	, FGuid(0xC7B2F2A1, 0x71762AFB, 0x51BDE232, 0x8CA4BBA3)};
+
+const FNiagaraAssetTagDefinition INiagaraModule::DeprecatedTagDefinition = {
+	LOCTEXT("DeprecatedDisplayName", "Deprecated")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems) | (int32) (ENiagaraAssetLibraryAssetTypes::Scripts)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Internal
+	, FLinearColor::Black
+	, FGuid(0xF1F2F2FB, 0x50C64AF9, 0xB6BCE631, 0x32C4CC61)};
+
 std::atomic<bool> INiagaraModule::bDataChannelRefreshRequested = false;
 
 int32 GEnableVerboseNiagaraChangeIdLogging = 0;
@@ -1900,6 +1916,8 @@ void INiagaraModule::RegisterInternalAssetTagDefinitions()
 	// All internal tags have to be manually assigned a unique and stable guid so that names can be changed without affecting assigned assets.
 	InternalAssetTagDefinitions.Add(&TemplateTagDefinition);
 	InternalAssetTagDefinitions.Add(&LearningContentTagDefinition);
+	InternalAssetTagDefinitions.Add(&HiddenAssetTagDefinition);
+	InternalAssetTagDefinitions.Add(&DeprecatedTagDefinition);
 }
 
 #if NIAGARA_PERF_BASELINES

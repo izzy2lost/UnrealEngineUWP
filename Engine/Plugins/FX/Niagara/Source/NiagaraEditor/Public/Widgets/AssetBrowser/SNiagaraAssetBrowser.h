@@ -121,6 +121,8 @@ private:
 	void OnShouldDisplayViewportChanged(ECheckBoxState CheckBoxState);
 	FText OnGetShouldDisplayViewportTooltip() const;
 
+	void OnAssetBrowserConfigPropertyChanged(const FPropertyChangedEvent& PropertyChangedEvent);
+	
 	void SaveSettings() const;
 	void LoadSettings();
 private:

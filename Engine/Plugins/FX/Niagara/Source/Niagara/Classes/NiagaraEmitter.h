@@ -261,7 +261,7 @@ struct FVersionedNiagaraEmitterData
 	FFilePath ScriptAsset;
 #endif //WITH_EDITORONLY_DATA
 
-	/* If this emitter is no longer meant to be used, this option should be set.*/
+	/* If this emitter version is no longer meant to be used, this option should be set.*/
 	UPROPERTY()
 	bool bDeprecated = false;
 

@@ -19,7 +19,8 @@ UENUM()
 enum class ENiagaraAssetTagDefinitionImportance : uint8
 {
 	Primary UMETA(ToolTip="This Asset Tag Definition is considered important and will get displayed in the primary filter UI in the Niagara Asset Browsers."),
-	Secondary UMETA(ToolTip="This Asset Tag Definition is considered less important and will only get displayed in the additional drop down filter UI in the Niagara Asset Browsers.")
+	Secondary UMETA(ToolTip="This Asset Tag Definition is considered less important and will only get displayed in the additional drop down filter UI in the Niagara Asset Browsers."),
+	Internal UMETA(ToolTip="This Asset Tag Definition is for internal use only, and will not be displayed in the primary tag view nor the secondary drop down filter UI.")
 	//Both UMETA(ToolTip="This Asset Tag Definition will be displayed in both primary UI & the additional filter drop downs.")
 };
 
