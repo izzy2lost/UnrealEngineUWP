@@ -1049,8 +1049,12 @@ namespace Horde.Server.Jobs.TestData
 			foreach (TestDataDocument item in documents)
 			{
 				BsonDocument testData = item.Data;
-				version = testData.GetValue("Version", new BsonInt32(0)).AsInt32;
-				if (version > 0)
+				if (!testData.TryGetInt32("Version", out version))
+				{
+					testData.TryGetInt32("version", out version);
+				}
+				
+				if (version != 0)
 				{
 					break;
 				}
@@ -1059,6 +1063,12 @@ namespace Horde.Server.Jobs.TestData
 			if (version < 1)
 			{
 				_logger.LogWarning("Test data does not have version and needs to be updated in stream for job {JobId} step {StepId}", job.Id, step.Id);
+				return;
+			}
+
+			if (version > 1)
+			{
+				// Don't support v2 ingestion yet
 				return;
 			}
 
