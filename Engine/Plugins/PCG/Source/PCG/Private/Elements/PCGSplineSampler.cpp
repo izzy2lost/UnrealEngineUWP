@@ -13,6 +13,7 @@
 #include "Data/PCGSpatialData.h"
 #include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGSettingsHelpers.h"
 
 #include "Async/ParallelFor.h"
 #include "Components/SplineComponent.h"
@@ -1397,6 +1398,30 @@ TArray<FPCGPinProperties> UPCGSplineSamplerSettings::InputPinProperties() const
 FPCGElementPtr UPCGSplineSamplerSettings::CreateElement() const
 {
 	return MakeShared<FPCGSplineSamplerElement>();
+}
+
+void FPCGSplineSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
+{
+	FPCGCrc Crc;
+	IPCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
+
+	if (const UPCGSplineSamplerSettings* Settings = Cast<UPCGSplineSamplerSettings>(InSettings))
+	{
+		bool bUnbounded;
+		PCGSettingsHelpers::GetOverrideValue(InInput, Settings, GET_MEMBER_NAME_CHECKED(FPCGSplineSamplerParams, bUnbounded), Settings->SamplerParams.bUnbounded, bUnbounded);
+		const bool bBoundsConnected = InInput.GetInputsByPin(PCGSplineSamplerConstants::BoundingShapeLabel).Num() > 0;
+
+		// If we're operating in bounded mode then we'll use actor bounds, and therefore take dependency on actor data.
+		if (!bUnbounded && !bBoundsConnected && InComponent)
+		{
+			if (const UPCGData* Data = InComponent->GetActorPCGData())
+			{
+				Crc.Combine(Data->GetOrComputeCrc(/*bFullDataCrc=*/false));
+			}
+		}
+	}
+
+	OutCrc = Crc;
 }
 
 bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
