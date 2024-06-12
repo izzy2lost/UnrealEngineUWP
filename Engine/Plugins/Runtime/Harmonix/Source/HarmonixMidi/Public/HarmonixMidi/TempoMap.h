@@ -138,20 +138,6 @@ public:
 
 	bool AddTempoInfoPoint(int32 MicrosecondsPerQuarterNote, int32 Tick, bool SortNow = true);
 
-	/** Use this to add tempo changes to a dynamic map where you want to hard limit the 
-	    number of history entries to a fixed number. Any attempts to get a musical timing
-		(ie FMidiSongPos) for a position earlier in the music will be an estimate and is
-		prone to jitter!
-		*/
-	void AddTempo(float Bpm, int32 Tick, int32 MaxLength = std::numeric_limits<int32>::max());
-
-	/** Use this to add tempo changes to a dynamic map where you want to limit the number
-		of history entries to a specific amount of time. Any attempts to get a musical timing
-		(ie FMidiSongPos) for a position earlier in the music will be an estimate and is
-		prone to jitter!
-		*/
-	void AddTempo(float Bpm, int32 Tick, float MaxLengthSecs);
-
 	/** Remove every point from the given tick onward */
 	void WipeTempoInfoPoints(int32 Tick);
 
@@ -169,8 +155,6 @@ protected:
 	UPROPERTY()
 	TArray<FTempoInfoPoint> Points;
 
-	bool bEarlyMapIsEstimate = false;
-
 private:
 
 	// Given a time, find the TempoInfoPoint at or before it.
@@ -180,6 +164,5 @@ private:
 	// calculate tick as time in ms
 	float TickToMsInternal(float Tick, const FTempoInfoPoint& prevTempoInfoPoint) const;
 	float MsToTickInternal(float TimeMs, const FTempoInfoPoint& prevTempoInfoPoint) const;
-	
-	void  ShiftEntriesAndFixUpPoints(int32 NewHistoryStartIndex, float MsToNewPoint, int32 TickOfNewPoint, int32 MidiTempoOfNewPoint);
+
 };
