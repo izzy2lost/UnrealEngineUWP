@@ -49,7 +49,10 @@ void FLevelSequenceSpawnRegister::DestroySpawnedObject(UObject& Object, UMovieSc
 			}
 		}
 
-		checkf(false, TEXT("No valid object spawner found to destroy spawned object of type %s"), *Object.GetClass()->GetName());
+		UE_LOG(
+			LogMovieScene, Error,
+			TEXT("No valid object spawner found to destroy spawned object '%s' of type '%s'."),
+			*Object.GetPathName(), *Object.GetClass()->GetName());
 	}
 }
 
