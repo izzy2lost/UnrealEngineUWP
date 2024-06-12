@@ -232,3 +232,45 @@ private:
 	FThreadSafeCounter HandlesCurrentlyInUse;
 };
 
+class FFileHandleRegistryReadTracker
+{
+public:
+	FFileHandleRegistryReadTracker(FFileHandleRegistry& InFileRegistry, FRegisteredFileHandle& InHandle, bool bTrackRead = true)
+		: FileRegistry(InFileRegistry)
+		, Handle(InHandle)
+	{
+		if (bTrackRead)
+		{
+			State = FileRegistry.TrackStartRead(&Handle)	? ETrackingState::Success
+															: ETrackingState::Failure;
+		}
+		else
+		{
+			State = ETrackingState::Skip;
+		}
+	}
+
+	~FFileHandleRegistryReadTracker()
+	{
+		if (State == ETrackingState::Success)
+		{
+			FileRegistry.TrackEndRead(&Handle);
+		}
+	}
+
+	bool IsValid() const
+	{
+		return State != ETrackingState::Failure;
+	}
+
+private:
+	FFileHandleRegistry& FileRegistry;
+	FRegisteredFileHandle& Handle;
+
+	enum class ETrackingState : uint8
+	{
+		Failure,
+		Skip,
+		Success
+	} State;
+};
