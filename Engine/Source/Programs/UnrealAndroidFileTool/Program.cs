@@ -17,7 +17,7 @@ namespace UnrealAndroidFileTool
 {
 	class Program
 	{
-		private static string AppVersion = "1.0.3";
+		private static string AppVersion = "1.0.5";
 		private static ILogger Logger = Log.Logger;
 
 		static void ShowHelp(string command)
