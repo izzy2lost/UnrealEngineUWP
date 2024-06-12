@@ -1315,6 +1315,11 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 	}
 }
 
+void FMetalContext::EndRenderPass()
+{
+    RenderPass.EndRenderPass();
+}
+
 FMetalBufferPtr FMetalContext::AllocateFromRingBuffer(uint32 Size, uint32 Alignment)
 {
 	return RenderPass.GetRingBuffer().NewBuffer(Size, Alignment);

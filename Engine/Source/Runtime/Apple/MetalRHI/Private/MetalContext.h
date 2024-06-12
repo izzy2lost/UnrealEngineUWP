@@ -49,6 +49,7 @@ public:
 	 * Set the color, depth and stencil render targets, and then make the new command buffer/encoder
 	 */
 	void SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInfo, bool const bRestart = false);
+    void EndRenderPass();
 	
 	/**
 	 * Allocate from a dynamic ring buffer - by default align to the allowed alignment for offset field when setting buffers
