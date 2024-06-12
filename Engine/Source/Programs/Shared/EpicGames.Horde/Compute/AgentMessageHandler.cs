@@ -63,11 +63,15 @@ namespace EpicGames.Horde.Compute
 			using CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			ExceptionDispatchInfo? exceptionInfo = null;
 
-			void PostException(Exception ex)
+			async Task PostException(Exception ex)
 			{
 				// Capture stack from call site
 				Interlocked.CompareExchange(ref exceptionInfo, ExceptionDispatchInfo.Capture(ex), null);
-				cancellationSource.Cancel();
+#if NET8_0_OR_GREATER
+				await cancellationSource.CancelAsync();
+#else
+				await Task.Run(() => cancellationSource.Cancel());
+#endif
 			}
 
 			await RunAsync(socket, 0, 4 * 1024 * 1024, PostException, cancellationSource.Token);
@@ -81,7 +85,7 @@ namespace EpicGames.Horde.Compute
 #pragma warning restore CA1508
 		}
 
-		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, Action<Exception> postException, CancellationToken cancellationToken)
+		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, Func<Exception, Task> postException, CancellationToken cancellationToken)
 		{
 			List<Task> childTasks = new List<Task>();
 			using AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize);
@@ -158,7 +162,7 @@ namespace EpicGames.Horde.Compute
 			{
 				_logger.LogInformation(ex, "Compute Channel {ChannelId}: Exception: {Message}", channelId, ex.Message);
 				await channel.SendExceptionAsync(ex, cancellationToken);
-				postException(ex);
+				await postException(ex);
 			}
 			finally
 			{

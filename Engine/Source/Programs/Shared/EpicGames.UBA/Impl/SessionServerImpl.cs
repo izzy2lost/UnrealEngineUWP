@@ -133,7 +133,9 @@ namespace EpicGames.UBA
 					using (BinaryWriter writer = new(environmentMemory, System.Text.Encoding.UTF8, true))
 					{
 						foreach (DictionaryEntry de in Environment.GetEnvironmentVariables())
+						{
 							writer.Write($"{de.Key}={de.Value}");
+						}
 					}
 				}
 			}

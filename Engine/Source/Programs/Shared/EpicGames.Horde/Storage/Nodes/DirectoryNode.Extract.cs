@@ -318,7 +318,11 @@ namespace EpicGames.Horde.Storage.Nodes
 					catch (Exception ex)
 					{
 						logger.LogError(ex, "Error while extracting data: {Message}", ex.Message);
+#if NET8_0_OR_GREATER
+						await cancellationSource.CancelAsync();
+#else
 						cancellationSource.Cancel();
+#endif
 					}
 				}
 

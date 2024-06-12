@@ -127,7 +127,6 @@ namespace EpicGames.OIDC
 				File.Move(tempFile, fi.FullName, true);
 				_dirtyProviders.Clear();
 			}
-
 		}
 
 		public bool TryGetRefreshToken(string oidcProvider, out string refreshToken)

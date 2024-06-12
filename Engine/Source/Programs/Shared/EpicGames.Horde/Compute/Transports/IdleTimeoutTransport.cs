@@ -83,7 +83,11 @@ public class IdleTimeoutTransport : ComputeTransport
 			if (remainingTime < TimeSpan.Zero)
 			{
 				logger.LogWarning("Terminating compute transport due to timeout (last tick at {Time})", DateTime.UtcNow - TimeSinceActivity);
+#if NET8_0_OR_GREATER
+				await cts.CancelAsync();
+#else
 				cts.Cancel();
+#endif
 				break;
 			}
 			await Task.Delay(remainingTime + TimeSpan.FromSeconds(0.2), cancellationToken);

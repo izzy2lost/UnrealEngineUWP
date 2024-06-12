@@ -133,7 +133,11 @@ namespace EpicGames.Horde
 		{
 			if (_authStateTask != null && !_authStateTask.IsCompleted)
 			{
+#if NET8_0_OR_GREATER
+				await _cancellationTokenSource.CancelAsync();
+#else
 				_cancellationTokenSource.Cancel();
+#endif
 				try
 				{
 #pragma warning disable VSTHRD003
