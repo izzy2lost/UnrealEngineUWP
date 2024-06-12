@@ -38,6 +38,12 @@ public:
 		Beat = 1.0f;
 	}
 
+	bool operator>=(const FMusicTimestamp& Other) const
+	{
+		return Bar > Other.Bar ||
+			(Bar == Other.Bar && Beat >= Other.Beat);
+	}
+
 	bool operator>(const FMusicTimestamp& Other) const
 	{
 		return Bar > Other.Bar ||
@@ -59,7 +65,13 @@ public:
 		return Bar < Other.Bar ||
 			(Bar == Other.Bar && Beat < Other.Beat);
 	}
-	
+
+	bool operator<=(const FMusicTimestamp& Other) const
+	{
+		return Bar < Other.Bar ||
+			(Bar == Other.Bar && Beat <= Other.Beat);
+	}
+
 	friend FORCEINLINE uint32 GetTypeHash(const FMusicTimestamp& InTimestamp)
 	{
 		return HashCombineFast(GetTypeHash(InTimestamp.Bar), GetTypeHash(InTimestamp.Beat));
