@@ -797,15 +797,22 @@ void RestrictRowContentByVersion( TArray<FName>& InOutRowNames, const UDataTable
 
 TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext)
 {
-	TArray<FName> RowNames = GetEnabledRows(DataTable, TableNode);
-
-	if (!RowNames.IsEmpty())
+	if (FMutableGraphGenerationContext::FGeneratedDataTablesData* Result = GenerationContext.GeneratedTables.Find(DataTable.GetName()))
 	{
-		RestrictRowNamesToSelectedOption(RowNames, TableNode, GenerationContext);
-		RestrictRowContentByVersion(RowNames, DataTable, TableNode, GenerationContext);
+		return Result->RowNames;
 	}
+	else
+	{
+		TArray<FName> RowNames = GetEnabledRows(DataTable, TableNode);
 
-	return RowNames;
+		if (!RowNames.IsEmpty())
+		{
+			RestrictRowNamesToSelectedOption(RowNames, TableNode, GenerationContext);
+			RestrictRowContentByVersion(RowNames, DataTable, TableNode, GenerationContext);
+		}
+
+		return RowNames;
+	}
 }
 
 
@@ -928,15 +935,27 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 {
 	check(DataTable && TableNode);
 
-	// Checking if the table in the cache
+	// Checking if the table is in the cache
 	const FString TableName = DataTable->GetName();
 
-	if (mu::TablePtr* Result = GenerationContext.GeneratedTables.Find(TableName))
+	if (FMutableGraphGenerationContext::FGeneratedDataTablesData* CachedTable = GenerationContext.GeneratedTables.Find(TableName))
 	{
 		// Generating Parameter Metadata for parameters that reuse a Table
 		GenerateTableParameterUIData(DataTable, TableNode, GenerationContext);
 
-		return *Result;
+		FMutableGraphGenerationContext::FGeneratedDataTablesData ;
+
+		if (!CachedTable->HasSameSettings(TableNode))
+		{
+			TArray<const UObject*> Nodes;
+			Nodes.Add(TableNode);
+			Nodes.Add(CachedTable->ReferenceNode);
+
+			GenerationContext.Compiler->CompilerLog(LOCTEXT("TableNodesCompilationRestrictionError",
+				"Found one or more Table Nodes with the same data table but different Compilation Restrictions."), Nodes);
+		}
+
+		return CachedTable->GeneratedTable;
 	}
 
 	mu::TablePtr MutableTable = new mu::Table();
@@ -957,6 +976,16 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 
 		// Generating Parameter Metadata for new table parameters
 		GenerateTableParameterUIData(DataTable, TableNode, GenerationContext);
+
+		FMutableGraphGenerationContext::FGeneratedDataTablesData GeneratedTable;
+		GeneratedTable.GeneratedTable = MutableTable;
+		GeneratedTable.bDisableCheckedRows = TableNode->bDisableCheckedRows;
+		GeneratedTable.VersionColumn = TableNode->VersionColumn;
+		GeneratedTable.RowNames = RowNames;
+		GeneratedTable.ReferenceNode = TableNode;
+
+		// Add table to cache
+		GenerationContext.GeneratedTables.Add(TableName, GeneratedTable);
 	}
 	else
 	{
@@ -965,8 +994,6 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 		
 		return nullptr;
 	}
-
-	GenerationContext.GeneratedTables.Add(TableName, MutableTable);
 
 	return MutableTable;
 }
@@ -1013,7 +1040,7 @@ UDataTable* GenerateDataTableFromStruct(const UCustomizableObjectNodeTable* Tabl
 		return nullptr;
 	}
 
-	FMutableGraphGenerationContext::FGeneratedDataTablesData DataTableData;
+	FMutableGraphGenerationContext::FGeneratedCompositeDataTablesData DataTableData;
 	DataTableData.ParentStruct = TableNode->Structure;
 	DataTableData.FilterPaths = TableNode->FilterPaths;
 	

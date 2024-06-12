@@ -189,7 +189,7 @@ public:
 	bool bAddNoneOption;
 
 	/** If there is a bool column in the table, checked rows will not be compiled */
-	UPROPERTY(EditAnywhere, Category = TableProperties)
+	UPROPERTY(EditAnywhere, Category = CompilationRestrictions)
 	bool bDisableCheckedRows = true;
 
 	/** Source where table gathers the data */
@@ -208,7 +208,7 @@ public:
 	TArray<FName> FilterPaths;
 	
 	/** Name of the column that contains the Version options. */
-	UPROPERTY(EditAnywhere, Category = TableProperties)
+	UPROPERTY(EditAnywhere, Category = CompilationRestrictions)
 	FName VersionColumn;
 
 	/** Name of the row that will be used as default value. */

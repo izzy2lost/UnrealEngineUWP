@@ -2547,7 +2547,7 @@ TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesIn
 
 		if (DataTable)
 		{
-			for (const FName& RowName : GetRowsToCompile(*DataTable, *TableNode,GenerationContext))
+			for (const FName& RowName : GetRowsToCompile(*DataTable, *TableNode, GenerationContext))
 			{
 				USkeletalMesh* SkeletalMesh = TableNode->GetSkeletalMeshAt(SourceMeshPin, DataTable, RowName);
 				TSoftClassPtr<UAnimInstance> MeshAnimInstance = TableNode->GetAnimInstanceAt(SourceMeshPin, DataTable, RowName);
@@ -2557,7 +2557,7 @@ TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesIn
 					SkeletalMeshesInfo.Emplace(SkeletalMesh, MeshAnimInstance);
 				}
 			}
-		}	
+		}
 	}
 	else
 	{
@@ -3014,7 +3014,8 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 		int32 NumRows = RowNames.Num();
 
 		// Should exist
-		mu::TablePtr Table = GenerationContext.GeneratedTables[DataTable->GetName()];
+		mu::TablePtr Table = GenerationContext.GeneratedTables[DataTable->GetName()].GeneratedTable;
+		check(Table);
 
 		FString ColumnName = TableColumnName + TypedNodeMorphs[MorphIndex].MorphTargetName;
 		int32 ColumnIndex = INDEX_NONE;

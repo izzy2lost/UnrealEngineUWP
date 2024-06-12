@@ -2134,7 +2134,14 @@ FMutableGraphGenerationContext::FSharedSurface::FSharedSurface(uint8 InLOD, cons
 	NodeSurfaceNew = InNodeSurfaceNew;
 }
 
+
 bool FMutableGraphGenerationContext::FSharedSurface::operator==(const FSharedSurface& o) const
 {
 	return NodeModifierIDs == o.NodeModifierIDs;
+}
+
+
+bool FMutableGraphGenerationContext::FGeneratedDataTablesData::HasSameSettings(const UCustomizableObjectNodeTable* Node) const
+{
+	return Node->bDisableCheckedRows == bDisableCheckedRows && Node->VersionColumn == VersionColumn;
 }

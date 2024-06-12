@@ -555,23 +555,48 @@ struct FMutableGraphGenerationContext
 	/** Set of all generated nodes. */
 	TSet<UCustomizableObjectNode*> GeneratedNodes;
 
-	// Cache of generated Node Tables
-	TMap<FString, mu::TablePtr> GeneratedTables;
-
+	/** Struct that stores the relevant information of a data table generated during the compilation. 
+	e.g. all data tables must have the same compilation restrictions */
 	struct FGeneratedDataTablesData
+	{
+		// Pointer to the generated mutable Table
+		mu::Ptr<mu::Table> GeneratedTable;
+
+		// Table Node used to fill this info
+		const UCustomizableObjectNodeTable* ReferenceNode;
+
+		// Stores the names of the rows that will be compiled
+		TArray<FName> RowNames;
+
+		// Compilation Restrictions:
+		// If there is a bool column in the table, checked rows will not be compiled
+		bool bDisableCheckedRows;
+
+		// Name of the column that determines de version control
+		FName VersionColumn;
+
+		// Compare the stored compilation settings with the compilation settings of a Table Node
+		// return true if the compilation settings are equal
+		bool HasSameSettings(const UCustomizableObjectNodeTable* Node) const;
+	};
+
+	// Cache of generated Node Tables
+	TMap<FString, FGeneratedDataTablesData> GeneratedTables;
+
+	struct FGeneratedCompositeDataTablesData
 	{
 		UScriptStruct* ParentStruct = nullptr;
 		TArray<FName> FilterPaths;
 		UCompositeDataTable* GeneratedDataTable = nullptr;
 
-		bool operator==(const FGeneratedDataTablesData& Other) const
+		bool operator==(const FGeneratedCompositeDataTablesData& Other) const
 		{
 			return ParentStruct == Other.ParentStruct && FilterPaths == Other.FilterPaths;
 		}
 	};
 
 	// Cache of generated Composited Data Tables
-	TArray<FGeneratedDataTablesData> GeneratedCompositeDataTables;
+	TArray<FGeneratedCompositeDataTablesData> GeneratedCompositeDataTables;
 
 	// Cache of generated images, because sometimes they are reused by LOD, we use this as a second
 	// level cache
@@ -832,9 +857,6 @@ struct FMutableGraphGenerationContext
 
 	// Current material parameter id to find the corresponding column in a mutable table
 	FString CurrentMaterialTableParameterId;
-
-	// Stores the parameters generated in the node tables
-	TMap<const class UCustomizableObjectNodeTable*, TArray<FGuid>> GeneratedParametersInTables;
 
 	struct FSharedSurface
 	{
