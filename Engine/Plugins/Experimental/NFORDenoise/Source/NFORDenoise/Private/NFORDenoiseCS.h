@@ -57,6 +57,8 @@ namespace NFORDenoise
 	//--------------------------------------------------------------------------------------------------------------------
 	// General texture operations including: multiply, divide, accumulate, and copy.
 
+	bool ShouldCompileNFORShadersForProject(EShaderPlatform ShaderPlatform);
+
 	class FTextureMultiplyCS : public FGlobalShader
 	{
 		DECLARE_GLOBAL_SHADER(FTextureMultiplyCS)
@@ -77,6 +79,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			OutEnvironment.SetDefine(TEXT("TEXTURE_OPS"), TEXTURE_OPS_MULTIPLY);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 	};
 
@@ -101,6 +108,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("TEXTURE_OPS"), TEXTURE_OPS_DIVIDE);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
 	};
 
 	class FTextureAccumulateConstantCS : public FGlobalShader
@@ -122,6 +134,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			OutEnvironment.SetDefine(TEXT("TEXTURE_OPS"), TEXTURE_OPS_ADD_CONSTANT);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 
 		class FDimensionAccumulateByMask : SHADER_PERMUTATION_BOOL("ACCUMULATE_BY_MASK");
@@ -149,6 +166,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("TEXTURE_OPS"), TEXTURE_OPS_ACCUMULATE);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
 	};
 
 	class FCopyTexturePS : public FGlobalShader
@@ -162,6 +184,11 @@ namespace NFORDenoise
 			SHADER_PARAMETER(FIntPoint, TextureSize)
 			RENDER_TARGET_BINDING_SLOTS()
 		END_SHADER_PARAMETER_STRUCT()
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
 	};
 
 	enum class ETextureCopyType :uint32
@@ -190,6 +217,11 @@ namespace NFORDenoise
 		{
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 
 		class FDimTextureCopyType : SHADER_PERMUTATION_ENUM_CLASS("TEXTURE_COPY_TYPE", ETextureCopyType);
@@ -241,6 +273,11 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
 	};
 
 	// Based on Taylor expansion, sigma_{normalized radiance} \approx = sigma_{radiance} / sigma_{albedo}, if normalized radiance = radiance / albedo
@@ -260,6 +297,11 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 	};
 
@@ -285,6 +327,11 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 
 		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
@@ -374,6 +421,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("NONLOCALMEAN_SEPARATE_SOURCE"), 0);
 		}
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
 		class FDimensionUseGuide : SHADER_PERMUTATION_BOOL("USE_GUIDE"); //TODO
 		class FDimensionImageChannelCount : SHADER_PERMUTATION_RANGE_INT("SOURCE_CHANNEL_COUNT", 1, static_cast<int>(EImageChannelCount::MAX));
@@ -408,6 +460,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
 		class FDimensionUseGuide : SHADER_PERMUTATION_BOOL("USE_GUIDE");
 		class FDimensionImageChannelCount : SHADER_PERMUTATION_RANGE_INT("SOURCE_CHANNEL_COUNT", 1, static_cast<int>(EImageChannelCount::MAX));
@@ -439,6 +496,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
 		class FDimensionImageChannelCount : SHADER_PERMUTATION_RANGE_INT("SOURCE_CHANNEL_COUNT", 1, static_cast<int>(EImageChannelCount::MAX));
 		class FDimensionSeparateSourceTarget : SHADER_PERMUTATION_BOOL("NONLOCALMEAN_SEPARATE_SOURCE");
@@ -465,6 +527,11 @@ namespace NFORDenoise
 		{
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 
 		enum class ESeperablePassType : int32
@@ -503,6 +570,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		class FDimensionSeparateSourceTarget : SHADER_PERMUTATION_BOOL("NONLOCALMEAN_SEPARATE_SOURCE");
 		class FDimensionTargetWeightLayout : SHADER_PERMUTATION_ENUM_CLASS("NLM_WEIGHTLAYOUT", ENonLocalMeanWeightLayout);
 		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeparateSourceTarget, FDimensionTargetWeightLayout>;
@@ -539,6 +611,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
 		
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		static EPixelFormat GetDestFloatFormat(uint32 BufferBytesPerElement)
 		{
 			// Dest buffer can be float32 or float16
@@ -571,6 +648,11 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 	};
 
@@ -659,6 +741,11 @@ namespace NFORDenoise
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), GetThreadGroupSize());
 			}
 
+			static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+			{
+				return ShouldCompileNFORShadersForProject(Parameters.Platform);
+			}
+
 			static EPixelFormat GetXYFloatFormat(uint32 BufferBytesPerElement)
 			{
 				// Buffer can be float32 or float16
@@ -719,6 +806,11 @@ namespace NFORDenoise
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			}
 
+			static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+			{
+				return ShouldCompileNFORShadersForProject(Parameters.Platform);
+			}
+
 			class FDimNumFeature : SHADER_PERMUTATION_RANGE_INT("NUM_FEATURE", 6, 3);
 			class FDimSolverType : SHADER_PERMUTATION_ENUM_CLASS("LINEAR_SOLVER_TYPE", ESolverType);
 			class FDimOutputIndices : SHADER_PERMUTATION_BOOL("OUTPUT_INDICES");
@@ -749,6 +841,11 @@ namespace NFORDenoise
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 			}
 
+			static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+			{
+				return ShouldCompileNFORShadersForProject(Parameters.Platform);
+			}
+
 			class FDimInputMatrixType : SHADER_PERMUTATION_ENUM_CLASS("INPUT_MATRIX_TYPE", EInputMatrixType);
 			using FPermutationDomain = TShaderPermutationDomain <FDimInputMatrixType>;
 		};
@@ -769,6 +866,11 @@ namespace NFORDenoise
 			{
 				FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+			}
+
+			static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+			{
+				return ShouldCompileNFORShadersForProject(Parameters.Platform);
 			}
 
 			class FDimNumFeature : SHADER_PERMUTATION_RANGE_INT("NUM_FEATURE", 6, 3);
@@ -820,6 +922,11 @@ namespace NFORDenoise
 				FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 				OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+			}
+
+			static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+			{
+				return ShouldCompileNFORShadersForProject(Parameters.Platform);
 			}
 
 			static EPixelFormat GetXFloatFormat(uint32 BufferBytesPerElement)
@@ -879,6 +986,11 @@ namespace NFORDenoise
 			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 		}
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
 		using FPermutationDomain = TShaderPermutationDomain<FDimPreAlbedoDivide>;
 	};
@@ -909,6 +1021,11 @@ namespace NFORDenoise
 			OutEnvironment.SetDefine(TEXT("SOURCE_CHANNEL_COUNT"), 4);
 		}
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
+
 		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
 		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType>;
 	};
@@ -930,6 +1047,11 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
+		}
 	};
 
 	class FCombineFilteredImageCS : public FGlobalShader
@@ -949,6 +1071,11 @@ namespace NFORDenoise
 		{
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return ShouldCompileNFORShadersForProject(Parameters.Platform);
 		}
 	};
 

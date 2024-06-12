@@ -257,6 +257,7 @@ int2 SourceOffset;
 int2 TargetOffset;
 int Channel;
 int2 CopySize;
+int2 TextureSize;
 
 float4 CopyTexturePS(float4 SvPosition : SV_POSITION) : SV_Target0
 {
@@ -326,7 +327,6 @@ float GetImageVariance(int2 P, Texture2D inVariance, int inVarianceChannelOffset
 Texture2D<float4> Normal;
 Texture2D<float4> NormalVariance;
 RWTexture2D<uint> RWMask;
-int2 TextureSize;
 
 [numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
 void ClassifyPreAlbedoDivideMaskIdCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
@@ -1456,6 +1456,7 @@ uint4 EncodeFloat4(float4 Value)
 float4 DecodeFloat4(uint4 Value)
 {
 	float4 Decoded = float4(Value>>16) + float4(Value & 0xffff)/65536;
+	return Decoded;
 }
 
 void SaveFloat4ToBufferOrTexture(uint2 Position, float4 Value, uint NumOfScattering)
@@ -1482,7 +1483,7 @@ void SaveFloat4ToBufferOrTexture(uint2 Position, float4 Value, uint NumOfScatter
 
 #else
 	int IntermediateBufferIndex = Position.x + Position.y * (TextureSize.x + 2 * PatchDistance);
-	uint4 XBWEncoded = EncodeFloat4(XBW);
+	uint4 XBWEncoded = EncodeFloat4(Value);
 	float4 OldValue = 0;
 	InterlockedAdd(RWReconstructBuffer[IntermediateBufferIndex].x, XBWEncoded.x, OldValue.x);
 	InterlockedAdd(RWReconstructBuffer[IntermediateBufferIndex].y, XBWEncoded.y, OldValue.y);

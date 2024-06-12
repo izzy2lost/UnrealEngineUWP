@@ -258,6 +258,16 @@ namespace NFORDenoise
 	//--------------------------------------------------------------------------------------------------------------------
 	// Functions based on CVars
 
+	bool ShouldCompileNFORShadersForProject(EShaderPlatform ShaderPlatform)
+	{
+		const IConsoleVariable* CVarPathTracing = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PathTracing"));
+		const bool bSupportsPathTracing = CVarPathTracing ? CVarPathTracing->GetInt() != 0 : false;
+
+		return ShouldCompileRayTracingShadersForProject(ShaderPlatform) &&
+			FDataDrivenShaderPlatformInfo::GetSupportsPathTracing(ShaderPlatform) &&
+			bSupportsPathTracing;
+	}
+
 	bool ShouldFeatureAddConstant()
 	{
 		return CVarNFORFeatureAddConstant.GetValueOnRenderThread();

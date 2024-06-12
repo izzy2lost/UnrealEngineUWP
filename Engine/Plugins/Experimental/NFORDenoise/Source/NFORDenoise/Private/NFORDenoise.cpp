@@ -254,7 +254,7 @@ private:
 
 void FNFORDenoiseModule::StartupModule()
 {
-	UE_LOG(LogNFORDenoise, Log, TEXT("NeuralPostProcessing starting up"));
+	UE_LOG(LogNFORDenoise, Log, TEXT("NFORDenoise function starting up"));
 
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("NFORDenoise"));
 	if (Plugin.IsValid())
