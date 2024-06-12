@@ -567,7 +567,7 @@ class FConvertGeometry2MeshElement : public FTaskMgr::FTask
 	FConvertGeometry2MeshElement(const FSyncContext& InSyncContext, FSyncData::FElement* InElementSyncData,
 								 FMeshClass* InMeshClass);
 
-	void AddElementGeometry(FElementID* IOElementID, const Geometry::Transformation3D& InLocalToWorld);
+	void AddElementGeometry(FElementID* IOElementID, const Geometry::Vector3D& InGeometryShift);
 
 	bool HasGeometry() const { return Element2StaticMesh.HasGeometry(); }
 
@@ -623,11 +623,12 @@ FConvertGeometry2MeshElement::FConvertGeometry2MeshElement(const FSyncContext&	I
 }
 
 void FConvertGeometry2MeshElement::AddElementGeometry(FElementID*						IOElementID,
-													  const Geometry::Transformation3D& InWorldToLocal)
+													  const Geometry::Vector3D&          InGeometryShift
+	)
 {
 	UE_AC_TestPtr(IOElementID);
 
-	Element2StaticMesh.AddElementGeometry(IOElementID->GetElement3D(), InWorldToLocal);
+	Element2StaticMesh.AddElementGeometry(IOElementID->GetElement3D(), InGeometryShift);
 }
 
 FSyncData::FElement::FElement(const GS::Guid& InGuid, const FSyncContext& /* InSyncContext */)
@@ -775,19 +776,29 @@ void FSyncData::FElement::Process(FProcessInfo* IOProcessInfo)
 
 			ModelerAPI::Transformation LocalToWorld =
 				IOProcessInfo->ElementID.GetElement3D().GetElemLocalToWorldTransformation();
-			Geometry::Transformation3D WorldToLocal; // Set 2 identity for Instances (i.e. Object with transform)
-			if ((LocalToWorld.status & TR_IDENT) != 0)
+			// Shift geometry to pivot it at the bounds center
+			Geometry::Vector3D GeometryShift;
 			{
-				Box3D Bounds = IOProcessInfo->ElementID.GetElement3D().GetBounds();
-				LocalToWorld.matrix[0][3] = (Bounds.xMin + Bounds.xMax) * 0.5;
-				LocalToWorld.matrix[1][3] = (Bounds.yMin + Bounds.yMax) * 0.5;
-				LocalToWorld.matrix[2][3] = Bounds.zMin;
-				LocalToWorld.status = (LocalToWorld.matrix[0][3] == 0.0 && LocalToWorld.matrix[1][3] == 0.0 &&
-									   LocalToWorld.matrix[2][3] == 0.0)
-										  ? TR_IDENT
-										  : TR_TRANSL_ONLY;
-				WorldToLocal.SetOffset(Geometry::Vector3D(-LocalToWorld.matrix[0][3], -LocalToWorld.matrix[1][3],
-														  -LocalToWorld.matrix[2][3]));
+				Box3D LocalBounds = IOProcessInfo->ElementID.GetElement3D().GetBounds(
+					ModelerAPI::CoordinateSystem::ElemLocal);
+				Geometry::Point3D LocalBoundsCenter{
+					(LocalBounds.xMin + LocalBounds.xMax) * 0.5,
+					(LocalBounds.yMin + LocalBounds.yMax) * 0.5,
+					LocalBounds.zMin};
+
+				// Transform center to world
+				TRANMAT LocalToWorldTranmatOrig;
+				LocalToWorld.ToTRANMAT(&LocalToWorldTranmatOrig);
+				Geometry::Point3D BoundsCenterWorld = Geometry::TransformPoint(LocalToWorldTranmatOrig, LocalBoundsCenter);
+
+				// "Re-pivot" object to the center of bounding box by
+				// ...shifting geometry to have its local zero coordinates at the geometry bounds center
+				GeometryShift = -LocalBoundsCenter;
+				// ...and changing transform to translate geometry zero point to bounds center in world space we computed
+				LocalToWorld.matrix[0][3] = BoundsCenterWorld[0];
+				LocalToWorld.matrix[1][3] = BoundsCenterWorld[1];
+				LocalToWorld.matrix[2][3] = BoundsCenterWorld[2];
+				LocalToWorld.status = BoundsCenterWorld.IsNullVector(EPS) ? TR_IDENT : TR_TRANSL_ONLY;
 			}
 
 			if (!ActorElement.IsValid())
@@ -833,7 +844,7 @@ void FSyncData::FElement::Process(FProcessInfo* IOProcessInfo)
 				MeshClass->Rotation = ActorElement->GetRotation();
 				FConvertGeometry2MeshElement* ConvertGeometry2MeshElement =
 					new FConvertGeometry2MeshElement(IOProcessInfo->SyncContext, this, MeshClass);
-				ConvertGeometry2MeshElement->AddElementGeometry(&IOProcessInfo->ElementID, WorldToLocal);
+				ConvertGeometry2MeshElement->AddElementGeometry(&IOProcessInfo->ElementID, GeometryShift);
 				if (ConvertGeometry2MeshElement->HasGeometry())
 				{
 					UE_AC_STAT(IOProcessInfo->SyncContext.Stats.TotalMeshClassesCreated++);
@@ -846,43 +857,6 @@ void FSyncData::FElement::Process(FProcessInfo* IOProcessInfo)
 				// ConvertGeometry2MeshElement->Run();
 				// delete ConvertGeometry2MeshElement;
 				FTaskMgr::GetMgr()->AddTask(ConvertGeometry2MeshElement, FTaskMgr::kSchedule);
-			}
-			else if(TypeID == API_MorphID && ((LocalToWorld.status & IsRelative) == IsRelative))
-			{
-				FTransform Parent(MeshClass->Rotation, MeshClass->Translation);
-				FTransform Child =  Parent * ActorElement->GetRelativeTransform();
-				ActorElement->SetTranslation(Child.GetTranslation());
-				ActorElement->SetRotation(Child.GetRotation());
-
-				//API_Element APIElement;
-				//Zap(&APIElement);
-				//APIElement.header.guid = GSGuid2APIGuid(ElementId);
-				//GSErrCode GSErr = ACAPI_Element_Get(&APIElement, 0);
-				//UE_AC_Assert(GSErr == NoError);
-				//UE_AC_Assert(APIElement.header.typeID == TypeID);
-
-				{
-					//API_Elem_Head	elemHead;
-					//BNZeroMemory(&elemHead, sizeof(API_Elem_Head));
-					//elemHead.guid = GSGuid2APIGuid(ElementId);
-
-					API_ElemInfo3D info3D;
-					BNZeroMemory(&info3D, sizeof(API_ElemInfo3D));
-
-					GSErrCode err = ACAPI_Element_Get3DInfo(IOProcessInfo->ElementID.GetHeader(), &info3D);
-					if (err == NoError)
-					{
-						//API_Component3D component;
-						//BNZeroMemory(&component, sizeof(component));
-						//component.header.typeID = API_BodyID;
-						//component.header.index = info3D.fbody;
-						//err = ACAPI_3D_GetComponent(&component);
-						//if (err == NoError) {
-						//	API_Tranmat			tm;
-						//	tm = component.body.tranmat;
-						//}
-					}
-				}
 			}
 		}
 	}

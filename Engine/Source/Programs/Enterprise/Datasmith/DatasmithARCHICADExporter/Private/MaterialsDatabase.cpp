@@ -85,7 +85,7 @@ void FMaterialInfo::Init(const FSyncContext& SyncContext, const API_Component3D&
 									  SyncContext.GetTexturesCache().GetTexture(SyncContext, textureIndex).Fingerprint);
 			}
 			UE_AC_VerboseF("Simulate Guid for material %d, %s Guid=%s\n", MaterialKey.ACMaterialIndex,
-						   DisplayName.ToUtf8(), APIGuidToString(MatGuid).ToUtf8());
+						   TCHAR_TO_UTF8(*DatasmithLabel), APIGuidToString(MatGuid).ToUtf8());
 		}
 		SyncData.MaterialId = APIGuid2GSGuid(MatGuid);
 		SyncData.MaterialIndex = CUmat.umat.mater.head.index;

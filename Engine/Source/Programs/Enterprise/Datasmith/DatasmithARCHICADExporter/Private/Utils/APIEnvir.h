@@ -54,6 +54,7 @@ _Pragma("clang diagnostic ignored \"-Wdefaulted-function-deleted\"")
 #include "ConvexPolygon.hpp"
 
 #include "Transformation.hpp"
+#include "TranMatToTransformationConverter.hpp"
 #include "Parameter.hpp"
 #include "Light.hpp"
 
