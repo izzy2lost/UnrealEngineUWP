@@ -471,6 +471,12 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 
 				for (UPCGManagedISMComponent* MISMC : MISMCs)
 				{
+					if (!MISMC->IsMarkedUnused())
+					{
+						// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed components at creation
+						PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalISMCSpawn", "Identical ISM Component spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), nullptr);
+					}
+
 					MISMC->MarkAsReused();
 				}
 
@@ -808,7 +814,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 #endif
 	UPCGSubsystem* Subsystem = (Context->SourceComponent.Get() ? Context->SourceComponent->GetSubsystem() : nullptr);
 
-	// Try to reuse actors if the are preexisting
+	// Try to reuse actors if they are preexisting
 	TArray<UPCGManagedActors*> ReusedManagedActorsResources;
 	FPCGCrc InputDependenciesCrc;
 	if (CVarAllowActorReuse.GetValueOnAnyThread())
@@ -844,6 +850,13 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		for (UPCGManagedActors* ManagedActors : ReusedManagedActorsResources)
 		{
 			check(ManagedActors);
+
+			if (!ManagedActors->IsMarkedUnused())
+			{
+				// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed actors at creation
+				PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalActorSpawn", "Identical actor spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), nullptr);
+			}
+
 			ManagedActors->MarkAsReused();
 
 			// There's no setup to be done, just generation if we're in the no-merge case, so keep track of these actors only in this case

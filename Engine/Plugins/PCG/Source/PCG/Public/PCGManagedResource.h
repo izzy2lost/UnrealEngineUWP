@@ -38,8 +38,7 @@ public:
 	/** Marks the resources as being kept and changed through generation */
 	virtual void MarkAsUsed() { ensure(CanBeUsed()); bIsMarkedUnused = false; }
 	/** Marks the resource as being reused as-is during the generation */
-	// Ensure may fire if multiple executions of the graph are happening in parallel/overlapping
-	virtual void MarkAsReused() { ensure(bIsMarkedUnused); bIsMarkedUnused = false; }
+	virtual void MarkAsReused() { bIsMarkedUnused = false; }
 	bool IsMarkedUnused() const { return bIsMarkedUnused; }
 
 	/** Move the given resource to a new actor. Return true if it has succeeded */
