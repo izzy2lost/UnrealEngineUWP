@@ -723,6 +723,7 @@ namespace Horde.Server.Artifacts
 
 				pipeline.Add(new BlobRequest<IoHash>(blobRef, hash));
 			}
+			pipeline.FinishAdding();
 
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
