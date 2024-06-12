@@ -211,7 +211,7 @@ bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 		}
 		else
 		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidProperty", "Could not find nameless property in the user parameters"));
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidNamelessProperty", "Could not find nameless property in the user parameters"));
 		}
 
 		return true;
