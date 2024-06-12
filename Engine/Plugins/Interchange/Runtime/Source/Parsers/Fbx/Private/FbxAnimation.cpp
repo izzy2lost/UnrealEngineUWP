@@ -429,6 +429,7 @@ namespace UE::Interchange::Private
 					if (TransformChannelCurves[ChannelIndex])
 					{
 						Parameters.IsNodeAnimated = true;
+						break;
 					}
 				}
 			}

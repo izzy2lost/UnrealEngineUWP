@@ -181,18 +181,6 @@ namespace UE
 
 			private:
 				
-				//////////////////////////////////////////////////////////////////////////
-				/** Scene Conversion Private Implementation Begin */
-
-				/**
-				 * The Unroll filter expects only rotation curves, we need to walk the scene and extract the
-				 * rotation curves from the nodes property. This can become time consuming but we have no choice.
-				 */
-				static void ApplyUnroll(FbxNode* pNode, FbxAnimLayer* pLayer, FbxAnimCurveFilterUnroll* pUnrollFilter);
-
-				/** Scene Conversion Private Implementation End */
-				//////////////////////////////////////////////////////////////////////////
-
 				template<typename ScalarType>
 				static void VerifyFiniteScalar(ScalarType& Value)
 				{
