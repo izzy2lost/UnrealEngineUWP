@@ -192,16 +192,27 @@ void STraceObjectRowWidget::Construct(const FArguments& InArgs, const TSharedRef
 		.Padding(0.0f)
 		.Content()
 		[
+			// Enabled checkbox
 			SNew(SHorizontalBox)
 			.IsEnabled(!InObject->IsReadOnly())
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(0.0f, 0.0f, 2.0f, 0.0f)
+			[
+				SNew(SFilterCheckboxWidget, InObject)
+			]
+
 			// Name 
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
-			.Padding(2, 0, 0, 0)
+			.Padding(2.0f, 0.0f, 0.0f, 0.0f)
 			.VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
 				.Text(Object->GetDisplayText())
+				.ToolTipText(Object->GetTooltipText())
 				.HighlightText_Lambda([this]() -> FText
 				{
 					// Get attribute value, populated by search box for treeview filter-ing
@@ -220,15 +231,6 @@ void STraceObjectRowWidget::Construct(const FArguments& InArgs, const TSharedRef
 
 					return Value;
 				})
-			]
-
-			// Visibility icon
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(0, 0, 2.f, 0)
-			[
-				SNew(SFilterCheckboxWidget, InObject)
 			]
 		], InOwnerTableView);
 }

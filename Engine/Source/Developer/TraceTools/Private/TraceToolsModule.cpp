@@ -20,7 +20,7 @@ void FTraceToolsModule::StartupModule()
 
 	UE::TraceTools::FTraceToolsStyle::Initialize();
 
-	FConfigContext::ReadIntoGConfig().Load(TEXT("Trace"), TraceFiltersIni);
+	TraceFiltersIni = GEngineIni;
 }
 
 void FTraceToolsModule::ShutdownModule()

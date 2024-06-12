@@ -28,12 +28,7 @@ void FSessionTraceControllerFilterService::GetRootObjects(TArray<FTraceObjectInf
 	OutObjects.Append(Objects);
 }
 
-void FSessionTraceControllerFilterService::GetChildObjects(uint32 InObjectHash, TArray<FTraceObjectInfo>& OutChildObjects) const
-{
-	/** TODO, parent/child relationship for Channels */
-}
-
-const FDateTime& FSessionTraceControllerFilterService::GetTimestamp()
+const FDateTime& FSessionTraceControllerFilterService::GetTimestamp() const
 {
 	return TimeStamp;
 }
@@ -92,13 +87,27 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 		Objects.Empty();
 		return;
 	}
-	if (InUpdateType != FTraceStatus::EUpdateType::ChannelsDesc && 
-		InUpdateType != FTraceStatus::EUpdateType::ChannelsStatus && 
-		InUpdateType != FTraceStatus::EUpdateType::All)
+	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::ChannelsDesc) ||
+		(EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::ChannelsStatus)))
 	{
-		return;
+		UpdateChannels(InStatus);
 	}
 
+	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::Settings))
+	{
+		Settings = InStatus.Settings;
+		bHasSettings = true;
+	}
+
+	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::Status))
+	{
+		Stats = InStatus.Stats;
+		bHasStats = true;
+	}
+}
+
+void FSessionTraceControllerFilterService::UpdateChannels(const FTraceStatus& InStatus)
+{
 	TimeStamp = FDateTime::Now();
 
 	const TMap<uint32, FTraceStatus::FChannel> Channels = InStatus.Channels;
@@ -113,6 +122,7 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 	{
 		FTraceObjectInfo& EventInfo = Objects.AddDefaulted_GetRef();
 		EventInfo.Name = Entry.Value.Name;
+		EventInfo.Description = Entry.Value.Description;
 		EventInfo.bEnabled = Entry.Value.bEnabled;
 		EventInfo.bReadOnly = Entry.Value.bReadOnly;
 		EventInfo.Hash = Entry.Value.Id;
@@ -137,6 +147,26 @@ void FSessionTraceControllerFilterService::OnApplyChannelChanges()
 		FrameEnabledChannels.Empty();
 		FrameDisabledChannels.Empty();
 	}
-} 
+}
+
+bool FSessionTraceControllerFilterService::HasSettings() const
+{
+	return bHasSettings;
+}
+
+const FTraceStatus::FSettings& FSessionTraceControllerFilterService::GetSettings() const
+{
+	return Settings;
+}
+
+bool FSessionTraceControllerFilterService::HasStats() const
+{
+	return bHasStats;
+}
+
+const FTraceStatus::FStats& FSessionTraceControllerFilterService::GetStats() const
+{
+	return Stats;
+}
 
 } // namespace UE::TraceTools

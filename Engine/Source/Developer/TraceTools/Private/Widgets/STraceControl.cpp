@@ -47,21 +47,6 @@ void STraceControl::Construct(const FArguments& InArgs, TSharedPtr<ITraceControl
 	];
 }
 
-void STraceControl::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	AccumulatedTime += InDeltaTime;
-
-	const double UpdateTime = 1.0f;
-
-	if (AccumulatedTime > UpdateTime)
-	{
-		TraceController->SendStatusUpdateRequest();
-		TraceController->SendChannelUpdateRequest();
-
-		AccumulatedTime = 0.0;
-	}
-}
-
 void STraceControl::BindCommands()
 {
 

@@ -133,13 +133,6 @@ void FFilterPresetHelpers::ExtractEnabledObjectNames(const TArray<TSharedPtr<ITr
 		{
 			OutNames.Add(Object->GetName());
 		}
-
-		TArray<TSharedPtr<ITraceObject>> ChildObjects;
-		Object->GetChildren(ChildObjects);
-		if(ChildObjects.Num())
-		{
-			ExtractEnabledObjectNames(ChildObjects, OutNames);
-		}
 	}
 }
 

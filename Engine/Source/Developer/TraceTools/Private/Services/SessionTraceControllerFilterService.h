@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ISessionTraceFilterService.h"
-#include "ITraceController.h"
 #include "Misc/DateTime.h"
 
 namespace TraceServices
@@ -26,10 +25,15 @@ public:
 
 	/** Begin ISessionTraceFilterService overrides */
 	virtual void GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const override;
-	virtual void GetChildObjects(uint32 InObjectHash, TArray<FTraceObjectInfo>& OutChildObjects) const override;
-	virtual const FDateTime& GetTimestamp() override;
+	virtual const FDateTime& GetTimestamp() const override;
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) override;
 	virtual void UpdateFilterPreset(const TSharedPtr<ITraceFilterPreset> InPreset, bool IsEnabled) override;
+
+	virtual bool HasSettings() const override;
+	virtual const FTraceStatus::FSettings& GetSettings() const override;
+
+	virtual bool HasStats() const override;
+	virtual const FTraceStatus::FStats& GetStats() const override;
 	/** End ISessionTraceFilterService overrides */
 
 protected:
@@ -42,6 +46,8 @@ protected:
 	void RetrieveAndStoreStartupChannels();
 
 	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands);
+
+	void UpdateChannels(const FTraceStatus& InStatus);
 
 protected:
 	TSharedPtr<ITraceController> TraceController;
@@ -56,6 +62,12 @@ protected:
 	FDateTime TimeStamp;
 
 	bool bChannelsReceived = false;
+
+	FTraceStatus::FSettings Settings;
+	bool bHasSettings = false;
+
+	FTraceStatus::FStats Stats;
+	bool bHasStats = false;
 };
 
 } // namespace UE::TraceTools

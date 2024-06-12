@@ -8,6 +8,7 @@
 #include "Misc/TextFilter.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Layout/SScrollBorder.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -18,6 +19,7 @@
 #include "Models/TraceFilterPresets.h"
 #include "Services/SessionTraceControllerFilterService.h"
 #include "STraceObjectRowWidget.h"
+#include "STraceStatistics.h"
 #include "TraceToolsStyle.h"
 #include "Widgets/SFilterPresetList.h"
 
@@ -26,18 +28,12 @@
 namespace UE::TraceTools
 {
 
-TSet<FString> STraceDataFilterWidget::LastExpandedObjectNames;
-
-STraceDataFilterWidget::STraceDataFilterWidget() : PreviousSessionHandle(INDEX_NONE), bNeedsTreeRefresh(false), bHighlightingPreset(false)
+STraceDataFilterWidget::STraceDataFilterWidget() : bNeedsListRefresh(false), bHighlightingPreset(false)
 {
 }
 
 STraceDataFilterWidget::~STraceDataFilterWidget()
 {
-	// Save expansion and move to static array
-	SaveItemsExpansion();
-	LastExpandedObjectNames = ExpandedObjectNames;
-	ExpandedObjectNames.Empty();
 }
 
 void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITraceController> InTraceController)
@@ -49,14 +45,13 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 	.AlwaysShowScrollbar(true);
 
 	ConstructSearchBoxFilter();
-	ConstructFilterHandler();
-	ConstructTreeview();
+	ConstructTileView();
 
 	ChildSlot
 	[		
 		SNew(SBorder)
 		.Padding(4)
-		.BorderImage(FTraceToolsStyle::GetBrush("EventFilter.GroupBorder"))
+		.BorderImage(FTraceToolsStyle::GetBrush("FilterPresets.BackgroundBorder"))
 		[
 			SNew( SVerticalBox )
 
@@ -169,23 +164,37 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Fill)
 				[
-					SNew(SHorizontalBox)
+					SNew(SVerticalBox)
 
-					+ SHorizontalBox::Slot()
+					+ SVerticalBox::Slot()
 					[
-						Treeview.ToSharedRef()
-					]
-
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SNew(SBox)
-						.WidthOverride(FOptionalSize(13.0f))
+						SNew(SBorder)
+						.BorderImage(FTraceToolsStyle::GetBrush("FilterPresets.TableBackground"))
 						[
-							ExternalScrollbar.ToSharedRef()
+							TileView.ToSharedRef()
 						]
 					]
-				]		
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+
+					[
+						SNew(SSeparator)
+						.Thickness(5.0f)
+						.SeparatorImage(FTraceToolsStyle::GetBrush("FilterPresets.TableBackground"))
+						.Orientation(EOrientation::Orient_Horizontal)
+					]
+
+					+ SVerticalBox::Slot()
+					[
+						SNew(STraceStatistics, SessionFilterService)
+						.Visibility_Lambda([this]() -> EVisibility
+						{
+							return HasValidFilterSession() ? EVisibility::Visible : EVisibility::Collapsed;
+						})
+					]
+				]
 			]
 		]
 	];
@@ -194,13 +203,9 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 	TAttribute<bool> EnabledAttribute;
 	EnabledAttribute.Bind(this, &STraceDataFilterWidget::HasValidFilterSession);
 
-	Treeview->SetEnabled(EnabledAttribute);
+	TileView->SetEnabled(EnabledAttribute);
 	OptionsWidget->SetEnabled(EnabledAttribute);
 	FilterPresetsListWidget->SetEnabled(EnabledAttribute);
-
-	/** Restore expansion state when recreating this window */
-	ExpandedObjectNames = LastExpandedObjectNames;
-	RestoreItemsExpansion();
 }
 
 void STraceDataFilterWidget::OnSavePreset(const TSharedPtr<ITraceFilterPreset>& Preset)
@@ -210,11 +215,11 @@ void STraceDataFilterWidget::OnSavePreset(const TSharedPtr<ITraceFilterPreset>& 
 		/** Save to preset if one was provided, otherwise create a new one */
 		if (Preset.IsValid())
 		{
-			Preset->Save(RootItems);
+			Preset->Save(ListItems);
 		}
 		else
 		{
-			FFilterPresetHelpers::CreateNewPreset(RootItems);
+			FFilterPresetHelpers::CreateNewPreset(ListItems);
 		}
 	}
 }
@@ -229,16 +234,15 @@ void STraceDataFilterWidget::OnPresetChanged(const SFilterPreset& Preset)
 
 void STraceDataFilterWidget::OnHighlightPreset(const TSharedPtr<ITraceFilterPreset>& Preset)
 {
-	if (Treeview.IsValid())
+	if (TileView.IsValid())
 	{
-		/** Update treeview so that any allowlisted entry (as part of Preset) is highlighted and expanded */
-		Treeview->ClearHighlightedItems();
+		/** Update tileview so that any allowlisted entry (as part of Preset) is highlighted */
+		TileView->ClearHighlightedItems();
 		if (Preset.IsValid())
 		{
 			if (!bHighlightingPreset)
 			{
 				/** Store current expansion, so we can reset once highlighting has finished */
-				SaveItemsExpansion();
 				bHighlightingPreset = true;
 			}
 
@@ -249,68 +253,32 @@ void STraceDataFilterWidget::OnHighlightPreset(const TSharedPtr<ITraceFilterPres
 			{
 				if (Names.Contains(Object->GetName()))
 				{
-					Treeview->SetItemHighlighted(Object, true);
-					// TODO need to set parent expansion as well
-					Treeview->SetItemExpansion(Object, true);
-
-					SetParentExpansionRecursively(Object, true);
+					TileView->SetItemHighlighted(Object, true);
 				}
 			});
 		}
 		else
 		{
 			bHighlightingPreset = false;
-			RestoreItemsExpansion();
 		}
 	}
 }
 
 void STraceDataFilterWidget::OnSearchboxTextChanged(const FText& FilterText)
 {
-	bNeedsTreeRefresh = true;
-	const bool bFilterSet = !FilterText.IsEmpty();
-	if (bFilterSet != TreeviewFilterHandler->GetIsEnabled())
-	{
-		TreeviewFilterHandler->SetIsEnabled(bFilterSet);
-
-		if (bFilterSet)
-		{
-			SaveItemsExpansion();
-		}
-		else
-		{
-			RestoreItemsExpansion();
-		}
-	}
+	bNeedsListRefresh = true;
 
 	SearchBoxWidgetFilter->SetRawFilterText(FilterText);
-	SearchBoxWidget->SetError(SearchBoxWidgetFilter->GetFilterErrorText());
 }
 
-void STraceDataFilterWidget::ConstructTreeview()
+void STraceDataFilterWidget::ConstructTileView()
 {
-	SAssignNew(Treeview, STreeView<TSharedPtr<ITraceObject>>)
-	.OnGetChildren(TreeviewFilterHandler.ToSharedRef(), &TreeFilterHandler<TSharedPtr<ITraceObject>>::OnGetFilteredChildren)
-	.OnGenerateRow(this, &STraceDataFilterWidget::OnGenerateRow)
+	SAssignNew(TileView, STileView<TSharedPtr<ITraceObject>>)
+	.OnGenerateTile(this, &STraceDataFilterWidget::OnGenerateRow)
 	.OnContextMenuOpening(this, &STraceDataFilterWidget::OnContextMenuOpening)
-	.OnMouseButtonDoubleClick(this, &STraceDataFilterWidget::OnItemDoubleClicked)
-	.ExternalScrollbar(ExternalScrollbar)
-	.OnSetExpansionRecursive_Lambda([this](TSharedPtr<ITraceObject> InObject, bool bInExpansionState)
-	{
-		SetExpansionRecursively(InObject, bInExpansionState);
-	})
-	.TreeItemsSource(&TreeItems);
-	
-	TreeviewFilterHandler->SetTreeView(Treeview.Get());
-}
-
-void STraceDataFilterWidget::OnItemDoubleClicked(TSharedPtr<ITraceObject> InObject) const
-{
-	TSharedPtr<ITableRow> Row = Treeview->WidgetFromItem(InObject);
-	if (Row.IsValid())
-	{
-		SetExpansionRecursively(InObject, !Row->IsItemExpanded());
-	}
+	.Orientation(EOrientation::Orient_Horizontal)
+	.ItemHeight(15.0f)
+	.ListItemsSource(&FilteredListItems);
 }
 
 void STraceDataFilterWidget::ConstructSearchBoxFilter()
@@ -319,17 +287,6 @@ void STraceDataFilterWidget::ConstructSearchBoxFilter()
 	{
 		Object->GetSearchString(OutStrings);
 	})));
-}
-
-void STraceDataFilterWidget::ConstructFilterHandler()
-{
-	TreeviewFilterHandler = MakeShareable(new TreeFilterHandler<TSharedPtr<ITraceObject>>());
-	TreeviewFilterHandler->SetFilter(SearchBoxWidgetFilter.Get());
-	TreeviewFilterHandler->SetRootItems(&RootItems, &TreeItems);
-	TreeviewFilterHandler->SetGetChildrenDelegate(TreeFilterHandler<TSharedPtr<ITraceObject>>::FOnGetChildren::CreateLambda([](TSharedPtr<ITraceObject> InParent, TArray<TSharedPtr<ITraceObject>>& OutChildren)
-	{
-		InParent->GetChildren(OutChildren);
-	}));
 }
 
 TSharedRef<ITableRow> STraceDataFilterWidget::OnGenerateRow(TSharedPtr<ITraceObject> InItem, const TSharedRef<STableViewBase>& OwnerTable)
@@ -363,7 +320,7 @@ TSharedPtr<SWidget> STraceDataFilterWidget::OnContextMenuOpening() const
 				FGetActionCheckState(),
 				FIsActionButtonVisible::CreateLambda([this]() -> bool
 				{
-					return Treeview->GetNumItemsSelected() == 0 && EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
+					return TileView->GetNumItemsSelected() == 0 && EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
 					{
 						return Object->IsFiltered();
 					}));
@@ -384,7 +341,7 @@ TSharedPtr<SWidget> STraceDataFilterWidget::OnContextMenuOpening() const
 				FGetActionCheckState(),
 				FIsActionButtonVisible::CreateLambda([this]() -> bool
 				{
-					return Treeview->GetNumItemsSelected() == 0 && EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
+					return TileView->GetNumItemsSelected() == 0 && EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
 					{
 						return !Object->IsFiltered();
 					}));
@@ -398,8 +355,6 @@ TSharedPtr<SWidget> STraceDataFilterWidget::OnContextMenuOpening() const
 				FExecuteAction::CreateRaw(this, &STraceDataFilterWidget::EnumerateSelectedItems, TFunction<void(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> void
 				{
 					Object->SetIsFiltered(false);
-
-					SetExpansionRecursively(Object, true);
 				})),
 				FCanExecuteAction(),
 				FGetActionCheckState(),
@@ -433,126 +388,14 @@ TSharedPtr<SWidget> STraceDataFilterWidget::OnContextMenuOpening() const
 	}
 	MenuBuilder.EndSection();
 
-	static const FName ExpansionSectionHook("ExpansionState");
-	MenuBuilder.BeginSection(ExpansionSectionHook, LOCTEXT("ExpansionSectionLabel", "Expansion"));
-	{
-		MenuBuilder.AddMenuEntry(LOCTEXT("ExpandAllRowsLabel", "Expand All"), LOCTEXT("ExpandAllRowsTooltip", "Expands the entire hierarchy."), FSlateIcon(), FUIAction(
-				FExecuteAction::CreateLambda([this]()
-				{
-					for (const TSharedPtr<ITraceObject>& Object : TreeItems)
-					{
-						SetExpansionRecursively(Object, true);
-					}
-				}),
-				FCanExecuteAction(),
-				FGetActionCheckState(),
-				FIsActionButtonVisible::CreateLambda([this]() -> bool
-				{
-					return Treeview->GetNumItemsSelected() == 0 && EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
-					{
-						return !Treeview->IsItemExpanded(Object);
-					}));
-				})
-			)
-		);
-		
-		MenuBuilder.AddMenuEntry(LOCTEXT("CollapseAllRowsLabel", "Collapse All"), LOCTEXT("CollapseAllRowsTooltip", "Collapses the entire hierarchy."), FSlateIcon(), 
-			FUIAction(
-				FExecuteAction::CreateLambda([this]()
-				{
-					for (const TSharedPtr<ITraceObject>& Object : TreeItems)
-					{
-						SetExpansionRecursively(Object, false);
-					}
-				}),
-				FCanExecuteAction(),
-				FGetActionCheckState(),
-				FIsActionButtonVisible::CreateLambda([this]() -> bool
-				{
-					return Treeview->GetNumItemsSelected() == 0 && EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
-					{
-						return Treeview->IsItemExpanded(Object);
-					}));
-				})
-			)
-		);
-
-		MenuBuilder.AddMenuEntry(LOCTEXT("ExpandRowsLabel", "Expand Selected"), LOCTEXT("ExpandRowsTooltip", "Expands the selected Node(s)."), FSlateIcon(), 
-			FUIAction(
-				FExecuteAction::CreateRaw(this, &STraceDataFilterWidget::EnumerateSelectedItems, TFunction<void(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> void
-				{
-					SetExpansionRecursively(Object, true);
-				})),
-				FCanExecuteAction(),
-				FGetActionCheckState(),
-				FIsActionButtonVisible::CreateLambda([this]() -> bool
-				{
-					return EnumerateSelectedItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
-					{
-						return !Treeview->IsItemExpanded(Object);
-					}));
-				})
-			)
-		);
-
-		MenuBuilder.AddMenuEntry(LOCTEXT("CollapseRowsLabel", "Collapse Selected"), LOCTEXT("CollapseRowsTooltip", "Collapse the selected Node(s)."), FSlateIcon(), 
-			FUIAction(
-				FExecuteAction::CreateRaw(this, &STraceDataFilterWidget::EnumerateSelectedItems, TFunction<void(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> void
-				{
-					SetExpansionRecursively(Object, false);
-				})),
-				FCanExecuteAction(),
-				FGetActionCheckState(),
-				FIsActionButtonVisible::CreateLambda([this]() -> bool
-				{
-					return EnumerateSelectedItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)>([this](TSharedPtr<ITraceObject> Object) -> bool
-					{
-						return Treeview->IsItemExpanded(Object);
-					}));
-				})
-			)
-		);
-	}  	
-	MenuBuilder.EndSection();
-
 	return MenuBuilder.MakeWidget();
-}
-
-void STraceDataFilterWidget::SaveItemsExpansion()
-{
-	ExpandedObjectNames.Empty();
-
-	if (Treeview.IsValid())
-	{
-		TSet<TSharedPtr<ITraceObject>> ExpandedItems;
-		Treeview->GetExpandedItems(ExpandedItems);
-
-		for (TSharedPtr<ITraceObject> Item : ExpandedItems)
-		{
-			if (Item.IsValid())
-			{
-				ExpandedObjectNames.Add(Item->GetName());
-			}
-		}
-	}
-}
-
-void STraceDataFilterWidget::RestoreItemsExpansion()
-{
-	EnumerateAllItems([this](TSharedPtr<ITraceObject> Object) -> void
-	{
-		const bool bExpanded = ExpandedObjectNames.Contains(Object->GetName());
-		SetExpansionRecursively(Object, bExpanded);
-	});
-
-	ExpandedObjectNames.Empty();
 }
 
 void STraceDataFilterWidget::SaveItemSelection()
 {
 	SelectedObjectNames.Empty();
 
-	if (Treeview.IsValid())
+	if (TileView.IsValid())
 	{
 		EnumerateSelectedItems([this](TSharedPtr<ITraceObject> InObject)
 		{
@@ -566,7 +409,7 @@ void STraceDataFilterWidget::SaveItemSelection()
 
 void STraceDataFilterWidget::RestoreItemSelection()
 {
-	if (Treeview.IsValid())
+	if (TileView.IsValid())
 	{
 		TArray<TSharedPtr<ITraceObject>> SelectedItems;
 		EnumerateAllItems([this, &SelectedItems](TSharedPtr<ITraceObject> Object) -> void
@@ -577,7 +420,7 @@ void STraceDataFilterWidget::RestoreItemSelection()
 			}
 		});
 
-		Treeview->SetItemSelection(SelectedItems, true);
+		TileView->SetItemSelection(SelectedItems, true);
 	}
 	
 	SelectedObjectNames.Empty();
@@ -585,26 +428,9 @@ void STraceDataFilterWidget::RestoreItemSelection()
 
 TSharedRef<ITraceObject> STraceDataFilterWidget::AddFilterableObject(const FTraceObjectInfo& Event, FString ParentName)
 {
-	// Retrieve any child objects, and recursively add those first 
-	TArray<FTraceObjectInfo> Events;
-	SessionFilterService->GetChildObjects(Event.Hash, Events);
+	TSharedRef<FTraceChannel> SharedItem = MakeShareable(new FTraceChannel(Event.Name, Event.Description, ParentName, Event.Hash, Event.bEnabled, Event.bReadOnly, SessionFilterService));
 
-	TArray<TSharedPtr<ITraceObject>> ChildPtrs;	
-	for (const FTraceObjectInfo& ChildEvent : Events)
-	{
-		TSharedRef<ITraceObject> EventItem = AddFilterableObject(ChildEvent, Event.Name);
-		ChildPtrs.Add(EventItem);
-	}
-
-	TSharedRef<FTraceChannel> SharedItem = MakeShareable(new FTraceChannel(Event.Name, ParentName, Event.Hash, Event.bEnabled, Event.bReadOnly, ChildPtrs, SessionFilterService));
-	ParentToChild.Add(SharedItem, ChildPtrs);
-
-	for (TSharedPtr<ITraceObject> ChildObject : ChildPtrs)
-	{
-		ChildToParent.Add(ChildObject, SharedItem);
-	}
-
-	FlatItems.Add(SharedItem);
+	ListItems.Add(SharedItem);
 
 	return SharedItem;
 }
@@ -614,32 +440,10 @@ bool STraceDataFilterWidget::HasValidFilterSession() const
 	return TraceController->HasAvailableSelectedInstance() && SessionFilterService.IsValid();
 }
 
-void STraceDataFilterWidget::SetExpansionRecursively(const TSharedPtr<ITraceObject>& InObject, bool bShouldExpandItem) const
-{
-	Treeview->SetItemExpansion(InObject, bShouldExpandItem);
-
-	TArray<TSharedPtr<ITraceObject>> Children;
-	InObject->GetChildren(Children);
-
-	for (TSharedPtr<ITraceObject>& ChildObject : Children)
-	{
-		SetExpansionRecursively(ChildObject, bShouldExpandItem);
-	}
-}
-
-void STraceDataFilterWidget::SetParentExpansionRecursively(const TSharedPtr<ITraceObject>& InObject, bool bShouldExpandItem) const
-{
-	if (const TSharedPtr<ITraceObject>* ParentObject = ChildToParent.Find(InObject))
-	{
-		Treeview->SetItemExpansion(*ParentObject, bShouldExpandItem);
-		SetParentExpansionRecursively(*ParentObject, bShouldExpandItem);
-	}
-}
-
 void STraceDataFilterWidget::EnumerateSelectedItems(TFunction<void(TSharedPtr<ITraceObject> InItem)> InFunction) const
 {
 	TArray<TSharedPtr<ITraceObject>> SelectedObjects;
-	Treeview->GetSelectedItems(SelectedObjects);
+	TileView->GetSelectedItems(SelectedObjects);
 
 	for (const TSharedPtr<ITraceObject>& Object : SelectedObjects)
 	{
@@ -650,7 +454,7 @@ void STraceDataFilterWidget::EnumerateSelectedItems(TFunction<void(TSharedPtr<IT
 bool STraceDataFilterWidget::EnumerateSelectedItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)> InFunction) const
 {
 	TArray<TSharedPtr<ITraceObject>> SelectedObjects;
-	Treeview->GetSelectedItems(SelectedObjects);
+	TileView->GetSelectedItems(SelectedObjects);
 
 
 	bool bState = false;
@@ -664,7 +468,7 @@ bool STraceDataFilterWidget::EnumerateSelectedItems(TFunction<bool(TSharedPtr<IT
 
 void STraceDataFilterWidget::EnumerateAllItems(TFunction<void(TSharedPtr<ITraceObject> InItem)> InFunction) const
 {
-	for (const TSharedPtr<ITraceObject>& Object : FlatItems)
+	for (const TSharedPtr<ITraceObject>& Object : ListItems)
 	{
 		InFunction(Object);
 	}
@@ -673,39 +477,34 @@ void STraceDataFilterWidget::EnumerateAllItems(TFunction<void(TSharedPtr<ITraceO
 bool STraceDataFilterWidget::EnumerateAllItems(TFunction<bool(TSharedPtr<ITraceObject> InItem)> InFunction) const
 {
 	bool bState = false;
-	for (const TSharedPtr<ITraceObject>& Object : FlatItems)
+	for (const TSharedPtr<ITraceObject>& Object : ListItems)
 	{
 		bState |= InFunction(Object);
 	}
 	return bState;
 }
 
-void STraceDataFilterWidget::RefreshTreeviewData()
+void STraceDataFilterWidget::RefreshTileViewData()
 {
 	if (SessionFilterService.IsValid())
 	{
 		SyncTimeStamp = SessionFilterService->GetTimestamp();
 
 		/** Save expansion and selection */
-		SaveItemsExpansion();
 		SaveItemSelection();
+
+		ListItems.Empty();
 
 		TArray<FTraceObjectInfo> RootEvents;
 		SessionFilterService->GetRootObjects(RootEvents);
-		
-		ParentToChild.Empty();
-		ChildToParent.Empty();
-		RootItems.Empty();		
 
+		RootEvents.Sort();
+		
 		for (const FTraceObjectInfo& RootEvent : RootEvents)
 		{
 			TSharedRef<ITraceObject> TraceObject = AddFilterableObject(RootEvent, FString());
-			RootItems.Add(TraceObject);
 		}
 
-		TreeviewFilterHandler->RefreshAndFilterTree();
-
-		RestoreItemsExpansion();
 		RestoreItemSelection();
 	}
 }
@@ -718,13 +517,41 @@ void STraceDataFilterWidget::Tick(const FGeometry& AllottedGeometry, const doubl
 	{
 		if (SessionFilterService->GetTimestamp() != SyncTimeStamp)
 		{
-			RefreshTreeviewData();
+			RefreshTileViewData();
+			bNeedsListRefresh = true;
+		}
+
+		if (bNeedsListRefresh)
+		{
+			FilteredListItems.Empty();
+			for (auto& Item : ListItems)
+			{
+				if (SearchBoxWidgetFilter->PassesFilter(Item))
+				{
+					FilteredListItems.Add(Item);
+				}
+			}
+
+			TileView->RequestListRefresh();
+			bNeedsListRefresh = false;
 		}
 	}
 
-	if (bNeedsTreeRefresh)
+	AccumulatedTime += InDeltaTime;
+
+	constexpr double UpdateTime = 1.0f;
+
+	if (AccumulatedTime > UpdateTime)
 	{
-		TreeviewFilterHandler->RefreshAndFilterTree();
+		TraceController->SendStatusUpdateRequest();
+		TraceController->SendChannelUpdateRequest();
+
+		if (!SessionFilterService->HasSettings())
+		{
+			TraceController->SendSettingsUpdateRequest();
+		}
+
+		AccumulatedTime = 0.0;
 	}
 }
 

@@ -133,7 +133,9 @@ void FTraceToolsStyle::Initialize()
 	StyleSet->Set("FilterPresets.FilterNameFont", DEFAULT_FONT("Regular", 10));
 	StyleSet->Set("FilterPresets.FilterButtonBorder", new BOX_BRUSH("Common/RoundedSelection_16x", FMargin(4.0f / 16.0f)));
 
-	StyleSet->Set("FilterPresets.SessionWarningBorder", new BOX_BRUSH("Common/DarkGroupBorder", FMargin(4.0f / 16.0f)));
+	StyleSet->Set("FilterPresets.TableBackground", new BOX_BRUSH("Common/TableViewMajorColumn", FMargin(4.0f / 16.0f)));
+	StyleSet->Set("FilterPresets.SessionWarningBorder", new BOX_BRUSH("Common/GroupBorder", FMargin(4.0f / 16.0f)));
+	StyleSet->Set("FilterPresets.BackgroundBorder", new BOX_BRUSH("Common/DarkGroupBorder", FMargin(4.0f / 16.0f)));
 	StyleSet->Set("FilterPresets.WarningIcon", new CORE_IMAGE_BRUSH_SVG("Starship/Common/alert-circle", Icon40x40, FStyleColors::Warning));
 
 	StyleSet->Set("FontAwesome.9", ICON_FONT(9));

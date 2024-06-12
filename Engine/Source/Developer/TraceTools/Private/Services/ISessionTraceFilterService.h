@@ -4,6 +4,9 @@
 
 #include "Templates/SharedPointer.h"
 
+// TraceTools
+#include "ITraceController.h"
+
 struct FDateTime;
 
 namespace UE::TraceTools
@@ -14,10 +17,16 @@ struct ITraceFilterPreset;
 struct FTraceObjectInfo
 {
 	FString Name;
+	FString Description;
 	bool bEnabled;
 	bool bReadOnly;
 	uint32 Hash;
 	uint32 OwnerHash;
+
+	bool operator<(const FTraceObjectInfo& Other) const
+	{
+		return Name.Compare(Other.Name) < 0;
+	}
 };
 
 /** Filtering service, representing the state and data for a specific TraceServices::IAnalysisSession */
@@ -29,17 +38,26 @@ public:
 	/** Returns the root level set of objects */
 	virtual void GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const = 0;
 
-	/** Returns the contained objects for the specific object hash */
-	virtual void GetChildObjects(uint32 InObjectHash, TArray<FTraceObjectInfo>& OutChildObjects) const = 0;
-
 	/** Set the filtered state for an individual object by its hash */
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) = 0;
 	
 	/** Set timestamp for last processed update (data change) */
-	virtual const FDateTime& GetTimestamp() = 0;
+	virtual const FDateTime& GetTimestamp() const = 0;
 
 	/** Update filter preset */
 	virtual void UpdateFilterPreset(const TSharedPtr<ITraceFilterPreset> InPreset, bool IsEnabled) = 0;
+
+	/** Returns true if settings are available for the selected session. */
+	virtual bool HasSettings() const = 0 ;
+
+	/** Get the settings of the selected session */
+	virtual const FTraceStatus::FSettings& GetSettings() const = 0;
+
+	/** Returns true if stats are available for the selected session. */
+	virtual bool HasStats() const = 0;
+
+	/** Get the settings of the selected session */
+	virtual const FTraceStatus::FStats& GetStats() const = 0;
 };
 
 } // namespace UE::TraceTools

@@ -105,16 +105,17 @@ void FTraceController::OnDiscoveryResponse(const FTraceControlDiscovery& Message
 	}
 	
 	UpdateStatus(Message, Instance->Status);
-	
+
 	// This is the application session id, which is not necessarily the
 	// same as trace session (maybe overridden by commandline)
 	Instance->Status.SessionId = Message.SessionId;
 	Instance->Status.InstanceId = Message.InstanceId;
 
-	StatusReceivedEvent.Broadcast(Instance->Status, FTraceStatus::EUpdateType::All, Instance->Commands);
+	FTraceStatus::EUpdateType UpdateType = FTraceStatus::EUpdateType::ChannelsDesc | FTraceStatus::EUpdateType::ChannelsStatus | FTraceStatus::EUpdateType::Status;
+	StatusReceivedEvent.Broadcast(Instance->Status, UpdateType, Instance->Commands);
 	if (SelectedInstanceIds.Contains(Message.InstanceId))
 	{
-		SelectedSessionStatusReceivedEvent.Broadcast(Instance->Status, FTraceStatus::EUpdateType::All, Instance->Commands);
+		SelectedSessionStatusReceivedEvent.Broadcast(Instance->Status, UpdateType, Instance->Commands);
 	}
 }
 
@@ -246,7 +247,8 @@ void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInsta
 		if (const auto Instance = Instances.Find(*Address))
 		{
 			FTraceStatus& Status = Instance->Status;
-			SelectedSessionStatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::All, Instance->Commands);
+			FTraceStatus::EUpdateType UpdateType = FTraceStatus::EUpdateType::ChannelsDesc | FTraceStatus::EUpdateType::ChannelsStatus | FTraceStatus::EUpdateType::Status;
+			SelectedSessionStatusReceivedEvent.Broadcast(Status, UpdateType, Instance->Commands);
 		}
 	}
 	else

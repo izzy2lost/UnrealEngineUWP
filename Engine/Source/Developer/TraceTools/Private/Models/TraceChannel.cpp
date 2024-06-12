@@ -10,9 +10,22 @@
 namespace UE::TraceTools
 {
 
-FTraceChannel::FTraceChannel(FString InName, FString InParentName, uint32 InHash, bool bInEnabled, bool bInReadOnly, const TArray<TSharedPtr<ITraceObject>>& InChildObjects, TSharedPtr<ISessionTraceFilterService> InFilterService) : Name(InName), ParentName(InParentName), Hash(InHash), ChildObjects(InChildObjects), bFiltered(!bInEnabled), bIsPending(false), bReadOnly(bInReadOnly), FilterService(InFilterService)
+FTraceChannel::FTraceChannel(FString InName,
+							 FString InDescription,
+							 FString InParentName, 
+							 uint32 InHash,
+							 bool bInEnabled,
+							 bool bInReadOnly,
+							 TSharedPtr<ISessionTraceFilterService> InFilterService) 
+	: Name(InName),
+	  Description(InDescription),
+	  ParentName(InParentName),
+	  Hash(InHash),
+	  bFiltered(!bInEnabled), 
+	  bIsPending(false),
+	  bReadOnly(bInReadOnly),
+	  FilterService(InFilterService)
 {
-
 }
 
 FText FTraceChannel::GetDisplayText() const
@@ -20,16 +33,25 @@ FText FTraceChannel::GetDisplayText() const
 	return FText::FromString(Name);
 }
 
+FText FTraceChannel::GetTooltipText() const
+{
+	return FText::FromString(Description);
+}
+
 FString FTraceChannel::GetName() const
 {
 	return Name;
+}
+
+FString FTraceChannel::GetDescription() const
+{
+	return Description;
 }
 
 void FTraceChannel::SetPending()
 {
 	bIsPending = true;
 }
-
 
 bool FTraceChannel::IsReadOnly() const
 {
@@ -55,11 +77,6 @@ bool FTraceChannel::IsPending() const
 void FTraceChannel::GetSearchString(TArray<FString>& OutFilterStrings) const
 {
 	OutFilterStrings.Add(Name);
-}
-
-void FTraceChannel::GetChildren(TArray<TSharedPtr<ITraceObject>>& OutChildren) const
-{
-	OutChildren.Append(ChildObjects);
 }
 
 } // namespace UE::TraceTools
