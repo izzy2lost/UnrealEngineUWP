@@ -33,7 +33,9 @@ private:
 	struct FRemapData
 	{
 		const FString& Filename;
-		int32 LineNumber;
+		int32 LineNumber = INDEX_NONE;
+
+		bool IsValid() { return LineNumber != INDEX_NONE; }
 	};
 	FRemapData GetRemapData(int32 StrippedLineNum) const;
 
