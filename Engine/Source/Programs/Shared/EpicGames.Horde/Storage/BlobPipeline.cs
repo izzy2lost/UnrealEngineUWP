@@ -99,10 +99,7 @@ namespace EpicGames.Horde.Storage
 			_responseBatchChannel = Channel.CreateBounded<BlobResponseBatch<TUserData>>(new BoundedChannelOptions(options.ResponseBufferSize) { FullMode = BoundedChannelFullMode.Wait });
 
 			_tasks.Add(Task.Run(() => BatchLoopAsync(_cancellationTokenSource.Token), _cancellationTokenSource.Token));
-			for (int idx = 0; idx < options.NumFetchTasks; idx++)
-			{
-				_tasks.Add(Task.Run(() => FetchLoopAsync(_cancellationTokenSource.Token), _cancellationTokenSource.Token));
-			}
+			_tasks.Add(Task.Run(() => FetchLoopAsync(_cancellationTokenSource.Token), _cancellationTokenSource.Token));
 		}
 
 		/// <inheritdoc/>
@@ -185,6 +182,10 @@ namespace EpicGames.Horde.Storage
 				}
 				if (Interlocked.CompareExchange(ref _writerCount, writerCount + delta, writerCount) == writerCount)
 				{
+					if (writerCount + delta == 0)
+					{
+						_requestChannel.Writer.TryComplete();
+					}
 					break;
 				}
 			}
@@ -274,6 +275,25 @@ namespace EpicGames.Horde.Storage
 		}
 
 		async Task FetchLoopAsync(CancellationToken cancellationToken)
+		{
+			try
+			{
+				List<Task> tasks = new List<Task>();
+				for (int idx = 0; idx < _options.NumFetchTasks; idx++)
+				{
+					tasks.Add(Task.Run(() => FetchWorkerAsync(cancellationToken), cancellationToken));
+				}
+				await Task.WhenAll(tasks);
+
+				_responseBatchChannel.Writer.TryComplete();
+			}
+			catch(Exception ex)
+			{
+				_responseBatchChannel.Writer.TryComplete(ex);
+			}
+		}
+
+		async Task FetchWorkerAsync(CancellationToken cancellationToken)
 		{
 			while (await _requestBatchChannel.Reader.WaitToReadAsync(cancellationToken))
 			{
