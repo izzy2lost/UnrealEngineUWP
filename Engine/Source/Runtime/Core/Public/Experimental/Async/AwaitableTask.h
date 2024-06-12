@@ -498,13 +498,6 @@ public:
 		return GetVtable()->IsCompleted();
 	}
 
-	//Busy wait until the Task is launched from another Thread, this can be useful if we want to build chained tasks.
-	//So that we can wait until the first task launched it, otherwise if we would Await the task directly it might be executed immediately and before the first task completes.
-	void BusyWaitUntilLaunched() const
-	{
-		LowLevelTasks::BusyWaitUntil([this]() { return IsLaunched(); });
-	}
-
 	//Await the Task Completion and get the result, this will assert if this is a Dummy Handle.
 	//Awaiting an initizialized but not launched task will run ('launch') it synchronously in the current thread.
 	//use BusyWaitUntilLaunched if you want to wait for launching the task on another thread.
