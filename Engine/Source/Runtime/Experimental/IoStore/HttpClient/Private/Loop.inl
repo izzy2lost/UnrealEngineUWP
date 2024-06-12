@@ -342,6 +342,12 @@ static FOutcome DoRecvStream(FActivity* Activity, FPeerType& Peer, int32& MaxRec
 {
 	auto RaiseCrLfError = [Activity] ()
 	{
+		if (Activity->NoContent)
+		{
+			Activity_SetError(Activity, "Trailing headers are not supported (ERRTRAIL)");
+			return FOutcome::Error(Activity->ErrorReason);
+		}
+
 		Activity_SetError(Activity, "Expected CRLF chunk terminal");
 		return FOutcome::Error(Activity->ErrorReason);
 	};
