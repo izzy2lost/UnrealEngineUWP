@@ -707,7 +707,7 @@ namespace Horde.Server.Artifacts
 			}
 
 			// Find all the blob refs that we need to fetch
-			List<IBlobRef> blobRefs = new List<IBlobRef>();
+			await using BlobPipeline<IoHash> pipeline = new BlobPipeline<IoHash>();
 			foreach (string block in request.Blocks)
 			{
 				if (!IoHash.TryParse(block, out IoHash hash))
@@ -721,11 +721,8 @@ namespace Horde.Server.Artifacts
 					return NotFound($"Hash '{hash}' is not part of artifact {artifact.Id}");
 				}
 
-				blobRefs.Add(blobRef);
+				pipeline.Add(new BlobRequest<IoHash>(blobRef, hash));
 			}
-
-			// Sort them to optimize for coherency
-//			blobRefs.Sort((x, y) => DirectoryNodeExtract.CompareBlobs(x, y));
 
 			// Send the response headers
 			HttpResponse response = HttpContext.Response;
@@ -736,20 +733,20 @@ namespace Horde.Server.Artifacts
 			ArrayMemoryWriter? compressedWriter = null;
 
 			await response.StartAsync(cancellationToken);
-			foreach (IBlobRef blobRef in blobRefs)
+			await foreach (BlobResponse<IoHash> blobResponse in pipeline.ReadAllAsync(cancellationToken))
 			{
-				BlobData? blobData = await blobRef.ReadBlobDataAsync(cancellationToken);
+				using BlobData blobData = blobResponse.BlobData;
 				if (compress)
 				{
 					compressedWriter ??= new ArrayMemoryWriter(300 * 1024);
 					compressedWriter.Clear();
 					BundleData.Compress(BundleCompressionFormat.Zstd, blobData.Data, compressedWriter);
 
-					WriteBlock(response.BodyWriter, blobRef.Hash, blobData.Data.Length, compressedWriter.WrittenSpan);
+					WriteBlock(response.BodyWriter, blobResponse.UserData, blobData.Data.Length, compressedWriter.WrittenSpan);
 				}
 				else
 				{
-					WriteBlock(response.BodyWriter, blobRef.Hash, blobData.Data.Length, blobData.Data.Span);
+					WriteBlock(response.BodyWriter, blobResponse.UserData, blobData.Data.Length, blobData.Data.Span);
 				}
 				await response.BodyWriter.FlushAsync(cancellationToken);
 			}
