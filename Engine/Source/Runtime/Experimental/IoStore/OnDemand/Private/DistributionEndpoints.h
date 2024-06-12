@@ -6,7 +6,6 @@
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "HAL/CriticalSection.h"
-#include "HttpFwd.h"
 
 namespace UE::IoStore
 {
@@ -39,10 +38,6 @@ public:
 	 * @param Event				An event which can be triggered to cancel the request
 	 */
 	FDistributionEndpoints::EResult ResolveEndpoints(const FString& DistributionUrl, TArray<FString>& OutServiceUrls, FEvent& Event);
-
-private:
-
-	FDistributionEndpoints::EResult ParseResponse(FHttpResponsePtr HttpResponse, TArray<FString>& OutUrls);
 };
 
 } // namespace UE::IoStore

@@ -12,7 +12,6 @@ public class IoStoreOnDemand : ModuleRules
 			new string[] {
 				"Analytics",
 				"CoreUObject",
-				"HTTP",
 				"IoStoreHttpClient",
 				"Json",
 			}
