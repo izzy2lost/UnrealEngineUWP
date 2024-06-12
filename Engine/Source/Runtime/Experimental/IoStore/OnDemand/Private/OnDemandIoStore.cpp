@@ -29,6 +29,9 @@
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Serialization/MemoryReader.h"
+#if !(UE_BUILD_SHIPPING|UE_BUILD_TEST)
+#include "String/LexFromString.h"
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 bool GIoStoreOnDemandInstallCacheEnabled = true;
@@ -452,6 +455,56 @@ FIoStatus FOnDemandIoStore::Initialize()
 
 			// Process mount requests synchronously at startup
 			TickLoop();
+		}
+	}
+#endif
+
+#if !(UE_BUILD_SHIPPING|UE_BUILD_TEST)
+	FString ParamValue;
+	if (FParse::Value(FCommandLine::Get(), TEXT("Iad.Fill="), ParamValue))
+	{
+		ParamValue.TrimStartAndEndInline();
+		int64 FillSize = -1;
+		LexFromString(FillSize, ParamValue);
+
+		if (FillSize > 0)
+		{
+			if (ParamValue.EndsWith(TEXT("GB")))
+			{
+				FillSize = FillSize << 30;
+			}
+			if (ParamValue.EndsWith(TEXT("MB")))
+			{
+				FillSize = FillSize << 20;
+			}
+
+			UE_LOG(LogIoStoreOnDemand, Log, TEXT("Filling install cache with %.2lf MiB of dummy data"), double(FillSize) / 1024.0 / 1024.0);
+
+			FIoStatus	Status = FIoStatus::Ok;
+			uint64		Seed = 1;
+			while (FillSize >= 0 && Status.IsOk())
+			{
+				const uint64		ChunkSize = 256 << 10;
+				FIoBuffer			Chunk(ChunkSize);
+				TArrayView<uint64>	Values(reinterpret_cast<uint64*>(Chunk.GetData()), ChunkSize / sizeof(uint64));
+
+				for (uint64& Value : Values)
+				{
+					Value = Seed;
+				}
+
+				const FIoHash ChunkHash = FIoHash::HashBuffer(Chunk.GetView());
+				Status = InstallCache->PutChunk(MoveTemp(Chunk), ChunkHash);
+				Seed++;
+				FillSize -= ChunkSize;
+			}
+
+			if (Status.IsOk())
+			{
+				Status = InstallCache->Flush();
+			}
+
+			UE_CLOG(!Status.IsOk(), LogIoStoreOnDemand, Warning, TEXT("Failed to fill install cache with dummy data"));
 		}
 	}
 #endif

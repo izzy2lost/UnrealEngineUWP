@@ -1185,7 +1185,6 @@ FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall)
 {
 	FCasBlockInfoMap	BlockInfo;
 	const uint64		TotalCachedBytes = Cas.GetBlockInfo(BlockInfo);
-	const int64			AvailableBytes = MaxCacheSize - TotalCachedBytes;
 	uint64				TotalUncachedBytes = 0;
 
 	for (const TPair<FIoHash, uint64>& Kv : ChunksToIntall)
@@ -1200,15 +1199,13 @@ FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall)
 		}
 	}
 
-	if (AvailableBytes >= IntCastChecked<int64>(TotalUncachedBytes))
+	const uint64 TotalRequiredBytes = TotalCachedBytes + TotalUncachedBytes;
+	if (TotalRequiredBytes <= MaxCacheSize)
 	{
 		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Skipping cache purge, MaxCacheSize=%.2lf MiB, CacheSize=%.2lf MiB, UncachedSize=%.2lf MiB"),
 			ToMiB(MaxCacheSize), ToMiB(TotalCachedBytes), ToMiB(TotalUncachedBytes));
 		return FIoStatus::Ok;
 	}
-
-	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Purging install cache, MaxCacheSize=%.2lf MiB, CacheSize=%.2lf MiB, UncachedSize=%.2lf MiB"),
-		ToMiB(MaxCacheSize), ToMiB(TotalCachedBytes), ToMiB(TotalUncachedBytes));
 
 	TSet<FCasBlockId>					ReferencedBlocks;
 	TArray<FSharedOnDemandContainer>	MountedContainers = IoStore.GetMountedContainers();
@@ -1220,8 +1217,20 @@ FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall)
 		{
 			if (FCasLocation Loc = Cas.FindChunk(Kv.Value.Hash); Loc.IsValid())
 			{
-				BlockInfo.FindOrAdd(Loc.BlockId).RefCount++;
+				if (FCasBlockInfo* Info = BlockInfo.Find(Loc.BlockId))
+				{
+					Info->RefCount++;
+				}
 			}
+		}
+	}
+
+	uint64 TotalReferencedBytes = 0;
+	for (const TPair<FCasBlockId, FCasBlockInfo>& Kv : BlockInfo)
+	{
+		if (Kv.Value.RefCount > 0)
+		{
+			TotalReferencedBytes += Kv.Value.FileSize; 
 		}
 	}
 
@@ -1230,7 +1239,12 @@ FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall)
 		return LHS.LastAccess < RHS.LastAccess;
 	});
 
-	uint64 TotalPurgedBytes = 0;
+	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Purging install cache, MaxCacheSize=%.2lf MiB, CacheSize=%.2lf MiB, UncachedSize=%.2lf MiB, ReferencedBytes=%.2lf MiB"),
+		ToMiB(MaxCacheSize), ToMiB(TotalCachedBytes), ToMiB(TotalUncachedBytes), ToMiB(TotalReferencedBytes));
+
+	const uint64	TotalBytesToPurge	= TotalRequiredBytes - MaxCacheSize;
+	uint64			TotalPurgedBytes	= 0;
+
 	for (const TPair<FCasBlockId, FCasBlockInfo>& Kv : BlockInfo)
 	{
 		const FCasBlockInfo& Info = Kv.Value;
@@ -1259,17 +1273,19 @@ FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall)
 		}
 
 		TotalPurgedBytes += Info.FileSize;
-		if (TotalPurgedBytes >= TotalUncachedBytes)
+		if (TotalPurgedBytes >= TotalBytesToPurge)
 		{
 			break;
 		}
 	}
 
+	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Purged %.2lf MiB (%.2lf%%) from install cache"),
+		ToMiB(TotalPurgedBytes), 100.0 * (double(TotalPurgedBytes) / double(TotalCachedBytes)));
+
 	const uint64 NewCachedBytes = TotalCachedBytes - TotalPurgedBytes;
-	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Purged %.2lf MiB from install cache"), ToMiB(TotalPurgedBytes));
 	UE_CLOG(NewCachedBytes > MaxCacheSize,
-		LogIoStoreOnDemand, Warning, TEXT("Max install cache size exceeded by %.2lf MiB"),
-			ToMiB(NewCachedBytes - MaxCacheSize));
+		LogIoStoreOnDemand, Warning, TEXT("Max install cache size exceeded by %.2lf MiB (%.2lf%%)"),
+			ToMiB(NewCachedBytes - MaxCacheSize), 100.0 * (double(NewCachedBytes - MaxCacheSize) / double(MaxCacheSize)));
 
 	return FIoStatus::Ok;
 }
