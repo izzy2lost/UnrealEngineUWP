@@ -59,7 +59,7 @@ namespace CQTestTests
 	{
 		TEST_METHOD(SetsApplicationContextMask)
 		{
-			ASSERT_THAT(AreEqual(EAutomationTestFlags::ApplicationContextMask, TestRunner->GetTestFlags() & EAutomationTestFlags::ApplicationContextMask));
+			ASSERT_THAT(AreEqual(EAutomationTestFlags_ApplicationContextMask, TestRunner->GetTestFlags() & EAutomationTestFlags_ApplicationContextMask));
 		}
 
 		TEST_METHOD(SetsProductFilter)
@@ -68,11 +68,11 @@ namespace CQTestTests
 		}
 	};
 
-	TEST_CLASS_WITH_FLAGS(OverrideFixtureTestFlags, "TestFramework.CQTest.Core", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+	TEST_CLASS_WITH_FLAGS(OverrideFixtureTestFlags, "TestFramework.CQTest.Core", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 	{
 		TEST_METHOD(GetTestFlags_ReturnsSetAutomationTestFlags)
 		{
-			ASSERT_THAT(AreEqual(EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter, TestRunner->GetTestFlags()));
+			ASSERT_THAT(AreEqual(EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter, TestRunner->GetTestFlags()));
 		}
 	};
 

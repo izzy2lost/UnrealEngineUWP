@@ -96,7 +96,7 @@
 		BeforeTestAction, \
 		bDoInstanceOverrideTest)
 
-BEGIN_DEFINE_SPEC(FDisplayClusterSpec, "DisplayCluster", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+BEGIN_DEFINE_SPEC(FDisplayClusterSpec, "DisplayCluster", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 	const FString TestNodeName = "TestNode";
 	const FString TestViewportName = "TestViewport";

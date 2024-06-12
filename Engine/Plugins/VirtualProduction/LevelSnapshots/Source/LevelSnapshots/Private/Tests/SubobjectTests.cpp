@@ -14,7 +14,7 @@
 
 namespace UE::LevelSnapshots::Private::Tests
 {
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreSubobjectProperties, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.RestoreSubobjectProperties", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreSubobjectProperties, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.RestoreSubobjectProperties", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreSubobjectProperties::RunTest(const FString& Parameters)
 	{
 		struct Local
@@ -465,7 +465,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*  - generate no diff if materials have some properties
 	*  - generate diff if a parameter is changed
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDynamicMaterialInstanceDiffCorrectly, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.DynamicMaterialInstanceDiffCorrectly", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDynamicMaterialInstanceDiffCorrectly, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.DynamicMaterialInstanceDiffCorrectly", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FDynamicMaterialInstanceDiffCorrectly::RunTest(const FString& Parameters)
 	{
 		// TODO
@@ -475,7 +475,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* If the softobject path saved for an object property still points to an object but it is pending kill, verify that a new instance is allocated.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPendingKillSubobjectIsReplacedWithNewInstance, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.PendingKillSubobjectIsReplacedWithNewInstance", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPendingKillSubobjectIsReplacedWithNewInstance, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.PendingKillSubobjectIsReplacedWithNewInstance", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FPendingKillSubobjectIsReplacedWithNewInstance::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -511,7 +511,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Do nested subobjects restore correctly, i.e. a subobject of a subobject.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNestedSubobjectOuters, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.NestedSubobjectOuters", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNestedSubobjectOuters, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.NestedSubobjectOuters", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FNestedSubobjectOuters::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -554,7 +554,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Make subobject A reference subobject B and vice versa.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCircularSubobjectDependency, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.NestedSubobjectOuters", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCircularSubobjectDependency, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.NestedSubobjectOuters", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FCircularSubobjectDependency::RunTest(const FString& Parameters)
 	{
 		struct Local
@@ -632,7 +632,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*	4.1. Recreate actor > A reference component of actor B
 	*	4.2. Do not recreate actor > A reference component is nullptr (i.e. does not point to dead component which still exists in memory)
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSkipDeadComponentReferences, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.SkipDeadComponentReferences", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSkipDeadComponentReferences, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.SkipDeadComponentReferences", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FSkipDeadComponentReferences::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* ActorA = nullptr;
@@ -699,7 +699,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*
 	* If Subobject is an unsupported class, see FSnapshotRestorability, then this property should not generate any diff.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSkippedSubobjectsDoNotDiff, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.SkippedSubobjectsDoNotDiff", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSkippedSubobjectsDoNotDiff, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.SkippedSubobjectsDoNotDiff", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FSkippedSubobjectsDoNotDiff::RunTest(const FString& Parameters)
 	{
 		class FDisableSubobjectClassSupport : public ISnapshotRestorabilityOverrider
@@ -847,7 +847,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*
 	* Differs from FReorderReferenceCollections because different runs for subobjects.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReorderSubobjectCollections, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.ReorderSubobjectCollections", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReorderSubobjectCollections, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.ReorderSubobjectCollections", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FReorderSubobjectCollections::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* SwapElementOrder = nullptr;
@@ -937,7 +937,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Actors referencing other actor's subobjects restore correctly.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReferenceSubobjectsFromOtherActors, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.ReferenceSubobjectsFromOtherActors", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReferenceSubobjectsFromOtherActors, "VirtualProduction.LevelSnapshots.Snapshot.Subobject.ReferenceSubobjectsFromOtherActors", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FReferenceSubobjectsFromOtherActors::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* ReferenceExternalSubobjects = nullptr;

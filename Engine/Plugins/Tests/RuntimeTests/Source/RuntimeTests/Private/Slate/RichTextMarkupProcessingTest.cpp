@@ -7,7 +7,7 @@
 
 #define LOCTEXT_NAMESPACE "Slate.RichText.MarkupProcessingTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFProcessingTest, "System.Slate.RichText.MarkupProcessing", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFProcessingTest, "System.Slate.RichText.MarkupProcessing", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 namespace
 {

@@ -65,7 +65,7 @@ enum class ECQTestSuppressLogBehavior
 };
 
 static const FString GenerateTestDirectory = TEXT("");
-static constexpr EAutomationTestFlags DefaultFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter;
+static constexpr EAutomationTestFlags DefaultFlags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
 
 template <typename T>
 concept HasBeforeAll = requires(T t) { { T::BeforeAll(FString()) }; };

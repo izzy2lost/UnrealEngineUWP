@@ -17,7 +17,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* FTakeClassDefaultObjectSnapshotArchive used to crash when a class CDO contained a collection of object references. Make sure it does not crash and restores.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersWithObjectReferencesInCDO, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ContainersWithObjectReferencesInCDO", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersWithObjectReferencesInCDO, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ContainersWithObjectReferencesInCDO", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FContainersWithObjectReferencesInCDO::RunTest(const FString& Parameters)
 	{
 		AActorWithReferencesInCDO* Actor = nullptr;
@@ -72,7 +72,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*	- Other FBodyInstance properties should still diff and restore correctly
 	*	- After restoration, transient property FCollisionResponse::ResponseToChannels should contain the correct values
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreCollision, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreCollision", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreCollision, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreCollision", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreCollision::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* CustomBlockAllToOverlapAll = nullptr;
@@ -144,7 +144,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Suppose snapshot contains Root > Child and now the hierarchy is Child > Root. This used to cause a crash.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUpdateAttachChildrenInfiniteLoop, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UpdateAttachChildrenInfiniteLoop", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUpdateAttachChildrenInfiniteLoop, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UpdateAttachChildrenInfiniteLoop", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FUpdateAttachChildrenInfiniteLoop::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Root = nullptr;
@@ -181,7 +181,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Spawn naked AActor and add instanced components. RootComponent needs to be set.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreRootComponent, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreRootComponent", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreRootComponent, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreRootComponent", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreRootComponent::RunTest(const FString& Parameters)
 	{
 		AActor* Actor = nullptr;
@@ -213,7 +213,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	 * Verify that the actor label property is restored
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreActorLabel, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ActorLabelRestores", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreActorLabel, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ActorLabelRestores", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreActorLabel::RunTest(const FString& Parameters)
 	{
 		AActor* KeepActor = nullptr;
@@ -254,7 +254,7 @@ namespace UE::LevelSnapshots::Private::Tests
 
 #if WITH_EDITOR
 	/** Tests that actors implementing AActor::CanDeleteSelectedActor and AActor::IsUserManaged are properly removed. */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUserManagedActors, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UserManagedActors", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUserManagedActors, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UserManagedActors", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FUserManagedActors::RunTest(const FString& Parameters)
 	{
 		int32 NumActorsBeforeModify;

@@ -2,7 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 
-BEGIN_DEFINE_SPEC(AutomationSpec, "TestFramework.Spec", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(AutomationSpec, "TestFramework.Spec", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 	bool Foo;
 	FString RunOrder; 
 END_DEFINE_SPEC(AutomationSpec)

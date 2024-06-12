@@ -26,7 +26,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*  Additionally, this indirectly tests that components are recreated correctly on the snapshot actor:
 	*  if components were not recreated correctly on the snapshot actor, the diff would not generate correctly in the first place.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAddedAndRemovedComponentsCorrectOnSnapshotActorAndGenerateDiff, "VirtualProduction.LevelSnapshots.Snapshot.Component.AddedAndRemovedComponentsCorrectOnSnapshotActorAndGenerateDiff", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAddedAndRemovedComponentsCorrectOnSnapshotActorAndGenerateDiff, "VirtualProduction.LevelSnapshots.Snapshot.Component.AddedAndRemovedComponentsCorrectOnSnapshotActorAndGenerateDiff", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FAddedAndRemovedComponentsCorrectOnSnapshotActorAndGenerateDiff::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -140,7 +140,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*		UStaticMeshComponent* MeshComponent;
 	* }
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAreComponentReferenceValidAfterRestore, "VirtualProduction.LevelSnapshots.Snapshot.Component.AreComponentReferenceValidAfterRestore", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAreComponentReferenceValidAfterRestore, "VirtualProduction.LevelSnapshots.Snapshot.Component.AreComponentReferenceValidAfterRestore", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FAreComponentReferenceValidAfterRestore::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -180,7 +180,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*		UStaticMeshComponent* MeshComponent;
 	* }
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquivalentObjectReferencesDoNotHaveDiff, "VirtualProduction.LevelSnapshots.Snapshot.Component.EquivalentObjectReferencesDoNotHaveDiff", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquivalentObjectReferencesDoNotHaveDiff, "VirtualProduction.LevelSnapshots.Snapshot.Component.EquivalentObjectReferencesDoNotHaveDiff", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FEquivalentObjectReferencesDoNotHaveDiff::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -215,7 +215,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	* - recreated if it was removed
 	* - serialized into if it still exists
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreInstancedComponent, "VirtualProduction.LevelSnapshots.Snapshot.Component.RestoreInstancedComponent", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreInstancedComponent, "VirtualProduction.LevelSnapshots.Snapshot.Component.RestoreInstancedComponent", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreInstancedComponent::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -322,7 +322,7 @@ namespace UE::LevelSnapshots::Private::Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRecreatedActorHasAllComponents, "VirtualProduction.LevelSnapshots.Snapshot.Component.RecreatedActorHasAllComponents", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRecreatedActorHasAllComponents, "VirtualProduction.LevelSnapshots.Snapshot.Component.RecreatedActorHasAllComponents", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRecreatedActorHasAllComponents::RunTest(const FString& Parameters)
 	{
 		AActor* Actor = nullptr;
@@ -386,7 +386,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	* Usually components have the owning actor as outer.
 	* Some applications, such as USD, create components that have other components as outers. It may even happen that components have duplicate names (with different outers though).
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FComponentsHaveComponentsAsOuters, "VirtualProduction.LevelSnapshots.Snapshot.Component.ComponentsHaveComponentsAsOuters", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FComponentsHaveComponentsAsOuters, "VirtualProduction.LevelSnapshots.Snapshot.Component.ComponentsHaveComponentsAsOuters", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FComponentsHaveComponentsAsOuters::RunTest(const FString& Parameters)
 	{
 		struct Local

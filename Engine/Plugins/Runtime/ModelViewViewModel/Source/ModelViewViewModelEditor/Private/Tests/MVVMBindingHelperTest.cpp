@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "MVVMBindingHelperTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMBindingHelperTest, "System.Plugins.MVVM.BindingHelper", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMBindingHelperTest, "System.Plugins.MVVM.BindingHelper", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 
 bool FMVVMBindingHelperTest::RunTest(const FString& Parameters)

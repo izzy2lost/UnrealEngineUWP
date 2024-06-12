@@ -3,7 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "GameplayEffectTypes.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagCountContainerTests, "System.AbilitySystem.GameplayTagCountContainer", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagCountContainerTests, "System.AbilitySystem.GameplayTagCountContainer", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 #include "NativeGameplayTags.h"
 

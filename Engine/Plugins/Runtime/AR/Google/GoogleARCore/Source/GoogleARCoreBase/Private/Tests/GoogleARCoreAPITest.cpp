@@ -3,7 +3,7 @@
 
 #include "GoogleARCoreAPI.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGoogleARCoreAPITest, "GoogleARCore.APITest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGoogleARCoreAPITest, "GoogleARCore.APITest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 void RunSessionCreateTest(FAutomationTestBase& Test)
 {

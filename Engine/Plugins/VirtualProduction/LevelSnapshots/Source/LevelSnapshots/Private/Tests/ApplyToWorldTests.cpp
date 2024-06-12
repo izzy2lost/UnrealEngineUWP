@@ -13,7 +13,7 @@
 
 namespace UE::LevelSnapshots::Private::Tests
 {
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreSimpleProperties, "VirtualProduction.LevelSnapshots.Snapshot.RestoreSimpleProperties", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreSimpleProperties, "VirtualProduction.LevelSnapshots.Snapshot.RestoreSimpleProperties", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreSimpleProperties::RunTest(const FString& Parameters)
 	{
 		const FVector StartLocation(100.f, -200.f, 300.f);
@@ -71,7 +71,7 @@ namespace UE::LevelSnapshots::Private::Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreReferenceProperties, "VirtualProduction.LevelSnapshots.Snapshot.RestoreReferenceProperties", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreReferenceProperties, "VirtualProduction.LevelSnapshots.Snapshot.RestoreReferenceProperties", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreReferenceProperties::RunTest(const FString& Parameters)
 	{
 		for (TFieldIterator<FProperty> FieldIt(ASnapshotTestActor::StaticClass()); FieldIt; ++FieldIt)
@@ -145,14 +145,14 @@ namespace UE::LevelSnapshots::Private::Tests
 	* Things like changing array / set / map element order, such as { A, null } to { null, A }, is detected and restored correctly.
 	* Differs from FReorderSubobjectCollections because different code runs for subobjects.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReorderReferenceCollections, "VirtualProduction.LevelSnapshots.Snapshot.ReorderReferenceCollections", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReorderReferenceCollections, "VirtualProduction.LevelSnapshots.Snapshot.ReorderReferenceCollections", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FReorderReferenceCollections::RunTest(const FString& Parameters)
 	{
 		// TODO: 
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstancedStaticMesh, "VirtualProduction.LevelSnapshots.Snapshot.InstancedStaticMesh", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstancedStaticMesh, "VirtualProduction.LevelSnapshots.Snapshot.InstancedStaticMesh", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FInstancedStaticMesh::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* MaterialAndMesh = nullptr;
@@ -195,7 +195,7 @@ namespace UE::LevelSnapshots::Private::Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSkipTransientAndDeprecatedProperties, "VirtualProduction.LevelSnapshots.Snapshot.SkipTransientAndDeprecatedProperties", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSkipTransientAndDeprecatedProperties, "VirtualProduction.LevelSnapshots.Snapshot.SkipTransientAndDeprecatedProperties", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FSkipTransientAndDeprecatedProperties::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* TestActor = nullptr;
@@ -226,7 +226,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	*
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUnchangedActorHasNoDiff, "VirtualProduction.LevelSnapshots.Snapshot.UnchangedActorHasNoDiff", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUnchangedActorHasNoDiff, "VirtualProduction.LevelSnapshots.Snapshot.UnchangedActorHasNoDiff", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FUnchangedActorHasNoDiff::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Actor = nullptr;
@@ -245,7 +245,7 @@ namespace UE::LevelSnapshots::Private::Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActorAttachParentRestores, "VirtualProduction.LevelSnapshots.Snapshot.ActorAttachParentRestores", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActorAttachParentRestores, "VirtualProduction.LevelSnapshots.Snapshot.ActorAttachParentRestores", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FActorAttachParentRestores::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* ParentOne = nullptr;

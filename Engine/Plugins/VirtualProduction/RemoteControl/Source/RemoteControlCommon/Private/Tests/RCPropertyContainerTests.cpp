@@ -12,7 +12,7 @@
 
 BEGIN_DEFINE_SPEC(FPropertyContainerSpec,
 	"Plugins.RemoteControl.PropertyContainer",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 END_DEFINE_SPEC(FPropertyContainerSpec)
 
 void FPropertyContainerSpec::Define()

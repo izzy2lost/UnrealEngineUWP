@@ -14,7 +14,7 @@ There are other valid ways of testing in Unreal engine.  One option is to use th
 
 Unreal has also developed their [spec test framework](https://docs.unrealengine.com/4.27/en-US/TestingAndOptimization/Automation/AutomationSpec/), which is inspired by Behavior Driven Design
 ```cpp
-    DEFINE_SPEC(FMinimalTest, "Game.Test", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+    DEFINE_SPEC(FMinimalTest, "Game.Test", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 	void FMinimalTest::Define() 
 	{
 		Describe("Assertions", [this]() 
@@ -29,7 +29,7 @@ Unreal has also developed their [spec test framework](https://docs.unrealengine.
 With the spec tests, be careful about capturing state
 
 ```cpp
-    BEGIN_DEFINE_SPEC(FMinimalTest, "Game.Test", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+    BEGIN_DEFINE_SPEC(FMinimalTest, "Game.Test", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 		uint32 SomeValue = 3;
 	END_DEFINE_SPEC
 

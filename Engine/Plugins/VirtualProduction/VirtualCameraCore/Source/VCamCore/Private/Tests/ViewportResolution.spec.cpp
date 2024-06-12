@@ -14,7 +14,7 @@
 namespace UE::VCamCore
 {
 	/** Tests FViewportLockManager in isolation. */
-	BEGIN_DEFINE_SPEC(FViewportResolutionSpec, "VirtualProduction.VCam.Viewport.Resolution", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	BEGIN_DEFINE_SPEC(FViewportResolutionSpec, "VirtualProduction.VCam.Viewport.Resolution", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 		TUniquePtr<FPreviewScene> ScenePreview;
 		AVCamTestActor* VCam1;
 		AVCamTestActor* VCam2;

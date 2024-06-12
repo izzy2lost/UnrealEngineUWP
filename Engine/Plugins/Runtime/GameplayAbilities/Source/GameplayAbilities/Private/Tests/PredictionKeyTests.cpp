@@ -12,8 +12,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogPredictionKeyTests, Warning, All);
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayPredictionKeyTest_UnitTest, "System.AbilitySystem.PredictionKey.UnitTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayPredictionKeyTest_ScopedPredictionsTest, "System.AbilitySystem.PredictionKey.ScopedPredictions", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayPredictionKeyTest_UnitTest, "System.AbilitySystem.PredictionKey.UnitTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayPredictionKeyTest_ScopedPredictionsTest, "System.AbilitySystem.PredictionKey.ScopedPredictions", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 namespace UE::AbilitySystem::Private
 {

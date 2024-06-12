@@ -8,7 +8,7 @@
 BEGIN_DEFINE_SPEC(
 	FRCTypeTranslatorSpec,
 	"Plugins.RemoteControlUI.RCTypeTranslator",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 	TStrongObjectPtr<URemoteControlPreset> Preset;
 	TStrongObjectPtr<URCVirtualPropertyBase> BoolVirtualProperty;
 	TStrongObjectPtr<URCVirtualPropertyBase> StringVirtualProperty;

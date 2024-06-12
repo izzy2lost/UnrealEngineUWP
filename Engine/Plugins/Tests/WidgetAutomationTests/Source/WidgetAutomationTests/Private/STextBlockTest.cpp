@@ -15,7 +15,7 @@
 
 namespace UE::SlateWidgetAutomationTest
 {
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextBlockTest, "Slate.STextBlockTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextBlockTest, "Slate.STextBlockTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 //@TODO Should we create a new class per property? We are going to need at least different RunTest and ValidateTest functions for each property of textblock.
 class FSlateTestTextBlock : public FSlateTestBase<STextBlock>

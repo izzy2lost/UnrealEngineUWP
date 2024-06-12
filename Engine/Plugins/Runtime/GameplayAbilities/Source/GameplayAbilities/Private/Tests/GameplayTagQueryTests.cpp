@@ -8,7 +8,7 @@
 #include "GameplayAbilitiesModule.h"
 #include "GameplayEffectTypes.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagQueryMatchesTagRequirementsTest, "System.AbilitySystem.GameplayTagRequirements.ConvertTagFieldsToTagQuery", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagQueryMatchesTagRequirementsTest, "System.AbilitySystem.GameplayTagRequirements.ConvertTagFieldsToTagQuery", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 #include "GameplayTagsManager.h"
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EVCamTargetViewportID.h"
 #include "Util/Viewport/OwnershipMapping.h"
@@ -8,7 +8,7 @@
 
 namespace UE::VCamCore
 {
-	BEGIN_DEFINE_SPEC(FOwnershipMappingSpec, "VirtualProduction.VCam.Viewport.OwnershipMapping", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	BEGIN_DEFINE_SPEC(FOwnershipMappingSpec, "VirtualProduction.VCam.Viewport.OwnershipMapping", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 		using FOwner = int32;
 		struct FOwnerData
 		{
