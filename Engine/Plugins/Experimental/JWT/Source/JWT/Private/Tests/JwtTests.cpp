@@ -162,7 +162,7 @@ namespace TestJwts
  * fail but were expected to fail.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJwtVerificationTest, "JWT.Verification",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FJwtVerificationTest::RunTest(const FString& Parameters)
 {
 	FJwtAlgorithm_RS256 Verifier;

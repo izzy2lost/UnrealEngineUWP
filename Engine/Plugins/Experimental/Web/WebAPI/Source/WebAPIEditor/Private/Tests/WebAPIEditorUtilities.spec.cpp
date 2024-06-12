@@ -8,7 +8,7 @@
 
 BEGIN_DEFINE_SPEC(FWebAPIEditorUtilitiesSpec,
 	TEXT("Plugins.WebAPI.Editor.Utilities"),
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 END_DEFINE_SPEC(FWebAPIEditorUtilitiesSpec)
 

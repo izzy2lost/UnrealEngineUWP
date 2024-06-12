@@ -728,7 +728,7 @@ bool TestExpression(FAutomationTestBase* Test, const TCHAR* Expression, const TC
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLTRAssociativtyExpressionsTest, "System.Core.Expression Parser.LTR Operator Associativity",
-									EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
+									EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
 
 bool FLTRAssociativtyExpressionsTest::RunTest(const FString& Parameters)
 {
@@ -739,7 +739,7 @@ bool FLTRAssociativtyExpressionsTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLAssociativtyExpressionsTest, "System.Core.Expression Parser.RTL Operator Associativity",
-									EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
+									EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
 
 bool FRTLAssociativtyExpressionsTest::RunTest(const FString& Parameters)
 {

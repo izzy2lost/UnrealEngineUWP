@@ -14,7 +14,7 @@
 BEGIN_DEFINE_SPEC(FAvaOutlinerSpec, "Avalanche.Outliner"
 	, EAutomationTestFlags::EngineFilter
 	| EAutomationTestFlags::EditorContext
-	| EAutomationTestFlags::ApplicationContextMask)
+	| EAutomationTestFlags_ApplicationContextMask)
 
 	// Types of common situations that are used across multiple tests
 	enum class EWhenType

@@ -12,7 +12,7 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 */
 
-BEGIN_DEFINE_SPEC(FOnlineIdentitySpec, "OnlineIdentityInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineIdentitySpec, "OnlineIdentityInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 FOnlineTestCommon CommonUtils;
 

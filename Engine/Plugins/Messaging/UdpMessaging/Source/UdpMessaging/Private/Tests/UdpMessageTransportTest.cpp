@@ -9,7 +9,7 @@
 #include "HAL/CriticalSection.h"
 #include "Misc/ScopeLock.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUdpMessageTransportTest, "System.Core.Messaging.Transports.Udp.UdpMessageTransport", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUdpMessageTransportTest, "System.Core.Messaging.Transports.Udp.UdpMessageTransport", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 class FUdpMessageTransportTestState
 	: public IMessageTransportHandler
@@ -97,7 +97,7 @@ private:
 	TSharedPtr<IMessageContext, ESPMode::ThreadSafe> LastMessageContext;
 };
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUdpMessageTransportTestExclusionList, "System.Core.Messaging.Transports.Udp.UdpMessageTransportExclusionList", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUdpMessageTransportTestExclusionList, "System.Core.Messaging.Transports.Udp.UdpMessageTransportExclusionList", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FUdpMessageTransportTestExclusionList::RunTest(const FString& Parameters)
 {

@@ -22,7 +22,7 @@
 namespace UE::VertexDeltaModelTests
 {
 /*
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVertexDeltaModelMainTest, "MLDeformer.VertexDeltaModel.MainTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVertexDeltaModelMainTest, "MLDeformer.VertexDeltaModel.MainTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FVertexDeltaModelMainTest::RunTest(const FString& Parameters)
 	{
 		using namespace UE::MLDeformer;

@@ -5,7 +5,7 @@
 #include "Utils/OnlineErrors.data.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlineAchievementsSpec, "OnlineAchievementsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineAchievementsSpec, "OnlineAchievementsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 IOnlineIdentityPtr OnlineIdentity;
 IOnlineAchievementsPtr OnlineAchievements;

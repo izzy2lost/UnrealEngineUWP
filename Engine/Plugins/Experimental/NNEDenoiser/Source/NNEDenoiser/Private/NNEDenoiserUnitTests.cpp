@@ -24,7 +24,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FAutoExposureTestDownloadParameters, )
 	RDG_BUFFER_ACCESS(OutputBuffer, ERHIAccess::CopySrc)
 END_SHADER_PARAMETER_STRUCT()
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutoExposureTest, "NNEDenoiser.UnitTests.AutoExposure", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags_FeatureMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutoExposureTest, "NNEDenoiser.UnitTests.AutoExposure", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags_FeatureMask | EAutomationTestFlags::EngineFilter)
 bool FAutoExposureTest::RunTest(const FString& Parameter)
 {
 	const int32 Width = 1920;

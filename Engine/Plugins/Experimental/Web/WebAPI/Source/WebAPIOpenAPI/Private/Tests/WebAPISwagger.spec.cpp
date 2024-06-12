@@ -15,7 +15,7 @@
 
 BEGIN_DEFINE_SPEC(FWebAPISwaggerSpec,
 	TEXT("Plugins.WebAPI.Swagger"),
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	TSharedPtr<UE::WebAPI::OpenAPI::V2::FSwagger> InputDefinition;
 	TStrongObjectPtr<UWebAPIDefinition> OutputDefinition;

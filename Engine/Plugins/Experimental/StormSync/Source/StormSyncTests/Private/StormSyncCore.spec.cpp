@@ -9,7 +9,7 @@
 
 #pragma warning(disable : 6011)
 
-BEGIN_DEFINE_SPEC(FStormSyncCoreSpec, "StormSync.StormSyncCore", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncCoreSpec, "StormSync.StormSyncCore", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	FString InvalidWidgetFixturePath = TEXT("/StormSync/Fixtures/Invalid");
 

@@ -9,7 +9,7 @@
 
 BEGIN_DEFINE_SPEC(FWebAPIEditorJsonSpec,
 	TEXT("Plugins.WebAPI.Editor.Json"),
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	TSharedPtr<FJsonObject> JsonObject;
 

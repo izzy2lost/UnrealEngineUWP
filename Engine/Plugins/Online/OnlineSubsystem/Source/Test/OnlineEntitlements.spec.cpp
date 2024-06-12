@@ -3,7 +3,7 @@
 #include "Online.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlineEntitlementsSpec, "OnlineEntitlementsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineEntitlementsSpec, "OnlineEntitlementsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 IOnlineSubsystem* OnlineSubsystem;
 

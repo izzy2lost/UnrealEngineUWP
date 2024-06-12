@@ -7,7 +7,7 @@
 #include "Player/HLS/LHLSTags.h"
 #include "CoreMinimal.h"
 
-BEGIN_DEFINE_SPEC(FParserSpec, "ElectraPlayer.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FParserSpec, "ElectraPlayer.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 END_DEFINE_SPEC(FParserSpec)
 
 void FParserSpec::Define()

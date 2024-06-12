@@ -6,7 +6,7 @@
 #include "Misc/CommandLine.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlineFriendsSpec, "OnlineFriendsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineFriendsSpec, "OnlineFriendsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 FOnlineTestCommon CommonUtils;
 

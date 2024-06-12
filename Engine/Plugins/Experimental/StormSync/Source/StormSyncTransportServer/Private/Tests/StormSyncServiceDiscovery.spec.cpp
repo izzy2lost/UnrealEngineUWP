@@ -54,7 +54,7 @@ private:
 	}
 };
 
-BEGIN_DEFINE_SPEC(FStormSyncServiceDiscoverySpec, "StormSync.StormSyncTransportServer.StormSyncServiceDiscovery", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncServiceDiscoverySpec, "StormSync.StormSyncTransportServer.StormSyncServiceDiscovery", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	/** Mock version of StormSyncDiscoveryManager (used in "StormSyncHeartbeatEmitter" suite) */
 	TUniquePtr<FMockDiscoveryManager> MockDiscoveryManager;

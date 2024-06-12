@@ -28,7 +28,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FTransferFunctionTestDownloadParameters, )
 	RDG_TEXTURE_ACCESS(OutputTexture, ERHIAccess::CopySrc)
 END_SHADER_PARAMETER_STRUCT()
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTransferFunctionTest, "NNEDenoiser.UnitTests.OIDN.TransferFunction.Forward", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags_FeatureMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTransferFunctionTest, "NNEDenoiser.UnitTests.OIDN.TransferFunction.Forward", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags_FeatureMask | EAutomationTestFlags::EngineFilter)
 bool FTransferFunctionTest::RunTest(const FString& Parameter)
 {
 	const int32 Width = 1920;

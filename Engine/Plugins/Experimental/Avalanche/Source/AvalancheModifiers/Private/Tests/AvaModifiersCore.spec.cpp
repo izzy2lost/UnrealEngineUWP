@@ -9,7 +9,7 @@
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersCoreTests, "Avalanche.Modifiers.Core",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	FAvaTestData TestData;
 	AAvaTestDynamicMeshActor* DynamicMeshActor;

@@ -19,7 +19,7 @@
 
 BEGIN_DEFINE_SPEC(FWebAPIOpenAPI3Spec,
 				"Plugins.WebAPI.OpenAPI3",
-				EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+				EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	TSharedPtr<UE::WebAPI::OpenAPI::V3::FOpenAPIObject> InputDefinition;
 	TStrongObjectPtr<UWebAPIDefinition> OutputDefinition;

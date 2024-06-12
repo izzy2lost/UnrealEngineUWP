@@ -8,7 +8,7 @@
 #include "Tests/Framework/AvaEditorTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 
-BEGIN_DEFINE_SPEC(AvalancheEditorAligmentPalettes, "Avalanche.Editor.AlignmentPalettes", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(AvalancheEditorAligmentPalettes, "Avalanche.Editor.AlignmentPalettes", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	TArray<AActor*> Actors;
 	int32 ActorCount = 3;
