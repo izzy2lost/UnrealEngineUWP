@@ -24,7 +24,7 @@ class FCADModelToCADKernelConverterBase : public CADLibrary::ICADModelConverter
 public:
 
 	FCADModelToCADKernelConverterBase(const CADLibrary::FImportParameters& InImportParameters)
-		: CADKernelSession(GeometricTolerance)
+		: CADKernelSession(0.01)
 		, ImportParameters(InImportParameters)
 	{
 	}
