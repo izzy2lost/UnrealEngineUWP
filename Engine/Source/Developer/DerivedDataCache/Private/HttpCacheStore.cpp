@@ -2133,6 +2133,8 @@ FHttpCacheStore::FHttpCacheStore(const FHttpCacheStoreParams& Params, ICacheStor
 		EffectiveDomain.Append(ResolvedDomain);
 	}
 
+	UE_LOG(LogDerivedDataCache, Display, TEXT("%s: Using session id %s."), *NodeName, *WriteToString<64>(FApp::GetSessionObjectId()));
+
 #if WITH_SSL
 	if (!Params.HostPinnedPublicKeys.IsEmpty() && EffectiveDomain.ToView().StartsWith(ANSITEXTVIEW("https://")))
 	{
