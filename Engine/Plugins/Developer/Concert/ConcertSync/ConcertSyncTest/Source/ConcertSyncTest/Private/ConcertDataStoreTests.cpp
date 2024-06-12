@@ -15,7 +15,7 @@
 #define LOCTEXT_NAMESPACE "ConcertDataStoreTests" 
 
 /** Flags used for the Concert data store tests. */
-static const int ConcertDataStoreTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; // | EAutomationTestFlags::SmokeFilter;
+static const EAutomationTestFlags ConcertDataStoreTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; // | EAutomationTestFlags::SmokeFilter;
 
 namespace ConcertDataStoreTestUtils
 {

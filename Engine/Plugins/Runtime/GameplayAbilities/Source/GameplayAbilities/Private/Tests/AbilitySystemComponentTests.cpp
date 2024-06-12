@@ -259,7 +259,7 @@ public:
 		AddTest(&AbilitySystemComponentTestSuite::Test_FailedAbilityFlow, TEXT("FailedAbilityFlow"));
 	}
 
-	virtual uint32 GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; }
+	virtual EAutomationTestFlags GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; }
 	virtual bool IsStressTest() const { return false; }
 	virtual uint32 GetRequiredDeviceNum() const override { return 1; }
 

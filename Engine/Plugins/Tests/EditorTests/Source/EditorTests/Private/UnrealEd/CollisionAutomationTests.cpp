@@ -30,10 +30,10 @@ namespace CollisionAutomationTests
 {
 	FAutomationTestBase* TestBase;
 	// Return the currently active world
-	UWorld* GetAutomationWorld(const int32 TestFlags)
+	UWorld* GetAutomationWorld(const EAutomationTestFlags TestFlags)
  	{
 		UWorld* World = nullptr;
-		if( TestFlags & EAutomationTestFlags::ClientContext)
+		if (!!(TestFlags & EAutomationTestFlags::ClientContext))
 		{
 			check(GEngine->GetWorldContexts().Num() == 1);
 			World = GEngine->GetWorldContexts()[0].World();

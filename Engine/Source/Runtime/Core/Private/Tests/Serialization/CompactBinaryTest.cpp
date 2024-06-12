@@ -16,8 +16,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static constexpr EAutomationTestFlags::Type CompactBinaryTestFlags =
-	EAutomationTestFlags::Type(EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
+static constexpr EAutomationTestFlags CompactBinaryTestFlags =
+	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

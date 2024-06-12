@@ -247,7 +247,7 @@ void FAutomationControllerManager::RequestAvailableWorkers(const FGuid& SessionI
 	//store off active session ID to reject messages that come in from different sessions
 	ActiveSessionId = SessionId;
 
-	//EAutomationTestFlags::FilterMask
+	//EAutomationTestFlags_FilterMask
 
 	//TODO AUTOMATION - include change list, game, etc, or remove when launcher is integrated
 	int32 ChangelistNumber = 10000;

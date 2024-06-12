@@ -350,7 +350,7 @@ public:
 	/**
 	 * Sets what flags we're considering automation tests from
 	 */
-	virtual void SetRequestedTestFlags(const uint32 InRequestedTestFlags) = 0;
+	virtual void SetRequestedTestFlags(const EAutomationTestFlags InRequestedTestFlags) = 0;
 
 	/**
 	 * Check if the automation tests have completed.

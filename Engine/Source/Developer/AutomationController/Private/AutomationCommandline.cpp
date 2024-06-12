@@ -98,7 +98,7 @@ public:
 		FilterMaps.Add("Product", EAutomationTestFlags::ProductFilter);
 		FilterMaps.Add("Standard", EAutomationTestFlags::SmokeFilter | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::PerfFilter);
 		FilterMaps.Add("Negative", EAutomationTestFlags::NegativeFilter);
-		FilterMaps.Add("All", EAutomationTestFlags::FilterMask);
+		FilterMaps.Add("All", EAutomationTestFlags_FilterMask);
 	}
 	
 	void Shutdown()
@@ -583,15 +583,15 @@ protected:
 					Ar.Logf(TEXT("Automation: Setting minimum priority of cases to run to: %s"), *FlagToUse);
 					if (FlagToUse.Contains(TEXT("Low")))
 					{
-						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::PriorityMask);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags_PriorityMask);
 					}
 					else if (FlagToUse.Contains(TEXT("Medium")))
 					{
-						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::MediumPriorityAndAbove);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags_MediumPriorityAndAbove);
 					}
 					else if (FlagToUse.Contains(TEXT("High")))
 					{
-						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::HighPriorityAndAbove);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags_HighPriorityAndAbove);
 					}
 					else if (FlagToUse.Contains(TEXT("Critical")))
 					{
@@ -599,7 +599,7 @@ protected:
 					}
 					else if (FlagToUse.Contains(TEXT("None")))
 					{
-						AutomationController->SetRequestedTestFlags(0);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::None);
 					}
 					else
 					{
@@ -628,7 +628,7 @@ protected:
 					}
 					else if (FlagToUse.Contains(TEXT("None")))
 					{
-						AutomationController->SetRequestedTestFlags(0);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::None);
 					}
 
 					else
@@ -786,7 +786,7 @@ private:
 	int32 TestCount;
 
 	//Dictionary that maps flag names to flag values.
-	TMap<FString, int32> FilterMaps;
+	TMap<FString, EAutomationTestFlags> FilterMaps;
 
 	// Any that we encountered during processing. Used in 'Quit' to determine error code
 	TArray<FString> Errors;

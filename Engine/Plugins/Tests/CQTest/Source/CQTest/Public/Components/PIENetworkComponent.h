@@ -114,7 +114,7 @@ private:
 	bool bIsDedicatedServer = true;
 };
 
-constexpr static uint32 NetworkTestContext = EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter;
+constexpr static EAutomationTestFlags NetworkTestContext = EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter;
 
 #define NETWORK_TEST_CLASS(_ClassName, _TestDir) TEST_CLASS_WITH_FLAGS(_ClassName, _TestDir, NetworkTestContext)
 

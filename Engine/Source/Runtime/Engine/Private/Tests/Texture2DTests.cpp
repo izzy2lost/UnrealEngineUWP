@@ -9,7 +9,7 @@
 namespace Texture2DTest
 {
 
-constexpr const uint32 TestFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter;
+constexpr const EAutomationTestFlags TestFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter;
 
 // A simple test to make sure that basic functionality in UTexture2D::CreateTransient works as it seems to be a 
 // fairly uncommon code path in our samples/test games etc.

@@ -65,7 +65,7 @@ enum class ECQTestSuppressLogBehavior
 };
 
 static const FString GenerateTestDirectory = TEXT("");
-static constexpr uint32 DefaultFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter;
+static constexpr EAutomationTestFlags DefaultFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter;
 
 template <typename T>
 concept HasBeforeAll = requires(T t) { { T::BeforeAll(FString()) }; };
@@ -143,10 +143,10 @@ using TTestInstanceGenerator = TUniquePtr<TBaseTest<AsserterType>>(*)(TTestRunne
 template <typename AsserterType>
 struct TTestRunner : public FAutomationTestBase
 {
-	TTestRunner(FString Name, int32 LineNumber, const char* FileName, FString TestDir, uint32 TestFlags, TTestInstanceGenerator<AsserterType> Factory);
+	TTestRunner(FString Name, int32 LineNumber, const char* FileName, FString TestDir, EAutomationTestFlags TestFlags, TTestInstanceGenerator<AsserterType> Factory);
 	~TTestRunner();
 
-	uint32 GetTestFlags() const override;
+	EAutomationTestFlags GetTestFlags() const override;
 	FString GetTestSourceFileName() const override;
 	int32 GetTestSourceFileLine() const override;
 	int32 GetTestSourceFileLine(const FString& Name) const override;
@@ -162,7 +162,7 @@ struct TTestRunner : public FAutomationTestBase
 	int32 LineNumber = 0;
 	FString FileName;
 	FString TestDir;
-	uint32 TestFlags{ DefaultFlags };
+	EAutomationTestFlags TestFlags{ DefaultFlags };
 	bool bInitializing{ true };
 
 	TUniquePtr<TBaseTest<AsserterType>> CurrentTestPtr;

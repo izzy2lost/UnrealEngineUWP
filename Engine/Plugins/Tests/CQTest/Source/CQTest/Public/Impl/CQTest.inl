@@ -129,7 +129,7 @@ namespace
 
 
 template <typename AsserterType>
-inline TTestRunner<AsserterType>::TTestRunner(FString InName, int32 InLineNumber, const char* InFileName, FString InTestDir, uint32 InTestFlags, TTestInstanceGenerator<AsserterType> InFactory)
+inline TTestRunner<AsserterType>::TTestRunner(FString InName, int32 InLineNumber, const char* InFileName, FString InTestDir, EAutomationTestFlags InTestFlags, TTestInstanceGenerator<AsserterType> InFactory)
 	: FAutomationTestBase(InName, true)
 	, LineNumber(InLineNumber)
 	, FileName(FString(InFileName))
@@ -221,7 +221,7 @@ inline uint32 TTestRunner<AsserterType>::GetRequiredDeviceNum() const
 }
 
 template <typename AsserterType>
-inline uint32 TTestRunner<AsserterType>::GetTestFlags() const
+inline EAutomationTestFlags TTestRunner<AsserterType>::GetTestFlags() const
 {
 	return TestFlags;
 }

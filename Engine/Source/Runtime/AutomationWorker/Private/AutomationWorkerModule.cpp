@@ -384,7 +384,7 @@ void FAutomationWorkerModule::HandleRequestTestsMessage( const FAutomationWorker
 
 	FAutomationTestFramework::Get().LoadTestModules();
 	FAutomationTestFramework::Get().SetDeveloperDirectoryIncluded(Message.DeveloperDirectoryIncluded);
-	FAutomationTestFramework::Get().SetRequestedTestFilter(Message.RequestedTestFlags);
+	FAutomationTestFramework::Get().SetRequestedTestFilter((EAutomationTestFlags)Message.RequestedTestFlags);
 	FAutomationTestFramework::Get().GetValidTestNames( TestInfo );
 
 	SendTests(Context->GetSender());

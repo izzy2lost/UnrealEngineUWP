@@ -57,16 +57,16 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 			{ \
 				TestFlags = ExtractAutomationTestFlags(TFlags); \
 				PrettyNameDotNotation = FString(PrettyName).Replace(TEXT("::"), TEXT(".")); \
-				if (!(TestFlags & EAutomationTestFlags::ApplicationContextMask)) \
+				if (!(TestFlags & EAutomationTestFlags_ApplicationContextMask)) \
 				{ \
-					TestFlags |= EAutomationTestFlags::ApplicationContextMask; \
+					TestFlags |= EAutomationTestFlags_ApplicationContextMask; \
 				} \
-				if (!(TestFlags & EAutomationTestFlags::FilterMask)) \
+				if (!(TestFlags & EAutomationTestFlags_FilterMask)) \
 				{ \
 					TestFlags |= EAutomationTestFlags::EngineFilter; \
 				} \
 			} \
-			virtual uint32 GetTestFlags() const override { return TestFlags; } \
+			virtual EAutomationTestFlags GetTestFlags() const override { return TestFlags; } \
 			virtual bool IsStressTest() const { return false; } \
 			virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 			virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -84,7 +84,7 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 			} \
 			virtual FString GetBeautifiedTestName() const override { return PrettyNameDotNotation; } \
 		private:\
-			uint32 TestFlags; \
+			EAutomationTestFlags TestFlags; \
 			FString PrettyNameDotNotation; \
 		};
 

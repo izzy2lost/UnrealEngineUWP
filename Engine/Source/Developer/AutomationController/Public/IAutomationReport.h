@@ -248,7 +248,7 @@ public:
 	 * 
 	 * @return the test type.
 	 */
-	virtual uint32 GetTestFlags() const = 0;
+	virtual EAutomationTestFlags GetTestFlags() const = 0;
 
 	/** Gets the source file the test was defined on. */
 	virtual FString GetSourceFile() const = 0;
@@ -302,7 +302,7 @@ public:
 	 * 
 	 * @param InTestFlags The EAutomationTestFlags of the test.
 	 */
-	virtual void SetTestFlags(const uint32 InTestFlags) = 0;
+	virtual void SetTestFlags(const EAutomationTestFlags InTestFlags) = 0;
 
 	/** Returns if a particular platform is supported */
 	virtual bool IsSupported(const int32 ClusterIndex) const = 0;

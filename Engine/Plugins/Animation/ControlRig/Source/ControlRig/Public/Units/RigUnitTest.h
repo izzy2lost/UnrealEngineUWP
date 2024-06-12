@@ -55,7 +55,7 @@ public:
 		TUnitStruct##Test( const FString& InName ) \
 		:FControlRigUnitTestBase( InName, false ) {\
 		} \
-		virtual uint32 GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; } \
 		virtual bool IsStressTest() const { return false; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return __FILE__; } \

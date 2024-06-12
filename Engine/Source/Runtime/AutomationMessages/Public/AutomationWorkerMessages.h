@@ -184,20 +184,21 @@ struct FAutomationWorkerRequestTests : public FAutomationWorkerMessageBase
 
 	/** Holds a flag indicating whether the developer directory should be included. */
 	UPROPERTY(EditAnywhere, Category="Message")
-	bool DeveloperDirectoryIncluded;
+	bool DeveloperDirectoryIncluded = false;
 
 	/** Holds a flag indicating which tests we'd like to request. */
 	UPROPERTY(EditAnywhere, Category="Message")
-	uint32 RequestedTestFlags;
+	uint32 RequestedTestFlags = 0;
 
 	/** Default constructor. */
-	FAutomationWorkerRequestTests() : DeveloperDirectoryIncluded(false), RequestedTestFlags(0) { }
+	FAutomationWorkerRequestTests() = default;
 
 	/** Creates and initializes a new instance. */
-	FAutomationWorkerRequestTests(bool InDeveloperDirectoryIncluded, uint32 InRequestedTestFlags)
+	FAutomationWorkerRequestTests(bool InDeveloperDirectoryIncluded, EAutomationTestFlags InRequestedTestFlags)
 		: DeveloperDirectoryIncluded(InDeveloperDirectoryIncluded)
-		, RequestedTestFlags(InRequestedTestFlags)
-	{ }
+		, RequestedTestFlags((uint32)InRequestedTestFlags)
+	{
+	}
 };
 
 
@@ -225,7 +226,7 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 	FString SourceFile;
 
 	UPROPERTY(EditAnywhere, Category="Message")
-	int32 SourceFileLine;
+	int32 SourceFileLine = 0;
 
 	UPROPERTY(EditAnywhere, Category="Message")
 	FString AssetPath;
@@ -234,13 +235,13 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 	FString OpenCommand;
 
 	UPROPERTY(EditAnywhere, Category="Message")
-	uint32 TestFlags;
+	uint32 TestFlags = 0;
 
 	UPROPERTY(EditAnywhere, Category="Message")
-	uint32 NumParticipantsRequired;
+	uint32 NumParticipantsRequired = 0;
 
 	/** Default constructor. */
-	FAutomationWorkerSingleTestReply() : SourceFileLine(0), TestFlags(0), NumParticipantsRequired(0) { }
+	FAutomationWorkerSingleTestReply() = default;
 
 	/** Creates and initializes a new instance. */
 	FAutomationWorkerSingleTestReply(const FAutomationTestInfo& InTestInfo)
@@ -253,7 +254,7 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 		SourceFileLine = InTestInfo.GetSourceFileLine();
 		AssetPath = InTestInfo.GetAssetPath();
 		OpenCommand = InTestInfo.GetOpenCommand();
-		TestFlags = InTestInfo.GetTestFlags();
+		TestFlags = (uint32)InTestInfo.GetTestFlags();
 		NumParticipantsRequired = InTestInfo.GetNumParticipantsRequired();
 	}
 
@@ -263,7 +264,7 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 			DisplayName,
 			FullTestPath,
 			TestName,
-			TestFlags,
+			(EAutomationTestFlags)TestFlags,
 			NumParticipantsRequired,
 			TestParameter,
 			SourceFile,

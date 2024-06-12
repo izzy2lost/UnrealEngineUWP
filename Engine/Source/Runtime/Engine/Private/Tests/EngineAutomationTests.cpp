@@ -23,10 +23,10 @@
 
 namespace
 {
-	UWorld* GetSimpleEngineAutomationTestGameWorld(const int32 TestFlags)
+	UWorld* GetSimpleEngineAutomationTestGameWorld(const EAutomationTestFlags TestFlags)
 	{
 		// Accessing the game world is only valid for game-only 
-		check((TestFlags & EAutomationTestFlags::ApplicationContextMask) == EAutomationTestFlags::ClientContext);
+		check((TestFlags & EAutomationTestFlags_ApplicationContextMask) == EAutomationTestFlags::ClientContext);
 		check(GEngine->GetWorldContexts().Num() == 1);
 		check(GEngine->GetWorldContexts()[0].WorldType == EWorldType::Game);
 

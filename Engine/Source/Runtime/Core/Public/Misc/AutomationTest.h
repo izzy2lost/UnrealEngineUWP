@@ -75,78 +75,69 @@ class FAutomationTestBase;
 * Flags for specifying automation test requirements/behavior
 * Update GetTestFlagsMap when updating this enum.
 */
-struct EAutomationTestFlags
+enum class EAutomationTestFlags
 {
-	enum Type
-	{
-		None = 0x00000000,
-		//~ Application context required for the test
-		// Test is suitable for running within the editor
-		EditorContext = 0x00000001,
-		// Test is suitable for running within the client
-		ClientContext = 0x00000002,
-		// Test is suitable for running within the server
-		ServerContext = 0x00000004,
-		// Test is suitable for running within a commandlet
-		CommandletContext = 0x00000008,
-		// Test is suitable for running within program application (not editor, nor game)
-		ProgramContext = 0x00000010,
-		ApplicationContextMask = EditorContext | ClientContext | ServerContext | CommandletContext | ProgramContext,
+	None = 0x00000000,
+	//~ Application context required for the test
+	// Test is suitable for running within the editor
+	EditorContext = 0x00000001,
+	// Test is suitable for running within the client
+	ClientContext = 0x00000002,
+	// Test is suitable for running within the server
+	ServerContext = 0x00000004,
+	// Test is suitable for running within a commandlet
+	CommandletContext = 0x00000008,
+	// Test is suitable for running within program application (not editor, nor game)
+	ProgramContext = 0x00000010,
 
-		//~ Features required for the test - not specifying means it is valid for any feature combination
-		// Test requires a non-null RHI to run correctly
-		NonNullRHI = 0x00000100,
-		// Test requires a user instigated session
-		RequiresUser = 0x00000200,
-		FeatureMask = NonNullRHI | RequiresUser,
+	//~ Features required for the test - not specifying means it is valid for any feature combination
+	// Test requires a non-null RHI to run correctly
+	NonNullRHI = 0x00000100,
+	// Test requires a user instigated session
+	RequiresUser = 0x00000200,
 
-		//~ One-off flag to allow for fast disabling of tests without commenting code out
-		// Temp disabled and never returns for a filter
-		Disabled = 0x00010000,
+	//~ One-off flag to allow for fast disabling of tests without commenting code out
+	// Temp disabled and never returns for a filter
+	Disabled = 0x00010000,
 
-		//~ Priority of the test
-		// The highest priority possible. Showstopper/blocker.
-		CriticalPriority			= 0x00100000,
-		// High priority. Major feature functionality etc. 
-		HighPriority				= 0x00200000,
-		// Mask for High on SetMinimumPriority
-		HighPriorityAndAbove		= CriticalPriority | HighPriority,
-		// Medium Priority. Minor feature functionality, major generic content issues.
-		MediumPriority				= 0x00400000,
-		// Mask for Medium on SetMinimumPriority
-		MediumPriorityAndAbove		= CriticalPriority | HighPriority | MediumPriority,
-		// Low Priority. Minor content bugs. String errors. Etc.
-		LowPriority					= 0x00800000,
-		PriorityMask = CriticalPriority | HighPriority | MediumPriority | LowPriority,
+	//~ Priority of the test
+	// The highest priority possible. Showstopper/blocker.
+	CriticalPriority			= 0x00100000,
+	// High priority. Major feature functionality etc. 
+	HighPriority				= 0x00200000,
+	// Medium Priority. Minor feature functionality, major generic content issues.
+	MediumPriority				= 0x00400000,
+	// Low Priority. Minor content bugs. String errors. Etc.
+	LowPriority					= 0x00800000,
 
-		//~ Speed of the test
-		//Super Fast Filter
-		SmokeFilter					= 0x01000000,
-		//Engine Level Test
-		EngineFilter				= 0x02000000,
-		//Product Level Test
-		ProductFilter				= 0x04000000,
-		//Performance Test
-		PerfFilter					= 0x08000000,
-		//Stress Test
-		StressFilter				= 0x10000000,
-		//Negative Test. For tests whose correct expected outcome is failure.
-		NegativeFilter				= 0x20000000,
-		FilterMask = SmokeFilter | EngineFilter | ProductFilter | PerfFilter | StressFilter | NegativeFilter
-	};
+	//~ Speed of the test
+	//Super Fast Filter
+	SmokeFilter					= 0x01000000,
+	//Engine Level Test
+	EngineFilter				= 0x02000000,
+	//Product Level Test
+	ProductFilter				= 0x04000000,
+	//Performance Test
+	PerfFilter					= 0x08000000,
+	//Stress Test
+	StressFilter				= 0x10000000,
+	//Negative Test. For tests whose correct expected outcome is failure.
+	NegativeFilter				= 0x20000000,
 
-	static CORE_API const TMap<FString, Type>& GetTestFlagsMap();
-
-	static const Type FromString(FString Name)
-	{
-		static auto FlagMap = GetTestFlagsMap();
-		if (FlagMap.Contains(Name))
-		{
-			return FlagMap[Name];
-		}
-		return Type::None;
-	}
+	// We need to deprecate and remove this once all usage has been replaced
+	ApplicationContextMask = EditorContext | ClientContext | ServerContext | CommandletContext | ProgramContext,
 };
+
+ENUM_CLASS_FLAGS(EAutomationTestFlags)
+
+constexpr EAutomationTestFlags EAutomationTestFlags_ApplicationContextMask = EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::ProgramContext;
+constexpr EAutomationTestFlags EAutomationTestFlags_FeatureMask            = EAutomationTestFlags::NonNullRHI | EAutomationTestFlags::RequiresUser;
+constexpr EAutomationTestFlags EAutomationTestFlags_HighPriorityAndAbove   = EAutomationTestFlags::CriticalPriority | EAutomationTestFlags::HighPriority;
+constexpr EAutomationTestFlags EAutomationTestFlags_MediumPriorityAndAbove = EAutomationTestFlags::CriticalPriority | EAutomationTestFlags::HighPriority | EAutomationTestFlags::MediumPriority;
+constexpr EAutomationTestFlags EAutomationTestFlags_PriorityMask           = EAutomationTestFlags::CriticalPriority | EAutomationTestFlags::HighPriority | EAutomationTestFlags::MediumPriority | EAutomationTestFlags::LowPriority;
+constexpr EAutomationTestFlags EAutomationTestFlags_FilterMask             = EAutomationTestFlags::SmokeFilter | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::PerfFilter | EAutomationTestFlags::StressFilter | EAutomationTestFlags::NegativeFilter;
+
+CORE_API const TMap<FString, EAutomationTestFlags>& EAutomationTestFlags_GetTestFlagsMap();
 
 /** Flags for indicating the matching type to use for an expected message */
 namespace EAutomationExpectedMessageFlags
@@ -277,11 +268,7 @@ class FAutomationTestInfo
 public:
 
 	// Default constructor
-	FAutomationTestInfo( )
-		: TestFlags( 0 )
-		, NumParticipantsRequired( 0 )
-		, NumDevicesCurrentlyRunningTest( 0 )
-	{}
+	FAutomationTestInfo() = default;
 
 	/**
 	 * Constructor
@@ -291,7 +278,7 @@ public:
 	 * @param	InTestFlag - Test flags
 	 * @param	InParameterName - optional parameter. e.g. asset name
 	 */
-	FAutomationTestInfo(const FString& InDisplayName, const FString& InFullTestPath, const FString& InTestName, const uint32 InTestFlags, const int32 InNumParticipantsRequired, const FString& InParameterName = FString(), const FString& InSourceFile = FString(), int32 InSourceFileLine = 0, const FString& InAssetPath = FString(), const FString& InOpenCommand = FString())
+	FAutomationTestInfo(const FString& InDisplayName, const FString& InFullTestPath, const FString& InTestName, const EAutomationTestFlags InTestFlags, const int32 InNumParticipantsRequired, const FString& InParameterName = FString(), const FString& InSourceFile = FString(), int32 InSourceFileLine = 0, const FString& InAssetPath = FString(), const FString& InOpenCommand = FString())
 		: DisplayName( InDisplayName )
 		, FullTestPath( InFullTestPath )
 		, TestName( InTestName )
@@ -303,7 +290,8 @@ public:
 		, TestFlags( InTestFlags )
 		, NumParticipantsRequired( InNumParticipantsRequired )
 		, NumDevicesCurrentlyRunningTest( 0 )
-	{}
+	{
+	}
 
 public:
 
@@ -312,7 +300,7 @@ public:
 	 *
 	 * @Param InTestFlags - the child test flag to add.
 	 */
-	void AddTestFlags( const uint32 InTestFlags)
+	void AddTestFlags( const EAutomationTestFlags InTestFlags)
 	{
 		TestFlags |= InTestFlags;
 	}
@@ -402,7 +390,7 @@ public:
 	 *
 	 * @return the test type.
 	 */
-	const uint32 GetTestFlags() const
+	const EAutomationTestFlags GetTestFlags() const
 	{
 		return TestFlags;
 	}
@@ -489,13 +477,13 @@ private:
 	FString OpenCommand;
 
 	/** The test flags. */
-	uint32 TestFlags;
+	EAutomationTestFlags TestFlags = EAutomationTestFlags::None;
 
 	/** The number of participants this test requires */
-	uint32 NumParticipantsRequired;
+	uint32 NumParticipantsRequired = 0;
 
 	/** The number of devices which have been given this test to run */
-	uint32 NumDevicesCurrentlyRunningTest;
+	uint32 NumDevicesCurrentlyRunningTest = 0;
 };
 
 
@@ -1101,7 +1089,7 @@ public:
 	/**
 	* Sets which set of tests to pull from.
 	*/
-	CORE_API void SetRequestedTestFilter(const uint32 InRequestedTestFlags);
+	CORE_API void SetRequestedTestFilter(const EAutomationTestFlags InRequestedTestFlags);
 	
 
 	/**
@@ -1376,7 +1364,7 @@ private:
 	TQueue< TSharedPtr<IAutomationNetworkCommand> > NetworkCommands;
 
 	/** Whether we are currently executing smoke tests for startup/commandlet to minimize log spam */
-	uint32 RequestedTestFilter;
+	EAutomationTestFlags RequestedTestFilter;
 
 	/** Time when the test began executing */
 	double StartTime;
@@ -1450,7 +1438,7 @@ public:
 	 *
 	 * @return	Automation test flags associated with the test
 	 */
-	virtual uint32 GetTestFlags() const = 0;
+	virtual EAutomationTestFlags GetTestFlags() const = 0;
 
 	/** Gets the C++ name of the test. */
 	FString GetTestName() const { return TestName; }
@@ -2435,7 +2423,7 @@ protected:
 	virtual void SetTestContext(FString Context) { TestParameterContext = Context; }
 
 	/** Extracts a combined EAutomationTestFlags value from a string representation using tag notation "[Filter_1]...[Filter_n][Tag_1]...[Tag_m]" */
-	CORE_API uint32 ExtractAutomationTestFlags(FString InTagNotation);
+	CORE_API EAutomationTestFlags ExtractAutomationTestFlags(FString InTagNotation);
 
 protected:
 
@@ -3858,16 +3846,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:TBaseClass( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
 		virtual bool IsStressTest() const { return false; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -3890,16 +3878,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:TBaseClass( InName, true ) { \
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::SmokeFilter)); } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::SmokeFilter)); } \
 		virtual bool IsStressTest() const { return true; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -3916,16 +3904,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:TBaseClass( InName, false ) { \
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::EditorContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::SmokeFilter)); } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::EditorContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::SmokeFilter)); } \
 		virtual uint32 GetRequiredDeviceNum() const override { return NumParticipants; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
 		virtual int32 GetTestSourceFileLine() const override { return LineNumber; } \
@@ -3945,16 +3933,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:FBDDAutomationTestBase( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
 		virtual bool IsStressTest() const { return false; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -3972,16 +3960,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		: FAutomationSpecBase( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
         using FAutomationSpecBase::GetTestSourceFileName; \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
         using FAutomationSpecBase::GetTestSourceFileLine; \
@@ -3999,16 +3987,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		: FAutomationSpecBase( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
 		using FAutomationSpecBase::GetTestSourceFileName; \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
 		using FAutomationSpecBase::GetTestSourceFileLine; \

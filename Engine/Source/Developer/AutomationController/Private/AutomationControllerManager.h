@@ -337,7 +337,7 @@ public:
 		return bDeveloperDirectoryIncluded;
 	}
 
-	virtual void SetRequestedTestFlags(const uint32 InRequestedTestFlags) override
+	virtual void SetRequestedTestFlags(const EAutomationTestFlags InRequestedTestFlags) override
 	{
 		RequestedTestFlags = InRequestedTestFlags;
 		RequestTests();
@@ -571,7 +571,7 @@ private:
 	bool bTestResultsAvailable = false;
 
 	/** Which sets of tests to consider */
-	uint32 RequestedTestFlags = 0;
+	EAutomationTestFlags RequestedTestFlags = EAutomationTestFlags::None;
 
 	/** Timer to keep track of the last time tests were updated */
 	double CheckTestTimer;

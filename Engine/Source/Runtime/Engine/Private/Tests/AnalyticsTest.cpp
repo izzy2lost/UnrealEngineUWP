@@ -10,7 +10,7 @@
 /**
 * Artificial Record Event for analytics - Simulates the engine startup simulation.  
 */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnalyticStartUpSimTest, "System.Engine.Analytic.Record Event - Simulate Program Start", EAutomationTestFlags::FeatureMask | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnalyticStartUpSimTest, "System.Engine.Analytic.Record Event - Simulate Program Start", EAutomationTestFlags_FeatureMask | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 
 bool FAnalyticStartUpSimTest::RunTest(const FString& Parameters)
 {
@@ -72,7 +72,7 @@ bool FAnalyticStartUpSimTest::RunTest(const FString& Parameters)
 /**
 * FAnalyticsEventAttribute Unit Test.
 */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnalyticsEventAttributeUnitTest, "System.Engine.Analytic.EventAttribute Struct Unit Test", EAutomationTestFlags::FeatureMask | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnalyticsEventAttributeUnitTest, "System.Engine.Analytic.EventAttribute Struct Unit Test", EAutomationTestFlags_FeatureMask | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 
 bool FAnalyticsEventAttributeUnitTest::RunTest(const FString& Parameters)
 {
