@@ -6,7 +6,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-FChaosVDCommands::FChaosVDCommands() : TCommands<FChaosVDCommands>(TEXT("ActorPalette"), NSLOCTEXT("ChaosVisualDebugger", "ChaosVisualDebuggerEditor", "Chaos Visual Debugger Editor"), NAME_None, FChaosVDStyle::GetStyleSetName())
+FChaosVDCommands::FChaosVDCommands() : TCommands<FChaosVDCommands>(TEXT("ChaosVDEditor"), NSLOCTEXT("ChaosVisualDebugger", "ChaosVisualDebuggerEditor", "Chaos Visual Debugger Editor"), NAME_None, FChaosVDStyle::GetStyleSetName())
 {
 }
 
