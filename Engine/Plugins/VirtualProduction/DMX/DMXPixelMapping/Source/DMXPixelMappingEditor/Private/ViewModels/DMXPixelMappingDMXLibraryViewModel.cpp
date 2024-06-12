@@ -395,6 +395,7 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 	{
 		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component))
 		{
+			NextPosition = NextPosition - FLT_EPSILON * 2.f;
 			OutputComponent->SetPosition(NextPosition);
 
 			if (OutputComponent->IsOverParent())
