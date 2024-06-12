@@ -2,6 +2,8 @@
 
 #include "SLiveLinkHubPlaybackWidget.h"
 
+#include "SLiveLinkHubTimeSlider.h"
+
 #include "FrameNumberNumericInterface.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SSimpleTimeSlider.h"
@@ -43,6 +45,8 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 
 	OnGetFrameRate = InArgs._GetFrameRate;
 
+	OnGetFrameBufferRange = InArgs._GetBufferRange;
+
 	const TAttribute<EFrameNumberDisplayFormats> GetDisplayFormatAttr = MakeAttributeSP(this, &SLiveLinkHubPlaybackWidget::GetDisplayFormat);
 	const TAttribute<FFrameRate> GetDisplayRateAttr = MakeAttributeSP(this, &SLiveLinkHubPlaybackWidget::GetFrameRate);
 	
@@ -57,7 +61,8 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 		.AutoHeight()
 		.Padding(16.f, 8.f)
 		[
-			SNew(SSimpleTimeSlider)
+			SNew(SLiveLinkHubTimeSlider)
+			.BaseArgs(SSimpleTimeSlider::FArguments()
 			.ClampRangeHighlightSize(0.15f)
 			.ClampRangeHighlightColor(FLinearColor::Gray.CopyWithNewOpacity(0.5f))
 			.ScrubPosition_Lambda([this]()
@@ -78,6 +83,8 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 								SetCurrentTime(NewScrubTime * GetFrameRate().Numerator);
 							}
 						})
+			)
+			.BufferRange(this, &SLiveLinkHubPlaybackWidget::GetBufferRange)
 		]
 		+SVerticalBox::Slot()
 		.AutoHeight()
@@ -394,6 +401,15 @@ TRange<double> SLiveLinkHubPlaybackWidget::GetClampRange() const
 	const double Start = GetSelectionStartTime() / FrameRate.Numerator;
 	const double End = GetSelectionEndTime() / FrameRate.Numerator;
 	return TRange<double>(Start, End);
+}
+
+TRange<double> SLiveLinkHubPlaybackWidget::GetBufferRange() const
+{
+	check(OnGetFrameBufferRange.IsBound());
+	TRange<int32> BufferedFrames = OnGetFrameBufferRange.Execute();
+	FQualifiedFrameTime StartTime(BufferedFrames.GetLowerBound().GetValue(), GetFrameRate());
+	FQualifiedFrameTime EndTime(BufferedFrames.GetUpperBound().GetValue(), GetFrameRate());
+	return TRange<double>(StartTime.AsSeconds(), EndTime.AsSeconds());
 }
 
 bool SLiveLinkHubPlaybackWidget::IsPaused() const

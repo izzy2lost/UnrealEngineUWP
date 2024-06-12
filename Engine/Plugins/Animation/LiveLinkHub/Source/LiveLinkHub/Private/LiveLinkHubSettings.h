@@ -19,6 +19,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", DisplayName = "Automatically add discovered clients")
 	bool bAutoAddDiscoveredClients = true;
 
+	/** The size in megabytes to buffer when streaming a recoding. */
+	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", meta = (ClampMin = "1", UIMin = "1"))
+	int32 FrameBufferSizeMB = 100;
+	
 	/** Which project settings sections to display when opening the settings viewer. */
 	UPROPERTY(config)
 	TArray<FName> ProjectSettingsToDisplay;

@@ -82,6 +82,9 @@ public:
 
 	/** Retrieve the current framerate. */
 	FFrameRate GetFrameRate() const;
+
+	/** Retrieve buffered frame range. */
+	TRange<int32> GetBufferedFrames() const;
 	
 	/** If the controller is ready for commands. */
 	bool IsReady() const

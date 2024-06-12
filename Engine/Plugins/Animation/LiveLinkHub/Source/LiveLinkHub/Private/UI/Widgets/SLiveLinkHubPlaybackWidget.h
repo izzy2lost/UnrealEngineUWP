@@ -22,9 +22,10 @@ public:
 	DECLARE_DELEGATE_RetVal(FQualifiedFrameTime, FOnGetTime);
 	DECLARE_DELEGATE_OneParam(FOnSetTime, FQualifiedFrameTime);
 	DECLARE_DELEGATE_RetVal(FFrameRate, FOnGetFrame);
-	DECLARE_DELEGATE_OneParam(FOnSetViewRange, const TRange<double>&)
-	DECLARE_DELEGATE_RetVal(TRange<double>, FOnGetViewRange)
-
+	DECLARE_DELEGATE_OneParam(FOnSetDoubleRange, const TRange<double>&)
+	DECLARE_DELEGATE_RetVal(TRange<double>, FOnGetDoubleRange)
+	DECLARE_DELEGATE_RetVal(TRange<int32>, FOnGetIntRange)
+	
 	DECLARE_DELEGATE(FOnButtonPressed);
 	
 	SLATE_BEGIN_ARGS(SLiveLinkHubPlaybackWidget) { }
@@ -66,10 +67,12 @@ public:
 	SLATE_EVENT(FOnGetFrame, GetFrameRate)
 	
 	/** Get the view range (visible selection range). */
-	SLATE_EVENT(FOnSetViewRange, SetViewRange)
+	SLATE_EVENT(FOnSetDoubleRange, SetViewRange)
 	/** Set the view range (visible selection range). */
-	SLATE_EVENT(FOnGetViewRange, GetViewRange)
-	
+	SLATE_EVENT(FOnGetDoubleRange, GetViewRange)
+	/** Retrieve the frame buffer range. */
+	SLATE_EVENT(FOnGetIntRange, GetBufferRange)
+		
 	SLATE_END_ARGS()
 
 	/**
@@ -125,6 +128,9 @@ private:
 	/** Retrieve the range to clamp playback to (the selection). */
 	TRange<double> GetClampRange() const;
 
+	/** Retrieve the buffered frame range. */
+	TRange<double> GetBufferRange() const;
+	
 	/** Is playback paused? */
 	bool IsPaused() const;
 	/** Is playback in reverse? */
@@ -204,10 +210,13 @@ private:
 	FOnSetTime OnSetCurrentTimeDelegate;
 
 	/** Delegate for getting the view range. */
-	FOnGetViewRange OnGetViewRangeDelegate;
+	FOnGetDoubleRange OnGetViewRangeDelegate;
 	
 	/** Delegate for setting the view range. */
-	FOnSetViewRange OnSetViewRangeDelegate;
+	FOnSetDoubleRange OnSetViewRangeDelegate;
+
+	/** Retrieve the buffered frame range. */
+	FOnGetIntRange OnGetFrameBufferRange;
 
 	/** Delegate for getting the selection start. */
 	FOnGetTime OnGetSelectionStartTimeDelegate;

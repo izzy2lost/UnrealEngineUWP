@@ -33,7 +33,7 @@ private:
 	/** Create a recording package and save it. */
 	void SaveRecording();
 	/** Record data to a ULiveLinkRecording object. */
-	void RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, FInstancedStruct&& DataToRecord);
+	void RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, TSharedPtr<FInstancedStruct>&& DataToRecord);
 	/** Record initial data for all livelink subjects. (Useful when static data was sent before the recording started). */
 	void RecordInitialStaticData();
 

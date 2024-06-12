@@ -2,7 +2,9 @@
 
 #include "LiveLinkUAssetRecordingPlayer.h"
 
+#include "HAL/IConsoleManager.h"
 #include "LiveLinkHubLog.h"
+#include "LiveLinkHubSettings.h"
 #include "Recording/LiveLinkRecording.h"
 
 
@@ -36,7 +38,8 @@ public:
 
 	const FInstancedStruct& FrameData() const
 	{
-		return Track.FrameData[FrameIndex];
+		check(FrameIndex >= 0 && FrameIndex < Track.FrameData.Num());
+		return *Track.FrameData[FrameIndex];
 	}
 
 	int32 CurrentIndex() const
@@ -104,20 +107,31 @@ private:
 
 void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames)
 {
-	for (FLiveLinkPlaybackTrackForwardIterator It = FLiveLinkPlaybackTrackForwardIterator(*this, LastReadIndex + 1); It; ++It)
+	for (FLiveLinkPlaybackTrackForwardIterator It = FLiveLinkPlaybackTrackForwardIterator(*this, GetRelativeIndex(LastReadAbsoluteIndex)); It; ++It)
 	{
-		if (It.FrameTimestamp() > InPlayhead)
+		const double FrameTimestamp = It.FrameTimestamp();
+		if (FrameTimestamp == LastTimeStamp)
+		{
+			// Generally the first iteration from LastReadAbsoluteIndex will trigger this,
+			// but it's possible if the maximum buffered frames are small (ie 1), then
+			// the LastReadAbsoluteIndex will now point to a different frame.
+			continue;
+		}
+		
+		if (FrameTimestamp > InPlayhead)
 		{
 			break;
 		}
 
-		LastReadIndex = It.CurrentIndex();
-
+		LastReadRelativeIndex = It.CurrentIndex();
+		LastReadAbsoluteIndex = LastReadRelativeIndex + StartIndexOffset;
+		LastTimeStamp = FrameTimestamp;
+		
 		FLiveLinkRecordedFrame FrameToPlay;
 		FrameToPlay.Data = It.FrameData();
 		FrameToPlay.SubjectKey = SubjectKey;
 		FrameToPlay.LiveLinkRole = LiveLinkRole;
-		FrameToPlay.FrameIndex = LastReadIndex;
+		FrameToPlay.FrameIndex = LastReadAbsoluteIndex;
 
 		OutFrames.Add(MoveTemp(FrameToPlay));
 	}
@@ -125,9 +139,10 @@ void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkR
 
 void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames)
 {
-	if (LastReadIndex == INDEX_NONE)
+	if (LastReadRelativeIndex == INDEX_NONE)
 	{
-		LastReadIndex = FrameData.Num();
+		LastReadRelativeIndex = FrameData.Num();
+		LastReadAbsoluteIndex = LastReadRelativeIndex + StartIndexOffset;
 	}
 
 	// We need to look up what the last frame would be if this was running forward, and then end on that frame.
@@ -135,20 +150,31 @@ void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLi
 	// will differ by a frame with a reverse look up. There's probably a better way of handling this.
 	const int32 FinalFrameIndex = PlayheadToFrameIndex(InPlayhead);
 	
-	for (FLiveLinkPlaybackTrackReverseIterator It = FLiveLinkPlaybackTrackReverseIterator(*this, LastReadIndex - 1); It; ++It)
+	for (FLiveLinkPlaybackTrackReverseIterator It = FLiveLinkPlaybackTrackReverseIterator(*this, GetRelativeIndex(LastReadAbsoluteIndex)); It; ++It)
 	{
-		if (FinalFrameIndex == LastReadIndex)
+		const double FrameTimestamp = It.FrameTimestamp();
+		if (FrameTimestamp == LastTimeStamp)
+		{
+			// Generally the first iteration from LastReadAbsoluteIndex will trigger this,
+			// but it's possible if the maximum buffered frames are small (ie 1), then
+			// the LastReadAbsoluteIndex will now point to a different frame.
+			continue;
+		}
+		
+		if (FrameTimestamp < InPlayhead || FinalFrameIndex == LastReadRelativeIndex + StartIndexOffset)
 		{
 			break;
 		}
 
-		LastReadIndex = It.CurrentIndex();
-
+		LastReadRelativeIndex = It.CurrentIndex();
+		LastReadAbsoluteIndex = LastReadRelativeIndex + StartIndexOffset;
+		LastTimeStamp = FrameTimestamp;
+		
 		FLiveLinkRecordedFrame FrameToPlay;
 		FrameToPlay.Data = It.FrameData();
 		FrameToPlay.SubjectKey = SubjectKey;
 		FrameToPlay.LiveLinkRole = LiveLinkRole;
-		FrameToPlay.FrameIndex = LastReadIndex;
+		FrameToPlay.FrameIndex = LastReadAbsoluteIndex;
 
 		OutFrames.Add(MoveTemp(FrameToPlay));
 	}
@@ -156,15 +182,17 @@ void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLi
 
 bool FLiveLinkPlaybackTrack::TryGetFrame(int32 InIndex, FLiveLinkRecordedFrame& OutFrame)
 {
+	InIndex = GetRelativeIndex(InIndex);
 	if (InIndex >= 0 && InIndex < FrameData.Num())
 	{
-		LastReadIndex = InIndex;
+		LastReadRelativeIndex = InIndex;
+		LastReadAbsoluteIndex = LastReadRelativeIndex + StartIndexOffset;
 		
 		FLiveLinkRecordedFrame FrameToPlay;
-		FrameToPlay.Data = FrameData[InIndex];
+		FrameToPlay.Data = *FrameData[InIndex];
 		FrameToPlay.SubjectKey = SubjectKey;
 		FrameToPlay.LiveLinkRole = LiveLinkRole;
-		FrameToPlay.FrameIndex = LastReadIndex;
+		FrameToPlay.FrameIndex = LastReadAbsoluteIndex;
 
 		OutFrame = MoveTemp(FrameToPlay);
 		return true;
@@ -187,11 +215,12 @@ int32 FLiveLinkPlaybackTrack::PlayheadToFrameIndex(double InPlayhead)
 		CurrentIndex = Idx;
 	}
 
-	return CurrentIndex;
+	return CurrentIndex + StartIndexOffset;
 }
 
 double FLiveLinkPlaybackTrack::FrameIndexToPlayhead(int32 InIndex)
 {
+	InIndex = GetRelativeIndex(InIndex);
 	if (InIndex >= 0 && InIndex < Timestamps.Num())
 	{
 		return Timestamps[InIndex];
@@ -207,8 +236,9 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFrames(double P
 	if (Tracks.Num())
 	{
 		// todo: sort frames by timestamp
-		for (FLiveLinkPlaybackTrack& Track : Tracks)
+		for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 		{
+			FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 			Track.GetFramesUntil(Playhead, NextFrames);
 		}
 	}
@@ -223,8 +253,9 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchPreviousFrames(doub
 	if (Tracks.Num())
 	{
 		// todo: sort frames by timestamp
-		for (FLiveLinkPlaybackTrack& Track : Tracks)
+		for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 		{
+			FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 			Track.GetFramesUntilReverse(Playhead, PreviousFrames);
 		}
 	}
@@ -238,8 +269,9 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFramesAtIndex(i
 
 	if (FrameIndex >= 0)
 	{
-		for (FLiveLinkPlaybackTrack& Track : Tracks)
+		for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 		{
+			FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 			FLiveLinkRecordedFrame Frame;
 			if (Track.TryGetFrame(FrameIndex, Frame))
 			{
@@ -253,8 +285,9 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFramesAtIndex(i
 
 int32 FLiveLinkPlaybackTracks::PlayheadToFrameIndex(double InPlayhead)
 {
-	for (FLiveLinkPlaybackTrack& Track : Tracks)
+	for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 	{
+		FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 		// todo: Is this the best way to determine if this is keyframe data and not static data?
 		if (Track.LiveLinkRole == nullptr)
 		{
@@ -267,8 +300,9 @@ int32 FLiveLinkPlaybackTracks::PlayheadToFrameIndex(double InPlayhead)
 
 double FLiveLinkPlaybackTracks::FrameIndexToPlayhead(int32 InIndex)
 {
-	for (FLiveLinkPlaybackTrack& Track : Tracks)
+	for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 	{
+		FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 		// todo: Is this the best way to determine if this is keyframe data and not static data?
 		if (Track.LiveLinkRole == nullptr)
 		{
@@ -281,20 +315,22 @@ double FLiveLinkPlaybackTracks::FrameIndexToPlayhead(int32 InIndex)
 
 void FLiveLinkPlaybackTracks::Restart(int32 InIndex)
 {
-	for (FLiveLinkPlaybackTrack& Track : Tracks)
+	for (TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 	{
+		FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 		Track.Restart(InIndex);
 	}
 }
 
 FFrameRate FLiveLinkPlaybackTracks::GetInitialFrameRate() const
 {
-	for (const FLiveLinkPlaybackTrack& Track : Tracks)
+	for (const TTuple<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack>& TrackKeyVal : Tracks)
 	{
+		const FLiveLinkPlaybackTrack& Track = TrackKeyVal.Value;
 		if (Track.LiveLinkRole == nullptr && Track.FrameData.Num() > 0)
 		{
 			FLiveLinkFrameDataStruct FrameDataStruct;
-			FrameDataStruct.InitializeWith(Track.FrameData[0].GetScriptStruct(), (FLiveLinkBaseFrameData*)Track.FrameData[0].GetMemory());
+			FrameDataStruct.InitializeWith(Track.FrameData[0]->GetScriptStruct(), (FLiveLinkBaseFrameData*)Track.FrameData[0]->GetMemory());
 
 			return FrameDataStruct.GetBaseData()->MetaData.SceneTime.Rate;
 		}
@@ -305,30 +341,59 @@ FFrameRate FLiveLinkPlaybackTracks::GetInitialFrameRate() const
 	return FFrameRate(30, 1);
 }
 
-void FLiveLinkUAssetRecordingPlayer::PreparePlayback(const ULiveLinkRecording* CurrentRecording)
+void FLiveLinkUAssetRecordingPlayer::PreparePlayback(ULiveLinkRecording* CurrentRecording)
 {
-	const ULiveLinkUAssetRecording* UAssetRecording = CastChecked<ULiveLinkUAssetRecording>(CurrentRecording);
+	ULiveLinkUAssetRecording* UAssetRecording = CastChecked<ULiveLinkUAssetRecording>(CurrentRecording);
+	LoadedRecording = UAssetRecording;
 
-	FLiveLinkPlaybackTracks RecordingPlayback;
+	// Ensure there nothing is playing and all settings are default. It's possible the CurrentRecording has settings that need to be cleared,
+	// such as if this was just recorded and is now being loaded.
+	ShutdownPlayback();
+	
+	CurrentRecordingPlayback = FLiveLinkPlaybackTracks();
 
-	for (const TPair<FLiveLinkSubjectKey, FLiveLinkRecordingStaticDataContainer>& Pair : UAssetRecording->RecordingData.StaticData)
+	StreamPlayback(0);
+}
+
+void FLiveLinkUAssetRecordingPlayer::ShutdownPlayback()
+{
+	if (LoadedRecording)
 	{
-		FLiveLinkPlaybackTrack PlaybackTrack;
-		PlaybackTrack.FrameData = TConstArrayView<FInstancedStruct>(Pair.Value.RecordedData);
-		PlaybackTrack.Timestamps = TConstArrayView<double>(Pair.Value.Timestamps);
-		PlaybackTrack.LiveLinkRole = Pair.Value.Role;
-		PlaybackTrack.SubjectKey = Pair.Key;
-		RecordingPlayback.Tracks.Add(PlaybackTrack);
+		LoadedRecording->UnloadRecording();
+	}
+}
+
+void FLiveLinkUAssetRecordingPlayer::StreamPlayback(int32 InFromFrame)
+{
+	const int32 InitialFramesToBuffer = GetNumFramesToBuffer();
+	LoadedRecording->LoadRecording(InFromFrame, InitialFramesToBuffer);
+
+	// Make sure there are a few frames ready.
+	LoadedRecording->WaitForBufferedFrames(InFromFrame, InFromFrame + 2);
+
+	// On initial load, the correct frame size may not be calculated prior until after waiting for the buffer,
+	// update the correct number of frames and start buffering them.
+	const int32 CurrentFramesToBuffer = GetNumFramesToBuffer();
+	if (CurrentFramesToBuffer != InitialFramesToBuffer)
+	{
+		LoadedRecording->LoadRecording(InFromFrame, CurrentFramesToBuffer);
 	}
 
-	for (const TPair<FLiveLinkSubjectKey, FLiveLinkRecordingBaseDataContainer>& Pair : UAssetRecording->RecordingData.FrameData)
-	{
-		FLiveLinkPlaybackTrack PlaybackTrack;
-		PlaybackTrack.FrameData = TConstArrayView<FInstancedStruct>(Pair.Value.RecordedData);
-		PlaybackTrack.Timestamps = TConstArrayView<double>(Pair.Value.Timestamps);
-		PlaybackTrack.SubjectKey = Pair.Key;
-		RecordingPlayback.Tracks.Add(PlaybackTrack);
-	}
+	// Take the available recording data.
+	LoadedRecording->CopyRecordingData(CurrentRecordingPlayback);
+}
 
-	CurrentRecordingPlayback = MoveTemp(RecordingPlayback);
+int32 FLiveLinkUAssetRecordingPlayer::GetNumFramesToBuffer() const
+{
+	const int32 FrameSize = LoadedRecording->GetFrameDiskSize();
+	const int32 MaxFrameBufferSizeMB = GetDefault<ULiveLinkHubSettings>()->FrameBufferSizeMB;
+	const int32 MaxFrameBufferSizeBytes = MaxFrameBufferSizeMB * 1024 * 1024;
+
+	// We divide total frames by 2, since they get doubled later to account for scrubbing in both directions.
+	int32 TotalFramesToBuffer = FrameSize > 0 ? MaxFrameBufferSizeBytes / FrameSize / 2 : 0;
+
+	// Ensure at least a few frames can be buffered.
+	constexpr int32 MinFrames = 3;
+	TotalFramesToBuffer = FMath::Max(TotalFramesToBuffer, MinFrames);
+	return TotalFramesToBuffer;
 }

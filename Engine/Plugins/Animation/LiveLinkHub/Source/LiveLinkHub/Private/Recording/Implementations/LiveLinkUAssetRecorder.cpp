@@ -41,8 +41,10 @@ namespace UAssetRecorderUtils
 		
 		if (const FLiveLinkStaticDataStruct* StaticData = LiveLinkClient->GetSubjectStaticData_AnyThread(SubjectKey))
 		{
-			FInstancedStruct StaticDataInstancedStruct;
-			StaticDataInstancedStruct.InitializeAs(StaticData->GetStruct(), (uint8*)StaticData->GetBaseData());
+			check(StaticData->IsValid());
+		
+			TSharedPtr<FInstancedStruct> StaticDataInstancedStruct = MakeShared<FInstancedStruct>();
+			StaticDataInstancedStruct->InitializeAs(StaticData->GetStruct(), (uint8*)StaticData->GetBaseData());
 
 			StaticDataContainer = FLiveLinkRecordingStaticDataContainer();
 			StaticDataContainer->Role = LiveLinkRole;
@@ -82,7 +84,7 @@ bool FLiveLinkUAssetRecorder::IsRecording() const
 	return bIsRecording;
 }
 
-void FLiveLinkUAssetRecorder::RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, FInstancedStruct&& DataToRecord)
+void FLiveLinkUAssetRecorder::RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, TSharedPtr<FInstancedStruct>&& DataToRecord)
 {
 	const double TimeNowInSeconds = FPlatformTime::Seconds();
 	StaticDataContainer.RecordedData.Add(MoveTemp(DataToRecord));
@@ -94,8 +96,8 @@ void FLiveLinkUAssetRecorder::RecordStaticData(const FLiveLinkSubjectKey& Subjec
 	if (bIsRecording && CurrentRecording)
 	{
 		FLiveLinkRecordingStaticDataContainer& StaticDataContainer = CurrentRecording->StaticData.FindOrAdd(SubjectKey);
-		FInstancedStruct NewData;
-		NewData.InitializeAs(StaticData.GetStruct(), (uint8*)StaticData.GetBaseData());
+		TSharedPtr<FInstancedStruct> NewData = MakeShared<FInstancedStruct>();
+		NewData->InitializeAs(StaticData.GetStruct(), (uint8*)StaticData.GetBaseData());
 		StaticDataContainer.Role = Role;
 
 		RecordBaseData(StaticDataContainer, MoveTemp(NewData));
@@ -107,8 +109,8 @@ void FLiveLinkUAssetRecorder::RecordFrameData(const FLiveLinkSubjectKey& Subject
 	if (bIsRecording && CurrentRecording)
 	{
 		FLiveLinkRecordingBaseDataContainer& FrameDataContainer = CurrentRecording->FrameData.FindOrAdd(SubjectKey);
-		FInstancedStruct NewData;
-		NewData.InitializeAs(FrameData.GetStruct(), (uint8*)FrameData.GetBaseData());
+		TSharedPtr<FInstancedStruct> NewData = MakeShared<FInstancedStruct>();
+		NewData->InitializeAs(FrameData.GetStruct(), (uint8*)FrameData.GetBaseData());
 
 		RecordBaseData(FrameDataContainer, MoveTemp(NewData));
 	}

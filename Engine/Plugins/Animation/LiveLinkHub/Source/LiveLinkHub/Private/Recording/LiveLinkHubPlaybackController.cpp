@@ -71,7 +71,7 @@ FLiveLinkHubPlaybackController::FLiveLinkHubPlaybackController()
 
 FLiveLinkHubPlaybackController::~FLiveLinkHubPlaybackController()
 {
-	StopPlayback();
+	Eject();
 	Stopping = true;
 	PlaybackEvent->Trigger();
 
@@ -118,6 +118,7 @@ TSharedRef<SWidget> FLiveLinkHubPlaybackController::MakePlaybackWidget()
 		{
 			SliderViewRange = MoveTemp(NewRange);
 		})
+		.GetBufferRange_Raw(this, &FLiveLinkHubPlaybackController::GetBufferedFrames)
 		.GetTotalLength_Raw(this, &FLiveLinkHubPlaybackController::GetLength)
 		.GetCurrentTime_Raw(this, &FLiveLinkHubPlaybackController::GetCurrentTime)
 		.GetSelectionStartTime_Raw(this, &FLiveLinkHubPlaybackController::GetSelectionStartTime)
@@ -314,6 +315,7 @@ void FLiveLinkHubPlaybackController::Eject(TFunction<void()> CompletionCallback)
 	StartTimestamp = 0.f;
 
 	// Recording is done, clear the pointer.
+	RecordingPlayer->ShutdownPlayback();
 	RecordingToPlay.Reset();
 	
 	if (RollbackPreset.IsValid())
@@ -395,6 +397,11 @@ FFrameNumber FLiveLinkHubPlaybackController::GetCurrentFrame() const
 FFrameRate FLiveLinkHubPlaybackController::GetFrameRate() const
 {
 	return CurrentFrameRate;
+}
+
+TRange<int32> FLiveLinkHubPlaybackController::GetBufferedFrames() const
+{
+	return RecordingPlayer->GetBufferedFrames();
 }
 
 void FLiveLinkHubPlaybackController::Start()
@@ -518,9 +525,9 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 
 bool FLiveLinkHubPlaybackController::SyncToPlayhead()
 {
-	const double Timestamp = Playhead->GetValue().AsSeconds();
-	TArray<FLiveLinkRecordedFrame> NextFrames = bIsReverse ? RecordingPlayer->FetchPreviousFramesAtTimestamp(Timestamp)
-		: RecordingPlayer->FetchNextFramesAtTimestamp(Timestamp);
+	const FQualifiedFrameTime FrameTime = Playhead->GetValue();
+	TArray<FLiveLinkRecordedFrame> NextFrames = bIsReverse ? RecordingPlayer->FetchPreviousFramesAtTimestamp(FrameTime)
+		: RecordingPlayer->FetchNextFramesAtTimestamp(FrameTime);
 	
 	for (const FLiveLinkRecordedFrame& NextFrame : NextFrames)
 	{

@@ -34,19 +34,36 @@ struct FLiveLinkPlaybackTrack
 	/** Reset the LastReadIndex. */
 	void Restart(int32 NewIndex = INDEX_NONE)
 	{
-		LastReadIndex = NewIndex < FrameData.Num() && NewIndex < Timestamps.Num() ? NewIndex : INDEX_NONE;
+		LastReadRelativeIndex = NewIndex < FrameData.Num() && NewIndex < Timestamps.Num() ? NewIndex : INDEX_NONE;
+		LastReadAbsoluteIndex = LastReadRelativeIndex;
+	}
+
+	/** Convert an absolute frame index to a relative frame index. */
+	int32 GetRelativeIndex(int32 InAbsoluteIndex) const
+	{
+		int32 RelativeIndex = InAbsoluteIndex - StartIndexOffset;
+		RelativeIndex = FMath::Clamp(RelativeIndex, 0, FrameData.Num() - 1);
+		return RelativeIndex;
 	}
 
 	/** Frame data to read. */
-	TConstArrayView<struct FInstancedStruct> FrameData;
+	TConstArrayView<TSharedPtr<FInstancedStruct>> FrameData;
 	/** Timestamps for the frames in the track. */
 	TConstArrayView<double> Timestamps;
 	/** Used for static data. */
 	TSubclassOf<ULiveLinkRole> LiveLinkRole;
 	/** Subject key. */
 	FLiveLinkSubjectKey SubjectKey;
-	/** Index of the last frame that was read by the GetFrames method. */
-	int32 LastReadIndex = -1;
+	/** Index of the last relative frame that was read by the GetFrames method. */
+	int32 LastReadRelativeIndex = -1;
+	/** Index of the last absolute frame that was read by the GetFrames method. */
+	int32 LastReadAbsoluteIndex = -1;
+	/** The true index FrameData starts at. IE, if it starts at 5, then there are 5 prior frames [0..4] that aren't loaded. */
+	int32 StartIndexOffset = 0;
+
+private:
+	/** The last timestamp recorded. */
+	double LastTimeStamp = -1.f;
 
 	friend class FLiveLinkPlaybackTrackIterator;
 };
@@ -76,37 +93,32 @@ struct FLiveLinkPlaybackTracks
 
 public:
 	/** LiveLink tracks to playback. */
-	TArray<FLiveLinkPlaybackTrack> Tracks;
+	TMap<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack> Tracks;
 };
 
 class FLiveLinkUAssetRecordingPlayer : public ILiveLinkRecordingPlayer
 {
 public:
-	void PreparePlayback(const class ULiveLinkRecording* CurrentRecording);
+	virtual void PreparePlayback(class ULiveLinkRecording* CurrentRecording) override;
 
-	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtTimestamp(double Playhead) override
+	virtual void ShutdownPlayback() override;
+	
+	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtTimestamp(const FQualifiedFrameTime& InFrameTime) override
 	{
-		return CurrentRecordingPlayback.FetchNextFrames(Playhead);
+		StreamPlayback(InFrameTime.Time.GetFrame().Value);
+		return CurrentRecordingPlayback.FetchNextFrames(InFrameTime.AsSeconds());
 	}
 
-	virtual TArray<FLiveLinkRecordedFrame> FetchPreviousFramesAtTimestamp(double Playhead) override
+	virtual TArray<FLiveLinkRecordedFrame> FetchPreviousFramesAtTimestamp(const FQualifiedFrameTime& InFrameTime) override
 	{
-		return CurrentRecordingPlayback.FetchPreviousFrames(Playhead);
+		StreamPlayback(InFrameTime.Time.GetFrame().Value);
+		return CurrentRecordingPlayback.FetchPreviousFrames(InFrameTime.AsSeconds());
 	}
 
 	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(int32 FrameIndex) override
 	{
+		StreamPlayback(FrameIndex);
 		return CurrentRecordingPlayback.FetchNextFramesAtIndex(FrameIndex);
-	}
-
-	virtual int32 PlayheadToFrameIndex(double InPlayhead, bool bReverse) override
-	{
-		return CurrentRecordingPlayback.PlayheadToFrameIndex(InPlayhead);
-	}
-
-	virtual double FrameIndexToPlayhead(int32 InIndex) override
-	{
-		return CurrentRecordingPlayback.FrameIndexToPlayhead(InIndex);
 	}
 
 	virtual void RestartPlayback(int32 InIndex) override
@@ -118,8 +130,23 @@ public:
 	{
 		return CurrentRecordingPlayback.GetInitialFrameRate();
 	}
+
+	virtual TRange<int32> GetBufferedFrames() override
+	{
+		return LoadedRecording ? LoadedRecording->GetBufferedFrames() : TRange<int32>(0, 0);
+	}
+
+private:
+	/** Buffer playback around a given frame. */
+	void StreamPlayback(int32 InFromFrame);
+
+	/** Retrieve the total frames to buffer, based on the size the user specified in the config file. */
+	int32 GetNumFramesToBuffer() const;
 	
 private:
 	/** All tracks for the current recording. */
 	FLiveLinkPlaybackTracks CurrentRecordingPlayback;
+
+	/** The recording currently loaded. */
+	TObjectPtr<ULiveLinkUAssetRecording> LoadedRecording;
 };
