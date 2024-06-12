@@ -120,6 +120,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Display)
 	EClothEditorWeightMapDisplayType ColorMap = EClothEditorWeightMapDisplayType::BlackAndWhite;
 
+	UPROPERTY(EditAnywhere, Category = Display)
+	bool bHighlightZeroAndOne = false;
+
 	UPROPERTY(EditAnywhere, Category = ActionType, meta = (DisplayName = "Action"))
 	EClothEditorWeightMapPaintInteractionType SubToolType = EClothEditorWeightMapPaintInteractionType::Brush;
 

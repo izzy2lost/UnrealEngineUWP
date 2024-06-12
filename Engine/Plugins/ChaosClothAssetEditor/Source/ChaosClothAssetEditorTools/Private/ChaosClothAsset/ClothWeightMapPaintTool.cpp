@@ -212,6 +212,12 @@ void UClothEditorWeightMapPaintTool::Setup()
 			UpdateVertexColorOverlay(); 
 			DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 		});
+	FilterProperties->WatchProperty(FilterProperties->bHighlightZeroAndOne,
+		[this](bool bNewValue)
+		{
+			UpdateVertexColorOverlay();
+			DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+		});
 	FilterProperties->WatchProperty(FilterProperties->SubToolType,
 		[this](EClothEditorWeightMapPaintInteractionType NewType) { UpdateSubToolType(NewType); });
 	FilterProperties->WatchProperty(FilterProperties->BrushSize, [this](float NewSize) 
@@ -2315,7 +2321,15 @@ void UClothEditorWeightMapPaintTool::UpdateVertexColorOverlay(const TSet<int>* T
 			VertexWeight = FMath::Clamp(VertexWeight, 0.0f, 1.0f);
 
 			FVector4f NewColor;
-			if (FilterProperties->ColorMap == EClothEditorWeightMapDisplayType::BlackAndWhite)
+			if (FilterProperties->bHighlightZeroAndOne && VertexWeight == 0.0f)
+			{
+				NewColor = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
+			} 
+			else if (FilterProperties->bHighlightZeroAndOne && VertexWeight == 1.0f)
+			{
+				NewColor = FVector4f(1.0f, 1.0f, 0.0f, 1.0f);
+			}
+			else if (FilterProperties->ColorMap == EClothEditorWeightMapDisplayType::BlackAndWhite)
 			{
 				NewColor = FVector4f(VertexWeight, VertexWeight, VertexWeight, 1.0f);
 			}
