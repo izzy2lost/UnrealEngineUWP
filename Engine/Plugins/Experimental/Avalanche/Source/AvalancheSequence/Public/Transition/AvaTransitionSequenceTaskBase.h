@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AvaSequenceName.h"
 #include "AvaSequenceShared.h"
 #include "AvaTagHandle.h"
 #include "AvaTransitionSequenceEnums.h"
@@ -32,7 +33,7 @@ struct FAvaTransitionSequenceTaskBaseInstanceData : public FAvaTransitionSequenc
 	EAvaTransitionSequenceQueryType QueryType = EAvaTransitionSequenceQueryType::Name;
 
 	UPROPERTY(EditAnywhere, Category="Parameter", meta=(DisplayPriority=1, EditCondition="QueryType==EAvaTransitionSequenceQueryType::Name", EditConditionHides))
-	FName SequenceName;
+	FAvaSequenceName SequenceName;
 
 	UPROPERTY(EditAnywhere, Category="Parameter", meta=(DisplayPriority=1, EditCondition="QueryType==EAvaTransitionSequenceQueryType::Tag", EditConditionHides))
 	FAvaTagHandle SequenceTag;

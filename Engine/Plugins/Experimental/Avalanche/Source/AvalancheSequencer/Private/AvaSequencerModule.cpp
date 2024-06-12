@@ -3,12 +3,14 @@
 #include "AvaSequencerModule.h"
 #include "AvaSequence.h"
 #include "AvaSequenceEditor.h"
+#include "AvaSequenceName.h"
 #include "AvaSequencer.h"
 #include "AvaSequencerUtils.h"
 #include "Commands/AvaSequencerCommands.h"
 #include "Customization/AvaDisplayRateCustomization.h"
 #include "Customization/AvaMarkSettingCustomization.h"
 #include "Customization/AvaSequenceCustomization.h"
+#include "Customization/AvaSequenceNameCustomization.h"
 #include "Customization/AvaSequenceTimeCustomization.h"
 #include "Director/AvaSequenceDirectorBlueprint.h"
 #include "Director/AvaSequenceDirectorCompiler.h"
@@ -179,6 +181,7 @@ void FAvaSequencerModule::RegisterCustomLayouts()
 	RegisterCustomPropertyTypeLayout<FAvaSequencerDisplayRate, FAvaDisplayRateCustomization>(PropertyModule);
 	RegisterCustomPropertyTypeLayout<FAvaMarkSetting, FAvaMarkSettingCustomization>(PropertyModule);
 	RegisterCustomPropertyTypeLayout<FAvaSequenceTime, FAvaSequenceTimeCustomization>(PropertyModule);
+	RegisterCustomPropertyTypeLayout<FAvaSequenceName, FAvaSequenceNameCustomization>(PropertyModule);
 }
 
 void FAvaSequencerModule::UnregisterCustomLayouts()
