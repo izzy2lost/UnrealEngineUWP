@@ -3,6 +3,7 @@
 #pragma once
 
 #include "DMXPixelMappingOutputComponent.h"
+#include "DMXPixelMappingRenderElement.h"
 #include "Library/DMXEntityReference.h"
 
 #include "DMXPixelMappingOutputDMXComponent.generated.h"
@@ -32,7 +33,7 @@ public:
 
 	/** The quality level to use when averaging colors during downsampling. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quality")
-	EDMXPixelBlendingQuality CellBlendingQuality;
+	EDMXPixelBlendingQuality CellBlendingQuality = EDMXPixelBlendingQuality::High;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Fixture Patch", Meta = (ShowOnlyInnerProperties))
 	FDMXEntityFixturePatchRef FixturePatchRef;
