@@ -278,7 +278,7 @@ private:
 	/** Holds all the exposed entities groups. */
 	TArray<TSharedPtr<SRCPanelExposedEntitiesGroup>> ExposedEntitiesGroups;
 	/** Holds the current group type */
-	EFieldGroupType CurrentGroupType = EFieldGroupType::Owner;
+	EFieldGroupType CurrentGroupType = EFieldGroupType::None;
 	/** Holds the current sorting type */
 	ERCGroupOrder CurrentGroupSortType = ERCGroupOrder::None;
 	/** Holds all the entities groups currently in the list */
