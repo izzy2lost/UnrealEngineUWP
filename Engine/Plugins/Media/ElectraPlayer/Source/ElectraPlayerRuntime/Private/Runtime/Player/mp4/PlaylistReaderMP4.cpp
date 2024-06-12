@@ -31,7 +31,7 @@ namespace Electra
 /**
  * This class is responsible for downloading the mp4 non-mdat boxes and parsing them.
  */
-class FPlaylistReaderMP4 : public IPlaylistReaderMP4, public IParserISO14496_12::IReader, public IParserISO14496_12::IBoxCallback, public FMediaThread
+class FPlaylistReaderMP4 : public IPlaylistReaderMP4, IGenericDataReader, public IParserISO14496_12::IBoxCallback, public FMediaThread
 {
 public:
 	FPlaylistReaderMP4();
@@ -76,14 +76,15 @@ public:
 	virtual TSharedPtrTS<IManifest> GetManifest() override;
 
 private:
-	// Methods from IParserISO14496_12::IReader
-	virtual int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override;
-	virtual bool HasReachedEOF() const override;
-	virtual bool HasReadBeenAborted() const override;
-	virtual int64 GetCurrentOffset() const override;
+	// Methods from IGenericDataReader
+	int64 ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override;
+	bool HasReachedEOF() const override;
+	bool HasReadBeenAborted() const override;
+	int64 GetCurrentOffset() const override;
+	int64 GetTotalSize() const override;
 	// Methods from IParserISO14496_12::IBoxCallback
-	virtual IParserISO14496_12::IBoxCallback::EParseContinuation OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
-	virtual IParserISO14496_12::IBoxCallback::EParseContinuation OnEndOfBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
+	IParserISO14496_12::IBoxCallback::EParseContinuation OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
+	IParserISO14496_12::IBoxCallback::EParseContinuation OnEndOfBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
 
 	void StartWorkerThread();
 	void StopWorkerThread();
@@ -325,7 +326,7 @@ void FPlaylistReaderMP4::WorkerThread()
  * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
  * @return The number of bytes read or -1 on a read error.
  */
-int64 FPlaylistReaderMP4::ReadData(void* IntoBuffer, int64 NumBytesToRead)
+int64 FPlaylistReaderMP4::ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset)
 {
 	// We have all the data available.
 	check(ParseBuffer.IsValid());
@@ -374,6 +375,13 @@ int64 FPlaylistReaderMP4::GetCurrentOffset() const
 {
 	return ParsePos;
 }
+
+int64 FPlaylistReaderMP4::GetTotalSize() const
+{
+	check(!"this should not be called");
+	return -1;
+}
+
 
 IParserISO14496_12::IBoxCallback::EParseContinuation FPlaylistReaderMP4::OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset)
 {

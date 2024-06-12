@@ -88,7 +88,7 @@ namespace DashUtils
 
 
 
-	class FMatroskaParserDataReader : public IParserMKV::IReader, public TSharedFromThis<FMatroskaParserDataReader, ESPMode::ThreadSafe>
+	class FMatroskaParserDataReader : public IGenericDataReader, public TSharedFromThis<FMatroskaParserDataReader, ESPMode::ThreadSafe>
 	{
 	public:
 		virtual ~FMatroskaParserDataReader() { }
@@ -97,7 +97,7 @@ namespace DashUtils
 			: LoadRequest(MoveTemp(InLoadReq))
 		{ }
 
-		int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override
+		int64 ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override
 		{
 			int64 nr = -1;
 			if (LoadChunk(InNumBytesToRead, InFromOffset) && ResponseBuffer.IsValid())
@@ -108,12 +108,14 @@ namespace DashUtils
 			return nr;
 		}
 
-		int64 MKVGetCurrentFileOffset() const override
+		int64 GetCurrentOffset() const override
 		{ check(!"should not be called!"); return -1; }
-		int64 MKVGetTotalSize() override
+		int64 GetTotalSize() const override
 		{ return FileSize; }
-		bool MKVHasReadBeenAborted() const override
+		bool HasReadBeenAborted() const override
 		{ return false; }
+		bool HasReachedEOF() const override
+		{ check(!"this should not be called"); return false; }
 
 	private:
 		bool LoadChunk(int64 InNumBytesToRead, int64 InFromOffset)

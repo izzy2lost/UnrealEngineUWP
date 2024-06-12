@@ -119,7 +119,7 @@ public:
 
 private:
 
-	struct FStreamHandler : public FMediaThread, public IParserISO14496_12::IReader, public IParserISO14496_12::IBoxCallback
+	struct FStreamHandler : public FMediaThread, public IGenericDataReader, public IParserISO14496_12::IBoxCallback
 	{
 		struct FReadBuffer
 		{
@@ -250,11 +250,13 @@ private:
 
 		bool HasErrored() const;
 
-		// Methods from IParserISO14496_12::IReader
-		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override;
+		// Methods from IGenericDataReader
+		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override;
 		bool HasReachedEOF() const override;
 		bool HasReadBeenAborted() const override;
 		int64 GetCurrentOffset() const override;
+		int64 GetTotalSize() const override;
+
 		// Methods from IParserISO14496_12::IBoxCallback
 		IParserISO14496_12::IBoxCallback::EParseContinuation OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
 		IParserISO14496_12::IBoxCallback::EParseContinuation OnEndOfBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;

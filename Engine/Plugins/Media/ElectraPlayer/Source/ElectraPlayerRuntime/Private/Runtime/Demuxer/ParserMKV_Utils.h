@@ -11,7 +11,7 @@
 namespace Electra
 {
 
-	class FMKVStaticDataReader : public IParserMKV::IReader
+	class FMKVStaticDataReader : public IGenericDataReader
 	{
 	public:
 		FMKVStaticDataReader() = default;
@@ -24,7 +24,7 @@ namespace Electra
 			CurrentOffset = 0;
 		}
 	private:
-		int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override
+		int64 ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override
 		{
 			if (InFromOffset >= DataSize)
 			{
@@ -42,12 +42,14 @@ namespace Electra
 			}
 			return InNumBytesToRead;
 		}
-		int64 MKVGetCurrentFileOffset() const override
+		int64 GetCurrentOffset() const override
 		{ return CurrentOffset; }
-		int64 MKVGetTotalSize() override
+		int64 GetTotalSize() const override
 		{ return DataSize; }
-		bool MKVHasReadBeenAborted() const override
+		bool HasReadBeenAborted() const override
 		{ return false; }
+		bool HasReachedEOF() const override
+		{ check(!"this should not be called"); return false; }
 
 		TSharedPtrTS<FWaitableBuffer> ResponseBuffer;
 		const uint8* Data = nullptr;

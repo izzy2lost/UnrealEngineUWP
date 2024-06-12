@@ -8,7 +8,7 @@
 #include "ParameterDictionary.h"
 #include "ErrorDetail.h"
 #include "ElectraEncryptedSampleInfo.h"
-
+#include "BufferedDataReader.h"
 
 namespace Electra
 {
@@ -26,44 +26,6 @@ namespace Electra
 	public:
 		virtual ~IParserMKV() = default;
 
-		/**
-		 * Interface for reading data from a source.
-		 */
-		class IReader
-		{
-		public:
-			virtual ~IReader() = default;
-			/**
-			 * Read n bytes of data starting at offset o into the provided buffer.
-			 *
-			 * Reading must return the number of bytes asked to get, if necessary by blocking.
-			 * If a read error prevents reading the number of bytes -1 must be returned.
-			 *
-			 * @param IntoBuffer Buffer into which to store the data bytes. If nullptr is passed the data must be skipped over.
-			 * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
-			 * @return The number of bytes read or -1 on a read error. If the read would go beyond the size of the file then
-			 *         returning fewer bytes than requested is permitted in this case ONLY.
-			 */
-			virtual int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) = 0;
-
-			virtual int64 MKVGetCurrentFileOffset() const = 0;
-
-			/**
-			 * Returns the total size of the file.
-			 * This should be possible after performing the first ReadData().
-			 * If the total length is not known, return -1.
-			 */
-			virtual int64 MKVGetTotalSize() = 0;
-
-			/**
-			 * Checks if reading of the file and therefor parsing has been aborted.
-			 *
-			 * @return true if reading/parsing has been aborted, false otherwise.
-			 */
-			virtual bool MKVHasReadBeenAborted() const = 0;
-		};
-
-
 		static TSharedPtrTS<IParserMKV> CreateParser(IPlayerSessionServices* PlayerSession);
 
 		enum EParserFlags
@@ -77,7 +39,7 @@ namespace Electra
 		/**
 		 * Parses the header boxes.
 		 */
-		virtual FErrorDetail ParseHeader(IReader* DataReader, EParserFlags ParseFlags) = 0;
+		virtual FErrorDetail ParseHeader(IGenericDataReader* DataReader, EParserFlags ParseFlags) = 0;
 
 
 		/*******************************************************************************************************************/
@@ -180,7 +142,7 @@ namespace Electra
 
 			/**
 			 * Performs parsing the cluster content or current frame, returning the next action to take.
-			 * 
+			 *
 			 * Returns the action to perform next.
 			 */
 			virtual EParseAction NextParseAction() = 0;
@@ -189,11 +151,11 @@ namespace Electra
 			 * Returns the error which resulted in returning the next action `Failure`
 			 */
 			virtual FErrorDetail GetLastError() const = 0;
-			
+
 			/**
 			 * Returns the base class pointer of the next action to perform.
 			 * Must be cast to the action indicated by the next action.
-			 * 
+			 *
 			 * The action is owned by the parser and must not be destroyed!
 			 */
 			virtual const IAction* GetAction() const = 0;
@@ -203,7 +165,7 @@ namespace Electra
 			 * This is needed for retries.
 			 */
 			virtual int64 GetClusterPosition() const = 0;
-			
+
 			/**
 			 * Returns the offset of the current block (simple or group) in the cluster.
 			 * This is needed for retries.
@@ -222,7 +184,7 @@ namespace Electra
 			virtual const TArray<uint8>& GetCodecSpecificData() const = 0;
 			virtual const FStreamCodecInformation& GetCodecInformation() const = 0;
 			virtual const FString GetLanguage() const = 0;
-			
+
 			virtual ICueIterator* CreateCueIterator() const = 0;
 		};
 
@@ -241,7 +203,7 @@ namespace Electra
 		 * Create a cluster parser.
 		 * The data reader MUST start reading on a Matroska cluster.
 		 */
-		virtual TSharedPtrTS<IClusterParser> CreateClusterParser(IReader* DataReader, const TArray<uint64>& TrackIDsToParse, EClusterParseFlags ParseFlags) const = 0;
+		virtual TSharedPtrTS<IClusterParser> CreateClusterParser(IGenericDataReader* DataReader, const TArray<uint64>& TrackIDsToParse, EClusterParseFlags ParseFlags) const = 0;
 
 		// Adds a cue of it does not exist yet. This may be called during cluster parsing for sync samples since not all
 		// sync samples may have been added as cues in the multiplexing process.

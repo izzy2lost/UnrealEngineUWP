@@ -974,7 +974,7 @@ void FStreamReaderHLSfmp4::FStreamHandler::HandleRequest()
 											MoofInfo.PayloadStartOffset = GetCurrentOffset();
 										}
 
-										int64 NumRead = ReadData(AccessUnit->AUData, AccessUnit->AUSize);
+										int64 NumRead = ReadData(AccessUnit->AUData, AccessUnit->AUSize, -1);
 										if (NumRead == AccessUnit->AUSize)
 										{
 											MoofInfo.ContentDuration += Duration;
@@ -1354,7 +1354,7 @@ bool FStreamReaderHLSfmp4::FStreamHandler::HasErrored() const
  * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
  * @return The number of bytes read or -1 on a read error.
  */
-int64 FStreamReaderHLSfmp4::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead)
+int64 FStreamReaderHLSfmp4::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset)
 {
 	FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
@@ -1594,6 +1594,12 @@ bool FStreamReaderHLSfmp4::FStreamHandler::HasReadBeenAborted() const
 int64 FStreamReaderHLSfmp4::FStreamHandler::GetCurrentOffset() const
 {
 	return ReadBuffer.ParsePos;
+}
+
+int64 FStreamReaderHLSfmp4::FStreamHandler::GetTotalSize() const
+{
+	check(!"this should not be called");
+	return -1;
 }
 
 

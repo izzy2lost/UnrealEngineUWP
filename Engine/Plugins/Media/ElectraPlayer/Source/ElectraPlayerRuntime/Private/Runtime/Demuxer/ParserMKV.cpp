@@ -527,13 +527,13 @@ namespace Electra
 
 		FParserMKV(IPlayerSessionServices* InPlayerSession);
 
-		FErrorDetail ParseHeader(IReader* DataReader, EParserFlags ParseFlags) override;
+		FErrorDetail ParseHeader(IGenericDataReader* DataReader, EParserFlags ParseFlags) override;
 		FErrorDetail PrepareTracks() override;
 		FTimeValue GetDuration() const override;
 		int32 GetNumberOfTracks() const override;
 		const ITrack* GetTrackByIndex(int32 Index) const override;
 		const ITrack* GetTrackByTrackID(uint64 TrackID) const override;
-		TSharedPtrTS<IClusterParser> CreateClusterParser(IReader* DataReader, const TArray<uint64>& TrackIDsToParse, EClusterParseFlags ParseFlags) const override;
+		TSharedPtrTS<IClusterParser> CreateClusterParser(IGenericDataReader* DataReader, const TArray<uint64>& TrackIDsToParse, EClusterParseFlags ParseFlags) const override;
 		void AddCue(int64 InCueTimestamp, uint64 InTrackID, int64 InCueRelativePosition, uint64 InCueBlockNumber, int64 InClusterPosition) override;
 
 		int64 OnReadAssetData(void* Destination, int64 NumBytes, int64 FromOffset, int64* OutTotalSize) override;
@@ -2232,7 +2232,7 @@ namespace Electra
 			};
 			#undef OVERRIDE_BASE_ACTIONS
 
-			FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IParserMKV::IReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags);
+			FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IGenericDataReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags);
 			virtual ~FMKVClusterParser() {}
 			EParseAction NextParseAction() override;
 			FErrorDetail GetLastError() const override;
@@ -2243,18 +2243,18 @@ namespace Electra
 			class FClusterDataReader : public IMKVElementReader, public FMKVEBMLReader, public IMKVFetcher
 			{
 			public:
-				FClusterDataReader(IParserMKV::IReader* InReader) : FMKVEBMLReader(this), Reader(InReader), StartOffset(InReader->MKVGetCurrentFileOffset()), Offset(InReader->MKVGetCurrentFileOffset()) {}
+				FClusterDataReader(IGenericDataReader* InReader) : FMKVEBMLReader(this), Reader(InReader), StartOffset(InReader->GetCurrentOffset()), Offset(InReader->GetCurrentOffset()) {}
 				virtual ~FClusterDataReader() {}
 				int64 GetStartOffset() const { return StartOffset; }
 				int64 GetCurrentOffset() const { return CurrentOffset(); }
-				int64 GetTotalSize() const { return Reader->MKVGetTotalSize(); }
+				int64 GetTotalSize() const { return Reader->GetTotalSize(); }
 				int64 GetEndOffset() const { return StartOffset + GetTotalSize(); }
-				bool HasReadBeenAborted() const { return bWasAborted || Reader->MKVHasReadBeenAborted(); }
+				bool HasReadBeenAborted() const { return bWasAborted || Reader->HasReadBeenAborted(); }
 				bool ReachedEOS() const { return bReachedEOS; }
 				bool SkipOver(int64 NumBytes) { return Skip(NumBytes); }
 
 				bool Read(uint8& OutValue) override
-				{ return Validate(Reader->MKVReadData(&OutValue, sizeof(OutValue), Offset), sizeof(OutValue)); }
+				{ return Validate(Reader->ReadData(&OutValue, sizeof(OutValue), Offset), sizeof(OutValue)); }
 				bool Read(uint16& OutValue) override
 				{ return ReadValue(OutValue); }
 				bool Read(uint32& OutValue) override
@@ -2262,9 +2262,9 @@ namespace Electra
 				bool Read(uint64& OutValue) override
 				{ return ReadValue(OutValue); }
 				bool Read(TArray<uint8>& OutValue, int64 NumBytes) override
-				{ OutValue.AddUninitialized((int32)NumBytes); return Validate(Reader->MKVReadData(OutValue.GetData(), NumBytes, Offset), NumBytes); }
+				{ OutValue.AddUninitialized((int32)NumBytes); return Validate(Reader->ReadData(OutValue.GetData(), NumBytes, Offset), NumBytes); }
 				bool Skip(int64 NumBytes) override
-				{ return Validate(Reader->MKVReadData(nullptr, NumBytes, Offset), NumBytes); }
+				{ return Validate(Reader->ReadData(nullptr, NumBytes, Offset), NumBytes); }
 
 				void SetOffset(int64 InOffset)
 				{ Offset = InOffset; }
@@ -2290,13 +2290,13 @@ namespace Electra
 				{ check(!"not implemented"); return false;}
 			private:
 				FErrorDetail LastError() const override { return Error; }
-				int64 CurrentOffset() const override { return Reader->MKVGetCurrentFileOffset(); }
+				int64 CurrentOffset() const override { return Reader->GetCurrentOffset(); }
 				bool Prefetch(int64 NumBytes) override { return true; }
 
 				template<typename T>
 				bool ReadValue(T& OutValue)
 				{
-					if (Validate(Reader->MKVReadData(&OutValue, sizeof(T), Offset), sizeof(T)))
+					if (Validate(Reader->ReadData(&OutValue, sizeof(T), Offset), sizeof(T)))
 					{
 					#if PLATFORM_LITTLE_ENDIAN
 						OutValue = Utils::EndianSwap(OutValue);
@@ -2317,11 +2317,11 @@ namespace Electra
 					{
 						bReachedEOS = true;
 					}
-					bWasAborted = Reader->MKVHasReadBeenAborted();
+					bWasAborted = Reader->HasReadBeenAborted();
 					return false;
 				}
 
-				IParserMKV::IReader* Reader = nullptr;
+				IGenericDataReader* Reader = nullptr;
 				int64 StartOffset = 0;
 				int64 Offset = 0;
 				FErrorDetail Error;
@@ -2436,7 +2436,7 @@ namespace Electra
 	private:
 		bool SetupCodecInfo(FStreamCodecInformation& OutCodecInformation, TMKVElementPtr<FMKVTrackEntry> InFromTrack);
 
-		IReader* DataReader = nullptr;
+		IGenericDataReader* DataReader = nullptr;
 		IPlayerSessionServices* PlayerSessionServices = nullptr;
 
 		const TMap<FString,FString> CodecMapping
@@ -2541,12 +2541,12 @@ namespace Electra
 	{
 		if (DataReader)
 		{
-			int64 NumRead = DataReader->MKVReadData(Destination, NumBytes, FromOffset);
+			int64 NumRead = DataReader->ReadData(Destination, NumBytes, FromOffset);
 			if (OutTotalSize)
 			{
-				*OutTotalSize = DataReader->MKVGetTotalSize();
+				*OutTotalSize = DataReader->GetTotalSize();
 			}
-			if (DataReader->MKVHasReadBeenAborted())
+			if (DataReader->HasReadBeenAborted())
 			{
 				return static_cast<int64>(FBufferedDataReader::IDataProvider::EError::Aborted);
 			}
@@ -2564,7 +2564,7 @@ namespace Electra
 		PlayerSessionServices = InPlayerSession;
 	}
 
-	FErrorDetail FParserMKV::ParseHeader(IReader* InDataReader, EParserFlags ParseFlags)
+	FErrorDetail FParserMKV::ParseHeader(IGenericDataReader* InDataReader, EParserFlags ParseFlags)
 	{
 		DataReader = InDataReader;
 
@@ -3716,7 +3716,7 @@ namespace Electra
 
 
 
-	TSharedPtrTS<IParserMKV::IClusterParser> FParserMKV::CreateClusterParser(IParserMKV::IReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags) const
+	TSharedPtrTS<IParserMKV::IClusterParser> FParserMKV::CreateClusterParser(IGenericDataReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags) const
 	{
 		FMKVClusterParser* Parser = new FMKVClusterParser(AsShared(), InDataReader, InTrackIDsToParse, InParseFlags);
 		return TSharedPtrTS<IParserMKV::IClusterParser>(Parser);
@@ -3731,7 +3731,7 @@ namespace Electra
 		Segment->GetOrCreateCues()->AddCue(InCueTimestamp / TimestampScale, InTrackID, InCueRelativePosition, InCueBlockNumber, InClusterPosition, NextCueUniqueID);
 	}
 
-	FParserMKV::FMKVClusterParser::FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IParserMKV::IReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags)
+	FParserMKV::FMKVClusterParser::FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IGenericDataReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags)
 		: ParentMKV(InParentMKV), Reader(new FClusterDataReader(InDataReader))
 	{
 		SegmentBaseOffset = InParentMKV->GetSegment()->GetElementOffset();

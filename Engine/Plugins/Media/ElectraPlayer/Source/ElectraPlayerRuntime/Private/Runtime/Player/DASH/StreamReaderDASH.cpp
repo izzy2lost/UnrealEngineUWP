@@ -1471,7 +1471,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 									}
 									else if (NumBytesToSkip > 0)
 									{
-										int64 NumSkipped = ReadData(nullptr, NumBytesToSkip);
+										int64 NumSkipped = ReadData(nullptr, NumBytesToSkip, -1);
 										if (NumSkipped != NumBytesToSkip)
 										{
 											FAccessUnit::Release(AccessUnit);
@@ -1489,7 +1489,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 										MoofInfo.PayloadStartOffset = GetCurrentOffset();
 									}
 
-									int64 NumRead = ReadData(AccessUnit->AUData, AccessUnit->AUSize);
+									int64 NumRead = ReadData(AccessUnit->AUData, AccessUnit->AUSize, -1);
 									if (NumRead == AccessUnit->AUSize)
 									{
 										MoofInfo.NumKeyframeBytes += AccessUnit->bIsSyncSample ? AccessUnit->AUSize : 0;
@@ -2122,7 +2122,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 
 						int64 NumToRead = Action->GetNumBytesToRead();
 						void* ReadTo = PrepareAccessUnit(NumToRead);
-						int64 nr = ReadData(ReadTo, NumToRead);
+						int64 nr = ReadData(ReadTo, NumToRead, -1);
 						if (nr != NumToRead)
 						{
 							bHasErrored = true;
@@ -2224,7 +2224,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 						const IParserMKV::IClusterParser::IActionSkipOver* Action = static_cast<const IParserMKV::IClusterParser::IActionSkipOver*>(ClusterParser->GetAction());
 						check(Action);
 						int64 NumBytesToSkip = Action->GetNumBytesToSkip();
-						int64 nr = ReadData(nullptr, NumBytesToSkip);
+						int64 nr = ReadData(nullptr, NumBytesToSkip, -1);
 						if (nr != NumBytesToSkip)
 						{
 							bHasErrored = true;
@@ -2681,7 +2681,7 @@ bool FStreamReaderDASH::FStreamHandler::HasErrored() const
  * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
  * @return The number of bytes read or -1 on a read error.
  */
-int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead)
+int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset)
 {
 	FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
@@ -2795,6 +2795,19 @@ int64 FStreamReaderDASH::FStreamHandler::GetCurrentOffset() const
 	return ReadBuffer.ParsePos;
 }
 
+int64 FStreamReaderDASH::FStreamHandler::GetTotalSize() const
+{
+	if (CurrentRequest.IsValid())
+	{
+		Metrics::FSegmentDownloadStats& ds = CurrentRequest->DownloadStats;
+		if (ds.ByteSize > 0)
+		{
+			return ds.ByteSize;
+		}
+	}
+	return TNumericLimits<int64>::Max();
+}
+
 
 IParserISO14496_12::IBoxCallback::EParseContinuation FStreamReaderDASH::FStreamHandler::OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset)
 {
@@ -2826,43 +2839,6 @@ IParserISO14496_12::IBoxCallback::EParseContinuation FStreamReaderDASH::FStreamH
 {
 	return IParserISO14496_12::IBoxCallback::EParseContinuation::Continue;
 }
-
-
-
-int64 FStreamReaderDASH::FStreamHandler::MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset)
-{
-	check(InFromOffset == MKVGetCurrentFileOffset());
-	if (InFromOffset != MKVGetCurrentFileOffset())
-	{
-		return -1;
-	}
-	return ReadData(InDestinationBuffer, InNumBytesToRead);
-}
-
-int64 FStreamReaderDASH::FStreamHandler::MKVGetCurrentFileOffset() const
-{
-	return GetCurrentOffset();
-}
-
-int64 FStreamReaderDASH::FStreamHandler::MKVGetTotalSize()
-{
-	if (CurrentRequest.IsValid())
-	{
-		Metrics::FSegmentDownloadStats& ds = CurrentRequest->DownloadStats;
-		if (ds.ByteSize > 0)
-		{
-			return ds.ByteSize;
-		}
-	}
-	return TNumericLimits<int64>::Max();
-}
-
-bool FStreamReaderDASH::FStreamHandler::MKVHasReadBeenAborted() const
-{
-	return HasReadBeenAborted();
-}
-
-
 
 } // namespace Electra
 

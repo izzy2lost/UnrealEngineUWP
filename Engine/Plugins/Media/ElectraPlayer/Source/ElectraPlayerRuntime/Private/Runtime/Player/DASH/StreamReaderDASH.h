@@ -106,7 +106,7 @@ public:
 private:
 	ELECTRA_IMPL_DEFAULT_ERROR_METHODS(DASHStreamReader);
 
-	struct FStreamHandler : public FMediaThread, public IParserISO14496_12::IReader, public IParserISO14496_12::IBoxCallback, public IParserMKV::IReader
+	struct FStreamHandler : public FMediaThread, public IGenericDataReader, public IParserISO14496_12::IBoxCallback
 	{
 		struct FReadBuffer
 		{
@@ -303,20 +303,15 @@ private:
 		void UpdateAUDropState(FAccessUnit* InAU, const TSharedPtrTS<FStreamSegmentRequestDASH>& InRequest);
 
 
-		// Methods from IParserISO14496_12::IReader
-		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override;
+		// Methods from IGenericDataReader
+		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override;
 		bool HasReachedEOF() const override;
 		bool HasReadBeenAborted() const override;
 		int64 GetCurrentOffset() const override;
+		int64 GetTotalSize() const override;
 		// Methods from IParserISO14496_12::IBoxCallback
 		IParserISO14496_12::IBoxCallback::EParseContinuation OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
 		IParserISO14496_12::IBoxCallback::EParseContinuation OnEndOfBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
-
-		// Methods from IParserMKV::IReader
-		int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override;
-		int64 MKVGetCurrentFileOffset() const override;
-		int64 MKVGetTotalSize() override;
-		bool MKVHasReadBeenAborted() const override;
 	};
 
 	FStreamHandler						StreamHandlers[3];		// 0 = video, 1 = audio, 2 = subtitle

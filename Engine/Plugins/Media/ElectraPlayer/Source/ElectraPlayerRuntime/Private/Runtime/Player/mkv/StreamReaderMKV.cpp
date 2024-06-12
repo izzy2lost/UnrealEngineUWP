@@ -667,7 +667,7 @@ void FStreamReaderMKV::HandleRequest()
 			// Anything still not sent off we delete when we were aborted or asked to terminate.
 			// On regular completion we keep the remaining AUs to emit with the next request.
 			// We have to keep them in order to calculate the sample durations.
-			if (bTerminate || MKVHasReadBeenAborted())
+			if (bTerminate || HasReadBeenAborted())
 			{
 				for(auto &ActiveTrk : ActiveTrackMap)
 				{
@@ -733,7 +733,7 @@ FStreamReaderMKV::EEmitResult FStreamReaderMKV::EmitSamples(EEmitType InEmitType
 	EEmitResult Result = EEmitResult::SentNothing;
 	// Emit all remaining pending AUs
 	bool bAllSentOff = false;
-	while(!bAllSentOff && !bTerminate && !MKVHasReadBeenAborted())
+	while(!bAllSentOff && !bTerminate && !HasReadBeenAborted())
 	{
 		bAllSentOff = true;
 		for(auto &ActiveTrk : ActiveTrackMap)
@@ -746,7 +746,7 @@ FStreamReaderMKV::EEmitResult FStreamReaderMKV::EmitSamples(EEmitType InEmitType
 				td.SortedAccessUnitFIFO.Empty();
 			}
 
-			while(td.AccessUnitFIFO.Num() && !MKVHasReadBeenAborted())
+			while(td.AccessUnitFIFO.Num() && !HasReadBeenAborted())
 			{
 				if (td.bNeedToRecalculateDurations)
 				{
@@ -875,7 +875,7 @@ FStreamReaderMKV::EEmitResult FStreamReaderMKV::EmitSamples(EEmitType InEmitType
 
 
 	// Check that buffers are how they are supposed to be
-	if (!bTerminate && !MKVHasReadBeenAborted() && InEmitType == EEmitType::AllRemaining)
+	if (!bTerminate && !HasReadBeenAborted() && InEmitType == EEmitType::AllRemaining)
 	{
 		for(auto &ActiveTrk : ActiveTrackMap)
 		{
@@ -948,10 +948,10 @@ int32 FStreamReaderMKV::FReadBuffer::ReadTo(void* IntoBuffer, int64 NumBytesToRe
 }
 
 
-int64 FStreamReaderMKV::MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset)
+int64 FStreamReaderMKV::ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset)
 {
-	check(InFromOffset == MKVGetCurrentFileOffset());
-	if (InFromOffset != MKVGetCurrentFileOffset())
+	check(InFromOffset == GetCurrentOffset());
+	if (InFromOffset != GetCurrentOffset())
 	{
 		return -1;
 	}
@@ -965,18 +965,25 @@ int64 FStreamReaderMKV::MKVReadData(void* InDestinationBuffer, int64 InNumBytesT
 	return nb;
 }
 
-int64 FStreamReaderMKV::MKVGetCurrentFileOffset() const
+int64 FStreamReaderMKV::GetCurrentOffset() const
 {
 	return ReadBuffer.GetStartOffset() + ReadBuffer.GetCurrentOffset();
 }
 
-int64 FStreamReaderMKV::MKVGetTotalSize()
+int64 FStreamReaderMKV::GetTotalSize() const
 {
 	return ReadBuffer.GetTotalSize();
 }
-bool FStreamReaderMKV::MKVHasReadBeenAborted() const
+
+bool FStreamReaderMKV::HasReadBeenAborted() const
 {
 	return HasBeenAborted();
+}
+
+bool FStreamReaderMKV::HasReachedEOF() const
+{
+	check(!"this should not be called");
+	return false;
 }
 
 } // namespace Electra

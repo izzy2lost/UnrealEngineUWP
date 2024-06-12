@@ -78,7 +78,7 @@ namespace Electra
 	class FMP4BoxReader : private TMediaNoncopyable<FMP4BoxReader>
 	{
 	public:
-		FMP4BoxReader(IParserISO14496_12::IReader* InDataReader, IParserISO14496_12::IBoxCallback* InBoxParseCallback)
+		FMP4BoxReader(IGenericDataReader* InDataReader, IParserISO14496_12::IBoxCallback* InBoxParseCallback)
 			: DataReader(InDataReader)
 			, BoxParseCallback(InBoxParseCallback)
 			, DataDuplicationBuffer(nullptr)
@@ -104,12 +104,13 @@ namespace Electra
 		UEMediaError Read(T& value)
 		{
 			T Temp = 0;
-			int64 NumRead = DataReader->ReadData(&Temp, sizeof(T));
-			if (NumRead == sizeof(T))
+			int64 NumToRead = sizeof(T);
+			int64 NumRead = DataReader->ReadData(&Temp, NumToRead, -1);
+			if (NumRead == NumToRead)
 			{
 				if (DataDuplicationBuffer)
 				{
-					DataDuplicationBuffer->Append((const uint8*)&Temp, sizeof(T));
+					DataDuplicationBuffer->Append((const uint8*)&Temp, NumToRead);
 				}
 				value = Utils::ValueFromBigEndian(Temp);
 				return UEMEDIA_ERROR_OK;
@@ -118,7 +119,7 @@ namespace Electra
 			{
 				return UEMEDIA_ERROR_ABORTED;
 			}
-			else if (NumRead == 0 || DataReader->HasReachedEOF())
+			else if (NumRead < NumToRead || DataReader->HasReachedEOF())
 			{
 				return UEMEDIA_ERROR_INSUFFICIENT_DATA;
 			}
@@ -192,11 +193,11 @@ namespace Electra
 			{
 				int32 BufferSizeNow = DataDuplicationBuffer->Num();
 				DataDuplicationBuffer->AddUninitialized((int32)NumBytes);
-				NumRead = DataReader->ReadData(DataDuplicationBuffer->GetData() + BufferSizeNow, NumBytes);
+				NumRead = DataReader->ReadData(DataDuplicationBuffer->GetData() + BufferSizeNow, NumBytes, -1);
 			}
 			else
 			{
-				NumRead = DataReader->ReadData(Buffer, NumBytes);
+				NumRead = DataReader->ReadData(Buffer, NumBytes, -1);
 				if (NumRead == NumBytes && DataDuplicationBuffer)
 				{
 					DataDuplicationBuffer->Append((const uint8*)Buffer, (int32)NumBytes);
@@ -262,20 +263,20 @@ namespace Electra
 		FMP4BoxReader() = delete;
 		FMP4BoxReader(const FMP4BoxReader&) = delete;
 
-		IParserISO14496_12::IReader* DataReader = nullptr;
+		IGenericDataReader* DataReader = nullptr;
 		IParserISO14496_12::IBoxCallback* BoxParseCallback = nullptr;
 
 		TArray<uint8>* DataDuplicationBuffer = nullptr;
 	};
 
 
-	class FDataBufferReader : public IParserISO14496_12::IReader
+	class FDataBufferReader : public IGenericDataReader
 	{
 	public:
 		FDataBufferReader(const TArray<uint8>& InDataBufferToReadFrom) : DataBufferRef(InDataBufferToReadFrom)
 		{}
 		virtual ~FDataBufferReader() = default;
-		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override
+		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override
 		{
 			int64 NumAvail = DataBufferRef.Num() - CurrentOffset;
 			if (NumAvail >= NumBytesToRead)
@@ -295,6 +296,9 @@ namespace Electra
 		{ return false;	}
 		int64 GetCurrentOffset() const override
 		{ return CurrentOffset;	}
+		int64 GetTotalSize() const override
+		{ check(!"this should not be called"); return -1; }
+
 	private:
 		const TArray<uint8>& DataBufferRef;
 		int64 CurrentOffset = 0;
@@ -5715,7 +5719,7 @@ namespace Electra
 	public:
 		FParserISO14496_12();
 		virtual ~FParserISO14496_12();
-		UEMediaError ParseHeader(IReader* DataReader, IBoxCallback* BoxParseCallback, IPlayerSessionServices* PlayerSession, const IParserISO14496_12* OptionalInitSegment) override;
+		UEMediaError ParseHeader(IGenericDataReader* DataReader, IBoxCallback* BoxParseCallback, IPlayerSessionServices* PlayerSession, const IParserISO14496_12* OptionalInitSegment) override;
 
 		UEMediaError PrepareTracks(IPlayerSessionServices* PlayerSession, TSharedPtrTS<const IParserISO14496_12> OptionalMP4InitSegment) override;
 
@@ -7075,7 +7079,7 @@ namespace Electra
 		delete ParsedData;
 	}
 
-	UEMediaError FParserISO14496_12::ParseHeader(IReader* InDataReader, IBoxCallback* InBoxParseCallback, IPlayerSessionServices* PlayerSession, const IParserISO14496_12* InOptionalInitSegment)
+	UEMediaError FParserISO14496_12::ParseHeader(IGenericDataReader* InDataReader, IBoxCallback* InBoxParseCallback, IPlayerSessionServices* PlayerSession, const IParserISO14496_12* InOptionalInitSegment)
 	{
 		if (!InDataReader || !InBoxParseCallback)
 		{

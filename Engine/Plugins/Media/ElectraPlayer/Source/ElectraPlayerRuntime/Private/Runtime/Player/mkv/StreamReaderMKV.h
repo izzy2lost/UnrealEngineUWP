@@ -103,7 +103,7 @@ public:
 /**
  * This class implements an interface to read from an mkv/webm file.
  */
-class FStreamReaderMKV : public IStreamReader, public FMediaThread, public IParserMKV::IReader
+class FStreamReaderMKV : public IStreamReader, public FMediaThread, IGenericDataReader
 {
 public:
 	FStreamReaderMKV() = default;
@@ -114,11 +114,12 @@ public:
 	void CancelRequest(EStreamType StreamType, bool bSilent) override;
 	void CancelRequests() override;
 
-	// Methods from IParserMKV::IReader
-	int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override;
-	int64 MKVGetCurrentFileOffset() const override;
-	int64 MKVGetTotalSize() override;
-	bool MKVHasReadBeenAborted() const override;
+	// Methods from IGenericDataReader
+	int64 ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override;
+	int64 GetCurrentOffset() const override;
+	int64 GetTotalSize() const override;
+	bool HasReadBeenAborted() const override;
+	bool HasReachedEOF() const override;
 
 private:
 	void WorkerThread();
