@@ -2176,6 +2176,40 @@ bool ARecastNavMesh::FindEdges(const NavNodeRef CenterNodeRef, const FVector Cen
 	return false;
 }
 
+bool ARecastNavMesh::GetEdgesInTile(FNavTileRef TileRef, TArray<FNavigationWallEdge>& OutEdges) const
+{
+	if (HasValidNavmesh())
+	{
+		const dtNavMesh* const DetourNavMesh = RecastNavMeshImpl->GetRecastMesh();
+		if (const dtMeshTile* const Tile = DetourNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef)))
+		{
+			const bool bGatherInternalEdges = false;
+			TArray<FVector> UNUSED_InternalEdgeVerts;
+
+			const bool bGatherExternalEdges = true;
+			TArray<FVector> ExternalEdgeVerts;
+			// Guessing that each detail tri in the tile has one external edge
+			ExternalEdgeVerts.Reserve(Tile->header->detailTriCount);
+
+			RecastNavMeshImpl->GetTilePolyEdges(*Tile, bGatherInternalEdges, bGatherExternalEdges, UNUSED_InternalEdgeVerts, ExternalEdgeVerts);
+
+			const int32 ExternalEdgeVertCount = ExternalEdgeVerts.Num();
+			if (ExternalEdgeVertCount > 0)
+			{
+				OutEdges.Reset(ExternalEdgeVertCount / 2);
+				for (int32 ExternalEdgeVertIndex = 0; ExternalEdgeVertIndex < ExternalEdgeVertCount; ExternalEdgeVertIndex += 2)
+				{
+					FNavigationWallEdge& Edge = OutEdges.AddDefaulted_GetRef();
+					Edge.Start = ExternalEdgeVerts[ExternalEdgeVertIndex];
+					Edge.End = ExternalEdgeVerts[ExternalEdgeVertIndex + 1];
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 bool ARecastNavMesh::ProjectPointMulti(const FVector& Point, TArray<FNavLocation>& OutLocations, const FVector& Extent,
 	FVector::FReal MinZ, FVector::FReal MaxZ, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner) const
 {

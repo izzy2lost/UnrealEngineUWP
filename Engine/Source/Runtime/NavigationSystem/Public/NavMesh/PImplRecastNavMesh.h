@@ -314,7 +314,20 @@ public:
 		FVector RecastStart, FVector RecastEnd,
 		dtQueryResult& PathResult) const;
 
+	UE_DEPRECATED(5.5, "Use GetTilePolyEdges instead.")
 	NAVIGATIONSYSTEM_API void GetDebugPolyEdges(const dtMeshTile& Tile, bool bInternalEdges, bool bNavMeshEdges, TArray<FVector>& InternalEdgeVerts, TArray<FVector>& NavMeshEdgeVerts) const;
+
+	/**
+	 * Traverses given tile's edges and detects the ones that are either internal poly (i.e. not triangle, but whole navmesh polygon)
+	 * or external navmesh edge. Returns a pair of verts for each edge found.
+	 * @param Tile The tile whose edges to traverse.
+	 * @param bGatherInteriorPolyEdges If true, populates OutPolyEdgeVerts with the tile's internal poly edges.
+	 * @param bGatherExternalNavMeshEdges If true, populates OutNavMeshEdgeVerts with the tile's external navmesh edges.
+	 * @param OutInteriorPolyEdgeVerts Output poly edge vertex array. Contains a pair of verts for each edge.
+	 * @param OutExteriorNavMeshEdgeVerts Output navmesh edge vertex array. Contains a pair of verts for each edge.
+	 * @note This is really slow.
+	 */
+	NAVIGATIONSYSTEM_API void GetTilePolyEdges(const dtMeshTile& Tile, bool bGatherInteriorPolyEdges, bool bGatherExteriorNavMeshEdges, TArray<FVector>& OutInteriorPolyEdgeVerts, TArray<FVector>& OutExteriorNavMeshEdgeVerts) const;
 
 	/** workhorse function finding portal edges between corridor polys */
 	NAVIGATIONSYSTEM_API void GetEdgesForPathCorridorImpl(const TArray<NavNodeRef>* PathCorridor, TArray<FNavigationPortalEdge>* PathCorridorEdges, const dtNavMeshQuery& NavQuery) const;

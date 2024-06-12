@@ -2605,16 +2605,18 @@ static FORCEINLINE FVector::FReal PointDistToSegment2DSquared(const FVector::FRe
 	return dx*dx + dz*dz;
 }
 
-/** 
- * Traverses given tile's edges and detects the ones that are either poly (i.e. not triangle, but whole navmesh polygon) 
- * or navmesh edge. Returns a pair of verts for each edge found.
- */
+// Deprecated
 void FPImplRecastNavMesh::GetDebugPolyEdges(const dtMeshTile& Tile, bool bInternalEdges, bool bNavMeshEdges, TArray<FVector>& InternalEdgeVerts, TArray<FVector>& NavMeshEdgeVerts) const
+{
+	GetTilePolyEdges(Tile, bInternalEdges, bNavMeshEdges, InternalEdgeVerts, NavMeshEdgeVerts);
+}
+
+void FPImplRecastNavMesh::GetTilePolyEdges(const dtMeshTile& Tile, bool bGatherInteriorPolyEdges, bool bGatherExteriorNavMeshEdges, TArray<FVector>& OutInteriorPolyEdgeVerts, TArray<FVector>& OutExteriorNavMeshEdgeVerts) const
 {
 	static const FVector::FReal thr = FMath::Square(0.01f);
 
-	ensure(bInternalEdges || bNavMeshEdges);
-	const bool bExportAllEdges = bInternalEdges && !bNavMeshEdges;
+	ensure(bGatherInteriorPolyEdges || bGatherExteriorNavMeshEdges);
+	const bool bExportAllEdges = bGatherInteriorPolyEdges && !bGatherExteriorNavMeshEdges;
 	
 	for (int i = 0; i < Tile.header->polyCount; ++i)
 	{
@@ -2662,8 +2664,8 @@ void FPImplRecastNavMesh::GetDebugPolyEdges(const dtMeshTile& Tile, bool bIntern
 				}
 			}
 
-			TArray<FVector>* EdgeVerts = bInternalEdges && bIsConnected ? &InternalEdgeVerts 
-				: (bNavMeshEdges && bIsExternal && !bIsConnected ? &NavMeshEdgeVerts : NULL);
+			TArray<FVector>* EdgeVerts = bGatherInteriorPolyEdges && bIsConnected ? &OutInteriorPolyEdgeVerts 
+				: (bGatherExteriorNavMeshEdges && bIsExternal && !bIsConnected ? &OutExteriorNavMeshEdgeVerts : NULL);
 			if (EdgeVerts == NULL)
 			{
 				continue;
@@ -2672,7 +2674,7 @@ void FPImplRecastNavMesh::GetDebugPolyEdges(const dtMeshTile& Tile, bool bIntern
 			const FVector::FReal* V0 = &Tile.verts[Poly->verts[j] * 3];
 			const FVector::FReal* V1 = &Tile.verts[Poly->verts[(j + 1) % nj] * 3];
 
-			// Draw detail mesh edges which align with the actual poly edge.
+			// Gather detail mesh edges which align with the actual poly edge.
 			// This is really slow.
 			for (int32 k = 0; k < pd->triCount; ++k)
 			{
@@ -3099,7 +3101,7 @@ int32 FPImplRecastNavMesh::GetTilesDebugGeometry(const FRecastNavMeshGenerator* 
 	// Get tile edges and navmesh edges
 	if (OutGeometry.bGatherPolyEdges || OutGeometry.bGatherNavMeshEdges)
 	{
-		GetDebugPolyEdges(Tile, !!OutGeometry.bGatherPolyEdges, !!OutGeometry.bGatherNavMeshEdges
+		GetTilePolyEdges(Tile, !!OutGeometry.bGatherPolyEdges, !!OutGeometry.bGatherNavMeshEdges
 			, OutGeometry.PolyEdges, OutGeometry.NavMeshEdges);
 	}
 
