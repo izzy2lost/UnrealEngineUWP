@@ -612,21 +612,23 @@ bool UInterchangeGenericMaterialPipeline::IsSettingsAreValid(TOptional<FText>& O
 	return Super::IsSettingsAreValid(OutInvalidReason);
 }
 
-void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+	Super::AdjustSettingsForContext(ContextParams);
 
 	if (TexturePipeline)
 	{
-		TexturePipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+		TexturePipeline->AdjustSettingsForContext(ContextParams);
 	}
 #if WITH_EDITOR
 	TArray<FString> HideCategories;
-	bool bIsObjectAMaterial = !ReimportAsset ? false : ReimportAsset->IsA(UMaterialInterface::StaticClass());
-	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+	bool bIsObjectAMaterial = !ContextParams.ReimportAsset ? false : ContextParams.ReimportAsset->IsA(UMaterialInterface::StaticClass());
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bImportMaterials = false;
 		HideCategories.Add(UInterchangeGenericMaterialPipeline::GetPipelineCategory(nullptr));
@@ -639,7 +641,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 		{
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
 		}
-		if (!bIsObjectAMaterial && ImportType == EInterchangePipelineContext::AssetReimport)
+		if (!bIsObjectAMaterial && ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
 		{
 			//When we re-import we hide all setting but search location, so we can find existing materials.
 			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bImportMaterials));

@@ -37,14 +37,14 @@ FString UInterchangeGenericMeshPipeline::GetPipelineCategory(UClass* AssetClass)
 	return TEXT("Static Meshes");
 }
 
-void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+	Super::AdjustSettingsForContext(ContextParams);
 
 #if WITH_EDITOR
 
 	check(CommonSkeletalMeshesAndAnimationsProperties.IsValid());
-	if (ImportType == EInterchangePipelineContext::None)
+	if (ContextParams.ContextType == EInterchangePipelineContext::None)
 	{
 		//We do not change the setting if we are in editing context
 		return;
@@ -55,22 +55,22 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 	bool bContainSkeletalMesh = false;
 	bool bContainStaticMeshAnimationNode = false;
 	bool bIgnoreStaticMesh = false;
-	GetMeshesInformationFromTranslatedData(InBaseNodeContainer, bAutoDetectConvertStaticMeshToSkeletalMesh, bContainStaticMesh, bContainSkeletalMesh, bContainStaticMeshAnimationNode, bIgnoreStaticMesh);
+	GetMeshesInformationFromTranslatedData(ContextParams.BaseNodeContainer, bAutoDetectConvertStaticMeshToSkeletalMesh, bContainStaticMesh, bContainSkeletalMesh, bContainStaticMeshAnimationNode, bIgnoreStaticMesh);
 
 	//Avoid creating physics asset when importing a LOD or the alternate skinning
-	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport
-		|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bCreatePhysicsAsset = false;
 		PhysicsAsset = nullptr;
 		LodGroup = NAME_None;
 		
-		if (ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-			|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+		if (ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+			|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
 		{
 			CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
 			CommonMeshesProperties->bAutoDetectMeshType = false;
@@ -89,8 +89,8 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
 		}
-		else if (ImportType == EInterchangePipelineContext::AssetCustomMorphTargetImport
-			|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
+		else if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+			|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 		{
 			//Custom morph target are imported has a combined static mesh
 			CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
@@ -111,6 +111,42 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 			bGenerateDistanceFieldAsIfTwoSided = false;
 			bSupportFaceRemap = false;
 		}
+		else if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+			|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport)
+		{
+			CommonMeshesProperties->bBakeMeshes = true;
+			CommonMeshesProperties->bBakePivotMeshes = false;
+			CommonMeshesProperties->bImportLods = false;
+			CommonMeshesProperties->bKeepSectionsSeparate = false;
+			CommonMeshesProperties->VertexColorImportOption = EInterchangeVertexColorImportOption::IVCIO_Ignore;
+			bBuildNanite = false;
+			LodGroup = NAME_None;
+			bImportCollision = false;
+			bImportCollisionAccordingToMeshName = false;
+			bGenerateLightmapUVs = false;
+			bGenerateDistanceFieldAsIfTwoSided = false;
+			bSupportFaceRemap = false;
+			//We are importing custom LODs
+			if (ContextParams.ImportObjectType)
+			{
+				//If we have a provided import object type we can make sure we import the correct type
+				if (ContextParams.ImportObjectType->IsChildOf<UStaticMesh>())
+				{
+					CommonMeshesProperties->bAutoDetectMeshType = false;
+					CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
+					bImportSkeletalMeshes = false;
+					bImportStaticMeshes = true;
+					bCombineStaticMeshes = true;
+				}
+				else if (ContextParams.ImportObjectType->IsChildOf<USkeletalMesh>())
+				{
+					CommonMeshesProperties->bAutoDetectMeshType = false;
+					CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
+					bImportSkeletalMeshes = true;
+					bImportStaticMeshes = false;
+				}
+			}
+		}
 	}
 	const FString CommonMeshesCategory = UInterchangeGenericCommonMeshesProperties::GetPipelineCategory(nullptr);
 	const FString StaticMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(UStaticMesh::StaticClass());
@@ -119,12 +155,12 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 
 	TArray<FString> HideCategories;
 	TArray<FString> HideSubCategories;
-	if (ImportType == EInterchangePipelineContext::AssetReimport)
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
 	{
 		CommonMeshesProperties->bAutoDetectMeshType = false;
 
 		HideSubCategories.Add(TEXT("Build"));
-		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(ReimportAsset))
+		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(ContextParams.ReimportAsset))
 		{
 			//Set the skeleton to the current asset skeleton
 			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = SkeletalMesh->GetSkeleton();
@@ -140,7 +176,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 				CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
 			}
 		}
-		else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ReimportAsset))
+		else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ContextParams.ReimportAsset))
 		{
 			HideCategories.Add(SkeletalMeshesCategory);
 			HideCategories.Add(CommonSkeletalMeshesAndAnimationCategory);
@@ -150,13 +186,13 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 				CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
 			}
 		}
-		else if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ReimportAsset))
+		else if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ContextParams.ReimportAsset))
 		{
 			HideCategories.Add(StaticMeshesCategory);
 			HideCategories.Add(SkeletalMeshesCategory);
 			HideCategories.Add(CommonMeshesCategory);
 		}
-		else if (ReimportAsset)
+		else if (ContextParams.ReimportAsset)
 		{
 			HideCategories.Add(StaticMeshesCategory);
 			HideCategories.Add(SkeletalMeshesCategory);

@@ -37,15 +37,14 @@ void UInterchangePipelineBase::SaveSettings(const FName PipelineStackName)
 	GConfig->Flush(0);
 }
 
-void UInterchangePipelineBase::AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* BaseNodeContainer)
+void UInterchangePipelineBase::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	CachePipelineContext = ReimportType;
-	CacheReimportObject = ReimportAsset;
+	CacheContextParam = ContextParams;
 	CachePropertiesStates = PropertiesStates;
 
-	bAllowPropertyStatesEdition = (ReimportType == EInterchangePipelineContext::None);
+	bAllowPropertyStatesEdition = (ContextParams.ContextType == EInterchangePipelineContext::None);
 	bIsReimportContext = false;
-	switch (ReimportType)
+	switch (ContextParams.ContextType)
 	{
 	case EInterchangePipelineContext::AssetReimport:
 	case EInterchangePipelineContext::AssetAlternateSkinningReimport:
@@ -61,13 +60,12 @@ void UInterchangePipelineBase::AdjustSettingsForContext(EInterchangePipelineCont
 void UInterchangePipelineBase::AdjustSettingsFromCache()
 {
 	PropertiesStates = CachePropertiesStates;
-	AdjustSettingsForContext(CachePipelineContext, CacheReimportObject.Get(), nullptr);
+	AdjustSettingsForContext(CacheContextParam);
 }
 
 void UInterchangePipelineBase::TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline)
 {
-	CachePipelineContext = SourcePipeline->CachePipelineContext;
-	CacheReimportObject = SourcePipeline->CacheReimportObject;
+	CacheContextParam = SourcePipeline->CacheContextParam;
 	CachePropertiesStates = SourcePipeline->CachePropertiesStates;
 	bAllowPropertyStatesEdition = SourcePipeline->bAllowPropertyStatesEdition;
 	bIsReimportContext = SourcePipeline->bIsReimportContext;

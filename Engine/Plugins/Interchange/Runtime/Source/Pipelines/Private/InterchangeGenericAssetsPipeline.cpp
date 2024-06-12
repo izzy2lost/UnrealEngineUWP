@@ -139,11 +139,11 @@ bool UInterchangeGenericAssetsPipeline::IsSettingsAreValid(TOptional<FText>& Out
 	return Super::IsSettingsAreValid(OutInvalidReason);
 }
 
-void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+	Super::AdjustSettingsForContext(ContextParams);
 
-	if (ImportType == EInterchangePipelineContext::AssetImport)
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetImport)
 	{
 		if (!CommonSkeletalMeshesAndAnimationsProperties->Skeleton.IsValid())
 		{
@@ -162,25 +162,25 @@ void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePip
 			}
 		}
 	}
-	else if (ImportType == EInterchangePipelineContext::AssetCustomMorphTargetImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
+	else if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bUseSourceNameForAsset = false;
 	}
 
 	if (MaterialPipeline)
 	{
-		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+		MaterialPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (MeshPipeline)
 	{
-		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+		MeshPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (AnimationPipeline)
 	{
-		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+		AnimationPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	//Store the adjusted settings

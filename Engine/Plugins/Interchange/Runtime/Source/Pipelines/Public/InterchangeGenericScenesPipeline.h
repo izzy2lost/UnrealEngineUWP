@@ -46,7 +46,7 @@ public:
 	bool bDeleteMissingAssets = false;
 
 	/** BEGIN UInterchangePipelineBase overrides */
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
 
 protected:
 

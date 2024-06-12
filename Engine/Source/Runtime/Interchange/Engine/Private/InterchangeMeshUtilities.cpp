@@ -187,6 +187,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 	EInterchangePipelineContext ImportType = EInterchangePipelineContext::AssetCustomLODImport;
 	bool bInvalidLodIndex = false;
 	UObject* SourceImportData = nullptr;
+	UClass* ObjectType = nullptr;
 	if (SkeletalMesh)
 	{
 		SourceImportData = SkeletalMesh->GetAssetImportData();
@@ -199,6 +200,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 		{
 			bInvalidLodIndex = true;
 		}
+		ObjectType = USkeletalMesh::StaticClass();
 	}
 	else if (StaticMesh)
 	{
@@ -212,6 +214,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 		{
 			bInvalidLodIndex = true;
 		}
+		ObjectType = UStaticMesh::StaticClass();
 	}
 	else
 	{
@@ -245,6 +248,9 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 
 	FImportAssetParameters ImportAssetParameters;
 	ImportAssetParameters.bIsAutomated = true;
+	FInterchangePipelineContextParams ContextParams;
+	ContextParams.ContextType = ImportType;
+	ContextParams.ImportObjectType = ObjectType;
 	if (InterchangeAssetImportData)
 	{
 		TArray<UObject*> Pipelines = InterchangeAssetImportData->GetPipelines();
@@ -261,7 +267,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 			}
 			if (ensure(GeneratedPipeline))
 			{
-				GeneratedPipeline->AdjustSettingsForContext(ImportType, nullptr, nullptr);
+				GeneratedPipeline->AdjustSettingsForContext(ContextParams);
 				ImportAssetParameters.OverridePipelines.Add(GeneratedPipeline);
 			}
 		}
@@ -277,7 +283,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 			if (UInterchangePipelineBase* GenericPipeline = NewObject<UInterchangePipelineBase>(GetTransientPackage(), GenericPipelineClass))
 			{
 				GenericPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
-				GenericPipeline->AdjustSettingsForContext(ImportType, nullptr, nullptr);
+				GenericPipeline->AdjustSettingsForContext(ContextParams);
 				ImportAssetParameters.OverridePipelines.Add(GenericPipeline);
 			}
 		}
@@ -388,6 +394,9 @@ TFuture<bool> UInterchangeMeshUtilities::ImportMorphTarget(USkeletalMesh* Skelet
 
 	FImportAssetParameters ImportAssetParameters;
 	ImportAssetParameters.bIsAutomated = true;
+	FInterchangePipelineContextParams ContextParams;
+	ContextParams.ContextType = ImportType;
+	ContextParams.ImportObjectType = USkeletalMesh::StaticClass();
 	if (InterchangeAssetImportData)
 	{
 		TArray<UObject*> Pipelines = InterchangeAssetImportData->GetPipelines();
@@ -404,7 +413,7 @@ TFuture<bool> UInterchangeMeshUtilities::ImportMorphTarget(USkeletalMesh* Skelet
 			}
 			if (ensure(GeneratedPipeline))
 			{
-				GeneratedPipeline->AdjustSettingsForContext(ImportType, nullptr, nullptr);
+				GeneratedPipeline->AdjustSettingsForContext(ContextParams);
 				ImportAssetParameters.OverridePipelines.Add(GeneratedPipeline);
 			}
 		}
@@ -420,7 +429,7 @@ TFuture<bool> UInterchangeMeshUtilities::ImportMorphTarget(USkeletalMesh* Skelet
 			if (UInterchangePipelineBase* GenericPipeline = NewObject<UInterchangePipelineBase>(GetTransientPackage(), GenericPipelineClass))
 			{
 				GenericPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
-				GenericPipeline->AdjustSettingsForContext(ImportType, nullptr, nullptr);
+				GenericPipeline->AdjustSettingsForContext(ContextParams);
 				ImportAssetParameters.OverridePipelines.Add(GenericPipeline);
 			}
 		}

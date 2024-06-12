@@ -152,7 +152,10 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 			if (GenericPipeline)
 			{
 				GenericPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
-				GenericPipeline->AdjustSettingsForContext(bIsReimport ? EInterchangePipelineContext::AssetAlternateSkinningReimport : EInterchangePipelineContext::AssetAlternateSkinningImport, nullptr, nullptr);
+				FInterchangePipelineContextParams ContextParams;
+				ContextParams.ContextType = bIsReimport ? EInterchangePipelineContext::AssetAlternateSkinningReimport : EInterchangePipelineContext::AssetAlternateSkinningImport;
+				ContextParams.ImportObjectType = USkeletalMesh::StaticClass();
+				GenericPipeline->AdjustSettingsForContext(ContextParams);
 				ImportAssetParameters.OverridePipelines.Add(GenericPipeline);
 			}
 		}

@@ -115,17 +115,19 @@ FString UInterchangeGenericTexturePipeline::GetPipelineCategory(UClass* AssetCla
 	return TEXT("Textures");
 }
 
-void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+	Super::AdjustSettingsForContext(ContextParams);
 #if WITH_EDITOR
 	TArray<FString> HideCategories;
-	bool bIsObjectATexture = !ReimportAsset ? false : ReimportAsset.IsA(UTexture::StaticClass());
-	if( (!bIsObjectATexture && ImportType == EInterchangePipelineContext::AssetReimport)
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+	bool bIsObjectATexture = !ContextParams.ReimportAsset ? false : ContextParams.ReimportAsset.IsA(UTexture::StaticClass());
+	if( (!bIsObjectATexture && ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bImportTextures = false;
 		HideCategories.Add(UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr));

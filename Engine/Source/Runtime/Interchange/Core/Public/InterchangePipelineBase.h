@@ -55,6 +55,18 @@ enum class EInterchangePipelineContext : uint8
 	AssetCustomMorphTargetReImport,
 };
 
+USTRUCT()
+struct FInterchangePipelineContextParams
+{
+	GENERATED_BODY()
+
+	EInterchangePipelineContext ContextType = EInterchangePipelineContext::None;
+	UClass* ImportObjectType = nullptr;
+	TObjectPtr<UObject> ReimportAsset = nullptr;
+	const UInterchangeBaseNodeContainer* BaseNodeContainer = nullptr;
+
+};
+
 USTRUCT(BlueprintType)
 struct FInterchangePipelinePropertyStatePerContext
 {
@@ -314,10 +326,9 @@ public:
 	 * The function is also called when we import or reimport custom LOD and alternate skinning.
 	 *
 	 * @Note - The function will set the context of the pipeline.
-	 * @Param ReimportType - Tells the pipeline what reimport type the user wants to achieve.
-	 * @Param ReimportAsset - This is an optional parameter which is set when reimporting an asset.
+	 * @Param ContextParams - Give all the context information to the pipeline for the current import.
 	 */
-	INTERCHANGECORE_API virtual void AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* BaseNodeContainer);
+	INTERCHANGECORE_API virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams);
 	INTERCHANGECORE_API virtual void AdjustSettingsFromCache();
 
 	/** Transfer the source pipeline adjust settings to this pipeline. */
@@ -593,8 +604,7 @@ protected:
 	TMap<FName, FInterchangePipelinePropertyStates> PropertiesStates;
 
 	mutable TMap<FName, FInterchangePipelinePropertyStates> CachePropertiesStates;
-	mutable EInterchangePipelineContext CachePipelineContext = EInterchangePipelineContext::None;
-	mutable TWeakObjectPtr<UObject> CacheReimportObject = nullptr;
+	mutable FInterchangePipelineContextParams CacheContextParam;
 
 	TArray<FInterchangeConflictInfo> ConflictInfos;
 };

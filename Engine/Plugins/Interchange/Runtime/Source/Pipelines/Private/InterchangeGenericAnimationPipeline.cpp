@@ -89,20 +89,22 @@ bool UInterchangeGenericAnimationPipeline::CanEditChange(const FProperty* InProp
 }
 #endif
 
-void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
+	Super::AdjustSettingsForContext(ContextParams);
 
 #if WITH_EDITOR
 	check(CommonSkeletalMeshesAndAnimationsProperties.IsValid());
 	
-	bSceneImport = ImportType == EInterchangePipelineContext::SceneImport
-				|| ImportType == EInterchangePipelineContext::SceneReimport;
+	bSceneImport = ContextParams.ContextType == EInterchangePipelineContext::SceneImport
+				|| ContextParams.ContextType == EInterchangePipelineContext::SceneReimport;
 
-	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bImportAnimations = false;
 		CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
@@ -115,9 +117,9 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 	const FString AnimationCategory = UInterchangeGenericAnimationPipeline::GetPipelineCategory(nullptr);
 
 	TArray<FString> HideCategories;
-	if(ImportType == EInterchangePipelineContext::AssetImport)
+	if(ContextParams.ContextType == EInterchangePipelineContext::AssetImport)
 	{
-		if(UE::Interchange::Private::IsTranslatedDataContainOnlyJointAnimation(InBaseNodeContainer, CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals))
+		if(UE::Interchange::Private::IsTranslatedDataContainOnlyJointAnimation(ContextParams.BaseNodeContainer, CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals))
 		{
 			bImportAnimations = true;
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = true;
@@ -129,9 +131,9 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 	}
 
 	
-	if (ImportType == EInterchangePipelineContext::AssetReimport)
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
 	{
-		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ReimportAsset))
+		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ContextParams.ReimportAsset))
 		{
 			//Set the skeleton to the current asset skeleton and re-import only the animation
 			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = AnimSequence->GetSkeleton();

@@ -1131,7 +1131,9 @@ bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, FIm
 				{
 					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(PipelinePath))
 					{
-						GeneratedPipeline->AdjustSettingsForContext(EInterchangePipelineContext::AssetImport, nullptr, nullptr);
+						FInterchangePipelineContextParams ContextParams;
+						ContextParams.ContextType = EInterchangePipelineContext::AssetImport;
+						GeneratedPipeline->AdjustSettingsForContext(ContextParams);
 						if (GeneratedPipeline->IsA(ConvertedPipelineClass))
 						{
 							//We found a match, so we will use the default pipeline stacks
@@ -1841,7 +1843,11 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				Context = bImportScene ? EInterchangePipelineContext::SceneImport : EInterchangePipelineContext::AssetImport;
 			}
 			Pipeline->ContentImportPath = ContentBasePath;
-			Pipeline->AdjustSettingsForContext(Context, TaskData.ReimportObject, BaseNodeContainer);
+			FInterchangePipelineContextParams ContextParams;
+			ContextParams.ContextType = Context;
+			ContextParams.ReimportAsset = TaskData.ReimportObject;
+			ContextParams.BaseNodeContainer = BaseNodeContainer;
+			Pipeline->AdjustSettingsForContext(ContextParams);
 			Pipeline->DestinationName = TaskData.DestinationName;
 		};
 
