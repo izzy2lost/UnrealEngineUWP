@@ -943,8 +943,6 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 		// Generating Parameter Metadata for parameters that reuse a Table
 		GenerateTableParameterUIData(DataTable, TableNode, GenerationContext);
 
-		FMutableGraphGenerationContext::FGeneratedDataTablesData ;
-
 		if (!CachedTable->HasSameSettings(TableNode))
 		{
 			TArray<const UObject*> Nodes;
