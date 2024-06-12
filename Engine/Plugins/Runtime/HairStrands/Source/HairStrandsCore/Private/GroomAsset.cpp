@@ -3,6 +3,7 @@
 #include "GroomAsset.h"
 
 #include "Async/Async.h"
+#include "Async/UniqueLock.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
 #include "GroomAssetImportData.h"
@@ -1148,6 +1149,11 @@ void UGroomAsset::ReleaseMeshesResource(uint32 GroupIndex)
 
 void UGroomAsset::UpdateHairGroupsInfo()
 {
+#if WITH_EDITORONLY_DATA
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomAsset::UpdateHairGroupsInfo);
+	UE::TUniqueLock LockScope(InternalLock);
+#endif
+
 	const uint32 GroupCount = GetNumHairGroups();
 	const bool bForceReset = GetHairGroupsInfo().Num() != GroupCount;
 	GetHairGroupsInfo().SetNum(GroupCount);
@@ -2331,7 +2337,11 @@ FString UGroomAsset::GetDerivedDataKeyForStrands(uint32 GroupIndex)
 
 void UGroomAsset::CommitHairDescription(FHairDescription&& InHairDescription, EHairDescriptionType Type)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomAsset::CommitHairDescription);
+
 	HairDescriptionType = Type;
+
+	UE::TUniqueLock LockScope(InternalLock);
 
 	CachedHairDescription[HairDescriptionType] = MakeUnique<FHairDescription>(InHairDescription);
 
@@ -2349,17 +2359,35 @@ void UGroomAsset::CommitHairDescription(FHairDescription&& InHairDescription, EH
 
 const FHairDescriptionGroups& UGroomAsset::GetHairDescriptionGroups()
 {
-	check(HairDescriptionBulkData[HairDescriptionType]);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomAsset::GetHairDescriptionGroups);
 
-	if (!CachedHairDescription[HairDescriptionType])
+	check(HairDescriptionBulkData[HairDescriptionType]);
+	
+	if (!CachedHairDescription[HairDescriptionType] || !CachedHairDescriptionGroups[HairDescriptionType])
 	{
-		CachedHairDescription[HairDescriptionType] = MakeUnique<FHairDescription>();
-		HairDescriptionBulkData[HairDescriptionType]->LoadHairDescription(*CachedHairDescription[HairDescriptionType]);
-	}
-	if (!CachedHairDescriptionGroups[HairDescriptionType])
-	{
-		CachedHairDescriptionGroups[HairDescriptionType] = MakeUnique<FHairDescriptionGroups>();
-		FGroomBuilder::BuildHairDescriptionGroups(*CachedHairDescription[HairDescriptionType], *CachedHairDescriptionGroups[HairDescriptionType]);
+		UE::TUniqueLock LockScope(InternalLock);
+
+		if (!CachedHairDescription[HairDescriptionType])
+		{
+			TUniquePtr<FHairDescription> HairDescription = MakeUnique<FHairDescription>();
+			HairDescriptionBulkData[HairDescriptionType]->LoadHairDescription(*HairDescription);
+
+			// Since we don't take read-lock, we need to make sure all memory is visible inside newly created object before publishing it.
+			FPlatformMisc::MemoryBarrier();
+
+			CachedHairDescription[HairDescriptionType] = MoveTemp(HairDescription);
+		}
+
+		if (!CachedHairDescriptionGroups[HairDescriptionType])
+		{
+			TUniquePtr<FHairDescriptionGroups> HairDescriptionGroups = MakeUnique<FHairDescriptionGroups>();
+			FGroomBuilder::BuildHairDescriptionGroups(*CachedHairDescription[HairDescriptionType], *HairDescriptionGroups);
+			
+			// Since we don't take read-lock, we need to make sure all memory is visible inside newly created object before publishing it.
+			FPlatformMisc::MemoryBarrier();
+
+			CachedHairDescriptionGroups[HairDescriptionType] = MoveTemp(HairDescriptionGroups);
+		}
 	}
 
 	return *CachedHairDescriptionGroups[HairDescriptionType];
@@ -2772,7 +2800,7 @@ inline FString GetLODName(const UGroomAsset* Asset, uint32 LODIndex)
 }
 
 static bool InternalImportCardGeometry(
-	FHairGroupsCardsSourceDescription* InDesc, 
+	const FHairGroupsCardsSourceDescription* InDesc, 
 	const FHairDescriptionGroups& InHairDescriptionGroups, 
 	const TArray<FHairGroupsInterpolation>& InHairInterpolationGroups,
 	FHairCardsBulkData& OutBulkData, 
@@ -3676,6 +3704,7 @@ bool UGroomAsset::GetHairCardsGuidesDatas(
 	const int32 LODIndex,
 	FHairStrandsDatas& OutCardsGuidesData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomAsset::GetHairCardsGuidesDatas);
 	FHairStrandsDatas StrandsData;
 	FHairStrandsDatas GuidesData;
 	const bool bIsValid = GetHairStrandsDatas(GroupIndex, StrandsData, GuidesData);

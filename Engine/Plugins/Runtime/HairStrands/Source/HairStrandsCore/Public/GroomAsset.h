@@ -18,6 +18,7 @@
 #include "Curves/CurveFloat.h"
 #include "HairStrandsInterface.h"
 #include "Engine/SkeletalMesh.h"
+#include "Async/RecursiveMutex.h"
 #include "Interfaces/Interface_AssetUserData.h"
 #include "UObject/PerPlatformProperties.h"
 #include "UObject/StrongObjectPtr.h"
@@ -830,6 +831,7 @@ private:
 	// Transient HairDescription & HairDescriptionGroups, which are built from HairDescriptionBulkData.
 	// All these data (bulk/desc/groups) needs to be in sync. I.e., when the HairDescription is updated, 
 	// HairDescriptionGroups needs to also be updated
+	UE::FRecursiveMutex InternalLock;
 	TUniquePtr<FHairDescription> CachedHairDescription[EHairDescriptionType::Count];
 	TUniquePtr<FHairDescriptionGroups> CachedHairDescriptionGroups[EHairDescriptionType::Count];
 
