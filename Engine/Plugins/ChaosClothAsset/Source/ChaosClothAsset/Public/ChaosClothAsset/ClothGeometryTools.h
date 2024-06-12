@@ -78,10 +78,11 @@ namespace UE::Chaos::ClothAsset
 
 		/**
 		* Unwrap and build SimMesh data from a DynamicMesh
+		* Normals are only imported if the DynamicMesh has both a UVOverlay and a NormalOverlay
 		*/
 		static void BuildSimMeshFromDynamicMesh(
 			const TSharedRef<FManagedArrayCollection>& ClothCollection,
-			const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend);
+			const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend, bool bImportNormals = false);
 
 		/**
 		* Remove (topologically) degenerate triangles. Remove any vertices that aren't in a triangle. Compact any lookup arrays that contain INDEX_NONEs.

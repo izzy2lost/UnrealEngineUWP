@@ -26,7 +26,7 @@ namespace UE::Chaos::ClothAsset
 		// Wrapper for accessing a SkelMeshSection. Implements the interface expected by TToDynamicMesh<>.
 		// This will weld all vertices which are the same.
 		//
-		template<bool bHasNormals = false, bool bHasTangents = false, bool bHasBiTangents = false, bool bHasColors = false>
+		template<bool bHasTangents = false, bool bHasBiTangents = false, bool bHasColors = false>
 		struct FSkelMeshSectionWrapper
 		{
 			typedef int32 TriIDType;
@@ -36,8 +36,9 @@ namespace UE::Chaos::ClothAsset
 			typedef int32 NormalIDType;
 			typedef int32 ColorIDType;
 
-			FSkelMeshSectionWrapper(const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex)
-				: SourceSection(SkeletalMeshModel.Sections[SectionIndex])
+			FSkelMeshSectionWrapper(const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex, bool bInHasNormals)
+				: bHasNormals(bInHasNormals)
+				, SourceSection(SkeletalMeshModel.Sections[SectionIndex])
 				, IndexBuffer(SkeletalMeshModel.IndexBuffer.GetData() + SourceSection.BaseIndex, SourceSection.NumTriangles * 3)
 			{
 				const int32 NumVerts = SourceSection.SoftVertices.Num();
@@ -212,17 +213,28 @@ namespace UE::Chaos::ClothAsset
 
 			const TArray<NormalIDType>& GetNormalIDs() const
 			{
-				return EmptyArray;
+				if (bHasNormals)
+				{
+					return OriginalIndexes;
+				}
+				else
+				{
+					return EmptyArray;
+				}
 			}
 
 			FVector3f GetNormal(NormalIDType ID) const
 			{
-				check(false);
-				return FVector3f();
+				check(bHasNormals);
+				return SourceSection.SoftVertices[ID].TangentZ;
 			}
 
-			bool GetNormalTri(const TriIDType& TID, NormalIDType& NID0, NormalIDType& NID1, NormalIDType& NID2) const
+			bool GetNormalTri(const TriIDType& TriID, NormalIDType& NID0, NormalIDType& NID1, NormalIDType& NID2) const
 			{
+				if (bHasNormals)
+				{
+					return GetTri(TriID, NID0, NID1, NID2);
+				}
 				return false;
 			}
 
@@ -349,7 +361,7 @@ namespace UE::Chaos::ClothAsset
 				return FLinearColor::White;
 			}
 
-
+			const bool bHasNormals;
 			const FSkelMeshSection& SourceSection;
 			const TConstArrayView<uint32> IndexBuffer;
 			TArray<int32> OriginalIndexes; // UniqueIndex -> OrigIndex
@@ -421,13 +433,13 @@ namespace UE::Chaos::ClothAsset
 		ClothPatternFacade.SetRenderMaterialPathName(RenderMaterialPathName);
 	}
 	
-	void FClothDataflowTools::AddSimPatternsFromSkeletalMeshSection(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex, const int32 UVChannelIndex, const FVector2f& UVScale)
+	void FClothDataflowTools::AddSimPatternsFromSkeletalMeshSection(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex, const int32 UVChannelIndex, const FVector2f& UVScale, bool bImportNormals)
 	{
 		check(SectionIndex < SkeletalMeshModel.Sections.Num());
 
 		// Convert to DynamicMesh and then use that to create patterns.
 		UE::Geometry::TToDynamicMesh<Private::FSkelMeshSectionWrapper<>> SkelMeshSectionToDynamicMesh;
-		Private::FSkelMeshSectionWrapper<> SectionWrapper(SkeletalMeshModel, SectionIndex);
+		Private::FSkelMeshSectionWrapper<> SectionWrapper(SkeletalMeshModel, SectionIndex, bImportNormals);
 
 		UE::Geometry::FDynamicMesh3 DynamicMesh;
 		DynamicMesh.EnableAttributes();

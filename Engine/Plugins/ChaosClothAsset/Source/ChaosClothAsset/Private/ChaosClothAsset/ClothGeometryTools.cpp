@@ -24,6 +24,7 @@ namespace UE::Chaos::ClothAsset
 			TArray<int32> Indices;  // 3x number of triangles
 			TArray<FVector2f> Positions2D;
 			TArray<FVector3f> Positions3D;  // Same size as Positions
+			TArray<FVector3f> Normals; // Empty or same size as Positions
 			TArray<int32> PositionToSourceIndex; // Same size as Positions. Index in the original welded position array
 		};
 
@@ -80,9 +81,11 @@ namespace UE::Chaos::ClothAsset
 			return Index0 < Index1 ? FIntVector2(Index0, Index1) : FIntVector2(Index1, Index0);
 		}
 
-		static void UnwrapDynamicMesh(const UE::Geometry::FDynamicMesh3& DynamicMesh, TArray<FIsland>& OutIslands)
+		static void UnwrapDynamicMesh(const UE::Geometry::FDynamicMesh3& DynamicMesh, bool bImportNormals, TArray<FIsland>& OutIslands)
 		{
 			using namespace UE::Geometry;
+			const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = DynamicMesh.Attributes();
+			const UE::Geometry::FDynamicMeshNormalOverlay* const NormalOverlay = bImportNormals && AttributeSet ? AttributeSet->PrimaryNormals() : nullptr;
 
 			OutIslands.Reset();
 			constexpr float SquaredWeldingDistance = FMath::Square(0.01f);  // 0.1 mm
@@ -100,6 +103,7 @@ namespace UE::Chaos::ClothAsset
 					continue;
 				}
 				const FIndex3i TriangleIndices = DynamicMesh.GetTriangle(SeedTriangle);
+				const FIndex3i TriangleNormalElements = NormalOverlay ? NormalOverlay->GetTriangle(SeedTriangle) : FIndex3i::Invalid();
 
 				const int32 SeedIndex0 = TriangleIndices[0];
 				const int32 SeedIndex1 = TriangleIndices[1];
@@ -118,6 +122,11 @@ namespace UE::Chaos::ClothAsset
 
 				Island.Positions3D.Add(Position0);
 				Island.Positions3D.Add(Position1);
+				if (NormalOverlay)
+				{
+					Island.Normals.Add(NormalOverlay->GetElement(TriangleNormalElements[0]));
+					Island.Normals.Add(NormalOverlay->GetElement(TriangleNormalElements[1]));
+				}
 				Island.PositionToSourceIndex.Add(SeedIndex0);
 				Island.PositionToSourceIndex.Add(SeedIndex1);
 
@@ -129,12 +138,14 @@ namespace UE::Chaos::ClothAsset
 					int32 Triangle;
 					FIndex2i OldEdge;
 					FIndex2i NewEdge;
+					FIndex2i NormalIndices;
 					int32 CrossEdgePoint;  // Keep the opposite point to orientate degenerate cases
 				} Visitor =
 				{
 					SeedTriangle,
 					FIndex2i(SeedIndex0, SeedIndex1),
 					FIndex2i(SeedIndex2D0, SeedIndex2D1),
+					FIndex2i(TriangleNormalElements[0], TriangleNormalElements[1]),
 					INDEX_NONE
 				};
 
@@ -149,10 +160,13 @@ namespace UE::Chaos::ClothAsset
 					const int32 OldIndex1 = Visitor.OldEdge.B;
 					const int32 NewIndex0 = Visitor.NewEdge.A;
 					const int32 NewIndex1 = Visitor.NewEdge.B;
+					const int32 NormalIndex0 = Visitor.NormalIndices.A;
+					const int32 NormalIndex1 = Visitor.NormalIndices.B;
 
 					// Find opposite index from this triangle edge
 
 					const int32 OldIndex2 = IndexUtil::FindTriOtherVtxUnsafe(OldIndex0, OldIndex1, DynamicMesh.GetTriangle(Triangle));
+					const int32 NormalIndex2 = NormalOverlay ? IndexUtil::FindTriOtherVtxUnsafe(NormalIndex0, NormalIndex1, NormalOverlay->GetTriangle(Triangle)) : INDEX_NONE;
 
 					// Find the 2D intersection of the two connecting adjacent edges using the 3D reference length
 					const FVector3f P0(DynamicMesh.GetVertexRef(OldIndex0));
@@ -202,6 +216,10 @@ namespace UE::Chaos::ClothAsset
 					{
 						NewIndex2 = Island.Positions2D.Add(C2);
 						Island.Positions3D.Add(P2);
+						if (NormalOverlay)
+						{
+							Island.Normals.Add(NormalOverlay->GetElement(NormalIndex2));
+						}
 						Island.PositionToSourceIndex.Add(OldIndex2);
 					}
 
@@ -226,6 +244,12 @@ namespace UE::Chaos::ClothAsset
 						FIndex3i(NewIndex2, NewIndex1, NewIndex0),
 						FIndex3i(NewIndex0, NewIndex2, NewIndex1)
 					};
+					const FIndex2i NormalEdgeList[3] =
+					{
+						FIndex2i(NormalIndex1, NormalIndex0),
+						FIndex2i(NormalIndex2, NormalIndex1),
+						FIndex2i(NormalIndex0, NormalIndex2)
+					};
 					for (int32 Edge = 0; Edge < 3; ++Edge)
 					{
 						const int32 EdgeIndex0 = OldEdgeList[Edge].A;
@@ -246,6 +270,7 @@ namespace UE::Chaos::ClothAsset
 										NeighborTriangle,
 										OldEdgeList[Edge],
 										FIndex2i(NewEdgeList[Edge].A, NewEdgeList[Edge].B),
+										NormalEdgeList[Edge],
 										NewEdgeList[Edge].C,  // Pass the cross edge 2D opposite point to help define orientation of any degenerated triangles
 									});
 							}
@@ -256,12 +281,14 @@ namespace UE::Chaos::ClothAsset
 			}
 		}
 
-		static void BuildIslandsFromDynamicMeshUVs(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, const FVector2f& UVScale, TArray<FIsland>& OutIslands)
+		static void BuildIslandsFromDynamicMeshUVs(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, const FVector2f& UVScale, bool bImportNormals, TArray<FIsland>& OutIslands)
 		{
 			using namespace UE::Geometry;
 
-			const FDynamicMesh3* DynamicMesh = UVOverlay.GetParentMesh();
+			const FDynamicMesh3* const DynamicMesh = UVOverlay.GetParentMesh();
 			check(DynamicMesh);
+			const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = DynamicMesh->Attributes();
+			const UE::Geometry::FDynamicMeshNormalOverlay* const NormalOverlay = bImportNormals && AttributeSet ? AttributeSet->PrimaryNormals() : nullptr;
 
 			OutIslands.Reset();
 
@@ -300,22 +327,27 @@ namespace UE::Chaos::ClothAsset
 					const int32 Triangle = Visitor.Triangle;
 					const FIndex3i TriangleIndices = DynamicMesh->GetTriangle(Triangle);
 					const FIndex3i TriangleUVElements = UVOverlay.GetTriangle(Triangle);
+					const FIndex3i TriangleNormalElements = NormalOverlay ? NormalOverlay->GetTriangle(Triangle) : FIndex3i::Invalid();
 
-					auto GetOrAddNewIndex = [&UVOverlay, &Island, &SourceElementIndexToNewIndex, &DynamicMesh, &UVScale](int32 ElementId, int32 VertexId)
+					auto GetOrAddNewIndex = [&UVOverlay, &Island, &SourceElementIndexToNewIndex, &DynamicMesh, &UVScale, NormalOverlay](int32 ElementId, int32 VertexId, int32 NormalId)
 					{
 						int32& NewIndex = SourceElementIndexToNewIndex[ElementId];
 						if (NewIndex == INDEX_NONE)
 						{
 							NewIndex = Island.Positions3D.Add(FVector3f(DynamicMesh->GetVertexRef(VertexId)));
 							Island.Positions2D.Add((FVector2f(1.f) - UVOverlay.GetElement(ElementId)) * UVScale);  // The static mesh import uses 1 - UV for some reason
+							if (NormalOverlay)
+							{
+								Island.Normals.Add(NormalOverlay->GetElement(NormalId));
+							}
 							Island.PositionToSourceIndex.Add(VertexId);
 						}
 						return NewIndex;
 					};
 
-					const int32 NewIndex0 = GetOrAddNewIndex(TriangleUVElements[0], TriangleIndices[0]);
-					const int32 NewIndex1 = GetOrAddNewIndex(TriangleUVElements[1], TriangleIndices[1]);
-					const int32 NewIndex2 = GetOrAddNewIndex(TriangleUVElements[2], TriangleIndices[2]);
+					const int32 NewIndex0 = GetOrAddNewIndex(TriangleUVElements[0], TriangleIndices[0], TriangleNormalElements[0]);
+					const int32 NewIndex1 = GetOrAddNewIndex(TriangleUVElements[1], TriangleIndices[1], TriangleNormalElements[1]);
+					const int32 NewIndex2 = GetOrAddNewIndex(TriangleUVElements[2], TriangleIndices[2], TriangleNormalElements[2]);
 					Island.Indices.Add(NewIndex0);
 					Island.Indices.Add(NewIndex1);
 					Island.Indices.Add(NewIndex2);
@@ -855,7 +887,7 @@ namespace UE::Chaos::ClothAsset
 
 	void FClothGeometryTools::BuildSimMeshFromDynamicMesh(
 		const TSharedRef<FManagedArrayCollection>& ClothCollection,
-		const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend)
+		const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend, bool bImportNormals)
 	{
 		using namespace Private::SimMeshBuilder;
 
@@ -866,16 +898,16 @@ namespace UE::Chaos::ClothAsset
 
 		const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = DynamicMesh.Attributes();
 		const UE::Geometry::FDynamicMeshUVOverlay* const UVOverlay = AttributeSet ? AttributeSet->GetUVLayer(UVChannelIndex) : nullptr;
-		const UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute* SkinWeights = AttributeSet ? AttributeSet->GetSkinWeightsAttribute(FName("Default")) : nullptr;
+		const UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute* SkinWeights = AttributeSet ? AttributeSet->GetSkinWeightsAttribute(FName("Default")) : nullptr; 
 
 		TArray<FIsland> Islands;
 		if (UVOverlay)
 		{
-			BuildIslandsFromDynamicMeshUVs(*UVOverlay, UVScale, Islands);
+			BuildIslandsFromDynamicMeshUVs(*UVOverlay, UVScale, bImportNormals, Islands);
 		}
 		else
 		{
-			UnwrapDynamicMesh(DynamicMesh, Islands);
+			UnwrapDynamicMesh(DynamicMesh, bImportNormals, Islands);
 		}
 
 		FCollectionClothFacade Cloth(ClothCollection);
@@ -885,7 +917,7 @@ namespace UE::Chaos::ClothAsset
 			{
 				FCollectionClothSimPatternFacade Pattern = Cloth.AddGetSimPattern();
 				const int32 VertexOffset = Cloth.GetNumSimVertices3D();
-				Pattern.Initialize(Island.Positions2D, Island.Positions3D, Island.Indices);
+				Pattern.Initialize(Island.Positions2D, Island.Positions3D, Island.Indices, INDEX_NONE, Island.Normals);
 
 				// Copy skinning data
 				if (SkinWeights)

@@ -89,9 +89,9 @@ namespace UE::Chaos::ClothAsset
 		/** Remove all geometry from this cloth pattern. */
 		void Reset();
 
-		/** Initialize the cloth pattern using the specified 3D and 2D positions, and topology. */
+		/** Initialize the cloth pattern using the specified 3D and 2D positions, and topology. If Normals are not supplied, they will be calculated from the face normals.*/
 		template<typename IndexType UE_REQUIRES(TIsIndexType<IndexType>::Value)>
-		void Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex = INDEX_NONE);
+		void Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex = INDEX_NONE, const TArray<FVector3f>& Normals = TArray<FVector3f>());
 
 		/** Initialize this pattern using another pattern collection. */
 		void Initialize(const FCollectionClothSimPatternConstFacade& Other, const int32 SimVertex3DOffset, const int32 FabricsOffset = 0);
