@@ -3393,6 +3393,12 @@ void SRigHierarchy::HandleUnparent()
 	ControlRigBlueprint->PropagateHierarchyFromBPToInstances();
 	ControlRigEditor.Pin()->OnHierarchyChanged();
 	RefreshTreeView();
+
+	if (URigHierarchy* Hierarchy = GetDefaultHierarchy())
+	{
+		Hierarchy->GetController()->SetSelection(SelectedKeys);
+	}
+	
 	FSlateApplication::Get().DismissAllMenus();
 }
 
