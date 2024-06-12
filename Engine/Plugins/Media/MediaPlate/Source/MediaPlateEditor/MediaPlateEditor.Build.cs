@@ -42,7 +42,8 @@ public class MediaPlateEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
+				"HoldoutComposite"
 			}
-			);
+		);
 	}
 }
