@@ -23,6 +23,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "NiagaraShaderModule.h"
 #include "NiagaraCustomVersion.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "UObject/UObjectThreadContext.h"
 
 IMPLEMENT_SHADER_TYPE(, FNiagaraShader, TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf"),TEXT("SimulateMain"), SF_Compute)
@@ -1199,6 +1200,41 @@ FNiagaraShader::FNiagaraShader(const FNiagaraShaderType::CompiledShaderInitializ
 		checkf(DataInterfaceParamRef.Parameters == nullptr || CDODataInterface->GetShaderStorageType()->Interface == ETypeLayoutInterface::NonVirtual, TEXT("DataInterface(%s) shader storage is either abstract or virtual which is not allowed"), *GetNameSafe(CDODataInterface->GetClass()));
 	}
 }
+
+#if WITH_EDITORONLY_DATA
+void FNiagaraShader::BuildClassSchema(FAppendToClassSchemaContext& Context)
+{
+	// Used by iterative cooking.  This will provide additional context for if things have changed such that a cook will
+	// be required.  This is focused on global settings rather than the usual dependencies between objects.
+
+	FShaderKeyGenerator KeyGen([&Context](const void* Data, uint64 Size) { Context.Update(Data, Size); });
+
+	FPlatformTypeLayoutParameters DefaultLayoutParams;
+	DefaultLayoutParams.Append(KeyGen);
+
+	const FSHAHash ContentLayoutHash = GetShaderTypeLayoutHash(StaticGetTypeLayoutDesc<FNiagaraShaderMapContent>(), DefaultLayoutParams);
+	Context.Update(&ContentLayoutHash, sizeof(ContentLayoutHash));
+
+	const FSHAHash ShaderLayoutHash = GetShaderTypeLayoutHash(StaticGetTypeLayoutDesc<FNiagaraShader>(), DefaultLayoutParams);
+	Context.Update(&ShaderLayoutHash, sizeof(ShaderLayoutHash));
+
+	const uint32 ShaderParamStructHash = TShaderParameterStructTypeInfo<FNiagaraShader::FParameters>::GetStructMetadata()->GetLayoutHash();
+	Context.Update(&ShaderParamStructHash, sizeof(ShaderParamStructHash));
+
+	// Add in any referenced HLSL files.
+	const FSHAHash InstanceShaderHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf")), EShaderPlatform::SP_PCD3D_SM5);
+	Context.Update(&InstanceShaderHash, sizeof(InstanceShaderHash));
+
+	const FSHAHash NiagaraShaderVersionHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
+	Context.Update(&NiagaraShaderVersionHash, sizeof(NiagaraShaderVersionHash));
+
+	const FSHAHash ShaderVersionHash = GetShaderFileHash((TEXT("/Engine/Public/ShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
+	Context.Update(&ShaderVersionHash, sizeof(ShaderVersionHash));
+
+	Context.Update(&GNiagaraSkipVectorVMBackendOptimizations, sizeof(GNiagaraSkipVectorVMBackendOptimizations));
+}
+#endif
+
 
 //////////////////////////////////////////////////////////////////////////
 bool FNiagaraDataInterfaceGeneratedFunction::Serialize(FArchive& Ar)

@@ -37,12 +37,18 @@
 
 #include "Algo/RemoveIf.h"
 #include "Algo/StableSort.h"
+#include "Cooker/CookDependency.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/ScopeExit.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "ProfilingDebugging/ScopedTimers.h"
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/LinkerLoad.h"
@@ -55,9 +61,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraSystem)
 
 #define LOCTEXT_NAMESPACE "NiagaraSystem"
-
-#if WITH_EDITOR
-#endif
 
 DECLARE_CYCLE_STAT(TEXT("Niagara - System - CompileScript"), STAT_Niagara_System_CompileScript, STATGROUP_Niagara);
 DECLARE_CYCLE_STAT(TEXT("Niagara - System - CompileScript_ResetAfter"), STAT_Niagara_System_CompileScriptResetAfter, STATGROUP_Niagara);
@@ -89,7 +92,23 @@ namespace NiagaraSystemPrivate
 	static const FName NAME_HasGPUEmitter("HasGPUEmitter");
 	static const FName NAME_FixedBoundsSize("FixedBoundsSize");
 	static const FName NAME_NumEmitters("NumEmitters");
+
+#if WITH_EDITOR
+	constexpr int32 CookDependenciesArgsVersion = 1;
+	void HashDependenciesForCook(FCbFieldViewIterator Args, UE::Cook::FCookDependencyContext& Context);
+	void RegisterCookDependencies(FObjectPreSaveContext ObjectSaveContext, bool bIncludeGpuTarget);
+
+	struct FCookDependency
+	{
+		TArray<FName> ShaderFormatNames;
+
+		bool TryLoad(FCbFieldViewIterator& ArgField);
+		void Save(FCbWriter& Writer);
+	};
+#endif
 }
+
+UE_COOK_DEPENDENCY_FUNCTION(HashNiagaraSystemDependenciesForCook, NiagaraSystemPrivate::HashDependenciesForCook);
 
 //Disable for now until we can spend more time on a good method of applying the data gathered.
 int32 GEnableNiagaraRuntimeCycleCounts = 0;
@@ -291,6 +310,14 @@ void UNiagaraSystem::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	EnsureFullyLoaded();
 #if WITH_EDITORONLY_DATA
 	WaitForCompilationComplete();
+#endif
+
+#if WITH_EDITOR
+	if (ObjectSaveContext.IsCooking())
+	{
+		UpdateHasGPUEmitters();
+		NiagaraSystemPrivate::RegisterCookDependencies(ObjectSaveContext, bHasAnyGPUEmitters);
+	}
 #endif
 }
 
@@ -4166,6 +4193,126 @@ const FNiagaraDataSetCompiledData& FNiagaraEmitterCompiledData::GetGPUCaptureDat
 	return GPUCaptureDataSetCompiledData;
 }
 #endif
+
+
+
+//////////////////////////////////////////////////////////////////////////
+// This section is related to iterative cooking and defining the implicit dependencies that 
+// the NiagaraScript might have.  We don't have to worry about package to package dependencies
+// but are more focused on what external changes might require us to recook the script.
+// There are two paths we take to handle these changes:
+// AppendToClassSchema - evaluation of anything static that isn't tied to the target platform.
+// Registered cook dependencies - saves data into the oplog of individual packages during cook
+//	which can be evaluated on subsequent cooks to see if anything has changed
+// 
+
+#if WITH_EDITORONLY_DATA
+void UNiagaraSystem::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+{
+	Super::AppendToClassSchema(Context);
+
+	// Used by iterative cooking.  This will provide additional context for if things have changed such that a cook will
+	// be required.  This is focused on global settings rather than the usual dependencies between objects.
+
+	UNiagaraScript::BuildClassSchema(Context);
+}
+
+#endif
+
+#if WITH_EDITOR
+
+namespace NiagaraSystemPrivate
+{
+
+bool FCookDependency::TryLoad(FCbFieldViewIterator& ArgField)
+{
+	const int32 ShaderFormatCount = (ArgField++).AsInt32();
+	ShaderFormatNames.Reset(ShaderFormatCount);
+	for (int32 i = 0; i < ShaderFormatCount; ++i)
+	{
+		ShaderFormatNames.Emplace((ArgField++).AsString());
+	}
+
+	return true;
+}
+
+void FCookDependency::Save(FCbWriter& Writer)
+{
+	const int32 ShaderFormatCount = ShaderFormatNames.Num();
+	Writer << ShaderFormatCount;
+	for (int32 i = 0; i < ShaderFormatCount; ++i)
+	{
+		Writer << ShaderFormatNames[i].ToString();
+	}
+}
+
+void HashDependenciesForCook(FCbFieldViewIterator Args, UE::Cook::FCookDependencyContext& Context)
+{
+	FCbFieldViewIterator ArgField(Args);
+
+	FCookDependency CookDependency;
+	const int32 ArgsVersion = (ArgField++).AsInt32();
+	bool bDependenciesValid = false;
+	if (ArgsVersion == CookDependenciesArgsVersion)
+	{
+		if (CookDependency.TryLoad(ArgField))
+		{
+			bDependenciesValid = true;
+		}
+	}
+
+	if (!bDependenciesValid)
+	{
+		Context.LogError(FString::Printf(TEXT("Unsupported arguments version %d."), ArgsVersion));
+		return;
+	}
+
+	if (!CookDependency.ShaderFormatNames.IsEmpty())
+	{
+		FShaderKeyGenerator KeyGen([&Context](const void* Data, uint64 Size) { Context.Update(Data, Size); });
+
+		ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
+		for (const FName& ShaderFormat : CookDependency.ShaderFormatNames)
+		{
+			const uint32 ShaderFormatVersion = TargetPlatformManager.ShaderFormatVersion(ShaderFormat);
+			Context.Update(&ShaderFormatVersion, sizeof(ShaderFormatVersion));
+
+			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(ShaderFormat);
+			if (ShaderPlatform != SP_NumPlatforms)
+			{
+				ShaderMapAppendKey(ShaderPlatform, KeyGen);
+			}
+		}
+	}
+}
+
+void RegisterCookDependencies(FObjectPreSaveContext ObjectSaveContext, bool bIncludeGpuTarget)
+{
+	const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+
+	FCookDependency CookDependency;
+	if (bIncludeGpuTarget)
+	{
+		TargetPlatform->GetAllTargetedShaderFormats(CookDependency.ShaderFormatNames);
+	}
+
+	CookDependency.ShaderFormatNames.Add(TEXT("VVM_1_0"));
+
+	Algo::Sort(CookDependency.ShaderFormatNames, FNameLexicalLess());
+
+	FCbWriter Writer;
+	Writer << CookDependenciesArgsVersion;
+
+	CookDependency.Save(Writer);
+
+	ObjectSaveContext.AddCookBuildDependency(
+		UE::Cook::FCookDependency::Function(
+			UE_COOK_DEPENDENCY_FUNCTION_CALL(HashNiagaraSystemDependenciesForCook), Writer.Save()));
+}
+
+} // NiagaraSystemPrivate
+
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE // NiagaraSystem
 

@@ -4293,10 +4293,8 @@ void UNiagaraScript::ResolveParameterCollectionReferences()
 #endif
 
 #if WITH_EDITORONLY_DATA
-void UNiagaraScript::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+void UNiagaraScript::BuildClassSchema(FAppendToClassSchemaContext& Context)
 {
-	Super::AppendToClassSchema(Context);
-
 	// Used by iterative cooking.  This will provide additional context for if things have changed such that a cook will
 	// be required.  This is focused on global settings rather than the usual dependencies between objects.
 
@@ -4320,6 +4318,8 @@ void UNiagaraScript::AppendToClassSchema(FAppendToClassSchemaContext& Context)
 	{
 		Context.Update(&NiagaraSettings->InvalidNamespaceWriteSeverity, sizeof(NiagaraSettings->InvalidNamespaceWriteSeverity));
 	}
+
+	FNiagaraShader::BuildClassSchema(Context);
 }
 #endif
 

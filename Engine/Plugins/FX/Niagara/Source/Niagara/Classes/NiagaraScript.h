@@ -22,6 +22,7 @@
 
 #include "NiagaraScript.generated.h"
 
+struct FAppendToClassSchemaContext;
 class UNiagaraDataInterface;
 class FNiagaraCompileRequestDataBase;
 class FNiagaraCompileRequestDuplicateDataBase;
@@ -1161,11 +1162,9 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/**
-	 * Append config values or settings that can change how instances of the class are cooked, including especially
-	 * values that determine how version upgraded are conducted. Can also append a unique guid when necessary to
-	 * invalidate previous results because serialization changed and no custom version was updated.
+	 * Called from UNiagaraSystem::AppendToClassSchema() to collect the Script specific details for iterative cooking
 	 */
-	NIAGARA_API static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
+	static void BuildClassSchema(FAppendToClassSchemaContext& Context);
 #endif
 
 	FNiagaraShaderScript* GetRenderThreadScript()

@@ -276,6 +276,13 @@ public:
 	//~ End INiagaraParameterDefinitionsSubscriber interface
 
 	NIAGARA_API virtual bool ChangeEmitterVersion(const FVersionedNiagaraEmitter& Emitter, const FGuid& NewVersion);
+
+	/**
+	 * Append config values or settings that can change how instances of the class are cooked, including especially
+	 * values that determine how version upgraded are conducted. Can also append a unique guid when necessary to
+	 * invalidate previous results because serialization changed and no custom version was updated.
+	 */
+	NIAGARA_API static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
 #endif 
 
 	/** Gets an array of the emitter handles. */
