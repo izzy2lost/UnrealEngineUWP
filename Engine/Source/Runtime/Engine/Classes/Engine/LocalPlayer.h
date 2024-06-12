@@ -535,12 +535,6 @@ public:
 	ENGINE_API FUniqueNetIdRepl GetCachedUniqueNetId() const;
 
 	/** Sets the players current cached unique net id */
-	UE_DEPRECATED(5.0, "Use SetCachedUniqueNetId with FUniqueNetIdRepl")
-	ENGINE_API void SetCachedUniqueNetId(FUniqueNetIdPtr NewUniqueNetId);
-	/** Sets the players current cached unique net id */
-	UE_DEPRECATED(5.0, "Use SetCachedUniqueNetId with FUniqueNetIdRepl")
-	ENGINE_API void SetCachedUniqueNetId(TYPE_OF_NULLPTR);
-	/** Sets the players current cached unique net id */
 	ENGINE_API void SetCachedUniqueNetId(const FUniqueNetIdRepl& NewUniqueNetId);
 
 	/** 

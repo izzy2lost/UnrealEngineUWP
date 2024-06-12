@@ -409,14 +409,6 @@ public:
 	 *
 	 * @return the unique id of the primary player on this machine
 	 */
-	UE_DEPRECATED(5.0, "Use GetPrimaryPlayerUniqueIdRepl.")
-	ENGINE_API FUniqueNetIdPtr GetPrimaryPlayerUniqueId() const;
-
-	/**
-	 * Get the unique id for the primary player on this machine (others are splitscreen children)
-	 *
-	 * @return the unique id of the primary player on this machine
-	 */
 	ENGINE_API FUniqueNetIdRepl GetPrimaryPlayerUniqueIdRepl() const;
 
 	ENGINE_API void CleanupGameViewport();

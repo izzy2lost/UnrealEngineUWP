@@ -1748,16 +1748,6 @@ FUniqueNetIdRepl ULocalPlayer::GetCachedUniqueNetId() const
 	return CachedUniqueNetId;
 }
 
-void ULocalPlayer::SetCachedUniqueNetId(FUniqueNetIdPtr NewUniqueNetId)
-{
-	CachedUniqueNetId = NewUniqueNetId;
-}
-
-void ULocalPlayer::SetCachedUniqueNetId(TYPE_OF_NULLPTR)
-{
-	CachedUniqueNetId = FUniqueNetIdRepl(nullptr);
-}
-
 void ULocalPlayer::SetCachedUniqueNetId(const FUniqueNetIdRepl& NewUniqueNetId)
 {
 	CachedUniqueNetId = NewUniqueNetId;

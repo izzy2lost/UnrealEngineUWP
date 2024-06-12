@@ -4070,12 +4070,6 @@ void UEngine::RecordHMDAnalytics()
 	}
 }
 
-/** @return whether we currently have more than one local player */
-bool UEngine::IsSplitScreen(UWorld *InWorld)
-{
-	return HasMultipleLocalPlayers(InWorld);
-}
-
 bool UEngine::HasMultipleLocalPlayers(UWorld* InWorld)
 {
 	if (InWorld == NULL)

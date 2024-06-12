@@ -38,14 +38,6 @@ class FLazySingleton;
 	#endif
 #endif //MAX_LOCAL_PLAYERS
 
-UE_DEPRECATED(5.0, "Use NAME_GameSession.")
-inline constexpr EName GameSessionName = NAME_GameSession;
-UE_DEPRECATED(5.0, "Use NAME_PartySession.")
-inline constexpr EName PartySessionName = NAME_PartySession;
-UE_DEPRECATED(5.0, "Use NAME_GamePort.")
-inline constexpr EName GamePort = NAME_GamePort;
-UE_DEPRECATED(5.0, "Use NAME_BeaconPort.")
-inline constexpr EName BeaconPort = NAME_BeaconPort;
 
 USTRUCT(noexport)
 struct FJoinabilitySettings

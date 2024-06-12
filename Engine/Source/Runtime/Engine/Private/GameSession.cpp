@@ -267,11 +267,6 @@ int32 AGameSession::GetNextPlayerID()
 	return NextPlayerID++;
 }
 
-void AGameSession::RegisterPlayer(APlayerController* NewPlayer, const FUniqueNetIdPtr& UniqueId, bool bWasFromInvite)
-{
-	RegisterPlayer(NewPlayer, FUniqueNetIdRepl(UniqueId), bWasFromInvite);
-}
-
 void AGameSession::RegisterPlayer(APlayerController* NewPlayer, const FUniqueNetIdRepl& UniqueId, bool bWasFromInvite)
 {
 	if (NewPlayer != NULL)
@@ -293,23 +288,6 @@ void AGameSession::UnregisterPlayer(FName InSessionName, const FUniqueNetIdRepl&
 	{
 		// Remove the player from the session
 		UOnlineEngineInterface::Get()->UnregisterPlayer(World, InSessionName, UniqueId);
-	}
-}
-
-void AGameSession::UnregisterPlayers(FName InSessionName, const TArray<FUniqueNetIdRef>& Players)
-{
-	UWorld* World = GetWorld();
-	if (GetNetMode() != NM_Standalone &&
-		Players.Num() > 0 &&
-		UOnlineEngineInterface::Get()->DoesSessionExist(World, InSessionName))
-	{
-		// Remove the player from the session
-		TArray<FUniqueNetIdWrapper> PlayerIdsAsWrappers;
-		for (const FUniqueNetIdRef& PlayerId : Players)
-		{
-			PlayerIdsAsWrappers.Emplace(PlayerId);
-		}
-		UOnlineEngineInterface::Get()->UnregisterPlayers(World, InSessionName, PlayerIdsAsWrappers);
 	}
 }
 

@@ -2750,10 +2750,6 @@ public:
 	/** @return the currently active audio device */
 	ENGINE_API FAudioDeviceHandle GetActiveAudioDevice();
 
-	/** @return whether we currently have more than one local player */
-	UE_DEPRECATED(5.0, "IsSplitScreen was only ever checking if there are more than one local player. Use HasMultipleLocalPlayers instead.")
-	ENGINE_API virtual bool IsSplitScreen(UWorld *InWorld);
-
 	/** @returns whether there are currently multiple local players in the given world */
 	ENGINE_API virtual bool HasMultipleLocalPlayers(UWorld* InWorld);
 
