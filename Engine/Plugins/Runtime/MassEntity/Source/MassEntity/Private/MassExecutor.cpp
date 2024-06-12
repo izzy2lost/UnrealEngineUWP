@@ -122,6 +122,7 @@ void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProces
 			{
 				ExecutionContext.SetEntityCollection(Collection);
 				ExecuteProcessors(*ProcessingContext.EntityManager, Processors, ExecutionContext);
+				ExecutionContext.ClearEntityCollection();
 			}
 		}
 	}
