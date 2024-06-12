@@ -51,6 +51,54 @@
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
+bool operator==(const FShaderStatVariant LHS, const FShaderStatVariant RHS)
+{
+	if (LHS.IsType<bool>() && RHS.IsType<bool>())
+	{
+		return LHS.Get<bool>() == RHS.Get<bool>();
+	}
+	else if (LHS.IsType<float>() && RHS.IsType<float>())
+	{
+		return LHS.Get<float>() == RHS.Get<float>();
+	}
+	else if (LHS.IsType<int32>() && RHS.IsType<int32>())
+	{
+		return LHS.Get<int32>() == RHS.Get<int32>();
+	}
+	else if (LHS.IsType<uint32>() && RHS.IsType<uint32>())
+	{
+		return LHS.Get<uint32>() == RHS.Get<uint32>();
+	}
+
+	return false;
+}
+
+FArchive& operator<<(FArchive& Ar, FGenericShaderStat& Stat)
+{
+	if (Ar.IsSaving())
+	{
+		FString StatNameString = Stat.StatName.ToString();
+		Ar << StatNameString;
+	}
+	else if (Ar.IsLoading())
+	{
+		FString StatNameString;
+		Ar << StatNameString;
+		Stat.StatName = FName(*StatNameString);
+	}
+	else
+	{
+		Ar << Stat.StatName;
+	}
+
+	Ar << Stat.Value;
+	return Ar;
+}
+
+bool FGenericShaderStat::operator==(const FGenericShaderStat& RHS) const
+{
+	return (StatName == RHS.StatName) && (Value == RHS.Value);
+}
 
 static TAutoConsoleVariable<bool> CVarDumpDebugInfoForCacheHits(
 	TEXT("r.ShaderCompiler.DumpDebugInfoForCacheHits"),

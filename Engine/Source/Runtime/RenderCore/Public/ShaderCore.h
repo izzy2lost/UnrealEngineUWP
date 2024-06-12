@@ -57,7 +57,20 @@ class FSHA1;
 class ITargetPlatform;
 
 using FShaderStatVariant = TVariant<bool, float, int32, uint32>;
-DECLARE_INTRINSIC_TYPE_LAYOUT(FShaderStatVariant);
+
+bool operator==(const FShaderStatVariant LHS, const FShaderStatVariant RHS);
+
+struct FGenericShaderStat
+{
+public:
+	FName StatName;
+	FShaderStatVariant Value;
+
+	FGenericShaderStat() = default;
+
+	friend FArchive& operator<<(FArchive& Ar, FGenericShaderStat& Stat);
+	bool operator==(const FGenericShaderStat& RHS) const;
+};
 
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, Shaders);
 /**

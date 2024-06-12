@@ -253,7 +253,7 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 
 #if WITH_EDITORONLY_DATA
 		// Output.Errors contains warnings in the case any exist (no errors since if there were the job would have failed)
-		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors);
+		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors, Output.ShaderStatistics);
 #endif
 
 		FShaderEntry& Entry = ShaderEntries.InsertDefaulted_GetRef(Index);
@@ -324,15 +324,20 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 		// We append the warnings for any additional jobs which resulted in the same bytecode for the sake of determinism in the
 		// results saved to DDC. 
 		AppendWarningsToEditorOnlyData(Index, DebugName, Output.Errors);
+		ValidateShaderStatisticsEditorOnlyData(Index, Output.ShaderStatistics);
 	}
 #endif
 }
 
 #if WITH_EDITORONLY_DATA
-void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings)
+void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const TArray<FGenericShaderStat>& ShaderStatistics)
 {
 	FShaderEditorOnlyDataEntry& Entry = ShaderEditorOnlyDataEntries.InsertDefaulted_GetRef(Index);
 	Entry.PlatformDebugData = InPlatformDebugData;
+
+	// This should be a newly created shader entry.
+	check(Entry.ShaderStatistics.Num() == 0);
+	Entry.ShaderStatistics = ShaderStatistics;
 
 	AppendWarningsToEditorOnlyData(Index, DebugName, InCompilerWarnings);
 }
@@ -348,6 +353,29 @@ void FShaderMapResourceCode::AppendWarningsToEditorOnlyData(int32 Index, const F
 		if (WarningIndex >= Entry.CompilerWarnings.Num() || Entry.CompilerWarnings[WarningIndex] != ModifiedWarning)
 		{
 			Entry.CompilerWarnings.Insert(ModifiedWarning, WarningIndex);
+		}
+	}
+}
+
+void FShaderMapResourceCode::ValidateShaderStatisticsEditorOnlyData(int32 Index, const TArray<FGenericShaderStat>& ShaderStatistics)
+{
+	check(ShaderEditorOnlyDataEntries.IsValidIndex(Index));
+	FShaderEditorOnlyDataEntry& Entry = ShaderEditorOnlyDataEntries[Index];
+
+	if (Entry.ShaderStatistics.Num() != ShaderStatistics.Num())
+	{
+		UE_LOG(LogShaders, Warning, TEXT("Non-determinism detected in shader statistics.  Multiple duplicate shaders have the same shader statistics."));
+		return;
+	}
+
+	for (int i = 0; i < ShaderStatistics.Num(); ++i)
+	{
+		const FGenericShaderStat& StatA = Entry.ShaderStatistics[i];
+		const FGenericShaderStat& StatB = ShaderStatistics[i];
+		if (!(StatA == StatB))
+		{
+			UE_LOG(LogShaders, Warning, TEXT("Non-determinism detected in shader statistics.  Multiple duplicate shaders have the same shader statistics."));
+			return;
 		}
 	}
 }

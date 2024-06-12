@@ -33,7 +33,7 @@ typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStrin
 // this is for the protocol, not the data, bump if FShaderCompilerInput/FShaderPreprocessOutput serialization, SerializeWorkerInput or ProcessInputFromArchive changes.
 inline const int32 ShaderCompileWorkerInputVersion = 28;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
-inline const int32 ShaderCompileWorkerOutputVersion = 20;
+inline const int32 ShaderCompileWorkerOutputVersion = 21;
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
@@ -597,7 +597,7 @@ struct FShaderCompilerOutput
 
 	TArray<uint8> PlatformDebugData;
 
-	TMap<FString, FShaderStatVariant> ShaderStatistics;
+	TArray<FGenericShaderStat> ShaderStatistics;
 
 	/** Generates OutputHash from the compiler output. */
 	RENDERCORE_API void GenerateOutputHash();
@@ -614,7 +614,9 @@ struct FShaderCompilerOutput
 	template<typename TValue>
 	void AddStatistic(const TCHAR* Name, TValue Value)
 	{
-		ShaderStatistics.Emplace(FString(Name), FShaderStatVariant(TInPlaceType<TValue>(), Value));
+		FGenericShaderStat& Stat = ShaderStatistics.AddZeroed_GetRef();
+		Stat.StatName = FName(Name);
+		Stat.Value = FShaderStatVariant(TInPlaceType<TValue>(), Value);
 	}
 
 	// Bump ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes

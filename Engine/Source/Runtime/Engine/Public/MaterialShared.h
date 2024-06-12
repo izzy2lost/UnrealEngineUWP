@@ -1456,7 +1456,6 @@ public:
 	uint32 GetMaxNumInstructionsForShader(FShaderType* ShaderType) const { return GetContent()->GetMaxNumInstructionsForShader(*this, ShaderType); }
 
 #if WITH_EDITOR
-	FShader::FShaderStatisticMap GetShaderStatisticsMapForShader(FShaderType* ShaderType) const { return GetContent()->GetShaderStatisticsMapForShader(*this, ShaderType); }
 
 	/** Submits compile jobs for this shadermap, returns number of jobs submitted. */
 	int32 SubmitCompileJobs(uint32 CompilingShaderMapId,

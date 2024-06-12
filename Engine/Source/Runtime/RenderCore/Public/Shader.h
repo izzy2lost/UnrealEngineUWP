@@ -504,9 +504,12 @@ public:
 		 *  Does not contain errors since if there were any errors, this object wouldn't exist. */
 		TArray<FString> CompilerWarnings;
 
+		/** Generic, data-driven key/value pairs of statistics. */
+		TArray<FGenericShaderStat> ShaderStatistics;
+
 		friend FArchive& operator<<(FArchive& Ar, FShaderEditorOnlyDataEntry& Entry)
 		{
-			return Ar << Entry.PlatformDebugData << Entry.CompilerWarnings;
+			return Ar << Entry.PlatformDebugData << Entry.CompilerWarnings << Entry.ShaderStatistics;
 		}
 	};
 #endif // WITH_EDITORONLY_DATA
@@ -529,7 +532,7 @@ public:
 	int32 FindShaderIndex(const FSHAHash& InHash) const;
 
 #if WITH_EDITORONLY_DATA
-	void AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
+	void AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const TArray<FGenericShaderStat>& ShaderStatistics);
 	void AppendWarningsToEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
 	RENDERCORE_API void LogShaderCompilerWarnings();
 #endif
@@ -544,6 +547,11 @@ public:
 	// Optional array of editor-only data indexed in the same order as ShaderEntries (sorted by the shader hash)
 	// Empty in the cases where the editor-only data is not serialized.
 	TArray<FShaderEditorOnlyDataEntry> ShaderEditorOnlyDataEntries;
+
+private:
+	// Given an existing shader entry and a new set of shader statistics determine if the shader stats match.
+	// This is to prevent non-determinism issues.
+	void ValidateShaderStatisticsEditorOnlyData(int32 Index, const TArray<FGenericShaderStat>& ShaderStatistics);
 #endif // WITH_EDITORONLY_DATA
 };
 	
@@ -928,7 +936,12 @@ public:
 	inline uint32 GetNumTextureSamplers() const { return NumTextureSamplers; }
 	inline uint32 GetCodeSize() const { return CodeSize; }
 	inline void SetNumInstructions(uint32 Value) { NumInstructions = Value; }
-	inline const FShaderStatisticMap& GetShaderStatistics() const { return ShaderStatistics; }
+	UE_DEPRECATED(5.5, "GetShaderStatistics which returns a reference to the stat map is deprecated. Shader Stats can be accessed on the editor only data on the FShaderMapResourceCode object.")
+	inline const FShaderStatisticMap& GetShaderStatistics() const
+	{
+		static FShaderStatisticMap DummyStatMap;
+		return DummyStatMap;
+	}
 #else
 	inline uint32 GetNumTextureSamplers() const { return 0u; }
 	inline uint32 GetCodeSize() const { return 0u; }
@@ -1038,9 +1051,6 @@ private:
 
 	/** Size of shader's compiled code */
 	LAYOUT_FIELD_EDITORONLY(uint32, CodeSize);
-
-	/** Generic, data-driven key/value pairs of statistics. */
-	LAYOUT_FIELD_EDITORONLY(FShaderStatisticMap, ShaderStatistics);
 };
 
 RENDERCORE_API const FTypeLayoutDesc& GetTypeLayoutDesc(const FPointerTableBase* PtrTable, const FShader& Shader);
@@ -1593,7 +1603,7 @@ struct FShaderCompiledShaderInitializerType
 	uint32 NumTextureSamplers;
 	uint32 CodeSize;
 	int32 PermutationId;
-	TMap<FString, FShaderStatVariant> ShaderStatistics;
+	TArray<FGenericShaderStat> ShaderStatistics;
 
 	RENDERCORE_API FShaderCompiledShaderInitializerType(
 		const FShaderType* InType,
@@ -2300,8 +2310,17 @@ public:
 
 	RENDERCORE_API void SaveShaderStableKeys(const FShaderMapBase& InShaderMap, EShaderPlatform TargetShaderPlatform, const struct FStableShaderKeyAndValue& SaveKeyVal);
 
-	RENDERCORE_API const FShader::FShaderStatisticMap GetShaderStatisticsMapForShader(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const;
+	UE_DEPRECATED(5.5, "GetShaderStatistics which returns a reference to the stat map is deprecated. Please use the function that returns a non-ref.")
+	RENDERCORE_API const FShader::FShaderStatisticMap GetShaderStatisticsMapForShader(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const
+	{
+		static FShader::FShaderStatisticMap DummyStatMap;
+		return DummyStatMap;
+	}
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+	RENDERCORE_API TArray<FGenericShaderStat> GetShaderStatistics(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const;
+#endif // WITH_EDITORONLY_DATA
 
 	/** @return true if the map is empty */
 	inline bool IsEmpty() const
@@ -2390,6 +2409,11 @@ public:
 	}
 
 	RENDERCORE_API FString ToString() const;
+
+#if WITH_EDITORONLY_DATA
+	RENDERCORE_API TArray<FGenericShaderStat> GetShaderStatistics(FShaderType* ShaderType) const;
+	RENDERCORE_API TArray<FGenericShaderStat> GetShaderStatistics(FShader& Shader) const;
+#endif
 
 #if WITH_EDITOR
 	inline void GetOutdatedTypes(TArray<const FShaderType*>& OutdatedShaderTypes, TArray<const FShaderPipelineType*>& OutdatedShaderPipelineTypes, TArray<const FVertexFactoryType*>& OutdatedFactoryTypes) const

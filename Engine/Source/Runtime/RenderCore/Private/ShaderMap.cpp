@@ -373,6 +373,35 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 	return (bool)Content.Object;
 }
 
+#if WITH_EDITORONLY_DATA
+TArray<FGenericShaderStat> FShaderMapBase::GetShaderStatistics(FShaderType* ShaderType) const
+{
+	TArray<FGenericShaderStat> ShaderStatistics;
+	FShader* Shader = GetContent()->GetShader(ShaderType);
+	if (Shader)
+	{
+		ShaderStatistics = GetShaderStatistics(*Shader);
+	}
+	return ShaderStatistics;
+}
+
+TArray<FGenericShaderStat> FShaderMapBase::GetShaderStatistics(FShader& Shader) const
+{
+	TArray<FGenericShaderStat> ShaderStatistics;
+
+	if (Code)
+	{
+		const int32 ShaderIndex = Code->FindShaderIndex(Shader.GetOutputHash());
+		if (Code->ShaderEditorOnlyDataEntries.IsValidIndex(ShaderIndex))
+		{
+			ShaderStatistics = Code->ShaderEditorOnlyDataEntries[ShaderIndex].ShaderStatistics;
+		}
+	}
+
+	return ShaderStatistics;
+}
+#endif // WITH_EDITORONLY_DATA
+
 FString FShaderMapBase::ToString() const
 {
 	TStringBuilder<32000> String;
@@ -770,20 +799,20 @@ uint32 FShaderMapContent::GetMaxNumInstructionsForShader(const FShaderMapBase& I
 	return MaxNumInstructions;
 }
 
-#if WITH_EDITOR
-const FShader::FShaderStatisticMap FShaderMapContent::GetShaderStatisticsMapForShader(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const
+#if WITH_EDITORONLY_DATA
+TArray<FGenericShaderStat> FShaderMapContent::GetShaderStatistics(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const
 {
-	FShader::FShaderStatisticMap Statistics;
+	TArray<FGenericShaderStat> ShaderStatistics;
 
 	FShader* Shader = GetShader(ShaderType);
 	if (Shader)
 	{
-		Statistics = Shader->GetShaderStatistics();
+		ShaderStatistics = InShaderMap.GetShaderStatistics(*Shader);
 	}
 
-	return Statistics;
+	return ShaderStatistics;
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 struct FSortedShaderEntry
 {

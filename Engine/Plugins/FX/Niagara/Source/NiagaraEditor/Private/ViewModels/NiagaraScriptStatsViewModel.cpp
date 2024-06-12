@@ -210,15 +210,16 @@ namespace NiagaraScriptStatsLocal
 									{
 										ResultsString.Appendf(TEXT("- Num Instructions = %d\n"), Shader->GetNumInstructions());
 									}
-
+#if WITH_EDITORONLY_DATA
 									TStringBuilder<2048> ShaderStatsBuilder;
-									const FShader::FShaderStatisticMap ShaderStats = Shader->GetShaderStatistics();
+									const TArray<FGenericShaderStat> ShaderStats = ShaderScript->GetGameThreadShaderMap()->GetShaderStatistics(Shader->GetType(ShaderScript->GetGameThreadShaderMap()->GetPointerTable()));
 									for (const auto& ShaderStat : ShaderStats)
 									{
-										ShaderStatsBuilder << TEXT("- ") << ShaderStat.Key << TEXT(" = ");
+										ShaderStatsBuilder << TEXT("- ") << ShaderStat.StatName << TEXT(" = ");
 										Visit([&ShaderStatsBuilder](auto& StoredValue) { ShaderStatsBuilder << StoredValue << "\n"; }, ShaderStat.Value);
 									}
 									ResultsString.Append(ShaderStatsBuilder.ToString());
+#endif // WITH_EDITORONLY_DATA
 								}
 							}
 						}

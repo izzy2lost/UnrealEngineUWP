@@ -527,20 +527,22 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 	}
 }
 
-static FString GetShaderString(const FShader::FShaderStatisticMap& Statistics)
+#if WITH_EDITORONLY_DATA
+static FString GetShaderString(const TArray<FGenericShaderStat>& Statistics)
 {
 	TStringBuilder<2048> StatisticsStrBuilder;
 	for (const auto& Stat : Statistics)
 	{
-		StatisticsStrBuilder << Stat.Key << ": ";
+		StatisticsStrBuilder << Stat.StatName << ": ";
 		Visit([&StatisticsStrBuilder](auto& StoredValue)
-		{
+ 		{
 			StatisticsStrBuilder << StoredValue << "\n";
 		}, Stat.Value);
 	}
 
 	return StatisticsStrBuilder.ToString();
 }
+#endif // WITH_EDITORONLY_DATA
 
 /**
 * Gets instruction counts that best represent the likely usage of this material based on shading model and other factors.
@@ -578,7 +580,7 @@ void FMaterialStatsUtils::GetRepresentativeInstructionCounts(TArray<FShaderInstr
 						Info.ShaderType = ShaderInfo.ShaderType;
 						Info.ShaderDescription = ShaderInfo.ShaderDescription;
 						Info.InstructionCount = NumInstructions;
-						Info.ShaderStatisticsString = GetShaderString(MaterialShaderMap->GetShaderStatisticsMapForShader(ShaderType));
+						Info.ShaderStatisticsString = GetShaderString(MaterialShaderMap->GetShaderStatistics(ShaderType));
 						if (Info.ShaderStatisticsString.Len() == 0)
 						{
 							Info.ShaderStatisticsString = TEXT("n/a");
@@ -620,7 +622,9 @@ void FMaterialStatsUtils::GetRepresentativeInstructionCounts(TArray<FShaderInstr
 									Info.ShaderType = ShaderInfo.ShaderType;
 									Info.ShaderDescription = ShaderInfo.ShaderDescription;
 									Info.InstructionCount = NumInstructions;
-									Info.ShaderStatisticsString = GetShaderString(MeshShaderMap->GetShaderStatisticsMapForShader(*MaterialShaderMap, ShaderType));
+#if WITH_EDITORONLY_DATA
+									Info.ShaderStatisticsString = GetShaderString(MeshShaderMap->GetShaderStatistics(*MaterialShaderMap, ShaderType));
+#endif // WITH_EDITORONLY_DATA
 									if (Info.ShaderStatisticsString.Len() == 0)
 									{
 										Info.ShaderStatisticsString = TEXT("n/a");
