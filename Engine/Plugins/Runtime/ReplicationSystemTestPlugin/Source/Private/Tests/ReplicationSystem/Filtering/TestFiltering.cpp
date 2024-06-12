@@ -552,7 +552,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, ConnectionFilterAllowsObjectToReplica
 	UReplicatedTestObject* ServerObject0 = Server->CreateObject(0, 0);
 	
 	// Setup group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject0->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
@@ -816,7 +816,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, GroupFilterPreventsObjectFromReplicat
 	// Spawn object on server
 	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
 
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
@@ -840,7 +840,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, GroupFilterAllowsObjectToReplicate)
 	// Spawn object on server
 	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
 
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
@@ -901,7 +901,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, GroupFilterRestoresConnectionConnecti
 	}
 
 	// Create and set group filter for last client only
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ConnectionIdForLastClient, ENetFilterStatus::Disallow);
@@ -1382,7 +1382,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotFilterOutObject)
 	UReplicatedTestObject* ServerObject = Server->CreateObject(UTestReplicatedIrisObject::FComponents{});
 	
 	// Setup inclusion group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -1421,7 +1421,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotOverrideOwnerFil
 	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, ClientArray[OwningClientIndex]->ConnectionIdOnServer);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -1467,7 +1467,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotOverrideConnecti
 	Server->ReplicationSystem->SetConnectionFilter(ServerObject->NetRefHandle, AllowedConnections, ENetFilterStatus::Allow);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -1507,13 +1507,13 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotOverrideExclusio
 	UReplicatedTestObject* ServerObject = Server->CreateObject(UTestReplicatedIrisObject::FComponents{});
 
 	// Setup exclusion group filter
-	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ExclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(ExclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ExclusionGroupHandle, ClientArray[AllowedClientIndex]->ConnectionIdOnServer, ENetFilterStatus::Allow);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Allow);
@@ -1561,7 +1561,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, DisabledInclusionGroupDoesNotOverride
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Disallow);
@@ -1598,7 +1598,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, EnabledInclusionGroupDoesOverrideDyna
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	// Disallow by default
@@ -1637,7 +1637,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddingToEnabledInclusionGroupDoes
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	// Disallow by default
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Disallow);
@@ -1687,7 +1687,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateEnablingInclusionGroupDoesOverrid
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	// Disallow by default
@@ -1729,7 +1729,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, RemovingFromInclusionGroupRemovesDyna
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Allow);
@@ -1766,7 +1766,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectAddedToAllowedInclusionGroup
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
@@ -1795,7 +1795,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectLateAddedToAllowedInclusionG
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
 
@@ -1828,7 +1828,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedSubObjectFollowsOwnerInAllow
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter and add object
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
@@ -1864,7 +1864,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedSubObjectFollowsOwnerInDisal
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter and add object
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -1901,7 +1901,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectAddedToDisallowedInclusionGr
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -1930,7 +1930,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectRemovedFromAllowedInclusionG
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
@@ -1965,7 +1965,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectRemovedFromDisallowedInclusi
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -2000,12 +2000,12 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectAddedToInclusionGroupFollows
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup separate inclusion group filters for object and subobject
-	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
 	
-	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(SubObjectInclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(SubObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -2055,12 +2055,12 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectLateAddedToInclusionGroupFol
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup separate inclusion group filters for object and subobject
-	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
 	
-	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(SubObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
 
@@ -2094,12 +2094,12 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectRemovedFromInclusionGroupFol
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup separate inclusion group filters for object and subobject
-	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
 	
-	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(SubObjectInclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(SubObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -2182,7 +2182,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupsWorksWithMultipleObjec
 	for (FNetObjectGroupHandle& InclusionGroupHandle : InclusionGroupHandles)
 	{
 		const SIZE_T Index = &InclusionGroupHandle - &InclusionGroupHandles[0];
-		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 		// Disallow by default
@@ -2230,7 +2230,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupsAreCumulative)
 	for (FNetObjectGroupHandle& InclusionGroupHandle : InclusionGroupHandles)
 	{
 		const SIZE_T Index = &InclusionGroupHandle - &InclusionGroupHandles[0];
-		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 		// Disallow by default
@@ -2274,7 +2274,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedConnectionWorksWithSimpleGro
 	for (FNetObjectGroupHandle& InclusionGroupHandle : InclusionGroupHandles)
 	{
 		const SIZE_T Index = &InclusionGroupHandle - &InclusionGroupHandles[0];
-		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 
@@ -2347,11 +2347,11 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedConnectionWorksWithComplexGr
 	{
 		const SIZE_T Index = &ObjectInclusionGroupHandle - &ObjectInclusionGroupHandles[0];
 
-		ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 
-		FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(SubObjectInclusionGroupHandle, ServerSubObjects[Index]->NetRefHandle);
 
@@ -2528,7 +2528,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForExclusionGr
 	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
 
 	// Add to exclusion group that allows replication to all connections.
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -2879,7 +2879,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForFormerlyInclusion
 	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);

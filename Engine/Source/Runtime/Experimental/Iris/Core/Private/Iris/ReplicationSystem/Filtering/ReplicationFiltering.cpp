@@ -1850,7 +1850,7 @@ void FReplicationFiltering::AddSubObjectFilter(FNetObjectGroupHandle GroupHandle
 	}
 
 	const bool bIsFiltering = Groups->IsFilterGroup(GroupHandle) || SubObjectFilterGroups.GetBit(GroupIndex);
-	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start subobject filtering but it was already used for filtering."), ToCStr(Groups->GetGroupName(GroupHandle).ToString()), GroupIndex);
+	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start subobject filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
 	if (bIsFiltering)
 	{
 		return;
@@ -1862,7 +1862,7 @@ void FReplicationFiltering::AddSubObjectFilter(FNetObjectGroupHandle GroupHandle
 	// By default we filter out all connections
 	SetPerObjectInfoFilterStatus(*GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex), ENetFilterStatus::Disallow);
 
-	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::AddSubObjectFilter (%s) GroupIndex: %u, FilterStatus: DisallowReplication"), *(Groups->GetGroup(GroupHandle)->GroupName.ToString()), GroupIndex);
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::AddSubObjectFilter Group: %s FilterStatus: DisallowReplication"), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
 }
 
 void FReplicationFiltering::RemoveSubObjectFilter(FNetObjectGroupHandle GroupHandle)
@@ -1876,7 +1876,7 @@ void FReplicationFiltering::RemoveSubObjectFilter(FNetObjectGroupHandle GroupHan
 		GroupInfos[GroupIndex].ConnectionStateIndex = 0U;
 		FreePerObjectInfo(ConnectionStateIndex);
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::RemoveSubObjectFilter GroupIndex: %u"), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::RemoveSubObjectFilter Group: %s"), *Groups->GetGroupNameString(GroupHandle));
 	}
 }
 
@@ -1908,13 +1908,13 @@ void FReplicationFiltering::SetSubObjectFilterStatus(FNetObjectGroupHandle Group
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (GroupHandle.IsReservedNetObjectGroup())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for reserved GroupIndex: %u which is not allowed."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for reserved Group: %s which is not allowed."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
 	if (!SubObjectFilterGroups.GetBit(GroupIndex))
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to ReplicationStatus for GroupIndex: %u that is not a SubObjectFilterGroup"), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to ReplicationStatus for Group: %s that is not a SubObjectFilterGroup"), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
@@ -1931,19 +1931,19 @@ void FReplicationFiltering::SetSubObjectFilterStatus(FNetObjectGroupHandle Group
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (ConnectionsBitArray.GetNumBits() > ValidConnections.GetNumBits())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for %u, with invalid Connections parameters."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for %s, with invalid Connections parameters."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
 	if (GroupHandle.IsReservedNetObjectGroup())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for reserved GroupIndex: %u which is not allowed."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for reserved Group: %s which is not allowed."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
 	if (!SubObjectFilterGroups.GetBit(GroupIndex))
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to ReplicationStatus for GroupIndex: %u that is not a SubObjectFilterGroup"), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to ReplicationStatus for Group: %s that is not a SubObjectFilterGroup"), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
@@ -1970,13 +1970,13 @@ void FReplicationFiltering::SetSubObjectFilterStatus(FNetObjectGroupHandle Group
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (GroupHandle.IsReservedNetObjectGroup())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for reserved GroupIndex: %u which is not allowed."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetSubObjectFilterStatus - Trying to set filter for reserved Group: %s which is not allowed."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
 	if (ensure(ValidConnections.GetBit(ConnectionId) && SubObjectFilterGroups.GetBit(GroupIndex)))
 	{
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetSubObjectFilterStatus GroupIndex: %u, ConnectionId: %u, FilterStatus: %u"), GroupHandle.GetGroupIndex(), ConnectionId, ReplicationStatus == ENetFilterStatus::Allow ? 1U : 0U);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetSubObjectFilterStatus Group: %s, ConnectionId: %u, FilterStatus: %u"), *Groups->GetGroupNameString(GroupHandle), ConnectionId, ReplicationStatus == ENetFilterStatus::Allow ? 1U : 0U);
 		FPerObjectInfo* FilterInfo = GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex);
 		SetConnectionFilterStatus(*FilterInfo, ConnectionId, ReplicationStatus);
 		if (!IsAnyConnectionFilterStatusAllowed(*FilterInfo))
@@ -2009,7 +2009,7 @@ bool FReplicationFiltering::AddExclusionFilterGroup(FNetObjectGroupHandle GroupH
 	}
 
 	const bool bIsFiltering = Groups->IsFilterGroup(GroupHandle) || SubObjectFilterGroups.GetBit(GroupIndex);
-	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start exclusion filtering but it was already used for filtering."), ToCStr(Groups->GetGroupName(GroupHandle).ToString()), GroupIndex);
+	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start exclusion filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
 	if (bIsFiltering)
 	{
 		return false;
@@ -2025,7 +2025,7 @@ bool FReplicationFiltering::AddExclusionFilterGroup(FNetObjectGroupHandle GroupH
 	GroupInfos[GroupIndex].ConnectionStateIndex = AllocPerObjectInfo();
 	SetPerObjectInfoFilterStatus(*GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex), ENetFilterStatus::Disallow);
 
-	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::AddExclusionGroupFilter GroupIndex: %u, FilterStatus: DisallowReplication"), GroupIndex);
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::AddExclusionGroupFilter on %s, FilterStatus: DisallowReplication"), *Groups->GetGroupNameString(GroupHandle));
 	return true;
 }
 
@@ -2039,7 +2039,7 @@ bool FReplicationFiltering::AddInclusionFilterGroup(FNetObjectGroupHandle GroupH
 	}
 
 	const bool bIsFiltering = Groups->IsFilterGroup(GroupHandle) || SubObjectFilterGroups.GetBit(GroupIndex);
-	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start exclusion filtering but it was already used for filtering."), ToCStr(Groups->GetGroupName(GroupHandle).ToString()), GroupIndex);
+	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start exclusion filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
 	if (bIsFiltering)
 	{
 		return false;
@@ -2055,7 +2055,7 @@ bool FReplicationFiltering::AddInclusionFilterGroup(FNetObjectGroupHandle GroupH
 	GroupInfos[GroupIndex].ConnectionStateIndex = AllocPerObjectInfo();
 	SetPerObjectInfoFilterStatus(*GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex), ENetFilterStatus::Disallow);
 
-	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::AddInclusionFilterGroup GroupIndex: %u, FilterStatus: DoNotOverride"), GroupIndex);
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::AddInclusionFilterGroup on %s, FilterStatus: DoNotOverride"), *Groups->GetGroupNameString(GroupHandle));
 	return true;
 }
 
@@ -2085,7 +2085,7 @@ void FReplicationFiltering::RemoveGroupFilter(FNetObjectGroupHandle GroupHandle)
 
 		Groups->RemoveExclusionFilterTrait(GroupHandle);
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::RemoveGroupFilter ExclusionGroup GroupIndex: %u"), GroupHandle.GetGroupIndex());
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::RemoveGroupFilter ExclusionFilter Group: %s"), *Groups->GetGroupNameString(GroupHandle));
 	}
 	else if (InclusionFilterGroups.GetBit(GroupIndex))
 	{
@@ -2102,7 +2102,7 @@ void FReplicationFiltering::RemoveGroupFilter(FNetObjectGroupHandle GroupHandle)
 
 		Groups->RemoveInclusionFilterTrait(GroupHandle);
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::RemoveGroupFilter InclusionGroup GroupIndex: %u"), GroupHandle.GetGroupIndex());
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::RemoveGroupFilter InclusionFilter Group: %s"), *Groups->GetGroupNameString(GroupHandle));
 	}
 }
 
@@ -2113,7 +2113,7 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (GroupHandle.IsReservedNetObjectGroup())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for reserved GroupIndex: %u which is not allowed."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for reserved Group: %s which is not allowed."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
@@ -2134,7 +2134,7 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 		return;
 	}
 	
-	UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for invalid GroupIndex: %u, Make sure group is added to filtering"), GroupHandle.GetGroupIndex());
+	UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for invalid Group: %s, Make sure group is added to filtering"), *Groups->GetGroupNameString(GroupHandle));
 }
 
 void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, const FNetBitArrayView& ConnectionsBitArray, ENetFilterStatus ReplicationStatus)
@@ -2144,13 +2144,13 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (GroupHandle.IsReservedNetObjectGroup())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for reserved GroupIndex: %u which is not allowed."), GroupIndex);		
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter on reserved Group: %s which is not allowed."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
 	if (ConnectionsBitArray.GetNumBits() > ValidConnections.GetNumBits())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for %u, with invalid Connections parameters."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter on Group: %s, with invalid Connections parameters."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
@@ -2186,7 +2186,7 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 		return;
 	}
 
-	UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for invalid GroupIndex: %u, Make sure group is added to filtering"), GroupIndex);
+	UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for invalid Group: %s, Make sure group is added to filtering"), *Groups->GetGroupNameString(GroupHandle));
 }
 
 void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus ReplicationStatus)
@@ -2196,7 +2196,7 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (GroupHandle.IsReservedNetObjectGroup())
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter for reserved GroupIndex: %u which is not allowed."), GroupIndex);
+		UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set filter on reserved Group: %s which is not allowed."), *Groups->GetGroupNameString(GroupHandle));
 		return;
 	}
 
@@ -2212,7 +2212,7 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 		return;
 	}
 
-	UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set invalid filter ConnectionId: %u, GroupIndex: %u"), ConnectionId, GroupIndex);
+	UE_LOG(LogIrisFiltering, Warning, TEXT("FReplicationFiltering::SetGroupFilterStatus - Trying to set invalid filter status: %u on Group: %s for ConnectionId: %u"), ReplicationStatus, *Groups->GetGroupNameString(GroupHandle), ConnectionId);
 }
 
 bool FReplicationFiltering::IsExcludedByAnyGroup(uint32 ObjectInternalIndex, uint32 ConnectionId) const
@@ -2351,7 +2351,7 @@ void FReplicationFiltering::InternalSetExclusionGroupFilterStatus(FNetObjectGrou
 			// Mark filter as active for the connection
 			SetConnectionFilterStatus(*ConnectionState, ConnectionId, ENetFilterStatus::Disallow);
 
-			UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus ExclusionGroup GroupIndex: %u, ConnectionId: %u, FilterStatus: DisallowReplication"), GroupHandle.GetGroupIndex(), ConnectionId);
+			UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus ExclusionGroup: %s, ConnectionId: %u, FilterStatus: DisallowReplication"), *Groups->GetGroupNameString(GroupHandle), ConnectionId);
 
 			if (ValidConnections.GetBit(ConnectionId))
 			{
@@ -2393,7 +2393,7 @@ void FReplicationFiltering::InternalSetExclusionGroupFilterStatus(FNetObjectGrou
 			// Mark filter as no longer being active for the connection
 			SetConnectionFilterStatus(*ConnectionState, ConnectionId, ENetFilterStatus::Allow);
 
-			UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus ExclusionGroup GroupIndex: %u, ConnectionId: %u, FilterStatus: AllowReplication"), GroupHandle.GetGroupIndex(), ConnectionId);
+			UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus ExclusionGroup: %s, ConnectionId: %u, FilterStatus: AllowReplication"), *Groups->GetGroupNameString(GroupHandle), ConnectionId);
 
 			if (ValidConnections.GetBit(ConnectionId))
 			{
@@ -2457,7 +2457,7 @@ void FReplicationFiltering::InternalSetInclusionGroupFilterStatus(FNetObjectGrou
 	const FNetObjectGroup* Group = Groups->GetGroup(GroupHandle);
 	if (ReplicationStatus == ENetFilterStatus::Disallow)
 	{
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus InclusionGroup GroupIndex: %u, ConnectionId: %u, FilterStatus: DisallowReplication"), GroupHandle.GetGroupIndex(), ConnectionId);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus InclusionGroup: %s, ConnectionId: %u, FilterStatus: DisallowReplication"), *Groups->GetGroupNameString(GroupHandle), ConnectionId);
 		for (const FInternalNetRefIndex ObjectIndex : Group->Members)
 		{
 			ClearGroupInclusionFilterEffectsForObject(ObjectIndex, ConnectionId);
@@ -2465,7 +2465,7 @@ void FReplicationFiltering::InternalSetInclusionGroupFilterStatus(FNetObjectGrou
 	}
 	else
 	{
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus InclusionGroup GroupIndex: %u, ConnectionId: %u, FilterStatus: AllowReplication"), GroupHandle.GetGroupIndex(), ConnectionId);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::SetGroupFilterStatus InclusionGroup: %s, ConnectionId: %u, FilterStatus: AllowReplication"), *Groups->GetGroupNameString(GroupHandle), ConnectionId);
 
 		FPerConnectionInfo& ConnectionInfo = ConnectionInfos[ConnectionId];
 		FNetBitArray& GroupIncludedObjects = ConnectionInfo.GroupIncludedObjects;
@@ -2507,7 +2507,7 @@ void FReplicationFiltering::NotifyObjectAddedToGroup(FNetObjectGroupHandle Group
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (SubObjectFilterGroups.GetBit(GroupIndex))
 	{
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to SubObjectFilter with GroupIndex: %u"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to SubObjectFilter group: %s"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), *Groups->GetGroupNameString(GroupHandle));
 	}
 	else if (ExclusionFilterGroups.GetBit(GroupIndex))
 	{
@@ -2520,7 +2520,7 @@ void FReplicationFiltering::NotifyObjectAddedToGroup(FNetObjectGroupHandle Group
 			bHasDirtyExclusionFilterGroup = 1;
 		}
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to ExclusionGroup filter with GroupIndex: %u"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to ExclusionFilter group: %s"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), *Groups->GetGroupNameString(GroupHandle));
 	}
 	else if (InclusionFilterGroups.GetBit(GroupIndex))
 	{
@@ -2533,7 +2533,7 @@ void FReplicationFiltering::NotifyObjectAddedToGroup(FNetObjectGroupHandle Group
 			bHasDirtyInclusionFilterGroup = 1;
 		}
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to InclusionGroup filter with GroupIndex: %u"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to InclusionFilter group: %s"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), *Groups->GetGroupNameString(GroupHandle));
 	}
 }
 
@@ -2541,7 +2541,7 @@ void FReplicationFiltering::NotifyObjectRemovedFromGroup(FNetObjectGroupHandle G
 {
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 
-	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectRemovedFromGroup Removing %s from GroupIndex: %u"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectRemovedFromGroup Removing %s from Group: %s"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), *Groups->GetGroupNameString(GroupHandle));
 
 	if (SubObjectFilterGroups.GetBit(GroupIndex))
 	{

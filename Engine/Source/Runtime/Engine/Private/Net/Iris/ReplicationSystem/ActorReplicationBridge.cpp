@@ -1364,7 +1364,7 @@ void UActorReplicationBridge::AddActorToLevelGroup(const AActor* Actor)
 		UE::Net::FNetObjectGroupHandle LevelGroup = GetLevelGroup(Level);
 		if (!LevelGroup.IsValid())
 		{
-			LevelGroup = CreateLevelGroup(Level);
+			LevelGroup = CreateLevelGroup(Level, PackageName);
 
 			UE_LOG_ACTORREPLICATIONBRIDGE(Log, TEXT("Created new GroupIndex: %u for Level: %s"), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
 

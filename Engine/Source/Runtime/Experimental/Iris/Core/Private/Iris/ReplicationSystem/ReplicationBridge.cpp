@@ -1091,11 +1091,11 @@ void UReplicationBridge::NotifyStreamingLevelUnload(const UObject* Level)
 	}
 }
 
-UE::Net::FNetObjectGroupHandle UReplicationBridge::CreateLevelGroup(const UObject* Level)
+UE::Net::FNetObjectGroupHandle UReplicationBridge::CreateLevelGroup(const UObject* Level, FName PackageName)
 {
 	using namespace UE::Net;
 
-	FNetObjectGroupHandle LevelGroupHandle = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle LevelGroupHandle = ReplicationSystem->CreateGroup(PackageName);
 	if (ensure(LevelGroupHandle.IsValid()))
 	{
 		ReplicationSystem->AddExclusionFilterGroup(LevelGroupHandle);

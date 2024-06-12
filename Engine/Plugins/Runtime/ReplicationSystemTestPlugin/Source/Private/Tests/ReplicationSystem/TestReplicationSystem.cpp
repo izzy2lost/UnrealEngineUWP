@@ -714,7 +714,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, AddRemoveFromConn
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0,0);
 
 	// Add to group
-	FNetObjectGroupHandle Group = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle Group = ReplicationSystem->CreateGroup(NAME_None);
 	ReplicationSystem->AddToGroup(Group, ServerObject->NetRefHandle);
 
 	ReplicationSystem->AddExclusionFilterGroup(Group);

@@ -163,7 +163,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDependentObje
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0, 0);
 
 	// Filter out Server object to start with
-	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup(NAME_None);
 	ReplicationSystem->AddExclusionFilterGroup(FilterGroup);
 	ReplicationSystem->AddToGroup(FilterGroup, ServerObject->NetRefHandle);
 
@@ -211,7 +211,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestChainedDepend
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0, 0);
 
 	// Filter out Server object to start with
-	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup(NAME_None);
 	ReplicationSystem->AddExclusionFilterGroup(FilterGroup);
 	ReplicationSystem->AddToGroup(FilterGroup, ServerObject->NetRefHandle);
 

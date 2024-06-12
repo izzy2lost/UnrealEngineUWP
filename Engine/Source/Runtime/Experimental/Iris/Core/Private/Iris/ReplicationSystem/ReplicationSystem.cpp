@@ -88,7 +88,7 @@ public:
 
 	void InitDefaultFilteringGroups()
 	{
-		NotReplicatedNetObjectGroupHandle = ReplicationSystem->CreateGroup();
+		NotReplicatedNetObjectGroupHandle = ReplicationSystem->CreateGroup(FName(TEXT("NotReplicated")));
 		check(NotReplicatedNetObjectGroupHandle.IsNotReplicatedNetObjectGroup());
 		ReplicationSystem->AddExclusionFilterGroup(NotReplicatedNetObjectGroupHandle);
 		
@@ -1048,7 +1048,7 @@ bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Ne
 
 	if (EnumHasAnyFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::SendImmediate) && (Function->FunctionFlags & FUNC_NetReliable))
 	{
-		ensureAlwaysMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
+		ensureMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
 		return false;
 	}
 
@@ -1240,14 +1240,14 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetOrCreateSubObjectFilter(FN
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
-	FNetObjectGroupHandle GroupHandle = Groups.GetNamedGroupHandle(GroupName);
+	FNetObjectGroupHandle GroupHandle = Groups.FindGroupHandle(GroupName);
 	if (GroupHandle.IsValid())
 	{
 		check(Filtering.IsSubObjectFilterGroup(GroupHandle));
 		return GroupHandle;
 	}
 
-	GroupHandle = Groups.CreateNamedGroup(GroupName);
+	GroupHandle = Groups.CreateGroup(GroupName);
 	if (GroupHandle.IsValid())
 	{
 		Filtering.AddSubObjectFilter(GroupHandle);
@@ -1263,10 +1263,10 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetSubObjectFilterGroupHandle
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
-	FNetObjectGroupHandle GroupHandle = Groups.GetNamedGroupHandle(GroupName);
+	FNetObjectGroupHandle GroupHandle = Groups.FindGroupHandle(GroupName);
 	if (GroupHandle.IsValid())
 	{
-		if (ensureAlwaysMsgf(Filtering.IsSubObjectFilterGroup(GroupHandle), TEXT("UReplicationSystem::GetSubObjectFilterGroupHandle Trying to lookup NetObjectGroupHandle for NetGroup %s that is not a subobject filter"), *GroupName.ToString()))
+		if (ensureMsgf(Filtering.IsSubObjectFilterGroup(GroupHandle), TEXT("UReplicationSystem::GetSubObjectFilterGroupHandle Trying to lookup NetObjectGroupHandle for NetGroup %s that is not a subobject filter"), *GroupName.ToString()))
 		{
 			return GroupHandle;
 		}
@@ -1281,7 +1281,7 @@ void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 Connec
 
 	if (UE::Net::IsSpecialNetConditionGroup(GroupName))
 	{
-		ensureAlwaysMsgf(false, TEXT("UReplicationSystem::SetSubObjectFilterStatus Cannot SetSubObjectFilterStatus for special NetGroup %s"), *GroupName.ToString());
+		ensureMsgf(false, TEXT("UReplicationSystem::SetSubObjectFilterStatus Cannot SetSubObjectFilterStatus for special NetGroup %s"), *GroupName.ToString());
 		return;
 	}
 
@@ -1324,11 +1324,11 @@ void UReplicationSystem::RemoveSubObjectFilter(FName GroupName)
 	}
 }
 
-UE::Net::FNetObjectGroupHandle UReplicationSystem::CreateGroup()
+UE::Net::FNetObjectGroupHandle UReplicationSystem::CreateGroup(FName GroupName)
 {
 	LLM_SCOPE_BYTAG(Iris);
 
-	return Impl->ReplicationSystemInternal.GetGroups().CreateGroup();
+	return Impl->ReplicationSystemInternal.GetGroups().CreateGroup(GroupName);
 }
 
 void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHandle Handle)
@@ -1466,6 +1466,13 @@ void UReplicationSystem::DestroyGroup(FNetObjectGroupHandle GroupHandle)
 	Filtering.RemoveSubObjectFilter(GroupHandle);
 
 	Groups.DestroyGroup(GroupHandle);
+}
+
+UE::Net::FNetObjectGroupHandle UReplicationSystem::FindGroup(FName GroupName) const
+{
+	const UE::Net::Private::FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
+
+	return Groups.FindGroupHandle(GroupName);
 }
 
 UE::Net::FNetObjectGroupHandle UReplicationSystem::GetNotReplicatedNetObjectGroup() const

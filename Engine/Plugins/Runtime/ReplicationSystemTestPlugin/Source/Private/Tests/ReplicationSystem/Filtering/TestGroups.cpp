@@ -80,22 +80,78 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, PublicGroupAPI)
 
 	// Create
 	{
-		FNetObjectGroupHandle GroupHandle = ReplicationSystem->CreateGroup();
+		FNetObjectGroupHandle GroupHandle = ReplicationSystem->CreateGroup(NAME_None);
+		
+		UE_NET_ASSERT_TRUE(GroupHandle.IsValid());
+		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(GroupHandle));
 
 		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(FNetObjectGroupHandle()));
-		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(GroupHandle));
 
 		// Destroy
 		ReplicationSystem->DestroyGroup(GroupHandle);
+
+		// Group handle is still initialized
+		UE_NET_ASSERT_TRUE(GroupHandle.IsValid());
+
+		// But it's not considered a valid group.
 		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(GroupHandle));
 	}
+
+	// Find
+	{
+		const FName NameGroupFind = FName(TEXT("TestGroupFind"));
+		
+		// Create a group
+		FNetObjectGroupHandle OriginalGroupHandle = ReplicationSystem->CreateGroup(NameGroupFind);
+		UE_NET_ASSERT_TRUE(OriginalGroupHandle.IsValid());
+		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(OriginalGroupHandle));
+
+		// Find the group handle via it's name
+		FNetObjectGroupHandle FoundGroupHandle = ReplicationSystem->FindGroup(NameGroupFind);
+		UE_NET_ASSERT_TRUE(FoundGroupHandle.IsValid());
+		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(FoundGroupHandle));
+
+		// Should be the same handle
+		UE_NET_ASSERT_EQ(FoundGroupHandle.GetRawValue(), OriginalGroupHandle.GetRawValue());
+
+		// Destroy the group
+		ReplicationSystem->DestroyGroup(OriginalGroupHandle);
+
+		// They both should be invalid
+		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(OriginalGroupHandle));
+		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(FoundGroupHandle));
+	}
+
+	// Destroy/Create: Does not pass at the moment
+	/*{
+		// Create a group
+		FNetObjectGroupHandle ReusedGroupHandle = ReplicationSystem->CreateGroup(NAME_None);
+		UE_NET_ASSERT_TRUE(ReusedGroupHandle.IsValid());
+		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(ReusedGroupHandle));
+
+		// Destroy the group
+		ReplicationSystem->DestroyGroup(ReusedGroupHandle);
+
+		// Should be invalid
+		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(ReusedGroupHandle));
+
+		{
+			// Create a new random group
+			FNetObjectGroupHandle RandomGroupHandle = ReplicationSystem->CreateGroup(NAME_None);
+			UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(RandomGroupHandle));
+		}
+
+		// Problem: The destroyed group should still be invalid but the old handle index is now assigned to the new group.
+		// This means the old handle now points to the new group and is considered valid.
+		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(ReusedGroupHandle));
+	}*/
 
 	// Add/Remove
 	{
 		// Spawn object on server
 		UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
 
-		FNetObjectGroupHandle GroupHandle = ReplicationSystem->CreateGroup();
+		FNetObjectGroupHandle GroupHandle = ReplicationSystem->CreateGroup(NAME_None);
 
 		UE_NET_ASSERT_FALSE(ReplicationSystem->IsInGroup(GroupHandle, ServerObject->NetRefHandle));
 
@@ -118,8 +174,8 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, PublicGroupAPIMemberOfMultipleGroups)
 	UReplicationSystem* ReplicationSystem = Server->ReplicationSystem;
 
 	// Create
-	FNetObjectGroupHandle GroupHandle0 = ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle1 = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle0 = ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle1 = ReplicationSystem->CreateGroup(NAME_None);
 
 	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
 
@@ -156,8 +212,8 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPI)
 	UReplicatedTestObject* ServerObject2 = Server->CreateObject(0, 0);
 
 	// Create group
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle.IsValid());	
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle.IsValid());
 
 	// Add Objects to group
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject0->NetRefHandle);
@@ -169,8 +225,8 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPI)
 	UReplicatedTestObject* ServerObject5 = Server->CreateObject(0, 0);
 
 	// Create another group
-	FNetObjectGroupHandle GroupHandle2 = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle2.IsValid());	
+	FNetObjectGroupHandle GroupHandle2 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle2.IsValid());
 
 	// Add Objects to group
 	Server->ReplicationSystem->AddToGroup(GroupHandle2, ServerObject3->NetRefHandle);
@@ -180,8 +236,8 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPI)
 	UReplicatedTestObject* ServerObject6 = Server->CreateObject(0, 0);
 
 	// Create another group
-	FNetObjectGroupHandle GroupHandle3 = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle3.IsValid());	
+	FNetObjectGroupHandle GroupHandle3 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle3.IsValid());
 
 	// Update filters
 	Filter();
@@ -274,7 +330,7 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPIManyFilters)
 
 	for (uint32 It = 0; It < GroupCount; ++It)
 	{
-		FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+		FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 	
 		GroupHandles[It] = GroupHandle;	
@@ -288,10 +344,10 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPIObjectMemberOfMoreThanOneG
 	const FNetRefHandle ServerHandle = ServerObject0->NetRefHandle;
 
 	// Create groups
-	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());	
-	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());	
+	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());
+	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());
 
 	// Add Objects to groups
 	Server->ReplicationSystem->AddToGroup(GroupHandle0, ServerHandle);
@@ -346,10 +402,10 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPIAddThenRemoveFilterTrait)
 	const FNetRefHandle ServerHandle = ServerObject0->NetRefHandle;
 
 	// Create groups
-	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());	
-	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());	
+	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());
+	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());
 
 	// Add Objects to groups
 	Server->ReplicationSystem->AddToGroup(GroupHandle0, ServerHandle);
@@ -407,11 +463,11 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterTestObjectListViaTrait)
 	UE_NET_ASSERT_NE((uint32)FNetRefHandleManager::InvalidInternalIndex, ServerInternalIndex);
 
 	// Create groups
-	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle2 = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());	
-	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());	
+	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle2 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());
+	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());
 	UE_NET_ASSERT_TRUE(GroupHandle2.IsValid());
 
 	// Add Objects to groups
@@ -477,12 +533,12 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterTestObjectListViaMembership)
 	UE_NET_ASSERT_NE((uint32)FNetRefHandleManager::InvalidInternalIndex, ServerInternalIndex);
 
 	// Create groups
-	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle GroupHandle2 = Server->ReplicationSystem->CreateGroup();
-	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());	
-	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());	
-	UE_NET_ASSERT_TRUE(GroupHandle2.IsValid());	
+	FNetObjectGroupHandle GroupHandle0 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle1 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle GroupHandle2 = Server->ReplicationSystem->CreateGroup(NAME_None);
+	UE_NET_ASSERT_TRUE(GroupHandle0.IsValid());
+	UE_NET_ASSERT_TRUE(GroupHandle1.IsValid());
+	UE_NET_ASSERT_TRUE(GroupHandle2.IsValid());
 
 	// Add Objects to groups
 	Server->ReplicationSystem->AddToGroup(GroupHandle0, ServerHandle);
@@ -579,7 +635,7 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPISubObjects)
 	const FNetRefHandle ServerSubObjectHandle = ServerSubObject->NetRefHandle;
 	
 	// Create groups
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
 	// Add Object to group
@@ -600,7 +656,7 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPISubObjects)
 UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPIRemovingSubObjectsRestoresGroupFilteredOutObjects)
 {
 	// Create groups
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
 	// Update filters
@@ -640,7 +696,7 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPILateAddedSubObjectIsFilter
 	const FNetRefHandle ServerHandle = ServerObject->NetRefHandle;
 	
 	// Create groups
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
 	// Add Object to group
@@ -675,8 +731,8 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPISubObjectIsFilteredOutIfOw
 	const FNetRefHandle ServerSubObjectHandle = ServerSubObject->NetRefHandle;
 	
 	// Create groups
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle SubObjectGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle SubObjectGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -719,8 +775,8 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, GroupFilterAPISubObjectIsFilteredOutWith
 	const FNetRefHandle ServerSubObjectHandle = ServerSubObject->NetRefHandle;
 	
 	// Create groups
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
-	FNetObjectGroupHandle SubObjectGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	FNetObjectGroupHandle SubObjectGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(SubObjectGroupHandle);
