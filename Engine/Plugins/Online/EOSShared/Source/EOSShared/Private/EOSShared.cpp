@@ -9,10 +9,11 @@
 
 #include "eos_auth_types.h"
 #include "eos_friends_types.h"
+#include "eos_p2p_types.h"
 #include "eos_presence_types.h"
+#include "eos_rtc_audio_types.h"
 #include "eos_rtc_types.h"
 #include "eos_userinfo_types.h"
-#include "eos_p2p_types.h"
 
 DEFINE_LOG_CATEGORY(LogEOSSDK);
 
@@ -201,6 +202,19 @@ const TCHAR* LexToString(const EOS_EExternalCredentialType ExternalCredentialTyp
 		case EOS_EExternalCredentialType::EOS_ECT_VIVEPORT_USER_TOKEN:	return TEXT("ViveportUserToken");
 		case EOS_EExternalCredentialType::EOS_ECT_XBL_XSTS_TOKEN:		return TEXT("XBLXSTSToken");
 		default: checkNoEntry();										return TEXT("Unknown");
+	}
+}
+
+const TCHAR* LexToString(const EOS_ERTCAudioInputStatus Status)
+{
+	switch (Status)
+	{
+		case EOS_ERTCAudioInputStatus::EOS_RTCAIS_Idle:						return TEXT("EOS_RTCAIS_Idle");
+		case EOS_ERTCAudioInputStatus::EOS_RTCAIS_Recording: 				return TEXT("EOS_RTCAIS_Recording");
+		case EOS_ERTCAudioInputStatus::EOS_RTCAIS_RecordingSilent: 			return TEXT("EOS_RTCAIS_RecordingSilent");
+		case EOS_ERTCAudioInputStatus::EOS_RTCAIS_RecordingDisconnected:	return TEXT("EOS_RTCAIS_RecordingDisconnected");
+		case EOS_ERTCAudioInputStatus::EOS_RTCAIS_Failed:					return TEXT("EOS_RTCAIS_Failed");
+		default: checkNoEntry();											return TEXT("Unknown");
 	}
 }
 

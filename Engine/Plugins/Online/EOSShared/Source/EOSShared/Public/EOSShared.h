@@ -52,9 +52,10 @@ EOS_ENUM_FORWARD_DECL(EOS_EDesktopCrossplayStatus);
 EOS_ENUM_FORWARD_DECL(EOS_EFriendsStatus);
 EOS_ENUM_FORWARD_DECL(EOS_ELoginCredentialType);
 EOS_ENUM_FORWARD_DECL(EOS_ENetworkStatus);
+EOS_ENUM_FORWARD_DECL(EOS_EPacketReliability);
+EOS_ENUM_FORWARD_DECL(EOS_ERTCAudioInputStatus);
 EOS_ENUM_FORWARD_DECL(EOS_Presence_EStatus);
 EOS_ENUM_FORWARD_DECL(EOS_UI_EInputStateButtonFlags);
-EOS_ENUM_FORWARD_DECL(EOS_EPacketReliability);
 #undef EOS_ENUM_FORWARD_DECL
 
 #define EOS_STRUCT_FORWARD_DECL(name) extern "C" typedef struct _tag ## name name;
@@ -88,6 +89,7 @@ EOSSHARED_API const TCHAR* LexToString(const EOS_EExternalAccountType ExternalAc
 EOSSHARED_API const TCHAR* LexToString(const EOS_EFriendsStatus FriendStatus);
 EOSSHARED_API const TCHAR* LexToString(const EOS_ELoginStatus LoginStatus);
 EOSSHARED_API const TCHAR* LexToString(const EOS_ENetworkStatus NetworkStatus);
+EOSSHARED_API const TCHAR* LexToString(const EOS_ERTCAudioInputStatus Status);
 EOSSHARED_API const TCHAR* LexToString(const EOS_Presence_EStatus PresenceStatus);
 EOSSHARED_API const TCHAR* LexToString(const EOS_EExternalCredentialType ExternalCredentialType);
 

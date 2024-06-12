@@ -18,8 +18,6 @@
 #include "eos_rtc_audio_types.h"
 #include "eos_lobby_types.h"
 
-EOSVOICECHAT_API const TCHAR* LexToString(EOS_ERTCAudioInputStatus Status);
-
 struct FVoiceChatMetadataItem
 {
 	FString Key;
