@@ -35,6 +35,8 @@ struct FReferenceNodeInfo
 	// Which direction.  Referencers are left (other assets that depend on me), Dependencies are right (other assets I depend on)
 	bool bReferencers;
 
+	bool bIsRedirector;
+
 	int32 OverflowCount;
 
 	// Denote when all children have been manually expanded and the breadth limit should be ignored
@@ -43,6 +45,8 @@ struct FReferenceNodeInfo
 	FReferenceNodeInfo(const FAssetIdentifier& InAssetId, bool InbReferencers);
 
 	bool IsFirstParent(const FAssetIdentifier& InParentId) const;
+	
+	bool IsRedirector() const;
 
 	bool IsADuplicate() const;
 

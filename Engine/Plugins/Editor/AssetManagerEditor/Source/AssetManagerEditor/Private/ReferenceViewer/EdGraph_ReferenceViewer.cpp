@@ -23,6 +23,7 @@
 FReferenceNodeInfo::FReferenceNodeInfo(const FAssetIdentifier& InAssetId, bool InbReferencers)
 	: AssetId(InAssetId)
 	, bReferencers(InbReferencers)
+	, bIsRedirector(false)
 	, OverflowCount(0)
 	, bExpandAllChildren(false)
 	, ChildProvisionSize(0)
@@ -32,6 +33,11 @@ FReferenceNodeInfo::FReferenceNodeInfo(const FAssetIdentifier& InAssetId, bool I
 bool FReferenceNodeInfo::IsFirstParent(const FAssetIdentifier& InParentId) const
 {
 	return Parents.IsEmpty() || Parents[0] == InParentId;
+}
+
+bool FReferenceNodeInfo::IsRedirector() const
+{
+	return bIsRedirector;
 }
 
 bool FReferenceNodeInfo::IsADuplicate() const
@@ -283,28 +289,34 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::ConstructNodes(const TArray<FA
 			}
 		}
 
-		// Store the AssetData in the NodeInfos
-		TMap<FName, FAssetData> PackagesToAssetDataMap;
-		UE::AssetRegistry::GetAssetForPackages(AllPackageNames.Array(), PackagesToAssetDataMap);
-
-		// Store the AssetData in the NodeInfos and collect Asset Type UClasses to populate the filters
+		// Store the AssetData in the NodeInfos if needed, and collect Asset Type UClasses to populate the filters
 		TSet<FTopLevelAssetPath> AllClasses;
 		for (TPair<FAssetIdentifier, FReferenceNodeInfo>&  InfoPair : NewReferenceNodeInfos)
 		{
-			InfoPair.Value.AssetData = PackagesToAssetDataMap.FindRef(InfoPair.Key.PackageName);
-			if (InfoPair.Value.AssetData.IsValid())
+			// Make sure AssetData is valid
+			if (!InfoPair.Value.AssetData.IsValid())
 			{
-				AllClasses.Add(InfoPair.Value.AssetData.AssetClassPath);
+				const FName& PackageName = InfoPair.Key.PackageName;
+				TMap<FName, FAssetData> PackageToAssetDataMap;
+				UE::AssetRegistry::GetAssetForPackages({PackageName}, PackageToAssetDataMap);
+				InfoPair.Value.AssetData = PackageToAssetDataMap.FindRef(PackageName);
 			}
+
+			AllClasses.Add(InfoPair.Value.AssetData.AssetClassPath);
 		}
 
 		for (TPair<FAssetIdentifier, FReferenceNodeInfo>&  InfoPair : NewDependencyNodeInfos)
 		{
-			InfoPair.Value.AssetData = PackagesToAssetDataMap.FindRef(InfoPair.Key.PackageName);
-			if (InfoPair.Value.AssetData.IsValid())
+			// Make sure AssetData is valid
+			if (!InfoPair.Value.AssetData.IsValid())
 			{
-				AllClasses.Add(InfoPair.Value.AssetData.AssetClassPath);
+				const FName& PackageName = InfoPair.Key.PackageName;
+				TMap<FName, FAssetData> PackageToAssetDataMap;
+				UE::AssetRegistry::GetAssetForPackages({PackageName}, PackageToAssetDataMap);
+				InfoPair.Value.AssetData = PackageToAssetDataMap.FindRef(PackageName);
 			}
+
+			AllClasses.Add(InfoPair.Value.AssetData.AssetClassPath);
 		}
 
 		// Update the cached class types list
@@ -446,31 +458,43 @@ void UEdGraph_ReferenceViewer::RecursivelyFilterNodeInfos(const FAssetIdentifier
 
 	int32 Breadth = 0;
 
-	InNodeInfos[InAssetId].OverflowCount = 0;
-	if (!ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
+	FReferenceNodeInfo& NodeInfo = InNodeInfos[InAssetId];
+
+	int32 CurrentDepth = InCurrentDepth;
+	int32 CurrentMaxDepth = InMaxDepth;
+	if (NodeInfo.IsRedirector())
 	{
-		for (const TPair<FAssetIdentifier, EDependencyPinCategory>& Pair : InNodeInfos[InAssetId].Children)
+		// We don't count depth for redirectors
+		CurrentDepth = 0;
+		CurrentMaxDepth = InMaxDepth - InCurrentDepth + 1;
+	}
+	
+	NodeInfo.OverflowCount = 0;
+	if (!ExceedsMaxSearchDepth(CurrentDepth, CurrentMaxDepth))
+	{
+		for (const TPair<FAssetIdentifier, EDependencyPinCategory>& Pair : NodeInfo.Children)
 		{
 			FAssetIdentifier ChildId = Pair.Key;
+			const FReferenceNodeInfo& ChildNodeInfo = InNodeInfos[ChildId];
 
 			int32 ChildProvSize = 0;
-			if (InNodeInfos[ChildId].IsFirstParent(InAssetId))
+			if (ChildNodeInfo.IsFirstParent(InAssetId))
 			{
-				RecursivelyFilterNodeInfos(ChildId, InNodeInfos, InCurrentDepth + 1, InMaxDepth);
-				ChildProvSize = InNodeInfos[ChildId].ProvisionSize(InAssetId);
+				RecursivelyFilterNodeInfos(ChildId, InNodeInfos, CurrentDepth + 1, CurrentMaxDepth);
+				ChildProvSize = ChildNodeInfo.ProvisionSize(InAssetId);
 			}
 			else if (Settings->GetFindPathEnabled())
 			{
 				ChildProvSize = 1;
 			}
-			else if (InNodeInfos[ChildId].PassedFilters && Settings->IsShowDuplicates())
+			else if (ChildNodeInfo.PassedFilters && Settings->IsShowDuplicates())
 			{
 				ChildProvSize = 1;
 			}
 
 			if (ChildProvSize > 0)
 			{
-				if (!ExceedsMaxSearchBreadth(Breadth) || InNodeInfos[InAssetId].bExpandAllChildren)
+				if (!ExceedsMaxSearchBreadth(Breadth) || NodeInfo.bExpandAllChildren)
 				{
 					NewProvisionSize += ChildProvSize;
 					Breadth++;
@@ -478,7 +502,7 @@ void UEdGraph_ReferenceViewer::RecursivelyFilterNodeInfos(const FAssetIdentifier
 
 				else
 				{
-					InNodeInfos[InAssetId].OverflowCount++;
+					NodeInfo.OverflowCount++;
 					Breadth++;
 				}
 			}
@@ -486,20 +510,20 @@ void UEdGraph_ReferenceViewer::RecursivelyFilterNodeInfos(const FAssetIdentifier
 	}
 
 	// Account for an overflow node if necessary
-	if (InNodeInfos[InAssetId].OverflowCount > 0)
+	if (NodeInfo.OverflowCount > 0)
 	{
 		NewProvisionSize++;
 		bBreadthLimitReached = true;
 	}
 
-	bool PassedAssetTypeFilter = FilterCollection && Settings->GetFiltersEnabled() ? FilterCollection->PassesAllFilters(InNodeInfos[InAssetId]) : true;
+	bool PassedAssetTypeFilter = FilterCollection && Settings->GetFiltersEnabled() ? FilterCollection->PassesAllFilters(NodeInfo) : true;
 	bool PassedSearchTextFilter = IsAssetPassingSearchTextFilter(InAssetId);
 
 	// Don't apply filters in Find Path Mode. Otherwise, check the type and search filters, and also don't include any assets in the central selection (where InCurrentDepth == 0)
-	bool PassedAllFilters = Settings->GetFindPathEnabled() || (PassedAssetTypeFilter && PassedSearchTextFilter && (InCurrentDepth == 0 || !CurrentGraphRootIdentifiers.Contains(InAssetId)));
+	bool PassedAllFilters = Settings->GetFindPathEnabled() || (PassedAssetTypeFilter && PassedSearchTextFilter && (CurrentDepth == 0 || !CurrentGraphRootIdentifiers.Contains(InAssetId)));
 
-	InNodeInfos[InAssetId].ChildProvisionSize = NewProvisionSize > 0 ? NewProvisionSize : (PassedAllFilters ? 1 : 0);
-	InNodeInfos[InAssetId].PassedFilters = PassedAllFilters;
+	NodeInfo.ChildProvisionSize = NewProvisionSize > 0 ? NewProvisionSize : (PassedAllFilters ? 1 : 0);
+	NodeInfo.PassedFilters = PassedAllFilters;
 }
 
 void UEdGraph_ReferenceViewer::GetSortedLinks(const TArray<FAssetIdentifier>& Identifiers, bool bReferencers, const FAssetManagerDependencyQuery& Query, TMap<FAssetIdentifier, EDependencyPinCategory>& OutLinks) const
@@ -803,10 +827,50 @@ UEdGraph_ReferenceViewer::RecursivelyPopulateNodeInfos(bool bInReferencers, cons
 	check(Identifiers.Num() > 0);
 	int32 ProvisionSize = 0;
 	const FAssetIdentifier& InAssetId = Identifiers[0];
-	if (!ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
+
+	bool bIsRedirector = false;
+
+	// Check if this node is actually a redirector
+	TMap<FName, FAssetData> PackageToAssetDataMap;
+	UE::AssetRegistry::GetAssetForPackages({InAssetId.PackageName}, PackageToAssetDataMap);
+
+	FAssetData* AssetData = PackageToAssetDataMap.Find(InAssetId.PackageName);
+	if (!bInReferencers && AssetData && AssetData->IsRedirector())
+	{
+		if (UObjectRedirector* Redirector = Cast<UObjectRedirector>(AssetData->GetAsset()))
+		{
+			bIsRedirector = true;
+
+			// We are dealing with a redirector. Let's manually retrieve its Destination Object, and set up its set of nodes explicitly
+			const FName& DestinationPackageName = Redirector->DestinationObject->GetPackage()->GetFName();
+			const FAssetIdentifier DestinationAssetId = FAssetIdentifier::FromString(DestinationPackageName.ToString());
+
+			FReferenceNodeInfo& DestinationReferenceNodeInfo = InNodeInfos.FindOrAdd(DestinationAssetId, FReferenceNodeInfo(DestinationAssetId, bInReferencers));
+
+			// The Destination Node parent is the Redirector one
+			DestinationReferenceNodeInfo.Parents.Emplace(InAssetId);
+
+			// Remove Children from Redirector Node, and just add the Destination Node
+			InNodeInfos[InAssetId].Children.Empty();
+			InNodeInfos[InAssetId].Children.Emplace(DestinationAssetId, EDependencyPinCategory::LinkTypeHard);
+			InNodeInfos[InAssetId].bIsRedirector = true;
+
+			
+			// Populate Info, without increasing current depth - we ignore the Redirector
+			RecursivelyPopulateNodeInfos(bInReferencers, { DestinationAssetId }, InNodeInfos, 0, InMaxDepth - InCurrentDepth);
+		}
+	}
+
+	if (!bIsRedirector && !ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
 	{
 		TMap<FAssetIdentifier, EDependencyPinCategory> ReferenceLinks;
 		GetSortedLinks(Identifiers, bInReferencers, GetReferenceSearchFlags(false), ReferenceLinks);
+
+		// If already available, store Asset Data in Reference Node info
+		if (AssetData)
+		{
+			InNodeInfos[InAssetId].AssetData = *AssetData;
+		}
 
 		InNodeInfos[InAssetId].Children.Reserve(ReferenceLinks.Num());
 		for (const TPair<FAssetIdentifier, EDependencyPinCategory>& Pair : ReferenceLinks)
@@ -872,6 +936,9 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::RecursivelyCreateNodes(bool bI
 	const FReferenceNodeInfo& NodeInfo = InNodeInfos[InAssetId];
 	int32 NodeProvSize = 1;
 
+	int32 CurrentDepth = InCurrentDepth;
+	int32 CurrentMaxDepth = InMaxDepth;
+
 	UEdGraphNode_Reference* NewNode = nullptr;
 	if (bIsRoot)
 	{
@@ -887,9 +954,16 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::RecursivelyCreateNodes(bool bI
 		NodeProvSize = NodeInfo.ProvisionSize(InParentId);
 	}
 
-	bool bIsFirstOccurance = bIsRoot || NodeInfo.IsFirstParent(InParentId);
 	FIntPoint ChildLoc = InNodeLoc;
-	if (!ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth) && bIsFirstOccurance) // Only expand the first parent
+	if (NodeInfo.IsRedirector())
+	{
+		// We don't count depth for redirectors
+		CurrentDepth = 0;
+		CurrentMaxDepth = InMaxDepth - InCurrentDepth + 1;
+	}
+	
+	bool bIsFirstOccurance = bIsRoot || NodeInfo.IsFirstParent(InParentId);
+	if (!ExceedsMaxSearchDepth(CurrentDepth, InMaxDepth) && bIsFirstOccurance) // Only expand the first parent
 	{
 
 		// position the children nodes
@@ -911,27 +985,27 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::RecursivelyCreateNodes(bool bI
 				break;
 			}
 
-		    FAssetIdentifier ChildId = Pair.Key;
-		    int32 ChildProvSize = 0;
-		    if (InNodeInfos[ChildId].IsFirstParent(InAssetId))
-		   	{
-		   		ChildProvSize = InNodeInfos[ChildId].ProvisionSize(InAssetId);
-		   	}
-		   	else if (Settings->GetFindPathEnabled())
-		   	{
-		   		ChildProvSize = 1;
-		   	}
-		   	else if (InNodeInfos[ChildId].PassedFilters && Settings->IsShowDuplicates())
-		   	{
-		   		ChildProvSize = 1;
-		   	}
+			FAssetIdentifier ChildId = Pair.Key;
+			int32 ChildProvSize = 0;
+			if (InNodeInfos[ChildId].IsFirstParent(InAssetId))
+			{
+				ChildProvSize = InNodeInfos[ChildId].ProvisionSize(InAssetId);
+			}
+			else if (Settings->GetFindPathEnabled())
+			{
+				ChildProvSize = 1;
+			}
+			else if (InNodeInfos[ChildId].PassedFilters && Settings->IsShowDuplicates())
+			{
+				ChildProvSize = 1;
+			}
 
-		    // The provision size will always be at least 1 if it should be shown, factoring in filters, breadth, duplicates, etc.
-		   	if (ChildProvSize > 0)
-		    {
+			// The provision size will always be at least 1 if it should be shown, factoring in filters, breadth, duplicates, etc.
+			if (ChildProvSize > 0)
+			{
 				ChildLoc.Y += (ChildProvSize - 1) * NodeSizeY * 0.5;
 
-				UEdGraphNode_Reference* ChildNode = RecursivelyCreateNodes(bInReferencers, ChildId, ChildLoc, InAssetId, NewNode, InNodeInfos, InCurrentDepth + 1, InMaxDepth);	
+				UEdGraphNode_Reference* ChildNode = RecursivelyCreateNodes(bInReferencers, ChildId, ChildLoc, InAssetId, NewNode, InNodeInfos, CurrentDepth + 1, CurrentMaxDepth);
 
 				if (bInReferencers)
 				{
@@ -946,7 +1020,7 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::RecursivelyCreateNodes(bool bI
 
 				ChildLoc.Y += NodeSizeY * (ChildProvSize + 1) * 0.5;
 				Breadth ++;
-		    }
+			}
 		}
 
 		// There were more references than allowed to be displayed. Make a collapsed node.
@@ -966,7 +1040,7 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::RecursivelyCreateNodes(bool bI
 					const TPair<FAssetIdentifier, EDependencyPinCategory>& OverflowNodePair = NodeInfo.Children[Breadth];
 
 					const FAssetIdentifier& OverflowNodeAssetId = OverflowNodePair.Key;
-					OverflowNode = RecursivelyCreateNodes(bInReferencers, OverflowNodeAssetId, ChildLoc, NodeInfo.AssetId, NewNode, InNodeInfos, InCurrentDepth + 1, InMaxDepth);
+					OverflowNode = RecursivelyCreateNodes(bInReferencers, OverflowNodeAssetId, ChildLoc, NodeInfo.AssetId, NewNode, InNodeInfos, CurrentDepth + 1, CurrentMaxDepth);
 				}
 			}
 
