@@ -254,7 +254,7 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				{
 					for (int32 I = 0; I < NumElems; ++I)
 					{
-						uint32 ResultValue = 76 * BaseBuf[3*I + 0] + 150 * BaseBuf[3*I + 1] + 29 * BaseBuf[3*I + 2];
+						uint32 ResultValue = 77 * BaseBuf[3*I + 0] + 150 * BaseBuf[3*I + 1] + 29 * BaseBuf[3*I + 2];
 						DestBuf[I] = (uint8)FMath::Min(255u, ResultValue >> 8);
 					}
 				});
@@ -271,7 +271,7 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				{
 					for (int32 I = 0; I < NumElems; ++I)
 					{
-						uint32 ResultValue = 76 * BaseBuf[3*I + 0] + 150 * BaseBuf[3*I + 1] + 29 * BaseBuf[3*I + 2];
+						uint32 ResultValue = 77 * BaseBuf[3*I + 0] + 150 * BaseBuf[3*I + 1] + 29 * BaseBuf[3*I + 2];
 						DestBuf[I] = (uint8)FMath::Min(255u, ResultValue >> 8);
 					}
 				});
@@ -287,7 +287,7 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				{
 					for (int32 I = 0; I < NumElems; ++I)
 					{
-						uint32 ResultValue = 76 * BaseBuf[4*I + 0] + 150 * BaseBuf[4*I + 1] + 29 * BaseBuf[4*I + 2];
+						uint32 ResultValue = 77 * BaseBuf[4*I + 0] + 150 * BaseBuf[4*I + 1] + 29 * BaseBuf[4*I + 2];
 						DestBuf[I] = (uint8)FMath::Min(255u, ResultValue >> 8);
 					}
 				});
@@ -303,8 +303,8 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				{
 					for (int32 I = 0; I < NumElems; ++I)
 					{
-						uint32 ResultValue = 76 * BaseBuf[4*I + 0] + 150 * BaseBuf[4*I + 1] + 29 * BaseBuf[4*I + 2];
-						DestBuf[I] = (uint8)FMath::Min(255u, ResultValue >> 8);
+						uint32 ResultValue = 77 * BaseBuf[4*I + 0] + 150 * BaseBuf[4*I + 1] + 29 * BaseBuf[4*I + 2];
+						DestBuf[I] = uint8( ResultValue >> 8);
 					}
 				});
 
@@ -319,8 +319,8 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				{
 					for (int32 I = 0; I < NumElems; ++I)
 					{
-						uint32 ResultValue = 76 * BaseBuf[4*I + 2] + 150 * BaseBuf[4*I + 1] + 29 * BaseBuf[4*I + 0];
-						DestBuf[I] = (uint8)FMath::Min(255u, ResultValue >> 8);
+						uint32 ResultValue = 77 * BaseBuf[4*I + 2] + 150 * BaseBuf[4*I + 1] + 29 * BaseBuf[4*I + 0];
+						DestBuf[I] = uint8(ResultValue >> 8);
 					}
 				});
 
@@ -337,8 +337,8 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				{
 					for (int32 I = 0; I < NumElems; ++I)
 					{
-						uint32 ResultValue = 76 * BaseBuf[3*I + 0] + 150 * BaseBuf[3*I + 1] + 29 * BaseBuf[3*I + 2];
-						DestBuf[I] = (uint8)FMath::Min(255u, ResultValue >> 8);
+						uint32 ResultValue = 77 * BaseBuf[3*I + 0] + 150 * BaseBuf[3*I + 1] + 29 * BaseBuf[3*I + 2];
+						DestBuf[I] = uint8(ResultValue >> 8);
 					}
 				});
 

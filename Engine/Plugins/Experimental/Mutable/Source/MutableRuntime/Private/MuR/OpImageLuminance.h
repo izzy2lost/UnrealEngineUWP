@@ -36,8 +36,8 @@ namespace mu
             {
                 for (int32 I = 0; I < NumElems; ++I)
                 {
-                    const uint16 L = (76*ABuf[3*I + 0] + 150*ABuf[3*I + 1] + 29*ABuf[3*I + 2]);
-                    DestBuf[I] = uint8(L / 255);
+                    const uint16 L = (77*ABuf[3*I + 0] + 150*ABuf[3*I + 1] + 29*ABuf[3*I + 2]);
+                    DestBuf[I] = uint8(L >> 8);
                 }
                 break;
             }
@@ -46,8 +46,8 @@ namespace mu
             {
                 for (int32 I = 0; I < NumElems; ++I)
                 {
-                    const uint16 L = (76*ABuf[4*I + 0] + 150*ABuf[4*I + 1] + 29*ABuf[4*I + 2]);
-                    DestBuf[I] = uint8(L / 255);
+                    const uint16 L = (77*ABuf[4*I + 0] + 150*ABuf[4*I + 1] + 29*ABuf[4*I + 2]);
+                    DestBuf[I] = uint8(L >> 8);
                 }
                 break;
             }
@@ -56,8 +56,8 @@ namespace mu
             {
                 for (int32 I = 0; I < NumElems; ++I)
                 {
-                    const uint16 L = (76*ABuf[4*I + 2] + 150*ABuf[4*I + 1] + 29*ABuf[4*I + 0]);
-                    DestBuf[I] = uint8(L / 255);
+                    const uint16 L = (77*ABuf[4*I + 2] + 150*ABuf[4*I + 1] + 29*ABuf[4*I + 0]);
+                    DestBuf[I] = uint8(L >> 8);
                 }
                 break;
             }
