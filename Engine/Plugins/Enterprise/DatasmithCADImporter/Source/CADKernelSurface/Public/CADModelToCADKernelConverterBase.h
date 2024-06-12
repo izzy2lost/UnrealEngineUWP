@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "DatasmithImportOptions.h"
 #include "CADKernelSurfaceExtension.h"
 #include "CADKernelTools.h"
 #include "CADModelConverter.h"
@@ -22,12 +23,9 @@ class FCADModelToCADKernelConverterBase : public CADLibrary::ICADModelConverter
 {
 public:
 
-	FCADModelToCADKernelConverterBase(CADLibrary::FImportParameters InImportParameters)
-		: CADKernelSession(0.01)
+	FCADModelToCADKernelConverterBase(const CADLibrary::FImportParameters& InImportParameters)
+		: CADKernelSession(GeometricTolerance)
 		, ImportParameters(InImportParameters)
-		, GeometricTolerance(0.01)
-		, SquareTolerance(GeometricTolerance* GeometricTolerance)
-		, EdgeLengthTolerance(2 * GeometricTolerance)
 	{
 	}
 
@@ -42,7 +40,6 @@ public:
 		// Apply stitching if applicable
 		if(ImportParameters.GetStitchingTechnique() != StitchingNone)
 		{
-			const double StitchingTolerance = FImportParameters::GStitchingTolerance * 10.; //CM to MM
 			UE::CADKernel::FTopomakerOptions TopomakerOptions((UE::CADKernel::ESewOption)SewOption::GetFromImportParameters(), StitchingTolerance, FImportParameters::GStitchingForceFactor);
 
 			UE::CADKernel::FTopomaker Topomaker(CADKernelSession, TopomakerOptions);
@@ -71,7 +68,7 @@ public:
 	{
 		UE::CADKernel::FModel& Model = CADKernelSession.GetModel();
 		
-		CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters);
+		CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters, CADKernelSession.GetGeometricTolerance());
 
 		return CADLibrary::FCADKernelTools::Tessellate(Model, Context, OutMeshDescription);
 	}
@@ -94,12 +91,23 @@ public:
 	}
 
 protected:
+	void SetTolerances(double InGeometryTolerance = 0.01, double InStitchingTolerance = 0.01)
+	{
+		GeometricTolerance = InGeometryTolerance;
+		SquareTolerance = GeometricTolerance * GeometricTolerance;
+		StitchingTolerance = InStitchingTolerance;
+		EdgeLengthTolerance = 2. * GeometricTolerance;
+		CADKernelSession.SetGeometricTolerance(InGeometryTolerance);
+	}
+
+protected:
 
 	UE::CADKernel::FSession CADKernelSession;
 
 	CADLibrary::FImportParameters ImportParameters;
-	double GeometricTolerance;
-	double SquareTolerance;
-	double EdgeLengthTolerance;
+	double GeometricTolerance = 0.01;
+	double SquareTolerance = 0.0001;
+	double EdgeLengthTolerance = 0.02;
+	double StitchingTolerance = 0.01;
 };
 

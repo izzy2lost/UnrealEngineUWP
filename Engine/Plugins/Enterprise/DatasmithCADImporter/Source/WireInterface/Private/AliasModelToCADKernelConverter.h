@@ -65,7 +65,6 @@ protected:
 protected:
 	int32 LastFaceId = 1;
 	TMap<void*, TSharedPtr<UE::CADKernel::FTopologicalEdge>>  AlEdge2CADKernelEdge;
-	double StitchingTolerance;
 };
 
 }

@@ -32,9 +32,10 @@ class FOpenNurbsBRepToCADKernelConverter : public FCADModelToCADKernelConverterB
 {
 public:
 
-	FOpenNurbsBRepToCADKernelConverter(const CADLibrary::FImportParameters& InImportParameters)
+	FOpenNurbsBRepToCADKernelConverter(const CADLibrary::FImportParameters& InImportParameters, const FDatasmithTessellationOptions& Options)
 		: FCADModelToCADKernelConverterBase(InImportParameters)
 	{
+		SetTolerances(Options.GetGeometricTolerance(true), Options.GetStitchingTolerance(true));
 	}
 
 	virtual ~FOpenNurbsBRepToCADKernelConverter() = default;
@@ -46,8 +47,6 @@ public:
 	 * @param  Offset translate BRep by this value before tessellating
 	 */
 	bool AddBRep(ON_Brep& Brep, const ON_3dVector& Offset);
-
-	static TSharedPtr<FOpenNurbsBRepToCADKernelConverter> GetSharedSession();
 
 private:
 	TSharedPtr<UE::CADKernel::FTopologicalFace> AddFace(const ON_BrepFace& OpenNurbsFace);

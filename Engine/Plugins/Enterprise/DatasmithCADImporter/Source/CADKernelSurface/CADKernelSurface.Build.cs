@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public CADKernelSurface(ReadOnlyTargetRules Target) : base(Target)
 		{
+			OptimizeCode = CodeOptimization.Never;
+
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{

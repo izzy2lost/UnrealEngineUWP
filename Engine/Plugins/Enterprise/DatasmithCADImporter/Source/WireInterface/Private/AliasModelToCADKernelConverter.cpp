@@ -116,11 +116,7 @@ namespace AliasToCADKernelUtils
 FAliasModelToCADKernelConverter::FAliasModelToCADKernelConverter(const FDatasmithTessellationOptions& Options, CADLibrary::FImportParameters InImportParameters)
 	: FCADModelToCADKernelConverterBase(InImportParameters)
 {
-	GeometricTolerance = UE_TO_CADKERNEL(Options.GeometricTolerance);
-	SquareTolerance = GeometricTolerance * GeometricTolerance;
-	CADKernelSession.SetGeometricTolerance(GeometricTolerance);
-	StitchingTolerance = UE_TO_CADKERNEL(Options.StitchingTolerance);
-	EdgeLengthTolerance = 2. * GeometricTolerance;
+	SetTolerances(Options.GetGeometricTolerance(true), Options.GetStitchingTolerance(true));
 }
 
 TSharedPtr<UE::CADKernel::FTopologicalEdge> FAliasModelToCADKernelConverter::AddEdge(const AlTrimCurve& AliasTrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface)
