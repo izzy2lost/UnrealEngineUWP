@@ -14,6 +14,9 @@ struct PCG_API FEnumSelector
 
 	UPROPERTY(DisplayName="Enum Value")
 	int64 Value = 0;
+
+	FText GetDisplayName() const;
+	FString GetCultureInvariantDisplayName() const;
 };
 
 UENUM()

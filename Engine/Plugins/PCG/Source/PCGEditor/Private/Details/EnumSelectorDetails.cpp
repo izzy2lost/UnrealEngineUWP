@@ -330,7 +330,7 @@ FText FEnumSelectorDetails::GetSelectedEnumClassText() const
 FText FEnumSelectorDetails::GetSelectedEnumValueText() const
 {
 	const FEnumSelector* Selector = GetEnumSelector();
-	return Selector->Class ? StripEnumClassName(Selector->Class->GetNameByValue(Selector->Value)) : FText();
+	return FText::AsCultureInvariant(Selector->GetCultureInvariantDisplayName());
 }
 
 #undef LOCTEXT_NAMESPACE

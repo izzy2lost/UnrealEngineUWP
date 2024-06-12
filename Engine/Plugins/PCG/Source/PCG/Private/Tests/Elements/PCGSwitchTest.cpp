@@ -169,7 +169,7 @@ bool FPCGSwitchTest_Enum::RunTest(const FString& Parameters)
 		}
 		else
 		{
-			UTEST_TRUE("Enum selection is valid", ValidateOutput(OutputData, FName(TestSettings->EnumSelection.Class->GetDisplayNameTextByIndex(i).ToString())));
+			UTEST_TRUE("Enum selection is valid", ValidateOutput(OutputData, FName(TestSettings->EnumSelection.GetCultureInvariantDisplayName())));
 		}
 	}
 

@@ -29,6 +29,14 @@ void UPCGMultiSelectSettings::PostLoad()
 		if (OuterNode)
 		{
 			TArray<UPCGPin*> SerializedInputPins = OuterNode->GetInputPins();
+
+			// We need to remove the override pins, find the overrides pin index and remove all following
+			const int32 OverridesPinIndex = SerializedInputPins.IndexOfByPredicate([](const UPCGPin* Pin) { return Pin && Pin->Properties.Label == PCGPinConstants::DefaultParamsLabel; });
+			if (OverridesPinIndex != INDEX_NONE)
+			{
+				SerializedInputPins.SetNum(OverridesPinIndex);
+			}
+
 			// It we have a num mismatch, we can't recover
 			if (SerializedInputPins.Num() == CachedPinLabels.Num())
 			{
@@ -116,7 +124,7 @@ FString UPCGMultiSelectSettings::GetAdditionalTitleInformation() const
 				FString Subtitle = EnumSelection.Class->GetName();
 				if (!IsPropertyOverriddenByPin({GET_MEMBER_NAME_CHECKED(UPCGMultiSelectSettings, EnumSelection), GET_MEMBER_NAME_CHECKED(FEnumSelector, Value)}))
 				{
-					Subtitle += FString::Format(TEXT(": {0}"), {EnumSelection.Class->GetNameStringByValue(EnumSelection.Value)});
+					Subtitle += FString::Format(TEXT(": {0}"), { EnumSelection.GetCultureInvariantDisplayName() });
 				}
 
 				return Subtitle;
@@ -174,7 +182,8 @@ TArray<FPCGPinProperties> UPCGMultiSelectSettings::InputPinProperties() const
 
 				if (!bHidden)
 				{
-					PinProperties.Emplace(EnumSelection.Class->GetNameByIndex(Index));
+					const FString EnumDisplayName = EnumSelection.Class->GetDisplayNameTextByIndex(Index).BuildSourceString();
+					PinProperties.Emplace(FName(EnumDisplayName));
 				}
 			}
 			break;
@@ -244,7 +253,7 @@ bool UPCGMultiSelectSettings::GetSelectedPinLabel(FName& OutSelectedPinLabel) co
 	else if (SelectionMode == EPCGControlFlowSelectionMode::Enum && IsValuePresent(EnumSelection.Value))
 	{
 		// To account for hidden enums missing from the pin properties, find the pin by label instead of index
-		const FName PinLabel = EnumSelection.Class->GetNameByValue(EnumSelection.Value);
+		const FName PinLabel(EnumSelection.GetCultureInvariantDisplayName());
 		for (int i = 0; i < CachedPinLabels.Num(); ++i)
 		{
 			if (CachedPinLabels[i] == PinLabel)

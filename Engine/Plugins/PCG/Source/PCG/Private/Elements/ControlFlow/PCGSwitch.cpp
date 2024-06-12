@@ -116,7 +116,7 @@ FString UPCGSwitchSettings::GetAdditionalTitleInformation() const
 				FString Subtitle = EnumSelection.Class->GetName();
 				if (!IsPropertyOverriddenByPin({GET_MEMBER_NAME_CHECKED(UPCGSwitchSettings, EnumSelection), GET_MEMBER_NAME_CHECKED(FEnumSelector, Value)}))
 				{
-					Subtitle += FString::Format(TEXT(": {0}"), {EnumSelection.Class->GetNameStringByValue(EnumSelection.Value)});
+					Subtitle += FString::Format(TEXT(": {0}"), { EnumSelection.GetCultureInvariantDisplayName() });
 				}
 
 				return Subtitle;
@@ -210,7 +210,8 @@ TArray<FPCGPinProperties> UPCGSwitchSettings::OutputPinProperties() const
 
 				if (!bHidden)
 				{
-					PinProperties.Emplace(EnumSelection.Class->GetNameByIndex(Index));
+					const FString EnumDisplayName = EnumSelection.Class->GetDisplayNameTextByIndex(Index).BuildSourceString();
+					PinProperties.Emplace(FName(EnumDisplayName));
 				}
 			}
 			break;
@@ -278,7 +279,7 @@ int UPCGSwitchSettings::GetSelectedOutputPinIndex() const
 	else if (SelectionMode == EPCGControlFlowSelectionMode::Enum)
 	{
 		// A "hidden" value could be selected that wasn't cached, so do a name-wise comparison
-		const FName PinLabel = EnumSelection.Class->GetNameByValue(EnumSelection.Value);
+		const FName PinLabel(EnumSelection.GetCultureInvariantDisplayName());
 
 		// Return index if found, otherwise fallback to the index after the options which will be "Default" pin.
 		const int FoundIndex = CachedPinLabels.IndexOfByKey(PinLabel);
@@ -307,7 +308,7 @@ bool UPCGSwitchSettings::GetSelectedPinLabel(FName& OutSelectedPinLabel) const
 	else if (SelectionMode == EPCGControlFlowSelectionMode::Enum && IsValuePresent(EnumSelection.Value))
 	{
 		// A "hidden" value could be selected that wasn't cached, so do a name-wise comparison
-		const FName PinLabel = EnumSelection.Class->GetNameByValue(EnumSelection.Value);
+		const FName PinLabel(EnumSelection.GetCultureInvariantDisplayName());
 		for (int i = 0; i < CachedPinLabels.Num(); ++i)
 		{
 			if (CachedPinLabels[i] == PinLabel)
