@@ -380,6 +380,11 @@ struct FFragmentObserverTest_MultipleArchetypeAdd : FFragmentTestBase
 		{
 			EntityManager->Defer().AddFragment<FFragmentStruct>(ModifiedEntity);
 		}
+		// also adding the fragment to the other archetype that already has the fragment. This should not yield any results
+		for (const FMassEntityHandle& OtherEntity : EntitiesIntsFloat)
+		{
+			EntityManager->Defer().AddFragment<FFragmentStruct>(OtherEntity);
+		}
 		return true;
 	}
 };
@@ -391,7 +396,7 @@ struct FFragmentObserverTest_MultipleArchetypeRemove : FFragmentTestBase
 
 	virtual bool PerformOperation() override
 	{
-		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesInt[1] };
+		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesIntsFloat[1] };
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
 			EntityManager->Defer().AddFragment<FFragmentStruct>(ModifiedEntity);
@@ -414,7 +419,7 @@ struct FFragmentObserverTest_MultipleArchetypeDestroy : FFragmentTestBase
 
 	virtual bool PerformOperation() override
 	{
-		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesInt[1] };
+		ExpectedEntities = { EntitiesInt[0], EntitiesInt[2], EntitiesIntsFloat[1] };
 		for (const FMassEntityHandle& ModifiedEntity : ExpectedEntities)
 		{
 			EntityManager->Defer().AddFragment<FFragmentStruct>(ModifiedEntity);

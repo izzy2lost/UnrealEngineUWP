@@ -238,8 +238,11 @@ struct FEntityCollection_CreateWithInvalidDuplicatesWithPayload : FEntityCollect
 		// transform typed payload array into generic one for sorting purposes
 		FStructArrayView PaloadView(Payload);
 		TArray<FMassArchetypeEntityCollectionWithPayload> Result;
-		FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(*EntityManager, EntitiesSubSet, FMassArchetypeEntityCollection::FoldDuplicates
-			, FMassGenericPayloadView(MakeArrayView(&PaloadView, 1)), Result);
+		{
+			AITEST_SCOPED_CHECK("Invalid entity handle passed in", 2);
+			FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(*EntityManager, EntitiesSubSet, FMassArchetypeEntityCollection::FoldDuplicates
+				, FMassGenericPayloadView(MakeArrayView(&PaloadView, 1)), Result);
+		}
 
 		AITEST_EQUAL(TEXT("We expect only a single result"), Result.Num(), 1);
 		AITEST_EQUAL(TEXT("We expect only a single resulting range"), Result[0].GetEntityCollection().GetRanges().Num(), 1);
