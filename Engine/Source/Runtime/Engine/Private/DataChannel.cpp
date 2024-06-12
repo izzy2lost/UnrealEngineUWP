@@ -3407,7 +3407,11 @@ int64 UActorChannel::ReplicateActor()
 	check(nullptr != Cast<UPackageMapClient>(Connection->PackageMap));
 
 	const UWorld* const ActorWorld = Actor->GetWorld();
-	checkf(ActorWorld, TEXT("ActorWorld for Actor [%s] is Null"), *GetPathNameSafe(Actor));
+	ensureMsgf(ActorWorld, TEXT("ActorWorld for Actor [%s] is Null"), *GetPathNameSafe(Actor));
+	if (ActorWorld == nullptr)
+	{
+		return 0;
+	}
 
 #if STATS || ENABLE_STATNAMEDEVENTS
 	UClass* ParentNativeClass = GetParentNativeClass(Actor->GetClass());
