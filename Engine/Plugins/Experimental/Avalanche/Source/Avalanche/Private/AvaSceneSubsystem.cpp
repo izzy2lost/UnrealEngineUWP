@@ -65,7 +65,7 @@ void UAvaSceneSubsystem::PostInitialize()
 		AAvaScene* SceneActor = nullptr;
 		if (Level && Level->Actors.FindItemByClass(&SceneActor))
 		{
-			RegisterSceneInterface(Level, SceneActor);
+			SceneActor->RegisterObjects();
 		}
 	}
 }

@@ -101,6 +101,9 @@ public:
 #endif
 	//~ End IAvaViewportDataProvider
 
+	void RegisterObjects();
+	void UnregisterObjects();
+
 protected:
 	UPROPERTY()
 	FAvaSceneTree SceneTree;

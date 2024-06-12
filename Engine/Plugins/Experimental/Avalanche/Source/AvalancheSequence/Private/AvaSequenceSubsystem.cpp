@@ -110,6 +110,33 @@ void UAvaSequenceSubsystem::RemovePlaybackObject(IAvaSequencePlaybackObject* InP
 	PlaybackObjects.Remove(InPlaybackObject);
 }
 
+IAvaSequenceProvider* UAvaSequenceSubsystem::FindSequenceProvider(const ULevel* InLevel) const
+{
+	if (const TWeakInterfacePtr<IAvaSequenceProvider>* SequenceProvider = SequenceProviders.Find(InLevel))
+	{
+		return SequenceProvider->Get();
+	}
+	return nullptr;
+}
+
+void UAvaSequenceSubsystem::RegisterSequenceProvider(const ULevel* InLevel, IAvaSequenceProvider* InSequenceProvider)
+{
+	SequenceProviders.FindOrAdd(InLevel) = InSequenceProvider;
+}
+
+bool UAvaSequenceSubsystem::UnregisterSequenceProvider(const ULevel* InLevel, IAvaSequenceProvider* InSequenceProvider)
+{
+	if (TWeakInterfacePtr<IAvaSequenceProvider>* SequenceProvider = SequenceProviders.Find(InLevel))
+	{
+		if (*SequenceProvider == InSequenceProvider)
+		{
+			SequenceProviders.Remove(InLevel);
+			return true;
+		}
+	}
+	return false;
+}
+
 bool UAvaSequenceSubsystem::DoesSupportWorldType(const EWorldType::Type InWorldType) const
 {
 	const bool bDisallowedWorld = UE::AvaSequence::Private::GUnsupportedWorlds.Contains(InWorldType);
