@@ -419,7 +419,17 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 					GHttpRetryCount.Get(),
 					GHttpPendingCount.Get()
 				);
-				Out.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, Message);
+				Out.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, MoveTemp(Message));
+
+				if (GIoDecodeErrorCount.Get() > 0 || GHttpErrorCount.Get() > 0)
+				{
+					FText Warning = FText::Format(LOCTEXT("IASWarning", "IAS - Decode Errors {0} | Http Errors {1}"),
+						GIoDecodeErrorCount.Get(),
+						GHttpErrorCount.Get()
+					);
+
+					Out.Add(FCoreDelegates::EOnScreenMessageSeverity::Error, MoveTemp(Warning));
+				}
 			}
 		});
 #undef LOCTEXT_NAMESPACE
