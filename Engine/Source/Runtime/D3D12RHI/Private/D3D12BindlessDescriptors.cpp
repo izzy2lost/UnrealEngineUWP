@@ -378,10 +378,11 @@ void FD3D12BindlessResourceManager::UpdateDescriptor(FD3D12ContextArray const& C
 				{
 					FD3D12CommandContext& Context = *ContextBase->GetSingleDeviceContext(GPUIndex);
 					Context.GetBindlessState().bRequestNewGpuHeap = true;
-					check(Context.IsDefaultContext() || !IsRunningRHIInSeparateThread());
+					check(!Context.GetExecutingCommandList().AllowParallelTranslate());
 				}
 			}
 
+			bRequestNewActiveGpuHeap = true;
 			ActiveGpuHeaps[ActiveGpuHeapIndex].UpdatedHandles.Add(DstHandle);
 		}
 
@@ -452,19 +453,6 @@ void FD3D12BindlessResourceManager::FinalizeContext(FD3D12CommandContext& Contex
 	// (can happen due to texture reference updates not adding any real GPU work)
 	FinalizeHeapOnState(State);
 
-	if (State.UsedHeaps.Num() > 0)
-	{
-		for (const FD3D12DescriptorHeapPtr& UsedHeap : State.UsedHeaps)
-		{
-			checkSlow(UsedHeap);
-
-			// Now queue it up for recycle when GPU is done
-			UE::D3D12BindlessDescriptors::DeferredFreeHeap(GetParentDevice(), UsedHeap);
-		}
-
-		State.UsedHeaps.Empty();
-	}
-
 	check(!Context.GetBindlessState().HasAnyPending());
 }
 
@@ -525,77 +513,88 @@ void FD3D12BindlessResourceManager::AssignHeapToState(FD3D12ContextBindlessState
 
 void FD3D12BindlessResourceManager::FinalizeHeapOnState(FD3D12ContextBindlessState& State)
 {
-	if (State.bRequestNewGpuHeap)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::FinalizeHeapOnState");
-
-		check(IsInRHIThread() || GRHICommandList.Bypass());
-
-		FScopeLock ScopeLock(&GpuHeapsCS);
-
-		check(ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap == State.CurrentGpuHeap || State.CurrentGpuHeap == nullptr);
-
-		// Update the the last used garbage collect cycle before moving over to a new heap
-		ActiveGpuHeaps[ActiveGpuHeapIndex].LastUsedGarbageCollectCycle = GarbageCollectCycle;
-
-		// Move the current heap as used previous heaps so it can be garbage collected
-		// (Contains valid data upto this point in time)
-		State.UsedHeaps.Emplace(ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap);
-
-		int32 NumGpuHeaps = ActiveGpuHeaps.Num();
-
-		// Copy over dirty handles to all other heaps so they are updated when reused as well
-		for (int32 GpuHeapIndex = 0; GpuHeapIndex < NumGpuHeaps; ++GpuHeapIndex)
-		{
-			if (GpuHeapIndex != ActiveGpuHeapIndex)
-			{
-				ActiveGpuHeaps[GpuHeapIndex].UpdatedHandles.Append(ActiveGpuHeaps[ActiveGpuHeapIndex].UpdatedHandles);
-			}
-		}
-
-		// Try and reuse a pooled heap (incremented from last used to reduce the possible spike on reuse of lots of heap and dirty handle increase)
-		int32 NewActiveGpuHeapIndex = -1;
-		for (int32 NextIndex = 1; NextIndex < NumGpuHeaps; ++NextIndex)
-		{
-			int32 GpuHeapIndex = (ActiveGpuHeapIndex + NextIndex) % NumGpuHeaps;
-
-			// Not used by the GPU anymore and not the current one
-			if (GpuHeapIndex != ActiveGpuHeapIndex && !ActiveGpuHeaps[GpuHeapIndex].bInUse)
-			{
-				NewActiveGpuHeapIndex = GpuHeapIndex;
-				break;
-			}
-		}
-
-		// Found a pooled heap, then copy over the dirty descriptor handles
-		if (NewActiveGpuHeapIndex >= 0)
-		{
-			// NOTE: copying over duplicate descriptor entries is faster then adding them to set for reduction
-			//		 CitySample there is about 2 to 4 times duplication but still faster to copy all then deduplication
-
-			FGpuHeapData& GpuHeapData = ActiveGpuHeaps[NewActiveGpuHeapIndex];
-			INC_DWORD_STAT_BY(STAT_D3D12BindlessResourceGPUDescriptorsCopied, GpuHeapData.UpdatedHandles.Num());
-
-			UE::D3D12Descriptors::CopyDescriptors(GetParentDevice(), GpuHeapData.GpuHeap, CpuHeap, GpuHeapData.UpdatedHandles);
-			GpuHeapData.UpdatedHandles.Reset();
-
-			// Mark in use by GPU again
-			GpuHeapData.bInUse = true;
-			UpdateInUseGPUHeaps(true);
-		}
-		else
-		{
-			NewActiveGpuHeapIndex = AddActiveGPUHeap();
-		}
-
-		// Update the active gpu index
-		ActiveGpuHeapIndex = NewActiveGpuHeapIndex;
-		INC_DWORD_STAT(STAT_D3D12BindlessResourceHeapsVersioned);
-	}
+	// Possibly version the GPU heap if it not requested by another queue yet
+	CheckRequestNewActiveGPUHeap();
 
 	// Clear the state data
 	State.CurrentGpuHeap = nullptr;
 	State.bRequestNewGpuHeap = false;
+}
+
+void FD3D12BindlessResourceManager::CheckRequestNewActiveGPUHeap()
+{
+	if (!bRequestNewActiveGpuHeap)
+	{
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::RequestNewActiveGPUHeap");
+
+	FScopeLock ScopeLock(&GpuHeapsCS);
+
+	if (!bRequestNewActiveGpuHeap)
+	{
+		return;
+	}
+
+	// Update the the last used garbage collect cycle before moving over to a new heap
+	ActiveGpuHeaps[ActiveGpuHeapIndex].LastUsedGarbageCollectCycle = GarbageCollectCycle;
+
+	// Queue the heap for recycle when the GPU is done using it
+	UE::D3D12BindlessDescriptors::DeferredFreeHeap(GetParentDevice(), ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap);
+
+	int32 NumGpuHeaps = ActiveGpuHeaps.Num();
+
+	// Copy over dirty handles to all other heaps so they are updated when reused as well
+	for (int32 GpuHeapIndex = 0; GpuHeapIndex < NumGpuHeaps; ++GpuHeapIndex)
+	{
+		if (GpuHeapIndex != ActiveGpuHeapIndex)
+		{
+			ActiveGpuHeaps[GpuHeapIndex].UpdatedHandles.Append(ActiveGpuHeaps[ActiveGpuHeapIndex].UpdatedHandles);
+		}
+	}
+
+	// Try and reuse a pooled heap (incremented from last used to reduce the possible spike on reuse of lots of heap and dirty handle increase)
+	int32 NewActiveGpuHeapIndex = -1;
+	for (int32 NextIndex = 1; NextIndex < NumGpuHeaps; ++NextIndex)
+	{
+		int32 GpuHeapIndex = (ActiveGpuHeapIndex + NextIndex) % NumGpuHeaps;
+
+		// Not used by the GPU anymore and not the current one
+		if (GpuHeapIndex != ActiveGpuHeapIndex && !ActiveGpuHeaps[GpuHeapIndex].bInUse)
+		{
+			NewActiveGpuHeapIndex = GpuHeapIndex;
+			break;
+		}
+	}
+
+	// Found a pooled heap, then copy over the dirty descriptor handles
+	if (NewActiveGpuHeapIndex >= 0)
+	{
+		// NOTE: copying over duplicate descriptor entries is faster then adding them to set for reduction
+		//		 CitySample there is about 2 to 4 times duplication but still faster to copy all then deduplication
+
+		FGpuHeapData& GpuHeapData = ActiveGpuHeaps[NewActiveGpuHeapIndex];
+		INC_DWORD_STAT_BY(STAT_D3D12BindlessResourceGPUDescriptorsCopied, GpuHeapData.UpdatedHandles.Num());
+
+		UE::D3D12Descriptors::CopyDescriptors(GetParentDevice(), GpuHeapData.GpuHeap, CpuHeap, GpuHeapData.UpdatedHandles);
+		GpuHeapData.UpdatedHandles.Reset();
+
+		// Mark in use by GPU again
+		GpuHeapData.bInUse = true;
+		UpdateInUseGPUHeaps(true);
+	}
+	else
+	{
+		NewActiveGpuHeapIndex = AddActiveGPUHeap();
+	}
+
+	// clear the request
+	bRequestNewActiveGpuHeap = false;
+
+	// Update the active gpu index
+	ActiveGpuHeapIndex = NewActiveGpuHeapIndex;
+	INC_DWORD_STAT(STAT_D3D12BindlessResourceHeapsVersioned);
 }
 
 #endif // D3D12RHI_CUSTOM_BINDLESS_RESOURCE_MANAGER

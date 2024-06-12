@@ -60,9 +60,6 @@ struct FD3D12ContextBindlessState
 	FD3D12DescriptorHeapPtr CurrentGpuHeap;
 	bool                    bRequestNewGpuHeap = false;
 
-	// All heaps used on the context. Used for lifetime management.
-	TArray<FD3D12DescriptorHeapPtr> UsedHeaps;
-
 	FD3D12ContextBindlessState() = default;
 	~FD3D12ContextBindlessState()
 	{
@@ -71,7 +68,7 @@ struct FD3D12ContextBindlessState
 
 	bool HasAnyPending() const
 	{
-		return UsedHeaps.Num() > 0 || bRequestNewGpuHeap;
+		return bRequestNewGpuHeap;
 	}
 };
 
@@ -153,6 +150,7 @@ private:
 	void AssignHeapToState(FD3D12ContextBindlessState& State);
 	void FinalizeHeapOnState(FD3D12ContextBindlessState& State);
 
+	void CheckRequestNewActiveGPUHeap();
 	int AddActiveGPUHeap();
 	void ReleaseGPUHeaps();
 	void UpdateInUseGPUHeaps(bool bInUse);
@@ -163,6 +161,8 @@ private:
 
 	uint64 							GarbageCollectCycle = 0;
 	uint64							LastUsedExplicitHeapCycle = 0;
+
+	bool							bRequestNewActiveGpuHeap = false;
 
 	uint32							InUseGPUHeaps = 0;
 	uint32							MaxInUseGPUHeaps = 0;
