@@ -27,9 +27,9 @@ void PropagateVertexPaintToSkeletalMesh(USkeletalMesh* SkeletalMesh, int32 LODIn
 		int32 SoftVertexIndexes[3];
 	};
 
-	if (!SkeletalMesh || SkeletalMesh->HasMeshDescription(LODIndex))
+	if (!SkeletalMesh || !SkeletalMesh->HasMeshDescription(LODIndex))
 	{
-		//We do not propagate vertex color for old asset
+		// We do not propagate vertex color for LODs that don't have editable mesh data.
 		return;
 	}
 
