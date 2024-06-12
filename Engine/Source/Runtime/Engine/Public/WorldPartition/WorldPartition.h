@@ -769,8 +769,9 @@ public:
 		FGuid Guid;
 		FTransform Transform;
 		FBox Bounds;
-		int32 Priority;
+		int32 Priority = 0;
 		FString CellInstanceSuffix;
+		bool bBoundsPlacement = false;
 
 		bool IsValid() const
 		{
@@ -786,6 +787,7 @@ public:
 		FRegisterWorldAssetStreamingParams& SetBounds(const FBox& InBounds) { Bounds = InBounds; return *this; }
 		FRegisterWorldAssetStreamingParams& SetPriority(const int32& InPriority) { Priority = InPriority; return *this; }
 		FRegisterWorldAssetStreamingParams& SetCellInstanceSuffix(const FString& InCellInstanceSuffix) { CellInstanceSuffix = InCellInstanceSuffix; return *this; }
+		FRegisterWorldAssetStreamingParams& SetBoundsPlacement(bool bInBoundsPlacement) { bBoundsPlacement = bInBoundsPlacement; return *this; }
 	};
 
 	ENGINE_API bool SupportsWorldAssetStreaming(const FName& InTargetGrid);

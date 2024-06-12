@@ -1997,23 +1997,34 @@ FGuid UWorldPartitionRuntimeSpatialHash::RegisterWorldAssetStreaming(const UWorl
 		}
 
 		FSquare2DGridHelper::FGridLevel::FGridCell* GridCell = nullptr;
-		const FBox2D Bounds2D(FVector2D(InParams.Bounds.Min), FVector2D(InParams.Bounds.Max));
-
-		// Find grid level cell that encompasses the actor cluster bounding box and put actors in it.
-		const FVector ClusterSize = InParams.Bounds.GetSize();
-		const double MinRequiredCellExtent = FMath::Max(ClusterSize.X, ClusterSize.Y);
-		const int32 FirstPotentialGridLevel = FMath::Max(FMath::CeilToDouble(FMath::Log2(MinRequiredCellExtent / (double)CurrentGridHelper.CellSize)), 0);
-		for (int32 GridLevelIndex = FirstPotentialGridLevel; GridLevelIndex < CurrentGridHelper.Levels.Num(); GridLevelIndex++)
+		if (InParams.bBoundsPlacement)
 		{
-			FSquare2DGridHelper::FGridLevel& GridLevel = CurrentGridHelper.Levels[GridLevelIndex];
-			if (GridLevel.GetNumIntersectingCells(InParams.Bounds) == 1)
+			// Find grid level cell that encompasses the actor cluster bounding box and put actors in it.
+			const FVector ClusterSize = InParams.Bounds.GetSize();
+			const double MinRequiredCellExtent = FMath::Max(ClusterSize.X, ClusterSize.Y);
+			const int32 FirstPotentialGridLevel = FMath::Max(FMath::CeilToDouble(FMath::Log2(MinRequiredCellExtent / (double)CurrentGridHelper.CellSize)), 0);
+			for (int32 GridLevelIndex = FirstPotentialGridLevel; GridLevelIndex < CurrentGridHelper.Levels.Num(); GridLevelIndex++)
 			{
-				GridLevel.ForEachIntersectingCells(InParams.Bounds, [&GridLevel, &GridCell](const FGridCellCoord2& Coords)
+				FSquare2DGridHelper::FGridLevel& GridLevel = CurrentGridHelper.Levels[GridLevelIndex];
+				if (GridLevel.GetNumIntersectingCells(InParams.Bounds) == 1)
 				{
-					check(!GridCell);
-					GridCell = &GridLevel.GetCell(Coords);
-				});
-				break;
+					GridLevel.ForEachIntersectingCells(InParams.Bounds, [&GridLevel, &GridCell](const FGridCellCoord2& Coords)
+					{
+						check(!GridCell);
+						GridCell = &GridLevel.GetCell(Coords);
+					});
+					break;
+				}
+			}
+		}
+		else
+		{
+			const FBox2D Bounds2D(FVector2D(InParams.Bounds.Min), FVector2D(InParams.Bounds.Max));
+
+			FGridCellCoord2 CellCoords;
+			if (CurrentGridHelper.Levels[0].GetCellCoords(Bounds2D.GetCenter(), CellCoords))
+			{
+				GridCell = &CurrentGridHelper.Levels[0].GetCell(CellCoords);
 			}
 		}
 
