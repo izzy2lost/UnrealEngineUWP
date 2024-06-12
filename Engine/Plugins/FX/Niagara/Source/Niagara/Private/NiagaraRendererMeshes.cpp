@@ -1854,6 +1854,7 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingMaterialGa
 			}
 
 			RayTracingInstance.InstanceTransforms.Add(InstanceTransform);
+			RayTracingInstance.NumTransforms = 1;
 		}
 		else
 		{
