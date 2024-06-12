@@ -9,7 +9,8 @@ struct dtNavLinkBuilderJumpDownConfig
 	float jumpDistanceFromEdge = 10.f; 
 	float jumpMaxDepth = 150.f;
 	float jumpEndsHeightTolerance = 50.f;
-	float samplingSeparationFactor = 1.f;	
+	float samplingSeparationFactor = 1.f;
+	float filterDistanceThreshold = 80.f;
 };
 
 /** Configuration for generated jump over links. */
@@ -22,4 +23,5 @@ struct dtNavLinkBuilderJumpOverConfig
 	float jumpHeightTolerance = 100.f; 
 	float jumpEndsHeightTolerance = 50.f;
 	float samplingSeparationFactor = 1.f;
+	float filterDistanceThreshold = 80.f;
 };

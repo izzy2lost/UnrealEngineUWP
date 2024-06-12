@@ -197,6 +197,20 @@ namespace UE::Detour::NavLink::Private
 		dst[1] = ax[1]*pt[0] + ay[1]*pt[1];
 		dst[2] = ax[2]*pt[0] + ay[2]*pt[1];
 	}
+
+	static float getDistanceThreshold(const dtLinkBuilderConfig& config, const dtNavLinkAction action)
+	{
+		switch(action)
+		{
+		case DT_LINK_ACTION_JUMP_DOWN:
+			return config.jumpDownConfig.filterDistanceThreshold;
+		case DT_LINK_ACTION_JUMP_OVER:
+			return config.jumpOverConfig.filterDistanceThreshold;
+		default:
+			dtAssert(false);
+			return 100.f;
+		}
+	}
 }
 
 dtNavLinkBuilder::GroundSegment::~GroundSegment()
@@ -246,6 +260,9 @@ bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLi
 		{
 			const unsigned short* va = &c.verts[k*4];
 			const unsigned short* vb = &c.verts[j*4];
+
+			if ((va[3] & 0xf) != 0xf)	// A direction is set, so it's a portal edge.
+				continue;
 
 			// Check k-j for matching contour
 			bool matchFound = false;
@@ -297,7 +314,7 @@ bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLi
 	return true;
 }
 
-void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es)
+void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es, const int edgeIndex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::addEdgeLinks);
 	
@@ -330,7 +347,8 @@ void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, co
 		groundSampleFlags.Add(kernel[(nkernel+1)/2]);
 	}
 
-	const int agentRadiusVx = builderConfig.agentRadius / builderConfig.cellSize;
+	const dtReal edgeLength = dtVdist(es->rigp, es->rigq);
+	const dtReal distanceBetweenSamples = edgeLength / (es->start.ngsamples-1);
 	
 	// Build segments
 	int start = -1;
@@ -346,10 +364,11 @@ void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, co
 		{
 			if (!valid)
 			{
-				if (i - start > agentRadiusVx)
+				const dtReal freeWidth = ((i-start)-1)*distanceBetweenSamples;
+				if (freeWidth >= builderConfig.agentRadius)
 				{
-					const float u0 = (float)start/(float)nsamples;
-					const float u1 = (float)i/(float)nsamples;
+					const float u0 = (float)start/(float)(nsamples-1);
+					const float u1 = (float)(i-1)/(float)(nsamples-1);
 
 					dtReal sp[3], sq[3], ep[3], eq[3];
 
@@ -364,6 +383,9 @@ void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, co
 
 					JumpLink& link = m_links.Emplace_GetRef();
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+					link.debugSourceEdge = (short)edgeIndex;
+#endif
 					link.action = es->action;
 					link.flags = VALID;
 					link.nspine = es->trajectory.nspine;
@@ -404,19 +426,19 @@ void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, co
 	}
 }
 
-void dtNavLinkBuilder::filterJumpOverLinks()
+void dtNavLinkBuilder::filterOverlappingLinks(const float edgeDistanceThreshold)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::filterJumpOverLinks);
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::filterOverlappingLinks);
 	
 	using namespace UE::Detour::NavLink::Private;
 	
 	// Filter out links which overlap
-	const float thresholdSquared = dtSqr(m_chf->cs*5.0f);
+	const float thresholdSquared = dtSqr(edgeDistanceThreshold);
 	
 	for (int i = 0; i < m_links.Num()-1; ++i)
 	{
 		JumpLink& li = m_links[i];
-		if (li.flags == INVALID)
+		if (li.flags == FILTERED)
 			continue;
 		
 		const dtReal* spi = &li.spine0[0];
@@ -427,26 +449,29 @@ void dtNavLinkBuilder::filterJumpOverLinks()
 		for (int j = i+1; j < m_links.Num(); ++j)
 		{
 			JumpLink& lj = m_links[j];
-			if (lj.flags == INVALID)
+			if (lj.flags == FILTERED)
 				continue;
 			
 			const dtReal* spj = &lj.spine0[0];
 			const dtReal* sqj = &lj.spine1[0];
 			const dtReal* epj = &lj.spine0[(lj.nspine-1)*3];
 			const dtReal* eqj = &lj.spine1[(lj.nspine-1)*3];
+
+			const dtReal d0 = dtDistancePtSegSqr(spj, epi, eqi);
+			const dtReal d1 = dtDistancePtSegSqr(sqj, epi, eqi);
+			const dtReal d2 = dtDistancePtSegSqr(epj, spi, sqi);
+			const dtReal d3 = dtDistancePtSegSqr(eqj, spi, sqi);
 			
-			const dtReal d0 = distSegSegSqr(spi,sqi, epj,eqj);
-			const dtReal d1 = distSegSegSqr(epi,eqi, spj,sqj);
-			
-			if (d0 < thresholdSquared && d1 < thresholdSquared)
+			if (d0 < thresholdSquared && d1 < thresholdSquared && d2 < thresholdSquared && d3 < thresholdSquared)
 			{
+				// Remove one of the link, keeping the wider one
 				if (dtVdistSqr(spi,sqi) > dtVdistSqr(spj,sqj))
 				{
-					lj.flags = INVALID;
+					lj.flags = FILTERED;
 				}
 				else
 				{
-					li.flags = INVALID;
+					li.flags = FILTERED;
 					break;
 				}
 			}
@@ -462,13 +487,14 @@ void dtNavLinkBuilder::buildForAllEdges(rcContext& ctx, const dtLinkBuilderConfi
 		const bool success = sampleEdge(builderConfig, action, m_edges[i].sp, m_edges[i].sq, &sampler);
 		if (success)
 		{
-			addEdgeLinks(builderConfig, &sampler);
+			addEdgeLinks(builderConfig, &sampler, i);
 		}
 	}
 
 	ctx.log(RC_LOG_PROGRESS, "   %i links added.", m_links.Num());
 
-	filterJumpOverLinks();
+	const float distanceThreshold = UE::Detour::NavLink::Private::getDistanceThreshold(builderConfig, action);
+	filterOverlappingLinks(distanceThreshold);
 }
 
 void dtNavLinkBuilder::debugBuildEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction action, int edgeIndex, EdgeSampler& sampler)
@@ -483,15 +509,15 @@ void dtNavLinkBuilder::debugBuildEdge(const dtLinkBuilderConfig& builderConfig, 
 	const bool success = sampleEdge(builderConfig, action, m_edges[edgeIndex].sp, m_edges[edgeIndex].sq, &sampler);
 	if (success)
 	{
-		addEdgeLinks(builderConfig, &sampler);
+		addEdgeLinks(builderConfig, &sampler, edgeIndex);
 	}
 
-	filterJumpOverLinks();
+	const float distanceThreshold = UE::Detour::NavLink::Private::getDistanceThreshold(builderConfig, action);
+	filterOverlappingLinks(distanceThreshold);
 }
 
 bool dtNavLinkBuilder::getCompactHeightfieldHeight(const dtReal* pt, const dtReal hrange, dtReal* height) const
 {
-
 	const int chfWidth = m_chf->width;
 	const int chfHeight = m_chf->height;
 
@@ -863,13 +889,16 @@ int dtNavLinkBuilder::findPotentialJumpOverEdges(const dtReal* sp, const dtReal*
 	
 
 void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
-										const float jumpStartDist, const float jumpEndDist,
+										const float jumpStartDist, const float jumpLength,
 										const float jumpDownDist, const float groundRange)
 {
 	es->action = DT_LINK_ACTION_JUMP_DOWN;
+
+	// Set edge
 	dtVcopy(es->rigp, sp);
 	dtVcopy(es->rigq, sq);
-	
+
+	// Set axes
 	dtVsub(es->ax, sq, sp);
 	dtVnormalize(es->ax);
 	dtVset(es->az, es->ax[2], 0, -es->ax[0]);
@@ -882,7 +911,7 @@ void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const 
 	{
 		float* pt = &es->trajectory.spine[i*2];
 		const float u = (float)i/(float)(MAX_SPINE-1);
-		pt[0] = jumpStartDist + u * (jumpEndDist - jumpStartDist);
+		pt[0] = -jumpStartDist + (u*jumpLength);
 		pt[1] = u*u*u * jumpDownDist;
 	}
 
@@ -894,9 +923,12 @@ void dtNavLinkBuilder::initJumpOverRig(EdgeSampler* es, const dtReal* sp, const 
 										const float jumpHeight, const float groundRange)
 {
 	es->action = DT_LINK_ACTION_JUMP_OVER;
+
+	// Set edge
 	dtVcopy(es->rigp, sp);
 	dtVcopy(es->rigq, sq);
-	
+
+	// Set axes	
 	dtVsub(es->ax, sq, sp);
 	dtVnormalize(es->ax);
 	dtVset(es->az, es->ax[2], 0, -es->ax[0]);
@@ -928,11 +960,11 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 	{
 		const dtNavLinkBuilderJumpDownConfig& config = builderConfig.jumpDownConfig;
 		const float jumpStartDist = config.jumpDistanceFromEdge;
-		const float jumpEndDist = config.jumpLength;
+		const float jumpLength = config.jumpLength;
 		const float jumpDownDist = config.jumpMaxDepth;
 		const float groundRange = config.jumpEndsHeightTolerance;
 		samplingSeparationFactor = config.samplingSeparationFactor;
-		initJumpDownRig(es, sp, sq, -jumpStartDist, jumpEndDist, -jumpDownDist, groundRange);
+		initJumpDownRig(es, sp, sq, jumpStartDist, jumpLength, -jumpDownDist, groundRange);
 	}
 	else if (desiredAction == DT_LINK_ACTION_JUMP_OVER)
 	{
@@ -964,7 +996,7 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 		const float jumpHeight = config.jumpHeight;
 		const float groundRange = config.jumpEndsHeightTolerance;
 		samplingSeparationFactor = config.samplingSeparationFactor;
-		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], -jumpStartDist, jumpStartDist, jumpHeight, groundRange);
+		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], jumpStartDist, jumpStartDist, jumpHeight, groundRange);
 	}
 	
 	initTrajectory(&es->trajectory);

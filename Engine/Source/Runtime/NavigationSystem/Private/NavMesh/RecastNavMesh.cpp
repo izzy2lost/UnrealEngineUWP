@@ -498,6 +498,7 @@ FRecastNavMeshTileGenerationDebug::FRecastNavMeshTileGenerationDebug()
 	bHeightfieldBounds = false;
 	bCompactHeightfield = false;
 	bCompactHeightfieldEroded = false;
+	bHeightFieldLayers = false;
 	bCompactHeightfieldRegions = false;
 	bCompactHeightfieldDistances = false;
 	bTileCacheLayerAreas = false;
@@ -3419,9 +3420,29 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 	
 	if (PropertyChangedChainEvent.Property != NULL)
 	{
-		const FName CategoryName = FObjectEditorUtils::GetCategoryFName(PropertyChangedChainEvent.Property);
+		FName CategoryName = FObjectEditorUtils::GetCategoryFName(PropertyChangedChainEvent.Property);
+
+		// If any, get the category of the parent node. 
+		FProperty* MemberProperty = nullptr;
+		const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = PropertyChangedChainEvent.PropertyChain.GetActiveNode();
+		if (PropertyNode)
+		{
+			const FEditPropertyChain::TDoubleLinkedListNode* PreviousNode = PropertyNode->GetPrevNode();
+			if (PreviousNode)
+			{
+				MemberProperty = PreviousNode->GetValue();
+				if (MemberProperty)
+				{
+					CategoryName = FObjectEditorUtils::GetCategoryFName(MemberProperty);
+				}
+			}
+		}
+		
 		if (CategoryName == NAME_Generation)
 		{
+			static const FName NAME_NavLinkJumpDownConfig = FName(TEXT("NavLinkJumpDownConfig"));
+			static const FName NAME_NavLinkJumpOverConfig = FName(TEXT("NavLinkJumpOverConfig"));
+			
 			const FName PropName = PropertyChangedChainEvent.Property->GetFName();
 			bool bRebuild = false;
 			
@@ -3465,6 +3486,10 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 				CellHeight = NavMeshResolutionParams[(uint8)ENavigationDataResolution::Default].CellHeight;
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+				bRebuild = true;
+			}
+			else if (MemberProperty && (MemberProperty->GetFName() == NAME_NavLinkJumpDownConfig || MemberProperty->GetFName() == NAME_NavLinkJumpOverConfig))
+			{
 				bRebuild = true;
 			}
 

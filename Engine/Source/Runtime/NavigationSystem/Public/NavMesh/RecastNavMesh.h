@@ -500,6 +500,9 @@ struct FRecastNavMeshTileGenerationDebug
 	uint32 bCompactHeightfieldEroded : 1;
 
 	UPROPERTY(EditAnywhere, Category = Debug)
+	uint32 bHeightFieldLayers : 1;
+	
+	UPROPERTY(EditAnywhere, Category = Debug)
 	uint32 bCompactHeightfieldRegions : 1;
 
 	UPROPERTY(EditAnywhere, Category = Debug)
@@ -528,7 +531,7 @@ struct FRecastNavMeshTileGenerationDebug
 	uint16 LinkGenerationDebugFlags;
 
 	/** Using -1 as no selected edge. */
-	UPROPERTY(EditAnywhere, Category = Debug)
+	UPROPERTY(EditAnywhere, Category = Debug, meta=(UIMin=-1, ClampMin=-1))
 	int32 LinkGenerationSelectedEdge;
 };
 

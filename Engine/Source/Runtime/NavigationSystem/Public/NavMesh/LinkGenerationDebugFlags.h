@@ -13,5 +13,6 @@ enum class ELinkGenerationDebugFlags : uint16
 	SelectedEdgeLandingSamples	= 1 << 4,
 	SelectedEdgeCollisions		= 1 << 5,
 	Links						= 1 << 6,
+	FilteredLinks				= 1 << 7,
 };
 ENUM_CLASS_FLAGS(ELinkGenerationDebugFlags);

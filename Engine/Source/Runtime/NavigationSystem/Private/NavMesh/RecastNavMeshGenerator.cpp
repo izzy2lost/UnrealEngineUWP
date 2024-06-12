@@ -84,7 +84,7 @@ namespace UE::NavMesh::Private
 	static bool bUseTightBoundExpansion = true;
 	static FAutoConsoleVariableRef CVarUseTightBoundExpansion(TEXT("ai.nav.UseTightBoundExpansion"), bUseTightBoundExpansion, TEXT("Active by default. Use an expansion of one AgentRadius. Set to false to revert to the previous behavior (2 AgentRadius)."), ECVF_Default);
 
-	static bool bUseAsymetricBorderSizes = true;
+	static bool bUseAsymetricBorderSizes = false;
 	static FAutoConsoleVariableRef CVarUseAsymetricBorderSizes(TEXT("ai.nav.UseAsymetricBorderSizes"), bUseAsymetricBorderSizes, TEXT("Active by default. When generating links, use asymetric tile border sizes to improve generation speed."), ECVF_Default);
 }
 
@@ -3557,6 +3557,23 @@ bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildCon
 
 namespace UE::NavMesh::Private
 {
+	// Make sure LinkSpillDistance and CellSize has been computed before computing borders.
+	void ComputeConfigBorderSizes(const bool bGeneratingLinks, FRecastBuildConfig& InOutConfig)
+	{
+		int BorderForLinksVx = 0;
+		if (bGeneratingLinks)
+		{
+			BorderForLinksVx = (int)FMath::CeilToInt((rcReal)InOutConfig.LinkSpillDistance / InOutConfig.cs) + InOutConfig.walkableRadius;
+		}
+
+		// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
+		const int BorderForAgentVx = InOutConfig.walkableRadius + 3;
+
+		// Borders must be at least the size of BorderForAgentVx.
+		InOutConfig.borderSize.low = UE::NavMesh::Private::bUseAsymetricBorderSizes ? BorderForAgentVx : FMath::Max(BorderForAgentVx, BorderForLinksVx);
+		InOutConfig.borderSize.high = FMath::Max(BorderForAgentVx, BorderForLinksVx);
+	}
+	
 #if RECAST_INTERNAL_DEBUG_DATA
 	void DrawHeightfield(const EHeightFieldRenderMode RenderMode, duDebugDraw* dd, const rcHeightfield& hf)
 	{
@@ -3661,6 +3678,11 @@ bool FRecastTileGenerator::GenerateCompressedLayers(FNavMeshBuildContext& BuildC
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (IsTileDebugActive())
 	{
+		if (TileDebugSettings.bHeightFieldLayers)
+		{
+			duDebugDrawHeightfieldLayers(&BuildContext.InternalDebugData, *RasterContext.LayerSet);	
+		}
+		
 		if (TileDebugSettings.bCompactHeightfieldRegions)
 		{
 			duDebugDrawCompactHeightfieldRegions(&BuildContext.InternalDebugData, *CompactHF);	
@@ -3823,7 +3845,7 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 	// Make FNavigationLinks
 	for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 	{
-		if (link.flags == dtNavLinkBuilder::INVALID)
+		if (link.flags == dtNavLinkBuilder::FILTERED)
 			continue;
 
 		// For now, just make a link using the center of the range.
@@ -4246,7 +4268,7 @@ bool FRecastTileGenerator::GenerateNavigationData(FNavMeshBuildContext& BuildCon
 	bool bGenDataLayer = true;
 	dtStatus status = DT_SUCCESS;
 
-	for (int32 LayerIdx = 0; LayerIdx < CompressedLayers.Num(); LayerIdx++)
+	for (int32 LayerIdx = 0; LayerIdx < CompressedLayers.Num() && LayerIdx < DirtyLayers.Num(); LayerIdx++)
 	{
 		if (DirtyLayers[LayerIdx] == false || !CompressedLayers[LayerIdx].IsValid())
 		{
@@ -4883,16 +4905,7 @@ void FRecastNavMeshGenerator::SetupTileConfig(const ENavigationDataResolution Ti
 	OutConfig.walkableRadius = FMath::CeilToInt(DestNavMesh->AgentRadius / CellSize);
 	OutConfig.maxStepFromWalkableSlope = OutConfig.cs * FMath::Tan(FMath::DegreesToRadians(OutConfig.walkableSlopeAngle));
 
-	int MaxLinkDistanceVx = 0;
-	if (DestNavMesh->bGenerateNavLinks)
-	{
-		MaxLinkDistanceVx = FMath::CeilToInt(OutConfig.LinkSpillDistance / CellSize);
-	}
-
-	// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
-	const int BorderForAgentVx = OutConfig.walkableRadius + 3;
-	OutConfig.borderSize.low = UE::NavMesh::Private::bUseAsymetricBorderSizes ? BorderForAgentVx : BorderForAgentVx + MaxLinkDistanceVx;
-	OutConfig.borderSize.high = BorderForAgentVx + MaxLinkDistanceVx;
+	UE::NavMesh::Private::ComputeConfigBorderSizes(DestNavMesh->bGenerateNavLinks, OutConfig);
 
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
 
@@ -4962,7 +4975,6 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 		}
 	}
 
-	int MaxLinkDistanceVx = 0;
 	if (DestNavMesh->bGenerateNavLinks)
 	{
 		// NavLink builder configuration
@@ -4974,7 +4986,6 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 		const float JumpDownSpillDistance = JumpDown.bEnabled ? JumpDown.JumpLength - JumpDown.JumpDistanceFromEdge : 0.f;
 		const float JumpOverSpillDistance = JumpOver.bEnabled ? JumpOver.JumpLength - JumpOver.JumpDistanceFromEdge : 0.f;
 		OutConfig.LinkSpillDistance = FMath::Max(JumpDownSpillDistance, JumpOverSpillDistance);
-		MaxLinkDistanceVx = FMath::CeilToInt(OutConfig.LinkSpillDistance / CellSize);
 	}
 	
 	// store original sizes
@@ -4982,10 +4993,7 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 	OutConfig.AgentMaxClimb = AgentMaxClimb;
 	OutConfig.AgentRadius = AgentRadius;
 
-	// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
-	const int BorderForAgentVx = OutConfig.walkableRadius + 3;
-	OutConfig.borderSize.low = UE::NavMesh::Private::bUseAsymetricBorderSizes ? BorderForAgentVx : BorderForAgentVx + MaxLinkDistanceVx;
-	OutConfig.borderSize.high = BorderForAgentVx + MaxLinkDistanceVx;
+	UE::NavMesh::Private::ComputeConfigBorderSizes(DestNavMesh->bGenerateNavLinks, OutConfig);
 
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
 

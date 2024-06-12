@@ -13,6 +13,7 @@ void FNavLinkGenerationJumpDownConfig::CopyToDetourConfig(dtNavLinkBuilderJumpDo
 	OutDetourConfig.jumpMaxDepth = JumpMaxDepth;
 	OutDetourConfig.jumpEndsHeightTolerance	= JumpEndsHeightTolerance;
 	OutDetourConfig.samplingSeparationFactor = SamplingSeparationFactor;
+	OutDetourConfig.filterDistanceThreshold = FilterDistanceThreshold;  
 }
 
 void FNavLinkGenerationJumpOverConfig::CopyToDetourConfig(dtNavLinkBuilderJumpOverConfig& OutDetourConfig) const
@@ -24,5 +25,6 @@ void FNavLinkGenerationJumpOverConfig::CopyToDetourConfig(dtNavLinkBuilderJumpOv
 	OutDetourConfig.jumpHeightTolerance = JumpHeightTolerance;
 	OutDetourConfig.jumpEndsHeightTolerance	= JumpEndsHeightTolerance;
 	OutDetourConfig.samplingSeparationFactor = SamplingSeparationFactor;
+	OutDetourConfig.filterDistanceThreshold = FilterDistanceThreshold;
 }
 #endif //WITH_RECAST

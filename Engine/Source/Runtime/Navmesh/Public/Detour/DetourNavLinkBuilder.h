@@ -124,7 +124,7 @@ public:
 
 	enum JumpLinkFlag : unsigned char
 	{
-		INVALID = 0,
+		FILTERED = 0,
 		VALID = 1,
 	};
 	
@@ -135,6 +135,9 @@ public:
 		int nspine;
 		JumpLinkFlag flags;
 		dtNavLinkAction action = DT_LINK_ACTION_UNSET;
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)		
+		short debugSourceEdge = -1;
+#endif
 	};
 	TArray<JumpLink, TInlineAllocator<16>> m_links;
 
@@ -177,9 +180,9 @@ private:
 	
 	void sampleAction(EdgeSampler* es) const;
 	
-	void filterJumpOverLinks();
+	void filterOverlappingLinks(const float edgeDistanceThreshold);
 
 	bool sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* sampler) const;
-	void addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es);
+	void addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es, const int edgeIndex);
 };
 //@UE END

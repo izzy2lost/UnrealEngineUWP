@@ -252,12 +252,13 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 	
 	if (drawFlags & DRAW_LINKS)
 	{
+		const bool drawFilteredLinks = drawFlags & DRAW_FILTERED_LINKS;
 		unsigned int jumpDownCol0 = duLerpCol(duColor::blue, duColor::white, 200);
 		unsigned int jumpDownCol1 = duColor::blue;
 		unsigned int jumpOverCol0 = duLerpCol(duColor::lightGrey, duColor::white, 200);
 		unsigned int jumpOverCol1 = duColor::lightGrey;
 
-		auto selectColors = [&](dtNavLinkAction action, unsigned int& col0, unsigned int& col1)
+		auto selectColors = [&](dtNavLinkBuilder::JumpLinkFlag flag, dtNavLinkAction action, unsigned int& col0, unsigned int& col1)
 		{
 			if (action == DT_LINK_ACTION_JUMP_DOWN)
 			{
@@ -268,6 +269,12 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 			{
 				col0 = jumpOverCol0;
 				col1 = jumpOverCol1;
+			}
+
+			if (flag == dtNavLinkBuilder::FILTERED)
+			{
+				col0 = duColor::grey;
+				col1 = duColor::darkGrey;
 			}
 		};
 
@@ -280,17 +287,15 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 			dd->begin(DU_DRAW_QUADS);
 			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				if (!drawFilteredLinks && link.flags == dtNavLinkBuilder::FILTERED)
 					continue;
 
-				selectColors(link.action, col0, col1);
+				selectColors(link.flags, link.action, col0, col1);
 				
 				for (int j = 0; j < link.nspine-1; ++j)
 				{
 					int u = (j*255)/link.nspine;
 					unsigned int col = duTransCol(duLerpCol(col0,col1,u),128);
-					if (link.flags == dtNavLinkBuilder::INVALID)
-						col = duRGBA(255,0,0,64);
 					
 					dd->vertex(&link.spine1[j*3], col);
 					dd->vertex(&link.spine1[(j+1)*3], col);
@@ -303,10 +308,10 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 			dd->begin(DU_DRAW_LINES, 3.0f);
 			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				if (!drawFilteredLinks && link.flags == dtNavLinkBuilder::FILTERED)
 					continue;
 
-				selectColors(link.action, col0, col1);
+				selectColors(link.flags, link.action, col0, col1);
 				
 				for (int j = 0; j < link.nspine-1; ++j)
 				{
@@ -329,10 +334,10 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 			dd->begin(DU_DRAW_POINTS, 8.0f);
 			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				if (link.flags == dtNavLinkBuilder::FILTERED)
 					continue;
 
-				selectColors(link.action, col0, col1);
+				selectColors(link.flags, link.action, col0, col1);
 				
 				dd->vertex(&link.spine0[0], duDarkenCol(col1));
 				dd->vertex(&link.spine1[0], duDarkenCol(col1));
@@ -344,8 +349,9 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 			dd->begin(DU_DRAW_POINTS, 4.0f);
 			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				if (link.flags == dtNavLinkBuilder::FILTERED)
 					continue;
+				
 				dd->vertex(&link.spine0[0], duColor::lightGrey);
 				dd->vertex(&link.spine1[0], duColor::lightGrey);
 				dd->vertex(&link.spine0[(link.nspine-1)*3], duColor::lightGrey);

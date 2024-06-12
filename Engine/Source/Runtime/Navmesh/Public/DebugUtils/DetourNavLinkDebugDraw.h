@@ -17,6 +17,7 @@ enum duNavLinkBuilderDrawFlags
 	DRAW_LAND_SAMPLES =		1 << 4,
 	DRAW_COLLISION_SLICES =	1 << 5,
 	DRAW_LINKS =			1 << 6,
+	DRAW_FILTERED_LINKS =	1 << 7,
 };
 
 NAVMESH_API void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuilder, unsigned int drawFlags, const struct dtNavLinkBuilder::EdgeSampler* es);
