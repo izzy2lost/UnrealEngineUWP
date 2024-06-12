@@ -163,6 +163,9 @@ spec:
         volumeMounts:
           - name: diagnostics
             mountPath: /tmp
+        resources:
+          requests: 
+            cpu: 50m
     {{- end }}
     {{- if .Values.nginx.enabled }}
       - name: nginx
@@ -213,6 +216,9 @@ spec:
               # Load balancers can be slow to deregister instances, this can be used to introduce a delay to provide zero downtime
               - "sleep"
               - "{{ .Values.preStopHookDelay }}"
+        {{- end }}
+        {{- if .Values.nginx.resources }}
+        resources: {{- toYaml .Values.nginx.resources | nindent 12 }}
         {{- end }}
         volumeMounts:
           - name: nginx
