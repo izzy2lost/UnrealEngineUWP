@@ -37,6 +37,11 @@ DEFINE_LOG_CATEGORY_STATIC(LogPawn, Warning, All);
 
 FOnPawnBeginPlay APawn::OnPawnBeginPlay;
 
+namespace UE::Gameplay::CVars
+{
+	extern bool bAlwaysNotifyClientOnControllerChange;
+}
+
 APawn::APawn(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -582,8 +587,10 @@ FRotator APawn::GetControlRotation() const
 
 void APawn::OnRep_Controller()
 {
-	bool bNotifyControllerChange = (Controller == nullptr);
-
+	bool bNotifyControllerChange = UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange ?
+		(Controller != PreviousController) :	// By default, notify whenever the PreviousController is out of date for any reason
+		(Controller == nullptr);				// In backward compatibility, only notify when changing from null or the edge case below
+	
 	if ( (Controller != nullptr) && (Controller->GetPawn() == nullptr) )
 	{
 		// This ensures that AController::OnRep_Pawn is called. Since we cant ensure replication order of APawn::Controller and AController::Pawn,

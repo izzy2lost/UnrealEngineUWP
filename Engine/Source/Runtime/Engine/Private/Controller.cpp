@@ -28,16 +28,21 @@ DEFINE_LOG_CATEGORY(LogPath);
 
 #define LOCTEXT_NAMESPACE "Controller"
 
-namespace ControllerStatics
+namespace UE::Gameplay::CVars
 {
-	static float InvalidControlRotationMagnitude = 8388608.f; // 2^23, largest float when fractions are lost, and where FMod loses meaningful precision.
+	bool bAlwaysNotifyClientOnControllerChange = true;
+	static FAutoConsoleVariableRef CVarAlwaysNotifyClientOnControllerChange(
+		TEXT("Controller.AlwaysNotifyClientOnControllerChange"), bAlwaysNotifyClientOnControllerChange,
+		TEXT("If true, OnRep_Controller and NotifyControllerChanged are always called on the client when a pawn's controller changes.\n")
+		TEXT("If false, use backward compatible controller notification logic that does not handle networking properly."),
+		ECVF_Default);
+
+	float InvalidControlRotationMagnitude = 8388608.f; // 2^23, largest float when fractions are lost, and where FMod loses meaningful precision.
 	static FAutoConsoleVariableRef CVarInvalidControlRotationMagnitude(
 		TEXT("Controller.InvalidControlRotationMagnitude"), InvalidControlRotationMagnitude,
 		TEXT("If any component of an FRotator passed to SetControlRotation is larger than this magnitude, ignore the value. Huge values are usually from uninitialized variables and can cause NaN/Inf to propagate later."),
 		ECVF_Default);
 }
-
-
 
 AController::AController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -145,9 +150,9 @@ bool AController::IsValidControlRotation(FRotator CheckRotation) const
 
 	// Really large values can be technically valid but are usually the result of uninitialized values, and those can cause
 	// conversion to FQuat or Vector to fail and generate NaN or Inf.
-	if (FMath::Abs(CheckRotation.Pitch) >= ControllerStatics::InvalidControlRotationMagnitude ||
-		FMath::Abs(CheckRotation.Yaw  ) >= ControllerStatics::InvalidControlRotationMagnitude ||
-		FMath::Abs(CheckRotation.Roll ) >= ControllerStatics::InvalidControlRotationMagnitude)
+	if (FMath::Abs(CheckRotation.Pitch) >= UE::Gameplay::CVars::InvalidControlRotationMagnitude ||
+		FMath::Abs(CheckRotation.Yaw  ) >= UE::Gameplay::CVars::InvalidControlRotationMagnitude ||
+		FMath::Abs(CheckRotation.Roll ) >= UE::Gameplay::CVars::InvalidControlRotationMagnitude)
 	{
 		return false;
 	}
@@ -530,6 +535,11 @@ void AController::OnRep_Pawn()
 	{
 		// Set the old controller to NULL, since we are no longer the owner, and can't rely on it replicating to us anymore
 		StrongOldPawn->Controller = nullptr;
+		if (UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange)
+		{
+			// This will notify other systems like the game instance
+			StrongOldPawn->OnRep_Controller();
+		}
 	}
 
 	OldPawn = Pawn;

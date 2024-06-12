@@ -86,23 +86,25 @@ DECLARE_CYCLE_STAT(TEXT("PC Build Input Stack"), STAT_PC_BuildInputStack, STATGR
 DECLARE_CYCLE_STAT(TEXT("PC Process Input Stack"), STAT_PC_ProcessInputStack, STATGROUP_PlayerController);
 
 // CVars
-namespace PlayerControllerCVars
+namespace UE::Gameplay::CVars
 {
 	// Resync timestamps on pawn ack
-	static int32 NetResetServerPredictionDataOnPawnAck = 1;
-	FAutoConsoleVariableRef CVarNetResetServerPredictionDataOnPawnAck(
+	int32 NetResetServerPredictionDataOnPawnAck = 1;
+	static FAutoConsoleVariableRef CVarNetResetServerPredictionDataOnPawnAck(
 		TEXT("PlayerController.NetResetServerPredictionDataOnPawnAck"),
 		NetResetServerPredictionDataOnPawnAck,
 		TEXT("Whether to reset server prediction data for the possessed Pawn when the pawn ack handshake completes.\n")
 		TEXT("0: Disable, 1: Enable"),
 		ECVF_Default);
 
-	static int32 ForceUsingCameraAsStreamingSource = 0;
-	FAutoConsoleVariableRef CVarForceUsingCameraAsStreamingSource(
+	int32 ForceUsingCameraAsStreamingSource = 0;
+	static FAutoConsoleVariableRef CVarForceUsingCameraAsStreamingSource(
 		TEXT("wp.Runtime.PlayerController.ForceUsingCameraAsStreamingSource"),
 		ForceUsingCameraAsStreamingSource,
 		TEXT("Whether to force the use of the camera as the streaming source for World Partition. By default the player pawn is used.\n")
 		TEXT("0: Use pawn as streaming source, 1: Use camera as streaming source"));
+
+	extern bool bAlwaysNotifyClientOnControllerChange;
 }
 
 namespace NetworkPhysicsCvars
@@ -806,7 +808,15 @@ void APlayerController::ClientRestart_Implementation(APawn* NewPawn)
 	if (OldController != this)
 	{
 		// In case this is received before APawn::OnRep_Controller is called
-		GetPawn()->NotifyControllerChanged();
+		if (UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange)
+		{
+			// When not in backward compatibility mode, OnRep_Controller will properly call NotifyControllerChanged
+			GetPawn()->OnRep_Controller();
+		}
+		else
+		{
+			GetPawn()->NotifyControllerChanged();
+		}
 	}
 	GetPawn()->DispatchRestart(true);
 	
@@ -1278,7 +1288,7 @@ void APlayerController::ServerAcknowledgePossession_Implementation(APawn* P)
 	UE_LOG(LogPlayerController, Verbose, TEXT("ServerAcknowledgePossession_Implementation %s"), *GetNameSafe(P));
 	AcknowledgedPawn = P;
 
-	if (PlayerControllerCVars::NetResetServerPredictionDataOnPawnAck != 0)
+	if (UE::Gameplay::CVars::NetResetServerPredictionDataOnPawnAck != 0)
 	{
 		if (AcknowledgedPawn && AcknowledgedPawn == GetPawn())
 		{
@@ -3674,7 +3684,7 @@ void APlayerController::OnRemovedFromPlayerControllerList()
 
 void APlayerController::GetStreamingSourceLocationAndRotation(FVector& OutLocation, FRotator& OutRotation) const
 {
-	if (!PlayerControllerCVars::ForceUsingCameraAsStreamingSource)
+	if (!UE::Gameplay::CVars::ForceUsingCameraAsStreamingSource)
 	{
 		if (const AActor* ViewTarget = GetViewTarget())
 		{
@@ -5512,11 +5522,23 @@ void APlayerController::EndSpectatingState()
 
 void APlayerController::BeginInactiveState()
 {
-	if ( (GetPawn() != NULL) && (GetPawn()->Controller == this) )
+	if ( (GetPawn() != nullptr) && (GetPawn()->Controller == this) )
 	{
-		GetPawn()->Controller = NULL;
+		GetPawn()->Controller = nullptr;
+		if (UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange)
+		{
+			if (HasAuthority())
+			{
+				// OnRep is not called on the server so call notify directly
+				GetPawn()->NotifyControllerChanged();
+			}
+			else
+			{
+				GetPawn()->OnRep_Controller();
+			}
+		}
 	}
-	SetPawn(NULL);
+	SetPawn(nullptr);
 
 	GetWorldTimerManager().SetTimer(TimerHandle_UnFreeze, this, &APlayerController::UnFreeze, GetMinRespawnDelay());
 }
