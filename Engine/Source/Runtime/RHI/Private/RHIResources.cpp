@@ -445,3 +445,24 @@ FRHIUniformBufferLayout::FRHIUniformBufferLayout(const FRHIUniformBufferLayoutIn
 	, bUniformView(Initializer.bUniformView)
 {
 }
+
+uint32 FRayTracingPipelineStateInitializer::GetMaxLocalBindingDataSize() const
+{
+	uint32 MaxLocalBindingDataSize = 0;
+	
+	// Take max size of all miss, hit and callable shaders
+	for (FRHIRayTracingShader* Shader : MissTable)
+	{
+		MaxLocalBindingDataSize = FMath::Max(MaxLocalBindingDataSize, Shader->LocalBindingDataSize);
+	}
+	for (FRHIRayTracingShader* Shader : HitGroupTable)
+	{
+		MaxLocalBindingDataSize = FMath::Max(MaxLocalBindingDataSize, Shader->LocalBindingDataSize);
+	}
+	for (FRHIRayTracingShader* Shader : CallableTable)
+	{
+		MaxLocalBindingDataSize = FMath::Max(MaxLocalBindingDataSize, Shader->LocalBindingDataSize);
+	}
+
+	return MaxLocalBindingDataSize;
+}

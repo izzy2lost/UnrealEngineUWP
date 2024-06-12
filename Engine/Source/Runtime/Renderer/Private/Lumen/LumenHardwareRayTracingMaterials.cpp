@@ -168,7 +168,11 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 	View.LumenHardwareRayTracingHitDataBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("LumenHardwareRayTracingHitDataBuffer"), HitGroupData);
 }
 
-void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipeline(FRDGBuilder& GraphBuilder, FViewInfo& View, const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable)
+void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipeline(
+	FRDGBuilder& GraphBuilder, 
+	FViewInfo& View, 
+	const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable,
+	uint32& OutMaxLocalBindingDataSize)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipeline);
 	SCOPE_CYCLE_COUNTER(STAT_CreateLumenRayTracingPipeline);
@@ -209,11 +213,12 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 			HitGroupShaderNaniteRTWithAvoidSelfIntersections.GetRayTracingShader()
 		};
 		Initializer.SetHitGroupTable(HitShaderTable);
-		Initializer.bAllowHitGroupIndexing = true;
 
 		auto MissShader = View.ShaderMap->GetShader<FLumenHardwareRayTracingMaterialMS>();
 		FRHIRayTracingShader* MissShaderTable[] = { MissShader.GetRayTracingShader() };
 		Initializer.SetMissShaderTable(MissShaderTable);
+				
+		OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 		FRayTracingPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 

@@ -676,17 +676,20 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		if (RayGenShaders.Num())
 		{
-			// Create RTPSO and kick off high-level material parameter binding tasks which will be consumed during RDG execution in BindRayTracingMaterialPipeline()
-			CreateRayTracingMaterialPipeline(GraphBuilder, ReferenceView, RayGenShaders);
+			// Create RTPSO and kick off high-level material parameter binding tasks which will be consumed during RDG execution in BindRayTracingMaterialPipeline()			
+			uint32 MaxLocalBindingDataSize = 0;
+			CreateRayTracingMaterialPipeline(GraphBuilder, ReferenceView, RayGenShaders, MaxLocalBindingDataSize);
 
 			{
 				const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 
 				FRayTracingShaderBindingTableInitializer SBTInitializer;
+				SBTInitializer.bAllowHitGroupIndexing = true;
 				SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 				SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 				SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 				SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+				SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
 
 				ReferenceView.RayTracingSBT = RHICreateShaderBindingTable(SBTInitializer);
 			}
@@ -722,16 +725,19 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		if (LumenHardwareRayTracingRayGenShaders.Num())
 		{
-			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders);
+			uint32 MaxLocalBindingDataSize = 0;
+			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders, MaxLocalBindingDataSize);
 
 			{
 				const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 
 				FRayTracingShaderBindingTableInitializer SBTInitializer;
+				SBTInitializer.bAllowHitGroupIndexing = true;
 				SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 				SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 				SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 				SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots; // TODO: Could be set to 0?
+				SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
 
 				ReferenceView.LumenHardwareRayTracingSBT = RHICreateShaderBindingTable(MoveTemp(SBTInitializer));
 			}

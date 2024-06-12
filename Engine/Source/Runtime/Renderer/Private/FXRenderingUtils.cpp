@@ -276,17 +276,19 @@ FRHIShaderResourceView* UE::FXRenderingUtils::RayTracing::GetRayTracingSceneView
 	return nullptr;
 }
 
-FShaderBindingTableRHIRef UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FSceneInterface* InScene)
+FShaderBindingTableRHIRef UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FSceneInterface* InScene, uint32 LocalBindingDataSize)
 {
 	if (const FScene* Scene = InScene->GetRenderScene())
 	{
 		const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 
 		FRayTracingShaderBindingTableInitializer SBTInitializer;
+		SBTInitializer.bAllowHitGroupIndexing = true;
 		SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 		SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 		SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 		SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+		SBTInitializer.LocalBindingDataSize = LocalBindingDataSize;
 
 		return RHICreateShaderBindingTable(SBTInitializer);
 	}

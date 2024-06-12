@@ -599,7 +599,6 @@ static bool IsCompatibleFallbackPipelineSignature(FRayTracingPipelineStateSignat
 {
 	// Compare everything except hit group table
 	return A.MaxPayloadSizeInBytes == B.MaxPayloadSizeInBytes
-		&& A.bAllowHitGroupIndexing == B.bAllowHitGroupIndexing
 		&& A.GetRayGenHash() == B.GetRayGenHash()
 		&& A.GetRayMissHash() == B.GetRayMissHash()
 		&& A.GetCallableHash() == B.GetCallableHash();
@@ -638,7 +637,8 @@ FRHIRayTracingShader* GetRayTracingDefaultHiddenShader(const FGlobalShaderMap* S
 void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 	FRDGBuilder& GraphBuilder,
 	FViewInfo& View,
-	const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable
+	const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable,
+	uint32& OutMaxLocalBindingDataSize
 )
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline);
@@ -654,10 +654,7 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 		: ERayTracingPayloadType::RayTracingMaterial;
 
 	FRayTracingPipelineStateInitializer Initializer;
-
 	Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(PayloadType);
-	Initializer.bAllowHitGroupIndexing = true;
-
 	FRHIRayTracingShader* DefaultMissShader = bIsPathTracing ? GetPathTracingDefaultMissShader(View.ShaderMap) : GetRayTracingDefaultMissShader(View.ShaderMap);
 
 	TArray<FRHIRayTracingShader*> RayTracingMissShaderLibrary;
@@ -742,6 +739,8 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 	{
 		PipelineCacheFlags |= ERayTracingPipelineCacheFlags::NonBlocking;
 	}
+
+	OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 	FRayTracingPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer, PipelineCacheFlags);
 

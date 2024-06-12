@@ -4302,6 +4302,16 @@ public:
 		SetBindingsOnShaderBindingTable(SBT, Pipeline, 1, InlineBindings, ERayTracingBindingType::HitGroup, /*bCopyDataToInlineStorage*/ false);
 	}
 
+	FORCEINLINE_DEBUGGABLE void SetDefaultRayTracingHitGroup(
+		FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline, uint32 HitGroupIndex)
+	{
+		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
+		InlineBindings->ShaderIndexInPipeline = HitGroupIndex;
+		InlineBindings->RecordIndex = 0; //< Default hit group always stored at index 0
+
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, 1, InlineBindings, ERayTracingBindingType::HitGroup, /*bCopyDataToInlineStorage*/ false);
+	}
+
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
 	FORCEINLINE_DEBUGGABLE void SetRayTracingCallableShader(
 		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,

@@ -252,6 +252,7 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 	if (Shader && ShaderFrequency != SF_RayGen)
 	{
 		Shader->LocalRootSignature = GetAdapter().GetLocalRootSignature(Shader);
+		Shader->LocalBindingDataSize = Shader->LocalRootSignature->GetTotalRootSignatureSizeInBytes();
 	}
 
 	return Shader;

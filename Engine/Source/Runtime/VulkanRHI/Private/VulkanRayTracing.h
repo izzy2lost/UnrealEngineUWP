@@ -63,7 +63,6 @@ public:
 	FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer);
 	~FVulkanRayTracingShaderTable();
 
-	void Init(const FVulkanRayTracingPipelineState* Pipeline);
 	void ReleaseLocalBuffers();
 
 	const VkStridedDeviceAddressRegionKHR* GetRegion(EShaderFrequency Frequency);
@@ -92,7 +91,10 @@ public:
 		return ReferencedUniformBuffers;
 	}
 
-	void SetRayTracingPipelineState(const FVulkanRayTracingPipelineState* InPipeline);
+	bool AllowHitGroupIndexing() const
+	{
+		return bAllowHitGroupIndexing;
+	}
 
 	// Ray tracing shader bindings can be processed in parallel.
 	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
@@ -124,6 +126,8 @@ private:
 
 	FVulkanShaderTableAllocation& GetAlloc(EShaderFrequency Frequency);
 	static void ReleaseLocalBuffer(FVulkanDevice* Device, FVulkanShaderTableAllocation& Alloc);
+	
+	bool bAllowHitGroupIndexing = true;
 
 	UE::FMutex RaygenMutex;
 	FVulkanShaderTableAllocation Raygen;
@@ -132,8 +136,6 @@ private:
 	FVulkanShaderTableAllocation Callable;
 
 	TArray<TRefCountPtr<FRHIUniformBuffer>> ReferencedUniformBuffers;
-
-	TRefCountPtr<const FVulkanRayTracingPipelineState> RayTracingPipelineState; // TODO: Is holding reference necessary?
 
 	// Convenience
 	const uint32 HandleSize;
@@ -294,6 +296,7 @@ private:
 	VkPipeline Pipeline = VK_NULL_HANDLE;
 
 public:
+	UE_DEPRECATED(5.5, "bAllowHitGroupIndexing is now stored in the ShaderBindingTable.")
 	bool bAllowHitGroupIndexing = true;
 
 	friend FVulkanCommandListContext;

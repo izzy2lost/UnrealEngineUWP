@@ -1138,8 +1138,7 @@ bool FShaderPipelineCacheTask::Precompile(FRHICommandListImmediate& RHICmdList, 
 				if (RayTracingShader.IsValid())
 				{
 					FRayTracingPipelineStateInitializer Initializer;
-						Initializer.bPartial = true; // Indicates that this RTPSO is used only as input for later RTPSO linking step (not for rendering)
-						Initializer.bAllowHitGroupIndexing = PSO.RayTracingDesc.bAllowHitGroupIndexing;
+						Initializer.bPartial = true; // Indicates that this RTPSO is used only as input for later RTPSO linking step (not for rendering)						
 						Initializer.MaxPayloadSizeInBytes = RayTracingShader->RayTracingPayloadSize;
 
 						FRHIRayTracingShader* ShaderTable[] =

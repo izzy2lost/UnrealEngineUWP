@@ -530,7 +530,8 @@ FRayTracingLocalShaderBindings* BuildRayTracingMaterialBindings(
 FRayTracingPipelineState* BuildRayTracingPipelineState(
 	FRHICommandList& RHICmdList,
 	const FViewInfo& View,
-	FRHIRayTracingShader* RayGenerationShader
+	FRHIRayTracingShader* RayGenerationShader,
+	uint32& OutMaxLocalBindingDataSize
 )
 {
 	FRayTracingPipelineStateInitializer Initializer;
@@ -542,8 +543,6 @@ FRayTracingPipelineState* BuildRayTracingPipelineState(
 		HitGroupShaders.GetRayTracingShader()
 	};
 	Initializer.SetHitGroupTable(HitShaderTable);
-	// WARNING: Currently hit-group indexing is required to bind uniform buffers to hit-group shaders.
-	Initializer.bAllowHitGroupIndexing = true;
 
 	auto MissShader = View.ShaderMap->GetShader<FHeterogeneousVolumesSparseVoxelMS>();
 	FRHIRayTracingShader* MissShaderTable[] = {
@@ -555,6 +554,8 @@ FRayTracingPipelineState* BuildRayTracingPipelineState(
 		RayGenerationShader
 	};
 	Initializer.SetRayGenShaderTable(RayGenShaderTable);
+
+	OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 	FRayTracingPipelineState* RayTracingPipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 
@@ -688,13 +689,17 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 			// Create pipeline
-			FRayTracingPipelineState* RayTracingPipelineState = BuildRayTracingPipelineState(RHICmdList, View, RayGenerationShader.GetRayTracingShader());
-
+			uint32 MaxLocalBindingDataSize = 0;
+			FRayTracingPipelineState* RayTracingPipelineState = BuildRayTracingPipelineState(RHICmdList, View, RayGenerationShader.GetRayTracingShader(), MaxLocalBindingDataSize);
+			
 			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			// WARNING: Currently hit-group indexing is required to bind uniform buffers to hit-group shaders.
+			SBTInitializer.bAllowHitGroupIndexing = true;
 			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+			SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
 
 			FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
 
@@ -859,13 +864,17 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 			// Create pipeline
-			FRayTracingPipelineState* RayTracingPipelineState = BuildRayTracingPipelineState(RHICmdList, View, RayGenerationShader.GetRayTracingShader());
-
+			uint32 MaxLocalBindingDataSize = 0;
+			FRayTracingPipelineState* RayTracingPipelineState = BuildRayTracingPipelineState(RHICmdList, View, RayGenerationShader.GetRayTracingShader(), MaxLocalBindingDataSize);
+			
 			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			// WARNING: Currently hit-group indexing is required to bind uniform buffers to hit-group shaders.
+			SBTInitializer.bAllowHitGroupIndexing = true;
 			SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 			SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 			SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+			SBTInitializer.LocalBindingDataSize = MaxLocalBindingDataSize;
 
 			FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
 

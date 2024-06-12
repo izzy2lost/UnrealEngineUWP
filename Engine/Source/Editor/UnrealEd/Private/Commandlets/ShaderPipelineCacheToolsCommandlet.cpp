@@ -932,9 +932,6 @@ bool SaveStablePipelineCacheDeprecated(const FString& OutputFilename, const TArr
 				FPipelineCacheFileFormatPSO::GraphicsDescriptor Desc;
 				FMemory::Memzero(Desc);
 
-				// Serialize ray tracing PSO state description in backwards-compatible way, reusing graphics PSO fields. This is only required due to legacy.
-				Desc.DepthStencilFlags = Item.PSO->RayTracingDesc.bAllowHitGroupIndexing ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
-
 				PSOLine += FString::Printf(TEXT("\"%s\""), *Desc.StateToString());
 
 				for (int32 SlotIndex = 0; SlotIndex < SF_Compute; SlotIndex++)
@@ -1572,7 +1569,6 @@ static TSet<FPipelineCacheFileFormatPSO> ParseStableCSV(const FString& FileName,
 				PSO.RayTracingDesc.ShaderHash = Match;
 				// See corresponding serialization code in ExpandPSOSC()
 				PSO.RayTracingDesc.Frequency = EShaderFrequency(AdjustedSlotIndex);
-				PSO.RayTracingDesc.bAllowHitGroupIndexing = static_cast<uint64>(PSO.GraphicsDesc.DepthStencilFlags) != 0;
 				break;
 			default:
 				UE_LOG(LogShaderPipelineCacheTools, Error, TEXT("Unexpected shader frequency"));

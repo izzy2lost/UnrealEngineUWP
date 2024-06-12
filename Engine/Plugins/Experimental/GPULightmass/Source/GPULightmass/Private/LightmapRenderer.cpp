@@ -1248,7 +1248,6 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			FRayTracingPipelineStateInitializer PSOInitializer;
 
 			PSOInitializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::GPULightmass);
-			PSOInitializer.bAllowHitGroupIndexing = true;
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(FeatureLevel);
 
@@ -1293,10 +1292,12 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			RayTracingPipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, PSOInitializer);
 
 			FRayTracingShaderBindingTableInitializer SBTInitializer;
+			SBTInitializer.bAllowHitGroupIndexing = true;
 			SBTInitializer.NumGeometrySegments = SceneWithGeometryInstances.TotalNumSegments;
 			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 			SBTInitializer.NumMissShaderSlots = 1;
 			SBTInitializer.NumCallableShaderSlots = 0;
+			SBTInitializer.LocalBindingDataSize = PSOInitializer.GetMaxLocalBindingDataSize();
 
 			SBT = RHICreateShaderBindingTable(SBTInitializer);
 

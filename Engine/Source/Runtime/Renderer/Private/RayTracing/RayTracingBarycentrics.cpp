@@ -149,8 +149,7 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 	Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
 	FRHIRayTracingShader* HitGroupTable[] = { ClosestHitShader.GetRayTracingShader() };
-	Initializer.SetHitGroupTable(HitGroupTable);
-	Initializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
+	Initializer.SetHitGroupTable(HitGroupTable);	
 
 	FRHIRayTracingShader* MissTable[] = { View.ShaderMap->GetShader<FDefaultPayloadMS>().GetRayTracingShader() };
 	Initializer.SetMissShaderTable(MissTable);
@@ -158,10 +157,12 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 	FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
 	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
 	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+	SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 	FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
 
@@ -184,6 +185,7 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 		// Dispatch rays using default shader binding table
+		RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
 		RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 		RHICmdList.CommitShaderBindingTable(SBT);
 		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);

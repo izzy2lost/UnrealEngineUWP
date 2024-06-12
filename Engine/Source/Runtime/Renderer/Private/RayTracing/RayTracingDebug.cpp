@@ -811,7 +811,6 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 
 	FRHIRayTracingShader* HitGroupTable[] = { HitGroupShader.GetRayTracingShader(), HitGroupShaderNaniteRT.GetRayTracingShader() };
 	Initializer.SetHitGroupTable(HitGroupTable);
-	Initializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 
 	auto MissShader = ShaderMap->GetShader<FRayTracingDebugMS>();
 	FRHIRayTracingShader* MissTable[] = { MissShader.GetRayTracingShader() };
@@ -820,10 +819,12 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 	FRayTracingPipelineState* PickingPipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
 	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+	SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 	FShaderBindingTableRHIRef PickingSBT = RHICreateShaderBindingTable(SBTInitializer);
 
@@ -1060,7 +1061,6 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 
 	FRHIRayTracingShader* HitGroupTable[] = { HitGroupShader.GetRayTracingShader() };
 	Initializer.SetHitGroupTable(HitGroupTable);
-	Initializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 
 	auto MissShader = ShaderMap->GetShader<FRayTracingDebugMS>();
 	FRHIRayTracingShader* MissTable[] = { MissShader.GetRayTracingShader() };
@@ -1069,10 +1069,12 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 	FRayTracingPipelineState* HitStatsPerPrimitivePipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
 	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 	SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 	SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 	SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+	SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 	FShaderBindingTableRHIRef HitStatsSBT = RHICreateShaderBindingTable(SBTInitializer);
 
@@ -1508,7 +1510,6 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 
 		FRHIRayTracingShader* HitGroupTable[] = { HitGroupShader.GetRayTracingShader(), HitGroupShaderNaniteRT.GetRayTracingShader()};
 		Initializer.SetHitGroupTable(HitGroupTable);
-		Initializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 
 		auto MissShader = ShaderMap->GetShader<FRayTracingDebugMS>();
 		FRHIRayTracingShader* MissTable[] = { MissShader.GetRayTracingShader() };
@@ -1517,10 +1518,12 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
 		FRayTracingShaderBindingTableInitializer SBTInitializer;
+		SBTInitializer.bAllowHitGroupIndexing = true; // Required for stable output using GetBaseInstanceIndex().
 		SBTInitializer.NumGeometrySegments = RayTracingScene.GetTotalNumSegments();
 		SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 		SBTInitializer.NumMissShaderSlots = RayTracingScene.NumMissShaderSlots;
 		SBTInitializer.NumCallableShaderSlots = RayTracingScene.NumCallableShaderSlots;
+		SBTInitializer.LocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 		SBT = RHICreateShaderBindingTable(SBTInitializer);
 

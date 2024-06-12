@@ -921,9 +921,30 @@ void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FVulkanComm
 FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer)
 	: FRHIShaderBindingTable(InInitializer)
 	, FDeviceChild(Device)
+	, bAllowHitGroupIndexing(InInitializer.bAllowHitGroupIndexing)
 	, HandleSize(Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleSize)
 	, HandleSizeAligned(Align(HandleSize, Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleAlignment))
 {
+	auto InitAlloc = [Device = Device, HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord) 
+	{
+		Alloc.HandleCount = InHandleCount;
+		Alloc.bUseLocalRecord = InUseLocalRecord;
+
+		if (Alloc.HandleCount > 0)
+		{
+			const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& RayTracingPipelineProps = Device->GetOptionalExtensionProperties().RayTracingPipelineProps;
+			Alloc.Region.stride = InUseLocalRecord ? FMath::Min<VkDeviceSize>(RayTracingPipelineProps.maxShaderGroupStride, 4096) : HandleSizeAligned; // :todo-jn: shrink stride to necessary amount
+			Alloc.Region.size = Alloc.HandleCount * Alloc.Region.stride;
+
+			// Host buffer
+			Alloc.HostBuffer.SetNumUninitialized(Alloc.Region.size);
+		}
+	};
+
+	InitAlloc(Raygen, 1, false);
+	InitAlloc(Miss, Initializer.NumMissShaderSlots, true);
+	InitAlloc(HitGroup, bAllowHitGroupIndexing ? Initializer.NumGeometrySegments * Initializer.NumShaderSlotsPerGeometrySegment : 1, true);
+	InitAlloc(Callable, Initializer.NumCallableShaderSlots, true);
 }
 
 FVulkanRayTracingShaderTable::~FVulkanRayTracingShaderTable()
@@ -953,46 +974,6 @@ void FVulkanRayTracingShaderTable::ReleaseLocalBuffer(FVulkanDevice* Device, FVu
 	}
 
 	Alloc.Region.deviceAddress = 0;
-}
-
-void FVulkanRayTracingShaderTable::Init(const FVulkanRayTracingPipelineState* Pipeline)
-{
-	auto InitAlloc = [Device = Device, HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord) {
-
-		Alloc.HandleCount = InHandleCount;
-		Alloc.bUseLocalRecord = InUseLocalRecord;
-
-		if (Alloc.HandleCount > 0)
-		{
-			const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& RayTracingPipelineProps = Device->GetOptionalExtensionProperties().RayTracingPipelineProps;
-			Alloc.Region.stride = InUseLocalRecord ? FMath::Min<VkDeviceSize>(RayTracingPipelineProps.maxShaderGroupStride, 4096) : HandleSizeAligned; // :todo-jn: shrink stride to necessary amount
-			Alloc.Region.size = Alloc.HandleCount * Alloc.Region.stride;
-
-			// Host buffer
-			Alloc.HostBuffer.SetNumUninitialized(Alloc.Region.size);
-		}
-	};
-
-	InitAlloc(Raygen, 1, false);
-	InitAlloc(Miss, Initializer.NumMissShaderSlots, true);
-	InitAlloc(HitGroup, Pipeline->bAllowHitGroupIndexing ? Initializer.NumGeometrySegments * Initializer.NumShaderSlotsPerGeometrySegment : 1, true);
-	InitAlloc(Callable, Initializer.NumCallableShaderSlots, true);
-
-	if (!Pipeline->bAllowHitGroupIndexing && Pipeline->GetShaderHandles(SF_RayHitGroup).Num())
-	{
-		SetSlot(SF_RayHitGroup, 0, 0, Pipeline->GetShaderHandles(SF_RayHitGroup));
-	}
-}
-
-void FVulkanRayTracingShaderTable::SetRayTracingPipelineState(const FVulkanRayTracingPipelineState* InPipeline)
-{
-	checkf(RayTracingPipelineState == nullptr || RayTracingPipelineState == InPipeline, TEXT("FRHIShaderBindingTable can't currently be used with multiple different RTPSOs"));
-
-	if (RayTracingPipelineState == nullptr)
-	{
-		Init(InPipeline);
-	}
-	RayTracingPipelineState = InPipeline;
 }
 
 FVulkanRayTracingShaderTable::FVulkanShaderTableAllocation& FVulkanRayTracingShaderTable::GetAlloc(EShaderFrequency Frequency)
@@ -1135,12 +1116,11 @@ FRHIShaderBindingTable* FVulkanRayTracingScene::FindOrCreateShaderBindingTable(c
 	SBTInitializer.NumShaderSlotsPerGeometrySegment = Initializer.ShaderSlotsPerGeometrySegment;
 	SBTInitializer.NumCallableShaderSlots = Initializer.NumCallableShaderSlots;
 	SBTInitializer.NumMissShaderSlots = Initializer.NumMissShaderSlots;
+	SBTInitializer.bAllowHitGroupIndexing = Pipeline->bAllowHitGroupIndexing;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Create new table
 	FVulkanRayTracingShaderTable* CreatedShaderTable = new FVulkanRayTracingShaderTable(Device, MoveTemp(SBTInitializer));
-	CreatedShaderTable->SetRayTracingPipelineState(Pipeline);
-
 	ShaderTables.Add(Pipeline, CreatedShaderTable);
 
 	return CreatedShaderTable;
@@ -1686,7 +1666,9 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 	}
 
 	// If no custom hit groups were provided, then disable SBT indexing and force default shader on all primitives
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bAllowHitGroupIndexing = Initializer.GetHitGroupTable().Num() ? Initializer.bAllowHitGroupIndexing : false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	INC_DWORD_STAT(STAT_VulkanRayTracingCreatedPipelines);
 	INC_DWORD_STAT_BY(STAT_VulkanRayTracingCompiledShaders, 1);
@@ -2250,6 +2232,7 @@ static void SetRayTracingHitGroup(
 	uint32 WorkerIndex)
 {
 #if DO_CHECK
+	if (Geometry)
 	{
 		const uint32 NumGeometrySegments = Geometry->GetNumSegments();
 		checkf(GeometrySegmentIndex < NumGeometrySegments, TEXT("Segment %d is out of range for ray tracing geometry '%s' that contains %d segments"),
@@ -2257,13 +2240,16 @@ static void SetRayTracingHitGroup(
 	}
 #endif // DO_CHECK
 
-	const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(SF_RayHitGroup, HitGroupIndex);
+	if (ShaderTable->AllowHitGroupIndexing() && Geometry)
+	{
+		const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(SF_RayHitGroup, HitGroupIndex);
 
-	FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[GeometrySegmentIndex];
-	SystemParameters.RootConstants.UserData = UserData;
-	SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
+		FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[GeometrySegmentIndex];
+		SystemParameters.RootConstants.UserData = UserData;
+		SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
 
-	ShaderTable->SetLocalShaderParameters(SF_RayHitGroup, RecordIndex, 0, SystemParameters);
+		ShaderTable->SetLocalShaderParameters(SF_RayHitGroup, RecordIndex, 0, SystemParameters);
+	}
 
 	ShaderTable->SetSlot(SF_RayHitGroup, RecordIndex, HitGroupIndex, Pipeline->GetShaderHandles(SF_RayHitGroup));
 }
@@ -2295,8 +2281,6 @@ void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBin
 {
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
 	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
-
-	ShaderTable->SetRayTracingPipelineState(Pipeline);
 
 	FGraphEventArray TaskList;
 

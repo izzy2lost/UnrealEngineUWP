@@ -183,7 +183,8 @@ static FRayTracingPipelineState* CreateNiagaraRayTracingPipelineState(
 	FRHICommandList& RHICmdList,
 	FRHIRayTracingShader* RayGenShader,
 	FRHIRayTracingShader* ClosestHitShader,
-	FRHIRayTracingShader* MissShader)
+	FRHIRayTracingShader* MissShader,
+	uint32& OutMaxLocalBindingDataSize)
 {
 	FRayTracingPipelineStateInitializer Initializer;
 	Initializer.MaxPayloadSizeInBytes = sizeof(FVFXTracePayload);
@@ -197,7 +198,7 @@ static FRayTracingPipelineState* CreateNiagaraRayTracingPipelineState(
 	FRHIRayTracingShader* MissTable[] = { MissShader };
 	Initializer.SetMissShaderTable(MissTable);
 
-	Initializer.bAllowHitGroupIndexing = true; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
+	OutMaxLocalBindingDataSize = Initializer.GetMaxLocalBindingDataSize();
 
 	return PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 }
@@ -324,14 +325,16 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 		auto ClosestHitShader = ShaderMap->GetShader<FNiagaraCollisionRayTraceCH>().GetRayTracingShader();
 		auto MissShader = ShaderMap->GetShader<FNiagaraCollisionRayTraceMiss>().GetRayTracingShader();
 
+		uint32 MaxLocalBindingDataSize = 0;
 		RayTracingPipelineState = CreateNiagaraRayTracingPipelineState(
 			ShaderPlatform,
 			RHICmdList,
 			RayGenShader,
 			ClosestHitShader,
-			MissShader);
+			MissShader,
+			MaxLocalBindingDataSize);
 
-		RayTracingSBT = UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(RHICmdList, Scene);
+		RayTracingSBT = UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(RHICmdList, Scene, MaxLocalBindingDataSize);
 
 		// some options for what we want with our per MeshCommand user data.  For now we'll ignore it, but possibly
 		// something we'd want to incorporate.  Some examples could be if the material is translucent, or possibly the physical material?

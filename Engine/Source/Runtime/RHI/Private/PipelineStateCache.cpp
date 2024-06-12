@@ -1937,7 +1937,6 @@ public:
 			FRayTracingPipelineState* CandidatePipeline = It.Value;
 
 			if (!CandidatePipeline->RHIPipeline.IsValid()
-				|| CandidateInitializer.bAllowHitGroupIndexing != Initializer.bAllowHitGroupIndexing
 				|| CandidateInitializer.MaxPayloadSizeInBytes != Initializer.MaxPayloadSizeInBytes
 				|| CandidateInitializer.GetRayGenHash() != Initializer.GetRayGenHash()
 				|| CandidateInitializer.GetRayMissHash() != Initializer.GetRayMissHash()

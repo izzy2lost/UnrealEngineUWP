@@ -175,8 +175,7 @@ struct FPipelineCacheFileFormatPSO
 		FSHAHash ShaderHash;
 		uint32 DeprecatedMaxPayloadSizeInBytes = 0;
 		EShaderFrequency Frequency = SF_RayGen;
-		bool bAllowHitGroupIndexing = true;
-
+		
 		FPipelineFileCacheRayTracingDesc() = default;
 		FPipelineFileCacheRayTracingDesc(const FRayTracingPipelineStateInitializer& Initializer, const FRHIRayTracingShader* ShaderRHI);
 
@@ -188,15 +187,13 @@ struct FPipelineCacheFileFormatPSO
 		friend uint32 GetTypeHash(const FPipelineFileCacheRayTracingDesc& Desc)
 		{
 			return GetTypeHash(Desc.ShaderHash) ^
-				GetTypeHash(Desc.Frequency) ^
-				GetTypeHash(Desc.bAllowHitGroupIndexing);
+				GetTypeHash(Desc.Frequency);
 		}
 
 		bool operator == (const FPipelineFileCacheRayTracingDesc& Other) const
 		{
 			return ShaderHash == Other.ShaderHash &&
-				Frequency == Other.Frequency &&
-				bAllowHitGroupIndexing == Other.bAllowHitGroupIndexing;
+				Frequency == Other.Frequency;
 		}
 	};
 	enum class DescriptorType : uint32

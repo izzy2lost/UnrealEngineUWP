@@ -987,6 +987,7 @@ public:
 
 	uint32 RayTracingPayloadType = 0; // This corresponds to the ERayTracingPayloadType enum associated with the shader
 	uint32 RayTracingPayloadSize = 0; // The (maximum) size of the payload associated with this shader
+	uint32 LocalBindingDataSize = 0; // Size of the local shader binding data needed for this shader
 };
 
 class FRHIRayGenShader : public FRHIRayTracingShader
@@ -3252,7 +3253,11 @@ ENUM_CLASS_FLAGS(ERayTracingAccelerationStructureFlags);
 
 struct FRayTracingShaderBindingTableInitializer
 {
-	uint32 NumGeometrySegments = 0;
+	// Allow indexing of the hit group shaders - if disabled then the SBT won't store any hit group data
+	bool bAllowHitGroupIndexing = true;
+	
+	// Local binding data size used for each entry in the SBT (needs to be at least as big as the local binding data size of all shaders used in the SBT) 
+	uint32 LocalBindingDataSize = 0;
 
 	// This value controls how many elements will be allocated in the shader binding table per geometry segment.
 	// Changing this value allows different hit shaders to be used for different effects.
@@ -3260,6 +3265,9 @@ struct FRayTracingShaderBindingTableInitializer
 	// Desired hit shader can be selected by providing appropriate RayContributionToHitGroupIndex to TraceRay() function.
 	// Use ShaderSlot argument in SetRayTracingHitGroup() to assign shaders and resources for specific part of the shder binding table record.
 	uint32 NumShaderSlotsPerGeometrySegment = 1;
+
+	// Maximum number of geometry segments which can be stored in the hit group binding data
+	uint32 NumGeometrySegments = 0;
 
 	// At least one miss shader must be present in a ray tracing scene.
 	// Default miss shader is always in slot 0. Default shader must not use local resources.
@@ -4397,6 +4405,8 @@ public:
 
 	uint32 MaxAttributeSizeInBytes = 8; // sizeof FRayTracingIntersectionAttributes declared in RayTracingCommon.ush
 	uint32 MaxPayloadSizeInBytes = 24; // sizeof FDefaultPayload declared in RayTracingCommon.ush
+
+	UE_DEPRECATED(5.5, "Set bAllowHitGroupIndexing in FRayTracingShaderBindingTableInitializer.")
 	bool bAllowHitGroupIndexing = true;
 
 	// NOTE: GetTypeHash(const FRayTracingPipelineStateInitializer& Initializer) should also be updated when changing this function
@@ -4404,28 +4414,41 @@ public:
 	{
 		return MaxAttributeSizeInBytes == rhs.MaxAttributeSizeInBytes
 			&& MaxPayloadSizeInBytes == rhs.MaxPayloadSizeInBytes
-			&& bAllowHitGroupIndexing == rhs.bAllowHitGroupIndexing
 			&& RayGenHash == rhs.RayGenHash
 			&& MissHash == rhs.MissHash
 			&& HitGroupHash == rhs.HitGroupHash
-			&& CallableHash == rhs.CallableHash;
+			&& CallableHash == rhs.CallableHash
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			&& bAllowHitGroupIndexing == rhs.bAllowHitGroupIndexing;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	friend uint32 GetTypeHash(const FRayTracingPipelineStateSignature& Initializer)
 	{
 		return GetTypeHash(Initializer.MaxAttributeSizeInBytes) ^
 			GetTypeHash(Initializer.MaxPayloadSizeInBytes) ^
-			GetTypeHash(Initializer.bAllowHitGroupIndexing) ^
 			GetTypeHash(Initializer.GetRayGenHash()) ^
 			GetTypeHash(Initializer.GetRayMissHash()) ^
 			GetTypeHash(Initializer.GetHitGroupHash()) ^
-			GetTypeHash(Initializer.GetCallableHash());
+			GetTypeHash(Initializer.GetCallableHash()) ^
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			GetTypeHash(Initializer.bAllowHitGroupIndexing);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	uint64 GetHitGroupHash() const { return HitGroupHash; }
 	uint64 GetRayGenHash()   const { return RayGenHash; }
 	uint64 GetRayMissHash()  const { return MissHash; }
 	uint64 GetCallableHash() const { return CallableHash; }
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingPipelineStateSignature() = default;
+	FRayTracingPipelineStateSignature(const FRayTracingPipelineStateSignature&) = default;
+	FRayTracingPipelineStateSignature& operator=(const FRayTracingPipelineStateSignature&) = default;
+	FRayTracingPipelineStateSignature(FRayTracingPipelineStateSignature&&) = default;
+	FRayTracingPipelineStateSignature& operator=(FRayTracingPipelineStateSignature&&) = default;
+	~FRayTracingPipelineStateSignature() = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 
@@ -4497,6 +4520,9 @@ public:
 		CallableTable = InCallableShaders;
 		CallableHash = Hash ? Hash : ComputeShaderTableHash(CallableTable);
 	}
+
+	// Retrieve the max local binding size of all the raytracing shaders used in the RTPSO
+	RHI_API uint32 GetMaxLocalBindingDataSize() const;
 
 private:
 	TArrayView<FRHIRayTracingShader*> RayGenTable;

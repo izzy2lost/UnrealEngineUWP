@@ -1385,9 +1385,7 @@ bool FPipelineCacheFileFormatPSO::Verify() const
 			uint32 Frequency = uint32(Info.RayTracingDesc.Frequency);
 			Ar << Frequency;
 			Info.RayTracingDesc.Frequency = EShaderFrequency(Frequency);
-
-			Ar << Info.RayTracingDesc.bAllowHitGroupIndexing;
-
+			
 			break;
 		}
 		default:
@@ -4307,13 +4305,12 @@ bool FPipelineFileCacheManager::MergePipelineFileCaches(FString const& PathA, FS
 FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::FPipelineFileCacheRayTracingDesc(const FRayTracingPipelineStateInitializer& Initializer, const FRHIRayTracingShader* ShaderRHI)
 : ShaderHash(ShaderRHI->GetHash())
 , Frequency(ShaderRHI->GetFrequency())
-, bAllowHitGroupIndexing(Initializer.bAllowHitGroupIndexing)
 {
 }
 
 FString FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::HeaderLine() const
 {
-	return FString(TEXT("RayTracingShader,DeprecatedMaxPayloadSizeInBytes,Frequency,bAllowHitGroupIndexing"));
+	return FString(TEXT("RayTracingShader,DeprecatedMaxPayloadSizeInBytes,Frequency"));
 }
 
 FString FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::ToString() const
@@ -4322,7 +4319,6 @@ FString FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::ToString(
 		, *ShaderHash.ToString()
 		, DeprecatedMaxPayloadSizeInBytes
 		, uint32(Frequency)
-		, uint32(bAllowHitGroupIndexing)
 	);
 }
 
@@ -4346,7 +4342,6 @@ void FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::AddToReadabl
 	}
 	OutBuilder << ShaderHash.ToString();
 	OutBuilder << TEXT(" AHGI ");
-	OutBuilder << bAllowHitGroupIndexing;
 }
 
 void FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::FromString(const FString& Src)
@@ -4363,13 +4358,7 @@ void FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::FromString(c
 		uint32 Temp = 0;
 		LexFromString(Temp, Parts[2]);
 		Frequency = EShaderFrequency(Temp);
-	}
-	
-	{
-		uint32 Temp = 0;
-		LexFromString(Temp, Parts[3]);
-		bAllowHitGroupIndexing = Temp != 0;
-	}
+	}	
 }
 
 bool FPipelineCacheFileFormatPSO::Init(FPipelineCacheFileFormatPSO& PSO, FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc const& Desc)
