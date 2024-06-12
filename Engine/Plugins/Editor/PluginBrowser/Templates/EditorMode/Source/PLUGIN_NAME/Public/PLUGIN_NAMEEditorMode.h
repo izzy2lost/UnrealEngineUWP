@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Tools/UEdMode.h"
 #include "PLUGIN_NAMEEditorMode.generated.h"
 

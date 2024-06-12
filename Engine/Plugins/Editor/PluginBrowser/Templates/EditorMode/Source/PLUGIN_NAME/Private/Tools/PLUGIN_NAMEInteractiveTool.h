@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "InteractiveToolBuilder.h"
 #include "BaseTools/ClickDragTool.h"
 #include "PLUGIN_NAMEInteractiveTool.generated.h"
