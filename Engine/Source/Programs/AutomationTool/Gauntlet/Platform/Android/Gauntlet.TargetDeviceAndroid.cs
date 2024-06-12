@@ -118,7 +118,7 @@ namespace Gauntlet
 
 			// We have exited if our activity doesn't appear in the activity query or is not the focused activity.
 			bool bActivityPresent = ActivityQuery.Output.Contains(Install.AndroidPackageName);
-			bool bActivityInForeground = ActivityQuery.Output.Contains("mResumedActivity");
+			bool bActivityInForeground = ActivityQuery.Output.Contains("ResumedActivity");
 			bool bHasExited = !bActivityPresent || !bActivityInForeground;
 			if (bHasExited)
 			{
