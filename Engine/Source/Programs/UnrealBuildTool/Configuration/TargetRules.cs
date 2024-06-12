@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -2917,7 +2917,8 @@ namespace UnrealBuildTool
 		/// <returns>Target instance</returns>
 		public static TargetRules Create(Type rulesType, TargetInfo targetInfo, FileReference? baseFile, FileReference? platformFile, IEnumerable<FileReference>? targetFiles, BuildSettingsVersion? defaultBuildSettings, ILogger logger)
 		{
-			TargetRules rules = (TargetRules)FormatterServices.GetUninitializedObject(rulesType);
+
+			TargetRules rules = (TargetRules)RuntimeHelpers.GetUninitializedObject(rulesType);
 			if (defaultBuildSettings.HasValue)
 			{
 				rules.DefaultBuildSettings = defaultBuildSettings.Value;

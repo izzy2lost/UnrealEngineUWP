@@ -3,7 +3,7 @@
 using System;
 using System.IO;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using UnrealBuildBase;
 
@@ -209,7 +209,7 @@ namespace UnrealBuildTool
 		public static TestTargetRules Create(TargetRules rules, TargetInfo targetInfo)
 		{
 			Type testTargetRulesType = typeof(TestTargetRules);
-			TestTargetRules testRules = (TestTargetRules)FormatterServices.GetUninitializedObject(testTargetRulesType);
+			TestTargetRules testRules = (TestTargetRules)RuntimeHelpers.GetUninitializedObject(testTargetRulesType);
 
 			// Initialize the logger before calling the constructor
 			testRules.Logger = rules.Logger;

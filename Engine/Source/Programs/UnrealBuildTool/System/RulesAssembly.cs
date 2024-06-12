@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -520,7 +520,8 @@ namespace UnrealBuildTool
 			try
 			{
 				// Create an uninitialized ModuleRules object and set some defaults.
-				ModuleRules RulesObject = (ModuleRules)FormatterServices.GetUninitializedObject(RulesObjectType);
+				ModuleRules RulesObject = (ModuleRules)RuntimeHelpers.GetUninitializedObject(RulesObjectType);
+
 				// even if we created a platform-extension version of the module rules, we are pretending to be
 				// the base type, so that no one else needs to manage this
 				RulesObject.Name = ModuleName;
