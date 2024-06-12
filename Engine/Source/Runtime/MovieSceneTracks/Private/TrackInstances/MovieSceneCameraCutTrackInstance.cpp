@@ -292,7 +292,7 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 {
 	using namespace UE::MovieScene;
 
-	auto ForceEditorPreAnimatedStorageOperation = [](UMovieSceneCameraCutTrackInstance* This, UE::MovieScene::EForcedCameraCutPreAnimatedStorageOperation Operation)
+	auto ForceEditorPreAnimatedStorageOperation = [](UMovieSceneCameraCutTrackInstance* This, EForcedCameraCutPreAnimatedStorageOperation Operation)
 	{
 		using namespace UE::MovieScene;
 
@@ -303,6 +303,19 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 			FScopedPreAnimatedCaptureSource CaptureSource(Linker, InputInfo.Input);
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InputInfo.Input.InstanceHandle);
 			FCameraCutEditorHandler::ForcePreAnimatedValueOperation(Linker, SequenceInstance, Operation);
+		}
+	};
+	auto ForceGamePreAnimatedStorageRestore = [](UMovieSceneCameraCutTrackInstance* This)
+	{
+		using namespace UE::MovieScene;
+
+		UMovieSceneEntitySystemLinker* Linker = This->GetLinker();
+		const FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+		for (const FCameraCutInputInfo& InputInfo : This->SortedInputInfos)
+		{
+			FScopedPreAnimatedCaptureSource CaptureSource(Linker, InputInfo.Input);
+			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InputInfo.Input.InstanceHandle);
+			FCameraCutGameHandler::ForcePreAnimatedValueRestore(Linker, SequenceInstance);
 		}
 	};
 
@@ -349,6 +362,10 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 				{
 					ForceEditorPreAnimatedStorageOperation(CameraCutTrackInstance, EForcedCameraCutPreAnimatedStorageOperation::Discard);
 				}
+
+				// If we have a PIE session active, we need to tell the game handler to restore its
+				// pre-animated state.
+				ForceGamePreAnimatedStorageRestore(CameraCutTrackInstance);
 			}
 		}
 	}

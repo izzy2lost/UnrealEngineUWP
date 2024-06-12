@@ -16,15 +16,27 @@
 #include "Systems/MovieSceneMotionVectorSimulationSystem.h"
 #include "TrackInstances/MovieSceneCameraCutTrackInstance.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#endif
+
 namespace UE::MovieScene
 {
 
 bool FPreAnimatedCameraCutTraits::ShouldHandleWorldCameraCuts(UWorld* World)
 {
-	return World && 
+	return World &&
+		// We can handle any ongoing game worlds. We just don't handle worlds where there is
+		// no active player controller/pawn, such as PIE/SIE where the user has "ejected" out
+		// of the player controller.
 		World->GetGameInstance() != nullptr &&
 		World->WorldType != EWorldType::Editor &&
-		World->WorldType != EWorldType::EditorPreview;
+		World->WorldType != EWorldType::EditorPreview
+#if WITH_EDITOR
+		&&
+		(!GEditor || !GEditor->bIsSimulatingInEditor)
+#endif
+		;
 }
 
 FPreAnimatedCameraCutState FPreAnimatedCameraCutTraits::CachePreAnimatedValue(
@@ -145,6 +157,22 @@ static TTuple<EViewTargetBlendFunction, float> BuiltInEasingTypeToBlendFunction(
 			break;
 	}
 	return Return(EViewTargetBlendFunction::VTBlend_Linear, 1.f);
+}
+
+void FCameraCutGameHandler::ForcePreAnimatedValueRestore(
+			UMovieSceneEntitySystemLinker* Linker,
+			const FSequenceInstance& SequenceInstance)
+{
+	TSharedPtr<FPreAnimatedCameraCutStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedCameraCutStorage>();
+
+	FRestoreStateParams Params;
+	Params.Linker = Linker;
+	Params.TerminalInstanceHandle = SequenceInstance.GetRootInstanceHandle();
+	PreAnimatedStorage->RestorePreAnimatedStateStorage(
+			(uint8)0,  // See comment below
+			EPreAnimatedStorageRequirement::Transient, 
+			EPreAnimatedStorageRequirement::Persistent,
+			Params);
 }
 
 void FCameraCutGameHandler::CachePreAnimatedValue(

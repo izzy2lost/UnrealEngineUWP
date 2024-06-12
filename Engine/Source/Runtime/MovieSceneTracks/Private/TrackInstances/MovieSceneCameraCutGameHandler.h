@@ -63,6 +63,9 @@ struct FCameraCutGameHandler
 	static void CachePreAnimatedValue(
 			UMovieSceneEntitySystemLinker* Linker,
 			const FSequenceInstance& SequenceInstance);
+	static void ForcePreAnimatedValueRestore(
+			UMovieSceneEntitySystemLinker* Linker,
+			const FSequenceInstance& SequenceInstance);
 
 private:
 	UMovieSceneEntitySystemLinker* Linker;
