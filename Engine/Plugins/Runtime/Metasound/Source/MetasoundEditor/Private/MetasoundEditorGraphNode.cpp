@@ -206,6 +206,23 @@ UMetaSoundBuilderBase& UMetasoundEditorGraphNode::GetBuilderChecked() const
 	return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(EdGraph->GetMetasoundChecked());
 }
 
+const FMetasoundFrontendClass* UMetasoundEditorGraphNode::GetFrontendClass() const
+{
+	using namespace Metasound::Engine;
+
+	if (UObject* Outermost = GetOutermostObject())
+	{
+		const FGuid NodeID = GetNodeID();
+		const FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Outermost);
+		if (const FMetasoundFrontendNode* Node = Builder.FindNode(NodeID))
+		{
+			return Builder.FindDependency(Node->ClassID);
+		}
+	}
+
+	return nullptr;
+}
+
 const FMetasoundFrontendNode* UMetasoundEditorGraphNode::GetFrontendNode() const
 {
 	using namespace Metasound::Engine;

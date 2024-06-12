@@ -120,6 +120,14 @@ public:
 	virtual bool CanAddInputPin() const { return false; }
 
 	UMetaSoundBuilderBase& GetBuilderChecked() const;
+
+	// Returns document's cached Frontend Node Class (as defined by the
+	// document's dependency array). If node or class is not found on
+	// document, returns null.
+	const FMetasoundFrontendClass* GetFrontendClass() const;
+
+	// Returns document's cached Frontend Node.
+	// If node is not found on document, returns null.
 	const FMetasoundFrontendNode* GetFrontendNode() const;
 	const FMetasoundFrontendNode& GetFrontendNodeChecked() const;
 

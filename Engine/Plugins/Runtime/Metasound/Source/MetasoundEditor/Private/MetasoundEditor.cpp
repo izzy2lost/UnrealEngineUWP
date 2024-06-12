@@ -2055,14 +2055,24 @@ namespace Metasound
 				return;
 			}
 
-			if (UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(InNode))
+			if (UAssetEditorSubsystem* AssetSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
 			{
-				FConstNodeHandle NodeHandle = ExternalNode->GetConstNodeHandle();
-				const FNodeRegistryKey Key(NodeHandle->GetClassMetadata());
-
-				if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(Key))
+				if (UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(InNode))
 				{
-					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Asset->GetOwningAsset());
+					if (const FMetasoundFrontendClass* Class = ExternalNode->GetFrontendClass())
+					{
+						// Editor external nodes can represent frontend template nodes, so check
+						// to make sure underlying frontend node is of type 'External' to avoid
+						// ensure when generating asset key.
+						if (Class->Metadata.GetType() == EMetasoundFrontendClassType::External)
+						{
+							const FAssetKey AssetKey(Class->Metadata);
+							if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(AssetKey))
+							{
+								AssetSubsystem->OpenEditorForAsset(Asset->GetOwningAsset());
+							}
+						}
+					}
 				}
 			}
 		}
