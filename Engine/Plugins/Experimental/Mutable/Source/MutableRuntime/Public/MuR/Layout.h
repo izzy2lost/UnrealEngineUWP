@@ -135,6 +135,7 @@ namespace mu
 				Priority = 0;
 				bReduceBothAxes = false;
 				bReduceByTwo = false;
+				UnusedPadding = 0;
 			}
 
 			UE::Math::TIntVector2<uint16> Min = UE::Math::TIntVector2<uint16>(0,0);
@@ -151,6 +152,9 @@ namespace mu
 
 			//! Value to control if a block has to be reduced by two in an unitary reduction strategy
 			uint32 bReduceByTwo : 1;
+
+			/** Explicit padding to prevent uninitialized memory in this POD. */
+			uint32 UnusedPadding : 30;
 
 
 			//!
