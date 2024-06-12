@@ -268,8 +268,25 @@ void FHoldoutCompositeSceneViewExtension::SetupView(FSceneViewFamily& InViewFami
 	{
 		if (PrimitivePtr.IsValid())
 		{
-			HoldoutCompositePrimitiveIds.Add(PrimitivePtr->GetPrimitiveSceneId());
+			const FPrimitiveComponentId PrimId = PrimitivePtr->GetPrimitiveSceneId();
+
+			if (InView.ShowOnlyPrimitives.IsSet())
+			{
+				if (InView.ShowOnlyPrimitives.GetValue().Contains(PrimId))
+				{
+					HoldoutCompositePrimitiveIds.Add(PrimitivePtr->GetPrimitiveSceneId());
+				}
+			}
+			else if (!InView.HiddenPrimitives.Contains(PrimId))
+			{
+				HoldoutCompositePrimitiveIds.Add(PrimitivePtr->GetPrimitiveSceneId());
+			}
 		}
+	}
+
+	if (HoldoutCompositePrimitiveIds.IsEmpty())
+	{
+		return;
 	}
 
 	// Extract the custom render target size
@@ -310,8 +327,14 @@ void FHoldoutCompositeSceneViewExtension::SetupView(FSceneViewFamily& InViewFami
 	WorldPtr.Get()->Scene->AddCustomRenderPass(&InViewFamily, PassInput);
 }
 
-void FHoldoutCompositeSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+void FHoldoutCompositeSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& InView, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 {
+	if (!CustomRenderTargetPerView_RenderThread.Contains(InView.GetViewKey()))
+	{
+		// Early-out to avoid needless work in the post processing callback(s).
+		return;
+	}
+
 	if (PassId == EPostProcessingPass::Tonemap)
 	{
 		InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTonemap_RenderThread));
