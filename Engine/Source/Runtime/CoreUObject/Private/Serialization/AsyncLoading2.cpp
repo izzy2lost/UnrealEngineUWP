@@ -7876,14 +7876,11 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 				{
 					// In the editor we need to find any assets and packages and add them to list for later callback
 					EditorCompletedUPackages.Add(Package->LinkerRoot);
-					if (GIsEditor)
+					for (UObject* Object : Package->ConstructedObjects)
 					{
-						for (UObject* Object : Package->ConstructedObjects)
+						if (Object->IsAsset())
 						{
-							if (Object->IsAsset())
-							{
-								EditorLoadedAssets.Add(Object);
-							}
+							EditorLoadedAssets.Add(Object);
 						}
 					}
 				}
