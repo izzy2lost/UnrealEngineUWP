@@ -5,6 +5,7 @@
 #include "Containers/ChunkedArray.h"
 #include "Misc/TVariant.h"
 #include "Templates/SharedPointer.h"
+#include "MassProcessingTypes.h"
 
 struct FMassArchetypeData;
 struct FMassEntityHandle;
@@ -76,13 +77,15 @@ namespace UE::Mass
 		virtual bool IsValid(int32 Index) const = 0;
 
 		virtual FMassEntityHandle AcquireOne() = 0;
+		// @return number of entities actually added
+		virtual int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles) = 0;
 		
-		virtual int32 Release(TArrayView<FMassEntityHandle> Handles) = 0;
+		virtual int32 Release(TConstArrayView<FMassEntityHandle> Handles) = 0;
 		virtual int32 ReleaseOne(FMassEntityHandle Handles) = 0;
 		
 		// Bypasses Serial Number Check
 		// Only use if caller has ensured serial number matches or for debug purposes
-		virtual int32 ForceRelease(TArrayView<FMassEntityHandle> Handles) = 0;
+		virtual int32 ForceRelease(TConstArrayView<FMassEntityHandle> Handles) = 0;
 		virtual int32 ForceReleaseOne(FMassEntityHandle Handle) = 0;
 
 		// Returns the number of entities that are not free
@@ -117,9 +120,10 @@ namespace UE::Mass
 		virtual SIZE_T GetAllocatedSize() const override;
 		virtual bool IsValid(int32 Index) const override;
 		virtual FMassEntityHandle AcquireOne() override;
-		virtual int32 Release(TArrayView<FMassEntityHandle> Handles) override;
+		virtual int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles) override;
+		virtual int32 Release(TConstArrayView<FMassEntityHandle> Handles) override;
 		virtual int32 ReleaseOne(FMassEntityHandle Handle) override;
-		virtual int32 ForceRelease(TArrayView<FMassEntityHandle> Handles) override;
+		virtual int32 ForceRelease(TConstArrayView<FMassEntityHandle> Handles) override;
 		virtual int32 ForceReleaseOne(FMassEntityHandle Handle) override;
 		virtual int32 Num() const override;
 		virtual int32 ComputeFreeSize() const override;
@@ -169,12 +173,17 @@ namespace UE::Mass
 		virtual SIZE_T GetAllocatedSize() const override;
 		virtual bool IsValid(int32 Index) const override;
 		virtual FMassEntityHandle AcquireOne() override;
-		virtual int32 Release(TArrayView<FMassEntityHandle> Handles) override;
+		virtual int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles) override;
+		virtual int32 Release(TConstArrayView<FMassEntityHandle> Handles) override;
 		virtual int32 ReleaseOne(FMassEntityHandle Handle) override;
-		virtual int32 ForceRelease(TArrayView<FMassEntityHandle> Handles) override;
+		virtual int32 ForceRelease(TConstArrayView<FMassEntityHandle> Handles) override;
 		virtual int32 ForceReleaseOne(FMassEntityHandle Handle) override;
 		virtual int32 Num() const override;
 		virtual int32 ComputeFreeSize() const override;
+#if WITH_MASSENTITY_DEBUG
+		/** @return whether the assumptions are still valid */
+		MASSENTITY_API static bool DebugAssumptionsSelfTest();
+#endif // WITH_MASSENTITY_DEBUG
 	private:	
 	
 		struct FEntityData
@@ -183,13 +192,15 @@ namespace UE::Mass
 		
 			TSharedPtr<FMassArchetypeData> CurrentArchetype;
 			// Generation ID or version of the entity in this slot
-			uint32 GenerationId  : MaxGenerationBits = 0;
+			uint32 GenerationId : MaxGenerationBits = 0;
 			// 1 if the entity is NOT free
-			uint32 IsAllocated : 1 = 0;
+			uint32 bIsAllocated : 1 = 0;
 
 			~FEntityData();
 			// Converts EntityData state into a SerialNumber for public usage
 			int32 GetSerialNumber() const;
+
+			bool operator==(const FEntityData& Other) const;
 		};
 	
 		FEntityData& LookupEntity(int32 Index);
@@ -197,6 +208,9 @@ namespace UE::Mass
 
 		// Returns size of a page in bytes
 		uint64 ComputePageSize() const;
+
+		// @return whether the operation was successful. Will return false when OOM
+		bool AddPage();
 
 		// Number of allocated Entities
 		std::atomic<uint64> EntityCount = 0;

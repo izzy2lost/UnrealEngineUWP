@@ -751,13 +751,11 @@ void FMassEntityManager::BuildEntity(FMassEntityHandle Entity, TConstArrayView<F
 
 TConstArrayView<FMassEntityHandle> FMassEntityManager::BatchReserveEntities(const int32 Count, TArray<FMassEntityHandle>& InOutEntities)
 {
-	int32 Index = InOutEntities.Num();
-	InOutEntities.Reserve(Index + Count);
-	for (int32 Counter = 0; Counter < Count; ++Counter)
-	{
-		InOutEntities.Add(ReserveEntity());
-	}
-	return MakeArrayView(InOutEntities.GetData() + Index, Count);
+	const int32 Index = InOutEntities.Num();
+	const int32 NumAdded = GetEntityStorageInterface().Acquire(Count, InOutEntities);
+	ensureMsgf(NumAdded == Count, TEXT("Failed to reserve %d entities, was able to only reserve %d"), Count, NumAdded);
+
+	return MakeArrayView(InOutEntities.GetData() + Index, NumAdded);
 }
 
 TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload
@@ -925,13 +923,15 @@ void FMassEntityManager::BatchDestroyEntities(TConstArrayView<FMassEntityHandle>
 			continue;
 		}
 
-		FMassArchetypeData* Archetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
-		check(Archetype);
-		ObserverManager.OnPreEntityDestroyed(Archetype->GetCompositionDescriptor(), Entity);
-		Archetype->RemoveEntity(Entity);
-
-		GetEntityStorageInterface().ReleaseOne(Entity);
+		if (FMassArchetypeData* Archetype = GetEntityStorageInterface().GetArchetype(Entity.Index))
+		{
+			ObserverManager.OnPreEntityDestroyed(Archetype->GetCompositionDescriptor(), Entity);
+			Archetype->RemoveEntity(Entity);
+		}
+		// else it's a "reserved" entity so it has not been assigned to an archetype yet, no archetype nor observers to notify
 	}
+
+	GetEntityStorageInterface().Release(InEntities);
 }
 
 void FMassEntityManager::BatchDestroyEntityChunks(const FMassArchetypeEntityCollection& EntityCollection)
@@ -1676,7 +1676,9 @@ const FSharedStruct* FMassEntityManager::InternalGetSharedFragmentPtr(FMassEntit
 
 bool FMassEntityManager::IsEntityValid(FMassEntityHandle Entity) const
 {
-	return (Entity.Index != UE::Mass::Private::InvalidEntityIndex) && GetEntityStorageInterface().IsValidIndex(Entity.Index) && (GetEntityStorageInterface().GetSerialNumber(Entity.Index) == Entity.SerialNumber);
+	return (Entity.Index != UE::Mass::Private::InvalidEntityIndex) 
+		&& GetEntityStorageInterface().IsValidIndex(Entity.Index) 
+		&& (GetEntityStorageInterface().GetSerialNumber(Entity.Index) == Entity.SerialNumber);
 }
 
 bool FMassEntityManager::IsEntityBuilt(FMassEntityHandle Entity) const
@@ -2116,6 +2118,7 @@ void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollection
 	Params.DebugName = ArchetypeDebugName;
 	BatchBuildEntities(EncodedEntitiesWithPayload, MoveTemp(Composition), SharedFragmentValues, Params);
 }
+
 const FMassArchetypeEntityCollection& FMassEntityManager::FEntityCreationContext::GetEntityCollection() const
 {
 	static FMassArchetypeEntityCollection EmptyCollection;

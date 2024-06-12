@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassEntityManagerStorage.h"
 
@@ -7,8 +7,9 @@
 
 namespace UE::Mass
 {
-	//////////////////////////////////////////////////////////////////////
+	//-----------------------------------------------------------------------------
 	// FSingleThreadedEntityStorage
+	//-----------------------------------------------------------------------------
 	
 	FMassArchetypeData* FSingleThreadedEntityStorage::GetArchetype(int32 Index)
 	{
@@ -42,19 +43,13 @@ namespace UE::Mass
 
 	IEntityStorageInterface::EEntityState FSingleThreadedEntityStorage::GetEntityState(int32 Index) const
 	{
-		const FMassArchetypeData* CurrentArchetype = Entities[Index].CurrentArchetype.Get();
 		const uint32 CurrentSerialNumber = Entities[Index].SerialNumber;
 
 		if (CurrentSerialNumber != 0)
 		{
-			if (CurrentArchetype != nullptr)
-			{
-				return EEntityState::Created;
-			}
-			else // (CurrentArchetype == nullptr)
-			{
-				return EEntityState::Reserved;
-			}
+			return Entities[Index].CurrentArchetype.Get()
+				? EEntityState::Created 
+				: EEntityState::Reserved;
 		}
 
 		return EEntityState::Free;	
@@ -92,13 +87,53 @@ namespace UE::Mass
 		return Handle;
 	}
 
-	int32 FSingleThreadedEntityStorage::Release(TArrayView<FMassEntityHandle> Handles)
+	int32 FSingleThreadedEntityStorage::Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles)
+	{
+		check(Count >= 0);
+
+		const int32 SerialNumber = SerialNumberGenerator.fetch_add(1);
+
+		int32 NumAdded = 0;
+
+		OutEntityHandles.Reserve(OutEntityHandles.Num() + Count);
+
+		const int32 NumAvailableFromFreeList = FMath::Min(Count, EntityFreeIndexList.Num());
+		if (NumAvailableFromFreeList > 0)
+		{
+			const int32 FirstIndexToUse = EntityFreeIndexList.Num() - NumAvailableFromFreeList;
+			for (int32 Index = FirstIndexToUse; Index < EntityFreeIndexList.Num(); ++Index)
+			{
+				const int32 EntityIndex = EntityFreeIndexList[Index];
+				Entities[EntityIndex].SerialNumber = SerialNumber;
+				OutEntityHandles.Add({ EntityIndex, SerialNumber });
+			}
+			EntityFreeIndexList.RemoveAt(FirstIndexToUse, NumAvailableFromFreeList, EAllowShrinking::No);
+			NumAdded = NumAvailableFromFreeList;
+		}
+
+		if (NumAdded < Count)
+		{
+			const int32 RemainingCount = Count - NumAdded;
+			const int32 StartingIndex = Entities.Num();
+			Entities.Add(RemainingCount);
+			for (int32 EntityIndex = StartingIndex; EntityIndex < Entities.Num(); ++EntityIndex)
+			{
+				Entities[EntityIndex].SerialNumber = SerialNumber;
+				OutEntityHandles.Add({ EntityIndex, SerialNumber });
+			}
+			NumAdded += RemainingCount;
+		}
+
+		return NumAdded;
+	}
+
+	int32 FSingleThreadedEntityStorage::Release(TConstArrayView<FMassEntityHandle> Handles)
 	{
 		int DeallocateCount = 0;
 
 		EntityFreeIndexList.Reserve(EntityFreeIndexList.Num() + Handles.Num());
 
-		for (FMassEntityHandle& Handle : Handles)
+		for (const FMassEntityHandle& Handle : Handles)
 		{
 			FEntityData& EntityData = Entities[Handle.Index];
 			if (EntityData.SerialNumber == Handle.SerialNumber)
@@ -117,10 +152,10 @@ namespace UE::Mass
 		return Release(MakeArrayView(&Handle, 1));
 	}
 
-	int32 FSingleThreadedEntityStorage::ForceRelease(TArrayView<FMassEntityHandle> Handles)
+	int32 FSingleThreadedEntityStorage::ForceRelease(TConstArrayView<FMassEntityHandle> Handles)
 	{
 		EntityFreeIndexList.Reserve(EntityFreeIndexList.Num() + Handles.Num());
-		for (FMassEntityHandle& Handle : Handles)
+		for (const FMassEntityHandle& Handle : Handles)
 		{
 			FEntityData& EntityData = Entities[Handle.Index];
 			EntityData.Reset();
@@ -144,6 +179,10 @@ namespace UE::Mass
 		return EntityFreeIndexList.Num();
 	}
 
+	//-----------------------------------------------------------------------------
+	// FSingleThreadedEntityStorage::FEntityData
+	//-----------------------------------------------------------------------------
+
 	FSingleThreadedEntityStorage::FEntityData::~FEntityData() = default;
 
 	void FSingleThreadedEntityStorage::FEntityData::Reset()
@@ -157,8 +196,9 @@ namespace UE::Mass
 		return SerialNumber != 0 && CurrentArchetype.IsValid();
 	}
 
-	//////////////////////////////////////////////////////////////////////
+	//-----------------------------------------------------------------------------
 	// FConcurrentEntityStorage
+	//-----------------------------------------------------------------------------
 
 	void FConcurrentEntityStorage::Initialize(const FMassEntityManager_InitParams_Concurrent& InInitializationParams)
 	{
@@ -223,7 +263,7 @@ namespace UE::Mass
 	IEntityStorageInterface::EEntityState FConcurrentEntityStorage::GetEntityState(int32 Index) const
 	{
 		//
-		// || Archetype || IsAllocated || Result    |
+		// || Archetype || bIsAllocated || Result    |
 		//  |  nullptr   |      0       |  Free     |
 		//  |  nullptr   |      1       |  Reserved |
 		//  | !nullptr   |      1       |  Created  |
@@ -234,14 +274,9 @@ namespace UE::Mass
 		{
 			return EEntityState::Created;
 		}
-		else // EntityData.CurrentArchetype == nullptr
-		{
-			if (EntityData.IsAllocated == 1)
-			{
-				return EEntityState::Reserved;
-			}
-			return EEntityState::Free;
-		}
+		return EntityData.bIsAllocated
+			? EEntityState::Reserved
+			: EEntityState::Free;
 	}
 
 	int32 FConcurrentEntityStorage::GetSerialNumber(int32 Index) const
@@ -281,6 +316,50 @@ namespace UE::Mass
 		return LookupEntity(Index).CurrentArchetype != nullptr;
 	}
 
+	bool FConcurrentEntityStorage::AddPage()
+	{
+		check(FreeListMutex.IsLocked());
+		UE::TUniqueLock PageAllocateLock(PageAllocateMutex);
+
+		// Allocate new page
+		const uint32 NewPageIndex = PageCount;
+		checkf((NewPageIndex + 1) * MaxEntitiesPerPage < (1llu << MaximumEntityCountShift), TEXT("Exhausted number of entities"));
+
+		const uint64 PageSize = ComputePageSize();
+		FEntityData* Page = static_cast<FEntityData*>(FMemory::Malloc(PageSize, alignof(FEntityData)));
+		
+		if (Page == nullptr)
+		{
+			return false;
+		}
+
+		/*for (int32 Index = 0, End = MaxEntitiesPerPage; Index < End; ++Index)
+		{
+			new (Page + Index) FEntityData();
+		}*/
+		FMemory::Memzero(Page, PageSize);
+
+		EntityPages[PageCount] = Page;
+		++PageCount;
+
+		const int32 NewEntityIndexStart = NewPageIndex * MaxEntitiesPerPage;
+		const int32 NewEntityIndexEnd = (NewPageIndex + 1) * MaxEntitiesPerPage;
+
+		EntityFreeIndexList.Reserve(MaxEntitiesPerPage);
+
+		// Somewhat tricksy thing here to be aware of
+		// MassEntityManager expects the very first allocated entity to be at index 0
+		// However, EntityFreeIndexList.Pop() will return the last one added to the list
+		// Therefore, populate the free list backwards
+		for (int32 NewEntityIndex = NewEntityIndexEnd - 1; NewEntityIndex >= NewEntityIndexStart; --NewEntityIndex)
+		{
+			// Setup the free list
+			EntityFreeIndexList.Push(NewEntityIndex);
+		}
+
+		return true;
+	}
+
 	FMassEntityHandle FConcurrentEntityStorage::AcquireOne()
 	{
 		int32 EntityIndex;
@@ -289,38 +368,7 @@ namespace UE::Mass
 		
 			if (UNLIKELY(EntityFreeIndexList.IsEmpty()))
 			{
-				check(FreeListMutex.IsLocked());
-				UE::TUniqueLock PageAllocateLock(PageAllocateMutex);
-
-				// Allocate new page
-				const uint32 NewPageIndex = PageCount;
-				checkf((NewPageIndex + 1) * MaxEntitiesPerPage < (1llu << MaximumEntityCountShift), TEXT("Exahusted number of entities"));
-
-				const uint64 PageSize = ComputePageSize();
-				FEntityData* Page = static_cast<FEntityData*>(FMemory::Malloc(PageSize, alignof(FEntityData)));
-			
-				for (int32 Index = 0, End = MaxEntitiesPerPage; Index < End; ++Index)
-				{
-					new (Page + Index) FEntityData();
-				}
-
-				EntityPages[PageCount] = Page;
-				++PageCount;
-
-				const int32 NewEntityIndexStart = NewPageIndex * MaxEntitiesPerPage;
-				const int32 NewEntityIndexEnd = (NewPageIndex + 1) * MaxEntitiesPerPage;
-
-				EntityFreeIndexList.Reserve(MaxEntitiesPerPage);
-
-				// Somewhat tricksy thing here to be aware of
-				// MassEntityManager expects the very first allocated entity to be at index 0
-				// However, EntityFreeIndexList.Pop() will return the last one added to the list
-				// Therefore, populate the free list backwards
-				for (int32 NewEntityIndex = NewEntityIndexEnd - 1; NewEntityIndex >= NewEntityIndexStart; --NewEntityIndex)
-				{
-					// Setup the free list
-					EntityFreeIndexList.Push(NewEntityIndex);
-				}
+				AddPage();
 			}
 
 			EntityIndex = EntityFreeIndexList.Pop(EAllowShrinking::No);
@@ -331,7 +379,7 @@ namespace UE::Mass
 		// that SerialNum == 0 means an invalid Entity.  FMassArchetypeEntityCollection uses this assumption
 		// and will fail IsValid() checks otherwise.
 		++EntityData.GenerationId;
-		EntityData.IsAllocated = 1;
+		EntityData.bIsAllocated = 1;
 		int32 SerialNumber = EntityData.GetSerialNumber();
 
 		EntityCount.fetch_add(1llu);
@@ -342,7 +390,54 @@ namespace UE::Mass
 		return Handle;
 	}
 
-	int32 FConcurrentEntityStorage::Release(TArrayView<FMassEntityHandle> Handles)
+	int32 FConcurrentEntityStorage::Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles)
+	{
+		check(Count >= 0);
+
+		int32 CountAdded = 0;
+		int32 CountLeft = Count;
+
+		OutEntityHandles.Reserve(OutEntityHandles.Num() + Count);
+
+		while (CountLeft > 0)
+		{
+			UE::TUniqueLock FreeListLock(FreeListMutex);
+
+			if (UNLIKELY(EntityFreeIndexList.IsEmpty()))
+			{
+				if (AddPage() == false)
+				{
+					break;
+				}
+			}
+
+			const int32 CountToProcess = FMath::Min(CountLeft, EntityFreeIndexList.Num());
+
+			for (int32 Iteration = 0; Iteration < CountToProcess; ++Iteration)
+			{
+				const int32 EntityIndex = EntityFreeIndexList.Pop(EAllowShrinking::No);
+
+				FEntityData& EntityData = LookupEntity(EntityIndex);
+				// NOTE: Technically should not be necessary, however FEntityHandle::IsValid() makes the assumption
+				// that SerialNum == 0 means an invalid Entity.  FMassArchetypeEntityCollection uses this assumption
+				// and will fail IsValid() checks otherwise.
+				++EntityData.GenerationId;
+				EntityData.bIsAllocated = 1;
+				const int32 SerialNumber = EntityData.GetSerialNumber();
+
+				OutEntityHandles.Add({ EntityIndex, SerialNumber });
+			}
+			
+			CountAdded += CountToProcess;
+			CountLeft -= CountToProcess;
+		}
+
+		EntityCount.fetch_add(CountAdded);
+
+		return CountAdded;
+	}
+
+	int32 FConcurrentEntityStorage::Release(TConstArrayView<FMassEntityHandle> Handles)
 	{
 		int32 DeallocateCount = 0;
 	
@@ -358,7 +453,7 @@ namespace UE::Mass
 				EntityFreeIndexList.Reserve(EntityFreeIndexList.Num() + AllocatedRunLength);
 				for (int32 IndexToFree = BeginHandlesIndexToFree; IndexToFree < BeginHandlesIndexToFree + AllocatedRunLength; ++IndexToFree)
 				{
-					FMassEntityHandle& HandleToFree = Handles[IndexToFree];
+					const FMassEntityHandle& HandleToFree = Handles[IndexToFree];
 					EntityFreeIndexList.Add(HandleToFree.Index);
 				}
 			}
@@ -368,14 +463,14 @@ namespace UE::Mass
 	
 		for (int32 Index = 0, End = Handles.Num(); Index < End; ++Index)
 		{
-			FMassEntityHandle& Handle = Handles[Index];
+			const FMassEntityHandle& Handle = Handles[Index];
 			FEntityData& EntityData = LookupEntity(Handle.Index);
 			if (EntityData.GetSerialNumber() == Handle.SerialNumber)
 			{
 				++AllocatedRunLength;
 			
 				++EntityData.GenerationId;
-				EntityData.IsAllocated = 0;
+				EntityData.bIsAllocated = 0;
 				EntityData.CurrentArchetype.Reset();
 			
 				++DeallocateCount;
@@ -402,23 +497,23 @@ namespace UE::Mass
 		return Release(MakeArrayView(&Handle, 1));
 	}
 
-	int32 FConcurrentEntityStorage::ForceRelease(TArrayView<FMassEntityHandle> Handles)
+	int32 FConcurrentEntityStorage::ForceRelease(TConstArrayView<FMassEntityHandle> Handles)
 	{
 		// ForceRelease assumes the caller knows all handles are allocated
 		// no need to have complexity of tracking "runs" of handles 
-		for (FMassEntityHandle& Handle : Handles)
+		for (const FMassEntityHandle& Handle : Handles)
 		{
 			FEntityData& EntityData = LookupEntity(Handle.Index);
 
 			++EntityData.GenerationId;
-			EntityData.IsAllocated = 0;
+			EntityData.bIsAllocated = 0;
 			EntityData.CurrentArchetype.Reset();
 		}
 
 		{
 			UE::TUniqueLock FreeListLock(FreeListMutex);
 			EntityFreeIndexList.Reserve(EntityFreeIndexList.Num() + Handles.Num());
-			for (FMassEntityHandle& Handle : Handles)
+			for (const FMassEntityHandle& Handle : Handles)
 			{
 				EntityFreeIndexList.Add(Handle.Index);
 			}
@@ -442,13 +537,6 @@ namespace UE::Mass
 	int32 FConcurrentEntityStorage::ComputeFreeSize() const
 	{
 		return EntityFreeIndexList.Num();
-	}
-
-	FConcurrentEntityStorage::FEntityData::~FEntityData() = default;
-
-	int32 FConcurrentEntityStorage::FEntityData::GetSerialNumber() const
-	{
-		return static_cast<int32>(GenerationId);
 	}
 
 	FConcurrentEntityStorage::FEntityData& FConcurrentEntityStorage::LookupEntity(int32 Index)
@@ -476,5 +564,41 @@ namespace UE::Mass
 	uint64 FConcurrentEntityStorage::ComputePageSize() const
 	{
 		return sizeof(FEntityData) * MaxEntitiesPerPage;
+	}
+
+#if WITH_MASSENTITY_DEBUG
+	bool FConcurrentEntityStorage::DebugAssumptionsSelfTest()
+	{
+		// future proofing in case FEntityData's or TSharedPtr's internals change and make MemZero-ing not produce 
+		// the same results as default FEntityData's constructor
+		FEntityData DefaultData;
+		FEntityData ZeroedData;
+		FMemory::Memzero(&ZeroedData, sizeof(FEntityData));
+
+		if (DefaultData != ZeroedData)
+		{
+			UE_LOG(LogMass, Error, TEXT("%hs assumption about default FEntityData values is no longer true."), __FUNCTION__);
+			return false;
+		}
+
+		return true;
+	}
+#endif // WITH_MASSENTITY_DEBUG
+
+	//-----------------------------------------------------------------------------
+	// FConcurrentEntityStorage::FEntityData
+	//-----------------------------------------------------------------------------
+	FConcurrentEntityStorage::FEntityData::~FEntityData() = default;
+
+	int32 FConcurrentEntityStorage::FEntityData::GetSerialNumber() const
+	{
+		return static_cast<int32>(GenerationId);
+	}
+
+	bool FConcurrentEntityStorage::FEntityData::operator==(const FEntityData& Other) const
+	{
+		return CurrentArchetype == Other.CurrentArchetype
+			&& GenerationId == Other.GenerationId
+			&& bIsAllocated == Other.bIsAllocated;
 	}
 }

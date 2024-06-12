@@ -312,11 +312,17 @@ public:
 	void ReleaseReservedEntity(FMassEntityHandle Entity);
 
 	/**
-	 * Destroys all the entity in the provided array of entities
+	 * Destroys all the entities in the provided array of entities. The function will also gracefully handle entities
+	 * that have been reserved but not created yet.
 	 * @param InEntities to destroy
 	 */
 	void BatchDestroyEntities(TConstArrayView<FMassEntityHandle> InEntities);
 
+	/**
+	 * Destroys all the entities provided via the Collection. The function will also gracefully handle entities
+	 * that have been reserved but not created yet.
+	 * @param Collection to destroy
+	 */
 	void BatchDestroyEntityChunks(const FMassArchetypeEntityCollection& Collection);
 
 	void AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType);
