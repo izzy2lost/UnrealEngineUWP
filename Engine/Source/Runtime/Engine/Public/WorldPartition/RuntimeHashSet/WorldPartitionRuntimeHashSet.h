@@ -110,24 +110,6 @@ struct TStructOpsTypeTraits<FRuntimePartitionStreamingData> : public TStructOpsT
 	enum { WithCopy = false };
 };
 
-USTRUCT()
-struct FRuntimePartitionStreamingDataList
-{
-	GENERATED_USTRUCT_BODY()
-
-	friend class UWorldPartitionRuntimeHashSet;
-
-protected:
-	UPROPERTY()
-	TArray<FRuntimePartitionStreamingData> List;
-};
-
-template<>
-struct TStructOpsTypeTraits<FRuntimePartitionStreamingDataList> : public TStructOpsTypeTraitsBase2<FRuntimePartitionStreamingDataList>
-{
-	enum { WithCopy = false	};
-};
-
 UCLASS()
 class ENGINE_API URuntimeHashSetExternalStreamingObject : public URuntimeHashExternalStreamingObjectBase
 {
@@ -236,7 +218,7 @@ private:
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
 
 	UPROPERTY(Transient)
-	TMap<FGuid, FRuntimePartitionStreamingDataList> WorldAssetStreamingDatas;
+	TMap<FGuid, TObjectPtr<URuntimeHashSetExternalStreamingObject>> WorldAssetStreamingObjects;
 
 	// Optimized data
 	TMap<FName, TArray<const FRuntimePartitionStreamingData*>> RuntimeSpatiallyLoadedDataGridMap;

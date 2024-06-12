@@ -2101,7 +2101,7 @@ bool UWorldPartitionRuntimeSpatialHash::UnregisterWorldAssetStreaming(const FGui
 {
 	if (TObjectPtr<URuntimeSpatialHashExternalStreamingObject>* StreamingObject = WorldAssetStreamingObjects.Find(InWorldAssetStreamingGuid))
 	{
-		// External streaming objects are created with a provided name which helps to detect invalid runtime states of JunoWorldTile injected content.
+		// External streaming objects are created with a provided name which helps to detect invalid runtime states of injected content.
 		// Before releasing these objects, trash their name to make sure they won't be recycled if the tile re-injects the objects before a GC was triggered first.
 		// Apply the same logic on the LevelStreaming object of each injected cell as it is named using the injected cell name and is outered to the owning world.
 		auto TrashExternalStreamingData = [](URuntimeSpatialHashExternalStreamingObject* InStreamingObject)

@@ -636,7 +636,7 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 		return FGuid();
 	}
 
-	if (WorldAssetStreamingDatas.Contains(InParams.Guid))
+	if (WorldAssetStreamingObjects.Contains(InParams.Guid))
 	{
 		return FGuid();
 	}
@@ -733,10 +733,7 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 			if (RuntimeCell->CreateAndSetLevelStreaming(WorldAsset, InParams.Transform))
 			{
 				StreamingData.SpatiallyLoadedCells.Add(RuntimeCell);
-				StreamingData.DestroyPartitionsSpatialIndex();
-				StreamingData.CreatePartitionsSpatialIndex();
-				WorldAssetStreamingDatas.FindOrAdd(InParams.Guid).List.Emplace(MoveTemp(StreamingData));
-				UpdateRuntimeDataGridMap();
+				StreamingObject->RuntimeStreamingData.Emplace(MoveTemp(StreamingData));
 			}
 			else
 			{
@@ -751,14 +748,20 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 		}
 	}
 
+	GetOuterUWorldPartition()->InjectExternalStreamingObject(StreamingObject);
+	WorldAssetStreamingObjects.Add(InParams.Guid, StreamingObject);
+
 	return InParams.Guid;
 }
 
 bool UWorldPartitionRuntimeHashSet::UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid)
 {
-	if (FRuntimePartitionStreamingDataList* StreamingDatas = WorldAssetStreamingDatas.Find(InWorldAssetStreamingGuid))
+	if (TObjectPtr<URuntimeHashSetExternalStreamingObject>* StreamingObject = WorldAssetStreamingObjects.Find(InWorldAssetStreamingGuid))
 	{
-		auto TrashCells = [](TArray<TObjectPtr<UWorldPartitionRuntimeCell>>& InCells)
+		// External streaming objects are created with a provided name which helps to detect invalid runtime states of injected content.
+		// Before releasing these objects, trash their name to make sure they won't be recycled if the tile re-injects the objects before a GC was triggered first.
+		// Apply the same logic on the LevelStreaming object of each injected cell as it is named using the injected cell name and is outered to the owning world.
+		auto TrashExternalStreamingData = [](URuntimeHashSetExternalStreamingObject* InStreamingObject)
 		{
 			auto TrashObject = [](UObject* InObject)
 			{
@@ -766,31 +769,30 @@ bool UWorldPartitionRuntimeHashSet::UnregisterWorldAssetStreaming(const FGuid& I
 				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
 			};
 
-			for (UWorldPartitionRuntimeCell* Cell : InCells)
+			InStreamingObject->ForEachStreamingCells([TrashObject](UWorldPartitionRuntimeCell& Cell)
 			{
-				if (UWorldPartitionRuntimeLevelStreamingCell* LevelStreamingCell = Cast<UWorldPartitionRuntimeLevelStreamingCell>(Cell))
+				UWorldPartitionRuntimeLevelStreamingCell* InjectedCell = Cast<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
+				if (UWorldPartitionLevelStreamingDynamic* LevelStreaming = InjectedCell ? InjectedCell->GetLevelStreaming() : nullptr)
 				{
-					if (UWorldPartitionLevelStreamingDynamic* LevelStreaming = LevelStreamingCell->GetLevelStreaming())
-					{
-						TrashObject(LevelStreaming);
-
-						// Make sure to flag this streaming level to be unloaded and removed as we don't want any future RequestLevel 
-						// of a newly created streaming level of the same WorldAsset to fail. 
-						LevelStreaming->SetIsRequestingUnloadAndRemoval(true);
-					}
+					TrashObject(LevelStreaming);
+					// Make sure to flag this streaming level to be unloaded and removed as we don't want any future RequestLevel 
+					// of a newly created streaming level of the same WorldAsset to fail. 
+					LevelStreaming->SetIsRequestingUnloadAndRemoval(true);
 				}
+			});
 
-				TrashObject(Cell);
-			}
+			TrashObject(InStreamingObject);
 		};
 
-		for (FRuntimePartitionStreamingData& StreamingData : StreamingDatas->List)
+		if (IsValid(*StreamingObject))
 		{
-			TrashCells(StreamingData.SpatiallyLoadedCells);
-			TrashCells(StreamingData.NonSpatiallyLoadedCells);
+			if (IsValid(GetOuterUWorldPartition()))
+			{
+				GetOuterUWorldPartition()->RemoveExternalStreamingObject(*StreamingObject);
+			}
+			TrashExternalStreamingData(*StreamingObject);
 		}
-
-		WorldAssetStreamingDatas.Remove(InWorldAssetStreamingGuid);
+		WorldAssetStreamingObjects.Remove(InWorldAssetStreamingGuid);
 		return true;
 	}
 
@@ -800,13 +802,9 @@ bool UWorldPartitionRuntimeHashSet::UnregisterWorldAssetStreaming(const FGuid& I
 TArray<UWorldPartitionRuntimeCell*> UWorldPartitionRuntimeHashSet::GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid)
 {
 	TArray<UWorldPartitionRuntimeCell*> Result;
-	if (FRuntimePartitionStreamingDataList* StreamingDatas = WorldAssetStreamingDatas.Find(InWorldAssetStreamingGuid))
+	if (TObjectPtr<URuntimeHashSetExternalStreamingObject>* StreamingObject = WorldAssetStreamingObjects.Find(InWorldAssetStreamingGuid))
 	{
-		for (FRuntimePartitionStreamingData& StreamingData : StreamingDatas->List)
-		{
-			Result.Append(StreamingData.SpatiallyLoadedCells);
-			Result.Append(StreamingData.NonSpatiallyLoadedCells);
-		}
+		(*StreamingObject)->ForEachStreamingCells([&Result](UWorldPartitionRuntimeCell& Cell) { Result.Add(&Cell); });
 	}
 	return Result;
 }
@@ -1063,17 +1061,6 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingData(TFunctionRef<bool(const
 		if (!Func(StreamingData))
 		{
 			return;
-		}
-	}
-
-	for (const auto& [Guid, StreamingDatas] : WorldAssetStreamingDatas)
-	{
-		for (const FRuntimePartitionStreamingData& StreamingData : StreamingDatas.List)
-		{
-			if (!Func(StreamingData))
-			{
-				return;
-			}
 		}
 	}
 
