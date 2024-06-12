@@ -148,7 +148,10 @@ private:
 	
 	virtual void SetupViewProjectionMatrix(FSceneViewProjectionData& InOutProjectionData) override
 	{
-		FDefaultXRCamera::SetupViewProjectionMatrix(InOutProjectionData);
+		if (ARKitSystem.GameThreadFrame.IsValid()) 
+		{
+			ARKitSystem.GameThreadFrame->Camera.GetViewProjectionMatrix(ARKitSystem.DeviceOrientation, InOutProjectionData);
+		}
 	}
 	
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override
