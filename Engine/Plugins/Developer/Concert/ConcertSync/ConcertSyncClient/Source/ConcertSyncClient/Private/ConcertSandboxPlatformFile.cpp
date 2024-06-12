@@ -410,15 +410,6 @@ FDateTime FConcertSandboxPlatformFile::GetAccessTimeStamp(const TCHAR* Filename)
 FString FConcertSandboxPlatformFile::GetFilenameOnDisk(const TCHAR* Filename)
 {
 	const FConcertSandboxPlatformFilePath ResolvedPath = ToSandboxPath(Filename);
-
-	if (ResolvedPath.HasSandboxPath())
-	{
-		if (IsPathDeleted(ResolvedPath) || LowerLevel->FileExists(*ResolvedPath.GetSandboxPath()))
-		{
-			return LowerLevel->GetFilenameOnDisk(*ResolvedPath.GetSandboxPath());
-		}
-	}
-
 	return LowerLevel->GetFilenameOnDisk(*ResolvedPath.GetNonSandboxPath());
 }
 
