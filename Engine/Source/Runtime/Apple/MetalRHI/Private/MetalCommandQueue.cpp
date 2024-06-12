@@ -231,9 +231,10 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 	}
     
 	// Temporarily only support heaps for devices with unified memory
+	// Disable this by default code while we work on metal heaps
 	if (!DeviceName.Contains(TEXT("Intel")) &&
           Device->hasUnifiedMemory() &&
-          !FParse::Param(FCommandLine::Get(),TEXT("nometalheap")))
+          FParse::Param(FCommandLine::Get(),TEXT("metalheap")))
 	{
 		Features |= EMetalFeaturesHeaps;
 	}
