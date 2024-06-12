@@ -264,6 +264,9 @@ void FMetalDynamicRHI::RHIMapStagingSurface(FRHITexture* TextureRHI, FRHIGPUFenc
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
+	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+	ImmediateContext.Context->SubmitCommandsHint();
+	
 	if (FenceRHI && !FenceRHI->Poll())
 	{
 		ResourceCast(FenceRHI)->WaitCPU();
