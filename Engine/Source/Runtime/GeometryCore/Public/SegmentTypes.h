@@ -118,6 +118,15 @@ public:
 	}
 
 	/**
+	 * @param DistanceParameter distance on the segment from the segment Origin in range [-Extent, Extent]
+	 * @return unit value in range [0,1]
+	 */
+	inline T ConvertToUnitRange(T DistanceParameter) const
+	{
+		return T(0.5) * (T(1) + DistanceParameter / Extent); 
+	}
+
+	/**
 	 * @return minimum squared distance from Point to segment
 	 */
 	inline T DistanceSquared(const TVector2<T>& Point) const
@@ -452,6 +461,15 @@ public:
 	inline TVector<T> PointBetween(T UnitParameter) const
 	{
 		return Center + ((T)2 * UnitParameter - (T)1) * Extent * Direction;
+	}
+
+	/**
+	 * @param DistanceParameter distance on the segment from the segment Origin in range [-Extent, Extent]
+	 * @return unit value in range [0,1]
+	 */
+	inline T ConvertToUnitRange(T DistanceParameter) const
+	{
+		return T(0.5) * (T(1) + DistanceParameter / Extent); 
 	}
 
 	/**
