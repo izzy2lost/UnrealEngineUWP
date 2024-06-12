@@ -1642,7 +1642,7 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 
 	const int32 NumLODs = RayTracingLODs.Num();
 
-	int32 RayTracingMinLOD = RenderData->RayTracingProxy->bUsingRenderingLODs ? ClampedMinLOD : 0;
+	int32 RayTracingMinLOD = RenderData->RayTracingProxy->bUsingRenderingLODs ? RenderData->GetCurrentFirstLODIdx(ClampedMinLOD) : 0;
 
 #if WITH_EDITOR
 	// If coarse mesh streaming mode is set to 2 then we force use the lowest LOD to visualize streamed out coarse meshes
