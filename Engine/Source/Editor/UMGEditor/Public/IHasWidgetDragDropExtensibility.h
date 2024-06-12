@@ -7,22 +7,22 @@
 class FDragDropOperation;
 class UWidget;
 
-class UMGEDITOR_API IDragDropExtension
+class UMGEDITOR_API IWidgetDragDropExtension
 {
 public:
-	virtual ~IDragDropExtension() { }
+	virtual ~IWidgetDragDropExtension() { }
 
-	virtual bool CanDropOnTarget(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const = 0;
+	virtual bool ShouldPreventDropOnTarget(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const = 0;
 	virtual FText GetDropFailureText(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const = 0;
 };
 
 /**
  * Drag & drop extensibility manager holds a list of registered drag and drop extensions.
  */
-class UMGEDITOR_API FDragDropExtensibilityManager
+class UMGEDITOR_API FWidgetDragDropExtensibilityManager
 {
 public:
-	void AddExtension(const TSharedRef<IDragDropExtension>& Extension)
+	void AddExtension(const TSharedRef<IWidgetDragDropExtension>& Extension)
 	{
 		if (ensure(!Extensions.Contains(Extension)))
 		{
@@ -30,24 +30,24 @@ public:
 		}
 	}
 
-	void RemoveExtension(const TSharedRef<IDragDropExtension>& Extension)
+	void RemoveExtension(const TSharedRef<IWidgetDragDropExtension>& Extension)
 	{
 		int32 NumRemoved = Extensions.RemoveSingleSwap(Extension);
 		ensure(NumRemoved == 1);
 	}
 
-	TArrayView<const TSharedPtr<IDragDropExtension>> GetExtensions() const
+	TArrayView<const TSharedPtr<IWidgetDragDropExtension>> GetExtensions() const
 	{
 		return Extensions;
 	}
 
 private:
-	TArray<TSharedPtr<IDragDropExtension>> Extensions;
+	TArray<TSharedPtr<IWidgetDragDropExtension>> Extensions;
 };
 
 /** Indicates that a class can extend drag & drop functionality */
-class IHasDragDropExtensibility
+class IHasWidgetDragDropExtensibility
 {
 public:
-	virtual TSharedPtr<FDragDropExtensibilityManager> GetDragDropExtensibilityManager() = 0;
+	virtual TSharedPtr<FWidgetDragDropExtensibilityManager> GetWidgetDragDropExtensibilityManager() = 0;
 };

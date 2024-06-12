@@ -94,7 +94,7 @@ public:
 
 		PropertyBindingExtensibilityManager = MakeShared<FPropertyBindingExtensibilityManager>();
 		ClipboardExtensibilityManager = MakeShared<FClipboardExtensibilityManager>();
-		DragDropExtensibilityManager = MakeShared<FDragDropExtensibilityManager>();
+		WidgetDragDropExtensibilityManager = MakeShared<FWidgetDragDropExtensibilityManager>();
 
 		// Register widget blueprint compiler we do this no matter what.
 		IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
@@ -232,7 +232,7 @@ public:
 	virtual TSharedPtr<FDesignerExtensibilityManager> GetDesignerExtensibilityManager() override { return DesignerExtensibilityManager; }
 	virtual TSharedPtr<FPropertyBindingExtensibilityManager> GetPropertyBindingExtensibilityManager() override { return PropertyBindingExtensibilityManager; }
 	virtual TSharedPtr<FClipboardExtensibilityManager> GetClipboardExtensibilityManager() override { return ClipboardExtensibilityManager; }
-	virtual TSharedPtr<FDragDropExtensibilityManager> GetDragDropExtensibilityManager() override { return DragDropExtensibilityManager; }
+	virtual TSharedPtr<FWidgetDragDropExtensibilityManager> GetWidgetDragDropExtensibilityManager() override { return WidgetDragDropExtensibilityManager; }
 
 	/** Register settings objects. */
 	void RegisterSettings()
@@ -502,7 +502,7 @@ private:
 	TSharedPtr<FDesignerExtensibilityManager> DesignerExtensibilityManager;
 	TSharedPtr<FPropertyBindingExtensibilityManager> PropertyBindingExtensibilityManager;
 	TSharedPtr<FClipboardExtensibilityManager> ClipboardExtensibilityManager;
-	TSharedPtr<FDragDropExtensibilityManager> DragDropExtensibilityManager;
+	TSharedPtr<FWidgetDragDropExtensibilityManager> WidgetDragDropExtensibilityManager;
 	TSharedPtr<FGraphPanelPinFactory> GraphPanelPinFactory;
 
 	FDelegateHandle SequenceEditorHandle;

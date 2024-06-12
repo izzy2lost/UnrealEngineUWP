@@ -53,8 +53,8 @@ void FModelViewViewModelEditorModule::StartupModule()
 	ClipboardExtension = MakeShared<UE::MVVM::FClipboardExtension>();
 	UMGEditorModule.GetClipboardExtensibilityManager()->AddExtension(ClipboardExtension.ToSharedRef());
 
-	DragDropExtension = MakeShared<UE::MVVM::FDragDropExtension>();
-	UMGEditorModule.GetDragDropExtensibilityManager()->AddExtension(DragDropExtension.ToSharedRef());
+	DragDropExtension = MakeShared<UE::MVVM::FWidgetDragDropExtension>();
+	UMGEditorModule.GetWidgetDragDropExtensibilityManager()->AddExtension(DragDropExtension.ToSharedRef());
 
 	ListViewBaseCustomizationExtender = UE::MVVM::FMVVMListViewBaseExtensionCustomizationExtender::MakeInstance();
 	UMGEditorModule.AddWidgetCustomizationExtender(ListViewBaseCustomizationExtender.ToSharedRef());
@@ -106,7 +106,7 @@ void FModelViewViewModelEditorModule::ShutdownModule()
 	{
 		UMGEditorModule->GetDesignerExtensibilityManager()->RemoveDesignerExtensionFactory(BlueprintViewDesignerExtensionFactory.ToSharedRef());
 		UMGEditorModule->OnRegisterTabsForEditor().RemoveAll(this);
-		UMGEditorModule->GetDragDropExtensibilityManager()->RemoveExtension(DragDropExtension.ToSharedRef());
+		UMGEditorModule->GetWidgetDragDropExtensibilityManager()->RemoveExtension(DragDropExtension.ToSharedRef());
 		UMGEditorModule->GetClipboardExtensibilityManager()->RemoveExtension(ClipboardExtension.ToSharedRef());
 		UMGEditorModule->GetPropertyBindingExtensibilityManager()->RemoveExtension(PropertyBindingExtension.ToSharedRef());
 

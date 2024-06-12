@@ -2725,8 +2725,15 @@ void SDesignerView::ProcessDropAndAddWidget(const FGeometry& MyGeometry, const F
 
 		FScopedTransaction Transaction(LOCTEXT("Designer_AddWidget", "Add Widget"));
 
+		FText DropOnTargetFailureText = FText::GetEmpty();
+		const bool bShouldPreventDropOnTargetExtensions = FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(Target, SelectedDragDropOp, DropOnTargetFailureText);
+		if ( bShouldPreventDropOnTargetExtensions )
+		{
+			DragOperation->SetCursorOverride(EMouseCursor::SlashedCircle);
+			DragAndDropTransaction.Cancel();
+		}
 		// If there's no root widget go ahead and add the widget into the root slot.
-		if ( BP->WidgetTree->RootWidget == nullptr )
+		else if ( BP->WidgetTree->RootWidget == nullptr )
 		{
 			if ( !bIsPreview )
 			{
@@ -2905,8 +2912,11 @@ void SDesignerView::MoveWidgets(const FGeometry& MyGeometry, const FDragDropEven
 			FWidgetReference TargetReference = bIsPreview ? BlueprintEditor.Pin()->GetReferenceFromPreview(Target) : BlueprintEditor.Pin()->GetReferenceFromTemplate(Target);
 			BlueprintEditor.Pin()->SetHoveredWidget(TargetReference);
 
+			FText DropOnTargetFailureText = FText::GetEmpty();
+			const bool bShouldPreventDropOnTargetExtensions = FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(Target, SelectedDragDropOp, DropOnTargetFailureText);
+
 			// If the widget being hovered over is a panel, attempt to place it into that panel.
-			if (Target && Target->IsA(UPanelWidget::StaticClass()))
+			if (Target && Target->IsA(UPanelWidget::StaticClass()) && !bShouldPreventDropOnTargetExtensions)
 			{
 				bWidgetMoved = true;
 

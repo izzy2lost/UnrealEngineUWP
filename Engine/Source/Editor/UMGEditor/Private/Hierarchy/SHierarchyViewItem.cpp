@@ -188,18 +188,18 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 	UWidgetBlueprint* Blueprint = BlueprintEditor->GetWidgetBlueprintObj();
 	check( Blueprint != nullptr && Blueprint->WidgetTree != nullptr );
 
-	const auto CanDropOnTargetExtensions = [](UWidget* Target, const TSharedPtr<FDecoratedDragDropOp>& DecoratedDragDropOp) -> bool
+	const auto ShouldPreventDropOnTargetExtensions = [](UWidget* Target, const TSharedPtr<FDecoratedDragDropOp>& DecoratedDragDropOp) -> bool
 		{
-			FText CanDropOnTargetFailureText = FText::GetEmpty();
-			const bool bCanDropOnTargetExtensions = FWidgetBlueprintEditorUtils::CanDropOnTargetExtensions(Target, DecoratedDragDropOp, CanDropOnTargetFailureText);
+			FText DropOnTargetFailureText = FText::GetEmpty();
+			const bool bShouldPreventDropOnTargetExtensions = FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(Target, DecoratedDragDropOp, DropOnTargetFailureText);
 
-			if (!bCanDropOnTargetExtensions && DecoratedDragDropOp.IsValid())
+			if (bShouldPreventDropOnTargetExtensions && DecoratedDragDropOp.IsValid())
 			{
 				DecoratedDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
-				DecoratedDragDropOp->CurrentHoverText = CanDropOnTargetFailureText;
+				DecoratedDragDropOp->CurrentHoverText = DropOnTargetFailureText;
 			}
 
-			return bCanDropOnTargetExtensions;
+			return bShouldPreventDropOnTargetExtensions;
 		};
 
 	// Is this a drag/drop op to create a new widget in the tree?
@@ -213,7 +213,7 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 			DecoratedDragDropOp->ResetToDefaultToolTip();
 		}
 
-		if (!CanDropOnTargetExtensions(TargetTemplate, DecoratedDragDropOp))
+		if ( ShouldPreventDropOnTargetExtensions(TargetTemplate, DecoratedDragDropOp) )
 		{
 			return TOptional<EItemDropZone>();
 		}
@@ -359,7 +359,7 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 				return TOptional<EItemDropZone>();
 			}
 
-			if (!CanDropOnTargetExtensions(TargetTemplate, HierarchyDragDropOp))
+			if (ShouldPreventDropOnTargetExtensions(TargetTemplate, HierarchyDragDropOp))
 			{
 				return TOptional<EItemDropZone>();
 			}

@@ -2,15 +2,15 @@
 
 #pragma once
 
-#include "IHasDragDropExtensibility.h"
+#include "IHasWidgetDragDropExtensibility.h"
 
 namespace UE::MVVM
 {
-class FDragDropExtension : public IDragDropExtension
+class FWidgetDragDropExtension : public IWidgetDragDropExtension
 {
-	//~ Begin IDragDropExtension overrides
-	virtual bool CanDropOnTarget(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const override;
+	//~ Begin IWidgetDragDropExtension overrides
+	virtual bool ShouldPreventDropOnTarget(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const override;
 	virtual FText GetDropFailureText(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const override;
-	//~ End IDragDropExtension overrides
+	//~ End IWidgetDragDropExtension overrides
 };
 }

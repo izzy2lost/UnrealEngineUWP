@@ -1613,24 +1613,24 @@ UWidget* FWidgetBlueprintEditorUtils::GetWidgetTemplateFromDragDrop(UWidgetBluep
 	return Widget;
 }
 
-bool FWidgetBlueprintEditorUtils::CanDropOnTargetExtensions(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp, FText& OutFailureText)
+bool FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp, FText& OutFailureText)
 {
 	if (Target)
 	{
 		IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
-		const TArrayView<const TSharedPtr<IDragDropExtension>> DragDropExtensions = EditorModule.GetDragDropExtensibilityManager()->GetExtensions();
+		const TArrayView<const TSharedPtr<IWidgetDragDropExtension>> DragDropExtensions = EditorModule.GetWidgetDragDropExtensibilityManager()->GetExtensions();
 
-		for (const TSharedPtr<IDragDropExtension>& DragDropExtension : DragDropExtensions)
+		for (const TSharedPtr<IWidgetDragDropExtension>& DragDropExtension : DragDropExtensions)
 		{
-			if (ensure(DragDropExtension.IsValid()) && !DragDropExtension->CanDropOnTarget(Target, DragDropOp))
+			if (ensure(DragDropExtension.IsValid()) && DragDropExtension->ShouldPreventDropOnTarget(Target, DragDropOp))
 			{
 				OutFailureText = DragDropExtension->GetDropFailureText(Target, DragDropOp);
-				return false;
+				return true;
 			}
 		}
 	}
 
-	return true;
+	return false;
 }
 
 void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsToExport, /*out*/ FString& ExportedText)

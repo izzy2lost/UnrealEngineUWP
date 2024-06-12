@@ -11,9 +11,9 @@
 
 namespace UE::MVVM
 {
-bool FDragDropExtension::CanDropOnTarget(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const
+bool FWidgetDragDropExtension::ShouldPreventDropOnTarget(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const
 {
-	bool bCanDropWidgetOnTarget = true;
+	bool bShouldPreventDropWidgetOnTarget = false;
 
 	if (Target && Target->IsA<UPanelWidget>())
 	{
@@ -22,7 +22,7 @@ bool FDragDropExtension::CanDropOnTarget(const UWidget* Target, const TSharedPtr
 			if (const UMVVMWidgetBlueprintExtension_View* ExtensionView = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint))
 			{
 				const TArray<UMVVMBlueprintViewExtension*> BlueprintExtensions = ExtensionView->GetBlueprintExtensionsForWidget(Target->GetFName());
-				bCanDropWidgetOnTarget = !BlueprintExtensions.ContainsByPredicate([](const UMVVMBlueprintViewExtension* BlueprintExtension) -> bool
+				bShouldPreventDropWidgetOnTarget = BlueprintExtensions.ContainsByPredicate([](const UMVVMBlueprintViewExtension* BlueprintExtension) -> bool
 				{
 					return BlueprintExtension->IsA<UMVVMBlueprintViewExtension_PanelWidget>();
 				});
@@ -30,10 +30,10 @@ bool FDragDropExtension::CanDropOnTarget(const UWidget* Target, const TSharedPtr
 		}
 	}
 
-	return bCanDropWidgetOnTarget;
+	return bShouldPreventDropWidgetOnTarget;
 }
 
-FText FDragDropExtension::GetDropFailureText(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const
+FText FWidgetDragDropExtension::GetDropFailureText(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp) const
 {
 	return NSLOCTEXT("MVVMDragDropExtension", "UnableToAddChildWidget", "Cannot add children to a panel widget with an MVVM extension.");
 }
