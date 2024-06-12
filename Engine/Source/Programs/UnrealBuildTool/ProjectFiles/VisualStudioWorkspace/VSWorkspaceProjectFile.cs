@@ -288,9 +288,9 @@ namespace UnrealBuildTool
 
 			return new TargetBuildInfo()
 			{
-				BuildCmd = $"{BuildCommandBuilder.BuildScript.FullName} {BuildArguments}",
-				RebuildCmd = $"{BuildCommandBuilder.RebuildScript.FullName} {BuildArguments}",
-				CleanCmd = $"{BuildCommandBuilder.CleanScript.FullName} {BuildArguments}",
+				BuildCmd = $"\"{BuildCommandBuilder.BuildScript.FullName}\" {BuildArguments}",
+				RebuildCmd = $"\"{BuildCommandBuilder.RebuildScript.FullName}\" {BuildArguments}",
+				CleanCmd = $"\"{BuildCommandBuilder.CleanScript.FullName}\" {BuildArguments}",
 				PrimaryOutput = Target.Binaries[0].OutputFilePath.FullName,
 				BuildByDefault = bBuildByDefault,
 			};
