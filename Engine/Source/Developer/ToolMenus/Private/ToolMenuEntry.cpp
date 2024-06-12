@@ -22,7 +22,7 @@ FToolMenuEntry::FToolMenuEntry()
 	, StyleNameOverride(NAME_None)
 	, bAddedDuringRegister(false)
 	, bCommandIsKeybindOnly(false)
-	, bShowInToolbarTopLevel(false)
+	, ShowInToolbarTopLevel(false)
 {
 }
 
@@ -36,7 +36,7 @@ FToolMenuEntry::FToolMenuEntry(const FToolMenuOwner InOwner, const FName InName,
 	, StyleNameOverride(NAME_None)
 	, bAddedDuringRegister(false)
 	, bCommandIsKeybindOnly(false)
-	, bShowInToolbarTopLevel(false)
+	, ShowInToolbarTopLevel(false)
 {
 }
 
@@ -306,9 +306,9 @@ bool FToolMenuEntry::TryExecuteToolUIAction(const FToolMenuContext& InContext)
 	return bCanExecute;
 }
 
-void FToolMenuEntry::SetShowInToolbarTopLevel(bool InTopLevel)
+void FToolMenuEntry::SetShowInToolbarTopLevel(TAttribute<bool> InTopLevel)
 {
-	bShowInToolbarTopLevel = InTopLevel;
+	ShowInToolbarTopLevel = InTopLevel;
 }
 
 bool FToolMenuEntry::IsScriptObjectDynamicConstruct() const

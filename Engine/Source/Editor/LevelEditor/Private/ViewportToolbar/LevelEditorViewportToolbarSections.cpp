@@ -36,37 +36,6 @@ void OnLandscapeLODChanged(FLevelEditorViewportClient& ViewportClient, int32 New
 	ViewportClient.Invalidate();
 }
 
-TOptional<bool> UpdateAndGetRealtimeWarningFromContext(const FToolMenuContext& Context)
-{
-	if (ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>())
-	{
-		if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-		{
-			const bool bShowWarning = ShowViewportRealtimeWarning(LevelViewport->GetLevelViewportClient());
-
-			LevelViewportContext->CachedShouldShowRealtimeOffWarning = bShowWarning;
-
-			return LevelViewportContext->CachedShouldShowRealtimeOffWarning;
-		}
-	}
-
-	return TOptional<bool>();
-}
-
-TOptional<bool> IsDirtyRealtimeWarningFromContext(const FToolMenuContext& Context)
-{
-	if (ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>())
-	{
-		if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-		{
-			const bool bShowWarning = ShowViewportRealtimeWarning(LevelViewport->GetLevelViewportClient());
-			return bShowWarning != LevelViewportContext->CachedShouldShowRealtimeOffWarning;
-		}
-	}
-
-	return TOptional<bool>();
-}
-
 } // namespace UE::LevelEditor::Private
 
 namespace UE::LevelEditor
@@ -694,7 +663,6 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 												LevelViewportContext->LevelViewport.Pin())
 										{
 											LevelViewport->OnToggleRealtime();
-											UToolMenus::Get()->RefreshAllWidgets();
 										}
 									}
 								);
@@ -709,15 +677,6 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 											return ECheckBoxState::Undetermined;
 										}
 
-										// Check if the realtime warn state is outdated and if so refresh widgets to
-										// update our top-level status.
-										if (const TOptional<bool> IsDirty =
-												Private::IsDirtyRealtimeWarningFromContext(Context);
-											IsDirty.IsSet() && IsDirty.GetValue())
-										{
-											UToolMenus::Get()->RefreshAllWidgets();
-										}
-
 										if (const TSharedPtr<::SLevelViewport> LevelViewport =
 												LevelViewportContext->LevelViewport.Pin())
 										{
@@ -729,27 +688,40 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 									}
 								);
 
-								bool bDisplayTopLevel = false;
-								if (const TOptional<bool> ShouldWarn =
-										Private::UpdateAndGetRealtimeWarningFromContext(InnerSection.Context);
-									ShouldWarn.IsSet())
+								TAttribute<FText> Tooltip;
 								{
-									bDisplayTopLevel = ShouldWarn.GetValue();
-								}
-								else
-								{
-									// If we couldn't get the warn state, pretend we don't have to warn.
-									bDisplayTopLevel = false;
-								}
-
-								const FText Tooltip =
-									bDisplayTopLevel ? LOCTEXT(
+									const FText NonRealtimeTooltip = LOCTEXT(
 										"ToggleRealtimeTooltip_WarnRealtimeOff",
 										"This viewport is not updating in realtime.  Click to turn on realtime mode."
-									)
-													 : LOCTEXT(
-														 "ToggleRealtimeTooltip", "Toggle realtime rendering of the viewport"
-													 );
+									);
+									const FText RealtimeTooltip =
+										LOCTEXT("ToggleRealtimeTooltip", "Toggle realtime rendering of the viewport");
+
+									// If we can find a context with a viewport, use that to adjust the tooltip
+									// based on the viewport's realtime status.
+									if (ULevelViewportContext* const LevelViewportContext =
+											InnerSection.FindContext<ULevelViewportContext>())
+									{
+										Tooltip = TAttribute<FText>::CreateLambda(
+											[WeakViewport = LevelViewportContext->LevelViewport,
+											 NonRealtimeTooltip,
+											 RealtimeTooltip]() -> FText
+											{
+												bool bDisplayTopLevel = false;
+												if (const TSharedPtr<::SLevelViewport> LevelViewport = WeakViewport.Pin())
+												{
+													bDisplayTopLevel = !LevelViewport->IsRealtime();
+												}
+
+												return bDisplayTopLevel ? NonRealtimeTooltip : RealtimeTooltip;
+											}
+										);
+									}
+									else
+									{
+										Tooltip = RealtimeTooltip;
+									}
+								}
 
 								FToolMenuEntry ToggleRealtime = FToolMenuEntry::InitMenuEntry(
 									"ToggleRealtime",
@@ -759,7 +731,25 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 									RealtimeToggleAction,
 									EUserInterfaceActionType::ToggleButton
 								);
-								ToggleRealtime.SetShowInToolbarTopLevel(bDisplayTopLevel);
+
+								// If we can find a context with a viewport, bind the top-level status of the
+								// realtime button to the viewport's realtime state where we show the realtime
+								// toggle in the top-level if the viewport is NOT realtime.
+								if (ULevelViewportContext* const LevelViewportContext =
+										InnerSection.FindContext<ULevelViewportContext>())
+								{
+									ToggleRealtime.SetShowInToolbarTopLevel(TAttribute<bool>::CreateLambda(
+										[WeakViewport = LevelViewportContext->LevelViewport]() -> bool
+										{
+											if (const TSharedPtr<::SLevelViewport> LevelViewport = WeakViewport.Pin())
+											{
+												return !LevelViewport->IsRealtime();
+											}
+											return false;
+										}
+									));
+								}
+
 								InnerSection.AddEntry(ToggleRealtime);
 							}
 						)

@@ -390,7 +390,9 @@ private:
 		UToolMenu* ParentMenu, FToolMenuEntry& InBlock, TArray<TPair<UToolMenu*, FToolMenuEntry*>>& SubMenuBlockPairs);
 	void PopulateToolBarBuilderWithTopLevelChildren(
 		FToolBarBuilder& ToolBarBuilder, UToolMenu* ParentMenu, FToolMenuEntry& InBlock);
-	void PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, FToolMenuEntry& Entry);
+	void PopulateToolBarBuilderWithEntry(
+		FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, FToolMenuEntry& Entry, bool bIsRaisingToTopLevel = false
+	);
 	void PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData);
 
 	TSharedRef<SWidget> GenerateToolbarComboButtonMenu(TWeakObjectPtr<UToolMenu> InParent, const FName InBlockName);

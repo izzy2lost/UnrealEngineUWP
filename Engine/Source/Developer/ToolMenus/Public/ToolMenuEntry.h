@@ -159,18 +159,15 @@ struct TOOLMENUS_API FToolMenuEntry
 	/**
 	 * Show this menu entry in the top-level toolbar section of a toolbar.
 	 *
-	 * A toolbar that has a section menu only shows entries flagged as top-level in the toolbar section itself while the
-	 * others can only be accessed through the section submenu. Use this method to flag a menu entry to show up in that
-	 * top-level toolbar section.
+	 * Entries of a toolbar submenu can be raised to the top-level of the toolbar. Such top-level entires appear in the
+	 * toolbar to the right of the submenu they belong to.
 	 *
-	 * This flag only affects entries of ToolMenus rendered as toolbars that also have a section menu. For ToolMenus
-	 * rendered as menus or toolbar ToolMenus that lack a section menu, the entry is always placed in the top-level
-	 * section itself.
+	 * This flag only effects entries within submenus of toolbar-type ToolMenus.
 	 *
-	 * @param InTopLevel Pass true to set this menu entry to appear in the top-level toolbar section for toolbar
-	 * sections with a section menu. Pass false to only show the entry in the section submenu.
+	 * @param InTopLevel True shows the entry in the top-level next to its submenu, false (default) only displays it in
+	 * the submenu itself. Pass a delegate to drive the top-level state from code.
 	 */
-	void SetShowInToolbarTopLevel(bool InTopLevel);
+	void SetShowInToolbarTopLevel(TAttribute<bool> InTopLevel);
 
 private:
 
@@ -249,5 +246,5 @@ private:
 	UPROPERTY()
 	bool bCommandIsKeybindOnly;
 
-	bool bShowInToolbarTopLevel;
+	TAttribute<bool> ShowInToolbarTopLevel;
 };

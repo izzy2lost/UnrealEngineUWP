@@ -1469,16 +1469,22 @@ void UToolMenus::PopulateToolBarBuilderWithTopLevelChildren(
 			break;
 		}
 
-		if (Block->bShowInToolbarTopLevel)
+		const bool bIsBound = Block->ShowInToolbarTopLevel.IsBound();
+		const bool bIsSetToValue = !bIsBound && Block->ShowInToolbarTopLevel.IsSet();
+		const bool bIsSetToTrueValue = bIsSetToValue && Block->ShowInToolbarTopLevel.Get();
+		if (bIsBound || bIsSetToTrueValue)
 		{
-			PopulateToolBarBuilderWithEntry(ToolBarBuilder, SubMenu, *Block);
+			const bool bRaiseToTopLevel = true;
+			PopulateToolBarBuilderWithEntry(ToolBarBuilder, SubMenu, *Block, bRaiseToTopLevel);
 		}
 
 		ExtractChildBlocksFromSubMenu(SubMenu, *Block, SubMenuBlockPairs);
 	}
 }
 
-void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, FToolMenuEntry& Block)
+void UToolMenus::PopulateToolBarBuilderWithEntry(
+	FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, FToolMenuEntry& Block, bool bIsRaisingToTopLevel
+)
 {
 	if (Block.ToolBarData.ConstructLegacy.IsBound())
 	{
@@ -1487,6 +1493,28 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder
 	}
 
 	ToolBarBuilder.BeginStyleOverride(Block.StyleNameOverride);
+
+	FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
+	if (bIsRaisingToTopLevel && Block.ShowInToolbarTopLevel.IsBound())
+	{
+		// Patch the IsVisible delegate with the top-level status of the menu entry.
+		UIAction.IsActionVisibleDelegate = FIsActionButtonVisible::CreateLambda(
+			[OriginalIsVisible = UIAction.IsActionVisibleDelegate, ShowInToolbarTopLevel = Block.ShowInToolbarTopLevel]() -> bool
+			{
+				if (ShowInToolbarTopLevel.IsSet() && !ShowInToolbarTopLevel.Get())
+				{
+					return false;
+				}
+
+				if (OriginalIsVisible.IsBound())
+				{
+					return OriginalIsVisible.Execute();
+				}
+
+				return true;
+			}
+		);
+	}
 
 	if (Block.Type == EMultiBlockType::ToolBarButton || (Block.Type == EMultiBlockType::MenuEntry && !Block.IsSubMenu()))
 	{
@@ -1518,7 +1546,6 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder
 		{
 			UToolMenuEntryScript* ScriptObject = Block.ScriptObject;
 			TAttribute<FSlateIcon> Icon = ScriptObject->CreateIconAttribute(MenuData->Context);
-			FUIAction UIAction = ConvertUIAction(Block, MenuData->Context);
 			ToolBarBuilder.AddToolBarButton(UIAction, ScriptObject->Data.Name,
 				ScriptObject->CreateLabelAttribute(MenuData->Context),
 				ScriptObject->CreateToolTipAttribute(MenuData->Context), Icon, Block.UserInterfaceActionType,
@@ -1526,7 +1553,6 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder
 		}
 		else
 		{
-			FUIAction UIAction = ConvertUIAction(Block, MenuData->Context);
 			ToolBarBuilder.AddToolBarButton(UIAction, Block.Name, Block.Label, Block.ToolTip, Block.Icon,
 				Block.UserInterfaceActionType, Block.TutorialHighlightName);
 		}
@@ -1546,7 +1572,6 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder
 			Block.ToolBarData.ComboButtonContextMenuGenerator, MenuData->Context);
 		if (OnGetContent.IsBound())
 		{
-			FUIAction UIAction = ConvertUIAction(Block, MenuData->Context);
 			ToolBarBuilder.AddComboButton(UIAction, OnGetContent, Block.Label, Block.ToolTip, Block.Icon,
 				Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName);
 		}
@@ -1554,7 +1579,6 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder
 		{
 			FOnGetContent Delegate = FOnGetContent::CreateUObject(
 				this, &UToolMenus::GenerateToolbarComboButtonMenu, TWeakObjectPtr<UToolMenu>(MenuData), Block.Name);
-			FUIAction UIAction = ConvertUIAction(Block, MenuData->Context);
 			ToolBarBuilder.AddComboButton(UIAction, Delegate, Block.Label, Block.ToolTip, Block.Icon,
 				Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName);
 

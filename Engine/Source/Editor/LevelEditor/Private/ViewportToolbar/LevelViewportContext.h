@@ -15,7 +15,4 @@ class LEVELEDITOR_API ULevelViewportContext : public UObject
 
 public:
 	TWeakPtr<SLevelViewport> LevelViewport;
-	// This allows the viewport toolbar to know if it needs to refresh itself to update the top-level state of the
-	// realtime button.
-	TOptional<bool> CachedShouldShowRealtimeOffWarning;
 };
