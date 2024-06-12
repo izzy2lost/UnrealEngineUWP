@@ -3301,18 +3301,6 @@ void SAssetView::ExecutePaste()
 	}
 }
 
-FName SAssetView::GetAssetViewOptionsMenuName() const
-{
-	FName MenuName = "ContentBrowser.AssetViewOptions";
-
-	if(AssetViewOptionsProfile.IsSet())
-	{
-		MenuName = FName(MenuName.ToString() + "." + AssetViewOptionsProfile.GetValue().ToString());
-	}
-
-	return MenuName;
-}
-
 void SAssetView::ToggleShowAllFolder()
 {
 	const bool bNewValue = !IsShowingAllFolder();
@@ -3663,7 +3651,7 @@ FLinearColor SAssetView::GetThumbnailHintColorAndOpacity() const
 
 TSharedRef<SWidget> SAssetView::GetViewButtonContent()
 {
-	RegisterGetViewButtonMenu();
+	SAssetView::RegisterGetViewButtonMenu();
 
 	// Get all menu extenders for this context menu from the content browser module
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>( TEXT("ContentBrowser") );
@@ -3697,15 +3685,14 @@ TSharedRef<SWidget> SAssetView::GetViewButtonContent()
 		OnExtendAssetViewOptionsMenuContext.Execute(MenuContext);
 	}
 
-	return UToolMenus::Get()->GenerateWidget(GetAssetViewOptionsMenuName(), MenuContext);
+	return UToolMenus::Get()->GenerateWidget("ContentBrowser.AssetViewOptions", MenuContext);
 }
 
 void SAssetView::RegisterGetViewButtonMenu()
 {
-	FName MenuName = GetAssetViewOptionsMenuName();
-	if (!UToolMenus::Get()->IsMenuRegistered(MenuName))
+	if (!UToolMenus::Get()->IsMenuRegistered("ContentBrowser.AssetViewOptions"))
 	{
-		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(MenuName);
+		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("ContentBrowser.AssetViewOptions");
 		Menu->bCloseSelfOnly = true;
 		Menu->AddDynamicSection("DynamicContent", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 		{

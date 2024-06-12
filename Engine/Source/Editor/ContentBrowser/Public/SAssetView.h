@@ -551,7 +551,7 @@ private:
 	FLinearColor GetThumbnailHintColorAndOpacity() const;
 
 	/** Register menu for when the view combo button is clicked */
-	void RegisterGetViewButtonMenu();
+	static void RegisterGetViewButtonMenu();
 
 	/** Fill in menu content for when the view combo button is clicked */
 	void PopulateViewButtonMenu(UToolMenu* Menu);
@@ -930,8 +930,6 @@ private:
 	/** Handler for Paste */
 	void ExecutePaste();
 
-	/** Constructs the name of the asset view options menu. */
-	FName GetAssetViewOptionsMenuName() const;
 private:
 	friend class FAssetViewFrontendFilterHelper;
 
