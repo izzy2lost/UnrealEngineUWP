@@ -60,7 +60,8 @@ void UE::Interchange::FTaskCreateSceneObjects_GameThread::Execute()
 
 	for (UInterchangeFactoryBaseNode* FactoryNode : FactoryNodes)
 	{
-		if (!FactoryNode)
+		// Don't create actors on a first import if they're disabled
+		if (!FactoryNode || !FactoryNode->IsEnabled())
 		{
 			continue;
 		}
