@@ -1222,7 +1222,7 @@ namespace Metasound::Frontend
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FRegistryContainerImpl::WaitForRegistrationTaskToComplete);
 			if (Task.IsValid())
 			{
-				Task.BusyWait();
+				Task.Wait();
 			}
 		}
 	}

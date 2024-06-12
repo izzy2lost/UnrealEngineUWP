@@ -737,7 +737,7 @@ public:
 			// Now, wait for _our_ block's IO
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(WaitForIo);
-				ReadRequest.BusyWait();
+				ReadRequest.Wait();
 			}
 
 			if (AsyncReadSucceeded[OurBufferIndex] == false)
@@ -869,7 +869,7 @@ public:
 
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(WaitForIo);
-				ReadTask.BusyWait();
+				ReadTask.Wait();
 			}
 
 			if (bReadSucceeded == false)

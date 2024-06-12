@@ -3156,7 +3156,7 @@ void ProcessCombinedLODChain(
 
 			if (bVerbose)
 			{
-				RemoveHiddenTask.BusyWait();
+				RemoveHiddenTask.Wait();
 			}
 		}
 	}

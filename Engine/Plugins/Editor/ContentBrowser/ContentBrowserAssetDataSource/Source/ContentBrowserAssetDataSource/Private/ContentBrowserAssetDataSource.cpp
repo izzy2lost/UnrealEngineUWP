@@ -2186,7 +2186,7 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 			}
 		}
 
-		DiskTask.BusyWait();
+		DiskTask.Wait();
 		TArray<FAssetData> DiskAssets = MoveTemp(DiskTask.GetResult());
 		ProduceAssets(DiskAssets, IgnorePackages);
 	}

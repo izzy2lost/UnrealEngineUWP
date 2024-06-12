@@ -86,15 +86,7 @@ void FMutableTaskGraph::WaitForMutableTasks()
 
 	if (LastMutableTask.IsValid())
 	{
-		if (CVarTaskGraphBusyWait->GetBool())
-		{
-			LastMutableTask.BusyWait();
-		}
-		else
-		{
-			LastMutableTask.Wait();
-		}
-
+		LastMutableTask.Wait();
 		LastMutableTask = {};
 	}
 }

@@ -555,14 +555,7 @@ namespace mu
 					{
 						if (IssuedTasks[IssuedIndex]->Event.IsValid())
 						{
-							if (CVarTaskGraphBusyWait->GetBool())
-							{
-								IssuedTasks[IssuedIndex]->Event.BusyWait();							
-							}
-							else
-							{
-								IssuedTasks[IssuedIndex]->Event.Wait();
-							}
+							IssuedTasks[IssuedIndex]->Event.Wait();
 
 							break;
 						}

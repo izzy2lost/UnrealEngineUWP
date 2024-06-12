@@ -6992,7 +6992,7 @@ int32 ProfileReadSpeed(const TCHAR* InCommandLine, const FKeyChain& InKeyChain)
 			case EReadType::ReadAsync:
 				{
 					UE::Tasks::TTask<TIoStatusOr<FIoBuffer>> Tasks = Reader->ReadAsync(Id, FIoReadOptions());
-					Tasks.BusyWait();
+					Tasks.Wait();
 					FIoBuffer Result = Tasks.GetResult().ValueOrDie();
 
 					BytesRead += Result.GetSize();
@@ -7037,7 +7037,7 @@ int32 ProfileReadSpeed(const TCHAR* InCommandLine, const FKeyChain& InKeyChain)
 
 	{
 		double WaitStartTime = FPlatformTime::Seconds();
-		CompletedEvent.BusyWait();
+		CompletedEvent.Wait();
 		UE_LOG(LogIoStore, Display, TEXT("Waited %.1f seconds"), FPlatformTime::Seconds() - WaitStartTime);
 	}
 

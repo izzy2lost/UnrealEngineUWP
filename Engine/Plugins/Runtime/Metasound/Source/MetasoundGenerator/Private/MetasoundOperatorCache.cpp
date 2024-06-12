@@ -334,7 +334,7 @@ namespace Metasound
 				FTask& TaskToCancel = Pair.Value;
 				if (!TaskToCancel.IsCompleted())
 				{
-					TaskToCancel.BusyWait();
+					TaskToCancel.Wait();
 				}
 			}
 		}

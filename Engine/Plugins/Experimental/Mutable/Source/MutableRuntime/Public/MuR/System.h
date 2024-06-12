@@ -39,10 +39,6 @@ enum class ETextureCompressionStrategy : uint8
 	NeverCompress
 };
 
-
-MUTABLERUNTIME_API extern TAutoConsoleVariable<bool> CVarTaskGraphBusyWait;
-
-
 namespace mu
 {
 	// Forward references
