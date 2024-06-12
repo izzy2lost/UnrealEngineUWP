@@ -83,10 +83,12 @@ void RenameObjectToTransientPackage(UObject* ObjectToRename)
 {
 	const ERenameFlags RenFlags = REN_DoNotDirty | REN_ForceNoResetLoaders | REN_DontCreateRedirectors;
 
-	ObjectToRename->Rename(nullptr, GetTransientPackage(), RenFlags);
 	ObjectToRename->SetFlags(RF_Transient);
 	ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
+
+    // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 	FLinkerLoad::InvalidateExport(ObjectToRename);
+	ObjectToRename->Rename(nullptr, GetTransientPackage(), RenFlags);
 }
 
 FString PropertyPathToString(const UClass* InSelfContext, const UMVVMBlueprintView* BlueprintView, const FMVVMBlueprintPropertyPath& PropertyPath)

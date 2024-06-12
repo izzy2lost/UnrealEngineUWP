@@ -125,7 +125,12 @@ void UObject::SetLinker( FLinkerLoad* LinkerLoad, int32 LinkerIndex, bool bShoul
 		FObjectExport& ExportObject = Existing.Linker->ExportMap[Existing.LinkerIndex];
 		checkf(ExportObject.Object != nullptr, TEXT("Expected ExportMap[%d].Object to not be null for this ('%s')"), Existing.LinkerIndex, *GetFName().ToString());
 		checkf(ExportObject.Object == this, TEXT("Expected ExportMap[%d].Object ('%s') to equal this ('%s')"), Existing.LinkerIndex, *ExportObject.Object->GetFName().ToString(), *GetFName().ToString());
+
+		// Detach the object but keep the object marked as invalid if it was previously. Now that it's detached
+		// if we reload the package we don't want to reload invalid objects.
+		bool bIsInvalid = ExportObject.bExportLoadFailed;
 		ExportObject.ResetObject();
+		ExportObject.bExportLoadFailed = bIsInvalid;
 	}
 
 	if (Existing.Linker == LinkerLoad)

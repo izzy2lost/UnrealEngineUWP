@@ -106,7 +106,7 @@ void FKismet2CompilerModule::RefreshVariables(UBlueprint* Blueprint)
 		// move old cdo aside:
 		if(OldCDO)
 		{
-			OldCDO->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+			OldCDO->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders | REN_AllowPackageLinkerMismatch);
 		}
 		Blueprint->GeneratedClass->ClassDefaultObject = nullptr;
 

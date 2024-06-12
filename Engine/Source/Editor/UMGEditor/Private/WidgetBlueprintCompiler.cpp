@@ -291,6 +291,16 @@ void FWidgetBlueprintCompilerContext::CleanAndSanitizeClass(UBlueprintGeneratedC
 	const bool bRecompilingOnLoad = Blueprint->bIsRegeneratingOnLoad;
 	auto RenameObjectToTransientPackage = [bRecompilingOnLoad](UObject* ObjectToRename, const FName BaseName,  bool bClearFlags)
 	{
+		ObjectToRename->SetFlags(RF_Transient);
+
+		if (bClearFlags)
+		{
+			ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
+		}
+
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
+		FLinkerLoad::InvalidateExport(ObjectToRename);
+
 		const ERenameFlags RenFlags = REN_DontCreateRedirectors | (bRecompilingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_NonTransactional | REN_DoNotDirty;
 
 		if (BaseName.IsNone())
@@ -302,14 +312,6 @@ void FWidgetBlueprintCompilerContext::CleanAndSanitizeClass(UBlueprintGeneratedC
 			FName TransientArchetypeName = MakeUniqueObjectName(GetTransientPackage(), ObjectToRename->GetClass(), BaseName);
 			ObjectToRename->Rename(*TransientArchetypeName.ToString(), GetTransientPackage(), RenFlags);
 		}
-
-		ObjectToRename->SetFlags(RF_Transient);
-
-		if (bClearFlags)
-		{
-			ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
-		}
-		FLinkerLoad::InvalidateExport(ObjectToRename);
 	};
 
 	if ( !Blueprint->bIsRegeneratingOnLoad && bIsFullCompile )

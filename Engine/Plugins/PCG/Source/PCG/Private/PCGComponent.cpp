@@ -3047,7 +3047,10 @@ void UPCGComponent::RefreshSchedulingPolicy()
 	if (IsValid(SchedulingPolicy) && SchedulingPolicy->GetOuter() == this)
 	{
 #if WITH_EDITOR
-		SchedulingPolicy->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+        // We are renaming to a new outer on an object that may still be loading. Since we are destroying this object
+        // pass REN_AllowPackageLinkerMismatch to allow the linker to remain on the object so we don't have to force a load 
+        // to complete before the rename 
+		SchedulingPolicy->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_AllowPackageLinkerMismatch);
 #endif
 		SchedulingPolicy->MarkAsGarbage();
 	}

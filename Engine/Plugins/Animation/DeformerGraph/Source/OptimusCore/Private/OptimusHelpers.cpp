@@ -73,7 +73,7 @@ bool Optimus::RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UO
 
 void Optimus::RemoveObject(UObject* InObjectToRemove)
 {
-	InObjectToRemove->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+	InObjectToRemove->Rename(nullptr, GetTransientPackage(), REN_AllowPackageLinkerMismatch | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 	InObjectToRemove->MarkAsGarbage();
 }
 

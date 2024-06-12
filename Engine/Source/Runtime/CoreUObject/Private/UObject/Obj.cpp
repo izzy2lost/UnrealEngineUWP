@@ -214,7 +214,7 @@ UObject* UObject::GetDefaultSubobjectByName(FName ToFind)
 	return Object;
 }
 
-bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags )
+bool UObject::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UObject::Rename);
 
@@ -224,7 +224,7 @@ bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags
 	FMetaDataUtilities::FMoveMetadataHelperContext MoveMetaData(this, true);
 #endif //WITH_EDITOR
 
-	if(NewOuter)
+	if (NewOuter)
 	{
 		// Renaming the CDO of a Blueprint is a special case so we do not validate what would otherwise be incorrect use of Rename.
 		// Moving objects to the transient package is commonly used halfway through destroying them so that is also fine, otherwise
@@ -244,11 +244,12 @@ bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags
 					*NewOuter->GetFullName(),
 					*GetClass()->ClassWithin->GetName());
 			}
-			// If moving the object to a new package, remove it's linker .
-			else if (GetLinker() && GetPackage() != NewOuter->GetPackage())
-			{
-				SetLinker(nullptr, INDEX_NONE);
-			}
+		}
+
+		// If moving the object to a new package, remove its linker and detach the object
+		if (((Flags & REN_AllowPackageLinkerMismatch) == 0) && GetLinker() != NewOuter->GetLinker())
+		{
+			SetLinker(nullptr, INDEX_NONE);
 		}
 	}
 
@@ -996,29 +997,8 @@ void UObject::BeginDestroy()
 			);
 	}
 
-#if WITH_EDITORONLY_DATA
-	// Make sure the linker entry stays as 'bExportLoadFailed' if the entry was marked as such, 
-	// doing this prevents the object from being reloaded by subsequent load calls:
-	FLinkerLoad* Linker = GetLinker();
-	const int32 CachedLinkerIndex = GetLinkerIndex();
-	bool bLinkerEntryWasInvalid = false;
-	if(Linker && Linker->ExportMap.IsValidIndex(CachedLinkerIndex))
-	{
-		FObjectExport& ObjExport = Linker->ExportMap[CachedLinkerIndex];
-		bLinkerEntryWasInvalid = ObjExport.bExportLoadFailed;
-	}
-#endif // WITH_EDITORONLY_DATA
-
 	// Remove from linker's export table.
 	SetLinker( NULL, INDEX_NONE );
-	
-#if WITH_EDITORONLY_DATA
-	if(bLinkerEntryWasInvalid)
-	{
-		FObjectExport& ObjExport = Linker->ExportMap[CachedLinkerIndex];
-		ObjExport.bExportLoadFailed = true;
-	}
-#endif // WITH_EDITORONLY_DATA
 
 	LowLevelRename(NAME_None);
 	// Remove any associated external package, at this point

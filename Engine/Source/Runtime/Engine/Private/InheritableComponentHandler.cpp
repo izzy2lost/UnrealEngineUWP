@@ -254,18 +254,15 @@ void UInheritableComponentHandler::ValidateTemplates()
 					{
 						Record.ComponentTemplate->SetFlags(RF_Transient);
 #if WITH_EDITOR
+                        // Mark the export as invalid to ensure the loader won't reload the object, 
+                        // should the package owning this object be reloaded.
+                        // Note, Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
+						FLinkerLoad::InvalidateExport(Record.ComponentTemplate);
 						// in editor, move the component template aside so its name is free:
 						Record.ComponentTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
 						Record.ComponentTemplate->ClearFlags(RF_Standalone);
 						Record.ComponentTemplate->RemoveFromRoot();
 						Record.ComponentTemplate->MarkAsGarbage();
-						// Rename won't invalidate the linker's export, and linker lifetime extends long beyond an actual loadpackage 
-						// invocation. Consequently, if the template object is garbage collected (as we hope it will be) it 
-						// could tragically be recreated by FLinkerLoad unless we invalidate the export. Zen loader has some 
-						// logic to avoid recreating the object, but it is buggy and we want to avoid object recreation when 
-						// not using Zen, anyway. We would not need to invalidate the export if: 1. Rename invalidated the 
-						// export or 2. FLinkerLoad's lifetime were reigned in.
-						FLinkerLoad::InvalidateExport(Record.ComponentTemplate);
 #endif // WITH_EDITOR
 						UnnecessaryComponents.AddUnique(Record.ComponentTemplate);
 					}

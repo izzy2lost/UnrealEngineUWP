@@ -2091,6 +2091,9 @@ void UStruct::ConvertUFieldsToFFields()
 			{
 				Children = OldField->Next;
 			}
+
+            // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
+			FLinkerLoad::InvalidateExport(OldField);
 			// Move the old UProperty to the transient package and rename it to something unique
 			OldField->Rename(*MakeUniqueObjectName(GetTransientPackage(), OldField->GetClass()).ToString(), GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			OldField->RemoveFromRoot();

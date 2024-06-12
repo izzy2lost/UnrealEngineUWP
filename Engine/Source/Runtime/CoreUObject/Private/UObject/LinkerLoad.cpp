@@ -686,6 +686,9 @@ void FLinkerLoad::InvalidateExport(UObject* OldObject)
 
 	if (OldObjectLinker && OldObjectLinker->ExportMap.IsValidIndex(CachedLinkerIndex))
 	{
+		// Prevent any further loading as this export is now invalid
+		OldObject->ClearFlags(RF_NeedLoad | RF_NeedPostLoad | RF_NeedPostLoadSubobjects);
+
 		FObjectExport& ObjExport = OldObjectLinker->ExportMap[CachedLinkerIndex];
 		ObjExport.bExportLoadFailed = true;
 	}

@@ -980,8 +980,11 @@ void URigVMBlueprint::PostLoad()
 			}
 			else
 			{
+                // We are renaming an object to a new outer while we may still be loading. Since we
+                // are destroying the object, pass REN_AllowPackageLinkerMismatch to avoid forcing
+                // the load to complete since that is wasteful.
 				Graph->MarkAsGarbage();
-				Graph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+				Graph->Rename(nullptr, GetTransientPackage(), REN_AllowPackageLinkerMismatch);
 			}
 		}
 		UbergraphPages = NewUberGraphPages;

@@ -51,6 +51,11 @@ void FLoadingTestsScope::SavePackages()
 
 void FLoadingTestsScope::GarbageCollect()
 {
+	GarbageCollect(PackageNames, AutomationTest);
+}
+
+void FLoadingTestsScope::GarbageCollect(const TArray<FString>& PackageNames, FAutomationTestBase& AutomationTest)
+{
 	TArray<FString> ObjectPaths;
 
 	// Remove RF_Standalone from package and objects inside it.
@@ -75,16 +80,21 @@ void FLoadingTestsScope::GarbageCollect()
 	// Make sure everything we gathered can be properly found
 	for (const FString& ObjectPath : ObjectPaths)
 	{
-		checkf(FindObject<UObject>(nullptr, *ObjectPath) != nullptr, TEXT("%s should be present in memory"), *ObjectPath);
+		AutomationTest.TestTrue(FString::Printf(TEXT("%s should be present in memory"), *ObjectPath), FindObject<UObject>(nullptr, *ObjectPath) != nullptr);
 	}
 
-	// GC and make sure everything gets cleaned up before loading
-	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+	{
+		// Make sure the GIsInitialLoad flag is false.  Otherwise GC does nothing
+		TGuardValue<bool> GuardIsInitialLoad(GIsInitialLoad, false);
+
+		// GC and make sure everything gets cleaned up before loading
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+	}
 
 	// Now make sure everything is gone
 	for (const FString& ObjectPath : ObjectPaths)
 	{
-		checkf(FindObject<UObject>(nullptr, *ObjectPath) == nullptr, TEXT("%s should have been garbage collected"), *ObjectPath);
+		AutomationTest.TestTrue(FString::Printf(TEXT("%s should have been garbage collected"), *ObjectPath), FindObject<UObject>(nullptr, *ObjectPath) == nullptr);
 	}
 }
 

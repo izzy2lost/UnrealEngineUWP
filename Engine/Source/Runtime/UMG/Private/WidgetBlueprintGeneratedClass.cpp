@@ -382,16 +382,18 @@ void UWidgetBlueprintGeneratedClass::PurgeClass(bool bRecompilingOnLoad)
 	// Remove the old widdget tree.
 	if ( WidgetTree )
 	{
-		WidgetTree->Rename(nullptr, GetTransientPackage(), RenFlags);
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 		FLinkerLoad::InvalidateExport(WidgetTree);
+		WidgetTree->Rename(nullptr, GetTransientPackage(), RenFlags);
 		WidgetTree = nullptr;
 	}
 
 	// Remove all animations.
 	for ( UWidgetAnimation* Animation : Animations )
 	{
-		Animation->Rename(nullptr, GetTransientPackage(), RenFlags);
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 		FLinkerLoad::InvalidateExport(Animation);
+		Animation->Rename(nullptr, GetTransientPackage(), RenFlags);
 	}
 
 	Animations.Empty();

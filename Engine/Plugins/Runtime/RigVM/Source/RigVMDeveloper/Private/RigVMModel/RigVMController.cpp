@@ -18765,9 +18765,9 @@ void URigVMController::RewireLinks(URigVMPin* InOldPin, URigVMPin* InNewPin, boo
 
 #endif
 
-bool URigVMController::RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter) const
+bool URigVMController::RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter, ERenameFlags InFlags) const
 {
-	const bool bSuccess = InObjectToRename->Rename(InNewName, InNewOuter, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+	const bool bSuccess = InObjectToRename->Rename(InNewName, InNewOuter, InFlags | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 	if(bSuccess)
 	{
 		if(const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(InObjectToRename))
@@ -18796,8 +18796,11 @@ void URigVMController::DestroyObject(UObject* InObjectToDestroy) const
 			}
 		}
 	}
-
-	RenameObject(InObjectToDestroy, nullptr, GetTransientPackage());
+	
+	// We are renaming an object that may be loading, but ultimately want to destroy.
+	// Pass REN_AllowPackageLinkerMismatch to allow the linker to remain on the object
+	// so we may rename without forcing the load to complete.
+	RenameObject(InObjectToDestroy, nullptr, GetTransientPackage(), REN_AllowPackageLinkerMismatch);
 	InObjectToDestroy->RemoveFromRoot();
 	InObjectToDestroy->MarkAsGarbage();
 }

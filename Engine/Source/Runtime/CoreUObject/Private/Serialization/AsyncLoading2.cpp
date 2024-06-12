@@ -5594,18 +5594,10 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ProcessLinkerLoadPackageSummary(FA
 			FObjectExport& LinkerExport = LinkerLoadState->Linker->ExportMap[LinkerLoadState->MetaDataIndex];
 			FExportObject& ExportObject = Data.Exports[LinkerLoadState->MetaDataIndex];
 			ExportObject.Object = LinkerExport.Object;
-			if (ExportObject.Object)
-			{
-				ExportObject.bWasFoundInMemory = true; // Make sure that the async flags are cleared in ClearConstructedObjects
-			}
-			else
-			{
-				ExportObject.bExportLoadFailed = LinkerExport.bExportLoadFailed;
-				if (!ExportObject.bExportLoadFailed)
-				{
-					ExportObject.bFiltered = true;
-				}
-			}
+
+			ExportObject.bWasFoundInMemory = !!LinkerExport.Object; // Make sure that the async flags are cleared in ClearConstructedObjects
+			ExportObject.bExportLoadFailed = LinkerExport.bExportLoadFailed;
+			ExportObject.bFiltered = LinkerExport.bWasFiltered;
 		}
 #endif
 	}
@@ -5918,6 +5910,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ExecuteDeferredPostLoadLinkerLoadP
 				{
 					UE_ASYNC_PACKAGE_LOG(Verbose, Desc, TEXT("ExecuteDeferredPostLoadLinkerLoadPackageExports"), TEXT("Patching export %d: %s -> %s"), ObjectIndex, *GetPathNameSafe(ExportObject.Object), *GetPathNameSafe(LinkerExport.Object));
 					ExportObject.Object = LinkerExport.Object;
+					ExportObject.bWasFoundInMemory = !!LinkerExport.Object;
 				}
 			}
 		}
@@ -6481,12 +6474,12 @@ UObject* FAsyncPackage2::ConditionalSerializeExport(const FAsyncPackageHeaderDat
 {
 	FExportObject& Export = Header.ExportsView[LocalExportIndex];
 	
-	if (!Export.Object && !(Export.bFiltered | Export.bExportLoadFailed))
+	if (!Export.Object && !(Export.bFiltered || Export.bExportLoadFailed))
 	{
 		ConditionalCreateExport(Header, LocalExportIndex);
 	}
 	
-	if (!Export.Object || (Export.bFiltered | Export.bExportLoadFailed))
+	if (!Export.Object || (Export.bFiltered || Export.bExportLoadFailed))
 	{
 		return nullptr;
 	}
@@ -6598,7 +6591,7 @@ void FAsyncPackage2::EventDrivenCreateExport(const FAsyncPackageHeaderData& Head
 	};
 
 	ExportObject.bFiltered = FilterExport(Export.FilterFlags);
-	if (ExportObject.bFiltered | ExportObject.bExportLoadFailed)
+	if (ExportObject.bFiltered || ExportObject.bExportLoadFailed)
 	{
 		if (ExportObject.bExportLoadFailed)
 		{
@@ -6804,11 +6797,11 @@ bool FAsyncPackage2::EventDrivenSerializeExport(const FAsyncPackageHeaderData& H
 	const FExportMapEntry& Export = Header.ExportMap[LocalExportIndex];
 	FExportObject& ExportObject = Header.ExportsView[LocalExportIndex];
 	UObject* Object = ExportObject.Object;
-	check(Object || (ExportObject.bFiltered | ExportObject.bExportLoadFailed));
+	check(Object || (ExportObject.bFiltered || ExportObject.bExportLoadFailed));
 
 	TRACE_LOADTIME_SERIALIZE_EXPORT_SCOPE(Object, Export.CookedSerialSize);
 
-	if ((ExportObject.bFiltered | ExportObject.bExportLoadFailed) || !(Object && Object->HasAnyFlags(RF_NeedLoad)))
+	if ((ExportObject.bFiltered || ExportObject.bExportLoadFailed) || !(Object && Object->HasAnyFlags(RF_NeedLoad)))
 	{
 		if (ExportObject.bExportLoadFailed)
 		{
@@ -7367,7 +7360,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PostLoadExportBundle(FAsyncL
 				do
 				{
 					FExportObject& Export = HeaderData->ExportsView[BundleEntry.LocalExportIndex];
-					if (Export.bFiltered | Export.bExportLoadFailed)
+					if (Export.bFiltered || Export.bExportLoadFailed)
 					{
 						break;
 					}
@@ -7481,7 +7474,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DeferredPostLoadExportBundle
 				do
 				{
 					FExportObject& Export = HeaderData->ExportsView[BundleEntry.LocalExportIndex];
-					if (Export.bFiltered | Export.bExportLoadFailed)
+					if (Export.bFiltered || Export.bExportLoadFailed)
 					{
 						break;
 					}
@@ -7796,7 +7789,7 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 				// Clear async loading flags (we still want RF_Async, but EInternalObjectFlags::AsyncLoading can be cleared)
 				for (const FExportObject& Export : Package->Data.Exports)
 				{
-					if (Export.bFiltered | Export.bExportLoadFailed)
+					if (Export.bFiltered || Export.bExportLoadFailed)
 					{
 						continue;
 					}
@@ -8543,12 +8536,6 @@ void FAsyncLoadingThread2::CollectUnreachableObjects(
 			{
 				const int32 CachedLinkerIndex = Object->GetLinkerIndex();
 				Object->SetLinker(nullptr, INDEX_NONE);
-				// As we are garbaging the object, mark it as invalid in the linker
-				// Either it is now truly invalid to access this object 
-				// (i.e the asset ran upgraded, migrated away from this object and doesn't hold any references to it anymore.)
-				// or we are gc'ing the entire asset in which case the linker will eventually get purged and those entry won't be marked invalid anymore on recreation
-				FObjectExport& ObjExport = ObjectLinker->ExportMap[CachedLinkerIndex];
-				ObjExport.bExportLoadFailed = true;
 			}
 #endif // ALT2_ENABLE_LINKERLOAD_SUPPORT
 		});
@@ -9044,7 +9031,7 @@ EAsyncPackageState::Type FAsyncPackage2::PostLoadInstances(FAsyncLoadingThreadSt
 	{
 		const FExportObject& Export = Data.Exports[PostLoadInstanceIndex++];
 
-		if (!(Export.bFiltered || Export.bExportLoadFailed))
+		if (Export.Object && !(Export.bFiltered || Export.bExportLoadFailed))
 		{
 			UClass* ObjClass = Export.Object->GetClass();
 			ObjClass->PostLoadInstance(Export.Object);
@@ -9060,7 +9047,7 @@ EAsyncPackageState::Type FAsyncPackage2::CreateClusters(FAsyncLoadingThreadState
 	{
 		const FExportObject& Export = Data.Exports[DeferredClusterIndex++];
 
-		if (!(Export.bFiltered | Export.bExportLoadFailed) && Export.Object->CanBeClusterRoot())
+		if (!(Export.bFiltered || Export.bExportLoadFailed) && Export.Object->CanBeClusterRoot())
 		{
 			Export.Object->CreateCluster();
 			if (DeferredClusterIndex < ExportCount && ThreadState.IsTimeLimitExceeded(TEXT("CreateClusters")))

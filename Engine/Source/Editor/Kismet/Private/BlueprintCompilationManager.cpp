@@ -2819,7 +2819,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 					// out of the way so we can reuse its name:
 					Destination, 
 					// Rename options:
-					REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders );
+					REN_DoNotDirty | REN_DontCreateRedirectors | REN_AllowPackageLinkerMismatch);
 
 				// reconstruct
 				FMakeClassSpawnableOnScope TemporarilySpawnable(NewClass);

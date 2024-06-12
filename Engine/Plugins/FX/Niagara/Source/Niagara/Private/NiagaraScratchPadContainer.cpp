@@ -20,6 +20,8 @@ void UNiagaraScratchPadContainer::CheckConsistency()
 	{
 		if (Script && Script->GetOuter() != this)
 		{
+			// Ensure the object has finished loading before renaming since we are changing the outer which will invalidate the linker
+			Script->ConditionalPostLoad();
 			Script->Rename(*Script->GetName(), this, REN_ForceNoResetLoaders | REN_NonTransactional);
 		}
 	}
