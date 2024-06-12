@@ -468,6 +468,12 @@ void UChaosClothAssetEditorMode::Exit()
 	}
 	ClothSeamDraw = nullptr;
 
+	if (SurfaceNormalDraw)
+	{
+		SurfaceNormalDraw->Disconnect();
+	}
+	SurfaceNormalDraw = nullptr;
+
 	if (DataflowComponent)
 	{
 		DataflowComponent->UnregisterComponent();
@@ -714,6 +720,50 @@ void UChaosClothAssetEditorMode::InitializeSeamDraw()
 }
 
 
+void UChaosClothAssetEditorMode::InitializeSurfaceNormalDraw()
+{
+	if (!SurfaceNormalDraw)
+	{
+		return;
+	}
+
+	SurfaceNormalDraw->RemoveAllLineSets();
+
+	if (!bConstructionViewNormalsVisible)
+	{
+		return;
+	}
+
+	if (!DynamicMeshComponent || !DynamicMeshComponent->GetMesh())
+	{
+		return;
+	}
+
+	const UE::Geometry::FDynamicMesh3& Mesh = *DynamicMeshComponent->GetMesh();
+
+	const float LineLength = 2.0f;
+	const float LineThickness = 1.0f;
+
+	if (Mesh.HasAttributes())
+	{
+		if (const UE::Geometry::FDynamicMeshNormalOverlay* const NormalOverlay = Mesh.Attributes()->PrimaryNormals())
+		{
+			SurfaceNormalDraw->CreateOrUpdateLineSet(TEXT("Normals"), NormalOverlay->MaxElementID(),
+			[&NormalOverlay, &Mesh, LineLength, LineThickness](int32 Index, TArray<FRenderableLine>& Lines)
+			{
+				if (NormalOverlay->IsElement(Index))
+				{
+					int32 ParentVtx = NormalOverlay->GetParentVertex(Index);
+					FVector3f Normal = NormalOverlay->GetElement(Index);
+					FVector3f Origin = (FVector3f)Mesh.GetVertex(ParentVtx);
+					Lines.Add(FRenderableLine((FVector)Origin, (FVector)Origin + LineLength * (FVector)Normal, FColor(15, 15, 240), LineThickness));
+				}
+			}, 1);
+		}
+	}
+}
+
+
 void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -811,11 +861,17 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 		ClothSeamDraw->Disconnect();
 	}
 
+	if (SurfaceNormalDraw)
+	{
+		SurfaceNormalDraw->Disconnect();
+	}
+
 	PropertyObjectsToTick.Empty();	// TODO: We only want to empty the wireframe display properties. Is anything else using this array?
 	DynamicMeshComponent = nullptr;
 	DynamicMeshComponentParentActor = nullptr;
 	WireframeDraw = nullptr;
 	ClothSeamDraw = nullptr;
+	SurfaceNormalDraw = nullptr;
 	bDynamicMeshComponentInitDeferred = false;
 
 	TSharedPtr<FManagedArrayCollection> Collection = bDynamicMeshUseInputCollection ? GetInputClothCollection() : GetClothCollection();
@@ -917,12 +973,20 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 	InitializeSeamDraw();
 	ClothSeamDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewSeamsVisible);
 
+	SurfaceNormalDraw = NewObject<UPreviewGeometry>(this);
+	SurfaceNormalDraw->CreateInWorld(GetWorld(), FTransform::Identity);
+	InitializeSurfaceNormalDraw();
+	SurfaceNormalDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewNormalsVisible);
+
 	DynamicMeshComponent->OnMeshChanged.Add(
 		FSimpleMulticastDelegate::FDelegate::CreateLambda([this]()
 		{
 			InitializeSeamDraw();
 			const bool bRestSpaceMeshVisible = DynamicMeshComponent->GetVisibleFlag();
 			ClothSeamDraw->SetAllVisible(bRestSpaceMeshVisible&& bConstructionViewSeamsVisible);
+
+			InitializeSurfaceNormalDraw();
+			SurfaceNormalDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewNormalsVisible);
 		}));
 
 
@@ -942,6 +1006,10 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 			if (ClothSeamDraw)
 			{
 				ClothSeamDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewSeamsVisible);
+			}
+			if (SurfaceNormalDraw)
+			{
+				SurfaceNormalDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewNormalsVisible);
 			}
 		});
 
@@ -1442,6 +1510,22 @@ bool UChaosClothAssetEditorMode::CanSetConstructionViewSeamsCollapse() const
 	}
 
 	return bConstructionViewSeamsVisible && (ConstructionViewMode == UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
+}
+
+void UChaosClothAssetEditorMode::ToggleConstructionViewSurfaceNormals()
+{
+	bConstructionViewNormalsVisible = !bConstructionViewNormalsVisible;
+	ReinitializeDynamicMeshComponents();
+}
+
+bool UChaosClothAssetEditorMode::CanSetConstructionViewSurfaceNormalsActive() const
+{
+	if (GetToolManager()->HasActiveTool(EToolSide::Left))
+	{
+		return false;
+	}
+
+	return true;
 }
 
 

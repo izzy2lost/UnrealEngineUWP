@@ -24,6 +24,7 @@ const FString FChaosClothAssetEditorCommands::TogglePreviewWireframeIdentifier =
 const FString FChaosClothAssetEditorCommands::ToggleConstructionViewWireframeIdentifier = TEXT("ToggleConstructionViewWireframe");
 const FString FChaosClothAssetEditorCommands::ToggleConstructionViewSeamsIdentifier = TEXT("ToggleConstructionViewSeams");
 const FString FChaosClothAssetEditorCommands::ToggleConstructionViewSeamsCollapseIdentifier = TEXT("ToggleConstructionViewSeamsCollapse");
+const FString FChaosClothAssetEditorCommands::ToggleConstructionViewSurfaceNormalsIdentifier = TEXT("ToggleConstructionViewSurfaceNormals");
 
 FChaosClothAssetEditorCommands::FChaosClothAssetEditorCommands()
 	: TBaseCharacterFXEditorCommands<FChaosClothAssetEditorCommands>("ChaosClothAssetEditor",
@@ -59,6 +60,7 @@ void FChaosClothAssetEditorCommands::RegisterCommands()
 
 	UI_COMMAND(ToggleConstructionViewSeams, "ToggleConstructionViewSeams", "Toggle construction view seams", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(ToggleConstructionViewSeamsCollapse, "ToggleConstructionViewSeamsCollapse", "Toggle drawing one line between seams in construction view", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(ToggleConstructionViewSurfaceNormals, "ToggleConstructionViewSurfaceNormals", "Toggle construction view surface normals", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	UI_COMMAND(TogglePatternColor, "TogglePatternColor", "Toggle Pattern color in the construction view", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(ToggleMeshStats, "ToggleMeshStats", "Toggle mesh information display", EUserInterfaceActionType::ToggleButton, FInputChord());

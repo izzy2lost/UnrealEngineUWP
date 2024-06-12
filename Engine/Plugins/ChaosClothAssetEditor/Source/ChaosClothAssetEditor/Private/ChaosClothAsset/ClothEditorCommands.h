@@ -64,6 +64,9 @@ public:
 	TSharedPtr<FUICommandInfo> TogglePatternColor;
 	TSharedPtr<FUICommandInfo> ToggleMeshStats;
 
+	const static FString ToggleConstructionViewSurfaceNormalsIdentifier;
+	TSharedPtr<FUICommandInfo> ToggleConstructionViewSurfaceNormals;
+
 	TSharedPtr<FUICommandInfo> SetConstructionMode2D;
 	TSharedPtr<FUICommandInfo> SetConstructionMode3D;
 	TSharedPtr<FUICommandInfo> SetConstructionModeRender;

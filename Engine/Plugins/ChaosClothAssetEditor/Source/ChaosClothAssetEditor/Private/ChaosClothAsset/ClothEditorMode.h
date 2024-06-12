@@ -96,6 +96,13 @@ public:
 		return bPatternColors;
 	}
 
+	void ToggleConstructionViewSurfaceNormals();
+	bool CanSetConstructionViewSurfaceNormalsActive() const;
+	bool IsConstructionViewSurfaceNormalsActive() const
+	{
+		return bConstructionViewNormalsVisible;
+	}
+
 	void ToggleMeshStats();
 	bool CanSetMeshStats() const;
 	bool IsMeshStatsActive() const
@@ -235,6 +242,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPreviewGeometry> ClothSeamDraw = nullptr;
 
+	UPROPERTY()
+	TObjectPtr<UPreviewGeometry> SurfaceNormalDraw = nullptr;
 
 	// Preview Scene, here largely for convenience to avoid having to pass it around functions. Owned by the ClothEditorToolkit.
 	UE::Chaos::ClothAsset::FChaosClothPreviewScene* PreviewScene = nullptr;
@@ -285,6 +294,9 @@ private:
 	bool bShouldRestoreConstructionViewSeams = false;
 	bool bConstructionViewSeamsCollapse = false;
 	void InitializeSeamDraw();
+
+	bool bConstructionViewNormalsVisible = false;
+	void InitializeSurfaceNormalDraw();
 
 	bool bPatternColors = false;
 	bool bMeshStats = false;
