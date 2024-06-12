@@ -245,6 +245,9 @@ struct FNiagaraLWCConverter
 	[[nodiscard]] NIAGARA_API FMatrix ConvertWorldToSimulationMatrix(const FMatrix& Matrix) const;
 	[[nodiscard]] NIAGARA_API FMatrix ConvertSimulationToWorldMatrix(const FMatrix& Matrix) const;
 
+	[[nodiscard]] NIAGARA_API FTransform3f ConvertWorldToSimulationTransform(const FTransform& Transform) const;
+	[[nodiscard]] NIAGARA_API FTransform ConvertSimulationToWorldTransform(const FTransform3f& Transform) const;
+
 private:
 	FVector SystemWorldPos;
 };

@@ -161,6 +161,24 @@ FMatrix FNiagaraLWCConverter::ConvertSimulationToWorldMatrix(const FMatrix& Matr
 	return Matrix.ConcatTranslation(SystemWorldPos);
 }
 
+FTransform3f FNiagaraLWCConverter::ConvertWorldToSimulationTransform(const FTransform& Transform) const
+{
+	FTransform3f NewTransform;
+	NewTransform.SetTranslation(FVector3f(Transform.GetTranslation() - SystemWorldPos));
+	NewTransform.SetRotation(FQuat4f(Transform.GetRotation()));
+	NewTransform.SetScale3D(FVector3f(Transform.GetScale3D()));
+	return NewTransform;
+}
+
+FTransform FNiagaraLWCConverter::ConvertSimulationToWorldTransform(const FTransform3f& Transform) const
+{
+	FTransform NewTransform;
+	NewTransform.SetTranslation(FVector(Transform.GetTranslation()) + SystemWorldPos);
+	NewTransform.SetRotation(FQuat(Transform.GetRotation()));
+	NewTransform.SetScale3D(FVector(Transform.GetScale3D()));
+	return NewTransform;
+}
+
 FNiagaraStructConversionStep::FNiagaraStructConversionStep()
 {
 }
