@@ -92,6 +92,8 @@ bool FTG_LevelsSettings::SetMidFromMidExponent(float InExponent)
 
 void UTG_Expression_Levels::PostLoad()
 {
+	Super::PostLoad();
+
 	// Restore LevelsSettings inner struct from saved values
 	Levels.Low = (LowValue);
 	Levels.High = (HighValue);
@@ -118,14 +120,15 @@ void UTG_Expression_Levels::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	{
 		SetMidValue(MidValue);
 	}
-
+	// Out Low
 	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, OutLowValue))
 	{
-		OutLowValue = FMath::Clamp(OutLowValue, 0, OutHighValue);
+		SetOutLowValue(OutLowValue);
 	}
+	// Out High
 	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, OutHighValue))
 	{
-		OutHighValue = FMath::Clamp(OutHighValue, OutLowValue, 1.0f);
+		SetOutHighValue(OutHighValue);
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -197,6 +200,17 @@ void UTG_Expression_Levels::SetHighValue(float InValue)
 	{
 		HighValue = Levels.High;
 	}
+}
+
+
+void UTG_Expression_Levels::SetOutLowValue(float InValue)
+{
+	OutLowValue = FMath::Clamp(InValue, 0, OutHighValue);
+}
+
+void UTG_Expression_Levels::SetOutHighValue(float InValue)
+{
+	OutHighValue = FMath::Clamp(OutHighValue, OutLowValue, 1.0f);
 }
 
 void UTG_Expression_Levels::Evaluate(FTG_EvaluationContext* InContext)
