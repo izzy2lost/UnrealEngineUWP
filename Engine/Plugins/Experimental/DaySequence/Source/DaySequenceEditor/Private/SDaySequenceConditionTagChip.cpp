@@ -2,7 +2,6 @@
 
 #include "SDaySequenceConditionTagChip.h"
 
-#include "DaySequenceEditorSubsystem.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Layout/SBox.h"
@@ -119,7 +118,6 @@ void SDaySequenceConditionTagChip::Construct(const FArguments& InArgs)
 					.ContentPadding(0)
 					.OnClicked_Lambda([WeakSelf]()
 					{
-						UE_LOG(LogDaySequenceEditor, Log, TEXT("Clear button clicked!"))
 						const TSharedPtr<SDaySequenceConditionTagChip> Self = WeakSelf.Pin();
 						if (Self.IsValid() && Self->OnClearPressed.IsBound())
 						{
