@@ -478,8 +478,8 @@ float4 SceneWithoutSingleLayerWaterViewRect;
 float2 FullResolutionToWaterBufferScale;
 #endif
 
-#if MSAA_SAMPLE_COUNT > 1
-Texture2DMS<float, MSAA_SAMPLE_COUNT> MSAADepthTexture;
+#if PERMUTATION_MSAA_SAMPLE_COUNT > 1
+Texture2DMS<float, PERMUTATION_MSAA_SAMPLE_COUNT> MSAADepthTexture;
 #endif
 
 #if INSTANCED_STEREO
@@ -613,7 +613,7 @@ float4 ApplyFogToCloudFromUVs(float2 UVWithOffset, float4 CloudRGBT)
 void ComposeVolumetricRTOverScenePS(
 	in float4 SVPos : SV_POSITION,
 	out float4 OutputRt0 : SV_Target0
-#if MSAA_SAMPLE_COUNT > 1
+#if PERMUTATION_MSAA_SAMPLE_COUNT > 1
 	, in uint SampleIndex : SV_SampleIndex
 #endif
 )
@@ -695,7 +695,7 @@ void ComposeVolumetricRTOverScenePS(
 
 #else
 
-#if  MSAA_SAMPLE_COUNT > 1
+#if  PERMUTATION_MSAA_SAMPLE_COUNT > 1
 	float PixelDeviceZ = MSAADepthTexture.Load(int2(SVPos.xy), SampleIndex).x;
 #else
 	float PixelDeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(uint3(SVPos.xy, 0)).r;
