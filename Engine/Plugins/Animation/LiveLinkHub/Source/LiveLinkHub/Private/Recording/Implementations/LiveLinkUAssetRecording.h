@@ -152,12 +152,15 @@ public:
 	int32 GetFrameDiskSize() const { return FrameDiskSize; }
 	
 	/** Return the currently buffered frame range. */
-	TRange<int32> GetBufferedFrames() const { return BufferedFrames.load(); }
+	TRange<int32> GetBufferedFrames() const;
 
 	/** Copy the asset's loaded recording data to a format suitable for playback in live link. */
 	void CopyRecordingData(FLiveLinkPlaybackTracks& InOutLiveLinkPlaybackTracks) const;
 	
 private:
+	/** Update the buffered frame range. */
+	void SetBufferedFrames(const TRange<int32>& InNewRange);
+	
 	/** Serialize the number of frames (array size) of the BaseDataContainer to the archive. */
 	void SaveFrameData(FArchive* InFileWriter, const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkRecordingBaseDataContainer& InBaseDataContainer);
 	
@@ -232,8 +235,11 @@ private:
 	std::atomic<int32> FrameDiskSize = 0;
 
 	/** Frames that are loaded and buffered. */
-	std::atomic<TRange<int32>> BufferedFrames = TRange<int32>(0, 0);
+	TRange<int32> BufferedFrames = TRange<int32>(0, 0);
 
+	/** Mutex for accessing the buffered frames. */
+	mutable FCriticalSection BufferedFrameMutex;
+	
 	/** Mutex for accessing the data container from multiple threads. */
 	mutable FCriticalSection DataContainerMutex;
 

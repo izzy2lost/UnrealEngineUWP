@@ -138,7 +138,7 @@ void ULiveLinkUAssetRecording::UnloadRecording()
 	InitialFrameToStream = 0;
 	TotalFramesToStream = 0;
 	
-	BufferedFrames = TRange<int32>(0, 0);
+	SetBufferedFrames(TRange<int32>(0, 0));
 	
 	for (TTuple<FLiveLinkSubjectKey, FLiveLinkRecordingStaticDataContainer>& StaticData : RecordingData.StaticData)
 	{
@@ -173,7 +173,7 @@ void ULiveLinkUAssetRecording::WaitForBufferedFrames(int32 InMinFrame, int32 InM
 		
 		while (true)
 		{
-			TRange<int32> BufferedFramesLocal = BufferedFrames.load();
+			TRange<int32> BufferedFramesLocal = GetBufferedFrames();
 			if (InTotalFrames > TotalFramesToStream
 			|| BufferedFramesLocal.Contains(InRange) || AsyncStreamTask->IsDone())
 			{
@@ -183,6 +183,12 @@ void ULiveLinkUAssetRecording::WaitForBufferedFrames(int32 InMinFrame, int32 InM
 			FPlatformProcess::Sleep(0.002);
 		}
 	}
+}
+
+TRange<int32> ULiveLinkUAssetRecording::GetBufferedFrames() const
+{
+	FScopeLock Lock(&BufferedFrameMutex);
+	return BufferedFrames;
 }
 
 void ULiveLinkUAssetRecording::CopyRecordingData(FLiveLinkPlaybackTracks& InOutLiveLinkPlaybackTracks) const
@@ -213,6 +219,12 @@ void ULiveLinkUAssetRecording::CopyRecordingData(FLiveLinkPlaybackTracks& InOutL
 		PlaybackTrack.SubjectKey = Pair.Key;
 		PlaybackTrack.StartIndexOffset = Pair.Value.RecordedDataStartFrame;
 	}
+}
+
+void ULiveLinkUAssetRecording::SetBufferedFrames(const TRange<int32>& InNewRange)
+{
+	FScopeLock Lock(&BufferedFrameMutex);
+	BufferedFrames = InNewRange;
 }
 
 void ULiveLinkUAssetRecording::SaveFrameData(FArchive* InFileWriter, const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkRecordingBaseDataContainer& InBaseDataContainer)
@@ -286,7 +298,7 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 	InCurrentFrame = FMath::Clamp(InCurrentFrame, 0, MaxPossibleFrame);
 	const int32 EndFrame = InStartFrame + InNumFramesToLoad - 1;
 
-	if (BufferedFrames.load().Contains(TRange<int32>(InStartFrame, FMath::Min(EndFrame, MaxPossibleFrame > 0 ? MaxPossibleFrame : EndFrame))))
+	if (GetBufferedFrames().Contains(TRange<int32>(InStartFrame, FMath::Min(EndFrame, MaxPossibleFrame > 0 ? MaxPossibleFrame : EndFrame))))
 	{
 		// All frames are already buffered.
 		return;
@@ -528,7 +540,7 @@ void ULiveLinkUAssetRecording::LoadFrameData(FLiveLinkRecordingBaseDataContainer
 		}
 
 		// Record all the frames that have been buffered.
-		BufferedFrames = TRange<int32>(LastLoadedLeftFrame, LastLoadedRightFrame);
+		SetBufferedFrames(TRange<int32>(LastLoadedLeftFrame, LastLoadedRightFrame));
 
 		// Output the streamed data to the data container. This will unload unused frames.
 		{
