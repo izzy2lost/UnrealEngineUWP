@@ -16,6 +16,7 @@ using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Server;
+using Horde.Server.Storage;
 using Horde.Server.Storage.ObjectStores;
 using Horde.Server.Telemetry.Sinks;
 using Horde.Server.Tools;
@@ -705,6 +706,11 @@ namespace Horde.Server
 		/// Currently Supported: "InMemory" or "Redis"
 		/// </summary>
 		public string LogServiceWriteCacheType { get; set; } = "InMemory";
+
+		/// <summary>
+		/// Overridden settings for storage backends. Useful for running against a production server with custom backends.
+		/// </summary>
+		public List<BackendConfig> StorageBackends { get; set; } = new List<BackendConfig>();
 
 		/// <summary>
 		/// Settings for artifact storage

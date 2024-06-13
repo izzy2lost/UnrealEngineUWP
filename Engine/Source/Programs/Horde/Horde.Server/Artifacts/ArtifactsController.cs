@@ -752,11 +752,14 @@ namespace Horde.Server.Artifacts
 				// Write all the cached blocks to the response
 				foreach ((IoHash hash, IBlockCacheValue value) in cachedBlocks)
 				{
-					Memory<byte> buffer = response.BodyWriter.GetMemory((int)value.Data.Length);
+					int length = (int)value.Data.Length;
+
+					Memory<byte> buffer = response.BodyWriter.GetMemory(length);
 					value.Data.CopyTo(buffer.Span);
-					response.BodyWriter.Advance((int)value.Data.Length);
+					response.BodyWriter.Advance(length);
+					responseLength += length;
+
 					await response.BodyWriter.FlushAsync(cancellationToken);
-					responseLength += value.Data.Length;
 				}
 			}
 			finally

@@ -84,6 +84,10 @@ namespace Horde.Server.Storage
 			{
 				_backendLookup[backendConfig.Id] = backendConfig;
 			}
+			foreach (BackendConfig backendConfig in globalConfig.ServerSettings.StorageBackends)
+			{
+				_backendLookup[backendConfig.Id] = backendConfig;
+			}
 
 			// Fixup all the inherited properties
 			Dictionary<BackendId, BackendConfig> mergedBackendConfigs = new Dictionary<BackendId, BackendConfig>(Backends.Count);
