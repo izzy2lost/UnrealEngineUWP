@@ -387,7 +387,11 @@ namespace EpicGames.Perforce
 			{
 				return RuntimeInformation.OSArchitecture != Architecture.Arm64;
 			}
-			return true;
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+			{
+				return RuntimeInformation.OSArchitecture != Architecture.Arm64;
+			}
+			return false;
 		}
 
 		void GetNextWriteBuffer(NativeWriteBuffer nativeWriteBuffer, int minSize)
