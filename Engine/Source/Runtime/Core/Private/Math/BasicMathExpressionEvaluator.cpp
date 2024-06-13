@@ -304,7 +304,7 @@ bool TestInvalidExpression(FAutomationTestBase* Test, const TCHAR* Expression)
 }
 
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorTest, "System.Core.Math.Evaluate.Valid Expressions", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorTest, "System.Core.Math.Evaluate.Valid Expressions", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 // Evaluates valid math expressions.
 bool FBasicMathExpressionEvaluatorTest::RunTest(const FString& Parameters)
 {
@@ -332,7 +332,7 @@ bool FBasicMathExpressionEvaluatorTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorWhitespaceExpressionsTest, "System.Core.Math.Evaluate.Valid Expressions With Whitespaces", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorWhitespaceExpressionsTest, "System.Core.Math.Evaluate.Valid Expressions With Whitespaces", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 // Evaluates a valid math expression with leading and trailing white spaces.
 bool FBasicMathExpressionEvaluatorWhitespaceExpressionsTest::RunTest(const FString& Parameters)
 {
@@ -341,7 +341,7 @@ bool FBasicMathExpressionEvaluatorWhitespaceExpressionsTest::RunTest(const FStri
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorGroupedExpressionsTest, "System.Core.Math.Evaluate.Valid Grouped Expressions", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorGroupedExpressionsTest, "System.Core.Math.Evaluate.Valid Grouped Expressions", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 // Evaluates valid math expressions that are grouped
 bool FBasicMathExpressionEvaluatorGroupedExpressionsTest::RunTest(const FString& Parameters)
 {
@@ -353,7 +353,7 @@ bool FBasicMathExpressionEvaluatorGroupedExpressionsTest::RunTest(const FString&
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorInvalidExpressionTest, "System.Core.Math.Evaluate.Invalid Expressions", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicMathExpressionEvaluatorInvalidExpressionTest, "System.Core.Math.Evaluate.Invalid Expressions", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 // Evaluates invalid expressions.
 // Invalid expressions will report errors and not crash.

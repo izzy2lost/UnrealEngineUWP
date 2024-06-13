@@ -888,7 +888,7 @@ std::ostream& operator<<(std::ostream& Stream, const FSoftObjectPath& Value)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathImportTextTests, "System.CoreUObject.SoftObjectPath.ImportText", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathImportTextTests, "System.CoreUObject.SoftObjectPath.ImportText", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FSoftObjectPathImportTextTests::RunTest(const FString& Parameters)
 {
 	const TCHAR* PackageName = TEXT("/Game/Environments/Sets/Arid/Materials/M_Arid");
@@ -916,7 +916,7 @@ bool FSoftObjectPathImportTextTests::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathTrySetPathTests, "System.CoreUObject.SoftObjectPath.TrySetPath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathTrySetPathTests, "System.CoreUObject.SoftObjectPath.TrySetPath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FSoftObjectPathTrySetPathTests::RunTest(const FString& Parameters)
 {
 	FSoftObjectPath Path;
@@ -1045,7 +1045,7 @@ bool FSoftObjectPathTrySetPathTests::RunTest(const FString& Parameters)
 
 #if WITH_EDITOR
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathFixupForPIETests, "System.CoreUObject.SoftObjectPath.FixupForPIE", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathFixupForPIETests, "System.CoreUObject.SoftObjectPath.FixupForPIE", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FSoftObjectPathFixupForPIETests::RunTest(const FString& Parameters)
 {
 	const TCHAR* TestOriginalPath = TEXT("/Game/Maps/Arena.Arena:PersistentLevel.Target");	

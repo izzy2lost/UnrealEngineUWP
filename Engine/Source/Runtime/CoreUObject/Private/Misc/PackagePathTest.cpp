@@ -128,7 +128,7 @@ public:
 	}
 };
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPackagePathTestSubClass, FPackagePathTest, "System.Core.Misc.PackagePath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPackagePathTestSubClass, FPackagePathTest, "System.Core.Misc.PackagePath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FPackagePathTestSubClass::RunTest(const FString& Parameters)
 {
 	return FPackagePathTest::RunTest(Parameters);

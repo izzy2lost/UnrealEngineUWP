@@ -81,7 +81,7 @@ namespace
 	}
 }
 
-BEGIN_DEFINE_SPEC(FBlockStructureSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FBlockStructureSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 // Unit.
 BuildPatchServices::FBlockStructure BlockStructure;
 BuildPatchServices::FBlockStructure OtherStructure;

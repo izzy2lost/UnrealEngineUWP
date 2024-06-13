@@ -3177,7 +3177,7 @@ static FAutoConsoleCommand ConsoleCommandConvertLongPackageNameToFilename(
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTests, "System.Core.Misc.PackageNames", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTests, "System.Core.Misc.PackageNames", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FPackageNameTests::RunTest(const FString& Parameters)
 {
@@ -3543,7 +3543,7 @@ bool FPackageNameTests::RunTest(const FString& Parameters)
 }
 
 // Tests that are too expensive to run as a SmokeFilter
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTestsExtended, "System.Core.Misc.PackageNamesExtended", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTestsExtended, "System.Core.Misc.PackageNamesExtended", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FPackageNameTestsExtended::RunTest(const FString& Parameters)
 {

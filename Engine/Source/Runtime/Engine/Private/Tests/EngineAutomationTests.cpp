@@ -231,7 +231,7 @@ bool FSaveGameTest::RunTest(const FString& Parameters)
  * FCVarEnvironmentTest
  * Test makes sure that CVars are set and restore properly
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCVarEnvironmentTest, "System.Engine.Automation.Environment.CVar", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCVarEnvironmentTest, "System.Engine.Automation.Environment.CVar", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 /**
  * Set and restore a CVar
@@ -303,7 +303,7 @@ bool FCVarEnvironmentTest::RunTest(const FString& Parameters)
  * FCVarEnvironmentReuseTest
  * Test makes sure that a CVar can be set multiple times before restoring back to the original value prior to being set
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCVarEnvironmentReuseTest, "System.Engine.Automation.Environment.CVar Reuse", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCVarEnvironmentReuseTest, "System.Engine.Automation.Environment.CVar Reuse", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 /**
  * Set a CVar multiple times before restoring to the original value
@@ -354,7 +354,7 @@ bool FCVarEnvironmentReuseTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddMessage, "TestFramework.Log.Add Log Message", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddMessage, "TestFramework.Log.Add Log Message", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FAutomationLogAddMessage::RunTest(const FString& Parameters)
 {
@@ -371,7 +371,7 @@ bool FAutomationLogAddMessage::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddWarning, "TestFramework.Log.Add Warning Message", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddWarning, "TestFramework.Log.Add Warning Message", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FAutomationLogAddWarning::RunTest(const FString& Parameters)
 {
@@ -388,7 +388,7 @@ bool FAutomationLogAddWarning::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddError, "TestFramework.Log.Add Error Message", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddError, "TestFramework.Log.Add Error Message", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FAutomationLogAddError::RunTest(const FString& Parameters)
 {
@@ -727,7 +727,7 @@ const FString FAutomationNearlyEqualTest::ActualValueIsIncreasedByFormatString(T
 const FString FAutomationNearlyEqualTest::ExpectedValueIsIncreasedByFormatString(TEXT("{0} (expected value is increased by {1})"));
 const FString FAutomationNearlyEqualTest::DifferenceAndOrToleranceAreNotValidFormatString(TEXT("Difference and/or Tolerance are not valid. Difference: {0}, Tolerance: {1}"));
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFloatPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFloatPositive", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFloatPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFloatPositive", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFloatPositive::RunTest(const FString& Parameters)
 {
 	//** TEST **//
@@ -754,7 +754,7 @@ bool FAutomationTestNearlyEqualFloatPositive::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFloatNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFloatNegative", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFloatNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFloatNegative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFloatNegative::RunTest(const FString& Parameters)
 {
 	int32 CasesCheckedTotal = 0;
@@ -777,7 +777,7 @@ bool FAutomationTestNearlyEqualFloatNegative::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualDoublePositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualDoublePositive", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualDoublePositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualDoublePositive", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualDoublePositive::RunTest(const FString& Parameters)
 {
 	//** TEST **//
@@ -803,7 +803,7 @@ bool FAutomationTestNearlyEqualDoublePositive::RunTest(const FString& Parameters
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualDoubleNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualDoubleNegative", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualDoubleNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualDoubleNegative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualDoubleNegative::RunTest(const FString& Parameters)
 {
 	int32 CasesCheckedTotal = 0;
@@ -826,7 +826,7 @@ bool FAutomationTestNearlyEqualDoubleNegative::RunTest(const FString& Parameters
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFVectorPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFVectorPositive", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFVectorPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFVectorPositive", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFVectorPositive::RunTest(const FString& Parameters)
 {
 	//** TEST **//
@@ -852,7 +852,7 @@ bool FAutomationTestNearlyEqualFVectorPositive::RunTest(const FString& Parameter
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFVectorNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFVectorNegative", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFVectorNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFVectorNegative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFVectorNegative::RunTest(const FString& Parameters)
 {
 	int32 CasesCheckedTotal = 0;
@@ -871,7 +871,7 @@ bool FAutomationTestNearlyEqualFVectorNegative::RunTest(const FString& Parameter
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFRotatorPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFRotatorPositive", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFRotatorPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFRotatorPositive", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFRotatorPositive::RunTest(const FString& Parameters)
 {
 	//** TEST **//
@@ -897,7 +897,7 @@ bool FAutomationTestNearlyEqualFRotatorPositive::RunTest(const FString& Paramete
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFRotatorNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFRotatorNegative", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFRotatorNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFRotatorNegative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFRotatorNegative::RunTest(const FString& Parameters)
 {
 	int32 CasesCheckedTotal = 0;
@@ -916,7 +916,7 @@ bool FAutomationTestNearlyEqualFRotatorNegative::RunTest(const FString& Paramete
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFTransformPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFTransformPositive", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFTransformPositive, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFTransformPositive", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFTransformPositive::RunTest(const FString& Parameters)
 {
 	//** TEST **//
@@ -942,7 +942,7 @@ bool FAutomationTestNearlyEqualFTransformPositive::RunTest(const FString& Parame
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFTransformNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFTransformNegative", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTestNearlyEqualFTransformNegative, FAutomationNearlyEqualTest, "TestFramework.Validation.TestNearlyEqualFTransformNegative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestNearlyEqualFTransformNegative::RunTest(const FString& Parameters)
 {
 	int32 CasesCheckedTotal = 0;
@@ -961,7 +961,7 @@ bool FAutomationTestNearlyEqualFTransformNegative::RunTest(const FString& Parame
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityBool, "TestFramework.Validation.TestInequalityBool", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityBool, "TestFramework.Validation.TestInequalityBool", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityBool::RunTest(const FString& Parameters)
 {
 	TestTrue("True constant", true);
@@ -972,7 +972,7 @@ bool FAutomationTestInequalityBool::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityPointer, "TestFramework.Validation.TestInequalityPointer", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityPointer, "TestFramework.Validation.TestInequalityPointer", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityPointer::RunTest(const FString& Parameters)
 {
 	int32 StackValue = 42;
@@ -1000,7 +1000,7 @@ bool FAutomationTestInequalityPointer::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityReference, "TestFramework.Validation.TestInequalityReference", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityReference, "TestFramework.Validation.TestInequalityReference", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityReference::RunTest(const FString& Parameters)
 {
 	int32 StackValue = 42;
@@ -1024,7 +1024,7 @@ bool FAutomationTestInequalityReference::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityInt32, "TestFramework.Validation.TestInequalityInt32", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityInt32, "TestFramework.Validation.TestInequalityInt32", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityInt32::RunTest(const FString& Parameters)
 {
 	int32 Expected(42);
@@ -1055,7 +1055,7 @@ bool FAutomationTestInequalityInt32::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityInt64, "TestFramework.Validation.TestInequalityInt64", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityInt64, "TestFramework.Validation.TestInequalityInt64", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityInt64::RunTest(const FString& Parameters)
 {
 	int64 Expected(42);
@@ -1087,7 +1087,7 @@ bool FAutomationTestInequalityInt64::RunTest(const FString& Parameters)
 }
 
 #if PLATFORM_64BITS
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalitySizeT, "TestFramework.Validation.TestInequalitySizeT", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalitySizeT, "TestFramework.Validation.TestInequalitySizeT", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalitySizeT::RunTest(const FString& Parameters)
 {
 	SIZE_T Expected(42);
@@ -1116,7 +1116,7 @@ bool FAutomationTestInequalitySizeT::RunTest(const FString& Parameters)
 }
 #endif // PLATFORM_64BITS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityFloat, "TestFramework.Validation.TestInequalityFloat", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityFloat, "TestFramework.Validation.TestInequalityFloat", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityFloat::RunTest(const FString& Parameters)
 {
 	float Expected(42);
@@ -1178,7 +1178,7 @@ bool FAutomationTestInequalityFloat::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityDouble, "TestFramework.Validation.TestInequalityDouble", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityDouble, "TestFramework.Validation.TestInequalityDouble", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityDouble::RunTest(const FString& Parameters)
 {
 	double Expected(42);
@@ -1240,7 +1240,7 @@ bool FAutomationTestInequalityDouble::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityString, "TestFramework.Validation.TestInequalityString", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityString, "TestFramework.Validation.TestInequalityString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTestInequalityString::RunTest(const FString& Parameters)
 {
 	FString ExpectedString("Forty-two");
@@ -1320,7 +1320,7 @@ const FString FAutomationUTestMacrosExpr::ExpectedFStringValueLowerCase(TEXT("eq
 const FString FAutomationUTestMacrosExpr::UnexpectedFStringValueLowerCase(TEXT("not-equals"));
 const FString FAutomationUTestMacrosExpr::CustomDescriptionString(TEXT("Error string appears when UTEST_ macro diverges from _EXPR variant"));
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationEqualEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestEqual", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationEqualEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestEqual", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationEqualEXPR::RunTest(const FString& Parameters)
 {
 
@@ -1340,7 +1340,7 @@ bool FAutomationEqualEXPR::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationSameNotSameEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestSameNotSame", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationSameNotSameEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestSameNotSame", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationSameNotSameEXPR::RunTest(const FString& Parameters)
 {
 
@@ -1352,7 +1352,7 @@ bool FAutomationSameNotSameEXPR::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationSameNotSamePtrEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestSameNotSamePtr", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationSameNotSamePtrEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestSameNotSamePtr", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationSameNotSamePtrEXPR::RunTest(const FString& Parameters)
 {
 
@@ -1364,7 +1364,7 @@ bool FAutomationSameNotSamePtrEXPR::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTrueFalseEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestTrueFalse", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationTrueFalseEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestTrueFalse", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationTrueFalseEXPR::RunTest(const FString& Parameters)
 {
 	UTEST_TRUE_EXPR(ActualFloatValue == ExpectedFloatValue);
@@ -1375,7 +1375,7 @@ bool FAutomationTrueFalseEXPR::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationValidInvalidEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestValidInvalid", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationValidInvalidEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestValidInvalid", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationValidInvalidEXPR::RunTest(const FString& Parameters)
 {
 	struct FHasIsValid
@@ -1411,7 +1411,7 @@ bool FAutomationValidInvalidEXPR::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationNullNotNullPtrEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestNullNotNull", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationNullNotNullPtrEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestNullNotNull", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationNullNotNullPtrEXPR::RunTest(const FString& Parameters)
 {
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
@@ -1426,7 +1426,7 @@ bool FAutomationNullNotNullPtrEXPR::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationLessGreaterEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestLessGreater", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationLessGreaterEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestLessGreater", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationLessGreaterEXPR::RunTest(const FString& Parameters)
 {
 	// inequality

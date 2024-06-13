@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "SlateChildrenTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlateChildrenForEachTest, "Slate.Children.ForEach", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlateChildrenForEachTest, "Slate.Children.ForEach", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 namespace UE::Slate::Test::Private
 {

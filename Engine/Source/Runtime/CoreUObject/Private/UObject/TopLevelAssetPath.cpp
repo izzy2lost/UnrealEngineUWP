@@ -521,7 +521,7 @@ bool FTopLevelAssetPath::SerializeFromMismatchedTag(const FPropertyTag& Tag, FSt
 
 // Combine import/export tests
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTopLevelAssetPathTest, "System.Core.Misc.TopLevelAssetPath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTopLevelAssetPathTest, "System.Core.Misc.TopLevelAssetPath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FTopLevelAssetPathTest::RunTest(const FString& Parameters)
 {

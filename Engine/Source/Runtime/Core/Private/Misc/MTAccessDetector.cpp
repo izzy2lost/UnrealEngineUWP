@@ -29,7 +29,7 @@ FMRSWRecursiveAccessDetector::FDestructionSentinelStackTls& FMRSWRecursiveAccess
 //----------------------------------------------------------------------//
 // FRWAccessDetector tests
 //----------------------------------------------------------------------//
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ConcurentReadTest, "System.Core.Misc.MTAccessDetector.ConcurrentReadAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ConcurentReadTest, "System.Core.Misc.MTAccessDetector.ConcurrentReadAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_ConcurentReadTest::RunTest(const FString& Parameters)
 {
 	bool bReading1 = false;
@@ -54,7 +54,7 @@ bool FRWAccessDetector_ConcurentReadTest::RunTest(const FString& Parameters)
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ConcurentWriteTest, "System.Core.Misc.MTAccessDetector.ConcurrentWriteAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ConcurentWriteTest, "System.Core.Misc.MTAccessDetector.ConcurrentWriteAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_ConcurentWriteTest::RunTest(const FString& Parameters)
 {
 	bool bWriting1 = false;
@@ -79,7 +79,7 @@ bool FRWAccessDetector_ConcurentWriteTest::RunTest(const FString& Parameters)
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ConcurentReadWriteTest, "System.Core.Misc.MTAccessDetector.ConcurrentReadWriteAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ConcurentReadWriteTest, "System.Core.Misc.MTAccessDetector.ConcurrentReadWriteAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_ConcurentReadWriteTest::RunTest(const FString& Parameters)
 {
 	bool bReading = false;
@@ -104,7 +104,7 @@ bool FRWAccessDetector_ConcurentReadWriteTest::RunTest(const FString& Parameters
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_WriteReentrance, "System.Core.Misc.MTAccessDetector.WriteReentrance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_WriteReentrance, "System.Core.Misc.MTAccessDetector.WriteReentrance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_WriteReentrance::RunTest(const FString& Parameters)
 {
 	UE_MT_DECLARE_RW_ACCESS_DETECTOR(MTAccessDetector);
@@ -118,7 +118,7 @@ bool FRWAccessDetector_WriteReentrance::RunTest(const FString& Parameters)
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ReadReentrance, "System.Core.Misc.MTAccessDetector.ReadReentrance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_ReadReentrance, "System.Core.Misc.MTAccessDetector.ReadReentrance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_ReadReentrance::RunTest(const FString& Parameters)
 {
 	UE_MT_DECLARE_RW_ACCESS_DETECTOR(MTAccessDetector);
@@ -135,7 +135,7 @@ bool FRWAccessDetector_ReadReentrance::RunTest(const FString& Parameters)
 //----------------------------------------------------------------------//
 // FRWRecursiveAccessDetector tests
 //----------------------------------------------------------------------//
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveConcurentReadTest, "System.Core.Misc.MTAccessDetector.RecursiveConcurrentReadAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveConcurentReadTest, "System.Core.Misc.MTAccessDetector.RecursiveConcurrentReadAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_RecursiveConcurentReadTest::RunTest(const FString& Parameters)
 {
 	bool bReading1 = false;
@@ -160,7 +160,7 @@ bool FRWAccessDetector_RecursiveConcurentReadTest::RunTest(const FString& Parame
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveConcurentWriteTest, "System.Core.Misc.MTAccessDetector.RecursiveConcurrentWriteAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveConcurentWriteTest, "System.Core.Misc.MTAccessDetector.RecursiveConcurrentWriteAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_RecursiveConcurentWriteTest::RunTest(const FString& Parameters)
 {
 	bool bWriting1 = false;
@@ -185,7 +185,7 @@ bool FRWAccessDetector_RecursiveConcurentWriteTest::RunTest(const FString& Param
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveConcurentReadWriteTest, "System.Core.Misc.MTAccessDetector.RecursiveConcurrentReadWriteAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveConcurentReadWriteTest, "System.Core.Misc.MTAccessDetector.RecursiveConcurrentReadWriteAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_RecursiveConcurentReadWriteTest::RunTest(const FString& Parameters)
 {
 	bool bReading = false;
@@ -210,7 +210,7 @@ bool FRWAccessDetector_RecursiveConcurentReadWriteTest::RunTest(const FString& P
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveWriteReentrance, "System.Core.Misc.MTAccessDetector.RecursiveWriteReentrance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveWriteReentrance, "System.Core.Misc.MTAccessDetector.RecursiveWriteReentrance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_RecursiveWriteReentrance::RunTest(const FString& Parameters)
 {
 	UE_MT_DECLARE_RW_RECURSIVE_ACCESS_DETECTOR(MTAccessDetector);
@@ -224,7 +224,7 @@ bool FRWAccessDetector_RecursiveWriteReentrance::RunTest(const FString& Paramete
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveReadReentrance, "System.Core.Misc.MTAccessDetector.RecursiveReadReentrance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_RecursiveReadReentrance, "System.Core.Misc.MTAccessDetector.RecursiveReadReentrance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_RecursiveReadReentrance::RunTest(const FString& Parameters)
 {
 	UE_MT_DECLARE_RW_RECURSIVE_ACCESS_DETECTOR(MTAccessDetector);
@@ -241,7 +241,7 @@ bool FRWAccessDetector_RecursiveReadReentrance::RunTest(const FString& Parameter
 //----------------------------------------------------------------------//
 // FRWFullyRecursiveAccessDetector tests
 //----------------------------------------------------------------------//
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveConcurentReadTest, "System.Core.Misc.MTAccessDetector.FullyRecursiveConcurrentReadAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveConcurentReadTest, "System.Core.Misc.MTAccessDetector.FullyRecursiveConcurrentReadAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_FullyRecursiveConcurentReadTest::RunTest(const FString& Parameters)
 {
 	bool bReading1 = false;
@@ -266,7 +266,7 @@ bool FRWAccessDetector_FullyRecursiveConcurentReadTest::RunTest(const FString& P
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveConcurentWriteTest, "System.Core.Misc.MTAccessDetector.FullyRecursiveConcurrentWriteAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveConcurentWriteTest, "System.Core.Misc.MTAccessDetector.FullyRecursiveConcurrentWriteAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_FullyRecursiveConcurentWriteTest::RunTest(const FString& Parameters)
 {
 	bool bWriting1 = false;
@@ -291,7 +291,7 @@ bool FRWAccessDetector_FullyRecursiveConcurentWriteTest::RunTest(const FString& 
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveConcurentReadWriteTest, "System.Core.Misc.MTAccessDetector.FullyRecursiveConcurrentReadWriteAccess", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveConcurentReadWriteTest, "System.Core.Misc.MTAccessDetector.FullyRecursiveConcurrentReadWriteAccess", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_FullyRecursiveConcurentReadWriteTest::RunTest(const FString& Parameters)
 {
 	bool bReading = false;
@@ -316,7 +316,7 @@ bool FRWAccessDetector_FullyRecursiveConcurentReadWriteTest::RunTest(const FStri
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveWriteReentrance, "System.Core.Misc.MTAccessDetector.FullyRecursiveWriteReentrance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveWriteReentrance, "System.Core.Misc.MTAccessDetector.FullyRecursiveWriteReentrance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_FullyRecursiveWriteReentrance::RunTest(const FString& Parameters)
 {
 	UE_MT_DECLARE_RW_FULLY_RECURSIVE_ACCESS_DETECTOR(MTAccessDetector);
@@ -330,7 +330,7 @@ bool FRWAccessDetector_FullyRecursiveWriteReentrance::RunTest(const FString& Par
 	return Success;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveReadReentrance, "System.Core.Misc.MTAccessDetector.FullyRecursiveReadReentrance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWAccessDetector_FullyRecursiveReadReentrance, "System.Core.Misc.MTAccessDetector.FullyRecursiveReadReentrance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FRWAccessDetector_FullyRecursiveReadReentrance::RunTest(const FString& Parameters)
 {
 	UE_MT_DECLARE_RW_FULLY_RECURSIVE_ACCESS_DETECTOR(MTAccessDetector);
@@ -383,7 +383,7 @@ namespace MTAccessDetector_Private
 	};
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMRSWRecursiveAccessDetectorTest, "System.Core.MRSWRecursiveAccessDetector", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMRSWRecursiveAccessDetectorTest, "System.Core.MRSWRecursiveAccessDetector", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FMRSWRecursiveAccessDetectorTest::RunTest(const FString& Parameters)
 {
@@ -459,7 +459,7 @@ bool FMRSWRecursiveAccessDetectorTest::RunTest(const FString& Parameters)
 #pragma warning(pop)
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMRSWRecursiveAccessDetectorTrivialRelocationTest, "System.Core.MRSWRecursiveAccessDetector.TrivialRelocation", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMRSWRecursiveAccessDetectorTrivialRelocationTest, "System.Core.MRSWRecursiveAccessDetector.TrivialRelocation", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FMRSWRecursiveAccessDetectorTrivialRelocationTest::RunTest(const FString& Parameters)
 {
@@ -546,7 +546,7 @@ void RWAccessDetectorConcurrentReadersPerfTest()
 	Wait(Tasks);
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWRecursiveAccessDetectorPerfTest, "System.Core.RWRecursiveAccessDetector.Perf", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRWRecursiveAccessDetectorPerfTest, "System.Core.RWRecursiveAccessDetector.Perf", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FRWRecursiveAccessDetectorPerfTest::RunTest(const FString& Parameters)
 {

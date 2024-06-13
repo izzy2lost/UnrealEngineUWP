@@ -467,7 +467,7 @@ namespace Tasks2Tests
 		SGarbage++;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksPerfTests2, "System.Core.LowLevelTasks.PerfTests", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::Disabled);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksPerfTests2, "System.Core.LowLevelTasks.PerfTests", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::Disabled);
 
 	bool FTasksPerfTests2::RunTest(const FString& Parameters)
 	{
@@ -480,7 +480,7 @@ namespace Tasks2Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksLocalGlobalPriorities, "System.Core.LowLevelTasks.LocalGlobalPriorities", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksLocalGlobalPriorities, "System.Core.LowLevelTasks.LocalGlobalPriorities", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FTasksLocalGlobalPriorities::RunTest(const FString& Parameters)
 	{
 		using namespace LowLevelTasks;
@@ -533,7 +533,7 @@ namespace Tasks2Tests
 		return true;
 	};
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksUnitTests2, "System.Core.LowLevelTasks.UnitTests", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksUnitTests2, "System.Core.LowLevelTasks.UnitTests", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FTasksUnitTests2::RunTest(const FString& Parameters)
 	{
 		using namespace LowLevelTasks;
@@ -667,7 +667,7 @@ namespace Tasks2Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksCoroutineTests, "System.Core.Coroutine.UnitTests", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksCoroutineTests, "System.Core.Coroutine.UnitTests", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FTasksCoroutineTests::RunTest(const FString& Parameters)
 	{
 #if WITH_CPP_COROUTINES

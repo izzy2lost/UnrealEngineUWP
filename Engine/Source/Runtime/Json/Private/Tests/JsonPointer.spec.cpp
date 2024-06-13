@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "JsonUtils/JsonPointer.h"
 #include "Misc/AutomationTest.h"
@@ -7,7 +7,7 @@
 
 #if WITH_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FJsonPointerSpec, TEXT("JsonPointer"), EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FJsonPointerSpec, TEXT("JsonPointer"), EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 TSharedPtr<FJsonObject> JsonObject;
 END_DEFINE_SPEC(FJsonPointerSpec)
 

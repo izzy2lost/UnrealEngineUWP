@@ -19,7 +19,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FInstallChunkSourceSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FInstallChunkSourceSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 const uint32 TestChunkSize = 128 * 1024;
 // Unit.
 TUniquePtr<BuildPatchServices::IInstallChunkSource> InstallChunkSource;

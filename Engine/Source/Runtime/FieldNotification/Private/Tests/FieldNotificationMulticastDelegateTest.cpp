@@ -8,7 +8,7 @@
 
 #define LOCTEXT_NAMESPACE "FieldNotificationMulticastDelegateTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFieldNotificationMulticastDelegateTest, "System.UMG.FieldNotificationMulticastDelegateTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFieldNotificationMulticastDelegateTest, "System.UMG.FieldNotificationMulticastDelegateTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 
 bool FFieldNotificationMulticastDelegateTest::RunTest(const FString& Parameters)

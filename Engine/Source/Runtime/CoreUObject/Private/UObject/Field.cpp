@@ -1179,7 +1179,7 @@ FField* FindFPropertyByPath(const TCHAR* InFieldPath)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFieldCastTest, "UObject.Field Cast", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ServerContext | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFieldCastTest, "UObject.Field Cast", EAutomationTestFlags::EditorContext | EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ServerContext | EAutomationTestFlags::SmokeFilter)
 
 bool FFieldCastTest::RunTest(const FString& Parameters)
 {

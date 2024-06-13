@@ -1775,7 +1775,7 @@ bool FCoreRedirects::RunTests()
 	return bSuccess;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoreRedirectTest, "System.Core.Misc.CoreRedirects", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoreRedirectTest, "System.Core.Misc.CoreRedirects", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FCoreRedirectTest::RunTest(const FString& Parameters)
 {
 	return FCoreRedirects::RunTests();

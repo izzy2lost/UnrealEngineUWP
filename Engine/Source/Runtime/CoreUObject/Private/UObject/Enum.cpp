@@ -1081,7 +1081,7 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UEnum, UField,
 #if WITH_DEV_AUTOMATION_TESTS 
 
 #include "Misc/AutomationTest.h"
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumBitfieldTest, "System.CoreUObject.EnumBitfields", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumBitfieldTest, "System.CoreUObject.EnumBitfields", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FEnumBitfieldTest::RunTest(const FString& Parameters)
 {
 	UPackage* NativePackage = CreatePackage(TEXT("/Script/TestEnumBitfieldsPackage"));

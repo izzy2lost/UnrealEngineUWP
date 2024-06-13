@@ -4,7 +4,7 @@
 #include "GameplayTagContainer.h"
 #include "Misc/AutomationTest.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagQueryTest_Empty, "System.GameplayTags.GameplayTagQuery.Empty", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagQueryTest_Empty, "System.GameplayTags.GameplayTagQuery.Empty", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 #include "GameplayTagsManager.h"
 

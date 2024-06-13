@@ -17,7 +17,7 @@ void UTransactionDiffingTestObject::Serialize(FStructuredArchive::FRecord Record
 namespace TransactionDiffingTests
 {
 
-constexpr const EAutomationTestFlags TestFlags = EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter;
+constexpr const EAutomationTestFlags TestFlags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditPropertyDataTest, "System.Engine.Transactions.EditPropertyData", TestFlags)
 bool FEditPropertyDataTest::RunTest(const FString& Parameters)

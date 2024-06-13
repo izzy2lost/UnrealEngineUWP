@@ -1325,7 +1325,7 @@ bool FParse::SchemeNameFromURI(const TCHAR* URI, FString& OutSchemeName)
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 #include "Misc/AutomationTest.h"
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FParseLineExtendedTest, "System.Core.Misc.ParseLineExtended", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FParseLineExtendedTest, "System.Core.Misc.ParseLineExtended", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FParseLineExtendedTest::RunTest(const FString& Parameters)
 {
 	const TCHAR* Tests[] = {

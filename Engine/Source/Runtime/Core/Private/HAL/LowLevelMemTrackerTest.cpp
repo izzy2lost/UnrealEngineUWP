@@ -15,7 +15,7 @@ LLM_DEFINE_TAG(LLMTestParentTag_LLMTestChildTag3); // A test tag to verify that 
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLLMScopeTest, "System.Core.LLM.Scope", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLLMScopeTest, "System.Core.LLM.Scope", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FLLMScopeTest::RunTest(const FString& Parameters)
 {
@@ -69,7 +69,7 @@ bool FLLMScopeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLLMMiscTest, "System.Core.LLM.Misc", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLLMMiscTest, "System.Core.LLM.Misc", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FLLMMiscTest::RunTest(const FString& Parameters)
 {
@@ -92,7 +92,7 @@ bool FLLMMiscTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTopologicalSortTest, "System.Core.LLM.TopologicalSort", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTopologicalSortTest, "System.Core.LLM.TopologicalSort", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FTopologicalSortTest::RunTest(const FString& Parameters)
 {

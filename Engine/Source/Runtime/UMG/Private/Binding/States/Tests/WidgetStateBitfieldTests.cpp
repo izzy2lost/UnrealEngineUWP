@@ -26,7 +26,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogWidgetStateBitfieldTest, Log, All);
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBoolTest, "Slate.WidgetState.OperatorBoolTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBoolTest, "Slate.WidgetState.OperatorBoolTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FOperatorBoolTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -53,7 +53,7 @@ bool FOperatorBoolTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBitwiseAndTest, "Slate.WidgetState.OperatorBitwiseAndTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBitwiseAndTest, "Slate.WidgetState.OperatorBitwiseAndTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FOperatorBitwiseAndTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -93,7 +93,7 @@ bool FOperatorBitwiseAndTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBitwiseOrTest, "Slate.WidgetState.OperatorBitwiseOrTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBitwiseOrTest, "Slate.WidgetState.OperatorBitwiseOrTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FOperatorBitwiseOrTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -124,7 +124,7 @@ bool FOperatorBitwiseOrTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBitwiseNotTest, "Slate.WidgetState.OperatorBitwiseNotTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOperatorBitwiseNotTest, "Slate.WidgetState.OperatorBitwiseNotTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FOperatorBitwiseNotTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -148,7 +148,7 @@ bool FOperatorBitwiseNotTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHasFlagTest, "Slate.WidgetState.HasFlagTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHasFlagTest, "Slate.WidgetState.HasFlagTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FHasFlagTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;

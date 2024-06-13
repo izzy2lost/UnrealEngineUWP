@@ -3145,7 +3145,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 
 #include "Misc/AutomationTest.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetRegistryAssetPathStringsTest, "System.AssetRegistry.AssetPathStrings", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetRegistryAssetPathStringsTest, "System.AssetRegistry.AssetPathStrings", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 // Tests that we can produce correct paths for objects represented by FCachedAssetKey and FAssetData
 // E.g	PackageName.AssetName

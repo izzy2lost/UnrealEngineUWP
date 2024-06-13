@@ -12,7 +12,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FDiskChunkStoreSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FDiskChunkStoreSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 // Unit
 TUniquePtr<BuildPatchServices::IDiskChunkStore> DiskChunkStore;
 TUniquePtr<BuildPatchServices::FBuildInstallerSharedContext> InstallerSharedContext;

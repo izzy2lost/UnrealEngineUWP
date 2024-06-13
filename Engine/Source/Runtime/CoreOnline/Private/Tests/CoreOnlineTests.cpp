@@ -6,7 +6,7 @@
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FForeignIdRepTest,
 	"System.Engine.Online.ForeignIdRepTest",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 	bool FForeignIdRepTest::RunTest(const FString& Parameters)
 {
 	using namespace UE::Online;

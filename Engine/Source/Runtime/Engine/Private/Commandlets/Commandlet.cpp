@@ -35,7 +35,7 @@ UCommandlet::UCommandlet(const FObjectInitializer& ObjectInitializer)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCommandletCommandLineParsingTest, "System.Commandlet.ParseCommandLine", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCommandletCommandLineParsingTest, "System.Commandlet.ParseCommandLine", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FCommandletCommandLineParsingTest::RunTest(const FString& Parameters)
 {

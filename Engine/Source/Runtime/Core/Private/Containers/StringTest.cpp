@@ -11,7 +11,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringSanitizeFloatTest, "System.Core.String.SanitizeFloat", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringSanitizeFloatTest, "System.Core.String.SanitizeFloat", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringSanitizeFloatTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const double InVal, const int32 InMinFractionalDigits, const FString& InExpected)
@@ -50,7 +50,7 @@ bool FStringSanitizeFloatTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringAppendIntTest, "System.Core.String.AppendInt", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringAppendIntTest, "System.Core.String.AppendInt", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringAppendIntTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Call, const FString& Result, const TCHAR* InExpected)
@@ -90,7 +90,7 @@ bool FStringAppendIntTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringUnicodeTest, "System.Core.String.Unicode", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringUnicodeTest, "System.Core.String.Unicode", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringUnicodeTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Call, const FString& Result, const TCHAR* InExpected)
@@ -137,7 +137,7 @@ bool FStringUnicodeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLexTryParseStringTest, "System.Core.Misc.LexTryParseString", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLexTryParseStringTest, "System.Core.Misc.LexTryParseString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FLexTryParseStringTest::RunTest(const FString& Parameters)
 {
@@ -240,7 +240,7 @@ bool FLexTryParseStringTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringParseIntoArrayTest, "System.Core.String.ParseIntoArray", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringParseIntoArrayTest, "System.Core.String.ParseIntoArray", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FStringParseIntoArrayTest::RunTest(const FString& Parameters)
 {
@@ -283,7 +283,7 @@ bool FStringParseIntoArrayTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringSubstringTest, "System.Core.String.Substring", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringSubstringTest, "System.Core.String.Substring", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringSubstringTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Call, const FString& Result, const TCHAR* InExpected)
@@ -349,7 +349,7 @@ bool FStringSubstringTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringFromStringViewTest, "System.Core.String.FromStringView", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringFromStringViewTest, "System.Core.String.FromStringView", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringFromStringViewTest::RunTest(const FString& Parameters)
 {
 	// Verify basic construction and assignment from a string view.
@@ -424,7 +424,7 @@ bool FStringFromStringViewTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructorWithSlackTest, "System.Core.String.ConstructorWithSlack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructorWithSlackTest, "System.Core.String.ConstructorWithSlack", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringConstructorWithSlackTest::RunTest(const FString& Parameters)
 {
 	// Note that the total capacity of a string might be greater than the string length + slack + a null terminator due to
@@ -440,10 +440,10 @@ bool FStringConstructorWithSlackTest::RunTest(const FString& Parameters)
 
 		const SIZE_T ExpectedCapacity = FMemory::QuantizeSize(NumElements * sizeof(TCHAR));
 
-		FString StringFromTChar(TestString, ExtraSlack);
+		FString StringFromTChar = FString::ConstructWithSlack(TestString, ExtraSlack);
 		TestEqual(TEXT("(TCHAR: Valid string with valid slack) resulting capacity"), StringFromTChar.GetAllocatedSize(), ExpectedCapacity);
 
-		FString StringFromAscii(TestAsciiString, ExtraSlack);
+		FString StringFromAscii = FString::ConstructWithSlack(TestAsciiString, ExtraSlack);
 		TestEqual(TEXT("(ASCII: Valid string with valid slack) resulting capacity"), StringFromAscii.GetAllocatedSize(), ExpectedCapacity);
 
 		FString StringFromFStringView(FStringView(TestString), ExtraSlack);
@@ -463,10 +463,10 @@ bool FStringConstructorWithSlackTest::RunTest(const FString& Parameters)
 
 		const SIZE_T ExpectedCapacity = FMemory::QuantizeSize(NumElements * sizeof(TCHAR));
 
-		FString StringFromTChar(TestString, ExtraSlack);
+		FString StringFromTChar = FString::ConstructWithSlack(TestString, ExtraSlack);
 		TestEqual(TEXT("(TCHAR: Valid string with zero slack) resulting capacity"), StringFromTChar.GetAllocatedSize(), ExpectedCapacity);
 
-		FString StringFromAscii(TestAsciiString, ExtraSlack);
+		FString StringFromAscii = FString::ConstructWithSlack(TestAsciiString, ExtraSlack);
 		TestEqual(TEXT("(ASCII: Valid string with zero slack) resulting capacity"), StringFromAscii.GetAllocatedSize(), ExpectedCapacity);
 
 		FString StringFromFStringView(FStringView(TestString), ExtraSlack);
@@ -486,10 +486,10 @@ bool FStringConstructorWithSlackTest::RunTest(const FString& Parameters)
 
 		const SIZE_T ExpectedCapacity = FMemory::QuantizeSize(NumElements * sizeof(TCHAR));
 
-		FString StringFromTChar(TestString, ExtraSlack);
+		FString StringFromTChar = FString::ConstructWithSlack(TestString, ExtraSlack);
 		TestEqual(TEXT("(TCHAR: Empty string with slack) resulting capacity"), StringFromTChar.GetAllocatedSize(), ExpectedCapacity);
 
-		FString StringFromAscii(TestAsciiString, ExtraSlack);
+		FString StringFromAscii = FString::ConstructWithSlack(TestAsciiString, ExtraSlack);
 		TestEqual(TEXT("(ASCII: Empty string with slack) resulting capacity"), StringFromAscii.GetAllocatedSize(), ExpectedCapacity);
 
 		FString StringFromFStringView(FStringView(TestString), ExtraSlack);
@@ -507,10 +507,10 @@ bool FStringConstructorWithSlackTest::RunTest(const FString& Parameters)
 
 		const SIZE_T ExpectedCapacity = 0u;
 
-		FString StringFromTChar(TestString, ExtraSlack);
+		FString StringFromTChar = FString::ConstructWithSlack(TestString, ExtraSlack);
 		TestEqual(TEXT("(TCHAR: Empty string with zero slack) resulting capacity"), StringFromTChar.GetAllocatedSize(), ExpectedCapacity);
 
-		FString StringFromAscii(TestAsciiString, ExtraSlack);
+		FString StringFromAscii = FString::ConstructWithSlack(TestAsciiString, ExtraSlack);
 		TestEqual(TEXT("(ASCII: Empty string with zero slack) resulting capacity"), StringFromAscii.GetAllocatedSize(), ExpectedCapacity);
 
 		FString StringFromFStringView(FStringView(TestString), ExtraSlack);
@@ -523,7 +523,7 @@ bool FStringConstructorWithSlackTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringEqualityTest, "System.Core.String.Equality", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringEqualityTest, "System.Core.String.Equality", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringEqualityTest::RunTest(const FString& Parameters)
 {
 	auto TestSelfEquality = [this](const TCHAR* A)
@@ -562,7 +562,7 @@ bool FStringEqualityTest::RunTest(const FString& Parameters)
 	return true;	
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringPathConcatCompoundOperatorTest, "System.Core.String.PathConcatCompoundOperator", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringPathConcatCompoundOperatorTest, "System.Core.String.PathConcatCompoundOperator", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringPathConcatCompoundOperatorTest::RunTest(const FString& Parameters)
 {
 	// No need to test a nullptr TCHAR* as an input parameter as this is expected to cause a crash
@@ -653,7 +653,7 @@ bool FStringPathConcatCompoundOperatorTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringFindAndContainsTest, "System.Core.String.FindAndContains", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringFindAndContainsTest, "System.Core.String.FindAndContains", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FStringFindAndContainsTest::RunTest(const FString& Parameters)
 {
 	auto RunTest = [this](FStringView Search, FStringView Find, ESearchCase::Type SearchCase,
@@ -833,12 +833,12 @@ bool FStringFindAndContainsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructorWithLengthTest, "System.Core.String.ConstructorWithLength", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructorWithLengthTest, "System.Core.String.ConstructorWithLength", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringConstructorWithLengthTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Ptr, int32 Size, const TArray<TCHAR>& Expected)
 	{
-		FString Str(Size, Ptr);
+		FString Str = FString::ConstructFromPtrSize(Ptr, Size);
 
 		const TArray<TCHAR>& StrArr = Str.GetCharArray();
 		if (StrArr != Expected)
@@ -865,7 +865,7 @@ bool FStringConstructorWithLengthTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructWithSlackTest, "System.Core.String.ConstructWithSlack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructWithSlackTest, "System.Core.String.ConstructWithSlack", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringConstructWithSlackTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Ptr, int32 ExtraSlack, const TArray<TCHAR>& Expected)
@@ -900,7 +900,7 @@ bool FStringConstructWithSlackTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructFromPtrSizeTest, "System.Core.String.ConstructFromPtrSize", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructFromPtrSizeTest, "System.Core.String.ConstructFromPtrSize", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringConstructFromPtrSizeTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Ptr, int32 Size, const TArray<TCHAR>& Expected)
@@ -931,7 +931,7 @@ bool FStringConstructFromPtrSizeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructFromPtrSizeWithSlackTest, "System.Core.String.ConstructFromPtrSizeWithSlack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringConstructFromPtrSizeWithSlackTest, "System.Core.String.ConstructFromPtrSizeWithSlack", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringConstructFromPtrSizeWithSlackTest::RunTest(const FString& Parameters)
 {
 	auto DoTest = [this](const TCHAR* Ptr, int32 Size, int32 ExtraSlack, const TArray<TCHAR>& Expected)
