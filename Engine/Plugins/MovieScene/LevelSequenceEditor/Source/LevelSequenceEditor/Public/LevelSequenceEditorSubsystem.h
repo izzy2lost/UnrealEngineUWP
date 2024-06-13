@@ -129,6 +129,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	TArray<UMovieSceneCustomBinding*> GetCustomBindingObjects(const FMovieSceneBindingProxy& ObjectBinding);
 
+	/** Returns all of the bindings in the sequence of the given custom type. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	TArray<FMovieSceneBindingProxy> GetCustomBindingsOfType(TSubclassOf<UMovieSceneCustomBinding> CustomBindingType);
+
+	/* Returns the custom binding type for the given binding, or nullptr for possessables*/
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	TSubclassOf<UMovieSceneCustomBinding> GetCustomBindingType(const FMovieSceneBindingProxy& ObjectBinding);
+
+	/* Sets the actor class for the spawnable or replaceable template, in the case those binding types support templates. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	bool ChangeActorTemplateClass(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<AActor> ActorClass);
+
 	/** 
 	 * Copy folders 
 	 * The copied folders will be saved to the clipboard as well as assigned to the ExportedText string. 

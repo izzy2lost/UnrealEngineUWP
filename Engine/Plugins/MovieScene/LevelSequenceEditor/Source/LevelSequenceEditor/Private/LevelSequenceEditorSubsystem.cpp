@@ -813,6 +813,81 @@ TArray<UMovieSceneCustomBinding*> ULevelSequenceEditorSubsystem::GetCustomBindin
 	return CustomBindings;
 }
 
+TArray<FMovieSceneBindingProxy> ULevelSequenceEditorSubsystem::GetCustomBindingsOfType(TSubclassOf<UMovieSceneCustomBinding> CustomBindingType)
+{
+	TArray<FMovieSceneBindingProxy> Bindings;
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return Bindings;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return Bindings;
+	}
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+		{
+			if (BindingReference.CustomBinding && BindingReference.CustomBinding->IsA(CustomBindingType))
+			{
+				Bindings.AddUnique(FMovieSceneBindingProxy(BindingReference.ID, Sequence));
+			}
+		}
+	}
+
+	return Bindings;
+}
+
+TSubclassOf<UMovieSceneCustomBinding> ULevelSequenceEditorSubsystem::GetCustomBindingType(const FMovieSceneBindingProxy& ObjectBinding)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return nullptr;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return nullptr;
+	}
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		if (UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectBinding.BindingID, 0))
+		{
+			return CustomBinding->GetClass();
+		}
+	}
+
+	return nullptr;
+}
+
+bool ULevelSequenceEditorSubsystem::ChangeActorTemplateClass(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<AActor> ActorClass)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return false;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return false;
+	}
+
+	bool bSuccess = false;
+
+	FSequencerUtilities::HandleTemplateActorClassPicked(ActorClass, Sequencer.ToSharedRef(), ObjectBinding.BindingID, 0, [&bSuccess](){bSuccess=true;});
+
+	return bSuccess;
+}
+
 void ULevelSequenceEditorSubsystem::CopyFolders(const TArray<UMovieSceneFolder*>& Folders, FString& ExportedText)
 {
 	FSequencerUtilities::CopyFolders(Folders, ExportedText);
