@@ -549,20 +549,19 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 	PCGHiGenGrid::FSizeArray GridSizes;
 	ensure(PCGHelpers::GetGenerationGridSizes(PCGComponent->GetGraph(), GetPCGWorldActor(), GridSizes, bHasUnbounded));
 
+#if WITH_EDITOR
 	// Create the PartitionActors if necessary. Skip if this is a runtime managed component, PAs are handled manually by the RuntimeGenScheduler.
+	// Editor only because we expect at runtime for PAs to already exist so they can properly be streamed in and out (creating them at runtime would leave them unmanaged and always loaded)
 	if (PCGComponent->IsPartitioned() && !PCGComponent->IsManagedByRuntimeGenSystem())
 	{
 		if (!GridSizes.IsEmpty())
 		{
-			// In this case create the PA and update the mapping
-			// Note: This is an immediate operation, as we need the PA for the generation.
-			auto ScheduleTask = [](APCGPartitionActor* PCGActor, const FBox& InIntersectedBounds) { return InvalidPCGTaskId; };
-
-			ForAllOverlappingCells(PCGComponent, PCGComponent->GetGridBounds(), GridSizes, /*bCanCreateActor=*/true, /*Dependencies=*/{}, ScheduleTask);
+			CreatePartitionActorsWithinBounds(PCGComponent, PCGComponent->GetGridBounds(), GridSizes);
 		}
 
 		ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(PCGComponent);
 	}
+#endif // WITH_EDITOR
 
 	// Execution dependencies require a task to finish executing before the dependent task.
 	TArray<FPCGTaskId> ExecutionDependencyTasks;
@@ -1706,6 +1705,41 @@ void UPCGSubsystem::ClearExecutedStacks(const UPCGGraph* InContainingGraph)
 		if (ExecutedStacks[StackIndex].HasObject(InContainingGraph))
 		{
 			ExecutedStacks.RemoveAtSwap(StackIndex);
+		}
+	}
+}
+
+void UPCGSubsystem::CreateMissingPartitionActors()
+{
+	if (!PCGHelpers::IsRuntimeOrPIE())
+	{
+		ActorAndComponentMapping.ForAllOriginalComponents([this](UPCGComponent* PCGComponent)
+		{
+			if (PCGComponent->IsPartitioned() && !PCGComponent->IsManagedByRuntimeGenSystem())
+			{
+				bool bHasUnbounded = false;
+				PCGHiGenGrid::FSizeArray GridSizes;
+				ensure(PCGHelpers::GetGenerationGridSizes(PCGComponent->GetGraph(), GetPCGWorldActor(), GridSizes, bHasUnbounded));
+				if (!GridSizes.IsEmpty())
+				{
+					CreatePartitionActorsWithinBounds(PCGComponent, PCGComponent->GetGridBounds(), GridSizes);
+				}
+				ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(PCGComponent);
+			}
+		});
+	}
+}
+
+void UPCGSubsystem::CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes)
+{
+	if (!PCGHelpers::IsRuntimeOrPIE())
+	{
+		// We can't spawn actors if we are running constructions scripts, asserting when we try to get the actor with the WP API.
+		// We should never enter this if we are in a construction script. If the ensure is hit, we need to fix it.
+		UWorld* World = GetWorld();
+		if (ensure(World && !World->bIsRunningConstructionScript))
+		{
+			ForAllOverlappingCells(InComponent, InBounds, InGridSizes, true, {}, [](APCGPartitionActor*, const FBox&) { return InvalidPCGTaskId; });
 		}
 	}
 }

@@ -369,6 +369,17 @@ bool FPCGActorAndComponentMapping::RegisterOrUpdatePartitionedPCGComponent(UPCGC
 
 	PartitionedOctree.AddOrUpdateComponent(InComponent, Bounds, bComponentHasChanged, bComponentWasAdded);
 
+#if WITH_EDITOR
+	// In Editor only, we will create new partition actors depending on the new bounds and generation trigger. Runtime managed components should not create PAs here
+	if ((bComponentHasChanged || bComponentWasAdded) && !InComponent->IsManagedByRuntimeGenSystem())
+	{
+		bool bHasUnbounded = false;
+		PCGHiGenGrid::FSizeArray GridSizes;
+		ensure(PCGHelpers::GetGenerationGridSizes(InComponent->GetGraph(), PCGSubsystem->GetPCGWorldActor(), GridSizes, bHasUnbounded));
+		PCGSubsystem->CreatePartitionActorsWithinBounds(InComponent, Bounds, GridSizes);
+	}
+#endif // WITH_EDITOR
+
 	// After adding/updating, try to do the mapping (if we asked for it and the component changed)
 	if (bDoActorMapping)
 	{

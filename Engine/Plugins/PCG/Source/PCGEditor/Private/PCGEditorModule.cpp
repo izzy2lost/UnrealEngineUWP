@@ -380,6 +380,24 @@ void FPCGEditorModule::UnregisterMenuExtensions()
 
 void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 {
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("CreateMissingPartitionActors", "Create missing Partition Grid Actors"),
+		LOCTEXT("CreateMissingPartitionActors_Tooltip", "Will visit all Partitioned PCG Components and create the missing intersecting Partition Grid Actors"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda([]() 
+			{
+				if (GEditor)
+				{
+					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
+					{
+						FScopedTransaction Transaction(LOCTEXT("CreateMissingPartitionActorsTransaction", "Create missing Partition Grid Actors"));
+						PCGSubsystem->CreateMissingPartitionActors();
+					}
+				}
+			})),
+		NAME_None);
+
 	MenuBuilder.AddSubMenu(LOCTEXT("PCGSubMenuDelete", "Delete"), FText(), FNewMenuDelegate::CreateLambda([](FMenuBuilder& SubMenuBuilder)
 	{
 		SubMenuBuilder.AddMenuEntry(

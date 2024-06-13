@@ -316,6 +316,7 @@ public:
 	FPCGOnComponentUnregistered OnComponentUnregistered;
 	FPCGOnComponentGenerationCompleteOrCancelled OnComponentGenerationCompleteOrCancelled;
 
+	void CreateMissingPartitionActors();
 private:
 	enum class EOperation : uint32
 	{
@@ -324,7 +325,7 @@ private:
 		Generate
 	};
 
-	void CreatePartitionActorsWithinBounds(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
+	void CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
 
 	FPCGNodeVisualLogs NodeVisualLogs;
 #endif // WITH_EDITOR
