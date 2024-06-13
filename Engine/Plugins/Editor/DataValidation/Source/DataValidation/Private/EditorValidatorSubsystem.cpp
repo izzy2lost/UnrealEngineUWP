@@ -158,21 +158,21 @@ void UEditorValidatorSubsystem::RegisterBlueprintValidators()
 		for (FAssetData& BPAssetData : AllBPsAssetData)
 		{
 			UClass* ParentClass = nullptr;
-	FString ParentClassName;
+			FString ParentClassName;
 			if (!BPAssetData.GetTagValue(FBlueprintTags::NativeParentClassPath, ParentClassName))
-	{
+			{
 				BPAssetData.GetTagValue(FBlueprintTags::ParentClassPath, ParentClassName);
-	}
+			}
 
 			if (!ParentClassName.IsEmpty())
-	{
-	UObject* Outer = nullptr;
-	ResolveName(Outer, ParentClassName, false, false);
-	ParentClass = FindObject<UClass>(Outer, *ParentClassName);
-	if (!ParentClass || !ParentClass->IsChildOf(UEditorValidatorBase::StaticClass()))
-	{
+			{
+				UObject* Outer = nullptr;
+				ResolveName(Outer, ParentClassName, false, false);
+				ParentClass = FindObject<UClass>(Outer, *ParentClassName);
+				if (!ParentClass || !ParentClass->IsChildOf(UEditorValidatorBase::StaticClass()))
+				{
 					continue;
-	}
+				}
 			}
 
 			AddValidator(BPAssetData);
