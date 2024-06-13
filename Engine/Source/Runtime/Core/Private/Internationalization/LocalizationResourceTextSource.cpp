@@ -103,7 +103,7 @@ void FLocalizationResourceTextSource::LoadLocalizedResources(const ELocalization
 	{
 		EditorLocalizationPaths += FPaths::GetEditorLocalizationPaths();
 #if UE_IS_COOKED_EDITOR
-		EditorLocalizationPaths += GetCookedEditorLocalizationPaths();
+		EditorLocalizationPaths += GetGameLocalizationPaths();
 #endif
 		EditorLocalizationPaths += FPaths::GetToolTipLocalizationPaths();
 
