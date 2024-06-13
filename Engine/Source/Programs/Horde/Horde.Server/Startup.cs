@@ -614,6 +614,7 @@ namespace Horde.Server
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<IStorageService>(sp => sp.GetRequiredService<StorageService>());
 			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClientFactory(sp.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value));
+			services.AddSingleton<IBlockCache>(sp => CreateBlockCache(sp));
 			services.AddSingleton<TestDataService>();
 			services.AddSingleton<BundleCache>();
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
@@ -1008,6 +1009,13 @@ namespace Horde.Server
 			ConfigureFormatters();
 
 			OnAddHealthChecks(services);
+		}
+
+		static BlockCache CreateBlockCache(IServiceProvider serviceProvider)
+		{
+			ServerSettings serverSettings = serviceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
+			DirectoryReference cacheDir = DirectoryReference.Combine(ServerApp.DataDir, String.IsNullOrEmpty(serverSettings.BlockCacheDir) ? "BlockCache" : serverSettings.BlockCacheDir);
+			return BlockCache.Create(cacheDir, (int)(serverSettings.BlockCacheSize / 1024));
 		}
 
 		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)

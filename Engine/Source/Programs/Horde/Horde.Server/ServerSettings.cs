@@ -936,7 +936,7 @@ namespace Horde.Server
 		public bool OpenBrowser { get; set; } = false;
 
 		/// <summary>
-		/// Directory to use for cache data
+		/// Directory to use for the coarse-grained backend cache. This caches full bundles downloaded from the upstream object store.
 		/// </summary>
 		public string? BundleCacheDir { get; set; }
 
@@ -944,6 +944,16 @@ namespace Horde.Server
 		/// Maximum size of the storage cache on disk, in megabytes
 		/// </summary>
 		public long BundleCacheSize { get; set; } = 1024;
+
+		/// <summary>
+		/// Directory to store the fine-grained block cache. This caches individual exports embedded in bundles.
+		/// </summary>
+		public string? BlockCacheDir { get; set; }
+
+		/// <summary>
+		/// Maximum size of the block cache, in megabytes. Currently only allocates in multiples of 1024mb.
+		/// </summary>
+		public long BlockCacheSize { get; set; } = 4096;
 
 		/// <summary>
 		/// Experimental features to enable on the server.
