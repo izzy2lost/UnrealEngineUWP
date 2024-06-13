@@ -104,6 +104,7 @@ public class SwappyDisplayManager implements DisplayManager.DisplayListener {
             mLooper = new LooperThread();
             mLooper.start();
             dm.registerDisplayListener(this, mLooper.mHandler);
+			Log.e(LOG_TAG, "Registering DisplayListener "+this+" handler "+mLooper.mHandler);
         }
     }
 
@@ -152,6 +153,10 @@ public class SwappyDisplayManager implements DisplayManager.DisplayListener {
     }
 
     public void terminate() {
+        // Unregister display listener callbacks
+        DisplayManager dm = mActivity.getSystemService(DisplayManager.class);
+		dm.unregisterDisplayListener(this);
+		Log.e(LOG_TAG, "Unegistering DisplayListener "+this);
         mLooper.mHandler.getLooper().quit();
     }
 
