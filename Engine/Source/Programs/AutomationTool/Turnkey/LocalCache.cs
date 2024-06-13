@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -147,11 +147,6 @@ namespace Turnkey
 			string Str = JsonSerializer.Serialize(Object);
 			Directory.CreateDirectory(Path.GetDirectoryName(Filename));
 			File.WriteAllText(Filename, Str);
-
-// 			using (FileStream Stream = new FileStream(Filename, FileMode.Create))
-// 			{
-// 				new BinaryFormatter().Serialize(Stream, Object);
-// 			}
 		}
 
 		static SavedCache DeserializeObject(string Filename)
@@ -168,14 +163,6 @@ namespace Turnkey
 				{
 					return JsonSerializer.Deserialize<SavedCache>(Str);
 				}
-
-// 				if (File.Exists(Filename))
-// 				{
-// 					using (FileStream Stream = new FileStream(Filename, FileMode.Open))
-// 					{
-// 						return (SavedCache)new BinaryFormatter().Deserialize(Stream);
-// 					}
-// 				}
 			}
 			catch(Exception Ex)
 			{

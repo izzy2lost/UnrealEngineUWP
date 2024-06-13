@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 
 namespace UnrealBuildTool
@@ -32,10 +33,22 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Constructs the module map with the given changelist
 		/// </summary>
-		/// <param name="InBuildId">The unique build id</param>
-		public ModuleManifest(string InBuildId)
+		/// <param name="BuildId">The unique build id</param>
+		public ModuleManifest(string BuildId)
 		{
-			BuildId = InBuildId;
+			this.BuildId = BuildId;
+		}
+
+		/// <summary>
+		/// Constructs the module map with the given changelist
+		/// </summary>
+		/// <param name="BuildId">The unique build id</param>
+		/// <param name="ModuleNameToFileName">Module name to filename mapping</param>
+		[JsonConstructor]
+		public ModuleManifest(string BuildId, Dictionary<string, string> ModuleNameToFileName)
+		{
+			this.BuildId = BuildId;
+			this.ModuleNameToFileName = ModuleNameToFileName;
 		}
 
 		/// <summary>

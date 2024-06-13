@@ -7,6 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace EpicGames.Core
 {
@@ -14,6 +16,7 @@ namespace EpicGames.Core
 	/// Representation of an absolute directory path. Allows fast hashing and comparisons.
 	/// </summary>
 	[Serializable]
+	[JsonConverter(typeof(DirectoryReferenceJsonConverter))]
 	[TypeConverter(typeof(DirectoryReferenceTypeConverter))]
 	public class DirectoryReference : FileSystemReference, IEquatable<DirectoryReference>, IComparable<DirectoryReference>
 	{
@@ -358,9 +361,30 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
+	/// Json converter to/from strings
+	/// </summary>
+	sealed class DirectoryReferenceJsonConverter : JsonConverter<DirectoryReference>
+	{
+		/// <inheritdoc/>
+		public override bool CanConvert(Type typeToConvert) => typeToConvert == typeof(string) || base.CanConvert(typeToConvert);
+
+		/// <inheritdoc/>
+		public override DirectoryReference? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => DirectoryReference.FromString(reader.GetString());
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, DirectoryReference value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+
+		/// <inheritdoc/>
+		public override DirectoryReference ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => Read(ref reader, typeToConvert, options)!;
+
+		/// <inheritdoc/>
+		public override void WriteAsPropertyName(Utf8JsonWriter writer, DirectoryReference value, JsonSerializerOptions options) => writer.WritePropertyName(value.ToString());
+	}
+
+	/// <summary>
 	/// Type converter to/from strings
 	/// </summary>
-	class DirectoryReferenceTypeConverter : TypeConverter
+	sealed class DirectoryReferenceTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)

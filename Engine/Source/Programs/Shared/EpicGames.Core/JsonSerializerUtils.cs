@@ -1,19 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
-
-#pragma warning disable SYSLIB0011
-#pragma warning disable CA2300 // Do not use insecure deserializer BinaryFormatter
-#pragma warning disable CA2301 // Do not use insecure deserializer BinaryFormatter
+using System.Text.Json;
 
 namespace EpicGames.Core
 {
 	/// <summary>
-	/// Utility functions for serializing using the BinaryFormatter
+	/// Utility functions for serializing using the JsonSerializer, to replace BinaryFormatterUtils.
 	/// </summary>
-	public static class BinaryFormatterUtils
+	public static class JsonSerializerUtils
 	{
+		static JsonSerializerOptions Options => new JsonSerializerOptions() { IncludeFields = true };
+
 		/// <summary>
 		/// Load an object from a file on disk, using the binary formatter
 		/// </summary>
@@ -22,8 +21,9 @@ namespace EpicGames.Core
 		public static T Load<T>(FileReference location)
 		{
 			using FileStream stream = new FileStream(location.FullName, FileMode.Open, FileAccess.Read);
-			BinaryFormatter formatter = new BinaryFormatter();
-			return (T)formatter.Deserialize(stream);
+			JsonSerializerOptions options = new JsonSerializerOptions();
+			return JsonSerializer.Deserialize<T>(stream, Options)
+				?? throw new TypeLoadException($"Type {typeof(T)} cannot be loaded from {location}");
 		}
 
 		/// <summary>
@@ -31,12 +31,11 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="location">File to write to</param>
 		/// <param name="obj">Object to serialize</param>
-		public static void Save(FileReference location, object obj)
+		public static void Save<T>(FileReference location, T obj)
 		{
 			DirectoryReference.CreateDirectory(location.Directory);
 			using FileStream stream = new FileStream(location.FullName, FileMode.Create, FileAccess.Write);
-			BinaryFormatter formatter = new BinaryFormatter();
-			formatter.Serialize(stream, obj);
+			JsonSerializer.Serialize<T>(stream, obj, Options);
 		}
 
 		/// <summary>
@@ -44,13 +43,12 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="location">File to write to</param>
 		/// <param name="obj">Object to serialize</param>
-		public static void SaveIfDifferent(FileReference location, object obj)
+		public static void SaveIfDifferent<T>(FileReference location, T obj)
 		{
 			byte[] contents;
 			using (MemoryStream stream = new MemoryStream())
 			{
-				BinaryFormatter formatter = new BinaryFormatter();
-				formatter.Serialize(stream, obj);
+				JsonSerializer.Serialize(stream, obj, Options);
 				contents = stream.ToArray();
 			}
 

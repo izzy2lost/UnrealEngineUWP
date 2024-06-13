@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -988,6 +989,16 @@ namespace UnrealBuildTool
 		public DirectoryReference ProjectIntermediateDirectory;
 		public FileReference StubOutputPath;
 
+		/// <summary>
+		/// Private constructor, for serialization.
+		/// </summary>
+		[JsonConstructor]
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+		private ApplePostBuildSyncTarget()
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+		{
+		}
+
 		public ApplePostBuildSyncTarget(ReadOnlyTargetRules Target, FileItem Executable, DirectoryReference IntermediateDir)
 		{
 			Platform = Target.Platform;
@@ -1026,7 +1037,7 @@ namespace UnrealBuildTool
 			Arguments.CheckAllArgumentsUsed();
 
 			// Run the PostBuildSync command
-			ApplePostBuildSyncTarget Target = BinaryFormatterUtils.Load<ApplePostBuildSyncTarget>(InputFile!);
+			ApplePostBuildSyncTarget Target = JsonSerializerUtils.Load<ApplePostBuildSyncTarget>(InputFile!);
 			int ExitCode = PostBuildSync(Target, Logger);
 
 			return Task.FromResult(ExitCode);
@@ -1187,7 +1198,7 @@ namespace UnrealBuildTool
 		{
 			ApplePostBuildSyncTarget PostBuildSync = new(Target, Executable, IntermediateDir);
 			FileReference PostBuildSyncFile = FileReference.Combine(IntermediateDir!, "PostBuildSync.dat");
-			BinaryFormatterUtils.Save(PostBuildSyncFile, PostBuildSync);
+			JsonSerializerUtils.Save(PostBuildSyncFile, PostBuildSync);
 
 			string PostBuildSyncArguments = String.Format("-modernxcode -Input=\"{0}\" -XmlConfigCache=\"{1}\" -remoteini=\"{2}\"", PostBuildSyncFile, XmlConfig.CacheFile, UnrealBuildTool.GetRemoteIniPath());
 			Action PostBuildSyncAction = Graph.CreateRecursiveAction<ApplePostBuildSyncMode>(ActionType.CreateAppBundle, PostBuildSyncArguments);

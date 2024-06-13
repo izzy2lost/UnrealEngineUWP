@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -24,7 +25,9 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// The platform we're building for
 	/// </summary>
-	[Serializable, TypeConverter(typeof(UnrealTargetPlatformTypeConverter))]
+	[Serializable]
+	[JsonConverter(typeof(UnrealTargetPlatformJsonConverter))]
+	[TypeConverter(typeof(UnrealTargetPlatformTypeConverter))]
 	public partial struct UnrealTargetPlatform : ISerializable
 	{
 		#region Private/boilerplate
@@ -284,7 +287,14 @@ namespace UnrealBuildTool
 		public static UnrealTargetPlatform VisionOS { get; } = FindOrAddByName("VisionOS");
 	}
 
-	internal class UnrealTargetPlatformTypeConverter : TypeConverter
+	internal sealed class UnrealTargetPlatformJsonConverter : JsonConverter<UnrealTargetPlatform>
+	{
+		public override UnrealTargetPlatform Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => UnrealTargetPlatform.Parse(reader.GetString() ?? String.Empty);
+
+		public override void Write(Utf8JsonWriter writer, UnrealTargetPlatform value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+	}
+
+	internal sealed class UnrealTargetPlatformTypeConverter : TypeConverter
 	{
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
@@ -571,7 +581,9 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// The architecture we're building for
 	/// </summary>
-	[Serializable, TypeConverter(typeof(UnrealArchPlatformTypeConverter))]
+	[Serializable]
+	[JsonConverter(typeof(UnrealArchPlatformJsonConverter))]
+	[TypeConverter(typeof(UnrealArchPlatformTypeConverter))]
 	public partial struct UnrealArch : ISerializable
 	{
 		#region Private/boilerplate
@@ -843,7 +855,14 @@ namespace UnrealBuildTool
 		public static Lazy<UnrealArch> Host { get; } = new(() => UnrealArchitectureConfig.ForPlatform(BuildHostPlatform.Current.Platform).GetHostArchitecture());
 	}
 
-	internal class UnrealArchPlatformTypeConverter : TypeConverter
+	internal sealed class UnrealArchPlatformJsonConverter : JsonConverter<UnrealArch>
+	{
+		public override UnrealArch Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => UnrealArch.Parse(reader.GetString() ?? String.Empty);
+
+		public override void Write(Utf8JsonWriter writer, UnrealArch value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+	}
+
+	internal sealed class UnrealArchPlatformTypeConverter : TypeConverter
 	{
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
@@ -889,6 +908,7 @@ namespace UnrealBuildTool
 	/// A collection of one or more architecetures
 	/// </summary>
 	[Serializable]
+	[JsonConverter(typeof(UnrealArchitecturesJsonConverter))]
 	public class UnrealArchitectures
 	{
 		/// <summary>
@@ -898,6 +918,9 @@ namespace UnrealBuildTool
 		public UnrealArchitectures(IEnumerable<UnrealArch> Architectures)
 		{
 			this.Architectures = new(Architectures.Distinct());
+
+			// standardize order so that passing in { X64, Arm64 } will always result in "arm64+x64" filenames, etc
+			this.Architectures.SortBy(x => x.ToString());
 		}
 
 		/// <summary>
@@ -1028,6 +1051,18 @@ namespace UnrealBuildTool
 		{
 			return Architectures.Contains(Arch);
 		}
+	}
+
+	/// <summary>
+	/// Json converter to/from strings
+	/// </summary>
+	sealed class UnrealArchitecturesJsonConverter : JsonConverter<UnrealArchitectures>
+	{
+		/// <inheritdoc/>
+		public override UnrealArchitectures? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => UnrealArchitectures.FromString(reader.GetString(), null);
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, UnrealArchitectures value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
 	}
 
 	/// <summary>
@@ -3100,7 +3135,7 @@ namespace UnrealBuildTool
 				// is just to depend on the engine DLL timestamps. Instead, we add a makefile dependency on it, causing it to be
 				// regenerated if missing, and only add it as a prereq if we're updating the .target file.
 				FileItem InfoFileItem = FileItem.GetItemByFileReference(InfoFile);
-				BinaryFormatterUtils.SaveIfDifferent(InfoFile, Info);
+				JsonSerializerUtils.SaveIfDifferent(InfoFile, Info);
 				InfoFileItem.ResetCachedInfo();
 				Makefile.InternalDependencies.Add(InfoFileItem);
 
