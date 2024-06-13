@@ -105,6 +105,8 @@ CORE_API FArchive& operator<<(FArchive& Ar, FCbObject& Object);
 
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FUtf8StringBuilderBase& OutValue);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FWideStringBuilderBase& OutValue);
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, UE::FUtf8SharedString& OutString);
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, UE::FWideSharedString& OutString);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FString& OutValue);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FName& OutValue);
 

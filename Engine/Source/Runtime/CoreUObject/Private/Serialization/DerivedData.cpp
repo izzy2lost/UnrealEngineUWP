@@ -373,28 +373,28 @@ void FDerivedData::Serialize(FArchive& Ar, UObject* Owner)
 
 #if WITH_EDITORONLY_DATA
 
-FDerivedData::FDerivedData(const DerivedData::FSharedString& Name, const FSharedBuffer& Data)
+FDerivedData::FDerivedData(const FSharedString& Name, const FSharedBuffer& Data)
 	: EditorData(MakePimpl<DerivedData::Private::FEditorData, EPimplPtrMode::DeepCopy>(
 		Name, TInPlaceType<DerivedData::Private::FCompositeBufferWithHash>(), Data))
 {
 	CookedData.Flags = EDerivedDataFlags::Required;
 }
 
-FDerivedData::FDerivedData(const DerivedData::FSharedString& Name, const FCompositeBuffer& Data)
+FDerivedData::FDerivedData(const FSharedString& Name, const FCompositeBuffer& Data)
 	: EditorData(MakePimpl<DerivedData::Private::FEditorData, EPimplPtrMode::DeepCopy>(
 		Name, TInPlaceType<DerivedData::Private::FCompositeBufferWithHash>(), Data))
 {
 	CookedData.Flags = EDerivedDataFlags::Required;
 }
 
-FDerivedData::FDerivedData(const DerivedData::FSharedString& Name, const FCompressedBuffer& Data)
+FDerivedData::FDerivedData(const FSharedString& Name, const FCompressedBuffer& Data)
 	: EditorData(MakePimpl<DerivedData::Private::FEditorData, EPimplPtrMode::DeepCopy>(
 		Name, TInPlaceType<FCompressedBuffer>(), Data))
 {
 	CookedData.Flags = EDerivedDataFlags::Required;
 }
 
-FDerivedData::FDerivedData(const DerivedData::FSharedString& Name, const DerivedData::FCacheKey& Key)
+FDerivedData::FDerivedData(const FSharedString& Name, const DerivedData::FCacheKey& Key)
 	: EditorData(MakePimpl<DerivedData::Private::FEditorData, EPimplPtrMode::DeepCopy>(
 		Name, TInPlaceType<DerivedData::Private::FCacheKeyWithId>(), Key, DerivedData::FValueId::Null))
 {
@@ -402,7 +402,7 @@ FDerivedData::FDerivedData(const DerivedData::FSharedString& Name, const Derived
 }
 
 FDerivedData::FDerivedData(
-	const DerivedData::FSharedString& Name,
+	const FSharedString& Name,
 	const DerivedData::FCacheKey& Key,
 	const DerivedData::FValueId& ValueId)
 	: EditorData(MakePimpl<DerivedData::Private::FEditorData, EPimplPtrMode::DeepCopy>(
@@ -411,9 +411,9 @@ FDerivedData::FDerivedData(
 	CookedData.Flags = EDerivedDataFlags::Required;
 }
 
-const DerivedData::FSharedString& FDerivedData::GetName() const
+const FSharedString& FDerivedData::GetName() const
 {
-	return EditorData ? EditorData->GetName() : DerivedData::FSharedString::Empty;
+	return EditorData ? EditorData->GetName() : FSharedString::Empty;
 }
 
 void FDerivedData::SetFlags(EDerivedDataFlags InFlags)

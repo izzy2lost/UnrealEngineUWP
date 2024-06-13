@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Traits/ElementType.h"
 #include "Traits/IsContiguousContainer.h"
 
 // String Builder
@@ -41,3 +42,23 @@ using FStringView = TStringView<TCHAR>;
 using FAnsiStringView = TStringView<ANSICHAR>;
 using FWideStringView = TStringView<WIDECHAR>;
 using FUtf8StringView = TStringView<UTF8CHAR>;
+
+// Shared String
+
+namespace UE
+{
+
+template <typename CharType> class TSharedString;
+
+using FSharedString = TSharedString<TCHAR>;
+using FAnsiSharedString = TSharedString<ANSICHAR>;
+using FWideSharedString = TSharedString<WIDECHAR>;
+using FUtf8SharedString = TSharedString<UTF8CHAR>;
+
+} // UE
+
+template <typename CharType>
+struct TIsContiguousContainer<UE::TSharedString<CharType>>
+{
+	static constexpr bool Value = true;
+};

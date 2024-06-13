@@ -6,6 +6,7 @@
 
 #if WITH_EDITORONLY_DATA
 #include "DerivedDataRequestOwner.h"
+#include "DerivedDataSharedStringFwd.h"
 #include "Experimental/Misc/ExecutionResource.h"
 #include "Async/AsyncWork.h"
 #include "Animation/AnimCompressionTypes.h"
@@ -20,9 +21,6 @@ namespace UE::DerivedData
 {
 	struct FCacheGetValueResponse;
 	struct FCacheKey;
-
-	template <typename CharType> class TSharedString;
-	using FSharedString = TSharedString<TCHAR>;
 }
 
 namespace UE::Anim
