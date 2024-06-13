@@ -13,6 +13,7 @@ using Microsoft.CodeAnalysis;
 using EpicGames.Core;
 using Logging = Microsoft.Extensions.Logging;
 using System.Globalization;
+using static Gauntlet.HordeReport.TestDataCollection;
 
 namespace Gauntlet
 {
@@ -39,13 +40,12 @@ namespace Gauntlet
 			}
 		}
 
-		public abstract class BaseHordeReport : BaseTestReport
+		public abstract class BaseHordeReport : BaseTestReport, IDataBlob
 		{
-
 			/// <summary>
 			/// Horde report version
 			/// </summary>
-			public virtual int Version => 1;
+			public override int version => 1;
 
 			protected string OutputArtifactPath;
 			protected HashSet<string> ArtifactProcessedHashes;
@@ -181,27 +181,9 @@ namespace Gauntlet
 			/// Return the data to be stored in the TestData
 			/// </summary>
 			/// <returns></returns>
-			public virtual object GetTestData()
+			public virtual IDataBlob GetTestData()
 			{
 				return this;
-			}
-
-			/// <summary>
-			/// Return the version of the TestData
-			/// </summary>
-			/// <returns></returns>
-			public virtual int GetVersion()
-			{
-				return Version;
-			}
-
-			/// <summary>
-			/// Return the metadata key/value set as Dictionary
-			/// </summary>
-			/// <returns></returns>
-			public virtual Dictionary<string, string> GetMetadata()
-			{
-				return Metadata;
 			}
 		}
 
@@ -1197,7 +1179,7 @@ namespace Gauntlet
 		{
 			public override string Type => "Automated Test Session";
 
-			public override int Version => 2;
+			public override int version => 2;
 
 			/// <summary>
 			/// Unique key that identify the test and group the different sessions
@@ -1214,7 +1196,7 @@ namespace Gauntlet
 			/// </summary>
 			protected TestSession Data { get; set; }
 
-			public override object GetTestData()
+			public override IDataBlob GetTestData()
 			{
 				return Data;
 			}
@@ -1422,11 +1404,13 @@ namespace Gauntlet
 			/// <summary>
 			/// fork of the test session data (summary, phases, devices, eventStreams)
 			/// </summary>
-			public class TestSession
+			public class TestSession : IDataBlob
 			{
 				public TestSessionSummary summary { get; set; }
 				public List<TestPhase> phases { get; set; }
 				public Dictionary<string, TestDevice> devices { get; set; }
+				public int version { get { return report.version; } }
+				public Dictionary<string, string> metadata { get { return report.metadata; } }
 
 				[JsonIgnore]
 				// back pointer
@@ -2240,12 +2224,15 @@ namespace Gauntlet
 		/// </summary>
 		public class TestDataCollection
 		{
+			public interface IDataBlob
+			{
+				int version { get; }
+				Dictionary<string, string> metadata { get; }
+			}
 			public class DataItem
 			{
 				public string key { get; set; }
 				public object data { get; set; }
-				public int version { get; set; } = 1;
-				public Dictionary<string, string> metadata { get; set; }
 			}
 			public TestDataCollection()
 			{
@@ -2254,23 +2241,17 @@ namespace Gauntlet
 
 			public DataItem AddNewTestReport(object InData, string InKey = null)
 			{
-				int Version = 1;
-				Dictionary<string, string> Metadata = null;
 				Dictionary<string, object> ExtraItems = null;
 				if (InData is BaseHordeReport InHordeReport)
 				{
 					ExtraItems = InHordeReport.GetReportDependencies();
 					InKey = InHordeReport.GetTestDataKey(InKey);
 					InData = InHordeReport.GetTestData();
-					Version = InHordeReport.GetVersion();
-					Metadata = InHordeReport.GetMetadata();
 				}
 				DataItem NewDataItem = new DataItem()
 				{
 					key = InKey,
 					data = InData,
-					version = Version,
-					metadata = Metadata
 				};
 
 				var FoundItemIndex = items.FindIndex(I => I.key == InKey);

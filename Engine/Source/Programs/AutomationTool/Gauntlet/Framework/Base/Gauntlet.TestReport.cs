@@ -139,12 +139,18 @@ namespace Gauntlet
 	{
 		public BaseTestReport()
 		{
-			Metadata = new Dictionary<string, string>();
+			metadata = new Dictionary<string, string>();
 		}
+
+		/// <summary>
+		/// Horde report version
+		/// </summary>
+		public abstract int version { get; }
+
 		/// <summary>
 		/// Metadata blackboard
 		/// </summary>
-		public Dictionary<string, string> Metadata { get; set; }
+		public Dictionary<string, string> metadata { get; private set; }
 
 		/// <summary>
 		/// Return report type
@@ -176,7 +182,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public virtual void SetMetadata(string Key, string Value)
 		{
-			Metadata[Key] = Value;
+			metadata[Key] = Value;
 		}
 
 		/// <summary>
