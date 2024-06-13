@@ -83,6 +83,8 @@ void UDeformableTetrahedralComponent::EndPlay(const EEndPlayReason::Type ReasonE
 	{
 		GetSimulationCollection()->Reset();
 	}
+
+	Super::EndPlay(ReasonEnd);
 }
 
 void UDeformableTetrahedralComponent::SetRestCollection(const UFleshAsset* InRestCollection)
