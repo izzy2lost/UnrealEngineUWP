@@ -4,6 +4,7 @@
 
 #include "GeometryBase.h"
 #include "HAL/Platform.h"
+#include "EngineDefines.h"
 
 #include <cmath>
 #include <cfloat>
@@ -24,6 +25,9 @@ struct TMathUtilConstants<float>
 
 	/** largest possible number for type */
 	static constexpr float MaxReal = FLT_MAX;
+
+	/** a very large value, but not too close to the max possible for the type */
+	static constexpr float SafeLargeValue = UE_LARGE_WORLD_MAX;
 
 	/** 3.14159... */
 	static constexpr float Pi = 3.1415926535897932384626433832795f;
@@ -63,6 +67,9 @@ struct TMathUtilConstants<double>
 	/** largest possible number for type */
 	static constexpr double MaxReal = DBL_MAX;
 
+	/** a very large value, but not too close to the max possible for the type */
+	static constexpr double SafeLargeValue = (double)FLT_MAX;
+
 	/** 3.14159... */
 	static constexpr double Pi = 3.1415926535897932384626433832795;
 	static constexpr double FourPi = 4.0 * Pi;
@@ -97,7 +104,8 @@ struct TMathUtilConstants<int32>
 {
 	static constexpr int32 Epsilon = 0;
 	static constexpr int32 ZeroTolerance = 0;
-	static constexpr int32 MaxReal = ((int32)0x7fffffff);
+	static constexpr int32 MaxReal = MAX_int32;
+	static constexpr int32 SafeLargeValue = MAX_int32/2;
 	static constexpr int32 Pi = 3;
 	static constexpr int32 FourPi = 4 * Pi;
 	static constexpr int32 TwoPi = 2 * Pi;
@@ -119,7 +127,8 @@ struct TMathUtilConstants<int64>
 {
 	static constexpr int64 Epsilon = 0;
 	static constexpr int64 ZeroTolerance = 0;
-	static constexpr int64 MaxReal = ((int64)0x7fffffffffffffff);
+	static constexpr int64 MaxReal = MAX_int64;
+	static constexpr int64 SafeLargeValue = MAX_int64/2;
 	static constexpr int64 Pi = 3;
 	static constexpr int64 FourPi = 4 * Pi;
 	static constexpr int64 TwoPi = 2 * Pi;

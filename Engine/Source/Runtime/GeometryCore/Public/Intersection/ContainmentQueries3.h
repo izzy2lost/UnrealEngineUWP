@@ -24,7 +24,7 @@ namespace UE
 
 	namespace Geometry
 	{
-		template <class GridType> class TTriLinearGridInterpolant;
+		template <class GridType, typename RealType> class TTriLinearGridInterpolant;
 		template <typename T> struct TCapsule3;
 		template <typename T> struct THalfspace3;
 		template <typename T> struct TSphere3;
