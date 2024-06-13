@@ -1,31 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SDMXMVRFixtureListToolbar.h"
+#include "SDMXFixturePatchListToolbar.h"
 
 #include "Algo/MaxElement.h"
 #include "Commands/DMXEditorCommands.h"
 #include "DMXEditor.h"
 #include "DMXEditorUtils.h"
+#include "DMXFixturePatchListItem.h"
 #include "DMXFixturePatchSharedData.h"
-#include "DMXMVRFixtureListItem.h"
 #include "EditorStyleSet.h"
 #include "FixturePatchAutoAssignUtility.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
-#include "ScopedTransaction.h"
 #include "SAddFixturePatchMenu.h"
-#include "Widgets/SBoxPanel.h"
-#include "Widgets/SDMXEntityDropdownMenu.h"
+#include "ScopedTransaction.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SDMXEntityDropdownMenu.h"
 
+#define LOCTEXT_NAMESPACE "SDMXFixturePatchListToolbar"
 
-#define LOCTEXT_NAMESPACE "SDMXMVRFixtureListToolbar"
-
-void SDMXMVRFixtureListToolbar::Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor> InDMXEditor)
+void SDMXFixturePatchListToolbar::Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor> InDMXEditor)
 {
 	WeakDMXEditor = InDMXEditor;
 	OnSearchChanged = InArgs._OnSearchChanged;
@@ -66,7 +65,7 @@ void SDMXMVRFixtureListToolbar::Construct(const FArguments& InArgs, TWeakPtr<FDM
 				[
 					SNew(SSearchBox)
 					.MinDesiredWidth(400.f)
-					.OnTextChanged(this, &SDMXMVRFixtureListToolbar::OnSearchTextChanged)
+					.OnTextChanged(this, &SDMXFixturePatchListToolbar::OnSearchTextChanged)
 					.ToolTipText(LOCTEXT("SearchBarTooltip", "Examples:\n\n* PatchName\n* FixtureTypeName\n* SomeMode\n* 1.\n* 1.1\n* Universe 1\n* Uni 1-3\n* Uni 1, 3\n* Uni 1, 4-5'."))
 				]
 									
@@ -94,19 +93,19 @@ void SDMXMVRFixtureListToolbar::Construct(const FArguments& InArgs, TWeakPtr<FDM
 				[
 					SNew(SCheckBox)
 					.IsChecked(false)
-					.OnCheckStateChanged(this, &SDMXMVRFixtureListToolbar::OnShowConflictsOnlyCheckStateChanged)
+					.OnCheckStateChanged(this, &SDMXFixturePatchListToolbar::OnShowConflictsOnlyCheckStateChanged)
 				]
 			]
 		];
 }
 
-TArray<TSharedPtr<FDMXMVRFixtureListItem>> SDMXMVRFixtureListToolbar::FilterItems(const TArray<TSharedPtr<FDMXMVRFixtureListItem>>& Items)
+TArray<TSharedPtr<FDMXFixturePatchListItem>> SDMXFixturePatchListToolbar::FilterItems(const TArray<TSharedPtr<FDMXFixturePatchListItem>>& Items)
 {
 	// Apply 'conflicts only' if enabled
-	TArray<TSharedPtr<FDMXMVRFixtureListItem>> Result = Items;
+	TArray<TSharedPtr<FDMXFixturePatchListItem>> Result = Items;
 	if (bShowConfictsOnly)
 	{
-		Result.RemoveAll([](const TSharedPtr<FDMXMVRFixtureListItem>& Item)
+		Result.RemoveAll([](const TSharedPtr<FDMXFixturePatchListItem>& Item)
 			{
 				return
 					Item->ErrorStatusText.IsEmpty() &&
@@ -123,7 +122,7 @@ TArray<TSharedPtr<FDMXMVRFixtureListItem>> SDMXMVRFixtureListToolbar::FilterItem
 	const TArray<int32> Universes = FDMXEditorUtils::ParseUniverses(SearchString);
 	if(!Universes.IsEmpty())
 	{
-		Result.RemoveAll([Universes](const TSharedPtr<FDMXMVRFixtureListItem>& Item)
+		Result.RemoveAll([Universes](const TSharedPtr<FDMXFixturePatchListItem>& Item)
 			{
 				return !Universes.Contains(Item->GetUniverse());
 			});
@@ -134,7 +133,7 @@ TArray<TSharedPtr<FDMXMVRFixtureListItem>> SDMXMVRFixtureListToolbar::FilterItem
 	int32 Address;
 	if (FDMXEditorUtils::ParseAddress(SearchString, Address))
 	{
-		Result.RemoveAll([Address](const TSharedPtr<FDMXMVRFixtureListItem>& Item)
+		Result.RemoveAll([Address](const TSharedPtr<FDMXFixturePatchListItem>& Item)
 			{
 				return Item->GetAddress() != Address;
 			});
@@ -145,8 +144,8 @@ TArray<TSharedPtr<FDMXMVRFixtureListItem>> SDMXMVRFixtureListToolbar::FilterItem
 	const TArray<int32> FixtureIDs = FDMXEditorUtils::ParseFixtureIDs(SearchString);
 	for (int32 FixtureID : FixtureIDs)
 	{
-		TArray<TSharedPtr<FDMXMVRFixtureListItem>> FixtureIDsOnlyResult = Result;
-		FixtureIDsOnlyResult.RemoveAll([FixtureID](const TSharedPtr<FDMXMVRFixtureListItem>& Item)
+		TArray<TSharedPtr<FDMXFixturePatchListItem>> FixtureIDsOnlyResult = Result;
+		FixtureIDsOnlyResult.RemoveAll([FixtureID](const TSharedPtr<FDMXFixturePatchListItem>& Item)
 			{
 				int32 OtherFixtureIDNumerical;
 				if (FDMXEditorUtils::ParseFixtureID(Item->GetFixtureID(), OtherFixtureIDNumerical))
@@ -162,7 +161,7 @@ TArray<TSharedPtr<FDMXMVRFixtureListItem>> SDMXMVRFixtureListToolbar::FilterItem
 		}
 	}
 
-	Result.RemoveAll([this](const TSharedPtr<FDMXMVRFixtureListItem>& Item)
+	Result.RemoveAll([this](const TSharedPtr<FDMXFixturePatchListItem>& Item)
 		{
 			return !Item->GetFixturePatchName().Contains(SearchString);
 		});
@@ -170,7 +169,7 @@ TArray<TSharedPtr<FDMXMVRFixtureListItem>> SDMXMVRFixtureListToolbar::FilterItem
 	return Result;
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListToolbar::GenerateFixtureTypeDropdownMenu()
+TSharedRef<SWidget> SDMXFixturePatchListToolbar::GenerateFixtureTypeDropdownMenu()
 {
 	FText AddButtonLabel = FDMXEditorCommands::Get().AddNewEntityFixturePatch->GetLabel();
 	FText AddButtonToolTip = FDMXEditorCommands::Get().AddNewEntityFixturePatch->GetDescription();
@@ -222,13 +221,13 @@ TSharedRef<SWidget> SDMXMVRFixtureListToolbar::GenerateFixtureTypeDropdownMenu()
 	return AddComboButton;
 }
 
-void SDMXMVRFixtureListToolbar::OnSearchTextChanged(const FText& SearchText)
+void SDMXFixturePatchListToolbar::OnSearchTextChanged(const FText& SearchText)
 {
 	SearchString = SearchText.ToString();
 	OnSearchChanged.ExecuteIfBound();
 }
 
-void SDMXMVRFixtureListToolbar::OnShowConflictsOnlyCheckStateChanged(const ECheckBoxState NewCheckState)
+void SDMXFixturePatchListToolbar::OnShowConflictsOnlyCheckStateChanged(const ECheckBoxState NewCheckState)
 {
 	bShowConfictsOnly = NewCheckState == ECheckBoxState::Checked;
 	OnSearchChanged.ExecuteIfBound();

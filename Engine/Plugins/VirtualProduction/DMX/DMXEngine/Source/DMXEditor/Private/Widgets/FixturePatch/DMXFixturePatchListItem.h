@@ -3,9 +3,6 @@
 #pragma once
 
 #include "MVR/DMXMVRGeneralSceneDescription.h"
-
-#include "CoreMinimal.h"
-#include "UObject/GCObject.h"
 #include "UObject/WeakObjectPtr.h"
 
 class FDMXEditor;
@@ -13,20 +10,17 @@ class FDMXFixturePatchSharedData;
 class UDMXEntityFixturePatch;
 class UDMXEntityFixtureType;
 class UDMXLibrary;
-class UDMXMVRFixtureNode;
-
 
 /** An MVR Fixture as an Item in a List. A Primary Items is the first MVR Fixture in a Patch. Secondary Items are subsequent MVR Fixtures */
-class FDMXMVRFixtureListItem
-	: public FGCObject
-	, public TSharedFromThis<FDMXMVRFixtureListItem>
+class FDMXFixturePatchListItem
+	: public TSharedFromThis<FDMXFixturePatchListItem>
 {
 public:	
 	/** Constructor */
-	FDMXMVRFixtureListItem(TWeakPtr<FDMXEditor> InDMXEditor, UDMXMVRFixtureNode& InMVRFixtureNode);
+	FDMXFixturePatchListItem(TWeakPtr<FDMXEditor> InDMXEditor, UDMXEntityFixturePatch* InFixturePatch);
 
 	/** Returns the MVR UUID of the MVR Fixture */
-	const FGuid& GetMVRUUID() const;
+	FGuid GetMVRUUID() const;
 
 	/** Returns the background color of this Item */
 	FLinearColor GetBackgroundColor() const;
@@ -79,28 +73,12 @@ public:
 	/** Error Status Text of the Item */
 	FText ErrorStatusText;
 
-protected:
-	// FGCObject interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("FDMXMVRFixtureListItem");
-	}
-	// End of FGCObject interface
-
-
 private:
 	/** True if this is in an even group */
 	bool bIsEvenGroup = false;
 
-	/** Cached MVR Fixture to speed up getters. */
-	TObjectPtr<UDMXMVRFixtureNode> MVRFixtureNode = nullptr;
-
 	/** The fixture patch the MVR Fixture UUID is assigned to */
 	TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch;
-
-	/** Shared Data for Fixture Patch Editors */
-	TSharedPtr<FDMXFixturePatchSharedData> FixturePatchSharedData;
 
 	/** The DMX Editor that owns this Item */
 	TWeakPtr<FDMXEditor> WeakDMXEditor;

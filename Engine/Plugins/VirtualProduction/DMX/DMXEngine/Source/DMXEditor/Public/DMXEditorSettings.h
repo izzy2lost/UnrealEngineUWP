@@ -15,27 +15,30 @@ struct FDMXMVRFixtureListSettings
 {
 	GENERATED_BODY()
 
-	/** Width of the entier list. The right side should take the rest of the space */
+	UPROPERTY()
 	float ListWidth = .5f;
 
 	/** Width of the Fixture ID column */
 	UPROPERTY()
-	float FixtureIDColumnWidth = 0.f;
+	float FixtureIDColumnWidth = .1f;
 
 	/** With of the Fixture Type column */
 	UPROPERTY()
-	float FixtureTypeColumnWidth = 0.f;
+	float FixtureTypeColumnWidth = .2f;
 
 	/** With of the Mode column */
 	UPROPERTY()
-	float ModeColumnWidth = 0.f;
+	float ModeColumnWidth = .2f;
 
 	/** With of the Patch column */
 	UPROPERTY()
-	float PatchColumnWidth = 0.f;
+	float PatchColumnWidth = .2f;
 
 	UPROPERTY()
 	FName SortByCollumnID = NAME_None;
+
+	UPROPERTY()
+	int32 SortPriorityEnumIndex = 1;
 };
 
 UENUM()

@@ -1,39 +1,37 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SDMXMVRFixtureListRow.h"
+#include "SDMXFixturePatchListRow.h"
 
 #include "DMXEditor.h"
 #include "DMXEditorStyle.h"
+#include "Engine/EngineTypes.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
 #include "MVR/DMXMVRGeneralSceneDescription.h"
-#include "Widgets/FixturePatch/SDMXMVRFixtureList.h"
-#include "Widgets/FixturePatch/DMXMVRFixtureListItem.h"
-
 #include "SSearchableComboBox.h"
-#include "Engine/EngineTypes.h"
-#include "Widgets/Text/SInlineEditableTextBlock.h"
-#include "Widgets/Input/STextComboBox.h"
 #include "Styling/AppStyle.h"
+#include "Widgets/FixturePatch/DMXFixturePatchListItem.h"
+#include "Widgets/FixturePatch/SDMXFixturePatchList.h"
+#include "Widgets/Input/STextComboBox.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 
-#define LOCTEXT_NAMESPACE "SDMXMVRFixtureListRow"
+#define LOCTEXT_NAMESPACE "SDMXFixturePatchListRow"
 
 /////////////////////////////////////////////////////
-// SDMXMVRFixtureFixtureTypePicker
+// SDMXFixturePatchFixtureTypePicker
 
-/** Widget to pick a fixture type for an MVR Fixture */
-
-class SDMXMVRFixtureFixtureTypePicker
+/** Widget to pick a fixture type for a Fixture Patch */
+class SDMXFixturePatchFixtureTypePicker
 	: public SCompoundWidget
 {
-	DECLARE_DELEGATE_OneParam(FDMXMVRFixtureListRowOnFixtureTypeSelectedDelegate, UDMXEntityFixtureType* /** Selected Fixture Type */);
+	DECLARE_DELEGATE_OneParam(FDMXFixturePatchListRowOnFixtureTypeSelectedDelegate, UDMXEntityFixtureType* /** Selected Fixture Type */);
 
 public:
-	SLATE_BEGIN_ARGS(SDMXMVRFixtureFixtureTypePicker)
+	SLATE_BEGIN_ARGS(SDMXFixturePatchFixtureTypePicker)
 	{}
 		/** Called when the combo box selection changed */
-		SLATE_EVENT(FDMXMVRFixtureListRowOnFixtureTypeSelectedDelegate, OnFixtureTypeSelected)
+		SLATE_EVENT(FDMXFixturePatchListRowOnFixtureTypeSelectedDelegate, OnFixtureTypeSelected)
 
 	SLATE_END_ARGS()
 
@@ -49,20 +47,20 @@ public:
 		OnFixtureTypeSelectedDelegate = InArgs._OnFixtureTypeSelected;
 
 
-		InDMXLibrary->GetOnEntitiesAdded().AddSP(this, &SDMXMVRFixtureFixtureTypePicker::OnEntitiesAddedOrRemoved);
-		InDMXLibrary->GetOnEntitiesRemoved().AddSP(this, &SDMXMVRFixtureFixtureTypePicker::OnEntitiesAddedOrRemoved);
-		UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXMVRFixtureFixtureTypePicker::OnFixtureTypeChanged);
+		InDMXLibrary->GetOnEntitiesAdded().AddSP(this, &SDMXFixturePatchFixtureTypePicker::OnEntitiesAddedOrRemoved);
+		InDMXLibrary->GetOnEntitiesRemoved().AddSP(this, &SDMXFixturePatchFixtureTypePicker::OnEntitiesAddedOrRemoved);
+		UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXFixturePatchFixtureTypePicker::OnFixtureTypeChanged);
 
 		ChildSlot
 			[
 				SAssignNew(ComboBox, SSearchableComboBox)
 				.OptionsSource(&FixtureTypeNames)
-				.OnGenerateWidget(this, &SDMXMVRFixtureFixtureTypePicker::OnGenerateWidget)
-				.OnSelectionChanged(this, &SDMXMVRFixtureFixtureTypePicker::OnSelectionChanged)
+				.OnGenerateWidget(this, &SDMXFixturePatchFixtureTypePicker::OnGenerateWidget)
+				.OnSelectionChanged(this, &SDMXFixturePatchFixtureTypePicker::OnSelectionChanged)
 				.Content()						
 				[
 					SNew(STextBlock)
-					.Text(this, &SDMXMVRFixtureFixtureTypePicker::GetSelectedItemText)
+					.Text(this, &SDMXFixturePatchFixtureTypePicker::GetSelectedItemText)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				]
 			];
@@ -96,7 +94,7 @@ public:
 	{
 		if (!RefreshTimerHandle.IsValid())
 		{
-			RefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXMVRFixtureFixtureTypePicker::RefreshInternal));
+			RefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXFixturePatchFixtureTypePicker::RefreshInternal));
 		}
 	}
 
@@ -232,24 +230,24 @@ private:
 	FTimerHandle RefreshTimerHandle;
 
 	// Slate args
-	FDMXMVRFixtureListRowOnFixtureTypeSelectedDelegate OnFixtureTypeSelectedDelegate;
+	FDMXFixturePatchListRowOnFixtureTypeSelectedDelegate OnFixtureTypeSelectedDelegate;
 };
 
 
 /////////////////////////////////////////////////////
-// SDMXMVRFixtureModePicker
+// SDMXFixturePatchModePicker
 
 /** Widget to pick a fixture type for an MVR Fixture */
-class SDMXMVRFixtureModePicker
+class SDMXFixturePatchModePicker
 	: public SCompoundWidget
 {
-	DECLARE_DELEGATE_OneParam(FDMXMVRFixtureListRowOnModeSelectedDelegate, int32 /** Selected Mode Index */);
+	DECLARE_DELEGATE_OneParam(FDMXFixturePatchListRowOnModeSelectedDelegate, int32 /** Selected Mode Index */);
 
 public:
-	SLATE_BEGIN_ARGS(SDMXMVRFixtureModePicker)
+	SLATE_BEGIN_ARGS(SDMXFixturePatchModePicker)
 	{}
 		/** Called when the combo box selection changed */
-		SLATE_EVENT(FDMXMVRFixtureListRowOnModeSelectedDelegate, OnModeSelected)
+		SLATE_EVENT(FDMXFixturePatchListRowOnModeSelectedDelegate, OnModeSelected)
 
 	SLATE_END_ARGS()
 
@@ -258,7 +256,7 @@ public:
 	{
 		OnModeSelectedDelegate = InArgs._OnModeSelected;
 
-		UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXMVRFixtureModePicker::OnFixtureTypeChanged);
+		UDMXEntityFixtureType::GetOnFixtureTypeChanged().AddSP(this, &SDMXFixturePatchModePicker::OnFixtureTypeChanged);
 
 		ChildSlot
 			[
@@ -276,7 +274,7 @@ public:
 							return WeakFixtureType.IsValid() ? EVisibility::Visible : EVisibility::Hidden;
 						})
 					.OptionsSource(&ModeNames)
-					.OnSelectionChanged(this, &SDMXMVRFixtureModePicker::OnSelectionChanged)
+					.OnSelectionChanged(this, &SDMXFixturePatchModePicker::OnSelectionChanged)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 				]
 
@@ -402,27 +400,27 @@ private:
 	TWeakObjectPtr<UDMXEntityFixtureType> WeakFixtureType;
 
 	// Slate args
-	FDMXMVRFixtureListRowOnModeSelectedDelegate OnModeSelectedDelegate;
+	FDMXFixturePatchListRowOnModeSelectedDelegate OnModeSelectedDelegate;
 };
 
 
 /////////////////////////////////////////////////////
-// SDMXMVRFixtureListRow
+// SDMXFixturePatchListRow
 
-void SDMXMVRFixtureListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXMVRFixtureListItem>& InItem)
+void SDMXFixturePatchListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXFixturePatchListItem>& InItem)
 {
 	Item = InItem;
 	OnRowRequestsStatusRefresh = InArgs._OnRowRequestsStatusRefresh;
 	OnRowRequestsListRefresh = InArgs._OnRowRequestsListRefresh;
 	IsSelected = InArgs._IsSelected;
 
-	SMultiColumnTableRow<TSharedPtr<FDMXMVRFixtureListItem>>::Construct(
+	SMultiColumnTableRow<TSharedPtr<FDMXFixturePatchListItem>>::Construct(
 		FSuperRowType::FArguments()
 		.Style(&FDMXEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("FixturePatchList.Row")),
 		InOwnerTable);
 }
 
-void SDMXMVRFixtureListRow::EnterFixturePatchNameEditingMode()
+void SDMXFixturePatchListRow::EnterFixturePatchNameEditingMode()
 {
 	if (FixturePatchNameTextBlock.IsValid())
 	{
@@ -430,33 +428,33 @@ void SDMXMVRFixtureListRow::EnterFixturePatchNameEditingMode()
 	}
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateWidgetForColumn(const FName& ColumnName)
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateWidgetForColumn(const FName& ColumnName)
 {
-	if (ColumnName == FDMXMVRFixtureListCollumnIDs::EditorColor)
+	if (ColumnName == FDMXFixturePatchListCollumnID::EditorColor)
 	{
 		return GenerateEditorColorWidget();
 	}
-	if (ColumnName == FDMXMVRFixtureListCollumnIDs::FixturePatchName)
+	if (ColumnName == FDMXFixturePatchListCollumnID::FixturePatchName)
 	{
 		return GenerateFixturePatchNameWidget();
 	}
-	else if (ColumnName == FDMXMVRFixtureListCollumnIDs::Status)
+	else if (ColumnName == FDMXFixturePatchListCollumnID::Status)
 	{
 		return GenerateStatusWidget();
 	}
-	else if (ColumnName == FDMXMVRFixtureListCollumnIDs::FixtureID)
+	else if (ColumnName == FDMXFixturePatchListCollumnID::FixtureID)
 	{
 		return GenerateFixtureIDWidget();
 	}
-	else if (ColumnName == FDMXMVRFixtureListCollumnIDs::FixtureType)
+	else if (ColumnName == FDMXFixturePatchListCollumnID::FixtureType)
 	{
 		return GenerateFixtureTypeWidget();
 	}
-	else if (ColumnName == FDMXMVRFixtureListCollumnIDs::Mode)
+	else if (ColumnName == FDMXFixturePatchListCollumnID::Mode)
 	{
 		return GenerateModeWidget();
 	}
-	else if (ColumnName == FDMXMVRFixtureListCollumnIDs::Patch)
+	else if (ColumnName == FDMXFixturePatchListCollumnID::Patch)
 	{
 		return GeneratePatchWidget();
 	}
@@ -464,7 +462,7 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateWidgetForColumn(const FName& 
 	return SNullWidget::NullWidget;
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateEditorColorWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateEditorColorWidget()
 {
 	return
 		SNew(SBorder)
@@ -481,7 +479,7 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateEditorColorWidget()
 		];
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixturePatchNameWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateFixturePatchNameWidget()
 {
 	return
 		SAssignNew(FixturePatchNameBorder, SBorder)
@@ -489,7 +487,7 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixturePatchNameWidget()
 		.VAlign(VAlign_Center)
 		.Padding(4.f)
 		.BorderImage(FAppStyle::GetBrush("NoBorder"))
-		.OnMouseDoubleClick(this, &SDMXMVRFixtureListRow::OnFixturePatchNameBorderDoubleClicked)
+		.OnMouseDoubleClick(this, &SDMXFixturePatchListRow::OnFixturePatchNameBorderDoubleClicked)
 		[
 			SNew(SBorder)
 			.HAlign(HAlign_Fill)
@@ -503,13 +501,13 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixturePatchNameWidget()
 					return FText::FromString(FixturePatchName);
 				})
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.OnTextCommitted(this, &SDMXMVRFixtureListRow::OnFixturePatchNameCommitted)
+				.OnTextCommitted(this, &SDMXFixturePatchListRow::OnFixturePatchNameCommitted)
 				.IsSelected(IsSelected)
 			]
 		];
 }
 
-FReply SDMXMVRFixtureListRow::OnFixturePatchNameBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+FReply SDMXFixturePatchListRow::OnFixturePatchNameBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
@@ -522,7 +520,7 @@ FReply SDMXMVRFixtureListRow::OnFixturePatchNameBorderDoubleClicked(const FGeome
 	return FReply::Handled();
 }
 
-void SDMXMVRFixtureListRow::OnFixturePatchNameCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
+void SDMXFixturePatchListRow::OnFixturePatchNameCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
 {
 	if (InNewText.IsEmpty())
 	{
@@ -534,7 +532,7 @@ void SDMXMVRFixtureListRow::OnFixturePatchNameCommitted(const FText& InNewText, 
 	FixturePatchNameTextBlock->SetText(FText::FromString(ResultingName));
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateStatusWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateStatusWidget()
 {
 	return
 		SNew(SBox)
@@ -568,7 +566,7 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateStatusWidget()
 		];
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixtureIDWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateFixtureIDWidget()
 {
 	return
 		SNew(SBorder)
@@ -576,7 +574,7 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixtureIDWidget()
 		.VAlign(VAlign_Center)
 		.Padding(4.f)
 		.BorderImage(FAppStyle::GetBrush("NoBorder"))
-		.OnMouseDoubleClick(this, &SDMXMVRFixtureListRow::OnFixtureIDBorderDoubleClicked)
+		.OnMouseDoubleClick(this, &SDMXFixturePatchListRow::OnFixtureIDBorderDoubleClicked)
 		[
 			SNew(SBorder)
 			.HAlign(HAlign_Fill)
@@ -589,13 +587,13 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixtureIDWidget()
 					return FText::FromString(Item->GetFixtureID());
 				})
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.OnTextCommitted(this, &SDMXMVRFixtureListRow::OnFixtureIDCommitted)
+				.OnTextCommitted(this, &SDMXFixturePatchListRow::OnFixtureIDCommitted)
 				.IsSelected(IsSelected)
 			]
 		];
 }
 
-FReply SDMXMVRFixtureListRow::OnFixtureIDBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+FReply SDMXFixturePatchListRow::OnFixtureIDBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
@@ -608,7 +606,7 @@ FReply SDMXMVRFixtureListRow::OnFixtureIDBorderDoubleClicked(const FGeometry& In
 	return FReply::Handled();
 }
 
-void SDMXMVRFixtureListRow::OnFixtureIDCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
+void SDMXFixturePatchListRow::OnFixtureIDCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
 {
 	const FString StringValue = InNewText.ToString();
 	int32 NewFixtureID;
@@ -623,7 +621,7 @@ void SDMXMVRFixtureListRow::OnFixtureIDCommitted(const FText& InNewText, ETextCo
 	}
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixtureTypeWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateFixtureTypeWidget()
 {
 	UDMXLibrary* DMXLibrary = Item->GetDMXLibrary();
 	if (!ensureAlwaysMsgf(DMXLibrary, TEXT("Tried to set fixture type for MVR Fixture, but fixture type is invalid.")))
@@ -631,9 +629,9 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixtureTypeWidget()
 		return SNullWidget::NullWidget;
 	}
 
-	const TSharedRef<SDMXMVRFixtureFixtureTypePicker> FixtureTypePicker =
-		SNew(SDMXMVRFixtureFixtureTypePicker, DMXLibrary)
-		.OnFixtureTypeSelected(this, &SDMXMVRFixtureListRow::OnFixtureTypeSelected);
+	const TSharedRef<SDMXFixturePatchFixtureTypePicker> FixtureTypePicker =
+		SNew(SDMXFixturePatchFixtureTypePicker, DMXLibrary)
+		.OnFixtureTypeSelected(this, &SDMXFixturePatchListRow::OnFixtureTypeSelected);
 
 	UDMXEntityFixtureType* SelectedFixtureType = Item->GetFixtureType();
 	FixtureTypePicker->SetSelection(SelectedFixtureType);
@@ -649,16 +647,16 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateFixtureTypeWidget()
 		];
 }
 
-void SDMXMVRFixtureListRow::OnFixtureTypeSelected(UDMXEntityFixtureType* SelectedFixtureType)
+void SDMXFixturePatchListRow::OnFixtureTypeSelected(UDMXEntityFixtureType* SelectedFixtureType)
 {
 	Item->SetFixtureType(SelectedFixtureType);
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateModeWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GenerateModeWidget()
 {
-	const TSharedRef<SDMXMVRFixtureModePicker> ModePicker =
-		SNew(SDMXMVRFixtureModePicker)
-		.OnModeSelected(this, &SDMXMVRFixtureListRow::OnModeSelected);
+	const TSharedRef<SDMXFixturePatchModePicker> ModePicker =
+		SNew(SDMXFixturePatchModePicker)
+		.OnModeSelected(this, &SDMXFixturePatchListRow::OnModeSelected);
 
 	UDMXEntityFixtureType* SelectedFixtureType = Item->GetFixtureType();
 	const int32 SelectedModeIndex = Item->GetModeIndex();
@@ -676,12 +674,12 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GenerateModeWidget()
 		];
 }
 
-void SDMXMVRFixtureListRow::OnModeSelected(int32 SelectedModeIndex)
+void SDMXFixturePatchListRow::OnModeSelected(int32 SelectedModeIndex)
 {
 	Item->SetModeIndex(SelectedModeIndex);
 }
 
-TSharedRef<SWidget> SDMXMVRFixtureListRow::GeneratePatchWidget()
+TSharedRef<SWidget> SDMXFixturePatchListRow::GeneratePatchWidget()
 {
 	return
 		SNew(SBorder)
@@ -689,7 +687,7 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GeneratePatchWidget()
 		.VAlign(VAlign_Center)
 		.Padding(4.f)
 		.BorderImage(FAppStyle::GetBrush("NoBorder"))
-		.OnMouseDoubleClick(this, &SDMXMVRFixtureListRow::OnPatchBorderDoubleClicked)
+		.OnMouseDoubleClick(this, &SDMXFixturePatchListRow::OnPatchBorderDoubleClicked)
 		[
 			SNew(SBorder)
 			.HAlign(HAlign_Fill)
@@ -711,13 +709,13 @@ TSharedRef<SWidget> SDMXMVRFixtureListRow::GeneratePatchWidget()
 						}
 					})
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.OnTextCommitted(this, &SDMXMVRFixtureListRow::OnPatchCommitted)
+				.OnTextCommitted(this, &SDMXFixturePatchListRow::OnPatchCommitted)
 				.IsSelected(IsSelected)
 			]
 		];
 }
 
-FReply SDMXMVRFixtureListRow::OnPatchBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+FReply SDMXFixturePatchListRow::OnPatchBorderDoubleClicked(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
@@ -730,7 +728,7 @@ FReply SDMXMVRFixtureListRow::OnPatchBorderDoubleClicked(const FGeometry& InMyGe
 	return FReply::Handled();
 }
 
-void SDMXMVRFixtureListRow::OnPatchCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
+void SDMXFixturePatchListRow::OnPatchCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
 {
 	const FString PatchString = InNewText.ToString();
 	static const TCHAR* ParamDelimiters[] =

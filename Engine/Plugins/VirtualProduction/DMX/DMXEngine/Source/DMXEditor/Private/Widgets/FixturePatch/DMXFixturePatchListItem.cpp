@@ -1,60 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMXMVRFixtureListItem.h"
+#include "DMXFixturePatchListItem.h"
 
+#include "Algo/MinElement.h"
 #include "DMXEditor.h"
 #include "DMXFixturePatchSharedData.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityReference.h"
 #include "Library/DMXLibrary.h"
-#include "MVR/Types/DMXMVRFixtureNode.h"
-
 #include "ScopedTransaction.h"
-#include "Algo/MinElement.h"
 
+#define LOCTEXT_NAMESPACE "DMXFixturePatchListItem"
 
-#define LOCTEXT_NAMESPACE "DMXMVRFixtureListItem"
-
-FDMXMVRFixtureListItem::FDMXMVRFixtureListItem(TWeakPtr<FDMXEditor> InDMXEditor, UDMXMVRFixtureNode& InMVRFixtureNode)
-	: MVRFixtureNode(&InMVRFixtureNode)
+FDMXFixturePatchListItem::FDMXFixturePatchListItem(TWeakPtr<FDMXEditor> InDMXEditor, UDMXEntityFixturePatch* InFixturePatch)
+	: WeakFixturePatch(InFixturePatch)
 	, WeakDMXEditor(InDMXEditor)
+{}
+
+FGuid FDMXFixturePatchListItem::GetMVRUUID() const
 {
-	const UDMXLibrary* const DMXLibrary = GetDMXLibrary();
-	if (!DMXLibrary)
-	{
-		return;
-	}
-
-	const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin();
-	if (!DMXEditor)
-	{
-		return;
-	}
-	FixturePatchSharedData = DMXEditor->GetFixturePatchSharedData();
-
-	const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
-	UDMXEntityFixturePatch* const* FixturePatchPtr = FixturePatches.FindByPredicate([this](const UDMXEntityFixturePatch* FixturePatch)
-		{
-			return FixturePatch->GetMVRFixtureUUID() == MVRFixtureNode->UUID;
-		});
-
-	if (!ensureAlwaysMsgf(FixturePatchPtr, TEXT("Trying to create an MVR Fixture List Item, but there's no corresponding Fixture Patch for the MVR Fixture UUID.")))
-	{
-		return;
-	}
-	WeakFixturePatch = *FixturePatchPtr;
-
-	// Keep the MVR Fixture Name sync with the Fixture Patch name
-	MVRFixtureNode->Name = WeakFixturePatch->Name;
+	return WeakFixturePatch.IsValid() ? WeakFixturePatch->GetMVRFixtureUUID() : FGuid();
 }
 
-const FGuid& FDMXMVRFixtureListItem::GetMVRUUID() const
-{
-	check(MVRFixtureNode);
-	return MVRFixtureNode->UUID;
-}
-
-FLinearColor FDMXMVRFixtureListItem::GetBackgroundColor() const
+FLinearColor FDMXFixturePatchListItem::GetBackgroundColor() const
 {
 	if (!ErrorStatusText.IsEmpty())
 	{
@@ -69,7 +37,7 @@ FLinearColor FDMXMVRFixtureListItem::GetBackgroundColor() const
 	return FLinearColor::Red;
 }
 
-FString FDMXMVRFixtureListItem::GetFixturePatchName() const
+FString FDMXFixturePatchListItem::GetFixturePatchName() const
 {
 	if (const UDMXEntityFixturePatch* FixturePatch = GetFixturePatch())
 	{
@@ -79,9 +47,8 @@ FString FDMXMVRFixtureListItem::GetFixturePatchName() const
 	return FString();
 }
 
-void FDMXMVRFixtureListItem::SetFixturePatchName(const FString& InDesiredName, FString& OutNewName)
+void FDMXFixturePatchListItem::SetFixturePatchName(const FString& InDesiredName, FString& OutNewName)
 {
-	check(MVRFixtureNode);
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
 		if (FixturePatch->Name == InDesiredName)
@@ -96,35 +63,29 @@ void FDMXMVRFixtureListItem::SetFixturePatchName(const FString& InDesiredName, F
 		FixturePatch->SetName(InDesiredName);
 		OutNewName = FixturePatch->Name;
 
-		MVRFixtureNode->Name = FixturePatch->Name;
+		FixturePatch->PostEditChange();
+	}
+}
+
+FString FDMXFixturePatchListItem::GetFixtureID() const
+{
+	return WeakFixturePatch.IsValid() ? FString::FromInt(WeakFixturePatch->GetFixtureID()) : TEXT("Invalid");
+}
+
+void FDMXFixturePatchListItem::SetFixtureID(int32 InFixtureID)
+{
+	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
+	{
+		const FScopedTransaction SetFixturePatchNameTransaction(LOCTEXT("SetFixturePatchFixtureIDTransaction", "Set Fixture ID"));
+		FixturePatch->PreEditChange(UDMXEntityFixturePatch::StaticClass()->FindPropertyByName(UDMXEntityFixturePatch::GetFixtureIDPropertyNameChecked()));
+
+		FixturePatch->GenerateFixtureID(InFixtureID);
 
 		FixturePatch->PostEditChange();
 	}
 }
 
-FString FDMXMVRFixtureListItem::GetFixtureID() const
-{
-	check(MVRFixtureNode);
-	return MVRFixtureNode->FixtureID;
-}
-
-void FDMXMVRFixtureListItem::SetFixtureID(int32 InFixtureID)
-{
-	check(MVRFixtureNode);
-
-	UDMXLibrary* DMXLibrary = GetDMXLibrary();
-	if (DMXLibrary)
-	{
-		const FScopedTransaction SetMVRFixtureFixtureIDTransaction(LOCTEXT("SetMVRFixtureFixtureIDTransaction", "Set MVR Fixture ID"));
-		DMXLibrary->PreEditChange(UDMXLibrary::StaticClass()->FindPropertyByName(UDMXLibrary::GetGeneralSceneDescriptionPropertyName()));
-
-		MVRFixtureNode->FixtureID = FString::FromInt(InFixtureID);
-
-		DMXLibrary->PostEditChange();
-	}
-}
-
-UDMXEntityFixtureType* FDMXMVRFixtureListItem::GetFixtureType() const
+UDMXEntityFixtureType* FDMXFixturePatchListItem::GetFixtureType() const
 {
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
@@ -134,7 +95,7 @@ UDMXEntityFixtureType* FDMXMVRFixtureListItem::GetFixtureType() const
 	return nullptr;
 }
 
-void FDMXMVRFixtureListItem::SetFixtureType(UDMXEntityFixtureType* FixtureType)
+void FDMXFixturePatchListItem::SetFixtureType(UDMXEntityFixtureType* FixtureType)
 {
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
@@ -155,7 +116,7 @@ void FDMXMVRFixtureListItem::SetFixtureType(UDMXEntityFixtureType* FixtureType)
 	}
 }
 
-int32 FDMXMVRFixtureListItem::GetModeIndex() const
+int32 FDMXFixturePatchListItem::GetModeIndex() const
 {
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
@@ -165,7 +126,7 @@ int32 FDMXMVRFixtureListItem::GetModeIndex() const
 	return INDEX_NONE;
 }
 
-void FDMXMVRFixtureListItem::SetModeIndex(int32 ModeIndex)
+void FDMXFixturePatchListItem::SetModeIndex(int32 ModeIndex)
 {
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
@@ -187,7 +148,7 @@ void FDMXMVRFixtureListItem::SetModeIndex(int32 ModeIndex)
 	}
 }
 
-int32 FDMXMVRFixtureListItem::GetUniverse() const
+int32 FDMXFixturePatchListItem::GetUniverse() const
 {
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
@@ -197,7 +158,7 @@ int32 FDMXMVRFixtureListItem::GetUniverse() const
 	return -1;
 }
 
-int32 FDMXMVRFixtureListItem::GetAddress() const
+int32 FDMXFixturePatchListItem::GetAddress() const
 {
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
@@ -207,12 +168,14 @@ int32 FDMXMVRFixtureListItem::GetAddress() const
 	return -1;
 }
 
-void FDMXMVRFixtureListItem::SetAddresses(int32 Universe, int32 Address)
+void FDMXFixturePatchListItem::SetAddresses(int32 Universe, int32 Address)
 {
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
+	const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin();
+	const TSharedPtr<FDMXFixturePatchSharedData> SharedData = DMXEditor.IsValid() ? DMXEditor->GetFixturePatchSharedData() : nullptr;
 
-	if (DMXLibrary && FixturePatch)
+	if (DMXLibrary && FixturePatch && SharedData.IsValid())
 	{
 		if (FixturePatch->GetUniverseID() == Universe &&
 			FixturePatch->GetStartingChannel() == Address)
@@ -240,11 +203,11 @@ void FDMXMVRFixtureListItem::SetAddresses(int32 Universe, int32 Address)
 		FixturePatch->PostEditChange();
 
 		// Select the universe in Fixture Patch Shared Data
-		FixturePatchSharedData->SelectUniverse(Universe);
+		SharedData->SelectUniverse(Universe);
 	}
 }
 
-int32 FDMXMVRFixtureListItem::GetNumChannels() const
+int32 FDMXFixturePatchListItem::GetNumChannels() const
 {
 	if (UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get())
 	{
@@ -254,12 +217,12 @@ int32 FDMXMVRFixtureListItem::GetNumChannels() const
 	return -1;
 }
 
-UDMXEntityFixturePatch* FDMXMVRFixtureListItem::GetFixturePatch() const
+UDMXEntityFixturePatch* FDMXFixturePatchListItem::GetFixturePatch() const
 {
 	return WeakFixturePatch.Get();
 }
 
-UDMXLibrary* FDMXMVRFixtureListItem::GetDMXLibrary() const
+UDMXLibrary* FDMXFixturePatchListItem::GetDMXLibrary() const
 {
 	if (const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin())
 	{
@@ -271,11 +234,6 @@ UDMXLibrary* FDMXMVRFixtureListItem::GetDMXLibrary() const
 	}
 
 	return nullptr;
-}
-
-void FDMXMVRFixtureListItem::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	Collector.AddReferencedObject(MVRFixtureNode);
 }
 
 #undef LOCTEXT_NAMESPACE

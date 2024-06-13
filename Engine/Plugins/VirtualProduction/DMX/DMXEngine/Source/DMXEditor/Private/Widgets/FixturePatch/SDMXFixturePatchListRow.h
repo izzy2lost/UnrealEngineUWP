@@ -5,20 +5,18 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
-enum class EDMXMVRFixtureListEditMode : uint8;
+enum class EDMXFixturePatchListEditMode : uint8;
+class FDMXFixturePatchListItem;
+class SInlineEditableTextBlock;
 class UDMXEntityFixturePatch;
 class UDMXEntityFixtureType;
-class FDMXMVRFixtureListItem;
-
-class SInlineEditableTextBlock;
-
 
 /** MVR Fixture view as a row in a list */
-class SDMXMVRFixtureListRow
-	: public SMultiColumnTableRow<TSharedPtr<FDMXMVRFixtureListItem>>
+class SDMXFixturePatchListRow
+	: public SMultiColumnTableRow<TSharedPtr<FDMXFixturePatchListItem>>
 {
 public:
-	SLATE_BEGIN_ARGS(SDMXMVRFixtureListRow)
+	SLATE_BEGIN_ARGS(SDMXFixturePatchListRow)
 	{}
 		/** Delegate executed when the row requests to refresh the statuses */
 		SLATE_EVENT(FSimpleDelegate, OnRowRequestsStatusRefresh)
@@ -32,13 +30,13 @@ public:
 	SLATE_END_ARGS()
 			
 	/** Constructs this widget */
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXMVRFixtureListItem>& InItem);
+	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXFixturePatchListItem>& InItem);
 
 	/** Enters editing mode for the Fixture Patch Name */
 	void EnterFixturePatchNameEditingMode();
 
 	/** Returns the Item of this row */
-	TSharedPtr<FDMXMVRFixtureListItem> GetItem() const { return Item; };
+	TSharedPtr<FDMXFixturePatchListItem> GetItem() const { return Item; };
 
 protected:
 	//~ Begin SMultiColumnTableRow interface
@@ -48,9 +46,6 @@ protected:
 private:
 	/** Generates the Widget that displays the Editor Color */
 	TSharedRef<SWidget> GenerateEditorColorWidget();
-
-	/** Gets Fixture Patch editor color */
-	FSlateColor GetFixturePatchEditorColor() const;
 
 	/** Generates the Widget that displays the Fixture Patch Name */
 	TSharedRef<SWidget> GenerateFixturePatchNameWidget();
@@ -95,7 +90,7 @@ private:
 	void OnPatchCommitted(const FText& InNewText, ETextCommit::Type InTextCommit);
 
 	/** The Edit Mode the Widget should present */
-	EDMXMVRFixtureListEditMode EditMode;
+	EDMXFixturePatchListEditMode EditMode;
 
 	/** The outermost border around the the Fixture Patch Name Column */
 	TSharedPtr<SBorder> FixturePatchNameBorder;
@@ -113,7 +108,7 @@ private:
 	TSharedPtr<SInlineEditableTextBlock> PatchTextBlock;
 
 	/** The MVR Fixture List Item this row displays */
-	TSharedPtr<FDMXMVRFixtureListItem> Item;
+	TSharedPtr<FDMXFixturePatchListItem> Item;
 
 	// Slate arguments
 	FSimpleDelegate OnRowRequestsStatusRefresh;

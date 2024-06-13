@@ -7,7 +7,7 @@
 
 enum class ECheckBoxState : uint8;
 class FDMXEditor;
-class FDMXMVRFixtureListItem;
+class FDMXFixturePatchListItem;
 template<typename TEntityType> class SDMXEntityDropdownMenu;
 class UDMXEntity;
 class UDMXEntityFixtureType;
@@ -15,11 +15,11 @@ namespace UE::DMXEditor::FixturePatchEditor { class SAddFixturePatchMenu; }
 
 
 /** Search bar for the MVR Fixture List */
-class SDMXMVRFixtureListToolbar
+class SDMXFixturePatchListToolbar
 	: public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SDMXMVRFixtureListToolbar)
+	SLATE_BEGIN_ARGS(SDMXFixturePatchListToolbar)
 	{}
 
 		/** Executed when the search changed */
@@ -31,7 +31,7 @@ public:
 	void Construct(const FArguments& InArgs, TWeakPtr<FDMXEditor> InDMXEditor);
 
 	/** Filters items according to the state of the search bar */
-	[[nodiscard]] TArray<TSharedPtr<FDMXMVRFixtureListItem>> FilterItems(const TArray<TSharedPtr<FDMXMVRFixtureListItem>>& Items);
+	[[nodiscard]] TArray<TSharedPtr<FDMXFixturePatchListItem>> FilterItems(const TArray<TSharedPtr<FDMXFixturePatchListItem>>& Items);
 
 private:
 	/** Generates the 'Add MVR Fixture' Dropdown Menu */

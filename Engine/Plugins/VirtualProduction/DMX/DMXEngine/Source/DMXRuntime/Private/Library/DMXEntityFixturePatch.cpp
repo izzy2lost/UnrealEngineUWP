@@ -654,31 +654,9 @@ void UDMXEntityFixturePatch::GenerateFixtureID(int32 DesiredFixtureID)
 
 bool UDMXEntityFixturePatch::FindFixtureID(int32& OutFixtureID) const
 {
-	// DEPRECATED 5.5. The patch now holds its MVR fixture ID
-	if (!MVRFixtureUUID.IsValid())
-	{
-		return false;
-	}
-
-	const UDMXLibrary* DMXLibrary = GetParentLibrary();
-	if (!DMXLibrary)
-	{
-		return false;
-	}
-
-	UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary->GetLazyGeneralSceneDescription();
-	if (!GeneralSceneDescription)
-	{
-		return false;
-	}
-
-	UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID);
-	if (!FixtureNode)
-	{
-		return false;
-	}
-
-	return LexTryParseString(OutFixtureID, *FixtureNode->FixtureID);
+	// DEPRECATED 5.5
+	OutFixtureID = FixtureID;
+	return true;
 }
 
 #if WITH_EDITOR

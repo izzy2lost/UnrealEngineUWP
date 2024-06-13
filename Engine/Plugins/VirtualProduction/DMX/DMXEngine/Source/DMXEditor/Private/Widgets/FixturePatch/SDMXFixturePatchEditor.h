@@ -10,7 +10,7 @@ class FDMXEditor;
 class FDMXFixturePatchSharedData;
 class SDMXFixturePatcher;
 class SDMXFixturePatchTree;
-class SDMXMVRFixtureList;
+class SDMXFixturePatchList;
 class UDMXEntityFixturePatch;
 
 struct FPropertyChangedEvent;
@@ -62,7 +62,7 @@ private:
 	TSharedRef<IDetailsView> GenerateFixturePatchDetailsView() const;
 
 	/** List of Fixture Patches as MVR Fixtures */
-	TSharedPtr<SDMXMVRFixtureList> MVRFixtureList;
+	TSharedPtr<SDMXFixturePatchList> FixturePatchList;
 
 	/** Details View for the selected Fixture Patches */
 	TSharedPtr<IDetailsView> FixturePatchDetailsView;

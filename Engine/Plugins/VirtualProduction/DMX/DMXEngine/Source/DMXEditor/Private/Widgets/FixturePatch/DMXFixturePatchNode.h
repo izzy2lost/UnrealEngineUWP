@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -10,8 +9,6 @@ class FDMXEditor;
 class SDMXFixturePatchFragment;
 class SDMXPatchedUniverse;
 class UDMXEntityFixturePatch;
-class UDMXMVRFixtureNode;
-
 
 /** 
  * A fixture patch in a grid, consists of several fragments, displayed as SDMXFixturePatchNodes (see GenerateWidgets). 
@@ -79,9 +76,6 @@ private:
 
 	/** The Fixture Patch this Node stands for */
 	TWeakObjectPtr<UDMXEntityFixturePatch> FixturePatch;
-
-	/** MVR Fixture Node that corrresponds to the patch */
-	mutable TWeakObjectPtr<UDMXMVRFixtureNode> MVRFixtureNode;
 
 	/** Weak DMXEditor refrence */
 	TWeakPtr<FDMXEditor> WeakDMXEditor;

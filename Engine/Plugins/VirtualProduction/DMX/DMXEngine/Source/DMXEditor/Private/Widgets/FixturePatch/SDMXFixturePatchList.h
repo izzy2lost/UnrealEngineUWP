@@ -2,20 +2,19 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "EditorUndoClient.h"
 #include "Engine/EngineTypes.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SHeaderRow.h"
 
 class FDMXEditor;
-class FDMXMVRFixtureListItem;
+class FDMXFixturePatchListItem;
 class FDMXFixturePatchSharedData;
 class FUICommandList;
 class ITableRow;
 class SBorder;
-class SDMXMVRFixtureListRow;
-class SDMXMVRFixtureListToolbar;
+class SDMXFixturePatchListRow;
+class SDMXFixturePatchListToolbar;
 class SHeaderRow;
 template <typename ItemType> class SListView;
 class STableViewBase;
@@ -23,12 +22,11 @@ class UDMXEntity;
 class UDMXEntityFixturePatch;
 class UDMXEntityFixtureType;
 class UDMXLibrary;
-class UDMXMVRFixtureNode;
 class UDMXMVRGeneralSceneDescription;
 namespace UE::DMXEditor::AutoAssign { enum class EAutoAssignMode : uint8; }
 
 /** Collumn IDs in the Fixture Patch List */
-struct FDMXMVRFixtureListCollumnIDs
+struct FDMXFixturePatchListCollumnID
 {
 	static const FName EditorColor;
 	static const FName FixturePatchName;
@@ -39,24 +37,21 @@ struct FDMXMVRFixtureListCollumnIDs
 	static const FName Patch;
 };
 
-using FDMXMVRFixtureListType = SListView<TSharedPtr<FDMXMVRFixtureListItem>>;
+using SDMXFixturePatchListType = SListView<TSharedPtr<FDMXFixturePatchListItem>>;
 
 /** Sortable, editable List of Fixture Patches in the library */
-class SDMXMVRFixtureList
+class SDMXFixturePatchList
 	: public SCompoundWidget
 	, public FSelfRegisteringEditorUndoClient
 {
 public:
-	SLATE_BEGIN_ARGS(SDMXMVRFixtureList)
+	SLATE_BEGIN_ARGS(SDMXFixturePatchList)
 	{}
 
 	SLATE_END_ARGS()
 
-	/** Constructor */
-	SDMXMVRFixtureList();
-
-	/** Destructor */
-	virtual ~SDMXMVRFixtureList();
+	SDMXFixturePatchList();
+	virtual ~SDMXFixturePatchList();
 
 	//~Begin EditorUndoClient interface
 	virtual void PostUndo(bool bSuccess) override;
@@ -92,10 +87,10 @@ private:
 	void GenereateStatusText();
 
 	/** Called when a row in the List gets generated */
-	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FDMXMVRFixtureListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FDMXFixturePatchListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 
 	/** Called when the Selection in the list changed */
-	void OnSelectionChanged(TSharedPtr<FDMXMVRFixtureListItem> InItem, ESelectInfo::Type SelectInfo);
+	void OnSelectionChanged(TSharedPtr<FDMXFixturePatchListItem> InItem, ESelectInfo::Type SelectInfo);
 
 	/** Called when entities were added or removed from the DMX Library */
 	void OnEntityAddedOrRemoved(UDMXLibrary* DMXLibrary, TArray<UDMXEntity*> Entities);
@@ -124,20 +119,14 @@ private:
 	/** Generates the Header Row of the List */
 	TSharedRef<SHeaderRow> GenerateHeaderRow();
 
-	/** Saves how the user customized the header row in DMX Editor Settings */
-	void SaveSettings();
-
-	/** Restores how the user customized the header row in DMX Editor Settings */
-	void RestoreSettings();
-
 	/** Returns the column sort mode for the list*/
 	EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
 
-	/** Sort the list by ColumnId */
-	void SortByColumnID(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
+	/** Sorts the list source */
+	void SortListSource(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
 
-	/** Returns the MVR Fixture corresponding to the fixture patch */
-	UDMXMVRFixtureNode* FindMVRFixtureNode(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, UDMXEntityFixturePatch* FixturePatch) const;
+	/** Sort the list */
+	void SortList(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
 
 	/** The current Sort Mode */
 	EColumnSortMode::Type SortMode;
@@ -149,25 +138,25 @@ private:
 	bool bChangingDMXLibrary = false;
 
 	/** Source array for the Fixture Patch List */
-	TArray<TSharedPtr<FDMXMVRFixtureListItem>> ListSource;
+	TArray<TSharedPtr<FDMXFixturePatchListItem>> ListSource;
 
 	/** List source when filtered by search */
-	TArray<TSharedPtr<FDMXMVRFixtureListItem>> FilteredListSource;
+	TArray<TSharedPtr<FDMXFixturePatchListItem>> FilteredListSource;
 
 	/** The item that was last selected in the list */
-	TSharedPtr<FDMXMVRFixtureListItem> LastSelectedItem;
+	TSharedPtr<FDMXFixturePatchListItem> LastSelectedItem;
 
 	/** The Search Bar for the List */
-	TSharedPtr<SDMXMVRFixtureListToolbar> Toolbar;
+	TSharedPtr<SDMXFixturePatchListToolbar> Toolbar;
 
 	/** The the list of Fixture Patches */
-	TSharedPtr<FDMXMVRFixtureListType> ListView;
+	TSharedPtr<SDMXFixturePatchListType> ListView;
 
 	/** The Header Row of the List */
 	TSharedPtr<SHeaderRow> HeaderRow;
 
 	/** Rows of Mode widgets in the List */
-	TArray<TSharedPtr<SDMXMVRFixtureListRow>> Rows;
+	TArray<TSharedPtr<SDMXFixturePatchListRow>> Rows;
 
 	/** Timer handle for the Request List Refresh method */
 	FTimerHandle RequestListRefreshTimerHandle;
