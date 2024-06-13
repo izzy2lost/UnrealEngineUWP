@@ -16,7 +16,6 @@
 #include "Framework/Application/SlateUser.h"
 #include "Misc/ConfigCacheIni.h"
 #include "HAL/PlatformStackWalk.h"
-#include "Slate/SceneViewport.h"
 #include "Widgets/SViewport.h"
 #include "CommonInputSettings.h"
 #include "ICommonInputModule.h"
@@ -53,14 +52,6 @@ static const FAutoConsoleVariableRef CVarInputEnableGamepadPlatformCursor
 	TEXT("CommonInput.EnableGamepadPlatformCursor"),
 	bEnableGamepadPlatformCursor,
 	TEXT("Should the cursor be allowed to be used during gamepad input")
-);
-
-bool bResetCursorPositionOnTouchInput = false;
-static const FAutoConsoleVariableRef CVarResetCursorPositionOnTouchInput
-(
-	TEXT("CommonInput.ResetCursorPositionOnTouchInput"),
-	bResetCursorPositionOnTouchInput,
-	TEXT("Should the cursor position be reset when the user switches to touch inputs.")
 );
 
 UCommonInputSubsystem* UCommonInputSubsystem::Get(const ULocalPlayer* LocalPlayer)
@@ -227,16 +218,6 @@ void UCommonInputSubsystem::BroadcastInputMethodChanged()
 			OnInputMethodChangedNative.Broadcast(CurrentInputType);
 			OnInputMethodChanged.Broadcast(CurrentInputType);
 			LastInputMethodChangeTime = FPlatformTime::Seconds();
-			
-			if (bResetCursorPositionOnTouchInput && CurrentInputType == ECommonInputType::Touch)
-			{
-				UGameViewportClient* GameViewport = World->GetGameViewport();
-				if (GameViewport && GameViewport->GetWindow().IsValid() && GameViewport->Viewport)
-				{
-					const FVector2D TopLeftPos = GameViewport->Viewport->ViewportToVirtualDesktopPixel(FVector2D(0.025f, 0.025f));
-					SetCursorPosition(TopLeftPos, false);
-				}
-			}
 		}
 	}
 }
