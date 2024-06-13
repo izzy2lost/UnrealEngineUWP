@@ -390,8 +390,10 @@ void FD3D12BindlessResourceManager::UpdateDescriptor(FD3D12ContextArray const& C
 	}
 }
 
-void FD3D12BindlessResourceManager::FlushPendingDescriptorUpdates(FD3D12CommandContext& Context)
+bool FD3D12BindlessResourceManager::FlushPendingDescriptorUpdates(FD3D12CommandContext& Context)
 {
+	bool bSetNewHeaps = false;
+
 	FD3D12ContextBindlessState& State = Context.GetBindlessState();
 
 	// Create a new heap because there have been descriptor updates?
@@ -407,9 +409,11 @@ void FD3D12BindlessResourceManager::FlushPendingDescriptorUpdates(FD3D12CommandC
 		{
 			// Finally tell the Context that we're using this heap,
 			// this call also makes sure the heap is set on the d3d command list.
-			Context.StateCache.GetDescriptorCache()->SwitchToNewBindlessResourceHeap(State.CurrentGpuHeap);
+			bSetNewHeaps = Context.StateCache.GetDescriptorCache()->SwitchToNewBindlessResourceHeap(State.CurrentGpuHeap);
 		}
 	}
+
+	return bSetNewHeaps;
 }
 
 void FD3D12BindlessResourceManager::OpenCommandList(FD3D12CommandContext& Context)
@@ -785,12 +789,16 @@ void FD3D12BindlessDescriptorManager::CloseCommandList(FD3D12CommandContext& Con
 	}
 }
 
-void FD3D12BindlessDescriptorManager::FlushPendingDescriptorUpdates(FD3D12CommandContext& Context)
+bool FD3D12BindlessDescriptorManager::FlushPendingDescriptorUpdates(FD3D12CommandContext& Context)
 {
+	bool bSetNewHeaps = false;
+
 	if (ResourceManager)
 	{
-		ResourceManager->FlushPendingDescriptorUpdates(Context);
+		bSetNewHeaps = ResourceManager->FlushPendingDescriptorUpdates(Context);
 	}
+
+	return bSetNewHeaps;
 }
 
 FD3D12DescriptorHeapPair FD3D12BindlessDescriptorManager::GetExplicitHeapsForContext(FD3D12CommandContext& Context, ERHIBindlessConfiguration InConfiguration)

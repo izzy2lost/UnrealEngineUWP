@@ -755,8 +755,10 @@ void FD3D12DescriptorCache::SwitchToGlobalSamplerHeap()
 }
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-void FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap)
+bool FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap)
 {
+	bool bSetNewHeaps = false;
+
 	if (ensure(IsUsingBindlessResources()))
 	{
 		BindlessResourcesHeap = InHeap;
@@ -767,9 +769,14 @@ void FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap
 			check(BindlessSamplersHeap != nullptr);
 		}
 
+		// Switch to the new heaps
+		bSetNewHeaps = SetDescriptorHeaps();
+
 		// If we didn't change heaps, then the caller sent us the wrong heap.
-		ensure(SetDescriptorHeaps());
+		ensure(bSetNewHeaps);
 	}
+
+	return bSetNewHeaps;
 }
 #endif
 

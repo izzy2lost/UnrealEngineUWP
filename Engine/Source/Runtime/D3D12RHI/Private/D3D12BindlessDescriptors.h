@@ -134,7 +134,7 @@ public:
 	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
 	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* View);
 
-	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
+	bool FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
 
 	void OpenCommandList(FD3D12CommandContext& Context);
 	void CloseCommandList(FD3D12CommandContext& Context);
@@ -228,7 +228,7 @@ public:
 	void OpenCommandList(FD3D12CommandContext& Context);
 	void CloseCommandList(FD3D12CommandContext& Context);
 
-	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
+	bool FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
 	void SetHeapsForRayTracing(FD3D12CommandContext& Context);
 
 	FD3D12DescriptorHeapPair GetExplicitHeapsForContext(FD3D12CommandContext& Context, ERHIBindlessConfiguration InConfiguration);

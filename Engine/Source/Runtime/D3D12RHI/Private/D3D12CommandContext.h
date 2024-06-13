@@ -796,7 +796,7 @@ public:
 		return StaticUniformBuffers;
 	}
 
-	void FlushPendingDescriptorUpdates();
+	bool FlushPendingDescriptorUpdates();
 
 	void SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache);
 	void UnsetExplicitDescriptorCache();

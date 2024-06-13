@@ -4723,16 +4723,14 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	// Invalidate state cache to ensure all root parameters for regular shaders are reset when non-RT work is dispatched later.
 	CommandContext.StateCache.TransitionComputeState(ED3D12PipelineType::RayTracing);
 
-	CommandContext.GraphicsCommandList()->SetComputeRootSignature(Pipeline->GlobalRootSignature);
+	CommandContext.GraphicsCommandList();
 
 	FD3D12RayTracingShader* RayGenShader = Pipeline->RayGenShaders.Shaders[RayGenShaderIndex];
 
 	FRHIShaderBindingLayout ShaderBindingLayout = GlobalBindings.StaticUniformBuffers.GetShaderBindingLayout() ? *GlobalBindings.StaticUniformBuffers.GetShaderBindingLayout() : FRHIShaderBindingLayout();
 	check(RayGenShader->ShaderBindingLayoutHash == ShaderBindingLayout.GetHash());
 
-	// Bind diagnostic buffer to allow asserts in ray generation shaders
 	const FD3D12RootSignature* GlobalRTRootSignature = Adapter->GetGlobalRayTracingRootSignature(ShaderBindingLayout);
-	CommandContext.BindDiagnosticBuffer(GlobalRTRootSignature, ED3D12PipelineType::Compute);
 
 	bool bResourcesBound = false;
 	if (OptShaderTable && OptShaderTable->DescriptorCache)
@@ -4744,6 +4742,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetRayTracingShaderResources);
 
 		CommandContext.SetExplicitDescriptorCache(*DescriptorCache);
+		CommandContext.GraphicsCommandList()->SetComputeRootSignature(Pipeline->GlobalRootSignature);
 
 		FD3D12RayTracingGlobalResourceBinder ResourceBinder(CommandContext, *DescriptorCache);
 		bResourcesBound = SetRayTracingShaderResources(RayGenShader, GlobalRTRootSignature, GlobalBindings, ResourceBinder);
@@ -4754,10 +4753,16 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	{
 		FD3D12ExplicitDescriptorCache TransientDescriptorCache(CommandContext.GetParentDevice(), FD3D12RayTracingShaderBindingTableInternal::MaxBindingWorkers);
 		TransientDescriptorCache.Init(MAX_SRVS + MAX_UAVS, MAX_SAMPLERS, ERHIBindlessConfiguration::RayTracingShaders);
+
 		CommandContext.SetExplicitDescriptorCache(TransientDescriptorCache);
+		CommandContext.GraphicsCommandList()->SetComputeRootSignature(Pipeline->GlobalRootSignature);
+
 		FD3D12RayTracingGlobalResourceBinder ResourceBinder(CommandContext, TransientDescriptorCache);
 		bResourcesBound = SetRayTracingShaderResources(RayGenShader, GlobalRTRootSignature, GlobalBindings, ResourceBinder);
 	}
+
+	// Bind diagnostic buffer to allow asserts in ray generation shaders
+	CommandContext.BindDiagnosticBuffer(GlobalRTRootSignature, ED3D12PipelineType::Compute);
 
 	int8 StaticShaderBindingSlot = GlobalRTRootSignature->GetStaticShaderBindingSlot();
 	if (StaticShaderBindingSlot >= 0)

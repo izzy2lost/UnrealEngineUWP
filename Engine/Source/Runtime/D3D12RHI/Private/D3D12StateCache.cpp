@@ -417,7 +417,7 @@ void FD3D12StateCache::InternalSetPipelineState(FD3D12PipelineState* InPipelineS
 	}
 }
 
-void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType PipelineType)
+void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType PipelineType, bool bBindlessHeapsWereJustSet)
 {
 	//SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateTime);
 	const bool bForceState = false;
@@ -426,6 +426,14 @@ void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType 
 		// Mark all state as dirty.
 		DirtyState();
 	}
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	// If we just switched to a new bindless heap, we have to make sure to set the RootSignatures again.
+	else if (bBindlessHeapsWereJustSet)
+	{
+		PipelineState.Compute.bNeedSetRootSignature = true;
+		PipelineState.Graphics.bNeedSetRootSignature = true;
+	}
+#endif
 
 #if PLATFORM_SUPPORTS_VIRTUAL_TEXTURES
 	CmdContext.FlushTextureCacheIfNeeded();

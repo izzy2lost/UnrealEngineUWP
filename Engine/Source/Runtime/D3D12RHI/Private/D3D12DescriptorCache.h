@@ -357,7 +357,7 @@ public:
 	bool SwitchToContextLocalSamplerHeap();
 	void SwitchToGlobalSamplerHeap();
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	void SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap);
+	bool SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap);
 #endif
 
 	void SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache);

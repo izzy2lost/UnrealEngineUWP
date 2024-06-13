@@ -72,11 +72,15 @@ static void BindUniformBuffer(FD3D12CommandContext& Context, FRHIShader* Shader,
 	Context.DirtyUniformBuffers[ShaderFrequency] |= (1 << BufferIndex);
 }
 
-void FD3D12CommandContext::FlushPendingDescriptorUpdates()
+bool FD3D12CommandContext::FlushPendingDescriptorUpdates()
 {
+	bool bNewBindlessHeapsSet = false;
+
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	GetParentDevice()->GetBindlessDescriptorManager().FlushPendingDescriptorUpdates(*this);
+	bNewBindlessHeapsSet = GetParentDevice()->GetBindlessDescriptorManager().FlushPendingDescriptorUpdates(*this);
 #endif
+
+	return bNewBindlessHeapsSet;
 }
 
 void FD3D12CommandContext::SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache)
@@ -104,12 +108,12 @@ void FD3D12CommandContext::SetupDispatch(uint32 ThreadGroupCountX, uint32 Thread
 		GetParentDevice()->RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));
 	}
 
+	const bool bNewBindlessHeapsSet = FlushPendingDescriptorUpdates();
+
 	CommitComputeShaderConstants();
 	CommitComputeResourceTables();
 
-	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Compute);
-
-	FlushPendingDescriptorUpdates();
+	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Compute, bNewBindlessHeapsSet);
 }
 
 FD3D12ResourceLocation& FD3D12CommandContext::SetupIndirectArgument(FRHIBuffer* ArgumentBufferRHI, D3D12_RESOURCE_STATES ExtraStates)
@@ -1568,6 +1572,8 @@ void FD3D12CommandContext::SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimi
 	}
 #endif
 
+	const bool bNewBindlessHeapsSet = FlushPendingDescriptorUpdates();
+
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
 
@@ -1581,9 +1587,7 @@ void FD3D12CommandContext::SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimi
 		StateCache.SetIndexBuffer(IndexBuffer->ResourceLocation, Format, 0);
 	}
 
-	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Graphics);
-
-	FlushPendingDescriptorUpdates();
+	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Graphics, bNewBindlessHeapsSet);
 }
 
 void FD3D12CommandContext::SetupDispatchDraw(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
@@ -1595,12 +1599,12 @@ void FD3D12CommandContext::SetupDispatchDraw(uint32 ThreadGroupCountX, uint32 Th
 	}
 #endif
 
+	const bool bNewBindlessHeapsSet = FlushPendingDescriptorUpdates();
+
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
 
-	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Graphics);
-
-	FlushPendingDescriptorUpdates();
+	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Graphics, bNewBindlessHeapsSet);
 }
 
 void FD3D12CommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)
