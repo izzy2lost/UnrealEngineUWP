@@ -39,6 +39,10 @@ public:
 
 	void SetPreviewScene(UE::Chaos::ClothAsset::FChaosClothPreviewScene* PreviewScene);
 
+	/* Whether the preview viewport should pause animation and simulation while Play In Editor (PIE) or Simulate In Editor is active */
+	UPROPERTY(EditAnywhere, Transient, Category = "Viewport")
+	bool bPauseWhilePlayingInEditor = true;
+
 	// Skeletal Mesh source asset
 	UPROPERTY(EditAnywhere, Transient, Category="SkeletalMesh")
 	TObjectPtr<USkeletalMesh> SkeletalMeshAsset;

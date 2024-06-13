@@ -1289,9 +1289,15 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 		FirstTimeFocusRestSpaceViewport();
 	}
 
-	if (PreviewScene->GetWorld())
+	const bool bIsInPIEOrSIE = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
+	const bool bShouldPause = PreviewScene->GetPreviewSceneDescription()->bPauseWhilePlayingInEditor && bIsInPIEOrSIE;
+
+	if (!bShouldPause)
 	{
-		PreviewScene->GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
+		if (PreviewScene->GetWorld())
+		{
+			PreviewScene->GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
+		}
 	}
 }
 
