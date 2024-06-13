@@ -204,8 +204,14 @@ private:
 	/** Lock to access the RequestHashes TMap */
 	FCriticalSection RequestHashCriticalSection;
 
+
+	struct FMaterialRequestsHashes
+	{
+		TSet<FString> RequestStrings;
+	};
+
 	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
-	TSet<FShaderId> RequestHashes;
+	TMap<FShaderId, FMaterialRequestsHashes> RequestHashes;
 
 	/** Pointer to Runnable Thread */
 	FRunnableThread* Thread = nullptr;

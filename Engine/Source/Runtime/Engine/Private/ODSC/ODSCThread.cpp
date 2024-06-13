@@ -225,9 +225,11 @@ void FODSCThread::AddShaderPipelineRequest(
 
 	for (const FShaderId& ShaderId : RequestShaderIds)
 	{
-		if (!RequestHashes.Contains(ShaderId))
+		FMaterialRequestsHashes& MaterialRequestHashes = RequestHashes.FindOrAdd(ShaderId);
+		bool bAlreadyInSet = false;
+		MaterialRequestHashes.RequestStrings.Add(RequestString, &bAlreadyInSet);
+		if (!bAlreadyInSet)
 		{
-			RequestHashes.Add(ShaderId);
 			bShouldAddRequest = true;
 		}
 	}
