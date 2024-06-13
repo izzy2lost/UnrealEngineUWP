@@ -189,7 +189,8 @@ TSharedRef<SDockTab> STedsDebugger::SpawnTableViewerTab(const FSpawnTabArgs& Arg
 	Params.QueryDescription = RowQueryDescription;
 	Params.bUseDefaultTedsFilters = true;
 	Params.HierarchyData = TOptional<FTypedElementOutlinerHierarchyData>(); // We don't want to show hierarchies in the debugger
-
+	Params.CellWidgetPurposes = TArray<FName>{TEXT("General.Cell")};
+	
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
 	
 	TSharedRef<ISceneOutliner> TedsOutliner = TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, TableViewerQuery);

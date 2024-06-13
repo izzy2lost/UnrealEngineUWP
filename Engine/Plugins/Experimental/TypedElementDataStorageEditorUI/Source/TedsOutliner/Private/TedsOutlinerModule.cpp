@@ -91,7 +91,7 @@ TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneO
 	
 	TSharedRef<ISceneOutliner> TedsOutlinerShared = SNew(SSceneOutliner, InitOptions);
 	
-	FTypedElementSceneOutlinerQueryBinder::GetInstance().AssignQuery(ColumnQuery, TedsOutlinerShared);
+	FTypedElementSceneOutlinerQueryBinder::GetInstance().AssignQuery(ColumnQuery, TedsOutlinerShared, InitTedsOptions.CellWidgetPurposes);
 	
 	return TedsOutlinerShared;
 }

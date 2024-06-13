@@ -40,6 +40,8 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 			using namespace TypedElementQueryBuilder;
 			using DSI = ITypedElementDataStorageInterface;
 
+		    const FName WidgetPurposes[] = {TEXT("SceneOutliner.Cell"), TEXT("General.Cell")};
+
 			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 			if (ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage())
 			{
@@ -72,7 +74,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 							int32 QueryIndex = FCString::Atoi(*Args[0]);
 							if (QueryIndex < sizeof(Queries) / sizeof(TypedElementQueryHandle))
 							{
-								Binder.AssignQuery(Queries[QueryIndex], SceneOutliner);
+								Binder.AssignQuery(Queries[QueryIndex], SceneOutliner, WidgetPurposes);
 								return;
 							}
 						}
@@ -103,12 +105,12 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 									DataStorage->UnregisterQuery(CustomQuery);
 								}
 								CustomQuery = DataStorage->RegisterQuery(Query.Compile());
-								Binder.AssignQuery(CustomQuery, SceneOutliner);
+								Binder.AssignQuery(CustomQuery, SceneOutliner, WidgetPurposes);
 								return;
 							}
 						}
 					}
-					Binder.AssignQuery(TypedElementInvalidQueryHandle, SceneOutliner);
+					Binder.AssignQuery(TypedElementInvalidQueryHandle, SceneOutliner, WidgetPurposes);
 				}
 			}
 		}));
@@ -652,12 +654,12 @@ TSharedPtr<FTypedElementSceneOutliner>* FTypedElementSceneOutlinerQueryBinder::F
 	return QueryMapping;
 }
 
-void FTypedElementSceneOutlinerQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner)
+void FTypedElementSceneOutlinerQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner, TConstArrayView<FName> CellWidgetPurposes)
 {
 	CleanupStaleOutliners();
 
 	TSharedPtr<FTypedElementSceneOutliner>* QueryMapping = FindOrAddQueryMapping(Outliner);
-	(*QueryMapping)->AssignQuery(Query);
+	(*QueryMapping)->AssignQuery(Query, CellWidgetPurposes);
 }
 
 void FTypedElementSceneOutlinerQueryBinder::RegisterTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Outliner, const FTreeItemIDDealiaser& InDealiaser)
@@ -720,7 +722,8 @@ TArray<TWeakObjectPtr<const UScriptStruct>> FTypedElementSceneOutliner::CreateVe
 
 TSharedPtr<FTypedElementWidgetConstructor> FTypedElementSceneOutliner::CreateHeaderWidgetConstructor(
 	ITypedElementDataStorageInterface& Storage, ITypedElementDataStorageUiInterface& StorageUi, 
-	TypedElementQueryHandle Query, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes)
+	TypedElementQueryHandle Query, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
+	const TConstArrayView<FName> CellWidgetPurposes)
 {
 	using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
 
@@ -730,10 +733,14 @@ TSharedPtr<FTypedElementWidgetConstructor> FTypedElementSceneOutliner::CreateHea
 	TArray<TWeakObjectPtr<const UScriptStruct>> VerifiedColumnTypes = CreateVerifiedColumnTypeAray(ColumnTypes);
 	TSharedPtr<FTypedElementWidgetConstructor> Constructor;
 
-	FName HeaderNames[] = { TEXT("SceneOutliner.Header"), TEXT("General.Header") };
-	for (const FName& Purpose : HeaderNames)
+	for (const FName& Purpose : CellWidgetPurposes)
 	{
-		StorageUi.CreateWidgetConstructors(Purpose, MatchApproach::ExactMatch, VerifiedColumnTypes, MetaDataView,
+		// Extract the header purpose from the cell purpose (e.g "SceneOutliner.ItemLabel.Cell" -> "SceneOutliner.ItemLabel.Header")
+		FString HeaderPurpose, CellPurpose;
+		Purpose.ToString().Split(TEXT(".Cell"), &HeaderPurpose, &CellPurpose);
+		HeaderPurpose.Append(TEXT(".Header"));
+		
+		StorageUi.CreateWidgetConstructors(FName(HeaderPurpose), MatchApproach::ExactMatch, VerifiedColumnTypes, MetaDataView,
 			[&Constructor, ColumnTypes](
 				TUniquePtr<FTypedElementWidgetConstructor> CreatedConstructor, 
 				TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes)
@@ -751,10 +758,14 @@ TSharedPtr<FTypedElementWidgetConstructor> FTypedElementSceneOutliner::CreateHea
 			return Constructor;
 		}
 	}
-	FName HeaderDefaultNames[] = { TEXT("SceneOutliner.Header.Default"), TEXT("General.Header.Default") };
-	for (const FName& Purpose : HeaderDefaultNames)
+	for (const FName& Purpose : CellWidgetPurposes)
 	{
-		StorageUi.CreateWidgetConstructors(Purpose, MetaDataView,
+		// Extract the default header purpose from the cell purpose (e.g "SceneOutliner.ItemLabel.Cell" -> "SceneOutliner.ItemLabel.Header.Default")
+		FString HeaderPurpose, CellPurpose;
+		Purpose.ToString().Split(TEXT(".Cell"), &HeaderPurpose, &CellPurpose);
+		HeaderPurpose.Append(TEXT(".Header.Default"));
+
+		StorageUi.CreateWidgetConstructors(FName(HeaderPurpose), MetaDataView,
 			[&Constructor, ColumnTypes](
 				TUniquePtr<FTypedElementWidgetConstructor> CreatedConstructor,
 				TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes)
@@ -775,11 +786,12 @@ void FTypedElementSceneOutliner::RegisterDealiaser(const FTreeItemIDDealiaser& I
 	Dealiaser = InDealiaser;
 }
 
-void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
+void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
 {
 	using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
 	constexpr int32 DefaultPriorityIndex = 100;
 	FTypedElementSceneOutlinerQueryBinder& Binder = FTypedElementSceneOutlinerQueryBinder::GetInstance();
+	CellWidgetPurposes = InCellWidgetPurposes;
 
 	if (TSharedPtr<ISceneOutliner> OutlinerPinned = Outliner.Pin())
 	{
@@ -819,7 +831,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 								[this, Query, NameId, &ColumnTypes, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
 								{
 									TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor = 
-										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, ColumnTypes);
+										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, ColumnTypes, CellWidgetPurposes);
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId,
 										TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnTypes.GetData(), ColumnTypes.Num()), 
@@ -831,10 +843,12 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 					++IndexOffset;
 					return true;
 				};
-			StorageUi->CreateWidgetConstructors(FName(TEXT("SceneOutliner.Cell")), MatchApproach::LongestMatch, ColumnTypes, 
+
+			for(const FName& WidgetPurpose : CellWidgetPurposes)
+			{
+				StorageUi->CreateWidgetConstructors(WidgetPurpose, MatchApproach::LongestMatch, ColumnTypes, 
 				MetaDataView, ColumnConstructor);
-			StorageUi->CreateWidgetConstructors(FName(TEXT("General.Cell")), MatchApproach::LongestMatch, ColumnTypes, 
-				MetaDataView, ColumnConstructor);
+			}
 
 			for (TWeakObjectPtr<const UScriptStruct>& ColumnType : ColumnTypes)
 			{
@@ -854,7 +868,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 									TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypesStored;
 									ColumnTypesStored.Add(ColumnType);
 									TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor =
-										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, { ColumnType });
+										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, { ColumnType }, CellWidgetPurposes);
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId, MoveTemp(ColumnTypesStored),
 										HeaderConstructor, CellConstructor, FallbackColumn, OutlinerPinned, Dealiaser);
@@ -865,15 +879,23 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 					++IndexOffset;
 					return false;
 				};
-				int32 BeforeIndexOffset = IndexOffset;
-				StorageUi->CreateWidgetConstructors(FName(TEXT("SceneOutliner.Cell.Default")), MetaDataView, AssignWidgetToColumn);
+
+				const int32 BeforeIndexOffset = IndexOffset;
+				for(const FName& WidgetPurpose : CellWidgetPurposes)
+				{
+					const FName DefaultWidgetPurpose(WidgetPurpose.ToString() + TEXT(".Default"));
+
+					StorageUi->CreateWidgetConstructors(DefaultWidgetPurpose, MetaDataView, AssignWidgetToColumn);
+					
+					if (BeforeIndexOffset != IndexOffset)
+					{
+						break;
+					}
+				}
+
 				if (BeforeIndexOffset == IndexOffset)
 				{
-					StorageUi->CreateWidgetConstructors(FName(TEXT("General.Cell.Default")), MetaDataView, AssignWidgetToColumn);
-					if (BeforeIndexOffset == IndexOffset)
-					{
-						++IndexOffset;
-					}
+					++IndexOffset;
 				}
 			}
 		}

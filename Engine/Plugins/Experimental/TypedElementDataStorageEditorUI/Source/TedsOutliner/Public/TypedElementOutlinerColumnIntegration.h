@@ -30,15 +30,15 @@ public:
 		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
 		const TSharedPtr<ISceneOutliner>& InOutliner);
 
-	void AssignQuery(TypedElementQueryHandle Query);
+	void AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
 	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
-
 private:
 	static FName FindLongestMatchingName(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, int32 DefaultNameIndex);
 	static TArray<TWeakObjectPtr<const UScriptStruct>> CreateVerifiedColumnTypeAray(
 		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes);
 	static TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(ITypedElementDataStorageInterface& Storage,
-		ITypedElementDataStorageUiInterface& StorageUI, TypedElementQueryHandle Query, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes);
+		ITypedElementDataStorageUiInterface& StorageUI, TypedElementQueryHandle Query,
+		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, const TConstArrayView<FName> CellWidgetPurposes);
 	void ClearColumns(ISceneOutliner& InOutliner);
 
 	TArray<FName> AddedColumns;
@@ -47,6 +47,7 @@ private:
 	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
 	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
 	FTreeItemIDDealiaser Dealiaser;
+	TArray<FName> CellWidgetPurposes;
 };
 
 /**
@@ -67,7 +68,7 @@ public:
 
 	static FTypedElementSceneOutlinerQueryBinder& GetInstance();
 
-	void AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Widget);
+	void AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Widget, TConstArrayView<FName> InCellWidgetPurposes);
 
 	// Register a dealiser for a specific TEDS-Outliner to convert a row handle to an FSceneOutlinerTreeItemID
 	void RegisterTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Widget, const FTreeItemIDDealiaser& InDealiaser);

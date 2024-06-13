@@ -72,6 +72,7 @@ struct FTedsOutlinerParams
 	, QueryDescription()
 	, bUseDefaultTedsFilters(false)
 	, HierarchyData(FTypedElementOutlinerHierarchyData::GetDefaultHierarchyData())
+	, CellWidgetPurposes{TEXT("SceneOutliner.Cell"), TEXT("General.Cell")}
 	{}
 
 	SSceneOutliner* SceneOutliner;
@@ -93,6 +94,9 @@ struct FTedsOutlinerParams
 
 	// The selection set to use for this Outliner, unset = don't propagate tree selection to the TEDS column
 	TOptional<FName> SelectionSetOverride;
+
+	// The purposes to use when generating widgets for the columns through TEDS UI
+	TArray<FName> CellWidgetPurposes;
 };
 
 
@@ -188,7 +192,7 @@ protected:
 	TArray<TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
 
 	// Widget purposes this table viewer supports
-	TArray<FName, TFixedAllocator<3>> WidgetPurposes;
+	TArray<FName> CellWidgetPurposes;
 	
 	// Initial query provided by user
 	TAttribute<TypedElementDataStorage::FQueryDescription> InitialQueryDescription;

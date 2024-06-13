@@ -23,7 +23,7 @@
 
 FTedsOutlinerImpl::FTedsOutlinerImpl(const FTedsOutlinerParams& InParams, ISceneOutlinerMode* InMode)
 	: CreationParams(InParams)
-	, WidgetPurposes{TEXT("SceneOutliner.ItemLabel.Cell"), TEXT("SceneOutliner.Cell"), TEXT("General.Cell")}
+	, CellWidgetPurposes(InParams.CellWidgetPurposes)
 	, InitialQueryDescription(InParams.QueryDescription)
 	, HierarchyData(InParams.HierarchyData)
 	, SelectionSetName(InParams.SelectionSetOverride)
@@ -59,8 +59,12 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 		TSharedPtr<FTypedElementWidgetConstructor> OutWidgetConstructorPtr;
 
 		bool bFoundWidget = false;
+
+		// We also want to look at the ItemLabel purpose for the label
+		TArray<FName> ItemLabelCellWidgetPurposes{TEXT("SceneOutliner.ItemLabel.Cell")};
+		ItemLabelCellWidgetPurposes.Append(CellWidgetPurposes);
 		
-		for(const FName& WidgetPurpose : WidgetPurposes)
+		for(const FName& WidgetPurpose : ItemLabelCellWidgetPurposes)
 		{
 			StorageUi->CreateWidgetConstructors(WidgetPurpose, MatchApproach::ExactMatch, ColumnTypes, {},
 				[&OutWidgetConstructorPtr, ColumnTypes, &bFoundWidget](
