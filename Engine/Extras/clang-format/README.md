@@ -36,6 +36,18 @@ Note that this example enables the -PerformSlateFiltering flag (see below for in
 
 Note that the "Show console" option can be useful to debug the watcher.
 
+# macOS support
+
+The new `perforce-clang-format-diff.py` works on both Windows and macOS. You can set it up in Rider like this:
+
+| Field | Value                                                                                          |
+|---|------------------------------------------------------------------------------------------------|
+| File type | C++ header files (or "C++ files" for .cpp files)                                               |
+| Scope | Open Files                                                                                     |
+| Program | python                                                                                         |
+| Arguments | PATH-TO-CHECKOUT\Engine\Extras\clang-format\perforce-clang-format-diff.py $FilePath$ --verbose |
+| Working directory | $FileDir$                                                                                      |
+
 # Known issue: formatting Slate code
 
 Slate code uses an uncommon overload of operator[] to nest widgets
