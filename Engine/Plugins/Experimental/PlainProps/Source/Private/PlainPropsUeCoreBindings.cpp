@@ -2,14 +2,19 @@
 
 #include "PlainPropsUeCoreBindings.h"
 #include "PlainPropsBuild.h"
+#include "PlainPropsSave.h"
 #include "Math/Transform.h"
 
 namespace PlainProps::UE
 {
 
-void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const
+void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Ctx) const
 {
 	static_assert(std::is_same_v<decltype(FTransform().GetTranslation().X), double>);
+	
+	const FStructDeclaration& VectorDecl = Ctx.Declarations.Get(VectorId);
+	const FStructDeclaration& QuatDecl = Ctx.Declarations.Get(QuatId);
+	FDenseMemberBuilder Inner = { Ctx.Scratch, Ctx.Declarations.GetDebug() };
 
 	FVector T = Src.GetTranslation();
 	FQuat R = Src.GetRotation();
@@ -19,39 +24,35 @@ void FTransformBinding::Save(FMemberBuilder& Dst, const FTransform& Src, const F
 	{
 		if (T != Default->GetTranslation())
 		{
-			Dst.Add(MemberIds[(uint8)EMember::TranslateX], T.X);
-			Dst.Add(MemberIds[(uint8)EMember::TranslateY], T.Y);
-			Dst.Add(MemberIds[(uint8)EMember::TranslateZ], T.Z);
+			Dst.AddStruct(MemberIds[(uint8)EMember::Translate], VectorId, Inner.BuildHomogeneous(VectorDecl, T.X, T.Y, T.Z));
 		}
 
 		if (R != Default->GetRotation())
 		{
-			Dst.Add(MemberIds[(uint8)EMember::RotateX], R.X);
-			Dst.Add(MemberIds[(uint8)EMember::RotateY], R.Y);
-			Dst.Add(MemberIds[(uint8)EMember::RotateZ], R.Z);
-			Dst.Add(MemberIds[(uint8)EMember::RotateW], R.W);
+			Dst.AddStruct(MemberIds[(uint8)EMember::Rotate], QuatId, Inner.BuildHomogeneous(QuatDecl, R.X, R.Y, R.Z, R.W));
 		}
 
 		if (S != Default->GetScale3D())
 		{
-			Dst.Add(MemberIds[(uint8)EMember::ScaleX], S.X);
-			Dst.Add(MemberIds[(uint8)EMember::ScaleY], S.Y);
-			Dst.Add(MemberIds[(uint8)EMember::ScaleZ], S.Z);
+			Dst.AddStruct(MemberIds[(uint8)EMember::Scale], VectorId, Inner.BuildHomogeneous(VectorDecl, S.X, S.Y, S.Z));
 		}
 	}
 	else
-	{
-		Dst.Add(MemberIds[(uint8)EMember::TranslateX],	T.X);
-		Dst.Add(MemberIds[(uint8)EMember::TranslateY],	T.Y);
-		Dst.Add(MemberIds[(uint8)EMember::TranslateZ],	T.Z);
-		Dst.Add(MemberIds[(uint8)EMember::RotateX], R.X);
-		Dst.Add(MemberIds[(uint8)EMember::RotateY], R.Y);
-		Dst.Add(MemberIds[(uint8)EMember::RotateZ], R.Z);
-		Dst.Add(MemberIds[(uint8)EMember::RotateW], R.W);
-		Dst.Add(MemberIds[(uint8)EMember::ScaleX],	S.X);
-		Dst.Add(MemberIds[(uint8)EMember::ScaleY],	S.Y);
-		Dst.Add(MemberIds[(uint8)EMember::ScaleZ],	S.Z);
+	{	
+		Dst.AddStruct(MemberIds[(uint8)EMember::Translate], VectorId, Inner.BuildHomogeneous(VectorDecl, T.X, T.Y, T.Z));		
+		Dst.AddStruct(MemberIds[(uint8)EMember::Rotate], QuatId, Inner.BuildHomogeneous(QuatDecl, R.X, R.Y, R.Z, R.W));
+		Dst.AddStruct(MemberIds[(uint8)EMember::Scale], VectorId, Inner.BuildHomogeneous(VectorDecl, S.X, S.Y, S.Z));
 	}
+}
+
+template<typename T>
+T GrabAndMemcpy(FMemberReader& Members)
+{
+	T Out;
+	FStructView Struct = Members.GrabStruct();
+	Struct.Values.CheckSize(sizeof(T));
+	FMemory::Memcpy(&Out, Struct.Values.Peek(), sizeof(T));
+	return Out;
 }
 
 void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const
@@ -70,11 +71,9 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		return;
 	}
 
-	if (Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::TranslateX])
+	if (Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::Translate])
 	{
-		FVector Translation;
-		Members.GrabLeaves(&Translation.X, 3);
-		Dst.SetTranslation(Translation);
+		Dst.SetTranslation(GrabAndMemcpy<FVector>(Members));
 
 		if (!Members.HasMore())
 		{
@@ -82,11 +81,9 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		}
 	}
 
-	if (Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::RotateX])
+	if (Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::Rotate])
 	{
-		FQuat Rotation;
-		Members.GrabLeaves(&Rotation.X, 4);
-		Dst.SetRotation(Rotation);
+		Dst.SetRotation(GrabAndMemcpy<FQuat>(Members));
 
 		if (!Members.HasMore())
 		{
@@ -94,10 +91,8 @@ void FTransformBinding::Load(FTransform& Dst, FStructView Src, ECustomLoadMethod
 		}
 	}
 
-	checkSlow(Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::ScaleX]);
-	FVector Scale;
-	Members.GrabLeaves(&Scale.X, 3);
-	Dst.SetScale3D(Scale);
+	checkSlow(Members.PeekNameUnchecked() == MemberIds[(uint8)EMember::Scale]);
+	Dst.SetScale3D(GrabAndMemcpy<FVector>(Members));
 	checkSlow(!Members.HasMore());
 }
 

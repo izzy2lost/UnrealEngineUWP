@@ -138,38 +138,57 @@ FBuiltStructPtr FMemberBuilder::BuildAndReset(FScratchAllocator& Scratch, const 
 	checkf(!(Declared.Super && Declared.Occupancy == EMemberPresence::RequireAll),
 		TEXT("Requiring sub structs to be dense isn't implemented"));
 #if DO_CHECK
-	int32 OrderIdx = 0;
-	TConstArrayView<FMemberId> Order = Declared.GetMemberOrder();
-	for (FBuiltMember& Member : Members)
+	// Verify members were added in declared order
+	if (int32 Num = Members.Num())
 	{
-		if (Declared.Super && IsSuper(Member.Schema.Type) && &Member == &Members[0])
+		int32 OrderIdx = 0;
+		TConstArrayView<FMemberId> Order = Declared.GetMemberOrder();
+		int32 SkipSuper = Declared.Super && IsSuper(Members[0].Schema.Type);
+		for (FBuiltMember* It = Members.GetData() + SkipSuper, *End = Members.GetData() + Num; It != End; ++It)
 		{
-			continue; // Skip undeclared generated super struct
+			FBuiltMember& Member = *It;
+			for (; OrderIdx < Order.Num() && Order[OrderIdx] != Member.Name; ++OrderIdx)
+			{}	
+			checkf(OrderIdx < Order.Num(), TEXT("Member '%s' in '%s' %s"), *Debug.Print(Member.Name), *Debug.Print(Declared.Type),
+					Order.Contains(Member.Name) ? TEXT("appeared in non-declared order") : TEXT("is undeclared"));
+			++OrderIdx;
 		}
-
-		for (; OrderIdx < Order.Num() && Order[OrderIdx] != Member.Name; ++OrderIdx)
-		{}	
-		checkf(OrderIdx < Order.Num(), TEXT("Member '%s' in '%s' %s"), *Debug.Print(Member.Name), *Debug.Print(Declared.Type),
-				Order.Contains(Member.Name) ? TEXT("appeared in non-declared order") : TEXT("is undeclared"));
-		++OrderIdx;
 	}
 #endif
 
 	uint32 Num = static_cast<uint32>(Members.Num());
 	SIZE_T NumBytes = sizeof(FBuiltStruct) + Num * sizeof(FBuiltMember);
-	FBuiltStruct* Out = reinterpret_cast<FBuiltStruct*>(Scratch.AllocateZeroed(NumBytes, alignof(FBuiltStruct)));
+	FBuiltStruct* Out = reinterpret_cast<FBuiltStruct*>(Scratch.Allocate(NumBytes, alignof(FBuiltStruct)));
 	Out->NumMembers = IntCastChecked<uint16>(Num);
-	for (FBuiltMember& Member : Members)
-	{
-		Out->Members[&Member - &Members[0]] = MoveTemp(Member);
-	}
+	FMemory::Memcpy(Out->Members, Members.GetData(), Members.NumBytes());
 
 	Members.Reset();
 
-	//GLiveStructsFoo.Add(Out);
-
 	return FBuiltStructPtr(Out);
 }
+
+//////////////////////////////////////////////////////////////////////////
+
+FBuiltStructPtr FDenseMemberBuilder::BuildHomo(const FStructDeclaration& Declaration, FMemberType Leaf, TConstArrayView<FBuiltValue> Values) const
+{
+	check(Declaration.NumMembers == Values.Num());
+
+	FMemberSchema Schema = {Leaf, Leaf};
+	const uint32 Num = static_cast<uint32>(Values.Num());
+	SIZE_T NumBytes = sizeof(FBuiltStruct) + Num * sizeof(FBuiltMember);
+	FBuiltStruct* Out = reinterpret_cast<FBuiltStruct*>(Scratch.Allocate(NumBytes, alignof(FBuiltStruct)));
+	Out->NumMembers = static_cast<uint16>(Num);
+
+	const FMemberId* Names = Declaration.MemberOrder; 
+	for (uint32 Idx = 0; Idx < Num; ++Idx)
+	{
+		new (Out->Members + Idx) FBuiltMember(Names[Idx], Schema, Values[Idx]);
+	}
+
+	return Out;
+}
+
+//////////////////////////////////////////////////////////////////////////
 
 template<typename IntType, typename FloatType>
 inline IntType CheckFiniteBitCast(FloatType Value)

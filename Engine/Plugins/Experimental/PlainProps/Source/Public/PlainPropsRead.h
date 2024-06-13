@@ -90,7 +90,7 @@ public:
 		uint32 NumBytesRead;
 		uint64 Out = ReadVarUInt(It, NumBytesRead);
 		It += NumBytesRead;
-		check(It <= End);
+		checkSlow(It <= End);
 		return Out;
 	}
 

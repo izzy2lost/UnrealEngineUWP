@@ -269,7 +269,7 @@ FBuiltStructPtr SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveCo
 	FMemberBuilder Out;
 	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
 	{
-		Custom->SaveStruct(Out, Struct, nullptr, Ctx);
+		Custom->SaveCustom(Out, Struct, nullptr, Ctx);
 	}
 	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )
 	{
@@ -428,7 +428,7 @@ static bool DiffItem(const uint8* A, const uint8* B, const FSaveContext& Ctx, FS
 {
 	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
 	{
-		return Custom->DiffStruct(A, B);
+		return Custom->DiffCustom(A, B);
 	}
 	
 	bool bOut = false;
@@ -483,9 +483,9 @@ FBuiltStructPtr SaveStructDelta(const void* Struct, const void* Default, FStruct
 	FMemberBuilder Out;
 	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
 	{
-		if (Custom->DiffStruct(Struct, Default))
+		if (Custom->DiffCustom(Struct, Default))
 		{
-			Custom->SaveStruct(Out, Struct, Default, Ctx);
+			Custom->SaveCustom(Out, Struct, Default, Ctx);
 		}
 	}
 	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )

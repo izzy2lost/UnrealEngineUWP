@@ -615,7 +615,7 @@ void LoadStruct(void* Dst, FByteReader Src, FStructSchemaId Id, const FLoadBatch
 	else
 	{
 		FStructSchemaHandle ReadSchema{Id, Batch.ReadId};
-		Plan.AsCustom().LoadStruct(Dst, { ReadSchema, Src }, ECustomLoadMethod::Assign, Batch);
+		Plan.AsCustom().LoadCustom(Dst, { ReadSchema, Src }, ECustomLoadMethod::Assign, Batch);
 	}
 }
 
@@ -637,7 +637,7 @@ void ConstructAndLoadStruct(void* Dst, FByteReader Src, FStructSchemaId Id, cons
 	else
 	{
 		FStructSchemaHandle ReadSchema{Id, Batch.ReadId};
-		Plan.AsCustom().LoadStruct(Dst, { ReadSchema, Src }, ECustomLoadMethod::Construct, Batch);
+		Plan.AsCustom().LoadCustom(Dst, { ReadSchema, Src }, ECustomLoadMethod::Construct, Batch);
 	}
 }
 

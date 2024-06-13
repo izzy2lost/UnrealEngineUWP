@@ -132,19 +132,19 @@ struct FTestCustomBinding : public ICustomBinding
 
 struct FNameBinding : public FTestCustomBinding
 {
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FSaveContext& Ctx) override
+	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void*, const FSaveContext& Ctx) override
 	{
 		FSetElementId Idx = Names.Add(*static_cast<const FName*>(Src));
 		Dst.Add(Declaration.Idx, Idx.AsInteger());
 	}
 
-	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod, const FLoadBatch&) const override
+	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod, const FLoadBatch&) const override
 	{
 		FSetElementId Idx = FSetElementId::FromInteger(FMemberReader(Src).GrabLeaf().AsS32());
 		*static_cast<FName*>(Dst) = Names.Get(Idx);
 	}
 
-	virtual bool DiffStruct(const void* StructA, const void* StructB) const override
+	virtual bool DiffCustom(const void* StructA, const void* StructB) const override
 	{
 		FName A = *static_cast<const FName*>(StructA);
 		FName B = *static_cast<const FName*>(StructB);
@@ -754,6 +754,8 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 
 	SECTION("Transform")
 	{
+		TScopedStructBinding<FVector, EMemberPresence::RequireAll> Vector;
+		TScopedStructBinding<FQuat, EMemberPresence::RequireAll> Quat;
 		BindCustomStructOnce<FTransformBinding, FDefaultRuntime>();
 
 		Run([](FBatchSaver& Batch)

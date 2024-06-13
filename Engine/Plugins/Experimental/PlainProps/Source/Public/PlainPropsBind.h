@@ -239,9 +239,9 @@ class ICustomBinding
 {
 public:
 	virtual ~ICustomBinding() {}
-	virtual void				SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) = 0;
-	virtual void				LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
-	virtual bool				DiffStruct(const void* StructA, const void* StructB) const = 0;
+	virtual void				SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) = 0;
+	virtual void				LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
+	virtual bool				DiffCustom(const void* StructA, const void* StructB) const = 0;
 };
 
 class FCustomBindings
@@ -590,17 +590,17 @@ FStructSchemaId BindCustomStructOnce()
 			Runtime::GetTypes().DropStruct(Id);
 		}
 
-		virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override
+		virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override
 		{
 			CustomBinding::Save(Dst, *static_cast<const Type*>(Src), static_cast<const Type*>(Default), Ctx);
 		}
 
-		virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
+		virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
 		{
 			CustomBinding::Load(*static_cast<Type*>(Dst), Src, Method, Batch);
 		}
 
-		virtual bool DiffStruct(const void* A, const void* B) const override
+		virtual bool DiffCustom(const void* A, const void* B) const override
 		{
 			return CustomBinding::Diff(*static_cast<const Type*>(A), *static_cast<const Type*>(B));
 		}

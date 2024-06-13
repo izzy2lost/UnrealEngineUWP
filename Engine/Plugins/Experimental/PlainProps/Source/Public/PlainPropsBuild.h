@@ -204,14 +204,12 @@ struct FBuiltMember
 	FBuiltMember(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Schema, uint64 Value);
 	FBuiltMember(FMemberId Name, FTypedRange Range);
 	FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Value);
+	FBuiltMember(FOptionalMemberId N, FMemberSchema S, FBuiltValue V) : Name(N), Schema(MoveTemp(S)), Value(V) {}
 	static FBuiltMember MakeSuper(FStructSchemaId Schema, FBuiltStructPtr Value);
 
 	FOptionalMemberId		Name;
 	FMemberSchema			Schema;
 	FBuiltValue				Value;
-
-private:
-	FBuiltMember(FOptionalMemberId N, FMemberSchema&& S, FBuiltValue V) : Name(N), Schema(MoveTemp(S)), Value(V) {}
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -254,13 +252,28 @@ private:
 	
 	FBuiltMemberArray		Members;
 	
-//	PLAINPROPS_API uint8* AllocateLeafRange(FMemberId Name, FUnpackedLeafType Leaf, ERangeSizeType RangeMax, uint64 Num);
-	
 	//template<typename T>
 	//void NormalizeLeafRange(T*, uint64) {}
 	//PLAINPROPS_API void NormalizeLeafRange(float*, uint64 Num);
 	//PLAINPROPS_API void NormalizeLeafRange(double*, uint64 Num);
-	
+};
+
+// Rough API draft
+struct FDenseMemberBuilder
+{
+	FScratchAllocator& Scratch;
+	const FDebugIds& Debug;
+
+	template<typename T, typename... Ts>
+	[[nodiscard]] FBuiltStructPtr BuildHomogeneous(const FStructDeclaration& Declaration, T Head, Ts... Tail) const
+	{
+		// Todo: Handle enums, ranges and structs
+		FBuiltValue Values[] = { {.Leaf = ValueCast(Head)}, {.Leaf = (ValueCast(Tail))}...  };
+		return BuildHomo(Declaration, FMemberType(ReflectLeaf<T>.Pack()), Values);
+	}
+
+private:
+	[[nodiscard]] PLAINPROPS_API FBuiltStructPtr BuildHomo(const FStructDeclaration& Declaration, FMemberType Leaf, TConstArrayView<FBuiltValue> Values) const;
 };
 
 // Helper class for building struct ranges

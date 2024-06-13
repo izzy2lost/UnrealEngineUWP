@@ -362,34 +362,20 @@ struct FTransformBinding : public ICustomBinding
 {
 	using Type = FTransform;
 	inline static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
-	//inline static constexpr uint8 NumMembers = 3;
-	//enum class EMember : uint8 { Translate, Rotate, Scale };
-	//FMemberId MemberIds[3];
-	//FStructSchemaId VectorId;
-	//FStructSchemaId QuatId;
-
-	enum class EMember : uint8 { TranslateX, TranslateY, TranslateZ, RotateX, RotateY, RotateZ, RotateW, ScaleX, ScaleY, ScaleZ };
-	FMemberId MemberIds[11];
+	enum class EMember : uint8 { Translate, Rotate, Scale };
+	FMemberId MemberIds[3];
+	FStructSchemaId VectorId;
+	FStructSchemaId QuatId;
 
 	template<typename Ids>
-	void InitIds() 
+	void InitIds(/*const FDeclarations& Declared*/) 
 	{
-		//MemberIds[EMember::Translate] = Ids::IndexMember("Translate");
-		//MemberIds[EMember::Rotate] = Ids::IndexMember("Rotate");
-		//MemberIds[EMember::Scale] = Ids::IndexMember("Scale");
-		//VectorId = IndexNativeStruct<FVector, Ids>();
-		//QuatId = IndexNativeStruct<FVector, Ids>();
-		
-		MemberIds[(uint8)EMember::TranslateX] = Ids::IndexMember("TranslateX");
-		MemberIds[(uint8)EMember::TranslateY] = Ids::IndexMember("TranslateY");
-		MemberIds[(uint8)EMember::TranslateZ] = Ids::IndexMember("TranslateZ");
-		MemberIds[(uint8)EMember::RotateX] = Ids::IndexMember("RotateX");
-		MemberIds[(uint8)EMember::RotateY] = Ids::IndexMember("RotateY");
-		MemberIds[(uint8)EMember::RotateZ] = Ids::IndexMember("RotateZ");
-		MemberIds[(uint8)EMember::RotateW] = Ids::IndexMember("RotateW");
-		MemberIds[(uint8)EMember::ScaleX] = Ids::IndexMember("ScaleX");
-		MemberIds[(uint8)EMember::ScaleY] = Ids::IndexMember("ScaleY");
-		MemberIds[(uint8)EMember::ScaleZ] = Ids::IndexMember("ScaleZ");
+		MemberIds[(uint8)EMember::Translate] = Ids::IndexMember("Translate");
+		MemberIds[(uint8)EMember::Rotate] = Ids::IndexMember("Rotate");
+		MemberIds[(uint8)EMember::Scale] = Ids::IndexMember("Scale");
+
+		VectorId = IndexNativeStruct<FVector, Ids>();
+		QuatId = IndexNativeStruct<FQuat, Ids>();
 	}
 
 	PLAINPROPS_API void	Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const;
@@ -429,9 +415,9 @@ struct TSetDeltaBinding : public ICustomBinding
 	
 	static TConstArrayView<FMemberId> GetMemberIds() { return FSetOps::Get<Ids>().All; }
 
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override;
+	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override;
 
-	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
+	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
 	{
 		Type& Out = *static_cast<Type*>(Dst);
 		FMemberReader Members(Src);
@@ -476,7 +462,7 @@ struct TSetDeltaBinding : public ICustomBinding
 		check(!Members.HasMore());
 	}
 
-	virtual bool DiffStruct(const void* StructA, const void* StructB) const override
+	virtual bool DiffCustom(const void* StructA, const void* StructB) const override
 	{
 		const Type& A = *static_cast<const Type*>(StructA);
 		const Type& B = *static_cast<const Type*>(StructB);
