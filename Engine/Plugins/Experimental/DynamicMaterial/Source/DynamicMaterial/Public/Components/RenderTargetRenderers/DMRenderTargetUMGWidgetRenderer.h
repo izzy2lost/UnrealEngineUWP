@@ -35,7 +35,7 @@ public:
 
 protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetWidgetClass, BlueprintSetter = SetWidgetClass, Category = "Material Designer",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+		meta = (NotKeyframeable, AllowPrivateAccess = "true", NoCreate))
 	TSubclassOf<UWidget> WidgetClass;
 
 	UPROPERTY()

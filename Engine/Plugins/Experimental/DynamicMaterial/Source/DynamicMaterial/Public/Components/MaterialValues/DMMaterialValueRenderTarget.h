@@ -89,19 +89,19 @@ protected:
 	FDelegateHandle EndOfFrameDelegateHandle;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureSize, BlueprintSetter = SetTextureSize, Category = "Material Designer|Render Target",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", NotKeyframeable))
 	FIntPoint TextureSize;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureFormat, BlueprintSetter = SetTextureFormat, Category = "Material Designer|Render Target",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", NotKeyframeable))
 	TEnumAsByte<ETextureRenderTargetFormat> TextureFormat;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetClearColor, BlueprintSetter = SetClearColor, Category = "Material Designer|Render Target",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", NotKeyframeable))
 	FLinearColor ClearColor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetRenderer, BlueprintSetter = SetRenderer, Category = "Material Designer",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", NotKeyframeable, NoCreate))
 	TObjectPtr<UDMRenderTargetRenderer> Renderer;
 
 	void AsyncCreateRenderTarget();

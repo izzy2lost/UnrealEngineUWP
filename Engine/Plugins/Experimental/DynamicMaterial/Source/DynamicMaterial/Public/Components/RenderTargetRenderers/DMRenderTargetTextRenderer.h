@@ -259,27 +259,27 @@ protected:
 
 	/** Multiplier on the base font height. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetLineHeight, BlueprintSetter = SetLineHeight, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true", UIMin = 0.1, UIMax = 2.0))
+		meta = (AllowPrivateAccess = "true", UIMin = 0.1, UIMax = 2.0))
 	float LineHeight = 1.f;
 
 	/** Extra space adding beyond the edge of the glyphs. Useful for shadows, glows, etc. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetPaddingLeft, BlueprintSetter = SetPaddingLeft, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true"))
 	float PaddingLeft = 0.f;
 
 	/** Extra space adding beyond the edge of the glyphs. Useful for shadows, glows, etc. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetPaddingRight, BlueprintSetter = SetPaddingRight, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true"))
 	float PaddingRight = 0.f;
 
 	/** Extra space adding beyond the edge of the glyphs. Useful for shadows, glows, etc. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetPaddingTop, BlueprintSetter = SetPaddingTop, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true"))
 	float PaddingTop = 0.f;
 
 	/** Extra space adding beyond the edge of the glyphs. Useful for shadows, glows, etc. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetPaddingBottom, BlueprintSetter = SetPaddingBottom, Category = "Material Designer|Text",
-		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true"))
 	float PaddingBottom = 0.f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetOverrideRenderTargetSize, BlueprintSetter = SetOverrideRenderTargetSize, Category = "Material Designer|Text",
