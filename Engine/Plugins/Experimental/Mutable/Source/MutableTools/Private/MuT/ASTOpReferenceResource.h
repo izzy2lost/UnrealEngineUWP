@@ -54,7 +54,7 @@ namespace mu
 		virtual void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
 		virtual bool GetNonBlackRect(FImageRect& maskUsage) const override;
 		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
-		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 	};
 
 

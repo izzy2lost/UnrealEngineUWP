@@ -2264,6 +2264,34 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 	}
 }
 
+
+namespace MutablePrivate
+{
+	// TODO:
+	// To avoid influence of the order of the streamed data (their index), classify it recursively based on hash values
+	// until the tree leaves have either a single block, or a sum of blocks below the desired file size.
+	struct FClassifyNode
+	{
+		TArray<UCustomizableObjectBulk::FBlock> Blocks;
+
+		//TSharedPtr<FClassifyNode> Child0;
+		//TSharedPtr<FClassifyNode> Child1;
+		//uint32 Depth=0;
+	};
+
+	void AddNode(TMap<uint32, FClassifyNode>& Nodes, int32 Slack, const UCustomizableObjectBulk::FBlock& Block)
+	{
+		FClassifyNode& Root = Nodes.FindOrAdd(Block.Flags);
+		if (Root.Blocks.IsEmpty())
+		{
+			Root.Blocks.Reserve(Slack);
+		}
+
+		Root.Blocks.Add(Block);
+	}
+}
+
+
 void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, const ITargetPlatform* TargetPlatform)
 {
 	CustomizableObject = InOuter;
@@ -2283,32 +2311,9 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 	const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
 	TargetBulkDataFileBytes = FMath::Min(TargetBulkDataFileBytes, MaxChunkSize);
 
-
-	// TODO:
-	// To avoid influence of the order of the streamed data (their index), classify it recursively based on hash values
-	// until the tree leaves have either a single block, or a sum of blocks below the desired file size.
-	struct FClassifyNode
-	{
-		TArray<FBlock> Blocks;
-
-		//TSharedPtr<FClassifyNode> Child0;
-		//TSharedPtr<FClassifyNode> Child1;
-		//uint32 Depth=0;
-	};
-
 	// Root nodes by flags.
 	const int32 NumRoms = Model->GetRomCount();
-	TMap<uint32,FClassifyNode> RootNode;
-	auto AddNode = [&RootNode,NumRoms]( const FBlock& Block )
-		{
-			FClassifyNode& Root = RootNode.FindOrAdd(Block.Flags);
-			if (Root.Blocks.IsEmpty())
-			{
-				Root.Blocks.Reserve(NumRoms);
-			}
-
-			Root.Blocks.Add(Block);
-		};
+	TMap<uint32, MutablePrivate::FClassifyNode> RootNode;
 
 	// Create blocks data.
 	{		
@@ -2319,7 +2324,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			const mu::ERomFlags BlockFlags = Model->GetRomFlags(RomIndex);
 
 			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, uint32(BlockFlags), 0 };
-			AddNode(CurrentBlock);
+			MutablePrivate::AddNode(RootNode, NumRoms, CurrentBlock);
 		}
 	}
 
@@ -2340,7 +2345,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			check(SourceOffset == MorphStreamable.Value.Block.Offset);
 			uint32 Flags = 0;
 			FBlock CurrentBlock = { EDataType::RealTimeMorph, MorphStreamable.Key, BlockSize, Flags, SourceOffset };
-			AddNode(CurrentBlock);
+			MutablePrivate::AddNode(RootNode, NumRoms, CurrentBlock);
 
 			SourceOffset += BlockSize;
 		}
@@ -2363,7 +2368,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			check(SourceOffset == ClothStreamable.Value.Block.Offset);
 			uint32 Flags = 0;
 			FBlock CurrentBlock = { EDataType::Clothing, ClothStreamable.Key, BlockSize, Flags, SourceOffset };
-			AddNode(CurrentBlock);
+			MutablePrivate::AddNode(RootNode, NumRoms, CurrentBlock);
 
 			SourceOffset += BlockSize;
 		}
@@ -2372,7 +2377,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 
 	for (int32 FlagClassIndex = 0; FlagClassIndex < RootNode.Num(); ++FlagClassIndex)
 	{
-		FClassifyNode& Root = RootNode[FlagClassIndex];
+		MutablePrivate::FClassifyNode& Root = RootNode[FlagClassIndex];
 
 		// Temp: Group by order in the array
 		for (int32 BlockIndex = 0; BlockIndex < Root.Blocks.Num(); )

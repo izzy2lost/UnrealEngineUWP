@@ -286,8 +286,6 @@ public:
 	void PrepareBulkData(UCustomizableObject* InCustomizableObject, const ITargetPlatform* TargetPlatform);
 
 #endif
-	
-private:
 
 #if WITH_EDITOR
 
@@ -316,6 +314,8 @@ private:
 		/** Offset in the full source streamed data file that is created when compiling. */
 		uint64 Offset;
 	};
+
+private:
 
 	struct FFile
 	{
