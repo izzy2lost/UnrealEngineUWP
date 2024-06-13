@@ -54,7 +54,7 @@ namespace Horde.Server.Tests.Artifacts
 			artifact.SetupGet(x => x.NamespaceId).Returns(ns);
 			artifact.SetupGet(x => x.RefName).Returns(refName);
 
-			using UnsyncCache cache = new UnsyncCache(factory.Object);
+			using UnsyncCache cache = new UnsyncCache(factory.Object, NullLogger<UnsyncCache>.Instance);
 
 			UnsyncManifest? manifest = await cache.GetManifestAsync(artifact.Object);
 			Assert.IsNotNull(manifest);
