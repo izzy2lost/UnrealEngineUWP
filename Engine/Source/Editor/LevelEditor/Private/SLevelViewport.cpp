@@ -1933,6 +1933,10 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 				FToolMenuEntry TransformsSubmenu = UE::LevelEditor::CreateViewportToolbarTransformsSection();
 				TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 				LeftSection.AddEntry(TransformsSubmenu);
+
+				FToolMenuEntry SelectionSubmenu = UE::LevelEditor::CreateViewportToolbarSelectionSection();
+				SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SelectionSubmenu);
 			}
 
 			{

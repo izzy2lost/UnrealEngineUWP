@@ -15,6 +15,7 @@
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SVolumeControl.h"
@@ -145,6 +146,61 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 					GizmoSection.AddEntry(FToolMenuEntry::InitWidget(
 						"GizmoScale", GizmoScaleWidget, LOCTEXT("GizmoScaleLabel", "Gizmo Scale")
 					));
+				}
+			}
+		)
+	);
+}
+
+FToolMenuEntry CreateViewportToolbarSelectionSection()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Select",
+		LOCTEXT("SelectonSubmenuLabel", "Select"),
+		LOCTEXT("SelectionSubmenuTooltip", "Viewport-related selection tools"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* Submenu) -> void
+			{
+				{
+					FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
+
+					UnnamedSection.AddMenuEntry(FGenericCommands::Get().SelectAll);
+					UnnamedSection.AddMenuEntry(FLevelEditorCommands::Get().SelectNone);
+					UnnamedSection.AddMenuEntry(FLevelEditorCommands::Get().InvertSelection);
+
+					UnnamedSection.AddSeparator("Advanced");
+
+					UnnamedSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllActorsOfSameClass);
+				}
+
+				{
+					FToolMenuSection& ByTypeSection =
+						Submenu->FindOrAddSection("ByTypeSection", LOCTEXT("ByTypeSectionLabel", "By Type"));
+
+					ByTypeSection.AddSubMenu(
+						"BSP",
+						LOCTEXT("BspLabel", "BSP"),
+						LOCTEXT("BspTooltip", "BSP-related tools"),
+						FNewToolMenuDelegate::CreateLambda(
+							[](UToolMenu* BspMenu)
+							{
+								FToolMenuSection& SelectAllSection = BspMenu->FindOrAddSection(
+									"SelectAllBSP", LOCTEXT("SelectAllBSPLabel", "Select All BSP")
+								);
+
+								SelectAllSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllAddditiveBrushes);
+								SelectAllSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllSubtractiveBrushes);
+								SelectAllSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllSurfaces);
+							}
+						)
+					);
+				}
+
+				{
+					FToolMenuSection& OptionsSection =
+						Submenu->FindOrAddSection("Options", LOCTEXT("OptionsLabel", "Options"));
+
+					OptionsSection.AddMenuEntry(FLevelEditorCommands::Get().AllowTranslucentSelection);
 				}
 			}
 		)
