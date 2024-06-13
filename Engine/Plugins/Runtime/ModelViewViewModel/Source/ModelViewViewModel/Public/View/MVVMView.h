@@ -192,7 +192,7 @@ private:
 	void InitializeSourceBindings(FMVVMView_SourceKey SourceKey, bool bRunAllBindings);
 	void InitializeSourceBindingsCommon();
 	void UninitializeSourceBindings(FMVVMViewClass_SourceKey SourceKey, const FMVVMViewClass_Source& ClassSource, FMVVMView_Source& ViewSource);
-	void HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId);
+	void HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId, FMVVMView_SourceKey SourceKey);
 	void ExecuteBindingInternal(const FMVVMViewClass_SourceBinding& SourceBinding) const;
 	void ExecuteBindingImmediately(const FMVVMViewClass_Binding& ClassBinding, FMVVMViewClass_BindingKey KeyForLog) const;
 	void ExecuteViewModelBindingsInternal(FMVVMViewClass_SourceKey SourceKey);
