@@ -1111,11 +1111,18 @@ TSharedRef<SWidget> SLevelViewportToolBar::GenerateShowMenu() const
 	if (!UToolMenus::Get()->IsMenuRegistered(MenuName))
 	{
 		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(MenuName);
-		Menu->AddDynamicSection("LevelDynamicSection", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
-		{
-			ULevelViewportToolBarContext* Context = InMenu->FindContext<ULevelViewportToolBarContext>();
-			Context->LevelViewportToolBarWidget.Pin()->FillShowMenu(InMenu);
-		}));
+		Menu->AddDynamicSection(
+			"LevelDynamicSection",
+			FNewToolMenuDelegate::CreateLambda(
+				[](UToolMenu* InMenu)
+				{
+					if (ULevelViewportToolBarContext* Context = InMenu->FindContext<ULevelViewportToolBarContext>())
+					{
+						Context->LevelViewportToolBarWidget.Pin()->FillShowMenu(InMenu);
+					}
+				}
+			)
+		);
 	}
 
 	Viewport.Pin()->OnFloatingButtonClicked();
