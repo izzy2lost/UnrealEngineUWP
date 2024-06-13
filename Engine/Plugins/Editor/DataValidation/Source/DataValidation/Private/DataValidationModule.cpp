@@ -426,10 +426,9 @@ EDataValidationResult FDataValidationModule::OnValidateSourcePackageDuringCook(U
 					{
 						TStringBuilder<2048> Buffer;
 						Buffer.Join(LogWarnings, LINE_TERMINATOR);
-						ValidationContext.AddMessage(EMessageSeverity::Error)
+						ValidationContext.AddMessage(EMessageSeverity::Warning)
 							->AddToken(FAssetDataToken::Create(AssetData))
 							->AddText(LOCTEXT("DataValidation.DuringValidationWarnings", "Warnings logged while validating asset {0}"), FText::FromStringView(Buffer.ToView()));
-						ValidationResult = EDataValidationResult::Invalid;
 					}
 					if (LogErrors.Num() > 0)
 					{

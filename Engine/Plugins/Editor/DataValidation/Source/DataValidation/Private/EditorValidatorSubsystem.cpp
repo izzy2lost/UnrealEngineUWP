@@ -546,10 +546,13 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 			{
 				TStringBuilder<2048> Buffer;
 				Buffer.Join(Warnings, LINE_TERMINATOR);
-				ValidationContext.AddMessage(EMessageSeverity::Error)
+				ValidationContext.AddMessage(InSettings.bCaptureWarningsDuringValidationAsErrors ? EMessageSeverity::Error : EMessageSeverity::Warning)
 					->AddToken(FAssetDataToken::Create(Data))
 					->AddText(LOCTEXT("DataValidation.DuringValidationWarnings", "Warnings logged while validating asset {0}"), FText::FromStringView(Buffer.ToView()));
-				AssetResult = EDataValidationResult::Invalid;
+				if (InSettings.bCaptureWarningsDuringValidationAsErrors)
+				{
+					AssetResult = EDataValidationResult::Invalid;
+				}
 			}
 			if(Errors.Num())
 			{

@@ -147,6 +147,10 @@ struct DATAVALIDATION_API FValidateAssetsSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Validation")
 	bool bCaptureLogsDuringValidation = true;
 	
+	/** If true, captured log warnings during validation are added to the validation results as errors (requires bCaptureLogsDuringValidation) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Validation")
+	bool bCaptureWarningsDuringValidationAsErrors = true;
+
 	/** Maximum number of assets to attempt to validate */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Validation")
 	int32 MaxAssetsToValidate = MAX_int32;
