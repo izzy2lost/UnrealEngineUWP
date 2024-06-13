@@ -12,12 +12,13 @@ class USkyLightComponent;
 class UVolumetricCloudComponent;
 class UDirectionalLightComponent;
 class UExponentialHeightFogComponent;
+class UStaticMeshComponent;
 
 /**
  * A self-registering Day Sequence Actor with a simple set of lighting components (some of which are optional).
  * Can be used as-is or extended by derived classes (see AProceduralDaySequenceActor for example).
  */
-UCLASS(Blueprintable, HideCategories=(Tags, Transform, Networking, LevelInstance))
+UCLASS(Blueprintable, HideCategories=(Tags, Networking, LevelInstance))
 class DAYSEQUENCE_API ASimpleDaySequenceActor
 	: public ADaySequenceActor
 {
@@ -53,4 +54,7 @@ protected:
 	
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Day Sequence", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVolumetricCloudComponent> VolumetricCloudComponent;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Day Sequence", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> SkySphereComponent;
 };

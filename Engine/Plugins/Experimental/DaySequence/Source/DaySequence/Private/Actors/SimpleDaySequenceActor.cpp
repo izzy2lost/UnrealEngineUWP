@@ -3,12 +3,18 @@
 #include "Actors/SimpleDaySequenceActor.h"
 
 #include "DaySequenceSubsystem.h"
+
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/VolumetricCloudComponent.h"
+#include "Components/StaticMeshComponent.h"
+
 #include "Engine/World.h"
+#include "Materials/MaterialInterface.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 
 ASimpleDaySequenceActor::ASimpleDaySequenceActor(const FObjectInitializer& Init)
 : Super(Init)
@@ -33,6 +39,14 @@ ASimpleDaySequenceActor::ASimpleDaySequenceActor(const FObjectInitializer& Init)
 
 	VolumetricCloudComponent = CreateOptionalDefaultSubobject<UVolumetricCloudComponent>(TEXT("VolumetricCloud"));
     VolumetricCloudComponent->SetupAttachment(RootComponent);
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> SkySphereDefaultMesh(TEXT("/Engine/EngineSky/SM_SkySphere.SM_SkySphere"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkySphereDefaultMaterial(TEXT("/Engine/EngineSky/M_SimpleSkyDome.M_SimpleSkyDome"));
+	SkySphereComponent = CreateOptionalDefaultSubobject<UStaticMeshComponent>(TEXT("SkySphere"));
+	SkySphereComponent->SetupAttachment(RootComponent);
+	SkySphereComponent->SetStaticMesh(SkySphereDefaultMesh.Object);
+	SkySphereComponent->SetMaterial(0, SkySphereDefaultMaterial.Object.Get());
+	SkySphereComponent->SetRelativeScale3D(FVector(400.f));
 }
 
 void ASimpleDaySequenceActor::BeginPlay()
