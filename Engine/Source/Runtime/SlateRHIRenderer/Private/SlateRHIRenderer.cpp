@@ -1825,12 +1825,10 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 								: FIntPoint(ViewInfo->DesiredWidth, ViewInfo->DesiredHeight);
 
 							bool bHDREnabled = IsHDREnabled();
-							bool bIsPixelFormatCorrect = bHDREnabled
-								? SlatePostBuffer->GetFormat() == EPixelFormat::PF_FloatRGBA
-								: SlatePostBuffer->GetFormat() == EPixelFormat::PF_A2B10G10R10;
+							bool bIsPixelFormatCorrect = SlatePostBuffer->GetFormat() == Window->GetViewport()->GetSceneTargetFormat();
 							if (SlatePostBuffer->SizeX != SizeSlatePostRT.X || SlatePostBuffer->SizeY != SizeSlatePostRT.Y || !bIsPixelFormatCorrect)
 							{
-								SlatePostBuffer->InitCustomFormat(SizeSlatePostRT.X, SizeSlatePostRT.Y, bHDREnabled ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10, true);
+								SlatePostBuffer->InitCustomFormat(SizeSlatePostRT.X, SizeSlatePostRT.Y, Window->GetViewport()->GetSceneTargetFormat(), true);
 							}
 
 							const FVector2D ElementWindowSize = ElementList.GetWindowSize();
@@ -1896,7 +1894,18 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 							else
 							{
 								// Resize unused SlatePostRTs to 1x1.
-								SlatePostBuffer->InitCustomFormat(1, 1, IsHDREnabled() ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10, true);
+								auto GetBackBufferFormat = [&]() 
+								{
+									// This path can execute when stopping PIE / exiting, so viewport may not be valid (above Viewport is always valid).
+									if (TSharedPtr<ISlateViewport> Viewport = Window->GetViewport())
+									{
+										return Viewport->GetSceneTargetFormat();
+									}
+
+									return IsHDREnabled() ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10;
+								};
+
+								SlatePostBuffer->InitCustomFormat(1, 1, GetBackBufferFormat(), true);
 								bShrinkPostBufferRequested &= ~SlatePostBufferBit;
 							}
 						}

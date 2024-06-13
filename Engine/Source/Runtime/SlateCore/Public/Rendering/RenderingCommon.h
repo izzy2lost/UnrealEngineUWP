@@ -10,6 +10,7 @@
 #include "Input/Reply.h"
 #include "Input/NavigationReply.h"
 #include "Input/PopupMethodReply.h"
+#include "PixelFormat.h"
 #include "Rendering/DrawElementCoreTypes.h"
 #include "Rendering/SlateRendererTypes.h"
 #include "SlateGlobals.h"
@@ -484,6 +485,11 @@ public:
 	 * Returns a slate texture used to draw the rendered viewport in Slate.                   
 	 */
 	virtual class FSlateShaderResource* GetViewportRenderTargetTexture() const = 0;
+
+	/**
+	 * Returns format for the scene of this viewport, only valid if this viewport actually has a scene, else PF_Unknown.
+	 */
+	virtual EPixelFormat GetSceneTargetFormat() const { return EPixelFormat::PF_Unknown; };
 
 	/**
 	 * Does the texture returned by GetViewportRenderTargetTexture only have an alpha channel?

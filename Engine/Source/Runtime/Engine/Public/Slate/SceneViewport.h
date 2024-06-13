@@ -263,6 +263,9 @@ public:
 
 	ENGINE_API virtual FSlateShaderResource* GetViewportRenderTargetTexture() override;
 
+	/** Returns format for the scene of this viewport. */
+	ENGINE_API EPixelFormat GetSceneTargetFormat() const override { return SceneTargetFormat; }
+
 	/** Get the cached viewport geometry. */
 	const FGeometry& GetCachedGeometry() const { return CachedGeometry; }
 
@@ -426,6 +429,8 @@ private:
 	FIntPoint MousePosBeforeHiddenDueToCapture;
 	/** Dimensions of RenderTarget texture. */
 	FIntPoint RTTSize;
+	/** Pixel format of all Buffered RenderTarget textures. */
+	EPixelFormat SceneTargetFormat;
 
 	/** Reprojection on some HMD RHI's requires ViewportTargets to be buffered */
 	/** The render target used by Slate to draw the viewport.  Can be null if this viewport renders directly to the backbuffer */

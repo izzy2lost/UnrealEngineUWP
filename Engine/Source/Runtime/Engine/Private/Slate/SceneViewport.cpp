@@ -57,6 +57,7 @@ FSceneViewport::FSceneViewport( FViewportClient* InViewportClient, TSharedPtr<SV
 	, bHDRViewport(false)
 	, MousePosBeforeHiddenDueToCapture( -1, -1 )
 	, RTTSize( 0, 0 )
+	, SceneTargetFormat( EPixelFormat::PF_A2B10G10R10 )
 	, CurrentBufferedTargetIndex(0)
 	, NextBufferedTargetIndex(0)
 	, NumTouches(0)
@@ -2070,20 +2071,21 @@ void FSceneViewport::InitRHI(FRHICommandListBase& RHICmdList)
 	RTTSize = FIntPoint(0, 0);
 
 	uint32 TexSizeX = SizeX, TexSizeY = SizeY;
+
+	static const auto CVarDefaultBackBufferPixelFormat = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultBackBufferPixelFormat"));
+	SceneTargetFormat = EDefaultBackBufferPixelFormat::Convert2PixelFormat(EDefaultBackBufferPixelFormat::FromInt(CVarDefaultBackBufferPixelFormat->GetValueOnRenderThread()));
+	SceneTargetFormat = RHIPreferredPixelFormatHint(SceneTargetFormat);
+
+	if (bHDRViewport)
+	{
+		SceneTargetFormat = GRHIHDRDisplayOutputFormat;
+	}
+
 	if (UseSeparateRenderTarget())
 	{
 		int32 NumBufferedFrames = 1;
 		TArray<FTextureRHIRef> BufferedRTRHI;
 		TArray<FTextureRHIRef> BufferedSRVRHI;
-
-		static const auto CVarDefaultBackBufferPixelFormat = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultBackBufferPixelFormat"));
-		EPixelFormat SceneTargetFormat = EDefaultBackBufferPixelFormat::Convert2PixelFormat(EDefaultBackBufferPixelFormat::FromInt(CVarDefaultBackBufferPixelFormat->GetValueOnRenderThread()));
-		SceneTargetFormat = RHIPreferredPixelFormatHint(SceneTargetFormat);
-
-		if (bHDRViewport)
-		{
-			SceneTargetFormat = GRHIHDRDisplayOutputFormat;
-		}
 		
 		// @todo vreditor switch: This code needs to be called when switching between stereo/non when going immersive.  Seems to always work out that way anyway though? (Probably due to resize)
 		bool bHMDAllocatedSeparateRenderTargets = false;
