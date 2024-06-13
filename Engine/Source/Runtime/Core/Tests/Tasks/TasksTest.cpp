@@ -43,7 +43,6 @@ namespace UE { namespace TasksTests
 
 		{	// launch a task and wait till it's executed
 			Launch(UE_SOURCE_LOCATION, [] {}).Wait();
-			Launch(UE_SOURCE_LOCATION, [] {}).BusyWait();
 		}
 
 		{	// FTaskEvent asserts on destruction if it wasn't triggered. uncomment the code to verify
@@ -62,7 +61,6 @@ namespace UE { namespace TasksTests
 			Event.Trigger();
 			check(Event.IsCompleted());
 			verify(Event.Wait(FTimespan::Zero()));
-			verify(Event.BusyWait(FTimespan::Zero()));
 		}
 
 		{	// FTaskEvent can be triggered multiple times
@@ -79,32 +77,22 @@ namespace UE { namespace TasksTests
 			check(!Event.IsCompleted());
 
 			// check that waiting blocks
-			FTask Task = Launch(UE_SOURCE_LOCATION, [Event]() mutable { Event.BusyWait(); });
+			FTask Task = Launch(UE_SOURCE_LOCATION, [Event]() mutable { Event.Wait(); });
 			FPlatformProcess::Sleep(0.1f);
 			check(!Task.IsCompleted());
 
 			Event.Trigger();
 			check(Event.IsCompleted());
 			verify(Event.Wait(FTimespan::Zero()));
-			verify(Event.BusyWait(FTimespan::Zero()));
 		}
 
-		{	// busy-waiting for multiple tasks
+		{	// waiting for multiple tasks
 			TArray<FTask> Tasks
 			{
 				Launch(UE_SOURCE_LOCATION,[] {}),
 				Launch(UE_SOURCE_LOCATION,[] {})
 			};
-			BusyWait(Tasks);
-		}
-
-		{	// busy-waiting for multiple tasks
-			TArray<FTask> Tasks
-			{
-				Launch(UE_SOURCE_LOCATION,[] {}),
-				Launch(UE_SOURCE_LOCATION,[] {})
-			};
-			BusyWait(Tasks, FTimespan::FromMilliseconds(10));
+			Wait(Tasks);
 		}
 
 		{	// basic use-case, postpone waiting so the task is executed first
@@ -115,17 +103,6 @@ namespace UE { namespace TasksTests
 				FPlatformProcess::Yield();
 			}
 			Task.Wait();
-			check(Done);
-		}
-
-		{	// basic use-case, postpone busy-waiting so the task is executed first
-			std::atomic<bool> Done{ false };
-			FTask Task = Launch(UE_SOURCE_LOCATION, [&Done] { Done = true; });
-			while (!Task.IsCompleted())
-			{
-				FPlatformProcess::Yield();
-			}
-			Task.BusyWait();
 			check(Done);
 		}
 
@@ -969,35 +946,32 @@ namespace UE { namespace TasksTests
 		UE_BENCHMARK(5, DependenciesPerfTest<150, 150>);
 	}
 
-	// blocks all workers (except reserve workers) until given event is triggered. Returns blocking tasks.
-	TArray<LowLevelTasks::FTask> BlockWorkers(FTaskEvent& ResumeEvent, uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers())
+	// blocks all workers until given event is triggered. Returns blocking tasks.
+	TArray<FTask> BlockWorkers(FTaskEvent& ResumeEvent, uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers);
 
-		TArray<LowLevelTasks::FTask> WorkerBlockers; // tasks that block worker threads
+		TArray<FTask> WorkerBlockers; // tasks that block worker threads
 		WorkerBlockers.Reserve(NumWorkers);
 
 		std::atomic<uint32>   NumWorkersBlocked{ 0 };
 		UE::FManualResetEvent AllWorkersBlocked;
 
-		for (int i = 0; i != NumWorkers; ++i)
+		for (int32 Index = 0; Index != NumWorkers; ++Index)
 		{
-			WorkerBlockers.Emplace();
-			LowLevelTasks::FTask& Task = WorkerBlockers.Last();
-			Task.Init(TEXT("WorkerBlocker"),
-				[&NumWorkersBlocked, &NumWorkers, &ResumeEvent, &AllWorkersBlocked]
-				{
-					checkf(LowLevelTasks::FScheduler::Get().IsWorkerThread(), TEXT("No reserve workers are expected to get blocked"));
-					if (++NumWorkersBlocked == NumWorkers)
+			WorkerBlockers.Emplace(
+				UE::Tasks::Launch(
+					TEXT("WorkerBlocker"),
+					[&NumWorkersBlocked, &NumWorkers, &ResumeEvent, &AllWorkersBlocked]
 					{
-						AllWorkersBlocked.Notify();
+						if (++NumWorkersBlocked == NumWorkers)
+						{
+							AllWorkersBlocked.Notify();
+						}
+						TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers_Blocked);
+						ResumeEvent.Wait();
 					}
-					TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers_Blocked);
-					ResumeEvent.Wait();
-				},
-				LowLevelTasks::ETaskFlags::AllowNothing
-			);
-			LowLevelTasks::FScheduler::Get().TryLaunch(Task);
+			));
 		}
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(WaitingUntilAllWorkersBlocked);
@@ -1035,10 +1009,10 @@ namespace UE { namespace TasksTests
 
 	TEST_CASE_NAMED(FTasksDeepRetractionTest, "System::Core::Tasks::DeepRetraction", "[.][ApplicationContextMask][EngineFilter]")
 	{
-		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep
 
 		FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
-		TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent);
+		TArray<FTask> WorkerBlockers = BlockWorkers(ResumeEvent);
 
 		{	// basic retraction, no dependencies
 			bool bDone = false;
@@ -1127,7 +1101,7 @@ namespace UE { namespace TasksTests
 		//}
 
 		ResumeEvent.Trigger();
-		LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+		Wait(WorkerBlockers);
 	}
 
 	template<uint32 Num>
@@ -1673,10 +1647,10 @@ namespace UE { namespace TasksTests
 		for (int Index = 0; Index < 1000; ++Index)
 		{
 			FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
-			TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
+			TArray<FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
 
 			ResumeEvent.Trigger();
-			LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+			Wait(WorkerBlockers);
 		}
 	}
 

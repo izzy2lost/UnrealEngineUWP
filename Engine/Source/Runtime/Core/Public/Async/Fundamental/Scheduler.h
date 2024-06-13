@@ -186,15 +186,18 @@ namespace LowLevelTasks
 
 		//tries to do some work until the Task is completed
 		template<typename TaskType>
+		UE_DEPRECATED(5.5, "This method will be removed.")
 		inline void BusyWait(const TaskType& Task, bool ForceAllowBackgroundWork = false);
 
 		//tries to do some work until the Conditional return true
 		template<typename Conditional>
+		UE_DEPRECATED(5.5, "This method will be removed.")
 		inline void BusyWaitUntil(Conditional&& Cond, bool ForceAllowBackgroundWork = false);
 
 		//tries to do some work until all the Tasks are completed
 		//the template parameter can be any Type that has a const conversion operator to FTask
 		template<typename TaskType>
+		UE_DEPRECATED(5.5, "This method will be removed.")
 		inline void BusyWait(const TArrayView<const TaskType>& Tasks, bool ForceAllowBackgroundWork = false);
 
 		//number of instantiated workers
@@ -321,21 +324,30 @@ namespace LowLevelTasks
 		return FScheduler::Get().TryLaunch(Task, QueuePreference, bWakeUpWorker);
 	}
 
+	UE_DEPRECATED(5.5, "This method will be removed.")
 	FORCEINLINE_DEBUGGABLE void BusyWaitForTask(const FTask& Task, bool ForceAllowBackgroundWork = false)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScheduler::Get().BusyWait(Task, ForceAllowBackgroundWork);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	template<typename Conditional>
+	UE_DEPRECATED(5.5, "This method will be removed.")
 	FORCEINLINE_DEBUGGABLE void BusyWaitUntil(Conditional&& Cond, bool ForceAllowBackgroundWork = false)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScheduler::Get().BusyWaitUntil<Conditional>(Forward<Conditional>(Cond), ForceAllowBackgroundWork);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	template<typename TaskType>
+	UE_DEPRECATED(5.5, "This method will be removed.")
 	FORCEINLINE_DEBUGGABLE void BusyWaitForTasks(const TArrayView<const TaskType>& Tasks, bool ForceAllowBackgroundWork = false)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScheduler::Get().BusyWait<TaskType>(Tasks, ForceAllowBackgroundWork);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/******************

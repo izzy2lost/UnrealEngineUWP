@@ -439,6 +439,7 @@ public:
 			CORE_API void WaitWithNamedThreadsSupport();
 
 			// waits until the task is completed or waiting timed out, while executing other tasks
+			UE_DEPRECATED(5.5, "Use Wait instead")
 			bool BusyWait(FTimeout Timeout)
 			{
 				return Wait(Timeout);
@@ -446,6 +447,7 @@ public:
 
 			// waits until the task is completed or the condition returns true, while executing other tasks
 			template<typename ConditionType>
+			UE_DEPRECATED(5.5, "This method will be removed.")
 			bool BusyWait(ConditionType&& Condition)
 			{
 				TaskTrace::FWaitingScope WaitingScope(GetTraceId());

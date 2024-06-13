@@ -19,6 +19,7 @@ namespace UE::Tasks
 	bool Wait(const TaskCollectionType& Tasks, FTimespan InTimeout = FTimespan::MaxValue());
 
 	template<typename TaskCollectionType>
+	UE_DEPRECATED(5.5, "Use Wait instead.")
 	bool BusyWait(const TaskCollectionType& Tasks, FTimespan InTimeout = FTimespan::MaxValue());
 
 	template<typename TaskType> void AddNested(const TaskType& Nested);
@@ -102,18 +103,24 @@ namespace UE::Tasks
 			// waits for task's completion for at least the specified amount of time, while executing other tasks.
 			// the call can return much later than the given timeout
 			// @return true if the task is completed
+			UE_DEPRECATED(5.5, "Use Wait instead.")
 			bool BusyWait(FTimespan Timeout = FTimespan::MaxValue()) const
 			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				return !IsValid() || Pimpl->BusyWait(FTimeout{ Timeout });
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// waits for task's completion or the given condition becomes true, while executing other tasks.
 			// the call can return much later than the given condition became true
 			// @return true if the task is completed
 			template<typename ConditionType>
+			UE_DEPRECATED(5.5, "This method will be removed.")
 			bool BusyWait(ConditionType&& Condition) const
 			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				return !IsValid() || Pimpl->BusyWait(Forward<ConditionType>(Condition));
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// launches a task for asynchronous execution
@@ -370,8 +377,10 @@ namespace UE::Tasks
 
 	// wait for multiple tasks while executing other tasks
 	template<typename TaskCollectionType>
+	UE_DEPRECATED(5.5, "Use Wait instead.")
 	bool BusyWait(const TaskCollectionType& Tasks, FTimespan InTimeout/* = FTimespan::MaxValue()*/)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TaskTrace::FWaitingScope WaitingScope(Private::GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::BusyWait);
 
@@ -389,6 +398,7 @@ namespace UE::Tasks
 		}
 
 		return true;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	using FTask = Private::FTaskHandle;
