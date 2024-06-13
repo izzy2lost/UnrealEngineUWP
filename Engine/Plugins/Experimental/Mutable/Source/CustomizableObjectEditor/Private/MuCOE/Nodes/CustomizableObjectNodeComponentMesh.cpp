@@ -66,7 +66,7 @@ void UCustomizableObjectNodeComponentMesh::PostEditChangeProperty(FPropertyChang
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
-	if (PropertyThatChanged && PropertyThatChanged->GetName() == TEXT("SkeletalMesh"))
+	if (PropertyThatChanged && PropertyThatChanged->GetName() == TEXT("Mesh"))
 	{
 		ReconstructNode();
 	}
