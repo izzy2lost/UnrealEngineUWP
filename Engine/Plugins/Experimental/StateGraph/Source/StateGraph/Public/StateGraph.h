@@ -15,6 +15,7 @@
  * - Configurable and hotfixable via ini settings.
  */
 
+#include "Containers/ArrayView.h"
 #include "Containers/Ticker.h"
 #include "Delegates/Delegate.h"
 #include "Logging/LogMacros.h"
@@ -337,6 +338,9 @@ public:
 	{
 		return CreateNode<FStateGraphNodeFunction>(NodeName, FStateGraphNodeFunctionStart::CreateLambda(Function, Forward<ArgsTypes>(Args)...));
 	}
+
+	/** Helper function for adding dependencies to a node. */
+	bool AddDependencies(FName NodeName, const TArrayView<const FName> Dependencies);
 
 	/**
 	 * Run the state graph. This is run automatically when nodes complete to try starting any blocked nodes, so this only needs to be run manually when:
