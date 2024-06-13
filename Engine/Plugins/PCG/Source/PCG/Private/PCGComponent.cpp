@@ -1981,9 +1981,18 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 			SetIsPartitioned(bIsNowPartitioned);
 
 			// And finally, re-generate if we were generated and activated
+			// Delay to next frame so that the Component unregister doesn't cancel this 
+			//  - Only affects non BP PCG Components because those get invalidated / handled by ConstructionScript
 			if (bWasGenerated && bActivated)
 			{
-				GenerateLocal(/*bForce=*/false);
+				if (UPCGSubsystem* Subsystem = GetSubsystem())
+				{
+					Subsystem->ScheduleGeneric([this]()
+					{
+						GenerateLocal(/*bForce=*/false);
+						return true;
+					}, this, {});
+				}
 			}
 		}
 	}
