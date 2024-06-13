@@ -166,7 +166,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), FVector::ZeroVector, UpdatedPrimitive, UpDir,
 			ShrinkMultiplier * QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
-		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor & CanStepUpOnHitSurface(OutFloorResult);
 		return;
 	}
 
@@ -219,7 +219,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
 			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
-		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor & CanStepUpOnHitSurface(OutFloorResult);
 		if (OutFloorResult.bWalkableFloor)
 		{
 			OutDeltaPos = NewDeltaPos;
@@ -239,7 +239,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
 			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
-		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor & CanStepUpOnHitSurface(OutFloorResult);
 		OutDeltaPos = NewDeltaPos;
 	}
 }
@@ -307,7 +307,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming)
 	{
-		SwitchToState(DefaultModeNames::Swimming, Params, OutputState);
+		SwitchToState(CommonLegacySettings->SwimmingMovementModeName, Params, OutputState);
 	}
 	else if (FloorResult.IsWalkableFloor())
 	{
@@ -396,9 +396,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 		if (bIsSupported)
 		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
 			OutputState.MovementEndState.RemainingMs = 0.0f;
-
 			OutputSyncState.MoveDirectionIntent = ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector;
 			OutputSyncState.SetTransforms_WorldSpace(
 				TargetPosition,
@@ -409,13 +407,13 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		else
 		{
 			// Blocking hit but not supported
-			SwitchToState(DefaultModeNames::Falling, Params, OutputState);
+			SwitchToState(CommonLegacySettings->AirMovementModeName, Params, OutputState);
 		}
 	}
 	else
 	{
 		// No water or floor not found
-		SwitchToState(DefaultModeNames::Falling, Params, OutputState);
+		SwitchToState(CommonLegacySettings->AirMovementModeName, Params, OutputState);
 	}
 }
 

@@ -103,7 +103,7 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming && !bIsMovingUp)
 	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Swimming;
+		OutputState.MovementEndState.NextModeName = CommonLegacySettings->SwimmingMovementModeName;
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 		return;
 	}
@@ -134,15 +134,11 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	if (FloorResult.IsWalkableFloor() && bIsFloorWithinReach && !bIsMovingUpRelativeToFloor)
 	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
+		OutputState.MovementEndState.NextModeName = CommonLegacySettings->GroundMovementModeName;
 		//TargetVel = FVector::VectorPlaneProject(TargetVel, FloorResult.HitResult.Normal);
 		const FPlane MovementPlane(FVector::ZeroVector, UpDir);
 		TargetVel = UMovementUtils::ConstrainToPlane(TargetVel, MovementPlane, false);
 		TargetPos -= (UpDir.Dot(TargetVel * DeltaSeconds) + (FloorResult.FloorDist - TargetHeight)) * UpDir;
-	}
-	else
-	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 	}
 
 	OutputState.MovementEndState.RemainingMs = 0.0f;

@@ -131,20 +131,16 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 	
 		if (bWalkTrigger && bIsWithinReach)
 		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
+			OutputState.MovementEndState.NextModeName = CommonLegacySettings->GroundMovementModeName;
 		}
 		else if (bFallTrigger)
 		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
-		}
-		else
-		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Swimming;
+			OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 		}
 	}
 	else
 	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
+		OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 	}
 	
 	OutputState.MovementEndState.RemainingMs = 0.0f;
