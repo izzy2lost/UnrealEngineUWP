@@ -301,7 +301,7 @@ namespace Jupiter
 				{
 					options.EnrichWithHttpRequest = (activity, request) =>
 					{
-						if (request.Headers.TryGetValue("ue-session", out StringValues ueSessionValues))
+						if (request.Headers.TryGetValue("x-ue-session", out StringValues ueSessionValues))
 						{
 							if (ueSessionValues.Count != 0)
 							{
@@ -309,11 +309,27 @@ namespace Jupiter
 							}
 						}
 
-						if (request.Headers.TryGetValue("ue-request", out StringValues ueRequestValues))
+						if (request.Headers.TryGetValue("ue-session", out StringValues ueSessionValuesOld))
+						{
+							if (ueSessionValuesOld.Count != 0)
+							{
+								activity.AddTag("ue-session", ueSessionValuesOld.First());
+							}
+						}
+
+						if (request.Headers.TryGetValue("x-ue-request", out StringValues ueRequestValues))
 						{
 							if (ueRequestValues.Count != 0)
 							{
 								activity.AddTag("ue-request", ueRequestValues.First());
+							}
+						}
+
+						if (request.Headers.TryGetValue("ue-request", out StringValues ueRequestValuesOld))
+						{
+							if (ueRequestValuesOld.Count != 0)
+							{
+								activity.AddTag("ue-request", ueRequestValuesOld.First());
 							}
 						}
 					};
