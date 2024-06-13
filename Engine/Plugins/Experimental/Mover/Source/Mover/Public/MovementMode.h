@@ -71,7 +71,7 @@ public:
 
 	/** Settings object type that this mode depends on. May be shared with other movement modes. When the mode is added to a Mover Component, it will create a shared instance of this settings class. */
 	UPROPERTY(EditDefaultsOnly, Category = Mover, meta = (MustImplement = "/Script/Mover.MovementSettingsInterface"))
-	TSubclassOf<UObject> SharedSettingsClass = nullptr;
+	TArray<TSubclassOf<UObject>> SharedSettingsClasses;
 
 	/** Transition checks for the current mode. Evaluated in order, stopping at the first successful transition check */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = Mover, meta = (FullyExpand = true))

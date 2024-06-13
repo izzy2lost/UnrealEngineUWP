@@ -471,6 +471,13 @@ bool UMoverComponent::InitMoverSimulation()
 
 	for (const TPair<FName, TObjectPtr<UBaseMovementMode>>& Element : MovementModes)
 	{
+		if (Element.Value.Get() == nullptr)
+		{
+			UE_LOG(LogMover, Warning, TEXT("Invalid Movement Mode type '%s' detected on %s. Mover actor will not function correctly."),
+				*Element.Key.ToString(), *GetNameSafe(GetOwner()));
+			continue;
+		}
+
 		ModeFSM->RegisterMovementMode(Element.Key, Element.Value);
 
 		bHasMatchingStartingState |= (StartingMovementMode == Element.Key);
@@ -708,15 +715,28 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 		}
 
 		// Verify that the movement mode's shared settings object exists (if any)
-		if (Element.Value && Element.Value->SharedSettingsClass &&
-			FindSharedSettings(Element.Value->SharedSettingsClass) == nullptr)
+		if (Element.Value)
 		{
-			Context.AddError(FText::Format(LOCTEXT("MissingModeSettingsError", "Movement mode on {0}, mapped as {1}, is missing its desired SharedSettingsClass {2}. You may need to save the asset and/or recompile."),
-				FText::FromString(GetNameSafe(GetOwner())),
-				FText::FromName(Element.Key),
-				FText::FromString(Element.Value->SharedSettingsClass->GetName())));
+			for (TSubclassOf<UObject>& Type : Element.Value->SharedSettingsClasses)
+			{
+				if (Type.Get() == nullptr)
+				{
+					Context.AddError(FText::Format(LOCTEXT("InvalidModeSettingsError", "Movement mode on {0}, mapped as {1}, has an invalid SharedSettingsClass. You may need to remove the invalid settings class."),
+						FText::FromString(GetNameSafe(GetOwner())),
+						FText::FromName(Element.Key)));
 
-			bDidFindAnyProblems = true;
+					bDidFindAnyProblems = true;
+				}
+				else if (FindSharedSettings(Type) == nullptr)
+				{
+					Context.AddError(FText::Format(LOCTEXT("MissingModeSettingsError", "Movement mode on {0}, mapped as {1}, is missing its desired SharedSettingsClass {2}. You may need to save the asset and/or recompile."),
+						FText::FromString(GetNameSafe(GetOwner())),
+						FText::FromName(Element.Key),
+						FText::FromString(Type->GetName())));
+
+					bDidFindAnyProblems = true;
+				}
+			}
 		}
 	}
 
@@ -811,12 +831,18 @@ void UMoverComponent::RefreshSharedSettings()
 	{
 		if (UBaseMovementMode* Mode = Element.Value.Get())
 		{
-			if (Mode->SharedSettingsClass != nullptr)
+			for (TSubclassOf<UObject>& SharedSettingsType : Mode->SharedSettingsClasses)
 			{
+				if (SharedSettingsType.Get() == nullptr)
+				{
+					UE_LOG(LogMover, Warning, TEXT("Invalid shared setting class detected on Movement Mode %s."), *Mode->GetName());
+					continue;
+				}
+
 				bool bFoundMatchingClass = false;
 				for (const TObjectPtr<UObject>& SettingsObj : SharedSettings)
 				{
-					if (SettingsObj && SettingsObj->IsA(Mode->SharedSettingsClass))
+					if (SettingsObj && SettingsObj->IsA(SharedSettingsType))
 					{
 						bFoundMatchingClass = true;
 						UnreferencedSettingsObjs.Remove(SettingsObj);
@@ -826,10 +852,9 @@ void UMoverComponent::RefreshSharedSettings()
 
 				if (!bFoundMatchingClass)
 				{
-					UObject* NewSettings = NewObject<UObject>(this, Mode->SharedSettingsClass, NAME_None, GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional);
+					UObject* NewSettings = NewObject<UObject>(this, SharedSettingsType, NAME_None, GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional);
 					SharedSettings.Add(NewSettings);
 				}
-
 			}
 		}
 	}
@@ -1141,7 +1166,6 @@ USceneComponent* UMoverComponent::GetUpdatedComponent() const
 {
 	return UpdatedComponent.Get();
 }
-
 
 USceneComponent* UMoverComponent::GetPrimaryVisualComponent() const
 {

@@ -15,7 +15,7 @@
 USwimmingMode::USwimmingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
+	SharedSettingsClasses.Add(UCommonLegacyMovementSettings::StaticClass());
 
 	GameplayTags.AddTag(Mover_IsSwimming);
 }

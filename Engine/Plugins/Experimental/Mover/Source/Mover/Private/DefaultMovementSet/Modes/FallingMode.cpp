@@ -23,7 +23,7 @@ UFallingMode::UFallingMode(const FObjectInitializer& ObjectInitializer)
 	, VerticalFallingDeceleration(4000.0f)
 	, TerminalVerticalSpeed(2000.0f)
 {
-	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
+	SharedSettingsClasses.Add(UCommonLegacyMovementSettings::StaticClass());
 
 	GameplayTags.AddTag(Mover_IsInAir);
 	GameplayTags.AddTag(Mover_IsFalling);
