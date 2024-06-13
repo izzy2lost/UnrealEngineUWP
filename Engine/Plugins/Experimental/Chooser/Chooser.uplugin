@@ -43,7 +43,7 @@
 		{
 			"Name": "ChooserUncooked",
 			"Type": "UncookedOnly",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PreDefault"
 		},
 		{
 			"Name" : "ChooserEditor",
