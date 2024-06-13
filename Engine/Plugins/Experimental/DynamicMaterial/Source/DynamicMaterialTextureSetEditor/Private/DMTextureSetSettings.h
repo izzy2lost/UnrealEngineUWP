@@ -11,7 +11,7 @@
 /**
  * DM Texture Set Settings
  */
-UCLASS(Config = EditorPerProjectUserSettings, meta = (DisplayName = "Material Designer"))
+UCLASS(Config = EditorPerProjectUserSettings, meta = (DisplayName = "Material Designer Texture Set"))
 class UDMTextureSetSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()

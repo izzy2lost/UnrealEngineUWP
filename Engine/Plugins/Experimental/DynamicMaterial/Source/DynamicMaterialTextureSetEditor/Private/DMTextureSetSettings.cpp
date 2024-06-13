@@ -6,6 +6,9 @@
 
 UDMTextureSetSettings::UDMTextureSetSettings()
 {
+	CategoryName = TEXT("Plugins");
+	SectionName = TEXT("Material Designer Texture Set");
+
 	int32 FilterCount = 0;
 
 	FDMTextureSetFilter BaseColor;
@@ -49,8 +52,8 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	++FilterCount;
 
 	FDMTextureSetFilter OpacityMask;
-	Opacity.FilterStrings = {TEXT("OpacityMask"), TEXT("Opacity_Mask"), TEXT("_OM"), TEXT("AlphaMask"), TEXT("Alpha_Mask"), TEXT("_AM")};
-	Opacity.MaterialProperties = {{EDMTextureSetMaterialProperty::OpacityMask, EDMTextureChannelMask::RGBA}};
+	OpacityMask.FilterStrings = {TEXT("OpacityMask"), TEXT("Opacity_Mask"), TEXT("_OM"), TEXT("AlphaMask"), TEXT("Alpha_Mask"), TEXT("_AM")};
+	OpacityMask.MaterialProperties = {{EDMTextureSetMaterialProperty::OpacityMask, EDMTextureChannelMask::RGBA}};
 	++FilterCount;
 
 	FDMTextureSetFilter Displacement;
