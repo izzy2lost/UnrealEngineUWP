@@ -21,6 +21,8 @@ static const int32 ThicknessOffset = 3;
 
 struct FNDIHairStrandsData;
 
+FHairGroupInstance* GetHairGroupInstance(UGroomComponent* In, int32 InGroupIndex);
+
 /** Render buffers that will be used in hlsl functions */
 struct FNDIHairStrandsBuffer : public FRenderResource
 {
@@ -122,6 +124,7 @@ struct FNDIHairStrandsData
 		bSkinningTransfer = false;
 		HairGroupInstSource = nullptr;
 		HairGroupInstance = nullptr;
+		HairGroupIndex = -1;
 
 		TickCount = 0;
 		ForceReset = true;
@@ -191,7 +194,13 @@ struct FNDIHairStrandsData
 			bSkinningTransfer = OtherDatas->bSkinningTransfer;
 			BindingType = OtherDatas->BindingType;
 			HairGroupInstSource = OtherDatas->HairGroupInstSource;
-			HairGroupInstance = OtherDatas->HairGroupInstance;
+			HairGroupInstance = nullptr;
+			HairGroupIndex = OtherDatas->HairGroupIndex;
+
+			if (HairGroupInstSource != nullptr)
+			{
+				HairGroupInstance = GetHairGroupInstance(HairGroupInstSource.Get(), HairGroupIndex);
+			}
 
 			TickCount = OtherDatas->TickCount;
 			ForceReset = OtherDatas->ForceReset;
@@ -285,6 +294,9 @@ struct FNDIHairStrandsData
 
 	/** Strands Gpu buffer */
 	FNDIHairStrandsBuffer* HairStrandsBuffer;
+
+	/** Hair group index */
+	int32 HairGroupIndex = -1;
 
 	/** Hair group instance */
 	FHairGroupInstance* HairGroupInstance;

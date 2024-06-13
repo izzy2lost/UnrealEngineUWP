@@ -1136,6 +1136,17 @@ private:
 	UMaterialInterface* Strands_DebugMaterial = nullptr;
 };
 
+FHairGroupInstance* GetHairGroupInstance(UGroomComponent* In, int32 InGroupIndex)
+{
+	check(In);
+	FHairStrandsSceneProxy* Proxy = (FHairStrandsSceneProxy*)In->GetSceneProxy();
+	if (Proxy && Proxy->HairGroupInstances.IsValidIndex(InGroupIndex))
+	{
+		return Proxy->HairGroupInstances[InGroupIndex];
+	}
+	return nullptr;
+}
+
 /** GroomCacheBuffers implementation that hold copies of the GroomCacheAnimationData needed for playback */
 class FGroomCacheBuffers : public IGroomCacheBuffers
 {
