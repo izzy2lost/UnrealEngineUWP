@@ -454,7 +454,9 @@ void ClusteredShadingPixelShader(
 	BRANCH
 	if (SubstratePixelHeader.ClosureCount > 0 || CulledLightGridData.NumLights == 0)
 	{
-		const float2 ScreenPosition = ViewportUVToScreenPos(ScreenUV);
+		// Subtrate tile are expressed as buffer dimension rather than view dimension
+		const float2 ViewportScreenUV = ScreenUV * View.BufferSizeAndInvSize.xy * View.ViewSizeAndInvSize.zw;
+		const float2 ScreenPosition = ViewportUVToScreenPos(ViewportScreenUV);
 		const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 		const float3 CameraVector = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 		uint FirstNonSimpleLightIndex = 0;
