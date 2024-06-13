@@ -13,7 +13,7 @@ uint MaxSamples;
 int ProgressDisplayEnabled;
 Texture2D<float4> RadianceTexture;
 Texture2D<float> DepthTexture;
-
+float PreExposure; // Taken from the view, but adjusted by the base exposure already applied to the Radiance texture
 int AdaptiveSamplingVisualize;
 
 void CompositeMain(
@@ -27,11 +27,12 @@ void CompositeMain(
 	int3 TexCoord = int3(UV * BufferSize - View.ViewRectMin.xy, 0);
 
 	float4 Radiance = RadianceTexture.Load(TexCoord);
+	Radiance = select(IsFinite(Radiance), Radiance, MaxHalfFloat); // if any component overflowed half precision, clamp it now
 
 	// NOTE: UE has the convention of using 1.0 - Alpha
 	// We must saturate the result because the path tracer's alpha is stochastic in the presence of volumetrics
 	// It is important that the clamp happens _after_ averaging, otherwise this can bias the estimate
-	OutColor = float4(Radiance.rgb * View.PreExposure, saturate(1.0 - Radiance.a));
+	OutColor = float4(Radiance.rgb * PreExposure, saturate(1.0 - Radiance.a));
 
 	if (AdaptiveSamplingVisualize == 1)
 	{

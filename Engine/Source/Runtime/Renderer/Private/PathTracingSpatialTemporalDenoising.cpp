@@ -1964,13 +1964,7 @@ void PathTracingSpatialTemporalDenoising(FRDGBuilder& GraphBuilder,
 	RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracingSpatialTemporalDenoising);
 	RDG_EVENT_SCOPE(GraphBuilder, "PathTracingSpatialTemporalDenoising");
 
-	ETextureCreateFlags ExtraFlags = GetExtraTextureCreateFlagsForDenoiser();
-
-	FRDGTextureDesc RadianceTextureDesc = FRDGTextureDesc::Create2D(
-		View.ViewRect.Size(),
-		PF_A32B32G32R32F,
-		FClearValueBinding::None,
-		TexCreate_ShaderResource | TexCreate_UAV | ExtraFlags);
+	FRDGTextureDesc RadianceTextureDesc = SpatialTemporalDenoisingContext.RadianceTexture->Desc;
 
 	const ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenosierType();
 	const ETemporalDenoiserType TemporalDenoiserType = GetTemporalDenoiserType();

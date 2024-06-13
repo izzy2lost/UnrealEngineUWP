@@ -286,7 +286,7 @@ enum class EInterchangePropertyTracks : int32
 	CameraPostProcessSettingsMotionBlurMax,
 	CameraPostProcessSettingsMotionBlurPerObjectSize,
 	CameraPostProcessSettingsPathTracingMaxBounces,
-	CameraPostProcessSettingsPathTracingMaxPathExposure,
+	CameraPostProcessSettingsPathTracingMaxPathIntensity,
 	CameraPostProcessSettingsRayTracingAO,
 	CameraPostProcessSettingsRayTracingAOIntensity,
 	CameraPostProcessSettingsRayTracingAORadius,

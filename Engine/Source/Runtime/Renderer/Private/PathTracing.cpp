@@ -506,6 +506,7 @@ TAutoConsoleVariable<float> CVarPathTracingBackgroundAlpha(
 
 BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, BlendFactor)
+	SHADER_PARAMETER(float, BaseExposure)
 	SHADER_PARAMETER(uint32, Iteration)
 	SHADER_PARAMETER(uint32, TemporalSeed)
 	SHADER_PARAMETER(uint32, MaxSamples)
@@ -602,6 +603,13 @@ struct FPathTracingConfig
 			CloudMapResolution != Other.CloudMapResolution ||
 			CloudMapDepth != Other.CloudMapDepth ||
 			UseMultiGPU != Other.UseMultiGPU;
+	}
+
+	bool IsExposureDifferentEnough(const FPathTracingConfig& Other) const
+	{
+		const float ExposureA = PathTracingData.BaseExposure;
+		const float ExposureB = Other.PathTracingData.BaseExposure;
+		return FMath::Max(ExposureA, ExposureB) > 16.0f * FMath::Min(ExposureA, ExposureB);
 	}
 
 	bool IsDOFDifferent(const FPathTracingConfig& Other) const
@@ -718,6 +726,9 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	const FFinalPostProcessSettings& PPV = View.FinalPostProcessSettings;
 	const FEngineShowFlags& ShowFlags = View.Family->EngineShowFlags;
 
+	// Capture the current exposure (NOTE: This is overwritten later so we maintain the exposure that was used on the first sample)
+	PathTracingData.BaseExposure = View.PreExposure;
+
 	int32 MaxBounces = CVarPathTracingMaxBounces.GetValueOnRenderThread();
 	if (MaxBounces < 0)
 	{
@@ -734,9 +745,10 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	PathTracingData.MaxPathIntensity = CVarPathTracingMaxPathIntensity.GetValueOnRenderThread();
 	if (PathTracingData.MaxPathIntensity <= 0)
 	{
-		// cvar clamp disabled, use PPV exposure value instad
-		PathTracingData.MaxPathIntensity = FMath::Pow(2.0f, PPV.PathTracingMaxPathExposure);
+		// cvar clamp disabled, use PPV value instad
+		PathTracingData.MaxPathIntensity = PPV.PathTracingMaxPathIntensity;
 	}
+	PathTracingData.MaxPathIntensity = FFloat16(PathTracingData.MaxPathIntensity).GetClampedNonNegativeAndFinite().GetFloat(); // Clip to half precision
 	PathTracingData.ApproximateCaustics = CVarPathTracingApproximateCaustics.GetValueOnRenderThread();
 	PathTracingData.EnableCameraBackfaceCulling = CVarPathTracingEnableCameraBackfaceCulling.GetValueOnRenderThread();
 	PathTracingData.SamplerType = CVarPathTracingSamplerType.GetValueOnRenderThread();
@@ -2758,6 +2770,7 @@ class FPathTracingCompositorPS : public FGlobalShader
 		SHADER_PARAMETER(float, AdaptiveSamplingErrorThreshold)
 		SHADER_PARAMETER(int, AdaptiveSamplingVisualize)
 		SHADER_PARAMETER(FIntVector, VarianceTextureDims)
+		SHADER_PARAMETER(float, PreExposure)
 
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -3132,6 +3145,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	// NOTE: same for DOF changes, these parameters could be animated which should not automatically invalidate a render in progress
 	if (FirstTime ||
 		Config.IsDifferent(PathTracingState->LastConfig) ||
+		(!View.bIsOfflineRender && Config.IsExposureDifferentEnough(PathTracingState->LastConfig)) ||
 		(!View.bIsOfflineRender && Config.IsDOFDifferent(PathTracingState->LastConfig)) ||
 		(!View.bIsOfflineRender && HairStrands::HasPositionsChanged(GraphBuilder, *Scene, View)))
 	{
@@ -3139,6 +3153,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		PathTracingState->LastConfig = Config;
 		View.ViewState->PathTracingInvalidate();
 	}
+	// copy the base exposure from last time, so we can have a consistent exposure when we accumulate samples
+	Config.PathTracingData.BaseExposure = PathTracingState->LastConfig.PathTracingData.BaseExposure;
 
 	// Declare heterogeneous volume buffers
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer;
@@ -3165,7 +3181,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		// First time through, need to make a new texture
 		FRDGTextureDesc RadianceDesc = FRDGTextureDesc::Create2D(
 			View.ViewRect.Size(),
-			PF_A32B32G32R32F,
+			PF_FloatRGBA,
 			FClearValueBinding::None,
 			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
 		FRDGTextureDesc AlbedoNormalDesc = FRDGTextureDesc::Create2D(
@@ -3970,6 +3986,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	DisplayParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorOutputTexture, ERenderTargetLoadAction::ELoad);
 	DisplayParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthOutputTexture,  ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
 	DisplayParameters->VarianceSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+	DisplayParameters->PreExposure = View.PreExposure / Config.PathTracingData.BaseExposure;
 
 	FScreenPassTextureViewport Viewport(SceneColorOutputTexture, View.ViewRect);
 

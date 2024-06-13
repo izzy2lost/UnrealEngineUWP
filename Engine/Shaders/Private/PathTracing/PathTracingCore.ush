@@ -31,6 +31,7 @@
 #include "./Volume/PathTracingVolumeSampling.ush"
 
 float BlendFactor;
+float BaseExposure;
 uint Iteration;
 uint TemporalSeed;
 uint MaxSamples;
@@ -285,13 +286,15 @@ struct FPathState
 
 void AccumulateRadiance(inout float3 TotalRadiance, float3 PathRadiance, bool bIsCameraRay)
 {
+	PathRadiance *= BaseExposure;
 	// User asked for path contributions to be clamped to reduce fireflies.
 	// This puts an upper bound on variance within the pixel at the expense of bias
 	float MaxPathRadiance = max3(PathRadiance.x, PathRadiance.y, PathRadiance.z);
-	if (!bIsCameraRay && MaxPathRadiance > MaxPathIntensity)
+	float MaxIntensity = bIsCameraRay ? MaxHalfFloat : MaxPathIntensity;
+	if (MaxPathRadiance > MaxIntensity)
 	{
 		// adjust sample while keeping color
-		PathRadiance *= MaxPathIntensity / MaxPathRadiance;
+		PathRadiance *= MaxIntensity / MaxPathRadiance;
 	}
 
 	// accumulate into the total

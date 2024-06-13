@@ -82,7 +82,7 @@ FDenoiseSettings GetCurrentSettings()
 struct OIDNState
 {
 	// scratch CPU memory for running the OIDN filter
-	TArray<FLinearColor> RawPixels;
+	TArray<FHalfColor> RawPixels;
 	TArray<FHalfColor> RawAlbedo;
 	TArray<FHalfColor> RawNormal;
 
@@ -142,8 +142,8 @@ struct OIDNState
 				NormalFilter = oidn::FilterRef();
 			}
 			PixelsFilter = OIDNDevice.newFilter("RT");
-			PixelsFilter.setImage("color" , RawPixels.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
-			PixelsFilter.setImage("output", RawPixels.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+			PixelsFilter.setImage("color" , RawPixels.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
+			PixelsFilter.setImage("output", RawPixels.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
 
 			if (CurrentSettings.UseAux)
 			{
@@ -162,8 +162,8 @@ struct OIDNState
 			if (CurrentSettings.DenoiseAlpha)
 			{
 				AlphaFilter = OIDNDevice.newFilter("RT");
-				AlphaFilter.setImage("color" , RawPixels.GetData(), oidn::Format::Float, Size.X, Size.Y, sizeof(float) * 3, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
-				AlphaFilter.setImage("output", RawPixels.GetData(), oidn::Format::Float, Size.X, Size.Y, sizeof(float) * 3, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+				AlphaFilter.setImage("color" , RawPixels.GetData(), oidn::Format::Half, Size.X, Size.Y, sizeof(uint16_t) * 3, sizeof(uint16_t), sizeof(FHalfColor) * Size.X);
+				AlphaFilter.setImage("output", RawPixels.GetData(), oidn::Format::Half, Size.X, Size.Y, sizeof(uint16_t) * 3, sizeof(uint16_t), sizeof(FHalfColor) * Size.X);
 				AlphaFilter.set("hdr", true);
 				AlphaFilter.commit();
 			}
@@ -198,9 +198,9 @@ template <typename PixelType>
 static void CopyTextureFromCPUToGPU(FRHICommandListImmediate& RHICmdList, const TArray<PixelType>& SrcArray, FIntPoint Size, FRHITexture* DstTexture)
 {
 	uint32_t DestStride;
-	FLinearColor* DstBuffer = static_cast<PixelType*>(RHICmdList.LockTexture2D(DstTexture, 0, RLM_WriteOnly, DestStride, false));
+	PixelType* DstBuffer = static_cast<PixelType*>(RHICmdList.LockTexture2D(DstTexture, 0, RLM_WriteOnly, DestStride, false));
 	DestStride /= sizeof(PixelType);
-	const FLinearColor* SrcBuffer = SrcArray.GetData();
+	const PixelType* SrcBuffer = SrcArray.GetData();
 	for (int Y = 0; Y < Size.Y; Y++, SrcBuffer += Size.X, DstBuffer += DestStride)
 	{
 		FPlatformMemory::Memcpy(DstBuffer, SrcBuffer, Size.X * sizeof(PixelType));
