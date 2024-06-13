@@ -382,8 +382,7 @@ public:
 
 #if RHI_RAYTRACING
 	/** Geometry for ray tracing. */
-	FRayTracingGeometry RayTracingGeometry;
-	FRayTracingAccelerationStructureSize RayTracingGeometryStructureSize;
+	FRayTracingGeometry RayTracingGeometry;	
 	FRWBuffer RayTracingDynamicVertexBuffer;
 	FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue;
 
@@ -496,6 +495,19 @@ public:
 
 protected:
 	friend class FSkeletalMeshDeformerHelpers;
+	
+	friend class FSkeletalMeshObjectNanite;
+	static void CreateVertexFactory(TArray<TUniquePtr<FGPUBaseSkinVertexFactory>>& VertexFactories,
+		TArray<TUniquePtr<FGPUSkinPassthroughVertexFactory>>* PassthroughVertexFactories,
+		const FSkeletalMeshObjectGPUSkin::FVertexFactoryBuffers& VertexBuffers,
+		ERHIFeatureLevel::Type FeatureLevel,
+		FGPUSkinPassthroughVertexFactory::EVertexAttributeFlags VertexAttributeMask,
+		uint32 BaseVertexIndex,
+		bool bUsedForPassthroughVertexFactory);
+
+	static void UpdateRayTracingGeometry_Internal(
+		FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers,
+		FRayTracingGeometry& RayTracingGeometry, bool bAnySegmentUsesWorldPositionOffset, FSkeletalMeshObject* MeshObject, FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue);
 
 	/**
 	 * Vertex factories and their matrix arrays

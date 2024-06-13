@@ -18,6 +18,7 @@
 
 class FPrimitiveDrawInterface;
 class UMorphTarget;
+class FRayTracingSkinnedGeometryUpdateQueue;
 
 /** 
 * Stores the updated matrices needed to skin the verts.
@@ -90,7 +91,11 @@ public:
 		FRHICommandList& RHICmdList,
 		FDynamicSkelMeshObjectDataNanite* InDynamicData,
 		uint64 FrameNumberToPrepare,
-		uint32 RevisionNumber
+		uint32 RevisionNumber,
+		uint32 PreviousRevisionNumber,
+		FGPUSkinCache* GPUSkinCache,
+		int32 LODIndex,
+		bool bRecreating
 	);
 
 	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
@@ -111,6 +116,19 @@ public:
 
 	virtual bool IsNaniteMesh() const override { return true; }
 
+	virtual FSkinWeightVertexBuffer* GetSkinWeightVertexBuffer(int32 LODIndex) const;
+
+#if RHI_RAYTRACING	
+	FRayTracingGeometry RayTracingGeometry;	
+	FGPUSkinCacheEntry* SkinCacheEntryForRayTracing = nullptr;	
+	FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue = nullptr;
+
+	virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers);
+
+	virtual FRayTracingGeometry* GetRayTracingGeometry() { return &RayTracingGeometry; }
+	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { return &RayTracingGeometry; }	
+#endif
+
 private:
 	FDynamicSkelMeshObjectDataNanite* DynamicData = nullptr;
 
@@ -119,6 +137,12 @@ private:
 		FSkeletalMeshRenderData* RenderData;
 		int32 LODIndex;
 		bool bInitialized;
+		
+		// Needed for skin cache update for ray tracing
+		TArray<TUniquePtr<FGPUBaseSkinVertexFactory>> VertexFactories;
+		TArray<TUniquePtr<FGPUSkinPassthroughVertexFactory>> PassthroughVertexFactories;
+
+		FSkinWeightVertexBuffer* MeshObjectWeightBuffer = nullptr;
 
 		FSkeletalMeshObjectLOD(ERHIFeatureLevel::Type InFeatureLevel, FSkeletalMeshRenderData* InRenderData, int32 InLOD)
 		: RenderData(InRenderData)
@@ -127,7 +151,7 @@ private:
 		{
 		}
 
-		void InitResources(FSkelMeshComponentLODInfo* LODInfo);
+		void InitResources(FSkelMeshComponentLODInfo* LODInfo, ERHIFeatureLevel::Type FeatureLevel);
 		void ReleaseResources();
 		void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
 		void UpdateSkinWeights(FSkelMeshComponentLODInfo* LODInfo);

@@ -49,6 +49,7 @@
 class FGPUSkinPassthroughVertexFactory;
 class FGPUBaseSkinVertexFactory;
 class FMorphVertexBuffer;
+class FSkeletalMeshObject;
 class FSkeletalMeshLODRenderData;
 class FSkeletalMeshObjectGPUSkin;
 class FSkeletalMeshVertexClothBuffer;
@@ -128,7 +129,7 @@ public:
 	ENGINE_API ~FGPUSkinCache();
 
 	static void UpdateSkinWeightBuffer(FGPUSkinCacheEntry* Entry);
-	static void SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObjectGPUSkin* Skin);
+	static void SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObject* Skin);
 
 	bool ProcessEntry(
 		EGPUSkinCacheEntryMode Mode,
@@ -136,7 +137,7 @@ public:
 		FGPUBaseSkinVertexFactory* VertexFactory,
 		FGPUSkinPassthroughVertexFactory* TargetVertexFactory, 
 		const FSkelMeshRenderSection& BatchElement, 
-		FSkeletalMeshObjectGPUSkin* Skin,
+		FSkeletalMeshObject* Skin,
 		const FMorphVertexBuffer* MorphVertexBuffer, 
 		const FSkeletalMeshVertexClothBuffer* ClothVertexBuffer, 
 		const FClothSimulData* SimData,
@@ -464,8 +465,8 @@ protected:
 	int32 DispatchCounter = 0;
 
 	void PrintMemorySummary() const;
-	FString GetSkeletalMeshObjectName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const;
-	FDebugName GetSkeletalMeshObjectDebugName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const;
+	FString GetSkeletalMeshObjectName(const FSkeletalMeshObject* GPUSkin) const;
+	FDebugName GetSkeletalMeshObjectDebugName(const FSkeletalMeshObject* GPUSkin) const;
 };
 
 DECLARE_STATS_GROUP(TEXT("GPU Skin Cache"), STATGROUP_GPUSkinCache, STATCAT_Advanced);

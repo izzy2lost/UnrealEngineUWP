@@ -14,6 +14,7 @@
 #include "RenderGraphUtils.h"
 #include "RenderCore.h"
 #include "Engine/SkinnedAssetCommon.h"
+#include "SkeletalRenderGPUSkin.h"
 
 FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 	USkinnedMeshComponent* InComponent,
@@ -182,6 +183,38 @@ FSkeletalMeshObjectNanite::FSkeletalMeshObjectNanite(USkinnedMeshComponent* InCo
 , DynamicData(nullptr)
 , CachedLOD(INDEX_NONE)
 {
+#if RHI_RAYTRACING
+	FSkeletalMeshObjectNanite* PreviousMeshObject = nullptr;
+	if (InComponent->PreviousMeshObject && InComponent->PreviousMeshObject->IsNaniteMesh())
+	{
+		PreviousMeshObject = (FSkeletalMeshObjectNanite*)InComponent->PreviousMeshObject;
+
+		// Don't use re-create data if the mesh or feature level changed
+		if (PreviousMeshObject->SkeletalMeshRenderData != InRenderData || PreviousMeshObject->FeatureLevel != InFeatureLevel)
+		{
+			PreviousMeshObject = nullptr;
+		}
+	}
+
+	if (PreviousMeshObject)
+	{
+		// Transfer GPU skin cache from PreviousMeshObject -- needs to happen on render thread.  PreviousMeshObject is defer deleted, so it's safe to access it there.
+		ENQUEUE_RENDER_COMMAND(ReleaseSkeletalMeshSkinCacheResources)(UE::RenderCommandPipe::SkeletalMesh,
+			[this, PreviousMeshObject](FRHICommandList& RHICmdList)
+			{
+				SkinCacheEntryForRayTracing = PreviousMeshObject->SkinCacheEntryForRayTracing;
+
+				// patch entries to point to new GPUSkin
+				FGPUSkinCache::SetEntryGPUSkin(SkinCacheEntryForRayTracing, this);
+
+				PreviousMeshObject->SkinCacheEntryForRayTracing = nullptr;
+			}
+		);
+	}
+
+	RayTracingUpdateQueue = InComponent->GetScene()->GetRayTracingSkinnedGeometryUpdateQueue();
+#endif
+
 	for (int32 LODIndex = 0; LODIndex < InRenderData->LODRenderData.Num(); ++LODIndex)
 	{
 		new(LODs) FSkeletalMeshObjectLOD(InFeatureLevel, InRenderData, LODIndex);
@@ -210,9 +243,16 @@ void FSkeletalMeshObjectNanite::InitResources(USkinnedMeshComponent* InComponent
 				InitLODInfo = &InComponent->LODInfo[LODIndex];
 			}
 
-			LOD.InitResources(InitLODInfo);
+			LOD.InitResources(InitLODInfo, FeatureLevel);
 		}
 	}
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && bSupportRayTracing)
+	{
+		BeginInitResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+	}	
+#endif
 }
 
 void FSkeletalMeshObjectNanite::ReleaseResources()
@@ -222,6 +262,34 @@ void FSkeletalMeshObjectNanite::ReleaseResources()
 		FSkeletalMeshObjectLOD& LOD = LODs[LODIndex];
 		LOD.ReleaseResources();
 	}
+
+#if RHI_RAYTRACING
+	BeginReleaseResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
+
+	FSkeletalMeshObjectNanite* MeshObject = this;
+	FGPUSkinCacheEntry** PtrSkinCacheEntry = &SkinCacheEntryForRayTracing;
+	ENQUEUE_RENDER_COMMAND(ReleaseSkeletalMeshSkinCacheResources)(UE::RenderCommandPipe::SkeletalMesh,
+		[MeshObject, PtrSkinCacheEntry](FRHICommandList& RHICmdList)
+		{
+			FGPUSkinCacheEntry*& LocalSkinCacheEntry = *PtrSkinCacheEntry;
+			FGPUSkinCache::Release(LocalSkinCacheEntry);
+
+			*PtrSkinCacheEntry = nullptr;
+		}
+	);
+
+	if (RayTracingUpdateQueue != nullptr)
+	{
+		ENQUEUE_RENDER_COMMAND(ReleaseRayTracingDynamicVertexBuffer)(UE::RenderCommandPipe::SkeletalMesh,
+			[RayTracingUpdateQueue = RayTracingUpdateQueue, RayTracingGeometryPtr = &RayTracingGeometry](FRHICommandList& RHICmdList) mutable
+			{
+				if (RayTracingUpdateQueue != nullptr)
+				{
+					RayTracingUpdateQueue->Remove(RayTracingGeometryPtr);
+				}
+			});
+	}
+#endif
 }
 
 void FSkeletalMeshObjectNanite::Update(
@@ -240,27 +308,38 @@ void FSkeletalMeshObjectNanite::Update(
 
 		uint64 FrameNumberToPrepare = GFrameCounter;
 		uint32 RevisionNumber = 0;
+		uint32 PreviousRevisionNumber = 0;
 
 		if (InComponent->SceneProxy)
 		{
 			RevisionNumber = InComponent->GetBoneTransformRevisionNumber();
+			PreviousRevisionNumber = InComponent->GetPreviousBoneTransformRevisionNumber();
 		}
 
 		// Queue a call to update this data
 		{
+
+			FGPUSkinCache* GPUSkinCache = nullptr;
+			if (InComponent && InComponent->GetScene())
+			{
+				FSceneInterface* Scene = InComponent->GetScene();
+				GPUSkinCache = Scene->GetGPUSkinCache();
+			}			
+			
+			const bool bRecreating = InComponent->IsRenderStateRecreating();
 			FSkeletalMeshObjectNanite* MeshObject = this;
 			ENQUEUE_RENDER_COMMAND(SkelMeshObjectUpdateDataCommand)(UE::RenderCommandPipe::SkeletalMesh,
-				[MeshObject, FrameNumberToPrepare, RevisionNumber, NewDynamicData](FRHICommandList& RHICmdList)
+				[MeshObject, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, NewDynamicData, GPUSkinCache, LODIndex, bRecreating](FRHICommandList& RHICmdList)
 				{
 					FScopeCycleCounter Context(MeshObject->GetStatId());
-					MeshObject->UpdateDynamicData_RenderThread(RHICmdList, NewDynamicData, FrameNumberToPrepare, RevisionNumber);
+					MeshObject->UpdateDynamicData_RenderThread(RHICmdList, NewDynamicData, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, GPUSkinCache, LODIndex, bRecreating);
 				}
 			);
 		}
 	}
 }
 
-void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataNanite* InDynamicData, uint64 FrameNumberToPrepare, uint32 RevisionNumber)
+void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataNanite* InDynamicData, uint64 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, FGPUSkinCache* GPUSkinCache, int32 LODIndex, bool bRecreating)
 {
 	// We should be done with the old data at this point
 	delete DynamicData;
@@ -270,20 +349,88 @@ void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& 
 	check(DynamicData);
 
 	check(IsInParallelRenderingThread());
+
+#if RHI_RAYTRACING	
+	const bool bGPUSkinCacheEnabled = FGPUSkinCache::IsGPUSkinCacheRayTracingSupported() && GPUSkinCache && GEnableGPUSkinCache && IsRayTracingEnabled();
+
+	if (bGPUSkinCacheEnabled && SkeletalMeshRenderData->bSupportRayTracing)
+	{
+		FSkeletalMeshObjectLOD& LOD = LODs[LODIndex];		
+
+		const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData->LODRenderData[LODIndex];
+		const TArray<FSkelMeshRenderSection>& Sections = GetRenderSections(LODIndex);
+		const FName OwnerName = GetAssetPathName(LODIndex);
+
+		for (int32 SectionIdx = 0; SectionIdx < Sections.Num(); SectionIdx++)
+		{
+			FGPUBaseSkinVertexFactory* VertexFactory = LOD.VertexFactories[SectionIdx].Get();
+			FGPUBaseSkinVertexFactory::FShaderDataType& ShaderData = VertexFactory->GetShaderData();
+
+			const FSkelMeshRenderSection& Section = Sections[SectionIdx];			
+
+			if (DynamicData->PrevReferenceToLocal.Num() > 0)
+			{
+				TArray<FMatrix44f>& PreviousReferenceToLocalMatrices = DynamicData->PrevReferenceToLocal;
+				ShaderData.UpdateBoneData(RHICmdList, PreviousReferenceToLocalMatrices, Section.BoneMap, PreviousRevisionNumber, FeatureLevel, OwnerName);
+			}
+
+			// Create a uniform buffer from the bone transforms.
+			{
+				TArray<FMatrix44f>& ReferenceToLocalMatrices = DynamicData->ReferenceToLocal;
+				ShaderData.UpdateBoneData(RHICmdList, ReferenceToLocalMatrices, Section.BoneMap, RevisionNumber, FeatureLevel, OwnerName);
+				ShaderData.UpdatedFrameNumber = FrameNumberToPrepare;
+			}
+
+			bool bSectionUsingSkinCache = Section.MaxBoneInfluences != 0;
+
+			if (bSectionUsingSkinCache)
+			{
+				bSectionUsingSkinCache = GPUSkinCache->ProcessEntry(
+					EGPUSkinCacheEntryMode::RayTracing,
+					RHICmdList,
+					LOD.VertexFactories[SectionIdx].Get(),
+					LOD.PassthroughVertexFactories[SectionIdx].Get(),
+					Section,
+					this,
+					nullptr, // MorphVertexBuffer,
+					nullptr, // ClothSimulationData != nullptr ? &LODData.ClothVertexBuffer : 0,
+					nullptr, // ClothSimulationData,
+					FMatrix44f::Identity, // ClothToLocal,
+					0.0f, // DynamicData->ClothBlendWeight,
+					(FVector3f)FVector::OneVector, // (FVector3f)WorldScale,
+					RevisionNumber,
+					SectionIdx,
+					LODIndex,
+					bRecreating,
+					SkinCacheEntryForRayTracing);
+			}			
+		}
+	}
+#endif
 }
 
 const FVertexFactory* FSkeletalMeshObjectNanite::GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
 {
 	check(LODs.IsValidIndex(LODIndex));
-	return nullptr;
-	//return &LODs[LODIndex].VertexFactory;
+
+	if (VFMode == ESkinVertexFactoryMode::RayTracing)
+	{
+		return LODs[LODIndex].PassthroughVertexFactories[ChunkIdx].Get();
+	}
+
+	return LODs[LODIndex].VertexFactories[ChunkIdx].Get();
 }
 
 const FVertexFactory* FSkeletalMeshObjectNanite::GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
 {
 	check(LODs.IsValidIndex(LODIndex));
-	return nullptr;
-	//return &LODs[LODIndex].VertexFactory;
+
+	if (VFMode == ESkinVertexFactoryMode::RayTracing)
+	{
+		return LODs[LODIndex].PassthroughVertexFactories[ChunkIdx].Get();
+	}
+
+	return LODs[LODIndex].VertexFactories[ChunkIdx].Get();
 }
 
 TArray<FTransform>* FSkeletalMeshObjectNanite::GetComponentSpaceTransforms() const
@@ -363,7 +510,7 @@ void FSkeletalMeshObjectNanite::UpdateSkinWeightBuffer(USkinnedMeshComponent* In
 		FSkeletalMeshObjectLOD& LOD = LODs[LODIndex];
 
 		// Skip LODs that have their render data stripped
-		if (LOD.RenderData->LODRenderData[LODIndex].GetNumVertices() > 0)
+		if (InComponent && LOD.RenderData->LODRenderData[LODIndex].GetNumVertices() > 0)
 		{
 			FSkelMeshComponentLODInfo* UpdateLODInfo = nullptr;
 			if (InComponent->LODInfo.IsValidIndex(LODIndex))
@@ -372,23 +519,59 @@ void FSkeletalMeshObjectNanite::UpdateSkinWeightBuffer(USkinnedMeshComponent* In
 			}
 
 			LOD.UpdateSkinWeights(UpdateLODInfo);
+
+			if (InComponent && InComponent->SceneProxy)
+			{
+				if (SkinCacheEntryForRayTracing)
+				{
+					ENQUEUE_RENDER_COMMAND(UpdateSkinCacheSkinWeightBuffer)(UE::RenderCommandPipe::SkeletalMesh,
+						[SkinCacheEntryForRayTracing = SkinCacheEntryForRayTracing](FRHICommandList& RHICmdList)
+						{
+							FGPUSkinCache::UpdateSkinWeightBuffer(SkinCacheEntryForRayTracing);
+						});
+				}
+			}
 		}
 	}
 }
 
-void FSkeletalMeshObjectNanite::FSkeletalMeshObjectLOD::InitResources(FSkelMeshComponentLODInfo* InLODInfo)
+void FSkeletalMeshObjectNanite::FSkeletalMeshObjectLOD::InitResources(FSkelMeshComponentLODInfo* InLODInfo, ERHIFeatureLevel::Type InFeatureLevel)
 {
 	check(RenderData);
 	check(RenderData->LODRenderData.IsValidIndex(LODIndex));
 
 	FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[LODIndex];
-	(void)LODData;
 
-#if RHI_RAYTRACING
-	if (IsRayTracingEnabled() && RenderData->bSupportRayTracing)
+	// Init vertex factories for ray tracing entry in skin cache
+	if (IsRayTracingAllowed())
 	{
+		MeshObjectWeightBuffer = FSkeletalMeshObject::GetSkinWeightVertexBuffer(LODData, InLODInfo);
+
+		FSkeletalMeshObjectGPUSkin::FVertexFactoryBuffers VertexBuffers;
+		VertexBuffers.StaticVertexBuffers = &LODData.StaticVertexBuffers;
+		VertexBuffers.ColorVertexBuffer = FSkeletalMeshObject::GetColorVertexBuffer(LODData, InLODInfo);
+		VertexBuffers.SkinWeightVertexBuffer = MeshObjectWeightBuffer;
+		VertexBuffers.MorphVertexBufferPool = nullptr; // MorphVertexBufferPool;
+		VertexBuffers.APEXClothVertexBuffer = &LODData.ClothVertexBuffer;
+		VertexBuffers.NumVertices = LODData.GetNumVertices();
+
+		const bool bUsedForPassthroughVertexFactory = true;
+		FGPUSkinPassthroughVertexFactory::EVertexAttributeFlags VertexAttributeMask = FGPUSkinPassthroughVertexFactory::EVertexAttributeFlags::Position | FGPUSkinPassthroughVertexFactory::EVertexAttributeFlags::Tangent;
+
+		VertexFactories.Empty(LODData.RenderSections.Num());
+		PassthroughVertexFactories.Empty(LODData.RenderSections.Num());
+
+		for (const FSkelMeshRenderSection& Section : LODData.RenderSections)
+		{
+			FSkeletalMeshObjectGPUSkin::CreateVertexFactory(VertexFactories,
+				&PassthroughVertexFactories,
+				VertexBuffers,
+				InFeatureLevel,
+				VertexAttributeMask,
+				Section.BaseVertexIndex,
+				bUsedForPassthroughVertexFactory);
+		}
 	}
-#endif
 
 	bInitialized = true;
 }
@@ -396,6 +579,32 @@ void FSkeletalMeshObjectNanite::FSkeletalMeshObjectLOD::InitResources(FSkelMeshC
 void FSkeletalMeshObjectNanite::FSkeletalMeshObjectLOD::ReleaseResources()
 {
 	bInitialized = false;
+
+	for (int32 FactoryIdx = 0; FactoryIdx < VertexFactories.Num(); FactoryIdx++)
+	{
+		BeginReleaseResource(VertexFactories[FactoryIdx].Get(), &UE::RenderCommandPipe::SkeletalMesh);
+	}
+
+	for (int32 FactoryIdx = 0; FactoryIdx < PassthroughVertexFactories.Num(); FactoryIdx++)
+	{
+		BeginReleaseResource(PassthroughVertexFactories[FactoryIdx].Get(), &UE::RenderCommandPipe::SkeletalMesh);
+	}
+}
+
+#if RHI_RAYTRACING
+void FSkeletalMeshObjectNanite::UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers)
+{
+	// TODO: Support WPO
+	const bool bAnySegmentUsesWorldPositionOffset = false;
+
+	FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry_Internal(RHICmdList, LODModel, LODIndex, VertexBuffers, RayTracingGeometry, bAnySegmentUsesWorldPositionOffset, this, RayTracingUpdateQueue);
+}
+#endif
+
+FSkinWeightVertexBuffer* FSkeletalMeshObjectNanite::GetSkinWeightVertexBuffer(int32 LODIndex) const
+{
+	checkSlow(LODs.IsValidIndex(LODIndex));
+	return LODs[LODIndex].MeshObjectWeightBuffer;
 }
 
 void FSkeletalMeshObjectNanite::FSkeletalMeshObjectLOD::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
@@ -407,6 +616,6 @@ void FSkeletalMeshObjectNanite::FSkeletalMeshObjectLOD::UpdateSkinWeights(FSkelM
 	check(RenderData);
 	check(RenderData->LODRenderData.IsValidIndex(LODIndex));
 
-	//FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[LODIndex];
-	//MeshObjectWeightBuffer = FSkeletalMeshObject::GetSkinWeightVertexBuffer(LODData, InLODInfo);
+	FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[LODIndex];
+	MeshObjectWeightBuffer = FSkeletalMeshObject::GetSkinWeightVertexBuffer(LODData, InLODInfo);
 }

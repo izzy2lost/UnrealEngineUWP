@@ -275,6 +275,8 @@ public:
 
 	virtual bool ShouldUseSeparateSkinCacheEntryForRayTracing() const { return GetLOD() != GetRayTracingLOD() || SkinCacheEntry == nullptr; }
 	virtual FGPUSkinCacheEntry* GetSkinCacheEntryForRayTracing() const { return ShouldUseSeparateSkinCacheEntryForRayTracing() ? SkinCacheEntryForRayTracing : SkinCacheEntry; }
+	virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers) {}
+
 #endif // RHI_RAYTRACING
 
 	/** Called when that component transform has changed */
@@ -374,6 +376,9 @@ public:
 
 	/** Get the color buffer either from the component LOD info or the skeletal mesh LOD render data */
 	static FColorVertexBuffer* GetColorVertexBuffer(FSkeletalMeshLODRenderData& LODData, FSkelMeshComponentLODInfo* CompLODInfo);
+
+	/** Get the weight buffer for specific LOD index. Only needed for GPU skin cache */
+	virtual FSkinWeightVertexBuffer* GetSkinWeightVertexBuffer(int32 LODIndex) const { return nullptr; }
 
 protected:
 	/** The skeletal mesh resource with which to render. */

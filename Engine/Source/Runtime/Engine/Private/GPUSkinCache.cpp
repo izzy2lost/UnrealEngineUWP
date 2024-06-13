@@ -265,7 +265,7 @@ enum class EGPUSkinCacheDispatchFlags
 class FGPUSkinCacheEntry
 {
 public:
-	FGPUSkinCacheEntry(FGPUSkinCache* InSkinCache, FSkeletalMeshObjectGPUSkin* InGPUSkin, FGPUSkinCache::FRWBuffersAllocation* InPositionAllocation, int32 InLOD, EGPUSkinCacheEntryMode InMode)
+	FGPUSkinCacheEntry(FGPUSkinCache* InSkinCache, FSkeletalMeshObject* InGPUSkin, FGPUSkinCache::FRWBuffersAllocation* InPositionAllocation, int32 InLOD, EGPUSkinCacheEntryMode InMode)
 		: Mode(InMode)
 		, PositionAllocation(InPositionAllocation)
 		, SkinCache(InSkinCache)
@@ -436,7 +436,7 @@ public:
 		return SectionData.SourceVertexFactory == SourceVertexFactory;
 	}
 
-	bool IsValid(FSkeletalMeshObjectGPUSkin* InSkin, int32 InLOD) const
+	bool IsValid(FSkeletalMeshObject* InSkin, int32 InLOD) const
 	{
 		return GPUSkin == InSkin && LOD == InLOD;
 	}
@@ -584,7 +584,7 @@ protected:
 	FGPUSkinCache::FRWBuffersAllocation* PositionAllocation;
 	FGPUSkinCache* SkinCache;
 	TArray<FSectionDispatchData> DispatchData;
-	FSkeletalMeshObjectGPUSkin* GPUSkin;
+	FSkeletalMeshObject* GPUSkin;
 	int BoneInfluenceType;
 	bool bUse16BitBoneIndex;
 	bool bUse16BitBoneWeight;
@@ -1629,7 +1629,7 @@ bool FGPUSkinCache::ProcessEntry(
 	FGPUBaseSkinVertexFactory* VertexFactory,
 	FGPUSkinPassthroughVertexFactory* TargetVertexFactory, 
 	const FSkelMeshRenderSection& BatchElement, 
-	FSkeletalMeshObjectGPUSkin* Skin,
+	FSkeletalMeshObject* Skin,
 	const FMorphVertexBuffer* MorphVertexBuffer,
 	const FSkeletalMeshVertexClothBuffer* ClothVertexBuffer, 
 	const FClothSimulData* SimData,
@@ -2203,7 +2203,7 @@ void FGPUSkinCache::UpdateSkinWeightBuffer(FGPUSkinCacheEntry* Entry)
 	}
 }
 
-void FGPUSkinCache::SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObjectGPUSkin* Skin)
+void FGPUSkinCache::SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObject* Skin)
 {
 	if (Entry)
 	{
@@ -2364,7 +2364,7 @@ void FGPUSkinCache::PrintMemorySummary() const
 	UE_LOG(LogSkinCache, Display, TEXT("==============================================="));
 }
 
-FString FGPUSkinCache::GetSkeletalMeshObjectName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const
+FString FGPUSkinCache::GetSkeletalMeshObjectName(const FSkeletalMeshObject* GPUSkin) const
 {
 	FString Name = TEXT("None");
 	if (GPUSkin)
@@ -2376,7 +2376,7 @@ FString FGPUSkinCache::GetSkeletalMeshObjectName(const FSkeletalMeshObjectGPUSki
 	return Name;
 }
 
-FDebugName FGPUSkinCache::GetSkeletalMeshObjectDebugName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const
+FDebugName FGPUSkinCache::GetSkeletalMeshObjectDebugName(const FSkeletalMeshObject* GPUSkin) const
 {
 	if (!GPUSkin)
 		return {};

@@ -725,6 +725,12 @@ public:
 		return FloatCount;
 	}
 
+#if RHI_RAYTRACING
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
+
+	virtual bool IsRayTracingRelevant() const override { return true; }
+#endif
+
 protected:
 	const USkinnedAsset* SkinnedAsset = nullptr;
 	const FResources* Resources = nullptr;

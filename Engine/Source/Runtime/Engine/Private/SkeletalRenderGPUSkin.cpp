@@ -838,15 +838,16 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(
 
 #if RHI_RAYTRACING
 
-void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers)
+void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry_Internal(
+	FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers,
+	FRayTracingGeometry& RayTracingGeometry, bool bAnySegmentUsesWorldPositionOffset, FSkeletalMeshObject* MeshObject, FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue)
 {
-	if (IsRayTracingEnabled() && bSupportRayTracing)
+	if (IsRayTracingEnabled() && MeshObject->bSupportRayTracing)
 	{
-		const bool bAnySegmentUsesWorldPositionOffset = DynamicData != nullptr ? DynamicData->bAnySegmentUsesWorldPositionOffset : false;
-
 		bool bRequireRecreatingRayTracingGeometry = LODIndex != RayTracingGeometry.LODIndex
-			|| bHiddenMaterialVisibilityDirtyForRayTracing
+			|| MeshObject->bHiddenMaterialVisibilityDirtyForRayTracing
 			|| RayTracingGeometry.Initializer.Segments.Num() == 0;
+
 		if (!bRequireRecreatingRayTracingGeometry)
 		{
 			for (FRayTracingGeometrySegment& Segment : RayTracingGeometry.Initializer.Segments)
@@ -858,7 +859,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 				}
 			}
 		}
-		bHiddenMaterialVisibilityDirtyForRayTracing = false;
+		MeshObject->bHiddenMaterialVisibilityDirtyForRayTracing = false;
 
 		bool bRequiresBuild = false;
 
@@ -884,19 +885,19 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 			FRayTracingGeometryInitializer Initializer;
 
 #if !UE_BUILD_SHIPPING
-			if (DebugName.IsValid())
+			if (MeshObject->DebugName.IsValid())
 			{
-				Initializer.DebugName = DebugName;
+				Initializer.DebugName = MeshObject->DebugName;
 			}
 			else
 #endif
 			{
-				static const FName DefaultDebugName("FSkeletalMeshObjectGPUSkin");
+				static const FName DefaultDebugName("FSkeletalMeshObject");
 				static int32 DebugNumber = 0;
 				Initializer.DebugName = FName(DefaultDebugName, DebugNumber++);
 			}
 
-			Initializer.OwnerName = GetAssetPathName(LODIndex);
+			Initializer.OwnerName = MeshObject->GetAssetPathName(LODIndex);
 			Initializer.IndexBuffer = IndexBufferRHI;
 			Initializer.TotalPrimitiveCount = TotalNumTriangles;
 			Initializer.GeometryType = RTGT_Triangles;
@@ -919,7 +920,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 				Segment.NumPrimitives = Section.NumTriangles;
 
 				// TODO: If we are at a dropped LOD, route material index through the LODMaterialMap in the LODInfo struct.
-				Segment.bEnabled = !IsMaterialHidden(LODIndex, Section.MaterialIndex) && !Section.bDisabled && Section.bVisibleInRayTracing;
+				Segment.bEnabled = !MeshObject->IsMaterialHidden(LODIndex, Section.MaterialIndex) && !Section.bDisabled && Section.bVisibleInRayTracing;
 				Initializer.Segments.Add(Segment);
 			}
 
@@ -936,9 +937,6 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 			}
 
 			Initializer.SourceGeometry = LODModel.SourceRayTracingGeometry.GetRHI();
-
-			// Get the scratch sizes used for build & update
-			RayTracingGeometryStructureSize = RHICalcRayTracingGeometrySize(Initializer);
 
 			RayTracingGeometry.LODIndex = LODIndex;
 
@@ -975,13 +973,20 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 		if (!bAnySegmentUsesWorldPositionOffset)
 		{
 			check(bRequiresBuild == RayTracingGeometry.GetRequiresBuild());
-			RayTracingUpdateQueue->Add(&RayTracingGeometry, RayTracingGeometryStructureSize);
+			RayTracingUpdateQueue->Add(&RayTracingGeometry, RHICalcRayTracingGeometrySize(RayTracingGeometry.Initializer));
 		}
 		else
 		{
 			// Otherwise, we will run the dynamic ray tracing geometry path, i.e. running VSinCS and build/refit geometry there, so do nothing here
 		}
 	}
+}
+
+void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers)
+{
+	const bool bAnySegmentUsesWorldPositionOffset = DynamicData != nullptr ? DynamicData->bAnySegmentUsesWorldPositionOffset : false;
+
+	UpdateRayTracingGeometry_Internal(RHICmdList, LODModel, LODIndex, VertexBuffers, RayTracingGeometry, bAnySegmentUsesWorldPositionOffset, this, RayTracingUpdateQueue);
 }
 
 #endif // RHI_RAYTRACING
@@ -1849,7 +1854,7 @@ static void InitPassthroughVertexFactory_RenderThread(
 /**
  * Creates a vertex factory entry for the given type and initialize it on the render thread
  */
-static void CreateVertexFactory(
+void FSkeletalMeshObjectGPUSkin::CreateVertexFactory(
 	TArray<TUniquePtr<FGPUBaseSkinVertexFactory>>& VertexFactories,
 	TArray<TUniquePtr<FGPUSkinPassthroughVertexFactory>>* PassthroughVertexFactories,
 	const FSkeletalMeshObjectGPUSkin::FVertexFactoryBuffers& VertexBuffers,
