@@ -9,7 +9,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-
 #pragma warning disable CA5351 // Do Not Use Broken Cryptographic Algorithms
 
 namespace EpicGames.Core
