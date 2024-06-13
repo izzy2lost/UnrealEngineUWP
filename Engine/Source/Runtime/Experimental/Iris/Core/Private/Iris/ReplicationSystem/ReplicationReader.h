@@ -140,8 +140,13 @@ private:
 	// Read index part of handle
 	FNetRefHandle ReadNetRefHandleId(FNetSerializationContext& Context, FNetBitStreamReader& Reader) const;
 
+	enum EReadObjectFlag : unsigned
+	{
+		ReadObjectFlag_IsReadingHugeObjectBatch = 1U,
+	};
+
 	// Read a new or updated object
-	uint32 ReadObjectBatch(FNetSerializationContext& Context);
+	uint32 ReadObjectBatch(FNetSerializationContext& Context, uint32 ReadObjectFlags);
 
 	// Read object or subobject
 	void ReadObjectInBatch(FNetSerializationContext& Context, FNetRefHandle BatchHandle, bool bIsSubObject);
@@ -152,7 +157,7 @@ private:
 	uint32 ReadObjectsPendingDestroy(FNetSerializationContext& Context);
 
 	// Read state data for all incoming objects
-	void ReadObjects(FNetSerializationContext& Context, uint32 ObjectCountToRead);
+	void ReadObjects(FNetSerializationContext& Context, uint32 ObjectCountToRead, uint32 ReadObjectFlags);
 
 	// Process a single huge object attachment
 	void ProcessHugeObjectAttachment(FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& Attachment);

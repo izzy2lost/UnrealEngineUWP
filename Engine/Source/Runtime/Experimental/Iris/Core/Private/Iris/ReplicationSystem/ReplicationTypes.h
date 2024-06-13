@@ -25,7 +25,8 @@ struct FReplicationParameters
 	bool bAllowDelayingAttachmentsWithUnresolvedReferences = false;
 	uint32 SmallObjectBitThreshold = 160U; // Number of bits remaining in a packet for us to consider trying to serialize a replicated object
 	uint32 MaxFailedSmallObjectCount = 10U;	// Number of objects that we try to serialize after an initial stream overflow to fill up a packet, this can improve bandwidth usage but comes at a cpu cost
-	uint32 NumBitsUsedForBatchSize = 20U;
+	uint32 NumBitsUsedForBatchSize = 16U;
+	uint32 NumBitsUsedForHugeObjectBatchSize = 32U;
 };
 
 enum EReplicatedDestroyHeaderFlags : uint32

@@ -661,7 +661,7 @@ uint32 FReplicationReader::ReadObjectsInBatch(FNetSerializationContext& Context,
 	return ReadObjectCount;
 }
 
-uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
+uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context, uint32 ReadObjectFlags)
 {
 	FNetBitStreamReader& Reader = *Context.GetBitStreamReader();
 
@@ -705,7 +705,7 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 	uint32 BatchSize = 0U;
 	// Read Batch size
 	{
-		const uint32 NumBitsUsedForBatchSize = Parameters.NumBitsUsedForBatchSize;
+		const uint32 NumBitsUsedForBatchSize = (ReadObjectFlags & EReadObjectFlag::ReadObjectFlag_IsReadingHugeObjectBatch) == 0U ? Parameters.NumBitsUsedForBatchSize : Parameters.NumBitsUsedForHugeObjectBatchSize;
 
 		UE_NET_TRACE_SCOPE(BatchSize, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		BatchSize = Reader.ReadBits(NumBitsUsedForBatchSize);
@@ -2176,7 +2176,7 @@ void FReplicationReader::DispatchEndReplication(FNetSerializationContext& Contex
 }
 
 
-void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 ObjectBatchCountToRead)
+void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 ObjectBatchCountToRead, uint32 ReadObjectFlags)
 {
 	IRIS_PROFILER_SCOPE(ReplicationReader_ReadObjects);
 
@@ -2184,7 +2184,7 @@ void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 O
 	
 	while (ObjectBatchCountToRead && !Context.HasErrorOrOverflow())
 	{
-		ReadObjectBatch(Context);
+		ReadObjectBatch(Context, ReadObjectFlags);
 		--ObjectBatchCountToRead;
 	}
 
@@ -2232,7 +2232,8 @@ void FReplicationReader::ProcessHugeObjectAttachment(FNetSerializationContext& C
 	// Reserve space for more dispatch infos as needed, we allocate some extra to account for subobjects etc
 	ObjectsToDispatchArray->Grow(HugeObjectHeader.ObjectCount + ObjectsToDispatchSlackCount, TempLinearAllocator);
 
-	ReadObjects(HugeObjectSerializationContext, HugeObjectHeader.ObjectCount);
+	const uint32 ReadObjectFlags = EReadObjectFlag::ReadObjectFlag_IsReadingHugeObjectBatch;
+	ReadObjects(HugeObjectSerializationContext, HugeObjectHeader.ObjectCount, ReadObjectFlags);
 	if (HugeObjectSerializationContext.HasErrorOrOverflow())
 	{
 		Context.SetError(GNetError_BitStreamError);
@@ -2515,7 +2516,8 @@ void FReplicationReader::Read(FNetSerializationContext& Context)
 		return;
 	}
 
-	ReadObjects(Context, ObjectBatchCountToRead);
+	const uint32 ReadObjectFlags = 0U;
+	ReadObjects(Context, ObjectBatchCountToRead, ReadObjectFlags);
 	if (Context.HasErrorOrOverflow())
 	{
 		return;

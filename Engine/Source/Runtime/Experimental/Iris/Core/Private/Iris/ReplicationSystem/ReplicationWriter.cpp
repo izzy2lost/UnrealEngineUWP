@@ -2007,7 +2007,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	// We only need to write batch info for root objects
 	const bool bWriteBatchInfo = !Info.IsSubObject;
 	uint32 InitialStateHeaderPos = 0U;
-	const uint32 NumBitsUsedForBatchSize = Parameters.NumBitsUsedForBatchSize;
+	const uint32 NumBitsUsedForBatchSize = (WriteObjectFlags & EWriteObjectFlag::WriteObjectFlag_IsWritingHugeObjectBatch) == 0U ? Parameters.NumBitsUsedForBatchSize : Parameters.NumBitsUsedForHugeObjectBatchSize;
 
 	// This is the beginning of what we treat as a batch on the receiving end
 	if (bWriteBatchInfo)
@@ -2439,12 +2439,24 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	if (OutBatchInfo.ParentInternalIndex == InternalIndex)
 	{
 		FBatchObjectInfo& ParentBatchEntry = OutBatchInfo.ObjectInfos[ParentBatchEntryIndex];
-
-		const uint32 WrittenBitsInBatch = (Writer.GetPosBits() - InitialStateHeaderPos) - NumBitsUsedForBatchSize;
 		
 		const bool bWroteData = (ParentBatchEntry.bSentState || ParentBatchEntry.bSentAttachments || bSentTearOff || Info.SubObjectPendingDestroy);
 		if (bWroteData || (SubObjectsWrittenBits != 0U))
 		{
+			const uint32 MaxBatchSize = NumBitsUsedForBatchSize == 32U ? ~0U : ((1U << NumBitsUsedForBatchSize) - 1U);
+			const uint32 WrittenBitsInBatch = (Writer.GetPosBits() - InitialStateHeaderPos) - NumBitsUsedForBatchSize;
+
+			// Validate size written (excluding exports)
+			if (WrittenBitsInBatch >= MaxBatchSize)
+			{
+				UE_LOG(LogIris, Error, TEXT("FReplicationWriter::WriteObjectAndSubObjects batch too large Conn: %u, WrittenBitsInBatch: %u >= MaxBatchSize:%u when writing object %s ( InternalIndex: %u )"), Parameters.ConnectionId, WrittenBitsInBatch, MaxBatchSize, *NetRefHandle.ToString(), InternalIndex);
+				ensureMsgf(WrittenBitsInBatch >= MaxBatchSize, TEXT("FReplicationWriter::WriteObjectAndSubObjects batch too large WrittenBitsInBatch: %u >= MaxBatchSize:%u when writing object %s ( InternalIndex: %u )"), WrittenBitsInBatch, MaxBatchSize, *NetRefHandle.ToString(), InternalIndex);
+				Context.SetError(NetError_ObjectStateTooLarge);
+				Writer.DoOverflow();
+
+				return EWriteObjectStatus::BitStreamOverflow;
+			}
+
 			const FObjectReferenceCache::EWriteExportsResult WriteExportResult = ObjectReferenceCache->WritePendingExports(Context, InternalIndex);
 
 			if (WriteExportResult == FObjectReferenceCache::EWriteExportsResult::BitStreamOverflow)
@@ -2576,7 +2588,7 @@ int FReplicationWriter::PrepareAndSendHugeObjectPayload(FNetSerializationContext
 	FBatchInfo BatchInfo;
 	BatchInfo.Type = EBatchInfoType::Internal;
 	BatchInfo.ParentInternalIndex = InternalIndex;
-	uint32 WriteObjectFlags = WriteObjectFlag_State;
+	uint32 WriteObjectFlags = WriteObjectFlag_State | WriteObjectFlag_IsWritingHugeObjectBatch;
 	// Get the creation going as quickly as possible.
 	if (!Context.IsInitState())
 	{

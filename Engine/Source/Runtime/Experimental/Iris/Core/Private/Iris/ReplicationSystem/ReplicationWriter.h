@@ -373,6 +373,7 @@ private:
 		WriteObjectFlag_State = 1U,
 		WriteObjectFlag_Attachments = WriteObjectFlag_State << 1U,
 		WriteObjectFlag_HugeObject = WriteObjectFlag_Attachments << 1U,
+		WriteObjectFlag_IsWritingHugeObjectBatch = WriteObjectFlag_HugeObject << 1U,
 	};
 
 	enum class EWriteObjectRetryMode : unsigned
