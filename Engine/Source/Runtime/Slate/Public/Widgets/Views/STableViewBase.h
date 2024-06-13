@@ -53,6 +53,17 @@ enum class EListItemAlignment : uint8
 	Fill,
 };
 
+/** How the list panel scrolls an offscreen item into view */
+UENUM(BlueprintType)
+enum class EScrollIntoViewAlignment : uint8
+{
+	/** Item will be aligned to the center of the view */
+	CenterAligned,
+
+	/** Item will only be scrolled enough to be brought into view */
+	IntoView,
+};
+
 DECLARE_DELEGATE_OneParam(
 	FOnTableViewScrolled,
 	double );	/** Scroll offset from the beginning of the list in items */

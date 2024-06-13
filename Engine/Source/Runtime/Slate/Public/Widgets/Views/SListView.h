@@ -162,6 +162,8 @@ public:
 
 		SLATE_ARGUMENT( EOrientation, Orientation )
 
+		SLATE_ARGUMENT( EScrollIntoViewAlignment, ScrollIntoViewAlignment )
+
 		SLATE_ARGUMENT( bool, EnableAnimatedScrolling)
 
 		SLATE_ARGUMENT( TOptional<double>, FixedLineScrollOffset )
@@ -242,6 +244,7 @@ public:
 
 		this->bEnableAnimatedScrolling = InArgs._EnableAnimatedScrolling;
 		this->FixedLineScrollOffset = InArgs._FixedLineScrollOffset;
+		this->ScrollIntoViewAlignment = InArgs._ScrollIntoViewAlignment;
 
 		this->OnItemToString_Debug = InArgs._OnItemToString_Debug.IsBound()
 			? InArgs._OnItemToString_Debug
@@ -304,6 +307,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, ItemToScrollIntoView(TListTypeTraits<ItemType>::MakeNullPtr())
 		, UserRequestingScrollIntoView(0)
 		, ItemToNotifyWhenInView(TListTypeTraits<ItemType>::MakeNullPtr())
+		, ScrollIntoViewAlignment(EScrollIntoViewAlignment::CenterAligned)
 		, IsFocusable(true)
 	{ 
 #if WITH_ACCESSIBILITY
@@ -2121,8 +2125,23 @@ protected:
 					// Scroll the top of the listview to the item in question
 					double NewScrollOffset = IndexOfItem;
 
-					// Center the list view on the item in question.
-					NewScrollOffset -= (NumLiveWidgets / 2.0);
+					switch (ScrollIntoViewAlignment)
+					{
+					case EScrollIntoViewAlignment::CenterAligned:
+						// Center the list view on the item in question.
+						NewScrollOffset -= (NumLiveWidgets / 2.0);
+						break;
+
+					case EScrollIntoViewAlignment::IntoView:
+						if (IndexOfItem > MaxDisplayedIndex)
+						{
+							// Bring the new item in question to the bottom
+							NewScrollOffset -= (NumLiveWidgets - 1.0);
+						}
+
+						// The alternative is that IndexOfItem < MinDisplayedIndex, and NewScrollOffset is already correct for that case
+						break;
+					}
 
 					// Limit offset to top and bottom of the list.
 					const double MaxScrollOffset = FMath::Max(0.0, static_cast<double>(Items.Num()) - NumLiveWidgets);
@@ -2565,6 +2584,9 @@ protected:
 
 	/** When set, the list will notify this item when it has been scrolled into view */
 	NullableItemType ItemToNotifyWhenInView;
+
+	/** How to scroll an item into view */
+	EScrollIntoViewAlignment ScrollIntoViewAlignment;
 
 	/** Delegate to invoke when selection changes. */
 	FOnSelectionChanged OnSelectionChanged;
