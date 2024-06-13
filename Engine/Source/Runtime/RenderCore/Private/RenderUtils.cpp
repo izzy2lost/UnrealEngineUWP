@@ -1777,13 +1777,13 @@ static TAutoConsoleVariable<int32> CVarSubstrateBytesPerPixel(
 	TEXT("r.Substrate.BytesPerPixel"),
 	80,
 	TEXT("Substrate allocated byte per pixel to store materials data. Higher value means more complex material can be represented."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateClosuresPerPixel(
 	TEXT("r.Substrate.ClosuresPerPixel"),
 	8,	// Similar to SUBSTRATE_MAX_CLOSURE_COUNT
 	TEXT("Substrate closure count per pixel can be constrained. That is usefull to reduce the number of byte written durting the base pass, but also to limit the number of closures in Forward. Higher value means more complex material can be represented."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateBackCompatibility(
 	TEXT("r.SubstrateBackCompatibility"),
@@ -1801,13 +1801,13 @@ static TAutoConsoleVariable<int32> CVarSubstrateSheenQuality(
 	TEXT("r.Substrate.SheenQuality"),
 	1,
 	TEXT("Define Substrate sheen quality (1: Disney-based sheen, 2: Charlie-based sheen, ). r.Substrate.ShadingQuality=2 forces SheenQuality to 2. This variable is read-only."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateShadingQuality(
 	TEXT("r.Substrate.ShadingQuality"),
 	1,
 	TEXT("Define Substrate shading quality (1: accurate lighting, 2: approximate lighting). This variable is read-only."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDBufferPass(
 	TEXT("r.Substrate.DBufferPass"),
@@ -1820,7 +1820,7 @@ static TAutoConsoleVariable<int32> CVarMaterialRoughDiffuse(
 	TEXT("r.Material.RoughDiffuse"),
 	0,
 	TEXT("Enable rough diffuse material."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateRoughDiffuse(
 	TEXT("r.Substrate.RoughDiffuse"),
@@ -1832,7 +1832,7 @@ static TAutoConsoleVariable<int32> CVarSubstrateGlints(
 	TEXT("r.Substrate.Glints"),
 	1,
 	TEXT("Enable Glint support for Substrate slabs. If changed, shaders needs to be recompiled."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateGlintsLUT(
 	TEXT("r.Substrate.Glints.LUT"),
@@ -1856,7 +1856,7 @@ static TAutoConsoleVariable<int32> CVarSubstrateSpecularProfile(
 	TEXT("r.Substrate.SpecularProfile"),
 	1,
 	TEXT("Enable Specular Profile support for Substrate slabs. If changed, shaders needs to be recompiled."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview | ECVF_MobileShaderChange);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDebugAdvancedVisualizationShaders(
 	TEXT("r.Substrate.Debug.AdvancedVisualizationShaders"),
