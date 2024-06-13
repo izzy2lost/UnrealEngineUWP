@@ -66,6 +66,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = CommonActionWidget)
 	FOnInputMethodChanged OnInputMethodChanged;
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInputIconUpdated);
+	UPROPERTY(BlueprintAssignable, Category = CommonActionWidget)
+	FOnInputIconUpdated OnInputIconUpdated;
+
 	/**
 	 * The material to use when showing held progress, the progress will be sent using the material parameter
 	 * defined by ProgressMaterialParam and the value will range from 0..1.

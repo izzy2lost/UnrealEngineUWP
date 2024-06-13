@@ -333,6 +333,7 @@ void UCommonActionWidget::UpdateActionWidget()
 				else if (MyIcon.IsValid())
 				{
 					MyIcon->SetImage(&Icon);
+					OnInputIconUpdated.Broadcast();
 
 					if (GetVisibility() != ESlateVisibility::Collapsed)
 					{
