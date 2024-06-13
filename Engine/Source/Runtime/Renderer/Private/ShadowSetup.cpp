@@ -2427,7 +2427,7 @@ bool FProjectedShadowInfo::HasSubjectPrims() const
 		|| ShadowDepthPass.HasAnyDraw()
 		|| SubjectMeshCommandBuildRequests.Num() > 0
 		|| ShadowDepthPassVisibleCommands.Num() > 0
-		|| ((bContainsNaniteSubjects || ShouldSkipNaniteLPIs()) && bNaniteGeometry);
+		|| (bContainsNaniteSubjects && bNaniteGeometry);
 }
 
 void FProjectedShadowInfo::AddReceiverPrimitive(FPrimitiveSceneInfo* PrimitiveSceneInfo)
@@ -4271,7 +4271,8 @@ void FSceneRenderer::CreateWholeSceneProjectedShadow(
 					ProjectedShadowInfo->bVSM = true;
 					ProjectedShadowInfo->MeshSelectionMask = EShadowMeshSelection::VSM;
 
-					bool bContainsNaniteSubjects = false;
+					// Initialize to true if we are not creating LPIs for Nanite.
+					bool bContainsNaniteSubjects = ShouldSkipNaniteLPIs(TaskData.Scene->GetShaderPlatform());
 
 					// Skip mesh setup if it won't be rendered anyway
 					if (ProjectedShadowInfo->bShouldRenderVSM)
@@ -4318,7 +4319,7 @@ void FSceneRenderer::CreateWholeSceneProjectedShadow(
 							ProjectedShadowInfo->MeshSelectionMask = EShadowMeshSelection::SM;
 						}
 
-						bool bContainsNaniteSubjects = false;
+						bool bContainsNaniteSubjects = ShouldSkipNaniteLPIs(TaskData.Scene->GetShaderPlatform());
 
 						// Ray traced shadows use the GPU managed distance field object buffers, no CPU culling should be used
 						// Actually we probably want to have fallback even for these? Another performance regresion however (since we'd be adding culling & draw calls for DF lights).

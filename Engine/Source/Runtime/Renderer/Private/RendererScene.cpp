@@ -4542,7 +4542,7 @@ FRHIUniformBuffer* FScene::GetSpeedTreeUniformBuffer(const FVertexFactory* Verte
  */
 void FScene::GetRelevantLights_RenderThread( const FPrimitiveSceneProxy* PrimitiveSceneProxy, TArray<const FLightSceneProxy*> &OutRelevantLights ) const
 {
-	if (ShouldSkipNaniteLPIs() && PrimitiveSceneProxy->IsNaniteMesh())
+	if (ShouldSkipNaniteLPIs(GetShaderPlatform()) && PrimitiveSceneProxy->IsNaniteMesh())
 	{
 		if (PrimitiveSceneProxy->GetLightingChannelMask() != 0)
 		{
@@ -6707,7 +6707,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	{
 		SCOPED_NAMED_EVENT(CreateLightPrimitiveInteractions, FColor::Emerald);
 
-		bool bSkipNaniteLPIs = ShouldSkipNaniteLPIs();
+		bool bSkipNaniteLPIs = ShouldSkipNaniteLPIs(GetShaderPlatform());
 
 		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfosWithAddToScene)
 		{

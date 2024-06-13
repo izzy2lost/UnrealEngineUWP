@@ -27,10 +27,11 @@ static FAutoConsoleVariableRef CVarSkipNaniteLPIs(
 	}),
 	ECVF_RenderThreadSafe);
 
-bool ShouldSkipNaniteLPIs()
+bool ShouldSkipNaniteLPIs(EShaderPlatform ShaderPlatform)
 {
-	return GSkipNaniteLPIs > 1 
-		|| ( GSkipNaniteLPIs == 1 && !IsStaticLightingAllowed());
+	return (GSkipNaniteLPIs > 1 
+		|| ( GSkipNaniteLPIs == 1 && !IsStaticLightingAllowed()))
+		&& UseNanite(ShaderPlatform);
 }
 
 class FRTWriteMaskDecodeCS : public FGlobalShader

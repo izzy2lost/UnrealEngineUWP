@@ -10,7 +10,7 @@
 /**
  * Returns true if Nanite primitives are to be skipped in Light Primitive Interactions (LPI) and the primitive acceleration structure (octree).
  */
-bool ShouldSkipNaniteLPIs();
+bool ShouldSkipNaniteLPIs(EShaderPlatform ShaderPlatform);
 
 
 class FTileTexCoordVertexBuffer : public FVertexBuffer
