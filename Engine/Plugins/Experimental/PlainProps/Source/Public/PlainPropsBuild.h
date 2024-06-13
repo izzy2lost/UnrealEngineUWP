@@ -108,6 +108,11 @@ struct FMemberSchema
 
 inline bool operator==(FMemberSchema A, FMemberSchema B)
 {
+	if (FMemory::Memcmp(&A, &B, sizeof(FMemberSchema)) == 0)
+	{
+		return true;
+	}
+
 	return A.Type == B.Type && A.InnerSchema == B.InnerSchema && Algo::Compare(A.GetInnerRangeTypes(), B.GetInnerRangeTypes());
 }
 //////////////////////////////////////////////////////////////////////////
@@ -315,7 +320,7 @@ public:
 
 	void Add(FTypedRange Range)
 	{
-		check(Range.Schema == Schema || Range.Values == nullptr);
+		check(Range.Values == nullptr || Range.Schema == Schema);
 		Ranges.Add(Range.Values);
 	}
 

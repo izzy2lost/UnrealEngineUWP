@@ -54,6 +54,9 @@ public:
 	PLAINPROPS_API FStructSchemaBuilder&		NoteStruct(FStructSchemaId Id);
 	PLAINPROPS_API void							NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct);
 	PLAINPROPS_API FBuiltSchemas				Build();
+	
+	FScratchAllocator&							GetScratch() const { return Scratch; }
+	const FDebugIds&							GetDebug() const { return Debug; }
 
 private:
 	FStructDeclarations							DeclaredStructs;
