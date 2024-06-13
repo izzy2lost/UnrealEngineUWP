@@ -118,7 +118,7 @@ public:
 	bool bEnableDenoiser;
 
 	/**
-	* Select which type of denosier to use when the denoiser is enabled. Temporal denoisers will provide better results when
+	* Select which type of denoiser to use when the denoiser is enabled. Temporal denoisers will provide better results when
 	* denoising animated sequences (the denoising results will look more stable), especially when combined with an appropriate 
 	* Frame Count (non-zero). Denoisers are implemented as plugins so you may need to enable a plugin as well for this to work.
 	*/

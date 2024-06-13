@@ -13,25 +13,25 @@ public:
 		return DenoiserManager;
 	}
 
-	void RegisterSpatialDenoiser(TUniquePtr<UE::Renderer::Private::IPathTracingDenoiser> InDenosier, FString Name)
+	void RegisterSpatialDenoiser(TUniquePtr<UE::Renderer::Private::IPathTracingDenoiser> InDenoiser, FString Name)
 	{
 		check(!SpatialDenoiser.Contains(Name));
 
-		bNeedTextureCreateExtraFlags |= InDenosier->NeedTextureCreateExtraFlags();
-		SpatialDenoiser.Add(Name, MoveTemp(InDenosier));
+		bNeedTextureCreateExtraFlags |= InDenoiser->NeedTextureCreateExtraFlags();
+		SpatialDenoiser.Add(Name, MoveTemp(InDenoiser));
 	}
-	void RegisterSpatialTemporalDenoiser(TUniquePtr<UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser> InDenosier, FString Name)
+	void RegisterSpatialTemporalDenoiser(TUniquePtr<UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser> InDenoiser, FString Name)
 	{
 		check(!PathTracingSpatialTemporalDenoisers.Contains(Name));
-		bNeedTextureCreateExtraFlags |= InDenosier->NeedTextureCreateExtraFlags();
-		PathTracingSpatialTemporalDenoisers.Add(Name, MoveTemp(InDenosier));
+		bNeedTextureCreateExtraFlags |= InDenoiser->NeedTextureCreateExtraFlags();
+		PathTracingSpatialTemporalDenoisers.Add(Name, MoveTemp(InDenoiser));
 	}
 
 	bool HasSpatialDenoiser()const { return SpatialDenoiser.Num() > 0; }
 	bool HasSpatialTemporalDenoiser()const { return PathTracingSpatialTemporalDenoisers.Num() > 0; }
 	bool HasDenoiser()const { return HasSpatialDenoiser() || HasSpatialTemporalDenoiser();}
 
-	UE::Renderer::Private::IPathTracingDenoiser* GetSpatialDenosier(FString Name, bool bMatch)
+	UE::Renderer::Private::IPathTracingDenoiser* GetSpatialDenoiser(FString Name, bool bMatch)
 	{
 		if (SpatialDenoiser.Contains(Name))
 		{
@@ -48,7 +48,7 @@ public:
 		return nullptr;
 	}
 
-	UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser* GetSpatialTemporalDenosier(FString Name, bool bMatch)
+	UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser* GetSpatialTemporalDenoiser(FString Name, bool bMatch)
 	{
 		if (PathTracingSpatialTemporalDenoisers.Contains(Name))
 		{
@@ -105,7 +105,7 @@ void UnregisterDenoiser(FString Name)
 	FDenoiserManager::Get().UnregisterDenoiser(Name);
 }
 
-bool HasTemporalDenosier()
+bool HasTemporalDenoiser()
 {
 	return FDenoiserManager::Get().HasSpatialTemporalDenoiser();
 }
@@ -177,14 +177,14 @@ namespace {
 	TAutoConsoleVariable<FString> CVarPathTracingDenoiserName(
 		TEXT("r.PathTracing.Denoiser.Name"),
 		"OIDN",
-		TEXT("Set the spatial denoiser name. It is the corresponding name registered by a denosier plugin\n")
+		TEXT("Set the spatial denoiser name. It is the corresponding name registered by a denoiser plugin\n")
 		TEXT("Any registered denoiser should be able to denoise a single frame spatially.\n")
 	);
 
 	TAutoConsoleVariable<FString> CVarPathTracingTemporalDenoiserName(
 		TEXT("r.PathTracing.TemporalDenoiser.Name"),
 		"NFOR",
-		TEXT("Set the temporal denoiser name. It is the corresponding name registered by a denosier plugin\n")
+		TEXT("Set the temporal denoiser name. It is the corresponding name registered by a denoiser plugin\n")
 		TEXT("The temporal denoiser usually has better temporal stability when rendering offline.\n")
 	);
 
@@ -449,7 +449,7 @@ TArray<ESpatialDenoiserType> GetAvailableSpatialDenoiserTypes()
 	return Types;
 }
 
-ESpatialDenoiserType GetSpatialDenosierType()
+ESpatialDenoiserType GetSpatialDenoiserType()
 {
 	int32 Type = CVarPathTracingSpatialDenoiserType.GetValueOnRenderThread();
 
@@ -489,7 +489,7 @@ static bool ShouldApplyTemporalDenoiser(const FPathTracingSpatialTemporalDenoisi
 ETemporalDenoiserType GetTemporalDenoiserType()
 {
 
-	ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenosierType();
+	ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenoiserType();
 
 	if ( SpatialDenoiserType == ESpatialDenoiserType::SPATIAL_DENOISER_PLUGIN)
 	{
@@ -518,18 +518,18 @@ ETemporalDenoiserMotionVectorType GetTemporalDenoiserMotionVectorType()
 UE::Renderer::Private::IPathTracingDenoiser* GetActiveSpatialDenoiser(bool bMatch = false)
 {
 	FString DenoiserName = CVarPathTracingDenoiserName.GetValueOnRenderThread();
-	return FDenoiserManager::Get().GetSpatialDenosier(DenoiserName, bMatch);
+	return FDenoiserManager::Get().GetSpatialDenoiser(DenoiserName, bMatch);
 }
 
 UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser* GetActiveSpatialTemporalDenoiser(bool bMatch = false)
 {
 	FString DenoiserName = CVarPathTracingTemporalDenoiserName.GetValueOnRenderThread();
-	return FDenoiserManager::Get().GetSpatialTemporalDenosier(DenoiserName, bMatch);
+	return FDenoiserManager::Get().GetSpatialTemporalDenoiser(DenoiserName, bMatch);
 }
 
 ETextureCreateFlags GetExtraTextureCreateFlagsForDenoiser()
 {
-	ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenosierType();
+	ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenoiserType();
 	ETemporalDenoiserType TemporalDenoiserType = GetTemporalDenoiserType();
 	ETextureCreateFlags TextureCreateFlags = ETextureCreateFlags::None;
 
@@ -1064,7 +1064,7 @@ static void PathTracingDenoiserPlugin(FRDGBuilder& GraphBuilder,
 		using UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser;
 
 		FString DenoiserName = CVarPathTracingDenoiserName.GetValueOnRenderThread();
-		IPathTracingSpatialTemporalDenoiser* ActiveSpatialTemporalDenoiser = FDenoiserManager::Get().GetSpatialTemporalDenosier(DenoiserName,bMatch);
+		IPathTracingSpatialTemporalDenoiser* ActiveSpatialTemporalDenoiser = FDenoiserManager::Get().GetSpatialTemporalDenoiser(DenoiserName,bMatch);
 		
 		if (ActiveSpatialTemporalDenoiser)
 		{
@@ -1966,7 +1966,7 @@ void PathTracingSpatialTemporalDenoising(FRDGBuilder& GraphBuilder,
 
 	FRDGTextureDesc RadianceTextureDesc = SpatialTemporalDenoisingContext.RadianceTexture->Desc;
 
-	const ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenosierType();
+	const ESpatialDenoiserType SpatialDenoiserType = GetSpatialDenoiserType();
 	const ETemporalDenoiserType TemporalDenoiserType = GetTemporalDenoiserType();
 	const bool bApplySpatialDenoiser = ShouldApplySpatialDenoiser();
 	const bool bApplyTemporalDenoiser = ShouldApplyTemporalDenoiser(SpatialTemporalDenoisingContext, View);

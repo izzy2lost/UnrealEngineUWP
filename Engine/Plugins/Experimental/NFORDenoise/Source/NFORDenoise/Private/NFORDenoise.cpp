@@ -105,7 +105,7 @@ FRDGFrameCache FExternalFrameCache::ToRGDResource(FRDGBuilder& GraphBuilder, con
 }
 
 
-class FNFORDenosier : public IPathTracingSpatialTemporalDenoiser
+class FNFORDenoiser : public IPathTracingSpatialTemporalDenoiser
 {
 public:
 	class FHistory : public IHistory
@@ -182,7 +182,7 @@ public:
 		TArray<FExternalFrameCache> FrameCaches;
 	};
 
-	~FNFORDenosier() {}
+	~FNFORDenoiser() {}
 
 	const TCHAR* GetDebugName() const override { return *DebugName; }
 
@@ -249,7 +249,7 @@ public:
 	}
 
 private:
-	inline static const FString DebugName = TEXT("FNFORDenosier");
+	inline static const FString DebugName = TEXT("FNFORDenoiser");
 };
 
 void FNFORDenoiseModule::StartupModule()
@@ -262,7 +262,7 @@ void FNFORDenoiseModule::StartupModule()
 		FString ModuleDir = Plugin->GetBaseDir() + TEXT("/Source/NFORDenoise");
 		AddShaderSourceDirectoryMapping(TEXT("/NFORDenoise"), FPaths::Combine(ModuleDir, TEXT("Shaders")));
 
-		RegisterSpatialTemporalDenoiser(MakeUnique<FNFORDenosier>(),TEXT("NFOR"));
+		RegisterSpatialTemporalDenoiser(MakeUnique<FNFORDenoiser>(),TEXT("NFOR"));
 	}
 	else
 	{

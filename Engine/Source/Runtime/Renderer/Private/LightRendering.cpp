@@ -1124,7 +1124,7 @@ extern int32 GbEnableAsyncComputeTranslucencyLightingVolumeClear;
 
 uint32 GetShadowQuality();
 
-static bool LightRequiresDenosier(const FLightSceneInfo& LightSceneInfo)
+static bool LightRequiresDenoiser(const FLightSceneInfo& LightSceneInfo)
 {
 	ELightComponentType LightType = ELightComponentType(LightSceneInfo.Proxy->GetLightType());
 	if (LightType == LightType_Directional)
@@ -1677,7 +1677,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						IScreenSpaceDenoiser::FShadowRayTracingConfig RayTracingConfig;
 						RayTracingConfig.RayCountPerPixel = GShadowRayTracingSamplesPerPixel > -1? GShadowRayTracingSamplesPerPixel : LightSceneProxy.GetSamplesPerPixel();
 
-						const bool bDenoiserCompatible = !LightRequiresDenosier(LightSceneInfo) || IScreenSpaceDenoiser::EShadowRequirements::PenumbraAndClosestOccluder == DenoiserToUse->GetShadowRequirements(View, LightSceneInfo, RayTracingConfig);
+						const bool bDenoiserCompatible = !LightRequiresDenoiser(LightSceneInfo) || IScreenSpaceDenoiser::EShadowRequirements::PenumbraAndClosestOccluder == DenoiserToUse->GetShadowRequirements(View, LightSceneInfo, RayTracingConfig);
 
 						const bool bWantsBatchedShadow = OcclusionType == FLightOcclusionType::Raytraced && 
 							bDoShadowBatching &&
@@ -1755,7 +1755,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 									continue;
 								}
 
-								const bool bRequiresDenoiser = LightRequiresDenosier(BatchLightSceneInfo) && DenoiserMode > 0;
+								const bool bRequiresDenoiser = LightRequiresDenoiser(BatchLightSceneInfo) && DenoiserMode > 0;
 
 								IScreenSpaceDenoiser::FShadowRayTracingConfig BatchRayTracingConfig;
 								BatchRayTracingConfig.RayCountPerPixel = GShadowRayTracingSamplesPerPixel > -1 ? GShadowRayTracingSamplesPerPixel : BatchLightSceneInfo.Proxy->GetSamplesPerPixel();
@@ -1967,7 +1967,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							RayTracingConfig.RayCountPerPixel = GShadowRayTracingSamplesPerPixel > -1 ? GShadowRayTracingSamplesPerPixel : LightSceneProxy.GetSamplesPerPixel();
 
 							IScreenSpaceDenoiser::EShadowRequirements DenoiserRequirements = IScreenSpaceDenoiser::EShadowRequirements::Bailout;
-							if (DenoiserMode != 0 && LightRequiresDenosier(LightSceneInfo))
+							if (DenoiserMode != 0 && LightRequiresDenoiser(LightSceneInfo))
 							{
 								DenoiserRequirements = DenoiserToUse->GetShadowRequirements(View, LightSceneInfo, RayTracingConfig);
 							}

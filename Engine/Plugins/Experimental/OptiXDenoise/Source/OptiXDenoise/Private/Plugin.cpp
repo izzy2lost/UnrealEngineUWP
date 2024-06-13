@@ -231,7 +231,7 @@ static void Denoise(
 
 using namespace UE::Renderer::Private;
 
-class FOptiXDenosier : public IPathTracingSpatialTemporalDenoiser
+class FOptiXDenoiser : public IPathTracingSpatialTemporalDenoiser
 {
 public:
 	class FHistory : public IHistory
@@ -247,7 +247,7 @@ public:
 		const TCHAR* DebugName;
 	};
 
-	~FOptiXDenosier() {}
+	~FOptiXDenoiser() {}
 
 	const TCHAR* GetDebugName() const override { return *DebugName; }
 
@@ -308,7 +308,7 @@ public:
 	}
 
 private:
-	inline static const FString DebugName = TEXT("FOptiXDenosier");
+	inline static const FString DebugName = TEXT("FOptiXDenoiser");
 };
 
 void FOptiXDenoiseModule::StartupModule()
@@ -326,7 +326,7 @@ void FOptiXDenoiseModule::StartupModule()
 	OptiXDenoiseBaseDLLHandle = FPlatformProcess::GetDllHandle(*OptiXDenoiseBaseDllPath);
 	FOptiXCudaFunctionList::Get().RegisterFunctionInstance<FOptiXDenoiserFunctionInstance>();
 
-	RegisterSpatialTemporalDenoiser(MakeUnique<FOptiXDenosier>(), TEXT("OptiX"));
+	RegisterSpatialTemporalDenoiser(MakeUnique<FOptiXDenoiser>(), TEXT("OptiX"));
 }
 
 void FOptiXDenoiseModule::ShutdownModule()
