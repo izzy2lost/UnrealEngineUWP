@@ -108,7 +108,7 @@ void UDebugStorageServerConnection::Draw(UCanvas* Canvas, APlayerController*)
 		}
 
 		FString ZenConnectionDebugMsg;
-		ZenConnectionDebugMsg = FString::Printf(TEXT("ZenServer streaming from %s [%.2fMbps]"), *Owner->GetConnectionBackend()->GetHostName(), Throughput);
+		ZenConnectionDebugMsg = FString::Printf(TEXT("ZenServer streaming from %s [%.2fMbps]"), *HostAddress, Throughput);
 		GEngine->AddOnScreenDebugMessage((uint64)this, 86400.0f, FColor::White, ZenConnectionDebugMsg, false);
 		
 		History.push_back({ StatsTimeNow, MaxReqThroughput, MinReqThroughput, Throughput, ReqCount });

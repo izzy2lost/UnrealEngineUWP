@@ -64,7 +64,7 @@ uint32 FStorageServerIoDispatcherBackend::Run()
 	const int32 BatchCount = GStorageServerIoDispatcherMaxActiveBatchCount;
 	for (int32 BatchIndex = 0; BatchIndex < BatchCount; ++BatchIndex)
 	{
-		FBatch* Batch = new FBatch(*this, MakeUnique<FStorageServerSerializationContext>());
+		FBatch* Batch = new FBatch(*this);
 		Batch->Next = FirstAvailableBatch;
 		FirstAvailableBatch = Batch;
 	}
@@ -148,20 +148,14 @@ bool FStorageServerIoDispatcherBackend::Resolve(FIoRequestImpl* Request)
 	else
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerIoDispatcherReadChunk);
-		bool bSuccess = Connection.ReadChunkRequest(Request->ChunkId, Request->Options.GetOffset(), Request->Options.GetSize(), [&Request](FStorageServerResponse& Response)
+		const TOptional<FIoBuffer> OptDestination = Request->Options.GetTargetVa() ? FIoBuffer(FIoBuffer::Wrap, Request->Options.GetTargetVa(), Request->Options.GetSize()) : TOptional<FIoBuffer>();
+		const bool bHardwareTargetBuffer = EnumHasAnyFlags(Request->Options.GetFlags(), EIoReadOptionsFlags::HardwareTargetBuffer);
+		TIoStatusOr<FIoBuffer> Result = Connection.ReadChunkRequest(Request->ChunkId, Request->Options.GetOffset(), Request->Options.GetSize(), OptDestination, bHardwareTargetBuffer); 
+		if (Result.IsOk())
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(SerializeResponse);
-			FIoBuffer Chunk;
-			if (Response.SerializeChunk(Chunk, Request->Options.GetTargetVa(), Request->Options.GetOffset(), Request->Options.GetSize()))
-			{
-				Request->SetResult(Chunk);
-			}
-			else
-			{
-				Request->SetFailed();
-			}
-		});
-		if (!bSuccess)
+			Request->SetResult(Result.ValueOrDie());
+		}
+		else
 		{
 			Request->SetFailed();
 		}
@@ -278,9 +272,8 @@ void FStorageServerIoDispatcherBackend::OnBatchCompleted(FBatch* Batch)
 	BatchCompletedEvent->Trigger();
 }
 
-FStorageServerIoDispatcherBackend::FBatch::FBatch(FStorageServerIoDispatcherBackend& InOwner, TUniquePtr<FStorageServerSerializationContext> InSerializationContext)
+FStorageServerIoDispatcherBackend::FBatch::FBatch(FStorageServerIoDispatcherBackend& InOwner)
 	: Owner(InOwner)
-	, SerializationContext(MoveTemp(InSerializationContext))
 {
 
 }
@@ -337,22 +330,16 @@ void FStorageServerIoDispatcherBackend::FBatch::DoThreadedWork()
 	while (Request)
 	{
 		FIoRequestImpl* NextRequest = Request->NextRequest;
+
 		TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerIoDispatcherReadChunk);
-		bool bSuccess = Owner.Connection.ReadChunkRequest(Request->ChunkId, Request->Options.GetOffset(), Request->Options.GetSize(), [this, &Request](FStorageServerResponse& Response)
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SerializeResponse);
-				FIoBuffer Chunk;
-				if (Response.SerializeChunk(*SerializationContext, Chunk, Request->Options.GetTargetVa(), Request->Options.GetOffset(), Request->Options.GetSize(), 
-					EnumHasAnyFlags(Request->Options.GetFlags(), EIoReadOptionsFlags::HardwareTargetBuffer) ? true : false ))
-				{
-					Request->SetResult(Chunk);
-				}
-				else
-				{
-					Request->SetFailed();
-				}
-			});
-		if (!bSuccess)
+		const TOptional<FIoBuffer> OptDestination = Request->Options.GetTargetVa() ? FIoBuffer(FIoBuffer::Wrap, Request->Options.GetTargetVa(), Request->Options.GetSize()) : TOptional<FIoBuffer>();
+		const bool bHardwareTargetBuffer = EnumHasAnyFlags(Request->Options.GetFlags(), EIoReadOptionsFlags::HardwareTargetBuffer);
+		TIoStatusOr<FIoBuffer> Result = Owner.Connection.ReadChunkRequest(Request->ChunkId, Request->Options.GetOffset(), Request->Options.GetSize(), OptDestination, bHardwareTargetBuffer); 
+		if (Result.IsOk())
+		{
+			Request->SetResult(Result.ValueOrDie());
+		}
+		else
 		{
 			Request->SetFailed();
 		}

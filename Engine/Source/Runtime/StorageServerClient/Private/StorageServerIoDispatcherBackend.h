@@ -66,7 +66,7 @@ private:
 	struct FBatch
 		: public IQueuedWork
 	{
-		FBatch(FStorageServerIoDispatcherBackend& InOwner, TUniquePtr<FStorageServerSerializationContext> InSerializationContext);
+		FBatch(FStorageServerIoDispatcherBackend& InOwner);
 
 		virtual void DoThreadedWork() override;
 		virtual void Abandon() override {};
@@ -76,7 +76,6 @@ private:
 		FIoRequestImpl* RequestsHead = nullptr;
 		FIoRequestImpl* RequestsTail = nullptr;
 		uint64 RequestsCount = 0;
-		TUniquePtr<FStorageServerSerializationContext> SerializationContext;
 	};
 
 	bool Resolve(FIoRequestImpl* Request);

@@ -8,8 +8,6 @@
 
 #include "DebugStorageServerConnection.generated.h"
 
-class FStorageServerConnection;
-
 UCLASS()
 class UDebugStorageServerConnection : public UObject
 {
@@ -21,9 +19,9 @@ public:
 
 	void AddTimingInstance(double duration, uint64 bytes);
 
-	void SetOwner(FStorageServerConnection* Connection)
+	void SetHostAddress(FString Address)
 	{
-		Owner = Connection;
+		HostAddress = Address;
 	}
 
 	static void ShowGraph(FOutputDevice&);
@@ -54,7 +52,7 @@ private:
 	double MaxRequestThroughput = 0.0;
 
 	FCriticalSection StatsCS;
-	FStorageServerConnection* Owner;
+	FString HostAddress;
 
 	static bool ShowGraphs;
 

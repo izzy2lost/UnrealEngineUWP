@@ -90,8 +90,8 @@ private:
 
 		//
 
-		void	SetDataAndSize(const uint8* InData, uint64 InSize);
-		void	SetSize(uint64 InSize);
+		CORE_API void SetDataAndSize(const uint8* InData, uint64 InSize);
+		CORE_API void SetSize(uint64 InSize);
 
 		void	MakeOwned();
 

@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "StorageServerConnection.h"
+#include "BuiltInHttpClient.h"
 #include "Experimental/Async/ConditionVariable.h"
 #include "GenericPlatform/GenericPlatformHostCommunication.h"
 #include "GenericPlatform/GenericPlatformHostSocket.h"
+#include "Containers/LockFreeList.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -127,16 +128,16 @@ private:
 	uint64 Tail{ 0 };
 };
 
-class FStorageConnectionPlatformSocket : public IStorageConnectionSocket
+class FBuiltInHttpClientPlatformSocket : public IBuiltInHttpClientSocket
 {
 public:
-	FStorageConnectionPlatformSocket(IPlatformHostCommunication* HostCommunication, IPlatformHostSocketPtr InSocket, int32 InProtocolNumber);
-	~FStorageConnectionPlatformSocket() override;
+	FBuiltInHttpClientPlatformSocket(IPlatformHostCommunication* InCommunication, IPlatformHostSocketPtr InSocket, int32 InProtocolNumber);
+	virtual ~FBuiltInHttpClientPlatformSocket() override;
 
-	bool Send(const uint8* Data, const uint64 DataSize) override;
-	bool Recv(uint8* Data, const uint64 DataSize, uint64& BytesRead, ESocketReceiveFlags::Type ReceiveFlags) override;
-	bool HasPendingData(uint64& PendingDataSize) const override;
-	void Close() override;
+	virtual bool Send(const uint8* Data, const uint64 DataSize) override;
+	virtual bool Recv(uint8* Data, const uint64 DataSize, uint64& BytesRead, ESocketReceiveFlags::Type ReceiveFlags) override;
+	virtual bool HasPendingData(uint64& PendingDataSize) const override;
+	virtual void Close() override;
 
 	int32 GetProtocolNumber() const { return ProtocolNumber; }
 
@@ -144,39 +145,27 @@ private:
 	IPlatformHostCommunication* Communication;
 	IPlatformHostSocketPtr Socket;
 	FConnectionCircularBuffer ConnectionBuffer;
-	int32 ProtocolNumber;
+	const int32 ProtocolNumber;
 };
 
-class FStorageServerPlatformConnectionBackend : public FStorageConnectionBackend
+class FBuiltInHttpClientPlatformSocketPool : public IBuiltInHttpClientSocketPool
 {
 public:
-	FStorageServerPlatformConnectionBackend(FStorageServerConnection& InOwner);
-	~FStorageServerPlatformConnectionBackend() override;
+	FBuiltInHttpClientPlatformSocketPool(const FString InAddress);
+	virtual ~FBuiltInHttpClientPlatformSocketPool() override;
 
-	IStorageConnectionSocket* AcquireNewSocket(float TimeoutSeconds) override;
-	IStorageConnectionSocket* AcquireSocketFromPool() override;
-	void ReleaseSocket(IStorageConnectionSocket* Socket, bool bKeepAlive) override;
-
-	FString GetHostName() override
-	{
-		return Hostname.ToString();
-	}
-
-protected:
-	bool InitializeInternal(TArrayView<const FString> InHostAddresses, int32 Port) override;
+	virtual IBuiltInHttpClientSocket* AcquireSocket(float TimeoutSeconds = -1.f) override;
+	virtual void ReleaseSocket(IBuiltInHttpClientSocket* Socket, bool bKeepAlive) override;
 
 private:
-	int32 HandshakeRequest(TArrayView<const FString> HostAddresses);
+	const FString Address;
+	IPlatformHostCommunication* Communication = nullptr;
 
-private:
-	IPlatformHostCommunication* Communication{ nullptr };
+	TLockFreePointerListUnordered<IBuiltInHttpClientSocket, PLATFORM_CACHE_LINE_SIZE> SocketPool;
 
-	FCriticalSection SocketPoolCS;
-	UE::FConditionVariable SocketPoolFreeConditionVariable;
-	TArray<IStorageConnectionSocket*> SocketPool;
+	FCriticalSection UsedSocketsCS;
+	UE::FConditionVariable UsedSocketsCV;
 	TBitArray<> UsedSockets; // bitset to keep track of used sockets in the pool
-
-	TAnsiStringBuilder<1024> Hostname;
 };
 
-#endif // !UE_BUILD_SHIPPING
+#endif
