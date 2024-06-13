@@ -597,7 +597,7 @@ namespace mu
 		Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
 
 		bool first = true;
-		for (const auto& c : cases)
+		for (const FCase& c : cases)
 		{
 			if (c.branch)
 			{
@@ -618,6 +618,40 @@ namespace mu
 		}
 
 		return pRes;
+	}
+
+
+	FSourceDataDescriptor ASTOpSwitch::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		// Cache management
+		TUniquePtr<FGetSourceDataDescriptorContext> LocalContext;
+		if (!Context)
+		{
+			LocalContext.Reset(new FGetSourceDataDescriptorContext);
+			Context = LocalContext.Get();
+		}
+
+		FSourceDataDescriptor* Found = Context->Cache.Find(this);
+		if (Found)
+		{
+			return *Found;
+		}
+
+		// Not cached: calculate
+		FSourceDataDescriptor Result;
+
+		for (const FCase& Case : cases)
+		{
+			if (Case.branch)
+			{
+				FSourceDataDescriptor SourceDesc = Case.branch->GetSourceDataDescriptor(Context);
+				Result.CombineWith(SourceDesc);
+			}
+		}
+
+		Context->Cache.Add(this, Result);
+
+		return Result;
 	}
 
 

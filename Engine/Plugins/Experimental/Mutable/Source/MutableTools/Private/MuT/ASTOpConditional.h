@@ -36,21 +36,21 @@ struct FProgram;
 		ASTOpConditional(const ASTOpConditional&) = delete;
 		~ASTOpConditional() override;
 
-		OP_TYPE GetOpType() const override { return type; }
-
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
-		uint64 Hash() const override;
-		void Assert() override;
-		void ForEachChild(const TFunctionRef<void(ASTChild&)> f) override;
-		void Link(FProgram& program, FLinkerOptions* Options) override;
-		FImageDesc GetImageDesc(bool returnBestOption, class FGetImageDescContext* context) const override;
-		void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
-		void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
-		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
-		bool GetNonBlackRect(FImageRect& maskUsage) const override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual OP_TYPE GetOpType() const override { return type; }
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		virtual uint64 Hash() const override;
+		virtual void Assert() override;
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)> f) override;
+		virtual void Link(FProgram& program, FLinkerOptions* Options) override;
+		virtual FImageDesc GetImageDesc(bool returnBestOption, class FGetImageDescContext* context) const override;
+		virtual void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
+		virtual void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
+		virtual Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
+		virtual bool GetNonBlackRect(FImageRect& maskUsage) const override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
 		virtual bool IsConditional() const override { return true; }
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 	};
 
 

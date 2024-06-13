@@ -43,17 +43,18 @@ namespace mu
 		ASTOpImageLayer(const ASTOpImageLayer&) = delete;
 		~ASTOpImageLayer();
 
-		OP_TYPE GetOpType() const override { return OP_TYPE::IM_LAYER; }
-		uint64 Hash() const override;
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
-		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
-		void Link(FProgram& program, FLinkerOptions*) override;
-		FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext*) const override;
-		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
-		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
-		Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const;
+		virtual OP_TYPE GetOpType() const override { return OP_TYPE::IM_LAYER; }
+		virtual uint64 Hash() const override;
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
+		virtual void Link(FProgram& program, FLinkerOptions*) override;
+		virtual FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext*) const override;
+		virtual void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
+		virtual Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 
 	};
 

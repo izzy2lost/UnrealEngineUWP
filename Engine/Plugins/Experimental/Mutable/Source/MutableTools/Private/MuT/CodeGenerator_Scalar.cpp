@@ -38,7 +38,6 @@
 #include "MuT/NodeScalarSwitch.h"
 #include "MuT/NodeScalarSwitchPrivate.h"
 #include "MuT/NodeScalarTable.h"
-#include "MuT/NodeScalarTablePrivate.h"
 #include "MuT/NodeScalarVariation.h"
 #include "MuT/NodeScalarVariationPrivate.h"
 #include "MuT/Table.h"
@@ -409,10 +408,10 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateScalar_Table(FScalarGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeScalarTable>& Typed)
 	{
-		const NodeScalarTable::Private& node = *Typed->GetPrivate();
+		const NodeScalarTable& node = *Typed;
 
-		Ptr<ASTOp> Op = GenerateTableSwitch<NodeScalarTable::Private, ETableColumnType::Scalar, OP_TYPE::SC_SWITCH>(node,
-			[this,&Options](const NodeScalarTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
+		Ptr<ASTOp> Op = GenerateTableSwitch<NodeScalarTable, ETableColumnType::Scalar, OP_TYPE::SC_SWITCH>(node,
+			[this,&Options](const NodeScalarTable& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				NodeScalarConstantPtr pCell = new NodeScalarConstant();
 				float scalar = node.Table->GetPrivate()->Rows[row].Values[colIndex].Scalar;

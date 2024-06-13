@@ -37,6 +37,17 @@ namespace mu
     typedef Ptr<const System> SystemPtrConst;
 
 
+	/** Flags for the model data chunks. */
+	enum class ERomFlags : uint16
+	{
+		/** Standard data. */
+		None = 0,
+
+		/** Bigger mips and mesh lods that are optional in some devices of a platform. */
+		HighRes = 1 << 0,
+	};
+
+
     //! \brief A Model represents a customisable object with any number of parameters.
     //!
     //! When values are given to the parameters, specific Instances can be built, which hold the
@@ -154,6 +165,8 @@ namespace mu
 		uint32 GetRomId(int32 Index) const;
 
 		uint32 GetRomSize(int32 Index) const;
+
+		ERomFlags GetRomFlags(int32 Index) const;
     	
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

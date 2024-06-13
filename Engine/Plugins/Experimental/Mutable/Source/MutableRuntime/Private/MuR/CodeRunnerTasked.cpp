@@ -2256,7 +2256,7 @@ namespace mu
 		for (int32 LODIndex = 0; LODIndex < LODIndexCount; ++LODIndex)
 		{
 			const int32 CurrentIndexIndex = LODIndexIndex + LODIndex;
-			const int32 CurrentIndex = program.m_constantImageLODIndices[CurrentIndexIndex];
+			const int32 CurrentIndex = program.ConstantImageLODIndices[CurrentIndexIndex];
 
 			if (program.ConstantImageLODs[CurrentIndex].Key < 0)
 			{
@@ -2377,7 +2377,7 @@ namespace mu
 		for (int32 LODIndex = 0; LODIndex < LODIndexCount; ++LODIndex)
 		{
 			int32 CurrentIndexIndex = LODIndexIndex + LODIndex;
-			int32 CurrentIndex = Program.m_constantImageLODIndices[CurrentIndexIndex];
+			int32 CurrentIndex = Program.ConstantImageLODIndices[CurrentIndexIndex];
 
 			if (Program.ConstantImageLODs[CurrentIndex].Key < 0)
 			{
@@ -2581,9 +2581,9 @@ namespace mu
 			OP::ResourceConstantArgs args = program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
 			int32 MipsToSkip = item.ExecutionOptions;
 			int32 ImageIndex = args.value;
-			int32 ReallySkip = FMath::Min(MipsToSkip, program.m_constantImages[ImageIndex].LODCount - 1);
-			int32 LODIndexIndex = program.m_constantImages[ImageIndex].FirstIndex + ReallySkip;
-			int32 LODIndexCount = program.m_constantImages[ImageIndex].LODCount - ReallySkip;
+			int32 ReallySkip = FMath::Min(MipsToSkip, program.ConstantImages[ImageIndex].LODCount - 1);
+			int32 LODIndexIndex = program.ConstantImages[ImageIndex].FirstIndex + ReallySkip;
+			int32 LODIndexCount = program.ConstantImages[ImageIndex].LODCount - ReallySkip;
 			check(LODIndexCount > 0);
 
 			// We always need to follow this path, or roms may not be protected for long enough and might be unloaded 
@@ -2592,7 +2592,7 @@ namespace mu
 			//bool bAnyMissing = false;
 			//for (int32 i=0; i<LODIndexCount; ++i)
 			//{
-			//	uint32 LODIndex = program.m_constantImageLODIndices[LODIndexIndex+i];
+			//	uint32 LODIndex = program.ConstantImageLODIndices[LODIndexIndex+i];
 			//	if ( !program.ConstantImageLODs[LODIndex].Value )
 			//	{
 			//		bAnyMissing = true;

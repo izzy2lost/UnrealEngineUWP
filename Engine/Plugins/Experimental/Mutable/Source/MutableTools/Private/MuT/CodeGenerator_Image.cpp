@@ -55,7 +55,6 @@
 #include "MuT/NodeImageConditional.h"
 #include "MuT/NodeImageConditionalPrivate.h"
 #include "MuT/NodeImageConstant.h"
-#include "MuT/NodeImageConstantPrivate.h"
 #include "MuT/NodeImageFormat.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageGradient.h"
@@ -91,7 +90,6 @@
 #include "MuT/NodeImageSwizzle.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
 #include "MuT/NodeImageTable.h"
-#include "MuT/NodeImageTablePrivate.h"
 #include "MuT/NodeImageTransform.h"
 #include "MuT/NodeImageTransformPrivate.h"
 #include "MuT/NodeImageVariation.h"
@@ -171,13 +169,13 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateImage_Constant(const FImageGenerationOptions& Options, FImageGenerationResult& Result, const NodeImageConstant* InNode)
     {
-		const NodeImageConstant::Private& node = *InNode->GetPrivate();
+		const NodeImageConstant& node = *InNode;
 		
         // TODO: check duplicates
         Ptr<const Image> pImage;
-		if (node.m_pProxy)
+		if (node.Proxy)
 		{
-			pImage = node.m_pProxy->Get();
+			pImage = node.Proxy->Get();
 		}
 
         if (!pImage)
@@ -196,6 +194,7 @@ namespace mu
 			ReferenceOp->type = OP_TYPE::IM_REFERENCE;
 			ReferenceOp->ID = pImage->GetReferencedTexture();
 			ReferenceOp->bForceLoad = pImage->IsForceLoad();
+			ReferenceOp->SourceDataDescriptor = InNode->SourceDataDescriptor;
 
 			// Don't store the format. Format can vary between loaded constant image and reference and cause
 			// code optimization bugs.
@@ -211,6 +210,7 @@ namespace mu
 			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
 			op->Type = OP_TYPE::IM_CONSTANT;
 			op->SetValue(pImage, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+			op->SourceDataDescriptor = InNode->SourceDataDescriptor;
 			Result.op = op;
 		}
 
@@ -1846,13 +1846,13 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateImage_Table(const FImageGenerationOptions& Options, FImageGenerationResult& Result, const NodeImageTable* InNode)
 	{
-		const NodeImageTable::Private& node = *InNode->GetPrivate();
+		const NodeImageTable& node = *InNode;
 
-		Result.op = GenerateTableSwitch<NodeImageTable::Private, ETableColumnType::Image, OP_TYPE::IM_SWITCH>(node,
-			[this, InNode, Options](const NodeImageTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
+		Result.op = GenerateTableSwitch<NodeImageTable, ETableColumnType::Image, OP_TYPE::IM_SWITCH>(node,
+			[this, InNode, Options](const NodeImageTable& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				const FTableValue& CellData = node.Table->GetPrivate()->Rows[row].Values[colIndex];
-				ImagePtrConst pImage = nullptr;
+				Ptr<const Image> pImage = nullptr;
 
 				if (Ptr<ResourceProxy<Image>> pProxyImage = CellData.ProxyImage)
 				{
@@ -1870,8 +1870,11 @@ namespace mu
 				}
 				else
 				{
-					NodeImageConstantPtr ImageConst = new NodeImageConstant();
+					Ptr<NodeImageConstant> ImageConst = new NodeImageConstant();
 					ImageConst->SetValue(pImage.get());
+
+					// TODO: We probably want to get the data tags from the table row.
+					ImageConst->SourceDataDescriptor = InNode->SourceDataDescriptor;
 
 					FImageGenerationResult Result;
 					GenerateImage(Options, Result, ImageConst);
@@ -1996,7 +1999,7 @@ namespace mu
 		// Make a checkered debug image
 		Ptr<Image> GeneratedImage = GenerateMissingImage( format );
 
-		NodeImageConstantPtr pNode = new NodeImageConstant();
+		Ptr<NodeImageConstant> pNode = new NodeImageConstant();
 		pNode->SetValue(GeneratedImage.get());
 
 		FImageGenerationResult Result;

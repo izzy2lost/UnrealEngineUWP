@@ -122,13 +122,18 @@ namespace mu
 	}
 
 
-	//-------------------------------------------------------------------------------------------------
 	mu::Ptr<ImageSizeExpression> ASTOpReferenceResource::GetImageSizeExpression() const
 	{
 		Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
 		pRes->type = ImageSizeExpression::ISET_UNKNOWN;
 
 		return pRes;
+	}
+
+
+	FSourceDataDescriptor ASTOpReferenceResource::GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const
+	{
+		return SourceDataDescriptor;
 	}
 
 

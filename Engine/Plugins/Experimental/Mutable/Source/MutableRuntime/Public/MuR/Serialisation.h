@@ -303,6 +303,37 @@ namespace mu
     };
 
 
+	//! This stream doesn't store any data, it just counts the amount of data serialised.
+	class MUTABLERUNTIME_API OutputSizeStream : public OutputStream
+	{
+	public:
+
+		//-----------------------------------------------------------------------------------------
+		// Life cycle
+		//-----------------------------------------------------------------------------------------
+
+		//!
+		OutputSizeStream();
+
+		//-----------------------------------------------------------------------------------------
+		// OutputStream interface
+		//-----------------------------------------------------------------------------------------
+		void Write(const void* pData, uint64 size) override;
+
+		//-----------------------------------------------------------------------------------------
+		// Own interface
+		//-----------------------------------------------------------------------------------------
+
+		//! Get the amount of data serialised, in bytes.
+		uint64 GetBufferSize() const;
+
+	private:
+
+		uint64 WrittenBytes;
+
+	};
+
+
 	template<typename Type>
 	void operator<<(OutputArchive& Arch, const Type& Value)
 	{

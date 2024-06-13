@@ -60,6 +60,14 @@ struct FCompilationOptions
 	/** High (inclusive) limit of the size in bytes of a data block to be included into the compiled object directly instead of stored in a streamable file. */
 	uint64 EmbeddedDataBytesLimit = 1024;
 
+	/** Number of minimum mipmaps that we want to always be available in disk regardless of NumHighResImageLODs. */
+	int32 MinDiskMips = 7;
+
+	/** Number of image mipmaps that will be flagged as high-res data (possibly to store separately).
+	* This is only used if the total mips in the source image is above the MinDiskMips.
+	*/
+	int32 NumHighResImageMips = 2;
+
 	// Did we have the extra bones enabled when we compiled?
 	ECustomizableObjectNumBoneInfluences CustomizableObjectNumBoneInfluences = ECustomizableObjectNumBoneInfluences::Four;
 

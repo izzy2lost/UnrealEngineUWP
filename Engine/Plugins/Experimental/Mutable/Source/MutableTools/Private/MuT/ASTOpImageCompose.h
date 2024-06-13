@@ -29,18 +29,19 @@ namespace mu
 		ASTOpImageCompose(const ASTOpImageCompose&) = delete;
 		~ASTOpImageCompose();
 
-		OP_TYPE GetOpType() const override { return OP_TYPE::IM_COMPOSE; }
-		uint64 Hash() const override;
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
-		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
-		void Link(FProgram& program, FLinkerOptions* Options) override;
-		//TODO: Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions& options, FOptimizeSinkContext& context) const override;
-		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const;
-		FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
-		void GetLayoutBlockSize(int32* OutBlockX, int32* OutBlockY) override;
-		bool IsImagePlainConstant(FVector4f& OutColor) const override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual OP_TYPE GetOpType() const override { return OP_TYPE::IM_COMPOSE; }
+		virtual uint64 Hash() const override;
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
+		virtual void Link(FProgram& program, FLinkerOptions* Options) override;
+		//TODO: virtual Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions& options, FOptimizeSinkContext& context) const override;
+		virtual Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const;
+		virtual FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
+		virtual void GetLayoutBlockSize(int32* OutBlockX, int32* OutBlockY) override;
+		virtual bool IsImagePlainConstant(FVector4f& OutColor) const override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 
 	};
 

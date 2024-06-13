@@ -6,7 +6,6 @@
 #include "Misc/AssertionMacros.h"
 #include "MuR/Image.h"
 #include "MuR/Serialisation.h"
-#include "MuT/NodeImageConstantPrivate.h"
 #include "MuT/NodePrivate.h"
 
 
@@ -16,33 +15,20 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeImageConstant::Private::s_type = FNodeType(Node::EType::ImageConstant, NodeImage::GetStaticType());
-
-
-	//---------------------------------------------------------------------------------------------
-	MUTABLE_IMPLEMENT_NODE(NodeImageConstant);
-
-
-	//---------------------------------------------------------------------------------------------
-	ImagePtrConst NodeImageConstant::GetValue() const
-	{
-		Ptr<const Image> pImage;
-		if (m_pD->m_pProxy) pImage = m_pD->m_pProxy->Get();
-		return pImage;
-	}
+	FNodeType NodeImageConstant::StaticType = FNodeType(Node::EType::ImageConstant, NodeImage::GetStaticType());
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeImageConstant::SetValue(const Image* Value)
 	{
-		m_pD->m_pProxy = new ResourceProxyMemory<Image>(Value);
+		Proxy = new ResourceProxyMemory<Image>(Value);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeImageConstant::SetValue(Ptr<ResourceProxy<Image>> pImage)
+	void NodeImageConstant::SetValue(Ptr<ResourceProxy<Image>> InProxy)
 	{
-		m_pD->m_pProxy = pImage;
+		Proxy = InProxy;
 	}
 
 }

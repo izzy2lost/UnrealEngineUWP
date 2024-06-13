@@ -54,37 +54,6 @@ namespace mu
     };
 
 
-    //! This stream doesn-t store any data, it just counts de amonut of data serialised.
-    class MUTABLERUNTIME_API OutputSizeStream : public OutputStream
-    {
-    public:
-
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
-
-        //!
-        OutputSizeStream();
-
-        //-----------------------------------------------------------------------------------------
-        // OutputStream interface
-        //-----------------------------------------------------------------------------------------
-        void Write( const void* pData, uint64 size ) override;
-
-        //-----------------------------------------------------------------------------------------
-        // Own interface
-        //-----------------------------------------------------------------------------------------
-
-        //! Get the amount of data serialised, in bytes.
-        uint64 GetBufferSize() const;
-
-    private:
-
-        uint64 WrittenBytes;
-
-    };
-
-
 #define MUTABLE_IMPLEMENT_POD_SERIALISABLE(Type)				     \
     void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T)    \
     {																 \

@@ -4,6 +4,8 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/ImageTypes.h"
+#include "MuT/Table.h"
 #include "MuT/Node.h"
 #include "MuT/NodeImage.h"
 
@@ -11,74 +13,44 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeImageTable;
-	typedef Ptr<NodeImageTable> NodeImageTablePtr;
-	typedef Ptr<const NodeImageTable> NodeImageTablePtrConst;
 
-	class Table;
-	typedef Ptr<Table> TablePtr;
-	typedef Ptr<const Table> TablePtrConst;
-
-	struct FImageDesc;
-
-
-	//! This node provides the meshes stored in the column of a table.
+	/** This node provides the meshes stored in the column of a table. */
 	class MUTABLETOOLS_API NodeImageTable : public NodeImage
 	{
 	public:
 
-		NodeImageTable();
+		FString ParameterName;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+		Ptr<Table> Table;
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		FString ColumnName;
 
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
+		uint16 MaxTextureSize = 0;
 
-		//! Set the name of the implicit table parameter.
-		void SetParameterName( const FString& strName );
+		FImageDesc ReferenceImageDesc;
 
-		//!
-		TablePtr GetTable() const;
-		void SetTable( TablePtr );
+		bool bNoneOption = false;
 
-		//!
-		void SetColumn( const FString& strName );
+		FString DefaultRowName;
 
-		//!
-		void SetMaxTextureSize(uint16 Size);
-		uint16 GetMaxTextureSize();
+		/** */
+		FSourceDataDescriptor SourceDataDescriptor;
 
-		//! Adds the "None" option to the parameter that represents this table column
-		void SetNoneOption(bool bAddOption);
-		
-		//!
-		void SetReferenceImageDescriptor(const FImageDesc& Descriptor);
+	public:
 
-		//! Set the row name to be used as default value
-		void SetDefaultRowName(const FString& RowName);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-
+		// Node interface
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeImageTable();
+		~NodeImageTable() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
+
 
 	};
 

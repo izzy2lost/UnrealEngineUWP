@@ -35,7 +35,6 @@
 #include "MuT/NodeColourSwitch.h"
 #include "MuT/NodeColourSwitchPrivate.h"
 #include "MuT/NodeColourTable.h"
-#include "MuT/NodeColourTablePrivate.h"
 #include "MuT/NodeColourVariation.h"
 #include "MuT/NodeColourVariationPrivate.h"
 #include "MuT/NodeImage.h"
@@ -495,10 +494,10 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateColor_Table(FColorGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeColourTable>& Typed)
 	{
-		const NodeColourTable::Private& node = *Typed->GetPrivate();
+		const NodeColourTable& node = *Typed;
 
-		result.op = GenerateTableSwitch<NodeColourTable::Private, ETableColumnType::Color, OP_TYPE::CO_SWITCH>(node,
-			[this, &Options](const NodeColourTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
+		result.op = GenerateTableSwitch<NodeColourTable, ETableColumnType::Color, OP_TYPE::CO_SWITCH>(node,
+			[this, &Options](const NodeColourTable& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				Ptr<NodeColourConstant> CellData = new NodeColourConstant();
 				FVector4f Colour = node.Table->GetPrivate()->Rows[row].Values[colIndex].Color;

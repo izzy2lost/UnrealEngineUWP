@@ -28,16 +28,18 @@ struct FProgram;
 		ASTOpImagePatch(const ASTOpImagePatch&) = delete;
 		~ASTOpImagePatch();
 
-		OP_TYPE GetOpType() const override { return OP_TYPE::IM_PATCH; }
-		uint64 Hash() const override;
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
-		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
-		void Link(FProgram& program, FLinkerOptions* Options) override;
-		FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
-		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
-		//TODO: bool IsImagePlainConstant(FVector4f& colour) const override;
+		virtual OP_TYPE GetOpType() const override { return OP_TYPE::IM_PATCH; }
+		virtual uint64 Hash() const override;
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
+		virtual void Link(FProgram& program, FLinkerOptions* Options) override;
+		virtual FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
+		//TODO: virtual bool IsImagePlainConstant(FVector4f& colour) const override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
+
 	};
 
 

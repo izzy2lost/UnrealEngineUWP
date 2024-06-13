@@ -998,7 +998,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 			ResourceMeshData.NameResolutionMap = MeshData.Value.NameResolutionMap;
 			ResourceMeshData.Size = DataSizeInBytes;
-			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), RealTimeMorphDataOffsetInBytes };
+			mu::ERomFlags Flags = mu::ERomFlags::None;
+			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), uint32(Flags), RealTimeMorphDataOffsetInBytes };
 
 			RealTimeMorphDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(MeshData.Value.Data);
@@ -1028,7 +1029,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ResourceMeshData.ClothingAssetLOD = MeshData.Value.ClothingAssetLOD;
 			ResourceMeshData.PhysicsAssetIndex = MeshData.Value.PhysicsAssetIndex;
 			ResourceMeshData.Size = DataSizeInBytes;
-			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), ClothingDataOffsetInBytes };
+			mu::ERomFlags Flags = mu::ERomFlags::None;
+			ResourceMeshData.Block = FMutableStreamableBlock{ uint32(0), uint32(Flags), ClothingDataOffsetInBytes };
 
 			ClothingDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyClothingMeshToMeshVertData.Append(MeshData.Value.Data);
@@ -1379,8 +1381,8 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 		{
 			const uint32 ResourceId = CurrentModel->GetRomId(FileIndex);
 			const uint32 ResourceSize = CurrentModel->GetRomSize(FileIndex);
-
-			HashToStreamableBlock->Add(ResourceId, FMutableStreamableBlock{ 0, Offset });
+			mu::ERomFlags Flags = CurrentModel->GetRomFlags(FileIndex);
+			HashToStreamableBlock->Add(ResourceId, FMutableStreamableBlock{ 0, uint32(Flags), Offset });
 			Offset += ResourceSize;
 		}
 
@@ -1397,7 +1399,7 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finishing Compilation task for CO [%s]."), FPlatformTime::Seconds(), *CurrentObject->GetName());
 	TRACE_END_REGION(UE_MUTABLE_COMPILE_REGION);
 
-	// Create  SaveDD task
+	// Create SaveDD task
 	TRACE_BEGIN_REGION(UE_MUTABLE_SAVEDD_REGION);
 	SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentObject, CurrentOptions, CurrentModel));
 }

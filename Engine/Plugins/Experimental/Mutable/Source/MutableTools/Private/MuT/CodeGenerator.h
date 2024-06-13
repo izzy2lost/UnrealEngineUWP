@@ -367,8 +367,8 @@ namespace mu
         Ptr<ASTOp> GenerateMissingBoolCode(const TCHAR* strWhere, bool value, const void* errorContext );
 
         //!
-		template<class NODE_TABLE_PRIVATE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
-		Ptr<ASTOp> GenerateTableSwitch( const NODE_TABLE_PRIVATE& node, F&& GenerateOption );
+		template<class NODE_TABLE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
+		Ptr<ASTOp> GenerateTableSwitch( const NODE_TABLE& node, F&& GenerateOption );
 
 
 		//-----------------------------------------------------------------------------------------
@@ -768,8 +768,8 @@ namespace mu
 
 	
     //---------------------------------------------------------------------------------------------
-    template<class NODE_TABLE_PRIVATE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
-    Ptr<ASTOp> CodeGenerator::GenerateTableSwitch( const NODE_TABLE_PRIVATE& node, F&& GenerateOption )
+    template<class NODE_TABLE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
+    Ptr<ASTOp> CodeGenerator::GenerateTableSwitch( const NODE_TABLE& node, F&& GenerateOption )
     {
         Ptr<const Table> NodeTable = node.Table;
         Ptr<ASTOp> Variable;
@@ -784,7 +784,7 @@ namespace mu
         if ( !Variable)
         {
             // Create the table variable expression
-            Variable = GenerateTableVariable( node.m_pNode, CacheKey, node.bNoneOption, node.DefaultRowName);
+            Variable = GenerateTableVariable( &node, CacheKey, node.bNoneOption, node.DefaultRowName);
 
             GeneratedTables.Add(CacheKey, Variable );
         }
@@ -796,18 +796,18 @@ namespace mu
 
 		if (NumRows == 0)
 		{
-			m_pErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.m_pNode->GetMessageContext());
+			m_pErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.GetMessageContext());
 			return nullptr;
 		}
         else if (ColIndex < 0)
         {
-            m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_pNode->GetMessageContext());
+            m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.GetMessageContext());
             return nullptr;
         }
 
         if (NodeTable->GetPrivate()->Columns[ ColIndex ].Type != TYPE )
         {
-            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.m_pNode->GetMessageContext());
+            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.GetMessageContext());
             return nullptr;
         }
 

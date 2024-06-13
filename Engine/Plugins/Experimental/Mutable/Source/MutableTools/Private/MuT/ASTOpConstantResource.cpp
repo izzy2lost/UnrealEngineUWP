@@ -248,7 +248,8 @@ namespace mu
 		{
 			const ASTOpConstantResource* Other = static_cast<const ASTOpConstantResource*>(&OtherUntyped);
 			return Type == Other->Type && ValueHash == Other->ValueHash &&
-				LoadedValue == Other->LoadedValue && Proxy == Other->Proxy;
+				LoadedValue == Other->LoadedValue && Proxy == Other->Proxy
+				&& SourceDataDescriptor == Other->SourceDataDescriptor;
 		}
 		return false;
 	}
@@ -262,6 +263,7 @@ namespace mu
 		n->Proxy = Proxy;
 		n->LoadedValue = LoadedValue;
 		n->ValueHash = ValueHash;
+		n->SourceDataDescriptor = SourceDataDescriptor; 
 		return n;
 	}
 
@@ -287,7 +289,7 @@ namespace mu
 			// Mips to store
 			int32 MipsToStore = 1;
 
-			int32 FirstLODIndexIndex = Program.m_constantImageLODIndices.Num();
+			int32 FirstLODIndexIndex = Program.ConstantImageLODIndices.Num();
 
 			FImageOperator& ImOp = Options.ImageOperator;
 			Ptr<const Image> pMip;
@@ -350,7 +352,7 @@ namespace mu
 					Options.ImageConstantMipMap.Add(pMip, MipIndex);
 				}
 
-				Program.m_constantImageLODIndices.Add(uint32(MipIndex));
+				Program.ConstantImageLODIndices.Add(uint32(MipIndex));
 
 				// Generate next mip if necessary
 				if (Mip + 1 < MipsToStore)
@@ -393,7 +395,7 @@ namespace mu
 			LODRange.ImageFormat = pImage->GetFormat();
 			LODRange.ImageSizeX = pImage->GetSizeX();
 			LODRange.ImageSizeY = pImage->GetSizeY();
-			int32 ImageIndex = Program.m_constantImages.Add(LODRange);
+			int32 ImageIndex = Program.ConstantImages.Add(LODRange);
 			return ImageIndex;
 		}
 	}
@@ -467,6 +469,9 @@ namespace mu
 					else
 					{
 						args.value = AddConstantImage( program, pTyped, *Options);
+
+						int32 DataDescIndex = Options->AdditionalData.SourceImagePerConstant.Add(SourceDataDescriptor);
+						check(DataDescIndex == args.value);
 					}
 
 					break;
@@ -744,7 +749,6 @@ namespace mu
 	}
 
 
-	//-------------------------------------------------------------------------------------------------
 	mu::Ptr<ImageSizeExpression> ASTOpConstantResource::GetImageSizeExpression() const
 	{
 		if (Type==OP_TYPE::IM_CONSTANT)
@@ -757,6 +761,12 @@ namespace mu
 		}
 
 		return nullptr;
+	}
+
+
+	FSourceDataDescriptor ASTOpConstantResource::GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const
+	{
+		return SourceDataDescriptor;
 	}
 
 }

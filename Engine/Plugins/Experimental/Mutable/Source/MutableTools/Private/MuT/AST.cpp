@@ -865,6 +865,13 @@ FImageDesc ASTOp::GetImageDesc( bool, FGetImageDescContext* ) const
 }
 
 
+FSourceDataDescriptor ASTOp::GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const
+{
+	ensure(false);
+	return {};
+}
+
+
 bool ASTOp::IsImagePlainConstant(FVector4f&) const
 {
 	// Some image operations don't have this implemented and hit here.
@@ -1081,7 +1088,7 @@ FImageDesc ASTOpFixed::GetImageDesc( bool returnBestOption, FGetImageDescContext
         }
     }
 
-    OP_TYPE type = (OP_TYPE) op.type;
+    OP_TYPE type = op.type;
 
     switch ( type )
     {
@@ -1617,5 +1624,98 @@ mu::Ptr<ImageSizeExpression> ASTOpFixed::GetImageSizeExpression() const
 
     return pRes;
 }
+
+
+
+
+//!
+FSourceDataDescriptor ASTOpFixed::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+{
+	FSourceDataDescriptor  Result;
+
+	// Cache management
+	TUniquePtr<FGetSourceDataDescriptorContext> LocalContext;
+	if (!Context)
+	{
+		LocalContext.Reset(new FGetSourceDataDescriptorContext);
+		Context = LocalContext.Get();
+	}
+
+	FSourceDataDescriptor* Found = Context->Cache.Find(this);
+	if (Found)
+	{
+		return *Found;
+	}
+
+	// Calculate
+	OP_TYPE Type = op.type;
+
+	switch (Type)
+	{
+
+	case OP_TYPE::NONE:
+	case OP_TYPE::IM_PLAINCOLOUR:
+	case OP_TYPE::IM_GRADIENT:
+	case OP_TYPE::IM_BLANKLAYOUT:
+		break;
+
+	case OP_TYPE::IM_SATURATE:
+		Result = GetSourceDataDescriptor(op.args.ImageSaturate.base, Context);
+		break;
+
+	case OP_TYPE::IM_LUMINANCE:
+		Result = GetSourceDataDescriptor(op.args.ImageLuminance.base, Context);
+		break;
+
+	case OP_TYPE::IM_INTERPOLATE:
+	{
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_INTERPOLATE_COUNT; ++SourceIndex)
+		{
+			FSourceDataDescriptor SourceDesc = GetSourceDataDescriptor(op.args.ImageInterpolate.targets[SourceIndex], Context);
+			Result.CombineWith(SourceDesc);
+		}
+		break;
+	}
+
+	case OP_TYPE::IM_RESIZE:
+		Result = GetSourceDataDescriptor(op.args.ImageResize.source, Context);
+		break;
+
+	case OP_TYPE::IM_RESIZEREL:
+		Result = GetSourceDataDescriptor(op.args.ImageResizeRel.source, Context);
+		break;
+
+	case OP_TYPE::IM_RESIZELIKE:
+		Result = GetSourceDataDescriptor(op.args.ImageResizeLike.source, Context);
+		break;
+
+	case OP_TYPE::IM_BINARISE:
+		Result = GetSourceDataDescriptor(op.args.ImageBinarise.base, Context);
+		break;
+
+	case OP_TYPE::IM_DISPLACE:
+		Result = GetSourceDataDescriptor(op.args.ImageDisplace.source, Context);
+		break;
+
+	case OP_TYPE::IM_INVERT:
+		Result = GetSourceDataDescriptor(op.args.ImageInvert.base, Context);
+		break;
+
+	case OP_TYPE::IM_COLOURMAP:
+		Result = GetSourceDataDescriptor(op.args.ImageColourMap.base, Context);
+		break;
+
+	default:
+		// This should probably be implemented
+		ensure(false);
+		break;
+	}
+
+	// Cache the result
+	Context->Cache.Add(this, Result);
+
+	return Result;
+}
+
 
 }

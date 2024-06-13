@@ -6165,10 +6165,10 @@ namespace mu
 			int32 ImageIndex = args.value;
 
 			FImageDesc& Result = m_heapImageDesc[item.CustomState];
-			Result.m_format = Program.m_constantImages[ImageIndex].ImageFormat;
-			Result.m_size[0] = Program.m_constantImages[ImageIndex].ImageSizeX;
-			Result.m_size[1] = Program.m_constantImages[ImageIndex].ImageSizeY;
-			Result.m_lods = Program.m_constantImages[ImageIndex].LODCount;
+			Result.m_format = Program.ConstantImages[ImageIndex].ImageFormat;
+			Result.m_size[0] = Program.ConstantImages[ImageIndex].ImageSizeX;
+			Result.m_size[1] = Program.ConstantImages[ImageIndex].ImageSizeY;
+			Result.m_lods = Program.ConstantImages[ImageIndex].LODCount;
 			StoreValidDesc(item);
 			break;
 		}

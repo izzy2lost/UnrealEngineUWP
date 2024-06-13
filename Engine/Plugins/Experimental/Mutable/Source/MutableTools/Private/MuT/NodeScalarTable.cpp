@@ -5,7 +5,6 @@
 
 #include "Misc/AssertionMacros.h"
 #include "MuT/NodePrivate.h"
-#include "MuT/NodeScalarTablePrivate.h"
 #include "MuT/Table.h"
 
 
@@ -16,14 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeScalarTable::Private::s_type = FNodeType(Node::EType::ScalarTable, NodeScalar::GetStaticType() );
+	FNodeType NodeScalarTable::StaticType = FNodeType(Node::EType::ScalarTable, NodeScalar::GetStaticType() );
 
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-
-	MUTABLE_IMPLEMENT_NODE(NodeScalarTable )
 
 
 	//---------------------------------------------------------------------------------------------
@@ -31,41 +24,27 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeScalarTable::SetColumn( const FString& strName )
 	{
-		m_pD->ColumnName = strName;
+		ColumnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeScalarTable::SetParameterName( const FString& strName )
 	{
-		m_pD->ParameterName = strName;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeScalarTable::SetTable( TablePtr pTable )
-	{
-		m_pD->Table = pTable;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	TablePtr NodeScalarTable::GetTable() const
-	{
-		return m_pD->Table;
+		ParameterName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeScalarTable::SetNoneOption(bool bAddNoneOption)
 	{
-		m_pD->bNoneOption = bAddNoneOption;
+		bNoneOption = bAddNoneOption;
 	}
 
 	//---------------------------------------------------------------------------------------------
 	void NodeScalarTable::SetDefaultRowName(const FString& RowName)
 	{
-		m_pD->DefaultRowName = RowName;
+		DefaultRowName = RowName;
 	}
 }
 

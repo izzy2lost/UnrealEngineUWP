@@ -1198,6 +1198,8 @@ namespace mu
 		DT_COUNT
 	} DATATYPE;
 
+	static_assert(DT_COUNT < 256, "Unexpected enum size.");
+
 
 	// Generic data about a Mutable runtime operation.
     struct FOpDesc

@@ -59,21 +59,22 @@ template <class SCALAR> class vec4;
 		~ASTOpSwitch() override;
 
 		// ASTOp interface
-		OP_TYPE GetOpType() const override { return type; }
-		uint64 Hash() const override;
-		void ForEachChild(const TFunctionRef<void(ASTChild&)> f) override;
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
-		void Assert() override;
-		void Link(FProgram& program, FLinkerOptions* Options) override;
-		FImageDesc GetImageDesc(bool returnBestOption, class FGetImageDescContext* context) const  override;
-		void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
-		void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
-		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
-		bool GetNonBlackRect(FImageRect& maskUsage) const override;
-		bool IsImagePlainConstant(FVector4f& colour) const override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual OP_TYPE GetOpType() const override { return type; }
+		virtual uint64 Hash() const override;
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)> f) override;
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		virtual void Assert() override;
+		virtual void Link(FProgram& program, FLinkerOptions* Options) override;
+		virtual FImageDesc GetImageDesc(bool returnBestOption, class FGetImageDescContext* context) const  override;
+		virtual void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
+		virtual void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
+		virtual Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
+		virtual bool GetNonBlackRect(FImageRect& maskUsage) const override;
+		virtual bool IsImagePlainConstant(FVector4f& colour) const override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
 		virtual bool IsSwitch() const override { return true; }
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 
 		// Own interface
 

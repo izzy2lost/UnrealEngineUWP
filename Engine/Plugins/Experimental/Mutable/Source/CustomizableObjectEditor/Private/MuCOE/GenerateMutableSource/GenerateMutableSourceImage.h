@@ -16,7 +16,6 @@ namespace mu
 {
 	class Image;
 	class NodeImage;
-	class NodeImageConstant;
 }
 
 

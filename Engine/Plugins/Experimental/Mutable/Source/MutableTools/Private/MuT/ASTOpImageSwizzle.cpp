@@ -1079,6 +1079,39 @@ namespace mu
 	}
 
 
+	FSourceDataDescriptor ASTOpImageSwizzle::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		// Cache management
+		TUniquePtr<FGetSourceDataDescriptorContext> LocalContext;
+		if (!Context)
+		{
+			LocalContext.Reset(new FGetSourceDataDescriptorContext);
+			Context = LocalContext.Get();
+		}
+
+		FSourceDataDescriptor* Found= Context->Cache.Find(this);
+		if (Found)
+		{
+			return *Found;
+		}
+
+		// Not cached: calculate
+		FSourceDataDescriptor Result;
+
+		for( int32 SourceIndex=0; SourceIndex<MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex )
+		{ 
+			if (Sources[SourceIndex])
+			{
+				FSourceDataDescriptor SourceDesc = Sources[SourceIndex]->GetSourceDataDescriptor(Context);				
+				Result.CombineWith(SourceDesc);
+			}
+		}
+
+		Context->Cache.Add(this,Result);
+
+		return Result;
+	}
+
 
 
 	//---------------------------------------------------------------------------------------------

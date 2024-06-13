@@ -256,6 +256,10 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 			FString FilePath = ObjectData->BulkFilePrefix;
 #else
 			FString FilePath = FString::Printf(TEXT("%s-%08x.mut"), *ObjectData->BulkFilePrefix, Block->FileId);
+			if (Block->Flags == uint32(mu::ERomFlags::HighRes))
+			{
+				FilePath += TEXT(".high");
+			}
 #endif
 
 			Found = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FilePath));

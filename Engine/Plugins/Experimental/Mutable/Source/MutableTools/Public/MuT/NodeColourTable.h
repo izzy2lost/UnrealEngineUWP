@@ -6,6 +6,7 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
+#include "MuT/Table.h"
 
 
 namespace mu
@@ -16,10 +17,6 @@ namespace mu
 	typedef Ptr<NodeColourTable> NodeColourTablePtr;
 	typedef Ptr<const NodeColourTable> NodeColourTablePtrConst;
 
-	class Table;
-	typedef Ptr<Table> TablePtr;
-	typedef Ptr<const Table> TablePtrConst;
-
 
 	//! This node provides the meshes stored in the column of a table.
 	//! \ingroup transform
@@ -27,14 +24,17 @@ namespace mu
 	{
 	public:
 
-		NodeColourTable();
+		FString ParameterName;
+		Ptr<Table> Table;
+		FString ColumnName;
+		bool bNoneOption = false;
+		FString DefaultRowName;
 
+	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		// Node interface
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -42,10 +42,6 @@ namespace mu
 
 		//! Set the name of the implicit table parameter.
 		void SetParameterName( const FString& strName );
-
-		//!
-		TablePtr GetTable() const;
-		void SetTable( TablePtr );
 
 		//!
 		void SetColumn( const FString& strName );
@@ -56,21 +52,15 @@ namespace mu
 		//! Set the row name to be used as default value
 		void SetDefaultRowName(const FString RowName);
 
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeColourTable();
+		~NodeColourTable() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

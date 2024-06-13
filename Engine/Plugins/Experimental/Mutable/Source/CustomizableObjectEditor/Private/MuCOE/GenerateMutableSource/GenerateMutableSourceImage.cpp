@@ -109,6 +109,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			FGeneratedImageKey ImageKey = FGeneratedImageKey(Pin);
 			mu::NodeImagePtr ImageNode;
 			
+			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *BaseTexture, nullptr, ReferenceTextureSize);
+
 			if (mu::NodeImagePtr* Cached = GenerationContext.GeneratedImages.Find(ImageKey))
 			{
 				ImageNode = *Cached;
@@ -117,14 +119,19 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			{
 				mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(BaseTexture, GenerationContext, false);
 
-				mu::Ptr<mu::NodeImageConstant> ReferenceImageNode = new mu::NodeImageConstant;
-				ReferenceImageNode->SetValue( ImageConstant.get() );
-				ImageNode = ReferenceImageNode;
+				mu::Ptr<mu::NodeImageConstant> ConstantImageNode = new mu::NodeImageConstant;
+				ConstantImageNode->SetValue( ImageConstant.get() );
+				
+				int32 TotalMips = mu::Image::GetMipmapCount(ImageConstant->GetSizeX(), ImageConstant->GetSizeY());
+				int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - int32(MipsToSkip) - GenerationContext.Options.MinDiskMips);
+				int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
+				ConstantImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
+
+				ImageNode = ConstantImageNode;
 
 				GenerationContext.GeneratedImages.Add(ImageKey, ImageNode);
 			}
 
-			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *BaseTexture, nullptr, ReferenceTextureSize);
 			Result = ResizeTextureByNumMips(ImageNode, MipsToSkip);
 		}
 		else
@@ -203,17 +210,23 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 	else if (const UCustomizableObjectNodeMesh* TypedNodeMesh = Cast<UCustomizableObjectNodeMesh>(Node))
 	{
-		mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
+		mu::Ptr<mu::NodeImageConstant> ImageNode = new mu::NodeImageConstant();
 		Result = ImageNode;
 
 		UTexture2D* Texture = TypedNodeMesh->FindTextureForPin(Pin);
 
 		if (Texture)
 		{
-			ImageNode->SetValue(GenerateImageConstant(Texture, GenerationContext, false).get());
+			mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(Texture, GenerationContext, false);
+			ImageNode->SetValue(ImageConstant.get());
 
 			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *Texture, nullptr, ReferenceTextureSize);
 			Result = ResizeTextureByNumMips(ImageNode, MipsToSkip);
+
+			int32 TotalMips = mu::Image::GetMipmapCount(ImageConstant->GetSizeX(), ImageConstant->GetSizeY());
+			int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - int32(MipsToSkip) - GenerationContext.Options.MinDiskMips);
+			int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
+			ImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 		}
 		else
 		{
@@ -879,7 +892,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		UTexture* BaseTexture = TypedNodePassThroughTex->PassThroughTexture;
 		if (BaseTexture)
 		{
-			mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
+			mu::Ptr<mu::NodeImageConstant> ImageNode = new mu::NodeImageConstant();
 			Result = ImageNode;
 
 			ImageNode->SetValue(GenerateImageConstant(BaseTexture, GenerationContext, true).get());
@@ -982,8 +995,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		}
 		else
 		{
-			//This node will add a checker texture in case of error
-			mu::NodeImageConstantPtr EmptyNode = new mu::NodeImageConstant();
+			// This node will add a checker texture in case of error
+			mu::Ptr<mu::NodeImageConstant> EmptyNode = new mu::NodeImageConstant();
 			Result = EmptyNode;
 
 			bool bSuccess = true;
@@ -1027,7 +1040,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 					if (Table)
 					{
-						mu::NodeImageTablePtr ImageTableNode = new mu::NodeImageTable();
+						mu::Ptr<mu::NodeImageTable> ImageTableNode = new mu::NodeImageTable();
 
 						if (Pin->PinType.PinCategory == Schema->PC_MaterialAsset)
 						{
@@ -1081,11 +1094,11 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 						{
 							Result = ImageTableNode;
 
-							ImageTableNode->SetTable(Table);
-							ImageTableNode->SetColumn(ColumnName);
-							ImageTableNode->SetParameterName(TypedNodeTable->ParameterName);
-							ImageTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
-							ImageTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
+							ImageTableNode->Table = Table;
+							ImageTableNode->ColumnName = ColumnName;
+							ImageTableNode->ParameterName = TypedNodeTable->ParameterName;
+							ImageTableNode->bNoneOption = TypedNodeTable->bAddNoneOption;
+							ImageTableNode->DefaultRowName = TypedNodeTable->DefaultRowName.ToString();
 
 							if (UTexture2D* DefaultTexture2D = Cast<UTexture2D>(DefaultTexture))
 							{
@@ -1096,8 +1109,14 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 								ImageDesc.m_size[1] = ImageDesc.m_size[1] >> LODBias;
 								
 								const uint16 MaxTextureSize = FMath::Max3(ImageDesc.m_size[0], ImageDesc.m_size[1], (uint16)1);
-								ImageTableNode->SetMaxTextureSize(MaxTextureSize);
-								ImageTableNode->SetReferenceImageDescriptor(ImageDesc);
+								ImageTableNode->MaxTextureSize = MaxTextureSize;
+								ImageTableNode->ReferenceImageDesc = ImageDesc;
+
+								// Calculate the number of mips to tag as high res for this image.
+								int32 TotalMips = mu::Image::GetMipmapCount(ImageDesc.m_size[0], ImageDesc.m_size[1]);
+								int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - GenerationContext.Options.MinDiskMips);
+								int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
+								ImageTableNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 							}
 						}
 					}

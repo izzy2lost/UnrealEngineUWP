@@ -358,4 +358,41 @@ namespace mu
 		return pRes;
 	}
 
+
+	FSourceDataDescriptor ASTOpConditional::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		// Cache management
+		TUniquePtr<FGetSourceDataDescriptorContext> LocalContext;
+		if (!Context)
+		{
+			LocalContext.Reset(new FGetSourceDataDescriptorContext);
+			Context = LocalContext.Get();
+		}
+
+		FSourceDataDescriptor* Found = Context->Cache.Find(this);
+		if (Found)
+		{
+			return *Found;
+		}
+
+		// Not cached: calculate
+		FSourceDataDescriptor Result;
+
+		if (yes)
+		{
+			FSourceDataDescriptor SourceDesc = yes->GetSourceDataDescriptor(Context);
+			Result.CombineWith(SourceDesc);
+		}
+
+		if (no)
+		{
+			FSourceDataDescriptor SourceDesc = no->GetSourceDataDescriptor(Context);
+			Result.CombineWith(SourceDesc);
+		}
+
+		Context->Cache.Add(this, Result);
+
+		return Result;
+	}
+
 }

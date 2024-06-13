@@ -6,6 +6,8 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeMesh.h"
+#include "MuT/NodeLayout.h"
+#include "MuT/Table.h"
 
 
 namespace mu
@@ -16,29 +18,25 @@ namespace mu
 	typedef Ptr<NodeMeshTable> NodeMeshTablePtr;
 	typedef Ptr<const NodeMeshTable> NodeMeshTablePtrConst;
 
-	class NodeLayout;
-	typedef Ptr<NodeLayout> NodeLayoutPtr;
-	typedef Ptr<const NodeLayout> NodeLayoutPtrConst;
-
-	class Table;
-	typedef Ptr<Table> TablePtr;
-	typedef Ptr<const Table> TablePtrConst;
-
 
 	//! This node provides the meshes stored in the column of a table.
 	class MUTABLETOOLS_API NodeMeshTable : public NodeMesh
 	{
 	public:
 
-		NodeMeshTable();
+		FString ParameterName;
+		Ptr<Table> Table;
+		FString ColumnName;
+		bool bNoneOption = false;
+		FString DefaultRowName;
 
+		TArray<NodeLayoutPtr> Layouts;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		// Node interface
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -46,10 +44,6 @@ namespace mu
 
 		//! Set the name of the implicit table parameter.
 		void SetParameterName( const FString& strName );
-
-		//!
-		TablePtr GetTable() const;
-		void SetTable( TablePtr );
 
 		//!
 		void SetColumn( const FString& strName );
@@ -68,21 +62,15 @@ namespace mu
 		//! Set the row name to be used as default value
 		void SetDefaultRowName(const FString& RowName);
 
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeMeshTable();
+		~NodeMeshTable() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

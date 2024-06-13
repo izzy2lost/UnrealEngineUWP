@@ -2151,11 +2151,15 @@ void UCustomizableObjectBulk::PostLoad()
 	BulkFilePrefix = PackageFilename;
 }
 
-TUniquePtr<IAsyncReadFileHandle> UCustomizableObjectBulk::OpenFileAsyncRead(uint32 FileId) const
+TUniquePtr<IAsyncReadFileHandle> UCustomizableObjectBulk::OpenFileAsyncRead(uint32 FileId, uint32 Flags) const
 {
 	check(IsInGameThread());
 
 	FString FilePath = FString::Printf(TEXT("%s-%08x.mut"), *BulkFilePrefix, FileId);
+	if (Flags == uint32(mu::ERomFlags::HighRes))
+	{
+		FilePath += TEXT(".high");
+	}
 
 	IAsyncReadFileHandle* Result = FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FilePath);
 	
@@ -2248,6 +2252,14 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 		const FString CookedFilePath = FPaths::GetPath(PackageFilename);
 
 		FString CookedBulkFileName = FString::Printf(TEXT("%s/%s-%08x.mut"), *CookedFilePath, *CustomizableObject->GetName(), CurrentFile.Id);
+
+		if (CurrentFile.Flags == uint32(mu::ERomFlags::HighRes))
+		{
+			// We can do something different here for high-res data.
+			// For example: change the file name. We also need to detect it when generating the file name for loading.
+			CookedBulkFileName += TEXT(".high");
+		}
+
 		WriteAdditionalFile(*CookedBulkFileName, FileBulkData.GetData(), FileBulkData.Num());
 	}
 }
@@ -2284,19 +2296,30 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		//uint32 Depth=0;
 	};
 
-	FClassifyNode RootNode;
-	// Create blocks data, filtering out the ones that are too big and will go on its own file in any case.
-	{
-		const int32 NumRoms = Model->GetRomCount();
-		RootNode.Blocks.Reserve(NumRoms);
-		
+	// Root nodes by flags.
+	const int32 NumRoms = Model->GetRomCount();
+	TMap<uint32,FClassifyNode> RootNode;
+	auto AddNode = [&RootNode,NumRoms]( const FBlock& Block )
+		{
+			FClassifyNode& Root = RootNode.FindOrAdd(Block.Flags);
+			if (Root.Blocks.IsEmpty())
+			{
+				Root.Blocks.Reserve(NumRoms);
+			}
+
+			Root.Blocks.Add(Block);
+		};
+
+	// Create blocks data.
+	{		
 		for (int32 RomIndex = 0; RomIndex < NumRoms; ++RomIndex)
 		{
 			uint32 BlockId = Model->GetRomId(RomIndex);
 			const uint32 BlockSize = Model->GetRomSize(RomIndex);
+			const mu::ERomFlags BlockFlags = Model->GetRomFlags(RomIndex);
 
-			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, 0 };
-			RootNode.Blocks.Add(CurrentBlock);
+			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, uint32(BlockFlags), 0 };
+			AddNode(CurrentBlock);
 		}
 	}
 
@@ -2315,8 +2338,9 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			const uint32 BlockSize = MorphStreamable.Value.Size;
 			
 			check(SourceOffset == MorphStreamable.Value.Block.Offset);
-			FBlock CurrentBlock = { EDataType::RealTimeMorph, MorphStreamable.Key, BlockSize, SourceOffset };
-			RootNode.Blocks.Add(CurrentBlock);
+			uint32 Flags = 0;
+			FBlock CurrentBlock = { EDataType::RealTimeMorph, MorphStreamable.Key, BlockSize, Flags, SourceOffset };
+			AddNode(CurrentBlock);
 
 			SourceOffset += BlockSize;
 		}
@@ -2337,47 +2361,57 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			const uint32 BlockSize = ClothStreamable.Value.Size;
 			
 			check(SourceOffset == ClothStreamable.Value.Block.Offset);
-			FBlock CurrentBlock = { EDataType::Clothing, ClothStreamable.Key, BlockSize, SourceOffset };
-			RootNode.Blocks.Add(CurrentBlock);
+			uint32 Flags = 0;
+			FBlock CurrentBlock = { EDataType::Clothing, ClothStreamable.Key, BlockSize, Flags, SourceOffset };
+			AddNode(CurrentBlock);
 
 			SourceOffset += BlockSize;
 		}
 	}
 
 
-	// Temp: Group by order in the array
-	for (int32 BlockIndex = 0; BlockIndex < RootNode.Blocks.Num(); )
+	for (int32 FlagClassIndex = 0; FlagClassIndex < RootNode.Num(); ++FlagClassIndex)
 	{
-		int32 CurrentFileSize = 0;
-		
-		FFile CurrentFile;
-		CurrentFile.DataType = RootNode.Blocks[BlockIndex].DataType;
+		FClassifyNode& Root = RootNode[FlagClassIndex];
 
-		while(BlockIndex < RootNode.Blocks.Num())
+		// Temp: Group by order in the array
+		for (int32 BlockIndex = 0; BlockIndex < Root.Blocks.Num(); )
 		{
-			FBlock CurrentBlock = RootNode.Blocks[BlockIndex];
+			int32 CurrentFileSize = 0;
 
-			// Next file?
-			// Store different data types in different files. Blocks should be sorted by DataType so data is properly packeted
-			if (CurrentFile.DataType != CurrentBlock.DataType)
+			FFile CurrentFile;
+			CurrentFile.DataType = Root.Blocks[BlockIndex].DataType;
+			CurrentFile.Flags = Root.Blocks[BlockIndex].Flags;
+
+			while (BlockIndex < Root.Blocks.Num())
 			{
-				break;
-			}
-			
-			if (CurrentFileSize > 0 && CurrentFileSize + CurrentBlock.Size > TargetBulkDataFileBytes)
-			{
-				break;
+				FBlock CurrentBlock = Root.Blocks[BlockIndex];
+
+				// Next file?
+				// Store different data types in different files. Blocks should be sorted by DataType so data is properly packeted
+				if (CurrentFile.DataType != CurrentBlock.DataType)
+				{
+					break;
+				}
+
+				// Different flags go to different files
+				check (CurrentFile.Flags == CurrentBlock.Flags)
+
+				if (CurrentFileSize > 0 && CurrentFileSize + CurrentBlock.Size > TargetBulkDataFileBytes)
+				{
+					break;
+				}
+
+				// Add the block to the current file
+				CurrentFile.Blocks.Add(CurrentBlock);
+				CurrentFileSize += CurrentBlock.Size;
+
+				// Next block
+				++BlockIndex;
 			}
 
-			// Add the block to the current file
-			CurrentFile.Blocks.Add(CurrentBlock);
-			CurrentFileSize += CurrentBlock.Size;
-
-			// Next block
-			++BlockIndex;			
+			BulkDataFiles.Add(MoveTemp(CurrentFile));
 		}
-
-		BulkDataFiles.Add(MoveTemp(CurrentFile));
 	}
 
 	// Create the file list
@@ -2422,6 +2456,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 				FMutableStreamableBlock* StreamableBlock = ModelResources.HashToStreamableBlock.Find(ThisBlock.Id);
 				StreamableBlock->FileId = FileId;
 				StreamableBlock->Offset = OffsetInFile;
+				check(StreamableBlock->Flags==CurrentFile.Flags);
 				OffsetInFile += ThisBlock.Size;
 			}
 		}

@@ -471,7 +471,7 @@ namespace mu
 			// This runs in a worker thread
 
 			OP_TYPE type = SourceCloned->GetOpType();
-			DATATYPE dtype = GetOpDataType(type);
+			DATATYPE DataType = GetOpDataType(type);
 
 			Ptr<Settings> pSettings = new Settings;
 			pSettings->SetProfile( false );
@@ -479,6 +479,13 @@ namespace mu
 			SystemPtr pSystem = new System( pSettings );
 
 			pSystem->GetPrivate()->ImagePixelFormatOverride = ImOp.FormatImageOverride;
+
+			FSourceDataDescriptor SourceDataDescriptor;
+			if (DataType == DT_IMAGE)
+			{
+				SourceDataDescriptor = SourceCloned->GetSourceDataDescriptor();
+				check(!SourceDataDescriptor.IsInvalid());
+			}
 
 			// Don't generate mips during linking here.
 			FLinkerOptions LinkerOptions(ImOp);
@@ -496,7 +503,7 @@ namespace mu
 			pSystem->GetPrivate()->BeginBuild( model );
 
 			// Calculate the value and replace this op by a constant
-			switch( dtype )
+			switch( DataType )
 			{
 			case DT_MESH:
 			{
@@ -522,10 +529,11 @@ namespace mu
 
 				if (pImage)
 				{
-					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
-					constantOp->Type = OP_TYPE::IM_CONSTANT;
-					constantOp->SetValue( pImage, DiskCacheContext );
-					Result = constantOp;
+					mu::Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource();
+					ConstantOp->SourceDataDescriptor = SourceDataDescriptor;
+					ConstantOp->Type = OP_TYPE::IM_CONSTANT;
+					ConstantOp->SetValue( pImage, DiskCacheContext );
+					Result = ConstantOp;
 				}
 				break;
 			}
@@ -709,8 +717,8 @@ namespace mu
 					SubgraphRoot->bHasSpecialOpInSubgraph = bHasSpecialOpInSubgraph;
 
 					bool bIsDataTypeThanCanTurnIntoConst = false;
-					DATATYPE dtype = GetOpDataType(SubgraphType);
-					switch (dtype)
+					DATATYPE DataType = GetOpDataType(SubgraphType);
+					switch (DataType)
 					{
 					case DT_MESH:
 					case DT_IMAGE:
@@ -723,15 +731,32 @@ namespace mu
 						break;
 					}
 
+
 					// See if it is worth generating this as constant
 					// ---------------------------------------------
-					if (SubgraphRoot->bIsConstantSubgraph
+					bool bWorthGenerating = SubgraphRoot->bIsConstantSubgraph
 						&& !SubgraphRoot->bHasSpecialOpInSubgraph
 						&& !SubgraphRoot->IsConstantOp()
-						&& bIsDataTypeThanCanTurnIntoConst
-						)
+						&& bIsDataTypeThanCanTurnIntoConst;
+
+					if (bWorthGenerating)						 
 					{
-						ConstantSubgraphs.Add({ SubgraphRoot, UE::Tasks::FTaskEvent(TEXT("MutableConstantSubgraph")) });
+						bool bCanBeGenerated = true;
+
+						// Check source data incompatiblities: when generating constants don't mix data that has different source descriptors (tags and other properties).
+						if (DataType == DT_IMAGE)
+						{
+							FSourceDataDescriptor SourceDescriptor = SubgraphRoot->GetSourceDataDescriptor();
+							if (SourceDescriptor.IsInvalid())
+							{
+								bCanBeGenerated = false;
+							}
+						}
+
+						if (bCanBeGenerated)
+						{
+							ConstantSubgraphs.Add({ SubgraphRoot, UE::Tasks::FTaskEvent(TEXT("MutableConstantSubgraph")) });
+						}
 					}
 				});
 		}
@@ -808,6 +833,7 @@ namespace mu
 									MUTABLE_CPUPROFILER_SCOPE(MutableResolveComplete);
 
 									Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
+									ConstantOp->SourceDataDescriptor = SubgraphRoot->GetSourceDataDescriptor();
 									ConstantOp->Type = OP_TYPE::IM_CONSTANT;
 									ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
 
@@ -924,6 +950,7 @@ namespace mu
 								UE::Tasks::FTask ReferenceCompletion = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
 								ReferenceCompletion.Wait();
 								Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
+								ConstantOp->SourceDataDescriptor = SubgraphRoot->GetSourceDataDescriptor();
 								ConstantOp->Type = OP_TYPE::IM_CONSTANT;
 								ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
 								ASTOp::Replace(SubgraphRoot, ConstantOp);

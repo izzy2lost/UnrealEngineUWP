@@ -219,5 +219,16 @@ namespace mu
 		return pRes;
 	}
 
+
+	FSourceDataDescriptor ASTOpImageMakeGrowMap::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (Mask)
+		{
+			return Mask->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }
 

@@ -3,6 +3,16 @@
 
 #include "MuT/Compiler.h"
 
+#include "MuT/AST.h"
+#include "MuT/ASTOpParameter.h"
+#include "MuT/CodeGenerator.h"
+#include "MuT/CodeOptimiser.h"
+#include "MuT/CompilerPrivate.h"
+#include "MuT/ErrorLog.h"
+#include "MuT/ErrorLogPrivate.h"
+#include "MuT/Node.h"
+#include "MuT/NodePrivate.h"
+#include "MuT/Table.h"
 #include "MuR/Image.h"
 #include "MuR/Mesh.h"
 #include "MuR/Model.h"
@@ -14,16 +24,6 @@
 #include "MuR/Serialisation.h"
 #include "MuR/MutableRuntimeModule.h"
 #include "MuR/System.h"
-#include "MuT/AST.h"
-#include "MuT/ASTOpParameter.h"
-#include "MuT/CodeGenerator.h"
-#include "MuT/CodeOptimiser.h"
-#include "MuT/CompilerPrivate.h"
-#include "MuT/ErrorLog.h"
-#include "MuT/ErrorLogPrivate.h"
-#include "MuT/Node.h"
-#include "MuT/NodePrivate.h"
-#include "MuT/Table.h"
 
 #include "Trace/Detail/Channel.h"
 #include "Containers/Array.h"
@@ -33,6 +33,7 @@
 #include "Hash/CityHash.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
+#include "Misc/EnumClassFlags.h"
 #include "Misc/AssertionMacros.h"
 #include "Async/ParallelFor.h"
 
@@ -283,16 +284,16 @@ namespace mu
             optimiser.OptimiseAST( );
         }
 
-        // Link the program and generate state data.
+        // Link the Program and generate state data.
 		TSharedPtr<Model> pResult = MakeShared<Model>();
-        FProgram& program = pResult->GetPrivate()->m_program;
+        FProgram& Program = pResult->GetPrivate()->m_program;
 
-		check(program.m_parameters.IsEmpty());
-		program.m_parameters = Parameters;
+		check(Program.m_parameters.IsEmpty());
+		Program.m_parameters = Parameters;
 
 		// Preallocate ample memory
-		program.m_byteCode.Reserve(16 * 1024 * 1024);
-		program.m_opAddress.Reserve(1024 * 1024);
+		Program.m_byteCode.Reserve(16 * 1024 * 1024);
+		Program.m_opAddress.Reserve(1024 * 1024);
 
 		// Keep the link options outside the scope because it is also used to cache constant data that has already been 
 		// added and could be reused across states.
@@ -305,7 +306,7 @@ namespace mu
 
             if (s.root)
             {
-				s.state.m_root = ASTOp::FullLink(s.root, program, &LinkerOptions);
+				s.state.m_root = ASTOp::FullLink(s.root, Program, &LinkerOptions);
             }
             else
             {
@@ -313,8 +314,8 @@ namespace mu
             }
         }
 
-		program.m_byteCode.Shrink();
-		program.m_opAddress.Shrink();
+		Program.m_byteCode.Shrink();
+		Program.m_opAddress.Shrink();
 
         // Set the runtime parameter indices.
         for(FStateCompilationData& s: states )
@@ -322,9 +323,9 @@ namespace mu
             for ( int32 p=0; p<s.nodeState.RuntimeParams.Num(); ++p )
             {
                 int32 paramIndex = -1;
-                for ( int32 i=0; paramIndex<0 && i<program.m_parameters.Num(); ++i )
+                for ( int32 i=0; paramIndex<0 && i<Program.m_parameters.Num(); ++i )
                 {
-                    if ( program.m_parameters[i].m_name
+                    if ( Program.m_parameters[i].m_name
                          ==
                          s.nodeState.RuntimeParams[p] )
                     {
@@ -364,9 +365,9 @@ namespace mu
                 {
                     // Find the index in the model parameter list
                     int paramIndex = -1;
-                    for ( int32 i=0; paramIndex<0 && i<program.m_parameters.Num(); ++i )
+                    for ( int32 i=0; paramIndex<0 && i<Program.m_parameters.Num(); ++i )
                     {
-                        if ( program.m_parameters[i].m_name == b )
+                        if ( Program.m_parameters[i].m_name == b )
                         {
                             paramIndex = (int)i;
                         }
@@ -395,20 +396,19 @@ namespace mu
             // Sort for performance and determinism
             s.state.m_dynamicResources.Sort();
 
-            program.m_states.Add(s.state);
+            Program.m_states.Add(s.state);
         }
 
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("program size"), int64(program.m_opAddress.Num()));
+		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("Program size"), int64(Program.m_opAddress.Num()));
 
         // Merge the log in the right order
         genErrorLog->Merge( m_pD->m_pErrorLog.get() );
         m_pD->m_pErrorLog = genErrorLog.get();
 
 		// Pack data
-		uint64 EmbeddedDataFileBytesLimit = m_pD->m_options->GetPrivate()->EmbeddedDataBytesLimit;
-		m_pD->GenerateRoms(pResult.Get(), EmbeddedDataFileBytesLimit);
+		m_pD->GenerateRoms(pResult.Get(), m_pD->m_options.get(), LinkerOptions.AdditionalData );
 
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("program size"), int64(program.m_opAddress.Num()));
+		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("Program size"), int64(Program.m_opAddress.Num()));
 
         return pResult;
     }
@@ -445,41 +445,52 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void Compiler::Private::GenerateRoms(Model* p, int32 EmbeddedDataBytesLimit)
+	void Compiler::Private::GenerateRoms(Model* p, const CompilerOptions* Options, const FLinkerOptions::FAdditionalData& AdditionalData )
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		MUTABLE_CPUPROFILER_SCOPE(GenerateRoms);
 
-		mu::FProgram& program = p->GetPrivate()->m_program;
+		uint64 EmbeddedDataBytesLimit = Options->GetPrivate()->EmbeddedDataBytesLimit;
 
+		mu::FProgram& Program = p->GetPrivate()->m_program;
+
+		// These are used for logging only.
 		int32 NumRoms = 0;
+		uint64 NumRomsBytes = 0;
 		int32 NumEmbedded = 0;
+		uint64 NumEmbeddedBytes = 0;
+		int32 NumHighRes = 0;
+		uint64 NumHighResBytes = 0;
+
+		// Maximum number of roms
+		int32 MaxRomCount = Program.ConstantImageLODs.Num() + Program.ConstantMeshes.Num();
+		Program.m_roms.Reserve(MaxRomCount);
 
 		TSet<uint32> UsedIds;
-		UsedIds.Reserve(program.ConstantImageLODs.Num()+ program.ConstantMeshes.Num());
+		UsedIds.Reserve(MaxRomCount);
 
 		TArray<FRomData> RomDatas;
-		RomDatas.SetNumZeroed(FMath::Max(program.ConstantImageLODs.Num(), program.ConstantMeshes.Num()));
+		RomDatas.SetNumZeroed(FMath::Max(Program.ConstantImageLODs.Num(), Program.ConstantMeshes.Num()));
 
-		// Save images and unload from memory
+		// Images
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_ImageIds);
 
-			ParallelFor(program.ConstantImageLODs.Num(),
-				[EmbeddedDataBytesLimit, &program, &RomDatas](uint32 ResourceIndex)
+			ParallelFor(Program.ConstantImageLODs.Num(),
+				[EmbeddedDataBytesLimit, &Program, &RomDatas](uint32 ResourceIndex)
 				{
-					TPair<int32, Ptr<const Image>>& ResData = program.ConstantImageLODs[ResourceIndex];
+					TPair<int32, Ptr<const Image>>& ResData = Program.ConstantImageLODs[ResourceIndex];
 
 					// This shouldn't have been serialised with rom support before.
 					check(ResData.Key < 0);
 
-					// Serialize to memory, to find out final size of this rom
-					OutputMemoryStream MemStream(1024 * 1024);
-					OutputArchive MemoryArch(&MemStream);
+					// Serialize to find out final size of this rom
+					OutputSizeStream SizeStream;
+					OutputArchive MemoryArch(&SizeStream);
 					Image::Serialise(ResData.Value.get(), MemoryArch);
 
 					// If the resource uses less memory than the threshold, don't save it in a separate rom.
-					if (MemStream.GetBufferSize() <= EmbeddedDataBytesLimit)
+					if (SizeStream.GetBufferSize() <= EmbeddedDataBytesLimit)
 					{
 						return;
 					}
@@ -487,17 +498,59 @@ namespace mu
 					FRomData& RomData = RomDatas[ResourceIndex];
 					RomData.ResourceType = DT_IMAGE;
 					RomData.ResourceIndex = ResourceIndex;
-					RomData.Size = MemStream.GetBufferSize();
+					RomData.Size = SizeStream.GetBufferSize();
+					RomData.Flags = ERomFlags::None;
 
-					uint64 FullHash = CityHash64(static_cast<const char*>(MemStream.GetBuffer()), MemStream.GetBufferSize());
+					const Image* Resource = ResData.Value.get();
+					uint64 FullHash = CityHash64(reinterpret_cast<const char*>(Resource->GetLODData(0)), Resource->GetLODDataSize(0));
 					RomData.Id = GetTypeHash(FullHash);
 				});
+		}
+
+		// Generate the high-res flags for images
+		{
+			// Initially all are high-res because if at least one reference to a mip is not we will set it to not-high-res
+			TArray<bool> IsLODHighRes;
+			IsLODHighRes.Init(true, Program.ConstantImageLODs.Num());
+
+			for (int32 ImageIndex = 0; ImageIndex < Program.ConstantImages.Num(); ++ImageIndex)
+			{
+				const FImageLODRange& LODRange = Program.ConstantImages[ImageIndex];
+
+				int32 NumHighResMips = FMath::Max(0,AdditionalData.SourceImagePerConstant[ImageIndex].SourceHighResMips);
+
+				for (int32 LODRangeIndex = NumHighResMips; LODRangeIndex < LODRange.LODCount; ++LODRangeIndex)
+				{
+					int32 LODIndex = Program.ConstantImageLODIndices[LODRange.FirstIndex+LODRangeIndex];
+					IsLODHighRes[LODIndex] = false;
+				}
+
+				// Moreover, at least one mip of each image has to be non-highres
+				if (LODRange.LODCount>0)
+				{
+					int32 LastLODIndex = Program.ConstantImageLODIndices[LODRange.FirstIndex + LODRange.LODCount - 1];
+					IsLODHighRes[LastLODIndex] = false;
+				}
+			}
+
+			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantImageLODs.Num(); ++ResourceIndex)
+			{
+				// If this mip represents a high-quality mip, flag the rom as such
+				if (IsLODHighRes[ResourceIndex])
+				{
+					FRomData& RomData = RomDatas[ResourceIndex];
+					EnumAddFlags(RomData.Flags, ERomFlags::HighRes);
+					
+					++NumHighRes;
+					NumHighResBytes += RomData.Size;
+				}
+			}
 		}
 
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_ImageIdsUnique);
 
-			for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantImageLODs.Num(); ++ResourceIndex)
+			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantImageLODs.Num(); ++ResourceIndex)
 			{
 				FRomData& RomData = RomDatas[ResourceIndex];
 
@@ -505,48 +558,54 @@ namespace mu
 				if (int32(RomData.Size) <= EmbeddedDataBytesLimit)
 				{
 					NumEmbedded++;
+					NumEmbeddedBytes += RomData.Size;
 					continue;
 				}
 				NumRoms++;
+				NumRomsBytes += RomData.Size;
 
 				// Ensure that the Id is unique
 				EnsureUniqueRomId(UsedIds, RomData.Id);
 
-				int32 RomIndex = program.m_roms.Add(RomData);
+				int32 RomIndex = Program.m_roms.Add(RomData);
 
-				TPair<int32, Ptr<const Image>>& ResData = program.ConstantImageLODs[ResourceIndex];
+				TPair<int32, Ptr<const Image>>& ResData = Program.ConstantImageLODs[ResourceIndex];
 				ResData.Key = RomIndex;
 			}
 		}
 
-		// Save meshes and unload from memory
+		// Meshes
 		FMemory::Memzero( RomDatas.GetData(), RomDatas.GetAllocatedSize() );
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_MeshIds);
 
-			ParallelFor(program.ConstantMeshes.Num(),
-				[EmbeddedDataBytesLimit, &program, &RomDatas](uint32 ResourceIndex)
+			ParallelFor(Program.ConstantMeshes.Num(),
+				[EmbeddedDataBytesLimit, &Program, &RomDatas](uint32 ResourceIndex)
 				{
-					TPair<int32, Ptr<const Mesh>>& ResData = program.ConstantMeshes[ResourceIndex];
+					TPair<int32, Ptr<const Mesh>>& ResData = Program.ConstantMeshes[ResourceIndex];
 
 					// This shouldn't have been serialised with rom support before.
 					check(ResData.Key < 0);
 
 					// Serialize to memory, to find out final size of this rom
-					OutputMemoryStream MemStream(1024 * 1024);
-					OutputArchive MemoryArch(&MemStream);
-					Mesh::Serialise(ResData.Value.get(), MemoryArch);
+					const Mesh* Resource = ResData.Value.get();
+					int32 ApproximateSize = Resource->GetDataSize();
 
 					// If the resource uses less memory than the threshold, don't save it in a separate rom.
-					if (MemStream.GetBufferSize() <= EmbeddedDataBytesLimit)
+					if (ApproximateSize <= EmbeddedDataBytesLimit)
 					{
 						return;
 					}
+
+					OutputMemoryStream MemStream(ApproximateSize + 64 * 1024);
+					OutputArchive MemoryArch(&MemStream);
+					Mesh::Serialise(ResData.Value.get(), MemoryArch);
 
 					FRomData& RomData = RomDatas[ResourceIndex];
 					RomData.ResourceType = DT_MESH;
 					RomData.ResourceIndex = ResourceIndex;
 					RomData.Size = MemStream.GetBufferSize();
+					RomData.Flags = ERomFlags::None;
 
 					// Ensure that the Id is unique
 					uint64 FullHash = CityHash64(static_cast<const char*>(MemStream.GetBuffer()), MemStream.GetBufferSize());
@@ -557,7 +616,7 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_MeshIdsUnique);
 
-			for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantMeshes.Num(); ++ResourceIndex)
+			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantMeshes.Num(); ++ResourceIndex)
 			{
 				FRomData& RomData = RomDatas[ResourceIndex];
 
@@ -565,21 +624,24 @@ namespace mu
 				if (int32(RomData.Size) <= EmbeddedDataBytesLimit)
 				{
 					NumEmbedded++;
+					NumEmbeddedBytes += RomData.Size;
 					continue;
 				}
 				NumRoms++;
+				NumRomsBytes += RomData.Size;
 
 				// Ensure that the Id is unique
 				EnsureUniqueRomId(UsedIds, RomData.Id);
 
-				int32 RomIndex = program.m_roms.Add(RomData);
+				int32 RomIndex = Program.m_roms.Add(RomData);
 
-				TPair<int32, Ptr<const Mesh>>& ResData = program.ConstantMeshes[ResourceIndex];
+				TPair<int32, Ptr<const Mesh>>& ResData = Program.ConstantMeshes[ResourceIndex];
 				ResData.Key = RomIndex;
 			}
 		}
 
-		UE_LOG(LogMutableCore, Log, TEXT("Generated roms for model with %d embedded constants and %d in roms."), NumEmbedded, NumRoms);
+		UE_LOG(LogMutableCore, Log, TEXT("Generated roms: %d (%d KB) are embedded, %d (%d KB) are streamed of which %d (%d KB) are high-res."), 
+			NumEmbedded, uint32(NumEmbeddedBytes/1024), NumRoms, uint32(NumRomsBytes/1024), NumHighRes, uint32(NumHighResBytes/1024));
 	}
 
 

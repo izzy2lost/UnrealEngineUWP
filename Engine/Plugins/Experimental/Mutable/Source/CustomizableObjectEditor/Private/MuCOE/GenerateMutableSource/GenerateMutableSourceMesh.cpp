@@ -3040,7 +3040,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 			bSuccess = true;
 
 			mu::NodeMeshTablePtr MorphedSourceMeshNodeTable = new mu::NodeMeshTable;
-			MorphedSourceMeshNodeTable->SetTable(Table);
+			MorphedSourceMeshNodeTable->Table = Table;
 			MorphedSourceMeshNodeTable->SetColumn(ColumnName);
 			MorphedSourceMeshNodeTable->SetParameterName(TypedNodeTable->ParameterName);
 			MorphedSourceMeshNodeTable->SetMessageContext(MorphNode);
@@ -4041,7 +4041,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					{
 						Result = MeshTableNode;
 
-						MeshTableNode->SetTable(Table);
+						MeshTableNode->Table = Table;
 						MeshTableNode->SetColumn(MutableColumnName);
 						MeshTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						MeshTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);

@@ -292,4 +292,48 @@ mu::Ptr<ASTOp> ASTOpImageCompose::OptimiseSemantic(const FModelOptimizationOptio
 	return at;
 }
 
+
+FSourceDataDescriptor ASTOpImageCompose::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+{
+	// Cache management
+	TUniquePtr<FGetSourceDataDescriptorContext> LocalContext;
+	if (!Context)
+	{
+		LocalContext.Reset(new FGetSourceDataDescriptorContext);
+		Context = LocalContext.Get();
+	}
+
+	FSourceDataDescriptor* Found = Context->Cache.Find(this);
+	if (Found)
+	{
+		return *Found;
+	}
+
+	// Not cached: calculate
+	FSourceDataDescriptor Result;
+
+	if (Base)
+	{
+		FSourceDataDescriptor SourceDesc = Base->GetSourceDataDescriptor(Context);
+		Result.CombineWith(SourceDesc);
+	}
+
+	if (BlockImage)
+	{
+		FSourceDataDescriptor SourceDesc = BlockImage->GetSourceDataDescriptor(Context);
+		Result.CombineWith(SourceDesc);
+	}
+
+	if (Mask)
+	{
+		FSourceDataDescriptor SourceDesc = Mask->GetSourceDataDescriptor(Context);
+		Result.CombineWith(SourceDesc);
+	}
+
+	Context->Cache.Add(this, Result);
+
+	return Result;
+}
+
+
 }

@@ -5508,7 +5508,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
 			if (FileHandleIndex == INDEX_NONE && BulkData)
 			{
-				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId);
+				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId,Block.Flags);
 
 				OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
 				FileHandleIndex = OpenFilesIds.Add(Block.FileId);
@@ -5553,7 +5553,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
 			if (FileHandleIndex == INDEX_NONE && BulkData)
 			{
-				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId);
+				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId, Block.Flags);
 
 				OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
 				FileHandleIndex = OpenFilesIds.Add(Block.FileId);

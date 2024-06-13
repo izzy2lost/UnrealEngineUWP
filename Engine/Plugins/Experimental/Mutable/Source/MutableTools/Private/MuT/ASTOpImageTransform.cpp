@@ -217,4 +217,15 @@ namespace mu
 		return nullptr;
 	}
 
+
+	FSourceDataDescriptor ASTOpImageTransform::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (Base)
+		{
+			return Base->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }

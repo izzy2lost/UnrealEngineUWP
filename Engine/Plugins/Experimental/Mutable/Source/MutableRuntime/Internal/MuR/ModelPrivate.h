@@ -30,16 +30,19 @@ namespace mu
     struct FRomData
     {
         //! This is used to identify a ROM file. It is usually a hash from its data.
-        uint32 Id;
+        uint32 Id=0;
 
 		//! Size of the rom
-		uint32 Size;
+		uint32 Size=0;
 
 		//! Index of the resource in its type-specific array
-		uint32 ResourceIndex;
+		uint32 ResourceIndex=0;
 
 		//! Index of the resource in its type-specific array (one of DATATYPE values)
-		uint32 ResourceType;        
+		uint16 ResourceType=0;
+
+		/** Properties of the rom data. */
+		ERomFlags Flags = ERomFlags::None;
     };
 
     MUTABLE_DEFINE_POD_SERIALISABLE(FRomData);
@@ -226,10 +229,10 @@ namespace mu
 		TArray<TPair<int32, Ptr<const Image>>> ConstantImageLODs;
 
 		//! Constant image mip chain indices: ranges in this array are defined in FImageLODRange and the indices here refer to ConstantImageLODs.
-		TArray<uint32> m_constantImageLODIndices;
+		TArray<uint32> ConstantImageLODIndices;
 
 		//! Constant image data.
-		TArray<FImageLODRange> m_constantImages;
+		TArray<FImageLODRange> ConstantImages;
 
         //! Constant mesh data: the first is the index in m_roms for each mesh or -1 if it is always loaded.
 		TArray<TPair<int32, Ptr<const Mesh>>> ConstantMeshes;
@@ -286,8 +289,8 @@ namespace mu
             arch << m_states;
 			arch << m_roms;
 			arch << ConstantImageLODs;
-			arch << m_constantImageLODIndices;
-			arch << m_constantImages;
+			arch << ConstantImageLODIndices;
+			arch << ConstantImages;
 			arch << ConstantMeshes;
 			arch << m_constantExtensionData;
 			arch << m_constantStrings;
@@ -311,8 +314,8 @@ namespace mu
             arch >> m_states;
 			arch >> m_roms;
 			arch >> ConstantImageLODs;
-			arch >> m_constantImageLODIndices;
-			arch >> m_constantImages;
+			arch >> ConstantImageLODIndices;
+			arch >> ConstantImages;
 			arch >> ConstantMeshes;
 			arch >> m_constantExtensionData;
 			arch >> m_constantStrings;
@@ -563,14 +566,14 @@ namespace mu
 		template <typename CreateImageFunc>
         void GetConstant( int32 ConstantIndex, ImagePtrConst& res, int32 MipsToSkip, const CreateImageFunc& CreateImage) const
         {
-			int32 ReallySkippedLODs = FMath::Min(m_constantImages[ConstantIndex].LODCount - 1, MipsToSkip);
-			int32 FirstLODIndexIndex = m_constantImages[ConstantIndex].FirstIndex;
+			int32 ReallySkippedLODs = FMath::Min(ConstantImages[ConstantIndex].LODCount - 1, MipsToSkip);
+			int32 FirstLODIndexIndex = ConstantImages[ConstantIndex].FirstIndex;
 			int32 ResultLODIndexIndex = FirstLODIndexIndex + ReallySkippedLODs;
-			int32 FinalLODs = m_constantImages[ConstantIndex].LODCount - ReallySkippedLODs;
+			int32 FinalLODs = ConstantImages[ConstantIndex].LODCount - ReallySkippedLODs;
 			check(FinalLODs > 0);
 
 			// Get the first mip
-			int32 ResultLODIndex = m_constantImageLODIndices[ResultLODIndexIndex];
+			int32 ResultLODIndex = ConstantImageLODIndices[ResultLODIndexIndex];
 			Ptr<const Image> CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
 			check(CurrentMip);
 				
@@ -593,7 +596,7 @@ namespace mu
 				{
 					for (int32 LOD = 0; LOD < FinalLODs; ++LOD)
 					{
-						int32 LODIndex = m_constantImageLODIndices[ResultLODIndexIndex + LOD];
+						int32 LODIndex = ConstantImageLODIndices[ResultLODIndexIndex + LOD];
 						int32 MipSizeBytes = ConstantImageLODs[LODIndex].Value->GetLODDataSize(0);
 						Result->DataStorage.ResizeLOD(LOD, MipSizeBytes);
 					}
@@ -613,7 +616,7 @@ namespace mu
 
 					if (LOD + 1 < FinalLODs)
 					{
-						ResultLODIndex = m_constantImageLODIndices[ResultLODIndexIndex + LOD + 1];
+						ResultLODIndex = ConstantImageLODIndices[ResultLODIndexIndex + LOD + 1];
 						CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
 						check(CurrentMip);
 					}

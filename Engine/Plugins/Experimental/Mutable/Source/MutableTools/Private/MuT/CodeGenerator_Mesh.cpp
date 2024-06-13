@@ -69,7 +69,6 @@
 #include "MuT/NodeMeshSwitch.h"
 #include "MuT/NodeMeshSwitchPrivate.h"
 #include "MuT/NodeMeshTable.h"
-#include "MuT/NodeMeshTablePrivate.h"
 #include "MuT/NodeMeshTransform.h"
 #include "MuT/NodeMeshTransformPrivate.h"
 #include "MuT/NodeMeshVariation.h"
@@ -1139,8 +1138,8 @@ namespace mu
 		int t = 0;
 		bool bFirstRowGenerated = false;
 
-		Ptr<ASTOp> Op = GenerateTableSwitch<NodeMeshTable::Private, ETableColumnType::Mesh, OP_TYPE::ME_SWITCH>(*TableNode->GetPrivate(),
-			[this, &NewResult, &bFirstRowGenerated, &InOptions] (const NodeMeshTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
+		Ptr<ASTOp> Op = GenerateTableSwitch<NodeMeshTable, ETableColumnType::Mesh, OP_TYPE::ME_SWITCH>(*TableNode,
+			[this, &NewResult, &bFirstRowGenerated, &InOptions] (const NodeMeshTable& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				mu::Ptr<mu::Mesh> pMesh = node.Table->GetPrivate()->Rows[row].Values[colIndex].Mesh;
 				FMeshGenerationResult BranchResults;

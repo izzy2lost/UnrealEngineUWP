@@ -308,7 +308,7 @@ namespace mu
 	}
 
 
-	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(Ptr<const Node> InNode, const FTableCacheKey& CacheKey, bool bAddNoneOption, const FString& DefaultRowName)
+	Ptr<ASTOp> CodeGenerator::GenerateTableVariable( Ptr<const Node> InNode, const FTableCacheKey& CacheKey, bool bAddNoneOption, const FString& DefaultRowName)
 	{
 		Ptr<ASTOp> result;
 
@@ -327,7 +327,7 @@ namespace mu
 		{
 			// See if there is a string column. If there is one, we will use it as names for the
 			// options. Only the first string column will be used.
-			int nameCol = -1;
+			int32 nameCol = -1;
 			int32 cols = CacheKey.Table->GetPrivate()->Columns.Num();
 			for (int32 c = 0; c < cols && nameCol < 0; ++c)
 			{

@@ -605,12 +605,20 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 									if (Texture2D)
 									{
-										const mu::NodeImageConstantPtr ConstImageNode = new mu::NodeImageConstant();
+										mu::Ptr<mu::NodeImageConstant> ConstImageNode = new mu::NodeImageConstant();
 										mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(Texture2D, GenerationContext, false);
 										ConstImageNode->SetValue(ImageConstant.get());
 
 										const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *Texture2D, nullptr, Props.TextureSize);
-										return ResizeTextureByNumMips(ConstImageNode, MipsToSkip);
+										mu::Ptr<mu::NodeImage> Result =  ResizeTextureByNumMips(ConstImageNode, MipsToSkip);
+
+										// Calculate the number of mips to tag as high res for this image.
+										int32 TotalMips = mu::Image::GetMipmapCount(ImageConstant->GetSizeX(), ImageConstant->GetSizeY());
+										int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - int32(MipsToSkip) - GenerationContext.Options.MinDiskMips);
+										int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
+										ConstImageNode->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
+
+										return Result;
 									}
 									else
 									{
@@ -684,7 +692,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 								CompositedImage->SetMode(CompositeImageMode);
 
-								mu::NodeImageConstantPtr CompositeNormalImage = new mu::NodeImageConstant();
+								mu::Ptr<mu::NodeImageConstant> CompositeNormalImage = new mu::NodeImageConstant();
 
 								UTexture2D* ReferenceCompositeNormalTexture = Cast<UTexture2D>(ReferenceTexture->GetCompositeTexture());
 								if (ReferenceCompositeNormalTexture)
@@ -701,6 +709,11 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 									NormalCompositeMipmapImage->SetMipmapGenerationSettings(mu::EMipmapFilterType::SimpleAverage, mu::EAddressMode::None);
 
 									CompositedImage->SetNormal(NormalCompositeMipmapImage);
+
+									int32 TotalMips = mu::Image::GetMipmapCount(ImageConstant->GetSizeX(), ImageConstant->GetSizeY());
+									int32 NumMipsBeyondMin = FMath::Max(0, TotalMips - int32(MipsToSkip) - GenerationContext.Options.MinDiskMips);
+									int32 HighResMipsForThisImage = FMath::Min(NumMipsBeyondMin, GenerationContext.Options.NumHighResImageMips);
+									CompositeNormalImage->SourceDataDescriptor.SourceHighResMips = HighResMipsForThisImage;
 								}
 
 								LastImage = CompositedImage;

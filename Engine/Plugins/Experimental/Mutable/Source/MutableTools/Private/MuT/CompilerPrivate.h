@@ -93,12 +93,20 @@ namespace mu
 
         Ptr<ErrorLog> m_pErrorLog;
 
-        //! Detailed options
+        /** */
         Ptr<CompilerOptions> m_options;
 
+		/** Store for additional data generated during compilation, but not necessary for the runtime. */
+		struct FAdditionalData
+		{
+			/** Source data descriptor for every image constant that has been generated. 
+			* It must have the same size than the Program::ConstantImages array.
+			*/
+			TArray<FSourceDataDescriptor> SourceImagePerConstant;
+		};
 
 		//!
-		void GenerateRoms(Model* p, int32 MinRomSize);
+		void GenerateRoms(Model*, const CompilerOptions*, const FLinkerOptions::FAdditionalData&);
 
     };
 

@@ -320,7 +320,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 					{
 						Result = ColorTableNode;
 
-						ColorTableNode->SetTable(Table);
+						ColorTableNode->Table = Table;
 						ColorTableNode->SetColumn(ColumnName);
 						ColorTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						ColorTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);

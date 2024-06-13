@@ -25,31 +25,36 @@ namespace mu
 
 		//! Type of switch
 		OP_TYPE type = OP_TYPE::NONE;
-
-		//!
-		uint32 ID = 0;
 		
 		/** */
 		bool bForceLoad = false;
 
+		/** Externally provided ID to identify the resource. */
+		uint32 ID = 0;
+
+		/** */
 		FImageDesc ImageDesc;
+
+		/** Source data descriptor. */
+		FSourceDataDescriptor SourceDataDescriptor;
 
 	public:
 
 		// Own interface
 
 		// ASTOp interface
-		OP_TYPE GetOpType() const override { return type; }
-		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
-		bool IsEqual(const ASTOp& otherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
-		uint64 Hash() const override;
-		void Link(FProgram& program, FLinkerOptions*) override;
-		FImageDesc GetImageDesc(bool, class FGetImageDescContext*) const override;
-		void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
-		void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
-		bool GetNonBlackRect(FImageRect& maskUsage) const override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual OP_TYPE GetOpType() const override { return type; }
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
+		virtual uint64 Hash() const override;
+		virtual void Link(FProgram& program, FLinkerOptions*) override;
+		virtual FImageDesc GetImageDesc(bool, class FGetImageDescContext*) const override;
+		virtual void GetBlockLayoutSize(uint64 BlockId, int32* pBlockX, int32* pBlockY, FBlockLayoutSizeCache* cache) override;
+		virtual void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
+		virtual bool GetNonBlackRect(FImageRect& maskUsage) const override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const;
 	};
 
 

@@ -1120,7 +1120,7 @@ void SMutableConstantsWidget::LoadConstantImages()
 {
 	check (MutableProgramPtr);
 
-	const int32 ConstantsCount = MutableProgramPtr->m_constantImages.Num();
+	const int32 ConstantsCount = MutableProgramPtr->ConstantImages.Num();
 	ConstantImageElements.Empty(ConstantsCount);
 	
 	uint64 ConstantImagesAccumulatedSize = 0;

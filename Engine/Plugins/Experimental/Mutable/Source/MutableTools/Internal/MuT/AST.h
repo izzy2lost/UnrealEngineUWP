@@ -4,6 +4,7 @@
 
 #include "MuT/Platform.h"
 #include "MuT/Compiler.h"
+#include "MuT/NodeImageConstant.h"
 #include "MuR/Image.h"
 #include "MuR/Mesh.h"
 #include "MuR/ModelPrivate.h"
@@ -286,6 +287,17 @@ namespace mu
 
 		/** Image operation functions, so that they can be overriden. */
 		FImageOperator& ImageOperator;
+
+		/** Store for additional data generated during compilation, but not necessary for the runtime. */
+		struct FAdditionalData
+		{
+			/** Source data descriptor for every image constant that has been generated.
+			* It must have the same size than the Program::ConstantImages array.
+			*/
+			TArray<FSourceDataDescriptor> SourceImagePerConstant;
+		};
+
+		FAdditionalData AdditionalData;
 	};
 
 
@@ -793,6 +805,16 @@ namespace mu
         //!
         virtual FImageDesc GetImageDesc( bool returnBestOption=false, FGetImageDescContext* context=nullptr ) const;
 
+		/** */
+		class FGetSourceDataDescriptorContext
+		{
+		public:
+			TMap<const ASTOp*, FSourceDataDescriptor> Cache;
+		};
+
+		/** */
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext* = nullptr) const;
+
         //! Optional cache struct to use int he method below.
         using FBlockLayoutSizeCache=TMap< const TPair<ASTOp*,uint64>, TPair<int32,int32>>;
 
@@ -1083,21 +1105,22 @@ namespace mu
 
         OP_TYPE GetOpType() const override { return op.type; }
 
-        Ptr<ASTOp> Clone( MapChildFuncRef mapChild ) const override;
-        void ForEachChild( const TFunctionRef<void(ASTChild&)> f ) override;
-        void Link( FProgram& program, FLinkerOptions* Options) override;
-        bool IsEqual(const ASTOp& otherUntyped) const override;
-		uint64 Hash() const override;
-		FImageDesc GetImageDesc( bool returnBestOption, FGetImageDescContext* context ) const override;
-        void GetLayoutBlockSize( int* pBlockX, int* pBlockY ) override;
-        Ptr<ASTOp> OptimiseSize() const override;
-        Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
-        Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const override;
-        FBoolEvalResult EvaluateBool( ASTOpList& facts, FEvaluateBoolCache* cache ) const override;
-        int EvaluateInt( ASTOpList& facts, bool &unknown ) const override;
-        bool IsImagePlainConstant(FVector4f& colour ) const override;
-        bool IsColourConstant(FVector4f& colour ) const override;
-        Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual Ptr<ASTOp> Clone( MapChildFuncRef mapChild ) const override;
+		virtual void ForEachChild( const TFunctionRef<void(ASTChild&)> f ) override;
+		virtual void Link( FProgram& program, FLinkerOptions* Options) override;
+		virtual bool IsEqual(const ASTOp& otherUntyped) const override;
+		virtual uint64 Hash() const override;
+		virtual FImageDesc GetImageDesc( bool returnBestOption, FGetImageDescContext* context ) const override;
+		virtual void GetLayoutBlockSize( int* pBlockX, int* pBlockY ) override;
+		virtual Ptr<ASTOp> OptimiseSize() const override;
+		virtual Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions&, int32 Pass) const override;
+		virtual Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const override;
+		virtual FBoolEvalResult EvaluateBool( ASTOpList& facts, FEvaluateBoolCache* cache ) const override;
+		virtual int32 EvaluateInt( ASTOpList& facts, bool &unknown ) const override;
+		virtual bool IsImagePlainConstant(FVector4f& colour ) const override;
+		virtual bool IsColourConstant(FVector4f& colour ) const override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const override;
 
         //---------------------------------------------------------------------------------------------
         //! Add child for OP fixed nodes.
@@ -1147,6 +1170,19 @@ namespace mu
 
             return res;
         }
+
+		//
+		inline FSourceDataDescriptor GetSourceDataDescriptor(OP::ADDRESS at, FGetSourceDataDescriptorContext* Context = nullptr) const
+		{
+			FSourceDataDescriptor Result;
+
+			if (children[at])
+			{
+				Result = children[at]->GetSourceDataDescriptor(Context);
+			}
+
+			return Result;
+		}
 
         inline void GetLayoutBlockSize( OP::ADDRESS at, int* pBlockX, int* pBlockY )
         {

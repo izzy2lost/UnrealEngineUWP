@@ -43,15 +43,16 @@ struct FProgram;
 		ASTOpImageTransform(const ASTOpImageTransform&) = delete;
 		~ASTOpImageTransform();
 
-		OP_TYPE GetOpType() const override { return OP_TYPE::IM_TRANSFORM; }
-		uint64 Hash() const override;
-		bool IsEqual(const ASTOp& OtherUntyped) const override;
-		Ptr<ASTOp> Clone(MapChildFuncRef MapChild) const override;
-		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
-		void Link(FProgram& Program, FLinkerOptions* Options) override;
-		FImageDesc GetImageDesc(bool bReturnBestOption, FGetImageDescContext* Context) const override;
-		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
-		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual OP_TYPE GetOpType() const override { return OP_TYPE::IM_TRANSFORM; }
+		virtual uint64 Hash() const override;
+		virtual bool IsEqual(const ASTOp& OtherUntyped) const override;
+		virtual Ptr<ASTOp> Clone(MapChildFuncRef MapChild) const override;
+		virtual void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
+		virtual void Link(FProgram& Program, FLinkerOptions* Options) override;
+		virtual FImageDesc GetImageDesc(bool bReturnBestOption, FGetImageDescContext* Context) const override;
+		virtual void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
+		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		virtual FSourceDataDescriptor GetSourceDataDescriptor(FGetSourceDataDescriptorContext*) const override;
 	};
 
 }

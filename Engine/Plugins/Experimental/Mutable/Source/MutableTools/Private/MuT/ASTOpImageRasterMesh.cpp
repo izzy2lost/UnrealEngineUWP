@@ -401,4 +401,15 @@ namespace mu
 		return at;
 	}
 
+
+	FSourceDataDescriptor ASTOpImageRasterMesh::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		if (image)
+		{
+			return image->GetSourceDataDescriptor(Context);
+		}
+
+		return {};
+	}
+
 }

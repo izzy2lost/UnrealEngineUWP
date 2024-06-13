@@ -5,7 +5,6 @@
 
 #include "Misc/AssertionMacros.h"
 #include "MuT/NodeLayout.h"
-#include "MuT/NodeMeshTablePrivate.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/Table.h"
 
@@ -13,18 +12,10 @@
 namespace mu
 {
 
-
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeMeshTable::Private::s_type = FNodeType(Node::EType::MeshTable, NodeMesh::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-
-	MUTABLE_IMPLEMENT_NODE( NodeMeshTable );
+	FNodeType NodeMeshTable::StaticType = FNodeType(Node::EType::MeshTable, NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -32,42 +23,28 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetColumn( const FString& strName )
 	{
-		m_pD->ColumnName = strName;
+		ColumnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetParameterName( const FString& strName )
 	{
-		m_pD->ParameterName = strName;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshTable::SetTable( TablePtr pTable )
-	{
-		m_pD->Table = pTable;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	TablePtr NodeMeshTable::GetTable() const
-	{
-		return m_pD->Table;
+		ParameterName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	int NodeMeshTable::GetLayoutCount() const
 	{
-		return m_pD->Layouts.Num();
+		return Layouts.Num();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetLayoutCount( int i )
 	{
-		m_pD->Layouts.SetNum( i );
+		Layouts.SetNum( i );
 	}
 
 
@@ -76,9 +53,9 @@ namespace mu
 	{
 		NodeLayoutPtr pResult;
 
-		if (i >= 0 && i < m_pD->Layouts.Num())
+		if (i >= 0 && i < Layouts.Num())
 		{
-			pResult = m_pD->Layouts[i];
+			pResult = Layouts[i];
 		}
 
 		return pResult;
@@ -89,21 +66,21 @@ namespace mu
 	void NodeMeshTable::SetLayout( int i, NodeLayoutPtr pLayout )
 	{
 		check( i>=0 && i<GetLayoutCount() );
-		m_pD->Layouts[i] = pLayout;
+		Layouts[i] = pLayout;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetNoneOption(bool bAddNoneOption)
 	{
-		m_pD->bNoneOption = bAddNoneOption;
+		bNoneOption = bAddNoneOption;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetDefaultRowName(const FString& RowName)
 	{
-		m_pD->DefaultRowName = RowName;
+		DefaultRowName = RowName;
 	}
 
 }

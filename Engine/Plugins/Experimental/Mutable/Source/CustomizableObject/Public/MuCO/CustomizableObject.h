@@ -206,15 +206,19 @@ struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 
 	UPROPERTY()
 	uint32 FileId = 0;
-	
+
+	/** Used to store properties of the data, necessary for its recovery. For instance if it is high-res. */
+	UPROPERTY()
+	uint32 Flags = 0;
+
 	UPROPERTY()
 	uint64 Offset = 0;
 
 	friend FArchive& operator<<(FArchive& Ar, FMutableStreamableBlock& Data)
 	{
 		Ar << Data.FileId;
+		Ar << Data.Flags;
 		Ar << Data.Offset;
-
 		return Ar;
 	}
 };
@@ -268,7 +272,7 @@ public:
 	/**  */
 	const FString& GetBulkFilePrefix() const { return BulkFilePrefix; }
 	
-	TUniquePtr<IAsyncReadFileHandle> OpenFileAsyncRead(uint32 FileId) const;
+	TUniquePtr<IAsyncReadFileHandle> OpenFileAsyncRead(uint32 FileId, uint32 Flags) const;
 
 #if WITH_EDITOR
 
@@ -306,6 +310,9 @@ private:
 		/** Size of the data block. */
 		uint32 Size;
 
+		/** Data flags, like "high-res". */
+		uint32 Flags;
+
 		/** Offset in the full source streamed data file that is created when compiling. */
 		uint64 Offset;
 	};
@@ -316,6 +323,9 @@ private:
 
 		/** Id generated from a hash of the file content + offset to avoid collisions. */
 		uint32 Id;
+
+		/** Common flags of the data stored in this file. See mu::ERomFlags. */
+		uint32 Flags=0;
 
 		/** List of blocks that are contained in the file, in order. */
 		TArray<FBlock> Blocks;

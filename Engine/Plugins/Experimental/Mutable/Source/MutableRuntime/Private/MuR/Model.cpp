@@ -430,18 +430,21 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
     uint32 Model::GetRomId(int32 Index) const
     {
     	return m_pD->m_program.m_roms[Index].Id;
     }
 
 
-    //---------------------------------------------------------------------------------------------
     uint32 Model::GetRomSize(int32 Index) const
     {
     	return m_pD->m_program.m_roms[Index].Size;
     }
+
+	ERomFlags Model::GetRomFlags(int32 Index) const
+	{
+		return m_pD->m_program.m_roms[Index].Flags;
+	}
 
 
     //---------------------------------------------------------------------------------------------

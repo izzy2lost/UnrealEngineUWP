@@ -4,10 +4,8 @@
 #include "MuT/NodeColourTable.h"
 
 #include "Misc/AssertionMacros.h"
-#include "MuT/NodeColourTablePrivate.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/Table.h"
-
 
 
 namespace mu
@@ -17,14 +15,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	FNodeType NodeColourTable::Private::s_type = FNodeType(Node::EType::ColorTable, NodeColour::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-
-	MUTABLE_IMPLEMENT_NODE( NodeColourTable )
+	FNodeType NodeColourTable::StaticType = FNodeType(Node::EType::ColorTable, NodeColour::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -32,42 +23,28 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetColumn( const FString& strName )
 	{
-		m_pD->ColumnName = strName;
+		ColumnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetParameterName( const FString& strName )
 	{
-		m_pD->ParameterName = strName;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeColourTable::SetTable( TablePtr pTable )
-	{
-		m_pD->Table = pTable;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	TablePtr NodeColourTable::GetTable() const
-	{
-		return m_pD->Table;
+		ParameterName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetNoneOption(bool bAddNoneOption)
 	{
-		m_pD->bNoneOption = bAddNoneOption;
+		bNoneOption = bAddNoneOption;
 	}
 
 	
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetDefaultRowName(const FString RowName)
 	{
-		m_pD->DefaultRowName = RowName;
+		DefaultRowName = RowName;
 	}
 
 }
