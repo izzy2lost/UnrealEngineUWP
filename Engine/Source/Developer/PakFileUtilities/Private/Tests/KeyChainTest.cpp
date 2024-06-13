@@ -5,7 +5,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS 
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FKeyChainTest, "System.Core.Misc.KeyChain", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FKeyChainTest, "System.Core.Misc.KeyChain", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 /**
  * KeyChain tests - implemented in this module because of incorrect dependencies in KeyChainUtilities.h.
