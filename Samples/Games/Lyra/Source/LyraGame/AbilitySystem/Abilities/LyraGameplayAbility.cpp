@@ -123,6 +123,7 @@ void ULyraGameplayAbility::NativeOnAbilityFailedToActivate(const FGameplayTagCon
 		{
 			FLyraAbilityMontageFailureMessage Message;
 			Message.PlayerController = GetActorInfo().PlayerController.Get();
+			Message.AvatarActor = GetActorInfo().AvatarActor.Get();
 			Message.FailureTags = FailedReason;
 			Message.FailureMontage = pMontage;
 
