@@ -61,26 +61,23 @@ struct FUniformResourceEntry
 	FORCEINLINE FStringView GetUniformBufferName() const { return FStringView(UniformBufferMemberName, UniformBufferNameLength); }
 };
 
-struct UE_DEPRECATED(5.3, "Deprecated structure -- replaced with FUniformResourceEntry.") FResourceTableEntry
-{
-	FString UniformBufferName;
-	uint16 Type{};
-	uint16 ResourceIndex{};
-};
-
 /** Minimal information about each uniform buffer entry fed to the shader compiler. */
 struct FUniformBufferEntry
 {
 	/** The name of the uniform buffer static slot (if global). */
 	FString StaticSlotName;
-	/** Hash of the resource table layout. */
-	uint32 LayoutHash{};
-	/** The binding flags used by this resource table. */
-	EUniformBufferBindingFlags BindingFlags{ EUniformBufferBindingFlags::Shader };
-	/** Whether to force a real uniform buffer when using emulated uniform buffers */
-	bool bNoEmulatedUniformBuffer;
+
 	/** Storage for member names for this uniform buffer (pointed to by FUniformResourceEntry::UniformBufferMemberName)  */
 	FThreadSafeNameBufferPtr MemberNameBuffer;
+
+	/** Hash of the resource table layout. */
+	uint32 LayoutHash{};
+
+	/** The binding flags used by this resource table. */
+	EUniformBufferBindingFlags BindingFlags{ EUniformBufferBindingFlags::Shader };
+
+	/** Whether to force a real uniform buffer when using emulated uniform buffers */
+	ERHIUniformBufferFlags Flags{ ERHIUniformBufferFlags::None };
 };
 
 /** Parse the shader resource binding from the binding type used in shader code. */
@@ -161,6 +158,12 @@ public:
 		
 		/** This struct is a view into uniform buffer object, on platforms that support UBO */
 		UniformView = 1 << 1,
+
+		/** This struct needs its members reflected for binding information. */
+		NeedsReflectedMembers = 1 << 2,
+
+		/** Signals that the uniform buffer is manually bound by the pass and should be ignored by the mesh pass processor. */
+		ManuallyBoundByPass = 1 << 3,
 	};
 
 	/** Shader binding name of the uniform buffer that contains the root shader parameters. */
@@ -329,7 +332,7 @@ public:
 		const TArray<FMember>& InMembers,
 		bool bForceCompleteInitialization = false,
 		FRHIUniformBufferLayoutInitializer* OutLayoutInitializer = nullptr,
-		uint32 InUsageFlags = 0);
+		EUsageFlags InUsageFlags = EUsageFlags::None);
 
 	RENDERCORE_API virtual ~FShaderParametersMetadata();
 
@@ -337,11 +340,6 @@ public:
 
 #if WITH_EDITOR
 	RENDERCORE_API void AddResourceTableEntries(FShaderResourceTableMap& ResourceTableMap, TMap<FString, FUniformBufferEntry>& UniformBufferMap) const;
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.3, "Resource table entries are now stored in FShaderResourceTableMap, rather than a TMap.")
-	RENDERCORE_API void AddResourceTableEntries(TMap<FString, FResourceTableEntry>& ResourceTableMap, TMap<FString, FUniformBufferEntry>& UniformBufferMap) const;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 	const TCHAR* GetStructTypeName() const { return StructTypeName; }
@@ -370,7 +368,7 @@ public:
 	uint32 GetSize() const { return Size; }
 	EUseCase GetUseCase() const { return UseCase; }
 	inline bool IsLayoutInitialized() const { return Layout != nullptr; }
-	uint32 GetUsageFlags() const { return UsageFlags; }
+	EUsageFlags GetUsageFlags() const { return UsageFlags; }
 
 	const FRHIUniformBufferLayout& GetLayout() const
 	{
@@ -488,6 +486,9 @@ private:
 	/** The binding model used by this parameter struct. */
 	const EUniformBufferBindingFlags BindingFlags;
 
+	/** Additional flags for how to use the buffer */
+	const EUsageFlags UsageFlags;
+
 	/** Layout of all the resources in the shader parameter struct. */
 	FUniformBufferLayoutRHIRef Layout{};
 	
@@ -533,15 +534,14 @@ private:
 	FBlake3Hash LayoutSignature;
 #endif
 
-	/** Additional flags for how to use the buffer */
-	uint32 UsageFlags = 0;
-
 	RENDERCORE_API void InitializeLayout(FRHIUniformBufferLayoutInitializer* OutLayoutInitializer = nullptr);
 
 #if WITH_EDITOR
 	RENDERCORE_API void InitializeUniformBufferDeclaration();
 #endif
 };
+
+ENUM_CLASS_FLAGS(FShaderParametersMetadata::EUsageFlags);
 
 
 /**

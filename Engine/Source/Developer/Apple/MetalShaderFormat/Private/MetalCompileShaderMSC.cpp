@@ -272,28 +272,35 @@ static void ProcessReflection(ID3D12ShaderReflection* ShaderReflection, const ui
 				D3D12_SHADER_BUFFER_DESC CBDesc;
 				ConstantBuffer->GetDesc(&CBDesc);
 
-				for (uint32 ConstantIndex = 0; ConstantIndex < CBDesc.Variables; ConstantIndex++)
+				const FString UniformBufferName(BindDesc.Name);
+				const EUniformBufferMemberReflectionReason Reason = ShouldReflectUniformBufferMembers(Input, UniformBufferName);
+				if (Reason != EUniformBufferMemberReflectionReason::None)
 				{
-					ID3D12ShaderReflectionVariable* Variable = ConstantBuffer->GetVariableByIndex(ConstantIndex);
-
-					D3D12_SHADER_VARIABLE_DESC VariableDesc;
-					Variable->GetDesc(&VariableDesc);
-
-					if (VariableDesc.uFlags & D3D_SVF_USED)
+					for (uint32 ConstantIndex = 0; ConstantIndex < CBDesc.Variables; ConstantIndex++)
 					{
-						HandleReflectedUniformBufferConstantBufferMember(
-							BindIndex,
-							FString(VariableDesc.Name),
-							VariableDesc.StartOffset,
-							VariableDesc.Size,
-							Output
-						);
+						ID3D12ShaderReflectionVariable* Variable = ConstantBuffer->GetVariableByIndex(ConstantIndex);
+
+						D3D12_SHADER_VARIABLE_DESC VariableDesc;
+						Variable->GetDesc(&VariableDesc);
+
+						if (VariableDesc.uFlags & D3D_SVF_USED)
+						{
+							HandleReflectedUniformBufferConstantBufferMember(
+								Reason,
+								UniformBufferName,
+								BindIndex,
+								FString(VariableDesc.Name),
+								VariableDesc.StartOffset,
+								VariableDesc.Size,
+								Output
+							);
+						}
 					}
 				}
 				
 				// Regular uniform buffer - we only care about the binding index
-				CCHeaderWriter.WriteUniformBlock(ANSI_TO_TCHAR(BindDesc.Name), BindIndex);
-				HandleReflectedUniformBuffer(ANSI_TO_TCHAR(BindDesc.Name), BindIndex, Output);
+				CCHeaderWriter.WriteUniformBlock(*UniformBufferName, BindIndex);
+				HandleReflectedUniformBuffer(UniformBufferName, BindIndex, Output);
 			}
 			NumCBVs = FMath::Max(NumCBVs, BindIndex + BindDesc.BindCount);
 		}

@@ -1535,7 +1535,7 @@ void ParseReflectionData(const FShaderCompilerInput& ShaderInput, CrossCompiler:
 		{
 			const FUniformBufferEntry* UniformBufferEntry = ShaderInput.Environment.UniformBufferMap.Find(Binding->name);
 
-			if (bEmulatedUBs && (UniformBufferEntry == nullptr || !UniformBufferEntry->bNoEmulatedUniformBuffer))
+			if (bEmulatedUBs && (UniformBufferEntry == nullptr || !EnumHasAnyFlags(UniformBufferEntry->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer)))
 			{
 				check(UBOIndices);
 				uint32 Index = FPlatformMath::CountTrailingZeros(UBOIndices);

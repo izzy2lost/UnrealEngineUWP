@@ -1174,7 +1174,7 @@ struct FRHIUniformBufferLayout : public FRHIResource
 
 	inline bool HasExternalOutputs() const
 	{
-		return bHasNonGraphOutputs;
+		return EnumHasAnyFlags(Flags, ERHIUniformBufferFlags::HasNonGraphOutputs);
 	}
 
 	inline bool HasStaticSlot() const
@@ -1216,14 +1216,8 @@ struct FRHIUniformBufferLayout : public FRHIResource
 	/** The binding flags describing how this resource can be bound to the RHI. */
 	const EUniformBufferBindingFlags BindingFlags;
 
-	/** Whether this layout may contain non-render-graph outputs (e.g. RHI UAVs). */
-	const bool bHasNonGraphOutputs;
-
-	/** Used for platforms which use emulated ub's, forces a real uniform buffer instead */
-	const bool bNoEmulatedUniformBuffer;
-
-	/** This struct is a view into uniform buffer object, on platforms that support UBO */
-	const bool bUniformView;
+	/** Flags to signal different Uniform Buffer states. */
+	const ERHIUniformBufferFlags Flags;
 
 	/** Compare two uniform buffer layouts. */
 	friend inline bool operator==(const FRHIUniformBufferLayout& A, const FRHIUniformBufferLayout& B)

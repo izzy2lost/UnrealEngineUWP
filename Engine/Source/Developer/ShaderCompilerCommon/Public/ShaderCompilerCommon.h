@@ -191,6 +191,19 @@ namespace UE::ShaderCompilerCommon
 	};
 }
 
+enum class EUniformBufferMemberReflectionReason
+{
+	None            = 0,
+	NeedsReflection = 1 << 0,
+	Bindless        = 1 << 1,
+};
+ENUM_CLASS_FLAGS(EUniformBufferMemberReflectionReason);
+
+SHADERCOMPILERCOMMON_API EUniformBufferMemberReflectionReason ShouldReflectUniformBufferMembers(
+	const FShaderCompilerInput& Input,
+	FStringView UniformBufferName
+);
+
 extern SHADERCOMPILERCOMMON_API void HandleReflectedGlobalConstantBufferMember(
 	const FString& MemberName,
 	uint32 ConstantBufferIndex,
@@ -200,8 +213,10 @@ extern SHADERCOMPILERCOMMON_API void HandleReflectedGlobalConstantBufferMember(
 );
 
 extern SHADERCOMPILERCOMMON_API void HandleReflectedUniformBufferConstantBufferMember(
+	EUniformBufferMemberReflectionReason Reason,
+	FStringView UniformBufferName,
 	int32 UniformBufferSlot,
-	const FString& MemberName,
+	FStringView MemberName,
 	int32 ReflectionOffset,
 	int32 ReflectionSize,
 	FShaderCompilerOutput& CompilerOutput

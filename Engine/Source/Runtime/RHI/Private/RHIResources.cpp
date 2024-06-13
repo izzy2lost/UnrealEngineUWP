@@ -440,9 +440,7 @@ FRHIUniformBufferLayout::FRHIUniformBufferLayout(const FRHIUniformBufferLayoutIn
 	, RenderTargetsOffset(Initializer.RenderTargetsOffset)
 	, StaticSlot(Initializer.StaticSlot)
 	, BindingFlags(Initializer.BindingFlags)
-	, bHasNonGraphOutputs(Initializer.bHasNonGraphOutputs)
-	, bNoEmulatedUniformBuffer(Initializer.bNoEmulatedUniformBuffer)
-	, bUniformView(Initializer.bUniformView)
+	, Flags(Initializer.Flags)
 {
 }
 

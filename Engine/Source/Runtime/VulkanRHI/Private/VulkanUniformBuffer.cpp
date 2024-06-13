@@ -146,7 +146,7 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 		}
 	}
 
-	if (InLayout->bUniformView)
+	if (EnumHasAnyFlags(InLayout->Flags, ERHIUniformBufferFlags::UniformView))
 	{
 		// For uniform view we expect an buffer SRV as a first resource
 		check(InLayout->Resources.Num() > 0);

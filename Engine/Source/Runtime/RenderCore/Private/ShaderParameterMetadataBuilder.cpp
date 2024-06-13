@@ -205,7 +205,7 @@ FShaderParametersMetadata* FShaderParametersMetadataBuilder::Build(
 	const int32 InFileLine,
 	bool bForceCompleteInitialization,
 	FRHIUniformBufferLayoutInitializer* OutLayoutInitializer,
-	uint32 InUsageFlags
+	FShaderParametersMetadata::EUsageFlags InUsageFlags
 )
 {
 	const uint32 StructSize = Align(NextMemberOffset, SHADER_PARAMETER_STRUCT_ALIGNMENT);

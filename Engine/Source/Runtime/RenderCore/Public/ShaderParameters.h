@@ -165,6 +165,23 @@ public:
 	}
 };
 
+/** A shader uniform buffer member binding, this is only used to determine if the member is used in the compiled shader. */
+class FShaderUniformBufferMemberParameter
+{
+	DECLARE_EXPORTED_TYPE_LAYOUT(FShaderUniformBufferMemberParameter, RENDERCORE_API, NonVirtual);
+public:
+	FShaderUniformBufferMemberParameter() = default;
+
+	RENDERCORE_API void Bind(const FShaderParameterMap& ParameterMap, const TCHAR* ParameterName);
+	friend RENDERCORE_API FArchive& operator<<(FArchive& Ar, FShaderUniformBufferMemberParameter& P);
+
+	inline bool IsBound() const { return bIsBound != 0; }
+	inline bool IsInitialized() const { return true; }
+
+private:
+	LAYOUT_FIELD_INITIALIZED(uint8, bIsBound, 0);
+};
+
 #if RHI_RAYTRACING
 
 struct UE_DEPRECATED(5.5, "Use FRHIBatchedShaderParameters and SetShaderParameters() instead.") FRayTracingShaderBindingsWriter : FRayTracingShaderBindings

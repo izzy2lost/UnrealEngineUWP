@@ -839,7 +839,7 @@ void FMeshDrawShaderBindings::Finalize(const FMeshProcessorShaders* ShadersForDe
 				if (AutomaticallyBoundUniformBufferStruct)
 				{
 					ensureMsgf(
-						UniformBufferValue || EnumHasAnyFlags(AutomaticallyBoundUniformBufferStruct->GetBindingFlags(), EUniformBufferBindingFlags::Static),
+						UniformBufferValue || EnumHasAnyFlags(AutomaticallyBoundUniformBufferStruct->GetBindingFlags(), EUniformBufferBindingFlags::Static) || EnumHasAnyFlags(AutomaticallyBoundUniformBufferStruct->GetUsageFlags(), FShaderParametersMetadata::EUsageFlags::ManuallyBoundByPass),
 						TEXT("Shader %s with vertex factory %s never set automatically bound uniform buffer at BaseIndex %i.  Expected buffer of type %s.  This can cause GPU hangs, depending on how the shader uses it."),
 						Shader.GetType()->GetName(), 
 						VFType ? VFType->GetName() : TEXT("nullptr"),
@@ -1778,16 +1778,16 @@ public:
 		// This Layout fully replicates BatchedPrimitive UB
 		// we replace RDG_SRV with a regular SRV to be able to update UB inside RDG passes
 		static FName BatchedPrimitiveSlotName = "BatchedPrimitive";
-		FRHIUniformBufferLayoutInitializer Initialzer(TEXT("DynamicBatchedPrimitive"), 16u);
-		Initialzer.bUniformView = true;
-		Initialzer.Resources.Add({0, UBMT_RDG_BUFFER_SRV});
-		Initialzer.StaticSlot = FUniformBufferStaticSlotRegistry::Get().FindSlotByName(BatchedPrimitiveSlotName);
-		Initialzer.BindingFlags = EUniformBufferBindingFlags::StaticAndShader;
-		Initialzer.ComputeHash();
+		FRHIUniformBufferLayoutInitializer Initializer(TEXT("DynamicBatchedPrimitive"), 16u);
+		EnumAddFlags(Initializer.Flags, ERHIUniformBufferFlags::UniformView);
+		Initializer.Resources.Add({0, UBMT_RDG_BUFFER_SRV});
+		Initializer.StaticSlot = FUniformBufferStaticSlotRegistry::Get().FindSlotByName(BatchedPrimitiveSlotName);
+		Initializer.BindingFlags = EUniformBufferBindingFlags::StaticAndShader;
+		Initializer.ComputeHash();
 		// set view source to a regular SRV after hash computation, to make sure hash matches BatchedPrimitive layout
-		Initialzer.Resources[0].MemberType = UBMT_SRV;
+		Initializer.Resources[0].MemberType = UBMT_SRV;
 
-		LayoutRHI = RHICreateUniformBufferLayout(Initialzer);
+		LayoutRHI = RHICreateUniformBufferLayout(Initializer);
 	}
 
 	void ReleaseRHI() override 

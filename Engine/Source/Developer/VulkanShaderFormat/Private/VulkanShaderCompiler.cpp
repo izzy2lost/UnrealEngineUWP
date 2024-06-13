@@ -850,24 +850,30 @@ static bool BuildShaderOutputFromSpirv(
 							HandleReflectedUniformBuffer(ResourceName, ReflectionSlot, Output);
 							AddShaderValidationUBSize(BindingTypeCount, Binding->block.padded_size, Output);
 
-							// Register uniform buffer members that are in use
-							for (uint32 MemberIndex = 0; MemberIndex < Binding->block.member_count; ++MemberIndex)
+							const EUniformBufferMemberReflectionReason Reason = ShouldReflectUniformBufferMembers(InternalState.Input, ResourceName);
+							if (Reason != EUniformBufferMemberReflectionReason::None)
 							{
-								const SpvReflectBlockVariable& Member = Binding->block.members[MemberIndex];
-
-								if ((Member.flags & SPV_REFLECT_VARIABLE_FLAGS_UNUSED) != 0)
+								// Register uniform buffer members that are in use
+								for (uint32 MemberIndex = 0; MemberIndex < Binding->block.member_count; ++MemberIndex)
 								{
-									continue;
-								}
+									const SpvReflectBlockVariable& Member = Binding->block.members[MemberIndex];
 
-								const FString MemberName(Member.name);
-								HandleReflectedUniformBufferConstantBufferMember(
-									ReflectionSlot,
-									MemberName,
-									Member.absolute_offset,
-									Member.size,
-									Output
-								);
+									if ((Member.flags & SPV_REFLECT_VARIABLE_FLAGS_UNUSED) != 0)
+									{
+										continue;
+									}
+
+									const FString MemberName(Member.name);
+									HandleReflectedUniformBufferConstantBufferMember(
+										Reason,
+										ResourceName,
+										ReflectionSlot,
+										MemberName,
+										Member.absolute_offset,
+										Member.size,
+										Output
+									);
+								}
 							}
 						}
 

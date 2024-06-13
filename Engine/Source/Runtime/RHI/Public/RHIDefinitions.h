@@ -618,6 +618,25 @@ enum class EUniformBufferBindingFlags : uint8
 };
 ENUM_CLASS_FLAGS(EUniformBufferBindingFlags);
 
+/** Flags for Uniform Buffers */
+enum class ERHIUniformBufferFlags : uint8
+{
+	None                    = 0,
+
+	/** Whether to force a real uniform buffer when using emulated uniform buffers */
+	NoEmulatedUniformBuffer = 1 << 0,
+
+	/** Signals if the uniform buffer members need to be included in shader reflection */
+	NeedsReflectedMembers   = 1 << 1,
+
+	/** Whether this layout may contain non-render-graph outputs (e.g. RHI UAVs). */
+	HasNonGraphOutputs      = 1 << 2,
+
+	/** This struct is a view into uniform buffer object, on platforms that support UBO */
+	UniformView             = 1 << 3,
+};
+ENUM_CLASS_FLAGS(ERHIUniformBufferFlags);
+
 /** Numerical type used to store the static slot indices. */
 using FUniformBufferStaticSlot = uint8;
 

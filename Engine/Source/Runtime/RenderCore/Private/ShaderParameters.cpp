@@ -17,6 +17,7 @@
 IMPLEMENT_TYPE_LAYOUT(FShaderParameter);
 IMPLEMENT_TYPE_LAYOUT(FShaderResourceParameter);
 IMPLEMENT_TYPE_LAYOUT(FShaderUniformBufferParameter);
+IMPLEMENT_TYPE_LAYOUT(FShaderUniformBufferMemberParameter);
 
 static void FailureToBindNonOptionalParameter(const TCHAR* ParameterType, const TCHAR* ParameterName)
 {
@@ -70,6 +71,16 @@ void FShaderResourceParameter::Bind(const FShaderParameterMap& ParameterMap, con
 FArchive& operator<<(FArchive& Ar,FShaderResourceParameter& P)
 {
 	return Ar << P.BaseIndex << P.NumResources;
+}
+
+void FShaderUniformBufferMemberParameter::Bind(const FShaderParameterMap& ParameterMap, const TCHAR* ParameterName)
+{
+	bIsBound = ParameterMap.ContainsParameterAllocation(ParameterName) ? 1 : 0;
+}
+
+FArchive& operator<<(FArchive& Ar, FShaderUniformBufferMemberParameter& P)
+{
+	return Ar << P.bIsBound;
 }
 
 #if WITH_EDITOR
@@ -160,7 +171,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 		Decl.StructMembers << Member.GetName() << TEXT(");\n");
 	};
 
-	if ((UniformBufferStruct.GetUsageFlags() & (uint32)FShaderParametersMetadata::EUsageFlags::UniformView) != 0)
+	if (EnumHasAnyFlags(UniformBufferStruct.GetUsageFlags(), FShaderParametersMetadata::EUsageFlags::UniformView))
 	{
 		// UniformView struct is expected to have a single SRV member which serves as a uniform view
 		check(StructMembers.Num() == 1);

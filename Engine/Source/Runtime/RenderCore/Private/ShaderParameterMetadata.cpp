@@ -412,7 +412,7 @@ FShaderParametersMetadata::FShaderParametersMetadata(
 	const TArray<FMember>& InMembers,
 	bool bForceCompleteInitialization,
 	FRHIUniformBufferLayoutInitializer* OutLayoutInitializer,
-	uint32 InUsageFlags)
+	EUsageFlags InUsageFlags)
 	: LayoutName(InLayoutName)
 	, StructTypeName(InStructTypeName)
 	, ShaderVariableName(InShaderVariableName)
@@ -423,9 +423,9 @@ FShaderParametersMetadata::FShaderParametersMetadata(
 	, Size(InSize)
 	, UseCase(InUseCase)
 	, BindingFlags(InBindingFlags)
+	, UsageFlags(InUsageFlags)
 	, Members(InMembers)
 	, GlobalListLink(this)
-	, UsageFlags(InUsageFlags)
 {
 	checkf(UseCase == EUseCase::UniformBuffer || !EnumHasAnyFlags(BindingFlags, EUniformBufferBindingFlags::Static), TEXT("Only uniform buffers can utilize the global binding flag."));
 
@@ -565,8 +565,21 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	FRHIUniformBufferLayoutInitializer LocalLayoutInitializer(LayoutName);
 	FRHIUniformBufferLayoutInitializer& LayoutInitializer = OutLayoutInitializer ? *OutLayoutInitializer : LocalLayoutInitializer;
 	LayoutInitializer.ConstantBufferSize = Size;
-	LayoutInitializer.bUniformView = UsageFlags & (uint32)EUsageFlags::UniformView;
-	LayoutInitializer.bNoEmulatedUniformBuffer = LayoutInitializer.bUniformView || (UsageFlags & (uint32)EUsageFlags::NoEmulatedUniformBuffer);
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::UniformView))
+	{
+		EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::UniformView);
+	}
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NoEmulatedUniformBuffer|EUsageFlags::UniformView))
+	{
+		EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
+	}
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NeedsReflectedMembers))
+	{
+		EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::NeedsReflectedMembers);
+	}
 	
 	if (StaticSlotName)
 	{
@@ -610,6 +623,8 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	/** Allow all use cases that inline a structure within another. Data driven are not known to inline structures. */
 	const bool bAllowStructureInlining = UseCase == EUseCase::ShaderParameterStruct || UseCase == EUseCase::UniformBuffer;
 
+	bool bHasNonGraphOutputs = false;
+
 	for (int32 i = 0; i < MemberStack.Num(); ++i)
 	{
 		const FShaderParametersMetadata& CurrentStruct = MemberStack[i].ContainingStruct;
@@ -625,7 +640,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 		const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 		const bool bIsVariableNativeType = CurrentMember.IsVariableNativeType();
 
-		LayoutInitializer.bHasNonGraphOutputs |= BaseType == UBMT_UAV;
+		bHasNonGraphOutputs |= (BaseType == UBMT_UAV);
 
 		if (DO_CHECK)
 		{
@@ -770,6 +785,11 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 						*GetMemberErrorPrefix(), ShaderType, CurrentMacroName);
 				}
 			}
+		}
+
+		if (bHasNonGraphOutputs)
+		{
+			EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::HasNonGraphOutputs);
 		}
 
 		if (IsShaderParameterTypeForUniformBufferLayout(BaseType))
@@ -1027,20 +1047,21 @@ void FShaderParametersMetadata::AddResourceTableEntries(FShaderResourceTableMap&
 	
 	FUniformBufferEntry UniformBufferEntry;
 	UniformBufferEntry.StaticSlotName = StaticSlotName;
+	UniformBufferEntry.MemberNameBuffer = MemberNameBuffer;
 	UniformBufferEntry.LayoutHash = IsLayoutInitialized() ? GetLayout().GetHash() : 0;
 	UniformBufferEntry.BindingFlags = BindingFlags;
-	UniformBufferEntry.bNoEmulatedUniformBuffer = (UsageFlags & (uint32)EUsageFlags::NoEmulatedUniformBuffer) || (UsageFlags & (uint32)EUsageFlags::UniformView);
-	UniformBufferEntry.MemberNameBuffer = MemberNameBuffer;
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NoEmulatedUniformBuffer | EUsageFlags::UniformView))
+	{
+		EnumAddFlags(UniformBufferEntry.Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
+	}
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NeedsReflectedMembers))
+	{
+		EnumAddFlags(UniformBufferEntry.Flags, ERHIUniformBufferFlags::NeedsReflectedMembers);
+	}
+
 	UniformBufferMap.AddByHash(ShaderVariableNameHash, ShaderVariableName, UniformBufferEntry);
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-// Deprecated version of function
-void FShaderParametersMetadata::AddResourceTableEntries(TMap<FString, FResourceTableEntry>& ResourceTableMap, TMap<FString, FUniformBufferEntry>& UniformBufferMap) const
-{
-	UE_LOG(LogShaders, Error, TEXT("FShaderParametersMetadata::AddResourceTableEntries call that accepts a TMap has been deprecated.  Use FShaderResourceTableMap structure instead."));
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // WITH_EDITOR
 

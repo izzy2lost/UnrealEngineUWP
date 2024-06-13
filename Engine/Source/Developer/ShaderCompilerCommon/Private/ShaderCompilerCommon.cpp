@@ -99,6 +99,15 @@ void UE::ShaderCompilerCommon::BuildShaderResourceTable(const FShaderCompilerRes
 	BuildResourceTableTokenStream(GenericSRT.ResourceCollectionMap,  GenericSRT.MaxBoundResourceTable, OutSRT.ResourceCollectionMap,  bGenerateEmptyTokenStreamIfNoResources);
 }
 
+static bool DoesUniformBufferNeedReflectedMembers(const TMap<FString, FUniformBufferEntry>& UniformBufferMap, FStringView UniformBufferName)
+{
+	if (const FUniformBufferEntry* Entry = UniformBufferMap.FindByHash(GetTypeHash(UniformBufferName), UniformBufferName))
+	{
+		return EnumHasAnyFlags(Entry->Flags, ERHIUniformBufferFlags::NeedsReflectedMembers);
+	}
+
+	return false;
+}
 
 bool BuildResourceTableMapping(
 	const FShaderResourceTableMap& ResourceTableMap,
@@ -121,16 +130,26 @@ bool BuildResourceTableMapping(
 		// If the shaders uses this member (eg View_PerlinNoise3DTexture)...
 		if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindAndRemoveParameterAllocation(Name))
 		{
+			FStringView UniformBufferName = Entry.GetUniformBufferName();
+
 			const EShaderParameterType ParameterType = Allocation->Type;
 			const bool bBindlessParameter = IsParameterBindless(ParameterType);
 
 			// Force bindless "indices" to zero since they're not needed in SetResourcesFromTables
 			const uint16 BaseIndex = bBindlessParameter ? 0 : Allocation->BaseIndex;
 
+			if (DoesUniformBufferNeedReflectedMembers(UniformBufferMap, UniformBufferName))
+			{
+				FString RenamedMember = Name.Replace(TEXT("_"), TEXT("."));
+				ParameterMap.AddParameterAllocation(*RenamedMember, Allocation->BufferIndex, Allocation->BaseIndex, Allocation->Size, Allocation->Type);
+
+				// Force the parameter to be marked as bound
+				ParameterMap.FindParameterAllocation(RenamedMember);
+			}
+
 			uint16 UniformBufferIndex = INDEX_NONE;
 
 			// Add the UB itself as a parameter if not there
-			FStringView UniformBufferName = Entry.GetUniformBufferName();
 			if (TOptional<FParameterAllocation> UniformBufferParameter = ParameterMap.FindParameterAllocation(UniformBufferName))
 			{
 				UniformBufferIndex = UniformBufferParameter->BufferIndex;
@@ -568,7 +587,7 @@ void HandleReflectedGlobalConstantBufferMember(
 	FShaderCompilerOutput& Output
 )
 {
-	FString MemberName = InMemberName;
+	FStringView MemberName = InMemberName;
 	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
 
 	Output.ParameterMap.AddParameterAllocation(
@@ -576,21 +595,30 @@ void HandleReflectedGlobalConstantBufferMember(
 		ConstantBufferIndex,
 		ReflectionOffset,
 		ReflectionSize,
-		ParameterType);
+		ParameterType
+	);
 }
 
 void HandleReflectedUniformBufferConstantBufferMember(
+	EUniformBufferMemberReflectionReason Reason,
+	FStringView UniformBufferName,
 	int32 UniformBufferSlot,
-	const FString& InMemberName,
+	FStringView InMemberName,
 	int32 ReflectionOffset,
 	int32 ReflectionSize,
 	FShaderCompilerOutput& Output
 )
 {
-	FString MemberName = InMemberName;
+	FStringView MemberName = InMemberName;
 	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
 
-	if (ParameterType != EShaderParameterType::LooseData)
+	bool bAdd = EnumHasAnyFlags(Reason, EUniformBufferMemberReflectionReason::NeedsReflection);
+	if (EnumHasAnyFlags(Reason, EUniformBufferMemberReflectionReason::Bindless))
+	{
+		bAdd |= (ParameterType != EShaderParameterType::LooseData);
+	}
+
+	if (bAdd)
 	{
 		Output.ParameterMap.AddParameterAllocation(
 			MemberName,
@@ -605,21 +633,27 @@ void HandleReflectedUniformBufferConstantBufferMember(
 void HandleReflectedRootConstantBufferMember(
 	const FShaderCompilerInput& Input,
 	const FShaderParameterParser& ShaderParameterParser,
-	const FString& MemberName,
+	const FString& InMemberName,
 	int32 ReflectionOffset,
 	int32 ReflectionSize,
 	FShaderCompilerOutput& Output
 )
 {
-	ShaderParameterParser.ValidateShaderParameterType(Input, MemberName, ReflectionOffset, ReflectionSize, Output);
+	ShaderParameterParser.ValidateShaderParameterType(Input, InMemberName, ReflectionOffset, ReflectionSize, Output);
 
-	HandleReflectedUniformBufferConstantBufferMember(
-		FShaderParametersMetadata::kRootCBufferBindingIndex,
-		MemberName,
-		ReflectionOffset,
-		ReflectionSize,
-		Output
-	);
+	FStringView MemberName = InMemberName;
+	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
+
+	if (ParameterType != EShaderParameterType::LooseData)
+	{
+		Output.ParameterMap.AddParameterAllocation(
+			MemberName,
+			FShaderParametersMetadata::kRootCBufferBindingIndex,
+			ReflectionOffset,
+			1,
+			ParameterType
+		);
+	}
 }
 
 void HandleReflectedRootConstantBuffer(
@@ -652,6 +686,23 @@ void HandleReflectedUniformBuffer(
 		BufferSize,
 		EShaderParameterType::UniformBuffer
 	);
+}
+
+EUniformBufferMemberReflectionReason ShouldReflectUniformBufferMembers(const FShaderCompilerInput& Input, FStringView UniformBufferName)
+{
+	EUniformBufferMemberReflectionReason Reason{};
+
+	if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
+	{
+		Reason |= EUniformBufferMemberReflectionReason::Bindless;
+	}
+
+	if (DoesUniformBufferNeedReflectedMembers(Input.Environment.UniformBufferMap, UniformBufferName))
+	{
+		Reason |= EUniformBufferMemberReflectionReason::NeedsReflection;
+	}
+
+	return Reason;
 }
 
 void HandleReflectedShaderResource(

@@ -107,9 +107,12 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 			ID3D1xShaderReflectionConstantBuffer* ConstantBuffer = Reflector->GetConstantBufferByName(BindDesc.Name);
 			D3D1x_SHADER_BUFFER_DESC CBDesc;
 			ConstantBuffer->GetDesc(&CBDesc);
-			const bool bGlobalCB = (FCStringAnsi::Strcmp(CBDesc.Name, "$Globals") == 0);
-			const bool bRootConstantsCB = (FCStringAnsi::Strcmp(CBDesc.Name, "UERootConstants") == 0);
-			const bool bIsRootCB = FCString::Strcmp(ANSI_TO_TCHAR(CBDesc.Name), FShaderParametersMetadata::kRootUniformBufferBindingName) == 0;
+
+			const FString ConstantBufferName(CBDesc.Name);
+
+			const bool bGlobalCB = (ConstantBufferName == TEXT("$Globals"));
+			const bool bRootConstantsCB = (ConstantBufferName == TEXT("UERootConstants"));
+			const bool bIsRootCB = (ConstantBufferName == FShaderParametersMetadata::kRootUniformBufferBindingName);
 
 			if (bGlobalCB)
 			{
@@ -211,14 +214,13 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 			else
 			{
 				// Track just the constant buffer itself.
-				const FString UniformBufferName(CBDesc.Name);
-
 				AddShaderValidationUBSize(CBIndex, CBDesc.Size, Output);
-				HandleReflectedUniformBuffer(UniformBufferName, CBIndex, Output);
+				HandleReflectedUniformBuffer(ConstantBufferName, CBIndex, Output);
 				
 				CompileData.UsedUniformBufferSlots[CBIndex] = true;
 
-				if (bBindlessEnabled)
+				const EUniformBufferMemberReflectionReason Reason = ShouldReflectUniformBufferMembers(Input, ConstantBufferName);
+				if (Reason != EUniformBufferMemberReflectionReason::None)
 				{
 					for (uint32 ConstantIndex = 0; ConstantIndex < CBDesc.Variables; ConstantIndex++)
 					{
@@ -229,9 +231,13 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 
 						if (VariableDesc.uFlags & D3D_SVF_USED)
 						{
+							const FString MemberName(VariableDesc.Name);
+
 							HandleReflectedUniformBufferConstantBufferMember(
+								Reason,
+								ConstantBufferName,
 								CBIndex,
-								FString(VariableDesc.Name),
+								MemberName,
 								VariableDesc.StartOffset,
 								VariableDesc.Size,
 								Output
@@ -245,7 +251,7 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 			{
 				CompileData.UniformBufferNames.AddDefaulted(CBIndex - CompileData.UniformBufferNames.Num() + 1);
 			}
-			CompileData.UniformBufferNames[CBIndex] = UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(FString(CBDesc.Name));
+			CompileData.UniformBufferNames[CBIndex] = UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(ConstantBufferName);
 
 			CompileData.NumCBs = FMath::Max(CompileData.NumCBs, BindDesc.BindPoint + BindDesc.BindCount);
 		}
@@ -344,7 +350,7 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 
 			CompileData.NumSRVs = FMath::Max(CompileData.NumSRVs, BindDesc.BindPoint + 1);
 		}
-		else if (BindDesc.Type == (D3D_SHADER_INPUT_TYPE)(D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER + 1)) // D3D_SIT_RTACCELERATIONSTRUCTURE (12)
+		else if (BindDesc.Type == D3D_SIT_RTACCELERATIONSTRUCTURE)
 		{
 			// Acceleration structure resources are treated as SRVs.
 			check(BindDesc.BindCount == 1);

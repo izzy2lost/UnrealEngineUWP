@@ -419,7 +419,7 @@ FOpenGLUniformBuffer::FOpenGLUniformBuffer(const FRHIUniformBufferLayout* InLayo
 	, bStreamDraw(false)
 	, bOwnsResource(true)
 {
-	bIsEmulatedUniformBuffer = GUseEmulatedUniformBuffers && !(InLayout->bNoEmulatedUniformBuffer || InLayout->bUniformView);
+	bIsEmulatedUniformBuffer = GUseEmulatedUniformBuffers && !EnumHasAnyFlags(InLayout->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer|ERHIUniformBufferFlags::UniformView);
 	RangeSize = InLayout->ConstantBufferSize;
 }
 
@@ -462,7 +462,7 @@ FOpenGLUniformBuffer::~FOpenGLUniformBuffer()
 
 			FScopeLock Lock(&GGLUniformBufferPoolCS);
 			
-			if (GUseEmulatedUniformBuffers && !GetLayout().bNoEmulatedUniformBuffer)
+			if (GUseEmulatedUniformBuffers && !EnumHasAnyFlags(GetLayout().Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer))
 			{
 				SafeGLEmulatedUniformBufferPools[SafeFrameIndex][BucketIndex][StreamedIndex].Add(NewEntry);
 			}
@@ -556,7 +556,7 @@ static FUniformBufferRHIRef CreateUniformBuffer(const void* Contents, const FRHI
 	// PersistentlyMappedBuffer initializes via IsSuballocatingUBOs path which will flush RHI commands. safe to use on RT thread.
 	uint8* PersistentlyMappedBuffer = NULL;
 
-	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !Layout->bNoEmulatedUniformBuffer;
+	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !EnumHasAnyFlags(Layout->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
 
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
@@ -628,7 +628,7 @@ static FOpenGLUniformBuffer* CreateUniformBufferView(FRHICommandListImmediate& R
 {
 	FOpenGLUniformBuffer* UniformBufferView = nullptr;
 	
-	if (Layout->bUniformView)
+	if (EnumHasAnyFlags(Layout->Flags, ERHIUniformBufferFlags::UniformView))
 	{
 		UniformBufferView = new FOpenGLUniformBuffer(Layout);
 		UniformBufferView->SetLayoutTable(Contents, EUniformBufferValidation::None);
@@ -692,7 +692,7 @@ FUniformBufferRHIRef FOpenGLDynamicRHI::RHICreateUniformBuffer(const void* Conte
 		return UniformBufferView;
 	}
 
-	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !Layout->bNoEmulatedUniformBuffer;
+	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !EnumHasAnyFlags(Layout->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
 
 	bool bStreamDraw = (Usage == UniformBuffer_SingleDraw || Usage == UniformBuffer_SingleFrame);
 	GLuint AllocatedResource = 0;

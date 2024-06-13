@@ -366,14 +366,14 @@ inline FArchive& operator<<(FArchive& Ar, FUniformResourceEntry& Entry)
 inline FArchive& operator<<(FArchive& Ar, FUniformBufferEntry& Entry)
 {
 	Ar << Entry.StaticSlotName;
-	Ar << Entry.LayoutHash;
-	Ar << Entry.BindingFlags;
-	Ar << Entry.bNoEmulatedUniformBuffer;
 	if (Ar.IsLoading())
 	{
 		Entry.MemberNameBuffer = MakeShareable(new TArray<TCHAR>());
 	}
 	Ar << *Entry.MemberNameBuffer.Get();
+	Ar << Entry.LayoutHash;
+	Ar << Entry.BindingFlags;
+	Ar << Entry.Flags;
 	return Ar;
 }
 

@@ -1535,7 +1535,7 @@ private:
 	TFunctionRef<const FShaderParametersMetadata* ()> LazyShaderParametersMetadataAccessor;
 };
 
-#define IMPLEMENT_UNIFORM_BUFFER_STRUCT(StructTypeName,ShaderVariableName) \
+#define IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(StructTypeName,ShaderVariableName,UsageFlags) \
 	const FShaderParametersMetadata* GetForwardDeclaredShaderParametersStructMetadata(const StructTypeName* DummyPtr) { return StructTypeName::FTypeInfo::GetStructMetadata(); } \
 	const FShaderParametersMetadata* StructTypeName::GetStructMetadata() \
 	{ \
@@ -1550,10 +1550,16 @@ private:
 			StructTypeName::FTypeInfo::FileName, \
 			StructTypeName::FTypeInfo::FileLine, \
 			sizeof(StructTypeName), \
-			StructTypeName::zzGetMembers()); \
+			StructTypeName::zzGetMembers(), \
+			false, \
+			nullptr, \
+			UsageFlags); \
 		return &StaticStructMetadata; \
 	} \
 	FShaderParametersMetadataRegistration StructTypeName##MetadataRegistration { TFunctionRef<const ::FShaderParametersMetadata* ()>{StructTypeName::GetStructMetadata} };
+
+#define IMPLEMENT_UNIFORM_BUFFER_STRUCT(StructTypeName,ShaderVariableName) \
+	IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(StructTypeName,ShaderVariableName,FShaderParametersMetadata::EUsageFlags::None)
 
 #define IMPLEMENT_UNIFORM_BUFFER_ALIAS_STRUCT(StructTypeName, UniformBufferAlias) \
 	static const FShaderParametersMetadata UniformBufferAlias( \
@@ -1608,7 +1614,7 @@ private:
 			StructTypeName::zzGetMembers(), \
 			false, \
 			nullptr, \
-			(uint32)UsageFlags); \
+			UsageFlags); \
 		return &StaticStructMetadata; \
 	} \
 	FShaderParametersMetadataRegistration StructTypeName##MetadataRegistration { TFunctionRef<const ::FShaderParametersMetadata* ()>{StructTypeName::GetStructMetadata} };
