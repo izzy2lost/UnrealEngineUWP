@@ -115,6 +115,8 @@ bool ShouldVolumetricCloudTraceWithMinMaxDepth(const FViewInfo& ViewInfo);
 bool ShouldVolumetricCloudTraceWithMinMaxDepth(const TArray<FViewInfo>& Views);
 bool VolumetricCloudWantsSeparatedAtmosphereMieRayLeigh(const FScene* Scene);
 
+bool ShouldVolumetricCloudsApplyFogDuringReconstruction(const FViewInfo& ViewInfo);
+
 // Structure with data necessary to specify a cloud render.
 struct FCloudRenderContext
 {

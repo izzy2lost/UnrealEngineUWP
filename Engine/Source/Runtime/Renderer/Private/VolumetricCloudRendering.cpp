@@ -74,6 +74,11 @@ static TAutoConsoleVariable<int32> CVarVolumetricCloudDisableCompute(
 	TEXT("Do not use compute shader for cloud tracing."),
 	ECVF_Scalability);
 
+static TAutoConsoleVariable<int32> CVarVolumetricCloudApplyFogLate(
+	TEXT("r.VolumetricCloud.ApplyFogLate"), 0,
+	TEXT("When true, fog will be applied on cloud later in the frame. Tis helps hiding latency in fog upsate on cloud due to reprojection and reconstruction. It is however more expenssive."),
+	ECVF_RenderThreadSafe);
+
 ////////////////////////////////////////////////////////////////////////// Shadow tracing
 
 static TAutoConsoleVariable<float> CVarVolumetricCloudShadowViewRaySampleMaxCount(
@@ -338,6 +343,17 @@ bool VolumetricCloudWantsSeparatedAtmosphereMieRayLeigh(const FScene* Scene)
 	{
 		const FVolumetricCloudSceneProxy& VCloudProxy = VCloud->GetVolumetricCloudSceneProxy();
 		return VCloudProxy.AerialPespectiveMieScatteringStartDistance > 0.0f || VCloudProxy.AerialPespectiveRayleighScatteringStartDistance > 0.0f;
+	}
+	return false;
+}
+
+bool ShouldVolumetricCloudsApplyFogDuringReconstruction(const FViewInfo& ViewInfo)
+{
+	if (ViewInfo.ViewState)
+	{
+		FVolumetricRenderTargetViewStateData& VRT = ViewInfo.ViewState->VolumetricCloudRenderTarget;
+		int32 VRTMode = VRT.GetMode();
+		return CVarVolumetricCloudApplyFogLate.GetValueOnRenderThread() > 0 && ShouldViewRenderVolumetricCloudRenderTarget(ViewInfo) && (VRTMode == 0 || VRTMode == 2); // Only restricting to a few mode which can exhibit update delay due to reconstruction/reprojection).
 	}
 	return false;
 }
@@ -674,6 +690,11 @@ void SetupDefaultRenderVolumetricCloudGlobalParameters(FRDGBuilder& GraphBuilder
 
 	VolumetricCloudParams.EnableHeightFog = ViewInfo.Family->Scene->HasAnyExponentialHeightFog() && ShouldRenderFog(*ViewInfo.Family);
 	SetupFogUniformParameters(GraphBuilder, ViewInfo, VolumetricCloudParams.FogStruct);
+	if (ShouldVolumetricCloudsApplyFogDuringReconstruction(ViewInfo))
+	{
+		VolumetricCloudParams.FogStruct.ApplyVolumetricFog = 0;
+		VolumetricCloudParams.EnableHeightFog = 0;
+	}
 
 	VolumetricCloudParams.LFV = ViewInfo.LocalFogVolumeViewData.UniformParametersStruct;
 
@@ -2242,6 +2263,14 @@ static TRDGUniformBufferRef<FRenderVolumetricCloudGlobalParameters> CreateCloudP
 		VolumetricCloudParams.FogStruct.ApplyVolumetricFog = 0;		// No valid camera froxel volume available.
 		VolumetricCloudParams.OpaqueIntersectionMode = 0;			// No depth buffer is available
 	}
+	else
+	{
+		if (ShouldVolumetricCloudsApplyFogDuringReconstruction(MainView))
+		{
+			VolumetricCloudParams.FogStruct.ApplyVolumetricFog = 0;
+			VolumetricCloudParams.EnableHeightFog = 0;
+		}
+	}
 
 	return GraphBuilder.CreateUniformBuffer(&VolumetricCloudParams);
 }
@@ -2472,7 +2501,7 @@ void FSceneRenderer::RenderVolumetricCloudsInternal(FRDGBuilder& GraphBuilder, F
 		PermutationVector.Set<typename FRenderVolumetricCloudRenderViewCS::FCloudSampleSecondLight>(!bCloudDebugViewModeEnabled && bSecondAtmosphereLightEnabled);
 		PermutationVector.Set<typename FRenderVolumetricCloudRenderViewCS::FCloudSampleLocalLights>(!bCloudDebugViewModeEnabled && bCloudEnableLocalLightSampling && !CloudRC.bIsSkyRealTimeReflectionRendering);
 		PermutationVector.Set<typename FRenderVolumetricCloudRenderViewCS::FCloudMinAndMaxDepth>(ShouldVolumetricCloudTraceWithMinMaxDepth(MainView) && CloudRC.SecondaryCloudTracingDataTexture!=nullptr && !CloudRC.bIsReflectionRendering);// Only for mode 0 in non reflection
-		PermutationVector.Set<typename FRenderVolumetricCloudRenderViewCS::FCloudLocalFogVolume>(MainView.LocalFogVolumeViewData.GPUInstanceCount > 0 && !CloudRC.bIsSkyRealTimeReflectionRendering); // LFVs are not culled for real time capture views.
+		PermutationVector.Set<typename FRenderVolumetricCloudRenderViewCS::FCloudLocalFogVolume>(MainView.LocalFogVolumeViewData.GPUInstanceCount > 0 && !CloudRC.bIsSkyRealTimeReflectionRendering && !ShouldVolumetricCloudsApplyFogDuringReconstruction(MainView)); // LFVs are not culled for real time capture views.
 		PermutationVector.Set<typename FRenderVolumetricCloudRenderViewCS::FCloudDebugViewMode>(bCloudDebugViewModeEnabled);
 
 		TShaderRef<FRenderVolumetricCloudRenderViewCS> ComputeShader = MaterialResource->GetShader<FRenderVolumetricCloudRenderViewCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
