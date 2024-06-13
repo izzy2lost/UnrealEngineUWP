@@ -506,9 +506,23 @@ private:
 	mutable FOnInitializationCompletePreNotify OnInitializationCompletePreNotifyEvent;
 };
 
+namespace UE::OnlineFramework
+{
+PARTY_API TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty& SocialParty);
+PARTY_API TArray<USocialToolkit*> GetLocalPartyMemberToolkits(const USocialParty& SocialParty);
+} // UE::OnlineFramework::Party
+
 namespace UE::OnlineFramework::Party
 {
-PARTY_API TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty* SocialParty);
+UE_DEPRECATED(5.5, "Use UE::OnlineFramework::GetPartyMemberIds")
+inline TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty* SocialParty)
+{
+	if (SocialParty)
+	{
+		return UE::OnlineFramework::GetPartyMemberIds(*SocialParty);
+	}
+	return {};
+}
 } // UE::OnlineFramework::Party
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

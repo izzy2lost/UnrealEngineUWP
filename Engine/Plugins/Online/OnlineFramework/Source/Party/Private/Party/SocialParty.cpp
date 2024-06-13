@@ -2099,25 +2099,41 @@ void USocialParty::RunJoinInProgressTimer()
 	}
 }
 
-namespace UE::OnlineFramework::Party
+namespace UE::OnlineFramework
 {
-TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty* SocialParty)
+TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty& SocialParty)
 {
 	TArray<FUniqueNetIdRepl> PartyMemberIds;
-	if (SocialParty)
+	auto IsPartyMemberValid = [](const UPartyMember* PartyMember)
 	{
-		auto IsPartyMemberValid = [](const UPartyMember* PartyMember)
-		{
-			CA_ASSUME(PartyMember); // GetPartyMembers filters null members
-			return PartyMember->GetPrimaryNetId().IsValid();
-		};
-		auto GetPartyMemberId = [](const UPartyMember* PartyMember)
-		{
-			CA_ASSUME(PartyMember); // GetPartyMembers filters null members
-			return PartyMember->GetPrimaryNetId();
-		};
-		Algo::TransformIf(SocialParty->GetPartyMembers(), PartyMemberIds, IsPartyMemberValid, GetPartyMemberId);
-	}
+		CA_ASSUME(PartyMember); // GetPartyMembers filters null members
+		return PartyMember->GetPrimaryNetId().IsValid();
+	};
+	auto GetPartyMemberId = [](const UPartyMember* PartyMember)
+	{
+		CA_ASSUME(PartyMember); // GetPartyMembers filters null members
+		return PartyMember->GetPrimaryNetId();
+	};
+	Algo::TransformIf(SocialParty.GetPartyMembers(), PartyMemberIds, IsPartyMemberValid, GetPartyMemberId);
 	return PartyMemberIds;
 }
+
+TArray<USocialToolkit*> GetLocalPartyMemberToolkits(const USocialParty& SocialParty)
+{
+	TArray<USocialToolkit*> SocialToolkits;
+	TArray<UPartyMember*> PartyMembers = SocialParty.GetPartyMembers<UPartyMember>();
+	for (const UPartyMember* PartyMember : PartyMembers)
+	{
+		CA_ASSUME(PartyMember); // GetPartyMembers filters null members
+		if (PartyMember->IsLocalPlayer())
+		{
+			if (USocialToolkit* SocialToolkit = SocialParty.GetSocialManager().GetSocialToolkit(PartyMember->GetPrimaryNetId()))
+			{
+				SocialToolkits.Add(SocialToolkit);
+			}
+		}
+	}
+	return SocialToolkits;
+}
+
 } // UE::OnlineFramework::Party
