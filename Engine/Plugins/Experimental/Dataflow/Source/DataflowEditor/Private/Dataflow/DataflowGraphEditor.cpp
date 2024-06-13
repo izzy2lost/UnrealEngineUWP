@@ -457,6 +457,7 @@ void SDataflowGraphEditor::OnAddOptionPin()
 				if (Node->CanAddPin())
 				{
 					const FScopedTransaction Transaction(LOCTEXT("AddOptionPin", "Add Option Pin"));
+					Graph->Modify();
 					EdNode->Modify();
 
 					EdNode->AddOptionPin();
@@ -521,6 +522,7 @@ void SDataflowGraphEditor::OnRemoveOptionPin()
 				if (Node->CanRemovePin())
 				{
 					const FScopedTransaction Transaction(LOCTEXT("RemoveOptionPin", "Remove Option Pin"));
+					Graph->Modify();
 					EdNode->Modify();
 
 					EdNode->RemoveOptionPin();

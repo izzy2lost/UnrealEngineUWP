@@ -21,6 +21,13 @@ namespace Dataflow
 	{
 	}
 
+	void FGraph::Reset()
+	{
+		Nodes.Reset();
+		FilteredNodes.Reset();
+		Connections.Reset();
+		DisabledNodes.Reset();
+	}
 
 	void FGraph::RemoveNode(TSharedPtr<FDataflowNode> Node)
 	{
@@ -210,6 +217,8 @@ namespace Dataflow
 
 	void FGraph::SerializeForLoading(FArchive& Ar, FGraph* InGraph, UObject* OwningObject)
 	{
+		InGraph->Reset();
+
 		const bool bDataflowSeparateInputOutputSerialization = (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization);
 		const bool bDataflowAnyTypeSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowAnyTypeSupport);
 		const bool bDataflowTemplateTypeFix = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowTemplatedTypeFix);
