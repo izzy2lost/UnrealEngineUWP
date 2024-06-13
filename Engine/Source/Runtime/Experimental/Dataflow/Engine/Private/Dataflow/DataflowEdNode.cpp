@@ -631,6 +631,8 @@ bool UDataflowEdNode::ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, 
 
 void UDataflowEdNode::PostEditUndo()
 {
+	Super::PostEditUndo();
+
 	// Refresh the current graph, so the pins or whatever happened to this object can be reflected to the graph
 	if (UEdGraph* const ParentGraph = GetGraph())
 	{
