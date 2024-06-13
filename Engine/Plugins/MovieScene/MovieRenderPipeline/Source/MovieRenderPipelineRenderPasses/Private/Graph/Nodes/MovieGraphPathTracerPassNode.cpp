@@ -89,9 +89,9 @@ void UMovieGraphPathTracerRenderPassNode::SetupImpl(const FMovieGraphRenderPassS
 
 	// Reset the max frame count to 0 if spatial denoiser is in use.
 	// We need this reset because here we use the max of all nodes.
-	const EMovieGraphPathTracerDenoiserType EffectiveDenoiserType = static_cast<EMovieGraphPathTracerDenoiserType>(MaxDenoiserType);
+	const EMovieGraphPathTracerDenoiserType EffectiveDenosierType = static_cast<EMovieGraphPathTracerDenoiserType>(MaxDenoiserType);
 
-	if (EffectiveDenoiserType == EMovieGraphPathTracerDenoiserType::Spatial)
+	if (EffectiveDenosierType == EMovieGraphPathTracerDenoiserType::Spatial)
 	{
 		MaxFrameCount = 0;
 	}
@@ -110,14 +110,14 @@ void UMovieGraphPathTracerRenderPassNode::SetupImpl(const FMovieGraphRenderPassS
 	}
 
 	//If no temporal denoiser is enabled, provide warning if we use temporal denoiser.
-	if (!HasTemporalDenoiser())
+	if (!HasTemporalDenosier())
 	{
-		bool bShouldPerformTemporalDenoising = EMovieGraphPathTracerDenoiserType::Temporal == EffectiveDenoiserType;
+		bool bShouldPerformTemporalDenoising = EMovieGraphPathTracerDenoiserType::Temporal == EffectiveDenosierType;
 
 		if (bShouldPerformTemporalDenoising)
 		{
 			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("The Path Traced Renderer node of Layer `%s` enables temporal denoising but no temporal denoiser plugin is enabled." 
-														 "Fallback to the first available spatial denoiser. Please enable at least one denoiser plugin "
+														 "Fallback to the first available spatial denosier. Please enable at least one denoiser plugin "
 														 "with temporal denoising capability to fully apply the node setting."), *WarningLayerName);
 		}
 	}
@@ -172,7 +172,7 @@ int32 UMovieGraphPathTracerRenderPassNode::GetCoolingDownFrameCount() const
 {
 	return ((DenoiserType == EMovieGraphPathTracerDenoiserType::Temporal)
 		&& GetAllowDenoiser()
-		&& HasTemporalDenoiser()) ? FrameCount : 0;
+		&& HasTemporalDenosier()) ? FrameCount : 0;
 }
 
 EViewModeIndex UMovieGraphPathTracerRenderPassNode::GetViewModeIndex() const
