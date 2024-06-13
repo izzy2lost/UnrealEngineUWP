@@ -47,9 +47,15 @@ namespace UE::Mass::Private
 //-----------------------------------------------------------------------------
 // FMassEntityManager::FEntityCreationContext
 //-----------------------------------------------------------------------------
+FMassEntityManager::FEntityCreationContext::FEntityCreationContext()
+	: OwnerThreadId(FPlatformTLS::GetCurrentThreadId())
+{	
+}
+
 FMassEntityManager::FEntityCreationContext::FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities)
-	: CreatedEntities(InCreatedEntities)
+	: FEntityCreationContext()
 {
+	CreatedEntities = InCreatedEntities;
 	Manager = InManager.AsShared();
 }
 
@@ -85,11 +91,15 @@ TConstArrayView<FMassArchetypeEntityCollection> FMassEntityManager::FEntityCreat
 
 void FMassEntityManager::FEntityCreationContext::MarkDirty()
 {
+	checkf(OwnerThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("%hs: all FEntityCreationContext operations ere expected to be run in a single thread"), __FUNCTION__);
+
 	EntityCollections.Reset();
 }
 
 void FMassEntityManager::FEntityCreationContext::AppendEntities(const TConstArrayView<FMassEntityHandle> EntitiesToAppend)
 {
+	checkf(OwnerThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("%hs: all FEntityCreationContext operations ere expected to be run in a single thread"), __FUNCTION__);
+
 	if (EntitiesToAppend.Num())
 	{
 		if (CreatedEntities.Num())
@@ -109,6 +119,8 @@ void FMassEntityManager::FEntityCreationContext::AppendEntities(const TConstArra
 
 void FMassEntityManager::FEntityCreationContext::AppendEntities(const TConstArrayView<FMassEntityHandle> EntitiesToAppend, FMassArchetypeEntityCollection&& InEntityCollection)
 {
+	checkf(OwnerThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("%hs: all FEntityCreationContext operations ere expected to be run in a single thread"), __FUNCTION__);
+
 	if (EntitiesToAppend.Num() == 0)
 	{
 		return;
@@ -122,6 +134,11 @@ void FMassEntityManager::FEntityCreationContext::AppendEntities(const TConstArra
 		checkf(EntityCollections.Num() == 0, TEXT("We never expect EntityCollections to be non-empty while there are no entities in CreatedEntities."));
 		EntityCollections.Add(MoveTemp(InEntityCollection));
 	}
+}
+
+void FMassEntityManager::FEntityCreationContext::ForceUpdateCurrentThreadID()
+{
+	OwnerThreadId = FPlatformTLS::GetCurrentThreadId();
 }
 
 //-----------------------------------------------------------------------------
@@ -415,6 +432,11 @@ void FMassEntityManager::OnPostFork(EForkProcessRole Role)
 			{
 				CommandBuffer = MakeShareable(new FMassCommandBuffer());
 			}
+		}
+
+		if (TSharedPtr<FEntityCreationContext> ActiveContext = ActiveCreationContext.Pin())
+		{
+			ActiveContext->ForceUpdateCurrentThreadID();
 		}
 	}
 }
@@ -914,7 +936,6 @@ void FMassEntityManager::BatchDestroyEntities(TConstArrayView<FMassEntityHandle>
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
 	checkf(IsDuringEntityCreation() == false, TEXT("%hs: Trying to destroy entities while entity creation is under way. This operation is not supported."), __FUNCTION__);
 
-	// @todo optimize, we can make savings by implementing Archetype->RemoveEntities()
 	for (const FMassEntityHandle Entity : InEntities)
 	{
 		if (GetEntityStorageInterface().IsValidIndex(Entity.Index) == false)
@@ -941,6 +962,11 @@ void FMassEntityManager::BatchDestroyEntities(TConstArrayView<FMassEntityHandle>
 
 void FMassEntityManager::BatchDestroyEntityChunks(const FMassArchetypeEntityCollection& EntityCollection)
 {
+	BatchDestroyEntityChunks(MakeArrayView(&EntityCollection, 1));
+}
+
+void FMassEntityManager::BatchDestroyEntityChunks(TConstArrayView<FMassArchetypeEntityCollection> Collections)
+{
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchDestroyEntityChunks);
 
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
@@ -952,22 +978,25 @@ void FMassEntityManager::BatchDestroyEntityChunks(const FMassArchetypeEntityColl
 	// destruction the commands will work on outdated information (which might result in crashes).
 	FMassProcessingContext ProcessingContext(*this, /*TimeDelta=*/0.0f);
 
-	bool bValidArchetype = EntityCollection.GetArchetype().IsValid();
-	if (bValidArchetype)
+	for (const FMassArchetypeEntityCollection& EntityCollection : Collections)
 	{
-		ProcessingContext.bFlushCommandBuffer = false;
-		ProcessingContext.CommandBuffer = MakeShareable(new FMassCommandBuffer());
-		ObserverManager.OnPreEntitiesDestroyed(ProcessingContext, EntityCollection);
+		EntitiesRemoved.Reset();
+		if (EntityCollection.GetArchetype().IsValid())
+		{
+			ProcessingContext.bFlushCommandBuffer = false;
+			ProcessingContext.CommandBuffer = MakeShareable(new FMassCommandBuffer());
+			ObserverManager.OnPreEntitiesDestroyed(ProcessingContext, EntityCollection);
 
-		FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(EntityCollection.GetArchetype());
-		ArchetypeData.BatchDestroyEntityChunks(EntityCollection.GetRanges(), EntitiesRemoved);
+			FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(EntityCollection.GetArchetype());
+			ArchetypeData.BatchDestroyEntityChunks(EntityCollection.GetRanges(), EntitiesRemoved);
 		
-		GetEntityStorageInterface().Release(EntitiesRemoved);
-	}
-	else
-	{
-		UE::Mass::Private::ConvertArchetypelessSubchunksIntoEntityHandles(EntityCollection.GetRanges(), EntitiesRemoved);
-		GetEntityStorageInterface().ForceRelease(EntitiesRemoved);
+			GetEntityStorageInterface().Release(EntitiesRemoved);
+		}
+		else
+		{
+			UE::Mass::Private::ConvertArchetypelessSubchunksIntoEntityHandles(EntityCollection.GetRanges(), EntitiesRemoved);
+			GetEntityStorageInterface().ForceRelease(EntitiesRemoved);
+		}
 	}
 }
 

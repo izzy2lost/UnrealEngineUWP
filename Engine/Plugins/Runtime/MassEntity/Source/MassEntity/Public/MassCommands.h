@@ -188,10 +188,7 @@ protected:
 
 		TArray<FMassArchetypeEntityCollection> EntityCollectionsToDestroy;
 		UE::Mass::Utils::CreateEntityCollections(System, TargetEntities, FMassArchetypeEntityCollection::FoldDuplicates, EntityCollectionsToDestroy);
-		for (FMassArchetypeEntityCollection& Collection : EntityCollectionsToDestroy)
-		{
-			System.BatchDestroyEntityChunks(Collection);
-		}
+		System.BatchDestroyEntityChunks(EntityCollectionsToDestroy);
 	}
 };
 

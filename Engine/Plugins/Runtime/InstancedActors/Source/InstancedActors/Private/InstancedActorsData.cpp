@@ -1091,10 +1091,7 @@ void UInstancedActorsData::RuntimeRemoveInstances(TConstArrayView<FInstancedActo
 
 		// Destroy entities. This will also trigger actor destruction for any spawned actors
 		// for these entities.
-		for (FMassArchetypeEntityCollection& EntityCollectionToDestroy : EntityCollectionsToDestroy)
-		{
-			MassEntityManager.BatchDestroyEntityChunks(EntityCollectionToDestroy);
-		}
+		MassEntityManager.BatchDestroyEntityChunks(EntityCollectionsToDestroy);
 	}
 	// Pre-empt entity spawning and simply invalidate InstanceTransform entries, preventing them from spawning later
 	else
@@ -1132,10 +1129,7 @@ void UInstancedActorsData::RuntimeRemoveAllInstances()
 
 		// Destroy entities. This will also trigger actor destruction for any spawned actors
 		// for these entities.
-		for (FMassArchetypeEntityCollection& EntityCollectionToDestroy : EntityCollectionsToDestroy)
-		{
-			MassEntityManager.BatchDestroyEntityChunks(EntityCollectionToDestroy);
-		}
+		MassEntityManager.BatchDestroyEntityChunks(EntityCollectionsToDestroy);
 
 		// Zero out all entity handles to 'reset' them
 		FMemory::Memzero(Entities.GetData(), Entities.GetTypeSize() * Entities.Num());

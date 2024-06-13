@@ -209,13 +209,11 @@ public:
 	/**
 	 * A dedicated structure for ensuring the "on entities creation" observers get notified only once all other 
 	 * initialization operations are done and this creation context instance gets released. 
-	 * 
-	 * @NOTE the whole concept relies on the assumption we only ever create or "build" entities in a single thread (usually the GameThread).
 	 */
 	struct MASSENTITY_API FEntityCreationContext
 	{
 	private:
-		FEntityCreationContext() = default;
+		FEntityCreationContext();
 		explicit FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities = {});
 		FEntityCreationContext(FMassEntityManager& InManager, const TConstArrayView<FMassEntityHandle> InCreatedEntities, FMassArchetypeEntityCollection&& EntityCollection);
 		
@@ -240,6 +238,14 @@ public:
 
 	private:
 		friend FMassEntityManager;
+		/** To be called in case of processor forking. */
+		void ForceUpdateCurrentThreadID();
+
+		/**
+		 * Identifies the thread where given FEntityCreationContext instance was created. All subsequent operations are 
+		 * expected to be run in the same thread.
+		 */
+		uint32 OwnerThreadId;
 		mutable TArray<FMassArchetypeEntityCollection> EntityCollections;
 		TArray<FMassEntityHandle> CreatedEntities;
 		FMassArchetypeEntityCollection::EDuplicatesHandling CollectionCreationDuplicatesHandling = FMassArchetypeEntityCollection::EDuplicatesHandling::NoDuplicates;
@@ -314,6 +320,7 @@ public:
 	/**
 	 * Destroys all the entities in the provided array of entities. The function will also gracefully handle entities
 	 * that have been reserved but not created yet.
+	 * @note the function doesn't handle duplicates in InEntities.
 	 * @param InEntities to destroy
 	 */
 	void BatchDestroyEntities(TConstArrayView<FMassEntityHandle> InEntities);
@@ -324,6 +331,7 @@ public:
 	 * @param Collection to destroy
 	 */
 	void BatchDestroyEntityChunks(const FMassArchetypeEntityCollection& Collection);
+	void BatchDestroyEntityChunks(TConstArrayView<FMassArchetypeEntityCollection> Collections);
 
 	void AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType);
 	void AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType, const FStructInitializationCallback& Initializer);

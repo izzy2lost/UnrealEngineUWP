@@ -85,11 +85,7 @@ void UMassSpawnerSubsystem::DestroyEntities(TConstArrayView<FMassEntityHandle> E
 
 	TArray<FMassArchetypeEntityCollection> EntityCollections;
 	UE::Mass::Utils::CreateEntityCollections(*EntityManager.Get(), Entities, FMassArchetypeEntityCollection::NoDuplicates, EntityCollections);
-
-	for (const FMassArchetypeEntityCollection& Collection : EntityCollections)
-	{
-		EntityManager->BatchDestroyEntityChunks(Collection);
-	}
+	EntityManager->BatchDestroyEntityChunks(EntityCollections);
 }
 
 UMassProcessor* UMassSpawnerSubsystem::GetSpawnDataInitializer(TSubclassOf<UMassProcessor> InitializerClass)
