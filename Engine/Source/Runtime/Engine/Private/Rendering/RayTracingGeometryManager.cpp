@@ -144,14 +144,14 @@ void FRayTracingGeometryManager::RemoveBuildRequest(BuildRequestIndex InRequestI
 	GeometryBuildRequests.RemoveAt(InRequestIndex);
 }
 
-RayTracing::GeometryGroupHandle FRayTracingGeometryManager::RegisterRayTracingGeometryGroup(uint32 NumLODs)
+RayTracing::GeometryGroupHandle FRayTracingGeometryManager::RegisterRayTracingGeometryGroup(uint32 NumLODs, uint32 CurrentFirstLODIdx)
 {
 	FScopeLock ScopeLock(&MainCS);
 
 	FRayTracingGeometryGroup Group;
 	Group.Geometries.AddDefaulted(NumLODs);
 	Group.NumReferences = 1;
-	Group.CurrentFirstLODIdx = NumLODs;
+	Group.CurrentFirstLODIdx = CurrentFirstLODIdx;
 
 	RayTracing::GeometryGroupHandle Handle = RegisteredGroups.Add(MoveTemp(Group));
 
@@ -284,7 +284,12 @@ void FRayTracingGeometryManager::SetRayTracingGeometryGroupCurrentFirstLODIndex(
 		FRHIResourceReplaceBatcher Batcher(RHICmdList, NewCurrentFirstLODIdx - Group.CurrentFirstLODIdx);
 		for (int32 LODIdx = Group.CurrentFirstLODIdx; LODIdx < NewCurrentFirstLODIdx; ++LODIdx)
 		{
-			Group.Geometries[LODIdx]->ReleaseRHIForStreaming(Batcher);
+			// some LODs might be stripped during cook
+			// skeletal meshes only create static LOD when rendering as static
+			if (Group.Geometries[LODIdx] != nullptr)
+			{
+				Group.Geometries[LODIdx]->ReleaseRHIForStreaming(Batcher);
+			}
 		}
 	}
 

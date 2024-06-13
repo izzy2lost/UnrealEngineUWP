@@ -11,6 +11,7 @@ SkeletalMeshUpdate.cpp: Helpers to stream in and out skeletal mesh LODs.
 #include "Streaming/TextureStreamingHelpers.h"
 #include "Serialization/MemoryReader.h"
 #include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Streaming/RenderAssetUpdate.inl"
 #include "RHIResourceReplace.h"
@@ -235,6 +236,14 @@ void FSkeletalMeshStreamIn::DoFinishUpdate(const FContext& Context)
 #endif
 
 	Context.RenderData->PendingFirstLODIdx = Context.RenderData->CurrentFirstLODIdx = ResourceState.LODCountToAssetFirstLODIdx(ResourceState.NumRequestedLODs);
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && Context.RenderData->bSupportRayTracing)
+	{
+		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->SetRayTracingGeometryGroupCurrentFirstLODIndex(FRHICommandListImmediate::Get(), Context.RenderData->RayTracingGeometryGroupHandle, Context.RenderData->CurrentFirstLODIdx);
+	}
+#endif
+
 	MarkAsSuccessfullyFinished();
 }
 
@@ -383,6 +392,13 @@ void FSkeletalMeshStreamOut::ReleaseBuffers(const FContext& Context)
 #endif
 			}
 		}
+
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed() && Context.RenderData->bSupportRayTracing)
+		{
+			((FRayTracingGeometryManager*)GRayTracingGeometryManager)->SetRayTracingGeometryGroupCurrentFirstLODIndex(FRHICommandListImmediate::Get(), Context.RenderData->RayTracingGeometryGroupHandle, Context.RenderData->CurrentFirstLODIdx);
+		}
+#endif
 
 		MarkAsSuccessfullyFinished();
 	}
