@@ -4,7 +4,6 @@ using System;
 using System.Buffers;
 using System.Linq;
 using System.Security.Cryptography;
-using EpicGames.Core;
 using Horde.Server.Artifacts;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
