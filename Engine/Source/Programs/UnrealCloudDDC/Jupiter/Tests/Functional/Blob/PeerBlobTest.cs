@@ -117,7 +117,6 @@ namespace Jupiter.FunctionalTests.Storage
 
 		}
 
-
 		[TestMethod]
 		public async Task ForceFetchBlobFromNoneExistentLayerAsync()
 		{

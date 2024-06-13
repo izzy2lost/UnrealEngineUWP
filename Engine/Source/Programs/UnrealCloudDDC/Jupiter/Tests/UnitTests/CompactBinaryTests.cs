@@ -42,7 +42,6 @@ namespace Jupiter.Tests.Unit
 			Assert.AreEqual(IoHash.Parse("f855382171a0b1e5a1c653aa6c5121a05cbf4ba0"), inputsFields[0].AsHash());
 		}
 
-
 		[TestMethod]
 		public void ReferenceOutput()
 		{

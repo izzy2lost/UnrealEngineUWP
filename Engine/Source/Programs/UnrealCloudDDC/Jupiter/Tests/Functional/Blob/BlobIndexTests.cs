@@ -74,7 +74,6 @@ namespace Jupiter.FunctionalTests.Storage
 			await Teardown(_server!.Services);
 		}
 
-
 		[TestMethod]
 		public async Task PutBlobToIndexAsync()
 		{

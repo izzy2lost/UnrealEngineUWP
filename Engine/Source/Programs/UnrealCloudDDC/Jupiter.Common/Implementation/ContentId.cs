@@ -114,7 +114,6 @@ namespace Jupiter.Implementation
 				return ContentId.FromContentHash(contentHash);
 			}
 
-
 			return base.ConvertFrom(context, culture, value);  
 		}  
 	}

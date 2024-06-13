@@ -46,7 +46,6 @@ namespace Jupiter.FunctionalTests.GC
 		}
 	}
 
-
 	[TestClass]
 	[DoNotParallelize]
 	public class ScyllaPerShardGCReferencesTests : GCReferencesTests

@@ -161,7 +161,6 @@ namespace Jupiter.FunctionalTests.Storage
 			handler.Verify();
 		}
 
-
 		[TestMethod]
 		public async Task ReplicateBlobNotPresentAsync()
 		{

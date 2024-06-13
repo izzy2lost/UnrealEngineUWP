@@ -82,7 +82,6 @@ namespace Jupiter.FunctionalTests.Status
 			Assert.AreEqual(new Uri("http://use.jupiter.com"), peersResponse.Peers[0].Endpoints[0]);
 		}
 
-
 		[TestMethod]
 		public async Task GetPeerConnectionInternalAsync()
 		{

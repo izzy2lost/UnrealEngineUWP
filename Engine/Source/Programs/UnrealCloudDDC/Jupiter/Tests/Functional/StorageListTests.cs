@@ -115,7 +115,6 @@ namespace Jupiter.FunctionalTests.Storage
 		private const string DefaultContainerName = "tests-test-namespace-list";
 	}
 
-
 	[TestClass]
 	public class FileSystemStoreListTests : StorageListTests
 	{
