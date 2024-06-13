@@ -94,7 +94,7 @@ FNetworkAutomationTestWrapper::FNetworkAutomationTestWrapper(FNetworkAutomationT
 {
 }
 
-uint32 FNetworkAutomationTestWrapper::GetTestFlags() const
+EAutomationTestFlags FNetworkAutomationTestWrapper::GetTestFlags() const
 {
 	return EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext;
 }
