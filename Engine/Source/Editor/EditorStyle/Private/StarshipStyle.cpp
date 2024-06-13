@@ -4771,6 +4771,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set( "ShowFlagsMenu.Translucency", new IMAGE_BRUSH_SVG( "Starship/Common/Transparency", Icon16x16 ) );
 		Set( "ShowFlagsMenu.WidgetComponents", new IMAGE_BRUSH_SVG( "Starship/Common/WidgetComponents", Icon16x16 ) );
 		Set( "ShowFlagsMenu.Cameras", new IMAGE_BRUSH_SVG( "Starship/AssetIcons/Camera_16", Icon16x16 ) );
+		Set( "ShowFlagsMenu.Hair", new IMAGE_BRUSH( "Common/icon_ShowHair_16x", Icon16x16 ) );
 
 		Set("ShowFlagsMenu.SubMenu.PostProcessing", new IMAGE_BRUSH_SVG("Starship/Common/PostProcessing", Icon16x16));
 		Set("ShowFlagsMenu.SubMenu.LightTypes", new IMAGE_BRUSH_SVG("Starship/Common/LightTypes", Icon16x16));
