@@ -892,6 +892,7 @@ void FPropertyBagRepository::CopyTaggedProperties(const UObject* Source, UObject
 	TArray<uint8> Buffer;
 	Buffer.Reserve(Source->GetClass()->GetStructureSize());
 	FObjectWriter Writer(Buffer);
+	Writer.ArNoDelta = true;
 	Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), nullptr);
 
 	FObjectReader Reader(Buffer);
