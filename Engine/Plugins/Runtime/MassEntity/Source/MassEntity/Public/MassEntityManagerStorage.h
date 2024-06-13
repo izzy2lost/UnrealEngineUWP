@@ -78,8 +78,9 @@ namespace UE::Mass
 
 		virtual FMassEntityHandle AcquireOne() = 0;
 		// @return number of entities actually added
-		virtual int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles) = 0;
-		
+		int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles);
+		virtual int32 Acquire(TArrayView<FMassEntityHandle> OutEntityHandles) = 0;
+
 		virtual int32 Release(TConstArrayView<FMassEntityHandle> Handles) = 0;
 		virtual int32 ReleaseOne(FMassEntityHandle Handles) = 0;
 		
@@ -120,7 +121,8 @@ namespace UE::Mass
 		virtual SIZE_T GetAllocatedSize() const override;
 		virtual bool IsValid(int32 Index) const override;
 		virtual FMassEntityHandle AcquireOne() override;
-		virtual int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles) override;
+		using IEntityStorageInterface::Acquire;
+		virtual int32 Acquire(TArrayView<FMassEntityHandle> OutEntityHandles) override;
 		virtual int32 Release(TConstArrayView<FMassEntityHandle> Handles) override;
 		virtual int32 ReleaseOne(FMassEntityHandle Handle) override;
 		virtual int32 ForceRelease(TConstArrayView<FMassEntityHandle> Handles) override;
@@ -173,7 +175,8 @@ namespace UE::Mass
 		virtual SIZE_T GetAllocatedSize() const override;
 		virtual bool IsValid(int32 Index) const override;
 		virtual FMassEntityHandle AcquireOne() override;
-		virtual int32 Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles) override;
+		using IEntityStorageInterface::Acquire;
+		virtual int32 Acquire(TArrayView<FMassEntityHandle> OutEntityHandles) override;
 		virtual int32 Release(TConstArrayView<FMassEntityHandle> Handles) override;
 		virtual int32 ReleaseOne(FMassEntityHandle Handle) override;
 		virtual int32 ForceRelease(TConstArrayView<FMassEntityHandle> Handles) override;

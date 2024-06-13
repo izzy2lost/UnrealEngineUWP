@@ -8,6 +8,26 @@
 namespace UE::Mass
 {
 	//-----------------------------------------------------------------------------
+	// IEntityStorageInterface
+	//-----------------------------------------------------------------------------
+	int32 IEntityStorageInterface::Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles)
+	{
+		if (Count)
+		{
+			const int32 StartingIndex = OutEntityHandles.Num();
+			OutEntityHandles.AddZeroed(Count);
+			const int32 NumberAdded = Acquire(MakeArrayView(&OutEntityHandles[StartingIndex], Count));
+			if (UNLIKELY(NumberAdded < Count))
+			{
+				// need to remove the redundantly reserved entries
+				OutEntityHandles.RemoveAt(StartingIndex + NumberAdded, Count - NumberAdded, EAllowShrinking::No);
+			}
+			return NumberAdded;
+		}
+		return 0;
+	}
+
+	//-----------------------------------------------------------------------------
 	// FSingleThreadedEntityStorage
 	//-----------------------------------------------------------------------------
 	
@@ -87,17 +107,16 @@ namespace UE::Mass
 		return Handle;
 	}
 
-	int32 FSingleThreadedEntityStorage::Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles)
+	int32 FSingleThreadedEntityStorage::Acquire(TArrayView<FMassEntityHandle> OutEntityHandles)
 	{
-		check(Count >= 0);
+		const int32 NumToAdd = OutEntityHandles.Num();
 
 		const int32 SerialNumber = SerialNumberGenerator.fetch_add(1);
 
 		int32 NumAdded = 0;
+		int32 CurrentEntityHandleIndex = 0;
 
-		OutEntityHandles.Reserve(OutEntityHandles.Num() + Count);
-
-		const int32 NumAvailableFromFreeList = FMath::Min(Count, EntityFreeIndexList.Num());
+		const int32 NumAvailableFromFreeList = FMath::Min(NumToAdd, EntityFreeIndexList.Num());
 		if (NumAvailableFromFreeList > 0)
 		{
 			const int32 FirstIndexToUse = EntityFreeIndexList.Num() - NumAvailableFromFreeList;
@@ -105,21 +124,21 @@ namespace UE::Mass
 			{
 				const int32 EntityIndex = EntityFreeIndexList[Index];
 				Entities[EntityIndex].SerialNumber = SerialNumber;
-				OutEntityHandles.Add({ EntityIndex, SerialNumber });
+				OutEntityHandles[CurrentEntityHandleIndex++] = { EntityIndex, SerialNumber };
 			}
 			EntityFreeIndexList.RemoveAt(FirstIndexToUse, NumAvailableFromFreeList, EAllowShrinking::No);
 			NumAdded = NumAvailableFromFreeList;
 		}
 
-		if (NumAdded < Count)
+		if (NumAdded < NumToAdd)
 		{
-			const int32 RemainingCount = Count - NumAdded;
+			const int32 RemainingCount = NumToAdd - NumAdded;
 			const int32 StartingIndex = Entities.Num();
 			Entities.Add(RemainingCount);
 			for (int32 EntityIndex = StartingIndex; EntityIndex < Entities.Num(); ++EntityIndex)
 			{
 				Entities[EntityIndex].SerialNumber = SerialNumber;
-				OutEntityHandles.Add({ EntityIndex, SerialNumber });
+				OutEntityHandles[CurrentEntityHandleIndex++] = { EntityIndex, SerialNumber };
 			}
 			NumAdded += RemainingCount;
 		}
@@ -390,14 +409,13 @@ namespace UE::Mass
 		return Handle;
 	}
 
-	int32 FConcurrentEntityStorage::Acquire(const int32 Count, TArray<FMassEntityHandle>& OutEntityHandles)
+	int32 FConcurrentEntityStorage::Acquire(TArrayView<FMassEntityHandle> OutEntityHandles)
 	{
-		check(Count >= 0);
+		const int32 NumberToAdd = OutEntityHandles.Num();
 
 		int32 CountAdded = 0;
-		int32 CountLeft = Count;
-
-		OutEntityHandles.Reserve(OutEntityHandles.Num() + Count);
+		int32 CountLeft = NumberToAdd;
+		int32 CurrentEntityHandleIndex = 0;
 
 		while (CountLeft > 0)
 		{
@@ -425,7 +443,7 @@ namespace UE::Mass
 				EntityData.bIsAllocated = 1;
 				const int32 SerialNumber = EntityData.GetSerialNumber();
 
-				OutEntityHandles.Add({ EntityIndex, SerialNumber });
+				OutEntityHandles[CurrentEntityHandleIndex++] = { EntityIndex, SerialNumber };
 			}
 			
 			CountAdded += CountToProcess;

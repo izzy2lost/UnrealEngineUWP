@@ -758,6 +758,11 @@ TConstArrayView<FMassEntityHandle> FMassEntityManager::BatchReserveEntities(cons
 	return MakeArrayView(InOutEntities.GetData() + Index, NumAdded);
 }
 
+int32 FMassEntityManager::BatchReserveEntities(TArrayView<FMassEntityHandle> InOutEntities)
+{
+	return GetEntityStorageInterface().Acquire(InOutEntities);
+}
+
 TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload
 	, const FMassFragmentBitSet& FragmentsAffected, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassArchetypeCreationParams& CreationParams)
 {

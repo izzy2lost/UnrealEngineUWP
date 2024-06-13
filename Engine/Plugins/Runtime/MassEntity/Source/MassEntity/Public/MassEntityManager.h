@@ -357,6 +357,14 @@ public:
 	 * @return a view into InOutEntities containing only the freshly reserved entities
 	 */
 	TConstArrayView<FMassEntityHandle> BatchReserveEntities(const int32 Count, TArray<FMassEntityHandle>& InOutEntities);
+	
+	/**
+	 * Reserves number of entities corresponding to number of entries in the provided array view InOutEntities.
+	 * As a result InOutEntities gets filled with handles of reserved entities
+	 * @return the number of entities reserved
+	 */
+	int32 BatchReserveEntities(TArrayView<FMassEntityHandle> InOutEntities);
+
 	TSharedRef<FEntityCreationContext> BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, const FMassFragmentBitSet& FragmentsAffected
 		, const FMassArchetypeSharedFragmentValues& SharedFragmentValues = {}, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
 	TSharedRef<FEntityCreationContext> BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, FMassArchetypeCompositionDescriptor&& Composition
