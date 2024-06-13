@@ -431,7 +431,7 @@ void FDynamicMesh3::CompactInPlace(FCompactMaps* CompactInfo)
 		VertexUVs->Resize(VertexCount() * 2);
 	}
 
-	// [TODO] VertexEdgeLists!!!
+	VertexEdgeLists.Compact(VertexCount());
 
 	/** shift triangles **/
 

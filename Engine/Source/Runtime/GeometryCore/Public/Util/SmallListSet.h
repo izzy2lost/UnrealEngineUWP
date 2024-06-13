@@ -95,6 +95,11 @@ public:
 		FreeHeadIndex = NullValue;
 	}
 
+	/**
+	 * Clearing any lists at or after MaxListIndex and compact the ListBlocks and LinkedListElements so there are no free blocks or free linked list elements
+	 */
+	void Compact(int32 MaxListIndex);
+
 
 	/**
 	 * @return true if a list has been allocated at the given ListIndex
