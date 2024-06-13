@@ -107,10 +107,20 @@ private:
 	TArray<TRefCountPtr<FRHIRenderQuery>> Queries;
 };
 
+struct FRHICalcTextureSizeResult
+{
+	// The total size of the texture, in bytes.
+	uint64 Size;
+
+	// The required address alignment for the texture.
+	uint32 Align;
+};
+
 /** The interface which is implemented by the dynamically bound RHI. */
 class FDynamicRHI
 {
 public:
+	using FRHICalcTextureSizeResult = ::FRHICalcTextureSizeResult;
 
 	/** Declare a virtual destructor, so the dynamic RHI can be deleted without knowing its type. */
 	virtual ~FDynamicRHI() {}
@@ -361,14 +371,6 @@ public:
 
 	RHI_API virtual void RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* NewTexture);
 
-	struct FRHICalcTextureSizeResult
-	{
-		// The total size of the texture, in bytes.
-		uint64 Size;
-
-		// The required address alignment for the texture.
-		uint32 Align;
-	};
 
 	/**
 	* Computes the total GPU memory a texture resource with the specified parameters will occupy on the current RHI platform.
@@ -1159,24 +1161,25 @@ FORCEINLINE FUniformBufferRHIRef RHICreateUniformBuffer(const void* Contents, co
 	return GDynamicRHI->RHICreateUniformBuffer(Contents, Layout, Usage, Validation);
 }
 
-FORCEINLINE FDynamicRHI::FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex = 0)
+FORCEINLINE FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex = 0)
 {
 	if ( ! Desc.IsValid() )
 	{
 		// Invalid texture desc; return zero to indicate failure
-		FDynamicRHI::FRHICalcTextureSizeResult ZeroResult = { 0 };
+		FRHICalcTextureSizeResult ZeroResult{};
 		return ZeroResult;
 	}
 
 	return GDynamicRHI->RHICalcTexturePlatformSize(Desc, FirstMipIndex);
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTexture2DPlatformSize(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 Depth = 1;
 	const uint16 ArraySize = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::Texture2D,
 		Flags,
@@ -1189,17 +1192,19 @@ FORCEINLINE uint64 RHICalcTexture2DPlatformSize(uint32 SizeX, uint32 SizeY, uint
 		(uint8)NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTexture2DArrayPlatformSize(uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint8 Format, uint32 NumMips, uint32 NumSamples, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 Depth = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::Texture2DArray,
 		Flags,
@@ -1212,13 +1217,14 @@ FORCEINLINE uint64 RHICalcTexture2DArrayPlatformSize(uint32 SizeX, uint32 SizeY,
 		(uint8)NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcVMTexture2DPlatformSize(uint32 Mip0Width, uint32 Mip0Height, uint8 Format, uint32 NumMips, uint32 FirstMipIdx, uint32 NumSamples, ETextureCreateFlags Flags, uint32& OutAlign)
 {
 	const uint16 Depth     = 1;
@@ -1238,17 +1244,18 @@ FORCEINLINE uint64 RHICalcVMTexture2DPlatformSize(uint32 Mip0Width, uint32 Mip0H
 		ExtData
 	);
 
-	auto Result = RHICalcTexturePlatformSize(Desc, FirstMipIdx);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, FirstMipIdx);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTexture3DPlatformSize(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 ArraySize  = 1;
 	const uint8 NumSamples = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::Texture3D,
 		Flags,
@@ -1261,19 +1268,21 @@ FORCEINLINE uint64 RHICalcTexture3DPlatformSize(uint32 SizeX, uint32 SizeY, uint
 		NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTextureCubePlatformSize(uint32 Size, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 Depth      = 1;
 	const uint16 ArraySize  = 1;
 	const uint8 NumSamples = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::TextureCube,
 		Flags,
@@ -1286,8 +1295,9 @@ FORCEINLINE uint64 RHICalcTextureCubePlatformSize(uint32 Size, uint8 Format, uin
 		NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }

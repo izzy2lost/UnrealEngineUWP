@@ -843,18 +843,28 @@ int32 UTexture2D::CalcTextureMemorySize( int32 MipCount ) const
 		const int32 NumMips = GetNumMips();
 		const int32 FirstMip = FMath::Max(0, NumMips - MipCount);
 		const EPixelFormat Format = GetPixelFormat();
-		uint32 TextureAlign;
 
 		// Must be consistent with the logic in FTexture2DResource::InitRHI
 		if (IsStreamable() && bCanUsePartiallyResidentMips && (!CVarReducedMode->GetValueOnAnyThread() || MipCount > UTexture2D::GetMinTextureResidentMipCount()))
 		{
-			TexCreateFlags |= TexCreate_Virtual;
-			Size = (int32)RHICalcVMTexture2DPlatformSize(SizeX, SizeY, Format, NumMips, FirstMip, 1, TexCreateFlags, TextureAlign);
+			const FRHITextureDesc Desc =
+				FRHITextureCreateDesc::Create2D(TEXT("Temp"), SizeX, SizeY, Format)
+				.SetNumMips(NumMips)
+				.SetFlags(TexCreateFlags | TexCreate_Virtual);
+
+			Size = RHICalcTexturePlatformSize(Desc, FirstMip).Size;
 		}
 		else
 		{
 			const FIntPoint MipExtents = CalcMipMapExtent(SizeX, SizeY, Format, FirstMip);
-			Size = (int32)RHICalcTexture2DPlatformSize(MipExtents.X, MipExtents.Y, Format, FMath::Max(1, MipCount), 1, TexCreateFlags, FRHIResourceCreateInfo(GetPlatformData()->GetExtData()), TextureAlign);
+
+			const FRHITextureDesc Desc =
+				FRHITextureCreateDesc::Create2D(TEXT("Temp"), MipExtents, Format)
+				.SetNumMips(FMath::Max(1, MipCount))
+				.SetFlags(TexCreateFlags)
+				.SetExtData(GetPlatformData()->GetExtData());
+
+			Size = RHICalcTexturePlatformSize(Desc).Size;
 		}
 	}
 	return Size;

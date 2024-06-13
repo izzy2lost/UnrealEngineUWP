@@ -746,8 +746,7 @@ public:
 
 	FORCEINLINE FBufferRHIRef CreateVertexBuffer(uint32 Size, EBufferUsageFlags Usage, FRHIResourceCreateInfo& CreateInfo)
 	{
-		bool bHasInitialData = CreateInfo.BulkData != nullptr;
-		ERHIAccess ResourceState = RHIGetDefaultResourceState(Usage | EBufferUsageFlags::VertexBuffer, bHasInitialData);
+		ERHIAccess ResourceState = RHIGetDefaultResourceState(Usage | EBufferUsageFlags::VertexBuffer, false);
 		return CreateVertexBuffer(Size, Usage, ResourceState, CreateInfo);
 	}
 
@@ -758,8 +757,7 @@ public:
 
 	FORCEINLINE FBufferRHIRef CreateStructuredBuffer(uint32 Stride, uint32 Size, EBufferUsageFlags Usage, FRHIResourceCreateInfo& CreateInfo)
 	{
-		bool bHasInitialData = CreateInfo.BulkData != nullptr;
-		ERHIAccess ResourceState = RHIGetDefaultResourceState(Usage | EBufferUsageFlags::StructuredBuffer, bHasInitialData);
+		ERHIAccess ResourceState = RHIGetDefaultResourceState(Usage | EBufferUsageFlags::StructuredBuffer, false);
 		return CreateStructuredBuffer(Stride, Size, Usage, ResourceState, CreateInfo);
 	}
 
@@ -770,8 +768,7 @@ public:
 
 	FORCEINLINE FBufferRHIRef CreateIndexBuffer(uint32 Stride, uint32 Size, EBufferUsageFlags Usage, FRHIResourceCreateInfo& CreateInfo)
 	{
-		bool bHasInitialData = CreateInfo.BulkData != nullptr;
-		ERHIAccess ResourceState = RHIGetDefaultResourceState(Usage | EBufferUsageFlags::IndexBuffer, bHasInitialData);
+		ERHIAccess ResourceState = RHIGetDefaultResourceState(Usage | EBufferUsageFlags::IndexBuffer, false);
 		return CreateIndexBuffer(Stride, Size, Usage, ResourceState, CreateInfo);
 	}
 

@@ -84,10 +84,14 @@ FTexture3DResource::FTexture3DResource(UVolumeTexture* InOwner, const FStreamabl
 				uint32 MipExtentZ = 0;
 				CalcMipMapExtent3D(SizeX, SizeY, SizeZ, PixelFormat, State.RequestedFirstLODIdx(), MipExtentX, MipExtentY, MipExtentZ);
 
+				const FRHITextureDesc Desc =
+					FRHITextureCreateDesc::Create3D(TEXT("Temp"), MipExtentX, MipExtentY, MipExtentZ, PixelFormat)
+					.SetNumMips(State.NumRequestedLODs)
+					.SetFlags(CreationFlags)
+					.SetExtData(PlatformData->GetExtData());
 
-				uint32 TextureAlign = 0;
-				uint64 PlatformMipSize = RHICalcTexture3DPlatformSize(MipExtentX, MipExtentY, MipExtentZ, (EPixelFormat)PixelFormat, State.NumRequestedLODs, CreationFlags, FRHIResourceCreateInfo(PlatformData->GetExtData()), TextureAlign);
-				
+				const uint64 PlatformMipSize = RHICalcTexturePlatformSize(Desc).Size;
+
 				UE_LOG(LogTexture,Verbose,TEXT("FTexture3DResource::FTexture3DResource %d : %dx%dx%d : MipBytes=%d"),
 					MipIndex,MipExtentX,MipExtentY,MipExtentZ,
 					(int)PlatformMipSize);
@@ -193,13 +197,16 @@ uint64 FTexture3DResource::GetPlatformMipsSize(uint32 NumMips) const
 		uint32 MipExtentZ = 0;
 		CalcMipMapExtent3D(SizeX, SizeY, SizeZ, PixelFormat, State.LODCountToFirstLODIdx(NumMips), MipExtentX, MipExtentY, MipExtentZ);
 
-		uint32 TextureAlign = 0;
-		return RHICalcTexture3DPlatformSize(MipExtentX, MipExtentY, MipExtentZ, PixelFormat, NumMips, CreationFlags, FRHIResourceCreateInfo(PlatformData->GetExtData()), TextureAlign);
+		const FRHITextureDesc Desc =
+			FRHITextureCreateDesc::Create3D(TEXT("Temp"), MipExtentX, MipExtentY, MipExtentZ, PixelFormat)
+			.SetNumMips(NumMips)
+			.SetFlags(CreationFlags)
+			.SetExtData(PlatformData->GetExtData());
+
+		return RHICalcTexturePlatformSize(Desc).Size;
 	}
-	else
-	{
-		return 0;
-	}
+
+	return 0;
 }
 
 void FTexture3DResource::InitRHI(FRHICommandListBase& RHICmdList)

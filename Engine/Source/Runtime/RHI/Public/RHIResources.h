@@ -354,22 +354,19 @@ struct FClearValueBinding
 struct FRHIResourceCreateInfo
 {
 	FRHIResourceCreateInfo(const TCHAR* InDebugName)
-		: BulkData(nullptr)
-		, ResourceArray(nullptr)
-		, ClearValueBinding(FLinearColor::Transparent)
-		, GPUMask(FRHIGPUMask::All())
-		, bWithoutNativeResource(false)
-		, DebugName(InDebugName)
-		, ExtData(0)
+		: DebugName(InDebugName)
 	{
 		check(InDebugName);
 	}
 
 	// for CreateTexture calls
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Bulk Data")
 	FRHIResourceCreateInfo(const TCHAR* InDebugName, FResourceBulkDataInterface* InBulkData)
 		: FRHIResourceCreateInfo(InDebugName)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		BulkData = InBulkData;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	// for CreateBuffer calls
@@ -379,38 +376,48 @@ struct FRHIResourceCreateInfo
 		ResourceArray = InResourceArray;
 	}
 
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with a Clear Value Binding")
 	FRHIResourceCreateInfo(const TCHAR* InDebugName, const FClearValueBinding& InClearValueBinding)
 		: FRHIResourceCreateInfo(InDebugName)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ClearValueBinding = InClearValueBinding;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Ext Data")
 	FRHIResourceCreateInfo(uint32 InExtData)
 		: FRHIResourceCreateInfo(TEXT(""))
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ExtData = InExtData;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FName GetTraceClassName() const									{ const static FLazyName FRHIBufferName(TEXT("FRHIBuffer")); return (ClassName == NAME_None) ? FRHIBufferName : ClassName; }
 
 	// for CreateTexture calls
-	FResourceBulkDataInterface* BulkData;
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Bulk Data")
+	FResourceBulkDataInterface* BulkData = nullptr;
 
 	// for CreateBuffer calls
-	FResourceArrayUploadInterface* ResourceArray;
+	FResourceArrayUploadInterface* ResourceArray = nullptr;
 
 	// for binding clear colors to render targets.
-	FClearValueBinding ClearValueBinding;
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with a Clear Value Binding")
+	FClearValueBinding ClearValueBinding = FClearValueBinding(FLinearColor::Transparent);
 
 	// set of GPUs on which to create the resource
-	FRHIGPUMask GPUMask;
+	FRHIGPUMask GPUMask = FRHIGPUMask::All();
 
 	// whether to create an RHI object with no underlying resource
-	bool bWithoutNativeResource;
-	const TCHAR* DebugName;
+	bool bWithoutNativeResource = false;
 
 	// optional data that would have come from an offline cooker or whatever - general purpose
-	uint32 ExtData;
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Ext Data")
+	uint32 ExtData = 0;
+
+	const TCHAR* DebugName;
 
 	FName ClassName = NAME_None;	// The owner class of FRHIBuffer used for Insight asset metadata tracing
 	FName OwnerName = NAME_None;	// The owner name used for Insight asset metadata tracing

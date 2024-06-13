@@ -205,22 +205,36 @@ uint64 FTexture2DResource::GetPlatformMipsSize(uint32 NumMips) const
 		static TConsoleVariableData<int32>* CVarReducedMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextureReducedMemory"));
 		check(CVarReducedMode);
 
+		FRHICalcTextureSizeResult Result{};
+
 		uint32 TextureAlign = 0;
 		// Must be consistent with the logic in FTexture2DResource::InitRHI
 		if (bUsePartiallyResidentMips && (!CVarReducedMode->GetValueOnRenderThread() || NumMips > State.NumNonStreamingLODs))
 		{
-			return RHICalcVMTexture2DPlatformSize(SizeX, SizeY, PixelFormat, State.MaxNumLODs, State.LODCountToFirstLODIdx(NumMips), 1, CreationFlags | TexCreate_Virtual, TextureAlign);
+			const FRHITextureDesc Desc =
+				FRHITextureCreateDesc::Create2D(TEXT("Temp"), SizeX, SizeY, PixelFormat)
+				.SetNumMips(State.MaxNumLODs)
+				.SetFlags(CreationFlags | TexCreate_Virtual);
+
+			Result = RHICalcTexturePlatformSize(Desc, State.LODCountToFirstLODIdx(NumMips));
 		}
 		else
 		{
 			const FIntPoint MipExtents = CalcMipMapExtent(SizeX, SizeY, PixelFormat, State.RequestedFirstLODIdx());
-			return RHICalcTexture2DPlatformSize(MipExtents.X, MipExtents.Y, PixelFormat, NumMips, 1, CreationFlags, FRHIResourceCreateInfo(PlatformData->GetExtData()), TextureAlign);
+
+			const FRHITextureDesc Desc =
+				FRHITextureCreateDesc::Create2D(TEXT("Temp"), MipExtents, PixelFormat)
+				.SetNumMips(NumMips)
+				.SetFlags(CreationFlags)
+				.SetExtData(PlatformData->GetExtData());
+
+			Result = RHICalcTexturePlatformSize(Desc);
 		}
+
+		return Result.Size;
 	}
-	else
-	{
-		return 0;
-	}
+
+	return 0;
 }
 
 uint32 FTexture2DResource::CalculateTightPackedMipSize(int32 MipSizeX,int32 MipSizeY,EPixelFormat PixelFormat,

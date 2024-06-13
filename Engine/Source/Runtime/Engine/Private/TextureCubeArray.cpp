@@ -504,10 +504,12 @@ uint32 UTextureCubeArray::CalcTextureMemorySize(int32 MipCount) const
 		int32 FirstMip = FMath::Max(0, NumMips - MipCount);
 		FIntPoint MipExtents = CalcMipMapExtent(SizeX, SizeY, Format, FirstMip);
 
-		// TODO add RHICalcTextureCubeArrayPlatformSize
-		uint32 TextureAlign = 0;
-		uint64 TextureSize = RHICalcTextureCubePlatformSize(MipExtents.X, Format, FMath::Max(1, MipCount), TexCreate_None, FRHIResourceCreateInfo(GetPlatformData()->GetExtData()), TextureAlign) * ArraySize;
-		Size = (uint32)TextureSize;
+		const FRHITextureDesc Desc =
+			FRHITextureCreateDesc::CreateCubeArray(TEXT("Temp"), MipExtents.X, ArraySize, Format)
+			.SetNumMips(FMath::Max(1, MipCount))
+			.SetExtData(GetPlatformData()->GetExtData());
+
+		Size = RHICalcTexturePlatformSize(Desc).Size;
 	}
 	return Size;
 }

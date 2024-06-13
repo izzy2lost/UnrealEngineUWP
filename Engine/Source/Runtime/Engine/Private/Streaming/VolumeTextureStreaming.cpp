@@ -38,8 +38,13 @@ bool FVolumeTextureMipAllocator_Reallocate::AllocateMips(const FTextureUpdateCon
 		MipInfo.SizeY = OwnerMip.SizeY;
 		MipInfo.SizeZ = OwnerMip.SizeZ;
 
-		uint32 TextureAlign = 0;
-		MipInfo.DataSize = RHICalcTexture3DPlatformSize(MipInfo.SizeX, MipInfo.SizeY, MipInfo.SizeZ, MipInfo.Format, 1, Context.Resource->GetCreationFlags(), FRHIResourceCreateInfo(Context.Resource->GetExtData()), TextureAlign);
+		const FRHITextureDesc Desc =
+			FRHITextureCreateDesc::Create3D(TEXT("Temp"), MipInfo.SizeX, MipInfo.SizeY, MipInfo.SizeZ, MipInfo.Format)
+			.SetFlags(Context.Resource->GetCreationFlags())
+			.SetExtData(Context.Resource->GetExtData());
+
+		MipInfo.DataSize = RHICalcTexturePlatformSize(Desc).Size;
+
 		StreamedInMipData.GetMipSize()[MipIdx] = MipInfo.DataSize;
 
 		// When initializing the texture with it's bulk data, we proceed with a single allocation.
