@@ -26,14 +26,24 @@ namespace UE::DMX::GDTF
 		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
-		/** The unique name of geometry. See standard for details of specific instances, e.g. Beam, Shaper Filter etc. */
+		//~ Begin DMXGDTFGeometryCollectBase interface
+		virtual TSharedPtr<FDMXGDTFGeometry> FindGeometryByName(const TCHAR* InName) const override;
+		//~ End DMXGDTFGeometryCollectBase interface
+
+		/** The unique name of geometry. */
 		FName Name;
 
-		/** Link to the corresponding model. */
-		FString Model;
+		/** Relative position of geometry; Default value : Identity Matrix */
+		FTransform Position;
 
-		/** Relative position of geometry */
-		FTransform Position = FTransform::Identity;
+		/**
+		 * (Optional) Link to the corresponding model. The model only replaces
+		 * the model of the parent of the referenced geometry. The models of
+		 * the children of the referenced geometry are not affected. The starting
+		 * point is Models Collect. If model is not set, the model is taken from
+		 * the referenced geometry.
+		 */
+		FString Model;
 
 		/** The outer geometry collect */
 		const TWeakPtr<FDMXGDTFGeometryCollectBase> OuterGeometryCollect;

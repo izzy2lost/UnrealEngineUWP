@@ -34,7 +34,7 @@ enum class EDMXGDTFPhysicalUnit : uint8
 	Volume UMETA(DisplayName = "Volume (m3)"),
 	Speed UMETA(DisplayName = "Speed (m/s)"),
 	Acceleration UMETA(DisplayName = "Acceleration (m/s2)"),
-	AngularSpeed UMETA(DisplayName = "ngularSpeed (degree/s)"),
+	AngularSpeed UMETA(DisplayName = "AngularSpeed (degree/s)"),
 	AngularAccc UMETA(DisplayName = "AngularAccc (degree/s2"),
 	WaveLength UMETA(DisplayName = "WaveLength (nm)"),
 	ColorComponent UMETA(DisplayName = "ColorComponent"),

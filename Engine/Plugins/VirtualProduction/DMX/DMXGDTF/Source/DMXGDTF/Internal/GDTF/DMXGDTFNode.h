@@ -29,7 +29,7 @@ namespace UE::DMX::GDTF
 		virtual void Initialize(const FXmlNode& InXmlNode) = 0;
 
 		/** Creates an XML node in the parent node */
-		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) { return nullptr; };
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) = 0;
 
 		/** Returns the fixture type this node resides in */
 		TWeakPtr<FDMXGDTFFixtureType> GetFixtureType() const { return WeakFixtureType; }

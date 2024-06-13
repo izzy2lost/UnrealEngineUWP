@@ -29,7 +29,7 @@ namespace UE::DMX::GDTF
 	class IDMXGDTFGeometryNodeInterface;
 
 	/** UE specific. Bases class for all classes that have a geometry collect. */
-	class FDMXGDTFGeometryCollectBase
+	class DMXGDTF_API FDMXGDTFGeometryCollectBase
 		: public FDMXGDTFNode
 	{
 	public:
@@ -39,7 +39,6 @@ namespace UE::DMX::GDTF
 		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
-	public:
 		/** Any General Geometry. */
 		TArray<TSharedPtr<FDMXGDTFGeometry>> GeometryArray;
 
@@ -63,7 +62,7 @@ namespace UE::DMX::GDTF
 
 		/** Any Geometry that describes a media representation layer of a media device. */
 		TArray<TSharedPtr<FDMXGDTFMediaServerLayerGeometry>> MediaServerLayerArray;
-		
+
 		/** Any Geometry that describes a camera or output layer of a media device. */
 		TArray<TSharedPtr<FDMXGDTFMediaServerCameraGeometry>> MediaServerCameraArray;
 
@@ -94,22 +93,33 @@ namespace UE::DMX::GDTF
 		/** Any Geometry that describes a point where other geometries should be attached */
 		TArray<TSharedPtr<FDMXGDTFMagnetGeometry>> MagnetArray;
 
-		/** Finds the geometry by name. Can be either a geometry or a geometry reference */
-		void FindGeometryByName(const TCHAR* InName, TSharedPtr<FDMXGDTFGeometry>& OutGeometry, TSharedPtr<FDMXGDTFGeometryReference>& OutGeometryReference) const;
+		/** Returns all child geometries. Does not include self. */
+		void GetGeometriesRecursive(TArray<TSharedPtr<FDMXGDTFGeometry>>& OutGeometries, TArray<TSharedPtr<FDMXGDTFGeometryReference>>& OutGeometryReferences);
 
+		/** Finds the geometry by name. */
+		virtual TSharedPtr<FDMXGDTFGeometry> FindGeometryByName(const TCHAR* InName) const;
+
+		/** Finds geometry references by name. */
+		TSharedPtr<FDMXGDTFGeometryReference> FindGeometryReferenceByName(const TCHAR* InName) const;
+
+		/**  
+		 * Resolves a string as a link to a geometry. 
+		 * 
+		 * The string needs to be formated in the form of "Geometry1.Geometry2.[...].GeometryN" whereas Geometry1 resides in the geometry collect of the fixture type. 
+		 */
 		template <typename GeometryType>
 		TSharedPtr<GeometryType> ResolveGeometryLink(const FString& Link) const
 		{
 			TArray<FString> LinkArray;
 			Link.ParseIntoArray(LinkArray, TEXT("."));
 
-			TSharedPtr<const FDMXGDTFGeometryCollectBase> OuterGeometryCollect = StaticCastSharedRef<const FDMXGDTFGeometryCollectBase>(SharedThis(this));
+			TSharedPtr<const FDMXGDTFGeometryCollectBase> NextGeometryCollect = StaticCastSharedRef<const FDMXGDTFGeometryCollectBase>(SharedThis(this));
 			for (const FString& GeometryName : LinkArray)
 			{
 				if (&LinkArray.Last() == &GeometryName)
 				{
 					TArray<TSharedPtr<GeometryType>> FinalGeometryArray;
-					OuterGeometryCollect->GetGeometriesOfType<GeometryType>(FinalGeometryArray);
+					NextGeometryCollect->GetGeometriesOfType<GeometryType>(FinalGeometryArray);
 					const TSharedPtr<GeometryType>* GeometryPtr = Algo::FindBy(FinalGeometryArray, GeometryName, &GeometryType::Name);
 					if (GeometryPtr)
 					{
@@ -117,18 +127,23 @@ namespace UE::DMX::GDTF
 					}
 				}
 
-				TSharedPtr<FDMXGDTFGeometry> Geometry;
-				TSharedPtr<FDMXGDTFGeometryReference> GeometryReference;
-				OuterGeometryCollect->FindGeometryByName(*GeometryName, Geometry, GeometryReference);
+				const TSharedPtr<FDMXGDTFGeometry> Geometry = NextGeometryCollect->FindGeometryByName(*GeometryName);
 				if (Geometry.IsValid())
 				{
-					OuterGeometryCollect = StaticCastSharedPtr<const FDMXGDTFGeometryCollectBase>(Geometry);
+					NextGeometryCollect = StaticCastSharedPtr<const FDMXGDTFGeometryCollectBase>(Geometry);
 				}
 			}
 
 			return nullptr;
 		}
 
+		/** 
+		 * Returns all geometries of a specific type in this collect.
+		 * 
+		 * Example:
+		 * TArray<FDMXGDTFBeamGeometry> BeamGeometries;
+		 * MyGeometryCollect->GetGeometriesOfType(BeamGeometries); // Returns all beam geometries
+		 */
 		template <typename GeometryType>
 		void GetGeometriesOfType(TArray<TSharedPtr<GeometryType>>& OutArray) const
 		{

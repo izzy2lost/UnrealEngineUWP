@@ -68,8 +68,9 @@ namespace UE::DMX::GDTF
 	FXmlNode* FDMXGDTFChannelFunction::CreateXmlNode(FXmlNode& Parent)
 	{
 		const FString DefaultLink = TEXT("");
-		const FDMXGDTFDMXValue DefaultModeFrom = TEXT("0/1");
-		const FDMXGDTFDMXValue DefaultModeTo = TEXT("0/1");
+		const FDMXGDTFDMXValue DefaultDefault = FDMXGDTFDMXValue(0);
+		const FDMXGDTFDMXValue DefaultModeFrom = FDMXGDTFDMXValue(0);
+		const FDMXGDTFDMXValue DefaultModeTo = FDMXGDTFDMXValue(0);
 		const float DefaultMin = PhysicalFrom;
 		const float DefaultMax = PhysicalTo;
 		const FString DefaultCustomName = TEXT("");
@@ -79,7 +80,7 @@ namespace UE::DMX::GDTF
 			.SetAttribute(TEXT("Attribute"), Attribute)
 			.SetAttribute(TEXT("OriginalAttribute"), OriginalAttribute)
 			.SetAttribute(TEXT("DMXFrom"), DMXFrom)
-			.SetAttribute(TEXT("Default"), Default)
+			.SetAttribute(TEXT("Default"), Default, FDMXGDTFDMXValue())
 			.SetAttribute(TEXT("PhysicalFrom"), PhysicalFrom)
 			.SetAttribute(TEXT("PhysicalTo"), PhysicalTo)
 			.SetAttribute(TEXT("RealFade"), RealFade)

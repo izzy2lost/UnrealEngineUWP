@@ -2,14 +2,12 @@
 
 #include "Customizations/DMXEntityFixtureTypeDetails.h"
 
-#include "DMXEditorLog.h"
-#include "DMXInitializeFixtureTypeFromGDTFHelper.h"
-#include "Library/DMXImportGDTF.h"
-#include "Library/DMXEntityFixtureType.h"
-
-#include "CoreMinimal.h"
 #include "DetailLayoutBuilder.h"
+#include "DMXEditorLog.h"
+#include "Factories/DMXGDTFToFixtureTypeConverter.h"
 #include "IPropertyUtilities.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "Library/DMXImportGDTF.h"
 #include "PropertyHandle.h"
 
 
@@ -32,6 +30,8 @@ void FDMXEntityFixtureTypeDetails::CustomizeDetails(IDetailLayoutBuilder& Detail
 
 void FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged()
 {
+	using namespace UE::DMX::GDTF;
+
 	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = PropertyUtilities->GetSelectedObjects();
 
 	for (TWeakObjectPtr<UObject> WeakFixtureTypeObject : SelectedObjects)
@@ -48,16 +48,9 @@ void FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged()
 			}
 			UDMXImportGDTF* GDTF = FixtureType->GDTFSource.LoadSynchronous();
 
-			// Try to use the work around that supports creation of matrices, otherwise setup the fixture type with the old implementation
 			FixtureType->PreEditChange(nullptr);
-			const bool bAdvancedImportSuccess = FDMXInitializeFixtureTypeFromGDTFHelper::GenerateModesFromGDTF(*FixtureType, *GDTF);
-			if (!bAdvancedImportSuccess)
-			{
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				UE_LOG(LogDMXEditor, Warning, TEXT("Failed to initialize Fixture Type '%s', falling back to legacy method that doesn't support matrix fixtures."), *FixtureType->GetName());
-				FixtureType->SetModesFromDMXImport(GDTF);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			}
+			constexpr bool bUpdateFixtureTypeName = true;
+			FDMXGDTFToFixtureTypeConverter::ConvertGDTF(*FixtureType, *GDTF, bUpdateFixtureTypeName);
 			FixtureType->PostEditChange();
 		}
 	}

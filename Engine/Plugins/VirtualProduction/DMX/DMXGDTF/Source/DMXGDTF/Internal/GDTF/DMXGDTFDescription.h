@@ -31,6 +31,9 @@ namespace UE::DMX::GDTF
 		/** Exports an Xml file from the node tree in this description. Returns the XML file or nullptr if not a valid XML */
 		TSharedPtr<FXmlFile> ExportAsXml() const;
 
+		/** Returns the Fixture Type of this GDTF description */
+		TSharedPtr<FDMXGDTFFixtureType> GetFixtureType() const { return FixtureType; }
+
 	private:
 		/** The Fixture Type Child Node */
 		TSharedPtr<FDMXGDTFFixtureType> FixtureType;

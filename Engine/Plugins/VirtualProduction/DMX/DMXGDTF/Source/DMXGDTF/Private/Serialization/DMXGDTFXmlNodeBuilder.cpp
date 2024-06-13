@@ -139,12 +139,12 @@ namespace UE::DMX::GDTF
 
 	FDMXGDTFXmlNodeBuilder& FDMXGDTFXmlNodeBuilder::SetAttribute(const FString& AttributeName, const FDMXGDTFDMXValue& DMXValue, const TOptional<FDMXGDTFDMXValue> OptionalDefault)
 	{
-		if (OptionalDefault.IsSet() && DMXValue.Value == OptionalDefault.GetValue().Value)
+		if (OptionalDefault.IsSet() && DMXValue == OptionalDefault.GetValue())
 		{
 			return *this;
 		}
 
-		Attributes.Add(FXmlAttribute(AttributeName, DMXValue.Value));
+		Attributes.Add(FXmlAttribute(AttributeName, DMXValue.AsString()));
 		return *this;
 	}
 
@@ -203,7 +203,7 @@ namespace UE::DMX::GDTF
 		const FMatrix GDTFToUnrealMatrix = FMatrix(
 			FPlane(1.0, 0.0, 0.0, 0.0),
 			FPlane(0.0, 0.0, 1.0, 0.0),
-			FPlane(0.0, -1.0, 0.0, 0.0),
+			FPlane(0.0, 1.0, 0.0, 0.0),
 			FPlane(0.0, 0.0, 0.0, 1.0)
 		);
 

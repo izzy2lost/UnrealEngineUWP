@@ -2,29 +2,15 @@
 
 #include "MVR/DMXMVRGeneralSceneDescription.h"
 
-#include "Algo/MaxElement.h"
-#include "Algo/RemoveIf.h"
-#include "DMXProtocolCommon.h"
-#include "DMXRuntimeLog.h"
-#include "DMXRuntimeMainStreamObjectVersion.h"
-#include "EditorFramework/AssetImportData.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
-#include "Library/DMXGDTFAssetImportData.h"
-#include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
-#include "Misc/Paths.h"
 #include "MVR/DMXMVRAssetImportData.h"
 #include "MVR/Types/DMXMVRChildListNode.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-#include "MVR/Types/DMXMVRGroupObjectNode.h"
-#include "MVR/Types/DMXMVRLayerNode.h"
-#include "MVR/Types/DMXMVRLayersNode.h"
 #include "MVR/Types/DMXMVRParametricObjectNodeBase.h"
 #include "MVR/Types/DMXMVRRootNode.h"
-#include "MVR/Types/DMXMVRSceneNode.h"
 #include "XmlFile.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXMVRGeneralSceneDescription"
 
@@ -144,7 +130,10 @@ TSharedPtr<FXmlFile> UDMXMVRGeneralSceneDescription::CreateXmlFile() const
 #if WITH_EDITOR
 void UDMXMVRGeneralSceneDescription::WriteFixturePatchToGeneralSceneDescription(const UDMXEntityFixturePatch& FixturePatch)
 {
-	checkf(RootNode, TEXT("Unexpected: MVR General Scene Description Root Node is invalid."));
+	if (!ensureMsgf(RootNode, TEXT("Unexpected: MVR General Scene Description Root Node is invalid.")))
+	{
+		return;
+	}
 
 	const UDMXLibrary* DMXLibrary = FixturePatch.GetParentLibrary();
 	if (!DMXLibrary)
@@ -183,22 +172,10 @@ void UDMXMVRGeneralSceneDescription::WriteFixturePatchToGeneralSceneDescription(
 	{
 		MVRFixtureNode->GDTFMode = FixtureType->Modes[ModeIndex].ModeName;
 
-		UDMXImportGDTF* GDTF = FixtureType->GDTFSource.LoadSynchronous();
-		if (GDTF)
-		{
-			const FString SourceFilename = [GDTF]()
-			{
-				if (GDTF && GDTF->GetGDTFAssetImportData())
-				{
-					return GDTF->GetGDTFAssetImportData()->GetFilePathAndName();
-				}
-				return FString();
-			}();
+		constexpr bool bWithExtension = false;
+		MVRFixtureNode->GDTFSpec = FixtureType->GetCleanGDTFFileNameSynchronous(bWithExtension);
 
-			MVRFixtureNode->GDTFSpec = FPaths::GetCleanFilename(SourceFilename);
-
-			bSetGDTFSpec = true;
-		}
+		bSetGDTFSpec = true;
 	}
 
 	if (!bSetGDTFSpec)

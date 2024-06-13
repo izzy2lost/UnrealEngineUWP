@@ -29,7 +29,7 @@ namespace UE::DMX::GDTF
 		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
-		/** Name of the fixture type. As it is based on Name. [UE: GDTF version specific, unreal only parses the name] */
+		/** Name of the fixture type. As it is based on Name. */
 		FName Name;
 
 		/** Shortened name of the fixture type. Non detailed version or an abbreviation. Can use any characters or symbols */

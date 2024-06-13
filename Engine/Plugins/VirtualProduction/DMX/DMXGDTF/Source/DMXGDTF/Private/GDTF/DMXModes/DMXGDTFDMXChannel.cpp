@@ -10,6 +10,7 @@
 #include "GDTF/DMXModes/DMXGDTFLogicalChannel.h"
 #include "GDTF/Geometries/DMXGDTFGeometry.h"
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
+#include "GDTF/Geometries/DMXGDTFGeometryReference.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
 #include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
@@ -30,7 +31,7 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Highlight"), Highlight)
 			.GetAttribute(TEXT("Geometry"), Geometry)
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			.GetAttribute(TEXT("Default"), Default) // Deprecated with GDTF 1.1, but still initialize so old GDTFs can be supported. See DMXGDTFChannelFunction for the upgrade path.
+			.GetAttribute(TEXT("Default"), Default) // Deprecated with GDTF 1.1, but still initialized so old GDTFs can be supported. See DMXGDTFChannelFunction for the upgrade path.
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			.CreateChildren(TEXT("LogicalChannel"), LogicalChannelArray);
 	}
@@ -39,8 +40,21 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		const FString DefaultInitialFunction = TEXT("");
 
-		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
-			.SetAttribute(TEXT("DMXBreak"), DMXBreak)
+		FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this);
+
+		// Write special value overwrite if the DMXBreak is < 1
+		if (DMXBreak < 0)
+		{
+			ChildBuilder
+				.SetAttribute(TEXT("DMXBreak"), TEXT("Overwrite"));
+		}
+		else
+		{
+			ChildBuilder
+				.SetAttribute(TEXT("DMXBreak"), DMXBreak);
+		}
+
+		ChildBuilder
 			.SetAttribute(TEXT("Offset"), Offset)
 			.SetAttribute(TEXT("InitialFunction"), InitialFunction, DefaultInitialFunction)
 			.SetAttribute(TEXT("Highlight"), Highlight)
@@ -76,6 +90,43 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		return nullptr;
+	}
+
+	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFDMXChannel::ResolveGeometry() const
+	{
+		const TSharedPtr<FDMXGDTFDMXMode> DMXMode = OuterDMXMode.Pin();
+		const TSharedPtr<FDMXGDTFGeometry> TopLevelGeometry = DMXMode.IsValid() ? DMXMode->ResolveGeometry() : nullptr;
+		const TSharedPtr<FDMXGDTFGeometry> GeometryNode = TopLevelGeometry.IsValid() ? TopLevelGeometry->FindGeometryByName(*Geometry.ToString()) : nullptr;
+
+		return GeometryNode;
+	}
+
+	TArray<TSharedPtr<FDMXGDTFGeometryReference>> FDMXGDTFDMXChannel::ResolveGeometryReferences() const
+	{
+		const TSharedPtr<FDMXGDTFDMXMode> DMXMode = OuterDMXMode.Pin();
+		const TSharedPtr<FDMXGDTFGeometry> TopLevelGeometry = DMXMode.IsValid() ? DMXMode->ResolveGeometry() : nullptr;
+
+		TArray<TSharedPtr<FDMXGDTFGeometryReference>> AllGeometryReferences;
+		if (TopLevelGeometry.IsValid())
+		{
+			TArray<TSharedPtr<FDMXGDTFGeometry>> Geometries;
+			TopLevelGeometry->GetGeometriesRecursive(Geometries, AllGeometryReferences);
+		}
+
+		TArray<TSharedPtr<FDMXGDTFGeometryReference>> GeometryReferences;
+		Algo::TransformIf(AllGeometryReferences, GeometryReferences, 
+			[this](const TSharedPtr<FDMXGDTFGeometryReference>& GeometryReference)
+			{
+				return 
+					GeometryReference.IsValid() && 
+					GeometryReference->Geometry == Geometry;
+			},
+			[](const TSharedPtr<FDMXGDTFGeometryReference>& GeometryReference)
+			{
+				return GeometryReference;
+			});
+
+		return GeometryReferences;
 	}
 
 	TArray<uint32> FDMXGDTFDMXChannel::ParseOffset(const FString& GDTFString) const

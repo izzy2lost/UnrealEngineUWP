@@ -38,6 +38,18 @@ namespace UE::DMX::GDTF
 		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
+	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFGeometry::FindGeometryByName(const TCHAR* InName) const
+	{
+		if (InName == Name)
+		{
+			// Allow to find mutable self
+			FDMXGDTFGeometry* NonConstThis = const_cast<FDMXGDTFGeometry*>(this);
+			return StaticCastSharedRef<FDMXGDTFGeometry>(NonConstThis->AsShared());
+		}
+		
+		return FDMXGDTFGeometryCollectBase::FindGeometryByName(InName);
+	}
+
 	TSharedPtr<FDMXGDTFModel> FDMXGDTFGeometry::ResolveModel() const
 	{
 		if (const TSharedPtr<FDMXGDTFFixtureType> FixtureType = GetFixtureType().Pin())

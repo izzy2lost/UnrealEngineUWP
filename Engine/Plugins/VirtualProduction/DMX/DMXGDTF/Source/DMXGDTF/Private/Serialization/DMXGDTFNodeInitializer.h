@@ -102,7 +102,7 @@ namespace UE::DMX::GDTF
 			}
 			else if constexpr (std::is_same_v<AttributeType, FDMXGDTFDMXValue>)
 			{
-				OutValue.Value = StringValue;
+				OutValue = FDMXGDTFDMXValue(*StringValue);
 			}
 			else
 			{
@@ -396,7 +396,7 @@ namespace UE::DMX::GDTF
 			const FMatrix GDTFToUnrealMatrix = FMatrix(
 				FPlane(1.0, 0.0, 0.0, 0.0),
 				FPlane(0.0, 0.0, 1.0, 0.0),
-				FPlane(0.0, -1.0, 0.0, 0.0),
+				FPlane(0.0, 1.0, 0.0, 0.0),
 				FPlane(0.0, 0.0, 0.0, 1.0)
 			);
 

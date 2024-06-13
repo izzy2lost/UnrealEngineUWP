@@ -84,10 +84,10 @@ namespace UE::DMX::GDTF
 		FString ModeMaster;
 
 		/** Only used together with ModeMaster; DMX start value; Default value: 0/1 */
-		FDMXGDTFDMXValue ModeFrom = TEXT("0/1");
+		FDMXGDTFDMXValue ModeFrom = 0;
 
 		/** Only used together with ModeMaster; DMX start value; Default value: 0/1 */
-		FDMXGDTFDMXValue ModeTo = TEXT("0/1");
+		FDMXGDTFDMXValue ModeTo = 0;
 
 		/** (Optional) Link to DMX Profile; Starting point: DMX Profile Collect */
 		FString DMXProfile;

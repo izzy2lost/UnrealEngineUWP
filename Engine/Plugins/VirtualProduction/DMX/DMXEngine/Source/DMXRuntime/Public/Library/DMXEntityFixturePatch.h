@@ -233,8 +233,11 @@ public:
 	/** Returns the MVR Fixture ÎD of this patch */
 	int32 GetFixtureID() const { return FixtureID; }
 
-	/** Generates a unique Fixture ID for this patch. */
-	void GenerateFixtureID();
+	/** 
+	 * Generates a unique Fixture ID for this patch. 
+	 * If DesiredFixtureID is > 0, tries to use this fixture ID, generates a unique one if the desired Fixture ID was already in use.
+	 */
+	void GenerateFixtureID(int32 DesiredFixtureID = -1);
 
 	/** 
 	 * Tries to find the fixture ID of the patch. Looks up the general scene description resulting in a relatively slow operation. 
@@ -249,6 +252,7 @@ public:
 	static FName GetParentFixtureTypeTemplatePropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, ParentFixtureTypeTemplate); }
 	static FName GetActiveModePropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, ActiveMode); }
 	static FName GetMVRFixtureUUIDPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, MVRFixtureUUID); }
+	static FName GetFixtureIDPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, FixtureID); }
 	static FName GetStartingChannelPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(UDMXEntityFixturePatch, StartingChannel); }
 
 	UE_DEPRECATED(5.1, "bAutoAssignAddress and related members are deprecated. Auto assign is now a method in FDMXEditorUtils and applied on demand.")

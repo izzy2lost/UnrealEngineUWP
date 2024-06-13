@@ -10,11 +10,11 @@ namespace UE::DMX::GDTF
 	class FDMXGDTFGeometryReference;
 
 	/** This XML node specifies the DMX offset for the DMX channel of the referenced geometry (XML node <Break>) */
-	class DMXGDTF_API FDMXGDTFBreak
+	class DMXGDTF_API FDMXGDTFGeometryBreak
 		: public FDMXGDTFNode
 	{
 	public:
-		FDMXGDTFBreak(const TSharedRef<FDMXGDTFGeometryReference>& InGeometryReference);
+		FDMXGDTFGeometryBreak(const TSharedRef<FDMXGDTFGeometryReference>& InGeometryReference);
 
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Break"); }

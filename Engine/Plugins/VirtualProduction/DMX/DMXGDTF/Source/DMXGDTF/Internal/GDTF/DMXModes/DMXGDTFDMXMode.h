@@ -11,6 +11,7 @@ namespace UE::DMX::GDTF
 	class FDMXGDTFDMXChannel;
 	class FDMXGDTFFixtureType;
 	class FDMXGDTFFTMacro;
+	class FDMXGDTFGeometry;
 
 	/** Each DMX mode describes logical control a part of the device in a specific mode (XML node <DMXMode>). */
 	class DMXGDTF_API FDMXGDTFDMXMode
@@ -32,7 +33,7 @@ namespace UE::DMX::GDTF
 		FString Description;
 
 		/** The first geometry in the device; Only top level geometries are allowed to be linked	 */
-		FString Geometry;
+		FName Geometry;
 
 		/** Description of all DMX channels used in the mode */
 		TArray<TSharedPtr<FDMXGDTFDMXChannel>> DMXChannels;
@@ -45,6 +46,9 @@ namespace UE::DMX::GDTF
 
 		/** The outer fixture type */
 		const TWeakPtr<FDMXGDTFFixtureType> OuterFixtureType;
+
+		/** Resolves the Geometry for this mode */
+		TSharedPtr<FDMXGDTFGeometry> ResolveGeometry() const;
 
 		/** Resolves a DMX channel or channel function */
 		void ResolveChannel(const FString& Link, TSharedPtr<FDMXGDTFDMXChannel>& OutDMXChannel, TSharedPtr<FDMXGDTFChannelFunction>& OutChannelFunction) const;

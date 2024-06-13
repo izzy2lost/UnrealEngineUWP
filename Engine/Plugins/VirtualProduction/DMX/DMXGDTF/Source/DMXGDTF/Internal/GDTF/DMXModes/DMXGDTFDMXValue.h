@@ -4,6 +4,7 @@
 
 #include "Containers/UnrealString.h"
 #include "GenericPlatform/GenericPlatform.h"
+#include "Misc/Optional.h"
 
 namespace UE::DMX::GDTF
 {
@@ -15,11 +16,36 @@ namespace UE::DMX::GDTF
 	struct DMXGDTF_API FDMXGDTFDMXValue
 	{
 		FDMXGDTFDMXValue() = default;
-		FDMXGDTFDMXValue(const TCHAR* InValue);
+		FDMXGDTFDMXValue(const FString& InValue);
+		FDMXGDTFDMXValue(const uint32 InValue);
+		FDMXGDTFDMXValue(const TOptional<uint32>& InValue);
 
-		FString Value = TEXT("None");
+		bool operator==(const FDMXGDTFDMXValue& Other) const { return IntegerValue == Other.IntegerValue; }
+		bool operator!=(const FDMXGDTFDMXValue& Other) const { return IntegerValue != Other.IntegerValue; }
 
-		/** Returns the value as integer. Note this is a relatively slow operation as it parses the string. */
-		bool ToInt(uint32& OutInteger) const;
+		/** Returns the value as an optional integer. If the optional is not set, it equals to "None". */
+		TOptional<uint32> AsInt() const { return IntegerValue; }
+
+		/** Returns the value as an integer. Assumes the int is set (checked). */
+		uint32 AsIntChecked() const;
+
+		/** Returns the value as string. */
+		FString AsString() const { return StringValue; }
+
+		/** Returns true if the value is set. Otherwise it uses special value "None". */
+		bool IsSet() const;
+
+		/** Sets the DMX Value by int. */
+		void Set(uint32 InValue);
+
+		/** Sets the value by string. Special value "None" resets the optional int. */
+		void Set(const FString& InValue);
+
+		/** Resets to None. */
+		void Reset();
+
+	private:
+		FString StringValue = TEXT("None");
+		TOptional<uint32> IntegerValue;
 	};
 }

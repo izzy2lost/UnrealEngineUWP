@@ -40,11 +40,11 @@ namespace UE::DMX::GDTF
 		/** The type of support */
 		EDMXGDTFGeometrySupportType SupportType = EDMXGDTFGeometrySupportType::Rope;
 
-		/** The name of the rope cross section. Only for Ropes.  */
+		/** The name of the rope cross section. Only for Ropes. */
 		FString RopeCrossSection;
 
 		/** The Offset of the rope from bottom to top. Only for Ropes. Unit: meter */
-		FVector RopeOffset;
+		FVector RopeOffset = FVector::ZeroVector;
 
 		/** The allowable force on the X-Axis applied to the object according to the Eurocode. Unit: N. */
 		float CapacityX = 0.f;

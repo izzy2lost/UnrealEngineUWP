@@ -3,9 +3,7 @@
 #include "Library/DMXEntityFixtureType.h"
 
 #include "DMXConversions.h"
-#include "DMXGDTF.h"
 #include "DMXProtocolSettings.h"
-#include "DMXRuntimeLog.h"
 #include "DMXRuntimeMainStreamObjectVersion.h"
 #include "DMXRuntimeUtils.h"
 #include "Library/DMXEntityFixturePatch.h"
@@ -13,8 +11,8 @@
 #include "Library/DMXImport.h"
 #include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
-
-#include "Algo/Find.h"
+#include "Misc/EngineVersion.h"
+#include "Misc/Paths.h"
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixtureType"
 
@@ -311,6 +309,29 @@ void UDMXEntityFixtureType::PostEditUndo()
 	Super::PostEditUndo();
 
 	OnFixtureTypeChangedDelegate.Broadcast(this);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+FString UDMXEntityFixtureType::GetCleanGDTFFileNameSynchronous(bool bWithExtension) const
+{
+	if (!GDTFSource.IsNull())
+	{
+		if (UDMXImportGDTF* GDTF = GDTFSource.LoadSynchronous())
+		{
+			const FString GDTFFilename = FPaths::GetBaseFilename(GDTF->GetGDTFAssetImportData()->GetFilePathAndName());
+			const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
+
+			return GDTFFilename + Extension;
+		}
+	}
+
+	const FString EngineVersion = FString::Printf(TEXT("%u_%u"), FEngineVersion::Current().GetMajor(), FEngineVersion::Current().GetMinor());
+	const FString DateTime = FDateTime::Now().ToString(TEXT("%d_%m_%y"));
+	const FString GDTFFilename = FString::Printf(TEXT("EpicGames@UE%s_Generated_%s@%s"), *EngineVersion, *Name, *DateTime);
+	const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
+
+	return GDTFFilename + Extension;
 }
 #endif // WITH_EDITOR
 

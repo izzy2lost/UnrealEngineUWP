@@ -9,6 +9,8 @@ namespace UE::DMX::GDTF
 {
 	class FDMXGDTFChannelFunction;
 	class FDMXGDTFDMXMode;
+	class FDMXGDTFGeometry;
+	class FDMXGDTFGeometryReference;
 	class FDMXGDTFLogicalChannel;
 
 	/**
@@ -68,7 +70,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		 * location, put it in the top level geometry of the geometry tree. Attributes follow a trickle down principle, so
 		 * they are inherited from top down
 		 */
-		FString Geometry;
+		FName Geometry;
 
 		/** A list of logical channels */
 		TArray<TSharedPtr<FDMXGDTFLogicalChannel>> LogicalChannelArray;
@@ -81,6 +83,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** Resolves the linked initial function. Returns the initial function, or nullptr if no initial function is linked */
 		TSharedPtr<FDMXGDTFChannelFunction> ResolveInitialFunction() const;
+
+		/** 
+		 * Resolves the linked geometry. Returns the geometry, or nullptr if no geometry is linked. 
+		 * To resolve as geometry references, see ResolveGeometryReferences.
+		 * 
+		 * Note, GDTFs of older version directly reference a model as geometry. Such models are not considered.
+		 */
+		TSharedPtr<FDMXGDTFGeometry> ResolveGeometry() const;
+
+		/** Resolves the linked geometry as geometry references. Returns geometry references or an empty array, if no linked geometry references could be found. */
+		TArray<TSharedPtr<FDMXGDTFGeometryReference>> ResolveGeometryReferences() const;
 
 	private:
 		/** Converts a GDTF string to an array of offsets */

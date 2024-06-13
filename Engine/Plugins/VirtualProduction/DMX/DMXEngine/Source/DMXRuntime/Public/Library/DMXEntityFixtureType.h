@@ -78,7 +78,7 @@ struct DMXRUNTIME_API FDMXFixtureFunction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = "20"), Category = "Function Settings")
 	FString Description;
 
-	/** The Default Value of the function, imported from GDTF. The plugin doesn't make use of this value, but it can be used in blueprints */
+	/** The Default Value of the function */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = "30"), Category = "Function Settings")
 	int64 DefaultValue;
 
@@ -314,8 +314,15 @@ public:
 #endif
 	//~ End UObject interface
 
-public:
 #if WITH_EDITOR
+	/**
+	 * Acquires the GDTF file name of this Fixture Type. If bWithExtension is true, appends the .gdtf extension
+	 *
+	 * Note this is a slow operation that will load the GDTF Source if required and look up the filename from asset import data.
+	 * For Fixture Types that do not stem from an imported GDTF, a filename is generated based on the Fixture Type name.
+	 */
+	FString GetCleanGDTFFileNameSynchronous(bool bWithExtension) const;
+
 	UE_DEPRECATED(5.5, "Setting GDTFs this way is not supported. Instead set the GDTFSource and generate the modes via UDMXGDTF.")
 	UFUNCTION(BlueprintCallable, Category = "Fixture Settings", Meta = (DeprecatedFunction, DeprecationMessage = "Setting GDTFs from blueprints was never fully supported and now deprecated. Instead please refer to the Create Fixture Type In DMX Library function."))
 	void SetModesFromDMXImport(UDMXImport* DMXImportAsset);

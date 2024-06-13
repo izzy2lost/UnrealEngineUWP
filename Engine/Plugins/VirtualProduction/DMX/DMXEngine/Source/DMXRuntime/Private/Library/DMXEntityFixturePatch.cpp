@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/MaxElement.h"
+#include "Algo/NoneOf.h"
 #include "DMXConversions.h"
 #include "DMXProtocolConstants.h"
 #include "DMXRuntimeLog.h"
@@ -11,13 +12,11 @@
 #include "DMXRuntimeUtils.h"
 #include "DMXStats.h"
 #include "DMXTypes.h"
-#include "Interfaces/IDMXProtocol.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXTrace.h"
 #include "Library/DMXEntityController.h"
 #include "Library/DMXEntityFixtureType.h"
-#include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
 #include "Modulators/DMXModulator.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
@@ -27,7 +26,6 @@ DECLARE_LOG_CATEGORY_CLASS(DMXEntityFixturePatchLog, Log, All);
 
 DECLARE_CYCLE_STAT(TEXT("FixturePatch receive DMX"), STAT_DMXFixturePatchReceiveDMX, STATGROUP_DMX);
 DECLARE_CYCLE_STAT(TEXT("FixturePatch cache values"), STAT_DMXFixturePatchCacheValues, STATGROUP_DMX);
-
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixturePatch"
 
@@ -92,7 +90,7 @@ UDMXEntityFixturePatch* UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FDMX
 			}
 			else
 			{
-				// No MVR Fixture UUID specified, generate one.
+				// If no MVR Fixture UUID is specified, generate one.
 				ConstructionParams.MVRFixtureUUID = FGuid::NewGuid();
 			}
 			NewFixturePatch->MVRFixtureUUID = ConstructionParams.MVRFixtureUUID;
@@ -200,6 +198,29 @@ void UDMXEntityFixturePatch::PostLoad()
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{		
 		RebuildCache();
+		
+		// Upgrade Fixture ID and UUID from deprecated general scene description member in DMX Library
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UDMXLibrary* DMXLibrary = GetParentLibrary();
+		UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary ? DMXLibrary->GetLazyGeneralSceneDescription() : nullptr;
+		UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription ? GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID) : nullptr;
+		if (FixtureNode)
+		{
+			MVRFixtureUUID = FixtureNode->UUID;
+
+			int32 IntegralMVRFixtureID;
+			if (LexTryParseString(IntegralMVRFixtureID, *FixtureNode->FixtureID))
+			{
+				FixtureID = IntegralMVRFixtureID;
+			}
+		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		// Mend invalid fixture IDs
+		if (FixtureID < 1)
+		{
+			GenerateFixtureID();
+		}
 	}
 }
 
@@ -585,7 +606,7 @@ bool UDMXEntityFixturePatch::SetActiveModeIndex(int32 NewActiveModeIndex)
 	return false;
 }
 
-void UDMXEntityFixturePatch::GenerateFixtureID()
+void UDMXEntityFixturePatch::GenerateFixtureID(int32 DesiredFixtureID)
 {
 	if (!ParentLibrary.IsValid())
 	{
@@ -594,6 +615,25 @@ void UDMXEntityFixturePatch::GenerateFixtureID()
 	}
 
 	const TArray<UDMXEntityFixturePatch*> FixturePatches = ParentLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+
+	// Try to use the desired fixture ID
+	if (DesiredFixtureID > 0)
+	{
+		const bool bCanUseDesiredFixtureID = Algo::NoneOf(FixturePatches, [DesiredFixtureID, this](const UDMXEntityFixturePatch* Other)
+			{
+				return 
+					Other &&
+					Other != this &&
+					Other->GetFixtureID() == DesiredFixtureID;
+			});
+		if (bCanUseDesiredFixtureID)
+		{
+			FixtureID = DesiredFixtureID;
+			return;
+		}
+	}
+
+	// Generate a new fixture ID
 	const UDMXEntityFixturePatch* const* MaxFixtureIDPatchPtr = Algo::MaxElementBy(FixturePatches, [this](const UDMXEntityFixturePatch* Other)
 		{
 			if (Other && Other != this)

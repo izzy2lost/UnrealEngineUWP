@@ -3,12 +3,14 @@
 #include "GDTF/DMXModes/DMXGDTFDMXMode.h"
 
 #include "Algo/Find.h"
+#include "GDTF/DMXGDTFFixtureType.h"
 #include "GDTF/DMXModes/DMXGDTFChannelFunction.h"
 #include "GDTF/DMXModes/DMXGDTFChannelRelation.h"
 #include "GDTF/DMXModes/DMXGDTFDMXChannel.h"
 #include "GDTF/DMXModes/DMXGDTFDMXChannel.h"
 #include "GDTF/DMXModes/DMXGDTFFTMacro.h"
 #include "GDTF/DMXModes/DMXGDTFLogicalChannel.h"
+#include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
 #include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
@@ -40,6 +42,15 @@ namespace UE::DMX::GDTF
 			.AppendChildCollection(TEXT("FTMacros"), TEXT("FTMacro"), FTMacros);
 
 		return ChildBuilder.GetIntermediateXmlNode();
+	}
+
+	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFDMXMode::ResolveGeometry() const
+	{
+		const TSharedPtr<FDMXGDTFFixtureType> FixtureType = GetFixtureType().Pin();
+		const TSharedPtr<FDMXGDTFGeometryCollect> GeometryCollect = FixtureType.IsValid() ? FixtureType->GeometryCollect : nullptr;
+		const TSharedPtr<FDMXGDTFGeometry> GeometryNode = GeometryCollect.IsValid() ? GeometryCollect->FindGeometryByName(*Geometry.ToString()) : nullptr;
+
+		return GeometryNode;
 	}
 
 	void FDMXGDTFDMXMode::ResolveChannel(const FString& Link, TSharedPtr<FDMXGDTFDMXChannel>& OutDMXChannel, TSharedPtr<FDMXGDTFChannelFunction>& OutChannelFunction) const

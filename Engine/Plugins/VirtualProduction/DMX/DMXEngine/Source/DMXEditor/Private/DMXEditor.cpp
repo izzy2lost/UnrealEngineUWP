@@ -1,43 +1,36 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DMXEditor.h"
+
+#include "Commands/DMXEditorCommands.h"
+#include "DesktopPlatformModule.h"
 #include "DMXEditorLog.h"
 #include "DMXEditorModule.h"
 #include "DMXEditorSettings.h"
 #include "DMXEditorTabNames.h"
-#include "DMXEditorUtils.h"
-#include "DMXFixtureTypeSharedData.h"
 #include "DMXFixturePatchSharedData.h"
+#include "DMXFixtureTypeSharedData.h"
 #include "DMXRuntimeLog.h"
-#include "DMXRuntimeUtils.h"
 #include "Exporters/DMXMVRExporter.h"
-#include "Library/DMXLibrary.h"
-#include "Library/DMXEntityFixtureType.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "IDesktopPlatform.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXEntityReference.h"
+#include "Library/DMXLibrary.h"
+#include "Misc/MessageDialog.h"
 #include "Modes/DMXEditorApplicationMode.h"
+#include "ScopedTransaction.h"
+#include "Styling/AppStyle.h"
 #include "Toolbars/DMXEditorToolbar.h"
-#include "Commands/DMXEditorCommands.h"
-
-#include "Widgets/Layout/SScrollBox.h"
+#include "Utils.h"
 #include "Widgets/Docking/SDockTab.h"
-
-#include "Widgets/SDMXEntityEditor.h"
 #include "Widgets/FixturePatch/SDMXFixturePatchEditor.h"
 #include "Widgets/FixtureType/SDMXFixtureTypeEditor.h"
 #include "Widgets/LibrarySettings/SDMXLibraryEditorTab.h"
-
-#include "DesktopPlatformModule.h"
-#include "IDesktopPlatform.h"
-#include "ScopedTransaction.h"
-#include "Utils.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Framework/Notifications/NotificationManager.h"
-#include "Misc/MessageDialog.h"
-#include "Modules/ModuleManager.h"
-#include "Styling/AppStyle.h"
 #include "Widgets/Notifications/SNotificationList.h"
-
+#include "Widgets/SDMXEntityEditor.h"
 
 #define LOCTEXT_NAMESPACE "FDMXEditor"
 
@@ -134,26 +127,13 @@ UDMXLibrary* FDMXEditor::GetDMXLibrary() const
 void FDMXEditor::ImportDMXLibrary() const
 {
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
-	if (!DMXLibrary)
-	{
-		return;
-	}
-
 	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-	if (!DesktopPlatform)
-	{
-		return;
-	}
-
 	UDMXEditorSettings* DMXEditorSettings = GetMutableDefault<UDMXEditorSettings>();
-	if (!DMXEditorSettings)
+	if (!DMXLibrary || !DesktopPlatform || !DMXEditorSettings)
 	{
 		return;
 	}
 
-	const FString LastMVRImportPath = DMXEditorSettings->LastMVRImportPath;
-	const FString DefaultPath = FPaths::DirectoryExists(LastMVRImportPath) ? LastMVRImportPath : FPaths::ProjectSavedDir();
-	
 	if (!DMXLibrary->GetEntities().IsEmpty())
 	{
 		const FText MessageText = LOCTEXT("MVRImportDialog", "DMX Library already contains data. Importing the MVR will clear existing data. Do you want to proceed?");
@@ -162,7 +142,10 @@ void FDMXEditor::ImportDMXLibrary() const
 			return;
 		}
 	}
-
+	
+	const FString LastMVRImportPath = DMXEditorSettings->LastMVRImportPath;
+	const FString DefaultPath = FPaths::DirectoryExists(LastMVRImportPath) ? LastMVRImportPath : FPaths::ProjectSavedDir();
+	
 	TArray<FString> OpenFilenames;
 	DesktopPlatform->OpenFileDialog(
 		FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
@@ -218,7 +201,7 @@ void FDMXEditor::ExportDMXLibrary() const
 		}
 
 		FText ErrorReason;
-		FDMXMVRExporter::Export(DMXLibrary, SaveFilenames[0], ErrorReason);
+		UE::DMX::FDMXMVRExporter::Export(DMXLibrary, SaveFilenames[0], ErrorReason);
 		if (ErrorReason.IsEmpty())
 		{
 			DMXEditorSettings->LastMVRExportPath = FPaths::GetPath(SaveFilenames[0]);

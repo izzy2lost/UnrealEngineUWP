@@ -8,7 +8,7 @@
 
 namespace UE::DMX::GDTF
 {
-	class FDMXGDTFBreak;
+	class FDMXGDTFGeometryBreak;
 	class FDMXGDTFGeometry;
 	class FDMXGDTFGeometryCollectBase;
 	class FDMXGDTFModel;
@@ -35,7 +35,7 @@ namespace UE::DMX::GDTF
 		FTransform Position;
 
 		/** The referenced geometry. Only top level geometries are allowed to be referenced */
-		FString Geometry;
+		FName Geometry;
 
 		/**
 		 * (Optional) Link to the corresponding model. The model only replaces
@@ -54,7 +54,7 @@ namespace UE::DMX::GDTF
 		 * channels of the referenced geometry have the special value “Overwrite” as a DMX break, the DMX break for
 		 * those channels and the DMX offsets need to be defined
 		 */
-		TArray<TSharedPtr<FDMXGDTFBreak>> BreakArray;
+		TArray<TSharedPtr<FDMXGDTFGeometryBreak>> BreakArray;
 
 		/** The outer geometry collect */
 		const TWeakPtr<FDMXGDTFGeometryCollectBase> OuterGeometryCollect;

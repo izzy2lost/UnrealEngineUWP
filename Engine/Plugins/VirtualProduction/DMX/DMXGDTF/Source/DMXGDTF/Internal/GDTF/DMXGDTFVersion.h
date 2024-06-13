@@ -12,7 +12,7 @@ namespace UE::DMX::GDTF
 	{
 		static const uint8 MajorVersion = 1;
 
-		static const uint8 MinorVersion = 1;
+		static const uint8 MinorVersion = 2;
 
 		static const FString GetMajorVersionAsString();
 		static const FString GetMinorVersionAsString();

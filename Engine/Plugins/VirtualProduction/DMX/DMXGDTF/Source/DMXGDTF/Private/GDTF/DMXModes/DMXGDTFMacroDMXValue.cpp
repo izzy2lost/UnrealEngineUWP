@@ -31,6 +31,7 @@ namespace UE::DMX::GDTF
 
 		return ChildBuilder.GetIntermediateXmlNode();
 	}
+
 	TSharedPtr<FDMXGDTFDMXChannel> FDMXGDTFMacroDMXValue::ResolveDMXChannel() const
 	{
 		const TSharedPtr<FDMXGDTFMacroDMX> MacroDMX = OuterMacroDMXStep.IsValid() ? OuterMacroDMXStep.Pin()->OuterMacroDMX.Pin() : nullptr;

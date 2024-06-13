@@ -79,15 +79,49 @@ namespace UE::DMX::GDTF
 
 		return ChildBuilder.GetIntermediateXmlNode();
 	}
-	void FDMXGDTFGeometryCollectBase::FindGeometryByName(const TCHAR* InName, TSharedPtr<FDMXGDTFGeometry>& OutGeometry, TSharedPtr<FDMXGDTFGeometryReference>& OutGeometryReference) const
+
+	void FDMXGDTFGeometryCollectBase::GetGeometriesRecursive(TArray<TSharedPtr<FDMXGDTFGeometry>>& OutGeometries, TArray<TSharedPtr<FDMXGDTFGeometryReference>>& OutGeometryReferences)
 	{
-		const TSharedPtr<FDMXGDTFGeometryReference>* GeometryReferencePtr = Algo::FindBy(GeometryReferenceArray, InName, &FDMXGDTFGeometryReference::Name);
-		if (GeometryReferencePtr)
+		for (const TSharedPtr<FDMXGDTFGeometryReference>& GeometryReference : GeometryReferenceArray)
 		{
-			OutGeometryReference = *GeometryReferencePtr;
-			return;
+			OutGeometryReferences.Add(GeometryReference);
 		}
 
+		const auto GetChildrenRecursiveLambda = [this, &OutGeometries, &OutGeometryReferences](const auto& Geometries)
+			{
+				for (const TSharedPtr<FDMXGDTFGeometry>& Geometry : Geometries)
+				{
+					if (Geometry.IsValid())
+					{
+						OutGeometries.Add(Geometry);
+
+						Geometry->GetGeometriesRecursive(OutGeometries, OutGeometryReferences);
+					}
+				}
+			};
+
+		// Recursive for children
+		GetChildrenRecursiveLambda(GeometryArray);
+		GetChildrenRecursiveLambda(AxisArray);
+		GetChildrenRecursiveLambda(FilterBeamArray);
+		GetChildrenRecursiveLambda(FilterColorArray);
+		GetChildrenRecursiveLambda(FilterGoboArray);
+		GetChildrenRecursiveLambda(FilterShaperArray);
+		GetChildrenRecursiveLambda(BeamArray);
+		GetChildrenRecursiveLambda(MediaServerLayerArray);
+		GetChildrenRecursiveLambda(MediaServerCameraArray);
+		GetChildrenRecursiveLambda(MediaServerMasterArray);
+		GetChildrenRecursiveLambda(DisplayArray);
+		GetChildrenRecursiveLambda(LaserArray);
+		GetChildrenRecursiveLambda(WiringObjectArray);
+		GetChildrenRecursiveLambda(InventoryArray);
+		GetChildrenRecursiveLambda(StructureArray);
+		GetChildrenRecursiveLambda(SupportArray);
+		GetChildrenRecursiveLambda(MagnetArray);
+	}
+
+	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFGeometryCollectBase::FindGeometryByName(const TCHAR* InName) const
+	{
 		// Helper to find geometry nodes in arrays of different types
 		auto FindInArrayLambda = [InName](auto InArray, TSharedPtr<FDMXGDTFGeometry>& OutGeometry) -> bool
 			{
@@ -97,22 +131,31 @@ namespace UE::DMX::GDTF
 			};
 
 		TSharedPtr<FDMXGDTFGeometry> Geometry;
-		if (FindInArrayLambda(GeometryArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(AxisArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(FilterBeamArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(FilterColorArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(FilterGoboArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(FilterShaperArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(BeamArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(MediaServerLayerArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(MediaServerCameraArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(MediaServerMasterArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(DisplayArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(LaserArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(WiringObjectArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(InventoryArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(StructureArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(SupportArray, Geometry)) { OutGeometry = Geometry; }
-		else if (FindInArrayLambda(MagnetArray, Geometry)) { OutGeometry = Geometry; }
+		if (FindInArrayLambda(GeometryArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(AxisArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(FilterBeamArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(FilterColorArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(FilterGoboArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(FilterShaperArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(BeamArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(MediaServerLayerArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(MediaServerCameraArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(MediaServerMasterArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(DisplayArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(LaserArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(WiringObjectArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(InventoryArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(StructureArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(SupportArray, Geometry)) { return Geometry; }
+		else if (FindInArrayLambda(MagnetArray, Geometry)) { return Geometry; }
+
+		return nullptr;
+	}
+
+	TSharedPtr<FDMXGDTFGeometryReference> FDMXGDTFGeometryCollectBase::FindGeometryReferenceByName(const TCHAR* InName) const
+	{
+		const TSharedPtr<FDMXGDTFGeometryReference>* GeometryReferencePtr = Algo::FindBy(GeometryReferenceArray, InName, &FDMXGDTFGeometryReference::Name);
+
+		return GeometryReferencePtr ? *GeometryReferencePtr : nullptr;
 	}
 }

@@ -4,8 +4,8 @@
 
 #include "Algo/Find.h"
 #include "GDTF/DMXGDTFFixtureType.h"
-#include "GDTF/Geometries/DMXGDTFBreak.h"
 #include "GDTF/Geometries/DMXGDTFGeometry.h"
+#include "GDTF/Geometries/DMXGDTFGeometryBreak.h"
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
 #include "GDTF/Models/DMXGDTFModel.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
@@ -43,7 +43,7 @@ namespace UE::DMX::GDTF
 
 	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFGeometryReference::ResolveGeometry() const
 	{
-		// Only top level geometries are allowed
+		// Only top level geometries are allowed to be referenced 
 		const TSharedPtr<FDMXGDTFFixtureType> FixtureType = GetFixtureType().Pin();
 		const TSharedPtr<FDMXGDTFGeometryCollect> GeometryCollect = FixtureType.IsValid() ? FixtureType->GeometryCollect : nullptr;
 		if (GeometryCollect.IsValid())
