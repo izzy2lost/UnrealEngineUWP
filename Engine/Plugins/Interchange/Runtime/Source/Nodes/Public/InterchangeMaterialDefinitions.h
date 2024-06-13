@@ -341,6 +341,7 @@ namespace Interchange
 				const FName BxDF = TEXT("BxDF"); // input/output of BSDF or BRDF or BXDF or BTDF data
 				const FName Refraction = TEXT("Refraction"); // input/output of BSDF or BRDF or BXDF or BTDF data
 				const FName Anisotropy = TEXT("Anisotropy"); // Type: float
+				const FName Displacement = TEXT("Displacement"); // Type: float
 			}
 		}
 

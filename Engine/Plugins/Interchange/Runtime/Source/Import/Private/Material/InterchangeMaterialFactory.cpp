@@ -1713,6 +1713,29 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 		}
 	}
 
+	// Displacement
+	{
+		FString DisplacementUid;
+		FString OutputName;
+
+		if(MaterialFactoryNode->GetDisplacementConnection(DisplacementUid, OutputName))
+		{
+			const UInterchangeMaterialExpressionFactoryNode* DisplacementNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(DisplacementUid));
+
+			if(DisplacementNode)
+			{
+				if(UMaterialExpression* DisplacementExpression = Builder.CreateExpressionsForNode(*DisplacementNode))
+				{
+					if(FExpressionInput* DisplacementInput = Material->GetExpressionInputForProperty(MP_Displacement))
+					{
+						DisplacementExpression->ConnectExpression(DisplacementInput, GetOutputIndex(*DisplacementExpression, OutputName));
+						Material->bEnableTessellation = true;
+					}
+				}
+			}
+		}
+	}
+
 	UMaterialEditingLibrary::LayoutMaterialExpressions(Material);
 }
 #endif // #if WITH_EDITOR

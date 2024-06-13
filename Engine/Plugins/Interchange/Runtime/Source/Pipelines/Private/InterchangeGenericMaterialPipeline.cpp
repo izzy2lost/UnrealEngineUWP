@@ -1768,6 +1768,22 @@ void UInterchangeGenericMaterialPipeline::HandleCommonParameters(const UIntercha
 			}
 		}
 	}
+
+	// Displacement
+	{
+		const bool bHasDisplacementInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::Displacement);
+
+		if(bHasDisplacementInput)
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> DisplacementExpressionFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Parameters::Displacement.ToString(), MaterialFactoryNode->GetUniqueID());
+
+			if(DisplacementExpressionFactoryNode.Get<0>())
+			{
+				MaterialFactoryNode->ConnectOutputToDisplacement(DisplacementExpressionFactoryNode.Get<0>()->GetUniqueID(), DisplacementExpressionFactoryNode.Get<1>());
+			}
+		}
+	}
 }
 
 void UInterchangeGenericMaterialPipeline::HandleFlattenNormalNode(const UInterchangeShaderNode* ShaderNode, UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode,
