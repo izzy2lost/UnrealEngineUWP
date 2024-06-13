@@ -679,7 +679,7 @@ void SDMXFixturePatchList::RefreshList()
 
 	const TSharedPtr<FDMXEditor> DMXEditor = WeakDMXEditor.Pin();
 	UDMXLibrary* DMXLibrary = DMXEditor.IsValid() ? DMXEditor->GetDMXLibrary() : nullptr;
-	if (!IsValid(DMXLibrary))
+	if (!DMXLibrary)
 	{
 		return;
 	}
