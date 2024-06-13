@@ -342,12 +342,6 @@ private:
 	friend class UDataLayerManager;
 	friend class UExternalDataLayerManager;
 	friend class UDataLayerEditorSubsystem;
-
-public:
-	DECLARE_DELEGATE_RetVal_ThreeParams(bool, FDataLayersFilterDelegate, FName /*DataLayerName*/, EDataLayerRuntimeState /*CurrentState*/, EDataLayerRuntimeState /*TargetState*/);
-
-	UE_DEPRECATED(5.0, "do not use, will be replaced by another mechanism for initial release.")
-	FDataLayersFilterDelegate DataLayersFilterDelegate;
 };
 
 DEFINE_ACTORDESC_TYPE(AWorldDataLayers, FWorldDataLayersActorDesc);

@@ -233,24 +233,6 @@ void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InData
 
 	if (CurrentState != InState)
 	{
-		if (GetWorld()->IsGameWorld())
-		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			if (DataLayersFilterDelegate.IsBound())
-			{
-				const FString DataLayerShortName(InDataLayerInstance->GetDataLayerShortName());
-				if (!DataLayersFilterDelegate.Execute(FName(*DataLayerShortName), CurrentState, InState))
-				{
-					UE_LOG(LogWorldPartition, Log, TEXT("Data Layer '%s' state change was filtered out: %s -> %s"),
-						*DataLayerShortName,
-						*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
-						*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-					return;
-				}
-			}
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
-
 		TargetLoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 		TargetActiveDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 
