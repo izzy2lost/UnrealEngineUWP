@@ -36,6 +36,7 @@ const FName ItchioJwt = TEXT("ItchioJwt");
 const FName ItchioKey = TEXT("ItchioKey");
 const FName EpicIdToken = TEXT("EpicIdToken");
 const FName AmazonAccessToken = TEXT("AmazonAccessToken");
+const FName AccountIdHash = TEXT("AccountIdHash");
 }
 
 namespace ExternalServerAuthTicketType
