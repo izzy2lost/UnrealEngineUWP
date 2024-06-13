@@ -2340,7 +2340,7 @@ void FCustomizableObjectEditor::CreatePreviewActor()
 {
 	if (Actor)
 	{
-		ViewportClient->GetWorld()->RemoveActor(Actor.Get(), false);
+		Actor->Destroy();
 	}
 	
 	Actor.Reset(ViewportClient->GetWorld()->SpawnActor<ASkeletalMeshActor>());
