@@ -176,7 +176,7 @@ namespace GeometryCollection::Facades
 			MeshIdAttribute.IsValid() ? MeshIdAttribute.Find() : nullptr;
 		if (MeshIdValues)
 		{
-			FString Suffix = FString::Printf(TEXT(":%s:%d"), *MeshId.ToString(), LOD);
+			FString Suffix = FString::Printf(TEXT(":%s:%d"), *MeshId.GetPlainNameString(), LOD);
 			for (int32 i = 0; i < MeshIdValues->Num(); i++)
 			{
 				const FString& Entry = (*MeshIdValues)[i];
