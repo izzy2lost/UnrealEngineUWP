@@ -105,6 +105,11 @@ void UnregisterDenoiser(FString Name)
 	FDenoiserManager::Get().UnregisterDenoiser(Name);
 }
 
+bool HasTemporalDenosier()
+{
+	return FDenoiserManager::Get().HasSpatialTemporalDenoiser();
+}
+
 #if RHI_RAYTRACING
 
 #include "DeferredShadingRenderer.h"

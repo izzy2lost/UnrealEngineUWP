@@ -47,6 +47,11 @@ void FMovieGraphDeferredPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 	RenderDataIdentifier.CameraName =  CameraInfo.CameraName;
 
 	SceneViewState.Allocate(InRenderer->GetWorld()->GetFeatureLevel());
+
+	// The InRenderPassNode is not initialized with user's config. Use InLayer to 
+	// initialize the frames to delay for post submission.
+	UMovieGraphRenderPassNode* RenderPassNode = InLayer.RenderPassNode.Get();
+	FramesToDelayPostSubmission = RenderPassNode ? RenderPassNode->GetCoolingDownFrameCount() : 0;
 }
 
 void FMovieGraphDeferredPass::Teardown()
@@ -125,7 +130,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 
 	UMovieGraphImagePassBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
 	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples();
-	const bool bIsRenderingState = InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering;
+	const bool bIsRenderingState = InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering ||
+									InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::CoolingDown;
 	int32 NumSpatialSamples = FMath::Max(1, bIsRenderingState ? ParentNodeThisFrame->GetNumSpatialSamples() : ParentNodeThisFrame->GetNumSpatialSamplesDuringWarmUp());
 
 	const ESceneCaptureSource SceneCaptureSource = ParentNodeThisFrame->GetDisableToneCurve() ? ESceneCaptureSource::SCS_FinalColorHDR : ESceneCaptureSource::SCS_FinalToneCurveHDR;
@@ -336,14 +342,59 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			continue;
 		}
 		
-		// Readback + Accumulate.
-		PostRendererSubmission(SampleState, RenderTargetInitParams, Canvas, CameraInfo);
+		// Post-submission is a little bit complicated to allow supporting temporal denoisers in the Path Tracer.
+		// When using the denoiser with a sample frame count of 2, for a frame to be produced it must look 2 frames
+		// backwards, and 2 frames forwards, ie: to denoise Frame 5, we need to have rendered 3, 4, 5, 6, and 7.
+		// The complication for this is that when we request a render and then immediately schedule a readback, when the
+		// readback is completed the image will be the denoised result from a previous frame. ie: If on frame 5 you schedule
+		// the readback, the result that will be copied to the CPU is the data from Frame 3.
+		//
+		// To resolve these issues, we capture the PostRendererSubmission and place it in a FIFO queue, and then when we schedule
+		// a readback, we provide the old captured state, ie: on Frame 5 we provide Frame 3's data, and that will line up with the
+		// image data actually generated on Frame 3 (which is what is returned by the GPU). A slight complication to this is that
+		// PostRendererSubmission can no longer depend on any member state (since that would be using old data in combination with new),
+		// but the one exception to this is that the current FCanvas is provided since it's only a wrapper for drawing letterboxing anyways.
+		//
+		// Under non-path-tracer temporal denoiser cases, this should effectively work out to be a no-op, the queue will dequeue immediately.
+
+		FMovieGraphPostRendererSubmissionParams Params;
+		Params.SampleState = SampleState;
+		Params.RenderTargetInitParams = RenderTargetInitParams;
+		Params.CameraInfo = CameraInfo;
+
+		// Push the current frame into our FIFO queue
+		SubmissionQueue.Enqueue(Params);
+
+		// When we first start rendering we don't want to schedule a readback (as there isn't actually finished data to read back)
+		// so we skip the first few frames. When we get to the end of a shot, we'll be in a cool-down period where we render extra
+		// frames to allow finishing the denoising on the previous "real" frames. Those frames can't have discard output set on them,
+		// otherwise we won't actually read back the end of the "real" frames. This means the queue will be left with some extra data
+		// in it (for the cool-down frames which were calculated and submitted but never themselves get read back) but that's okay.
+		if (FramesToDelayPostSubmission == 0)
+		{
+			// Now we schedule a readback using the oldest data.
+			FMovieGraphPostRendererSubmissionParams PostParamsToUse;
+			if (SubmissionQueue.Dequeue(PostParamsToUse))
+			{
+				// It's okay that we use the current FCanvas here as it's just a vessel to draw letterboxing based on state captured by the params.
+				PostRendererSubmission(PostParamsToUse.SampleState, PostParamsToUse.RenderTargetInitParams, Canvas, PostParamsToUse.CameraInfo);
+			}
+			else
+			{
+				UE_LOG(LogMovieRenderPipeline, Error, TEXT("De-queue post-submission parameters failed. Attempted to send a frame to post-render submission, but no frames were available in the FIFO queue."));
+			}
+		}
+		else
+		{
+			FramesToDelayPostSubmission--;
+		}
+
 	}
 }
 
 void FMovieGraphDeferredPass::PostRendererSubmission(
 	const UE::MovieGraph::FMovieGraphSampleState& InSampleState,
-	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo)
+	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
 {
 	TObjectPtr<UMovieGraphDefaultRenderer> GraphRenderer = GetRenderer().Get();
 	if (!GraphRenderer)
@@ -353,10 +404,9 @@ void FMovieGraphDeferredPass::PostRendererSubmission(
 
 	// Draw letterboxing
 	// ToDo: Multi-camera support
-	APlayerCameraManager* PlayerCameraManager = GraphRenderer->GetWorld()->GetFirstPlayerController()->PlayerCameraManager;
-	if(PlayerCameraManager && PlayerCameraManager->GetCameraCacheView().bConstrainAspectRatio)
+	if(InCameraInfo.ViewInfo.bConstrainAspectRatio)
 	{
-		const FMinimalViewInfo CameraCache = PlayerCameraManager->GetCameraCacheView();
+		const FMinimalViewInfo CameraCache = InCameraInfo.ViewInfo;
 		
 		// Taking overscan into account.
 		const FIntPoint FullOutputSize = InSampleState.AccumulatorResolution;

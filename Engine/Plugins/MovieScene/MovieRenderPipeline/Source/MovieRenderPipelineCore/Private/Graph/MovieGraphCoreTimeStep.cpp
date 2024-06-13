@@ -171,7 +171,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 
 	// We only automatically advance the CurrentOutputFrameRange during Rendering, or when warm-up frames
 	// are counting down (if we're not going to emulate motion blur).
-	const bool bIncrementBecauseRenderingState = CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering;
+	const bool bIncrementBecauseRenderingState = CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering || CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::CoolingDown;
 	const bool bIncrementBecauseWarmUpState = CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::WarmingUp && !CurrentCameraCut->ShotInfo.bEmulateFirstFrameMotionBlur;
 	bool bIncrementInternalCounters = bIncrementBecauseRenderingState || bIncrementBecauseWarmUpState;
 	
@@ -313,6 +313,21 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 			// if this would put us beyond our range of time this shot is supposed to represent.
 			if (CurrentFrameData.CurrentOutputFrameRange.GetUpperBoundValue() > CurrentCameraCut->ShotInfo.TotalOutputRangeRoot.GetUpperBoundValue())
 			{
+				// We've reached the end of the sequence. We're going 
+				// to transition into the Cooling Down state (which we may 
+				// immediately leave if there are no cooling down frames 
+				// to actually render).
+				CurrentCameraCut->ShotInfo.State = EMovieRenderShotState::CoolingDown;
+			}
+		}
+
+		// If we've run past the end of the sequence, we'll be in the CoolingDown state now.
+		if (CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::CoolingDown)
+		{
+			// We may or may not actually have any CoolingDown frames to process. If there's no frames left,
+			// then we'll move to the Finished state and tear-down the render process for this frame.
+			if (CurrentCameraCut->ShotInfo.NumEngineCoolDownFramesRemaining <= 0)
+			{
 				// We're going to spend this frame tearing down the shot (not rendering anything), next frame
 				// we'll re-enter this loop and pick up the start of the next shot.
 				ResetForEndOfOutputFrame();
@@ -324,6 +339,36 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 				CurrentCameraCut->ShotInfo.State = EMovieRenderShotState::Finished;
 				GetOwningGraph()->TeardownShot(CurrentCameraCut);
 				return;
+			}
+			else
+			{
+				// Only jump backwards in time if there's actually a cooldown frames to run.
+				// Cooling down repeats the last frame of the render entirely, spatial and temporal samples included. This is because 
+				// we want to generate good looking images to send to the denoiser (to denoise the normal final frames), so we need to
+				// generate them like they would have been in the normal render.
+				//CurrentFrameData.CurrentOutputFrameRange = CurrentFrameData.LastOutputFrameRange;
+				//CurrentFrameData.LastSampleRange = CurrentFrameData.LastOutputFrameRange;
+
+				// Go back FrameCount output frame for the current output frame range, and FrameCount+1 output frame for the last output frame.
+				FFrameTime UpperBound = EndOfPreviousFrame.GetValue() - CurrentFrameMetrics.FrameTimePerOutputFrame;
+				FFrameTime NewStartTime = UpperBound;
+				CurrentFrameData.LastOutputFrameRange = TRange<FFrameTime>(UpperBound - CurrentFrameMetrics.FrameTimePerOutputFrame, UpperBound);
+				CurrentFrameData.LastSampleRange = CurrentFrameData.LastOutputFrameRange;
+				CurrentFrameData.CurrentOutputFrameRange = TRange<FFrameTime>(NewStartTime, NewStartTime + CurrentFrameMetrics.FrameTimePerOutputFrame);
+
+				// Update CurrentFrameData.RangeShutterOpen and CurrentFrameData.RangeShutterClosed
+				UpdateShutterRanges();
+				// Update CurrentFrameData.TemporalRanges
+				UpdateTemporalRanges();
+
+				// We're going backwards so we need to flag the jump
+				bShouldJump = true;
+
+				// Cooldown frames 
+				// ToDo: We need to separate the idea of "should we send this to the output merger" (false during cooldown)
+				// and "should we render and schedule a readback" (true during cooldown)
+				CurrentTimeStepData.bDiscardOutput = false;
+				CurrentCameraCut->ShotInfo.NumEngineCoolDownFramesRemaining--;
 			}
 		}
 	}

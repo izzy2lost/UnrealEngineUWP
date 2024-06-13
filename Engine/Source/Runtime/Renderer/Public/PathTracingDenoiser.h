@@ -120,3 +120,6 @@ extern RENDERER_API void RegisterSpatialTemporalDenoiser(TUniquePtr<UE::Renderer
 
 /** Unregister all denoisers with the name Name*/
 extern RENDERER_API void UnregisterDenoiser(FString Name);
+
+/** Return true if there is any temporal denoiser plugin registered*/
+extern RENDERER_API bool HasTemporalDenosier();

@@ -23,6 +23,7 @@
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
+#include "Graph/Nodes/MovieGraphRenderPassNode.h"
 
 #include "HAL/PlatformFileManager.h"
 #include "ImageWriteQueue.h"
@@ -567,7 +568,23 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
 
 		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
-		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = WarmUpNode->NumWarmUpFrames;
+
+		// Query the max frame count.
+		int32 MaxCoolingDownFrameCount = 0;
+		for (const FName& BranchName : EvaluatedConfig->GetBranchNames())
+		{
+			const bool bIncludeCDOs = false;
+			const bool bExactMatch = false;
+			TArray<UMovieGraphRenderPassNode*> Renderers = EvaluatedConfig->GetSettingsForBranch<UMovieGraphRenderPassNode>(BranchName, bIncludeCDOs, bExactMatch);
+			for (const UMovieGraphRenderPassNode* Render : Renderers)
+			{
+				MaxCoolingDownFrameCount = FMath::Max(Render->GetCoolingDownFrameCount(), MaxCoolingDownFrameCount);
+			}
+		}
+		
+		Shot->ShotInfo.NumEngineCoolDownFramesRemaining = MaxCoolingDownFrameCount;
+		// When using cooldown, we need at least that many warm-up frames even if they have otherwise chose not to do warm-ups.
+		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = FMath::Max(WarmUpNode->NumWarmUpFrames, MaxCoolingDownFrameCount);
 		Shot->ShotInfo.bEmulateFirstFrameMotionBlur = WarmUpNode->bEmulateMotionBlur;
 		Shot->ShotInfo.CalculateWorkMetrics();
 		Shot->ShotInfo.VersionNumber = ResolveVersionForShot(Shot, EvaluatedConfig);

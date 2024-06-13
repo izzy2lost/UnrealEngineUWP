@@ -6,6 +6,26 @@
 
 #include "MovieGraphPathTracerPassNode.generated.h"
 
+
+UENUM(BlueprintType)
+enum class EMovieGraphPathTracerDenoiserType : uint8
+{
+	/** 
+	* The active spatial denoiser plugin will be used for denoising. If the denoiser is not loaded, a warning will show in the log.
+	* If multiple spatial denoiser plugins are enabled, the last one to get loaded will be the one used.
+	*/
+	Spatial = 0,
+
+	/** 
+	* The active spatial-temporal denoiser plugin will be used for denoising. It provides more temporal stability than spatial denoiser 
+	* if the Frame Count of past/future frames are used (Frame Count > 0) in the plugin. The user needs to config `Frame Count` to
+	* match the requirements of the chosen denoiser plugin. If the denoiser is not loaded, a warning will show in the log. If multiple
+	* spatial-temporal denoiser plugins are enabled, the last one to get loaded will be the one used.
+	*/
+	Temporal = 1
+};
+
+
 /** A render node which uses the path tracer. */
 UCLASS()
 class MOVIERENDERPIPELINERENDERPASSES_API UMovieGraphPathTracerRenderPassNode : public UMovieGraphImagePassBaseNode
@@ -40,7 +60,7 @@ public:
 protected:
 	// UMovieGraphRenderPassNode Interface
 	virtual FString GetRendererNameImpl() const override;
-
+	virtual int32 GetCoolingDownFrameCount() const override;
 	// ~UMovieGraphRenderPassNode Interface
 
 	// UMovieGraphCoreRenderPassNode Interface
@@ -56,7 +76,13 @@ public:
 	uint8 bOverride_bEnableReferenceMotionBlur : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_bDenoiser : 1;
+	uint8 bOverride_bEnableDenoiser : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_DenoiserType : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_FrameCount : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_bDisableToneCurve : 1;
@@ -88,8 +114,25 @@ public:
 	bool bEnableReferenceMotionBlur;
 
 	/** If true the resulting image will be denoised at the end of each set of Spatial Samples. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 1, ClampMin = 1), Category = "Sampling", meta = (EditCondition = "bOverride_bDenoiser"))
-	bool bDenoiser;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Denoiser", meta = (EditCondition = "bOverride_bEnableDenoiser"))
+	bool bEnableDenoiser;
+
+	/**
+	* Select which type of denosier to use when the denoiser is enabled. Temporal denoisers will provide better results when
+	* denoising animated sequences (the denoising results will look more stable), especially when combined with an appropriate 
+	* Frame Count (non-zero). Denoisers are implemented as plugins so you may need to enable a plugin as well for this to work.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Denoiser", meta = (EditCondition = "bOverride_DenoiserType"))
+	EMovieGraphPathTracerDenoiserType DenoiserType;
+
+	/** 
+	* The number of frames to consider when using temporal-based denoisers. Generally higher numbers will result in longer
+	* denoising times and higher memory requirements. For NFOR this number refers to how many frames to consider on both sides
+	* of the current frame (ie: 2 means consider 2 before, and 2 after the currently denoised frame), but other denoiser 
+	* implementations may interpret this value differently.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 0, ClampMin = 0, UIMax = 3), Category = "Denoiser", meta = (EditCondition = "DenoiserType==EMovieGraphPathTracerDenoiserType::Temporal"))
+	int32 FrameCount;
 
 	/**
 	* Debug Feature. Not currently marked BlueprintReadWrite/EditAnywhere as it's not totally implemented on the Path Tracer right now.
@@ -125,4 +168,16 @@ private:
 	 * will be hidden during the render.
 	 */
 	bool bOriginalProgressDisplayCvarValue = false;
+
+	/**
+	 * The original value of the "r.NFOR.FrameCount" cvar before the render starts. Will use the new value set in
+	 * this node during the render.
+	 */
+	int32 OriginalFrameCountCvarValue = 2;
+
+	/**
+	 * The original value of the "r.PathTracing.SpatialDenoiser.Type" cvar before the render starts. Will use the new value set in
+	 * this node during the render.
+	 */
+	int32 OriginalDenoiserType = 0;
 };

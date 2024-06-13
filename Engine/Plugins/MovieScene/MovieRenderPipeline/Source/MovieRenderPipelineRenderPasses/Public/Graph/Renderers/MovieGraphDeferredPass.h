@@ -5,6 +5,13 @@
 
 namespace UE::MovieGraph::Rendering
 {
+	struct FMovieGraphPostRendererSubmissionParams
+	{
+		UE::MovieGraph::FMovieGraphSampleState SampleState;
+		UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams RenderTargetInitParams;
+		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo;
+	};
+
 	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphDeferredPass : public FMovieGraphImagePassBase
 	{
 		// FMovieGraphImagePassBase Interface
@@ -18,7 +25,7 @@ namespace UE::MovieGraph::Rendering
 		// End FMovieGraphImagePassBase
 			
 	protected:
-		virtual void PostRendererSubmission(const UE::MovieGraph::FMovieGraphSampleState& InSampleState, const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) override;
+		virtual void PostRendererSubmission(const UE::MovieGraph::FMovieGraphSampleState& InSampleState, const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const override;
 	protected:
 		FMovieGraphRenderPassLayerData LayerData;
 
@@ -27,5 +34,11 @@ namespace UE::MovieGraph::Rendering
 
 		// Scene View history used by the renderer 
 		FSceneViewStateReference SceneViewState;
+
+		// The number of frames to delay to send frames from SubmissionQueue to post-render submission.
+		int32 FramesToDelayPostSubmission;
+
+		// FIFO queue of rendered frames. It allows frames to be sent to post-render submission with a delay if needed (e.g., when temporal denoising is used with path tracers).  
+		TQueue<FMovieGraphPostRendererSubmissionParams> SubmissionQueue;
 	}; 
 }

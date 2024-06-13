@@ -459,7 +459,7 @@ void FMovieGraphImagePassBase::ModifyProjectionMatrixForTiling(const UE::MovieGr
 
 void FMovieGraphImagePassBase::PostRendererSubmission(
 	const UE::MovieGraph::FMovieGraphSampleState& InSampleState,
-	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo)
+	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
 {
 	// We have a pool of accumulators - we multi-thread the accumulation on the task graph, and for each frame,
 	// the task has the previous samples as pre-reqs to keep the accumulation in order. However, each accumulator

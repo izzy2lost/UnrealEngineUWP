@@ -52,6 +52,11 @@ public:
 	* or more than one for things like panoramic or tiling. */
 	int32 GetNumSceneViewsRendered() const { return GetNumSceneViewsRenderedImpl(); }
 
+	/**
+	* Get the cooling down frame count when denoising based on temporal frames are used.
+	**/
+	virtual int32 GetCoolingDownFrameCount() const { return 0; }
+
 #if WITH_EDITOR
 	virtual FText GetMenuCategory() const override
 	{
