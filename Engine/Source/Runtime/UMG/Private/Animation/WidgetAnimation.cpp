@@ -139,6 +139,15 @@ const FSlateBrush* UWidgetAnimation::GetCustomBrushForBinding(FGuid BindingID) c
 	return nullptr;
 }
 
+
+void UWidgetAnimation::IterateDynamicBindings(TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback)
+{
+	for (FWidgetAnimationBinding& AnimationBinding : AnimationBindings)
+	{
+		InCallback(AnimationBinding.AnimationGuid, AnimationBinding.DynamicBinding);
+	}
+}
+
 #endif
 
 float UWidgetAnimation::GetStartTime() const
@@ -314,14 +323,6 @@ UObject* UWidgetAnimation::CreateDirectorInstance(TSharedRef<const FSharedPlayba
 	// Widget animations do not create separate director instances, but just re-use the UUserWidget from the playback context
 	UUserWidget* WidgetContext = CastChecked<UUserWidget>(SharedPlaybackState->GetPlaybackContext());
 	return WidgetContext;
-}
-
-void UWidgetAnimation::IterateDynamicBindings(const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback)
-{
-	for (FWidgetAnimationBinding& AnimationBinding : AnimationBindings)
-	{
-		InCallback(AnimationBinding.AnimationGuid, AnimationBinding.DynamicBinding);
-	}
 }
 
 UObject* UWidgetAnimation::GetParentObject(UObject* Object) const

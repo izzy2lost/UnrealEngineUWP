@@ -961,7 +961,8 @@ const TArray<UAssetUserData*>* ULevelSequence::GetAssetUserDataArray() const
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 }
 
-void ULevelSequence::IterateDynamicBindings(const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback)
+#if WITH_EDITOR
+void ULevelSequence::IterateDynamicBindings(TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback)
 {
 	for (FMovieSceneBindingReference& BindingReference : BindingReferences.GetAllReferences())
 	{
@@ -972,10 +973,23 @@ void ULevelSequence::IterateDynamicBindings(const TSharedRef<UE::MovieScene::FSh
 				InCallback(BindingReference.ID, ReplaceableDirectorBlueprintBinding->DynamicBinding);
 			}
 
-			if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(BindingReference.CustomBinding->AsSpawnable(SharedPlaybackState)))
+			// We can't use 'AsSpawnable' here because we don't have playback state and we might not have a world context. 
+			// This should only be called from an editor context though, so we can just check the inner spawnable.
+
+			// If the binding is itself a spawnable director blueprint binding, then iterate over it
+			if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(BindingReference.CustomBinding))
 			{
 				InCallback(BindingReference.ID, SpawnableDirectorBlueprintBinding->DynamicBinding);
+			}
+			else if (UMovieSceneReplaceableBindingBase* ReplaceableBinding = Cast<UMovieSceneReplaceableBindingBase>(BindingReference.CustomBinding))
+			{
+				if (UMovieSceneSpawnableDirectorBlueprintBinding* InnerSpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(ReplaceableBinding->PreviewSpawnable))
+				{
+					InCallback(BindingReference.ID, InnerSpawnableDirectorBlueprintBinding->DynamicBinding);
+				}
 			}
 		}
 	}
 }
+
+#endif

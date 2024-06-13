@@ -39,10 +39,10 @@ struct MOVIESCENETOOLS_API FMovieSceneDynamicBindingUtils
 	static void IterateDynamicBindings(UMovieScene* InMovieScene, Callback&& InCallback)
 	{
 		UMovieSceneSequence* ThisSequence = InMovieScene->GetTypedOuter<UMovieSceneSequence>();
-		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), ThisSequence);
-		ThisSequence->IterateDynamicBindings(TransientPlaybackState, InCallback);
-	}
 
+		ThisSequence->IterateDynamicBindings(InCallback);
+	}
+	
 	/**
 	 * Utility function for gathering all dynamic bindings in a sequence into a container.
 	 */
