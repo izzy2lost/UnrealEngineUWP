@@ -378,6 +378,8 @@ enum ELandscapeLayerUpdateMode : uint32
 	Update_All = Update_Weightmap_All | Update_Heightmap_All,
 	Update_All_Editing = Update_Weightmap_Editing | Update_Heightmap_Editing,
 	Update_All_Editing_NoCollision = Update_Weightmap_Editing_NoCollision | Update_Heightmap_Editing_NoCollision,
+	Update_Heightmap_Types = Update_Heightmap_All | Update_Heightmap_Editing | Update_Heightmap_Editing_NoCollision,
+	Update_Weightmap_Types = Update_Weightmap_All | Update_Weightmap_Editing | Update_Weightmap_Editing_NoCollision,
 	// In cases where we couldn't update the clients right away this flag will be set in RegenerateLayersContent
 	Update_Client_Deferred = 1 << 6,
 	// Update landscape component clients while editing
