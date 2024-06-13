@@ -99,6 +99,12 @@ public:
 	static void SetUseIdleAnimation(const bool bUseIdleAnimation);
 
 	/**
+	 * Returns the duration in seconds of the specified animation.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, BlueprintCosmetic, Category = "Razer Chroma")
+	static float GetTotalDuration(const URazerChromaAnimationAsset* Anim);
+
+	/**
 	 * Sets the color of every connected Razer Chroma Device to this static color
 	 *
 	 * @param ColorToSet		The color to set the devices to
@@ -123,4 +129,23 @@ public:
 	/** Converts a ERazerChromaDeviceTypes enum to string. */
 	UFUNCTION(BlueprintPure, Category = "Utilities|String", meta = (DisplayName = "To String (ERazerChromaDeviceTypes)", CompactNodeTitle = "->", BlueprintAutocast))
 	static FString Conv_RazerChromaDeviceTypesToString(UPARAM(meta = (Bitmask, BitmaskEnum = "/Script/RazerChromaDevices.ERazerChromaDeviceTypes")) const int32 DeviceTypes);
+
+	/*
+	* Name the Chroma event to add extras like haptics to supplement the event
+	*
+	* @param name			Empty string will stop haptic playback
+	*						Name specifies an identifier that adds extras to game events like haptics
+	*/
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Razer Chroma")
+	static int32 SetEventName(const FString& name);
+
+	/*
+	* On by default, `UseForwardChromaEvents` sends the animation name to `SetEventName`
+	* automatically when `PlayAnimationName` is called.
+	*
+	* @param bToggle		If true, PlayAnimation calls will pass the animation note to SetEventName.
+	*						If false, PlayAnimation will not invoke SetEventName.
+	*/
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Razer Chroma")
+	static void UseForwardChromaEvents(const bool bToggle);
 };

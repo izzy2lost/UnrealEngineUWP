@@ -31,6 +31,9 @@ FRazerChromaEditorDynamicAPI::PAUSEANIMATION FRazerChromaEditorDynamicAPI::Pause
 FRazerChromaEditorDynamicAPI::RESUMEANIMATION FRazerChromaEditorDynamicAPI::ResumeAnimation = nullptr;
 FRazerChromaEditorDynamicAPI::ISANIMATIONPLAYING FRazerChromaEditorDynamicAPI::IsAnimationPlaying = nullptr;
 FRazerChromaEditorDynamicAPI::ISANIMATIONPAUSED FRazerChromaEditorDynamicAPI::IsAnimationPaused = nullptr;
+FRazerChromaEditorDynamicAPI::GETTOTALDURATION FRazerChromaEditorDynamicAPI::GetTotalDuration = nullptr;
+FRazerChromaEditorDynamicAPI::SETEVENTNAME FRazerChromaEditorDynamicAPI::SetEventName = nullptr;
+FRazerChromaEditorDynamicAPI::USEFORWARDCHROMAEVENTS FRazerChromaEditorDynamicAPI::UseForwardChromaEvents = nullptr;
 
 bool FRazerChromaEditorDynamicAPI::LoadAPI(void* RazerChromaEditorDLLHandle)
 {
@@ -72,6 +75,9 @@ bool FRazerChromaEditorDynamicAPI::LoadAPI(void* RazerChromaEditorDLLHandle)
 	FRazerChromaEditorDynamicAPI::ResumeAnimation = reinterpret_cast<RESUMEANIMATION>(GetProcAddress(RazerModule, "PluginResumeAnimation"));
 	FRazerChromaEditorDynamicAPI::IsAnimationPlaying = reinterpret_cast<ISANIMATIONPLAYING>(GetProcAddress(RazerModule, "PluginIsPlaying"));
 	FRazerChromaEditorDynamicAPI::IsAnimationPaused = reinterpret_cast<ISANIMATIONPAUSED>(GetProcAddress(RazerModule, "PluginIsAnimationPaused"));
+	FRazerChromaEditorDynamicAPI::GetTotalDuration = reinterpret_cast<GETTOTALDURATION>(GetProcAddress(RazerModule, "PluginGetTotalDuration"));
+	FRazerChromaEditorDynamicAPI::SetEventName = reinterpret_cast<SETEVENTNAME>(GetProcAddress(RazerModule, "PluginCoreSetEventName"));
+	FRazerChromaEditorDynamicAPI::UseForwardChromaEvents = reinterpret_cast<USEFORWARDCHROMAEVENTS>(GetProcAddress(RazerModule, "PluginUseForwardChromaEvents"));
 
 #pragma warning(default: 4191)
 
@@ -99,7 +105,10 @@ bool FRazerChromaEditorDynamicAPI::LoadAPI(void* RazerChromaEditorDLLHandle)
 		FRazerChromaEditorDynamicAPI::PauseAnimation && 
 		FRazerChromaEditorDynamicAPI::ResumeAnimation &&
 		FRazerChromaEditorDynamicAPI::IsAnimationPlaying &&
-		FRazerChromaEditorDynamicAPI::IsAnimationPaused;
+		FRazerChromaEditorDynamicAPI::IsAnimationPaused &&
+		FRazerChromaEditorDynamicAPI::GetTotalDuration &&
+		FRazerChromaEditorDynamicAPI::SetEventName &&
+		FRazerChromaEditorDynamicAPI::UseForwardChromaEvents;
 }
 
 #endif	// #if RAZER_CHROMA_SUPPORT

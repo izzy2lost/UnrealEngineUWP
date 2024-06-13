@@ -114,7 +114,7 @@ namespace UE::RazerChroma
 			FCString::Strncpy(AppInfo.Author.Name, *SettingsAppInfo.AuthorName, 256);
 			FCString::Strncpy(AppInfo.Author.Contact, *SettingsAppInfo.AuthorContact, 256);
 
-			// Note: 63 (ERazerChromaDeviceTypes::All) is the highest number of options currently supported in v1.0.0.9
+			// Note: 63 (ERazerChromaDeviceTypes::All) is the highest number of options currently supported in v1.0.1.2
 			const int32 MaxSupportedDevices = static_cast<int32>(ERazerChromaDeviceTypes::All);
 
 			ensure(SettingsAppInfo.SupportedDeviceTypes <= MaxSupportedDevices && SettingsAppInfo.SupportedDeviceTypes >= 0);
@@ -419,7 +419,7 @@ const int32 FRazerChromaDeviceModule::FindOrLoadAnimationData(const FString& Ani
 		// If the animation was invalid last time we loaded it, try again.
 		if (*ExistingId == -1)
 		{
-			const int32 ReloadedId = FRazerChromaEditorDynamicAPI::OpenAnimationFromMemory(AnimByteBuffer, TCHAR_TO_ANSI(*AnimName));
+			const int32 ReloadedId = FRazerChromaEditorDynamicAPI::OpenAnimationFromMemory(AnimByteBuffer, TCHAR_TO_WCHAR(*AnimName));
 			LoadedAnimationIdMap[AnimName] = ReloadedId;
 			return ReloadedId;
 		}
@@ -429,7 +429,7 @@ const int32 FRazerChromaDeviceModule::FindOrLoadAnimationData(const FString& Ani
 	}
 
 	// This is a new animation, lets load it from the Razer API
-	const int32 LoadedAnimId = FRazerChromaEditorDynamicAPI::OpenAnimationFromMemory(AnimByteBuffer, TCHAR_TO_ANSI(*AnimName));
+	const int32 LoadedAnimId = FRazerChromaEditorDynamicAPI::OpenAnimationFromMemory(AnimByteBuffer, TCHAR_TO_WCHAR(*AnimName));
 	LoadedAnimationIdMap.Add(AnimName, LoadedAnimId);
 	return LoadedAnimId;	
 }

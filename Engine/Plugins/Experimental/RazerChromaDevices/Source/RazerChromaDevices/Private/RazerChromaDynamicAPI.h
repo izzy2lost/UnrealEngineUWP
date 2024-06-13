@@ -34,11 +34,11 @@ struct FRazerChromaEditorDynamicAPI
 
 	typedef RZRESULT(*UNINIT)(void);
 	
-	typedef void (*PLAYANIMATIONNAME)(const char* path, bool loop);
+	typedef void (*PLAYANIMATIONNAME)(const wchar_t* path, bool loop);
 
 	typedef int32 (*PLAYANIMATION)(int32 animationId, bool bLoop);
 
-	typedef int32 (*OPENANIMATIONFROMMEMORY)(const BYTE* data, const char* name);
+	typedef int32 (*OPENANIMATIONFROMMEMORY)(const BYTE* data, const wchar_t* name);
 
 	typedef int32 (*STOPANIMATION)(int32 AnimationId);
 	
@@ -75,6 +75,12 @@ struct FRazerChromaEditorDynamicAPI
 	typedef bool (*ISANIMATIONPLAYING)(int32 animationId);
 
 	typedef bool (*ISANIMATIONPAUSED)(int32 animationId);
+
+	typedef float(*GETTOTALDURATION)(int32 animationId);
+
+	typedef RZRESULT(*SETEVENTNAME)(LPCTSTR name);
+
+	typedef void(*USEFORWARDCHROMAEVENTS)(bool toggle);
 
 	// And some actual function pointers to those that we want to call...
 
@@ -132,6 +138,15 @@ struct FRazerChromaEditorDynamicAPI
 
 	// Returns true if the given anim ID is currently paused
 	static ISANIMATIONPAUSED IsAnimationPaused;
+
+	// Returns the duration in seconds with the given animation ID
+	static GETTOTALDURATION GetTotalDuration;
+
+	// Returns zero if Chroma event can be named
+	static SETEVENTNAME SetEventName;
+
+	// Sets if PlayAnimation should send event name to SetEventName
+	static USEFORWARDCHROMAEVENTS UseForwardChromaEvents;
 };
 
 #endif	// #if RAZER_CHROMA_SUPPORT

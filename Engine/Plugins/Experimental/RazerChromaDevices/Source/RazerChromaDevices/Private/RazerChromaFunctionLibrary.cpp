@@ -285,6 +285,39 @@ void URazerChromaFunctionLibrary::SetUseIdleAnimation(const bool bUseIdleAnimati
 #endif	// #if RAZER_CHROMA_SUPPORT
 }
 
+float URazerChromaFunctionLibrary::GetTotalDuration(const URazerChromaAnimationAsset* Anim)
+{
+#if RAZER_CHROMA_SUPPORT
+	if (!URazerChromaFunctionLibrary::IsChromaRuntimeAvailable())
+	{
+		return 0;
+	}
+
+	if (!Anim)
+	{
+		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Invalid Anim!"), __func__);
+		return 0;
+	}
+
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get();
+	if (!Module)
+	{
+		return 0;
+	}
+
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(Anim);
+	if (LoadedAnimId == INDEX_NONE)
+	{
+		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(Anim));
+		return 0;
+	}
+
+	return FRazerChromaEditorDynamicAPI::GetTotalDuration(LoadedAnimId);
+#else
+	return 0;
+#endif	// #if RAZER_CHROMA_SUPPORT
+}
+
 void URazerChromaFunctionLibrary::SetAllDevicesStaticColor(const FColor& ColorToSet, const ERazerChromaDeviceTypes DeviceTypes /* = ERazerChromaDeviceTypes::All */)
 {
 #if RAZER_CHROMA_SUPPORT
@@ -387,4 +420,28 @@ FString URazerChromaFunctionLibrary::LexToString(const ERazerChromaDeviceTypes D
 FString URazerChromaFunctionLibrary::Conv_RazerChromaDeviceTypesToString(const int32 DeviceTypes)
 {
 	return URazerChromaFunctionLibrary::LexToString(static_cast<ERazerChromaDeviceTypes>(DeviceTypes));
+}
+
+int32 URazerChromaFunctionLibrary::SetEventName(const FString& name)
+{
+#if RAZER_CHROMA_SUPPORT
+	if (!URazerChromaFunctionLibrary::IsChromaRuntimeAvailable())
+	{
+		return -1;
+	}
+
+	return FRazerChromaEditorDynamicAPI::SetEventName(TCHAR_TO_WCHAR(*name));
+#else
+	return -1;
+#endif	// #if RAZER_CHROMA_SUPPORT
+}
+
+void URazerChromaFunctionLibrary::UseForwardChromaEvents(const bool bToggle)
+{
+#if RAZER_CHROMA_SUPPORT
+	if (URazerChromaFunctionLibrary::IsChromaRuntimeAvailable())
+	{
+		FRazerChromaEditorDynamicAPI::UseForwardChromaEvents(bToggle);
+	}
+#endif	// #if RAZER_CHROMA_SUPPORT
 }

@@ -3,10 +3,10 @@
   <Name>Razer CChromaEditor</Name>
   <!-- Software Name and Version  -->
 <!-- Software Name: Razer CChromaEditor
-    Version: v1.0.0.9-->
+    Version: v1.0.1.2-->
   <Location>Engine\Restricted\NotForLicensees\Plugins\Experimental\RazerChromaDevices</Location>
   <Function>Plays Razer Chroma animation files and allows developers to import effects that they have created in the Razer Chroma Editor. </Function>
-  <Eula>https://github.com/razerofficial/CChromaEditor/blob/master/LICENSE</Eula>
+  <Eula>https://github.com/razerofficial/CChromaEditor/blob/SUPPORT_UNICODE/LICENSE</Eula>
   <RedistributeTo>
     <EndUserGroup>Licencees</EndUserGroup>
     <EndUserGroup>P4</EndUserGroup>
