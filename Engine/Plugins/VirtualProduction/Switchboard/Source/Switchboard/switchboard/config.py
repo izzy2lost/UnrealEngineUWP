@@ -1,19 +1,19 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
 
 import collections
+from enum import Enum
 import fnmatch
 import io
 import json
 import os
 import pathlib
 import shutil
+from pathlib import Path, PurePosixPath
 import socket
 import sys
 import threading
 import time
 from typing import Any, Callable, Optional, Tuple, Type, Union
-from enum import Enum
-from pathlib import Path
 
 from PySide6 import QtCore
 from PySide6 import QtGui
@@ -23,8 +23,9 @@ from switchboard import switchboard_widgets as sb_widgets
 from switchboard.switchboard_logging import LOGGER
 from switchboard.switchboard_widgets import (
     DropDownMenuComboBox, NonScrollableComboBox)
-from switchboard import ue_plugin_utils, ugs_utils
+from switchboard import ugs_utils
 from switchboard.sbcache import SBCache, Map
+from switchboard.ue_plugin_utils import UnrealPlugin, UnrealPluginManager
 
 ROOT_CONFIGS_PATH = pathlib.Path(__file__).parent.with_name('configs')
 CONFIG_SUFFIX = '.json'
@@ -357,7 +358,7 @@ class Setting(QtCore.QObject):
                 setting_label.setToolTip(self.tool_tip)
 
             form_layout.addRow(
-                setting_label,                
+                setting_label,
                 self._decorate_with_reset_widget(override_device_name, top_level_widget)
             )
 
@@ -376,7 +377,12 @@ class Setting(QtCore.QObject):
         )
 
     def _on_widget_destroyed(self, on_setting_changed_lambda, override_device_name: str):
-        self.signal_setting_changed.disconnect(on_setting_changed_lambda)
+        try:
+            self.signal_setting_changed.disconnect(on_setting_changed_lambda)
+        except Exception as exc:
+            LOGGER.warning('Failed to disconnect on_setting_changed_lambda',
+                           exc_info=exc)
+
         self.set_widget(widget=None, override_device_name=override_device_name)
 
     def _decorate_with_reset_widget(self, override_device_name: str, setting_editor_widget: QtWidgets.QWidget):
@@ -2076,7 +2082,7 @@ class Config(object):
         ''' Restores saving_allowed flag from the stack
         '''
         self.saving_allowed = self.saving_allowed_fifo.pop()
-        
+
     def init(self, file_path: Union[str, pathlib.Path]):
         self.init_with_file_path(file_path)
 
@@ -2088,8 +2094,8 @@ class Config(object):
                 # Read the json config file
                 with open(self.file_path, 'r') as f:
                     LOGGER.debug(f'Loading Config {self.file_path}')
-                    data = json.load(f)                    
-                        
+                    data = json.load(f)
+
             except (ConfigPathError, FileNotFoundError) as e:
                 LOGGER.error(f'Config: {e}')
                 self.file_path = None
@@ -2128,6 +2134,18 @@ class Config(object):
 
         # MISC SETTINGS
         self.CURRENT_LEVEL = data.get('current_level', DEFAULT_MAP_TEXT)
+
+        # UE plugin tracking
+        self.ue_plugin_mgr = UnrealPluginManager()
+        self.ue_plugin_mgr.set_engine_dir(Path(self.ENGINE_DIR.get_value()))
+        self.ue_plugin_mgr.set_uproject_path(
+            Path(self.UPROJECT_PATH.get_value()))
+
+        self.ENGINE_DIR.signal_setting_changed.connect(
+            lambda _, new: self.ue_plugin_mgr.set_engine_dir(Path(new)))
+
+        self.UPROJECT_PATH.signal_setting_changed.connect(
+            lambda _, new: self.ue_plugin_mgr.set_uproject_path(Path(new)))
 
         # Devices
         self._device_data_from_config = {}
@@ -2206,7 +2224,7 @@ class Config(object):
 
         SETTINGS.CONFIG = self.file_path
         SETTINGS.save()
-        
+
     def init_switchboard_settings(self, data={}):
         self.switchboard_settings = {
             "listener_exe": StringSetting(
@@ -2215,7 +2233,7 @@ class Config(object):
                 value = data.get('listener_exe', 'SwitchboardListener')
             )
         }
-        
+
         self.LISTENER_EXE = self.switchboard_settings["listener_exe"]
 
     def init_sblhelper_settings(self, data={}):
@@ -2290,11 +2308,12 @@ class Config(object):
                 tool_tip=(
                     "Plugins that match any of these filters will also be "
                     "searched when populating fields in Switchboard (e.g. "
-                    "levels, nDisplay configs, etc.). Each value can be "
-                    "either just a plugin name identifying a project plugin, "
-                    "or a relative or absolute path to a plugin directory. "
-                    "Relative paths should be relative to the directory "
-                    "containing the .uproject file."),
+                    "levels, nDisplay configs, etc.).\n"
+                    "\n"
+                    "Each value can be either a plugin name, or a relative or "
+                    "absolute path to a plugin directory. Relative paths "
+                    "should be relative to the directory containing the "
+                    ".uproject file."),
                 migrate_data=migrate_comma_separated_string_to_list
             ),
         }
@@ -2706,11 +2725,6 @@ class Config(object):
         del self._device_settings[(device_type, device_name)]
         self.save()
 
-    def shrink_path(self, path):
-        path_name = path.replace(self.get_project_dir(), '', 1)
-        path_name = path_name.replace(os.sep, '/')
-        return path_name
-
     def get_project_dir(self) -> str:
         '''
         Get the root directory of the project.
@@ -2725,47 +2739,48 @@ class Config(object):
         '''
         return os.path.join(self.get_project_dir(), 'Content')
 
-    def get_unreal_content_plugins(
-            self) -> list[ue_plugin_utils.UnrealPlugin]:
+    def get_unreal_content_plugins(self) -> list[UnrealPlugin]:
         '''
         Get a list of Unreal Engine plugins that match the current
         Switchboard config's content plugin filter settings.
 
-        By default, Switchboard does not search inside plugins for assets when
-        populating UI fields such as the level or nDisplay config dropdown
-        menus. Plugins in which to search for content can be selectively
-        added though using the "Content Plugin Filters" setting, which
-        stores a list of glob-style patterns.
+        By default, Switchboard searches inside project plugins as well as
+        AdditionalPluginDirectories plugins for assets when populating UI
+        fields such as the level or nDisplay config dropdown menus.
+
+        Engine/other plugins in which to search for content can be selectively
+        added though using the "Content Plugin Filters" setting.
         '''
-        filter_patterns = self.CONTENT_PLUGIN_FILTERS.get_value()
-        unreal_plugins = ue_plugin_utils.UnrealPlugin.from_path_filters(
-            self.get_project_dir(), filter_patterns)
+
+        # Pop known plugin names from the config array, treat the rest as globs
+        unreal_plugins: list[UnrealPlugin] = []
+        filter_patterns: list[str] = []
+
+        # Enabled project plugins are always enumerated for content
+        unreal_plugins.extend(self.ue_plugin_mgr.enabled_project_plugins)
+
+        for pattern in self.CONTENT_PLUGIN_FILTERS.get_value():
+            if plugin := self.ue_plugin_mgr.get_plugin_by_name(pattern):
+                unreal_plugins.append(plugin)
+            else:
+                filter_patterns.append(pattern)
+
+        if filter_patterns:
+            unreal_plugins.extend(UnrealPlugin.from_path_filters(
+                self.UPROJECT_PATH.get_value(), filter_patterns))
+
         return unreal_plugins
 
     def resolve_content_path(
-            self,
-            file_path: str,
-            unreal_content_plugin: ue_plugin_utils.UnrealPlugin = None) -> str:
+        self,
+        file_path: Union[Path, str]
+    ) -> Optional[PurePosixPath]:
         '''
         Resolve a file path on the file system to the corresponding content
         path in UE.
-
-        If an unreal_content_plugin is provided, the file is assumed to live
-        inside that plugin and its content path will have the appropriate
-        plugin name-based prefix. Otherwise, the file is assumed to live
-        inside the project's content folder.
         '''
-        if unreal_content_plugin:
-            content_dir = str(unreal_content_plugin.plugin_content_path)
-            ue_path_prefix = str(unreal_content_plugin.mounted_path)
-        else:
-            content_dir = self.get_project_content_dir()
-            ue_path_prefix = '/Game'
 
-        path_name = file_path.replace(content_dir, ue_path_prefix, 1)
-        path_name = self.shrink_path(path_name)
-
-        return path_name
+        return self.ue_plugin_mgr.file_to_content_path(file_path)
 
     def find_levels(self) -> list[str]:
 
@@ -2824,7 +2839,9 @@ class Config(object):
         # (unreal_plugin, directory_path). This allows us to differentiate
         # between maps in the project (unreal_plugin is None in that case) and
         # maps in a plugin.
-        search_paths = [(None, project_maps_path)]
+        search_paths: list[tuple[Optional[UnrealPlugin], Path]] = [
+            (None, Path(project_maps_path))
+        ]
 
         for unreal_content_plugin in self.get_unreal_content_plugins():
             search_paths.append(
@@ -2868,14 +2885,12 @@ class Config(object):
                 if not fnmatch.fnmatch(umap.name, maps_filter):
                     continue
 
-                mapgamepath = Path(self.resolve_content_path(
-                    umap.path,
-                    unreal_content_plugin=unreal_content_plugin))
-
-                mapgamepath = (mapgamepath.parent / mapgamepath.stem).as_posix()
-
-                if mapgamepath not in levels:
-                    levels.append(mapgamepath)
+                if mapgamepath := self.resolve_content_path(umap.path):
+                    mapgamepath = mapgamepath.with_suffix('')
+                    if mapgamepath not in levels:
+                        levels.append(str(mapgamepath))
+                else:
+                    LOGGER.warning(f"No game path for {umap.path}")
 
         levels.sort()
 

@@ -9,9 +9,11 @@ from datetime import datetime
 from functools import wraps
 import hashlib
 from ipaddress import IPv4Address
+from itertools import count
 import json
 import os
 import pathlib
+from pathlib import PurePosixPath
 import re
 import socket
 import sys
@@ -373,9 +375,13 @@ class LiveLinkPresetSetting(Setting):
             project=project,
             classnames=self._classnames())
 
+        assets = sorted(assets, key=lambda x: x.name)
+
         # generate the combo box items
-        for asset in assets:
-            combo.addItem(asset.name.replace('.uasset', ''), asset)
+        for idx, asset in zip(count(1), assets):
+            combo.addItem(asset.name.removesuffix('.uasset'), asset)
+            combo.setItemData(idx, asset.gamepath.removesuffix('.uasset'),
+                              QtCore.Qt.ItemDataRole.ToolTipRole)
 
         # set the current index to the live link preset that was already selected
         for item_idx in range(combo.count()):
@@ -1208,7 +1214,7 @@ class DeviceUnreal(Device):
 
         return valid
 
-    def conform_asset_gamepath(self, gamepath : str, ext : str = '.uasset') -> str:
+    def conform_asset_gamepath(self, gamepath: str, ext: str = '.uasset') -> str:
         ''' Conforms the given gamepath, which can include file extension, to the //Game/../MyAsset.MyAsset convention
         e.g.
             /Game/Folder/MyAssetName.uasset -> /Game/Folder/MyAssetName.MyAssetName
@@ -1221,7 +1227,7 @@ class DeviceUnreal(Device):
 
         return f"{gamepath}.{name}"
 
-    def exec_command_for_livelink_preset(self, livelink_preset_gamepath : str) -> str:
+    def exec_command_for_livelink_preset(self, livelink_preset_gamepath: str) -> str:
         ''' Returns the exec command string to enable the given livelink preset gamepath
         LiveLink presets can be applied as ExecCmds
         e.g. of command:
@@ -1233,7 +1239,7 @@ class DeviceUnreal(Device):
 
         return f"LiveLink.Preset.Apply Preset={self.conform_asset_gamepath(livelink_preset_gamepath)}"
 
-    def dpcvar_for_mediaprofile(self, mediaprofile_gamepath : str) -> str:
+    def dpcvar_for_mediaprofile(self, mediaprofile_gamepath: str) -> str:
         ''' Returns the dpcvar assignment string to enable the given mediaprofile gamepath
         Media profiles can be applied as early cvars
         e.g.:
@@ -2896,24 +2902,14 @@ class DeviceUnreal(Device):
         e.g. nDisplay configs, live link presets, and media profiles.
         '''
 
-        project_configs_path = os.path.normpath(
-            CONFIG.get_project_content_dir())
+        search_paths: list[pathlib.Path] = []
+        search_paths.append(pathlib.Path(CONFIG.get_project_content_dir()))
+        search_paths.extend([plugin.plugin_content_path
+                            for plugin in CONFIG.get_unreal_content_plugins()])
 
-        # search_paths stores a list of tuples of the form
-        # (unreal_plugin, directory_path). This allows us to differentiate
-        # between project assets (unreal_plugin is None in
-        # that case) and plugin assets.
-        search_paths = [(None, project_configs_path)]
-
-        for unreal_content_plugin in CONFIG.get_unreal_content_plugins():
-            search_paths.append(
-                (unreal_content_plugin,
-                 unreal_content_plugin.plugin_content_path))
-
-        asset_names = []
-        asset_paths = []
-        asset_plugins = []
-        asset_classnames = []
+        asset_names: list[str] = []
+        asset_paths: list[str] = []
+        asset_classnames: list[str] = []
 
         assets = []
 
@@ -2935,8 +2931,8 @@ class DeviceUnreal(Device):
         # convenience find assets worker. This is a step before parsing the assets, and can
         # also take some time depending on the number of assets in the project.
         def find_assets_work():
-            for (unreal_content_plugin, configs_path) in search_paths:
-                for dirpath, _, file_names in os.walk(configs_path):
+            for path in search_paths:
+                for dirpath, _, file_names in os.walk(path):
                     for file_name in file_names:
                         if not file_name.lower().endswith(('.uasset', '.ndisplay')):
                             continue
@@ -2951,12 +2947,10 @@ class DeviceUnreal(Device):
                                 assets.append({
                                     'name': file_name,
                                     'path': asset_path,
-                                    'plugin': unreal_content_plugin,
                                 })
                             else:
                                 asset_names.append(file_name)
                                 asset_paths.append(asset_path)
-                                asset_plugins.append(unreal_content_plugin)
                                 asset_classnames.append(DeviceUnreal.NDISPLAY_CLASS_NAMES[0]) # so that it passes the filter later on
 
             done_event.set()
@@ -3031,13 +3025,11 @@ class DeviceUnreal(Device):
                     # first make sure they all exist
                     name = asset['name']
                     path = asset['path']
-                    plugin = asset['plugin']
                     classname = asset['assetdata'].ObjectClassName
 
                     # now append to lists
                     asset_names.append(name)
                     asset_paths.append(path)
-                    asset_plugins.append(plugin)
                     asset_classnames.append(classname)
 
                 except Exception:
@@ -3046,12 +3038,26 @@ class DeviceUnreal(Device):
         # close progress bar window
         progressDiag.close()
 
-        def generate_short_unique_config_name(config_path: str, file_name: str) -> str:
-            config_path = CONFIG.shrink_path(config_path)
-            return sb_dialog.SwitchboardDialog.filter_empty_abiguated_path(config_path, file_name)
+        asset_path_to_game_path: dict[str, Optional[PurePosixPath]] = {
+            x: CONFIG.resolve_content_path(x) for x in asset_paths
+        }
 
-        asset_names, _ = sb_dialog.SwitchboardDialog.generate_disambiguated_names(
-            asset_paths, generate_short_unique_config_name)
+        def disambiguate_asset_path(path: str) -> str:
+            if game_path := asset_path_to_game_path[path]:
+                file_name = game_path.stem
+                rel_path = game_path.parent
+            else:
+                LOGGER.error(f"Couldn't map game path for asset {path}")
+                file_name = os.path.basename(path)
+                rel_path = path.removesuffix(file_name)
+
+            if rel_path == "/":
+                return f"{file_name}"
+            else:
+                return f"{file_name} ({rel_path})"
+
+        asset_names, _ = sb_dialog.SwitchboardDialog.disambiguated_base_names(
+            asset_paths, disambiguate_asset_path)
 
         # collect the found config files into the assets list
 
@@ -3060,17 +3066,16 @@ class DeviceUnreal(Device):
         project = SBCache().query_or_create_project(CONFIG.UPROJECT_PATH.get_value())
 
         for idx, asset_name in enumerate(asset_names):
-
-            gamepath = CONFIG.resolve_content_path(
-                file_path=asset_paths[idx], 
-                unreal_content_plugin=asset_plugins[idx])
+            gamepath = asset_path_to_game_path.get(asset_paths[idx])
+            if gamepath is None:
+                continue  # We will have logged an error already.
 
             assettype = SBCache().query_or_create_assettype(asset_classnames[idx])
             asset = Asset(
                 id=0,
                 project=project,
                 assettype=assettype,
-                gamepath=gamepath,
+                gamepath=str(gamepath),
                 name=asset_name,
                 localpath=asset_paths[idx])
 

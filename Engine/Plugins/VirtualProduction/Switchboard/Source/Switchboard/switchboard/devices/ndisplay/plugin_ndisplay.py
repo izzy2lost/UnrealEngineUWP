@@ -3,7 +3,7 @@
 import json
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import socket
 import struct
 import traceback
@@ -15,7 +15,6 @@ from PySide6 import QtWidgets
 from switchboard import message_protocol, switchboard_application
 from switchboard import switchboard_utils as sb_utils
 from switchboard import switchboard_widgets as sb_widgets
-from switchboard import switchboard_dialog as sb_dialog
 from switchboard.config import CONFIG, BoolSetting, IntSetting, FilePathSetting, \
     LoggingSetting, OptionSetting, Setting, StringSetting, SETTINGS, \
     StringListSetting, AddressSetting, migrate_comma_separated_string_to_list, \
@@ -175,10 +174,6 @@ class AddnDisplayDialog(AddDeviceDialog):
         # update the field with the selected path
         if len(cfg_path) > 0 and os.path.exists(cfg_path):
             self.cbConfigs.setCurrentText(cfg_path)
-
-    def generate_short_unique_config_name(config_path: str, file_name: str) -> str:
-        config_path = CONFIG.shrink_path(config_path)
-        return sb_dialog.SwitchboardDialog.filter_empty_abiguated_path(config_path, file_name)
 
     def on_clicked_btnFindConfigs(self):
         ''' Finds and populates config combobox '''
@@ -1416,26 +1411,6 @@ class DevicenDisplay(DeviceUnreal):
         self.settings['config_graphics_adapter'].update_value(
             menode['kwargs'].get("config_graphics_adapter", -1))
 
-    @classmethod
-    def uasset_path_from_object_path(
-            cls, object_path: str, project_dir: str) -> str:
-        '''
-        Given a full object path, return the package file path, treating
-        "`project_dir`/Content/" as "/Game/".
-        '''
-        expected_root = '/Game/'
-        if not object_path.startswith(expected_root):
-            raise ValueError('Unsupported object path root')
-
-        # If object_path is: /Game/PathA/PathB/Package.Object:SubObject
-        # Then package_rel_path is: PathA/PathB/Package
-        path_end_idx = object_path.rindex('/')
-        package_end_idx = object_path.index('.', path_end_idx)
-        package_rel_path = object_path[len(expected_root):package_end_idx]
-
-        return os.path.normpath(
-            os.path.join(project_dir, 'Content', f'{package_rel_path}.uasset'))
-
     def get_connected_devices(self):
         ''' Returns a list with the connected devices/nodes
         '''
@@ -1525,17 +1500,25 @@ class DevicenDisplay(DeviceUnreal):
         self.unreal_client.send_message(cfg_msg)
 
         if self.bp_object_path:
-            local_uasset_path = self.uasset_path_from_object_path(
-                self.bp_object_path, os.path.dirname(
-                    CONFIG.UPROJECT_PATH.get_value()))
-            dest_uasset_path = self.uasset_path_from_object_path(
-                self.bp_object_path, os.path.dirname(
-                    CONFIG.UPROJECT_PATH.get_value(self.name)))
+            local_project_path = os.path.dirname(
+                CONFIG.UPROJECT_PATH.get_value())
+            dest_project_path = os.path.dirname(
+                CONFIG.UPROJECT_PATH.get_value(self.name))
+
+            local_uasset_path = CONFIG.ue_plugin_mgr.content_to_file_path(
+                PurePosixPath(self.bp_object_path)).with_suffix('.uasset')
+
+            uasset_project_relative = os.path.relpath(local_uasset_path,
+                                                      local_project_path)
+
+            dest_uasset_path = os.path.join(dest_project_path,
+                                            uasset_project_relative)
 
             if os.path.isfile(local_uasset_path):
                 self.pending_transfer_uasset = True
                 _, uasset_msg = message_protocol.create_send_file_message(
-                    local_uasset_path, dest_uasset_path, force_overwrite=True)
+                    str(local_uasset_path), dest_uasset_path,
+                    force_overwrite=True)
                 self.unreal_client.send_message(uasset_msg)
             else:
                 LOGGER.warning(

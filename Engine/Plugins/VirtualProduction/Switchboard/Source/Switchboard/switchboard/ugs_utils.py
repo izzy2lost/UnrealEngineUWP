@@ -533,6 +533,8 @@ def parse_depot_ugs_configs(
     for depot_path, record in zip(depot_print_paths, config_prints):
         if record.is_valid:
             config_contents_map[depot_path] = record.text
+        elif b'delete' in record.stat.get(b'action', b''):
+            del config_contents_map[depot_path]
         else:
             logging.warning(f'Invalid P4PrintResult for {depot_path}')
 

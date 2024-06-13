@@ -11,7 +11,7 @@ import time
 import re
 import sys
 import json
-from typing import List, Optional, Set, Union
+from typing import Callable, List, Optional, Set, Union
 
 from pathlib import Path
 
@@ -25,12 +25,13 @@ from PySide6.QtWidgets import QWidgetAction, QMenu
 from switchboard import config
 from switchboard import config_osc as osc
 from switchboard import p4_utils
-from switchboard import ugs_utils
 from switchboard import recording
 from switchboard import resources  # noqa
 from switchboard import switchboard_application
 from switchboard import switchboard_utils
 from switchboard import switchboard_widgets as sb_widgets
+from switchboard import ue_plugin_utils
+from switchboard import ugs_utils
 from switchboard.add_config_dialog import AddConfigDialog
 from switchboard.config import CONFIG, DEFAULT_MAP_TEXT, ENABLE_UGS_SUPPORT, SETTINGS, EngineSyncMethod
 from switchboard.device_list_widget import DeviceListWidget, DeviceWidgetHeader
@@ -2046,29 +2047,29 @@ class SwitchboardDialog(QtCore.QObject):
         if self.level != current_level:
             CONFIG.save()
 
-    def filter_empty_abiguated_path(path, file_name):
-        path = path.removesuffix(file_name)
-        if path == "/":
-            return f"{file_name}"
-        else:
-            return f"{file_name} ({path})"
-
-    def generate_short_map_path(path: str, file_name: str) -> str:
-        path = path.replace("/Game", "", 1)
-        return SwitchboardDialog.filter_empty_abiguated_path(path, file_name)
-
-    def generate_disambiguated_names(path_list, shortening_function):
-        name_counts = {}
+    @classmethod
+    def disambiguated_base_names(
+        cls,
+        path_list: list[str],
+        disambiguating_function: Callable[[str], str],
+    ) -> tuple[list[str], dict[str, str]]:
+        '''
+        By default, shorten each path in `path_list` to its basename.
+        If a given basename appears more than once, `disambiguating_function`
+        is called to generate an alternative label (e.g. "A (/Other/Path/)").
+        '''
+        name_counts: dict[str, int] = {}
         for path in path_list:
             file_name = os.path.basename(path)
             name_counts[file_name] = name_counts.get(file_name, 0) + 1
 
-        # Show only level name if unique and show path behind to disambiguate duplicates
-        short_name_list = []
-        short_name_to_path = {}
+        # If unique, reduce to basename. Otherwise, append path to end
+        short_name_list: list[str] = []
+        short_name_to_path: dict[str, str] = {}
         for path in path_list:
             file_name = os.path.basename(path)
-            short_name = file_name if name_counts[file_name] == 1 else shortening_function(path, file_name)
+            short_name = (file_name if name_counts[file_name] == 1
+                          else disambiguating_function(path))
             short_name_list.append(short_name)
             short_name_to_path[short_name] = path
 
@@ -2079,9 +2080,16 @@ class SwitchboardDialog(QtCore.QObject):
             return -1 if path_a.lower() < path_b.lower() \
                 else 1 if path_a.lower() > path_b.lower() else 0
 
-        short_name_list, short_name_to_path = SwitchboardDialog.generate_disambiguated_names(
-            level_path_list,
-            SwitchboardDialog.generate_short_map_path)
+        def disambiguate_level_path(path: str) -> str:
+            file_name = os.path.basename(path)
+            path = path.removesuffix(file_name)
+            if path == "/":
+                return f"{file_name}"
+            else:
+                return f"{file_name} ({path})"
+
+        short_name_list, short_name_to_path = SwitchboardDialog.disambiguated_base_names(
+            level_path_list, disambiguate_level_path)
 
         from functools import cmp_to_key
         short_name_list = sorted(short_name_list, key=cmp_to_key(compare_file_names))
