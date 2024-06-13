@@ -37,6 +37,7 @@ static TAutoConsoleVariable<bool> CVarImgMediaProcessTilesInnerOnly(
 FImgMediaSceneViewExtension::FImgMediaSceneViewExtension(const FAutoRegister& AutoReg)
 	: FSceneViewExtensionBase(AutoReg)
 	, CachedViewInfos()
+	, DisplayResolutionCachedViewInfos()
 {
 	OnBeginFrameDelegate = FCoreDelegates::OnBeginFrame.AddRaw(this, &FImgMediaSceneViewExtension::ResetViewInfoCache);
 }
@@ -89,6 +90,7 @@ void FImgMediaSceneViewExtension::CacheViewInfo(FSceneViewFamily& InViewFamily, 
 	Info.Location = View.ViewMatrices.GetViewOrigin();
 	Info.ViewDirection = View.GetViewDirection();
 	Info.ViewProjectionMatrix = View.ViewMatrices.GetViewProjectionMatrix();
+	Info.ViewportRect = View.UnconstrainedViewRect.Scale(ResolutionFraction);
 
 	if (FMath::IsNearlyEqual(FieldOfViewMultiplier, 1.0f))
 	{
@@ -106,8 +108,6 @@ void FImgMediaSceneViewExtension::CacheViewInfo(FSceneViewFamily& InViewFamily, 
 
 		Info.OverscanViewProjectionMatrix = View.ViewMatrices.GetViewMatrix() * AdjustedProjectionMatrix;
 	}
-
-	Info.ViewportRect = View.UnconstrainedViewRect.Scale(ResolutionFraction);
 
 	// We store hidden or show-only ids to later avoid needless calculations when objects are not in view.
 	if (View.ShowOnlyPrimitives.IsSet())
@@ -149,23 +149,18 @@ void FImgMediaSceneViewExtension::CacheViewInfo(FSceneViewFamily& InViewFamily, 
 	}
 #endif
 
-	/*
-	* As a mitigation for overlay materials drawn at the post-upscale resolution, we create a secondary (virtual) view with the adjusted resolution.
-	* We make the greedy assumption that users of this obscure console variable come from media plate composite logic.
-	* This ensures that mip estimation covers both regular and upscaled resolutions. It may not be the most efficient solve, but by far the safest and simplest.
-	*/
-	static const auto CVarTranslucencySPBasis = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Translucency.ScreenPercentage.Basis"));
-	if (CVarTranslucencySPBasis && CVarTranslucencySPBasis->GetInt() == 1)
+	// We cache the display resolution view info in case it's needed for compositing applications
+	const bool bIsDisplayResolutionDifferent = !FMath::IsNearlyEqual(ResolutionFraction, InViewFamily.SecondaryViewFraction);
+	if (bIsDisplayResolutionDifferent)
 	{
 		FImgMediaViewInfo PostUpscaleVirtualInfo = Info;
-
-		// Note: This is equivalent to FViewInfo::GetSecondaryViewRectSize
+		PostUpscaleVirtualInfo.MaterialTextureMipBias = 0.0f;
 		PostUpscaleVirtualInfo.ViewportRect = FIntRect(0, 0,
-			FMath::CeilToInt(View.UnscaledViewRect.Width() * InViewFamily.SecondaryViewFraction),
-			FMath::CeilToInt(View.UnscaledViewRect.Height() * InViewFamily.SecondaryViewFraction)
+			FMath::CeilToInt(View.UnconstrainedViewRect.Width() * InViewFamily.SecondaryViewFraction),
+			FMath::CeilToInt(View.UnconstrainedViewRect.Height() * InViewFamily.SecondaryViewFraction)
 		);
 
-		CachedViewInfos.Add(MoveTemp(PostUpscaleVirtualInfo));
+		DisplayResolutionCachedViewInfos.Add(MoveTemp(PostUpscaleVirtualInfo));
 	}
 
 	CachedViewInfos.Add(MoveTemp(Info));
@@ -174,6 +169,7 @@ void FImgMediaSceneViewExtension::CacheViewInfo(FSceneViewFamily& InViewFamily, 
 void FImgMediaSceneViewExtension::ResetViewInfoCache()
 {
 	CachedViewInfos.Reset();
+	DisplayResolutionCachedViewInfos.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

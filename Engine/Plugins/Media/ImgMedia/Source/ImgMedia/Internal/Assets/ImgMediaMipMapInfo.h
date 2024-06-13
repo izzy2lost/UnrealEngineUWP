@@ -214,6 +214,9 @@ public:
 	/** Get the mip level to upscale (-1 if disabled). */
 	virtual int32 GetMipLevelToUpscale() const;
 
+	/** Get the target view resolution. */
+	EMediaTextureTargetViewResolution GetTargetViewResolutionMask() const;
+
 protected:
 
 	/** Mesh component onto which the media is displayed. */
@@ -314,6 +317,9 @@ protected:
 
 	/** Info for each view, used in mipmap calculations. */
 	TArray<FImgMediaViewInfo> ViewInfos;
+
+	/** Info for each view at display resolution, used in mipmap calculations. */
+	TArray<FImgMediaViewInfo> DisplayResolutionViewInfos;
 
 	/** Size, tiling and mips sequence information. */
 	FSequenceInfo SequenceInfo;

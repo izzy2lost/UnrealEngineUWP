@@ -46,6 +46,14 @@ public:
 	 */
 	IMGMEDIA_API const TArray<FImgMediaViewInfo>& GetViewInfos() const { return CachedViewInfos; };
 
+	/**
+	 * Get the cached camera information array at display resolution for compositing, updated on the game thread by BeginRenderViewFamily.
+	 * Will remain empty if the render resolution matches the display resolution.
+	 *
+	 * @return Array of info on each camera, at display resolution.
+	 */
+	IMGMEDIA_API const TArray<FImgMediaViewInfo>& GetDisplayResolutionViewInfos() const { return DisplayResolutionCachedViewInfos; };
+
 	void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
 	void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
 	void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
@@ -60,6 +68,9 @@ private:
 	
 	/** Array of info on each camera used for mipmap calculations. */
 	TArray<FImgMediaViewInfo> CachedViewInfos;
+
+	/** Array of info on each camera used for mipmap calculations, at display resolution. */
+	TArray<FImgMediaViewInfo> DisplayResolutionCachedViewInfos;
 
 	/** FCoreDelegates::OnBeginFrame delegate. */
 	FDelegateHandle OnBeginFrameDelegate;

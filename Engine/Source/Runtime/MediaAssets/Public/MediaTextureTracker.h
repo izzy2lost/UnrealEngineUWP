@@ -21,6 +21,15 @@ enum class EMediaTextureVisibleMipsTiles : uint8
 	Sphere
 };
 
+enum class EMediaTextureTargetViewResolution : uint8
+{
+	None = 0,
+	RenderResolution = 1 << 0,
+	DisplayResolution = 1 << 1,
+	All = RenderResolution | DisplayResolution
+};
+ENUM_CLASS_FLAGS(EMediaTextureTargetViewResolution);
+
 /** Holds info on a single object. */
 struct FMediaTextureTrackerObject
 {
@@ -36,6 +45,8 @@ struct FMediaTextureTrackerObject
 	int32 MipLevelToUpscale = -1;
 	/* When this is enabled Media Plate will automatically try to figure out the best mip to upscale to reduce the load. */
 	bool bAdaptivePoleMipUpscaling = false;
+	/* Bitwise mask for the target displayed resolution of the media texture (used for mip level estimation). */
+	EMediaTextureTargetViewResolution TargetViewResolutionMask = EMediaTextureTargetViewResolution::RenderResolution;
 };
 
 /**

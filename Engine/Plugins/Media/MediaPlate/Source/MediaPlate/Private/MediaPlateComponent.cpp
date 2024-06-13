@@ -534,6 +534,35 @@ void UMediaPlateComponent::RegisterWithMediaTextureTracker()
 	MediaTextureTrackerObject->MipLevelToUpscale = bEnableMipMapUpscaling ? MipLevelToUpscale : -1;
 	MediaTextureTrackerObject->bAdaptivePoleMipUpscaling = bAdaptivePoleMipUpscaling;
 
+	// Specify view target resolution for any subsequent mip-level estimation, defaulting to render resolution.
+	EMediaTextureTargetViewResolution TargetViewResolutionMask = EMediaTextureTargetViewResolution::RenderResolution;
+	if (AMediaPlate* MediaPlate = GetOwner<AMediaPlate>())
+	{
+		// If holdout is enabled, we assume the holdout compositing is active and only use the display resolution.
+		if (MediaPlate->StaticMeshComponent && MediaPlate->StaticMeshComponent->bHoldout)
+		{
+			TargetViewResolutionMask = EMediaTextureTargetViewResolution::DisplayResolution;
+		}
+		else
+		{
+			// First we check if overlay rendering is done at display resolution
+			static const auto CVarTranslucencySPBasis = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Translucency.ScreenPercentage.Basis"));
+			const bool bDisplayResolutionOverlay = CVarTranslucencySPBasis && CVarTranslucencySPBasis->GetInt() == 1;
+
+			if (bDisplayResolutionOverlay && MediaPlate->GetCurrentOverlayMaterial() != nullptr)
+			{
+				EnumAddFlags(TargetViewResolutionMask, EMediaTextureTargetViewResolution::DisplayResolution);
+
+				// If we only have an overlay material, we can safely remove the render resolution target
+				if (MediaPlate->GetCurrentMaterial() == nullptr)
+				{
+					EnumRemoveFlags(TargetViewResolutionMask, EMediaTextureTargetViewResolution::RenderResolution);
+				}
+			}
+		}
+	}
+	MediaTextureTrackerObject->TargetViewResolutionMask = TargetViewResolutionMask;
+
 	// Add our textures.
 	FMediaTextureTracker& MediaTextureTracker = FMediaTextureTracker::Get();
 	for (UMediaTexture* MediaTexture : MediaTextures)

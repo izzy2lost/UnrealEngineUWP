@@ -295,6 +295,17 @@ int32 FImgMediaMipMapObjectInfo::GetMipLevelToUpscale() const
 	return -1;
 }
 
+EMediaTextureTargetViewResolution FImgMediaMipMapObjectInfo::GetTargetViewResolutionMask() const
+{
+	TSharedPtr<FMediaTextureTrackerObject> PinnedTracker = Tracker.Pin();
+	if (PinnedTracker.IsValid())
+	{
+		return PinnedTracker->TargetViewResolutionMask;
+	}
+
+	return EMediaTextureTargetViewResolution::RenderResolution;
+}
+
 void FImgMediaMipMapObjectInfo::CalculateVisibleTiles(const TArray<FImgMediaViewInfo>& InViewInfos, const FSequenceInfo& InSequenceInfo, TMap<int32, FImgMediaTileSelection>& VisibleTiles) const
 {
 	UMeshComponent* Mesh = MeshComponent.Get();
@@ -401,6 +412,11 @@ namespace {
 			
 			TSharedPtr<FMediaTextureTrackerObject, ESPMode::ThreadSafe> ObjectInfo = Tracker.Pin();
 			if (!ObjectInfo.IsValid())
+			{
+				return;
+			}
+
+			if (InViewInfos.IsEmpty())
 			{
 				return;
 			}
@@ -644,6 +660,11 @@ namespace {
 
 			TSharedPtr<FMediaTextureTrackerObject, ESPMode::ThreadSafe> ObjectInfo = Tracker.Pin();
 			if (!ObjectInfo.IsValid())
+			{
+				return;
+			}
+
+			if (InViewInfos.IsEmpty())
 			{
 				return;
 			}
@@ -1052,7 +1073,20 @@ TMap<int32, FImgMediaTileSelection> FImgMediaMipMapInfo::GetVisibleTiles()
 		// Loop over all objects.
 		for (FImgMediaMipMapObjectInfo* ObjectInfo : Objects)
 		{
-			ObjectInfo->CalculateVisibleTiles(ViewInfos, SequenceInfo, CachedVisibleTiles);
+			const EMediaTextureTargetViewResolution Mask = ObjectInfo->GetTargetViewResolutionMask();
+
+			// If display & render resolutions are identical, display resolution view infos will always be empty.
+			const bool bForceRenderResolution = DisplayResolutionViewInfos.IsEmpty();
+
+			if (EnumHasAllFlags(Mask, EMediaTextureTargetViewResolution::RenderResolution) || bForceRenderResolution)
+			{
+				ObjectInfo->CalculateVisibleTiles(ViewInfos, SequenceInfo, CachedVisibleTiles);
+			}
+
+			if (EnumHasAllFlags(Mask, EMediaTextureTargetViewResolution::DisplayResolution) && !bForceRenderResolution)
+			{
+				ObjectInfo->CalculateVisibleTiles(DisplayResolutionViewInfos, SequenceInfo, CachedVisibleTiles);
+			}
 		}
 
 		// Mark cache as valid.
@@ -1172,6 +1206,7 @@ void FImgMediaMipMapInfo::OnEndFrame()
 		if (SVE.IsValid())
 		{
 			ViewInfos = SVE->GetViewInfos();
+			DisplayResolutionViewInfos = SVE->GetDisplayResolutionViewInfos();
 		}
 	}
 }
