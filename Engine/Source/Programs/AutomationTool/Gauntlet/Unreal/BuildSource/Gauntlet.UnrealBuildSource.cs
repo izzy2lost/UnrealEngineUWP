@@ -203,6 +203,34 @@ namespace Gauntlet
 				string BinariesPath = Path.Combine(ProjectPath.Directory.FullName, "Binaries");
 				OutBuildPaths = Directory.Exists(BinariesPath) ? new string[] { StagedPath, BinariesPath } : new string[] { StagedPath };
 			}
+			else if (BuildDir.Name.Equals("LatestGood", StringComparison.OrdinalIgnoreCase)
+				|| BuildDir.Name.Equals("LKG", StringComparison.OrdinalIgnoreCase))
+			{
+				string RequestedValidator = Globals.Params.ParseValue("BuildValidator", null);
+				IBuildValidator Validator = Utils.InterfaceHelpers.FindImplementations<IBuildValidator>(true)
+					.Where(Validator => Validator.CanSupportProject(ProjectName))
+					.Where(Validator => string.IsNullOrEmpty(RequestedValidator) || Validator.Name.Equals(RequestedValidator, StringComparison.OrdinalIgnoreCase))
+					.FirstOrDefault();
+
+				if(Validator == null)
+				{
+					Log.Error("No build validator that can support project {ProjectName} was found.", ProjectName);
+					return false;
+				}
+
+				string LatestGoodBuild = Validator.GetLatestGoodBuild();
+				if(string.IsNullOrEmpty(LatestGoodBuild))
+				{
+					Log.Error("No latest good build was able to be found!");
+					return false;
+				}
+
+				OutBuildPaths = new[] { LatestGoodBuild };
+				OutBuildName = Path.GetFileName(LatestGoodBuild);
+
+				Log.Info("{Validator} selected {Build} as the latest good build. Proceeding with this build", Validator.GetType().Name, OutBuildName);
+				return true;
+			}
 			else
 			{
 				// todo - make this more generic
