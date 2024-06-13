@@ -24,11 +24,24 @@ class UInstancedActorsSubsystem;
 
 enum class EInstancedActorsBulkLOD : uint8
 {
-	Detailed, // this wil make Mass calculate LOD individually for every instance
+	Detailed, // this will make Mass calculate LOD individually for every instance
 	Medium,
 	Low,
 	Off,
 	MAX
+};
+
+enum class EInstancedActorsBulkLODMask : uint8
+{
+	None = 0,
+
+	Detailed = 1 << int(EInstancedActorsBulkLOD::Detailed),
+	Medium = 1 << int(EInstancedActorsBulkLOD::Medium),
+	Low = 1 << int(EInstancedActorsBulkLOD::Low),
+	Off = 1 << int(EInstancedActorsBulkLOD::Off),
+
+	NotDetailed = Medium | Low | Off,
+	All = 0xFF
 };
 
 enum class EInstancedActorsFragmentFlags : uint8

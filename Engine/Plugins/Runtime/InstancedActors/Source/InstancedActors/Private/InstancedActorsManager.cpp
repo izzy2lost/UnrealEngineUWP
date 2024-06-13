@@ -1014,7 +1014,8 @@ UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstance
 	return UE::InstancedActors::EInsideBoundsTestResult::NotInside;
 }
 
-bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned) const
+bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSubclassOf<AActor> ActorClass
+	, const bool bTestActorsIfSpawned, const EInstancedActorsBulkLODMask AllowedLODs) const
 {
 	using UE::InstancedActors::EInsideBoundsTestResult;
 
@@ -1024,9 +1025,10 @@ bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSu
 	FScopedInstancedActorsIterationContext IterationContext;
 	bool bHasInstance = false;
 
-	auto InstancedActorDataMask = TOptional<AInstancedActorsManager::FInstancedActorDataPredicateFunc>([ActorClass](const UInstancedActorsData& InstancedActorData)
+	auto InstancedActorDataMask = TOptional<AInstancedActorsManager::FInstancedActorDataPredicateFunc>([ActorClass, AllowedLODs](const UInstancedActorsData& InstancedActorData)
 		{
-			return InstancedActorData.ActorClass->IsChildOf(ActorClass);
+			return (int(AllowedLODs) & (1 << int(InstancedActorData.GetBulkLOD()))) 
+				&& InstancedActorData.ActorClass->IsChildOf(ActorClass);
 		});
 
 	struct FQueryBounds

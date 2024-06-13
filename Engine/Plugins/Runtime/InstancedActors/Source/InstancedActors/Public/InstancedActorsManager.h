@@ -168,7 +168,8 @@ public:
 	 * @param bTestActorsIfSpawned if true then when an instance is found to overlap given bounds, and it has an actor 
 	 *	spawned associated with it, then the actor itself will be tested against the bounds for more precise test.
 	 */
-	bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned = false) const;
+	bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned = false
+		, const EInstancedActorsBulkLODMask AllowedLODs = EInstancedActorsBulkLODMask::All) const;
 
 	/** 
 	 * Determines whether the actor instance given by InstanceHandle overlaps QueryBounds. The test involves calculating 

@@ -576,16 +576,17 @@ void UInstancedActorsSubsystem::ForEachInstance(const FBox& QueryBounds, TFuncti
 	});
 }
 
-bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned) const
+bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass
+	, const bool bTestActorsIfSpawned, const EInstancedActorsBulkLODMask AllowedLODs) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem::HasInstancesOfClass);
 	
 	UE_VLOG_BOX(this, LogInstancedActors, Log, QueryBounds, FColor::Orange, TEXT(""));
 
 	bool bHasInstances = false;
-	ForEachManager(QueryBounds, [QueryBounds, ActorClass, &bHasInstances, bTestActorsIfSpawned](AInstancedActorsManager& Manager)
+	ForEachManager(QueryBounds, [QueryBounds, ActorClass, &bHasInstances, bTestActorsIfSpawned, AllowedLODs](AInstancedActorsManager& Manager)
 	{
-		bHasInstances = Manager.HasInstancesOfClass(QueryBounds, ActorClass, bTestActorsIfSpawned);
+		bHasInstances = Manager.HasInstancesOfClass(QueryBounds, ActorClass, bTestActorsIfSpawned, AllowedLODs);
 		const bool bContinue = !bHasInstances;
 		return bContinue;
 	});
