@@ -270,6 +270,44 @@ namespace NDISocketReaderLocal
 		InstanceData->ResolvedObject		= ResolvedObject;
 	}
 
+	void GetSocketNames(UObject* ResolvedObject, TArray<FName>& OutSocketNames)
+	{
+		if (USceneComponent* SceneComponent = Cast<USceneComponent>(ResolvedObject))
+		{
+			OutSocketNames = SceneComponent->GetAllSocketNames();
+		}
+		else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ResolvedObject))
+		{
+			const int32 NumSockets = StaticMesh->Sockets.Num();
+			OutSocketNames.Reserve(StaticMesh->Sockets.Num());
+			for (UStaticMeshSocket* Socket : StaticMesh->Sockets)
+			{
+				check(Socket);
+				OutSocketNames.Add(Socket->SocketName);
+			}
+		}
+		else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(ResolvedObject))
+		{
+			const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+			const TArray<FMeshBoneInfo>& RefBoneInfo = RefSkeleton.GetRefBoneInfo();
+			const int32 NumBones = RefBoneInfo.Num();
+			const int32 NumSockets = SkeletalMesh->NumSockets();
+
+			OutSocketNames.Reserve(NumBones + NumSockets);
+			for (int i = 0; i < NumBones; ++i)
+			{
+				OutSocketNames.Add(RefBoneInfo[i].Name);
+			}
+
+			for (int i = 0; i < NumSockets; ++i)
+			{
+				USkeletalMeshSocket* Socket = SkeletalMesh->GetSocketByIndex(i);
+				check(Socket);
+				OutSocketNames.Add(Socket->SocketName);
+			}
+		}
+	}
+
 	void UpdateSocketCache(const UNiagaraDataInterfaceSocketReader* SocketDI, FInstanceData_GameThread* InstanceData, FNiagaraSystemInstance* SystemInstance)
 	{
 		const bool bResetPreviousTransform = InstanceData->bNeedsSocketRecache;
@@ -291,40 +329,7 @@ namespace NDISocketReaderLocal
 			InstanceData->SocketFilterUnfilteredIndex.Empty();
 			InstanceData->SocketNames.Empty();
 
-			if (USceneComponent* SceneComponent = Cast<USceneComponent>(InstanceData->ResolvedObject))
-			{
-				InstanceData->SocketNames = SceneComponent->GetAllSocketNames();
-			}
-			else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(InstanceData->ResolvedObject))
-			{
-				const int32 NumSockets = StaticMesh->Sockets.Num();
-				InstanceData->SocketNames.Reserve(StaticMesh->Sockets.Num());
-				for ( UStaticMeshSocket* Socket : StaticMesh->Sockets )
-				{
-					check(Socket)
-					InstanceData->SocketNames.Add(Socket->SocketName);
-				}
-			}
-			else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(InstanceData->ResolvedObject))
-			{
-				const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
-				const TArray<FMeshBoneInfo>& RefBoneInfo = RefSkeleton.GetRefBoneInfo();
-				const int32 NumBones = RefBoneInfo.Num();
-				const int32 NumSockets = SkeletalMesh->NumSockets();
-
-				InstanceData->SocketNames.Reserve(NumBones + NumSockets);
-				for (int i = 0; i < NumBones; ++i)
-				{
-					InstanceData->SocketNames.Add(RefBoneInfo[i].Name);
-				}
-
-				for (int i = 0; i < NumSockets; ++i)
-				{
-					USkeletalMeshSocket* Socket = SkeletalMesh->GetSocketByIndex(i);
-					check(Socket);
-					InstanceData->SocketNames.Add(Socket->SocketName);
-				}
-			}
+			GetSocketNames(InstanceData->ResolvedObject.Get(), InstanceData->SocketNames);
 
 			InstanceData->NumSockets = InstanceData->SocketNames.Num();
 			if (InstanceData->NumSockets > 0 )
@@ -830,6 +835,18 @@ bool UNiagaraDataInterfaceSocketReader::CopyToInternal(UNiagaraDataInterface* De
 	OtherTyped->bRequireCurrentFrameData = bRequireCurrentFrameData;
 	return true;
 }
+
+#if WITH_EDITORONLY_DATA
+TArray<FName> UNiagaraDataInterfaceSocketReader::GetEditorSocketNames() const
+{
+	TArray<FName> SocketNames;
+	if (UObject* EditorAsset = EditorPreviewAsset.LoadSynchronous())
+	{
+		NDISocketReaderLocal::GetSocketNames(EditorAsset, SocketNames);
+	}
+	return SocketNames;
+}
+#endif
 
 #undef LOCTEXT_NAMESPACE
 

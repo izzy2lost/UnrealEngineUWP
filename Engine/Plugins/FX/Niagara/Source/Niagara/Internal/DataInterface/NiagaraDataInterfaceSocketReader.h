@@ -124,6 +124,11 @@ public:
 	virtual bool HasPreSimulateTick() const override { return true; }
 	//UNiagaraDataInterface Interface
 
+#if WITH_EDITORONLY_DATA
+	// Returns a list of sockets if the editor preview asset is valid
+	NIAGARA_API TArray<FName> GetEditorSocketNames() const;
+#endif
+
 protected:
 #if WITH_EDITORONLY_DATA
 	virtual void GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const override;
