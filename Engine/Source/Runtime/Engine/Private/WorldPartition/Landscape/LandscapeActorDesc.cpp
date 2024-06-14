@@ -24,6 +24,8 @@ void FLandscapeActorDesc::Init(const AActor* InActor)
 		{
 			LandscapeActorGuid = LandscapeActor->GetActorGuid();
 		}
+
+		EditorBounds = InActor->GetStreamingBoundsEditor();
 	}
 }
 
