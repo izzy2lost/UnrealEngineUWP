@@ -231,11 +231,18 @@ TSharedPtr<ServicesClass> GetServices(FName InstanceName = NAME_None)
 ONLINESERVICESINTERFACE_API void DestroyService(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None);
 
 /**
- * Destroy all instances of the online service specified
+ * Destroy all instances of the online services specified by EOnlineServices type
  *
  * @param OnlineServices Type of online services to destroy all instances from
  */
 ONLINESERVICESINTERFACE_API void DestroyAllNamedServices(EOnlineServices OnlineServices);
+
+/**
+ * Destroy all instances of the online services with specified instance name
+ *
+ * @param InstanceName Name of online services to destroy all instances from
+ */
+ONLINESERVICESINTERFACE_API void DestroyAllServicesWithName(FName InstanceName);
 
 namespace Meta {
 // TODO: Move to OnlineServices_Meta.inl file?

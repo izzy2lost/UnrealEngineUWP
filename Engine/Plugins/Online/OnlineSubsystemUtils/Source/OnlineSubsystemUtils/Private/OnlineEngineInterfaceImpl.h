@@ -28,6 +28,8 @@ public:
 	virtual bool IsLoaded(FName OnlineIdentifier) override;
 	virtual FName GetOnlineIdentifier(FWorldContext& WorldContext) override;
 	virtual bool DoesInstanceExist(FName OnlineIdentifier) override;
+
+	// NOTE: In OSSv1 it only shuts down the default type of subsystem instance corresponding to the identifier
 	virtual void ShutdownOnlineSubsystem(FName OnlineIdentifier) override;
 	virtual void DestroyOnlineSubsystem(FName OnlineIdentifier) override;
 	virtual FName GetDefaultOnlineSubsystemName() const override;

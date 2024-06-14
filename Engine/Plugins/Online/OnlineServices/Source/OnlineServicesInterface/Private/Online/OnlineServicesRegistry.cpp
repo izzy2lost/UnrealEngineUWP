@@ -152,6 +152,23 @@ void FOnlineServicesRegistry::DestroyAllNamedServicesInstances(EOnlineServices O
 	}
 }
 
+void FOnlineServicesRegistry::DestroyAllServicesInstancesWithName(FName InstanceName)
+{
+	for (auto It = NamedServiceInstances.CreateIterator(); It; ++It)
+	{
+		if (TSharedRef<IOnlineServices>* Service = It->Value.Find(InstanceName))
+		{
+			(*Service)->Destroy();
+			It->Value.Remove(InstanceName);
+		}
+
+		if (It->Value.IsEmpty())
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
 TSharedPtr<IOnlineServices> FOnlineServicesRegistry::CreateServices(EOnlineServices OnlineServices, FName InstanceName)
 {
 	OnlineServices = ResolveServiceName(OnlineServices);

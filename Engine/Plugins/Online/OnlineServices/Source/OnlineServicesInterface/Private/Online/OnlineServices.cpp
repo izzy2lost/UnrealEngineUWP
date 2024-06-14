@@ -85,4 +85,9 @@ void DestroyAllNamedServices(EOnlineServices OnlineServices)
 	FOnlineServicesRegistry::Get().DestroyAllNamedServicesInstances(OnlineServices);
 }
 
+void DestroyAllServicesWithName(FName InstanceName)
+{
+	FOnlineServicesRegistry::Get().DestroyAllServicesInstancesWithName(InstanceName);
+}
+
 /* UE::Online */ }
