@@ -79,12 +79,6 @@ FVulkanView* FVulkanView::InitAsTypedBufferView(FVulkanResourceMultiBuffer* Buff
 	ViewInfo.offset = TotalOffset;
 	ViewInfo.format = Format;
 
-	// :todo-jn: Volatile buffers use temporary allocations that can be smaller than the buffer creation size.  Check if the savings are still worth it.
-	if (Buffer->IsVolatile())
-	{
-		InSize = FMath::Min<uint64>(InSize, Buffer->GetCurrentSize());
-	}
-
 	const uint32 TypeSize =  VulkanRHI::GetNumBitsPerPixel(Format) / 8u;
 	// View size has to be a multiple of element size
 	// Commented out because there are multiple places in the high level rendering code which re-purpose buffers for a new format while there are still

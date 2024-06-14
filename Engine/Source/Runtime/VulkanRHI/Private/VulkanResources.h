@@ -25,6 +25,7 @@ class FVulkanLayout;
 class FVulkanOcclusionQuery;
 class FVulkanCommandBufferManager;
 struct FRHITransientHeapAllocation;
+struct FVulkanPendingBufferLock;
 
 class FVulkanView;
 class FVulkanViewableResource;
@@ -34,7 +35,6 @@ class FVulkanUnorderedAccessView;
 namespace VulkanRHI
 {
 	class FDeviceMemoryAllocation;
-	struct FPendingBufferLock;
 }
 
 enum
@@ -1055,7 +1055,7 @@ public:
 
 	inline const VulkanRHI::FVulkanAllocation& GetCurrentAllocation() const
 	{
-		return BufferAllocs[CurrentBufferIndex].Alloc;
+		return CurrentBufferAlloc.Alloc;
 	}
 
 	inline VkBuffer GetHandle() const
@@ -1066,11 +1066,6 @@ public:
 	inline bool IsVolatile() const
 	{
 		return EnumHasAnyFlags(GetUsage(), BUF_Volatile);
-	}
-
-	inline int32 GetNumBuffers() const
-	{
-		return BufferAllocs.Num();
 	}
 
 	// Offset used for Binding a VkBuffer
@@ -1087,7 +1082,7 @@ public:
 
 	inline VkDeviceAddress GetDeviceAddress() const
 	{
-		return BufferAllocs[CurrentBufferIndex].DeviceAddress;
+		return CurrentBufferAlloc.DeviceAddress;
 	}
 
 	inline VkBufferUsageFlags GetBufferUsageFlags() const
@@ -1101,16 +1096,7 @@ public:
 	}
 
 	void* Lock(FRHICommandListBase& RHICmdList, EResourceLockMode LockMode, uint32 Size, uint32 Offset);
-	void* Lock(FVulkanCommandListContext& Context, EResourceLockMode LockMode, uint32 Size, uint32 Offset);
-
-	inline void Unlock(FRHICommandListBase& RHICmdList)
-	{
-		Unlock(&RHICmdList, nullptr);
-	}
-	inline void Unlock(FVulkanCommandListContext& Context)
-	{
-		Unlock(nullptr, &Context);
-	}
+	void Unlock(FRHICommandListBase& RHICmdList);
 
 	void TakeOwnership(FVulkanResourceMultiBuffer& Other);
 	void ReleaseOwnership();
@@ -1118,17 +1104,22 @@ public:
 	template<typename T>
 	void DumpMemory(T Callback)
 	{
-		Callback(TEXT("FVulkanResourceMultiBuffer"), FName(), this, 0, GetCurrentSize() * GetNumBuffers(), 1, 1, VK_FORMAT_UNDEFINED);
+		Callback(TEXT("FVulkanResourceMultiBuffer"), FName(), this, 0, GetCurrentSize(), 1, 1, VK_FORMAT_UNDEFINED);
 	}
 
 	static VkBufferUsageFlags UEToVKBufferUsageFlags(FVulkanDevice* InDevice, EBufferUsageFlags InUEUsage, bool bZeroSize);
 
+	struct FBufferAlloc
+	{
+		VulkanRHI::FVulkanAllocation Alloc;
+		void* HostPtr = nullptr;
+		VkDeviceAddress DeviceAddress = 0;
+	};
+
 protected:
 
-	void AdvanceBufferIndex();
-	void UpdateBufferAllocStates(FVulkanCommandListContext& Context);
-
-	void Unlock(FRHICommandListBase* RHICmdList, FVulkanCommandListContext* Context);
+	// Will return a new allocation that can be used for this buffer (proper memory type and size)
+	void AllocateMemory(FBufferAlloc& OutAlloc);
 
 	VkBufferUsageFlags BufferUsageFlags;
 
@@ -1139,26 +1130,8 @@ protected:
 		PersistentMapping,
 	} LockStatus = ELockStatus::Unlocked;
 
-	struct FBufferAlloc
-	{
-		VulkanRHI::FVulkanAllocation Alloc;
-		void* HostPtr = nullptr;
-		class FVulkanGPUFence* Fence = nullptr;
-		VkDeviceAddress DeviceAddress = 0;
-
-		enum class EAllocStatus : uint8
-		{
-			Available,	// The allocation is ready to be used
-			InUse,		// CurrentBufferIndex should point to this allocation
-			NeedsFence,	// The allocation was just released and needs a fence to make sure previous commands are done with it
-			Pending,	// Fence was written, we are waiting on it to know that the alloc can be used again
-		} AllocStatus = EAllocStatus::Available;
-	};
-	TArray<FBufferAlloc, TInlineAllocator<3>> BufferAllocs;
-	int32 CurrentBufferIndex = -1;
+	FBufferAlloc CurrentBufferAlloc;
 	uint32 LockCounter = 0;
-
-	static void InternalUnlock(FVulkanCommandListContext& Context, VulkanRHI::FPendingBufferLock& PendingLock, FVulkanResourceMultiBuffer* MultiBuffer, int32 InDynamicBufferIndex);
 
 	friend class FVulkanCommandListContext;
 	friend struct FRHICommandMultiBufferUnlock;

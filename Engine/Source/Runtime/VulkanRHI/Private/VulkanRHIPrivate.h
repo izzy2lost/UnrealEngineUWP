@@ -433,14 +433,6 @@ DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Max Potential Desc Sets"), STAT_Vulk
 
 namespace VulkanRHI
 {
-	struct FPendingBufferLock
-	{
-		FStagingBuffer* StagingBuffer;
-		uint32 Offset;
-		uint32 Size;
-		EResourceLockMode LockMode;
-	};
-
 	static uint32 GetNumBitsPerPixel(VkFormat Format)
 	{
 		switch (Format)

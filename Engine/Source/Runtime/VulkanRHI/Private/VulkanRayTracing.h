@@ -254,7 +254,7 @@ private:
 	
 	TMap<const FVulkanRayTracingPipelineState*, TRefCountPtr<FVulkanRayTracingShaderTable>> ShaderTables;
 
-	void BuildPerInstanceGeometryParameterBuffer(FVulkanCommandListContext& CommandContext);
+	void BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList);
 
 	UE::FMutex Mutex;
 	bool bBuilt = false;

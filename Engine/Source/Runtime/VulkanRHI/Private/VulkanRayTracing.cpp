@@ -762,24 +762,27 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 {
 	const bool bIsUpdate = BuildMode == EAccelerationStructureBuildMode::Update;
 
-	// Build a metadata buffer	that contains VulkanRHI-specific per-geometry parameters that allow us to access
-	// vertex and index buffers from shaders that use inline ray tracing.
-	BuildPerInstanceGeometryParameterBuffer(CommandContext);
-
-	check(AccelerationStructureBuffer.IsValid());
-	check(InInstanceBuffer != nullptr);
-
 	FBufferRHIRef ScratchBuffer;
-
-	if (InScratchBuffer == nullptr)
 	{
-		const uint64 ScratchBufferSize = bIsUpdate ? SizeInfo.UpdateScratchSize : SizeInfo.BuildScratchSize;
-
 		TRHICommandList_RecursiveHazardous<FVulkanCommandListContext> RHICmdList(&CommandContext);
-		FRHIResourceCreateInfo ScratchBufferCreateInfo(TEXT("BuildScratchTLAS"));
-		ScratchBuffer = RHICmdList.CreateBuffer(ScratchBufferSize, BUF_StructuredBuffer | BUF_RayTracingScratch, 0, ERHIAccess::UAVCompute, ScratchBufferCreateInfo);
-		InScratchBuffer = ResourceCast(ScratchBuffer.GetReference());
-		InScratchOffset = 0;
+
+		// Build a metadata buffer	that contains VulkanRHI-specific per-geometry parameters that allow us to access
+		// vertex and index buffers from shaders that use inline ray tracing.
+		BuildPerInstanceGeometryParameterBuffer(RHICmdList);
+
+		check(AccelerationStructureBuffer.IsValid());
+		check(InInstanceBuffer != nullptr);
+
+
+		if (InScratchBuffer == nullptr)
+		{
+			const uint64 ScratchBufferSize = bIsUpdate ? SizeInfo.UpdateScratchSize : SizeInfo.BuildScratchSize;
+
+			FRHIResourceCreateInfo ScratchBufferCreateInfo(TEXT("BuildScratchTLAS"));
+			ScratchBuffer = RHICmdList.CreateBuffer(ScratchBufferSize, BUF_StructuredBuffer | BUF_RayTracingScratch, 0, ERHIAccess::UAVCompute, ScratchBufferCreateInfo);
+			InScratchBuffer = ResourceCast(ScratchBuffer.GetReference());
+			InScratchOffset = 0;
+		}
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -860,7 +863,7 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 	bBuilt = true;
 }
 
-void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FVulkanCommandListContext& CommandContext)
+void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList)
 {
 	// TODO: we could cache parameters in the geometry object to avoid some of the pointer chasing (if this is measured to be a performance issue)
 
@@ -869,7 +872,7 @@ void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FVulkanComm
 
 	check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
 
-	void* MappedBuffer = PerInstanceGeometryParameterBuffer->Lock(CommandContext, RLM_WriteOnly, ParameterBufferSize, 0);
+	void* MappedBuffer = PerInstanceGeometryParameterBuffer->Lock(RHICmdList, RLM_WriteOnly, ParameterBufferSize, 0);
 	FVulkanRayTracingGeometryParameters* MappedParameters = reinterpret_cast<FVulkanRayTracingGeometryParameters*>(MappedBuffer);
 	uint32 ParameterIndex = 0;
 
@@ -914,7 +917,7 @@ void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FVulkanComm
 
 	check(ParameterIndex == Initializer.NumTotalSegments);
 
-	PerInstanceGeometryParameterBuffer->Unlock(CommandContext);
+	PerInstanceGeometryParameterBuffer->Unlock(RHICmdList);
 }
 
 
@@ -1347,7 +1350,7 @@ void FVulkanCommandListContext::RHIBuildAccelerationStructure(const FRayTracingS
 	FVulkanResourceMultiBuffer* const ScratchBuffer = ResourceCast(SceneBuildParams.ScratchBuffer);
 	FVulkanResourceMultiBuffer* const InstanceBuffer = ResourceCast(SceneBuildParams.InstanceBuffer);
 	Scene->BuildAccelerationStructure(
-		*this, 
+		*this,
 		ScratchBuffer, SceneBuildParams.ScratchBufferOffset, 
 		InstanceBuffer, SceneBuildParams.InstanceBufferOffset,
 		SceneBuildParams.BuildMode);
