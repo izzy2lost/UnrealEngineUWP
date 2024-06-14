@@ -9,6 +9,7 @@
 #include "NavMesh/NavMeshRenderingComponent.h"
 
 class APlayerController;
+class UNavigationSystemV1;
 
 class FGameplayDebuggerCategory_Navmesh : public FGameplayDebuggerCategory
 {
@@ -26,6 +27,8 @@ protected:
 
 	void CycleNavData();
 	void CycleActorReference();
+	AIMODULE_API virtual void CollectNavigationData(UNavigationSystemV1* NavSys, ANavigationData* NavData, const APawn* RefPawn);
+	AIMODULE_API void RetrieveRelativeTilesToDisplay(TArray<FIntPoint>& OutTileDelta);
 
 	struct FRepData
 	{
