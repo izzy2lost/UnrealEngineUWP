@@ -314,18 +314,6 @@ void FStateGraph::RemoveAllNodes()
 	}
 }
 
-bool FStateGraph::AddDependencies(FName NodeName, const TArrayView<const FName> Dependencies)
-{
-	UE::FStateGraphNodePtr Node = GetNode(NodeName);
-	if (Node)
-	{
-		Node->Dependencies.Append(Dependencies);
-		return true;
-	}
-
-	return false;
-}
-
 void FStateGraph::Run()
 {
 	double Now = FPlatformTime::Seconds();

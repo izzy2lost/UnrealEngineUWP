@@ -27,12 +27,4 @@ public:
 	{
 		return UE::RegisterServer::Name::StateGraph;
 	}
-
-	virtual UE::FStateGraphPtr Create(const FString& ContextName = FString()) override
-	{
-		StateGraph = UE::FStateGraphManager::Create(ContextName);
-		return StateGraph;
-	}
-
-	UE::FStateGraphPtr StateGraph;
 };
