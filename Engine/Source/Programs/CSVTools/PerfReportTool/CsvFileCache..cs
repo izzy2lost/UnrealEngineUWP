@@ -434,7 +434,7 @@ namespace PerfReportTool
 			{
 				if (bBulkMode)
 				{
-					Console.Out.WriteLine("[ERROR] : " + e.Message);
+					Console.Error.WriteLine("[ERROR] : " + e.Message);
 					return null;
 				}
 				else
