@@ -251,6 +251,46 @@ namespace AutomationTool
 				return int.Parse(Value);
 			}
 		}
+		/// <summary>
+		/// Parses project name string into a FileReference. Can be "Game" or "Game.uproject" or "Path/To/Game.uproject"
+		/// </summary>
+		/// <param name="OriginalProjectName">In project string to parse</param>
+		/// <returns>FileReference to uproject</returns>
+		public FileReference ParseProjectString(string OriginalProjectName)
+		{
+			FileReference ProjectFullPath = null;
+
+			if (string.IsNullOrEmpty(OriginalProjectName))
+			{
+				return null;
+			}
+
+			var ProjectName = OriginalProjectName;
+			ProjectName = ProjectName.Trim(new char[] { '\"' });
+			if (ProjectName.IndexOfAny(new char[] { '\\', '/' }) < 0)
+			{
+				ProjectName = CombinePaths(CmdEnv.LocalRoot, ProjectName, ProjectName + ".uproject");
+			}
+			else if (!FileExists_NoExceptions(ProjectName))
+			{
+				ProjectName = CombinePaths(CmdEnv.LocalRoot, ProjectName);
+			}
+			if (FileExists_NoExceptions(ProjectName))
+			{
+				ProjectFullPath = new FileReference(ProjectName);
+			}
+			else
+			{
+				var Branch = new BranchInfo();
+				var GameProj = Branch.FindGame(OriginalProjectName);
+				if (GameProj != null)
+				{
+					ProjectFullPath = GameProj.FilePath;
+				}
+			}
+
+			return ProjectFullPath;
+		}
 
 		public FileReference ParseProjectParam()
 		{
@@ -279,32 +319,11 @@ namespace AutomationTool
 					return null;
 				}
 
-				var ProjectName = OriginalProjectName;
-				ProjectName = ProjectName.Trim(new char[] { '\"' });
-				if (ProjectName.IndexOfAny(new char[] { '\\', '/' }) < 0)
+				ProjectFullPath = ParseProjectString(OriginalProjectName);
+
+				if (ProjectFullPath == null || !FileExists_NoExceptions(ProjectFullPath.FullName))
 				{
-					ProjectName = CombinePaths(CmdEnv.LocalRoot, ProjectName, ProjectName + ".uproject");
-				}
-				else if (!FileExists_NoExceptions(ProjectName))
-				{
-					ProjectName = CombinePaths(CmdEnv.LocalRoot, ProjectName);
-				}
-				if (FileExists_NoExceptions(ProjectName))
-				{
-					ProjectFullPath = new FileReference(ProjectName);
-				}
-				else
-				{
-					var Branch = new BranchInfo();
-					var GameProj = Branch.FindGame(OriginalProjectName);
-					if (GameProj != null)
-					{
-						ProjectFullPath = GameProj.FilePath;
-					}
-					if (ProjectFullPath == null || !FileExists_NoExceptions(ProjectFullPath.FullName))
-					{
-						throw new AutomationException("Could not find a project file {0}.", ProjectName);
-					}
+					throw new AutomationException("Could not find a project file {0}.", OriginalProjectName);
 				}
 			}
 

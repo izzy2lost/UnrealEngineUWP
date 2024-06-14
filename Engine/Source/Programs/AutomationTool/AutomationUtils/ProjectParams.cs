@@ -295,6 +295,7 @@ namespace AutomationTool
 			//
 
 			this.RawProjectPath = InParams.RawProjectPath;
+			this.RawProgramProjectOverride = InParams.RawProgramProjectOverride;
 			this.MapsToCook = InParams.MapsToCook;
 			this.MapIniSectionsToCook = InParams.MapIniSectionsToCook;
 			this.DirectoriesToCook = InParams.DirectoriesToCook;
@@ -458,7 +459,7 @@ namespace AutomationTool
 		/// </summary>
 		public ProjectParams(			
 			FileReference RawProjectPath,
-
+			FileReference RawProgramProjectOverride = null,
 			BuildCommand Command = null,
 			string Device = null,			
 			string MapToRun = null,	
@@ -636,6 +637,11 @@ namespace AutomationTool
 				this.ProjectDescriptor = ProjectDescriptor.FromFile(RawProjectPath);
 			}
 			catch { this.ProjectDescriptor = new ProjectDescriptor(); }
+
+			if(RawProgramProjectOverride != null)
+			{
+				this.RawProgramProjectOverride = RawProgramProjectOverride;
+			}
 
 			if (DirectoriesToCook != null)
 			{
@@ -2878,12 +2884,21 @@ namespace AutomationTool
 
 		public FileReference CodeBasedUprojectPath
 		{
-            get { return IsCodeBasedProject ? RawProjectPath : null; }
+            get 
+			{ 
+				if(RawProgramProjectOverride != null) { return RawProgramProjectOverride; }
+				return IsCodeBasedProject ? RawProjectPath : null; 
+			}
 		}
 		/// <summary>
 		/// True if this project is a program.
 		/// </summary>
 		public bool IsProgramTarget { get; private set; }
+
+		/// <summary>
+		/// Returns override for Program Project files located in non-engine projects.
+		/// </summary>
+		public FileReference RawProgramProjectOverride { get; set; }
 
 		/// <summary>
 		/// Path where the project's game (or program) binaries are built for the given target platform.
@@ -3104,6 +3119,15 @@ namespace AutomationTool
             {
                 throw new AutomationException("RawProjectPath {0} file must exist", RawProjectPath);
             }
+
+			if (RawProgramProjectOverride != null && !RawProgramProjectOverride.HasExtension(".uproject"))
+			{
+				throw new AutomationException("RawProgramProjectPath {0} must end with .uproject", RawProgramProjectOverride);
+			}
+			if (RawProgramProjectOverride != null && !CommandUtils.FileExists(RawProgramProjectOverride.FullName))
+			{
+				throw new AutomationException("RawProgramProjectOverride {0} file must exist", RawProgramProjectOverride);
+			}
 
 			if (FileServer && !Cook && !CookInEditor)
 			{
@@ -3368,6 +3392,7 @@ namespace AutomationTool
 				Logger.LogDebug("AppLocalDirectory={AppLocalDirectory}", AppLocalDirectory);
 				Logger.LogDebug("NoBootstrapExe={NoBootstrapExe}", NoBootstrapExe);
 				Logger.LogDebug("RawProjectPath={RawProjectPath}", RawProjectPath);
+				Logger.LogDebug("RawProgramProjectOverride={RawProgramProjectOverride}", RawProgramProjectOverride);
 				Logger.LogDebug("Run={Run}", Run);
 				Logger.LogDebug("ServerConfigsToBuild={Arg0}", string.Join(",", ServerConfigsToBuild));
 				Logger.LogDebug("ServerCookedTargets={Arg0}", ServerCookedTargets.ToString());

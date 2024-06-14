@@ -62,6 +62,12 @@ public class BuildCookRun : BuildCommand, IProjectParamsHelpers
 			Params.DirectoriesToCook = new ParamList<string>(DirectoriesToCook.Split('+'));
 		}
 
+		var ProjectProgramOverride = ParseParamValue("projectprogramoverride");
+		if (!String.IsNullOrEmpty(ProjectProgramOverride))
+		{
+			Params.RawProgramProjectOverride = ParseProjectString(ProjectProgramOverride);
+		}
+
 		var DDCGraph = ParseParamValue("ddc");
 		if (!String.IsNullOrEmpty(DDCGraph))
 		{

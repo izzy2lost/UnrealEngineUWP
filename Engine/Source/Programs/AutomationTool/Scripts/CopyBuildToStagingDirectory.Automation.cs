@@ -5332,6 +5332,12 @@ namespace AutomationScripts
 						{
 							ReceiptBaseDir = EngineDir;
 						}
+
+						//if RawProgramProjectOverride then the binary will likely be under <Game>/Binaries
+						if (Params.RawProgramProjectOverride != null)
+						{
+							ReceiptBaseDir = DirectoryReference.FromFile(Params.RawProgramProjectOverride);
+						}
 					}
 
 					Platform PlatformInstance = Platform.Platforms[StagePlatform];
