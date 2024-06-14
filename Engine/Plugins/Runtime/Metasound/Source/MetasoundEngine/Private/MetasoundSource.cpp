@@ -26,6 +26,7 @@
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
+#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendQuery.h"
 #include "MetasoundFrontendQuerySteps.h"
 #include "MetasoundFrontendTransform.h"
@@ -804,12 +805,14 @@ void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit,
 
 void UMetaSoundSource::InitResources()
 {
+	using namespace Metasound;
+	using namespace Metasound::Engine;
 	using namespace Metasound::Frontend;
 	using namespace Metasound::SourcePrivate;
 
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitResources); 
-	ensureMsgf(!IsRunningCookCommandlet(), TEXT("UMetaSoundSource::InitResources should not be called during cook."));
+	ensureMsgf(!FFrontendGraphBuilder::CanEverExecute(), TEXT("UMetaSoundSource::InitResources should not be called in builds that cannot execute MetaSounds."));
 
 	if (IsInGameThread())
 	{
@@ -838,12 +841,15 @@ void UMetaSoundSource::InitResources()
 
 void UMetaSoundSource::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
 {
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
 	check(IsInGameThread());
 
 	FMetasoundAssetBase::RegisterGraphWithFrontend(InRegistrationOptions);
 	const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
-	// Runtime data does not need to and should not be created at cook
-	if (!bIsRuntimeInputDataValid && !IsRunningCookCommandlet())
+	// Runtime data does not need to and should not be created in builds that don't execute graphs
+	if (!bIsRuntimeInputDataValid && FFrontendGraphBuilder::CanEverExecute())
 	{
 		CacheRuntimeInputData();
 	}

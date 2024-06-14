@@ -2,6 +2,8 @@
 
 #include "MetasoundDocumentBuilderRegistry.h"
 
+#include "MetasoundAssetManager.h"
+#include "MetasoundFrontendGraph.h"
 #include "MetasoundTrace.h"
 #include "MetasoundUObjectRegistry.h"
 
@@ -272,6 +274,9 @@ namespace Metasound::Engine
 
 	void FDocumentBuilderRegistry::FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const
 	{
+		using namespace Metasound;
+		using namespace Metasound::Frontend;
+
 		// If the builder has applied transactions to its document object that are not mirrored in the frontend registry,
 		// unregister version in registry. This will ensure that future requests for the builder's associated asset will
 		// register a fresh version from the object as the transaction history is intrinsically lost once this builder
@@ -280,7 +285,7 @@ namespace Metasound::Engine
 		FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetBuilder();
 		if (DocBuilder.IsValid())
 		{
-			if (!IsRunningCookCommandlet())
+			if (FFrontendGraphBuilder::CanEverExecute())
 			{
 				const int32 TransactionCount = DocBuilder.GetTransactionCount();
 				const int32 LastTransactionRegistered = Builder.GetLastTransactionRegistered();

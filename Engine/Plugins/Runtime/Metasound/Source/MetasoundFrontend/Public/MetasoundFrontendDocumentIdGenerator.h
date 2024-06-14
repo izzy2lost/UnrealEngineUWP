@@ -86,7 +86,7 @@ namespace Metasound
 			FGuid CreateOutputID(const FMetasoundFrontendClassOutput& Output) const;
 			FGuid CreateOutputID(const Audio::FParameterInterface::FOutput& Output) const;
 
-			FGuid CreateNamespacedIDFromString(const FGuid NamespaceGuid, const FString& StringToHash) const;
+			FGuid CreateNamespacedIDFromString(const FGuid& NamespaceGuid, const FString& StringToHash) const;
 		};
 
 		METASOUNDFRONTEND_API FGuid CreateLocallyUniqueId();

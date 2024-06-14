@@ -268,7 +268,7 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 
 	// Graph registration must only happen on one thread to avoid race conditions on graph registration.
 	checkf(IsInGameThread(), TEXT("MetaSound %s graph can only be registered on the GameThread"), *GetOwningAssetName());
-	checkf(!IsRunningCookCommandlet(), TEXT("Cook of asset must call RegisterNode directly providing FDocumentNodeRegistryEntryForCook to avoid proxy/runtime graph generation."));
+	checkf(FFrontendGraphBuilder::CanEverExecute(), TEXT("Cannot generate proxies/runtime graph when graph execution is not enabled."));
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::RegisterGraphWithFrontend);
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MetaSoundAssetBase::RegisterGraphWithFrontend asset %s"), *this->GetOwningAssetName()));
@@ -349,16 +349,26 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 
 void FMetasoundAssetBase::CookMetaSound()
 {
+#if WITH_EDITORONLY_DATA
+	PreSaveDocument();
+#endif // WITH_EDITORONLY_DATA
+}
+
+#if WITH_EDITORONLY_DATA
+void FMetasoundAssetBase::PreSaveDocument()
+{
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::CookMetaSound);
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::PreSaveDocument);
+
+	// If already registered, nothing to condition for presaving
 	if (IsRegistered())
 	{
 		return;
 	}
 
-	CookReferencedMetaSounds();
+	PreSaveReferencedDocuments();
 	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*GetOwningAsset());
 
 	// Auto update must be done after all referenced asset classes are registered
@@ -380,7 +390,6 @@ void FMetasoundAssetBase::CookMetaSound()
 	check(Owner);
 
 	{
-#if WITH_EDITORONLY_DATA
 		// Performs document transforms on local copy, which reduces document footprint & renders transforming unnecessary at runtime
 		FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
 		const bool bContainsTemplateDependency = DocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
@@ -388,7 +397,6 @@ void FMetasoundAssetBase::CookMetaSound()
 		{
 			DocBuilder.TransformTemplateNodes();
 		}
-#endif // WITH_EDITORONLY_DATA
 
 		if (GraphRegistryKey.IsValid())
 		{
@@ -396,9 +404,9 @@ void FMetasoundAssetBase::CookMetaSound()
 			GraphRegistryKey = { };
 		}
 
-		// During cook, we need to register the node so that it is available for other graphs, but we need to avoid
-		// creating proxies. To do so, we use a special node registration object which reflects the necessary information
-		// for the node registry, but does not create INodes.
+		// Need to register the node so that it is available for other graphs, but avoids creating proxies.
+		// This is accomplished by using a special node registration object which reflects the necessary
+		// information for the node registry, but does not create the runtime graph model (i.e. INodes).
 		TScriptInterface<IMetaSoundDocumentInterface> DocInterface(Owner);
 		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
 		const FTopLevelAssetPath AssetPath = DocInterface->GetAssetPathChecked();
@@ -410,39 +418,39 @@ void FMetasoundAssetBase::CookMetaSound()
 
 	if (GraphRegistryKey.IsValid())
 	{
-#if WITH_EDITORONLY_DATA
 		UpdateAssetRegistry();
-#endif // WITH_EDITORONLY_DATA
 	}
 	else
 	{
 		const UClass* Class = Owner->GetClass();
 		check(Class);
 		const FString ClassName = Class->GetName();
-		UE_LOG(LogMetaSound, Error, TEXT("Registration failed during cook for MetaSound node class '%s' of UObject class '%s'"), *GetOwningAssetName(), *ClassName);
+		UE_LOG(LogMetaSound, Error, TEXT("Presave failed for MetaSound node class '%s' of UObject class '%s'"), *GetOwningAssetName(), *ClassName);
 	}
 }
+#endif // WITH_EDITORONLY_DATA
 
 void FMetasoundAssetBase::OnNotifyBeginDestroy()
 {
+	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
 	UObject* OwningAsset = GetOwningAsset();
 	check(OwningAsset);
 
-	// Unregistration of graph is not necessary when cooking as deserialized objects are not mutable and, should they be reloaded,
-	// omitting unregistration avoids potentially kicking off an invalid asynchronous task to unregister a non-existent runtime graph.
-	if (IsRunningCookCommandlet())
+	// Unregistration of graph using local call is not necessary when cooking as deserialized objects are not mutable and, should they be
+	// reloaded, omitting unregistration avoids potentially kicking off an invalid asynchronous task to unregister a non-existent runtime graph.
+	if (FFrontendGraphBuilder::CanEverExecute())
+	{
+		UnregisterGraphWithFrontend();
+	}
+	else
 	{
 		if (GraphRegistryKey.IsValid())
 		{
 			FRegistryContainerImpl::Get().UnregisterNode(GraphRegistryKey.NodeKey);
 			GraphRegistryKey = { };
 		}
-	}
-	else
-	{
-		UnregisterGraphWithFrontend();
 	}
 
 	if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
@@ -453,11 +461,12 @@ void FMetasoundAssetBase::OnNotifyBeginDestroy()
 
 void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 {
+	using namespace Metasound;
 	using namespace Metasound::Frontend;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UnregisterGraphWithFrontend);
 
 	check(IsInGameThread());
-	checkf(!IsRunningCookCommandlet(), TEXT("Cook of asset must call UnregisterNode directly providing FDocumentNodeRegistryEntryForCook to avoid proxy/runtime graph generation."));
+	checkf(FFrontendGraphBuilder::CanEverExecute(), TEXT("If execution is not supported, UnregisterNode must be called directly to avoid async attempt at destroying runtime graph that does not exist."));
 
 	if (GraphRegistryKey.IsValid())
 	{
@@ -507,8 +516,6 @@ bool FMetasoundAssetBase::VersionAsset(FMetaSoundFrontendDocumentBuilder& Builde
 	using namespace Metasound::Frontend;
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::VersionAsset);
-	constexpr bool bIsDeterministic = true;
-	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
 
 	bool bDidEdit = false;
 
@@ -908,6 +915,14 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 
 void FMetasoundAssetBase::CookReferencedMetaSounds()
 {
+#if WITH_EDITORONLY_DATA
+	PreSaveReferencedDocuments();
+#endif // WITH_EDITORONLY_DATA
+}
+
+#if WITH_EDITORONLY_DATA
+void FMetasoundAssetBase::PreSaveReferencedDocuments()
+{
 	using namespace Metasound::Frontend;
 
 	IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
@@ -918,10 +933,11 @@ void FMetasoundAssetBase::CookReferencedMetaSounds()
 		{
 			// TODO: Check for infinite recursion and error if so
 			AssetManager.AddOrUpdateAsset(*(Reference->GetOwningAsset()));
-			Reference->CookMetaSound();
+			Reference->PreSaveDocument();
 		}
 	}
 }
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetasoundAssetBase::AutoUpdate(bool bInLogWarningsOnDroppedConnection)
 {

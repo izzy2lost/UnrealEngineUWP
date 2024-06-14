@@ -80,14 +80,23 @@ public:
 	UE_DEPRECATED(5.5, "Moved to IMetaSoundDocumentInterface::ConformObjectToDocument")
 	virtual bool ConformObjectDataToInterfaces();
 
-	// Registers the root graph of the given asset with the MetaSound Frontend.
+	// Registers the root graph of the given asset with the MetaSound Frontend. Unlike 'PreSaveDocument", this call
+	// generates all necessary runtime data to execute the given graph (i.e. INodes).
 	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
 
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
-	// Cooks this MetaSound and recursively checks and cooks referenced MetaSounds if necessary. Cook includes autoupdating and resolving the document, which is then registered with the MetaSound Frontend.
+	UE_DEPRECATED(5.5, "Moved to PreSaveDocument instead, which is only in builds set to load editor-only data.")
 	void CookMetaSound();
+
+#if WITH_EDITORONLY_DATA
+	// Executes on this and referenced MetaSound document objects. Presave includes autoupdating and
+	// optimizing the document for runtime use, which is then registered with the MetaSound Frontend.
+	// Unlike 'RegisterGraphWithFrontend', this call does not generate required runtime data for graph
+	// execution.
+	void PreSaveDocument();
+#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 	// Rebuild dependent asset classes
@@ -255,6 +264,8 @@ protected:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
+
+	UE_DEPRECATED(5.5, "Moved to private, PreSaveReferencedDocuments implementation")
 	void CookReferencedMetaSounds();
 
 	// Ensures all referenced graph classes are registered (or re-registers depending on options).
@@ -268,6 +279,8 @@ private:
 	void UpdateAssetRegistry();
 
 	bool bVersionedOnLoad = false;
+
+	void PreSaveReferencedDocuments();
 #endif
 
 	// Checks if version is up-to-date. If so, returns true. If false, updates the interfaces within the given asset's document to the most recent version.

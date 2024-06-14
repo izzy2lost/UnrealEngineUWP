@@ -6,6 +6,7 @@
 #include "MetasoundAssetManager.h"
 #include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
+#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/App.h"
@@ -14,9 +15,9 @@
 #if WITH_EDITORONLY_DATA
 #include "Algo/Transform.h"
 #include "MetasoundFrontendRegistryContainer.h"
+#include "UObject/GarbageCollection.h"
 #include "UObject/StrongObjectPtrTemplates.h"
 #include "UObject/ObjectMacros.h"
-#include "UObject/GarbageCollection.h"
 #endif // WITH_EDITORONLY_DATA
 
 
@@ -28,6 +29,11 @@ namespace Metasound::Engine
 	 */
 	struct FAssetHelper
 	{
+		static bool IsDeterministic(bool bIsContextCooking)
+		{
+			return bIsContextCooking || IsRunningCookCommandlet();
+		}
+
 #if WITH_EDITOR
 		static void PreDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, FObjectDuplicationParameters& DupParams)
 		{
@@ -138,11 +144,13 @@ namespace Metasound::Engine
 				AssetManager->WaitUntilAsyncLoadReferencedAssetsComplete(InMetaSound);
 			}
 
-			if (InSaveContext.IsCooking() || IsRunningCommandlet())
+			const bool bIsCooking = InSaveContext.IsCooking();
+			const bool bCanEverExecute = FFrontendGraphBuilder::CanEverExecute(bIsCooking);
+			if (!bCanEverExecute)
 			{
-				constexpr bool bIsDeterministic = true;
-				FDocumentIDGenerator::FScopeDeterminism DeterminismScope = FDocumentIDGenerator::FScopeDeterminism(bIsDeterministic);
-				InMetaSound.CookMetaSound();
+				const bool bIsDeterministic = IsDeterministic(bIsCooking);
+				FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+				InMetaSound.PreSaveDocument();
 			}
  			else if (FApp::CanEverRenderAudio())
 			{
@@ -165,6 +173,8 @@ namespace Metasound::Engine
 		static void SerializeToArchive(TMetaSoundObject& InMetaSound, FArchive& InArchive)
 		{
 #if WITH_EDITORONLY_DATA
+			using namespace Frontend;
+
 			bool bVersionedAsset = false;
 
 			if (InArchive.IsLoading())
@@ -175,8 +185,14 @@ namespace Metasound::Engine
 					Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(InMetaSound));
 				}
 
-				check(Builder.IsValid());
-				bVersionedAsset = InMetaSound.VersionAsset(Builder->GetBuilder());
+				{
+					const bool bIsCooking = InArchive.IsCooking();
+					const bool bIsDeterministic = IsDeterministic(bIsCooking);
+					FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+					check(Builder.IsValid());
+					bVersionedAsset = InMetaSound.VersionAsset(Builder->GetBuilder());
+				}
+
 				Builder->ClearInternalFlags(EInternalObjectFlags::Async);
 			}
 

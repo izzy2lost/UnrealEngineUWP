@@ -27,6 +27,7 @@
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundNodeDetailCustomization.h"
@@ -240,9 +241,11 @@ namespace Metasound
 		{
 			void LoadAndRegisterAsset(const FAssetData& InAssetData)
 			{
+				using namespace Metasound;
+			
 				// Ignore requests if running cook, as presave will register and cook using the
 				// proper node register call which avoids async registration/igraph generation.
-				if (IsRunningCookCommandlet())
+				if (!FFrontendGraphBuilder::CanEverExecute())
 				{
 					return;
 				}

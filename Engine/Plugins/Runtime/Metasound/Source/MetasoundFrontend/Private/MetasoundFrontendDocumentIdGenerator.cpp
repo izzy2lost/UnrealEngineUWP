@@ -1,12 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "MetasoundFrontendDocumentIdGenerator.h"
+
+#include "MetasoundAssetManager.h"
+#include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendDocumentVersioning.h"
 
 namespace Metasound
 {
 	namespace Frontend
 	{
-		namespace
+		namespace DocumentIDGeneratorPrivate
 		{
 			std::atomic<uint64> GlobalAtomicMetasoundIdCounter = 1; // First ID will be 1. This is because we will make this into an FGuid which cannot be zero.
 		}
@@ -63,9 +66,19 @@ namespace Metasound
 		{
 			if (bIsDeterministic)
 			{
+				// A bug caused collisions between serialized content and newly generated values.
+				// The use of this base guid ensures no such collision generation continues.
+				constexpr FGuid BaseGuid(0x8BC4C7C3, 0x591449C4, 0xA35830F8, 0xE7F9052E);
+
 				const uint32 Value = InDocument.GetNextIdCounter();
 				const FGuid CounterGuid = FGuid(Value << 6, Value << 4, Value << 2, Value);
-				return FGuid::Combine(InDocument.RootGraph.ID, CounterGuid);
+				const FGuid UpdatedGuid = FGuid::Combine(CounterGuid, BaseGuid);
+
+				FGuid ClassID;
+				const FMetasoundFrontendClassName& ClassName = InDocument.RootGraph.Metadata.GetClassName();
+				ensureAlwaysMsgf(IMetaSoundAssetManager::GetChecked().TryGetAssetIDFromClassName(ClassName, ClassID), TEXT("Failed to retrieve AssetID from MetaSoundClassName"));
+
+				return FGuid::Combine(ClassID, UpdatedGuid);
 			}
 			else
 			{
@@ -81,7 +94,7 @@ namespace Metasound
 
 		FGuid FClassIDGenerator::CreateInputID(const FMetasoundFrontendClassInput& Input) const
 		{
-			const FGuid ClassInputNamespaceGuid = FGuid("{149FEB6E-B9F9-47A6-AD4F-B78655F6EBE8}");
+			constexpr FGuid ClassInputNamespaceGuid = FGuid(0x149FEB6E, 0xB9F947A6, 0xAD4FB786, 0x55F6EBE8);
 			FString NameToHash = FString::Printf(TEXT("ClassInput.%s.%s.%s"), *Input.Name.ToString(), *Input.TypeName.ToString(), LexToString(Input.AccessType));
 
 			return CreateNamespacedIDFromString(ClassInputNamespaceGuid, NameToHash);
@@ -89,7 +102,7 @@ namespace Metasound
 
 		FGuid FClassIDGenerator::CreateInputID(const Audio::FParameterInterface::FInput& Input) const
 		{
-			const FGuid ParameterInterfaceInputNamespaceGuid = FGuid("{D9E893C0-92B3-4CB4-8306-4525ABEACADD}");
+			constexpr FGuid ParameterInterfaceInputNamespaceGuid(0xD9E893C0, 0x92B34CB4, 0x83064525, 0xABEACADD);
 			FString NameToHash = FString::Printf(TEXT("ParameterInterfaceInput.%s.%s"), *Input.InitValue.ParamName.ToString(), *Input.DataType.ToString());
 
 			return CreateNamespacedIDFromString(ParameterInterfaceInputNamespaceGuid, NameToHash);
@@ -97,7 +110,7 @@ namespace Metasound
 
 		FGuid FClassIDGenerator::CreateOutputID(const FMetasoundFrontendClassOutput& Output) const
 		{
-			const FGuid ClassOutputNamespaceGuid = FGuid("{C7B3ED2C-4407-4B2A-9144-7F1108387EBB}");
+			constexpr FGuid ClassOutputNamespaceGuid(0xC7B3ED2C, 0x44074B2A, 0x91447F11, 0x08387EBB);
 			FString NameToHash = FString::Printf(TEXT("ClassOutput.%s.%s.%s"), *Output.Name.ToString(), *Output.TypeName.ToString(), LexToString(Output.AccessType));
 
 			return CreateNamespacedIDFromString(ClassOutputNamespaceGuid, NameToHash);
@@ -105,13 +118,13 @@ namespace Metasound
 
 		FGuid FClassIDGenerator::CreateOutputID(const Audio::FParameterInterface::FOutput& Output) const
 		{
-			const FGuid ParameterInterfaceOutputNamespaceGuid = FGuid("{6F41342A-2436-4462-81A0-8517887BB729}");
+			constexpr FGuid ParameterInterfaceOutputNamespaceGuid(0x6F41342A, 0x24364462, 0x81A08517, 0x887BB729);
 			FString NameToHash = FString::Printf(TEXT("ParameterInterfaceOutput.%s.%s"), *Output.ParamName.ToString(), *Output.DataType.ToString());
 
 			return CreateNamespacedIDFromString(ParameterInterfaceOutputNamespaceGuid, NameToHash);
 		}
 
-		FGuid FClassIDGenerator::CreateNamespacedIDFromString(const FGuid NamespaceGuid, const FString& StringToHash) const
+		FGuid FClassIDGenerator::CreateNamespacedIDFromString(const FGuid& NamespaceGuid, const FString& StringToHash) const
 		{
 			FSHA1 Hasher;
 			Hasher.Update(reinterpret_cast<const uint8*>(&NamespaceGuid), sizeof(FGuid));
@@ -124,6 +137,7 @@ namespace Metasound
 
 		FGuid CreateLocallyUniqueId()
 		{
+			using namespace DocumentIDGeneratorPrivate;
 			uint64 NextId = GlobalAtomicMetasoundIdCounter.fetch_add(1, std::memory_order_relaxed);
 			return FGuid(0, 0, NextId >> 32, NextId & 0xFFFFFFFF);
 		}

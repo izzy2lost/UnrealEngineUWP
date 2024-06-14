@@ -7,6 +7,7 @@
 #include "Algo/TopologicalSort.h"
 #include "Algo/Transform.h"
 #include "CoreMinimal.h"
+#include "CoreGlobals.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
@@ -17,10 +18,19 @@
 #include "MetasoundLog.h"
 #include "MetasoundNodeInterface.h"
 
+
 namespace Metasound
 {
 	namespace FrontendGraphPrivate
 	{
+		int32 ForceCommandletExecution = 0;
+			FAutoConsoleVariableRef CVarEnableCommandletExecution(
+				TEXT("au.MetaSound.EnableCommandletExecution"),
+				ForceCommandletExecution,
+				TEXT("If application is a commandlet, enables execution of MetaSounds irrespective of whether sound is rendered to hardware or not. (Ignored if cooking)")
+				TEXT("Default: 0"),
+				ECVF_Default);
+
 		FNodeInitData CreateNodeInitData(const FMetasoundFrontendNode& InNode)
 		{
 			FNodeInitData InitData;
@@ -644,6 +654,21 @@ namespace Metasound
 		}
 
 		return DefaultLiteralData;
+	}
+
+	bool FFrontendGraphBuilder::CanEverExecute(bool bIsContextCooking /* = false */)
+	{
+		if (bIsContextCooking || IsRunningCookCommandlet())
+		{
+			return false;
+		}
+
+		if (IsRunningCommandlet())
+		{
+			return FrontendGraphPrivate::ForceCommandletExecution != 0;
+		}
+
+		return true;
 	}
 
 	/** Check that all dependencies are C++ class dependencies. */
