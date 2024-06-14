@@ -133,6 +133,12 @@ enum class EStateTreeStateSelectionBehavior : uint8
 	/** When state is considered for selection, shuffle the order of child states and try to select the first one. If no child states are present, behaves like SelectState. */
 	TrySelectChildrenAtUniformRandom UMETA(DisplayName = "Try Select Children At Uniform Random"),
 
+	/** When state is considered for selection, try to select the child state with highest utility score. If there is a tie, it will try to select in order. */
+	TrySelectChildrenWithHighestUtility UMETA(DisplayName = "Try Select Children With Highest Utility Score"),
+
+	/** When state is considered for selection, randomly pick one of its child states. The probability of selecting each child state is its normalized utility score */
+	TrySelectChildrenBasedOnRelativeUtility UMETA(DisplayName = "Try Select Children Based On Relative Utility"),
+	
 	/** When state is considered for selection, try to trigger the transitions instead. */
 	TryFollowTransitions UMETA(DisplayName = "Try Follow Transitions"),
 
@@ -274,10 +280,10 @@ enum class EStateTreeDataSourceType : uint8
 	/** Active State Tasks */
 	ActiveInstanceDataObject,
 
-	/** Conditions */
+	/** Conditions and Considerations */
 	SharedInstanceData,
 
-	/** Conditions */
+	/** Conditions and Considerations */
 	SharedInstanceDataObject,
 
 	/** Context Data, Tree Parameters */
@@ -682,6 +688,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	uint16 EnterConditionsBegin = 0;
 
+	/** Index to first state utility consideration */
+	UPROPERTY()
+	uint16 UtilityConsiderationsBegin = 0;
+
 	/** Index to first transition */
 	UPROPERTY()
 	uint16 TransitionsBegin = 0;
@@ -706,6 +716,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** Number of enter conditions */
 	UPROPERTY()
 	uint8 EnterConditionsNum = 0;
+	
+	/** Number of utility considerations */
+	UPROPERTY()
+	uint8 UtilityConsiderationsNum = 0;
 
 	/** Number of transitions */
 	UPROPERTY()

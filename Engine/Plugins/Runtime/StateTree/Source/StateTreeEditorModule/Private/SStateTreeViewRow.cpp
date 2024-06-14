@@ -885,12 +885,41 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 		}
 		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
 		{
-			if (State->Children.IsEmpty())
+			if (State->Children.IsEmpty()
+				|| State->Type == EStateTreeStateType::Linked
+				|| State->Type == EStateTreeStateType::LinkedAsset)
 			{
+				// Backwards compatible behavior
 				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
 			}
 
 			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectCHildrenAtRandom");
+		}
+		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility)
+		{
+			if (State->Children.IsEmpty()
+				|| State->Type == EStateTreeStateType::Linked
+				|| State->Type == EStateTreeStateType::LinkedAsset)
+			{
+				// Backwards compatible behavior
+				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
+			}
+
+			//place holder
+			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
+		}
+		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility)
+		{
+			if (State->Children.IsEmpty()
+				|| State->Type == EStateTreeStateType::Linked
+				|| State->Type == EStateTreeStateType::LinkedAsset)
+			{
+				// Backwards compatible behavior
+				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
+			}
+
+			//place holder
+			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
 		}
 		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
 		{
@@ -909,32 +938,30 @@ FText SStateTreeViewRow::GetSelectorTooltip() const
 		check(Enum);
 		const int32 Index = Enum->GetIndexByValue((int64)State->SelectionBehavior);
 		
-		if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::None)
+		switch (State->SelectionBehavior)
 		{
-			return Enum->GetToolTipTextByIndex(Index);
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryEnterState)
-		{
-			return Enum->GetToolTipTextByIndex(Index);
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder)
-		{
-			if (State->Children.IsEmpty()
-				|| State->Type == EStateTreeStateType::Linked
-				|| State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				const int32 EnterStateIndex = Enum->GetIndexByValue((int64)EStateTreeStateSelectionBehavior::TryEnterState);
-				return FText::Format(LOCTEXT("ConvertedToEnterState", "{0}\nAutomatically converted from '{1}' becase the State has no child States."),
-					Enum->GetToolTipTextByIndex(EnterStateIndex), UEnum::GetDisplayValueAsText(State->SelectionBehavior));
-			}
-			else
-			{
+			case EStateTreeStateSelectionBehavior::None:
+			case EStateTreeStateSelectionBehavior::TryEnterState:
+			case EStateTreeStateSelectionBehavior::TryFollowTransitions:
 				return Enum->GetToolTipTextByIndex(Index);
-			}
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
-		{
-			return Enum->GetToolTipTextByIndex(Index);
+			case EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder:
+			case EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom:
+			case EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility:
+			case EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility:
+				if (State->Children.IsEmpty()
+					|| State->Type == EStateTreeStateType::Linked
+					|| State->Type == EStateTreeStateType::LinkedAsset)
+				{
+					const int32 EnterStateIndex = Enum->GetIndexByValue((int64)EStateTreeStateSelectionBehavior::TryEnterState);
+					return FText::Format(LOCTEXT("ConvertedToEnterState", "{0}\nAutomatically converted from '{1}' because the State has no child States."),
+						Enum->GetToolTipTextByIndex(EnterStateIndex), UEnum::GetDisplayValueAsText(State->SelectionBehavior));
+				}
+				else
+				{
+					return Enum->GetToolTipTextByIndex(Index);
+				}
+			default:
+				check(false);
 		}
 	}
 
@@ -1072,6 +1099,24 @@ bool SStateTreeViewRow::GetStateWarnings(FText* OutText) const
 			*OutText = LOCTEXT("LinkedStateChildWarning", "Linked State cannot have child states, because the state selection will enter to the linked state on activation.");
 		}
 		bHasWarnings = true;
+	}
+
+	// Child states should not have any considerations if their parent doesn't use utility
+	if (State->Considerations.Num() != 0)
+	{
+		if (!State->Parent 
+			|| (State->Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
+				&& State->Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility))
+		{
+			if (OutText)
+			{
+				*OutText = LOCTEXT("ChildStateUtilityConsiderationWarning", 
+					"State has Utility Considerations but they don't have effect."
+					"The Utility Considerations are used only when parent State's Selection Behavior is:"
+					"\"Try Select Children with Highest Utility\" or \"Try Select Children Based on Relative Utility.");
+			}
+			bHasWarnings = true;
+		}
 	}
 
 	return bHasWarnings;

@@ -8,6 +8,7 @@
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeTaskBase.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "Serialization/ArchiveUObject.h"
 #include "GameFramework/Actor.h"
 #include "StateTreePropertyRef.h"
@@ -191,6 +192,7 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 	{
 		return false;
 	}
+	
 	// Cleanup existing state
 	StateTree->ResetCompiled();
 
@@ -306,6 +308,12 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 		return false;
 	}
 
+	if (!CreateStateConsiderations())
+	{
+		StateTree->ResetCompiled();
+		return false;
+	}
+
 	StateTree->Nodes = Nodes;
 	StateTree->DefaultInstanceData.Init(*StateTree, InstanceStructs);
 	StateTree->SharedInstanceData.Init(*StateTree, SharedInstanceStructs);
@@ -340,6 +348,7 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 	UE::StateTree::Compiler::FCheckOutersArchive CheckOuters(*StateTree, *EditorData, Log);
 	StateTree->Serialize(CheckOuters);
 	
+
 	return true;
 }
 
@@ -1057,6 +1066,53 @@ bool FStateTreeCompiler::CreateStateTransitions()
 	return true;
 }
 
+bool FStateTreeCompiler::CreateStateConsiderations()
+{
+	check(StateTree);
+
+	for (int32 i = 0; i < StateTree->States.Num(); i++)
+	{
+		FCompactStateTreeState& CompactState = StateTree->States[i];
+		UStateTreeState* SourceState = SourceStates[i];
+		check(SourceState != nullptr);
+
+		FStateTreeCompilerLogStateScope LogStateScope(SourceState, Log);
+
+		const FString StatePath = SourceState->GetPath();
+
+		const int32 UtilityConsiderationsBegin = Nodes.Num();
+		if (const auto Validation = UE::StateTree::Compiler::IsValidCount16(UtilityConsiderationsBegin); Validation.DidFail())
+		{
+			Validation.Log(Log, TEXT("UtilityConsiderationsBegin"));
+			return false;
+		}
+		CompactState.UtilityConsiderationsBegin = uint16(UtilityConsiderationsBegin);
+
+		const FString StatePathWithConsiderations = StatePath + TEXT("/Considerations");
+		if (!CreateConsiderations(*SourceState, StatePathWithConsiderations, SourceState->Considerations))
+		{
+			Log.Reportf(EMessageSeverity::Error,
+				TEXT("Failed to create state utility considerations."));
+			return false;
+		}
+
+		const int32 UtilityConsiderationsNum = Nodes.Num() - UtilityConsiderationsBegin;
+		if (const auto Validation = UE::StateTree::Compiler::IsValidCount8(UtilityConsiderationsNum); Validation.DidFail())
+		{
+			Validation.Log(Log, TEXT("UtilityConsiderationsNum"));
+			return false;
+		}
+		CompactState.UtilityConsiderationsNum = uint8(UtilityConsiderationsNum);
+
+		if (!CreateBindingsForNodes(SourceState->Considerations, FStateTreeIndex16(UtilityConsiderationsBegin)))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool FStateTreeCompiler::CreateBindingsForNodes(TConstArrayView<FStateTreeEditorNode> EditorNodes, FStateTreeIndex16 NodesBegin)
 {
 	check(NodesBegin.IsValid());
@@ -1349,6 +1405,60 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FString& 
 	{
 		Cond->Operand = Operand;
 		Cond->DeltaIndent = DeltaIndent;
+		return true;
+	}
+
+	return false;
+}
+
+bool FStateTreeCompiler::CreateConsiderations(UStateTreeState& State, const FString& StatePath, TConstArrayView<FStateTreeEditorNode> Considerations)
+{
+	if (State.Considerations.Num() != 0)
+	{
+		if (!State.Parent
+			|| (State.Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
+				&& State.Parent->SelectionBehavior != EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility))
+		{
+			Log.Reportf(EMessageSeverity::Warning, TEXT("State's Utility Considerations data are compiled but they don't have effect."
+					"The Utility Considerations are used only when parent State's Selection Behavior is:"
+					"\"Try Select Children with Highest Utility\" or \"Try Select Children Based on Relative Utility\"."));
+		}
+	}
+
+	for (int32 Index = 0; Index < Considerations.Num(); Index++)
+	{
+		const bool bIsFirst = Index == 0;
+		const FStateTreeEditorNode& ConsiderationNode = Considerations[Index];
+		// First operand should be copy as we dont have a previous item to operate on.
+		const EStateTreeExpressionOperand Operand = bIsFirst ? EStateTreeExpressionOperand::Copy : ConsiderationNode.ExpressionOperand;
+		// First indent must be 0 to make the parentheses calculation match.
+		const int32 CurrIndent = bIsFirst ? 0 : FMath::Clamp((int32)ConsiderationNode.ExpressionIndent, 0, UE::StateTree::MaxExpressionIndent);
+		// Next indent, or terminate at zero.
+		const int32 NextIndent = Considerations.IsValidIndex(Index + 1) ? FMath::Clamp((int32)Considerations[Index + 1].ExpressionIndent, 0, UE::StateTree::MaxExpressionIndent) : 0;
+
+		const int32 DeltaIndent = NextIndent - CurrIndent;
+
+		if (!CreateConsideration(State, StatePath, ConsiderationNode, Operand, (int8)DeltaIndent))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool FStateTreeCompiler::CreateConsideration(UStateTreeState& State, const FString& StatePath, const FStateTreeEditorNode& ConsiderationNode, const EStateTreeExpressionOperand Operand, const int8 DeltaIndent)
+{
+	if (!ConsiderationNode.Node.IsValid())
+	{
+		// Empty line in conditions array, just silently ignore.
+		return true;
+	}
+
+	if (FStateTreeConsiderationBase* Consideration = CreateNodeWithSharedInstanceData<FStateTreeConsiderationBase>(&State, StatePath, ConsiderationNode, EStateTreeBindableStructSource::Consideration))
+	{
+		Consideration->Operand = Operand;
+		Consideration->DeltaIndent = DeltaIndent;
 		return true;
 	}
 

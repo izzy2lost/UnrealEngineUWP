@@ -7,12 +7,6 @@
 
 struct FStateTreeExternalDataDesc;
 
-namespace StateTreeSchemaUtilityCVars
-{
-	//temporary param to be removed when Utility is fully there.
-	extern STATETREEMODULE_API FAutoConsoleVariable CVarAllowUtilityConsiderations;
-}
-
 /**
  * Schema describing which inputs, evaluators, and tasks a StateTree can contain.
  * Each StateTree asset saves the schema class name in asset data tags, which can be

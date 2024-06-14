@@ -251,7 +251,7 @@ private:
 	UPROPERTY()
 	TArray<FCompactStateTransition> Transitions;
 
-	/** Evaluators, Tasks, and Condition nodes. */
+	/** Evaluators, Tasks, Condition and Consideration nodes. */
 	UPROPERTY()
 	FInstancedStructContainer Nodes;
 
@@ -259,7 +259,7 @@ private:
 	UPROPERTY()
 	FStateTreeInstanceData DefaultInstanceData;
 
-	/** Shared node instance data (e.g. conditions). */
+	/** Shared node instance data (e.g. conditions, considerations). */
 	UPROPERTY()
 	FStateTreeInstanceData SharedInstanceData;
 

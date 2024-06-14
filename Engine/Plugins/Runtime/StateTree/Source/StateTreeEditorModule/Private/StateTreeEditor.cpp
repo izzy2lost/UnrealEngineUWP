@@ -970,18 +970,14 @@ void FStateTreeEditor::RegisterToolbar()
 					TAttribute<FSlateIcon>(StateTreeEditorRef, &FStateTreeEditor::GetNewConditionButtonImage)
 				));
 
-				//reached here before Schema was loaded
-				if (StateTreeSchemaUtilityCVars::CVarAllowUtilityConsiderations->GetBool())
-				{
-					FToolMenuEntry& CreateNewConsiderationDropdown = InSection.AddEntry(FToolMenuEntry::InitComboButton(
-						"CreateNewConsiderationComboButton",
-						FUIAction(),
-						FOnGetContent::CreateSP(StateTreeEditorRef, &FStateTreeEditor::GenerateConsiderationBPBaseClassesMenu),
-						LOCTEXT("CreateNewConsideration_Title", "New Consideration"),
-						LOCTEXT("CreateNewConsideration_ToolbarTooltip", "Create a new Blueprint State Tree Utility Consideration"),
-						TAttribute<FSlateIcon>(StateTreeEditorRef, &FStateTreeEditor::GetNewConsiderationButtonImage)
-					));
-				}
+				FToolMenuEntry& CreateNewConsiderationDropdown = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+					"CreateNewConsiderationComboButton",
+					FUIAction(),
+					FOnGetContent::CreateSP(StateTreeEditorRef, &FStateTreeEditor::GenerateConsiderationBPBaseClassesMenu),
+					LOCTEXT("CreateNewConsideration_Title", "New Consideration"),
+					LOCTEXT("CreateNewConsideration_ToolbarTooltip", "Create a new Blueprint State Tree Utility Consideration"),
+					TAttribute<FSlateIcon>(StateTreeEditorRef, &FStateTreeEditor::GetNewConsiderationButtonImage)
+				));
 			}
 		}
 	}));

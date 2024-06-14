@@ -89,7 +89,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	
 	// Never show enabled
 	EnabledProperty->MarkHiddenByCustomization();
-
+	
 	// Show ID only for debugging
 	if (UE::StateTree::Editor::GbDisplayItemIds == false)
 	{
@@ -168,7 +168,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	LinkedSubtreeProperty->MarkHiddenByCustomization();
 	LinkedAssetProperty->MarkHiddenByCustomization();
 
-	if (StateType == EStateTreeStateType::State)
+	if (StateType == EStateTreeStateType::State || StateType == EStateTreeStateType::Subtree)
 	{
 		StateCategory.AddProperty(SelectionBehaviorProperty);
 	}
@@ -286,10 +286,10 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		DetailBuilder.EditCategory(EnterConditionsCategoryName).SetCategoryVisibility(false);
 	}
 
-	// Utility
-	const FName UtilityCategoryName(TEXT("Utility"));
-	if (StateTreeSchemaUtilityCVars::CVarAllowUtilityConsiderations->GetBool() && Schema && Schema->AllowUtilityConsiderations())
+	ConsiderationsProperty->MarkHiddenByCustomization();
+	if (Schema && Schema->AllowUtilityConsiderations())
 	{
+		const FName UtilityCategoryName(TEXT("Utility"));
 		IDetailCategoryBuilder& UtilityConsiderationsCategory = UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
 			DetailBuilder,
 			ConsiderationsProperty,
@@ -300,12 +300,6 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 			UE::StateTree::Colors::Yellow.WithAlpha(192),
 			LOCTEXT("UtilityAddTooltip", "Add new Utility Consideration"),
 			/*SortOrder*/3);
-
-		ConsiderationsProperty->MarkHiddenByCustomization();
-	}
-	else
-	{
-		DetailBuilder.EditCategory(UtilityCategoryName).SetCategoryVisibility(false);
 	}
 
 	// Tasks
@@ -330,7 +324,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		{
 			const FName TaskCategoryName(TEXT("Task"));
 			IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(TaskCategoryName);
-			Category.SetSortOrder(3);
+			Category.SetSortOrder(4);
 			
 			IDetailPropertyRow& Row = Category.AddProperty(SingleTaskProperty);
 			Row.ShouldAutoExpand(true);

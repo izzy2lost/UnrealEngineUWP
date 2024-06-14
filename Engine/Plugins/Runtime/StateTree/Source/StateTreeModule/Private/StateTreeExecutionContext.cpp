@@ -4,6 +4,7 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreePropertyFunctionBase.h"
 #include "StateTreeReference.h"
 #include "Containers/StaticArray.h"
@@ -2638,6 +2639,86 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 	return Values[0];
 }
 
+float FStateTreeExecutionContext::EvaluateUtility(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const int32 ConsiderationsOffset, const int32 ConsiderationsNum)
+{
+	// @todo: Tracing support
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_EvaluateUtility);
+
+	if (ConsiderationsNum == 0)
+	{
+		return .0f;
+	}
+
+	TStaticArray<EStateTreeExpressionOperand, UE::StateTree::MaxExpressionIndent + 1> Operands(InPlace, EStateTreeExpressionOperand::Copy);
+	TStaticArray<float, UE::StateTree::MaxExpressionIndent + 1> Values(InPlace, false);
+
+	int32 Level = 0;
+	float Value = .0f;
+	for (int32 Index = 0; Index < ConsiderationsNum; Index++)
+	{
+		const int32 ConsiderationIndex = ConsiderationsOffset + Index;
+		const FStateTreeConsiderationBase& Consideration = CurrentFrame.StateTree->Nodes[ConsiderationIndex].Get<const FStateTreeConsiderationBase>();
+		const FStateTreeDataView ConsiderationInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Consideration.InstanceDataHandle);
+		FNodeInstanceDataScope DataScope(*this, Consideration.InstanceDataHandle, ConsiderationInstanceView);
+
+		// Copy bound properties.
+		if (Consideration.BindingsBatch.IsValid())
+		{
+			// Use validated copy, since we test in situations where the sources are not always valid (e.g. considerations may try to access inactive parent state). 
+			if (!CopyBatchWithValidation(CurrentParentFrame, CurrentFrame, ConsiderationInstanceView, Consideration.BindingsBatch))
+			{
+				// If the source data cannot be accessed, the whole expression evaluates to zero.
+				Values[0] = .0f;
+				break;
+			}
+		}
+
+		Value = Consideration.ComputeNormalizedScore(*this);
+
+		// Reset copied properties that might contain object references.
+		if (Consideration.BindingsBatch.IsValid())
+		{
+			CurrentFrame.StateTree->PropertyBindings.ResetObjects(Consideration.BindingsBatch, ConsiderationInstanceView);
+		}
+
+		const int32 DeltaIndent = Consideration.DeltaIndent;
+		const int32 OpenParens = FMath::Max(0, DeltaIndent) + 1;	// +1 for the current value that is stored at the empty slot at the top of the value stack.
+		const int32 ClosedParens = FMath::Max(0, -DeltaIndent) + 1;
+
+		// Store the operand to apply when merging higher level down when returning to this level.
+		const EStateTreeExpressionOperand Operand = Index == 0 ? EStateTreeExpressionOperand::Copy : Consideration.Operand;
+		Operands[Level] = Operand;
+
+		// Store current value at the top of the stack.
+		Level += OpenParens;
+		Values[Level] = Value;
+
+		// Evaluate and merge down values based on closed braces.
+		// The current value is placed in parens (see +1 above), which makes merging down and applying the new value consistent.
+		// The default operand is copy, so if the value is needed immediately, it is just copied down, or if we're on the same level,
+		// the operand storing above gives handles with the right logic.
+		for (int32 Paren = 0; Paren < ClosedParens; Paren++)
+		{
+			Level--;
+			switch (Operands[Level])
+			{
+			case EStateTreeExpressionOperand::Copy:
+				Values[Level] = Values[Level + 1];
+				break;
+			case EStateTreeExpressionOperand::And:
+				Values[Level] = FMath::Min(Values[Level], Values[Level + 1]);
+				break;
+			case EStateTreeExpressionOperand::Or:
+				Values[Level] = FMath::Max(Values[Level], Values[Level + 1]);
+				break;
+			}
+			Operands[Level] = EStateTreeExpressionOperand::Copy;
+		}
+	}
+
+	return Values[0];
+}
+
 void FStateTreeExecutionContext::EvaluatePropertyFunctionsOnActiveInstances(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, FStateTreeIndex16 FuncsBegin, uint16 FuncsNum)
 {
 	for (int32 FuncIndex = FuncsBegin.Get(); FuncIndex < FuncsBegin.Get() + FuncsNum; ++FuncIndex)
@@ -3933,27 +4014,123 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 			if (NextState.HasChildren())
 			{
 				STATETREE_TRACE_SCOPED_STATE_PHASE(NextStateHandle, EStateTreeUpdatePhase::TrySelectBehavior);
-
-				TArray<uint16, TInlineAllocator<8>> RandomChildStates;
+				
+				TArray<uint16, TInlineAllocator<8>> NextLevelChildStates;
 				for (uint16 ChildState = NextState.ChildrenBegin; ChildState < NextState.ChildrenEnd; ChildState = CurrentStateTree->States[ChildState].GetNextSibling())
 				{
-					RandomChildStates.Push(ChildState);
+					NextLevelChildStates.Push(ChildState);
 				}
 
-				const uint32 LastIndex = RandomChildStates.Num() - 1;
-				for (uint32 Index = 0; Index < LastIndex; ++Index)
+				while (!NextLevelChildStates.IsEmpty())
 				{
-					// Get a random integer in [Index, Num)
-					const uint32 IndexToSwap = Exec.RandomStream.RandRange(Index, LastIndex);
-					RandomChildStates.Swap(Index, IndexToSwap);
-				}
-
-				for (uint16 ChildState : RandomChildStates)
-				{
-					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(ChildState) }, OutSelectionResult))
+					const int32 ChildStateIndex = Exec.RandomStream.RandRange(0, NextLevelChildStates.Num() - 1);
+					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(ChildStateIndex) }, OutSelectionResult))
 					{
 						// Selection succeeded
 						return true;
+					}
+
+					constexpr EAllowShrinking AllowShrinking = EAllowShrinking::No;
+					NextLevelChildStates.RemoveAtSwap(ChildStateIndex, AllowShrinking);
+				}
+			}
+			else
+			{
+				// Select this state (For backwards compatibility)
+				STATETREE_TRACE_STATE_EVENT(NextStateHandle, EStateTreeTraceEventType::OnStateSelected);
+				return true;
+			}
+		}
+		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility)
+		{
+			if (NextState.HasChildren())
+			{
+				STATETREE_TRACE_SCOPED_STATE_PHASE(NextStateHandle, EStateTreeUpdatePhase::TrySelectBehavior);
+
+				TArray<uint16, TInlineAllocator<8>> NextLevelChildStates;
+				for (uint16 ChildState = NextState.ChildrenBegin; ChildState < NextState.ChildrenEnd; ChildState = CurrentStateTree->States[ChildState].GetNextSibling())
+				{
+					NextLevelChildStates.Push(ChildState);
+				}
+
+				while (!NextLevelChildStates.IsEmpty())
+				{
+					//Find one with highest score in the remaining candidates
+					float HighestScore = .0f;
+					uint16 StateIndexWithHighestScore = FStateTreeStateHandle::InvalidIndex;
+					int32 StateArrayIndex = -1;
+					for (int32 Index = 0; Index < NextLevelChildStates.Num(); ++Index)
+					{
+						const uint16 CurrentStateIndex = NextLevelChildStates[Index];
+						const FCompactStateTreeState& CurrentState = CurrentStateTree->States[CurrentStateIndex];
+						const float Score = EvaluateUtility(CurrentParentFrame, CurrentFrame, CurrentState.UtilityConsiderationsBegin, CurrentState.UtilityConsiderationsNum);
+						if (Score > HighestScore)
+						{
+							HighestScore = Score;
+							StateIndexWithHighestScore = CurrentStateIndex;
+							StateArrayIndex = Index;
+						}
+					}
+
+					check(FStateTreeStateHandle::IsValidIndex(StateIndexWithHighestScore));
+					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(StateIndexWithHighestScore) }, OutSelectionResult))
+					{
+						// Selection succeeded
+						return true;
+					}
+					
+					//Disqualify the state we failed to enter
+					constexpr EAllowShrinking AllowShrinking = EAllowShrinking::No;
+					NextLevelChildStates.RemoveAtSwap(StateArrayIndex);
+				}
+			}
+			else
+			{
+				// Select this state (For backwards compatibility)
+				STATETREE_TRACE_STATE_EVENT(NextStateHandle, EStateTreeTraceEventType::OnStateSelected);
+				return true;
+			}
+		}
+		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility)
+		{
+			if (NextState.HasChildren())
+			{
+				TArray<TTuple<uint16, float>, TInlineAllocator<8>> NextLevelChildStates;
+				float TotalScore = .0f;
+				for (uint16 CurrentStateIndex = NextState.ChildrenBegin; CurrentStateIndex < NextState.ChildrenEnd; CurrentStateIndex = CurrentStateTree->States[CurrentStateIndex].GetNextSibling())
+				{
+					const FCompactStateTreeState& CurrentState = CurrentStateTree->States[CurrentStateIndex];
+					const float CurrentStateScore = EvaluateUtility(CurrentParentFrame, CurrentFrame, CurrentState.UtilityConsiderationsBegin, CurrentState.UtilityConsiderationsNum);
+					NextLevelChildStates.Emplace(CurrentStateIndex, CurrentStateScore);
+					TotalScore += CurrentStateScore;
+				}
+
+				while (!NextLevelChildStates.IsEmpty())
+				{
+					const float RandomScore = Exec.RandomStream.FRand() * TotalScore;
+					float AccumulatedScore = .0f;
+					for (int32 Index = 0; Index < NextLevelChildStates.Num(); ++Index)
+					{
+						const TTuple<uint16, float>& StateScorePair = NextLevelChildStates[Index];
+						const uint16 StateIndex = StateScorePair.Key;
+						const float StateScore = StateScorePair.Value;
+						AccumulatedScore += StateScore;
+
+						if (RandomScore < AccumulatedScore || (Index == (NextLevelChildStates.Num() - 1)))
+						{
+							if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(StateIndex) }, OutSelectionResult))
+							{
+								// Selection succeeded
+								return true;
+							}
+
+							//Disqualify the state we failed to enter, and restart the loop
+							TotalScore -= StateScore;
+							constexpr EAllowShrinking AllowShrinking = EAllowShrinking::No;
+							NextLevelChildStates.RemoveAtSwap(Index, AllowShrinking);
+
+							break;
+						}
 					}
 				}
 			}

@@ -157,9 +157,9 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 	}
 
-	// Broadcast selection type changes so that the UI can update.
 	if (ChangePropertyPath.IsPathExact(SelectionBehaviorPath))
 	{
+		// Broadcast selection type changes so that the UI can update.
 		const UStateTree* StateTree = GetTypedOuter<UStateTree>();
 		if (ensure(StateTree))
 		{
@@ -169,7 +169,13 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	
 	if (ChangePropertyPath.IsPathExact(StateTypePath))
 	{
-		// Remove any tasks and evaluators when they are not used.
+		// Reset Selection Behavior back to Try Enter State for group and linked types
+		if (Type == EStateTreeStateType::Group || Type == EStateTreeStateType::Linked || Type == EStateTreeStateType::LinkedAsset)
+		{
+			SelectionBehavior = EStateTreeStateSelectionBehavior::TryEnterState;
+		}
+
+		// Remove any tasks when they are not used.
 		if (Type == EStateTreeStateType::Group || Type == EStateTreeStateType::Linked || Type == EStateTreeStateType::LinkedAsset)
 		{
 			Tasks.Reset();
