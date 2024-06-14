@@ -150,7 +150,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Metadata blackboard
 		/// </summary>
-		public Dictionary<string, string> metadata { get; private set; }
+		public virtual Dictionary<string, string> metadata { get; protected set; }
 
 		/// <summary>
 		/// Return report type

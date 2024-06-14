@@ -369,6 +369,9 @@ namespace Gauntlet
 				get { return "Unreal Automated Tests"; }
 			}
 
+			[JsonPropertyName("Metadata")]
+			public override Dictionary<string, string> metadata { get; protected set; }
+
 			public UnrealEngineTestPassResults() : base()
 			{
 				Devices = new List<Device>();
@@ -551,6 +554,9 @@ namespace Gauntlet
 			{
 				get { return "Automated Test Session"; }
 			}
+
+			[JsonPropertyName("Metadata")]
+			public override Dictionary<string, string> metadata { get; protected set; }
 
 			public class TestResult
 			{
@@ -1095,6 +1101,9 @@ namespace Gauntlet
 			{
 				get { return "Simple Report"; }
 			}
+
+			[JsonPropertyName("Metadata")]
+			public override Dictionary<string, string> metadata { get; protected set; }
 
 			public SimpleTestReport() : base()
 			{
@@ -1897,7 +1906,7 @@ namespace Gauntlet
 					Type = InType;
 					Token = Type.ToLower().Replace(" ", "_");
 					Name = InName;
-					Files = InFiles;
+					Files = new(InFiles);
 					RootPath = InRootPath;
 				}
 
