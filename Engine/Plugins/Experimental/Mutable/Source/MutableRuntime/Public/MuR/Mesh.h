@@ -246,6 +246,8 @@ namespace mu
 
 		/** Create an explicit vertex buffer for vertex IDs if they are implicit. */
 		void MakeVertexIdsRelative();
+
+		/** Ensure the format of an empty mesh includes explicit IDs. The mesh cannot have any vertex data. */
 		void MakeIdsExplicit();
 
         //! \name Texture layouts

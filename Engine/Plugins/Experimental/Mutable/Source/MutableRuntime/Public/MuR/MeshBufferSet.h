@@ -180,19 +180,13 @@ namespace mu
 		using TMemoryTrackedArray = TArray<Type, FDefaultMemoryTrackingAllocator<MemoryCounters::FMeshMemoryCounter>>;
 
 		//!
-		FMeshBuffer()
-		{
-			m_elementSize = 0;
-		}
-
-		//!
 		TArray<FMeshBufferChannel> m_channels;
 
 		//!
 		TMemoryTrackedArray<uint8> m_data;
 
 		//!
-		uint32 m_elementSize;
+		uint32 m_elementSize = 0;
 
 		//!
 		void Serialise(mu::OutputArchive& arch) const;
@@ -207,6 +201,24 @@ namespace mu
 			if (equal) equal = (m_elementSize == o.m_elementSize);
 			if (equal) equal = (m_data == o.m_data);
 			return equal;
+		}
+
+		/** Return true if the buffer has any channel with the passed semantic. */
+		inline bool HasSemantic(EMeshBufferSemantic Semantic) const
+		{
+			for ( const FMeshBufferChannel& Channel : m_channels)
+			{
+				if (Channel.m_semantic == Semantic)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		inline bool HasSameFormat(const FMeshBuffer& Other) const
+		{
+			return (m_channels == Other.m_channels && m_elementSize == Other.m_elementSize);
 		}
 
 	};
@@ -366,7 +378,7 @@ namespace mu
 		void CopyElement(uint32 fromIndex, uint32 toIndex);
 
 		//! Compare the format of the two buffers at index buffer and return true if they match.
-		bool HasSameFormat(int32 buffer, const FMeshBufferSet& pOther) const;
+		bool HasSameFormat(int32 ThisBufferIndex, const FMeshBufferSet& pOther, int32 OtherBufferIndex) const;
 
 		//! Get the total memory size of the buffers and this struct
 		int32 GetDataSize() const;

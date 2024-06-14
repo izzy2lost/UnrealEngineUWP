@@ -372,20 +372,13 @@ void Mesh::MakeVertexIdsRelative()
 
 void Mesh::MakeIdsExplicit()
 {
-	MUTABLE_CPUPROFILER_SCOPE(Mesh_MakeVertexIndicesExplicit);
-
-	if (!MeshIDPrefix)
-	{
-		// We already have explicit vertex IDs, or we don't have any.
-		return;
-	}
+	MUTABLE_CPUPROFILER_SCOPE(Mesh_MakeIdsExplicit);
 
 	int32 VertexCount = GetVertexCount();
+	check(VertexCount==0);
 
 	// Vertex IDs
 	{
-		MUTABLE_CPUPROFILER_SCOPE(VertexIDs);
-
 		bool bHasRelativeVertexIndices = false;
 
 		int32 OldBuf = -1;
@@ -396,62 +389,28 @@ void Mesh::MakeIdsExplicit()
 		{
 			check(OldChan == 0 && VertexBuffers.m_buffers[OldBuf].m_channels.Num() == 1);
 
-			FMeshBufferChannel& Channel = VertexBuffers.m_buffers[OldBuf].m_channels[0];
-
-			bool bHasExplicitVertexIndices = Channel.m_format == MBF_UINT64;
-			if (!bHasExplicitVertexIndices)
-			{
-				// The mesh has relative vertex IDs.
-				bHasRelativeVertexIndices = true;
-
-				check(Channel.m_format == MBF_UINT32);
-				const uint32* OldIdData = reinterpret_cast<const uint32*>(VertexBuffers.GetBufferData(OldBuf));
-
-				TMemoryTrackedArray<uint8> NewIds;
-				NewIds.SetNumUninitialized(VertexCount * sizeof(uint64));
-				uint64* NewIdData = reinterpret_cast<uint64*>(NewIds.GetData());
-
-				for (int32 i = 0; i < VertexCount; ++i)
-				{
-					uint32 OldId = *OldIdData++;
-					uint64 Id = (uint64(MeshIDPrefix) << 32) | uint64(OldId);
-					(*NewIdData++) = Id;
-				}
-
-				// 
-				FMeshBuffer& Buffer = VertexBuffers.m_buffers[OldBuf];
-				Swap(Buffer.m_data, NewIds);
-				Buffer.m_channels[0].m_format = MBF_UINT64;
-				Buffer.m_elementSize = sizeof(uint64);
-			}
+			FMeshBuffer& Buffer = VertexBuffers.m_buffers[OldBuf];
+			Buffer.m_channels[0].m_format = MBF_UINT64;
+			Buffer.m_elementSize = sizeof(uint64);
 		}
 
-		if (!bHasRelativeVertexIndices)
+		else
 		{
 			// The mesh has implicit Ids
 			// Create a new buffer with explicit ids
-			int32 NewBuffer = VertexBuffers.GetBufferCount();
-			VertexBuffers.SetBufferCount(NewBuffer + 1);
-			EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
-			int32 SemanticIndex = 0;
-			EMeshBufferFormat Format = MBF_UINT64;
-			int32 Components = 1;
-			int32 Offset = 0;
-			VertexBuffers.SetBuffer(NewBuffer, sizeof(uint64), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offset);
-			uint64* IdData = reinterpret_cast<uint64*>(VertexBuffers.GetBufferData(NewBuffer));
-
-			for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
-			{
-				uint64 Id = (uint64(MeshIDPrefix) << 32) | uint64(VertexIndex);
-				(*IdData++) = Id;
-			}
+			FMeshBuffer& Buffer = VertexBuffers.m_buffers.Emplace_GetRef();
+			Buffer.m_elementSize = sizeof(uint64);
+			FMeshBufferChannel& Channel = Buffer.m_channels.Emplace_GetRef();
+			Channel.m_semantic = MBS_VERTEXINDEX;
+			Channel.m_semanticIndex= 0;
+			Channel.m_format = MBF_UINT64;
+			Channel.m_componentCount = 1;
+			Channel.m_offset = 0;
 		}
 	}
 
 	// Layout block IDs
 	{
-		MUTABLE_CPUPROFILER_SCOPE(LayoutBlockIDs);
-
 		for (FMeshBuffer& Buffer: VertexBuffers.m_buffers)
 		{
 			for (FMeshBufferChannel& Channel : Buffer.m_channels)
@@ -461,31 +420,9 @@ void Mesh::MakeIdsExplicit()
 					continue;
 				}
 
-				if (Channel.m_format == MBF_UINT64)
-				{
-					continue;
-				}
-
 				check(Buffer.m_channels.Num() == 1);
 				check(Buffer.m_channels[0].m_offset == 0);
-				check(Buffer.m_elementSize == sizeof(uint16));
 
-				check(Channel.m_format == MBF_UINT16);
-				const uint16* OldIdData = reinterpret_cast<const uint16*>(Buffer.m_data.GetData());
-
-				TMemoryTrackedArray<uint8> NewIds;
-				NewIds.SetNumUninitialized(VertexCount *sizeof(uint64));
-				uint64* NewIdData = reinterpret_cast<uint64*>(NewIds.GetData());
-
-				for (int32 i = 0; i < VertexCount; ++i)
-				{
-					uint16 OldId = *OldIdData++;
-					uint64 Id = (uint64(MeshIDPrefix) << 32) | uint64(OldId);
-					(*NewIdData++) = Id;
-				}
-
-				// 
-				Swap(Buffer.m_data, NewIds);
 				Buffer.m_channels[0].m_format = MBF_UINT64;
 				Buffer.m_elementSize = sizeof(uint64);
 			}
@@ -612,7 +549,7 @@ void Mesh::GetSurface( int32 surfaceIndex,
 }
 
 
-uint32_t Mesh::GetSurfaceId( int surfaceIndex ) const
+uint32 Mesh::GetSurfaceId( int32 surfaceIndex ) const
 {
     if (surfaceIndex>=0 && surfaceIndex<Surfaces.Num())
     {

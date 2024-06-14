@@ -208,7 +208,7 @@ namespace mu
 			chan.m_semanticIndex = pSemanticIndices ? pSemanticIndices[c] : 0;
 			chan.m_format = pFormats ? pFormats[c] : MBF_NONE;
 			chan.m_componentCount = pComponentCount ? ((uint16)pComponentCount[c]) : 0;
-			chan.m_offset = pOffsets ? ((uint8_t)pOffsets[c]) : 0;
+			chan.m_offset = pOffsets ? ((uint8)pOffsets[c]) : 0;
 
 			int32 ThisChannelMinElemSize = chan.m_offset + chan.m_componentCount * GetMeshFormatData(chan.m_format).SizeInBytes;			
 			MinElemSize = FMath::Max(MinElemSize, ThisChannelMinElemSize);
@@ -262,7 +262,7 @@ namespace mu
 	uint8* FMeshBufferSet::GetBufferData(int32 buffer)
 	{
 		check(buffer >= 0 && buffer < m_buffers.Num());
-		uint8_t* pResult = m_buffers[buffer].m_data.GetData();
+		uint8* pResult = m_buffers[buffer].m_data.GetData();
 		return pResult;
 	}
 
@@ -271,7 +271,7 @@ namespace mu
 	const uint8* FMeshBufferSet::GetBufferData(int32 buffer) const
 	{
 		check(buffer >= 0 && buffer < m_buffers.Num());
-		const uint8_t* pResult = m_buffers[buffer].m_data.GetData();
+		const uint8* pResult = m_buffers[buffer].m_data.GetData();
 		return pResult;
 	}
 
@@ -303,15 +303,15 @@ namespace mu
 		*pBuffer = -1;
 		*pChannel = -1;
 
-		for (size_t b = 0; b < m_buffers.Num(); ++b)
+		for (int32 b = 0; b < m_buffers.Num(); ++b)
 		{
-			for (size_t c = 0; c < m_buffers[b].m_channels.Num(); ++c)
+			for (int32 c = 0; c < m_buffers[b].m_channels.Num(); ++c)
 			{
 				if (m_buffers[b].m_channels[c].m_semantic == semantic &&
 					m_buffers[b].m_channels[c].m_semanticIndex == semanticIndex)
 				{
-					*pBuffer = int(b);
-					*pChannel = int(c);
+					*pBuffer = b;
+					*pChannel = c;
 					return;
 				}
 			}
@@ -378,7 +378,7 @@ namespace mu
 
 		for (int32 b = 0; b < bc; ++b)
 		{
-			if (!HasSameFormat(b, Other))
+			if (!HasSameFormat(b, Other, b))
 			{
 				return false;
 			}
@@ -389,17 +389,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	bool FMeshBufferSet::HasSameFormat(int32 buffer, const FMeshBufferSet& Other) const
+	bool FMeshBufferSet::HasSameFormat(int32 ThisBufferIndex, const FMeshBufferSet& Other, int32 OtherBufferIndex) const
 	{
-		if (m_buffers[buffer].m_channels == Other.m_buffers[buffer].m_channels
-			&&
-			m_buffers[buffer].m_elementSize == Other.m_buffers[buffer].m_elementSize
-			)
-		{
-			return true;
-		}
-
-		return false;
+		return m_buffers[ThisBufferIndex].HasSameFormat(Other.m_buffers[OtherBufferIndex]);
 	}
 
 
@@ -429,7 +421,7 @@ namespace mu
 	}
 
 	//-----------------------------------------------------------------------------------------
-	void FMeshBufferSet::CopyElement(uint32_t fromIndex, uint32_t toIndex)
+	void FMeshBufferSet::CopyElement(uint32 fromIndex, uint32 toIndex)
 	{
 		check(fromIndex < m_elementCount);
 		check(toIndex < m_elementCount);
@@ -659,7 +651,9 @@ namespace mu
 		}
 
 		if (m_buffers[b].m_elementSize < offset)
+		{
 			m_buffers[b].m_elementSize = offset;
+		}
 	}
 
 
