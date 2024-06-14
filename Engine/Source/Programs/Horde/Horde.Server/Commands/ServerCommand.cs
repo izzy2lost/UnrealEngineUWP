@@ -67,6 +67,8 @@ namespace Horde.Server.Commands
 				.ConfigureAppConfiguration(builder => builder.AddConfiguration(config))
 				.ConfigureWebHostDefaults(webBuilder =>
 				{
+					webBuilder.UseShutdownTimeout(TimeSpan.FromSeconds(30.0));
+
 					webBuilder.UseUrls(); // Disable default URLs; we will configure each port directly.
 
 					webBuilder.UseWebRoot("DashboardApp");
