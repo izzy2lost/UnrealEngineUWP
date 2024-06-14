@@ -139,6 +139,7 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 
 			// Update the default value container accordingly
 			ChangedAttribute.DefaultValueStruct.SetType(ChangedAttribute.DataType);
+			OnPinDefinitionChangedDelegate.Execute();
 		}
 	}
 	else 
