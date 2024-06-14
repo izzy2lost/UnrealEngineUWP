@@ -436,14 +436,6 @@ RaytracingAccelerationStructure TLAS;
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
 	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
 	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
-
-	FLumenTraceRayInlineCallback InitLumenTraceRayInlineCallback()
-	{
-		FLumenTraceRayInlineCallback Callback;
-		Callback.HitGroupData = HitGroupData;
-		Callback.bShadowRay = false;
-		return Callback;
-	}
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
 uint ThreadCount;

@@ -7,7 +7,6 @@
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
-#define USE_INLINE_ANYHIT_SHADERS 1
 
 // Additional rewiring to make DeferredShadingCommon happy
 #define PreIntegratedGF				ReflectionStruct.PreIntegratedGF
@@ -389,14 +388,6 @@ struct FLumenTraceRayInlineCallback : FDefaultTraceRayInlineCallback
 		return LumenMinimalRayAnyHitShader(HitData.UserData, Hit.HitT, /*bHitBackFace*/ !Hit.bIsFrontFace, bShadowRay);
 	}
 };
-
-FLumenTraceRayInlineCallback InitLumenTraceRayInlineCallback();
-
-bool OnAnyHit(float3 ObjectRayOrigin, float3 ObjectRayDirection, FTraceRayInlineResult Hit)
-{
-    FLumenTraceRayInlineCallback LumenCallback = InitLumenTraceRayInlineCallback(); 
-    return LumenCallback.OnAnyHit(ObjectRayOrigin, ObjectRayDirection, Hit);
-}
 #endif
 
 FLumenMinimalRayResult TraceLumenMinimalRay(
@@ -443,10 +434,9 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 		FTraceRayInlineContext TraceRayInlineContext = CreateTraceRayInlineContext();
 		TraceRayInlineContext.MaxIterations = Context.MaxTraversalIterations;
 
-		FLumenTraceRayInlineCallback LumenCallback = InitLumenTraceRayInlineCallback();
-		// Remove InitLumenTraceRayInlineCallback and initialize directly from Context when global OnAnyHit function won't be needed on any platform
-		//LumenCallback.HitGroupData = Context.HitGroupData;
-		//LumenCallback.bShadowRay = Context.bIsShadowRay;
+		FLumenTraceRayInlineCallback LumenCallback;
+		LumenCallback.HitGroupData = Context.HitGroupData;
+		LumenCallback.bShadowRay = Context.bIsShadowRay;
 		FTraceRayInlineResult TraceResult = TraceRayInlineWithCallback(TLAS, RayFlags, Context.InstanceMask, Ray.GetNativeDesc(), TraceRayInlineContext, LumenCallback);
 
 		if (TraceResult.IsHit())
