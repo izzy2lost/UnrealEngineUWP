@@ -858,30 +858,10 @@ void FReplicationWriter::UpdateDirtyGlobalLifetimeConditionals(TArrayView<FInter
 	for (FInternalNetRefIndex InternalObjectIndex : ObjectsWithDirtyConditionals)
 	{
 		FReplicationInfo& Info = ReplicatedObjects[InternalObjectIndex];
-		if (Info.GetState() != EReplicatedObjectState::Invalid && Info.GetState() < EReplicatedObjectState::PendingDestroy)
+		if (Info.GetState() != EReplicatedObjectState::Invalid)
 		{
-			if (Info.IsSubObject)
-			{
-				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalObjectIndex);
-				if (ObjectData.IsSubObject())
-				{
-					FReplicationInfo& OwnerInfo = ReplicatedObjects[ObjectData.SubObjectRootIndex];
-					if (OwnerInfo.GetState() != EReplicatedObjectState::Invalid && OwnerInfo.GetState() < EReplicatedObjectState::PendingDestroy)
-					{
-						UE_LOG_REPLICATIONWRITER_CONN(TEXT("UpdateDirtyGlobalLifetimeConditionals for - %s"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(ObjectData.SubObjectRootIndex)));
-						
-						MarkObjectDirty(ObjectData.SubObjectRootIndex, "UpdateDirtyGlobalLifetimeConditionals");
-						OwnerInfo.HasDirtyConditionals = 1U;
-					}
-				}
-			}
-			else
-			{
-				UE_LOG_REPLICATIONWRITER_CONN(TEXT("UpdateDirtyGlobalLifetimeConditionals for - %s"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(InternalObjectIndex)));
-	
-				MarkObjectDirty(InternalObjectIndex, "UpdateDirtyGlobalLifetimeConditionals2");
-				Info.HasDirtyConditionals = 1U;
-			}
+			// We just set a flag that we will process if the object is going to be replicated
+			Info.HasDirtyConditionals = 1;
 		}
 	}
 }
