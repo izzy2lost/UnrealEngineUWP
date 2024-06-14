@@ -270,7 +270,7 @@ UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::FWorldPartitionExter
 void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::OnRemoveNonDirtyActor(TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue)
 {
 	check(InActor.IsValid());
-	NonDirtyActors.Emplace(InActor, InValue);
+	NonDirtyActors.Emplace({ InActor, InValue });
 }
 
 void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::Tick(float InDeltaSeconds)
