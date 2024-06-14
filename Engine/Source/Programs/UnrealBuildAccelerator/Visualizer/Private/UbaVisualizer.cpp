@@ -1381,6 +1381,7 @@ namespace uba
 
 			logger.AddSpace(2);
 			logger.Info(L"  %ls", process.description.c_str());
+			logger.Info(L"  ProcessId: %6u", process.id);
 			logger.Info(L"  Start:    %7ls", TimeToText(process.start, true).str);
 			logger.Info(L"  Duration: %7ls", TimeToText(duration, true).str);
 			if (hasExited && process.exitCode != 0)
@@ -2177,6 +2178,7 @@ namespace uba
 	{
 		bool hasExited = process.stop != ~u64(0);
 		out.Info(L"  %ls", process.description.c_str());
+		out.Info(L"  ProcessId: %u", process.id);
 		out.Info(L"  Start:     %ls", TimeToText(process.start, true).str);
 		if (hasExited)
 			out.Info(L"  Duration:  %ls", TimeToText(process.stop - process.start, true).str);

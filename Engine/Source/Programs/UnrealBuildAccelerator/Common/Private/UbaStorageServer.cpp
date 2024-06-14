@@ -7,6 +7,11 @@
 
 namespace uba
 {
+	void StorageServerCreateInfo::Apply(Config& config)
+	{
+		StorageCreateInfo::Apply(config);
+	}
+
 	StorageServer::StorageServer(const StorageServerCreateInfo& info)
 	:	StorageImpl(info, TC("UbaStorageServer"))
 	,	m_server(info.server)

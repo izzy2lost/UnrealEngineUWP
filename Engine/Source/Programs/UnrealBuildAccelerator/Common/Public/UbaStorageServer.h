@@ -10,6 +10,9 @@ namespace uba
 	struct StorageServerCreateInfo : StorageCreateInfo
 	{
 		StorageServerCreateInfo(NetworkServer& s, const tchar* rootDir_, LogWriter& writer) : StorageCreateInfo(rootDir_, writer), server(s) { workManager = &server; }
+
+		void Apply(Config& config);
+
 		NetworkServer& server;
 		bool allowFallback = true; // Will fallback to file system to recalculate cas if cas content does not exist anymore
 		bool writeRecievedCasFilesToDisk = false;

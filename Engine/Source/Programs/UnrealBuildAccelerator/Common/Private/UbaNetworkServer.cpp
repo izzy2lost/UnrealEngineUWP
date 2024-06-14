@@ -7,6 +7,11 @@
 
 namespace uba
 {
+	void NetworkServerCreateInfo::Apply(Config& config)
+	{
+	}
+
+
 	struct NetworkServer::WorkerContext
 	{
 		WorkerContext(NetworkServer& s) : server(s), workAvailable(false)

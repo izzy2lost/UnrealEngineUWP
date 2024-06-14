@@ -3,6 +3,7 @@
 #include "UbaStorage.h"
 #include "UbaBottleneck.h"
 #include "UbaCompressedObjFileHeader.h"
+#include "UbaConfig.h"
 #include "UbaFileAccessor.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryIterator.h"
@@ -50,6 +51,12 @@ namespace uba
 	{
 		for (u8* slot : m_slots)
 			free(slot);
+	}
+
+	void StorageCreateInfo::Apply(Config& config)
+	{
+		const ConfigTable& table = config.GetTable(TC("Storage"));
+		table.GetValueAsString(rootDir, TC("RootDir"));
 	}
 
 	void StorageImpl::CasEntryAccessed(CasEntry& casEntry)

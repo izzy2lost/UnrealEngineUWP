@@ -184,7 +184,7 @@ namespace uba
 		u32 m_defaultAttributes = 0;
 #endif
 	};
-	LogWriter& g_consoleLogWriter = *new ConsoleLogWriter(); // Leak to prevent asan annoyances during shutdown when asserts happen
+	UBA_API LogWriter& g_consoleLogWriter = *new ConsoleLogWriter(); // Leak to prevent asan annoyances during shutdown when asserts happen
 	thread_local u32 t_consoleLogScopeCount = 0;
 
 	class NullLogWriter : public LogWriter
@@ -194,7 +194,7 @@ namespace uba
 		virtual void EndScope() override {}
 		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) override {}
 	} g_nullLogWriterImpl;
-	LogWriter& g_nullLogWriter = g_nullLogWriterImpl;
+	UBA_API LogWriter& g_nullLogWriter = g_nullLogWriterImpl;
 
 
 	ConsoleLogWriter::ConsoleLogWriter()

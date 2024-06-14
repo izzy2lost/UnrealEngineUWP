@@ -36,7 +36,7 @@ namespace uba
 		}
 		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
 		{
-			if (fileName.Contains(TC("\\vctip_")) != 0)
+			if (fileName.Contains(TC("\\vctip_")))
 				return true;
 			if (fileName.Contains(systemTemp))
 				return true;

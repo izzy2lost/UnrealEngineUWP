@@ -5,15 +5,18 @@
 
 namespace uba
 {
-	static ConfigTable& EmptyConfigTable = *new ConfigTable();
-
-	bool ConfigTable::GetValueAsString(StringBufferBase& out, const tchar* key) const
+	bool ConfigTable::GetValueAsString(const tchar*& out, const tchar* key) const
 	{
-		return false;
+		auto findIt = m_values.find(key);
+		if (findIt == m_values.end())
+			return m_parent ? m_parent->GetValueAsString(out, key) : false;
+		out = findIt->second.c_str();
+		return true;
 	}
 
 	bool ConfigTable::GetValueAsU32(u32& out, const tchar* key) const
 	{
+		UBA_ASSERT(false);
 		return false;
 	}
 
@@ -21,7 +24,7 @@ namespace uba
 	{
 		auto findIt = m_values.find(key);
 		if (findIt == m_values.end())
-			return false;
+			return m_parent ? m_parent->GetValueAsBool(out, key) : false;
 		const tchar* value = findIt->second.c_str();
 		if (Equals(value, TC("true")) || Equals(value, TC("1")))
 		{
@@ -41,9 +44,27 @@ namespace uba
 	{
 		m_isLoaded = true;
 
+#if PLATFORM_WINDOWS
+		StringBuffer<> tempPath;
+		if (configFile[1] != ':')
+		{
+			if (GetCurrentDirectoryW(tempPath) && FileExists(logger, tempPath.EnsureEndsWithSlash().Append(configFile).data))
+			{
+				configFile = tempPath.data;
+			}
+			else if (GetDirectoryOfCurrentModule(logger, tempPath.Clear()) && FileExists(logger, tempPath.EnsureEndsWithSlash().Append(configFile).data))
+			{
+				configFile = tempPath.data;
+			}
+			else
+				return false;
+		}
+#endif
+
 		FileAccessor fa(logger, configFile);
 		if (!fa.OpenMemoryRead(0, false))
 			return false;
+		logger.Info(TC("  Loading config from %s"), configFile);
 		return LoadFromText(logger, (const char*)fa.GetData(), fa.GetSize());
 	}
 
@@ -77,21 +98,24 @@ namespace uba
 				return 0;
 			};
 
-		auto consumeLine = [&](StringBufferBase& out) -> char
+		auto consumeLine = [&](StringBufferBase& out, char untilChar) -> char
 			{
+				bool append = true;
 				while (i != e)
 				{
 					if (*i == '\n')
 						return *i;
-					if (*i != '\r')
+
+					append &= (*i != untilChar && *i != '\r');
+
+					if (append)
 						out.Append(*i);
 					++i;
 				}
 				return 0;
 			};
 
-		ConfigTable globalTable;
-		ConfigTable* activeTable = &globalTable;
+		ConfigTable* activeTable = &m_globalTable;
 		while (true)
 		{
 			char token = consumeEmpty();
@@ -100,6 +124,11 @@ namespace uba
 			if (token == '\n')
 			{
 				++i;
+			}
+			else if (token == '#')
+			{
+				StringBuffer<1024> comment;
+				consumeLine(comment, 0);
 			}
 			else if (token == '[')
 			{
@@ -116,6 +145,7 @@ namespace uba
 					return logger.Error(TC("Unexpected token %c after group %s"), tableName.data);
 				++i;
 				activeTable = &m_tables.try_emplace(tableName.data).first->second;
+				activeTable->m_parent = &m_globalTable;
 			}
 			else
 			{
@@ -126,19 +156,22 @@ namespace uba
 					return logger.Error(TC("Unexpected equals sign after key name %s"), key);
 				++i;
 				token = consumeEmpty();
+
+				StringBuffer<1024> value;
 				if (token == '\"')
 				{
-					return logger.Error(TC("Strings not supported yet %s"), key);
+					++i;
+					token = consumeLine(value, '\"');
 				}
 				else
 				{
-					StringBuffer<128> value;
 					token = consumeIdentifier(value);
-					activeTable->m_values[key.data] = value.data;
-					if (token == 0)
-						break;
-					++i;
 				}
+
+				activeTable->m_values[key.data] = value.data;
+				if (token == 0)
+					break;
+				++i;
 			}
 		}
 
@@ -154,7 +187,7 @@ namespace uba
 	{
 		auto findIt = m_tables.find(name);
 		if (findIt == m_tables.end())
-			return EmptyConfigTable;
+			return m_globalTable;
 		return findIt->second;
 	}
 }

@@ -13,6 +13,7 @@
 
 namespace uba
 {
+	class Config;
 	struct BinaryReader;
 	struct BinaryWriter;
 
@@ -28,6 +29,9 @@ namespace uba
 	struct NetworkServerCreateInfo
 	{
 		NetworkServerCreateInfo(LogWriter& w = g_consoleLogWriter) : logWriter(w) {}
+
+		void Apply(Config& config);
+
 		LogWriter& logWriter;
 		u32 workerCount = 0; // Zero means it will use the number of logical cores as worker count
 		u32 sendSize = SendDefaultSize;
@@ -49,7 +53,7 @@ namespace uba
 
 		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort, const tchar* ip = nullptr, bool requiresCrypto = false); // Start listen for new connections/clients
 		void DisallowNewClients();	// Disallow new clients to connect but old clients can still create more connections
-		void DisconnectClients();				// Stops all listen and disconnect all active connections
+		void DisconnectClients();	// Disconnect all active connections
 
 		bool RegisterCryptoKey(const u8* cryptoKey128, u64 expirationTime = ~u64(0));
 

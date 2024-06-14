@@ -15,6 +15,7 @@
 
 namespace uba
 {
+	class Config;
 	class FileAccessor;
 	class Trace;
 	class WorkManager;
@@ -75,6 +76,9 @@ namespace uba
 	struct StorageCreateInfo
 	{
 		StorageCreateInfo(const tchar* rootDir_, LogWriter& w) : writer(w), rootDir(rootDir_) {}
+
+		void Apply(Config& config);
+
 		LogWriter& writer;
 		const tchar* rootDir;
 		u64 casCapacityBytes = 20llu * 1024 * 1024 * 1024;
