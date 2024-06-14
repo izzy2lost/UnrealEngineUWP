@@ -740,9 +740,9 @@ FText SRCPanelExposedEntitiesList::HandleEntityListHeaderLabel() const
 {
 	const FRemoteControlCommands& Commands = FRemoteControlCommands::Get();
 
-	if (bIsInProtocolsMode.Get() && Commands.ToggleProtocolMappings.IsValid())
+	if (bIsInProtocolsMode.Get() && Commands.ActivateProtocolsMode.IsValid())
 	{
-		return Commands.ToggleProtocolMappings->GetLabel();
+		return Commands.ActivateProtocolsMode->GetLabel();
 	}
 
 	return LOCTEXT("PropertiesLabel", "Properties");

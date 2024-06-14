@@ -31,10 +31,8 @@ TSharedPtr<SWidget> SRCLogicPanelListBase::GetContextMenuWidget()
 
 	const FRemoteControlCommands& Commands = FRemoteControlCommands::Get();
 
-	// 1. Copy
 	MenuBuilder.AddMenuEntry(Commands.CopyItem);
 
-	// 2. Paste
 	FText PasteItemLabel = LOCTEXT("Paste", "Paste");
 	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = RemoteControlPanelWeakPtr.Pin())
 	{
@@ -48,23 +46,14 @@ TSharedPtr<SWidget> SRCLogicPanelListBase::GetContextMenuWidget()
 		}
 	}
 	MenuBuilder.AddMenuEntry(Commands.PasteItem, NAME_None, PasteItemLabel);
-
-	// 2. Duplicate
 	MenuBuilder.AddMenuEntry(Commands.DuplicateItem);
-
-	// 3. Update
 	MenuBuilder.AddMenuEntry(Commands.UpdateValue);
-
-	// 4. Delete
 	MenuBuilder.AddMenuEntry(Commands.DeleteEntity);
-
-	// 5. Delete All
-	FUIAction Action(FExecuteAction::CreateSP(this, &SRCLogicPanelListBase::RequestDeleteAllItems)
-	, FCanExecuteAction::CreateSP(this, &SRCLogicPanelListBase::CanDeleteAllItems));
-
 	MenuBuilder.AddMenuEntry(LOCTEXT("DeleteAll", "Delete All"),
 		LOCTEXT("ContextMenuEditTooltip", "Delete all the rows in this list"),
-		FSlateIcon(), Action);
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateSP(this, &SRCLogicPanelListBase::RequestDeleteAllItems),
+			FCanExecuteAction::CreateSP(this, &SRCLogicPanelListBase::CanDeleteAllItems)));
 
 	MenuBuilder.EndSection();
 
@@ -78,7 +67,7 @@ bool SRCLogicPanelListBase::CanDeleteAllItems() const
 {
 	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = RemoteControlPanelWeakPtr.Pin())
 	{
-		return !RemoteControlPanel->IsInLiveMode();
+		return !RemoteControlPanel->IsModeActive(ERCPanelMode::Live);
 	}
 
 	return false;

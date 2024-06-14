@@ -22,11 +22,6 @@ public:
 	//~ END : TCommands<> Implementation(s)
 
 	/**
-	 * Holds the information about UI Command that finds the actively edited preset in the Content Browser.
-	 */
-	TSharedPtr<FUICommandInfo> FindPresetInContentBrowser;
-
-	/**
 	 * Holds the information about UI Command that saves the actively edited preset.
 	 */
 	TSharedPtr<FUICommandInfo> SavePreset;
@@ -34,17 +29,27 @@ public:
 	/**
 	 * Holds the information about UI Command that brings up a panel which holds the active protocol mappings.
 	 */
-	TSharedPtr<FUICommandInfo> ToggleProtocolMappings;
+	TSharedPtr<FUICommandInfo> ActivateProtocolsMode;
+
+	/**
+	 * Holds the information about UI Command that brings up the Entity Details UI panel.
+	 */
+	TSharedPtr<FUICommandInfo> ActivateDetailsMode;
 
 	/**
 	 * Holds the information about UI Command that brings up a panel which enables the RC Logical Behaviour.
 	 */
-	TSharedPtr<FUICommandInfo> ToggleLogicEditor;
+	TSharedPtr<FUICommandInfo> ActivateLogicMode;
 
 	/**
 	 * Holds the information about UI Command that brings up the RC Signature UI panel.
 	 */
-	TSharedPtr<FUICommandInfo> ToggleSignatureEditor;
+	TSharedPtr<FUICommandInfo> ActivateSignatureMode;
+
+	/**
+	 * Holds the information about UI Command that brings up the Output panel.
+	 */
+	TSharedPtr<FUICommandInfo> ActivateOutputLogMode;
 
 	/**
 	 * Holds the information about UI Command that deletes currently selected group/exposed entity.

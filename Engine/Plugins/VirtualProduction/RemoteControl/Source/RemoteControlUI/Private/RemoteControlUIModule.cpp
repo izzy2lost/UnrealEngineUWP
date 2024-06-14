@@ -35,6 +35,7 @@
 #include "Styling/AppStyle.h"
 #include "Styling/AppStyle.h"
 #include "Textures/SlateIcon.h"
+#include "Toolkits/GlobalEditorCommonCommands.h"
 #include "UI/Action/SRCActionPanel.h"
 #include "UI/Behaviour/Builtin/Conditional/SRCBehaviourConditional.h"
 #include "UI/Behaviour/SRCBehaviourPanel.h"
@@ -313,7 +314,7 @@ TSharedRef<SRemoteControlPanel> FRemoteControlUIModule::CreateRemoteControlPanel
 
 	if (TSharedPtr<SRemoteControlPanel> Panel = WeakActivePanel.Pin())
 	{
-		Panel->SetLiveMode(bIsInLiveMode);
+		Panel->SetActiveMode(ERCPanelMode::Live);
 	}
 
 	TSharedRef<SRemoteControlPanel> PanelRef = SNew(SRemoteControlPanel, Preset, ToolkitHost)
@@ -327,7 +328,7 @@ TSharedRef<SRemoteControlPanel> FRemoteControlUIModule::CreateRemoteControlPanel
 					{
 						if (ActivePanel != InPanel)
 						{
-							ActivePanel->SetLiveMode(true);
+							ActivePanel->SetActiveMode(ERCPanelMode::Live);
 						}
 					}
 					WeakActivePanel = MoveTemp(InPanel);
@@ -663,10 +664,12 @@ void FRemoteControlUIModule::UnbindRemoteControlCommands()
 		FUICommandList& ActionList = *MainFrame.GetMainFrameCommandBindings();
 
 		ActionList.UnmapAction(Commands.SavePreset);
-		ActionList.UnmapAction(Commands.FindPresetInContentBrowser);
-		ActionList.UnmapAction(Commands.ToggleProtocolMappings);
-		ActionList.UnmapAction(Commands.ToggleLogicEditor);
-		ActionList.UnmapAction(Commands.ToggleSignatureEditor);
+		ActionList.UnmapAction(FGlobalEditorCommonCommands::Get().FindInContentBrowser);
+		ActionList.UnmapAction(Commands.ActivateLogicMode);
+		ActionList.UnmapAction(Commands.ActivateDetailsMode);
+		ActionList.UnmapAction(Commands.ActivateSignatureMode);
+		ActionList.UnmapAction(Commands.ActivateProtocolsMode);
+		ActionList.UnmapAction(Commands.ActivateOutputLogMode);
 		ActionList.UnmapAction(Commands.DeleteEntity);
 		ActionList.UnmapAction(Commands.RenameEntity);
 		ActionList.UnmapAction(Commands.CopyItem);

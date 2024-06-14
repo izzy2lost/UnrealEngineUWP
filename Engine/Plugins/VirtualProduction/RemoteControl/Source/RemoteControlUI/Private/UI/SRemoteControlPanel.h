@@ -13,7 +13,22 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
-enum class ERCPanels : uint8;
+/** The variety of panels we have in the RC Panel. */
+enum class ERCPanelMode : uint8
+{
+	Controller,
+
+	EntityDetails,
+
+	Protocols,
+
+	OutputLog,
+
+	Live,
+
+	Signature,
+};
+
 class AActor;
 struct EVisibility;
 struct FAssetData;
@@ -113,23 +128,13 @@ public:
 	void ToggleProperty(const FRCExposesPropertyArgs& InArgs, FString InDesiredName = TEXT(""));
 
 	/**
-	 * @return Whether or not the panel is in live mode.
-	 */
-	bool IsInLiveMode() const { return bIsInLiveMode; }
-
-	/**
 	 * Get the selected group.
 	 */
 	FGuid GetSelectedGroup() const;
 
-	/**
-	 * Set the edit mode of the panel.
-	 * @param bEditMode The desired mode.
-	 */
-	void SetLiveMode(bool bLiveMode)
-	{
-		bIsInLiveMode = bLiveMode;
-	}
+	bool CanActivateMode(ERCPanelMode InPanelMode) const;
+	bool IsModeActive(ERCPanelMode InPanelMode) const;
+	void SetActiveMode(ERCPanelMode InPanelMode);
 
 	/**
 	 * Get the exposed entity list.
@@ -169,9 +174,14 @@ public:
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 private:
-
 	/** Returns a Helper widget for entity details view and protocol details view. */
 	static TSharedRef<SBox> CreateNoneSelectedWidget();
+
+	TSharedRef<SWidget> BuildLogicModeContent(const TSharedRef<SWidget>& InLogicPanel);
+	TSharedRef<SWidget> BuildEntityDetailsModeContent(const TAttribute<float>& InRatioTop, const TAttribute<float>& InRatioBottom);
+	TSharedRef<SWidget> BuildProtocolsModeContent(const TAttribute<float>& InRatioTop, const TAttribute<float>& InRatioBottom);
+	TSharedRef<SWidget> BuildLiveModeContent(const TSharedRef<SWidget>& InLogicPanel);
+	TSharedRef<SWidget> BuildSignaturesModeContent();
 
 	//~ Remote Control Commands
 	void BindRemoteControlCommands();
@@ -189,11 +199,6 @@ private:
 	void RegisterEvents();
 	/** Unregister editor events */
 	void UnregisterEvents();
-
-	/** Register panels to the drawer. */
-	void RegisterPanels();
-	/** Unregister panels from the drawer. */
-	void UnregisterPanels();
 
 	/** Unexpose a field from the preset. */
 	void Unexpose(const FRCExposesPropertyArgs& InArgs);
@@ -268,7 +273,7 @@ private:
 	void OnEntityUnexposed(URemoteControlPreset* InPreset, const FGuid& InEntityId);
 
 	/** Toggles the logging part of UI */
-	void OnLogCheckboxToggle(ECheckBoxState State);
+	void OnLogCheckboxToggle(ECheckBoxState InState);
 
 	/** Triggers a next frame update of the actor function picker to ensure that added actors are valid. */
 	void UpdateActorFunctionPicker();
@@ -300,29 +305,15 @@ private:
 	bool CanSaveAsset() const;
 
 	/** Called when "Save" is clicked for this asset */
-	void SaveAsset_Execute() const;
+	void SaveAsset() const;
 
 	/** Called to test if "Find in Content Browser" should be enabled for this asset */
 	bool CanFindInContentBrowser() const;
 
 	/** Called when "Find in Content Browser" is clicked for this asset */
-	void FindInContentBrowser_Execute() const;
+	void FindInContentBrowser() const;
 
 	static bool ShouldForceSmallIcons();
-
-	void ToggleProtocolMappings_Execute();
-	bool CanToggleProtocolsMode() const;
-	bool IsInProtocolsMode() const;
-
-	void ToggleLogicEditor_Execute();
-	bool CanToggleLogicPanel() const;
-	bool IsLogicPanelEnabled() const;
-
-	void ToggleSignatureEditor_Execute();
-	bool CanToggleSignaturePanel() const;
-	bool IsSignaturePanelEnabled() const;
-
-	void OnRCPanelToggled(ERCPanels InPanelID);
 
 	/** Called when user attempts to delete a group/exposed entity. */
 	void DeleteEntity_Execute();
@@ -399,14 +390,6 @@ private:
 	static const FName TargetWorldRemoteControlPanelMenuName;
 	/** Holds the preset asset. */
 	TStrongObjectPtr<URemoteControlPreset> Preset;
-	/** Whether the panel is in protocols mode. */
-	bool bIsInProtocolsMode = false;
-	/** Whether the panel is in live (or) operation mode. */
-	bool bIsInLiveMode = false;
-	/** Whether the logic panel is enabled or not. */
-	bool bIsLogicPanelEnabled = false;
-	/** Whether the signature panel is enabled or not. */
-	bool bIsSignaturePanelEnabled = false;
 	/** Delegate called when the live mode changes. */
 	FOnLiveModeChange OnLiveModeChange;
 	/** Holds the blueprint library picker */
@@ -456,11 +439,11 @@ private:
 	/** Panel Drawer widget holds all docked panels. */
 	TSharedPtr<SRCPanelDrawer> PanelDrawer;
 	/** Map of Opened Drawers. */
-	TMap<ERCPanels, TSharedRef<FRCPanelDrawerArgs>> RegisteredDrawers;
+	TMap<ERCPanelMode, TSharedRef<FRCPanelDrawerArgs>> RegisteredDrawers;
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle;
 	/** Stores the active panel that is drawn. */
-	ERCPanels ActivePanel;
+	ERCPanelMode ActiveMode = ERCPanelMode::Controller;
 	/** Input Preprocessor which catches the Delete Key when Docked. */
 	TSharedPtr<IInputProcessor> InputProcessor;
 	/** Currently selected world name */
@@ -470,7 +453,7 @@ private:
 	/** Controller panel UI widget for Remote Control Logic*/
 	TSharedPtr<class SRCControllerPanel> ControllerPanel;
 	/** Behaviour panel UI widget for Remote Control Logic*/
-	TSharedPtr<class SRCBehaviourPanel> BehaviourPanel;
+	TSharedPtr<class SRCBehaviourPanel> BehaviorPanel;
 	/** Action panel UI widget for Remote Control Logic*/
 	TSharedPtr<class SRCActionPanel> ActionPanel;
 	/** Signature panel UI widget */
