@@ -153,7 +153,8 @@ void FODSCManager::AddThreadedRequest(
 	EShaderPlatform ShaderPlatform,
 	ERHIFeatureLevel::Type FeatureLevel,
 	EMaterialQualityLevel::Type QualityLevel,
-	ODSCRecompileCommand RecompileCommandType
+	ODSCRecompileCommand RecompileCommandType,
+	const FString& RequestedMaterialName
 )
 {
 	if (IsHandlingRequests())
@@ -164,6 +165,9 @@ void FODSCManager::AddThreadedRequest(
 			&& (CVarODSCRecompileMode.GetValueOnAnyThread() > 0))
 		{
 			Thread->ResetMaterialsODSCData(FeatureLevel);
+
+			// Rendering commands got flushed by ResetMaterialsODSCData
+			MaterialNameToRecompile = FName(*RequestedMaterialName);	
 			
 			// when we ask for "changed", we want both materials and global
 			if (RecompileCommandType == ODSCRecompileCommand::Changed)
@@ -263,6 +267,33 @@ bool FODSCManager::ShouldForceRecompileInternal(const FMaterialShaderMap* Materi
 	if (MaterialShaderMap->IsFromODSC())
 	{
 		return false;
+	}
+
+	if (!MaterialNameToRecompile.IsNone())
+	{
+		EODSCMetaDataType ODSCMetaData = (EODSCMetaDataType)Material->GetODSCMetaData();
+
+		// No locking on the material ODSC metadata: the dependency chain/material names are not supposed to be changing on a per frame basis
+		if (ODSCMetaData == EODSCMetaDataType::Default)
+		{
+			UMaterialInterface* EngineMaterialInterface = Material->GetMaterialInterface();
+			TSet<UMaterialInterface*> MaterialDependencies;
+			EngineMaterialInterface->GetDependencies(MaterialDependencies);
+
+			bool bHasDependencies = false;
+			for (auto Iter : MaterialDependencies)
+			{
+				UMaterialInterface* MIDep = Iter;
+				if (MIDep && MIDep->GetFName() == MaterialNameToRecompile)
+				{
+					bHasDependencies = true;
+				}
+			}
+
+			ODSCMetaData = (bHasDependencies) ? EODSCMetaDataType::IsDependentOnMaterialName : EODSCMetaDataType::IsNotDependentOnMaterialName;
+			Material->SetODSCMetaData((uint8)ODSCMetaData);
+		}
+		return ODSCMetaData == EODSCMetaDataType::IsDependentOnMaterialName;
 	}
 
 	return true;

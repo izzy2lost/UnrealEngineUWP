@@ -53,7 +53,7 @@ public:
 	 *
 	 * @return false if no longer needs ticking
 	 */
-	ENGINE_API void AddThreadedRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType);
+	ENGINE_API void AddThreadedRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType, const FString& RequestedMaterialName = FString());
 
 	/**
 	 * Add a request to compile a pipeline of shaders.  The results are submitted and processed in an async manner.
@@ -129,6 +129,8 @@ private:
 
 	FCriticalSection ErrorMessageCS;
 	FString ErrorMessage;
+
+	FName MaterialNameToRecompile;
 };
 
 struct FODSCSuspendForceRecompileScope

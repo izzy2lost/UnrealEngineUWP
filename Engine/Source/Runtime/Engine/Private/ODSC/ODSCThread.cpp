@@ -183,6 +183,9 @@ void FODSCThread::ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel)
 				if (MaterialResource && MaterialResource->GetGameThreadShaderMap())
 				{
 					MaterialResource->GetGameThreadShaderMap()->SetIsFromODSC(false);
+#if WITH_ODSC
+					MaterialResource->SetODSCMetaData((uint8)0);
+#endif
 				}
 				UpdateContext.AddMaterialInterface(Material);
 			}

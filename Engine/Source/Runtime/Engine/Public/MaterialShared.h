@@ -2564,6 +2564,11 @@ public:
 	virtual void GatherExpressionsForCustomInterpolators(TArray<class UMaterialExpression*>& OutExpressions) const {}
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_ODSC
+	uint8 GetODSCMetaData() const { return ODSCMetaData.load(std::memory_order_relaxed); };
+	void SetODSCMetaData(uint8 InODSCMetaData) const { ODSCMetaData.store(InODSCMetaData, std::memory_order_relaxed); };
+#endif
+
 protected:
 	// shared code needed for GetUniformScalarParameterExpressions, GetUniformVectorParameterExpressions, GetUniformCubeTextureExpressions..
 	// @return can be 0
@@ -2710,6 +2715,10 @@ private:
 
 	/** Quality level that this material is representing, may be EMaterialQualityLevel::Num if material doesn't depend on current quality level */
 	EMaterialQualityLevel::Type QualityLevel;
+
+#if WITH_ODSC
+	mutable std::atomic<uint8> ODSCMetaData = {};
+#endif
 
 	/** Feature level that this material is representing. */
 	ERHIFeatureLevel::Type FeatureLevel;

@@ -23,6 +23,13 @@ namespace UE
 	}
 }
 
+enum class EODSCMetaDataType
+{
+	Default=0, // The material hasn't been seen by ODSCManager yet
+	IsDependentOnMaterialName,
+	IsNotDependentOnMaterialName,
+};
+
 class FODSCMessageHandler : public IPlatformFile::IFileServerMessageHandler
 {
 public:

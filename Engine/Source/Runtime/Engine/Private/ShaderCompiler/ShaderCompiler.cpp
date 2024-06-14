@@ -8649,7 +8649,7 @@ namespace
 		}
 	}
 
-	ODSCRecompileCommand ParseRecompileCommandString(const TCHAR* CmdString, TArray<FString>& OutMaterialsToLoad, FString& OutShaderTypesToLoad)
+	ODSCRecompileCommand ParseRecompileCommandString(const TCHAR* CmdString, TArray<FString>& OutMaterialsToLoad, FString& OutShaderTypesToLoad, FString& OutRequestedMaterialName)
 	{
 		FString CmdName = FParse::Token(CmdString, 0);
 
@@ -8662,6 +8662,7 @@ namespace
 
 			// tell other side the material to load, by pathname
 			FString RequestedMaterialName( FParse::Token( CmdString, 0 ) );
+			OutRequestedMaterialName = RequestedMaterialName;
 			UMaterialInterface* MatchingMaterial = nullptr;
 			for (TObjectIterator<UMaterialInterface> It; It; ++It)
 			{
@@ -8875,11 +8876,12 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 #if WITH_ODSC
 		TArray<FString> MaterialsToLoad;
 		FString ShaderTypesToLoad;
-		ODSCRecompileCommand CommandType = ParseRecompileCommandString(Cmd, MaterialsToLoad, ShaderTypesToLoad);
+		FString RequestedMaterialName;
+		ODSCRecompileCommand CommandType = ParseRecompileCommandString(Cmd, MaterialsToLoad, ShaderTypesToLoad, RequestedMaterialName);
 
 		ERHIFeatureLevel::Type TargetFeatureLevel = GetMaxSupportedFeatureLevel(GMaxRHIShaderPlatform);
 		const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-		GODSCManager->AddThreadedRequest(MaterialsToLoad, ShaderTypesToLoad, GMaxRHIShaderPlatform, TargetFeatureLevel, ActiveQualityLevel, CommandType);
+		GODSCManager->AddThreadedRequest(MaterialsToLoad, ShaderTypesToLoad, GMaxRHIShaderPlatform, TargetFeatureLevel, ActiveQualityLevel, CommandType, RequestedMaterialName);
 #endif
 		return true;
 	}
