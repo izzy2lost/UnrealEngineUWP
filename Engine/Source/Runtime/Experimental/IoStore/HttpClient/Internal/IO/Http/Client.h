@@ -215,6 +215,7 @@ public:
 		FCertRootsRef		VerifyCert		= {};
 		uint32				BufferSize		= 256;
 		bool				bAutoRedirect	= false;
+		bool				bAllowChunked	= true;
 	};
 
 	template <typename... T> [[nodiscard]] FRequest Get(T&&... t)  { return Request("GET",  Forward<T&&>(t)...); }

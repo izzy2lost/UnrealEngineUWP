@@ -80,7 +80,8 @@ struct alignas(16) FActivity
 	uint8				IsKeepAlive : 1;
 	uint8				NoContent : 1;
 	uint8				bFollow30x : 1;
-	uint8				_Unused0 : 5;
+	uint8				bAllowChunked : 1;
+	uint8				_Unused0 : 4;
 	uint32				StateParam = 0;
 #if IAS_HTTP_WITH_PERF
 	FStopwatch			Stopwatch;

@@ -214,6 +214,12 @@ static FOutcome DoRecvMessage(FActivity* Activity, FPeerType& Peer)
 	// Validate that the server's told us how and how much it will transmit
 	if (bChunked)
 	{
+		if (Activity->bAllowChunked == 0)
+		{
+			Activity_SetError(Activity, "Chunked transfer encoding disabled (ERRNOCHUNK)");
+			return FOutcome::Error(Activity->ErrorReason);
+		}
+
 		ContentLength = -1;
 	}
 	else if (ContentLength < 0)
@@ -1526,6 +1532,7 @@ FRequest FEventLoop::Request(
 	FHost* Host = Activity->Host = Buffer.Alloc<FHost>();
 	Activity->IsKeepAlive = 0;
 	Activity->bFollow30x = (Params->bAutoRedirect == true);
+	Activity->bAllowChunked = (Params->bAllowChunked == true);
 
 	uint32 HostNameLength = HostName.Len();
 	char* HostNamePtr = Buffer.Alloc<char>(HostNameLength + 1);
