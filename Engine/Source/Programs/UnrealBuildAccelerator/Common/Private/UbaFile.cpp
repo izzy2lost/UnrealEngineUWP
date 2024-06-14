@@ -76,7 +76,7 @@ namespace uba
 	#define MAKE_LONG_FILENAME(fileName) \
 		UBA_ASSERT(TStrlen(fileName) < MaxPath); \
 		StringBuffer<MaxPath> STRING_JOIN(longName, __LINE__); \
-		if (fileName && fileName[0] && fileName[1] == ':') \
+		if (IsAbsolutePath(fileName)) \
 		{ \
 			auto& lsb = STRING_JOIN(longName, __LINE__); \
 			lsb.Append(TC("\\\\?\\")); \

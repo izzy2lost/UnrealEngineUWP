@@ -248,7 +248,7 @@ namespace uba
 
 		void GetFinalPath(StringBufferBase& out, const tchar* path)
 		{
-			UBA_ASSERT(path[1] == ':');
+			UBA_ASSERT(IsAbsolutePath(path));
 
 			Directory* directory = nullptr;
 			const tchar* prevSlash = TStrchr(path+3, PathSeparator);
