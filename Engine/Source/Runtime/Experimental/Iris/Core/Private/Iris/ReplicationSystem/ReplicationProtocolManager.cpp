@@ -223,7 +223,7 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
 	if (Params.bValidateProtocolId)
 	{
 		const FReplicationProtocolIdentifier NewProtocolId = CalculateProtocolIdentifier(Fragments);
-		if (!NewProtocolId == ProtocolId)
+		if (NewProtocolId != ProtocolId)
 		{
 			UE_LOG(LogIris, Warning, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with ProtocolId:0x%" UINT64_x_FMT), DebugName, ProtocolId);
  #if UE_NET_ENABLE_PROTOCOLMANAGER_LOG
