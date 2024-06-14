@@ -1,8 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#ifndef TILE_TYPE
+	#define TILE_TYPE TILE_MODE_EMPTY
+#endif
+
 #include "../Common.ush"
 #include "../BlueNoise.ush"
 #include "ManyLights.ush"
+#include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
 RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
@@ -48,11 +53,14 @@ void ShadeLightSamplesCS(
 			// #ml_todo: handle this path when shadows are disabled
 			float ScreenSpaceAO = 1.0f;//Texture2DSampleLevel(SceneTexturesStruct.ScreenSpaceAOTexture, SceneTexturesStruct_ScreenSpaceAOTextureSampler, ScreenUV, 0).x;
 
-			float3 DiffuseLighting = 0.0f;
-			float3 SpecularLighting = 0.0f;
+			float3 DiffuseLighting = INVALID_LIGHTING;
+			float3 SpecularLighting = INVALID_LIGHTING;
 
-			if (GBuffer.Depth > 0.0f)
+			if (GBuffer.Depth > 0.0f && GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
 			{
+				DiffuseLighting = 0.0f;
+				SpecularLighting = 0.0f;
+
 				uint2 ShadingTileCoord = TileCoord;
 				uint2 CoordInShadingTile = GroupThreadId.xy;
 
@@ -168,6 +176,29 @@ void ShadeLightSamplesCS(
 
 			RWResolvedDiffuseLighting[ScreenCoord] = DiffuseLighting;
 			RWResolvedSpecularLighting[ScreenCoord] = SpecularLighting;
+		}
+	}
+}
+
+/**
+ * Clear some data for empty tiles, which won't be processed by ShadeLightSamplesCS
+ */
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void ClearResolvedLightingCS(
+	uint3 GroupId : SV_GroupID,
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint TileIndex = GroupId.x;
+	if (TileIndex < TileAllocator[TILE_MODE_EMPTY])
+	{
+		uint2 TileCoord = UnpackTile(TileData[TileIndex + TILE_MODE_EMPTY * TileDataStride]);
+		uint2 ScreenCoord = TileCoord * TILE_SIZE + GroupThreadId.xy;
+
+		if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
+		{
+			RWResolvedDiffuseLighting[ScreenCoord] = INVALID_LIGHTING;
+			RWResolvedSpecularLighting[ScreenCoord] = INVALID_LIGHTING;
 		}
 	}
 }

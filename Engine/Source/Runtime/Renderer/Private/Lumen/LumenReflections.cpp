@@ -1273,8 +1273,8 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 			PassParameters->SpecularLightingAndSecondMomentTexture = SpecularAndSecondMoment;
 			PassParameters->NumFramesAccumulatedTexture = NumFramesAccumulated;
 			PassParameters->SpatialFilterDepthWeightScale = GLumenReflectionBilateralFilterDepthWeightScale;
-			PassParameters->SpatialFilterKernelRadius = CVarLumenReflectionBilateralFilterKernelRadius.GetValueOnRenderThread();;
-			PassParameters->SpatialFilterNumSamples = GLumenReflectionBilateralFilterNumSamples;
+			PassParameters->SpatialFilterKernelRadius = CVarLumenReflectionBilateralFilterKernelRadius.GetValueOnRenderThread();
+			PassParameters->SpatialFilterNumSamples = FMath::Clamp(GLumenReflectionBilateralFilterNumSamples, 0, 1024);
 			PassParameters->TemporalMaxFramesAccumulated = LumenReflections::GetMaxFramesAccumulated();
 
 			FLumenReflectionDenoiserSpatialCS::FPermutationDomain PermutationVector;

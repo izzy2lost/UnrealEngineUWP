@@ -3,6 +3,7 @@
 #include "../Common.ush"
 #include "../SceneTextureParameters.ush"
 #include "LumenReflectionCommon.ush"
+#include "LumenReflectionDenoiserCommon.ush"
 
 RWTexture2DArray<float3> RWResolvedSpecular;
 RWTexture2DArray<float4> RWSpecularAndSecondMoment;
@@ -22,7 +23,7 @@ void LumenReflectionDenoiserClearCS(
 
 	if (all(Coord.SvPosition < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
-		RWResolvedSpecular[Coord.SvPositionFlatten] = FLOAT3_11_11_10_MAX;
-		RWSpecularAndSecondMoment[Coord.SvPositionFlatten] = float4(FLOAT3_11_11_10_MAX, 0.0f);
+		RWResolvedSpecular[Coord.SvPositionFlatten] = INVALID_LIGHTING;
+		RWSpecularAndSecondMoment[Coord.SvPositionFlatten] = float4(INVALID_LIGHTING, 0.0f);
 	}
 }

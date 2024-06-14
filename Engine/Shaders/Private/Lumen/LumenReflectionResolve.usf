@@ -82,8 +82,8 @@ void LumenReflectionResolveCS(
 
 	FLumenMaterialData Material = ApplySmoothBias(ReadMaterialData(Coord, MaxRoughnessToTrace), true /*bTopLayerRoughness*/);
 
-	// Mark invalid values with FLOAT3_11_11_10_MAX for history accumulation
-	float3 ReflectionLighting = FLOAT3_11_11_10_MAX;
+	// Mark invalid values with INVALID_LIGHTING for history accumulation
+	float3 ReflectionLighting = INVALID_LIGHTING;
 	float MinRayHitT = FLOAT_32_MAX;
 
 	if (NeedRayTracedReflections(Material.TopLayerRoughness, Material))

@@ -68,7 +68,7 @@ FNeighborhood GetNeighborhood(uint2 LocalCoord, float3 CenterSample, float Cente
 			if (!bCenter && !bCorner)
 			{
 				float3 NeigborSample = SharedResolvedSpecularYCoCg[SHARED_TILE_BORDER + LocalCoord.x + NeigborOffsetX][SHARED_TILE_BORDER + LocalCoord.y + NeigborOffsetY];	
-				if (IsSpecularValid(NeigborSample))
+				if (IsLightingValid(NeigborSample))
 				{
 					SampleSum += NeigborSample;
 					SampleSqSum += Pow2(NeigborSample);
@@ -218,10 +218,10 @@ FLightingHistory GetLightingHistory(float2 ScreenPosition, uint ClosureIndex, fl
 			float4 SpecularHistory01 = RGBAToDenoiserSpace(float4(R4.z, G4.z, B4.z, A4.z));
 			float4 SpecularHistory11 = RGBAToDenoiserSpace(float4(R4.w, G4.w, B4.w, A4.w));
 
-			HistoryWeights.x = IsSpecularValid(SpecularHistory00.xyz) ? HistoryWeights.x : 0.0f;
-			HistoryWeights.y = IsSpecularValid(SpecularHistory10.xyz) ? HistoryWeights.y : 0.0f;
-			HistoryWeights.z = IsSpecularValid(SpecularHistory01.xyz) ? HistoryWeights.z : 0.0f;
-			HistoryWeights.w = IsSpecularValid(SpecularHistory11.xyz) ? HistoryWeights.w : 0.0f;
+			HistoryWeights.x = IsLightingValid(SpecularHistory00.xyz) ? HistoryWeights.x : 0.0f;
+			HistoryWeights.y = IsLightingValid(SpecularHistory10.xyz) ? HistoryWeights.y : 0.0f;
+			HistoryWeights.z = IsLightingValid(SpecularHistory01.xyz) ? HistoryWeights.z : 0.0f;
+			HistoryWeights.w = IsLightingValid(SpecularHistory11.xyz) ? HistoryWeights.w : 0.0f;
 
 			History.bValid = any(HistoryWeights > 0.01f);
 			if (History.bValid)
@@ -277,14 +277,14 @@ void LumenReflectionDenoiserTemporalCS(
 			ResolvedSpecularCoord.xy = TileData.Coord * REFLECTION_THREADGROUP_SIZE_2D + int2(SharedCoordX, SharedCoordY) - SHARED_TILE_BORDER;
 			ResolvedSpecularCoord.z = Coord.SvPositionFlatten.z;
 			
-			float3 SpecularLightingYCoCg = FLOAT3_11_11_10_MAX;
+			float3 SpecularLightingYCoCg = INVALID_LIGHTING;
 
 			// Skip corners as they will be also skiped in GetNeighborhood()
 			const bool bCorner = (SharedCoordX == 0 || SharedCoordX + 1 == SHARED_TILE_SIZE) && (SharedCoordY == 0 || SharedCoordY + 1 == SHARED_TILE_SIZE);
 			if (!bCorner && all(ResolvedSpecularCoord.xy >= View.ViewRectMinAndSize.xy) && all(ResolvedSpecularCoord.xy < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 			{
 				float3 Sample = RGBToDenoiserSpace(ResolvedSpecularLighting[ResolvedSpecularCoord].xyz);
-				if (IsSpecularValid(Sample))
+				if (IsLightingValid(Sample))
 				{
 					SpecularLightingYCoCg = LumenRGBToYCoCg(Sample);
 				}
@@ -306,7 +306,7 @@ void LumenReflectionDenoiserTemporalCS(
 
 		float3 SpecularLighting = SharedResolvedSpecularYCoCg[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER];
 		float SpecularSecondMoment = 0.0f;
-		if (IsSpecularValid(SpecularLighting))
+		if (IsLightingValid(SpecularLighting))
 		{
 			SpecularLighting = LumenYCoCgToRGB(SpecularLighting);
 			SpecularSecondMoment = Pow2(Luminance(SpecularLighting));
@@ -316,7 +316,7 @@ void LumenReflectionDenoiserTemporalCS(
 		float MaxFramesAccumulated = TemporalMaxFramesAccumulated;
 
 		#if PERMUTATION_VALID_HISTORY
-		if (IsSpecularValid(SpecularLighting))
+		if (IsLightingValid(SpecularLighting))
 		{
 			float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 

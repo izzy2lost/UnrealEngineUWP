@@ -14,7 +14,6 @@
 #define REFLECTION_THREADGROUP_SIZE_2D 8 
 #define REFLECTION_THREADGROUP_SIZE_1D 64
 
-#define FLOAT3_11_11_10_MAX float3(65024.0f, 65024.0f, 64512.0f)
 #define FLOAT_32_MAX float(+3.402823466e+38f)
 
 uint2 ReflectionTracingViewSize;

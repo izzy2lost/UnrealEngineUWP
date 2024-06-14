@@ -1,5 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Float R11G11B10 max
+#define INVALID_LIGHTING float3(65024.0f, 65024.0f, 64512.0f)
+
+bool IsLightingValid(float3 V)
+{
+	return !all(V == INVALID_LIGHTING);
+}
+
 float3 LumenRGBToYCoCg(float3 RGB)
 {
 	float Y  = dot(RGB, float3( 1, 2,  1));
@@ -40,14 +48,9 @@ float GetSpecularLobeHalfAngle(float Roughness)
 	return LobeHalfAngle;
 }
 
-bool IsSpecularValid(float3 V)
-{
-	return !all(V == FLOAT3_11_11_10_MAX);
-}
-
 float3 RGBToDenoiserSpace(float3 V)
 {
-	if (IsSpecularValid(V))
+	if (IsLightingValid(V))
 	{
 		// Compress range in order to suppress fireflies and reduce noise
 		// Adds a bit of bias to temporal and spatial filtering, but mostly in spots which can't be resolved anyway
@@ -65,7 +68,7 @@ float4 RGBAToDenoiserSpace(float4 V)
 
 float3 DenoiserSpaceToRGB(float3 V)
 {
-	if (IsSpecularValid(V))
+	if (IsLightingValid(V))
 	{
 		V = Pow2(V);
 	}

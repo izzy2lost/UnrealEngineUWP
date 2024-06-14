@@ -74,6 +74,20 @@ static TAutoConsoleVariable<float> CVarManyLightsSpatialDepthWeightScale(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<float> CVarManyLightsSpatialKernelRadius(
+	TEXT("r.ManyLights.Spatial.KernelRadius"),
+	8.0f,
+	TEXT("Spatial filter kernel radius in pixels"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarManyLightsSpatialNumSamples(
+	TEXT("r.ManyLights.Spatial.NumSamples"),
+	4,
+	TEXT("Number of spatial filter samples."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarManyLightsWaveOps(
 	TEXT("r.ManyLights.WaveOps"),
 	1,
@@ -114,28 +128,28 @@ int32 GManyLightsResetEveryNthFrame = 0;
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarManyLightsFixedStateFrameIndex(
+static TAutoConsoleVariable<int32> CVarManyLightsFixedStateFrameIndex(
 	TEXT("r.ManyLights.FixedStateFrameIndex"),
 	-1,
 	TEXT("Whether to override View.StateFrameIndex for debugging."),
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarManyLightsTexturedRectLights(
+static TAutoConsoleVariable<int32> CVarManyLightsTexturedRectLights(
 	TEXT("r.ManyLights.TexturedRectLights"),
 	0,
 	TEXT("Whether to support textured rect lights."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarManyLightsLightFunctions(
+static TAutoConsoleVariable<int32> CVarManyLightsLightFunctions(
 	TEXT("r.ManyLights.LightFunctions"),
 	0,
 	TEXT("Whether to support light functions."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarManyLightsIESProfiles(
+static TAutoConsoleVariable<int32> CVarManyLightsIESProfiles(
 	TEXT("r.ManyLights.IESProfiles"),
 	1,
 	TEXT("Whether to support IES profiles on lights."),
@@ -579,6 +593,40 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsShading.usf", "ShadeLightSamplesCS", SF_Compute);
 
+class FClearResolvedLightingCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FClearResolvedLightingCS)
+	SHADER_USE_PARAMETER_STRUCT(FClearResolvedLightingCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedDiffuseLighting)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedSpecularLighting)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static int32 GetGroupSize()
+	{
+		return 8;
+	}
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ManyLights::ShouldCompileShaders(Parameters);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FClearResolvedLightingCS, "/Engine/Private/ManyLights/ManyLightsShading.usf", "ClearResolvedLightingCS", SF_Compute);
+
 class FDenoiserTemporalCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FDenoiserTemporalCS)
@@ -638,6 +686,8 @@ class FDenoiserSpatialCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SpecularLightingAndSecondMomentTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedTexture)
 		SHADER_PARAMETER(float, SpatialFilterDepthWeightScale)
+		SHADER_PARAMETER(float, SpatialFilterKernelRadius)
+		SHADER_PARAMETER(uint32, SpatialFilterNumSamples)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FSpatialFilter : SHADER_PERMUTATION_BOOL("SPATIAL_FILTER");
@@ -754,7 +804,10 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			const FManyLightsViewState& ManyLightsViewState = View.ViewState->ManyLights;
 			const FRayTracedLightingViewState& RayTracedLightingViewState = View.ViewState->RayTracedLighting;
 
-			if (!View.bCameraCut && !bResetHistory && bTemporal)
+			if (!View.bCameraCut 
+				&& !View.bPrevTransformsReset
+				&& !bResetHistory 
+				&& bTemporal)
 			{
 				HistoryScreenPositionScaleBias = ManyLightsViewState.HistoryScreenPositionScaleBias;
 				HistoryUVMinMax = ManyLightsViewState.HistoryUVMinMax;
@@ -928,7 +981,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 		FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("ManyLights.CompositeTileAllocator"));
 		FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("ManyLights.CompositeTileData"));
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompositeTileAllocator), 0);
-
 
 		FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
@@ -1110,6 +1162,27 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureUAVRef ResolvedDiffuseLightingUAV = GraphBuilder.CreateUAV(ResolvedDiffuseLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef ResolvedSpecularLightingUAV = GraphBuilder.CreateUAV(ResolvedSpecularLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
+			// Clear tiles which won't be processed by FShadeLightSamplesCS
+			{
+				FClearResolvedLightingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearResolvedLightingCS::FParameters>();
+				PassParameters->IndirectArgs = TileIndirectArgs;
+				PassParameters->RWResolvedDiffuseLighting = ResolvedDiffuseLightingUAV;
+				PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
+				PassParameters->ManyLightsParameters = ManyLightsParameters;
+				PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
+				PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
+
+				auto ComputeShader = View.ShaderMap->GetShader<FClearResolvedLightingCS>();
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("ClearResolvedLighting"),
+					ComputeShader,
+					PassParameters,
+					TileIndirectArgs,
+					(int32)ManyLights::ETileType::Empty * sizeof(FRHIDispatchIndirectParameters));
+			}
+
 			for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
 			{
 				FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
@@ -1201,6 +1274,8 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
 			PassParameters->NumFramesAccumulatedTexture = NumFramesAccumulated;
 			PassParameters->SpatialFilterDepthWeightScale = CVarManyLightsSpatialDepthWeightScale.GetValueOnRenderThread();
+			PassParameters->SpatialFilterKernelRadius = CVarManyLightsSpatialKernelRadius.GetValueOnRenderThread();
+			PassParameters->SpatialFilterNumSamples = FMath::Clamp(CVarManyLightsSpatialNumSamples.GetValueOnRenderThread(), 0, 1024);
 
 			FDenoiserSpatialCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FDenoiserSpatialCS::FSpatialFilter>(CVarManyLightsSpatial.GetValueOnRenderThread() != 0);
