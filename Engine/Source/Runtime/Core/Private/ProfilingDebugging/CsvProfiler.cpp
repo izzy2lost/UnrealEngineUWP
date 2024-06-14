@@ -69,10 +69,6 @@ CSV_DEFINE_CATEGORY(CsvProfiler, true);
 	void CSVTest();
 #endif
 
-CSV_DEFINE_STAT_GLOBAL(FrameTime);
-
-#define RECORD_TIMESTAMPS 1 
-
 #define LIST_VALIDATION (DO_CHECK && 0)
 
 DEFINE_LOG_CATEGORY_STATIC(LogCsvProfiler, Log, All);
@@ -3142,7 +3138,7 @@ void FCsvProfiler::EndFrame()
 		uint64 CurrentTimeStamp = FPlatformTime::Cycles64();
 		uint64 ElapsedCycles = CurrentTimeStamp - LastEndFrameTimestamp;
 		float ElapsedMs = (float)FPlatformTime::ToMilliseconds64(ElapsedCycles);
-		CSV_CUSTOM_STAT_DEFINED(FrameTime, ElapsedMs, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(FrameTime, ElapsedMs, ECsvCustomStatOp::Set);
 
 		FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
 
@@ -3161,11 +3157,11 @@ void FCsvProfiler::EndFrame()
 		TotalSystemMB -= float(FPlatformMemory::GetExtraDevelopmentMemorySize() / 1024ull / 1024ull);
 #endif
 		
-		CSV_CUSTOM_STAT_GLOBAL(MemoryFreeMB, PhysicalMBFree, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_GLOBAL(PhysicalUsedMB, PhysicalMBUsed, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_GLOBAL(VirtualUsedMB, VirtualMBUsed, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_GLOBAL(ExtendedUsedMB, UsedExtendedMB, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_GLOBAL(SystemMaxMB, TotalSystemMB, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(MemoryFreeMB, PhysicalMBFree, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(PhysicalUsedMB, PhysicalMBUsed, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(VirtualUsedMB, VirtualMBUsed, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(ExtendedUsedMB, UsedExtendedMB, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(SystemMaxMB, TotalSystemMB, ECsvCustomStatOp::Set);
 
 		MemoryStats.SetEndFrameCsvStats();
 
@@ -3461,7 +3457,7 @@ void FCsvProfiler::SetDeviceProfileName(FString InDeviceProfileName)
 /** Push/pop events */
 void FCsvProfiler::BeginStat(const char * StatName, uint32 CategoryIndex, const char * NamedEventName)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 #if CSV_PROFILER_SUPPORT_NAMED_EVENTS
@@ -3477,7 +3473,7 @@ void FCsvProfiler::BeginStat(const char * StatName, uint32 CategoryIndex, const 
 
 void FCsvProfiler::BeginStat(const FName& StatName, uint32 CategoryIndex)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 #if CSV_PROFILER_SUPPORT_NAMED_EVENTS
@@ -3493,7 +3489,7 @@ void FCsvProfiler::BeginStat(const FName& StatName, uint32 CategoryIndex)
 
 void FCsvProfiler::EndStat(const char * StatName, uint32 CategoryIndex)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 		FCsvProfilerThreadData::Get().AddTimestampEnd(StatName, CategoryIndex);
@@ -3509,7 +3505,7 @@ void FCsvProfiler::EndStat(const char * StatName, uint32 CategoryIndex)
 
 void FCsvProfiler::EndStat(const FName& StatName, uint32 CategoryIndex)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 		FCsvProfilerThreadData::Get().AddTimestampEnd(StatName, CategoryIndex);
@@ -3525,7 +3521,7 @@ void FCsvProfiler::EndStat(const FName& StatName, uint32 CategoryIndex)
 
 void FCsvProfiler::BeginExclusiveStat(const char * StatName, const char * NamedEventName)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CSV_CATEGORY_INDEX(Exclusive)])
 	{
 #if CSV_PROFILER_SUPPORT_NAMED_EVENTS
@@ -3541,7 +3537,7 @@ void FCsvProfiler::BeginExclusiveStat(const char * StatName, const char * NamedE
 
 void FCsvProfiler::EndExclusiveStat(const char * StatName)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CSV_CATEGORY_INDEX(Exclusive)])
 	{
 		FCsvProfilerThreadData::Get().AddTimestampExclusiveEnd(StatName);
@@ -3558,7 +3554,7 @@ void FCsvProfiler::EndExclusiveStat(const char * StatName)
 
 void FCsvProfiler::BeginSetWaitStat(const char * StatName)
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CSV_CATEGORY_INDEX(Exclusive)])
 	{
 #if CSV_PROFILER_SUPPORT_NAMED_EVENTS
@@ -3574,7 +3570,7 @@ void FCsvProfiler::BeginSetWaitStat(const char * StatName)
 
 void FCsvProfiler::EndSetWaitStat()
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CSV_CATEGORY_INDEX(Exclusive)])
 	{
 #if CSV_PROFILER_SUPPORT_NAMED_EVENTS
@@ -3590,7 +3586,7 @@ void FCsvProfiler::EndSetWaitStat()
 
 void FCsvProfiler::BeginWait()
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CSV_CATEGORY_INDEX(Exclusive)])
 	{
 		const char* WaitStatName = FCsvProfilerThreadData::Get().GetWaitStatName();
@@ -3617,7 +3613,7 @@ void FCsvProfiler::BeginWait()
 
 void FCsvProfiler::EndWait()
 {
-#if RECORD_TIMESTAMPS
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CSV_CATEGORY_INDEX(Exclusive)])
 	{
 		const char* WaitStatName = FCsvProfilerThreadData::Get().GetWaitStatName();
@@ -3757,49 +3753,69 @@ void FCsvProfiler::RecordEventAtTimestamp(int32 CategoryIndex, const FString& Ev
 	}
 }
 
-void FCsvProfiler::RecordCustomStat(const char * StatName, uint32 CategoryIndex, float Value, const ECsvCustomStatOp CustomStatOp)
+void FCsvProfiler::RecordCustomStatMinimal(const char* StatName, uint32 CategoryIndex, float Value, const ECsvCustomStatOp CustomStatOp)
 {
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 		FCsvProfilerThreadData::Get().AddCustomStat(StatName, CategoryIndex, Value, CustomStatOp);
 	}
+}
+
+void FCsvProfiler::RecordCustomStat(const char * StatName, uint32 CategoryIndex, float Value, const ECsvCustomStatOp CustomStatOp)
+{
+#if !CSV_PROFILER_MINIMAL
+	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
+	{
+		FCsvProfilerThreadData::Get().AddCustomStat(StatName, CategoryIndex, Value, CustomStatOp);
+	}
+#endif
 }
 
 void FCsvProfiler::RecordCustomStat(const char* StatName, uint32 CategoryIndex, double Value, const ECsvCustomStatOp CustomStatOp)
 {
+#if !CSV_PROFILER_MINIMAL
 	// LWC_TODO: Double support for FCsvProfiler::RecordCustomStat
 	RecordCustomStat(StatName, CategoryIndex, (float)Value, CustomStatOp);
+#endif
 }
 
 void FCsvProfiler::RecordCustomStat(const FName& StatName, uint32 CategoryIndex, float Value, const ECsvCustomStatOp CustomStatOp)
 {
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 		FCsvProfilerThreadData::Get().AddCustomStat(StatName, CategoryIndex, Value, CustomStatOp);
 	}
+#endif
 }
 
 void FCsvProfiler::RecordCustomStat(const FName& StatName, uint32 CategoryIndex, double Value, const ECsvCustomStatOp CustomStatOp)
 {
+#if !CSV_PROFILER_MINIMAL
 	// LWC_TODO: Double support for FCsvProfiler::RecordCustomStat
 	RecordCustomStat(StatName, CategoryIndex, (float)Value, CustomStatOp);
+#endif
 }
 
 
 void FCsvProfiler::RecordCustomStat(const char * StatName, uint32 CategoryIndex, int32 Value, const ECsvCustomStatOp CustomStatOp)
 {
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 		FCsvProfilerThreadData::Get().AddCustomStat(StatName, CategoryIndex, Value, CustomStatOp);
 	}
+#endif
 }
 
 void FCsvProfiler::RecordCustomStat(const FName& StatName, uint32 CategoryIndex, int32 Value, const ECsvCustomStatOp CustomStatOp)
 {
+#if !CSV_PROFILER_MINIMAL
 	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
 	{
 		FCsvProfilerThreadData::Get().AddCustomStat(StatName, CategoryIndex, Value, CustomStatOp);
 	}
+#endif
 }
 
 void FCsvProfiler::Init()

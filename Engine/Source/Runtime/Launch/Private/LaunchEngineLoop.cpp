@@ -1727,18 +1727,18 @@ static void UpdateCoreCsvStats_EndFrame()
 {
 	if (!IsRunningDedicatedServer())
 	{
-	    CSV_CUSTOM_STAT_GLOBAL(RenderThreadTime, FPlatformTime::ToMilliseconds(GRenderThreadTime), ECsvCustomStatOp::Set);
-	    CSV_CUSTOM_STAT_GLOBAL(GameThreadTime, FPlatformTime::ToMilliseconds(GGameThreadTime), ECsvCustomStatOp::Set);
-	    CSV_CUSTOM_STAT_GLOBAL(GPUTime, FPlatformTime::ToMilliseconds(GGPUFrameTime), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_GLOBAL(RenderThreadTime_CriticalPath, FPlatformTime::ToMilliseconds(GRenderThreadTimeCriticalPath), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_GLOBAL(GameThreadTime_CriticalPath, FPlatformTime::ToMilliseconds(GGameThreadTimeCriticalPath), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(RenderThreadTime, FPlatformTime::ToMilliseconds(GRenderThreadTime), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(GameThreadTime, FPlatformTime::ToMilliseconds(GGameThreadTime), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(GPUTime, FPlatformTime::ToMilliseconds(GGPUFrameTime), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(RenderThreadTime_CriticalPath, FPlatformTime::ToMilliseconds(GRenderThreadTimeCriticalPath), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(GameThreadTime_CriticalPath, FPlatformTime::ToMilliseconds(GGameThreadTimeCriticalPath), ECsvCustomStatOp::Set);
 		if (IsRunningRHIInSeparateThread())
 	    {
-		    CSV_CUSTOM_STAT_GLOBAL(RHIThreadTime, FPlatformTime::ToMilliseconds(GRHIThreadTime), ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT_MINIMAL_GLOBAL(RHIThreadTime, FPlatformTime::ToMilliseconds(GRHIThreadTime), ECsvCustomStatOp::Set);
 	    }
 	    if (GInputLatencyTime > 0)
 	    {
-		    CSV_CUSTOM_STAT_GLOBAL(InputLatencyTime, FPlatformTime::ToMilliseconds64(GInputLatencyTime), ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT_MINIMAL_GLOBAL(InputLatencyTime, FPlatformTime::ToMilliseconds64(GInputLatencyTime), ECsvCustomStatOp::Set);
 	    }
 	    FPlatformMemoryStats MemoryStats = PlatformMemoryHelpers::GetFrameMemoryStats();
 	    float PhysicalMBFree = float(MemoryStats.AvailablePhysical / 1024) / 1024.0f;
@@ -1746,9 +1746,9 @@ static void UpdateCoreCsvStats_EndFrame()
 	    // Subtract any extra development memory from physical free. This can result in negative values in cases where we would have crashed OOM
 	    PhysicalMBFree -= float(FPlatformMemory::GetExtraDevelopmentMemorySize() / 1024ull / 1024ull);
 #endif
-	    CSV_CUSTOM_STAT_GLOBAL(MemoryFreeMB, PhysicalMBFree, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_MINIMAL_GLOBAL(MemoryFreeMB, PhysicalMBFree, ECsvCustomStatOp::Set);
 
-#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING && !CSV_PROFILER_MINIMAL
 	    float TargetFPS = 30.0f;
 	    static IConsoleVariable* MaxFPSCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
 	    if (MaxFPSCVar && MaxFPSCVar->GetFloat() > 0)
@@ -5499,7 +5499,7 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 		UEngine::SetRenderSubmitLatencyMarkerStart(CurrentFrameCounter);
 	});
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCsvProfiler::BeginExclusiveStat("RenderThreadOther");
 #endif
 
@@ -5518,7 +5518,7 @@ static inline void EndFrameRenderThread(FRHICommandListImmediate& RHICmdList, ui
 		return;
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCsvProfiler::EndExclusiveStat("RenderThreadOther");
 #endif
 

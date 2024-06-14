@@ -46,105 +46,119 @@ class FScopedCsvStat;
 class FScopedCsvStatExclusive;
 struct FCsvDeclaredStat;
 
+
 #if CSV_PROFILER
+	// Helpers
+	#define CSV_CATEGORY_INDEX(CategoryName)									(_GCsvCategory_##CategoryName.Index)
+	#define CSV_CATEGORY_INDEX_GLOBAL											(0)
 
-// Helpers
-#define CSV_CATEGORY_INDEX(CategoryName)						(_GCsvCategory_##CategoryName.Index)
-#define CSV_CATEGORY_INDEX_GLOBAL								(0)
-#define CSV_STAT_FNAME(StatName)								(_GCsvStat_##StatName.Name)
+	// Categories
+	#define CSV_DEFINE_CATEGORY(CategoryName,bDefaultValue)						FCsvCategory _GCsvCategory_##CategoryName(TEXT(#CategoryName),bDefaultValue)
+	#define CSV_DEFINE_CATEGORY_MODULE(Module_API,CategoryName,bDefaultValue)	FCsvCategory Module_API _GCsvCategory_##CategoryName(TEXT(#CategoryName),bDefaultValue)
+	#define CSV_DECLARE_CATEGORY_EXTERN(CategoryName)							extern FCsvCategory _GCsvCategory_##CategoryName
+	#define CSV_DECLARE_CATEGORY_MODULE_EXTERN(Module_API,CategoryName)			extern Module_API FCsvCategory _GCsvCategory_##CategoryName
 
-// Inline stats (no up front definition)
-#define CSV_SCOPED_TIMING_STAT(Category,StatName) \
-	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
-	FScopedCsvStat _ScopedCsvStat_ ## StatName (#StatName, CSV_CATEGORY_INDEX(Category), "CSV_"#StatName);
-#define CSV_SCOPED_TIMING_STAT_GLOBAL(StatName) \
-	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX_GLOBAL); \
-	FScopedCsvStat _ScopedCsvStat_ ## StatName (#StatName, CSV_CATEGORY_INDEX_GLOBAL, "CSV_"#StatName);
-#define CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StatName) \
-	TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE(#StatName); \
-	FScopedCsvStatExclusive _ScopedCsvStatExclusive_ ## StatName (#StatName, "CSV_"#StatName);
-#define CSV_SCOPED_TIMING_STAT_EXCLUSIVE_CONDITIONAL(StatName,Condition) \
-	TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE(#StatName); \
-	FScopedCsvStatExclusiveConditional _ScopedCsvStatExclusive_ ## StatName (#StatName,Condition, "CSV_"#StatName);
-#define CSV_SCOPED_TIMING_STAT_RECURSIVE(Category,StatName) \
-	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
-	static thread_local int32 _ScopedCsvStatRecursive_EntryCount_ ## StatName = 0; \
-	FScopedCsvStatRecursive _ScopedCsvStatRecursive_ ## StatName (_ScopedCsvStatRecursive_EntryCount_ ## StatName, #StatName, CSV_CATEGORY_INDEX(Category), "CSV_"#StatName);
-#define CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(Category,StatName,Condition) \
-	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
-	static thread_local int32 _ScopedCsvStatRecursive_EntryCount_ ## StatName = 0; \
-	FScopedCsvStatRecursiveConditional _ScopedCsvStatRecursive_ ## StatName (_ScopedCsvStatRecursive_EntryCount_ ## StatName, #StatName, CSV_CATEGORY_INDEX(Category), Condition, "CSV_"#StatName);
+	// Events
+	#define CSV_EVENT(Category, Format, ...) \
+		FCsvProfiler::RecordEventf( CSV_CATEGORY_INDEX(Category), Format, ##__VA_ARGS__ ); \
+		TRACE_BOOKMARK(TEXT(PREPROCESSOR_TO_STRING(Category)) TEXT("/") Format, ##__VA_ARGS__)
 
-#define CSV_SCOPED_WAIT(WaitTime)							FScopedCsvWaitConditional _ScopedCsvWait(WaitTime>0 && FCsvProfiler::IsWaitTrackingEnabledOnCurrentThread());
-#define CSV_SCOPED_WAIT_CONDITIONAL(Condition)				FScopedCsvWaitConditional _ScopedCsvWait(Condition);
+	#define CSV_EVENT_GLOBAL(Format, ...) \
+		FCsvProfiler::RecordEventf( CSV_CATEGORY_INDEX_GLOBAL, Format, ##__VA_ARGS__ ); \
+		TRACE_BOOKMARK(Format, ##__VA_ARGS__)
 
-#define CSV_SCOPED_SET_WAIT_STAT(StatName) \
-	TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE("EventWait/"#StatName); \
-	FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName("EventWait/"#StatName);
+	// Metadata
+	#define CSV_METADATA(Key,Value)									FCsvProfiler::SetMetadata( Key, Value )
+	#define CSV_NON_PERSISTENT_METADATA(Key,Value)					FCsvProfiler::SetNonPersistentMetadata( Key, Value )
 
-#define CSV_SCOPED_SET_WAIT_STAT_IGNORE()						FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName();
-
-#define CSV_CUSTOM_STAT(Category,StatName,Value,Op) \
-	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
-	FCsvProfiler::RecordCustomStat(#StatName, CSV_CATEGORY_INDEX(Category), Value, Op);
-#define CSV_CUSTOM_STAT_GLOBAL(StatName,Value,Op) \
-	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX_GLOBAL); \
-	FCsvProfiler::RecordCustomStat(#StatName, CSV_CATEGORY_INDEX_GLOBAL, Value, Op); 
-
-// Stats declared up front
-#define CSV_DEFINE_STAT(Category,StatName)						FCsvDeclaredStat _GCsvStat_##StatName((TCHAR*)TEXT(#StatName), CSV_CATEGORY_INDEX(Category));
-#define CSV_DEFINE_STAT_GLOBAL(StatName)						FCsvDeclaredStat _GCsvStat_##StatName((TCHAR*)TEXT(#StatName), CSV_CATEGORY_INDEX_GLOBAL);
-#define CSV_DECLARE_STAT_EXTERN(Category,StatName)				extern FCsvDeclaredStat _GCsvStat_##StatName
-#define CSV_CUSTOM_STAT_DEFINED(StatName,Value,Op)				FCsvProfiler::RecordCustomStat(_GCsvStat_##StatName.Name, _GCsvStat_##StatName.CategoryIndex, Value, Op);
-
-// Categories
-#define CSV_DEFINE_CATEGORY(CategoryName,bDefaultValue)			FCsvCategory _GCsvCategory_##CategoryName(TEXT(#CategoryName),bDefaultValue)
-#define CSV_DECLARE_CATEGORY_EXTERN(CategoryName)				extern FCsvCategory _GCsvCategory_##CategoryName
-
-#define CSV_DEFINE_CATEGORY_MODULE(Module_API,CategoryName,bDefaultValue)	FCsvCategory Module_API _GCsvCategory_##CategoryName(TEXT(#CategoryName),bDefaultValue)
-#define CSV_DECLARE_CATEGORY_MODULE_EXTERN(Module_API,CategoryName)			extern Module_API FCsvCategory _GCsvCategory_##CategoryName
-
-// Events
-#define CSV_EVENT(Category, Format, ...) \
-	FCsvProfiler::RecordEventf( CSV_CATEGORY_INDEX(Category), Format, ##__VA_ARGS__ ); \
-	TRACE_BOOKMARK(TEXT(PREPROCESSOR_TO_STRING(Category)) TEXT("/") Format, ##__VA_ARGS__)
-
-#define CSV_EVENT_GLOBAL(Format, ...) \
-	FCsvProfiler::RecordEventf( CSV_CATEGORY_INDEX_GLOBAL, Format, ##__VA_ARGS__ ); \
-	TRACE_BOOKMARK(Format, ##__VA_ARGS__)
-
-// Metadata
-#define CSV_METADATA(Key,Value)									FCsvProfiler::SetMetadata( Key, Value )
-#define CSV_NON_PERSISTENT_METADATA(Key,Value)					FCsvProfiler::SetNonPersistentMetadata( Key, Value )
+	// Minimal stat macros (emitted even when CSV_PROFILER_MINIMAL is 1)
+	// IMPORTANT: Only a handful of key stats are expected to use these. Do not add more without very good reason!
+	#define CSV_CUSTOM_STAT_MINIMAL(Category,StatName,Value,Op) 	FCsvProfiler::RecordCustomStatMinimal(#StatName, CSV_CATEGORY_INDEX(Category), Value, Op);
+	#define CSV_CUSTOM_STAT_MINIMAL_GLOBAL(StatName,Value,Op) 		FCsvProfiler::RecordCustomStatMinimal(#StatName, CSV_CATEGORY_INDEX_GLOBAL, Value, Op); 
 
 #else
-  #define CSV_CATEGORY_INDEX(CategoryName)						
-  #define CSV_CATEGORY_INDEX_GLOBAL								
-  #define CSV_STAT_FNAME(StatName)	NAME_None							
-  #define CSV_SCOPED_TIMING_STAT(Category,StatName)				
-  #define CSV_SCOPED_TIMING_STAT_GLOBAL(StatName)					
-  #define CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StatName)
-  #define CSV_SCOPED_TIMING_STAT_EXCLUSIVE_CONDITIONAL(StatName,Condition)
-  #define CSV_SCOPED_TIMING_STAT_RECURSIVE(Category,StatName)
-  #define CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(Category,StatName,Condition)
-  #define CSV_SCOPED_WAIT(WaitTime)
-  #define CSV_SCOPED_WAIT_CONDITIONAL(Condition)
-  #define CSV_SCOPED_SET_WAIT_STAT(StatName)
-  #define CSV_SCOPED_SET_WAIT_STAT_IGNORE()
-  #define CSV_CUSTOM_STAT(Category,StatName,Value,Op)				
-  #define CSV_CUSTOM_STAT_GLOBAL(StatName,Value,Op) 				
-  #define CSV_DEFINE_STAT(Category,StatName)						
-  #define CSV_DEFINE_STAT_GLOBAL(StatName)						
-  #define CSV_DECLARE_STAT_EXTERN(Category,StatName)				
-  #define CSV_CUSTOM_STAT_DEFINED(StatName,Value,Op)				
-  #define CSV_DEFINE_CATEGORY(CategoryName,bDefaultValue)			
-  #define CSV_DECLARE_CATEGORY_EXTERN(CategoryName)				
-  #define CSV_DEFINE_CATEGORY_MODULE(Module_API,CategoryName,bDefaultValue)	
-  #define CSV_DECLARE_CATEGORY_MODULE_EXTERN(Module_API,CategoryName)			
-  #define CSV_EVENT(Category, Format, ...) 						
-  #define CSV_EVENT_GLOBAL(Format, ...)
-  #define CSV_METADATA(Key,Value)
-  #define CSV_NON_PERSISTENT_METADATA(Key,Value)
+	#define CSV_CATEGORY_INDEX(CategoryName)	(0)
+	#define CSV_CATEGORY_INDEX_GLOBAL			(0)				
+	#define CSV_DEFINE_CATEGORY(CategoryName,bDefaultValue)			
+	#define CSV_DEFINE_CATEGORY_MODULE(Module_API,CategoryName,bDefaultValue)	
+	#define CSV_DECLARE_CATEGORY_EXTERN(CategoryName)				
+	#define CSV_DECLARE_CATEGORY_MODULE_EXTERN(Module_API,CategoryName)			
+	#define CSV_EVENT(Category, Format, ...) 						
+	#define CSV_EVENT_GLOBAL(Format, ...)
+	#define CSV_METADATA(Key,Value)
+	#define CSV_NON_PERSISTENT_METADATA(Key,Value)
+	#define CSV_CUSTOM_STAT_MINIMAL(Category,StatName,Value,Op)
+	#define CSV_CUSTOM_STAT_MINIMAL_GLOBAL(StatName,Value,Op)
+#endif
+
+// Stat macros. These are disabled if CSV_PROFILER_MINIMAL is 1 
+#if CSV_PROFILER && !CSV_PROFILER_MINIMAL
+	// Helpers
+	#define CSV_STAT_FNAME(StatName)								(_GCsvStat_##StatName.Name)
+
+	// Timing stats - no up-front definition
+	#define CSV_SCOPED_TIMING_STAT(Category,StatName) \
+		TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
+		FScopedCsvStat _ScopedCsvStat_ ## StatName (#StatName, CSV_CATEGORY_INDEX(Category), "CSV_"#StatName);
+	#define CSV_SCOPED_TIMING_STAT_GLOBAL(StatName) \
+		TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX_GLOBAL); \
+		FScopedCsvStat _ScopedCsvStat_ ## StatName (#StatName, CSV_CATEGORY_INDEX_GLOBAL, "CSV_"#StatName);
+	#define CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StatName) \
+		TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE(#StatName); \
+		FScopedCsvStatExclusive _ScopedCsvStatExclusive_ ## StatName (#StatName, "CSV_"#StatName);
+	#define CSV_SCOPED_TIMING_STAT_EXCLUSIVE_CONDITIONAL(StatName,Condition) \
+		TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE(#StatName); \
+		FScopedCsvStatExclusiveConditional _ScopedCsvStatExclusive_ ## StatName (#StatName,Condition, "CSV_"#StatName);
+	#define CSV_SCOPED_TIMING_STAT_RECURSIVE(Category,StatName) \
+		TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
+		static thread_local int32 _ScopedCsvStatRecursive_EntryCount_ ## StatName = 0; \
+		FScopedCsvStatRecursive _ScopedCsvStatRecursive_ ## StatName (_ScopedCsvStatRecursive_EntryCount_ ## StatName, #StatName, CSV_CATEGORY_INDEX(Category), "CSV_"#StatName);
+	#define CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(Category,StatName,Condition) \
+		TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
+		static thread_local int32 _ScopedCsvStatRecursive_EntryCount_ ## StatName = 0; \
+		FScopedCsvStatRecursiveConditional _ScopedCsvStatRecursive_ ## StatName (_ScopedCsvStatRecursive_EntryCount_ ## StatName, #StatName, CSV_CATEGORY_INDEX(Category), Condition, "CSV_"#StatName);
+
+	// Waits
+	#define CSV_SCOPED_WAIT(WaitTime)							FScopedCsvWaitConditional _ScopedCsvWait(WaitTime>0 && FCsvProfiler::IsWaitTrackingEnabledOnCurrentThread());
+	#define CSV_SCOPED_WAIT_CONDITIONAL(Condition)				FScopedCsvWaitConditional _ScopedCsvWait(Condition);
+
+	#define CSV_SCOPED_SET_WAIT_STAT(StatName) \
+		TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE("EventWait/"#StatName); \
+		FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName("EventWait/"#StatName);
+
+	#define CSV_SCOPED_SET_WAIT_STAT_IGNORE()						FScopedCsvSetWaitStat _ScopedCsvSetWaitStat ## StatName();
+
+	// Custom Stats
+	#define CSV_CUSTOM_STAT(Category,StatName,Value,Op) \
+		TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
+		FCsvProfiler::RecordCustomStat(#StatName, CSV_CATEGORY_INDEX(Category), Value, Op);
+	#define CSV_CUSTOM_STAT_GLOBAL(StatName,Value,Op) \
+		TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX_GLOBAL); \
+		FCsvProfiler::RecordCustomStat(#StatName, CSV_CATEGORY_INDEX_GLOBAL, Value, Op); 
+
+	// Stats declarations/definitions (for FName stats)
+	#define CSV_DEFINE_STAT(Category,StatName)						FCsvDeclaredStat _GCsvStat_##StatName((TCHAR*)TEXT(#StatName), CSV_CATEGORY_INDEX(Category));
+	#define CSV_DEFINE_STAT_GLOBAL(StatName)						FCsvDeclaredStat _GCsvStat_##StatName((TCHAR*)TEXT(#StatName), CSV_CATEGORY_INDEX_GLOBAL);
+	#define CSV_DECLARE_STAT_EXTERN(Category,StatName)				extern FCsvDeclaredStat _GCsvStat_##StatName
+	#define CSV_CUSTOM_STAT_DEFINED(StatName,Value,Op)				FCsvProfiler::RecordCustomStat(_GCsvStat_##StatName.Name, _GCsvStat_##StatName.CategoryIndex, Value, Op);
+#else
+	#define CSV_STAT_FNAME(StatName)			NAME_None							
+	#define CSV_SCOPED_TIMING_STAT(Category,StatName)				
+	#define CSV_SCOPED_TIMING_STAT_GLOBAL(StatName)					
+	#define CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StatName)
+	#define CSV_SCOPED_TIMING_STAT_EXCLUSIVE_CONDITIONAL(StatName,Condition)
+	#define CSV_SCOPED_TIMING_STAT_RECURSIVE(Category,StatName)
+	#define CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(Category,StatName,Condition)
+	#define CSV_SCOPED_WAIT(WaitTime)
+	#define CSV_SCOPED_WAIT_CONDITIONAL(Condition)
+	#define CSV_SCOPED_SET_WAIT_STAT(StatName)
+	#define CSV_SCOPED_SET_WAIT_STAT_IGNORE()
+	#define CSV_CUSTOM_STAT(Category,StatName,Value,Op)				
+	#define CSV_CUSTOM_STAT_GLOBAL(StatName,Value,Op) 				
+	#define CSV_DEFINE_STAT(Category,StatName)						
+	#define CSV_DEFINE_STAT_GLOBAL(StatName)						
+	#define CSV_DECLARE_STAT_EXTERN(Category,StatName)				
+	#define CSV_CUSTOM_STAT_DEFINED(StatName,Value,Op)				
 #endif
 
 
@@ -368,6 +382,9 @@ public:
 	CORE_API static void RecordCustomStat(const FName& StatName, uint32 CategoryIndex, double Value, const ECsvCustomStatOp CustomStatOp);
 	CORE_API static void RecordCustomStat(const char * StatName, uint32 CategoryIndex, int32 Value, const ECsvCustomStatOp CustomStatOp);
 	CORE_API static void RecordCustomStat(const FName& StatName, uint32 CategoryIndex, int32 Value, const ECsvCustomStatOp CustomStatOp);
+
+	// Warning: Don't use this unless the stat is one of a handful of key stats that we want to capture in CSV_PROFILER_MINIMAL mode
+	CORE_API static void RecordCustomStatMinimal(const char* StatName, uint32 CategoryIndex, float Value, const ECsvCustomStatOp CustomStatOp);
 
 	CORE_API static void RecordEvent(int32 CategoryIndex, const FString& EventText);
 	CORE_API static void RecordEventAtFrameStart(int32 CategoryIndex, const FString& EventText);
