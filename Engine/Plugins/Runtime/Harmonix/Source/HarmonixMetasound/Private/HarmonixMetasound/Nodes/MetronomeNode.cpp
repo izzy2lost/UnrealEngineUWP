@@ -391,7 +391,15 @@ namespace HarmonixMetasound
 
 		if (HasMidiChanges)
 		{
-			DrivingMidiClock.SongMapsChanged();
+			// We only have to tell the MonotonicallyIncreasingClock that the song maps have changed
+			// if we are looping...
+			if (LoopInPin)
+			{
+				MonotonicallyIncreasingClock->SongMapsChanged();
+			}
+			// Regardless of which clock is currently driving, MonotonicallyIncreasingClock or MidiClockOutPin,
+			// we need to inform the MidiClockOutPin that the song maps have changed. 
+			MidiClockOutPin->SongMapsChanged();
 		}
 	}
 
