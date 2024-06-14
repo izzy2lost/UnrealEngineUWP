@@ -977,14 +977,14 @@ void FMassEntityManager::BatchDestroyEntityChunks(TConstArrayView<FMassArchetype
 	// FMassEntityManager.EntityData, otherwise, if there are commands flushed as part of FMassProcessingContext's 
 	// destruction the commands will work on outdated information (which might result in crashes).
 	FMassProcessingContext ProcessingContext(*this, /*TimeDelta=*/0.0f);
+	ProcessingContext.bFlushCommandBuffer = false;
+	ProcessingContext.CommandBuffer = MakeShareable(new FMassCommandBuffer());
 
 	for (const FMassArchetypeEntityCollection& EntityCollection : Collections)
 	{
 		EntitiesRemoved.Reset();
 		if (EntityCollection.GetArchetype().IsValid())
 		{
-			ProcessingContext.bFlushCommandBuffer = false;
-			ProcessingContext.CommandBuffer = MakeShareable(new FMassCommandBuffer());
 			ObserverManager.OnPreEntitiesDestroyed(ProcessingContext, EntityCollection);
 
 			FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(EntityCollection.GetArchetype());
