@@ -1101,7 +1101,7 @@ namespace Horde.Server.Storage
 					using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickGcForNamespaceAsync)}");
 					span.SetAttribute("BlobId", blobInfoId.ToString());
 
-					if (blobInfoId < lastImportBlobInfoId && !await IsBlobReferencedAsync(blobInfoId, cancellationToken))
+					if (blobInfoId <= lastImportBlobInfoId && !await IsBlobReferencedAsync(blobInfoId, cancellationToken))
 					{
 						BlobInfo? info;
 						if (deleteObjects)

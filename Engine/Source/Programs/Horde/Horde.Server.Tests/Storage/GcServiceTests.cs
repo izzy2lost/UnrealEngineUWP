@@ -88,14 +88,17 @@ namespace Horde.Server.Tests.Storage
 				children[idx] = new List<int>();
 			}
 
-			double maxParents = ((numRoots + numInterior) * avgChildren) / (numInterior + numLeaves);
-			for (int idx = numRoots; idx < numNodes; idx++)
+			if (numRoots < numNodes)
 			{
-				int numParents = 1 + (int)(random.NextDouble() * maxParents);
-				for (; numParents > 0; numParents--)
+				double maxParents = ((numRoots + numInterior) * avgChildren) / (numInterior + numLeaves);
+				for (int idx = numRoots; idx < numNodes; idx++)
 				{
-					int parentIdx = Math.Min((int)(random.NextDouble() * Math.Min(idx, numRoots + numInterior)), idx - 1);
-					children[parentIdx].Add(idx);
+					int numParents = 1 + (int)(random.NextDouble() * maxParents);
+					for (; numParents > 0; numParents--)
+					{
+						int parentIdx = Math.Min((int)(random.NextDouble() * Math.Min(idx, numRoots + numInterior)), idx - 1);
+						children[parentIdx].Add(idx);
+					}
 				}
 			}
 
