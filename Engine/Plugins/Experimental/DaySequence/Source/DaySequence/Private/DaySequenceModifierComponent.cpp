@@ -269,15 +269,15 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 		(*DebugData).FindOrAdd("Component Enabled") = bIsComponentEnabled ? "True" : "False";
 		(*DebugData).FindOrAdd("Modifier Enabled") = bIsEnabled ? "True" : "False";
 		(*DebugData).FindOrAdd("Blend Weight") = FString::Printf(TEXT("%.5f"), GetCurrentBlendWeight());
-		(*DebugData).FindOrAdd("Blend Target" ) = ExternalVolumeBlendTarget.IsValid() ? ExternalVolumeBlendTarget->GetName() : "None";
+
+		const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get();
+		(*DebugData).FindOrAdd("Blend Target" ) = BlendTarget ? BlendTarget->GetName() : "None";
 
 		return DebugData;
 	});
 #endif
 	
-	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.bStartWithTickEnabled = false;
-	PrimaryComponentTick.TickGroup = TG_PostPhysics;
+	PrimaryComponentTick.bCanEverTick = false;
 	
 	EasingFunction = CreateDefaultSubobject<UDaySequenceModifierEasingFunction>("EasingFunction", true);
 }
@@ -404,40 +404,35 @@ void UDaySequenceModifierComponent::OnUnregister()
 	RemoveSubSequenceTrack();
 }
 
+void UDaySequenceModifierComponent::SequencePlayerUpdated()
+{
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_SequencePlayerUpdated);
+	
+	// Force expensive update
+	const float DistanceBlendFactor = UpdateBlendWeight();
+
+	if (bIsComponentEnabled && bUseVolume)
+	{
+		if (DistanceBlendFactor > UE_SMALL_NUMBER)
+		{
+			EnableModifier();
+		}
+		else
+		{
+			DisableModifier();
+		}
+	}
+}
+
 void UDaySequenceModifierComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	
-	BindOverlapEvents();
-}
-
-void UDaySequenceModifierComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// If we don't need to tick, don't tick
-	AActor* BlendTarget = ExternalVolumeBlendTarget.Get();
-	if (!BlendTarget || !TargetActor || TargetActor->IsPlaying())
-	{
-		PrimaryComponentTick.SetTickFunctionEnable(false);
-		return;
-	}
-
-	// Update TargetActor if our blend factor has changed
-	const float DistanceBlendFactor = GetDistanceBlendFactor(TargetActor->GetActorLocation());
-	const float BlendFactor = FMath::Min(DistanceBlendFactor, CustomVolumeBlendWeight);
-	if (DistanceBlendFactor > UE_SMALL_NUMBER && CachedBlendFactor != BlendFactor)
-	{
-		TargetActor->SetTimeOfDay(TargetActor->GetTimeOfDay());
-	}
-	CachedBlendFactor = BlendFactor;
 }
 
 void UDaySequenceModifierComponent::EndPlay(EEndPlayReason::Type Reason)
 {
 	Super::EndPlay(Reason);
 	
-	UnbindOverlapEvents();
 	RemoveSubSequenceTrack();
 }
 
@@ -484,6 +479,7 @@ void UDaySequenceModifierComponent::BindToDaySequenceActor(ADaySequenceActor* Da
 	if (ensureMsgf(DaySequenceActor, TEXT("BindToDaySequenceActor called with a null Day Sequence Actor.")))
 	{
 		DaySequenceActor->GetOnPostInitializeDaySequences().AddUObject(this, &UDaySequenceModifierComponent::ReinitializeSubSequence);
+		DaySequenceActor->GetOnSequencePlayerUpdated().AddUObject(this, &UDaySequenceModifierComponent::SequencePlayerUpdated);
 #if ENABLE_DRAW_DEBUG
 		if (!DaySequenceActor->IsDebugCategoryRegistered(ShowDebug_ModifierCategory))
 		{
@@ -504,6 +500,7 @@ void UDaySequenceModifierComponent::UnbindFromDaySequenceActor()
 	if (TargetActor)
 	{
 		TargetActor->GetOnPostInitializeDaySequences().RemoveAll(this);
+		TargetActor->GetOnSequencePlayerUpdated().RemoveAll(this);
 #if ENABLE_DRAW_DEBUG
 		TargetActor->GetOnDebugLevelChanged().RemoveAll(this);
 		TargetActor->UnregisterDebugEntry(DebugEntry, ShowDebug_ModifierCategory);
@@ -561,7 +558,7 @@ bool UDaySequenceModifierComponent::CanBeEnabled() const
 	if (bUseVolume)
 	{
 		ENetMode NetMode = Actor->GetNetMode();
-		return NetMode == NM_Standalone || NetMode == NM_Client;
+		return NetMode != NM_DedicatedServer;
 	}
 
 	return true;
@@ -621,13 +618,6 @@ void UDaySequenceModifierComponent::EnableModifier()
 	if (TargetActor && !TargetActor->IsPlaying())
 	{
 		TargetActor->SetTimeOfDay(TargetActor->GetTimeOfDay());
-
-		// If the actor is not playing and we are using a blend target, enable ticking on this component
-		// since it is needed to update the target actor if the blend amount changes
-		if (ExternalVolumeBlendTarget.IsValid())
-		{
-			PrimaryComponentTick.SetTickFunctionEnable(true);
-		}
 	}
 
 	OnPostEnableModifier.Broadcast();
@@ -648,7 +638,6 @@ void UDaySequenceModifierComponent::DisableModifier()
 	}
 	
 	bIsEnabled = false;
-	PrimaryComponentTick.SetTickFunctionEnable(false);
 
 	if (TargetActor && !TargetActor->HasAnyFlags(RF_BeginDestroyed))
 	{
@@ -1344,22 +1333,46 @@ void UDaySequenceModifierComponent::SetUserDaySequence(UDaySequence* InDaySequen
 	ReinitializeSubSequence(nullptr);
 }
 
-float UDaySequenceModifierComponent::GetDistanceBlendFactor(FVector Position) const
+bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 {
-	auto GetDistanceBlendFactorForShape = [this, Position](const UShapeComponent* Shape)
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetBlendPosition);
+	
+#if WITH_EDITOR
+	if (!GetWorld()->IsGameWorld())
 	{
-		const float Distance = UE::DaySequence::ComputeSignedDistance(Shape, Position);
-		return Distance < 0.f ? FMath::Clamp(-Distance / BlendAmount, 0.f, 1.f) : 0.f;
-	};
+		InPosition = UE::DaySequence::GVolumePreviewLocation;
+		return true;
+	}
+	else
+#endif
+	if (const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get())
+	{
+		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetPlayerViewPointScope);
+		InPosition = BlendTarget->PlayerCameraManager->GetCameraLocation();
+		return true;
+	}
 
-	float DistanceBlendFactor = 0.f;
+	return false;
+}
+
+float UDaySequenceModifierComponent::GetDistanceBlendFactorForShape(const UShapeComponent* Shape, const FVector& Position) const
+{
+	const float Distance = UE::DaySequence::ComputeSignedDistance(Shape, Position);
+	return Distance < 0.f ? FMath::Clamp(-Distance / BlendAmount, 0.f, 1.f) : 0.f;
+}
+
+float UDaySequenceModifierComponent::GetDistanceBlendFactor(const FVector& Position) const
+{
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetDistanceBlendFactor);
+	
+	CachedDistanceBlendFactor = 0.f;
 
 	for (const UShapeComponent* Shape : GetVolumeShapeComponents())
 	{
-		DistanceBlendFactor = FMath::Max(DistanceBlendFactor, GetDistanceBlendFactorForShape(Shape));
+		CachedDistanceBlendFactor = FMath::Max(CachedDistanceBlendFactor, GetDistanceBlendFactorForShape(Shape, Position));
 	}
 
-	return DistanceBlendFactor;
+	return CachedDistanceBlendFactor;
 }
 
 TArray<UShapeComponent*> UDaySequenceModifierComponent::GetVolumeShapeComponents() const
@@ -1415,25 +1428,14 @@ TArray<UShapeComponent*> UDaySequenceModifierComponent::GetVolumeShapeComponents
 
 float UDaySequenceModifierComponent::GetCurrentBlendWeight() const
 {
+	return FMath::Min(CachedDistanceBlendFactor, CustomVolumeBlendWeight);
+}
+
+float UDaySequenceModifierComponent::UpdateBlendWeight() const
+{
 	FVector Position;
-
-#if WITH_EDITOR
-	if (!GetWorld()->IsGameWorld())
-	{
-		Position = UE::DaySequence::GVolumePreviewLocation;
-	}
-	else
-#endif
-	if (const AActor* BlendTarget = ExternalVolumeBlendTarget.Get())
-	{
-		Position = BlendTarget->GetActorLocation();
-	}
-	else
-	{
-		return FMath::Min(1.f, CustomVolumeBlendWeight);
-	}
-
-	return FMath::Min(GetDistanceBlendFactor(Position), CustomVolumeBlendWeight);
+	const float DistanceBlendFactor = GetBlendPosition(Position) ? GetDistanceBlendFactor(Position) : 1.f;
+	return FMath::Min(DistanceBlendFactor, CustomVolumeBlendWeight);
 }
 
 void UDaySequenceModifierComponent::SetVolumeCollisionEnabled(const ECollisionEnabled::Type InCollisionType) const
@@ -1461,8 +1463,8 @@ void UDaySequenceModifierComponent::InvalidateMuteStates() const
 	OnInvalidateMuteStates.Broadcast();
 }
 
-void UDaySequenceModifierComponent::EnableDistanceVolumeBlends(AActor* InActor)
-{
+void UDaySequenceModifierComponent::EnableDistanceVolumeBlends(APlayerController* InActor)
+{	
 	ExternalVolumeBlendTarget = InActor;
 }
 
@@ -1504,11 +1506,14 @@ bool UDaySequenceModifierComponent::IsBlendTargetInAnyVolume()
 {
 	OccupiedVolumes = 0;
 
-	for (const UShapeComponent* Shape : GetVolumeShapeComponents())
+	if (FVector Position; GetBlendPosition(Position))
 	{
-		if (ExternalVolumeBlendTarget.IsValid() && Shape->IsOverlappingActor(ExternalVolumeBlendTarget.Get()))
+		for (const UShapeComponent* Shape : GetVolumeShapeComponents())
 		{
-			OccupiedVolumes++;
+			if (GetDistanceBlendFactorForShape(Shape, Position) > 0.f)
+			{
+				OccupiedVolumes++;
+			}
 		}
 	}
 
@@ -1533,57 +1538,6 @@ void UDaySequenceModifierComponent::UpdateCachedExternalShapes() const
 	}
 
 	bCachedExternalShapesInvalid = false;
-	
-	UnbindOverlapEvents();
-	BindOverlapEvents();
 }
-
-void UDaySequenceModifierComponent::BindOverlapEvents() const
-{
-	for (UShapeComponent* Shape : GetVolumeShapeComponents())
-	{
-		// AddUniqueDynamic prevents accidental duplicate binding
-        Shape->OnComponentBeginOverlap.AddUniqueDynamic(this, &UDaySequenceModifierComponent::OnVolumeOverlapBegin);
-        Shape->OnComponentEndOverlap.AddUniqueDynamic(this, &UDaySequenceModifierComponent::OnVolumeOverlapEnd);
-	}
-}
-
-void UDaySequenceModifierComponent::UnbindOverlapEvents() const
-{
-	for (UShapeComponent* Shape : GetVolumeShapeComponents())
-	{
-		Shape->OnComponentBeginOverlap.RemoveDynamic(this, &UDaySequenceModifierComponent::OnVolumeOverlapBegin);
-		Shape->OnComponentEndOverlap.RemoveDynamic(this, &UDaySequenceModifierComponent::OnVolumeOverlapEnd);
-	}
-}
-
-void UDaySequenceModifierComponent::OnVolumeOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	if (ExternalVolumeBlendTarget.IsValid() && OtherActor == ExternalVolumeBlendTarget)
-	{
-		OccupiedVolumes++;
-
-		if (OccupiedVolumes == 1 && GetOwner() && !GetOwner()->HasAuthority())
-		{
-			OnVolumeBlendTargetOverlapBegin.Broadcast(ExternalVolumeBlendTarget.Get());
-			OnVolumeBlendTargetOverlapBeginNative.Broadcast(ExternalVolumeBlendTarget.Get());
-		}
-	}
-}
-
-void UDaySequenceModifierComponent::OnVolumeOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-	if (ExternalVolumeBlendTarget.IsValid() && OtherActor == ExternalVolumeBlendTarget)
-	{
-		OccupiedVolumes--;
-
-		if (OccupiedVolumes == 0 && GetOwner() && !GetOwner()->HasAuthority())
-		{
-			OnVolumeBlendTargetOverlapEnd.Broadcast(ExternalVolumeBlendTarget.Get());
-			OnVolumeBlendTargetOverlapEndNative.Broadcast(ExternalVolumeBlendTarget.Get());
-		}
-	}
-}
-
 
 #undef LOCTEXT_NAMESPACE

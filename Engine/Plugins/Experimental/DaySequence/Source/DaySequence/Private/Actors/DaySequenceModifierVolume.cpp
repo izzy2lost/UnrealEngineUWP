@@ -38,16 +38,16 @@ void ADaySequenceModifierVolume::TryEnableModifier() const
 	}
 }
 
-void ADaySequenceModifierVolume::SetBlendTarget(AActor* InBlendTarget)
+void ADaySequenceModifierVolume::SetBlendTarget(APlayerController* InPC)
 {
-	if (!IsValid(InBlendTarget) || InBlendTarget == CurrentBlendTarget)
+	if (!IsValid(InPC) || InPC == CurrentBlendTarget)
 	{
 		return;
 	}
 
-	CurrentBlendTarget = InBlendTarget;
+	CurrentBlendTarget = InPC;
 
-	DaySequenceModifier->EnableDistanceVolumeBlends(InBlendTarget);
+	DaySequenceModifier->EnableDistanceVolumeBlends(InPC);
 	DaySequenceModifier->SetCustomVolumeBlendWeight(1.f);
 
 	TryEnableModifier();
@@ -104,16 +104,6 @@ void ADaySequenceModifierVolume::VolumeSetup()
 
 	// this is kind of a hack, we are calling this for the side effect of forcing the modifier to recache volume shapes after we just invalidated them.
 	DaySequenceModifier->IsBlendTargetInAnyVolume();
-	
-#if WITH_EDITOR
-	const UWorld* World = GetWorld();
-	if (World && World->WorldType != EWorldType::Editor)
-	{
-#endif
-	SetupVolumeCallbacks();
-#if WITH_EDITOR
-	}
-#endif
 }
 
 void ADaySequenceModifierVolume::AddShapeComponentsToModifier()
@@ -121,37 +111,6 @@ void ADaySequenceModifierVolume::AddShapeComponentsToModifier()
 	FComponentReference DefaultBoxReference;
 	DefaultBoxReference.OverrideComponent = DefaultBox;
 	DaySequenceModifier->AddVolumeShapeComponent(DefaultBoxReference);
-
-
-}
-
-void ADaySequenceModifierVolume::SetupVolumeCallbacks()
-{
-	if (!DaySequenceModifier->GetOnVolumeBlendTargetOverlapBegin().IsBoundToObject(this))
-	{
-		DaySequenceModifier->GetOnVolumeBlendTargetOverlapBegin().AddWeakLambda(this, [this](AActor*)
-		{
-			OnOverlapBegin();
-		});
-	}
-	
-	if (!DaySequenceModifier->GetOnVolumeBlendTargetOverlapEnd().IsBoundToObject(this))
-	{
-		DaySequenceModifier->GetOnVolumeBlendTargetOverlapEnd().AddWeakLambda(this, [this](AActor*)
-		{
-			OnOverlapEnd();
-		});
-	}
-}
-
-void ADaySequenceModifierVolume::OnOverlapBegin() const
-{
-	DaySequenceModifier->EnableModifier();
-}
-
-void ADaySequenceModifierVolume::OnOverlapEnd() const
-{
-	DaySequenceModifier->DisableModifier();
 }
 
 void ADaySequenceModifierVolume::PlayerControllerSetup()
@@ -161,7 +120,6 @@ void ADaySequenceModifierVolume::PlayerControllerSetup()
 	if (World && World->WorldType != EWorldType::Editor)
 	{
 #endif
-	SetupBlendTargetCallbacks();
 	CachePlayerController();
 #if WITH_EDITOR
 	}
@@ -192,10 +150,7 @@ void ADaySequenceModifierVolume::CachePlayerController()
 	}
 	else
 	{
-		if (AActor* ViewTarget = CachedPlayerController->GetViewTarget())
-		{
-			SetBlendTarget(ViewTarget);
-		}
+		SetBlendTarget(CachedPlayerController);
 	}
 }
 
@@ -211,30 +166,6 @@ void ADaySequenceModifierVolume::QueuePlayerControllerQuery()
 		World->GetTimerManager().SetTimerForNextTick([this]()
 		{
 			CachePlayerController();
-		});
-	}
-}
-
-void ADaySequenceModifierVolume::SetupBlendTargetCallbacks()
-{
-	if (!ViewTargetChangedHandle.IsValid())
-	{
-		ViewTargetChangedHandle = FGameDelegates::Get().GetViewTargetChangedDelegate().AddWeakLambda(this, [this](APlayerController* PC, AActor* OldTarget, AActor* NewTarget)
-		{
-			if (!IsValid(CachedPlayerController))
-			{
-				QueuePlayerControllerQuery();
-				return;
-			}
-
-			if (PC != CachedPlayerController)
-			{
-				return;
-			}
-
-			// there is a lot of extra logic we can do here to stop popping (for example, try cast NewTarget to APlayerController which happens when view target unset).
-			// for now just set
-			SetBlendTarget(NewTarget);
 		});
 	}
 }

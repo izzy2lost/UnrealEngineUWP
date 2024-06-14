@@ -104,8 +104,6 @@ private:
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPostReinitializeSubSequences);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPostEnableModifier);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVolumeBlendTargetOverlap, AActor*, OverlappingActor);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnVolumeBlendTargetOverlapNative, AActor*);
 
 UCLASS(MinimalAPI, BlueprintType, Blueprintable, config=Game, HideCategories=(Physics,Navigation,Collision,HLOD,Rendering,Cooking,Mobile,RayTracing,AssetUserData), meta=(BlueprintSpawnableComponent))
 class UDaySequenceModifierComponent
@@ -283,7 +281,7 @@ public:
 	 * FinalWeight = Min(DistanceVolumeBlendWeight, CustomVolumeBlendWeight).
 	 */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
-	DAYSEQUENCE_API void EnableDistanceVolumeBlends(AActor* InActor);
+	DAYSEQUENCE_API void EnableDistanceVolumeBlends(APlayerController* InActor);
 
 	/**
 	 * Determines the number of volumes the current blend target is
@@ -304,6 +302,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Day Sequence")
 	float GetCurrentBlendWeight() const;
+	
+	float UpdateBlendWeight() const;
 
 	/**
 	 * Applies the given collision type to all valid volume shape components.
@@ -315,9 +315,6 @@ public:
 	void AddVolumeShapeComponent(const FComponentReference& InShapeReference);
 
 	void InvalidateMuteStates() const;
-	
-	FOnVolumeBlendTargetOverlapNative& GetOnVolumeBlendTargetOverlapBegin() { return OnVolumeBlendTargetOverlapBeginNative; }
-	FOnVolumeBlendTargetOverlapNative& GetOnVolumeBlendTargetOverlapEnd() { return OnVolumeBlendTargetOverlapEndNative; }
 
 #if ENABLE_DRAW_DEBUG
 	bool ShouldShowDebugInfo() const;
@@ -327,12 +324,13 @@ public:
 
 	/*~ Begin UActorComponent interface */
 	void BeginPlay() override;
-	void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	void EndPlay(EEndPlayReason::Type Reason) override;
 	void OnRegister() override;
 	void OnUnregister() override;
 	/*~ End UActorComponent interface */
 
+	void SequencePlayerUpdated();
+	
 #if WITH_EDITOR
 	/*~ Begin FTickableGameObject interface */
 	void UpdateEditorPreview(float DeltaTime) override;
@@ -372,7 +370,7 @@ protected:
 
 	/** The actor to use for distance-based volume blend calculations */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<AActor> ExternalVolumeBlendTarget;
+	TWeakObjectPtr<APlayerController> ExternalVolumeBlendTarget;
 
 	/** An optional user-provided Day Sequence - used instead of our procedurally generated one if set */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(EditCondition="!bUseCollection", EditConditionHides, DisplayAfter="bUseCollection"))
@@ -419,22 +417,6 @@ protected:
 	/** Blueprint exposed delegate invoked after the modifier component is enabled. */
 	UPROPERTY(BlueprintAssignable, Transient, meta=(AllowPrivateAccess="true"))
 	FOnPostEnableModifier OnPostEnableModifier;
-
-	/** 
-	 * Blueprint exposed delegate invoked after the current blend target enters a volume and was not already in a volume.
-	 * Only broadcasts when owning actor does not have network authority.
-	 */
-	UPROPERTY(BlueprintAssignable, Transient, meta=(AllowPrivateAccess="true"))
-	FOnVolumeBlendTargetOverlap OnVolumeBlendTargetOverlapBegin;
-	FOnVolumeBlendTargetOverlapNative OnVolumeBlendTargetOverlapBeginNative;
-	
-	/**
-	 * Blueprint exposed delegate invoked after the current blend target has exited all volumes.
-	 * Only broadcasts when owning actor does not have network authority.
-	 */
-	UPROPERTY(BlueprintAssignable, Transient, meta=(AllowPrivateAccess="true"))
-	FOnVolumeBlendTargetOverlap OnVolumeBlendTargetOverlapEnd;
-	FOnVolumeBlendTargetOverlapNative OnVolumeBlendTargetOverlapEndNative;
 	
 	/** When enabled, these overrides will always override all settings regardless of their bias */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Day Sequence", meta=(InlineEditConditionToggle))
@@ -464,8 +446,16 @@ protected:
 	uint8 bUseCollection : 1;
 
 private:
-	float GetDistanceBlendFactor(FVector Position) const;
+	/**
+	 * Get the blend position (handles preview and game world).
+	 * @return Returns true if we have a valid blend position and InPosition was set, false if InPosition was not set.
+	 */
+	bool GetBlendPosition(FVector& InPosition) const;
+	float GetDistanceBlendFactorForShape(const UShapeComponent* Shape, const FVector& Position) const;
 
+	mutable float CachedDistanceBlendFactor;
+	float GetCachedDistanceBlendFactor() const { return CachedDistanceBlendFactor; }
+	float GetDistanceBlendFactor(const FVector& Position) const;
 	/**
 	 * Creates and adds or marks for preserve all subsections that this modifier is responsible for.
 	 * Optionally provided a map of all sections that exist in the root sequence to a bool flag used to mark that section as still relevant.
@@ -478,16 +468,8 @@ private:
 	void UpdateCachedExternalShapes() const;
 	mutable TArray<TWeakObjectPtr<UShapeComponent>> CachedExternalShapes;
 	mutable bool bCachedExternalShapesInvalid = true;
-
-	void BindOverlapEvents() const;
-	void UnbindOverlapEvents() const;
-	int32 OccupiedVolumes = 0;
 	
-	UFUNCTION()
-	void OnVolumeOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-
-	UFUNCTION()
-	void OnVolumeOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	int32 OccupiedVolumes = 0;
 	
 	/*~ Transient state for active gameplay */
 	TWeakObjectPtr<UMovieSceneSubSection> WeakSubSection;

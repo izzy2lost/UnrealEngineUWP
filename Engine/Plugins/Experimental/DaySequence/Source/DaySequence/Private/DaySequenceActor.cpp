@@ -31,6 +31,8 @@
 #include "Engine/Canvas.h"	// UCanvas
 #endif
 
+#include "Engine/World.h"
+
 #include <limits>
 
 #if WITH_EDITOR
@@ -840,6 +842,8 @@ void ADaySequenceActor::OnSequencePlayerUpdate(const UMovieSceneSequencePlayer& 
 	const float CurrentHours = FrameTimeToDayHours(CurrentTime);
 	const float PreviousHours = FrameTimeToDayHours(PreviousTime);
 	SequencePlayerUpdated(CurrentHours, PreviousHours);
+	
+	OnSequencePlayerUpdated.Broadcast();
 }
 
 void ADaySequenceActor::SequencePlayerUpdated(float CurrentTime, float PreviousTime)

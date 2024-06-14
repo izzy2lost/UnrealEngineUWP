@@ -52,11 +52,6 @@ protected:
 	 */
 	virtual void AddShapeComponentsToModifier();
 
-	/** Binds the day sequence modifier overlap events to OnOverlapBegin and OnOverlapEnd. */
-	void SetupVolumeCallbacks();
-	void OnOverlapBegin() const;
-	void OnOverlapEnd() const;
-
 	
 	
 	/** Player Controller Setup Functions */
@@ -76,9 +71,6 @@ protected:
 
 	/** Set a timer to call CachePlayerController one tick from now. */
 	void QueuePlayerControllerQuery();
-
-	/** Register a callback to handle changes to our player controller's view target. */
-	void SetupBlendTargetCallbacks();
 	
 
 	
@@ -103,7 +95,7 @@ protected:
 	/** Enables this modifier if the current blend target is in the volume. */
 	void TryEnableModifier() const;
 	
-	void SetBlendTarget(AActor* InPawn);
+	void SetBlendTarget(APlayerController* InPC);
 	
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Day Sequence", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))

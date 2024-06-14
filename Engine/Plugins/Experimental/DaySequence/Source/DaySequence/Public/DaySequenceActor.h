@@ -281,6 +281,9 @@ public:
 	DECLARE_EVENT_OneParam(ADaySequenceActor, FOnPostInitializeDaySequences, FSubSectionPreserveMap*)
 	FOnPostInitializeDaySequences& GetOnPostInitializeDaySequences() { return OnPostInitializeDaySequences; }
 
+	DECLARE_EVENT(ADaySequenceActor, FOnSequencePlayerUpdated)
+	FOnSequencePlayerUpdated& GetOnSequencePlayerUpdated() { return OnSequencePlayerUpdated; }
+	
 	void InvalidateMuteStates() const;
 	
 #if ENABLE_DRAW_DEBUG
@@ -515,6 +518,7 @@ protected:
 	FOnRootSequenceChanged OnPreRootSequenceChanged;
 	FOnRootSequenceChanged OnPostRootSequenceChanged;
 	FOnPostInitializeDaySequences OnPostInitializeDaySequences;
+	FOnSequencePlayerUpdated OnSequencePlayerUpdated;
 	UE::DaySequence::FOnInvalidateMuteStates OnInvalidateMuteStates;
 	
 #if ENABLE_DRAW_DEBUG
