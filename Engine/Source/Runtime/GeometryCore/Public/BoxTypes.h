@@ -481,6 +481,15 @@ struct TAxisAlignedBox3
 		return Contains(Box.Min) && Contains(Box.Max);
 	}
 
+	TVector<RealType> Clamp(const TVector<RealType>& V)
+	{
+		return TVector<RealType>(
+			FMath::Clamp(V.X, Min.X, Max.X),
+			FMath::Clamp(V.Y, Min.Y, Max.Y),
+			FMath::Clamp(V.Z, Min.Z, Max.Z)
+		);
+	}
+
 	TAxisAlignedBox3<RealType> Intersect(const TAxisAlignedBox3<RealType>& Box) const
 	{
 		TAxisAlignedBox3<RealType> Intersection(
@@ -754,6 +763,14 @@ struct TAxisAlignedBox2
 	bool Contains(const TAxisAlignedBox2<RealType>& Box) const
 	{
 		return Contains(Box.Min) && Contains(Box.Max);
+	}
+
+	TVector<RealType> Clamp(const TVector2<RealType>& V)
+	{
+		return TVector2<RealType>(
+			FMath::Clamp(V.X, Min.X, Max.X),
+			FMath::Clamp(V.Y, Min.Y, Max.Y)
+		);
 	}
 
 	bool Intersects(const TAxisAlignedBox2<RealType>& Box) const
