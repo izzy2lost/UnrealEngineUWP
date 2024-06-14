@@ -923,7 +923,7 @@ static int32 LoadCache(FDiskCache& DiskCache)
 		Handle->Seek(0);
 		if (!Handle->Read(Data.Get(), DataSize))
 		{
-			UE_LOG(LogIas, VeryVerbose, TEXT("JournaledCache: failed reading journal"));
+			UE_LOG(LogIas, Error, TEXT("JournaledCache: failed reading journal"));
 		}
 	}
 
