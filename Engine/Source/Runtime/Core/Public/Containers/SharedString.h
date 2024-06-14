@@ -159,8 +159,8 @@ TSharedString<CharType>::TSharedString(const TStringView<CharType> String)
 		static_assert(sizeof(int32) == sizeof(std::atomic<int32>));
 		const SIZE_T Size = sizeof(int32) + sizeof(int32) + sizeof(CharType) + sizeof(CharType) * Length;
 		int32* const Header = static_cast<int32*>(FMemory::Malloc(Size));
-		new(&Header[0]) std::atomic<int32>(1); // Ref Count
-		new(&Header[1]) int32(Length);
+		new((void*)&Header[0]) std::atomic<int32>(1); // Ref Count
+		new((void*)&Header[1]) int32(Length);
 		Chars = reinterpret_cast<CharType*>(&Header[2]);
 		String.CopyString(Chars, Length);
 		Chars[Length] = CharType(0);
