@@ -1070,7 +1070,12 @@ namespace UnrealGameSync
 
 				FlashWindow(ParentForm.Handle, true);
 
-				if (context.DeleteFiles.Count > 2000)
+				if (_settings.Global.AlwaysDeleteFiles)
+				{
+					StartWorkspaceUpdate(context, _updateCallback);
+					return;
+				}
+				else if (context.DeleteFiles.Count > 2000)
 				{
 					if (MessageBox.Show($"{context.DeleteFiles.Count:n0} files will be removed from your workspace by the current sync filter. Would you like to continue?", "Delete Files", MessageBoxButtons.OKCancel) == DialogResult.OK)
 					{
@@ -4792,6 +4797,7 @@ namespace UnrealGameSync
 		{
 			OptionsContextMenu_AutoResolveConflicts.Checked = _settings.Global.AutoResolveConflicts;
 			OptionsContextMenu_AlwaysClobberFiles.Checked = _settings.Global.AlwaysClobberFiles;
+			OptionsContextMenu_AlwaysDeleteFiles.Checked = _settings.Global.AlwaysDeleteFiles;
 
 			OptionsContextMenu_SyncPrecompiledBinaries.DropDownItems.Clear();
 
@@ -5299,6 +5305,13 @@ namespace UnrealGameSync
 		{
 			OptionsContextMenu_AlwaysClobberFiles.Checked ^= true;
 			_settings.Global.AlwaysClobberFiles = OptionsContextMenu_AlwaysClobberFiles.Checked;
+			_settings.Save(_logger);
+		}
+
+		private void OptionsContextMenu_AlwaysDeleteFiles_Click(object sender, EventArgs e)
+		{
+			OptionsContextMenu_AlwaysDeleteFiles.Checked ^= true;
+			_settings.Global.AlwaysDeleteFiles = OptionsContextMenu_AlwaysDeleteFiles.Checked;
 			_settings.Save(_logger);
 		}
 

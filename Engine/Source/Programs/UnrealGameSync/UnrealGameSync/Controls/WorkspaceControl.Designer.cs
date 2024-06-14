@@ -29,6 +29,7 @@ namespace UnrealGameSync
 			this.editorPhysXToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_AutoResolveConflicts = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_AlwaysClobberFiles = new System.Windows.Forms.ToolStripMenuItem();
+			this.OptionsContextMenu_AlwaysDeleteFiles = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_SyncFilter = new System.Windows.Forms.ToolStripMenuItem();
 			this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
 			this.OptionsContextMenu_EditorBuildConfiguration = new System.Windows.Forms.ToolStripMenuItem();
@@ -185,6 +186,7 @@ namespace UnrealGameSync
 			this.OptionsContextMenu_SyncPrecompiledBinaries,
 			this.OptionsContextMenu_AutoResolveConflicts,
 			this.OptionsContextMenu_AlwaysClobberFiles,
+			this.OptionsContextMenu_AlwaysDeleteFiles,
 			this.OptionsContextMenu_SyncFilter,
 			this.toolStripSeparator3,
 			this.OptionsContextMenu_EditorBuildConfiguration,
@@ -266,6 +268,13 @@ namespace UnrealGameSync
 			OptionsContextMenu_AlwaysClobberFiles.Size = new Size(261, 22);
 			OptionsContextMenu_AlwaysClobberFiles.Text = "Always Clobber Files";
 			OptionsContextMenu_AlwaysClobberFiles.Click += OptionsContextMenu_AlwaysClobberFiles_Click;
+			// 
+			// OptionsContextMenu_AlwaysDeleteFiles
+			// 
+			OptionsContextMenu_AlwaysDeleteFiles.Name = "OptionsContextMenu_AlwaysDeleteFiles";
+			OptionsContextMenu_AlwaysDeleteFiles.Size = new Size(261, 22);
+			OptionsContextMenu_AlwaysDeleteFiles.Text = "Always Delete Files";
+			OptionsContextMenu_AlwaysDeleteFiles.Click += OptionsContextMenu_AlwaysDeleteFiles_Click;
 			// 
 			// OptionsContextMenu_SyncFilter
 			// 
@@ -1359,6 +1368,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.ToolTip BuildListToolTip;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AutoResolveConflicts;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AlwaysClobberFiles;
+		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AlwaysDeleteFiles;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_EditorArguments;
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_OpenVisualStudio;
 		private System.Windows.Forms.Panel panel1;
