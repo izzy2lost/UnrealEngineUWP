@@ -110,4 +110,9 @@ public:
 	 * @param Record The record which was set by this stream during a WriteData call.
 	 */
 	IRISCORE_API virtual void ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus Status, FDataStreamRecord const* Record) PURE_VIRTUAL(ProcessPacketDeliveryStatus,);
+
+	/**
+	 * @return true if the stream has no pending reliable data for which it is waiting on an acknowledgement.
+	 */
+	IRISCORE_API virtual bool HasAcknowledgedAllReliableData() const PURE_VIRTUAL(HasAcknowledgedAllReliableData, return true;);
 };

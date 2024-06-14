@@ -192,6 +192,13 @@ public:
 	IRISCORE_API bool IsValidConnection(uint32 ConnectionId) const;
 
 	/**
+	 * Sets a connection as gracefully closing, where it will flush all pending reliable data
+	 * before completely shutting down.
+	 * @param ConnectionId The ID of the connection that's closing.
+	 */
+	IRISCORE_API void SetConnectionGracefullyClosing(uint32 ConnectionId) const;
+
+	/**
 	 * Enable or disable the ReplicationDataStream to transmit data for a particular connection.
 	 * @param ConnectionId The ID of the connection to enable or disable object replication for.
 	 * @param bReplicationEnabled Whether to enable or disable object replication.

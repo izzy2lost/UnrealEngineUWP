@@ -137,7 +137,7 @@ bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, c
 	}
 
 	RPC->SetNetObjectReference(OwnerInfo.CallerRef, OwnerInfo.TargetRef);
-	AttachmentSendQueue.Enqueue(OwnerInfo.RootObjectIndex, OwnerInfo.SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC), SendFlags);
+	AttachmentSendQueue.Enqueue(OwnerInfo.RootObjectIndex, OwnerInfo.SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC), SendFlags, Connections->GetOpenConnections());
 	return true;
 }
 
@@ -163,6 +163,12 @@ bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const 
 	if (!Connections->IsValidConnection(ConnectionId))
 	{
 		UE_LOG(LogIris, Warning, TEXT("Trying to call RPC on non-existing connection %u."), ConnectionId);
+		return true;
+	}
+
+	if (!Connections->IsOpenConnection(ConnectionId))
+	{
+		// This connection is shutting down and only flushing existing reliable data, not sending new RPCs.
 		return true;
 	}
 
@@ -423,7 +429,7 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(uint32 ConnectionId
 	QueueEntry.Attachment = Attachment;
 }
 
-void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
+void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags, FNetBitArray OpenConnections)
 {
 	const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
 	FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
@@ -434,6 +440,7 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefInde
 	QueueEntry.SubObjectIndex = SubObjectIndex;
 	QueueEntry.SendFlags = SendFlags;
 	QueueEntry.Attachment = Attachment;
+	QueueEntry.MulticastConnections = MoveTemp(OpenConnections);
 
 	bHasMulticastAttachments = true;
 }
@@ -565,10 +572,21 @@ bool FNetBlobManager::HasUnprocessedReliableAttachments(FInternalNetRefIndex Int
 	return AttachmentSendQueue.HasUnprocessedReliableAttachments(InternalIndex);
 }
 
+bool FNetBlobManager::HasAnyUnprocessedReliableAttachments() const
+{
+	return AttachmentSendQueue.HasAnyUnprocessedReliableAttachments();
+}
+
 bool FNetBlobManager::FNetObjectAttachmentSendQueue::HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const
 {
 	// For the moment we only need to check the AttachmentQueue as reliable attachments are not schedules as immediate.
 	return AttachmentQueue.ContainsByPredicate([&InternalIndex](const FNetObjectAttachmentQueueEntry& Entry) { return (Entry.OwnerIndex == InternalIndex || Entry.SubObjectIndex == InternalIndex) && Entry.Attachment->IsReliable();} );
+}
+
+bool FNetBlobManager::FNetObjectAttachmentSendQueue::HasAnyUnprocessedReliableAttachments()  const
+{
+	// For the moment we only need to check the AttachmentQueue as reliable attachments are not schedules as immediate.
+	return AttachmentQueue.ContainsByPredicate([](const FNetObjectAttachmentQueueEntry& Entry) { return Entry.Attachment->IsReliable(); });
 }
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode ProcessMode)
@@ -623,6 +641,12 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode P
 			{
 				// Objects won't be prioritized until there's a view so let's avoid queuing multicast attachments.
 				if (!bIsReliableRPC && ProcessContext.Connections->GetReplicationView(ConnectionId).Views.Num() <= 0)
+				{
+					continue;
+				}
+
+				// Don't send RPCs to connections that were already closing when the RPC was called/queued
+				if (!Entry.MulticastConnections.IsBitSet(ConnectionId))
 				{
 					continue;
 				}

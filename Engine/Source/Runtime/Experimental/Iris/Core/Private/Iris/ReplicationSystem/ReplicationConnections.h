@@ -26,6 +26,7 @@ struct FReplicationConnection
 	FReplicationWriter* ReplicationWriter = nullptr;
 	FReplicationReader* ReplicationReader = nullptr;
 	FObjectPtr UserData = nullptr;
+	bool bIsClosing = false; // Should be set when a connection starts the graceful close process to finish flushing reliable data
 };
 
 class FReplicationConnections
@@ -66,6 +67,11 @@ public:
 		return ConnectionId < GetMaxConnectionCount() && ValidConnections.GetBit(ConnectionId);
 	}
 
+	bool IsOpenConnection(uint32 ConnectionId) const
+	{
+		return ConnectionId < GetMaxConnectionCount() && ValidConnections.GetBit(ConnectionId) && !Connections[ConnectionId].bIsClosing;
+	}
+
 	void AddConnection(uint32 ConnectionId)
 	{
 		check(ValidConnections.GetBit(ConnectionId) == false);
@@ -78,6 +84,9 @@ public:
 
 	const FNetBitArray& GetValidConnections() const { return ValidConnections; }
 
+	// Returns connections that are not in the closing state
+	FNetBitArray GetOpenConnections() const;
+
 	void InitDataStreams(uint32 ReplicationSystemId, uint32 ConnectionId, UDataStreamManager* DataStreamManager);
 
 	void SetReplicationView(uint32 ConnectionId, const FReplicationView& ViewInfo);
@@ -85,6 +94,13 @@ public:
 
 	const FNetTokenStoreState& GetRemoteNetTokenStoreState(uint32 ConnectionId) const { return RemoteNetTokenStoreStates[ConnectionId]; }
 	FNetTokenStoreState& GetRemoteNetTokenStoreState(uint32 ConnectionId) { return RemoteNetTokenStoreStates[ConnectionId]; }
+
+	// Flag a connection as being in a graceful-close state meant to flush pending reliable data.
+	void SetConnectionIsClosing(uint32 ConnectionId)
+	{
+		check(ValidConnections.GetBit(ConnectionId) == true);
+		Connections[ConnectionId].bIsClosing = true;
+	}
 
 private:
 	void DestroyReplicationReaderAndWriter(uint32 ConnectionId);

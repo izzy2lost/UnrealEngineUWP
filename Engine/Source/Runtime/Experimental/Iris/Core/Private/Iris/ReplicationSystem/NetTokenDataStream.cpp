@@ -232,3 +232,8 @@ void UNetTokenDataStream::ProcessPacketDeliveryStatus(UE::Net::EPacketDeliverySt
 		}
 	}
 }
+
+bool UNetTokenDataStream::HasAcknowledgedAllReliableData() const
+{
+	return NetTokensPendingExport.Num() == 0 && NetTokenExports.Num() == 0;
+}

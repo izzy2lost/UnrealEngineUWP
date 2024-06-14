@@ -499,3 +499,13 @@ void UDataStreamChannel::AppendExportBunches(TArray<FOutBunch*>& OutExportBunche
 void UDataStreamChannel::AppendMustBeMappedGuids(FOutBunch* Bunch)
 {
 }
+
+bool UDataStreamChannel::HasAcknowledgedAllReliableData() const
+{
+	if (DataStreamManager)
+	{
+		return DataStreamManager->HasAcknowledgedAllReliableData();
+	}
+
+	return true;
+}

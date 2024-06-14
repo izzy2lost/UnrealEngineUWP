@@ -345,6 +345,12 @@ bool FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 	return true;
 }
 
+bool FReplicationWriter::AreAllReliableAttachmentsSentAndAcked() const
+{
+	const bool bHasUnprocessedReliables = ReplicationSystemInternal->GetNetBlobManager().HasAnyUnprocessedReliableAttachments();
+	return !bHasUnprocessedReliables && Attachments.AreAllObjectsReliableSentAndAcked();
+}
+
 void FReplicationWriter::SetState(uint32 InternalIndex, EReplicatedObjectState NewState)
 {
 	FReplicationInfo& Info = GetReplicationInfo(InternalIndex);

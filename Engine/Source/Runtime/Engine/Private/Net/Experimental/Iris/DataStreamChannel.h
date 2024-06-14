@@ -57,7 +57,9 @@ private:
 	/** Packet delivery status handling */
 	ENGINE_API virtual void ReceivedAck(int32 PacketId) override;
 	ENGINE_API virtual void ReceivedNak(int32 PacketId) override;
-	
+
+	ENGINE_API virtual bool HasAcknowledgedAllReliableData() const override;
+
 private:
 	enum : uint32
 	{

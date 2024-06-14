@@ -449,7 +449,13 @@ public:
 		auto UpdateDirtyChangeMasks = [&Connections, &UpdatedChangeMasks](uint32 ConnectionId)
 		{
 			FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
-			Conn->ReplicationWriter->UpdateDirtyChangeMasks(UpdatedChangeMasks);
+			
+			// Only update open connections, as closing connections are only
+			// flushing reliable data and we shouldn't send new state data to them.
+			if (!Conn->bIsClosing)
+			{
+				Conn->ReplicationWriter->UpdateDirtyChangeMasks(UpdatedChangeMasks);
+			}
 		};
 		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
 		ValidConnections.ForAllSetBits(UpdateDirtyChangeMasks);
@@ -944,6 +950,15 @@ bool UReplicationSystem::IsValidConnection(uint32 ConnectionId) const
 {
 	UE::Net::Private::FReplicationConnections& Connections = Impl->ReplicationSystemInternal.GetConnections();
 	return Connections.GetConnection(ConnectionId) != nullptr;
+}
+
+
+void UReplicationSystem::SetConnectionGracefullyClosing(uint32 ConnectionId) const
+{
+	UE::Net::Private::FReplicationConnections& Connections = Impl->ReplicationSystemInternal.GetConnections();
+	check(Connections.IsValidConnection(ConnectionId));
+
+	Connections.SetConnectionIsClosing(ConnectionId);
 }
 
 void UReplicationSystem::SetReplicationEnabledForConnection(uint32 ConnectionId, bool bReplicationEnabled)

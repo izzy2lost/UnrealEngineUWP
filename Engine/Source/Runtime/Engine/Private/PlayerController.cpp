@@ -277,14 +277,10 @@ UNetConnection* APlayerController::GetNetConnection() const
 
 bool APlayerController::DestroyNetworkActorHandled()
 {
-	UNetConnection* C = Cast<UNetConnection>(Player);
-	if (C)
+	UNetConnection* Connection = Cast<UNetConnection>(Player);
+	if (Connection)
 	{
-		if (C->Channels[0] && C->GetConnectionState() != USOCK_Closed)
-		{
-			C->bPendingDestroy = true;
-			C->Channels[0]->Close(EChannelCloseReason::Destroyed);
-		}
+		Connection->GracefulClose(ENetCloseResult::ControlChannelClose);
 		return true;
 	}
 

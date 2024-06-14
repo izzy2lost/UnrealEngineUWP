@@ -71,6 +71,9 @@ public:
 	/** Called for all data streams that wrote to a packet whose delivery status is now known. */
 	IRISCORE_API virtual void ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus Status, FDataStreamRecord const* Record) override;
 
+	/** Returns true if calling HasAcknowledgedAllReliableData on all data streams also returns true. */
+	IRISCORE_API virtual bool HasAcknowledgedAllReliableData() const override;
+
 	// DataStreamManager specifics
 
 	/**

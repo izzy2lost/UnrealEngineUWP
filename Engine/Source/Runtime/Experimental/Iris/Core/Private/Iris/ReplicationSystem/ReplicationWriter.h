@@ -193,6 +193,8 @@ public:
 	// Queue NetObjectAttachments, returns whether the attachments was enqueued or not.
 	bool QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments, ENetObjectAttachmentSendPolicyFlags SendFlags);
 
+	bool AreAllReliableAttachmentsSentAndAcked() const;
+
 private:
 	// Various types
 

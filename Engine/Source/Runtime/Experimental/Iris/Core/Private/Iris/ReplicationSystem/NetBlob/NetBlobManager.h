@@ -49,7 +49,8 @@ public:
 	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 
-	bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const;
+	bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex) const;
+	bool HasAnyUnprocessedReliableAttachments() const;
 
 	enum class EProcessMode 
 	{
@@ -118,7 +119,7 @@ private:
 		void Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags);
 
 		// Multicast
-		void Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags);
+		void Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags, FNetBitArray OpenConnections);
 
 		void PrepareProcessQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager);
 		void ProcessQueue(EProcessMode ProcessMode);
@@ -126,6 +127,7 @@ private:
 		void PrepareAndProcessOOBAttachmentQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager, FNetBitArray& OutConnetionsPendingImmediateSend);
 
 		bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const;
+		bool HasAnyUnprocessedReliableAttachments()  const;
 	
 	private:
 		struct FNetObjectAttachmentQueueEntry
@@ -135,6 +137,7 @@ private:
 			FInternalNetRefIndex SubObjectIndex;
 			ENetObjectAttachmentSendPolicyFlags SendFlags;
 			TRefCountPtr<FNetObjectAttachment> Attachment;
+			FNetBitArray MulticastConnections;
 		};
 		typedef TArray<FNetObjectAttachmentQueueEntry> FQueue;
 

@@ -58,6 +58,16 @@ void UReplicationDataStream::ProcessPacketDeliveryStatus(UE::Net::EPacketDeliver
 	}
 }
 
+bool UReplicationDataStream::HasAcknowledgedAllReliableData() const
+{
+	if (ReplicationWriter != nullptr)
+	{
+		return ReplicationWriter->AreAllReliableAttachmentsSentAndAcked();
+	}
+
+	return true;
+}
+
 void UReplicationDataStream::SetReaderAndWriter(UE::Net::Private::FReplicationReader* Reader, UE::Net::Private::FReplicationWriter* Writer)
 {
 	ReplicationReader = Reader;

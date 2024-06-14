@@ -65,6 +65,21 @@ void FReplicationConnections::RemoveConnection(uint32 ConnectionId)
 	ValidConnections.ClearBit(ConnectionId);
 }
 
+FNetBitArray FReplicationConnections::GetOpenConnections() const
+{
+	FNetBitArray OpenConnections(ValidConnections.GetNumBits());
+
+	for (int32 ConnectionId = 0; ConnectionId < Connections.Num(); ++ConnectionId)
+	{
+		if (ValidConnections.IsBitSet(ConnectionId) && !Connections[ConnectionId].bIsClosing)
+		{
+			OpenConnections.SetBit(ConnectionId);
+		}
+	}
+
+	return OpenConnections;
+}
+
 void FReplicationConnections::DestroyReplicationReaderAndWriter(uint32 ConnectionId)
 {
 	FReplicationConnection* Connection = GetConnection(ConnectionId);

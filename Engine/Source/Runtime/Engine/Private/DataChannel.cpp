@@ -302,7 +302,7 @@ int64 UChannel::Close(EChannelCloseReason Reason)
 
 	int64 NumBits = 0;
 
-	if ( !Closing && ( Connection->GetConnectionState() == USOCK_Open || Connection->GetConnectionState() == USOCK_Pending ) && !SentClosingBunch)
+	if ( !Closing && ( Connection->GetConnectionState() == USOCK_Open || Connection->GetConnectionState() == USOCK_Pending || (Connection->GetConnectionState() == USOCK_Closing && ChIndex == 0)) && !SentClosingBunch)
 	{
 		if ( ChIndex == 0 )
 		{
@@ -1617,6 +1617,11 @@ void UChannel::AddedToChannelPool()
 	OpenPacketId = FPacketIdRange();
 	NumInRec = 0;
 	NumOutRec = 0;
+}
+
+bool UChannel::HasAcknowledgedAllReliableData() const
+{
+	return NumOutRec == 0;
 }
 
 /*-----------------------------------------------------------------------------

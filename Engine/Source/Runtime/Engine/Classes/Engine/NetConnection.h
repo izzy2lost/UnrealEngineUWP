@@ -91,6 +91,7 @@ enum EConnectionState
 	USOCK_Closed    = 1, // Connection permanently closed.
 	USOCK_Pending	= 2, // Connection is awaiting connection.
 	USOCK_Open      = 3, // Connection is open.
+	USOCK_Closing   = 4, // Connection is closing and waiting for all reliable data to be acked. No new data will be sent.
 };
 ENGINE_API const TCHAR* LexToString(const EConnectionState Value);
 
@@ -406,6 +407,9 @@ public:
 	ENGINE_API const EConnectionState GetConnectionState() const;
 	ENGINE_API void SetConnectionState(EConnectionState ConnectionState);
 	
+	/** Returns true if this connection's state is USOCK_Closing or USOCK_Closed. No new data should be sent in this case. */
+	ENGINE_API bool IsClosingOrClosed() const;
+
 	uint32 bPendingDestroy:1;    // when true, playercontroller or beaconclient is being destroyed
 
 
@@ -538,6 +542,9 @@ public:
 private:
 	/** total packets received on this connection, including PacketHandler */
 	int32 InTotalHandlerPackets;
+
+	/** Driver ElapsedTime at which a graceful close will time out and terminate. */
+	double GracefulCloseTimeoutDeadline = 0.0;
 
 public:
 	int32 GetInTotalHandlerPackets() const
@@ -1037,6 +1044,25 @@ public:
 	 */
 	ENGINE_API void Close(FNetResult&& CloseReason);
 
+
+	/**
+	 * Starts a graceful close. If net.EnableGracefulClose is true, waits longer for reliable RPCs to be acknowledged before fully cleaning up the connection.
+	 * If net.EnableGracefulClose is false, immediately sends the control channel close bunch. Reliable RPCs may be lost.
+	 *
+	 * @param CloseReason	Specifies the reason for the Close
+	 */
+	ENGINE_API void GracefulClose(FNetResult&& CloseReason);
+
+	/**
+	 * Starts a graceful close. If net.EnableGracefulClose is true, waits longer for reliable RPCs to be acknowledged before fully cleaning up the connection.
+	 * If net.EnableGracefulClose is false, immediately sends the control channel close bunch. Reliable RPCs may be lost.
+	 *
+	 * @param CloseReason	Specifies the reason for the Close
+	 */
+	void GracefulClose(FNetCloseResult&& CloseReason)
+	{
+		GracefulClose(static_cast<FNetResult&&>(MoveTemp(CloseReason)));
+	}
 
 	/** closes the control channel, cleans up structures, and prepares for deletion */
 	ENGINE_API virtual void CleanUp();
@@ -1760,6 +1786,9 @@ private:
 	/** Whether or not this NetConnection has already received an NMT_CloseReason message */
 	bool bReceivedCloseReason = false;
 
+	/** Stored close reason from a GracefulClose call, to be used in the actual Close */
+	TPimplPtr<UE::Net::FNetResult, EPimplPtrMode::DeepCopy> PendingGracefulCloseResult;
+
 	/** Ping collection and calculation */
 	TPimplPtr<UE::Net::FNetPing> NetPing;
 
@@ -1833,6 +1862,11 @@ private:
 	 */
 	void HandleNetResultOrClose(ENetCloseResult InResult);
 
+	/**
+	 * If this connection is in the USOCK_Closing state, check whether all reliables have been acknowledged, if so, actually Close (send control channel close bunch).
+	 */
+	void TryClosePendingGracefulClose();
+
 protected:
 	TOptional<FNetworkCongestionControl> NetworkCongestionControl;
 
@@ -1898,24 +1932,29 @@ struct FNetConnectionSettings
 	{
 #if DO_ENABLE_NET_TEST
 		PacketLag = InConnection->PacketSimulationSettings.PktLag;
+		PacketLoss = InConnection->PacketSimulationSettings.PktLoss;
 #else
 		PacketLag = 0;
+		PacketLoss = 0;
 #endif
 	}
 
 	FNetConnectionSettings( int32 InPacketLag )
 	{
 		PacketLag = InPacketLag;
+		PacketLoss = 0;
 	}
 
 	void ApplyTo(UNetConnection* Connection)
 	{
 #if DO_ENABLE_NET_TEST
 		Connection->PacketSimulationSettings.PktLag = PacketLag;
+		Connection->PacketSimulationSettings.PktLoss = PacketLoss;
 #endif
 	}
 
 	int32 PacketLag;
+	int32 PacketLoss;
 };
 
 /** Allows you to temporarily set connection settings within a scape. This will also force flush the connection before/after.
@@ -1929,19 +1968,20 @@ struct FScopedNetConnectionSettings
 		if (ShouldApply)
 		{
 			Connection->FlushNet();
-			NewSettings.ApplyTo(Connection);
+			NewSettings.ApplyTo(Connection.Get());
 		}
 	}
 	~FScopedNetConnectionSettings()
 	{
-		if (ShouldApply)
+		UNetConnection* LocalConnection = Connection.Get();
+		if (LocalConnection && ShouldApply)
 		{
-			Connection->FlushNet();
-			OldSettings.ApplyTo(Connection);
+			LocalConnection->FlushNet();
+			OldSettings.ApplyTo(LocalConnection);
 		}
 	}
 
-	UNetConnection * Connection;
+	TWeakObjectPtr<UNetConnection> Connection;
 	FNetConnectionSettings OldSettings;
 	bool ShouldApply;
 };

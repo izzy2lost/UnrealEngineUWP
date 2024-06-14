@@ -53,3 +53,8 @@ void UMockDataStream::ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus
 	Records.Pop();
 	CallStatus.ProcessPacketDeliveryStatusMagicValue = Record->MagicValue;
 }
+
+bool UMockDataStream::HasAcknowledgedAllReliableData() const
+{
+	return true;
+}

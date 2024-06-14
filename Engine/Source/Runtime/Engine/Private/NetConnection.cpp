@@ -209,6 +209,9 @@ namespace UE::Net::Connection::Private
 		return false;
 	}
 
+	bool bGracefulCloseEnabled = true;
+	FAutoConsoleVariableRef CVarNetGracefulCloseEnabled(TEXT("net.GracefulCloseEnabled"), bGracefulCloseEnabled, TEXT("If enabled, connections will wait for reliable bunches to be acked before cleaning up."));
+
 	int32 bTrackFlushedDormantObjects = true;
 	FAutoConsoleVariableRef CVarNetTrackFlushedDormantObjects(TEXT("net.TrackFlushedDormantObjects"), bTrackFlushedDormantObjects, TEXT("If enabled, track dormant subobjects when dormancy is flushed, so they can be properly deleted if destroyed prior to the next ReplicateActor."));
 
@@ -1045,6 +1048,12 @@ const TCHAR* LexToString(const EConnectionState Value)
 	}
 }
 
+bool UNetConnection::IsClosingOrClosed() const
+{
+	const EConnectionState CurrentState = GetConnectionState();
+	return CurrentState == USOCK_Closing || CurrentState == USOCK_Closed;
+}
+
 void UNetConnection::Close(FNetResult&& CloseReason)
 {
 	if (IsInternalAck())
@@ -1110,6 +1119,61 @@ void UNetConnection::Close(FNetResult&& CloseReason)
 	LogCallLastTime		= 0;
 	LogCallCount		= 0;
 	LogSustainedCount	= 0;
+}
+
+void UNetConnection::GracefulClose(FNetResult&& CloseReason)
+{
+	bPendingDestroy = true;
+
+	if (Channels[0] && GetConnectionState() != USOCK_Closed)
+	{
+		if (UE::Net::Connection::Private::bGracefulCloseEnabled && GetConnectionState() != USOCK_Closing)
+		{
+			UE_LOG(LogNet, Log, TEXT("Initiating graceful close. CloseReason: %s. %s"), ToCStr(CloseReason.DynamicToString(UE::Net::ENetResultString::WithChain)), *Describe());
+
+			PendingGracefulCloseResult = MakePimpl<FNetResult, EPimplPtrMode::DeepCopy>(MoveTemp(CloseReason));
+
+			SetConnectionState(EConnectionState::USOCK_Closing);
+			GracefulCloseTimeoutDeadline = Driver->GetElapsedTime() + Driver->GracefulCloseConnectionTimeout;
+
+#if UE_WITH_IRIS
+			if (UReplicationSystem* ReplicationSystem = Driver->GetReplicationSystem())
+			{
+				ReplicationSystem->SetConnectionGracefullyClosing(ConnectionId);
+			}
+#endif
+
+			// Might as well try to close immediately in case there isn't any pending reliable data.
+			TryClosePendingGracefulClose();
+		}
+		else
+		{
+			Close(MoveTemp(CloseReason));
+		}
+	}
+}
+
+void UNetConnection::TryClosePendingGracefulClose()
+{
+	if (GetConnectionState() == USOCK_Closing)
+	{
+		bool bAllChannelsReadyToClose = true;
+
+		for (TObjectPtr<class UChannel> Channel : OpenChannels)
+		{
+			if (Channel != nullptr && !Channel->HasAcknowledgedAllReliableData())
+			{
+				bAllChannelsReadyToClose = false;
+				break;
+			}
+		}
+
+		if (bAllChannelsReadyToClose)
+		{
+			UE_LOG(LogNet, Log, TEXT("Graceful close complete, closing connection: %s"), *Describe());
+			Close(MoveTemp(*PendingGracefulCloseResult));
+		}
+	}
 }
 
 void UNetConnection::HandleNetResultOrClose(ENetCloseResult InResult)
@@ -1506,7 +1570,7 @@ bool UNetConnection::Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar 
 void UNetConnection::AssertValid()
 {
 	// Make sure this connection is in a reasonable state.
-	check(GetConnectionState()==USOCK_Closed || GetConnectionState()==USOCK_Pending || GetConnectionState()==USOCK_Open);
+	check(IsClosingOrClosed() || GetConnectionState() == USOCK_Pending || GetConnectionState() == USOCK_Open);
 
 }
 
@@ -4503,11 +4567,21 @@ void UNetConnection::Tick(float DeltaSeconds)
 	// Handle timeouts.
 	const float Timeout = GetTimeoutValue();
 
-	if ((CurrentRealtimeSeconds - LastReceiveRealtime) > Timeout)
+	const bool bReceiveTimedOut = (CurrentRealtimeSeconds - LastReceiveRealtime) > Timeout;
+	const bool bGracefulCloseTimedOut = (GetConnectionState() == USOCK_Closing) && (DriverElapsedTime > GracefulCloseTimeoutDeadline);
+
+	if (bReceiveTimedOut || bGracefulCloseTimedOut)
 	{
 		const TCHAR* const TimeoutString = TEXT("UNetConnection::Tick: Connection TIMED OUT. Closing connection.");
 		const TCHAR* const DestroyString = TEXT("UNetConnection::Tick: Connection closing during pending destroy, not all shutdown traffic may have been negotiated");
-		
+
+		const TCHAR* ErrorString = bPendingDestroy ? DestroyString : TimeoutString;
+
+		if (bGracefulCloseTimedOut)
+		{
+			ErrorString = TEXT("UNetConnection::Tick: Connection graceful close timed out, not all shutdown traffic was negotiated");
+		}
+
 		// Compute true realtime since packet was received (as well as truly processed)
 		const double Seconds = FPlatformTime::Seconds();
 
@@ -4516,12 +4590,12 @@ void UNetConnection::Tick(float DeltaSeconds)
 
 		// Timeout.
 		FString Error = FString::Printf(TEXT("%s. Elapsed: %2.2f, Real: %2.2f, Good: %2.2f, DriverTime: %2.2f, Threshold: %2.2f, %s"),
-			bPendingDestroy ? DestroyString : TimeoutString,
+			ErrorString,
 			DriverElapsedTime - LastReceiveTime,
 			ReceiveRealtimeDelta,
 			GoodRealtimeDelta,
 			DriverElapsedTime,
-			Timeout,
+			bGracefulCloseTimedOut ? Driver->GracefulCloseConnectionTimeout : Timeout,
 			*Describe());
 		
 		static double LastTimePrinted = 0.0f;
@@ -4614,6 +4688,9 @@ void UNetConnection::Tick(float DeltaSeconds)
 				ProcessingActorMapIter.RemoveCurrent();
 			}
 		}
+
+		// If gracefully closing, check whether all channels are ready for close
+		TryClosePendingGracefulClose();
 
 		// If channel 0 has closed, mark the connection as closed.
 		if (Channels[0] == nullptr && (OutReliable[0] != InitOutReliable || InReliable[0] != InitInReliable))

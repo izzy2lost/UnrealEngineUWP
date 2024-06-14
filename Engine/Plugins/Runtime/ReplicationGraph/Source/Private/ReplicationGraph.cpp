@@ -2431,6 +2431,11 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 			FConnectionReplicationActorInfo& ConnectionActorInfo = Manager->ActorInfoMap.FindOrAdd(Actor);
 			UNetConnection* NetConnection = Manager->NetConnection;
 
+			if (NetConnection->IsClosingOrClosed())
+			{
+				return true;
+			}
+
 			// This connection isn't ready yet
 			if (NetConnection->ViewTarget == nullptr)
 			{
@@ -2562,7 +2567,7 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 			Connection = ((UChildConnection*)Connection)->Parent;
 		}
 	
-		if (Connection->GetConnectionState() == USOCK_Closed)
+		if (Connection->IsClosingOrClosed())
 		{
 			return true;
 		}
@@ -2887,8 +2892,8 @@ bool UNetReplicationGraphConnection::PrepareForReplication()
 	
 	UWorld* CurrentWorld = GetWorld();
 	UPackage* CurrentWorldPackage = CurrentWorld ? CurrentWorld->GetPackage() : nullptr;
-	bool bConnectionHasCorrectWorld = CurrentWorldPackage ? NetConnection->GetClientWorldPackageName() == CurrentWorldPackage->GetFName() : true;
-	
+	const bool bConnectionHasCorrectWorld = CurrentWorldPackage ? NetConnection->GetClientWorldPackageName() == CurrentWorldPackage->GetFName() : true;
+
 	// Set any children viewtargets
 	for (int32 i = 0; i < NetConnection->Children.Num(); ++i)
 	{
@@ -2923,7 +2928,7 @@ bool UNetReplicationGraphConnection::PrepareForReplication()
 		}
 	}
 
-	return (NetConnection->GetConnectionState() != USOCK_Closed) && (NetConnection->ViewTarget != nullptr) && bConnectionHasCorrectWorld;
+	return !NetConnection->IsClosingOrClosed() && (NetConnection->ViewTarget != nullptr) && bConnectionHasCorrectWorld;
 }
 
 void UNetReplicationGraphConnection::BuildVisibleLevels()

@@ -168,6 +168,9 @@ public:
 	/* Notification that this channel has been placed in a channel pool and needs to reset to its original state so it can be used again like a new channel */
 	ENGINE_API virtual void AddedToChannelPool();
 
+	/** Returns true if this channel has flushed and acknowledged pending reliable data during a graceful close (when net.EnableGracefulClose is true) */
+	ENGINE_API virtual bool HasAcknowledgedAllReliableData() const;
+
 protected:
 
 	/** Closes the actor channel but with a 'dormant' flag set so it can be reopened */

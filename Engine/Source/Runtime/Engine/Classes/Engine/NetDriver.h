@@ -910,6 +910,13 @@ public:
 	UPROPERTY(Config)
 	float ConnectionTimeout;
 
+	/** 
+	 * Amount of time to wait for a graceful close/bPendingDestroy to complete before considering the connection timed out.  
+	 * This is the time used to allow any existing, pending reliable data to be acknowledged.
+	 */
+	UPROPERTY(Config)
+	float GracefulCloseConnectionTimeout = 2.0f;
+
 	/**
 	* A multiplier that is applied to the above values when we are running with unoptimized builds (debug)
 	* or data (uncooked). This allows us to retain normal timeout behavior while debugging without resorting

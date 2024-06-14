@@ -2586,8 +2586,16 @@ void UNetDriver::InternalProcessRemoteFunctionPrivate(
 		Connection = ((UChildConnection*)Connection)->Parent;
 	}
 
+	// Prevent RPC calls to gracefully-closing connections
+	const EConnectionState ConnectionState = Connection->GetConnectionState();
+	if (ConnectionState == USOCK_Closing)
+	{
+		DEBUG_REMOTEFUNCTION(TEXT("Attempting to call RPC on a closing connection. Not calling %s::%s"), *GetNameSafe(Actor), *GetNameSafe(Function));
+		return;
+	}
+
 	// Prevent RPC calls to closed connections
-	if (Connection->GetConnectionState() == USOCK_Closed)
+	if (ConnectionState == USOCK_Closed)
 	{
 		DEBUG_REMOTEFUNCTION(TEXT("Attempting to call RPC on a closed connection. Not calling %s::%s"), *GetNameSafe(Actor), *GetNameSafe(Function));
 		return;
@@ -4935,7 +4943,7 @@ int32 UNetDriver::ServerReplicateActors_PrepConnections( const float DeltaSecond
 	{
 		UNetConnection* Connection = ClientConnections[ConnIdx];
 		check( Connection );
-		check( Connection->GetConnectionState() == USOCK_Pending || Connection->GetConnectionState() == USOCK_Open || Connection->GetConnectionState() == USOCK_Closed );
+		check( Connection->GetConnectionState() == USOCK_Pending || Connection->GetConnectionState() == USOCK_Open || Connection->IsClosingOrClosed());
 		checkSlow( Connection->GetUChildConnection() == NULL );
 
 		// Handle not ready channels.

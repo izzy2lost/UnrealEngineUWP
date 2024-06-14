@@ -503,6 +503,27 @@ bool FNetObjectAttachmentsWriter::IsAllReliableSentAndAcked(ENetObjectAttachment
 	return Queue->IsAllSentAndAcked();
 }
 
+bool FNetObjectAttachmentsWriter::AreAllObjectsReliableSentAndAcked() const
+{
+	for (const auto& ObjectQueuePair : ObjectToQueue)
+	{
+		if (!ObjectQueuePair.Value.IsAllReliableSentAndAcked())
+		{
+			return false;
+		}
+	}
+
+	for (const TUniquePtr<FNetObjectAttachmentSendQueue>& SpecialQueue : SpecialQueues)
+	{
+		if (SpecialQueue.IsValid() && !SpecialQueue->IsAllReliableSentAndAcked())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool FNetObjectAttachmentsWriter::CanSendMoreReliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const
 {
 	const FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
