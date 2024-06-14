@@ -332,6 +332,13 @@ namespace UE
 		{
 			MarkPropertyAsLoose(AsOptionalProperty->GetValueProperty());
 		}
+		else if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
+		{
+			for (FProperty* InnerProperty : TFieldRange<FProperty>(AsStructProperty->Struct))
+			{
+				MarkPropertyAsLoose(InnerProperty);
+			}
+		}
 	}
 
 	// constructs an InstanceDataObject struct by merging the properties in 
