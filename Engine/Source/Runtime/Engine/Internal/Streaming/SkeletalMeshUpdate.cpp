@@ -111,10 +111,12 @@ void FSkeletalMeshStreamIn::FIntermediateRayTracingGeometry::SafeRelease()
 
 void FSkeletalMeshStreamIn::FIntermediateRayTracingGeometry::TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceReplaceBatcher& Batcher)
 {
-	RayTracingGeometry.InitRHIForStreaming(RayTracingGeometryRHI, Batcher);
-	RayTracingGeometry.SetRequiresBuild(bRequiresBuild);
-
-	SafeRelease();
+	if (ensureMsgf(RayTracingGeometryRHI.IsValid(),
+		TEXT("FIntermediateRayTracingGeometry should have a valid RHI object. Was r.RayTracing.Enable toggled between FStaticMeshStreamIn::CreateBuffers(...) and FStaticMeshStreamIn::DoFinishUpdate(...)?")))
+	{
+		RayTracingGeometry.InitRHIForStreaming(RayTracingGeometryRHI, Batcher);
+		RayTracingGeometry.SetRequiresBuild(bRequiresBuild);
+	}
 }
 
 #endif
@@ -209,10 +211,12 @@ void FSkeletalMeshStreamIn::DoFinishUpdate(const FContext& Context)
 			{
 				FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIdx];
 
-				if (LODResource.GetNumVertices() > 0 && LODResource.bReferencedByStaticSkeletalMeshObjects_RenderThread)
+				if (IsRayTracingEnabled() && LODResource.GetNumVertices() > 0 && LODResource.bReferencedByStaticSkeletalMeshObjects_RenderThread && !LODResource.StaticRayTracingGeometry.IsEvicted())
 				{
 					IntermediateRayTracingGeometry[LODIdx].TransferRayTracingGeometry(LODResource.StaticRayTracingGeometry, Batcher);
 				}
+
+				IntermediateRayTracingGeometry[LODIdx].SafeRelease();
 			}
 		}
 
@@ -382,12 +386,9 @@ void FSkeletalMeshStreamOut::ReleaseBuffers(const FContext& Context)
 				}
 
 #if RHI_RAYTRACING
-				if (IsRayTracingAllowed())
+				if (IsRayTracingAllowed() && RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread && !LODResource.StaticRayTracingGeometry.IsEvicted())
 				{
-					if (RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
-					{
-						LODResource.StaticRayTracingGeometry.ReleaseRHIForStreaming(Batcher);
-					}
+					LODResource.StaticRayTracingGeometry.ReleaseRHIForStreaming(Batcher);
 				}
 #endif
 			}

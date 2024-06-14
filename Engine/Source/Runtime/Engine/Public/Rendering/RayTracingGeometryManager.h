@@ -71,7 +71,7 @@ private:
 
 	void ReleaseRayTracingGeometryGroupReference(RayTracing::GeometryGroupHandle Handle);
 
-	void RequestRayTracingGeometryStreamIn(FRHICommandList& RHICmdList, FRayTracingGeometry* Geometry);
+	bool RequestRayTracingGeometryStreamIn(FRHICommandList& RHICmdList, FRayTracingGeometry* Geometry);
 	void ProcessCompletedStreamingRequests(FRHICommandList& RHICmdList);
 
 	FCriticalSection RequestCS;
@@ -139,6 +139,8 @@ private:
 
 	TSet<RayTracingGeometryHandle> ReferencedGeometryHandles;
 	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	TArray<FRayTracingGeometry*> PendingStreamingRequests;
 
 	TArray<FStreamingRequest> StreamingRequests;
 	int32 NumStreamingRequests = 0;

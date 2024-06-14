@@ -26,41 +26,35 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS // Remove this in UE 5.6 once RayTracingGeom
 
 void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceReplaceBatcher& Batcher)
 {
-	ensureMsgf(RayTracingGeometryRHI || !IsRayTracingEnabled(),
-		TEXT("RayTracingGeometryRHI should be valid when ray tracing is enabled.\n")
-		TEXT("This check failing points to a race condition between FRayTracingGeometryManager::Tick(...) and FStaticMeshStreamIn processing.\n")
+	checkf(IntermediateGeometry,
+		TEXT("IntermediateGeometry should be valid when streaming-in ray tracing geometry.\n")
+		TEXT("This will result in FRayTracingGeometry not being correctly initialized.\n")
 	);
+
+	checkf(RayTracingGeometryRHI, TEXT("RayTracingGeometryRHI must be valid when InitRHIForStreaming is called.\n"));
 
 	Initializer.Type = ERayTracingGeometryInitializerType::Rendering;
 
+	Batcher.EnqueueReplace(RayTracingGeometryRHI, IntermediateGeometry);
+
+	EnumAddFlags(GeometryState, EGeometryStateFlags::Valid);
 	EnumAddFlags(GeometryState, EGeometryStateFlags::StreamedIn);
 
-	if (RayTracingGeometryRHI && IntermediateGeometry)
-	{
-		Batcher.EnqueueReplace(RayTracingGeometryRHI, IntermediateGeometry);
-		EnumAddFlags(GeometryState, EGeometryStateFlags::Valid);
-
-		GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
-	}
-	else
-	{
-		check(GetRayTracingMode() == ERayTracingMode::Dynamic);
-	}
+	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 }
 
 void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	RemoveBuildRequest();
 
+	checkf(RayTracingGeometryRHI, TEXT("RayTracingGeometryRHI must be valid when ReleaseRHIForStreaming is called.\n"));
+
 	EnumRemoveFlags(GeometryState, EGeometryStateFlags::StreamedIn);
 	EnumRemoveFlags(GeometryState, EGeometryStateFlags::Valid);
 
-	Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
+	Batcher.EnqueueReplace(RayTracingGeometryRHI, nullptr);
 
-	if (RayTracingGeometryRHI)
-	{
-		Batcher.EnqueueReplace(RayTracingGeometryRHI, nullptr);
-	}
+	Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 
 	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 }
@@ -79,6 +73,8 @@ void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandListBase& RHICmdList, 
 void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 {
 	check(EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted) && RayTracingGeometryRHI == nullptr);
+	checkf(!EnumHasAllFlags(GeometryState, EGeometryStateFlags::StreamedIn),
+		TEXT("Evicted FRayTracingGeometry shouldn't have StreamedIn flag set."));
 
 	if (!ensureMsgf(DynamicGeometrySharedBufferGenerationID == NonSharedVertexBuffers,
 		TEXT("Cannot call MakeResident(...) on FRayTracingGeometry using shared vertex buffers.\n")
@@ -91,62 +87,23 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 
 	EnumRemoveFlags(GeometryState, EGeometryStateFlags::Evicted);
 
-	// Streaming BLAS needs special handling to not get their "streaming" type wiped out as it will cause issues down the line.	
-	// We only have to do this if the geometry was marked to be streamed in.
-	// In that case we will recreate the geometry as-if it was streamed in.
-	if (EnumHasAnyFlags(GeometryState, FRayTracingGeometry::EGeometryStateFlags::StreamedIn))
-	{
-		FResourceArrayUploadInterface* OfflineData = Initializer.OfflineData;
-
-		Initializer.OfflineData = nullptr;
-
-		// When a mesh is streamed in (FStaticMeshStreamIn::DoFinishUpdate) we update the geometry initializer using just streamed in VB/IB.
-		// That initializer sets a Rendering type but RHI object was created as StreamingDestination and we have a mismatch between geometry initializer and RHI initializer.
-		// It's not an issue unless we try to initialize the geometry again using the geometry's initializer.
-		// We need the current geometry and RHI object to be StreamingDestination so the streaming continues to work.
-		Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
-
-		// Creating RHI with StreamingDestination type will only initialize RHI object but will not created the underlying BLAS buffers.
-		InitRHI(RHICmdList);
-
-		// Here we simulate geometry streaming: create geometry with StreamingSource type to allocate BLAS buffers (1) and swap it with the current geometry (2).
-		// Follows the same pattern as: (1) FStaticMeshStreamIn::CreateBuffers_* (2) FStaticMeshStreamIn::DoFinishUpdate
-		// There is no other way to initialize BLAS buffers for the geometry that has a StreamingDestination type.
-		{
-			FRHIResourceReplaceBatcher Batcher(RHICmdList, 1);
-			FRayTracingGeometryInitializer IntermediateInitializer = Initializer;
-			IntermediateInitializer.Type = ERayTracingGeometryInitializerType::StreamingSource;
-			IntermediateInitializer.OfflineData = OfflineData;
-
-			FRayTracingGeometryRHIRef IntermediateRayTracingGeometry = RHICmdList.CreateRayTracingGeometry(IntermediateInitializer);
-
-			SetRequiresBuild(IntermediateInitializer.OfflineData == nullptr || IntermediateRayTracingGeometry->IsCompressed());
-
-			InitRHIForStreaming(IntermediateRayTracingGeometry, Batcher);
-
-			// When Batcher goes out of scope it will add commands to copy the BLAS buffers on RHI thread.
-			// We need to do it before we build the current geometry (also on RHI thread).
-		}
-
-		RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
-	}
-	else
-	{
-		InitRHI(RHICmdList);
-	}
+	InitRHI(RHICmdList);
 }
 
 void FRayTracingGeometry::Evict()
 {
 	check(!EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted) && RayTracingGeometryRHI != nullptr);
+
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
 	EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
 
-	if (IsRayTracingUsingReferenceBasedResidency() && EnumHasAllFlags(GeometryState, EGeometryStateFlags::StreamedIn))
+	if (EnumHasAllFlags(GeometryState, EGeometryStateFlags::StreamedIn))
 	{
-		FRHIResourceReplaceBatcher Batcher(FRHICommandListImmediate::Get(), 1);
-		ReleaseRHIForStreaming(Batcher);
+		EnumRemoveFlags(GeometryState, EGeometryStateFlags::StreamedIn);
+		EnumRemoveFlags(GeometryState, EGeometryStateFlags::Valid);
+
+		Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 	}
 	
 	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);

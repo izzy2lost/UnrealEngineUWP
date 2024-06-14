@@ -124,10 +124,12 @@ void FStaticMeshStreamIn::FIntermediateRayTracingGeometry::SafeRelease()
 
 void FStaticMeshStreamIn::FIntermediateRayTracingGeometry::TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceReplaceBatcher& Batcher)
 {
-	RayTracingGeometry.InitRHIForStreaming(RayTracingGeometryRHI, Batcher);
-	RayTracingGeometry.SetRequiresBuild(bRequiresBuild);
-
-	SafeRelease();
+	if (ensureMsgf(RayTracingGeometryRHI.IsValid(),
+		TEXT("FIntermediateRayTracingGeometry should have a valid RHI object. Was r.RayTracing.Enable toggled between FStaticMeshStreamIn::CreateBuffers(...) and FStaticMeshStreamIn::DoFinishUpdate(...)?")))
+	{
+		RayTracingGeometry.InitRHIForStreaming(RayTracingGeometryRHI, Batcher);
+		RayTracingGeometry.SetRequiresBuild(bRequiresBuild);
+	}
 }
 
 #if DO_CHECK
@@ -176,7 +178,7 @@ void FStaticMeshStreamIn::CreateBuffers(const FContext& Context)
 			IntermediateBuffersArray[LODIdx].CreateFromCPUData(*StreamingRHICmdList, LODResource);
 
 #if RHI_RAYTRACING
-			if (IsRayTracingEnabled() && LODResource.RayTracingGeometry != nullptr && LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
+			if (IsRayTracingEnabled() && LODResource.RayTracingGeometry != nullptr && LODResource.GetNumVertices() > 0)
 			{
 #if DO_CHECK
 				CheckRayTracingGeometryInitializer(LODResource, ERayTracingGeometryInitializerType::StreamingDestination, LODResource.RayTracingGeometry->Initializer);
@@ -234,10 +236,12 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 			for (int32 LODIdx = PendingFirstLODIdx; LODIdx < CurrentFirstLODIdx; ++LODIdx)
 			{
 				FStaticMeshLODResources& LODResource = *Context.LODResourcesView[LODIdx];
-				if (LODResource.RayTracingGeometry != nullptr && LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
+				if (IsRayTracingEnabled() && LODResource.GetNumVertices() > 0 && LODResource.RayTracingGeometry != nullptr && !LODResource.RayTracingGeometry->IsEvicted())
 				{
 					IntermediateRayTracingGeometry[LODIdx].TransferRayTracingGeometry(*LODResource.RayTracingGeometry, Batcher);
 				}
+
+				IntermediateRayTracingGeometry[LODIdx].SafeRelease();
 			}
 		}
 
@@ -246,8 +250,8 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 		{
 			FStaticMeshLODResources& LODResource = *Context.LODResourcesView[LODIndex];
 
-			// Skip LODs that have their render data stripped
-			if (LODResource.RayTracingGeometry != nullptr && LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
+			// Skip LODs that have their render data stripped or are evicted
+			if (LODResource.GetNumVertices() > 0 && LODResource.RayTracingGeometry != nullptr && !LODResource.RayTracingGeometry->IsEvicted())
 			{
 #if DO_CHECK
 				// Streaming LODs in/out shouldn't affect the ray tracing geometry initializer
@@ -258,7 +262,7 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 #endif
 
 				// Under very rare circumstances that we switch ray tracing on/off right in the middle of streaming RayTracingGeometryRHI might not be valid.
-				if (IsRayTracingEnabled() && ensure(LODResource.RayTracingGeometry->IsValid() && !LODResource.RayTracingGeometry->IsEvicted()))
+				if (IsRayTracingEnabled() && ensure(LODResource.RayTracingGeometry->IsValid()))
 				{
 					LODResource.RayTracingGeometry->RequestBuildIfNeeded(FRHICommandListImmediate::Get(), ERTAccelerationStructureBuildPriority::Normal);
 				}
@@ -373,7 +377,7 @@ void FStaticMeshStreamOut::ReleaseRHIBuffers(const FContext& Context)
 			LODResource.ReleaseRHIForStreaming(Batcher);
 			
 #if RHI_RAYTRACING
-			if (LODResource.RayTracingGeometry != nullptr)
+			if (LODResource.RayTracingGeometry != nullptr && !LODResource.RayTracingGeometry->IsEvicted())
 			{
 				check(IsRayTracingAllowed());
 				LODResource.RayTracingGeometry->ReleaseRHIForStreaming(Batcher);

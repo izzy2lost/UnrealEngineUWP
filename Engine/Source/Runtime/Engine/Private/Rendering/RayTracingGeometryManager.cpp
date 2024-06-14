@@ -286,7 +286,7 @@ void FRayTracingGeometryManager::SetRayTracingGeometryGroupCurrentFirstLODIndex(
 		{
 			// some LODs might be stripped during cook
 			// skeletal meshes only create static LOD when rendering as static
-			if (Group.Geometries[LODIdx] != nullptr)
+			if (Group.Geometries[LODIdx] && !Group.Geometries[LODIdx]->IsEvicted())
 			{
 				Group.Geometries[LODIdx]->ReleaseRHIForStreaming(Batcher);
 			}
@@ -382,6 +382,8 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 					RegisteredGeometry.Geometry->Evict();
 				}
 			}
+
+			PendingStreamingRequests.Empty();
 		}
 		else
 		{
@@ -399,6 +401,8 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 			TEXT("There's likely some issue tracking resident geometries or not all geometries have been evicted."),
 			TotalResidentSize
 		);
+
+		check(PendingStreamingRequests.IsEmpty());
 	}
 	else if (IsRayTracingUsingReferenceBasedResidency())
 	{
@@ -496,6 +500,11 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 				{
 					RegisteredGeometry.Geometry->MakeResident(RHICmdList);
 				}
+
+				if (!RequestRayTracingGeometryStreamIn(RHICmdList, RegisteredGeometry.Geometry))
+				{
+					PendingStreamingRequests.Add(RegisteredGeometry.Geometry);
+				}
 			}
 		}
 		else
@@ -507,6 +516,18 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 				checkf(!RegisteredGeometry.Geometry->IsEvicted(), TEXT("Ray tracing geometry should not be evicted when ray tracing is enabled."));
 			}
 #endif
+			
+			TArray<FRayTracingGeometry*> CurrentPendingStreamingRequests;
+			Swap(CurrentPendingStreamingRequests, PendingStreamingRequests);
+			PendingStreamingRequests.Reserve(CurrentPendingStreamingRequests.Num());
+
+			for (FRayTracingGeometry* Geometry : CurrentPendingStreamingRequests)
+			{
+				if (!RequestRayTracingGeometryStreamIn(RHICmdList, Geometry))
+				{
+					PendingStreamingRequests.Add(Geometry);
+				}
+			}
 		}
 	}
 
@@ -518,7 +539,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 	SET_MEMORY_STAT(STAT_RayTracingGeometryResidentMemory, TotalResidentSize);
 }
 
-void FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandList& RHICmdList, FRayTracingGeometry* Geometry)
+bool FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandList& RHICmdList, FRayTracingGeometry* Geometry)
 {
 	FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[Geometry->RayTracingGeometryHandle];
 
@@ -526,7 +547,18 @@ void FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandLi
 		|| RegisteredGeometry.Status == FRegisteredGeometry::FStatus::Streaming)
 	{
 		// no streaming required or streaming request already in-flight
-		return;
+		return true;
+	}
+
+	if (Geometry->GroupHandle != INDEX_NONE)
+	{
+		const FRayTracingGeometryGroup& Group = RegisteredGroups[Geometry->GroupHandle];
+
+		if (Geometry->LODIndex < Group.CurrentFirstLODIdx)
+		{
+			// streaming request no longer necessary
+			return true;
+		}
 	}
 
 	FByteBulkData* StreamableData = RegisteredGeometry.StreamableData;
@@ -570,7 +602,7 @@ void FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandLi
 
 		if (NumStreamingRequests >= GRayTracingStreamingMaxPendingRequests)
 		{
-			return;
+			return false;
 		}
 
 		FStreamingRequest& StreamingRequest = StreamingRequests[NextStreamingRequestIndex];
@@ -609,6 +641,8 @@ void FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandLi
 
 		Geometry->RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
 	}
+
+	return true;
 }
 
 void FRayTracingGeometryManager::ProcessCompletedStreamingRequests(FRHICommandList& RHICmdList)
