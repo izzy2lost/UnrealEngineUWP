@@ -947,9 +947,14 @@ namespace Horde.Server
 		public string? BundleCacheDir { get; set; }
 
 		/// <summary>
-		/// Maximum size of the storage cache on disk, in megabytes
+		/// Maximum size of the storage cache on disk. Accepts standard binary suffixes (kb, mb, gb, tb, etc...)
 		/// </summary>
-		public long BundleCacheSize { get; set; } = 1024;
+		public string BundleCacheSize { get; set; } = "1gb";
+
+		/// <summary>
+		/// Accessor for the bundle cache size in bytes
+		/// </summary>
+		public long BundleCacheSizeBytes => StringUtils.ParseBytesString(BundleCacheSize);
 
 		/// <summary>
 		/// Directory to store the fine-grained block cache. This caches individual exports embedded in bundles.
@@ -957,9 +962,14 @@ namespace Horde.Server
 		public string? BlockCacheDir { get; set; }
 
 		/// <summary>
-		/// Maximum size of the block cache, in megabytes. Currently only allocates in multiples of 1024mb.
+		/// Maximum size of the block cache. Accepts standard binary suffixes. Currently only allocates in multiples of 1024mb.
 		/// </summary>
-		public long BlockCacheSize { get; set; } = 4096;
+		public string BlockCacheSize { get; set; } = "4gb";
+
+		/// <summary>
+		/// Accessor for the block cache size in bytes
+		/// </summary>
+		public long BlockCacheSizeBytes => StringUtils.ParseBytesString(BlockCacheSize);
 
 		/// <summary>
 		/// Experimental features to enable on the server.
