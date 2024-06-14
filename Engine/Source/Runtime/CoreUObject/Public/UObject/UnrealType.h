@@ -188,7 +188,7 @@ private:
 
 #if WITH_EDITORONLY_DATA
 	/** Index of the property within its owner, inclusive of base properties. Generated during Link(). */
-	uint16		IndexInOwner = 0;
+	int32		IndexInOwner = 0;
 #endif
 
 	// In memory variables (generated during Link()).

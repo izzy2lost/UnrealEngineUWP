@@ -1364,7 +1364,7 @@ int32 FProperty::SetupOffset()
 		UStruct* OwnerStruct = (UStruct*)OwnerUObject;
 		Offset_Internal = Align(OwnerStruct->GetPropertiesSize(), GetMinAlignment());
 	#if WITH_EDITORONLY_DATA
-		IndexInOwner = IntCastChecked<uint16>(OwnerStruct->TotalFieldCount);
+		IndexInOwner = OwnerStruct->TotalFieldCount;
 		OwnerStruct->TotalFieldCount += ArrayDim;
 	#endif
 	}
