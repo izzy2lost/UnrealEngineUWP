@@ -849,6 +849,19 @@ public:
 	static bool GetStructAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag = TEXT("StructAction"));
 
 	/**
+	 * Get the sub-action given its name for a struct action.
+	 *
+	 * @param OutElement The output sub-action.
+	 * @param Object The Action Object
+	 * @param Element The Action Object Element
+	 * @param ElementName The Sub-action Name.
+	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
+	 * @return true if the provided Element has the sub-action, otherwise false.
+	 */
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success"))
+	static bool GetStructActionElement(FLearningAgentsActionObjectElement& OutElement, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName ElementName, const FName Tag = TEXT("StructAction"));
+
+	/**
 	 * Get the sub-actions for a struct action.
 	 *
 	 * @param OutElementNames The output sub-action names.

@@ -2067,6 +2067,52 @@ bool ULearningAgentsActions::GetStructAction(TMap<FName, FLearningAgentsActionOb
 	return true;
 }
 
+bool ULearningAgentsActions::GetStructActionElement(FLearningAgentsActionObjectElement& OutElement, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName ElementName, const FName Tag)
+{
+	if (!Object)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Object is nullptr."));
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	if (!Object->ActionObject.IsValid(Element.ObjectElement))
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Invalid Action Object."));
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	if (Object->ActionObject.GetTag(Element.ObjectElement) != Tag)
+	{
+		UE_LOG(LogLearning, Warning, TEXT("GetStructActionElement: Action tag does not match. Action is '%s' but asked for '%s'."), *Object->ActionObject.GetTag(Element.ObjectElement).ToString(), *Tag.ToString());
+	}
+
+	if (Object->ActionObject.GetType(Element.ObjectElement) != UE::Learning::Action::EType::And)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Action '%s' type does not match. Action is '%s' but asked for '%s'."),
+			*Object->ActionObject.GetTag(Element.ObjectElement).ToString(),
+			UE::Learning::Agents::Action::Private::GetActionTypeString(Object->ActionObject.GetType(Element.ObjectElement)),
+			UE::Learning::Agents::Action::Private::GetActionTypeString(UE::Learning::Action::EType::And));
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	const UE::Learning::Action::FObjectAndParameters Parameters = Object->ActionObject.GetAnd(Element.ObjectElement);
+
+	const int32 ElementIdx = Parameters.ElementNames.Find(ElementName);
+
+	if (ElementIdx == INDEX_NONE)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Element '%s' not found."), *ElementName.ToString());
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	OutElement = { Parameters.Elements[ElementIdx] };
+	return true;
+}
+
 bool ULearningAgentsActions::GetStructActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
 {
 	int32 OutElementNum = 0;

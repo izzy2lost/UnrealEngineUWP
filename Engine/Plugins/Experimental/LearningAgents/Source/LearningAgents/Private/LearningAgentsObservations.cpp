@@ -2762,6 +2762,52 @@ bool ULearningAgentsObservations::GetStructObservation(TMap<FName, FLearningAgen
 	return true;
 }
 
+bool ULearningAgentsObservations::GetStructObservationElement(FLearningAgentsObservationObjectElement& OutElement, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName ElementName, const FName Tag)
+{
+	if (!Object)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructObservationElement: Object is nullptr."));
+		OutElement = FLearningAgentsObservationObjectElement();
+		return false;
+	}
+
+	if (!Object->ObservationObject.IsValid(Element.ObjectElement))
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructObservationElement: Invalid Observation Object."));
+		OutElement = FLearningAgentsObservationObjectElement();
+		return false;
+	}
+
+	if (Object->ObservationObject.GetTag(Element.ObjectElement) != Tag)
+	{
+		UE_LOG(LogLearning, Warning, TEXT("GetStructObservationElement: Observation tag does not match. Observation is '%s' but asked for '%s'."), *Object->ObservationObject.GetTag(Element.ObjectElement).ToString(), *Tag.ToString());
+	}
+
+	if (Object->ObservationObject.GetType(Element.ObjectElement) != UE::Learning::Observation::EType::And)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructObservationElement: Observation '%s' type does not match. Observation is '%s' but asked for '%s'."),
+			*Object->ObservationObject.GetTag(Element.ObjectElement).ToString(),
+			UE::Learning::Agents::Observation::Private::GetObservationTypeString(Object->ObservationObject.GetType(Element.ObjectElement)),
+			UE::Learning::Agents::Observation::Private::GetObservationTypeString(UE::Learning::Observation::EType::And));
+		OutElement = FLearningAgentsObservationObjectElement();
+		return false;
+	}
+
+	const UE::Learning::Observation::FObjectAndParameters Parameters = Object->ObservationObject.GetAnd(Element.ObjectElement);
+
+	const int32 ElementIdx = Parameters.ElementNames.Find(ElementName);
+
+	if (ElementIdx == INDEX_NONE)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Element '%s' not found."), *ElementName.ToString());
+		OutElement = FLearningAgentsObservationObjectElement();
+		return false;
+	}
+
+	OutElement = { Parameters.Elements[ElementIdx] };
+	return true;
+}
+
 bool ULearningAgentsObservations::GetStructObservationToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsObservationObjectElement>& OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
 {
 	int32 OutElementNum = 0;
