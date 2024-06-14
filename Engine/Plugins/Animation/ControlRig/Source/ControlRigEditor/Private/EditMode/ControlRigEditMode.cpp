@@ -4790,7 +4790,18 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 	if(!bTransformChanged) //not local or doing scale.
 	{
 		// Get the global transform from shape actor to avoid drifting
-		FTransform CurrentTransform = ShapeActor->GetGlobalTransform() * ToWorldTransform;
+		FTransform CurrentTransform;
+		if (ShapeActor->StaticMeshComponent && ShapeActor->StaticMeshComponent->GetStaticMesh())
+		{
+			CurrentTransform = ShapeActor->GetGlobalTransform() * ToWorldTransform;
+		}
+		else
+		{
+			// If the static mesh is not valid, we cannot rely on the shape's transform.
+			// This happens for FKControlRigs (and other control types)
+			// We will need to rely on the information we have in the rig hierarchy
+			CurrentTransform = GetControlShapeTransform(ShapeActor) * ToWorldTransform;
+		}
 
 		if (bRotation)
 		{
