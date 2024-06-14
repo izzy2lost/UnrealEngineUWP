@@ -294,9 +294,17 @@ void TextureGraphEngine::FirstRunInit()
 	
 	MaterialMgrObj = TStrongObjectPtr<UMaterialManager>(UMaterialManager::CreateNew<UMaterialManager>());
 	
+#if WITH_EDITOR
+	// No need to run during command-let execution
+	if (!GEditor || !FSlateApplication::IsInitialized() || !FApp::CanEverRender())
+	{
+		return;
+	}
+
 	// If the engine is not set to run, then we don't do anything here. Not even initialise it (to void any 
 	// initialisation issues that we might get with people who don't really use the TextureGraph)
 	TextureHelper::InitStockTextures();
+#endif /// WITH_EDITOR
 }
 
 

@@ -106,8 +106,11 @@ cti::continuable<bool> TextureHelper::InitSolidTexture(TiledBlobPtr* BlobObj, FL
 void TextureHelper::InitStockTextures()
 {
 #if WITH_EDITOR
+	// No need to run during command-let execution
 	if (!GEditor)
+	{
 		return;
+	}
 
 	check(IsInGameThread());
 
@@ -115,7 +118,9 @@ void TextureHelper::InitStockTextures()
 
 	/// If we've already go the stuff, then we don't need to worry about it
 	if (GBlack)
+	{
 		return;
+	}
 
 	TextureType Type = TextureHelper::TextureContentToTextureType(TextureContent::Albedo);
 	TexDescriptor AlbedoDesc(TextureSet::GDesc[(int32)Type]);
