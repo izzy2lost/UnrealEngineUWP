@@ -108,9 +108,23 @@ namespace Metasound::Frontend
 
 		virtual const FMetasoundFrontendDocument& GetDocument() const = 0;
 
+		// Returns NodeCache associated with the currently set build graph PageID
 		virtual const IDocumentGraphNodeCache& GetNodeCache() const = 0;
+
+		// Returns NodeCache associated with the given PageID
+		virtual const IDocumentGraphNodeCache& GetNodeCache(const FGuid& InPageID) const = 0;
+
+		// Returns EdgeCache associated with the currently set build graph PageID
 		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const = 0;
+
+		// Returns EdgeCache associated with the given PageID
+		virtual const IDocumentGraphEdgeCache& GetEdgeCache(const FGuid& InPageID) const = 0;
+
+		// Returns InterfaceCache for the given document
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const = 0;
+
+		// Sets the default BuildPageID for the given document
+		virtual void SetBuildPageID(const FGuid& InPageID) = 0;
 	};
 
 } // namespace Metasound::Frontend

@@ -26,7 +26,7 @@ namespace Metasound::Frontend
 		FDocumentGraphEdgeCache(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID);
 
 	public:
-		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FEdgeModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FDocumentModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphEdgeCache() = default;
 
 		// IDocumentGraphEdgeCache implementation
@@ -68,7 +68,7 @@ namespace Metasound::Frontend
 		FDocumentGraphNodeCache(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID);
 
 	public:
-		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FNodeModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FDocumentModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphNodeCache() = default;
 
 		// IDocumentGraphNodeCache implementation
@@ -162,7 +162,7 @@ namespace Metasound::Frontend
 		FDocumentCache(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates);
 
 	public:
-		static TSharedRef<FDocumentCache> Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, const FGuid& InPageID, bool bPrimeCache);
+		static TSharedRef<FDocumentCache> Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, const FGuid& InBuildPageID, bool bPrimeCache);
 		virtual ~FDocumentCache() = default;
 
 		virtual bool ContainsDependency(const FNodeRegistryKey& InClassKey) const override;
@@ -175,13 +175,18 @@ namespace Metasound::Frontend
 
 		virtual const FMetasoundFrontendDocument& GetDocument() const override;
 		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const override;
+		virtual const IDocumentGraphEdgeCache& GetEdgeCache(const FGuid& InPageID) const override;
 		virtual const IDocumentGraphNodeCache& GetNodeCache() const override;
+		virtual const IDocumentGraphNodeCache& GetNodeCache(const FGuid& InPageID) const override;
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const override;
 
+		virtual void SetBuildPageID(const FGuid& InPageID) override;
+
 		int32 GetTransactionCount() const;
+		int32 GetTransactionCount(const FGuid& InPageID) const;
 
 	private:
-		void Init(const FGuid& InPageID, bool bPrimeCache);
+		void Init(const FGuid& InBuildPageID, bool bPrimeCache);
 
 		void OnDependencyAdded(int32 InNewIndex);
 		void OnRemoveSwappingDependency(int32 SwapIndex, int32 LastIndex);
@@ -205,10 +210,15 @@ namespace Metasound::Frontend
 		FDocumentDependencyCache& GetDependencyCache();
 		const FDocumentDependencyCache& GetDependencyCache() const;
 
-		// Mutable to be able to be loaded on demand if cache does not exist at the time of an initial query
+		// Caches are mutable to be able to be loaded on demand if cache does not exist at the time of an initial query
 		mutable TSharedPtr<FDocumentDependencyCache> DependencyCache;
-		mutable TSharedPtr<FDocumentGraphEdgeCache> EdgeCache;
-		mutable TSharedPtr<FDocumentGraphNodeCache> NodeCache;
+
+		// Sorted map of PageID to EdgeCache
+		mutable TSortedMap<FGuid, TSharedPtr<FDocumentGraphEdgeCache>> EdgeCacheMap;
+
+		// Sorted map of PageID to NodeCache
+		mutable TSortedMap<FGuid, TSharedPtr<FDocumentGraphNodeCache>> NodeCacheMap;
+
 		mutable TSharedPtr<FDocumentGraphInterfaceCache> InterfaceCache;
 
 		const FMetasoundFrontendDocument* Document = nullptr;
@@ -216,6 +226,8 @@ namespace Metasound::Frontend
 
 		// Number of transactions processed since builder was instantiated
 		int32 TransactionCount = 0;
-		FGuid PageID;
+
+		// Currently set build PageID, which is the default PageID for API calls that do not specify a targeted PageID.
+		FGuid BuildPageID;
 	};
 } // namespace Metasound::Frontend

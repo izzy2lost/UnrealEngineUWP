@@ -52,5 +52,8 @@ namespace Metasound::Frontend
 		FInterfaceModifyDelegates InterfaceDelegates;
 		FNodeModifyDelegates NodeDelegates;
 		FEdgeModifyDelegates EdgeDelegates;
+
+		TSortedMap<FGuid, FNodeModifyDelegates> PageNodeDelegates;
+		TSortedMap<FGuid, FEdgeModifyDelegates> PageEdgeDelegates;
 	};
 } // namespace Metasound::Frontend

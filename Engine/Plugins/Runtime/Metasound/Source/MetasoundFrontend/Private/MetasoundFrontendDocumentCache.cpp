@@ -97,12 +97,12 @@ namespace Metasound::Frontend
 	{
 	}
 
-	void FDocumentCache::Init(const FGuid& InPageID, bool bPrimeCache)
+	void FDocumentCache::Init(const FGuid& InBuildPageID, bool bPrimeCache)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Init);
 		check(Document);
 
-		PageID = InPageID;
+		BuildPageID = InBuildPageID;
 		if (bPrimeCache)
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Init_Prime);
@@ -110,10 +110,10 @@ namespace Metasound::Frontend
 			TSharedRef<const FDocumentCache> ThisShared = StaticCastSharedRef<const FDocumentCache>(AsShared());
 			DependencyCache = MakeShared<FDocumentDependencyCache>(GetDocument());
 
-			// Currently just hardcoded to use cache for default graph (i.e. PageID of zero guid).  Needs to be
-			// transitioned to support multiple caches for each page, where cache is generated on demand per page.
-			EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, PageID, ModifyDelegates->EdgeDelegates);
-			NodeCache = FDocumentGraphNodeCache::Create(ThisShared, PageID, ModifyDelegates->NodeDelegates);
+			TSharedRef<FDocumentGraphEdgeCache> EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, InBuildPageID, ModifyDelegates.Get());
+			EdgeCacheMap.Add(InBuildPageID, EdgeCache);
+			TSharedRef<FDocumentGraphNodeCache> NodeCache = FDocumentGraphNodeCache::Create(ThisShared, InBuildPageID, ModifyDelegates.Get());
+			NodeCacheMap.Add(InBuildPageID, NodeCache);
 			InterfaceCache = FDocumentGraphInterfaceCache::Create(ThisShared, ModifyDelegates->InterfaceDelegates);
 		}
 
@@ -128,7 +128,7 @@ namespace Metasound::Frontend
 		return *Document;
 	}
 
-	TSharedRef<FDocumentCache> FDocumentCache::Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, const FGuid& InPageID, bool bPrimeCache)
+	TSharedRef<FDocumentCache> FDocumentCache::Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, const FGuid& InBuildPageID, bool bPrimeCache)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Create);
 
@@ -137,7 +137,7 @@ namespace Metasound::Frontend
 
 		// Right now the assumption is the whole doc cache is invalidated when swapping pages.  Need to migrate to supporting associated caches per page
 		// (i.e. a node and edge cache per page)
-		Cache->Init(InPageID, bPrimeCache);
+		Cache->Init(InBuildPageID, bPrimeCache);
 		return Cache;
 	}
 
@@ -208,22 +208,38 @@ namespace Metasound::Frontend
 
 	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache() const
 	{
+		return GetEdgeCache(BuildPageID);
+	}
+
+	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache(const FGuid& InPageID) const
+	{
+		TSharedPtr<FDocumentGraphEdgeCache> EdgeCache = EdgeCacheMap.FindRef(InPageID);
 		if (!EdgeCache.IsValid())
 		{
 			TSharedRef<const FDocumentCache> ThisShared = StaticCastSharedRef<const FDocumentCache>(AsShared());
-			EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, PageID, ModifyDelegates->EdgeDelegates);
+			EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, InPageID, ModifyDelegates.Get());
+			EdgeCacheMap.Add(InPageID, EdgeCache);
 		}
-		return *EdgeCache;
+
+		return *EdgeCache.Get();
 	}
 
 	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache() const
 	{
+		return GetNodeCache(BuildPageID);
+	}
+
+	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache(const FGuid& InPageID) const
+	{
+		TSharedPtr<FDocumentGraphNodeCache> NodeCache = NodeCacheMap.FindRef(InPageID);
 		if (!NodeCache.IsValid())
 		{
 			TSharedRef<const FDocumentCache> ThisShared = StaticCastSharedRef<const FDocumentCache>(AsShared());
-			NodeCache = FDocumentGraphNodeCache::Create(ThisShared, PageID, ModifyDelegates->NodeDelegates);
+			NodeCache = FDocumentGraphNodeCache::Create(ThisShared, InPageID, ModifyDelegates.Get());
+			NodeCacheMap.Add(InPageID, NodeCache);
 		}
-		return *NodeCache;
+
+		return *NodeCache.Get();
 	}
 
 	const IDocumentGraphInterfaceCache& FDocumentCache::GetInterfaceCache() const
@@ -238,12 +254,19 @@ namespace Metasound::Frontend
 
 	int32 FDocumentCache::GetTransactionCount() const
 	{
+		return GetTransactionCount(BuildPageID);
+	}
+
+	int32 FDocumentCache::GetTransactionCount(const FGuid& InPageID) const
+	{
 		int32 TotalCount = TransactionCount;
+		TSharedPtr<FDocumentGraphNodeCache> NodeCache = NodeCacheMap.FindRef(InPageID);
 		if (NodeCache.IsValid())
 		{
 			TotalCount += NodeCache->GetTransactionCount();
 		}
 
+		TSharedPtr<FDocumentGraphEdgeCache> EdgeCache = EdgeCacheMap.FindRef(InPageID);
 		if (EdgeCache.IsValid())
 		{
 			TotalCount += EdgeCache->GetTransactionCount();
@@ -305,6 +328,15 @@ namespace Metasound::Frontend
 		Cache.KeyToIndex.Remove(OldKey);
 
 		++TransactionCount;
+	}
+
+	void FDocumentCache::SetBuildPageID(const FGuid& InPageID)
+	{
+		if (InPageID != BuildPageID)
+		{
+			check(Document->RootGraph.ContainsGraphPage(InPageID));
+			BuildPageID = InPageID;
+		}
 	}
 
 	FDocumentGraphInterfaceCache::FDocumentGraphInterfaceCache(TSharedRef<const FDocumentCache> ParentCache)
@@ -453,13 +485,15 @@ namespace Metasound::Frontend
 		return IDToIndex.Contains(InNodeID);
 	}
 
-	TSharedRef<FDocumentGraphNodeCache> FDocumentGraphNodeCache::Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FNodeModifyDelegates& OutDelegates)
+	TSharedRef<FDocumentGraphNodeCache> FDocumentGraphNodeCache::Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FDocumentModifyDelegates& OutDelegates)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphNodeCache::Create);
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
 		TSharedRef<FDocumentGraphNodeCache> Cache = MakeShared<FDocumentGraphNodeCache>(ParentCache, InPageID);
-		Cache->Init(OutDelegates);
+		Cache->Init(InPageID.IsValid()
+			? OutDelegates.PageNodeDelegates.FindOrAdd(InPageID)
+			: OutDelegates.NodeDelegates);
 		return Cache;
 	}
 
@@ -853,13 +887,16 @@ namespace Metasound::Frontend
 		return false;
 	}
 
-	TSharedRef<FDocumentGraphEdgeCache> FDocumentGraphEdgeCache::Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FEdgeModifyDelegates& OutDelegates)
+	TSharedRef<FDocumentGraphEdgeCache> FDocumentGraphEdgeCache::Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FDocumentModifyDelegates& OutDelegates)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphEdgeCache::Create);
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
 		TSharedRef<FDocumentGraphEdgeCache> Cache = MakeShared<FDocumentGraphEdgeCache>(ParentCache, InPageID);
-		Cache->Init(OutDelegates);
+		Cache->Init(InPageID.IsValid()
+			? OutDelegates.PageEdgeDelegates.FindOrAdd(InPageID)
+			: OutDelegates.EdgeDelegates);
+
 		return Cache;
 	}
 

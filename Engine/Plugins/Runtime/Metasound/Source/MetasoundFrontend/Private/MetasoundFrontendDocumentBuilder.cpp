@@ -3123,7 +3123,7 @@ bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageI
 			BuildPageID = BuildGraph->PageID;
 
 			constexpr bool bPrimeCache = false;
-			DocumentCache = FDocumentCache::Create(Document, DocumentDelegates.ToSharedRef(), BuildPageID, bPrimeCache);
+			DocumentCache->SetBuildPageID(BuildPageID);
 		}
 		return true;
 	}
