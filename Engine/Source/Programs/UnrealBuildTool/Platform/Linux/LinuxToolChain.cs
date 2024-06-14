@@ -838,8 +838,8 @@ namespace UnrealBuildTool
 				//
 				Arguments.Add("-Wno-backend-plugin");
 
-				Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO). Linking will take a while.");
-				Arguments.Add(String.Format("-fprofile-instr-use=\"{0}\"", Path.Combine(LinkEnvironment.PGODirectory!, LinkEnvironment.PGOFilenamePrefix!)));
+				DirectoryReference? PGODir = DirectoryReference.FromString(LinkEnvironment.PGODirectory!);
+				Arguments.Add($"-fprofile-instr-use=\"{NormalizeCommandLinePath(DirectoryReference.Combine(PGODir!, LinkEnvironment.PGOFilenamePrefix!))}\"");
 			}
 			else if (LinkEnvironment.bPGOProfile)
 			{

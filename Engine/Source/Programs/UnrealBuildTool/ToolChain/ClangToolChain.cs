@@ -655,7 +655,8 @@ namespace UnrealBuildTool
 			if (CompileEnvironment.bPGOOptimize)
 			{
 				Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO). Linking will take a while.");
-				Arguments.Add($"-fprofile-instr-use=\"{Path.Combine(CompileEnvironment.PGODirectory!, CompileEnvironment.PGOFilenamePrefix!)}\"");
+				DirectoryReference? PGODir = DirectoryReference.FromString(CompileEnvironment.PGODirectory!);
+				Arguments.Add($"-fprofile-instr-use=\"{NormalizeCommandLinePath(DirectoryReference.Combine(PGODir!, CompileEnvironment.PGOFilenamePrefix!))}\"");
 			}
 			else if (CompileEnvironment.bPGOProfile)
 			{
