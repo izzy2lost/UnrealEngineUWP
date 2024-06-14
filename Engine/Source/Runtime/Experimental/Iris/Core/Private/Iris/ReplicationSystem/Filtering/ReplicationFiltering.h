@@ -299,6 +299,9 @@ private:
 
 		// Objects to clear from hysteresis due to being destroyed or removed from dynamic filtering.
 		FNetBitArray ObjectsToClear;
+
+		// Objects that should not be added to hysteresis this frame. Example use case is newly added objects that become filtered out on the first frame.
+		FNetBitArray ObjectsExemptFromHysteresis;
 	};
 
 	// Used for ObjectIndexToDynamicFilterIndex lookup

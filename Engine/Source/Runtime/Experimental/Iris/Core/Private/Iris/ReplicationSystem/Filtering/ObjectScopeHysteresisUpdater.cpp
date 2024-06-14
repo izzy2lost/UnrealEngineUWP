@@ -21,6 +21,11 @@ void FObjectScopeHysteresisUpdater::Deinit()
 	ObjectsToUpdate.Empty();
 }
 
+void FObjectScopeHysteresisUpdater::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	ObjectsToUpdate.SetNumBits(NewMaxInternalIndex);
+}
+
 void FObjectScopeHysteresisUpdater::SetHysteresisFrameCount(FInternalNetRefIndex NetRefIndex, uint16 HysteresisFrameCount)
 {
 	const FLocalIndex LocalIndex = GetOrCreateLocalIndex(NetRefIndex);

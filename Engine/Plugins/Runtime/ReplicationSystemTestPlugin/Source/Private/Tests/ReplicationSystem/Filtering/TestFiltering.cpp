@@ -2564,7 +2564,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForNewlyCreate
 	Server->UpdateAndSend({ Client });
 
 	// The object was filtered out from the start so hysteresis should not cause it to start replicating.
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
 }
 
 // Destroyed objects are expected to be destroyed as quickly as possible.

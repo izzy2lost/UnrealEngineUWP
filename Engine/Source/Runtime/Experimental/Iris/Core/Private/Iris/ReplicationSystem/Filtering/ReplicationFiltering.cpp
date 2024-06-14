@@ -282,6 +282,7 @@ void FReplicationFiltering::SetNetObjectListsSize(FInternalNetRefIndex MaxIntern
 
 	// Always allocated and maintained regardless of whether the feature is enabled or not.
 	HysteresisState.ObjectsToClear.SetNumBits(MaxInternalNetRefIndex);
+	HysteresisState.ObjectsExemptFromHysteresis.SetNumBits(MaxInternalNetRefIndex);
 }
 
 void FReplicationFiltering::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
@@ -872,8 +873,8 @@ void FReplicationFiltering::SetPerConnectionListsSize(FPerConnectionInfo& Connec
 	{
 		ConnectionInfo.DynamicFilteredOutObjects.SetNumBits(NewMaxInternalIndex);
 		ConnectionInfo.InProgressDynamicFilteredOutObjects.SetNumBits(NewMaxInternalIndex);
-		ConnectionInfo.DynamicFilteredOutObjectsHysteresisAdjusted.Init(NewMaxInternalIndex);
-		ConnectionInfo.HysteresisUpdater.Init(NewMaxInternalIndex);
+		ConnectionInfo.DynamicFilteredOutObjectsHysteresisAdjusted.SetNumBits(NewMaxInternalIndex);
+		ConnectionInfo.HysteresisUpdater.OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
 	}
 }
 
@@ -926,8 +927,10 @@ void FReplicationFiltering::UpdateObjectsInScope()
 		return;
 	}
 
-	// Clear info for deleted objects
+	// Clear info for deleted objects and dirty filter information for added objects.
 	{
+		uint32* ObjectsWithOwnerFilterStorage = ObjectsWithOwnerFilter.GetDataChecked(WordCountForObjectBitArrays);
+		uint32* ObjectsExemptFromHysteresisStorage = HysteresisState.ObjectsExemptFromHysteresis.GetDataChecked(WordCountForObjectBitArrays);
 		const FNetBitArrayView SubObjectInternalIndices = NetRefHandleManager->GetSubObjectInternalIndicesView();
 		uint32 PrevParentIndex = FNetRefHandleManager::InvalidInternalIndex;
 		for (uint32 WordIt = 0, WordEndIt = ModifiedWordIndex; WordIt != WordEndIt; ++WordIt)
@@ -938,7 +941,7 @@ void FReplicationFiltering::UpdateObjectsInScope()
 
 			// Deleted objects can't be dirty and can't have filtering.
 			ObjectsWithDirtyConnectionFilterStorage[WordIndex] &= ExistingObjects;
-			ObjectsWithOwnerFilter.GetWord(WordIndex) &= ExistingObjects;
+			ObjectsWithOwnerFilterStorage[WordIndex] &= ExistingObjects;
 			ObjectsWithDirtyOwnerStorage[WordIndex] &= ExistingObjects;
 
 			// Clear dynamic filters and owner info from deleted objects.
@@ -963,9 +966,13 @@ void FReplicationFiltering::UpdateObjectsInScope()
 				}
 			}
 
+			const uint32 AddedObjects = ExistingObjects & ~PrevExistingObjects;
+
+			// Prevent hysteresis from kicking in on just added objects.
+			ObjectsExemptFromHysteresisStorage[WordIndex] |= AddedObjects;
+
 			// Make sure subobjects that are added after the parent gets properly updated.
 			// Dirtying the parent will cause the subobjects to be updated too.
-			uint32 AddedObjects = ExistingObjects & ~PrevExistingObjects;
 			if (uint32 AddedSubObjects = AddedObjects & SubObjectInternalIndices.GetWord(WordIndex))
 			{
 				for ( ; AddedSubObjects; )
@@ -1497,7 +1504,7 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 			for (const uint32 ObjectIndex : FilteredOutObjects)
 			{
 				const uint32 HysteresisFrameCount = ObjectScopeHysteresisFrameCounts[ObjectIndex];
-				if (HysteresisFrameCount && DynamicFilterEnabledObjects.GetBit(ObjectIndex))
+				if (HysteresisFrameCount && DynamicFilterEnabledObjects.GetBit(ObjectIndex) && !HysteresisState.ObjectsExemptFromHysteresis.GetBit(ObjectIndex))
 				{
 					// We need to adjust the hysteresis frame count to account for when it will be updated. The -1 stems from the fact that updating won't happen until next frame at the earliest.
 					const uint16 TotalHysteresisFrameCount = static_cast<uint16>(HysteresisFrameCount - 1 + AdjustHysteresisForUpdateThrottling);
@@ -2797,6 +2804,7 @@ void FReplicationFiltering::PostUpdateObjectScopeHysteresis()
 {
 	HysteresisState.ObjectsToClearCount = 0;
 	HysteresisState.ObjectsToClear.ClearAllBits();
+	HysteresisState.ObjectsExemptFromHysteresis.ClearAllBits();
 }
 
 void FReplicationFiltering::ClearObjectsFromHysteresis()

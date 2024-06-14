@@ -21,6 +21,9 @@ public:
 	void Init(uint32 MaxObjectCount);
 	void Deinit();
 
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
+
 	/** Sets an hysteresis frame count such that an object will be kept in scope until such many frames has passed. */
 	void SetHysteresisFrameCount(FInternalNetRefIndex NetRefIndex, uint16 HysteresisFrameCount);
 
