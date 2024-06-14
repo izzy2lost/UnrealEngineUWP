@@ -147,14 +147,6 @@ struct FDaySequenceBindingReferences
 	void ResolveBinding(const FGuid& ObjectId, UObject* InContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
-	 * Find a binding for the specified ID using a given context
-	 *
-	 * @param InObject					The object to search for
-	 * @param InContext					A context in which InObject resides
-	 */
-	FGuid FindBindingFromObject(UObject* InObject, UObject* InContext) const;
-
-	/**
 	 * Const accessor for the currently bound anim instance IDs
 	 */
 	const TSet<FGuid>& GetBoundAnimInstances() const

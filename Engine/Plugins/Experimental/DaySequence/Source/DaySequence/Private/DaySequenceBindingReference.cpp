@@ -225,21 +225,6 @@ void FDaySequenceBindingReferences::ResolveBinding(const FGuid& ObjectId, UObjec
 	}
 }
 
-FGuid FDaySequenceBindingReferences::FindBindingFromObject(UObject* InObject, UObject* InContext) const
-{
-	FDaySequenceBindingReference Predicate(InObject, InContext);
-
-	for (const TPair<FGuid, FDaySequenceBindingReferenceArray>& Pair : BindingIdToReferences)
-	{
-		if (Pair.Value.References.Contains(Predicate))
-		{
-			return Pair.Key;
-		}
-	}
-
-	return FGuid();
-}
-
 void FDaySequenceBindingReferences::RemoveInvalidBindings(const TSet<FGuid>& ValidBindingIDs)
 {
 	for (auto It = BindingIdToReferences.CreateIterator(); It; ++It)

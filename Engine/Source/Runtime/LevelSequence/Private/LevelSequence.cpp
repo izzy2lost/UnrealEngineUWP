@@ -634,7 +634,23 @@ void ULevelSequence::LocateBoundObjects(const FGuid& ObjectId, UObject* Context,
 
 FGuid ULevelSequence::FindBindingFromObject(UObject* InObject, UObject* Context) const
 {
-	return BindingReferences.FindBindingFromObject(InObject, Context);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return UMovieSceneSequence::FindBindingFromObject(InObject, Context);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+
+FGuid ULevelSequence::FindBindingFromObject(UObject* InObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (InObject)
+	{
+		if (FMovieSceneEvaluationState* EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>())
+		{
+			FMovieSceneSequenceID SequenceID = EvaluationState->FindSequenceId(this);
+			return EvaluationState->FindCachedObjectId(*InObject, SequenceID, SharedPlaybackState);
+		}
+	}
+	return FGuid();
 }
 
 void ULevelSequence::GatherExpiredObjects(const FMovieSceneObjectCache& InObjectCache, TArray<FGuid>& OutInvalidIDs) const

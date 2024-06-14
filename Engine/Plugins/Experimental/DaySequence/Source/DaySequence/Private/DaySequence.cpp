@@ -298,9 +298,17 @@ void UDaySequence::LocateBoundObjects(const FGuid& ObjectId, UObject* Context, T
 	BindingReferences.ResolveBinding(ObjectId, Context, OutObjects);
 }
 
-FGuid UDaySequence::FindBindingFromObject(UObject* InObject, UObject* Context) const
+FGuid UDaySequence::FindBindingFromObject(UObject* InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const
 {
-	return BindingReferences.FindBindingFromObject(InObject, Context);
+	if (InObject)
+	{
+		if (FMovieSceneEvaluationState* EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>())
+		{
+			FMovieSceneSequenceID SequenceID = EvaluationState->FindSequenceId(this);
+			return EvaluationState->FindCachedObjectId(*InObject, SequenceID, SharedPlaybackState);
+		}
+	}
+	return FGuid();
 }
 
 void UDaySequence::GatherExpiredObjects(const FMovieSceneObjectCache& InObjectCache, TArray<FGuid>& OutInvalidIDs) const

@@ -186,14 +186,17 @@ public:
 	 */
 	MOVIESCENE_API FGuid FindPossessableObjectId(UObject& Object, UObject* Context) const;
 
+	UE_DEPRECATED(5.5, "Use the version that takes a SharedPlaybackState")
+	MOVIESCENE_API virtual FGuid FindBindingFromObject(UObject* InObject, UObject* Context) const;
+
 	/**
 	 * Optional method for efficient lookup of an object binding from an actual object in the world
 	 *
 	 * @param ObjectId				The unique identifier of the object.
-	 * @param Context				Optional context to use to find the required object (for instance, a parent spawnable object or its world)
+	 * @param SharedPlaybackState   A shared playback state for the binding- create a transient one if necessary.
 	 * @return The object's guid, or zero guid if the object is not a valid possessable in the current context
 	 */
-	virtual FGuid FindBindingFromObject(UObject* InObject, UObject* Context) const { return FGuid(); }
+	virtual FGuid FindBindingFromObject(UObject* InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const { return FGuid(); }
 
 	/**
 	 * Called to validate the specified object cache by removing anything that should be deemed out of date

@@ -632,7 +632,8 @@ namespace UE::Interchange::Private
 
 	FGuid FLevelSequenceHelper::BindActorToLevelSequence(AActor* Actor)
 	{
-		FGuid ActorBinding = LevelSequence.FindBindingFromObject(Actor, Actor->GetWorld());
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Actor, &LevelSequence);
+		FGuid ActorBinding = LevelSequence.FindBindingFromObject(Actor, SharedPlaybackState);
 		if(!ActorBinding.IsValid())
 		{
 			ActorBinding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());
@@ -644,9 +645,10 @@ namespace UE::Interchange::Private
 
 	FGuid FLevelSequenceHelper::BindComponentToLevelSequence(AActor* Actor)
 	{
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Actor, &LevelSequence);
 		FGuid ActorBinding = BindActorToLevelSequence(Actor);
 		USceneComponent* Component = Actor->GetDefaultAttachComponent();
-		FGuid ComponentBinding = LevelSequence.FindBindingFromObject(Component, Actor);
+		FGuid ComponentBinding = LevelSequence.FindBindingFromObject(Component, SharedPlaybackState);
 		if(!ComponentBinding.IsValid())
 		{
 			ComponentBinding = MovieScene->AddPossessable(Component->GetReadableName(), Component->GetClass());

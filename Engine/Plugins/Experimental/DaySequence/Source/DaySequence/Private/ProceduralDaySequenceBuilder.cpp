@@ -355,7 +355,8 @@ FGuid UProceduralDaySequenceBuilder::GetOrCreateProceduralBinding(UObject* Objec
 	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
 
 	// Find the main binding
-	FGuid RootGuid = ProceduralDaySequence->FindBindingFromObject(TargetActor, TargetActor);
+	TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(TargetActor, ProceduralDaySequence);
+	FGuid RootGuid = ProceduralDaySequence->FindBindingFromObject(TargetActor, SharedPlaybackState);
 	if (!RootGuid.IsValid())
 	{
 		FString RootName = TargetActor->GetName();
@@ -378,7 +379,7 @@ FGuid UProceduralDaySequenceBuilder::GetOrCreateProceduralBinding(UObject* Objec
 	}
 
 	// If we're trying to animate a component within the actor, retrieve or create a child binding for that
-	FGuid ComponentGuid = ProceduralDaySequence->FindBindingFromObject(Component, TargetActor);
+	FGuid ComponentGuid = ProceduralDaySequence->FindBindingFromObject(Component, SharedPlaybackState);
 	if (!ComponentGuid.IsValid() && Component)
 	{
 		FString Name = Component->GetName();

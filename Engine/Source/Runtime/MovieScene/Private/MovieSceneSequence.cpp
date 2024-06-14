@@ -87,6 +87,18 @@ void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::Un
 	}
 }
 
+FGuid UMovieSceneSequence::FindBindingFromObject(UObject* InObject, UObject* Context) const
+{
+	if (InObject && Context)
+	{
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Context, const_cast<UMovieSceneSequence*>(this));
+
+		return FindBindingFromObject(InObject, SharedPlaybackState);
+	}
+
+	return FGuid();
+}
+
 void UMovieSceneSequence::PostLoad()
 {
 	UMovieSceneCompiledDataManager* PrecompiledData = UMovieSceneCompiledDataManager::GetPrecompiledData();

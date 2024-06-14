@@ -42,7 +42,11 @@ public:
 	// UMovieSceneSequence interface
 	LEVELSEQUENCE_API virtual void BindPossessableObject(const FGuid& ObjectId, UObject& PossessedObject, UObject* Context) override;
 	LEVELSEQUENCE_API virtual bool CanPossessObject(UObject& Object, UObject* InPlaybackContext) const override;
+
+	UE_DEPRECATED(5.5, "Use the version that takes a SharedPlaybackState")
 	LEVELSEQUENCE_API virtual FGuid FindBindingFromObject(UObject* InObject, UObject* Context) const override;
+	LEVELSEQUENCE_API virtual FGuid FindBindingFromObject(UObject* InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const override;
+
 	LEVELSEQUENCE_API virtual void GatherExpiredObjects(const FMovieSceneObjectCache& InObjectCache, TArray<FGuid>& OutInvalidIDs) const override;
 	LEVELSEQUENCE_API virtual UMovieScene* GetMovieScene() const override;
 	LEVELSEQUENCE_API virtual UObject* GetParentObject(UObject* Object) const override;

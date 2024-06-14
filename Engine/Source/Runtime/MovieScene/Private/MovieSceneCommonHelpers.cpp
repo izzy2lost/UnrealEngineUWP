@@ -1002,9 +1002,9 @@ TSharedRef<UE::MovieScene::FSharedPlaybackState> MovieSceneHelpers::CreateTransi
 	CreateParams.PlaybackContext = WorldContext;
 	TSharedRef<FSharedPlaybackState> TransientPlaybackState = MakeShared<FSharedPlaybackState>(*Sequence, CreateParams);
 
-	FMovieSceneEvaluationState State;
-	TransientPlaybackState->AddCapabilityRaw(&State);
-	State.AssignSequence(MovieSceneSequenceID::Root, *Sequence, TransientPlaybackState);
+	TSharedRef<FMovieSceneEvaluationState> State = MakeShared<FMovieSceneEvaluationState>();
+	TransientPlaybackState->AddCapabilityShared(State);
+	State->AssignSequence(MovieSceneSequenceID::Root, *Sequence, TransientPlaybackState);
 
 	return TransientPlaybackState;
 }

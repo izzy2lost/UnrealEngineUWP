@@ -4584,13 +4584,13 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 						}
 
 						TArray<FGuid> BindingsToCheck;
-						BindingsToCheck.Add(Sequence->FindBindingFromObject(ComponentBeingModified, Context));
+						BindingsToCheck.Add(Sequence->FindBindingFromObject(ComponentBeingModified, PinnedSequencer->GetSharedPlaybackState()));
 						if (bIsRootComponent)
 						{
 							// Maybe all the sequence has is a track directly on the actor. That's still enough to
 							// supress a root component animation in case the property is just mirrored on the actor,
 							// so let's try checking for that
-							BindingsToCheck.Add(Sequence->FindBindingFromObject(OwnerActor, ActorContext));
+							BindingsToCheck.Add(Sequence->FindBindingFromObject(OwnerActor, PinnedSequencer->GetSharedPlaybackState()));
 						}
 
 						for (const FGuid& BindingGuid : BindingsToCheck)

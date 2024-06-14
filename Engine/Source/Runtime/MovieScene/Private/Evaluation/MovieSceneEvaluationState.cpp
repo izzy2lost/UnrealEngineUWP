@@ -647,6 +647,11 @@ UMovieSceneSequence* FMovieSceneEvaluationState::FindSequence(FMovieSceneSequenc
 	return Cache ? Cache->ObjectCache.GetSequence() : nullptr;
 }
 
+FMovieSceneSequenceID FMovieSceneEvaluationState::FindSequenceId(const UMovieSceneSequence* InSequence) const
+{
+	return FindSequenceId(const_cast<UMovieSceneSequence*>(InSequence));
+}
+
 FMovieSceneSequenceID FMovieSceneEvaluationState::FindSequenceId(UMovieSceneSequence* InSequence) const
 {
 	for (auto& Pair : ObjectCaches)

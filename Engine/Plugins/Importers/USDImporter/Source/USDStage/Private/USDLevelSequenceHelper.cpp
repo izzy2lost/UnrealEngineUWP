@@ -3859,7 +3859,9 @@ FGuid FUsdLevelSequenceHelperImpl::GetOrCreateComponentBinding(
 	// Make sure we always bind the parent actor too
 	if (AActor* Actor = ComponentToBind.GetOwner())
 	{
-		ActorBinding = Sequence.FindBindingFromObject(Actor, Actor->GetWorld());
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Actor, &Sequence);
+
+		ActorBinding = Sequence.FindBindingFromObject(Actor, SharedPlaybackState);
 		if (!ActorBinding.IsValid())
 		{
 			// We use the label here because that will always be named after the prim that caused the actor

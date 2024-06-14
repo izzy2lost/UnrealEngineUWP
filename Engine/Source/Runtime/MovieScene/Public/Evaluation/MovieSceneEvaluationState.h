@@ -313,6 +313,7 @@ struct FMovieSceneEvaluationState : public UE::MovieScene::IPlaybackCapability
 	 * @param InSequence		The sequence to look up
 	 */
 	MOVIESCENE_API FMovieSceneSequenceID FindSequenceId(UMovieSceneSequence* InSequence) const;
+	MOVIESCENE_API FMovieSceneSequenceID FindSequenceId(const UMovieSceneSequence* InSequence) const;
 
 	/**
 	 * Attempt deduce the posessable or spawnable that relates to the specified object

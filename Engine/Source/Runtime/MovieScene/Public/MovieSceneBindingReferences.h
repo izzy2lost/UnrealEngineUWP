@@ -204,6 +204,7 @@ struct FMovieSceneBindingReferences
 	 * @oaram StreamedLevelAssetPath    The path to the streamed level asset that contains the level sequence actor playing back the sequence. 'None' for any non-instance-level setups.
 	 * @param OutObjects				Array to populate with resolved object bindings
 	 */
+	UE_DEPRECATED(5.5, "This method has been deprecated as it produces errors for subobjects. Please call UMovieSceneSequence::FindBindingFromObject passing in a SharedPlaybackState")
 	MOVIESCENE_API FGuid FindBindingFromObject(UObject* InObject, UObject* InContext) const;
 
 	/**
