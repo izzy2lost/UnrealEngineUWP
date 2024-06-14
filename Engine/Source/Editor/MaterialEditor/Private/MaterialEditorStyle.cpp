@@ -64,6 +64,10 @@ const FSlateBrush* FSubstrateMaterialEditorStyle::GetBrush(const FName& InName)
 #define BOX_BRUSH_SVG(RelativePath, ...) FSlateVectorBoxBrush(Style->RootToContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
 #define BORDER_BRUSH_SVG(RelativePath, ...) FSlateVectorBorderBrush(Style->RootToContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
 
+#define CORE_IMAGE_BRUSH_SVG( RelativePath, ... ) FSlateVectorImageBrush(Style->RootToCoreContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
+#define CORE_BOX_BRUSH_SVG( RelativePath, ... ) FSlateVectorBoxBrush(Style->RootToCoreContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
+#define CORE_BORDER_BRUSH_SVG( RelativePath, ... ) FSlateVectorBorderBrush(Style->RootToCoreContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
+
 #define DEFAULT_FONT(...) FCoreStyle::GetDefaultFontStyle(__VA_ARGS__)
 
 #define IMAGE_PLUGIN_BRUSH(RelativePath, ...) FSlateImageBrush(FSubstrateMaterialEditorStyle::InContent(RelativePath, ".png"), __VA_ARGS__)
@@ -211,11 +215,12 @@ void FSubstrateMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlate
 		.SetBackgroundBrush(*Style->GetBrush("LayerView.Background"))
 	);
 
-	const float LayerViewItemCornerRadius = 5.0f;
-	const float LayerViewItemBorderWidth = 1.0f;
+	const float LayerViewItemCornerRadius = 10.0f;
+	const float LayerViewItemBorderWidth = 5.0f;
+	const float LayerViewItemBorderWidthSelected = 1.0f;
 
 	const FLinearColor LayerViewItemFillColor = FLinearColor::Transparent;
-	constexpr FLinearColor LayerViewItemBorderColor = FLinearColor(1, 1, 1, 0.15f);
+	constexpr FLinearColor LayerViewItemBorderColor = FLinearColor(0, 0, 0, 1.f);
 
 	const FLinearColor LayerItemHoverFillColor = FStyleColors::Recessed.GetSpecifiedColor();
 	constexpr FLinearColor LayerItemHoverBorderColor = FLinearColor(1, 1, 1, 0.2f);
@@ -232,25 +237,26 @@ void FSubstrateMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlate
 
 	Style->Set("LayerView.Row.Hovered", new FSlateRoundedBoxBrush(
 		LayerItemHoverFillColor, LayerViewItemCornerRadius,
-		LayerItemHoverBorderColor, LayerViewItemBorderWidth));
+		LayerItemHoverBorderColor, LayerViewItemBorderWidthSelected));
 
 	Style->Set("LayerView.Row.Selected", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
 
 	Style->Set("LayerView.Row.ActiveBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
 	Style->Set("LayerView.Row.ActiveHoveredBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
 	Style->Set("LayerView.Row.InactiveBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
 	Style->Set("LayerView.Row.InactiveHoveredBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
 
+	const float DropZoneMargin = 0.25f; 
 	Style->Set("LayerView.Row", FTableRowStyle()
 		.SetTextColor(FStyleColors::Foreground)
 		.SetSelectedTextColor(FStyleColors::ForegroundHover)
@@ -258,17 +264,19 @@ void FSubstrateMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlate
 		.SetEvenRowBackgroundHoveredBrush(*Style->GetBrush(TEXT("LayerView.Row.Hovered")))
 		.SetOddRowBackgroundBrush(*Style->GetBrush(TEXT("LayerView.Row.Item")))
 		.SetOddRowBackgroundHoveredBrush(*Style->GetBrush(TEXT("LayerView.Row.Hovered")))
-		.SetSelectorFocusedBrush(*Style->GetBrush(TEXT("LayerView.Row.Selected")))
+		.SetSelectorFocusedBrush(*Style->GetBrush(TEXT("LayerView.Row.Item")))
 		.SetActiveBrush(*Style->GetBrush(TEXT("LayerView.Row.ActiveBrush")))
 		.SetActiveHoveredBrush(*Style->GetBrush(TEXT("LayerView.Row.ActiveHoveredBrush")))
 		.SetInactiveBrush(*Style->GetBrush(TEXT("LayerView.Row.InactiveBrush")))
 		.SetInactiveHoveredBrush(*Style->GetBrush(TEXT("LayerView.Row.InactiveHoveredBrush")))
-		.SetSelectorFocusedBrush(BORDER_BRUSH("Common/Selector", FMargin(4.f / 16.f), Style->GetColor(TEXT("Color.Select.Hover"))))
+		//.SetSelectorFocusedBrush(BORDER_BRUSH("Common/Selector", FMargin(4.f / 16.f), Style->GetColor(TEXT("Color.Select.Hover"))))
+		//.SetSelectorFocusedBrush(BOX_BRUSH("Common/DropZoneIndicator_Onto", FMargin(4.f / 16.f), Style->GetColor(TEXT("Color.Select.Hover"))))
 		.SetDropIndicator_Onto(BOX_BRUSH("Common/DropZoneIndicator_Onto", FMargin(4.0f / 16.0f), Style->GetColor(TEXT("Color.Select.Hover"))))
-		.SetDropIndicator_Above(BOX_BRUSH("Common/DropZoneIndicator_Above", FMargin(4.0f / 16.0f, 4.0f / 16.0f, 0.f, 0.f), Style->GetColor(TEXT("Color.Select.Hover"))))
-		.SetDropIndicator_Below(BOX_BRUSH("Common/DropZoneIndicator_Below", FMargin(4.0f / 16.0f, 0.f, 0.f, 4.0f / 16.0f), Style->GetColor(TEXT("Color.Select.Hover"))))
+		//.SetDropIndicator_Above(BORDER_BRUSH("Common/DropZoneIndicatorDashed_Above", FMargin(DropZoneMargin, DropZoneMargin, 0.f, 0.f), Style->GetColor(TEXT("Color.Select.Hover"))))
+		.SetDropIndicator_Above(BOX_BRUSH("Common/VerticalBoxDropZoneIndicator_Above", FMargin(10.0f / 16.0f, 10.0f / 16.0f, 0, 0), Style->GetColor(TEXT("Color.Select.Hover"))))
+		// .SetDropIndicator_Below(BORDER_BRUSH("Common/DropZoneIndicatorDashed_Below", FMargin(DropZoneMargin, 0, 0, DropZoneMargin), Style->GetColor(TEXT("Color.Select.Hover"))))
+		 .SetDropIndicator_Below(BOX_BRUSH("Common/VerticalBoxDropZoneIndicator_Below",  FMargin(10.0f / 16.0f, 0, 0, 10.0f / 16.0f), Style->GetColor(TEXT("Color.Select.Hover"))))
 	);
-
 	Style->Set("LayerView.AddIcon", new IMAGE_BRUSH("Icons/EditorIcons/LayerAdd", Icon16x16));
 	Style->Set("LayerView.DuplicateIcon", new IMAGE_BRUSH("Icons/EditorIcons/Duplicate_40x", Icon40x40));
 	Style->Set("LayerView.RemoveIcon", new IMAGE_BRUSH("Icons/EditorIcons/LayerRemove", Icon16x16));
@@ -362,3 +370,7 @@ void FSubstrateMaterialEditorStyle::SetupTextStyles(const TSharedRef<FSlateStyle
 
 #undef IMAGE_PLUGIN_BRUSH
 #undef IMAGE_PLUGIN_BRUSH_SVG
+
+#undef CORE_IMAGE_BRUSH_SVG
+#undef CORE_BOX_BRUSH_SVG
+#undef CORE_BORDER_BRUSH_SVG

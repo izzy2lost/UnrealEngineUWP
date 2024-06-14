@@ -153,7 +153,18 @@ void SMaterialSubstrateTreeItem::OnNameChanged(const FText& InText, ETextCommit:
 	InTree->FunctionInstanceHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 }
 
-FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEvent)
+TOptional<EItemDropZone> SMaterialSubstrateTreeItem::CanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr Item)
+{
+	TSharedPtr<FLayerDragDropOp> LayerDragDropOperation = DragDropEvent.GetOperationAs<FLayerDragDropOp>();
+	TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
+	if (LayerDragDropOperation.IsValid() || AssetDragDropOperation.IsValid())
+	{
+		return DropZone;
+	}
+	return TOptional<EItemDropZone>();
+}
+
+FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone,	FSortedParamDataPtr TargetItem)
 {
 	if (!bIsHoveredDragTarget)
 	{
@@ -162,12 +173,11 @@ FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEve
 	FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "MoveLayer", "Move Layer"));
 	Tree->FunctionInstanceHandle->NotifyPreChange();
 	bIsHoveredDragTarget = false;
-	TSharedPtr<FSubstrateLayerDragDropOp> ArrayDropOp = DragDropEvent.GetOperationAs< FSubstrateLayerDragDropOp >();
+	TSharedPtr<FLayerDragDropOp> ArrayDropOp = DragDropEvent.GetOperationAs< FLayerDragDropOp >();
 	TSharedPtr<SMaterialSubstrateTreeItem> LayerPtr = nullptr;
 	if (ArrayDropOp.IsValid() && ArrayDropOp->OwningStack.IsValid())
 	{
-		LayerPtr = ArrayDropOp->OwningStack.Pin();
-		LayerPtr->bIsBeingDragged = false;
+		LayerPtr = StaticCastWeakPtr<SMaterialSubstrateTreeItem>(ArrayDropOp->OwningStack).Pin();
 	}
 	else
 	{
@@ -208,6 +218,8 @@ FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEve
 	{
 		return FReply::Unhandled();
 	}
+	
+	LayerPtr->bIsBeingDragged = false;
 	TSharedPtr<FSortedParamData> SwappingPropertyData = LayerPtr->StackParameterData;
 	TSharedPtr<FSortedParamData> SwappablePropertyData = StackParameterData;
 	if (SwappingPropertyData.IsValid() && SwappablePropertyData.IsValid())
@@ -278,6 +290,12 @@ void  SMaterialSubstrateTreeItem::OnOverrideParameter(bool NewValue, TObjectPtr<
 	OnOverrideParameter(NewValue, Parameter.Get());
 }
 
+void SMaterialSubstrateTreeItem::AddSubLayer()
+{
+	// create an empty sub layer at this point at the top of the sub-stack
+	
+}
+
 void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
 	StackParameterData = InArgs._StackParameterData;
@@ -320,17 +338,6 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 		}
 		const float ThumbnailSize = 64.0f;
 		TArray<TSharedPtr<FSortedParamData>> AssetChildren = StackParameterData->Children;
-		if (AssetChildren.Num() > 0)
-		{
-			HeaderRowWidget->AddSlot()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.Padding(0.0f)
-				.AutoWidth()
-				[
-					SNullWidget::NullWidget
-				];
-		}
 		for (TSharedPtr<FSortedParamData> AssetChild : AssetChildren)
 		{
 			TSharedPtr<SBox> ThumbnailBox;
@@ -420,6 +427,14 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 				.Visibility(Tree, &SMaterialSubstrateTree::GetUnlinkLayerVisibility, StackParameterData->ParameterInfo.Index)
 			];
 
+		HeaderRowWidget->AddSlot()
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(this, &SMaterialSubstrateTreeItem::AddSubLayer))
+				];
+
 		// Can only remove layers that aren't the base layer.
 		if (StackParameterData->ParameterInfo.Index != 0)
 		{
@@ -445,24 +460,24 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 			[
 						SAssignNew(FinalStack, SHorizontalBox)
 			];
-		// if (StackParameterData->ParameterInfo.Index != 0)
-		// {
-		// 	FinalStack->AddSlot()
-		// 		.HAlign(HAlign_Center)
-		// 		.VAlign(VAlign_Center)
-		// 		.Padding(2.5f, 0)
-		// 		.AutoWidth()
-		// 		[
-		// 			FMaterialPropertyHelpers::MakeStackReorderHandle(SharedThis(this))
-		// 		];
-		// }
-		// FinalStack->AddSlot()
-		// 	.AutoWidth()
-		// 	.VAlign(VAlign_Center)
-		// 	.Padding(FMargin(2.0f))
-		// 	[
-		// 		SNew(SExpanderArrow, SharedThis(this))
-		// 	];
+		if (StackParameterData->ParameterInfo.Index != 0)
+		{
+			FinalStack->AddSlot()
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Padding(2.5f, 0)
+				.AutoWidth()
+				[
+					FMaterialPropertyHelpers::MakeStackReorderHandle(SharedThis(this))
+				];
+		}
+		FinalStack->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(2.0f))
+			[
+				SNew(SExpanderArrow, SharedThis(this))
+			];
 		FinalStack->AddSlot()
 			.Padding(FMargin(2.0f))
 			.VAlign(VAlign_Center)
@@ -478,7 +493,6 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 
 	FOnTableRowDragEnter LayerDragDelegate = FOnTableRowDragEnter::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDragEnter);
 	FOnTableRowDragLeave LayerDragLeaveDelegate = FOnTableRowDragLeave::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDragLeave);
-	FOnTableRowDrop LayerDropDelegate = FOnTableRowDrop::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDrop);
 
 	STableRow< TSharedPtr<FSortedParamData> >::ConstructInternal(
 		STableRow< TSharedPtr<FSortedParamData> >::FArguments()
@@ -486,11 +500,13 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 		.OnPaintDropIndicator(this, &SMaterialSubstrateTreeItem::OnLayerItemPaintDropIndicator)
 		.Style(FSubstrateMaterialEditorStyle::Get(), "LayerView.Row")
 		.ShowSelection(true)
+		.OnCanAcceptDrop(this, &SMaterialSubstrateTreeItem::CanAcceptDrop)
+		.OnAcceptDrop(this, &SMaterialSubstrateTreeItem::OnLayerDrop)
 		.OnDragEnter(LayerDragDelegate)
-		.OnDragLeave(LayerDragLeaveDelegate)
-		.OnDrop(LayerDropDelegate),
+		.OnDragLeave(LayerDragLeaveDelegate),
 		InOwnerTableView
 	);
+
 }
 int32 SMaterialSubstrateTreeItem::OnLayerItemPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {

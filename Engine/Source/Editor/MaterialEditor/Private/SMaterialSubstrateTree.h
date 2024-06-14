@@ -102,7 +102,7 @@ private:
 	FGetShowHiddenParameters ShowHiddenDelegate;
 };
 
-class SMaterialSubstrateTreeItem : public STableRow< FSortedParamDataPtr >
+class SMaterialSubstrateTreeItem : public STableRow< FSortedParamDataPtr >, public IDraggableItem
 {
 public:
 
@@ -139,8 +139,9 @@ public:
 	FText GetLayerName(SMaterialSubstrateTree* InTree, int32 Counter) const;
 	void OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo, SMaterialSubstrateTree* InTree, int32 Counter);
 
-
-	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent)
+	TOptional<EItemDropZone> CanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr Item);
+	FReply OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr TargetItem);
+	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent) override
 	{
 		if (StackParameterData->ParameterInfo.Index != 0)
 		{
@@ -148,19 +149,20 @@ public:
 		}
 	}
 
-	void OnLayerDragLeave(const FDragDropEvent& DragDropEvent)
+	void OnLayerDragLeave(const FDragDropEvent& DragDropEvent) override
 	{
 		bIsHoveredDragTarget = false;
 	}
 
-	void OnLayerDragDetected()
+	void OnLayerDragDetected() override
 	{
 		bIsBeingDragged = true;
 	}
 
-	FReply OnLayerDrop(const FDragDropEvent& DragDropEvent);
+	FReply OnLayerDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr TargetItem);
 	void OnOverrideParameter(bool NewValue, class UDEditorParameterValue* Parameter);
 	void OnOverrideParameter(bool NewValue, TObjectPtr<UDEditorParameterValue> Parameter);
+	void AddSubLayer();
 	/**
 	* Construct the widget
 	*
@@ -177,39 +179,4 @@ public:
 	UMaterialEditorInstanceConstant* MaterialEditorInstance;
 
 	FString GetInstancePath(SMaterialSubstrateTree* InTree) const;
-};
-
-class FSubstrateLayerDragDropOp final : public FDecoratedDragDropOp
-{
-public:
-	DRAG_DROP_OPERATOR_TYPE(FSubstrateLayerDragDropOp, FDecoratedDragDropOp)
-
-	FSubstrateLayerDragDropOp(TSharedPtr<SMaterialSubstrateTreeItem> InOwningStack)
-	{
-		OwningStack = InOwningStack;
-		DecoratorWidget = SNew(SBorder)
-			.BorderImage(FAppStyle::GetBrush("Graph.ConnectorFeedback.Border"))
-			.Content()
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(NSLOCTEXT("LayerDragDrop", "PlaceLayerHere", "Place Layer and Blend Here"))
-				]
-			];
-
-		Construct();
-	};
-
-	TSharedPtr<SWidget> DecoratorWidget;
-
-	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override
-	{
-		return DecoratorWidget;
-	}
-
-	TWeakPtr<class SMaterialSubstrateTreeItem> OwningStack;
 };

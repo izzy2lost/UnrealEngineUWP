@@ -158,13 +158,14 @@ FReply SMaterialLayersFunctionsInstanceTreeItem::OnLayerDrop(const FDragDropEven
 	TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> LayerPtr = nullptr;
 	if (ArrayDropOp.IsValid() && ArrayDropOp->OwningStack.IsValid())
 	{
-		LayerPtr = ArrayDropOp->OwningStack.Pin();
-		LayerPtr->bIsBeingDragged = false;
+		LayerPtr = StaticCastWeakPtr<SMaterialLayersFunctionsInstanceTreeItem>(ArrayDropOp->OwningStack).Pin();
 	}
 	if (!LayerPtr.IsValid())
 	{
 		return FReply::Unhandled();
 	}
+	
+	LayerPtr->bIsBeingDragged = false;
 	TSharedPtr<FSortedParamData> SwappingPropertyData = LayerPtr->StackParameterData;
 	TSharedPtr<FSortedParamData> SwappablePropertyData = StackParameterData;
 	if (SwappingPropertyData.IsValid() && SwappablePropertyData.IsValid())

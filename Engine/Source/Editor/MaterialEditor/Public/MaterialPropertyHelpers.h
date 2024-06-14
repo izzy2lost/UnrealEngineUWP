@@ -21,7 +21,6 @@ class IPropertyHandle;
 class UDEditorParameterValue;
 enum class ECheckBoxState : uint8;
 class UMaterialInterface;
-class SMaterialLayersFunctionsInstanceTreeItem;
 
 DECLARE_DELEGATE_OneParam(FGetShowHiddenParameters, bool&);
 
@@ -72,13 +71,24 @@ struct FUnsortedParamData
 	TSharedPtr<IPropertyHandle> ParameterHandle;
 };
 
+/*
+ * Interface for items that can be dragged and can show a layer handle
+ */
+class IDraggableItem
+{
+public:
+	virtual void OnLayerDragEnter(const FDragDropEvent& DragDropEvent) = 0; 
+	virtual void OnLayerDragLeave(const FDragDropEvent& DragDropEvent) = 0;
+	virtual void OnLayerDragDetected() = 0;
+};
+
 class SLayerHandle : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SLayerHandle)
 	{}
 	SLATE_DEFAULT_SLOT(FArguments, Content)
-		SLATE_ARGUMENT(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem>, OwningStack)
+		SLATE_ARGUMENT(TSharedPtr<IDraggableItem>, OwningStack)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs);
@@ -90,10 +100,10 @@ public:
 
 
 	FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	TSharedPtr<class FLayerDragDropOp> CreateDragDropOperation(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack);
+	TSharedPtr<class FLayerDragDropOp> CreateDragDropOperation(TSharedPtr<IDraggableItem> InOwningStack);
 
 private:
-	TWeakPtr<SMaterialLayersFunctionsInstanceTreeItem> OwningStack;
+	TWeakPtr<IDraggableItem> OwningStack;
 };
 
 
@@ -102,7 +112,7 @@ class FLayerDragDropOp final : public FDecoratedDragDropOp
 public:
 	DRAG_DROP_OPERATOR_TYPE(FLayerDragDropOp, FDecoratedDragDropOp)
 
-	FLayerDragDropOp(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack)
+	FLayerDragDropOp(TSharedPtr<IDraggableItem> InOwningStack)
 	{
 		OwningStack = InOwningStack;
 		DecoratorWidget = SNew(SBorder)
@@ -129,7 +139,7 @@ public:
 		return DecoratorWidget;
 	}
 
-	TWeakPtr<class SMaterialLayersFunctionsInstanceTreeItem> OwningStack;
+	TWeakPtr<class IDraggableItem> OwningStack;
 };
 
 /*-----------------------------------------------------------------------------
@@ -195,7 +205,7 @@ public:
 	*/
 	static FEditorParameterGroup&  GetParameterGroup(class UMaterial* InMaterial, FName& ParameterGroup, TArray<FEditorParameterGroup>& ParameterGroups);
 
-	static TSharedRef<SWidget> MakeStackReorderHandle(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack);
+	static TSharedRef<SWidget> MakeStackReorderHandle(TSharedPtr<IDraggableItem> InOwningStack);
 
 	static bool OnShouldSetCurveAsset(const FAssetData& AssetData, TSoftObjectPtr<UCurveLinearColorAtlas> InAtlas);
 	static bool OnShouldFilterCurveAsset(const FAssetData& AssetData, TSoftObjectPtr<UCurveLinearColorAtlas> InAtlas);

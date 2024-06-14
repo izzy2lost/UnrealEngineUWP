@@ -24,7 +24,7 @@ class SMaterialLayersFunctionsInstanceTree;
 class UDEditorParameterValue;
 class UMaterialEditorInstanceConstant;
 
-class SMaterialLayersFunctionsInstanceTreeItem : public STableRow< TSharedPtr<FSortedParamData> >
+class SMaterialLayersFunctionsInstanceTreeItem : public STableRow< TSharedPtr<FSortedParamData> >, public IDraggableItem
 {
 public:
 
@@ -59,7 +59,7 @@ public:
 	void OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo, SMaterialLayersFunctionsInstanceTree* InTree, int32 Counter);
 
 
-	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent)
+	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent) override
 	{
 		if (StackParameterData->ParameterInfo.Index != 0)
 		{
@@ -67,12 +67,12 @@ public:
 		}
 	}
 
-	void OnLayerDragLeave(const FDragDropEvent& DragDropEvent)
+	void OnLayerDragLeave(const FDragDropEvent& DragDropEvent) override
 	{
 		bIsHoveredDragTarget = false;
 	}
 
-	void OnLayerDragDetected()
+	void OnLayerDragDetected() override
 	{
 		bIsBeingDragged = true;
 	}

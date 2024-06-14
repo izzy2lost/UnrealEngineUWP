@@ -89,7 +89,7 @@ FReply SLayerHandle::OnDragDetected(const FGeometry& MyGeometry, const FPointerE
 
 }
 
-TSharedPtr<FLayerDragDropOp> SLayerHandle::CreateDragDropOperation(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack)
+TSharedPtr<FLayerDragDropOp> SLayerHandle::CreateDragDropOperation(TSharedPtr<IDraggableItem> InOwningStack)
 {
 	TSharedPtr<FLayerDragDropOp> Operation = MakeShareable(new FLayerDragDropOp(InOwningStack));
 
@@ -875,7 +875,7 @@ TArray<UFactory*> FMaterialPropertyHelpers::GetAssetFactories(EMaterialParameter
 }
 
 
-TSharedRef<SWidget> FMaterialPropertyHelpers::MakeStackReorderHandle(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack)
+TSharedRef<SWidget> FMaterialPropertyHelpers::MakeStackReorderHandle(TSharedPtr<IDraggableItem> InOwningStack)
 {
 	TSharedRef<SLayerHandle> Handle = SNew(SLayerHandle)
 		.Content()
