@@ -177,6 +177,9 @@ struct FMaterialCachedExpressionEditorOnlyData
 
 	UPROPERTY()
 	TSet<FString> ExpressionIncludeFilePaths;
+
+	UPROPERTY()
+	TSet<FName> UserSceneTextureInputs;
 };
 
 USTRUCT()

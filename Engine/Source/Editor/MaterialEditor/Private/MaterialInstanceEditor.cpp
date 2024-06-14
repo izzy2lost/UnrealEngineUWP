@@ -574,6 +574,9 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 	}
 
 	Refresh();
+
+	// Notify other editors if this material editor has a post process named output, which may affect their preview
+	NotifyUserSceneTextureLoadOrUnload();
 }
 
 void FMaterialInstanceEditor::ReInitMaterialFunctionProxies()
@@ -750,6 +753,11 @@ FMaterialInstanceEditor::FMaterialInstanceEditor()
 
 FMaterialInstanceEditor::~FMaterialInstanceEditor()
 {
+	bDestructing = true;
+
+	// Notify other editors if this material editor has a post process named output, which may affect their preview
+	NotifyUserSceneTextureLoadOrUnload();
+
 	// Broadcast that this editor is going down to all listeners
 	OnMaterialEditorClosed().Broadcast();
 
@@ -1033,6 +1041,13 @@ void FMaterialInstanceEditor::GenerateInheritanceMenu(UToolMenu* Menu)
 	}
 }
 
+void FMaterialInstanceEditor::RefreshPreviewViewport()
+{
+	if (PreviewVC.IsValid())
+	{
+		PreviewVC->RefreshViewport();
+	}
+}
 
 TSharedRef<SDockTab> FMaterialInstanceEditor::SpawnTab_Preview( const FSpawnTabArgs& Args )
 {	
@@ -1738,6 +1753,28 @@ void FMaterialInstanceEditor::PostRedo( bool bSuccess )
 void FMaterialInstanceEditor::NotifyExternalMaterialChange()
 {
 	MaterialStatsManager->SignalMaterialChanged();
+}
+
+void FMaterialInstanceEditor::NotifyUserSceneTextureLoadOrUnload()
+{
+	if (PreviewVC.IsValid() && PreviewVC->PreviewMaterial)
+	{
+		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(PreviewVC->PreviewMaterial);
+		if (MaterialInstance)
+		{
+			UMaterial* BaseMaterial = MaterialInstance->GetMaterial();
+			if (BaseMaterial && BaseMaterial->IsPostProcessMaterial())
+			{
+				FName Output = MaterialInstance->GetUserSceneTextureOutput(BaseMaterial);
+
+				// Ignore special SceneColor output name -- this just writes to SceneColor, not a transient UserSceneTexture
+				if (!Output.IsNone() && Output != FName("SceneColor"))
+				{
+					FMaterialEditorUtilities::RefreshPostProcessPreviewMaterials(MaterialInstance);
+				}
+			}
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

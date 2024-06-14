@@ -1217,6 +1217,24 @@ bool UMaterialInterface::GetRefractionSettings(float& OutBiasValue) const
 	return false;
 }
 
+bool UMaterialInterface::GetUserSceneTextureOverride(FName& InOutName) const
+{
+	return false;
+}
+
+// Certain implementations support overrides to the base material setting, default behavior is to just return the value from the base material
+EBlendableLocation UMaterialInterface::GetBlendableLocation(const UMaterial* Base) const
+{
+	check(Base);
+	return Base->BlendableLocation;
+}
+int32 UMaterialInterface::GetBlendablePriority(const UMaterial* Base) const
+{
+	check(Base);
+	return Base->BlendablePriority;
+}
+
+
 #if WITH_EDITOR
 bool UMaterialInterface::GetParameterDesc(const FHashedMaterialParameterInfo& ParameterInfo, FString& OutDesc) const
 {

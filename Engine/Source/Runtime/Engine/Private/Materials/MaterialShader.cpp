@@ -2516,6 +2516,7 @@ void FMaterialShaderMap::Compile(
 		NewContent->UserSceneTextureOutput = FScriptName(MaterialObject->UserSceneTexture);
 		NewContent->UserTextureDivisorX = MaterialObject->UserTextureDivisor.X;
 		NewContent->UserTextureDivisorY = MaterialObject->UserTextureDivisor.Y;
+		NewContent->ResolutionRelativeToInput = FScriptName(MaterialObject->ResolutionRelativeToInput);
 	}
 
 #if ALLOW_SHADERMAP_DEBUG_DATA

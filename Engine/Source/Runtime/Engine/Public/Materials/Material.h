@@ -996,6 +996,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "User Texture Divisor"))
 	FIntPoint UserTextureDivisor = FIntPoint(0, 0);
 
+	/** Set output resolution relative to the given User Scene Texture input.  Negative User Texture Divisors upsample (clamped at full resolution). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "Resolution Relative To Input"))
+	FName ResolutionRelativeToInput;
+
+	/**
+	 * Disable pre-exposure scale in post process materials (multiply by View.OneOverPreExposure on inputs, View.PreExposure on output).  Useful for
+	 * materials that don't care about the absolute intensity of SceneColor (for example, a blur), simplifying custom HLSL and saving some performance.
+	 * Or useful for non-color UserSceneTextures (for example, mask, matte, modulation, offset, or ID textures), where pre-exposure scale is
+	 * undesirable.  Pre-exposure scale can be manually reapplied via custom HLSL if needed on specific inputs or the output.
+	 */
+	UPROPERTY(EditAnywhere, Category = PostProcessMaterial)
+	uint8 bDisablePreExposureScale : 1;
+
 	/**
 	* Indicates that the material and its instances can be used with neural network engine.
 	* This will result in the shaders required to support neural network engine being compiled which will increase shader compile time and memory usage.
@@ -1139,6 +1152,8 @@ public:
 	ENGINE_API virtual bool GetParameterValue(EMaterialParameterType Type, const FMemoryImageMaterialParameterInfo& ParameterInfo, FMaterialParameterMetadata& OutValue, EMaterialGetParameterValueFlags Flags = EMaterialGetParameterValueFlags::Default) const override;
 
 	ENGINE_API virtual bool GetRefractionSettings(float& OutBiasValue) const override;
+	ENGINE_API virtual EBlendableLocation GetBlendableLocation(const UMaterial* Base) const override;
+	ENGINE_API virtual int32 GetBlendablePriority(const UMaterial* Base) const override;
 	ENGINE_API virtual void GetDependencies(TSet<UMaterialInterface*>& Dependencies) override;
 	ENGINE_API virtual FMaterialRenderProxy* GetRenderProxy() const override;
 	ENGINE_API virtual UPhysicalMaterial* GetPhysicalMaterial() const override;

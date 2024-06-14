@@ -18,6 +18,7 @@
 #include "MaterialEditor/MaterialEditorMeshComponent.h"
 #include "MaterialEditor/PreviewMaterial.h"
 #include "Materials/MaterialExpressionUserSceneTexture.h"
+#include "Materials/MaterialInstanceConstant.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Selection.h"
 #include "Editor.h"
@@ -26,6 +27,7 @@
 #include "MaterialEditorActions.h"
 #include "Slate/SceneViewport.h"
 #include "MaterialEditor.h"
+#include "MaterialInstanceEditor.h"
 #include "SMaterialEditorViewportToolBar.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Engine/TextureCube.h"
@@ -432,23 +434,95 @@ bool SMaterialEditor3DPreviewViewport::SetPreviewAssetByName(const TCHAR* InAsse
 }
 
 // Add user scene texture inputs from a material.  Doesn't clear TSet first, so can be used to accumulate inputs from multiple materials.
-void GetUserSceneTextureInputs(UMaterial* Material, TSet<FName>& OutUserSceneTextures)
+static void GetUserSceneTextureInputs(UMaterialInterface* Material, TSet<FName>& OutUserSceneTextures)
 {
-	TArray<const UMaterialExpressionUserSceneTexture*> UserSceneTextureExpressions;
-	Material->GetAllExpressionsInMaterialAndFunctionsOfType(UserSceneTextureExpressions);
-
-	for (const UMaterialExpressionUserSceneTexture* UserSceneTextureExpression : UserSceneTextureExpressions)
+	UMaterial* BaseMaterial = Material->GetBaseMaterial();
+	if (BaseMaterial)
 	{
-		if (!UserSceneTextureExpression->UserSceneTexture.IsNone())
+		// Get inputs from base material.  TMap key stores input, value stores instance override if present.
+		TMap<FName, FName> NewInputs;
+		TArray<const UMaterialExpressionUserSceneTexture*> UserSceneTextureExpressions;
+		BaseMaterial->GetAllExpressionsInMaterialAndFunctionsOfType(UserSceneTextureExpressions);
+
+		for (const UMaterialExpressionUserSceneTexture* UserSceneTextureExpression : UserSceneTextureExpressions)
 		{
-			OutUserSceneTextures.Add(UserSceneTextureExpression->UserSceneTexture);
+			if (!UserSceneTextureExpression->UserSceneTexture.IsNone())
+			{
+				NewInputs.Add(UserSceneTextureExpression->UserSceneTexture, NAME_None);
+			}
+		}
+
+		// Then get any overrides from material instances
+		TSet<UMaterialInterface*> MaterialDependencies;
+		Material->GetDependencies(MaterialDependencies);
+
+		for (UMaterialInterface* MaterialDependency : MaterialDependencies)
+		{
+			UMaterialInstanceConstant* MaterialInstance = Cast<UMaterialInstanceConstant>(MaterialDependency);
+			if (MaterialInstance)
+			{
+				for (FUserSceneTextureOverride& Override : MaterialInstance->UserSceneTextureOverrides)
+				{
+					FName* FoundInput = NewInputs.Find(Override.Key);
+
+					// Only accept the first override of a given value
+					if (FoundInput && FoundInput->IsNone())
+					{
+						*FoundInput = Override.Value;
+					}
+				}
+			}
+		}
+
+		// Finally, add the inputs to the output
+		for (auto NewInputIterator : NewInputs)
+		{
+			if (!NewInputIterator.Value.IsNone())
+			{
+				OutUserSceneTextures.Add(NewInputIterator.Value);
+			}
+			else
+			{
+				OutUserSceneTextures.Add(NewInputIterator.Key);
+			}
 		}
 	}
 }
 
+static bool IsParentOfEditedMaterialInstance(const FMaterialEditor* MaterialEditor, const TArray<UMaterialInstanceConstant*>& EditedMaterialInstances)
+{
+	for (UMaterialInstanceConstant* OtherInstance : EditedMaterialInstances)
+	{
+		UMaterial* BaseMaterial = OtherInstance->GetBaseMaterial();
+		if (BaseMaterial == MaterialEditor->Material || BaseMaterial == MaterialEditor->OriginalMaterial)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool IsParentOfEditedMaterialInstance(UMaterialInstanceConstant* EditedMaterialInstance, const TArray<UMaterialInstanceConstant*>& EditedMaterialInstances)
+{
+	for (UMaterialInstanceConstant* OtherInstance : EditedMaterialInstances)
+	{
+		if (OtherInstance != EditedMaterialInstance)
+		{
+			FMaterialInheritanceChain OtherInheritanceChain;
+			OtherInstance->GetMaterialInheritanceChain(OtherInheritanceChain);
+
+			if (OtherInheritanceChain.MaterialInstances.Contains(EditedMaterialInstance))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 // Recursively get all edited materials that have UserSceneTexture outputs that feed into Material.  Also returns inputs that
 // are missing, which may be useful to report as warnings to the log in the future.
-void GetUserSceneTextureDependencies(UMaterial* Material, TSet<UPreviewMaterial*>& OutDependencies, TSet<FName>& OutMissingInputs)
+static void GetUserSceneTextureDependencies(UMaterialInterface* Material, TSet<UMaterialInterface*>& OutDependencies, TSet<FName>& OutMissingInputs)
 {
 	// Check if the current material has any UserSceneTexture inputs first
 	TSet<FName> InputsToProcess;
@@ -459,21 +533,66 @@ void GetUserSceneTextureDependencies(UMaterial* Material, TSet<UPreviewMaterial*
 	}
 
 	// Generate a global list of edited materials that generate a given UserSceneTexture output (minus Material itself)
-	TMap<FName, TSet<UPreviewMaterial*>> MaterialsByUserSceneTextureOutput;
+	TMap<FName, TSet<UMaterialInterface*>> MaterialsByUserSceneTextureOutput;
 
 	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
 	TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
-	for (int32 AssetIdx = 0; AssetIdx < EditedAssets.Num(); AssetIdx++)
+
+	// Get a list of material instances first -- if a material or instance is a parent of other loaded instances, only consider the outermost child instance
+	TArray<UMaterialInstanceConstant*> EditedMaterialInstances;
+	for (UObject* EditedAsset : EditedAssets)
 	{
-		UObject* EditedAsset = EditedAssets[AssetIdx];
+		UMaterialInstanceConstant* EditedMaterialInstance = Cast<UMaterialInstanceConstant>(EditedAsset);
+		if (EditedMaterialInstance)
+		{
+			EditedMaterialInstances.Add(EditedMaterialInstance);
+		}
+	}
+
+	for (UObject* EditedAsset : EditedAssets)
+	{
 		UPreviewMaterial* EditedMaterial = Cast<UPreviewMaterial>(EditedAsset);
 
 		if (EditedMaterial && EditedMaterial != Material && EditedMaterial->IsPostProcessMaterial() && !EditedMaterial->UserSceneTexture.IsNone())
 		{
 			TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
-			if (!Editors.IsEmpty() && Editors[0]->GetEditorName() == FName("MaterialEditor") && !((const FMaterialEditor*)Editors[0])->bDestructing)
+			if (!Editors.IsEmpty() && Editors[0]->GetEditorName() == FName("MaterialEditor"))
 			{
-				MaterialsByUserSceneTextureOutput.FindOrAdd(EditedMaterial->UserSceneTexture).Add(EditedMaterial);
+				const FMaterialEditor* MaterialEditor = (const FMaterialEditor*)Editors[0];
+
+				// If we are editing a material instance and its parent, we only want the child instance to be previewed.  Previewing multiple
+				// copies of the same base material would cause confusing and indeterminate results.  We pass in the MaterialEditor rather than
+				// the material, so we can check against both original and previewed variations of the material.
+				if (!MaterialEditor->bDestructing && !IsParentOfEditedMaterialInstance(MaterialEditor, EditedMaterialInstances))
+				{
+					MaterialsByUserSceneTextureOutput.FindOrAdd(EditedMaterial->UserSceneTexture).Add(EditedMaterial);
+				}
+			}
+		}
+
+		UMaterialInstanceConstant* EditedMaterialInstance = Cast<UMaterialInstanceConstant>(EditedAsset);
+
+		// If we are editing a material instance and its parent, we only want the child instance to be previewed.
+		if (EditedMaterialInstance && EditedMaterialInstance != Material && !IsParentOfEditedMaterialInstance(EditedMaterialInstance, EditedMaterialInstances))
+		{
+			UMaterial* BaseMaterial = EditedMaterialInstance->GetMaterial();
+
+			if (BaseMaterial->IsPostProcessMaterial())
+			{
+				FName UserSceneTextureOutput = EditedMaterialInstance->GetUserSceneTextureOutput(BaseMaterial);
+				if (UserSceneTextureOutput != NAME_None)
+				{
+					TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+					if (!Editors.IsEmpty() && Editors[0]->GetEditorName() == FName("MaterialInstanceEditor"))
+					{
+						const FMaterialInstanceEditor* MaterialInstanceEditor = (const FMaterialInstanceEditor*)Editors[0];
+
+						if (!MaterialInstanceEditor->IsDestructing())
+						{
+							MaterialsByUserSceneTextureOutput.FindOrAdd(UserSceneTextureOutput).Add(EditedMaterialInstance);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -484,7 +603,7 @@ void GetUserSceneTextureDependencies(UMaterial* Material, TSet<UPreviewMaterial*
 	{
 		// Find materials that generate an input we care about
 		FName Input = InputsToProcess[FSetElementId::FromInteger(ElementIndex)];
-		TSet<UPreviewMaterial*>* MaterialsGeneratingInput = MaterialsByUserSceneTextureOutput.Find(Input);
+		TSet<UMaterialInterface*>* MaterialsGeneratingInput = MaterialsByUserSceneTextureOutput.Find(Input);
 
 		if (MaterialsGeneratingInput)
 		{
@@ -492,7 +611,7 @@ void GetUserSceneTextureDependencies(UMaterial* Material, TSet<UPreviewMaterial*
 			OutDependencies.Append(*MaterialsGeneratingInput);
 
 			// Add any inputs the new dependencies require
-			for (UPreviewMaterial* MaterialGeneratingOutput : *MaterialsGeneratingInput)
+			for (UMaterialInterface* MaterialGeneratingOutput : *MaterialsGeneratingInput)
 			{
 				GetUserSceneTextureInputs(MaterialGeneratingOutput, InputsToProcess);
 			}
@@ -522,6 +641,24 @@ void SMaterialEditor3DPreviewViewport::SetPreviewMaterial(UMaterialInterface* In
 		// Clear blendables, and re-add them (cleans up any post process materials with UserSceneTextures that are no longer used or loaded)
 		PostProcessVolumeActor->Settings.WeightedBlendables.Array.Empty(1);
 
+		{
+			// Add any edited post process materials that write UserSceneTextures used by this material, for better visualization.
+			// We want to add these before the main material, so the main material renders last (assuming equal priority).
+			TSet<UMaterialInterface*> UserSceneTextureDependencies;
+			TSet<FName> UserSceneTextureMissingInputs;
+
+			GetUserSceneTextureDependencies(PreviewMaterial, UserSceneTextureDependencies, UserSceneTextureMissingInputs);
+
+			// Add dependencies in reverse order, as dependency tree is traversed backwards from the main material's inputs, so earlier
+			// dependencies tend to end up later in the TSet.  This isn't a perfect dependency sort, but works correctly in typical cases.
+			// The user should set Blendable Priority as needed to sort in complex cases.
+			for (int32 DependencyIndex = UserSceneTextureDependencies.Num() - 1; DependencyIndex >= 0; --DependencyIndex)
+			{
+				UMaterialInterface* Dependency = UserSceneTextureDependencies[FSetElementId::FromInteger(DependencyIndex)];
+				PostProcessVolumeActor->AddOrUpdateBlendable(Dependency);
+			}
+		}
+
 		check (PreviewMaterial != nullptr);
 		PostProcessVolumeActor->AddOrUpdateBlendable(PreviewMaterial);
 		PostProcessVolumeActor->bEnabled = true;
@@ -538,18 +675,7 @@ void SMaterialEditor3DPreviewViewport::SetPreviewMaterial(UMaterialInterface* In
 			PreviewMeshComponent->MarkRenderStateDirty();
 		}
 
-		{
-			// Add any edited post process materials that write UserSceneTextures used by this material, for better visualization
-			TSet<UPreviewMaterial*> UserSceneTextureDependencies;
-			TSet<FName> UserSceneTextureMissingInputs;
-
-			GetUserSceneTextureDependencies(PreviewMaterial->GetMaterial(), UserSceneTextureDependencies, UserSceneTextureMissingInputs);
-
-			for (UPreviewMaterial* Dependency : UserSceneTextureDependencies)
-			{
-				PostProcessVolumeActor->AddOrUpdateBlendable(Dependency);
-			}
-		}
+		GetViewportClient()->RedrawRequested(GetSceneViewport().Get());
 	}
 	else
 	{
@@ -858,11 +984,21 @@ void SMaterialEditor3DPreviewViewport::OnPropertyChanged(UObject* ObjectBeingMod
 	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 	static const FString MaterialDomain = TEXT("MaterialDomain");
 	static const FString UserSceneTexture = TEXT("UserSceneTexture");
-	if (ObjectBeingModified != nullptr && PropertyThatChanged != nullptr && (PropertyThatChanged->GetName() == MaterialDomain || PropertyThatChanged->GetName() == UserSceneTexture))
+	static const FString PostProcessOverrides = TEXT("PostProcessOverrides");
+
+	// We need to refresh other edited post process materials when a change is made that affects UserSceneTexture inputs or outputs, as previews
+	// include materials that generate UserSceneTexture dependencies.  Changing the material domain potentially converts a material to or from a
+	// Post Process domain material, adding or removing it as relevant to other previews.  Or changing any UserSceneTexture input or output, which
+	// includes the "UMaterial::UserSceneTexture" field, plus any FName field in the PostProcessOverrides member struct.
+	//
+	// We also need to refresh PreviewMaterial itself if its domain changes, regardless of whether it's a post process material.
+	if (ObjectBeingModified != nullptr && PropertyThatChanged != nullptr)
 	{
-		// Refresh preview material if this specific material has been modified, or if this is any other post process material that has an editor preview,
-		// which may use this preview material in its preview if it has the UserSceneTexture as one of its inputs.
-		if (ObjectBeingModified == PreviewMaterial || PreviewMaterial->GetMaterial()->IsPostProcessMaterial())
+		if ((ObjectBeingModified == PreviewMaterial && PropertyThatChanged->GetName() == MaterialDomain) ||
+			(PreviewMaterial->GetMaterial()->IsPostProcessMaterial() &&
+			 (PropertyThatChanged->GetName() == MaterialDomain ||
+			  PropertyThatChanged->GetName() == UserSceneTexture ||
+			  (PropertyThatChanged->IsA<FNameProperty>() && PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetName() == PostProcessOverrides))))
 		{
 			SetPreviewMaterial(PreviewMaterial);
 		}

@@ -453,6 +453,12 @@ public:
 	/** Overrides function in FEditorUndoClient. Called to see if the context of the current undo/redo operation is a match for the client. */
 	virtual bool MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
 
+	/**
+	 * Notifies all other editors that the given material with a UserSceneTexture output was loaded or unloaded, so they can refresh their preview window
+	 * if needed.  Utility function shared between UMaterial and UMaterialInstance editors.
+	 */
+	static void NotifyAllUserSceneTextureLoadOrUnload(UMaterialInterface* MaterialInterface);
+
 public:
 	/** Set to true when modifications have been made to the material */
 	bool bMaterialDirty;

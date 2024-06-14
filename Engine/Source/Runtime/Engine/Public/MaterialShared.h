@@ -1049,6 +1049,7 @@ struct FMaterialShaderParameters
 			uint64 bIsUsedWithHeterogeneousVolumes : 1;
 			uint64 bIsMobileSeparateTranslucencyEnabled : 1;
 			uint64 bAlwaysEvaluateWorldPositionOffset : 1;
+			uint64 bDisablePreExposureScale : 1;
 		};
 	};
 
@@ -1378,6 +1379,7 @@ private:
 	LAYOUT_FIELD(FScriptName, UserSceneTextureOutput);
 	LAYOUT_FIELD(int32, UserTextureDivisorX);
 	LAYOUT_FIELD(int32, UserTextureDivisorY);
+	LAYOUT_FIELD(FScriptName, ResolutionRelativeToInput);
 
 	LAYOUT_FIELD_EDITORONLY(TMemoryImageArray<FMaterialProcessedSource>, ShaderProcessedSource);
 	LAYOUT_FIELD_EDITORONLY(FMemoryImageString, FriendlyName);
@@ -1626,7 +1628,8 @@ public:
 	bool UsesSceneTexture(uint32 TexId) const { return (GetContent()->MaterialCompilationOutput.UsedSceneTextures & (1ull << TexId)) != 0; }
 	TConstArrayView<FScriptName> GetUserSceneTextureInputs() const { return GetContent()->MaterialCompilationOutput.UserSceneTextureInputs; }
 	FScriptName GetUserSceneTextureOutput() const { return GetContent()->UserSceneTextureOutput; }
-	FIntPoint GetUserTextureDivisor() const { return FIntPoint(FMath::Max(GetContent()->UserTextureDivisorX, 1), FMath::Max(GetContent()->UserTextureDivisorY, 1)); }
+	FIntPoint GetUserTextureDivisor() const { return FIntPoint(GetContent()->UserTextureDivisorX, GetContent()->UserTextureDivisorY); }
+	FScriptName GetResolutionRelativeToInput() const { return GetContent()->ResolutionRelativeToInput; }
 
 	bool UsesPathTracingBufferTexture(uint32 TexId) const { return (GetContent()->MaterialCompilationOutput.UsedPathTracingBufferTextures & (1ull << TexId)) != 0;}
 
@@ -2211,6 +2214,7 @@ public:
 	virtual int32 GetBlendableLocation() const { return 0; }
 	virtual int32 GetBlendablePriority() const { return 0; }
 	virtual bool GetBlendableOutputAlpha() const { return false; }
+	virtual bool GetDisablePreExposureScale() const { return false; }
 	virtual bool IsStencilTestEnabled() const { return false; }
 	virtual uint32 GetStencilRefValue() const { return 0; }
 	virtual uint32 GetStencilCompare() const { return 0; }
@@ -2968,6 +2972,7 @@ public:
 	ENGINE_API virtual int32 GetBlendableLocation() const override;
 	ENGINE_API virtual int32 GetBlendablePriority() const override;
 	ENGINE_API virtual bool GetBlendableOutputAlpha() const override;
+	ENGINE_API virtual bool GetDisablePreExposureScale() const override;
 	ENGINE_API virtual bool IsStencilTestEnabled() const override;
 	ENGINE_API virtual uint32 GetStencilRefValue() const override;
 	ENGINE_API virtual uint32 GetStencilCompare() const override;

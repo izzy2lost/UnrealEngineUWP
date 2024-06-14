@@ -12,6 +12,7 @@
 #include "Misc/Guid.h"
 #include "StaticParameterSet.h"
 #include "Editor/UnrealEdTypes.h"
+#include "Engine/BlendableInterface.h"
 #include "Materials/MaterialInstanceBasePropertyOverrides.h"
 #include "Materials/MaterialExpression.h"
 #include "MaterialEditorInstanceConstant.generated.h"
@@ -217,6 +218,48 @@ struct FEditorStaticComponentMaskParameterValue : public FEditorParameterValue
 	}
 };
 
+USTRUCT()
+struct FEditorUserSceneTextureOverride
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FName Key;
+
+	UPROPERTY(EditAnywhere, Category = EditorParameterValue)
+	FName Value;
+};
+
+USTRUCT()
+struct FMaterialEditorPostProcessOverrides
+{
+	GENERATED_USTRUCT_BODY()
+
+	// Tracks if this is a material where post process overrides can be applied (MaterialDomain == MD_PostProcess, BlendableLocation != BL_ReplacingTonemapper)
+	UPROPERTY()
+	bool bIsOverrideable;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
+	bool bOverrideBlendableLocation;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
+	bool bOverrideBlendablePriority;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue, meta = (DisplayName = "Blendable Location"), meta = (InvalidEnumValues = "BL_ReplacingTonemapper"))
+	TEnumAsByte<EBlendableLocation> BlendableLocationOverride;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue, meta = (DisplayName = "Blendable Priority"))
+	int32 BlendablePriorityOverride;
+
+	/** Overrides for user scene texture inputs */
+	UPROPERTY(EditAnywhere, editfixedsize, Category = PostProcessOverrideValue)
+	TArray<FEditorUserSceneTextureOverride> UserSceneTextureInputs;
+
+	/** Override for user scene texture output */
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
+	FName UserSceneTextureOutput;
+};
+
 UCLASS(hidecategories=Object, collapsecategories, MinimalAPI)
 class UMaterialEditorInstanceConstant : public UObject
 {
@@ -281,6 +324,10 @@ class UMaterialEditorInstanceConstant : public UObject
 	/** An override material which will be used instead of this one when rendering with nanite. */
 	UPROPERTY(EditAnywhere, Category = MaterialEditorInstanceConstant, meta = (editcondition = "bNaniteOverride"))
 	TObjectPtr<UMaterialInterface> NaniteOverrideMaterial;
+
+	/** Overrides specific to Post Process domain materials. */
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrides)
+	FMaterialEditorPostProcessOverrides PostProcessOverrides;
 
 	//~ Begin UObject Interface.
 	UNREALED_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

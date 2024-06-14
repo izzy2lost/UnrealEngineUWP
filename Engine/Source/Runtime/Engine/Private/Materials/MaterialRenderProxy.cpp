@@ -250,6 +250,36 @@ bool FMaterialRenderProxy::GetTextureCollectionValue(const FHashedMaterialParame
 	return false;
 }
 
+FName FMaterialRenderProxy::GetUserSceneTextureOutput(const FMaterial* Base) const
+{
+	FName Result = NAME_None;
+
+	// Replacing tonemapper can't override output.
+	if (Base->GetBlendableLocation() != BL_ReplacingTonemapper)
+	{
+		// UserSceneTexture output overrides are stored under key "NAME_None".  We store them in the override lookup to save space
+		// in the base structure, by avoiding a separate field just for the output override.
+		if (!GetUserSceneTextureOverride(Result) && Base)
+		{
+			// If no override was found, get the result from the base material
+			Result = FName(Base->GetRenderingThreadShaderMap()->GetUserSceneTextureOutput());
+		}
+	}
+	return Result;
+}
+
+EBlendableLocation FMaterialRenderProxy::GetBlendableLocation(const FMaterial* Base) const
+{
+	check(Base);
+	return (EBlendableLocation)Base->GetBlendableLocation();
+}
+
+int32 FMaterialRenderProxy::GetBlendablePriority(const FMaterial* Base) const
+{
+	check(Base);
+	return Base->GetBlendablePriority();
+}
+
 static void OnVirtualTextureDestroyedCB(const FVirtualTextureProducerHandle& InHandle, void* Baton)
 {
 	FMaterialRenderProxy* MaterialProxy = static_cast<FMaterialRenderProxy*>(Baton);

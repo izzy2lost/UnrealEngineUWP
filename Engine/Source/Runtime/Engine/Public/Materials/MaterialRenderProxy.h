@@ -9,6 +9,7 @@
 #include "RHIImmutableSamplerState.h"
 #include "Async/Mutex.h"
 #include "Tasks/Task.h"
+#include "Engine/BlendableInterface.h"
 
 enum class EMaterialParameterType : uint8;
 
@@ -173,6 +174,11 @@ public:
 	ENGINE_API bool GetTextureValue(const FHashedMaterialParameterInfo& ParameterInfo, const USparseVolumeTexture** OutValue, const FMaterialRenderContext& Context) const;
 	ENGINE_API bool GetTextureCollectionValue(const FHashedMaterialParameterInfo& ParameterInfo, const UTextureCollection** OutValue, const FMaterialRenderContext& Context) const;
 	virtual bool GetParameterValue(EMaterialParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, FMaterialParameterValue& OutValue, const FMaterialRenderContext& Context) const = 0;
+	virtual bool GetUserSceneTextureOverride(FName& InOutValue) const { return false; }
+	ENGINE_API FName GetUserSceneTextureOutput(const FMaterial* Base) const;
+	ENGINE_API virtual EBlendableLocation GetBlendableLocation(const FMaterial* Base) const;
+	ENGINE_API virtual int32 GetBlendablePriority(const FMaterial* Base) const;
+
 
 	bool IsDeleted() const
 	{

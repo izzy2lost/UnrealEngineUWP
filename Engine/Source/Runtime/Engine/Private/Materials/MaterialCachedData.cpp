@@ -27,6 +27,7 @@
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
+#include "Materials/MaterialExpressionUserSceneTexture.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "MaterialHLSLTree.h"
@@ -393,6 +394,14 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 		Expression->GetLandscapeLayerNames(EditorOnlyData->LandscapeLayerNames);
 
 		Expression->GetIncludeFilePaths(EditorOnlyData->ExpressionIncludeFilePaths);
+
+		if (UMaterialExpressionUserSceneTexture* ExpressionUserSceneTexture = Cast<UMaterialExpressionUserSceneTexture>(Expression))
+		{
+			if (!ExpressionUserSceneTexture->UserSceneTexture.IsNone())
+			{
+				EditorOnlyData->UserSceneTextureInputs.Add(ExpressionUserSceneTexture->UserSceneTexture);
+			}
+		}
 
 		if (UMaterialExpressionCollectionParameter* ExpressionCollectionParameter = Cast<UMaterialExpressionCollectionParameter>(Expression))
 		{

@@ -1928,7 +1928,7 @@ void UMaterial::GetDependentFunctions(TArray<UMaterialFunctionInterface*>& Depen
 }
 #endif // WITH_EDITORONLY_DATA
 
-extern FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterial* Material, FBlendableEntry*& Iterator);
+extern FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base, FBlendableEntry*& Iterator);
 
 void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float Weight) const
 {
@@ -1947,7 +1947,7 @@ void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float
 
 	FBlendableEntry* Iterator = 0;
 
-	FPostProcessMaterialNode* DestNode = IteratePostProcessMaterialNodes(Dest, Base, Iterator);
+	FPostProcessMaterialNode* DestNode = IteratePostProcessMaterialNodes(Dest, this, Base, Iterator);
 
 	// is this the first one of this material?
 	if(!DestNode)
@@ -1962,7 +1962,7 @@ void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float
 
 			InitialMID->CopyScalarAndVectorParameters(*SourceData, View.FeatureLevel);
 
-			FPostProcessMaterialNode InitialNode(InitialMID, Base->BlendableLocation, Base->BlendablePriority, Base->bIsBlendable);
+			FPostProcessMaterialNode InitialNode(InitialMID, GetBlendableLocation(Base), GetBlendablePriority(Base), Base->bIsBlendable);
 
 			// no blending needed on this one
 			FPostProcessMaterialNode* InitialDestNode = Dest.BlendableManager.PushBlendableData(1.0f, InitialNode);
@@ -2161,6 +2161,18 @@ bool UMaterial::GetRefractionSettings(float& OutBiasValue) const
 {
 	OutBiasValue = RefractionDepthBias;
 	return true;
+}
+
+EBlendableLocation UMaterial::GetBlendableLocation(const UMaterial* Base) const
+{
+	check(Base == this);
+	return BlendableLocation;
+}
+
+int32 UMaterial::GetBlendablePriority(const UMaterial* Base) const
+{
+	check(Base == this);
+	return BlendablePriority;
 }
 
 void UMaterial::GetDependencies(TSet<UMaterialInterface*>& Dependencies) 
@@ -4599,6 +4611,7 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendableLocation) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendablePriority) || 
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendableOutputAlpha) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bDisablePreExposureScale) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bIsBlendable) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bEnableStencilTest) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, StencilCompare) ||
@@ -4611,7 +4624,8 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 		}
 
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserSceneTexture) ||
-			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserTextureDivisor))
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserTextureDivisor) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, ResolutionRelativeToInput))
 		{
 			// "Replacing Tonemapper" blendable location doesn't support a UserSceneTexture output
 			return MaterialDomain == MD_PostProcess && BlendableLocation != BL_ReplacingTonemapper;

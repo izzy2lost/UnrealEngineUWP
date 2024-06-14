@@ -40,9 +40,9 @@ struct FUserSceneTextureEventData
 	EUserSceneTextureEvent Event;
 	FName Name;
 	uint16 AllocationOrder;
-	uint16 ViewIndex;					// Necessary to differentiate events from multiple views in split screen
-	const FMaterial* Material;
-	FIntPoint RectSize;					// Only filled in for EUserSceneTextureEvent::Output
+	uint16 ViewIndex;								// Necessary to differentiate events from multiple views in split screen
+	const UMaterialInterface* MaterialInterface;
+	FIntPoint RectSize;								// Only filled in for EUserSceneTextureEvent::Output
 };
 #endif
 
@@ -95,8 +95,9 @@ struct FMinimalSceneTextures
 
 	RENDERER_API FSceneTextureShaderParameters GetSceneTextureShaderParameters(ERHIFeatureLevel::Type FeatureLevel) const;
 
-	FRDGTextureRef FindOrAddUserSceneTexture(FRDGBuilder& GraphBuilder, int32 ViewIndex, FName Name, FIntPoint ResolutionDivisor, bool& bOutFirstRender, const FMaterial* Material, const FIntRect& OutputRect) const;
-	FScreenPassTextureSlice GetUserSceneTexture(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FName Name, const FMaterial* Material) const;
+	FRDGTextureRef FindOrAddUserSceneTexture(FRDGBuilder& GraphBuilder, int32 ViewIndex, FName Name, FIntPoint ResolutionDivisor, bool& bOutFirstRender, const UMaterialInterface* MaterialInterface, const FIntRect& OutputRect) const;
+	FScreenPassTextureSlice GetUserSceneTexture(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FName Name, const UMaterialInterface* MaterialInterface) const;
+	FIntPoint GetUserSceneTextureDivisor(FName Name) const;
 
 #if !(UE_BUILD_SHIPPING)
 	const FTransientUserSceneTexture* FindUserSceneTextureByEvent(const FUserSceneTextureEventData& Event) const;

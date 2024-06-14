@@ -31,17 +31,20 @@
 #include "Materials/MaterialExpressionRerouteBase.h"
 #include "Materials/MaterialExpressionExecBegin.h"
 #include "Materials/MaterialExpressionExecEnd.h"
+#include "Materials/MaterialInstanceConstant.h"
 
 #include "DebugViewModeHelpers.h"
 #include "Toolkits/ToolkitManager.h"
 #include "MaterialEditor.h"
 #include "MaterialExpressionClasses.h"
+#include "MaterialInstanceEditor.h"
 #include "Materials/MaterialInstance.h"
 #include "MaterialUtilities.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Templates/UniquePtr.h"
 #include "Materials/MaterialFunctionInstance.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "MaterialEditor/PreviewMaterial.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditorUtilities"
 
@@ -888,6 +891,66 @@ void FMaterialEditorUtilities::OpenSelectedParentEditor(UMaterialFunctionInterfa
 		{
 			// Show function editor
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(InMaterialFunction);
+		}
+	}
+}
+
+void FMaterialEditorUtilities::RefreshPostProcessPreviewMaterials(UMaterialInterface* ExcludeMaterialInterface, bool bRedrawOnly)
+{
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
+	for (UObject* EditedAsset : EditedAssets)
+	{
+		UPreviewMaterial* EditedPreviewMaterial = Cast<UPreviewMaterial>(EditedAsset);
+		if (EditedPreviewMaterial && EditedPreviewMaterial != ExcludeMaterialInterface)
+		{
+			UMaterial* EditedMaterial = EditedPreviewMaterial->GetMaterial();
+			if (EditedMaterial->IsPostProcessMaterial())
+			{
+				TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+				for (IAssetEditorInstance* Editor : Editors)
+				{
+					if (Editor->GetEditorName() == FName("MaterialEditor"))
+					{
+						FMaterialEditor* MaterialEditor = (FMaterialEditor*)Editor;
+						if (bRedrawOnly)
+						{
+							MaterialEditor->RefreshPreviewViewport();
+						}
+						else
+						{
+							// Calling "SetPreviewMaterial" will refresh the other editor
+							MaterialEditor->SetPreviewMaterial(EditedPreviewMaterial);
+						}
+					}
+				}
+			}
+		}
+
+		UMaterialInstanceConstant* EditedMaterialInstance = Cast<UMaterialInstanceConstant>(EditedAsset);
+		if (EditedMaterialInstance && EditedMaterialInstance != ExcludeMaterialInterface)
+		{
+			UMaterial* BaseMaterial = EditedMaterialInstance->GetBaseMaterial();
+			if (BaseMaterial && BaseMaterial->IsPostProcessMaterial())
+			{
+				TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+				for (IAssetEditorInstance* Editor : Editors)
+				{
+					if (Editor->GetEditorName() == FName("MaterialInstanceEditor"))
+					{
+						FMaterialInstanceEditor* MaterialEditor = (FMaterialInstanceEditor*)Editor;
+						if (bRedrawOnly)
+						{
+							MaterialEditor->RefreshPreviewViewport();
+						}
+						else
+						{
+							// Calling "SetPreviewMaterial" will refresh the other editor
+							MaterialEditor->SetPreviewMaterial(EditedMaterialInstance);
+						}
+					}
+				}
+			}
 		}
 	}
 }

@@ -341,6 +341,77 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 	return bResult;
 }
 
+bool FMaterialInstanceResource::GetUserSceneTextureOverride(FName& InOutName) const
+{
+	checkSlow(IsInParallelRenderingThread());
+
+	// Number of overrides possible is small (maximum 6, in most practical cases 1 or 2), and FName comparison cheap,
+	// so the assumption is that an array search will be cheaper than the overhead of going through a hash lookup.
+	// Plus an array takes half the space of THashedMaterialParameterMap, saving memory.
+	for (const FUserSceneTextureOverride& Override : UserSceneTextureOverrides)
+	{
+		if (Override.Key == InOutName && Override.Value != NAME_None)
+		{
+			InOutName = Override.Value;
+			return true;
+		}
+	}
+
+	if (Parent)
+	{
+		return Parent->GetRenderProxy()->GetUserSceneTextureOverride(InOutName);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+EBlendableLocation FMaterialInstanceResource::GetBlendableLocation(const FMaterial* Base) const
+{
+	check(Base);
+	checkSlow(IsInParallelRenderingThread());
+
+	// Can't be overridden to BL_ReplacingTonemapper
+	if (PostProcessBlendableOverrides.bOverrideBlendableLocation && PostProcessBlendableOverrides.BlendableLocationOverride != BL_ReplacingTonemapper)
+	{
+		// Can't be overridden from BL_ReplacingTonemapper 
+		if ((EBlendableLocation)Base->GetBlendableLocation() == BL_ReplacingTonemapper)
+		{
+			return BL_ReplacingTonemapper;
+		}
+
+		return PostProcessBlendableOverrides.BlendableLocationOverride;
+	}
+	else if (Parent)
+	{
+		return Parent->GetRenderProxy()->GetBlendableLocation(Base);
+	}
+	else
+	{
+		return (EBlendableLocation)Base->GetBlendableLocation();
+	}
+}
+
+int32 FMaterialInstanceResource::GetBlendablePriority(const FMaterial* Base) const
+{
+	check(Base);
+	checkSlow(IsInParallelRenderingThread());
+
+	if (PostProcessBlendableOverrides.bOverrideBlendablePriority)
+	{
+		return PostProcessBlendableOverrides.BlendablePriorityOverride;
+	}
+	else if (Parent)
+	{
+		return Parent->GetRenderProxy()->GetBlendablePriority(Base);
+	}
+	else
+	{
+		return Base->GetBlendablePriority();
+	}
+}
+
 void UMaterialInstance::PropagateDataToMaterialProxy()
 {
 	if (Resource)
@@ -426,6 +497,8 @@ void FMaterialInstanceResource::InitMIParameters(FMaterialInstanceParameterSet& 
 	TextureCollectionParameterArray.Array = MoveTemp(ParameterSet.TextureCollectionParameters);
 	RuntimeVirtualTextureParameterArray.Array = MoveTemp(ParameterSet.RuntimeVirtualTextureParameters);
 	SparseVolumeTextureParameterArray.Array = MoveTemp(ParameterSet.SparseVolumeTextureParameters);
+	UserSceneTextureOverrides = MoveTemp(ParameterSet.UserSceneTextureOverrides);
+	PostProcessBlendableOverrides = ParameterSet.PostProcessBlendableOverrides;
 
 
 	// Build hash tables.
@@ -839,6 +912,12 @@ void GameThread_InitMIParameters(const UMaterialInstance& Instance)
 		}
 	}
 
+	ParameterSet.UserSceneTextureOverrides = Instance.UserSceneTextureOverrides;
+	ParameterSet.PostProcessBlendableOverrides.bOverrideBlendableLocation = Instance.bOverrideBlendableLocation;
+	ParameterSet.PostProcessBlendableOverrides.bOverrideBlendablePriority = Instance.bOverrideBlendablePriority;
+	ParameterSet.PostProcessBlendableOverrides.BlendableLocationOverride = Instance.BlendableLocationOverride;
+	ParameterSet.PostProcessBlendableOverrides.BlendablePriorityOverride = Instance.BlendablePriorityOverride;
+
 	ENQUEUE_RENDER_COMMAND(InitMIParameters)(
 		[Resource, Parameters = MoveTemp(ParameterSet)](FRHICommandListImmediate& RHICmdList) mutable
 		{
@@ -1095,6 +1174,91 @@ bool UMaterialInstance::GetRefractionSettings(float& OutBiasValue) const
 	else
 	{
 		return false;
+	}
+}
+
+bool UMaterialInstance::GetUserSceneTextureOverride(FName& InOutName) const
+{
+	// Number of overrides possible is small (maximum 6, in most practical cases 1 or 2), and FName comparison cheap,
+	// so the assumption is that an array search will be cheaper than the overhead of going through a hash lookup.
+	// Plus an array takes half the space of THashedMaterialParameterMap, saving memory.
+	for (const FUserSceneTextureOverride& Override : UserSceneTextureOverrides)
+	{
+		if (Override.Key == InOutName)
+		{
+			InOutName = Override.Value;
+			return true;
+		}
+	}
+
+	if (Parent)
+	{
+		return Parent->GetUserSceneTextureOverride(InOutName);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+FName UMaterialInstance::GetUserSceneTextureOutput(const UMaterial* Base) const
+{
+	FName Result = NAME_None;
+
+	// Replacing tonemapper can't override output.
+	if (Base->BlendableLocation != BL_ReplacingTonemapper)
+	{
+		// UserSceneTexture output overrides are stored under key "NAME_None".  We store them in the override lookup to save space
+		// in the base structure, by avoiding a separate field just for the output override.
+		if (!GetUserSceneTextureOverride(Result) && Base)
+		{
+			// If no override was found, get the result from the base material
+			Result = FName(Base->UserSceneTexture);
+		}
+	}
+	return Result;
+
+}
+
+EBlendableLocation UMaterialInstance::GetBlendableLocation(const UMaterial* Base) const
+{
+	check(Base);
+
+	// Replacing Tonemapper can't be overridden from
+	if (Base->BlendableLocation == BL_ReplacingTonemapper)
+	{
+		return BL_ReplacingTonemapper;
+	}
+
+	// Replacing Tonemapper can't be overridden to
+	if (bOverrideBlendableLocation && BlendableLocationOverride != BL_ReplacingTonemapper)
+	{
+		return BlendableLocationOverride;
+	}
+	else if (Parent)
+	{
+		return Parent->GetBlendableLocation(Base);
+	}
+	else
+	{
+		return Base->BlendableLocation;
+	}
+}
+
+int32 UMaterialInstance::GetBlendablePriority(const UMaterial* Base) const
+{
+	check(Base);
+	if (bOverrideBlendablePriority)
+	{
+		return BlendablePriorityOverride;
+	}
+	else if (Parent)
+	{
+		return Parent->GetBlendablePriority(Base);
+	}
+	else
+	{
+		return Base->BlendablePriority;
 	}
 }
 
@@ -4448,10 +4612,10 @@ void UMaterialInstance::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSiz
 	}
 }
 
-FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterial* Material, FBlendableEntry*& Iterator)
+FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base, FBlendableEntry*& Iterator)
 {
-	EBlendableLocation Location = Material->BlendableLocation;
-	int32 Priority = Material->BlendablePriority;
+	EBlendableLocation Location = Material->GetBlendableLocation(Base);
+	int32 Priority = Material->GetBlendablePriority(Base);
 
 	for (;;)
 	{

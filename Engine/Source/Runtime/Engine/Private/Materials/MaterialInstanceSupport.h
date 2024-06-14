@@ -222,6 +222,9 @@ public:
 	virtual UMaterialInterface* GetMaterialInterface() const override;
 	
 	virtual bool GetParameterValue(EMaterialParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, FMaterialParameterValue& OutValue, const FMaterialRenderContext& Context) const override;
+	virtual bool GetUserSceneTextureOverride(FName& InOutValue) const override;
+	virtual EBlendableLocation GetBlendableLocation(const FMaterial* Base) const override;
+	virtual int32 GetBlendablePriority(const FMaterial* Base) const override;
 
 	void GameThread_SetParent(UMaterialInterface* ParentMaterialInterface);
 
@@ -242,6 +245,7 @@ public:
 		TextureCollectionParameterArray.Empty();
 		RuntimeVirtualTextureParameterArray.Empty();
 		SparseVolumeTextureParameterArray.Empty();
+		UserSceneTextureOverrides.Empty();
 	}
 
 	/**
@@ -406,6 +410,10 @@ private:
 	THashedMaterialParameterMap<const USparseVolumeTexture*> SparseVolumeTextureParameterArray;
 	/** Remap layer indices for parent */
 	TArray<int32> ParentLayerIndexRemap;
+	/** User Scene Texture overrides for this material instance. */
+	TArray<FUserSceneTextureOverride> UserSceneTextureOverrides;
+	/** Post Process overrides for this material instance. */
+	FPostProcessBlendableOverrides PostProcessBlendableOverrides;
 };
 
 template <> FORCEINLINE THashedMaterialParameterMap<bool>& FMaterialInstanceResource::GetValueArray() { return StaticSwitchParameterArray; }
@@ -435,6 +443,8 @@ struct FMaterialInstanceParameterSet
 	TArray<THashedMaterialParameterMap<const UTextureCollection*>::TNamedParameter>		TextureCollectionParameters;
 	TArray<THashedMaterialParameterMap<const URuntimeVirtualTexture*>::TNamedParameter>	RuntimeVirtualTextureParameters;
 	TArray<THashedMaterialParameterMap<const USparseVolumeTexture*>::TNamedParameter>	SparseVolumeTextureParameters;
+	TArray<FUserSceneTextureOverride>													UserSceneTextureOverrides;
+	FPostProcessBlendableOverrides														PostProcessBlendableOverrides;
 };
 	
 /** Finds a parameter by name from the game thread. */

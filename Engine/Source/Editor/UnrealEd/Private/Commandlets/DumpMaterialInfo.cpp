@@ -320,6 +320,7 @@ TArray<MaterialInfo::FPropertySet> GetMaterialInfoProperties()
 		FPropertySet::FromAccessor<int32, &FMaterialResource::GetNumCustomizedUVs>(TEXT("GetNumCustomizedUVs")),
 		FPropertySet::FromAccessor<int32, &FMaterialResource::GetBlendableLocation>(TEXT("GetBlendableLocation")),
 		FPropertySet::FromAccessor<bool, &FMaterialResource::GetBlendableOutputAlpha>(TEXT("GetBlendableOutputAlpha")),
+		FPropertySet::FromAccessor<bool, &FMaterialResource::GetDisablePreExposureScale>(TEXT("GetDisablePreExposureScale")),
 		FPropertySet::FromAccessor<bool, &FMaterialResource::IsStencilTestEnabled>(TEXT("IsStencilTestEnabled")),
 		FPropertySet::FromAccessor<uint32, &FMaterialResource::GetStencilRefValue>(TEXT("GetStencilRefValue")),
 		FPropertySet::FromAccessor<uint32, &FMaterialResource::GetStencilCompare>(TEXT("GetStencilCompare")),

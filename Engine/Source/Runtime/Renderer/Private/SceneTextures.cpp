@@ -489,7 +489,7 @@ FSceneTextureShaderParameters FMinimalSceneTextures::GetSceneTextureShaderParame
 	return OutSceneTextureShaderParameters;
 }
 
-FRDGTextureRef FMinimalSceneTextures::FindOrAddUserSceneTexture(FRDGBuilder& GraphBuilder, int32 ViewIndex, FName Name, FIntPoint ResolutionDivisor, bool& bOutFirstRender, const FMaterial* Material, const FIntRect& OutputRect) const
+FRDGTextureRef FMinimalSceneTextures::FindOrAddUserSceneTexture(FRDGBuilder& GraphBuilder, int32 ViewIndex, FName Name, FIntPoint ResolutionDivisor, bool& bOutFirstRender, const UMaterialInterface* MaterialInterface, const FIntRect& OutputRect) const
 {
 	check(ResolutionDivisor.X >= 1 && ResolutionDivisor.Y >= 1);
 
@@ -559,7 +559,7 @@ FRDGTextureRef FMinimalSceneTextures::FindOrAddUserSceneTexture(FRDGBuilder& Gra
 	}
 
 #if !(UE_BUILD_SHIPPING)
-	UserSceneTextureEvents.Add({ EUserSceneTextureEvent::Output, Name, (*TransientTextures)[0].AllocationOrder, (uint16)ViewIndex, Material, OutputRect.Size() });
+	UserSceneTextureEvents.Add({ EUserSceneTextureEvent::Output, Name, (*TransientTextures)[0].AllocationOrder, (uint16)ViewIndex, MaterialInterface, OutputRect.Size() });
 #endif
 
 	// If out of mask range, treat it as the first render.  This may result in certain transparent post process materials writing to UserSceneTextures
@@ -578,7 +578,7 @@ FRDGTextureRef FMinimalSceneTextures::FindOrAddUserSceneTexture(FRDGBuilder& Gra
 	return (*TransientTextures)[0].Texture;
 }
 
-FScreenPassTextureSlice FMinimalSceneTextures::GetUserSceneTexture(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FName Name, const FMaterial* Material) const
+FScreenPassTextureSlice FMinimalSceneTextures::GetUserSceneTexture(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FName Name, const UMaterialInterface* MaterialInterface) const
 {
 	TArray<FTransientUserSceneTexture>* TransientTextures = UserSceneTextures.Find(Name);
 	if (TransientTextures)
@@ -589,7 +589,7 @@ FScreenPassTextureSlice FMinimalSceneTextures::GetUserSceneTexture(FRDGBuilder& 
 
 #if !(UE_BUILD_SHIPPING)
 		(*TransientTextures)[0].bUsed = true;
-		UserSceneTextureEvents.Add({ EUserSceneTextureEvent::FoundInput, Name, (*TransientTextures)[0].AllocationOrder, (uint16)ViewIndex, Material });
+		UserSceneTextureEvents.Add({ EUserSceneTextureEvent::FoundInput, Name, (*TransientTextures)[0].AllocationOrder, (uint16)ViewIndex, MaterialInterface });
 #endif
 
 		return TransientTextureSlice;
@@ -597,10 +597,23 @@ FScreenPassTextureSlice FMinimalSceneTextures::GetUserSceneTexture(FRDGBuilder& 
 	else
 	{
 #if !(UE_BUILD_SHIPPING)
-		UserSceneTextureEvents.Add({ EUserSceneTextureEvent::MissingInput, Name, 0, (uint16)ViewIndex, Material });
+		UserSceneTextureEvents.Add({ EUserSceneTextureEvent::MissingInput, Name, 0, (uint16)ViewIndex, MaterialInterface });
 #endif
 
 		return FScreenPassTextureSlice();
+	}
+}
+
+FIntPoint FMinimalSceneTextures::GetUserSceneTextureDivisor(FName Name) const
+{
+	TArray<FTransientUserSceneTexture>* TransientTextures = UserSceneTextures.Find(Name);
+	if (TransientTextures)
+	{
+		return (*TransientTextures)[0].ResolutionDivisor;
+	}
+	else
+	{
+		return FIntPoint(1, 1);
 	}
 }
 

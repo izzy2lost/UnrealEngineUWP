@@ -8,6 +8,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "RendererModule.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialInstance.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "MaterialDomain.h"
 #include "MaterialShaderType.h"
@@ -55,6 +56,8 @@ TAutoConsoleVariable<int32> CVarPostProcessingDisableMaterials(
 	TEXT(" Allows to disable post process materials. \n"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+static FName NAME_SceneColor("SceneColor");
+
 static bool IsPostProcessStencilTestAllowed()
 {
 	return CVarPostProcessAllowStencilTest.GetValueOnRenderThread() != 0;
@@ -69,7 +72,7 @@ enum class EMaterialCustomDepthPolicy : uint32
 	Enabled
 };
 
-static EMaterialCustomDepthPolicy GetMaterialCustomDepthPolicy(const FMaterial* Material)
+static EMaterialCustomDepthPolicy GetMaterialCustomDepthPolicy(const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material)
 {
 	check(Material);
 
@@ -81,7 +84,7 @@ static EMaterialCustomDepthPolicy GetMaterialCustomDepthPolicy(const FMaterial* 
 		{
 			UE_LOG(LogRenderer, Warning, TEXT("PostProcessMaterial uses stencil test, but stencil not allocated. Set r.CustomDepth to 3 to allocate custom stencil."));
 		}
-		else if (Material->GetBlendableLocation() == BL_SceneColorAfterTonemapping)
+		else if (MaterialRenderProxy->GetBlendableLocation(Material) == BL_SceneColorAfterTonemapping)
 		{
 			// We can't support custom stencil after tonemapping due to target size differences
 			UE_LOG(LogRenderer, Warning, TEXT("PostProcessMaterial uses stencil test, but is set to blend After Tonemapping. This is not supported."));
@@ -258,6 +261,7 @@ public:
 		// SSR input should not be affected by exposure so it should be specified separately from POST_PROCESS_MATERIAL_BEFORE_TONEMAP 
 		// in order to be able to make DRS independent CameraVector and WorldPosition nodes.
 		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_SSRINPUT"), (Location == BL_SSRInput) ? 1 : 0);
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_DISABLE_PRE_EXPOSURE_SCALE"), Parameters.MaterialParameters.bDisablePreExposureScale ? 1 : 0);
 
 		if (IsMobilePlatform(Parameters.Platform))
 		{
@@ -566,7 +570,7 @@ void AddNeuralPostProcessPass(
 	FRDGTextureRef DepthStencilTexture = nullptr;
 
 	// Allocate custom depth stencil texture(s) and depth stencil state.
-	const EMaterialCustomDepthPolicy CustomStencilPolicy = GetMaterialCustomDepthPolicy(Material);
+	const EMaterialCustomDepthPolicy CustomStencilPolicy = GetMaterialCustomDepthPolicy(MaterialRenderProxy, Material);
 
 	if (CustomStencilPolicy == EMaterialCustomDepthPolicy::Enabled &&
 		!Inputs.bManualStencilTest &&
@@ -704,7 +708,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	TShaderRef<FPostProcessMaterialPS> PixelShader;
 	GetMaterialInfo(MaterialInterface, FeatureLevel, Inputs, Material, MaterialRenderProxy, MaterialShaderMap, VertexShader, PixelShader);
 
-	EBlendableLocation BlendableLocation = EBlendableLocation(Material->GetBlendableLocation());
+	EBlendableLocation BlendableLocation = MaterialRenderProxy->GetBlendableLocation(Material);
 	const FScreenPassTextureSlice SceneColorOutput = Inputs.GetSceneColorOutput(BlendableLocation);
 
 	check(VertexShader.IsValid());
@@ -716,7 +720,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	FRDGTextureRef DepthStencilTexture = nullptr;
 
 	// Allocate custom depth stencil texture(s) and depth stencil state.
-	const EMaterialCustomDepthPolicy CustomStencilPolicy = GetMaterialCustomDepthPolicy(Material);
+	const EMaterialCustomDepthPolicy CustomStencilPolicy = GetMaterialCustomDepthPolicy(MaterialRenderProxy, Material);
 
 	if (CustomStencilPolicy == EMaterialCustomDepthPolicy::Enabled &&
 		!Inputs.bManualStencilTest &&
@@ -981,7 +985,7 @@ FPostProcessMaterialChain GetPostProcessMaterialChain(const FViewInfo& View, EBl
 
 		if (Material && (Material->BlendableLocation == Location || Location == EBlendableLocation::BL_MAX))
 		{
-			Nodes.Add(FPostProcessMaterialNode(Material, Material->BlendableLocation, Material->BlendablePriority, Material->bIsBlendable));
+			Nodes.Add(FPostProcessMaterialNode(Material, VisMaterial->GetBlendableLocation(Material), VisMaterial->GetBlendablePriority(Material), Material->bIsBlendable));
 		}
 	}
 
@@ -1077,10 +1081,18 @@ FScreenPassTexture AddPostProcessMaterialChain(
 	const UMaterialInterface* LastOutputWrite = nullptr;
 	for (int32 MaterialIndex = Materials.Num() - 1; MaterialIndex >= 0; MaterialIndex--)
 	{
-		const FMaterial* Material = Materials[MaterialIndex]->GetRenderProxy()->GetMaterialNoFallback(View.FeatureLevel);
-		if (!Material || Material->GetRenderingThreadShaderMap()->GetUserSceneTextureOutput().IsNone())
+		const FMaterialRenderProxy* MaterialRenderProxy = Materials[MaterialIndex]->GetRenderProxy();
+		const FMaterial* Material = MaterialRenderProxy->GetMaterialNoFallback(View.FeatureLevel);
+
+		FName UserSceneTextureOutput = NAME_None;
+		if (Material)
 		{
-			// Doesn't write to a UserSceneTexture, so it writes to the output
+			UserSceneTextureOutput = MaterialRenderProxy->GetUserSceneTextureOutput(Material);
+		}
+
+		if (UserSceneTextureOutput.IsNone())
+		{
+			// Doesn't write to a UserSceneTexture, so it writes to the default SceneColor output
 			LastOutputWrite = Materials[MaterialIndex];
 			break;
 		}
@@ -1101,13 +1113,19 @@ FScreenPassTexture AddPostProcessMaterialChain(
 		if (Material)
 		{
 			const FMaterialShaderMap* MaterialShaderMap = Material->GetRenderingThreadShaderMap();
+			const FSceneTextures& SceneTextures = View.GetSceneTextures();
+
+			bool bFoundResolutionRelativeToInput = false;
+			FName ResolutionRelativeToInput = NAME_None;
 
 			TConstArrayView<FScriptName> UserSceneTextureInputs = MaterialShaderMap->GetUserSceneTextureInputs();
 			if (!UserSceneTextureInputs.IsEmpty())
 			{
 				UserSceneTextureInputNum = UserSceneTextureInputs.Num();
 
-				const FSceneTextures& SceneTextures = View.GetSceneTextures();
+				// We need to apply material instance input overrides to ResolutionRelativeToInput as well, so get the name here to
+				// handle that in the input loop.
+				ResolutionRelativeToInput = FName(MaterialShaderMap->GetResolutionRelativeToInput());
 
 				int32 PostProcessIndex = 0;
 				for (int32 UserIndex = 0; UserIndex < UserSceneTextureInputs.Num();)
@@ -1117,8 +1135,33 @@ FScreenPassTexture AddPostProcessMaterialChain(
 					// Skip over this slot if it's used by a SceneTexture node
 					if (!MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + PostProcessIndex))
 					{
-						// Not used as a SceneTexture, so it's used by the next UserSceneTexture
-						Inputs.SetUserSceneTextureInput((EPostProcessMaterialInput)PostProcessIndex, SceneTextures.GetUserSceneTexture(GraphBuilder, View, ViewIndex, FName(UserSceneTextureInputs[UserIndex]), Material));
+						FName UserSceneTextureInput(UserSceneTextureInputs[UserIndex]);
+						bool bIsResolutionSource = ResolutionRelativeToInput == UserSceneTextureInputs[UserIndex];
+
+						MaterialInterface->GetRenderProxy()->GetUserSceneTextureOverride(UserSceneTextureInput);
+
+						if (bIsResolutionSource)
+						{
+							// Copy the overridden input to ResolutionRelativeToInput, and track that we found it
+							ResolutionRelativeToInput = UserSceneTextureInput;
+							bFoundResolutionRelativeToInput = true;
+						}
+
+						// Not used as a SceneTexture, so it's used by the next UserSceneTexture.  The special name "SceneColor" indicates use of
+						// "SceneColor" as input.
+						if (UserSceneTextureInput == NAME_SceneColor)
+						{
+							Inputs.SetUserSceneTextureInput((EPostProcessMaterialInput)PostProcessIndex, CurrentInput);
+
+							// Need to disable optimization that attempts to reuse SceneColor as the output, when SceneColor isn't used as an input.  Normally
+							// the use of SceneColor as an input is detected by the flags on the original FMaterialShaderMap (accessed via the UsesSceneTexture
+							// function), but those flags won't be set if a UserSceneTexture input is overridden to point at SceneColor.
+							Inputs.bAllowSceneColorInputAsOutput = false;
+						}
+						else
+						{
+							Inputs.SetUserSceneTextureInput((EPostProcessMaterialInput)PostProcessIndex, SceneTextures.GetUserSceneTexture(GraphBuilder, View, ViewIndex, UserSceneTextureInput, MaterialInterface));
+						}
 						UserIndex++;
 					}
 					PostProcessIndex++;
@@ -1127,11 +1170,72 @@ FScreenPassTexture AddPostProcessMaterialChain(
 
 #if WITH_EDITOR
 			// If this blendable is being previewed, don't write to the UserSceneTexture -- instead it will write to SceneColor
-			if (Material->GetMaterialInterface() != View.FinalPostProcessSettings.PreviewBlendable)
+			bool bIsPreviewBlendable = false;
+			if (View.FinalPostProcessSettings.PreviewBlendable)
+			{
+				if (Material->GetMaterialInterface() == View.FinalPostProcessSettings.PreviewBlendable)
+				{
+					// Material matches
+					bIsPreviewBlendable = true;
+				}
+				else
+				{
+					FMaterialInheritanceChain MaterialInheritance;
+					MaterialInterface->GetMaterialInheritanceChain(MaterialInheritance);
+					if (MaterialInheritance.MaterialInstances.Contains(View.FinalPostProcessSettings.PreviewBlendable))
+					{
+						// Material instance matches
+						bIsPreviewBlendable = true;
+					}
+				}
+			}
+
+			if (!bIsPreviewBlendable)
 #endif
 			{
-				UserSceneTextureOutput = FName(MaterialShaderMap->GetUserSceneTextureOutput());
-				UserTextureDivisor = MaterialShaderMap->GetUserTextureDivisor();
+				UserSceneTextureOutput = MaterialInterface->GetRenderProxy()->GetUserSceneTextureOutput(Material);
+
+				// If output is set to the name "SceneColor", that means actually write to "SceneColor" as opposed to a transient UserSceneTexture.
+				// The purpose of this is to give a general purpose Material asset operating on UserSceneTexture inputs and outputs the option to
+				// read or write SceneColor as well, say if they are the first or last building block in a chain of materials.
+				if (UserSceneTextureOutput == NAME_SceneColor)
+				{
+					// Clear to none, so it writes to SceneColor downstream
+					UserSceneTextureOutput = NAME_None;
+				}
+				else
+				{
+					UserTextureDivisor = MaterialShaderMap->GetUserTextureDivisor();
+
+					if (bFoundResolutionRelativeToInput)
+					{
+						// UserTextureDivisor is a relative divisor to the input, with positive values representing downscale, and negative upscale
+						FIntPoint InputDivisor = SceneTextures.GetUserSceneTextureDivisor(ResolutionRelativeToInput);
+
+						if (UserTextureDivisor.X >= 0)
+						{
+							UserTextureDivisor.X = InputDivisor.X * FMath::Max(UserTextureDivisor.X, 1);
+						}
+						else
+						{
+							UserTextureDivisor.X = FMath::Max(InputDivisor.X / FMath::Abs(UserTextureDivisor.X), 1);
+						}
+
+						if (UserTextureDivisor.Y >= 0)
+						{
+							UserTextureDivisor.Y = InputDivisor.Y * FMath::Max(UserTextureDivisor.Y, 1);
+						}
+						else
+						{
+							UserTextureDivisor.Y = FMath::Max(InputDivisor.Y / FMath::Abs(UserTextureDivisor.Y), 1);
+						}
+					}
+					else
+					{
+						UserTextureDivisor.X = FMath::Max(UserTextureDivisor.X, 1);
+						UserTextureDivisor.Y = FMath::Max(UserTextureDivisor.Y, 1);
+					}
+				}
 			}
 		}
 		
@@ -1143,7 +1247,7 @@ FScreenPassTexture AddPostProcessMaterialChain(
 		{
 			// Writing to UserSceneTexture, don't set Outputs or CurrentInput, as this is writing to a disjoint texture that's not part of the chain
 			FIntRect OutputRect = GetDownscaledViewRect(View.UnconstrainedViewRect, View.GetFamilyViewRect().Max, UserTextureDivisor);
-			FRDGTextureRef UserOutput = ((FViewFamilyInfo*)View.Family)->GetSceneTextures().FindOrAddUserSceneTexture(GraphBuilder, ViewIndex, UserSceneTextureOutput, UserTextureDivisor, Inputs.bUserSceneTextureFirstRender, Material, OutputRect);
+			FRDGTextureRef UserOutput = ((FViewFamilyInfo*)View.Family)->GetSceneTextures().FindOrAddUserSceneTexture(GraphBuilder, ViewIndex, UserSceneTextureOutput, UserTextureDivisor, Inputs.bUserSceneTextureFirstRender, MaterialInterface, OutputRect);
 			Inputs.OverrideOutput = FScreenPassRenderTarget(UserOutput, OutputRect, ERenderTargetLoadAction::ELoad);
 			Inputs.bUserSceneTextureOutput = true;
 
@@ -1171,7 +1275,7 @@ FScreenPassTexture AddPostProcessMaterialChain(
 #if !UE_BUILD_SHIPPING
 		if (UserSceneTextureInputNum || !UserSceneTextureOutput.IsNone())
 		{
-			View.GetSceneTextures().UserSceneTextureEvents.Add({ EUserSceneTextureEvent::Pass, NAME_None, 0, (uint16)ViewIndex, Material });
+			View.GetSceneTextures().UserSceneTextureEvents.Add({ EUserSceneTextureEvent::Pass, NAME_None, 0, (uint16)ViewIndex, MaterialInterface });
 		}
 #endif
 	}

@@ -36,6 +36,7 @@
 #include "MaterialEditingLibrary.h"
 #include "MaterialPropertyHelpers.h"
 #include "MaterialStatsCommon.h"
+#include "MaterialDomain.h"
 
 /**
  * Class for rendering the material on the preview mesh in the Material Editor
@@ -589,6 +590,8 @@ void UMaterialEditorInstanceConstant::RegenerateArrays()
 {
 	VisibleExpressions.Empty();
 	ParameterGroups.Empty();
+	PostProcessOverrides.bIsOverrideable = false;
+	PostProcessOverrides.UserSceneTextureInputs.Empty();
 
 	if (Parent)
 	{	
@@ -618,6 +621,31 @@ void UMaterialEditorInstanceConstant::RegenerateArrays()
 			{
 				UDEditorParameterValue* Parameter = UDEditorParameterValue::Create(this, ParameterType, It.Key, It.Value);
 				AssignParameterToGroup(Parameter, It.Value.Group);
+			}
+		}
+
+		if (ParentMaterial->MaterialDomain == MD_PostProcess && ParentMaterial->BlendableLocation != BL_ReplacingTonemapper)
+		{
+			PostProcessOverrides.bIsOverrideable = true;
+
+			UMaterialInterfaceEditorOnlyData* ParentMaterialEditorData = ParentMaterial->GetEditorOnlyData();
+			if (ParentMaterialEditorData && ParentMaterialEditorData->CachedExpressionData.IsValid())
+			{
+				const FMaterialCachedExpressionEditorOnlyData* ParentMaterialExpressionData = ParentMaterialEditorData->CachedExpressionData.Get();
+				for (FName UserSceneTextureInput : ParentMaterialExpressionData->UserSceneTextureInputs)
+				{
+					FName OverrideFound = NAME_None;
+					for (const FUserSceneTextureOverride& Override : SourceInstance->UserSceneTextureOverrides)
+					{
+						if (Override.Key == UserSceneTextureInput)
+						{
+							OverrideFound = Override.Value;
+							break;
+						}
+					}
+
+					PostProcessOverrides.UserSceneTextureInputs.Add({ UserSceneTextureInput, OverrideFound });
+				}
 			}
 		}
 
@@ -854,6 +882,41 @@ void UMaterialEditorInstanceConstant::CopyToSourceInstance(const bool bForceStat
 		FMaterialParameterInfo RefractionInfo(TEXT("RefractionDepthBias"));
 		SourceInstance->SetScalarParameterValueEditorOnly(RefractionInfo, RefractionDepthBias);
 
+		// Copy UserSceneTextureOverrides
+		SourceInstance->UserSceneTextureOverrides.Empty();
+		for (FEditorUserSceneTextureOverride& Override : PostProcessOverrides.UserSceneTextureInputs)
+		{
+			if (Override.Value != NAME_None && Override.Value != Override.Key)
+			{
+				SourceInstance->UserSceneTextureOverrides.Add({ Override.Key, Override.Value });
+			}
+		}
+		if (PostProcessOverrides.UserSceneTextureOutput != NAME_None)
+		{
+			// UserSceneTextureOutput override uses key of NAME_None
+			SourceInstance->UserSceneTextureOverrides.Add({ NAME_None, PostProcessOverrides.UserSceneTextureOutput });
+		}
+
+		// Copy other post process overrides (BlendableLocation / BlendablePriority) -- BL_ReplacingTonemapper is disallowed on overrides
+		SourceInstance->bOverrideBlendableLocation = PostProcessOverrides.bOverrideBlendableLocation && PostProcessOverrides.BlendableLocationOverride != BL_ReplacingTonemapper;
+		SourceInstance->bOverrideBlendablePriority = PostProcessOverrides.bOverrideBlendablePriority;
+		if (SourceInstance->bOverrideBlendableLocation)
+		{
+			SourceInstance->BlendableLocationOverride = PostProcessOverrides.BlendableLocationOverride;
+		}
+		else
+		{
+			SourceInstance->BlendableLocationOverride = Parent ? Parent->GetMaterial()->BlendableLocation : TEnumAsByte<EBlendableLocation>(BL_SceneColorAfterTonemapping);
+		}
+		if (SourceInstance->bOverrideBlendablePriority)
+		{
+			SourceInstance->BlendablePriorityOverride = PostProcessOverrides.BlendablePriorityOverride;
+		}
+		else
+		{
+			SourceInstance->BlendablePriorityOverride = Parent ? Parent->GetMaterial()->BlendablePriority : 0;
+		}
+
 		SourceInstance->bOverrideSubsurfaceProfile = bOverrideSubsurfaceProfile;
 		SourceInstance->SubsurfaceProfile = SubsurfaceProfile;
 
@@ -1042,6 +1105,38 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	bOverrideSubsurfaceProfile = SourceInstance->bOverrideSubsurfaceProfile;
 	// Copy the subsurface profile. GetSubsurfaceProfile_Internal() will return either the overridden profile or one from a parent
 	SubsurfaceProfile = SourceInstance->GetSubsurfaceProfile_Internal();
+
+	// Post process blendable location and priority overrides
+	PostProcessOverrides.bOverrideBlendableLocation = SourceInstance->bOverrideBlendableLocation;
+	if (SourceInstance->bOverrideBlendableLocation)
+	{
+		PostProcessOverrides.BlendableLocationOverride = SourceInstance->BlendableLocationOverride;
+	}
+	else
+	{
+		PostProcessOverrides.BlendableLocationOverride = Parent ? Parent->GetMaterial()->BlendableLocation : TEnumAsByte<EBlendableLocation>(BL_SceneColorAfterTonemapping);
+	}
+
+	PostProcessOverrides.bOverrideBlendablePriority = SourceInstance->bOverrideBlendablePriority;
+	if (SourceInstance->bOverrideBlendablePriority)
+	{
+		PostProcessOverrides.BlendablePriorityOverride = SourceInstance->BlendablePriorityOverride;
+	}
+	else
+	{
+		PostProcessOverrides.BlendablePriorityOverride = Parent ? Parent->GetMaterial()->BlendablePriority : 0;
+	}
+
+	// UserSceneTextureOutput override uses Key == NAME_None.  UserSceneTextureInputs are initialized in RegenerateArrays, as those are affected
+	// by graph reachability.
+	for (const FUserSceneTextureOverride& Override : SourceInstance->UserSceneTextureOverrides)
+	{
+		if (Override.Key == NAME_None)
+		{
+			PostProcessOverrides.UserSceneTextureOutput = Override.Value;
+			break;
+		}
+	}
 }
 
 #if WITH_EDITOR

@@ -74,6 +74,7 @@
 #include "SparseVolumeTexture/SparseVolumeTextureStreamingVisualize.h"
 #include "CanvasItem.h"
 #include "MobileSSR.h"
+#include "Materials/MaterialRenderProxy.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -3282,7 +3283,10 @@ static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewI
 			{
 				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
 				{
-					Text = FString::Printf(TEXT("%s [%d]"), GBlendableLocationShortNames[FMath::Min((uint32)EventData.Material->GetBlendableLocation(), (uint32)BL_MAX)], EventData.Material->GetBlendablePriority());
+					const FMaterialRenderProxy* RenderProxy = EventData.MaterialInterface->GetRenderProxy();
+					const FMaterial* Material = RenderProxy->GetMaterialNoFallback(View.FeatureLevel);
+
+					Text = FString::Printf(TEXT("%s [%d]"), GBlendableLocationShortNames[FMath::Min((uint32)RenderProxy->GetBlendableLocation(Material), (uint32)BL_MAX)], RenderProxy->GetBlendablePriority(Material));
 
 					float BlendableInfoWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
 					MaxBlendableInfoWidth = FMath::Max(MaxBlendableInfoWidth, BlendableInfoWidth);
@@ -3300,7 +3304,15 @@ static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewI
 			{
 				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
 				{
-					Text = FString::Printf(TEXT("%s:"), *EventData.Material->GetFriendlyName());
+					const UMaterialInterface* MaterialInterface = EventData.MaterialInterface;
+
+					// Skip over runtime generated dynamic instance when producing name
+					while (MaterialInterface->IsA<UMaterialInstanceDynamic>())
+					{
+						MaterialInterface = ((const UMaterialInstanceDynamic*)MaterialInterface)->Parent;
+					}
+
+					Text = FString::Printf(TEXT("%s:"), *MaterialInterface->GetName());
 
 					float NameWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
 					MaxNameWidth = FMath::Max(MaxNameWidth, NameWidth);
@@ -3346,7 +3358,7 @@ static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewI
 							PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, *Text, Font, UserTexture->bUsed ? GrayTextColor : YellowTextColor);
 							bAnyUnused = bAnyUnused || !UserTexture->bUsed;
 
-							if (EventData.Material->GetBlendMode() != BLEND_Opaque)
+							if (EventData.MaterialInterface->GetBlendMode() != BLEND_Opaque)
 							{
 								PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("  Blend"), Font, GrayTextColor);
 							}

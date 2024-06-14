@@ -476,6 +476,27 @@ struct FFontParameterValue
 	}
 };
 
+USTRUCT(BlueprintType)
+struct FUserSceneTextureOverride
+{
+	GENERATED_USTRUCT_BODY()
+		
+	/** Key value of NONE represents override of UserSceneTexture output */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=UserSceneTextureOverrideValue)
+	FName Key;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=UserSceneTextureOverrideValue)
+	FName Value;
+};
+
+struct FPostProcessBlendableOverrides
+{
+	bool bOverrideBlendableLocation;
+	bool bOverrideBlendablePriority;
+	TEnumAsByte<EBlendableLocation> BlendableLocationOverride;
+	int32 BlendablePriorityOverride;
+};
+
 template<class T>
 bool CompareValueArraysByExpressionGUID(const TArray<T>& InA, const TArray<T>& InB)
 {
@@ -616,6 +637,14 @@ class UMaterialInstance : public UMaterialInterface
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = MaterialInstance)
 	uint8 bOverrideSubsurfaceProfile:1;
 
+	/** For post process materials, use BlendableLocationOverride. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MaterialInstance)
+	uint8 bOverrideBlendableLocation:1;
+
+	/** For post process materials, use BlendablePriorityOverride. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MaterialInstance)
+	uint8 bOverrideBlendablePriority : 1;
+
 	uint8 TwoSided : 1;
 	uint8 bIsThinSurface : 1;
 	uint8 DitheredLODTransition : 1;
@@ -630,6 +659,12 @@ protected:
 public:
 
 	TEnumAsByte<EBlendMode> BlendMode;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MaterialInstance)
+	TEnumAsByte<EBlendableLocation> BlendableLocationOverride;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MaterialInstance)
+	int32 BlendablePriorityOverride;
 
 	FMaterialShadingModelField ShadingModels;
 
@@ -688,6 +723,10 @@ public:
 	/** Font parameters. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MaterialInstance, meta = (EditFixedOrder))
 	TArray<struct FFontParameterValue> FontParameterValues;
+
+	/** User scene texture overrides.  Applies to post process domain materials only. */
+	UPROPERTY(EditAnywhere, Category = MaterialInstance)
+	TArray<struct FUserSceneTextureOverride> UserSceneTextureOverrides;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -831,7 +870,11 @@ public:
 #endif
 	virtual ENGINE_API void RecacheUniformExpressions(bool bRecreateUniformBuffer) const override;
 	virtual ENGINE_API bool GetRefractionSettings(float& OutBiasValue) const override;
-	
+	virtual ENGINE_API bool GetUserSceneTextureOverride(FName& InOutName) const override;
+	ENGINE_API FName GetUserSceneTextureOutput(const UMaterial* Base) const;
+	virtual ENGINE_API EBlendableLocation GetBlendableLocation(const UMaterial* Base) const override;
+	virtual ENGINE_API int32 GetBlendablePriority(const UMaterial* Base) const override;
+
 	virtual ENGINE_API FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
 
 #if WITH_EDITOR

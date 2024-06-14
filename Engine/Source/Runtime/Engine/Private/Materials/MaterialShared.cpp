@@ -2244,6 +2244,11 @@ bool FMaterialResource::GetBlendableOutputAlpha() const
 	return Material->IsPostProcessMaterialOutputingAlpha();
 }
 
+bool FMaterialResource::GetDisablePreExposureScale() const
+{
+	return GetMaterialDomain() == MD_PostProcess && Material->bDisablePreExposureScale;
+}
+
 bool FMaterialResource::IsStencilTestEnabled() const
 {
 	return GetMaterialDomain() == MD_PostProcess && Material->bEnableStencilTest;
@@ -5654,6 +5659,7 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	bIsUsedWithHeterogeneousVolumes = InMaterial->IsUsedWithHeterogeneousVolumes();
 	bIsMobileSeparateTranslucencyEnabled = InMaterial->IsMobileSeparateTranslucencyEnabled();
 	bAlwaysEvaluateWorldPositionOffset = InMaterial->ShouldAlwaysEvaluateWorldPositionOffset();
+	bDisablePreExposureScale = InMaterial->GetDisablePreExposureScale();
 }
 
 #if WITH_EDITOR

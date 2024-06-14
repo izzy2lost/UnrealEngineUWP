@@ -104,6 +104,9 @@ private:
 	/** Creates all the lightmass property override widgets. */
 	void CreateLightmassOverrideWidgets(IDetailLayoutBuilder& DetailLayout);
 
+	/** Creates Blendable Location / Priority and UserSceneTexture input / output override widgets. */
+	void CreatePostProcessOverrideWidgets(IDetailLayoutBuilder& DetailLayout);
+
 	//Functions supporting BasePropertyOverrides
 
 	/** Creates all the base property override widgets. */

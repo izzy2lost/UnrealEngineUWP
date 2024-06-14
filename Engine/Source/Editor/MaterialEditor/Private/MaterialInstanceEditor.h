@@ -122,6 +122,10 @@ public:
 	// IMaterial Editor Interface
 	virtual void GenerateInheritanceMenu(class UToolMenu* Menu) override;
 
+	void RefreshPreviewViewport();
+
+	bool IsDestructing() const { return bDestructing; }
+
 protected:
 	//~ FAssetEditorToolkit interface
 	virtual void SaveAsset_Execute() override;
@@ -210,6 +214,9 @@ private:
 	virtual void PostRedo( bool bSuccess ) override;
 	// End of FEditorUndoClient
 
+	/** Called to notify other material editors when a post process material with a UserSceneTexture output is loaded or unloaded, as the material may be used in their preview */
+	void NotifyUserSceneTextureLoadOrUnload();
+
 private:
 	struct FOnScreenMessage
 	{
@@ -258,6 +265,9 @@ private:
 
 	/** If editing instance of a function instead of a material. */
 	bool bIsFunctionPreviewMaterial;
+
+	/** Set to true when editor is being destructed */
+	bool bDestructing = false;
 
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;

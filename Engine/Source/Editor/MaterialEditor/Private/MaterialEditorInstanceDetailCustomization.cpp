@@ -145,6 +145,7 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 		}
 		DetailLayout.HideCategory("MaterialEditorInstanceConstant");
 		DetailLayout.HideProperty("Parent");
+		DetailLayout.HideProperty("PostProcessOverrides");
 		DetailLayout.HideProperty("PhysMaterial");
 		DetailLayout.HideProperty("LightmassSettings");
 		DetailLayout.HideProperty("bUseOldStyleMICEditorGroups");
@@ -216,6 +217,7 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 				DetailLayout.HideProperty("Parent");
 			}
 
+			DetailLayout.HideProperty("PostProcessOverrides");
 			DetailLayout.HideProperty("PhysMaterial");
 			DetailLayout.HideProperty("LightmassSettings");
 			DetailLayout.HideProperty("bUseOldStyleMICEditorGroups");
@@ -227,6 +229,9 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 		}
 		else
 		{
+			DetailLayout.HideProperty("PostProcessOverrides");
+			CreatePostProcessOverrideWidgets(DetailLayout);
+
 			// Add PhysMaterial property
 			DefaultCategory.AddProperty("PhysMaterial");
 
@@ -1302,6 +1307,102 @@ void FMaterialInstanceParameterDetails::CreateLightmassOverrideWidgets(IDetailLa
 	}))
 		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideExportResolutionScaleEnabled)))
 		.OverrideResetToDefault(ResetExportResolutionScalePropertyOverride);
+}
+
+void FMaterialInstanceParameterDetails::CreatePostProcessOverrideWidgets(IDetailLayoutBuilder& DetailLayout)
+{
+	if (MaterialEditorInstance->PostProcessOverrides.bIsOverrideable)
+	{
+		FName PostProcessCategoryName = TEXT("PostProcessOverrides");
+		IDetailCategoryBuilder& PostProcessCategory = DetailLayout.EditCategory(PostProcessCategoryName, LOCTEXT("MICPostProcessOverridesTitle", "Post Process Overrides"));
+		PostProcessCategory.InitiallyCollapsed(true);
+
+		TAttribute<bool> IsOverrideLocationEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this] { return (bool)MaterialEditorInstance->PostProcessOverrides.bOverrideBlendableLocation; }));
+		TAttribute<bool> IsOverridePriorityEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this] { return (bool)MaterialEditorInstance->PostProcessOverrides.bOverrideBlendablePriority; }));
+
+		TSharedRef<IPropertyHandle> PostProcessOverridesProperty = DetailLayout.GetProperty("PostProcessOverrides");
+		TSharedPtr<IPropertyHandle> BlendableLocationProperty = PostProcessOverridesProperty->GetChildHandle("BlendableLocationOverride");
+		TSharedPtr<IPropertyHandle> BlendablePriorityProperty = PostProcessOverridesProperty->GetChildHandle("BlendablePriorityOverride");
+		TSharedPtr<IPropertyHandle> UserSceneTextureOutputProperty = PostProcessOverridesProperty->GetChildHandle("UserSceneTextureOutput");
+
+		FIsResetToDefaultVisible IsBlendableLocationPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			return MaterialEditorInstance->Parent && MaterialEditorInstance->Parent->GetMaterial() ?
+				MaterialEditorInstance->PostProcessOverrides.BlendableLocationOverride != MaterialEditorInstance->Parent->GetMaterial()->BlendableLocation : false;
+			});
+		FResetToDefaultHandler ResetBlendableLocationPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			if (MaterialEditorInstance->Parent && MaterialEditorInstance->Parent->GetMaterial())
+			{
+				MaterialEditorInstance->PostProcessOverrides.BlendableLocationOverride = MaterialEditorInstance->Parent->GetMaterial()->BlendableLocation;
+			}
+			});
+		FResetToDefaultOverride ResetBlendableLocationPropertyOverride = FResetToDefaultOverride::Create(IsBlendableLocationPropertyResetVisible, ResetBlendableLocationPropertyHandler);
+
+		IDetailPropertyRow& BlendableLocationPropertyRow = PostProcessCategory.AddProperty(BlendableLocationProperty);
+		BlendableLocationPropertyRow
+			.DisplayName(BlendableLocationProperty->GetPropertyDisplayName())
+			.ToolTip(BlendableLocationProperty->GetToolTipText())
+			.EditCondition(IsOverrideLocationEnabled, FOnBooleanValueChanged::CreateLambda([this](bool NewValue) {
+				MaterialEditorInstance->PostProcessOverrides.bOverrideBlendableLocation = NewValue;
+				MaterialEditorInstance->PostEditChange();
+				FEditorSupportDelegates::RedrawAllViewports.Broadcast();
+			}))
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideLocationEnabled)))
+			.OverrideResetToDefault(ResetBlendableLocationPropertyOverride);
+
+		FIsResetToDefaultVisible IsBlendablePriorityPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			return MaterialEditorInstance->Parent && MaterialEditorInstance->Parent->GetMaterial() ?
+				MaterialEditorInstance->PostProcessOverrides.BlendablePriorityOverride != MaterialEditorInstance->Parent->GetMaterial()->BlendablePriority : false;
+			});
+		FResetToDefaultHandler ResetBlendablePriorityPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			if (MaterialEditorInstance->Parent && MaterialEditorInstance->Parent->GetMaterial())
+			{
+				MaterialEditorInstance->PostProcessOverrides.BlendablePriorityOverride = MaterialEditorInstance->Parent->GetMaterial()->BlendablePriority;
+			}
+			});
+		FResetToDefaultOverride ResetBlendablePriorityPropertyOverride = FResetToDefaultOverride::Create(IsBlendablePriorityPropertyResetVisible, ResetBlendablePriorityPropertyHandler);
+
+		IDetailPropertyRow& BlendablePriorityPropertyRow = PostProcessCategory.AddProperty(BlendablePriorityProperty);
+		BlendablePriorityPropertyRow
+			.DisplayName(BlendablePriorityProperty->GetPropertyDisplayName())
+			.ToolTip(BlendablePriorityProperty->GetToolTipText())
+			.EditCondition(IsOverridePriorityEnabled, FOnBooleanValueChanged::CreateLambda([this](bool NewValue) {
+				MaterialEditorInstance->PostProcessOverrides.bOverrideBlendablePriority = NewValue;
+				MaterialEditorInstance->PostEditChange();
+				FEditorSupportDelegates::RedrawAllViewports.Broadcast();
+			}))
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverridePriorityEnabled)))
+			.OverrideResetToDefault(ResetBlendablePriorityPropertyOverride);
+
+		if (MaterialEditorInstance->PostProcessOverrides.UserSceneTextureInputs.Num())
+		{
+			static FName GroupName(TEXT("UserSceneTextures"));
+			IDetailGroup& UserSceneTexturesGroup = PostProcessCategory.AddGroup(GroupName, LOCTEXT("UserSceneTextureInputsGroup", "User Scene Texture Inputs"), false, true);
+
+			TSharedPtr<IPropertyHandle> UserSceneTexturesArrayProperty = PostProcessOverridesProperty->GetChildHandle("UserSceneTextureInputs");
+
+			for (int32 UserSceneTextureIndex = 0; UserSceneTextureIndex < MaterialEditorInstance->PostProcessOverrides.UserSceneTextureInputs.Num(); ++UserSceneTextureIndex)
+			{
+				TSharedPtr<IPropertyHandle> UserSceneTextureItemProperty = UserSceneTexturesArrayProperty->GetChildHandle(UserSceneTextureIndex);
+				TSharedPtr<IPropertyHandle> UserSceneTextureValueProperty = UserSceneTextureItemProperty->GetChildHandle("Value");
+
+				IDetailPropertyRow& PropertyRow = UserSceneTexturesGroup.AddPropertyRow(UserSceneTextureValueProperty.ToSharedRef());
+
+				PropertyRow.CustomWidget()
+					.NameContent()
+					[
+						SNew(STextBlock)
+						.Text(FText::FromName(MaterialEditorInstance->PostProcessOverrides.UserSceneTextureInputs[UserSceneTextureIndex].Key))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+					]
+					.ValueContent()
+					[
+						UserSceneTextureValueProperty->CreatePropertyValueWidget()
+					];
+			}
+		}
+
+		PostProcessCategory.AddProperty(UserSceneTextureOutputProperty);
+	}
 }
 
 UEnum* GetBlendModeEnum();

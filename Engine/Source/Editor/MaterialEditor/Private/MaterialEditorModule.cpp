@@ -44,6 +44,15 @@ public:
 	/** Constructor, set up console commands and variables **/
 	FMaterialEditorModule()
 	{
+		// Trigger a redraw of post process preview materials when this debug setting changes
+		IConsoleVariable* CVarPostProcessUserSceneTextureDebug = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.UserSceneTextureDebug"));
+		if (CVarPostProcessUserSceneTextureDebug)
+		{
+			CVarPostProcessUserSceneTextureDebug->SetOnChangedCallback(FConsoleVariableDelegate::CreateLambda([this](IConsoleVariable* Variable)
+			{
+				FMaterialEditorUtilities::RefreshPostProcessPreviewMaterials(nullptr, /* bRedrawOnly= */ true);
+			}));
+		}
 	}
 
 	/**

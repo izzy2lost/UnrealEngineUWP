@@ -1138,30 +1138,7 @@ void FMaterialEditor::NotifyUserSceneTextureLoadOrUnload()
 {
 	if (Material->IsPostProcessMaterial() && !Material->UserSceneTexture.IsNone())
 	{
-		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-		TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
-		for (UObject* EditedAsset : EditedAssets)
-		{
-			UPreviewMaterial* EditedMaterialInterface = Cast<UPreviewMaterial>(EditedAsset);
-
-			if (EditedMaterialInterface && EditedMaterialInterface != Material)
-			{
-				UMaterial* EditedMaterial = EditedMaterialInterface->GetMaterial();
-				if (EditedMaterial->IsPostProcessMaterial())
-				{
-					TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
-					for (IAssetEditorInstance* Editor : Editors)
-					{
-						if (Editor->GetEditorName() == FMaterialEditor::GetToolkitFName())
-						{
-							// Calling "SetPreviewMaterial" will refresh the other editor
-							FMaterialEditor* MaterialEditor = (FMaterialEditor*)Editor;
-							MaterialEditor->SetPreviewMaterial(EditedMaterialInterface);
-						}
-					}
-				}
-			}
-		}
+		FMaterialEditorUtilities::RefreshPostProcessPreviewMaterials(Material);
 	}
 }
 
