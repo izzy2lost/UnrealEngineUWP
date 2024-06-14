@@ -933,7 +933,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 	{
 		if (Property->ArrayDim == 1)
 		{
-			if (UE::FPropertyBagRepository::WasPropertySetBySerialization(Struct, StructValue, Property))
+			if (UE::FPropertyBagRepository::WasPropertyValueSerialized(Struct, StructValue, Property))
 			{
 				const TSharedPtr<FRedirectedPropertyNode>& ChildNode = Node->FindOrAdd(FPropertyInfo(Property));
 				void* Value = Property->ContainerPtrToValuePtr<void>(StructValue);
@@ -944,7 +944,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 		{
 			for (int32 StaticArrayIndex = 0; StaticArrayIndex < Property->ArrayDim; ++StaticArrayIndex)
             {
-            	if (UE::FPropertyBagRepository::WasPropertySetBySerialization(Struct, StructValue, Property, StaticArrayIndex))
+            	if (UE::FPropertyBagRepository::WasPropertyValueSerialized(Struct, StructValue, Property, StaticArrayIndex))
             	{
             		const TSharedPtr<FRedirectedPropertyNode>& ChildNode = Node->FindOrAdd(FPropertyInfo(Property, StaticArrayIndex));
             		void* Value = Property->ContainerPtrToValuePtr<void>(StructValue, StaticArrayIndex);

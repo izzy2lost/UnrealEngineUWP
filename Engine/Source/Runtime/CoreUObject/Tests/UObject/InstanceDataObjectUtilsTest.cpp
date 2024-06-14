@@ -47,10 +47,10 @@ TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::Insta
 	UObject* Owner = NewObject<UObject>(GetTransientPackage(), TestClass, TestObjectName);
 	void* StructData = StructProperty->ContainerPtrToValuePtr<void>(Owner);
 
-	CHECK_FALSE(WasPropertySetBySerialization(TestClass, Owner, StructProperty));
-	MarkPropertySetBySerialization(TestClass, Owner, StructProperty);
-	CHECK(WasPropertySetBySerialization(TestClass, Owner, StructProperty));
-	CHECK_FALSE(WasPropertySetBySerialization(TestClass, Owner, Int32Property));
+	CHECK_FALSE(WasPropertyValueSerialized(TestClass, Owner, StructProperty));
+	MarkPropertyValueSerialized(TestClass, Owner, StructProperty);
+	CHECK(WasPropertyValueSerialized(TestClass, Owner, StructProperty));
+	CHECK_FALSE(WasPropertyValueSerialized(TestClass, Owner, Int32Property));
 
 	CHECK_FALSE(IsPropertyValueInitialized(TestClass, Owner, StructProperty));
 	SetPropertyValueInitialized(TestClass, Owner, StructProperty);
@@ -58,14 +58,14 @@ TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::Insta
 	ClearPropertyValueInitialized(TestClass, Owner, StructProperty);
 	CHECK_FALSE(IsPropertyValueInitialized(TestClass, Owner, StructProperty));
 
-	CHECK_FALSE(WasPropertySetBySerialization(StructProperty->Struct, StructData, AProperty));
-	MarkPropertySetBySerialization(StructProperty->Struct, StructData, AProperty);
-	CHECK(WasPropertySetBySerialization(StructProperty->Struct, StructData, AProperty));
-	CHECK_FALSE(WasPropertySetBySerialization(StructProperty->Struct, StructData, BProperty));
-	MarkPropertySetBySerialization(StructProperty->Struct, StructData, BProperty);
-	CHECK(WasPropertySetBySerialization(StructProperty->Struct, StructData, BProperty));
-	CHECK_FALSE(WasPropertySetBySerialization(StructProperty->Struct, StructData, CProperty));
-	CHECK_FALSE(WasPropertySetBySerialization(StructProperty->Struct, StructData, DProperty));
+	CHECK_FALSE(WasPropertyValueSerialized(StructProperty->Struct, StructData, AProperty));
+	MarkPropertyValueSerialized(StructProperty->Struct, StructData, AProperty);
+	CHECK(WasPropertyValueSerialized(StructProperty->Struct, StructData, AProperty));
+	CHECK_FALSE(WasPropertyValueSerialized(StructProperty->Struct, StructData, BProperty));
+	MarkPropertyValueSerialized(StructProperty->Struct, StructData, BProperty);
+	CHECK(WasPropertyValueSerialized(StructProperty->Struct, StructData, BProperty));
+	CHECK_FALSE(WasPropertyValueSerialized(StructProperty->Struct, StructData, CProperty));
+	CHECK_FALSE(WasPropertyValueSerialized(StructProperty->Struct, StructData, DProperty));
 
 	CHECK_FALSE(IsPropertyValueInitialized(StructProperty->Struct, StructData, AProperty));
 	SetPropertyValueInitialized(StructProperty->Struct, StructData, AProperty);

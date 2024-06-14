@@ -145,7 +145,7 @@ public:
 	COREUOBJECT_API const UObject* FindInstanceForDataObject(const UObject* InstanceDataObject) const;
 
 	// query whether a property in Struct was set when the struct was deserialized
-	COREUOBJECT_API static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
+	COREUOBJECT_API static bool WasPropertyValueSerialized(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -215,6 +215,8 @@ struct FScopedIDOSerializationContext
 	TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
 	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
 	TOptional<TGuardValue<bool>> ScopedImpersonateProperties;
+	TOptional<TGuardValue<bool>> ScopedTrackInitializedProperties;
+	TOptional<TGuardValue<bool>> ScopedTrackSerializedProperties;
 	TOptional<TGuardValue<UObject*>> ScopedSerializedObject;
 
 private:

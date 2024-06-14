@@ -172,7 +172,7 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 				
 				InstanceDataObjectToOwner.Add(NewBagData.InstanceDataObject, Pair.Value);
 				
-				CopyPropertySetBySerializationData(
+				CopyPropertyValueSerializedData(
 					OldBagData.InstanceDataObject->GetClass(), OldBagData.InstanceDataObject,
 					NewBagData.InstanceDataObject->GetClass(), NewBagData.InstanceDataObject);
 			}
@@ -785,9 +785,9 @@ const UObject* FPropertyBagRepository::FindInstanceForDataObject(const UObject* 
 	return Owner ? *Owner : nullptr;
 }
 
-bool FPropertyBagRepository::WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
+bool FPropertyBagRepository::WasPropertyValueSerialized(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
 {
-	return UE::WasPropertySetBySerialization(Struct, StructData, Property, ArrayIndex);
+	return UE::WasPropertyValueSerialized(Struct, StructData, Property, ArrayIndex);
 }
 
 void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector)
@@ -850,6 +850,8 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	
 	// setup load context to mark properties the that were set by serialization
 	FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
+	TGuardValue<bool> ScopedTrackSerializedProperties(LoadContext->bTrackSerializedProperties, true);
+	// enable impersonation so that the IDO gets loaded instead of Owner
 	TGuardValue<bool> ScopedImpersonateProperties(LoadContext->bImpersonateProperties, true);
 
 	FLinkerLoad* Linker = Owner->GetLinker();
@@ -860,8 +862,6 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	}
 	else if (Linker)
 	{
-		// TODO: @jordan.hoffmann - this is very inefficient! We should remove this call to Preload. To do so, we'd need to change MarkPropertySetBySerialization
-		// to cache the serialized property list in the property bag instead of the structs. We'd also need to copy the property bag values to the IDO
 		Owner->SetFlags(RF_NeedLoad);
 		{
 			TGuardValue<bool> ScopedSkipKnownProperties(Linker->bSkipKnownProperties, true);
@@ -887,7 +887,7 @@ void FPropertyBagRepository::CopyTaggedProperties(const UObject* Source, UObject
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	TGuardValue<bool> ImpersonatePropertiesScope(SerializeContext->bImpersonateProperties, true);
 	// don't mark properties as set by serialization when performing copy
-	TGuardValue<bool> MarkPropertiesSetBySerializationScope(UE::GMarkPropertiesSetBySerialization, false);
+	TGuardValue<bool> ScopedTrackSerializedProperties(SerializeContext->bTrackSerializedProperties, false);
 
 	TArray<uint8> Buffer;
 	Buffer.Reserve(Source->GetClass()->GetStructureSize());
@@ -923,7 +923,8 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 
 			// Enable tracking of initialized properties when loading an IDO, which is implied by impersonation being enabled.
 			const bool bLoadingIDO = bHasIDOSupport && SerializeContext->bImpersonateProperties;
-			TGuardValue<bool> ScopedTrackInitializedProperties(SerializeContext->bTrackInitializedProperties, bLoadingIDO);
+			ScopedTrackInitializedProperties.Emplace(SerializeContext->bTrackInitializedProperties, bLoadingIDO);
+			ScopedTrackSerializedProperties.Emplace(SerializeContext->bTrackSerializedProperties, bLoadingIDO);
 		}
 		else
 		{

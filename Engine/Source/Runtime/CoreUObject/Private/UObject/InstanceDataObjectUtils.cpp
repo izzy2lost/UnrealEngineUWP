@@ -17,7 +17,7 @@
 #include "UObject/UnrealType.h"
 
 static const FName NAME_InitializedValues(ANSITEXTVIEW("_InitializedValues"));
-static const FName NAME_ValuesSetBySerialization(ANSITEXTVIEW("_ValuesSetBySerialization"));
+static const FName NAME_SerializedValues(ANSITEXTVIEW("_SerializedValues"));
 
 /** Type used for InstanceDataObject classes. */
 class UInstanceDataObjectClass final : public UClass
@@ -26,7 +26,7 @@ public:
 	DECLARE_CASTED_CLASS_INTRINSIC(UInstanceDataObjectClass, UClass, CLASS_Transient, TEXT("/Script/CoreUObject"), CASTCLASS_UClass)
 
 	FByteProperty* InitializedValuesProperty = nullptr;
-	FByteProperty* ValuesSetBySerializationProperty = nullptr;
+	FByteProperty* SerializedValuesProperty = nullptr;
 };
 
 IMPLEMENT_CORE_INTRINSIC_CLASS(UInstanceDataObjectClass, UClass,
@@ -43,7 +43,7 @@ public:
 	FGuid GetCustomGuid() const final { return Guid; }
 
 	FByteProperty* InitializedValuesProperty = nullptr;
-	FByteProperty* ValuesSetBySerializationProperty = nullptr;
+	FByteProperty* SerializedValuesProperty = nullptr;
 	FGuid Guid;
 };
 
@@ -90,7 +90,7 @@ uint32 UInstanceDataObjectStruct::GetStructTypeHash(const void* Src) const
 	uint32 ValueHash = 0;
 	for (TFieldIterator<const FProperty> It(this); It; ++It)
 	{
-		if (It->GetFName() == NAME_InitializedValues || It->GetFName() == NAME_ValuesSetBySerialization)
+		if (It->GetFName() == NAME_InitializedValues || It->GetFName() == NAME_SerializedValues)
 		{
 			continue;
 		}
@@ -132,7 +132,6 @@ namespace UE
 	static const FName NAME_VerseClass(ANSITEXTVIEW("VerseClass"));
 	static const FName NAME_IDOMapKey(ANSITEXTVIEW("Key"));
 	static const FName NAME_IDOMapValue(ANSITEXTVIEW("Value"));
-	bool GMarkPropertiesSetBySerialization = true;
 
 	bool bEnableIDOSupport = false;
 	FAutoConsoleVariableRef EnableIDOSupportCVar(
@@ -407,7 +406,7 @@ namespace UE
 			for (FPropertyPathNameTree::FConstIterator It = PropertyTree->CreateConstIterator(); It; ++It)
 			{
 				FName Name = It.GetName();
-				if (Name == NAME_InitializedValues || Name == NAME_ValuesSetBySerialization)
+				if (Name == NAME_InitializedValues || Name == NAME_SerializedValues)
 				{
 					// In rare cases, these hidden properties will get serialized even though they are transient.
 					// Ignore them here since they are generated below.
@@ -439,24 +438,24 @@ namespace UE
 
 		// Add hidden byte array properties to record whether its sibling properties were initialized or set by serialization.
 		FByteProperty* InitializedValuesProperty = CastFieldChecked<FByteProperty>(FByteProperty::Construct(Result, NAME_InitializedValues, RF_Transient | RF_MarkAsNative));
-		FByteProperty* ValuesSetBySerializationProperty = CastFieldChecked<FByteProperty>(FByteProperty::Construct(Result, NAME_ValuesSetBySerialization, RF_Transient | RF_MarkAsNative));
+		FByteProperty* SerializedValuesProperty = CastFieldChecked<FByteProperty>(FByteProperty::Construct(Result, NAME_SerializedValues, RF_Transient | RF_MarkAsNative));
 		{
 			InitializedValuesProperty->SetPropertyFlags(CPF_Transient | CPF_EditorOnly | CPF_NativeAccessSpecifierPrivate);
-			ValuesSetBySerializationProperty->SetPropertyFlags(CPF_Transient | CPF_EditorOnly | CPF_NativeAccessSpecifierPrivate);
+			SerializedValuesProperty->SetPropertyFlags(CPF_Transient | CPF_EditorOnly | CPF_NativeAccessSpecifierPrivate);
 			Result->AddCppProperty(InitializedValuesProperty);
-			Result->AddCppProperty(ValuesSetBySerializationProperty);
+			Result->AddCppProperty(SerializedValuesProperty);
 		}
 
 		// Store generated properties to avoid scanning every property to find it when it is needed.
 		if (UInstanceDataObjectClass* IdoClass = Cast<UInstanceDataObjectClass>(Result))
 		{
 			IdoClass->InitializedValuesProperty = InitializedValuesProperty;
-			IdoClass->ValuesSetBySerializationProperty = ValuesSetBySerializationProperty;
+			IdoClass->SerializedValuesProperty = SerializedValuesProperty;
 		}
 		else if (UInstanceDataObjectStruct* IdoStruct = Cast<UInstanceDataObjectStruct>(Result))
 		{
 			IdoStruct->InitializedValuesProperty = InitializedValuesProperty;
-			IdoStruct->ValuesSetBySerializationProperty = ValuesSetBySerializationProperty;
+			IdoStruct->SerializedValuesProperty = SerializedValuesProperty;
 		}
 
 		// AddCppProperty expects reverse property order for StaticLink to work correctly
@@ -473,7 +472,7 @@ namespace UE
 		}
 		const int32 PropertyCountBytes = FMath::Max(1, FMath::DivideAndRoundUp(PropertyCount, 8));
 		InitializedValuesProperty->ArrayDim = PropertyCountBytes;
-		ValuesSetBySerializationProperty->ArrayDim = PropertyCountBytes;
+		SerializedValuesProperty->ArrayDim = PropertyCountBytes;
 
 		Result->Bind();
 		Result->StaticLink(/*bRelinkExistingProperties*/true);
@@ -534,61 +533,57 @@ namespace UE
 		return Result;
 	}
 
-	static const FByteProperty* FindValuesSetBySerializationProperty(const UStruct* Struct)
+	static const FByteProperty* FindSerializedValuesProperty(const UStruct* Struct)
 	{
 		if (const UInstanceDataObjectClass* IdoClass = Cast<UInstanceDataObjectClass>(Struct))
 		{
-			return IdoClass->ValuesSetBySerializationProperty;
+			return IdoClass->SerializedValuesProperty;
 		}
 		if (const UInstanceDataObjectStruct* IdoStruct = Cast<UInstanceDataObjectStruct>(Struct))
 		{
-			return IdoStruct->ValuesSetBySerializationProperty;
+			return IdoStruct->SerializedValuesProperty;
 		}
-		return CastField<FByteProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization));
+		return CastField<FByteProperty>(Struct->FindPropertyByName(NAME_SerializedValues));
 	}
 
-	void MarkPropertySetBySerialization(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
+	void MarkPropertyValueSerialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-		if (!GMarkPropertiesSetBySerialization)
-		{
-			return;
-		}
-		if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(Struct))
+		if (const FByteProperty* SerializedValuesProperty = FindSerializedValuesProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
 			const int32 ByteIndex = PropertyIndex / 8;
 			const int32 BitOffset = PropertyIndex % 8;
-			if (ByteIndex < ValuesSetBySerializationProperty->ArrayDim)
+			if (ByteIndex < SerializedValuesProperty->ArrayDim)
 			{
-				uint8* PropertyDataPtr = ValuesSetBySerializationProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
+				uint8* PropertyDataPtr = SerializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
 				*PropertyDataPtr |= (1 << BitOffset);
 			}
 		}
 	}
 
-	bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
+	bool WasPropertyValueSerialized(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-		if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(Struct))
+		if (const FByteProperty* SerializedValuesProperty = FindSerializedValuesProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
 			const int32 ByteIndex = PropertyIndex / 8;
 			const int32 BitOffset = PropertyIndex % 8;
-			if (ByteIndex < ValuesSetBySerializationProperty->ArrayDim)
+			if (ByteIndex < SerializedValuesProperty->ArrayDim)
 			{
-				const uint8* PropertyDataPtr = ValuesSetBySerializationProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
+				const uint8* PropertyDataPtr = SerializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
 				return (*PropertyDataPtr & (1 << BitOffset)) != 0;
 			}
 		}
 		return false;
 	}
 
-	void CopyPropertySetBySerializationData(const FFieldVariant& OldField, void* OldDataPtr, const FFieldVariant& NewField, void* NewDataPtr)
+	void CopyPropertyValueSerializedData(const FFieldVariant& OldField, void* OldDataPtr, const FFieldVariant& NewField, void* NewDataPtr)
 	{
 		if (const FStructProperty* OldAsStructProperty = OldField.Get<FStructProperty>())
 		{
 			const FStructProperty* NewAsStructProperty = NewField.Get<FStructProperty>();
 			checkf(NewAsStructProperty, TEXT("Type mismatch between OldField and NewField. Expected FStructProperty"));
-			CopyPropertySetBySerializationData(OldAsStructProperty->Struct, OldDataPtr, NewAsStructProperty->Struct, NewDataPtr);
+			CopyPropertyValueSerializedData(OldAsStructProperty->Struct, OldDataPtr, NewAsStructProperty->Struct, NewDataPtr);
 		}
 		else if (const FArrayProperty* OldAsArrayProperty = OldField.Get<FArrayProperty>())
 		{
@@ -601,7 +596,7 @@ namespace UE
 			{
 				if (NewArrayHelper.IsValidIndex(ArrayIndex))
 				{
-					CopyPropertySetBySerializationData(
+					CopyPropertyValueSerializedData(
 						OldAsArrayProperty->Inner, OldArrayHelper.GetElementPtr(ArrayIndex),
 						NewAsArrayProperty->Inner, NewArrayHelper.GetElementPtr(ArrayIndex));
 				}
@@ -619,7 +614,7 @@ namespace UE
 			
 			for (; OldItr && NewItr; ++OldItr, ++NewItr)
 			{
-				CopyPropertySetBySerializationData(
+				CopyPropertyValueSerializedData(
 					OldAsSetProperty->ElementProp, OldSetHelper.GetElementPtr(OldItr),
 					NewAsSetProperty->ElementProp, NewSetHelper.GetElementPtr(NewItr));
 			}
@@ -636,10 +631,10 @@ namespace UE
 			
 			for (; OldItr && NewItr; ++OldItr, ++NewItr)
 			{
-				CopyPropertySetBySerializationData(
+				CopyPropertyValueSerializedData(
 					OldAsMapProperty->KeyProp, OldMapHelper.GetKeyPtr(OldItr),
 					NewAsMapProperty->KeyProp, NewMapHelper.GetKeyPtr(NewItr));
-				CopyPropertySetBySerializationData(
+				CopyPropertyValueSerializedData(
 					OldAsMapProperty->ValueProp, OldMapHelper.GetValuePtr(OldItr),
 					NewAsMapProperty->ValueProp, NewMapHelper.GetValuePtr(NewItr));
 			}
@@ -662,9 +657,9 @@ namespace UE
 			};
 
 			// clear existing set-flags first
-			if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(NewAsStruct))
+			if (const FByteProperty* SerializedValuesProperty = FindSerializedValuesProperty(NewAsStruct))
 			{
-				ValuesSetBySerializationProperty->InitializeValue_InContainer(NewDataPtr);
+				SerializedValuesProperty->InitializeValue_InContainer(NewDataPtr);
 			}
 			
 			for (const FProperty* OldSubProperty : TFieldRange<FProperty>(OldAsStruct))
@@ -674,13 +669,13 @@ namespace UE
 					for (int32 ArrayIndex = 0; ArrayIndex < FMath::Min(OldSubProperty->ArrayDim, NewSubProperty->ArrayDim); ++ArrayIndex)
 					{
 						// copy set flags to new struct instance
-						if (WasPropertySetBySerialization(OldAsStruct, OldDataPtr, NewSubProperty, ArrayIndex))
+						if (WasPropertyValueSerialized(OldAsStruct, OldDataPtr, OldSubProperty, ArrayIndex))
 						{
-							MarkPropertySetBySerialization(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
+							MarkPropertyValueSerialized(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
 						}
 					
 						// recurse
-						CopyPropertySetBySerializationData(
+						CopyPropertyValueSerializedData(
 							OldSubProperty, OldSubProperty->ContainerPtrToValuePtr<void>(OldDataPtr, ArrayIndex),
 							NewSubProperty, NewSubProperty->ContainerPtrToValuePtr<void>(NewDataPtr, ArrayIndex));
 					}

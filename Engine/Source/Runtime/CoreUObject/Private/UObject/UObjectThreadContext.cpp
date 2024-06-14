@@ -47,6 +47,7 @@ FUObjectSerializeContext::FUObjectSerializeContext()
 #if WITH_EDITORONLY_DATA
 	, bTrackSerializedPropertyPath(false)
 	, bTrackInitializedProperties(false)
+	, bTrackSerializedProperties(false)
 	, bTrackUnknownProperties(false)
 	, bImpersonateProperties(false)
 #endif

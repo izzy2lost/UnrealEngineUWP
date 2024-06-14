@@ -1713,6 +1713,13 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				Tag.SetProperty(Property);
 
+#if WITH_EDITORONLY_DATA
+				if (SerializeContext->bTrackSerializedProperties && Property)
+				{
+					UE::MarkPropertyValueSerialized(this, Data, Property, Tag.ArrayIndex);
+				}
+#endif
+
 				bool bTryStoreUnknownPropertyPath = false;
 
 				if (Property)
@@ -1795,13 +1802,6 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								checkNoEntry();
 								break;
 						}
-
-					#if WITH_EDITORONLY_DATA
-						if (bAdvanceProperty && SerializeContext->bImpersonateProperties)
-						{
-							UE::MarkPropertySetBySerialization(this, Data, Property, Tag.ArrayIndex);
-						}
-					#endif
 					}
 				}
 				else
