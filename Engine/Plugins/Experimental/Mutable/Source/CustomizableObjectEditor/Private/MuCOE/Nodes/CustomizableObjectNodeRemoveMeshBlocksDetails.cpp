@@ -24,7 +24,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeRemoveMeshBlocksDetails:
 
 void FCustomizableObjectNodeRemoveMeshBlocksDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
-	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+	FCustomizableObjectNodeEditMaterialBaseDetails::CustomizeDetails(DetailBuilder);
 
 	Node = nullptr;
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();

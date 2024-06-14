@@ -4,6 +4,7 @@
 
 
 #include "CustomizableObjectNodeDetails.h"
+#include "CustomizableObjectNodeEditMaterialBaseDetails.h"
 #include "IDetailCustomization.h"
 
 class FString;
@@ -12,21 +13,18 @@ class UCustomizableObjectNodeRemoveMeshBlocks;
 class SCustomizableObjectNodeLayoutBlocksSelector;
 
 
-class FCustomizableObjectNodeRemoveMeshBlocksDetails : public FCustomizableObjectNodeDetails
+class FCustomizableObjectNodeRemoveMeshBlocksDetails : public FCustomizableObjectNodeEditMaterialBaseDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
 	static TSharedRef<IDetailCustomization> MakeInstance();
 
 	/** ILayoutDetails interface */
-	virtual void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
-
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 private:
-
 	UCustomizableObjectNodeRemoveMeshBlocks* Node;
 
 	// Layout block editor widget
 	TSharedPtr<SCustomizableObjectNodeLayoutBlocksSelector> LayoutBlocksSelector;
-
 };

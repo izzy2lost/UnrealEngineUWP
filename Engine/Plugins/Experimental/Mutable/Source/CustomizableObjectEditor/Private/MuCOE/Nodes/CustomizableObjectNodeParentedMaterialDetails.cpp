@@ -35,6 +35,8 @@ void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLay
 	Node = nullptr;
 	NodeParentedMaterial = nullptr;
 
+	TSharedPtr<IPropertyHandle> ParentProperty;
+
 	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = DetailBuilder.GetDetailsView()->GetSelectedObjects();
 	if (SelectedObjects.Num())
 	{
@@ -43,15 +45,16 @@ void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLay
 		if (UCustomizableObjectNodeEditMaterialBase* NodeEditMaterial = Cast<UCustomizableObjectNodeEditMaterialBase>(SelectedObjects[0].Get()))
 		{
 			NodeParentedMaterial = NodeEditMaterial;
+			ParentProperty = DetailBuilder.GetProperty("ParentMaterialObject", UCustomizableObjectNodeEditMaterialBase::StaticClass());
 		}
 		else if (UCustomizableObjectNodeExtendMaterial* NodeExtendMaterial = Cast<UCustomizableObjectNodeExtendMaterial>(SelectedObjects[0].Get()))
 		{
 			NodeParentedMaterial = NodeExtendMaterial;
+			ParentProperty = DetailBuilder.GetProperty("ParentMaterialObject", UCustomizableObjectNodeExtendMaterial::StaticClass());
 		}
 	}
 
-	IDetailCategoryBuilder& BlocksCategory = DetailBuilder.EditCategory("Parent");
-
+	IDetailCategoryBuilder& ParentCategory = DetailBuilder.EditCategory("Parent");
 
 	if (NodeParentedMaterial)
 	{
@@ -98,10 +101,8 @@ void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLay
 				break;
 			}
 		}
-
-		TSharedRef<IPropertyHandle> ParentProperty = DetailBuilder.GetProperty("ParentMaterialObject");
-
-		BlocksCategory.AddCustomRow(LOCTEXT("FCustomizableObjectNodeParentedMaterialDetails", "Blocks"))
+		
+		ParentCategory.AddCustomRow(LOCTEXT("FCustomizableObjectNodeParentedMaterialDetails", "Blocks"))
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -124,7 +125,7 @@ void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLay
 						SNew(STextComboBox)
 						.OptionsSource(&ParentMaterialOptionNames)
 						.InitiallySelectedItem(SelectedItem)
-						.OnSelectionChanged(this, &FCustomizableObjectNodeParentedMaterialDetails::OnParentComboBoxSelectionChanged, ParentProperty)
+						.OnSelectionChanged(this, &FCustomizableObjectNodeParentedMaterialDetails::OnParentComboBoxSelectionChanged, ParentProperty.ToSharedRef())
 					]
 				]
 			]
@@ -132,7 +133,7 @@ void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLay
 	}
 	else
 	{
-		BlocksCategory.AddCustomRow(LOCTEXT("FCustomizableObjectNodeEditMaterialBaseDetails", "Node"))
+		ParentCategory.AddCustomRow(LOCTEXT("FCustomizableObjectNodeEditMaterialBaseDetails", "Node"))
 		[
 			SNew(STextBlock)
 			.Text(LOCTEXT("Node not found", "Node not found"))

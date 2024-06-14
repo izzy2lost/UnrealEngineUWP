@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CustomizableObjectNodeDetails.h"
+#include "CustomizableObjectNodeEditMaterialBaseDetails.h"
 #include "IDetailCustomization.h"
 
 namespace ESelectInfo { enum Type : int; }
@@ -12,7 +13,7 @@ class IDetailLayoutBuilder;
 class IPropertyHandle;
 class UCustomizableObjectNodeObject;
 
-class FCustomizableObjectNodeMorphMaterialDetails : public FCustomizableObjectNodeDetails
+class FCustomizableObjectNodeMorphMaterialDetails : public FCustomizableObjectNodeEditMaterialBaseDetails
 {
 public:
 	// Makes a new instance of this detail layout class for a specific detail view requesting it 
@@ -21,16 +22,10 @@ public:
 	// ILayoutDetails interface
 	void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
 
-
 private:
-
 	class UCustomizableObjectNodeMorphMaterial* Node = nullptr;
 
 	TArray< TSharedPtr<FString> > MorphTargetComboOptions;
 
-	void OnParentComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> ParentProperty);
 	void OnMorphTargetComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> Property);
-
-	TSharedPtr<FString> PrepareComboboxSelection(const int LODIndex, TArray<UCustomizableObjectNodeObject*>& ParentObjectNodes);
-
 };

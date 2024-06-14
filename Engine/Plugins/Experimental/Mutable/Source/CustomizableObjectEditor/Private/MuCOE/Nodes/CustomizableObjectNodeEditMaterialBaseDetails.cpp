@@ -43,7 +43,7 @@ void FCustomizableObjectNodeEditMaterialBaseDetails::CustomizeDetails(IDetailLay
 		// Add all the materials to the combobox
 		TSharedPtr<FString> LayoutToSelect = GenerateLayoutComboboxOptions();
 
-		TSharedRef<IPropertyHandle> LayoutProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeEditMaterialBase, ParentLayoutIndex));
+		TSharedRef<IPropertyHandle> LayoutProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeEditMaterialBase, ParentLayoutIndex), UCustomizableObjectNodeEditMaterialBase::StaticClass());
 
 		BlocksCategory.AddCustomRow(LOCTEXT("BlocksRow", "Blocks"))
 		[

@@ -24,7 +24,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeEditMaterialDetails::Mak
 
 void FCustomizableObjectNodeEditMaterialDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
-	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+	FCustomizableObjectNodeEditMaterialBaseDetails::CustomizeDetails(DetailBuilder);
 
 	Node = nullptr;
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
