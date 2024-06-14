@@ -3,13 +3,13 @@
 #include "NiagaraSystemCompilingManager.h"
 
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "NiagaraCompilationTasks.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraShaderType.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UObjectThreadContext.h"
-
 #include "Misc/ScopeRWLock.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraCompilationManager"
@@ -92,6 +92,13 @@ FNiagaraShaderMapId BuildShaderMapId(FNiagaraShaderType* ShaderType, const ITarg
 	}
 
 	return ShaderMapId;
+}
+
+void EnsureTargetPlatformsLoaded(const FNiagaraSystemCompilationTask& CompilationTask)
+{
+	// in order to work around the fact that the target platform API is not thread safe we need to make sure that the target platform and the
+	// various shader formats it handles has been initialized
+	GetTargetPlatformManagerRef().ShaderFormatVersion(TEXT("VVM_1_0"));
 }
 
 };
@@ -423,6 +430,8 @@ FNiagaraCompilationTaskHandle FNiagaraSystemCompilingManager::AddSystem(UNiagara
 		{
 			CompilationTask->AddScript(ScriptToCompile.EmitterIndex, ScriptToCompile.Script, ScriptToCompile.CompileId, ScriptToCompile.bRequiresCompilation, ScriptToCompile.ShaderRequests);
 		}
+
+		NiagaraSystemCompilingManagerImpl::EnsureTargetPlatformsLoaded(*CompilationTask);
 
 		CompilationTask->QueueStartTime = FPlatformTime::Seconds();
 	}

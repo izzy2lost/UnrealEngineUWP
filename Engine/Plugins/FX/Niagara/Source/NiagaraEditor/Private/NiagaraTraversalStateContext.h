@@ -15,7 +15,7 @@ class FNiagaraFixedConstantResolver;
 struct FNiagaraTraversalStackEntry
 {
 	FGuid NodeGuid;
-	uint32 FullStackHash;
+	uint32 FullStackHash = 0;
 #if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
 	FString FriendlyName;
 #endif
