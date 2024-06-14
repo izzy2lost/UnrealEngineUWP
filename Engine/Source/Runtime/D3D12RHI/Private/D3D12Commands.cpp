@@ -637,10 +637,29 @@ void FD3D12CommandContext::RHISetStaticUniformBuffers(const FUniformBufferStatic
 {
 	FMemory::Memzero(StaticUniformBuffers.GetData(), StaticUniformBuffers.Num() * sizeof(FRHIUniformBuffer*));
 
-	for (int32 Index = 0; Index < InUniformBuffers.GetUniformBufferCount(); ++Index)
+	if (const FRHIShaderBindingLayout* Layout = InUniformBuffers.GetShaderBindingLayout())
 	{
-		StaticUniformBuffers[InUniformBuffers.GetSlot(Index)] = InUniformBuffers.GetUniformBuffer(Index);
+		check(InUniformBuffers.GetUniformBufferCount() == Layout->GetNumUniformBufferEntries());
+
+		for (int32 Index = 0; Index < InUniformBuffers.GetUniformBufferCount(); ++Index)
+		{
+			StaticUniformBuffers[Index] = InUniformBuffers.GetUniformBuffer(Index);
+			checkf(StaticUniformBuffers[Index], TEXT("Static uniform buffer at index %d is referenced in the shader binding layout but is not provided"), Index);
+		}
+
+		ShaderBindinglayout = Layout;
 	}
+	else
+	{
+		for (int32 Index = 0; Index < InUniformBuffers.GetUniformBufferCount(); ++Index)
+		{
+			FUniformBufferStaticSlot Slot = InUniformBuffers.GetSlot(Index);
+			StaticUniformBuffers[Slot] = InUniformBuffers.GetUniformBuffer(Index);
+		}
+
+		ShaderBindinglayout = nullptr;
+	}
+
 }
 
 void FD3D12CommandContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI, FRHIStagingBuffer* StagingBufferRHI, uint32 Offset, uint32 NumBytes)

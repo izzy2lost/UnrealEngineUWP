@@ -246,7 +246,6 @@ struct FRayTracingShaderBindings
 	FRHIUnorderedAccessView* UAVs[16] = {};
 
 	TArray<FRHIShaderParameterResource> BindlessParameters;
-	FUniformBufferStaticBindings StaticUniformBuffers;
 };
 
 struct FRayTracingLocalShaderBindings
@@ -4961,8 +4960,7 @@ struct FScopedUniformBufferStaticBindings
 		: RHICmdList(InRHICmdList)
 	{
 #if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
-		checkf(!bRecursionGuard, TEXT("Uniform buffer global binding scope has been called recursively!"));
-		bRecursionGuard = true;
+		OnScopeEnter();
 #endif
 
 		RHICmdList.SetStaticUniformBuffers(UniformBuffers);
@@ -4978,14 +4976,16 @@ struct FScopedUniformBufferStaticBindings
 		RHICmdList.SetStaticUniformBuffers(FUniformBufferStaticBindings());
 
 #if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
-		bRecursionGuard = false;
+		OnScopeExit();
 #endif
 	}
 
 	FRHIComputeCommandList& RHICmdList;
 
+private:
 #if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
-	RHI_API static bool bRecursionGuard;
+	RHI_API static void OnScopeEnter();
+	RHI_API static void OnScopeExit();
 #endif
 };
 

@@ -29,7 +29,16 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("Immed. Command count"), STAT_ImmedCmdListCount,
 UE_TRACE_CHANNEL_DEFINE(RHICommandsChannel);
 
 #if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
-bool FScopedUniformBufferStaticBindings::bRecursionGuard = false;
+static thread_local bool bScopedUniformBufferStaticBindingsRecursionGuard = false;
+void FScopedUniformBufferStaticBindings::OnScopeEnter()
+{
+	checkf(!bScopedUniformBufferStaticBindingsRecursionGuard, TEXT("Uniform buffer global binding scope has been called recursively!"));
+	bScopedUniformBufferStaticBindingsRecursionGuard = true;
+}
+void FScopedUniformBufferStaticBindings::OnScopeExit()
+{
+	bScopedUniformBufferStaticBindingsRecursionGuard = false;
+}
 #endif
 
 #if !PLATFORM_USES_FIXED_RHI_CLASS

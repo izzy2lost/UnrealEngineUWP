@@ -19,6 +19,7 @@ D3D12CommandContext.h: D3D12 Command Context Interfaces
 
 #include "RHICoreShader.h"
 #include "RHICore.h"
+#include "RHIShaderBindingLayout.h"
 
 #include "GPUProfiler.h"
 
@@ -808,6 +809,12 @@ public:
 	FD3D12ContextBindlessState& GetBindlessState() { return BindlessState; }
 #endif
 
+	const FRHIShaderBindingLayout& GetShaderBindingLayout() const
+	{
+		static const FRHIShaderBindingLayout Default;
+		return ShaderBindinglayout ? *ShaderBindinglayout : Default;
+	}
+
 protected:
 
 	FD3D12CommandContext* GetSingleDeviceContext(uint32 InGPUIndex) final override
@@ -833,6 +840,7 @@ private:
 	void HandleReservedResourceCommits   (const struct FD3D12TransitionData* TransitionData);
 
 	TArray<FRHIUniformBuffer*> StaticUniformBuffers;
+	const FRHIShaderBindingLayout* ShaderBindinglayout = nullptr;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12ContextBindlessState BindlessState;

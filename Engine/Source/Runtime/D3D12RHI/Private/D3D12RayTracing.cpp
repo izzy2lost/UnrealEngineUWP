@@ -4727,8 +4727,10 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 
 	FD3D12RayTracingShader* RayGenShader = Pipeline->RayGenShaders.Shaders[RayGenShaderIndex];
 
-	FRHIShaderBindingLayout ShaderBindingLayout = GlobalBindings.StaticUniformBuffers.GetShaderBindingLayout() ? *GlobalBindings.StaticUniformBuffers.GetShaderBindingLayout() : FRHIShaderBindingLayout();
+	const FRHIShaderBindingLayout& ShaderBindingLayout = CommandContext.GetShaderBindingLayout();
 	check(RayGenShader->ShaderBindingLayoutHash == ShaderBindingLayout.GetHash());
+
+	const TArray<FRHIUniformBuffer*>& StaticUniformBuffers = CommandContext.GetStaticUniformBuffers();
 
 	const FD3D12RootSignature* GlobalRTRootSignature = Adapter->GetGlobalRayTracingRootSignature(ShaderBindingLayout);
 
@@ -4767,20 +4769,19 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	int8 StaticShaderBindingSlot = GlobalRTRootSignature->GetStaticShaderBindingSlot();
 	if (StaticShaderBindingSlot >= 0)
 	{
-		check(GlobalBindings.StaticUniformBuffers.GetShaderBindingLayout());
-		check(GlobalBindings.StaticUniformBuffers.GetShaderBindingLayout()->GetNumUniformBufferEntries() == GlobalBindings.StaticUniformBuffers.GetUniformBufferCount());
-		for (int32 Index = 0; Index < GlobalBindings.StaticUniformBuffers.GetUniformBufferCount(); ++Index)
-		{
-			int32 SlotIndex = Index;
-			FRHIUniformBuffer* UniformBuffer = GlobalBindings.StaticUniformBuffers.GetUniformBuffer(Index);
-			if (UniformBuffer)
+		for (uint32 Index = 0; Index < ShaderBindingLayout.GetNumUniformBufferEntries(); ++Index)
 			{
+			const FRHIUniformBufferShaderBindingLayout& LayoutEntry = ShaderBindingLayout.GetUniformBufferEntry(Index);
+			const uint32 RootParameterSlotIndex = uint32(StaticShaderBindingSlot) + LayoutEntry.CBVResourceIndex;
+
+			FRHIUniformBuffer* UniformBuffer = StaticUniformBuffers[Index];
+			checkf(UniformBuffer, TEXT("Static uniform buffer at index %d is referenced in the shader binding layout but not provided in the last RHISetStaticUniformBuffers() command"), Index);
+
 				FD3D12UniformBuffer* D3D12UniformBuffer = FD3D12CommandContext::RetrieveObject<FD3D12UniformBuffer>(UniformBuffer, 0);//GpuIndex);
 				if (D3D12UniformBuffer->ResourceLocation.GetGPUVirtualAddress())
 				{
 					const FD3D12ResourceLocation& ResourceLocation = D3D12UniformBuffer->ResourceLocation;
-					CommandContext.GraphicsCommandList()->SetComputeRootConstantBufferView(StaticShaderBindingSlot + SlotIndex, ResourceLocation.GetGPUVirtualAddress());
-				}
+				CommandContext.GraphicsCommandList()->SetComputeRootConstantBufferView(RootParameterSlotIndex, ResourceLocation.GetGPUVirtualAddress());
 			}
 		}
 	}
