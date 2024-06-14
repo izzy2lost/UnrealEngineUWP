@@ -12,44 +12,6 @@
 namespace UE::DynamicMaterialEditor::Private
 {
 	static const FName SlotAddLayerMenuName = TEXT("MaterialDesigner.MaterialSlot.AddLayer");
-	static const FName SlotSectionName = TEXT("Slot");
-
-	void AddSlotMenu(UToolMenu* InMenu)
-	{
-		if (!IsValid(InMenu) || InMenu->ContainsSection(SlotSectionName))
-		{
-			return;
-		}
-
-		const UDMMenuContext* const MenuContext = InMenu->FindContext<UDMMenuContext>();
-
-		if (!MenuContext)
-		{
-			return;
-		}
-
-		TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
-
-		if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
-		{
-			return;
-		}
-
-		FToolMenuSection& NewSection = InMenu->AddSection(SlotSectionName, LOCTEXT("MaterialSlotMenu", "Material Slot"));
-		{
-			NewSection.AddMenuEntry(
-				NAME_None,
-				LOCTEXT("RemoveSlot", "Remove"),
-				LOCTEXT("RemoveSlotTooltip", "Remove this stage from its Material Slot.\n\n"
-					"Warning: Removing a stage off may result in inputs being reset where incompatibilities are found."),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(
-					EditorWidget->GetActiveSlotWidget().Get(),
-					&SDMSlot::RemoveSlot
-				))
-			);
-		}
-	}
 }
 
 TSharedRef<SWidget> FDMMaterialSlotMenus::MakeAddLayerButtonMenu(const TSharedPtr<SDMSlot>& InSlotWidget)

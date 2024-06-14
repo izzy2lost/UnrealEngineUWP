@@ -9,6 +9,7 @@
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMUtils.h"
 
 // Expressions to exclude
 #include "Materials/MaterialExpressionComment.h"

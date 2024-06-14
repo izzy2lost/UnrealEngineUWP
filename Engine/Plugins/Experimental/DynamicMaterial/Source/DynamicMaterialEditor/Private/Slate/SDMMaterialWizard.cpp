@@ -182,7 +182,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 	{
 		for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Property : ModelEditorOnlyData->GetMaterialProperties())
 		{
-			if (Property.Key == EDMMaterialPropertyType::EmissiveColor || Property.Key == EDMMaterialPropertyType::OpacityMask)
+			if (Property.Key == EDMMaterialPropertyType::OpacityMask)
 			{
 				continue;
 			}

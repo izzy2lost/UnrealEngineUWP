@@ -8,6 +8,7 @@
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageBlendFunction"
 

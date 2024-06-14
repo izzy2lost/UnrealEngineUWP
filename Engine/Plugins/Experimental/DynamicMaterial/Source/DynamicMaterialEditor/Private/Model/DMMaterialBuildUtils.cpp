@@ -14,6 +14,7 @@
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 FDMMaterialBuildUtils::FDMMaterialBuildUtils(FDMMaterialBuildState& InBuildState)
 	: BuildState(InBuildState)

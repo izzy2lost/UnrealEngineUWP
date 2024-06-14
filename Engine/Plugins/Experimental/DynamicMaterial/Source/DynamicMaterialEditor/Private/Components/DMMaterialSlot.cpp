@@ -24,6 +24,7 @@
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 #include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStage"
 

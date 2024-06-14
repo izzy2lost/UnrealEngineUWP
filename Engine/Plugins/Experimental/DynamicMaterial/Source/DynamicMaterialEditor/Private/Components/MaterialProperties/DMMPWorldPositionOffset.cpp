@@ -10,11 +10,6 @@ UDMMaterialPropertyWorldPositionOffset::UDMMaterialPropertyWorldPositionOffset()
 {
 }
 
-bool UDMMaterialPropertyWorldPositionOffset::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	return true;
-}
-
 UMaterialExpression* UDMMaterialPropertyWorldPositionOffset::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {

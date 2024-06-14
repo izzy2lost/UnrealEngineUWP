@@ -14,6 +14,7 @@
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
 #include "RenderUtils.h"
+#include "Utils/DMUtils.h"
 #endif
 
 #if WITH_EDITOR

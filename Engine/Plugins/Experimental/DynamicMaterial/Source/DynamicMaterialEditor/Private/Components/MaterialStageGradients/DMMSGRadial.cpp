@@ -5,6 +5,7 @@
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageGradientRadial"
 

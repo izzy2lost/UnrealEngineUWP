@@ -16,7 +16,6 @@ public:
 	UDMMaterialPropertyNormal();
 
 	//~ Begin UDMMaterialProperty
-	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const override;
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	virtual TEnumAsByte<EMaterialSamplerType> GetTextureSamplerType() const override;
 

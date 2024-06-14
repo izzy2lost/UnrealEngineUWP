@@ -12,18 +12,6 @@ UDMMaterialPropertyEmissiveColor::UDMMaterialPropertyEmissiveColor()
 {
 }
 
-bool UDMMaterialPropertyEmissiveColor::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	switch (InModelEditorOnlyData.GetBlendMode())
-	{
-		case EBlendMode::BLEND_AlphaHoldout:
-			return false;
-
-		default:
-			return true;
-	}
-}
-
 UMaterialExpression* UDMMaterialPropertyEmissiveColor::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {

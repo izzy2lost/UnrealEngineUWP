@@ -93,7 +93,7 @@ public:
 	 * @param InMaterialModel The model with the settings.
 	 * @return True if it is valid.
 	 */
-	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InMaterialModel) const { return true; }
+	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InMaterialModel) const;
 
 	/**
 	 * Empty the connection map and recalculate the input types.

@@ -467,16 +467,36 @@ void UDMMaterialStageBlend::AddDefaultInput(int32 InInputIndex) const
 					0, 
 					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 				);
-				break;
 			}
-			
-			Stage->ChangeInput_PreviousStage(
-				InInputIndex, 
-				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-				EDMMaterialPropertyType::EmissiveColor,
-				0, 
-				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
-			);
+			else
+			{
+				EDMMaterialPropertyType DefaultProperty = EDMMaterialPropertyType::None;
+
+				if (UDMMaterialSlot* Slot = Layer->GetSlot())
+				{
+					if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
+					{
+						if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+						{
+							DefaultProperty = EDMMaterialPropertyType::BaseColor;
+						}
+						else if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+						{
+							DefaultProperty = EDMMaterialPropertyType::EmissiveColor;
+						}
+					}
+				}
+
+				Stage->ChangeInput_PreviousStage(
+					InInputIndex,
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+					DefaultProperty,
+					0,
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+				);
+
+			}
+
 			break;
 		}
  

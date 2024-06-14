@@ -8,6 +8,7 @@
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {

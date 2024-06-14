@@ -248,9 +248,6 @@ bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStag
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
 
-	UDMMaterialProperty* PropertyObj = ModelEditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-	check(PropertyObj);
-
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
 	BuildState->SetPreviewMaterial();
 
@@ -280,9 +277,7 @@ bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStag
 
 	int32 BestMatch = INDEX_NONE;
 	int32 OutputCount = 0;
-	const int32 FloatsForPropertyType = bIsMaskStage
-		? 1
-		: UDMValueDefinitionLibrary::GetValueDefinition(PropertyObj->GetInputConnectorType()).GetFloatCount();
+	const int32 FloatsForPropertyType = bIsMaskStage ? 1 : 3;
 
 	for (int32 OutputIdx = 0; OutputIdx < LastExpression->GetOutputs().Num(); ++OutputIdx)
 	{

@@ -7,9 +7,14 @@
 #include "Engine/EngineTypes.h"
 #include "DMDefs.generated.h"
 
-class UTexture;
 class UDMMaterialStage;
-enum class EDMTextureSetMaterialProperty : uint8;
+class UTexture;
+
+namespace UE::DynamicMaterial
+{
+	constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
+	constexpr EClassFlags InvalidClassFlags = CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists;
+}
 
 /** Some short names provided so they fit nicely on buttons! */
 UENUM(BlueprintType)
@@ -168,19 +173,3 @@ public:
 private:
 	static uint32 GuardCount;
 };
-
-namespace UE::DynamicMaterial
-{
-	constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
-	constexpr EClassFlags InvalidClassFlags = CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists;
-
-	/** Designed to be used with preprocessor macros. See below. */
-	DYNAMICMATERIAL_API FString CreateNodeComment(const ANSICHAR* InFile, int InLine, const ANSICHAR* InFunction, const FString* InComment = nullptr);
-
-	DYNAMICMATERIAL_API EDMTextureSetMaterialProperty MaterialPropertyTypeToMaterialProperty(EDMMaterialPropertyType InPropertyType);
-
-	DYNAMICMATERIAL_API EDMMaterialPropertyType MaterialPropertyToMaterialPropertyType(EDMTextureSetMaterialProperty InPropertyType);
-}
-
-#define UE_DM_NodeComment_Default UE::DynamicMaterial::CreateNodeComment(__FILE__, __LINE__, __FUNCTION__)
-#define UE_DM_NodeComment(Comment) UE::DynamicMaterial::CreateNodeComment(__FILE__, __LINE__, __FUNCTION__, &Comment)

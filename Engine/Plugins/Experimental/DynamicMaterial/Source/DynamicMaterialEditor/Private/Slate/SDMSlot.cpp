@@ -323,39 +323,6 @@ bool SDMSlot::IsOpacityPropertyEnabled() const
 	return LayerView->GetLayerItems().IsValidIndex(LayerView->GetSelectedLayerIndex());
 }
 
-FReply SDMSlot::OnRemoveSlotClicked()
-{
-	if (CanRemoveSlot())
-	{
-		RemoveSlot();
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
-}
-
-bool SDMSlot::CanRemoveSlot() const
-{
-	if (UDMMaterialSlot* Slot = SlotWeak.Get())
-	{
-		// Cannot remove RGB slot.
-		const TArray<TObjectPtr<UDMMaterialLayerObject>>& Layers = Slot->GetLayers();
-
-		for (const TObjectPtr<UDMMaterialLayerObject>& Layer : Layers)
-		{
-			if (Layer->GetMaterialProperty() == EDMMaterialPropertyType::BaseColor
-				|| Layer->GetMaterialProperty() == EDMMaterialPropertyType::EmissiveColor)
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
 void SDMSlot::RefreshMainWidget()
 {
 	bInvalidateMainWidget = false;
@@ -544,24 +511,6 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 {
 	return 
 		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Top)
-		.Padding(5.0f, 2.0f, 10.0f, 2.0f)
-		[
-			SNew(SButton)
-			.ContentPadding(4.0f)
-			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly.Bordered.Dark")
-			.ToolTipText(LOCTEXT("RemoveSlotTooltip", "Remove Slot\n\nRGB Slots cannot be removed."))
-			.IsEnabled(this, &SDMSlot::CanRemoveSlot)
-			.OnClicked(this, &SDMSlot::OnRemoveSlotClicked)
-			[
-				SNew(SImage)
-				.Image(FAppStyle::Get().GetBrush("GenericCommands.Delete"))
-				.DesiredSizeOverride(FVector2D(16.0f))
-			]
-		]
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.HAlign(HAlign_Left)
@@ -1094,25 +1043,6 @@ void SDMSlot::ClearSelection()
 	if (LayerView.IsValid())
 	{
 		LayerView->ClearSelection();
-	}
-}
-
-void SDMSlot::RemoveSlot()
-{
-	if (UDMMaterialSlot* Slot = SlotWeak.Get())
-	{
-		if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
-		{
-			FDMScopedUITransaction Transaction(LOCTEXT("RemoveSlot", "Material Designer Remove Slot"));
-			ModelEditorOnlyData->Modify();
-			ModelEditorOnlyData->RemoveSlot(Slot->GetIndex());
-
-			if (TSharedPtr<SDMEditor> Editor = EditorWidgetWeak.Pin())
-			{
-				Editor->SetActiveSlotIndex(0);
-				Editor->RefreshSlotPickerList();
-			}
-		}
 	}
 }
 

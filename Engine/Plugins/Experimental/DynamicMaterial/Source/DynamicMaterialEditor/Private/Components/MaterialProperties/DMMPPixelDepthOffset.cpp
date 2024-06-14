@@ -10,19 +10,6 @@ UDMMaterialPropertyPixelDepthOffset::UDMMaterialPropertyPixelDepthOffset()
 {
 }
 
-bool UDMMaterialPropertyPixelDepthOffset::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	switch (InModelEditorOnlyData.GetBlendMode())
-	{
-		case EBlendMode::BLEND_Opaque:
-		case EBlendMode::BLEND_Masked:
-			return true;
-
-		default:
-			return false;
-	}
-}
-
 UMaterialExpression* UDMMaterialPropertyPixelDepthOffset::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {

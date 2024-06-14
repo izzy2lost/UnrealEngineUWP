@@ -16,7 +16,6 @@ public:
 	UDMMaterialPropertyAnisotropy();
 
 	//~ Begin UDMMaterialProperty
-	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const override;
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	//~ End UDMMaterialProperty
 };

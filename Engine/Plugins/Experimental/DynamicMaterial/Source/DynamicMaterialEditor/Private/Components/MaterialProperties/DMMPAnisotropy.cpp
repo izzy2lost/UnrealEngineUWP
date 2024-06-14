@@ -10,24 +10,6 @@ UDMMaterialPropertyAnisotropy::UDMMaterialPropertyAnisotropy()
 {
 }
 
-bool UDMMaterialPropertyAnisotropy::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	if (InModelEditorOnlyData.GetShadingModel() == EDMMaterialShadingModel::Unlit)
-	{
-		return false;
-	}
-
-	switch (InModelEditorOnlyData.GetBlendMode())
-	{
-		case EBlendMode::BLEND_Opaque:
-		case EBlendMode::BLEND_Masked:
-			return true;
-
-		default:
-			return false;
-	}
-}
-
 UMaterialExpression* UDMMaterialPropertyAnisotropy::GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	return CreateConstant(InBuildState, 1.f);

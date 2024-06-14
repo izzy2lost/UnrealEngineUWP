@@ -48,6 +48,7 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyDataVersion.h"
 #include "UObject/Package.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 
@@ -224,10 +225,27 @@ void UDynamicMaterialModelEditorOnlyData::OnChannelListPresetChanged()
 		return;
 	}
 
+	EnsurePresetSlots();
+
+	SetBlendMode(Preset->DefaultBlendMode);
+	SetShadingModel(Preset->DefaultShadingModel);
+	SetPixelAnimationFlag(Preset->bDefaultAnimated);
+	SetTwoSidedFlag(Preset->bDefaultTwoSided);
+}
+
+void UDynamicMaterialModelEditorOnlyData::EnsurePresetSlots()
+{
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(ChannelListPreset);
+
+	if (!Preset)
+	{
+		return;
+	}
+
 	ForEachMaterialPropertyType(
 		[this, Preset](EDMMaterialPropertyType InProperty)
 		{
-			if (InProperty == EDMMaterialPropertyType::EmissiveColor || InProperty == EDMMaterialPropertyType::OpacityMask)
+			if (InProperty == EDMMaterialPropertyType::OpacityMask)
 			{
 				return EDMIterationResult::Continue;
 			}
@@ -243,11 +261,6 @@ void UDynamicMaterialModelEditorOnlyData::OnChannelListPresetChanged()
 
 			return EDMIterationResult::Continue;
 		});
-
-	SetBlendMode(Preset->DefaultBlendMode);
-	SetShadingModel(Preset->DefaultShadingModel);
-	SetPixelAnimationFlag(Preset->bDefaultAnimated);
-	SetTwoSidedFlag(Preset->bDefaultTwoSided);
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
@@ -256,55 +269,30 @@ void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 	{
 		const FDMUpdateGuard Guard;
 
+		// Make sure we have the correct slots, then adjust for domains.
+		EnsurePresetSlots();
+
 		// Post process only supports emissive.
-		ForEachMaterialPropertyType(
-			[this](EDMMaterialPropertyType InProperty)
+		UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
+		UDMMaterialSlot* EmissiveSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
+
+		if (!EmissiveSlot)
+		{
+			if (BaseColorSlot)
 			{
-				switch (InProperty)
-				{
-					case EDMMaterialPropertyType::BaseColor:
-					case EDMMaterialPropertyType::EmissiveColor:
-						RemoveSlotForMaterialProperty(InProperty);
-						break;
-
-					default:
-						// Do nothing
-						break;
-				}
-
-				return EDMIterationResult::Continue;
-			});
-
-		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+				EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+			}
+			else
+			{
+				AddSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
+			}
+		}
 
 		SetShadingModel(EDMMaterialShadingModel::Unlit);
 		SetBlendMode(EBlendMode::BLEND_Opaque);
 	}
 	else if (Domain == EMaterialDomain::MD_DeferredDecal)
 	{
-		// Post process only supports basic types.
-		ForEachMaterialPropertyType(
-			[this](EDMMaterialPropertyType InProperty)
-			{
-				switch (InProperty)
-				{
-					case EDMMaterialPropertyType::BaseColor:
-					case EDMMaterialPropertyType::EmissiveColor:
-					case EDMMaterialPropertyType::Opacity:
-					case EDMMaterialPropertyType::OpacityMask:
-						RemoveSlotForMaterialProperty(InProperty);
-						break;
-
-					default:
-						// Do nothing
-						break;
-				}
-
-				return EDMIterationResult::Continue;
-			});
-
-		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
-
 		SetShadingModel(EDMMaterialShadingModel::DefaultLit);
 		SetBlendMode(EBlendMode::BLEND_Translucent);
 	}
@@ -314,6 +302,8 @@ void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 
 void UDynamicMaterialModelEditorOnlyData::OnBlendModeChanged()
 {
+	EnsurePresetSlots();
+
 	switch (BlendMode)
 	{
 		case EBlendMode::BLEND_Opaque:
@@ -339,63 +329,16 @@ void UDynamicMaterialModelEditorOnlyData::OnBlendModeChanged()
 
 void UDynamicMaterialModelEditorOnlyData::OnShadingModelChanged()
 {
-	EDMMaterialPropertyType FromProperty;
-	EDMMaterialPropertyType ToProperty;
-
-	switch (ShadingModel)
-	{
-		case EDMMaterialShadingModel::Unlit:
-			FromProperty = EDMMaterialPropertyType::BaseColor;
-			ToProperty = EDMMaterialPropertyType::EmissiveColor;
-			break;
-
-		case EDMMaterialShadingModel::DefaultLit:
-			FromProperty = EDMMaterialPropertyType::EmissiveColor;
-			ToProperty = EDMMaterialPropertyType::BaseColor;
-			break;
-
-		default:
-			return;
-	}
-
-	EnsureSwapSlotMaterialProperty(FromProperty, ToProperty);
-
 	RequestMaterialBuild();
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnPixelAnimationFlagChanged()
 {
-	if (MaterialModel)
-	{
-		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
-		{
-			if (GUndo)
-			{
-				Material->Modify();
-			}
-
-			Material->bHasPixelAnimation = bPixelAnimationFlag;
-		}
-	}
-
 	RequestMaterialBuild();
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnTwoSidedFlagChanged()
 {
-	if (MaterialModel)
-	{
-		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
-		{
-			if (GUndo)
-			{
-				Material->Modify();
-			}
-
-			Material->TwoSided = bTwoSidedFlag;
-		}
-	}
-
 	RequestMaterialBuild();
 }
 
@@ -820,7 +763,7 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 
 	for (const TPair<EDMTextureSetMaterialProperty, FDMMaterialTexture>& MaterialTexture : InTextureSet->GetTextures())
 	{
-		const EDMMaterialPropertyType PropertyType = UE::DynamicMaterial::MaterialPropertyToMaterialPropertyType(MaterialTexture.Key);
+		const EDMMaterialPropertyType PropertyType = FDMUtils::TextureSetMaterialPropertyToMaterialPropertyType(MaterialTexture.Key);
 
 		if (PropertyType == EDMMaterialPropertyType::None)
 		{
@@ -1279,35 +1222,11 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty(EDMMaterialPropertyType InType)
 {
-	if (InType == EDMMaterialPropertyType::BaseColor || InType == EDMMaterialPropertyType::EmissiveColor)
-	{
-		if (Domain == EMaterialDomain::MD_DeferredDecal)
-		{
-			InType = EDMMaterialPropertyType::EmissiveColor;
-		}
-		else
-		{
-			switch (ShadingModel)
-			{
-				case EDMMaterialShadingModel::DefaultLit:
-					InType = EDMMaterialPropertyType::BaseColor;
-					break;
-
-				case EDMMaterialShadingModel::Unlit:
-					InType = EDMMaterialPropertyType::EmissiveColor;
-					break;
-
-				default:
-					checkNoEntry();
-					break;
-			}
-		}
-	}
-	else if (Domain == EMaterialDomain::MD_PostProcess)
+	if (InType == EDMMaterialPropertyType::EmissiveColor && Domain == EMaterialDomain::MD_PostProcess)
 	{
 		return nullptr;
 	}
-	else if (InType == EDMMaterialPropertyType::Opacity || InType == EDMMaterialPropertyType::OpacityMask)
+	if (InType == EDMMaterialPropertyType::Opacity || InType == EDMMaterialPropertyType::OpacityMask)
 	{
 		switch (BlendMode)
 		{
@@ -1330,11 +1249,6 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty
 		}
 	}
 
-	if (Domain == EMaterialDomain::MD_DeferredDecal && InType != EDMMaterialPropertyType::EmissiveColor)
-	{
-		return nullptr;
-	}
-
 	if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(InType))
 	{
 		return ExistingSlot;
@@ -1344,22 +1258,6 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty
 	// be checked. If it is found, it is converted and returned. The same goes for Opacity and OpacityMask.
 	switch (InType)
 	{
-		case EDMMaterialPropertyType::BaseColor:
-			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
-			{
-				SwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
-				return ExistingSlot;
-			}
-			break;
-
-		case EDMMaterialPropertyType::EmissiveColor:
-			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
-			{
-				SwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
-				return ExistingSlot;
-			}
-			break;
-
 		case EDMMaterialPropertyType::Opacity:
 			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask))
 			{

@@ -65,9 +65,11 @@ struct FDMMaterialChannelListPreset
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
 	FName Name;
 
-	/** This cannot be disabled. It is here for illustrative purposes only. */
-	UPROPERTY(Config, VisibleAnywhere, BlueprintReadOnly, Category = "Channel")
-	bool bRGB = true;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
+	bool bBaseColor = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
+	bool bEmissive = false;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
 	bool bOpacity = false;
@@ -232,12 +234,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Material Functions")
 	bool bUseLinearColorForVectors;
 
+	UPROPERTY(Config)
+	bool bValidatedPresets = false;
+
 	/** This variable is accessed in multiple places, so this is a quick accessor. */
 	static bool IsUseLinearColorForVectorsEnabled();
 
 	FOnFinishedChangingProperties OnSettingsChanged;
 
 	//~ Begin UObject
+	virtual void PostInitProperties() override;
 	virtual void PreEditChange(FEditPropertyChain& InPropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject

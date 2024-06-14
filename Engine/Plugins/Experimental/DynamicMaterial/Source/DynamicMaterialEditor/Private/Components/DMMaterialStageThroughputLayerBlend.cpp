@@ -25,6 +25,7 @@
 #include "Utils/DMInputNodeBuilder.h"
 #include "Utils/DMMaterialFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageThroughputLayerBlend"
 
@@ -328,7 +329,7 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 	check(GetAlphaBlend());
 
-	UMaterialExpressionMaterialFunctionCall* FunctionCall = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMaterialFunctionCall>(UE_DM_NodeComment_Default);;
+	UMaterialExpressionMaterialFunctionCall* FunctionCall = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMaterialFunctionCall>(UE_DM_NodeComment_Default);
 	FunctionCall->SetMaterialFunction(GetAlphaBlend());
 	FunctionCall->UpdateFromFunctionResource();
 
@@ -363,17 +364,15 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 					if (ModelEditorOnlyData)
 					{
-						switch (ModelEditorOnlyData->GetShadingModel())
+						if (UDMMaterialSlot* BaseColorSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
 						{
-							case EDMMaterialShadingModel::DefaultLit:
-								RGBProperty = EDMMaterialPropertyType::BaseColor;
-								RGBSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(RGBProperty);
-								break;
-
-							case EDMMaterialShadingModel::Unlit:
-								RGBProperty = EDMMaterialPropertyType::EmissiveColor;
-								RGBSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(RGBProperty);
-								break;
+							RGBProperty = EDMMaterialPropertyType::BaseColor;
+							RGBSlot = BaseColorSlot;
+						}
+						else if (UDMMaterialSlot* EmissiveColorSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+						{
+							RGBProperty = EDMMaterialPropertyType::EmissiveColor;
+							RGBSlot = EmissiveColorSlot;
 						}
 					}
 				}

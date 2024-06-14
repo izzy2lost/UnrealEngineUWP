@@ -7,6 +7,7 @@
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMUtils.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {
@@ -36,24 +37,6 @@ UDMMaterialPropertyNormal::UDMMaterialPropertyNormal()
 		EDMMaterialPropertyType(EDMMaterialPropertyType::Normal),
 		EDMValueType::VT_Float3_XYZ)
 {
-}
-
-bool UDMMaterialPropertyNormal::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	if (InModelEditorOnlyData.GetShadingModel() == EDMMaterialShadingModel::Unlit)
-	{
-		return false;
-	}
-
-	switch (InModelEditorOnlyData.GetBlendMode())
-	{
-		case EBlendMode::BLEND_Opaque:
-		case EBlendMode::BLEND_Masked:
-			return true;
-
-		default:
-			return false;
-	}
 }
 
 UMaterialExpression* UDMMaterialPropertyNormal::GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const

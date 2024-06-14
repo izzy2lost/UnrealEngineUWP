@@ -306,6 +306,7 @@ protected:
 	TArray<FName> GetPresetOptions() const;
 
 	void OnChannelListPresetChanged();
+	void EnsurePresetSlots();
 	void OnDomainChanged();
 	void OnBlendModeChanged();
 	void OnShadingModelChanged();

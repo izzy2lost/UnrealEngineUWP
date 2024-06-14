@@ -34,7 +34,9 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMMaterialUtils.h"
 #include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialProperty"
 
@@ -328,12 +330,7 @@ void UDMMaterialProperty::GenerateExpressions(const TSharedRef<FDMMaterialBuildS
 {
 	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = GetMaterialModelEditorOnlyData();
 
-	if (!EditorOnlyData)
-	{
-		return;
-	}
-
-	if (EditorOnlyData->GetDomain() == EMaterialDomain::MD_PostProcess && MaterialProperty != EDMMaterialPropertyType::EmissiveColor)
+	if (!EditorOnlyData || !IsValidForModel(*EditorOnlyData))
 	{
 		return;
 	}
@@ -676,6 +673,24 @@ void UDMMaterialProperty::SetOutputProcessor(UMaterialFunctionInterface* InFunct
 	OutputProcessor = InFunction;
 
 	OnOutputProcessorUpdated();
+}
+
+bool UDMMaterialProperty::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InMaterialModel) const
+{
+	return FDMMaterialUtils::IsMaterialPropertyActive({
+		FDMUtils::MaterialPropertyTypeToMaterialProperty(MaterialProperty),
+		InMaterialModel.GetDomain(),
+		InMaterialModel.GetBlendMode(),
+		InMaterialModel.GetShadingModel() == EDMMaterialShadingModel::DefaultLit ? EMaterialShadingModel::MSM_DefaultLit : EMaterialShadingModel::MSM_Unlit,
+		TLM_Surface,
+		/* Tesselation enabled */ false,
+		/* BlendableOutputAlpha (Post Process Alpha) */ false,
+		/* Uses Distortion */ false,
+		/* Shading model from master material */ false,
+		/* Outputting translucency velocity */ InMaterialModel.GetBlendMode() != BLEND_Opaque,
+		/* Thin surface */ false,
+		/* Is supported (substate check) */ true
+	});
 }
 
 void UDMMaterialProperty::OnOutputProcessorUpdated()

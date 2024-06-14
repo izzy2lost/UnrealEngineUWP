@@ -56,8 +56,10 @@ bool FDMMaterialChannelListPreset::IsPropertyEnabled(EDMMaterialPropertyType InP
 	switch (InProperty)
 	{
 		case EDMMaterialPropertyType::BaseColor:
+			return bBaseColor;
+
 		case EDMMaterialPropertyType::EmissiveColor:
-			return bRGB;
+			return bEmissive;
 
 		case EDMMaterialPropertyType::Opacity:
 		case EDMMaterialPropertyType::OpacityMask:
@@ -112,8 +114,8 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	FDMMaterialChannelListPreset Opaque;
 	Opaque.Name = TEXT("Opaque");
-	Opaque.bRGB = true;
-	Opaque.bOpacity = false;
+	Opaque.bBaseColor = true;
+	Opaque.bEmissive = true;
 	Opaque.DefaultBlendMode = BLEND_Opaque;
 	Opaque.DefaultShadingModel = EDMMaterialShadingModel::DefaultLit;
 	Opaque.bDefaultAnimated = false;
@@ -121,8 +123,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	FDMMaterialChannelListPreset Emissive;
 	Emissive.Name = TEXT("Emissive");
-	Emissive.bRGB = true;
-	Emissive.bOpacity = false;
+	Emissive.bEmissive = true;
 	Emissive.DefaultBlendMode = BLEND_Opaque;
 	Emissive.DefaultShadingModel = EDMMaterialShadingModel::Unlit;
 	Emissive.bDefaultAnimated = false;
@@ -130,7 +131,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	FDMMaterialChannelListPreset Translucent;
 	Translucent.Name = TEXT("Translucent");
-	Translucent.bRGB = true;
+	Translucent.bEmissive = true;
 	Translucent.bOpacity = true;
 	Translucent.DefaultBlendMode = BLEND_Translucent;
 	Translucent.DefaultShadingModel = EDMMaterialShadingModel::Unlit;
@@ -139,7 +140,8 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	FDMMaterialChannelListPreset PBR;
 	PBR.Name = TEXT("PBR");
-	PBR.bRGB = true;
+	PBR.bBaseColor = true;
+	PBR.bEmissive = true;
 	PBR.bOpacity = true;
 	PBR.bMetallic = true;
 	PBR.bSpecular = true;
@@ -153,7 +155,8 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	FDMMaterialChannelListPreset All;
 	All.Name = TEXT("All");
-	All.bRGB = true;
+	All.bBaseColor = true;
+	All.bEmissive = true;
 	All.bOpacity = true;
 	All.bMetallic = true;
 	All.bSpecular = true;
@@ -197,6 +200,24 @@ bool UDynamicMaterialEditorSettings::IsUseLinearColorForVectorsEnabled()
 	}
 
 	return true;
+}
+
+void UDynamicMaterialEditorSettings::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	if (bValidatedPresets)
+	{
+		return;
+	}
+
+	for (FDMMaterialChannelListPreset& Preset : MaterialChannelPresets)
+	{
+		Preset.bBaseColor = Preset.Name != TEXT("Emissive");
+		Preset.bEmissive = true;
+	}
+
+	bValidatedPresets = true;
 }
 
 void UDynamicMaterialEditorSettings::PreEditChange(FEditPropertyChain& InPropertyAboutToChange)

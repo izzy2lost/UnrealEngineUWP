@@ -12,11 +12,6 @@ UDMMaterialPropertyOpacityMask::UDMMaterialPropertyOpacityMask()
 {
 }
 
-bool UDMMaterialPropertyOpacityMask::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	return (InModelEditorOnlyData.GetBlendMode() == EBlendMode::BLEND_Masked);
-}
-
 UMaterialExpression* UDMMaterialPropertyOpacityMask::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {

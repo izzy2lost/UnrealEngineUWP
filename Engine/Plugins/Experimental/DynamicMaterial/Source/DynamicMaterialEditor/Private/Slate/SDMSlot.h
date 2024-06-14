@@ -76,8 +76,6 @@ public:
 	void AddNewLayer_SceneTexture();
 	void AddNewLayer_Renderer(TSubclassOf<UDMRenderTargetRenderer> InRendererClass);
 
-	void RemoveSlot();
-
 	bool CheckValidity();
 
 	bool GetLayerRowsButtonsCanRemove() const;
@@ -161,7 +159,4 @@ protected:
 
 	bool CanRemoveLayerByIndex(const int32 InLayerIndex) const;
 	void RemoveLayerByIndex(const int32 InLayerIndex, const bool bInSelectNextMaskIfMask = false);
-
-	bool CanRemoveSlot() const;
-	FReply OnRemoveSlotClicked();
 };

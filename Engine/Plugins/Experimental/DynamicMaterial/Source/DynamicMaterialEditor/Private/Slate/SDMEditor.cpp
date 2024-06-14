@@ -976,16 +976,6 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Property : ModelEditorOnlyData->GetMaterialProperties())
 	{
-		if (Property.Key == EDMMaterialPropertyType::BaseColor && ModelEditorOnlyData->GetShadingModel() == EDMMaterialShadingModel::Unlit)
-		{
-			continue;
-		}
-
-		if (Property.Key == EDMMaterialPropertyType::EmissiveColor && ModelEditorOnlyData->GetShadingModel() == EDMMaterialShadingModel::DefaultLit)
-		{
-			continue;
-		}		
-
 		// Always create opacity, not opacity mask - Will be sorted out by the button itself.
 		if (Property.Key == EDMMaterialPropertyType::OpacityMask)
 		{
@@ -1203,14 +1193,6 @@ bool SDMEditor::IsPropertyValidForModel(EDMMaterialPropertyType InProperty) cons
 		}
 	}
 
-	if (InProperty == EDMMaterialPropertyType::BaseColor)
-	{
-		if (UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
-		{
-			return Property->IsValidForModel(*EditorOnlyData);
-		}
-	}
-
 	if (InProperty == EDMMaterialPropertyType::Opacity)
 	{
 		if (UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::OpacityMask))
@@ -1240,7 +1222,7 @@ ECheckBoxState SDMEditor::GetSlotCheckState(EDMMaterialPropertyType InProperty) 
 
 	if (!EditorOnlyData)
 	{
-		return ECheckBoxState::Undetermined;
+		return ECheckBoxState::Unchecked;
 	}
 
 	if (!EditorOnlyData->GetSlots().IsValidIndex(ActiveSlotIndex))
@@ -1634,14 +1616,6 @@ UDMMaterialSlot* SDMEditor::GetSlotForMaterialProperty(EDMMaterialPropertyType I
 	{
 		switch (InProperty)
 		{
-			case EDMMaterialPropertyType::BaseColor:
-				PropertySlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-				break;
-
-			case EDMMaterialPropertyType::EmissiveColor:
-				PropertySlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
-				break;
-
 			case EDMMaterialPropertyType::Opacity:
 				PropertySlot = ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
 				break;

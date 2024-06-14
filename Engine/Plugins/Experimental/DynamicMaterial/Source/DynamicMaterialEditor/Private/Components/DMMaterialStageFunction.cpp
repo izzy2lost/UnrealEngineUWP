@@ -23,6 +23,7 @@
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageFunction"
 
@@ -152,11 +153,28 @@ void UDMMaterialStageFunction::AddDefaultInput(int32 InInputIndex) const
 	}
 	else
 	{
+		EDMMaterialPropertyType DefaultProperty = EDMMaterialPropertyType::None;
+
+		if (UDMMaterialSlot* Slot = Layer->GetSlot())
+		{
+			if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
+			{
+				if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+				{
+					DefaultProperty = EDMMaterialPropertyType::BaseColor;
+				}
+				else if (ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+				{
+					DefaultProperty = EDMMaterialPropertyType::EmissiveColor;
+				}
+			}
+		}		
+
 		Stage->ChangeInput_PreviousStage(
-			InInputIndex, 
-			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-			EDMMaterialPropertyType::EmissiveColor,
-			0, 
+			InInputIndex,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+			DefaultProperty,
+			0,
 			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 		);
 	}
