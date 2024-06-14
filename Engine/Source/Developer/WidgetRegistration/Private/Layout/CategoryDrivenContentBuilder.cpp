@@ -309,7 +309,7 @@ void FCategoryDrivenContentBuilder::InitializeCategoryButtons()
 	const FName StyleName = GetCategoryToolBarStyleName(); 
 	LoadPaletteToolBarBuilder->SetStyle(&FAppStyle::Get(), StyleName );
 	LoadPaletteToolBarBuilder->SetLabelVisibility( CategoryButtonLabelVisibility );
-	MainContentVerticalBox = SNew(SVerticalBox);
+
 	InitializeCategoryToolbar();
 }
 

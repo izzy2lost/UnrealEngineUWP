@@ -685,23 +685,6 @@ void SPlacementModeTools::Construct( const FArguments& InArgs, TSharedRef<SDockT
 	FCategoryDrivenContentBuilderArgs Args( "PlacementModes", UE::DisplayBuilders::FBuilderKeys::Get().PlaceActors() );
 	Args.FavoritesCommandName = FBuiltInPlacementCategories::Favorites();
 	Args.ActiveCategoryName = FBuiltInPlacementCategories::Basic();
-	Args.GetDecoratedButtonDelegate.BindLambda( [ this ] ( TSharedRef<SWidget> UndecoratedButtonWidget )
-	{
-		return SNew( SAssetDropTarget )
-			.bOnlyRecognizeOnDragEnter( false )
-			.OnAssetsDropped_Lambda( [ this ] ( const FDragDropEvent& Event, TArrayView<FAssetData> InAssets )
-			{
-				if ( InAssets.Num() == 1 )
-				{
-					CategoryContentBuilder->AddFavorite( InAssets[0].AssetName );
-				}
-			})
-			[
-				UndecoratedButtonWidget	
-			];
-	});
-
-	
 
 	CategoryContentBuilder = MakeShared<FCategoryDrivenContentBuilder>( Args );
 	CategoryContentBuilder->UpdateContentForCategoryDelegate.BindSP( SharedThis( this ), &SPlacementModeTools::UpdateContentForCategory );
@@ -906,7 +889,15 @@ void SPlacementModeTools::UpdateShownItems()
 
 			if (Category->bSortable)
 			{
-				FilteredItems.Sort(&FSortPlaceableItems::SortItemsByOrderThenName);
+				// The item order makes sense internally to a category, not across all classes, so sort by name only in the all classes case
+				if (Category->UniqueHandle == FBuiltInPlacementCategories::AllClasses())
+				{
+					FilteredItems.Sort(&FSortPlaceableItems::SortItemsByName);
+				}
+				else
+				{
+					FilteredItems.Sort(&FSortPlaceableItems::SortItemsByOrderThenName);
+				}
 			}
 		}
 
@@ -1057,7 +1048,7 @@ void SPlacementModeTools::OnCategoryRefresh(FName CategoryName)
 
 void SPlacementModeTools::UpdatePlacementCategories()
 {
-	bool BasicTabExists = false;
+	bool bBasicTabExists = false;
 	FName TabToActivate;
 
 	CategoryFilterPtr->ClearChildren();
@@ -1079,7 +1070,7 @@ void SPlacementModeTools::UpdatePlacementCategories()
 		}
 		if (Category.UniqueHandle == FBuiltInPlacementCategories::Basic())
 		{
-			BasicTabExists = true;
+			bBasicTabExists = true;
 		}
 
 		if (Category.UniqueHandle == ActiveTabName)
@@ -1106,7 +1097,7 @@ void SPlacementModeTools::UpdatePlacementCategories()
 	
 	if (TabToActivate.IsNone())
 	{
-		if (BasicTabExists)
+		if (bBasicTabExists)
 		{
 			TabToActivate = FBuiltInPlacementCategories::Basic();
 		}

@@ -120,7 +120,7 @@ void FPlacementModeModule::StartupModule()
 	RegisterPlacementCategory(
 		FPlacementCategoryInfo(
 			NSLOCTEXT("PlacementMode", "Favorites", "Favorites"),
-			FSlateIcon(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Favorites.Small"),
 			FBuiltInPlacementCategories::Favorites(),
 			TEXT("Favorites"),
 			TNumericLimits<int32>::Lowest(),
@@ -241,7 +241,7 @@ void FPlacementModeModule::StartupModule()
 		FName CategoryName = FBuiltInPlacementCategories::Visual();
 		RegisterPlacementCategory(
 			FPlacementCategoryInfo(
-				NSLOCTEXT("PlacementMode", "VisualEffects", "Visual Effects"),
+				NSLOCTEXT("PlacementMode", "VisualEffects", "VFX"),
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.VisualEffects"),
 				CategoryName,
 				TEXT("PMVisual"),
@@ -275,7 +275,7 @@ void FPlacementModeModule::StartupModule()
 
 	RegisterPlacementCategory(
 		FPlacementCategoryInfo(
-			NSLOCTEXT("PlacementMode", "AllClasses", "All Classes"),
+			NSLOCTEXT("PlacementMode", "AllClasses", "All"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.All"),
 			FBuiltInPlacementCategories::AllClasses(),
 			TEXT("PMAllClasses"),
