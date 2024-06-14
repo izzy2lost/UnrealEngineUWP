@@ -860,9 +860,6 @@ namespace UnrealBuildTool
 			{
 				GetCompileArguments_Analyze(CompileEnvironment, Arguments);
 			}
-
-			// Add additional arguments to the argument list.
-			GetCompileArguments_AdditionalArgs(CompileEnvironment, Arguments);
 		}
 
 		protected virtual string GetFileNameFromExtension(string AbsolutePath, string Extension)
@@ -1017,6 +1014,9 @@ namespace UnrealBuildTool
 				// Add the parameters needed to compile the output file to the command-line.
 				Arguments.Add(GetOutputFileArgument(OutputFile));
 			}
+
+			// Add additional arguments to the argument list, must be the final arguments added
+			GetCompileArguments_AdditionalArgs(CompileEnvironment, Arguments);
 
 			return OutputFile;
 		}

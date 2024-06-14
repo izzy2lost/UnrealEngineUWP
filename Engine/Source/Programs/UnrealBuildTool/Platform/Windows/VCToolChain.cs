@@ -1007,11 +1007,6 @@ namespace UnrealBuildTool
 				AddDefinition(Arguments, "_WINDOWS");
 				AddDefinition(Arguments, "WIN32");
 			}
-
-			if (!String.IsNullOrEmpty(CompileEnvironment.AdditionalArguments))
-			{
-				Arguments.Add(CompileEnvironment.AdditionalArguments);
-			}
 		}
 
 		protected virtual void AppendCLArguments_H(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
@@ -1851,6 +1846,12 @@ namespace UnrealBuildTool
 				else
 				{
 					AppendCLArguments_CPP(CompileEnvironment, CompileAction.Arguments);
+				}
+
+				// Add additional arguments to the argument list, must be the final arguments added
+				if (!String.IsNullOrEmpty(CompileEnvironment.AdditionalArguments))
+				{
+					CompileAction.Arguments.Add(CompileEnvironment.AdditionalArguments);
 				}
 
 				if (Target.WindowsPlatform.Compiler.IsClang())
