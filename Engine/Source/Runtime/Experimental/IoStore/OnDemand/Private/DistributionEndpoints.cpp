@@ -82,7 +82,8 @@ FDistributionEndpoints::EResult FDistributionEndpoints::ResolveEndpoints(const F
 		Loop.SetFailTimeout(GDistributedEndpointTimeout * 1000);
 	}
 
-	FRequest Request = Loop.Get(AnsiUrl);
+	FEventLoop::FRequestParams RequestParams = { .bAllowChunked = false };
+	FRequest Request = Loop.Get(AnsiUrl, &RequestParams);
 	Request.Header("Accept", "application/json");
 	Loop.Send(MoveTemp(Request), OnRequestStatus);
 
