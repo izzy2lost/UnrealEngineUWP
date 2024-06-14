@@ -71,24 +71,11 @@ class FPackageReferencersHelper
 	 */
 	static void RecursiveRetrieveReferencers(const TArray<UObject*>& InReferencedObjects, TSet<TWeakObjectPtr<UObject>>& OutReferencingObjects)
 	{
-		TSet<UObject*> ReferencerObjects;
-
-		// Use the fast reference collector to recursively find referencers until no more new ones are found.
-		int32 LastObjectCount = 0;
-
 		TArray<UObject*> FoundReferencerObjects = FReferencerFinder::GetAllReferencers(InReferencedObjects, nullptr, EReferencerFinderFlags::None);
-		do
-		{
-			LastObjectCount = ReferencerObjects.Num();
-			ReferencerObjects.Append(FoundReferencerObjects);
-
-			FoundReferencerObjects = FReferencerFinder::GetAllReferencers(FoundReferencerObjects, nullptr, EReferencerFinderFlags::SkipInnerReferences);
-
-		} while (LastObjectCount != ReferencerObjects.Num());
 
 		// Convert them into weak pointers to deal with objects that get GC'd during the reload operation.
-		OutReferencingObjects.Reserve(ReferencerObjects.Num());
-		for (UObject* ReferencerObject : ReferencerObjects)
+		OutReferencingObjects.Reserve(OutReferencingObjects.Num() + FoundReferencerObjects.Num());
+		for (UObject* ReferencerObject : FoundReferencerObjects)
 		{
 			OutReferencingObjects.Emplace(MakeWeakObjectPtr(ReferencerObject));
 		}
@@ -111,6 +98,9 @@ public:
 			for (const FReloadPackageData& PackageToReloadData : InPackagesToReload)
 			{
 				ObjectsToReload.Add(PackageToReloadData.PackageToReload);
+				TArray<UObject*> Inners;
+				GetObjectsWithOuter(PackageToReloadData.PackageToReload, Inners);
+				ObjectsToReload.Append(Inners);
 			}
 
 			// Collect all other objects that reference any of them.
@@ -720,6 +710,7 @@ void ReloadPackages(const TArrayView<FReloadPackageData>& InPackagesToReload, TA
 			FScopedSlowTask FixingUpReferencesSlowTask((float)((NumPackagesInBatch * 4) + GUObjectArray.GetObjectArrayNum()), NSLOCTEXT("CoreUObject", "FixingUpReferences", "Fixing-Up References"));
 
 			// Pre-pass to notify things that the package old package is about to be fixed-up
+			TArray<UObject*> PotentialReferencers;
 			TMap<UObject*, PackageReloadInternal::FObjectAndPackageIndex> OldObjectToNewData;
 			for (int32 BatchPackageIndex = BatchStartIndex; BatchPackageIndex < PackageIndex; ++BatchPackageIndex)
 			{
@@ -736,6 +727,13 @@ void ReloadPackages(const TArrayView<FReloadPackageData>& InPackagesToReload, TA
 					for (const auto& ObjectMappingPair : NewPackageData.EventData->GetRepointedObjects())
 					{
 						OldObjectToNewData.Add(ObjectMappingPair.Key, PackageReloadInternal::FObjectAndPackageIndex(ObjectMappingPair.Value, BatchPackageIndex));
+						
+						// Also do reference replacement on the loaded objects, in case they have buggy
+						// Lifecycle functions that have created references to the DEADPACKAGE:
+						if (ObjectMappingPair.Value)
+						{
+							PotentialReferencers.Add(ObjectMappingPair.Value);
+						}
 					}
 				}
 			}
@@ -744,7 +742,6 @@ void ReloadPackages(const TArrayView<FReloadPackageData>& InPackagesToReload, TA
 			// todo: multi-thread this like FHotReloadModule::ReplaceReferencesToReconstructedCDOs?
 			//The FThreadSafeObjectIterator will lock the global UObject array, to avoid potential deadlock we simply build the list
 			//of the potential referencers and do the reference fix serialize outside of the FThreadSafeObjectIterator.
-			TArray<UObject*> PotentialReferencers;
 
 			PackageReferencersHelper.ForEachObject(
 				[&PotentialReferencers] (UObject* PotentialReferencer)
@@ -769,6 +766,9 @@ void ReloadPackages(const TArrayView<FReloadPackageData>& InPackagesToReload, TA
 				}
 			);
 
+			// Main reference replacement pass - this should fix as many references as possible
+			// allowing users to run code that has no visibility into the old data and
+			// therefore is not at risk of out of date reads or writes:
 			for (UObject* PotentialReferencer : PotentialReferencers)
 			{
 				FixingUpReferencesSlowTask.EnterProgressFrame(1.0f);

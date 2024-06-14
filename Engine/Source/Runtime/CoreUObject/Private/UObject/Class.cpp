@@ -5534,7 +5534,7 @@ bool UClass::IsStructTrashed() const
 
 void UClass::Serialize( FArchive& Ar )
 {
-	if ( Ar.IsLoading() || Ar.IsModifyingWeakAndStrongReferences() )
+	if ( Ar.IsLoading() || (Ar.IsModifyingWeakAndStrongReferences() && !Ar.IsSaving()) )
 	{
 		// Rehash since SuperStruct will be serialized in UStruct::Serialize
 		UnhashObject(this);
@@ -5542,7 +5542,7 @@ void UClass::Serialize( FArchive& Ar )
 
 	Super::Serialize( Ar );
 
-	if ( Ar.IsLoading() || Ar.IsModifyingWeakAndStrongReferences() )
+	if ( Ar.IsLoading() || (Ar.IsModifyingWeakAndStrongReferences() && !Ar.IsSaving()) )
 	{
 		HashObject(this);
 	}

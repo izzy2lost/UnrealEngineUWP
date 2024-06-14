@@ -851,6 +851,12 @@ void UEdGraphPin::AddStructReferencedObjects(class FReferenceCollector& Collecto
 {
 	Collector.AddReferencedObject(PinType.PinSubCategoryMemberReference.MemberParent);
 	Collector.AddReferencedObject(DefaultObject);
+#if WITH_EDITOR
+	// EdGraphPins are not serialized via the reflection system, but we need visibility 
+	// into pin references for asset reload and potentially reinstancing, so
+	// I'm publishing this as an owned reference in editor:
+	Collector.AddReferencedObject(PinType.PinSubCategoryObject);
+#endif
 }
 
 void UEdGraphPin::SerializeAsOwningNode(FArchive& Ar, TArray<UEdGraphPin*>& ArrayRef)

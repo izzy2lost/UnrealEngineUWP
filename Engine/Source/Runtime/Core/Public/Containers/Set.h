@@ -2181,7 +2181,7 @@ struct TSetPrivateFriend
 		// Load the set's new elements.
 		Ar << Set.Elements;
 
-		if(Ar.IsLoading() || Ar.IsModifyingWeakAndStrongReferences())
+		if(Ar.IsLoading() || (Ar.IsModifyingWeakAndStrongReferences() && !Ar.IsSaving()))
 		{
 			// Free the old hash.
 			Set.Hash.ResizeAllocation(0,0,sizeof(FSetElementId));
@@ -2200,7 +2200,7 @@ struct TSetPrivateFriend
  	{
 		Slot << Set.Elements;
 
-		if (Slot.GetUnderlyingArchive().IsLoading() || Slot.GetUnderlyingArchive().IsModifyingWeakAndStrongReferences())
+		if (Slot.GetUnderlyingArchive().IsLoading() || (Slot.GetUnderlyingArchive().IsModifyingWeakAndStrongReferences() && !Slot.GetUnderlyingArchive().IsSaving()))
 		{
 			// Free the old hash.
 			Set.Hash.ResizeAllocation(0, 0, sizeof(FSetElementId));
