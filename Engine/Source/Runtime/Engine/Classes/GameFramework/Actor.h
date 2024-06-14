@@ -1146,15 +1146,24 @@ private:
 #endif
 
 public:
-	const FString GetActorNameOrLabel() const
+	FString GetActorNameOrLabel() const
 	{
-#if WITH_EDITORONLY_DATA || (!WITH_EDITOR && ACTOR_HAS_LABELS)
+#if WITH_EDITORONLY_DATA || ACTOR_HAS_LABELS
 		if (!ActorLabel.IsEmpty())
 		{
 			return ActorLabel;
 		}
 #endif
 		return GetName();
+	}
+
+	FStringView GetActorLabelView() const
+	{
+#if WITH_EDITORONLY_DATA || ACTOR_HAS_LABELS
+		return ActorLabel;
+#else
+		return FStringView();
+#endif
 	}
 
 #if WITH_EDITORONLY_DATA
