@@ -1147,6 +1147,7 @@ FSkeletalAnimationTrackEditor::FSkeletalAnimationTrackEditor( TSharedRef<ISequen
 	//We use the FGCObject pattern to keep the anim export option alive during the editor session
 
 	AnimSeqExportOption = NewObject<UAnimSeqExportOption>();
+
 }
 
 void FSkeletalAnimationTrackEditor::OnInitialize()
@@ -1316,6 +1317,14 @@ void FSkeletalAnimationTrackEditor::OnSequencerSaved(ISequencer& )
 						const bool bSavedEvaluateAllSkeletalMeshComponents = AnimSeqExportOption->bEvaluateAllSkeletalMeshComponents;
 						const EAnimInterpolationType SavedInterpolationType = AnimSeqExportOption->Interpolation;
 						const ERichCurveInterpMode SavedCurveInterpolationType = AnimSeqExportOption->CurveInterpolation;
+						const TArray<FString> SavedIncludeAnimationNames = AnimSeqExportOption->IncludeAnimationNames;
+						const TArray<FString> SavedExcludeAnimationNames = AnimSeqExportOption->ExcludeAnimationNames;
+						const FFrameNumber SavedWarmUpFrames = AnimSeqExportOption->WarmUpFrames;
+						const FFrameNumber SavedDelayBeforeStart = AnimSeqExportOption->DelayBeforeStart;
+						const bool bSavedUseCustomTimeRange = AnimSeqExportOption->bUseCustomTimeRange;
+						const FFrameNumber SavedCustomStartFrame = AnimSeqExportOption->CustomStartFrame;
+						const FFrameNumber SavedCustomEndFrame = AnimSeqExportOption->CustomEndFrame;
+						const FFrameRate SavedCustomDisplayRate = AnimSeqExportOption->CustomDisplayRate;
 
 						AnimSeqExportOption->bExportMorphTargets = Item.bExportMorphTargets;
 						AnimSeqExportOption->bExportAttributeCurves = Item.bExportAttributeCurves;
@@ -1325,6 +1334,15 @@ void FSkeletalAnimationTrackEditor::OnSequencerSaved(ISequencer& )
 						AnimSeqExportOption->bEvaluateAllSkeletalMeshComponents = Item.bEvaluateAllSkeletalMeshComponents;
 						AnimSeqExportOption->Interpolation = Item.Interpolation;
 						AnimSeqExportOption->CurveInterpolation = Item.CurveInterpolation;
+
+						AnimSeqExportOption->IncludeAnimationNames = Item.IncludeAnimationNames;
+						AnimSeqExportOption->ExcludeAnimationNames = Item.ExcludeAnimationNames;
+						AnimSeqExportOption->WarmUpFrames = Item.WarmUpFrames;
+						AnimSeqExportOption->DelayBeforeStart = Item.DelayBeforeStart;
+						AnimSeqExportOption->bUseCustomTimeRange = Item.bUseCustomTimeRange;
+						AnimSeqExportOption->CustomStartFrame = Item.CustomStartFrame;
+						AnimSeqExportOption->CustomEndFrame = Item.CustomEndFrame;
+						AnimSeqExportOption->CustomDisplayRate = Item.CustomDisplayRate;
 
 						FAnimExportSequenceParameters AESP;
 						AESP.Player = SequencerPtr.Get();
@@ -1341,6 +1359,15 @@ void FSkeletalAnimationTrackEditor::OnSequencerSaved(ISequencer& )
 						AnimSeqExportOption->bEvaluateAllSkeletalMeshComponents = bSavedEvaluateAllSkeletalMeshComponents;
 						AnimSeqExportOption->Interpolation = SavedInterpolationType;
 						AnimSeqExportOption->CurveInterpolation = SavedCurveInterpolationType;
+
+						AnimSeqExportOption->IncludeAnimationNames = SavedIncludeAnimationNames;
+						AnimSeqExportOption->ExcludeAnimationNames = SavedExcludeAnimationNames;
+						AnimSeqExportOption->WarmUpFrames = SavedWarmUpFrames;
+						AnimSeqExportOption->DelayBeforeStart = SavedDelayBeforeStart;
+						AnimSeqExportOption->bUseCustomTimeRange = bSavedUseCustomTimeRange;
+						AnimSeqExportOption->CustomStartFrame = SavedCustomStartFrame;
+						AnimSeqExportOption->CustomEndFrame = SavedCustomEndFrame;
+						AnimSeqExportOption->CustomDisplayRate = SavedCustomDisplayRate;
 
 						//save the anim sequence to disk to make sure they are in sync
 						UPackage* const Package = AnimSequence->GetOutermost();
@@ -1488,7 +1515,7 @@ bool FSkeletalAnimationTrackEditor::CreateAnimationSequence(const TArray<UObject
 				AESP.RootToLocalTransform = RootToLocalTransform;
 				AESP.MovieSceneSequence = MovieSceneSequence;
 				AESP.RootMovieSceneSequence = RootMovieSceneSequence;
-
+				AnimSeqExportOption->CustomDisplayRate = ParentSequencer->GetFocusedDisplayRate();
 				bResult  = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, AnimSeqExportOption, AESP, SkelMeshComp);
 			}
 		}
@@ -1522,7 +1549,8 @@ bool FSkeletalAnimationTrackEditor::CreateAnimationSequence(const TArray<UObject
 					{
 						for (FLevelSequenceAnimSequenceLinkItem& LevelAnimLinkItem : LevelAnimLink->AnimSequenceLinks)
 						{
-							if (LevelAnimLinkItem.SkelTrackGuid == Binding)
+							if (LevelAnimLinkItem.IsEqual(Binding, AnimSeqExportOption->bUseCustomTimeRange,
+								AnimSeqExportOption->CustomStartFrame, AnimSeqExportOption->CustomEndFrame, AnimSeqExportOption->CustomDisplayRate))
 							{
 								bAddItem = false;
 								UAnimSequence* OtherAnimSequence = LevelAnimLinkItem.ResolveAnimSequence();
@@ -1547,7 +1575,14 @@ bool FSkeletalAnimationTrackEditor::CreateAnimationSequence(const TArray<UObject
 								LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = AnimSeqExportOption->bEvaluateAllSkeletalMeshComponents;
 								LevelAnimLinkItem.Interpolation = AnimSeqExportOption->Interpolation;
 								LevelAnimLinkItem.CurveInterpolation = AnimSeqExportOption->CurveInterpolation;
-
+								LevelAnimLinkItem.IncludeAnimationNames = AnimSeqExportOption->IncludeAnimationNames;
+								LevelAnimLinkItem.ExcludeAnimationNames = AnimSeqExportOption->ExcludeAnimationNames;
+								LevelAnimLinkItem.WarmUpFrames = AnimSeqExportOption->WarmUpFrames;
+								LevelAnimLinkItem.DelayBeforeStart = AnimSeqExportOption->DelayBeforeStart;
+								LevelAnimLinkItem.bUseCustomTimeRange = AnimSeqExportOption->bUseCustomTimeRange;
+								LevelAnimLinkItem.CustomStartFrame = AnimSeqExportOption->CustomStartFrame;
+								LevelAnimLinkItem.CustomEndFrame = AnimSeqExportOption->CustomEndFrame;
+								LevelAnimLinkItem.CustomDisplayRate = AnimSeqExportOption->CustomDisplayRate;
 								break;
 							}
 						}
@@ -1570,6 +1605,14 @@ bool FSkeletalAnimationTrackEditor::CreateAnimationSequence(const TArray<UObject
 						LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = AnimSeqExportOption->bEvaluateAllSkeletalMeshComponents;
 						LevelAnimLinkItem.Interpolation = AnimSeqExportOption->Interpolation;
 						LevelAnimLinkItem.CurveInterpolation = AnimSeqExportOption->CurveInterpolation;
+						LevelAnimLinkItem.IncludeAnimationNames = AnimSeqExportOption->IncludeAnimationNames;
+						LevelAnimLinkItem.ExcludeAnimationNames = AnimSeqExportOption->ExcludeAnimationNames;
+						LevelAnimLinkItem.WarmUpFrames = AnimSeqExportOption->WarmUpFrames;
+						LevelAnimLinkItem.DelayBeforeStart = AnimSeqExportOption->DelayBeforeStart;
+						LevelAnimLinkItem.bUseCustomTimeRange = AnimSeqExportOption->bUseCustomTimeRange;
+						LevelAnimLinkItem.CustomStartFrame = AnimSeqExportOption->CustomStartFrame;
+						LevelAnimLinkItem.CustomEndFrame = AnimSeqExportOption->CustomEndFrame;
+						LevelAnimLinkItem.CustomDisplayRate = AnimSeqExportOption->CustomDisplayRate;
 
 						LevelAnimLink->AnimSequenceLinks.Add(LevelAnimLinkItem);
 						AssetUserDataInterface->AddAssetUserData(LevelAnimLink);
@@ -1623,6 +1666,10 @@ bool FSkeletalAnimationTrackEditor::CreateAnimationSequence(const TArray<UObject
 			if (Notification.IsValid())
 			{
 				Notification->SetCompletionState(SNotificationItem::CS_Success);
+			}
+			if (const TSharedPtr<ISequencer> ParentSequencer = GetSequencer())
+			{
+				ParentSequencer->RequestEvaluate(); 
 			}
 		}
 		else

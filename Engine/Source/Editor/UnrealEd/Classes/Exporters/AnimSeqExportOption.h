@@ -70,6 +70,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Export)
 	bool bTransactRecording = true;
 
+	/** Whether or not to use custom time range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Export)
+	bool bUseCustomTimeRange = false;
+
+	/** Custom start frame in custom display rate*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, meta = (EditCondition = bUseCustomTimeRange),  Category = Export)
+	FFrameNumber CustomStartFrame = 0;
+
+	/** Custom end frame in custom display rate */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, meta = (EditCondition = bUseCustomTimeRange),  Category = Export)
+	FFrameNumber CustomEndFrame = 120;
+
+	/** Custom display rate, should be set from the movie scene/sequencer display rate */
+	UPROPERTY(BlueprintReadWrite, AdvancedDisplay, meta = (EditCondition = bUseCustomTimeRange), Category = Export)
+	FFrameRate CustomDisplayRate = FFrameRate(30,1);
+
 	void ResetToDefault()
 	{
 		bExportTransforms = true;
@@ -83,5 +99,9 @@ public:
 		WarmUpFrames = 0;
 		DelayBeforeStart = 0;
 		bTransactRecording = true;
+		bUseCustomTimeRange = false;
+		CustomStartFrame = 0;
+		CustomEndFrame = 120;
+		CustomDisplayRate = FFrameRate(30, 1);
 	}
 };

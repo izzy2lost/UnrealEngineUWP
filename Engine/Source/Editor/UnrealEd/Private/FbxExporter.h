@@ -65,6 +65,8 @@ namespace UnFbx
 		virtual UAnimSequence* GetAnimSequence(int32 LocalFrame) const { return nullptr; }
 		/** The time into the anim sequence for the given LocalFrame */
 		virtual float GetAnimTime(int32 LocalFrame) const { return 0.f; }
+		/** Set optional range in frames(tick resolution)*/
+		virtual void SetRange(const FFrameNumber& StartFrame, const FFrameNumber& EndFrame) = 0;
 	};
 
 	/** An anim track adapter for a level sequence. */
@@ -83,6 +85,7 @@ namespace UnFbx
 		UNREALED_API virtual double GetFrameRate() const override;
 		UNREALED_API virtual UAnimSequence* GetAnimSequence(int32 LocalFrame) const override;
 		UNREALED_API virtual float GetAnimTime(int32 LocalFrame) const override;
+		UNREALED_API virtual void SetRange(const FFrameNumber& StartFrame, const FFrameNumber& EndFrame) override;
 
 	private:
 		TRange<FFrameNumber> GetSequenceRange() const;
@@ -95,6 +98,7 @@ namespace UnFbx
 		UMovieScene* MovieScene;
 		FMovieSceneSequenceTransform RootToLocalTransform;
 		UMovieSceneSkeletalAnimationTrack* AnimTrack;
+		TOptional < TPair<FFrameNumber, FFrameNumber>> OptionalRange;
 	};
 /**
  * Main FBX Exporter class.

@@ -3854,6 +3854,19 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(const FAnimExportSequenceP
 	}
 
 	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(AESP.Player, AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, AESP.RootToLocalTransform);
+	if (ExportOptions->bUseCustomTimeRange)
+	{
+
+		const FFrameRate TickResolution = MovieScene->GetTickResolution();
+		const FFrameRate DisplayResolution = ExportOptions->CustomDisplayRate;
+		const FFrameNumber StartFrameInTick = FFrameRate::TransformTime(FFrameTime(ExportOptions->CustomStartFrame), DisplayResolution, TickResolution).FloorToFrame();
+		FFrameNumber EndFrameInTick = FFrameRate::TransformTime(FFrameTime(ExportOptions->CustomEndFrame), DisplayResolution, TickResolution).CeilToFrame();
+		if (EndFrameInTick < StartFrameInTick)
+		{
+			EndFrameInTick = StartFrameInTick;
+		}
+		AnimTrackAdapter.SetRange(StartFrameInTick,EndFrameInTick);
+	}
 	int32 LocalStartFrame = AnimTrackAdapter.GetLocalStartFrame();
 	int32 StartFrame = AnimTrackAdapter.GetStartFrame();
 	int32 AnimationLength = AnimTrackAdapter.GetLength();

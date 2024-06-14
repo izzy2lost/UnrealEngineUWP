@@ -455,7 +455,8 @@ bool USequencerToolsFunctionLibrary::LinkAnimSequence(ULevelSequence*  Sequence,
 			{
 				for (FLevelSequenceAnimSequenceLinkItem& LevelAnimLinkItem : LevelAnimLink->AnimSequenceLinks)
 				{
-					if (LevelAnimLinkItem.SkelTrackGuid == Binding.BindingID)
+					if (LevelAnimLinkItem.IsEqual(Binding.BindingID, ExportOptions->bUseCustomTimeRange,
+						ExportOptions->CustomStartFrame, ExportOptions->CustomEndFrame, ExportOptions->CustomDisplayRate))
 					{
 						bAddItem = false;
 						UAnimSequence* OtherAnimSequence = LevelAnimLinkItem.ResolveAnimSequence();
@@ -481,6 +482,15 @@ bool USequencerToolsFunctionLibrary::LinkAnimSequence(ULevelSequence*  Sequence,
 						LevelAnimLinkItem.CurveInterpolation = ExportOptions->CurveInterpolation;
 						LevelAnimLinkItem.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
 						LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = ExportOptions->bEvaluateAllSkeletalMeshComponents;
+						
+						LevelAnimLinkItem.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
+						LevelAnimLinkItem.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
+						LevelAnimLinkItem.WarmUpFrames = ExportOptions->WarmUpFrames;
+						LevelAnimLinkItem.DelayBeforeStart = ExportOptions->DelayBeforeStart;
+						LevelAnimLinkItem.bUseCustomTimeRange = ExportOptions->bUseCustomTimeRange;
+						LevelAnimLinkItem.CustomStartFrame = ExportOptions->CustomStartFrame;
+						LevelAnimLinkItem.CustomEndFrame = ExportOptions->CustomEndFrame;
+						LevelAnimLinkItem.CustomDisplayRate = ExportOptions->CustomDisplayRate;
 
 						break;
 					}
@@ -503,6 +513,15 @@ bool USequencerToolsFunctionLibrary::LinkAnimSequence(ULevelSequence*  Sequence,
 				LevelAnimLinkItem.bExportTransforms = ExportOptions->bExportTransforms;
 				LevelAnimLinkItem.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
 				LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = ExportOptions->bEvaluateAllSkeletalMeshComponents;
+
+				LevelAnimLinkItem.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
+				LevelAnimLinkItem.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
+				LevelAnimLinkItem.WarmUpFrames = ExportOptions->WarmUpFrames;
+				LevelAnimLinkItem.DelayBeforeStart = ExportOptions->DelayBeforeStart;
+				LevelAnimLinkItem.bUseCustomTimeRange = ExportOptions->bUseCustomTimeRange;
+				LevelAnimLinkItem.CustomStartFrame = ExportOptions->CustomStartFrame;
+				LevelAnimLinkItem.CustomEndFrame = ExportOptions->CustomEndFrame;
+				LevelAnimLinkItem.CustomDisplayRate = ExportOptions->CustomDisplayRate;
 
 				LevelAnimLink->AnimSequenceLinks.Add(LevelAnimLinkItem);
 				AssetUserDataInterface->AddAssetUserData(LevelAnimLink);

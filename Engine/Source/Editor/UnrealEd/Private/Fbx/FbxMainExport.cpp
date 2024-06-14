@@ -1731,8 +1731,19 @@ FLevelSequenceAnimTrackAdapter::FLevelSequenceAnimTrackAdapter(IMovieScenePlayer
 	}
 }
 
+void FLevelSequenceAnimTrackAdapter::SetRange(const FFrameNumber& StartFrame, const FFrameNumber& EndFrame)
+{
+	TPair<FFrameNumber, FFrameNumber> Range(StartFrame, EndFrame);
+	OptionalRange = Range;
+}
+
 TRange<FFrameNumber> FLevelSequenceAnimTrackAdapter::GetSequenceRange() const
 {
+	if (OptionalRange.IsSet())
+	{
+		TRange<FFrameNumber> SetRange(OptionalRange.GetValue().Key, (OptionalRange.GetValue().Value));
+		return SetRange;
+	}
 	MovieScenePlayer->State.AssignSequence(MovieSceneSequenceID::Root, *RootMovieSceneSequence, *MovieScenePlayer);
 	FMovieSceneSequenceIDRef Template = MovieScenePlayer->State.FindSequenceId(MovieSceneSequence);
 
