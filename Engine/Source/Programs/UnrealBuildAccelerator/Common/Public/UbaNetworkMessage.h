@@ -23,6 +23,8 @@ namespace uba
 		bool SendAsync(BinaryReader& response, DoneFunc* func, void* userData); // Try to minimize work in GetResponseFunc since it is running on receiving thread
 		bool ProcessAsyncResults(BinaryReader& response); // Note, this must be called after GetResponseFunc has been called
 
+		u32 GetError() const { return m_error; }
+
 	private:
 		void Done(bool shouldLock = true);
 
@@ -35,7 +37,7 @@ namespace uba
 		u32 m_responseSize = 0;
 		u32 m_responseCapacity = 0;
 		u16 m_id = 0;
-		Atomic<bool> m_error;
+		Atomic<u32> m_error;
 		NetworkClient::Connection* m_connection = nullptr;
 		friend NetworkClient;
 		NetworkMessage(const NetworkMessage&) = delete;
