@@ -7,6 +7,7 @@
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNode.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
 
 namespace Dataflow
@@ -15,13 +16,14 @@ namespace Dataflow
 	typedef TPair<FString, FName> FRenderKey;
 
 	struct FGraphRenderingState {
-		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext)
+		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext, const Dataflow::IDataflowConstructionViewMode& ViewMode)
 			: NodeGuid(InGuid)
 			, Node(InNode)
 			, RenderName(InParameters.Name)
 			, RenderType(InParameters.Type)
 			, RenderOutputs(InParameters.Outputs)
 			, Context(InContext)
+			, ViewMode(ViewMode)
 		{}
 
 		const FGuid& GetGuid() const { return NodeGuid; }
@@ -42,6 +44,8 @@ namespace Dataflow
 			return Default;
 		}
 
+		const Dataflow::IDataflowConstructionViewMode& GetViewMode() const { return ViewMode; }
+
 	private:
 		const FGuid NodeGuid;
 		const FDataflowNode* Node = nullptr;
@@ -51,53 +55,44 @@ namespace Dataflow
 		TArray<FName> RenderOutputs;
 
 		Dataflow::FContext& Context;
+
+		const Dataflow::IDataflowConstructionViewMode& ViewMode;
 	};
 
-	//
-	//
-	//
+
 	class FRenderingFactory
 	{
-		typedef TFunction<void(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State)> FOutputRenderingFunction;
-
-		// All Maps indexed by TypeName
-		TMap<FRenderKey, FOutputRenderingFunction > RenderMap;		// [TypeName] -> NewNodeFunction
-		DATAFLOWENGINE_API static FRenderingFactory* Instance;
-		FRenderingFactory() {}
-
 	public:
+
+		class ICallbackInterface
+		{
+		public:
+			virtual ~ICallbackInterface() = default;
+			virtual FRenderKey GetRenderKey() const = 0;
+			virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const = 0;
+			virtual void Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State) = 0;
+		};
+
 		~FRenderingFactory() { delete Instance; }
 
-		static FRenderingFactory* GetInstance()
-		{
-			if (!Instance)
-			{
-				Instance = new FRenderingFactory();
-			}
-			return Instance;
-		}
+		DATAFLOWENGINE_API static FRenderingFactory* GetInstance();
 
-		void RegisterOutput(const FRenderKey& Key, FOutputRenderingFunction InFunction)
-		{
-			if (RenderMap.Contains(Key))
-			{
-				UE_LOG(LogChaos, Warning,
-					TEXT("Warning : Dataflow output rendering registration conflicts with "
-						"existing renderer(<%s,%s>)"), 
-					*Key.Get<0>(),
-					*Key.Get<1>().ToString());
-			}
-			else
-			{
-				RenderMap.Add(Key, InFunction);
-			}
-		}
+		DATAFLOWENGINE_API void RegisterCallbacks(TUniquePtr<ICallbackInterface> InCallbacks);
+		DATAFLOWENGINE_API void DeregisterCallbacks(const FRenderKey& Key);
 
+		DATAFLOWENGINE_API bool Contains(const FRenderKey& InKey) const { return CallbackMap.Contains(InKey); }
 		DATAFLOWENGINE_API void RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State);
+		DATAFLOWENGINE_API bool CanRenderNodeOutput(const FGraphRenderingState& State) const;
 
-		bool Contains(const FRenderKey& InKey) const { return RenderMap.Contains(InKey); }
+	private:
 
+		FRenderingFactory() {}
+
+		static FRenderingFactory* Instance;
+
+		TMap<FRenderKey, TUniquePtr<ICallbackInterface>> CallbackMap;
 	};
 
 }
+
 

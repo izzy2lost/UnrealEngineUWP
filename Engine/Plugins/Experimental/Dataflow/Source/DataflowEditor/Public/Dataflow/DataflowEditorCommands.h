@@ -53,6 +53,8 @@ public:
 	TSharedPtr<FUICommandInfo> RemoveOptionPin;
 	TSharedPtr<FUICommandInfo> ZoomToFitGraph;
 
+	TMap<FName, TSharedPtr<FUICommandInfo>> SetConstructionViewModeCommands;
+
 	TMap< FName, TSharedPtr<FUICommandInfo> > CreateNodesMap;
 
 	const static FString BeginWeightMapPaintToolIdentifier;

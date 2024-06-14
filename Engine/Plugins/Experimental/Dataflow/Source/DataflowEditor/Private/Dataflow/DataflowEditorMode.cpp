@@ -18,6 +18,7 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
 #include "Dataflow/DataflowConstructionScene.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 #include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Dataflow/DataflowSNode.h"
@@ -75,6 +76,9 @@ void UDataflowEditorMode::Enter()
 
 	// Register gizmo ContextObject for use inside interactive tools
 	UE::TransformGizmoUtil::RegisterTransformGizmoContextObject(GetInteractiveToolsContext());
+
+	// Initialize view mode to a default
+	ConstructionViewMode = Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(Dataflow::FDataflowConstruction3DViewMode::Name);
 }
 
 void UDataflowEditorMode::SetDataflowEditor(UDataflowEditor* InDataflowEditor) 
@@ -123,34 +127,6 @@ void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UIComm
 	CommandList->MapAction(UICommand, 
 		FExecuteAction::CreateWeakLambda(ToolsContext, [this, ToolsContext, ToolIdentifier, DataflowToolBuilder]()
 		{
-			// Check if we need to switch view modes before starting the tool
-			TArray<Dataflow::EDataflowPatternVertexType> SupportedModes;
-			DataflowToolBuilder->GetSupportedViewModes(SupportedModes);
-
-			if (SupportedModes.Num() > 0 && !SupportedModes.Contains(this->GetConstructionViewMode()))
-			{
-				if (!bShouldRestoreSavedConstructionViewMode)
-				{
-					// remember the current view mode so we can restore it later
-					SavedConstructionViewMode = this->GetConstructionViewMode();
-					bShouldRestoreSavedConstructionViewMode = true;
-				}
-
-				// switch to the preferred view mode for the tool that's about to start
-				this->SetConstructionViewMode(SupportedModes[0]);
-			}
-
-			// Check if we need to disable wireframe mode before starting tool.
-			const bool bCanSetWireframeActive = DataflowToolBuilder->CanSetConstructionViewWireframeActive();
-			if (!bCanSetWireframeActive)
-			{
-				if (!bShouldRestoreConstructionViewWireframe)
-				{
-					bShouldRestoreConstructionViewWireframe = bConstructionViewWireframe;
-				}
-				bConstructionViewWireframe = false;
-			}
-
 			ActiveToolsContext = ToolsContext;
 			ToolsContext->StartTool(ToolIdentifier);
 		}),
@@ -393,18 +369,6 @@ void UDataflowEditorMode::RefocusConstructionViewportClient()
 		PinnedVC->ToggleOrbitCamera(false);
 
 		const FBox SceneBounds = SceneBoundingBox();
-		const bool bPattern2DMode = (ConstructionViewMode == Dataflow::EDataflowPatternVertexType::Sim2D);
-		if (bPattern2DMode)
-		{
-			// 2D pattern
-			PinnedVC->SetInitialViewTransform(ELevelViewportType::LVT_Perspective, FVector(0, 0, -100), FRotator(90, -90, 0), DEFAULT_ORTHOZOOM);
-		}
-		else
-		{
-			// 3D rest space
-			PinnedVC->SetInitialViewTransform(ELevelViewportType::LVT_Perspective, FVector(0, 150, 200), FRotator(0, 0, 0), DEFAULT_ORTHOZOOM);
-		}
-
 		constexpr bool bInstant = true;
 		PinnedVC->FocusViewportOnBox(SceneBounds, bInstant);
 
@@ -435,7 +399,7 @@ void UDataflowEditorMode::FirstTimeFocusConstructionViewport()
 {
 	// If this is the first time seeing a valid 2D or 3D mesh, refocus the camera on it.
 	const bool bIsValid = (ConstructionScene->HasRenderableGeometry());
-	const bool bIs2D = ConstructionViewMode == Dataflow::EDataflowPatternVertexType::Sim3D;
+	const bool bIs2D = !ConstructionViewMode->IsPerspective();
 
 	if (bIsValid)
 	{
@@ -552,9 +516,10 @@ FBox UDataflowEditorMode::SelectionBoundingBox() const
 	return SceneBoundingBox();
 }
 
-void UDataflowEditorMode::SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InMode)
+void UDataflowEditorMode::SetConstructionViewMode(const FName& NewViewModeName)
 {
 	// We will first check if there is an active tool. If so, we'll shut down the tool and save the results to the Node, then change view modes, then restart the tool again.
+	
 	bool bEndedActiveTool = false;
 	UInteractiveToolManager* const ToolManager = GetInteractiveToolsContext()->ToolManager;
 	checkf(ToolManager, TEXT("No valid ToolManager found for UDataflowEditorMode"));
@@ -571,7 +536,20 @@ void UDataflowEditorMode::SetConstructionViewMode(Dataflow::EDataflowPatternVert
 		bShouldRestoreSavedConstructionViewMode = bTempShouldRestoreVal;
 	}
 
-	ConstructionViewMode = InMode;
+	// Next get the ViewMode pointer from the given name
+
+	const Dataflow::FRenderingViewModeFactory& ViewModes = Dataflow::FRenderingViewModeFactory::GetInstance();
+	const Dataflow::IDataflowConstructionViewMode* const NewMode = ViewModes.GetViewMode(NewViewModeName);
+	if (!NewMode)
+	{
+		UE_LOG(LogChaos, Warning, TEXT("Warning : Unknown rendering view mode: %s"), *NewViewModeName.ToString());
+		return;
+	}
+
+	// Do the actual view mode updates
+
+	ConstructionViewMode = NewMode;
+	ConstructionScene->GetEditorContent()->SetConstructionViewMode(ConstructionViewMode);
 	ConstructionScene->UpdateConstructionScene();
 
 	const TSharedPtr<FDataflowConstructionViewportClient> VC = ConstructionViewportClient.Pin();
@@ -597,34 +575,59 @@ void UDataflowEditorMode::SetConstructionViewMode(Dataflow::EDataflowPatternVert
 	}
 }
 
-Dataflow::EDataflowPatternVertexType UDataflowEditorMode::GetConstructionViewMode() const
+const Dataflow::IDataflowConstructionViewMode* UDataflowEditorMode::GetConstructionViewMode() const
 {
 	return ConstructionViewMode;
 }
 
-
-bool UDataflowEditorMode::CanChangeConstructionViewModeTo(Dataflow::EDataflowPatternVertexType NewViewMode) const
+bool UDataflowEditorMode::CanChangeConstructionViewModeTo(const FName& NewViewModeName) const
 {
-	check(false);
-
 	if (!GetToolManager()->HasActiveTool(EToolSide::Left))
 	{
-		return true;
+		if (const TSharedPtr<const SDataflowGraphEditor> PinnedDataflowGraphEditor = DataflowGraphEditor.Pin())
+		{
+			if (const UEdGraphNode* const SelectedNode = PinnedDataflowGraphEditor->GetSingleSelectedNode())
+			{
+				if (const UDataflowEdNode* const SelectedDataflowNode = Cast<UDataflowEdNode>(SelectedNode))
+				{
+					const Dataflow::FRenderingViewModeFactory& ViewModeFactory = Dataflow::FRenderingViewModeFactory::GetInstance();
+
+					if (const Dataflow::IDataflowConstructionViewMode* const ViewMode = ViewModeFactory.GetViewMode(NewViewModeName))
+					{
+						if (const TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetEditorContent())
+						{
+							if (const TSharedPtr<Dataflow::FEngineContext> Context = EditorContent->GetDataflowContext())
+							{
+								if (SelectedDataflowNode->CanRender(Context.ToSharedRef(), *ViewMode))
+								{
+									return true;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
+	// TODO: Check active tool to see if we can switch modes while the tool is running
+//	/*
+//	const UInteractiveToolBuilder* const ActiveToolBuilder = GetToolManager()->GetActiveToolBuilder(EToolSide::Left);
+//	checkf(ActiveToolBuilder, TEXT("No Active Tool Builder found despite having an Active Tool"));
+//
+//	const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<const IDataflowEditorToolBuilder>(ActiveToolBuilder);
+//	checkf(ClothToolBuilder, TEXT("Cloth Editor has an active Tool Builder that does not implement IDataflowEditorToolBuilder"));
+//
+//	TArray<Dataflow::EDataflowPatternVertexType> SupportedViewModes;
+//	ClothToolBuilder->GetSupportedViewModes(SupportedViewModes);
+//	return SupportedViewModes.Contains(NewViewMode);
+//	*/
+
 	return false;
-	/*
-	const UInteractiveToolBuilder* const ActiveToolBuilder = GetToolManager()->GetActiveToolBuilder(EToolSide::Left);
-	checkf(ActiveToolBuilder, TEXT("No Active Tool Builder found despite having an Active Tool"));
-
-	const IDataflowEditorToolBuilder* const DataflowToolBuilder = Cast<const IDataflowEditorToolBuilder>(ActiveToolBuilder);
-	checkf(ClothToolBuilder, TEXT("Cloth Editor has an active Tool Builder that does not implement IDataflowEditorToolBuilder"));
-
-	TArray<Dataflow::EDataflowPatternVertexType> SupportedViewModes;
-	ClothToolBuilder->GetSupportedViewModes(SupportedViewModes);
-	return SupportedViewModes.Contains(NewViewMode);
-	*/
 }
+
 
 void UDataflowEditorMode::ToggleConstructionViewWireframe()
 {
@@ -695,7 +698,6 @@ void UDataflowEditorMode::InitializeContextObject()
 		}
 
 		check(ContextObject);
-
 		ContextObject->SetConstructionViewMode(ConstructionViewMode);
 	}
 }

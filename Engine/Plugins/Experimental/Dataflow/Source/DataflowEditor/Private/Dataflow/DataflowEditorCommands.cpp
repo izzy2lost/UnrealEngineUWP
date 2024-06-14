@@ -11,6 +11,7 @@
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowOverrideNode.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSNode.h"
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintTool.h"
@@ -65,6 +66,25 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 	UI_COMMAND(AddWeightMapNode, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(UpdateSimulationCache, "UpdateSimulationCache", "Update Simulation Cache", EUserInterfaceActionType::ToggleButton, FInputChord());
 
+	for (const TPair<FName, TUniquePtr<Dataflow::IDataflowConstructionViewMode>>& NameAndMode : Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
+	{
+		TSharedPtr< FUICommandInfo > SetViewModeCommand;
+		
+		const Dataflow::IDataflowConstructionViewMode* const ViewMode = NameAndMode.Value.Get();
+		checkf(ViewMode, TEXT("Registered mode in FRenderingViewModeFactory has no associated IDataflowConstructionViewMode object. Registered name: %s"), *NameAndMode.Key.ToString());
+
+		FUICommandInfo::MakeCommandInfo(
+			this->AsShared(),
+			SetViewModeCommand,
+			ViewMode->GetName(),
+			ViewMode->GetButtonText(),
+			ViewMode->GetTooltipText(),
+			FSlateIcon(),
+			EUserInterfaceActionType::Button,
+			FInputChord()
+		);
+		SetConstructionViewModeCommands.Add(ViewMode->GetName(), SetViewModeCommand);
+	}
 
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
 	{

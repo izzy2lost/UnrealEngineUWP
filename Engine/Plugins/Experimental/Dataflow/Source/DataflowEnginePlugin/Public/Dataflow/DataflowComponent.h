@@ -10,6 +10,7 @@
 
 #include "DataflowComponent.generated.h"
 
+namespace Dataflow { class IDataflowConstructionViewMode; }
 
 /**
 *	UDataflowComponent
@@ -66,6 +67,13 @@ public:
 		SelectionState = InState; 
 	}
 
+	/* View mode */
+	// NOTE: Currently UDataflowComponent is not used in the Dataflow Editor. Instead the FDataflowConstructionScene converts the FRenderingFacade to a UDynamicMeshComponent.
+	// If we do start using UDataflowComponent we will need to update the current View Mode as it's changed using this function.
+	void SetViewMode(const Dataflow::IDataflowConstructionViewMode* InViewMode)
+	{
+		ViewMode = InViewMode;
+	}
 
 private:
 	TSharedPtr<Dataflow::FContext> Context;
@@ -78,5 +86,6 @@ private:
 	bool bBoundsNeedsUpdate = true;
 	FBoxSphereBounds BoundingBox = FBoxSphereBounds(ForceInitToZero);
 	FDataflowSelectionState SelectionState = FDataflowSelectionState(FDataflowSelectionState::EMode::DSS_Dataflow_None);
+	const Dataflow::IDataflowConstructionViewMode* ViewMode;
 };
 

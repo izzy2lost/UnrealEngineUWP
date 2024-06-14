@@ -141,7 +141,8 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
-					Target->Render(Facade, DataflowContext);
+					check(EditorContent->GetConstructionViewMode());
+					Target->Render(Facade, DataflowContext.ToSharedRef(), *EditorContent->GetConstructionViewMode());
 
 					const int32 NumGeometry = Facade.NumGeometry();
 					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)
@@ -179,7 +180,8 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
-					Target->Render(Facade, DataflowContext);
+					check(EditorContent->GetConstructionViewMode());
+					Target->Render(Facade, DataflowContext.ToSharedRef(), *EditorContent->GetConstructionViewMode());
 
 					const int32 NumGeometry = Facade.NumGeometry();
 					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)

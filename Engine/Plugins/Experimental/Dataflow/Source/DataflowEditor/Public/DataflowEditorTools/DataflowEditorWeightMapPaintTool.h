@@ -63,7 +63,7 @@ public:
 	void SetEditorMode(UDataflowEditorMode* InMode) { Mode = InMode; }
 
 private:
-	virtual void GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const override;
+	virtual void GetSupportedViewModes(TArray<Dataflow::IDataflowConstructionViewMode*>& Modes) const override;
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 	virtual bool CanSetConstructionViewWireframeActive() const { return false; }

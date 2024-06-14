@@ -65,8 +65,10 @@
 #include "ChaosClothAsset/WeightMapToSelectionNode.h"
 #include "ChaosClothAsset/ConnectableValueCustomization.h"
 #include "ChaosClothAsset/ConnectableValue.h"
+#include "ChaosClothAsset/ClothDataflowViewModes.h"
 #include "Dataflow/DataflowNodeColorsRegistry.h"
 #include "Dataflow/DataflowNodeFactory.h"
+#include "Dataflow/DataflowRenderingFactory.h"
 #include "Modules/ModuleManager.h"
 
 namespace UE::Chaos::ClothAsset
@@ -139,6 +141,118 @@ namespace UE::Chaos::ClothAsset
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetWeightMapToSelectionNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("Cloth", FColorScheme::NodeHeader, FColorScheme::NodeBody);
 		}
+
+
+		class FClothSurfaceRenderCallbacks : public Dataflow::FRenderingFactory::ICallbackInterface
+		{
+		public:
+
+			static Dataflow::FRenderKey RenderKey;
+
+		private:
+
+			virtual Dataflow::FRenderKey GetRenderKey() const override
+			{
+				return RenderKey;
+			}
+
+			virtual bool CanRender(const Dataflow::IDataflowConstructionViewMode& ViewMode) const override
+			{
+				const FName& ViewModeName = ViewMode.GetName();
+				return (ViewModeName == FCloth2DSimViewMode::Name ||
+						ViewModeName == FCloth3DSimViewMode::Name ||
+						ViewModeName == FClothRenderViewMode::Name);
+			}
+
+			virtual void Render(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State) override
+			{
+				if (State.GetRenderOutputs().Num())
+				{
+					const FManagedArrayCollection Default;
+					checkf(State.GetRenderOutputs().Num() == 1, TEXT("Expected FGraphRenderingState object to have one render output"));
+					const FName PrimaryOutput = State.GetRenderOutputs()[0];
+					FManagedArrayCollection Collection = State.GetValue<FManagedArrayCollection>(PrimaryOutput, Default);
+
+					const TSharedRef<const FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(Collection));
+					const FCollectionClothConstFacade ClothFacade(ClothCollection);
+					if (!ClothFacade.IsValid())
+					{
+						// Cloth collection may not be valid for all nodes
+						return;
+					}
+
+					TArray<FVector3f> Vertices;
+					TArray<FVector3f> Normals;
+					TArray<FIntVector> Indices;
+
+					if (State.GetViewMode().GetName() == FCloth3DSimViewMode::Name)
+					{
+						Vertices = ClothFacade.GetSimPosition3D();
+						Indices = ClothFacade.GetSimIndices3D();
+						Normals = ClothFacade.GetSimNormal();
+					}
+					else if (State.GetViewMode().GetName() == FCloth2DSimViewMode::Name)
+					{
+						//
+						// Flip the Y coordinate to get the desired visualization with our LVT_OrthoXY viewport
+						//
+						float MinY = UE_BIG_NUMBER;
+						float MaxY = -UE_BIG_NUMBER;
+						for (const FVector2f& Vertex2D : ClothFacade.GetSimPosition2D())
+						{
+							MinY = FMath::Min(MinY, Vertex2D[1]);
+							MaxY = FMath::Max(MaxY, Vertex2D[1]);
+						}
+						for (const FVector2f& Vertex2D : ClothFacade.GetSimPosition2D())
+						{
+							Vertices.Add({ Vertex2D[0], MinY + (MaxY - Vertex2D[1]), 0.0 });
+						}
+
+						Indices = ClothFacade.GetSimIndices2D();
+						Normals = ClothFacade.GetSimNormal();		// TODO: Should we hard code a 2D normal?
+					}
+					else if (State.GetViewMode().GetName() == FClothRenderViewMode::Name)
+					{
+						Vertices = ClothFacade.GetRenderPosition();
+						Indices = ClothFacade.GetRenderIndices();
+						Normals = ClothFacade.GetRenderNormal();
+						// TODO: Get materials from the render mesh
+					}
+					else
+					{
+						checkf(false, TEXT("Invalid View Mode for FClothCollection rendering"));
+					}
+
+					TArray<FLinearColor> Colors;
+					Colors.Init(FLinearColor::Gray, Vertices.Num());	// TODO: Choose a vertex color
+
+					const int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
+					RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Indices), MoveTemp(Normals), MoveTemp(Colors));
+					RenderCollection.EndGeometryGroup(GeometryIndex);
+				}
+			}
+		};
+
+		Dataflow::FRenderKey FClothSurfaceRenderCallbacks::RenderKey = { "SurfaceRender", FName("FClothCollection") };
+
+		static void RegisterRenderingCallbacks()
+		{
+			Dataflow::FRenderingViewModeFactory::GetInstance().RegisterViewMode(MakeUnique<FCloth2DSimViewMode>());
+			Dataflow::FRenderingViewModeFactory::GetInstance().RegisterViewMode(MakeUnique<FCloth3DSimViewMode>());
+			Dataflow::FRenderingViewModeFactory::GetInstance().RegisterViewMode(MakeUnique<FClothRenderViewMode>());
+
+			Dataflow::FRenderingFactory::GetInstance()->RegisterCallbacks(MakeUnique<FClothSurfaceRenderCallbacks>());
+		}
+
+		static void DeregisterRenderingCallbacks()
+		{
+			Dataflow::FRenderingFactory::GetInstance()->DeregisterCallbacks(FClothSurfaceRenderCallbacks::RenderKey);
+
+			Dataflow::FRenderingViewModeFactory::GetInstance().DeregisterViewMode(FCloth2DSimViewMode::Name);
+			Dataflow::FRenderingViewModeFactory::GetInstance().DeregisterViewMode(FCloth3DSimViewMode::Name);
+			Dataflow::FRenderingViewModeFactory::GetInstance().DeregisterViewMode(FClothRenderViewMode::Name);
+		}
+
 	}  // End namespace Private
 
 	class FChaosClothAssetDataflowNodesModule : public IModuleInterface
@@ -169,10 +283,14 @@ namespace UE::Chaos::ClothAsset
 				PropertyModule->RegisterCustomPropertyTypeLayout(FChaosClothAssetImportedFloatValue::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FImportedValueCustomization::MakeInstance));
 				PropertyModule->RegisterCustomPropertyTypeLayout(FChaosClothAssetImportedIntValue::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FImportedValueCustomization::MakeInstance));
 			}
+
+			Private::RegisterRenderingCallbacks();
 		}
 
 		virtual void ShutdownModule() override
 		{
+			Private::DeregisterRenderingCallbacks();
+
 			// Unregister type customizations
 			if (UObjectInitialized() && !IsEngineExitRequested())
 			{

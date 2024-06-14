@@ -7,11 +7,9 @@
 
 #include "DataflowEditorToolBuilder.generated.h"
 
-namespace Dataflow
-{
-	enum class EDataflowPatternVertexType : uint8;
+namespace Dataflow {
+	class IDataflowConstructionViewMode;
 }
-
 
 UINTERFACE(MinimalAPI)
 class UDataflowEditorToolBuilder : public UInterface
@@ -27,7 +25,7 @@ class IDataflowEditorToolBuilder
 public:
 
 	/** Returns all Construction View modes that this tool can operate in. The first element should be the preferred mode to switch to if necessary. */
-	virtual void GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const = 0;
+	virtual void GetSupportedViewModes(TArray<Dataflow::IDataflowConstructionViewMode*>& Modes) const = 0;
 
 	/** Returns whether or not view can be set to wireframe when this tool is active.. */
 	virtual bool CanSetConstructionViewWireframeActive() const { return true; }

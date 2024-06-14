@@ -58,9 +58,9 @@ void UDataflowComponent::BuildRenderCollection()
 	{
 		for (const UDataflowEdNode* Target : RenderTargets)
 		{
-			if (Target)
+			if (Target && ViewMode)
 			{
-				Target->Render(Facade, Context);
+				Target->Render(Facade, Context.ToSharedRef(), *ViewMode);
 			}
 		}
 	}
@@ -84,9 +84,9 @@ void UDataflowComponent::TickComponent(float DeltaTime, enum ELevelTick TickType
 		{
 			for (const UDataflowEdNode* Target : RenderTargets)
 			{
-				if (Target)
+				if (Target && ViewMode)
 				{
-					Target->Render(Facade, Context);
+					Target->Render(Facade, Context.ToSharedRef(), *ViewMode);
 				}
 			}
 		}

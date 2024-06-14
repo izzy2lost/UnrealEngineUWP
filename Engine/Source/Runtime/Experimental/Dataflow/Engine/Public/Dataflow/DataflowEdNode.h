@@ -20,7 +20,7 @@
 class FArchive;
 class UEdGraphPin;
 class UObject;
-namespace Dataflow { class FGraph; class FRenderingParameters; }
+namespace Dataflow { class FGraph; class FRenderingParameters; class IDataflowConstructionViewMode;  }
 namespace GeometryCollection::Facades { class FRenderingFacade; }
 
 UCLASS(MinimalAPI)
@@ -101,7 +101,9 @@ public:
 	DATAFLOWENGINE_API bool CanEnableWireframeRenderNode() const;
 
 	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
-	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedPtr<Dataflow::FContext> Context) const;
+	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const;
+
+	DATAFLOWENGINE_API virtual bool CanRender(const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const;
 
 private:
 

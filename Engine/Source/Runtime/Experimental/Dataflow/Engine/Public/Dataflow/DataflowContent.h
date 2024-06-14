@@ -18,16 +18,7 @@ class UDataflowBaseContent;
 class FPreviewScene;
 class UAnimSingleNodeInstance;
 class AActor;
-
-namespace Dataflow
-{
-	enum class EDataflowPatternVertexType : uint8
-	{
-		Sim2D = 0,
-		Sim3D = 1,
-		Render = 2
-	};
-}
+namespace Dataflow { class IDataflowConstructionViewMode; }
 
 namespace DataflowContextHelpers
 {
@@ -56,8 +47,8 @@ public:
 	TSharedPtr<const FManagedArrayCollection> GetPrimaryRenderCollection() const { return PrimaryRenderCollection; }
 
 	/** ViewMode Access */
-	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InMode) {ConstructionViewMode = InMode;}
-	Dataflow::EDataflowPatternVertexType GetConstructionViewMode() const { return ConstructionViewMode; }
+	void SetConstructionViewMode(const Dataflow::IDataflowConstructionViewMode* InMode) { ConstructionViewMode = InMode; }
+	const Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const { return ConstructionViewMode; }
 
 	/** Get a single selected node of the specified type. Return nullptr if the specified node is not selected, or if multiple nodes are selected*/
 	template<typename NodeType>
@@ -82,7 +73,7 @@ protected:
 	TObjectPtr<UDataflowEdNode> PrimarySelectedNode = nullptr;
 
 	/** Construction view mode for the context object @todo(michael) : is it only for construction or for simulation as well*/
-	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
+	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
 };
 
 UINTERFACE(MinimalAPI)

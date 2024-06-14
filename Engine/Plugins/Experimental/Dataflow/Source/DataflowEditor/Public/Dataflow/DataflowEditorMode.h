@@ -17,6 +17,10 @@ struct FManagedArrayCollection;
 class UEdGraphNode;
 class FViewport;
 class UDataflowEditor;
+namespace Dataflow
+{
+	class IDataflowConstructionViewMode;
+}
 
 /**
  * The dataflow editor mode is the mode used in the cloth asset editor. It holds most of the inter-tool state.
@@ -53,9 +57,9 @@ public:
 	/**
 	* Construction View Mode
 	*/
-	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InMode);
-	Dataflow::EDataflowPatternVertexType GetConstructionViewMode() const;
-	bool CanChangeConstructionViewModeTo(Dataflow::EDataflowPatternVertexType NewViewMode) const;
+	void SetConstructionViewMode(const FName& NewViewModeName);
+	const Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const;
+	bool CanChangeConstructionViewModeTo(const FName& NewViewModeName) const;
 
 	void ToggleConstructionViewWireframe();
 	bool CanSetConstructionViewWireframeActive() const;
@@ -175,13 +179,14 @@ private:
 	/** Graph editor is required to add nodes once some tools are complete */
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
 
-	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
+	// Points to a view mode owned by FRenderingViewModeFactory
+	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
 
 	// Whether we should restore the previous view mode when a tool ends
 	bool bShouldRestoreSavedConstructionViewMode = false;
 	
 	// The Construction view mode that was active before starting the current tool. When the tool ends, restore this view mode if bShouldRestoreSavedConstructionViewMode is true.
-	Dataflow::EDataflowPatternVertexType SavedConstructionViewMode;
+	const FName SavedConstructionViewMode;
 
 	bool bConstructionViewWireframe = false;
 	bool bShouldRestoreConstructionViewWireframe = false;

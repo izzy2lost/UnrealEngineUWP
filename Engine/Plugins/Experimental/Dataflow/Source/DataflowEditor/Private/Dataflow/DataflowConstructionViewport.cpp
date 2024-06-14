@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowConstructionViewport.h"
 
 #include "Dataflow/DataflowActor.h"
+#include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowConstructionViewportClient.h"
 #include "Dataflow/DataflowEditorToolkit.h"
@@ -11,6 +12,7 @@
 #include "Dataflow/DataflowConstructionViewportToolbar.h"
 #include "Dataflow/DataflowConstructionScene.h"
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 #include "Dataflow/DataflowSimulationPanel.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowConstructionViewport"
@@ -30,7 +32,8 @@ void SDataflowConstructionViewport::Construct(const FArguments& InArgs, const FA
 
 TSharedPtr<SWidget> SDataflowConstructionViewport::MakeViewportToolbar()
 {
-	return SNew(SDataflowConstructionViewportSelectionToolBar, SharedThis(this));
+	return SNew(SDataflowConstructionViewportSelectionToolBar, SharedThis(this))
+		.CommandList(CommandList);
 }
 
 void SDataflowConstructionViewport::OnFocusViewportToSelection()
@@ -57,6 +60,38 @@ UDataflowEditorMode* SDataflowConstructionViewport::GetEdMode() const
 void SDataflowConstructionViewport::BindCommands()
 {
 	SAssetEditorViewport::BindCommands();
+
+	const FDataflowEditorCommandsImpl& CommandInfos = FDataflowEditorCommands::Get();
+
+	for (const TPair<FName, TSharedPtr<FUICommandInfo>>& SetViewModeCommand : CommandInfos.SetConstructionViewModeCommands)
+	{
+		CommandList->MapAction(
+			SetViewModeCommand.Value,
+			FExecuteAction::CreateLambda([this, ViewModeName = SetViewModeCommand.Key]()
+			{
+				if (UDataflowEditorMode* const EdMode = GetEdMode())
+				{
+					EdMode->SetConstructionViewMode(ViewModeName);
+				}
+			}),
+			FCanExecuteAction::CreateLambda([this, ViewModeName = SetViewModeCommand.Key]()
+			{ 
+				if (const UDataflowEditorMode* const EdMode = GetEdMode())
+				{
+					return EdMode->CanChangeConstructionViewModeTo(ViewModeName);
+				}
+				return false; 
+			}),
+			FIsActionChecked::CreateLambda([this, ViewModeName = SetViewModeCommand.Key]()
+			{
+				if (const UDataflowEditorMode* const EdMode = GetEdMode())
+				{
+					return EdMode->GetConstructionViewMode()->GetName() == ViewModeName;
+				}
+				return false;
+			})
+		);
+	}
 }
 
 bool SDataflowConstructionViewport::IsVisible() const

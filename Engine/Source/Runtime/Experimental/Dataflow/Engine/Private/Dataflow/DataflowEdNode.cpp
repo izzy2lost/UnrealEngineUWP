@@ -760,7 +760,7 @@ TArray<Dataflow::FRenderingParameter> UDataflowEdNode::GetRenderParameters() con
 }
 
 
-bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedPtr<Dataflow::FContext> Context) const
+bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const
 {
 	bool bNeedsRefresh = false;
 	if (DataflowGraph)
@@ -773,7 +773,7 @@ bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& Rend
 				{
 					for (Dataflow::FRenderingParameter& Parameter : GetRenderParameters())
 					{
-						Factory->RenderNodeOutput(RenderData, { GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, *Context});
+						Factory->RenderNodeOutput(RenderData, Dataflow::FGraphRenderingState{ GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, Context.Get(), ViewMode});
 						bNeedsRefresh = true;
 					}
 				}
@@ -781,6 +781,28 @@ bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& Rend
 		}
 	}
 	return bNeedsRefresh;
+}
+
+
+bool UDataflowEdNode::CanRender(const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const
+{
+	if (DataflowGraph)
+	{
+		if (TSharedPtr<const FDataflowNode> NodeTarget = DataflowGraph->FindBaseNode(FName(GetName())))
+		{
+			if (const Dataflow::FRenderingFactory* const Factory = Dataflow::FRenderingFactory::GetInstance())
+			{
+				for (const Dataflow::FRenderingParameter& Parameter : GetRenderParameters())
+				{
+					if (Factory->CanRenderNodeOutput(Dataflow::FGraphRenderingState{ GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, Context.Get(), ViewMode }))
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

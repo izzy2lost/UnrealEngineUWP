@@ -18,8 +18,13 @@ class FTransformGizmoDataBinder;
 class FDataflowPreviewSceneBase;
 class UInputBehaviorSet;
 class USelection;
+class FDataflowConstructionViewportClient;
+namespace Dataflow
+{
+	class IDataflowConstructionViewMode;
+}
 
-class DATAFLOWEDITOR_API FDataflowConstructionViewportClient : public FEditorViewportClient //, public IInputBehaviorSource
+class DATAFLOWEDITOR_API FDataflowConstructionViewportClient : public FEditorViewportClient
 {
 public:
 	using Super = FEditorViewportClient;
@@ -27,8 +32,7 @@ public:
 	FDataflowConstructionViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
 								  const TWeakPtr<SEditorViewport> InEditorViewportWidget = nullptr);
 
-	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode);
-	Dataflow::EDataflowPatternVertexType GetConstructionViewMode() const;
+	void SetConstructionViewMode(const Dataflow::IDataflowConstructionViewMode* InViewMode);
 
 	// IInputBehaviorSource
 	// virtual const UInputBehaviorSet* GetInputBehaviors() const override;
@@ -66,11 +70,14 @@ private:
 	TWeakPtr<FUICommandList> ToolCommandList;
 
 	/** Construction view mode */
-	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
+	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
 
 	/** Behavior set for the behavior UI */
 	TObjectPtr<UInputBehaviorSet> BehaviorSet;
 	
 	/** Flag to enable scene ticking from the client */
 	bool bEnableSceneTicking = false;
+
+	// Saved view transforms for the currently inactive view modes (e.g. store the 3D camera here while in 2D mode and vice-versa)
+	TMap<FName, FViewportCameraTransform> SavedInactiveViewTransforms;
 };
