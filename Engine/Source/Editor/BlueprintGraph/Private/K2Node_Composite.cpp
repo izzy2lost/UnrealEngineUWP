@@ -272,7 +272,7 @@ void UK2Node_Composite::RenameBoundGraphCloseToName(const FString& Name)
 		{
 			//Name is available
 			UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraphChecked(BoundGraph);
-			BoundGraph->Rename(*NewName, BoundGraph->GetOuter(), (BP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+			BoundGraph->Rename(*NewName, BoundGraph->GetOuter(), REN_DontCreateRedirectors);
 			bFoundName = true;
 		}
 	}

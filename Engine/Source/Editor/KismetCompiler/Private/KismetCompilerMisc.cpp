@@ -528,7 +528,7 @@ void FKismetCompilerUtilities::ConsignToOblivion(UClass* OldClass, bool bForceNo
 		}
 
 		const FString BaseName = FString::Printf(TEXT("DEADCLASS_%s_C_%d"), *OldClass->ClassGeneratedBy->GetName(), ConsignToOblivionCounter++);
-		OldClass->Rename(*BaseName, GetTransientPackage(), (REN_DontCreateRedirectors|REN_NonTransactional|(bForceNoResetLoaders ? REN_ForceNoResetLoaders : 0)));
+		OldClass->Rename(*BaseName, GetTransientPackage(), (REN_DontCreateRedirectors | REN_NonTransactional));
 
 		// Make sure MetaData doesn't have any entries to the class we just renamed out of package
 		OwnerOutermost->GetMetaData()->RemoveMetaDataOutsidePackage();

@@ -1237,7 +1237,7 @@ void FBlueprintEditorUtils::RemoveStaleFunctions(UBlueprintGeneratedClass* Class
 		OrphanedClass->ClassFlags |= CLASS_CompiledFromBlueprint;
 		OrphanedClass->ClassGeneratedBy = Class->ClassGeneratedBy;
 
-		const ERenameFlags RenFlags = REN_DontCreateRedirectors | (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_NonTransactional | REN_DoNotDirty;
+		const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 
 		while (Fn)
 		{
@@ -2168,7 +2168,7 @@ UEdGraph* FBlueprintEditorUtils::CreateNewGraph(UObject* ParentScope, const FNam
 				// Rename the old graph out of the way - this may confuse the user somewhat - and even
 				// break their logic. But name collisions are not avoidable e.g. someone can add
 				// a function to an interface that conflicts with something in a class hierarchy
-				ExistingObject->Rename(nullptr, ExistingObject->GetOuter(), REN_DoNotDirty | REN_ForceNoResetLoaders);
+				ExistingObject->Rename(nullptr, ExistingObject->GetOuter(), REN_DoNotDirty);
 			}
 			else if (ExistingObject->IsA<UObjectRedirector>())
 			{
@@ -2197,7 +2197,7 @@ UEdGraph* FBlueprintEditorUtils::CreateNewGraph(UObject* ParentScope, const FNam
 	// Now move to where we want it to. Workaround to ensure transaction buffer is correctly utilized
 	if (bRename)
 	{
-		NewGraph->Rename(*(GraphName.ToString()), ParentScope, REN_DoNotDirty | REN_ForceNoResetLoaders);
+		NewGraph->Rename(*(GraphName.ToString()), ParentScope, REN_DoNotDirty);
 	}
 	return NewGraph;
 }
@@ -2636,10 +2636,6 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 		};
 
 		ERenameFlags RenameFlagsToApply = REN_None;
-		if (Blueprint->bIsRegeneratingOnLoad)
-		{
-			RenameFlagsToApply |= REN_ForceNoResetLoaders;
-		}
 
 		// Macro library graphs are referenced indirectly and resolved at edit/compile time via GUID (see FGraphReference).
 		// However, they will be exported by name at save time, so renaming a macro library graph implies we should also
@@ -2665,7 +2661,7 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 			{
 				if (FunctionGraph->GetFName() == OldGraphName)
 				{
-					RenameGraphLambda(FunctionGraph, OldGraphName, NewGraphName, (InChildBP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+					RenameGraphLambda(FunctionGraph, OldGraphName, NewGraphName, REN_DontCreateRedirectors);
 				}
 			}
 
@@ -2745,7 +2741,7 @@ void FBlueprintEditorUtils::RenameGraphWithSuggestion(class UEdGraph* Graph, TSh
 	FString NewName = DesiredName;
 	NameValidator->FindValidString(NewName);
 	UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraphChecked(Graph);
-	Graph->Rename(*NewName, Graph->GetOuter(), (BP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+	Graph->Rename(*NewName, Graph->GetOuter(), REN_DontCreateRedirectors);
 }
 
 /** 
@@ -7378,7 +7374,7 @@ static void ConformInterfaceByName(UBlueprint* Blueprint, FBPInterfaceDescriptio
 					CurrentGraph->Rename(
 						nullptr,
 						CurrentGraph->GetOuter(),
-						(Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DoNotDirty | REN_DontCreateRedirectors);
+						REN_DoNotDirty | REN_DontCreateRedirectors);
 					// removing from root, standalone, and public is defensive to make sure it is not saved:
 					CurrentGraph->ClearFlags(RF_Standalone | RF_Public);
 					CurrentGraph->RemoveFromRoot();
@@ -7556,7 +7552,7 @@ void FBlueprintEditorUtils::UpdateOutOfDateCompositeWithOuter(UBlueprint* Bluepr
 				if (BoundGraph->GetOuter() != Node)
 				{
 					// change the outer of the BoundGraph to be the composite node instead of the OuterGraph
-					if (false == BoundGraph->Rename(*BoundGraph->GetName(), Node, ((BoundGraph->HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad) ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors)))
+					if (false == BoundGraph->Rename(*BoundGraph->GetName(), Node, REN_DontCreateRedirectors))
 					{
 						UE_LOG(LogBlueprintDebug, Log, TEXT("CompositeNode: On Blueprint '%s' could not fix Outer() for BoundGraph of composite node '%s'"), *Blueprint->GetPathName(), *Node->GetName());
 					}
@@ -8041,7 +8037,7 @@ bool FBlueprintEditorUtils::RenameTimeline(UBlueprint* Blueprint, const FName Ol
 			{
 				ExistingObject->Rename(*MakeUniqueObjectName(ExistingObject->GetOuter(), ExistingObject->GetClass(), ExistingObject->GetFName()).ToString());
 			}
-			Template->Rename(*NewTemplateName, Template->GetOuter(), (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : REN_None));
+			Template->Rename(*NewTemplateName, Template->GetOuter(), REN_None);
 			Blueprint->Timelines.Add(Template);
 
 			// Validate child blueprints and adjust variable names to avoid a potential name collision
