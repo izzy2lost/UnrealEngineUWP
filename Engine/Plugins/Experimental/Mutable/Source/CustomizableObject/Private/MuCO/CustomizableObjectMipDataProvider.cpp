@@ -458,8 +458,18 @@ bool FMutableTextureMipDataProvider::PollMips(const FTextureUpdateSyncOptions& S
 		{
 			ImageLODCount = Image->GetLODCount();
 			// check(Image->GetLODCount() == OperationData->Levels.Num()); TODO PRP
-			check(Image->GetSizeX() == OperationData->Levels[0].SizeX);
-			check(Image->GetSizeY() == OperationData->Levels[0].SizeY);
+			
+			// No longer true, since missing data may mean we generate smaller images.
+			//check(Image->GetSizeX() == OperationData->Levels[0].SizeX);
+			//check(Image->GetSizeY() == OperationData->Levels[0].SizeY);
+			if (Image->GetSizeX() != OperationData->Levels[0].SizeX
+				||
+				Image->GetSizeY() != OperationData->Levels[0].SizeY)
+			{
+				OperationData = nullptr;
+				AdvanceTo(ETickState::CleanUp, ETickThread::Async);
+				return false;
+			}
 		}
 
 		int32 MipIndex = 0;

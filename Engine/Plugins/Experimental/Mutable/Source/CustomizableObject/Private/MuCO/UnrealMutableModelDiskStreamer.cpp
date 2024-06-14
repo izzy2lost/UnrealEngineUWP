@@ -308,10 +308,11 @@ bool FUnrealMutableModelBulkReader::IsReadCompleted(mu::ModelReader::OPERATION_I
 }
 
 
-void FUnrealMutableModelBulkReader::EndRead(mu::ModelReader::OPERATION_ID OperationId)
+bool FUnrealMutableModelBulkReader::EndRead(mu::ModelReader::OPERATION_ID OperationId)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableModelBulkStreamer::EndRead);
 
+	bool bSuccess = true;
 	bool bFound = false;
 	for (FObjectData& o : Objects)
 	{
@@ -325,6 +326,12 @@ void FUnrealMutableModelBulkReader::EndRead(mu::ModelReader::OPERATION_ID Operat
 				{
 					UE_LOG(LogMutable, Error, TEXT("Operation failed to complete in EndRead."));
 					check(false);
+					bSuccess = false;
+				}
+				else if (ReadRequest->ReadRequest->GetReadResults()==nullptr)
+				{
+					// This means we have failed: file not found?
+					bSuccess = false;
 				}
 			}
 			o.CurrentReadRequests.Remove(OperationId);
@@ -338,6 +345,8 @@ void FUnrealMutableModelBulkReader::EndRead(mu::ModelReader::OPERATION_ID Operat
 		UE_LOG(LogMutable, Error, TEXT("Operation not found in EndRead."));
 		check(false);
 	}
+
+	return bSuccess;
 }
 
 

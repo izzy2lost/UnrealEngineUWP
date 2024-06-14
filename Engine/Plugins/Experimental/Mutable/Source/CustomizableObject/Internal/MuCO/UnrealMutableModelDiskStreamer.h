@@ -58,7 +58,7 @@ public:
 	// mu::ModelReader interface
 	OPERATION_ID BeginReadBlock(const mu::Model*, uint32 key0, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback) override;
 	bool IsReadCompleted(OPERATION_ID) override;
-	void EndRead(OPERATION_ID) override;
+	bool EndRead(OPERATION_ID) override;
 
 protected:
 

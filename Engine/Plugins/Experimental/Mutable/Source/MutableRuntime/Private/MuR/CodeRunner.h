@@ -121,7 +121,10 @@ namespace  mu
         void RunCode_Switch(const FScheduledOp&, const Model* );
         void RunCode_Instance(const FScheduledOp&, const Model*, uint32 LodMask );
         void RunCode_InstanceAddResource(const FScheduledOp&, const TSharedPtr<const Model>& Model, const Parameters* );
-        void RunCode_ConstantResource(const FScheduledOp&, const Model* );
+
+		/** Return false incase of failure. */
+        bool RunCode_ConstantResource(const FScheduledOp&, const Model* );
+
         void RunCode_Mesh(const FScheduledOp&, const Model* );
         void RunCode_Image(const FScheduledOp&, const Parameters*, const Model* );
         void RunCode_Layout(const FScheduledOp&, const Model* );
@@ -231,7 +234,11 @@ namespace  mu
 			/** */
 			virtual bool Prepare(CodeRunner*, bool& bOutFailed) { bOutFailed = false; return true; }
 			virtual void DoWork() {}
-			virtual void Complete(CodeRunner*) = 0;
+
+			/** Return true if succeeded. */
+			virtual bool Complete(CodeRunner*) = 0;
+
+			/** Return true if the task has been completed. */
 			virtual bool IsComplete(CodeRunner*)
 			{ 
 				return !Event.IsValid() || Event.IsCompleted(); 
@@ -258,8 +265,8 @@ namespace  mu
 			}
 
 			// FIssuedTask interface
-			bool Prepare(CodeRunner*, bool& bOutFailed) override;
-			void Complete(CodeRunner*) override;
+			virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+			virtual bool Complete(CodeRunner*) override;
 
 		private:
 			int32 RomIndex = -1;
@@ -278,9 +285,9 @@ namespace  mu
 			}
 
 			// FIssuedTask interface
-			bool Prepare(CodeRunner*, bool& bOutFailed) override;
-			void Complete(CodeRunner*) override;
-			bool IsComplete(CodeRunner*) override;
+			virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+			virtual bool Complete(CodeRunner*) override;
+			virtual bool IsComplete(CodeRunner*) override;
 
 		private:
 			ExtensionDataPtrConst Data;
@@ -301,8 +308,8 @@ namespace  mu
 			}
 
 			// FIssuedTask interface
-			bool Prepare(CodeRunner*, bool& bOutFailed) override;
-			void Complete(CodeRunner*) override;
+			virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+			virtual bool Complete(CodeRunner*) override;
 
 		private:
  			int32 LODIndexIndex = -1;

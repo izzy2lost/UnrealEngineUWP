@@ -924,7 +924,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void CodeRunner::RunCode_ConstantResource(const FScheduledOp& item, const Model* pModel )
+    bool CodeRunner::RunCode_ConstantResource(const FScheduledOp& item, const Model* pModel )
     {
 		MUTABLE_CPUPROFILER_SCOPE(RunCode_Constant);
 
@@ -983,7 +983,10 @@ namespace mu
 				});
 
 			// Assume the ROM has been loaded previously in a task generated at IssueOp
-			check(Source);
+			if (!Source)
+			{
+				return false;
+			}
 
             StoreImage( item, Source );
 			//UE_LOG(LogMutableCore, Log, TEXT("Set image constant %d."), item.At);
@@ -1012,6 +1015,9 @@ namespace mu
             }
             break;
         }
+
+		// Success
+		return true;
     }
 
     //---------------------------------------------------------------------------------------------

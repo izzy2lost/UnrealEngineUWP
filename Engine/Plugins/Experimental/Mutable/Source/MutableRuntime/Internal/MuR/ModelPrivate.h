@@ -562,21 +562,38 @@ namespace mu
             return index;
         }
 
-        //! Get a constant image, assuming it is fully loaded. The image constant will be composed with lodaded mips if necessary.
+        //! Get a constant image, assuming at least some mips are loaded. The image constant will be composed with lodaded mips if necessary.
 		template <typename CreateImageFunc>
-        void GetConstant( int32 ConstantIndex, ImagePtrConst& res, int32 MipsToSkip, const CreateImageFunc& CreateImage) const
+        void GetConstant( int32 ConstantIndex, Ptr<const Image>& res, int32 MipsToSkip, const CreateImageFunc& CreateImage) const
         {
 			int32 ReallySkippedLODs = FMath::Min(ConstantImages[ConstantIndex].LODCount - 1, MipsToSkip);
 			int32 FirstLODIndexIndex = ConstantImages[ConstantIndex].FirstIndex;
+
+			// Get the first mip
 			int32 ResultLODIndexIndex = FirstLODIndexIndex + ReallySkippedLODs;
+			int32 ResultLODIndex = ConstantImageLODIndices[ResultLODIndexIndex];
+			Ptr<const Image> CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
+
+			// We may need to skip more LODs if they are not loaded
+			while (!CurrentMip)
+			{
+				++ReallySkippedLODs;
+				
+				if (ReallySkippedLODs >= ConstantImages[ConstantIndex].LODCount)
+				{
+					// We don't have a single mip loaded for the image that was requested
+					ensure(false);
+					break;
+				}
+
+				++ResultLODIndexIndex;
+				ResultLODIndex = ConstantImageLODIndices[ResultLODIndexIndex];
+				CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
+			}
+
 			int32 FinalLODs = ConstantImages[ConstantIndex].LODCount - ReallySkippedLODs;
 			check(FinalLODs > 0);
 
-			// Get the first mip
-			int32 ResultLODIndex = ConstantImageLODIndices[ResultLODIndexIndex];
-			Ptr<const Image> CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
-			check(CurrentMip);
-				
 			// Shortcut if we only want one mip
 			if (FinalLODs == 1)
 			{

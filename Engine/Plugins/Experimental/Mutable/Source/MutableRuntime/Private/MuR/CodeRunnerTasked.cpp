@@ -302,6 +302,8 @@ namespace mu
 		const FTimespan MaxAllowedTime = FTimespan::FromMilliseconds(2.0); 
 		const FTimespan TimeOut = FTimespan::FromSeconds(FPlatformTime::Seconds()) + MaxAllowedTime;
 
+		bool bSuccess = true;
+
         while(!OpenTasks.IsEmpty() || !ClosedTasks.IsEmpty() || !IssuedTasks.IsEmpty())
         {
 			UpdateTraces();
@@ -323,7 +325,7 @@ namespace mu
 			//	UE_LOG(LogMutableCore, Log, TEXT("Tasks: %5d open, %5d issued, %5d closed, %d closed ready"), OpenTasks.Num(), IssuedTasks.Num(), ClosedTasks.Num(), ClosedReady);
 			//}
 
-			for (int32 Index = 0; Index < IssuedTasks.Num(); )
+			for (int32 Index = 0; bSuccess && Index < IssuedTasks.Num(); )
 			{
 				check(IssuedTasks[Index]);
 
@@ -331,7 +333,7 @@ namespace mu
 				if (bWorkDone)
 				{
 					const FScheduledOp& item = IssuedTasks[Index]->Op;
-					IssuedTasks[Index]->Complete(this);
+					bSuccess = IssuedTasks[Index]->Complete(this);
 
 					if (ScheduledStagePerOp[item] == item.Stage + 1)
 					{
@@ -347,6 +349,11 @@ namespace mu
 				{
 					++Index;
 				}
+			}
+
+			if (!bSuccess)
+			{
+				return AbortRun();
 			}
 
 			while (!OpenTasks.IsEmpty())
@@ -638,9 +645,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		int32 ImageCompressionQuality = 0;
@@ -745,12 +752,18 @@ namespace mu
 				int32 StartLevel = Mask->GetLODCount() - 1;
 				int32 LevelCount = Base->GetLODCount();
 
-				Ptr<Image> MaskFix = Runner->CloneOrTakeOver(Mask);
+				// Uncompress mask to avoid excessive RLE-compression and decompression in the following ops.
+				Ptr<Image> UncompressedMask = Runner->CreateImage(Mask->GetSizeX(), Mask->GetSizeY(), Mask->GetLODCount(), GetUncompressedFormat(Mask->GetFormat()), EInitializationType::NotInitialized);
+				bool bSuccess = false;
+				ImOp.ImagePixelFormat(bSuccess, ImageCompressionQuality, UncompressedMask.get(), Mask.get());
+
+				Ptr<Image> MaskFix = UncompressedMask;
 				MaskFix->DataStorage.SetNumLODs(LevelCount);
 
 				FMipmapGenerationSettings Settings{};
 				ImOp.ImageMipmap(ImageCompressionQuality, MaskFix.get(), MaskFix.get(), StartLevel, LevelCount, Settings);
 
+				Runner->Release(Mask);
 				Mask = MaskFix;
 			}
 		}
@@ -902,7 +915,7 @@ namespace mu
 	}
 
 
-	void FImageLayerTask::Complete( CodeRunner* Runner )
+	bool FImageLayerTask::Complete( CodeRunner* Runner )
 	{
 		// This runs in the Runner thread
 		Runner->Release(Blended);
@@ -926,6 +939,9 @@ namespace mu
 
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -940,9 +956,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		int32 ImageCompressionQuality = 0;
@@ -1152,7 +1168,7 @@ namespace mu
 	}
 
 
-	void FImageLayerColourTask::Complete(CodeRunner* Runner)
+	bool FImageLayerColourTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		Runner->Release(Mask);
@@ -1162,6 +1178,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1176,9 +1195,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		int ImageCompressionQuality = 0;
@@ -1249,7 +1268,7 @@ namespace mu
 	}
 
 
-	void FImagePixelFormatTask::Complete(CodeRunner* Runner)
+	bool FImagePixelFormatTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		Runner->Release(Base);
@@ -1259,6 +1278,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 	class FImageMipmapTask : public CodeRunner::FIssuedTask
@@ -1269,9 +1291,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		int32 ImageCompressionQuality = 0;
@@ -1360,7 +1382,7 @@ namespace mu
 	}
 
 
-	void FImageMipmapTask::Complete(CodeRunner* Runner)
+	bool FImageMipmapTask::Complete(CodeRunner* Runner)
 	{
 		FImageOperator ImOp = MakeImageOperator(Runner);
 		ImOp.ImageMipmap_ReleaseScratch(Scratch);
@@ -1376,6 +1398,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1390,9 +1415,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed);
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed);
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		OP::ImageSwizzleArgs Args;
@@ -1490,7 +1515,7 @@ namespace mu
 	}
 
 
-	void FImageSwizzleTask::Complete(CodeRunner* Runner)
+	bool FImageSwizzleTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		for (int i = 0; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
@@ -1505,6 +1530,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1517,9 +1545,9 @@ namespace mu
 		FImageSaturateTask(const FScheduledOp&, const OP::ImageSaturateArgs&);
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		const OP::ImageSaturateArgs Args;
@@ -1573,7 +1601,7 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void FImageSaturateTask::Complete(CodeRunner* Runner)
+	bool FImageSaturateTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the mutable Runner thread
 
@@ -1582,6 +1610,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1596,9 +1627,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner* Runner, bool& bFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner* Runner, bool& bFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		int32 ImageCompressionQuality = 0;
@@ -1689,7 +1720,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void FImageResizeTask::Complete(CodeRunner* Runner)
+	bool FImageResizeTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		Runner->Release(Base);
@@ -1699,6 +1730,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1713,9 +1747,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner* Runner, bool& bFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner* Runner, bool& bFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		OP::ImageResizeRelArgs Args;
@@ -1790,7 +1824,7 @@ namespace mu
 	}
 
 
-	void FImageResizeRelTask::Complete(CodeRunner* Runner)
+	bool FImageResizeRelTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		Runner->Release(Base);
@@ -1800,6 +1834,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1814,9 +1851,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner* Runner) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner* Runner) override;
 
 	private:
 		Ptr<Image> Result;
@@ -1847,13 +1884,16 @@ namespace mu
 	}
 
 
-	void FImageInvertTask::Complete(CodeRunner* Runner)
+	bool FImageInvertTask::Complete(CodeRunner* Runner)
 	{
 		// If we didn't take a shortcut
 		if (Result)
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -1868,9 +1908,9 @@ namespace mu
 		{}
 
 		// FIssuedTask interface
-		bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		void DoWork() override;
-		void Complete(CodeRunner*) override;
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void DoWork() override;
+		virtual bool Complete(CodeRunner*) override;
 
 	private:
 		int32 ImageCompressionQuality = 0;
@@ -2018,7 +2058,7 @@ namespace mu
 	}
 
 
-	void FImageComposeTask::Complete(CodeRunner* Runner)
+	bool FImageComposeTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the mutable Runner thread
 		Runner->Release(Block);
@@ -2029,6 +2069,9 @@ namespace mu
 		{
 			Runner->StoreImage(Op, Result);
 		}
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -2106,14 +2149,14 @@ namespace mu
 	
 
 	//---------------------------------------------------------------------------------------------
-	void CodeRunner::FLoadMeshRomTask::Complete(CodeRunner* Runner)
+	bool CodeRunner::FLoadMeshRomTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		MUTABLE_CPUPROFILER_SCOPE(FLoadMeshRomTask_Complete);
 
 		if (!Runner || !Runner->m_pSystem)
 		{
-			return;
+			return false;
 		}
 
 		FProgram& Program = Runner->m_pModel->GetPrivate()->m_program;
@@ -2146,6 +2189,9 @@ namespace mu
 
 		Runner->m_pSystem->WorkingMemoryManager.MarkRomUsed(RomIndex, Runner->m_pModel);
 		--ModelCache->PendingOpsPerRom[RomIndex];
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
@@ -2194,9 +2240,11 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void CodeRunner::FLoadExtensionDataTask::Complete(CodeRunner* Runner)
+	bool CodeRunner::FLoadExtensionDataTask::Complete(CodeRunner* Runner)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(FLoadExtensionDataTask_Complete);
+
+		bool bSuccess = true;
 
 		// Complete should only be called if the load is finished
 		check(LoadHandle->LoadState != FExtensionDataLoadHandle::ELoadState::Pending);
@@ -2216,10 +2264,13 @@ namespace mu
 		{
 			check(LoadHandle->LoadState == FExtensionDataLoadHandle::ELoadState::FailedToLoad);
 			Constant.LoadState = FExtensionDataConstant::ELoadState::FailedToLoad;
+			bSuccess = false;
 		}
 
 		// Process the constant op normally, now that the data is loaded.
 		Runner->RunCode(Op, Runner->m_pParams, Runner->m_pModel, Runner->m_lodMask);
+
+		return bSuccess;
 	}
 
 
@@ -2332,49 +2383,64 @@ namespace mu
 	
 	
 	//---------------------------------------------------------------------------------------------
-	void CodeRunner::FLoadImageRomsTask::Complete(CodeRunner* Runner)
+	bool CodeRunner::FLoadImageRomsTask::Complete(CodeRunner* Runner)
 	{
 		// This runs in the Runner thread
 		MUTABLE_CPUPROFILER_SCOPE(FLoadImageRomsTask_Complete);
 
 		if (!Runner || !Runner->m_pSystem)
 		{
-			return;
+			return false;
 		}
 
 		FProgram& Program = Runner->m_pModel->GetPrivate()->m_program;
 		
 		FWorkingMemoryManager::FModelCacheEntry* ModelCache = Runner->m_pSystem->WorkingMemoryManager.FindModelCache(Runner->m_pModel.Get());
 
+		bool bSomeMissingData = false;
+
 		for (const int32 RomIndex : RomIndices)
 		{
 			// Since task could be reordered, we need to make sure we end the rom read before continuing
 			if (FRomLoadOp* RomLoadOp = Runner->RomLoadOps.Find(RomIndex))
 			{				
-				Runner->m_pSystem->StreamInterface->EndRead(RomLoadOp->m_streamID);
+				bool bSuccess = Runner->m_pSystem->StreamInterface->EndRead(RomLoadOp->m_streamID);
 
 				MUTABLE_CPUPROFILER_SCOPE(Unserialise);
 
-				InputMemoryStream Stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
-				InputArchive Arch(&Stream);
+				if (bSuccess)
+				{
+					InputMemoryStream Stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
+					InputArchive Arch(&Stream);
 
-				const int32 ResIndex = Program.m_roms[RomIndex].ResourceIndex;
+					const int32 ResIndex = Program.m_roms[RomIndex].ResourceIndex;
 
-				// TODO: Try to reuse buffer from PooledImages.
-				check(!Program.ConstantImageLODs[ResIndex].Value);
-				Ptr<Image> Value = Image::StaticUnserialise(Arch);
+					// TODO: Try to reuse buffer from PooledImages.
+					check(!Program.ConstantImageLODs[ResIndex].Value);
+					Ptr<Image> Value = Image::StaticUnserialise(Arch);
 
-				Program.SetImageRomValue(RomIndex, Value);
-				check(Program.ConstantImageLODs[ResIndex].Value);
+					Program.SetImageRomValue(RomIndex, Value);
+					check(Program.ConstantImageLODs[ResIndex].Value);
+				}
+				else
+				{
+					bSomeMissingData = true;
+				}
 				
 				Runner->RomLoadOps.Remove(*RomLoadOp);
 			}
 		}
-		
-		// Process the constant op normally, now that the rom is loaded.	
-		Runner->RunCode(Op, Runner->m_pParams, Runner->m_pModel, Runner->m_lodMask);
 
-		for (int32 LODIndex = 0; LODIndex < LODIndexCount; ++LODIndex)
+		if (bSomeMissingData)
+		{
+			// Some data may be missing. We can try to go on if some mips are there. 
+			UE_LOG(LogMutableCore, Verbose, TEXT("FLoadImageRomsTask::Complete failed: missing data?"));
+		}
+
+		// Process the constant op normally, now that the rom is loaded.	
+		bool bSuccess = Runner->RunCode_ConstantResource(Op, Runner->m_pModel.Get());
+
+		for (int32 LODIndex = 0; bSuccess && (LODIndex < LODIndexCount); ++LODIndex)
 		{
 			int32 CurrentIndexIndex = LODIndexIndex + LODIndex;
 			int32 CurrentIndex = Program.ConstantImageLODIndices[CurrentIndexIndex];
@@ -2396,6 +2462,8 @@ namespace mu
 				UE_LOG(LogMutableCore, Log, TEXT("FLoadImageRomsTask::Complete rom %d, now peding ops is %d."), RomIndex, ModelCache->PendingOpsPerRom[RomIndex]);
 			}
 		}
+
+		return bSuccess;
 	}
 
 
@@ -2409,7 +2477,7 @@ namespace mu
 
 		// FIssuedTask interface
 		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		virtual void Complete(CodeRunner* Runner) override;
+		virtual bool Complete(CodeRunner* Runner) override;
 		
 	private:
 		uint8 MipmapsToSkip;
@@ -2453,7 +2521,7 @@ namespace mu
 	}
 
 
-	void FImageExternalLoadTask::Complete(CodeRunner* Runner)
+	bool FImageExternalLoadTask::Complete(CodeRunner* Runner)
 	{
 		if (ExternalCleanUpFunc)
 		{
@@ -2461,6 +2529,9 @@ namespace mu
 		}
 
 		Runner->StoreImage(Op, Result);
+
+		bool bSuccess = true;
+		return bSuccess;
 	}	
 
 
@@ -2474,7 +2545,7 @@ namespace mu
 
 		// FIssuedTask interface
 		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
-		virtual void Complete(CodeRunner* Runner) override;
+		virtual bool Complete(CodeRunner* Runner) override;
 
 	private:
 		uint8 MipmapsToSkip;
@@ -2517,7 +2588,7 @@ namespace mu
 	}
 
 
-	void FMeshExternalLoadTask::Complete(CodeRunner* Runner)
+	bool FMeshExternalLoadTask::Complete(CodeRunner* Runner)
 	{
 		if (ExternalCleanUpFunc)
 		{
@@ -2525,6 +2596,9 @@ namespace mu
 		}
 
 		Runner->StoreMesh(Op, Result);
+
+		bool bSuccess = true;
+		return bSuccess;
 	}
 
 
