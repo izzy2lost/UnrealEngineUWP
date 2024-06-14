@@ -41,7 +41,7 @@ public:
 	EPCGWorldRaycastMode RaycastMode = EPCGWorldRaycastMode::Infinite;
 
 	/** The selected attribute determines the ray origin. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bOverrideOriginPositions", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector OriginInputAttribute;
 
 	/** Use a selected attribute as the ray direction. */
