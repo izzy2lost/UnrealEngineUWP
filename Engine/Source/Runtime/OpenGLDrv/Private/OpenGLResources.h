@@ -491,8 +491,6 @@ public:
 	{
 		VERIFY_GL_SCOPE();
 
-		BaseType::ReleaseOwnership();
-
 		if (Resource != 0)
 		{
 			if (LockBuffer != NULL)
@@ -518,6 +516,8 @@ public:
 
 			ReleaseCachedBuffer();
 		}
+
+		BaseType::ReleaseOwnership();
 	}
 
 	GLuint Resource;
