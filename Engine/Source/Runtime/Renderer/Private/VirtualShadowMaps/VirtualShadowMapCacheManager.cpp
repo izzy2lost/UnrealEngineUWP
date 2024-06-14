@@ -847,35 +847,38 @@ void FVirtualShadowMapArrayCacheManager::FreePhysicalPool(FRDGBuilder& GraphBuil
 	}
 }
 
-TRefCountPtr<IPooledRenderTarget> FVirtualShadowMapArrayCacheManager::SetHZBPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedHZBSize, const EPixelFormat Format)
+TRefCountPtr<IPooledRenderTarget> FVirtualShadowMapArrayCacheManager::SetHZBPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedHZBSize, int32 RequestedArraySize, const EPixelFormat Format)
 {
-	if (!HZBPhysicalPagePool || HZBPhysicalPagePool->GetDesc().Extent != RequestedHZBSize || HZBPhysicalPagePool->GetDesc().Format != Format)
+	if (!HZBPhysicalPagePoolArray 
+		|| HZBPhysicalPagePoolArray->GetDesc().Extent != RequestedHZBSize 
+		|| HZBPhysicalPagePoolArray->GetDesc().Format != Format
+		|| HZBPhysicalPagePoolArray->GetDesc().ArraySize != RequestedArraySize )
 	{
-		// TODO: This may need to be an array as well
-		FPooledRenderTargetDesc Desc = FPooledRenderTargetDesc::Create2DDesc(
+		FPooledRenderTargetDesc Desc = FPooledRenderTargetDesc::Create2DArrayDesc(
 			RequestedHZBSize,
 			Format,
 			FClearValueBinding::None,
 			GFastVRamConfig.HZB,
 			TexCreate_ShaderResource | TexCreate_UAV,
 			false,
+			RequestedArraySize,
 			FVirtualShadowMap::NumHZBLevels);
 
-		GRenderTargetPool.FindFreeElement(GraphBuilder.RHICmdList, Desc, HZBPhysicalPagePool, TEXT("Shadow.Virtual.HZBPhysicalPagePool"));
+		GRenderTargetPool.FindFreeElement(GraphBuilder.RHICmdList, Desc, HZBPhysicalPagePoolArray, TEXT("Shadow.Virtual.HZBPhysicalPagePool"));
 
 		// TODO: Clear to black?
 
 		Invalidate(GraphBuilder);
 	}
 
-	return HZBPhysicalPagePool;
+	return HZBPhysicalPagePoolArray;
 }
 
 void FVirtualShadowMapArrayCacheManager::FreeHZBPhysicalPool(FRDGBuilder& GraphBuilder)
 {
-	if (HZBPhysicalPagePool)
+	if (HZBPhysicalPagePoolArray)
 	{
-		HZBPhysicalPagePool = nullptr;
+		HZBPhysicalPagePoolArray = nullptr;
 		Invalidate(GraphBuilder);
 	}
 }
@@ -920,7 +923,7 @@ bool FVirtualShadowMapArrayCacheManager::IsCacheDataAvailable()
 bool FVirtualShadowMapArrayCacheManager::IsHZBDataAvailable()
 {
 	// NOTE: HZB can be used/valid even when physical page caching is disabled
-	return HZBPhysicalPagePool && PrevBuffers.PageTable && PrevBuffers.PageFlags;
+	return HZBPhysicalPagePoolArray && PrevBuffers.PageTable && PrevBuffers.PageFlags;
 }
 
 FRDGBufferRef FVirtualShadowMapArrayCacheManager::UploadCachePrimitiveAsDynamic(FRDGBuilder& GraphBuilder) const
@@ -1358,7 +1361,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FInvalidatePagesParameters, )
 	// When USE_HZB_OCCLUSION
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, HZBPageTable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, HZBPageRectBounds)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, HZBTextureArray)
 	SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 	SHADER_PARAMETER(FVector2f, HZBSize)
 END_SHADER_PARAMETER_STRUCT()
@@ -1567,13 +1570,13 @@ void FVirtualShadowMapArrayCacheManager::SetInvalidateInstancePagesParameters(
 	PassParameters->OutPageRequestFlags = GraphBuilder.CreateUAV(GraphBuilder.RegisterExternalBuffer(PrevBuffers.PageRequestFlags));
 
 	const bool bUseHZB = (CVarCacheVsmUseHzb.GetValueOnRenderThread() != 0);
-	const TRefCountPtr<IPooledRenderTarget> HZBPhysical = (bUseHZB && HZBPhysicalPagePool) ? HZBPhysicalPagePool : nullptr;
+	const TRefCountPtr<IPooledRenderTarget> HZBPhysical = (bUseHZB && HZBPhysicalPagePoolArray) ? HZBPhysicalPagePoolArray : nullptr;
 	if (HZBPhysical)
 	{
 		// Same, since we are not producing a new frame just yet
 		PassParameters->HZBPageTable = InvalidationPassCommon.UniformParameters->PageTable;
 		PassParameters->HZBPageRectBounds = InvalidationPassCommon.UniformParameters->AllocatedPageRectBounds;		// TODO: Uncached?
-		PassParameters->HZBTexture = GraphBuilder.RegisterExternalTexture(HZBPhysical);
+		PassParameters->HZBTextureArray = GraphBuilder.RegisterExternalTexture(HZBPhysical);
 		PassParameters->HZBSize = HZBPhysical->GetDesc().Extent;
 		PassParameters->HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
 	}
@@ -1593,7 +1596,7 @@ void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(
 	Instances.UploadFinalized(GraphBuilder).GetShaderParameters(GraphBuilder, PassParameters->LoadBalancerParameters);
 
 	FInvalidateInstancePagesLoadBalancerCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FInvalidateInstancePagesLoadBalancerCS::FUseHzbDim>(PassParameters->InvalidatePagesParameters.HZBTexture != nullptr);
+	PermutationVector.Set<FInvalidateInstancePagesLoadBalancerCS::FUseHzbDim>(PassParameters->InvalidatePagesParameters.HZBTextureArray != nullptr);
 	
 	auto ComputeShader = GetGlobalShaderMap(Scene->GetFeatureLevel())->GetShader<FInvalidateInstancePagesLoadBalancerCS>(PermutationVector);
 

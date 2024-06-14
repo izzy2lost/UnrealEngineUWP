@@ -345,3 +345,8 @@ uint GetVirtualShadowMapStaticArrayIndex()
 {
 	return VirtualShadowMap.StaticCachedArrayIndex;
 }
+
+uint GetVirtualShadowMapHZBArrayIndex(bool bUseStaticOcclusion)
+{
+	return select(bUseStaticOcclusion, VirtualShadowMap.StaticHZBArrayIndex, 0);
+}

@@ -58,6 +58,9 @@ struct FBoxCull
 	uint		PageFlagMask;
 	bool        bDetailGeometry;
 	uint4		RectPages;
+	// controls which HZB layer is used, static is always safe to use but cached static geometry should not use the dynamic HZB or we get incorrect cached pages
+	// If there is only one layer (static separate is off) then this flag does not matter.
+	bool bUseStaticOcclusion;
 #endif
 
 	void Init(
@@ -112,6 +115,8 @@ struct FBoxCull
 		RectPages = uint4(1U, 1U, 0U, 0U);
 		// Whether we consider this "detail geometry", i.e. not rendered into coarse pages
 		bDetailGeometry = false;
+		// Always safe to use the static occlusion HZB (when result may be cached) but better to use the dynamic (combined) as it has more info if not cached.
+		bUseStaticOcclusion = true;
 	#endif
 	}
 
@@ -318,7 +323,7 @@ struct FBoxCull
 			{
 			#if VIRTUAL_TEXTURE_TARGET
 				FScreenRect PrevRect = GetScreenRect(NaniteView.ViewRect, PrevFrustumCull, 4);	// Assume HZBTestViewRect=ViewRect for VSM. Don't load it redundantly.
-				bWasOccluded = !IsVisibleMaskedHZB(NaniteView.TargetPrevLayerIndex, NaniteView.TargetMipLevel, PrevRect, bClampToPageLevel, bTreatUnmappedAsOccluded, 0U);
+				bWasOccluded = !IsVisibleMaskedHZB(NaniteView.TargetPrevLayerIndex, NaniteView.TargetMipLevel, PrevRect, bClampToPageLevel, bTreatUnmappedAsOccluded, 0U, 0xFFFFFFFF, bUseStaticOcclusion);
 			#else
 				FScreenRect PrevRect = GetScreenRect(NaniteView.HZBTestViewRect, PrevFrustumCull, 4);
 				bWasOccluded = !IsVisibleHZB(PrevRect, true);
@@ -335,7 +340,7 @@ struct FBoxCull
 			{
 			#if VIRTUAL_TEXTURE_TARGET
 				// The logic here is that if the thing has moved it should test against all hzb pages, whereas if it is static we can skip the cached ones (since we'd not render into those anyway).
-				bWasOccluded = !IsVisibleMaskedHZB(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, Rect, bClampToPageLevel, true, 0U, PageFlagMask);
+				bWasOccluded = !IsVisibleMaskedHZB(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, Rect, bClampToPageLevel, true, 0U, PageFlagMask, bUseStaticOcclusion);
 			#else
 				bWasOccluded = !IsVisibleHZB(Rect, true);
 			#endif

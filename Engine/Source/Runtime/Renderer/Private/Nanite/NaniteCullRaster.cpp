@@ -538,6 +538,7 @@ BEGIN_SHADER_PARAMETER_STRUCT( FCullingParameters, )
 
 	SHADER_PARAMETER( FVector2f,	HZBSize )
 
+	SHADER_PARAMETER_RDG_TEXTURE( Texture2DArray,	HZBTextureArray )
 	SHADER_PARAMETER_RDG_TEXTURE( Texture2D,	HZBTexture )
 	SHADER_PARAMETER_SAMPLER( SamplerState,		HZBSampler )
 	
@@ -5799,6 +5800,7 @@ void FRenderer::DrawGeometry(
 			HZBPageRectBoundsRDG	= GraphBuilder.RegisterExternalBuffer( PrevBuffers.UncachedPageRectBounds,	TEXT("Shadow.Virtual.HZBPageRectBounds") );
 			HZBPageFlagsRDG			= GraphBuilder.RegisterExternalBuffer( PrevBuffers.PageFlags,				TEXT("Shadow.Virtual.HZBPageFlags") );
 		}
+		CullingParameters.HZBTextureArray = RegisterExternalTextureWithFallback(GraphBuilder, PrevHZB, GSystemTextures.BlackArrayDummy);
 		VirtualTargetParameters.HZBPageTable		= GraphBuilder.CreateSRV( HZBPageTableRDG );
 		VirtualTargetParameters.HZBPageRectBounds	= GraphBuilder.CreateSRV( HZBPageRectBoundsRDG );
 		VirtualTargetParameters.HZBPageFlags		= GraphBuilder.CreateSRV( HZBPageFlagsRDG );
@@ -6058,7 +6060,7 @@ void FRenderer::DrawGeometry(
 		{
 			RDG_EVENT_SCOPE(GraphBuilder, "BuildPreviousOccluderHZB(VSM)");
 			VirtualShadowMapArray->UpdateHZB(GraphBuilder);
-			CullingParameters.HZBTexture = VirtualShadowMapArray->HZBPhysicalRDG;
+			CullingParameters.HZBTextureArray = VirtualShadowMapArray->HZBPhysicalArrayRDG;
 			CullingParameters.HZBSize = CullingParameters.HZBTexture->Desc.Extent;
 
 			VirtualTargetParameters.HZBPageTable		= GraphBuilder.CreateSRV( VirtualShadowMapArray->PageTableRDG );

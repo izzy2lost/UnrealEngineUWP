@@ -132,6 +132,9 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(uint32, NumShadowMapSlots)
 	// Set to 0 if separate static caching is disabled
 	SHADER_PARAMETER(uint32, StaticCachedArrayIndex)
+	// Set to 0 if separate static caching is disabled OR separate dynamic HZB is disabled
+	SHADER_PARAMETER(uint32, StaticHZBArrayIndex)
+	
 	// use to map linear index to x,y page coord
 	SHADER_PARAMETER(uint32, PhysicalPageRowMask)
 	SHADER_PARAMETER(uint32, PhysicalPageRowShift)
@@ -319,6 +322,11 @@ public:
 		return UniformParameters.StaticCachedArrayIndex > 0;
 	}
 
+	bool HasSeparateDynamicHZB() const
+	{
+		return UniformParameters.StaticHZBArrayIndex > 0;
+	}
+
 	void CreateMipViews( TArray<Nanite::FPackedView, SceneRenderingAllocator>& Views ) const;
 
 	Nanite::FPackedViewArray* CreateVirtualShadowMapNaniteViews(FRDGBuilder& GraphBuilder, TConstArrayView<FViewInfo> Views, TConstArrayView<FProjectedShadowInfo*> Shadows, float ShadowsLODScaleFactor, FSceneInstanceCullingQuery* InstanceCullingQuery);
@@ -382,8 +390,8 @@ public:
 	// NOTE: The underlying textures are owned by FVirtualShadowMapCacheManager.
 	// We just import and maintain a copy of the RDG reference for this frame here.
 	FRDGTextureRef PhysicalPagePoolRDG = nullptr;
-	TRefCountPtr<IPooledRenderTarget> HZBPhysical = nullptr;
-	FRDGTextureRef HZBPhysicalRDG = nullptr;
+	TRefCountPtr<IPooledRenderTarget> HZBPhysicalArray = nullptr;
+	FRDGTextureRef HZBPhysicalArrayRDG = nullptr;
 	FRDGBufferRef PhysicalPageMetaDataRDG = nullptr;
 
 	// Buffer that serves as the page table for all virtual shadow maps

@@ -1118,7 +1118,7 @@ uint64 FVirtualShadowMapArrayCacheManager::GetGPUSizeBytes(bool bLogSizes) const
 {
 	uint64 TotalSize = PrevBuffers.GetGPUSizeBytes(bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(PhysicalPagePool, bLogSizes);
-	TotalSize += GetRenderTargetGPUSizeBytes(HZBPhysicalPagePool, bLogSizes);
+	TotalSize += GetRenderTargetGPUSizeBytes(HZBPhysicalPagePoolArray, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(PhysicalPageMetaData, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(AccumulatedStatsBuffer, bLogSizes);
 	TotalSize += GetBufferReadbackGPUSizeBytes(GPUBufferReadback, bLogSizes);

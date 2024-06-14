@@ -124,7 +124,7 @@ void InvalidateInstancePages(int VirtualShadowMapId, uint InstanceId, bool bForc
 							if ((PageFlags & VSM_FLAG_ALLOCATED) != 0)
 							{
 #if USE_HZB_OCCLUSION
-								if (!IsPageVisibleHZB(uint2(x, y), PageFlagOffset, false, HZBTestRect))
+								if (!IsPageVisibleHZB(uint2(x, y), PageFlagOffset, false, HZBTestRect, true))
 								{
 									continue;
 								}

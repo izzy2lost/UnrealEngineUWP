@@ -402,6 +402,7 @@ struct FNaniteTraversalClusterCullCallback
 				const bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
 				const bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
 				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+				Cull.bUseStaticOcclusion = bCacheAsStatic;
 			#endif
 
 				Cull.FrustumHZB( false );
@@ -680,6 +681,7 @@ struct FNaniteTraversalClusterCullCallback
 		const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
 		const bool bHasMoved = DynamicData.bHasMoved || bInvalidatePages;
 		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+		Cull.bUseStaticOcclusion = bCacheAsStatic;
 #endif
 
 		Cull.FrustumHZB( true );

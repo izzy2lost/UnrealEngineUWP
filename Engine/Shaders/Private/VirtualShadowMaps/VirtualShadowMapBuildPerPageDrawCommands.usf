@@ -256,6 +256,10 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 			const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
 			bEnableWPO = bEnableWPO && bAllowWPO;
 			bool bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
+			// Not safe to use the dynamic occlusion for modes other than 2 (because that is approximate occlusion only due to lack of two-pass rendering).
+#if USE_HZB_OCCLUSION
+			bool bUseStaticOcclusion = bCacheAsStatic || HZBMode != 2;
+#endif
 
 			if (!bEnableWPO)
 			{
@@ -331,7 +335,7 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 							// TODO: Figure out which flag(s) we actually want here. Also need to check the non-nanite one?
 							// TODO: for mode 1, we need to use the previous view transform and rect.
 							uint VisiblePageMask = HZBMode == 1 ? VSM_FLAG_ANY_UNCACHED : 0U;
-							if (!IsVisibleMaskedHZB(HZBMode == 1 ? MipView.TargetPrevLayerIndex : VirtualShadowMapId, MipLevel, Rect, true, HZBMode == 2, VisiblePageMask))
+							if (!IsVisibleMaskedHZB(HZBMode == 1 ? MipView.TargetPrevLayerIndex : VirtualShadowMapId, MipLevel, Rect, true, HZBMode == 2, VisiblePageMask, 0xFFFFFFFF, bUseStaticOcclusion))
 							{
 								StatsBufferInterlockedInc(VSM_STAT_NON_NANITE_INSTANCES_HZB_CULLED);
 								continue;

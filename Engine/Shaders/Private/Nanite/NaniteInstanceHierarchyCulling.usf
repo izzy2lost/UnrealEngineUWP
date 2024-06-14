@@ -164,6 +164,7 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
             {
 #if VIRTUAL_TEXTURE_TARGET
                 Cull.PageFlagMask = VirtualShadowMap.bNewInvalidations ? VSM_FLAG_ANY_UNCACHED : VSM_FLAG_ALLOCATED;
+				Cull.bUseStaticOcclusion = true;
 #endif
 				// Note: bClampToPageLevel == true means we might test rather large footprints in the HZB, leading to load imbalance
 				// TODO: rebalance the work in the workgroup? Spawn more work groups / cell? Implement the top (virtual space) HZB hierarchy?

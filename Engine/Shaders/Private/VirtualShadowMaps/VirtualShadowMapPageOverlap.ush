@@ -125,7 +125,7 @@ FPageTestScreenRect SetupPageHZBRect(FScreenRect ScreenRect, uint ShadowMapID, u
 }
 
 
-bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, bool bTreatUnmappedAsOccluded, FPageTestScreenRect PageTestScreenRect)
+bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, bool bTreatUnmappedAsOccluded, FPageTestScreenRect PageTestScreenRect, bool bUseStaticOcclusion)
 {
 	FShadowPhysicalPage pPage = ShadowDecodePageTable(HZBPageTable[PageFlagOffset]);
 
@@ -141,7 +141,7 @@ bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, bool bTreatUnmappedAsOcc
 		// Translate to physical address space
 		HZBTestRect.HZBTexels += (PhysicalAddress << PageTestScreenRect.HZBLevelPageSizeShift).xyxy;
 
-		return IsVisibleHZB(HZBTestRect, true);
+		return IsVisibleHZBArray(HZBTestRect, true, GetVirtualShadowMapHZBArrayIndex(bUseStaticOcclusion));
 	}
 
 	return !bTreatUnmappedAsOccluded;
@@ -153,7 +153,7 @@ bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, bool bTreatUnmappedAsOcc
  * @param TestPageMask - page flags to inlcude in occlusion test, e.g., VSM_FLAG_ALLOCATED will test any allocated page, but ignore unallocated ones.
  * @param VisiblePageMask - page flags to treat as un-occluded, tested after the above mask, e.g., use VSM_UNCACHED_FLAG to treat any uncached page as visible. 
  */
-bool IsVisibleMaskedHZB(uint PrevShadowMapID, uint MipLevel, FScreenRect Rect, bool bClampToPageLevel, bool bTreatUnmappedAsOccluded, uint VisiblePageMask, uint TestPageMask = 0xFFFFFFFFu)
+bool IsVisibleMaskedHZB(uint PrevShadowMapID, uint MipLevel, FScreenRect Rect, bool bClampToPageLevel, bool bTreatUnmappedAsOccluded, uint VisiblePageMask, uint TestPageMask, bool bUseStaticOcclusion)
 {
 	// Don't have an HZB to test.
 	if (PrevShadowMapID == ~0u)
@@ -190,7 +190,7 @@ bool IsVisibleMaskedHZB(uint PrevShadowMapID, uint MipLevel, FScreenRect Rect, b
 			if (!bTreatUnmappedAsOccluded || ((PageFlag & TestPageMask) != 0U))
 			{
 				// Treat pages with the VisiblePageMask as visible - can be used to select only cached pages
-				if ((PageFlag & VisiblePageMask) != 0U || IsPageVisibleHZB(uint2(x, y), PageFlagOffset, bTreatUnmappedAsOccluded, HZBTestRect))
+				if ((PageFlag & VisiblePageMask) != 0U || IsPageVisibleHZB(uint2(x, y), PageFlagOffset, bTreatUnmappedAsOccluded, HZBTestRect, bUseStaticOcclusion))
 				{
 					return true;
 				}
