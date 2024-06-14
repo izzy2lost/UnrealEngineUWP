@@ -992,7 +992,7 @@ void SMaterialEditor3DPreviewViewport::OnPropertyChanged(UObject* ObjectBeingMod
 	// includes the "UMaterial::UserSceneTexture" field, plus any FName field in the PostProcessOverrides member struct.
 	//
 	// We also need to refresh PreviewMaterial itself if its domain changes, regardless of whether it's a post process material.
-	if (ObjectBeingModified != nullptr && PropertyThatChanged != nullptr)
+	if (ObjectBeingModified != nullptr && PropertyThatChanged != nullptr && PreviewMaterial)
 	{
 		if ((ObjectBeingModified == PreviewMaterial && PropertyThatChanged->GetName() == MaterialDomain) ||
 			(PreviewMaterial->GetMaterial()->IsPostProcessMaterial() &&
