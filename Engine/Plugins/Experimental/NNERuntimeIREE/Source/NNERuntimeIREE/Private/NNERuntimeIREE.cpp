@@ -127,10 +127,8 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
-	FConfigFile ConfigFile;
 	FString ConfigFilePath;
-	GetUpdatedPlatformConfig(TargetPlatformName, ConfigFile, ConfigFilePath);
-	if (ConfigFile.Dirty)
+	if (!UpdatePlatformConfigAndVerify(TargetPlatformName, true, &ConfigFilePath))
 	{
 		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the required settings in config file %s. Please make the file writeable and re-start the editor or manually add the required staging settings or models will not work in packaged builds for platform %s!"), *ConfigFilePath, *TargetPlatformName);
 	}
@@ -396,19 +394,53 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 	return Model;
 }
 
-void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath)
-{ 
-	FString ConfigFolderPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir());
-	ConfigFilePath = FPaths::Combine(ConfigFolderPath, PlatformName, PlatformName + "Game.ini");
+bool UNNERuntimeIREECpu::UpdatePlatformConfigAndVerify(const FString& PlatformName, bool bOnlyVerify, FString* ConfigFilePathPtr)
+{
+	const FString ConfigFolderPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir());
+	const FString ConfigFilePath = FPaths::Combine(ConfigFolderPath, PlatformName, PlatformName + "Game.ini");
 
-	ConfigFile.Read(ConfigFilePath);
+	if (ConfigFilePathPtr)
+	{
+		*ConfigFilePathPtr = ConfigFilePath;
+	}
 
-	FString StagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetStagedModelDirPath(PlatformName);
-	FString PackagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetPackagedModelDirPath(PlatformName);
+	const FString StagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetStagedModelDirPath(PlatformName);
+	const FString PackagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetPackagedModelDirPath(PlatformName);
 
-	ConfigFile.AddUniqueToSection(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("+DirectoriesToAlwaysStageAsNonUFS"), FString("(Path=\"..") + StagingPath + FString("\")"));
-	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+RemapDirectories"), FString("(From=\"") + FApp::GetProjectName() + StagingPath + FString("\", To=\"") + FApp::GetProjectName() + PackagingPath + FString("\")"));
-	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+AllowedDirectories"), FApp::GetProjectName() + PackagingPath);
+	const FString DirectoriesToAlwaysStageAsNonUFAddition = FString("(Path=\"..") + StagingPath + FString("\")");
+	const FString RemapDirectoriesAddition = FString("(From=\"") + FApp::GetProjectName() + StagingPath + FString("\", To=\"") + FApp::GetProjectName() + PackagingPath + FString("\")");
+	const FString AllowedDirectoriesAddition = FApp::GetProjectName() + PackagingPath;
+
+	if (!bOnlyVerify)
+	{
+		FConfigFile ConfigFile;
+		ConfigFile.Read(ConfigFilePath);
+
+		bool bChanged = false;
+		bChanged |= ConfigFile.AddUniqueToSection(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("+DirectoriesToAlwaysStageAsNonUFS"), DirectoriesToAlwaysStageAsNonUFAddition);
+		bChanged |= ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+RemapDirectories"), RemapDirectoriesAddition);
+		bChanged |= ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+AllowedDirectories"), AllowedDirectoriesAddition);
+
+		if (bChanged)
+		{
+			ConfigFile.Write(ConfigFilePath);
+		}
+	}
+
+	auto CheckConfigArrayElement = [] (const TCHAR *Section, const TCHAR *Key, const FString& Value, const FString& ConfigFilePath)
+	{
+		TArray<FString> Values;
+		GConfig->GetArray(Section, Key, Values, ConfigFilePath);
+
+		return Values.Contains(Value);
+	};
+
+	bool Result = true;
+	Result &= CheckConfigArrayElement(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("+DirectoriesToAlwaysStageAsNonUFS"), DirectoriesToAlwaysStageAsNonUFAddition, ConfigFilePath);
+	Result &= CheckConfigArrayElement(TEXT("Staging"), TEXT("+RemapDirectories"), RemapDirectoriesAddition, ConfigFilePath);
+	Result &= CheckConfigArrayElement(TEXT("Staging"), TEXT("+AllowedDirectories"), AllowedDirectoriesAddition, ConfigFilePath);
+
+	return Result;
 }
 
 FString UNNERuntimeIREEGpu::GetRuntimeName() const

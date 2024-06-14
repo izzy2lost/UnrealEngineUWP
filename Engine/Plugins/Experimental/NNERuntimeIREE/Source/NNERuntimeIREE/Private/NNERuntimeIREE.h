@@ -34,7 +34,7 @@ public:
 	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) override;
 	//~ End INNERuntimeCPU Interface
 
-	static void GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath);
+	static bool UpdatePlatformConfigAndVerify(const FString& PlatformName, bool bOnlyVerify, FString* ConfigFilePathPtr = nullptr);
 #else
 	//~ Begin INNERuntime Interface
 	virtual FString GetRuntimeName() const override { return ""; };
