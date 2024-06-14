@@ -576,7 +576,8 @@ void FRayTracingScene::Reset(bool bInInstanceDebugDataEnabled)
 
 		Layer.RayTracingSceneRHI = nullptr;
 		Layer.RayTracingSceneBufferRDG = nullptr;
-		
+		Layer.RayTracingSceneBufferSRV = nullptr;
+
 		Layer.InstanceBuffer = nullptr;
 		Layer.BuildScratchBuffer = nullptr;
 		Layer.InstanceDebugBuffer = nullptr;
@@ -608,12 +609,7 @@ void FRayTracingScene::EndFrame()
 
 		for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 		{
-			FLayer& Layer = Layers[LayerIndex];
-
-			Layer.Instances.Empty();
-			Layer.InstancesDebugData.Empty();
-
-			Layer.RayTracingScenePooledBuffer = nullptr;
+			Layers[LayerIndex] = {};
 		}
 
 		CallableCommands.Empty();
