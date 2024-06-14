@@ -1155,7 +1155,7 @@ namespace UnrealBuildTool
 				Logger.LogInformation("Defaulting static analyzer output type to text");
 			}
 
-			if (Target.bUseAutoRTFMCompiler)
+			if (Target.bUseAutoRTFMCompiler && !Target.bForceNoAutoRTFMCompiler)
 			{
 				// We check the static analyzer, and only allow using the AutoRTFM compiler if
 				// we are not doing static analysis, or are explicitly wanting to use clang.

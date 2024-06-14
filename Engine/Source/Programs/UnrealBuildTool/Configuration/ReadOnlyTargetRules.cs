@@ -136,6 +136,8 @@ namespace UnrealBuildTool
 
 		public bool bUseAutoRTFMCompiler => Inner.bUseAutoRTFMCompiler;
 
+		public bool bForceNoAutoRTFMCompiler => Inner.bForceNoAutoRTFMCompiler;
+
 		[Obsolete("Deprecated in UE5.1 - No longer used as Chaos is always enabled.")]
 		public bool bCompileChaos => Inner.bCompileChaos;
 

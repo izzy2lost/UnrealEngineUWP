@@ -868,10 +868,15 @@ namespace UnrealBuildTool
 		/// Whether to use the AutoRTFM Clang compiler.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		[CommandLine("-NoUseAutoRTFM", Value = "false")]
-		[CommandLine("-UseAutoRTFM", Value = "true")]
-		[XmlConfigFile(Category = "BuildConfiguration")]
 		public bool bUseAutoRTFMCompiler { get; set; }
+
+		/// <summary>
+		/// Whether to use force AutoRTFM Clang compiler off.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-NoUseAutoRTFM", Value = "true")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public bool bForceNoAutoRTFMCompiler { get; set; } = false;
 
 		/// <summary>
 		/// Whether to compile the Chaos physics plugin.

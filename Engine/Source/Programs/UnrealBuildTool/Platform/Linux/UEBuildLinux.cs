@@ -672,7 +672,7 @@ namespace UnrealBuildTool
 				Logger.LogWarning("Warning: bPreferThinLTO is set, but LTO is disabled. Flag will have no effect");
 			}
 
-			if (Target.bUseAutoRTFMCompiler)
+			if (Target.bUseAutoRTFMCompiler && !Target.bForceNoAutoRTFMCompiler)
 			{
 				Options |= ClangToolChainOptions.UseAutoRTFMCompiler;
 			}

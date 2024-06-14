@@ -2129,12 +2129,12 @@ namespace UnrealBuildTool
 			Result.DeterministicWarningLevel = Rules.DeterministicWarningLevel;
 			Result.bValidateFormatStrings = Rules.bValidateFormatStrings;
 			Result.bValidateInternalApi = Rules.bValidateInternalApi;
-			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler;
+			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler && !Target.bForceNoAutoRTFMCompiler;
 
 			CompileEnvironmentDebugInfoSettings(Target, Result);
 
 			// Only copy the AutoRTFM flag if we are using the AutoRTFM compiler
-			if (Target.bUseAutoRTFMCompiler)
+			if (Result.bUseAutoRTFMCompiler)
 			{
 				Result.bDisableAutoRTFMInstrumentation = Rules.bDisableAutoRTFMInstrumentation;
 			}
