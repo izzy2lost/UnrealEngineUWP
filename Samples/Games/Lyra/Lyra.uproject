@@ -345,8 +345,40 @@
 			"Enabled": true
 		},
 		{
-			"Name": "RuntimeTests",
+			"Name": "InteractionGym",
+			"Enabled": true
+		},
+		{
+			"Name": "MassEntity",
+			"Enabled": true
+		},
+		{
+			"Name": "MassGameplay",
+			"Enabled": true
+		},
+		{
+			"Name": "MassCrowd",
+			"Enabled": true
+		},
+		{
+			"Name": "MassAI",
+			"Enabled": true
+		},
+		{
+			"Name": "nDisplay",
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux"
+			]
+		},
+		{
+			"Name": "Reflex",
 			"Enabled": true
 		}
+	],
+	"AdditionalPluginDirectories": [
+		"Restricted/NotForLicensees/Plugins/GameFeatures",
+		"../../../Engine/Restricted/NotForLicensees/Plugins/InteractionInterface"
 	]
 }
