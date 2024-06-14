@@ -437,8 +437,9 @@ void FilterScreenProbes(
 	FScreenProbeGatherParameters& GatherParameters,
 	ERDGPassFlags ComputePassFlags)
 {
+	const EPixelFormat LightingDataFormat = Lumen::GetLightingDataFormat();
 	const FIntPoint ScreenProbeGatherBufferSize = ScreenProbeParameters.ScreenProbeAtlasBufferSize * ScreenProbeParameters.ScreenProbeGatherOctahedronResolution;
-	FRDGTextureDesc ScreenProbeRadianceDesc(FRDGTextureDesc::Create2D(ScreenProbeGatherBufferSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+	FRDGTextureDesc ScreenProbeRadianceDesc(FRDGTextureDesc::Create2D(ScreenProbeGatherBufferSize, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 	FRDGTextureRef ScreenProbeRadiance = GraphBuilder.CreateTexture(ScreenProbeRadianceDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeRadiance"));
 
 	FRDGTextureDesc ScreenProbeHitDistanceDesc(FRDGTextureDesc::Create2D(ScreenProbeGatherBufferSize, PF_R8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
@@ -510,7 +511,8 @@ void FilterScreenProbes(
 		&& ScreenProbeGatherState.HistoryScreenProbeTranslatedWorldPosition.IsValid()
 		&& !View.bCameraCut 
 		&& !View.bPrevTransformsReset
-		&& ScreenProbeGatherState.ProbeHistoryScreenProbeRadiance->GetDesc().Extent == ScreenProbeRadianceDesc.Extent;
+		&& ScreenProbeGatherState.ProbeHistoryScreenProbeRadiance->GetDesc().Extent == ScreenProbeRadianceDesc.Extent
+		&& ScreenProbeGatherState.ProbeHistoryScreenProbeRadiance->GetDesc().Format == LightingDataFormat;
 
 	if (bUseProbeTemporalFilter)
 	{
@@ -637,7 +639,7 @@ void FilterScreenProbes(
 	const EScreenProbeIrradianceFormat ScreenProbeIrradianceFormat = LumenScreenProbeGather::GetScreenProbeIrradianceFormat(View.Family->EngineShowFlags);
 	if (ScreenProbeIrradianceFormat == EScreenProbeIrradianceFormat::SH3)
 	{
-		FRDGTextureDesc ScreenProbeRadianceSHAmbientDesc(FRDGTextureDesc::Create2D(ScreenProbeParameters.ScreenProbeAtlasBufferSize, PF_FloatR11G11B10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+		FRDGTextureDesc ScreenProbeRadianceSHAmbientDesc(FRDGTextureDesc::Create2D(ScreenProbeParameters.ScreenProbeAtlasBufferSize, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 		ScreenProbeRadianceSHAmbient = GraphBuilder.CreateTexture(ScreenProbeRadianceSHAmbientDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeRadianceSHAmbient"));
 
 		const FIntPoint ProbeRadianceSHDirectionalBufferSize(ScreenProbeParameters.ScreenProbeAtlasBufferSize.X * 6, ScreenProbeParameters.ScreenProbeAtlasBufferSize.Y);
@@ -647,7 +649,7 @@ void FilterScreenProbes(
 	else
 	{
 		const FIntPoint ScreenProbeIrradianceWithBorderBufferSize(ScreenProbeParameters.ScreenProbeAtlasBufferSize.X * LumenScreenProbeGather::IrradianceProbeWithBorderRes, ScreenProbeParameters.ScreenProbeAtlasBufferSize.Y * LumenScreenProbeGather::IrradianceProbeWithBorderRes);
-		FRDGTextureDesc ScreenProbeIrradianceWithBorderDesc(FRDGTextureDesc::Create2D(ScreenProbeIrradianceWithBorderBufferSize, PF_FloatR11G11B10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+		FRDGTextureDesc ScreenProbeIrradianceWithBorderDesc(FRDGTextureDesc::Create2D(ScreenProbeIrradianceWithBorderBufferSize, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 		ScreenProbeIrradianceWithBorder = GraphBuilder.CreateTexture(ScreenProbeIrradianceWithBorderDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeIrradianceWithBorder"));
 	}
 
@@ -698,7 +700,7 @@ void FilterScreenProbes(
 	FRDGTextureRef ScreenProbeRadianceWithBorder;
 	{
 		const FIntPoint ScreenProbeGatherWithBorderBufferSize = ScreenProbeParameters.ScreenProbeAtlasBufferSize * ScreenProbeParameters.ScreenProbeGatherOctahedronResolutionWithBorder;
-		FRDGTextureDesc ScreenProbeRadianceWithBorderDesc(FRDGTextureDesc::Create2D(ScreenProbeGatherWithBorderBufferSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, GLumenScreenProbeGatherNumMips));
+		FRDGTextureDesc ScreenProbeRadianceWithBorderDesc(FRDGTextureDesc::Create2D(ScreenProbeGatherWithBorderBufferSize, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, GLumenScreenProbeGatherNumMips));
 		ScreenProbeRadianceWithBorder = GraphBuilder.CreateTexture(ScreenProbeRadianceWithBorderDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeFilteredRadianceWithBorder"));
 
 		FScreenProbeFixupBordersCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenProbeFixupBordersCS::FParameters>();

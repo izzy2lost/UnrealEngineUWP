@@ -38,6 +38,13 @@ static TAutoConsoleVariable<int32> CVarLumenThreadGroupSize32(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenLightingDataFormat(
+	TEXT("r.Lumen.LightingDataFormat"),
+	0,
+	TEXT("Data format for surfaces storing lighting information (e.g. radiance, irradiance). 0=PF_FloatR11G11B10 (default), 1=PF_FloatRGBA (64 bit)."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 bool DoesRuntimePlatformSupportLumen()
 {
 	return UE::PixelFormat::HasCapabilities(PF_R16_UINT, EPixelFormatCapabilities::TypedUAVLoad);
@@ -67,6 +74,11 @@ bool Lumen::UseWaveOps(EShaderPlatform ShaderPlatform)
 bool Lumen::UseThreadGroupSize32()
 {
 	return GRHISupportsWaveOperations && GRHIMinimumWaveSize <= 32 && CVarLumenThreadGroupSize32.GetValueOnAnyThread() != 0;
+}
+
+EPixelFormat Lumen::GetLightingDataFormat()
+{
+	return CVarLumenLightingDataFormat.GetValueOnRenderThread() == 0 ? PF_FloatR11G11B10 : PF_FloatRGBA;
 }
 
 namespace Lumen

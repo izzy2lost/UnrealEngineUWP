@@ -571,7 +571,7 @@ FRDGTextureRef RegisterOrCreateRadiosityAtlas(
 {
 	FRDGTextureRef AtlasTexture = AtlasRT ? GraphBuilder.RegisterExternalTexture(AtlasRT) : nullptr;
 
-	if (!AtlasTexture || AtlasTexture->Desc.Extent != AtlasSize)
+	if (!AtlasTexture || AtlasTexture->Desc.Extent != AtlasSize || AtlasTexture->Desc.Format != AtlasFormat)
 	{
 		AtlasTexture = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(AtlasSize, AtlasFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
@@ -600,7 +600,7 @@ void LumenRadiosity::InitFrameTemporaries(FRDGBuilder& GraphBuilder, const FLume
 			LumenSceneData.RadiosityTraceRadianceAtlas,
 			TEXT("Lumen.Radiosity.TraceRadianceAtlas"),
 			RadiosityFrameTemporaries.ProbeTracingAtlasSize,
-			PF_FloatRGB,
+			Lumen::GetLightingDataFormat(),
 			RadiosityFrameTemporaries.bIndirectLightingHistoryValid);
 
 		RadiosityFrameTemporaries.bUseProbeOcclusion = GRadiosityFilteringProbeOcclusion != 0
@@ -881,7 +881,11 @@ void LumenRadiosity::AddRadiosityPass(
 	{
 		//@todo - use temporary buffer based off of CardUpdateContext.UpdateAtlasSize which is smaller
 		FRDGTextureRef FilteredTraceRadianceAtlas = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(RadiosityFrameTemporaries.ProbeTracingAtlasSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			FRDGTextureDesc::Create2D(
+				RadiosityFrameTemporaries.ProbeTracingAtlasSize,
+				Lumen::GetLightingDataFormat(),
+				FClearValueBinding::Black,
+				TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("Lumen.Radiosity.FilteredTraceRadianceAtlas"));
 
 		FRDGTextureUAVRef FilteredTraceRadianceAtlasUAV = GraphBuilder.CreateUAV(FilteredTraceRadianceAtlas, ERDGUnorderedAccessViewFlags::SkipBarrier);

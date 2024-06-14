@@ -505,9 +505,10 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 			LumenRadianceCache::TRACE_TILE_ATLAS_STRITE_IN_TILES,
 			FMath::DivideAndRoundUp(TempAtlasNumTraceTiles, LumenRadianceCache::TRACE_TILE_ATLAS_STRITE_IN_TILES));
 		const FIntPoint TempTraceAtlasResolution = WrappedTraceTileLayout * LumenRadianceCache::TRACE_TILE_SIZE_2D;
+		const EPixelFormat TraceRadianceTextureFormat = Lumen::GetLightingDataFormat();
 
 		FRDGTextureRef TraceRadianceTexture = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(TempTraceAtlasResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			FRDGTextureDesc::Create2D(TempTraceAtlasResolution, TraceRadianceTextureFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("Lumen.RadianceCache.TraceRadiance"));
 
 		FRDGTextureRef TraceHitTexture = GraphBuilder.CreateTexture(

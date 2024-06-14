@@ -1156,13 +1156,16 @@ bool FLumenSceneData::UpdateAtlasSize()
 		NewCompression = ESurfaceCacheCompression::CopyTextureRegion;
 	}
 
-	if (PhysicalAtlasSize != GetDesiredPhysicalAtlasSize(SurfaceCacheResolution) || PhysicalAtlasCompression != NewCompression)
+	if (PhysicalAtlasSize != GetDesiredPhysicalAtlasSize(SurfaceCacheResolution)
+		|| PhysicalAtlasCompression != NewCompression
+		|| CurrentLightingDataFormat != Lumen::GetLightingDataFormat())
 	{
 		RemoveAllMeshCards();
 
 		PhysicalAtlasSize = GetDesiredPhysicalAtlasSize(SurfaceCacheResolution);
 		SurfaceCacheAllocator.Init(GetDesiredPhysicalAtlasSizeInPages(SurfaceCacheResolution));
 		PhysicalAtlasCompression = NewCompression;
+		CurrentLightingDataFormat = Lumen::GetLightingDataFormat();
 
 		return true;
 	}

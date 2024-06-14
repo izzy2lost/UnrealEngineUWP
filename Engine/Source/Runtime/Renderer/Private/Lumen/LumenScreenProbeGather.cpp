@@ -1489,6 +1489,7 @@ void UpdateHistoryScreenProbeGather(
 		const FIntPoint HistoryEffectiveResolution = ScreenProbeGatherState.HistoryEffectiveResolution;
 		const bool bSceneTextureExtentMatchHistory = ScreenProbeGatherState.HistorySceneTexturesExtent == SceneTextures.Config.Extent;
 
+		const EPixelFormat LightingDataFormat = Lumen::GetLightingDataFormat();
 		const FIntRect NewHistoryViewRect = View.ViewRect;
 
 		if (*DiffuseIndirectHistoryState
@@ -1498,10 +1499,11 @@ void UpdateHistoryScreenProbeGather(
 			&& !GLumenScreenProbeClearHistoryEveryFrame
 			&& bSceneTextureExtentMatchHistory
 			&& ScreenProbeGatherState.LumenGatherCvars == GLumenGatherCvars
-			&& !bPropagateGlobalLightingChange)
+			&& !bPropagateGlobalLightingChange
+			&& LightingDataFormat == ScreenProbeGatherState.RoughSpecularIndirectHistoryRT->GetDesc().Format)
 		{
 			FRDGTextureDesc DiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-			FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
+			FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 
 			FRDGTextureRef NewDiffuseIndirect = FrameTemporaries.NewDiffuseIndirect.CreateSharedRT(GraphBuilder, DiffuseIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.DiffuseIndirect"));
 			FRDGTextureRef NewBackfaceDiffuseIndirect = bSupportBackfaceDiffuse ? FrameTemporaries.NewBackfaceDiffuseIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.BackfaceDiffuseIndirect")) : nullptr;
@@ -2166,6 +2168,8 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 			ComputePassFlags);
 	}
 
+	const EPixelFormat LightingDataFormat = Lumen::GetLightingDataFormat();
+
 	if (bRenderDirectLighting)
 	{
 		const FIntPoint ScreenProbeLightSampleBufferSize = ScreenProbeParameters.ScreenProbeAtlasBufferSize * ScreenProbeParameters.ScreenProbeLightSampleResolutionXY;
@@ -2175,7 +2179,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 		FRDGTextureDesc LightSampleFlagsDesc(FRDGTextureDesc::Create2D(ScreenProbeLightSampleBufferSize, PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 		ScreenProbeParameters.ScreenProbeLightSampleFlags = GraphBuilder.CreateTexture(LightSampleFlagsDesc, TEXT("Lumen.ScreenProbeGather.LightSampleFlags"));
 
-		FRDGTextureDesc LightSampleRadianceDesc(FRDGTextureDesc::Create2D(ScreenProbeLightSampleBufferSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+		FRDGTextureDesc LightSampleRadianceDesc(FRDGTextureDesc::Create2D(ScreenProbeLightSampleBufferSize, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 		ScreenProbeParameters.ScreenProbeLightSampleRadiance = GraphBuilder.CreateTexture(LightSampleRadianceDesc, TEXT("Lumen.ScreenProbeGather.LightSampleRadiance"));
 
 		{
@@ -2205,7 +2209,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	}
 	
 	const FIntPoint ScreenProbeTraceBufferSize = ScreenProbeParameters.ScreenProbeAtlasBufferSize * ScreenProbeParameters.ScreenProbeTracingOctahedronResolution;
-	FRDGTextureDesc TraceRadianceDesc(FRDGTextureDesc::Create2D(ScreenProbeTraceBufferSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+	FRDGTextureDesc TraceRadianceDesc(FRDGTextureDesc::Create2D(ScreenProbeTraceBufferSize, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 	ScreenProbeParameters.TraceRadiance = GraphBuilder.CreateTexture(TraceRadianceDesc, TEXT("Lumen.ScreenProbeGather.TraceRadiance"));
 	ScreenProbeParameters.RWTraceRadiance = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(ScreenProbeParameters.TraceRadiance));
 
@@ -2247,11 +2251,11 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 
 	if (bSupportBackfaceDiffuse)
 	{
-		FRDGTextureDesc BackfaceDiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
+		FRDGTextureDesc BackfaceDiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 		BackfaceDiffuseIndirect = FrameTemporaries.BackfaceDiffuseIndirect.CreateSharedRT(GraphBuilder, BackfaceDiffuseIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.BackfaceDiffuseIndirect"));
 	}
 
-	FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
+	FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, LightingDataFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 	FRDGTextureRef RoughSpecularIndirect = FrameTemporaries.RoughSpecularIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.RoughSpecularIndirect"));
 
 	const bool bSSREnabled = GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::SSR;

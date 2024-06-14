@@ -14,6 +14,7 @@ class FViewFamilyInfo;
 class FViewInfo;
 struct FEngineShowFlags;
 enum class EDiffuseIndirectMethod;
+enum EPixelFormat : uint8;
 
 extern bool ShouldRenderLumenDiffuseGI(const FScene* Scene, const FSceneView& View, bool bSkipTracingDataCheck = false, bool bSkipProjectCheck = false);
 extern bool ShouldRenderLumenReflections(const FSceneView& View, bool bSkipTracingDataCheck = false, bool bSkipProjectCheck = false, bool bIncludeStandalone = true);
@@ -73,6 +74,7 @@ namespace Lumen
 	bool UseAsyncCompute(const FViewFamilyInfo& ViewFamily);
 	bool UseWaveOps(EShaderPlatform ShaderPlatform);
 	bool UseThreadGroupSize32();
+	EPixelFormat GetLightingDataFormat();
 
 	// Surface cache
 	bool IsSurfaceCacheFrozen();

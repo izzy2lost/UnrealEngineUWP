@@ -233,8 +233,8 @@ namespace Lumen
 		FLumenCardTileUpdateContext& OutCardTileUpdateContext,
 		ERDGPassFlags ComputePassFlags);
 
-	inline EPixelFormat GetDirectLightingAtlasFormat() { return PF_FloatR11G11B10; }
-	inline EPixelFormat GetIndirectLightingAtlasFormat() { return PF_FloatR11G11B10; }
+	EPixelFormat GetDirectLightingAtlasFormat();
+	EPixelFormat GetIndirectLightingAtlasFormat();
 	inline EPixelFormat GetNumFramesAccumulatedAtlasFormat() { return PF_R8; }
 };
 

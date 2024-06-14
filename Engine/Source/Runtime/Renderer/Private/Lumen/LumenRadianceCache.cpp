@@ -1166,13 +1166,16 @@ void UpdateRadianceCaches(
 			SetupOutputs.ProbeOcclusionAtlas = nullptr;
 			SetupOutputs.FinalRadianceAtlas = nullptr;
 
+			const EPixelFormat LightingDataFormat = Lumen::GetLightingDataFormat();
+
 			if (RadianceCacheInputs.CalculateIrradiance)
 			{
 				const FIntPoint FinalIrradianceAtlasSize(RadianceCacheInputs.ProbeAtlasResolutionInProbes * (RadianceCacheInputs.IrradianceProbeResolution + 2 * (1 << RadianceCacheInputs.FinalRadianceAtlasMaxMip)));
 
 				if (RadianceCacheState.FinalIrradianceAtlas.IsValid()
 					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().Extent == FinalIrradianceAtlasSize
-					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1)
+					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1
+					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().Format == LightingDataFormat)
 				{
 					SetupOutputs.FinalIrradianceAtlas = GraphBuilder.RegisterExternalTexture(RadianceCacheState.FinalIrradianceAtlas);
 				}
@@ -1180,7 +1183,7 @@ void UpdateRadianceCaches(
 				{
 					FRDGTextureDesc FinalRadianceAtlasDesc = FRDGTextureDesc::Create2D(
 						FinalIrradianceAtlasSize,
-						PF_FloatRGB,
+						LightingDataFormat,
 						FClearValueBinding::None,
 						TexCreate_ShaderResource | TexCreate_UAV,
 						RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1);
@@ -1221,7 +1224,8 @@ void UpdateRadianceCaches(
 
 				if (RadianceCacheState.FinalRadianceAtlas.IsValid()
 					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().Extent == FinalRadianceAtlasSize
-					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1)
+					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1
+					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().Format == LightingDataFormat)
 				{
 					SetupOutputs.FinalRadianceAtlas = GraphBuilder.RegisterExternalTexture(RadianceCacheState.FinalRadianceAtlas);
 				}
@@ -1229,7 +1233,7 @@ void UpdateRadianceCaches(
 				{
 					FRDGTextureDesc FinalRadianceAtlasDesc = FRDGTextureDesc::Create2D(
 						FinalRadianceAtlasSize,
-						PF_FloatRGB,
+						LightingDataFormat,
 						FClearValueBinding::None,
 						TexCreate_ShaderResource | TexCreate_UAV,
 						RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1);
@@ -1246,19 +1250,20 @@ void UpdateRadianceCaches(
 
 			SetupOutputs.RadianceProbeAtlasTextureSource = nullptr;
 
-			FRDGTextureDesc ProbeAtlasDesc = FRDGTextureDesc::Create2D(
-				RadianceProbeAtlasTextureSize,
-				PF_FloatRGB,
-				FClearValueBinding::None,
-				TexCreate_ShaderResource | TexCreate_UAV);
-
 			if (RadianceCacheState.RadianceProbeAtlasTexture.IsValid()
-				&& RadianceCacheState.RadianceProbeAtlasTexture->GetDesc().Extent == RadianceProbeAtlasTextureSize)
+				&& RadianceCacheState.RadianceProbeAtlasTexture->GetDesc().Extent == RadianceProbeAtlasTextureSize
+				&& RadianceCacheState.RadianceProbeAtlasTexture->GetDesc().Format == LightingDataFormat)
 			{
 				SetupOutputs.RadianceProbeAtlasTextureSource = GraphBuilder.RegisterExternalTexture(RadianceCacheState.RadianceProbeAtlasTexture);
 			}
 			else
 			{
+				FRDGTextureDesc ProbeAtlasDesc = FRDGTextureDesc::Create2D(
+					RadianceProbeAtlasTextureSize,
+					LightingDataFormat,
+					FClearValueBinding::None,
+					TexCreate_ShaderResource | TexCreate_UAV);
+
 				SetupOutputs.RadianceProbeAtlasTextureSource = GraphBuilder.CreateTexture(ProbeAtlasDesc, TEXT("Lumen.RadianceCache.RadianceProbeAtlasTextureSource"));
 			}
 

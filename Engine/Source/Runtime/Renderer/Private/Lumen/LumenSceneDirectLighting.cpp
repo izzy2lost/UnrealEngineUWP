@@ -108,6 +108,16 @@ float LumenSceneDirectLighting::GetHardwareRayTracingShadowRayBias()
 	return FMath::Max(CVarLumenDirectLightingHardwareRayTracingShadowRayBias.GetValueOnRenderThread(), 0.0f);
 }
 
+EPixelFormat Lumen::GetDirectLightingAtlasFormat()
+{
+	return Lumen::GetLightingDataFormat();
+}
+
+EPixelFormat Lumen::GetIndirectLightingAtlasFormat()
+{
+	return Lumen::GetLightingDataFormat();
+}
+
 class FLumenGatheredLight
 {
 public:

@@ -187,7 +187,7 @@ void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenScene
 	FrameTemporaries.FinalLightingAtlas = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(
 			PageAtlasSize,
-			PF_FloatR11G11B10,
+			Lumen::GetLightingDataFormat(),
 			FClearValueBinding::Black,
 			TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
 		), TEXT("Lumen.SceneFinalLighting"));

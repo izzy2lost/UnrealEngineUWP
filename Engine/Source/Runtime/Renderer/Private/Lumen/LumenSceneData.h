@@ -929,6 +929,9 @@ private:
 	// 0 is a special value, and means that surface contains default data
 	uint32 SurfaceCacheUpdateFrameIndex = 1;
 
+	// Used to detect change in data format
+	EPixelFormat CurrentLightingDataFormat = PF_Unknown;
+
 	// Virtual surface cache page table
 	FIntPoint PhysicalAtlasSize = FIntPoint(0, 0);
 	ESurfaceCacheCompression PhysicalAtlasCompression;
