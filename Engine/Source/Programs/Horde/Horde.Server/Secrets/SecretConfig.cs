@@ -54,6 +54,22 @@ namespace Horde.Server.Secrets
 	}
 
 	/// <summary>
+	/// Format describing how to parse external secret values
+	/// </summary>
+	public enum ExternalSecretFormat
+	{
+		/// <summary>
+		/// Secret is a plain text value which will be stored using the external secret key
+		/// </summary>
+		Text,
+
+		/// <summary>
+		/// Secret is a JSON formatted string containing key/value pairs
+		/// </summary>
+		Json,
+	}
+
+	/// <summary>
 	/// Configuration for an external secret provider
 	/// </summary>
 	public class ExternalSecretConfig
@@ -64,18 +80,18 @@ namespace Horde.Server.Secrets
 		public string Provider { get; set; } = String.Empty;
 
 		/// <summary>
-		/// Optional key indicating the parameter to set in the resulting data array
+		/// Format of the secret
+		/// </summary>
+		public ExternalSecretFormat Format { get; set; }
+
+		/// <summary>
+		/// Optional key indicating the parameter to set in the resulting data array. Required if if <see cref="Format"/> is <see cref="ExternalSecretFormat.Text"/>.
 		/// </summary>
 		public string? Key { get; set; }
 
 		/// <summary>
 		/// Optional value indicating what to fetch from the provider
 		/// </summary>
-		public string? Path { get; set; }
-
-		/// <summary>
-		/// Additional provider-specific arguments
-		/// </summary>
-		public Dictionary<string, string>? Arguments { get; set; }
+		public string Path { get; set; } = "default";
 	}
 }

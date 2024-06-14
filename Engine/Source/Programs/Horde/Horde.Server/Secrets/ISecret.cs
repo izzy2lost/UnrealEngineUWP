@@ -1,0 +1,23 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System.Collections.Generic;
+using EpicGames.Horde.Secrets;
+
+namespace Horde.Server.Secrets
+{
+	/// <summary>
+	/// Information about a secret
+	/// </summary>
+	public interface ISecret
+	{
+		/// <summary>
+		/// Identifier for the secret
+		/// </summary>
+		SecretId Id { get; }
+
+		/// <summary>
+		/// The secret values
+		/// </summary>
+		IReadOnlyDictionary<string, string> Data { get; }
+	}
+}

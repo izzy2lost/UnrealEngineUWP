@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,10 +18,8 @@ namespace Horde.Server.Secrets
 		/// <summary>
 		/// Gets values for a particular secret
 		/// </summary>
-		/// <param name="config">Configuration for the secret to fetch</param>
-		/// <param name="user">User requesting the data</param>
-		/// <param name="data">Dictionary to receive any enumerated properties</param>
+		/// <param name="path">Path to the secret to fetch</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task GetValuesAsync(ExternalSecretConfig config, ClaimsPrincipal user, Dictionary<string, string> data, CancellationToken cancellationToken);
+		Task<string> GetSecretAsync(string path, CancellationToken cancellationToken);
 	}
 }

@@ -76,6 +76,7 @@ using Horde.Server.Notifications.Sinks;
 using Horde.Server.Perforce;
 using Horde.Server.Replicators;
 using Horde.Server.Secrets;
+using Horde.Server.Secrets.Providers;
 using Horde.Server.Server;
 using Horde.Server.Server.Notices;
 using Horde.Server.ServiceAccounts;
@@ -640,7 +641,9 @@ namespace Horde.Server
 			services.AddSingleton<CompressedBufferUtils>();
 
 			// Secret providers
-			services.AddSingleton<SecretService>();
+			services.AddSingleton<SecretCollectionInternal>();
+			services.AddScoped<ISecretCollection, SecretCollection>();
+			services.AddSingleton<ISecretProvider, AwsParameterStoreSecretProvider>();
 
 			// Storage providers
 			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();

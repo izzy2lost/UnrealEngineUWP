@@ -581,7 +581,8 @@ namespace Horde.Server.Server
 		/// <param name="clusterId">Compute cluster id</param>
 		/// <param name="config">Receives the cluster configuration on success</param>
 		/// <returns>True on success</returns>
-		public bool TryGetComputeCluster(ClusterId clusterId, [NotNullWhen(true)] out ComputeClusterConfig? config) => _computeClusterLookup.TryGetValue(clusterId, out config);
+		public bool TryGetComputeCluster(ClusterId clusterId, [NotNullWhen(true)] out ComputeClusterConfig? config)
+			=> _computeClusterLookup.TryGetValue(clusterId, out config);
 
 		/// <summary>
 		/// Attempts to get compute cluster configuration from this object
@@ -589,7 +590,14 @@ namespace Horde.Server.Server
 		/// <param name="secretId">Secret id</param>
 		/// <param name="config">Receives the secret configuration on success</param>
 		/// <returns>True on success</returns>
-		public bool TryGetSecret(SecretId secretId, [NotNullWhen(true)] out SecretConfig? config) => _secretLookup.TryGetValue(secretId, out config);
+		public bool TryGetSecret(SecretId secretId, [NotNullWhen(true)] out SecretConfig? config)
+			=> _secretLookup.TryGetValue(secretId, out config);
+
+		/// <summary>
+		/// Authorize access to a secret
+		/// </summary>
+		public bool Authorize(SecretId secretId, AclAction action, ClaimsPrincipal user)
+			=> TryGetSecret(secretId, out SecretConfig? secretConfig) && secretConfig.Authorize(action, user);
 
 		/// <summary>
 		/// Authorizes a user to perform a given action
@@ -597,9 +605,7 @@ namespace Horde.Server.Server
 		/// <param name="scopeName">Name of the scope to auth against</param>
 		/// <param name="scopeConfig">Configuration for the scope</param>
 		public bool TryGetAclScope(AclScopeName scopeName, [NotNullWhen(true)] out AclConfig? scopeConfig)
-		{
-			return _aclLookup.TryGetValue(scopeName, out scopeConfig);
-		}
+			=> _aclLookup.TryGetValue(scopeName, out scopeConfig);
 
 		/// <summary>
 		/// Authorizes a user to perform a given action
@@ -608,9 +614,7 @@ namespace Horde.Server.Server
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to validate</param>
 		public bool Authorize(AclScopeName scopeName, AclAction action, ClaimsPrincipal user)
-		{
-			return _aclLookup.TryGetValue(scopeName, out AclConfig? scopeConfig) && scopeConfig.Authorize(action, user);
-		}
+			=> _aclLookup.TryGetValue(scopeName, out AclConfig? scopeConfig) && scopeConfig.Authorize(action, user);
 
 		/// <summary>
 		/// Determines whether the given user can masquerade as a given user

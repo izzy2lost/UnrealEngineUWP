@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Secrets;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -11,20 +14,22 @@ using Microsoft.Extensions.Options;
 namespace Horde.Server.Secrets
 {
 	/// <summary>
-	/// Controller for the /api/v1/credentials endpoint
+	/// Controller for the /api/v1/secrets endpoint
 	/// </summary>
 	[ApiController]
 	[Authorize]
 	[Route("[controller]")]
 	public class SecretsController : HordeControllerBase
 	{
-		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly ISecretCollection _secretCollection;
+		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SecretsController(IOptionsSnapshot<GlobalConfig> globalConfig)
+		public SecretsController(ISecretCollection secretCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
+			_secretCollection = secretCollection;
 			_globalConfig = globalConfig;
 		}
 
@@ -51,22 +56,24 @@ namespace Horde.Server.Secrets
 		/// </summary>
 		/// <param name="secretId">Id of the secret to retrieve</param>
 		/// <param name="filter">Filter for properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about the requested secret</returns>
 		[HttpGet]
 		[Route("/api/v1/secrets/{secretId}")]
 		[ProducesResponseType(typeof(GetSecretResponse), 200)]
-		public ActionResult<object> GetSecret(SecretId secretId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetSecretAsync(SecretId secretId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			if (!_globalConfig.Value.TryGetSecret(secretId, out SecretConfig? secretConfig))
+			ISecret? secret = await _secretCollection.GetAsync(secretId, cancellationToken);
+			if (secret == null)
 			{
 				return NotFound(secretId);
 			}
-			if (!secretConfig.Authorize(SecretAclAction.ViewSecret, User))
+			if (!_globalConfig.Value.Authorize(secret.Id, SecretAclAction.ViewSecret, User))
 			{
 				return Forbid(SecretAclAction.ViewSecret, secretId);
 			}
 
-			return new GetSecretResponse(secretConfig.Id, secretConfig.Data).ApplyFilter(filter);
+			return new GetSecretResponse(secret.Id, secret.Data.ToDictionary(x => x.Key, x => x.Value)).ApplyFilter(filter);
 		}
 	}
 }
