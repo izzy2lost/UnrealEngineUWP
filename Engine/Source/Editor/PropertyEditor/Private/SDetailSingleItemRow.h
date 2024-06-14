@@ -86,6 +86,9 @@ private:
 	void OnPasteGroup();
 	bool CanPasteGroup();
 
+	FString GetPropertyInternalName() const;
+	FText GetPropertyDisplayName() const;
+
 	/**
 	 * Returns the TSharedRef<SWidget> for the Name column widget
 	 * 
