@@ -112,6 +112,11 @@ namespace UnrealBuildTool
 		/// Sets the version of the engine that this plugin is compatible with.
 		/// </summary>
 		public string? EngineVersion;
+		
+		/// <summary>
+		/// Sets the version of the engine at which this plugin has been deprecated.
+		/// </summary>
+		public string? DeprecatedEngineVersion;
 
 		/// <summary>4
 		/// If true, this plugin from a platform extension extending another plugin */
@@ -284,6 +289,7 @@ namespace UnrealBuildTool
 			RawObject.TryGetStringField("MarketplaceURL", out MarketplaceURL);
 			RawObject.TryGetStringField("SupportURL", out SupportURL);
 			RawObject.TryGetStringField("EngineVersion", out EngineVersion);
+			RawObject.TryGetStringField("DeprecatedEngineVersion", out DeprecatedEngineVersion);
 			RawObject.TryGetStringArrayField("SupportedPrograms", out SupportedPrograms);
 			RawObject.TryGetBoolField("bIsPluginExtension", out bIsPluginExtension);
 
@@ -436,6 +442,10 @@ namespace UnrealBuildTool
 			{
 				Writer.WriteValue("EngineVersion", EngineVersion);
 			}
+			if (!String.IsNullOrEmpty(DeprecatedEngineVersion))
+			{
+				Writer.WriteValue("DeprecatedEngineVersion", DeprecatedEngineVersion);
+			}
 			if (!String.IsNullOrEmpty(VersePath))
 			{
 				Writer.WriteValue("VersePath", VersePath);
@@ -547,6 +557,10 @@ namespace UnrealBuildTool
 			if (!String.IsNullOrEmpty(EngineVersion))
 			{
 				CachedJson.AddOrSetFieldValue("EngineVersion", EngineVersion);
+			}
+			if (!String.IsNullOrEmpty(DeprecatedEngineVersion))
+			{
+				CachedJson.AddOrSetFieldValue("DeprecatedEngineVersion", DeprecatedEngineVersion);
 			}
 			if (!String.IsNullOrEmpty(VersePath))
 			{
