@@ -2535,7 +2535,7 @@ void UPackageMapClient::SetHasQueuedBunches(const FNetworkGUID& NetGUID, bool bH
 
 		const bool bNormalQueueEnabled = GPackageMapTrackQueuedActorThreshold > 0.f;
 		
-#if CSV_PROFILER		
+#if CSV_PROFILER_STATS		
 		const bool bOwnerQueueEnabled = GPackageMapTrackQueuedActorThresholdOwner > 0.f;
 #else
 		constexpr bool bOwnerQueueEnabled = false;
@@ -2568,7 +2568,7 @@ void UPackageMapClient::SetHasQueuedBunches(const FNetworkGUID& NetGUID, bool bH
 								DelinquentQueuedActors.DelinquentQueuedActors.Emplace(ObjectClass, QueuedTime);
 							}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 							if (bAboveOwnerQueuedTime && GuidCache->IsTrackingOwnerOrPawn())
 							{
 								CSV_EVENT(PackageMap, TEXT("Owner Net Stall Queued Actor (QueueTime=%.2f)"), QueuedTime);
@@ -3285,7 +3285,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		UE_LOG(LogNetPackageMap, Log, TEXT("ValidateAsyncLoadingPackage: Already async loading package. Path: %s, NetGUID: %s"), *CacheObject.PathName.ToString(), *NetGUID.ToString());
 	}
 	
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	PendingLoadRequest.bWasRequestedByOwnerOrPawn |= IsTrackingOwnerOrPawn();
 #endif
 }
@@ -3301,7 +3301,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FPendingAsyncLoadRequest LoadRequest(NetGUID, Driver->GetElapsedTime());
 	
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	LoadRequest.bWasRequestedByOwnerOrPawn = IsTrackingOwnerOrPawn();
 #endif
 
@@ -3385,7 +3385,7 @@ void FNetGUIDCache::AsyncPackageCallback(const FName& PackageName, UPackage* Pac
 			DelinquentAsyncLoads.DelinquentAsyncLoads.Emplace(PackageName, LoadTime);
 		}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (PendingLoadRequest->bWasRequestedByOwnerOrPawn &&
 			GGuidCacheTrackAsyncLoadingGUIDThresholdOwner > 0.f &&
 			LoadTime >= GGuidCacheTrackAsyncLoadingGUIDThresholdOwner &&
@@ -4278,7 +4278,7 @@ FAutoConsoleCommand	ListNetGUIDExportsCommand(
 
 // ----------------------------------------------------------------
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 bool FNetGUIDCache::IsTrackingOwnerOrPawn() const
 {
 	return TrackingOwnerOrPawnHelper && TrackingOwnerOrPawnHelper->IsOwnerOrPawn();

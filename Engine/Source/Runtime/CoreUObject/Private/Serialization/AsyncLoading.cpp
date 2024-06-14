@@ -7630,7 +7630,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoading(bool bUseTimeLimit,
 
 	CSV_CUSTOM_STAT(FileIO, EDLEventQueueDepth, EventQueue.EventQueue.Num(), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FileIO, QueuedPackagesQueueDepth, GetQueuedPackagesCount(), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT(FileIO, ExistingQueuedPackagesQueueDepth, GetExistingAsyncPackagesCount(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_MINIMAL(FileIO, ExistingQueuedPackagesQueueDepth, GetExistingAsyncPackagesCount(), ECsvCustomStatOp::Set);
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FAsyncPackage_TickAsyncLoadingGameThread); 

@@ -358,7 +358,7 @@ void FVirtualTexturePhysicalSpace::DrawResidencyGraph(FCanvas* Canvas, FBox2D Ca
 
 void FVirtualTexturePhysicalSpace::UpdateCsvStats() const
 {
-#if CSV_PROFILER && !UE_BUILD_SHIPPING
+#if CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 	FCsvProfiler* Profiler = FCsvProfiler::Get();
 	if (Profiler->IsCapturing_Renderthread())
 	{

@@ -1755,12 +1755,12 @@ struct FScopedQueuedBits
 struct FScopedFastPathTracker
 {
 	FScopedFastPathTracker(UClass* InActorClass, FReplicationGraphCSVTracker& InTracker, int32& InBitsWritten) 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		: ActorClass(InActorClass), Tracker(InTracker), BitsWritten(InBitsWritten)
 #endif
 	{
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 #if STATS
 		bEnabled = true;
 #else
@@ -1773,7 +1773,7 @@ struct FScopedFastPathTracker
 #endif
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	~FScopedFastPathTracker()
 	{
 		if (bEnabled)
@@ -2715,7 +2715,7 @@ void UReplicationGraph::SetActorDestructionInfoToIgnoreDistanceCulling(AActor* D
 
 void UReplicationGraph::PostServerReplicateStats(const FFrameReplicationStats& Stats)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (FCsvProfiler* Profiler = FCsvProfiler::Get())
 	{
 		if (Profiler->IsCapturing())
@@ -4135,7 +4135,7 @@ void UReplicationGraphNode_DynamicSpatialFrequency::GatherActorListsForConnectio
 	bool DoFullGather = true;
 
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FScopedCsvStatExclusive ScopedStat(CSVStatName);
 #endif	
 

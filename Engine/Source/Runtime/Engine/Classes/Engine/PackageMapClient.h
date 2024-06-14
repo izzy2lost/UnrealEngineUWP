@@ -320,7 +320,7 @@ private:
 				NetGUIDs.AddUnique(OtherGUID);
 			}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			bWasRequestedByOwnerOrPawn |= Other.bWasRequestedByOwnerOrPawn;
 #endif
 		}
@@ -335,7 +335,7 @@ private:
 
 		double RequestStartTime;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		bool bWasRequestedByOwnerOrPawn = false;
 #endif
 	};
@@ -364,7 +364,7 @@ private:
 	 */
 	TMap<FNetworkGUID, UE::Net::Private::FRefCountedNetGUIDArray> UnmappedStablyNamedGuids_OuterToInner;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 public:
 
 	ENGINE_API bool IsTrackingOwnerOrPawn() const;

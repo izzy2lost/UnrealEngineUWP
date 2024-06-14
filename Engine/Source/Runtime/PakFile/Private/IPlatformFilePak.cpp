@@ -58,7 +58,7 @@ CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, FileIO);
 CSV_DEFINE_CATEGORY(FileIOVerbose, false);
 
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 int64 GTotalLoaded = 0;
 int64 GTotalLoadedLastTick = 0;
 #endif
@@ -1039,7 +1039,7 @@ static_assert((PAK_CACHE_GRANULARITY % FPakInfo::MaxChunkDataSize) == 0, "PAK_CA
 DECLARE_MEMORY_STAT(TEXT("PakCache Current"), STAT_PakCacheMem, STATGROUP_Memory);
 DECLARE_MEMORY_STAT(TEXT("PakCache High Water"), STAT_PakCacheHighWater, STATGROUP_Memory);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 volatile int64 GPreCacheHotBlocksCount = 0;
 volatile int64 GPreCacheColdBlocksCount = 0;
 volatile int64 GPreCacheTotalLoaded = 0;
@@ -3135,7 +3135,7 @@ private: // below here we assume CachedFilesScopeLock until we get to the next s
 		RequestsToLower[IndexToFill].Memory = nullptr;
 		check(&CacheBlockAllocator.Get(RequestsToLower[IndexToFill].BlockIndex) == &Block);
 
-#if USE_PAK_PRECACHE && CSV_PROFILER
+#if USE_PAK_PRECACHE && CSV_PROFILER_STATS
 		FPlatformAtomics::InterlockedAdd(&GPreCacheTotalLoaded, Block.Size);
 		FPlatformAtomics::InterlockedAdd(&GTotalLoaded, Block.Size);
 #endif
@@ -3170,7 +3170,7 @@ private: // below here we assume CachedFilesScopeLock until we get to the next s
 		RequestsToLower[IndexToFill].RequestHandle = Pak.Handle->ReadRequest(GetRequestOffset(Block.OffsetAndPakIndex), Block.Size, Priority, &CallbackFromLower);
 		RedundantReadTracker.CheckBlock(GetRequestOffset(Block.OffsetAndPakIndex), Block.Size);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FJoinedOffsetAndPakIndex OldLastReadRequest = LastReadRequest;
 		LastReadRequest = Block.OffsetAndPakIndex + Block.Size;
 
@@ -3442,14 +3442,14 @@ public:
 
 		if (AddRequest(Request, RequestIndex))
 		{
-#if USE_PAK_PRECACHE && CSV_PROFILER
+#if USE_PAK_PRECACHE && CSV_PROFILER_STATS
 			FPlatformAtomics::InterlockedIncrement(&GPreCacheHotBlocksCount);
 #endif
 			UE_LOG(LogPakFile, VeryVerbose, TEXT("FPakReadRequest[%016llX, %016llX) QueueRequest HOT"), RequestOffsetAndPakIndex, RequestOffsetAndPakIndex + Request.Size);
 		}
 		else
 		{
-#if USE_PAK_PRECACHE && CSV_PROFILER
+#if USE_PAK_PRECACHE && CSV_PROFILER_STATS
 			FPlatformAtomics::InterlockedIncrement(&GPreCacheColdBlocksCount);
 #endif
 			UE_LOG(LogPakFile, VeryVerbose, TEXT("FPakReadRequest[%016llX, %016llX) QueueRequest COLD"), RequestOffsetAndPakIndex, RequestOffsetAndPakIndex + Request.Size);
@@ -5103,7 +5103,7 @@ public:
 		check(Offset + BytesToRead + OffsetInPak <= PakFileSize);
 
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FPlatformAtomics::InterlockedAdd(&GTotalLoaded, BytesToRead);
 #endif
 
@@ -5164,7 +5164,7 @@ void FPakPlatformFile::SetAsyncMinimumPriority(EAsyncIOPriorityAndFlags Priority
 
 void FPakPlatformFile::Tick()
 {
-#if USE_PAK_PRECACHE && CSV_PROFILER
+#if USE_PAK_PRECACHE && CSV_PROFILER_STATS
 	if (PakPrecacherSingleton != nullptr)
 	{
 		CSV_CUSTOM_STAT(FileIOVerbose, PakPrecacherRequests, FPakPrecacher::Get().GetRequestCount(), ECsvCustomStatOp::Set);
@@ -5191,13 +5191,13 @@ void FPakPlatformFile::Tick()
 
 }
 #endif
-#if TRACK_DISK_UTILIZATION && CSV_PROFILER
+#if TRACK_DISK_UTILIZATION && CSV_PROFILER_STATS
 	CSV_CUSTOM_STAT(DiskIO, OutstandingIORequests, int32(GDiskUtilizationTracker.GetOutstandingRequests()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(DiskIO, BusyTime, float(GDiskUtilizationTracker.GetShortTermStats().GetTotalIOTimeInSeconds()), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(DiskIO, IdleTime, float(GDiskUtilizationTracker.GetShortTermStats().GetTotalIdleTimeInSeconds()), ECsvCustomStatOp::Set);
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 
 	int64 LocalTotalLoaded = GTotalLoaded;
 	if (IoDispatcherFileBackend.IsValid())

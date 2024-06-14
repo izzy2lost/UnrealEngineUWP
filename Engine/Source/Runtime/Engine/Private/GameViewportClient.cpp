@@ -125,7 +125,7 @@ static TAutoConsoleVariable<bool> CVarRemapDeviceIdForOffsetPlayerGamepadIds(
 	TEXT("Note: This CVar will be removed in a future release, this is a temporary wrapper for bug fix behavior."),
 	ECVF_Default);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 struct FCsvLocalPlayer
 {
 	FCsvLocalPlayer()
@@ -146,7 +146,7 @@ static TMap<uint32, FCsvLocalPlayer> GCsvLocalPlayers;
 
 void UGameViewportClient::EnableCsvPlayerStats(int32 LocalPlayerCount)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (GCsvLocalPlayers.Num() < LocalPlayerCount)
 	{
 		for (int PlayerIndex = GCsvLocalPlayers.Num(); PlayerIndex < LocalPlayerCount; PlayerIndex++)
@@ -170,7 +170,7 @@ void UGameViewportClient::EnableCsvPlayerStats(int32 LocalPlayerCount)
 
 void UGameViewportClient::UpdateCsvCameraStats(const TMap<ULocalPlayer*, FSceneView*>& PlayerViewMap)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	UWorld* MyWorld = GetWorld();
 	if (!ensure(World))
 	{
@@ -1559,11 +1559,11 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 			}
 
 			// Feed approximated resolution fraction to CSV
-			#if CSV_PROFILER
+#if CSV_PROFILER
 			if (DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] >= 0.0f)
 			{
 				// Keep same name as before for primary screen percentage
-				CSV_CUSTOM_STAT_GLOBAL(DynamicResolutionPercentage, DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);
+				CSV_CUSTOM_STAT_MINIMAL_GLOBAL(DynamicResolutionPercentage, DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);
 				CSV_CUSTOM_STAT_GLOBAL(DynamicResolutionPercentageMax, DynamicResolutionStateInfos.ResolutionFractionUpperBounds[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);
 			}
 			for (TLinkedList<DynamicRenderScaling::FBudget*>::TIterator BudgetIt(DynamicRenderScaling::FBudget::GetGlobalList()); BudgetIt; BudgetIt.Next())
@@ -1580,7 +1580,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 				TRACE_CSV_PROFILER_INLINE_STAT(NameChar, CSV_CATEGORY_INDEX_GLOBAL);
 				FCsvProfiler::RecordCustomStat(NameChar, CSV_CATEGORY_INDEX_GLOBAL, Value, ECsvCustomStatOp::Set);
 			}
-			#endif
+#endif // CSV_PROFILER
 		}
 		#endif
 
@@ -1735,7 +1735,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		}
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	UpdateCsvCameraStats(PlayerViewMap);
 #endif
 

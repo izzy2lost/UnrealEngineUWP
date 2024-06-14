@@ -972,7 +972,7 @@ bool ShouldEnableScopeSecondsTimers()
 {
 #if STATS
 	return true;
-#elif CSV_PROFILER
+#elif CSV_PROFILER_STATS
 	return CVar_NetDriver_ReportGameTickFlushTime || FCsvProfiler::Get()->IsCapturing();
 #else
 	return CVar_NetDriver_ReportGameTickFlushTime;
@@ -2297,7 +2297,7 @@ void UNetDriver::TryUpgradeNetworkFeatures(EEngineNetworkRuntimeFeatures RemoteF
 CSV_DEFINE_CATEGORY(ReplicationRPCs, WITH_SERVER_CODE);
 
 #ifndef RPC_CSV_TRACKER	// Defines if RPC CSV tracking is compiled in. Default is only on server builds.
-#define RPC_CSV_TRACKER (CSV_PROFILER && WITH_SERVER_CODE)
+#define RPC_CSV_TRACKER (CSV_PROFILER_STATS && WITH_SERVER_CODE)
 #endif
 
 /** Helper struct for tracking RPC (receive) timing */
@@ -5747,7 +5747,7 @@ struct FReplicationAutoCapture
 
 	void DoFrame()
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (CaptureFrames == -1)
 		{
 			// First time see if we want to auto capture
@@ -5786,7 +5786,7 @@ struct FReplicationAutoCapture
 };
 FReplicationAutoCapture GReplicationAutoCapture;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 struct FScopedNetDriverStats
 {
 	FScopedNetDriverStats(UNetDriver* InNetDriver) : NetDriver(InNetDriver)
@@ -5887,7 +5887,7 @@ int32 UNetDriver::ServerReplicateActors(float DeltaSeconds)
 	GetMetrics()->SetInt(UE::Net::Metric::NumReplicatedActors,0 );
 	GetMetrics()->SetInt(UE::Net::Metric::NumReplicatedActorBytes, 0);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FScopedNetDriverStats NetDriverStats(this);
 	GNumClientConnections = ClientConnections.Num();
 #endif
@@ -8401,7 +8401,7 @@ void UNetDriver::UpdateNetworkStats()
 		}
 		else
 		{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			// CSV stats need to be collected every frame
 
 			int32 ClientsInPacketsThisFrameAvg = 0;

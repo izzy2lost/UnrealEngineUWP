@@ -3982,7 +3982,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	Modify();
 
-#if (CSV_PROFILER)
+#if (CSV_PROFILER_STATS)
 	int32 TotalSizeUpdateBytes = 0;
 #endif
 
@@ -4043,7 +4043,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 						});
 				}
 
-#if (CSV_PROFILER)
+#if (CSV_PROFILER_STATS)
 				// We are updating a current and previous transform.
 				TotalSizeUpdateBytes += (sizeof(FTransform) + sizeof(FTransform));
 #endif
@@ -4062,7 +4062,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 						FMemory::Memcpy(&PerInstanceSMCustomData[CustomDataOffset], &CustomFloatData[SrcCustomDataOffset], NumCustomDataFloats * sizeof(float));
 
 						PrimitiveInstanceDataManager.CustomDataChanged(InstanceIndex);
-#if (CSV_PROFILER)
+#if (CSV_PROFILER_STATS)
 						TotalSizeUpdateBytes += NumCustomDataFloats * sizeof(float);
 #endif
 						break;
@@ -4164,7 +4164,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-#if (CSV_PROFILER)
+#if (CSV_PROFILER_STATS)
 	const int32 TotalSizeBytes = (UpdateInstanceTransforms.Num() * UpdateInstanceTransforms.GetTypeSize()) +
 								 (UpdateInstancePreviousTransforms.Num() * UpdateInstancePreviousTransforms.GetTypeSize()) +
 								 (CustomFloatData.Num() * CustomFloatData.GetTypeSize());

@@ -76,14 +76,14 @@ public:
 		ChunkTypeToCategoryMap[static_cast<int32>(EIoChunkType::MemoryMappedBulkData)] = &Categories[BulkDataIndex];
 		ChunkTypeToCategoryMap[static_cast<int32>(EIoChunkType::ShaderCode)] = &Categories[ShadersIndex];
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FIoRequestStats::TickCsv));
 #endif
 	}
 
 	~FIoRequestStats()
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 #endif
 	}
@@ -147,7 +147,7 @@ private:
 		double TotalRequestsTime = 0.0;
 	};
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	bool TickCsv(float DeltaTime)
 	{
 		CSV_CUSTOM_STAT_DEFINED(PendingIoRequests, static_cast<int32>(PendingIoRequests), ECsvCustomStatOp::Set);
@@ -161,7 +161,7 @@ private:
 #endif
 	TArray<FRequestCategory> Categories;
 	FRequestCategory* ChunkTypeToCategoryMap[static_cast<int32>(EIoChunkType::MAX)];
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FTSTicker::FDelegateHandle TickerHandle;
 #endif
 };

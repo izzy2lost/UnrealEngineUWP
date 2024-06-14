@@ -2937,7 +2937,7 @@ void FVirtualTextureSystem::GetOnScreenMessages(FCoreDelegates::FSeverityMessage
 
 void FVirtualTextureSystem::UpdateCsvStats()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (CVarVTCsvStats.GetValueOnRenderThread() == 0)
 	{
 		return;

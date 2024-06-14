@@ -530,7 +530,7 @@ public:
 		}
 
 		// Update the stats
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		const bool bCsvStatsEnabled = !!CVarGPUCsvStatsEnabled.GetValueOnRenderThread();
 		FCsvProfiler* CsvProfiler = bCsvStatsEnabled ? FCsvProfiler::Get() : nullptr;
 #endif
@@ -566,7 +566,7 @@ public:
 				}
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 				if (CsvProfiler)
 				{
 					const ECsvCustomStatOp CsvStatOp = bKnownStat ? ECsvCustomStatOp::Accumulate : ECsvCustomStatOp::Set;
@@ -582,7 +582,7 @@ public:
 		TRACE_STAT_SET(GET_STATFNAME(Stat_GPU_Total), TotalMs);
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (CsvProfiler)
 		{
 			CsvProfiler->RecordCustomStat(CSV_STAT_FNAME(Total), CSV_CATEGORY_INDEX(GPU), TotalUs / 1000.f, ECsvCustomStatOp::Set);
@@ -952,7 +952,7 @@ void LatchAreGPUStatsEnabled()
 
 #if STATS 
 		return true;
-#elif !CSV_PROFILER
+#elif !CSV_PROFILER_STATS
 		return false;
 #else
 

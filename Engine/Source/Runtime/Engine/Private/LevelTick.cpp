@@ -58,7 +58,7 @@ CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, Basic);
 CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, Ticks, true);
 CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, ActorCount, true);
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, ObjectCount, true);
 #endif
 
@@ -1165,7 +1165,7 @@ void UWorld::FlushDeferredParameterCollectionInstanceUpdates()
 	}
 }
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 static TAutoConsoleVariable<int32> CVarRecordTickCountsToCSV(
 	TEXT("csv.RecordTickCounts"),
 	1,
@@ -1236,7 +1236,7 @@ static void RecordWorldCountsToCSV(UWorld* World, bool bDoingActorTicks)
 #endif
 	}
 }
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 DECLARE_CYCLE_STAT(TEXT("TG_PrePhysics"), STAT_TG_PrePhysics, STATGROUP_TickGroups);
 DECLARE_CYCLE_STAT(TEXT("TG_StartPhysics"), STAT_TG_StartPhysics, STATGROUP_TickGroups);
@@ -1705,7 +1705,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 	GDetailedPathFindingStats.DumpStats();
 #endif
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	RecordWorldCountsToCSV(this, bDoingActorTicks);
 
 	if (IsGameWorld() && FCsvProfiler::Get()->IsCapturing())
@@ -1728,7 +1728,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 
 		CSV_CUSTOM_STAT(LevelStreaming, NumLevelsPendingPurge, FLevelStreamingGCHelper::GetNumLevelsPendingPurge(), ECsvCustomStatOp::Set);
 	}
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 

@@ -1351,7 +1351,7 @@ RHI_API void FRHIDrawStats::ProcessAsFrameStats()
 	SET_DWORD_STAT(STAT_RHILines             , Total.Lines    );
 	SET_DWORD_STAT(STAT_RHIDrawPrimitiveCalls, Total.Draws    );
 
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 	for (int32 CategoryIndex = 0; CategoryIndex < Manager.NumCategory; ++CategoryIndex)
 	{
 		FCsvProfiler::RecordCustomStat(Manager.Array[CategoryIndex]->Name, CSV_CATEGORY_INDEX(DrawCall), int32(TotalPerCategory[CategoryIndex].Draws), ECsvCustomStatOp::Set);

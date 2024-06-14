@@ -12,11 +12,11 @@ namespace UE::CsvMetrics::Private
 {
 bool CanHaveCsvMetrics(const UWorld* World)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	return World && World->IsGameWorld();
 #else
 	return false;
-#endif	// CSV_PROFILER
+#endif	// CSV_PROFILER_STATS
 }
 
 }  // namespace UE::CsvMetrics::Private
@@ -49,7 +49,7 @@ void UCsvMetricsSubsystem::Deinitialize()
 
 void UCsvMetricsSubsystem::BindProfilerCallbacks()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCsvProfiler* CsvProfiler = FCsvProfiler::Get();
 	if (ensure(CsvProfiler))
 	{
@@ -57,19 +57,19 @@ void UCsvMetricsSubsystem::BindProfilerCallbacks()
 
 		ProfileEndHandle = CsvProfiler->OnCSVProfileEnd().AddUObject(this, &UCsvMetricsSubsystem::RemoveMetrics);
 	}
-#endif	// CSV_PROFILER
+#endif	// CSV_PROFILER_STATS
 }
 
 void UCsvMetricsSubsystem::UnbindProfilerCallbacks()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCsvProfiler* CsvProfiler = FCsvProfiler::Get();
 	if (ensure(CsvProfiler))
 	{
 		CsvProfiler->OnCSVProfileStart().Remove(ProfileStartHandle);
 		CsvProfiler->OnCSVProfileEnd().Remove(ProfileEndHandle);
 	}
-#endif	// CSV_PROFILER
+#endif	// CSV_PROFILER_STATS
 }
 
 void UCsvMetricsSubsystem::AddMetrics()

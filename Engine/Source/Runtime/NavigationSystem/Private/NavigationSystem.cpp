@@ -549,12 +549,12 @@ void FNavRegenTimeSliceManager::CalcTimeSliceDuration(const TArray<TObjectPtr<AN
 	{
 		if (TileWaitTimes.IsValidIndex(NavDataIndex))
 		{
-#if CSV_PROFILER			
+#if CSV_PROFILER_STATS			
 			const float WaitTime = static_cast<float>(GetAverageTileWaitTime(NavDataIndex) * 1000.);
 
 			const FString StatName = FString::Printf(TEXT("NavTileAvTileWaitTimeMs_%s"), *GetNameSafe(NavDataSet[NavDataIndex])); 
 			FCsvProfiler::RecordCustomStat(*StatName, CSV_CATEGORY_INDEX(NavTasksDelays), WaitTime, ECsvCustomStatOp::Set);
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 
 			ResetTileWaitTime(NavDataIndex);
 		}
@@ -1587,7 +1587,7 @@ void UNavigationSystemV1::Tick(float DeltaSeconds)
 		}
 	}
 
-#if !UE_BUILD_SHIPPING && CSV_PROFILER
+#if !UE_BUILD_SHIPPING && CSV_PROFILER_STATS
 	for (const TObjectPtr<ANavigationData>& NavigationData : NavDataSet)
 	{
 		if (NavigationData)
@@ -1602,7 +1602,7 @@ void UNavigationSystemV1::Tick(float DeltaSeconds)
 	}
 	
 	CSV_CUSTOM_STAT(NavigationSystem, NumRunningTasks, GetNumRunningBuildTasks(), ECsvCustomStatOp::Set);
-#endif // !UE_BUILD_SHIPPING && CSV_PROFILER
+#endif // !UE_BUILD_SHIPPING && CSV_PROFILER_STATS
 
 	// In multithreaded configuration we can process async pathfinding queries
 	// in dedicated task while dispatching completed queries results on the main thread.
@@ -5455,7 +5455,7 @@ void UNavigationSystemV1::UpdateInvokers()
 	}
 
 #if !UE_BUILD_SHIPPING
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (FCsvProfiler::Get()->IsCapturing())
 	{
 		TArray<int32, TInlineAllocator<8>> InvokerCounts;
@@ -5484,7 +5484,7 @@ void UNavigationSystemV1::UpdateInvokers()
 			FCsvProfiler::RecordCustomStat(TEXT("InvokersFarAway"), CSV_CATEGORY_INDEX(NavInvokers), Invokers.Num() - InvokerLocations.Num(), ECsvCustomStatOp::Set);
 		}		
 	}
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 #endif // !UE_BUILD_SHIPPING
 }
 

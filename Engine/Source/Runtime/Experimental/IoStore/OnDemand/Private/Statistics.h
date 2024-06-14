@@ -6,7 +6,7 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
-#if COUNTERSTRACE_ENABLED || CSV_PROFILER
+#if COUNTERSTRACE_ENABLED || CSV_PROFILER_STATS
 #	define IAS_WITH_STATISTICS 1
 #else
 #	define IAS_WITH_STATISTICS 0

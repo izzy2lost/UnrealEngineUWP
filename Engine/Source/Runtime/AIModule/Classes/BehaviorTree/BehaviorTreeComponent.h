@@ -293,7 +293,7 @@ public:
 	AIMODULE_API virtual void DescribeSelfToVisLog(struct FVisualLogEntry* Snapshot) const override;
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	/** Set a custom CSV tick stat name, must point to a static string */
 	void SetCSVTickStatName(const char* InCSVTickStatName) { CSVTickStatName = InCSVTickStatName; }
 #endif
@@ -561,7 +561,7 @@ protected:
 	/** GameTime of the last DeltaTime request, used for debugging to output warnings about ticking */
 	double LastRequestedDeltaTimeGameTime = 0;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	/** CSV tick stat name. Can be changed but must point to a static string */
 	const char* CSVTickStatName = "BehaviorTreeTick";
 #endif

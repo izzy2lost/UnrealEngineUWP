@@ -44,7 +44,7 @@ static FAutoConsoleVariableRef CVarVeryLargePageAllocatorMaxEmptyBackstoreSmallP
 	GVeryLargePageAllocatorMaxEmptyBackStoreCount[FMemory::AllocationHints::SmallPool],
 	TEXT("Number of free pages (2MB each) to cache (not decommited) for allocation hint SMALL POOL"));
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, FMemory);
 
 static volatile int32 GLargePageAllocatorCommitCount = 0;
@@ -227,7 +227,7 @@ void* FCachedOSVeryLargePageAllocator::Allocate(SIZE_T Size, uint32 AllocationHi
 								// A new large page has been created. Add it to CachedFree counter
 								CachedFree += SizeOfLargePage;
 								CommitedLargePagesCount[AllocationHint] += 1;
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 								FPlatformAtomics::InterlockedIncrement(&GLargePageAllocatorCommitCount);
 #endif
 							}
@@ -312,7 +312,7 @@ void FCachedOSVeryLargePageAllocator::Free(void* Ptr, SIZE_T Size, FCriticalSect
 				}
 
 				CommitedLargePagesCount[LargePage->AllocationHint] -= 1;
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 				FPlatformAtomics::InterlockedIncrement(&GLargePageAllocatorDecommitCount);
 #endif
 
@@ -422,7 +422,7 @@ void FCachedOSVeryLargePageAllocator::FreeAll(FCriticalSection* Mutex)
 
 void FCachedOSVeryLargePageAllocator::UpdateStats()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorCommitCount, GLargePageAllocatorCommitCount, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorDecommitCount, GLargePageAllocatorDecommitCount, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FMemory, LargeAllocatorBackingStoreCountSmall, EmptyBackStoreCount[FMemory::AllocationHints::SmallPool], ECsvCustomStatOp::Set);

@@ -444,7 +444,7 @@ FAutoConsoleVariableRef CVarRDGIndirectArgBufferTransientAllocated(
 	TEXT("Whether indirect argument buffers should use transient resource allocator. Default: 0"),
 	ECVF_RenderThreadSafe);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 int32 GRDGVerboseCSVStats = 0;
 FAutoConsoleVariableRef CVarRDGVerboseCSVStats(
 	TEXT("r.RDG.VerboseCSVStats"),

@@ -35,11 +35,11 @@ enum class EMassCommandCheckTime : bool
 	CompileTimeCheck = false
 };
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 #	define DEBUG_NAME(Name) , FName(TEXT(Name))
 #else
 #	define DEBUG_NAME(Name)
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 namespace UE::Mass::Utils
 {
@@ -77,12 +77,12 @@ struct MASSENTITY_API FMassBatchedCommand
 	explicit FMassBatchedCommand(EMassCommandOperationType OperationType)
 		: OperationType(OperationType)
 	{}
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	FMassBatchedCommand(EMassCommandOperationType OperationType, FName DebugName)
 		: OperationType(OperationType)
 		, DebugName(DebugName)
 	{}
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	virtual ~FMassBatchedCommand() { Reset(); }
 
 	virtual void Execute(FMassEntityManager& System) const = 0;
@@ -103,10 +103,10 @@ struct MASSENTITY_API FMassBatchedCommand
 
 	virtual SIZE_T GetAllocatedSize() const = 0;
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	virtual int32 GetNumOperationsStat() const = 0;
 	FName GetFName() const { return DebugName; }
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 protected:
 	// @todo note for reviewers - I could use an opinion if having a virtual function per-command would be a more 
@@ -114,9 +114,9 @@ protected:
 	bool bHasWork = false;
 	EMassCommandOperationType OperationType = EMassCommandOperationType::None;
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	FName DebugName;
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 private:
 	static std::atomic<uint32> CommandsCounter;
@@ -131,11 +131,11 @@ struct FMassBatchedEntityCommand : public FMassBatchedCommand
 		: Super(OperationType)
 	{}
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	FMassBatchedEntityCommand(EMassCommandOperationType OperationType, FName DebugName)
 		: Super(OperationType, DebugName)
 	{}
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 	void Add(FMassEntityHandle Entity)
 	{
@@ -163,9 +163,9 @@ protected:
 		Super::Reset();
 	}
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	virtual int32 GetNumOperationsStat() const override { return TargetEntities.Num(); }
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 	UE_MT_DECLARE_RW_ACCESS_DETECTOR(EntitiesAccessDetector); 
 	TArray<FMassEntityHandle> TargetEntities;
@@ -257,13 +257,13 @@ struct FMassCommandChangeTags : public FMassBatchedEntityCommand
 		, TagsToRemove(TagsToRemove)
 	{}
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	FMassCommandChangeTags(EMassCommandOperationType OperationType, FMassTagBitSet TagsToAdd, FMassTagBitSet TagsToRemove, FName DebugName)
 		: Super(OperationType, DebugName)
 		, TagsToAdd(TagsToAdd)
 		, TagsToRemove(TagsToRemove)
 	{}
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 protected:
 	virtual void Execute(FMassEntityManager& System) const override
@@ -394,9 +394,9 @@ struct FMassCommandBuildEntity : public FMassCommandAddFragmentInstances<TOthers
 	FMassCommandBuildEntity()
 	{
 		Super::OperationType = EMassCommandOperationType::Create;
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 		Super::DebugName = TEXT("FMassCommandBuildEntity");
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	}
 
 protected:
@@ -497,7 +497,7 @@ protected:
 		Super::Reset();
 	}
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	virtual int32 GetNumOperationsStat() const override
 	{
 		int32 TotalCount = 0;
@@ -507,7 +507,7 @@ protected:
 		}
 		return TotalCount;
 	}
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 	FMassFragmentBitSet FragmentsAffected;
 
@@ -578,12 +578,12 @@ protected:
 		Super::Reset();
 	}
 
-#if CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#if CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 	virtual int32 GetNumOperationsStat() const override
 	{
 		return DeferredFunctions.Num();
 	}
-#endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
+#endif // CSV_PROFILER_STATS || WITH_MASSENTITY_DEBUG
 
 	TArray<FExecFunction> DeferredFunctions;
 };

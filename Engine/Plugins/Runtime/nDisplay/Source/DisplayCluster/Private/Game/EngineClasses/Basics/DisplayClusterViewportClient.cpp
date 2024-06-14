@@ -723,7 +723,7 @@ void UDisplayClusterViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCa
 				}
 			}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			UpdateCsvCameraStats(PlayerViewMap);
 #endif
 			if (ViewFamily.Views.Num() > 0)
@@ -780,7 +780,7 @@ void UDisplayClusterViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCa
 							DynamicResolutionStateInfos.ResolutionFractionUpperBounds[GDynamicPrimaryResolutionFraction]));
 					}
 
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 					if (DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] >= 0.0f)
 					{
 						CSV_CUSTOM_STAT_GLOBAL(DynamicResolutionPercentage, DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);

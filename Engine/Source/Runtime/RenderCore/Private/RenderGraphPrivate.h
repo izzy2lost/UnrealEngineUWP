@@ -136,7 +136,7 @@ const int32 GRDGParallelExecutePassMax = 0;
 
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 extern int32 GRDGVerboseCSVStats;
 #else
 const int32 GRDGVerboseCSVStats = 0;

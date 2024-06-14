@@ -774,7 +774,7 @@ void FD3D12CommandContextBase::RHIEndFrame()
 
 void FD3D12CommandContextBase::UpdateMemoryStats()
 {
-#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
+#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 	SCOPE_CYCLE_COUNTER(STAT_D3DUpdateVideoMemoryStats);
 
 	// Refresh captured memory stats.
@@ -800,7 +800,7 @@ void FD3D12CommandContextBase::UpdateMemoryStats()
 		ParentAdapter->GetUploadHeapAllocator(GPUIndex).UpdateMemoryStats();
 	}
 #endif // STATS
-#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
+#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 }
 
 IRHIComputeContext* FD3D12DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask)

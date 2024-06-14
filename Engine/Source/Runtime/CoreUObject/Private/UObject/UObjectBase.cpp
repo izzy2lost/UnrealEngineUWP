@@ -33,7 +33,7 @@ DECLARE_CYCLE_STAT(TEXT("CreateStatID"), STAT_CreateStatID, STATGROUP_StatSystem
 
 DEFINE_LOG_CATEGORY_STATIC(LogUObjectBootstrap, Display, Display);
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 namespace UObjectStats
 {
 	COREUOBJECT_API std::atomic<int32> GUObjectCount;
@@ -105,7 +105,7 @@ UObjectBase::UObjectBase( EObjectFlags InFlags )
 ,	ClassPrivate		(nullptr)
 ,	OuterPrivate		(nullptr)
 {
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::IncrementUObjectCount();
 #endif
 }
@@ -134,7 +134,7 @@ UObjectBase::UObjectBase(UClass* InClass,
 	// Add to global table.
 	AddObject(InName, InInternalFlags, InInternalIndex, InSerialNumber);
 	
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::IncrementUObjectCount();
 #endif
 		}	
@@ -157,7 +157,7 @@ UObjectBase::~UObjectBase()
 		GUObjectArray.FreeUObjectIndex(this);
 	}
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::DecrementUObjectCount();
 #endif
 }

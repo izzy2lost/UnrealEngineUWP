@@ -28,7 +28,7 @@
 
 DECLARE_LOG_CATEGORY_CLASS(LogShaderWarnings, Log, Log);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 TCsvPersistentCustomStat<int>* CsvStatNumShaderMapsUsedForRendering = nullptr;
 #endif
 
@@ -512,7 +512,7 @@ void FShaderMapResource::ReleaseShaders()
 			}
 		}
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 		TCsvPersistentCustomStat<int>* CsvStatNumShadersCreated = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersCreated"), CSV_CATEGORY_INDEX(Shaders));
 		CsvStatNumShadersCreated->Sub(NumReleaseShaders);
 #endif
@@ -523,7 +523,7 @@ void FShaderMapResource::ReleaseShaders()
 		{
 			DEC_DWORD_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 			if(CsvStatNumShaderMapsUsedForRendering == nullptr)
 			{
 				CsvStatNumShaderMapsUsedForRendering = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMapsUsedForRendering"), CSV_CATEGORY_INDEX(Shaders));
@@ -612,7 +612,7 @@ FRHIShader* FShaderMapResource::CreateShaderOrCrash(int32 ShaderIndex, bool bReq
 			{
 				INC_DWORD_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 				if (CsvStatNumShaderMapsUsedForRendering == nullptr)
 				{
 					CsvStatNumShaderMapsUsedForRendering = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMapsUsedForRendering"), CSV_CATEGORY_INDEX(Shaders));
@@ -732,7 +732,7 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 
 	INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 	TCsvPersistentCustomStat<int>* CsvStatNumShadersCreated = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersCreated"), CSV_CATEGORY_INDEX(Shaders));
 	CsvStatNumShadersCreated->Add(1);
 #endif

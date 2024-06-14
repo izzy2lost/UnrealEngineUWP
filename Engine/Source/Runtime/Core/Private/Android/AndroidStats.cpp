@@ -94,7 +94,7 @@ DECLARE_FLOAT_COUNTER_STAT(TEXT("Thermal Stress"), STAT_ThermalStress, STATGROUP
 
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 
 #define CSV_STAT_PTR(StatName)									&_GCsvStat_##StatName
 #define CSV_CUSTOM_STAT_DEFINED_BY_PTR(StatPtr,Value,Op)		FCsvProfiler::RecordCustomStat(StatPtr->Name, StatPtr->CategoryIndex, Value, Op);

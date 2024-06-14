@@ -217,7 +217,7 @@ class FParticlePerfStatsManager
 {
 public:
 	static ENGINE_API FDelegateHandle BeginFrameHandle;
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	static ENGINE_API FDelegateHandle CSVStartHandle;
 	static ENGINE_API FDelegateHandle CSVEndHandle;
 #endif

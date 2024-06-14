@@ -15,7 +15,7 @@ DECLARE_CYCLE_STAT(TEXT("Mass Flush Commands"), STAT_Mass_FlushCommands, STATGRO
 
 namespace UE::Mass::Command {
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 bool bEnableDetailedStats = false;
 
 FAutoConsoleVariableRef CVarEnableDetailedCommandStats(TEXT("massentities.EnableCommandDetailedStats"), bEnableDetailedStats,
@@ -147,7 +147,7 @@ bool FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 				: AppendedCommandInstances[CommandIndex - OwnedCommandsCount];
 			check(Command)
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			using namespace UE::Mass::Command;
 
 			// Extract name (default or detailed)
@@ -158,7 +158,7 @@ bool FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 			// Push stats
 			FScopedCsvStat ScopedCsvStat(**ANSIName, CSV_CATEGORY_INDEX(MassEntities));
 			FCsvProfiler::RecordCustomStat(**Name, CSV_CATEGORY_INDEX(MassEntitiesCounters), Command->GetNumOperationsStat(), ECsvCustomStatOp::Accumulate);
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 
 			Command->Execute(EntityManager);
 			Command->Reset();

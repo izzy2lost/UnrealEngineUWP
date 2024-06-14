@@ -1698,7 +1698,7 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 	FPlatformEventsTrace::Init(Microseconds);
 	FPlatformEventsTrace::PostInit();
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCoreDelegates::OnEndFrame.AddRaw(&GTraceAuxiliary, &FTraceAuxiliaryImpl::UpdateCsvStats);
 #endif
 

@@ -1900,7 +1900,7 @@ CSV_DECLARE_CATEGORY_EXTERN(ReplicationGraphCleanNumReps);
 CSV_DECLARE_CATEGORY_EXTERN(ReplicationGraphRedundantMS);
 
 #ifndef REPGRAPH_CSV_TRACKER
-#define REPGRAPH_CSV_TRACKER (CSV_PROFILER && WITH_SERVER_CODE)
+#define REPGRAPH_CSV_TRACKER (CSV_PROFILER_STATS && WITH_SERVER_CODE)
 #endif
 
 /** Helper struct for tracking finer grained ReplicationGraph stats through the CSV profiler. Intention is that it is setup/configured in the UReplicationGraph subclasses */

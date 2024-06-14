@@ -105,7 +105,7 @@ struct FRDGScope_GPU
 };
 #endif // HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 struct FRDGScope_CSVExclusive
 {
 	const char* const StatName;
@@ -139,7 +139,7 @@ struct FRDGScope_CSVExclusive
 	{
 	}
 };
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 
 struct FRDGScope_Budget
 {
@@ -285,7 +285,7 @@ struct FRDGScope
 #if HAS_GPU_STATS && (RHI_NEW_GPU_PROFILER == 0)
 		, FRDGScope_GPU
 #endif
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		, FRDGScope_CSVExclusive
 #endif
 	> FStorage;
@@ -393,7 +393,7 @@ private:
 	#define RDG_GPU_STAT_SCOPE_VERBOSE(GraphBuilder, StatName, Description)
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	#define RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, StatName) TRDGEventScopeGuard<FRDGScope_CSVExclusive> PREPROCESSOR_JOIN(__RDG_CSVStat_##StatName,__LINE__) ((GraphBuilder), ERDGScopeFlags::AlwaysEnable, #StatName);
 #else
 	#define RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, StatName)

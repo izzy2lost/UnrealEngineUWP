@@ -17,7 +17,7 @@
 #endif
 
 #ifndef SLATE_CSV_TRACKER
-	#define SLATE_CSV_TRACKER CSV_PROFILER
+	#define SLATE_CSV_TRACKER CSV_PROFILER_STATS
 #endif
 
 // Enabled to build a list of all the SWidget currently constructed

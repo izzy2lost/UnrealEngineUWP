@@ -19,7 +19,7 @@
 #define PLATFORM_IODISPATCHER_MODULE PREPROCESSOR_TO_STRING(PREPROCESSOR_JOIN(PLATFORM_HEADER_NAME, PlatformIoDispatcher))
 #endif
 
-#define UE_FILEIOSTORE_STATS_ENABLED (COUNTERSTRACE_ENABLED || CSV_PROFILER)
+#define UE_FILEIOSTORE_STATS_ENABLED (COUNTERSTRACE_ENABLED || CSV_PROFILER_STATS)
 
 struct FFileIoStoreCompressionContext;
 
@@ -902,7 +902,7 @@ private:
 	FCountersTrace::TCounter<std::atomic<int64>, TraceCounterType_Int> AvailableBuffersCounter;
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	uint64 QueuedFilesystemReadBytes = 0;
 	uint64 QueuedFilesystemReads = 0;
 

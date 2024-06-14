@@ -1745,7 +1745,7 @@ bool FObjectReplicator::CanSkipUpdate(FReplicationFlags RepFlags)
 	if (bHasNoRepLayout)
 	{
 		// No properties to replicate and no RPCs queued, let's skip!
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		++GNumSkippedObjectEmptyUpdates;
 #endif
 
@@ -1799,7 +1799,7 @@ bool FObjectReplicator::CanSkipUpdate(FReplicationFlags RepFlags)
 
 	if (bCanSkip)
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		++GNumSkippedObjectEmptyUpdates;
 #endif
 

@@ -3337,7 +3337,7 @@ void FMaterialShaderMap::Register(EShaderPlatform InShaderPlatform)
 	{
 		INC_DWORD_STAT(STAT_Shaders_NumShaderMaps);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 		TCsvPersistentCustomStat<int>* CsvStatNumShaderMaps = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMaps"), CSV_CATEGORY_INDEX(Shaders));
 		CsvStatNumShaderMaps->Add(1);
 #endif
@@ -3423,7 +3423,7 @@ void FMaterialShaderMap::Release()
 				bRegistered = false;
 				DEC_DWORD_STAT(STAT_Shaders_NumShaderMaps);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 				TCsvPersistentCustomStat<int>* CsvStatNumShaderMaps = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMaps"), CSV_CATEGORY_INDEX(Shaders));
 				CsvStatNumShaderMaps->Sub(1);
 #endif
@@ -3511,7 +3511,7 @@ FMaterialShaderMap::~FMaterialShaderMap()
 		uint32 OwnShaders = TotalShadersIncludingBaseClass - BaseClassShaders;
 		DEC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, OwnShaders);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 		TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
 		CsvStatNumShadersLoaded->Sub(OwnShaders);
 #endif
@@ -3581,7 +3581,7 @@ bool FMaterialShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources, bo
 		uint32 OwnShaders = TotalShadersIncludingBaseClass - BaseClassShaders;
 		INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, OwnShaders);
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
 		TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
 		CsvStatNumShadersLoaded->Add(OwnShaders);
 #endif

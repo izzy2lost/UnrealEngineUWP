@@ -2188,21 +2188,21 @@ FFileIoStoreStats::FFileIoStoreStats()
 	, AvailableBuffersCounter(TEXT("FileIoStore/AvailableBuffers"), TraceCounterDisplayHint_None)
 #endif
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FFileIoStoreStats::CsvTick));
 #endif
 }
 
 FFileIoStoreStats::~FFileIoStoreStats()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 #endif
 }
 
 bool FFileIoStoreStats::CsvTick(float DeltaTime)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	CSV_CUSTOM_STAT_DEFINED(QueuedFilesystemReadMB, BytesToApproxMB(QueuedFilesystemReadBytes), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(QueuedFilesystemReads, (int32)QueuedFilesystemReads, ECsvCustomStatOp::Set);
 
@@ -2224,7 +2224,7 @@ void FFileIoStoreStats::OnReadRequestsQueued(const FFileIoStoreReadRequestList& 
 		TotalBytes += Request->Size;
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	QueuedFilesystemReadBytes += TotalBytes;
 	QueuedFilesystemReads += NumReads;
 #endif
@@ -2319,7 +2319,7 @@ void FFileIoStoreStats::OnReadRequestsCompleted(const FFileIoStoreReadRequestLis
 		TotalBytes += Request->Size;
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	QueuedFilesystemReadBytes -= TotalBytes;
 	QueuedFilesystemReads -= NumReads;
 #endif
@@ -2334,7 +2334,7 @@ void FFileIoStoreStats::OnReadRequestsCompleted(const FFileIoStoreReadRequestLis
 
 void FFileIoStoreStats::OnDecompressQueued(const FFileIoStoreCompressedBlock* CompressedBlock)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	++QueuedUncompressBlocks;
 	QueuedUncompressBytesIn += CompressedBlock->CompressedSize;
 	QueuedUncompressBytesOut += CompressedBlock->UncompressedSize;
@@ -2348,7 +2348,7 @@ void FFileIoStoreStats::OnDecompressQueued(const FFileIoStoreCompressedBlock* Co
 
 void FFileIoStoreStats::OnDecompressComplete(const FFileIoStoreCompressedBlock* CompressedBlock)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	--QueuedUncompressBlocks;
 	QueuedUncompressBytesIn -= CompressedBlock->CompressedSize;
 	QueuedUncompressBytesOut -= CompressedBlock->UncompressedSize;

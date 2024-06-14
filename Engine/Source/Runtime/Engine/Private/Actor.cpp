@@ -100,7 +100,7 @@ extern int32 GOptimizeActorRegistration;
 FOnProcessEvent AActor::ProcessEventDelegate;
 #endif
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 /** Count of total actors created */
 int32 CSVActorTotalCount = 0;
@@ -109,7 +109,7 @@ TMap<FName, int32> CSVActorClassNameToCountMap;
 /** Critical section to control access to map */
 FCriticalSection CSVActorClassNameToCountMapLock;
 
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITOR
 AActor::FDuplicationSeedInterface::FDuplicationSeedInterface(TMap<UObject*, UObject*>& InDuplicationSeed)
@@ -223,7 +223,7 @@ void AActor::InitializeDefaults()
 #endif
 	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	// Increment actor class count
 	// Update our ActorClassName count after the transaction finishes
 	UE_AUTORTFM_ONCOMMIT2(=)
@@ -239,7 +239,7 @@ void AActor::InitializeDefaults()
 			CSVActorTotalCount++;
 		}
 	};
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITORONLY_DATA
 	bIsSpatiallyLoaded = true;
@@ -779,7 +779,7 @@ void AActor::BeginDestroy()
 		Level->Actors.RemoveSingleSwap(this, EAllowShrinking::No);
 	}
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	// Decrement actor class count
 	// Update our ActorClassName count after the transaction finishes
 	UE_AUTORTFM_ONCOMMIT2(=)
@@ -798,7 +798,7 @@ void AActor::BeginDestroy()
 			CSVActorTotalCount--;
 		}
 	};
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITOR
 	UEngineElementsLibrary::DestroyEditorActorElement(this);

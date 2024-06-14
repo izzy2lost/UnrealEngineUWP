@@ -16,9 +16,7 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "FramePro/FrameProProfiler.h"
 
-#if CSV_PROFILER
 CSV_DEFINE_CATEGORY_MODULE(CORE_API, FMemory, true);
-#endif
 
 #if FRAMEPRO_ENABLED
 /** Pushes a profiler scope if it's safe to do so without any new allocations. */
@@ -1382,9 +1380,7 @@ void FMallocBinned2::DumpAllocatorStats(class FOutputDevice& Ar)
 
 void FMallocBinned2::UpdateStats()
 {
-#if CSV_PROFILER
 	CSV_CUSTOM_STAT(FMemory, AllocatorCachedSlackMB, (int32)(CachedOSPageAllocator.GetCachedFreeTotal()/(1024*1024)), ECsvCustomStatOp::Set);
-#endif
 
 	CachedOSPageAllocator.UpdateStats();
 	FScopedVirtualMallocTimer::UpdateStats();

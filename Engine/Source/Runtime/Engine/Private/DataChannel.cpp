@@ -2885,7 +2885,7 @@ bool UActorChannel::ProcessQueuedBunches()
 
 			if (UPackageMapClient * PackageMapClient = Cast< UPackageMapClient >(Connection->PackageMap))
 			{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 				FNetGUIDCache::FIsOwnerOrPawnHelper Helper(Connection->Driver->GuidCache.Get(), Connection->OwningActor, Actor);
 #endif
 
@@ -2975,7 +2975,7 @@ void UActorChannel::ReceivedBunch( FInBunch & Bunch )
 
 			FNetGUIDCache* GuidCache = Connection->Driver->GuidCache.Get();
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			FNetGUIDCache::FIsOwnerOrPawnHelper Helper(GuidCache, Connection->OwningActor, Actor);
 #endif
 

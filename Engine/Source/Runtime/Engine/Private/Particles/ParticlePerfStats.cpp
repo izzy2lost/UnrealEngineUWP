@@ -35,7 +35,7 @@ TAtomic<int32> FParticlePerfStats::SystemStatsReaders(0);
 TAtomic<int32> FParticlePerfStats::ComponentStatsReaders(0);
 
 FDelegateHandle FParticlePerfStatsManager::BeginFrameHandle;
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 FDelegateHandle FParticlePerfStatsManager::CSVStartHandle;
 FDelegateHandle FParticlePerfStatsManager::CSVEndHandle;
 #endif
@@ -539,7 +539,7 @@ int32 FParticlePerfStatsManager::RenderStats(class UWorld* World, class FViewpor
 void FParticlePerfStatsManager::OnStartup()
 {
 	BeginFrameHandle = FCoreDelegates::OnBeginFrame.AddStatic(Tick);
-#if CSV_PROFILER && !UE_BUILD_SHIPPING
+#if CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 	if (FCsvProfiler* CSVProfiler = FCsvProfiler::Get())
 	{
 		CSVStartHandle = CSVProfiler->OnCSVProfileStart().AddStatic(FParticlePerfStatsListener_CSVProfiler::OnCSVStart);
@@ -551,7 +551,7 @@ void FParticlePerfStatsManager::OnStartup()
 void FParticlePerfStatsManager::OnShutdown()
 {
 	FCoreDelegates::OnBeginFrame.Remove(BeginFrameHandle);
-#if CSV_PROFILER && !UE_BUILD_SHIPPING
+#if CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 	if (FCsvProfiler* CSVProfiler = FCsvProfiler::Get())
 	{
 		CSVProfiler->OnCSVProfileStart().Remove(CSVStartHandle);

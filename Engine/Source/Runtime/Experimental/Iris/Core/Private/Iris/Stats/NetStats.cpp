@@ -67,7 +67,7 @@ void FNetSendStats::Reset()
 
 void FNetSendStats::ReportCsvStats()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FScopeLock Lock(&CS);
 
 	// Calculate connection averages for some stats

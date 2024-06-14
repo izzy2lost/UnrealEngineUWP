@@ -303,7 +303,7 @@ void ULevelStreamingProfilingSubsystem::StopTrackingAndReport()
 				Write();
 			}
 
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 			// Write a metadata row like CSV files 
 			TMap<FString, FString> Metadata = FCsvProfiler::Get()->GetMetadataMapCopy();
 			if (Metadata.Num() > 0)

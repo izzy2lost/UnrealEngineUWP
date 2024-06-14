@@ -660,7 +660,7 @@ int32 FAnimationBudgetAllocator::CalculateWorkDistributionAndQueue(float InDelta
 			}
 		}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if(AllSortedComponentData.Num() > 0)
 		{
 			for (int32 ComponentDataIndex : AllSortedComponentData)

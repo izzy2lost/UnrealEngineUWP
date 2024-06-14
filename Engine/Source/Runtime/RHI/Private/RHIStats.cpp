@@ -59,13 +59,11 @@ DEFINE_STAT(STAT_D3DAvailableSystemMemory);
 DEFINE_STAT(STAT_D3DDemotedVideoMemory);
 DEFINE_STAT(STAT_D3DDemotedSystemMemory);
 
-#if CSV_PROFILER
 CSV_DEFINE_CATEGORY(GPUMem, true);
-#endif
 
 void UpdateD3DMemoryStatsAndCSV(const FD3DMemoryStats& MemoryStats, bool bUpdateCSV)
 {
-#if STATS || CSV_PROFILER
+#if STATS || CSV_PROFILER_STATS
 	SCOPE_CYCLE_COUNTER(STAT_D3DUpdateVideoMemoryStats);
 
 #if STATS
@@ -83,7 +81,7 @@ void UpdateD3DMemoryStatsAndCSV(const FD3DMemoryStats& MemoryStats, bool bUpdate
 	}
 #endif // STATS
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (bUpdateCSV)
 	{
 		// Just output the two main stats (budget and used) to avoid bloating the CSV, since the rest can be inferred from them.
@@ -96,8 +94,8 @@ void UpdateD3DMemoryStatsAndCSV(const FD3DMemoryStats& MemoryStats, bool bUpdate
 			CSV_CUSTOM_STAT(GPUMem, SystemUsedMB, float(MemoryStats.UsedSystem / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
 		}
 	}
-#endif // CSV_PROFILER
-#endif // STATS || CSV_PROFILER
+#endif // CSV_PROFILER_STATS
+#endif // STATS || CSV_PROFILER_STATS
 }
 
 #endif // PLATFORM_MICROSOFT

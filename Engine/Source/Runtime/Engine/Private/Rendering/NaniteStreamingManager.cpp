@@ -1695,7 +1695,7 @@ FRDGBuffer* FStreamingManager::GrowPoolAllocationIfNeeded(FRDGBuilder& GraphBuil
 	SET_FLOAT_STAT(STAT_NaniteStreaming10_TotalPoolSizeMB, AllocatedPagesSize / 1048576.0f);
 	SET_FLOAT_STAT(STAT_NaniteStreaming13_MaxTotalPoolSizeMB, (float)GetMaxPagePoolSizeInMB());
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if ( ClusterPageData.DataBuffer && AllocatedPagesSize > ClusterPageData.DataBuffer->GetAlignedSize() )
 	{
 		CSV_EVENT(NaniteStreaming, TEXT("GrowPoolAllocation"));

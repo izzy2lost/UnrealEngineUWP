@@ -9,14 +9,12 @@
 
 #if !UE_BUILD_SHIPPING
 
-#if CSV_PROFILER
 CSV_DEFINE_CATEGORY(ZenServerStats, true);
 
 CSV_DEFINE_STAT(ZenServerStats, ThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, MaxReqThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, MinReqThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, RequestCountPerSec);
-#endif
 
 bool UDebugStorageServerConnection::ShowGraphs = false;
 
@@ -119,13 +117,11 @@ void UDebugStorageServerConnection::Draw(UCanvas* Canvas, APlayerController*)
 		History.erase(History.begin());
 	}
 
-#if CSV_PROFILER
 	//CSV stats need to be written per frame
 	CSV_CUSTOM_STAT_DEFINED(ThroughputMbps, Throughput, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(MaxReqThroughputMbps, MaxReqThroughput, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(MinReqThroughputMbps, MinReqThroughput, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(RequestCountPerSec, (int32)ReqCount, ECsvCustomStatOp::Set);
-#endif
 
 	if (ShowGraphs)
 	{

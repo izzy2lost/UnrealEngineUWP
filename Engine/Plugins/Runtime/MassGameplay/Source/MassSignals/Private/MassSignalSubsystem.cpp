@@ -60,7 +60,7 @@ void UMassSignalSubsystem::SignalEntities(FName SignalName, TConstArrayView<FMas
 	const UE::MassSignal::FSignalDelegate& SignalDelegate = GetSignalDelegateByName(SignalName);
 	SignalDelegate.Broadcast(SignalName, Entities);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCsvProfiler::RecordCustomStat(*SignalName.ToString(), CSV_CATEGORY_INDEX(MassSignalsCounters), Entities.Num(), ECsvCustomStatOp::Accumulate);
 #endif
 

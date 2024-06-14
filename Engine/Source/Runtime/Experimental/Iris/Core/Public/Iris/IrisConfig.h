@@ -32,7 +32,7 @@ IRISCORE_API EReplicationSystem GetUseIrisReplicationCmdlineValue();
 
 /** CSV stats. */
 #ifndef UE_NET_IRIS_CSV_STATS
-#	define UE_NET_IRIS_CSV_STATS CSV_PROFILER
+#	define UE_NET_IRIS_CSV_STATS CSV_PROFILER_STATS
 #endif
 
 /** Enables code that detects non-thread safe access to network data */

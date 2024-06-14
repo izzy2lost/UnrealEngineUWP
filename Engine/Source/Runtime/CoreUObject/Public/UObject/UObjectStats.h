@@ -10,7 +10,7 @@
 #define CSV_TRACK_UOBJECT_COUNT 0
 #endif
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 namespace UObjectStats
 {
 	extern COREUOBJECT_API std::atomic<int32> GUObjectCount;

@@ -57,7 +57,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogGenericPlatformMisc, Log, All);
 
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 bool GTrackCsvNamedEvents = false;
 static FAutoConsoleVariableRef CVarTrackCsvNamedEvents(
 	TEXT("r.TrackCsvNamedEvents"),
@@ -741,7 +741,7 @@ void FGenericPlatformMisc::RaiseException(uint32 ExceptionCode)
 template<typename CharType>
 void FGenericPlatformMisc::StatNamedEvent(const CharType* Text)
 {
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	if (GTrackCsvNamedEvents)
 	{
 		++GNamedEventMarkers;
@@ -758,7 +758,7 @@ template CORE_API void FGenericPlatformMisc::StatNamedEvent<TCHAR>(const TCHAR* 
 
 void FGenericPlatformMisc::TickStatNamedEvents()
 {
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	if (GTrackCsvNamedEvents)
 	{
 		int32 NamedEventCount = GNamedEventMarkers.exchange(0);

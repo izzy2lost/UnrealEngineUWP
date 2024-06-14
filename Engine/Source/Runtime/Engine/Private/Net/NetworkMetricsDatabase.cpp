@@ -255,7 +255,7 @@ UNetworkMetricsCSV::UNetworkMetricsCSV() :
 
 void UNetworkMetricsCSV::SetCategory(const FString& CategoryName)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	int32 Index = FCsvProfiler::GetCategoryIndex(CategoryName);
 	if (ensureMsgf(Index != 1, TEXT("Unable to find CSV category %s"), *CategoryName))
 	{
@@ -266,7 +266,7 @@ void UNetworkMetricsCSV::SetCategory(const FString& CategoryName)
 
 void UNetworkMetricsCSV::Report(const UE::Net::FNetworkMetricSnapshot& Snapshot)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (ensureMsgf(CategoryIndex != -1, TEXT("SetCategory() must be called before being registered as a listener.")))
 	{
 		for (const UE::Net::FNetworkMetric<int64>& Metric : Snapshot.MetricInts)

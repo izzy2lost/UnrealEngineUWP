@@ -571,14 +571,14 @@ void D3D11BufferStats::UpdateBufferStats(FD3D11Buffer& Buffer, bool bAllocating)
 
 void FD3D11DynamicRHI::UpdateMemoryStats()
 {
-#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
+#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 	// Some older drivers don't support querying memory stats, so don't do anything if this fails.
 	FD3DMemoryStats MemoryStats;
 	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter().DXGIAdapter, MemoryStats)))
 	{
 		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
 	}
-#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
+#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 }
 
 ID3D11Device* FD3D11DynamicRHI::RHIGetDevice() const

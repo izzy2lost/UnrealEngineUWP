@@ -254,7 +254,7 @@ public:
 	{
 		LLM_SCOPE(ELLMTag::RHIMisc);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FCsvProfiler::Get()->SetRHIThreadId(FPlatformTLS::GetCurrentThreadId());
 #endif
 		{
@@ -270,7 +270,7 @@ public:
 			FMemory::ClearAndDisableTLSCachesOnCurrentThread();
 		}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FCsvProfiler::Get()->SetRHIThreadId(0);
 #endif
 

@@ -422,7 +422,7 @@ void FMeshDrawCommandStatsManager::Update()
 	const bool bShowStats = CVarMeshDrawCommandStats->GetInt() != (int)MeshDrawStatsCollection::None;
 	bCollectStats = bShowStats || bRequestDumpStats;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	const bool bCsvExport = FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(MeshDrawCommandStats));
 	bCollectStats |= bCsvExport;
 #endif
@@ -487,7 +487,7 @@ void FMeshDrawCommandStatsManager::Update()
 
 		int CollectionIdx = CVarMeshDrawCommandStats->GetInt();
 
-	#if CSV_PROFILER // If capturing for CSV, override the collection to the one requested in the ini file
+	#if CSV_PROFILER_STATS // If capturing for CSV, override the collection to the one requested in the ini file
 		if (FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(MeshDrawCommandStats)))
 		{
 			CollectionIdx = GetDefault<UMeshDrawCommandStatsSettings>()->CollectionForCsvProfiler;
@@ -530,7 +530,7 @@ void FMeshDrawCommandStatsManager::Update()
 		}
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (bCsvExport)
 	{
 		// Output Budget totals
