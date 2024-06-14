@@ -63,6 +63,7 @@ namespace Horde.Server.Commands
 
 			IHostBuilder hostBuilder = Host.CreateDefaultBuilder(args)
 				.UseSerilog()
+				.ConfigureHostOptions(options => options.ShutdownTimeout = TimeSpan.FromSeconds(30.0))
 				.ConfigureAppConfiguration(builder => builder.AddConfiguration(config))
 				.ConfigureWebHostDefaults(webBuilder =>
 				{
