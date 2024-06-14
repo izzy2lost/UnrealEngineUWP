@@ -9,6 +9,8 @@
 #include "VectorTypes.h"
 #include "IntVectorTypes.h"
 
+#include <type_traits>
+
 namespace UE
 {
 namespace Geometry
@@ -22,13 +24,18 @@ namespace Geometry
  *
  * GridType must have a GetValue() that returns a value to interpolate at a given FVector3i location -- (w/ locations ranging from [0,0,0] to Dimensions (exclusive))
  */
-template <class GridType, typename RealType = double>
+template <class GridType, typename RealType = double, bool bScalarCellSize = true>
 class TTriLinearGridInterpolant /*: public BoundedImplicitFunction3d (TODO: consider add ImplicitFunction3d interface concept once more implicit functions are available*/
 {
+
 public:
+
+	// Type to use for CellSize
+	using CellSizeType = std::conditional_t<bScalarCellSize, RealType, TVector<RealType>>;
+
 	GridType* Grid;
 	TVector<RealType> GridOrigin;
-	RealType CellSize;
+	CellSizeType CellSize;
 	FVector3i Dimensions;
 
 	// value to return if query point is outside Grid (in an SDF
@@ -36,7 +43,7 @@ public:
 	// and cast this value to/from float; use TMathUtil<RealType>::SafeLargeValue to avoid overflow
 	RealType Outside = TMathUtil<RealType>::SafeLargeValue;
 
-	TTriLinearGridInterpolant(GridType* Grid, TVector<RealType> GridOrigin, RealType CellSize, FVector3i Dimensions) : Grid(Grid), GridOrigin(GridOrigin), CellSize(CellSize), Dimensions(Dimensions)
+	TTriLinearGridInterpolant(GridType* Grid, TVector<RealType> GridOrigin, CellSizeType CellSize, FVector3i Dimensions) : Grid(Grid), GridOrigin(GridOrigin), CellSize(CellSize), Dimensions(Dimensions)
 	{
 	}
 
@@ -44,18 +51,18 @@ public:
 	{
 		return TAxisAlignedBox3<RealType>(
 			{ GridOrigin.X, GridOrigin.Y, GridOrigin.Z },
-			{ GridOrigin.X + CellSize * (Dimensions.X - 1),
-			  GridOrigin.Y + CellSize * (Dimensions.Y - 1),
-			  GridOrigin.Z + CellSize * (Dimensions.Z - 1)});
+			{ GridOrigin.X + GetDim(CellSize, 0) * (Dimensions.X - 1),
+			  GridOrigin.Y + GetDim(CellSize, 1) * (Dimensions.Y - 1),
+			  GridOrigin.Z + GetDim(CellSize, 2) * (Dimensions.Z - 1)});
 	}
 
 	FVector3i Cell(const TVector<RealType>& Pt) const
 	{
 		// compute integer coordinates
 		FVector3i CellCoords;
-		CellCoords.X = (int)((Pt.X - GridOrigin.X) / CellSize);
-		CellCoords.Y = (int)((Pt.Y - GridOrigin.Y) / CellSize);
-		CellCoords.Z = (int)((Pt.Z - GridOrigin.Z) / CellSize);
+		CellCoords.X = (int)((Pt.X - GridOrigin.X) / GetDim(CellSize, 0));
+		CellCoords.Y = (int)((Pt.Y - GridOrigin.Y) / GetDim(CellSize, 1));
+		CellCoords.Z = (int)((Pt.Z - GridOrigin.Z) / GetDim(CellSize, 2));
 
 		return CellCoords;
 	}
@@ -64,9 +71,9 @@ public:
 	RealType Value(const TVector<RealType>& Pt) const
 	{
 		TVector<RealType> gridPt(
-			((Pt.X - GridOrigin.X) / CellSize),
-			((Pt.Y - GridOrigin.Y) / CellSize),
-			((Pt.Z - GridOrigin.Z) / CellSize));
+			((Pt.X - GridOrigin.X) / GetDim(CellSize, 0)),
+			((Pt.Y - GridOrigin.Y) / GetDim(CellSize, 1)),
+			((Pt.Z - GridOrigin.Z) / GetDim(CellSize, 2)));
 
 		if constexpr (bClamped)
 		{
@@ -95,7 +102,7 @@ public:
 		RealType fAx = gridPt.X - (RealType)X0;
 		RealType fAy = gridPt.Y - (RealType)Y0;
 		RealType fAz = gridPt.Z - (RealType)Z0;
-		RealType OneMinusfAx = 1.0 - fAx;
+		RealType OneMinusfAx = (RealType)(1.0) - fAx;
 
 		// compute trilinear interpolant. The code below tries to do this with the fewest 
 		// number of variables, in hopes that optimizer will be clever about re-using registers, etc.
@@ -145,9 +152,9 @@ public:
 	TVector<RealType> Gradient(const TVector<RealType>& Pt) const
 	{
 		TVector<RealType> gridPt = TVector<RealType>(
-			((Pt.X - GridOrigin.X) / CellSize),
-			((Pt.Y - GridOrigin.Y) / CellSize),
-			((Pt.Z - GridOrigin.Z) / CellSize));
+			((Pt.X - GridOrigin.X) /  GetDim(CellSize, 0)),
+			((Pt.Y - GridOrigin.Y) /  GetDim(CellSize, 1)),
+			((Pt.Z - GridOrigin.Z) /  GetDim(CellSize, 2)));
 
 		// clamp to Grid
 		if (gridPt.X < 0 || gridPt.X >= Dimensions.X - 1 ||
@@ -208,6 +215,19 @@ public:
 			fV111 * (fAx) * (fAy);
 
 		return TVector<RealType>(gradX, gradY, gradZ);
+	}
+
+private:
+	FORCEINLINE static RealType GetDim(CellSizeType CellSize, int32 Axis)
+	{
+		if constexpr (bScalarCellSize)
+		{
+			return CellSize;
+		}
+		else
+		{
+			return CellSize[Axis];
+		}
 	}
 };
 
