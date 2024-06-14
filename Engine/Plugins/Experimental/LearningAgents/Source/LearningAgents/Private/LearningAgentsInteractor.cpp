@@ -591,3 +591,23 @@ UE::Learning::Action::FSchemaElement ULearningAgentsInteractor::GetActionSchemaE
 {
 	return ActionSchemaElement.SchemaElement;
 }
+
+TLearningArrayView<2, const float> ULearningAgentsInteractor::GetObservationVectorArrayView() const
+{
+	return ObservationVectors;
+}
+
+uint64 ULearningAgentsInteractor::GetObservationIteration(const int32 AgentId) const
+{
+	return ObservationVectorIteration[AgentId];
+}
+
+TLearningArrayView<2, const float> ULearningAgentsInteractor::GetActionVectorArrayView() const
+{
+	return ActionVectors;
+}
+
+uint64 ULearningAgentsInteractor::GetActionIteration(const int32 AgentId) const
+{
+	return ActionVectorIteration[AgentId];
+}

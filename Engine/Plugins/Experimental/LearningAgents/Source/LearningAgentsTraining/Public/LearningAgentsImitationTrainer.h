@@ -2,7 +2,9 @@
 
 #pragma once
 
-#include "LearningAgentsTrainer.h" // Included for ELearningAgentsTrainerDevice and FLearningAgentsTrainerPathSettings
+#include "LearningAgentsManagerListener.h"
+#include "LearningAgentsTrainer.h"
+
 #include "LearningArray.h"
 
 #include "Templates/SharedPointer.h"
@@ -93,7 +95,7 @@ public:
 
 	/** The device to train on. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	ELearningAgentsTrainerDevice Device = ELearningAgentsTrainerDevice::CPU;
+	ELearningAgentsTrainingDevice Device = ELearningAgentsTrainingDevice::CPU;
 
 	/** If true, TensorBoard logs will be emitted to the intermediate directory. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
@@ -182,7 +184,7 @@ public:
 		const ULearningAgentsRecording* Recording,
 		const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings = FLearningAgentsImitationTrainerSettings(),
 		const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings = FLearningAgentsImitationTrainerTrainingSettings(),
-		const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings = FLearningAgentsTrainerPathSettings());
+		const FLearningAgentsTrainerProcessSettings& ImitationTrainerPathSettings = FLearningAgentsTrainerProcessSettings());
 
 	/** Stops the training process. */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
@@ -206,7 +208,7 @@ public:
 		const ULearningAgentsRecording* Recording,
 		const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings = FLearningAgentsImitationTrainerSettings(),
 		const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings = FLearningAgentsImitationTrainerTrainingSettings(),
-		const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings = FLearningAgentsTrainerPathSettings());
+		const FLearningAgentsTrainerProcessSettings& ImitationTrainerPathSettings = FLearningAgentsTrainerProcessSettings());
 
 // ----- Private Data -----
 private:

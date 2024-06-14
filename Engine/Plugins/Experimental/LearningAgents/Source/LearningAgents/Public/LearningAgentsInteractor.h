@@ -248,6 +248,18 @@ public:
 	/** Gets the internal action schema element */
 	UE::Learning::Action::FSchemaElement GetActionSchemaElement() const;
 
+	/** Gets the observation vectors as a const array view. */
+	TLearningArrayView<2, const float> GetObservationVectorArrayView() const;
+
+	/** Gets the observation iteration value for the given agent id. */
+	uint64 GetObservationIteration(const int32 AgentId) const;
+
+	/** Gets the action vectors as a const array view. */
+	TLearningArrayView<2, const float> GetActionVectorArrayView() const;
+
+	/** Gets the action iteration value for the given agent id. */
+	uint64 GetActionIteration(const int32 AgentId) const;
+
 private:
 
 	/** Observation Schema used by this interactor */
@@ -294,7 +306,7 @@ private:
 	/** Compatibility Hash for Observation Schema */
 	int32 ObservationCompatibilityHash = 0;
 
-	/** Compatibility Hash for Actiuon Schema */
+	/** Compatibility Hash for Action Schema */
 	int32 ActionCompatibilityHash = 0;
 
 	/** Number of times observation vector has been set for all agents */

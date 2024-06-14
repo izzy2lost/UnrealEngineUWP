@@ -478,6 +478,16 @@ UE::Learning::FNeuralNetworkFunction& ULearningAgentsPolicy::GetDecoderObject()
 	return *DecoderObject;
 }
 
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetPreEvaluationMemoryState() const
+{
+	return PreEvaluationMemoryState;
+}
+
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetMemoryState() const
+{
+	return MemoryState;
+}
+
 ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetEncoderNetworkAsset()
 {
 	if (!IsSetup())

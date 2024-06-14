@@ -24,14 +24,27 @@ namespace UE::Learning::SharedMemoryTraining
 
 	bool HasPolicyOrCompleted(TLearningArrayView<1, volatile int32> Controls)
 	{
-		return Controls[(uint8)EControls::PolicySignal] || Controls[(uint8)EControls::CompleteSignal];
+		return Controls[(uint8)EControls::NetworkSignal] || Controls[(uint8)EControls::CompleteSignal];
+	}
+
+	ETrainerResponse SendConfigSignal(
+		TLearningArrayView<1, volatile int32> Controls,
+		const ELogSetting LogSettings)
+	{
+		if (LogSettings != ELogSetting::Silent)
+		{
+			UE_LOG(LogLearning, Display, TEXT("Sending config signal..."));
+		}
+
+		Controls[(uint8)EControls::ConfigSignal] = true;
+
+		return ETrainerResponse::Success;
 	}
 
 	ETrainerResponse RecvNetwork(
 		TLearningArrayView<1, volatile int32> Controls,
 		ULearningNeuralNetworkData& OutNetwork,
 		FSubprocess& Process,
-		const EControls Signal,
 		const TLearningArrayView<1, const uint8> NetworkData,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -40,8 +53,8 @@ namespace UE::Learning::SharedMemoryTraining
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		// Wait until the network is done being written by the sub-process
-		while (!Controls[(uint8)Signal])
+		// Wait until the network is done being written by the training process
+		while (!Controls[(uint8)EControls::NetworkSignal])
 		{
 			// Check if Completed Signal has been raised
 			if (Controls[(uint8)EControls::CompleteSignal])
@@ -51,7 +64,7 @@ namespace UE::Learning::SharedMemoryTraining
 				return ETrainerResponse::Completed;
 			}
 
-			// Check if the process has exited
+			// If we're monitoring a process, then has it has exited?
 			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
@@ -105,7 +118,7 @@ namespace UE::Learning::SharedMemoryTraining
 		}
 
 		// Confirm we have read the network
-		Controls[(uint8)Signal] = false;
+		Controls[(uint8)EControls::NetworkSignal] = false;
 
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
@@ -114,7 +127,6 @@ namespace UE::Learning::SharedMemoryTraining
 		TLearningArrayView<1, volatile int32> Controls,
 		TLearningArrayView<1, uint8> NetworkData,
 		FSubprocess& Process,
-		const EControls Signal,
 		const ULearningNeuralNetworkData& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -123,10 +135,10 @@ namespace UE::Learning::SharedMemoryTraining
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		// Wait until the policy is requested by the sub-process
-		while (!Controls[(uint8)Signal])
+		// Wait until the policy is requested by the training process
+		while (!Controls[(uint8)EControls::NetworkSignal])
 		{
-			// Check if the process has exited
+			// If we're monitoring a process, then has it has exited?
 			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
@@ -172,7 +184,7 @@ namespace UE::Learning::SharedMemoryTraining
 		}
 
 		// Confirm we have written the network
-		Controls[(uint8)Signal] = false;
+		Controls[(uint8)EControls::NetworkSignal] = false;
 
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
@@ -196,10 +208,10 @@ namespace UE::Learning::SharedMemoryTraining
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		// Wait until the sub-process is done reading any experience
+		// Wait until the training process is done reading any experience
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
-			// Check if the process has exited
+			// If we're monitoring a process, then has it has exited?
 			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;
@@ -267,10 +279,10 @@ namespace UE::Learning::SharedMemoryTraining
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		// Wait until the sub-process is done reading any experience
+		// Wait until the training process is done reading any experience
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
-			// Check if the process has exited
+			// If we're monitoring a process, then has it has exited?
 			if (!Process.Update())
 			{
 				return ETrainerResponse::Unexpected;

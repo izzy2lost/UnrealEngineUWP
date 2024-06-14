@@ -30,6 +30,8 @@ public class LearningAgentsTraining : ModuleRules
 			{
 				"CoreUObject",
 				"Engine",
+				"Json",
+				"JsonUtilities",
 				"Learning",
 				"LearningAgents",
 				"LearningTraining",

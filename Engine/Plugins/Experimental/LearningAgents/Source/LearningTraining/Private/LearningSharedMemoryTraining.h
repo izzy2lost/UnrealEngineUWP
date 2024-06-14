@@ -18,24 +18,25 @@ namespace UE::Learning
 			ExperienceEpisodeNum	= 0,
 			ExperienceStepNum		= 1,
 			ExperienceSignal		= 2,
-			PolicySignal			= 3,
-			CriticSignal			= 4,
-			EncoderSignal			= 5,
-			DecoderSignal			= 6,
-			CompleteSignal			= 7,
-			StopSignal				= 8,
-			PingSignal				= 9,
+			ConfigSignal			= 3,
+			NetworkSignal			= 4,
+			CompleteSignal			= 5,
+			StopSignal				= 6,
+			PingSignal				= 7,
 
-			ControlNum				= 10,
+			ControlNum				= 8,
 		};
 
 		LEARNINGTRAINING_API uint8 GetControlNum();
+
+		LEARNINGTRAINING_API ETrainerResponse SendConfigSignal(
+			TLearningArrayView<1, volatile int32> Controls,
+			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
 			TLearningArrayView<1, volatile int32> Controls,
 			ULearningNeuralNetworkData& OutNetwork,
 			FSubprocess& Process,
-			const EControls Signal,
 			const TLearningArrayView<1, const uint8> NetworkData,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
@@ -50,7 +51,6 @@ namespace UE::Learning
 			TLearningArrayView<1, volatile int32> Controls,
 			TLearningArrayView<1, uint8> NetworkData,
 			FSubprocess& Process,
-			const EControls Signal,
 			const ULearningNeuralNetworkData& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,

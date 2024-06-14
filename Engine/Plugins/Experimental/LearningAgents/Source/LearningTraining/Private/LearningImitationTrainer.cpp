@@ -242,7 +242,6 @@ namespace UE::Learning
 			Controls.View,
 			OutNetwork,
 			TrainingProcess,
-			SharedMemoryTraining::EControls::PolicySignal,
 			Policy.View,
 			Timeout,
 			NetworkLock,
@@ -259,7 +258,6 @@ namespace UE::Learning
 			Controls.View,
 			OutNetwork,
 			TrainingProcess,
-			SharedMemoryTraining::EControls::EncoderSignal,
 			Encoder.View,
 			Timeout,
 			NetworkLock,
@@ -276,7 +274,6 @@ namespace UE::Learning
 			Controls.View,
 			OutNetwork,
 			TrainingProcess,
-			SharedMemoryTraining::EControls::DecoderSignal,
 			Decoder.View,
 			Timeout,
 			NetworkLock,
@@ -293,7 +290,6 @@ namespace UE::Learning
 			Controls.View,
 			Policy.View,
 			TrainingProcess,
-			SharedMemoryTraining::EControls::PolicySignal,
 			Network,
 			Timeout,
 			NetworkLock,
@@ -310,7 +306,6 @@ namespace UE::Learning
 			Controls.View,
 			Encoder.View,
 			TrainingProcess,
-			SharedMemoryTraining::EControls::EncoderSignal,
 			Network,
 			Timeout,
 			NetworkLock,
@@ -327,7 +322,6 @@ namespace UE::Learning
 			Controls.View,
 			Decoder.View,
 			TrainingProcess,
-			SharedMemoryTraining::EControls::DecoderSignal,
 			Network,
 			Timeout,
 			NetworkLock,
@@ -551,15 +545,14 @@ namespace UE::Learning
 		// Connect  to Server
 
 		Socket = FTcpSocketBuilder(TEXT("LearningNetworkRLTrainerSocket")).AsNonBlocking().Build();
-		Socket->Connect(*Address);
 
-		OutResponse = SocketTraining::WaitForConnection(*Socket, Timeout);
+		OutResponse = SocketTraining::WaitForConnection(*Socket, nullptr, *Address, Timeout);
 		if (OutResponse != ETrainerResponse::Success) { return; }
 
 
 		// Send Config
 
-		OutResponse = SocketTraining::SendConfig(*Socket, JsonString, Timeout);
+		OutResponse = SocketTraining::SendConfig(*Socket, JsonString, nullptr, Timeout);
 		return;
 	}
 
@@ -584,7 +577,7 @@ namespace UE::Learning
 
 	ETrainerResponse FSocketImitationTrainer::SendStop(const float Timeout)
 	{
-		return SocketTraining::SendStop(*Socket, Timeout);
+		return SocketTraining::SendStop(*Socket, nullptr, Timeout);
 	}
 
 	bool FSocketImitationTrainer::HasPolicyOrCompleted()
@@ -598,7 +591,7 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::RecvNetwork(*Socket, OutNetwork, PolicyBuffer, SocketTraining::ESignal::RecvPolicy, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::RecvNetwork(*Socket, OutNetwork, nullptr, PolicyBuffer, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::RecvEncoder(
@@ -607,7 +600,7 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::RecvNetwork(*Socket, OutNetwork, EncoderBuffer, SocketTraining::ESignal::RecvEncoder, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::RecvNetwork(*Socket, OutNetwork, nullptr, EncoderBuffer, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::RecvDecoder(
@@ -616,7 +609,7 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::RecvNetwork(*Socket, OutNetwork, DecoderBuffer, SocketTraining::ESignal::RecvDecoder, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::RecvNetwork(*Socket, OutNetwork, nullptr, DecoderBuffer, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendPolicy(
@@ -625,7 +618,7 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::SendNetwork(*Socket, PolicyBuffer, SocketTraining::ESignal::SendPolicy, Network, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::SendNetwork(*Socket, PolicyBuffer, nullptr, Network, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendEncoder(
@@ -634,7 +627,7 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::SendNetwork(*Socket, EncoderBuffer, SocketTraining::ESignal::SendEncoder, Network, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::SendNetwork(*Socket, EncoderBuffer, nullptr, Network, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendDecoder(
@@ -643,7 +636,7 @@ namespace UE::Learning
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::SendNetwork(*Socket, DecoderBuffer, SocketTraining::ESignal::SendDecoder, Network, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::SendNetwork(*Socket, DecoderBuffer, nullptr, Network, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendExperience(
@@ -660,6 +653,7 @@ namespace UE::Learning
 			EpisodeLengthsExperience,
 			ObservationsExperience,
 			ActionsExperience,
+			nullptr,
 			Timeout, 
 			LogSettings);
 	}

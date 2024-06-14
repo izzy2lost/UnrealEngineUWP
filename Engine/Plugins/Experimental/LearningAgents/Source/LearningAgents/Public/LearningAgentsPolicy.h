@@ -223,6 +223,12 @@ public:
 	/** Get a reference to this policy's decoder function object. */
 	UE::Learning::FNeuralNetworkFunction& GetDecoderObject();
 
+	/** Get a const view to this policy's pre-evaluation memory state. */
+	TLearningArrayView<2, const float> GetPreEvaluationMemoryState() const;
+
+	/** Get a const view to this policy's memory state. */
+	TLearningArrayView<2, const float> GetMemoryState() const;
+
 // ----- Private Data -----
 private:
 

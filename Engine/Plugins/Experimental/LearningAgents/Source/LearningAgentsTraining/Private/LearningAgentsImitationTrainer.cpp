@@ -113,7 +113,7 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 	const ULearningAgentsRecording* Recording,
 	const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings,
 	const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings,
-	const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings)
+	const FLearningAgentsTrainerProcessSettings& ImitationTrainerPathSettings)
 {
 	if (!IsSetup())
 	{
@@ -244,7 +244,7 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 	ImitationTrainingSettings.ActionRegularizationWeight = ImitationTrainerTrainingSettings.ActionRegularizationWeight;
 	ImitationTrainingSettings.ActionEntropyWeight = ImitationTrainerTrainingSettings.ActionEntropyWeight;
 	ImitationTrainingSettings.Seed = ImitationTrainerTrainingSettings.RandomSeed;
-	ImitationTrainingSettings.Device = UE::Learning::Agents::GetTrainerDevice(ImitationTrainerTrainingSettings.Device);
+	ImitationTrainingSettings.Device = UE::Learning::Agents::GetTrainingDevice(ImitationTrainerTrainingSettings.Device);
 	ImitationTrainingSettings.bUseTensorboard = ImitationTrainerTrainingSettings.bUseTensorboard;
 	ImitationTrainingSettings.bSaveSnapshots = ImitationTrainerTrainingSettings.bSaveSnapshots;
 
@@ -417,7 +417,7 @@ void ULearningAgentsImitationTrainer::RunTraining(
 	const ULearningAgentsRecording* Recording,
 	const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings,
 	const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings,
-	const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings)
+	const FLearningAgentsTrainerProcessSettings& ImitationTrainerPathSettings)
 {
 	if (!IsSetup())
 	{

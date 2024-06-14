@@ -4,6 +4,7 @@
 
 #include "LearningTrainer.h"
 
+class FInternetAddr;
 class FSocket;
 class ULearningNeuralNetworkData;
 
@@ -18,25 +19,22 @@ namespace UE::Learning
 			Invalid				= 0,
 			SendConfig			= 1,
 			SendExperience		= 2,
-			RecvPolicy			= 3,
-			SendPolicy			= 4,
-			RecvCritic			= 5,
-			SendCritic			= 6,
-			RecvEncoder			= 7,
-			SendEncoder			= 8,
-			RecvDecoder			= 9,
-			SendDecoder			= 10,
-			RecvComplete		= 11,
-			SendStop			= 12,
-			RecvPing			= 13,
+			RecvNetwork			= 3,
+			SendNetwork			= 4,
+			RecvComplete		= 5,
+			SendStop			= 6,
+			RecvPing			= 7,
 		};
 
 		LEARNINGTRAINING_API ETrainerResponse WaitForConnection(
-			FSocket& Socket, 
+			FSocket& Socket,
+			FSubprocess* Process,
+			const FInternetAddr& Addr,
 			const float Timeout = Trainer::DefaultTimeout);
 
 		LEARNINGTRAINING_API ETrainerResponse RecvWithTimeout(
-			FSocket& Socket, 
+			FSocket& Socket,
+			FSubprocess* Process,
 			uint8* Bytes, 
 			const int32 ByteNum, 
 			const float Timeout = Trainer::DefaultTimeout);
@@ -44,25 +42,29 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
 			FSocket& Socket,
 			ULearningNeuralNetworkData& OutNetwork,
+			FSubprocess* Process,
 			TLearningArrayView<1, uint8> OutNetworkBuffer,
-			const ESignal NetworkSignal,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendWithTimeout(
-			FSocket& Socket, 
+			FSocket& Socket,
+			FSubprocess* Process,
 			const uint8* Bytes, 
 			const int32 ByteNum, 
 			const float Timeout = Trainer::DefaultTimeout);
 
 		LEARNINGTRAINING_API ETrainerResponse SendConfig(
-			FSocket& Socket, 
-			const FString& ConfigString, 
-			const float Timeout = Trainer::DefaultTimeout);
+			FSocket& Socket,
+			const FString& ConfigString,
+			FSubprocess* Process,
+			const float Timeout = Trainer::DefaultTimeout,
+			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendStop(
-			FSocket& Socket, 
+			FSocket& Socket,
+			FSubprocess* Process,
 			const float Timeout = Trainer::DefaultTimeout);
 
 		LEARNINGTRAINING_API bool HasPolicyOrCompleted(FSocket& Socket);
@@ -70,7 +72,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendNetwork(
 			FSocket& Socket,
 			TLearningArrayView<1, uint8> NetworkBuffer,
-			const ESignal NetworkSignal,
+			FSubprocess* Process,
 			const ULearningNeuralNetworkData& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
@@ -79,6 +81,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
 			FSocket& Socket,
 			const FReplayBuffer& ReplayBuffer,
+			FSubprocess* Process,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
@@ -88,6 +91,7 @@ namespace UE::Learning
 			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 			const TLearningArrayView<2, const float> ObservationExperience,
 			const TLearningArrayView<2, const float> ActionExperience,
+			FSubprocess* Process,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 	}
