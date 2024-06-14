@@ -57,8 +57,7 @@ public:
 	}
 
 
-	// UObject overrides
-	void PostLoad() override;
+	void PostLoadNodeSpecificData() override;
 
 #if WITH_EDITOR
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

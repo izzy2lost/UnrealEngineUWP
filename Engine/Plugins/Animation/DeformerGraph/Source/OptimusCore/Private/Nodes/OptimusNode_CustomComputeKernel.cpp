@@ -678,6 +678,52 @@ void UOptimusNode_CustomComputeKernel::OnDataTypeChanged(FName InTypeName)
 	UpdatePreamble();
 }
 
+void UOptimusNode_CustomComputeKernel::PostLoadNodeSpecificData()
+{
+	Super::PostLoadNodeSpecificData();
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::SwitchToParameterBindingArrayStruct)
+	{
+		Modify();
+		InputBindingArray.InnerArray = InputBindings_DEPRECATED;
+		OutputBindingArray.InnerArray = OutputBindings_DEPRECATED;
+	}
+	
+	if (!Parameters_DEPRECATED.IsEmpty())
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS		
+		TArray<FOptimusParameterBinding> ParameterInputBindings;
+
+		for (const FOptimus_ShaderBinding& OldBinding: Parameters_DEPRECATED)
+		{
+			FOptimusParameterBinding NewBinding;
+			NewBinding.Name = OldBinding.Name;
+			NewBinding.DataType = OldBinding.DataType;
+			NewBinding.DataDomain = FOptimusDataDomain();
+			
+			ParameterInputBindings.Add(NewBinding);
+		}
+		
+		InputBindingArray.InnerArray.Insert(ParameterInputBindings, 0);
+		
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	
+	
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelDataInterface)
+	{
+		PostLoadExtractExecutionDomain();
+		PostLoadAddMissingPrimaryGroupPin();
+	}
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelParameterBindingToggleAtomic)
+	{
+		PostLoadExtractAtomicModeFromConnectedResource();
+	}
+
+	SetDisplayName(FText::FromName(KernelName));	
+}
+
 
 void UOptimusNode_CustomComputeKernel::Serialize(FArchive& Ar)
 {
@@ -1493,51 +1539,6 @@ void UOptimusNode_CustomComputeKernel::PropertyArrayItemMoved(
 }
 
 #endif
-
-void UOptimusNode_CustomComputeKernel::PostLoad()
-{
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::SwitchToParameterBindingArrayStruct)
-	{
-		Modify();
-		InputBindingArray.InnerArray = InputBindings_DEPRECATED;
-		OutputBindingArray.InnerArray = OutputBindings_DEPRECATED;
-	}
-	
-	if (!Parameters_DEPRECATED.IsEmpty())
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS		
-		TArray<FOptimusParameterBinding> ParameterInputBindings;
-
-		for (const FOptimus_ShaderBinding& OldBinding: Parameters_DEPRECATED)
-		{
-			FOptimusParameterBinding NewBinding;
-			NewBinding.Name = OldBinding.Name;
-			NewBinding.DataType = OldBinding.DataType;
-			NewBinding.DataDomain = FOptimusDataDomain();
-			
-			ParameterInputBindings.Add(NewBinding);
-		}
-		
-		InputBindingArray.InnerArray.Insert(ParameterInputBindings, 0);
-		
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-	
-	Super::PostLoad();
-	
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelDataInterface)
-	{
-		PostLoadExtractExecutionDomain();
-		PostLoadAddMissingPrimaryGroupPin();
-	}
-
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelParameterBindingToggleAtomic)
-	{
-		PostLoadExtractAtomicModeFromConnectedResource();
-	}
-
-	SetDisplayName(FText::FromName(KernelName));
-}
 
 
 void UOptimusNode_CustomComputeKernel::ConstructNode()

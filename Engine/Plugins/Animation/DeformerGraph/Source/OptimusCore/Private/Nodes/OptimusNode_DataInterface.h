@@ -31,11 +31,15 @@ public:
 	virtual void SetDataInterfaceClass(TSubclassOf<UOptimusComputeDataInterface> InDataInterfaceClass);
 	bool IsComponentSourceCompatible(const UOptimusComponentSource* InComponentSource) const;
 
+	void RecreatePinsFromPinDefinitions();
+	void RenamePinFromPinDefinition(FName InOld, FName InNew);
+
 	// -- UOptimusNode overrides
 	FName GetNodeCategory() const override 
 	{
 		return CategoryName::DataInterfaces;
 	}
+	void InitializeTransientData() override;
 
 	// -- UObject overrides
 	void Serialize(FArchive& Ar) override;
@@ -55,29 +59,31 @@ protected:
 	void ConstructNode() override;
 	bool ValidateConnection(const UOptimusNodePin& InThisNodesPin, const UOptimusNodePin& InOtherNodesPin, FString* OutReason) const override;
 	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
+	void PostLoadNodeSpecificData() override;
+	void OnDataTypeChanged(FName InTypeName) override;
 
 	void SaveState(FArchive& Ar) const override;
 	void RestoreState(FArchive& Ar) override;
 
 	// -- UObject overrides
-	void PostLoad() override;
 	void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	
 private:
-	void CreatePinsFromDataInterface(
-		const UOptimusComputeDataInterface *InDataInterface
-		);
+	void CreatePinsFromDataInterface(const UOptimusComputeDataInterface *InDataInterface, bool bSupportUndo);
 	
+
 	void CreatePinFromDefinition(
 		const FOptimusCDIPinDefinition &InDefinition,
 		const TMap<FString, const FShaderFunctionDefinition *>& InReadFunctionMap,
-		const TMap<FString, const FShaderFunctionDefinition *>& InWriteFunctionMap
+		const TMap<FString, const FShaderFunctionDefinition *>& InWriteFunctionMap,
+		bool bSupportUndo
 		);
 
 	void CreateComponentPin();
 
 protected:
 	friend class UOptimusDeformer;
+	friend class UOptimusNodeGraph;
 
 	/** Accessor for the deformer object to connect this node automatically on backcomp and to unlink it as well
 	 *  if a component binding changes the source type.

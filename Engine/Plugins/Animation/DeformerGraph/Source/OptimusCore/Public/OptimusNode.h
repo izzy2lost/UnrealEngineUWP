@@ -182,7 +182,13 @@ public:
 
 	//== UObject overrides
 	void Serialize(FArchive& Ar) override;
-	void PostLoad() override;
+	
+	// Using "final" here to make sure all derive nodes have InitializeTransientData() automatically called on them during PostLoad(),
+	// so please use PostLoadNodeSpecificData instead for any PostLoad fix-ups
+	void PostLoad() override final;
+
+	// Derived nodes should override this function for any PostLoad fix-ups
+	virtual void PostLoadNodeSpecificData();
 #if WITH_EDITOR
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif

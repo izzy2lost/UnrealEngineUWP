@@ -71,9 +71,9 @@ UClass* UOptimusNode_ConstantValueGeneratorClass::GetClassForType(UPackage* InPa
 }
 
 
-void UOptimusNode_ConstantValue::PostLoad()
+void UOptimusNode_ConstantValue::PostLoadNodeSpecificData()
 {
-	Super::PostLoad();
+	Super::PostLoadNodeSpecificData();
 
 	if (!GetClass()->GetOuter()->IsA<UPackage>())
 	{

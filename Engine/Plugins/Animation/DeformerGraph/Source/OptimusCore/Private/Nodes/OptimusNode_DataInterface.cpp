@@ -95,6 +95,30 @@ TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile(const FOptimusPi
 	return {};
 }
 
+void UOptimusNode_DataInterface::PostLoadNodeSpecificData()
+{
+	Super::PostLoadNodeSpecificData();
+	
+	// Previously DataInterfaceData wasn't always created.
+	if (DataInterfaceClass && !DataInterfaceData)
+	{
+		DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+	}
+
+	// Add in the component pin.
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::ComponentProviderSupport)
+	{
+		CreateComponentPin();
+	}
+}
+
+void UOptimusNode_DataInterface::OnDataTypeChanged(FName InTypeName)
+{
+	Super::OnDataTypeChanged(InTypeName);
+
+	DataInterfaceData->OnDataTypeChanged(InTypeName);
+}
+
 void UOptimusNode_DataInterface::SaveState(FArchive& Ar) const
 {
 	Super::SaveState(Ar);
@@ -119,6 +143,60 @@ void UOptimusNode_DataInterface::RestoreState(FArchive& Ar)
 bool UOptimusNode_DataInterface::IsComponentSourceCompatible(const UOptimusComponentSource* InComponentSource) const
 {
 	return InComponentSource && InComponentSource->GetComponentClass()->IsChildOf(DataInterfaceData->GetRequiredComponentClass());
+}
+
+void UOptimusNode_DataInterface::RecreatePinsFromPinDefinitions()
+{
+	// Recreate all the pins
+	// Save the links and readd them later when new pins are created
+	TMap<FName, TArray<UOptimusNodePin*>> ConnectedPinsMap;
+
+	TArray<UOptimusNodePin*> PinsToRemove;
+	
+	for (UOptimusNodePin* Pin : GetPins())
+	{
+		if (Pin != GetComponentPin())
+		{
+			ConnectedPinsMap.Add(Pin->GetFName()) = Pin->GetConnectedPins();
+			PinsToRemove.Add(Pin);
+		}
+	}	
+
+	for (UOptimusNodePin* Pin : PinsToRemove)
+	{
+		RemovePin(Pin);
+	}
+
+	CreatePinsFromDataInterface(DataInterfaceData, true);
+
+	for (UOptimusNodePin* Pin : GetPins())
+	{
+		if (TArray<UOptimusNodePin*>* ConnectedPins = ConnectedPinsMap.Find(Pin->GetFName()))
+		{
+			for (UOptimusNodePin* ConnectedPin : *ConnectedPins)
+			{
+				GetOwningGraph()->AddLink(Pin, ConnectedPin);
+			}
+		}	
+	}	
+}
+
+void UOptimusNode_DataInterface::RenamePinFromPinDefinition(FName InOld, FName InNew)
+{
+	UOptimusNodePin* Pin = FindPin(InOld.ToString());
+	SetPinName(Pin, InNew);
+}
+
+void UOptimusNode_DataInterface::InitializeTransientData()
+{
+	if (ensure(DataInterfaceData))
+	{
+		if (DataInterfaceData->CanPinDefinitionChange())
+		{
+			EnableDynamicPins();
+			DataInterfaceData->RegisterDynamicPinDelegatesForOwningNode(this);
+		}
+	}
 }
 
 void UOptimusNode_DataInterface::Serialize(FArchive& Ar)
@@ -198,6 +276,9 @@ void UOptimusNode_DataInterface::SetDataInterfaceClass(
 {
 	DataInterfaceClass = InDataInterfaceClass;
 	DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+	// Undo support
+	DataInterfaceData->SetFlags(RF_Transactional);
+	DataInterfaceData->Initialize();
 }
 
 UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(const FOptimusPinTraversalContext& InContext) const
@@ -254,24 +335,6 @@ EOptimusPinMutability UOptimusNode_DataInterface::GetOutputPinMutability(const U
 }
 
 
-void UOptimusNode_DataInterface::PostLoad() 
-{
-	Super::PostLoad();
-
-	// Previously DataInterfaceData wasn't always created.
-	if (DataInterfaceClass && !DataInterfaceData)
-	{
-		DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
-	}
-
-	// Add in the component pin.
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::ComponentProviderSupport)
-	{
-		CreateComponentPin();
-	}
-}
-
-
 void UOptimusNode_DataInterface::ConstructNode()
 {
 	// Create the component pin.
@@ -283,7 +346,7 @@ void UOptimusNode_DataInterface::ConstructNode()
 		}
 		SetDisplayName(FText::FromString(DataInterfaceData->GetDisplayName()));
 		CreateComponentPin();
-		CreatePinsFromDataInterface(DataInterfaceData);
+		CreatePinsFromDataInterface(DataInterfaceData, false);
 	}
 }
 
@@ -301,9 +364,7 @@ void UOptimusNode_DataInterface::PostDuplicate(EDuplicateMode::Type DuplicateMod
 }
 
 
-void UOptimusNode_DataInterface::CreatePinsFromDataInterface(
-	const UOptimusComputeDataInterface* InDataInterface
-	)
+void UOptimusNode_DataInterface::CreatePinsFromDataInterface(const UOptimusComputeDataInterface* InDataInterface, bool bSupportUndo)
 {
 	// A data interface provides read and write functions. A data interface node exposes
 	// the read functions as output pins to be fed into kernel nodes (or into other interface
@@ -333,16 +394,12 @@ void UOptimusNode_DataInterface::CreatePinsFromDataInterface(
 	{
 		if (ensure(!Def.PinName.IsNone()))
 		{
-			CreatePinFromDefinition(Def, ReadFunctionMap, WriteFunctionMap);
+			CreatePinFromDefinition(Def, ReadFunctionMap, WriteFunctionMap, bSupportUndo);
 		}
 	}
 }
 
-void UOptimusNode_DataInterface::CreatePinFromDefinition(
-	const FOptimusCDIPinDefinition& InDefinition,
-	const TMap<FString, const FShaderFunctionDefinition*>& InReadFunctionMap,
-	const TMap<FString, const FShaderFunctionDefinition*>& InWriteFunctionMap
-	)	
+void UOptimusNode_DataInterface::CreatePinFromDefinition(const FOptimusCDIPinDefinition& InDefinition, const TMap<FString, const FShaderFunctionDefinition*>& InReadFunctionMap, const TMap<FString, const FShaderFunctionDefinition*>& InWriteFunctionMap, bool bSupportUndo)
 {
 	const FOptimusDataTypeRegistry& TypeRegistry = FOptimusDataTypeRegistry::Get();
 
@@ -376,7 +433,14 @@ void UOptimusNode_DataInterface::CreatePinFromDefinition(
 			return;
 		}
 
-		AddPinDirect(InDefinition.PinName, EOptimusNodePinDirection::Output, {}, PinDataType);
+		if (bSupportUndo)
+		{
+			AddPin(InDefinition.PinName, EOptimusNodePinDirection::Output, {}, PinDataType);
+		}
+		else
+		{
+			AddPinDirect(InDefinition.PinName, EOptimusNodePinDirection::Output, {}, PinDataType);
+		}
 	}
 	else if (!InDefinition.DataFunctionName.IsEmpty())
 	{
@@ -450,7 +514,14 @@ void UOptimusNode_DataInterface::CreatePinFromDefinition(
 		}
 
 		const FOptimusDataDomain DataDomain{ContextNames, InDefinition.DomainMultiplier};
-		AddPinDirect(InDefinition.PinName, PinDirection, DataDomain, PinDataType);
+		if (bSupportUndo)
+		{
+			AddPin(InDefinition.PinName, PinDirection, DataDomain, PinDataType);	
+		}
+		else
+		{
+			AddPinDirect(InDefinition.PinName, PinDirection, DataDomain, PinDataType);
+		}
 	}
 	else
 	{

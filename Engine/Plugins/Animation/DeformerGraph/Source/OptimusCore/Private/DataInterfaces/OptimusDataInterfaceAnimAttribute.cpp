@@ -17,6 +17,7 @@
 #include "ShaderParameterMetadataBuilder.h"
 #include "ComputeFramework/ComputeMetadataBuilder.h"
 #include "Engine/UserDefinedStruct.h"
+#include "Nodes/OptimusNode_DataInterface.h"
 
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -104,6 +105,8 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 			if(ensure(AttributeArray.IsValidIndex(ChangedIndex)))
 			{
 				FOptimusAnimAttributeDescription& ChangedAttribute = AttributeArray[ChangedIndex];
+				
+				FName OldPinName = ChangedAttribute.PinName;
 
 				if (ChangedAttribute.Name.IsEmpty())
 				{
@@ -126,6 +129,7 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 				}
 
 				UpdateAttributePinNamesAndHlslIds();
+				OnPinDefinitionRenamedDelegate.Execute(OldPinName, ChangedAttribute.PinName);
 			}
 		}
 
@@ -137,28 +141,33 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 			ChangedAttribute.DefaultValueStruct.SetType(ChangedAttribute.DataType);
 		}
 	}
-	else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
+	else 
 	{
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
+		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
 		{
-			const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
-			FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
+			{
+				const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
+				FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
 			
-			// Default to a float attribute
-			Attribute.Init(GetUnusedAttributeName(TEXT("EmptyName")), NAME_None,
-				FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()));
+				// Default to a float attribute
+				Attribute.Init(GetUnusedAttributeName(TEXT("EmptyName")), NAME_None,
+					FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()));
+			}
 		}
-	}
-	else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
-	{
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
-		{	
-			const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
-			FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
+		else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
+			{	
+				const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
+				FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
 			
-			Attribute.Name = GetUnusedAttributeName(Attribute.Name);
-			Attribute.UpdatePinNameAndHlslId();
+				Attribute.Name = GetUnusedAttributeName(Attribute.Name);
+				Attribute.UpdatePinNameAndHlslId();
+			}
 		}
+		
+		OnPinDefinitionChangedDelegate.Execute();
 	}
 }
 #endif
@@ -215,6 +224,18 @@ TArray<FOptimusCDIPinDefinition> UOptimusAnimAttributeDataInterface::GetPinDefin
 TSubclassOf<UActorComponent> UOptimusAnimAttributeDataInterface::GetRequiredComponentClass() const
 {
 	return USkeletalMeshComponent::StaticClass();
+}
+
+void UOptimusAnimAttributeDataInterface::Initialize()
+{
+	AddAnimAttribute(TEXT("EmptyName"), NAME_None,
+			FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()) );
+}
+
+void UOptimusAnimAttributeDataInterface::RegisterDynamicPinDelegatesForOwningNode(UOptimusNode_DataInterface* InNode)
+{
+	OnPinDefinitionChangedDelegate.BindUObject(InNode, &UOptimusNode_DataInterface::RecreatePinsFromPinDefinitions);
+	OnPinDefinitionRenamedDelegate.BindUObject(InNode, &UOptimusNode_DataInterface::RenamePinFromPinDefinition);
 }
 
 
@@ -422,11 +443,11 @@ const FOptimusAnimAttributeDescription& UOptimusAnimAttributeDataInterface::AddA
 }
 
 
-void UOptimusAnimAttributeDataInterface::OnDataTypeChanged(FName InDataType)
+void UOptimusAnimAttributeDataInterface::OnDataTypeChanged(FName InTypeName)
 {
 	for (FOptimusAnimAttributeDescription& AttributeDescription : AttributeArray)
 	{
-		if (AttributeDescription.DataType.TypeName == InDataType)
+		if (AttributeDescription.DataType.TypeName == InTypeName)
 		{
 			AttributeDescription.DefaultValueStruct.SetType(AttributeDescription.DataType);
 		}
@@ -518,6 +539,7 @@ FOptimusAnimAttributeRuntimeData::FOptimusAnimAttributeRuntimeData(
 	const FOptimusAnimAttributeDescription& InDescription)
 {
 	Name = *InDescription.Name;
+	HlslId = *InDescription.HlslId;
 	BoneName = InDescription.BoneName;
 	CachedBoneIndex = 0;
 	
@@ -537,7 +559,7 @@ FOptimusAnimAttributeRuntimeData::FOptimusAnimAttributeRuntimeData(
 
 void UOptimusAnimAttributeDataProvider::Init(
 	USkeletalMeshComponent* InSkeletalMesh,
-	TArray<FOptimusAnimAttributeDescription> InAttributeArray
+	const TArray<FOptimusAnimAttributeDescription>& InAttributeArray
 	)
 {
 	SkeletalMesh = InSkeletalMesh;
@@ -571,9 +593,9 @@ void UOptimusAnimAttributeDataProvider::Init(
 
 	TArray<FShaderParametersMetadata*> AllocatedMetadatas;
 	TArray<FShaderParametersMetadata*> NestedStructs;
-	for (FOptimusAnimAttributeDescription& Attribute : InAttributeArray)
+	for (const FOptimusAnimAttributeDescription& Attribute : InAttributeArray)
 	{
-		ComputeFramework::AddParamForType(Builder, *Attribute.Name, Attribute.DataType->ShaderValueType, NestedStructs);
+		ComputeFramework::AddParamForType(Builder, *Attribute.HlslId, Attribute.DataType->ShaderValueType, NestedStructs);
 	}
 
 	FShaderParametersMetadata* ShaderParameterMetadata = Builder.Build(FShaderParametersMetadata::EUseCase::ShaderParameterStruct, TEXT("UAnimAttributeDataInterface"));
@@ -585,7 +607,7 @@ void UOptimusAnimAttributeDataProvider::Init(
 	for (int32 Index = 0; Index < AttributeRuntimeData.Num(); ++Index)
 	{
 		FOptimusAnimAttributeRuntimeData& RuntimeData = AttributeRuntimeData[Index];
-		check(RuntimeData.Name == Members[Index].GetName());
+		check(RuntimeData.HlslId == Members[Index].GetName());
 		
 		RuntimeData.Offset = Members[Index].GetOffset();
 

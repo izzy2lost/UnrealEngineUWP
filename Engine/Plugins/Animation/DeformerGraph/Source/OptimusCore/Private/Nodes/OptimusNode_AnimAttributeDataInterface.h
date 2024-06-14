@@ -6,6 +6,7 @@
 
 #include "OptimusNode_AnimAttributeDataInterface.generated.h"
 
+// Deprecated
 UCLASS(Hidden)
 class UOptimusNode_AnimAttributeDataInterface :
 	public UOptimusNode_DataInterface

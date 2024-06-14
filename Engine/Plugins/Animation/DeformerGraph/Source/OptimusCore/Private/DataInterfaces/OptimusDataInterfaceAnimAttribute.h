@@ -125,6 +125,11 @@ public:
 	FString GetDisplayName() const override;
 	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const override;
 	TSubclassOf<UActorComponent> GetRequiredComponentClass() const override;
+	
+	void Initialize() override;
+	bool CanPinDefinitionChange() override {return true;};
+	void RegisterDynamicPinDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) override;
+	
 	//~ End UOptimusComputeDataInterface Interface
 	
 	//~ Begin UComputeDataInterface Interface
@@ -140,7 +145,7 @@ public:
 
 	const FOptimusAnimAttributeDescription& AddAnimAttribute(const FString& InName, FName InBoneName, const FOptimusDataTypeRef& InDataType);
 
-	void OnDataTypeChanged(FName InDataType);
+	void OnDataTypeChanged(FName InTypeName) override;
 	
 	UPROPERTY(EditAnywhere, Category = "Animation Attribute", meta = (ShowOnlyInnerProperties))
 	FOptimusAnimAttributeArray AttributeArray;
@@ -148,6 +153,9 @@ public:
 private:
 	FString GetUnusedAttributeName(const FString& InName) const;
 	void UpdateAttributePinNamesAndHlslIds();
+	
+	FOnPinDefinitionChanged OnPinDefinitionChangedDelegate;
+	FOnPinDefinitionRenamed OnPinDefinitionRenamedDelegate;
 };
 
 // Runtime data with cached values baked out from AttributeDescription
@@ -158,6 +166,7 @@ struct FOptimusAnimAttributeRuntimeData
 	FOptimusAnimAttributeRuntimeData(const FOptimusAnimAttributeDescription& InDescription);
 	
 	FName Name;
+	FName HlslId;
 
 	FName BoneName;
 
@@ -189,7 +198,7 @@ public:
 	
 	void Init(
 		USkeletalMeshComponent* InSkeletalMesh,
-		TArray<FOptimusAnimAttributeDescription> InAttributeArray
+		const TArray<FOptimusAnimAttributeDescription>& InAttributeArray
 	);
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)

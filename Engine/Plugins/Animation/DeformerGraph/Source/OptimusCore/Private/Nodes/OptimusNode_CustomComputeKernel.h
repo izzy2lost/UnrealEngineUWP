@@ -51,6 +51,7 @@ public:
 	}
 
 	void OnDataTypeChanged(FName InTypeName) override;
+	void PostLoadNodeSpecificData() override;
 
 	// UOptimusNode_ComputeKernelBase overrides
 	FString GetKernelName() const override { return KernelName.ToString(); }
@@ -168,8 +169,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 	void Serialize(FArchive& Ar) override;
-	void PostLoad() override;
-
 	
 	
 protected:

@@ -424,6 +424,15 @@ void UOptimusNode::PostLoad()
 {
 	Super::PostLoad();
 
+	// PostLoad fix up pass
+	PostLoadNodeSpecificData();
+
+	// Now that all serialized data is ready, let's generate any transient data
+	InitializeTransientData();
+}
+
+void UOptimusNode::PostLoadNodeSpecificData()
+{
 	// Earlier iterations didn't set this flag. 
 	SetFlags(RF_Transactional);
 
@@ -431,8 +440,6 @@ void UOptimusNode::PostLoad()
 	{
 		Pin->ConditionalPostLoad();
 	}
-	
-	InitializeTransientData();
 }
 
 #if WITH_EDITOR

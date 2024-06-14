@@ -10,6 +10,7 @@
 
 
 class UActorComponent;
+class UOptimusNode_DataInterface;
 
 
 struct FOptimusCDIPinDefinition
@@ -129,6 +130,9 @@ class OPTIMUSCORE_API UOptimusComputeDataInterface : public UComputeDataInterfac
 	GENERATED_BODY()
 	
 public:
+	DECLARE_DELEGATE_TwoParams(FOnPinDefinitionRenamed, FName /* Old */ , FName /* New */);
+	DECLARE_DELEGATE(FOnPinDefinitionChanged);
+	
 	struct OPTIMUSCORE_API CategoryName
 	{
 		static const FName DataInterfaces;
@@ -145,11 +149,22 @@ public:
 	/// Returns the list of pins that will map to the shader functions provided by this data interface.
 	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetDisplayName, return {};)
 
+	/// Data interface can use this to set default values/pins
+	virtual void Initialize() {};
+
+	/// Whether the data interface allow users to add / remove pins
+	virtual bool CanPinDefinitionChange() { return false; };
+
+	/// Register delegates for data interface node to update its pins when the data interface changes
+	virtual void RegisterDynamicPinDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) {};
+
 	/**
 	 * @return Returns the component type that this data interface operates on.
 	 */
 	virtual TSubclassOf<UActorComponent> GetRequiredComponentClass() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetRequiredComponent, return nullptr;)
 
+	virtual void OnDataTypeChanged(FName InTypeName) {};
+	
 	/**
 	 * Register any additional data types provided by this data interface. 
 	 */
