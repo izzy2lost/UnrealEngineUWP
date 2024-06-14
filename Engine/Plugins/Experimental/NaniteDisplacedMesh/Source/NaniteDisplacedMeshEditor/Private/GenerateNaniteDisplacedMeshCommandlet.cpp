@@ -157,17 +157,18 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 
 	IAssetRegistry& AssetRegistry = FAssetRegistryModule::GetRegistry();
 
-	if (UE::AssetRegistry::ShouldSearchAllAssetsAtStart())
-	{
-		UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching the levels that need to be processed and their dependencies (this may take a while)..."));
-	}
-	else
-	{
-		UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching all assets (this may take a while)..."));
-		// This is automatically called in the regular editor but not always when running a commandlet
-		// Must also search synchronously because AssetRegistry.IsLoadingAssets() won't account for this search
-		AssetRegistry.SearchAllAssets(true);
-	}
+	// Force the full scan has some recent change have broken the dependency graph if the class of the asset being scanned isn't know yet know by the asset registry
+	//if (UE::AssetRegistry::ShouldSearchAllAssetsAtStart())
+	//{
+	//	UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching the levels that need to be processed and their dependencies (this may take a while)..."));
+	//}
+	//else
+	//{
+	UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching all assets (this may take a while)..."));
+	// This is automatically called in the regular editor but not always when running a commandlet
+	// Must also search synchronously because AssetRegistry.IsLoadingAssets() won't account for this search
+	AssetRegistry.SearchAllAssets(true);
+	//}
 
 	// Make sure the level are loaded in the asset registry
 	for (const FSoftObjectPath& SoftObjectPaths : Filter.SoftObjectPaths)
@@ -191,7 +192,7 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 		TSet<FName> DependenciesToProcess;
 		TArray<FName> CurrentDependencies;
 		UE::AssetRegistry::FDependencyQuery QueryFlags;
-		QueryFlags.Required = UE::AssetRegistry::EDependencyProperty::Game;
+		QueryFlags.Required = UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build;
 		for (const FAssetData& LevelAsset : LevelAssets)
 		{
 			// Get the dependencies of the level recursively
