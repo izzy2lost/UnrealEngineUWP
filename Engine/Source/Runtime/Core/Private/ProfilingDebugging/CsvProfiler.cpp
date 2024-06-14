@@ -3761,6 +3761,21 @@ void FCsvProfiler::RecordCustomStatMinimal(const char* StatName, uint32 Category
 	}
 }
 
+void FCsvProfiler::RecordCustomStatMinimal(const char* StatName, uint32 CategoryIndex, int32 Value, const ECsvCustomStatOp CustomStatOp)
+{
+	if (GCsvProfilerIsCapturing && GCsvCategoriesEnabled[CategoryIndex])
+	{
+		FCsvProfilerThreadData::Get().AddCustomStat(StatName, CategoryIndex, Value, CustomStatOp);
+	}
+}
+
+void FCsvProfiler::RecordCustomStatMinimal(const char* StatName, uint32 CategoryIndex, double Value, const ECsvCustomStatOp CustomStatOp)
+{
+	// LWC_TODO: Double support for FCsvProfiler::RecordCustomStat
+	RecordCustomStatMinimal(StatName, CategoryIndex, (float)Value, CustomStatOp);
+}
+
+
 void FCsvProfiler::RecordCustomStat(const char * StatName, uint32 CategoryIndex, float Value, const ECsvCustomStatOp CustomStatOp)
 {
 #if !CSV_PROFILER_MINIMAL
