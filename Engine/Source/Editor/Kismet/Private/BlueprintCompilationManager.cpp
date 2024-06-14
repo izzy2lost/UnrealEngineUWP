@@ -33,6 +33,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/DataValidation.h"
 #include "Misc/PackageAccessTrackingOps.h"
+#include "Misc/PlayInEditorLoadingScope.h"
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "Serialization/ArchiveHasReferences.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
@@ -2273,6 +2274,10 @@ void FBlueprintCompilationManagerImpl::BuildDSOMap(UObject* OldObject, UObject* 
 void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>& Reinstancers, TMap< UClass*, UClass* >& InOutOldToNewClassMap, FUObjectSerializeContext* InLoadContext, TMap<UClass*, TMap<UObject*, UObject*>>* OldToNewTemplates /* = nullptr*/)
 {
 	TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+
+	// This is only needed when using the legacy editor loader (ie: FLinkerLoad)
+	// Zen loader already uses FPlayInEditorLoadingScope
+	UE::Core::Private::FPlayInEditorLoadingScope PlayInEditorIDScope(INDEX_NONE);
 
 	const auto FilterOutOfDateClasses = [](TArray<UClass*>& ClassList)
 	{
