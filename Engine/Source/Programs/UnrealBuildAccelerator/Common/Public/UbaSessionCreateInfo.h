@@ -6,11 +6,14 @@
 
 namespace uba
 {
+	class Config;
 	class Storage;
 
 	struct SessionCreateInfo
 	{
 		SessionCreateInfo(Storage& s, LogWriter& w = g_consoleLogWriter) : storage(s), logWriter(w) {}
+
+		void Apply(Config& config);
 
 		Storage& storage;
 		LogWriter& logWriter;

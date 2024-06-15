@@ -19,7 +19,10 @@ namespace uba
 		if (!config.LoadFromText(logger, configText, strlen(configText)))
 			return false;
 
-		const ConfigTable& table = config.GetTable(TC("CacheClient"));
+		const ConfigTable* tablePtr = config.GetTable(TC("CacheClient"));
+		if (!tablePtr)
+			return false;
+		const ConfigTable& table = *tablePtr;
 		bool test = false;
 		if (!table.GetValueAsBool(test, TC("UseDirectoryPreparsing")))
 			return false;

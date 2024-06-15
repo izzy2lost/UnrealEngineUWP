@@ -17,9 +17,12 @@ namespace uba
 		bool GetValueAsU32(u32& out, const tchar* key) const;
 		bool GetValueAsBool(bool& out, const tchar* key) const;
 
+		const ConfigTable* GetTable(const tchar* name) const;
+
 	private:
 		ConfigTable* m_parent = nullptr;
 		UnorderedMap<TString, TString> m_values;
+		UnorderedMap<TString, ConfigTable> m_tables;
 		friend Config;
 	};
 
@@ -31,10 +34,7 @@ namespace uba
 		bool LoadFromText(Logger& logger, const char* text, u64 textLen);
 		bool IsLoaded() const;
 
-		const ConfigTable& GetTable(const tchar* name) const;
 
 		bool m_isLoaded = false;
-		ConfigTable m_globalTable;
-		UnorderedMap<TString, ConfigTable> m_tables;
 	};
 }

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaAWS.h"
+#include "UbaConfig.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaNetworkBackendMemory.h"
 #include "UbaNetworkBackendQuic.h"
@@ -80,6 +81,7 @@ namespace uba
 		logger.Info(TC("  -mulcpu=<number>        This value multiplies with number of cpu to figure out max cpu. Defaults to 1.0"));
 		logger.Info(TC("  -maxcon=<number>        Max number of connections that can be started by agent. Defaults to \"%u\" (amount up to max will depend on ping)"), DefaultMaxConnectionCount);
 		logger.Info(TC("  -capacity=<gigaby>      Capacity of local store. Defaults to %u gigabytes"), DefaultCapacityGb);
+		logger.Info(TC("  -config=<file>          Config file that contains options for various systems"));
 		logger.Info(TC("  -quic                   Use Quic instead of tcp backend."));
 		logger.Info(TC("  -name=<name>            The identifier of this agent. Defaults to \"%s\" on this machine"), DefaultAgentName);
 		logger.Info(TC("  -stats[=<threshold>]    Print stats for each process if higher than threshold"));
@@ -407,6 +409,7 @@ namespace uba
 		StringBuffer<256> named;
 		StringBuffer<512> relaunchPath;
 		StringBuffer<256> eventFile;
+		StringBuffer<256> configFile;
 		TString command;
 		u16 port = DefaultPort;
 		u16 proxyPort = DefaultStorageProxyPort;
@@ -488,6 +491,14 @@ namespace uba
 			{
 				if (!value.Parse(storageCapacityGb))
 					return PrintHelp(TC("Invalid value for -capacity"));
+			}
+			else if (name.Equals(TC("-config")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-dir needs a value"));
+				if (int res = ExpandEnvironmentVariables(value))
+					return res;
+				configFile.Append(value);
 			}
 			else if (name.Equals(TC("-stats")))
 			{
@@ -771,6 +782,11 @@ namespace uba
 		dbgStr = TC(" (DEBUG)");
 		#endif
 		logger.Info(TC("UbaAgent v%s%s (Cpu: %u, MaxCon: %u, Dir: \"%s\", StoreCapacity: %uGb%s)"), Version, dbgStr, maxProcessCount, maxConnectionCount, g_rootDir.data, storageCapacityGb, extraInfo.data);
+		
+		Config config;
+		if (!configFile.IsEmpty())
+			config.LoadFromFile(logger, configFile.data);
+				
 		if (!eventFile.IsEmpty())
 			logger.Info(TC("  Will poll for external events in file %s"), eventFile.data);
 		logger.Info(TC(""));
@@ -790,6 +806,7 @@ namespace uba
 		{
 			// Create a uba storage quickly just to fix non-graceful shutdowns
 			StorageCreateInfo info(g_rootDir.data, logWriter);
+			info.Apply(config);
 			info.rootDir = g_rootDir.data;
 			info.casCapacityBytes = storageCapacity;
 			info.storeCompressed = storeCompressed;
@@ -930,7 +947,7 @@ namespace uba
 			}
 			else
 			{
-				const TString& desc = process.GetStartInfo().description;
+				const TString& desc = process.GetStartInfo().GetDescription();
 				StringBuffer<> name;
 				if (!desc.empty())
 					name.Append(desc);
@@ -986,6 +1003,7 @@ namespace uba
 			auto backendGuard = MakeGuard([networkBackend]() { delete networkBackend; });
 
 			NetworkClientCreateInfo ncci(logWriter);
+			//ncci.Apply(config);
 			ncci.sendSize = sendSize;
 			ncci.receiveTimeoutSeconds = receiveTimeoutSeconds;
 			if (hasCrypto)
@@ -1128,6 +1146,8 @@ namespace uba
 				};
 
 			StorageClientCreateInfo storageInfo(*client, g_rootDir.data);
+			storageInfo.Apply(config);
+			storageInfo.rootDir = g_rootDir.data;
 			storageInfo.casCapacityBytes = storageCapacity;
 			storageInfo.storeCompressed = storeCompressed;
 			storageInfo.sendCompressed = sendCompressed;
@@ -1160,6 +1180,7 @@ namespace uba
 				});
 
 			SessionClientCreateInfo info(*storageClient, *client, logWriter);
+			info.Apply(config);
 			info.maxProcessCount = maxProcessCount;
 			info.dedicated = poll;
 			info.maxIdleSeconds = maxIdleSeconds;

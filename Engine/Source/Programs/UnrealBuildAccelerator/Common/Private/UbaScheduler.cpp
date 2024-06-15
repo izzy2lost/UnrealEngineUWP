@@ -3,6 +3,7 @@
 #include "UbaScheduler.h"
 #include "UbaApplicationRules.h"
 #include "UbaCacheClient.h"
+#include "UbaConfig.h"
 #include "UbaNetworkServer.h"
 #include "UbaProcess.h"
 #include "UbaProcessStartInfoHolder.h"
@@ -76,6 +77,16 @@ namespace uba
 		Vector<ProcessLogLine> logLines;
 	};
 
+	void SchedulerCreateInfo::Apply(Config& config)
+	{
+		if (const ConfigTable* table = config.GetTable(TC("Scheduler")))
+		{
+			table->GetValueAsBool(enableProcessReuse, TC("EnableProcessReuse"));
+			table->GetValueAsBool(forceRemote, TC("ForceRemote"));
+			table->GetValueAsBool(forceNative, TC("ForceNative"));
+		}
+	}
+
 
 	Scheduler::Scheduler(const SchedulerCreateInfo& info)
 	:	m_session(info.session)
@@ -84,6 +95,7 @@ namespace uba
 	,	m_enableProcessReuse(info.enableProcessReuse)
 	,	m_forceRemote(info.forceRemote)
 	,	m_forceNative(info.forceNative)
+	,	m_processConfigs(info.processConfigs)
 	,	m_cacheClient(info.cacheClient)
 	,	m_writeToCache(info.writeToCache && info.cacheClient)
 	{
@@ -166,6 +178,22 @@ namespace uba
 		entry.status = useCache ? ProcessStatus_QueuedForCache : ProcessStatus_QueuedForRun;
 		entry.canDetour = info.canDetour;
 		entry.canExecuteRemotely = info.canExecuteRemotely && info.canDetour;
+
+		if (m_processConfigs)
+		{
+			auto name = info2->application.c_str();
+			if (auto lastSeparator = TStrrchr(name, PathSeparator))
+				name = lastSeparator + 1;
+			StringBuffer<128> lower(name);
+			lower.MakeLower();
+			lower.Replace('.', '_');
+			if (const ConfigTable* processConfig = m_processConfigs->GetTable(lower.data))
+			{
+				processConfig->GetValueAsBool(entry.canExecuteRemotely, TC("CanExecuteRemotely"));
+				processConfig->GetValueAsBool(entry.canDetour, TC("CanDetour"));
+			}
+		}
+
 		lock.Leave();
 
 		UpdateQueueCounter(1);

@@ -3,6 +3,7 @@
 #include "UbaSession.h"
 #include "UbaBottleneck.h"
 #include "UbaCompressedObjFileHeader.h"
+#include "UbaConfig.h"
 #include "UbaFileAccessor.h"
 #include "UbaObjectFile.h"
 #include "UbaProcess.h"
@@ -192,6 +193,28 @@ namespace uba
 	{
 		m_process = process;
 		process->AddRef();
+	}
+
+	void SessionCreateInfo::Apply(Config& config)
+	{
+		const ConfigTable* tablePtr = config.GetTable(TC("Session"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
+		table.GetValueAsString(rootDir, TC("RootDir"));
+		table.GetValueAsString(traceName, TC("TraceName"));
+		table.GetValueAsString(traceOutputFile, TC("TraceOutputFile"));
+		table.GetValueAsString(extraInfo, TC("ExtraInfo"));
+		table.GetValueAsBool(logToFile, TC("LogToFile"));
+		table.GetValueAsBool(useUniqueId, TC("UseUniqueId"));
+		table.GetValueAsBool(disableCustomAllocator, TC("DisableCustomAllocator"));
+		table.GetValueAsBool(launchVisualizer, TC("LaunchVisualizer"));
+		table.GetValueAsBool(allowMemoryMaps, TC("AllowMemoryMaps"));
+		table.GetValueAsBool(shouldWriteToDisk, TC("ShouldWriteToDisk"));
+		table.GetValueAsBool(traceEnabled, TC("TraceEnabled"));
+		table.GetValueAsBool(detailedTrace, TC("DetailedTrace"));
+		table.GetValueAsBool(storeObjFilesCompressed, TC("StoreObjFilesCompressed"));
+		table.GetValueAsBool(extractObjFilesSymbols, TC("ExtractObjFilesSymbols"));
 	}
 
 	void Session::AddEnvironmentVariableNoLock(const tchar* key, const tchar* value)

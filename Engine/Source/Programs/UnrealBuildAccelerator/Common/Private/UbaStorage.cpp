@@ -55,7 +55,10 @@ namespace uba
 
 	void StorageCreateInfo::Apply(Config& config)
 	{
-		const ConfigTable& table = config.GetTable(TC("Storage"));
+		const ConfigTable* tablePtr = config.GetTable(TC("Storage"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
 		table.GetValueAsString(rootDir, TC("RootDir"));
 	}
 

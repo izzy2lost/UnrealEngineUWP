@@ -2,6 +2,7 @@
 
 #include "UbaSessionServer.h"	
 #include "UbaApplicationRules.h"
+#include "UbaConfig.h"
 #include "UbaNetworkServer.h"
 #include "UbaProcess.h"
 #include "UbaProcessStartInfoHolder.h"
@@ -90,6 +91,15 @@ namespace uba
 		u32 m_knownInputsCount = 0;
 	};
 
+	void SessionServerCreateInfo::Apply(Config& config)
+	{
+		SessionCreateInfo::Apply(config);
+
+		if (const ConfigTable* table = config.GetTable(TC("Session")))
+		{
+			table->GetValueAsBool(remoteLogEnabled, TC("RemoteLogEnabled"));
+		}
+	}
 
 	SessionServer::SessionServer(const SessionServerCreateInfo& info, const u8* environment, u32 environmentSize)
 	:	Session(info, TC("UbaSessionServer"), false, &info.server)

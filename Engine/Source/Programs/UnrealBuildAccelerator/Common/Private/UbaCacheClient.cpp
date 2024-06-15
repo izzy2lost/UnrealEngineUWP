@@ -24,7 +24,10 @@ namespace uba
 {
 	void CacheClientCreateInfo::Apply(Config& config)
 	{
-		const ConfigTable& table = config.GetTable(TC("CacheClient"));
+		const ConfigTable* tablePtr = config.GetTable(TC("CacheClient"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
 		table.GetValueAsBool(useDirectoryPreparsing, TC("UseDirectoryPreparsing"));
 		table.GetValueAsBool(validateCacheWritesInput, TC("ValidateCacheWritesInput"));
 		table.GetValueAsBool(validateCacheWritesOutput, TC("ValidateCacheWritesOutput"));

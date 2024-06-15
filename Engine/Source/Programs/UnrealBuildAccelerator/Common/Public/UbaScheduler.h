@@ -9,6 +9,8 @@
 namespace uba
 {
 	class CacheClient;
+	class Config;
+	class ConfigTable;
 	class Process;
 	class RootPaths;
 	class SessionServer;
@@ -19,6 +21,8 @@ namespace uba
 	{
 		SchedulerCreateInfo(SessionServer& s) : session(s) {}
 
+		void Apply(Config& config);
+
 		SessionServer& session;
 		CacheClient* cacheClient = nullptr; // Set cache client for scheduler to use when building
 		u32 maxLocalProcessors = ~0u; // Max local processors to use. ~0u means it will use all processors
@@ -26,6 +30,7 @@ namespace uba
 		bool forceRemote = false; // Force all processes that can run remotely to run remotely.
 		bool forceNative = false; // Force all processes to run native (not detoured)
 		bool writeToCache = false; // Set to true in combination with setting cacheClient to populate cache
+		ConfigTable* processConfigs = nullptr;
 	};
 
 	struct EnqueueProcessInfo
@@ -64,6 +69,8 @@ namespace uba
 
 		void SetProcessFinishedCallback(const Function<void(const ProcessHandle&)>& processFinished); // Set callback 
 
+		SessionServer& GetSession() { return m_session; }
+		
 	private:
 		struct ExitProcessInfo;
 		struct ProcessStartInfo2;
@@ -101,8 +108,8 @@ namespace uba
 			u32* dependencies;
 			u32 dependencyCount;
 			ProcessStatus status;
-			u8 canDetour;
-			u8 canExecuteRemotely;
+			bool canDetour;
+			bool canExecuteRemotely;
 		};
 
 		ReaderWriterLock m_processEntriesLock;
@@ -117,6 +124,7 @@ namespace uba
 		bool m_enableProcessReuse;
 		bool m_forceRemote;
 		bool m_forceNative;
+		ConfigTable* m_processConfigs = nullptr;
 
 		float m_activeLocalProcessWeight = 0.0f;
 		u32 m_activeCacheQueries = 0;

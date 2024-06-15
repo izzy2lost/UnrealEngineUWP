@@ -43,6 +43,14 @@ namespace uba
 		return false;
 	}
 
+	const ConfigTable* ConfigTable::GetTable(const tchar* name) const
+	{
+		auto findIt = m_tables.find(name);
+		if (findIt == m_tables.end())
+			return nullptr;
+		return &findIt->second;
+	}
+
 	bool Config::LoadFromFile(Logger& logger, const tchar* configFile)
 	{
 		m_isLoaded = true;
@@ -93,7 +101,9 @@ namespace uba
 			{
 				while (i != e)
 				{
-					if (!((*i >= 'a' && *i <= 'z') || (*i >= 'A' && *i <= 'Z')))
+					tchar c = *i;
+					bool validChar = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '-';
+					if (!validChar)
 						return *i;
 					out.Append(*i);
 					++i;
@@ -118,7 +128,7 @@ namespace uba
 				return 0;
 			};
 
-		ConfigTable* activeTable = &m_globalTable;
+		ConfigTable* activeTable = this;
 		while (true)
 		{
 			char token = consumeEmpty();
@@ -148,7 +158,7 @@ namespace uba
 					return logger.Error(TC("Unexpected token %c after group %s"), tableName.data);
 				++i;
 				activeTable = &m_tables.try_emplace(tableName.data).first->second;
-				activeTable->m_parent = &m_globalTable;
+				activeTable->m_parent = this;
 			}
 			else
 			{
@@ -184,13 +194,5 @@ namespace uba
 	bool Config::IsLoaded() const
 	{
 		return m_isLoaded;
-	}
-
-	const ConfigTable& Config::GetTable(const tchar* name) const
-	{
-		auto findIt = m_tables.find(name);
-		if (findIt == m_tables.end())
-			return m_globalTable;
-		return findIt->second;
 	}
 }
