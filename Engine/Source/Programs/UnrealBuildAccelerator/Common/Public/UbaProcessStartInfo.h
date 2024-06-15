@@ -15,6 +15,8 @@ namespace uba
 		UBA_API ~ProcessStartInfo();
 		UBA_API ProcessStartInfo(const ProcessStartInfo&);
 
+		UBA_API const tchar* GetDescription() const;	// Use this instead since it will use application name if description is not set
+
 		const tchar* application = TC("");		// Application name, cl.exe etc. Use full path
 		const tchar* arguments = TC("");		// Arguments. Should not include application name
 		const tchar* workingDir = TC("");		// Working directory. Use full path

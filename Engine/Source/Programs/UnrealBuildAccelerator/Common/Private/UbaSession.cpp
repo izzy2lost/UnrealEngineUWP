@@ -51,6 +51,18 @@ namespace uba
 	ProcessStartInfo::~ProcessStartInfo() = default;
 	ProcessStartInfo::ProcessStartInfo(const ProcessStartInfo&) = default;
 
+	const tchar* ProcessStartInfo::GetDescription() const
+	{
+		if (description && *description)
+			return description;
+		const tchar* d = application;
+		if (const tchar* lps = TStrrchr(d, PathSeparator))
+			d = lps + 1;
+		if (const tchar* lps2 = TStrrchr(d, NonPathSeparator))
+			d = lps2 + 1;
+		return d;
+	}
+
 	ProcessHandle::ProcessHandle()
 	:	m_process(nullptr)
 	{
@@ -920,7 +932,6 @@ namespace uba
 		bool isSystem = StartsWith(applicationName, m_systemPath.data);
 		if (isSystem && IsKnownSystemFile(applicationName))
 			return true;
-
 
 		out.push_back({ library, temp3.data, attr, isSystem });
 
@@ -2362,7 +2373,8 @@ namespace uba
 		{
 			DWORD value = 0;
 			DWORD valueSize = 4;
-			LSTATUS res = RegGetValueW(HKEY_LOCAL_MACHINE, TC("SYSTEM\\CurrentControlSet\\Control\\FileSystem"), TC("NtfsDisableLastAccessUpdate"), RRF_RT_REG_DWORD, NULL, &value, &valueSize);
+			const tchar* fsKey = TC("SYSTEM\\CurrentControlSet\\Control\\FileSystem");
+			LSTATUS res = RegGetValueW(HKEY_LOCAL_MACHINE, fsKey, TC("NtfsDisableLastAccessUpdate"), RRF_RT_REG_DWORD, NULL, &value, &valueSize);
 			if (res != ERROR_SUCCESS)
 			{
 				m_logger.Detail(TC("Failed to retreive ntfs registry key (%i)"), res);
@@ -2373,6 +2385,21 @@ namespace uba
 				if (lastAccessSettingsValue == 0 || lastAccessSettingsValue == 2)
 					out.Append(TC(" NtfsLastAccessEnabled"));
 			}
+			value = 0;
+			res = RegGetValueW(HKEY_LOCAL_MACHINE, fsKey, TC("NtfsDisable8dot3NameCreation"), RRF_RT_REG_DWORD, NULL, &value, &valueSize);
+			if (res == ERROR_SUCCESS)
+				if (value == 0)
+					out.Append(TC(" NtfsShortNamesEnabled"));
+		}
+		else
+		{
+			StringBuffer<> testDir;
+			testDir.Append(m_rootDir).Append(TC("UbaTestShortNames"));
+			::RemoveDirectory(testDir.data);
+			wchar_t shortName[1024];
+			if (::CreateDirectoryW(testDir.data, NULL))
+				if (GetShortPathName(testDir.data, shortName, 1024) != 0 && !Contains(shortName, TC("UbaTestShortNames")))
+					out.Append(TC(" NtfsShortNamesEnabled"));
 		}
 		#endif
 
