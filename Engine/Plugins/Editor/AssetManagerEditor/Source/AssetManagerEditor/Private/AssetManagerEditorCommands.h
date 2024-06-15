@@ -130,7 +130,10 @@ public:
 
 	/** Zoom in to fit the selected objects in the window */
 	TSharedPtr<FUICommandInfo> ZoomToFit;
-	
+
+	/** Display the list of properties which are referencing the selected node from its referencing node(s) */
+	TSharedPtr<FUICommandInfo> ResolveReferencingProperties;
+
 	/** Start finding objects */
 	TSharedPtr<FUICommandInfo> Find;
 

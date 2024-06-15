@@ -91,8 +91,8 @@ FReferenceViewerStyle::FReferenceViewerStyle()
 
 	// Centered Status Text
 	{
-		static constexpr FLinearColor CenteredStatusColor = FLinearColor(1, 1, 1, 0.3f);
-		static constexpr float OutlineWidth = 2.0f;
+		constexpr FLinearColor CenteredStatusColor = FLinearColor(1, 1, 1, 0.3f);
+		constexpr float OutlineWidth = 2.0f;
 
 		Set("Graph.CenteredStatusText", FTextBlockStyle(NormalText)
 			.SetFont( DEFAULT_FONT( "BoldCondensed", 16 ) )
@@ -101,6 +101,20 @@ FReferenceViewerStyle::FReferenceViewerStyle()
 
 		// A rounded box brush, showing only its border
 		Set( "Graph.CenteredStatusBrush", new FSlateRoundedBoxBrush(FLinearColor::Transparent, BodyRadius, CenteredStatusColor, OutlineWidth));
+	}
+
+	// Referenced Properties Border
+	{
+		const FLinearColor OutlineColor = FColor::FromHex("#717171");
+		const FLinearColor FillColor = FColor::FromHex("#282828");
+		constexpr float OutlineWidth = 1.0f;
+
+		// A rounded box brush, showing only its border
+		Set( "Graph.ReferencedPropertiesBrush", new FSlateRoundedBoxBrush(FillColor, BodyRadius, OutlineColor, OutlineWidth));
+
+		Set("Graph.ReferencedPropertiesText", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(OutlineColor)
+		);
 	}
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);

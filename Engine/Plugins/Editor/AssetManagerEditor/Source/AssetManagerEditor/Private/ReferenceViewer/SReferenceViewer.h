@@ -186,6 +186,8 @@ private:
 	void ZoomToFit();
 	bool CanZoomToFit() const;
 	void OnFind();
+	void ResolveReferencingProperties() const;
+	bool CanResolveReferencingProperties() const;
 
 	/** Find Path */
 	void OnFindPathAssetSelected();

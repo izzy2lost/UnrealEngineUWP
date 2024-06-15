@@ -48,7 +48,9 @@
 #include "AssetToolsModule.h"
 #include "ReferenceViewer/SReferenceViewer.h"
 #include "ReferenceViewer/SReferenceNode.h"
+#include "ReferenceViewer/SReferencedPropertiesNode.h"
 #include "ReferenceViewer/EdGraphNode_Reference.h"
+#include "ReferenceViewer/EdGraphNode_ReferencedProperties.h"
 #include "SSizeMap.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Docking/TabManager.h"
@@ -92,6 +94,10 @@ class FAssetManagerGraphPanelNodeFactory : public FGraphPanelNodeFactory
 		if (UEdGraphNode_Reference* DependencyNode = Cast<UEdGraphNode_Reference>(Node))
 		{
 			return SNew(SReferenceNode, DependencyNode);
+		}
+		else if (UEdGraphNode_ReferencedProperties* PropertiesNode = Cast<UEdGraphNode_ReferencedProperties>(Node))
+		{
+			return SNew(SReferencedPropertiesNode, PropertiesNode);
 		}
 
 		return nullptr;

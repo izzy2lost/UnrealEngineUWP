@@ -13,8 +13,14 @@
 #include "ICollectionManager.h"
 #include "CollectionManagerModule.h"
 #include "AssetManagerEditorModule.h"
+#include "SReferencedPropertiesNode.h"
 #include "Engine/AssetManager.h"
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Interfaces/IPluginManager.h"
+#include "ReferenceViewer/EdGraphNode_ReferencedProperties.h"
+#include "UObject/ReferenceChainSearch.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EdGraph_ReferenceViewer)
 
@@ -333,6 +339,267 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::ConstructNodes(const TArray<FA
 	}
 
 	return RefilterGraph();
+}
+
+TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveReferencingProperties(UObject* InReferencer, UObject* InReferencedAsset)
+{
+	// This method will check InReferencer for references to InReferencedAsset.
+	// Search includes property types and values.
+	// At this stage, it is possible that some cases won't work well (missing references)
+	// On the other end, some results won't be entirely helpful to the user
+
+	if (!InReferencer || !InReferencedAsset)
+	{
+		return {};
+	}
+
+	TArray<FReferencingPropertyDescription> ReferencingProperties;
+
+	// Registering referencing properties to the output array. Property type defaults to EReferencedPropertyType::Property
+	auto AddReferencingProperty = [&ReferencingProperties](const FString& InPropertyName, const FString& InReferencerName,
+		FReferencingPropertyDescription::EAssetReferenceType InPropertyType = FReferencingPropertyDescription::EAssetReferenceType::Property)
+	{
+		FReferencingPropertyDescription PropertyDescription(InPropertyName, InReferencerName, InPropertyType);
+
+		if (!ReferencingProperties.Contains(PropertyDescription))
+		{
+			ReferencingProperties.AddUnique(PropertyDescription);
+		}
+	};
+
+	// User Defined Struct ("BP Struct")
+	if (UUserDefinedStruct* ReferencerStruct = Cast<UUserDefinedStruct>(InReferencer))
+	{
+		const FProperty* CurrentStructProperty = ReferencerStruct->PropertyLink;
+		while (CurrentStructProperty)
+		{
+			bool bMatchFound = false;
+
+			if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(CurrentStructProperty))
+			{
+				if (const TObjectPtr<UClass>& PropertyClass = ObjectProperty->PropertyClass)
+				{
+					bMatchFound = PropertyClass->ClassGeneratedBy == InReferencedAsset;
+				}
+			}
+			else if (const FByteProperty* ByteProperty = CastField<FByteProperty>(CurrentStructProperty))
+			{
+				bMatchFound = ByteProperty->Enum == InReferencedAsset;
+			}
+			else if (const FStructProperty* StructProperty = CastField<FStructProperty>(CurrentStructProperty))
+			{
+				bMatchFound = StructProperty->Struct == InReferencedAsset;
+			}
+
+			if (bMatchFound)
+			{
+				AddReferencingProperty(CurrentStructProperty->GetDisplayNameText().ToString(), InReferencer->GetName());
+			}
+
+			CurrentStructProperty = CurrentStructProperty->PropertyLinkNext;
+		}
+
+		// We are done with this Asset Struct
+		return ReferencingProperties;
+	}
+
+	// In case Referencer is a Blueprint, let's look for BP Actor Components referencing the Referenced Asset
+	if (UBlueprint* ReferencerBlueprint = Cast<UBlueprint>(InReferencer))
+	{
+		if (const TObjectPtr<USimpleConstructionScript>& SimpleConstructionScript = ReferencerBlueprint->SimpleConstructionScript)
+		{
+			const TArray<USCS_Node*>& CDONodes = SimpleConstructionScript->GetAllNodes();
+			for (const USCS_Node* Node : CDONodes)
+			{
+				if (!Node)
+				{
+					continue;
+				}
+
+				UClass* ComponentClass = Node->ComponentClass;
+				if (!ComponentClass)
+				{
+					continue;
+				}
+
+				UObject* GeneratingBlueprintObject = ComponentClass->ClassGeneratedBy;
+				if (!GeneratingBlueprintObject)
+				{
+					continue;
+				}
+
+				if (GeneratingBlueprintObject == InReferencedAsset)
+				{
+					// The blueprint used to generate the current CDO Component Node is the same as the referenced asset: add this to output properties names
+					AddReferencingProperty(*Node->GetVariableName().ToString(), InReferencer->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Component);
+				}
+			}
+		}
+	}
+
+	// This string will be used as support to export properties as text, in case we need it
+	FString PropertyExportString;
+
+	// Going through available fields
+	for (TFieldIterator<FProperty> PropertyIt(InReferencer->GetClass()); PropertyIt; ++PropertyIt)
+	{
+		if (!PropertyIt)
+		{
+			continue;
+		}
+
+		PropertyExportString.Empty();
+
+		// Blueprint Array
+		if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(*PropertyIt))
+		{
+			FScriptArrayHelper_InContainer ArrayHelper(ArrayProperty, InReferencer);
+			for (int32 ItemIndex = 0; ItemIndex < ArrayHelper.Num(); ItemIndex++)
+			{
+				uint8* ArrayElementMemory = ArrayHelper.GetRawPtr(ItemIndex);
+
+				// Blueprint Property
+				if (ArrayProperty->GetOwnerClass() == UBlueprint::StaticClass())
+				{
+					// We are looking for Blueprint Variables only
+					if (ArrayProperty->GetName() != TEXT("NewVariables"))
+					{
+						continue;
+					}
+
+					const FBPVariableDescription& BPVariableDescription = *reinterpret_cast<const FBPVariableDescription*>(ArrayElementMemory);
+
+					bool bAddProperty = false;
+					UObject* SubCategoryObject = BPVariableDescription.VarType.PinSubCategoryObject.Get();
+					if (SubCategoryObject == InReferencedAsset)
+					{
+						bAddProperty = true;
+					}
+					else if (UClass* BPVariableClass = Cast<UClass>(SubCategoryObject))
+					{
+						const TObjectPtr<UObject>& GeneratingBlueprintObject = BPVariableClass->ClassGeneratedBy;
+						if (GeneratingBlueprintObject == InReferencedAsset)
+						{
+							bAddProperty = true;
+						}
+					}
+					else if (FProperty* InnerProperty = ArrayProperty->Inner)// todo: can we avoid using ExportTextItem_Direct in this case?
+					{
+						InnerProperty->ExportTextItem_Direct(PropertyExportString, ArrayHelper.GetRawPtr(ItemIndex), ArrayHelper.GetRawPtr(ItemIndex), InReferencer, PPF_IncludeTransient);
+						if (!PropertyExportString.IsEmpty() && PropertyExportString.Contains(InReferencedAsset->GetPathName()))
+						{
+							bAddProperty = true;
+						}
+					}
+
+					if (bAddProperty)
+					{
+						AddReferencingProperty(BPVariableDescription.VarName.ToString(), InReferencer->GetName());
+					}
+				}
+				// Other
+				else if (const FProperty* InnerProperty = ArrayProperty->Inner)
+				{
+					if (InnerProperty->IsA<FObjectProperty>())
+					{
+						UObject* Object;
+						InnerProperty->GetValue_InContainer(ArrayElementMemory, &Object);
+						if (Object == InReferencedAsset)
+						{
+							const FString ItemIndexString = "[" + FString::FromInt(ItemIndex) + "]";
+							AddReferencingProperty(ArrayProperty->GetFName().ToString() + ItemIndexString, InReferencer->GetName());
+						}
+					}
+				}
+			}
+		}
+		// Native Array
+		else if (PropertyIt->ArrayDim > 1)
+		{
+			for (int32 ItemIndex = 0; ItemIndex < PropertyIt->ArrayDim; ItemIndex++)
+			{
+				PropertyIt->ExportText_InContainer(ItemIndex, PropertyExportString, InReferencer, InReferencer, InReferencer, PPF_IncludeTransient);
+
+				if (!PropertyExportString.IsEmpty() && PropertyExportString.Contains(InReferencedAsset->GetPathName()))
+				{
+					AddReferencingProperty(PropertyIt->GetFName().ToString(), InReferencer->GetName());
+				}
+			}
+		}
+		else if (PropertyIt->IsA<FObjectProperty>())
+		{
+			UObject* Object;
+			PropertyIt->GetValue_InContainer(InReferencer, &Object);
+			if (Object == InReferencedAsset)
+			{
+				AddReferencingProperty(PropertyIt->GetDisplayNameText().ToString(), InReferencer->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Value);
+			}
+		}
+		// Other property (should handle Struct Property and fields as well)
+		else
+		{
+			PropertyIt->ExportText_InContainer(0, PropertyExportString, InReferencer, InReferencer, InReferencer, PPF_IncludeTransient);
+
+			if (!PropertyExportString.IsEmpty() && PropertyExportString.Contains(InReferencedAsset->GetPathName()))
+			{
+				AddReferencingProperty(PropertyIt->GetDisplayNameText().ToString(), InReferencer->GetName());
+			}
+		}
+	}
+
+	// The code above finds Assets when used as types (e.g. BP Enum, Struct or BPs) but not as values (e.g. a Static Mesh used as variable)
+	// To find those, we check the Reference Chain
+	TSet<FString> FoundProperties;
+	FReferenceChainSearch ReferenceChainSearch(InReferencedAsset, EReferenceChainSearchMode::Direct);
+	for (FReferenceChainSearch::FReferenceChain* ObjectRefChain : ReferenceChainSearch.GetReferenceChains())
+	{
+		for (int32 NodeIndex = 0; NodeIndex < ObjectRefChain->Num(); ++NodeIndex)
+		{
+			const FReferenceChainSearch::FGraphNode* ObjectRefChainLink = ObjectRefChain->GetNode(NodeIndex);
+			UObject* LinkObject = ObjectRefChainLink->ObjectInfo->TryResolveObject();
+
+			if (LinkObject->GetOuter() == InReferencedAsset)
+			{
+				continue;
+			}
+
+			const FReferenceChainSearch::TReferenceInfo<FReferenceChainSearch::FGraphNode>* ReferenceInfo = ObjectRefChain->GetReferenceInfo(NodeIndex);
+			if (!ReferenceInfo)
+			{
+				continue;
+			}
+
+			if (ReferenceInfo->Type != FReferenceChainSearch::EReferenceType::Property)
+			{
+				continue;
+			}
+
+			if (UObject* ReferenceObject = ReferenceInfo->Object->ObjectInfo->TryResolveObject())
+			{
+				if (ReferenceObject == InReferencedAsset)
+				{
+					const FString RefName = ReferenceInfo->ReferencerName.ToString();
+
+					// These should not interest the user
+					if (RefName == "ClassGeneratedBy"
+						|| RefName == "ScriptAndPropertyObjectReferences")
+					{
+						continue;
+					}
+
+					FoundProperties.Add(RefName);
+				}
+			}
+		}
+	}
+
+	// Adding all found values refs to the list of referencing properties
+	for (const FString& PropertyName : FoundProperties)
+	{
+		AddReferencingProperty(PropertyName, InReferencer->GetName(), FReferencingPropertyDescription::EAssetReferenceType::Value);
+	}
+
+	return ReferencingProperties;
 }
 
 UEdGraphNode_Reference* UEdGraph_ReferenceViewer::FindPath(const FAssetIdentifier& RootId, const FAssetIdentifier& TargetId)
@@ -1134,6 +1401,12 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::CreateReferenceNode()
 {
 	const bool bSelectNewNode = false;
 	return Cast<UEdGraphNode_Reference>(CreateNode(UEdGraphNode_Reference::StaticClass(), bSelectNewNode));
+}
+
+UEdGraphNode_ReferencedProperties* UEdGraph_ReferenceViewer::CreateReferencedPropertiesNode()
+{
+	constexpr  bool bSelectNewNode = false;
+	return Cast<UEdGraphNode_ReferencedProperties>(CreateNode(UEdGraphNode_ReferencedProperties::StaticClass(), bSelectNewNode));
 }
 
 void UEdGraph_ReferenceViewer::RemoveAllNodes()

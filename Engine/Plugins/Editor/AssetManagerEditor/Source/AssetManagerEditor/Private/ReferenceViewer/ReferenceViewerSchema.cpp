@@ -9,6 +9,9 @@
 #include "ConnectionDrawingPolicy.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
+#include "Materials/MaterialFunctionInterface.h"
+#include "Materials/MaterialInstance.h"
+#include "ReferenceViewer/EdGraphNode_Reference.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ReferenceViewerSchema)
 
@@ -153,11 +156,34 @@ void UReferenceViewerSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 	}
 
 	{
+		bool bResolveProperties = false;
+		if (Context)
+		{
+			if (const UEdGraphNode_Reference* ReferenceNode = Cast<UEdGraphNode_Reference>(Context->Node))
+			{
+				bResolveProperties = true;
+				FAssetData AssetData = ReferenceNode->GetAssetData();
+				if (const TObjectPtr<UObject>& CDO = AssetData.GetClass()->ClassDefaultObject)
+				{
+					if (CDO->IsA<UMaterialFunctionInterface>() || CDO->IsA<UMaterialInstance>())
+					{
+						bResolveProperties = false;
+					}
+				}
+			}
+		}
+
 		FToolMenuSection& Section = Menu->AddSection(TEXT("References"), NSLOCTEXT("ReferenceViewerSchema", "ReferencesSectionLabel", "References"));
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().CopyReferencedObjects);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().CopyReferencingObjects);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowReferencedObjects);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowReferencingObjects);
+
+		if (bResolveProperties)
+		{
+			Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ResolveReferencingProperties);
+		}
+
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowReferenceTree);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ViewSizeMap);
 
@@ -272,4 +298,3 @@ void UReferenceViewerSchema::GetMakeCollectionWithReferencersOrDependenciesSubMe
 			);
 	}
 }
-

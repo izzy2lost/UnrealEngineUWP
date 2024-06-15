@@ -12,6 +12,7 @@
 #include "ReferenceViewer/HistoryManager.h"
 #include "ReferenceViewerStyle.h"
 #include "ReferenceViewer/EdGraphNode_Reference.h"
+#include "ReferenceViewer/EdGraphNode_ReferencedProperties.h"
 #include "ReferenceViewer/ReferenceViewerSchema.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ICollectionManager.h"
@@ -26,6 +27,7 @@
 #include "Toolkits/GlobalEditorCommonCommands.h"
 #include "Engine/AssetManager.h"
 #include "ReferenceViewer/SReferenceViewerFilterBar.h"
+#include "ReferenceViewer/SReferencedPropertiesNode.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
@@ -1534,6 +1536,11 @@ void SReferenceViewer::RegisterActions()
 		FCanExecuteAction::CreateSP(this, &SReferenceViewer::CanZoomToFit));
 
 	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().ResolveReferencingProperties,
+		FExecuteAction::CreateSP(this, &SReferenceViewer::ResolveReferencingProperties),
+		FCanExecuteAction::CreateSP(this, &SReferenceViewer::CanResolveReferencingProperties));
+
+	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().Find,
 		FExecuteAction::CreateSP(this, &SReferenceViewer::OnFind));
 
@@ -2287,6 +2294,108 @@ bool SReferenceViewer::CanZoomToFit() const
 void SReferenceViewer::OnFind()
 {
 	FSlateApplication::Get().SetKeyboardFocus(SearchBox, EFocusCause::SetDirectly);
+}
+
+void SReferenceViewer::ResolveReferencingProperties() const
+{
+	if (!GraphEditorPtr)
+	{
+		return;
+	}
+
+	// Retrieve Object from the specified node. Will load the asset if needed.
+	auto GetObjectFromNode([](const UEdGraphNode_Reference* InNode)
+	{
+		UObject* ReturnObject;
+		if (InNode)
+		{
+			const FAssetData& AssetData = InNode->GetAssetData();
+			if (AssetData.IsAssetLoaded())
+			{
+				ReturnObject = AssetData.GetAsset();
+			}
+			else
+			{
+				FScopedSlowTask SlowTask(0, LOCTEXT("LoadingSelectedObject", "Loading selection..."));
+				SlowTask.MakeDialog();
+				ReturnObject = AssetData.GetAsset();
+			}
+		}
+		else
+		{
+			ReturnObject = nullptr;
+		}
+
+		return ReturnObject;
+	});
+
+	TSet<UObject*> SelectedNodes = GraphEditorPtr->GetSelectedNodes();
+	if (ensure(!SelectedNodes.IsEmpty()))
+	{
+		for (UObject* SelectedNode : SelectedNodes.Array())
+		{
+			UEdGraphNode_Reference* ReferencedNode = Cast<UEdGraphNode_Reference>(SelectedNode);
+			if (!ReferencedNode)
+			{
+				continue;
+			}
+
+			UObject* ReferencedObject = GetObjectFromNode(ReferencedNode);
+			UEdGraphPin* ReferencerPin = ReferencedNode->GetReferencerPin();
+
+			if (!ReferencerPin || !ReferencedObject)
+			{
+				continue;
+			}
+
+			if (ReferencerPin->LinkedTo.IsEmpty())
+			{
+				continue;
+			}
+
+			TArray<FReferencingPropertyDescription> ReferencingProperties;
+			for (UEdGraphPin* ReferencedPin : ReferencerPin->LinkedTo)
+			{
+				if (!ReferencedPin)
+				{
+					continue;
+				}
+
+				UEdGraphNode_Reference* ReferencingNode = Cast<UEdGraphNode_Reference>(ReferencedPin->GetOwningNode());
+				if (!ReferencedNode)
+				{
+					continue;
+				}
+
+				UObject* ReferencingObject = GetObjectFromNode(ReferencingNode);
+				if (!ReferencingObject)
+				{
+					continue;
+				}
+
+				TArray<FReferencingPropertyDescription> ReferencingPropertiesArray = GraphObj->RetrieveReferencingProperties(ReferencingObject, ReferencedObject);
+				if (ReferencingPropertiesArray.IsEmpty())
+				{
+					continue;
+				}
+
+				if (UEdGraphNode_ReferencedProperties* PropertiesNode = GraphObj->CreateReferencedPropertiesNode())
+				{
+					PropertiesNode->SetupReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
+				}
+			}
+		}
+	}
+}
+
+bool SReferenceViewer::CanResolveReferencingProperties() const
+{
+	if (!GraphEditorPtr)
+	{
+		return false;
+	}
+
+	return GraphEditorPtr->GetSelectedNodes().Num() >= 1;
 }
 
 void SReferenceViewer::HandleOnSearchTextChanged(const FText& SearchText)

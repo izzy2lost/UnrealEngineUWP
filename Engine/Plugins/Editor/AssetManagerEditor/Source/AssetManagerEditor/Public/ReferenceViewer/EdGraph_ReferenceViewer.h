@@ -13,9 +13,11 @@
 
 class FAssetThumbnailPool;
 class UEdGraphNode_Reference;
+class UEdGraphNode_ReferencedProperties;
 class SReferenceViewer;
 class UReferenceViewerSettings;
 enum class EDependencyPinCategory;
+struct FReferencingPropertyDescription;
 
 /*
 *  Holds asset information for building reference graph
@@ -62,6 +64,7 @@ struct FReferenceNodeInfo
 	bool PassedFilters;
 
 };
+
 
 
 UCLASS()
@@ -116,6 +119,15 @@ public:
 	bool BreadthLimitExceeded() const { return bBreadthLimitReached; };
 
 private:
+
+	/**
+	 * Retrieves the list of properties/values of a specified Referencer Object which reference the specified Referenced Asset
+	 * @param InReferencer: the Object referencing the Asset
+	 * @param InReferencedAsset: the asset referenced by the specified Object
+	 * @return the list of properties of the input Referencer, referencing the specified Asset.
+	 */
+	TArray<FReferencingPropertyDescription> RetrieveReferencingProperties(UObject* InReferencer, UObject* InReferencedAsset);
+
 	void SetReferenceViewer(TSharedPtr<SReferenceViewer> InViewer);
 	UEdGraphNode_Reference* ConstructNodes(const TArray<FAssetIdentifier>& GraphRootIdentifiers, const FIntPoint& GraphRootOrigin);
 
@@ -125,6 +137,8 @@ private:
 	FAssetManagerDependencyQuery GetReferenceSearchFlags(bool bHardOnly) const;
 
 	UEdGraphNode_Reference* CreateReferenceNode();
+
+	UEdGraphNode_ReferencedProperties* CreateReferencedPropertiesNode();
 
 	/* Generates a NodeInfo structure then used to generate and layout the graph nodes */
 	void RecursivelyPopulateNodeInfos(bool bReferencers, const TArray<FAssetIdentifier>& Identifiers, TMap<FAssetIdentifier, FReferenceNodeInfo>& NodeInfos, int32 CurrentDepth, int32 MaxDepth);
