@@ -237,7 +237,11 @@ public:
 	UPROPERTY(AssetRegistrySearchable)
 	FString PaletteCategory;
 
-	/** Run the initialize event on widget that doesn't have a player context. */
+	/**
+	 * Determines whether this widget blueprint can be initialized without
+	 * a valid player context (PlayerController, etc.).
+	 * Required to be true for use with UMG Widget Preview.
+	 */
 	UPROPERTY(EditAnywhere, Category="Widget")
 	bool bCanCallInitializedWithoutPlayerContext;
 #endif

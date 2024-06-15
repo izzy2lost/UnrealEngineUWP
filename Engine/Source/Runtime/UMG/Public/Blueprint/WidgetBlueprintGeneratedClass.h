@@ -103,7 +103,11 @@ public:
 #endif
 
 public:
-	/** */
+	/**
+	 * Determines whether this widget blueprint can be initialized without
+	 * a valid player context (PlayerController, etc.).
+	 * Required to be true for use with UMG Widget Preview.
+	 */
 	UPROPERTY()
 	uint32 bCanCallInitializedWithoutPlayerContext : 1;
 
