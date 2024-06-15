@@ -107,7 +107,7 @@ namespace uba
 		bool IsRarelyReadAfterWritten(ProcessImpl& process, const StringView& fileName) const;
 		bool IsKnownSystemFile(const tchar* applicationName);
 		bool ShouldWriteToDisk(const StringView& fileName);
-		u32 WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset);
+		u32 WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32* outTableOffset = nullptr);
 		u32 AddFileMapping(StringKey fileNameKey, const tchar* fileName, const tchar* newFileName, u64 fileSize = InvalidValue);
 		
 		struct MemoryMap { StringBuffer<128> name; u64 size = 0; };
@@ -180,6 +180,7 @@ namespace uba
 		bool m_allowMemoryMaps;
 		bool m_shouldWriteToDisk;
 		bool m_detailedTrace;
+		bool m_traceChildProcesses;
 		bool m_logToFile;
 		bool m_storeObjFilesCompressed;
 

@@ -1255,7 +1255,7 @@ namespace uba
 		temp.Append(m_startInfo.logFile);
 		if (TStrcmp(temp.data + temp.count - 4, TC(".log")) == 0)
 			temp.Resize(temp.count - 4);
-		temp.Appendf(TC("_CHILD%u.log"), u32(m_childProcesses.size()));
+		temp.Appendf(TC("_CHILD%03u.log"), u32(m_childProcesses.size()));
 		return temp.data;
 	}
 
