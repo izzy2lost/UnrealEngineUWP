@@ -1686,7 +1686,7 @@ namespace uba
 						if (session.m_killRandomIndex != ~0u && session.m_killRandomCounter++ == session.m_killRandomIndex)
 						{
 							session.m_loop = false;
-							session.m_logger.Info(TC("Killed random process (%s)"), process.m_description.c_str());
+							session.m_logger.Info(TC("Killed random process (%s)"), process.m_startInfo.GetDescription());
 							return;
 						}
 

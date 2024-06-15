@@ -135,6 +135,20 @@ int wmain(int argc, wchar_t* argv[])
 
 			CopyFile(L"FileW2", L"FileWF", false);
 		}
+
+		{
+			if (!CreateDirectoryW(L"DirA", NULL))
+				return LogError(L"Failed to create directory");
+
+			if (GetFileAttributesW(L"DirA") == 0)
+				return LogError(L"Failed to get attributes of directory");
+
+			if (!RemoveDirectoryW(L"DirA"))
+				return LogError(L"Failed to remove directory");
+
+			if (GetFileAttributesW(L"DirA") != INVALID_FILE_ATTRIBUTES)
+				return LogError(L"Found attributes of deleted directory");
+		}
 	}
 	else if (wcscmp(argv[1], L"-reuse") == 0)
 	{
