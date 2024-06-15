@@ -29,7 +29,9 @@ namespace uba
 			if (!*coordinatorType)
 				return false;
 
-			StringBuffer<128> coordinatorBin;
+			StringBuffer<128> coordinatorBin(info.binariesDir);
+			coordinatorBin.EnsureEndsWithSlash();
+
 			#if PLATFORM_WINDOWS
 			coordinatorBin.Append(TC("UbaCoordinator")).Append(coordinatorType).Append(TC(".dll"));
 			#else
@@ -48,10 +50,6 @@ namespace uba
 			m_destroyCoordinator = (UbaDestroyCoordinatorFunc*)(void*)GetProcAddress(coordinatorModule, "UbaDestroyCoordinator");
 			if (!m_destroyCoordinator)
 				return logger.Error(TC("Failed to find UbaDestroyCoordinator function inside %s (%s)"), coordinatorBin.data, LastErrorToText().data);
-
-			StringBuffer<512> binariesDir;
-			if (!GetDirectoryOfCurrentModule(logger, binariesDir))
-				return false;
 
 			m_coordinator = createCoordinator(info);
 			if (!m_coordinator)
