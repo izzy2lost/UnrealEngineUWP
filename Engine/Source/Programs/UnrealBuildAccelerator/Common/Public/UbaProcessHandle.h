@@ -12,7 +12,7 @@ namespace uba
 	struct ProcessStartInfo;
 
 	// Exit code returned by ProcessHandle.GetExitCode() if build was cancelled
-	inline constexpr u32 ProcessCancelExitCode = 99999;
+	constexpr u32 ProcessCancelExitCode = 99999;
 
 
 	struct ProcessLogLine
