@@ -17,14 +17,17 @@
 	"EnabledByDefault": false,
 	"SupportedTargetPlatforms": [
 		"Win64",
-		"Linux",
-		"Mac"
+		"Linux"
 	],
 	"Modules": [
 		{
 			"Name": "AvalancheDisplayCluster",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Linux"
+			]
 		}
 	],
 	"Plugins": [

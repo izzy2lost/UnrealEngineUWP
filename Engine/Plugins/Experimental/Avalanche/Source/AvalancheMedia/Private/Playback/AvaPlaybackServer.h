@@ -230,6 +230,10 @@ private:
 		int32 Priority;
 		FMessageAddress ReplyTo;
 		FAvaPlaybackCommand Command;
+
+		FPendingPlaybackCommand(const FDateTime& InReceivedUtc, uint32 InReceivedFrameNumber, int32 InPriority, const FMessageAddress& InReplyTo, const FAvaPlaybackCommand& InCommand)
+			: ReceivedUtc(InReceivedUtc), ReceivedFrameNumber(InReceivedFrameNumber), Priority(InPriority), ReplyTo(InReplyTo), Command(InCommand)
+		{}
 	};
 
 	/** Accumulate all the playback commands and execute them all in one batch on the next tick. */
