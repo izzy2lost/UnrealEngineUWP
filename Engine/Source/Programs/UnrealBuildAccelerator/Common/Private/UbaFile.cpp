@@ -373,6 +373,8 @@ namespace uba
 
 	bool SearchPathForFile(Logger& logger, StringBufferBase& out, const tchar* file, const tchar* applicationDir)
 	{
+		UBA_ASSERT(!IsAbsolutePath(file));
+
 		StringBuffer<> fullPath;
 		fullPath.Append(applicationDir);
 		fullPath.EnsureEndsWithSlash();
@@ -405,8 +407,7 @@ namespace uba
 
 			*it = 0;
 
-			fullPath.Resize(0);
-			fullPath.Append(lastStart);
+			fullPath.Clear().Append(lastStart);
 			if (*lastStart)
 				fullPath.EnsureEndsWithSlash();
 			fullPath.Append(file);

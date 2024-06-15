@@ -1667,6 +1667,8 @@ namespace uba
 	{
 		if (StartsWith(startInfo.application, TC("ubacopy")))
 			return true;
+		if (IsAbsolutePath(startInfo.application))
+			return true;
 		if (!SearchPathForFile(m_logger, outRealApplication.Clear(), startInfo.application, startInfo.workingDir))
 			return false;
 		startInfo.applicationStr = outRealApplication.data;
