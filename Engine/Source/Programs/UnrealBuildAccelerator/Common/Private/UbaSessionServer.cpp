@@ -168,7 +168,6 @@ namespace uba
 		}
 
 		#if PLATFORM_WINDOWS
-		m_localEnvironmentVariables.insert(TC("Path"));
 		m_localEnvironmentVariables.insert(TC("TMP"));
 		m_localEnvironmentVariables.insert(TC("TEMP"));
 		#else
