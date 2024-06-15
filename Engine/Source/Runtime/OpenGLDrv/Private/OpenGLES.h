@@ -417,7 +417,8 @@ struct FOpenGLES : public FOpenGLBase
 
 	static FORCEINLINE void MemoryBarrier(GLbitfield Barriers)
 	{
-		glMemoryBarrier(Barriers);
+		// It seems like barriers do nothing on a GLES drivers
+		//glMemoryBarrier(Barriers);
 	}
 
 	static FORCEINLINE void DispatchCompute(GLuint NumGroupsX, GLuint NumGroupsY, GLuint NumGroupsZ)
