@@ -64,7 +64,7 @@ $ bLegalToDistributeBinary : Whether the output from this target can be publicly
 
 $ bUseVerseBPVM : Whether to use the BPVM to run Verse.
 
-$ bUseAutoRTFMCompiler : Whether to use the AutoRTFM Clang compiler.
+$ bForceNoAutoRTFMCompiler : Whether to use force AutoRTFM Clang compiler off.
 
 $ bUseInlining : Enable inlining for all modules.
 

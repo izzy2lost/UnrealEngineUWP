@@ -361,6 +361,16 @@ Replaces strings in a text file with secrets obtained from Horde
 | Replace | String    | Optional | Pairs of strings and secret names to expand in the text file, in the form SOURCE_TEXT=secret-name;SOURCE_TEXT_2=secret-name-2. If not specified, secrets embedded inline in the text will be expanded from {{secret-name.value}} strings. |
 | If      | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false.                                                                                                                                                         |
 
+### Horde-SetSecretEnvVar
+
+Replaces strings in a text file with secrets obtained from Horde
+
+|        |           |          |                                                                                   |
+| ------ | --------- | -------- | --------------------------------------------------------------------------------- |
+| Name   | String    | Required | Name of the environment variable to set                                           |
+| Secret | String    | Required | Name of the secret to fetch                                                       |
+| If     | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false. |
+
 ### Kubectl
 
 Spawns Kubectl and waits for it to complete.
