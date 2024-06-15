@@ -80,6 +80,7 @@
 	DETOURED_FUNCTION(UnmapViewOfFileEx) \
 	DETOURED_FUNCTION(GetFinalPathNameByHandleW) \
 	DETOURED_FUNCTION(CreateProcessW) \
+	DETOURED_FUNCTION(CreateProcessA) \
 	DETOURED_FUNCTION(TerminateProcess) \
 	DETOURED_FUNCTION(SearchPathW) \
 	DETOURED_FUNCTION(LoadLibraryExW) \
@@ -225,7 +226,6 @@
 	DETOURED_FUNCTION(GetModuleBaseNameA) \
 	DETOURED_FUNCTION(GetModuleBaseNameW) \
 	DETOURED_FUNCTION(SetUnhandledExceptionFilter) \
-	DETOURED_FUNCTION(CreateProcessA) \
 	DETOURED_FUNCTION(FlushInstructionCache) \
 	DETOURED_FUNCTION(CreateFile2) \
 	DETOURED_FUNCTION(CreateFileTransactedW) \
@@ -237,6 +237,7 @@
 	DETOURED_FUNCTION(ReplaceFileW) \
 	DETOURED_FUNCTION(CreateHardLinkA) \
 	DETOURED_FUNCTION(DeleteFileA) \
+	DETOURED_FUNCTION(SetCurrentDirectoryA) \
 	DETOURED_FUNCTION(CreateSymbolicLinkW) \
 	DETOURED_FUNCTION(CreateSymbolicLinkA) \
 	DETOURED_FUNCTION(SetEnvironmentVariableW) \
@@ -254,6 +255,7 @@
 	DETOURED_FUNCTION(CreatePipe) \
 	DETOURED_FUNCTION(SetHandleInformation) \
 	DETOURED_FUNCTION(CreateNamedPipeW) \
+	DETOURED_FUNCTION(CallNamedPipeW ) \
 	DETOURED_FUNCTION(PeekNamedPipe) \
 	DETOURED_FUNCTION(GetKernelObjectSecurity) \
 	DETOURED_FUNCTION(ImpersonateNamedPipeClient) \
