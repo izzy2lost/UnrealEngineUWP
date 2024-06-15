@@ -483,7 +483,7 @@ void UTG_EdGraphNode::UpdatePinVisibility(UEdGraphPin* Pin, UTG_Pin* TGPin) cons
 	}
 
 	Pin->bHidden = !bCanEditChange && bEditConditionHides;
-	Pin->bDefaultValueIsReadOnly = bCanEditChange;
+	Pin->bDefaultValueIsReadOnly = !bCanEditChange;
 	
 	//Adding GIsTransacting check here as functions that are creating the Transaction
 	//should not be called from here 

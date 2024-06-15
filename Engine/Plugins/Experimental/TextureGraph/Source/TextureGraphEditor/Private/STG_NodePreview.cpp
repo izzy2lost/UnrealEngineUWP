@@ -44,8 +44,7 @@ void FNodeViewer::DrawCurrentImage(FViewport*, FCanvas* Canvas, const FDrawPrope
 TOptional<TVariant<FColor, FLinearColor>> FNodeViewer::GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipIndex) const
 {
 	const uint64 PixelIndex = PixelCoords.Y * NodeDescriptor.Width + PixelCoords.X;
-
-	if (NodeTexture && CurrentBlob)
+	if (NodeTexture && CurrentBlob && CurrentBlob->IsValid())
 	{
 		if (!CurrentBlob->GetBufferRef()->HasRaw())
 		{

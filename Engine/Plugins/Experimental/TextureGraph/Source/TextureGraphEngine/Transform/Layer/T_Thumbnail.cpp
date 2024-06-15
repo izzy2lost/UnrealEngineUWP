@@ -42,8 +42,11 @@ TiledBlobRef T_Thumbnail::Bind(UMixInterface* Mix, UObject* Model, TiledBlobPtr 
 		;
 
 	BufferDescriptor Desc = InBlobToBind->GetDescriptor();
-	Desc.Width = RenderMaterial_Thumbnail::GThumbWidth;
-	Desc.Height = RenderMaterial_Thumbnail::GThumbHeight;
+
+	// Normalize dimensions and remap to expected thumbnail size
+	const float MaxDimension = FMath::Max(Desc.Width, Desc.Height);
+	Desc.Width = RenderMaterial_Thumbnail::GThumbWidth * Desc.Width / MaxDimension;
+	Desc.Height = RenderMaterial_Thumbnail::GThumbHeight * Desc.Height / MaxDimension;
 
 	FString Name = FString::Printf(TEXT("T_Thumbnail [%s]"), *InBlobToBind->GetDescriptor().Name);
 	

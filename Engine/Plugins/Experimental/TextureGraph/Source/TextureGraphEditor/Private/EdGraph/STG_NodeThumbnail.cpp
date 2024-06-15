@@ -92,10 +92,21 @@ void STG_NodeThumbnail::UpdateParams(TiledBlobPtr InBlob)
 		UTextureRenderTarget2D* TextureRT2D = Cast<UTextureRenderTarget2D>(BlobTexture);
 	
 		float ShowChecker = 1.0;
+		
+		FLinearColor NormalizedDimensions(0.9f, 0.9f, 0.0f);
+		
 		if (BlobTexture)
 		{
 			ShowChecker = 0.0;
 			BrushMaterial->SetTextureParameterValue("ThumbTex", BlobTexture);
+
+			int32 Width = BlobTexture->GetSurfaceWidth();
+			int32 Height = BlobTexture->GetSurfaceHeight();
+
+			float MaxDimension = FMath::Max(Width, Height);
+
+			NormalizedDimensions.R *= Width / MaxDimension;
+			NormalizedDimensions.G *= Height / MaxDimension;
 		}
 
 		float SingleChannel = 0.0;
@@ -112,6 +123,8 @@ void STG_NodeThumbnail::UpdateParams(TiledBlobPtr InBlob)
 
 		BrushMaterial->SetScalarParameterValue("ShowChecker", ShowChecker);
 		BrushMaterial->SetScalarParameterValue("SingleChannel", SingleChannel);
+		
+		BrushMaterial->SetVectorParameterValue("NormalizedDimensions", NormalizedDimensions);
 		Brush->SetResourceObject(BrushMaterial);
 	}
 }

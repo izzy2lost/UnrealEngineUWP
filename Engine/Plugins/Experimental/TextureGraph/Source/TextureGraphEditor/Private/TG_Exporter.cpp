@@ -767,9 +767,9 @@ void FTG_ExporterImpl::SetTextureGraphToExport(UTextureGraph* InTextureGraph)
 {
 	// clear out previous handles
 	Cleanup();
-	
+
 	// overwrite the original TextureGraph in place by constructing a new one with the same name
-	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(InTextureGraph, InTextureGraph->GetOuter(), NAME_None,
+	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(InTextureGraph, GetTransientPackage(), NAME_None,
 	~RF_Standalone, UTextureGraph::StaticClass(), EDuplicateMode::Normal, EInternalObjectFlags::None);
 	
 	TextureGraphPtr = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
