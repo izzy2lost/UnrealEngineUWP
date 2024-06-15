@@ -10,12 +10,14 @@ namespace uba
 		UBA_PROCESS_MESSAGE(Init) \
 		UBA_PROCESS_MESSAGE(CreateFile) \
 		UBA_PROCESS_MESSAGE(GetFullFileName) \
+		UBA_PROCESS_MESSAGE(GetLongPathName) \
 		UBA_PROCESS_MESSAGE(CloseFile) \
 		UBA_PROCESS_MESSAGE(DeleteFile) \
 		UBA_PROCESS_MESSAGE(CopyFile) \
 		UBA_PROCESS_MESSAGE(MoveFile) \
 		UBA_PROCESS_MESSAGE(Chmod) \
 		UBA_PROCESS_MESSAGE(CreateDirectory) \
+		UBA_PROCESS_MESSAGE(RemoveDirectory) \
 		UBA_PROCESS_MESSAGE(ListDirectory) \
 		UBA_PROCESS_MESSAGE(UpdateTables) \
 		UBA_PROCESS_MESSAGE(CreateProcess) \

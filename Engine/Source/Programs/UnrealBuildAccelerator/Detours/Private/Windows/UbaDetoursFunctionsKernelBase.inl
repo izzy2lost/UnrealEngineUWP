@@ -9,20 +9,70 @@ DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD c
 	if (findIt != g_longPathNameCache.end())
 	{
 		const wchar_t* longPath = findIt->second;
-		u64 len = wcslen(longPath);
-		UBA_ASSERT(cchBuffer > len);
+		u32 len = u32(wcslen(longPath));
+		if (len == 0)
+		{
+			SetLastError(ERROR_FILE_NOT_FOUND);
+			return 0;
+		}
+		SetLastError(ERROR_SUCCESS);
+		if (cchBuffer <= len)
+			return len + 1;
+
 		memcpy(lpszLongPath, longPath, (len + 1) * 2);
-		return u32(len);
+		return len + 1;
+	}
+
+	wchar_t* newLongPath = nullptr;
+	DWORD res = 0;
+
+	if (g_runningRemote)
+	{
+		u32 errorCode = 0;
+		StringBuffer<> longName;
+		{
+			TimerScope ts(g_stats.longPathName);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_GetLongPathName);
+			writer.WriteString(lpszShortPath);
+			writer.Flush();
+			BinaryReader reader;
+			errorCode = reader.ReadU32();
+			reader.ReadString(longName);
+		}
+
+		newLongPath = g_memoryBlock.Strdup(longName.data);
+
+		if (longName.count == 0)
+		{
+			// Error
+		}
+		if (cchBuffer > longName.count)
+		{
+			memcpy(lpszLongPath, longName.data, (longName.count+1)*sizeof(wchar_t));
+			res = longName.count;
+		}
+		else
+		{
+			res = longName.count + 1;
+		}
+
+		SetLastError(errorCode);
+	}
+	else
+	{
+		DEBUG_LOG_TRUE(L"GetLongPathNameW", L"(Detour disabled under this call to handle ~) (%ls)", lpszShortPath);
+
+		SuppressDetourScope _;
+		res = True_GetLongPathNameW(lpszShortPath, lpszLongPath, cchBuffer);
+		if (res == 0)
+			return res;
+		newLongPath = g_memoryBlock.Strdup(lpszLongPath);
 	}
 
 	wchar_t* newShortPath = g_memoryBlock.Strdup(lpszShortPath);
-	DEBUG_LOG_TRUE(L"GetLongPathNameW", L"(Detour disabled under this call to handle ~) (%ls)", lpszShortPath);
-
-	SuppressDetourScope _;
-	DWORD res = True_GetLongPathNameW(lpszShortPath, lpszLongPath, cchBuffer);
-	if (res == 0)
-		return res;
-	g_longPathNameCache.insert({ newShortPath, g_memoryBlock.Strdup(lpszLongPath) });
+	g_longPathNameCache.insert({ newShortPath, newLongPath });
 	return res;
 }
 
@@ -102,7 +152,6 @@ BOOL Detoured_SetCurrentDirectoryW(LPCWSTR lpPathName)
 	return True_SetCurrentDirectoryW(lpPathName);
 }
 
-
 BOOL Detoured_DuplicateHandle(HANDLE hSourceProcessHandle, HANDLE hSourceHandle, HANDLE hTargetProcessHandle, LPHANDLE lpTargetHandle, DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwOptions)
 {
 	DETOURED_CALL(DuplicateHandle);
@@ -181,6 +230,7 @@ BOOL Detoured_CreateDirectoryW(LPCWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecur
 		return res;
 	}
 
+	u32 directoryTableSize;
 	BOOL res;
 	u32 errorCode = 0;
 	StringKey pathNameKey = ToStringKeyLower(pathName);
@@ -196,7 +246,10 @@ BOOL Detoured_CreateDirectoryW(LPCWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecur
 		BinaryReader reader;
 		res = reader.ReadBool();
 		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
 	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 
 	SetLastError(errorCode);
 	DEBUG_LOG_DETOURED(L"CreateDirectoryW", L"%ls -> %ls (%u)", lpPathName, ToString(res), errorCode);
@@ -209,20 +262,38 @@ BOOL Detoured_RemoveDirectoryW(LPCWSTR lpPathName)
 
 	StringBuffer<> pathName;
 	FixPath(pathName, lpPathName);
-	BOOL res;
-	if (!g_runningRemote || pathName.StartsWith(g_systemTemp.data))
+
+	if (pathName.StartsWith(g_systemTemp.data))
 	{
 		SuppressCreateFileDetourScope s; // TODO: Revisit this.. will not work remotely
-		res = True_RemoveDirectoryW(lpPathName);
+		BOOL res = True_RemoveDirectoryW(lpPathName);
+		DEBUG_LOG_TRUE(L"RemoveDirectoryW", L"%ls -> %ls", lpPathName, ToString(res));
+		return res;
 	}
-	else
-	{
-		UBA_ASSERTF(!g_runningRemote, L"RemoveDirectory is not implemented for remote (removing %s)", lpPathName);
-		SetLastError(ERROR_PATH_NOT_FOUND);
-		res = false;
-	}
-	DEBUG_LOG_TRUE(L"RemoveDirectoryW", L"%ls -> %ls", lpPathName, ToString(res));
 
+	u32 directoryTableSize;
+	BOOL res;
+	u32 errorCode = 0;
+	StringKey pathNameKey = ToStringKeyLower(pathName);
+
+	{
+		TimerScope ts(g_stats.deleteFile);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_RemoveDirectory);
+		writer.WriteStringKey(pathNameKey);
+		writer.WriteString(pathName);
+		writer.Flush();
+		BinaryReader reader;
+		res = reader.ReadBool();
+		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
+	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
+
+	SetLastError(errorCode);
+	DEBUG_LOG_DETOURED(L"RemoveDirectoryW", L"%ls -> %ls (%u)", lpPathName, ToString(res), errorCode);
 	return res;
 }
 
@@ -1330,7 +1401,7 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 		pcs.Leave();
 		DEBUG_LOG_PIPE(L"DeleteFile", L"%ls", lpFileName);
 	}
-	DEBUG_LOG_DETOURED(L"DeleteFileW", L"(%ls) -> %ls", lpFileName, ToString(result));
+	DEBUG_LOG_DETOURED(L"DeleteFileW", L"(%ls) -> %ls (%u)", lpFileName, ToString(result), errorCode);
 
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 	g_mappedFileTable.SetDeleted(fileNameKey, lpFileName, true);
@@ -1419,7 +1490,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		DEBUG_LOG_PIPE(L"MoveFile", L"%ls to %ls", lpExistingFileName, lpNewFileName);
 	}
 
-	DEBUG_LOG_DETOURED(L"MoveFileExW", L"(PIPE) (%ls to %ls) -> %ls", lpExistingFileName, lpNewFileName, ToString(result));
+	DEBUG_LOG_DETOURED(L"MoveFileExW", L"(PIPE) (%ls to %ls) -> %ls (%u)", lpExistingFileName, lpNewFileName, ToString(result), errorCode);
 
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 	g_mappedFileTable.SetDeleted(sourceKey, source.data, true);
@@ -1597,7 +1668,7 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 
 
-	auto listHandle = new ListDirectoryHandle{ hash.key, insres.first->second };
+	auto listHandle = new ListDirectoryHandle{ hash.key, dir };
 
 	if (!*fileName)
 		listHandle->it = -2;
@@ -2043,13 +2114,13 @@ BOOL Detoured_SetFileInformationByHandle(HANDLE hFile, FILE_INFO_BY_HANDLE_CLASS
 			return true;
 
 		DEBUG_LOG_TRUE(L"SetFileInformationByHandle", L"%llu (FileDispositionInfo)", uintptr_t(hFile));
+		return True_SetFileInformationByHandle(hFile, FileInformationClass, lpFileInformation, dwBufferSize); // In here to be tabbed in log
 	}
 	else
 	{
 		DEBUG_LOG_TRUE(L"SetFileInformationByHandle", L"%llu (%u)", uintptr_t(hFile), FileInformationClass);
+		return True_SetFileInformationByHandle(hFile, FileInformationClass, lpFileInformation, dwBufferSize); // In here to be tabbed in log
 	}
-
-	return True_SetFileInformationByHandle(hFile, FileInformationClass, lpFileInformation, dwBufferSize);
 }
 
 HANDLE Detoured_CreateFileMappingW(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMappingAttributes, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCWSTR lpName)
@@ -2964,8 +3035,7 @@ DWORD Detoured_GetFileAttributesA(LPCSTR lpFileName)
 BOOL Detoured_GetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fInfoLevelId, LPVOID lpFileInformation)
 {
 	DETOURED_CALL(GetFileAttributesExA);
-	DEBUG_LOG_TRUE(L"GetFileAttributesExA", L"");
-	UBA_ASSERT(!g_runningRemote);
+	DEBUG_LOG_TRUE(L"GetFileAttributesExA", L""); // Calls ExW on both windows and wine
 	return True_GetFileAttributesExA(lpFileName, fInfoLevelId, lpFileInformation);
 }
 
@@ -3256,12 +3326,12 @@ LPWCH Detoured_GetEnvironmentStringsW()
 	DEBUG_LOG_TRUE(L"GetEnvironmentStringsW", L"");
 	auto res = True_GetEnvironmentStringsW();
 
-	auto it = res;
-	while (*it)
-	{
-		DEBUG_LOG(L"		VAR: %ls", it);
-		it += wcslen(it) + 1;
-	}
+	//auto it = res;
+	//while (*it)
+	//{
+	//	DEBUG_LOG(L"		VAR: %ls", it);
+	//	it += wcslen(it) + 1;
+	//}
 
 	return res;
 }

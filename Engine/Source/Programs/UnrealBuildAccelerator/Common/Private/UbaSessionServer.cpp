@@ -798,6 +798,20 @@ namespace uba
 				writer.WriteU64(serverTime);
 				return true;
 			}
+			case SessionMessageType_GetLongPathName:
+			{
+				#if PLATFORM_WINDOWS
+				StringBuffer<> shortPath;
+				reader.ReadString(shortPath);
+				StringBuffer<> longPath;
+				longPath.count = ::GetLongPathNameW(shortPath.data, longPath.data, longPath.capacity);
+				writer.WriteU32(GetLastError());
+				writer.WriteString(longPath);
+				return true;
+				#else
+				return false;
+				#endif
+			}
 			case SessionMessageType_SendFileToServer:
 			{
 				u32 processId = reader.ReadU32();
@@ -904,7 +918,7 @@ namespace uba
 				bool result = uba::DeleteFileW(fileName.data);
 				u32 errorCode = GetLastError();
 				if (result)
-					RegisterDeleteFile(fileNameKey, fileName.data);
+					RegisterDeleteFile(fileNameKey, fileName);
 				writer.WriteBool(result);
 				writer.WriteU32(errorCode);
 				return true;
@@ -932,6 +946,18 @@ namespace uba
 				reader.ReadString(msg.name);
 				CreateDirectoryResponse response;
 				if (!Session::CreateDirectory(response, msg))
+					return false;
+				writer.WriteBool(response.result);
+				writer.WriteU32(response.errorCode);
+				return true;
+			}
+
+			case SessionMessageType_RemoveDirectory:
+			{
+				RemoveDirectoryMessage msg;
+				reader.ReadString(msg.name);
+				RemoveDirectoryResponse response;
+				if (!Session::RemoveDirectory(response, msg))
 					return false;
 				writer.WriteBool(response.result);
 				writer.WriteU32(response.errorCode);
@@ -1512,7 +1538,7 @@ namespace uba
 			{
 				for (auto& i : m_activeRemoteProcesses)
 				{
-					m_logger.Info(TC("ACTIVE PROCESS: %s"), i.GetStartInfo().description);
+					m_logger.Info(TC("ACTIVE PROCESS: %s"), i.GetStartInfo().GetDescription());
 				}
 				break;
 			}
@@ -1718,7 +1744,7 @@ namespace uba
 		auto findIt = m_processes.find(processId);
 		if (findIt == m_processes.end())
 			return str.Appendf(TC("<Process with id %u not found>"), processId).data;
-		return str.Appendf(TC("%s"), findIt->second.GetStartInfo().description).data;
+		return str.Appendf(TC("%s"), findIt->second.GetStartInfo().GetDescription()).data;
 	}
 
 	bool SessionServer::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)

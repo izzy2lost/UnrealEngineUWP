@@ -43,6 +43,7 @@ namespace uba
 		UBA_PROCESS_STAT(preparseObjFiles, 30) \
 		UBA_PROCESS_STAT(fileTable, 30) \
 		UBA_PROCESS_STAT(dirTable, 30) \
+		UBA_PROCESS_STAT(longPathName, 31) \
 
 
 		#define UBA_PROCESS_STAT(T, ver) Timer T;

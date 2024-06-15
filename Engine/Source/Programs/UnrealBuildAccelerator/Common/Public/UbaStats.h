@@ -72,6 +72,7 @@ namespace uba
 		UBA_SESSION_STAT(Timer, waitGetFileMsg, 10) \
 		UBA_SESSION_STAT(Timer, createMmapFromFile, 12) \
 		UBA_SESSION_STAT(Timer, waitMmapFromFile, 12) \
+		UBA_SESSION_STAT(Timer, getLongNameMsg, 31) \
 
     struct SessionStats
 	{

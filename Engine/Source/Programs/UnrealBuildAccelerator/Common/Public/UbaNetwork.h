@@ -15,7 +15,7 @@ namespace uba
 	
 	static constexpr u32 SystemNetworkVersion = 1339;
 	static constexpr u32 StorageNetworkVersion = 4;
-	static constexpr u32 SessionNetworkVersion = 32;
+	static constexpr u32 SessionNetworkVersion = 33;
 	static constexpr u32 CacheNetworkVersion = 4;
 
 	static constexpr u32 CachePathTableMaxSize = 32*1024*1024;
@@ -64,10 +64,12 @@ namespace uba
 		UBA_SESSION_MESSAGE(EnsureBinaryFile) \
 		UBA_SESSION_MESSAGE(GetApplication) \
 		UBA_SESSION_MESSAGE(GetFileFromServer) \
+		UBA_SESSION_MESSAGE(GetLongPathName) \
 		UBA_SESSION_MESSAGE(SendFileToServer) \
 		UBA_SESSION_MESSAGE(DeleteFile) \
 		UBA_SESSION_MESSAGE(CopyFile) \
 		UBA_SESSION_MESSAGE(CreateDirectory) \
+		UBA_SESSION_MESSAGE(RemoveDirectory) \
 		UBA_SESSION_MESSAGE(ListDirectory) \
 		UBA_SESSION_MESSAGE(GetDirectoriesFromServer) \
 		UBA_SESSION_MESSAGE(GetNameToHashFromServer) \

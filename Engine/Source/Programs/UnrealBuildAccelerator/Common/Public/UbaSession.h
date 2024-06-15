@@ -39,8 +39,12 @@ namespace uba
 	struct ChmodMessage;
 	struct GetFullFileNameMessage;
 	struct GetFullFileNameResponse;
+	struct GetLongPathNameMessage;
+	struct GetLongPathNameResponse;
 	struct CreateDirectoryMessage;
 	struct CreateDirectoryResponse;
+	struct RemoveDirectoryMessage;
+	struct RemoveDirectoryResponse;
 	struct ListDirectoryMessage;
 	struct ListDirectoryResponse;
 	struct WrittenFile;
@@ -111,7 +115,7 @@ namespace uba
 		bool CreateMemoryMapFromView(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, u64 alignment);
 
 		bool RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize = 0, u64 lastWriteTime = 0, bool invalidateStorage = true);
-		u32 RegisterDeleteFile(StringKey fileNameKey, const tchar* fileName);
+		u32 RegisterDeleteFile(StringKey fileNameKey, const StringView& fileName);
 
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);
 		virtual void* GetProcessEnvironmentVariables();
@@ -125,7 +129,9 @@ namespace uba
 		virtual bool MoveFile(MoveFileResponse& out, const MoveFileMessage& msg);
 		virtual bool Chmod(ChmodResponse& out, const ChmodMessage& msg);
 		virtual bool CreateDirectory(CreateDirectoryResponse& out, const CreateDirectoryMessage& msg);
+		virtual bool RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg);
 		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg);
+		virtual bool GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg);
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey);
 		virtual bool WriteFilesToDisk(ProcessImpl& process, WrittenFile** files, u32 fileCount);
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error);
@@ -393,6 +399,18 @@ namespace uba
 		u32 mappedFileTableSize = 0;
 	};
 
+	struct GetLongPathNameMessage
+	{
+		ProcessImpl& process;
+		StringBuffer<> fileName;
+	};
+
+	struct GetLongPathNameResponse
+	{
+		StringBuffer<> fileName;
+		u32 errorCode = ~0u;
+	};
+
 	struct CreateDirectoryMessage
 	{
 		StringKey nameKey;
@@ -401,8 +419,22 @@ namespace uba
 
 	struct CreateDirectoryResponse
 	{
-		bool result;
-		u32 errorCode;
+		bool result = false;
+		u32 errorCode = 0;
+		u32 directoryTableSize = 0;
+	};
+
+	struct RemoveDirectoryMessage
+	{
+		StringKey nameKey;
+		StringBuffer<> name;
+	};
+
+	struct RemoveDirectoryResponse
+	{
+		bool result = false;
+		u32 errorCode = 0;
+		u32 directoryTableSize = 0;
 	};
 
 	struct ListDirectoryMessage

@@ -81,8 +81,8 @@ namespace uba
 
 	void SessionClient::Stop()
 	{
-		CancelAllProcessesAndWait();
 		m_loop = false;
+		CancelAllProcessesAndWait();
 		m_waitToSendEvent.Set();
 		m_loopThread.Wait();
 	}
@@ -182,7 +182,7 @@ namespace uba
 		CasKey casKey;
 		u32 fileAttributes = DefaultAttributes(); // TODO: This is wrong.. need to retrieve from server if this is executable or not
 
-		bool isAbsolute = IsWindows ? (fileName.count > 1 && fileName[1] == ':') : (fileName.count > 0 && fileName[0] == '/');
+		bool isAbsolute = IsAbsolutePath(fileName.data);
 		if (isAbsolute)
 		{
 			UBA_ASSERT(fileNameKey != StringKeyZero);
@@ -792,6 +792,19 @@ namespace uba
 		return true;
 	}
 
+	bool SessionClient::RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg)
+	{
+		StackBinaryWriter<1024> writer;
+		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_RemoveDirectory, writer);
+		writer.WriteString(msg.name);
+		StackBinaryReader<1024> reader;
+		if (!networkMsg.Send(reader, Stats().deleteFileMsg)) // Wrong message
+			return false;
+		out.result = reader.ReadBool();
+		out.errorCode = reader.ReadU32();
+		return true;
+	}
+
 	bool SessionClient::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
 		// TODO: There is a potential risk here where two different applications asks for the full name of a file
@@ -822,6 +835,19 @@ namespace uba
 		rec.name = out.fileName.data;
 		rec.virtualName = out.virtualFileName.data;
 		out.mappedFileTableSize = AddFileMapping(fileNameKey, msg.fileName.data, out.fileName.data);
+		return true;
+	}
+
+	bool SessionClient::GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg)
+	{
+		StackBinaryWriter<1024> writer;
+		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_GetLongPathName, writer);
+		writer.WriteString(msg.fileName);
+		StackBinaryReader<1024> reader;
+		if (!networkMsg.Send(reader, Stats().getLongNameMsg))
+			return false;
+		out.errorCode = reader.ReadU32();
+		reader.ReadString(out.fileName);
 		return true;
 	}
 

@@ -74,12 +74,14 @@ namespace uba
 		bool HandleInit(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCreateFile(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleGetFullFileName(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleGetLongPathName(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCloseFile(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleDeleteFile(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCopyFile(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleMoveFile(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleChmod(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCreateDirectory(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleRemoveDirectory(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleListDirectory(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleUpdateTables(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCreateProcess(BinaryReader& reader, BinaryWriter& writer);

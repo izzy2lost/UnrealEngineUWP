@@ -253,7 +253,10 @@ namespace uba
 					if (data[0] != 'M' || data[1] != 'Z')
 						is64Bit = false;
 					else
-						is64Bit = *(u32*)(data + 0x3c) == 0x50450000;
+					{
+						u32 offset = *(u32*)(data + 0x3c);
+						is64Bit = *(u32*)(data + offset) == 0x00004550;
+					}
 				}
 
 				if (!is64Bit)
@@ -710,6 +713,17 @@ namespace uba
 		return true;
 	}
 
+	bool ProcessImpl::HandleGetLongPathName(BinaryReader& reader, BinaryWriter& writer)
+	{
+		GetLongPathNameMessage msg { *this };
+		reader.ReadString(msg.fileName);
+		GetLongPathNameResponse response;
+		m_messageSuccess = m_session.GetLongPathName(response, msg) && m_messageSuccess;
+		writer.WriteU32(response.errorCode);
+		writer.WriteString(response.fileName);
+		return true;
+	}
+
 	bool ProcessImpl::HandleCloseFile(BinaryReader& reader, BinaryWriter& writer)
 	{
 		CloseFileMessage msg { *this };
@@ -796,6 +810,20 @@ namespace uba
 		m_messageSuccess = m_session.CreateDirectory(response, msg) && m_messageSuccess;
 		writer.WriteBool(response.result);
 		writer.WriteU32(response.errorCode);
+		writer.WriteU32(response.directoryTableSize);
+		return true;
+	}
+
+	bool ProcessImpl::HandleRemoveDirectory(BinaryReader& reader, BinaryWriter& writer)
+	{
+		RemoveDirectoryMessage msg;
+		msg.nameKey = reader.ReadStringKey();
+		reader.ReadString(msg.name);
+		RemoveDirectoryResponse response;
+		m_messageSuccess = m_session.RemoveDirectory(response, msg) && m_messageSuccess;
+		writer.WriteBool(response.result);
+		writer.WriteU32(response.errorCode);
+		writer.WriteU32(response.directoryTableSize);
 		return true;
 	}
 
@@ -813,8 +841,8 @@ namespace uba
 
 	bool ProcessImpl::HandleUpdateTables(BinaryReader& reader, BinaryWriter& writer)
 	{
-		u32 dirSize = m_session.GetDirectoryTableSize();
-		writer.WriteU32(dirSize);
+		writer.WriteU32(m_session.GetDirectoryTableSize());
+		writer.WriteU32(m_session.GetFileMappingSize());
 		return true;
 	}
 

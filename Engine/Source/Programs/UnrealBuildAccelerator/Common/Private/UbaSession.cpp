@@ -645,19 +645,18 @@ namespace uba
 		return true;
 	}
 
-	bool GetDirKey(StringKey& outDirKey, StringBufferBase& outDirName, const tchar*& outLastSlash, const tchar* fileName)
+	bool GetDirKey(StringKey& outDirKey, StringBufferBase& outDirName, const tchar*& outLastSlash, const StringView& fileName)
 	{
-		outLastSlash = TStrrchr(fileName, PathSeparator);
-		UBA_ASSERTF(outLastSlash, TC("Can't get dir key for path %s"), fileName);
+		outLastSlash = TStrrchr(fileName.data, PathSeparator);
+		UBA_ASSERTF(outLastSlash, TC("Can't get dir key for path %s"), fileName.data);
 		if (!outLastSlash)
 			return false;
 
-		u64 dirLen = u64(outLastSlash - fileName);
-		outDirName.Append(fileName, dirLen);
+		u64 dirLen = u64(outLastSlash - fileName.data);
+		outDirName.Append(fileName.data, dirLen);
 		outDirKey = CaseInsensitiveFs ? ToStringKeyLower(outDirName) : ToStringKey(outDirName);
 		return true;
 	}
-
 
 	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize, u64 lastWriteTime, bool invalidateStorage)
 	{
@@ -670,7 +669,7 @@ namespace uba
 		StringKey dirKey;
 		const tchar* lastSlash;
 		StringBuffer<> dirName;
-		if (!GetDirKey(dirKey, dirName, lastSlash, fileName.data))
+		if (!GetDirKey(dirKey, dirName, lastSlash, fileName))
 			return true;
 			
 		#if 0//_DEBUG  // Bring this back, turned off right now because a few lines above the call to this method we add a mapping
@@ -825,7 +824,7 @@ namespace uba
 		return true;
 	}
 
-	u32 Session::RegisterDeleteFile(StringKey fileNameKey, const tchar* fileName)
+	u32 Session::RegisterDeleteFile(StringKey fileNameKey, const StringView& fileName)
 	{
 		// Remote is not updating its own directory table
 		if (m_runningRemote)
@@ -1284,7 +1283,7 @@ namespace uba
 		StringKey dirKey;
 		StringBuffer<> dirNameForHash;
 		const tchar* baseFileName;
-		GetDirKey(dirKey, dirNameForHash, baseFileName, fixedFilePath.data);
+		GetDirKey(dirKey, dirNameForHash, baseFileName, fixedFilePath);
 
 		if (CaseInsensitiveFs)
 			dirNameForHash.MakeLower();
@@ -1312,7 +1311,7 @@ namespace uba
 		UBA_ASSERT(!m_runningRemote);
 		StringBuffer<> fixedFilePath;
 		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
-		RegisterDeleteFile(key, fixedFilePath.data);
+		RegisterDeleteFile(key, fixedFilePath);
 	}
 
 	void Session::RegisterCustomService(CustomServiceFunction&& function)
@@ -1786,7 +1785,7 @@ namespace uba
 		
 			if (fileName.EndsWith(TC(".dll")) || fileName.EndsWith(TC(".exe")))
 			{
-				UBA_ASSERTF(fileName[1] == ':', TC("Got bad filename from process %s"), fileName.data);
+				UBA_ASSERTF(IsAbsolutePath(fileName.data), TC("Got bad filename from process %s"), fileName.data);
 				AddFileMapping(fileNameKey, fileName.data, TC("#"));
 				out.fileName.Append(TC("#"));
 				return true;
@@ -1976,11 +1975,11 @@ namespace uba
 
 		if (!msg.newName.IsEmpty())
 		{
-			RegisterDeleteFile(file.nameKey, file.name.c_str());
+			RegisterDeleteFile(file.nameKey, file.name);
 			RegisterCreateFileForWrite(msg.newNameKey, msg.newName, registerRealFile, fileSize, lastWriteTime);
 		}
 		else if (msg.deleteOnClose)
-			RegisterDeleteFile(file.nameKey, file.name.c_str());
+			RegisterDeleteFile(file.nameKey, file.name);
 		else
 			RegisterCreateFileForWrite(file.nameKey, file.name, registerRealFile, fileSize, lastWriteTime);
 
@@ -2005,7 +2004,7 @@ namespace uba
 
 		out.result = uba::DeleteFileW(msg.fileName.data);
 		out.errorCode = GetLastError();
-		out.directoryTableSize = RegisterDeleteFile(msg.fileNameKey, msg.fileName.data);
+		out.directoryTableSize = RegisterDeleteFile(msg.fileNameKey, msg.fileName);
 		return true;
 	}
 
@@ -2031,7 +2030,7 @@ namespace uba
 		if (!out.result)
 			out.errorCode = GetLastError();
 		RegisterCreateFileForWrite(msg.toKey, msg.toName, true);
-		out.directoryTableSize = RegisterDeleteFile(msg.fromKey, msg.fromName.data);
+		out.directoryTableSize = RegisterDeleteFile(msg.fromKey, msg.fromName);
 		return true;
 	}
 
@@ -2055,15 +2054,47 @@ namespace uba
 	{
 		out.result = uba::CreateDirectoryW(msg.name.data);
 		if (out.result)
+		{
+			StringKey dirKey;
+			const tchar* lastSlash;
+			StringBuffer<> dirName;
+			if (!GetDirKey(dirKey, dirName, lastSlash, msg.name))
+				return true;
+			// Both these functions need to be called. otherwise we can get created directories that does not end up in directory table
 			RegisterCreateFileForWrite(msg.nameKey, msg.name, true);
-		out.errorCode = GetLastError();
+			u32 offset;
+			WriteDirectoryEntries(dirKey, dirName.data, offset);
+		}
+		else
+		{
+			out.errorCode = GetLastError();
+		}
+
+		out.directoryTableSize = GetDirectoryTableSize();
+		return true;
+	}
+
+	bool Session::RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg)
+	{
+		out.result = uba::RemoveDirectoryW(msg.name.data);
+		if (out.result)
+			RegisterDeleteFile(msg.nameKey, msg.name);
+		else
+			out.errorCode = GetLastError();
+		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
 
 	bool Session::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
 		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote).. %s"), msg.fileName.data);
-		return SearchPathForFile(m_logger, out.fileName, msg.fileName.data, msg.process.m_virtualApplicationDir.c_str());
+		return false;
+	}
+
+	bool Session::GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg)
+	{
+		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote).. %s"), msg.fileName.data);
+		return false;
 	}
 
 	bool Session::GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey)
