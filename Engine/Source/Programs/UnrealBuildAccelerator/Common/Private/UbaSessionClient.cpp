@@ -173,6 +173,7 @@ namespace uba
 			writer.WriteU32(processId);
 			writer.WriteString(fileName);
 			writer.WriteStringKey(fileNameKey);
+			writer.WriteBool(false);
 
 			StackBinaryReader<128> reader;
 			if (!msg.Send(reader, Stats().getFileMsg))
@@ -2070,35 +2071,56 @@ namespace uba
 				CasKey key;
 				if (GetCasKeyForFile(key, process.m_id, path, fileNameKey))
 				{
-					logStr.Clear().Appendf(TC("File %s caskey is %s."), path.data, CasKeyString(key).str);
-
-					StringBuffer<512> casKeyFile;
-					if (m_storage.GetCasFileName(casKeyFile, key))
+					if (key == CasKeyZero)
 					{
-						logStr.Appendf(TC(" CasKeyFile: %s"), casKeyFile.data);
-						u64 size = 0;
-						u32 attributes = 0;
-						bool exists = FileExists(m_logger, casKeyFile.data, &size, &attributes);
-						logStr.Appendf(TC(" Exists: %s"), ToString(exists));
-						if (exists)
-						{
-							logStr.Appendf(TC(" Size: %llu Attr: %u"), size, attributes);
+						StackBinaryWriter<1024> writer;
+						NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetFileFromServer, writer);
+						writer.WriteU32(0);
+						writer.WriteString(path.data);
+						writer.WriteStringKey(fileNameKey);
+						writer.WriteBool(true);
 
-							FileHandle fileHandle = uba::CreateFileW(casKeyFile.data, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, DefaultAttributes());
-							if (fileHandle == InvalidFileHandle)
-							{
-								logStr.Appendf(TC(" Failed to open file %s (%s)"), casKeyFile.data, LastErrorToText().data);
-							}
-							else
-							{
-								logStr.Appendf(TC(" CreateFile for read successful"));
-								uba::CloseFile(casKeyFile.data, fileHandle);
-							}
+						StackBinaryReader<128> reader;
+						if (!msg.Send(reader, Stats().getFileMsg))
+							return;
+
+						key = reader.ReadCasKey();
+						if (key == CasKeyZero)
+						{
+							logStr.Clear().Appendf(TC("File %s has caskey zero. Server claims it does not exist!."), path.data);
 						}
 					}
-					else
-						logStr.Appendf(TC(" Failed to get cas filename for cas key"));
+					if (key != CasKeyZero)
+					{
+						logStr.Clear().Appendf(TC("File %s caskey is %s."), path.data, CasKeyString(key).str);
 
+						StringBuffer<512> casKeyFile;
+						if (m_storage.GetCasFileName(casKeyFile, key))
+						{
+							logStr.Appendf(TC(" CasKeyFile: %s"), casKeyFile.data);
+							u64 size = 0;
+							u32 attributes = 0;
+							bool exists = FileExists(m_logger, casKeyFile.data, &size, &attributes);
+							logStr.Appendf(TC(" Exists: %s"), ToString(exists));
+							if (exists)
+							{
+								logStr.Appendf(TC(" Size: %llu Attr: %u"), size, attributes);
+
+								FileHandle fileHandle = uba::CreateFileW(casKeyFile.data, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, DefaultAttributes());
+								if (fileHandle == InvalidFileHandle)
+								{
+									logStr.Appendf(TC(" Failed to open file %s (%s)"), casKeyFile.data, LastErrorToText().data);
+								}
+								else
+								{
+									logStr.Appendf(TC(" CreateFile for read successful"));
+									uba::CloseFile(casKeyFile.data, fileHandle);
+								}
+							}
+						}
+						else
+							logStr.Appendf(TC(" Failed to get cas filename for cas key"));
+					}
 				}
 				else
 					logStr.Clear().Appendf(TC("File %s caskey not found"), path.data);

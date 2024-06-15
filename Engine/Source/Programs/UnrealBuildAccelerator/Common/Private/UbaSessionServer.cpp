@@ -771,6 +771,8 @@ namespace uba
 				StringBuffer<> fileName;
 				reader.ReadString(fileName);
 				StringKey fileNameKey = reader.ReadStringKey();
+				bool isValidation = reader.ReadBool();
+
 				CasKey casKey;
 				if (!StoreCasFile(casKey, fileNameKey, fileName.data))
 					return false;
@@ -783,6 +785,8 @@ namespace uba
 						// Not finding a file is a valid path. Some applications try with a path and if fails try another path
 						//m_logger.Error(TC("Failed to create cas for %s (not found)"), fileName.data);
 						writer.WriteCasKey(casKey);
+						if (isValidation)
+							m_logger.Info(TC("GetFileAttributesW for %s returned %u (%s)"), fileName.data, attr, LastErrorToText().data);
 						return true;
 					}
 
