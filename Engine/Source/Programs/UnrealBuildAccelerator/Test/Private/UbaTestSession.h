@@ -146,7 +146,11 @@ namespace uba
 		u32 exitCode = process.GetExitCode();
 
 		if (exitCode != 0)
+		{
+			for (auto& logLine : process.GetLogLines())
+				logger.Error(logLine.text.c_str());
 			return logger.Error(TC("UbaTestApp returned exit code %u"), exitCode);
+		}
 
 		{
 			StringBuffer<MaxPath> fileW2;

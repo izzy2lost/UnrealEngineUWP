@@ -328,7 +328,7 @@ namespace uba
 							outAttr.data.nFileSizeLow = li.LowPart;
 							outAttr.data.nFileSizeHigh = li.HighPart;
 #else
-							outAttr.data.st_mode = (mode_t)(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+							outAttr.data.st_mode = (mode_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 							outAttr.data.st_size = info.size;
 #endif
 						}

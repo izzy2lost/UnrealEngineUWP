@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
 		if (stat("FileW", &attrW2) == -1)
 			return LogError("stat for FileW failed");
 		if (S_ISREG(attrW2.st_mode) == 0)
-			return LogError("stat for FileW did not return normal file");
+			return LogError("stat for FileW did not return normal file (%u)", attrW2.st_mode);
 
 		if (rename("FileW", "FileW2") == -1)
 			return LogError("rename for FileW to FileW2 failed");
