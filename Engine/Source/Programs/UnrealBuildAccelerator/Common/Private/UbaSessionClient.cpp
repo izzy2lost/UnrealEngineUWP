@@ -15,6 +15,15 @@
 
 namespace uba
 {
+	struct SessionClient::ModuleInfo
+	{
+		ModuleInfo(const tchar* n, const CasKey& c, u32 a) : name(n), casKey(c), attributes(a), done(true) {}
+		TString name;
+		CasKey casKey;
+		u32 attributes;
+		Event done;
+	};
+
 	SessionClient::SessionClient(const SessionClientCreateInfo& info)
 	: Session(info, TC("UbaSessionClient"), true, &info.client)
 	,	m_client(info.client)
@@ -234,21 +243,94 @@ namespace uba
 		return WriteBinFile(out, destFile.data, newKey, keyStr, fileAttributes);
 	}
 
-	bool SessionClient::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
+	bool SessionClient::PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
 	{
-		outRealApplication.Clear();
 		outRealWorkingDir = m_processWorkingDir.data;
-		return EnsureApplicationEnvironment(outRealApplication, 0, startInfo.application);
-	}
+		if (StartsWith(startInfo.application, TC("ubacopy")))
+			return true;
+		outRealApplication.Clear();
 
-	struct SessionClient::ModuleInfo
-	{
-		ModuleInfo(const tchar* n, const CasKey& c, u32 a) : name(n), casKey(c), attributes(a), done(true) {}
-		TString name;
-		CasKey casKey;
-		u32 attributes;
-		Event done;
-	};
+		const tchar* application = startInfo.application;
+		UBA_ASSERT(application && *application);
+		bool isAbsolute = IsAbsolutePath(startInfo.application);
+
+		SCOPED_WRITE_LOCK(m_handledApplicationEnvironmentsLock, environmentslock);
+		auto insres = m_handledApplicationEnvironments.try_emplace(application);
+		environmentslock.Leave();
+
+		ApplicationEnvironment& appEnv = insres.first->second;
+		SCOPED_WRITE_LOCK(appEnv.lock, lock);
+
+		if (!appEnv.realApplication.empty())
+		{
+			outRealApplication.Append(appEnv.realApplication);
+			if (!isAbsolute)
+			{
+				startInfo.applicationStr = appEnv.virtualApplication;
+				startInfo.application = startInfo.applicationStr.c_str();
+			}
+			return true;
+
+		}
+
+		List<ModuleInfo> modules;
+		if (!ReadModules(modules, 0, application))
+			return false;
+
+		StringBuffer<MaxPath> applicationDir;
+		applicationDir.AppendDir(application);
+		KeyToString keyStr(ToStringKeyLower(applicationDir));
+
+		Atomic<bool> success = true;
+		Atomic<u32> handledCount;
+
+		for (auto& m : modules)
+		{
+			m_client.AddWork([&handledCount, &m, this, &success, &keyStr]()
+				{
+					++handledCount;
+					auto g = MakeGuard([&]() { m.done.Set(); });
+					CasKey newCasKey;
+					bool storeUncompressed = true;
+					u64 fileSize;
+					const tchar* moduleName = m.name.c_str();
+					if (!RetrieveCasFile(newCasKey, fileSize, m.casKey, moduleName, storeUncompressed))
+					{
+						m_logger.Error(TC("Casfile not found for %s (%s)"), moduleName, CasKeyString(m.casKey).str);
+						success = false;
+						return;
+					}
+					if (const tchar* lastSeparator = TStrrchr(moduleName, PathSeparator))
+						moduleName = lastSeparator + 1;
+					StringBuffer<MaxPath> temp;
+					if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, m.attributes))
+						success = false;
+				}, 1, TC("EnsureApp"));
+		}
+
+		while (handledCount < modules.size())
+			m_client.DoWork();
+
+		// Wait for all to be done
+		for (auto& m : modules)
+			if (!m.done.IsSet(10 * 60 * 1000)) // 10 minutes is a very long time
+				return m_logger.Error(TC("Timed out while waiting for application cas files to be downloaded"));
+
+		if (!success)
+			return false;
+		
+		outRealApplication.Append(m_sessionBinDir).Append(keyStr).Append(PathSeparator).AppendFileName(application);
+		appEnv.realApplication = outRealApplication.data;
+
+		if (!isAbsolute)
+		{
+			appEnv.virtualApplication = modules.front().name;
+			startInfo.applicationStr = appEnv.virtualApplication;
+			startInfo.application = startInfo.applicationStr.c_str();
+		}
+
+		return true;
+	}
 
 	bool SessionClient::ReadModules(List<ModuleInfo>& outModules, u32 processId, const tchar* application)
 	{
@@ -282,74 +364,13 @@ namespace uba
 			{
 				StringBuffer<> localSystemModule;
 				localSystemModule.Append(m_systemPath).Append(moduleFile.data + serverSystemPathLen);
-				if (FileExists(m_logger, localSystemModule.data))
+				if (FileExists(m_logger, localSystemModule.data) && !localSystemModule.EndsWith(TC(".exe")))
 					continue;
 				moduleFile.Clear().Append(localSystemModule);
 			}
 			outModules.emplace_back(moduleFile.data, casKey, fileAttributes);
 		}
 
-		return true;
-	}
-
-	bool SessionClient::EnsureApplicationEnvironment(StringBufferBase& out, u32 processId, const tchar* application)
-	{
-		StringBuffer<MaxPath> applicationDir;
-		applicationDir.AppendDir(application);
-		KeyToString keyStr(ToStringKeyLower(applicationDir));
-
-		UBA_ASSERT(application && *application);
-		SCOPED_WRITE_LOCK(m_handledApplicationEnvironmentsLock, lock);
-		auto insres = m_handledApplicationEnvironments.insert(application);
-		if (insres.second)
-		{
-			auto failGuard = MakeGuard([&]() { m_handledApplicationEnvironments.erase(insres.first); });
-
-			List<ModuleInfo> modules;
-
-			if (!ReadModules(modules, processId, application))
-				return false;
-
-			Atomic<bool> success = true;
-			Atomic<u32> handledCount;
-			for (auto& m : modules)
-			{
-				m_client.AddWork([&handledCount, &m, this, &success, &keyStr]()
-					{
-						++handledCount;
-						auto g = MakeGuard([&]() { m.done.Set(); });
-						CasKey newCasKey;
-						bool storeUncompressed = true;
-						u64 fileSize;
-						const tchar* moduleName = m.name.c_str();
-						if (!RetrieveCasFile(newCasKey, fileSize, m.casKey, moduleName, storeUncompressed))
-						{
-							m_logger.Error(TC("Casfile not found for %s (%s)"), moduleName, CasKeyString(m.casKey).str);
-							success = false;
-							return;
-						}
-						if (const tchar* lastSeparator = TStrrchr(moduleName, PathSeparator))
-							moduleName = lastSeparator + 1;
-						StringBuffer<MaxPath> temp;
-						if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, m.attributes))
-							success = false;
-					}, 1, TC("EnsureApp"));
-			}
-
-			while (handledCount < modules.size())
-				m_client.DoWork();
-
-			// Wait for all to be done
-			for (auto& m : modules)
-				if (!m.done.IsSet(10 * 60 * 1000)) // 10 minutes is a very long time
-					return m_logger.Error(TC("Timed out while waiting for application cas files to be downloaded"));
-
-			if (!success)
-				return false;
-
-			failGuard.Cancel();
-		}
-		out.Append(m_sessionBinDir).Append(keyStr).Append(PathSeparator).AppendFileName(application);
 		return true;
 	}
 
@@ -824,8 +845,9 @@ namespace uba
 		}
 		rec.handled = true;
 
-		auto& dir = msg.process.m_virtualApplicationDir;
-		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.c_str()))
+		StringBuffer<> dir;
+		dir.AppendDir(msg.process.m_startInfo.application);
+		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.data))
 			return false;
 
 		StringKey fileNameKey = msg.fileNameKey;
@@ -1604,9 +1626,8 @@ namespace uba
 					waitTimeoutMs = 200;
 				}
 
-				for (InternalProcessStartInfo& info : startInfos)
+				for (InternalProcessStartInfo& startInfo : startInfos)
 				{
-					auto& startInfo = info.startInfo;
 					startInfo.uiLanguage = int(m_uiLanguage);
 					startInfo.priorityClass = m_defaultPriorityClass;
 					startInfo.useCustomAllocator = !m_disableCustomAllocator;
@@ -1620,23 +1641,14 @@ namespace uba
 						startInfo.logFile = logFile.data;
 					}
 
-					StringBuffer<> realApplication;
-					if (!EnsureApplicationEnvironment(realApplication, info.processId, startInfo.application))
-					{
-						m_logger.Error(TC("Failed to ensure application environment for %s"), startInfo.application);
-						SendReturnProcess(info.processId, TC("Failed to ensure application environment"));
-						m_loop = false;
-						break;
-					}
-
 					void* env = GetProcessEnvironmentVariables();
 
-					auto process = new ProcessImpl(*this, info.processId, nullptr);
+					auto process = new ProcessImpl(*this, startInfo.processId, nullptr);
 
 					activeProcesses.emplace_back(process);
 					ProcessRec* rec = &activeProcesses.back();
 
-					rec->weight = info.weight;
+					rec->weight = startInfo.weight;
 
 					{
 						SCOPED_WRITE_LOCK(activeWeightLock, lock);
@@ -1739,7 +1751,7 @@ namespace uba
 							session.m_processFinished(&process);
 					};
 
-					process->Start(startInfo, realApplication.data, m_processWorkingDir.data, true, env, true, true);
+					process->Start(startInfo, true, env, true, true);
 				}
 
 				RemoveInactiveProcesses();

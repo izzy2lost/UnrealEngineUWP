@@ -22,6 +22,7 @@ namespace uba
 	class Storage;
 	class WorkManager;
 	struct ProcessStartInfo;
+	struct ProcessStartInfoHolder;
 	struct ProcessStats;
 	struct InitMessage;
 	struct InitResponse;
@@ -117,7 +118,7 @@ namespace uba
 		bool RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize = 0, u64 lastWriteTime = 0, bool invalidateStorage = true);
 		u32 RegisterDeleteFile(StringKey fileNameKey, const StringView& fileName);
 
-		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);
+		virtual bool PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);
 		virtual void* GetProcessEnvironmentVariables();
 		virtual void PrintSessionStats(Logger& logger);
 

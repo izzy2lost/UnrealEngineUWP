@@ -47,33 +47,33 @@ namespace uba
 	class SkippedProcess : public Process
 	{
 	public:
-		SkippedProcess(const ProcessStartInfo& i) : holder(i) {}
+		SkippedProcess(const ProcessStartInfo& i) : startInfo(i) {}
 		virtual u32 GetExitCode() override { return ProcessCancelExitCode; }
 		virtual bool HasExited() override { return true; }
 		virtual bool WaitForExit(u32 millisecondsTimeout) override{ return true; }
-		virtual const ProcessStartInfo& GetStartInfo() const override { return holder.startInfo; }
+		virtual const ProcessStartInfo& GetStartInfo() const override { return startInfo; }
 		virtual const Vector<ProcessLogLine>& GetLogLines() const override { static Vector<ProcessLogLine> v{ProcessLogLine{TC("Skipped"), LogEntryType_Warning}}; return v; }
 		virtual const Vector<u8>& GetTrackedInputs() const override { static Vector<u8> v; return v;}
 		virtual const Vector<u8>& GetTrackedOutputs() const override { static Vector<u8> v; return v;}
 		virtual bool IsRemote() const override { return false; }
 		virtual ProcessExecutionType GetExecutionType() const override { return ProcessExecutionType_Native; }
-		ProcessStartInfoHolder holder;
+		ProcessStartInfoHolder startInfo;
 	};
 
 	class CachedProcess : public Process
 	{
 	public:
-		CachedProcess(const ProcessStartInfo& i) : holder(i) {}
+		CachedProcess(const ProcessStartInfo& i) : startInfo(i) {}
 		virtual u32 GetExitCode() override { return 0; }
 		virtual bool HasExited() override { return true; }
 		virtual bool WaitForExit(u32 millisecondsTimeout) override{ return true; }
-		virtual const ProcessStartInfo& GetStartInfo() const override { return holder.startInfo; }
+		virtual const ProcessStartInfo& GetStartInfo() const override { return startInfo; }
 		virtual const Vector<ProcessLogLine>& GetLogLines() const override { return logLines; }
 		virtual const Vector<u8>& GetTrackedInputs() const override { static Vector<u8> v; return v;}
 		virtual const Vector<u8>& GetTrackedOutputs() const override { static Vector<u8> v; return v;}
 		virtual bool IsRemote() const override { return false; }
 		virtual ProcessExecutionType GetExecutionType() const override { return ProcessExecutionType_FromCache; }
-		ProcessStartInfoHolder holder;
+		ProcessStartInfoHolder startInfo;
 		Vector<ProcessLogLine> logLines;
 	};
 
@@ -162,10 +162,11 @@ namespace uba
 		}
 
 		auto info2 = new ProcessStartInfo2(info.info, ki, info.knownInputsCount);
+		info2->Expand();
 		info2->weight = info.weight;
 
-		const ApplicationRules* rules = m_session.GetRules(info2->startInfo);
-		info2->startInfo.rules = rules;
+		const ApplicationRules* rules = m_session.GetRules(*info2);
+		info2->rules = rules;
 
 		bool useCache = m_cacheClient && !m_writeToCache && rules->IsCacheable();
 
@@ -181,7 +182,7 @@ namespace uba
 
 		if (m_processConfigs)
 		{
-			auto name = info2->application.c_str();
+			auto name = info2->application;
 			if (auto lastSeparator = TStrrchr(name, PathSeparator))
 				name = lastSeparator + 1;
 			StringBuffer<128> lower(name);
@@ -415,7 +416,7 @@ namespace uba
 			exitInfo->isLocal = isLocal;
 			exitInfo->processIndex = indexToRun;
 
-			ProcessStartInfo si = info->startInfo;
+			ProcessStartInfo si = *info;
 			si.userData = exitInfo;
 			si.exitedFunc = [](void* userData, const ProcessHandle& handle)
 				{
@@ -431,7 +432,7 @@ namespace uba
 				// TODO: This should not use work manager since it is mostly waiting on network
 				m_session.GetServer().AddWork([this, exitInfo]()
 					{
-						ProcessStartInfo& si = exitInfo->startInfo->startInfo;
+						ProcessStartInfo& si = *exitInfo->startInfo;
 						u64 startTime = GetTime();
 
 						bool cacheHit = false;
@@ -504,7 +505,7 @@ namespace uba
 			ei->startInfo = newInfo;
 			ei->processIndex = indexToRun;
 
-			auto& si = newInfo->startInfo;
+			auto& si = *newInfo;
 			UBA_ASSERT(Equals(currentStartInfo.application, si.application));
 			outNextProcess.arguments = si.arguments;
 			outNextProcess.workingDir = si.workingDir;
@@ -520,8 +521,8 @@ namespace uba
 		ph.m_process = &process;
 
 		auto si = info.startInfo;
-		if (auto func = si->startInfo.exitedFunc)
-			func(si->startInfo.userData, ph);
+		if (auto func = si->exitedFunc)
+			func(si->userData, ph);
 
 		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		auto& entry = m_processEntries[info.processIndex];
@@ -555,9 +556,9 @@ namespace uba
 
 	void Scheduler::SkipProcess(ProcessStartInfo2& info)
 	{
-		ProcessHandle ph(new SkippedProcess(info.startInfo));
-		if (auto func = info.startInfo.exitedFunc)
-			func(info.startInfo.userData, ph);
+		ProcessHandle ph(new SkippedProcess(info));
+		if (auto func = info.exitedFunc)
+			func(info.userData, ph);
 		FinishProcess(ph);
 	}
 

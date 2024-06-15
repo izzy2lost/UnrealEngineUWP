@@ -22,71 +22,69 @@ namespace uba
 		out.Append(buffer);
 	}
 
-	struct ProcessStartInfoHolder
+	struct ProcessStartInfoHolder : public ProcessStartInfo
 	{
-		ProcessStartInfoHolder() {}
+		ProcessStartInfoHolder() = default;
 
 		ProcessStartInfoHolder(const ProcessStartInfo& si)
 		{
-			startInfo = si;
+			*(ProcessStartInfo*)this = si;
 
 			StringBuffer<512> temp;
 			FixFileName(temp, si.workingDir, nullptr);
 			temp.EnsureEndsWithSlash();
-			workingDir = temp.data;
-			startInfo.workingDir = workingDir.c_str();
+			workingDirStr = temp.data;
+			workingDir = workingDirStr.c_str();
 
-			temp.EnsureEndsWithSlash();
-			StringBuffer<512> temp2;
-			FixFileName(temp2, si.application, temp.data);
-			application = temp2.data;
-			startInfo.application = application.c_str();
+			applicationStr = si.application;
+			application = applicationStr.c_str();
 
-			arguments = si.arguments;
-			startInfo.arguments = arguments.c_str();
+			argumentsStr = si.arguments;
+			arguments = argumentsStr.c_str();
 
-			description = si.description;
-			startInfo.description = description.c_str();
+			if (si.description)
+				descriptionStr = si.description;
+			description = descriptionStr.c_str();
 
-			logFile = si.logFile;
-			startInfo.logFile = logFile.c_str();
+			logFileStr = si.logFile;
+			logFile = logFileStr.c_str();
 		}
 
 		void Write(BinaryWriter& writer)
 		{
-			writer.WriteString(description);
-			writer.WriteString(application);
-			writer.WriteString(arguments);
-			writer.WriteString(workingDir);
-			writer.WriteString(logFile);
+			writer.WriteString(descriptionStr);
+			writer.WriteString(applicationStr);
+			writer.WriteString(argumentsStr);
+			writer.WriteString(workingDirStr);
+			writer.WriteString(logFileStr);
 			writer.WriteU32(*(u32*)&weight);
-			writer.WriteBool(startInfo.trackInputs);
-			writer.WriteBool(startInfo.writeOutputFilesOnFail);
-			writer.WriteU64(startInfo.outputStatsThresholdMs);
+			writer.WriteBool(trackInputs);
+			writer.WriteBool(writeOutputFilesOnFail);
+			writer.WriteU64(outputStatsThresholdMs);
 		}
 
 		void Read(BinaryReader& reader)
 		{
-			description = reader.ReadString();
-			application = reader.ReadString();
-			arguments = reader.ReadString();
-			workingDir = reader.ReadString();
-			logFile = reader.ReadString();
+			descriptionStr = reader.ReadString();
+			applicationStr = reader.ReadString();
+			argumentsStr = reader.ReadString();
+			workingDirStr = reader.ReadString();
+			logFileStr = reader.ReadString();
 
-			Replace(application.data(), '/', PathSeparator); // TODO: Is this needed?
+			Replace(applicationStr.data(), '/', PathSeparator); // TODO: Is this needed?
 
 			u32 weight32 = reader.ReadU32();
 			weight = *(float*)&weight32;
 			
-			startInfo.trackInputs = reader.ReadBool();
-			startInfo.writeOutputFilesOnFail = reader.ReadBool();
-			startInfo.outputStatsThresholdMs = reader.ReadU64();
+			trackInputs = reader.ReadBool();
+			writeOutputFilesOnFail = reader.ReadBool();
+			outputStatsThresholdMs = reader.ReadU64();
 
-			startInfo.description = description.c_str();
-			startInfo.application = application.c_str();
-			startInfo.arguments = arguments.c_str();
-			startInfo.workingDir = workingDir.c_str();
-			startInfo.logFile = logFile.c_str();
+			description = descriptionStr.c_str();
+			application = applicationStr.c_str();
+			arguments = argumentsStr.c_str();
+			workingDir = workingDirStr.c_str();
+			logFile = logFileStr.c_str();
 		}
 
 		ProcessStartInfoHolder(const ProcessStartInfoHolder& o)
@@ -96,30 +94,29 @@ namespace uba
 
 		void operator=(const ProcessStartInfoHolder& o)
 		{
-			startInfo = o.startInfo;
+			*(ProcessStartInfo*)this = o;
 
-			workingDir = o.workingDir;
-			startInfo.workingDir = workingDir.c_str();
-			application = o.application;
-			startInfo.application = application.c_str();
-			arguments = o.arguments;
-			startInfo.arguments = arguments.c_str();
-			description = o.description;
-			startInfo.description = description.c_str();
-			logFile = o.logFile;
-			startInfo.logFile = logFile.c_str();
+			workingDirStr = o.workingDirStr;
+			workingDir = workingDirStr.c_str();
+			applicationStr = o.applicationStr;
+			application = applicationStr.c_str();
+			argumentsStr = o.argumentsStr;
+			arguments = argumentsStr.c_str();
+			descriptionStr = o.descriptionStr;
+			description = descriptionStr.c_str();
+			logFileStr = o.logFileStr;
+			logFile = logFileStr.c_str();
 
 			weight = o.weight;
 		}
 
-		ProcessStartInfo startInfo;
+		bool Expand();
 
-		TString description;
-		TString application;
-		TString arguments;
-		TString workingDir;
-		TString logFile;
+		TString descriptionStr;
+		TString applicationStr;
+		TString argumentsStr;
+		TString workingDirStr;
+		TString logFileStr;
 		float weight = 1.0f;
 	};
-
 }

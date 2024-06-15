@@ -1231,18 +1231,11 @@ namespace uba
 	void Session::ValidateStartInfo(const ProcessStartInfo& startInfo)
 	{
 		UBA_ASSERTF(startInfo.workingDir && *startInfo.workingDir, TC("Working dir must be set when spawning process"));
-		UBA_ASSERTF(!TStrchr(startInfo.application, '~'), TC("Application path must use long name (%s)"), startInfo.application);
 		UBA_ASSERTF(!TStrchr(startInfo.workingDir, '~'), TC("WorkingDir path must use long name (%s)"), startInfo.workingDir);
 	}
 
 	ProcessHandle Session::InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent, bool enableDetour)
 	{
-		StringBuffer<> realApplication(startInfo.application);
-		const tchar* realWorkingDir = startInfo.workingDir;
-
-		if (!PrepareProcess(startInfo, parent != nullptr, realApplication, realWorkingDir))
-			return {};
-
 		auto& si = const_cast<ProcessStartInfo&>(startInfo);
 		si.useCustomAllocator &= !m_disableCustomAllocator;
 		const tchar* originalLogFile = si.logFile;
@@ -1271,7 +1264,8 @@ namespace uba
 		u32 id = CreateProcessId();
 		auto process = new ProcessImpl(*this, id, parent);
 		ProcessHandle h(process);
-		process->Start(startInfo, realApplication.data, realWorkingDir, m_runningRemote, env, async, enableDetour);
+		if (!process->Start(startInfo, m_runningRemote, env, async, enableDetour))
+			return {};
 
 		si.logFile = originalLogFile;
 		return h;
@@ -1669,8 +1663,14 @@ namespace uba
 		return fileName.EndsWith(TC(".h"));
 	}
 
-	bool Session::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
+	bool Session::PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
 	{
+		if (StartsWith(startInfo.application, TC("ubacopy")))
+			return true;
+		if (!SearchPathForFile(m_logger, outRealApplication.Clear(), startInfo.application, startInfo.workingDir))
+			return false;
+		startInfo.applicationStr = outRealApplication.data;
+		startInfo.application = startInfo.applicationStr.c_str();
 		return true;
 	}
 

@@ -142,7 +142,7 @@ namespace uba
 		}
 	}
 
-	void ProcessImpl::Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async, bool enableDetour)
+	bool ProcessImpl::Start(const ProcessStartInfo& startInfo, bool runningRemote, void* environment, bool async, bool enableDetour)
 	{
 		m_detourEnabled = enableDetour;
 
@@ -150,32 +150,21 @@ namespace uba
 
 		m_startInfo = startInfo;
 
-		m_description = startInfo.description;
-		m_startInfo.description = m_description.c_str();
+		FixPathSeparators(m_startInfo.applicationStr.data());
+		FixPathSeparators(m_startInfo.workingDirStr.data());
+		FixPathSeparators(m_startInfo.logFileStr.data());
 
-		m_virtualApplication = startInfo.application;
-		FixPathSeparators(m_virtualApplication.data());
-		m_startInfo.application = m_virtualApplication.c_str();
+		m_startInfo.Expand();
 
-		m_arguments = startInfo.arguments;
+		m_extractExports = Contains(m_startInfo.arguments, TC("/extractexports"), true);
 
-		m_extractExports = Contains(m_arguments.c_str(), TC("/extractexports"), true);
+		StringBuffer<> realApplication(m_startInfo.application);
+		const tchar* realWorkingDir = m_startInfo.workingDir;
 
-		m_startInfo.arguments = m_arguments.c_str();
+		if (!m_session.PrepareProcess(m_startInfo, m_parentProcess != nullptr, realApplication, realWorkingDir))
+			return false;
 
-		m_virtualWorkingDir = startInfo.workingDir;
-		FixPathSeparators(m_virtualWorkingDir.data());
-		m_startInfo.workingDir = m_virtualWorkingDir.c_str();
-
-		m_logFile = startInfo.logFile;
-		FixPathSeparators(m_logFile.data());
-		m_startInfo.logFile = m_logFile.c_str();
-
-		size_t nameIndex = m_virtualApplication.find_last_of(PathSeparator);
-		if (nameIndex != -1)
-			m_virtualApplicationDir = m_virtualApplication.substr(0, nameIndex);
-
-		m_realApplication = std::move(realApplication);
+		m_realApplication = realApplication.data;
 		m_realWorkingDir = realWorkingDir;
 		if (realWorkingDir == startInfo.workingDir)
 			m_realWorkingDir = m_startInfo.workingDir;
@@ -199,6 +188,7 @@ namespace uba
 			ThreadRun(runningRemote, environment);
 			ThreadExit();
 		}
+		return true;
 	}
 
 	bool ProcessImpl::IsActive()
@@ -566,24 +556,16 @@ namespace uba
 	bool ProcessImpl::HandleSpecialApplication()
 	{
 	#if PLATFORM_WINDOWS
-		// TODO: This is super hacky... but we don't want to spawn the cmd.exe just to copy a file since the overhead can be half a second
-		// "C:\WINDOWS\system32\cmd.exe" /C "copy /Y "E:\dev\fn\Engine\Source\Runtime\RenderCore\RenderCore.natvis" "E:\dev\fn\Engine\Intermediate\Build\Win64\x64\UnrealPak\Development\RenderCore\RenderCore.natvis" 1>nul"
-		if (!Contains(m_startInfo.application, TC("cmd.exe")))
+		if (!Equals(m_startInfo.application, TC("ubacopy")))
 			return false;
-		//m_session.m_logger.Info(TC("GOT HERE: %s"), m_startInfo.arguments);
-		if (!StartsWith(m_startInfo.arguments, TC("/C \"copy /Y \"")))
-			return false;
-		const tchar* fromFileBegin = m_startInfo.arguments + 13;
+		const tchar* fromFileBegin = m_startInfo.arguments;
 		const tchar* fromFileEnd = TStrchr(fromFileBegin, '\"');
-		if (!fromFileEnd)
-			return false;
+		UBA_ASSERT(fromFileEnd);
 		const tchar* toFileBegin = TStrchr(fromFileEnd + 1, '\"');
-		if (!toFileBegin)
-			return false;
+		UBA_ASSERT(toFileBegin);
 		++toFileBegin;
 		const tchar* toFileEnd = TStrchr(toFileBegin, '\"');
-		if (!toFileEnd)
-			return false;
+		UBA_ASSERT(toFileEnd);
 
 		m_processStats.wallTime = GetTime() - m_startTime;
 
@@ -877,7 +859,15 @@ namespace uba
 		}
 		else
 		{
-			const tchar* secondParamStart = fullCommandLine.First(' ', 1);
+			u32 searchOffset = 1;
+			if (applicationStr.empty() && IsWindows)
+			{
+				const tchar* extPos = nullptr;
+				fullCommandLine.Contains(TC(".exe"), true, &extPos);
+				UBA_ASSERT(extPos);
+				searchOffset = u32(extPos - fullCommandLine.data);
+			}
+			const tchar* secondParamStart = fullCommandLine.First(' ', searchOffset);
 			if (!secondParamStart)
 				commandLine = TC("");
 			else
@@ -886,15 +876,14 @@ namespace uba
 				applicationStr.assign(fullCommandLine.data, u64(secondParamStart - fullCommandLine.data));
 		}
 
-		StringBuffer<512> application;
-		FixPath(applicationStr.c_str(), nullptr, 0, application);
+		FixPathSeparators(applicationStr.data());
 
 		while (*commandLine == ' ')
 			++commandLine;
 
 		StringBuffer<> temp;
 		ProcessStartInfo info;
-		info.application = application.data;
+		info.application = applicationStr.c_str();
 		info.arguments = commandLine;
 		info.workingDir = currentDir.data;
 		info.logFile = InternalGetChildLogFile(temp);
@@ -1010,13 +999,13 @@ namespace uba
 
 	bool ProcessImpl::HandleCreateTempFile(BinaryReader& reader, BinaryWriter& writer)
 	{
-		CreateTempFile(reader, m_nativeProcessHandle, m_virtualApplication.c_str());
+		CreateTempFile(reader, m_nativeProcessHandle, m_startInfo.application);
 		return true;
 	}
 
 	bool ProcessImpl::HandleOpenTempFile(BinaryReader& reader, BinaryWriter& writer)
 	{
-		OpenTempFile(reader, writer, m_virtualApplication.c_str());
+		OpenTempFile(reader, writer, m_startInfo.application);
 		return true;
 	}
 
@@ -1150,13 +1139,13 @@ namespace uba
 		if (!newProcess)
 			return true;
 
-		m_arguments = nextProcess.arguments;
-		m_description = nextProcess.description;
-		m_logFile = nextProcess.logFile;
+		m_startInfo.argumentsStr = nextProcess.arguments;
+		m_startInfo.descriptionStr = nextProcess.description;
+		m_startInfo.logFileStr = nextProcess.logFile;
 
-		m_startInfo.arguments = m_arguments.c_str();
-		m_startInfo.description = m_description.c_str();
-		m_startInfo.logFile = m_logFile.c_str();
+		m_startInfo.arguments = m_startInfo.argumentsStr.c_str();
+		m_startInfo.description = m_startInfo.descriptionStr.c_str();
+		m_startInfo.logFile = m_startInfo.logFileStr.c_str();
 
 		m_childProcesses.clear();
 		m_logLines.clear();
@@ -1605,7 +1594,7 @@ namespace uba
 			}
 			Vector<const char*> arguments2;
 			arguments2.reserve(arguments.size() + 2);
-			arguments2.push_back(m_virtualApplication.data());
+			arguments2.push_back(m_startInfo.application);
 			for (auto& s : arguments)
 				arguments2.push_back(s.data());
 			arguments2.push_back(nullptr);

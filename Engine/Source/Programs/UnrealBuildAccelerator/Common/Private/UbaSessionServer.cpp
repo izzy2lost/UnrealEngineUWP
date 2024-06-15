@@ -10,16 +10,16 @@
 
 namespace uba
 {
-	class SessionServer::RemoteProcess : public Process, public ProcessStartInfoHolder
+	class SessionServer::RemoteProcess final : public Process
 	{
 	public:
 		RemoteProcess(SessionServer* server, const ProcessStartInfo& si, u32 processId, float weight_)
-		:	ProcessStartInfoHolder(si)
-		,	m_server(server)
+		:	m_server(server)
+		,	m_startInfo(si)
 		,	m_processId(processId)
 		,	m_done(true)
 		{
-			weight = weight_;
+			m_startInfo.weight = weight_;
 		}
 
 		~RemoteProcess()
@@ -27,7 +27,7 @@ namespace uba
 			delete[] m_knownInputs;
 		}
 
-		virtual const ProcessStartInfo& GetStartInfo() const override { return startInfo; }
+		virtual const ProcessStartInfo& GetStartInfo() const override { return m_startInfo; }
 		virtual u32 GetId() override { return m_processId; }
 		virtual u32 GetExitCode() override { UBA_ASSERT(m_done.IsSet(0)); return m_exitCode; }
 		virtual bool HasExited() override { return m_done.IsSet(0); }
@@ -62,16 +62,17 @@ namespace uba
 		void CallProcessExit(ProcessHandle& h)
 		{
 			SCOPED_WRITE_LOCK(m_exitedLock, lock);
-			if (!startInfo.exitedFunc)
+			if (!m_startInfo.exitedFunc)
 				return;
-			auto exitedFunc = startInfo.exitedFunc;
-			auto userData = startInfo.userData;
-			startInfo.exitedFunc = nullptr;
-			startInfo.userData = nullptr;
+			auto exitedFunc = m_startInfo.exitedFunc;
+			auto userData = m_startInfo.userData;
+			m_startInfo.exitedFunc = nullptr;
+			m_startInfo.userData = nullptr;
 			exitedFunc(userData, h);
 		}
 
 		SessionServer* m_server;
+		ProcessStartInfoHolder m_startInfo;
 		ReaderWriterLock m_exitedLock;
 		u32 m_processId;
 		u32 m_exitCode = ~0u;
@@ -268,6 +269,8 @@ namespace uba
 
 	ProcessHandle SessionServer::RunProcessRemote(const ProcessStartInfo& startInfo, float weight, const void* knownInputs, u32 knownInputsCount)
 	{
+		UBA_ASSERT(!startInfo.startSuspended);
+
 		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);
 		u32 processId = CreateProcessId();
@@ -278,7 +281,7 @@ namespace uba
 			auto keys = remoteProcess->m_knownInputs = new RemoteProcess::KnownInput[knownInputsCount];
 
 			u32 keysIndex = 0;
-			const TString& workingDir = remoteProcess->workingDir;
+			const TString& workingDir = remoteProcess->m_startInfo.workingDirStr;
 			for (auto kiIt = (const tchar*)knownInputs; *kiIt; kiIt += TStrlen(kiIt) + 1)
 			{
 				StringBuffer<> fileName;
@@ -314,7 +317,7 @@ namespace uba
 			remoteProcess->m_knownInputsCount = keysIndex;
 		}
 
-		remoteProcess->startInfo.rules = GetRules(remoteProcess->startInfo);
+		remoteProcess->m_startInfo.rules = GetRules(remoteProcess->m_startInfo);
 
 		ProcessHandle h(remoteProcess); // Keep ref count up even if process is removed by callbacks etc.
 
@@ -875,7 +878,7 @@ namespace uba
 							if (findIt != m_processes.end())
 							{
 								auto& process = *(RemoteProcess*)findIt->second.m_process;
-								writeCompressed = process.startInfo.rules->StoreFileCompressed(destination);
+								writeCompressed = process.m_startInfo.rules->StoreFileCompressed(destination);
 							}
 						}
 						success = m_storage.CopyOrLink(casKey, destination.data, attributes, writeCompressed);
@@ -907,7 +910,7 @@ namespace uba
 						ProcessHandle h(findIt->second);
 						lock.Leave();
 						auto& process = *(RemoteProcess*)h.m_process;
-						if (process.startInfo.trackInputs)
+						if (process.m_startInfo.trackInputs)
 						{
 							u64 bytes = GetStringWriteSize(destination.data, destination.count);
 							u64 prevSize = process.m_trackedOutputs.size();
@@ -1045,7 +1048,7 @@ namespace uba
 
 					ProcessAdded(*process, sessionId);
 					writer.WriteU32(process->m_processId);
-					process->Write(writer);
+					process->m_startInfo.Write(writer);
 
 					for (auto kiIt = process->m_knownInputs, kiEnd = kiIt + process->m_knownInputsCount; kiIt!=kiEnd; ++kiIt)
 						if (session.sentKeys.insert(kiIt->key).second)
@@ -1056,7 +1059,7 @@ namespace uba
 					if (writer.GetCapacityLeft() < 5000) // Arbitrary number to cover all parameters above
 						break;
 
-					weightLeft -= process->weight;
+					weightLeft -= process->m_startInfo.weight;
 				}
 				fillLock.Leave();
 
@@ -1178,9 +1181,9 @@ namespace uba
 					process.m_logLines.push_back({ std::move(text), type });
 				}
 
-				if (auto func = process.startInfo.logLineFunc)
+				if (auto func = process.m_startInfo.logLineFunc)
 					for (auto& line : process.m_logLines)
-						func(process.startInfo.logLineUserData, line.text.c_str(), u32(line.text.size()), line.type);
+						func(process.m_startInfo.logLineUserData, line.text.c_str(), u32(line.text.size()), line.type);
 
 				u32 id = process.m_processId;
 				Vector<ProcessLogLine> emptyLines;
@@ -1757,8 +1760,11 @@ namespace uba
 		return str.Appendf(TC("%s"), findIt->second.GetStartInfo().GetDescription()).data;
 	}
 
-	bool SessionServer::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
+	bool SessionServer::PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
 	{
+		if (!Session::PrepareProcess(startInfo, isChild, outRealApplication, outRealWorkingDir))
+			return false;
+
 		if (!m_memTotal || !m_allowWaitOnMem || isChild)
 			return true;
 

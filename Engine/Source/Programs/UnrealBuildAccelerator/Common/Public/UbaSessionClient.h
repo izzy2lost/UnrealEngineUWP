@@ -47,7 +47,7 @@ namespace uba
 	private:
 		bool RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool storeUncompressed, bool allowProxy = true);
 
-		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
+		virtual bool PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
 		virtual void* GetProcessEnvironmentVariables() override;
 		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg) override;
 		virtual bool DeleteFile(DeleteFileResponse& out, const DeleteFileMessage& msg) override;
@@ -75,7 +75,6 @@ namespace uba
 
 		bool GetCasKeyForFile(CasKey& out, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey);
 		bool ReadModules(List<ModuleInfo>& outModules, u32 processId, const tchar* application);
-		bool EnsureApplicationEnvironment(StringBufferBase& out, u32 processId, const tchar* application);
 		bool EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir);
 		bool WriteBinFile(StringBufferBase& out, const tchar* binaryName, const CasKey& casKey, const KeyToString& applicationDir, u32 fileAttributes);
 		bool SendFiles(ProcessImpl& process, Timer& sendFiles);
@@ -125,8 +124,9 @@ namespace uba
 		Atomic<u64> m_terminationTime;
 		Atomic<u32> m_maxProcessCount;
 
+		struct ApplicationEnvironment { ReaderWriterLock lock; TString virtualApplication; TString realApplication; };
 		ReaderWriterLock m_handledApplicationEnvironmentsLock;
-		UnorderedSet<TString> m_handledApplicationEnvironments;
+		UnorderedMap<TString, ApplicationEnvironment> m_handledApplicationEnvironments;
 
 		ReaderWriterLock m_binFileLock;
 		UnorderedMap<TString, CasKey> m_writtenBinFiles;

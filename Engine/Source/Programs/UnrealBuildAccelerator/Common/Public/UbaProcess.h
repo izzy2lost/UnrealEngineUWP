@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "../Private/UbaProcessStartInfoHolder.h" // TODO Move this file
 #include "UbaSession.h"
 #include "UbaStats.h"
 
@@ -59,7 +60,7 @@ namespace uba
 
 		struct PipeReader;
 
-		void Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async, bool enableDetour);
+		bool Start(const ProcessStartInfo& startInfo, bool runningRemote, void* environment, bool async, bool enableDetour);
 
 		bool IsActive();
 		bool IsCancelled();
@@ -116,7 +117,7 @@ namespace uba
 		void ClearTempFiles();
 		void WaitForParent();
 
-		ProcessStartInfo m_startInfo;
+		ProcessStartInfoHolder m_startInfo;
 		Session& m_session;
 		ProcessImpl* m_parentProcess;
 		ReaderWriterLock m_initLock;
@@ -158,12 +159,6 @@ namespace uba
 		bool m_detourEnabled = true;
 		TString m_realApplication;
 		const tchar* m_realWorkingDir = nullptr;
-		TString m_virtualApplication;
-		TString m_virtualApplicationDir;
-		TString m_virtualWorkingDir;
-		TString m_arguments;
-		TString m_description;
-		TString m_logFile;
 		u64 m_startTime = 0;
 		Event m_waitForParent;
 		ReaderWriterLock m_logLinesLock;
