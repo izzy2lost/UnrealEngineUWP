@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EntitySystem/MovieSceneEntityIDs.h"
 #include "EntitySystem/MovieScenePropertyBinding.h"
 #include "Evaluation/MovieSceneEvaluationOperand.h"
 
