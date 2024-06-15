@@ -26,6 +26,9 @@ namespace uba
 	ApplicationRules* g_rules;
 	bool g_runningRemote;
 	bool g_isChild;
+	bool g_allowKeepFilesInMemory = IsWindows;
+	bool g_allowOutputFiles = IsWindows;
+	bool g_suppressLogging = false;
 
 	void InitSharedVariables()
 	{
@@ -190,7 +193,7 @@ namespace uba
 	template<typename CharType>
 	void Shared_WriteConsoleT(const CharType* chars, u32 charCount, bool isError)
 	{
-		if (!g_echoOn)
+		if (!g_echoOn || g_suppressLogging)
 			return;
 
 		SCOPED_WRITE_LOCK(g_consoleStringCs, lock);
@@ -304,15 +307,33 @@ namespace uba
 
 				if (dirTableOffset == ~u32(0))
 				{
-					if (g_runningRemote) // This could be a written file not reported to server yet
+					// This could be a newly written file but process has not fetched latest directory table
+					SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
+					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
+					if (findIt != g_mappedFileTable.m_lookup.end() && !findIt->second.deleted)
 					{
-						SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
-						auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
-						if (findIt != g_mappedFileTable.m_lookup.end() && !findIt->second.deleted)
+						outAttr.exists = true;
+						outAttr.lastError = ErrorSuccess;
+						outAttr.useCache = false;
+
+						if (g_runningRemote)
 						{
-							outAttr.useCache = false;
-							return findIt->second.name;
+							FileInfo& info = findIt->second;
+							outAttr.useCache = true;
+
+							// TODO: This is missing lots of information..
+#if PLATFORM_WINDOWS
+							LARGE_INTEGER li = ToLargeInteger(info.size);
+							outAttr.data.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+							outAttr.data.nFileSizeLow = li.LowPart;
+							outAttr.data.nFileSizeHigh = li.HighPart;
+#else
+							outAttr.data.st_mode = (mode_t)(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+							outAttr.data.st_size = info.size;
+#endif
 						}
+
+						return findIt->second.name;
 					}
 
 					outAttr.useCache = true;

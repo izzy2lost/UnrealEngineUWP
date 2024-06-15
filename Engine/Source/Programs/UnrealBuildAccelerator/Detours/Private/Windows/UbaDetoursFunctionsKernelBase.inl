@@ -597,7 +597,7 @@ DWORD Detoured_GetSecurityInfo(HANDLE handle, SE_OBJECT_TYPE ObjectType, SECURIT
 
 void WriteStdFile(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, bool isError)
 {
-	if (!g_echoOn)
+	if (!g_echoOn || g_suppressLogging)
 		return;
 
 	SCOPED_WRITE_LOCK(g_stdFileLock, lock);

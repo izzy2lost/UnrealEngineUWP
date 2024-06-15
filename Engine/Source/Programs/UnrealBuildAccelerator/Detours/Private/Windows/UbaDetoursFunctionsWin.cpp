@@ -326,7 +326,7 @@ void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr
 	int ret = MessageBoxW(GetConsoleWindow(), b.data, title.data, MB_ABORTRETRYIGNORE|MB_SYSTEMMODAL);
 	if (ret == IDABORT)
 		ExitProcess(terminateCode);
-	else if (ret == IDRETRY)
+	else if (ret == IDRETRY && IsDebuggerPresent())
 		DebugBreak();
 	#else
 	if (allowTerminate)
@@ -367,7 +367,7 @@ const wchar_t* HandleToName(HANDLE handle)
 
 bool NeedsSharedMemory(const wchar_t* file) { return g_allowKeepFilesInMemory && g_rules->NeedsSharedMemory(file); }
 u64 FileTypeMaxSize(const StringBufferBase& file, bool isSystemOrTempFile) { return g_rules->FileTypeMaxSize(file, isSystemOrTempFile); }
-bool IsOutputFile(const StringView& fileName, bool isWrite, bool isDeleteOnClose = false) { return (isWrite || isDeleteOnClose) && g_allowKeepFilesInMemory && g_rules->IsOutputFile(fileName); }
+bool IsOutputFile(const StringView& fileName, bool isWrite, bool isDeleteOnClose = false) { return (isWrite || isDeleteOnClose) && g_allowOutputFiles && g_rules->IsOutputFile(fileName); }
 
 
 bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFileOffsetLow = 0, SIZE_T numberOfBytesToMap = 0, void* baseAddress = nullptr)
@@ -675,6 +675,9 @@ void PreInit(const DetoursPayload& payload)
 	g_useMiMalloc = payload.useCustomAllocator;
 	g_runningRemote = payload.runningRemote;
 	g_isChild = payload.isChild;
+	g_allowKeepFilesInMemory = payload.allowKeepFilesInMemory;
+	g_allowOutputFiles = g_allowKeepFilesInMemory && payload.allowOutputFiles;
+	g_suppressLogging = payload.suppressLogging;
 	g_isDetachedProcess = g_rules->AllowDetach();
 	g_isRunningWine = payload.isRunningWine;
 	g_uiLanguage = payload.uiLanguage;
@@ -836,7 +839,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 		if (const wchar_t* lastBackslash = g_virtualApplication.Last('\\'))
 			g_virtualApplicationDir.Append(g_virtualApplication.data, (lastBackslash + 1 - g_virtualApplication.data));
 		else
-			FatalError(4444, L"What the heck: %s", g_virtualApplication.data);
+			FatalError(4444, L"What the heck: %s (%s)", g_virtualApplication.data, applicationBuffer.data);
 	}
 
 	const wchar_t* cmdLine = True_GetCommandLineW();
@@ -864,6 +867,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 			temp[sizeof_array(temp)-1] = 0;
 			cmdLine = temp;
 		}
+		DEBUG_LOG(L"ProcessId: %u", payload.processId);
 		DEBUG_LOG(L"Cmdline: %ls", cmdLine);
 		DEBUG_LOG(L"WorkingDir: %ls", g_virtualWorkingDir.data);
 		DEBUG_LOG(L"ExeDir: %ls", g_virtualApplicationDir.data);

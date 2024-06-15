@@ -160,17 +160,17 @@ errno_t Detoured__waccess_s(const wchar_t* path, int mode)
 	if (!CanDetour(path))
 	{
 		auto res = True__waccess_s(path, mode);
-		DEBUG_LOG_TRUE(L"_waccess_s", L"%ls %i -> %ls", path, mode, WaccessResultToString(res));
+		DEBUG_LOG_TRUE(L"_waccess_s", L"(NODETOUR) %ls %i -> %ls", path, mode, WaccessResultToString(res));
 		return res;
 	}
 
 	FileAttributes attr;
 	const wchar_t* realName = Shared_GetFileAttributes(attr, path);
 
-	if (!attr.useCache)
+	if (!attr.useCache && !g_runningRemote)
 	{
 		auto res = True__waccess_s(realName, mode);
-		DEBUG_LOG_TRUE(L"_waccess_s", L"%ls %i -> %ls", path, mode, WaccessResultToString(res));
+		DEBUG_LOG_TRUE(L"_waccess_s", L"(NOCACHE) %ls %i -> %ls", path, mode, WaccessResultToString(res));
 		return res;
 	}
 
@@ -235,6 +235,9 @@ int Detoured__write(int fd, const void* buffer, unsigned int count)
 	DETOURED_CALL(_write);
 	if (fd == StdOutFd && g_isDetachedProcess)
 	{
+		if (g_suppressLogging)
+			return count;
+
 		const char* str = (const char*)buffer;
 		const char* end = str + count;
 		const char* line = str;

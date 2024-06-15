@@ -88,12 +88,14 @@ namespace uba
 	inline constexpr bool g_allowFileMappingDetour = true;
 	inline constexpr bool g_allowFindFileDetour = true;
 	inline constexpr bool g_allowListDirectoryHandle = true;
-	inline constexpr bool g_allowKeepFilesInMemory = IsWindows;
 
 	extern u32 g_rulesIndex;
 	extern ApplicationRules* g_rules;
 	extern bool g_runningRemote;
 	extern bool g_isChild;
+	extern bool g_allowKeepFilesInMemory;
+	extern bool g_allowOutputFiles;
+	extern bool g_suppressLogging;
 
 	#if PLATFORM_WINDOWS
 	constexpr u32 ErrorSuccess = 0;

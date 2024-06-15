@@ -100,8 +100,6 @@ namespace uba
 	,	m_tempFilesLock(parent ? parent->m_tempFilesLock : *new ReaderWriterLock())
 	,	m_tempFiles(parent ? parent->m_tempFiles : *new UnorderedMap<StringKey, WrittenFile>)
 	{
-
-		CreateGuid(m_processGuid);
 		m_cancelEvent.Create(true, true);
 		m_writeEvent.Create(false, true);
 		m_readEvent.Create(false, true);
@@ -1495,7 +1493,7 @@ namespace uba
 			}
 
 			DetoursPayload payload;
-			payload.processGuid = m_processGuid;
+			payload.processId = m_id;
 			payload.hostProcess = hostProcess;
 			payload.cancelEvent = m_cancelEvent.GetHandle();
 			payload.writeEvent = m_writeEvent.GetHandle();

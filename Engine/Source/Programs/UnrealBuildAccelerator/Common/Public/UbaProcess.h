@@ -120,7 +120,6 @@ namespace uba
 		ProcessImpl* m_parentProcess;
 		ReaderWriterLock m_initLock;
 		u32 m_id;
-		Guid m_processGuid;
 		FileMappingAllocator::Allocation m_comMemory;
 
 	#if PLATFORM_WINDOWS
