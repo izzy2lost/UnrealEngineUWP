@@ -1490,7 +1490,7 @@ namespace uba
 			if (!DuplicateHandle(currentProcess, currentProcess, (HANDLE)m_nativeProcessHandle, &hostProcess, 0, FALSE, DUPLICATE_SAME_ACCESS))
 			{
 				if (!IsCancelled())
-					logger.Error(TC("Failed to duplicate host process handle for process"));//% ls."), commandLine.c_str());
+					logger.Error(TC("Failed to duplicate host process handle for process (%s)"), LastErrorToText().data);
 				return UBA_EXIT_CODE(8);
 			}
 
@@ -1505,6 +1505,9 @@ namespace uba
 			payload.rulesIndex = m_startInfo.rules->index;
 			payload.version = ProcessMessageVersion;
 			payload.runningRemote = runningRemote;
+			payload.allowKeepFilesInMemory = m_session.m_allowKeepFilesInMemory;
+			payload.allowOutputFiles = m_session.m_allowOutputFiles;
+			payload.suppressLogging = m_session.m_suppressLogging;
 			payload.isChild = m_parentProcess != nullptr;
 			payload.trackInputs = m_startInfo.trackInputs;
 			payload.useCustomAllocator = m_startInfo.useCustomAllocator && m_startInfo.rules->AllowMiMalloc();

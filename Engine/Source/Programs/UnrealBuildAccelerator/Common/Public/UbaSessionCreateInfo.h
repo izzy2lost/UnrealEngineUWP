@@ -26,6 +26,10 @@ namespace uba
 		bool disableCustomAllocator = false;	// Disable detouring of allocator inside processes.
 		bool launchVisualizer = false;			// Launch a UbaVisualizer process (this automatically enable trace)
 		bool allowMemoryMaps = IsWindows;		// Use memory maps where possible. Session creates memory maps of files that processes use
+		bool allowKeepFilesInMemory = IsWindows;// Allow detoured process to keep output files in memory and send them to session through file mapping handle
+		bool allowOutputFiles = IsWindows;		// Allow (selected) output files to be written to disk after process has ended.
+		bool allowSpecialApplications = true;	// Allow uba to expand cmd.exe and call known commands instead of running additional process
+		bool suppressLogging = false;			// Suppress all logging produced by detoured processes. Will be made in detoured process to improve performance when needed
 		bool shouldWriteToDisk = true;			// Set to false to skip writing output files to disk
 		bool traceEnabled = false;				// Set to true to always create in-memory trace data. Is not needed if traceName, traceOutputFile or launchVisualizer is set
 		bool detailedTrace = false;				// Enable detailed trace to include jobs, individual file I/O etc in trace dump

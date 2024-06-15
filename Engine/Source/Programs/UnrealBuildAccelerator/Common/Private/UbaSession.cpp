@@ -210,6 +210,10 @@ namespace uba
 		table.GetValueAsBool(disableCustomAllocator, TC("DisableCustomAllocator"));
 		table.GetValueAsBool(launchVisualizer, TC("LaunchVisualizer"));
 		table.GetValueAsBool(allowMemoryMaps, TC("AllowMemoryMaps"));
+		table.GetValueAsBool(allowKeepFilesInMemory, TC("AllowKeepFilesInMemory"));
+		table.GetValueAsBool(allowOutputFiles, TC("AllowOutputFiles"));
+		table.GetValueAsBool(allowSpecialApplications, TC("AllowSpecialApplications"));
+		table.GetValueAsBool(suppressLogging, TC("SuppressLogging"));
 		table.GetValueAsBool(shouldWriteToDisk, TC("ShouldWriteToDisk"));
 		table.GetValueAsBool(traceEnabled, TC("TraceEnabled"));
 		table.GetValueAsBool(detailedTrace, TC("DetailedTrace"));
@@ -1001,6 +1005,10 @@ namespace uba
 		m_runningRemote = runningRemote;
 		m_disableCustomAllocator = info.disableCustomAllocator;
 		m_allowMemoryMaps = info.allowMemoryMaps;
+		m_allowKeepFilesInMemory = info.allowKeepFilesInMemory;
+		m_allowOutputFiles = info.allowOutputFiles;
+		m_allowSpecialApplications = info.allowSpecialApplications;
+		m_suppressLogging = info.suppressLogging;
 		if (!info.allowMemoryMaps)
 			m_keepOutputFileMemoryMapsThreshold = 0;
 		else
@@ -1943,7 +1951,7 @@ namespace uba
 			auto insres = msg.process.m_writtenFiles.try_emplace(name);
 			WrittenFile& writtenFile = insres.first->second;
 
-			UBA_ASSERT(writtenFile.owner == nullptr || writtenFile.owner == &msg.process);
+			UBA_ASSERTF(writtenFile.owner == nullptr || writtenFile.owner == &msg.process || !m_allowOutputFiles, TC("File %s changed owner.. should not happen"), name);
 			writtenFile.owner = &msg.process;
 			writtenFile.attributes = msg.attributes;
 

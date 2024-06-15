@@ -178,6 +178,10 @@ namespace uba
 		bool m_runningRemote;
 		bool m_disableCustomAllocator;
 		bool m_allowMemoryMaps;
+		bool m_allowKeepFilesInMemory;
+		bool m_allowOutputFiles;
+		bool m_allowSpecialApplications;
+		bool m_suppressLogging;
 		bool m_shouldWriteToDisk;
 		bool m_detailedTrace;
 		bool m_traceChildProcesses;
