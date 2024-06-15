@@ -5,7 +5,7 @@
 #include "Containers/Map.h"
 #include "CoreTypes.h"
 #include "Evaluation/MovieScenePlaybackCapabilities.h"
-#include "Math/MathFwd.h"
+#include "Math/Vector.h"
 
 class FViewportClient;
 
