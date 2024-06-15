@@ -836,6 +836,16 @@ void FDetailCategoryImpl::SetDisplayName(const FText& InDisplayName)
 	SetDisplayName(CategoryName, InDisplayName);
 }
 
+const TOptional<FText>& FDetailCategoryImpl::GetToolTip() const
+{
+	return ToolTip;
+}
+
+void FDetailCategoryImpl::SetToolTip(const FText& InToolTip)
+{
+	ToolTip = InToolTip;
+}
+
 void FDetailCategoryImpl::SetDisplayName(FName InCategoryName, const FText& LocalizedNameOverride)
 {
 	if (!LocalizedNameOverride.IsEmpty())
@@ -885,7 +895,8 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 	InitializeObjectName();
 	TSharedPtr<FDetailLayoutBuilderImpl> ParentLayout = GetParentLayoutImpl();
 
-	return SNew(SDetailCategoryTableRow, AsShared(), OwnerTable)
+	TSharedRef<SDetailCategoryTableRow> RowWidget =
+		SNew(SDetailCategoryTableRow, AsShared(), OwnerTable)
 		.PasteFromText(OnPasteFromText())
 		.ObjectName( ObjectName )
 		.IsEmpty( bIsEmpty )
@@ -893,6 +904,13 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 		.DisplayName(GetDisplayName())
 		.HeaderContent(HeaderContent)
 		.WholeRowHeaderContent(bHeaderContentWholeRowContent);
+
+	if (ToolTip.IsSet() && !ToolTip->IsEmpty())
+	{
+		RowWidget->SetToolTipText(ToolTip.GetValue());
+	}
+
+	return RowWidget;
 }
 
 void FDetailCategoryImpl::InitializeObjectName()
@@ -932,12 +950,21 @@ bool FDetailCategoryImpl::GenerateStandaloneWidget(FDetailWidgetRow& OutRow) con
 
 	const bool bIsInnerCategory = GetParentLayoutImpl()->IsLayoutForExternalRoot();
 	FTextBlockStyle NameStyle = bIsInnerCategory ? FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText") : FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("DetailsView.CategoryTextStyle");
+
+	TSharedRef<STextBlock> TextBlock =
+    	SNew(STextBlock)
+    	.Text(GetDisplayName())
+    	.TextStyle(&NameStyle)
+    	.ShadowOffset(FVector2D::ZeroVector);
+
+    if (ToolTip.IsSet() && !ToolTip->IsEmpty())
+    {
+    	TextBlock->SetToolTipText(ToolTip.GetValue());
+    }
+
 	OutRow.NameContent()
 	[
-		SNew(STextBlock)
-		.Text(GetDisplayName())
-		.TextStyle(&NameStyle)
-		.ShadowOffset(FVector2D::ZeroVector)
+		TextBlock
 	];
 
 	if(HeaderContentWidget.IsValid())

@@ -63,6 +63,16 @@ public:
 	virtual IDetailGroup& AddGroup(FName NewGroupName, const FText& InLocalizedDisplayName, bool bInStartExpanded = false) = 0;
 
 	/**
+	 * Gets the localized tooltip for this group.
+	 */
+	virtual const TOptional<FText>& GetToolTip() const = 0;
+
+	/**
+	 * Sets the localized tooltip for this group.
+	 */
+	virtual void SetToolTip(const FText& ToolTip) = 0;
+
+	/**
 	 * Toggles expansion on the group
 	 *
 	 * @param bExpand	true to expand the group, false to collapse

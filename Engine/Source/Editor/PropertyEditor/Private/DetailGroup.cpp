@@ -86,6 +86,16 @@ IDetailGroup& FDetailGroup::AddGroup(FName NewGroupName, const FText& InLocalize
 	return *NewCustomization.DetailGroup;
 }
 
+const TOptional<FText>& FDetailGroup::GetToolTip() const
+{
+	return LocalizedToolTip;
+}
+
+void FDetailGroup::SetToolTip(const FText& ToolTip)
+{
+	LocalizedToolTip = ToolTip;
+}
+
 void FDetailGroup::ToggleExpansion( bool bExpand )
 {
 	if( ParentCategory.IsValid() && OwnerTreeNode.IsValid() )
@@ -227,6 +237,15 @@ FReply FDetailGroup::OnNameClicked()
 
 TSharedRef<SWidget> FDetailGroup::MakeNameWidget()
 {
+	TSharedRef<STextBlock> TextBlock = SNew(STextBlock)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+		.Text(LocalizedDisplayName);
+
+	if (LocalizedToolTip.IsSet() && !LocalizedToolTip->IsEmpty())
+	{
+		TextBlock->SetToolTipText(LocalizedToolTip.GetValue());
+	}
+
 	return
 		SNew( SButton )
 		.ButtonStyle( FAppStyle::Get(), "NoBorder" )
@@ -235,9 +254,7 @@ TSharedRef<SWidget> FDetailGroup::MakeNameWidget()
 		.ForegroundColor( FSlateColor::UseForeground() )
 		.Content()
 		[
-			SNew( STextBlock )
-			.Font( IDetailLayoutBuilder::GetDetailFont() )
-			.Text( LocalizedDisplayName )
+			TextBlock
 		];
 }
 

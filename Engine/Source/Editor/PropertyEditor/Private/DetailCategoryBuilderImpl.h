@@ -187,6 +187,8 @@ public:
 	virtual void GetDefaultProperties(TArray<TSharedRef<IPropertyHandle> >& OutAllProperties, bool bSimpleProperties = true, bool bAdvancedProperties = true) override;
 	virtual const FText& GetDisplayName() const override { return DisplayName; }
 	virtual void SetDisplayName(const FText& InDisplayName) override;
+	virtual const TOptional<FText>& GetToolTip() const override;
+	virtual void SetToolTip(const FText& ToolTip) override;
 	virtual void SetCategoryVisibility(bool bIsVisible) override;
 	virtual void SetShowAdvanced(bool bShowAdvanced) override;
 	virtual int32 GetSortOrder() const override;
@@ -436,6 +438,8 @@ private:
 	FOnBooleanValueChanged OnExpansionChangedDelegate;
 	/** The display name of the category */
 	FText DisplayName;
+	/** ToolTip for this category */
+    TOptional<FText> ToolTip;
 	/** The path name of the category */
 	FString CategoryPathName;
 	/** Custom header content displayed to the right of the category name */
