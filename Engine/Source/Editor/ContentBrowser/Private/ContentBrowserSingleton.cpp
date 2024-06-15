@@ -14,6 +14,7 @@
 #include "ContentBrowserCommands.h"
 #include "ContentBrowserDataSubsystem.h"
 #include "ContentBrowserModule.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "CoreGlobals.h"
 #include "Delegates/Delegate.h"
@@ -91,7 +92,7 @@ FContentBrowserSingleton::FContentBrowserSingleton()
 	: CollectionAssetRegistryBridge(MakeShared<FCollectionAssetRegistryBridge>())
 	, SettingsStringID(0)
 {
-	const FSlateIcon ContentBrowserIcon(FAppStyle::Get().GetStyleSetName(), "ContentBrowser.TabIcon");
+	const FSlateIcon ContentBrowserIcon(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetStyleSetName(), "ContentBrowser.TabIcon");
 	const IWorkspaceMenuStructure& MenuStructure = WorkspaceMenu::GetMenuStructure();
 	TSharedRef<FWorkspaceItem> ContentBrowserGroup = MenuStructure.GetLevelEditorCategory()->AddGroup(
 		"ContentBrowser",
@@ -1246,8 +1247,6 @@ void FContentBrowserSingleton::PopulateConfigValues()
 void FContentBrowserSingleton::GetContentBrowserSubMenu(UToolMenu* Menu, TSharedRef<FWorkspaceItem> ContentBrowserGroup)
 {
 	// Register the tab spawners for all content browsers
-	const FSlateIcon ContentBrowserIcon(FAppStyle::Get().GetStyleSetName(), "ContentBrowser.TabIcon");
-
 	FToolMenuSection& Section = Menu->AddSection("ContentBrowser");
 
 	Section.AddMenuEntry("FocusContentBrowser",

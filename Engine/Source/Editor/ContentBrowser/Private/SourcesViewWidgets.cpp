@@ -12,6 +12,7 @@
 #include "ContentBrowserItemData.h"
 #include "ContentBrowserModule.h"
 #include "ContentBrowserPluginFilters.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "DragAndDrop/CollectionDragDropOp.h"
@@ -57,16 +58,18 @@ struct FAssetTreeItemBrushes
 
 	FAssetTreeItemBrushes()
 	{
-		FolderOpenBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpen");
-		FolderClosedBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosed");
-		FolderOpenVirtualBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenVirtual");
-		FolderClosedVirtualBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedVirtual");
-		FolderOpenCodeBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenCode");
-		FolderClosedCodeBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedCode");
-		FolderOpenDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenDeveloper");
-		FolderClosedDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedDeveloper");
-		FolderOpenPluginRootBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenPluginRoot");
-		FolderClosedPluginRootBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedPluginRoot");
+		const FSlateStyleSet& ContentBrowserStyle = UE::ContentBrowser::Private::FContentBrowserStyle::Get();
+
+		FolderOpenBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderOpen");
+		FolderClosedBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderClosed");
+		FolderOpenVirtualBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderOpenVirtual");
+		FolderClosedVirtualBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderClosedVirtual");
+		FolderOpenCodeBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderOpenCode");
+		FolderClosedCodeBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderClosedCode");
+		FolderOpenDeveloperBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderOpenDeveloper");
+		FolderClosedDeveloperBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderClosedDeveloper");
+		FolderOpenPluginRootBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderOpenPluginRoot");
+		FolderClosedPluginRootBrush = ContentBrowserStyle.GetBrush("ContentBrowser.AssetTreeFolderClosedPluginRoot");
 	}
 	
 	static FAssetTreeItemBrushes& Get()
@@ -153,7 +156,7 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 				SAssignNew(InlineRenameWidget, SInlineEditableTextBlock)
 					.Text(this, &SAssetTreeItem::GetNameText)
 					.ToolTipText(this, &SAssetTreeItem::GetToolTipText)
-					.Font( InArgs._FontOverride.IsSet() ? InArgs._FontOverride : FAppStyle::GetFontStyle(bIsRoot ? "ContentBrowser.SourceTreeRootItemFont" : "ContentBrowser.SourceTreeItemFont") )
+					.Font( InArgs._FontOverride.IsSet() ? InArgs._FontOverride : UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetFontStyle(bIsRoot ? "ContentBrowser.SourceTreeRootItemFont" : "ContentBrowser.SourceTreeItemFont") )
 					.HighlightText( InArgs._HighlightText )
 					.OnTextCommitted(this, &SAssetTreeItem::HandleNameCommitted)
 					.OnVerifyTextChanged(this, &SAssetTreeItem::VerifyNameChanged)

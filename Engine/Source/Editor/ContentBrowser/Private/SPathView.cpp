@@ -19,6 +19,7 @@
 #include "ContentBrowserPathViewMenuContexts.h"
 #include "ContentBrowserPluginFilters.h"
 #include "ContentBrowserSingleton.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "CoreGlobals.h"
 #include "CoreTypes.h"
@@ -1091,7 +1092,7 @@ void SPathView::Construct( const FArguments& InArgs )
 				.AutoHeight()
 				[
 					SNew(STextBlock)
-					.Font( FAppStyle::GetFontStyle("ContentBrowser.SourceTitleFont") )
+					.Font(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetFontStyle("ContentBrowser.SourceTitleFont") )
 					.Text(this, &SPathView::GetTreeTitle)
 					.Visibility(InArgs._ShowTreeTitle ? EVisibility::Visible : EVisibility::Collapsed)
 				]
@@ -2807,7 +2808,7 @@ TSharedRef<ITableRow> SFavoritePathView::GenerateTreeRow(TSharedPtr<FTreeItem> T
 			.IsItemExpanded(false)
 			.HighlightText(this, &SFavoritePathView::GetHighlightText)
 			.IsSelected(this, &SFavoritePathView::IsTreeItemSelected, TreeItem)
-			.FontOverride(FAppStyle::GetFontStyle("ContentBrowser.SourceTreeItemFont"))
+			.FontOverride(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetFontStyle("ContentBrowser.SourceTreeItemFont"))
 		];
 }
 

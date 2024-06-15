@@ -61,6 +61,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Algo/Transform.h"
+#include "ContentBrowserStyle.h"
 
 class SWidget;
 struct FGeometry;
@@ -107,7 +108,8 @@ public:
 				.VAlign(VAlign_Center)
 				.Padding(0.f, 0.f, 4.f, 0.f)
 				[
-					SNew(SImage) .Image( FAppStyle::GetBrush("ContentBrowser.PopupMessageIcon") )
+					SNew(SImage)
+					.Image(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.PopupMessageIcon"))
 				]
 
 				+SHorizontalBox::Slot()

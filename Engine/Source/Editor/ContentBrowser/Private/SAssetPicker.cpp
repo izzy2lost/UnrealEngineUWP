@@ -8,6 +8,7 @@
 #include "CollectionManagerTypes.h"
 #include "ContentBrowserDataFilter.h"
 #include "ContentBrowserItem.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "CoreGlobals.h"
 #include "Delegates/Delegate.h"
@@ -176,7 +177,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 			[
 				SNew(SImage)
 				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::GetBrush("ContentBrowser.ColumnViewDeveloperFolderIcon"))
+				.Image(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.ColumnViewDeveloperFolderIcon"))
 			]
 		];
 	}
@@ -242,8 +243,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 				.AutoHeight()
 				[
 					SNew(SButton)
-						.ButtonStyle( FAppStyle::Get(), "ContentBrowser.NoneButton" )
-						.TextStyle( FAppStyle::Get(), "ContentBrowser.NoneButtonText" )
+						.ButtonStyle(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.NoneButton" )
+						.TextStyle(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.NoneButtonText" )
 						.Text( LOCTEXT("NoneButtonText", "( None )") )
 						.ToolTipText( LOCTEXT("NoneButtonTooltip", "Clears the asset selection.") )
 						.HAlign(HAlign_Center)

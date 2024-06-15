@@ -7,6 +7,7 @@
 #include "AssetThumbnail.h"
 #include "AssetToolsModule.h"
 #include "Containers/EnumAsByte.h"
+#include "ContentBrowserStyle.h"
 #include "Delegates/Delegate.h"
 #include "Editor/UnrealEdEngine.h"
 #include "GenericPlatform/ICursor.h"
@@ -87,7 +88,7 @@ void SThumbnailEditModeTools::Construct( const FArguments& InArgs, const TShared
 			.Content()
 			[
 				SNew(SImage)
-				.Image(FAppStyle::GetBrush("ContentBrowser.ResetPrimitiveToDefault"))
+				.Image(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.ResetPrimitiveToDefault"))
 				.ColorAndOpacity(FSlateColor::UseForeground())
 			]
 		]
@@ -115,6 +116,8 @@ EVisibility SThumbnailEditModeTools::GetPrimitiveToolsResetToDefaultVisibility()
 
 const FSlateBrush* SThumbnailEditModeTools::GetCurrentPrimitiveBrush() const
 {
+	const FSlateStyleSet& ContentBrowserStyle = UE::ContentBrowser::Private::FContentBrowserStyle::Get();
+
 	USceneThumbnailInfoWithPrimitive* ThumbnailInfo = GetSceneThumbnailInfoWithPrimitive();
 	if ( ThumbnailInfo )
 	{
@@ -122,10 +125,10 @@ const FSlateBrush* SThumbnailEditModeTools::GetCurrentPrimitiveBrush() const
 		EThumbnailPrimType PrimType = ThumbnailInfo->bUserModifiedShape ? ThumbnailInfo->PrimitiveType.GetValue() : (EThumbnailPrimType)ThumbnailInfo->DefaultPrimitiveType.Get(EThumbnailPrimType::TPT_Sphere);
 		switch (PrimType)
 		{
-		case TPT_None: return FAppStyle::GetBrush("ContentBrowser.PrimitiveCustom");
-		case TPT_Sphere: return FAppStyle::GetBrush("ContentBrowser.PrimitiveSphere");
-		case TPT_Cube: return FAppStyle::GetBrush("ContentBrowser.PrimitiveCube");
-		case TPT_Cylinder: return FAppStyle::GetBrush("ContentBrowser.PrimitiveCylinder");
+		case TPT_None: return ContentBrowserStyle.GetBrush("ContentBrowser.PrimitiveCustom");
+		case TPT_Sphere: return ContentBrowserStyle.GetBrush("ContentBrowser.PrimitiveSphere");
+		case TPT_Cube: return ContentBrowserStyle.GetBrush("ContentBrowser.PrimitiveCube");
+		case TPT_Cylinder: return ContentBrowserStyle.GetBrush("ContentBrowser.PrimitiveCylinder");
 		case TPT_Plane:
 		default:
 			// Fall through and return a plane
@@ -133,7 +136,7 @@ const FSlateBrush* SThumbnailEditModeTools::GetCurrentPrimitiveBrush() const
 		}
 	}
 
-	return FAppStyle::GetBrush( "ContentBrowser.PrimitivePlane" );
+	return ContentBrowserStyle.GetBrush( "ContentBrowser.PrimitivePlane" );
 }
 
 FReply SThumbnailEditModeTools::ChangePrimitive()
