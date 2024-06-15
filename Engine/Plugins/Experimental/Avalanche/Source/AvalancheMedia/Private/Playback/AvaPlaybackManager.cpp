@@ -128,6 +128,19 @@ namespace UE::AvaPlaybackManager::Private
 			return true;
 		}
 	};
+
+	FString GetPrettyPlaybackInstanceInfo(const FAvaPlaybackInstance* InPlaybackInstance)
+	{
+		if (InPlaybackInstance)
+		{
+			return FString::Printf(TEXT("Id:%s, Asset:%s, Channel:%s, UserData:\"%s\""),
+				*InPlaybackInstance->GetInstanceId().ToString(),
+				*InPlaybackInstance->GetSourcePath().GetAssetName(),
+				*InPlaybackInstance->GetChannelName(),
+				*InPlaybackInstance->GetInstanceUserData());
+		}
+		return TEXT("");
+	}
 }
 
 FAvaPlaybackManager::FAvaPlaybackManager()
@@ -847,67 +860,90 @@ void FAvaPlaybackInstance::SetInstanceUserData(const FString& InUserData)
 bool FAvaPlaybackInstance::UpdateStatus()
 {
 	using namespace UE::AvaPlaybackManager::Private;
-	if (IsPlaybackValid(Playback))
+	using namespace UE::AvaPlayback::Utils;
+	
+	if (!IsPlaybackValid(Playback))
 	{
-		EAvaPlaybackStatus NewStatus = Status;
+		return false;
+	}
+	
+	EAvaPlaybackStatus NewStatus = Status;
 
-		if (Playback->IsPlaying())
+	if (Playback->IsPlaying())
+	{
+		if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
 		{
-			if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
+			switch (Playable->GetPlayableStatus())
 			{
-				switch (Playable->GetPlayableStatus())
-				{
-				case EAvaPlayableStatus::Unloaded:
-					NewStatus = EAvaPlaybackStatus::Available;
-					break;
-				case EAvaPlayableStatus::Loading:
-					NewStatus = EAvaPlaybackStatus::Loading;
-					break;
-				case EAvaPlayableStatus::Loaded:
-					NewStatus = EAvaPlaybackStatus::Loaded;
-					break;
-				case EAvaPlayableStatus::Visible:
-					NewStatus = Playable->GetPlayableGroup()->IsRenderTargetReady() ? EAvaPlaybackStatus::Started : EAvaPlaybackStatus::Starting;
-					break;
-				}
-			}
-			else
-			{
-				// The game instance may not be created yet. The RefreshPlayback is done on the next tick.
+			case EAvaPlayableStatus::Unloaded:
+				NewStatus = EAvaPlaybackStatus::Available;
+				break;
+			case EAvaPlayableStatus::Loading:
 				NewStatus = EAvaPlaybackStatus::Loading;
+				break;
+			case EAvaPlayableStatus::Loaded:
+				NewStatus = EAvaPlaybackStatus::Loaded;
+				break;
+			case EAvaPlayableStatus::Visible:
+				NewStatus = Playable->GetPlayableGroup()->IsRenderTargetReady() ? EAvaPlaybackStatus::Started : EAvaPlaybackStatus::Starting;
+				break;
 			}
 		}
 		else
 		{
-			// Even if not playing, we could have a game instance already, it can be preloaded now.
-			if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
-			{
-				switch (Playable->GetPlayableStatus())
-				{
-				case EAvaPlayableStatus::Unloaded:
-					NewStatus = EAvaPlaybackStatus::Available;
-					break;
-				case EAvaPlayableStatus::Loading:
-					NewStatus = EAvaPlaybackStatus::Loading;
-					break;
-				case EAvaPlayableStatus::Loaded:
-				case EAvaPlayableStatus::Visible:
-					NewStatus = EAvaPlaybackStatus::Loaded;
-					break;
-				}
-			}
-			else
-			{
-				NewStatus = EAvaPlaybackStatus::Loading;
-			}
-		}
+			// The game instance may not be created yet. The RefreshPlayback is done on the next tick.
+			NewStatus = EAvaPlaybackStatus::Loading;
 
-		if (NewStatus != Status)
-		{
-			Status = NewStatus;
-			return true;
+			// Reporting possible edge case:
+			if (Status != NewStatus)
+			{
+				UE_LOG(LogAvaPlaybackManager, Verbose,
+					TEXT("%s Playback Instance {%s} Status Changed: %s -> %s because Playable \"%s\" (%s) was not found in PLAYING instance."),
+					*GetBriefFrameInfo(), *GetPrettyPlaybackInstanceInfo(this), *StaticEnumToString(Status), *StaticEnumToString(NewStatus),
+					*SourcePath.GetAssetName(), *ChannelName);
+			}
 		}
 	}
+	else
+	{
+		// Even if not playing, we could have a game instance already, it can be preloaded now.
+		if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
+		{
+			switch (Playable->GetPlayableStatus())
+			{
+			case EAvaPlayableStatus::Unloaded:
+				NewStatus = EAvaPlaybackStatus::Available;
+				break;
+			case EAvaPlayableStatus::Loading:
+				NewStatus = EAvaPlaybackStatus::Loading;
+				break;
+			case EAvaPlayableStatus::Loaded:
+			case EAvaPlayableStatus::Visible:
+				NewStatus = EAvaPlaybackStatus::Loaded;
+				break;
+			}
+		}
+		else
+		{
+			NewStatus = EAvaPlaybackStatus::Loading;
+			
+			// Reporting possible edge case:
+			if (Status != NewStatus)
+			{
+				UE_LOG(LogAvaPlaybackManager, Verbose,
+					TEXT("%s Playback Instance {%s} Status Changed: %s -> %s because Playable \"%s\" (%s) was not found in instance."),
+					*GetBriefFrameInfo(), *GetPrettyPlaybackInstanceInfo(this), *StaticEnumToString(Status), *StaticEnumToString(NewStatus),
+					*SourcePath.GetAssetName(), *ChannelName);
+			}
+		}
+	}
+
+	if (NewStatus != Status)
+	{
+		Status = NewStatus;
+		return true;
+	}
+	
 	return false;
 }
 

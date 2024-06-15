@@ -205,6 +205,29 @@ bool UAvaPlayableGroup::HasTransitions() const
 	return !PlayableTransitions.IsEmpty();
 }
 
+void UAvaPlayableGroup::PushSynchronizedEvent(FString&& InEventSignature, TUniqueFunction<void()> InFunction)
+{
+	if (UAvaPlayableGroupManager* Manager = GetPlayableGroupManager())
+	{
+		// Using one dispatcher for now, if the event signature needs to be scoped per playable group
+		// we could have a dispatcher for each playable group with a unique signature.
+		Manager->PushSynchronizedEvent(MoveTemp(InEventSignature), MoveTemp(InFunction));
+	}
+	else if (InFunction)
+	{
+		InFunction();
+	}
+}
+
+bool UAvaPlayableGroup::IsSynchronizedEventPushed(const FString& InEventSignature) const
+{
+	if (const UAvaPlayableGroupManager* Manager = GetPlayableGroupManager())
+	{
+		return Manager->IsSynchronizedEventPushed(InEventSignature);
+	}
+	return false;	
+}
+
 void UAvaPlayableGroup::SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable)
 {
 	LastAppliedCameraPlayableWeak = InPlayable;
@@ -317,6 +340,19 @@ void UAvaPlayableGroup::RequestSetVisibility(UAvaPlayable* InPlayable, bool bInS
 	else
 	{
 		Request.Execute(this);
+	}
+}
+
+void UAvaPlayableGroup::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
+{
+	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables)
+	{
+		UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr();
+		
+		if (Playable && Playable->IsPlaying())
+		{
+			Playable->SetupView(InViewFamily, InView);
+		}
 	}
 }
 

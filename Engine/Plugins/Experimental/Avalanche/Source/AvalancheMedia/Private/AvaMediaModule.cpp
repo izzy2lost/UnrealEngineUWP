@@ -11,8 +11,11 @@
 #include "Interfaces/IPluginManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
+#include "ModularFeature/AvaMediaSynchronizedEventsFeature.h"
+#include "Playable/AvaPlayableGroupSceneViewExtension.h"
 #include "Playback/AvaPlaybackClientDelegates.h"
 #include "Playback/AvaPlaybackClientDummy.h"
+#include "SceneViewExtension.h"
 #include "ShaderCore.h"
 
 #if WITH_EDITOR
@@ -56,6 +59,8 @@ void FAvaMediaModule::StartupModule()
 
 	const FString PluginShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
 	AddShaderSourceDirectoryMapping(UE::AvaBroadcastRenderTargetMediaUtils::VirtualShaderMountPoint, PluginShaderDir);
+
+	FAvaMediaSynchronizedEventsFeature::Startup();
 
 	IMediaIOCoreModule::Get().RegisterDeviceProvider(&AvaDisplayDeviceProvider);
 
@@ -205,6 +210,7 @@ void FAvaMediaModule::ShutdownModule()
 	ConsoleCmds.Empty();
 
 	AvaMediaSync.Reset();
+	FAvaMediaSynchronizedEventsFeature::Shutdown();
 }
 
 void FAvaMediaModule::StartPlaybackClient()
@@ -436,6 +442,8 @@ void FAvaMediaModule::PostEngineInit()
 {
 	using namespace UE::AvaMediaModule::Private;
 
+	PlayableGroupSceneViewExtension = FSceneViewExtensions::NewExtension<FAvaPlayableGroupSceneViewExtension>();
+	
 	ConditionalCreateLocalPlaybackManager();
 	ConditionalCreateManagedInstanceCache();
 
@@ -522,6 +530,8 @@ void FAvaMediaModule::PostEngineInit()
 void FAvaMediaModule::EnginePreExit()
 {
 	StopAllServices();
+
+	PlayableGroupSceneViewExtension.Reset();
 }
 
 void FAvaMediaModule::PrePIEEnded(const bool)

@@ -179,15 +179,15 @@ protected:
 	void SendLogMessage(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category, double Time);
 
 	// Playback Commands
-	void ExecutePendingPlaybackCommands();
+	void ExecutePendingPlaybackCommands(const FDateTime& InUtcNow);
 
 	TSharedPtr<FAvaPlaybackInstance> GetOrLoadPlaybackInstance(const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	void LoadPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	void StartPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	void StopPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);	
 	void UnloadPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
-	void SetPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InUserData);
-	void SendPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId);
+	bool SetPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InUserData);
+	bool SendPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId);
 	void SendPlaybackStatus(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	
 	void SendPlaybackStatus(const FMessageAddress& InSendTo, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath, EAvaPlaybackStatus InStatus);
@@ -225,12 +225,15 @@ private:
 
 	struct FPendingPlaybackCommand
 	{
+		FDateTime ReceivedUtc;
+		uint32 ReceivedFrameNumber;
+		int32 Priority;
 		FMessageAddress ReplyTo;
 		FAvaPlaybackCommand Command;
 	};
 
 	/** Accumulate all the playback commands and execute them all in one batch on the next tick. */
-	TArray<FPendingPlaybackCommand> PendingPlaybackCommands;
+	TArray<TSharedPtr<FPendingPlaybackCommand>> PendingPlaybackCommands;
 
 	/** Keep an map of active instances per id for fast lookup. */
 	TMap<FGuid, TSharedPtr<FAvaPlaybackInstance>> ActivePlaybackInstances;

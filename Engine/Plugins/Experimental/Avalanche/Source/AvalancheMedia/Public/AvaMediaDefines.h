@@ -134,12 +134,14 @@ enum class EAvaPlayableTransitionEventFlags : uint8
 	None = 0,
 	/** The transition is starting. */
 	Starting = 1 << 0,
+	/** The enter playable can be shown. */
+	ShowPlayable = 1 << 1,
 	/** The playable needs to be stopped. */
-	StopPlayable = 1 << 1,
+	StopPlayable = 1 << 2,
 	/** The playable needs to be discarded at the end of the transition. */
-	MarkPlayableDiscard = 1 << 2,
+	MarkPlayableDiscard = 1 << 3,
 	/** The transition is finished and can be cleaned up. */
-	Finished = 1 << 3,
+	Finished = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EAvaPlayableTransitionEventFlags);
 

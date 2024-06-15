@@ -7,6 +7,7 @@
 #include "IAvaMediaModule.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playback/AvaPlaybackClientDelegates.h"
+#include "Playback/AvaPlaybackUtils.h"
 #include "Playback/IAvaPlaybackClient.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlayableRemoteProxy"
@@ -19,18 +20,27 @@ bool UAvaPlayableRemoteProxy::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, b
 	}
 	
 	SourceAssetPath = InSourceAsset.ToSoftObjectPath();
-
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();	
+	const TArray<FString> OnlineServers = PlaybackClient.GetOnlineServersForChannel(PlayingChannelFName);
 	
-	if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
+	bool bShouldRequestLoad = false;
+
+	// Reconcile the status per-server.
+	for (const FString& Server : OnlineServers)
 	{
-		const FString ChannelName = PlayingChannelName;
-		const FSoftObjectPath& AssetPath = InSourceAsset.ToSoftObjectPath();
-		const TOptional<EAvaPlaybackStatus> RemoteStatusOpt = PlaybackClient.GetRemotePlaybackStatus(InstanceId, AssetPath, ChannelName);
+		const TOptional<EAvaPlaybackStatus> RemoteStatusOpt =
+			PlaybackClient.GetRemotePlaybackStatus(InstanceId, SourceAssetPath, PlayingChannelName, Server);
+
+		if (!RemoteStatusOpt.IsSet())
+		{
+			PlaybackClient.RequestPlaybackAssetStatus(SourceAssetPath, Server, /*bInForceRefresh*/ false);
+		}
+		
 		const EAvaPlaybackStatus RemoteStatus = RemoteStatusOpt.IsSet() ? RemoteStatusOpt.GetValue() : EAvaPlaybackStatus::Unknown;
 
 		const bool bCanLoad = RemoteStatus == EAvaPlaybackStatus::Available
 			|| RemoteStatus == EAvaPlaybackStatus::Unknown;
+		
 		const bool bIsLoaded = RemoteStatus == EAvaPlaybackStatus::Loading
 			|| RemoteStatus == EAvaPlaybackStatus::Loaded
 			|| RemoteStatus == EAvaPlaybackStatus::Starting
@@ -38,10 +48,21 @@ bool UAvaPlayableRemoteProxy::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, b
 
 		if (bCanLoad && !bIsLoaded)
 		{
-			PlaybackClient.RequestPlayback(InstanceId, AssetPath, ChannelName, EAvaPlaybackAction::Load);
-			PlaybackClient.RequestPlayback(InstanceId, AssetPath, ChannelName, EAvaPlaybackAction::SetUserData, UserData);
+			bShouldRequestLoad = true;
 		}
 	}
+
+	// We have at least one server that was not in the proper state, so we issue the load request.
+	if (bShouldRequestLoad)
+	{
+		// Todo(opt): Combine actions: LoadWithUserData
+		// Server-side requirement: a load request on an already loaded/playing asset will not do anything.
+		PlaybackClient.RequestPlayback(InstanceId, SourceAssetPath, PlayingChannelName, EAvaPlaybackAction::Load);
+		PlaybackClient.RequestPlayback(InstanceId, SourceAssetPath, PlayingChannelName, EAvaPlaybackAction::SetUserData, UserData);
+	}
+
+	// After this, we should expect the asset to be loaded.
+	bShouldBeLoaded = true;	
 	return true;
 }
 
@@ -52,6 +73,7 @@ bool UAvaPlayableRemoteProxy::UnloadAsset()
 	{
 		PlaybackClient.RequestPlayback(InstanceId, SourceAssetPath, PlayingChannelName, EAvaPlaybackAction::Unload);
 	}
+	bShouldBeLoaded = false;
 	return true;
 }
 
@@ -84,28 +106,80 @@ namespace UE::AvaMedIaRemoteProxyPlayable::Private
 			return EAvaPlayableStatus::Error;
 		}
 	}
+
+	// During the loading process, going towards "loaded/visible" is only
+	// reached when all replicated playables are in that state.
+	int32 PlayableStatusPriorityForLoaded(EAvaPlayableStatus InStatus)
+	{
+		switch (InStatus)
+		{
+		case EAvaPlayableStatus::Unknown: return 0; // ignore unknown status
+		case EAvaPlayableStatus::Error: return 5;	// wins over everything
+		case EAvaPlayableStatus::Unloaded: return 4;
+		case EAvaPlayableStatus::Loading: return 3;
+		case EAvaPlayableStatus::Loaded: return 2;
+		case EAvaPlayableStatus::Visible: return 1;	// destination state is the "weakest"
+		default:
+			return -1;
+		}
+	}
+
+	// During the unloading process, going towards "unloaded" is only
+	// reached when all replicated playables are in that state.
+	int32 PlayableStatusPriorityForUnloaded(EAvaPlayableStatus InStatus)
+	{
+		switch (InStatus)
+		{
+		case EAvaPlayableStatus::Unknown: return 0; // ignore unknown status
+		case EAvaPlayableStatus::Error: return 5;	// wins over everything
+		case EAvaPlayableStatus::Unloaded: return 1; // destination state is the "weakest"
+		case EAvaPlayableStatus::Loading: return 2;
+		case EAvaPlayableStatus::Loaded: return 3;
+		case EAvaPlayableStatus::Visible: return 4;
+		default:
+			return -1;
+		}
+	}
+
+	int32 PlayableStatusPriority(EAvaPlayableStatus InStatus, bool bInShouldBeLoaded)
+	{
+		return bInShouldBeLoaded ? PlayableStatusPriorityForLoaded(InStatus) : PlayableStatusPriorityForUnloaded(InStatus);
+	}
+
+	// Contextually reconcile the playable statuses
+	EAvaPlayableStatus ReconcilePlayableStatus(EAvaPlayableStatus InStatus, EAvaPlayableStatus InOtherStatus, bool bInShouldBeLoaded)
+	{
+		if (PlayableStatusPriority(InStatus, bInShouldBeLoaded) > PlayableStatusPriority(InOtherStatus, bInShouldBeLoaded))
+		{
+			return InStatus;
+		}
+		return InOtherStatus;
+	}
 }
 
 EAvaPlayableStatus UAvaPlayableRemoteProxy::GetPlayableStatus() const
 {
+	using namespace UE::AvaMedIaRemoteProxyPlayable;
 	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
-	const TArray<FString> OnlineServers = GetOnlineServerForChannel(PlayingChannelFName);
+	const TArray<FString> OnlineServers = PlaybackClient.GetOnlineServersForChannel(PlayingChannelFName);
+
+	EAvaPlayableStatus PlayableStatus = EAvaPlayableStatus::Unknown;
 	
 	for (const FString& Server : OnlineServers)
 	{
 		TOptional<EAvaPlaybackStatus> PlaybackStatus = PlaybackClient.GetRemotePlaybackStatus(InstanceId, SourceAssetPath, PlayingChannelName, Server);
 
-		if (!PlaybackStatus.IsSet())
+		if (PlaybackStatus.IsSet())
+		{
+			PlayableStatus = Private::ReconcilePlayableStatus(PlayableStatus, Private::GetPlayableStatus(PlaybackStatus.GetValue()), bShouldBeLoaded);
+		}
+		else
 		{
 			PlaybackClient.RequestPlayback(InstanceId, SourceAssetPath, PlayingChannelName, EAvaPlaybackAction::Status);
-			PlaybackStatus = EAvaPlaybackStatus::Unknown;
 		}
-
-		// TODO: reconcile forked channels.
-		return UE::AvaMedIaRemoteProxyPlayable::Private::GetPlayableStatus(PlaybackStatus.GetValue());
 	}
 	
-	return EAvaPlayableStatus::Unknown;
+	return PlayableStatus;
 }
 
 IAvaSceneInterface* UAvaPlayableRemoteProxy::GetSceneInterface() const
@@ -137,10 +211,10 @@ EAvaPlayableCommandResult UAvaPlayableRemoteProxy::ExecuteAnimationCommand(EAvaP
 			break;
 
 		default:
+			using namespace UE::AvaPlayback::Utils;
 			UE_LOG(LogAvaPlayable, Warning,
-				TEXT("Animation command action \"%s\" for asset \"%s\" on channel \"%s\" is not implemented."),
-				*StaticEnum<EAvaPlaybackAnimAction>()->GetValueAsString(InAnimAction),
-				*SourceAssetPath.ToString(), *PlayingChannelName);
+				TEXT("%s Animation command action \"%s\" for asset \"%s\" on channel \"%s\" is not implemented."),
+				*GetBriefFrameInfo(), *StaticEnumToString(InAnimAction), *SourceAssetPath.ToString(), *PlayingChannelName);
 			break;
 		}
 	}
@@ -166,10 +240,26 @@ void UAvaPlayableRemoteProxy::SetUserData(const FString& InUserData)
 {
 	if (UserData != InUserData)
 	{
-		IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
-		if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
+		// Setting user data is only allowed if source path is specified (even if InstanceId is ok).
+		if (!GetSourceAssetPath().IsNull())	// Should be set in LoadAsset.
 		{
-			PlaybackClient.RequestPlayback(InstanceId, GetSourceAssetPath(), PlayingChannelName, EAvaPlaybackAction::SetUserData, InUserData);
+			IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
+			if (!GetSourceAssetPath().IsNull() && PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
+			{
+				PlaybackClient.RequestPlayback(InstanceId, GetSourceAssetPath(), PlayingChannelName, EAvaPlaybackAction::SetUserData, InUserData);
+			}
+		}
+		else
+		{
+			// If LoadAsset hasn't been called yet, user data is going to be sent along with the Load command.
+			
+			if (bShouldBeLoaded)	// LoadAsset already called.
+			{
+				using namespace UE::AvaPlayback::Utils;
+				UE_LOG(LogAvaPlayable, Warning,
+					TEXT("%s Failed to set user data. Source Asset Path is not specified (it should be) for instance (id:%s) on channel \"%s\"."),
+					*GetBriefFrameInfo(), *InstanceId.ToString(), *PlayingChannelName);
+			}
 		}
 	}
 	
@@ -224,6 +314,7 @@ void UAvaPlayableRemoteProxy::OnPlay()
 			|| RemoteStatus == EAvaPlaybackStatus::Unknown || RemoteStatus == EAvaPlaybackStatus::Stopping
 			|| RemoteStatus == EAvaPlaybackStatus::Unloading)
 		{
+			// Todo: Combine actions: StartWithUserData
 			Client.RequestPlayback(InstanceId, SourceAssetPath, ChannelName, EAvaPlaybackAction::Start);
 		}
 	}
@@ -248,33 +339,19 @@ void UAvaPlayableRemoteProxy::RegisterClientEventHandlers()
 {
 	using namespace UE::AvaPlaybackClient::Delegates;
 	GetOnPlaybackSequenceEvent().RemoveAll(this);
-	GetOnPlaybackSequenceEvent().AddUObject(this, &UAvaPlayableRemoteProxy::HandleAvaPlaybackSequenceEvent);
+	GetOnPlaybackSequenceEvent().AddUObject(this, &UAvaPlayableRemoteProxy::HandlePlaybackSequenceEvent);
+	GetOnPlaybackStatusChanged().RemoveAll(this);
+	GetOnPlaybackStatusChanged().AddUObject(this, &UAvaPlayableRemoteProxy::HandlePlaybackStatusChanged);
 }
 
 void UAvaPlayableRemoteProxy::UnregisterClientEventHandlers() const
 {
 	using namespace UE::AvaPlaybackClient::Delegates;
 	GetOnPlaybackSequenceEvent().RemoveAll(this);
+	GetOnPlaybackStatusChanged().RemoveAll(this);
 }
 
-TArray<FString> UAvaPlayableRemoteProxy::GetOnlineServerForChannel(const FName& InChannelName)
-{
-	const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannelName);
-	const TArray<UMediaOutput*>& Outputs = Channel.GetMediaOutputs();
-	TArray<FString> OnlineServers;
-	OnlineServers.Reserve(Outputs.Num());
-	
-	for (const UMediaOutput* Output : Outputs)
-	{
-		if (Channel.IsMediaOutputRemote(Output) && Channel.GetMediaOutputState(Output) != EAvaBroadcastOutputState::Offline)
-		{
-			OnlineServers.AddUnique(Channel.GetMediaOutputServerName(Output));
-		}
-	}
-	return OnlineServers;
-}
-
-void UAvaPlayableRemoteProxy::HandleAvaPlaybackSequenceEvent(IAvaPlaybackClient& InPlaybackClient,
+void UAvaPlayableRemoteProxy::HandlePlaybackSequenceEvent(IAvaPlaybackClient& InPlaybackClient,
 	const UE::AvaPlaybackClient::Delegates::FPlaybackSequenceEventArgs& InEventArgs)
 {
 	if (InEventArgs.InstanceId == InstanceId && InEventArgs.ChannelName == PlayingChannelName)
@@ -283,5 +360,15 @@ void UAvaPlayableRemoteProxy::HandleAvaPlaybackSequenceEvent(IAvaPlaybackClient&
 		OnSequenceEventDelegate.Broadcast(this, SequenceName, InEventArgs.EventType);
 	}
 }
+
+void UAvaPlayableRemoteProxy::HandlePlaybackStatusChanged(IAvaPlaybackClient& InPlaybackClient,
+	const UE::AvaPlaybackClient::Delegates::FPlaybackStatusChangedArgs& InEventArgs)
+{
+	if (InEventArgs.InstanceId == InstanceId && InEventArgs.ChannelName == PlayingChannelName)
+	{
+		OnPlayableStatusChanged().Broadcast(this);
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE

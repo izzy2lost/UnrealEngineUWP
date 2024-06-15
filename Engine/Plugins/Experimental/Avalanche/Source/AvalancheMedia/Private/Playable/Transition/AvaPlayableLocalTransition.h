@@ -41,6 +41,8 @@ protected:
 
 	void StartWaitOnPostExecutorSequences();
 	void FinishWaitOnPostExecutorSequences();
+
+	FString GetInstanceName() const;
 	
 protected:
 	/** Transition tree executor. */

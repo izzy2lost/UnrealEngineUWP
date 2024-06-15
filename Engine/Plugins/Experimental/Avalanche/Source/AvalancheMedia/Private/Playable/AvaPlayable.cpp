@@ -54,8 +54,8 @@ namespace UE::AvaPlayable::Private
 		{
 			return FString::Printf(TEXT("Id:%s, Asset:%s, Status:%s"),
 				*InPlayable->GetInstanceId().ToString(),
-				*InPlayable->GetSourceAssetPath().ToString(),
-				*StaticEnum<EAvaPlayableStatus>()->GetNameByValue(static_cast<int32>(InPlayable->GetPlayableStatus())).ToString());
+				*InPlayable->GetSourceAssetPath().GetAssetName(),
+				*AvaPlayback::Utils::StaticEnumToString(InPlayable->GetPlayableStatus()));
 		}
 		return TEXT("(nullptr)");
 	}
@@ -79,7 +79,7 @@ namespace UE::AvaPlayable::Private
 	FString GetPrettySequenceCommandInfo(EAvaPlaybackAnimAction InAnimAction, const FAvaPlaybackAnimPlaySettings& InAnimPlaySettings)
 	{
 		return FString::Printf(TEXT("Action:%s, Name:%s"),
-			*StaticEnum<EAvaPlaybackAnimAction>()->GetNameByValue(static_cast<int32>(InAnimAction)).ToString(),
+			*AvaPlayback::Utils::StaticEnumToString(InAnimAction),
 			*InAnimPlaySettings.AnimationName.ToString());
 	}
 }

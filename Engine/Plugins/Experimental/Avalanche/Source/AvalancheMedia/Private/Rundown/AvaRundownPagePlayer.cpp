@@ -124,19 +124,16 @@ bool UAvaRundownPlaybackInstancePlayer::Continue(const FString& InChannelName)
 
 bool UAvaRundownPlaybackInstancePlayer::Stop()
 {
-	if (!Playback)
-	{
-		return false;
-	}
-	
 	const bool bUnload = !UAvaMediaSettings::Get().bKeepPagesLoaded;
+	bool bWasStopped = false; 
 	
-	if (Playback->IsPlaying())
+	if (Playback && Playback->IsPlaying())
 	{
 		// Propagate the unload options in case this object is playing remote.
 		const EAvaPlaybackStopOptions PlaybackStopOptions = bUnload ?
 			EAvaPlaybackStopOptions::Default | EAvaPlaybackStopOptions::Unload : EAvaPlaybackStopOptions::Default;
 		Playback->Stop(PlaybackStopOptions);
+		bWasStopped = true;
 	}
 
 	if (PlaybackInstance)
@@ -154,7 +151,7 @@ bool UAvaRundownPlaybackInstancePlayer::Stop()
 
 	Playback = nullptr;
 	PlaybackInstance.Reset();
-	return true;
+	return bWasStopped;
 }
 
 bool UAvaRundownPlaybackInstancePlayer::HasPlayable(const UAvaPlayable* InPlayable) const
@@ -169,12 +166,12 @@ UAvaPlayable* UAvaRundownPlaybackInstancePlayer::GetFirstPlayable() const
 
 UAvaRundownPagePlayer* UAvaRundownPlaybackInstancePlayer::GetPagePlayer() const
 {
-	return Cast<UAvaRundownPagePlayer>(GetOuter());
+	return ParentPagePlayer.Get();
 }
 
 void UAvaRundownPlaybackInstancePlayer::SetPagePlayer(UAvaRundownPagePlayer* InPagePlayer)
 {
-	LowLevelRename(GetFName(), InPagePlayer);
+	ParentPagePlayer = InPagePlayer;
 }
 
 UAvaRundownPagePlayer::UAvaRundownPagePlayer()
@@ -228,7 +225,7 @@ bool UAvaRundownPagePlayer::InitializeAndLoad(UAvaRundown* InRundown, const FAva
 
 UAvaRundownPlaybackInstancePlayer* UAvaRundownPagePlayer::LoadInstancePlayer(int32 InSubPageIndex, const FGuid& InInstanceId)
 {
-	const UAvaRundown* Rundown = RundownWeak.Get();
+	UAvaRundown* Rundown = RundownWeak.Get();
 	if (!Rundown)
 	{
 		UE_LOG(LogAvaRundown, Error, TEXT("UAvaRundownPagePlayer::LoadSubPage: Rundown is no longuer valid."));
@@ -386,11 +383,12 @@ UAvaRundownPlaybackInstancePlayer* UAvaRundownPagePlayer::FindInstancePlayerByAs
 	return nullptr;
 }
 
-UAvaRundownPlaybackInstancePlayer* UAvaRundownPagePlayer::CreateAndLoadInstancePlayer(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, int32 InSubPageIndex, const FGuid& InInstanceId)
+UAvaRundownPlaybackInstancePlayer* UAvaRundownPagePlayer::CreateAndLoadInstancePlayer(UAvaRundown* InRundown, const FAvaRundownPage& InPage, int32 InSubPageIndex, const FGuid& InInstanceId)
 {
-	UAvaRundownPlaybackInstancePlayer* InstancePlayer = NewObject<UAvaRundownPlaybackInstancePlayer>(this);
+	UAvaRundownPlaybackInstancePlayer* InstancePlayer = NewObject<UAvaRundownPlaybackInstancePlayer>(InRundown);
 	if (InstancePlayer->Load(*this, InRundown, InPage, InSubPageIndex, InInstanceId))
 	{
+		InstancePlayer->SetPagePlayer(this);
 		InstancePlayers.Add(InstancePlayer);
 		return InstancePlayer;
 	}

@@ -11,6 +11,7 @@
 #include "Math/MathFwd.h"
 #include "PixelFormat.h"
 #include "UObject/SoftObjectPtr.h"
+
 #include "AvaMediaSettings.generated.h"
 
 class UUserWidget;
@@ -166,10 +167,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
 	FString PlaybackServerName;
 
-	/** Enable verbose logging for playback server. */
-	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
-	bool bVerbosePlaybackServerLogging = false;
-
 	/**
 	 * Determines the verbosity level of the playback server's log replication.
 	 * The server is not going to replicate any log event that is below this log level.
@@ -180,6 +177,10 @@ public:
 	/** Defines the timeout, in seconds, after which a pending status request is dropped and issued again. */
 	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
 	float ServerPendingStatusRequestTimeout = 5.0f;
+
+	/** Defines the timeout, in seconds, after which pending playback commands are discarded. */
+	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
+	float ServerPendingPlaybackCommandTimeout = 5.0f;
 
 	/** Settings for the local playback server process. See "Launch Local Server" in the broadcast editor toolbar. */
 	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
@@ -206,6 +207,9 @@ public:
 	/** The web remote control HTTP server's port. */
 	UPROPERTY(config, EditAnywhere, Category = "Web Server")
 	uint32 HttpServerPort = 10123;
+
+	/** Default value of the synchronized events feature selection. */
+	static const FName SynchronizedEventsFeatureSelection_Default;
 
 private:
 	static UAvaMediaSettings* GetSingletonInstance();

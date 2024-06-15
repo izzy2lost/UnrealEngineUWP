@@ -6,6 +6,7 @@
 #include "AvaRemoteControlUtils.h"
 #include "AvaScene.h"
 #include "Camera/CameraActor.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/Level.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "Engine/LocalPlayer.h"
@@ -17,6 +18,7 @@
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playback/AvaPlaybackUtils.h"
+#include "SceneView.h"
 #include "Streaming/LevelStreamingDelegates.h"
 #include "UObject/Package.h"
 #include "Viewport/AvaCameraManager.h"
@@ -102,14 +104,9 @@ namespace UE::AvaMedia::LevelStreamingPlayable::Private
 		return FindFirstCameraActor(InLevel);
 	}
 
-	EAvaPlayableStatus GetPlayableStatusFromLevelStreaming(const ULevelStreaming* InLevelStreaming)
+	EAvaPlayableStatus GetPlayableStatusFromLevelStreamingState(ELevelStreamingState InState, bool bInShouldBeLoaded)
 	{
-		if (!InLevelStreaming)
-		{
-			return EAvaPlayableStatus::Unloaded;
-		}
-
-		switch (InLevelStreaming->GetLevelStreamingState())
+		switch (InState)
 		{
 			case ELevelStreamingState::Removed:
 				return EAvaPlayableStatus::Unloaded;
@@ -117,11 +114,11 @@ namespace UE::AvaMedia::LevelStreamingPlayable::Private
 			case ELevelStreamingState::Unloaded:
 				// If the LevelStreaming was not loaded and has just been made to be loading, the status will still be "unloaded" but
 				// we consider it is loading.
-				return InLevelStreaming->ShouldBeLoaded() ? EAvaPlayableStatus::Loading : EAvaPlayableStatus::Unloaded;
+				return bInShouldBeLoaded ? EAvaPlayableStatus::Loading : EAvaPlayableStatus::Unloaded;
 			
 			case ELevelStreamingState::FailedToLoad:
 				return EAvaPlayableStatus::Error;
-			
+
 			case ELevelStreamingState::Loading:
 				return EAvaPlayableStatus::Loading;
 			
@@ -137,7 +134,22 @@ namespace UE::AvaMedia::LevelStreamingPlayable::Private
 				return EAvaPlayableStatus::Error;
 		}
 	}
-	
+
+	EAvaPlayableStatus GetPlayableStatusFromLevelStreaming(const ULevelStreaming* InLevelStreaming)
+	{
+		if (!InLevelStreaming)
+		{
+			return EAvaPlayableStatus::Unloaded;
+		}
+
+		return GetPlayableStatusFromLevelStreamingState(InLevelStreaming->GetLevelStreamingState(), InLevelStreaming->ShouldBeLoaded());
+	}
+
+	ELevelStreamingState GetLevelStreamingState(const ULevelStreaming* InLevelStreaming)
+	{
+		return InLevelStreaming ? InLevelStreaming->GetLevelStreamingState() : ELevelStreamingState::Unloaded;
+	}
+
 	static int32 GetPlayableStatusRelevanceShouldBeUnloaded(EAvaPlayableStatus InStatus)
 	{
 		switch (InStatus)
@@ -194,6 +206,29 @@ namespace UE::AvaMedia::LevelStreamingPlayable::Private
 		
 		return GetPlayableStatusRelevanceShouldBeUnloaded(InStatus);
 	}
+
+	void BuildPrimitiveComponentIdList(const AActor* InActor, TSet<FPrimitiveComponentId>& OutComponentIds)
+	{
+		TInlineComponentArray<UPrimitiveComponent*> Components;
+		InActor->GetComponents(Components);
+		for (int32 ComponentIndex = 0; ComponentIndex < Components.Num(); ComponentIndex++)
+		{
+			const UPrimitiveComponent* PrimitiveComponent = Components[ComponentIndex];
+			if (PrimitiveComponent->IsRegistered())
+			{
+				OutComponentIds.Add(PrimitiveComponent->GetPrimitiveSceneId());
+
+				for (USceneComponent* AttachedChild : PrimitiveComponent->GetAttachChildren())
+				{						
+					const UPrimitiveComponent* AttachChildPC = Cast<UPrimitiveComponent>(AttachedChild);
+					if (AttachChildPC && AttachChildPC->IsRegistered())
+					{
+						OutComponentIds.Add(AttachChildPC->GetPrimitiveSceneId());
+					}
+				}
+			}
+		}
+	}
 }
 
 bool UAvaPlayableLevelStreaming::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, bool bInInitiallyVisible)
@@ -213,6 +248,9 @@ bool UAvaPlayableLevelStreaming::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset
 	const bool bAssetLoading = LoadLevel(TSoftObjectPtr<UWorld>(InSourceAsset.ToSoftObjectPath()), bInInitiallyVisible); 
 	if (bAssetLoading)
 	{
+		// Refresh status immediately (assumes it won't be loaded nor visible immediately, so shouldn't affect TL)
+		SynchronizedLevelStreamingState = UE::AvaMedia::LevelStreamingPlayable::Private::GetLevelStreamingState(LevelStreaming);
+		UpdatePlayableStatus(SynchronizedLevelStreamingState);
 		PlayableGroup->NotifyLevelStreaming(this);
 	}
 	return bAssetLoading;
@@ -247,10 +285,15 @@ bool UAvaPlayableLevelStreaming::UnloadAsset()
 	LevelStreaming = nullptr;
 	Scene = nullptr;
 	SourceLevel.Reset();
+
+	// Refresh status immediately. (not sure if level streaming is going to be called)
+	SynchronizedLevelStreamingState = UE::AvaMedia::LevelStreamingPlayable::Private::GetLevelStreamingState(LevelStreaming);
+	UpdatePlayableStatus(SynchronizedLevelStreamingState);
+
 	return true;
 }
 
-EAvaPlayableStatus UAvaPlayableLevelStreaming::GetPlayableStatus() const
+void UAvaPlayableLevelStreaming::UpdatePlayableStatus(ELevelStreamingState InNewState)
 {
 	using namespace UE::AvaMedia::LevelStreamingPlayable::Private;
 
@@ -276,9 +319,13 @@ EAvaPlayableStatus UAvaPlayableLevelStreaming::GetPlayableStatus() const
 		CompareAndSetMostRelevantStatus(SubPlayable->GetPlayableStatus());
 	}
 
-	CompareAndSetMostRelevantStatus(GetPlayableStatusFromLevelStreaming(LevelStreaming));
+	CompareAndSetMostRelevantStatus(GetPlayableStatusFromLevelStreamingState(InNewState, bShouldBeLoaded));
 
-	return MostRelevantStatus;
+	if (PlayableStatus != MostRelevantStatus)
+	{
+		PlayableStatus = MostRelevantStatus;
+		NotifyPlayableStatusChanged();
+	}
 }
 
 IAvaSceneInterface* UAvaPlayableLevelStreaming::GetSceneInterface() const
@@ -359,6 +406,44 @@ void UAvaPlayableLevelStreaming::SetShouldBeVisible(bool bInShouldBeVisible)
 	}
 }
 
+void UAvaPlayableLevelStreaming::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
+{
+	if (!LevelStreaming)
+	{
+		return;
+	}
+	
+	const ULevel* const Level = LevelStreaming->GetLoadedLevel();
+	if (!IsValid(Level))
+	{
+		return;
+	}
+
+	// Not using synchronized state here. We want to react to the actual state and compensate.
+	const ELevelStreamingState StreamingState = LevelStreaming->GetLevelStreamingState();
+	const bool bIsVisible = StreamingState == ELevelStreamingState::MakingVisible || StreamingState == ELevelStreamingState::LoadedVisible;
+	
+	if (bIsVisible && bShouldBeHidden)
+	{
+		TSet<FPrimitiveComponentId> HiddenPrimitives;	// Todo(opt): cache this?
+
+		using namespace UE::AvaMedia::LevelStreamingPlayable::Private;
+
+		for (TObjectPtr<AActor> Actor : Level->Actors)
+		{
+			if (IsValid(Actor))
+			{
+				BuildPrimitiveComponentIdList(Actor, HiddenPrimitives);
+			}
+		}
+
+		if (!HiddenPrimitives.IsEmpty())
+		{
+			InView.HiddenPrimitives.Append(HiddenPrimitives);
+		}
+	}
+}
+
 bool UAvaPlayableLevelStreaming::LoadLevel(const TSoftObjectPtr<UWorld>& InSourceLevel, bool bInInitiallyVisible)
 {
 	if (SourceLevel == InSourceLevel)
@@ -395,6 +480,14 @@ bool UAvaPlayableLevelStreaming::LoadLevel(const TSoftObjectPtr<UWorld>& InSourc
 	return true;
 }
 
+void UAvaPlayableLevelStreaming::HandleTransitionEvent(UAvaPlayable* InPlayable, UAvaPlayableTransition* InTransition, EAvaPlayableTransitionEventFlags InTransitionFlags)
+{
+	if (InPlayable == this && EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::ShowPlayable))
+	{
+		bShouldBeHidden = false;
+	}
+}
+
 void UAvaPlayableLevelStreaming::OnLevelStreamingStateChanged(UWorld* InWorld
 	, const ULevelStreaming* InLevelStreaming
 	, ULevel* InLevelIfLoaded
@@ -406,10 +499,46 @@ void UAvaPlayableLevelStreaming::OnLevelStreamingStateChanged(UWorld* InWorld
 	{
 		return;
 	}
-	
+
+	// Package the event handler for queueing.
+	TWeakObjectPtr<UAvaPlayableLevelStreaming> ThisPlayableWeak(this);
+	auto SyncEventHandler = [ThisPlayableWeak, InNewState]()
+	{
+		if (UAvaPlayableLevelStreaming* ThisPlayable = ThisPlayableWeak.Get())
+		{
+			ThisPlayable->OnLevelStreamingStateChanged_Synchronized(InNewState);
+		}
+	};
+
+	// Sub-playables don't have an instanceId. But they are supposed to be unique in the playable group, so the
+	// source asset path should uniquely identify them.
+	const FString InstanceIdString = GetInstanceId().IsValid() ? GetInstanceId().ToString() : GetSourceAssetPath().ToString();
+
+	// Build unique signature for this event.
+	FString SyncEventSignature = FString(TEXT("Playable_")) + InstanceIdString + FString(TEXT("_LevelStreaming_")) + EnumToString(InNewState);
+
+	// The same level streaming events are usually sent twice, but we only want to push it once.
+	// This avoids generating a warning in the sync event logs. 
+	if (!GetPlayableGroup()->IsSynchronizedEventPushed(SyncEventSignature))
+	{
+		GetPlayableGroup()->PushSynchronizedEvent(MoveTemp(SyncEventSignature), MoveTemp(SyncEventHandler));
+	}
+}
+
+void UAvaPlayableLevelStreaming::OnLevelStreamingStateChanged_Synchronized(ELevelStreamingState InNewState)
+{
+	if (!LevelStreaming)
+	{
+		return;
+	}
+
+	// Using state from synchronized event for status updates.
+	// The one from LevelStreaming is not synchronized and may cause transitions to start early on some nodes.
+	SynchronizedLevelStreamingState = InNewState;
+
 	if (InNewState == ELevelStreamingState::FailedToLoad)
 	{
-		UE_LOG(LogAvaPlayable, Error, TEXT("Level \"%s\" failed to load."), *InLevelStreaming->PackageNameToLoad.ToString());		
+		UE_LOG(LogAvaPlayable, Error, TEXT("Level \"%s\" failed to load."), *LevelStreaming->PackageNameToLoad.ToString());		
 	}
 	else if (InNewState == ELevelStreamingState::LoadedNotVisible || InNewState == ELevelStreamingState::LoadedVisible)
 	{
@@ -439,23 +568,21 @@ void UAvaPlayableLevelStreaming::OnLevelStreamingStateChanged(UWorld* InWorld
 		
 		// Resolve the ava scene for the other operations.
 		ResolveScene(Level);
-
-		OnPlayableStatusChanged().Broadcast(this);
-
-		for (const TObjectKey<UAvaPlayableLevelStreaming>& ParentPlayableKey : ParentPlayables)
-		{
-			if (UAvaPlayableLevelStreaming* ParentPlayable = ParentPlayableKey.ResolveObjectPtr())
-			{
-				ParentPlayable->OnLevelStreamingPlayableStatusChanged(this);
-			}
-		}
-
-		OnLevelStreamingPlayableStatusChanged(this);
 	}
+	
+	// Important: playable status gets updated in the synchronized event handler.
+	UpdatePlayableStatus(SynchronizedLevelStreamingState);
 }
 
-void UAvaPlayableLevelStreaming::OnLevelStreamingPlayableStatusChanged(UAvaPlayableLevelStreaming* InPlayable)
+void UAvaPlayableLevelStreaming::NotifyPlayableStatusChanged()
 {
+	using namespace UE::AvaPlayback::Utils;
+
+	UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable \"%s\" (id:%s) Status Changed: %s"),
+		*GetBriefFrameInfo(),
+		*GetSourceAssetPath().GetAssetName(), *GetInstanceId().ToString(),
+		*StaticEnumToString(PlayableStatus));
+
 	// OnPlay (camera setup, animations, etc) can only be done when the level is visible (components must be active).
 	// With camera rig, we also need to make sure the rig level is loaded and visible.
 
@@ -467,6 +594,18 @@ void UAvaPlayableLevelStreaming::OnLevelStreamingPlayableStatusChanged(UAvaPlaya
 			OnPlay();
 		}
 	}
+	
+	OnPlayableStatusChanged().Broadcast(this);
+
+	// Parent playables must be informed of the status change too.
+	for (const TObjectKey<UAvaPlayableLevelStreaming>& ParentPlayableKey : ParentPlayables)
+	{
+		if (UAvaPlayableLevelStreaming* ParentPlayable = ParentPlayableKey.ResolveObjectPtr())
+		{
+			// Note: using the synchronized streaming state to avoid spurious states.
+			ParentPlayable->UpdatePlayableStatus(ParentPlayable->SynchronizedLevelStreamingState);
+		}
+	}	
 }
 
 void UAvaPlayableLevelStreaming::BindDelegates()
@@ -475,11 +614,16 @@ void UAvaPlayableLevelStreaming::BindDelegates()
 	{
 		FLevelStreamingDelegates::OnLevelStreamingStateChanged.AddUObject(this, &UAvaPlayableLevelStreaming::OnLevelStreamingStateChanged);
 	}
+	if (!UAvaPlayable::OnTransitionEvent().IsBoundToObject(this))
+	{
+		UAvaPlayable::OnTransitionEvent().AddUObject(this, &UAvaPlayableLevelStreaming::HandleTransitionEvent);
+	}
 }
 
 void UAvaPlayableLevelStreaming::UnbindDelegates()
 {
 	FLevelStreamingDelegates::OnLevelStreamingStateChanged.RemoveAll(this);
+	UAvaPlayable::OnTransitionEvent().RemoveAll(this);
 }
 
 ULevel* UAvaPlayableLevelStreaming::GetLoadedLevel() const
@@ -821,6 +965,5 @@ void UAvaPlayableLevelStreaming::UpdateVisibilityFromParents()
 
 	SetShouldBeVisible(bShouldBeVisible);
 }
-
 
 #undef LOCTEXT_NAMESPACE

@@ -18,6 +18,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/Paths.h"
 #include "Playback/AvaPlaybackClientDelegates.h"
+#include "Playback/AvaPlaybackUtils.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 
@@ -25,11 +26,46 @@ DEFINE_LOG_CATEGORY_STATIC(LogAvaPlaybackClient, Log, All);
 
 namespace UE::AvaPlaybackClient::Private
 {
-	template<typename InEnumType>
-	FString EnumToString(InEnumType InValue)
+	bool IsPlaybackActionAllowedForNullAsset(EAvaPlaybackAction InAction)
 	{
-		return StaticEnum<InEnumType>()->GetNameStringByValue(static_cast<int64>(InValue));
+		switch (InAction)
+		{
+		case EAvaPlaybackAction::None:
+			return false;
+		case EAvaPlaybackAction::Load:
+		case EAvaPlaybackAction::Start:
+		case EAvaPlaybackAction::Stop:
+		case EAvaPlaybackAction::Unload:
+			return true;
+		case EAvaPlaybackAction::Status:
+		case EAvaPlaybackAction::SetUserData:
+		case EAvaPlaybackAction::GetUserData:
+	default:
+		return false;
+		}
 	}
+
+	bool IsAssetMissing(EAvaPlaybackAssetStatus InAssetStatus)
+	{
+		return InAssetStatus == EAvaPlaybackAssetStatus::Missing;
+	}
+
+	bool IsAssetAvailable(EAvaPlaybackAssetStatus InAssetStatus)
+	{
+		return InAssetStatus == EAvaPlaybackAssetStatus::Available
+		|| InAssetStatus == EAvaPlaybackAssetStatus::MissingDependencies;
+	}
+
+	FString GetCommandActionString(EAvaPlaybackAction InAction, const FString& InArguments)
+	{
+		FString ActionString = AvaPlayback::Utils::StaticEnumToString(InAction); 
+		if (InArguments.IsEmpty())
+		{
+			return ActionString;
+		}
+
+		return FString::Printf(TEXT("%s \"%s\""), *ActionString, *InArguments);
+	};
 }
 
 FAvaPlaybackClient::FAvaPlaybackClient(IAvaMediaModule* InParentModule)
@@ -240,6 +276,17 @@ void FAvaPlaybackClient::RequestPlaybackAssetStatus(const FSoftObjectPath& InAss
 void FAvaPlaybackClient::RequestPlayback(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName,
 	EAvaPlaybackAction InAction, const FString& InArguments)
 {
+	using namespace UE::AvaPlayback::Utils;
+	using namespace UE::AvaPlaybackClient::Private;
+
+	if (InAssetPath.IsNull() && !IsPlaybackActionAllowedForNullAsset(InAction))
+	{
+		UE_LOG(LogAvaPlaybackClient, Error,
+		   TEXT("Playback request [%s] on channel \"%s\" with no asset specified is not allowed."),
+		   *GetCommandActionString(InAction, InArguments), *InChannelName);
+		return;
+	}
+	
 	// Possibly TMP. Maybe find a generic way to deal with pending requests.
 	// Status requests can be spammed every frame by the UI so we block them
 	// here to avoid spamming the message bus and servers.
@@ -279,7 +326,8 @@ void FAvaPlaybackClient::RequestPlayback(const FGuid& InInstanceId, const FSoftO
 			{
 				// The command will be sent in a batch on the next Tick.
 				ServerInfo->PendingPlaybackCommands.Add({InInstanceId, InAssetPath, InChannelName, InAction, InArguments});
-				
+
+				// Todo: Ideally, don't override the remote status. Need another way to know if a request has been issued.
 				switch (InAction)
 				{
 				case EAvaPlaybackAction::None:
@@ -308,8 +356,7 @@ void FAvaPlaybackClient::RequestPlayback(const FGuid& InInstanceId, const FSoftO
 		// We will wait for feedback from server, if it managed to play the asset correctly.
 		UE_LOG(LogAvaPlaybackClient, Warning,
 			   TEXT("Playback request \"%s\" on channel \"%s\" with no asset specified. Unable to update playback status."),
-			   *UE::AvaPlaybackClient::Private::EnumToString(InAction),
-			   *InChannelName);
+			   *StaticEnumToString(InAction), *InChannelName);
 	}
 }
 
@@ -334,6 +381,7 @@ void FAvaPlaybackClient::RequestAnimPlayback(const FGuid& InInstanceId, const FS
 void FAvaPlaybackClient::RequestAnimAction(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName,
 												  const FString& InAnimationName, EAvaPlaybackAnimAction InAction)
 {
+	using namespace UE::AvaPlayback::Utils;
 	FAvaPlaybackAnimPlaybackRequest* Request = FMessageEndpoint::MakeMessage<FAvaPlaybackAnimPlaybackRequest>();
 	Request->InstanceId = InInstanceId;
 	Request->AssetPath = InAssetPath;
@@ -343,7 +391,7 @@ void FAvaPlaybackClient::RequestAnimAction(const FGuid& InInstanceId, const FSof
 	if (!InAssetPath.IsValid())
 	{
 		UE_LOG(LogAvaPlaybackClient, Warning, TEXT("Animation \"%s\" %s request with invalid asset path on channel \"%s\"."),
-			*InAnimationName, *StaticEnum<EAvaPlaybackAnimAction>()->GetValueAsString(InAction), *InChannelName);
+			*InAnimationName, *StaticEnumToString(InAction), *InChannelName);
 	}
 	
 	SendRequest(Request, GetServerAddressesForChannel(InChannelName));
@@ -609,6 +657,11 @@ bool FAvaPlaybackClient::HasAnyServerOnlineForChannel(const FName& InChannelName
 	}
 	
 	return false;
+}
+
+TArray<FString> FAvaPlaybackClient::GetOnlineServersForChannel(const FName& InChannelName) const
+{
+	return GetServerNamesForChannel(InChannelName, /*bInOnlineOnly*/ true);
 }
 
 TOptional<EAvaPlaybackStatus> FAvaPlaybackClient::GetRemotePlaybackStatus(
@@ -883,11 +936,11 @@ void FAvaPlaybackClient::HandleDeviceProviderDataListMessage(const FAvaBroadcast
 void FAvaPlaybackClient::HandleBroadcastStatusMessage(const FAvaBroadcastStatus& InMessage,
 														   const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
-	using namespace UE::AvaPlaybackClient::Private;
+	using namespace UE::AvaPlayback::Utils;
 	UE_LOG(LogAvaPlaybackClient, Verbose,
 		   TEXT("Received broadcast update from server \"%s\" for channel \"%s\": Status: \"%s\"."),
 		   *InMessage.ServerName, *InMessage.ChannelName,
-		   *EnumToString(InMessage.ChannelState));
+		   *StaticEnumToString(InMessage.ChannelState));
 
 	// Log details for the output status.
 	for (const TPair<FGuid, FAvaBroadcastOutputStatus>& OutputStatus : InMessage.MediaOutputStatuses)
@@ -895,8 +948,8 @@ void FAvaPlaybackClient::HandleBroadcastStatusMessage(const FAvaBroadcastStatus&
 		UE_LOG(LogAvaPlaybackClient, Verbose,
 			   TEXT("Playback Server: \"%s\" Channel: \"%s\" OutputId \"%s\" Status: \"%s\" Severity: \"%s\"."),
 			   *InMessage.ServerName, *InMessage.ChannelName, *OutputStatus.Key.ToString(),
-			   *EnumToString(OutputStatus.Value.MediaOutputState),
-			   *EnumToString(OutputStatus.Value.MediaIssueSeverity));
+			   *StaticEnumToString(OutputStatus.Value.MediaOutputState),
+			   *StaticEnumToString(OutputStatus.Value.MediaIssueSeverity));
 		
 		for (const FString& Message : OutputStatus.Value.MediaIssueMessages)
 		{
@@ -1014,13 +1067,14 @@ void FAvaPlaybackClient::HandleBroadcastStatusMessage(const FAvaBroadcastStatus&
 void FAvaPlaybackClient::HandlePlaybackAssetStatusMessage(
 	const FAvaPlaybackAssetStatus& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
-	using namespace UE::AvaPlaybackClient::Private;
+	using namespace UE::AvaPlayback::Utils;
 	using namespace UE::AvaPlaybackClient::Delegates;
+
 	if (!InMessage.AssetPath.IsValid())
 	{
 		UE_LOG(LogAvaPlaybackClient, Error,
-			   TEXT("Received Playback Asset Status \"%s\" from server \"%s\" with invalid asset path, can't update status."),
-			   *EnumToString(InMessage.Status), *InMessage.ServerName);
+		   TEXT("%s Received Remote Playback Asset \"%s\" from \"%s\" Status: %s. Invalid asset path, can't update status."),
+		   *GetBriefFrameInfo(), *InMessage.AssetPath.GetAssetName(), *InMessage.ServerName, *StaticEnumToString(InMessage.Status));
 		return;
 	}
 	
@@ -1031,47 +1085,117 @@ void FAvaPlaybackClient::HandlePlaybackAssetStatusMessage(
 	// Clear the pending request (if any).
 	ServerInfo.PendingPlaybackAssetStatusRequests.Remove(InMessage.AssetPath);
 
+	UE_LOG(LogAvaPlaybackClient, Verbose,
+	   TEXT("%s Received Remote Playback Asset \"%s\" from \"%s\" Status Changed: %s."),
+	   *GetBriefFrameInfo(), *InMessage.AssetPath.GetAssetName(), *InMessage.ServerName, *StaticEnumToString(InMessage.Status));
+	
 	GetOnPlaybackAssetStatusChanged().Broadcast(*this,{InMessage.AssetPath, InMessage.ServerName, InMessage.Status});
 
 	// TODO - Further refactoring needed to untangle playback state and asset state. 
 	// Because some of the states of the playback status reflect the state of the asset on disk,
 	// we need to make sure the playback state properly reflects the asset state for those cases.
-	const bool bAssetIsMissing = InMessage.Status == EAvaPlaybackAssetStatus::Missing;
-	const bool bAssetIsAvailable = InMessage.Status == EAvaPlaybackAssetStatus::Available
-									|| InMessage.Status == EAvaPlaybackAssetStatus::MissingDependencies;
+	using namespace UE::AvaPlaybackClient::Private;
+	const bool bAssetIsMissing = IsAssetMissing(InMessage.Status);
+	const bool bAssetIsAvailable = IsAssetAvailable(InMessage.Status);
 
 	for (const TPair<FString, TUniquePtr<FPlaybackChannelInfo>>& ChannelInfo : ServerInfo.PlaybackChannelInfosByName)
 	{
 		check(ChannelInfo.Value.IsValid());
 		if (FPlaybackAssetInfo* AssetInfo = ChannelInfo.Value->GetAssetInfo(InMessage.AssetPath))
 		{
-			auto ConditionalChangeStatus = [AssetInfo, &InMessage, &ChannelInfo, bAssetIsMissing, bAssetIsAvailable, this](const FGuid& InInstanceId, EAvaPlaybackStatus InPlaybackStatus)
+			auto SetPlaybackInstanceStatus = [this, AssetInfo, &InMessage, &ChannelInfo](const FGuid& InInstanceId, EAvaPlaybackStatus InNewStatus)
 			{
-				// A missing asset leads to a missing playback.
-				if (InPlaybackStatus == EAvaPlaybackStatus::Available && bAssetIsMissing)
+				const TOptional<EAvaPlaybackStatus> PreviousStatusOpt = AssetInfo->GetInstanceStatus(InInstanceId);
+				const EAvaPlaybackStatus PreviousStatus = PreviousStatusOpt.IsSet() ? PreviousStatusOpt.GetValue() : EAvaPlaybackStatus::Unknown;
+				
+				AssetInfo->SetInstanceStatus(InInstanceId, InNewStatus);
+
+				UE_LOG(LogAvaPlaybackClient, Verbose,
+				   TEXT("%s Triggered Remote Playback \"%s\" (id:%s) for \"%s\" (%s) Status Changed: %s -> %s because of asset status change."),
+				   *GetBriefFrameInfo(), 
+				   *InMessage.AssetPath.GetAssetName(), *InInstanceId.ToString(), *InMessage.ServerName, *ChannelInfo.Key,
+				   *StaticEnumToString(PreviousStatus), *StaticEnumToString(InNewStatus));
+
+				const FPlaybackStatusChangedArgs Args =
 				{
-					AssetInfo->SetInstanceStatus(InInstanceId, EAvaPlaybackStatus::Missing);
-					GetOnPlaybackStatusChanged().Broadcast(*this, {InInstanceId, InMessage.AssetPath, ChannelInfo.Key, InMessage.ServerName, InPlaybackStatus,EAvaPlaybackStatus::Missing});
-				}
-				// If the playback was missing, and the asset becomes available, update the playback to available too.
-				else if (InPlaybackStatus == EAvaPlaybackStatus::Missing && bAssetIsAvailable)
-				{
-					AssetInfo->SetInstanceStatus(InInstanceId, EAvaPlaybackStatus::Available);
-					GetOnPlaybackStatusChanged().Broadcast(*this, {InInstanceId, InMessage.AssetPath, ChannelInfo.Key, InMessage.ServerName, InPlaybackStatus,EAvaPlaybackStatus::Available});
-				}
+					InInstanceId,
+					InMessage.AssetPath,
+					ChannelInfo.Key,
+					InMessage.ServerName,
+					PreviousStatus,
+					InNewStatus
+				};
+				GetOnPlaybackStatusChanged().Broadcast(*this, Args);
 			};
 
 			for (TPair<FGuid, FPlaybackInstanceInfo>& InstanceInfo : AssetInfo->InstanceByIds)
 			{
-				ConditionalChangeStatus(InstanceInfo.Key, InstanceInfo.Value.Status);
+				// A missing asset leads to a missing playback.
+				if (InstanceInfo.Value.Status == EAvaPlaybackStatus::Available && bAssetIsMissing)
+				{
+					SetPlaybackInstanceStatus(InstanceInfo.Key, EAvaPlaybackStatus::Missing);
+				}
+				// If the playback was missing, and the asset becomes available, update the playback to available too.
+				else if (InstanceInfo.Value.Status == EAvaPlaybackStatus::Missing && bAssetIsAvailable)
+				{
+					SetPlaybackInstanceStatus(InstanceInfo.Key, EAvaPlaybackStatus::Available);
+				}
 			}
 		}
 	}
+}
+
+void FAvaPlaybackClient::HandlePlaybackStatus(FServerInfo& InServerInfo,
+	const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName,
+	EAvaPlaybackStatus InStatus, const FString& InUserData, bool bInValidUserData)
+{
+	using namespace UE::AvaPlayback::Utils;
 	
+	if (!InAssetPath.IsValid())
+	{
+		UE_LOG(LogAvaPlaybackClient, Error,
+		   TEXT("%s Received Remote Playback \"%s\" (id:%s) from \"%s\" (%s) Status: %s. Invalid asset path, can't update status."),
+		   *GetBriefFrameInfo(), *InAssetPath.GetAssetName(), *InInstanceId.ToString(), *InServerInfo.ServerName, *InChannelName, *StaticEnumToString(InStatus));
+		return;
+	}
+
+	TOptional<EAvaPlaybackStatus> PrevPlaybackStatus = InServerInfo.GetInstanceStatus(InChannelName, InInstanceId, InAssetPath);
+	if (!PrevPlaybackStatus.IsSet())
+	{
+		PrevPlaybackStatus = EAvaPlaybackStatus::Unknown;
+	}
+	
+	InServerInfo.SetInstanceStatus(InChannelName, InInstanceId, InAssetPath, InStatus);
+	
+	if (bInValidUserData)
+	{
+		InServerInfo.SetInstanceUserData(InChannelName, InInstanceId, InAssetPath, InUserData);
+
+		UE_LOG(LogAvaPlaybackClient, Verbose,
+		   TEXT("%s Received Remote Playback \"%s\" (id:%s) from \"%s\" (%s) User Data: %s."),
+		   *GetBriefFrameInfo(), *InAssetPath.GetAssetName(), *InInstanceId.ToString(), *InServerInfo.ServerName, *InChannelName, *InUserData);
+	}
+
+	// Clear the pending request (if any).
+	PendingPlaybackStatusRequests.Remove(GetPlaybackStatusRequestKey(InInstanceId, InAssetPath, InChannelName));
+
 	UE_LOG(LogAvaPlaybackClient, Verbose,
-		   TEXT("Received Playback Asset Status \"%s\" from server \"%s\" for \"%s\"."),
-		   *EnumToString(InMessage.Status),
-		   *InMessage.ServerName, *InMessage.AssetPath.ToString());
+		   TEXT("%s Received Remote Playback \"%s\" (id:%s) from \"%s\" (%s) Status Change: %s -> %s."),
+		   *GetBriefFrameInfo(), 
+		   *InAssetPath.GetAssetName(), *InInstanceId.ToString(), *InServerInfo.ServerName, *InChannelName,
+		   *StaticEnumToString(PrevPlaybackStatus.GetValue()), *StaticEnumToString(InStatus));
+
+	using namespace UE::AvaPlaybackClient::Delegates;
+	const FPlaybackStatusChangedArgs Args =
+	{
+		InInstanceId,
+		InAssetPath,
+		InChannelName,
+		InServerInfo.ServerName,
+		PrevPlaybackStatus.GetValue(),
+		InStatus
+	};	
+	GetOnPlaybackStatusChanged().Broadcast(*this, Args);
 }
 
 void FAvaPlaybackClient::HandlePlaybackStatusMessage(const FAvaPlaybackStatus& InMessage,
@@ -1079,43 +1203,8 @@ void FAvaPlaybackClient::HandlePlaybackStatusMessage(const FAvaPlaybackStatus& I
 {
 	FServerInfo& ServerInfo = GetOrCreateServerInfo(InMessage.ServerName, InContext->GetSender());
 	ServerInfo.ResetPingTimeout();
-	
-	if (InMessage.AssetPath.IsValid())
-	{
-		TOptional<EAvaPlaybackStatus> PrevPlaybackStatus =
-			ServerInfo.GetInstanceStatus(InMessage.ChannelName, InMessage.InstanceId, InMessage.AssetPath);
-		if (!PrevPlaybackStatus.IsSet())
-		{
-			PrevPlaybackStatus = EAvaPlaybackStatus::Unknown;
-		}
-		
-		ServerInfo.SetInstanceStatus(InMessage.ChannelName, InMessage.InstanceId, InMessage.AssetPath, InMessage.Status);
-		
-		if (InMessage.bValidUserData)
-		{
-			ServerInfo.SetInstanceUserData(InMessage.ChannelName, InMessage.InstanceId, InMessage.AssetPath, InMessage.UserData);
-		}
 
-		// Clear the pending request (if any).
-		PendingPlaybackStatusRequests.Remove(GetPlaybackStatusRequestKey(InMessage.InstanceId, InMessage.AssetPath, InMessage.ChannelName));
-
-		UE::AvaPlaybackClient::Delegates::GetOnPlaybackStatusChanged().Broadcast(
-			*this, {InMessage.InstanceId, InMessage.AssetPath, InMessage.ChannelName, InMessage.ServerName, PrevPlaybackStatus.GetValue(), InMessage.Status});
-		
-		UE_LOG(LogAvaPlaybackClient, Verbose,
-			   TEXT("Received Playback Status \"%s\" from server.channel \"%s.%s\" for \"%s\"."),
-			   *StaticEnum<EAvaPlaybackStatus>()->GetValueAsString(InMessage.Status),
-			   *InMessage.ServerName, *InMessage.ChannelName, *InMessage.AssetPath.ToString());
-	}
-	else
-	{
-		UE_LOG(LogAvaPlaybackClient, Error,
-			   TEXT(
-				   "Received Playback Status \"%s\" from server.channel \"%s.%s\" with invalid asset path, can't update status."
-			   ),
-			   *StaticEnum<EAvaPlaybackStatus>()->GetValueAsString(InMessage.Status), *InMessage.ServerName,
-			   *InMessage.ChannelName);
-	}
+	HandlePlaybackStatus(ServerInfo, InMessage.InstanceId, InMessage.AssetPath, InMessage.ChannelName, InMessage.Status, InMessage.UserData, InMessage.bValidUserData);
 }
 
 void FAvaPlaybackClient::HandlePlaybackStatusesMessage(const FAvaPlaybackStatuses& InMessage,
@@ -1129,37 +1218,8 @@ void FAvaPlaybackClient::HandlePlaybackStatusesMessage(const FAvaPlaybackStatuse
 	{
 		const FSoftObjectPath AssetPath = InMessage.AssetPaths.IsValidIndex(StatusIndex) ? InMessage.AssetPaths[StatusIndex] : FSoftObjectPath();
 		const FGuid InstanceId = InMessage.InstanceIds.IsValidIndex(StatusIndex) ? InMessage.InstanceIds[StatusIndex] : FGuid();
-		
-		if (AssetPath.IsValid())
-		{
-			TOptional<EAvaPlaybackStatus> PrevPlaybackStatus = ServerInfo.GetInstanceStatus(InMessage.ChannelName, InstanceId, AssetPath);
-			if (!PrevPlaybackStatus.IsSet())
-			{
-				PrevPlaybackStatus = EAvaPlaybackStatus::Unknown;
-			}
 
-			ServerInfo.SetInstanceStatus(InMessage.ChannelName, InstanceId, AssetPath, InMessage.Status);
-
-			// Clear the pending request (if any).
-			PendingPlaybackStatusRequests.Remove(GetPlaybackStatusRequestKey(InstanceId, AssetPath, InMessage.ChannelName));
-
-			UE::AvaPlaybackClient::Delegates::GetOnPlaybackStatusChanged().Broadcast(
-				*this, {InstanceId, AssetPath, InMessage.ChannelName, InMessage.ServerName, PrevPlaybackStatus.GetValue(), InMessage.Status});
-			
-			UE_LOG(LogAvaPlaybackClient, Verbose,
-				   TEXT("Received Playback Status \"%s\" from server.channel \"%s.%s\" for \"%s\"."),
-				   *StaticEnum<EAvaPlaybackStatus>()->GetValueAsString(InMessage.Status),
-				   *InMessage.ServerName, *InMessage.ChannelName, *AssetPath.ToString());
-		}
-		else
-		{
-			UE_LOG(LogAvaPlaybackClient, Error,
-				   TEXT(
-					   "Received Playback Status \"%s\" from server.channel \"%s.%s\" with invalid asset path, can't update status."
-				   ),
-				   *StaticEnum<EAvaPlaybackStatus>()->GetValueAsString(InMessage.Status), *InMessage.ServerName,
-				   *InMessage.ChannelName);
-		}
+		HandlePlaybackStatus(ServerInfo, InstanceId, AssetPath, InMessage.ChannelName, InMessage.Status);
 	}
 }
 
@@ -1173,7 +1233,8 @@ void FAvaPlaybackClient::HandlePlaybackSequenceEventMessage(const FAvaPlaybackSe
 		InMessage.ChannelName,
 		InMessage.ServerName,
 		InMessage.SequenceName,
-		InMessage.EventType
+		InMessage.EventType,
+		InMessage.FrameNumber
 	};
 	GetOnPlaybackSequenceEvent().Broadcast(*this, Args);
 }
@@ -1187,7 +1248,8 @@ void FAvaPlaybackClient::HandlePlaybackTransitionEventMessage(const FAvaPlayback
 		InMessage.InstanceId,
 		InMessage.ChannelName,
 		InMessage.ServerName,
-		InMessage.GetEventFlags()
+		InMessage.GetEventFlags(),
+		InMessage.FrameNumber
 	};
 	GetOnPlaybackTransitionEvent().Broadcast(*this, Args);
 }
@@ -1411,7 +1473,7 @@ void FAvaPlaybackClient::SetUserDataCommand(const TArray<FString>& InArgs)
 
 void FAvaPlaybackClient::ShowStatusCommand(const TArray<FString>& InArgs)
 {
-	using namespace UE::AvaPlaybackClient::Private;
+	using namespace UE::AvaPlayback::Utils;
 	UE_LOG(LogAvaPlaybackClient, Display, TEXT("Playback Client: \"%s\""), *ComputerName);
 	UE_LOG(LogAvaPlaybackClient, Display, TEXT("- Endpoint Bus Address: \"%s\""), MessageEndpoint.IsValid() ? *MessageEndpoint->GetAddress().ToString() : TEXT("Invalid"));
 	UE_LOG(LogAvaPlaybackClient, Display, TEXT("- ProcessId: %d"), ProcessId);
@@ -1441,18 +1503,18 @@ void FAvaPlaybackClient::ShowStatusCommand(const TArray<FString>& InArgs)
 			check(ChannelInfo.Value.IsValid());
 			UE_LOG(LogAvaPlaybackClient, Display, TEXT("   - Channel(\"%s\") Channel State: \"%s\"."),
 				*ChannelInfo.Key,
-				*EnumToString(ChannelInfo.Value->ChannelState));
+				*StaticEnumToString(ChannelInfo.Value->ChannelState));
 			UE_LOG(LogAvaPlaybackClient, Display, TEXT("   - Channel(\"%s\") Channel Issue Severity: \"%s\"."),
 				*ChannelInfo.Key,
-				*EnumToString(ChannelInfo.Value->ChannelIssueSeverity));
+				*StaticEnumToString(ChannelInfo.Value->ChannelIssueSeverity));
 			for (const TPair<FGuid, FAvaBroadcastOutputStatus>& MediaOutputStatus : ChannelInfo.Value->MediaOutputStatuses)
 			{
 				UE_LOG(LogAvaPlaybackClient, Display, TEXT("   - Channel(\"%s\") Media Output \"%s\" State: \"%s\"."),
 					*ChannelInfo.Key, *MediaOutputStatus.Key.ToString(),
-					*EnumToString(MediaOutputStatus.Value.MediaOutputState));
+					*StaticEnumToString(MediaOutputStatus.Value.MediaOutputState));
 				UE_LOG(LogAvaPlaybackClient, Display, TEXT("   - Channel(\"%s\") Media Output \"%s\" Issue Severity: \"%s\"."),
 					*ChannelInfo.Key, *MediaOutputStatus.Key.ToString(),
-					*EnumToString(MediaOutputStatus.Value.MediaIssueSeverity));
+					*StaticEnumToString(MediaOutputStatus.Value.MediaIssueSeverity));
 				for (const FString& MediaIssueMessage : MediaOutputStatus.Value.MediaIssueMessages)
 				{
 					UE_LOG(LogAvaPlaybackClient, Display, TEXT("   - Channel(\"%s\") Media Output \"%s\" Message: \"%s\"."),
@@ -1477,7 +1539,7 @@ void FAvaPlaybackClient::ShowStatusCommand(const TArray<FString>& InArgs)
 						*ChannelInfoEntry.Key,
 						*AssetInfo.Key.ToString(),
 						*InstanceInfo.Key.ToString(),
-						*EnumToString(InstanceInfo.Value.Status),
+						*StaticEnumToString(InstanceInfo.Value.Status),
 						*PrettyPrintUserData);
 				}
 			}
@@ -1486,7 +1548,7 @@ void FAvaPlaybackClient::ShowStatusCommand(const TArray<FString>& InArgs)
 		{
 			UE_LOG(LogAvaPlaybackClient, Display, TEXT("   - Asset (\"%s\") Status \"%s\"."),
 				*AssetStatus.Key.ToString(),
-				*EnumToString(AssetStatus.Value));
+				*StaticEnumToString(AssetStatus.Value));
 		}
 	}
 }
@@ -1583,7 +1645,7 @@ void FAvaPlaybackClient::OnPackageSaved(const FString& InPackageFileName, UPacka
 			if (InServerInfo.PlaybackAssetStatuses.Contains(Assets.ToSoftObjectPath()))
 			{
 				// Note: we force a refresh (i.e. disregard the server's cached value) because the asset has changed on client side.
-				RequestPlaybackAssetStatusForServer(Assets.ToSoftObjectPath(), InServerInfo.ServerName, true);
+				RequestPlaybackAssetStatusForServer(Assets.ToSoftObjectPath(), InServerInfo.ServerName, /*bInForceRefresh*/ true);
 			}
 		}
 	});
@@ -1705,8 +1767,7 @@ void FAvaPlaybackClient::RemoveDeadServers(const FDateTime& InCurrentTime)
 {
 	bool bServerRemoved = false;
 
-	for (TMap<FString, TSharedPtr<FServerInfo>>::TIterator ServerIter = Servers.CreateIterator(); ServerIter; ++
-		 ServerIter)
+	for (TMap<FString, TSharedPtr<FServerInfo>>::TIterator ServerIter(Servers); ServerIter; ++ServerIter)
 	{
 		check(ServerIter.Value().IsValid());
 		if (ServerIter.Value()->HasTimedOut(InCurrentTime))
@@ -1756,48 +1817,49 @@ TArray<FMessageAddress> FAvaPlaybackClient::GetServerAddressesForChannel(const F
 	return AllServerAddresses;
 }
 
-TArray<FString> FAvaPlaybackClient::GetServerNamesForChannel(const FName& InChannelName) const
+TArray<FString> FAvaPlaybackClient::GetServerNamesForChannel(const FName& InChannelName, bool bInOnlineOnly) const
 {
-	TArray<FString> ServerNames;
-
-	if (!InChannelName.IsNone())
+	if (InChannelName.IsNone())
 	{
-		const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannelName);
-		const TArray<UMediaOutput*>& RemoteOutputs = Channel.GetRemoteMediaOutputs();
-		ServerNames.Reserve(RemoteOutputs.Num());
-		for (const UMediaOutput* RemoteOutput : RemoteOutputs)
+		// If no channel is specified, we will return all the servers that are connected.
+		return GetServerNames();
+	}
+	
+	TArray<FString> OutServerNames;
+
+	const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannelName);
+	const TArray<UMediaOutput*>& RemoteOutputs = Channel.GetRemoteMediaOutputs();
+	OutServerNames.Reserve(RemoteOutputs.Num());
+	for (const UMediaOutput* RemoteOutput : RemoteOutputs)
+	{
+		const FAvaBroadcastMediaOutputInfo& OutputInfo = Channel.GetMediaOutputInfo(RemoteOutput);
+		if (OutputInfo.IsValid())
 		{
-			const FAvaBroadcastMediaOutputInfo& OutputInfo = Channel.GetMediaOutputInfo(RemoteOutput);
-			if (OutputInfo.IsValid())
+			if (!bInOnlineOnly || Servers.Contains(OutputInfo.ServerName))
 			{
-				ServerNames.Add(OutputInfo.ServerName);
+				OutServerNames.AddUnique(OutputInfo.ServerName);
+			}
+		}
+		else
+		{
+			UE_LOG(LogAvaPlaybackClient, Warning, TEXT("MediaOutputInfo invalid for channel \"%s\"."),
+				   *InChannelName.ToString());
+
+			// Try to find the server name from the device name. The server has to be online for this to work.
+			const FString ServerName = GetServerNameForMediaOutputFallback(RemoteOutput);
+			if (!ServerName.IsEmpty())
+			{
+				OutServerNames.AddUnique(ServerName);
 			}
 			else
 			{
-				UE_LOG(LogAvaPlaybackClient, Warning, TEXT("MediaOutputInfo invalid for channel \"%s\"."),
+				UE_LOG(LogAvaPlaybackClient, Error,
+					   TEXT("Unable to find server name for remote MediaOutput for channel \"%s\"."),
 					   *InChannelName.ToString());
-
-				// Try to find the server name from the device name. The server has to be online for this to work.
-				const FString ServerName = GetServerNameForMediaOutputFallback(RemoteOutput);
-				if (!ServerName.IsEmpty())
-				{
-					ServerNames.Add(ServerName);
-				}
-				else
-				{
-					UE_LOG(LogAvaPlaybackClient, Error,
-						   TEXT("Unable to find server name for remote MediaOutput for channel \"%s\"."),
-						   *InChannelName.ToString());
-				}
 			}
 		}
 	}
-	else
-	{
-		// If no channel is specified, we will return all the servers that are connected.
-		ServerNames = GetServerNames();
-	}
-	return ServerNames;
+	return OutServerNames;
 }
 
 FString FAvaPlaybackClient::GetServerNameForMediaOutputFallback(const UMediaOutput* InMediaOutput) const

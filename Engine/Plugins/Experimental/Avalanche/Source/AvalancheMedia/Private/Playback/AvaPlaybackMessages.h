@@ -422,6 +422,9 @@ struct FAvaPlaybackSequenceEvent : public FAvaPlaybackServerMessageBase
 
 	UPROPERTY()
 	EAvaPlayableSequenceEventType EventType = EAvaPlayableSequenceEventType::None;
+
+	UPROPERTY()
+	int32 FrameNumber = 0;
 };
 
 USTRUCT()
@@ -509,6 +512,9 @@ struct FAvaPlaybackTransitionEvent : public FAvaPlaybackServerMessageBase
 
 	UPROPERTY()
 	uint8 EventFlags = static_cast<uint8>(EAvaPlayableTransitionEventFlags::None);
+
+	UPROPERTY()
+	int32 FrameNumber = 0;
 
 	// Because the enum is used as flags, we need to convert to uint8 manually. (Can't use TEnumAsByte for this apparently.)
 	EAvaPlayableTransitionEventFlags GetEventFlags() const { return static_cast<EAvaPlayableTransitionEventFlags>(EventFlags);}

@@ -14,6 +14,7 @@
 #include "Playable/AvaPlayable.h"
 #include "Playable/AvaPlayableGroup.h"
 #include "Playback/AvaPlaybackManager.h"
+#include "Playback/AvaPlaybackUtils.h"
 #include "Playback/IAvaPlaybackGraphEditor.h"
 #include "Playback/Nodes/AvaPlaybackNode.h"
 
@@ -188,6 +189,7 @@ UAvaPlayable* UAvaPlaybackGraph::FindOrLoadPlayable(const FAvaSoftAssetPtr& InSo
 		return *FoundPlayable;
 	}
 
+	// TODO: Extension point IAvaPlayableFactory -- Example: IMediaPlayerFactory. Using URL (> FAvaSoftAssetPath).
 	UAvaPlayable* NewPlayable = UAvaPlayable::Create(this, {GetPlayableGroupManager(), InSourceAsset, InChannelName});
 	if (NewPlayable)
 	{
@@ -654,8 +656,8 @@ void UAvaPlaybackGraph::ExecutePendingAnimationCommands()
 		if (AnimCommand.HasTimedOut(CurrentTime))
 		{
 			UE_LOG(LogAvaPlayback, Warning,
-				TEXT("Animation command for asset \"%s\" on channel \"%s\" timed out and is discarded."),
-				*AnimCommand.SourcePath.ToString(), *AnimCommand.ChannelName);
+				TEXT("%s Animation command for asset \"%s\" on channel \"%s\" timed out and is discarded."),
+				*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *AnimCommand.SourcePath.ToString(), *AnimCommand.ChannelName);
 			continue;
 		}
 
@@ -696,8 +698,8 @@ void UAvaPlaybackGraph::ExecutePendingRemoteControlCommands()
 		if (RemoteControlCommand.HasTimedOut(CurrentTime))
 		{
 			UE_LOG(LogAvaPlayback, Warning,
-				TEXT("Remote Control command for asset \"%s\" on channel \"%s\" timed out and is discarded."),
-				*RemoteControlCommand.SourcePath.ToString(), *RemoteControlCommand.ChannelName);
+				TEXT("%s Remote Control command for asset \"%s\" on channel \"%s\" timed out and is discarded."),
+				*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *RemoteControlCommand.SourcePath.ToString(), *RemoteControlCommand.ChannelName);
 			continue;
 		}
 		

@@ -60,6 +60,8 @@ public:
 	TObjectPtr<UAvaPlaybackGraph> Playback;
 
 	TSharedPtr<FAvaPlaybackInstance> PlaybackInstance;
+
+	TWeakObjectPtr<UAvaRundownPagePlayer> ParentPagePlayer;
 };
 
 UCLASS()
@@ -155,7 +157,7 @@ public:
 	UAvaRundownPlaybackInstancePlayer* FindInstancePlayerByAssetPath(const FSoftObjectPath& InAssetPath) const;
 	
 protected:
-	UAvaRundownPlaybackInstancePlayer* CreateAndLoadInstancePlayer(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, int32 InSubPageIndex, const FGuid& InInstanceId);
+	UAvaRundownPlaybackInstancePlayer* CreateAndLoadInstancePlayer(UAvaRundown* InRundown, const FAvaRundownPage& InPage, int32 InSubPageIndex, const FGuid& InInstanceId);
 
 	void RemoveInstancePlayer(UAvaRundownPlaybackInstancePlayer* InInstancePlayer);
 	

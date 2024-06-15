@@ -43,14 +43,23 @@ namespace UE::AvaMedia::Rundown::PageTransition::Private
 		return nullptr;
 	}
 
-	FString GetPrettyPageInfo(const UAvaRundownPagePlayer* InPagePlayer)
+	FString GetPrettyInstancePlayerInfo(const UAvaRundownPlaybackInstancePlayer* InInstancePlayer)
 	{
-		FString Info;
-		Info += FString(TEXT("Channel: ")) + InPagePlayer->ChannelName;
+		if (InInstancePlayer)
+		{
+			return FString::Printf(TEXT("Id: %s, Asset: %s"),
+				*InInstancePlayer->GetPlaybackInstanceId().ToString(),
+				*InInstancePlayer->SourceAssetPath.ToString()); 
+		}
+		return FString(TEXT("Invalid"));
+	}
+
+	FString GetPrettyPagePlayerInfo(const UAvaRundownPagePlayer* InPagePlayer)
+	{
+		FString Info = FString::Printf(TEXT("Channel: %s"), *InPagePlayer->ChannelName);
 		InPagePlayer->ForEachInstancePlayer([&Info](const UAvaRundownPlaybackInstancePlayer* InInstancePlayer)
 		{
-			Info += FString(TEXT(", Instance Id: ")) + InInstancePlayer->GetPlaybackInstanceId().ToString();
-			Info += FString(TEXT(", Asset: ")) + InInstancePlayer->SourceAssetPath.ToString();
+			Info += FString::Printf(TEXT(", Instance {%s}"), *GetPrettyInstancePlayerInfo(InInstancePlayer));
 		});
 		return Info;
 	}
@@ -84,6 +93,13 @@ namespace UE::AvaMedia::Rundown::PageTransition::Private
 	}
 }
 
+UAvaRundownPageTransition* UAvaRundownPageTransition::MakeNew(UAvaRundown* InRundown)
+{
+	UAvaRundownPageTransition* NewTransition = NewObject<UAvaRundownPageTransition>(InRundown);
+	NewTransition->TransitionId = FGuid::NewGuid();
+	return NewTransition;
+}
+
 bool UAvaRundownPageTransition::AddEnterPage(UAvaRundownPagePlayer* InPagePlayer)
 {
 	using namespace UE::AvaMedia::Rundown::PageTransition::Private;
@@ -111,7 +127,7 @@ bool UAvaRundownPageTransition::AddEnterPage(UAvaRundownPagePlayer* InPagePlayer
 			{
 				UE_LOG(LogAvaRundown, Error,
 						TEXT("Page Transition \"%s\" Error: page %d can't be played with page %d because they are on the same layer."),
-						*GetFullName(), InPagePlayer->PageId, Player->PageId);
+						*GetInstanceName(), InPagePlayer->PageId, Player->PageId);
 				return false;
 			}
 		}
@@ -268,10 +284,23 @@ void UAvaRundownPageTransition::Stop()
 	{
 		Rundown->RemovePageTransition(this);
 		Rundown->RemoveStoppedPagePlayers();
+
+		// Make sure that there are no instance players
+		for (const TObjectPtr<UAvaRundownPagePlayer>& PagePlayer : Rundown->GetPagePlayers())
+		{
+			PagePlayer->ForEachInstancePlayer([this, PagePlayer](UAvaRundownPlaybackInstancePlayer* InInstancePlayer)
+			{
+				if (InstancesMarkedForDiscard.Contains(InInstancePlayer->GetPlaybackInstanceId()))
+				{
+					UE_LOG(LogAvaRundown, Error, TEXT("%s Page Transition \"%s\" has marked instance \"%s\" for discard but it is still playing in page %d"),
+						*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *GetInstanceName(), *InInstancePlayer->GetPlaybackInstanceId().ToString(), PagePlayer->PageId);			
+				}
+			});
+		}
 	}
 	else
 	{
-		UE_LOG(LogAvaRundown, Error, TEXT("Page Transition \"%s\" Failed to remove transition: No rundown specified."), *GetFullName());
+		UE_LOG(LogAvaRundown, Error, TEXT("Page Transition \"%s\" Failed to remove transition: No rundown specified."), *GetInstanceName());
 	}
 }
 
@@ -375,8 +404,10 @@ void UAvaRundownPageTransition::OnTransitionEvent(UAvaPlayable* InPlayable, UAva
 
 	if (InstancePlayer && EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::MarkPlayableDiscard))
 	{
-		UE_LOG(LogAvaRundown, Verbose, TEXT("%s Instance Player Marked for Discard: Id:%s, Asset:\"%s\""),
-			*GetBriefFrameInfo(), *InstancePlayer->GetPlaybackInstanceId().ToString(), *InstancePlayer->SourceAssetPath.ToString());
+		InstancesMarkedForDiscard.Add(InPlayable->GetInstanceId());
+		
+		UE_LOG(LogAvaRundown, Verbose, TEXT("%s Instance Player Marked for Discard: Id:%s, Asset:\"%s\" -> Transition %s"),
+			*GetBriefFrameInfo(), *InstancePlayer->GetPlaybackInstanceId().ToString(), *InstancePlayer->SourceAssetPath.ToString(), *TransitionId.ToString());
 	}
 	
 	if (InstancePlayer && EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::StopPlayable))
@@ -385,12 +416,12 @@ void UAvaRundownPageTransition::OnTransitionEvent(UAvaPlayable* InPlayable, UAva
 		if (PlayableTransition->IsEnterPlayable(InPlayable))
 		{
 			UE_LOG(LogAvaRundown, Error,
-				TEXT("Page Transition \"%s\" Error: An \"enter\" playable is being discarded for page %d."),
-				*GetFullName(), (PagePlayer ? PagePlayer->PageId : -1));
+				TEXT("%s Page Transition \"%s\" Error: An \"enter\" playable is being discarded for page %d."),
+				*GetBriefFrameInfo(), *GetInstanceName(), (PagePlayer ? PagePlayer->PageId : -1));
 		}
 
-		UE_LOG(LogAvaRundown, Verbose, TEXT("%s Stopping Instance Player: Id:%s, Asset:\"%s\""),
-			*GetBriefFrameInfo(), *InstancePlayer->GetPlaybackInstanceId().ToString(), *InstancePlayer->SourceAssetPath.ToString());
+		UE_LOG(LogAvaRundown, Verbose, TEXT("%s Page Transition \"%s\" Stopping Instance Player: Id:%s, Asset:\"%s\""),
+			*GetBriefFrameInfo(), *GetInstanceName(), *InstancePlayer->GetPlaybackInstanceId().ToString(), *InstancePlayer->SourceAssetPath.ToString());
 
 		// With combo-templates, page players can be partially stopped.
 		InstancePlayer->Stop();
@@ -409,7 +440,7 @@ void UAvaRundownPageTransition::OnTransitionEvent(UAvaPlayable* InPlayable, UAva
 			}
 			else
 			{
-				UE_LOG(LogAvaRundown, Error, TEXT("Page Transition \"%s\" failed to remove stopped players: No rundown specified."), *GetFullName());
+				UE_LOG(LogAvaRundown, Error, TEXT("Page Transition \"%s\" failed to remove stopped players: No rundown specified."), *GetInstanceName());
 			}
 		}
 	}
@@ -479,8 +510,8 @@ void UAvaRundownPageTransition::AddPlayablesToBuilder(FAvaPlayableTransitionBuil
 		{
 			// If this happens, likely the playable is not yet loaded.
 			UE_LOG(LogAvaRundown, Error,
-				TEXT("Page Transition \"%s\" Error: Failed to retrieve \"%s\" playable for page %d."),
-				*GetFullName(), InCategory, InPlayer->PageId);
+				TEXT("%s Page Transition \"%s\" Error: Failed to retrieve \"%s\" playable for instance {%s} of page %d."),
+				*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *GetInstanceName(), InCategory, *GetPrettyInstancePlayerInfo(InstancePlayer), InPlayer->PageId);
 		}
 	}
 }
@@ -491,13 +522,22 @@ void UAvaRundownPageTransition::MakePlayableTransition()
 	AddPlayersToBuilder(TransitionBuilder, EnterPlayersWeak, TEXT("Enter"), EAvaPlayableTransitionEntryRole::Enter);
 	AddPlayersToBuilder(TransitionBuilder, PlayingPlayersWeak, TEXT("Playing"), EAvaPlayableTransitionEntryRole::Playing);
 	AddPlayersToBuilder(TransitionBuilder, ExitPlayersWeak, TEXT("Exit"), EAvaPlayableTransitionEntryRole::Exit);
-	PlayableTransition = TransitionBuilder.MakeTransition(this);
+	PlayableTransition = TransitionBuilder.MakeTransition(this, TransitionId);
 
 	// For non-TL enter pages, we need to kick out the playing pages too. 
 	if (PlayableTransition && HasEnterPagesWithNoTransitionLogic())
 	{
 		PlayableTransition->SetTransitionFlags(EAvaPlayableTransitionFlags::TreatPlayingAsExiting);
 	}
+}
+
+FString UAvaRundownPageTransition::GetInstanceName() const
+{
+	if (const UAvaRundown* Rundown = GetRundown())
+	{
+		return Rundown->GetName() + TEXT(":") + TransitionId.ToString();
+	}
+	return TransitionId.ToString();
 }
 
 void UAvaRundownPageTransition::LogDetailedTransitionInfo() const
@@ -508,7 +548,7 @@ void UAvaRundownPageTransition::LogDetailedTransitionInfo() const
 	}
 	
 	using namespace UE::AvaPlayback::Utils;
-	UE_LOG(LogAvaRundown, Verbose, TEXT("%s Starting Page Transition \"%s\":"), *GetBriefFrameInfo(), *GetFullName());
+	UE_LOG(LogAvaRundown, Verbose, TEXT("%s Starting Page Transition \"%s\":"), *GetBriefFrameInfo(), *GetInstanceName());
 	
 	auto LogPlayers = [this](const TArray<TWeakObjectPtr<UAvaRundownPagePlayer>>& InPlayersWeak, const TCHAR* InCategory)
 	{
@@ -517,7 +557,7 @@ void UAvaRundownPageTransition::LogDetailedTransitionInfo() const
 		{
 			if (const UAvaRundownPagePlayer* Player = PlayerWeak.Get())
 			{
-				UE_LOG(LogAvaRundown, Verbose, TEXT("- %s Page: %d, %s."), InCategory, Player->PageId, *GetPrettyPageInfo(Player));
+				UE_LOG(LogAvaRundown, Verbose, TEXT("- %s Page: %d, %s."), InCategory, Player->PageId, *GetPrettyPagePlayerInfo(Player));
 			}
 		}
 	};
@@ -546,7 +586,7 @@ FString UAvaRundownPageTransition::GetBriefTransitionDescription() const
 	const FString PlayingPageList = MakePageIdList(PlayingPlayersWeak);
 	const FString ExitPageList = MakePageIdList(ExitPlayersWeak);
 	return FString::Printf(TEXT("Page Transition \"%s\": Enter Page(s): [%s], Playing Page(s): [%s], Exit Page(s): [%s]."),
-		*GetFullName(), *EnterPageList, *PlayingPageList, *ExitPageList);
+		*GetInstanceName(), *EnterPageList, *PlayingPageList, *ExitPageList);
 }
 
 void UAvaRundownPageTransition::RegisterToPlayableTransitionEvent()
@@ -639,12 +679,13 @@ void UAvaRundownPageTransition::UpdateChannelName(const UAvaRundownPagePlayer* I
 	else
 	{
 		using namespace UE::AvaMedia::Rundown::PageTransition::Private;
+		using namespace UE::AvaPlayback::Utils;
 
 		// Validate the channel is the same.
 		if (ChannelName != InPagePlayer->ChannelFName)
 		{
-			UE_LOG(LogAvaRundown, Error, TEXT("Page Transition \"%s\": Adding Page: %d, {%s} in a different channel than previous pages (\"%s\")."),
-				*GetFullName(), InPagePlayer->PageId, *GetPrettyPageInfo(InPagePlayer), *ChannelName.ToString());
+			UE_LOG(LogAvaRundown, Error, TEXT("%s Page Transition \"%s\": Adding Page: %d, {%s} in a different channel than previous pages (\"%s\")."),
+				*GetBriefFrameInfo(), *GetInstanceName(), InPagePlayer->PageId, *GetPrettyPagePlayerInfo(InPagePlayer), *ChannelName.ToString());
 		}
 	}
 }

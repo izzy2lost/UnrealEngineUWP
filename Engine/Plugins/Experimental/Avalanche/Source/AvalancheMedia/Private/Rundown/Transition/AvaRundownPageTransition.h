@@ -27,6 +27,8 @@ class UAvaRundownPageTransition : public UAvaPlaybackTransition
 	GENERATED_BODY()
 	
 public:
+	static UAvaRundownPageTransition* MakeNew(UAvaRundown* InRundown);
+	
 	bool AddEnterPage(UAvaRundownPagePlayer* InPagePlayer);
 	bool AddPlayingPage(UAvaRundownPagePlayer* InPagePlayer);
 	bool AddExitPage(UAvaRundownPagePlayer* InPagePlayer);
@@ -67,6 +69,7 @@ protected:
 
 	void MakePlayableTransition();
 
+	FString GetInstanceName() const;
 	void LogDetailedTransitionInfo() const;
 	FString GetBriefTransitionDescription() const;
 
@@ -87,6 +90,8 @@ protected:
 	TArray<TWeakObjectPtr<UAvaRundownPagePlayer>> ExitPlayersWeak;
 
 	TSet<FAvaTagId> CachedTransitionLayers;
+	
+	TSet<FGuid> InstancesMarkedForDiscard;
 	
 	UPROPERTY(Transient)
 	TObjectPtr<UAvaPlayableTransition> PlayableTransition;

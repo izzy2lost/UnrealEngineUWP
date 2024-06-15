@@ -9,6 +9,8 @@
 #include "Framework/AvaGameInstance.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/TimeGuard.h"
+#include "ModularFeature/AvaMediaSynchronizedEventsFeature.h"
+#include "ModularFeature/IAvaMediaSynchronizedEventDispatcher.h"
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/PlayableGroups/AvaRemoteProxyPlayableGroup.h"
 #include "UObject/Package.h"
@@ -102,6 +104,20 @@ void UAvaPlayableGroupChannelManager::GetPlayableGroups(TArray<TWeakObjectPtr<UA
 	OutGroups.Append(PlayableGroupsWeak);
 }
 
+UAvaPlayableGroup* UAvaPlayableGroupChannelManager::FindPlayableGroupForWorld(const UWorld* InWorld) const
+{
+	for (const TWeakObjectPtr<UAvaPlayableGroup>& PlayableGroupWeak : PlayableGroupsWeak)
+	{
+		if (UAvaPlayableGroup* PlayableGroup = PlayableGroupWeak.Get())
+		{
+			if (PlayableGroup->GetPlayWorld() == InWorld)
+			{
+				return PlayableGroup;	
+			}
+		}
+	}
+	return nullptr;
+}
 
 void UAvaPlayableGroupChannelManager::Shutdown()
 {
@@ -116,6 +132,12 @@ void UAvaPlayableGroupChannelManager::BeginDestroy()
 
 void UAvaPlayableGroupManager::Init()
 {
+	if (!SynchronizedEventDispatcher)
+	{
+		// There is only a primary/default dispatcher for now.
+		SynchronizedEventDispatcher = FAvaMediaSynchronizedEventsFeature::CreateDispatcher(TEXT("DefaultGroup"));
+	}
+
 	if (!UAvaGameInstance::GetOnEndPlay().IsBoundToObject(this))
 	{
 		UAvaGameInstance::GetOnEndPlay().AddUObject(this, &UAvaPlayableGroupManager::OnGameInstanceEndPlay);
@@ -139,6 +161,33 @@ void UAvaPlayableGroupManager::Tick(double InDeltaSeconds)
 	SCOPE_TIME_GUARD(TEXT("UAvaPlayableGroupManager::Tick"));
 	UpdateLevelStreaming();
 	TickTransitions(InDeltaSeconds);
+
+	if (SynchronizedEventDispatcher)
+	{
+		SynchronizedEventDispatcher->DispatchEvents();
+	}
+}
+
+void UAvaPlayableGroupManager::PushSynchronizedEvent(FString&& InEventSignature, TUniqueFunction<void()> InFunction)
+{
+	if (SynchronizedEventDispatcher)
+	{
+		SynchronizedEventDispatcher->PushEvent(MoveTemp(InEventSignature), MoveTemp(InFunction));
+	}
+	else if (InFunction)
+	{
+		InFunction();
+	}
+}
+
+bool UAvaPlayableGroupManager::IsSynchronizedEventPushed(const FString& InEventSignature) const
+{
+	if (SynchronizedEventDispatcher)
+	{
+		const EAvaMediaSynchronizedEventState EventState = SynchronizedEventDispatcher->GetEventState(InEventSignature);
+		return EventState == EAvaMediaSynchronizedEventState::Pending || EventState == EAvaMediaSynchronizedEventState::Ready;
+	}
+	return false;	
 }
 
 UAvaPlayableGroupChannelManager* UAvaPlayableGroupManager::FindOrAddChannelManager(const FName& InChannelName)
@@ -225,6 +274,21 @@ TArray<TWeakObjectPtr<UAvaPlayableGroup>> UAvaPlayableGroupManager::GetPlayableG
 		}
 	}
 	return Groups;
+}
+
+UAvaPlayableGroup* UAvaPlayableGroupManager::FindPlayableGroupForWorld(const UWorld* InWorld) const
+{
+	for (const TPair<FName, TObjectPtr<UAvaPlayableGroupChannelManager>>& ChannelManager : ChannelManagers)
+	{
+		if (ChannelManager.Value)
+		{
+			if (UAvaPlayableGroup* PlayableGroup = ChannelManager.Value->FindPlayableGroupForWorld(InWorld))
+			{
+				return PlayableGroup;
+			}
+		}
+	}
+	return nullptr;
 }
 
 void UAvaPlayableGroupManager::BeginDestroy()

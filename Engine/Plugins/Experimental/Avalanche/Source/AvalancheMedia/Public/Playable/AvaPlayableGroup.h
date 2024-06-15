@@ -8,8 +8,11 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
 #include "UObject/WeakInterfacePtr.h"
+
 #include "AvaPlayableGroup.generated.h"
 
+class FSceneView;
+class FSceneViewFamily;
 class UAvaPlayable;
 class UAvaPlayableGroupManager;
 class UAvaPlayableTransition;
@@ -85,6 +88,10 @@ public:
 	void TickTransitions(double InDeltaSeconds);
 
 	bool HasTransitions() const;
+
+	void PushSynchronizedEvent(FString&& InEventSignature, TUniqueFunction<void()> InFunction);
+
+	bool IsSynchronizedEventPushed(const FString& InEventSignature) const;
 
 	/**
 	 * Creates the game instance's world if it wasn't already.
@@ -163,6 +170,8 @@ public:
 	void UnregisterVisibilityConstraint(const IAvaPlayableVisibilityConstraint* InVisibilityConstraint);
 
 	void RequestSetVisibility(UAvaPlayable* InPlayable, bool bInShouldBeVisible);
+
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView);
 
 protected:
 	bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const;

@@ -5,6 +5,7 @@
 #include "Playable/Transition/AvaPlayableTransition.h"
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackServer.h"
+#include "Playback/AvaPlaybackUtils.h"
 
 namespace UE::AvaPlaybackServerTransition::Private
 {
@@ -14,7 +15,7 @@ namespace UE::AvaPlaybackServerTransition::Private
 		{
 			return FString::Printf(TEXT("Id:%s, Asset:%s, Channel:%s, UserData:\"%s\""),
 				*InPlaybackInstance->GetInstanceId().ToString(),
-				*InPlaybackInstance->GetSourcePath().ToString(),
+				*InPlaybackInstance->GetSourcePath().GetAssetName(),
 				*InPlaybackInstance->GetChannelName(),
 				*InPlaybackInstance->GetInstanceUserData());
 		}
@@ -42,6 +43,84 @@ namespace UE::AvaPlaybackServerTransition::Private
 		}
 		return nullptr;
 	}
+
+	TSharedPtr<FAvaPlaybackInstance> FindInstance(const TArray<TWeakPtr<FAvaPlaybackInstance>>& InPlaybackInstancesWeak, const FGuid& InInstanceId)
+	{
+		for (const TWeakPtr<FAvaPlaybackInstance>& InstanceWeak : InPlaybackInstancesWeak)
+		{
+			TSharedPtr<FAvaPlaybackInstance> Instance = InstanceWeak.Pin();
+			if (Instance && Instance->GetInstanceId() == InInstanceId)
+			{
+				return Instance;
+			}
+		}
+		return nullptr;
+	}
+
+	
+	// Check if the given set of playback instances are preventing the start of the transition.
+	bool CanStartTransition(const UAvaPlaybackServerTransition* InTransition,
+		const TArray<TWeakPtr<FAvaPlaybackInstance>>& InPlaybackInstancesWeak, bool& bOutShouldDiscard)
+	{
+		using namespace UE::AvaPlayback::Utils;
+		for (const TWeakPtr<FAvaPlaybackInstance>& InstanceWeak : InPlaybackInstancesWeak)
+		{
+			const TSharedPtr<FAvaPlaybackInstance> Instance = InstanceWeak.Pin();
+			if (!Instance)
+			{
+				// For now, we discard transitions with invalid instance.
+				UE_LOG(LogAvaPlaybackServer, Warning,
+					TEXT("%s Discarding Playback Transition {%s}. Reason: Invalid Instance. "),
+					*GetBriefFrameInfo(), *InTransition->GetPrettyTransitionInfo());
+
+				bOutShouldDiscard = true;
+				return false;
+			}
+			
+			const UAvaPlayable* Playable = GetPlayable(Instance.Get());
+			if (!Playable)
+			{
+				bOutShouldDiscard = false;
+				return false;	// Playable not yet created.
+			}
+
+			const EAvaPlayableStatus PlayableStatus = Playable->GetPlayableStatus();
+
+			if (PlayableStatus == EAvaPlayableStatus::Unknown
+				|| PlayableStatus == EAvaPlayableStatus::Error)
+			{
+				UE_LOG(LogAvaPlaybackServer, Warning,
+            		TEXT("%s Discarding Playback Transition {%s}. Reason: Playable status: \"%s\". "),
+            		*GetBriefFrameInfo(), *InTransition->GetPrettyTransitionInfo(), *StaticEnumToString(PlayableStatus));
+
+				// Discard the command
+				bOutShouldDiscard = true;
+				return false;
+			}
+
+			// todo: this might cause commands to become stale and fill the pending command list
+			if (PlayableStatus == EAvaPlayableStatus::Unloaded)
+			{
+				UE_LOG(LogAvaPlaybackServer, Warning,
+					TEXT("%s Playback Transition {%s}: Playable \"%s\" (Id:%s) is unloaded."),
+					*GetBriefFrameInfo(), *InTransition->GetPrettyTransitionInfo(), *Playable->GetSourceAssetPath().GetAssetName(), *Playable->GetInstanceId().ToString());
+
+				return false;
+			}
+
+			// Asset status must be visible to run the command.
+			// If not visible, the components are not yet added to the world.
+			if (PlayableStatus != EAvaPlayableStatus::Visible)
+			{
+				// Keep the command in the queue for next tick.
+				bOutShouldDiscard = false;
+				return false;
+			}
+		}
+
+		bOutShouldDiscard = true;
+		return true;
+	}
 }
 
 UAvaPlaybackServerTransition* UAvaPlaybackServerTransition::MakeNew(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer)
@@ -49,6 +128,26 @@ UAvaPlaybackServerTransition* UAvaPlaybackServerTransition::MakeNew(const TShare
 	UAvaPlaybackServerTransition* NewTransition = NewObject<UAvaPlaybackServerTransition>();
 	NewTransition->PlaybackServerWeak = InPlaybackServer.ToWeakPtr();
 	return NewTransition;
+}
+
+void UAvaPlaybackServerTransition::AddPendingEnterInstanceIds(const TArray<FGuid>& InInstanceIds)
+{
+	PendingEnterInstanceIds.Reserve(InInstanceIds.Num());
+	
+	for (const FGuid& InstanceId : InInstanceIds)
+	{
+		PendingEnterInstanceIds.AddUnique(InstanceId);		
+	}
+}
+
+void UAvaPlaybackServerTransition::AddPendingPlayingInstanceId(const FGuid& InInstanceId)
+{
+	PendingPlayingInstanceIds.AddUnique(InInstanceId);
+}
+	
+void UAvaPlaybackServerTransition::AddPendingExitInstanceId(const FGuid& InInstanceId)
+{
+	PendingExitInstanceIds.AddUnique(InInstanceId);
 }
 
 void UAvaPlaybackServerTransition::SetEnterValues(const TArray<FAvaPlayableRemoteControlValues>& InEnterValues)
@@ -97,19 +196,51 @@ bool UAvaPlaybackServerTransition::AddExitInstance(const TSharedPtr<FAvaPlayback
 
 void UAvaPlaybackServerTransition::TryResolveInstances(const FAvaPlaybackServer& InPlaybackServer)
 {
-	if (EnterPlaybackInstancesWeak.Num() < EnterInstanceIds.Num())
+	for (TArray<FGuid>::TIterator InstanceIdIt(PendingEnterInstanceIds); InstanceIdIt; ++InstanceIdIt)
 	{
-		for (const FGuid& InstanceId : EnterInstanceIds)
+		if (TSharedPtr<FAvaPlaybackInstance> Instance = InPlaybackServer.FindActivePlaybackInstance(*InstanceIdIt))
 		{
-			if (TSharedPtr<FAvaPlaybackInstance> Instance = InPlaybackServer.FindActivePlaybackInstance(InstanceId))
-			{
-				if (!EnterPlaybackInstancesWeak.Contains(Instance.ToWeakPtr()))
-				{
-					AddEnterInstance(Instance);
-				}
-			}
+			AddEnterInstance(Instance);
+			InstanceIdIt.RemoveCurrent();
 		}
-	}	
+	}
+	
+	for (TArray<FGuid>::TIterator InstanceIdIt(PendingPlayingInstanceIds); InstanceIdIt; ++InstanceIdIt)
+	{
+		if (TSharedPtr<FAvaPlaybackInstance> Instance = InPlaybackServer.FindActivePlaybackInstance(*InstanceIdIt))
+		{
+			AddPlayingInstance(Instance);
+			InstanceIdIt.RemoveCurrent();
+		}
+	}
+
+	for (TArray<FGuid>::TIterator InstanceIdIt(PendingExitInstanceIds); InstanceIdIt; ++InstanceIdIt)
+	{
+		if (TSharedPtr<FAvaPlaybackInstance> Instance = InPlaybackServer.FindActivePlaybackInstance(*InstanceIdIt))
+		{
+			AddExitInstance(Instance);
+			InstanceIdIt.RemoveCurrent();
+		}
+	}
+}
+
+bool UAvaPlaybackServerTransition::ContainsInstance(const FGuid& InInstanceId) const
+{
+	if (PendingEnterInstanceIds.Contains(InInstanceId)
+		|| PendingPlayingInstanceIds.Contains(InInstanceId)
+		|| PendingExitInstanceIds.Contains(InInstanceId))
+	{
+		return true;
+	}
+
+	using namespace UE::AvaPlaybackServerTransition::Private;
+	if (FindInstance(EnterPlaybackInstancesWeak, InInstanceId).IsValid()
+		|| FindInstance(PlayingPlaybackInstancesWeak, InInstanceId).IsValid()
+		|| FindInstance(ExitPlaybackInstancesWeak, InInstanceId).IsValid())
+	{
+		return true;
+	}
+	return false;
 }
 
 bool UAvaPlaybackServerTransition::IsVisibilityConstrained(const UAvaPlayable* InPlayable) const
@@ -144,51 +275,33 @@ bool UAvaPlaybackServerTransition::CanStart(bool& bOutShouldDiscard) const
 {
 	using namespace UE::AvaPlaybackServerTransition::Private;
 
-	if (EnterPlaybackInstancesWeak.Num() < EnterInstanceIds.Num())
+	// Wait for any unresolved instances to be loaded.
+	if (!PendingEnterInstanceIds.IsEmpty()
+		|| !PendingPlayingInstanceIds.IsEmpty()
+		|| !PendingExitInstanceIds.IsEmpty())
 	{
 		bOutShouldDiscard = false;
 		return false;
 	}
 
-	for (const TWeakPtr<FAvaPlaybackInstance>& InstanceWeak : EnterPlaybackInstancesWeak)
+	if (!CanStartTransition(this, EnterPlaybackInstancesWeak, bOutShouldDiscard))
 	{
-		if (const TSharedPtr<FAvaPlaybackInstance> Instance = InstanceWeak.Pin())
-		{
-			if (const UAvaPlayable* Playable = GetPlayable(Instance.Get()))
-			{
-				const EAvaPlayableStatus PlayableStatus = Playable->GetPlayableStatus();
-
-				if (PlayableStatus == EAvaPlayableStatus::Unknown
-					|| PlayableStatus == EAvaPlayableStatus::Error)
-				{
-					// Discard the command
-					bOutShouldDiscard = true;
-					return false;
-				}
-
-				// todo: this might cause commands to become stale and fill the pending command list
-				if (PlayableStatus == EAvaPlayableStatus::Unloaded)
-				{
-					return false;
-				}
-
-				// Asset status must be visible to run the command.
-				// If not visible, the components are not yet added to the world.
-				if (PlayableStatus != EAvaPlayableStatus::Visible)
-				{
-					// Keep the command in the queue for next tick.
-					bOutShouldDiscard = false;
-					return false;
-				}
-			}
-		}
-		else
-		{
-			bOutShouldDiscard = true;
-			return false;
-		}
+		return false;
 	}
+
+	// Note: need to check the "non-entering" instances too in case the playback commands got delayed
+	// causing playables to also need loading/recovering.
 	
+	if (!CanStartTransition(this, PlayingPlaybackInstancesWeak, bOutShouldDiscard))
+	{
+		return false;
+	}
+
+	if (!CanStartTransition(this, ExitPlaybackInstancesWeak, bOutShouldDiscard))
+	{
+		return false;
+	}
+
 	bOutShouldDiscard = true;
 	return true;
 }
@@ -245,7 +358,8 @@ void UAvaPlaybackServerTransition::Stop()
 		if (!PlaybackServer->RemovePlaybackInstanceTransition(TransitionId))
 		{
 			UE_LOG(LogAvaPlaybackServer, Error,
-				TEXT("Playback Transition {%s} Error: Was not found in server's active transitions. "), *GetPrettyTransitionInfo());
+				TEXT("%s Failed to remove Playback Transition {%s}. Reason: not found in server's active transitions."),
+				*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *GetPrettyTransitionInfo());
 		}
 	}
 }
@@ -291,19 +405,19 @@ TSharedPtr<FAvaPlaybackInstance> UAvaPlaybackServerTransition::FindInstanceForPl
 		return nullptr;
 	}
 
-	TSharedPtr<FAvaPlaybackInstance> Instance =  Private::FindInstanceForPlayable(EnterPlaybackInstancesWeak, InPlayable);
+	TSharedPtr<FAvaPlaybackInstance> Instance = Private::FindInstanceForPlayable(EnterPlaybackInstancesWeak, InPlayable);
 	if (Instance)
 	{
 		return Instance;
 	}
 	
-	Instance =  Private::FindInstanceForPlayable(PlayingPlaybackInstancesWeak, InPlayable);
+	Instance = Private::FindInstanceForPlayable(PlayingPlaybackInstancesWeak, InPlayable);
 	if (Instance)
 	{
 		return Instance;
 	}
 
-	Instance =  Private::FindInstanceForPlayable(ExitPlaybackInstancesWeak, InPlayable);
+	Instance = Private::FindInstanceForPlayable(ExitPlaybackInstancesWeak, InPlayable);
 	if (Instance)
 	{
 		return Instance;
@@ -314,6 +428,7 @@ TSharedPtr<FAvaPlaybackInstance> UAvaPlaybackServerTransition::FindInstanceForPl
 void UAvaPlaybackServerTransition::OnTransitionEvent(UAvaPlayable* InPlayable, UAvaPlayableTransition* InTransition, EAvaPlayableTransitionEventFlags InTransitionFlags)
 {
 	using namespace UE::AvaPlaybackServerTransition::Private;
+	using namespace UE::AvaPlayback::Utils;
 	
 	// not this transition.
 	if (InTransition != PlayableTransition || PlayableTransition == nullptr)
@@ -338,8 +453,8 @@ void UAvaPlaybackServerTransition::OnTransitionEvent(UAvaPlayable* InPlayable, U
 			if (PlayableTransition->IsEnterPlayable(InPlayable))
 			{
 				UE_LOG(LogAvaPlaybackServer, Error,
-					TEXT("Playback Transition {%s} Error: An \"enter\" playable is being discarded for instance {%s}."),
-					*GetPrettyTransitionInfo(), *GetPrettyPlaybackInstanceInfo(Instance.Get()));
+					TEXT("%s Playback Transition {%s} Error: An \"enter\" playable is being discarded for instance {%s}."),
+					*GetBriefFrameInfo(), *GetPrettyTransitionInfo(), *GetPrettyPlaybackInstanceInfo(Instance.Get()));
 			}
 
 			// See UAvaRundownPagePlayer::Stop()
@@ -356,8 +471,8 @@ void UAvaPlaybackServerTransition::OnTransitionEvent(UAvaPlayable* InPlayable, U
 					if (!PlaybackServer->RemoveActivePlaybackInstance(Instance->GetInstanceId()))
 					{
 						UE_LOG(LogAvaPlaybackServer, Error,
-							TEXT("Playback Transition {%s} Error: \"exit\" instance {%s} was not found in server's active instances. "),
-							*GetPrettyTransitionInfo(), *GetPrettyPlaybackInstanceInfo(Instance.Get()));
+							TEXT("%s Playback Transition {%s} Error: \"exit\" instance {%s} was not found in server's active instances. "),
+							*GetBriefFrameInfo(), *GetPrettyTransitionInfo(), *GetPrettyPlaybackInstanceInfo(Instance.Get()));
 					}
 				}
 			}
@@ -390,7 +505,8 @@ void UAvaPlaybackServerTransition::OnPlayableCreated(UAvaPlaybackGraph* InPlayba
 void UAvaPlaybackServerTransition::MakePlayableTransition()
 {
 	using namespace UE::AvaPlaybackServerTransition::Private;
-
+	using namespace UE::AvaPlayback::Utils;
+	
 	FAvaPlayableTransitionBuilder TransitionBuilder;
 
 	auto AddInstancesToBuilder = [&TransitionBuilder, this](const TArray<TWeakPtr<FAvaPlaybackInstance>>& InPlaybackInstancesWeak, const TCHAR* InCategory, EAvaPlayableTransitionEntryRole InEntryRole)
@@ -413,8 +529,8 @@ void UAvaPlaybackServerTransition::MakePlayableTransition()
 				{
 					// If this happens, likely the playable is not yet loaded.
 					UE_LOG(LogAvaPlaybackServer, Error,
-						TEXT("Playback Transition {%s} Error: Failed to retrieve \"%s\" playable for instance {%s}."),
-						*GetPrettyTransitionInfo(), InCategory, *GetPrettyPlaybackInstanceInfo(Instance.Get()));
+						TEXT("%s Playback Transition {%s} Error: Failed to retrieve \"%s\" playable for instance {%s}."),
+						*GetBriefFrameInfo(), *GetPrettyTransitionInfo(), InCategory, *GetPrettyPlaybackInstanceInfo(Instance.Get()));
 				}
 			}
 			++ArrayIndex;
@@ -424,7 +540,7 @@ void UAvaPlaybackServerTransition::MakePlayableTransition()
 	AddInstancesToBuilder(EnterPlaybackInstancesWeak, TEXT("Enter"), EAvaPlayableTransitionEntryRole::Enter);
 	AddInstancesToBuilder(PlayingPlaybackInstancesWeak, TEXT("Playing"), EAvaPlayableTransitionEntryRole::Playing);
 	AddInstancesToBuilder(ExitPlaybackInstancesWeak, TEXT("Exit"), EAvaPlayableTransitionEntryRole::Exit);
-	PlayableTransition = TransitionBuilder.MakeTransition(this);
+	PlayableTransition = TransitionBuilder.MakeTransition(this, TransitionId);
 
 	if (PlayableTransition)
 	{
@@ -434,7 +550,8 @@ void UAvaPlaybackServerTransition::MakePlayableTransition()
 
 void UAvaPlaybackServerTransition::LogDetailedTransitionInfo() const
 {
-	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("Playback Transition {%s}:"), *GetPrettyTransitionInfo());
+	using namespace UE::AvaPlayback::Utils;
+	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("%s Playback Transition {%s}:"), *GetBriefFrameInfo(), *GetPrettyTransitionInfo());
 
 	auto LogInstances = [](const TArray<TWeakPtr<FAvaPlaybackInstance>>& InPlaybackInstancesWeak, const TCHAR* InCategory)
 	{
@@ -486,13 +603,14 @@ void UAvaPlaybackServerTransition::UpdateChannelName(const FAvaPlaybackInstance*
 	else
 	{
 		using namespace UE::AvaPlaybackServerTransition::Private;
+		using namespace UE::AvaPlayback::Utils;
 
 		// Validate the channel is the same.
 		if (ChannelName != InPlaybackInstance->GetChannelFName())
 		{
 			UE_LOG(LogAvaPlaybackServer, Error,
-				TEXT("Playback Transition {%s}: Adding Playback Instance {%s} in a different channel than previous playback instance (\"%s\")."),
-				*GetPrettyTransitionInfo(), *GetPrettyPlaybackInstanceInfo(InPlaybackInstance), *ChannelName.ToString());
+				TEXT("%s Playback Transition {%s}: Adding Playback Instance {%s} in a different channel than previous playback instance (\"%s\")."),
+				*GetBriefFrameInfo(), *GetPrettyTransitionInfo(), *GetPrettyPlaybackInstanceInfo(InPlaybackInstance), *ChannelName.ToString());
 		}
 	}
 }

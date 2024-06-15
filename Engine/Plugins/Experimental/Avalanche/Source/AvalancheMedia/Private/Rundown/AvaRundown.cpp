@@ -8,6 +8,7 @@
 #include "Playable/AvaPlayable.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/AvaPlaybackManager.h"
+#include "Playback/AvaPlaybackUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPageLoadingManager.h"
 #include "Rundown/AvaRundownPagePlayer.h"
@@ -1033,11 +1034,13 @@ TArray<int32> UAvaRundown::PlayPages(const TArray<int32>& InPageIds, EAvaRundown
 
 bool UAvaRundown::RestorePlaySubPage(int32 InPageId, int32 InSubPageIndex, const FGuid& InExistingInstanceId, bool bInIsPreview, const FName& InPreviewChannelName)
 {
+	using namespace UE::AvaPlayback::Utils;
+	
 	auto LogError = [InPageId, InPreviewChannelName](const FString& InReason)
 	{
 		UE_LOG(LogAvaRundown, Error,
-			TEXT("Couldn't restore playback state of page %d on channel \"%s\": %s."),
-			InPageId, *InPreviewChannelName.ToString(), *InReason);
+			TEXT("%s Couldn't restore playback state of page %d on channel \"%s\": %s."),
+			*GetBriefFrameInfo(), InPageId, *InPreviewChannelName.ToString(), *InReason);
 	};
 
 	const FAvaRundownPage& Page = GetPage(InPageId);
@@ -1047,7 +1050,7 @@ bool UAvaRundown::RestorePlaySubPage(int32 InPageId, int32 InSubPageIndex, const
 		return false;
 	}
 
-	if (!IsChannelTypeCompatibleForRequest(Page, bInIsPreview, InPreviewChannelName, true))
+	if (!IsChannelTypeCompatibleForRequest(Page, bInIsPreview, InPreviewChannelName, /*bInLogFailureReason*/ true))
 	{
 		LogError(TEXT("Channel Type is not compatible"));
 		return false;
@@ -1070,6 +1073,7 @@ bool UAvaRundown::RestorePlaySubPage(int32 InPageId, int32 InSubPageIndex, const
 		{
 			return false;
 		}
+		UE_LOG(LogAvaRundown, Verbose, TEXT("%s Restored page player for page %d."), *GetBriefFrameInfo(), InPageId);
 	}
 	
 	if (const UAvaRundownPlaybackInstancePlayer* LoadedInstancePlayer = PagePlayer->LoadInstancePlayer(InSubPageIndex, InExistingInstanceId))

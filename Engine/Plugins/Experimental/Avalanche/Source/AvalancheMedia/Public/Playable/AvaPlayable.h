@@ -9,8 +9,11 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
+
 #include "AvaPlayable.generated.h"
 
+class FSceneView;
+class FSceneViewFamily;
 class IAvaSceneInterface;
 class UAvaPlayableGroup;
 class UAvaPlayableGroupManager;
@@ -117,6 +120,7 @@ public:
 	virtual bool IsRemoteProxy() const { return false; }
 	virtual bool GetShouldBeVisible() const { return true; }
 	virtual void SetShouldBeVisible(bool bInShouldBeVisible) {}
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) {}
 	
 	/**
 	 * @brief Ensures the given asset is playing (visible) with the given parameters.

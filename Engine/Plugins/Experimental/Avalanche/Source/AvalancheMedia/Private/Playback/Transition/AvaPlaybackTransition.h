@@ -32,4 +32,9 @@ public:
 	//~ Begin IAvaPlayableVisibilityConstraint
 	virtual bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const override { return false; }
 	//~ End IAvaPlayableVisibilityConstraint
+
+	const FGuid& GetTransitionId() const { return TransitionId; }
+	
+protected:
+	FGuid TransitionId;
 };

@@ -5,8 +5,10 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
+
 #include "AvaPlayableGroupManager.generated.h"
 
+class IAvaMediaSynchronizedEventDispatcher;
 class UAvaGameInstance;
 class UAvaPlayableGroup;
 class UAvaPlayableGroupManager;
@@ -26,6 +28,8 @@ public:
 	UAvaPlayableGroupManager* GetPlayableGroupManager() const;
 
 	void GetPlayableGroups(TArray<TWeakObjectPtr<UAvaPlayableGroup>>& OutGroups) const;
+
+	UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld) const;
 	
 protected:
 	//~ Begin UObject
@@ -64,6 +68,10 @@ public:
 
 	void Tick(double InDeltaSeconds);
 
+	void PushSynchronizedEvent(FString&& InEventSignature, TUniqueFunction<void()> InFunction);
+
+	bool IsSynchronizedEventPushed(const FString& InEventSignature) const;
+
 	UAvaPlayableGroupChannelManager* FindChannelManager(const FName& InChannelName) const
 	{
 		const TObjectPtr<UAvaPlayableGroupChannelManager>* ChannelManager = ChannelManagers.Find(InChannelName);
@@ -91,6 +99,11 @@ public:
 	 */
 	TArray<TWeakObjectPtr<UAvaPlayableGroup>> GetPlayableGroups(FName InChannelName = NAME_None) const;
 
+	/**
+	 * Return the playable group corresponding to the given world.
+	 */
+	UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld) const;
+
 protected:
 	//~ Begin UObject
 	virtual void BeginDestroy() override;
@@ -112,4 +125,8 @@ protected:
 
 	bool bIsTickingTransitions = false;
 	TSet<TWeakObjectPtr<UAvaPlayableGroup>> GroupsToTickTransitions;
+
+	TArray<TWeakObjectPtr<UAvaPlayableGroup>> GroupsToTickEvents;
+	
+	TSharedPtr<IAvaMediaSynchronizedEventDispatcher> SynchronizedEventDispatcher;
 };

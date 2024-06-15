@@ -39,6 +39,7 @@ public:
 	virtual const TArray<FString>& GetMediaOutputIssueMessages(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EmptyStringArray; }
 	virtual EAvaBroadcastOutputState GetMediaOutputState(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EAvaBroadcastOutputState::Error; }
 	virtual bool HasAnyServerOnlineForChannel(const FName& InChannelName) const override { return false;}
+	virtual TArray<FString> GetOnlineServersForChannel(const FName& InChannelName) const override { return TArray<FString>(); };
    	virtual TOptional<EAvaPlaybackStatus> GetRemotePlaybackStatus(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override
 	{
 		return EAvaPlaybackStatus::Unknown;

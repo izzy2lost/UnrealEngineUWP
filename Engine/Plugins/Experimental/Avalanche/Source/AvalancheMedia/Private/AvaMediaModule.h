@@ -16,6 +16,8 @@
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownServer.h"
 
+class FAvaPlayableGroupSceneViewExtension;
+
 class FAvaMediaModule : public IAvaMediaModule
 {
 public:
@@ -104,6 +106,8 @@ private:
 	TUniquePtr<FAvaMediaSync> AvaMediaSync;
 
 	TArray<IConsoleObject*> ConsoleCmds;
+
+	TSharedPtr<FAvaPlayableGroupSceneViewExtension> PlayableGroupSceneViewExtension;
 	
 	/**
 	 *	Wraps the local default UAvaMediaSettings.

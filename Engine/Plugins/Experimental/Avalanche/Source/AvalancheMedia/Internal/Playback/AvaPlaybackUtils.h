@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "Containers/UnrealString.h"
 
 class UPackage;
 struct FAssetData;
@@ -57,4 +58,10 @@ namespace UE::AvaPlayback::Utils
 	 *	This is to used for logging and tracing.
 	 */
 	AVALANCHEMEDIA_API FString GetBriefFrameInfo();
+
+	template<typename InEnumType>
+	FString StaticEnumToString(InEnumType InValue)
+	{
+		return StaticEnum<InEnumType>()->GetNameStringByValue(static_cast<int64>(InValue));
+	}
 }

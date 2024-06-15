@@ -45,6 +45,7 @@ public:
 	virtual const TArray<FString>& GetMediaOutputIssueMessages(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override;
 	virtual EAvaBroadcastOutputState GetMediaOutputState(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override;
 	virtual bool HasAnyServerOnlineForChannel(const FName& InChannelName) const override;
+	virtual TArray<FString> GetOnlineServersForChannel(const FName& InChannelName) const override;
 	virtual TOptional<EAvaPlaybackStatus> GetRemotePlaybackStatus(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override;
 	virtual const FString* GetRemotePlaybackUserData(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override;
 	virtual TOptional<EAvaPlaybackAssetStatus> GetRemotePlaybackAssetStatus(const FSoftObjectPath& InAssetPath, const FString& InServerName) const override;
@@ -76,7 +77,15 @@ protected:
 	void HandlePlaybackStatusesMessage(const FAvaPlaybackStatuses& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackSequenceEventMessage(const FAvaPlaybackSequenceEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackTransitionEventMessage(const FAvaPlaybackTransitionEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+
+private:
+	class FServerInfo;
 	
+	void HandlePlaybackStatus(FServerInfo& InServerInfo,
+		const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName,
+		EAvaPlaybackStatus InStatus, const FString& InUserData = FString(), bool bInValidUserData = false);
+
+protected:	
 	void RegisterCommands();
 	
 	// Command handlers
@@ -155,7 +164,7 @@ protected:
 	 * This is based on the channel's MediaOutputInfos. It will properly work
 	 * regardless of the channel's status (idle or even offline).
 	 */
-	TArray<FString> GetServerNamesForChannel(const FName& InChannelName) const;
+	TArray<FString> GetServerNamesForChannel(const FName& InChannelName, bool bInOnlineOnly = false) const;
 
 	FString GetServerNameForMediaOutputFallback(const UMediaOutput* InMediaOutput) const;
 

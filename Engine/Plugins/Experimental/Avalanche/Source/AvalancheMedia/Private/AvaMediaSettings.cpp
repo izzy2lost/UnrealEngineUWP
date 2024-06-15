@@ -6,10 +6,13 @@
 
 #define LOCTEXT_NAMESPACE "AvaMediaSettings"
 
+const FName UAvaMediaSettings::SynchronizedEventsFeatureSelection_Default(TEXT("Default"));
+
 UAvaMediaSettings::UAvaMediaSettings()
 {
 	CategoryName = TEXT("Motion Design");
 	SectionName  = TEXT("Playback & Broadcast");
+	AvaInstanceSettings.SynchronizedEventsFeature.Implementation = SynchronizedEventsFeatureSelection_Default.ToString();
 }
 
 UAvaMediaSettings* UAvaMediaSettings::GetSingletonInstance()

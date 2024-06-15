@@ -49,6 +49,11 @@ void UAvaPlayableTransition::Stop()
 	}
 }
 
+void UAvaPlayableTransition::SetTransitionId(const FGuid& InTransitionId)
+{
+	TransitionId = InTransitionId;
+}
+
 void UAvaPlayableTransition::SetTransitionFlags(EAvaPlayableTransitionFlags InFlags)
 {
 	TransitionFlags = InFlags;
@@ -239,7 +244,7 @@ bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable)
 	return true;
 }
 
-UAvaPlayableTransition* FAvaPlayableTransitionBuilder::MakeTransition(UObject* InOuter)
+UAvaPlayableTransition* FAvaPlayableTransitionBuilder::MakeTransition(UObject* InOuter, const FGuid& InTransitionId)
 {
 	// Determine if we have remote playables.
 	using namespace UE::AvaPlayableTransition::Private;
@@ -303,6 +308,7 @@ UAvaPlayableTransition* FAvaPlayableTransitionBuilder::MakeTransition(UObject* I
 	PlayableTransition->SetEnterPlayables(MoveTemp(EnterPlayablesWeak));
 	PlayableTransition->SetPlayingPlayables(MoveTemp(PlayingPlayablesWeak));
 	PlayableTransition->SetExitPlayables(MoveTemp(ExitPlayablesWeak));
+	PlayableTransition->SetTransitionId(InTransitionId);
 	
 	return PlayableTransition;
 }

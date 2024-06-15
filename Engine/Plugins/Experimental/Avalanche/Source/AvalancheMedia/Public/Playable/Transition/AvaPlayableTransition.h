@@ -34,6 +34,7 @@ public:
 	virtual bool IsRunning() const { return false; }
 	virtual void Tick(double InDeltaSeconds) {}
 
+	void SetTransitionId(const FGuid& InTransitionId);
 	void SetTransitionFlags(EAvaPlayableTransitionFlags InFlags);
 	void SetEnterPlayables(TArray<TWeakObjectPtr<UAvaPlayable>>&& InPlayablesWeak);
 	void SetPlayingPlayables(TArray<TWeakObjectPtr<UAvaPlayable>>&& InPlayablesWeak);
@@ -57,6 +58,7 @@ protected:
 	UAvaPlayable* FindPlayable(const FGuid& InstanceId) const;
 	
 protected:
+	FGuid TransitionId;
 	EAvaPlayableTransitionFlags TransitionFlags = EAvaPlayableTransitionFlags::None;
 	
 	TArray<TSharedPtr<FAvaPlayableRemoteControlValues>> EnterPlayableValues;
@@ -84,7 +86,7 @@ public:
 	
 	bool AddPlayable(UAvaPlayable* InPlayable, EAvaPlayableTransitionEntryRole InPlayableRole)
 	{
-		switch(InPlayableRole)
+		switch (InPlayableRole)
 		{
 			case EAvaPlayableTransitionEntryRole::Enter:
 				return AddEnterPlayable(InPlayable);
@@ -96,7 +98,7 @@ public:
 		return false;
 	}
 
-	UAvaPlayableTransition* MakeTransition(UObject* InOuter);
+	UAvaPlayableTransition* MakeTransition(UObject* InOuter, const FGuid& InTransitionId = FGuid());
 
 private:
 	TArray<TSharedPtr<FAvaPlayableRemoteControlValues>> EnterPlayableValues;
