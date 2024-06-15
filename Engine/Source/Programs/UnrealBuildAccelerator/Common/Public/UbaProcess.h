@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "../Private/UbaProcessStartInfoHolder.h" // TODO Move this file
+#include "UbaProcessStartInfoHolder.h"
 #include "UbaSession.h"
 #include "UbaStats.h"
 
