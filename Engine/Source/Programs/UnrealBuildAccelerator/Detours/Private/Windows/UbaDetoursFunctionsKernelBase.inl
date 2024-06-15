@@ -2681,9 +2681,13 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		}
 	}
 
+	bool isChild = true;
+
 	StringBuffer<> application;
 	if (lpApplicationName)
 		FixPath(application, lpApplicationName);
+
+	bool startSuspended = (dwCreationFlags & CREATE_SUSPENDED) != 0;
 
 	TString commandLine;
 	TString currentDir;
@@ -2697,6 +2701,8 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		writer.WriteString(application.data);
 		writer.WriteString(originalCmd);
 		writer.WriteString(lpCurrentDirectory ? lpCurrentDirectory : g_virtualWorkingDir.data);
+		writer.WriteBool(startSuspended);
+		writer.WriteBool(isChild);
 		writer.Flush();
 		BinaryReader reader;
 		processId = reader.ReadU32();
@@ -2727,7 +2733,6 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	else
 		dwCreationFlags |= CREATE_NO_WINDOW;
 
-	UBA_ASSERT((dwCreationFlags & CREATE_SUSPENDED) == 0);
 	dwCreationFlags |= CREATE_SUSPENDED;
 	BOOL res = true;
 	u32 lastError = ERROR_SUCCESS;
@@ -2756,6 +2761,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	--t_disallowDetour;
 	UBA_ASSERTF(res, L"Failed to spawn process %ls (Error code: %u)", commandLine.c_str(), lastError);
 
+	if (isChild)
 	{
 		TimerScope ts(g_stats.createProcess);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);

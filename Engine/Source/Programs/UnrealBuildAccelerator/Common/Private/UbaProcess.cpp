@@ -465,13 +465,11 @@ namespace uba
 				#endif
 			}
 
-			u64 exitStartTime = GetTime();
+			m_processStats.exitTime = GetTime();
 
 			bool cancelled = IsCancelled();
 			if (exitCode == 0)
 				exitCode = InternalExitProcess(cancelled);
-
-			m_processStats.exitTime = GetTime() - exitStartTime;
 
 			if (exitCode == 0 && !m_messageSuccess)
 				exitCode = UBA_EXIT_CODE(1);
@@ -557,6 +555,9 @@ namespace uba
 		}
 
 		UBA_ASSERT(m_refCount);
+
+		if (m_processStats.exitTime)
+			m_processStats.exitTime = GetTime() - m_processStats.exitTime;
 
 		// Must be done last to make sure shutdown is not racing
 		m_session.ProcessExited(*this, m_processStats.wallTime);
@@ -858,6 +859,8 @@ namespace uba
 		reader.ReadString(currentDir);
 		if (currentDir.IsEmpty())
 			currentDir.Append(m_startInfo.workingDir);
+		bool startSuspended = reader.ReadBool();
+		bool isChild = reader.ReadBool();
 
 		const tchar* commandLine = nullptr;
 
@@ -893,17 +896,23 @@ namespace uba
 		ProcessStartInfo info;
 		info.application = application.data;
 		info.arguments = commandLine;
-		info.description = application.GetFileName();
 		info.workingDir = currentDir.data;
 		info.logFile = InternalGetChildLogFile(temp);
 		info.priorityClass = m_startInfo.priorityClass;
 		info.outputStatsThresholdMs = m_startInfo.outputStatsThresholdMs;
 		info.logLineUserData = this;
 		info.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((ProcessImpl*)userData)->LogLine(false, TString(line, length), type); };
+		info.startSuspended = startSuspended;
 
-		ProcessHandle h = m_session.InternalRunProcess(info, true, this, true);
-		m_childProcesses.push_back(h);
-		u32 childProcessId = u32(m_childProcesses.size());
+		ProcessImpl* parent = isChild ? this : nullptr;
+		ProcessHandle h = m_session.InternalRunProcess(info, true, parent, true);
+
+		u32 childProcessId = ~0u;
+		if (isChild)
+		{
+			m_childProcesses.push_back(h);
+			childProcessId = u32(m_childProcesses.size());
+		}
 
 		auto& process = *(ProcessImpl*)h.m_process;
 		process.m_echoOn = m_echoOn;
@@ -917,6 +926,8 @@ namespace uba
 		writer.WriteBytes(detoursLib, detoursLibLen);
 
 		writer.WriteString(m_realWorkingDir);
+
+		commandLine = process.m_startInfo.arguments;
 		#if PLATFORM_WINDOWS
 		TString realCommandLine = TC("\"") + process.m_realApplication + TC("\" ") + commandLine;
 		writer.WriteString(realCommandLine);
@@ -938,10 +949,12 @@ namespace uba
 		auto& process = *(ProcessImpl*)m_childProcesses[processId - 1].m_process;
 		bool result = reader.ReadBool();
 		u32 lastError = reader.ReadU32();
+
+		auto setWaitForParent = MakeGuard([&process]() { process.m_waitForParent.Set(); });
+
 		if (!result)
 		{
 			m_session.m_logger.Logf(LogEntryType_Info, TC("Detoured process failed to start child process - %s. %s (Working dir: %s)"), LastErrorToText(lastError).data, process.m_realApplication.c_str(), process.m_realWorkingDir);
-			process.m_waitForParent.Set();
 			return true;
 		}
 
@@ -967,7 +980,17 @@ namespace uba
 		process.m_nativeProcessHandle = (ProcHandle)nativeProcessHandle;
 		process.m_nativeProcessId = nativeProcessId;
 #endif
-		process.m_waitForParent.Set();
+
+		setWaitForParent.Execute();
+		
+		#if PLATFORM_WINDOWS
+		// TOOD: This is ugly, should use event or something instead.. right now we make sure to wait and not return until we know payload has been uploaded etc
+		// It is a very uncommon usecase that processes starts suspended.. some process in ninja/cmake does it when building clang/llvm
+		if (process.m_startInfo.startSuspended)
+			while (process.m_nativeThreadHandle)
+				Sleep(1);
+		#endif
+
 		return true;
 	}
 	bool ProcessImpl::HandleExitChildProcess(BinaryReader& reader, BinaryWriter& writer)
@@ -1467,21 +1490,12 @@ namespace uba
 		}
 		else
 		{
-			u64 startTime = GetTime();
-			while (!m_waitForParent.IsSet(500))
-			{
-				if (IsCancelled())
-					break;
-				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
-				{
-					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process in createprocess has now taken more than 120 seconds."));
-				}
-			}
-
+			WaitForParent();
 			if (m_nativeProcessHandle == InvalidProcHandle) // Failed to create the child process
 				return UBA_EXIT_CODE(7);
 		}
+
+		auto closeThreadHandle = MakeGuard([&]() { CloseHandle(m_nativeThreadHandle); m_nativeThreadHandle = 0; });
 
 		if (m_detourEnabled)
 		{
@@ -1548,14 +1562,13 @@ namespace uba
 
 		m_processStats.startupTime = GetTime() - m_startTime;
 
-		if (ResumeThread(m_nativeThreadHandle) == -1)
+		if (!m_startInfo.startSuspended && ResumeThread(m_nativeThreadHandle) == -1)
 		{
 			logger.Error(TC("Failed to resume thread for"));//% ls. (% ls)", commandLine.c_str(), LastErrorToText().data);
 			return UBA_EXIT_CODE(11);
 		}
 
-		CloseHandle(m_nativeThreadHandle);
-		m_nativeThreadHandle = 0;
+		closeThreadHandle.Execute();
 
 		if (!m_detourEnabled)
 		{
@@ -1775,17 +1788,7 @@ namespace uba
 		else
 		{
 			//logger.Info("Waiting for parent");
-			u64 startTime = GetTime();
-			while (!m_waitForParent.IsSet(500))
-			{
-				if (IsCancelled())
-					break;
-				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
-				{
-					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process (%s) has now taken more than 120 seconds. (%s)"), m_parentProcess->m_startInfo.description, m_startInfo.description);
-				}
-			}
+			WaitForParent();
 
 			//logger.Info("DONE waiting on parent");
 
@@ -1806,19 +1809,7 @@ namespace uba
 			return ~0u;
 
 		if (m_parentProcess)
-		{
-			u64 startTime = GetTime();
-			while (!m_waitForParent.IsSet(500))
-			{
-				if (IsCancelled())
-					break;
-				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
-				{
-					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process (%s) while exiting has now taken more than 120 seconds."), m_parentProcess->m_startInfo.description);
-				}
-			}
-		}
+			WaitForParent();
 		m_nativeProcessHandle = InvalidProcHandle;
 
 #if PLATFORM_WINDOWS
@@ -1975,5 +1966,20 @@ namespace uba
 			if (pair.second.mappingHandle.IsValid())
 				CloseFileMapping(pair.second.mappingHandle);
 		m_tempFiles.clear();
+	}
+
+	void ProcessImpl::WaitForParent()
+	{
+		u64 startTime = GetTime();
+		while (!m_waitForParent.IsSet(500))
+		{
+			if (IsCancelled())
+				break;
+			if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
+			{
+				startTime = GetTime();
+				m_session.m_logger.Error(TC("Waiting for parent process in createprocess has now taken more than 120 seconds."));
+			}
+		}
 	}
 }

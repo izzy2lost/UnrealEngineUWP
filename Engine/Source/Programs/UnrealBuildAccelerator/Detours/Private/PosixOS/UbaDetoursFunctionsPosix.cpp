@@ -1452,6 +1452,8 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		writer.WriteString(path); // Application
 		writer.WriteString(cmdLine); // Full command line
 		writer.WriteString(pwd); // Current dir
+		writer.WriteBool(false); // Start suspended
+		writer.WriteBool(true); // Is child
 		writer.Flush();
 
 		BinaryReader reader;

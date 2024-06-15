@@ -114,6 +114,7 @@ namespace uba
 		u32 InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset);
 		u32	InternalExitProcess(bool cancel);
 		void ClearTempFiles();
+		void WaitForParent();
 
 		ProcessStartInfo m_startInfo;
 		Session& m_session;
