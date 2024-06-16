@@ -269,7 +269,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarButton(TAttribute<const FSlateBrush
 
 TSharedRef<SWidget> SDMToolBar::CreateSlotsComboBoxWidget()
 {
-	if (!MaterialActorWeak.IsValid() || !MaterialModelWeak.IsValid() || ActorMaterialProperties.Num() <= 1)
+	if (!MaterialActorWeak.IsValid() || !MaterialModelWeak.IsValid())
 	{
 		return SNullWidget::NullWidget;
 	}
@@ -279,6 +279,7 @@ TSharedRef<SWidget> SDMToolBar::CreateSlotsComboBoxWidget()
 
 	return 
 		SNew(SComboBox<TSharedPtr<FDMObjectMaterialProperty>>)
+		.IsEnabled(ActorMaterialProperties.Num() > 1)
 		.InitiallySelectedItem(InitiallySelectedItem)
 		.OptionsSource(&ActorMaterialProperties)
 		.OnGenerateWidget(this, &SDMToolBar::GenerateSelectedMaterialSlotRow)
