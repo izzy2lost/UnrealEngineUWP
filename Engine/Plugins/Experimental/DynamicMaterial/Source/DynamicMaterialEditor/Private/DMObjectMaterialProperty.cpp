@@ -252,14 +252,14 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 				if (MaterialModel || bInIgnoreNewStatus)
 				{
 					return FText::Format(
-						LOCTEXT("MaterialListNameFormat", "Slot {0}"),
+						LOCTEXT("MaterialListNameFormat", "Element {0}"),
 						FText::AsNumber(Index)
 					);
 				}
 				else
 				{
 					return FText::Format(
-						LOCTEXT("MaterialListNameFormatNew", "Slot {0} (Create New)"),
+						LOCTEXT("MaterialListNameFormatNew", "Element {0} (Create New)"),
 						FText::AsNumber(Index)
 					);
 				}
