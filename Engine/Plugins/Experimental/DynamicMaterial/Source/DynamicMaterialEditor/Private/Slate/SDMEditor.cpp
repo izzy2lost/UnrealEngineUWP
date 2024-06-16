@@ -1315,7 +1315,7 @@ void SDMEditor::OnToolBarPropertyChanged(TSharedPtr<FDMObjectMaterialProperty> I
 {
 	if (InNewSelectedProperty.IsValid())
 	{
-		SetMaterialModel(InNewSelectedProperty->GetMaterialModel());
+		SetMaterialObjectProperty(*InNewSelectedProperty);
 	}
 }
 
