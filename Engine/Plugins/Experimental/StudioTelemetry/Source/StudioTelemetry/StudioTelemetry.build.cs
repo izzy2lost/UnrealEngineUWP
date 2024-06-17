@@ -12,38 +12,21 @@ public class StudioTelemetry : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"HTTP"
+				"HTTP",
+				"Horde"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"CoreUObject",
-				"Engine",
                 "EngineSettings",
                 "BuildSettings",
                 "Analytics",
                 "AnalyticsET",
 				"TelemetryUtils",
-				"RHI"
+				"RHI",
 			}
 		);
-
-		if (Target.bBuildEditor)
-		{
-			PrivateDependencyModuleNames.AddRange(
-				new string[] {
-					"Horde",
-					"AssetRegistry",
-					"UnrealEd",
-					"DerivedDataCache",
-					"Zen",
-					"IoStoreOnDemand",
-					"ContentBrowser",
-					"ContentBrowserData",
-					"TelemetryUtils"
-				}
-			);
-		}
 	}
 }

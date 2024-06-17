@@ -2,9 +2,13 @@
 
 #pragma once
 
-#if WITH_EDITOR
-
-#include "StudioTelemetry.h"
+#include "Interfaces/IAnalyticsProvider.h"
+#include "Interfaces/IAnalyticsTracer.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "CoreMinimal.h"
+#include "Templates/SharedPointer.h"
 #include "Engine/EngineTypes.h"
 
 class FTelemetryRouter;
@@ -13,15 +17,16 @@ struct FTimerHandle;
 /**
  * A class that implements a variety of pre-configured Core and Editor telemetry events that can be used to evaluate the efficiency of the most common developer workflows
  */
-class FStudioTelemetryEditor : FNoncopyable
+class EDITORTELEMETRY_API FEditorTelemetry
 {
 public:
-	FStudioTelemetryEditor() {};
-	~FStudioTelemetryEditor() {};
+	FEditorTelemetry() {};
+	~FEditorTelemetry() {};
 
-	static FStudioTelemetryEditor& Get();
-	void Initialize();
-	void Shutdown();
+	static FEditorTelemetry& Get();
+
+	void StartSession();
+	void EndSession();
 
 private:	
 
@@ -90,5 +95,4 @@ private:
 	uint32 AssetRegistryScanCount = 0;
 };
 
-#endif // WITH_EDITOR
 

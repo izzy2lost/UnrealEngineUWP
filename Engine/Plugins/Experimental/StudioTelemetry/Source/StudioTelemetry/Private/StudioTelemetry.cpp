@@ -4,7 +4,6 @@
 #include "StudioTelemetryLog.h"
 
 #if WITH_EDITOR
-#include "StudioTelemetryEditor.h"
 #include "Horde.h"
 #endif
 
@@ -35,7 +34,7 @@ FStudioTelemetry& FStudioTelemetry::Get()
 	return StudioTelemetryInstance;
 }
 
-void FStudioTelemetry::SetRecordEventCallback(OnRecordEvent Callback )
+void FStudioTelemetry::SetRecordEventCallback(OnRecordEventCallback Callback )
 {
 	RecordEventCallback = Callback;
 
@@ -50,25 +49,15 @@ void FStudioTelemetry::StartupModule()
 {
 	UE_LOG(LogStudioTelemetry, Display, TEXT("Starting StudioTelemetry Module"));
 
-	// Load the configureation
+	// Load the configuration
 	FStudioTelemetry::Get().LoadConfiguration();
 
 	// Create the provider and start the analytics session
 	FStudioTelemetry::Get().StartSession();
-
-#if WITH_EDITOR
-	// Initialize the analytics subsystems 
-	FStudioTelemetryEditor::Get().Initialize();
-#endif
 }
 
 void FStudioTelemetry::ShutdownModule()
 {
-#if WITH_EDITOR
-	// Shutdown the analytics subsystems
-	FStudioTelemetryEditor::Get().Shutdown();
-#endif
-
 	// End the session and destroy analytics provider
 	FStudioTelemetry::Get().EndSession();
 
@@ -77,6 +66,8 @@ void FStudioTelemetry::ShutdownModule()
 
 void FStudioTelemetry::EndSession()
 {
+	OnEndSession.Broadcast();
+
 	// End session for the tracer and the provider
 	if (AnalyticsTracer.IsValid())
 	{
@@ -97,7 +88,7 @@ void FStudioTelemetry::LoadConfiguration()
 {
 	const FString TelemetryConfigurationSection(TEXT("StudioTelemetry.Config"));
 
-	// Look for the configuration seetings in the Engine.ini files
+	// Look for the configuration settings in the Engine.ini files
 	TArray<FString> SectionNames;
 
 	if (GConfig->GetSectionNames(GEngineIni, SectionNames))
@@ -242,6 +233,8 @@ void FStudioTelemetry::StartSession()
 		// Bind the pre-exit callback
 		FCoreDelegates::OnEnginePreExit.AddRaw(&FStudioTelemetry::Get(), &FStudioTelemetry::EndSession);
 
+		OnStartSession.Broadcast();
+
 		UE_LOG(LogStudioTelemetry, Log, TEXT("Started StudioTelemetry Session"));
 	}
 }
@@ -253,6 +246,8 @@ void FStudioTelemetry::RecordEvent(const FString& EventName, const TArray<FAnaly
 		FScopeLock ScopeLock(&CriticalSection);
 		AnalyticsProvider->RecordEvent(EventName, Attributes);
 	}
+
+	OnRecordEvent.Broadcast(EventName, Attributes);
 }
 
 void FStudioTelemetry::RecordEvent(const FName CategoryName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
@@ -262,6 +257,8 @@ void FStudioTelemetry::RecordEvent(const FName CategoryName, const FString& Even
 		FScopeLock ScopeLock(&CriticalSection);
 		AnalyticsProvider->RecordEvent(EventName, Attributes);
 	}
+
+	OnRecordEvent.Broadcast(EventName, Attributes);
 }
 
 void FStudioTelemetry::RecordEventToProvider(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)

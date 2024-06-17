@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StudioTelemetryEditor.h"
-
-#if WITH_EDITOR
+#include "EditorTelemetry.h"
 
 #include "AnalyticsTracer.h"
 #include "AssetRegistry/AssetRegistryTelemetry.h"
@@ -74,13 +72,13 @@ FString AnalyticsOptionalToStringOrNull(const TOptional<T>& Opt)
 	return Opt.IsSet() ? AnalyticsConversionToString(Opt.GetValue()) : FString(TEXT("null"));
 }
 
-FStudioTelemetryEditor& FStudioTelemetryEditor::Get()
+FEditorTelemetry& FEditorTelemetry::Get()
 {
-	static FStudioTelemetryEditor StudioTelemetryEditorInstance = FStudioTelemetryEditor();
+	static FEditorTelemetry StudioTelemetryEditorInstance = FEditorTelemetry();
 	return StudioTelemetryEditorInstance;
 }
 
-void FStudioTelemetryEditor::RecordEvent_Cooking(TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_Cooking(TArray<FAnalyticsEventAttribute> Attributes)
 {
 #if ENABLE_COOK_STATS
 
@@ -153,7 +151,7 @@ void FStudioTelemetryEditor::RecordEvent_Cooking(TArray<FAnalyticsEventAttribute
 #endif
 }
 
-void FStudioTelemetryEditor::RecordEvent_Loading(const FString& LoadingName, double LoadingSeconds, TArray<FAnalyticsEventAttribute> Attributes )
+void FEditorTelemetry::RecordEvent_Loading(const FString& LoadingName, double LoadingSeconds, TArray<FAnalyticsEventAttribute> Attributes )
 {
 	const int SchemaVersion = 3;
 
@@ -201,7 +199,7 @@ void FStudioTelemetryEditor::RecordEvent_Loading(const FString& LoadingName, dou
 	FStudioTelemetry::Get().RecordEvent(TEXT("Core.Loading"), Attributes);
 }
 
-void FStudioTelemetryEditor::RecordEvent_DDCResource(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_DDCResource(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
 {
 #if ENABLE_COOK_STATS
 	// Gather the latest resource stats
@@ -247,7 +245,7 @@ void FStudioTelemetryEditor::RecordEvent_DDCResource(const FString& Context, TAr
 }
 
 
-void FStudioTelemetryEditor::RecordEvent_DDCSummary(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_DDCSummary(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
 {
 #if ENABLE_COOK_STATS
 	const int SchemaVersion = 3;
@@ -279,7 +277,7 @@ void FStudioTelemetryEditor::RecordEvent_DDCSummary(const FString& Context, TArr
 #endif			
 }
 
-void FStudioTelemetryEditor::RecordEvent_IAS(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_IAS(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
 {
 	// Gather the summary stats
 	FDerivedDataCacheSummaryStats SummaryStats;
@@ -300,7 +298,7 @@ void FStudioTelemetryEditor::RecordEvent_IAS(const FString& Context, TArray<FAna
 	}
 }
 
-void FStudioTelemetryEditor::RecordEvent_Zen(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_Zen(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
 {
 #if UE_WITH_ZEN
 	// Gather Zen analytics
@@ -317,7 +315,7 @@ void FStudioTelemetryEditor::RecordEvent_Zen(const FString& Context, TArray<FAna
 #endif
 }
 
-void FStudioTelemetryEditor::RecordEvent_VirtualAssets(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_VirtualAssets(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
 {
 	if (UE::Virtualization::IVirtualizationSystem::Get().IsEnabled())
 	{
@@ -333,16 +331,16 @@ void FStudioTelemetryEditor::RecordEvent_VirtualAssets(const FString& Context, T
 	}
 }
 
-void FStudioTelemetryEditor::RecordEvent_CoreSystems(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
+void FEditorTelemetry::RecordEvent_CoreSystems(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes)
 {
-	FStudioTelemetryEditor::RecordEvent_DDCResource(Context, Attributes);
-	FStudioTelemetryEditor::RecordEvent_DDCSummary(Context, Attributes);
-	FStudioTelemetryEditor::RecordEvent_IAS(Context, Attributes);
-	FStudioTelemetryEditor::RecordEvent_Zen(Context, Attributes);
-	FStudioTelemetryEditor::RecordEvent_VirtualAssets(Context, Attributes);
+	FEditorTelemetry::RecordEvent_DDCResource(Context, Attributes);
+	FEditorTelemetry::RecordEvent_DDCSummary(Context, Attributes);
+	FEditorTelemetry::RecordEvent_IAS(Context, Attributes);
+	FEditorTelemetry::RecordEvent_Zen(Context, Attributes);
+	FEditorTelemetry::RecordEvent_VirtualAssets(Context, Attributes);
 }
 
-void FStudioTelemetryEditor::RegisterCollectionWorkflowDelegates(FTelemetryRouter& Router)
+void FEditorTelemetry::RegisterCollectionWorkflowDelegates(FTelemetryRouter& Router)
 {
 	Router.OnTelemetry<FAssetAddedToCollectionTelemetryEvent>([](const FAssetAddedToCollectionTelemetryEvent& Event)
 	{
@@ -399,7 +397,7 @@ void FStudioTelemetryEditor::RegisterCollectionWorkflowDelegates(FTelemetryRoute
 
 extern ENGINE_API float GAverageFPS;
 
-void FStudioTelemetryEditor::HitchSamplerCallback()
+void FEditorTelemetry::HitchSamplerCallback()
 {
 	// Only sample framerate when we have focus
 	if (FApp::HasFocus())
@@ -410,7 +408,7 @@ void FStudioTelemetryEditor::HitchSamplerCallback()
 	}
 }
 	
-void FStudioTelemetryEditor::HeartbeatCallback()
+void FEditorTelemetry::HeartbeatCallback()
 {
 	if (HitchSampleCount>0)
 	{
@@ -455,8 +453,13 @@ void FStudioTelemetryEditor::HeartbeatCallback()
 	}
 }
 
-void FStudioTelemetryEditor::Initialize()
+void FEditorTelemetry::StartSession()
 {
+	if (FStudioTelemetry::Get().IsAvailable() == false)
+	{
+		return;
+	}
+
 	SessionStartTime = FPlatformTime::Seconds();
 
 	// Install Editor Mode callbacks
@@ -547,8 +550,8 @@ void FStudioTelemetryEditor::Initialize()
 
 				FStudioTelemetry::Get().EndSpan(EditorLoadMapSpan);
 				
-				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("LoadMap"), EditorLoadMapSpan->GetDuration(), EditorLoadMapSpan->GetAttributes());
-				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
+				FEditorTelemetry::RecordEvent_Loading(TEXT("LoadMap"), EditorLoadMapSpan->GetDuration(), EditorLoadMapSpan->GetAttributes());
+				FEditorTelemetry::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
 
 				EditorLoadMapSpan.Reset();
 			}	
@@ -618,8 +621,8 @@ void FStudioTelemetryEditor::Initialize()
 			FStudioTelemetry::Get().EndSpan(EditorBootSpan);
 
 			// Callback is received when the editor has booted but has not been initialized
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("BootEditor"), EditorBootSpan->GetDuration(), EditorBootSpan->GetAttributes());
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("BootEditor"), EditorBootSpan->GetAttributes());
+			FEditorTelemetry::RecordEvent_Loading(TEXT("BootEditor"), EditorBootSpan->GetDuration(), EditorBootSpan->GetAttributes());
+			FEditorTelemetry::RecordEvent_CoreSystems(TEXT("BootEditor"), EditorBootSpan->GetAttributes());
 
 			EditorInitilizeSpan = FStudioTelemetry::Get().StartSpan(EditorInitilizeSpanName, EditorSpan);
 		});
@@ -637,8 +640,8 @@ void FStudioTelemetryEditor::Initialize()
 			FStudioTelemetry::Get().EndSpan(EditorInitilizeSpan);
 			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName, EditorSpan);
 						
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TotalEditorStartup"), TimeToInitializeEditor, Attributes);
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TotalEditorStartup"), Attributes);
+			FEditorTelemetry::RecordEvent_Loading(TEXT("TotalEditorStartup"), TimeToInitializeEditor, Attributes);
+			FEditorTelemetry::RecordEvent_CoreSystems(TEXT("TotalEditorStartup"), Attributes);
 
 			ensureMsgf(GEditor, TEXT("GEditor was not valid"));
 
@@ -661,7 +664,7 @@ void FStudioTelemetryEditor::Initialize()
 							Attributes.Emplace(TEXT("AssetPath"), Asset->GetFullName());
 							Attributes.Emplace(TEXT("AssetClass"), Asset->GetClass()->GetName());
 
-							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("OpenAssetEditor"), FPlatformTime::Seconds() - AssetOpenStartTime, Attributes);
+							FEditorTelemetry::RecordEvent_Loading(TEXT("OpenAssetEditor"), FPlatformTime::Seconds() - AssetOpenStartTime, Attributes);
 						}
 
 						FStudioTelemetry::Get().EndSpan(OpenAssetEditorSpan, Attributes);			
@@ -669,14 +672,14 @@ void FStudioTelemetryEditor::Initialize()
 
 				// Setup a timer for a Heartbeat callback
 				FTimerDelegate HeartbeatDelegate;
-				HeartbeatDelegate.BindRaw(this, &FStudioTelemetryEditor::HeartbeatCallback);
+				HeartbeatDelegate.BindRaw(this, &FEditorTelemetry::HeartbeatCallback);
 				GEditor->GetTimerManager()->SetTimer(TelemetryHeartbeatTimerHandle, HeartbeatDelegate, HeartbeatIntervalSeconds, true);
 
 				// Setup the timer for the Hitch Detector callback
 				if (IsRunningCommandlet() == false)
 				{
 					FTimerDelegate HitchSamplerDelegate;
-					HitchSamplerDelegate.BindRaw(this, &FStudioTelemetryEditor::HitchSamplerCallback);
+					HitchSamplerDelegate.BindRaw(this, &FEditorTelemetry::HitchSamplerCallback);
 					GEditor->GetTimerManager()->SetTimer(TelemetryHitchSamplerTimerHandle, HitchSamplerDelegate, HitchSamplerIntervalSeconds, true);
 				}
 			}
@@ -690,8 +693,8 @@ void FStudioTelemetryEditor::Initialize()
 						TArray<FAnalyticsEventAttribute> Attributes;
 						Attributes.Emplace(TEXT("MapName"), EditorMapName);
 						
-						FStudioTelemetryEditor::RecordEvent_Cooking(Attributes);
-						FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("Cooking"), Attributes);
+						FEditorTelemetry::RecordEvent_Cooking(Attributes);
+						FEditorTelemetry::RecordEvent_CoreSystems(TEXT("Cooking"), Attributes);
 					});
 			}
 		});
@@ -747,8 +750,8 @@ void FStudioTelemetryEditor::Initialize()
 			
 			FStudioTelemetry::Get().EndSpan(PIELoadMapSpan);
 
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.LoadMapTime"), PIELoadMapSpan->GetDuration(), PIELoadMapSpan->GetAttributes());
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.LoadMapTime"), PIELoadMapSpan->GetAttributes());
+			FEditorTelemetry::RecordEvent_Loading(TEXT("PIE.LoadMapTime"), PIELoadMapSpan->GetDuration(), PIELoadMapSpan->GetAttributes());
+			FEditorTelemetry::RecordEvent_CoreSystems(TEXT("PIE.LoadMapTime"), PIELoadMapSpan->GetAttributes());
 		});
 
 	FWorldDelegates::OnPIEReady.AddLambda([this](UGameInstance* GameInstance)
@@ -769,8 +772,8 @@ void FStudioTelemetryEditor::Initialize()
 					FStudioTelemetry::Get().EndSpan(PIEStartupSpan);
 
 					// Record the time from start PIE to PIE
-					FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
-					FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetAttributes());
+					FEditorTelemetry::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
+					FEditorTelemetry::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetAttributes());
 
 					if (PIESessionCount == 0)
 					{
@@ -779,8 +782,8 @@ void FStudioTelemetryEditor::Initialize()
 						const double TimeToBootToPIE = TimeToBootEditor + TimeInEditor + TimeToStartPIE;
 
 						// Record the absolute time from editor boot to PIE
-						FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToBootToPIE, PIEStartupSpan->GetAttributes());
-						FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
+						FEditorTelemetry::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToBootToPIE, PIEStartupSpan->GetAttributes());
+						FEditorTelemetry::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
 					}
 				}
 
@@ -807,8 +810,8 @@ void FStudioTelemetryEditor::Initialize()
 				// PIE has shutdown, ie. the user has pressed the Stop PIE button, and we are going back to interactive Editor mode	
 				FStudioTelemetry::Get().EndSpan(PIESpan);
 
-				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.EndTime"), PIESpan->GetDuration(), PIESpan->GetAttributes());
-				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.EndTime"), PIESpan->GetAttributes());
+				FEditorTelemetry::RecordEvent_Loading(TEXT("PIE.EndTime"), PIESpan->GetDuration(), PIESpan->GetAttributes());
+				FEditorTelemetry::RecordEvent_CoreSystems(TEXT("PIE.EndTime"), PIESpan->GetAttributes());
 			}
 
 			PIESessionCount++;
@@ -846,8 +849,8 @@ void FStudioTelemetryEditor::Initialize()
 			return;
 		}
 
-		FStudioTelemetryEditor::RecordEvent_Cooking(CookingSpan->GetAttributes());
-		FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("Cooking"), CookingSpan->GetAttributes());
+		FEditorTelemetry::RecordEvent_Cooking(CookingSpan->GetAttributes());
+		FEditorTelemetry::RecordEvent_CoreSystems(TEXT("Cooking"), CookingSpan->GetAttributes());
 
 		FStudioTelemetry::Get().EndSpan(CookingSpan);
 	});
@@ -1036,11 +1039,9 @@ void FStudioTelemetryEditor::Initialize()
 	}
 }
 
-void FStudioTelemetryEditor::Shutdown()
+void FEditorTelemetry::EndSession()
 {
 	FStudioTelemetry::Get().EndSpan(EditorSpan);
 }
 
 UE_ENABLE_OPTIMIZATION_SHIP
-
-#endif // WITH_EDITOR
