@@ -285,7 +285,18 @@ const USmartObjectDefinition* USmartObjectComponent::GetBaseDefinition() const
 
 void USmartObjectComponent::SetDefinition(USmartObjectDefinition* Definition)
 {
+	if (IsBoundToSimulation())
+	{
+		UE_LOG(LogSmartObject, Warning,
+			TEXT("Changing Definition is not supported when the component is registered to the simulation."
+				" Call UnregisterSmartObject before, set the definition, then register again to update the runtime instance with the new definition."));
+		return;
+	}
+
 	DefinitionRef.SetSmartObjectDefinition(Definition);
+
+	// Reset cache so it will get updated next time GetDefinition() gets called.
+	CachedDefinitionAssetVariation = nullptr;
 }
 
 void USmartObjectComponent::SetRegisteredHandle(const FSmartObjectHandle Value, const ESmartObjectRegistrationType InRegistrationType)
