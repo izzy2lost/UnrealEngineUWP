@@ -512,13 +512,20 @@ namespace uba
 			outNextProcess.logFile = si.logFile;
 
 			#if UBA_DEBUG
-			StringBuffer<> temp;
-			if (IsAbsolutePath(si.application))
-				FixPath(si.application, nullptr, 0, temp);
-			else
-				SearchPathForFile(m_session.GetLogger(), temp, si.application, si.workingDir);
-			UBA_ASSERTF(Equals(currentStartInfo.application, temp.data), TC("%s vs %s"), currentStartInfo.application, temp.data);
+			auto PrepPath = [this](StringBufferBase& out, const ProcessStartInfo& psi)
+				{
+					if (IsAbsolutePath(psi.application))
+						FixPath(psi.application, nullptr, 0, out);
+					else
+						SearchPathForFile(m_session.GetLogger(), out, psi.application, psi.workingDir);
+				};
+			StringBuffer<> temp1;
+			StringBuffer<> temp2;
+			PrepPath(temp1, currentStartInfo);
+			PrepPath(temp2, si);
+			UBA_ASSERTF(temp1.Equals(temp2.data), TC("%s vs %s"), temp1.data, temp2.data);
 			#endif
+			
 			return true;
 		}
 	}

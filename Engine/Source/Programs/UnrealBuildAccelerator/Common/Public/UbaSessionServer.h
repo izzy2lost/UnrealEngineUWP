@@ -67,6 +67,9 @@ namespace uba
 
 		void OnDisconnected(const Guid& clientUid, u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
+		#define UBA_SESSION_MESSAGE(x) bool Handle##x(const ConnectionInfo& connectionInfo, BinaryReader& reader, BinaryWriter& writer);
+		UBA_SESSION_MESSAGES
+		#undef UBA_SESSION_MESSAGE
 
 		bool StoreCasFile(CasKey& out, const StringKey& fileNameKey, const tchar* fileName);
 		bool WriteDirectoryTable(ClientSession& session, BinaryReader& reader, BinaryWriter& writer);
@@ -90,6 +93,7 @@ namespace uba
 
 		void WriteRemoteEnvironmentVariables(BinaryWriter& writer);
 		bool InitializeNameToHashTable();
+
 
 		NetworkServer& m_server;
 		u32 m_uiLanguage;

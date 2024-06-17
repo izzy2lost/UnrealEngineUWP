@@ -328,11 +328,12 @@ namespace uba
 				DirectoryTable::EntryInformation info;
 				StringBuffer<> fileName(path);
 				fileName.Append(PathSeparator);
-				GetEntryInformation(info, fileKv.second, fileName.data + fileName.count, fileName.capacity - fileName.count);
+				u32 fileOffset = fileKv.second;
+				GetEntryInformation(info, fileOffset, fileName.data + fileName.count, fileName.capacity - fileName.count);
 				fileName.count = TStrlen(fileName.data);
 				if (CaseInsensitiveFs)
 					fileName.MakeLower();
-				func(info, fileName);
+				func(info, fileName, fileOffset);
 				TraverseFilesRecursiveNoLock(fileName, func);
 			}
 		}
@@ -350,6 +351,8 @@ namespace uba
 #endif
 
 		DirectoryTable(MemoryBlock* block) : m_memoryBlock(block), m_lookup(block) {}
+		DirectoryTable(const DirectoryTable&) = delete;
+		void operator=(const DirectoryTable&) = delete;
 
 		MemoryBlock* m_memoryBlock;
 		ReaderWriterLock m_lookupLock;

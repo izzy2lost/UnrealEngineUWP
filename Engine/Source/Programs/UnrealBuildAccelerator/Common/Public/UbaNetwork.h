@@ -15,7 +15,7 @@ namespace uba
 	
 	static constexpr u32 SystemNetworkVersion = 1339;
 	static constexpr u32 StorageNetworkVersion = 4;
-	static constexpr u32 SessionNetworkVersion = 33;
+	static constexpr u32 SessionNetworkVersion = 34;
 	static constexpr u32 CacheNetworkVersion = 4;
 
 	static constexpr u32 CachePathTableMaxSize = 32*1024*1024;
@@ -87,6 +87,7 @@ namespace uba
 		UBA_SESSION_MESSAGE(Summary) \
 		UBA_SESSION_MESSAGE(Command) \
 		UBA_SESSION_MESSAGE(SHGetKnownFolderPath) \
+		UBA_SESSION_MESSAGE(DebugFileNotFoundError) \
 
 	enum SessionMessageType : u8 
 	{

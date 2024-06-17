@@ -173,7 +173,6 @@ namespace uba
 			writer.WriteU32(processId);
 			writer.WriteString(fileName);
 			writer.WriteStringKey(fileNameKey);
-			writer.WriteBool(false);
 
 			StackBinaryReader<128> reader;
 			if (!msg.Send(reader, Stats().getFileMsg))
@@ -1988,7 +1987,8 @@ namespace uba
 	bool SessionClient::LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType)
 	{
 		// TODO: Remove this once we have figured out a bug that seems to exist for remote execution
-		#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
+
 		auto rules = process.m_startInfo.rules;
 		if (!rules)
 			return true;
@@ -2015,9 +2015,6 @@ namespace uba
 		if (!fileEnd)
 			return true;
 
-		StringBuffer<> searchString;
-		searchString.Append(fileBegin, fileEnd - fileBegin).Replace('/', PathSeparator);
-
 		MemoryBlock memoryBlock;
 		DirectoryTable dirTable(&memoryBlock);
 		{
@@ -2026,8 +2023,26 @@ namespace uba
 			dirTable.Init(m_directoryTable.m_memory, 0, m_directoryTable.m_memorySize);
 		}
 
+		StringBuffer<> errorPath;
+		errorPath.Append(fileBegin, fileEnd - fileBegin).Replace('/', PathSeparator);
+
+		{
+			StackBinaryWriter<1024> writer;
+			NetworkMessage msg(m_client, ServiceId, SessionMessageType_DebugFileNotFoundError, writer);
+			writer.WriteString(errorPath);
+			writer.WriteString(process.m_startInfo.workingDir);
+			msg.Send();
+		}
+
+		StringView searchString = errorPath;
+		if (searchString.data[0] == '.' && searchString.data[1] == '.')
+		{
+			searchString.data += 3;
+			searchString.count -= 3;
+		}
+
 		u32 foundCount = 0;
-		dirTable.TraverseAllFilesNoLock([&](const DirectoryTable::EntryInformation& info, const StringBufferBase& path)
+		dirTable.TraverseAllFilesNoLock([&](const DirectoryTable::EntryInformation& info, const StringBufferBase& path, u32 dirOffset)
 			{
 				if (!path.EndsWith(searchString.data))
 					return;
@@ -2038,7 +2053,7 @@ namespace uba
 
 				++foundCount;
 				StringBuffer<> logStr;
-				logStr.Appendf(TC("File %s found in directory table while searching for matches for %s (size %llu attr %u)"), path.data, searchString.data, info.size, info.attributes);
+				logStr.Appendf(TC("File %s found in directory table at offset %u of %u while searching for matches for %s (File size %llu attr %u)"), path.data, dirOffset, dirTable.m_memorySize, searchString.data, info.size, info.attributes);
 				process.LogLine(false, logStr.data, logType);
 
 				StringKey fileNameKey = ToStringKey(path);
@@ -2070,69 +2085,53 @@ namespace uba
 				CasKey key;
 				if (GetCasKeyForFile(key, process.m_id, path, fileNameKey))
 				{
-					if (key == CasKeyZero)
+					logStr.Clear().Appendf(TC("File %s caskey is %s."), path.data, CasKeyString(key).str);
+
+					StringBuffer<512> casKeyFile;
+					if (m_storage.GetCasFileName(casKeyFile, key))
 					{
-						StackBinaryWriter<1024> writer;
-						NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetFileFromServer, writer);
-						writer.WriteU32(0);
-						writer.WriteString(path.data);
-						writer.WriteStringKey(fileNameKey);
-						writer.WriteBool(true);
-
-						StackBinaryReader<128> reader;
-						if (!msg.Send(reader, Stats().getFileMsg))
-							return;
-
-						key = reader.ReadCasKey();
-						if (key == CasKeyZero)
+						logStr.Appendf(TC(" CasKeyFile: %s"), casKeyFile.data);
+						u64 size = 0;
+						u32 attributes = 0;
+						bool exists = FileExists(m_logger, casKeyFile.data, &size, &attributes);
+						logStr.Appendf(TC(" Exists: %s"), ToString(exists));
+						if (exists)
 						{
-							logStr.Clear().Appendf(TC("File %s has caskey zero. Server claims it does not exist!."), path.data);
-						}
-					}
-					if (key != CasKeyZero)
-					{
-						logStr.Clear().Appendf(TC("File %s caskey is %s."), path.data, CasKeyString(key).str);
+							logStr.Appendf(TC(" Size: %llu Attr: %u"), size, attributes);
 
-						StringBuffer<512> casKeyFile;
-						if (m_storage.GetCasFileName(casKeyFile, key))
-						{
-							logStr.Appendf(TC(" CasKeyFile: %s"), casKeyFile.data);
-							u64 size = 0;
-							u32 attributes = 0;
-							bool exists = FileExists(m_logger, casKeyFile.data, &size, &attributes);
-							logStr.Appendf(TC(" Exists: %s"), ToString(exists));
-							if (exists)
+							FileHandle fileHandle = uba::CreateFileW(casKeyFile.data, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, DefaultAttributes());
+							if (fileHandle == InvalidFileHandle)
 							{
-								logStr.Appendf(TC(" Size: %llu Attr: %u"), size, attributes);
-
-								FileHandle fileHandle = uba::CreateFileW(casKeyFile.data, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, DefaultAttributes());
-								if (fileHandle == InvalidFileHandle)
-								{
-									logStr.Appendf(TC(" Failed to open file %s (%s)"), casKeyFile.data, LastErrorToText().data);
-								}
-								else
-								{
-									logStr.Appendf(TC(" CreateFile for read successful"));
-									uba::CloseFile(casKeyFile.data, fileHandle);
-								}
+								logStr.Appendf(TC(" Failed to open file %s (%s)"), casKeyFile.data, LastErrorToText().data);
+							}
+							else
+							{
+								logStr.Appendf(TC(" CreateFile for read successful"));
+								uba::CloseFile(casKeyFile.data, fileHandle);
 							}
 						}
-						else
-							logStr.Appendf(TC(" Failed to get cas filename for cas key"));
 					}
+					else
+						logStr.Appendf(TC(" Failed to get cas filename for cas key"));
 				}
 				else
 					logStr.Clear().Appendf(TC("File %s caskey not found"), path.data);
 				process.LogLine(false, logStr.data, logType);
 			});
+
 		if (!foundCount)
 		{
 			StringBuffer<> logStr;
 			logStr.Appendf(TC("No matching entry found in directory table while searching for matches for %s. DirTable size: %u"), searchString.data, GetDirectoryTableSize());
 			process.LogLine(false, logStr.data, logType);
+			if (errorPath.StartsWith(TC("..\\Intermediate")))
+			{
+				auto workDir = process.m_startInfo.workingDir;
+				StringBuffer<> fullPath;
+				FixPath(errorPath.data, workDir, TStrlen(workDir), fullPath);
+			}
 		}
-
-		#endif
+#endif
 		return true;
 	}
 

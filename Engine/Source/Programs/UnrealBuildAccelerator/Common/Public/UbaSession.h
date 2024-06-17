@@ -157,7 +157,7 @@ namespace uba
 		float UpdateCpuLoad();
 
 		bool ExtractSymbolsFromObjectFile(const CloseFileMessage& msg, const tchar* fileName, u64 fileSize);
-
+		
 		void ThreadTraceLoop();
 		virtual void TraceSessionUpdate();
 

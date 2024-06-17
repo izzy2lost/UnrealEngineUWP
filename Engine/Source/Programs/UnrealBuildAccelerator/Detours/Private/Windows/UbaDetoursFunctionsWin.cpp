@@ -1040,6 +1040,7 @@ extern "C"
 
 		if (newProcess)
 		{
+			g_kernelStats = {};
 			g_stats = {};
 
 			#if UBA_DEBUG_LOG_ENABLED
