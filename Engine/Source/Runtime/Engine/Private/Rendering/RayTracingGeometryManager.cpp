@@ -255,6 +255,7 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryHandle(RayTracingGeome
 
 	RegisteredGeometries.RemoveAt(Handle);
 	ReferencedGeometryHandles.Remove(Handle);
+	PendingStreamingRequests.Remove(Handle);
 
 	DEC_DWORD_STAT(STAT_RayTracingGeometryCount);
 }
@@ -471,7 +472,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 				Geometry->MakeResident(RHICmdList);
 			}
 
-			RequestRayTracingGeometryStreamIn(RHICmdList, Geometry);
+			RequestRayTracingGeometryStreamIn(RHICmdList, Geometry->RayTracingGeometryHandle);
 		}
 
 		// 4th step
@@ -501,9 +502,9 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 					RegisteredGeometry.Geometry->MakeResident(RHICmdList);
 				}
 
-				if (!RequestRayTracingGeometryStreamIn(RHICmdList, RegisteredGeometry.Geometry))
+				if (!RequestRayTracingGeometryStreamIn(RHICmdList, RegisteredGeometry.Geometry->RayTracingGeometryHandle))
 				{
-					PendingStreamingRequests.Add(RegisteredGeometry.Geometry);
+					PendingStreamingRequests.Add(RegisteredGeometry.Geometry->RayTracingGeometryHandle);
 				}
 			}
 		}
@@ -517,15 +518,15 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 			}
 #endif
 			
-			TArray<FRayTracingGeometry*> CurrentPendingStreamingRequests;
+			TSet<RayTracingGeometryHandle> CurrentPendingStreamingRequests;
 			Swap(CurrentPendingStreamingRequests, PendingStreamingRequests);
 			PendingStreamingRequests.Reserve(CurrentPendingStreamingRequests.Num());
 
-			for (FRayTracingGeometry* Geometry : CurrentPendingStreamingRequests)
+			for (RayTracingGeometryHandle GeometryHandle : CurrentPendingStreamingRequests)
 			{
-				if (!RequestRayTracingGeometryStreamIn(RHICmdList, Geometry))
+				if (!RequestRayTracingGeometryStreamIn(RHICmdList, GeometryHandle))
 				{
-					PendingStreamingRequests.Add(Geometry);
+					PendingStreamingRequests.Add(GeometryHandle);
 				}
 			}
 		}
@@ -539,11 +540,12 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 	SET_MEMORY_STAT(STAT_RayTracingGeometryResidentMemory, TotalResidentSize);
 }
 
-bool FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandList& RHICmdList, FRayTracingGeometry* Geometry)
+bool FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandList& RHICmdList, RayTracingGeometryHandle GeometryHandle)
 {
-	FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[Geometry->RayTracingGeometryHandle];
+	FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[GeometryHandle];
+	FRayTracingGeometry* Geometry = RegisteredGeometry.Geometry;
 
-	if (RegisteredGeometry.Geometry->Initializer.Type != ERayTracingGeometryInitializerType::StreamingDestination
+	if (Geometry->Initializer.Type != ERayTracingGeometryInitializerType::StreamingDestination
 		|| RegisteredGeometry.Status == FRegisteredGeometry::FStatus::Streaming)
 	{
 		// no streaming required or streaming request already in-flight
