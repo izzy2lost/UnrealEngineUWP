@@ -140,7 +140,9 @@ public:
 	bool IsAutoLevel() const { return LevelsExpressionType == ELevelsExpressionType::AutoLowHigh; }
 };
 
-
+/////////////////////////////////////////////////////////////////
+/// Histogram scan
+/////////////////////////////////////////////////////////////////
 UCLASS()
 class TEXTUREGRAPH_API UTG_Expression_HistogramScan : public UTG_Expression
 {
@@ -172,3 +174,80 @@ public:
 	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Lets you drive the contrast and position of the histogram. Input must be a grayscale image.")); } 
 
 };
+
+/////////////////////////////////////////////////////////////////
+/// Histogram range
+/////////////////////////////////////////////////////////////////
+UCLASS()
+class TEXTUREGRAPH_API UTG_Expression_HistogramRange : public UTG_Expression
+{
+	GENERATED_BODY()
+
+	TSharedPtr<FLevels> 				LevelsControl;
+
+public:
+
+	TG_DECLARE_EXPRESSION(TG_Category::Adjustment);
+	virtual void						Evaluate(FTG_EvaluationContext* InContext) override;
+
+	// The input image to adjust the levels for
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", PinDisplayName = "", MD_HistogramLuminance))
+	FTG_Texture							Input;
+
+	// Drives the range of the levels out
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Range = 1.0f; 
+
+
+	// Drives the position of the histogram of the input image
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Position = 0.5f;
+
+	// The output image filtered result of the Levels operator 
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
+	FTG_Texture							Output;
+
+	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Reduce and/or move the range of a grayscale input. Can be used to remap grayscale images.")); } 
+
+};
+
+/////////////////////////////////////////////////////////////////
+/// Histogram select
+/////////////////////////////////////////////////////////////////
+#if 0 /// TODO
+UCLASS()
+class TEXTUREGRAPH_API UTG_Expression_HistogramSelect : public UTG_Expression
+{
+	GENERATED_BODY()
+
+	TSharedPtr<FLevels> 				LevelsControl;
+
+public:
+
+	TG_DECLARE_EXPRESSION(TG_Category::Adjustment);
+	virtual void						Evaluate(FTG_EvaluationContext* InContext) override;
+
+	// The input image to adjust the levels for
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", PinDisplayName = "", MD_HistogramLuminance))
+	FTG_Texture							Input;
+
+	// Drives the position of the histogram of the input image
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Position = 0.5f;
+
+	// Drives the range of the levels out
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Range = 1.0f; 
+
+	// Drives the contrast of the histogram of the input image
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Contrast = 0.5f; 
+
+	// The output image filtered result of the Levels operator 
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
+	FTG_Texture							Output;
+
+	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Reduce and/or move the range of a grayscale input. Can be used to remap grayscale images.")); } 
+
+};
+#endif 

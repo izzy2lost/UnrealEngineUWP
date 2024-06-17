@@ -46,8 +46,7 @@ float LevelsControlInputCurve(float Value, float LowInput, float HighInput, floa
 	MidRanged = max(0.001, min(0.9999, MidRanged));
 
 	float InvGammaValue = log(MidRanged) / log(0.5);
-	float NewValue = pow(ValueRanged, InvGammaValue);
-
+	
 #if OUT_LEVELS
 	float4 HistoMin			= Histogram.Load(int3(2, 1, 0));
 	float4 HistoMax			= Histogram.Load(int3(3, 1, 0));
@@ -57,10 +56,12 @@ float LevelsControlInputCurve(float Value, float LowInput, float HighInput, floa
 	
 	float InputRange = clamp(HighInput - LowInput, 0, 1);
 	
-	NewValue = OutLow + ((NewValue - LowInput) / InputRange) * OutputRange;
+	ValueRanged = OutLow + ((ValueRanged - LowInput) / InputRange) * OutputRange;
 #endif /// OUT_LEVELS
 
-	return NewValue;
+
+
+	return pow(ValueRanged, InvGammaValue);
 }
 
 float4 FSH_Levels(float2 uv : TEXCOORD0) : SV_Target0

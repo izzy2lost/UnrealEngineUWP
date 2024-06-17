@@ -239,6 +239,9 @@ void UTG_Expression_Levels::Evaluate(FTG_EvaluationContext* InContext)
 	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
 }
 
+/////////////////////////////////////////////////////////////////
+/// Histogram scan
+/////////////////////////////////////////////////////////////////
 void UTG_Expression_HistogramScan::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
@@ -267,3 +270,47 @@ void UTG_Expression_HistogramScan::Evaluate(FTG_EvaluationContext* InContext)
 	BufferDescriptor Desc = Output.GetBufferDescriptor();
 	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
 }
+
+/////////////////////////////////////////////////////////////////
+/// Histogram range
+/////////////////////////////////////////////////////////////////
+void UTG_Expression_HistogramRange::Evaluate(FTG_EvaluationContext* InContext)
+{
+	Super::Evaluate(InContext);
+
+	if (!Input) // No Input, black Output
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+
+	LevelsControl = MakeShared<FLevels>();
+	LevelsControl->InitFromRange(Range, Position);
+
+	BufferDescriptor Desc = Output.GetBufferDescriptor();
+	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
+}
+
+/////////////////////////////////////////////////////////////////
+/// Histogram select
+/////////////////////////////////////////////////////////////////
+#if 0 /// TODO
+void UTG_Expression_HistogramSelect::Evaluate(FTG_EvaluationContext* InContext)
+{
+	Super::Evaluate(InContext);
+
+	if (!Input) // No Input, black Output
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+
+	LevelsControl = MakeShared<FLevels>();
+	LevelsControl->InitFromPositionContrast(Position, Contrast);
+	LevelsControl->InitFromRange(Range, Position);
+
+	BufferDescriptor Desc = Output.GetBufferDescriptor();
+	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
+}
+
+#endif 

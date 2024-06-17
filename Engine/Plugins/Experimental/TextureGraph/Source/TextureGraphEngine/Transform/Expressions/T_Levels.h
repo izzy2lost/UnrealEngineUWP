@@ -88,6 +88,7 @@ struct TEXTUREGRAPHENGINE_API FLevels
 	void InitFromLowMidHigh(float LowValue, float MidValue, float HighValue, float OutLow, float OutHigh);
 	void InitFromAutoLevels(float MidPercentage);
 	void InitFromPositionContrast(float MidValue, float Contrast);
+	void InitFromRange(float InRange, float InPosition);
 
 	FLevelsHistogramData HistogramData;
 };

@@ -112,8 +112,19 @@ void FLevels::InitFromPositionContrast(float InPosition, float InContrast)
 	IsAutoLevels = false;
 }
 
+void FLevels::InitFromRange(float InRange_, float InPosition_)
+{
+	float InRange = FMath::Clamp(1.0f - InRange_, 0.0f, 1.0f) * 0.5f;
+	float InPosition = FMath::Clamp(1.0f - InPosition_, 0.0f, 1.0f) * 0.5f;
+	float C = InRange; /// *0.5f;
+	float P = 1.0f - FMath::Clamp(InPosition, 0, 1);
+	float P1 = (FMath::Max(P, 0.5f) - 0.5f) * 2.0f;
+	float P2 = FMath::Min(P * 2.0f, 1.0f);
+	OutLow = FMath::Lerp(P1, P2, C);
+	OutHigh = FMath::Lerp(P2, P1, C);
 
-
+	IsAutoLevels = false;
+}
 
 class TEXTUREGRAPHENGINE_API RenderMaterial_FX_Levels : public RenderMaterial_FX
 {
