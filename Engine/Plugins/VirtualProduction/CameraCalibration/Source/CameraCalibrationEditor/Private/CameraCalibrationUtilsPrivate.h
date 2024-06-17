@@ -2,6 +2,7 @@
 #pragma once
 
 #include "OpenCVHelper.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 #include "CameraCalibrationUtilsPrivate.generated.h"
 
@@ -48,7 +49,7 @@ namespace UE::CameraCalibration::Private
 	void FindActorsWithCalibrationComponents(TArray<AActor*>& ActorsWithCalibrationComponents);
 
 	/** Find an aruco marker calibration point in one of the input calibration components that matches the input dictionary and marker ID */
-	bool FindArucoCalibrationPoint(const TArray<UCalibrationPointComponent*>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint);
+	bool FindArucoCalibrationPoint(const TArray<TWeakObjectPtr<UCalibrationPointComponent>>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint);
 
 	/** Set every pixel in the input texture to the clear color */
 	void ClearTexture(UTexture2D* Texture, FColor ClearColor = FColor::Transparent);
