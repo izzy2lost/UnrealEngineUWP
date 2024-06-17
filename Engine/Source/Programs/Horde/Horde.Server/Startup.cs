@@ -1037,6 +1037,16 @@ namespace Horde.Server
 			LogValueFormatter.RegisterTypeAnnotation<UserId>("UserId");
 		}
 
+		public static JsonSerializerOptions JsonSerializerOptions { get; } = CreateJsonSerializerOptions();
+
+		static JsonSerializerOptions CreateJsonSerializerOptions()
+		{
+			JsonSerializerOptions options = new JsonSerializerOptions();
+			ConfigureJsonSerializer(options);
+			options.MakeReadOnly(true);
+			return options;
+		}
+
 		public static void ConfigureJsonSerializer(JsonSerializerOptions options)
 		{
 			HordeHttpClient.ConfigureJsonSerializer(options);

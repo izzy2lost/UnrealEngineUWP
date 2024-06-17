@@ -12,9 +12,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Users;
 using EpicGames.Redis;
-using Horde.Server.Projects;
 using Horde.Server.Server;
-using Horde.Server.Streams;
 using Horde.Server.Users;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
@@ -731,16 +729,6 @@ namespace Horde.Server.Configuration
 			// Build the new config and store the project and stream configs inside it
 			GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(snapshot.Data, _jsonOptions)!;
 			globalConfig.Revision = IoHash.Compute(data.Span).ToString();
-
-			// Compute hashes for all the stream objects
-			foreach (ProjectConfig projectConfig in globalConfig.Projects)
-			{
-				foreach (StreamConfig streamConfig in projectConfig.Streams)
-				{
-					byte[] streamData = JsonSerializer.SerializeToUtf8Bytes(streamConfig, _jsonOptions);
-					streamConfig.Revision = IoHash.Compute(streamData).ToString();
-				}
-			}
 
 			// Run the postload callbacks on all the config objects
 			globalConfig.PostLoad(_serverSettings);
