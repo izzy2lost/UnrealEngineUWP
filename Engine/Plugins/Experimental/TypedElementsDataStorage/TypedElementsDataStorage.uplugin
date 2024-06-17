@@ -26,6 +26,10 @@
 		{
 			"Name": "TypedElementsDataStorageRevisionControl",
 			"Type": "Editor"
+		},
+		{
+			"Name": "TypedElementsDataStorageAssetData",
+			"Type":  "Editor"
 		}
 	],
 	"Plugins": [
