@@ -25,6 +25,8 @@ UInputComponent::UInputComponent( const FObjectInitializer& ObjectInitializer )
 
 void UInputComponent::ConditionalBuildKeyMap(UPlayerInput* PlayerInput)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInputComponent::ConditionalBuildKeyMap);
+	
 	if (!ensure(PlayerInput))
 	{
 		return;
@@ -94,6 +96,8 @@ void UInputComponent::ConditionalBuildKeyMap(UPlayerInput* PlayerInput)
 
 void UInputComponent::OnInputOwnerEndPlayed(AActor* InOwner, EEndPlayReason::Type EndPlayReason)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInputComponent::OnInputOwnerEndPlayed);
+	
 	for (int32 Index = CachedKeyToActionInfo.Num() - 1; Index >= 0; --Index)
 	{
 		FCachedKeyToActionInfo& CachedInfo = CachedKeyToActionInfo[Index];
@@ -107,6 +111,8 @@ void UInputComponent::OnInputOwnerEndPlayed(AActor* InOwner, EEndPlayReason::Typ
 
 void UInputComponent::ClearBindingsForObject(UObject* InOwner)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInputComponent::ClearBindingsForObject);
+	
 	for (int32 Index = CachedKeyToActionInfo.Num() - 1; Index >= 0; --Index)
 	{
 		FCachedKeyToActionInfo& CachedInfo = CachedKeyToActionInfo[Index];
