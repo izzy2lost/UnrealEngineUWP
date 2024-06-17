@@ -122,18 +122,18 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, PublicGroupAPI)
 		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(FoundGroupHandle));
 	}
 
-	// Destroy/Create: Does not pass at the moment
-	/*{
+	// Destroy/Create
+	{
 		// Create a group
-		FNetObjectGroupHandle ReusedGroupHandle = ReplicationSystem->CreateGroup(NAME_None);
-		UE_NET_ASSERT_TRUE(ReusedGroupHandle.IsValid());
-		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(ReusedGroupHandle));
+		FNetObjectGroupHandle DestroyedGroupHandle = ReplicationSystem->CreateGroup(NAME_None);
+		UE_NET_ASSERT_TRUE(DestroyedGroupHandle.IsValid());
+		UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(DestroyedGroupHandle));
 
 		// Destroy the group
-		ReplicationSystem->DestroyGroup(ReusedGroupHandle);
+		ReplicationSystem->DestroyGroup(DestroyedGroupHandle);
 
 		// Should be invalid
-		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(ReusedGroupHandle));
+		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(DestroyedGroupHandle));
 
 		{
 			// Create a new random group
@@ -141,10 +141,9 @@ UE_NET_TEST_FIXTURE(FTestGroupsFixture, PublicGroupAPI)
 			UE_NET_ASSERT_TRUE(ReplicationSystem->IsValidGroup(RandomGroupHandle));
 		}
 
-		// Problem: The destroyed group should still be invalid but the old handle index is now assigned to the new group.
-		// This means the old handle now points to the new group and is considered valid.
-		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(ReusedGroupHandle));
-	}*/
+		// The destroyed group should still be invalid
+		UE_NET_ASSERT_FALSE(ReplicationSystem->IsValidGroup(DestroyedGroupHandle));
+	}
 
 	// Add/Remove
 	{

@@ -555,41 +555,39 @@ void FReplicationConditionals::GetChildSubObjectsToReplicate(uint32 ReplicatingC
 				const ELifetimeCondition LifeTimeCondition = (ELifetimeCondition)SubObjectsInfo.SubObjectLifeTimeConditions[ArrayIndex];
 				if (LifeTimeCondition == COND_NetGroup)
 				{
-					uint32 GroupCount = 0U;
-					if (const FNetObjectGroupHandle* GroupMemberships = NetObjectGroups->GetGroupMemberships(SubObjectIndex, GroupCount))
+					bool bShouldReplicateSubObject = false;
+					//TArray<FNetObjectGroupHandle> GroupsMemberOf;
+					//NetObjectGroups->GetGroupHandlesOfNetObject(SubObjectIndex, GroupsMemberOf);
+					// 
+					 const TArrayView<const FNetObjectGroupHandle::FGroupIndexType> GroupIndexes = NetObjectGroups->GetGroupIndexesOfNetObject(SubObjectIndex);
+					for (const FNetObjectGroupHandle::FGroupIndexType GroupIndex : GroupIndexes)
 					{
-						bool bShouldReplicateSubObject = false;
-						for (uint32 GroupIt = 0U; GroupIt < GroupCount; ++GroupIt)
-						{
-							const FNetObjectGroupHandle NetGroup = GroupMemberships[GroupIt];
-							if (NetGroup.IsNetGroupOwnerNetObjectGroup())
-							{
-								bShouldReplicateSubObject = LifetimeConditionals.IsConditionEnabled(COND_OwnerOnly);
-							}
-							else if (NetGroup.IsNetGroupReplayNetObjectGroup())
-							{
-								bShouldReplicateSubObject = LifetimeConditionals.IsConditionEnabled(COND_ReplayOnly);
-							}
-							else
-							{
-								ENetFilterStatus ReplicationStatus = ENetFilterStatus::Disallow;
-								ensureAlwaysMsgf(ReplicationFiltering->GetSubObjectFilterStatus(NetGroup, ReplicatingConnectionId, ReplicationStatus), TEXT("FReplicationConditionals::GetChildSubObjectsToReplicat Trying to filter with group %u that is not a SubObjectFilterGroup"), NetGroup.GetGroupIndex());
-								bShouldReplicateSubObject = ReplicationStatus != ENetFilterStatus::Disallow;
-							}
-						
-							if (bShouldReplicateSubObject)
-							{
-								GetChildSubObjectsToReplicate(ReplicatingConnectionId, LifetimeConditionals, SubObjectIndex, OutSubObjectsToReplicate);
-								OutSubObjectsToReplicate.Add(SubObjectIndex);
-								break;
-							}
-						}
+						const FNetObjectGroupHandle NetGroup = NetObjectGroups->GetHandleFromIndex(GroupIndex);
 
-						if (!bShouldReplicateSubObject)
+						if (NetGroup.IsNetGroupOwnerNetObjectGroup())
 						{
-							UE_LOG(LogIrisConditionals, VeryVerbose, TEXT("%s Filtered out by COND_NetGroup"), *NetRefHandleManager->PrintObjectFromIndex(SubObjectIndex));
+							bShouldReplicateSubObject = LifetimeConditionals.IsConditionEnabled(COND_OwnerOnly);
+						}
+						else if (NetGroup.IsNetGroupReplayNetObjectGroup())
+						{
+							bShouldReplicateSubObject = LifetimeConditionals.IsConditionEnabled(COND_ReplayOnly);
+						}
+						else
+						{
+							ENetFilterStatus ReplicationStatus = ENetFilterStatus::Disallow;
+							ensureMsgf(ReplicationFiltering->GetSubObjectFilterStatus(NetGroup, ReplicatingConnectionId, ReplicationStatus), TEXT("FReplicationConditionals::GetChildSubObjectsToReplicat Trying to filter with group %u that is not a SubObjectFilterGroup"), NetGroup.GetGroupIndex());
+							bShouldReplicateSubObject = ReplicationStatus != ENetFilterStatus::Disallow;
+						}
+						
+						if (bShouldReplicateSubObject)
+						{
+							GetChildSubObjectsToReplicate(ReplicatingConnectionId, LifetimeConditionals, SubObjectIndex, OutSubObjectsToReplicate);
+							OutSubObjectsToReplicate.Add(SubObjectIndex);
+							break;
 						}
 					}
+
+					UE_CLOG(!bShouldReplicateSubObject, LogIrisConditionals, VeryVerbose, TEXT("%s Filtered out by COND_NetGroup"), *NetRefHandleManager->PrintObjectFromIndex(SubObjectIndex));
 				}
 				else if (LifetimeConditionals.IsConditionEnabled(LifeTimeCondition))
 				{

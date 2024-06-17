@@ -1426,15 +1426,14 @@ void UReplicationSystem::RemoveFromAllGroups(FNetRefHandle Handle)
 		return;
 	}
 
-	if (const FNetObjectGroupHandle* GroupHandles = Groups.GetGroupMemberships(ObjectInternalIndex, NumGroupMemberShips))
+	// We copy the membership array as it is modified during removal
+	TArray<FNetObjectGroupHandle> CopiedGroupHandles;
+	Groups.GetGroupHandlesOfNetObject(ObjectInternalIndex, CopiedGroupHandles);
+
+	for (FNetObjectGroupHandle GroupHandle : CopiedGroupHandles)
 	{
-		// We copy the membership array as it is modified during removal
-		TArray<FNetObjectGroupHandle> CopiedGroupHandles(MakeArrayView(GroupHandles, NumGroupMemberShips));
-		for (FNetObjectGroupHandle GroupHandle : MakeArrayView(CopiedGroupHandles.GetData(), CopiedGroupHandles.Num()))
-		{
-			Groups.RemoveFromGroup(GroupHandle, ObjectInternalIndex);
-			Filtering.NotifyObjectRemovedFromGroup(GroupHandle, ObjectInternalIndex);
-		}
+		Groups.RemoveFromGroup(GroupHandle, ObjectInternalIndex);
+		Filtering.NotifyObjectRemovedFromGroup(GroupHandle, ObjectInternalIndex);
 	}	
 }
 

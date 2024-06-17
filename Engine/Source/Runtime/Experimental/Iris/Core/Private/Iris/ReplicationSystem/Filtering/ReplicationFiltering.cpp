@@ -733,7 +733,7 @@ void FReplicationFiltering::InitNewConnections()
 				if (GetConnectionFilterStatus(*ConnectionState, ConnectionId) == ENetFilterStatus::Disallow)
 				{
 					// Apply filter
-					const FNetObjectGroup* Group = this->Groups->GetGroupByIndex(GroupIndex);
+					const FNetObjectGroup* Group = this->Groups->GetGroupFromIndex(GroupIndex);
 					FNetBitArray& GroupExcludedObjects = ConnectionInfo.GroupExcludedObjects;
 					for (const FInternalNetRefIndex ObjectIndex : Group->Members)
 					{
@@ -765,7 +765,7 @@ void FReplicationFiltering::InitNewConnections()
 					const FNetBitArrayView SubObjectInternalIndices = NetRefHandleManager->GetSubObjectInternalIndicesView();
 
 					// Apply filter
-					const FNetObjectGroup* Group = this->Groups->GetGroupByIndex(GroupIndex);
+					const FNetObjectGroup* Group = this->Groups->GetGroupFromIndex(GroupIndex);
 					FNetBitArray& GroupIncludedObjects = ConnectionInfo.GroupIncludedObjects;
 					for (const FInternalNetRefIndex ObjectIndex : Group->Members)
 					{
@@ -994,11 +994,9 @@ void FReplicationFiltering::UpdateObjectsInScope()
 					PrevParentIndex = ParentIndex;
 
 					// If parent is a member of a group filter we need to refresh group filtering to include subobject
-					uint32 GroupMembershipCount = 0U;
-					const FNetObjectGroupHandle* GroupHandles = Groups->GetGroupMemberships(ParentIndex, GroupMembershipCount);
-					for (const FNetObjectGroupHandle GroupHandle : MakeArrayView(GroupHandles, GroupMembershipCount))
+					const TArrayView<const FNetObjectGroupHandle::FGroupIndexType> GroupIndexes = Groups->GetGroupIndexesOfNetObject(ParentIndex);
+					for (const FNetObjectGroupHandle::FGroupIndexType GroupIndex : GroupIndexes)
 					{
-						const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 						if (ExclusionFilterGroups.GetBit(GroupIndex))
 						{
 							DirtyExclusionFilterGroups.SetBit(GroupIndex);
@@ -1207,7 +1205,7 @@ void FReplicationFiltering::UpdateGroupExclusionFiltering()
 		IRIS_PROFILER_SCOPE(FReplicationFiltering_UpdateGroupExclusionFiltering);
 
 		const FPerObjectInfo* ConnectionStateInfo = GetPerObjectInfo(this->GroupInfos[GroupIndex].ConnectionStateIndex);
-		const FNetObjectGroup* Group = this->Groups->GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType(GroupIndex));
+		const FNetObjectGroup* Group = this->Groups->GetGroupFromIndex(FNetObjectGroupHandle::FGroupIndexType(GroupIndex));
 
 		const FNetBitArrayView CurrentFrameScopableObjects = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 
@@ -1256,7 +1254,7 @@ void FReplicationFiltering::UpdateGroupInclusionFiltering()
 		IRIS_PROFILER_SCOPE(FReplicationFiltering_UpdateGroupInclusionFiltering);
 
 		const FPerObjectInfo* ConnectionStateInfo = GetPerObjectInfo(this->GroupInfos[GroupIndex].ConnectionStateIndex);
-		const FNetObjectGroup* Group = this->Groups->GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType(GroupIndex));
+		const FNetObjectGroup* Group = this->Groups->GetGroupFromIndex(FNetObjectGroupHandle::FGroupIndexType(GroupIndex));
 
 		const FNetBitArrayView CurrentFrameScopableObjects = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 		const FNetBitArrayView SubObjectInternalIndices = NetRefHandleManager->GetSubObjectInternalIndicesView();
@@ -1849,15 +1847,16 @@ const FReplicationFiltering::FPerObjectInfo* FReplicationFiltering::GetPerObject
 
 void FReplicationFiltering::AddSubObjectFilter(FNetObjectGroupHandle GroupHandle)
 {
-	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
-	const bool bIsValidGroup = ensureMsgf(Groups->IsValidGroup(GroupHandle), TEXT("AddGroupFilter received an invalid group handle GroupIndex: %u"), GroupIndex);
+	const bool bIsValidGroup = ensureMsgf(Groups->IsValidGroup(GroupHandle), TEXT("AddSubObjectFilter received invalid group Index: %u Id: %u"), GroupHandle.GetGroupIndex(), GroupHandle.GetUniqueId());
 	if (!bIsValidGroup)
 	{
 		return;
 	}
 
+	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
+
 	const bool bIsFiltering = Groups->IsFilterGroup(GroupHandle) || SubObjectFilterGroups.GetBit(GroupIndex);
-	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start subobject filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
+	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name: %s Index: %u Id: %u was asked to start subobject filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex, GroupHandle.GetUniqueId());
 	if (bIsFiltering)
 	{
 		return;
@@ -1894,12 +1893,12 @@ void FReplicationFiltering::UpdateSubObjectFilters()
 	// We want to remove all groups that have no members and no enabled connections
 	auto UpdateSubObjectFilterGroup = [this](uint32 GroupIndex)
 	{
-		FNetObjectGroupHandle GroupHandle = Groups->MakeNetObjectGroupHandle(static_cast<FNetObjectGroupHandle::FGroupIndexType>(GroupIndex));
-		if (const FNetObjectGroup* Group = Groups->GetGroup(GroupHandle))
+		if (const FNetObjectGroup* Group = Groups->GetGroupFromIndex((FNetObjectGroupHandle::FGroupIndexType)GroupIndex))
 		{
 			if (Group->Members.IsEmpty() && !IsAnyConnectionFilterStatusAllowed(*GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex)))
 			{
-				ReplicationSystem->DestroyGroup(GroupHandle);
+				UE_LOG(LogIrisFiltering, Verbose, TEXT("UpdateSubObjectFilters is destroying group %s since its empty"), *Group->GroupName.ToString());
+				ReplicationSystem->DestroyGroup(Groups->GetHandleFromGroup(Group));
 			}
 		}
 	};
@@ -2008,15 +2007,16 @@ bool FReplicationFiltering::GetSubObjectFilterStatus(FNetObjectGroupHandle Group
 
 bool FReplicationFiltering::AddExclusionFilterGroup(FNetObjectGroupHandle GroupHandle)
 {
-	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
-	const bool bIsValidGroup = ensureMsgf(Groups->IsValidGroup(GroupHandle), TEXT("AddExclusionFilterGroup received an invalid group handle GroupIndex: %u"), GroupIndex);
+	const bool bIsValidGroup = ensureMsgf(Groups->IsValidGroup(GroupHandle), TEXT("AddExclusionFilterGroup received an invalid group: Index: %u Id: %u"), GroupHandle.GetGroupIndex(), GroupHandle.GetUniqueId());
 	if (!bIsValidGroup)
 	{
 		return false;
 	}
 
+	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
+
 	const bool bIsFiltering = Groups->IsFilterGroup(GroupHandle) || SubObjectFilterGroups.GetBit(GroupIndex);
-	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start exclusion filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
+	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name: %s Index: %u Id: %u was asked to start exclusion filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex, GroupHandle.GetUniqueId());
 	if (bIsFiltering)
 	{
 		return false;
@@ -2038,15 +2038,16 @@ bool FReplicationFiltering::AddExclusionFilterGroup(FNetObjectGroupHandle GroupH
 
 bool FReplicationFiltering::AddInclusionFilterGroup(FNetObjectGroupHandle GroupHandle)
 {
-	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
-	const bool bIsValidGroup = ensureMsgf(Groups->IsValidGroup(GroupHandle), TEXT("AddInclusionFilterGroup received an invalid group handle GroupIndex: %u"), GroupIndex);
+	const bool bIsValidGroup = ensureMsgf(Groups->IsValidGroup(GroupHandle), TEXT("AddInclusionFilterGroup received an invalid group: Index: %u Id: %u"), GroupHandle.GetGroupIndex(), GroupHandle.GetUniqueId());
 	if (!bIsValidGroup)
 	{
 		return false;
 	}
 
+	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
+
 	const bool bIsFiltering = Groups->IsFilterGroup(GroupHandle) || SubObjectFilterGroups.GetBit(GroupIndex);
-	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name '%s' GroupIndex %u was asked to start exclusion filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex);
+	ensureMsgf(!bIsFiltering, TEXT("NetObjectGroup Name: %s Index: %u Id: %u was asked to start exclusion filtering but it was already used for filtering."), *Groups->GetGroupNameString(GroupHandle), GroupIndex, GroupHandle.GetUniqueId());
 	if (bIsFiltering)
 	{
 		return false;
@@ -2224,17 +2225,9 @@ void FReplicationFiltering::SetGroupFilterStatus(FNetObjectGroupHandle GroupHand
 
 bool FReplicationFiltering::IsExcludedByAnyGroup(uint32 ObjectInternalIndex, uint32 ConnectionId) const
 {
-	uint32 GroupMembershipCount = 0U;
-	const FNetObjectGroupHandle* GroupHandles = Groups->GetGroupMemberships(ObjectInternalIndex, GroupMembershipCount);
-
-	if (!GroupHandles)
+	const TArrayView<const FNetObjectGroupHandle::FGroupIndexType> GroupIndexes = Groups->GetGroupIndexesOfNetObject(ObjectInternalIndex);
+	for (const FNetObjectGroupHandle::FGroupIndexType GroupIndex : GroupIndexes)
 	{
-		return false;
-	}
-
-	for (const FNetObjectGroupHandle GroupHandle : MakeArrayView(GroupHandles, GroupMembershipCount))
-	{
-		const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 		if (ExclusionFilterGroups.GetBit(GroupIndex))
 		{
 			const FPerObjectInfo* ConnectionState = GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex);
@@ -2250,17 +2243,9 @@ bool FReplicationFiltering::IsExcludedByAnyGroup(uint32 ObjectInternalIndex, uin
 
 bool FReplicationFiltering::IsIncludedByAnyGroup(uint32 ObjectInternalIndex, uint32 ConnectionId) const
 {
-	uint32 GroupMembershipCount = 0U;
-	const FNetObjectGroupHandle* GroupHandles = Groups->GetGroupMemberships(ObjectInternalIndex, GroupMembershipCount);
-
-	if (!GroupHandles)
+	const TArrayView<const FNetObjectGroupHandle::FGroupIndexType> GroupIndexes = Groups->GetGroupIndexesOfNetObject(ObjectInternalIndex);
+	for (const FNetObjectGroupHandle::FGroupIndexType GroupIndex : GroupIndexes)
 	{
-		return false;
-	}
-
-	for (const FNetObjectGroupHandle GroupHandle : MakeArrayView(GroupHandles, GroupMembershipCount))
-	{
-		const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 		if (InclusionFilterGroups.GetBit(GroupIndex))
 		{
 			const FPerObjectInfo* ConnectionState = GetPerObjectInfo(GroupInfos[GroupIndex].ConnectionStateIndex);
