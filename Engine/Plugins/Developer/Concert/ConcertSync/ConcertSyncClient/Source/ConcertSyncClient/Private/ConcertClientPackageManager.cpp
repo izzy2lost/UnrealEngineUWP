@@ -89,6 +89,9 @@ FConcertClientPackageManager::FConcertClientPackageManager(TSharedRef<FConcertSy
 	//
 	UPackage::PackageDirtyStateChangedEvent.AddRaw(this, &FConcertClientPackageManager::HandlePackageDirtyStateChanged);
 	PackageBridge->OnLocalPackageEvent().AddRaw(this, &FConcertClientPackageManager::HandleLocalPackageEvent);
+
+	FEditorDelegates::OnDuplicateActorsBegin.AddRaw(this, &FConcertClientPackageManager::HandleDuplicateActorsBegin);
+	FEditorDelegates::OnDuplicateActorsEnd.AddRaw(this, &FConcertClientPackageManager::HandleDuplicateActorsEnd);
 #endif	// WITH_EDITOR
 
 	LiveSession->GetSession().RegisterCustomEventHandler<FConcertPackageRejectedEvent>(this, &FConcertClientPackageManager::HandlePackageRejectedEvent);
@@ -107,6 +110,8 @@ FConcertClientPackageManager::~FConcertClientPackageManager()
 		SandboxPlatformFile->DiscardSandbox(PackagesPendingHotReload, PackagesPendingPurge);
 		SandboxPlatformFile.Reset();
 	}
+	FEditorDelegates::OnDuplicateActorsBegin.RemoveAll(this);
+	FEditorDelegates::OnDuplicateActorsEnd.RemoveAll(this);
 #endif	// WITH_EDITOR
 
 	LiveSession->GetSession().UnregisterCustomEventHandler<FConcertPackageRejectedEvent>(this);
@@ -265,6 +270,27 @@ void FConcertClientPackageManager::SynchronizeInMemoryPackages()
 	PurgePendingPackages();
 	HotReloadPendingPackages();
 }
+
+#if WITH_EDITOR
+void FConcertClientPackageManager::HandleDuplicateActorsBegin()
+{
+	UWorld* CurrentWorld = ConcertSyncClientUtil::GetCurrentWorld();
+	check(CurrentWorld);
+
+	ULevel* Level = CurrentWorld->GetCurrentLevel();
+	bPromptWhenAddingToLevelBeforeCheckout = Level->bPromptWhenAddingToLevelBeforeCheckout;
+	Level->bPromptWhenAddingToLevelBeforeCheckout = false;
+}
+
+void FConcertClientPackageManager::HandleDuplicateActorsEnd()
+{
+	UWorld* CurrentWorld = ConcertSyncClientUtil::GetCurrentWorld();
+	check(CurrentWorld);
+
+	ULevel* Level = CurrentWorld->GetCurrentLevel();
+	Level->bPromptWhenAddingToLevelBeforeCheckout = bPromptWhenAddingToLevelBeforeCheckout;
+}
+#endif
 
 void FConcertClientPackageManager::HandlePackageDiscarded(UPackage* InPackage)
 {

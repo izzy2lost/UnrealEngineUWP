@@ -146,6 +146,18 @@ private:
 	 */
 	void HandleLocalPackageEvent(const FConcertPackageInfo& PackageInfo, const FString& PackagePathname);
 
+#if WITH_EDITOR
+	/**
+	 * Handle begin event when a duplicate actor is added to the level.
+	 */
+	void HandleDuplicateActorsBegin();
+
+	/**
+	 * Handle end event when a duplicate actor is added to the level.
+	 */
+	void HandleDuplicateActorsEnd();
+#endif
+
 	/**
 	 * Utility to save new package data to disk, and also queue if for hot-reload.
 	 */
@@ -198,6 +210,12 @@ private:
 	 * Package bridge used by this manager.
 	 */
 	IConcertClientPackageBridge* PackageBridge;
+
+	/**
+	 * Value of the CurrentWorld()->GetCurrentLevel()->bPromptWhenAddingToLevelBeforeCheckout on the level. We suppress this
+	 * for sandbox sessions.  This value is only relevant between begin / end delegate on duplicate actors event.
+	 */
+	bool bPromptWhenAddingToLevelBeforeCheckout = false;
 
 	/**
 	 * Indicates if we are currently hot reloading.
