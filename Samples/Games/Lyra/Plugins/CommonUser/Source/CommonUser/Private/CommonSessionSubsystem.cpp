@@ -1110,6 +1110,9 @@ void UCommonSessionSubsystem::JoinSessionInternalOSSv1(ULocalPlayer* LocalPlayer
 	check(OnlineSub);
 	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
 	check(Sessions);
+	
+	// We need to manually set that we want this to be our presence session
+	Request->Result.Session.SessionSettings.bUsesPresence = true;
 
 	Sessions->JoinSession(*LocalPlayer->GetPreferredUniqueNetId().GetUniqueNetId(), NAME_GameSession, Request->Result);
 }
