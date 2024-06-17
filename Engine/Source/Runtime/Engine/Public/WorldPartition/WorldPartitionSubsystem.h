@@ -96,6 +96,9 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FWorldPartitionStreamingSourceProviderFilter, const IWorldPartitionStreamingSourceProvider*);
 	FWorldPartitionStreamingSourceProviderFilter& OnIsStreamingSourceProviderFiltered() { return IsStreamingSourceProviderFiltered; }
 
+	DECLARE_MULTICAST_DELEGATE(FWorldPartitionStreamingStateUpdated);
+	FWorldPartitionStreamingStateUpdated& OnStreamingStateUpdated() { return StreamingStateUpdated; }
+
 	static ENGINE_API TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> OnWorldPartitionSubsystemInitialized;
 	static ENGINE_API TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> OnWorldPartitionSubsystemDeinitialized;
 
@@ -179,6 +182,7 @@ private:
 	// Streaming Sources
 	TSet<IWorldPartitionStreamingSourceProvider*> StreamingSourceProviders;
 	FWorldPartitionStreamingSourceProviderFilter IsStreamingSourceProviderFiltered;
+	FWorldPartitionStreamingStateUpdated StreamingStateUpdated;
 	TArray<FWorldPartitionStreamingSource> StreamingSources;
 	TMap<FName, FStreamingSourceVelocity> StreamingSourcesVelocity;
 	uint32 StreamingSourcesHash;

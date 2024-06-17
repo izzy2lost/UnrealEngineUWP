@@ -148,7 +148,7 @@ UDataLayerManager* UWorldPartitionRuntimeCell::GetDataLayerManager() const
 	return GetOuterWorld()->GetWorldPartition()->GetDataLayerManager();
 }
 
-EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState() const
+EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState(const FWorldPartitionStreamingContext& Context) const
 {
 	if (!HasDataLayers())
 	{
@@ -156,59 +156,11 @@ EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState()
 	}
 	else
 	{
-		const UWorld* OuterWorld = GetOuterWorld();
-		const AWorldDataLayers* WorldDataLayers = OuterWorld->GetWorldDataLayers();
-		check(WorldDataLayers);
-		if (EffectiveWantedStateEpoch != WorldDataLayers->GetDataLayersStateEpoch())
+		const int32 ResolvingDataLayersRuntimeStateEpoch = Context.GetResolvingDataLayersRuntimeStateEpoch();
+		if (EffectiveWantedStateEpoch != ResolvingDataLayersRuntimeStateEpoch)
 		{
-			EffectiveWantedState = EDataLayerRuntimeState::Unloaded;
-
-			UWorldPartition* WorldPartition = OuterWorld->GetWorldPartition();
-			if (const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager())
-			{
-				// Determine the maximum runtime state the cell can have based on its External Data Layer. If none, maximum is Activated.
-				const UExternalDataLayerInstance* ExternalDatalayerInstance = GetExternalDataLayerInstance();
-				EDataLayerRuntimeState MaxEffectiveRuntimeState = ExternalDatalayerInstance ? ExternalDatalayerInstance->GetEffectiveRuntimeState() : EDataLayerRuntimeState::Activated;
-
-				if (MaxEffectiveRuntimeState > EDataLayerRuntimeState::Unloaded)
-				{
-					TArrayView<const FName> NonExternalDataLayers = DataLayers.GetNonExternalDataLayers();
-					if (NonExternalDataLayers.IsEmpty())
-					{
-						EffectiveWantedState = MaxEffectiveRuntimeState;
-					}
-					else
-					{
-						switch (WorldPartition->GetDataLayersLogicOperator())
-						{
-						case EWorldPartitionDataLayersLogicOperator::Or:
-							if (DataLayerManager->IsAnyDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Activated))
-							{
-								EffectiveWantedState = MaxEffectiveRuntimeState;
-							}
-							else if (DataLayerManager->IsAnyDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Loaded))
-							{
-								EffectiveWantedState = EDataLayerRuntimeState::Loaded;
-							}
-							break;
-						case EWorldPartitionDataLayersLogicOperator::And:
-							if (DataLayerManager->IsAllDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Activated))
-							{
-								EffectiveWantedState = MaxEffectiveRuntimeState;
-							}
-							else if (DataLayerManager->IsAllDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Loaded))
-							{
-								EffectiveWantedState = EDataLayerRuntimeState::Loaded;
-							}
-							break;
-						default:
-							checkNoEntry();
-						}
-					}
-				}
-			}
-
-			EffectiveWantedStateEpoch = WorldDataLayers->GetDataLayersStateEpoch();
+			EffectiveWantedState = Context.ResolveDataLayerRuntimeState(DataLayers);
+			EffectiveWantedStateEpoch = ResolvingDataLayersRuntimeStateEpoch;
 		}
 	}
 

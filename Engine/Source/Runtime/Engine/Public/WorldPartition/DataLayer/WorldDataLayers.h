@@ -47,6 +47,36 @@ struct FActorPlacementDataLayers
 	}
 };
 
+struct FWorldDataLayersEffectiveStates
+{
+	FWorldDataLayersEffectiveStates();
+	const TSet<FName>& GetAllEffectiveActiveDataLayerNames() const;
+	const TSet<FName>& GetAllEffectiveLoadedDataLayerNames() const;
+	EDataLayerRuntimeState GetDataLayerEffectiveRuntimeStateByName(FName InDataLayerName) const;
+	int32 GetUpdateEpoch() const { return UpdateEpoch; }
+
+protected:
+	void Reset();
+	void SetReplicatedEffectiveActiveDataLayerNames(const TArray<FName>& InRepEffectiveActiveDataLayerNames);
+	void SetReplicatedEffectiveLoadedDataLayerNames(const TArray<FName>& InRepEffectiveLoadedDataLayerNames);
+	bool SetDataLayerEffectiveRuntimeState(FName InDataLayerName, bool bIsLocalDataLayer, EDataLayerRuntimeState NewEffectiveRuntimeState, EDataLayerRuntimeState& OutOldEffectiveRuntimeState);
+	const TSet<FName>& GetReplicatedEffectiveActiveDataLayerNames() const { return ReplicatedEffectiveActiveDataLayerNames; }
+	const TSet<FName>& GetReplicatedEffectiveLoadedDataLayerNames() const { return ReplicatedEffectiveLoadedDataLayerNames; }
+	friend class AWorldDataLayers;
+
+private:
+	TSet<FName> ReplicatedEffectiveActiveDataLayerNames;
+	TSet<FName> ReplicatedEffectiveLoadedDataLayerNames;
+	TSet<FName> LocalEffectiveActiveDataLayerNames;
+	TSet<FName> LocalEffectiveLoadedDataLayerNames;
+
+	int32 UpdateEpoch;
+	mutable int32 AllEffectiveActiveDataLayerNamesEpoch;
+	mutable int32 AllEffectiveLoadedDataLayerNamesEpoch;
+	mutable TSet<FName> AllEffectiveActiveDataLayerNames;
+	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
+};
+
 /**
  * Actor containing data layers instances within a world.
  */
@@ -215,6 +245,8 @@ protected:
 	ENGINE_API void OnRep_EffectiveLoadedDataLayerNames();
 
 private:
+	ENGINE_API const FWorldDataLayersEffectiveStates& GetEffectiveStates() const;
+
 	// External Data Layers
 	bool AddExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
 	bool RemoveExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
@@ -321,17 +353,7 @@ private:
 	UPROPERTY(Transient, Replicated, ReplicatedUsing=OnRep_EffectiveLoadedDataLayerNames)
 	TArray<FName> RepEffectiveLoadedDataLayerNames;
 
-	// TSet do not support replication so we replicate an array and update the set in the OnRep_EffectiveActiveDataLayerNames/OnRep_EffectiveLoadedDataLayerNames
-	TSet<FName> EffectiveActiveDataLayerNames;
-	TSet<FName> EffectiveLoadedDataLayerNames;
-
-	TSet<FName> LocalEffectiveActiveDataLayerNames;
-	TSet<FName> LocalEffectiveLoadedDataLayerNames;
-
-	mutable int32 AllEffectiveActiveDataLayerNamesEpoch;
-	mutable TSet<FName> AllEffectiveActiveDataLayerNames;
-	mutable int32 AllEffectiveLoadedDataLayerNamesEpoch;
-	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
+	FWorldDataLayersEffectiveStates EffectiveStates;
 
 	int32 DataLayersStateEpoch;
 
@@ -342,7 +364,22 @@ private:
 	friend class UDataLayerManager;
 	friend class UExternalDataLayerManager;
 	friend class UDataLayerEditorSubsystem;
+	friend struct FWorldDataLayersEffectiveStatesAccessor;
 };
+
+struct FWorldDataLayersEffectiveStatesAccessor
+{
+private:
+	static const FWorldDataLayersEffectiveStates& Get(const AWorldDataLayers* InWorldDataLayers)
+	{
+		check(InWorldDataLayers);
+		return InWorldDataLayers->GetEffectiveStates();
+	}
+	friend struct FWorldPartitionStreamingContext;
+	friend class UWorldPartitionStreamingPolicy;
+	friend class UDataLayerManager;
+};
+
 
 DEFINE_ACTORDESC_TYPE(AWorldDataLayers, FWorldDataLayersActorDesc);
 
@@ -454,9 +491,9 @@ void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierTy
 		});
 
 		MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepEffectiveActiveDataLayerNames, this);
-		RepEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames.Array();
+		RepEffectiveActiveDataLayerNames = EffectiveStates.GetReplicatedEffectiveActiveDataLayerNames().Array();
 		MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepEffectiveLoadedDataLayerNames, this);
-		RepEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames.Array();
+		RepEffectiveLoadedDataLayerNames = EffectiveStates.GetReplicatedEffectiveLoadedDataLayerNames().Array();
 	}
 }
 

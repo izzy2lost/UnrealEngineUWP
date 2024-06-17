@@ -15,6 +15,7 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "WorldPartition/WorldPartitionRuntimeContainerResolving.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceProviderInterface.h"
+#include "WorldPartition/DataLayer/WorldDataLayers.h"
 #if WITH_EDITOR
 #include "CookPackageSplitter.h"
 #include "Misc/HierarchicalLogArchive.h"
@@ -22,6 +23,7 @@
 #include "WorldPartitionRuntimeHash.generated.h"
 
 struct FHierarchicalLogArchive;
+struct FDataLayerInstanceNames;
 class FWorldPartitionDraw2DContext;
 class UExternalDataLayerAsset;
 class UExternalDataLayerInstance;
@@ -148,6 +150,31 @@ private:
 	TMap<const UWorldPartitionRuntimeCell*, double> CellToSourceMinSqrDistances;
 };
 
+struct ENGINE_API FWorldPartitionStreamingContext
+{
+public:
+	static FWorldPartitionStreamingContext Create(const UWorld* InWorld);
+	FWorldPartitionStreamingContext();
+	bool IsValid() const { return bIsValid; }
+
+private:
+	FWorldPartitionStreamingContext(const UWorld* InWorld);
+	FWorldPartitionStreamingContext(EWorldPartitionDataLayersLogicOperator InDataLayersLogicOperator, const FWorldDataLayersEffectiveStates& InDataLayerEffectiveStates, int32 InUpdateStreamingStateEpoch);
+
+	int32 GetResolvingDataLayersRuntimeStateEpoch() const { check(IsValid()); return DataLayerEffectiveStates->GetUpdateEpoch(); }
+	int32 GetUpdateStreamingStateEpoch() const { check(IsValid()); return UpdateStreamingStateEpoch; }
+	EDataLayerRuntimeState ResolveDataLayerRuntimeState(const FDataLayerInstanceNames& InDataLayerNames) const;
+
+	bool bIsValid;
+	EWorldPartitionDataLayersLogicOperator DataLayersLogicOperator;
+	const FWorldDataLayersEffectiveStates* DataLayerEffectiveStates;
+	int32 UpdateStreamingStateEpoch;
+
+	friend class UWorldPartitionStreamingPolicy;
+	friend class UWorldPartitionRuntimeCell;
+	friend class UWorldPartitionRuntimeCellData;
+};
+
 UCLASS(Abstract, Config=Engine, AutoExpandCategories=(WorldPartition), Within=WorldPartition, MinimalAPI)
 class UWorldPartitionRuntimeHash : public UObject
 {
@@ -210,10 +237,15 @@ public:
 	class FStreamingSourceCells
 	{
 	public:
-		void AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape);
+		void AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context);
 		void Reset() { Cells.Reset(); }
 		int32 Num() const { return Cells.Num(); }
 		TSet<const UWorldPartitionRuntimeCell*>& GetCells() { return Cells; }
+
+		//~Begin Deprecation
+		UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+		void AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) {}
+		//~End Deprecation
 
 	private:
 		TSet<const UWorldPartitionRuntimeCell*> Cells;
@@ -222,7 +254,7 @@ public:
 	// Streaming interface
 	virtual void ForEachStreamingCells(TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func) const {}
 	virtual void ForEachStreamingCellsQuery(const FWorldPartitionStreamingQuerySource& QuerySource, TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func, FWorldPartitionQueryCache* QueryCache = nullptr) const {}
-	virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const {}
+	virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func, const FWorldPartitionStreamingContext& Context = FWorldPartitionStreamingContext()) const {}
 	// Computes a hash value of all runtime hash specific dependencies that affects the update of the streaming
 	virtual uint32 ComputeUpdateStreamingHash() const { return 0; }
 

@@ -954,7 +954,7 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 
 	StreamingSources.Reset();
 
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 	bool bIsUsingReplayStreamingSources = false;
 	if (AWorldPartitionReplay::IsPlaybackEnabled(World))
 	{
@@ -1188,6 +1188,11 @@ void UWorldPartitionSubsystem::UpdateStreamingStateInternal(const UWorld* InWorl
 	{
 		return;
 	}
+
+	ON_SCOPE_EXIT
+	{
+		WorldPartitionSubsystem->OnStreamingStateUpdated().Broadcast();
+	};
 
 	TArray<TObjectPtr<UWorldPartition>> RegisteredWorldPartitionsCopy;
 	auto GetRegisteredWorldPartitionsCopy = [&RegisteredWorldPartitionsCopy, InWorldPartition, WorldPartitionSubsystem]()

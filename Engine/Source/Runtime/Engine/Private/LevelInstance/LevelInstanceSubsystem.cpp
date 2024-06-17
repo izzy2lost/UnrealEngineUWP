@@ -257,6 +257,8 @@ bool ULevelInstanceSubsystem::IsLoading(const ILevelInstanceInterface* LevelInst
 
 void ULevelInstanceSubsystem::UpdateStreamingState()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULevelInstanceSubsystem::UpdateStreamingState);
+
 	if (!LevelInstancesToUnload.Num() && !LevelInstancesToLoadOrUpdate.Num())
 	{
 		return;

@@ -2,9 +2,8 @@
 
 #include "WorldPartition/WorldPartitionRuntimeCellData.h"
 #include "WorldPartition/WorldPartitionLog.h"
+#include "WorldPartition/WorldPartitionStreamingPolicy.h"
 #include "Misc/HierarchicalLogArchive.h"
-
-int32 UWorldPartitionRuntimeCellData::StreamingSourceCacheEpoch = 0;
 
 UWorldPartitionRuntimeCellData::UWorldPartitionRuntimeCellData(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -37,25 +36,25 @@ void UWorldPartitionRuntimeCellData::DumpStateLog(FHierarchicalLogArchive& Ar) c
 }
 #endif
 
-void UWorldPartitionRuntimeCellData::ResetStreamingSourceInfo() const
+void UWorldPartitionRuntimeCellData::ResetStreamingSourceInfo(const FWorldPartitionStreamingContext& Context) const
 {
 	CachedMinSourcePriority = MAX_uint8;
 	bCachedWasRequestedByBlockingSource = false;
 	CachedMinSquareDistanceToBlockingSource = MAX_dbl;
 	CachedMinBlockOnSlowStreamingRatio = MAX_flt;
 	CachedMinSpatialSortingPriority = MAX_dbl;
-	CachedSourceInfoEpoch = StreamingSourceCacheEpoch;	
+	CachedSourceInfoEpoch = Context.GetUpdateStreamingStateEpoch();
 }
 
 DECLARE_CYCLE_STAT(TEXT("Append Streaming Source Info"), STAT_WorldPartitionAppendStreamingSourceInfo, STATGROUP_WorldPartition);
-void UWorldPartitionRuntimeCellData::AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const
+void UWorldPartitionRuntimeCellData::AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionAppendStreamingSourceInfo);
 
-	if (CachedSourceInfoEpoch != StreamingSourceCacheEpoch)
+	if (CachedSourceInfoEpoch != Context.GetUpdateStreamingStateEpoch())
 	{
-		ResetStreamingSourceInfo();
-		check(CachedSourceInfoEpoch == StreamingSourceCacheEpoch);
+		ResetStreamingSourceInfo(Context);
+		check(CachedSourceInfoEpoch == Context.GetUpdateStreamingStateEpoch());
 	}
 
 	// Compute cosine angle from cell to source direction ratio

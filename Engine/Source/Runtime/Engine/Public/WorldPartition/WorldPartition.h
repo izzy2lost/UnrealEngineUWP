@@ -490,10 +490,6 @@ public:
 
 	ENGINE_API bool IsMainWorldPartition() const;
 
-private:
-	ENGINE_API void Tick(float DeltaSeconds);
-
-public:
 	ENGINE_API bool CanAddCellToWorld(const IWorldPartitionCell* InCell) const;
 	ENGINE_API bool IsStreamingCompleted(const TArray<FWorldPartitionStreamingSource>* InStreamingSources) const;
 	ENGINE_API bool IsStreamingCompleted(EWorldPartitionRuntimeCellState QueryState, const TArray<FWorldPartitionStreamingQuerySource>& QuerySources, bool bExactState) const;
@@ -708,20 +704,22 @@ private:
 	static ENGINE_API FAutoConsoleVariableRef CVarEnableServerStreamingOut;
 	static ENGINE_API FAutoConsoleVariableRef CVarUseMakingVisibleTransactionRequests;
 	static ENGINE_API FAutoConsoleVariableRef CVarUseMakingInvisibleTransactionRequests;
-
+	
 	ENGINE_API void OnWorldMatchStarting();
 	ENGINE_API void OnWorldPreBeginPlay();
-	
-#if WITH_EDITOR
-	ENGINE_API void OnLevelActorDeleted(AActor* Actor);
-	ENGINE_API void OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot);
-#endif
+	ENGINE_API void OnStreamingStateUpdated();
+	ENGINE_API void Tick(float DeltaSeconds);
+	void OnPreChangeStreamingContent();
+	int32 GetUpdateStreamingStateEpoch() const;
 
 	// Delegates registration
 	ENGINE_API void RegisterDelegates();
 	ENGINE_API void UnregisterDelegates();	
 
 #if WITH_EDITOR
+	ENGINE_API void OnLevelActorDeleted(AActor* Actor);
+	ENGINE_API void OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot);
+
 	void HashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void UnhashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void OnContentBundleRemovedContent(const FContentBundleEditor* ContentBundle);
@@ -807,6 +805,7 @@ private:
 #endif
 	class AWorldPartitionReplay* Replay;
 
+	friend struct FWorldPartitionStreamingContext;
 	friend class AWorldPartitionReplay;
 	friend class UWorldPartitionSubsystem;
 	friend class UExternalDataLayerManager;

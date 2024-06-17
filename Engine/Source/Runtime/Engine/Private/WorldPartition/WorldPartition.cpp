@@ -977,6 +977,8 @@ void UWorldPartition::RegisterDelegates()
 			FCoreDelegates::OnGetOnScreenMessages.AddUObject(this, &UWorldPartition::GetOnScreenMessages);
 #endif
 		}
+
+		World->GetSubsystem<UWorldPartitionSubsystem>()->OnStreamingStateUpdated().AddUObject(this, &UWorldPartition::OnStreamingStateUpdated);
 	}
 }
 
@@ -1023,6 +1025,8 @@ void UWorldPartition::UnregisterDelegates()
 			FCoreDelegates::OnGetOnScreenMessages.RemoveAll(this);
 #endif
 		}
+
+		World->GetSubsystem<UWorldPartitionSubsystem>()->OnStreamingStateUpdated().RemoveAll(this);
 	}
 }
 
@@ -1050,6 +1054,28 @@ void UWorldPartition::OnWorldMatchStarting()
 	// Wait for any level streaming to complete 
 	// (in case any level streaming was requested by actor's DispatchBeginPlay)
 	GetWorld()->BlockTillLevelStreamingCompleted();
+}
+
+void UWorldPartition::OnStreamingStateUpdated()
+{
+	check(GetWorld()->IsGameWorld());
+	if (StreamingPolicy)
+	{
+		StreamingPolicy->OnStreamingStateUpdated();
+	}
+}
+
+void UWorldPartition::OnPreChangeStreamingContent()
+{
+	if (StreamingPolicy)
+	{
+		StreamingPolicy->OnPreChangeStreamingContent();
+	}
+}
+
+int32 UWorldPartition::GetUpdateStreamingStateEpoch() const
+{
+	return StreamingPolicy ? StreamingPolicy->UpdateStreamingStateCounter : 0;
 }
 
 #if WITH_EDITOR
@@ -1730,6 +1756,7 @@ bool UWorldPartition::IsExternalStreamingObjectInjected(URuntimeHashExternalStre
 
 bool UWorldPartition::InjectExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* InExternalStreamingObject)
 {
+	OnPreChangeStreamingContent();
 	bool bInjected = RuntimeHash->InjectExternalStreamingObject(InExternalStreamingObject);
 	if (bInjected)
 	{
@@ -1751,6 +1778,7 @@ bool UWorldPartition::InjectExternalStreamingObject(URuntimeHashExternalStreamin
 
 bool UWorldPartition::RemoveExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* InExternalStreamingObject)
 {
+	OnPreChangeStreamingContent();
 	bool bRemoved = RuntimeHash->RemoveExternalStreamingObject(InExternalStreamingObject);
 	if (bRemoved)
 	{
@@ -2329,11 +2357,13 @@ bool UWorldPartition::SupportsWorldAssetStreaming(const FName& InTargetGrid)
 
 FGuid UWorldPartition::RegisterWorldAssetStreaming(const FRegisterWorldAssetStreamingParams& InParams)
 {
+	OnPreChangeStreamingContent();
 	return RuntimeHash ? RuntimeHash->RegisterWorldAssetStreaming(InParams) : FGuid();
 }
 
 bool UWorldPartition::UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid)
 {
+	OnPreChangeStreamingContent();
 	return RuntimeHash ? RuntimeHash->UnregisterWorldAssetStreaming(InWorldAssetStreamingGuid) : false;
 }
 

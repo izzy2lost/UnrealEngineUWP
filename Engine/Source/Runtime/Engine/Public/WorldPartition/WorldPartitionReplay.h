@@ -52,8 +52,8 @@ class AWorldPartitionReplay : public AActor
 public:
 	static ENGINE_API void Initialize(UWorld* World);
 	static ENGINE_API void Uninitialize(UWorld* World);
-	static ENGINE_API bool IsPlaybackEnabled(UWorld* World);
-	static ENGINE_API bool IsRecordingEnabled(UWorld* World);
+	static ENGINE_API bool IsPlaybackEnabled(const UWorld* World);
+	static ENGINE_API bool IsRecordingEnabled(const UWorld* World);
 
 	ENGINE_API virtual void RewindForReplay() override;
 	ENGINE_API virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;

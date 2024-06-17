@@ -32,9 +32,9 @@ UWorldPartitionRuntimeCellDataSpatialHash::UWorldPartitionRuntimeCellDataSpatial
 	, CachedMinSquareDistanceToBlockingSource2D(MAX_dbl)
 {}
 
-void UWorldPartitionRuntimeCellDataSpatialHash::ResetStreamingSourceInfo() const
+void UWorldPartitionRuntimeCellDataSpatialHash::ResetStreamingSourceInfo(const FWorldPartitionStreamingContext& Context) const
 {
-	Super::ResetStreamingSourceInfo();
+	Super::ResetStreamingSourceInfo(Context);
 
 	CachedMinSquareDistanceToSource = MAX_dbl;
 	CachedSourcePriorityWeights.Reset();
@@ -83,9 +83,9 @@ float UWorldPartitionRuntimeCellDataSpatialHash::ComputeSourceToCellAngleFactor(
 	return AngleFactor;
 }
 
-void UWorldPartitionRuntimeCellDataSpatialHash::AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const
+void UWorldPartitionRuntimeCellDataSpatialHash::AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context) const
 {
-	Super::AppendStreamingSourceInfo(Source, SourceShape);
+	Super::AppendStreamingSourceInfo(Source, SourceShape, Context);
 
 	const double SquareDistance2D = FVector::DistSquared2D(SourceShape.GetCenter(), Position);
 

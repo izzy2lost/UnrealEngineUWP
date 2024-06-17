@@ -365,12 +365,18 @@ const TSet<FName>& UDataLayerManager::GetEffectiveLoadedDataLayerNames() const
 
 bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const
 {
+	static FWorldDataLayersEffectiveStates EmptyStates;
+	AWorldDataLayers* WorldDataLayers = GetWorldDataLayers();
+	return UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(InDataLayerNames, InState, WorldDataLayers ? FWorldDataLayersEffectiveStatesAccessor::Get(WorldDataLayers) : EmptyStates);
+}
+
+bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates)
+{
 	if (InState == EDataLayerRuntimeState::Activated)
 	{
-		const TSet<FName>& Activated = GetEffectiveActiveDataLayerNames();
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (Activated.Contains(DataLayerName))
+			if (InEffectiveStates.GetAllEffectiveActiveDataLayerNames().Contains(DataLayerName))
 			{
 				return true;
 			}
@@ -378,10 +384,9 @@ bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const F
 	}
 	else if (InState == EDataLayerRuntimeState::Loaded)
 	{
-		const TSet<FName>& Loaded = GetEffectiveLoadedDataLayerNames();
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (Loaded.Contains(DataLayerName))
+			if (InEffectiveStates.GetAllEffectiveLoadedDataLayerNames().Contains(DataLayerName))
 			{
 				return true;
 			}
@@ -392,13 +397,18 @@ bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const F
 
 bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const
 {
-	const TSet<FName>& Activated = GetEffectiveActiveDataLayerNames();
+	static FWorldDataLayersEffectiveStates EmptyStates;
+	AWorldDataLayers* WorldDataLayers = GetWorldDataLayers();
+	return UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(InDataLayerNames, InState, WorldDataLayers ? FWorldDataLayersEffectiveStatesAccessor::Get(WorldDataLayers) : EmptyStates);
+}
 
+bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates)
+{
 	if (InState == EDataLayerRuntimeState::Activated)
 	{
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (!Activated.Contains(DataLayerName))
+			if (!InEffectiveStates.GetAllEffectiveActiveDataLayerNames().Contains(DataLayerName))
 			{
 				return false;
 			}
@@ -406,10 +416,9 @@ bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const F
 	}
 	else if (InState == EDataLayerRuntimeState::Loaded)
 	{
-		const TSet<FName>& Loaded = GetEffectiveLoadedDataLayerNames();
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (!Loaded.Contains(DataLayerName) && !Activated.Contains(DataLayerName))
+			if (!InEffectiveStates.GetAllEffectiveLoadedDataLayerNames().Contains(DataLayerName) && !InEffectiveStates.GetAllEffectiveActiveDataLayerNames().Contains(DataLayerName))
 			{
 				return false;
 			}

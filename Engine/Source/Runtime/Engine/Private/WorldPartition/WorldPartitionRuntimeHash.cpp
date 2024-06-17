@@ -10,6 +10,8 @@
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceNames.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "Misc/ArchiveMD5.h"
 #if WITH_EDITOR
 #include "WorldPartition/Cook/WorldPartitionCookPackage.h"
@@ -656,9 +658,9 @@ void UWorldPartitionRuntimeHash::ExecutePostSetupHLODActors(const UWorldPartitio
 
 #endif
 
-void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape)
+void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context)
 {
-	Cell->AppendStreamingSourceInfo(Source, SourceShape);
+	Cell->AppendStreamingSourceInfo(Source, SourceShape, Context);
 	Cells.Add(Cell);
 }
 
@@ -679,6 +681,89 @@ double FWorldPartitionQueryCache::GetCellMinSquareDist(const UWorldPartitionRunt
 {
 	const double* Dist = CellToSourceMinSqrDistances.Find(Cell);
 	return Dist ? *Dist : MAX_dbl;
+}
+
+FWorldPartitionStreamingContext FWorldPartitionStreamingContext::Create(const UWorld* InWorld)
+{
+	if (InWorld && InWorld->GetWorldPartition() && InWorld->GetWorldDataLayers())
+	{
+		check(!InWorld->IsGameWorld() || IsInGameThread());
+		return FWorldPartitionStreamingContext(InWorld);
+	}
+	return FWorldPartitionStreamingContext();
+}
+
+FWorldPartitionStreamingContext::FWorldPartitionStreamingContext()
+	: bIsValid(false)
+	, DataLayersLogicOperator(EWorldPartitionDataLayersLogicOperator::Or)
+	, DataLayerEffectiveStates(nullptr)
+	, UpdateStreamingStateEpoch(0)
+{}
+
+FWorldPartitionStreamingContext::FWorldPartitionStreamingContext(const UWorld* InWorld)
+	: FWorldPartitionStreamingContext(InWorld->GetWorldPartition()->GetDataLayersLogicOperator(), FWorldDataLayersEffectiveStatesAccessor::Get(InWorld->GetWorldDataLayers()), InWorld->GetWorldPartition()->GetUpdateStreamingStateEpoch())
+{
+}
+
+FWorldPartitionStreamingContext::FWorldPartitionStreamingContext(EWorldPartitionDataLayersLogicOperator InDataLayersLogicOperator, const FWorldDataLayersEffectiveStates& InDataLayerEffectiveStates, int32 InUpdateStreamingStateEpoch)
+	: bIsValid(true)
+	, DataLayersLogicOperator(InDataLayersLogicOperator)
+	, DataLayerEffectiveStates(&InDataLayerEffectiveStates)
+	, UpdateStreamingStateEpoch(InUpdateStreamingStateEpoch)
+{}
+
+EDataLayerRuntimeState FWorldPartitionStreamingContext::ResolveDataLayerRuntimeState(const FDataLayerInstanceNames& InDataLayers) const
+{
+	if (InDataLayers.IsEmpty())
+	{
+		return EDataLayerRuntimeState::Activated;
+	}
+
+	check(IsValid());
+	check(DataLayerEffectiveStates);
+	EDataLayerRuntimeState Result = EDataLayerRuntimeState::Unloaded;
+
+	// Determine the maximum runtime state the cell can have based on its External Data Layer. If none, maximum is Activated.
+	FName ExternalDatalayerName = InDataLayers.GetExternalDataLayer();
+	EDataLayerRuntimeState MaxEffectiveRuntimeState = !ExternalDatalayerName.IsNone() ? DataLayerEffectiveStates->GetDataLayerEffectiveRuntimeStateByName(ExternalDatalayerName) : EDataLayerRuntimeState::Activated;
+
+	if (MaxEffectiveRuntimeState > EDataLayerRuntimeState::Unloaded)
+	{
+		TArrayView<const FName> NonExternalDataLayers = InDataLayers.GetNonExternalDataLayers();
+		if (NonExternalDataLayers.IsEmpty())
+		{
+			Result = MaxEffectiveRuntimeState;
+		}
+		else
+		{
+			switch (DataLayersLogicOperator)
+			{
+			case EWorldPartitionDataLayersLogicOperator::Or:
+				if (UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Activated, *DataLayerEffectiveStates))
+				{
+					Result = MaxEffectiveRuntimeState;
+				}
+				else if (UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Loaded, *DataLayerEffectiveStates))
+				{
+					Result = EDataLayerRuntimeState::Loaded;
+				}
+				break;
+			case EWorldPartitionDataLayersLogicOperator::And:
+				if (UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Activated, *DataLayerEffectiveStates))
+				{
+					Result = MaxEffectiveRuntimeState;
+				}
+				else if (UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Loaded, *DataLayerEffectiveStates))
+				{
+					Result = EDataLayerRuntimeState::Loaded;
+				}
+				break;
+			default:
+				checkNoEntry();
+			}
+		}
+	}
+	return Result;
 }
 
 #undef LOCTEXT_NAMESPACE

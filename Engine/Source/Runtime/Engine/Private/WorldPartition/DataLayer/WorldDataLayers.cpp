@@ -15,6 +15,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionRuntimeCellInterface.h"
+#include "WorldPartition/WorldPartitionStreamingPolicy.h"
 #include "Engine/Level.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Net/UnrealNetwork.h"
@@ -67,9 +68,6 @@ AWorldDataLayers::AWorldDataLayers(const FObjectInitializer& ObjectInitializer)
 	// Avoid actor from being Destroyed/Recreated when scrubbing a replay
 	// instead AWorldDataLayers::RewindForReplay() gets called to reset this actors state
 	bReplayRewindable = true;
-
-	AllEffectiveActiveDataLayerNamesEpoch = MAX_int32;
-	AllEffectiveLoadedDataLayerNamesEpoch = MAX_int32;
 }
 
 void AWorldDataLayers::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
@@ -157,8 +155,8 @@ void AWorldDataLayers::InitializeDataLayerRuntimeStates()
 			ResolveEffectiveRuntimeState(DataLayerInstance, bNotifyChange);
 		}
 
-		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveActiveDataLayerNames.Array());
-		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveLoadedDataLayerNames.Array());
+		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveStates.GetReplicatedEffectiveActiveDataLayerNames().Array());
+		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveStates.GetReplicatedEffectiveLoadedDataLayerNames().Array());
 
 		UE_CLOG(RepEffectiveActiveDataLayerNames.Num() || RepEffectiveLoadedDataLayerNames.Num(), LogWorldPartition, Log, TEXT("Initial Data Layer Effective States Activated(%s) Loaded(%s)"), *JoinDataLayerShortNamesFromInstanceNames(this, RepEffectiveActiveDataLayerNames), *JoinDataLayerShortNamesFromInstanceNames(this, RepEffectiveLoadedDataLayerNames));
 	}
@@ -171,11 +169,8 @@ void AWorldDataLayers::ResetDataLayerRuntimeStates()
 	LocalActiveDataLayerNames.Reset();
 	LocalLoadedDataLayerNames.Reset();
 
-	EffectiveActiveDataLayerNames.Reset();
-	EffectiveLoadedDataLayerNames.Reset();
-	LocalEffectiveActiveDataLayerNames.Reset();
-	LocalEffectiveLoadedDataLayerNames.Reset();
-
+	EffectiveStates.Reset();
+	
 	static const TArray<FName> Empty;
 	FlushNetDormancy();
 	AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepActiveDataLayerNames, Empty);
@@ -326,63 +321,36 @@ EDataLayerRuntimeState AWorldDataLayers::GetDataLayerRuntimeStateByName(FName In
 void AWorldDataLayers::OnRep_EffectiveActiveDataLayerNames()
 {
 	++DataLayersStateEpoch;
-	EffectiveActiveDataLayerNames.Reset();
-	EffectiveActiveDataLayerNames.Append(RepEffectiveActiveDataLayerNames);
+	// TSet do not support replication so we replicate an array and update the set here
+	EffectiveStates.SetReplicatedEffectiveActiveDataLayerNames(RepEffectiveActiveDataLayerNames);
 }
 
 void AWorldDataLayers::OnRep_EffectiveLoadedDataLayerNames()
 {
 	++DataLayersStateEpoch;
-	EffectiveLoadedDataLayerNames.Reset();
-	EffectiveLoadedDataLayerNames.Append(RepEffectiveLoadedDataLayerNames);
+	// TSet do not support replication so we replicate an array and update the set here
+	EffectiveStates.SetReplicatedEffectiveLoadedDataLayerNames(RepEffectiveLoadedDataLayerNames);
 }
 
 EDataLayerRuntimeState AWorldDataLayers::GetDataLayerEffectiveRuntimeStateByName(FName InDataLayerName) const
 {
-	if (EffectiveActiveDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!EffectiveLoadedDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Activated;
-	}
-	else if (EffectiveLoadedDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!EffectiveActiveDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Loaded;
-	}
-	else if (LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Activated;
-	}
-	else if (LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Loaded;
-	}
+	return EffectiveStates.GetDataLayerEffectiveRuntimeStateByName(InDataLayerName);
+}
 
-	return EDataLayerRuntimeState::Unloaded;
+const FWorldDataLayersEffectiveStates& AWorldDataLayers::GetEffectiveStates() const
+{
+	check(IsInGameThread());
+	return EffectiveStates;
 }
 
 const TSet<FName>& AWorldDataLayers::GetEffectiveActiveDataLayerNames() const
 {
-	if (AllEffectiveActiveDataLayerNamesEpoch != DataLayersStateEpoch)
-	{
-		AllEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames;
-		AllEffectiveActiveDataLayerNames.Append(LocalEffectiveActiveDataLayerNames);
-		AllEffectiveActiveDataLayerNamesEpoch = DataLayersStateEpoch;
-	}
-	return AllEffectiveActiveDataLayerNames;
+	return EffectiveStates.GetAllEffectiveActiveDataLayerNames();
 }
 
 const TSet<FName>& AWorldDataLayers::GetEffectiveLoadedDataLayerNames() const
 {
-	if (AllEffectiveLoadedDataLayerNamesEpoch != DataLayersStateEpoch)
-	{
-		AllEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames;
-		AllEffectiveLoadedDataLayerNames.Append(LocalEffectiveLoadedDataLayerNames);
-		AllEffectiveLoadedDataLayerNamesEpoch = DataLayersStateEpoch;
-	}
-	return AllEffectiveLoadedDataLayerNames;
+	return EffectiveStates.GetAllEffectiveLoadedDataLayerNames();
 }
 
 void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* InDataLayerInstance, bool bInNotifyChange)
@@ -393,7 +361,6 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 	const bool bDataLayerServerOnly = InDataLayerInstance->IsServerOnly();
 	const bool bIsLocalDataLayer = (bDataLayerClientOnly || bDataLayerServerOnly);
 	const FName DataLayerName = InDataLayerInstance->GetDataLayerFName();
-	EDataLayerRuntimeState CurrentEffectiveRuntimeState = GetDataLayerEffectiveRuntimeStateByName(DataLayerName);
 	EDataLayerRuntimeState NewEffectiveRuntimeState = GetDataLayerRuntimeStateByName(DataLayerName);
 	const UDataLayerInstance* Parent = InDataLayerInstance->GetParent();
 
@@ -407,29 +374,15 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 		Parent = Parent->GetParent();
 	}
 
-	if (CurrentEffectiveRuntimeState != NewEffectiveRuntimeState)
+	EDataLayerRuntimeState OldEffectiveRuntimeState;
+	if (EffectiveStates.SetDataLayerEffectiveRuntimeState(DataLayerName, bIsLocalDataLayer, NewEffectiveRuntimeState, OldEffectiveRuntimeState))
 	{
-		TSet<FName>& TargetEffectiveLoadedDataLayerNames = bIsLocalDataLayer ? LocalEffectiveLoadedDataLayerNames : EffectiveLoadedDataLayerNames;
-		TSet<FName>& TargetEffectiveActiveDataLayerNames = bIsLocalDataLayer ? LocalEffectiveActiveDataLayerNames : EffectiveActiveDataLayerNames;
-
-		TargetEffectiveLoadedDataLayerNames.Remove(DataLayerName);
-		TargetEffectiveActiveDataLayerNames.Remove(DataLayerName);
-
-		if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Loaded)
-		{
-			TargetEffectiveLoadedDataLayerNames.Add(DataLayerName);
-		}
-		else if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Activated)
-		{
-			TargetEffectiveActiveDataLayerNames.Add(DataLayerName);
-		}
-
 		// Update Replicated Properties
 		if (!bIsLocalDataLayer && (NetMode == NM_DedicatedServer || NetMode == NM_ListenServer))
 		{
 			FlushNetDormancy();
-			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveActiveDataLayerNames.Array());
-			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveLoadedDataLayerNames.Array());
+			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveStates.GetReplicatedEffectiveActiveDataLayerNames().Array());
+			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveStates.GetReplicatedEffectiveLoadedDataLayerNames().Array());
 		}
 
 		++DataLayersStateEpoch;
@@ -438,7 +391,7 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 		{
 			UE_LOG(LogWorldPartition, Log, TEXT("Data Layer Instance '%s' effective state changed: %s -> %s"),
 				*InDataLayerInstance->GetDataLayerShortName(),
-				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentEffectiveRuntimeState).ToString(),
+				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)OldEffectiveRuntimeState).ToString(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)NewEffectiveRuntimeState).ToString());
 
 			OnDataLayerRuntimeStateChanged(InDataLayerInstance, NewEffectiveRuntimeState);
@@ -571,12 +524,12 @@ void AWorldDataLayers::DumpDataLayers(FOutputDevice& OutputDevice) const
 			}
 		};
 
-		if (EffectiveLoadedDataLayerNames.Num() || EffectiveActiveDataLayerNames.Num())
+		if (EffectiveStates.GetAllEffectiveLoadedDataLayerNames().Num() || EffectiveStates.GetAllEffectiveActiveDataLayerNames().Num())
 		{
 			OutputDevice.Logf(TEXT("----------------------------------------------------"));
 			OutputDevice.Logf(TEXT(" Data Layers Runtime States"));
-			DumpDataLayersRuntimeState(TEXT("Loaded"), EffectiveLoadedDataLayerNames);
-			DumpDataLayersRuntimeState(TEXT("Active"), EffectiveActiveDataLayerNames);
+			DumpDataLayersRuntimeState(TEXT("Loaded"), EffectiveStates.GetAllEffectiveLoadedDataLayerNames());
+			DumpDataLayersRuntimeState(TEXT("Active"), EffectiveStates.GetAllEffectiveActiveDataLayerNames());
 			OutputDevice.Logf(TEXT("----------------------------------------------------"));
 			OutputDevice.Logf(TEXT(""));
 		}
@@ -1692,5 +1645,108 @@ TArray<const UDataLayerInstance*> AWorldDataLayers::GetDataLayerInstances(const 
 }
 
 //~ End Deprecated
+
+FWorldDataLayersEffectiveStates::FWorldDataLayersEffectiveStates()
+	: UpdateEpoch(0)
+	, AllEffectiveActiveDataLayerNamesEpoch(MAX_int32)
+	, AllEffectiveLoadedDataLayerNamesEpoch(MAX_int32)
+{}
+
+void FWorldDataLayersEffectiveStates::SetReplicatedEffectiveActiveDataLayerNames(const TArray<FName>& InRepEffectiveActiveDataLayerNames)
+{
+	ReplicatedEffectiveActiveDataLayerNames.Reset();
+	ReplicatedEffectiveActiveDataLayerNames.Append(InRepEffectiveActiveDataLayerNames);
+	++UpdateEpoch;
+}
+
+void FWorldDataLayersEffectiveStates::SetReplicatedEffectiveLoadedDataLayerNames(const TArray<FName>& InRepEffectiveLoadedDataLayerNames)
+{
+	ReplicatedEffectiveLoadedDataLayerNames.Reset();
+	ReplicatedEffectiveLoadedDataLayerNames.Append(InRepEffectiveLoadedDataLayerNames);
+	++UpdateEpoch;
+}
+
+bool FWorldDataLayersEffectiveStates::SetDataLayerEffectiveRuntimeState(FName InDataLayerName, bool bIsLocalDataLayer, EDataLayerRuntimeState NewEffectiveRuntimeState, EDataLayerRuntimeState& OutOldEffectiveRuntimeState)
+{
+	OutOldEffectiveRuntimeState = GetDataLayerEffectiveRuntimeStateByName(InDataLayerName);
+	if (OutOldEffectiveRuntimeState != NewEffectiveRuntimeState)
+	{
+		TSet<FName>& TargetEffectiveLoadedDataLayerNames = bIsLocalDataLayer ? LocalEffectiveLoadedDataLayerNames : ReplicatedEffectiveLoadedDataLayerNames;
+		TSet<FName>& TargetEffectiveActiveDataLayerNames = bIsLocalDataLayer ? LocalEffectiveActiveDataLayerNames : ReplicatedEffectiveActiveDataLayerNames;
+
+		TargetEffectiveLoadedDataLayerNames.Remove(InDataLayerName);
+		TargetEffectiveActiveDataLayerNames.Remove(InDataLayerName);
+
+		if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Loaded)
+		{
+			TargetEffectiveLoadedDataLayerNames.Add(InDataLayerName);
+		}
+		else if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Activated)
+		{
+			TargetEffectiveActiveDataLayerNames.Add(InDataLayerName);
+		}
+
+		++UpdateEpoch;
+		return true;
+	}
+	return false;
+}
+
+void FWorldDataLayersEffectiveStates::Reset()
+{
+	ReplicatedEffectiveActiveDataLayerNames.Reset();
+	ReplicatedEffectiveLoadedDataLayerNames.Reset();
+	LocalEffectiveActiveDataLayerNames.Reset();
+	LocalEffectiveLoadedDataLayerNames.Reset();
+	++UpdateEpoch;
+}
+
+EDataLayerRuntimeState FWorldDataLayersEffectiveStates::GetDataLayerEffectiveRuntimeStateByName(FName InDataLayerName) const
+{
+	if (ReplicatedEffectiveActiveDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!ReplicatedEffectiveLoadedDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Activated;
+	}
+	else if (ReplicatedEffectiveLoadedDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!ReplicatedEffectiveActiveDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Loaded;
+	}
+	else if (LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Activated;
+	}
+	else if (LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Loaded;
+	}
+
+	return EDataLayerRuntimeState::Unloaded;
+}
+
+const TSet<FName>& FWorldDataLayersEffectiveStates::GetAllEffectiveActiveDataLayerNames() const
+{
+	if (AllEffectiveActiveDataLayerNamesEpoch != UpdateEpoch)
+	{
+		AllEffectiveActiveDataLayerNames = ReplicatedEffectiveActiveDataLayerNames;
+		AllEffectiveActiveDataLayerNames.Append(LocalEffectiveActiveDataLayerNames);
+		AllEffectiveActiveDataLayerNamesEpoch = UpdateEpoch;
+	}
+	return AllEffectiveActiveDataLayerNames;
+}
+
+const TSet<FName>& FWorldDataLayersEffectiveStates::GetAllEffectiveLoadedDataLayerNames() const
+{
+	if (AllEffectiveLoadedDataLayerNamesEpoch != UpdateEpoch)
+	{
+		AllEffectiveLoadedDataLayerNames = ReplicatedEffectiveLoadedDataLayerNames;
+		AllEffectiveLoadedDataLayerNames.Append(LocalEffectiveLoadedDataLayerNames);
+		AllEffectiveLoadedDataLayerNamesEpoch = UpdateEpoch;
+	}
+	return AllEffectiveLoadedDataLayerNames;
+}
 
 #undef LOCTEXT_NAMESPACE

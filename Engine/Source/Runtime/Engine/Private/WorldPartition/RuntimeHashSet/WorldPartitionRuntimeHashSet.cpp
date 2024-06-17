@@ -7,7 +7,6 @@
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
 #include "WorldPartition/WorldPartitionRuntimeLevelStreamingCell.h"
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
-#include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/DataLayer/DataLayersID.h"
@@ -517,11 +516,12 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 	});
 }
 
-void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const
+void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func, const FWorldPartitionStreamingContext& InContext) const
 {
-	const UWorld* OuterWorld = GetTypedOuter<UWorld>();
-	const AWorldDataLayers* WorldDataLayers = OuterWorld->GetWorldDataLayers();
-	const int32 DataLayersStateEpoch = WorldDataLayers->GetDataLayersStateEpoch();
+	// Build a context when none is provided (for backward compatibility)
+	const FWorldPartitionStreamingContext StackContext = !InContext.IsValid() ? FWorldPartitionStreamingContext::Create(GetTypedOuter<UWorld>()) : FWorldPartitionStreamingContext();
+	const FWorldPartitionStreamingContext& Context = InContext.IsValid() ? InContext : StackContext;
+	check(Context.IsValid());
 
 	// Non-spatially loaded cells
 	for (const FRuntimePartitionStreamingData* StreamingData : RuntimeNonSpatiallyLoadedDataGridList)
@@ -536,7 +536,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 #else
 			check(IsCellRelevantFor(Cell->GetClientOnlyVisible()));
 #endif
-			const EDataLayerRuntimeState CellEffectiveWantedState = Cell->GetCellEffectiveWantedState(DataLayersStateEpoch);
+			const EDataLayerRuntimeState CellEffectiveWantedState = Cell->GetCellEffectiveWantedState(Context);
 			if (CellEffectiveWantedState != EDataLayerRuntimeState::Unloaded)
 			{
 				Func(Cell, (CellEffectiveWantedState == EDataLayerRuntimeState::Loaded) ? EStreamingSourceTargetState::Loaded : EStreamingSourceTargetState::Activated);
@@ -579,11 +579,11 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 
 				for (const FRuntimePartitionStreamingData* StreamingData : *StreamingDataList)
 				{
-					Source.ForEachShape(StreamingData->GetLoadingRange(), false, [this, &Source, StreamingData, DataLayersStateEpoch, &Func](const FSphericalSector& Shape)
+					Source.ForEachShape(StreamingData->GetLoadingRange(), false, [this, &Source, StreamingData, &Context, &Func](const FSphericalSector& Shape)
 					{
 						const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
-						auto ForEachIntersectingElementFunc = [this, &Source, &Shape, DataLayersStateEpoch, &Func](UWorldPartitionRuntimeCell* Cell)
+						auto ForEachIntersectingElementFunc = [this, &Source, &Shape, &Context, &Func](UWorldPartitionRuntimeCell* Cell)
 						{
 #if WITH_EDITOR
 							if (!IsCellRelevantFor(Cell->GetClientOnlyVisible()))
@@ -593,10 +593,10 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 #else
 							check(IsCellRelevantFor(Cell->GetClientOnlyVisible()));
 #endif
-							const EDataLayerRuntimeState CellEffectiveWantedState = Cell->GetCellEffectiveWantedState(DataLayersStateEpoch);
+							const EDataLayerRuntimeState CellEffectiveWantedState = Cell->GetCellEffectiveWantedState(Context);
 							if (CellEffectiveWantedState != EDataLayerRuntimeState::Unloaded)
 							{
-								Cell->AppendStreamingSourceInfo(Source, Shape);
+								Cell->AppendStreamingSourceInfo(Source, Shape, Context);
 								Func(Cell, ((CellEffectiveWantedState == EDataLayerRuntimeState::Loaded) || (Source.TargetState == EStreamingSourceTargetState::Loaded)) ? EStreamingSourceTargetState::Loaded : EStreamingSourceTargetState::Activated);
 							}
 						};

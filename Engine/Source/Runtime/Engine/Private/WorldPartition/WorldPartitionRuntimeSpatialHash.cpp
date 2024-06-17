@@ -362,7 +362,7 @@ void FSpatialHashStreamingGrid::GetCells(const FWorldPartitionStreamingQuerySour
 	}
 }
 
-void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSource>& Sources, UWorldPartitionRuntimeHash::FStreamingSourceCells& OutActivateCells, UWorldPartitionRuntimeHash::FStreamingSourceCells& OutLoadCells, bool bEnableZCulling) const
+void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSource>& Sources, UWorldPartitionRuntimeHash::FStreamingSourceCells& OutActivateCells, UWorldPartitionRuntimeHash::FStreamingSourceCells& OutLoadCells, bool bEnableZCulling, const FWorldPartitionStreamingContext& Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FSpatialHashStreamingGrid::GetCells);
 
@@ -407,19 +407,19 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 						
 						if (bIncludeCell)
 						{
-							switch (Cell->GetCellEffectiveWantedState())
+							switch (Cell->GetCellEffectiveWantedState(Context))
 							{
 							case EDataLayerRuntimeState::Loaded:
-								OutLoadCells.AddCell(Cell, Source, Shape);
+								OutLoadCells.AddCell(Cell, Source, Shape, Context);
 								break;
 							case EDataLayerRuntimeState::Activated:
 								switch (Source.TargetState)
 								{
 								case EStreamingSourceTargetState::Loaded:
-									OutLoadCells.AddCell(Cell, Source, Shape);
+									OutLoadCells.AddCell(Cell, Source, Shape, Context);
 									break;
 								case EStreamingSourceTargetState::Activated:
-									OutActivateCells.AddCell(Cell, Source, Shape);
+									OutActivateCells.AddCell(Cell, Source, Shape, Context);
 									bAddedActivatedCell = !Settings.bUseAlignedGridLevels && Settings.bSnapNonAlignedGridLevelsToLowerLevels;
 									break;
 								default:
@@ -442,7 +442,7 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 		});
 	}
 
-	GetNonSpatiallyLoadedCells(OutActivateCells.GetCells(), OutLoadCells.GetCells());
+	GetNonSpatiallyLoadedCells(OutActivateCells.GetCells(), OutLoadCells.GetCells(), Context);
 
 	if (!Settings.bUseAlignedGridLevels && Settings.bSnapNonAlignedGridLevelsToLowerLevels)
 	{
@@ -499,14 +499,14 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 		{
 			ForEachRuntimeCell(ParentCell.Key, [&](const UWorldPartitionRuntimeCell* Cell)
 			{
-				switch (Cell->GetCellEffectiveWantedState())
+				switch (Cell->GetCellEffectiveWantedState(Context))
 				{
 				case EDataLayerRuntimeState::Loaded:
 					break;
 				case EDataLayerRuntimeState::Activated:
 					for (const auto& Info : ParentCell.Value)
 					{
-						OutActivateCells.AddCell(Cell, Info.Source, Info.SourceShape);
+						OutActivateCells.AddCell(Cell, Info.Source, Info.SourceShape, Context);
 					}
 					break;
 				case EDataLayerRuntimeState::Unloaded:
@@ -730,17 +730,17 @@ void FSpatialHashStreamingGrid::ForEachRuntimeCell(TFunctionRef<bool(const UWorl
 	ForEachGridLevel(InjectedGridLevels);
 }
 
-void FSpatialHashStreamingGrid::GetNonSpatiallyLoadedCells(TSet<const UWorldPartitionRuntimeCell*>& OutActivateCells, TSet<const UWorldPartitionRuntimeCell*>& OutLoadCells) const
+void FSpatialHashStreamingGrid::GetNonSpatiallyLoadedCells(TSet<const UWorldPartitionRuntimeCell*>& OutActivateCells, TSet<const UWorldPartitionRuntimeCell*>& OutLoadCells, const FWorldPartitionStreamingContext& Context) const
 {
 	if (GridLevels.Num() > 0)
 	{
-		auto ForEachGridLevelCells = [&OutActivateCells, &OutLoadCells](const FSpatialHashStreamingGridLevel& InGridLevel)
+		auto ForEachGridLevelCells = [&OutActivateCells, &OutLoadCells, &Context](const FSpatialHashStreamingGridLevel& InGridLevel)
 		{
 			for (const FSpatialHashStreamingGridLayerCell& LayerCell : InGridLevel.LayerCells)
 			{
 				for (const UWorldPartitionRuntimeCell* Cell : LayerCell.GridCells)
 				{
-					switch (Cell->GetCellEffectiveWantedState())
+					switch (Cell->GetCellEffectiveWantedState(Context))
 					{
 					case EDataLayerRuntimeState::Loaded:
 						check(Cell->HasDataLayers());
@@ -779,7 +779,7 @@ void FSpatialHashStreamingGrid::GetFilteredCellsForDebugDraw(const FSpatialHashS
 				EStreamingStatus StreamingStatus = Cell->GetStreamingStatus();
 				const TArray<FName>& DataLayers = Cell->GetDataLayers();
 
-				switch (Cell->GetCellEffectiveWantedState())
+				switch (Cell->GetCellEffectiveWantedStateRaw())
 				{
 				case EDataLayerRuntimeState::Loaded:
 				case EDataLayerRuntimeState::Activated:
@@ -1744,8 +1744,13 @@ uint32 UWorldPartitionRuntimeSpatialHash::ComputeUpdateStreamingHash() const
 	return HashBuilder.GetHash();
 }
 
-void UWorldPartitionRuntimeSpatialHash::ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const
+void UWorldPartitionRuntimeSpatialHash::ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func, const FWorldPartitionStreamingContext& InContext) const
 {
+	// Build a context when none is provided (for backward compatibility)
+	const FWorldPartitionStreamingContext StackContext = !InContext.IsValid() ? FWorldPartitionStreamingContext::Create(GetTypedOuter<UWorld>()) : FWorldPartitionStreamingContext();
+	const FWorldPartitionStreamingContext& Context = InContext.IsValid() ? InContext : StackContext;
+	check(Context.IsValid());
+
 	FStreamingSourceCells ActivateStreamingSourceCells;
 	FStreamingSourceCells LoadStreamingSourceCells;
 
@@ -1756,7 +1761,7 @@ void UWorldPartitionRuntimeSpatialHash::ForEachStreamingCellsSources(const TArra
 		{
 			if (IsCellRelevantFor(StreamingGrid.bClientOnlyVisible))
 			{
-				StreamingGrid.GetNonSpatiallyLoadedCells(ActivateStreamingSourceCells.GetCells(), LoadStreamingSourceCells.GetCells());
+				StreamingGrid.GetNonSpatiallyLoadedCells(ActivateStreamingSourceCells.GetCells(), LoadStreamingSourceCells.GetCells(), Context);
 			}
 		});
 	}
@@ -1767,7 +1772,7 @@ void UWorldPartitionRuntimeSpatialHash::ForEachStreamingCellsSources(const TArra
 		{
 			if (IsCellRelevantFor(StreamingGrid.bClientOnlyVisible))
 			{
-				StreamingGrid.GetCells(Sources, ActivateStreamingSourceCells, LoadStreamingSourceCells, GetEffectiveEnableZCulling(bEnableZCulling));
+				StreamingGrid.GetCells(Sources, ActivateStreamingSourceCells, LoadStreamingSourceCells, GetEffectiveEnableZCulling(bEnableZCulling), Context);
 			}
 		});
 	}

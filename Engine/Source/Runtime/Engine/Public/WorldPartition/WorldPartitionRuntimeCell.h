@@ -25,6 +25,7 @@ class UDataLayerManager;
 class UExternalDataLayerAsset;
 class FStreamingGenerationActorDescView;
 struct FHierarchicalLogArchive;
+struct FWorldPartitionStreamingContext;
 
 enum class EWorldPartitionDataLayersLogicOperator : uint8;
 
@@ -248,10 +249,6 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	ENGINE_API virtual bool CanUnload() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::CanUnload, return true;);
 	ENGINE_API virtual void Activate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::Activate,);
 	ENGINE_API virtual void Deactivate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::Deactivate,);
-	UE_DEPRECATED(5.4, "IsAddedToWorld is deprecated.")
-	ENGINE_API virtual bool IsAddedToWorld() const { return false; }
-	UE_DEPRECATED(5.4, "CanAddToWorld is deprecated.")
-	ENGINE_API virtual bool CanAddToWorld() const { return false; }
 	ENGINE_API virtual ULevel* GetLevel() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetLevel, return nullptr;);
 	ENGINE_API virtual EWorldPartitionRuntimeCellState GetCurrentState() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetCurrentState, return EWorldPartitionRuntimeCellState::Unloaded;);
 	virtual FLinearColor GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const { static const FLinearColor DefaultColor = FLinearColor::Black.CopyWithNewOpacity(0.25f); return DefaultColor; }
@@ -259,8 +256,6 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	virtual void SetIsAlwaysLoaded(bool bInIsAlwaysLoaded) { bIsAlwaysLoaded = bInIsAlwaysLoaded; }
 	ENGINE_API virtual void SetStreamingPriority(int32 InStreamingPriority) const PURE_VIRTUAL(UWorldPartitionRuntimeCell::SetStreamingPriority,);
 	virtual EStreamingStatus GetStreamingStatus() const { return LEVEL_Unloaded; }
-	UE_DEPRECATED(5.3, "IsLoading is deprecated.")
-	virtual bool IsLoading() const { return false; }
 	void SetClientOnlyVisible(bool bInClientOnlyVisible) { bClientOnlyVisible = bInClientOnlyVisible; }
 	bool GetClientOnlyVisible() const { return bClientOnlyVisible; }
 	virtual FGuid const& GetContentBundleID() const { return ContentBundleID; }
@@ -285,16 +280,21 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	//~End IWorldPartitionCell Interface
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
-	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState() const;
-	FORCEINLINE EDataLayerRuntimeState GetCellEffectiveWantedState(int32 InDataLayersStateEpoch) const
-	{
-		if (EffectiveWantedStateEpoch != InDataLayersStateEpoch)
-		{
-			return GetCellEffectiveWantedState();
-		}
-		return EffectiveWantedState;
-	}
+	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState(const FWorldPartitionStreamingContext& Context) const;
 	FORCEINLINE bool HasDataLayers() const { return !DataLayers.IsEmpty(); }
+
+	//~Begin Deprecation
+	UE_DEPRECATED(5.3, "IsLoading is deprecated.")
+	virtual bool IsLoading() const { return false; }
+	UE_DEPRECATED(5.4, "IsAddedToWorld is deprecated.")
+	ENGINE_API virtual bool IsAddedToWorld() const { return false; }
+	UE_DEPRECATED(5.4, "CanAddToWorld is deprecated.")
+	ENGINE_API virtual bool CanAddToWorld() const { return false; }
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	EDataLayerRuntimeState GetCellEffectiveWantedState(int32 InDataLayersStateEpoch) const { return EDataLayerRuntimeState::Unloaded; }
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	EDataLayerRuntimeState GetCellEffectiveWantedState() const { return EDataLayerRuntimeState::Unloaded; }
+	//~End Deprecation
 
 	void SetBlockOnSlowLoading(bool bInBlockOnSlowLoading) { bBlockOnSlowLoading = bInBlockOnSlowLoading; }
 	bool GetBlockOnSlowLoading() const { return bBlockOnSlowLoading; }
@@ -373,6 +373,8 @@ protected:
 	//          The same should be done for injected external streaming objects.
 	ENGINE_API virtual bool ShouldServerWaitForClientLevelVisibility() const { return true; }
 
+	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedStateRaw() const { return !HasDataLayers() ? EDataLayerRuntimeState::Activated : EffectiveWantedState; }
+
 	UPROPERTY()
 	bool bIsAlwaysLoaded;
 
@@ -422,7 +424,7 @@ protected:
 
 public:
 	//~Begin UWorldPartitionRuntimeCellData Proxy
-	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const { RuntimeCellData->AppendStreamingSourceInfo(Source, SourceShape); }
+	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context) const { RuntimeCellData->AppendStreamingSourceInfo(Source, SourceShape, Context); }
 	inline void MergeStreamingSourceInfo() const { RuntimeCellData->MergeStreamingSourceInfo(); }
 	ENGINE_API int32 SortCompare(const UWorldPartitionRuntimeCell* Other) const;
 	
@@ -438,8 +440,14 @@ public:
 	ENGINE_API virtual bool IsDebugShown() const;
 	//~End UWorldPartitionRuntimeCellData Proxy
 
+	//~Begin Deprecation
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) {}
+	//~End Deprecation
+
 	UPROPERTY()
 	TObjectPtr<UWorldPartitionRuntimeCellData> RuntimeCellData;
 
 	friend class UWorldPartitionStreamingPolicy;
+	friend struct FSpatialHashStreamingGrid;
 };

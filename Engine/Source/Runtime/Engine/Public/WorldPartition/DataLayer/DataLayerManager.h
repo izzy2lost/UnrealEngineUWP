@@ -122,8 +122,9 @@ private:
 
 	ENGINE_API AWorldDataLayers* GetWorldDataLayers() const;
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const;
-
 	ENGINE_API void BroadcastOnDataLayerInstanceRuntimeStateChanged(const UDataLayerInstance* InDataLayer, EDataLayerRuntimeState InState);
+	ENGINE_API static bool IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates);
+	ENGINE_API static bool IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates);
 
 	/** Referenced objects (used by verse) */
 	UPROPERTY(Transient)
@@ -152,6 +153,7 @@ private:
 	friend class UWorldPartitionSubsystem;
 	friend class FWorldPartitionDebugHelper;
 	friend class UVerseDataLayerManagerBase;
+	friend struct FWorldPartitionStreamingContext;
 
 #if WITH_EDITOR
 private:
