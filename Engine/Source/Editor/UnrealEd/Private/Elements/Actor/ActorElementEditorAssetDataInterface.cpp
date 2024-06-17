@@ -3,9 +3,9 @@
 #include "Elements/Actor/ActorElementEditorAssetDataInterface.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Elements/Actor/ActorElementData.h"
 #include "GameFramework/Actor.h"
-#include "HAL/PlatformCrt.h"
 
 TArray<FAssetData> UActorElementEditorAssetDataInterface::GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle)
 {
@@ -21,6 +21,23 @@ TArray<FAssetData> UActorElementEditorAssetDataInterface::GetAllReferencedAssetD
 			if (ObjectAssetData.IsValid())
 			{
 				AssetDatas.Emplace(ObjectAssetData);
+			}
+		}
+
+		TArray<FSoftObjectPath> SoftObjects;
+		RawActorPtr->GetSoftReferencedContentObjects(SoftObjects);
+		if (SoftObjects.Num())
+		{
+			IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
+
+			for (const FSoftObjectPath& SoftObject : SoftObjects)
+			{
+				FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(SoftObject);
+
+				if (AssetData.IsValid())
+				{
+					AssetDatas.Add(AssetData);
+				}
 			}
 		}
 
