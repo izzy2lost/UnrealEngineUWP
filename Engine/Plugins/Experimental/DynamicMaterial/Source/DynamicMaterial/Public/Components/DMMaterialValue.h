@@ -174,7 +174,7 @@ protected:
  
 	UDMMaterialValue(EDMValueType InType);
  
-	virtual void OnValueUpdated(bool bInForceStructureUpdate);
+	virtual void OnValueChanged(EDMUpdateType InUpdateType, bool bInUpdateParent);
  
 	//~ Begin UDMMaterialComponent
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;

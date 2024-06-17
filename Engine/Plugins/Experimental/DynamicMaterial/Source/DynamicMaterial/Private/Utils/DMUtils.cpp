@@ -7,6 +7,7 @@
 #include "SceneTypes.h"
 
 #if WITH_EDITOR
+#include "Misc/CoreMisc.h"
 #include "Misc/Paths.h"
 #endif
 

@@ -91,19 +91,21 @@ UDMRenderTargetRenderer* UDMMaterialValueRenderTarget::GetRenderer() const
 
 void UDMMaterialValueRenderTarget::SetRenderer(UDMRenderTargetRenderer* InRenderer)
 {
-#if WITH_EDITOR
 	if (Renderer == InRenderer)
 	{
 		return;
 	}
 
+#if WITH_EDITOR
 	if (Renderer)
 	{
 		Renderer->SetComponentState(EDMComponentLifetimeState::Removed);
 	}
+#endif
 
 	Renderer = InRenderer;
 
+#if WITH_EDITOR
 	if (IsComponentAdded())
 	{
 		Renderer->SetComponentState(EDMComponentLifetimeState::Added);
@@ -222,7 +224,7 @@ bool UDMMaterialValueRenderTarget::JsonDeserialize(const TSharedPtr<FJsonValue>&
 
 	if (bSuccess)
 	{
-		Update(EDMUpdateType::Value);
+		OnValueChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
 	}
 
 	return bSuccess;

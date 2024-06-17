@@ -112,7 +112,7 @@ void UDMMaterialValueFloat2::SetValue(const FVector2D& InValue)
  
 	Value = ValueClamped;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
  
 #if WITH_EDITOR

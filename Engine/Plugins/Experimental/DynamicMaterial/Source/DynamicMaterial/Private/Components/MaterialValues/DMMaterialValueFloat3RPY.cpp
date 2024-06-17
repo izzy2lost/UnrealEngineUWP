@@ -114,7 +114,7 @@ void UDMMaterialValueFloat3RPY::SetValue(const FRotator& InValue)
  
 	Value = ValueClamped;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
  
 #if WITH_EDITOR

@@ -219,6 +219,8 @@ protected:
 	void RemoveParameterNames();
 #endif
 
+	void OnTextureUVChanged(EDMUpdateType InUpdateType, bool bInUpdateParent);
+
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType) override;
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;

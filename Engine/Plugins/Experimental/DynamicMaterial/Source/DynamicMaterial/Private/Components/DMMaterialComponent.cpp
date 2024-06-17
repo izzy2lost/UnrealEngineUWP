@@ -4,7 +4,6 @@
 #include "DMComponentPath.h"
 #include "DynamicMaterialModule.h"
 #include "HAL/PlatformTime.h"
-#include "Model/DynamicMaterialModel.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialComponent"
 
@@ -264,11 +263,8 @@ void UDMMaterialComponent::OnComponentRemoved()
 
 void UDMMaterialComponent::MarkComponentDirty()
 {
-#if WITH_EDITORONLY_DATA
-	bComponentDirty = true;
-#endif
-
 #if WITH_EDITOR
+	bComponentDirty = true;
 	PreventClean();
 #endif
 }

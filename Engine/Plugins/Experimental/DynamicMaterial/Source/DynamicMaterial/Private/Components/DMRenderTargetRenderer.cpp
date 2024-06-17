@@ -89,16 +89,13 @@ void UDMRenderTargetRenderer::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
-	{
-		MarkComponentDirty();
-	}
+	MarkComponentDirty();
+#endif
 
 	if (UDMMaterialValueRenderTarget* RenderTarget = GetRenderTargetValue())
 	{
 		RenderTarget->Update(InUpdateType);
 	}
-#endif
 
 	Super::Update(InUpdateType);
 }

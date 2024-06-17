@@ -7,10 +7,6 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Serialization/CustomVersion.h"
 
-#if WITH_EDITOR
-#include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
-#endif
-
 namespace UE::DynamicMaterial::Private
 {
 	TMap<int32, FName> BaseParameterNames = {
@@ -91,7 +87,7 @@ void UDMTextureUV::SetUVSource(EDMUVSource InUVSource)
 
 	UVSource = InUVSource;
 
-	Update(EDMUpdateType::Structure);
+	OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
 }
 #endif
 
@@ -110,7 +106,7 @@ void UDMTextureUV::SetOffset(const FVector2D& InOffset)
 
 	Offset = InOffset;
 
-	Update(EDMUpdateType::Value);
+	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
 
 void UDMTextureUV::SetPivot(const FVector2D& InPivot)
@@ -128,7 +124,7 @@ void UDMTextureUV::SetPivot(const FVector2D& InPivot)
 
 	Pivot = InPivot;
 
-	Update(EDMUpdateType::Value);
+	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
 
 void UDMTextureUV::SetRotation(float InRotation)
@@ -145,7 +141,7 @@ void UDMTextureUV::SetRotation(float InRotation)
 
 	Rotation = InRotation;
 
-	Update(EDMUpdateType::Value);
+	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
 
 void UDMTextureUV::SetTiling(const FVector2D& InTiling)
@@ -163,7 +159,7 @@ void UDMTextureUV::SetTiling(const FVector2D& InTiling)
 
 	Tiling = InTiling;
 
-	Update(EDMUpdateType::Value);
+	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
 
 #if WITH_EDITOR
@@ -181,7 +177,7 @@ void UDMTextureUV::SetMirrorOnX(bool bInMirrorOnX)
 
 	bMirrorOnX = bInMirrorOnX;
 
-	Update(EDMUpdateType::Structure);
+	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
 
 void UDMTextureUV::SetMirrorOnY(bool bInMirrorOnY)
@@ -198,7 +194,7 @@ void UDMTextureUV::SetMirrorOnY(bool bInMirrorOnY)
 
 	bMirrorOnY = bInMirrorOnY;
 
-	Update(EDMUpdateType::Structure);
+	OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
 }
 #endif
 
@@ -386,15 +382,7 @@ void UDMTextureUV::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
-	{
-		MarkComponentDirty();
-	}
-
-	if (ParentComponent)
-	{
-		ParentComponent->Update(InUpdateType);
-	}
+	MarkComponentDirty();
 #endif
 
 	Super::Update(InUpdateType);
@@ -545,6 +533,26 @@ void UDMTextureUV::RemoveParameterNames()
 	}
 }
 
+void UDMTextureUV::OnTextureUVChanged(EDMUpdateType InUpdateType, bool bInUpdateParent)
+{
+	if (!IsComponentValid())
+	{
+		return;
+	}
+
+	if (FDMUpdateGuard::CanUpdate())
+	{
+		Update(InUpdateType);
+
+#if WITH_EDITOR
+		if (bInUpdateParent && ParentComponent)
+		{
+			ParentComponent->Update(InUpdateType);
+		}
+#endif
+	}
+}
+
 void UDMTextureUV::OnComponentAdded()
 {
 	if (!IsComponentValid())
@@ -593,13 +601,13 @@ void UDMTextureUV::PostEditChangeProperty(struct FPropertyChangedEvent& Property
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Rotation
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Tiling)
 	{
-		Update(EDMUpdateType::Value);
+		OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ true);
 	}
 	else if (PropertyChangedEvent.MemberProperty->GetFName() == NAME_UVSource
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_bMirrorOnX
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_bMirrorOnY)
 	{
-		Update(EDMUpdateType::Structure);
+		OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
 	}
 }
 
@@ -620,11 +628,11 @@ void UDMTextureUV::PostEditUndo()
 		|| bMirrorOnX != bMirrorOnX_PreUndo
 		|| bMirrorOnY != bMirrorOnY_PreUndo)
 	{
-		Update(EDMUpdateType::Structure);
+		OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
 	}
 	else
 	{
-		Update(EDMUpdateType::Value);
+		OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ true);
 	}
 }
 
@@ -660,11 +668,11 @@ void UDMTextureUV::PostLoad()
 
 	if (bNeedsPostLoadStructureUpdate)
 	{
-		Update(EDMUpdateType::Structure);
+		OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ false);
 	}
 	else if (bNeedsPostLoadValueUpdate)
 	{
-		Update(EDMUpdateType::Value);
+		OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 	}
 
 	bNeedsPostLoadStructureUpdate = false;

@@ -615,8 +615,6 @@ void UDMMaterialStageInputValue::InitInputValue()
 
 			Value->SetParentComponent(this);
 		}
-
-		Value->GetOnUpdate().AddUObject(this, &UDMMaterialStageInputValue::OnValueUpdated);
 	}
 }
 
@@ -624,7 +622,15 @@ void UDMMaterialStageInputValue::DeinitInputValue()
 {
 	if (Value)
 	{
-		Value->GetOnUpdate().RemoveAll(this);
+		if (Value->IsLocal())
+		{
+			if (GUndo)
+			{
+				Value->Modify();
+			}
+
+			Value->SetParentComponent(nullptr);
+		}
 	}
 }
 

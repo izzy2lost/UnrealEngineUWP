@@ -99,7 +99,7 @@ void UDMMaterialValueFloat1::SetValue(float InValue)
  
 	Value = InValue;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
 }
  
 void UDMMaterialValueFloat1::SetMIDParameter(UMaterialInstanceDynamic* InMID) const

@@ -14,7 +14,6 @@
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 
 #if WITH_EDITOR
-#include "Components/DMTextureUV.h"
 #include "Materials/Material.h"
 #endif
 
