@@ -680,6 +680,11 @@ namespace UE
 						{
 							MarkPropertyValueSerialized(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
 						}
+						else if (NewSubProperty->GetBoolMetaData(NAME_IsLooseMetadata))
+						{
+							// loose properties should be marked as serialized regardless of whether the old struct marked them as such
+							MarkPropertyValueSerialized(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
+						}
 					
 						// recurse
 						CopyPropertyValueSerializedData(
