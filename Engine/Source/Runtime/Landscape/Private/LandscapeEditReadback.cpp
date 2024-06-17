@@ -5,8 +5,18 @@
 #include "Engine/Texture2D.h"
 #include "LandscapePrivate.h"
 #include "RenderingThread.h"
+#include "RenderUtils.h"
 #include "Hash/CityHashHelpers.h"
 
+namespace UE::Landscape::Private
+{
+static TAutoConsoleVariable<int32> CVarReadbackPoolSizeMB(
+	TEXT("landscape.ReadbackPoolSizeMB"),
+	256,
+	TEXT("Minimum pool size (in MB) for the editor readbacks. This ensures a minimum amount of readback textures are left in the pool when reclaiming memory, which avoids severe hiccups when reallocating a lot of resources."));
+
+static int32 TotalStagingTexturesAllocatedSize = 0;
+}
 
 /** Data for a read back task. */
 struct FLandscapeEditReadbackTaskImpl
@@ -26,6 +36,7 @@ struct FLandscapeEditReadbackTaskImpl
 	FIntPoint Size = FIntPoint(ForceInitToZero);
 	uint32 NumMips = 0;
 	EPixelFormat Format = PF_Unknown;
+	int32 StagingTexturesAllocatedSize = 0;
 
 	// Create on render thread
 	TArray<FTextureRHIRef> StagingTextures;
@@ -34,6 +45,7 @@ struct FLandscapeEditReadbackTaskImpl
 	// Result written on render thread and read on game thread
 	ECompletionState CompletionState = ECompletionState::None;
 	TArray<TArray<FColor>> Result;
+
 };
 
 /** Initialize the read back task data that is written by game thread. */
@@ -51,6 +63,8 @@ void InitTask_GameThread(FLandscapeEditReadbackTaskImpl& Task, UTexture2D const*
 /** Initialize the read back task resources. */
 bool InitTask_RenderThread(FLandscapeEditReadbackTaskImpl& Task)
 {
+	using namespace UE::Landscape::Private;
+
 	if (Task.StagingTextures.Num() == 0 || !Task.StagingTextures[0].IsValid() || Task.StagingTextures[0]->GetSizeXYZ() != FIntVector(Task.Size.X, Task.Size.Y, 1) || (Task.StagingTextures[0]->GetFormat() != Task.Format))
 	{
 		Task.StagingTextures.SetNum(Task.NumMips);
@@ -67,6 +81,8 @@ bool InitTask_RenderThread(FLandscapeEditReadbackTaskImpl& Task)
 			Task.StagingTextures[MipIndex] = RHICreateTexture(Desc);
 		}
 
+		Task.StagingTexturesAllocatedSize += CalcTextureSize(Task.Size.X, Task.Size.Y, Task.Format, Task.NumMips);
+		TotalStagingTexturesAllocatedSize += Task.StagingTexturesAllocatedSize;
 	}
 
 	if (!Task.ReadbackFence.IsValid())
@@ -235,6 +251,8 @@ public:
 	/** Free render resources that have been unused for long enough. */
 	void GarbageCollect()
 	{
+		using namespace UE::Landscape::Private;
+		
 		const uint32 PoolSize = Pool.Num();
 		if (PoolSize > 0)
 		{
@@ -253,8 +271,14 @@ public:
 					Task->ReadbackContext.Empty();
 					Task->Result.Empty();
 
-					if (!Task->StagingTextures.IsEmpty() || Task->ReadbackFence.IsValid())
+					const int32 MinPoolSize = CVarReadbackPoolSizeMB.GetValueOnGameThread();
+					const int32 MinPoolSizeBytes = MinPoolSize * 1024 * 1024;
+					if ((!Task->StagingTextures.IsEmpty() || Task->ReadbackFence.IsValid()) 
+						&& ((TotalStagingTexturesAllocatedSize - Task->StagingTexturesAllocatedSize) > MinPoolSizeBytes)) // Don't deplete the pool under the minimum limit
 					{
+						TotalStagingTexturesAllocatedSize -= Task->StagingTexturesAllocatedSize;
+						check(TotalStagingTexturesAllocatedSize >= 0);
+
 						// Release the render resources (which may already be released)
 						ENQUEUE_RENDER_COMMAND(FLandscapeEditLayerReadback_Release)([Task](FRHICommandListImmediate& RHICmdList)
 						{
@@ -267,6 +291,27 @@ public:
 		}
 
 		FrameCount++;
+	}
+
+	void FlushAll()
+	{
+		// Flush all pending tasks in a single command
+		ENQUEUE_RENDER_COMMAND(FLandscapeEditLayerReadback_FlushAll)([this](FRHICommandListImmediate& RHICmdList)
+		{
+			auto ItEnd = Pool.end();
+			for (auto It = Pool.begin(); It != ItEnd; ++It)
+			{
+				FLandscapeEditReadbackTaskImpl& Task = *It;
+				if (Task.TextureResource != nullptr)
+				{
+					bool bTaskComplete = UpdateTask_RenderThread(RHICmdList, Task, /*bFlush = */true);
+					check(bTaskComplete); // Flush should never fail to complete
+				}
+			}
+		});
+
+		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_ReadbackFlushAll);
+		FlushRenderingCommands();
 	}
 };
 
@@ -405,4 +450,9 @@ bool FLandscapeEditLayerReadback::HasWork()
 void FLandscapeEditLayerReadback::GarbageCollectTasks()
 {
 	GReadbackTaskPool.GarbageCollect();
+}
+
+void FLandscapeEditLayerReadback::FlushAllReadbackTasks()
+{
+	GReadbackTaskPool.FlushAll();
 }
