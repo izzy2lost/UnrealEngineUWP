@@ -190,9 +190,6 @@ namespace HordeCommon
 			{
 				if (await sharedLock.AcquireAsync(interval, false))
 				{
-					using TelemetrySpan span = _tracer.StartActiveSpan(name);
-					span.SetAttribute("interval", interval.TotalSeconds);
-
 					await tickAsync(cancellationToken);
 				}
 			}
