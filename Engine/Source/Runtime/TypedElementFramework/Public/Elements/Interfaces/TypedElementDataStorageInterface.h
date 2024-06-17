@@ -112,6 +112,21 @@ public:
 	 * to a table, it should still be released with RemoveRow.
 	 */
 	virtual TypedElementDataStorage::RowHandle ReserveRow() = 0;
+	/**
+	 * Reserve multiple rows at once to be assigned to a table at a later point. If multiple rows are needed, the batch version will
+	 * generally have better performance. If a row is no longer needed before it's been assigned to a table, it should still be released 
+	 * with RemoveRow.
+	 * The reservation callback will be called once per reserved row.
+	 */
+	virtual void BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback) = 0;
+	/**
+	 * Reserve multiple rows at once to be assigned to a table at a later point. If multiple rows are needed, the batch version will
+	 * generally have better performance. If a row is no longer needed before it's been assigned to a table, it should still be released
+	 * with RemoveRow.
+	 * The provided range will be have its values set to the reserved row handles.
+	 */
+	virtual void BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows) = 0;
+
 	/** Adds a new row to the provided table. */
 	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) = 0;
 	/**
@@ -295,8 +310,15 @@ public:
 	 * with a single row.
 	 */
 	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) = 0;
+	/**
+	 * Register multiple rows under their index hash. The same row can be registered multiple times,
+	 * but an index hash can only be associated with a single row.
+	 */
+	virtual void BatchIndexRows(
+		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle>> IndexRowPairs) = 0;
 	/** Updates the index of a row to a new value. Effectively this is the same as removing an index and adding a new one. */
-	virtual void ReindexRow(TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, TypedElementDataStorage::RowHandle Row) = 0;
+	virtual void ReindexRow(
+		TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, TypedElementDataStorage::RowHandle Row) = 0;
 	/** Removes a previously registered index hash from the index lookup table or does nothing if the hash no longer exists. */
 	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) = 0;
 

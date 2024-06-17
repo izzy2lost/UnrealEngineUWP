@@ -7,6 +7,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Engine/World.h"
+#include "GlobalLock.h"
 #include "MassCommonTypes.h"
 #include "MassEntityEditorSubsystem.h"
 #include "MassEntityTypes.h"
@@ -319,6 +320,38 @@ TypedElementDataStorage::RowHandle UTypedElementDatabase::ReserveRow()
 		: TypedElementDataStorage::InvalidRowHandle;
 }
 
+void UTypedElementDatabase::BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback)
+{
+	using namespace TypedElementDataStorage;
+
+	if (ActiveEditorEntityManager)
+	{
+		TArrayView<FMassEntityHandle> ReservedEntities(Environment->GetScratchBuffer().EmplaceArray<FMassEntityHandle>(Count), Count);
+		ActiveEditorEntityManager->BatchReserveEntities(ReservedEntities);
+
+		for (FMassEntityHandle ReservedEntity : ReservedEntities)
+		{
+			ReservationCallback(ReservedEntity.AsNumber());
+		}
+	}
+}
+
+void UTypedElementDatabase::BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows)
+{
+	using namespace TypedElementDataStorage;
+
+	if (ActiveEditorEntityManager)
+	{
+		// Depend on the fact that a row handle is an alias for an entity within the Mass powered backend. This
+		// avoids the need for copying to a temporary array;
+		static_assert(sizeof(RowHandle) == sizeof(FMassEntityHandle),
+			"BatchReserveRows in TEDS requires the row handle and the Mass entity handle to be the same size.");
+
+		TArrayView<FMassEntityHandle>* MassHandles = reinterpret_cast<TArrayView<FMassEntityHandle>*>(&ReservedRows);
+		ActiveEditorEntityManager->BatchReserveEntities(*MassHandles);
+	}
+}
+
 TypedElementDataStorage::RowHandle UTypedElementDatabase::AddRow(TypedElementDataStorage::TableHandle Table)
 {
 	checkf(Table < Tables.Num(), TEXT("Attempting to add a row to a non-existing table."));
@@ -439,7 +472,7 @@ void UTypedElementDatabase::RemoveRow(TypedElementDataStorage::RowHandle Row)
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
 	{
-		Environment->GetIndexTable().RemoveRow(Row);
+		Environment->GetIndexTable().RemoveRow(UE::EditorDataStorage::EGlobalLockScope::Public, Row);
 		if (ActiveEditorEntityManager->IsEntityBuilt(FMassEntityHandle::FromNumber(Row)))
 		{
 			ActiveEditorEntityManager->DestroyEntity(FMassEntityHandle::FromNumber(Row));
@@ -934,23 +967,29 @@ void UTypedElementDatabase::ActivateQueries(FName ActivationName)
 
 TypedElementDataStorage::RowHandle UTypedElementDatabase::FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
 {
-	return Environment->GetIndexTable().FindIndexedRow(Index);
+	return Environment->GetIndexTable().FindIndexedRow(UE::EditorDataStorage::EGlobalLockScope::Public, Index);
 }
 
 void UTypedElementDatabase::IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row)
 {
-	Environment->GetIndexTable().IndexRow(Index, Row);
+	Environment->GetIndexTable().IndexRow(UE::EditorDataStorage::EGlobalLockScope::Public, Index, Row);
+}
+
+void UTypedElementDatabase::BatchIndexRows(
+	TConstArrayView<TPair<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle>> IndexRowPairs)
+{
+	Environment->GetIndexTable().BatchIndexRows(UE::EditorDataStorage::EGlobalLockScope::Public, IndexRowPairs);
 }
 
 void UTypedElementDatabase::ReindexRow(TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, 
 	TypedElementDataStorage::RowHandle RowHandle)
 {
-	Environment->GetIndexTable().ReindexRow(OriginalIndex, NewIndex, RowHandle);
+	Environment->GetIndexTable().ReindexRow(UE::EditorDataStorage::EGlobalLockScope::Public, OriginalIndex, NewIndex, RowHandle);
 }
 
 void UTypedElementDatabase::RemoveIndex(TypedElementDataStorage::IndexHash Index)
 {
-	Environment->GetIndexTable().RemoveIndex(Index);
+	Environment->GetIndexTable().RemoveIndex(UE::EditorDataStorage::EGlobalLockScope::Public, Index);
 }
 
 FTypedElementOnDataStorageUpdate& UTypedElementDatabase::OnUpdate()
@@ -988,16 +1027,37 @@ void UTypedElementDatabase::ListExtensions(TFunctionRef<void(FName)> Callback) c
 
 void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)
 {
+	using namespace UE::EditorDataStorage;
+
 	if (ActiveEditorEntityManager)
 	{
-		Environment->GetQueryStore().RunPhasePreambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
+		{
+			// The preamble queries are all run on the game thread. While this is true it's safe to take a global write lock.
+			// If there's a performance loss because this lock is held too long, the work in RunPhasePreambleQueries can be split
+			// into a step that runs the queries and uses a shared lock and one that executes the command buffer with an exclusive lock.
+			FScopedExclusiveLock Lock(EGlobalLockScope::Public);
+			Environment->GetQueryStore().RunPhasePreambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
+		}
+		// During the processing of queries no mutation can happen to the structure of the database, just fields being updated. As such
+		// it's safe to only take a shared lock
+		FGlobalLock::InternalSharedLock();
 	}
 }
 
 void UTypedElementDatabase::FinalizePhase(EQueryTickPhase Phase, float DeltaTime)
 {
+	using namespace UE::EditorDataStorage;
+
 	if (ActiveEditorEntityManager)
 	{
+		// During the processing of queries no mutation can happen to the structure of the database, just fields being updated. As such
+		// it's safe to only take a shared lock
+		FGlobalLock::InternalSharedUnlock();
+		
+		// The preamble queries are all run on the game thread. While this is true it's safe to take a global write lock.
+		// If there's a performance loss because this lock is held too long, the work in RunPhasePostambleQueries can be split
+		// into a step that runs the queries and uses a shared lock and one that executes the command buffer with an exclusive lock.
+		FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 		Environment->GetQueryStore().RunPhasePostambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
 	}
 }

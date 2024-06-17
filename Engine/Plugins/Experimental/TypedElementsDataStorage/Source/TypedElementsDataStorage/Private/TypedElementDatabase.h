@@ -87,6 +87,8 @@ public:
 	TypedElementDataStorage::TableHandle FindTable(const FName Name) override;
 
 	TypedElementDataStorage::RowHandle ReserveRow() override;
+	void BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback) override;
+	void BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows) override;
 	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table, 
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
 	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override;
@@ -131,6 +133,8 @@ public:
 
 	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
 	void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) override;
+	void BatchIndexRows(
+		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle>> IndexRowPairs) override;
 	void ReindexRow(
 		TypedElementDataStorage::IndexHash OriginalIndex, 
 		TypedElementDataStorage::IndexHash NewIndex, 

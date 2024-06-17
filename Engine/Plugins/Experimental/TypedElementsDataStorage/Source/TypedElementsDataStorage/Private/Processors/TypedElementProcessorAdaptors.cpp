@@ -539,7 +539,12 @@ struct FMassQueryContextImplementation final : FMassWithEnvironmentContextCommon
 	
 	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
 	{
-		return Environment.GetIndexTable().FindIndexedRow(Index);
+		using namespace UE::EditorDataStorage;
+
+		EGlobalLockScope Scope = FGlobalLock::GetLockStatus(EGlobalLockScope::Internal) == EGlobalLockStatus::Unlocked
+			? EGlobalLockScope::Public // There's no internal lock so use a public lock instead.
+			: EGlobalLockScope::Internal; // There's an internal lock set so use that.
+		return Environment.GetIndexTable().FindIndexedRow(Scope, Index);
 	}
 
 	TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query)
