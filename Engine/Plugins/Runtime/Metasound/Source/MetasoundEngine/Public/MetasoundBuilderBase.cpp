@@ -453,7 +453,7 @@ void UMetaSoundBuilderBase::ConvertToPreset(const TScriptInterface<IMetaSoundDoc
 	// Ensure the referenced node is registered
 	if (FMetasoundAssetBase* ReferencedMetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(ReferencedObject))
 	{
-		ReferencedMetaSoundAsset->RegisterGraphWithFrontend();
+		ReferencedMetaSoundAsset->UpdateAndRegisterForExecution();
 	}
 
 	const FMetasoundFrontendDocument& ReferencedDocument = ReferencedInterface->GetConstDocument();
@@ -893,7 +893,7 @@ void UMetaSoundBuilderBase::RegisterGraphIfOutstandingTransactions(UObject& InMe
 		Builder->LastTransactionRegistered = TransactionCount;
 	}
 
-	MetaSoundAsset->RegisterGraphWithFrontend(Options);
+	MetaSoundAsset->UpdateAndRegisterForExecution(Options);
 }
 
 void UMetaSoundBuilderBase::Reload(bool bPrimeCache)

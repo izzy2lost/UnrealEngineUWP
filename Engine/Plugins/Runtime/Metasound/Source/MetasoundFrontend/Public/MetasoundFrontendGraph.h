@@ -83,9 +83,6 @@ namespace Metasound
 	class METASOUNDFRONTEND_API FFrontendGraphBuilder
 	{
 	public:
-		// Returns true if a MetaSound is every expected to execute in the given application, false if not.
-		static bool CanEverExecute(bool bIsContextCooking = false);
-
 		/** Check that all dependencies are C++ class dependencies. 
 		 * 
 		 * @param InDocument - Document containing dependencies.

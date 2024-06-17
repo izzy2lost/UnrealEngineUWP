@@ -613,7 +613,7 @@ namespace Metasound::Engine
 			{
 				RegOptions.bAutoUpdateLogWarningOnDroppedConnection = Settings->bAutoUpdateLogWarningOnDroppedConnection;
 			}
-			MetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
+			MetaSoundAsset->UpdateAndRegisterForExecution(RegOptions);
 		});
 	}
 

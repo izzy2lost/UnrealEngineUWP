@@ -26,11 +26,11 @@
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
-#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendQuery.h"
 #include "MetasoundFrontendQuerySteps.h"
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundGenerator.h"
+#include "MetasoundGlobals.h"
 #include "MetasoundLog.h"
 #include "MetasoundOperatorBuilderSettings.h"
 #include "MetasoundOperatorCacheSubsystem.h"
@@ -812,11 +812,11 @@ void UMetaSoundSource::InitResources()
 
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitResources); 
-	ensureMsgf(FFrontendGraphBuilder::CanEverExecute(), TEXT("UMetaSoundSource::InitResources should not be called in builds that cannot execute MetaSounds."));
+	ensureMsgf(Metasound::CanEverExecuteGraph(), TEXT("UMetaSoundSource::InitResources can only be called in applications where MetaSounds can execute."));
 
 	if (IsInGameThread())
 	{
-		RegisterGraphWithFrontend(GetInitRegistrationOptions());
+		UpdateAndRegisterForExecution(GetInitRegistrationOptions());
 	}
 	else
 	{
@@ -839,17 +839,17 @@ void UMetaSoundSource::InitResources()
 	}
 }
 
-void UMetaSoundSource::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
+void UMetaSoundSource::UpdateAndRegisterForExecution(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
 	check(IsInGameThread());
 
-	FMetasoundAssetBase::RegisterGraphWithFrontend(InRegistrationOptions);
+	FMetasoundAssetBase::UpdateAndRegisterForExecution(InRegistrationOptions);
 	const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
 	// Runtime data does not need to and should not be created in builds that don't execute graphs
-	if (!bIsRuntimeInputDataValid && FFrontendGraphBuilder::CanEverExecute())
+	if (!bIsRuntimeInputDataValid && Metasound::CanEverExecuteGraph())
 	{
 		CacheRuntimeInputData();
 	}

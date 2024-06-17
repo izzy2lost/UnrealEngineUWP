@@ -80,14 +80,17 @@ public:
 	UE_DEPRECATED(5.5, "Moved to IMetaSoundDocumentInterface::ConformObjectToDocument")
 	virtual bool ConformObjectDataToInterfaces();
 
-	// Registers the root graph of the given asset with the MetaSound Frontend. Unlike 'PreSaveDocument", this call
+	// Registers the root graph of the given asset with the MetaSound Frontend. Unlike 'UpdateAndRegisterForSerialization", this call
 	// generates all necessary runtime data to execute the given graph (i.e. INodes).
+	virtual void UpdateAndRegisterForExecution(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
+
+	UE_DEPRECATED(5.5, "Moved to UpdateAndRegisterForExecution.")
 	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
 
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
-	UE_DEPRECATED(5.5, "Moved to PreSaveDocument instead, which is only in builds set to load editor-only data.")
+	UE_DEPRECATED(5.5, "Moved to UpdateAndRegisterForSerialization instead, which is only in builds set to load editor-only data.")
 	void CookMetaSound();
 
 #if WITH_EDITORONLY_DATA
@@ -95,7 +98,7 @@ public:
 	// optimizing the document for runtime use, which is then registered with the MetaSound Frontend.
 	// Unlike 'RegisterGraphWithFrontend', this call does not generate required runtime data for graph
 	// execution.
-	void PreSaveDocument();
+	void UpdateAndRegisterForSerialization();
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR

@@ -1795,13 +1795,13 @@ namespace Metasound
 			// are registered recursively via bRegisterDependencies flag.
 			if (EditedReferencingMetaSounds.IsEmpty())
 			{
-				MetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
+				MetaSoundAsset->UpdateAndRegisterForExecution(RegOptions);
 			}
 			else
 			{
 				for (FMetasoundAssetBase* MetaSound : EditedReferencingMetaSounds)
 				{
-					MetaSound->RegisterGraphWithFrontend(RegOptions);
+					MetaSound->UpdateAndRegisterForExecution(RegOptions);
 				}
 			}
 		}

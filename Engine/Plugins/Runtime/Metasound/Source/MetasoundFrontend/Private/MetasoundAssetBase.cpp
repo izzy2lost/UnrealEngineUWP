@@ -22,13 +22,13 @@
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendDocumentVersioning.h"
-#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendProxyDataCache.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendRegistryContainerImpl.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
+#include "MetasoundGlobals.h"
 #include "MetasoundGraph.h"
 #include "MetasoundJsonBackend.h"
 #include "MetasoundLog.h"
@@ -263,15 +263,20 @@ bool FMetasoundAssetBase::ConformObjectDataToInterfaces()
 
 void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
 {
+	UpdateAndRegisterForExecution(MoveTemp(InRegistrationOptions));
+}
+
+void FMetasoundAssetBase::UpdateAndRegisterForExecution(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
+{
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
 	// Graph registration must only happen on one thread to avoid race conditions on graph registration.
 	checkf(IsInGameThread(), TEXT("MetaSound %s graph can only be registered on the GameThread"), *GetOwningAssetName());
-	checkf(FFrontendGraphBuilder::CanEverExecute(), TEXT("Cannot generate proxies/runtime graph when graph execution is not enabled."));
+	checkf(Metasound::CanEverExecuteGraph(), TEXT("Cannot generate proxies/runtime graph when graph execution is not enabled."));
 
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::RegisterGraphWithFrontend);
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MetaSoundAssetBase::RegisterGraphWithFrontend asset %s"), *this->GetOwningAssetName()));
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UpdateAndRegisterForExecution);
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MetaSoundAssetBase::UpdateAndRegisterForExecution  asset %s"), *this->GetOwningAssetName()));
 	if (!InRegistrationOptions.bForceReregister)
 	{
 		if (IsRegistered())
@@ -350,17 +355,17 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 void FMetasoundAssetBase::CookMetaSound()
 {
 #if WITH_EDITORONLY_DATA
-	PreSaveDocument();
+	UpdateAndRegisterForSerialization();
 #endif // WITH_EDITORONLY_DATA
 }
 
 #if WITH_EDITORONLY_DATA
-void FMetasoundAssetBase::PreSaveDocument()
+void FMetasoundAssetBase::UpdateAndRegisterForSerialization()
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::PreSaveDocument);
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UpdateAndRegisterForSerialization);
 
 	// If already registered, nothing to condition for presaving
 	if (IsRegistered())
@@ -440,7 +445,7 @@ void FMetasoundAssetBase::OnNotifyBeginDestroy()
 
 	// Unregistration of graph using local call is not necessary when cooking as deserialized objects are not mutable and, should they be
 	// reloaded, omitting unregistration avoids potentially kicking off an invalid asynchronous task to unregister a non-existent runtime graph.
-	if (FFrontendGraphBuilder::CanEverExecute())
+	if (Metasound::CanEverExecuteGraph())
 	{
 		UnregisterGraphWithFrontend();
 	}
@@ -466,7 +471,7 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UnregisterGraphWithFrontend);
 
 	check(IsInGameThread());
-	checkf(FFrontendGraphBuilder::CanEverExecute(), TEXT("If execution is not supported, UnregisterNode must be called directly to avoid async attempt at destroying runtime graph that does not exist."));
+	checkf(Metasound::CanEverExecuteGraph(), TEXT("If execution is not supported, UnregisterNode must be called directly to avoid async attempt at destroying runtime graph that does not exist."));
 
 	if (GraphRegistryKey.IsValid())
 	{
@@ -908,7 +913,7 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 		{
 			// TODO: Check for infinite recursion and error if so
 			AssetManager.AddOrUpdateAsset(*(Reference->GetOwningAsset()));
-			Reference->RegisterGraphWithFrontend(InRegistrationOptions);
+			Reference->UpdateAndRegisterForExecution(InRegistrationOptions);
 		}
 	}
 }
@@ -933,7 +938,7 @@ void FMetasoundAssetBase::PreSaveReferencedDocuments()
 		{
 			// TODO: Check for infinite recursion and error if so
 			AssetManager.AddOrUpdateAsset(*(Reference->GetOwningAsset()));
-			Reference->PreSaveDocument();
+			Reference->UpdateAndRegisterForSerialization();
 		}
 	}
 }

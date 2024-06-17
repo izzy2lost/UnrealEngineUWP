@@ -499,7 +499,7 @@ protected:
 
 		if (BuilderOptions.bAddToRegistry)
 		{
-			MetaSound->RegisterGraphWithFrontend();
+			MetaSound->UpdateAndRegisterForExecution();
 		}
 
 		UE_LOG(LogMetaSound, VeryVerbose, TEXT("MetaSound '%s' built from '%s'"), *BuilderOptions.Name.ToString(), *GetFullName());

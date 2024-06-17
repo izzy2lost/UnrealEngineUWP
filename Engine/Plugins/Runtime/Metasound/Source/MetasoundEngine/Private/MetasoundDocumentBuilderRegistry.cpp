@@ -3,7 +3,7 @@
 #include "MetasoundDocumentBuilderRegistry.h"
 
 #include "MetasoundAssetManager.h"
-#include "MetasoundFrontendGraph.h"
+#include "MetasoundGlobals.h"
 #include "MetasoundTrace.h"
 #include "MetasoundUObjectRegistry.h"
 
@@ -285,7 +285,7 @@ namespace Metasound::Engine
 		FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetBuilder();
 		if (DocBuilder.IsValid())
 		{
-			if (FFrontendGraphBuilder::CanEverExecute())
+			if (Metasound::CanEverExecuteGraph())
 			{
 				const int32 TransactionCount = DocBuilder.GetTransactionCount();
 				const int32 LastTransactionRegistered = Builder.GetLastTransactionRegistered();

@@ -6,8 +6,8 @@
 #include "MetasoundAssetManager.h"
 #include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
-#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendRegistryKey.h"
+#include "MetasoundGlobals.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/App.h"
 #include "Serialization/Archive.h"
@@ -16,8 +16,8 @@
 #include "Algo/Transform.h"
 #include "MetasoundFrontendRegistryContainer.h"
 #include "UObject/GarbageCollection.h"
-#include "UObject/StrongObjectPtrTemplates.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/StrongObjectPtrTemplates.h"
 #endif // WITH_EDITORONLY_DATA
 
 
@@ -29,9 +29,9 @@ namespace Metasound::Engine
 	 */
 	struct FAssetHelper
 	{
-		static bool IsDeterministic(bool bIsContextCooking)
+		static bool SerializationRequiresDeterminism(bool bIsCooking)
 		{
-			return bIsContextCooking || IsRunningCookCommandlet();
+			return bIsCooking || IsRunningCookCommandlet();
 		}
 
 #if WITH_EDITOR
@@ -145,12 +145,12 @@ namespace Metasound::Engine
 			}
 
 			const bool bIsCooking = InSaveContext.IsCooking();
-			const bool bCanEverExecute = FFrontendGraphBuilder::CanEverExecute(bIsCooking);
+			const bool bCanEverExecute = Metasound::CanEverExecuteGraph(bIsCooking);
 			if (!bCanEverExecute)
 			{
-				const bool bIsDeterministic = IsDeterministic(bIsCooking);
+				const bool bIsDeterministic = SerializationRequiresDeterminism(bIsCooking);
 				FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
-				InMetaSound.PreSaveDocument();
+				InMetaSound.UpdateAndRegisterForSerialization();
 			}
  			else if (FApp::CanEverRenderAudio())
 			{
@@ -187,7 +187,7 @@ namespace Metasound::Engine
 
 				{
 					const bool bIsCooking = InArchive.IsCooking();
-					const bool bIsDeterministic = IsDeterministic(bIsCooking);
+					const bool bIsDeterministic = SerializationRequiresDeterminism(bIsCooking);
 					FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
 					check(Builder.IsValid());
 					bVersionedAsset = InMetaSound.VersionAsset(Builder->GetBuilder());

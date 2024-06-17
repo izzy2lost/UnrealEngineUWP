@@ -1762,7 +1762,7 @@ private:
 #endif // WITH_EDITORONLY_DATA
 
 	// Used for generating deterministic IDs per document. Serialized to avoid id collisions if deterministic IDs
-	// are ever serialized (not idea, but can occur in less common commandlet use cases such as resaving serialized
+	// are ever serialized (not ideal, but can occur in less common commandlet use cases such as resaving serialized
 	// assets procedurally).
 	UPROPERTY()
 	mutable uint32 IdCounter = 1;

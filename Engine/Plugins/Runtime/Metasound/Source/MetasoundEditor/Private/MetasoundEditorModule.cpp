@@ -27,9 +27,9 @@
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocument.h"
-#include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendTransform.h"
+#include "MetasoundGlobals.h"
 #include "MetasoundNodeDetailCustomization.h"
 #include "MetasoundSettings.h"
 #include "MetasoundSource.h"
@@ -243,9 +243,8 @@ namespace Metasound
 			{
 				using namespace Metasound;
 			
-				// Ignore requests if running cook, as presave will register and cook using the
-				// proper node register call which avoids async registration/igraph generation.
-				if (!FFrontendGraphBuilder::CanEverExecute())
+				// Ignore requests if graphs cannot be executed, as registration that results in IGraph generation is not supported.
+				if (!Metasound::CanEverExecuteGraph())
 				{
 					return;
 				}
