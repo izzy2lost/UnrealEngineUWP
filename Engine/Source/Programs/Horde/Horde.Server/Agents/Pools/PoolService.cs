@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Server;
 
 namespace Horde.Server.Agents.Pools
 {
@@ -111,7 +110,7 @@ namespace Horde.Server.Agents.Pools
 		/// <returns></returns>
 		public async Task<IPoolConfig?> GetPoolAsync(PoolId poolId, DateTime validAtTime, CancellationToken cancellationToken)
 		{
-			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
+			IReadOnlyDictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
 			poolMapping.TryGetValue(poolId, out IPoolConfig? pool);
 			return pool;
 		}
@@ -125,7 +124,7 @@ namespace Horde.Server.Agents.Pools
 		/// <returns></returns>
 		public async Task<List<IPoolConfig>> GetPoolsAsync(IAgent agent, DateTime validAtTime, CancellationToken cancellationToken)
 		{
-			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
+			IReadOnlyDictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
 
 			List<IPoolConfig> pools = new List<IPoolConfig>();
 			foreach (PoolId poolId in agent.Pools)
@@ -140,112 +139,12 @@ namespace Horde.Server.Agents.Pools
 		}
 
 		/// <summary>
-		/// Get a list of workspaces for the given agent
-		/// </summary>
-		/// <param name="agent">The agent to return workspaces for</param>
-		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
-		/// <param name="globalConfig">Current configuration</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of workspaces</returns>
-		public async Task<HashSet<AgentWorkspaceInfo>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig, CancellationToken cancellationToken)
-		{
-			List<IPoolConfig> pools = await GetPoolsAsync(agent, validAtTime, cancellationToken);
-
-			HashSet<AgentWorkspaceInfo> workspaces = new HashSet<AgentWorkspaceInfo>();
-			foreach (IPoolConfig pool in pools)
-			{
-				workspaces.UnionWith(pool.Workspaces);
-			}
-
-			AutoSdkConfig? autoSdkConfig = GetAutoSdkConfig(pools);
-			if (autoSdkConfig != null)
-			{
-				foreach (string? clusterName in workspaces.Select(x => x.Cluster).Distinct().ToList())
-				{
-					PerforceCluster? cluster = globalConfig.FindPerforceCluster(clusterName);
-					if (cluster != null)
-					{
-						AgentWorkspaceInfo? autoSdkWorkspace = agent.GetAutoSdkWorkspace(cluster, autoSdkConfig);
-						if (autoSdkWorkspace != null)
-						{
-							workspaces.Add(autoSdkWorkspace);
-						}
-					}
-				}
-			}
-
-			return workspaces;
-		}
-
-		static AutoSdkConfig? GetAutoSdkConfig(IEnumerable<IPoolConfig> pools)
-		{
-			AutoSdkConfig? autoSdkConfig = null;
-			foreach (IPoolConfig pool in pools)
-			{
-				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
-			}
-			return autoSdkConfig;
-		}
-
-		/// <summary>
-		/// Gets all the autosdk workspaces required for an agent
-		/// </summary>
-		/// <param name="agent"></param>
-		/// <param name="cluster"></param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster, CancellationToken cancellationToken)
-		{
-			List<IPoolConfig> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0), cancellationToken);
-
-			AutoSdkConfig? autoSdkConfig = GetAutoSdkConfig(pools);
-			if (autoSdkConfig == null)
-			{
-				return null;
-			}
-
-			return agent.GetAutoSdkWorkspace(cluster, autoSdkConfig);
-		}
-
-		/// <summary>
-		/// Get a list of workspaces for the given agent
-		/// </summary>
-		/// <param name="agent">The agent to return workspaces for</param>
-		/// <param name="perforceCluster">The P4 cluster to find a workspace for</param>
-		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of workspaces</returns>
-		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime, CancellationToken cancellationToken)
-		{
-			AutoSdkConfig? autoSdkConfig = null;
-
-			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
-			foreach (PoolId poolId in agent.Pools)
-			{
-				IPoolConfig? pool;
-				if (poolMapping.TryGetValue(poolId, out pool))
-				{
-					autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
-				}
-			}
-
-			if (autoSdkConfig == null)
-			{
-				return null;
-			}
-			else
-			{
-				return agent.GetAutoSdkWorkspace(perforceCluster, autoSdkConfig);
-			}
-		}
-
-		/// <summary>
 		/// Gets a mapping from pool identifiers to definitions
 		/// </summary>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Map of pool ids to pool documents</returns>
-		private async Task<Dictionary<PoolId, IPoolConfig>> GetPoolLookupAsync(DateTime validAtTime, CancellationToken cancellationToken)
+		public async Task<IReadOnlyDictionary<PoolId, IPoolConfig>> GetPoolLookupAsync(DateTime validAtTime, CancellationToken cancellationToken)
 		{
 			Tuple<DateTime, Dictionary<PoolId, IPoolConfig>>? cachedPoolLookupCopy = _cachedPoolLookup;
 			if (cachedPoolLookupCopy == null || cachedPoolLookupCopy.Item1 < validAtTime)

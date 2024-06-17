@@ -31,6 +31,7 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
 using Horde.Server.Devices;
+using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Secrets;
 using Horde.Server.Storage;
