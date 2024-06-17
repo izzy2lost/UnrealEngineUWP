@@ -259,6 +259,12 @@ TArray<FString> FStorageServerConnection::SortHostAddressesByLocalSubnet(TArrayV
 		}
 
 		TSharedPtr<FInternetAddr> Addr = StringToInternetAddr(HostAddress, Port);
+
+		if (!Addr)
+		{
+			continue;
+		}
+
 		FString tempAddrStringSubnet = Addr->ToString(bAppendPort);
 
 #if PLATFORM_DESKTOP || PLATFORM_ANDROID
