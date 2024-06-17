@@ -213,6 +213,11 @@ FRayTracingGeometryManager::RayTracingGeometryHandle FRayTracingGeometryManager:
 
 		Group.Geometries[InGeometry->LODIndex] = InGeometry;
 		++Group.NumReferences;
+
+		if (InGeometry->LODIndex >= Group.CurrentFirstLODIdx && IsRayTracingEnabled() && !IsRayTracingUsingReferenceBasedResidency())
+		{
+			PendingStreamingRequests.Add(Handle);
+		}
 	}
 		
 	INC_DWORD_STAT(STAT_RayTracingGeometryCount);
@@ -290,6 +295,16 @@ void FRayTracingGeometryManager::SetRayTracingGeometryGroupCurrentFirstLODIndex(
 			if (Group.Geometries[LODIdx] && !Group.Geometries[LODIdx]->IsEvicted())
 			{
 				Group.Geometries[LODIdx]->ReleaseRHIForStreaming(Batcher);
+			}
+		}
+	}
+	else if(IsRayTracingEnabled() && !IsRayTracingUsingReferenceBasedResidency())
+	{
+		for (int32 LODIdx = NewCurrentFirstLODIdx; LODIdx < Group.CurrentFirstLODIdx; ++LODIdx)
+		{
+			if (Group.Geometries[LODIdx])
+			{
+				PendingStreamingRequests.Add(Group.Geometries[LODIdx]->RayTracingGeometryHandle);
 			}
 		}
 	}
@@ -485,8 +500,6 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 				Geometry->Evict();
 			}
 		}
-
-		ProcessCompletedStreamingRequests(RHICmdList);
 	}
 	else
 	{
@@ -531,6 +544,8 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 			}
 		}
 	}
+
+	ProcessCompletedStreamingRequests(RHICmdList);
 
 	ReferencedGeometryHandles.Reset();
 	ReferencedGeometryGroups.Reset();

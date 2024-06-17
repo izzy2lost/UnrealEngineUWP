@@ -41,7 +41,7 @@ FAutoConsoleVariableRef CVarAllowTranslucencyShadowsInProject(
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
-static int32 GRayTracingEnableOnDemand = 0;
+static int32 GRayTracingEnableOnDemand = 1;
 static FAutoConsoleVariableRef CVarRayTracingEnableOnDemand(
 	TEXT("r.RayTracing.EnableOnDemand"),
 	GRayTracingEnableOnDemand,
@@ -1662,6 +1662,11 @@ bool IsRayTracingUsingReferenceBasedResidency()
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.RayTracing.UseReferenceBasedResidency"));
 
 	return CVar && CVar->GetValueOnAnyThread();
+}
+
+bool IsRayTracingEnableOnDemandSupported()
+{
+	return GRayTracingEnableOnDemand != 0;
 }
 
 bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)

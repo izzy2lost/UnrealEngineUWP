@@ -540,6 +540,9 @@ extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 // In which case the runtime should track which ray tracing geometries are referenced in the TLAS
 RENDERCORE_API bool IsRayTracingUsingReferenceBasedResidency();
 
+// Returns 'true' when ray tracing can be toggled on/off at runtime.
+RENDERCORE_API bool IsRayTracingEnableOnDemandSupported();
+
 // Returns 'true' when static lighting is enabled for the project
 inline bool IsStaticLightingAllowed()
 {

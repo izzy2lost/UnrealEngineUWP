@@ -2398,9 +2398,11 @@ void FStaticMeshRenderData::AllocateLODResources(int32 NumLODs)
 
 void FStaticMeshRenderData::InitializeRayTracingRepresentationFromRenderingLODs()
 {
+	const bool bProxyOwnsRayTracingGeometry = IsRayTracingEnableOnDemandSupported();
+
 	const int32 NumLODs = LODResources.Num();
 
-	if (!IsRayTracingUsingReferenceBasedResidency())
+	if (!bProxyOwnsRayTracingGeometry)
 	{
 		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 		{
@@ -2425,7 +2427,7 @@ void FStaticMeshRenderData::InitializeRayTracingRepresentationFromRenderingLODs(
 
 		FStaticMeshRayTracingProxyLOD* RayTracingLOD = new FStaticMeshRayTracingProxyLOD;
 
-		RayTracingLOD->bOwnsRayTracingGeometry = IsRayTracingUsingReferenceBasedResidency();
+		RayTracingLOD->bOwnsRayTracingGeometry = bProxyOwnsRayTracingGeometry;
 		RayTracingLOD->RayTracingGeometry = RayTracingLOD->bOwnsRayTracingGeometry ? new FRayTracingGeometry() : LODModel.RayTracingGeometry;
 
 		RayTracingLOD->Sections = &LODModel.Sections;
@@ -3254,7 +3256,7 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 	{
 		KeySuffix += TEXT("RT1");
 
-		if (IsRayTracingUsingReferenceBasedResidency())
+		if (IsRayTracingEnableOnDemandSupported())
 		{
 			KeySuffix += TEXT("_RBR");
 		}
