@@ -45,6 +45,7 @@ namespace UE::NNEDenoiserShaders::Internal
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	};
 
 } // namespace UE::NNEDenoiser::Private

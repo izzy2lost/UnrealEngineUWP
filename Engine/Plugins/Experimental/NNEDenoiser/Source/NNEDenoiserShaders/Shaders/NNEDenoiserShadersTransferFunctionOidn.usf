@@ -76,6 +76,5 @@ void PreOrPostprocess(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 
 	const float4 Color = InputTexture.Load(int3(DispatchThreadID.x, DispatchThreadID.y, 0));
 
-	OutputTexture[DispatchThreadID.xy].rgb = GetProcessedValue(Color.rgb);
-	OutputTexture[DispatchThreadID.xy].a = Color.a;
+	OutputTexture[DispatchThreadID.xy] = float4(GetProcessedValue(Color.rgb), Color.a);
 }

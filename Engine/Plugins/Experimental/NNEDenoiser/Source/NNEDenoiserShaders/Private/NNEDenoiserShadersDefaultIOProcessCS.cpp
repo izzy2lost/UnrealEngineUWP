@@ -11,6 +11,11 @@ namespace UE::NNEDenoiserShaders::Internal
 		OutEnvironment.SetDefine(TEXT("MAX_FLT"), MAX_FLT);
 	}
 
+	bool FDefaultIOProcessCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
+	}
+
 	IMPLEMENT_GLOBAL_SHADER(FDefaultIOProcessCS, "/NNEDenoiserShaders/NNEDenoiserShadersDefaultIOProcess.usf", "IOProcess", SF_Compute);
 
 } // UE::NNEDenoiser::Private

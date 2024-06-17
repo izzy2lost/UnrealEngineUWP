@@ -24,6 +24,7 @@ namespace UE::NNEDenoiserShaders::Internal
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	};
 
 	class FAutoExposureDownsampleConstants
@@ -50,6 +51,7 @@ namespace UE::NNEDenoiserShaders::Internal
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	};
 
 	class FAutoExposureReduceConstants
@@ -76,6 +78,7 @@ namespace UE::NNEDenoiserShaders::Internal
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	};
 
 	class NNEDENOISERSHADERS_API FAutoExposureReduceFinalCS : public FGlobalShader
@@ -93,6 +96,7 @@ namespace UE::NNEDenoiserShaders::Internal
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	};
 
 } // namespace UE::NNEDenoiser::Private
