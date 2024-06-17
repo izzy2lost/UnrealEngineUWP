@@ -33,8 +33,9 @@ namespace RenderInterpolationCVars
 	extern float RenderInterpMaximumErrorCorrectionBeforeSnapping;
 	extern float RenderInterpErrorVelocitySmoothingDuration;
 	extern float RenderInterpErrorDirectionalDecayMultiplier;
-	extern bool bRenderInterpDebugDraw;
 	extern bool bRenderInterpErrorVelocityCorrection;
+	extern bool bRenderInterpDebugDraw;
+	extern float RenderInterpDebugDrawZOffset;
 }
 
 enum class EProxyInterpolationType : uint32
