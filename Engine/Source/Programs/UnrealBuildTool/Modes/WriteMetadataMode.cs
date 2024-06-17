@@ -112,7 +112,7 @@ namespace UnrealBuildTool
 		private Task<int> ExecuteInternal(CommandLineArguments Arguments, ILogger Logger)
 		{
 			// Read the target info
-			WriteMetadataTargetInfo TargetInfo = JsonSerializerUtils.Load<WriteMetadataTargetInfo>(Arguments.GetFileReference("-Input="));
+			WriteMetadataTargetInfo TargetInfo = BinaryFormatterUtils.Load<WriteMetadataTargetInfo>(Arguments.GetFileReference("-Input="));
 			bool bNoManifestChanges = Arguments.HasOption("-NoManifestChanges");
 			int VersionNumber = Arguments.GetInteger("-Version=");
 			Arguments.CheckAllArgumentsUsed();

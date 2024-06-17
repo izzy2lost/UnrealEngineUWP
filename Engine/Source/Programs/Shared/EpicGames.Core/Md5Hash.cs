@@ -6,8 +6,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 #pragma warning disable CA5351 // Do Not Use Broken Cryptographic Algorithms
 
@@ -16,7 +14,6 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Struct representing a strongly typed Md5Hash value
 	/// </summary>
-	[JsonConverter(typeof(Md5HashJsonConverter))]
 	[TypeConverter(typeof(Md5HashTypeConverter))]
 	public readonly struct Md5Hash : IEquatable<Md5Hash>, IComparable<Md5Hash>
 	{
@@ -92,21 +89,20 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="text"></param>
 		/// <returns></returns>
-		public static Md5Hash Parse(string text) => new Md5Hash(StringUtils.ParseHexString(text));
+		public static Md5Hash Parse(string text)
+		{
+			return new Md5Hash(StringUtils.ParseHexString(text));
+		}
 
 		/// <summary>
 		/// Parses a digest from the given hex string
 		/// </summary>
 		/// <param name="text"></param>
 		/// <returns></returns>
-		public static Md5Hash Parse(ReadOnlySpan<byte> text) => new Md5Hash(StringUtils.ParseHexString(text));
-
-		/// <summary>
-		/// Parses a digest from the given hex string
-		/// </summary>
-		/// <param name="text"></param>
-		/// <returns></returns>
-		public static Md5Hash Parse(Utf8String text) => Parse(text.Span);
+		public static Md5Hash Parse(Utf8String text)
+		{
+			return new Md5Hash(StringUtils.ParseHexString(text.Span));
+		}
 
 		/// <inheritdoc cref="IComparable{T}.CompareTo(T)"/>
 		public int CompareTo(Md5Hash other)
@@ -178,26 +174,20 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="reader"></param>
 		/// <returns></returns>
-		public static Md5Hash ReadMd5Hash(this MemoryReader reader) => new Md5Hash(reader.ReadFixedLengthBytes(Md5Hash.NumBytes));
+		public static Md5Hash ReadMd5Hash(this MemoryReader reader)
+		{
+			return new Md5Hash(reader.ReadFixedLengthBytes(Md5Hash.NumBytes));
+		}
 
 		/// <summary>
 		/// Write an <see cref="Md5Hash"/> to a memory writer
 		/// </summary>
 		/// <param name="writer"></param>
 		/// <param name="hash"></param>
-		public static void WriteMd5Hash(this MemoryWriter writer, Md5Hash hash) => writer.WriteFixedLengthBytes(hash.Span);
-	}
-
-	/// <summary>
-	/// Json converter to/from strings
-	/// </summary>
-	sealed class Md5HashJsonConverter : JsonConverter<Md5Hash>
-	{
-		/// <inheritdoc/>
-		public override Md5Hash Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => Md5Hash.Parse(reader.GetUtf8String());
-
-		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, Md5Hash value, JsonSerializerOptions options) => writer.WriteStringValue(value.Span);
+		public static void WriteMd5Hash(this MemoryWriter writer, Md5Hash hash)
+		{
+			writer.WriteFixedLengthBytes(hash.Span);
+		}
 	}
 
 	/// <summary>
@@ -206,9 +196,15 @@ namespace EpicGames.Core
 	sealed class Md5HashTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
-		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) => sourceType == typeof(string);
+		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
+		{
+			return sourceType == typeof(string);
+		}
 
 		/// <inheritdoc/>
-		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value) => Md5Hash.Parse((string)value);
+		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+		{
+			return Md5Hash.Parse((string)value);
+		}
 	}
 }

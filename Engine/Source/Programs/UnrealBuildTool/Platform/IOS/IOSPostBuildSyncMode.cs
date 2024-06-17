@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -32,16 +31,6 @@ namespace UnrealBuildTool
 		public Dictionary<string, DirectoryReference> FrameworkNameToSourceDir;
 		public bool bForDistribution = false;
 		public bool bBuildAsFramework = false;
-
-		/// <summary>
-		/// Private constructor, for serialization.
-		/// </summary>
-		[JsonConstructor]
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-		private IOSPostBuildSyncTarget()
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-		{
-		}
 
 		public IOSPostBuildSyncTarget(ReadOnlyTargetRules Target, FileReference OutputPath, DirectoryReference? ProjectIntermediateDirectory, List<string> UPLScripts, VersionNumber SdkVersion, Dictionary<string, DirectoryReference> FrameworkNameToSourceDir)
 		{
@@ -76,7 +65,7 @@ namespace UnrealBuildTool
 		[CommandLine("-XmlConfigCache=")]
 		public FileReference? XmlConfigCache = null;
 
-		// this isn't actually used, but is hZelpful to pass -legacyxcode along in CreatePostBuildSyncAction, and UBT won't
+		// this isn't actually used, but is helpful to pass -legacyxcode along in CreatePostBuildSyncAction, and UBT won't
 		// complain that nothing is using it, because where we _do_ use it is outside the normal cmdline parsing functionality
 		[CommandLine("-LegacyXcode")]
 		public bool bLegacyXcode;
@@ -89,7 +78,7 @@ namespace UnrealBuildTool
 			IOSToolChainSettings.SelectXcode(false, Logger);
 
 			// Run the PostBuildSync command
-			IOSPostBuildSyncTarget Target = JsonSerializerUtils.Load<IOSPostBuildSyncTarget>(InputFile!);
+			IOSPostBuildSyncTarget Target = BinaryFormatterUtils.Load<IOSPostBuildSyncTarget>(InputFile!);
 			IOSToolChain.PostBuildSync(Target, Logger);
 
 			return Task.FromResult(0);

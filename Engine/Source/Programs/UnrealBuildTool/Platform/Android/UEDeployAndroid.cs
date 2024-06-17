@@ -1668,7 +1668,7 @@ namespace UnrealBuildTool
 			StartInfo.RedirectStandardOutput = true;
 			StartInfo.RedirectStandardError = true;
 
-			string ProcOutput = String.Empty;
+			string ProcOutput = string.Empty;
 
 			Process Proc = new Process();
 			Proc.StartInfo = StartInfo;

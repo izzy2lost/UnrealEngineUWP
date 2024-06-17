@@ -119,7 +119,7 @@ namespace UnrealBuildTool
 		/// <returns>New hot reload state instance</returns>
 		public static HotReloadState Load(FileReference Location)
 		{
-			return JsonSerializerUtils.Load<HotReloadState>(Location);
+			return BinaryFormatterUtils.Load<HotReloadState>(Location);
 		}
 
 		/// <summary>
@@ -129,7 +129,7 @@ namespace UnrealBuildTool
 		public void Save(FileReference Location)
 		{
 			DirectoryReference.CreateDirectory(Location.Directory);
-			JsonSerializerUtils.Save(Location, this);
+			BinaryFormatterUtils.Save(Location, this);
 		}
 	}
 
@@ -1304,7 +1304,7 @@ namespace UnrealBuildTool
 					{
 						throw new Exception(String.Format("Unable to find metadata file to patch action graph ({0})", TargetInfoFile));
 					}
-					WriteMetadataTargetInfo TargetInfo = JsonSerializerUtils.Load<WriteMetadataTargetInfo>(TargetInfoFile);
+					WriteMetadataTargetInfo TargetInfo = BinaryFormatterUtils.Load<WriteMetadataTargetInfo>(TargetInfoFile);
 
 					// Update the module names
 					bool bHasUpdatedModuleNames = false;
@@ -1328,7 +1328,7 @@ namespace UnrealBuildTool
 					if (bHasUpdatedModuleNames)
 					{
 						FileReference HotReloadTargetInfoFile = FileReference.Combine(TargetInfoFile.Directory, "Metadata-HotReload.dat");
-						JsonSerializerUtils.SaveIfDifferent(HotReloadTargetInfoFile, TargetInfo);
+						BinaryFormatterUtils.SaveIfDifferent(HotReloadTargetInfoFile, TargetInfo);
 
 						Action NewAction = new Action(Action.Inner);
 

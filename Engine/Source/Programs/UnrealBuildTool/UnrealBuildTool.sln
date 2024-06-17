@@ -10,9 +10,6 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealBuildTool.Tests", "..\UnrealBuildTool.Tests\UnrealBuildTool.Tests.csproj", "{3B158EAD-4D26-4608-B7AB-9AB7E028B489}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{46FDC727-E9B0-4447-952A-03AD8073600F}"
-	ProjectSection(SolutionItems) = preProject
-		..\Shared\UnrealEngine.csproj.props = ..\Shared\UnrealEngine.csproj.props
-	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Core", "..\Shared\EpicGames.Core\EpicGames.Core.csproj", "{93A2C4B9-0DD2-477E-B7F2-E4FD87392E74}"
 EndProject

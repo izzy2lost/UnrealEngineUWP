@@ -8,8 +8,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +17,6 @@ namespace EpicGames.Core
 	/// Representation of an absolute file path. Allows fast hashing and comparisons.
 	/// </summary>
 	[Serializable]
-	[JsonConverter(typeof(FileReferenceJsonConverter))]
 	[TypeConverter(typeof(FileReferenceTypeConverter))]
 	public class FileReference : FileSystemReference, IEquatable<FileReference>, IComparable<FileReference>
 	{
@@ -733,30 +730,9 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
-	/// Json converter to/from strings
-	/// </summary>
-	sealed class FileReferenceJsonConverter : JsonConverter<FileReference>
-	{
-		/// <inheritdoc/>
-		public override bool CanConvert(Type typeToConvert) => typeToConvert == typeof(string) || base.CanConvert(typeToConvert);
-
-		/// <inheritdoc/>
-		public override FileReference? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => FileReference.FromString(reader.GetString());
-
-		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, FileReference value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
-
-		/// <inheritdoc/>
-		public override FileReference ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => Read(ref reader, typeToConvert, options)!;
-
-		/// <inheritdoc/>
-		public override void WriteAsPropertyName(Utf8JsonWriter writer, FileReference value, JsonSerializerOptions options) => writer.WritePropertyName(value.ToString());
-	}
-
-	/// <summary>
 	/// Type converter to/from strings
 	/// </summary>
-	sealed class FileReferenceTypeConverter : TypeConverter
+	class FileReferenceTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)

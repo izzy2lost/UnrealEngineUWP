@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 using EpicGames.Core;
 using UnrealBuildBase;
@@ -73,7 +72,6 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Private constructor, for serialization.
 		/// </summary>
-		[JsonConstructor]
 		private BuildProduct()
 		{
 			Path = null!;
@@ -155,7 +153,6 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Private constructor, for serialization.
 		/// </summary>
-		[JsonConstructor]
 		private RuntimeDependency()
 		{
 			Path = null!;
@@ -241,16 +238,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		[XmlAttribute]
 		public string Value;
-
-		/// <summary>
-		/// Private constructor, for serialization.
-		/// </summary>
-		[JsonConstructor]
-		private ReceiptProperty()
-		{
-			Name = String.Empty;
-			Value = String.Empty;
-		}
 
 		/// <summary>
 		/// Construct a property with the given name and value
@@ -349,17 +336,6 @@ namespace UnrealBuildTool
 		/// Additional build properties passed through from the module rules
 		/// </summary>
 		public List<ReceiptProperty> AdditionalProperties = new List<ReceiptProperty>();
-
-		/// <summary>
-		/// Private constructor, for serialization.
-		/// </summary>
-		[JsonConstructor]
-		private TargetReceipt()
-		{
-			TargetName = String.Empty;
-			Architectures = new UnrealArchitectures(Array.Empty<UnrealArch>());
-			Version = new();
-		}
 
 		/// <summary>
 		/// Constructor
