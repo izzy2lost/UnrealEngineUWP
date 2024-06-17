@@ -952,7 +952,7 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 					{
 						VolumeFactoryClasses.Add(TestClass);
 					}
-					else
+					else if (TestClass->GetDefaultObject<UActorFactory>()->bShouldAutoRegister)
 					{
 						UActorFactory* NewFactory = NewObject<UActorFactory>(GetTransientPackage(), TestClass);
 						check(NewFactory);
