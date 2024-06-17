@@ -14,6 +14,7 @@
 #include "Modules/ModuleManager.h"
 #include "NNE.h"
 #include "NNEModelData.h"
+#include "NNERuntimeIREELog.h"
 #include "NNERuntimeIREEMetaData.h"
 #include "Serialization/MemoryWriter.h"
 #include "Subsystems/ImportSubsystem.h"
@@ -164,7 +165,7 @@ UObject* UNNERuntimeIREEModelDataFactory::FactoryCreateBinary(UClass* Class, UOb
 	TObjectPtr<UNNERuntimeIREEModuleMetaData> ModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
 	if (!ModuleMetaData->ParseFromString(FileDataString) || ModuleMetaData->FunctionMetaData.IsEmpty())
 	{
-		UE_LOG(LogNNE, Error, TEXT("UNNERuntimeIREEModelDataFactory failed to parse the models meta data"));
+		UE_LOG(LogNNERuntimeIREE, Error, TEXT("UNNERuntimeIREEModelDataFactory failed to parse the models meta data"));
 		return nullptr;
 	}
 
@@ -194,7 +195,7 @@ UObject* UNNERuntimeIREEModelDataFactory::FactoryCreateBinary(UClass* Class, UOb
 
 		if (!ImportWindow->ImportButtonClicked())
 		{
-			UE_LOG(LogNNE, Error, TEXT("UNNERuntimeIREEModelDataFactory could not import the model! Please select the neural network main function in the import dialog!"));
+			UE_LOG(LogNNERuntimeIREE, Error, TEXT("UNNERuntimeIREEModelDataFactory could not import the model! Please select the neural network main function in the import dialog!"));
 			return nullptr;
 		}
 

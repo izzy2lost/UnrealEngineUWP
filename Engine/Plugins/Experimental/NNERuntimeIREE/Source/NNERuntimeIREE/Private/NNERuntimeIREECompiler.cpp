@@ -15,6 +15,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "NNE.h"
+#include "NNERuntimeIREELog.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Templates/SharedPointer.h"
@@ -125,7 +126,7 @@ namespace UE::NNERuntimeIREE
 						{
 							if (BuildConfig.BuildTargets.IsEmpty())
 							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find targets in %s"), *BuildConfigFilePath);
+								UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find targets in %s"), *BuildConfigFilePath);
 								continue;
 							}
 
@@ -144,12 +145,12 @@ namespace UE::NNERuntimeIREE
 								}
 								else
 								{
-									UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.CompilerCommand[i]);
+									UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.CompilerCommand[i]);
 								}
 							}
 							if (TmpCompilerCommand.IsEmpty())
 							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the compiler executable in %s"), *BuildConfigFilePath);
+								UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the compiler executable in %s"), *BuildConfigFilePath);
 								continue;
 							}
 
@@ -168,12 +169,12 @@ namespace UE::NNERuntimeIREE
 								}
 								else
 								{
-									UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.LinkerCommand[i]);
+									UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.LinkerCommand[i]);
 								}
 							}
 							if (TmpLinkerCommand.IsEmpty())
 							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the linker executable in %s"), *BuildConfigFilePath);
+								UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the linker executable in %s"), *BuildConfigFilePath);
 								continue;
 							}
 
@@ -185,12 +186,12 @@ namespace UE::NNERuntimeIREE
 						}
 						else
 						{
-							UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not parse build config file %s"), *BuildConfigFilePath);
+							UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not parse build config file %s"), *BuildConfigFilePath);
 						}
 					}
 					else
 					{
-						UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not read build config file %s"), *BuildConfigFilePath);
+						UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not read build config file %s"), *BuildConfigFilePath);
 					}
 				}
 			}
@@ -230,7 +231,7 @@ namespace UE::NNERuntimeIREE
 				FString CompilerArguments = BuildTargets[i].CompilerArguments;
 				if (!ResolveEnvironmentVariables(CompilerArguments))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].CompilerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].CompilerArguments);
 					continue;
 				}
 				CompilerArguments.ReplaceInline(*FString("${OBJECT_PATH}"), *(FString("\"") + ObjectFilePath + "\""));
@@ -241,8 +242,8 @@ namespace UE::NNERuntimeIREE
 
 				if (!PlatformFile.FileExists(*ObjectFilePath) || !PlatformFile.FileExists(*VmfbFilePath))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to compile the model \"%s\" using the command:"), *InputFilePath);
-					UE_LOG(LogNNE, Warning, TEXT("\"%s\" %s"), *CompilerCommand, *CompilerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to compile the model \"%s\" using the command:"), *InputFilePath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("\"%s\" %s"), *CompilerCommand, *CompilerArguments);
 					bResult = false;
 					continue;
 				}
@@ -250,7 +251,7 @@ namespace UE::NNERuntimeIREE
 				FString LinkerArguments = BuildTargets[i].LinkerArguments;
 				if (!ResolveEnvironmentVariables(LinkerArguments))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].LinkerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].LinkerArguments);
 					bResult = false;
 					continue;
 				}
@@ -261,8 +262,8 @@ namespace UE::NNERuntimeIREE
 
 				if (!PlatformFile.FileExists(*SharedLibFilePath))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to link the model \"%s\" using the command:"), *InputFilePath);
-					UE_LOG(LogNNE, Warning, TEXT("\"%s\" %s"), *LinkerCommand, *LinkerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to link the model \"%s\" using the command:"), *InputFilePath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("\"%s\" %s"), *LinkerCommand, *LinkerArguments);
 					bResult = false;
 					continue;
 				}
@@ -272,12 +273,12 @@ namespace UE::NNERuntimeIREE
 				FString StagedSharedLibFilePath = StagingFilePathNoExt + SharedLibExt;
 				if (IFileManager::Get().Copy(*StagedSharedLibFilePath, *SharedLibFilePath) != COPY_OK)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *SharedLibFilePath, *StagedSharedLibFilePath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *SharedLibFilePath, *StagedSharedLibFilePath);
 					bResult = false;
 				}
 				if (IFileManager::Get().Copy(*StagedVmfbFilePath, *VmfbFilePath) != COPY_OK)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *VmfbFilePath, *StagedVmfbFilePath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *VmfbFilePath, *StagedVmfbFilePath);
 					bResult = false;
 				}
 
@@ -285,21 +286,21 @@ namespace UE::NNERuntimeIREE
 				FString HeaderPath = IntermediateFilePathNoExt + ".h";
 				if (!PlatformFile.FileExists(*HeaderPath))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the model header \"%s\""), *HeaderPath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the model header \"%s\""), *HeaderPath);
 					bResult = false;
 					continue;
 				}
 				FString HeaderString;
 				if (!FFileHelper::LoadFileToString(HeaderString, *HeaderPath) || HeaderString.IsEmpty())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not read the model header \"%s\""), *HeaderPath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not read the model header \"%s\""), *HeaderPath);
 					bResult = false;
 					continue;
 				}
 				SharedLibraryEntryPointName = GetSharedLibraryEntryPointName(HeaderString);
 				if (SharedLibraryEntryPointName.IsEmpty())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the entry point in model header \"%s\""), *HeaderPath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the entry point in model header \"%s\""), *HeaderPath);
 					bResult = false;
 					continue;
 				}

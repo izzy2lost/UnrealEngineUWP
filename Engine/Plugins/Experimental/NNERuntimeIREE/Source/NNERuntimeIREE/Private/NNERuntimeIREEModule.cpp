@@ -18,6 +18,10 @@
 
 #endif // WITH_NNE_RUNTIME_IREE
 
+#include "NNERuntimeIREELog.h"
+
+DEFINE_LOG_CATEGORY(LogNNERuntimeIREE);
+
 #if WITH_EDITOR
 namespace UE::NNERuntimeIREE::ConfigHelper
 {
