@@ -91,6 +91,7 @@ namespace UE::ConcertSharedSlate
 		}
 		
 		/** Util that converts EnumerateSelectableItems into an array. */
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TArray<TItemType> GetSelectableItems()
 		{
 			TArray<TItemType> Result;
@@ -101,6 +102,7 @@ namespace UE::ConcertSharedSlate
 			});
 			return Result;
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		virtual ~IItemSourceModel() = default;
 	};
