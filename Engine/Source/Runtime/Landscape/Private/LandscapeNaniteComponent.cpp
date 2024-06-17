@@ -67,7 +67,7 @@ void ULandscapeNaniteComponent::PostLoad()
 			&& (NaniteStaticMesh->GetOuter() != CurrentPackage))
 		{
 			// Change the outer : 
-			NaniteStaticMesh->Rename(nullptr, CurrentPackage, REN_ForceNoResetLoaders);
+			NaniteStaticMesh->Rename(nullptr, CurrentPackage);
 		}
 	}
 #endif // WITH_EDITOR

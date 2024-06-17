@@ -1009,7 +1009,7 @@ bool UWorld::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 				// If there is already something there with that name, rename it to something else.
 				if (UObject* ExistingObject = StaticFindObject(nullptr, LevelScriptBlueprint->GetOuter(), InName))
 				{
-					ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 
 				// This is a normal rename. Use LevelScriptBlueprint->GetOuter() instead of NULL to make sure the generated top level objects are moved appropriately
@@ -1475,7 +1475,7 @@ void UWorld::PostLoad()
 			if (GetName() != ShortPackageName)
 			{
 				// Do not go through UWorld::Rename as we do not want to go through map build data/external actors or hlod renaming in post load
-				UObject::Rename(*ShortPackageName, NULL, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+				UObject::Rename(*ShortPackageName, NULL, REN_NonTransactional | REN_DontCreateRedirectors);
 			}
 
 			// Worlds are assets so they need RF_Public and RF_Standalone (for the editor)
@@ -1489,7 +1489,7 @@ void UWorld::PostLoad()
 			{
 				if (Model->GetOuter() != DefaultBrush->GetOuter())
 				{
-					Model->Rename(TEXT("Brush"), DefaultBrush->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					Model->Rename(TEXT("Brush"), DefaultBrush->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 			}
 		}
@@ -1927,7 +1927,7 @@ void UWorld::RepairWorldSettings()
 		// Rename invalid WorldSettings to avoid name collisions
 		if (ExistingWorldSettings)
 		{
-			ExistingWorldSettings->Rename(nullptr, PersistentLevel, REN_ForceNoResetLoaders);
+			ExistingWorldSettings->Rename(nullptr, PersistentLevel);
 		}
 		
 		bool bClearOwningWorld = false;
@@ -2162,7 +2162,7 @@ void UWorld::InitWorld(const InitializationValues IVS)
 	{
 		// Move persistent level into world so the world object won't get garbage collected in the multi- level
 		// case as it is still referenced via the level's outer. This is required for multi- level editing to work.
-		PersistentLevel->Rename( *PersistentLevel->GetName(), this, REN_ForceNoResetLoaders );
+		PersistentLevel->Rename(*PersistentLevel->GetName(), this);
 	}
 
 	Levels.Empty(1);
@@ -3770,7 +3770,7 @@ void UWorld::RenameToPIEWorld(int32 PIEInstanceID)
 	WorldPackage->SetPackageFlags(PKG_PlayInEditor);
 
 	const FString PIEPackageName = *UWorld::ConvertToPIEPackageName(WorldPackage->GetName(), PIEInstanceID);
-	WorldPackage->Rename(*PIEPackageName, nullptr, REN_ForceNoResetLoaders);
+	WorldPackage->Rename(*PIEPackageName, nullptr);
 	FSoftObjectPath::AddPIEPackageName(FName(*PIEPackageName));
 
 	StreamingLevelsPrefix = UWorld::BuildPIEPackagePrefix(PIEInstanceID);

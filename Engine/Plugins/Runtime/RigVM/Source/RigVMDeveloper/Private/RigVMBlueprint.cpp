@@ -379,7 +379,7 @@ void URigVMBlueprint::PostRename(UObject* OldOuter, const FName OldName)
 	{
 		if (URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(ClassObject))
 		{
-			MemoryClass->Rename(nullptr, GetPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			MemoryClass->Rename(nullptr, GetPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 	}
 
@@ -1246,7 +1246,7 @@ void URigVMBlueprint::RemoveDeprecatedVMMemoryClass()
 			// Making sure it is fully loaded before removing it to avoid ambiguity regarding load order
 			DeprecatedClass->ConditionalPostLoad();
 			
-			DeprecatedClass->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			DeprecatedClass->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			OldMemoryStorageGeneratorClasses.Add(DeprecatedClass);
 		}
 	}
@@ -4335,7 +4335,7 @@ bool URigVMBlueprint::RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, b
 						}
 
 						FunctionGraphs.Remove(RigFunctionGraph);
-						RigFunctionGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+						RigFunctionGraph->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 						RigFunctionGraph->MarkAsGarbage();
 						return bNotify;
 					}
@@ -4364,7 +4364,7 @@ bool URigVMBlueprint::RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, b
 						}
 
 						RigGraph->SubGraphs.Remove(SubRigGraph);
-						SubRigGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+						SubRigGraph->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 						SubRigGraph->MarkAsGarbage();
 						return bNotify;
 					}

@@ -84,7 +84,7 @@ void UPCGLoadAlembicFunctionLibrary::LoadAlembicFileToPCGInternal(const FPCGLoad
 		{
 			if (TaggedData.Data)
 			{
-				(const_cast<UPCGData*>(TaggedData.Data.Get()))->Rename(nullptr, TargetOuter, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+				(const_cast<UPCGData*>(TaggedData.Data.Get()))->Rename(nullptr, TargetOuter, REN_DoNotDirty | REN_DontCreateRedirectors);
 			}
 		}
 	}

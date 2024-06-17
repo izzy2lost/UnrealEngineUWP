@@ -149,7 +149,7 @@ UActorComponent* UInheritableComponentHandler::CreateOverridenComponentTemplate(
 		UActorComponent* ExistingComp = Cast<UActorComponent>(ExistingObj);
 		if (ensure(ExistingComp) && ensure(UnnecessaryComponents.RemoveSwap(ExistingComp) > 0 || GetPackage()->HasAnyPackageFlags(PKG_ForDiffing)))
 		{
-			ExistingObj->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			ExistingObj->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 			ExistingObj->MarkAsGarbage();
 		}
 	}
@@ -259,7 +259,7 @@ void UInheritableComponentHandler::ValidateTemplates()
                         // Note, Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 						FLinkerLoad::InvalidateExport(Record.ComponentTemplate);
 						// in editor, move the component template aside so its name is free:
-						Record.ComponentTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+						Record.ComponentTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 						Record.ComponentTemplate->ClearFlags(RF_Standalone);
 						Record.ComponentTemplate->RemoveFromRoot();
 						Record.ComponentTemplate->MarkAsGarbage();
@@ -565,11 +565,11 @@ void UInheritableComponentHandler::FixComponentTemplateName(UActorComponent* Com
 	// PostLoad() validation and see that it still doesn't match its original template name.
 	if (UObject* ExistingObject = (UObject*)FindObjectWithOuter(ComponentTemplate->GetOuter(), nullptr, NewName))
 	{
-		ExistingObject->Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		ExistingObject->Rename(nullptr, nullptr, REN_DontCreateRedirectors);
 	}
 
 	// Now that we're sure there are no collisions with other records, we can safely rename this one to its new name.
-	ComponentTemplate->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	ComponentTemplate->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors);
 }
 
 // FComponentOverrideRecord

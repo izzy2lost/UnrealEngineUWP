@@ -3373,7 +3373,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 			if (ObjectFound)
 			{
 				FName NewName = MakeUniqueObjectName(GetTransientPackage(), URigHierarchy::StaticClass(), TEXT("DynamicHierarchy_Deleted"));
-				ObjectFound->Rename(*NewName.ToString(), GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+				ObjectFound->Rename(*NewName.ToString(), GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				ObjectFound->MarkAsGarbage();
 			}
 		}
@@ -3464,7 +3464,7 @@ void UControlRig::SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy)
 	if (DynamicHierarchy->GetOuter() == this)
 	{
 		DynamicHierarchy->OnUndoRedo().RemoveAll(this);
-		DynamicHierarchy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		DynamicHierarchy->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		DynamicHierarchy->MarkAsGarbage();
 	}
 	DynamicHierarchy = InHierarchy;

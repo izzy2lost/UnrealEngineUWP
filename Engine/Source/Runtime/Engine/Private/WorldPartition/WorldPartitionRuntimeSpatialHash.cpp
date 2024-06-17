@@ -1242,8 +1242,7 @@ void UWorldPartitionRuntimeSpatialHash::StoreStreamingContentToExternalStreaming
 				for (UWorldPartitionRuntimeCell* Cell : GridLayerCell.GridCells)
 				{
 					// Do not dirty, otherwise it dirties the level previous outer (WorldPartition) which dirties the map. Occurs when entering PIE. 
-					// Do not reset loaders, the cell was just created it did not exists when loading initially.
-					Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
+					Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty);
 				}
 			}
 		}
@@ -2125,7 +2124,7 @@ bool UWorldPartitionRuntimeSpatialHash::UnregisterWorldAssetStreaming(const FGui
 			auto TrashObject = [](UObject* InObject)
 			{
 				FName NewUniqueTrashName = MakeUniqueObjectName(InObject->GetOuter(), InObject->GetClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InObject->GetName())));
-				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
+				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			};
 
 			InStreamingObject->ForEachStreamingCells([TrashObject](UWorldPartitionRuntimeCell& Cell)

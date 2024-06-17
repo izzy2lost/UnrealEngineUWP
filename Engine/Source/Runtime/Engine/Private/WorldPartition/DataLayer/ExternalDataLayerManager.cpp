@@ -906,7 +906,7 @@ URuntimeHashExternalStreamingObjectBase* UExternalDataLayerManager::CreateExtern
 	// Outer DataLayerInstances to the ExternalStreamingObject and set its RootExternalDataLayerInstance
 	DuplicatedEDLWorldDataLayers->ForEachDataLayerInstance([ExternalStreamingObject](UDataLayerInstance* DataLayerInstance)
 	{
-		DataLayerInstance->Rename(nullptr, ExternalStreamingObject, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
+		DataLayerInstance->Rename(nullptr, ExternalStreamingObject, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 		ExternalStreamingObject->DataLayerInstances.Add(DataLayerInstance);
 		if (UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(DataLayerInstance))
 		{

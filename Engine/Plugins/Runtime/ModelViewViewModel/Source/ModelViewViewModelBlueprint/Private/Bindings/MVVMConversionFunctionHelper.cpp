@@ -79,7 +79,7 @@ namespace Private
 	
 	void RenameObjectToTransientPackage(UObject* ObjectToRename)
 	{
-		const ERenameFlags RenFlags = REN_DoNotDirty | REN_ForceNoResetLoaders | REN_DontCreateRedirectors;
+		const ERenameFlags RenFlags = REN_DoNotDirty | REN_DontCreateRedirectors;
 
 		ObjectToRename->SetFlags(RF_Transient);
 		ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);

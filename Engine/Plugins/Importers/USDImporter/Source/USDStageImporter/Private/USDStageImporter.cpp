@@ -684,7 +684,7 @@ namespace UE::USDStageImporter::Private
 				ensure(Asset->Rename(
 					*TargetAssetName,
 					Package,
-					REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders
+					REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty
 				));
 				MovedAsset = Asset;
 			}
@@ -704,7 +704,7 @@ namespace UE::USDStageImporter::Private
 		{
 			// We can't dirty the package here. Read the comment around MarkPackageDirty, below
 			ensure(
-				Asset->Rename(*TargetAssetName, Package, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders)
+				Asset->Rename(*TargetAssetName, Package, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty)
 			);
 			MovedAsset = Asset;
 		}

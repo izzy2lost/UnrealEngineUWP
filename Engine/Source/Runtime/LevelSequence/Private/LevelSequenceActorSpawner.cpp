@@ -136,7 +136,7 @@ UObject* FLevelSequenceActorSpawner::SpawnObject(FMovieSceneSpawnable& Spawnable
 		if (ExistingObject)
 		{
 			FName DefunctName = MakeUniqueObjectName(WorldContext->PersistentLevel, ExistingObject->GetClass());
-			ExistingObject->Rename(*DefunctName.ToString(), nullptr, REN_ForceNoResetLoaders);
+			ExistingObject->Rename(*DefunctName.ToString(), nullptr);
 		}
 	}
 

@@ -1851,7 +1851,7 @@ namespace ObjectTools
 
 				if ( Redirector->Rename(*ObjName.ToString(), NULL, REN_Test) )
 				{
-					Redirector->Rename(*ObjName.ToString(), NULL, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					Redirector->Rename(*ObjName.ToString(), NULL, REN_DontCreateRedirectors | REN_NonTransactional);
 					FAssetRegistryModule::AssetCreated(Redirector);
 				}
 				else

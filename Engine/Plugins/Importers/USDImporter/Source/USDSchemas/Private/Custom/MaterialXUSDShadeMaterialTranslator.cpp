@@ -272,7 +272,7 @@ namespace UE::USDMaterialXTranslator::Private
 							const bool bRenamed = ImportedObject->Rename(
 								*SanitizedName.ToString(),
 								Outer,
-								REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders
+								REN_NonTransactional | REN_DontCreateRedirectors
 							);
 							ensure(bRenamed);
 

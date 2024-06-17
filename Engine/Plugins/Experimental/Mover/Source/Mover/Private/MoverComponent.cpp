@@ -1074,7 +1074,7 @@ bool UMoverComponent::AddMovementModeFromObject(FName ModeName, UBaseMovementMod
 		if (MovementMode->GetOuter() != this)
 		{
 			UE_LOG(LogMover, Verbose, TEXT("Movement modes are expected to be parented to the MoverComponent. The %s movement mode was reparented to %s!"), *GetNameSafe(MovementMode), *GetNameSafe(this));
-			MovementMode->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_NonTransactional);
+			MovementMode->Rename(nullptr, this, REN_DoNotDirty | REN_NonTransactional);
 		}
 		
 		MovementModes.Add(ModeName, MovementMode);

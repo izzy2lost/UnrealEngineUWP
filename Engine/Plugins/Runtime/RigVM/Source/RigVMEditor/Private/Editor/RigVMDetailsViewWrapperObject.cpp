@@ -54,7 +54,7 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForStruct(UScriptStruct* InStruc
 			}
 			while (DiscardedWrapperClassIndex < INT_MAX);
 
-			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			
 			(*ExistingClass)->RemoveFromRoot();
 		}
@@ -388,7 +388,7 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			}
 			while (DiscardedWrapperClassIndex < INT_MAX);
 
-			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			
 			(*ExistingClass)->RemoveFromRoot();
 		}

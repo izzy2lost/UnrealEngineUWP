@@ -265,7 +265,7 @@ bool UWorldPartitionRenameDuplicateBuilder::RunInternal(UWorld* World, const FCe
 					UPackage* PreviousActorPackage = Actor->GetExternalPackage();
 
 					// Rename Actor first so new package gets created
-					Actor->Rename(nullptr, NewWorld->PersistentLevel, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+					Actor->Rename(nullptr, NewWorld->PersistentLevel, REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 
 					TArray<UObject*> DependantObjects;
 					ForEachObjectWithPackage(PreviousActorPackage, [&DependantObjects](UObject* Object)
@@ -280,7 +280,7 @@ bool UWorldPartitionRenameDuplicateBuilder::RunInternal(UWorld* World, const FCe
 					// Move dependant objects into the new actor package
 					for (UObject* DependantObject : DependantObjects) //-V1078
 					{
-						DependantObject->Rename(nullptr, Actor->GetExternalPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+						DependantObject->Rename(nullptr, Actor->GetExternalPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 					}
 
 					// Releases file handle so it can be deleted
@@ -316,7 +316,7 @@ bool UWorldPartitionRenameDuplicateBuilder::RunInternal(UWorld* World, const FCe
 					AActor* Actor = ActorReference.GetActor();
 					UPackage* NewActorPackage = Actor->GetExternalPackage();
 					check(Actor);
-					Actor->Rename(nullptr, World->PersistentLevel, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+					Actor->Rename(nullptr, World->PersistentLevel, REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 
 					TArray<UObject*> DependantObjects;
 					ForEachObjectWithPackage(NewActorPackage, [&DependantObjects](UObject* Object)
@@ -331,7 +331,7 @@ bool UWorldPartitionRenameDuplicateBuilder::RunInternal(UWorld* World, const FCe
 					// Move back dependant objects into the previous actor package
 					for (UObject* DependantObject : DependantObjects) //-V1078
 					{
-						DependantObject->Rename(nullptr, Actor->GetExternalPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+						DependantObject->Rename(nullptr, Actor->GetExternalPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 					}
 				}
 				ActorReferences.Empty();

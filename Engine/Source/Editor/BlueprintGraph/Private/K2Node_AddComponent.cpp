@@ -87,7 +87,7 @@ void UK2Node_AddComponent::Serialize(FArchive& Ar)
 					GetBlueprint()->OldToNewComponentTemplateNames.Add(Template->GetFName()) = NewTemplateName;
 
 					// Rename the component template to conform to the new name.
-					Template->Rename(*NewTemplateName.ToString(), Template->GetOuter(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+					Template->Rename(*NewTemplateName.ToString(), Template->GetOuter(), REN_DontCreateRedirectors);
 
 					// Update the template name pin's default value to match the template name.
 					GetTemplateNamePinChecked()->DefaultValue = Template->GetName();

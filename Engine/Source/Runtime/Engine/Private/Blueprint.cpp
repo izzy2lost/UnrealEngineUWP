@@ -514,7 +514,7 @@ bool UBlueprint::RenameGeneratedClasses(const TCHAR* NewName, UObject* NewOuter,
 				if (UObject* ExistingCDO = StaticFindObjectFast(UObject::StaticClass(), NewOuter, *NewCDOName))
 				{
 					const FName NewName = MakeUniqueObjectName(NewOuter, ExistingCDO->GetClass(), *NewCDOName);
-					ExistingCDO->Rename(*(NewName.ToString()), NewOuter, InFlags | REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+					ExistingCDO->Rename(*(NewName.ToString()), NewOuter, InFlags | REN_DontCreateRedirectors);
 				}
 			};
 
@@ -530,7 +530,7 @@ bool UBlueprint::RenameGeneratedClasses(const TCHAR* NewName, UObject* NewOuter,
 
 					if (bFoundRedirector)
 					{
-						Redirector->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+						Redirector->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 					}
 				}
 			};
@@ -1969,7 +1969,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 			{
 				if (Component->GetOuter() == this)
 				{
-					const bool bRenamed = Component->Rename(*Component->GetName(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+					const bool bRenamed = Component->Rename(*Component->GetName(), BPGClass, REN_DoNotDirty);
 					ensure(bRenamed);
 					bIsStillStale |= !bRenamed;
 					bMigratedOwner = true;
@@ -1990,7 +1990,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 				{
 					const FName OldTemplateName = Template->GetFName();
 					ensure(!OldTemplateName.ToString().EndsWith(UTimelineTemplate::TemplatePostfix));
-					const bool bRenamed = Template->Rename(*UTimelineTemplate::TimelineVariableNameToTemplateName(Template->GetFName()), BPGClass, REN_ForceNoResetLoaders|REN_DoNotDirty);
+					const bool bRenamed = Template->Rename(*UTimelineTemplate::TimelineVariableNameToTemplateName(Template->GetFName()), BPGClass, REN_DoNotDirty);
 					ensure(bRenamed);
 					bIsStillStale |= !bRenamed;
 					ensure(OldTemplateName == Template->GetVariableName());
@@ -2003,7 +2003,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 		{
 			if (Curve && (Curve->GetOuter() == this))
 			{
-				const bool bRenamed = Curve->Rename(FUniqueNewNameHelper(Curve->GetName(), BPGClass).Get(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+				const bool bRenamed = Curve->Rename(FUniqueNewNameHelper(Curve->GetName(), BPGClass).Get(), BPGClass, REN_DoNotDirty);
 				ensure(bRenamed);
 				bIsStillStale |= !bRenamed;
 			}
@@ -2013,7 +2013,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 		{
 			if(SCS->GetOuter() == this)
 			{
-				const bool bRenamed = SCS->Rename(FUniqueNewNameHelper(SCS->GetName(), BPGClass).Get(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+				const bool bRenamed = SCS->Rename(FUniqueNewNameHelper(SCS->GetName(), BPGClass).Get(), BPGClass, REN_DoNotDirty);
 				ensure(bRenamed);
 				bIsStillStale |= !bRenamed;
 				bMigratedOwner = true;
@@ -2024,7 +2024,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 				UActorComponent* Component = SCSNode ? ToRawPtr(SCSNode->ComponentTemplate) : NULL;
 				if (Component && Component->GetOuter() == this)
 				{
-					const bool bRenamed = Component->Rename(FUniqueNewNameHelper(Component->GetName(), BPGClass).Get(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+					const bool bRenamed = Component->Rename(FUniqueNewNameHelper(Component->GetName(), BPGClass).Get(), BPGClass, REN_DoNotDirty);
 					ensure(bRenamed);
 					bIsStillStale |= !bRenamed;
 					bMigratedOwner = true;

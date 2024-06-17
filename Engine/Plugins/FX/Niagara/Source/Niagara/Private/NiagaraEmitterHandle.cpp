@@ -275,7 +275,7 @@ void FNiagaraEmitterHandle::ConditionalPostLoad(int32 NiagaraCustomVersion)
 			{
 				LastMergedSource_DEPRECATED->ConditionalPostLoad();
 				EmitterData->VersionedParentAtLastMerge = FVersionedNiagaraEmitter(LastMergedSource_DEPRECATED, LastMergedSource_DEPRECATED->GetExposedVersion().VersionGuid);
-				EmitterData->VersionedParentAtLastMerge.Emitter->Rename(nullptr, InstanceEmitter, REN_ForceNoResetLoaders);
+				EmitterData->VersionedParentAtLastMerge.Emitter->Rename(nullptr, InstanceEmitter);
 				LastMergedSource_DEPRECATED = nullptr;
 			}
 		}

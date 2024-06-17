@@ -4273,14 +4273,14 @@ ANavigationData* UNavigationSystemV1::CreateNavigationDataInstanceInLevel(const 
 				}
 
 				// Reset the existing object's name
-				ExistingObject->Rename(NULL, NULL, REN_DontCreateRedirectors | REN_ForceGlobalUnique | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
+				ExistingObject->Rename(NULL, NULL, REN_DontCreateRedirectors | REN_ForceGlobalUnique | REN_DoNotDirty | REN_NonTransactional);
 				// see if there's another one, it does happen when undo/redoing 
 				// nav instance deletion in the editor
 				ExistingObject = StaticFindObject(/*Class=*/ NULL, Instance->GetOuter(), *StrName, true);
 			}
 
 			// Set descriptive name
-			Instance->Rename(*StrName, NULL, REN_DoNotDirty | REN_ForceNoResetLoaders);
+			Instance->Rename(*StrName, NULL, REN_DoNotDirty);
 #if WITH_EDITOR
 			if (World->WorldType == EWorldType::Editor)
 			{

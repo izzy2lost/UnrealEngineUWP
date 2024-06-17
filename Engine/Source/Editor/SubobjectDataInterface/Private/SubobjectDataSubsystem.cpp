@@ -1479,7 +1479,7 @@ bool USubobjectDataSubsystem::ChangeSubobjectClass(const FSubobjectDataHandle& H
 								}
 							}
 
-							Subobject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+							Subobject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 							Subobject->MarkAsGarbage();
 
 							UObject* NewInstance = nullptr;

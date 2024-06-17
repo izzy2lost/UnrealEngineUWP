@@ -4190,7 +4190,7 @@ bool USkeletalMesh::RenameMorphTarget(FName InOldName, FName InNewName)
 	}
 
 	// Rename the morph target itself
-	MorphTarget->Rename(*InNewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+	MorphTarget->Rename(*InNewName.ToString(), nullptr, REN_DontCreateRedirectors);
 
 	//Clean up the LodInfo Imported morph target source filename we must also rename the entry
 	for (int32 InternalLodIndex = 0; InternalLodIndex < GetLODNum(); ++InternalLodIndex)

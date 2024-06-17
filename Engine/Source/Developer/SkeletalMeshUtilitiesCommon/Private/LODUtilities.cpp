@@ -3811,7 +3811,7 @@ static void BuildMorphTargetsInternal(
 								//make sure the object is not standalone or transactional
 								ExistingMorphTarget->ClearFlags(RF_Standalone | RF_Transactional);
 								//Move this object in the transient package
-								ExistingMorphTarget->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+								ExistingMorphTarget->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 								ExistingMorphTarget = nullptr;
 							}
 						}

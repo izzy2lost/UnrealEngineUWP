@@ -70,7 +70,7 @@ ObjectType* TChaosVDObjectPool<ObjectType>::AcquireObject(UObject* Outer, FName 
 		if (ObjectType* Object = PooledObjects.Pop())
 		{
 			const FName NewName = MakeUniqueObjectName(Outer, ObjectType::StaticClass(), Name);
-			Object->Rename(*NewName.ToString() , Outer, REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_SkipGeneratedClasses | REN_DontCreateRedirectors);
+			Object->Rename(*NewName.ToString() , Outer, REN_NonTransactional | REN_DoNotDirty | REN_SkipGeneratedClasses | REN_DontCreateRedirectors);
 		
 			if (IChaosVDPooledObject* AsPooledObject = Cast<IChaosVDPooledObject>(Object))
 			{
@@ -133,7 +133,7 @@ void TChaosVDObjectPool<ObjectType>::DisposeObject(UObject* Object)
 
 	UPackage* TransientPackage = GetTransientPackage();
 	const FName NewName = MakeUniqueObjectName(TransientPackage, ObjectType::StaticClass());
-	Object->Rename(*NewName.ToString(), TransientPackage, REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_SkipGeneratedClasses | REN_DontCreateRedirectors);
+	Object->Rename(*NewName.ToString(), TransientPackage, REN_NonTransactional | REN_DoNotDirty | REN_SkipGeneratedClasses | REN_DontCreateRedirectors);
 
 	PooledObjects.Emplace(Cast<ObjectType>(Object));
 }

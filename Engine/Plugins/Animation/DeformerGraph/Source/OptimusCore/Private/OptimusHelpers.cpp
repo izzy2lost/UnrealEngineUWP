@@ -68,7 +68,7 @@ FName Optimus::GetSanitizedNameForHlsl(FName InName)
 
 bool Optimus::RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter)
 {
-	return InObjectToRename->Rename(InNewName, InNewOuter, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+	return InObjectToRename->Rename(InNewName, InNewOuter, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 }
 
 void Optimus::RemoveObject(UObject* InObjectToRemove)

@@ -883,7 +883,7 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 				UPackage* ExistingPackage = FindPackage(InParent->GetOuter(), *NewPackageName);
 				if (!ExistingPackage)
 				{
-					InParent->Rename(*NewPackageName, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+					InParent->Rename(*NewPackageName, nullptr, REN_DontCreateRedirectors);
 					NewObjectName = *NewFileName;
 				}
 			}

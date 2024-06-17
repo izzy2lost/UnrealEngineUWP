@@ -1521,7 +1521,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 							// out of the way so we can reuse its name:
 							GetTransientPackage(), 
 							// Rename options:
-							REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders
+							REN_DoNotDirty | REN_DontCreateRedirectors
 						);
 					}
 					BPGC->ClassDefaultObject = nullptr;
@@ -2561,7 +2561,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 					// we will have to address these shortcomings (likely by ordering compilation itself,
 					// rather than reinstancing, more carefully). Discarding the CDO here is also wasteful
 					// - if we cannot use the objects, why create them at all?
-					NewClass->ClassDefaultObject->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					NewClass->ClassDefaultObject->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					NewClass->ClassDefaultObject = nullptr;
 				}
 				UObject* NewCDO = NewClass->GetDefaultObject(true);

@@ -195,7 +195,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 				const bool bRenamed = ReferenceMaterial->Rename(
 					*SanitizedName.ToString(),
 					Outer,
-					REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders
+					REN_NonTransactional | REN_DontCreateRedirectors
 				);
 				ensure(bRenamed);
 
@@ -309,7 +309,7 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 						const bool bRenamed = Texture->Rename(
 							*SanitizedName.ToString(),
 							Outer,
-							REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders
+							REN_NonTransactional | REN_DontCreateRedirectors
 						);
 						ensure(bRenamed);
 

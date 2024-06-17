@@ -438,7 +438,7 @@ void FConstraintsManagerController::StaticConstraintCreated(UWorld* InWorld, UTi
 		{
 			Manager->Modify();
 			Manager->Constraints.Add(InConstraint);
-			InConstraint->Rename(nullptr, Manager, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			InConstraint->Rename(nullptr, Manager, REN_DontCreateRedirectors);
 			Manager->OnConstraintAdded_BP.Broadcast(Manager, InConstraint);
 		}
 	}

@@ -482,7 +482,7 @@ bool UNiagaraStatelessEmitter::SetUniqueEmitterName(const FString& InName)
 		{
 			// Also rename the underlying uobject to keep things consistent.
 			FName UniqueObjectName = MakeUniqueObjectName(GetOuter(), StaticClass(), *InName);
-			Rename(*UniqueObjectName.ToString(), GetOuter(), REN_ForceNoResetLoaders);
+			Rename(*UniqueObjectName.ToString(), GetOuter());
 		}
 
 //#if WITH_EDITORONLY_DATA

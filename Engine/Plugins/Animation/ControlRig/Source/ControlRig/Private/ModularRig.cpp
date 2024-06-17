@@ -856,7 +856,7 @@ void UModularRig::DiscardModuleRig(UControlRig* InControlRig)
 		// rename the previous rig.
 		// GC will pick it up eventually - since we won't have any
 		// owning pointers to it anymore.
-		InControlRig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		InControlRig->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		InControlRig->MarkAsGarbage();
 	}
 }

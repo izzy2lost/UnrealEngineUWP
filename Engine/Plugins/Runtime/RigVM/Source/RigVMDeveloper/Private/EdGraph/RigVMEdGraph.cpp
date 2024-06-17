@@ -78,7 +78,7 @@ void URigVMEdGraph::HandleRigVMGraphRenamed(const FString& InOldNodePath, const 
 		}
 		GraphName = FRigVMClient::GetUniqueName(GetOuter(), *GraphName).ToString();
 
-		Rename(*GraphName, nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Rename(*GraphName, nullptr, REN_DontCreateRedirectors);
 	}
 	else if(ModelNodePath.StartsWith(OldPrefix))
 	{
@@ -1045,7 +1045,7 @@ void URigVMEdGraph::RemoveNode(UEdGraphNode* InNode)
 		}
 		while (ExistingObject);
 	}
-	InNode->Rename(*DeletedName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);	
+	InNode->Rename(*DeletedName, GetTransientPackage(), REN_DontCreateRedirectors);	
 
 	// this also subsequently calls NotifyGraphChanged
 	Super::RemoveNode(InNode);

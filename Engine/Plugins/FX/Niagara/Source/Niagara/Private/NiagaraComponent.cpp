@@ -1849,8 +1849,7 @@ void UNiagaraComponent::OnPooledReuse(UWorld* NewWorld)
 	{
 		// Rename the NC to move it into the current PersistentLevel - it may have been spawned in one
 		// level but is now needed in another level.
-		// Use the REN_ForceNoResetLoaders flag to prevent the rename from potentially calling FlushAsyncLoading.
-		Rename(nullptr, NewWorld, REN_ForceNoResetLoaders);
+		Rename(nullptr, NewWorld);
 	}
 
 	//We reset last render time to the current time so that any visibility culling on a delay will function correctly.

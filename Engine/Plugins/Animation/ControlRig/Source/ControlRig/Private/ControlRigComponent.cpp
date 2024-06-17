@@ -1273,7 +1273,7 @@ void UControlRigComponent::SetControlRig(UControlRig* InControlRig)
 			// rename the previous rig.
 			// GC will pick it up eventually - since we won't have any
 			// owning pointers to it anymore.
-			ControlRig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			ControlRig->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			ControlRig->MarkAsGarbage();
 		}
 		ControlRig = InControlRig;

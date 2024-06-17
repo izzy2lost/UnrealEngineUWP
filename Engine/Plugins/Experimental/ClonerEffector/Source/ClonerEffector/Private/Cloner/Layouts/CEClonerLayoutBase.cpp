@@ -293,7 +293,7 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 		// Change outer to avoid GC leak
 		InPackage->SetFlags(RF_Transient);
 		NiagaraSystem->RemoveFromRoot();
-		NiagaraSystem->Rename(NULL, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+		NiagaraSystem->Rename(NULL, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		InPackage->MarkAsGarbage();
 
 		for (FNiagaraEmitterHandle& SystemEmitterHandle : NiagaraSystem->GetEmitterHandles())

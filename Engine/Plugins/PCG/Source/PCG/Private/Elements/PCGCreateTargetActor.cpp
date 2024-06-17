@@ -170,7 +170,7 @@ void UPCGCreateTargetActor::RefreshTemplateActor()
 				Options.bNotifyObjectReplacement = true;
 				UEngine::CopyPropertiesForUnrelatedObjects(TemplateActor, NewTemplateActor, Options);
 
-				TemplateActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+				TemplateActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 
 				TMap<UObject*, UObject*> OldToNew;
 				OldToNew.Emplace(TemplateActor, NewTemplateActor);
@@ -185,7 +185,7 @@ void UPCGCreateTargetActor::RefreshTemplateActor()
 			TemplateActor->Modify();
 
 			// Outer to this object
-			TemplateActor->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			TemplateActor->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors);
 		}
 	}
 	else

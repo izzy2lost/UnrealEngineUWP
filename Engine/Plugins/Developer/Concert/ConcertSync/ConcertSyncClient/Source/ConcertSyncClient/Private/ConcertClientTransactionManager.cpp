@@ -425,7 +425,7 @@ struct FRenameObjectResult
 void MakeObjectUniqueToAvoidCollision(UObject* InObject)
 {
 	FString NewName = InObject->GetFName().ToString() + FGuid::NewGuid().ToString(EGuidFormats::Short);
-	InObject->Rename(*NewName, nullptr, REN_ForceNoResetLoaders | REN_NonTransactional);
+	InObject->Rename(*NewName, nullptr, REN_NonTransactional);
 }
 
 /**

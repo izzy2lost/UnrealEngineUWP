@@ -335,7 +335,7 @@ bool FRigVMClient::RemoveController(const URigVMGraph* InModel)
 	if(Controller)
 	{
 		Controller->SetActionStack(nullptr);
-		Controller->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		Controller->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		Controller->RemoveFromRoot();
 		Controller->MarkAsGarbage();
 	}
@@ -625,7 +625,7 @@ FName FRigVMClient::RenameModel(const FString& InNodePathOrName, const FName& In
 		TObjectPtr<URigVMController>* Controller = Controllers.Find(Model);
 		const FString OldNodePath = Model->GetNodePath();
 		const FName SafeNewName = GetUniqueName(InNewName);
-		Model->Rename(*SafeNewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Model->Rename(*SafeNewName.ToString(), nullptr, REN_DontCreateRedirectors);
 		const FString NewNodePath = Model->GetNodePath();
 		if (Controller)
 		{
@@ -907,7 +907,7 @@ void FRigVMClient::DestroyObject(UObject* InObject)
 		static int32 ObjectIndexToBeDestroyed = 0;
 		static constexpr TCHAR ObjectNameFormat[] = TEXT("RigVMClient_ObjectToBeDestroyed_%d");
 		const FString NewObjectName = FString::Printf(ObjectNameFormat, ObjectIndexToBeDestroyed++);
-		InObject->Rename(*NewObjectName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		InObject->Rename(*NewObjectName, GetTransientPackage(), REN_DontCreateRedirectors);
 		if(!InObject->IsRooted())
 		{
 			InObject->MarkAsGarbage();

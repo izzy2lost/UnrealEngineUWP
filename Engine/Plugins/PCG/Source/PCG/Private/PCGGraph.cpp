@@ -544,7 +544,7 @@ UPCGNode* UPCGGraph::AddNodeOfType(TSubclassOf<class UPCGSettings> InSettingsCla
 
 	if (Node)
 	{
-		Settings->Rename(nullptr, Node, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Settings->Rename(nullptr, Node, REN_DontCreateRedirectors);
 	}
 
 	OutDefaultNodeSettings = Settings;
@@ -570,7 +570,7 @@ UPCGNode* UPCGGraph::AddNode(UPCGSettingsInterface* InSettingsInterface)
 		Node->SetSettingsInterface(InSettingsInterface);
 
 		// Reparent node to this graph
-		Node->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Node->Rename(nullptr, this, REN_DontCreateRedirectors);
 
 #if WITH_EDITOR
 		const FName DefaultNodeName = InSettingsInterface->GetSettings()->GetDefaultNodeName();
@@ -578,7 +578,7 @@ UPCGNode* UPCGGraph::AddNode(UPCGSettingsInterface* InSettingsInterface)
 		{
 			const FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
 			// Flags added because default flags favor tick/interactive, not load-time renaming.
-			Node->Rename(*NodeName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			Node->Rename(*NodeName.ToString(), nullptr, REN_DontCreateRedirectors);
 		}
 #endif
 
@@ -603,7 +603,7 @@ UPCGNode* UPCGGraph::AddNodeInstance(UPCGSettings* InSettings)
 
 	if (Node)
 	{
-		SettingsInstance->Rename(nullptr, Node, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		SettingsInstance->Rename(nullptr, Node, REN_DontCreateRedirectors);
 		SettingsInstance->SetFlags(RF_Transactional);
 	}
 
@@ -622,7 +622,7 @@ UPCGNode* UPCGGraph::AddNodeCopy(const UPCGSettings* InSettings, UPCGSettings*& 
 
 	if (SettingsCopy)
 	{
-		SettingsCopy->Rename(nullptr, NewNode, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		SettingsCopy->Rename(nullptr, NewNode, REN_DontCreateRedirectors);
 	}
 
 	DefaultNodeSettings = SettingsCopy;
@@ -784,14 +784,14 @@ void UPCGGraph::AddNodes_Internal(TArrayView<UPCGNode*> InNodes)
 	for (UPCGNode* Node : InNodes)
 	{
 		check(Node);
-		Node->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Node->Rename(nullptr, this, REN_DontCreateRedirectors);
 
 #if WITH_EDITOR
 		const FName DefaultNodeName = Node->GetSettings()->GetDefaultNodeName();
 		if (DefaultNodeName != NAME_None)
 		{
 			FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
-			Node->Rename(*NodeName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			Node->Rename(*NodeName.ToString(), nullptr, REN_DontCreateRedirectors);
 		}
 #endif
 

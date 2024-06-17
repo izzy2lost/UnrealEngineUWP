@@ -4170,7 +4170,7 @@ int32 FLinkerLoad::LoadMetaDataFromExportMap(bool bForcePreload)
 			if (ExportMap[ExportIndex].ObjectName == *UMetaData::StaticClass()->GetName() && ExportMap[ExportIndex].OuterIndex.IsNull())
 			{
 				UObject* Object = CreateExportAndPreload(ExportIndex, bForcePreload);
-				Object->Rename(*FName(NAME_PackageMetaData).ToString(), NULL, REN_ForceNoResetLoaders);
+				Object->Rename(*FName(NAME_PackageMetaData).ToString(), NULL);
 
 				MetaData = Cast<UMetaData>(Object);
 				MetaDataIndex = ExportIndex;

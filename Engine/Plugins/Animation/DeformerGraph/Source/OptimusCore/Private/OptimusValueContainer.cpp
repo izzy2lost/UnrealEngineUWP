@@ -70,7 +70,7 @@ UClass* UOptimusValueContainerGeneratorClass::RefreshClassForType(UPackage* InPa
 	if (TypeClass)
 	{
 		const FString DeprecatedClassName = FString(TEXT("Deprecated_")) + ClassName + FGuid::NewGuid().ToString();
-		TypeClass->Rename(*DeprecatedClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		TypeClass->Rename(*DeprecatedClassName, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		// Add in the CLASS_NewerVersionExists class flag to this obliterated class. Just so it won't show up in any global class iteration.
 		TypeClass->ClassFlags |= CLASS_NewerVersionExists;
 	}

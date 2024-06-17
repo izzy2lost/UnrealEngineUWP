@@ -391,7 +391,7 @@ void UDisplayClusterConfigurationData_Base::Serialize(FArchive& Ar)
 			}
 			if (Object->GetOuter() != this)
 			{
-				Object->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+				Object->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors);
 			}
 			Object->SetFlags(RF_Public);
 			Object->ClearFlags(RF_Transient);

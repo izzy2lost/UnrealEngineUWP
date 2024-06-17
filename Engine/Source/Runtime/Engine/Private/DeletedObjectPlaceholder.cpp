@@ -49,7 +49,7 @@ UDeletedObjectPlaceholder* UDeletedObjectPlaceholder::RemoveFromPackage(UPackage
 		DeletedObjectPlaceholder->Modify(false);
 		DeletedObjectPlaceholder->ClearFlags(RF_Standalone);
 		const FName NewName = MakeUniqueObjectName(nullptr, UDeletedObjectPlaceholder::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *DeletedObjectPlaceholder->GetName())));
-		DeletedObjectPlaceholder->Rename(*NewName.ToString(), GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+		DeletedObjectPlaceholder->Rename(*NewName.ToString(), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 		DeletedObjectPlaceholder->SetExternalPackage(nullptr);
 		return DeletedObjectPlaceholder;
 	}

@@ -367,7 +367,7 @@ void ABrush::PostLoad()
 		// UModelFactory::FactoryCreateText was passing in the ABrush as the Outer instead of the UModel
 		if (Brush->Polys->GetOuter() == this)
 		{
-			Brush->Polys->Rename(*Brush->Polys->GetName(), Brush, REN_ForceNoResetLoaders);
+			Brush->Polys->Rename(*Brush->Polys->GetName(), Brush);
 		}
 	}
 

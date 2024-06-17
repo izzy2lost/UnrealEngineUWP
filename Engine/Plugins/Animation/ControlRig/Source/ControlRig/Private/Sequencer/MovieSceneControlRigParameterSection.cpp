@@ -1445,7 +1445,7 @@ void UMovieSceneControlRigParameterSection::AddConstraintChannel(UTickableConstr
 		
 		//make copy that we can spawn if it doesn't exist
 		//the rename changes the outer to this section (from any actor manager)
-		InConstraint->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		InConstraint->Rename(nullptr, this, REN_DontCreateRedirectors);
 		
 		if (OnConstraintChannelAdded.IsBound())
 		{

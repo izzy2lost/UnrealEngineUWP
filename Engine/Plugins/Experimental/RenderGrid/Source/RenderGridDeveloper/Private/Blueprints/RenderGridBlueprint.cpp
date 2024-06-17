@@ -33,7 +33,7 @@ void URenderGridBlueprint::PostLoad()
 			for (const TObjectPtr<UEdGraph>& Graph : UbergraphPages)
 			{
 				Graph->MarkAsGarbage();
-				Graph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+				Graph->Rename(nullptr, GetTransientPackage());
 			}
 			UbergraphPages.Empty();
 		}

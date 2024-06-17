@@ -1856,7 +1856,7 @@ void CreateChildActorComponentsForActors(const FBlueprintAssemblyProps& Assembly
 	// unless we rename these temporary components out of the way
 	for (UActorComponent* CAC : ChildActorComponents)
 	{
-		CAC->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		CAC->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors);
 	}
 }
 
@@ -2505,7 +2505,7 @@ void FKismetEditorUtilities::UpgradeCosmeticallyStaleBlueprint(UBlueprint* Bluep
 		if ((OldStateGraph != NULL) && (CollidingObject == NULL))
 		{
 			check(!OldStateGraph->HasAnyFlags(RF_Public));
-			OldStateGraph->Rename(*(UEdGraphSchema_K2::GN_EventGraph.ToString()), OldStateGraph->GetOuter(), REN_DoNotDirty | REN_ForceNoResetLoaders);
+			OldStateGraph->Rename(*(UEdGraphSchema_K2::GN_EventGraph.ToString()), OldStateGraph->GetOuter(), REN_DoNotDirty);
 			Blueprint->Status = BS_Dirty;
 		}
 	}

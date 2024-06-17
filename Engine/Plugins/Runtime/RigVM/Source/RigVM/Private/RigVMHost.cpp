@@ -957,7 +957,7 @@ void URigVMHost::SwapVMToNativizedIfRequired(UClass* InNativizedClass)
 		if((InNativizedClass == nullptr) || bNativizedVMDisabled)
 		{
 			const EObjectFlags PreviousFlags = VM->GetFlags();
-			VM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			VM->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			VM->MarkAsGarbage();
 			VM = NewObject<URigVM>(this, TEXT("RigVM_NVMA"), PreviousFlags);
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
@@ -971,7 +971,7 @@ void URigVMHost::SwapVMToNativizedIfRequired(UClass* InNativizedClass)
 		if(InNativizedClass && !bNativizedVMDisabled)
 		{
 			const EObjectFlags PreviousFlags = VM->GetFlags();
-			VM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			VM->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			VM->MarkAsGarbage();
 			VM = NewObject<URigVM>(this, InNativizedClass, TEXT("RigVM_NVMB"), PreviousFlags);
 			GetRigVMExtendedExecuteContext().ExecutionReachedExit().AddUObject(this, &URigVMHost::HandleExecutionReachedExit);

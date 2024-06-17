@@ -2921,7 +2921,7 @@ void UNiagaraEmitter::UpdateFromMergedCopy(const INiagaraMergeManager& MergeMana
 	auto ReouterMergedObject = [](UObject* NewOuter, UObject* TargetObject)
 	{
 		FName MergedObjectUniqueName = MakeUniqueObjectName(NewOuter, TargetObject->GetClass(), TargetObject->GetFName());
-		TargetObject->Rename(*MergedObjectUniqueName.ToString(), NewOuter, REN_ForceNoResetLoaders);
+		TargetObject->Rename(*MergedObjectUniqueName.ToString(), NewOuter);
 	};
 
 	// The merged copy was based on the parent emitter so its name might be wrong, check and fix that first,
@@ -3106,7 +3106,7 @@ bool UNiagaraEmitter::SetUniqueEmitterName(const FString& InName)
 		{
 			// Also rename the underlying uobject to keep things consistent.
 			FName UniqueObjectName = MakeUniqueObjectName(GetOuter(), StaticClass(), *InName);
-			Rename(*UniqueObjectName.ToString(), GetOuter(), REN_ForceNoResetLoaders);
+			Rename(*UniqueObjectName.ToString(), GetOuter());
 		}
 
 #if WITH_EDITORONLY_DATA

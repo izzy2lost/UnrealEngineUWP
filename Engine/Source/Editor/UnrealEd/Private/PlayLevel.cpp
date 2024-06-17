@@ -538,7 +538,7 @@ void UEditorEngine::EndPlayMap()
 			FName NewName = MakeUniqueObjectName(nullptr, UPackage::StaticClass());
 			UE_LOG(LogTemp, Log, TEXT("Renaming PIE package from '%s' to '%s' to prevent future name collisions."),
 				*ObjectPackage->GetName(), *NewName.ToString());
-			ObjectPackage->Rename(*NewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
+			ObjectPackage->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 		}
 	}
 

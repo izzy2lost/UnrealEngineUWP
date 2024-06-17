@@ -80,7 +80,7 @@ FWorldPartitionUtils::FSimulateCookedSession::~FSimulateCookedSession()
 				URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = ContentBundle->GetStreamingObject();
 				WorldPartition->RuntimeHash->RemoveExternalStreamingObject(ExternalStreamingObject);
 				// Trash external streaming object
-				ExternalStreamingObject->Rename(*MakeUniqueObjectName(GetTransientPackage(), URuntimeHashExternalStreamingObjectBase::StaticClass()).ToString(), GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+				ExternalStreamingObject->Rename(*MakeUniqueObjectName(GetTransientPackage(), URuntimeHashExternalStreamingObjectBase::StaticClass()).ToString(), GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 			}
 		}
 

@@ -275,10 +275,9 @@ public:
 				AActor* ExistingActor = CastChecked<AActor>(ExistingObject);
 				check(!IsValidChecked(ExistingActor));
 				ExistingActor->Modify();
-				// Don't go through AActor::Rename here because we aren't changing outers (the actor's level) and we also don't want to reset loaders
-				// if the actor is using an external package. We really just want to rename that actor out of the way so we can spawn the new one in
-				// the exact same package, keeping the package name intact.
-				ExistingActor->UObject::Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
+				// Don't go through AActor::Rename here because we aren't changing outers (the actor's level). We just want to rename that actor 
+				// out of the way so we can spawn the new one in the exact same package, keeping the package name intact.
+				ExistingActor->UObject::Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 				
 				// Reuse ActorGuid so that ActorDesc can be updated on save
 				SpawnParams.OverrideActorGuid = ExistingActor->GetActorGuid();

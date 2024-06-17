@@ -197,7 +197,7 @@ void UPCGNode::RebuildAfterPaste()
 		if (UPCGSettingsInterface* OuteredSettingsInterface = Cast<UPCGSettingsInterface>(Object); OuteredSettingsInterface && SettingsInterface != OuteredSettingsInterface)
 		{
 			OuteredSettingsInterface->OnSettingsChangedDelegate.RemoveAll(this);
-			OuteredSettingsInterface->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			OuteredSettingsInterface->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			OuteredSettingsInterface->MarkAsGarbage();
 		}
 	}
@@ -758,7 +758,7 @@ void UPCGNode::SetSettingsInterface(UPCGSettingsInterface* InSettingsInterface, 
 		if (ensure(SettingsInterface->GetOuter() == this))
 		{
 #if WITH_EDITOR
-			SettingsInterface->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			SettingsInterface->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 #endif
 			SettingsInterface->MarkAsGarbage();
 		}

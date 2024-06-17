@@ -867,7 +867,7 @@ void FPCGExecuteBlueprintElement::PostExecuteInternal(FPCGContext* InContext) co
 
 					if (bHasInstanceAsOuter)
 					{
-						InObject->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+						InObject->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					}
 				};
 

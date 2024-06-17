@@ -390,12 +390,12 @@ void UWorldPartitionRuntimeHashSet::StoreStreamingContentToExternalStreamingObje
 	{
 		for (UWorldPartitionRuntimeCell* Cell : StreamingData.SpatiallyLoadedCells)
 		{
-			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
+			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty);
 		}
 
 		for (UWorldPartitionRuntimeCell* Cell : StreamingData.NonSpatiallyLoadedCells)
 		{
-			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
+			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty);
 		}
 	}
 }
@@ -766,7 +766,7 @@ bool UWorldPartitionRuntimeHashSet::UnregisterWorldAssetStreaming(const FGuid& I
 			auto TrashObject = [](UObject* InObject)
 			{
 				FName NewUniqueTrashName = MakeUniqueObjectName(InObject->GetOuter(), InObject->GetClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InObject->GetName())));
-				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
+				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			};
 
 			InStreamingObject->ForEachStreamingCells([TrashObject](UWorldPartitionRuntimeCell& Cell)

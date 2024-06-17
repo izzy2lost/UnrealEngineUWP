@@ -123,7 +123,7 @@ FTestStepResults UInterchangeImportTestStepImport::FinishStep(FInterchangeImport
 			// Renaming the original objects avoids having to do a GC sweep here (this is done at the end of each test step)
 			// Any existing references to them will be retained but irrelevant.
 			// Then the new object can be loaded in their place, as if it were being loaded for the first time.
-			const ERenameFlags RenameFlags = REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
+			const ERenameFlags RenameFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 			PackageObject->Rename(*(PackageObject->GetName() + TEXT("_TRASH")), nullptr, RenameFlags);
 			PackageObject->RemoveFromRoot();
 			PackageObject->MarkAsGarbage();

@@ -295,7 +295,7 @@ void UMovieScene::AddSpawnable(const FMovieSceneSpawnable& InNewSpawnable, const
 	FMovieSceneBinding NewBinding = InNewBinding;
 	for (auto Track : NewBinding.GetTracks())
 	{
-		Track->Rename(nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		Track->Rename(nullptr, this, REN_DontCreateRedirectors);
 	}
 	int32 NewBindingIndex = InsertSorted(ObjectBindings, MoveTemp(NewBinding));
 
@@ -375,7 +375,7 @@ void UMovieScene::AddPossessable(const FMovieScenePossessable& InNewPossessable,
 	FMovieSceneBinding NewBinding = InNewBinding;
 	for (auto Track : NewBinding.GetTracks())
 	{
-		Track->Rename(nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		Track->Rename(nullptr, this, REN_DontCreateRedirectors);
 	}
 	int32 NewBindingIndex = InsertSorted(ObjectBindings, MoveTemp(NewBinding));
 	check(ObjectBindings.IsValidIndex(NewBindingIndex));
@@ -1120,7 +1120,7 @@ bool UMovieScene::AddGivenTrack(UMovieSceneTrack* InTrack, const FGuid& ObjectGu
 	Modify();
 	if (FMovieSceneBinding* Binding = FindBinding(ObjectGuid))
 	{
-		InTrack->Rename(nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		InTrack->Rename(nullptr, this, REN_DontCreateRedirectors);
 		Binding->AddTrack(*InTrack, this);
 		return true;
 	}
@@ -1231,7 +1231,7 @@ bool UMovieScene::AddGivenTrack(UMovieSceneTrack* InTrack)
 	{
 		Modify();
 		Tracks.Add(InTrack);
-		InTrack->Rename(nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		InTrack->Rename(nullptr, this, REN_DontCreateRedirectors);
 
 		EventHandlers.Trigger(&UE::MovieScene::ISequenceDataEventHandler::OnTrackAdded, InTrack);
 
@@ -1302,7 +1302,7 @@ void UMovieScene::SetCameraCutTrack(UMovieSceneTrack* InTrack)
 	}
 
 	Modify();
-	InTrack->Rename(nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	InTrack->Rename(nullptr, this, REN_DontCreateRedirectors);
 	UMovieSceneTrack* OldCameraCutTrack = CameraCutTrack;
 	CameraCutTrack = InTrack;
 
@@ -1572,7 +1572,7 @@ void UMovieScene::ReplaceBinding(const FGuid& BindingToReplaceGuid, const FMovie
 		// We also need to change the track's owners to be the MovieScene.
 		for (auto Track : Binding->GetTracks())
 		{
-			Track->Rename(nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			Track->Rename(nullptr, this, REN_DontCreateRedirectors);
 		}
 
 		EventHandlers.Trigger(&UE::MovieScene::ISequenceDataEventHandler::OnBindingRemoved, BindingToReplaceGuid);

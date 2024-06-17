@@ -1014,7 +1014,7 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Asset, 
 	//Make sure old import asset data will be deleted by the next garbage collect
 	if (bResult && OldAssetData)
 	{
-		OldAssetData->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+		OldAssetData->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		OldAssetData->ClearFlags(RF_Public | RF_Standalone);
 	}
 

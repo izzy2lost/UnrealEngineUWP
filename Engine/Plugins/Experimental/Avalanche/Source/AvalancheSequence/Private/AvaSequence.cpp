@@ -663,7 +663,7 @@ void UAvaSequence::OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bI
 
 		InOutObject->Rename(*ObjectName.ToString()
 			, GetTransientPackage()
-			, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+			, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 	};
 
 #if WITH_EDITORONLY_DATA

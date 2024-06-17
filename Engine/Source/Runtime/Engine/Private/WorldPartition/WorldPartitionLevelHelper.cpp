@@ -247,7 +247,7 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 			// (UObject::Rename doesn't check if Rename is being called with existing outer and assigns new name)
 			if (!bSameOuter)
 			{
-				Actor->Rename(nullptr, InLevel, REN_ForceNoResetLoaders);
+				Actor->Rename(nullptr, InLevel);
 
 				// AActor::Rename will register components but doesn't call RerunConstructionScripts like AddLoadedActors does.
 				// If bIsWorldInitialized is false. RerunConstructionScripts will get called as part of UEditorEngine::InitializePhysicsSceneForSaveIfNecessary during Cell package save
@@ -280,7 +280,7 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 						AActor* NestedActor = Cast<AActor>(Object);
 						if (InLevel != Object->GetOuter())
 						{
-							Object->Rename(nullptr, InLevel, REN_ForceNoResetLoaders);
+							Object->Rename(nullptr, InLevel);
 						}
 						else if (NestedActor && !InLevel->Actors.Contains(NestedActor))
 						{
@@ -294,7 +294,7 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 					else
 					{
 						// Move objects in the destination level package
-						Object->Rename(nullptr, LevelPackage, REN_ForceNoResetLoaders);
+						Object->Rename(nullptr, LevelPackage);
 					}
 				}
 			}
@@ -302,7 +302,7 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 			// Trash this package to guarantee that any potential future load of this actor won't find the old empty package
 			// @todo_ow: Decide if we want to support actor reloads during cook. If not, remove this code, detect the reload and report an error.
 			FName NewPackageName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *ActorExternalPackage->GetName())));
-			ActorExternalPackage->Rename(*NewPackageName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+			ActorExternalPackage->Rename(*NewPackageName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 
 			OutModifiedPackages.Add(ActorExternalPackage);
 			LevelActors.Add(Actor->GetFName());
@@ -726,14 +726,14 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 					OuterWorld->GetSoftObjectPathMapping(SourceOuterWorldPath, DummyUnusedPath);
 
 					// Rename through UObject to avoid changing Actor's external packaging and folder properties
-					Actor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *Actor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), DestLevel, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+					Actor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *Actor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), DestLevel, REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors);
 
 					// Handle child actors
 					Actor->ForEachComponent<UChildActorComponent>(true, [DestLevel = DestLevel, PackageObjectMapping](UChildActorComponent* ChildActorComponent)
 					{
 						if (AActor* ChildActor = ChildActorComponent->GetChildActor())
 						{
-							ChildActor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *ChildActor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), DestLevel, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+							ChildActor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *ChildActor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), DestLevel, REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors);
 						}
 					});
 

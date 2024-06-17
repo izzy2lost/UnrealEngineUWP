@@ -1102,7 +1102,7 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 	// Discard old wrapper objects used by property grids
 	for (UPropertyWrapper* Wrapper : PropertyWrappers)
 	{
-		Wrapper->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		Wrapper->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		Wrapper->RemoveFromRoot();
 	}
 	PropertyWrappers.Empty();
@@ -2095,7 +2095,7 @@ void UStruct::ConvertUFieldsToFFields()
             // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 			FLinkerLoad::InvalidateExport(OldField);
 			// Move the old UProperty to the transient package and rename it to something unique
-			OldField->Rename(*MakeUniqueObjectName(GetTransientPackage(), OldField->GetClass()).ToString(), GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			OldField->Rename(*MakeUniqueObjectName(GetTransientPackage(), OldField->GetClass()).ToString(), GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			OldField->RemoveFromRoot();
 		}
 		else 

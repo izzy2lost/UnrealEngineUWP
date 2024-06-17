@@ -582,7 +582,7 @@ UWorldPartitionLevelStreamingDynamic* UWorldPartitionRuntimeLevelStreamingCell::
 		UWorld* OwningWorld = GetOwningWorld();
 		if (LevelStreaming->GetWorld() != OwningWorld)
 		{
-			LevelStreaming->Rename(nullptr, OwningWorld, REN_ForceNoResetLoaders);
+			LevelStreaming->Rename(nullptr, OwningWorld);
 		}
 		
 		// Transfer WorldPartition's transform to LevelStreaming

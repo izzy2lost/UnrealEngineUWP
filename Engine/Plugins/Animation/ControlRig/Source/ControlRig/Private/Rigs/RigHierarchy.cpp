@@ -5525,7 +5525,7 @@ void URigHierarchy::CleanupInvalidCaches()
 
 	if(bHierarchyWasCreatedDuringCleanup && HierarchyForCacheValidation)
 	{
-		HierarchyForCacheValidation->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		HierarchyForCacheValidation->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		HierarchyForCacheValidation->RemoveFromRoot();
 		HierarchyForCacheValidation->MarkAsGarbage();
 		HierarchyForCacheValidation = nullptr;

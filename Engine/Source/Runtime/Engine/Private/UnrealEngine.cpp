@@ -16478,7 +16478,7 @@ void UEngine::CheckAndHandleStaleWorldObjectReferences(FWorldContext* WorldConte
 				Builder << TEXT("/Leaked");
 				Builder << BaseName;
 				FName NewName = MakeUniqueObjectName(nullptr, Pkg->GetClass(), FName(*Builder));
-				Pkg->Rename(*NewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty);
+				Pkg->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty);
 			}
 		}
 	}
@@ -16821,7 +16821,7 @@ bool UEngine::CommitMapChange( FWorldContext &Context )
 		for (int32 Index = FakeWorld->GetStreamingLevels().Num() - 1; Index >= 0; --Index)
 		{
 			ULevelStreaming* const FakeWorldStreamingLevel = FakeWorld->GetStreamingLevels()[Index];
-			FakeWorldStreamingLevel->Rename(nullptr, Context.World(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			FakeWorldStreamingLevel->Rename(nullptr, Context.World(), REN_DontCreateRedirectors);
 			FakeWorld->RemoveStreamingLevelAt(Index);
 			StreamingLevelsToMove[Index] = FakeWorldStreamingLevel;
 		}

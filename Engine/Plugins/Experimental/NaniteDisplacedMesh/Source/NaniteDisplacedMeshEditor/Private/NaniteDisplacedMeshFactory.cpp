@@ -198,7 +198,7 @@ UNaniteDisplacedMesh* LinkDisplacedMeshAsset(UNaniteDisplacedMesh* ExistingDispl
 			// Remove the invalid asset of the way (We don't want to deal with recycled objects)
 			if (PotentialTempAsset)
 			{
-				PotentialTempAsset->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+				PotentialTempAsset->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 			}
 		}
 

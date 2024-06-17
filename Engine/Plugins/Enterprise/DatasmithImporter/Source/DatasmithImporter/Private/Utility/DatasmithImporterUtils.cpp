@@ -446,7 +446,7 @@ void FDatasmithImporterUtils::DeleteActor( AActor& Actor )
 		ActorWorld->EditorDestroyActor( &Actor, true );
 
 		// Move the actor to the transient package so its object name can be use
-		Actor.UObject::Rename( nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders );
+		Actor.UObject::Rename( nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 	}
 }
 

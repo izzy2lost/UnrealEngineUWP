@@ -1352,7 +1352,7 @@ void UDynamicMeshComponent::SetDynamicMesh(UDynamicMesh* NewMesh)
 
 	// set Outer of NewMesh to be this Component, ie transfer ownership. This is done via "renaming", which is
 	// a bit odd, so the flags prevent some standard "renaming" behaviors from happening
-	NewMesh->Rename( nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	NewMesh->Rename( nullptr, this, REN_DontCreateRedirectors);
 	MeshObject = NewMesh;
 	MeshObjectChangedHandle = MeshObject->OnMeshChanged().AddUObject(this, &UDynamicMeshComponent::OnMeshObjectChanged);
 

@@ -10399,7 +10399,7 @@ void FLandscapeLayerBrush::SetOwner(ALandscape* InOwner)
 	{
 		if (BlueprintBrush->GetTypedOuter<ULevel>() != InOwner->GetTypedOuter<ULevel>())
 		{
-			BlueprintBrush->Rename(nullptr, InOwner->GetTypedOuter<ULevel>(), REN_ForceNoResetLoaders);
+			BlueprintBrush->Rename(nullptr, InOwner->GetTypedOuter<ULevel>());
 		}
 		BlueprintBrush->SetOwningLandscape(InOwner);
 	}

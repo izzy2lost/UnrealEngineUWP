@@ -568,7 +568,7 @@ namespace AnimationEditorUtils
 				{
 					// Notify the asset registry
 					FAssetRegistryModule::AssetDeleted(ObjectToDelete);
-					ObjectToDelete->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					ObjectToDelete->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 			}
 		}

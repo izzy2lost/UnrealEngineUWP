@@ -273,7 +273,7 @@ void UBehaviorTreeGraph::UpdateVersion_RunBehaviorInSeparateGraph()
 				ReplaceNodeConnections(Node, NewNode);
 				Nodes[Index] = NewNode;
 
-				Node->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+				Node->Rename(nullptr, GetTransientPackage());
 				Node->SetFlags(RF_Transient);
 				Node->MarkAsGarbage();
 			}

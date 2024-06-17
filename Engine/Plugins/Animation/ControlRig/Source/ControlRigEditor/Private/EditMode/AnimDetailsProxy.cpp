@@ -3248,7 +3248,7 @@ void UControlRigDetailPanelControlProxies::RemoveSequencerProxies(UObject* InObj
 				UControlRigControlsProxy* ExistingProxy = Pair.Value;
 				if (ExistingProxy)
 				{
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
@@ -3268,7 +3268,7 @@ void UControlRigDetailPanelControlProxies::RemoveSequencerProxies(UObject* InObj
 				{
 					SelectedControlRigProxies.Remove(ExistingProxy);
 					ClearSelectedProperty(ExistingProxy);
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
@@ -3289,7 +3289,7 @@ void UControlRigDetailPanelControlProxies::RemoveControlRigProxies(UControlRig* 
 				UControlRigControlsProxy* ExistingProxy = Pair.Value;
 				if (ExistingProxy)
 				{
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
@@ -3310,7 +3310,7 @@ void UControlRigDetailPanelControlProxies::RemoveControlRigProxies(UControlRig* 
 				{
 					SelectedControlRigProxies.Remove(ExistingProxy);
 					ClearSelectedProperty(ExistingProxy);
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}

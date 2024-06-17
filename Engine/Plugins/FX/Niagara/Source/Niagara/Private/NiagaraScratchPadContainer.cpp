@@ -22,7 +22,7 @@ void UNiagaraScratchPadContainer::CheckConsistency()
 		{
 			// Ensure the object has finished loading before renaming since we are changing the outer which will invalidate the linker
 			Script->ConditionalPostLoad();
-			Script->Rename(*Script->GetName(), this, REN_ForceNoResetLoaders | REN_NonTransactional);
+			Script->Rename(*Script->GetName(), this, REN_NonTransactional);
 		}
 	}
 #endif
@@ -54,7 +54,7 @@ void UNiagaraScratchPadContainer::AppendScripts(TObjectPtr<UNiagaraScratchPadCon
 			if (Script)
 			{
 				FName UniqueName = MakeUniqueObjectName(this, Script->GetClass(), Script->GetFName());
-				Script->Rename(*UniqueName.ToString(), this, REN_ForceNoResetLoaders | REN_NonTransactional);
+				Script->Rename(*UniqueName.ToString(), this, REN_NonTransactional);
 				Scripts.Add(Script);
 			}
 		}

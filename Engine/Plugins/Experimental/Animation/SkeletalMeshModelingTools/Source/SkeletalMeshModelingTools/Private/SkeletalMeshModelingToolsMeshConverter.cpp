@@ -386,7 +386,7 @@ static void DoConversion(
 		for (UObject* ObjectToDelete: ObjectsAdded)
 		{
 			FAssetRegistryModule::AssetDeleted(ObjectToDelete);
-			ObjectToDelete->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+			ObjectToDelete->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 	}
 }

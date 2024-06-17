@@ -146,13 +146,13 @@ TArray<UActorComponent*> UHLODBuilderMeshApproximate::Build(const FHLODBuildCont
 				if (AssetToReplace)
 				{
 					// Move the previous asset to the transient package
-					AssetToReplace->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+					AssetToReplace->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 
 				UPackage* TempPackage = NewAsset->GetPackage();
 
 				// Rename the asset to its final destination
-				NewAsset->Rename(*AssetName, InHLODBuildContext.AssetsOuter, REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+				NewAsset->Rename(*AssetName, InHLODBuildContext.AssetsOuter, REN_DontCreateRedirectors | REN_NonTransactional);
 				NewAsset->ClearFlags(RF_Public | RF_Standalone);
 
 				// Clean up flags on the temp package. It is not useful anymore.

@@ -675,7 +675,7 @@ namespace UE::Reload::Private
 						*FString::Printf(TEXT("BPGC_ARCH_FOR_CDO_%s"), *Pair.Value.OldClass->GetName())
 					).ToString(),
 					GetTransientPackage(),
-					REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses | REN_ForceNoResetLoaders);
+					REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses);
 
 				// Clear the class default object so it gets recreated.
 				Pair.Value.OldClass->ClassDefaultObject = nullptr;

@@ -1413,12 +1413,12 @@ USCS_Node* USimpleConstructionScript::CreateNode(UClass* NewComponentClass, FNam
 	UObject* Collision = FindObject<UObject>(Blueprint->GeneratedClass, *Name);
 	while(Collision)
 	{
-		Collision->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty|REN_DontCreateRedirectors|REN_ForceNoResetLoaders);
+		Collision->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors);
 		Collision = FindObject<UObject>(Blueprint->GeneratedClass, *Name);
 	}
 
 	// Now set the actual name and outer to the BPGC.
-	NewComponentTemplate->Rename(*Name, Blueprint->GeneratedClass, REN_DoNotDirty|REN_DontCreateRedirectors|REN_ForceNoResetLoaders);
+	NewComponentTemplate->Rename(*Name, Blueprint->GeneratedClass, REN_DoNotDirty | REN_DontCreateRedirectors);
 
 	return CreateNodeImpl(NewComponentTemplate, NewComponentVariableName);
 }

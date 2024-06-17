@@ -118,7 +118,7 @@ void AWorldPartitionReplay::Uninitialize(UWorld* World)
 		if (ensure(WorldPartition && WorldPartition->Replay))
 		{
 			World->DestroyActor(WorldPartition->Replay);
-			WorldPartition->Replay->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+			WorldPartition->Replay->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 			WorldPartition->Replay = nullptr;
 		}
 	}

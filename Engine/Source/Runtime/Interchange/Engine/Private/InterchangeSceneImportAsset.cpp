@@ -232,7 +232,7 @@ UObject* UInterchangeSceneImportAsset::GetSceneObject(const FString& PackageName
 
 			// SceneObject is still in memory but invalid. Move it to TransientPackage
 			// Call UObject::Rename because for actors AActor::Rename will unnecessarily unregister and re-register components
-			SceneObject->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			SceneObject->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 		}
 	}
 #endif

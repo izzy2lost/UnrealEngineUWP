@@ -94,7 +94,7 @@ void UAnimNextModule_EditorData::PostLoad()
 						EventGraphEntry->EdGraph = Graph;
 					}
 
-					Graph->Rename(nullptr, FoundEntry, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					Graph->Rename(nullptr, FoundEntry, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					Graph->Initialize(this);
 				}
 			}

@@ -749,10 +749,10 @@ UObject* ULevelFactory::FactoryCreateText
 				Buffer += FCString::Strlen(TEXT("Name="));
 				Buffer += MapName.Len();
 				// Check to make sure that there are no naming conflicts
-				if( RootMapPackage->Rename(*MapName, nullptr, REN_Test | REN_ForceNoResetLoaders) )
+				if( RootMapPackage->Rename(*MapName, nullptr, REN_Test) )
 				{
 					// Rename it!
-					RootMapPackage->Rename(*MapName, nullptr, REN_ForceNoResetLoaders);
+					RootMapPackage->Rename(*MapName, nullptr);
 				}
 				else
 				{
@@ -3753,7 +3753,7 @@ UObject* UTextureFactory::FactoryCreateBinary
 							}
 							else
 							{
-								verify(InParent->Rename(*PackageUDIMName, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders));
+								verify(InParent->Rename(*PackageUDIMName, nullptr, REN_DontCreateRedirectors));
 							}
 						}
 					}

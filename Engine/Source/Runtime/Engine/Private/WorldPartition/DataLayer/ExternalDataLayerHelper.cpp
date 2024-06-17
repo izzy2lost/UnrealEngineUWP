@@ -324,7 +324,7 @@ bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor
 		UPackage* NewActorPackage = InActor->GetExternalPackage();
 		for (UObject* DependantObject : DependantObjects) //-V1078
 		{
-			DependantObject->Rename(nullptr, NewActorPackage, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+			DependantObject->Rename(nullptr, NewActorPackage, REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 		}
 
 		if (!bLevelPackageWasDirty)

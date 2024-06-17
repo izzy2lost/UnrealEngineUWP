@@ -497,7 +497,7 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 			{
 				// Rename package to make sure it won't be reused
 				FName NewPackageName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InPackage->GetName())));
-				InPackage->Rename(*NewPackageName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+				InPackage->Rename(*NewPackageName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			}
 		}
 	};
@@ -1332,11 +1332,11 @@ void ULevel::PostLoad()
 			// If there is already something there with that name, rename it to something else.
 			if (UObject* ExistingObject = StaticFindObject(nullptr, LevelScriptBlueprint->GetOuter(), *OuterWorld->GetName()))
 			{
-				ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+				ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			}
 
 			// Use LevelScriptBlueprint->GetOuter() instead of NULL to make sure the generated top level objects are moved appropriately
-			LevelScriptBlueprint->Rename(*OuterWorld->GetName(), LevelScriptBlueprint->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_SkipGeneratedClasses);
+			LevelScriptBlueprint->Rename(*OuterWorld->GetName(), LevelScriptBlueprint->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses);
 		}
 	}
 
@@ -4277,7 +4277,7 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 			UObject* Object = ObjectToPackage.Key;
 			UPackage* Package = ObjectToPackage.Value;
 
-			Object->Rename(nullptr, Package, REN_ForceNoResetLoaders);
+			Object->Rename(nullptr, Package);
 		}
 
 		ObjectsToExternalPackages.Empty();
@@ -4306,7 +4306,7 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 						if (Object != Actor && Object->GetFName() != NAME_PackageMetaData)
 						{
 							// Move objects in the destination level package
-							Object->Rename(nullptr, LevelPackage, REN_ForceNoResetLoaders);
+							Object->Rename(nullptr, LevelPackage);
 
 							// Keep track of which package this object really belongs to
 							ObjectsToExternalPackages.Emplace(Object, ActorExternalPackage);
@@ -4354,7 +4354,7 @@ ULevelScriptBlueprint* ULevel::GetLevelScriptBlueprint(bool bDontCreate)
 		// If there is already something there with that name, rename it to something else.
 		if (UObject* ExistingObject = StaticFindObject(nullptr, this, *LevelScriptName))
 		{
-			ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+			ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 
 		// If no blueprint is found, create one. 

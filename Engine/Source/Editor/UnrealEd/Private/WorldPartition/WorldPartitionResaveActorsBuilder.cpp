@@ -300,7 +300,7 @@ bool UWorldPartitionResaveActorsBuilder::RunInternal(UWorld* World, const FCellI
 						// Move dependant objects into the new world package temporarily
 						for (UObject* DependantObject : DependantObjects)
 						{
-							DependantObject->Rename(nullptr, WorldPackage, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+							DependantObject->Rename(nullptr, WorldPackage, REN_NonTransactional | REN_DontCreateRedirectors);
 						}
 
 						// Move actor in its new package
@@ -310,7 +310,7 @@ bool UWorldPartitionResaveActorsBuilder::RunInternal(UWorld* World, const FCellI
 						UPackage* NewActorPackage = Actor->GetExternalPackage();
 						for (UObject* DependantObject : DependantObjects)
 						{
-							DependantObject->Rename(nullptr, NewActorPackage, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+							DependantObject->Rename(nullptr, NewActorPackage, REN_NonTransactional | REN_DontCreateRedirectors);
 						}
 
 						PackagesToSave.Add(NewActorPackage);

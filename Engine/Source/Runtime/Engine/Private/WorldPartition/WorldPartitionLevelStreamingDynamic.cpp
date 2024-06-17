@@ -435,7 +435,7 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 		// Add the duplicated actors to the corresponding cell level
 		for (auto& ActorPair : ActorContainerDup->Actors)
 		{
-			ActorPair.Value->Rename(nullptr, RuntimeLevel, REN_ForceNoResetLoaders);
+			ActorPair.Value->Rename(nullptr, RuntimeLevel);
 		}
 
 		ActorContainerDup->MarkAsGarbage();

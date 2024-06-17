@@ -947,7 +947,7 @@ int32 ParticleEmitterHelper_FixupModuleLODErrors( int32 LODIndex, int32 ModuleIn
 	if (ModuleOuter != EmitterOuter)
 	{
 		// Module has an incorrect outer
-		CurrModule->Rename(NULL, EmitterOuter, REN_ForceNoResetLoaders|REN_DoNotDirty);
+		CurrModule->Rename(NULL, EmitterOuter, REN_DoNotDirty);
 		bIsDirty = true;
 	}
 

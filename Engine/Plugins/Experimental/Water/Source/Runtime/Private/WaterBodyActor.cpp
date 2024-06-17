@@ -431,7 +431,7 @@ void AWaterBody::DeprecateData()
 
 				OldLakeCollision->DestroyComponent();
 				// Rename it so we can use the name
-				OldLakeCollision->Rename(TEXT("LakeCollision_Old"), this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+				OldLakeCollision->Rename(TEXT("LakeCollision_Old"), this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				It.RemoveCurrent();
 			}
 		}
@@ -548,7 +548,7 @@ void AWaterBody::DeprecateData()
 		{
 			WaterWaves->ClearFlags(RF_Public);
 			// At one point, WaterWaves's outer was the level. We need them to be outered by the water body : 
-			WaterWaves->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+			WaterWaves->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 	}
 	

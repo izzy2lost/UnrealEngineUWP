@@ -290,7 +290,7 @@ void FFindInstancedReferenceSubobjectHelper::Duplicate(
 								ExistingObject->Rename(
 									nullptr,
 									GetTransientPackage(),
-									REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+									REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 							}
 
 							UObject* NewEditInlineSubobject = StaticDuplicateObject(Obj, NewObject, Obj->GetFName());
@@ -333,13 +333,13 @@ void FFindInstancedReferenceSubobjectHelper::Duplicate(
 									ExistingObject->Rename(
 										nullptr,
 										GetTransientPackage(),
-										REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+										REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 									ReferenceReplacementMap.Add(ExistingObject, RealNewSubobject);
 								}
 								RealNewSubobject->Rename(
 									*(RealNewSubobject->GetName()),
 									NewObject,
-									REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+									REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 							}
 						}
 					}

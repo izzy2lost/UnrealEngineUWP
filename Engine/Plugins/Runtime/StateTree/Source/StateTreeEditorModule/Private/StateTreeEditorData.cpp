@@ -709,7 +709,7 @@ void UStateTreeEditorData::ReparentStates()
 		if (State.GetOuter() != ExpectedOuter)
 		{
 			UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Fixing outer on state %s."), *TreeData->GetFullName(), *GetNameSafe(&State));
-			State.Rename(nullptr, ExpectedOuter, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+			State.Rename(nullptr, ExpectedOuter, REN_DontCreateRedirectors | REN_DoNotDirty);
 		}
 		
 		State.Parent = ParentState;
@@ -734,7 +734,7 @@ void UStateTreeEditorData::FixObjectInstance(TSet<UObject*>& SeenObjects, UObjec
 			if (Node.InstanceObject->GetOuter() != &Outer)
 			{
 				UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Fixing outer on node instance %s."), *GetFullName(), *GetNameSafe(Node.InstanceObject));
-				Node.InstanceObject->Rename(nullptr, &Outer, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+				Node.InstanceObject->Rename(nullptr, &Outer, REN_DontCreateRedirectors | REN_DoNotDirty);
 			}
 		}
 		SeenObjects.Add(Node.InstanceObject);

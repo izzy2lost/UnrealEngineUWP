@@ -17,7 +17,7 @@ void PrepareCookedMetaDataForPurge(UObject* CookedMetaDataPtr)
 	{
 		FNameBuilder BaseMetaDataName(CookedMetaDataPtr->GetFName());
 		BaseMetaDataName << TEXT("_PURGED");
-		CookedMetaDataPtr->Rename(FNameBuilder(MakeUniqueObjectName(CookedMetaDataPtr->GetOuter(), CookedMetaDataPtr->GetClass(), FName(BaseMetaDataName))).ToString(), nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+		CookedMetaDataPtr->Rename(FNameBuilder(MakeUniqueObjectName(CookedMetaDataPtr->GetOuter(), CookedMetaDataPtr->GetClass(), FName(BaseMetaDataName))).ToString(), nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 	}
 
 	CookedMetaDataPtr->ClearFlags(RF_Standalone | RF_Public);

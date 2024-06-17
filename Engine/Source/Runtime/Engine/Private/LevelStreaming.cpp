@@ -1814,7 +1814,7 @@ void ULevelStreaming::AsyncLevelLoadComplete(const FName& InPackageName, UPackag
 
 					// Make sure the redirector is not in the way of the new world.
 					// Pass NULL as the name to make a new unique name and GetTransientPackage() for the outer to remove it from the package.
-					WorldRedirector->Rename(NULL, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					WorldRedirector->Rename(NULL, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 
 					// Change the loaded world's type back to inactive since it won't be used.
 					DestinationWorld->WorldType = EWorldType::Inactive;

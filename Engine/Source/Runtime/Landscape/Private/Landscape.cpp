@@ -1360,7 +1360,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		if (Object && !Object->HasAllFlags(RF_Public | RF_Standalone) && (Object->GetOuter() != GetOuter()) && (Object->GetOutermost() == GetOutermost()))
 		{
-			Object->Rename(nullptr, GetOuter(), REN_ForceNoResetLoaders);
+			Object->Rename(nullptr, GetOuter());
 			return true;
 		}
 		return false;
@@ -1479,7 +1479,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				Obj->ClearFlags(RF_Public);
 				if (Obj->GetOuter() == Level)
 				{
-					Obj->Rename(nullptr, MyPackage, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					Obj->Rename(nullptr, MyPackage, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 			}
 		}

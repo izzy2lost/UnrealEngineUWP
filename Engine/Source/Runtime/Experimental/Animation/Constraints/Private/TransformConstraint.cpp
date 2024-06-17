@@ -470,7 +470,7 @@ void UTickableTransformConstraint::SetupDependencies(const UWorld* InWorld)
 		UTickableTransformConstraint* PTRS = ParentTRSHandle->GetTypedOuter<UTickableTransformConstraint>();
 		if(PTRS != this)
 		{
-			ParentTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			ParentTRSHandle->Rename(nullptr, this, REN_DontCreateRedirectors);
 		}
 	}
 	if (ChildTRSHandle)
@@ -478,7 +478,7 @@ void UTickableTransformConstraint::SetupDependencies(const UWorld* InWorld)
 		UTickableTransformConstraint* CTRS = ChildTRSHandle->GetTypedOuter<UTickableTransformConstraint>();
 		if (CTRS != this)
 		{
-			ChildTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			ChildTRSHandle->Rename(nullptr, this, REN_DontCreateRedirectors);
 		}
 	}
 

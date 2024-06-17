@@ -469,7 +469,7 @@ void UActorModifierCoreBase::PostLoad()
 		&& Outer
 		&& Outer->IsA<AActor>())
 	{
-		constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
+		constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional;
 
 		// Migrate modifiers to component stack instead and discard this stack
 		if (const UActorModifierCoreStack* ThisStack = Cast<UActorModifierCoreStack>(this))

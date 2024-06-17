@@ -463,7 +463,7 @@ UPackage* LoadReplacementPackage(UPackage* InExistingPackage, const uint32 InLoa
 	const FString ExistingPackageName = InExistingPackage->GetName();
 
 	// Rename the old package, and then load the new one in its place
-	const ERenameFlags PkgRenameFlags = REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
+	const ERenameFlags PkgRenameFlags = REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
 	InExistingPackage->Rename(*MakeUniqueObjectName(Cast<UPackage>(InExistingPackage->GetOuter()), UPackage::StaticClass(), *FString::Printf(TEXT("%s_DEADPACKAGE"), *InExistingPackage->GetName())).ToString(), nullptr, PkgRenameFlags);
 	MarkPackageReplaced(InExistingPackage);
 	UPackage* NewPackage = LoadPackage(Cast<UPackage>(InExistingPackage->GetOuter()), *ExistingPackageName, InLoadFlags);
