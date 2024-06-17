@@ -66,6 +66,8 @@ public:
 
 	virtual int32 GetInnateMaskOutput(int32 OutputIndex, int32 OutputChannels) const override;
 
+	void ApplyDefaultLayerSettings();
+
 	//~ Begin UObject
 	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
 	virtual void PostLoad() override;

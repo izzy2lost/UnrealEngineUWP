@@ -157,7 +157,7 @@ void UDMMaterialProperty::AddDefaultBaseStage(UDMMaterialLayerObject* InLayer)
 
 	const FDMDefaultMaterialPropertySlotValue& DefaultValue = UDynamicMaterialEditorSettings::Get()->GetDefaultSlotValue(MaterialProperty);
 
-	switch (DefaultValue.Type)
+	switch (DefaultValue.DefaultType)
 	{
 		case EDMDefaultMaterialPropertySlotValueType::Texture:
 		{
@@ -169,27 +169,6 @@ void UDMMaterialProperty::AddDefaultBaseStage(UDMMaterialLayerObject* InLayer)
 				0,
 				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 			);
-
-			if (UDMMaterialStageExpressionTextureSample* BaseInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(BaseInputExpression->GetMaterialStageExpression()))
-			{
-				if (UDMMaterialStage* BaseTextureInputStage = BaseInputExpression->GetSubStage())
-				{
-					const TArray<UDMMaterialStageInput*> BaseTextureStageInputs = BaseTextureInputStage->GetInputs();
-
-					for (UDMMaterialStageInput* BaseTextureStageInput : BaseTextureStageInputs)
-					{
-						if (UDMMaterialStageInputValue* BaseTextureInputValue = Cast<UDMMaterialStageInputValue>(BaseTextureStageInput))
-						{
-							if (UDMMaterialValueTexture* BaseTextureValue = Cast<UDMMaterialValueTexture>(BaseTextureInputValue->GetValue()))
-							{
-								BaseTextureValue->SetDefaultValue(DefaultValue.Texture.LoadSynchronous());
-								BaseTextureValue->ApplyDefaultValue();
-								break;
-							}
-						}
-					}
-				}
-			}
 
 			break;
 		}
@@ -203,12 +182,6 @@ void UDMMaterialProperty::AddDefaultBaseStage(UDMMaterialLayerObject* InLayer)
 				EDMValueType::VT_Float3_RGB,
 				0
 			);
-
-			if (UDMMaterialValueFloat3RGB* RGBValue = Cast<UDMMaterialValueFloat3RGB>(InputValue->GetValue()))
-			{
-				RGBValue->SetDefaultValue(DefaultValue.Color);
-				RGBValue->ApplyDefaultValue();
-			}
 
 			break;
 		}

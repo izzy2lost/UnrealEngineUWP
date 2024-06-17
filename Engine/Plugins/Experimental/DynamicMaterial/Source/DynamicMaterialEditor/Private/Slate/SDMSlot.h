@@ -134,8 +134,6 @@ protected:
 	void OnLayerSelected(TSharedPtr<FDMMaterialLayerReference> InLayerItem, const int32 InLayerIndex);
 	void OnLayerStageSelected(const bool bInSelected, const TSharedRef<SDMStage>& InStageWidget);
 
-	void OnValueAdded(UDMMaterialStage* InStage, UDMMaterialValue* InValue);
-
 	void RefreshMainWidget();
 	void RefreshHeaderPropertyListWidget();
 	void RefreshSlotSettingsRowWidget();

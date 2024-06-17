@@ -44,16 +44,16 @@ struct FDMDefaultMaterialPropertySlotValue
 	FDMDefaultMaterialPropertySlotValue();
 	FDMDefaultMaterialPropertySlotValue(const TSoftObjectPtr<UTexture>& InTexture);
 	FDMDefaultMaterialPropertySlotValue(const FLinearColor& InColor);
+	FDMDefaultMaterialPropertySlotValue(EDMDefaultMaterialPropertySlotValueType InDefaultType, const TSoftObjectPtr<UTexture>& InTexture,
+		const FLinearColor& InColor);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
-	EDMDefaultMaterialPropertySlotValueType Type;
+	EDMDefaultMaterialPropertySlotValueType DefaultType;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer", 
-		meta = (EditCondition = "Type == EDMDefaultMaterialPropertySlotValueType::Texture", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
 	TSoftObjectPtr<UTexture> Texture;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer",
-		meta = (EditCondition = "Type == EDMDefaultMaterialPropertySlotValueType::Color", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
 	FLinearColor Color;
 };
 

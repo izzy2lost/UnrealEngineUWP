@@ -8,7 +8,11 @@
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
+#include "Components/MaterialValues/DMMaterialValueFloat4.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DMComponentPath.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -204,6 +208,8 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewLoca
 			CastChecked<UDMMaterialStageInputValue>(InNewInput)->SetValue(NewValue);
 		}
 	);
+
+	NewInputValue->ApplyDefaultLayerSettings();
 
 	NewInputValue->ApplyWholeLayerValue();
 
@@ -488,6 +494,81 @@ int32 UDMMaterialStageInputValue::GetInnateMaskOutput(int32 OutputIndex, int32 O
 	}
 
 	return UDMMaterialStageSource::GetInnateMaskOutput(OutputIndex, OutputChannels);
+}
+
+void UDMMaterialStageInputValue::ApplyDefaultLayerSettings()
+{
+	if (!Value)
+	{
+		return;
+	}
+
+	const EDMValueType ValueType = Value->GetType();
+
+	switch (ValueType)
+	{
+		case EDMValueType::VT_Float3_RGB:
+		case EDMValueType::VT_Float4_RGBA:
+		case EDMValueType::VT_Texture:
+			break;
+
+		// Only the above 3 are supported.
+		default:
+			return;
+	}
+
+	const UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return;
+	}
+
+	UDMMaterialLayerObject* Layer = GetTypedParent<UDMMaterialLayerObject>(/* Allow Subclasses */ true);
+
+	if (!Layer)
+	{
+		return;
+	}
+
+	const EDMMaterialPropertyType Property = Layer->GetMaterialProperty();
+
+	if (Property == EDMMaterialPropertyType::None)
+	{
+		return;
+	}
+
+	const FDMDefaultMaterialPropertySlotValue& DefaultSlotValue = Settings->GetDefaultSlotValue(Property);
+
+	switch (ValueType)
+	{
+		case EDMValueType::VT_Float3_RGB:
+		{
+			UDMMaterialValueFloat3RGB* Float3Value = Cast<UDMMaterialValueFloat3RGB>(Value);
+			Float3Value->SetDefaultValue(DefaultSlotValue.Color);
+			Float3Value->ApplyDefaultValue();
+			break;
+		}
+
+		case EDMValueType::VT_Float4_RGBA:
+		{
+			UDMMaterialValueFloat4* Float4Value = Cast<UDMMaterialValueFloat4>(Value);
+			Float4Value->SetDefaultValue(DefaultSlotValue.Color);
+			Float4Value->ApplyDefaultValue();
+			break;
+		}
+
+		case EDMValueType::VT_Texture:
+		{
+			if (UTexture* Texture = DefaultSlotValue.Texture.LoadSynchronous())
+			{
+				UDMMaterialValueTexture* TextureValue = Cast<UDMMaterialValueTexture>(Value);
+				TextureValue->SetDefaultValue(Texture);
+				TextureValue->ApplyDefaultValue();
+			}
+			break;
+		}
+	}
 }
 
 bool UDMMaterialStageInputValue::Modify(bool bInAlwaysMarkDirty)

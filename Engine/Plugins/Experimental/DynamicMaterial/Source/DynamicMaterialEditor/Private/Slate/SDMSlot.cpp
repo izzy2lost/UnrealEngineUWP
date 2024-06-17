@@ -1189,8 +1189,6 @@ void SDMSlot::AddNewLayer_NewLocalValue(TSubclassOf<UDMMaterialValue> InValueCla
 		InValueClass,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
-
-	OnValueAdded(NewBase, InputValue->GetValue());
 }
 
 void SDMSlot::AddNewLayer_GlobalValue(UDMMaterialValue* InValue)
@@ -1253,8 +1251,6 @@ void SDMSlot::AddNewLayer_NewGlobalValue(TSubclassOf<UDMMaterialValue> InValueCl
 		InValueClass,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
-
-	OnValueAdded(NewStage, InputValue->GetValue());
 }
 
 void SDMSlot::AddNewLayer_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty)
@@ -1335,20 +1331,6 @@ void SDMSlot::AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InE
 		default:
 			// No nothing
 			break;
-	}
-
-	if (InExpressionClass->IsChildOf(UDMMaterialStageExpressionTextureSampleBase::StaticClass()))
-	{
-		if (UDMMaterialSubStage* SubStage = NewExpression->GetSubStage())
-		{
-			for (UDMMaterialStageInput* Input : SubStage->GetInputs())
-			{
-				if (UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(Input))
-				{
-					OnValueAdded(NewStage, InputValue->GetValue());
-				}
-			}
-		}
 	}
 }
 
@@ -1509,60 +1491,6 @@ void SDMSlot::OnLayerStageSelected(const bool bInSelected, const TSharedRef<SDMS
 	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
 	{
 		EditorWidget->SetEditedComponent(InStageWidget->GetStage());
-	}
-}
-
-void SDMSlot::OnValueAdded(UDMMaterialStage* InStage, UDMMaterialValue* InValue)
-{
-	if (!InStage || !InValue)
-	{
-		return;
-	}
-
-	UDMMaterialLayerObject* Layer = InStage->GetLayer();
-
-	if (!Layer)
-	{
-		return;
-	}
-
-	UClass* ValueClass = InValue->GetClass();
-
-	// Do not include subclasses
-	if (ValueClass != UDMMaterialValueTexture::StaticClass()
-		&& ValueClass != UDMMaterialValueFloat3RGB::StaticClass()
-		&& ValueClass != UDMMaterialValueFloat4::StaticClass())
-	{
-		return;
-	}
-
-	const FDMDefaultMaterialPropertySlotValue& DefaultValue = GetDefault<UDynamicMaterialEditorSettings>()->GetDefaultSlotValue(Layer->GetMaterialProperty());
-
-	switch (DefaultValue.Type)
-	{
-		case EDMDefaultMaterialPropertySlotValueType::Texture:
-			if (UDMMaterialValueTexture* TextureValue = Cast<UDMMaterialValueTexture>(InValue))
-			{
-				if (UTexture* Texture = DefaultValue.Texture.LoadSynchronous())
-				{
-					TextureValue->SetDefaultValue(Texture);
-					TextureValue->ApplyDefaultValue();
-				}
-			}
-			break;
-
-		case EDMDefaultMaterialPropertySlotValueType::Color:
-			if (UDMMaterialValueFloat3RGB* RGBValue = Cast<UDMMaterialValueFloat3RGB>(InValue))
-			{
-				RGBValue->SetDefaultValue(DefaultValue.Color);
-				RGBValue->ApplyDefaultValue();
-			}
-			else if (UDMMaterialValueFloat4* RGBAValue = Cast<UDMMaterialValueFloat4>(InValue))
-			{
-				RGBAValue->SetDefaultValue(DefaultValue.Color);
-				RGBAValue->ApplyDefaultValue();
-			}
-			break;
 	}
 }
 

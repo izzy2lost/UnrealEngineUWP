@@ -27,26 +27,38 @@ namespace UE::DynamicMaterialEditor::Private
 		{EDMMaterialPropertyType::Metallic,            TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Metallic.T_MD_Metallic'")))},
 		{EDMMaterialPropertyType::Specular,            FLinearColor(0.5f, 0.5f, 0.5f, 1.f)},
 		{EDMMaterialPropertyType::Roughness,           TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Roughness.T_MD_Roughness'")))},
-		{EDMMaterialPropertyType::Normal,              TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Normal.T_MD_Normal'")))},
+		{EDMMaterialPropertyType::Normal,              {
+				EDMDefaultMaterialPropertySlotValueType::Texture,
+				TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Normal.T_MD_Normal'"))),
+				FLinearColor(0.f, 0.f, 1.f, 1.f)
+			}},
 		{EDMMaterialPropertyType::AmbientOcclusion,    TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_AmbientOcclusion.T_MD_AmbientOcclusion'")))},
 	};
 }
 
 FDMDefaultMaterialPropertySlotValue::FDMDefaultMaterialPropertySlotValue()
-	: Type(EDMDefaultMaterialPropertySlotValueType::Texture)
+	: DefaultType(EDMDefaultMaterialPropertySlotValueType::Texture)
 	, Color(FLinearColor::White)
 {
 }
 
 FDMDefaultMaterialPropertySlotValue::FDMDefaultMaterialPropertySlotValue(const TSoftObjectPtr<UTexture>& InTexture)
-	: Type(EDMDefaultMaterialPropertySlotValueType::Texture)
+	: DefaultType(EDMDefaultMaterialPropertySlotValueType::Texture)
 	, Texture(InTexture)
 	, Color(FLinearColor::Black)
 {
 }
 
 FDMDefaultMaterialPropertySlotValue::FDMDefaultMaterialPropertySlotValue(const FLinearColor& InColor)
-	: Type(EDMDefaultMaterialPropertySlotValueType::Color)
+	: DefaultType(EDMDefaultMaterialPropertySlotValueType::Color)
+	, Color(InColor)
+{
+}
+
+FDMDefaultMaterialPropertySlotValue::FDMDefaultMaterialPropertySlotValue(EDMDefaultMaterialPropertySlotValueType InDefaultType, 
+	const TSoftObjectPtr<UTexture>& InTexture, const FLinearColor& InColor)
+	: DefaultType(InDefaultType)
+	, Texture(InTexture)
 	, Color(InColor)
 {
 }
@@ -426,7 +438,7 @@ const FDMDefaultMaterialPropertySlotValue& UDynamicMaterialEditorSettings::GetDe
 {
 	if (const FDMDefaultMaterialPropertySlotValue* OverridePtr = DefaultSlotValueOverrides.Find(InProperty))
 	{
-		switch (OverridePtr->Type)
+		switch (OverridePtr->DefaultType)
 		{
 			case EDMDefaultMaterialPropertySlotValueType::Texture:
 				if (!OverridePtr->Texture.IsNull() && OverridePtr->Texture.LoadSynchronous())
@@ -442,7 +454,7 @@ const FDMDefaultMaterialPropertySlotValue& UDynamicMaterialEditorSettings::GetDe
 	
 	if (const FDMDefaultMaterialPropertySlotValue* DefaultPtr = UE::DynamicMaterialEditor::Private::DefaultSlotValues.Find(InProperty))
 	{
-		switch (DefaultPtr->Type)
+		switch (DefaultPtr->DefaultType)
 		{
 			case EDMDefaultMaterialPropertySlotValueType::Texture:
 				if (!DefaultPtr->Texture.IsNull() && DefaultPtr->Texture.LoadSynchronous())
