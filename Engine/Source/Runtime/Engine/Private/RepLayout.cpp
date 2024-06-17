@@ -1162,6 +1162,10 @@ FRepChangelistState::~FRepChangelistState()
 #if WITH_PUSH_MODEL
 	UE_RepLayout_Private::ConditionallyRemovePushModelObject(PushModelObjectHandle);
 #endif // WITH_PUSH_MODEL
+
+	// Explicitly reset members to improve resilience to double-destruction
+	CustomDeltaChangelistState = nullptr;
+	StaticBuffer.Empty();
 }
 
 #if WITH_PUSH_MODEL
@@ -8381,6 +8385,8 @@ FRepStateStaticBuffer::~FRepStateStaticBuffer()
 	{
 		RepLayout->DestructProperties(*this);
 	}
+
+	Buffer = {};
 }
 
 const TCHAR* LexToString(ERepLayoutFlags Flag)
