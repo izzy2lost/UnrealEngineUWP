@@ -6,12 +6,14 @@
 #include "AssetRegistry/AssetDataToken.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Editor.h"
+#include "Editor/AssetReferenceFixer.h"
 #include "AssetReferencingPolicySubsystem.h"
 #include "AssetReferencingPolicySettings.h"
 #include "AssetReferencingDomains.h"
 #include "Editor/AssetReferenceFilter.h"
 #include "Misc/PackageName.h"
 #include "Misc/DataValidation.h"
+#include "Misc/DataValidation/Fixer.h"
 #include "Modules/ModuleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AssetValidator_AssetReferenceRestrictions)
@@ -60,12 +62,28 @@ EDataValidationResult UAssetValidator_AssetReferenceRestrictions::ValidateLoaded
 void UAssetValidator_AssetReferenceRestrictions::ValidateAssetInternal(const FAssetData& InAssetData, const IAssetRegistry& InAssetRegistry)
 {
     UAssetReferencingPolicySubsystem* Subsystem = GEditor->GetEditorSubsystem<UAssetReferencingPolicySubsystem>();
-	TValueOrError<void, TArray<FAssetReferenceError>> Result = Subsystem->ValidateAssetReferences(InAssetData);
-	if (Result.HasError())
+	if (TValueOrError<void, TArray<FAssetReferenceError>> Result = Subsystem->ValidateAssetReferences(InAssetData);
+		Result.HasError())
 	{
+		TSharedPtr<IAssetReferenceFixer> AssetReferenceFixer;
 		for (const FAssetReferenceError& Error : Result.GetError())
 		{
-			AssetMessage(InAssetData, EMessageSeverity::Error, Error.Message)->AddToken(FAssetDataToken::Create(Error.ReferencedAsset));
+			TSharedRef<FTokenizedMessage> TokenizedMessage = AssetMessage(InAssetData, EMessageSeverity::Error, Error.Message)->AddToken(FAssetDataToken::Create(Error.ReferencedAsset));
+
+			if (Error.Type == EAssetReferenceErrorType::Illegal)
+			{
+				if (!AssetReferenceFixer)
+				{
+					AssetReferenceFixer = GEditor->MakeAssetReferenceFixer();
+				}
+				if (AssetReferenceFixer)
+				{
+					if (TSharedPtr<UE::DataValidation::IFixer> Fixer = AssetReferenceFixer->CreateFixer(InAssetData))
+					{
+						TokenizedMessage->AddToken(Fixer->CreateToken(AssetReferenceFixer->GetFixerLabel(InAssetData)));
+					}
+				}
+			}
 		}
 	}
 }

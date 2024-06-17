@@ -56,6 +56,7 @@ class FViewport;
 class IEngineLoop;
 class ILauncherWorker;
 class ILayers;
+class IAssetReferenceFixer;
 class IAssetViewport;
 class ITargetPlatform;
 class SViewport;
@@ -2348,6 +2349,11 @@ public:
 	FOnMakeAssetReferenceFilter& OnMakeAssetReferenceFilter() { return OnMakeAssetReferenceFilterDelegate; }
 	TSharedPtr<IAssetReferenceFilter> MakeAssetReferenceFilter(const FAssetReferenceFilterContext& Context) { return OnMakeAssetReferenceFilterDelegate.IsBound() ? OnMakeAssetReferenceFilterDelegate.Execute(Context) : nullptr; }
 
+	/** Returns a fixer to resolve illegal references between assets */
+	DECLARE_DELEGATE_RetVal(TSharedPtr<IAssetReferenceFixer>, FOnMakeAssetReferenceFixer);
+	FOnMakeAssetReferenceFixer& OnMakeAssetReferenceFixer() { return OnMakeAssetReferenceFixerDelegate; }
+	TSharedPtr<IAssetReferenceFixer> MakeAssetReferenceFixer() { return OnMakeAssetReferenceFixerDelegate.IsBound() ? OnMakeAssetReferenceFixerDelegate.Execute() : nullptr; }
+
 	DECLARE_DELEGATE_RetVal(ULevelEditorDragDropHandler*, FOnCreateLevelEditorDragDropHandler);
 	FOnCreateLevelEditorDragDropHandler& OnCreateLevelEditorDragDropHandler() { return OnCreateLevelEditorDragDropHandlerDelegate; }
 	UNREALED_API ULevelEditorDragDropHandler* GetLevelEditorDragDropHandler() const;
@@ -2371,6 +2377,7 @@ private:
 	mutable TObjectPtr<ULevelEditorDragDropHandler> DragDropHandler;
 
 	FOnMakeAssetReferenceFilter OnMakeAssetReferenceFilterDelegate;
+	FOnMakeAssetReferenceFixer OnMakeAssetReferenceFixerDelegate;
 	FOnCreateLevelEditorDragDropHandler OnCreateLevelEditorDragDropHandlerDelegate;
 	FOnFilterCopiedActors OnFilterCopiedActorsDelegate;
 
