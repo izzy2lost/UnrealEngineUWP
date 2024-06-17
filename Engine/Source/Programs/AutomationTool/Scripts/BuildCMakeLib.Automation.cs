@@ -422,6 +422,15 @@ public sealed class BuildCMakeLib : BuildCommand
 			: "make";
 	}
 
+	public abstract class NinjaBuildTargetPlatform : TargetPlatform
+	{
+		public override bool SeparateProjectPerConfig => true;
+
+		public override string CMakeGeneratorName => "Ninja";
+
+		public override string MakeCommand => FileReference.Combine(Unreal.RootDirectory, "Engine", "Extras", "ThirdPartyNotUE", "ninja-build", "ninja.exe").FullName;
+	}
+
 	public abstract class VSTargetPlatform : TargetPlatform
 	{
 		public override bool SeparateProjectPerConfig => false;

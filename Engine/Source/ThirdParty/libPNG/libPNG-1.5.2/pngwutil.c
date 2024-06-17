@@ -20,7 +20,9 @@
 
 #include "pngpriv.h"
 
-#define PNG_EPICGAMES_MODIFICATION_ENABLE 1
+#if !defined PNG_EPICGAMES_MODIFICATION_ENABLE
+#  define PNG_EPICGAMES_MODIFICATION_ENABLE 1
+#endif
 
 #if PNG_EPICGAMES_MODIFICATION_ENABLE && defined(__clang__)
 #include <intrin.h>
