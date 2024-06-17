@@ -36,17 +36,17 @@ void UNetworkPhysicsSettingsComponent::InitializeComponent()
 	Super::InitializeComponent();
 
 	using namespace Chaos;
-	NetworkPhysicsSettingsAsync = nullptr;
+	NetworkPhysicsSettings_Internal = nullptr;
 	if (UWorld* World = GetWorld())
 	{
 		if (FPhysScene* PhysScene = World->GetPhysicsScene())
 		{
 			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
 			{
-				NetworkPhysicsSettingsAsync = Solver->CreateAndRegisterSimCallbackObject_External<FNetworkPhysicsSettingsComponentAsync>();
+				NetworkPhysicsSettings_Internal = Solver->CreateAndRegisterSimCallbackObject_External<FNetworkPhysicsSettingsComponentAsync>();
 				
 				// Marshal settings data from GT to PT
-				if (NetworkPhysicsSettingsAsync)
+				if (NetworkPhysicsSettings_Internal)
 				{
 					if (AActor* Owner = GetOwner())
 					{
@@ -54,7 +54,7 @@ void UNetworkPhysicsSettingsComponent::InitializeComponent()
 						{
 							if (Chaos::FConstPhysicsObjectHandle PhysicsObject = RootPrimComp->GetPhysicsObjectByName(NAME_None))
 							{
-								FNetworkPhysicsSettingsAsyncInput* AsyncInput = NetworkPhysicsSettingsAsync->GetProducerInputData_External();
+								FNetworkPhysicsSettingsAsyncInput* AsyncInput = NetworkPhysicsSettings_Internal->GetProducerInputData_External();
 								AsyncInput->PhysicsObject = PhysicsObject;
 								AsyncInput->Settings.GeneralSettings = GeneralSettings;
 								AsyncInput->Settings.DefaultReplicationSettings = DefaultReplicationSettings;
@@ -86,11 +86,11 @@ void UNetworkPhysicsSettingsComponent::UninitializeComponent()
 		{
 			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
 			{
-				Solver->UnregisterAndFreeSimCallbackObject_External(NetworkPhysicsSettingsAsync);
+				Solver->UnregisterAndFreeSimCallbackObject_External(NetworkPhysicsSettings_Internal);
 			}
 		}
 	}
-	NetworkPhysicsSettingsAsync = nullptr;
+	NetworkPhysicsSettings_Internal = nullptr;
 
 	if (AActor* Owner = GetOwner())
 	{

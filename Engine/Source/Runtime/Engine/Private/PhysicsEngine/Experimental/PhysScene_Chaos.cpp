@@ -139,9 +139,12 @@ public:
 	{
 		using namespace Chaos;
 
+		/* #TODO implement and re-enable resim commands. This callback must run on the main thread and resim currently does
+		 * not defer its callbacks to the main thread making its execution unsafe.
 		const UPhysicsSettings* PhysicsSettings = UPhysicsSettings::Get();
 		const bool bAllowResim = PhysicsSettings->PhysicsPrediction.bEnablePhysicsPrediction;
 		const int32 NumFrames = PhysicsSettings->GetPhysicsHistoryCount();
+		*/
 
 		TArray<int32> CommandIndicesToRemove;
 		CommandIndicesToRemove.Reserve(PendingCommands.Num());
@@ -1358,6 +1361,9 @@ const FRigidBodyState* FPhysScene_Chaos::GetStateFromReplicationCache(UPrimitive
 
 void FPhysScene_Chaos::RegisterForReplicationCache(UPrimitiveComponent* RootComponent)
 {
+	// ToDo, remove call to EnableAsyncPhysicsTickCallback when ReplicationCache is refactored to run with non-GT Frozen async callback
+	EnableAsyncPhysicsTickCallback();
+
 	const FObjectKey Key(RootComponent);
 	ReplicationCache.Map.Add(Key, FReplicationCacheData(RootComponent, GetSolver()->GetSolverTime()));
 }

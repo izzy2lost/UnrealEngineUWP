@@ -34,14 +34,27 @@ struct FBaseRewindHistory
 	/** Create a polymorphic copy of the history */
 	virtual TUniquePtr<FBaseRewindHistory> Clone() const = 0;
 
+	/** Initialize history */
+	virtual void Initialize() { }
+
 	/** Set the package map for serialization */
 	FORCEINLINE virtual void SetPackageMap(class UPackageMap* InPackageMap) {}
 
 	/** Check if the history buffer contains an entry for the given frame*/
 	FORCEINLINE virtual bool HasValidData(const int32 ValidFrame) const { return false; }
 	UE_DEPRECATED(5.4, "Deprecated, use HasValidData() instead")
-	FORCEINLINE virtual bool HasValidDatas(const int32 ValidFrame) const { return HasValidData(ValidFrame);
-	}
+	FORCEINLINE virtual bool HasValidDatas(const int32 ValidFrame) const { return HasValidData(ValidFrame);	}
+
+	/** Find how many entries are valid in frame range
+	* @param StartFrame = Included
+	* @param EndFrame = Included
+	* @param bIncludeUnimportant = If to include unimportant data entries
+	* @param bIncludeImportant = If to include important data entries */
+	FORCEINLINE virtual int32 CountValidData(const uint32 StartFrame, const uint32 EndFrame, const bool bIncludeUnimportant = true, const bool bIncludeImportant = false) { return 0; }
+
+	/** Mark frame important or unimportant
+	* @param Frame = use INDEX_NONE to set importance on all entries */
+	FORCEINLINE virtual void SetImportant(const bool bImportant, const int32 Frame = INDEX_NONE) {}
 
 	/** Extract data from the history buffer at a given time */
 	FORCEINLINE virtual bool ExtractData(const int32 ExtractFrame, const bool bResetSolver, void* HistoryData, const bool bExactFrame = false) { return true; }
@@ -59,11 +72,16 @@ struct FBaseRewindHistory
 	UE_DEPRECATED(5.4, "Deprecated, use RecordData() instead")
 	FORCEINLINE virtual bool RecordDatas(const int32 RecordFrame, const void* HistoryDatas) { return RecordData(RecordFrame, HistoryDatas); }
 	
+	/** Copy all data from local history into into @param OutHistory
+	* @param bIncludeUnimportant = If to copy unimportant data entries
+	* @param bIncludeImportant = If to copy important data entries */
+	virtual bool CopyAllData(Chaos::FBaseRewindHistory& OutHistory, bool bIncludeUnimportant = true, bool bIncludeImportant = false) { return false; }
+
 	/** Copy data from local history into @param OutHistory
 	* @param StartFrame = Included
 	* @param EndFrame = Included 
 	* @param bIncludeUnimportant = If to copy unimportant data entries
-	* @param bIncludeImportant = If to copy important data entries*/
+	* @param bIncludeImportant = If to copy important data entries */
 	virtual bool CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame, bool bIncludeUnimportant = true, bool bIncludeImportant = false) { return false; }
 
 	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies
@@ -105,8 +123,14 @@ struct FBaseRewindHistory
 	/** Return the max size of the history */
 	virtual const int32 GetHistorySize() const { return 0; }
 
+	/** Return if history has valid data */
+	virtual const bool HasDataInHistory() const { return false; }
+
 	/** Resize the history */
 	virtual void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) {}
+
+	/** Perform a fast reset, marking the data history as reset but not clearing the data or resetting collections */
+	virtual void ResetFast() {}
 };
 
 /** Templated data history holding a data buffer */
@@ -114,17 +138,27 @@ template<typename DataType>
 struct TDataRewindHistory : public FBaseRewindHistory
 {
 	FORCEINLINE TDataRewindHistory(const int32 FrameCount, const bool bIsHistoryLocal) :
-		bIsLocalHistory(bIsHistoryLocal), DataHistory(), LatestFrame(0), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
+		bIsLocalHistory(bIsHistoryLocal), DataHistory(), LatestFrame(INDEX_NONE), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
 	{
 		DataHistory.SetNum(NumFrames);
 	}
 
 	FORCEINLINE TDataRewindHistory(const int32 FrameCount) :
-		DataHistory(), LatestFrame(0), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
+		DataHistory(), LatestFrame(INDEX_NONE), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
 	{
 		DataHistory.SetNum(NumFrames);
 	}
 	FORCEINLINE virtual ~TDataRewindHistory() {}
+
+	/** Initialize history */
+	virtual void Initialize()
+	{
+		// Iterate over current data to find latest frame
+		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+		{
+			LatestFrame = FMath::Max(LatestFrame, DataHistory[FrameIndex].LocalFrame);
+		}
+	}
 
 protected:
 
@@ -160,7 +194,7 @@ public :
 	/** Extract states at a given time */
 	FORCEINLINE virtual bool ExtractData(const int32 ExtractFrame, const bool bResetSolver, void* HistoryData, const bool bExactFrame = false) override
 	{
-		// Early out if we are trying to extract data but the latest data is more than the whole buffer size old
+		// Early out if we are trying to extract data later than latest frame but the latest data is more than the whole buffer size old, don't extrapolate that far.
 		if (ExtractFrame - NumFrames > GetLatestFrame())
 		{
 			return false;
@@ -171,19 +205,17 @@ public :
 		{
 			CurrentFrame = ExtractFrame;
 			CurrentIndex = ExtractIndex;
-
-#if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogTemp, Log, TEXT("		Found matching data into history at frame %d"), ExtractFrame);
-#endif
 			*static_cast<DataType*>(HistoryData) = DataHistory[CurrentIndex];
 			return true;
 		}
 		else if(!bExactFrame)
 		{
+#if DEBUG_REWIND_DATA
 			if (bResetSolver)
 			{
 				UE_LOG(LogChaos, Warning, TEXT("		Unable to extract data at frame %d while rewinding the simulation"), ExtractFrame);
 			}
+#endif
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ClosestData() in UE 5.6 and remove deprecation pragma
 			const int32 MinFrameIndex = ClosestDatas(ExtractFrame, true);
 			const int32 MaxFrameIndex = ClosestDatas(ExtractFrame, false);
@@ -207,7 +239,7 @@ public :
 				ExtractedData.InputFrame = INDEX_NONE; // Clear InputFrame since this history entry is now altered and doesn't correspond to the source entry with the same InputFrame
 
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogTemp, Log, TEXT("		Smoothing data between frame %d and %d - > [%d %d]"), DataHistory[MinFrameIndex].LocalFrame, DataHistory[MaxFrameIndex].LocalFrame, static_cast<DataType*>(HistoryData)->InputFrame, static_cast<DataType*>(HistoryData)->ServerFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Smoothing data between frame %d and %d - > [%d %d]"), DataHistory[MinFrameIndex].LocalFrame, DataHistory[MaxFrameIndex].LocalFrame, static_cast<DataType*>(HistoryData)->InputFrame, static_cast<DataType*>(HistoryData)->ServerFrame);
 #endif
 				return true;
 			}
@@ -223,14 +255,14 @@ public :
 				ExtractedData.InputFrame = INDEX_NONE; // Clear InputFrame since this history entry is now altered and doesn't correspond to the source entry with the same InputFrame
 
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogTemp, Log, TEXT("		Setting data to frame %d"), DataHistory[MinFrameIndex].LocalFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Setting data to frame %d"), DataHistory[MinFrameIndex].LocalFrame);
 #endif
 				return true;
 			}
 			else
 			{
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogTemp, Log, TEXT("		Failed to find data bounds : Min = %d | Max = %d"), MinFrameIndex, MaxFrameIndex);
+				UE_LOG(LogChaos, Log, TEXT("		Failed to find data bounds : Min = %d | Max = %d"), MinFrameIndex, MaxFrameIndex);
 #endif
 				return false;
 			}
@@ -348,6 +380,11 @@ public :
 		return NumFrames;
 	}
 
+	virtual const bool HasDataInHistory() const
+	{
+		return LatestFrame > INDEX_NONE;
+	}
+
 	/** Resize the history */
 	FORCEINLINE void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) override
 	{
@@ -362,6 +399,13 @@ public :
 	FORCEINLINE const uint32 GetFrameIndex(const int32 Frame) const
 	{
 		return FMath::Abs(Frame % NumFrames);
+	}
+
+	FORCEINLINE virtual void ResetFast()
+	{
+		LatestFrame = INDEX_NONE;
+		CurrentFrame = 0;
+		CurrentIndex = 0;
 	}
 
 protected : 
@@ -1620,7 +1664,7 @@ public:
 	/** Add input history to the rewind data for future use while resimulating */
 	void AddInputHistory(const TSharedPtr<FBaseRewindHistory>& InputHistory)
 	{
-		InputHistories.Add(InputHistory.ToWeakPtr());
+		InputHistories.AddUnique(InputHistory.ToWeakPtr());
 	}
 	UE_DEPRECATED(5.4, "Deprecated, use AddInputHistory() instead")
 	void AddInputsHistory(const TSharedPtr<FBaseRewindHistory>& InputsHistory) { AddInputHistory(InputsHistory); }
@@ -1636,7 +1680,7 @@ public:
 	/** Add state history to the rewind data for future use while rewinding */
 	void AddStateHistory(const TSharedPtr<FBaseRewindHistory>& StateHistory)
 	{
-		StateHistories.Add(StateHistory.ToWeakPtr());
+		StateHistories.AddUnique(StateHistory.ToWeakPtr());
 	}
 	UE_DEPRECATED(5.4, "Deprecated, use AddStateHistory() instead")
 	void AddStatesHistory(const TSharedPtr<FBaseRewindHistory>& StatesHistory) { AddStateHistory(StatesHistory); }
