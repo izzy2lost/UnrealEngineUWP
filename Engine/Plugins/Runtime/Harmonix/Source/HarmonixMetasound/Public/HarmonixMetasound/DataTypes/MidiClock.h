@@ -194,6 +194,7 @@ namespace HarmonixMetasound
 
 		int32 BlockSize;
 		int32 CurrentBlockFrameIndex;
+		int32 FirstTickProcessedThisBlock;
 		int32 LastProcessedMidiTick;
 		int32 NextMidiTickToProcess;
 		float SampleRate;
