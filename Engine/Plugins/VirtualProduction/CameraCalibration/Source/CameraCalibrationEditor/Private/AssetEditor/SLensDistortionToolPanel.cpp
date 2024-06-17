@@ -2,507 +2,380 @@
 
 #include "SLensDistortionToolPanel.h"
 
-#include "CalibrationPointComponent.h"
-#include "DetailLayoutBuilder.h"
-#include "Framework/Application/SlateApplication.h"
-#include "ImageUtils.h"
-#include "IStructureDetailsView.h"
-#include "Modules/ModuleManager.h"
+#include "AssetRegistry/AssetData.h"
+#include "Calibrators/CameraCalibrationSolver.h"
+#include "CameraCalibrationSettings.h"
+#include "CameraCalibrationSubsystem.h"
+#include "CameraLensDistortionAlgo.h"
+#include "Dialog/SCustomDialog.h"
+#include "EditorFontGlyphs.h"
+#include "Engine/Selection.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "LensDistortionTool.h"
+#include "LensFile.h"
+#include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
+#include "Styling/SlateStyle.h"
 #include "UI/CameraCalibrationWidgetHelpers.h"
-#include "UI/SFilterableActorPicker.h"
-#include "UI/SImageTexture.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/SWindow.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Views/STreeView.h"
 
-#define LOCTEXT_NAMESPACE "SLensDistortionToolPanel"
+#define LOCTEXT_NAMESPACE "LensDistortionTool"
 
-void SCalibrationDatasetRow::Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView, TSharedPtr<FCalibrationRow>& InRowData)
-{
-	RowData = InRowData;
 
-	FSuperRowType::FArguments StyleArguments = FSuperRowType::FArguments()
-		.Padding(1.0f)
-		.Style(&FAppStyle().GetWidgetStyle<FTableRowStyle>("TableView.AlternatingRow"));
-
-	SMultiColumnTableRow<TSharedPtr<FCalibrationRow>>::Construct(StyleArguments, OwnerTableView);
-}
-
-TSharedRef<SWidget> SCalibrationDatasetRow::GenerateWidgetForColumn(const FName& ColumnName)
-{
-	if (ColumnName == TEXT("Index"))
-	{
-		return SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			.HAlign(EHorizontalAlignment::HAlign_Center)
-			.VAlign(EVerticalAlignment::VAlign_Center)
-			[SNew(STextBlock).Text(FText::AsNumber(RowData->Index))];
-	}
-	else if (ColumnName == TEXT("Image"))
-	{
-		// Generate a transient thumbnail texture to display in the tool
-		const FImage& MediaImage = RowData->MediaImage;
-
-		if ((MediaImage.SizeX < 1) || (MediaImage.SizeY < 1))
-		{
-			const FString Text = FString::Printf(TEXT("Image Unavailable"));
-			return SNew(STextBlock).Text(FText::FromString(Text));
-		}
-
-		constexpr int32 ResolutionDivider = 4;
-		const FIntPoint ThumbnailSize = FIntPoint(MediaImage.SizeX / ResolutionDivider, MediaImage.SizeY / ResolutionDivider);
-
-		FImage ThumbnailImage;
-		FImageCore::ResizeTo(MediaImage, ThumbnailImage, ThumbnailSize.X, ThumbnailSize.Y, MediaImage.Format, MediaImage.GetGammaSpace());
-
-		if (UTexture2D* Thumbnail = FImageUtils::CreateTexture2DFromImage(ThumbnailImage))
-		{
-			return SNew(SImageTexture, Thumbnail)
-				.MinDesiredHeight(4 * FCameraCalibrationWidgetHelpers::DefaultRowHeight)
-				.MaxDesiredHeight(4 * FCameraCalibrationWidgetHelpers::DefaultRowHeight);
-		}
-		else
-		{
-			const FString Text = FString::Printf(TEXT("Image Unavailable"));
-			return SNew(STextBlock).Text(FText::FromString(Text));
-		}
-	}
-	else if (ColumnName == TEXT("ImagePoint"))
-	{
-		const FString Text = FString::Printf(TEXT("(%.2f, %.2f)"),
-			RowData->ImagePoints.Points[0].X,
-			RowData->ImagePoints.Points[0].Y);
-
-		return SNew(STextBlock).Text(FText::FromString(Text));
-	}
-	else if (ColumnName == TEXT("ObjectPoint"))
-	{
-		const FString Text = FString::Printf(TEXT("(%.2f, %.2f, %.2f)"),
-			RowData->ObjectPoints.Points[0].X,
-			RowData->ObjectPoints.Points[0].Y,
-			RowData->ObjectPoints.Points[0].Z);
-
-		return SNew(STextBlock).Text(FText::FromString(Text));
-	}
-
-	return SNullWidget::NullWidget;
-}
-
-void FCaptureSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
-	PropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FLensCaptureSettings, Calibrator));
-
-	IDetailPropertyRow* CalibratorRow = DetailBuilder.EditDefaultProperty(PropertyHandle);
-	CalibratorRow->CustomWidget()
-		.NameContent()
-		[
-			PropertyHandle->CreatePropertyNameWidget()
-		]
-		.ValueContent()
-		[
-			SNew(SFilterableActorPicker)
-				.OnSetObject(this, &FCaptureSettingsCustomization::OnCalibratorSelected)
-				.OnShouldFilterAsset(this, &FCaptureSettingsCustomization::DoesAssetHaveCalibrationComponent)
-				.ActorAssetData(this, &FCaptureSettingsCustomization::GetCalibratorAssetData)
-		];
-
-	NextPointPropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FLensCaptureSettings, NextPoint));
-	IDetailPropertyRow* NextPointRow = DetailBuilder.EditDefaultProperty(NextPointPropertyHandle);
-	NextPointRow->CustomWidget()
-		.NameContent()
-		[
-			NextPointPropertyHandle->CreatePropertyNameWidget()
-		]
-		.ValueContent()
-		[
-			SNew(STextBlock)
-				.Text(this, &FCaptureSettingsCustomization::GetNextPointName)
-				.Font(DetailBuilder.GetDetailFont())
-		];
-}
-
-FText FCaptureSettingsCustomization::GetNextPointName() const
-{
-	FText Name;
-	NextPointPropertyHandle->GetValue(Name);
-	return Name;
-}
-
-void FCaptureSettingsCustomization::OnCalibratorSelected(const FAssetData& AssetData)
-{
-	if (AssetData.IsValid())
-	{
-		PropertyHandle->SetValue(AssetData);
-	}
-}
-
-bool FCaptureSettingsCustomization::DoesAssetHaveCalibrationComponent(const FAssetData& AssetData) const
-{
-	if (const AActor* Actor = Cast<AActor>(AssetData.GetAsset()))
-	{
-		constexpr uint32 NumInlineAllocations = 32;
-		TArray<UCalibrationPointComponent*, TInlineAllocator<NumInlineAllocations>> CalibrationPoints;
-		Actor->GetComponents(CalibrationPoints);
-
-		return (CalibrationPoints.Num() > 0);
-	}
-
-	return false;
-}
-
-FAssetData FCaptureSettingsCustomization::GetCalibratorAssetData() const
-{
-	FAssetData Tmp;
-	PropertyHandle->GetValue(Tmp);
-	return Tmp;
-}
-
-void SLensDistortionToolPanel::Construct(const FArguments& InArgs, ULensDistortionTool* InTool, TWeakPtr<FCameraCalibrationStepsController> InStepsController)
+void SLensDistortionToolPanel::Construct(const FArguments& InArgs, ULensDistortionTool* InTool)
 {
 	Tool = InTool;
-	WeakStepsController = InStepsController;
 
-	BuildProgressWindow();
-
-	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-
-	FStructureDetailsViewArgs DefaultStructuDetailsViewArgs;
-	FDetailsViewArgs DefaultDetailsViewArgs;
-	DefaultDetailsViewArgs.bAllowSearch = false;
-
-	TSharedRef<FStructOnScope> SolverSettingsStruct = MakeShared<FStructOnScope>(FLensSolverSettings::StaticStruct(), reinterpret_cast<uint8*>(&Tool->SolverSettings));
-	TSharedPtr<IStructureDetailsView> SolverSettingsDetailsView = PropertyEditor.CreateStructureDetailView(DefaultDetailsViewArgs, DefaultStructuDetailsViewArgs, SolverSettingsStruct);
-
-	TSharedRef<FStructOnScope> CaptureSettingsStruct = MakeShared<FStructOnScope>(FLensCaptureSettings::StaticStruct(), reinterpret_cast<uint8*>(&Tool->CaptureSettings));
-
-	TSharedPtr<IStructureDetailsView> CaptureSettingsDetailsView = PropertyEditor.CreateStructureDetailView(DefaultDetailsViewArgs, DefaultStructuDetailsViewArgs, TSharedPtr<FStructOnScope>());
-	CaptureSettingsDetailsView->GetDetailsView()->OnFinishedChangingProperties().AddSP(this, &SLensDistortionToolPanel::OnCaptureSettingsChanged);
-
-	CaptureSettingsDetailsView->GetDetailsView()->RegisterInstancedCustomPropertyLayout(FLensCaptureSettings::StaticStruct(),
-		FOnGetDetailCustomizationInstance::CreateLambda([]() { return MakeShared<FCaptureSettingsCustomization>(); }));
-
-	CaptureSettingsDetailsView->SetStructureData(CaptureSettingsStruct);
+	// This will be the widget wrapper of the custom algo UI.
+	UI = SNew(SVerticalBox);
 
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
 
-		+ SHorizontalBox::Slot()
+		+ SHorizontalBox::Slot() // Right toolbar
 		.FillWidth(0.25f)
-		[
+		[ 
 			SNew(SVerticalBox)
 
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				CaptureSettingsDetailsView->GetWidget().ToSharedRef()
-			]
+			+ SVerticalBox::Slot() // Solver picker
+			.MaxHeight(FCameraCalibrationWidgetHelpers::DefaultRowHeight)
+			[FCameraCalibrationWidgetHelpers::BuildLabelWidgetPair(LOCTEXT("SolverPickerWidgetText", "Lens Distortion Solver"), BuildSolverPickerWidget())]
 
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				SolverSettingsDetailsView->GetWidget().ToSharedRef()
-			]
+			+ SVerticalBox::Slot() // Algo picker
+			.MaxHeight(FCameraCalibrationWidgetHelpers::DefaultRowHeight)
+			[ FCameraCalibrationWidgetHelpers::BuildLabelWidgetPair(LOCTEXT("LensDistortionAlgo", "Lens Distortion Algo"), BuildAlgoPickerWidget())]
 
-			+ SVerticalBox::Slot()
+			+ SVerticalBox::Slot() // Algo UI
 			.AutoHeight()
-			.MaxHeight(12 * FCameraCalibrationWidgetHelpers::DefaultRowHeight)
-			[
-				BuildDatasetListView()
-			]
+			[ BuildUIWrapper() ]
 
-			+ SVerticalBox::Slot()
+			+ SVerticalBox::Slot() // Import dataset
 			.AutoHeight()
 			.HAlign(HAlign_Center)
 			.Padding(0, 20)
 			[
-				SNew(SButton)
-				.Text(LOCTEXT("ClearAll", "Clear All"))
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.OnClicked(this, &SLensDistortionToolPanel::OnClearCalibrationRowsClicked)
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SButton).Text(LOCTEXT("ImportCalibrationDataset", "Import Lens Distortion Dataset"))
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.OnClicked_Lambda([this]() -> FReply
+					{
+						if (ULensDistortionTool* LensDistortionTool = Tool.Get())
+						{
+							LensDistortionTool->ImportCalibrationDataset();
+
+							// After importing, the tool may have switched the active algo, so redraw the UI accordingly
+							UCameraLensDistortionAlgo* Algo = LensDistortionTool->GetAlgo();
+							UI->ClearChildren();
+							UI->AddSlot()[Algo->BuildUI()];
+
+							for (const TSharedPtr<FString>& AlgoString : CurrentAlgos)
+							{
+								if (AlgoString->Equals(Algo->FriendlyName().ToString()))
+								{
+									AlgosComboBox->SetSelectedItem(AlgoString);
+									break;
+								}
+							}
+						}
+						return FReply::Handled();
+					})
+					.Visibility_Lambda([]() -> EVisibility
+					{
+						if (GetDefault<UCameraCalibrationSettings>()->IsCalibrationDatasetImportExportEnabled())
+						{
+							return EVisibility::Visible;
+						}
+						return EVisibility::Collapsed;
+					})
+				]
 			]
 
-			+ SVerticalBox::Slot()
+			+ SVerticalBox::Slot() // Save Offset
 			.AutoHeight()
-			.HAlign(HAlign_Center)
 			.Padding(0, 20)
 			[
-				SNew(SButton)
-				.Text(LOCTEXT("ImportDataset", "Import Dataset"))
+				SNew(SButton).Text(LOCTEXT("AddToLUT", "Add To Lens Distortion Calibration"))
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
-				.OnClicked(this, &SLensDistortionToolPanel::OnImportDatasetClicked)
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Center)
-			.Padding(0, 20)
-			[
-				SNew(SButton)
-				.Text(LOCTEXT("CalibrateLens", "Calibrate Lens"))
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.OnClicked(this, &SLensDistortionToolPanel::OnCalibrateClicked)
+				.OnClicked_Lambda([WeakTool = Tool]() -> FReply
+				{
+					if (WeakTool.IsValid())
+					{
+						WeakTool->OnSaveCurrentCalibrationData();
+					}
+					return FReply::Handled();
+				})
 			]
 		]
 	];
 }
 
-void SLensDistortionToolPanel::OpenProgressWindow()
+TSharedRef<SWidget> SLensDistortionToolPanel::BuildUIWrapper()
 {
-	ProgressTextWidget->SetText(LOCTEXT("CalibrationProgressText", "Calibrating..."));
+	return SNew(SVerticalBox)
 
-	// The okay button will be disabled until the calibration is complete. 
-	OkayButton->SetEnabled(false);
-	ProgressWindow->ShowWindow();
+		+ SVerticalBox::Slot() // Algo's Widget
+		.AutoHeight()
+		[ UI.ToSharedRef() ];
 }
 
-void SLensDistortionToolPanel::MarkProgressFinished()
+void SLensDistortionToolPanel::UpdateUI()
 {
-	OkayButton->SetEnabled(true);
+	check(AlgosComboBox.IsValid());
+
+	// Get current algo to later compare with new one
+	const UCameraLensDistortionAlgo* OldAlgo = Tool->GetAlgo();
+
+	// Set new algo by name
+	TSharedPtr<FString> SelectedAlgo = AlgosComboBox->GetSelectedItem();
+	if (!SelectedAlgo)
+	{
+		Tool->ResetAlgo();
+	}
+	else
+	{
+		const FName AlgoName(*SelectedAlgo);
+		Tool->SetAlgo(AlgoName);
+	}
+
+	// Get the new algo
+	UCameraLensDistortionAlgo* Algo = Tool->GetAlgo();
+
+	// If we didn't change the algo, we're done here.
+	if (Algo == OldAlgo)
+	{
+		return;
+	}
+
+	// Remove old UI
+	check(UI.IsValid());
+	UI->ClearChildren();
+
+	// nullptr may indicate that it was unregistered, so refresh combobox options.
+	if (!Algo)
+	{
+		UpdateAlgosOptions();
+		return;
+	}
+
+	// Assign GUI
+	UI->AddSlot() [Algo->BuildUI()];
 }
 
-void SLensDistortionToolPanel::UpdateProgressText(const FText& ProgressText)
+void SLensDistortionToolPanel::UpdateAlgosOptions()
 {
-	ProgressTextWidget->SetText(ProgressText);
-}
+	CurrentAlgos.Empty();
 
-void SLensDistortionToolPanel::Shutdown()
-{
-	ProgressWindow->HideWindow();
-}
+	// Ask the Tool for the list of registered Algos
 
-void SLensDistortionToolPanel::OnCaptureSettingsChanged(const FPropertyChangedEvent& PropertyChangedEvent)
-{
 	if (!Tool.IsValid())
 	{
 		return;
 	}
 
-	const FName PropertyName = (PropertyChangedEvent.Property != NULL) ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+	for (FName& AlgoName : Tool->GetAlgos())
+	{
+		CurrentAlgos.Add(MakeShared<FString>(AlgoName.ToString()));
+	}
 
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(FLensCaptureSettings, bShowOverlay))
+	// Pick the first option by default (if available)
+	if (CurrentAlgos.Num())
 	{
-		if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
-		{
-			StepsController->SetOverlayEnabled(Tool->CaptureSettings.bShowOverlay);
-		}
+		AlgosComboBox->SetSelectedItem(CurrentAlgos[0]);
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FLensCaptureSettings, Calibrator))
+	else
 	{
-		Tool->SetCalibrator(Tool->CaptureSettings.Calibrator.Get());
+		AlgosComboBox->SetSelectedItem(nullptr);
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FLensCaptureSettings, CalibrationPattern))
-	{
-		DatasetListHeader->SetShowGeneratedColumn("Image", (Tool->CaptureSettings.CalibrationPattern != ECalibrationPattern::Points));
-		DatasetListHeader->SetShowGeneratedColumn("ImagePoint", (Tool->CaptureSettings.CalibrationPattern == ECalibrationPattern::Points));
-		DatasetListHeader->SetShowGeneratedColumn("ObjectPoint", (Tool->CaptureSettings.CalibrationPattern == ECalibrationPattern::Points));
-	}
+
+	// Ask the ComboBox to refresh its options from its source (that we just updated)
+	AlgosComboBox->RefreshOptions();
 }
 
-FReply SLensDistortionToolPanel::OnClearCalibrationRowsClicked()
+TSharedRef<SWidget> SLensDistortionToolPanel::BuildSolverPickerWidget()
 {
-	if (Tool.IsValid())
-	{
-		Tool->ClearCalibrationRows();
-	}
-	return FReply::Handled();
-}
+	return SNew(SHorizontalBox)
 
-FReply SLensDistortionToolPanel::OnImportDatasetClicked()
-{
-	if (Tool.IsValid())
-	{
-		Tool->ImportCalibrationDataset();
-	}
-	return FReply::Handled();
-}
-
-FReply SLensDistortionToolPanel::OnCalibrateClicked()
-{
-	if (Tool.IsValid())
-	{
-		Tool->CalibrateLens();
-	}
-	return FReply::Handled();
-}
-
-TSharedRef<SWidget> SLensDistortionToolPanel::BuildDatasetListView()
-{
-	if (!Tool.IsValid())
-	{
-		return SNullWidget::NullWidget;
-	}
-
-	TArray<FName> HiddenColumns = { "ImagePoint", "ObjectPoint" };
-
-	DatasetListHeader = SNew(SHeaderRow)
-		.HiddenColumnsList(HiddenColumns)
-
-		+ SHeaderRow::Column("Index")
-		.DefaultLabel(LOCTEXT("IndexHeaderLabel", "Index"))
-		.FillWidth(0.2f)
-
-		+ SHeaderRow::Column("Image")
-		.DefaultLabel(LOCTEXT("ImageHeaderLabel", "Image"))
-		.FillWidth(0.8f)
-
-		+ SHeaderRow::Column("ImagePoint")
-		.DefaultLabel(LOCTEXT("ImagePointHeaderLabel", "Pixel Location"))
-		.FillWidth(0.4f)
-
-		+ SHeaderRow::Column("ObjectPoint")
-		.DefaultLabel(LOCTEXT("ObjectPointHeaderLabel", "World Position"))
-		.FillWidth(0.4f);
-
-	DatasetListView = SNew(SListView<TSharedPtr<FCalibrationRow>>)
-		.ListItemsSource(&Tool->Dataset.CalibrationRows)
-		.SelectionMode(ESelectionMode::Multi)
-		.HeaderRow(DatasetListHeader.ToSharedRef())
-		.OnGenerateRow(this, &SLensDistortionToolPanel::OnGenerateDatasetRow)
-		.OnKeyDownHandler(this, &SLensDistortionToolPanel::OnDatasetRowKeyPressed);
-
-	return DatasetListView.ToSharedRef();
-}
-
-TSharedRef<ITableRow> SLensDistortionToolPanel::OnGenerateDatasetRow(TSharedPtr<FCalibrationRow> InItem, const TSharedRef<STableViewBase>& OwnerTable)
-{
-	return SNew(SCalibrationDatasetRow, OwnerTable, InItem);
-}
-
-FReply SLensDistortionToolPanel::OnDatasetRowKeyPressed(const FGeometry& Geometry, const FKeyEvent& KeyEvent)
-{
-	if (!Tool.IsValid())
-	{
-		return FReply::Unhandled();
-	}
-
-	if ((KeyEvent.GetKey() == EKeys::A) && KeyEvent.GetModifierKeys().IsControlDown())
-	{
-		// Select all items
-		DatasetListView->SetItemSelection(Tool->Dataset.CalibrationRows, true);
-		return FReply::Handled();
-	}
-	else if (KeyEvent.GetKey() == EKeys::Escape)
-	{
-		// De-select all items
-		DatasetListView->ClearSelection();
-		return FReply::Handled();
-	}
-	else if (KeyEvent.GetKey() == EKeys::Delete)
-	{
-		// Delete selected items
-		const TArray<TSharedPtr<FCalibrationRow>> SelectedItems = DatasetListView->GetSelectedItems();
-
-		for (const TSharedPtr<FCalibrationRow>& SelectedItem : SelectedItems)
-		{
-			Tool->Dataset.CalibrationRows.Remove(SelectedItem);
-			Tool->DeleteExportedRow(SelectedItem->Index);
-		}
-
-		Tool->RefreshCoverage();
-
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
-}
-
-void SLensDistortionToolPanel::RefreshListView()
-{
-	if (DatasetListView)
-	{
-		DatasetListView->RequestListRefresh();
-	}
-}
-
-void SLensDistortionToolPanel::BuildProgressWindow()
-{
-	ProgressWindow = SNew(SWindow)
-		.Title(LOCTEXT("ProgressWindowTitle", "Distortion Calibration Progress"))
-		.SizingRule(ESizingRule::Autosized)
-		.IsTopmostWindow(true)
-		.HasCloseButton(false)
-		.SupportsMaximize(false)
-		.SupportsMinimize(true);
-
-	ProgressTextWidget = SNew(STextBlock).Text(FText::GetEmpty());
-
-	OkayButton = SNew(SButton)
-		.IsEnabled(false)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.Text(LOCTEXT("OkText", "Ok"))
-		.OnClicked(this, &SLensDistortionToolPanel::OnOkPressed);
-
-	TSharedRef<SWidget> WindowContent = SNew(SVerticalBox)
-
-		// Text widget to display the current progress of the calibration
-		+ SVerticalBox::Slot()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.VAlign(EVerticalAlignment::VAlign_Center)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
 		[
-			ProgressTextWidget.ToSharedRef()
-		]
-
-		// Ok and Cancel buttons
-		+ SVerticalBox::Slot()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.VAlign(EVerticalAlignment::VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
+			SNew(SComboButton)
+			.OnGetMenuContent(this, &SLensDistortionToolPanel::BuildSolverList)
+			.ContentPadding(FMargin(4.0, 2.0))
+			.ButtonContent()
 			[
-				OkayButton.ToSharedRef()
-			]
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SButton)
-				.Text(LOCTEXT("CancelText", "Cancel"))
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.OnClicked(this, &SLensDistortionToolPanel::OnCancelPressed)
+				SNew(STextBlock).Text(this, &SLensDistortionToolPanel::GetSelectedSolverName)
 			]
 		];
-
-	ProgressWindow->SetContent(WindowContent);
-
-	// Create the window, but start with it hidden. When the user initiates a calibration, the progress window will be shown.
-	FSlateApplication::Get().AddWindow(ProgressWindow.ToSharedRef());
-	ProgressWindow->HideWindow();
 }
 
-FReply SLensDistortionToolPanel::OnCancelPressed()
+TSharedRef<SWidget> SLensDistortionToolPanel::BuildSolverList() 
 {
-	if (Tool.IsValid())
+	// Generate menu
+	FMenuBuilder MenuBuilder(true, nullptr);
+	MenuBuilder.BeginSection("DistortionSolverSection", LOCTEXT("DistortionSolverSectionText", "Distortion Solvers"));
+
+	TArray<UClass*> DerivedSolverClasses;
+	GetDerivedClasses(ULensDistortionSolver::StaticClass(), DerivedSolverClasses);
+
+	if (!DerivedSolverClasses.IsEmpty())
 	{
-		Tool->CancelCalibration();
-		Tool->CalibrationTask = {};
+		for (UClass* SolverClass : DerivedSolverClasses)
+		{
+			ULensDistortionSolver* SolverCDO = Cast<ULensDistortionSolver>(SolverClass->GetDefaultObject());
+
+			if (SolverCDO->IsEnabled())
+			{
+				MenuBuilder.AddMenuEntry(
+					SolverCDO->GetDisplayName(),
+					SolverCDO->GetDisplayName(), // TODO: If this remains a user-facing option, then it may be better to have the solver implement a class description text field to use as the tooltip instead
+					FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateSP(this, &SLensDistortionToolPanel::OnSolverClassSelected, SolverClass),
+						FCanExecuteAction(),
+						FIsActionChecked::CreateSP(this, &SLensDistortionToolPanel::IsSolverClassSelected, SolverClass)
+					),
+					NAME_None,
+					EUserInterfaceActionType::RadioButton
+				);
+			}
+		}
 	}
 
-	ProgressWindow->HideWindow();
-	SetEnabled(true);
+	MenuBuilder.EndSection();
 
-	return FReply::Handled();
+	return MenuBuilder.MakeWidget();
+
 }
 
-FReply SLensDistortionToolPanel::OnOkPressed()
+void SLensDistortionToolPanel::OnSolverClassSelected(UClass* SolverClass)
 {
-	if (Tool.IsValid())
+	Tool->SetSolverClass(SolverClass);
+}
+
+bool SLensDistortionToolPanel::IsSolverClassSelected(UClass* SolverClass) const
+{
+	return (Tool->GetSolverClass() == SolverClass);
+}
+
+FText SLensDistortionToolPanel::GetSelectedSolverName() const
+{
+	if (UClass* SolverClass = Tool->GetSolverClass())
 	{
-		Tool->SaveCalibrationResult();
+		ULensDistortionSolver* SolverCDO = Cast<ULensDistortionSolver>(SolverClass->GetDefaultObject());
+		return SolverCDO->GetDisplayName();
+	}
+	
+	return FText::GetEmpty();
+}
+
+TSharedRef<SWidget> SLensDistortionToolPanel::BuildAlgoPickerWidget()
+{
+	// Create ComboBox widget
+
+	AlgosComboBox = SNew(SComboBox<TSharedPtr<FString>>)
+		.OptionsSource(&CurrentAlgos)
+		.OnSelectionChanged_Lambda([&](TSharedPtr<FString> NewValue, ESelectInfo::Type Type) -> void
+		{
+			// Replace the custom algo widget
+			UpdateUI();
+		})
+		.OnGenerateWidget_Lambda([&](TSharedPtr<FString> InOption) -> TSharedRef<SWidget>
+		{
+			return SNew(STextBlock).Text(FText::FromString(*InOption));
+		})
+		.InitiallySelectedItem(nullptr)
+		[
+			SNew(STextBlock)
+			.Text_Lambda([&]() -> FText
+			{
+				if (AlgosComboBox.IsValid() && AlgosComboBox->GetSelectedItem().IsValid())
+				{
+					return FText::FromString(*AlgosComboBox->GetSelectedItem());
+				}
+
+				return LOCTEXT("InvalidComboOption", "Invalid");
+			})
+		];
+
+	// Update the object holding this combobox's options source
+	UpdateAlgosOptions();
+
+	// Pick the first option by default (if available)
+	if (CurrentAlgos.Num())
+	{
+		AlgosComboBox->SetSelectedItem(CurrentAlgos[0]);
+	}
+	else
+	{
+		AlgosComboBox->SetSelectedItem(nullptr);
 	}
 
-	ProgressWindow->HideWindow();
-	SetEnabled(true);
+	return SNew(SHorizontalBox)
 
-	return FReply::Handled();
+		+ SHorizontalBox::Slot() // algo picker
+		[
+			AlgosComboBox.ToSharedRef()
+		]
+
+		+ SHorizontalBox::Slot() // Help button
+		.AutoWidth()
+		[
+			SNew(SButton)
+			.ToolTipText(LOCTEXT("ShowHelp_Tip", "Help about this algo"))
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+			.OnClicked_Lambda([&]() -> FReply
+			{
+				if (!Tool.IsValid())
+				{
+					return FReply::Handled();
+				}
+
+				UCameraLensDistortionAlgo* Algo = Tool->GetAlgo();
+
+				if (!Algo)
+				{
+					return FReply::Handled();
+				}
+
+				TSharedRef< SCustomDialog> AlgoHelpWindow = 
+					SNew(SCustomDialog)
+					.Title(FText::FromName(Tool->FriendlyName()))
+					.Content()
+					[
+						Algo->BuildHelpWidget()
+					]
+					.Buttons({
+						SCustomDialog::FButton(LOCTEXT("Ok", "Ok")),
+					});
+
+				AlgoHelpWindow->Show();
+
+				return FReply::Handled();
+			})
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::Get().GetFontStyle("FontAwesome.12"))
+				.Text(FEditorFontGlyphs::Info_Circle)
+				.ColorAndOpacity(FLinearColor::White)
+			]
+		]
+		;
 }
+
 
 #undef LOCTEXT_NAMESPACE

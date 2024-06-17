@@ -130,7 +130,7 @@ namespace UE::CameraCalibration::Private
 		}
 	}
 
-	bool FindArucoCalibrationPoint(const TArray<TWeakObjectPtr<UCalibrationPointComponent>>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint)
+	bool FindArucoCalibrationPoint(const TArray<UCalibrationPointComponent*>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint)
 	{
 		// Build calibrator point name based on the detected marker
 		const FString DictionaryName = GetArucoDictionaryName(ArucoDictionary);
@@ -141,9 +141,9 @@ namespace UE::CameraCalibration::Private
 		OutArucoCalibrationPoint.MarkerID = ArucoMarker.MarkerID;
 		OutArucoCalibrationPoint.Name = FString::Printf(TEXT("%s-%d"), *DictionaryName, ArucoMarker.MarkerID);
 
-		for (TWeakObjectPtr<UCalibrationPointComponent> Component : CalibrationComponents)
+		for (UCalibrationPointComponent* Component : CalibrationComponents)
 		{
-			if (!Component.IsValid())
+			if (!Component)
 			{
 				continue;
 			}

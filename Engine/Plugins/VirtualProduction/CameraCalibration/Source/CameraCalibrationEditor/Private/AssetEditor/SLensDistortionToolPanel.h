@@ -1,103 +1,74 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "CoreMinimal.h"
+
+#include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
+#include "UObject/StrongObjectPtr.h"
 
-#include "CameraCalibrationStepsController.h"
-#include "IDetailCustomization.h"
-#include "LensDistortionTool.h"
-#include "PropertyHandle.h"
-#include "Widgets/SWindow.h"
-#include "Widgets/Text/STextBlock.h"
-#include "Widgets/Views/SHeaderRow.h"
-#include "Widgets/Views/SListView.h"
-#include "Widgets/Views/STableRow.h"
-
+class FString;
+class ULensFile;
 class ULensDistortionTool;
 
-struct FCalibrationRow;
+template<typename OptionType>
+class SComboBox;
 
-/** Customization for the FCaptureSettings struct */
-class FCaptureSettingsCustomization : public IDetailCustomization
-{
-public:
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+struct FArguments;
 
-private:
-	TSharedPtr<IPropertyHandle> PropertyHandle;
-	TSharedPtr<IPropertyHandle> NextPointPropertyHandle;
-
-	FText GetNextPointName() const;
-
-	void OnCalibratorSelected(const FAssetData& AssetData);
-
-	bool DoesAssetHaveCalibrationComponent(const FAssetData& AssetData) const;
-
-	FAssetData GetCalibratorAssetData() const;
-};
-
-/** Row widget for the calibration row list view */
-class SCalibrationDatasetRow : public SMultiColumnTableRow<TSharedPtr<FCalibrationRow>>
-{
-public:
-	SLATE_BEGIN_ARGS(SCalibrationDatasetRow) {}
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView, TSharedPtr<FCalibrationRow>& InRowData);
-
-	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
-
-private:
-	TSharedPtr<FCalibrationRow> RowData;
-};
-
-/** UI for the Lens Distortion step */
+/**
+ * Wrapper UI for the specified calibration step.
+ */
 class SLensDistortionToolPanel : public SCompoundWidget
 {
 	SLATE_BEGIN_ARGS(SLensDistortionToolPanel) {}
 	SLATE_END_ARGS()
 
 public:
-	void Construct(const FArguments& InArgs, ULensDistortionTool* InTool, TWeakPtr<FCameraCalibrationStepsController> InStepsController);
+	void Construct(const FArguments& InArgs, ULensDistortionTool* InTool);
 
-	/** Refresh the dataset list view */
-	void RefreshListView();
-
-	/** Hides the modal progress window before the rest of the UI is destroyed */
-	void Shutdown();
-
-	/** Shows the modal progress window */
-	void OpenProgressWindow();
-
-	/** Enables the OkayButton in the progress window */
-	void MarkProgressFinished();
-
-	void UpdateProgressText(const FText& ProgressText);
+	/** Refreshes the list of available algorithms shown in the AlgosComboBox */
+	void UpdateAlgosOptions();
 
 private:
-	/** Callback to handle changes to the customized capture settings */
-	void OnCaptureSettingsChanged(const FPropertyChangedEvent& PropertyChangedEvent);
 
-	TSharedRef<SWidget> BuildDatasetListView();
-	TSharedRef<ITableRow> OnGenerateDatasetRow(TSharedPtr<FCalibrationRow> InItem, const TSharedRef<STableViewBase>& OwnerTable);
-	FReply OnDatasetRowKeyPressed(const FGeometry& Geometry, const FKeyEvent& KeyEvent);
+	/** Builds the wrapper for the currently selected algo UI */
+	TSharedRef<SWidget> BuildUIWrapper();
 
-	FReply OnClearCalibrationRowsClicked();
-	FReply OnImportDatasetClicked();
-	FReply OnCalibrateClicked();
+	/** Builds the UI of the solver picker widget */
+	TSharedRef<SWidget> BuildSolverPickerWidget();
 
-	void BuildProgressWindow();
-	FReply OnOkPressed();
-	FReply OnCancelPressed();
+	/** Builds the list of solvers to display when opening the solver picker */
+	TSharedRef<SWidget> BuildSolverList();
+
+	/** When the solver class is selected in the UI, update the lens distortion tool with the newly selected class */
+	void OnSolverClassSelected(UClass* SolverClass);
+
+	/** Returns true if the input class is the currently selected one */
+	bool IsSolverClassSelected(UClass* SolverClass) const;
+
+	/** Get the display name of the currently selected solver class */
+	FText GetSelectedSolverName() const;
+
+	/** Builds the UI for the algorithm picker */
+	TSharedRef<SWidget> BuildAlgoPickerWidget();
+
+	/** Updates the UI so that it matches the selected algorithm (if necessary) */
+	void UpdateUI();
+
+private:
+
+	/** The tool controller object */
+	TWeakObjectPtr<class ULensDistortionTool> Tool;
+
+	/** The box containing the UI given by the selected algorithm */
+	TSharedPtr<class SVerticalBox> UI;
 	
 private:
-	TWeakObjectPtr<ULensDistortionTool> Tool;
-	TWeakPtr<FCameraCalibrationStepsController> WeakStepsController;
 
-	TSharedPtr<SListView<TSharedPtr<FCalibrationRow>>> DatasetListView;
-	TSharedPtr<SHeaderRow> DatasetListHeader;
+	/** Options source for the AlgosComboBox. Lists the currently available nodal offset algorithms */
+	TArray<TSharedPtr<FString>> CurrentAlgos;
 
-	TSharedPtr<SWindow> ProgressWindow;
-	TSharedPtr<STextBlock> ProgressTextWidget;
-	TSharedPtr<SButton> OkayButton;
+	/** The combobox that presents the available nodal offset algorithms */
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> AlgosComboBox;
 };
