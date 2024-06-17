@@ -294,12 +294,17 @@ void UDataflowEditorMode::Exit()
 {
 	UActorComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
 
-	ConstructionScene->ResetConstructionScene();
-	ConstructionScene = nullptr;
+	if(ConstructionScene)
+	{
+		ConstructionScene->ResetConstructionScene();
+		ConstructionScene = nullptr;
+	}
 
-	SimulationScene->ResetSimulationScene();
-	SimulationScene = nullptr;
-
+	if(SimulationScene)
+	{
+		SimulationScene->ResetSimulationScene();
+		SimulationScene = nullptr;
+	}
 
 	Super::Exit();
 }

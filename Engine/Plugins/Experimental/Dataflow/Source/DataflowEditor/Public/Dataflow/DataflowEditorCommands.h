@@ -63,9 +63,18 @@ public:
 	const static FString AddWeightMapNodeIdentifier;
 	TSharedPtr<FUICommandInfo> AddWeightMapNode;
 
-	const static FString UpdateSimulationCacheIdentifier;
-	TSharedPtr<FUICommandInfo> UpdateSimulationCache;
+	const static FString RebuildSimulationSceneIdentifier;
+	TSharedPtr<FUICommandInfo> RebuildSimulationScene;
+	
+	const static FString PauseSimulationSceneIdentifier;
+	TSharedPtr<FUICommandInfo> PauseSimulationScene;
 
+	const static FString StartSimulationSceneIdentifier;
+	TSharedPtr<FUICommandInfo> StartSimulationScene;
+	
+	const static FString StepSimulationSceneIdentifier;
+	TSharedPtr<FUICommandInfo> StepSimulationScene;
+	
 	// @todo(brice) Remove Example Tools
 	//const static FString BeginAttributeEditorToolIdentifier;
 	//TSharedPtr<FUICommandInfo> BeginAttributeEditorTool;

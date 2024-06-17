@@ -44,7 +44,7 @@ public:
 	virtual TSharedPtr<FBaseAssetToolkit> CreateToolkit() override;
 
 	/** Initialize editor contents given a list of objects */
-	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects) override;
+	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects, const TSubclassOf<AActor>& InPreviewClass = nullptr) override;
 
 	/** Update the terminal contents */
 	void UpdateTerminalContents(const Dataflow::FTimestamp TimeStamp);

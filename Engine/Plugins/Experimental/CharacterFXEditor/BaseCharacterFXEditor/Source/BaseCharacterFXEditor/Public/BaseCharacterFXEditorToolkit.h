@@ -63,5 +63,8 @@ protected:
 
 	// A default "CharacterFXEditor" category is created in RegisterTabSpawners. Override that function to set this to a concrete class type
 	TSharedPtr<FWorkspaceItem> EditorMenuCategory;
+
+	// Boolean to force the construction of the viewport tab even if the layout is not adding it 
+	bool bForceViewportTab = true;
 };
 

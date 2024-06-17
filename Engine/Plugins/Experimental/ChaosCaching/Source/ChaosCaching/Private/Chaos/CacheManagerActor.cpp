@@ -820,7 +820,8 @@ FObservedComponent* AChaosCacheManager::FindObservedComponent(UPrimitiveComponen
 
 FObservedComponent& AChaosCacheManager::AddNewObservedComponent(UPrimitiveComponent* InComponent)
 {
-	check(InComponent->CreationMethod != EComponentCreationMethod::UserConstructionScript);
+	// this check is preventing components being spawned from CS
+	//check(InComponent->CreationMethod != EComponentCreationMethod::UserConstructionScript);
 	ObservedComponents.AddDefaulted();
 	FObservedComponent& NewEntry = ObservedComponents.Last();
 
@@ -851,13 +852,11 @@ void AChaosCacheManager::FindOrAddObservedComponent(UPrimitiveComponent* InCompo
 	if(InComponent != nullptr)
 	{
 		FObservedComponent* FoundComponent = FindObservedComponent(InComponent);
-		FObservedComponent* ObservedComponent = FoundComponent ? FoundComponent : &AddNewObservedComponent(InComponent);
-
-		if(ObservedComponent)
+		if(FObservedComponent* ObservedComponent = FoundComponent ? FoundComponent : &AddNewObservedComponent(InComponent))
 		{
 			ObservedComponent->bIsSimulating = bTransferSimulation ? InComponent->BodyInstance.bSimulatePhysics : false;
 
-			if(CacheName != TEXT(""))
+			if(CacheName != TEXT("")) 
 			{
 				ObservedComponent->CacheName = CacheName;
 			}

@@ -189,16 +189,19 @@ void FBaseCharacterFXEditorToolkit::PostInitAssetEditor()
 	// a viewport that will allow our mode to receive ticks.
 	// We don't need to invoke the tool palette tab anymore, since this is handled by
 	// underlying infrastructure.
-	if (!TabManager->FindExistingLiveTab(ViewportTabID))
+	if (!TabManager->FindExistingLiveTab(ViewportTabID) && bForceViewportTab)
 	{
 		TabManager->TryInvokeTab(ViewportTabID);
 	}
 
 	ViewportClient->FocusViewportOnBox(EdMode->SceneBoundingBox());
 
-	// We need the viewport client to start out focused, or else it won't get ticked until
-	// we click inside it.
-	ViewportClient->ReceivedFocus(ViewportClient->Viewport);
+	if(ViewportClient->Viewport)
+	{
+		// We need the viewport client to start out focused, or else it won't get ticked until
+		// we click inside it.
+		ViewportClient->ReceivedFocus(ViewportClient->Viewport);
+	}
 }
 
 void FBaseCharacterFXEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode)

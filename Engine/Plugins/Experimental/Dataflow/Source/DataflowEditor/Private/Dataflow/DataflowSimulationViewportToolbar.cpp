@@ -2,6 +2,7 @@
 #include "Dataflow/DataflowSimulationViewportToolbar.h"
 #include "Dataflow/DataflowSimulationViewport.h"
 #include "Dataflow/DataflowEditorCommands.h"
+#include "Dataflow/DataflowSimulationScene.h"
 #include "Styling/AppStyle.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SEditorViewportToolBarMenu.h"
@@ -21,11 +22,26 @@ void SDataflowSimulationViewportToolBar::Construct(const FArguments& InArgs, TSh
 
 void SDataflowSimulationViewportToolBar::ExtendLeftAlignedToolbarSlots(TSharedPtr<SHorizontalBox> MainBoxPtr, TSharedPtr<SViewportToolBar> ParentToolBarPtr) const
 {
+	const TSharedPtr<class FDataflowSimulationScene>& SimulationScene = EditorViewport.Pin()->GetSimulationScene();
+
+	auto HasCacheAsset = [SimulationScene]()
+	{
+		if(SimulationScene && SimulationScene->GetPreviewSceneDescription())
+		{
+			return (SimulationScene->GetPreviewSceneDescription()->CacheAsset == nullptr) ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+		return EVisibility::Collapsed;
+	};
+	
 	const FMargin ToolbarSlotPadding(2.0f, 2.0f);
 	MainBoxPtr->AddSlot()
 		.Padding(ToolbarSlotPadding)
 		[
-			MakeToolBar(Extenders)
+			SNew(SBox)
+			.Visibility(TAttribute<EVisibility>::Create(HasCacheAsset))
+			[
+				MakeToolBar(Extenders)
+			]
 		];
 }
 
@@ -40,14 +56,33 @@ TSharedRef<SWidget> SDataflowSimulationViewportToolBar::MakeToolBar(const TShare
 	ToolbarBuilder.BeginSection("Sim Controls");
 	ToolbarBuilder.BeginBlockGroup();
 	{
-		// the simulation caching should be triggered from the simulation panel as well
-		// we keep it here as well to have a template to add future simulation controls
-		ToolbarBuilder.AddToolBarButton(FDataflowEditorCommands::Get().UpdateSimulationCache,
+		ToolbarBuilder.AddToolBarButton(FDataflowEditorCommands::Get().RebuildSimulationScene,
 			NAME_None,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Animation.Record"),
-			FName(*FDataflowEditorCommands::Get().UpdateSimulationCacheIdentifier));
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Animation.Backward_End"),
+			FName(*FDataflowEditorCommands::Get().RebuildSimulationSceneIdentifier));
+
+		ToolbarBuilder.AddToolBarButton(FDataflowEditorCommands::Get().PauseSimulationScene,
+			NAME_None,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Animation.Pause"),
+			FName(*FDataflowEditorCommands::Get().PauseSimulationSceneIdentifier));
+
+		ToolbarBuilder.AddToolBarButton(FDataflowEditorCommands::Get().StartSimulationScene,
+			NAME_None,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Play"),
+			FName(*FDataflowEditorCommands::Get().StartSimulationSceneIdentifier));
+
+		ToolbarBuilder.AddToolBarButton(FDataflowEditorCommands::Get().StepSimulationScene,
+			NAME_None,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Animation.Forward_Step"),
+			FName(*FDataflowEditorCommands::Get().StepSimulationSceneIdentifier));
 	}
 	ToolbarBuilder.EndBlockGroup();
 	ToolbarBuilder.EndSection();

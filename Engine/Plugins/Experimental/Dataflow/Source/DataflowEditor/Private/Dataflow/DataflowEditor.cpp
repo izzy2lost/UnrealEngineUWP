@@ -25,7 +25,7 @@ TSharedPtr<FBaseAssetToolkit> UDataflowEditor::CreateToolkit()
 	return DataflowToolkit;
 }
 
-void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
+void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects, const TSubclassOf<AActor>& InPreviewClass)
 {
 	if(!InObjects.IsEmpty())
 	{
@@ -58,6 +58,10 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 					}
 				}
 			}
+		}
+		if(EditorContent && InPreviewClass)
+		{
+			EditorContent->SetPreviewClass(InPreviewClass);
 		}
 		RequiredObjects.Add(EditorContent);
 
@@ -124,16 +128,6 @@ void UDataflowEditor::RemoveTerminalContents(const TSharedPtr<Dataflow::FGraph>&
 
 void UDataflowEditor::AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
 {
-	auto BuildTerminalContent = [this](const TObjectPtr<UDataflowBaseContent>& TerminalContent,
-					const FString& TerminalName, const TObjectPtr<UObject>& TerminalAsset)
-	{
-		// Set the context (owner/asset) onto the terminal content
-		TerminalContent->SetDataflowContext(EditorContent->GetDataflowContext());
-				
-		TerminalContent->SetDataflowTerminal(TerminalName);
-		TerminalContent->SetTerminalAsset(TerminalAsset);
-	};
-			
 	for(const TSharedPtr<FDataflowNode>& DataflowNode : DataflowGraph->GetFilteredNodes(FDataflowTerminalNode::StaticType()))
 	{
 		if(const FDataflowTerminalNode* TerminalNode = DataflowNode->AsType<FDataflowTerminalNode>())
@@ -145,14 +139,15 @@ void UDataflowEditor::AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& Da
 				{
 					TerminalContents.Add(TerminalOwner->BuildDataflowContent());
 					TerminalContent = &TerminalContents.Last();
-							
+					(*TerminalContent)->SetDataflowTerminal(TerminalNode->GetName().ToString());
+					(*TerminalContent)->SetDataflowContext(EditorContent->GetDataflowContext());
+					
 					(*TerminalContent)->SetLastModifiedTimestamp(EditorContent->GetLastModifiedTimestamp());
 					bHasTerminalsDirty = true;
 				}
 				if(TerminalNode->GetTerminalAsset() != (*TerminalContent)->GetTerminalAsset())
 				{
-					BuildTerminalContent(*TerminalContent,
-							TerminalNode->GetName().ToString(), TerminalNode->GetTerminalAsset());
+					(*TerminalContent)->SetTerminalAsset(TerminalNode->GetTerminalAsset());
 					bHasTerminalsDirty = true;
 				}
 			}

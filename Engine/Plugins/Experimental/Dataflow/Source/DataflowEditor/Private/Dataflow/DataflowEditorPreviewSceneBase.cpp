@@ -51,7 +51,6 @@ const TArray<TObjectPtr<UDataflowBaseContent>>& FDataflowPreviewSceneBase::GetTe
 void FDataflowPreviewSceneBase::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
-	Collector.AddReferencedObject(RootSceneActor);
 	if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetEditorContent())
 	{
 		EditorContent->AddContentObjects(Collector);

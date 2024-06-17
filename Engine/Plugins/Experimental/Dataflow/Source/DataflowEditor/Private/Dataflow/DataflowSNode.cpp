@@ -285,24 +285,34 @@ EVisibility SDataflowEdNode::IsAddPinButtonVisible() const
 //
 // Add a menu option to create a graph node.
 //
-TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName & InNodeTypeName, const FName& InOverrideNodeName)
+TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(const UEdGraph* ParentGraph, const FName & InNodeTypeName, const FName& InOverrideNodeName)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (const UDataflow* Dataflow = Cast<UDataflow>(ParentGraph))
 	{
-		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
-		if (Param.IsValid())
+		if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
 		{
-			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
-			FText NodeName = FText::FromString(Param.DisplayName.ToString());
-			if (!InOverrideNodeName.IsNone())
+			const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+			if (Param.IsValid())
 			{
-				NodeName = FText::FromName(InOverrideNodeName);
+				const bool bIsSimulationNode = Param.Tags.Contains(UDataflow::SimulationTag);
+				const bool bIsSimulationGraph = (Dataflow->Type == EDataflowType::Simulation);
+				
+				if((bIsSimulationGraph && bIsSimulationNode) || (!bIsSimulationGraph && !bIsSimulationNode))
+				{
+					const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
+					FText NodeName = FText::FromString(Param.DisplayName.ToString());
+					if (!InOverrideNodeName.IsNone())
+					{
+						NodeName = FText::FromName(InOverrideNodeName);
+					}
+				
+					const FText Category = FText::FromString(Param.Category.ToString().IsEmpty() ? FString("Dataflow") : Param.Category.ToString());
+					const FText Tags = FText::FromString(Param.Tags);
+					TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction(
+						new FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode(InNodeTypeName, Category, NodeName, ToolTip, Tags));
+					return NewNodeAction;
+				}
 			}
-			const FText Category = FText::FromString(Param.Category.ToString().IsEmpty() ? FString("Dataflow") : Param.Category.ToString());
-			const FText Tags = FText::FromString(Param.Tags);
-			TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction(
-				new FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode(InNodeTypeName, Category, NodeName, ToolTip, Tags));
-			return NewNodeAction;
 		}
 	}
 	return TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode>(nullptr);

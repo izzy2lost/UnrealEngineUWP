@@ -33,7 +33,7 @@ public:
 	virtual TSharedPtr<FBaseAssetToolkit> CreateToolkit() PURE_VIRTUAL(UBaseCharacterFXEditor::CreateToolkit, return TSharedPtr<FBaseAssetToolkit>(););
 
 	/** Store objects to edit and call UAssetEditor::Initialize */
-	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects);
+	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects, const TSubclassOf<AActor>& InPreviewClass = nullptr);
 
 	/** Returns the asset editor instance interface, so that its window can be focused, for example. */
 	virtual IAssetEditorInstance* GetInstanceInterface();

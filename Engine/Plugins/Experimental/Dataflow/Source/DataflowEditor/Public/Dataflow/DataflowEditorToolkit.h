@@ -44,6 +44,8 @@ namespace Dataflow
 	};
 }
 
+
+
 class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook, public FGCObject
 {
 	using FBaseCharacterFXEditorToolkit::ObjectScene;
@@ -170,6 +172,9 @@ private:
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_4;
 	TSharedPtr<SWidget> AdvancedPreviewSettingsWidget;
 
+	/** Customize preview scene with editor/terminal contents */
+	TSharedRef<class IDetailCustomization> CustomizePreviewSceneDescription() const;
+
 	// Utility factory functions to build the widgets
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
     TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(const TArray<UObject*>& ObjectsToEdit);
@@ -213,4 +218,10 @@ private:
 
 	/** Simulation Viewport client */
 	TSharedPtr<FDataflowSimulationViewportClient> SimulationViewportClient;
+
+	/** Simulation default layout */
+	TSharedPtr<FTabManager::FLayout> SimulationDefaultLayout;
+	
+	/** Simulation default layout */
+	TSharedPtr<FTabManager::FLayout> ConstructionDefaultLayout;
 };

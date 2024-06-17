@@ -35,6 +35,15 @@ void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAss
 	if(static_cast<FDataflowSimulationScene*>(Client->GetPreviewScene())->CanRunSimulation())
 	{
 		TWeakPtr<FDataflowSimulationScene> SimulationScene = GetSimulationScene();
+
+		auto HasCacheAsset = [SimulationScene]()
+		{
+			if(SimulationScene.Pin() && SimulationScene.Pin()->GetPreviewSceneDescription())
+			{
+				return (SimulationScene.Pin()->GetPreviewSceneDescription()->CacheAsset != nullptr) ? EVisibility::Visible : EVisibility::Collapsed;
+			}
+			return EVisibility::Collapsed;
+		};
             
 		ViewportOverlay->AddSlot()
 		[
@@ -47,7 +56,7 @@ void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAss
 			[
 				SNew(SBorder)
 				.BorderImage(FAppStyle::Get().GetBrush("EditorViewport.OverlayBrush"))
-				.Visibility(EVisibility::Visible)
+				.Visibility(TAttribute<EVisibility>::Create(HasCacheAsset))
 				.Padding(10.0f, 2.0f)
 				[
 					SNew(SDataflowSimulationPanel, SimulationScene)
@@ -91,10 +100,49 @@ void SDataflowSimulationViewport::BindCommands()
 	const FDataflowEditorCommandsImpl& CommandInfos = FDataflowEditorCommands::Get();
 
 	CommandList->MapAction(
-		CommandInfos.UpdateSimulationCache,
+		CommandInfos.RebuildSimulationScene,
 		FExecuteAction::CreateLambda([this]()
 		{
-			static_cast<FDataflowSimulationScene*>(Client->GetPreviewScene())->UpdateSimulationCache();
+			if(FDataflowSimulationScene* SimulationScene = StaticCast<FDataflowSimulationScene*>(Client->GetPreviewScene()))
+			{
+				SimulationScene->RebuildSimulationScene(false);
+			}
+		}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return false; }));
+
+	CommandList->MapAction(
+		CommandInfos.PauseSimulationScene,
+		FExecuteAction::CreateLambda([this]()
+		{
+			if(FDataflowSimulationScene* SimulationScene = StaticCast<FDataflowSimulationScene*>(Client->GetPreviewScene()))
+			{
+				SimulationScene->PauseSimulationScene();
+			}
+		}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return false; }));
+
+	CommandList->MapAction(
+		CommandInfos.StartSimulationScene,
+		FExecuteAction::CreateLambda([this]()
+		{
+			if(FDataflowSimulationScene* SimulationScene = StaticCast<FDataflowSimulationScene*>(Client->GetPreviewScene()))
+			{
+				SimulationScene->StartSimulationScene();
+			}
+		}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return false; }));
+
+	CommandList->MapAction(
+		CommandInfos.StepSimulationScene,
+		FExecuteAction::CreateLambda([this]()
+		{
+			if(FDataflowSimulationScene* SimulationScene = StaticCast<FDataflowSimulationScene*>(Client->GetPreviewScene()))
+			{
+				SimulationScene->StepSimulationScene();
+			}
 		}),
 		FCanExecuteAction::CreateLambda([this]() { return true; }),
 		FIsActionChecked::CreateLambda([this]() { return false; }));

@@ -82,7 +82,7 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 {
 	check(DataflowEditor);
 
-	StandaloneDefaultLayout = FTabManager::NewLayout(FName("DataflowEditorLayout03"))
+	ConstructionDefaultLayout = FTabManager::NewLayout(FName("DataflowConstructionLayout03"))
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
@@ -104,10 +104,18 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 					->Split
 					(
 						FTabManager::NewStack()
-						->SetSizeCoefficient(0.9f)		// Relative width of (Construction Viewport) vs (Tools Panel, Preview Viewport)
+						->SetSizeCoefficient(0.45f)		// Relative width of (Construction Viewport) vs (Tools Panel, Preview Viewport)
 						->AddTab(ViewportTabID, ETabState::OpenedTab)
-						->SetExtensionId("RestSpaceViewportArea")
-						->SetHideTabWell(false)
+						->SetExtensionId("ViewportArea")
+						->SetHideTabWell(true)
+					)
+					->Split
+					(
+						FTabManager::NewStack()
+						->SetSizeCoefficient(0.45f)		// Relative width of (Construction Viewport) vs (Tools Panel, Preview Viewport)
+						->AddTab(SimulationViewportTabId, ETabState::OpenedTab)
+						->SetExtensionId("ViewportArea")
+						->SetHideTabWell(true)
 					)
 				)
 				->Split
@@ -142,8 +150,9 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.65f)	// Relative height of (Asset Details, Preview Scene Details) vs (Dataflow Node Details)
 					->AddTab(DetailsTabID, ETabState::OpenedTab)
+					->AddTab(PreviewSceneTabId, ETabState::OpenedTab)
 					->SetExtensionId("DetailsArea")
-					->SetHideTabWell(false)
+					->SetHideTabWell(true)
 					->SetForegroundTab(DetailsTabID)
 				)
 				->Split
@@ -152,10 +161,101 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 					->SetSizeCoefficient(0.2f)	// Relative height of (Dataflow Node Details) vs (Asset Details, Preview Scene Details)
 					->AddTab(NodeDetailsTabId, ETabState::OpenedTab)
 					->SetExtensionId("NodeDetailsArea")
-					->SetHideTabWell(false)
+					->SetHideTabWell(true)
 				)
 			)
 		);
+
+	SimulationDefaultLayout = FTabManager::NewLayout(FName("DataflowSimulationLayout02"))
+		->AddArea
+		(
+			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
+			->Split
+			(
+				FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+				->SetSizeCoefficient(0.8f)	// Relative width of (Tools Panel, Construction Viewport, Preview Viewport, Dataflow Graph Editor, Outliner) vs (Asset Details, Preview Scene Details, Dataflow Node Details)
+				->Split
+				(
+					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)
+					->SetSizeCoefficient(0.60f)	// Relative height of (Tools Panel, Construction Viewport, Preview Viewport) vs (Dataflow Graph Editor, Outliner)
+					->Split
+					(
+						FTabManager::NewStack()
+						->SetSizeCoefficient(0.1f)		// Relative width of (Tools Panel) vs (Construction Viewport, Preview Viewport)
+						->SetExtensionId(UDataflowEditorUISubsystem::EditorSidePanelAreaName)
+						->SetHideTabWell(true)
+					)
+					->Split
+					(
+						FTabManager::NewStack()
+						->SetSizeCoefficient(0.9f)		// Relative width of (Construction Viewport) vs (Tools Panel, Preview Viewport)
+						->AddTab(ViewportTabID, ETabState::ClosedTab)
+						->AddTab(SimulationViewportTabId, ETabState::OpenedTab)
+						->SetExtensionId("ViewportArea")
+						->SetHideTabWell(false)
+					)
+				)
+				->Split
+				(
+					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)
+					->SetSizeCoefficient(0.40f)	// Relative height of (Dataflow Node Details) vs (Asset Details, Preview Scene Details)
+					->Split
+					(
+						FTabManager::NewStack()
+						->SetSizeCoefficient(0.2f)
+						->AddTab(CollectionSpreadSheetTabId_1, ETabState::ClosedTab)
+						->SetExtensionId("CollectionSpreadSheetArea")
+						->SetHideTabWell(false)
+					)
+					->Split
+					(
+						FTabManager::NewStack()
+						->SetSizeCoefficient(0.8f)	// Relative height of (Dataflow Graph Editor, Outliner) vs (Tools Panel, Construction Viewport, Preview Viewport)
+						->AddTab(GraphCanvasTabId, ETabState::OpenedTab)
+						->SetExtensionId("GraphEditorArea")
+						->SetHideTabWell(false)
+						->SetForegroundTab(GraphCanvasTabId)
+					)
+				)
+			)
+			->Split
+			(
+				FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+				->SetSizeCoefficient(0.2f)	// Relative width of (Asset Details, Preview Scene Details, Dataflow Node Details) vs (Tools Panel, Construction Viewport, Preview Viewport, Dataflow Graph Editor, Outliner)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.65f)	// Relative height of (Asset Details, Preview Scene Details) vs (Dataflow Node Details)
+					->AddTab(DetailsTabID, ETabState::OpenedTab)
+					->AddTab(PreviewSceneTabId, ETabState::OpenedTab)
+					->SetExtensionId("DetailsArea")
+					->SetHideTabWell(true)
+					->SetForegroundTab(DetailsTabID)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.2f)	// Relative height of (Dataflow Node Details) vs (Asset Details, Preview Scene Details)
+					->AddTab(NodeDetailsTabId, ETabState::OpenedTab)
+					->SetExtensionId("NodeDetailsArea")
+					->SetHideTabWell(true)
+				)
+			)
+		);
+
+	if(TObjectPtr<UDataflowBaseContent>& EditorContent = DataflowEditor->GetEditorContent())
+	{
+		if(EditorContent->GetDataflowAsset() && EditorContent->GetDataflowAsset()->Type == EDataflowType::Simulation)
+		{
+			StandaloneDefaultLayout = SimulationDefaultLayout;
+			bForceViewportTab = false;
+		}
+		else
+		{
+			StandaloneDefaultLayout = ConstructionDefaultLayout;
+			bForceViewportTab = true;
+		}
+	}
 
 	// Add any extenders specified by the UISubsystem
 	// The extenders provide defined locations for FModeToolkit to attach
@@ -427,6 +527,50 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 
 //~ End FBaseCharacterFXEditorToolkit overrides
 
+class FPreviewSceneDescriptionCustomization : public IDetailCustomization
+{
+public:
+	FPreviewSceneDescriptionCustomization(const TArray<UDataflowBaseContent*>& DataflowContents);
+
+	virtual ~FPreviewSceneDescriptionCustomization() {}
+
+	
+	/**Customize details for the description */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+	private :
+		/** List of dataflow contents to preview */
+		TMap<FString,TArray<UObject*>> ContentTypesObjects;
+};
+
+FPreviewSceneDescriptionCustomization::FPreviewSceneDescriptionCustomization(const TArray<UDataflowBaseContent*>& DataflowContents) :
+	IDetailCustomization(), ContentTypesObjects()
+{
+	static const FString CategoryName = TEXT("Terminals");
+	for(UDataflowBaseContent* DataflowContent : DataflowContents)
+	{
+		TArray<UObject*>& ContentTypeObjects = ContentTypesObjects.FindOrAdd(CategoryName);
+		ContentTypeObjects.Add(DataflowContent); 
+	}
+}
+
+void FPreviewSceneDescriptionCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	FAddPropertyParams PropertyParams;
+	PropertyParams.AllowChildren(true);
+	PropertyParams.CreateCategoryNodes(false);
+	PropertyParams.HideRootObjectNode(true);
+	for(TPair<FString, TArray<UObject*>>& ContentTypeObjects : ContentTypesObjects)
+	{
+		DetailBuilder.EditCategory(*ContentTypeObjects.Key).AddExternalObjects(ContentTypeObjects.Value, EPropertyLocation::Common, PropertyParams);
+	}
+}
+
+TSharedRef<class IDetailCustomization> FDataflowEditorToolkit::CustomizePreviewSceneDescription() const
+{
+	const TArray<UDataflowBaseContent*> SimulationContents  = TArray<UDataflowBaseContent*>{SimulationScene->GetEditorContent()};
+	return MakeShareable(new FPreviewSceneDescriptionCustomization(SimulationContents));
+}
 
 //~ Begin FBaseAssetToolkit overrides
 
@@ -439,15 +583,26 @@ void FDataflowEditorToolkit::CreateWidgets()
 		if (UDataflow* DataflowAsset = EditorContent->GetDataflowAsset())
 		{
 			NodeDetailsEditor = CreateNodeDetailsEditorWidget(EditorContent->GetDataflowOwner());
-			AssetDetailsEditor = CreateAssetDetailsEditorWidget({EditorContent->GetDataflowOwner(),EditorContent->GetDataflowAsset()});
+			if(EditorContent->GetDataflowOwner() != EditorContent->GetDataflowAsset())
+			{
+				AssetDetailsEditor = CreateAssetDetailsEditorWidget({EditorContent->GetDataflowOwner(),EditorContent->GetDataflowAsset()});
+			}
+			else
+			{
+				AssetDetailsEditor = CreateAssetDetailsEditorWidget({EditorContent->GetDataflowAsset()});
+			}
 			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
 			CreateSimulationViewportClient();
 
 			FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
 			
+			TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo> DetailsCustomizations;
+			DetailsCustomizations.Add({ UDataflowSimulationSceneDescription::StaticClass(),
+				FOnGetDetailCustomizationInstance::CreateSP(const_cast<FDataflowEditorToolkit*>(this), &FDataflowEditorToolkit::CustomizePreviewSceneDescription) });
+			
 			AdvancedPreviewSettingsWidget = AdvancedPreviewSceneModule.CreateAdvancedPreviewSceneSettingsWidget(SimulationScene.ToSharedRef(), 
 				SimulationScene->GetPreviewSceneDescription(),
-				TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo>(), 
+				DetailsCustomizations, 
 				TArray<FAdvancedPreviewSceneModule::FPropertyTypeCustomizationInfo>(),
 				TArray<FAdvancedPreviewSceneModule::FDetailDelegates>());
 		}
@@ -462,7 +617,7 @@ AssetEditorViewportFactoryFunction FDataflowEditorToolkit::GetViewportDelegate()
 	{
 		TSharedRef<SDataflowConstructionViewport> Viewport = SAssignNew(DataflowConstructionViewport, SDataflowConstructionViewport, InArgs)
 			.ViewportClient(StaticCastSharedPtr<FDataflowConstructionViewportClient>(ViewportClient));
-
+		
 		if (UDataflowEditorMode* const DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
 		{
 			if (TSharedPtr<FModeToolkit> ModeToolkit = DataflowMode->GetToolkit().Pin())
@@ -865,7 +1020,7 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 				TimeStamp = Dataflow::FTimestamp::Invalid;
 			}
 
-			// Update the list of dataflow teminal contents 
+			// Update the list of dataflow terminal contents 
 			DataflowEditor->UpdateTerminalContents(TimeStamp);
 			
 			// OnTick evaluation only pulls the terminal nodes. The other evaluations can be specific nodes.
