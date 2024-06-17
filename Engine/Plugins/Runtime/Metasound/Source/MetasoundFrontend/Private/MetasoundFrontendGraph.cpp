@@ -663,10 +663,11 @@ namespace Metasound
 			return false;
 		}
 
-		if (IsRunningCommandlet())
-		{
-			return FrontendGraphPrivate::ForceCommandletExecution != 0;
-		}
+		// TODO: Test builds need ForceCommandletExecution set to true, otherwise they fail.
+		// if (IsRunningCommandlet())
+		// {
+		// 	return FrontendGraphPrivate::ForceCommandletExecution != 0;
+		// }
 
 		return true;
 	}
