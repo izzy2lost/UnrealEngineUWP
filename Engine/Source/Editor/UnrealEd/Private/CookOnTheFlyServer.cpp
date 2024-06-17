@@ -677,15 +677,22 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 					*Ar << RecompileData;
 				}
 
+				const void* ConnectionPtr = &Connection;
 				RecompileData.LoadedMaterialsToRecompile = &LoadedMaterialsToRecompile;
 
-				const void* ConnectionPtr = &Connection;
 				FEventRef RecompileCompletedEvent;
-				UE::Cook::FRecompileShaderCompletedCallback RecompileCompleted = [this, &RecompileCompletedEvent, ConnectionPtr, &LoadedMaterialsToRecompile]()
+				UE::Cook::FRecompileShaderCompletedCallback RecompileCompleted = [this, &RecompileCompletedEvent, ConnectionPtr, &LoadedMaterialsToRecompile, RecompileDataCommandType = RecompileData.CommandType]()
 				{
 					if (ODSCClientData)
 					{
-						ODSCClientData->KeepClientPersistentData(ConnectionPtr, LoadedMaterialsToRecompile);
+						if (RecompileDataCommandType == ODSCRecompileCommand::ResetMaterialCache)
+						{
+							ODSCClientData->FlushClientPersistentData(ConnectionPtr);
+						}
+						else
+						{
+							ODSCClientData->KeepClientPersistentData(ConnectionPtr, LoadedMaterialsToRecompile);
+						}
 					}
 					LoadedMaterialsToRecompile.Empty();
 
@@ -2287,7 +2294,7 @@ void UCookOnTheFlyServer::InitializePollables()
 	}
 	else
 	{
-		RecompileRequestsPollable = new FPollable(TEXT("RecompileShaderRequests"), FPollable::EManualTrigger(), [this](FTickStackData&) { TickRecompileShaderRequestsPrivate(); });
+		RecompileRequestsPollable = new FPollable(TEXT("RecompileShaderRequests"), FPollable::EManualTrigger(), [this](FTickStackData& TickStackData) { TickRecompileShaderRequestsPrivate(TickStackData); });
 		Pollables.Add(FPollableQueueKey(RecompileRequestsPollable));
 		Pollables.Emplace(new FPollable(TEXT("RequestManager"), 0.5f, 0.5f, [this](FTickStackData&) { TickRequestManager(); }));
 
@@ -5947,19 +5954,32 @@ void UCookOnTheFlyServer::TickRequestManager()
 	}
 }
 
-void UCookOnTheFlyServer::TickRecompileShaderRequestsPrivate()
+void UCookOnTheFlyServer::TickRecompileShaderRequestsPrivate(UE::Cook::FTickStackData& StackData)
 {
 	// try to pull off a request
 	UE::Cook::FRecompileShaderRequest RecompileShaderRequest;
+	bool bProcessedRequests = false;
 	if (PackageTracker->RecompileRequests.Dequeue(&RecompileShaderRequest))
 	{
-		RecompileShadersForRemote(RecompileShaderRequest.RecompileArguments, GetSandboxDirectory(RecompileShaderRequest.RecompileArguments.PlatformName));
+		if (RecompileShaderRequest.RecompileArguments.CommandType != ODSCRecompileCommand::ResetMaterialCache)
+		{
+			RecompileShadersForRemote(RecompileShaderRequest.RecompileArguments, GetSandboxDirectory(RecompileShaderRequest.RecompileArguments.PlatformName));
+		}
+
 		RecompileShaderRequest.CompletionCallback();
+		bProcessedRequests = true;
 	}
 	if (PackageTracker->RecompileRequests.HasItems())
 	{
 		RecompileRequestsPollable->Trigger(*this);
 	}
+
+	if (bProcessedRequests)
+	{
+		// Ask for GC to run again when we processed some shaders requests to ensure material get evicted and we don't keep their package open
+		StackData.ResultFlags |= COSR_RequiresGC | COSR_RequiresGC_IdleTimer | COSR_YieldTick;
+	}
+
 }
 
 class FDiffModeCookServerUtils

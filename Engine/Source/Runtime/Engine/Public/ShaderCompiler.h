@@ -1210,7 +1210,8 @@ enum class ODSCRecompileCommand
 	Changed,
 	Global,
 	Material,
-	SingleShader
+	SingleShader,
+	ResetMaterialCache
 };
 
 extern ENGINE_API const TCHAR* ODSCCmdEnumToString(ODSCRecompileCommand Cmd);

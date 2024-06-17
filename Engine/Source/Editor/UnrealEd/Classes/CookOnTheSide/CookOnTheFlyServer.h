@@ -565,7 +565,7 @@ private:
 	void PollGarbageCollection(UE::Cook::FTickStackData& StackData);
 	void PollQueuedCancel(UE::Cook::FTickStackData& StackData);
 	void WaitForAsync(UE::Cook::FTickStackData& StackData);
-	void TickRecompileShaderRequestsPrivate();
+	void TickRecompileShaderRequestsPrivate(UE::Cook::FTickStackData& StackData);
 
 public:
 

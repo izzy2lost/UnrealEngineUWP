@@ -2202,6 +2202,7 @@ void FMaterialShaderMap::ReleaseCompilingId()
 	{
 		FWriteScopeLock Locker(GCompilingShaderMapLock);
 		check(CompilingMaterialDependencies.Num() == 0);
+		check(CompilingMaterialNumExternalDependencies == 0);
 		verify(GetCompilingShaderMapLookup().Remove(CompilingId) == 1);
 		CompilingId = 0;
 	}
@@ -2222,7 +2223,12 @@ void FMaterialShaderMap::RemoveCompilingDependency(FMaterial* Material)
 	const int32 NumRemoved = CompilingMaterialDependencies.RemoveSingle(Material);
 	check(NumRemoved == 1);
 	checkSlow(!CompilingMaterialDependencies.Contains(Material));
-	if (CompilingMaterialDependencies.Num() == 0)
+	CheckReleaseCompilingId();
+}
+
+void FMaterialShaderMap::CheckReleaseCompilingId()
+{
+	if (CompilingMaterialDependencies.Num() == 0 && CompilingMaterialNumExternalDependencies==0)
 	{
 		const TArray<int32> CompilingIdsToCancel = { (int32)CompilingId };
 		GShaderCompilingManager->CancelCompilation(GetFriendlyName(), CompilingIdsToCancel);

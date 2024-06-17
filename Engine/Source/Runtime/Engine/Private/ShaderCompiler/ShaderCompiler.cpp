@@ -6634,7 +6634,7 @@ void FShaderCompilingManager::ProcessCompiledShaderMaps(
 				}
 				else if (bSuccess)
 				{
-					bool bIsComplete = CompilingShaderMap->IsComplete(Material, true);
+					bool bIsComplete = CompilingShaderMap->IsComplete(Material, true) && (CompilingShaderMap->CompilingMaterialNumExternalDependencies == 0);
 
 					// If running a cook, only process complete shader maps, as there's no rendering of partially complete shader maps to worry about.
 					if (bIsComplete || IsRunningCookCommandlet() == false || bAllowForIncompleteShaderMaps)
@@ -10202,6 +10202,8 @@ extern ENGINE_API const TCHAR* ODSCCmdEnumToString(ODSCRecompileCommand Cmd)
 		return TEXT("Material");
 	case ODSCRecompileCommand::SingleShader:
 		return TEXT("SingleShader");
+	case ODSCRecompileCommand::ResetMaterialCache:
+			return TEXT("ResetMaterialCache");
 	}
 	ensure(false);
 	return TEXT("Unknown");

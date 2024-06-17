@@ -161,6 +161,8 @@ void FODSCManager::AddThreadedRequest(
 	{
 		ClearErrorMessage();
 
+			Thread->AddRequest(TArray<FString>(), FString(), ShaderPlatform, FeatureLevel, QualityLevel, ODSCRecompileCommand::ResetMaterialCache);
+
 		if ((RecompileCommandType == ODSCRecompileCommand::Material || RecompileCommandType == ODSCRecompileCommand::Changed)
 			&& (CVarODSCRecompileMode.GetValueOnAnyThread() > 0))
 		{

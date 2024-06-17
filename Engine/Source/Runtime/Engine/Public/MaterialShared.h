@@ -105,6 +105,11 @@ namespace UE::MIR
 	class FEmitter;
 }
 
+namespace UE::Cook
+{
+	class FODSCClientData;
+}
+
 template <class ElementType> class TLinkedList;
 
 #define ME_CAPTION_HEIGHT		18
@@ -1404,7 +1409,7 @@ public:
 	static TRefCountPtr<FMaterialShaderMap> FindId(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform);
 
 #if WITH_EDITOR
-	static FMaterialShaderMap* FindCompilingShaderMap(uint32 CompilingId);
+	ENGINE_API static FMaterialShaderMap* FindCompilingShaderMap(uint32 CompilingId);
 
 	/** Gets outdated types from all loaded material shader maps */
 	static void GetAllOutdatedTypes(TArray<const FShaderType*>& OutdatedShaderTypes, TArray<const FShaderPipelineType*>& OutdatedShaderPipelineTypes, TArray<const FVertexFactoryType*>& OutdatedFactoryTypes);
@@ -1675,6 +1680,12 @@ public:
 #endif
 
 protected:
+#if WITH_EDITOR
+	inline void AddCompilingMaterialExternalDependency() { check(IsInGameThread()); ++CompilingMaterialNumExternalDependencies; }
+	inline void RemoveCompilingMaterialExternalDependency() { check(IsInGameThread()); --CompilingMaterialNumExternalDependencies; CheckReleaseCompilingId();  }
+	ENGINE_API void CheckReleaseCompilingId();
+#endif
+
 	void PostFinalizeContent() override;
 
 private:
@@ -1701,6 +1712,7 @@ private:
 	TRefCountPtr<FMaterialShaderMap> FinalizedClone;
 	TRefCountPtr<FSharedShaderCompilerEnvironment> PendingCompilerEnvironment;
 	TArray<TRefCountPtr<FMaterial>> CompilingMaterialDependencies;
+	int32 CompilingMaterialNumExternalDependencies = 0;
 #endif // WITH_EDITOR
 
 	FUniformBufferLayoutRHIRef UniformBufferLayout;
@@ -1751,6 +1763,7 @@ private:
 
 	friend ENGINE_API void DumpMaterialStats( EShaderPlatform Platform );
 	friend class FShaderCompilingManager;
+	friend class UE::Cook::FODSCClientData;
 };
 
 
@@ -2810,6 +2823,7 @@ private:
 	friend class FShaderCompilingManager;
 	friend class FHLSLMaterialTranslator;
 	friend class FMaterialHLSLErrorHandler;
+	friend class UE::Cook::FODSCClientData;
 };
 
 

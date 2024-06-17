@@ -16,15 +16,20 @@ public:
 	void OnClientConnected(const void* ConnectionPtr);
 	void OnClientDisconnected(const void* ConnectionPtr); 
 	void KeepClientPersistentData(const void* ConnectionPtr, const TArray<TStrongObjectPtr<UMaterialInterface>>& LoadedMaterialsToRecompile);
+	void FlushClientPersistentData(const void* ConnectionPtr);
 
 private:
+
 	struct FODSCClientPersistentData
 	{
-		TSet<TStrongObjectPtr<UMaterialInterface> > MaterialsKeptAlive;
+		typedef TMap<TRefCountPtr<FMaterialShaderMap>, int32> Value;
+		Value MaterialShaderMapsKeptAlive;
 	};
 
-	TMap<const void*, FODSCClientPersistentData> ODSCClientPersistentDataMap;
-	FCriticalSection ODSCClientPersistentDataMapLock;
+	static void PurgeMaterialShaderMaps(int32 Lifetime, int32 NumMapsToDelete, FODSCClientPersistentData::Value& MaterialShaderMapsKeptAlive);
+
+	FODSCClientPersistentData ODSCClientPersistentData;
+	FCriticalSection ODSCClientPersistentDataLock;
 };
 
 }
