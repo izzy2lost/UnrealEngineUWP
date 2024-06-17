@@ -56,7 +56,8 @@ bool FInputValidator::Validate(TConstArrayView<ENNETensorDataType> InputTypes)
 		const int32 TemplateIdx = InputTemplateIndices[Idx];
 		
 		check(TemplateIdx < TemplateTypes.Num());
-		if (!TemplateTypes[TemplateIdx].Contains(InputTypes[Idx]))
+		if (!TemplateTypes[TemplateIdx].Contains(InputTypes[Idx]) &&
+			!(InputTypes[Idx] == ENNETensorDataType::None && Idx >= NumRequiredInput))
 		{
 			FString TargetType = LogHelper::GetTensorDataTypeName(InputTypes[Idx]);
 			UE_LOG(LogNNE, Warning, TEXT("Input at index '%d' (from template T%d) is of type '%s' witch is not supported for that input."), Idx, TemplateIdx, *TargetType);

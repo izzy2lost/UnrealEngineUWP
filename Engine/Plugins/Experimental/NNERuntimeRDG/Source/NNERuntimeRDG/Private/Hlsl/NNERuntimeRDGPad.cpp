@@ -32,23 +32,22 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 		{
-			check(Version >= 11 ? (InputTensors.Num() >= 2 && InputTensors.Num() <= 3 ) : (InputTensors.Num() == 1));
+			CheckInputTensorCount(InputTensors.Num());
 			check(OutputTensors.Num() == 1);
 
 			const NNE::Internal::FTensor& X = *InputTensors[0];
+			const int32 Rank = X.GetShape().Rank();
 
 			if constexpr (Version >= 11)
 			{
 				const NNE::Internal::FTensorRef PadsTensor = InputTensors[1];
-				if(!PadsTensor->HasPreparedData())
+				if(!PadsTensor->IsConstant())
 				{
 					UE_LOG(LogNNE, Warning, TEXT("Pad input 'pads' (name: %s) should be constant."), *PadsTensor->GetName());
 					return -1;
 				}
 
-				OperatorHelper::GetInt32ArrayFromConstTensor(Pads, PadsTensor);
-
-				if(InputTensors.Num() == 3)
+				if (InputTensors.Num() >= 3 && InputTensors[2]->GetDataType() != ENNETensorDataType::None)
 				{
 					const NNE::Internal::FTensor& ValueTensor = *InputTensors[2];
 
@@ -65,6 +64,65 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					}
 
 					Value = ValueTensor.GetPreparedData<float>()[0];
+				}
+
+				if (InputTensors.Num() >= 4 && InputTensors[3]->GetDataType() != ENNETensorDataType::None)
+				{
+					const NNE::Internal::FTensorRef AxesTensor = InputTensors[3];
+
+					if(!AxesTensor->IsConstant())
+					{
+						UE_LOG(LogNNE, Warning, TEXT("Pad input 'axes' (name: %s) should be constant."), *AxesTensor->GetName());
+						return -1;
+					}
+
+					TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Axes;
+					TArray<int32, TInlineAllocator<2 * NNE::FTensorShape::MaxRank>> RelativePads;
+					if (AxesTensor->HasPreparedData())
+					{
+						OperatorHelper::GetInt32ArrayFromConstTensor(Axes, AxesTensor);
+					}
+
+					if (PadsTensor->HasPreparedData())
+					{
+						OperatorHelper::GetInt32ArrayFromConstTensor(RelativePads, PadsTensor);
+					}
+
+					if (RelativePads.Num() != Axes.Num() * 2)
+					{
+						UE_LOG(LogNNE, Warning, TEXT("Pad input 'axes' (name: %s) has to have a size that is twice the size \
+													  of pad input 'pads' (name: %s), but they have size %i and %i respectively."), 
+												*AxesTensor->GetName(), *PadsTensor->GetName(), Axes.Num(), RelativePads.Num());
+						return -1;
+					}
+
+					Pads.Init(0, 2 * Rank);
+					for (int AxesIndex = 0; AxesIndex < Axes.Num(); ++AxesIndex)
+					{
+						int32 Axis = Axes[AxesIndex];
+						if (Axis < -Rank || Axis >= Rank)
+						{
+							UE_LOG(LogNNE, Warning, TEXT("Pad input value at index %i of the 'axes' (name: %s) tensor \
+														  needs to be in the range [-Rank, Rank - 1], but value is %i with a rank of %i."), 
+													AxesIndex, *AxesTensor->GetName(), Axis, Rank);
+							return -1;
+						}
+						if (Axis < 0)
+						{
+							Axis = Rank + Axis;
+						}
+						Pads[Axis] = RelativePads[AxesIndex];
+						Pads[Axis + Rank] = RelativePads[AxesIndex + Axes.Num()];
+					}
+				}
+				else
+				{
+					if (!PadsTensor->HasPreparedData())
+					{
+						UE_LOG(LogNNE, Warning, TEXT("pads attribute lenght (%d) should be twice the rank of input X (%d)."), 0, X.GetShape().Rank());
+						return -1;
+					}
+					OperatorHelper::GetInt32ArrayFromConstTensor(Pads, PadsTensor);
 				}
 			}
 
@@ -98,7 +156,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		{
 			using namespace UE::NNEHlslShaders::Internal;
 			
-			check(Version >= 11 ? (InputTensorDescs.Num() >= 2 && InputTensorDescs.Num() <= 3 ) : (InputTensorDescs.Num() == 1));
+			CheckInputTensorCount(InputTensorDescs.Num());
 			check(OutputTensorDescs.Num() == 1);
 			
 			if constexpr (Version < 11)
@@ -115,7 +173,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		{
 			using namespace UE::NNEHlslShaders::Internal;
 			
-			check(Version >= 11 ? (InputTensors.Num() >= 2 && InputTensors.Num() <= 3 ) : (InputTensors.Num() == 1));
+			CheckInputTensorCount(InputTensors.Num());
 			check(OutputTensors.Num() == 1);
 			check(InputTensors[0] != nullptr);
 			check(OutputTensors[0] != nullptr);
@@ -159,6 +217,24 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				Params,
 				ThreadGroupCount);
 		}
+
+	private:
+		void CheckInputTensorCount(const int32 count)
+		{
+			if constexpr (Version < 11)
+			{
+				check(count == 1);
+			}
+			else if constexpr (Version < 18)
+			{
+				check(count >= 2 && count <= 3);
+			}
+			else
+			{
+				check(count >= 2 && count <= 4);
+			}
+		}
+
 	};
 
 	template<int Version>
@@ -176,14 +252,20 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
 		
 		FInputValidator InputValidator;
-		InputValidator.SetTemplateCount(2);
+		InputValidator.SetTemplateCount(3);
 		InputValidator.AddSupportedType(ENNETensorDataType::Float);
 		InputValidator.AddSupportedType(ENNETensorDataType::Int64, /*TemplateIdx*/ 1);
+		InputValidator.AddSupportedType(ENNETensorDataType::Int32, /*TemplateIdx*/ 2);
+		InputValidator.AddSupportedType(ENNETensorDataType::Int64, /*TemplateIdx*/ 2);
 		InputValidator.AddRequired();
 		if constexpr (Version >= 11)
 		{
 			InputValidator.AddRequired(/*TemplateIdx*/ 1);
 			InputValidator.AddOptional();
+		}
+		if constexpr (Version >= 18)
+		{
+			InputValidator.AddOptional(/*TemplateIdx*/ 2);
 		}
 		
 		bIsValid &= InputValidator.Validate(InputTypes);
@@ -206,8 +288,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		OP(2)
 		OP(11)
 		OP(13)
+		OP(18)
 
 		#undef OP
 		return true;
 	}
+
 } // UE::NNERuntimeRDG::Private::Hlsl
