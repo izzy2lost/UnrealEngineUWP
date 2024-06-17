@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "HarmonixMetasound/Nodes/MidiCCTriggerNode.h"
+#include "HarmonixMetasound/Nodes/SecsUntilMusicTimestampNode.h"
 
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
@@ -48,7 +48,7 @@ namespace HarmonixMetasound::Nodes::SecsUntilMusicTimestampNode
 
 	namespace Outputs
 	{
-		METASOUND_PARAM(SecsUntilTimestamp, "Secs. Until Timestamp", "Looks at the MIDI clock and calculates how long it will be until the timestamp triggers. It DOES consider the speed of the clock as well!");
+		DEFINE_OUTPUT_METASOUND_PARAM(SecsUntilTimestamp, "Secs. Until Timestamp", "Looks at the MIDI clock and calculates how long it will be until the timestamp triggers. It DOES consider the speed of the clock as well!");
 	}
 
 	class FOp final : public TExecutableOperator<FOp>
@@ -119,6 +119,8 @@ namespace HarmonixMetasound::Nodes::SecsUntilMusicTimestampNode
 			const FOperatorSettings& OperatorSettings = InParams.OperatorSettings;
 			const FInputVertexInterfaceData& InputData = InParams.InputData;
 
+			bool bClockIsBound = InputData.IsVertexBound(Inputs::MidiClockName);
+
 			FInputs Inputs
 			{
 				InputData.GetOrCreateDefaultDataReadReference<bool>(Inputs::EnableName,OperatorSettings),
@@ -128,24 +130,31 @@ namespace HarmonixMetasound::Nodes::SecsUntilMusicTimestampNode
 
 			FOutputs Outputs
 			{
-				FFloatWriteRef::CreateNew(0.0f)
+				FFloatWriteRef::CreateNew(Never)
 			};
 
-			return MakeUnique<FOp>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));
+			return MakeUnique<FOp>(InParams, MoveTemp(Inputs), bClockIsBound, MoveTemp(Outputs));
 		}
 
-		FOp(const FBuildOperatorParams& Params, FInputs&& InInputs, FOutputs&& InOutputs)
+		FOp(const FBuildOperatorParams& Params, FInputs&& InInputs, bool bClockIsBoundIn,  FOutputs&& InOutputs)
 			: Inputs(MoveTemp(InInputs))
 			, Outputs(MoveTemp(InOutputs))
+			, bClockIsBound(bClockIsBoundIn)
 		{
 			Reset(Params);
 		}
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override
 		{
+			// See if the clock input is connected to anything...
+			bClockIsBound = InVertexData.IsVertexBound(Inputs::MidiClockName);
+
 			InVertexData.BindReadVertex(Inputs::EnableName, Inputs.Enable);
 			InVertexData.BindReadVertex(Inputs::MidiClockName, Inputs.MidiClock);
 			InVertexData.BindReadVertex(Inputs::TimestampName, Inputs.Timestamp);
+			
+			// Force a recompute of the time...
+			MsOfTimestamp = Never;
 		}
 
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
@@ -160,21 +169,27 @@ namespace HarmonixMetasound::Nodes::SecsUntilMusicTimestampNode
 
 		void Execute()
 		{
-			if (!*Inputs.Enable)
+			if (!*Inputs.Enable || !bClockIsBound)
 			{
-				*Outputs.SecsUntilTimestamp = std::numeric_limits<float>::max();
+				*Outputs.SecsUntilTimestamp = Never;
 				return;
 			}
 
 			const ISongMapEvaluator& SongMaps = Inputs.MidiClock->GetSongMapEvaluator();
 
-			if (*Inputs.Timestamp != CurrentTimestamp || Inputs.MidiClock->GetSongMapsChangedInBlock())
+			if (MsOfTimestamp == Never || *Inputs.Timestamp != CurrentTimestamp || Inputs.MidiClock->GetSongMapsChangedInBlock())
 			{
 				int32 Tick = SongMaps.MusicTimestampToTick(*Inputs.Timestamp);
 				MsOfTimestamp = SongMaps.TickToMs((float)Tick);
 			}
 
 			float Speed = Inputs.MidiClock->GetSpeedAtStartOfBlock();
+			if (FMath::IsNearlyZero(Speed))
+			{
+				*Outputs.SecsUntilTimestamp = Never;
+				return;
+			}
+
 			const int32 SongTick = Inputs.MidiClock->GetNextMidiTickToProcess();
 			float SongPosMs = SongMaps.TickToMs((float)SongTick);
 
@@ -182,11 +197,13 @@ namespace HarmonixMetasound::Nodes::SecsUntilMusicTimestampNode
 		}
 
 	private:
+		static constexpr float Never = std::numeric_limits<float>::max();
+
 		FInputs Inputs;
 		FOutputs Outputs;
-
+		bool bClockIsBound = false;
 		FMusicTimestamp CurrentTimestamp;
-		float MsOfTimestamp = 0.0f;
+		float MsOfTimestamp = Never;
 	};
 
 	class FSecsUntilMusicTimestampNode final : public FNodeFacade
