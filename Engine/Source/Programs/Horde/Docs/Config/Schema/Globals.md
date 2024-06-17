@@ -332,9 +332,18 @@ Configuration for an external secret provider
 Name | Description
 ---- | -----------
 `provider` | `string`<br>Name of the provider to use
-`key` | `string`<br>Optional key indicating the parameter to set in the resulting data array
+`format` | [`ExternalSecretFormat`](#externalsecretformat-enum)<br>Format of the secret
+`key` | `string`<br>Optional key indicating the parameter to set in the resulting data array. Required if if  is .
 `path` | `string`<br>Optional value indicating what to fetch from the provider
-`arguments` | `string` `->` `string`<br>Additional provider-specific arguments
+
+## ExternalSecretFormat (Enum)
+
+Format describing how to parse external secret values
+
+Name | Description
+---- | -----------
+`Text` | Secret is a plain text value which will be stored using the external secret key
+`Json` | Secret is a JSON formatted string containing key/value pairs
 
 ## DeviceConfig
 
