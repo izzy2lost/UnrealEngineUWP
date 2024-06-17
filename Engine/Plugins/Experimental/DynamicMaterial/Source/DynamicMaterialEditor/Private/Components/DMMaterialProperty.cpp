@@ -611,7 +611,7 @@ void UDMMaterialProperty::Update(EDMUpdateType InUpdateType)
 
 	Super::Update(InUpdateType);
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 		check(ModelEditorOnlyData);

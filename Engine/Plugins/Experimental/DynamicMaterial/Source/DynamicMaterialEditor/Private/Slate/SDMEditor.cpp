@@ -1697,7 +1697,7 @@ void SDMEditor::OnSplitterResized() const
 
 void SDMEditor::OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
 {
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		InvalidateComponentEditWidget();
 	}

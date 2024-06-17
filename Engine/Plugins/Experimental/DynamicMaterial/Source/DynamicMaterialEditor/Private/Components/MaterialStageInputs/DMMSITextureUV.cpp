@@ -298,7 +298,7 @@ void UDMMaterialStageInputTextureUV::OnTextureUVUpdated(UDMMaterialComponent* In
 		return;
 	}
 
-	if (InComponent == TextureUV && InUpdateType == EDMUpdateType::Structure)
+	if (InComponent == TextureUV && EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		Update(InUpdateType);
 	}

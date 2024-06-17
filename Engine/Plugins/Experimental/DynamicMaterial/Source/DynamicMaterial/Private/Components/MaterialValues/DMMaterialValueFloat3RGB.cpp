@@ -112,7 +112,7 @@ void UDMMaterialValueFloat3RGB::SetValue(const FLinearColor& InValue)
 
 	Value = ValueClamped;
 
-	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnValueChanged(EDMUpdateType::Value);
 }
  
 #if WITH_EDITOR

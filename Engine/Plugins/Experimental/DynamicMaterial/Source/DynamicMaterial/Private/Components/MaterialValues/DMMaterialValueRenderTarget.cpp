@@ -224,7 +224,7 @@ bool UDMMaterialValueRenderTarget::JsonDeserialize(const TSharedPtr<FJsonValue>&
 
 	if (bSuccess)
 	{
-		OnValueChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+		OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 	}
 
 	return bSuccess;

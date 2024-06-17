@@ -213,7 +213,7 @@ void UDMMaterialStageExpressionMathBase::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		check(InputConnectors.IsEmpty() == false);
 		check(OutputConnectors.Num() == 1);

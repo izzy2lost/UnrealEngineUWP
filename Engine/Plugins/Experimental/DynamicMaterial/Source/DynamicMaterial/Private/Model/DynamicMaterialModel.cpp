@@ -427,7 +427,7 @@ void UDynamicMaterialModel::OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateT
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Value && IsValid(DynamicMaterialInstance))
+	if (!EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure) && IsValid(DynamicMaterialInstance))
 	{
 		InValue->SetMIDParameter(DynamicMaterialInstance);
 	}

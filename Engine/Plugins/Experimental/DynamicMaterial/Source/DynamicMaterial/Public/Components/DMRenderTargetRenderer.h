@@ -49,7 +49,7 @@ public:
 	//~ End IDMJsonSerializable
 
 	//~ Begin UDMMaterialComponent
-	virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
+	virtual void Update(EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject

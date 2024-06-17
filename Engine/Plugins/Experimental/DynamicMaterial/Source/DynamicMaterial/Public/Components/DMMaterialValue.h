@@ -128,7 +128,7 @@ public:
 	//~ End IDMJsonSerializable
  
 	//~ Begin UDMMaterialComponent
-	virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
+	virtual void Update(EDMUpdateType InUpdateType) override;
 #if WITH_EDITOR
 	virtual void DoClean() override;
 	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
@@ -174,7 +174,7 @@ protected:
  
 	UDMMaterialValue(EDMValueType InType);
  
-	virtual void OnValueChanged(EDMUpdateType InUpdateType, bool bInUpdateParent);
+	virtual void OnValueChanged(EDMUpdateType InUpdateType);
  
 	//~ Begin UDMMaterialComponent
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;

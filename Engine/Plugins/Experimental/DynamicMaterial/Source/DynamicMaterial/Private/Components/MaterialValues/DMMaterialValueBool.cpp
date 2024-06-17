@@ -112,7 +112,7 @@ void UDMMaterialValueBool::SetValue(bool InValue)
 
 	Value = InValue;
  
-	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnValueChanged(EDMUpdateType::Value);
 }
  
 #undef LOCTEXT_NAMESPACE

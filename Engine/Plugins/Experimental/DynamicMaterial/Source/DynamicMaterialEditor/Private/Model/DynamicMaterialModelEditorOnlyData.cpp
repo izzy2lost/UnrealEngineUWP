@@ -1547,7 +1547,7 @@ void UDynamicMaterialModelEditorOnlyData::OnValueUpdated(UDMMaterialValue* InVal
 	// Exported materials need to be rebuilt to update the main material.
 	const bool bMaterialInDifferentPackage = MaterialModel->DynamicMaterial ? MaterialModel->DynamicMaterial->GetPackage() != GetPackage() : true;
 
-	if (InUpdateType == EDMUpdateType::Structure || bMaterialInDifferentPackage)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure) || bMaterialInDifferentPackage)
 	{
 		RequestMaterialBuild();
 	}

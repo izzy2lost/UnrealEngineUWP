@@ -63,9 +63,11 @@ enum class EDMValueType : uint8
 UENUM(BlueprintType)
 enum class EDMUpdateType : uint8
 {
-	Value,
-	Structure
+	Value = 0,
+	Structure = 1 << 0,
+	AllowParentUpdate = 1 << 1
 };
+ENUM_CLASS_FLAGS(EDMUpdateType)
 
 UENUM(BlueprintType)
 enum class EDMMaterialShadingModel : uint8

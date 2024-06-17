@@ -72,7 +72,7 @@ public:
 #endif
 
 	//~ Begin UDMMaterialComponent
-	virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
+	virtual void Update(EDMUpdateType InUpdateType) override;
 #if WITH_EDITOR
 	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 #endif

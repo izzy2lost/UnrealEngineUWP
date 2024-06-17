@@ -387,7 +387,7 @@ void UDMMaterialValue::PostEditUndo()
  
 	MarkComponentDirty();
  
-	OnValueChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true); // Just in case - Undos are not meant to be quick and easy.
+	OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate); // Just in case - Undos are not meant to be quick and easy.
 }
  
 void UDMMaterialValue::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -410,12 +410,10 @@ void UDMMaterialValue::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 	{
 		if (EditableProperty == MemberPropertyName)
 		{
-			OnValueChanged(
-				EditableProperty == ValueName
-					? EDMUpdateType::Value
-					: EDMUpdateType::Structure, 
-				/* bInAllowPropagate */ true
-			);
+			const EDMUpdateType UpdateType = (EditableProperty == ValueName ? EDMUpdateType::Value : EDMUpdateType::Structure)
+				| EDMUpdateType::AllowParentUpdate;
+
+			OnValueChanged(UpdateType);
 			return;
 		}
 	}
@@ -435,7 +433,7 @@ UDMMaterialValue::UDMMaterialValue(EDMValueType InType)
 #endif
 }
  
-void UDMMaterialValue::OnValueChanged(EDMUpdateType InUpdateType, bool bInUpdateParent)
+void UDMMaterialValue::OnValueChanged(EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
@@ -447,7 +445,7 @@ void UDMMaterialValue::OnValueChanged(EDMUpdateType InUpdateType, bool bInUpdate
 		Update(InUpdateType);
 
 #if WITH_EDITOR
-		if (bInUpdateParent && ParentComponent)
+		if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
 		{
 			ParentComponent->Update(InUpdateType);
 		}

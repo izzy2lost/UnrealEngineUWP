@@ -189,7 +189,7 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
 		return;
 	}
  
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		UDMMaterialStage* Stage = GetStage();
 		check(Stage);
@@ -1003,7 +1003,7 @@ void UDMMaterialStageThroughputLayerBlend::OnStageUpdated(UDMMaterialComponent* 
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		const bool bIsAlphaOnlyBlendNow = bIsAlphaOnlyBlend;
 		UpdateAlphaOnlyMaskStatus();

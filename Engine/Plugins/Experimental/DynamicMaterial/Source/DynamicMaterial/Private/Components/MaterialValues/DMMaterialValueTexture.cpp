@@ -150,11 +150,11 @@ void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& InPr
 					? EDMUpdateType::Structure
 					: EDMUpdateType::Value;
 
-				OnValueChanged(UpdateType, /* bInAllowPropagate */ true);
+				OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 				return;
 			}
 
-			OnValueChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+			OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 			return;
 		}
 	}
@@ -225,18 +225,9 @@ void UDMMaterialValueTexture::SetValue(UTexture* InValue)
 		return;
 	}
 
-	/*
-	const TextureCompressionSettings CurrentCompression = Value ? Value->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-	const TextureCompressionSettings NewCompression = InValue ? InValue->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-
-	const EDMUpdateType UpdateType = CurrentCompression == NewCompression
-		? EDMUpdateType::Structure
-		: EDMUpdateType::Value;
-	*/
-
 	Value = InValue;
 
-	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnValueChanged(EDMUpdateType::Value);
 }
 
 void UDMMaterialValueTexture::SetMIDParameter(UMaterialInstanceDynamic* InMID) const

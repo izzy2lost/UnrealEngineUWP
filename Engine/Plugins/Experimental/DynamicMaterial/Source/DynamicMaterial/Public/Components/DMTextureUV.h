@@ -219,7 +219,7 @@ protected:
 	void RemoveParameterNames();
 #endif
 
-	void OnTextureUVChanged(EDMUpdateType InUpdateType, bool bInUpdateParent);
+	void OnTextureUVChanged(EDMUpdateType InUpdateType);
 
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType) override;

@@ -47,7 +47,7 @@ void UDMMaterialValueColorAtlas::SetValue(float InValue)
 
 	Value = InValue;
 
-	OnValueChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnValueChanged(EDMUpdateType::Value);
 }
 
 void UDMMaterialValueColorAtlas::SetMIDParameter(UMaterialInstanceDynamic* InMID) const
@@ -77,7 +77,7 @@ void UDMMaterialValueColorAtlas::SetAtlas(UCurveLinearColorAtlas* InAtlas)
 
 	Atlas = InAtlas;
 
-	OnValueChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+	OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 
 void UDMMaterialValueColorAtlas::SetCurve(UCurveLinearColor* InCurve)
@@ -94,7 +94,7 @@ void UDMMaterialValueColorAtlas::SetCurve(UCurveLinearColor* InCurve)
 
 	Curve = InCurve;
 
-	OnValueChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+	OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 
 void UDMMaterialValueColorAtlas::GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const
@@ -198,7 +198,7 @@ bool UDMMaterialValueColorAtlas::JsonDeserialize(const TSharedPtr<FJsonValue>& I
 
 	if (bSuccess)
 	{
-		OnValueChanged(UpdateType, /* bInAllowPropagate */ true);
+		OnValueChanged(UpdateType | EDMUpdateType::AllowParentUpdate);
 	}
 
 	return bSuccess;

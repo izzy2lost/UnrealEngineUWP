@@ -87,7 +87,7 @@ void UDMTextureUV::SetUVSource(EDMUVSource InUVSource)
 
 	UVSource = InUVSource;
 
-	OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+	OnTextureUVChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 #endif
 
@@ -106,7 +106,7 @@ void UDMTextureUV::SetOffset(const FVector2D& InOffset)
 
 	Offset = InOffset;
 
-	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnTextureUVChanged(EDMUpdateType::Value);
 }
 
 void UDMTextureUV::SetPivot(const FVector2D& InPivot)
@@ -124,7 +124,7 @@ void UDMTextureUV::SetPivot(const FVector2D& InPivot)
 
 	Pivot = InPivot;
 
-	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnTextureUVChanged(EDMUpdateType::Value);
 }
 
 void UDMTextureUV::SetRotation(float InRotation)
@@ -141,7 +141,7 @@ void UDMTextureUV::SetRotation(float InRotation)
 
 	Rotation = InRotation;
 
-	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnTextureUVChanged(EDMUpdateType::Value);
 }
 
 void UDMTextureUV::SetTiling(const FVector2D& InTiling)
@@ -159,7 +159,7 @@ void UDMTextureUV::SetTiling(const FVector2D& InTiling)
 
 	Tiling = InTiling;
 
-	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnTextureUVChanged(EDMUpdateType::Value);
 }
 
 #if WITH_EDITOR
@@ -177,7 +177,7 @@ void UDMTextureUV::SetMirrorOnX(bool bInMirrorOnX)
 
 	bMirrorOnX = bInMirrorOnX;
 
-	OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+	OnTextureUVChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 
 void UDMTextureUV::SetMirrorOnY(bool bInMirrorOnY)
@@ -194,7 +194,7 @@ void UDMTextureUV::SetMirrorOnY(bool bInMirrorOnY)
 
 	bMirrorOnY = bInMirrorOnY;
 
-	OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+	OnTextureUVChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 #endif
 
@@ -533,7 +533,7 @@ void UDMTextureUV::RemoveParameterNames()
 	}
 }
 
-void UDMTextureUV::OnTextureUVChanged(EDMUpdateType InUpdateType, bool bInUpdateParent)
+void UDMTextureUV::OnTextureUVChanged(EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
@@ -545,7 +545,7 @@ void UDMTextureUV::OnTextureUVChanged(EDMUpdateType InUpdateType, bool bInUpdate
 		Update(InUpdateType);
 
 #if WITH_EDITOR
-		if (bInUpdateParent && ParentComponent)
+		if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
 		{
 			ParentComponent->Update(InUpdateType);
 		}
@@ -601,13 +601,13 @@ void UDMTextureUV::PostEditChangeProperty(struct FPropertyChangedEvent& Property
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Rotation
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_Tiling)
 	{
-		OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ true);
+		OnTextureUVChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 	}
 	else if (PropertyChangedEvent.MemberProperty->GetFName() == NAME_UVSource
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_bMirrorOnX
 		|| PropertyChangedEvent.MemberProperty->GetFName() == NAME_bMirrorOnY)
 	{
-		OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+		OnTextureUVChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 	}
 }
 
@@ -628,11 +628,11 @@ void UDMTextureUV::PostEditUndo()
 		|| bMirrorOnX != bMirrorOnX_PreUndo
 		|| bMirrorOnY != bMirrorOnY_PreUndo)
 	{
-		OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ true);
+		OnTextureUVChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 	}
 	else
 	{
-		OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ true);
+		OnTextureUVChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 	}
 }
 
@@ -668,11 +668,11 @@ void UDMTextureUV::PostLoad()
 
 	if (bNeedsPostLoadStructureUpdate)
 	{
-		OnTextureUVChanged(EDMUpdateType::Structure, /* bInAllowPropagate */ false);
+		OnTextureUVChanged(EDMUpdateType::Structure);
 	}
 	else if (bNeedsPostLoadValueUpdate)
 	{
-		OnTextureUVChanged(EDMUpdateType::Value, /* bInAllowPropagate */ false);
+		OnTextureUVChanged(EDMUpdateType::Value);
 	}
 
 	bNeedsPostLoadStructureUpdate = false;
