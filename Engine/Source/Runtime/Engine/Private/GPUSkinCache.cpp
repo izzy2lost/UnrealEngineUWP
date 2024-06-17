@@ -24,6 +24,7 @@ GPUSkinCache.cpp: Performs skinning on a compute shader into a buffer to avoid v
 #include "RenderingThread.h"
 #include "Stats/StatsTrace.h"
 #include "UObject/UObjectIterator.h"
+#include "Algo/Sort.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "Algo/Sort.h"
 
