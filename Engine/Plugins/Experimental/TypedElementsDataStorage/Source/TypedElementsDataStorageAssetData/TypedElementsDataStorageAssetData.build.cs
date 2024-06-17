@@ -7,6 +7,8 @@ public class TypedElementsDataStorageAssetData : ModuleRules
 {
 	public TypedElementsDataStorageAssetData(ReadOnlyTargetRules Target) : base(Target)
 	{
+		ShortName = "TEDSAssetD";
+
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		if (Target.bBuildEditor)
