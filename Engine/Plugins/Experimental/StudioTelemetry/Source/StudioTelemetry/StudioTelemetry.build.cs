@@ -12,8 +12,7 @@ public class StudioTelemetry : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"HTTP",
-				"Horde"
+				"HTTP"
 			}
 		);
 
@@ -28,5 +27,14 @@ public class StudioTelemetry : ModuleRules
 				"RHI",
 			}
 		);
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"Horde"
+				}
+			);
+		}
 	}
 }
