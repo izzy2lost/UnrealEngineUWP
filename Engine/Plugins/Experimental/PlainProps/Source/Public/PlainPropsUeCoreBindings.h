@@ -260,11 +260,11 @@ struct TSetBinding : public IItemRangeBinding
 
 	virtual void MakeItems(FLoadRangeContext& Ctx) const override
 	{
-		const TSet<T>& Set = *Ctx.Request.GetRange<TSet<T>>();
+		TSet<T>& Set = Ctx.Request.GetRange<TSet<T>>();
 		SizeType Num = static_cast<SizeType>(Ctx.Request.NumTotal());
 
 		static constexpr bool bAllocate = sizeof(T) > sizeof(FLoadRangeContext::Scratch);
-		static constexpr uint64 MaxItems = bAllocate ? sizeof(FLoadRangeContext::Scratch) / sizeof(T) : 1;
+		static constexpr uint64 MaxItems = bAllocate ? 1 : sizeof(FLoadRangeContext::Scratch) / SIZE_T(sizeof(T));
 		
 		if (Ctx.Request.IsFirstCall())
 		{
@@ -280,7 +280,7 @@ struct TSetBinding : public IItemRangeBinding
 				Ctx.Items.Set(Tmp, NumTmp, sizeof(T));
 				if constexpr (std::is_default_constructible_v<T>)
 				{
-					for (T* It = static_cast<T*>(Tmp), End = It + NumTmp; It != End; ++It)
+					for (T* It = static_cast<T*>(Tmp), *End = It + NumTmp; It != End; ++It)
 					{
 						::new (It) T;
 					}
@@ -317,7 +317,7 @@ struct TSetBinding : public IItemRangeBinding
 			}
 			else
 			{
-				Ctx.Items.Set(Tmp.Slice(0, FMath::Min(static_cast<uint64>(Tmp.Num()), Ctx.Request.NumMore())));
+				Ctx.Items.Set(Tmp.GetData(), FMath::Min(static_cast<uint64>(Tmp.Num()), Ctx.Request.NumMore()));
 				check(Ctx.Items.Get<T>().Num());
 			}
 		}
@@ -326,32 +326,34 @@ struct TSetBinding : public IItemRangeBinding
 	virtual void ReadItems(FSaveRangeContext& Ctx) const override
 	{
 		static_assert(offsetof(TSetElement<T>, Value) == 0);
-		const TSparseArray<TSetElement<T>>& Elems = *Ctx.Request.GetRange<TSparseArray<TSetElement<T>>>();
+		const TSparseArray<TSetElement<T>>& Elems = Ctx.Request.GetRange<TSparseArray<TSetElement<T>>>();
 
-		if (int32 NumRead = static_cast<int32>(Ctx.Items.NumTotal))
+		if (FExistingItemSlice LastRead = Ctx.Items.Slice)
 		{
 			// Continue partial response
-			const TSetElement<T>* NextElem = static_cast<const TSetElement<T>*>(Ctx.Items.Slice) + Ctx.Items.Slice.Num + /* skip known invalid */ 1;
-			Ctx.Items.SetPart(GetContiguousSlice(Elems.PointerToIndex(NextElem), Elems));
+			const TSetElement<T>* NextElem = static_cast<const TSetElement<T>*>(LastRead.Data) + LastRead.Num + /* skip known invalid */ 1;
+			Ctx.Items.Slice = GetContiguousSlice(Elems.PointerToIndex(NextElem), Elems);
 		}
 		else if (Elems.IsCompact())
 		{
-			Ctx.Items.SetAll(Elems.GetData(), Elems.Num());
+			int32 Num = Elems.Num();
+			Ctx.Items.SetAll(Num ? &Elems[0] : nullptr, Num);
 		}
 		else
 		{
 			// Start partial response
+			Ctx.Items.NumTotal = Elems.Num();
 			Ctx.Items.Stride = sizeof(TSetElement<T>);
-			Ctx.Items.SetPart(GetContiguousSlice(0, Elems));
+			Ctx.Items.Slice = GetContiguousSlice(0, Elems);
 		}
 	}
 
-	FExistingItemSlice GetContiguousSlice(int32 Idx, const TSparseArray<TSetElement<T>>& Elems)
+	static FExistingItemSlice GetContiguousSlice(int32 Idx, const TSparseArray<TSetElement<T>>& Elems)
 	{
 		int32 Num = 1;
 		for (;!Elems.IsValidIndex(Idx); ++Idx) {}
 		for (; Elems.IsValidIndex(Idx + Num); ++Num) {}
-		return { &Elems[Idx], Num };
+		return { &Elems[Idx], static_cast<uint64>(Num) };
 	}
 };
 

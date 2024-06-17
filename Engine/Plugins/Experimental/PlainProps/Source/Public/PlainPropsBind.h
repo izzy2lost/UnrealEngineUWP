@@ -362,10 +362,12 @@ struct FExistingItemSlice
 	const void*		Data = nullptr;			
 	uint64			Num = 0;
 
+	explicit operator bool() const { return !!Num; }
+
 	const uint8* At(uint64 Idx, uint32 Stride) const
 	{
 		check(Idx < Num);
-		return reinterpret_cast<const uint8*>(Data) + Idx*Stride;
+		return reinterpret_cast<const uint8*>(Data) + Idx * Stride;
 	}
 };
 
@@ -374,12 +376,6 @@ struct FExistingItems
 	uint64				NumTotal = 0;
 	uint32				Stride = 0;
 	FExistingItemSlice	Slice;
-
-	void SetPart(FExistingItemSlice Part)
-	{
-		NumTotal += Part.Num;
-		Slice = Part;
-	}
 
 	void SetAll(FExistingItemSlice Whole, uint32 InStride)
 	{

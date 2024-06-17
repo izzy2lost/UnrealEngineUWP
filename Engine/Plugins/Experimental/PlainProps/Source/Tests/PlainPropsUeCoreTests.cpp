@@ -190,14 +190,14 @@ FBatchSaver::FBatchSaver()
 template<class T>
 void FBatchSaver::Save(T&& Object) 
 {
-	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
+	FStructSchemaId Id = IndexNativeStruct<std::remove_reference_t<T>, FIds>();
 	SavedObjects.Emplace(Id, SaveStruct(&Object, Id, {GTypes, GSchemas, Customs, Scratch}));
 }
 
 template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
-	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
+	FStructSchemaId Id = IndexNativeStruct<std::remove_reference_t<T>, FIds>();
 	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs, Scratch}))
 	{
 		SavedObjects.Emplace(Id, MoveTemp(Delta));
@@ -407,10 +407,20 @@ static void Run(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
 //{
 //	TArray<FSub> Subs;
 //};
+//
+//struct FNDC
+//{
+//	int X = -1;
+//	explicit FNDC(int I) : X(I) {}
+//	friend bool operator==(FNDC A, FNDC B) = default;
+//	friend inline uint32 GetTypeHash(FNDC I) { return ::GetTypeHash(I.X); }
+//};
+//PP_REFLECT_STRUCT(PlainProps::UE::Test, FNDC, void, X);
 
 struct FInt { int32 X; };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FInt, void, X);
 static bool operator==(FInt A, FInt B) { return A.X == B.X; }
+inline uint32 GetTypeHash(FInt I) { return ::GetTypeHash(I.X); }
 
 enum class EFlat1 : uint8 { A = 1, B = 3 };
 enum class EFlat2 : uint8 { A, B };
@@ -427,17 +437,19 @@ struct FEnums
 	EFlat2 Flat2;
 	EFlag1 Flag1;
 	EFlag2 Flag2;
+
+	friend bool operator==(FEnums, FEnums) = default;
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FEnums, void, Flat1, Flat2, Flag1, Flag2);
-static bool operator==(FEnums A, FEnums B) { return A.Flat1 == B.Flat1 && A.Flat2 == B.Flat2 && A.Flag1 == B.Flag1 && A.Flag2 == B.Flag2; }
 
 struct FLeafArrays
 {
 	TArray<bool> Bits;
 	TArray<int>	Bobs;
+
+	bool operator==(const FLeafArrays&) const = default;
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FLeafArrays, void, Bits, Bobs);
-static bool operator==(const FLeafArrays& A, const FLeafArrays& B) { return A.Bits == B.Bits && A.Bobs == B.Bobs; }
 
 struct FComplexArrays
 {
@@ -445,17 +457,20 @@ struct FComplexArrays
 	TArray<EFlat1> Enums;
 	TArray<FLeafArrays> Misc;
 	TArray<TArray<EFlat1>> Nested;
+
+	bool operator==(const FComplexArrays&) const = default;
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FComplexArrays, void, Str, Enums, Misc, Nested);
-static bool operator==(const FComplexArrays& A, const FComplexArrays& B) { return A.Str == B.Str && A.Enums == B.Enums && A.Misc == B.Misc && A.Nested == B.Nested; }
 
 struct FNames
 {
 	FName Name;
 	TArray<FName> Names;
+
+	bool operator==(const FNames&) const = default;
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FNames, void, Name, Names);
-static bool operator==(const FNames& A, const FNames& B) { return A.Name == B.Name && A.Names == B.Names; }
+
 
 struct FStr
 {
@@ -463,6 +478,18 @@ struct FStr
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FStr, void, S);
 
+struct FSets
+{
+	TSet<char> Leaves;
+	TSet<TArray<uint8>> Ranges;
+	TSet<FInt> Structs;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FSets, void, Leaves, Ranges, Structs);
+
+inline bool operator==(const FSets& A, const FSets& B)
+{
+	return LegacyCompareEqual(A.Leaves, B.Leaves) && LegacyCompareEqual(A.Ranges, B.Ranges) && LegacyCompareEqual(A.Structs, B.Structs);
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -513,9 +540,10 @@ struct FDelta
 	FInt		C = { 2 };
 	TArray<int> D;
 	FString		E = "!";
+
+	friend bool operator==(const FDelta& A, const FDelta& B) = default;
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FDelta, void, A, B, C, D, E);
-static bool operator==(const FDelta& A, const FDelta& B) { return A.A == B.A && A.B == B.B && A.C == B.C && A.D == B.D && A.E == B.E; }
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -718,7 +746,33 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	}
 		
 	SECTION("TSet")
-	{}
+	{
+		TScopedStructBinding<FInt> Int;
+		TScopedStructBinding<FSets> Sets;
+		Run([](FBatchSaver& Batch)
+			{
+				Batch.Save(FSets{{'H','i'}, {{uint8(10)}, {}}, {{123}}});
+				
+				// Test order preservation
+				Batch.Save(FSets{{'a','b'}});
+				Batch.Save(FSets{{'b','a'}});
+
+				// Test non-compact set
+				FSets Sparse = FSets{{'w','z','a','p','?','!'}};
+				Sparse.Leaves.Remove('w');
+				Sparse.Leaves.Remove('p');
+				Sparse.Leaves.Remove('!');
+				Batch.Save(Sparse);
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FSets>() == FSets{{'H','i'}, {{uint8(10)}, {}}, {{123}}});
+				CHECK(FSets{{'a','b'}} != FSets{{'b','a'}});
+				CHECK(Batch.Load<FSets>() == FSets{{'a','b'}});
+				CHECK(Batch.Load<FSets>() == FSets{{'b','a'}});
+				CHECK(Batch.Load<FSets>() == FSets{{'z','a','?'}});
+			});
+	}
 
 	SECTION("Delta")
 	{
