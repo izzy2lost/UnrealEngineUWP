@@ -757,11 +757,7 @@ public:
 	/** Mark this as controlled through locally relayed inputs rather than controlled as a pawn through a player controller.
 	* Set if NetworkPhysicsComponent is implemented on an AActor instead of APawn and it's currently being fed inputs, or if this is controlled by the server. 
 	* NOTE: The actor for this NetworkPhysicsComponent also needs to be owned by the local client if this is used client-side. */
-	ENGINE_API void SetIsRelayingLocalInputs(bool bInRelayingLocalInputs)
-	{
-		bIsRelayingLocalInputs = bInRelayingLocalInputs;
-		UpdateAsyncComponent();
-	}
+	ENGINE_API void SetIsRelayingLocalInputs(bool bInRelayingLocalInputs);
 
 	/** Stop relaying local inputs after next network send.
 	* Deferred version of SetIsRelayingLocalInputs(false) to ensure that the last replicated data gets sent.

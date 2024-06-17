@@ -894,6 +894,12 @@ bool UNetworkPhysicsComponent::IsLocallyControlled() const
 	return false;
 }
 
+void UNetworkPhysicsComponent::SetIsRelayingLocalInputs(bool bInRelayingLocalInputs)
+{
+	bIsRelayingLocalInputs = bInRelayingLocalInputs;
+	UpdateAsyncComponent();
+}
+
 APlayerController* UNetworkPhysicsComponent::GetPlayerController() const
 {
 	if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
@@ -1511,7 +1517,8 @@ void FAsyncNetworkPhysicsComponent::SendInputData_Internal(FAsyncNetworkPhysicsC
 			const int32 FromFrame = FMath::Max(LastInputSendFrame + 1, ToFrame - InputHistory->GetHistorySize());
 
 			// Check if we have important data to marshal
-			if (const int32 Count = InputHistory->CountValidData(FromFrame, ToFrame, /*bIncludeUnimportant*/ false, /*bIncludeImportant*/ true) > 0)
+			const int32 Count = InputHistory->CountValidData(FromFrame, ToFrame, /*bIncludeUnimportant*/ false, /*bIncludeImportant*/ true);
+			if (Count > 0)
 			{
 				// Create new data collection for marshaling
 				const int32 Idx = AsyncOutput.InputDataImportant.Add(InputHistory->CreateNew());
@@ -1575,7 +1582,8 @@ void FAsyncNetworkPhysicsComponent::SendStateData_Internal(FAsyncNetworkPhysicsC
 			const int32 FromFrame = FMath::Max(LastStateSendFrame + 1, ToFrame - StateHistory->GetHistorySize());
 
 			// Check if we have important data to marshal
-			if (const int32 Count = StateHistory->CountValidData(FromFrame, ToFrame, /*bIncludeUnimportant*/ false, /*bIncludeImportant*/ true) > 0)
+			const int32 Count = StateHistory->CountValidData(FromFrame, ToFrame, /*bIncludeUnimportant*/ false, /*bIncludeImportant*/ true);
+			if (Count > 0)
 			{
 				// Create new data collection for marshaling
 				const int32 Idx = AsyncOutput.StateDataImportant.Add(StateHistory->CreateNew());
