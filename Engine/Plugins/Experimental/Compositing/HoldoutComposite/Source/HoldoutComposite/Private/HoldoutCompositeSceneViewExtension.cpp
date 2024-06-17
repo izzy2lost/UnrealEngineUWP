@@ -248,14 +248,6 @@ void FHoldoutCompositeSceneViewExtension::SetupViewFamily(FSceneViewFamily& InVi
 	{
 		bCompositeFollowsSceneExposure = Settings->bCompositeFollowsSceneExposure;
 	}
-
-	/**
-	 * By default, we use linear with tone curve to match the regular render.
-	 * This also ensures the tonemap post-processing pass preserves alpha precision.
-	 * The usual sRGB encoding is instead applied at the end of the composite.
-	 **/ 
-	OriginalSceneCaptureSource = InViewFamily.SceneCaptureSource;
-	InViewFamily.SceneCaptureSource = SCS_FinalToneCurveHDR;
 }
 
 void FHoldoutCompositeSceneViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
@@ -370,12 +362,6 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 	else if (Family->SceneCaptureSource == SCS_FinalColorLDR)
 	{
 		Encodings.X = static_cast<uint32>(ESceneColorSourceEncoding::sRGB);
-		Encodings.Y = static_cast<uint32>(ESceneColorSourceEncoding::sRGB);
-	}
-	else if (Family->SceneCaptureSource == SCS_FinalToneCurveHDR
-		&& OriginalSceneCaptureSource != ESceneCaptureSource::SCS_FinalToneCurveHDR)
-	{
-		// Special setup to preserve alpha precision, per earlier note.
 		Encodings.Y = static_cast<uint32>(ESceneColorSourceEncoding::sRGB);
 	}
 
