@@ -14,6 +14,9 @@ struct FRCSignatureField
 
 	FRCSignatureField() = default;
 
+	REMOTECONTROL_API static FRCSignatureField CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, FProperty* InProperty);
+	REMOTECONTROL_API static FRCSignatureField CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, UClass* InSupportedClass);
+
 	bool operator==(const FRCSignatureField& InOtherField) const
 	{
 		return FieldPath == InOtherField.FieldPath
@@ -49,16 +52,16 @@ struct FRCSignature
 	}
 
 	/**
-	 * Gathers the Field Entities from the given preset and field ids and adds them as Signature Fields to this instance
-	 * @param InPreset the preset to check for
-	 * @param InFieldEntityIds the ids of the entities to find and add
+	 * Adds the given fields to this signature and ensuring no repeated field is present
+	 * @return the number of new fields added
 	 */
-	REMOTECONTROL_API int32 AddFieldsFromEntities(URemoteControlPreset* InPreset, TConstArrayView<FGuid> InFieldEntityIds);
+	REMOTECONTROL_API int32 AddFields(TConstArrayView<FRCSignatureField> InFields);
 
 	/**
 	 * Applies this Signature to the given Actors by exposing all this Signature's fields to the given preset
 	 * @param InPreset the preset where these properties will be exposed to
 	 * @param InActors the actors whose properties to expose
+	 * @return the number of properties affected in total
 	 */
 	REMOTECONTROL_API int32 ApplySignature(URemoteControlPreset* InPreset, TConstArrayView<TWeakObjectPtr<AActor>> InActors) const;
 

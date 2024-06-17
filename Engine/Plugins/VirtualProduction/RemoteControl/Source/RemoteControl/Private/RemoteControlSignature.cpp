@@ -5,42 +5,55 @@
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 
-int32 FRCSignature::AddFieldsFromEntities(URemoteControlPreset* InPreset, TConstArrayView<FGuid> InFieldEntityIds)
+FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, FProperty* InProperty)
 {
-	if (!InPreset || InFieldEntityIds.IsEmpty())
+	UClass* SupportedBindingClass = nullptr;
+
+	if (InProperty)
 	{
-		return 0;
+		if (UClass* PropertyOwnerClass = InProperty->GetOwnerClass())
+		{
+			SupportedBindingClass = PropertyOwnerClass;
+		}
 	}
 
-	const int32 PreviousFieldCount = Fields.Num();
+	return CreateField(InFieldPathInfo, InOwnerObject, SupportedBindingClass);
+}
 
-	Fields.Reserve(PreviousFieldCount + InFieldEntityIds.Num());
-
-	for (const FGuid& EntityId : InFieldEntityIds)
+FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, UClass* InSupportedClass)
+{
+	if (!InSupportedClass && InFieldPathInfo.GetSegmentCount() > 0 && InFieldPathInfo.GetFieldSegment(0).IsResolved())
 	{
-		TSharedPtr<FRemoteControlProperty> ExposedProperty = InPreset->GetExposedEntity<FRemoteControlProperty>(EntityId).Pin();
-		if (!ExposedProperty.IsValid())
-		{
-			continue;
-		}
-
-		FRCSignatureField Field;
-		Field.bEnabled = true;
-		Field.FieldPath = ExposedProperty->FieldPathInfo;
-		Field.SupportedClass = ExposedProperty->GetSupportedBindingClass();
-
-		if (UObject* BoundObject = ExposedProperty->GetBoundObject())
-		{
-			if (AActor* ActorOwner = BoundObject->GetTypedOuter<AActor>())
-			{
-				Field.ObjectRelativePath = BoundObject->GetPathName(ActorOwner);
-			}
-		}
-
-		Fields.AddUnique(MoveTemp(Field));
+		InSupportedClass = InFieldPathInfo.GetFieldSegment(0).ResolvedData.Field->GetOwnerClass();
 	}
 
-	return Fields.Num() - PreviousFieldCount;
+	FRCSignatureField Field;
+	Field.bEnabled = true;
+	Field.FieldPath = InFieldPathInfo;
+	Field.SupportedClass = InSupportedClass;
+
+	if (UObject* BoundObject = InOwnerObject)
+	{
+		if (AActor* ActorOwner = BoundObject->GetTypedOuter<AActor>())
+		{
+			Field.ObjectRelativePath = BoundObject->GetPathName(ActorOwner);
+		}
+	}
+
+	return Field;
+}
+
+int32 FRCSignature::AddFields(TConstArrayView<FRCSignatureField> InFields)
+{
+	const int32 PreviousNum = Fields.Num();
+	Fields.Reserve(PreviousNum + InFields.Num());
+
+	for (const FRCSignatureField& Field : InFields)
+	{
+		Fields.AddUnique(Field);
+	}
+
+	return Fields.Num() - PreviousNum;
 }
 
 int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayView<TWeakObjectPtr<AActor>> InActors) const

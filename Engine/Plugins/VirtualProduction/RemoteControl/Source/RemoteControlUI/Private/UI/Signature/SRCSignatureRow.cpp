@@ -124,13 +124,6 @@ FReply SRCSignatureRow::OnRowAcceptDrop(const FDragDropEvent& InDragDropEvent
 			}
 		}
 
-		// Entity Drag Drop
-		if (TSharedPtr<FExposedEntityDragDrop> ExposedEntityDragDropOp = InDragDropEvent.GetOperationAs<FExposedEntityDragDrop>())
-		{
-			SignatureItem->AddFieldEntities(ExposedEntityDragDropOp->GetSelectedFieldsId());
-			return FReply::Handled();
-		}
-
 		// Actor Drag Drop (Only Actors dragged)
 		if (TSharedPtr<FActorDragDropOp> ActorDragDropOp = InDragDropEvent.GetOperationAs<FActorDragDropOp>())
 		{

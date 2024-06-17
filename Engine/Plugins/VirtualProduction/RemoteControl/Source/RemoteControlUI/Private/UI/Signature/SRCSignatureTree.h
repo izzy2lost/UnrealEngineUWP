@@ -5,6 +5,7 @@
 #include "UI/BaseLogicUI/SRCLogicPanelListBase.h"
 
 class FRCSignatureTreeItemBase;
+class FRCSignatureTreeRootItem;
 class IRCSignatureColumn;
 class SHeaderRow;
 class SRCSignaturePanel;
@@ -26,6 +27,8 @@ public:
 
 	void Refresh();
 
+	TArray<TSharedPtr<FRCSignatureTreeItemBase>> GetSelectedItems() const;
+
 	//~ Begin SRCLogicPanelListBase
 	virtual URemoteControlPreset* GetPreset() override;
 	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() override;
@@ -46,8 +49,11 @@ private:
 
 	void OnGetChildren(TSharedPtr<FRCSignatureTreeItemBase> InItem, TArray<TSharedPtr<FRCSignatureTreeItemBase>>& OutChildren) const;
 
-	/** All Known Signatures in this Tree View */
-	TArray<TSharedPtr<FRCSignatureTreeItemBase>> SignatureItems;
+	void OnItemExpansionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, bool bInIsExpanded);
+
+	void OnItemSelectionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, ESelectInfo::Type InSelectionType);
+
+	TSharedPtr<FRCSignatureTreeRootItem> RootItem;
 
 	TMap<FName, TSharedRef<IRCSignatureColumn>> Columns;
 
@@ -56,4 +62,6 @@ private:
 	TSharedPtr<SHeaderRow> HeaderRow;
 
 	TWeakPtr<SRCSignaturePanel> SignaturePanelWeak;
+
+	bool bRefreshing = false;
 };

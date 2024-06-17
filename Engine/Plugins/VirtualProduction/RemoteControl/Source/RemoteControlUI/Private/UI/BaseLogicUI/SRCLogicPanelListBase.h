@@ -101,7 +101,7 @@ protected:
 			{
 				// Remove Model from Data Container
 				const int32 RemoveCount = RemoveModel(SelectedItem);
-				if (ensure(RemoveCount > 0))
+				if (RemoveCount > 0)
 				{
 					bIsDeleted = true;
 

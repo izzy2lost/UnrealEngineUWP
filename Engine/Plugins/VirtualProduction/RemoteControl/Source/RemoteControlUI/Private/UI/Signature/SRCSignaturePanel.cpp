@@ -3,6 +3,7 @@
 #include "SRCSignaturePanel.h"
 #include "Columns/RCSignatureDescriptionColumn.h"
 #include "Columns/RCSignatureLabelColumn.h"
+#include "Items/RCSignatureTreeSignatureItem.h"
 #include "Misc/MessageDialog.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSignatureRegistry.h"
@@ -72,6 +73,58 @@ URemoteControlSignatureRegistry* SRCSignaturePanel::GetSignatureRegistry() const
 		return Preset->GetSignatureRegistry();
 	}
 	return nullptr;
+}
+
+void SRCSignaturePanel::AddToSignature(const FRCExposesPropertyArgs& InPropertyArgs)
+{
+	if (!SignatureTreeView.IsValid())
+	{
+		return;
+	}
+
+	URemoteControlSignatureRegistry* Registry = GetSignatureRegistry();
+	if (!Registry)
+	{
+		return;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("AddToSignatureTransaction", "Add to Signature"));
+	Registry->Modify();
+
+	bool bFieldsAdded = false;
+
+	TArray<TSharedPtr<FRCSignatureTreeItemBase>> SelectedItems = SignatureTreeView->GetSelectedItems();
+	if (SelectedItems.IsEmpty())
+	{
+		// Make a new signature with temp view model item to add the field
+		TSharedRef<FRCSignatureTreeSignatureItem> SignatureItem = MakeShared<FRCSignatureTreeSignatureItem>(Registry->AddSignature(), SignatureTreeView);
+		if (SignatureItem->AddField(Registry, InPropertyArgs))
+		{
+			bFieldsAdded = true;
+		}
+	}
+	else
+	{
+		for (const TSharedPtr<FRCSignatureTreeItemBase>& Item : SelectedItems)
+		{
+			if (FRCSignatureTreeSignatureItem* SignatureItem = Item->AsSignatureItem())
+			{
+				if (SignatureItem->AddField(Registry, InPropertyArgs))
+				{
+					bFieldsAdded = true;
+				}
+			}
+		}
+	}
+
+	if (bFieldsAdded)
+	{
+		SignatureTreeView->Refresh();
+	}
+	else
+	{
+		Transaction.Cancel();
+	}
 }
 
 bool SRCSignaturePanel::IsListFocused() const

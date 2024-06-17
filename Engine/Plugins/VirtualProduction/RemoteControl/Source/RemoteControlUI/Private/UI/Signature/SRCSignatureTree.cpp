@@ -3,6 +3,7 @@
 #include "SRCSignatureTree.h"
 #include "Columns/IRCSignatureColumn.h"
 #include "Items/RCSignatureTreeItemBase.h"
+#include "Items/RCSignatureTreeRootItem.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSignatureRegistry.h"
@@ -19,8 +20,9 @@
 void SRCSignatureTree::Construct(const FArguments& InArgs, const TSharedRef<SRCSignaturePanel>& InSignaturePanel, const TSharedRef<SRemoteControlPanel>& InRCPanel)
 {
 	SRCLogicPanelListBase::Construct(SRCLogicPanelListBase::FArguments(), InSignaturePanel, InRCPanel);
-
 	SignaturePanelWeak = InSignaturePanel;
+
+	RootItem = MakeShared<FRCSignatureTreeRootItem>(SharedThis(this));
 
 	const FRCPanelStyle* RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.LogicControllersPanel");
 
@@ -34,10 +36,12 @@ void SRCSignatureTree::Construct(const FArguments& InArgs, const TSharedRef<SRCS
 	ChildSlot
 	[
 		SAssignNew(SignatureTreeView, STreeView<TSharedPtr<FRCSignatureTreeItemBase>>)
-		.TreeItemsSource(&SignatureItems)
+		.TreeItemsSource(&RootItem->GetChildrenMutable())
 		.HeaderRow(HeaderRow)
 		.OnGetChildren(this, &SRCSignatureTree::OnGetChildren)
 		.OnGenerateRow(this, &SRCSignatureTree::OnGenerateRow)
+		.OnExpansionChanged(this, &SRCSignatureTree::OnItemExpansionChanged)
+		.OnSelectionChanged(this, &SRCSignatureTree::OnItemSelectionChanged)
 		.OnContextMenuOpening(this, &SRCLogicPanelListBase::GetContextMenuWidget)
 		.SelectionMode(ESelectionMode::Multi)
 		.HighlightParentNodesForSelection(true)
@@ -72,27 +76,28 @@ TSharedPtr<IRCSignatureColumn> SRCSignatureTree::FindColumn(FName InColumnName) 
 
 void SRCSignatureTree::Refresh()
 {
-	if (URemoteControlSignatureRegistry* SignatureRegistry = GetSignatureRegistry())
+	if (bRefreshing)
 	{
-		TConstArrayView<FRCSignature> Signatures = SignatureRegistry->GetSignatures();
+		return;
+	}
 
-		SignatureItems.Reset(Signatures.Num());
+	TGuardValue<bool> RefreshGuard(bRefreshing, true);
 
-		TSharedPtr<SRCSignatureTree> SignatureTree = SharedThis(this);
-
-		for (const FRCSignature& Signature : Signatures)
+	RootItem->RebuildChildren();
+	RootItem->VisitChildren([&TreeView = SignatureTreeView](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)->bool
 		{
-			TSharedRef<FRCSignatureTreeSignatureItem> SignatureItem = MakeShared<FRCSignatureTreeSignatureItem>(Signature, SignatureTree);
-			SignatureItem->RebuildChildren();
-			SignatureItems.Emplace(MoveTemp(SignatureItem));
+			TreeView->SetItemExpansion(InItem, InItem->HasAnyFlags(ERCSignatureTreeItemFlags::Expanded));
+			TreeView->SetItemSelection(InItem, InItem->HasAnyFlags(ERCSignatureTreeItemFlags::Selected));
+			return true;
 		}
-	}
-	else
-	{
-		SignatureItems.Empty();
-	}
+		, /*bRecursive*/true);
 
 	SignatureTreeView->RequestTreeRefresh();
+}
+
+TArray<TSharedPtr<FRCSignatureTreeItemBase>> SRCSignatureTree::GetSelectedItems() const
+{
+	return SignatureTreeView->GetSelectedItems();
 }
 
 URemoteControlPreset* SRCSignatureTree::GetPreset()
@@ -106,14 +111,12 @@ URemoteControlPreset* SRCSignatureTree::GetPreset()
 
 TArray<TSharedPtr<FRCLogicModeBase>> SRCSignatureTree::GetSelectedLogicItems()
 {
-	TArray<TSharedPtr<FRCLogicModeBase>> SelectedItems;
-	SelectedItems.Append(SignatureTreeView->GetSelectedItems());
-	return SelectedItems;
+	return TArray<TSharedPtr<FRCLogicModeBase>>(GetSelectedItems());
 }
 
 bool SRCSignatureTree::IsEmpty() const
 {
-	return SignatureItems.IsEmpty();
+	return RootItem->GetChildren().IsEmpty();
 }
 
 bool SRCSignatureTree::IsListFocused() const
@@ -123,7 +126,7 @@ bool SRCSignatureTree::IsListFocused() const
 
 int32 SRCSignatureTree::Num() const
 {
-	return SignatureItems.Num();
+	return RootItem->GetChildren().Num();
 }
 
 int32 SRCSignatureTree::NumSelectedLogicItems() const
@@ -149,7 +152,7 @@ void SRCSignatureTree::DeleteSelectedPanelItems()
 	}
 
 	FScopedTransaction Transaction(LOCTEXT("RemoveSelectedSignatures", "Remove Selected Signatures"));
-	DeleteItemsFromLogicPanel<FRCSignatureTreeItemBase>(SignatureItems, SelectedSignatures);
+	DeleteItemsFromLogicPanel<FRCSignatureTreeItemBase>(RootItem->GetChildrenMutable(), SelectedSignatures);
 }
 
 void SRCSignatureTree::Reset()
@@ -181,6 +184,46 @@ void SRCSignatureTree::OnGetChildren(TSharedPtr<FRCSignatureTreeItemBase> InItem
 	if (InItem.IsValid())
 	{
 		OutChildren.Append(InItem->GetChildren());
+	}
+}
+
+void SRCSignatureTree::OnItemExpansionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, bool bInIsExpanded)
+{
+	if (bRefreshing)
+	{
+		return;
+	}
+
+	if (InItem.IsValid())
+	{
+		if (bInIsExpanded)
+		{
+			InItem->AddFlags(ERCSignatureTreeItemFlags::Expanded);
+		}
+		else
+		{
+			InItem->RemoveFlags(ERCSignatureTreeItemFlags::Expanded);
+		}
+	}
+}
+
+void SRCSignatureTree::OnItemSelectionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, ESelectInfo::Type InSelectionType)
+{
+	if (bRefreshing)
+	{
+		return;
+	}
+
+	RootItem->VisitChildren([](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)->bool
+		{
+			InItem->RemoveFlags(ERCSignatureTreeItemFlags::Selected);
+			return true;
+		}
+		, /*bRecursive*/true);
+
+	for (const TSharedPtr<FRCSignatureTreeItemBase>& SelectedItem : SignatureTreeView->GetSelectedItems())
+	{
+		SelectedItem->AddFlags(ERCSignatureTreeItemFlags::Selected);
 	}
 }
 

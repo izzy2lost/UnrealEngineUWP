@@ -14,6 +14,11 @@ FRCSignatureTreeFieldItem::FRCSignatureTreeFieldItem(int32 InFieldIndex, const T
 {
 }
 
+void FRCSignatureTreeFieldItem::BuildPathSegment(FStringBuilderBase& InBuilder) const
+{
+	InBuilder << FieldIndex;
+}
+
 TOptional<bool> FRCSignatureTreeFieldItem::IsEnabled() const
 {
 	if (const FRCSignatureField* Field = FindField())

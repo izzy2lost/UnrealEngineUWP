@@ -125,7 +125,7 @@ public:
 	 * @param InArgs The extension arguments of the property to toggle.
 	 * @param InDesiredName Desired Name for this property if leaved empty RC will deduce it itself
 	 */
-	void ToggleProperty(const FRCExposesPropertyArgs& InArgs, FString InDesiredName = TEXT(""));
+	void ExecutePropertyAction(const FRCExposesPropertyArgs& InArgs, const FString& InDesiredName = TEXT(""));
 
 	/**
 	 * Get the selected group.

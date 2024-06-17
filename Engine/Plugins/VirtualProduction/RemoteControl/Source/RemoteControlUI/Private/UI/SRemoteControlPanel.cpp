@@ -576,10 +576,16 @@ bool SRemoteControlPanel::IsAllObjectsExposed(TArray<UObject*> InOuterObjects, c
 	return bAllObjectsExposed;
 }
 
-void SRemoteControlPanel::ToggleProperty(const FRCExposesPropertyArgs& InPropertyArgs, FString InDesiredName)
+void SRemoteControlPanel::ExecutePropertyAction(const FRCExposesPropertyArgs& InPropertyArgs, const FString& InDesiredName)
 {
 	if (!ensure(InPropertyArgs.IsValid()))
 	{
+		return;
+	}
+
+	if (IsModeActive(ERCPanelMode::Signature))
+	{
+		SignaturePanel->AddToSignature(InPropertyArgs);
 		return;
 	}
 
@@ -1199,18 +1205,7 @@ TSharedRef<SWidget> SRemoteControlPanel::BuildLiveModeContent(const TSharedRef<S
 
 TSharedRef<SWidget> SRemoteControlPanel::BuildSignaturesModeContent()
 {
-	return SNew(SSplitter)
-		.Orientation(Orient_Horizontal)
-		+SSplitter::Slot()
-		.Value(0.4)
-		[
-			EntityList.ToSharedRef()
-		]
-		+SSplitter::Slot()
-		.Value(0.6)
-		[
-			SignaturePanel.ToSharedRef()
-		];
+	return SignaturePanel.ToSharedRef();
 }
 
 void SRemoteControlPanel::BindRemoteControlCommands()

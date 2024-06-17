@@ -14,7 +14,9 @@ class FRCSignatureTreeFieldItem : public FRCSignatureTreeItemBase
 public:
 	explicit FRCSignatureTreeFieldItem(int32 InFieldIndex, const TSharedPtr<SRCSignatureTree>& InSignatureTree);
 
+protected:
 	//~ Begin FRCSignatureTreeItemBase
+	virtual void BuildPathSegment(FStringBuilderBase& InStringBuilder) const override;
 	virtual TOptional<bool> IsEnabled() const override;
 	virtual void SetEnabled(bool bInEnabled) override;
 	virtual FText GetDisplayNameText() const override;

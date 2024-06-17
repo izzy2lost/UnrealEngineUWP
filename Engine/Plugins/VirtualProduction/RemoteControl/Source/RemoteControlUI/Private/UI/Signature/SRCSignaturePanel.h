@@ -4,9 +4,11 @@
 
 #include "UI/BaseLogicUI/SRCLogicPanelBase.h"
 
+class FRCSignatureTreeItemBase;
 class IRCSignatureColumn;
-class URemoteControlSignatureRegistry;
 class SRCSignatureTree;
+class URemoteControlSignatureRegistry;
+struct FRCExposesPropertyArgs;
 
 class SRCSignaturePanel : public SRCLogicPanelBase
 {
@@ -19,6 +21,8 @@ public:
 
 	/** Gets the Signature Registry from the RC Preset */
 	URemoteControlSignatureRegistry* GetSignatureRegistry() const;
+
+	void AddToSignature(const FRCExposesPropertyArgs& InPropertyArgs);
 
 	/** Whether this widget currently has focus */
 	bool IsListFocused() const;

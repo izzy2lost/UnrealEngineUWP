@@ -145,16 +145,16 @@ private:
 	TSharedPtr<SRemoteControlPanel> GetPanelForPropertyChangeEvent(const FPropertyChangedEvent& InPropertyChangeEvent) const;
 
 	/** Handle getting the icon displayed in the row extension. */
-	FSlateIcon OnGetExposedIcon(const FRCExposesPropertyArgs& InArgs) const;
+	FSlateIcon OnGetPropertyActionIcon(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle getting the expose button visibility. */
-	bool CanToggleExposeProperty(const FRCExposesPropertyArgs InArgs) const;
+	bool CanExecutePropertyAction(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Is the property currently exposed? */
 	ECheckBoxState GetPropertyExposedCheckState(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle clicking the expose button. */
-	void OnToggleExposeProperty(const FRCExposesPropertyArgs InArgs) const;
+	void ExecutePropertyAction(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle clicking the expose SubProperty button. */
 	void OnToggleExposeSubProperty(const FRCExposesPropertyArgs InArgs, const FString InDesiredName = TEXT("")) const;
@@ -180,7 +180,7 @@ private:
 	EPropertyExposeStatus GetPropertyExposeStatus(const FRCExposesPropertyArgs& InArgs) const;
 
 	/** Handle getting the icon displayed in the row extension. */
-	FSlateIcon OnGetOverrideMaterialsIcon(const FRCExposesPropertyArgs& InArgs) const;
+	FSlateIcon OnGetOverrideMaterialsIcon(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle getting the override materials button visibility. */
 	bool IsStaticOrSkeletalMaterialProperty(const FRCExposesPropertyArgs InArgs) const;
@@ -211,10 +211,10 @@ private:
 	void RegisterWidgetFactories();
 
 	/** Returns expose button tooltip based on exposed state */
-	FText GetExposePropertyButtonTooltip(const FRCExposesPropertyArgs InArgs) const;
+	FText GetPropertyActionTooltip(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Returns expose button text based on exposed state */
-	FText GetExposePropertyButtonText(const FRCExposesPropertyArgs InArgs) const;
+	FText GetPropertyActionText(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Attempts to replace the static or skeletal materials with their corressponding overrides. */
 	void TryOverridingMaterials(const FRCExposesPropertyArgs InArgs);
@@ -226,7 +226,7 @@ private:
 	void RefreshPanels();
 
 	/** Check if a sub menu should be created when ctrl+click on the eyeball icon in the details view */
-	bool ShouldCreateSubMenuForChildProperties(const FRCExposesPropertyArgs InPropertyArgs) const;
+	bool ShouldCreateSubMenuForChildProperties(const TSharedPtr<SRemoteControlPanel>& InPanel, const FRCExposesPropertyArgs InPropertyArgs) const;
 
 	/** Check if the property has child properties that can be exposed */
 	bool HasChildProperties(const FProperty* InProperty) const;

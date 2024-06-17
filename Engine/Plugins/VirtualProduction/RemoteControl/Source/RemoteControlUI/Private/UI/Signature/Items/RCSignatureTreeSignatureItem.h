@@ -9,6 +9,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class URemoteControlSignatureRegistry;
+struct FRCExposesPropertyArgs;
 struct FRCSignature;
 
 /** Item class representing an RC Signature */
@@ -25,13 +26,15 @@ public:
 
 	FRCSignature* FindSignatureMutable(URemoteControlSignatureRegistry* InRegistry);
 
+	bool AddField(URemoteControlSignatureRegistry* InRegistry, const FRCExposesPropertyArgs& InPropertyArgs);
+
 	//~ Begin IRCSignatureItem
-	virtual void AddFieldEntities(TConstArrayView<FGuid> InFieldEntityIds) override;
 	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<AActor>> InActors) override;
 	//~ End IRCSignatureItem
 
 protected:
 	//~ Begin FRCSignatureTreeItem
+	virtual void BuildPathSegment(FStringBuilderBase& InBuilder) const override;
 	virtual TOptional<bool> IsEnabled() const override;
 	virtual void SetEnabled(bool bInEnabled) override;
 	virtual FText GetDisplayNameText() const override;

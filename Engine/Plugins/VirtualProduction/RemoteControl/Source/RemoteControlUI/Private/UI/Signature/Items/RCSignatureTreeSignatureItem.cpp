@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCSignatureTreeSignatureItem.h"
+#include "IRemoteControlUIModule.h"
 #include "RCSignatureTreeFieldItem.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSignatureRegistry.h"
@@ -47,41 +48,21 @@ FRCSignature* FRCSignatureTreeSignatureItem::FindSignatureMutable(URemoteControl
 	return nullptr;
 }
 
-void FRCSignatureTreeSignatureItem::AddFieldEntities(TConstArrayView<FGuid> InFieldEntityIds)
+bool FRCSignatureTreeSignatureItem::AddField(URemoteControlSignatureRegistry* InRegistry, const FRCExposesPropertyArgs& InPropertyArgs)
 {
-	if (InFieldEntityIds.IsEmpty())
-	{
-		return;
-	}
-
-	URemoteControlPreset* Preset = GetPreset();
-	if (!Preset)
-	{
-		return;
-	}
-
-	URemoteControlSignatureRegistry* Registry = GetRegistry();
-
-	FRCSignature* Signature = FindSignatureMutable(Registry);
+	FRCSignature* Signature = FindSignatureMutable(InRegistry);
 	if (!Signature)
 	{
-		return;
+		return false;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("AddProperties", "Add Properties"));
-	Registry->Modify();
-
-	const int32 AddedFieldCount = Signature->AddFieldsFromEntities(Preset, InFieldEntityIds);
-
-	if (AddedFieldCount == 0)
+	TArray<FRCSignatureField, TInlineAllocator<1>> Fields;
 	{
-		// Nothing happened, cancel transaction
-		Transaction.Cancel();
+		FRCFieldPathInfo PathInfo(InPropertyArgs.PropertyHandle->GeneratePathToProperty(), /*bSkipDuplicates*/true);
+		Fields.Emplace(FRCSignatureField:: CreateField(MoveTemp(PathInfo), InPropertyArgs.OwnerObject.Get(), InPropertyArgs.GetProperty()));
 	}
-	else if (TSharedPtr<SRCSignatureTree> SignatureTree = GetSignatureTree())
-	{
-		SignatureTree->Refresh();
-	}
+
+	return Signature->AddFields(Fields) > 0;
 }
 
 void FRCSignatureTreeSignatureItem::ApplySignature(TConstArrayView<TWeakObjectPtr<AActor>> InActors)
@@ -112,6 +93,11 @@ void FRCSignatureTreeSignatureItem::ApplySignature(TConstArrayView<TWeakObjectPt
 		// Nothing was exposed, cancel transaction
 		Transaction.Cancel();
 	}
+}
+
+void FRCSignatureTreeSignatureItem::BuildPathSegment(FStringBuilderBase& InBuilder) const
+{
+	SignatureId.AppendString(InBuilder, EGuidFormats::DigitsLower);
 }
 
 TOptional<bool> FRCSignatureTreeSignatureItem::IsEnabled() const
