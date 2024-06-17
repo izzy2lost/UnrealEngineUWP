@@ -186,20 +186,20 @@ namespace HarmonixMetasoundTests::MidiSongPosVertexAnalyzer
 
 				if (Pos.UpToTick < LastTick)
 				{
-					UE_LOG(LogMIDI, Log, TEXT("----------------- LOOPED----------------- "));
+					UE_LOG(LogMIDI, VeryVerbose, TEXT("----------------- LOOPED----------------- "));
 				}
 				LastTick = Pos.UpToTick;
 
-				UE_LOG(LogMIDI, Log, TEXT("POSITION: SampleCount = %d, Transport = %s"), Pos.SampleCount, *MusicPlayerTransportStateToString(Pos.CurrentTransportState));
+				UE_LOG(LogMIDI, VeryVerbose, TEXT("POSITION: SampleCount = %d, Transport = %s"), Pos.SampleCount, *MusicPlayerTransportStateToString(Pos.CurrentTransportState));
 				
 				NewSongPos.SetByTick(LastTick, *(ClockHistory->GetLatestMapsForConsumer()->SongMaps));
 
 				LogSongPos(NewSongPos);
 
-				UE_LOG(LogMIDI, Log, TEXT("LERP POSITION:"));
+				UE_LOG(LogMIDI, VeryVerbose, TEXT("LERP POSITION:"));
 				if (PreviousMarkerType == HarmonixMetasound::Analysis::FMidiClockSongPosition::EMarkerType::LastPositionBeforeSeekLoop)
 				{
-					UE_LOG(LogMIDI, Log, TEXT("\t<none>"));
+					UE_LOG(LogMIDI, VeryVerbose, TEXT("\t<none>"));
 				}
 				else
 				{

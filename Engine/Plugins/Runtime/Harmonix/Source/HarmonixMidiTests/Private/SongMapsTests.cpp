@@ -11,7 +11,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogSongMapsTest, Log, All);
 namespace HarmonixMidiTests::SongMaps
 {
 
-	static constexpr bool GLogQualtizationDetails = true;
+	static constexpr bool GLogQualtizationDetails = false;
 
 	void LogQuantizationDetails(const ISongMapEvaluator& Map, int32 OriginalTick, int32 QuantizedTick, EMidiClockSubdivisionQuantization ResultDivision)
 	{
