@@ -416,11 +416,13 @@ FExponentialHeightFogSceneInfo::FExponentialHeightFogSceneInfo(const UExponentia
 	VolumetricFogAlbedo = FLinearColor(InComponent->VolumetricFogAlbedo);
 	VolumetricFogEmissive = InComponent->VolumetricFogEmissive;
 
-	// Apply a scale so artists don't have to work with tiny numbers.  
-	const float UnitScale = 1.0f / 10000.0f;
-	VolumetricFogEmissive.R = FMath::Max(VolumetricFogEmissive.R * UnitScale, 0.0f);
-	VolumetricFogEmissive.G = FMath::Max(VolumetricFogEmissive.G * UnitScale, 0.0f);
-	VolumetricFogEmissive.B = FMath::Max(VolumetricFogEmissive.B * UnitScale, 0.0f);
+	// Apply a scale so artists don't have to work with tiny numbers.
+	// The is only needed because emissive is by default not weighted by the height fog density distribution. 
+	// When we run "HeightFog matches FVog" that is no longer needed.
+	const float EmissiveUnitScale = DoesProjectSupportExpFogMatchesVolumetricFog() ? 1.0f : 1.0f / 10000.0f;
+	VolumetricFogEmissive.R = FMath::Max(VolumetricFogEmissive.R * EmissiveUnitScale, 0.0f);
+	VolumetricFogEmissive.G = FMath::Max(VolumetricFogEmissive.G * EmissiveUnitScale, 0.0f);
+	VolumetricFogEmissive.B = FMath::Max(VolumetricFogEmissive.B * EmissiveUnitScale, 0.0f);
 	VolumetricFogExtinctionScale = FMath::Max(InComponent->VolumetricFogExtinctionScale, 0.0f);
 	VolumetricFogDistance = FMath::Max(InComponent->VolumetricFogStartDistance + InComponent->VolumetricFogDistance, 0.0f);
 	VolumetricFogStaticLightingScatteringIntensity = FMath::Max(InComponent->VolumetricFogStaticLightingScatteringIntensity, 0.0f);

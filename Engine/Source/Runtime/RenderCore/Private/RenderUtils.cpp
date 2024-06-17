@@ -2105,3 +2105,14 @@ bool HardwareVariableRateShadingSupportedByPlatform(EShaderPlatform ShaderPlatfo
 
 	return false;
 }
+
+static TAutoConsoleVariable<int32> CVarSupportExpFogMatchesVolumetricFog(
+	TEXT("r.SupportExpFogMatchesVolumetricFog"),
+	0,
+	TEXT("When enabled, the height fog scattering/ambient/emissive/phase will match the volumetric fog better."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+bool DoesProjectSupportExpFogMatchesVolumetricFog()
+{
+	return CVarSupportExpFogMatchesVolumetricFog.GetValueOnAnyThread() > 0;
+}

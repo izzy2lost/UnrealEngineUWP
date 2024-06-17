@@ -963,6 +963,8 @@ void FViewInfo::Init()
 	VolumetricFogStartDistance = false;
 	VolumetricFogStartDistance = 0.0f;
 	VolumetricFogNearFadeInDistanceInv = 100000000.0f;
+	VolumetricFogAlbedo = FVector3f::Zero();
+	VolumetricFogPhaseG = 0.0f;
 
 	SkyAtmosphereCameraAerialPerspectiveVolume = nullptr;
 	SkyAtmosphereCameraAerialPerspectiveVolumeMieOnly = nullptr;

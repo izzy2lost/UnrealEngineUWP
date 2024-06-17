@@ -93,6 +93,8 @@ void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View,
 		OutParameters.IntegratedLightScatteringSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		OutParameters.VolumetricFogStartDistance = View.VolumetricFogStartDistance;
 		OutParameters.VolumetricFogNearFadeInDistanceInv = View.VolumetricFogNearFadeInDistanceInv;
+		OutParameters.VolumetricFogPhaseG = View.VolumetricFogPhaseG;
+		OutParameters.VolumetricFogAlbedo = View.VolumetricFogAlbedo;
 	}
 }
 
@@ -188,6 +190,8 @@ TGlobalResource<FFogVertexDeclaration> GFogVertexDeclaration;
 
 void FSceneRenderer::InitFogConstants()
 {
+	const bool bExpFogMatchesVolumetricFog = DoesProjectSupportExpFogMatchesVolumetricFog();
+
 	for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 	{
 		FViewInfo& View = Views[ViewIndex];
@@ -265,6 +269,18 @@ void FSceneRenderer::InitFogConstants()
 				View.bEnableVolumetricFog = FogInfo.bEnableVolumetricFog;
 				View.VolumetricFogStartDistance = FogInfo.VolumetricFogStartDistance;
 				View.VolumetricFogNearFadeInDistanceInv = FogInfo.VolumetricFogNearFadeInDistance > 0.0f ? (1.0f / FogInfo.VolumetricFogNearFadeInDistance) : 100000000.0f;
+				View.VolumetricFogPhaseG = FogInfo.VolumetricFogScatteringDistribution;
+
+				View.VolumetricFogAlbedo = FVector3f::Zero(); // unused by default
+				if (bExpFogMatchesVolumetricFog)
+				{
+					// We make everything we can to get a good match between height fog and volumetric fog
+					View.DirectionalInscatteringStartDistance = 0.0f;						// No start distance for ExpFog as for VFog
+					View.DirectionalInscatteringExponent = 1.0f;							// Exponent is ununsed in this case
+					View.ExponentialFogColor = FVector3f(FogInfo.VolumetricFogEmissive);	// Emisive from ExpFog matches the VFog ExponentialFogColorParameter
+					View.VolumetricFogAlbedo = FVector3f(FogInfo.VolumetricFogAlbedo);		// Albedo is now supported by ExpFog and matches the VFog
+					View.DirectionalInscatteringColor = FLinearColor::Black;				// Directional scattering is only impacted by the atmospheric light to match
+				}
 			}
 		}
 	}

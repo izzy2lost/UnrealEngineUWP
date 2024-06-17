@@ -936,6 +936,15 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bSupportSkyAtmosphereAffectsHeightFog : 1;
 
 	/**
+	"When enabled, the height fog scattering lob will match the volumetric fog phase function."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
+		ConsoleVariable = "r.SupportExpFogMatchesVolumetricFog", DisplayName = "Support Exponential Fog Matches Volumetric Fog",
+		ToolTip = "When enabled, the height fog scattering/ambient/emissive/phase will match the volumetric fog better.",
+		ConfigRestartRequired = true))
+		uint32 bSupportExpFogMatchesVolumetricFog : 1;
+
+	/**
 	"Local fog volume components can will need to be applied on translucent, and opaque in forward, so resources will need to be bound to apply aerial perspective on transparent surfaces (and all surfaces on mobile via per vertex evaluation)."
 	"It requires r.SupportLocalFogVolumes to be true."
 	*/

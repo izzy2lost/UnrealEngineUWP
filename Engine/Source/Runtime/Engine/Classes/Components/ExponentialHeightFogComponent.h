@@ -66,6 +66,9 @@ class UExponentialHeightFogComponent : public USceneComponent
 	UPROPERTY()
 	FLinearColor FogInscatteringColor_DEPRECATED;
 
+	/**
+	 * Note: when r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored and the volumetric fog Emissive is used instead.
+	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=ExponentialHeightFogComponent, meta = (DisplayName = "Fog Inscattering Color"))
 	FLinearColor FogInscatteringLuminance;
 
@@ -98,14 +101,18 @@ class UExponentialHeightFogComponent : public USceneComponent
 
 	/** 
 	 * Controls the size of the directional inscattering cone, which is used to approximate inscattering from a directional light.  
-	 * Note: there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 * Note: 
+	 *   - there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 *   - When r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored and the volumetric fog Scattering Distribution is used instead.
 	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=DirectionalInscattering, meta=(UIMin = "2", UIMax = "64"))
 	float DirectionalInscatteringExponent;
 
 	/** 
 	 * Controls the start distance from the viewer of the directional inscattering, which is used to approximate inscattering from a directional light. 
-	 * Note: there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 * Note: 
+	 *   - There must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 *   - When r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored.
 	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=DirectionalInscattering)
 	float DirectionalInscatteringStartDistance;
@@ -115,7 +122,9 @@ class UExponentialHeightFogComponent : public USceneComponent
 
 	/** 
 	 * Controls the color of the directional inscattering, which is used to approximate inscattering from a directional light. 
-	 * Note: there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 * Note:
+	 *   - there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 *   - When r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored.
 	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=DirectionalInscattering, meta = (DisplayName = "Directional Inscattering Color"))
 	FLinearColor DirectionalInscatteringLuminance;

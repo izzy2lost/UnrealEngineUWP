@@ -9,6 +9,7 @@
 #include "Common.ush"
 #include "/Engine/Shared/EnvironmentComponentsFlags.h"
 #include "/Engine/Private/SkyAtmosphereCommon.ush"
+#include "ParticipatingMediaCommon.ush"
 
 #ifndef PERMUTATION_SUPPORT_FOG_INSCATTERING_TEXTURE
 #define PERMUTATION_SUPPORT_FOG_INSCATTERING_TEXTURE 1
@@ -75,6 +76,8 @@ struct FogStructData
 	float ApplyVolumetricFog;
 	float VolumetricFogStartDistance;
 	float VolumetricFogNearFadeInDistanceInv;
+	float3 VolumetricFogAlbedo;
+	float VolumetricFogPhaseG;
 	// Spir-v does not support copying texture types so 
 	// we can't use FogStructData to store them.
 	//TextureCube FogInscatteringColorCubemap;
@@ -102,6 +105,8 @@ FogStructData GetFogStructData(uint EyeIndex)
 		Out.ApplyVolumetricFog = FogStruct.ApplyVolumetricFog;
 		Out.VolumetricFogStartDistance = FogStruct.VolumetricFogStartDistance;
 		Out.VolumetricFogNearFadeInDistanceInv = FogStruct.VolumetricFogNearFadeInDistanceInv;
+		Out.VolumetricFogAlbedo = FogStruct.VolumetricFogAlbedo;
+		Out.VolumetricFogPhaseG = FogStruct.VolumetricFogPhaseG;
 		// Intentionally commented out to avoid spir-v generation issue - copying texture types is not supported
 		//Out.FogInscatteringColorCubemap = FogStruct.FogInscatteringColorCubemap;
 		//Out.IntegratedLightScattering = FogStruct.IntegratedLightScattering;
@@ -122,6 +127,8 @@ FogStructData GetFogStructData(uint EyeIndex)
 		Out.ApplyVolumetricFog = FogStructISR.ApplyVolumetricFog;
 		Out.VolumetricFogStartDistance = FogStructISR.VolumetricFogStartDistance;
 		Out.VolumetricFogNearFadeInDistanceInv = FogStructISR.VolumetricFogNearFadeInDistanceInv;
+		Out.VolumetricFogAlbedo = FogStructISR.VolumetricFogAlbedo;
+		Out.VolumetricFogPhaseG = FogStructISR.VolumetricFogPhaseG;
 		// Intentionally commented out to avoid spir-v generation issue - copying texture types is not supported
 		//Out.FogInscatteringColorCubemap = FogStructISR.FogInscatteringColorCubemap;
 		//Out.IntegratedLightScattering = FogStructISR.IntegratedLightScattering;
@@ -165,7 +172,11 @@ float3 ComputeInscatteringColor(float3 CameraToReceiver, float CameraToReceiverL
 #endif
 
 #if PROJECT_SUPPORT_SKY_ATMOSPHERE_AFFECTS_HEIGHFOG
-	Inscattering += FogData.SkyAtmosphereAmbientContributionColorScale.rgb * View.SkyAtmosphereHeightFogContribution.xxx * GetViewDistanceSkyLightColor();
+	float3 SkyAmbient = FogData.SkyAtmosphereAmbientContributionColorScale.rgb * View.SkyAtmosphereHeightFogContribution.xxx * GetViewDistanceSkyLightColor();
+	#if PROJECT_EXPFOG_MATCHES_VFOG
+	SkyAmbient *= FogData.VolumetricFogAlbedo;
+	#endif
+	Inscattering += SkyAmbient;
 #endif
 
 	return Inscattering;
@@ -300,32 +311,51 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 	)
 	{
 #if PROJECT_SUPPORT_SKY_ATMOSPHERE_AFFECTS_HEIGHFOG
-		const float UniformPhaseFunction = 1.0f / (4.0f*PI);
+		const float UniformPhaseFunction = 1.0f / (4.0f * PI);
 		half3 DirectionalInscatteringColor;
 		half3 DirectionalLightInscattering;
 
 		// No need to test View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].a because InscatteringLightDirection.w above is doing the same test already.
-		DirectionalInscatteringColor = FogData.DirectionalInscatteringColor.xyz + InView.SkyAtmosphereHeightFogContribution * InView.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * UniformPhaseFunction;
-		DirectionalLightInscattering = DirectionalInscatteringColor * pow(saturate(dot(CameraToReceiverNormalized, InView.AtmosphereLightDirection[0].xyz)), FogData.DirectionalInscatteringColor.w);
+		DirectionalInscatteringColor = FogData.DirectionalInscatteringColor.xyz + InView.SkyAtmosphereHeightFogContribution * InView.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb;
+		DirectionalLightInscattering = DirectionalInscatteringColor 
+	#if PROJECT_EXPFOG_MATCHES_VFOG
+			* HenyeyGreensteinPhase(FogData.VolumetricFogPhaseG, dot(-CameraToReceiverNormalized, InView.AtmosphereLightDirection[0].xyz));
+	#else
+			* pow(saturate(dot(CameraToReceiverNormalized, InView.AtmosphereLightDirection[0].xyz)), FogData.DirectionalInscatteringColor.w) * UniformPhaseFunction;
+	#endif
 
 		if (InView.AtmosphereLightIlluminanceOnGroundPostTransmittance[1].a > 0.0f) // Skip DirectionalInscatteringColor on the second light when disabled.
 		{
-			DirectionalInscatteringColor = FogData.DirectionalInscatteringColor.xyz + InView.SkyAtmosphereHeightFogContribution * InView.AtmosphereLightIlluminanceOnGroundPostTransmittance[1].rgb * UniformPhaseFunction;
-			DirectionalLightInscattering += DirectionalInscatteringColor * pow(saturate(dot(CameraToReceiverNormalized, InView.AtmosphereLightDirection[1].xyz)), FogData.DirectionalInscatteringColor.w);
+			DirectionalInscatteringColor = FogData.DirectionalInscatteringColor.xyz + InView.SkyAtmosphereHeightFogContribution * InView.AtmosphereLightIlluminanceOnGroundPostTransmittance[1].rgb;
+			DirectionalLightInscattering += DirectionalInscatteringColor 
+		#if PROJECT_EXPFOG_MATCHES_VFOG
+				* HenyeyGreensteinPhase(FogData.VolumetricFogPhaseG, dot(-CameraToReceiverNormalized, InView.AtmosphereLightDirection[1].xyz));
+		#else
+				* pow(saturate(dot(CameraToReceiverNormalized, InView.AtmosphereLightDirection[1].xyz)), FogData.DirectionalInscatteringColor.w) * UniformPhaseFunction;
+		#endif
 		}
 #else
 		// Setup a cosine lobe around the light direction to approximate inscattering from the directional light off of the ambient haze;
-		half3 DirectionalLightInscattering = FogData.DirectionalInscatteringColor.xyz * pow(saturate(dot(CameraToReceiverNormalized, FogData.InscatteringLightDirection.xyz)), FogData.DirectionalInscatteringColor.w);
+		half3 DirectionalLightInscattering = FogData.DirectionalInscatteringColor.xyz
+	#if PROJECT_EXPFOG_MATCHES_VFOG
+			* HenyeyGreensteinPhase(FogData.VolumetricFogPhaseG, dot(-CameraToReceiverNormalized, InView.AtmosphereLightDirection.xyz));
+	#else
+			* pow(saturate(dot(CameraToReceiverNormalized, FogData.InscatteringLightDirection.xyz)), FogData.DirectionalInscatteringColor.w) * UniformPhaseFunction;
+	#endif
 #endif
 
 		// Calculate the line integral of the eye ray through the haze, using a special starting distance to limit the inscattering to the distance
-		float DirectionalInscatteringStartDistance = FogData.InscatteringLightDirection.w;
+		float DirectionalInscatteringStartDistance = PROJECT_EXPFOG_MATCHES_VFOG ? 0.0 : FogData.InscatteringLightDirection.w;
 		float DirExponentialHeightLineIntegral = ExponentialHeightLineIntegralShared * max(RayLength - DirectionalInscatteringStartDistance, 0.0f);
 		// Calculate the amount of light that made it through the fog using the transmission equation
 		half DirectionalInscatteringFogFactor = saturate(exp2(-DirExponentialHeightLineIntegral));
 		// Final inscattering from the light
 		DirectionalInscattering = DirectionalLightInscattering * (1 - DirectionalInscatteringFogFactor);
 	}
+#endif
+
+#if PROJECT_EXPFOG_MATCHES_VFOG
+	DirectionalInscattering *= FogData.VolumetricFogAlbedo;
 #endif
 
 	// Calculate the amount of light that made it through the fog using the transmission equation

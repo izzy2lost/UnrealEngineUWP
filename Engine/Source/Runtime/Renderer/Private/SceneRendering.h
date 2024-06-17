@@ -1299,6 +1299,8 @@ public:
 	bool bEnableVolumetricFog;
 	float VolumetricFogStartDistance;
 	float VolumetricFogNearFadeInDistanceInv;
+	FVector3f VolumetricFogAlbedo;
+	float VolumetricFogPhaseG;
 	FVector2f SinCosInscatteringColorCubemapRotation;
 
 	UTexture* FogInscatteringColorCubemap;

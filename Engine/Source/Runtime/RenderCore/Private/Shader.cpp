@@ -2286,6 +2286,14 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 		}
 	}
 
+	{
+		if (DoesProjectSupportExpFogMatchesVolumetricFog())
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("EXPVFOG"));
+		}
+	}
+
 	const bool bNeedsSeparateMainDirLightTexture = IsWaterSeparateMainDirLightEnabled(Platform);
 	if (bNeedsSeparateMainDirLightTexture)
 	{

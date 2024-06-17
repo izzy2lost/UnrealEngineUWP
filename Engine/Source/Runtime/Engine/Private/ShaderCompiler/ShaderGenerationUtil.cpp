@@ -69,6 +69,7 @@ void ApplyFetchEnvironmentInternal(FShaderGlobalDefines& SrcDefines, const Conta
 	FETCH_COMPILE_BOOL(EARLY_Z_PASS_ONLY_MATERIAL_MASKING);
 	FETCH_COMPILE_BOOL(PROJECT_SUPPORT_SKY_ATMOSPHERE);
 	FETCH_COMPILE_BOOL(PROJECT_SUPPORT_SKY_ATMOSPHERE_AFFECTS_HEIGHFOG);
+	FETCH_COMPILE_BOOL(PROJECT_EXPFOG_MATCHES_VFOG);
 	FETCH_COMPILE_BOOL(SUPPORT_CLOUD_SHADOW_ON_FORWARD_LIT_TRANSLUCENT);
 	FETCH_COMPILE_BOOL(SUPPORT_CLOUD_SHADOW_ON_SINGLE_LAYER_WATER);
 	FETCH_COMPILE_BOOL(POST_PROCESS_ALPHA);
@@ -414,6 +415,10 @@ static FShaderGlobalDefines FetchShaderGlobalDefines(EShaderPlatform TargetPlatf
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SupportSkyAtmosphereAffectsHeightFog"));
 		Ret.PROJECT_SUPPORT_SKY_ATMOSPHERE_AFFECTS_HEIGHFOG = (CVar && bSupportSkyAtmosphere) ? (CVar->GetInt() != 0) : 0;
+	}
+
+	{
+		Ret.PROJECT_EXPFOG_MATCHES_VFOG = DoesProjectSupportExpFogMatchesVolumetricFog() ? 1 : 0;
 	}
 
 	{
