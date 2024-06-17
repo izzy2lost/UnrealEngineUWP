@@ -18,6 +18,8 @@
 #include "Exporters/FbxExportOption.h"
 #include "UObject/MetaData.h"
 
+#include "FbxMaterialExportUtilities.h"
+
 DEFINE_LOG_CATEGORY_STATIC(LogFbxSkeletalMeshExport, Log, All);
 
 namespace UnFbx
@@ -347,6 +349,9 @@ FbxNode* FFbxExporter::CreateMesh(const USkeletalMesh* SkelMesh, const TCHAR* Me
 	const TArray<FSkeletalMaterial>& SkelMeshMaterials = SkelMesh->GetMaterials();
 	int32 MaterialCount = SkelMeshMaterials.Num();
 
+	//TODO: move the init of MaterialBakingMeshData up a callstack step:
+	FFbxMaterialBakingMeshData MaterialBakingMeshData(SkelMesh, nullptr, 0);
+
 	for(int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
 	{
 		UMaterialInterface* MatInterface = nullptr;
@@ -365,15 +370,20 @@ FbxNode* FFbxExporter::CreateMesh(const USkeletalMesh* SkelMesh, const TCHAR* Me
 		{
 			if (MatInterface)
 			{
-				FbxMaterial = ExportMaterial(MatInterface);
+				FbxMaterial = ExportMaterial(MatInterface, MaterialIndex, MaterialBakingMeshData);
 			}
 		}
 		else if(MatInterface)
 		{
-			if ( FbxSurfaceMaterial** FbxMaterialPtr = FbxMaterials.Find( MatInterface ) )
+			TMap<int32, FbxSurfaceMaterial*>* MaterialIndexToFbxMaterials = FbxMaterials.Find(MatInterface);
+			if (MaterialIndexToFbxMaterials && MaterialIndexToFbxMaterials->Find(MaterialIndex))
 			{
-				FbxMaterial = *FbxMaterialPtr;
+				if (FbxSurfaceMaterial** FbxMaterialPtr = MaterialIndexToFbxMaterials->Find(MaterialIndex))
+				{
+					FbxMaterial = *FbxMaterialPtr;
+				}
 			}
+			
 		}
 
 		if(!FbxMaterial)

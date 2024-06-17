@@ -15,6 +15,9 @@
 #include "UObject/GCObject.h"
 #include "Animation/AnimTypes.h"
 
+#include "SceneTypes.h"
+#include "LightMap.h"
+
 class ABrush;
 class ACameraActor;
 class ALandscapeProxy;
@@ -50,6 +53,8 @@ struct FMovieSceneSequenceTransform;
 
 namespace UnFbx
 {
+	struct FFbxMaterialBakingMeshData;
+
 	/** Adapter interface which allows ExportAnimTrack to act on sequencer without a tight coupling. */
 	class IAnimTrackAdapter
 	{
@@ -286,7 +291,7 @@ private:
 	TMap<FString,int32> FbxNodeNameToIndexMap;
 	TMap<const AActor*, FbxNode*> FbxActors;
 	TMap<const USkeletalMeshComponent*, FbxNode*> FbxSkeletonRoots;
-	TMap<const UMaterialInterface*, FbxSurfaceMaterial*> FbxMaterials;
+	TMap<const UMaterialInterface*, TMap<int32, FbxSurfaceMaterial*>> FbxMaterials;
 	TMap<const UStaticMesh*, FbxMesh*> FbxMeshes;
 	TMap<const UStaticMesh*, FbxMesh*> FbxCollisionMeshes;
 
@@ -304,7 +309,7 @@ private:
 	*/
 	UNREALED_API void ExportAnimTrack( IAnimTrackAdapter& AnimTrackAdapter, AActor* Actor, USkeletalMeshComponent* SkeletalMeshComponent, double SamplingRate );
 
-	UNREALED_API void ExportModel(UModel* Model, FbxNode* Node, const char* Name);
+	UNREALED_API void ExportModel(UModel* Model, FbxNode* Node, const char* Name, const FFbxMaterialBakingMeshData& MaterialBakingMeshData);
 
 	UNREALED_API FbxNode* ExportCollisionMesh(const UStaticMesh* StaticMesh, const TCHAR* MeshName, FbxNode* ParentActor);
 
@@ -319,7 +324,7 @@ private:
 	 * @param MaterialOrderOverride	Optional ordering of materials to set up correct material ID's across multiple meshes being export such as BSP surfaces which share common materials. Should be used sparingly
 	 * @param OverrideMaterials	Optional array of materials to be used instead of the static mesh materials. Used for material overrides in static mesh components.
 	 */
-	UNREALED_API FbxNode* ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int32 ExportLOD, const TCHAR* MeshName, FbxNode* FbxActor, int32 LightmapUVChannel = -1, const FColorVertexBuffer* ColorBuffer = nullptr, const TArray<FStaticMaterial>* MaterialOrderOverride = nullptr, const TArray<UMaterialInterface*>* OverrideMaterials = nullptr);
+	UNREALED_API FbxNode* ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int32 ExportLOD, const TCHAR* MeshName, FbxNode* FbxActor, const FFbxMaterialBakingMeshData& MaterialBakingMeshData, int32 LightmapUVChannel = -1, const FColorVertexBuffer* ColorBuffer = nullptr, const TArray<FStaticMaterial>* MaterialOrderOverride = nullptr, const TArray<UMaterialInterface*>* OverrideMaterials = nullptr);
 
 	UNREALED_API bool ExportStaticMeshFromMeshDescription(FbxMesh* Mesh
 		, const UStaticMesh* StaticMesh
@@ -327,7 +332,8 @@ private:
 		, FbxNode* FbxActor
 		, int32 LightmapUVChannel
 		, const TArray<FStaticMaterial>* MaterialOrderOverride
-		, const TArray<UMaterialInterface*>* OverrideMaterials);
+		, const TArray<UMaterialInterface*>* OverrideMaterials
+		, const FFbxMaterialBakingMeshData& MaterialBakingMeshData);
 
 	UNREALED_API bool ExportStaticMeshFromRenderData(FbxMesh* Mesh
 		, const UStaticMesh* StaticMesh
@@ -336,7 +342,8 @@ private:
 		, int32 LightmapUVChannel
 		, const FColorVertexBuffer* ColorBuffer
 		, const TArray<FStaticMaterial>* MaterialOrderOverride
-		, const TArray<UMaterialInterface*>* OverrideMaterials);
+		, const TArray<UMaterialInterface*>* OverrideMaterials
+		, const FFbxMaterialBakingMeshData& MaterialBakingMeshData);
 
 	/**
 	 * Exports a spline mesh
@@ -344,7 +351,7 @@ private:
 	 * @param MeshName		The name of the mesh for the FBX file
 	 * @param FbxActor		The fbx node representing the mesh
 	 */
-	UNREALED_API void ExportSplineMeshToFbx(const USplineMeshComponent* SplineMeshComp, const TCHAR* MeshName, FbxNode* FbxActor);
+	UNREALED_API void ExportSplineMeshToFbx(const USplineMeshComponent* SplineMeshComp, const TCHAR* MeshName, FbxNode* FbxActor, const FFbxMaterialBakingMeshData& MaterialBakingMeshData);
 
 	/**
 	 * Exports an instanced mesh
@@ -352,7 +359,7 @@ private:
 	 * @param MeshName		The name of the mesh for the FBX file
 	 * @param FbxActor		The fbx node representing the mesh
 	 */
-	UNREALED_API void ExportInstancedMeshToFbx(const UInstancedStaticMeshComponent* InstancedMeshComp, const TCHAR* MeshName, FbxNode* FbxActor);
+	UNREALED_API void ExportInstancedMeshToFbx(const UInstancedStaticMeshComponent* InstancedMeshComp, const TCHAR* MeshName, FbxNode* FbxActor, const FFbxMaterialBakingMeshData& MaterialBakingMeshData);
 
 	/**
 	* Exports a landscape
@@ -529,7 +536,7 @@ private:
 	/**
 	 * Exports the profile_COMMON information for a material.
 	 */
-	UNREALED_API FbxSurfaceMaterial* ExportMaterial(UMaterialInterface* Material);
+	UNREALED_API FbxSurfaceMaterial* ExportMaterial(UMaterialInterface* Material, const int32& MaterialIndex, const FFbxMaterialBakingMeshData& BakingMeshData);
 	
 	UNREALED_API FbxSurfaceMaterial* CreateDefaultMaterial();
 	

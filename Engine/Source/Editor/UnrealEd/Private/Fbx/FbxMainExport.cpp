@@ -118,6 +118,11 @@
 #include "Interfaces/IMainFrameModule.h"
 #include "UObject/MetaData.h"
 
+#include "FbxMaterialExportUtilities.h"
+
+#include "Exporters/Exporter.h"
+#include "MaterialPropertyEx.h"
+
 namespace UnFbx
 {
 
@@ -485,7 +490,7 @@ void FFbxExporter::ExportLevelMesh(ULevel* InLevel, bool bExportLevelGeometry, T
 			Scene->GetRootNode()->AddChild(Node);
 
 			// Export the mesh for the world
-			ExportModel(InLevel->Model, Node, "Level Mesh");
+			ExportModel(InLevel->Model, Node, "Level Mesh", FFbxMaterialBakingMeshData(InLevel->Model));
 		}
 	}
 
@@ -725,7 +730,7 @@ void FFbxExporter::ExportBrush(ABrush* Actor, UModel* InModel, bool bConvertToSt
 		Scene->GetRootNode()->AddChild(FbxActor);
  
 		// Export the mesh information
-		ExportModel(Model, FbxActor, TCHAR_TO_UTF8(*Actor->GetName()));
+		ExportModel(Model, FbxActor, TCHAR_TO_UTF8(*Actor->GetName()), FFbxMaterialBakingMeshData(InModel, Actor));
 	}
 	else
 	{
@@ -743,7 +748,7 @@ void FFbxExporter::ExportBrush(ABrush* Actor, UModel* InModel, bool bConvertToSt
 	}
 }
 
-void FFbxExporter::ExportModel(UModel* Model, FbxNode* Node, const char* Name)
+void FFbxExporter::ExportModel(UModel* Model, FbxNode* Node, const char* Name, const FFbxMaterialBakingMeshData& MaterialBakingMeshData)
 {
 	//int32 VertexCount = Model->VertexBuffer.Vertices.Num();
 	int32 MaterialCount = Model->MaterialIndexBuffers.Num();
@@ -842,7 +847,7 @@ void FFbxExporter::ExportModel(UModel* Model, FbxNode* Node, const char* Name)
 		FbxSurfaceMaterial* FbxMaterial;
 		if (MaterialInterface != NULL && MaterialInterface->GetMaterial() != NULL)
 		{
-			FbxMaterial = ExportMaterial(MaterialInterface);
+			FbxMaterial = ExportMaterial(MaterialInterface, MaterialBakingMeshData.GetUModelStaticMeshMaterialIndex(MaterialInterface), MaterialBakingMeshData);
 		}
 		else
 		{
@@ -963,7 +968,7 @@ void FFbxExporter::ExportStaticMesh(AActor* Actor, UStaticMeshComponent* StaticM
 
 			const int32 LightmapUVChannel = -1;
 			const TArray<FStaticMaterial>* MaterialOrderOverride = nullptr;
-			ExportStaticMeshToFbx(StaticMesh, CurrentLodIndex, *FbxMeshName, FbxActorLOD, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(StaticMeshComponent->OverrideMaterials));
+			ExportStaticMeshToFbx(StaticMesh, CurrentLodIndex, *FbxMeshName, FbxActorLOD, FFbxMaterialBakingMeshData(StaticMesh, StaticMeshComponent, CurrentLodIndex), LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(StaticMeshComponent->OverrideMaterials));
 		}
 	}
 	else
@@ -976,7 +981,7 @@ void FFbxExporter::ExportStaticMesh(AActor* Actor, UStaticMeshComponent* StaticM
 		FbxNode* FbxActor = ExportActor(Actor, false, NodeNameAdapter);
 		const int32 LightmapUVChannel = -1;
 		const TArray<FStaticMaterial>* MaterialOrderOverride = nullptr;
-		ExportStaticMeshToFbx(StaticMesh, LODIndex, *FbxMeshName, FbxActor, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(StaticMeshComponent->OverrideMaterials));
+		ExportStaticMeshToFbx(StaticMesh, LODIndex, *FbxMeshName, FbxActor, FFbxMaterialBakingMeshData(StaticMesh, StaticMeshComponent, LODIndex), LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(StaticMeshComponent->OverrideMaterials));
 	}
 }
 
@@ -1205,12 +1210,12 @@ void FFbxExporter::ExportStaticMesh( UStaticMesh* StaticMesh, const TArray<FStat
 				double LodScreenSize = (double)(10.0f / StaticMesh->GetRenderData()->ScreenSize[CurrentLodIndex].Default);
 				FbxLodGroupAttribute->AddThreshold(LodScreenSize);
 			}
-			ExportStaticMeshToFbx(StaticMesh, CurrentLodIndex, *MeshName, FbxActorLOD, -1, nullptr, MaterialOrder);
+			ExportStaticMeshToFbx(StaticMesh, CurrentLodIndex, *MeshName, FbxActorLOD, FFbxMaterialBakingMeshData(StaticMesh, nullptr, CurrentLodIndex), -1, nullptr, MaterialOrder);
 		}
 	}
 	else
 	{
-		ExportStaticMeshToFbx(StaticMesh, 0, *MeshName, MeshNode, -1, NULL, MaterialOrder);
+		ExportStaticMeshToFbx(StaticMesh, 0, *MeshName, MeshNode, FFbxMaterialBakingMeshData(StaticMesh), -1, NULL, MaterialOrder);
 	}
 }
 
@@ -1222,7 +1227,7 @@ void FFbxExporter::ExportStaticMeshLightMap( UStaticMesh* StaticMesh, int32 LODI
 	StaticMesh->GetName(MeshName);
 	FbxNode* MeshNode = FbxNode::Create(Scene, TCHAR_TO_UTF8(*MeshName));
 	Scene->GetRootNode()->AddChild(MeshNode);
-	ExportStaticMeshToFbx(StaticMesh, LODIndex, *MeshName, MeshNode, UVChannel);
+	ExportStaticMeshToFbx(StaticMesh, LODIndex, *MeshName, MeshNode, FFbxMaterialBakingMeshData(StaticMesh, nullptr, LODIndex), UVChannel);
 }
 
 void FFbxExporter::ExportSkeletalMesh( USkeletalMesh* SkeletalMesh )
@@ -1382,14 +1387,17 @@ bool FFbxExporter::FillFbxTextureProperty(const char *PropertyName, const FExpre
 /**
 * Exports the profile_COMMON information for a material.
 */
-FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInterface)
+FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInterface, const int32& MaterialIndex, const FFbxMaterialBakingMeshData& BakingMeshData)
 {
+	FString ExportFolderPath = FPaths::GetPath(UExporter::CurrentFilename);
+
 	if (Scene == nullptr || MaterialInterface == nullptr || MaterialInterface->GetMaterial() == nullptr) return nullptr;
 	
 	// Verify that this material has not already been exported:
-	if (FbxMaterials.Find(MaterialInterface))
+	TMap<int32, FbxSurfaceMaterial*>* MaterialIndexToFbxMaterials = FbxMaterials.Find(MaterialInterface);
+	if (MaterialIndexToFbxMaterials && MaterialIndexToFbxMaterials->Find(MaterialIndex))
 	{
-		return *FbxMaterials.Find(MaterialInterface);
+		return *MaterialIndexToFbxMaterials->Find(MaterialIndex);
 	}
 
 	// Create the Fbx material
@@ -1402,33 +1410,62 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 		return nullptr;
 	}
 
+	if (!MaterialIndexToFbxMaterials)
+	{
+		MaterialIndexToFbxMaterials = &FbxMaterials.Add(MaterialInterface);
+	}
+
 	UMaterialEditorOnlyData* MaterialEditorOnly = Material->GetEditorOnlyData();
 	
 	// Set the shading model
-	if (Material->GetShadingModels().HasOnlyShadingModel(MSM_DefaultLit))
+	bool bUseLambert = false;
+	bool bInterchangeOriginated = FFbxMaterialExportUtilities::GetInterchangeShadingModel(MaterialInterface, bUseLambert);
+
+	FString FbxMaterialName = MaterialInterface->GetName();
+	if (MaterialIndexToFbxMaterials != nullptr)
 	{
-		FbxMaterial = FbxSurfacePhong::Create(Scene, TCHAR_TO_UTF8(*MaterialInterface->GetName()));
+		FbxMaterialName += FString(TEXT("_")) + FString::FromInt(MaterialIndex);
+	}
+	
+	if ((bInterchangeOriginated && !bUseLambert) || (!bInterchangeOriginated && Material->GetShadingModels().HasOnlyShadingModel(MSM_DefaultLit)))
+	{
+		FbxMaterial = FbxSurfacePhong::Create(Scene, TCHAR_TO_UTF8(*FbxMaterialName));
 		//((FbxSurfacePhong*)FbxMaterial)->Specular.Set(Material->Specular));
 		//((FbxSurfacePhong*)FbxMaterial)->Shininess.Set(Material->SpecularPower.Constant);
 	}
 	else // if (Material->ShadingModel == MSM_Unlit)
 	{
-		FbxMaterial = FbxSurfaceLambert::Create(Scene, TCHAR_TO_UTF8(*MaterialInterface->GetName()));
+		FbxMaterial = FbxSurfaceLambert::Create(Scene, TCHAR_TO_UTF8(*FbxMaterialName));
 	}
 
+	if (bInterchangeOriginated)
+	{
+		FFbxMaterialExportUtilities::ProcessInterchangeMaterials(MaterialInterface, Scene, FbxMaterial);
+
+		MaterialIndexToFbxMaterials->Add(MaterialIndex, FbxMaterial);
+
+		return FbxMaterial;
+	}
 
 	//Get the base material connected expression parameter name for all the supported fbx material exported properties
 	//We only support material input where the connected expression is a parameter of type (constant, scalar, vector, texture, TODO virtual texture)
 
-	FName BaseColorParamName = (!MaterialEditorOnly->BaseColor.UseConstant && MaterialEditorOnly->BaseColor.Expression) ? MaterialEditorOnly->BaseColor.Expression->GetParameterName() : NAME_None;
+	bool bBaseColorNonConstAndNonDefault = (!MaterialEditorOnly->BaseColor.UseConstant && MaterialEditorOnly->BaseColor.Expression);
+	bool bEmissiveNonConstAndNonDefault = (!MaterialEditorOnly->EmissiveColor.UseConstant && MaterialEditorOnly->EmissiveColor.Expression);
+	bool bNormalNonConstAndNonDefault = (MaterialEditorOnly->Normal.Expression != nullptr);
+	bool bOpacityNonConstAndNonDefault = (!MaterialEditorOnly->Opacity.UseConstant && MaterialEditorOnly->Opacity.Expression);
+	bool bOpacityMaskNonConstAndNonDefault = (!MaterialEditorOnly->OpacityMask.UseConstant && MaterialEditorOnly->OpacityMask.Expression);
+
+	FName BaseColorParamName = bBaseColorNonConstAndNonDefault ? MaterialEditorOnly->BaseColor.Expression->GetParameterName() : NAME_None;
+	FName EmissiveParamName = bEmissiveNonConstAndNonDefault ? MaterialEditorOnly->EmissiveColor.Expression->GetParameterName() : NAME_None;
+	FName NormalParamName = bNormalNonConstAndNonDefault ? MaterialEditorOnly->Normal.Expression->GetParameterName() : NAME_None;
+	FName OpacityParamName = bOpacityNonConstAndNonDefault ? MaterialEditorOnly->Opacity.Expression->GetParameterName() : NAME_None;
+	FName OpacityMaskParamName = bOpacityMaskNonConstAndNonDefault ? MaterialEditorOnly->OpacityMask.Expression->GetParameterName() : NAME_None;
+	
 	bool BaseColorParamSet = false;
-	FName EmissiveParamName = (!MaterialEditorOnly->EmissiveColor.UseConstant && MaterialEditorOnly->EmissiveColor.Expression) ? MaterialEditorOnly->EmissiveColor.Expression->GetParameterName() : NAME_None;
 	bool EmissiveParamSet = false;
-	FName NormalParamName = MaterialEditorOnly->Normal.Expression ? MaterialEditorOnly->Normal.Expression->GetParameterName() : NAME_None;
 	bool NormalParamSet = false;
-	FName OpacityParamName = (!MaterialEditorOnly->Opacity.UseConstant && MaterialEditorOnly->Opacity.Expression) ? MaterialEditorOnly->Opacity.Expression->GetParameterName() : NAME_None;
 	bool OpacityParamSet = false;
-	FName OpacityMaskParamName = (!MaterialEditorOnly->OpacityMask.UseConstant && MaterialEditorOnly->OpacityMask.Expression) ? MaterialEditorOnly->OpacityMask.Expression->GetParameterName() : NAME_None;
 	bool OpacityMaskParamSet = false;
 
 	UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(MaterialInterface);
@@ -1471,22 +1508,22 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 				return false;
 			};
 
-			if (BaseColorParamName != NAME_None && ParameterName == BaseColorParamName)
+			if (!BaseColorParamSet && BaseColorParamName != NAME_None && ParameterName == BaseColorParamName)
 			{
 				BaseColorParamSet = SetTextureProperty(FbxSurfaceMaterial::sDiffuse, Scene);
 			}
-			if (EmissiveParamName != NAME_None && ParameterName == EmissiveParamName)
+			if (!EmissiveParamSet && EmissiveParamName != NAME_None && ParameterName == EmissiveParamName)
 			{
 				EmissiveParamSet = SetTextureProperty(FbxSurfaceMaterial::sEmissive, Scene);
 			}
 			
 			if (BlendMode == BLEND_Translucent)
 			{
-				if (OpacityParamName != NAME_None && ParameterName == OpacityParamName)
+				if (!OpacityParamSet && OpacityParamName != NAME_None && ParameterName == OpacityParamName)
 				{
 					OpacityParamSet = SetTextureProperty(FbxSurfaceMaterial::sTransparentColor, Scene);
 				}
-				if (OpacityMaskParamName != NAME_None && ParameterName == OpacityMaskParamName)
+				if (!OpacityMaskParamSet && OpacityMaskParamName != NAME_None && ParameterName == OpacityMaskParamName)
 				{
 					OpacityMaskParamSet = SetTextureProperty(FbxSurfaceMaterial::sTransparencyFactor, Scene);
 				}
@@ -1494,7 +1531,7 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 			else
 			{
 				//There is no normal input in Blend translucent mode
-				if (NormalParamName != NAME_None && ParameterName == NormalParamName)
+				if (!NormalParamSet && NormalParamName != NAME_None && ParameterName == NormalParamName)
 				{
 					NormalParamSet = SetTextureProperty(FbxSurfaceMaterial::sNormalMap, Scene);
 				}
@@ -1589,13 +1626,26 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 		((FbxSurfaceLambert*)FbxMaterial)->TransparencyFactor.Set(MaterialEditorOnly->Opacity.Constant);
 	}
 
+	UFbxExportOption* FbxExportOptions = GetExportOptions();
+
 	// Fill in the profile_COMMON effect with the material information.
 	//Fill the texture or constant
 	if(!BaseColorParamSet)
 	{
 		if (!FillFbxTextureProperty(FbxSurfaceMaterial::sDiffuse, MaterialEditorOnly->BaseColor, FbxMaterial))
 		{
-			((FbxSurfaceLambert*)FbxMaterial)->Diffuse.Set(SetMaterialComponent(MaterialEditorOnly->BaseColor, true));
+			if (bBaseColorNonConstAndNonDefault)
+			{
+				FFbxMaterialExportUtilities::BakeMaterialProperty(FbxExportOptions,
+					Scene, FbxMaterial, FbxSurfaceMaterial::sDiffuse,
+					MP_BaseColor, MaterialInterface, MaterialIndex,
+					BakingMeshData, 
+					ExportFolderPath);
+			}
+			else
+			{
+				((FbxSurfaceLambert*)FbxMaterial)->Diffuse.Set(SetMaterialComponent(MaterialEditorOnly->BaseColor, true));
+			}
 		}
 	}
 
@@ -1603,7 +1653,18 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 	{
 		if (!FillFbxTextureProperty(FbxSurfaceMaterial::sEmissive, MaterialEditorOnly->EmissiveColor, FbxMaterial))
 		{
-			((FbxSurfaceLambert*)FbxMaterial)->Emissive.Set(SetMaterialComponent(MaterialEditorOnly->EmissiveColor, true));
+			if (bEmissiveNonConstAndNonDefault)
+			{
+				FFbxMaterialExportUtilities::BakeMaterialProperty(FbxExportOptions,
+					Scene, FbxMaterial, FbxSurfaceMaterial::sEmissive,
+					MP_EmissiveColor, MaterialInterface, MaterialIndex,
+					BakingMeshData,
+					ExportFolderPath);
+			}
+			else
+			{
+				((FbxSurfaceLambert*)FbxMaterial)->Emissive.Set(SetMaterialComponent(MaterialEditorOnly->EmissiveColor, true));
+			}
 		}
 	}
 
@@ -1616,8 +1677,19 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 		{
 			if (!FillFbxTextureProperty(FbxSurfaceMaterial::sTransparentColor, MaterialEditorOnly->Opacity, FbxMaterial))
 			{
-				FbxDouble3 OpacityValue((FbxDouble)(MaterialEditorOnly->Opacity.Constant), (FbxDouble)(MaterialEditorOnly->Opacity.Constant), (FbxDouble)(MaterialEditorOnly->Opacity.Constant));
-				((FbxSurfaceLambert*)FbxMaterial)->TransparentColor.Set(OpacityValue);
+				if (bOpacityNonConstAndNonDefault)
+				{
+					FFbxMaterialExportUtilities::BakeMaterialProperty(FbxExportOptions,
+						Scene, FbxMaterial, FbxSurfaceMaterial::sTransparentColor,
+						MP_Opacity, MaterialInterface, MaterialIndex,
+						BakingMeshData,
+						ExportFolderPath);
+				}
+				else
+				{
+					FbxDouble3 OpacityValue((FbxDouble)(MaterialEditorOnly->Opacity.Constant), (FbxDouble)(MaterialEditorOnly->Opacity.Constant), (FbxDouble)(MaterialEditorOnly->Opacity.Constant));
+					((FbxSurfaceLambert*)FbxMaterial)->TransparentColor.Set(OpacityValue);
+				}
 			}
 		}
 
@@ -1625,7 +1697,18 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 		{
 			if (!FillFbxTextureProperty(FbxSurfaceMaterial::sTransparencyFactor, MaterialEditorOnly->OpacityMask, FbxMaterial))
 			{
-				((FbxSurfaceLambert*)FbxMaterial)->TransparencyFactor.Set(MaterialEditorOnly->OpacityMask.Constant);
+				if (bOpacityMaskNonConstAndNonDefault)
+				{
+					FFbxMaterialExportUtilities::BakeMaterialProperty(FbxExportOptions,
+						Scene, FbxMaterial, FbxSurfaceMaterial::sTransparencyFactor,
+						MP_OpacityMask, MaterialInterface, MaterialIndex,
+						BakingMeshData,
+						ExportFolderPath);
+				}
+				else
+				{
+					((FbxSurfaceLambert*)FbxMaterial)->TransparencyFactor.Set(MaterialEditorOnly->OpacityMask.Constant);
+				}
 			}
 		}
 	}
@@ -1635,12 +1718,22 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 		if (!NormalParamSet)
 		{
 			//Set the Normal map only if there is a texture sampler
-			FillFbxTextureProperty(FbxSurfaceMaterial::sNormalMap, MaterialEditorOnly->Normal, FbxMaterial);
+			if (!FillFbxTextureProperty(FbxSurfaceMaterial::sNormalMap, MaterialEditorOnly->Normal, FbxMaterial))
+			{
+				if (bNormalNonConstAndNonDefault)
+				{
+					FFbxMaterialExportUtilities::BakeMaterialProperty(FbxExportOptions,
+						Scene, FbxMaterial, FbxSurfaceMaterial::sNormalMap,
+						MP_Normal, MaterialInterface, MaterialIndex,
+						BakingMeshData,
+						ExportFolderPath);
+				}
+			}
 		}
 	}
 
-	FbxMaterials.Add(MaterialInterface, FbxMaterial);
-	
+	MaterialIndexToFbxMaterials->Add(MaterialIndex, FbxMaterial);
+
 	return FbxMaterial;
 }
 
@@ -2718,11 +2811,13 @@ FbxNode* FFbxExporter::ExportActor(AActor* Actor, bool bExportComponents, INodeN
 				{
 					if (USplineMeshComponent* SplineMeshComp = Cast<USplineMeshComponent>(StaticMeshComp))
 					{
-						ExportSplineMeshToFbx(SplineMeshComp, *SplineMeshComp->GetName(), ExportNode);
+						//TODO: Validate Spline material baking
+						//(Spline mesh staticmesh does not take into account the Spline transforms, might not be accurate/enough to use Spline->StaticMesh for material baking.)
+						ExportSplineMeshToFbx(SplineMeshComp, *SplineMeshComp->GetName(), ExportNode, FFbxMaterialBakingMeshData(SplineMeshComp->GetStaticMesh(), SplineMeshComp, (SplineMeshComp->ForcedLodModel > 0 ? SplineMeshComp->ForcedLodModel - 1 : /* auto-select*/ 0)));
 					}
 					else if (UInstancedStaticMeshComponent* InstancedMeshComp = Cast<UInstancedStaticMeshComponent>(StaticMeshComp))
 					{
-						ExportInstancedMeshToFbx(InstancedMeshComp, *InstancedMeshComp->GetName(), ExportNode);
+						ExportInstancedMeshToFbx(InstancedMeshComp, *InstancedMeshComp->GetName(), ExportNode, FFbxMaterialBakingMeshData(InstancedMeshComp->GetStaticMesh(), InstancedMeshComp, (InstancedMeshComp->ForcedLodModel > 0 ? InstancedMeshComp->ForcedLodModel - 1 : /* auto-select*/ 0)));
 					}
 					else
 					{
@@ -2730,7 +2825,7 @@ FbxNode* FFbxExporter::ExportActor(AActor* Actor, bool bExportComponents, INodeN
 						const int32 LightmapUVChannel = -1;
 						const TArray<FStaticMaterial>* MaterialOrderOverride = nullptr;
 						const FColorVertexBuffer* ColorBuffer = nullptr;
-						ExportStaticMeshToFbx(StaticMeshComp->GetStaticMesh(), LODIndex, *StaticMeshComp->GetName(), ExportNode, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(StaticMeshComp->OverrideMaterials));
+						ExportStaticMeshToFbx(StaticMeshComp->GetStaticMesh(), LODIndex, *StaticMeshComp->GetName(), ExportNode, FFbxMaterialBakingMeshData(StaticMeshComp->GetStaticMesh(), StaticMeshComp, LODIndex), LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(StaticMeshComp->OverrideMaterials));
 					}
 				}
 				else if (SkelMeshComp && SkelMeshComp->GetSkeletalMeshAsset())
@@ -4601,7 +4696,8 @@ bool FFbxExporter::ExportStaticMeshFromMeshDescription(FbxMesh* Mesh
 	, FbxNode* FbxActor
 	, int32 LightmapUVChannel
 	, const TArray<FStaticMaterial>* MaterialOrderOverride
-	, const TArray<UMaterialInterface*>* OverrideMaterials)
+	, const TArray<UMaterialInterface*>* OverrideMaterials
+	, const FFbxMaterialBakingMeshData& MaterialBakingMeshData)
 {
 
 	if (MeshDescription->IsEmpty() || MeshDescription->Vertices().Num() == 0)
@@ -4766,26 +4862,27 @@ bool FFbxExporter::ExportStaticMeshFromMeshDescription(FbxMesh* Mesh
 		{
 			UMaterialInterface* Material = nullptr;
 
+			FName CurrentMaterialSlotName = PolygonGroupMaterialSlotNames[PolygonGroupID];
+			int32 MaterialIndex = StaticMesh->GetMaterialIndexFromImportedMaterialSlotName(CurrentMaterialSlotName);
+			if (MaterialIndex == INDEX_NONE)
+			{
+				MaterialIndex = PolygonGroupID.GetValue();
+			}
+			if (!StaticMesh->GetStaticMaterials().IsValidIndex(MaterialIndex))
+			{
+				MaterialIndex = 0;
+			}
+
 			if (OverrideMaterials && OverrideMaterials->IsValidIndex(PolygonGroupID.GetValue()))
 			{
 				Material = (*OverrideMaterials)[PolygonGroupID.GetValue()];
 			}
 			else
 			{
-				FName CurrentMaterialSlotName = PolygonGroupMaterialSlotNames[PolygonGroupID];
-				int32 MaterialIndex = StaticMesh->GetMaterialIndexFromImportedMaterialSlotName(CurrentMaterialSlotName);
-				if(MaterialIndex == INDEX_NONE)
-				{
-					MaterialIndex = PolygonGroupID.GetValue();
-				}
-				if(!StaticMesh->GetStaticMaterials().IsValidIndex(MaterialIndex))
-				{
-					MaterialIndex = 0;
-				}
 				Material = StaticMesh->GetMaterial(MaterialIndex);
 			}
 
-			FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material) : nullptr;
+			FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material, MaterialIndex, MaterialBakingMeshData) : nullptr;
 			if (!FbxMaterial)
 			{
 				FbxMaterial = CreateDefaultMaterial();
@@ -4906,7 +5003,8 @@ bool FFbxExporter::ExportStaticMeshFromRenderData(FbxMesh* Mesh
 	, int32 LightmapUVChannel
 	, const FColorVertexBuffer* ColorBuffer
 	, const TArray<FStaticMaterial>* MaterialOrderOverride
-	, const TArray<UMaterialInterface*>* OverrideMaterials)
+	, const TArray<UMaterialInterface*>* OverrideMaterials
+	, const FFbxMaterialBakingMeshData& MaterialBakingMeshData)
 {
 	// Verify the integrity of the static mesh.
 	if (RenderMesh.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() == 0)
@@ -5100,7 +5198,7 @@ bool FFbxExporter::ExportStaticMeshFromRenderData(FbxMesh* Mesh
 			Material = StaticMesh->GetMaterial(Polygons.MaterialIndex);
 		}
 
-		FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material) : NULL;
+		FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material, Polygons.MaterialIndex, MaterialBakingMeshData) : NULL;
 		if (!FbxMaterial)
 		{
 			FbxMaterial = CreateDefaultMaterial();
@@ -5207,7 +5305,7 @@ bool FFbxExporter::ExportStaticMeshFromRenderData(FbxMesh* Mesh
  * @param ColorBuffer	Vertex color overrides to export
  * @param MaterialOrderOverride	Optional ordering of materials to set up correct material ID's across multiple meshes being export such as BSP surfaces which share common materials. Should be used sparingly
  */
-FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int32 ExportLOD, const TCHAR* MeshName, FbxNode* FbxActor, int32 LightmapUVChannel /*= -1*/, const FColorVertexBuffer* ColorBuffer /*= NULL*/, const TArray<FStaticMaterial>* MaterialOrderOverride /*= NULL*/, const TArray<UMaterialInterface*>* OverrideMaterials /*= NULL*/)
+FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int32 ExportLOD, const TCHAR* MeshName, FbxNode* FbxActor, const FFbxMaterialBakingMeshData& MaterialBakingMeshData, int32 LightmapUVChannel /*= -1*/, const FColorVertexBuffer* ColorBuffer /*= NULL*/, const TArray<FStaticMaterial>* MaterialOrderOverride /*= NULL*/, const TArray<UMaterialInterface*>* OverrideMaterials /*= NULL*/)
 {
 	FbxMesh* Mesh = nullptr;
 	if ((ExportLOD == 0 || ExportLOD == -1) && LightmapUVChannel == -1 && ColorBuffer == nullptr && MaterialOrderOverride == nullptr)
@@ -5230,7 +5328,7 @@ FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int3
 			if (bUseNaniteData)
 			{
 				//Export the nanite mesh description
-				if (!ExportStaticMeshFromMeshDescription(Mesh, StaticMesh, StaticMesh->GetHiResMeshDescription(), FbxActor, LightmapUVChannel, MaterialOrderOverride, OverrideMaterials))
+				if (!ExportStaticMeshFromMeshDescription(Mesh, StaticMesh, StaticMesh->GetHiResMeshDescription(), FbxActor, LightmapUVChannel, MaterialOrderOverride, OverrideMaterials, MaterialBakingMeshData))
 				{
 					return nullptr;
 				}
@@ -5239,7 +5337,7 @@ FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int3
 			{
 				ensure(bUseLodData);
 				//Export the lod mesh description
-				if(!ExportStaticMeshFromMeshDescription(Mesh, StaticMesh, StaticMesh->GetMeshDescription(LodIndex), FbxActor, LightmapUVChannel, MaterialOrderOverride, OverrideMaterials))
+				if(!ExportStaticMeshFromMeshDescription(Mesh, StaticMesh, StaticMesh->GetMeshDescription(LodIndex), FbxActor, LightmapUVChannel, MaterialOrderOverride, OverrideMaterials, MaterialBakingMeshData))
 				{
 					return nullptr;
 				}
@@ -5249,7 +5347,7 @@ FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int3
 		{
 			//Export the render data
 			const FStaticMeshLODResources& RenderMesh = StaticMesh->GetLODForExport(LodIndex);
-			if (!ExportStaticMeshFromRenderData(Mesh, StaticMesh, RenderMesh, FbxActor, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, OverrideMaterials))
+			if (!ExportStaticMeshFromRenderData(Mesh, StaticMesh, RenderMesh, FbxActor, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, OverrideMaterials, MaterialBakingMeshData))
 			{
 				return nullptr;
 			}
@@ -5282,7 +5380,7 @@ FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int3
 				Material = StaticMesh->GetMaterial(Polygons.MaterialIndex);
 			}
 
-			FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material) : NULL;
+			FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material, Polygons.MaterialIndex, MaterialBakingMeshData) : NULL;
 			if (!FbxMaterial)
 			{
 				FbxMaterial = CreateDefaultMaterial();
@@ -5304,7 +5402,7 @@ FbxNode* FFbxExporter::ExportStaticMeshToFbx(const UStaticMesh* StaticMesh, int3
 	return FbxActor;
 }
 
-void FFbxExporter::ExportSplineMeshToFbx(const USplineMeshComponent* SplineMeshComp, const TCHAR* MeshName, FbxNode* FbxActor)
+void FFbxExporter::ExportSplineMeshToFbx(const USplineMeshComponent* SplineMeshComp, const TCHAR* MeshName, FbxNode* FbxActor, const FFbxMaterialBakingMeshData& MaterialBakingMeshData)
 {
 	const UStaticMesh* StaticMesh = SplineMeshComp->GetStaticMesh();
 	check(StaticMesh);
@@ -5468,7 +5566,7 @@ void FFbxExporter::ExportSplineMeshToFbx(const USplineMeshComponent* SplineMeshC
 		FIndexArrayView RawIndices = RenderMesh.IndexBuffer.GetArrayView();
 		UMaterialInterface* Material = StaticMesh->GetMaterial(Polygons.MaterialIndex);
 
-		FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material) : NULL;
+		FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material, Polygons.MaterialIndex, MaterialBakingMeshData) : NULL;
 		if (!FbxMaterial)
 		{
 			FbxMaterial = CreateDefaultMaterial();
@@ -5543,7 +5641,7 @@ void FFbxExporter::ExportSplineMeshToFbx(const USplineMeshComponent* SplineMeshC
 	FbxActor->SetNodeAttribute(Mesh);
 }
 
-void FFbxExporter::ExportInstancedMeshToFbx(const UInstancedStaticMeshComponent* InstancedMeshComp, const TCHAR* MeshName, FbxNode* FbxActor)
+void FFbxExporter::ExportInstancedMeshToFbx(const UInstancedStaticMeshComponent* InstancedMeshComp, const TCHAR* MeshName, FbxNode* FbxActor, const FFbxMaterialBakingMeshData& MaterialBakingMeshData)
 {
 	const UStaticMesh* StaticMesh = InstancedMeshComp->GetStaticMesh();
 	check(StaticMesh);
@@ -5565,7 +5663,7 @@ void FFbxExporter::ExportInstancedMeshToFbx(const UInstancedStaticMeshComponent*
 			const int32 LightmapUVChannel = -1;
 			const TArray<FStaticMaterial>* MaterialOrderOverride = nullptr;
 			const FColorVertexBuffer* ColorBuffer = nullptr;
-			ExportStaticMeshToFbx(StaticMesh, LODIndex, *FString::Printf(TEXT("%d"), InstanceIndex), InstNode, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(InstancedMeshComp->OverrideMaterials));
+			ExportStaticMeshToFbx(StaticMesh, LODIndex, *FString::Printf(TEXT("%d"), InstanceIndex), InstNode, MaterialBakingMeshData, LightmapUVChannel, ColorBuffer, MaterialOrderOverride, &ToRawPtrTArrayUnsafe(InstancedMeshComp->OverrideMaterials));
 			FbxActor->AddChild(InstNode);
 		}
 	}
@@ -5743,13 +5841,13 @@ void FFbxExporter::ExportLandscapeToFbx(ALandscapeProxy* Landscape, const TCHAR*
 	Layer0->SetMaterials(LayerElementMaterials);
 
 	UMaterialInterface* Material = Landscape->GetLandscapeMaterial();
-	FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material) : NULL;
+	FbxSurfaceMaterial* FbxMaterial = Material ? ExportMaterial(Material, 0, FFbxMaterialBakingMeshData()) : NULL;
 	if (!FbxMaterial)
 	{
 		FbxMaterial = CreateDefaultMaterial();
 	}
-	const int32 MaterialIndex = FbxActor->AddMaterial(FbxMaterial);
-	LayerElementMaterials->GetIndexArray().Add(MaterialIndex);
+	const int32 FbxMaterialIndex = FbxActor->AddMaterial(FbxMaterial);
+	LayerElementMaterials->GetIndexArray().Add(FbxMaterialIndex);
 
 	const int32 VisThreshold = 170;
 	// Copy over the index buffer into the FBX polygons set.
