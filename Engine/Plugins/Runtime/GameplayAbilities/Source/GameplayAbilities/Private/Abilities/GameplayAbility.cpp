@@ -33,6 +33,11 @@ namespace UE::AbilitySystem::Private
 
 	int32 AbilitySystemShowMakeOutgoingGameplayEffectSpecs = 0;
 	static FAutoConsoleVariableRef CVarAbilitySystemShowMakeOutgoingGameplayEffectSpecs(TEXT("AbilitySystem.ShowClientMakeOutgoingSpecs"), AbilitySystemShowMakeOutgoingGameplayEffectSpecs, TEXT("Displays all GameplayEffect specs created on non authority clients"), ECVF_Default );
+
+	/** We want to deprecate the usage of Replicated Properties due to replication order issues (see the GameplayAbilities/README.md for more information).  Default to 2 to not invalidate existing data during unattended runs (e.g. automated tests). */
+	int32 CVarDeprecateReplicatedPropertiesValue = 2;
+	static FAutoConsoleVariableRef CVarDeprecateReplicatedProperties(TEXT("AbilitySystem.DeprecateReplicatedProperties"), CVarDeprecateReplicatedPropertiesValue,
+		TEXT("Deprecate the use of Replicated Properties. ") TEXT("0: No. 1: Yes. 2: Yes, Except During Automation"), ECVF_Default );
 }
 
 namespace FAbilitySystemTweaks
@@ -231,6 +236,7 @@ bool UGameplayAbility::IsSupportedForNetworking() const
 EDataValidationResult UGameplayAbility::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult Result = EDataValidationResult::Valid;
+	const bool bIsLikelyRunningAutomation = IsRunningCommandlet() || FApp::IsUnattended();
 
 	if (!UE::AbilitySystem::Private::CVarAllowNonInstancedGAsValue)
 	{
@@ -241,21 +247,40 @@ EDataValidationResult UGameplayAbility::IsDataValid(FDataValidationContext& Cont
 		}
 	}
 
-	if (GetReplicationPolicy() == EGameplayAbilityReplicationPolicy::ReplicateNo)
-	{
-		UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(GetClass());
-		if (BPClass && BPClass->NumReplicatedProperties > 0)
-		{
-			Context.AddError(LOCTEXT("ReplicatedVariablesNeedReplicationYes", "Gameplay Ability Blueprint has replicated variables but Replication Policy is set to not replicate"));
-			Result = EDataValidationResult::Invalid;
-		}
-	}
-	else
+	const bool bIsReplicated = GetReplicationPolicy() == EGameplayAbilityReplicationPolicy::ReplicateYes;
+	if (bIsReplicated)
 	{
 		if (GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::InstancedPerActor)
 		{
 			Context.AddError(FText::Format(LOCTEXT("ReplicatedInstancePolicyNotSupported", "Instancing Policy '{0}' is not supported for Replication.  Either change the Replication Policy or the Instancing Policy"), UEnum::GetDisplayValueAsText(GetInstancingPolicy())));
 			Result = EDataValidationResult::Invalid;
+		}
+	}
+
+	// Find out which properties are replicated
+	if (UE::AbilitySystem::Private::CVarDeprecateReplicatedPropertiesValue > 0)
+	{
+		const UClass* Class = GetClass();
+		for (const FProperty* Property = Class->PropertyLink; Property; Property = Property->PropertyLinkNext)
+		{
+			if (Property->RepIndex > 0 || Property->HasAnyPropertyFlags(CPF_RepNotify | CPF_Net))
+			{
+				Context.AddWarning(FText::Format(LOCTEXT("ReplicatedPropertiesAreDeprecated", "{0}: Replicated properties are deprecated in Gameplay Abilities (see GameplayAbilities/README.md). Use Reliable RPCs for variable replication."), Property->GetDisplayNameText()));
+				const bool bAllowSuppressErrorsSoAutomationCanPass = (UE::AbilitySystem::Private::CVarDeprecateReplicatedPropertiesValue > 1);
+				Result = (bAllowSuppressErrorsSoAutomationCanPass && bIsLikelyRunningAutomation) ? CombineDataValidationResults(Result, EDataValidationResult::Valid) : EDataValidationResult::Invalid;
+			}
+		}
+	}
+	else
+	{
+		if (GetReplicationPolicy() == EGameplayAbilityReplicationPolicy::ReplicateNo)
+		{
+			UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(GetClass());
+			if (BPClass && BPClass->NumReplicatedProperties > 0)
+			{
+				Context.AddError(LOCTEXT("ReplicatedVariablesNeedReplicationYes", "Gameplay Ability Blueprint has replicated variables but Replication Policy is set to not replicate"));
+				Result = EDataValidationResult::Invalid;
+			}
 		}
 	}
 
@@ -266,6 +291,20 @@ EDataValidationResult UGameplayAbility::IsDataValid(FDataValidationContext& Cont
 			FText ErrorText = FText::Format(LOCTEXT("MulticastFunctionDisallowed", "Gameplay Abilities are not replicated to Simulated Proxies and therefore NetMulticast Function {0} is meaningless"), FText::FromString(FuncIter->GetName()));
 			Context.AddError(ErrorText);
 			Result = EDataValidationResult::Invalid;
+		}
+		else if (FuncIter->HasAnyFunctionFlags(EFunctionFlags::FUNC_Net) && !bIsReplicated)
+		{
+			FText ErrorText = FText::Format(LOCTEXT("RpcRequiresReplicationYes", "{0}: RPC Functions require ReplicationPolicy to be ReplicateYes in order to actually work."), FuncIter->GetDisplayNameText());
+			if (bIsLikelyRunningAutomation)
+			{
+				Context.AddWarning(ErrorText);
+				Result = CombineDataValidationResults(Result, EDataValidationResult::Valid);
+			}
+			else
+			{
+				Context.AddError(ErrorText);
+				Result = EDataValidationResult::Invalid;
+			}
 		}
 	}
 
