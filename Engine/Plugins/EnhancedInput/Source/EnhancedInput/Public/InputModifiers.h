@@ -178,7 +178,7 @@ public:
 	 *  
 	 * Note: This will do nothing on boolean input action types, as they can only be true or false.
 	 */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category=Settings)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Settings)
 	FVector Scalar = FVector::OneVector;
 
 protected:
