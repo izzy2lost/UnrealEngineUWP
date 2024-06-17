@@ -220,7 +220,7 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 	CollectNavigationData(NavSys, NavData, RefPawn);
 }
 
-void FGameplayDebuggerCategory_Navmesh::CollectNavigationData(UNavigationSystemV1* NavSys, ANavigationData* NavData, const APawn* RefPawn)
+void FGameplayDebuggerCategory_Navmesh::CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const APawn* RefPawn)
 {
 #if WITH_RECAST
 	const ARecastNavMesh* RecastNavMesh = Cast<const ARecastNavMesh>(NavData);

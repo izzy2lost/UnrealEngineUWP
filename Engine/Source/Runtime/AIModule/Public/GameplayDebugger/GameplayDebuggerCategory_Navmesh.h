@@ -27,7 +27,7 @@ protected:
 
 	void CycleNavData();
 	void CycleActorReference();
-	AIMODULE_API virtual void CollectNavigationData(UNavigationSystemV1* NavSys, ANavigationData* NavData, const APawn* RefPawn);
+	AIMODULE_API virtual void CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const APawn* RefPawn);
 	AIMODULE_API void RetrieveRelativeTilesToDisplay(TArray<FIntPoint>& OutTileDelta);
 
 	struct FRepData
