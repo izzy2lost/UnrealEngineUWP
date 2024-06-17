@@ -126,6 +126,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			".lproj",
 			".png",
 			".xcprivacy",
+			".plist",
 			// no extensions will be folders, like "cookeddata" that we want to copy as a resource
 			"",
 		};
