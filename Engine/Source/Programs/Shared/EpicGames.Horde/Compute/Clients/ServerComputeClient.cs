@@ -218,7 +218,7 @@ namespace EpicGames.Horde.Compute.Clients
 		}
 
 		/// <inheritdoc/>
-		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
+		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
 			try
 			{
@@ -245,7 +245,7 @@ namespace EpicGames.Horde.Compute.Clients
 			response.EnsureSuccessStatusCode();
 		}
 
-		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
+		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			_logger.LogDebug("Requesting compute resource");
 
@@ -262,16 +262,17 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 
 			AssignComputeResponse? response;
-			using (HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(_httpClient, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
+			string path = clusterId == null ? "api/v2/compute" : $"api/v2/compute/{clusterId}";
+			using (HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(_httpClient, path, request, _cancellationSource.Token))
 			{
 				if (httpResponse.StatusCode == HttpStatusCode.NotFound)
 				{
-					throw new NoComputeAgentsFoundException(clusterId, requirements);
+					throw new NoComputeAgentsFoundException(clusterId ?? new ClusterId("null"), requirements);
 				}
 
-				if (httpResponse.StatusCode == HttpStatusCode.ServiceUnavailable)
+				if (httpResponse.StatusCode is HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests)
 				{
-					_logger.LogDebug("No compute resource is available.");
+					_logger.LogDebug("No compute resource is available");
 					yield break;
 				}
 

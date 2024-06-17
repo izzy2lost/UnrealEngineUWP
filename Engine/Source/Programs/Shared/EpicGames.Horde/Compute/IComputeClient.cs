@@ -16,13 +16,13 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Adds a new remote request
 		/// </summary>
-		/// <param name="clusterId">Cluster to execute the request</param>
+		/// <param name="clusterId">Optional cluster ID. If not set, cluster will automatically be resolved by server</param>
 		/// <param name="requirements">Requirements for the agent</param>
 		/// <param name="requestId">Optional ID identifying the request over multiple calls, such as retrying the same request</param>
 		/// <param name="connection">Optional preference of connection details</param>
 		/// <param name="logger">Logger for output from this worker</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default);
+		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Declare resource needs for current client
