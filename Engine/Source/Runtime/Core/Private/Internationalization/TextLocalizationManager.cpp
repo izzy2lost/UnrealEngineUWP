@@ -1514,13 +1514,6 @@ void FTextLocalizationManager::LoadChunkedLocalizationResources_Sync(TArrayView<
 
 	TArray<FString> GameLocalizationPaths;
 	GameLocalizationPaths += FPaths::GetGameLocalizationPaths();
-#if UE_IS_COOKED_EDITOR
-	if (GIsEditor)
-	{
-		// Cooked editors may also load game localization targets
-		GameLocalizationPaths += FPaths::GetCookedEditorLocalizationPaths();
-	}
-#endif
 
 	// Note: We only allow game localization targets to be chunked, and the layout is assumed to follow our standard pattern (as used by the localization dashboard and FLocTextHelper)
 	TArray<FString> ChunkedLocalizationTargets = FLocalizationResourceTextSource::GetChunkedLocalizationTargets();

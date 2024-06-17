@@ -693,22 +693,6 @@ const TArray<FString>& FPaths::GetEditorLocalizationPaths()
 	return StaticData.EditorLocalizationPaths;
 }
 
-const TArray<FString>& FPaths::GetCookedEditorLocalizationPaths()
-{
-	FStaticData& StaticData = TLazySingleton<FStaticData>::Get();
-
-	if (!StaticData.bCookedEditorLocalizationPathsInitialized)
-	{
-		if (GConfig && GConfig->IsReadyForUse())
-		{
-			GConfig->GetArray(TEXT("Internationalization"), TEXT("CookedLocalizationPaths"), StaticData.CookedEditorLocalizationPaths, GEditorIni);
-			StaticData.bCookedEditorLocalizationPathsInitialized = true;
-		}
-	}
-
-	return StaticData.CookedEditorLocalizationPaths;
-}
-
 const TArray<FString>& FPaths::GetPropertyNameLocalizationPaths()
 {
 	FStaticData& StaticData = TLazySingleton<FStaticData>::Get();

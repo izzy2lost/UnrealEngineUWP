@@ -424,7 +424,8 @@ public:
 	/**
 	 * Returns a list of cooked editor-specific localization paths
 	 */
-	static CORE_API const TArray<FString>& GetCookedEditorLocalizationPaths();
+	UE_DEPRECATED(5.5, "Cooked editor localization path no longer exist. Cooked editors now load game localization paths.")
+	static const TArray<FString>& GetCookedEditorLocalizationPaths() {}
 
 	/** 
 	 * Returns a list of property name localization paths

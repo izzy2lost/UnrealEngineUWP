@@ -78,13 +78,6 @@ void FLocalizationResourceTextSource::LoadLocalizedResources(const ELocalization
 		return LocalizationPaths;
 	};
 
-	auto GetCookedEditorLocalizationPaths = [&AppendChunkedLocalizationPaths]()
-	{
-		TArray<FString> LocalizationPaths = FPaths::GetCookedEditorLocalizationPaths();
-		AppendChunkedLocalizationPaths(LocalizationPaths);
-		return LocalizationPaths;
-	};
-
 	// Collect the localization paths to load from.
 	TArray<FString> GameNativePaths;
 	TArray<FString> GameLocalizationPaths;
