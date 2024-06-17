@@ -24,12 +24,64 @@ public:
 	FVector3f LinearVelocityScale = { 0.75f, 0.75f, 0.75f };
 
 	/**
+	 * Enable linear velocity clamping.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	bool bEnableLinearVelocityClamping = false;
+
+	/**
+	 * The maximum amount of linear velocity sent to the local cloth space from the reference bone
+	 * (the closest bone to the root on which the cloth section has been skinned, or the root itself if the cloth isn't skinned).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (ClampMin = "0", EditCondition = "bEnableLinearVelocityClamping"))
+	FVector3f MaxLinearVelocity = { 1000.f, 1000.f, 1000.f }; // Approx 22mph or 36kph per direction
+
+	/**
+	 * Enable linear acceleration clamping.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	bool bEnableLinearAccelerationClamping = false;
+
+	/**
+	 * The maximum amount of linear acceleration sent to the local cloth space from the reference bone
+	 * (the closest bone to the root on which the cloth section has been skinned, or the root itself if the cloth isn't skinned).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (ClampMin = "0", EditCondition = "bEnableLinearAccelerationClamping"))
+	FVector3f MaxLinearAcceleration = { 60000.f, 60000.f, 60000.f };
+
+	/**
 	 * The amount of angular velocities sent to the local cloth space from the reference bone
 	 * (the closest bone to the root on which the cloth section has been skinned, or the root itself if the cloth isn't skinned).
 	 * This value will be clamped by "Max Velocity Scale". A velocity scale of > 1 will amplify the velocities from the reference bone.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "100"))
 	float AngularVelocityScale = 0.75f;
+
+	/**
+	 * Enable angular velocity clamping.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	bool bEnableAngularVelocityClamping = false;
+
+	/**
+	 * The maximum amount of angular velocity sent to the local cloth space from the reference bone
+	 * (the closest bone to the root on which the cloth section has been skinned, or the root itself if the cloth isn't skinned).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (ClampMin = "0", EditCondition = "bEnableAngularVelocityClamping"))
+	float MaxAngularVelocity = 200.f;
+
+	/**
+	 * Enable angular acceleration clamping.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	bool bEnableAngularAccelerationClamping = false;
+
+	/**
+	 * The maximum amount of angular acceleration sent to the local cloth space from the reference bone
+	 * (the closest bone to the root on which the cloth section has been skinned, or the root itself if the cloth isn't skinned).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (ClampMin = "0", EditCondition = "bEnableAngularAccelerationClamping"))
+	float MaxAngularAcceleration = 12000.f;
 
 	/**
 	 * Clamp on Linear and Angular Velocity Scale. The final velocity scale (e.g., including contributions from blueprints) will be clamped to this value.
@@ -40,8 +92,9 @@ public:
 	/**
 	 * The portion of the angular velocity that is used to calculate the strength of all fictitious forces (e.g. centrifugal force).
 	 * This parameter is only having an effect on the portion of the reference bone's angular velocity that has been removed from the
-	 * simulation via the Angular Velocity Scale parameter. This means it has no effect when AngularVelocityScale is set to 1 in which
-	 * case the cloth is simulated with full world space angular velocities and subjected to the true physical world inertial forces.
+	 * simulation via the Angular Velocity Scale parameter. This means it has no effect when AngularVelocityScale is set to 1 and 
+	 * Angular Velocity and Acceleration clamps are disabled, in which case the cloth is simulated with full world space angular 
+	 * velocities and subjected to the true physical world inertial forces.
 	 * Values range from 0 to 2, with 0 showing no centrifugal effect, 1 full centrifugal effect, and 2 an overdriven centrifugal effect.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "2"))

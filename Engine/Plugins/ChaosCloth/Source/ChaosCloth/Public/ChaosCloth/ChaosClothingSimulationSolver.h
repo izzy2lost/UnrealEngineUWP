@@ -134,11 +134,34 @@ namespace Chaos
 		CHAOSCLOTH_API void SetReferenceVelocityScale(uint32 GroupId,
 			const FRigidTransform3& OldReferenceSpaceTransform,
 			const FRigidTransform3& ReferenceSpaceTransform,
+			TVec3<FReal>& InOutReferenceVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+			TVec3<FReal>& InOutReferenceAngularVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+			const TVec3<FRealSingle>& LinearVelocityScale,
+			const TVec3<FRealSingle>& MaxLinearVelocity,
+			const TVec3<FRealSingle>& MaxLinearAcceleration,
+			FRealSingle AngularVelocityScale,
+			FRealSingle MaxAngularVelocity,
+			FRealSingle MaxAngularAcceleration,
+			FRealSingle FictitiousAngularScale,
+			FRealSingle MaxVelocityScale,
+			bool bDisableFictitiousForces);
+
+		void SetReferenceVelocityScale(uint32 GroupId,
+			const FRigidTransform3& OldReferenceSpaceTransform,
+			const FRigidTransform3& ReferenceSpaceTransform,
 			const TVec3<FRealSingle>& LinearVelocityScale,
 			FRealSingle AngularVelocityScale,
 			FRealSingle FictitiousAngularScale,
 			FRealSingle MaxVelocityScale = 1.f,
-			bool bDisableFictitiousForces = false);
+			bool bDisableFictitiousForces = false)
+		{
+			// Acceleration clamps are disabled, so it doesn't matter what the old velocities were.
+			TVec3<FReal> ReferenceVelocity(0.);
+			TVec3<FReal> ReferenceAngularVelocity(0.);
+			SetReferenceVelocityScale(GroupId, OldReferenceSpaceTransform, ReferenceSpaceTransform, ReferenceVelocity, ReferenceAngularVelocity, LinearVelocityScale,
+				TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()), TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()), AngularVelocityScale, FictitiousAngularScale,
+				MaxVelocityScale, TNumericLimits<FRealSingle>::Max(), TNumericLimits<FRealSingle>::Max(), bDisableFictitiousForces);
+		}
 
 		/** PBDSolver version */
 		CHAOSCLOTH_API void SetProperties(

@@ -147,6 +147,8 @@ namespace Chaos
 
 		// Reference space transform
 		FRigidTransform3 ReferenceSpaceTransform;  // TODO: Add override in the style of LODIndexOverride
+		FVec3 ReferenceSpaceVelocity;
+		FVec3 ReferenceSpaceAngularVelocity;
 
 		// LOD data
 		TArray<TUniquePtr<FLODData>> LODData;

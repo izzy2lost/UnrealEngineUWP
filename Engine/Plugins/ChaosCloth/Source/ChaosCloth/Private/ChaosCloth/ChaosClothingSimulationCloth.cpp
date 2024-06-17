@@ -37,6 +37,8 @@ namespace ClothingSimulationClothDefault
 	constexpr float GravityZOverride = Softs::FExternalForces::DefaultGravityZOverride; // -980.665f;
 	constexpr float VelocityScale = 0.75f;
 	constexpr float MaxVelocityScale = 1.f;
+	constexpr float MaxVelocity = TNumericLimits<float>::Max();
+	constexpr float MaxAcceleration = TNumericLimits<float>::Max();
 	constexpr float FictitiousAngularScale = Softs::FExternalForces::DefaultFictitiousAngularScale; // 1.f;
 	constexpr int32 MultiResCoarseLODIndex = INDEX_NONE;
 }
@@ -893,12 +895,18 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 		FRealSingle OutAngularVelocityScale;
 		FRealSingle OutMaxVelocityScale;
 		bool bDisableFictitiousForces = false;
+		FVec3f MaxLinearVelocity(ClothingSimulationClothDefault::MaxVelocity);
+		FVec3f MaxLinearAcceleration(ClothingSimulationClothDefault::MaxAcceleration);
+		FRealSingle MaxAngularVelocity = ClothingSimulationClothDefault::MaxVelocity;
+		FRealSingle MaxAngularAcceleration = ClothingSimulationClothDefault::MaxAcceleration;
 		if (bNeedsReset)
 		{
 			// Make sure not to do any pre-sim transform just after a reset
 			OutLinearVelocityScale = FVec3f(1.f);
 			OutAngularVelocityScale = 1.f;
 			OutMaxVelocityScale = 1.f;
+			ReferenceSpaceAngularVelocity = FVec3(0.);
+			ReferenceSpaceVelocity = FVec3(0.);
 			bDisableFictitiousForces = true; // It doesn't actually matter what value we set here since AngularVelocityScale == 1 means fictitious forces will be 0.
 
 			// Reset to start pose
@@ -920,6 +928,8 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			OutLinearVelocityScale = FVec3f(0.f);
 			OutAngularVelocityScale = 0.f;
 			OutMaxVelocityScale = 1.f;
+			ReferenceSpaceAngularVelocity = FVec3(0.);
+			ReferenceSpaceVelocity = FVec3(0.);
 			bDisableFictitiousForces = true; // Disable fictitious forces. Otherwise they will be applied since AngularVelocityScale < 1.
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Cloth in group Id %d Needs teleport."), GroupId);
 		}
@@ -929,6 +939,10 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			OutLinearVelocityScale = ConfigProperties.GetValue<FVector3f>(TEXT("LinearVelocityScale"), FVector3f(ClothingSimulationClothDefault::VelocityScale));
 			OutAngularVelocityScale = ConfigProperties.GetValue<float>(TEXT("AngularVelocityScale"), ClothingSimulationClothDefault::VelocityScale);
 			OutMaxVelocityScale = ConfigProperties.GetValue<float>(TEXT("MaxVelocityScale"), ClothingSimulationClothDefault::MaxVelocityScale);
+			MaxLinearVelocity = ConfigProperties.GetValue<FVector3f>(TEXT("MaxLinearVelocity"), MaxLinearVelocity);
+			MaxLinearAcceleration = ConfigProperties.GetValue<FVector3f>(TEXT("MaxLinearAcceleration"), MaxLinearAcceleration);
+			MaxAngularVelocity = ConfigProperties.GetValue<float>(TEXT("MaxAngularVelocity"), MaxAngularVelocity);
+			MaxAngularAcceleration = ConfigProperties.GetValue<float>(TEXT("MaxAngularAcceleration"), MaxAngularAcceleration);
 		}
 
 		// NOTE: Force-based solver doesn't actually use FictitiousAngularScale here. It gets it from the property collection directly.
@@ -937,10 +951,16 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			GroupId,
 			OldReferenceSpaceTransform,
 			ReferenceSpaceTransform,
+			ReferenceSpaceVelocity,
+			ReferenceSpaceAngularVelocity,
 			OutLinearVelocityScale,
+			MaxLinearVelocity,
+			MaxLinearAcceleration,
 			OutAngularVelocityScale,
+			MaxAngularVelocity,
+			MaxAngularAcceleration,
 			FictitiousAngularScale,
-			OutMaxVelocityScale, 
+			OutMaxVelocityScale,
 			bDisableFictitiousForces);
 		if (!Solver->IsLegacySolver())
 		{

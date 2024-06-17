@@ -1079,23 +1079,29 @@ void FClothingSimulationSolver::SetParticleMassFromDensity(int32 ParticleRangeId
 	}
 }
 
-void FClothingSimulationSolver::SetReferenceVelocityScale(
-	uint32 GroupId,
-	const FRigidTransform3& OldReferenceSpaceTransform,  // Transforms are in world space so have to be FReal based for LWC
+void FClothingSimulationSolver::SetReferenceVelocityScale(uint32 GroupId,
+	const FRigidTransform3& OldReferenceSpaceTransform,
 	const FRigidTransform3& ReferenceSpaceTransform,
+	TVec3<FReal>& InOutReferenceVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+	TVec3<FReal>& InOutReferenceAngularVelocity, // Old reference velocity is passed in. New reference velocity is returned.
 	const TVec3<FRealSingle>& LinearVelocityScale,
-	FRealSingle AngularVelocityScale, FRealSingle FictitiousAngularScale,
-	FRealSingle MaxVelocityScale, 
+	const TVec3<FRealSingle>& MaxLinearVelocity,
+	const TVec3<FRealSingle>& MaxLinearAcceleration,
+	FRealSingle AngularVelocityScale,
+	FRealSingle MaxAngularVelocity,
+	FRealSingle MaxAngularAcceleration,
+	FRealSingle FictitiousAngularScale,
+	FRealSingle MaxVelocityScale,
 	bool bDisableFictitiousForces
 )
 {
 	FRigidTransform3 OldRootBoneLocalTransform = OldReferenceSpaceTransform;
 	OldRootBoneLocalTransform.AddToTranslation(-OldLocalSpaceLocation);
 
-	const FReal SolverVelocityScale = bClothSolverUseVelocityScale ? VelocityScale : (FReal)1.;
+	const FVec3 OldReferenceVelocity(InOutReferenceVelocity); // In local space
+	const FVec3 OldReferenceAngularVelocity(InOutReferenceAngularVelocity); // In local space
 
-	// Calculate deltas
-	const FRigidTransform3 DeltaTransform = ReferenceSpaceTransform.GetRelativeTransform(OldReferenceSpaceTransform);
+	const FReal SolverVelocityScale = bClothSolverUseVelocityScale ? VelocityScale : (FReal)1.;
 
 	auto CalculateClampedVelocityScale = [MaxVelocityScale, SolverVelocityScale](FRealSingle InVelocityScale)
 	{
@@ -1109,27 +1115,94 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 		return FMath::Clamp(SolverVelocityScale, (FReal)0., (FReal)1.) * FMath::Clamp(InVelocityScale, (FReal)0., (FReal)MaxVelocityScale);
 	};
 
-	// Apply linear velocity scale
-	const FVec3 LinearRatio = FVec3(1.) - FVec3(
+	// Calculate deltas
+	const FRotation3 OldReferenceSpaceRotationInverse = OldReferenceSpaceTransform.GetRotation().Inverse();
+	const FVec3 LocalDeltaTranslation = FRigidTransform3::SubtractTranslations(ReferenceSpaceTransform, OldReferenceSpaceTransform);
+	const FRotation3 FullDeltaRotationQ = OldReferenceSpaceRotationInverse * ReferenceSpaceTransform.GetRotation();
+	FReal FullDeltaAngle = FullDeltaRotationQ.GetAngle();
+	const FVec3 FullAxis = FullDeltaRotationQ.GetRotationAxis();
+	if (FullDeltaAngle > (FReal)PI)
+	{
+		FullDeltaAngle -= (FReal)2. * (FReal)PI;
+	}	
+	const FVec3 FullDeltaRotation = FullDeltaAngle * FullAxis;
+
+	// Do all linear velocity changes in old reference space.
+	const FVec3 ReferenceSpaceDeltaTranslation= OldReferenceSpaceRotationInverse * LocalDeltaTranslation;
+
+	// Apply linear velocity scale.
+	const FVec3 LinearRatio = FVec3(
 		CalculateClampedVelocityScale(LinearVelocityScale[0]),
 		CalculateClampedVelocityScale(LinearVelocityScale[1]),
 		CalculateClampedVelocityScale(LinearVelocityScale[2]));
-	const FVec3 DeltaPosition = LinearRatio * DeltaTransform.GetTranslation();
+
+	FVec3 AppliedDeltaTranslation = LinearRatio * ReferenceSpaceDeltaTranslation;
 
 	// Apply angular velocity scale
-	FRotation3 DeltaRotation = DeltaTransform.GetRotation();
-	FReal DeltaAngle = DeltaRotation.GetAngle();
-	FVec3 Axis = DeltaRotation.GetRotationAxis();
-	if (DeltaAngle > (FReal)PI)
-	{
-		DeltaAngle -= (FReal)2. * (FReal)PI;
-	}
+	const FReal AngularRatio = CalculateClampedVelocityScale(AngularVelocityScale);
+	FVec3 AppliedDeltaRotation = AngularRatio * FullDeltaRotation;
 
-	const FReal PartialDeltaAngle = DeltaAngle * ((FReal)1. - CalculateClampedVelocityScale(AngularVelocityScale));
-	DeltaRotation = UE::Math::TQuat<FReal>(Axis, PartialDeltaAngle);
+	// Apply clamps (since we're ultimately just modifying a single transform, remove accelerations from the velocity first, then clamp velocities).
+	if (DeltaTime > 0.f)
+	{
+		// Only update old reference velocity when ticking.
+		InOutReferenceVelocity = LocalDeltaTranslation / DeltaTime;
+		InOutReferenceAngularVelocity = FullDeltaRotation / DeltaTime;
+	
+		FVec3 AppliedLinearVelocity = AppliedDeltaTranslation / DeltaTime;
+		FVec3 AppliedAngularVelocity = InOutReferenceAngularVelocity;
+
+		const FVec3 OldScaledReferenceSpaceVelocity = LinearRatio * (OldReferenceSpaceRotationInverse * OldReferenceVelocity);
+		const FVec3 ScaledReferenceSpaceAccelerationTimesDt = AppliedLinearVelocity - OldScaledReferenceSpaceVelocity;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			if (MaxLinearAcceleration[Index] != TNumericLimits<FRealSingle>::Max() && MaxLinearAcceleration[Index] >= 0.f
+				&& FMath::Abs(ScaledReferenceSpaceAccelerationTimesDt[Index]) > (FReal)(MaxLinearAcceleration[Index] * DeltaTime))
+			{
+				AppliedLinearVelocity[Index] = OldScaledReferenceSpaceVelocity[Index] + FMath::Sign(ScaledReferenceSpaceAccelerationTimesDt[Index]) * (FReal)(MaxLinearAcceleration[Index] * DeltaTime);
+			}
+			if (MaxLinearVelocity[Index] != TNumericLimits<FRealSingle>::Max() && MaxLinearVelocity[Index] >= 0.f &&
+				FMath::Abs(AppliedLinearVelocity[Index]) > (FReal)MaxLinearVelocity[Index])
+			{
+				AppliedLinearVelocity[Index] = FMath::Sign(AppliedLinearVelocity[Index]) * (FReal)MaxLinearVelocity[Index];
+			}
+
+		}
+
+		AppliedDeltaTranslation = AppliedLinearVelocity * DeltaTime;
+
+		const FVec3 OldScaledAngularVelocity = AngularRatio * OldReferenceAngularVelocity;
+		const FVec3 ScaledReferenceSpaceAngularAccelerationTimesDt = AppliedAngularVelocity - OldScaledAngularVelocity;
+		if (MaxAngularAcceleration != TNumericLimits<FRealSingle>::Max() && MaxAngularAcceleration >= 0.f)
+		{
+			const FReal LenSq = ScaledReferenceSpaceAngularAccelerationTimesDt.SquaredLength();
+			if (LenSq > FMath::Square(MaxAngularAcceleration * DeltaTime))
+			{
+				const FReal Scale = MaxAngularAcceleration * DeltaTime * FMath::InvSqrt(LenSq);
+				AppliedAngularVelocity = OldScaledAngularVelocity + Scale * ScaledReferenceSpaceAngularAccelerationTimesDt;
+			}
+		}
+		if (MaxAngularVelocity != TNumericLimits<FRealSingle>::Max() && MaxAngularVelocity >= 0.f)
+		{
+			const FReal LenSq = AppliedAngularVelocity.SquaredLength();
+			if (LenSq > FMath::Square(MaxAngularVelocity))
+			{
+				const FReal Scale = MaxAngularVelocity * FMath::InvSqrt(LenSq);
+				AppliedAngularVelocity *= Scale;
+			}
+		}
+
+		AppliedDeltaRotation = AppliedAngularVelocity * DeltaTime;
+	}
+	const FVec3 DeltaPosition = ReferenceSpaceDeltaTranslation - AppliedDeltaTranslation;
+	const FVec3 DeltaRotation = FullDeltaRotation - AppliedDeltaRotation;
+	const FReal DeltaAngle = DeltaRotation.Length();
+	const FVec3 Axis = DeltaAngle > UE_KINDA_SMALL_NUMBER ? DeltaRotation / DeltaAngle : FVec3::XAxisVector;
+
+	const UE::Math::TQuat<FReal> DeltaRotationQuat(Axis, DeltaAngle);
 
 	// Transform points back into the previous frame of reference before applying the adjusted deltas
-	const FRigidTransform3 PreSimulationTransform = OldRootBoneLocalTransform.Inverse() * FRigidTransform3(DeltaPosition, DeltaRotation) * OldRootBoneLocalTransform;
+	const FRigidTransform3 PreSimulationTransform = OldRootBoneLocalTransform.Inverse() * FRigidTransform3(DeltaPosition, DeltaRotationQuat) * OldRootBoneLocalTransform;
 	PreSimulationTransforms[GroupId] = Softs::FSolverRigidTransform3(  // Store the delta in solver precision, no need for LWC here
 		Softs::FSolverVec3(PreSimulationTransform.GetTranslation()),
 		Softs::FSolverRotation3(PreSimulationTransform.GetRotation()));
@@ -1138,7 +1211,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 	const FReal AppliedFictitiousAngularScale = bDisableFictitiousForces ? (FReal)0.f : (PBDEvolution ? FMath::Min((FReal)2., (FReal)FictitiousAngularScale) : (FReal)1.);
 
 	// Save the reference bone relative angular velocity for calculating the fictitious forces
-	const FVec3 FictitiousAngularDisplacement = ReferenceSpaceTransform.TransformVector(Axis * PartialDeltaAngle)
+	const FVec3 FictitiousAngularDisplacement = ReferenceSpaceTransform.TransformVector(DeltaRotation)
 		* AppliedFictitiousAngularScale;
 	FictitiousAngularVelocities[GroupId] = DeltaTime > (Softs::FSolverReal)0.f ? Softs::FSolverVec3(FictitiousAngularDisplacement) / DeltaTime : Softs::FSolverVec3(0.f);
 	ReferenceSpaceLocations[GroupId] = ReferenceSpaceTransform.GetLocation() - LocalSpaceLocation;
