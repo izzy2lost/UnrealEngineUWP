@@ -50,7 +50,7 @@ private:
 * UObject wrapper for the FFleshAsset
 *
 */
-UCLASS(customconstructor)
+UCLASS(BlueprintType, customconstructor)
 class CHAOSFLESHENGINE_API UFleshAsset : public UObject, public IDataflowContentOwner
 {
 	GENERATED_UCLASS_BODY()
@@ -121,10 +121,10 @@ public:
 	//
 	// SkeletalMesh
 	//
-	UPROPERTY(EditAnywhere, Category = "Animation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
 
-	UPROPERTY(EditAnywhere, Category = "Animation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<USkeleton> Skeleton;
 
 	/**

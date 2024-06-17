@@ -27,6 +27,9 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"ProceduralMeshComponent",
+					"DataflowCore",
+					"DataflowEngine",
+					"DataflowSimulation",
 					// ... add other public dependencies that you statically link with here ...
 				}
 				);
@@ -41,6 +44,7 @@ namespace UnrealBuildTool.Rules
 					"ChaosFlesh",
 					"DataflowCore",
 					"DataflowEngine",
+					"DataflowSimulation",
 					"Engine",
 					"FieldSystemEngine",
 					"NetCore",

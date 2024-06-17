@@ -1,14 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "ChaosDeformablePhysicsComponent.h"
 #include "Chaos/Deformable/ChaosDeformableSolver.h"
 #include "Chaos/Deformable/ChaosDeformableSolverProxy.h"
 #include "Chaos/Deformable/ChaosDeformableSolverTypes.h"
 #include "ChaosFlesh/ChaosDeformableSolverThreading.h"
 #include "ChaosFlesh/ChaosDeformableTypes.h"
-#include "ChaosFlesh/FleshComponent.h"
 #include "DeformableInterface.h"
 #include "Components/SceneComponent.h"
+#include "Interfaces/DataflowPhysicsSolver.h"
 #include "UObject/ObjectMacros.h"
 
 #include "ChaosDeformableSolverComponent.generated.h"
@@ -249,11 +250,46 @@ struct FSolverMuscleActivationGroup
 	bool bDoMuscleActivation = false;
 };
 
+USTRUCT(BlueprintType)
+struct FDataflowFleshSolverProxy : public FDataflowPhysicsSolverProxy
+{
+	GENERATED_USTRUCT_BODY()
+
+	FDataflowFleshSolverProxy(Chaos::Softs::FDeformableSolverProperties InProp = Chaos::Softs::FDeformableSolverProperties()) :
+		FDataflowPhysicsSolverProxy()
+	{
+		Solver = MakeUnique<Chaos::Softs::FDeformableSolver>(InProp);
+	}
+	virtual ~FDataflowFleshSolverProxy() override = default;
+
+	// Begin FPhysicsSolverInterface overrides
+	virtual void AdvanceSolverDatas(const float DeltaTime) override
+	{
+		Chaos::Softs::FDeformableSolver::FPhysicsThreadAccess PhysicsThreadAccess(Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
+		PhysicsThreadAccess.Simulate(DeltaTime);
+	}
+	virtual float GetTimeStep() override
+	{
+		const Chaos::Softs::FDeformableSolver::FPhysicsThreadAccess PhysicsThreadAccess(Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
+		return PhysicsThreadAccess.GetProperties().TimeStepSize;
+	}
+	// End FPhysicsSolverInterface overrides
+
+	/** Chaos deformable solver that will be used in the component */
+	TUniquePtr<Chaos::Softs::FDeformableSolver> Solver;
+};
+
+template <>
+struct TStructOpsTypeTraits<FDataflowFleshSolverProxy> : public TStructOpsTypeTraitsBase2<FDataflowFleshSolverProxy>
+{
+	enum { WithCopy = false };
+};
+
 /**
 *	UDeformableSolverComponent
 */
 UCLASS(meta = (BlueprintSpawnableComponent))
-class CHAOSFLESHENGINE_API UDeformableSolverComponent : public USceneComponent, public IDeformableInterface
+class CHAOSFLESHENGINE_API UDeformableSolverComponent : public USceneComponent, public IDeformableInterface, public IDataflowPhysicsSolverInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -267,25 +303,44 @@ public:
 	~UDeformableSolverComponent();
 	void UpdateTickGroup();
 
-	/* Solver API */
-	FDeformableSolver::FGameThreadAccess GameThreadAccess();
+	// Begin IDataflowPhysicsSolverInterface overrides
+	virtual FString GetSimulationName() const override {return GetName();};
+	virtual FDataflowSimulationAsset& GetSimulationAsset() override {return SimulationAsset;};
+	virtual const FDataflowSimulationAsset& GetSimulationAsset() const override {return SimulationAsset;};
+	virtual FDataflowSimulationProxy* GetSimulationProxy() override {return &FleshSolverProxy;}
+	virtual const FDataflowSimulationProxy* GetSimulationProxy() const  override {return &FleshSolverProxy;}
+	virtual void BuildSimulationProxy() override;
+	virtual void ResetSimulationProxy() override;
+	virtual void WriteToSimulation(const float DeltaTime) override;
+	virtual void ReadFromSimulation(const float DeltaTime) override;
+	// End IDataflowPhysicsSolverInterface overrides
 
-	bool IsSimulating(UDeformablePhysicsComponent*) const;
-	bool IsSimulatable() const;
-	void Reset();
-	void AddDeformableProxy(UDeformablePhysicsComponent* InComponent);
-	void RemoveDeformableProxy(UDeformablePhysicsComponent* InComponent);
-	void Simulate(float DeltaTime);
-	void UpdateFromGameThread(float DeltaTime);
-	void UpdateFromSimulation(float DeltaTime);
-	void SetSimulationTicking(const bool InSimulationTicking) {bSimulationTicking = InSimulationTicking;}
-
-	/* Component Thread Management */
+	// Begin UActorComponent overrides
+	virtual bool ShouldCreatePhysicsState() const override {return true;}
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-	//bool ShouldWaitForDeformableInTickFunction() const;
+	// End UActorComponent overrides
+
+	/* Game thread access to the solver proxy */
+	FDeformableSolver::FGameThreadAccess GameThreadAccess();
+
+	/* Physics thread access to the solver proxy */
+	FDeformableSolver::FPhysicsThreadAccess PhysicsThreadAccess();
+
+	bool IsSimulating(UDeformablePhysicsComponent*) const;
+	bool IsSimulatable() const;
+	void AddDeformableProxy(UDeformablePhysicsComponent* InComponent);
+	void RemoveDeformableProxy(UDeformablePhysicsComponent* InComponent);
+	void Simulate(float DeltaTime);
+	void SetSimulationTicking(const bool InSimulationTicking) {bSimulationTicking = InSimulationTicking;}
+
+	/* Callback to trigger the deformable update after the simulation */
 	void UpdateDeformableEndTickState(bool bRegister);
+	
+	/* Solver dataflow asset used to advance in time */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	FDataflowSimulationAsset SimulationAsset;
 
 	/* Properties : Do NOT place ungrouped properties in this class */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics", meta = (EditCondition = "false"))
@@ -303,8 +358,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
 	FSolverConstraintsGroup SolverConstraints;
 
-	
-
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
 	FSolverForcesGroup SolverForces;
 
@@ -315,7 +368,7 @@ public:
 	FSolverMuscleActivationGroup SolverMuscleActivation;
 
 	// Simulation Variables
-	TUniquePtr<FDeformableSolver> Solver;
+	FDataflowFleshSolverProxy FleshSolverProxy;
 
 #if WITH_EDITOR
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;

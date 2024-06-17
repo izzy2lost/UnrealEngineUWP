@@ -51,7 +51,7 @@ namespace UE::Chaos::FleshGenerator
 			DeformableSolver->SolverConstraints = Properties->SolverConstraints;
 			DeformableSolver->SolverForces = Properties->SolverForces;
 			DeformableSolver->SolverDebugging = Properties->SolverDebugging;
-			DeformableSolver->Reset();
+			DeformableSolver->BuildSimulationProxy();
 
 
 			constexpr int32 LODIndex = 0;

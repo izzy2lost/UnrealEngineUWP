@@ -29,7 +29,7 @@ FAutoConsoleVariableRef CVarChaosEngineDeformableSolverbEnabled(TEXT("p.Chaos.De
 
 UDeformableSolverComponent::UDeformableSolverComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, Solver()
+	, FleshSolverProxy()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	bTickInEditor = false;
@@ -91,9 +91,14 @@ void UDeformableSolverComponent::UpdateTickGroup()
 UDeformableSolverComponent::FDeformableSolver::FGameThreadAccess
 UDeformableSolverComponent::GameThreadAccess()
 {
-	return FDeformableSolver::FGameThreadAccess(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+	return FDeformableSolver::FGameThreadAccess(FleshSolverProxy.Solver.Get(), Chaos::Softs::FGameThreadAccessor());
 }
 
+UDeformableSolverComponent::FDeformableSolver::FPhysicsThreadAccess
+UDeformableSolverComponent::PhysicsThreadAccess()
+{
+	return FDeformableSolver::FPhysicsThreadAccess(FleshSolverProxy.Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
+}
 
 bool UDeformableSolverComponent::IsSimulatable() const
 {
@@ -150,7 +155,6 @@ void UDeformableSolverComponent::UpdateDeformableEndTickState(bool bRegister)
 void UDeformableSolverComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	Reset();
 }
 
 void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -163,23 +167,28 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 		UpdateTickGroup();
 
 		UpdateDeformableEndTickState(IsSimulatable());
-		if(bSimulationTicking)
+
+		// We only run the simulation if no dataflow solver has been defined
+		if(!SimulationAsset.DataflowAsset)
 		{
-			UpdateFromGameThread(DeltaTime);
-
-			if (SolverTiming.bDoThreadedAdvance)
+			if(bSimulationTicking)
 			{
-				// see FParallelClothCompletionTask
-				FGraphEventArray Prerequisites;
-				Prerequisites.Add(ParallelDeformableTask);
-				FGraphEventRef DeformableCompletionEvent = TGraphTask<FParallelDeformableTask>::CreateTask(&Prerequisites, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(this, DeltaTime);
-				ThisTickFunction->GetCompletionHandle()->DontCompleteUntil(DeformableCompletionEvent);
-			}
-			else
-			{
-				Simulate(DeltaTime);
+				WriteToSimulation(DeltaTime);
 
-				UpdateFromSimulation(DeltaTime);
+				if (SolverTiming.bDoThreadedAdvance)
+				{
+					// see FParallelClothCompletionTask
+					FGraphEventArray Prerequisites;
+					Prerequisites.Add(ParallelDeformableTask);
+					FGraphEventRef DeformableCompletionEvent = TGraphTask<FParallelDeformableTask>::CreateTask(&Prerequisites, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(this, DeltaTime);
+					ThisTickFunction->GetCompletionHandle()->DontCompleteUntil(DeformableCompletionEvent);
+				}
+				else
+				{
+					Simulate(DeltaTime);
+
+					ReadFromSimulation(DeltaTime);
+				}
 			}
 		}
 	}
@@ -190,14 +199,14 @@ void UDeformableSolverComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 	Super::EndPlay(EndPlayReason);
 }
 
-void UDeformableSolverComponent::Reset()
+void UDeformableSolverComponent::BuildSimulationProxy()
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_Reset);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_Reset);
 
 	if (GChaosEngineDeformableCVarParams.bEnableDeformableSolver)
 	{
-		Solver.Reset(new FDeformableSolver({
+		FleshSolverProxy.Solver = MakeUnique<Chaos::Softs::FDeformableSolver>(Chaos::Softs::FDeformableSolverProperties(
 			SolverTiming.NumSubSteps
 			, SolverTiming.NumSolverIterations
 			, SolverTiming.FixTimeStep
@@ -228,7 +237,7 @@ void UDeformableSolverComponent::Reset()
 			, SolverMuscleActivation.bDoMuscleActivation
 			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bCollideWithFullmesh
 			, SolverConstraints.GaussSeidelConstraints.bEnableDynamicSprings
-		}));
+		));
 
 		for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)
 		{
@@ -243,14 +252,29 @@ void UDeformableSolverComponent::Reset()
 	}
 }
 
+void UDeformableSolverComponent::ResetSimulationProxy()
+{
+	for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)
+	{
+		if( DeformableComponent )
+		{
+			if (IsSimulating(DeformableComponent))
+			{
+				RemoveDeformableProxy(DeformableComponent);
+			}
+		}
+	}
+	FleshSolverProxy.Solver.Reset();
+}
+
 void UDeformableSolverComponent::RemoveDeformableProxy(UDeformablePhysicsComponent* InComponent)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy);
 
-	if (Solver && IsSimulating(InComponent))
+	if (FleshSolverProxy.Solver && IsSimulating(InComponent))
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 		if (!GameThreadSolver.HasObject(InComponent))
 		{
 			InComponent->RemoveProxy(GameThreadSolver);
@@ -263,9 +287,9 @@ void UDeformableSolverComponent::AddDeformableProxy(UDeformablePhysicsComponent*
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_AddDeformableProxy);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_AddDeformableProxy);
 
-	if (Solver && IsSimulating(InComponent))
+	if (FleshSolverProxy.Solver && IsSimulating(InComponent))
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 		if (!GameThreadSolver.HasObject(InComponent))
 		{
 			InComponent->AddProxy(GameThreadSolver);
@@ -278,22 +302,25 @@ void UDeformableSolverComponent::Simulate(float DeltaTime)
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_Simulate);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_Simulate);
 
-	if (Solver)
+	if (FleshSolverProxy.Solver)
 	{
 		// @todo(accessor) : Should be coming from the threading class. 
-		FDeformableSolver::FPhysicsThreadAccess PhysicsThreadSolver(Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
-		PhysicsThreadSolver.Simulate(DeltaTime);
+		FDeformableSolver::FPhysicsThreadAccess PhysicsThreadSolver = PhysicsThreadAccess();
+		if(!SimulationAsset.DataflowAsset)
+		{
+			PhysicsThreadSolver.Simulate(DeltaTime);
+		}
 	}
 }
 
-void UDeformableSolverComponent::UpdateFromGameThread(float DeltaTime)
+void UDeformableSolverComponent::WriteToSimulation(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread);
 
-	if (Solver)
+	if (FleshSolverProxy.Solver)
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 
 		Chaos::Softs::FDeformableDataMap DataMap;
 		for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)
@@ -315,14 +342,14 @@ void UDeformableSolverComponent::UpdateFromGameThread(float DeltaTime)
 	}
 }
 
-void UDeformableSolverComponent::UpdateFromSimulation(float DeltaTime)
+void UDeformableSolverComponent::ReadFromSimulation(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation);
 
-	if (Solver)
+	if (FleshSolverProxy.Solver)
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 		TUniquePtr<FDeformablePackage> Output(nullptr);
 		while (TUniquePtr<FDeformablePackage> SolverOutput = GameThreadSolver.PullOutputPackage())
 		{
@@ -347,6 +374,8 @@ void UDeformableSolverComponent::UpdateFromSimulation(float DeltaTime)
 		}
 	}
 }
+
+
 
 
 

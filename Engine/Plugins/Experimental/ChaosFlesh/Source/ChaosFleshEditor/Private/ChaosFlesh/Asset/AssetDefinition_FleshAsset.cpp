@@ -73,7 +73,11 @@ EAssetCommandResult UAssetDefinition_FleshAsset::OpenAssets(const FAssetOpenArgs
 			{
 				UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
 				UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
-				AssetEditor->Initialize({ FleshAsset });
+
+				UClass* ActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
+					TEXT("/ChaosFlesh/BP_FleshPreview.BP_FleshPreview_C"), nullptr, LOAD_None, nullptr);
+				AssetEditor->Initialize({ FleshAsset }, ActorClass);
+				
 				return EAssetCommandResult::Handled;
 			}
 

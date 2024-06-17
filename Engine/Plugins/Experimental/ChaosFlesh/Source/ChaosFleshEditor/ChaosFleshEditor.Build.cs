@@ -40,6 +40,7 @@ namespace UnrealBuildTool.Rules
 					"DataflowEngine",
 					"DataflowEnginePlugin",
 					"DataflowEditor",
+					"DataflowSimulation",
 					"EditorStyle",
 					"Engine",
 					"EditorFramework",

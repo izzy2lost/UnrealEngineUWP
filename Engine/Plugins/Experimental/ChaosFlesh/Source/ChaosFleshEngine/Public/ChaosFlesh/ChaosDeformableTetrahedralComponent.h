@@ -114,7 +114,10 @@ public:
 	virtual void UpdateFromSimulation(const FDataMapValue* SimualtionBuffer) override;
 
 	/** RestCollection */
+	UFUNCTION(BlueprintCallable, Category = "Physics")
 	void SetRestCollection(const UFleshAsset * InRestCollection);
+	
+	UFUNCTION(BlueprintCallable, Category = "Physics")
 	const UFleshAsset* GetRestCollection() const { return RestCollection; }
 
 	/** DynamicCollection */

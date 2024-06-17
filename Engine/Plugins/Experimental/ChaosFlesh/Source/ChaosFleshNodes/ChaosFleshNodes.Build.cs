@@ -16,6 +16,7 @@ namespace UnrealBuildTool.Rules
 					"Chaos",
 					"DataflowCore",
 					"DataflowEngine",
+					"DataflowSimulation",
 					"ChaosFlesh",
 					"ChaosFleshEngine",
 					"Engine",

@@ -61,9 +61,9 @@ namespace UE::Chaos::FleshGenerator
 	
 		const TArray<FTransform> Transforms = GetBoneTransforms( SkeletalComponent, AnimFrame);
 		FleshComponent.Pose(SkeletalComponent, Transforms);
-		SolverComponent.UpdateFromGameThread(DeltaTime);
+		SolverComponent.WriteToSimulation(DeltaTime);
 		SolverComponent.Simulate(DeltaTime);
-		SolverComponent.UpdateFromSimulation(DeltaTime);
+		SolverComponent.ReadFromSimulation(DeltaTime);
 		SimResource.SimulatedPositions[CacheFrame] = GetRenderPositions(SimResource);
 
 		SimResource.FinishFrame();

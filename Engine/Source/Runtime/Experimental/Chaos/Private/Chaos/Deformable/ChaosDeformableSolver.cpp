@@ -221,72 +221,75 @@ namespace Chaos::Softs
 			const FThreadingProxy::FKey& Owner = ProxyIt.Key();
 			if (const FFleshThreadingProxy* Proxy = ProxyIt.Value()->As<FFleshThreadingProxy>())
 			{
-				if (FFleshThreadingProxy::FFleshInputBuffer* FleshInputBuffer =
-					this->CurrentInputPackage->ObjectMap.Contains(Owner) ?
-					this->CurrentInputPackage->ObjectMap[Owner]->As<FFleshThreadingProxy::FFleshInputBuffer>() :
-					nullptr)
+				if(this->CurrentInputPackage)
 				{
-					GeometryCollection::Facades::FConstraintOverrideTargetFacade CnstrTargets(FleshInputBuffer->SimulationCollection);
-					if (CnstrTargets.IsValid() && CnstrTargets.Num())
+					if (FFleshThreadingProxy::FFleshInputBuffer* FleshInputBuffer =
+						this->CurrentInputPackage->ObjectMap.Contains(Owner) ?
+						this->CurrentInputPackage->ObjectMap[Owner]->As<FFleshThreadingProxy::FFleshInputBuffer>() :
+						nullptr)
 					{
-						const FIntVector2& Range = Proxy->GetSolverParticleRange();
-						const FSolverReal CurrentRatio = FSolverReal(this->Iteration) / FSolverReal(this->Property.NumSolverSubSteps);
-						const FTransform WorldToSim = Proxy->GetCurrentPointsTransform();
-
-						if (this->Iteration == 1)
+						GeometryCollection::Facades::FConstraintOverrideTargetFacade CnstrTargets(FleshInputBuffer->SimulationCollection);
+						if (CnstrTargets.IsValid() && CnstrTargets.Num())
 						{
-							TransientConstraintBuffer.Reserve(TransientConstraintBuffer.Num() + CnstrTargets.Num());
+							const FIntVector2& Range = Proxy->GetSolverParticleRange();
+							const FSolverReal CurrentRatio = FSolverReal(this->Iteration) / FSolverReal(this->Property.NumSolverSubSteps);
+							const FTransform WorldToSim = Proxy->GetCurrentPointsTransform();
+
+							if (this->Iteration == 1)
+							{
+								TransientConstraintBuffer.Reserve(TransientConstraintBuffer.Num() + CnstrTargets.Num());
+								for (int32 i = 0; i < CnstrTargets.Num(); i++)
+								{
+									int32 LocalIndex = CnstrTargets.GetIndex(i);
+									int32 ParticleIndex = Range[0] + LocalIndex;
+									// Set particle kinematic state to kinematic, saving prior state.
+									TransientConstraintBuffer.Add(
+										TPair<int32, TTuple<float, float, FVector3f>>(
+											ParticleIndex,
+											TTuple<float, float, FVector3f>(
+												Evolution->Particles().InvM(ParticleIndex),
+												Evolution->Particles().PAndInvM(ParticleIndex).InvM,
+												Evolution->Particles().GetX(ParticleIndex))));
+
+									Evolution->Particles().InvM(ParticleIndex) = 0.f;
+									Evolution->Particles().PAndInvM(ParticleIndex).InvM = 0.f;
+								}
+							}
+
+							auto ToDouble = [](FVector3f V) { return FVector(V[0], V[1], V[2]); };
+							auto ToSingle = [](FVector V) { return FVector3f(static_cast<float>(V[0]), static_cast<float>(V[1]), static_cast<float>(V[2])); };
+
 							for (int32 i = 0; i < CnstrTargets.Num(); i++)
 							{
 								int32 LocalIndex = CnstrTargets.GetIndex(i);
 								int32 ParticleIndex = Range[0] + LocalIndex;
-								// Set particle kinematic state to kinematic, saving prior state.
-								TransientConstraintBuffer.Add(
-									TPair<int32, TTuple<float, float, FVector3f>>(
-										ParticleIndex,
-										TTuple<float, float, FVector3f>(
-											Evolution->Particles().InvM(ParticleIndex),
-											Evolution->Particles().PAndInvM(ParticleIndex).InvM,
-											Evolution->Particles().GetX(ParticleIndex))));
 
-								Evolution->Particles().InvM(ParticleIndex) = 0.f;
-								Evolution->Particles().PAndInvM(ParticleIndex).InvM = 0.f;
+								const FVector3f& WorldSpaceTarget = CnstrTargets.GetPosition(i);
+								FVector3f SimSpaceTarget = ToSingle(WorldToSim.TransformPosition(ToDouble(WorldSpaceTarget)));
+								const FVector3f& SimSpaceSource = TransientConstraintBuffer[ParticleIndex].Get<2>();
+
+								// Lerp from previous particle position to the target over the solver iterations.
+								Evolution->Particles().SetX(ParticleIndex,
+									SimSpaceTarget * CurrentRatio +
+									SimSpaceSource * (static_cast<FSolverReal>(1.) - CurrentRatio));
+								Evolution->Particles().PAndInvM(ParticleIndex).P =
+									Evolution->Particles().GetX(ParticleIndex);
 							}
-						}
-
-						auto ToDouble = [](FVector3f V) { return FVector(V[0], V[1], V[2]); };
-						auto ToSingle = [](FVector V) { return FVector3f(static_cast<float>(V[0]), static_cast<float>(V[1]), static_cast<float>(V[2])); };
-
-						for (int32 i = 0; i < CnstrTargets.Num(); i++)
-						{
-							int32 LocalIndex = CnstrTargets.GetIndex(i);
-							int32 ParticleIndex = Range[0] + LocalIndex;
-
-							const FVector3f& WorldSpaceTarget = CnstrTargets.GetPosition(i);
-							FVector3f SimSpaceTarget = ToSingle(WorldToSim.TransformPosition(ToDouble(WorldSpaceTarget)));
-							const FVector3f& SimSpaceSource = TransientConstraintBuffer[ParticleIndex].Get<2>();
-
-							// Lerp from previous particle position to the target over the solver iterations.
-							Evolution->Particles().SetX(ParticleIndex,
-								SimSpaceTarget * CurrentRatio +
-								SimSpaceSource * (static_cast<FSolverReal>(1.) - CurrentRatio));
-							Evolution->Particles().PAndInvM(ParticleIndex).P =
-								Evolution->Particles().GetX(ParticleIndex);
-						}
 #if WITH_EDITOR
-						if (GDeformableDebugParams.IsDebugDrawingEnabled() && GDeformableDebugParams.bDoDrawTransientKinematicParticles)
-						{
-							auto DoubleVert = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
-							for (int32 i = 0; i < CnstrTargets.Num(); i++)
+							if (GDeformableDebugParams.IsDebugDrawingEnabled() && GDeformableDebugParams.bDoDrawTransientKinematicParticles)
 							{
-								int32 LocalIndex = CnstrTargets.GetIndex(i);
-								int32 ParticleIndex = Range[0] + LocalIndex;
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(ToDouble(Evolution->Particles().GetX(ParticleIndex)), FColor::Orange, false, -1.0f, 0, 5);
+								auto DoubleVert = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
+								for (int32 i = 0; i < CnstrTargets.Num(); i++)
+								{
+									int32 LocalIndex = CnstrTargets.GetIndex(i);
+									int32 ParticleIndex = Range[0] + LocalIndex;
+									Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(ToDouble(Evolution->Particles().GetX(ParticleIndex)), FColor::Orange, false, -1.0f, 0, 5);
+								}
 							}
-						}
 #endif
-					} // if has constraint overrides
-				} // if flesh input buffer
+						} // if has constraint overrides
+					} // if flesh input buffer
+				}
 			}
 		} // for all proxies
 	}
@@ -314,7 +317,7 @@ namespace Chaos::Softs
 			{
 				if (FFleshThreadingProxy* Proxy = Proxies[Owner]->As<FFleshThreadingProxy>())
 				{
-					if (this->CurrentInputPackage->ObjectMap.Contains(Owner))
+					if (this->CurrentInputPackage && this->CurrentInputPackage->ObjectMap.Contains(Owner))
 					{
 						FFleshThreadingProxy::FFleshInputBuffer* FleshInputBuffer =
 							this->CurrentInputPackage->ObjectMap[Owner]->As<FFleshThreadingProxy::FFleshInputBuffer>();
@@ -2135,23 +2138,26 @@ namespace Chaos::Softs
 
 				TManagedArray<FVector3f>& Position = Proxy->GetDynamicCollection().ModifyAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
 
-				// The final transform gets us from whatever the simulation space is,
-				// to component space.
-				const FTransform FinalXf = Proxy->GetFinalTransform();
-				if (!FinalXf.Equals(FTransform::Identity))
+				if((Position.Num() + Range[0]) <= (int32)(Evolution->Particles().Size()))
 				{
-					for (int32 vdx = 0; vdx < Position.Num(); vdx++)
+					// The final transform gets us from whatever the simulation space is,
+					// to component space.
+					const FTransform FinalXf = Proxy->GetFinalTransform();
+					if (!FinalXf.Equals(FTransform::Identity))
 					{
-						const Chaos::FVec3f& Pos = Evolution->Particles().GetX(vdx + Range[0]);
-						FVector PosD = UEVertd(Pos);
-						Position[vdx] = UEVertf(FinalXf.TransformPosition(PosD));
+						for (int32 vdx = 0; vdx < Position.Num(); vdx++)
+						{
+							const Chaos::FVec3f& Pos = Evolution->Particles().GetX(vdx + Range[0]);
+							FVector PosD = UEVertd(Pos);
+							Position[vdx] = UEVertf(FinalXf.TransformPosition(PosD));
+						}
 					}
-				}
-				else
-				{
-					for (int32 vdx = 0; vdx < Position.Num(); vdx++)
+					else
 					{
-						Position[vdx] = UEVertf(UEVertd(Evolution->Particles().GetX(vdx + Range[0])));
+						for (int32 vdx = 0; vdx < Position.Num(); vdx++)
+						{
+							Position[vdx] = UEVertf(UEVertd(Evolution->Particles().GetX(vdx + Range[0])));
+						}
 					}
 				}
 			}

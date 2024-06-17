@@ -382,7 +382,7 @@ namespace Chaos
 			{
 				if(FleshComp->GetDeformableSolver())
 				{
-					return FleshComp->GetDeformableSolver()->Solver.Get();
+					return FleshComp->GetDeformableSolver()->FleshSolverProxy.Solver.Get();
 				}
 			}
 		}
