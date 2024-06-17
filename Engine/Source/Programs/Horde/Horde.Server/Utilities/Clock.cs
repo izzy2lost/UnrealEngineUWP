@@ -10,7 +10,6 @@ using Horde.Server;
 using Horde.Server.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OpenTelemetry.Trace;
 using StackExchange.Redis;
 using TimeZoneConverter;
 
@@ -130,7 +129,6 @@ namespace HordeCommon
 		}
 
 		readonly RedisService _redis;
-		readonly Tracer _tracer;
 		readonly TimeZoneInfo _timeZone;
 		readonly List<TickerImpl> _tickers = new List<TickerImpl>();
 
@@ -143,10 +141,9 @@ namespace HordeCommon
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Clock(RedisService redis, Tracer tracer, IOptions<ServerSettings> settings)
+		public Clock(RedisService redis, IOptions<ServerSettings> settings)
 		{
 			_redis = redis;
-			_tracer = tracer;
 
 			string? timeZoneName = settings.Value.ScheduleTimeZone;
 			_timeZone = (timeZoneName == null) ? TimeZoneInfo.Local : TZConvert.GetTimeZoneInfo(timeZoneName);
@@ -176,10 +173,10 @@ namespace HordeCommon
 		public ITicker AddSharedTicker(string name, TimeSpan delay, Func<CancellationToken, ValueTask> tickAsync, ILogger logger)
 		{
 			RedisKey key = new RedisKey($"tick/{name}");
-			return this.AddTicker(name, delay / 4, token => TriggerSharedAsync(name, key, delay, tickAsync, token), logger);
+			return this.AddTicker(name, delay / 4, token => TriggerSharedAsync(key, delay, tickAsync, token), logger);
 		}
 
-		async ValueTask TriggerSharedAsync(string name, RedisKey key, TimeSpan interval, Func<CancellationToken, ValueTask> tickAsync, CancellationToken cancellationToken)
+		async ValueTask TriggerSharedAsync(RedisKey key, TimeSpan interval, Func<CancellationToken, ValueTask> tickAsync, CancellationToken cancellationToken)
 		{
 			if (_redis.ReadOnlyMode)
 			{

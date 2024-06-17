@@ -1,0 +1,33 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
+namespace Horde.Server.Utilities
+{
+	/// <summary>
+	/// Only requests to attached controller to pass if debug endpoint is enabled in settings
+	/// Adds extra security for not enabling these admin endpoints by accident.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	public sealed class DebugEndpointAttribute : Attribute, IActionFilter
+	{
+		/// <inheritdoc />
+		public void OnActionExecuting(ActionExecutingContext context)
+		{
+			IOptionsMonitor<ServerSettings> settings = context.HttpContext.RequestServices.GetRequiredService<IOptionsMonitor<ServerSettings>>();
+			if (!settings.CurrentValue.EnableDebugEndpoints)
+			{
+				context.Result = new ForbidResult();
+			}
+		}
+
+		/// <inheritdoc />
+		public void OnActionExecuted(ActionExecutedContext context)
+		{
+		}
+	}
+}
