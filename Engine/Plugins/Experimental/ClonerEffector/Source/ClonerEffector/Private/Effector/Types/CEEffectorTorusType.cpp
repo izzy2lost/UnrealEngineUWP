@@ -64,23 +64,24 @@ void UCEEffectorTorusType::OnExtensionVisualizerDirty(int32 InDirtyFlags)
 {
 	Super::OnExtensionVisualizerDirty(InDirtyFlags);
 
+	constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+	constexpr FGeometryScriptRevolveOptions RevolveOptions;
+	constexpr int32 MajorSteps = 32;
+	constexpr int32 MinorSteps = 16;
+
 	if ((InDirtyFlags & InnerVisualizerFlag) != 0)
 	{
-		UpdateVisualizer(InnerVisualizerFlag, [this](UDynamicMesh* InMesh)
+		UpdateVisualizer(InnerVisualizerFlag, [this, &PrimitiveOptions, &RevolveOptions, MajorSteps, MinorSteps](UDynamicMesh* InMesh)
 		{
-			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
-			constexpr FGeometryScriptRevolveOptions RevolveOptions;
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -TorusInnerRadius)), RevolveOptions, TorusRadius, TorusInnerRadius);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -TorusInnerRadius)), RevolveOptions, TorusRadius, TorusInnerRadius, MajorSteps, MinorSteps);
 		});
 	}
 
 	if ((InDirtyFlags & OuterVisualizerFlag) != 0)
 	{
-		UpdateVisualizer(OuterVisualizerFlag, [this](UDynamicMesh* InMesh)
+		UpdateVisualizer(OuterVisualizerFlag, [this, &PrimitiveOptions, &RevolveOptions, MajorSteps, MinorSteps](UDynamicMesh* InMesh)
 		{
-			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
-			constexpr FGeometryScriptRevolveOptions RevolveOptions;
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -TorusOuterRadius)), RevolveOptions, TorusRadius, TorusOuterRadius);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -TorusOuterRadius)), RevolveOptions, TorusRadius, TorusOuterRadius, MajorSteps, MinorSteps);
 		});
 	}
 }

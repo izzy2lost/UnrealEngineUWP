@@ -49,21 +49,23 @@ void UCEEffectorSphereType::OnExtensionVisualizerDirty(int32 InDirtyFlags)
 {
 	Super::OnExtensionVisualizerDirty(InDirtyFlags);
 
+	constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+	constexpr int32 Phi = 20;
+	constexpr int32 Theta = 32;
+
 	if ((InDirtyFlags & InnerVisualizerFlag) != 0)
 	{
-		UpdateVisualizer(InnerVisualizerFlag, [this](UDynamicMesh* InMesh)
+		UpdateVisualizer(InnerVisualizerFlag, [this, &PrimitiveOptions, Phi, Theta](UDynamicMesh* InMesh)
 		{
-			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereLatLong(InMesh, PrimitiveOptions, FTransform::Identity, InnerRadius);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereLatLong(InMesh, PrimitiveOptions, FTransform::Identity, InnerRadius, Phi, Theta);
 		});
 	}
 
 	if ((InDirtyFlags & OuterVisualizerFlag) != 0)
 	{
-		UpdateVisualizer(OuterVisualizerFlag, [this](UDynamicMesh* InMesh)
+		UpdateVisualizer(OuterVisualizerFlag, [this, &PrimitiveOptions, Phi, Theta](UDynamicMesh* InMesh)
 		{
-			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereLatLong(InMesh, PrimitiveOptions, FTransform::Identity, OuterRadius);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereLatLong(InMesh, PrimitiveOptions, FTransform::Identity, OuterRadius, Phi, Theta);
 		});
 	}
 }

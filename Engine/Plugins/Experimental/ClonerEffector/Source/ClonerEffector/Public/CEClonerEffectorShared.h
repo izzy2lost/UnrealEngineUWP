@@ -157,10 +157,12 @@ enum class ECEClonerEffectorMode : uint8
 	Default,
 	/** Rotates clones towards a target actor */
 	Target,
-	/** Randomly applies curl noise across the field zone */
+	/** Randomly applies noise across the field zone */
 	NoiseField,
-	/** Pushes clones apart based on a strength */
-	Push
+	/** Pushes clones apart based on a strength and direction */
+	Push,
+	/** Accumulate transform on clones based on their index */
+	Step
 };
 
 /** Enumerates the effector push direction available */
