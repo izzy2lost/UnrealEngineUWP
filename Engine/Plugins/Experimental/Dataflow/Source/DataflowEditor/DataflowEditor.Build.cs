@@ -30,6 +30,7 @@ namespace UnrealBuildTool.Rules
 					"DataflowEngine",
 					"DataflowEnginePlugin",
 					"DataflowNodes",
+					"DataflowSimulation",
 					"DynamicMesh",
 					"Engine",
 					"EditorFramework",

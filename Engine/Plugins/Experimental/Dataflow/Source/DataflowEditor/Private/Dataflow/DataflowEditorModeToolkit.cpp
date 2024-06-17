@@ -279,7 +279,7 @@ void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, U
 	{
 		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
 		{
-			EditorContent->SetIsDirty(true);
+			EditorContent->SetConstructionDirty(true);
 		}
 	}
 

@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowSimulationScene.h"
+#include "Dataflow/DataflowSimulationManager.h"
+#include "Dataflow/DataflowEditor.h"
 #include "Chaos/CacheManagerActor.h"
 #include "Misc/TransactionObjectEvent.h"
-#include "Dataflow/DataflowEditor.h"
 #include "EngineUtils.h"
+#include "Animation/AnimSingleNodeInstance.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowSimulationScene"
 
@@ -15,32 +17,28 @@
 FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
 	: FDataflowPreviewSceneBase(ConstructionValues, InEditor)
 {
-	SimulationSceneDescription = NewObject<UDataflowSimulationSceneDescription>();
-	SimulationSceneDescription->SetSimulationScene(this);
+	SceneDescription = NewObject<UDataflowSimulationSceneDescription>();
+	SceneDescription->SetSimulationScene(this);
 
 	SimulationGenerator = MakeShared<Dataflow::FDataflowSimulationGenerator>();
+	RootSceneActor = GetWorld()->SpawnActor<AChaosCacheManager>();
 
-	const TObjectPtr<AChaosCacheManager> CacheManager = GetWorld()->SpawnActor<AChaosCacheManager>(AChaosCacheManager::StaticClass());
+	SceneDescription->ActorClass = GetEditorContent()->GetPreviewClass();
 
-	CacheManager->StartMode = EStartMode::Timed;
-	CacheManager->CacheMode = ECacheMode::None;
-	
-	RootSceneActor = CacheManager;
-
-	CreateSimulationWorld();
+	CreateSimulationScene();
 }
 
 FDataflowSimulationScene::~FDataflowSimulationScene()
 {
-	ResetSimulationWorld();
+	ResetSimulationScene();
 }
 
 void FDataflowSimulationScene::UnbindSceneSelection()
 {
-	if(SimulationContext && SimulationContext->GetRootActor() && SimulationContext->GetSimulationWorld())
+	if(PreviewActor)
 	{
 		TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
-		SimulationContext->GetRootActor()->GetComponents(PrimComponents);
+		PreviewActor->GetComponents(PrimComponents);
 
 		for(UPrimitiveComponent* PrimComponent : PrimComponents)
 		{
@@ -49,24 +47,72 @@ void FDataflowSimulationScene::UnbindSceneSelection()
 	}
 }
 
-void FDataflowSimulationScene::ResetSimulationWorld()
+void FDataflowSimulationScene::ResetSimulationScene()
 {
-	if(SimulationContext && SimulationContext->GetRootActor())
+	// Destroy the spawned root actor
+	if(PreviewActor && GetWorld())
 	{
-		// Unbind the scene selection
-		UnbindSceneSelection();
-		
-		// Clear the simulation context
-		CleanSimulationContext(SimulationContext);
+		GetWorld()->DestroyActor(PreviewActor);
+
+		GetWorld()->EditorDestroyActor(PreviewActor, true);
+		// Since deletion can be delayed, rename to avoid future name collision
+		// Call UObject::Rename directly on actor to avoid AActor::Rename which unnecessarily sunregister and re-register components
+		PreviewActor->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	}
+	
+	// Unbind the scene selection
+	UnbindSceneSelection();
+}
+
+void FDataflowSimulationScene::PauseSimulationScene() const
+{
+	if(SceneDescription && (SceneDescription->CacheAsset == nullptr))
+	{
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(false);
+		Dataflow::PauseSkeletonAnimation(PreviewActor);
+	}
+}
+
+void FDataflowSimulationScene::StartSimulationScene() const
+{
+	if(SceneDescription && (SceneDescription->CacheAsset == nullptr))
+	{
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(true);
+		Dataflow::StartSkeletonAnimation(PreviewActor);
+	}
+}
+
+void FDataflowSimulationScene::StepSimulationScene() const
+{
+	if(SceneDescription && (SceneDescription->CacheAsset == nullptr))
+	{
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(true);
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationStepping(true);
+		Dataflow::StepSkeletonAnimation(PreviewActor);
+	}
+}
+
+void FDataflowSimulationScene::RebuildSimulationScene(const bool bIsSimulationEnabled)
+{
+	if(SceneDescription && (SceneDescription->CacheAsset == nullptr))
+	{
+		// Unregister components, cache manager, selection...
+		ResetSimulationScene();
+
+		// Register components, cache manager, selection...
+		CreateSimulationScene();
+
+		// Override the simulation enabled flag
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(bIsSimulationEnabled);
 	}
 }
 
 void FDataflowSimulationScene::BindSceneSelection()
 {
-	if(SimulationContext && SimulationContext->GetRootActor() && SimulationContext->GetSimulationWorld())
+	if(PreviewActor)
 	{
 		TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
-		SimulationContext->GetRootActor()->GetComponents(PrimComponents);
+		PreviewActor->GetComponents(PrimComponents);
 		
 		for(UPrimitiveComponent* PrimComponent : PrimComponents)
 		{
@@ -76,33 +122,31 @@ void FDataflowSimulationScene::BindSceneSelection()
 	}
 }
 
-void FDataflowSimulationScene::CreateSimulationWorld()
+void FDataflowSimulationScene::CreateSimulationScene()
 {
-	if(const TObjectPtr<AChaosCacheManager> CacheManager = Cast<AChaosCacheManager>(RootSceneActor))
+	if(SimulationGenerator && SceneDescription && GetWorld())
 	{
-		if(const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
-		{
-			if(SimulationGenerator && SimulationSceneDescription)
-			{
-				SimulationGenerator->SetSimulationGraph(EditorContent->GetDataflowAsset());
-				SimulationGenerator->SetSamplingRate(SimulationSceneDescription->SamplingRate);
-				SimulationGenerator->SetCacheCollection(SimulationSceneDescription->CacheAsset);
-		
-				CacheManager->CacheCollection = SimulationSceneDescription->CacheAsset;
-			}
+		SimulationGenerator->SetFrameRate(SceneDescription->FrameRate);
+		SimulationGenerator->SetCacheAsset(SceneDescription->CacheAsset);
+		SimulationGenerator->SetActorClass(SceneDescription->ActorClass);
+		SimulationGenerator->SetTimeRange(SceneDescription->TimeRange);
+		SimulationGenerator->SetBackgroundTask(SceneDescription->bBackgroundTask);
+		SimulationGenerator->SetDataflowContent(GetEditorContent());
 
-			// Build the simulation context
-			BuildSimulationContext(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(),
-				CacheManager, Dataflow::ECachingMode::PlayCache, SimulationContext);
+		TimeRange = SceneDescription->TimeRange;
+		NumFrames = (TimeRange[1] > TimeRange[0]) ? FMath::Floor((TimeRange[1] - TimeRange[0]) * SceneDescription->FrameRate) : 0;
 		
-			// Update the simulation time ranges and number of frames
-			GetCacheDuration(EditorContent->GetDataflowAsset(), SimulationContext, SimulationSceneDescription->SamplingRate,
-				TimeRange[0], TimeRange[1], NumFrames);
+		PreviewActor = Dataflow::SpawnSimulatedActor(SceneDescription->ActorClass, Cast<AChaosCacheManager>(RootSceneActor),
+			SceneDescription->CacheAsset, false, GetEditorContent());
 
-			// update the selection binding since we are constantly editing the graph
-			BindSceneSelection();
-		}
+		// Setup all the skelmesh animations
+		Dataflow::SetupSkeletonAnimation(PreviewActor);
+		
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(SceneDescription->CacheAsset == nullptr);
 	}
+
+	// update the selection binding since we are constantly editing the graph
+	BindSceneSelection();
 }
 
 void FDataflowSimulationScene::UpdateSimulationCache()
@@ -119,20 +163,28 @@ void FDataflowSimulationScene::TickDataflowScene(const float DeltaSeconds)
 
 	if(const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		if( Dataflow::ShouldResetWorld(EditorContent->GetDataflowAsset(), SimulationContext,LastTimeStamp))
+		if(Dataflow::ShouldResetWorld(EditorContent->GetDataflowAsset(), GetWorld(), LastTimeStamp) || EditorContent->IsSimulationDirty())
 		{
-			// unregister components, cache manager, selection...
-			ResetSimulationWorld();
+			// Unregister components, cache manager, selection...
+			ResetSimulationScene();
 
-			// register components, cache manager, selection...
-			CreateSimulationWorld();
+			// Register components, cache manager, selection...
+			CreateSimulationScene();
+
+			// Reset the dirty flag
+			EditorContent->SetSimulationDirty(false);
 		}
-
 		// Load the cache at some point in time
-		Cast<AChaosCacheManager>(RootSceneActor)->SetStartTime(SimulationTime);
-
-		// Update all the animation at the simulation time
-		Dataflow::UpdateAnimationNodes(EditorContent->GetDataflowAsset(), SimulationContext, SimulationTime);
+		if(SceneDescription->CacheAsset)
+		{
+			// Update the cached simulation at some point in time
+			if(RootSceneActor)
+			{
+				Cast<AChaosCacheManager>(RootSceneActor)->SetStartTime(SimulationTime);
+			}
+			// Update all the skelmesh animations at the simulation time
+			Dataflow::UpdateSkeletonAnimation(PreviewActor, SimulationTime);
+		}
 	}
 }
 
@@ -140,27 +192,51 @@ void FDataflowSimulationScene::AddReferencedObjects(FReferenceCollector& Collect
 {
 	FDataflowPreviewSceneBase::AddReferencedObjects(Collector);
 
-	Collector.AddReferencedObject(SimulationSceneDescription);
+	Collector.AddReferencedObject(SceneDescription);
 }
 
 void FDataflowSimulationScene::SceneDescriptionPropertyChanged(const FName& PropertyName)
 {
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, SamplingRate))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, FrameRate))
 	{
 		if(SimulationGenerator)
 		{
-			SimulationGenerator->SetSamplingRate(SimulationSceneDescription->SamplingRate);
+			SimulationGenerator->SetFrameRate(SceneDescription->FrameRate);
+		}
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, TimeRange))
+	{
+		if(SimulationGenerator)
+		{
+			SimulationGenerator->SetTimeRange(SceneDescription->TimeRange);
 		}
 	}
 	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, CacheAsset))
 	{
 		if(SimulationGenerator)
 		{
-			SimulationGenerator->SetCacheCollection(SimulationSceneDescription->CacheAsset);
-
-			Cast<AChaosCacheManager>(RootSceneActor)->CacheCollection = SimulationSceneDescription->CacheAsset;
+			SimulationGenerator->SetCacheAsset(SceneDescription->CacheAsset);
 		}
 	}
+	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, ActorClass))
+	{
+		if(SimulationGenerator)
+		{
+			SimulationGenerator->SetActorClass(SceneDescription->ActorClass);
+		}
+	}
+	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, bBackgroundTask))
+	{
+		if(SimulationGenerator)
+		{
+			SimulationGenerator->SetBackgroundTask(SceneDescription->bBackgroundTask);
+		}
+	}
+	// Unregister components, cache manager, selection...
+	ResetSimulationScene();
+
+	// Register components, cache manager, selection...
+	CreateSimulationScene();
 }
 
 void UDataflowSimulationSceneDescription::SetSimulationScene(FDataflowSimulationScene* InSimulationScene)

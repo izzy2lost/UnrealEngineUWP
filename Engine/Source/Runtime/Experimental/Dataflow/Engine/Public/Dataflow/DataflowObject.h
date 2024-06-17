@@ -48,6 +48,17 @@ private:
 	UDataflow* Asset;
 };
 
+/** Data flow types */
+UENUM()
+enum class EDataflowType : uint8
+{
+	/** the dataflow will be used to build assets */
+	Construction,
+
+	/** The dataflow will be used to define the simulation evolution */
+	Simulation
+};
+
 /**
 * UDataflow (UObject)
 *
@@ -76,6 +87,8 @@ public:
 
 	virtual bool IsEditorOnly() const { return true; }
 
+	/** Simulation tag to use in the node registry */
+	static const inline FString SimulationTag = TEXT("DataflowSimulationTag");
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Evaluation")
@@ -87,12 +100,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Render")
 	TObjectPtr<UMaterial> Material = nullptr;
 
+	UPROPERTY(EditAnywhere, Category = "Evaluation")
+	EDataflowType Type = EDataflowType::Construction;
 
 public:
 	/** UObject Interface */
 	static DATAFLOWENGINE_API void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 #if WITH_EDITOR
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 	DATAFLOWENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	DATAFLOWENGINE_API virtual void PostLoad() override;

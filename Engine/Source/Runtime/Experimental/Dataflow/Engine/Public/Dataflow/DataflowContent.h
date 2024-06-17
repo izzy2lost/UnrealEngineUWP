@@ -131,8 +131,11 @@ public:
 	*	Dirty - State Invalidation
 	*   Check if non-graph specific data has been changed, this usually requires a re-render 
 	*/
-	bool IsDirty() const { return bIsDirty; }
-	void SetIsDirty(bool InDirty);
+	bool IsConstructionDirty() const { return bIsConstructionDirty; }
+	void SetConstructionDirty(bool InDirty);
+	
+	bool IsSimulationDirty() const { return bIsSimulationDirty; }
+	void SetSimulationDirty(bool InDirty);
 
 	/** 
 	*	LastModifiedTimestamp - State Invalidation 
@@ -154,6 +157,9 @@ public:
 
 	/** Collect reference objects for GC */
 	virtual void AddContentObjects(FReferenceCollector& Collector) {}
+
+	/** Set all the preview actor exposed properties */
+	virtual void SetActorProperties(TObjectPtr<AActor>& PreviewActor) const;
 	
 	/** Data flow owner accessors (through the context) */
 	void SetDataflowOwner(const TObjectPtr<UObject>& InOwner);
@@ -164,12 +170,16 @@ public:
 	TObjectPtr<UDataflow> GetDataflowAsset() const;
 
 	/** Data flow terminal accessors */
-	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  SetIsDirty(true);}
+	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  SetConstructionDirty(true); SetSimulationDirty(true);}
 	const FString& GetDataflowTerminal() const { return DataflowTerminal; }
 
 	/** Terminal asset accessors */
-	void SetTerminalAsset(const TObjectPtr<UObject>& InAsset) { TerminalAsset = InAsset;  SetIsDirty(true);}
+	void SetTerminalAsset(const TObjectPtr<UObject>& InAsset) { TerminalAsset = InAsset;  SetConstructionDirty(true); SetSimulationDirty(true);}
 	const TObjectPtr<UObject>& GetTerminalAsset() const { return TerminalAsset;}
+
+	/** Preview class accessors */
+	void SetPreviewClass(const TSubclassOf<AActor>& InPreviewClass) { PreviewClass = InPreviewClass;  SetConstructionDirty(true); SetSimulationDirty(true);}
+	const TSubclassOf<AActor>& GetPreviewClass() const { return PreviewClass;}
 
 	/** Content Serialization */
 	virtual void Serialize(FArchive& Ar);
@@ -184,11 +194,11 @@ public:
 protected:
 	
 	/** Data flow terminal path for evaluation */
-	UPROPERTY(EditAnywhere, Category = "Dataflow", Transient, SkipSerialization)
+	UPROPERTY(Transient, SkipSerialization)
 	FString DataflowTerminal = "";
 
 	/** Data flow terminal path for evaluation */
-	UPROPERTY(EditAnywhere, Category = "Dataflow", Transient, SkipSerialization)
+	UPROPERTY(Transient, SkipSerialization)
 	TObjectPtr<UObject> TerminalAsset = nullptr;
 
 	/**  Engine context (data flow owner/asset) to be used for dataflow evaluation */
@@ -199,10 +209,17 @@ protected:
 
     /** Dirty flag to trigger rendering. Do we need that? since when accessing the member by non const ref we will not dirty it */
 	UPROPERTY()
-	bool bIsDirty = true;
+	bool bIsConstructionDirty = true;
+
+	/** Dirty flag to reset the simulation if necessary */
+	UPROPERTY()
+	bool bIsSimulationDirty = true;
 
 	/** Saved as a cached context. Will be automatically saved to a cache directory if true. Use the pvar p.Dataflow.Editor.ContextCaching to enable. [def:false] */
 	bool bIsSaved = false;
+
+	/** Preview actor class that could be used to visualize the result */
+	TSubclassOf<AActor> PreviewClass = nullptr;
 };
 
 /** 
@@ -239,10 +256,13 @@ public:
 	//~ UObject interface
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
+	/** Set all the preview actor exposed properties */
+	virtual void SetActorProperties(TObjectPtr<AActor>& PreviewActor) const override;
+
 protected:
 
 	/** Data flow skeletal mesh*/
-	UPROPERTY(Transient, SkipSerialization)
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
 	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
 	
 	/** Data flow skeleton */
@@ -250,6 +270,6 @@ protected:
 	TObjectPtr<USkeleton> Skeleton = nullptr;
 	
 	/** Animation asset to be used to preview simulation */
-	UPROPERTY(Transient, SkipSerialization)
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
 	TObjectPtr<UAnimationAsset> AnimationAsset = nullptr;
 };

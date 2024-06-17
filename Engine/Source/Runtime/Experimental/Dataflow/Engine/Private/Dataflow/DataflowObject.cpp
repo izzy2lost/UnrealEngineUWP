@@ -10,6 +10,17 @@
 
 #define LOCTEXT_NAMESPACE "UDataflow"
 
+
+namespace Dataflow
+{
+	namespace CVars
+	{
+		/** Enable the simulation dataflow (for now WIP) */
+        DATAFLOWENGINE_API bool bEnableSimulationDataflow = false;
+        FAutoConsoleVariableRef CVarEnableSimulationDataflow(TEXT("p.Dataflow.EnableSimulation"), bEnableSimulationDataflow, TEXT("If true enable the use of simulation dataflow (WIP)"));
+	}
+}
+
 FDataflowAssetEdit::FDataflowAssetEdit(UDataflow* InAsset, FPostEditFunctionCallback InCallback)
 	: PostEditCallback(InCallback)
 	, Asset(InAsset)
@@ -128,6 +139,25 @@ void UDataflow::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 	Dataflow->Serialize(Ar, this);
 }
+
+#if WITH_EDITOR
+bool UDataflow::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, Type))
+	{
+		return Dataflow::CVars::bEnableSimulationDataflow == true;
+	}
+
+	return true;
+}
+#endif
 
 #undef LOCTEXT_NAMESPACE
 

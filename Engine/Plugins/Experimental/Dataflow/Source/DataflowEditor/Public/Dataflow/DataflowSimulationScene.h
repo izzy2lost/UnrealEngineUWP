@@ -34,7 +34,19 @@ public:
 
 	/** Number of sampling frames per second for caching*/
 	UPROPERTY(EditAnywhere, Category="Caching")
-	int32 SamplingRate = 30;
+	int32 FrameRate = 30;
+
+	/** Number of sampling frames per second for caching*/
+	UPROPERTY(EditAnywhere, Category="Caching")
+	FVector2f TimeRange = FVector2f(0.0f, 5.0f);
+
+	/** Caching actor class to spawn */
+	UPROPERTY(EditAnywhere, Category = "Caching")
+	TSubclassOf<AActor> ActorClass;
+
+	/** Boolean to check if the caching will be done on an async thread (if yes no GT dependency) */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Caching")
+	bool bBackgroundTask = true;
 
 private:
 
@@ -45,7 +57,6 @@ private:
 	/** Simulation scene linked to that descriptor */
 	class FDataflowSimulationScene* SimulationScene;
 };
-
 
 /**
  * Dataflow simulation scene holding all the dataflow content components
@@ -68,16 +79,25 @@ public:
 	virtual bool CanRunSimulation() const { return true; }
 
 	/** Get the scene description used in the preview scene widget */
-	UDataflowSimulationSceneDescription* GetPreviewSceneDescription() const { return SimulationSceneDescription; }
+	UDataflowSimulationSceneDescription* GetPreviewSceneDescription() const { return SceneDescription; }
 
 	/** Create all the simulation world components and instances */
-	void CreateSimulationWorld();
+	void CreateSimulationScene();
 
 	/** Reset all the simulation world components and instances */
-	void ResetSimulationWorld();
+	void ResetSimulationScene();
 
-	/** Reset the simulation scene */
-	void ResetSimulationScene() {}
+	/** Pause the simulation */
+	void PauseSimulationScene() const;
+
+	/** Start the simulation */
+	void StartSimulationScene() const;
+
+	/** Step the simulation */
+	void StepSimulationScene() const;
+
+	/** Rebuild the simulation scene */
+	void RebuildSimulationScene(const bool bIsSimulationEnabled);
 
 	/** Check if there is something to render */
 	bool HasRenderableGeometry() { return true; }
@@ -106,13 +126,10 @@ private:
 	void UnbindSceneSelection();
 	
 	/** Simulation scene description */
-	TObjectPtr<UDataflowSimulationSceneDescription> SimulationSceneDescription;
+	TObjectPtr<UDataflowSimulationSceneDescription> SceneDescription;
 
 	/** Simulation generator to record the simulation result */
 	TSharedPtr<Dataflow::FDataflowSimulationGenerator> SimulationGenerator;
-
-	/** Simulation context used for the simulation graph */
-	TSharedPtr<Dataflow::FSimulationContext> SimulationContext;
 
 	/** Cache time range in seconds */
 	FVector2f TimeRange;
@@ -122,6 +139,9 @@ private:
 
 	/** Last context time stamp for which we regenerated the world */
 	Dataflow::FTimestamp LastTimeStamp = Dataflow::FTimestamp::Invalid;
+
+	/** Preview actor that will will be used to visualize the result of the simulation graph */
+	TObjectPtr<AActor> PreviewActor;
 };
 
 

@@ -276,9 +276,14 @@ TObjectPtr<UDataflowBaseContent> IDataflowContentOwner::BuildDataflowContent()
 // UDataflowBaseContent
 //
 
-void UDataflowBaseContent::SetIsDirty(bool InDirty) 
+void UDataflowBaseContent::SetConstructionDirty(bool InDirty) 
 { 
-	bIsDirty = InDirty;
+	bIsConstructionDirty = InDirty;
+}
+
+void UDataflowBaseContent::SetSimulationDirty(bool InDirty) 
+{ 
+	bIsSimulationDirty = InDirty;
 }
 
 UDataflowBaseContent::UDataflowBaseContent()
@@ -314,7 +319,8 @@ void UDataflowBaseContent::SetDataflowOwner(const TObjectPtr<UObject>& InOwner)
 		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, Dataflow::FTimestamp::Invalid);
 	}
 	DataflowContext->Owner = InOwner;  
-	SetIsDirty(true);
+	SetConstructionDirty(true);
+	SetSimulationDirty(true);
 }
 
 TObjectPtr<UObject> UDataflowBaseContent::GetDataflowOwner() const 
@@ -329,7 +335,8 @@ void UDataflowBaseContent::SetDataflowAsset(const TObjectPtr<UDataflow>& Dataflo
 		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, Dataflow::FTimestamp::Invalid);
 	}
 	DataflowContext->Graph = DataflowAsset;  
-	SetIsDirty(true);
+	SetConstructionDirty(true);
+	SetSimulationDirty(true);
 }
 
 TObjectPtr<UDataflow> UDataflowBaseContent::GetDataflowAsset() const 
@@ -344,7 +351,11 @@ void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimes
 		LastModifiedTimestamp = InTimestamp; 
 		if (bMakeDirty)
 		{
-			SetIsDirty(true);
+			if(GetDataflowAsset() && GetDataflowAsset()->Type == EDataflowType::Construction)
+			{
+				SetConstructionDirty(true);
+				SetSimulationDirty(true);
+			}
 			MarkPackageDirty(); 
 		}
 	}
@@ -353,7 +364,8 @@ void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimes
 void UDataflowBaseContent::SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) 
 { 
 	DataflowContext = InContext;  
-	SetIsDirty(true); 
+	SetConstructionDirty(true);
+	SetSimulationDirty(true);
 	MarkPackageDirty();
 }
 
@@ -380,6 +392,31 @@ void UDataflowBaseContent::AddReferencedObjects(UObject* InThis, FReferenceColle
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
+void OverrideActorProperty(TObjectPtr<AActor>& PreviewActor, const TObjectPtr<UObject>& PropertyValue, const FName& PropertyName)
+{
+	if(PreviewActor && PropertyValue)
+	{
+		if(const FProperty* DataflowProperty = PreviewActor->GetClass()->FindPropertyByName(PropertyName))
+		{
+			if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(DataflowProperty))
+			{
+				if(ObjectProperty->PropertyClass == PropertyValue->GetClass())
+				{
+					if(UObject** PropertyObject = DataflowProperty->ContainerPtrToValuePtr<UObject*>(PreviewActor))
+					{
+						(*PropertyObject) = PropertyValue;
+					}
+				}
+			}
+		}
+	}
+}
+
+void UDataflowBaseContent::SetActorProperties(TObjectPtr<AActor>& PreviewActor) const
+{
+	OverrideActorProperty(PreviewActor, GetDataflowOwner(), TEXT("DataflowAsset"));
+}
+
 //
 // UDataflowSkeletalContent
 //
@@ -398,7 +435,8 @@ void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& 
 			SetSkeleton(SkeletalMesh->GetSkeleton());
 		}
 	}
-	SetIsDirty(true);
+	SetConstructionDirty(true);
+	SetSimulationDirty(true);
 }
 
 void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsset>& SkeletalAnimationAsset)
@@ -408,7 +446,8 @@ void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsse
 	{
 		SetSkeleton(AnimationAsset->GetSkeleton());
 	}
-	SetIsDirty(true);
+	SetConstructionDirty(true);
+	SetSimulationDirty(true);
 }
 
 void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& SkeletonAsset)
@@ -422,7 +461,8 @@ void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& Skeleton
 	{
 		SetAnimationAsset(nullptr);
 	}
-	SetIsDirty(true);
+	SetConstructionDirty(true);
+	SetSimulationDirty(true);
 }
 
 #if WITH_EDITOR
@@ -461,5 +501,13 @@ void UDataflowSkeletalContent::AddReferencedObjects(UObject* InThis, FReferenceC
 	Collector.AddReferencedObject(This->AnimationAsset);
 	Collector.AddReferencedObject(This->Skeleton);
 	Super::AddReferencedObjects(InThis, Collector);
+}
+
+void UDataflowSkeletalContent::SetActorProperties(TObjectPtr<AActor>& PreviewActor) const
+{
+	Super::SetActorProperties(PreviewActor);
+
+	OverrideActorProperty(PreviewActor, AnimationAsset, TEXT("AnimationAsset"));
+	OverrideActorProperty(PreviewActor, SkeletalMesh, TEXT("SkeletalMesh"));
 }
 

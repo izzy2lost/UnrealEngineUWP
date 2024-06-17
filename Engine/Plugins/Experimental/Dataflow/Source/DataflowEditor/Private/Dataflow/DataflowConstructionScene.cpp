@@ -85,11 +85,11 @@ void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 			if (const UDataflow* Dataflow = EditorContent->GetDataflowAsset())
 			{
 				const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
-				if (SystemTimestamp >= EditorContent->GetLastModifiedTimestamp() || EditorContent->IsDirty())
+				if (SystemTimestamp >= EditorContent->GetLastModifiedTimestamp() || EditorContent->IsConstructionDirty())
 				{
 					EditorContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
 
-					if (EditorContent->IsDirty())
+					if (EditorContent->IsConstructionDirty())
 					{
 						UpdateConstructionScene();
 					}
@@ -376,12 +376,12 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 
 	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		EditorContent->SetIsDirty(false);
+		EditorContent->SetConstructionDirty(false);
 	}
 
 	for(const TObjectPtr<UDataflowBaseContent>& TerminalContent : GetTerminalContents())
 	{
-		TerminalContent->SetIsDirty(false);
+		TerminalContent->SetConstructionDirty(false);
 	}
 }
 
