@@ -1886,6 +1886,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	}
 
 	const bool bUsingNaniteRayTracing = GetRayTracingMode() != ERayTracingMode::Fallback;
+	const bool bIsRayTracingFarField = IsRayTracingFarField();
 
 	// try and find the first valid RT geometry index
 	int32 ValidLODIndex = GetFirstValidRaytracingGeometryLODIndex();
@@ -1900,6 +1901,11 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 			// If there is a streaming handle (but no valid LOD available), then give the streaming flag to make sure it's not excluded
 			// It's still needs to be processed during TLAS build because this will drive the streaming of these resources.
 			ResultFlags |= ERayTracingPrimitiveFlags::Streaming;
+		}
+
+		if (bIsRayTracingFarField)
+		{
+			ResultFlags |= ERayTracingPrimitiveFlags::FarField;
 		}
 
 		return ResultFlags;
@@ -1932,8 +1938,6 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	{
 		SetupFallbackRayTracingMaterials(ValidLODIndex, RayTracingInstance.Materials);
 	}
-
-	const bool bIsRayTracingFarField = IsRayTracingFarField();
 
 	RayTracingInstance.InstanceLayer = bIsRayTracingFarField ? ERayTracingInstanceLayer::FarField : ERayTracingInstanceLayer::NearField;
 
