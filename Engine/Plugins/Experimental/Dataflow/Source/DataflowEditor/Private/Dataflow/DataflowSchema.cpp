@@ -16,6 +16,7 @@
 #include "ToolMenu.h"
 #include "GraphEditorActions.h"
 #include "Dataflow/DataflowSettings.h"
+#include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSchema)
 
@@ -296,6 +297,12 @@ static void CreateAndConnectNewReRouteNode(UEdGraphPin* FromPin, UEdGraphPin* To
 void UDataflowSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin * PinB, const FVector2D & GraphPosition) const
 {
 	CreateAndConnectNewReRouteNode(PinA, PinB, GraphPosition);
+}
+
+void UDataflowSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotifcation) const
+{
+	const FScopedTransaction Transaction(LOCTEXT("BreakPinLinks", "Break Pin Links"));
+	Super::BreakPinLinks(TargetPin, bSendsNodeNotifcation);
 }
 
 FConnectionDrawingPolicy* UDataflowSchema::CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, class UEdGraph* InGraphObj) const
