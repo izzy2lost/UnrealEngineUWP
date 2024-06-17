@@ -10,7 +10,7 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
-	"EnabledByDefault": false,
+	"EnabledByDefault": true,
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
@@ -22,7 +22,7 @@
 	"Modules": [
 		{
 			"Name": "NFORDenoise",
-			"Type": "RuntimeAndProgram",
+			"Type": "ClientOnly",
 			"LoadingPhase": "PostConfigInit",
 			"PlatformAllowList": [
 				"Win64",

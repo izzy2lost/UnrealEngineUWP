@@ -18,7 +18,7 @@
 	[
 		{
 			"Name" : "OpenImageDenoise",
-			"Type" : "RuntimeAndProgram",
+			"Type" : "ClientOnly",
 			"LoadingPhase" : "Default",
 			"PlatformAllowList": [
 				"Win64"

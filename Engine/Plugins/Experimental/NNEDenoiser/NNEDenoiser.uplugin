@@ -10,19 +10,23 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
+	"EnabledByDefault" : true,
 	"CanContainContent": true,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
+	"SupportedTargetPlatforms": [
+		"Win64", "Linux", "Mac"
+	],
 	"Modules": [
 		{
 			"Name": "NNEDenoiser",
-			"Type": "Runtime",
+			"Type": "ClientOnly",
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "NNEDenoiserShaders",
-			"Type": "Runtime",
+			"Type": "ClientOnly",
 			"LoadingPhase": "PostConfigInit"
 		}
 	],
