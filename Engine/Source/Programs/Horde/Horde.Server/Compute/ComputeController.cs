@@ -118,6 +118,7 @@ namespace Horde.Server.Compute
 			response.Nonce = StringUtils.FormatHexString(computeResource.Task.Nonce.Span);
 			response.Key = StringUtils.FormatHexString(computeResource.Task.Key.Span);
 			response.Certificate = StringUtils.FormatHexString(computeResource.Task.Certificate.Span);
+			response.ClusterId = clusterId;
 			response.AgentId = computeResource.AgentId;
 			response.LeaseId = computeResource.LeaseId;
 			response.Properties = computeResource.Properties;
