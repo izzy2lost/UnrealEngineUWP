@@ -36,6 +36,8 @@ public:
 	FName ResolutionMaxAxisMPCName = FName("FluidSimResolution");
 	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category="Shallow Water Simulation")
 	FName NormalRTMaterialName = FName("NormalAndHeight");
+	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category = "Shallow Water Simulation")
+	bool UseDefaultShallowWaterSubsystem = false;
 
 	UPROPERTY(Config, BlueprintReadOnly, EditAnywhere, Category="Interaction")
 	int32 MaxActivePawnNum = 6;

@@ -370,6 +370,17 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 	UE_LOG(LogShallowWater, Log, TEXT("UShallowWaterSubsystem::InitializeShallowWater() finished successfully"));
 }
 
+bool UShallowWaterSubsystem::IsShallowWaterAllowedToInitialize() const
+{
+	TObjectPtr<UShallowWaterSettings> TmpSettings = GetMutableDefault<UShallowWaterSettings>();
+	if (TmpSettings)
+	{
+		return TmpSettings->UseDefaultShallowWaterSubsystem;
+	}
+
+	return false;
+}
+
 bool UShallowWaterSubsystem::IsShallowWaterInitialized() const
 {
 	return bIsShallowWaterInitialized;
