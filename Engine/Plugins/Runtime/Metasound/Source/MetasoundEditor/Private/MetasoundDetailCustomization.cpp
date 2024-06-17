@@ -75,22 +75,22 @@ namespace Metasound::Editor
 	{
 		using namespace Engine;
 		Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound));
+	}
 
-		IsGraphEditableAttribute = TAttribute<bool>::Create([this]()
+	bool FMetaSoundDetailCustomizationBase::IsGraphEditable() const
+	{
+		using namespace Engine;
+
+		if (Builder.IsValid())
 		{
-			using namespace Engine;
-
-			if (Builder.IsValid())
+			const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
+			if (DocBuilder.IsValid())
 			{
-				const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetConstBuilder();
-				if (DocBuilder.IsValid())
-				{
-					return DocBuilder.FindConstBuildGraphChecked().Style.bIsGraphEditable;
-				}
+				return DocBuilder.FindConstBuildGraphChecked().Style.bIsGraphEditable;
 			}
+		}
 
-			return false;
-		});
+		return false;
 	}
 
 	FMetasoundDetailCustomization::FMetasoundDetailCustomization(FName InDocumentPropertyName)
@@ -208,7 +208,7 @@ namespace Metasound::Editor
 					}
 
 					TSharedRef<SWidget> OutputFormatValueWidget = OutputFormat->CreatePropertyValueWidget();
-					OutputFormatValueWidget->SetEnabled(IsGraphEditableAttribute);
+					OutputFormatValueWidget->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
 
 					static const FText OutputFormatName = LOCTEXT("MetasoundOutputFormatPropertyName", "Output Format");
 					GeneralCategoryBuilder.AddCustomRow(OutputFormatName)

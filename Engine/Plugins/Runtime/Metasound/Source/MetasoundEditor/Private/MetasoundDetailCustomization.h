@@ -24,11 +24,12 @@ namespace Metasound
 		public:
 			virtual ~FMetaSoundDetailCustomizationBase() = default;
 
+			bool IsGraphEditable() const;
+
 		protected:
 			UObject* GetMetaSound() const;
 			void InitBuilder(UObject& MetaSound);
 
-			TAttribute<bool> IsGraphEditableAttribute;
 			TStrongObjectPtr<UMetaSoundBuilderBase> Builder;
 		};
 
