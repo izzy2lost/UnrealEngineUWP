@@ -163,12 +163,9 @@ void UReferenceViewerSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 			{
 				bResolveProperties = true;
 				FAssetData AssetData = ReferenceNode->GetAssetData();
-				if (const TObjectPtr<UObject>& CDO = AssetData.GetClass()->ClassDefaultObject)
+				if (AssetData.IsInstanceOf<UMaterialFunctionInterface>() || AssetData.IsInstanceOf<UMaterialInstance>())
 				{
-					if (CDO->IsA<UMaterialFunctionInterface>() || CDO->IsA<UMaterialInstance>())
-					{
-						bResolveProperties = false;
-					}
+					bResolveProperties = false;
 				}
 			}
 		}
