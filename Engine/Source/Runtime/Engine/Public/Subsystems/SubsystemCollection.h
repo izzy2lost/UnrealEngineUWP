@@ -232,6 +232,16 @@ public:
 		});
 	}
 
+	template <typename TSubsystemInterface>
+	void ForEachSubsystemWithInterface(TFunctionRef<void(TBaseType*)> Operation) const
+	{
+		UClass* SubsystemInterfaceClass = TSubsystemInterface::StaticClass();
+		ForEachSubsystemOfClass(SubsystemInterfaceClass, [Operation = MoveTemp(Operation)](USubsystem* Subsystem)
+		{
+			Operation(CastChecked<TBaseType>(Subsystem));
+		});
+	}
+
 public:
 
 	/** Construct a FSubsystemCollection, pass in the owning object almost certainly (this). */
