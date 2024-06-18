@@ -337,10 +337,6 @@ public:
 	EWeightColorMode ColorMode;
 	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	TArray<FLinearColor> ColorRamp;
-	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
-	FLinearColor MinColor;
-	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
-	FLinearColor MaxColor;
 
 	// weight editing arguments
 	UPROPERTY(Config)
