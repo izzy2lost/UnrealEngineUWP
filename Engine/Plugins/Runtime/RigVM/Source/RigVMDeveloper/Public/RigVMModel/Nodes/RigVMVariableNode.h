@@ -81,6 +81,7 @@ private:
 	friend class URigVMPin;
 	friend class URigVMCompiler;
 	friend class FRigVMVarExprAST;
+	friend class FRigVMExprAST;
 	friend class FRigVMParserAST;
 	friend class URigVMSchema;
 	friend class URigVMEdGraphVariableNodeSpawner;

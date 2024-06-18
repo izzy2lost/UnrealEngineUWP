@@ -543,7 +543,7 @@ public:
 	};
 
 	// returns true in case this block should not be executed
-	bool IsObsolete() const { return bIsObsolete; }
+	bool IsObsolete() const;
 
 protected:
 
