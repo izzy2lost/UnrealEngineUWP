@@ -95,9 +95,6 @@ void FLocalizationResourceTextSource::LoadLocalizedResources(const ELocalization
 	if (ShouldLoadEditor(InLoadFlags))
 	{
 		EditorLocalizationPaths += FPaths::GetEditorLocalizationPaths();
-#if UE_IS_COOKED_EDITOR
-		EditorLocalizationPaths += GetGameLocalizationPaths();
-#endif
 		EditorLocalizationPaths += FPaths::GetToolTipLocalizationPaths();
 
 		bool bShouldUseLocalizedPropertyNames = false;

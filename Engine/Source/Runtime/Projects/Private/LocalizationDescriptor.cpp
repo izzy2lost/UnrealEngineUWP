@@ -256,11 +256,7 @@ bool FLocalizationTargetDescriptor::ShouldLoadLocalizationTarget() const
 		return WITH_EDITOR;
 
 	case ELocalizationTargetDescriptorLoadingPolicy::Game:
-#if UE_IS_COOKED_EDITOR
-		return true;
-#else
-		return FApp::IsGame();
-#endif
+		return FApp::IsGame() || FTextLocalizationManager::Get().ShouldForceLoadGameLocalization();
 
 	case ELocalizationTargetDescriptorLoadingPolicy::PropertyNames:
 #if WITH_EDITOR

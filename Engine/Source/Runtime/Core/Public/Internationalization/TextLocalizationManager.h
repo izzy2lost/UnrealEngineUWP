@@ -335,6 +335,11 @@ public:
 	CORE_API bool IsLocalizationLocked() const;
 #endif
 
+	/**
+	 * True if we should force load game localization data.
+	 */
+	CORE_API bool ShouldForceLoadGameLocalization() const;
+
 	/** Event type for immediately reacting to changes in display strings for text. */
 	DECLARE_EVENT(FTextLocalizationManager, FTextRevisionChangedEvent)
 	FTextRevisionChangedEvent OnTextRevisionChangedEvent;

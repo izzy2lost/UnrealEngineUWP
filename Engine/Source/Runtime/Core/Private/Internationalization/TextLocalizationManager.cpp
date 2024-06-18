@@ -63,6 +63,11 @@ static FAutoConsoleVariableRef CVarAsyncLoadLocalizationData(TEXT("Localization.
 static bool AsyncLoadLocalizationDataOnLanguageChange = false;
 static FAutoConsoleVariableRef CVarAsyncLoadLocalizationDataOnLanguageChange(TEXT("Localization.AsyncLoadLocalizationDataOnLanguageChange"), AsyncLoadLocalizationDataOnLanguageChange, TEXT("True to load localization data asynchronously (non-blocking) when the language changes, or False to load it synchronously (blocking)"));
 
+#if WITH_EDITOR
+static bool ForceLoadGameLocalizationInEditor = false;
+static FAutoConsoleVariableRef CVarForceLoadGameLocalizationInEditor(TEXT("Localization.ForceLoadGameLocalizationInEditor"), ForceLoadGameLocalizationInEditor, TEXT("True to force load game localization data in an editor"));
+#endif
+
 #if ENABLE_LOC_TESTING
 static FAutoConsoleCommand CmdDumpLiveTable(
 	TEXT("Localization.DumpLiveTable"), 
@@ -1343,11 +1348,10 @@ void FTextLocalizationManager::LoadLocalizationResourcesForPrioritizedCultures_S
 	}
 
 	// Leet-ify always needs the native text to operate on, so force native data if we're loading for LEET
-	// The keys culture also uses native so that we have a good way to restore the orginal text from the keys state 
-	ELocalizationLoadFlags FinalLocLoadFlags = LocLoadFlags;
+	// The keys culture also uses native so that we have a good way to restore the original text from the keys state 
+	ELocalizationLoadFlags FinalLocLoadFlags = LocLoadFlags | (ShouldForceLoadGameLocalization() ? ELocalizationLoadFlags::ForceLocalizedGame : ELocalizationLoadFlags::None);
 #if ENABLE_LOC_TESTING
-	bool bShouldForceLoadNative = (PrioritizedCultureNames[0] == FLeetCulture::StaticGetName()) || (PrioritizedCultureNames[0] == FKeysCulture::StaticGetName());
-	if (bShouldForceLoadNative)
+	if ((PrioritizedCultureNames[0] == FLeetCulture::StaticGetName()) || (PrioritizedCultureNames[0] == FKeysCulture::StaticGetName()))
 	{
 		FinalLocLoadFlags |= ELocalizationLoadFlags::Native;
 	}
@@ -1930,7 +1934,7 @@ void FTextLocalizationManager::EnableGameLocalizationPreview(const FString& Cult
 		PrioritizedCultureNames.Add(PreviewCulture);
 	}
 
-	ELocalizationLoadFlags LocLoadFlags = ELocalizationLoadFlags::Game | ELocalizationLoadFlags::ForceLocalizedGame;
+	ELocalizationLoadFlags LocLoadFlags = ELocalizationLoadFlags::Game | ELocalizationLoadFlags::Additional;
 	LocLoadFlags |= (bIsGameLocalizationPreviewEnabled ? ELocalizationLoadFlags::Native : ELocalizationLoadFlags::None);
 
 	LoadLocalizationResourcesForPrioritizedCultures_Async(PrioritizedCultureNames, LocLoadFlags);
@@ -1978,6 +1982,23 @@ bool FTextLocalizationManager::IsLocalizationLocked() const
 	return bIsLocalizationLocked;
 }
 #endif
+
+bool FTextLocalizationManager::ShouldForceLoadGameLocalization() const
+{
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+#if UE_IS_COOKED_EDITOR
+		return true;
+#else	// UE_IS_COOKED_EDITOR
+		return bIsGameLocalizationPreviewEnabled || TextLocalizationManager::ForceLoadGameLocalizationInEditor;
+#endif	// UE_IS_COOKED_EDITOR
+	}
+	return false;
+#else	// WITH_EDITOR
+	return false;
+#endif	// WITH_EDITOR
+}
 
 #if ENABLE_LOC_TESTING
 void FTextLocalizationManager::LeetifyAllDisplayStrings()
