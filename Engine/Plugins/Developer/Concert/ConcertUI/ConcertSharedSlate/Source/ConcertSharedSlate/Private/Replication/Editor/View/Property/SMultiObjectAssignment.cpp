@@ -153,7 +153,7 @@ namespace UE::ConcertSharedSlate
 		
 			TreeView->RefreshPropertyData(Entries, bCanReusePropertyData);
 
-			if (!bObjectsHaveChanged)
+			if (bObjectsHaveChanged)
 			{
 				OnObjectGroupsChangedDelegate.Broadcast();
 			}
