@@ -41,6 +41,13 @@ FPCGElementPtr UPCGCreateSplineSettings::CreateElement() const
 	return MakeShared<FPCGCreateSplineElement>();
 }
 
+bool FPCGCreateSplineElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const
+{
+	// Creating the spline component requires to run on the main thread, but if the settings/context aren't available we'll err on the side of caution.
+	const UPCGCreateSplineSettings* Settings = Context ? Context->GetInputSettings<UPCGCreateSplineSettings>() : nullptr;
+	return !Settings || Settings->Mode == EPCGCreateSplineMode::CreateComponent;
+}
+
 bool FPCGCreateSplineElement::IsCacheable(const UPCGSettings* InSettings) const
 {
 	const UPCGCreateSplineSettings* Settings = Cast<const UPCGCreateSplineSettings>(InSettings);

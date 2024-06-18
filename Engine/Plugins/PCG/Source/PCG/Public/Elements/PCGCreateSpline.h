@@ -71,7 +71,10 @@ public:
 
 class FPCGCreateSplineElement : public IPCGElement
 {
-protected:
+public:
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
+
+protected:	
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
