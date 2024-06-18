@@ -3067,6 +3067,13 @@ void FCsvProfiler::BeginFrame()
 					SetMetadataInternal(TEXT("TargetFramerate"), *FString::FromInt(TargetFPS));
 					SetMetadataInternal(TEXT("StartTimestamp"), *FString::Printf(TEXT("%lld"), FDateTime::UtcNow().ToUnixTimestamp()));
 					SetMetadataInternal(TEXT("NamedEvents"), (GCycleStatsShouldEmitNamedEvents > 0) ? TEXT("1") : TEXT("0"));
+
+					if (FPlatformMemory::GetProgramSize() > 0)
+					{
+						// Some platforms adjust program size at runtime (based on DLL initialization), so with do this on start capture rather than in CsvProfiler::Init()
+						SetMetadataInternal(TEXT("ProgramSizeMB"), *FString::SanitizeFloat((float)FPlatformMemory::GetProgramSize() / 1024.0f / 1024.0f));
+					}
+
 					bNamedEventsWasEnabled = (GCycleStatsShouldEmitNamedEvents > 0);
 
 					GCsvStatCounts = !!CVarCsvStatCounts.GetValueOnGameThread();

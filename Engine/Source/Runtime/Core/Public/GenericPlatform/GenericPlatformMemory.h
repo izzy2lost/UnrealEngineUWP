@@ -757,6 +757,22 @@ public:
 	static CORE_API uint64 GetExtraDevelopmentMemorySize();
 
 	/**
+	* Returns initial program size or 0 if the platform doesn't track initial program size
+	*/
+	static CORE_API uint64 GetProgramSize()
+	{
+		return ProgramSize;
+	}
+
+	/**
+	* Sets the initial program size
+	*/
+	static CORE_API void SetProgramSize(uint64 InProgramSize)
+	{
+		ProgramSize = InProgramSize;
+	}
+
+	/**
 	* This function sets AllocFunction and FreeFunction and returns true, or just returns false.
 	* These functions are the platform dependant low low low level functions that LLM uses to allocate memory.
 	*/
@@ -834,4 +850,7 @@ protected:
 
 	/** Updates platform specific stats. This method is called through FGenericStatsUpdater from the task graph thread. */
 	static CORE_API void InternalUpdateStats( const FPlatformMemoryStats& MemoryStats );
+
+	/** Program memory allocation in bytes. */
+	static CORE_API uint64 ProgramSize;
 };

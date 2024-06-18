@@ -444,11 +444,12 @@ FMalloc* FAndroidPlatformMemory::BaseAllocator()
 		return Instance;
 	}
 
+	FPlatformMemoryStats Stats = FAndroidPlatformMemory::GetStats();
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 	// make sure LLM is using UsedPhysical for program size, instead of Available-Free
-	FPlatformMemoryStats Stats = FAndroidPlatformMemory::GetStats();
 	FLowLevelMemTracker::Get().SetProgramSize(Stats.UsedPhysical);
 #endif
+	FPlatformMemory::ProgramSize = Stats.UsedPhysical;
 
 #if FORCE_ANSI_ALLOCATOR
 	return (Instance = new FMallocAnsi());

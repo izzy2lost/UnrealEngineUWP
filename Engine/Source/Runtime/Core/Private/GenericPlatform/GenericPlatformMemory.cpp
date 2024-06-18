@@ -164,7 +164,7 @@ uint64 FGenericPlatformMemory::OOMAllocationSize = 0;
 uint32 FGenericPlatformMemory::OOMAllocationAlignment = 0;
 FGenericPlatformMemory::EMemoryAllocatorToUse FGenericPlatformMemory::AllocatorToUse = Platform;
 void* FGenericPlatformMemory::BackupOOMMemoryPool = nullptr;
-
+uint64 FGenericPlatformMemory::ProgramSize = 0;
 
 void FGenericPlatformMemory::SetupMemoryPools()
 {
