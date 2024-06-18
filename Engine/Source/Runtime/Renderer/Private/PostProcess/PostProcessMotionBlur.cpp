@@ -464,6 +464,7 @@ class FMotionBlurFilterCS : public FMotionBlurShader
 		SHADER_PARAMETER(int32, MaxSampleCount)
 		SHADER_PARAMETER(int32, OutputMip1)
 		SHADER_PARAMETER(int32, OutputMip2)
+		SHADER_PARAMETER(int32, bLensDistortion)
 
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, VelocityFlatTexture)
@@ -473,6 +474,9 @@ class FMotionBlurFilterCS : public FMotionBlurShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, VelocitySampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, VelocityTileSampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, VelocityFlatSampler)
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, UndistortingDisplacementSampler)
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TranslucencyTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, TranslucencySampler)
@@ -1006,6 +1010,10 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 		OriginalPassParameters.TileListsSizeBuffer = GraphBuilder.CreateSRV(TileListsSizeBuffer);
 		OriginalPassParameters.DispatchParameters = DispatchParameters;
 
+		OriginalPassParameters.UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		OriginalPassParameters.UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		OriginalPassParameters.bLensDistortion = 0;
+
 		if (PostMotionBlurTranslucency != nullptr)
 		{
 			// TODO: broken with split screen
@@ -1023,6 +1031,12 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 			OriginalPassParameters.TranslucencyUVMin = FVector2f(0.0f, 0.0f);
 			OriginalPassParameters.TranslucencyUVMax = (FVector2f(PostMotionBlurTranslucencySize) - FVector2f(0.5f, 0.5f)) * PostMotionBlurTranslucencyExtentInv;
 			OriginalPassParameters.TranslucencyExtentInverse = PostMotionBlurTranslucencyExtentInv;
+
+			OriginalPassParameters.bLensDistortion = Inputs.LensDistortionLUT.IsEnabled();
+			if (Inputs.LensDistortionLUT.IsEnabled())
+			{
+				OriginalPassParameters.UndistortingDisplacementTexture = Inputs.LensDistortionLUT.UndistortingDisplacementTexture;
+			}
 		}
 		else
 		{

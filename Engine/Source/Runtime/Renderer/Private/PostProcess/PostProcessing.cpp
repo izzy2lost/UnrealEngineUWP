@@ -1002,6 +1002,10 @@ void AddPostProcessingPasses(
 			TranslucencyComposition.SceneColor = SceneColorSlice;
 			TranslucencyComposition.OutputViewport = FScreenPassTextureViewport(SceneColorSlice);
 			TranslucencyComposition.OutputPixelFormat = SceneColorFormat;
+			if (bApplyLensDistortionInTSR)
+			{
+				TranslucencyComposition.LensDistortionLUT = View.LensDistortionLUT;
+			}
 
 			SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, TranslucencyComposition.AddPass(
 				GraphBuilder, View, PostMotionBlurTranslucencyResources));

@@ -389,6 +389,7 @@ class FComposeSeparateTranslucencyPS : public FGlobalShader
 		SHADER_PARAMETER(FVector2f, SeparateTranslucencyUVMin)
 		SHADER_PARAMETER(FVector2f, SeparateTranslucencyUVMax)
 		SHADER_PARAMETER(FVector2f, SeparateTranslucencyExtentInverse)
+		SHADER_PARAMETER(int32, bLensDistortion)
 
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, SceneColorTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState,  SceneColorSampler)
@@ -408,6 +409,9 @@ class FComposeSeparateTranslucencyPS : public FGlobalShader
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FullResDepthTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, FullResDepthSampler)
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, UndistortingDisplacementSampler)
 
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		RENDER_TARGET_BINDING_SLOTS()
@@ -585,6 +589,14 @@ FScreenPassTexture FTranslucencyComposition::AddPass(
 
 	PassParameters->SeparateModulationBilinearTexture = SeparateModulationTexture;
 	PassParameters->SeparateModulationBilinearSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+
+	PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+	PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->bLensDistortion = LensDistortionLUT.IsEnabled();
+	if (LensDistortionLUT.IsEnabled())
+	{
+		PassParameters->UndistortingDisplacementTexture = LensDistortionLUT.UndistortingDisplacementTexture;
+	}
 
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 

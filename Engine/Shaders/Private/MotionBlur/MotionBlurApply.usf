@@ -4,6 +4,7 @@
 
 
 #include "MotionBlurCommon.ush"
+#include "../LensDistortion.ush"
 #include "../Random.ush"
 #include "/Engine/Public/WaveBroadcastIntrinsics.ush"
 
@@ -84,6 +85,7 @@ FScreenTransform ColorToVelocity;
 uint MaxSampleCount;
 uint OutputMip1;
 uint OutputMip2;
+uint bLensDistortion;
 
 uint TileListOffset;
 StructuredBuffer<uint> TileListsBuffer;
@@ -100,6 +102,9 @@ SamplerState VelocitySampler;
 SamplerState VelocityTileSampler;
 SamplerState VelocityFlatSampler;
 SamplerState DepthSampler;
+
+Texture2D<float2> UndistortingDisplacementTexture;
+SamplerState      UndistortingDisplacementSampler;
 
 Texture2D TranslucencyTexture;
 SamplerState TranslucencySampler;
@@ -734,6 +739,15 @@ void MainCS(
 			float2 PostMotionBlurTranslucencyUV2 = PostMotionBlurTranslucencyUV + float2(-0.5, +0.5) * TranslucencyExtentInverse;
 			float2 PostMotionBlurTranslucencyUV3 = PostMotionBlurTranslucencyUV + float2(+0.5, +0.5) * TranslucencyExtentInverse;
 		#endif
+
+		BRANCH
+		if (bLensDistortion)
+		{
+			PostMotionBlurTranslucencyUV0 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV0);
+			PostMotionBlurTranslucencyUV1 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV1);
+			PostMotionBlurTranslucencyUV2 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV2);
+			PostMotionBlurTranslucencyUV3 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV3);
+		}
 			
 		PostMotionBlurTranslucencyUV0 = clamp(PostMotionBlurTranslucencyUV0, TranslucencyUVMin, TranslucencyUVMax);
 		PostMotionBlurTranslucencyUV1 = clamp(PostMotionBlurTranslucencyUV1, TranslucencyUVMin, TranslucencyUVMax);
@@ -979,6 +993,11 @@ void MainCS(
 		mb_short2 OutputPixelCoord = mb_short2(ColorUV * Color_Extent);
 
 		float2 PostMotionBlurTranslucencyUV = ApplyScreenTransform(ColorUV, ColorToTranslucency);
+		BRANCH
+		if (bLensDistortion)
+		{
+			PostMotionBlurTranslucencyUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV);
+		}
 		PostMotionBlurTranslucencyUV = clamp(PostMotionBlurTranslucencyUV, TranslucencyUVMin, TranslucencyUVMax);
 		
 		mb_half4 CenterColor;

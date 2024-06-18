@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common.ush"
+#include "LensDistortion.ush"
 #include "ScreenPass.ush"
 
 #if PERMUTATION_NEARESTDEPTHNEIGHBOR 
@@ -26,12 +27,15 @@ SamplerState SeparateTranslucencyBilinearSampler;
 Texture2D    SeparateModulationBilinearTexture;
 SamplerState SeparateModulationBilinearSampler;
 
+Texture2D<float2> UndistortingDisplacementTexture;
+SamplerState      UndistortingDisplacementSampler;
+
 FScreenTransform ScreenPosToSceneColorUV;
 FScreenTransform ScreenPosToSeparateTranslucencyUV;
 float2 SeparateTranslucencyUVMin;
 float2 SeparateTranslucencyUVMax;
 float2 SeparateTranslucencyExtentInverse;
-
+uint bLensDistortion;
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -43,6 +47,11 @@ void MainPS(
 
 	float2 SceneColorUV = ApplyScreenTransform(SvPosition.xy, ScreenPosToSceneColorUV);
 	float2 SeparateTranslucencyUV = ApplyScreenTransform(SvPosition.xy, ScreenPosToSeparateTranslucencyUV);
+	BRANCH
+	if (bLensDistortion)
+	{
+		SeparateTranslucencyUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, SeparateTranslucencyUV);
+	}
 
 	float4 SceneColorSample = SceneColorTexture.SampleLevel(SceneColorSampler, SceneColorUV, 0);
 	
