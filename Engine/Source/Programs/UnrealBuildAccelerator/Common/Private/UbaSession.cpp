@@ -1434,6 +1434,12 @@ namespace uba
 	{
 		return m_tempPath.data;
 	}
+	
+	const tchar* Session::GetRootDir()
+	{
+		return m_rootDir.data;
+	}
+
 	u32 Session::CreateProcessId()
 	{
 		return ++m_processIdCounter;

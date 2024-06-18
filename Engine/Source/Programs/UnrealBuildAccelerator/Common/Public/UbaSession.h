@@ -76,6 +76,7 @@ namespace uba
 		Trace& GetTrace(); // Trace written to be session
 		const ApplicationRules* GetRules(const ProcessStartInfo& si); // Get application rules used for process
 		const tchar* GetTempPath(); // Path for temp files used for current session
+		const tchar* GetRootDir(); // Root dir for session files
 		bool ShouldStoreObjFilesCompressed() { return m_storeObjFilesCompressed; }
 
 		virtual ~Session();

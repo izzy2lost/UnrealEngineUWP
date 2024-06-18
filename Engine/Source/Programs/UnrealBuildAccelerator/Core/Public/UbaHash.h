@@ -139,6 +139,7 @@ namespace uba
 
 	inline CasKey CasKeyFromString(const tchar* str)
 	{
+		UBA_ASSERT(TStrlen(str) == 40);
 		CasKey key;
 		u8* data = (u8*)&key;
 		const tchar* pos = str;

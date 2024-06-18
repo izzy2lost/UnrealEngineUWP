@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageClient.h"
+#include "UbaConfig.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkClient.h"
@@ -10,10 +11,23 @@
 
 namespace uba
 {
+	void StorageClientCreateInfo::Apply(Config& config)
+	{
+		StorageCreateInfo::Apply(config);
+
+		const ConfigTable* tablePtr = config.GetTable(TC("Storage"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
+		table.GetValueAsBool(sendCompressed, TC("SendCompressed"));
+		table.GetValueAsBool(allowProxy, TC("AllowProxy"));
+	}
+
 	StorageClient::StorageClient(const StorageClientCreateInfo& info)
 	:	StorageImpl(info, TC("UbaStorageClient"))
 	,	m_client(info.client)
 	,	m_sendCompressed(info.sendCompressed)
+	,	m_allowProxy(info.allowProxy)
 	,	m_zone(info.zone)
 	,	m_getProxyBackendCallback(info.getProxyBackendCallback)
 	,	m_getProxyBackendUserData(info.getProxyBackendUserData)
@@ -247,7 +261,7 @@ namespace uba
 			ProxyClient* proxy = nullptr;
 
 			bool wantsProxy = false;
-			if (allowProxy)
+			if (allowProxy && m_allowProxy)
 			{
 				SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock);
 				if (m_proxyClient)

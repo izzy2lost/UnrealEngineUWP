@@ -15,10 +15,14 @@ namespace uba
 	struct StorageClientCreateInfo : StorageCreateInfo
 	{
 		StorageClientCreateInfo(NetworkClient& c, const tchar* rootDir_) : StorageCreateInfo(rootDir_, c.GetLogWriter()), client(c) {}
+
+		void Apply(Config& config);
+
 		NetworkClient& client;
 		const tchar* zone = TC("");
 		u16 proxyPort = DefaultStorageProxyPort;
 		bool sendCompressed = true;
+		bool allowProxy = true;
 		
 		GetProxyBackendCallback* getProxyBackendCallback = nullptr;
 		void* getProxyBackendUserData = nullptr;
@@ -61,6 +65,7 @@ namespace uba
 
 		NetworkClient& m_client;
 		bool m_sendCompressed;
+		bool m_allowProxy;
 
 		Guid m_storageServerUid;
 

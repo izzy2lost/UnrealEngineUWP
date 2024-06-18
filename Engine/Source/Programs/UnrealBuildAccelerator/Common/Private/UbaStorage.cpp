@@ -1354,20 +1354,26 @@ namespace uba
 		for (u32 i=0; i!=fileTableSize; ++i)
 		{
 			StringKey fileNameKey = reader.ReadStringKey();
-			auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-			FileEntry& fileEntry = insres.first->second;
-			fileEntry.verified = false;
 			if (reader.GetPosition() + 24 > fileSize)
 			{
 				m_fileTableLookup.clear();
 				m_logger.Warning(TC("CasTable file %s is corrupt"), fileName.data);
 				return false;
 			}
-			fileEntry.size = reader.ReadU64();
-			fileEntry.lastWritten = reader.ReadU64();
-			CasKey key = reader.ReadCasKey();
-			if (key != CasKeyZero)
-				fileEntry.casKey = AsCompressed(key, m_storeCompressed);
+			u64 size = reader.ReadU64();
+			u64 lastWritten = reader.ReadU64();
+			CasKey casKey = reader.ReadCasKey();
+			if (casKey != CasKeyZero)
+				casKey = AsCompressed(casKey, m_storeCompressed);
+			else if (size || lastWritten)
+				continue; // This should not happen
+
+			auto insres = m_fileTableLookup.try_emplace(fileNameKey);
+			FileEntry& fileEntry = insres.first->second;
+			fileEntry.verified = false;
+			fileEntry.size = size;
+			fileEntry.lastWritten = lastWritten;
+			fileEntry.casKey = casKey;
 		}
 
 
@@ -1512,100 +1518,91 @@ namespace uba
 			SCOPED_READ_LOCK(m_casLookupLock, casLookupLock);
 			SCOPED_READ_LOCK(m_accessLock, accessLock);
 
-			u8 buffer[1024];
-			{
-				BinaryWriter writer(buffer);
-				writer.WriteU32(CasTableVersion);
-				writer.WriteU32(u32(m_fileTableLookup.size()));
-				writer.WriteU32(u32(m_casLookup.size()));
-				if (!tempFile.Write(buffer, writer.GetPosition()))
-					return false;
-			}
+			Vector<u8> buffer;
 
+			u64 casLookupEntrySize = sizeof(CasKey) + sizeof(u64);
+
+			u64 headerSize = sizeof(u32)*3;
+			u64 fileTableMaxWriteSize = m_fileTableLookup.size() * (sizeof(StringKey) + sizeof(u64) * 2 + sizeof(CasKey));
+			u64 casLookupMaxWriteSize = m_casLookup.size() * casLookupEntrySize + sizeof(CasKey);
+
+			buffer.reserve(headerSize + fileTableMaxWriteSize + casLookupMaxWriteSize);
+			BinaryWriter writer(buffer.data(), 0, buffer.capacity());
+
+			// Header
+			writer.WriteU32(CasTableVersion);
+			auto fileTableSizePtr = (u32*)writer.AllocWrite(4);
+			auto casLookupSizePtr = (u32*)writer.AllocWrite(4);
+
+			// File table
+			u32 fileTableSize = 0;
+			for (auto& pair : m_fileTableLookup)
 			{
-				constexpr u64 entrySize = sizeof(StringKey) + sizeof(u64) * 2 + sizeof(CasKey);
-				u64 fileTableWriteSize = m_fileTableLookup.size() * entrySize;
-				Vector<u8> fileTableData;
-				fileTableData.resize(fileTableWriteSize);
-				BinaryWriter writer(fileTableData.data(), 0, fileTableData.size());
-				for (auto& pair : m_fileTableLookup)
+				FileEntry& fileEntry = pair.second;
+				SCOPED_READ_LOCK(fileEntry.lock, entryLock);
+				if (fileEntry.casKey == CasKeyZero)
+					continue;
+				writer.WriteStringKey(pair.first);
+				writer.WriteU64(fileEntry.size);
+				writer.WriteU64(fileEntry.lastWritten);
+				writer.WriteCasKey(fileEntry.casKey);
+				++fileTableSize;
+			}
+			*fileTableSizePtr = fileTableSize;
+
+			// Cas table
+			u32 casTableSize = 0;
+			CasEntry* last = nullptr;
+			for (CasEntry* it = m_newestAccessed; it; it = it->nextAccessed)
+			{
+				last = it;
+				CasEntry& casEntry = *it;
+				if (casEntry.verified && !casEntry.exists)
+					continue;
+				if (casEntry.dropped)
 				{
-					FileEntry& fileEntry = pair.second;
-					SCOPED_READ_LOCK(fileEntry.lock, entryLock);
-					writer.WriteStringKey(pair.first);
-					writer.WriteU64(fileEntry.size);
-					writer.WriteU64(fileEntry.lastWritten);
-					writer.WriteCasKey(fileEntry.casKey);
-				}
-				if (!tempFile.Write(fileTableData.data(), writer.GetPosition()))
-					return false;
-			}
-
-#if UBA_USE_SPARSEFILE
-			{
-				BinaryWriter writer(buffer);
-				for (u32 i=0; i!=CasDbDataFileCount; ++i)
-					writer.Write7BitEncoded(m_casDataBuffer.GetPersistentSize(i));
-				WriteFile(m_logger, tempFileName.data, fileHandle, buffer, writer.GetPosition());
-			}
-#endif
-
-			{
-				constexpr u64 entrySize = sizeof(CasKey) + sizeof(u64); // TODO: Wrong for sparse file
-				u64 casLookupWriteSize = m_casLookup.size() * entrySize;
-				Vector<u8> casLookupBuffer;
-				casLookupBuffer.resize(casLookupWriteSize + sizeof(CasKey)); // Add terminator
-				BinaryWriter writer(casLookupBuffer.data(), 0, casLookupBuffer.size());
-
-				CasEntry* last = nullptr;
-				for (CasEntry* it = m_newestAccessed; it; it = it->nextAccessed)
-				{
-					last = it;
-					CasEntry& casEntry = *it;
-					if (casEntry.verified && !casEntry.exists)
-						continue;
-					if (casEntry.dropped)
-					{
 #if !UBA_USE_SPARSEFILE
-						StringBuffer<512> casFileName;
-						if (!StorageImpl::GetCasFileName(casFileName, casEntry.key))
-							continue;
-						DeleteFileW(casFileName.data);
+					StringBuffer<512> casFileName;
+					if (!StorageImpl::GetCasFileName(casFileName, casEntry.key))
+						continue;
+					DeleteFileW(casFileName.data);
 #else
-						// TODO!  UBA_ASSERT(false);
+					// TODO!  UBA_ASSERT(false);
 #endif
-						continue;
-					}
-
-#if UBA_USE_SPARSEFILE
-					auto findIt = handleToIndex.find(casEntry.mappingHandle);
-					if (findIt == handleToIndex.end())
-					{
-						if (m_deferredCasCreationLookup.find(casEntry.key) != m_deferredCasCreationLookup.end())
-							continue;
-						m_logger.Error(TC("Can't find cas database file with mappingHandle %llu"), uintptr_t(casEntry.mappingHandle));
-						continue;
-					}
-#endif
-
-					if (writer.GetCapacityLeft() < entrySize + sizeof(CasKey))
-						return m_logger.Error(TC("This should not happen, somehow there are more valid entries in access list than lookup. (Lookup has %llu entries)"), m_casLookup.size());
-
-					UBA_ASSERT(casEntry.key != CasKeyZero);
-					writer.WriteCasKey(casEntry.key);
-					writer.WriteU64(casEntry.size);
-
-#if UBA_USE_SPARSEFILE
-					writer.WriteU32(findIt->second);
-					writer.WriteU64(casEntry.mappingOffset);
-					writer.WriteU64(casEntry.mappingSize);
-#endif
+					continue;
 				}
-				writer.WriteCasKey(CasKeyZero);
-				if (!tempFile.Write(casLookupBuffer.data(), writer.GetPosition()))
-					return false;
-				UBA_ASSERT(m_oldestAccessed == last); (void)last;
+
+#if UBA_USE_SPARSEFILE
+				auto findIt = handleToIndex.find(casEntry.mappingHandle);
+				if (findIt == handleToIndex.end())
+				{
+					if (m_deferredCasCreationLookup.find(casEntry.key) != m_deferredCasCreationLookup.end())
+						continue;
+					m_logger.Error(TC("Can't find cas database file with mappingHandle %llu"), uintptr_t(casEntry.mappingHandle));
+					continue;
+				}
+#endif
+
+				if (writer.GetCapacityLeft() < casLookupEntrySize + sizeof(CasKey))
+					return m_logger.Error(TC("This should not happen, somehow there are more valid entries in access list than lookup. (Lookup has %llu entries)"), m_casLookup.size());
+
+				UBA_ASSERT(casEntry.key != CasKeyZero);
+				writer.WriteCasKey(casEntry.key);
+				writer.WriteU64(casEntry.size);
+				++casTableSize;
+
+#if UBA_USE_SPARSEFILE
+				writer.WriteU32(findIt->second);
+				writer.WriteU64(casEntry.mappingOffset);
+				writer.WriteU64(casEntry.mappingSize);
+#endif
 			}
+			writer.WriteCasKey(CasKeyZero);
+			*casLookupSizePtr = casTableSize;
+
+			if (!tempFile.Write(buffer.data(), writer.GetPosition()))
+				return false;
+			UBA_ASSERT(m_oldestAccessed == last); (void)last;
 			if (!tempFile.Close())
 				return false;
 		}
@@ -1777,7 +1774,7 @@ namespace uba
 							if (casKey != fe.casKey)
 							{
 								++errorCount;
-								m_logger.Error(TC("CasKey mismatch for %s even though size and lastwritten were the same. Corrupt path table!"), p.data());
+								m_logger.Error(TC("CasKey mismatch for %s even though size and lastwritten were the same. Corrupt path table! (Correct: %s. Wrong: %s)"), p.data(), CasKeyString(casKey).str, CasKeyString(fe.casKey).str);
 							}
 
 						}, 1, TC(""));
