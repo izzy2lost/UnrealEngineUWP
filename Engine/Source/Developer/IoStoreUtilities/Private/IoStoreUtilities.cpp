@@ -7,6 +7,9 @@
 #include "Algo/TopologicalSort.h"
 #include "Async/AsyncWork.h"
 #include "CookMetadata.h"
+#include "DerivedDataCache.h"
+#include "DerivedDataCacheInterface.h"
+#include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformMemory.h"
@@ -3328,7 +3331,7 @@ public:
 		InitiatorThread = Async(EAsyncExecution::Thread, [this]() { InitiatorThreadFunc(); });
 		RetirerThread = Async(EAsyncExecution::Thread, [this]() { RetirerThreadFunc(); });
 
-		MaxSourceBufferMemory = 4ull << 30;
+		MaxSourceBufferMemory = 3ull << 30;
 		FParse::Value(FCommandLine::Get(), TEXT("MaxSourceBufferMemory="), MaxSourceBufferMemory);
 
 		MaxConcurrentSourceReads = uint32(FMath::Clamp(FPlatformMisc::NumberOfCoresIncludingHyperthreads()/2, 4, 32));
@@ -5708,9 +5711,14 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 				{
 					ProgressStringBuilder.Appendf(TEXT(" [%llu compressed]"), Progress.CompressedChunksCount);
 				}
+				if (Progress.CompressionDDCHitCount || Progress.CompressionDDCPutCount)
+				{
+					ProgressStringBuilder.Appendf(TEXT(" [DDC: %llu hits, %llu puts]"),
+						Progress.CompressionDDCHitCount, Progress.CompressionDDCPutCount);
+				}
 				if (Progress.ScheduledCompressionTasksCount)
 				{
-					ProgressStringBuilder.Appendf(TEXT(" [%llu compression tasks scheduled]"), Progress.ScheduledCompressionTasksCount);
+					ProgressStringBuilder.Appendf(TEXT(" [%llu compression tasks]"), Progress.ScheduledCompressionTasksCount);
 				}
 			}
 			else
@@ -5724,6 +5732,24 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 
 			UE_LOG(LogIoStore, Display, TEXT("%s"), *ProgressStringBuilder);
 		}
+	}
+
+	if (GeneralIoWriterSettings.bCompressionEnableDDC)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(WaitForDDC);
+		UE_LOG(LogIoStore, Display, TEXT(""));
+		UE_LOG(LogIoStore, Display, TEXT("Waiting for DDC..."));
+		GetDerivedDataCacheRef().WaitForQuiescence(true);
+
+		FIoStoreWriterContext::FProgress Progress = IoStoreWriterContext->GetProgress();
+		const uint64 TotalDDCAttempts = Progress.CompressionDDCHitCount + Progress.CompressionDDCMissCount;
+		const double DDCHitRate = double(Progress.CompressionDDCHitCount) / TotalDDCAttempts * 100.0;
+		const double DDCPutRate = double(Progress.CompressionDDCPutCount) / TotalDDCAttempts * 100.0;
+		UE_LOG(LogIoStore, Display, TEXT("Compression DDC hits: %llu/%llu (%.2lf%%)"),
+			Progress.CompressionDDCHitCount, TotalDDCAttempts, DDCHitRate);
+		UE_LOG(LogIoStore, Display, TEXT("Compression DDC puts: %llu/%llu (%.2lf%%) [%llu failed]"),
+			Progress.CompressionDDCPutCount, TotalDDCAttempts, DDCPutRate, Progress.CompressionDDCPutErrorCount);
+		UE_LOG(LogIoStore, Display, TEXT(""));
 	}
 
 	{
@@ -5762,6 +5788,40 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 				if (Progress.CompressedChunksByType[i] || Progress.BeginCompressChunksByType[i])
 				{
 					UE_LOG(LogIoStore, Display, TEXT("    %-26s %s / %s"), *LexToString((EIoChunkType)i), *NumberString(Progress.CompressedChunksByType[i]), *NumberString(Progress.BeginCompressChunksByType[i]));
+				}
+			}
+		}
+		if (Progress.CompressionDDCHitCount)
+		{
+			UE_LOG(LogIoStore, Display, TEXT("%s / %s chunks for %s bytes were loaded from DDC, by type:"),
+				*NumberString(Progress.CompressionDDCHitCount),
+				*NumberString(Progress.TotalChunksCount),
+				*NumberString(Progress.CompressionDDCGetBytes));
+
+			for (uint8 i = 0; i < (uint8)EIoChunkType::MAX; i++)
+			{
+				if (Progress.CompressionDDCHitsByType[i])
+				{
+					UE_LOG(LogIoStore, Display, TEXT("    %-26s %s / %s"), *LexToString((EIoChunkType)i),
+						*NumberString(Progress.CompressionDDCHitsByType[i]),
+						*NumberString(Progress.BeginCompressChunksByType[i]));
+				}
+			}
+		}
+		if (Progress.CompressionDDCPutCount)
+		{
+			UE_LOG(LogIoStore, Display, TEXT("%s / %s chunks for %s bytes were stored in DDC, by type:"),
+				*NumberString(Progress.CompressionDDCPutCount),
+				*NumberString(Progress.TotalChunksCount),
+				*NumberString(Progress.CompressionDDCPutBytes));
+
+			for (uint8 i = 0; i < (uint8)EIoChunkType::MAX; i++)
+			{
+				if (Progress.CompressionDDCPutsByType[i])
+				{
+					UE_LOG(LogIoStore, Display, TEXT("    %-26s %s / %s"), *LexToString((EIoChunkType)i),
+						*NumberString(Progress.CompressionDDCPutsByType[i]),
+						*NumberString(Progress.BeginCompressChunksByType[i]));
 				}
 			}
 		}
@@ -5808,14 +5868,6 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 				UE_LOG(LogIoStore, Display, TEXT("        %-22s %12s bytes over %s reads"), *LexToString((EIoChunkType)i), *NumberString(WriteRequestManager.MemorySourceBytes[i].Load()), *NumberString(WriteRequestManager.MemorySourceReads[i].Load()));
 			}
 		}
-	}
-
-	if (GeneralIoWriterSettings.bCompressionEnableDDC)
-	{
-		FIoStoreWriterContext::FProgress Progress = IoStoreWriterContext->GetProgress();
-		uint64 TotalDDCAttempts = Progress.CompressionDDCHitCount + Progress.CompressionDDCMissCount;
-		double DDCHitRate = double(Progress.CompressionDDCHitCount) / TotalDDCAttempts * 100.0;
-		UE_LOG(LogIoStore, Display, TEXT("Compression DDC hits: %llu/%llu (%.2f%%)"), Progress.CompressionDDCHitCount, TotalDDCAttempts, DDCHitRate);
 	}
 
 	if (Arguments.WriteBackMetadataToAssetRegistry != EAssetRegistryWritebackMethod::Disabled)

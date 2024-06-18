@@ -70,8 +70,14 @@ public:
 		uint64 CompressedChunksByType[(int8)EIoChunkType::MAX] = { 0 };
 		uint64 SerializedChunksCount = 0;
 		uint64 ScheduledCompressionTasksCount = 0;
+		uint64 CompressionDDCHitsByType[(int8)EIoChunkType::MAX] = { 0 };
+		uint64 CompressionDDCPutsByType[(int8)EIoChunkType::MAX] = { 0 };
 		uint64 CompressionDDCHitCount = 0;
 		uint64 CompressionDDCMissCount = 0;
+		uint64 CompressionDDCPutCount = 0;
+		uint64 CompressionDDCPutErrorCount = 0;
+		uint64 CompressionDDCGetBytes = 0;
+		uint64 CompressionDDCPutBytes = 0;
 
 		// The number of chunk retrieved from the reference cache database, and their types.
 		uint64 RefDbChunksCount{ 0 };
