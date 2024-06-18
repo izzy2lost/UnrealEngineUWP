@@ -11,6 +11,8 @@
 #include "Chaos/TriangleMeshImplicitObject.h"
 #include "Components/StaticMeshComponent.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "Engine/StaticMesh.h"
+
 DEFINE_LOG_CATEGORY_STATIC(LogUDeformableCollisionsComponentInternal, Log, All);
 
 #define PERF_SCOPE(X) SCOPE_CYCLE_COUNTER(X); TRACE_CPUPROFILER_EVENT_SCOPE(X);

@@ -4,6 +4,7 @@
 
 #include "Engine/SkeletalMesh.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
+#include "Chaos/Utilities.h"
 #include "GeometryCollection/Facades/CollectionKinematicBindingFacade.h"
 #include "GeometryCollection/Facades/CollectionPositionTargetFacade.h"
 #include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"

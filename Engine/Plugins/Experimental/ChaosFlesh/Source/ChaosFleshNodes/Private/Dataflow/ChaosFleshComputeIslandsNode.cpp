@@ -2,6 +2,7 @@
 
 #include "Dataflow/ChaosFleshComputeIslandsNode.h"
 
+#include "Chaos/Utilities.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshComputeIslandsNode)

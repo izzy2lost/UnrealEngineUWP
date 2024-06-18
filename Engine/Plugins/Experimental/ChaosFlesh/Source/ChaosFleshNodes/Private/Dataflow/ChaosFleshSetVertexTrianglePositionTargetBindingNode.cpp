@@ -2,6 +2,7 @@
 
 #include "Dataflow/ChaosFleshSetVertexTrianglePositionTargetBindingNode.h"
 
+#include "Chaos/Utilities.h"
 #include "Chaos/HierarchicalSpatialHash.h"
 #include "Chaos/TriangleCollisionPoint.h"
 #include "GeometryCollection/Facades/CollectionMeshFacade.h"
