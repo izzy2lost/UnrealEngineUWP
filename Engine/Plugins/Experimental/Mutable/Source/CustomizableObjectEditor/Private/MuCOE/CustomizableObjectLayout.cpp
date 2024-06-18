@@ -88,7 +88,7 @@ void UCustomizableObjectLayout::SetLayoutName(FString Name)
 
 void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 {
-	mu::NodeLayoutBlocksPtr Layout = nullptr;
+	mu::Ptr<mu::NodeLayout> LayoutNode;
 
 	UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(GetOuter());
 
@@ -124,18 +124,18 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 		if (MutableMesh)
 		{
 			// Generating blocks with the mutable mesh
-			Layout = mu::NodeLayoutBlocks::GenerateLayoutBlocks(MutableMesh, UVChannel, GridSize.X, GridSize.Y);
+			LayoutNode = mu::NodeLayout::GenerateLayoutBlocks(MutableMesh, UVChannel, GridSize.X, GridSize.Y);
 		}
 	
-		if (Layout)
+		if (LayoutNode)
 		{
 			Blocks.Empty();
 		
 			// Generating the layout blocks with the mutable layout
-			for (int i = 0; i < Layout->GetBlockCount(); ++i)
+			for (int i = 0; i < LayoutNode->Layout->GetBlockCount(); ++i)
 			{
-				mu::FImageSize Min = Layout->GetLayout()->Blocks[i].Min;
-				mu::FImageSize Size = Layout->GetLayout()->Blocks[i].Size;
+				mu::FImageSize Min = LayoutNode->Layout->Blocks[i].Min;
+				mu::FImageSize Size = LayoutNode->Layout->Blocks[i].Size;
 		
 				FCustomizableObjectLayoutBlock block(FIntPoint(Min.X, Min.Y), FIntPoint(Min.X + Size.X, Min.Y + Size.Y));
 				Blocks.Add(block);

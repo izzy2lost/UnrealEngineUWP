@@ -52,7 +52,7 @@ namespace mu
 	{
 		check( index >=0 && index < m_pD->Layouts.Num() );
 
-		NodeLayoutPtr pResult;
+		Ptr<NodeLayout> pResult;
 
 		if (index >= 0 && index < m_pD->Layouts.Num())
 		{

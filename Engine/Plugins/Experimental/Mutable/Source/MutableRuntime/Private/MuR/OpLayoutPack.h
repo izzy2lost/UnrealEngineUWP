@@ -410,7 +410,7 @@ namespace mu
 		bool usePriority = false;
 
 		EPackStrategy LayoutStrategy = pSourceLayout->GetLayoutPackingStrategy();
-		EReductionMethod ReductionMethod = pSourceLayout->GetBlockReductionMethod();
+		EReductionMethod ReductionMethod = pSourceLayout->ReductionMethod;
 
         // Look for the maximum block sizes on the layout and the total area
 		uint16 maxX = 0;
@@ -636,7 +636,7 @@ namespace mu
         pResult->SetGridSize( maxX, maxY );
         pResult->SetMaxGridSize(layoutSizeX, layoutSizeY);
 		pResult->SetLayoutPackingStrategy(LayoutStrategy);
-		pResult->SetBlockReductionMethod(ReductionMethod);
+		pResult->ReductionMethod = ReductionMethod;
 
         for ( int32 index=0; index<blockCount; ++index )
         {

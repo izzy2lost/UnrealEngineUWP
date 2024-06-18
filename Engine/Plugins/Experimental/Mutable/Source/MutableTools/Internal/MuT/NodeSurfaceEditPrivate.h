@@ -28,10 +28,6 @@ namespace mu
 		NodePatchMeshPtr m_pMesh;
 		NodeMeshPtr m_pMorph;
 
-        //! This flag indicates that the mesh in the m_pMorph connection is a target mesh, and not
-        //! morph information. This means that the morph information needs to be generated.
-        bool m_morphIsTarget = true;
-
 		struct FTexture
 		{
 			NodeImagePtr m_pExtend;

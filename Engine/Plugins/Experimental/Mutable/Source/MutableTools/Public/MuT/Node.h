@@ -114,7 +114,6 @@ namespace mu
 			RangeFromScalar,
 
 			Layout,
-			LayoutBlocks,
 
 			PatchImage,
 			PatchMesh,

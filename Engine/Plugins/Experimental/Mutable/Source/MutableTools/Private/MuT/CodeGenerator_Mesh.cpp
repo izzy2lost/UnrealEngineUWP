@@ -40,7 +40,6 @@
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/NodeImageProject.h"
 #include "MuT/NodeLayout.h"
-#include "MuT/NodeLayoutPrivate.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodeMeshApplyPose.h"
 #include "MuT/NodeMeshApplyPosePrivate.h"
@@ -270,7 +269,8 @@ namespace mu
 		int32 currentLayoutChannel,
 		const void* errorContext,
 		const FMeshGenerationOptions& MeshOptions,
-		bool bUseAbsoluteBlockIds
+		bool bUseAbsoluteBlockIds,
+		int32 FirstLODToIgnoreWarnings
 		)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(LayoutUV_PrepareForLayout);
@@ -593,7 +593,7 @@ namespace mu
 		}
 
 		// Warn about vertices without a block id
-		if (Layout->FirstLODToIgnoreWarnings == -1 || m_currentParents.Last().m_lod < Layout->FirstLODToIgnoreWarnings)
+		if (FirstLODToIgnoreWarnings == -1 || m_currentParents.Last().m_lod < FirstLODToIgnoreWarnings)
 		{
 			TArray<float> UnassignedUVs;
 			UnassignedUVs.Reserve(NumVertices / 100);
@@ -941,7 +941,7 @@ namespace mu
 
                 if (BaseResult.GeneratedLayouts.Num()>node.LayoutOrGroup )
                 {
-                    const Layout* pLayout = BaseResult.GeneratedLayouts[node.LayoutOrGroup].get();
+                    const Layout* pLayout = BaseResult.GeneratedLayouts[node.LayoutOrGroup].Layout.get();
                     op->Layout = (uint16)node.LayoutOrGroup;
 
                     for ( int32 i=0; i<node.Blocks.Num(); ++i )
@@ -1343,7 +1343,7 @@ namespace mu
 					bool bLayoutsAreEqual = true;
 					for (int32 l = 0; l < Candidate.Mesh->GetLayoutCount(); ++l)
 					{
-						bLayoutsAreEqual = (*Candidate.Mesh->GetLayout(l) == *InOptions.OverrideLayouts[l]);
+						bLayoutsAreEqual = (*Candidate.Mesh->GetLayout(l) == *InOptions.OverrideLayouts[l].Layout);
 						if ( !bLayoutsAreEqual )
 						{
 							break;
@@ -1372,7 +1372,7 @@ namespace mu
 				{
 					for (int32 l = 0; l < DuplicateOf.Mesh->GetLayoutCount(); ++l)
 					{
-						const Layout* OverridingLayout = InOptions.OverrideLayouts[l].get();
+						FGeneratedLayout OverridingLayout = InOptions.OverrideLayouts[l];
 						OutResult.GeneratedLayouts.Add(OverridingLayout);
 					}
 				}
@@ -1381,7 +1381,7 @@ namespace mu
 					for (int32 l = 0; l < DuplicateOf.Mesh->GetLayoutCount(); ++l)
 					{
 						const Layout* DuplicatedLayout = DuplicateOf.Mesh->GetLayout(l);
-						OutResult.GeneratedLayouts.Add(DuplicatedLayout);
+						OutResult.GeneratedLayouts.Add({ DuplicatedLayout,0 });
 					}
 				}
 			}
@@ -1435,18 +1435,15 @@ namespace mu
 							continue;
 						}
 
-						// TODO: In a cleanup of the design of the layouts, we should remove this cast.
-						check(pLayoutNode->GetType()==NodeLayoutBlocks::GetStaticType() );
-						const NodeLayoutBlocks* TypedNode = static_cast<const NodeLayoutBlocks*>(pLayoutNode.get());
-
-						Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
+						Ptr<const Layout> SourceLayout = pLayoutNode->Layout;
 						Ptr<const Layout> GeneratedLayout = AddLayout(SourceLayout, MeshIDPrefix);
+						int32 FirstLODToIgnoreWarnings = pLayoutNode->FirstLODToIgnoreWarnings;
 						const void* Context = InOptions.OverrideContext.Get(InNode->GetMessageContext());
 
 						bool bUseAbsoluteBlockIds = false;
-						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds);
+						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds, FirstLODToIgnoreWarnings);
 
-						OutResult.GeneratedLayouts.Add(GeneratedLayout);
+						OutResult.GeneratedLayouts.Add({ GeneratedLayout, FirstLODToIgnoreWarnings });
 					}
 				}
 				else
@@ -1454,15 +1451,16 @@ namespace mu
 					// We need to apply the transform of the layouts used to override
 					for (int32 LayoutIndex = 0; LayoutIndex < InOptions.OverrideLayouts.Num(); ++LayoutIndex)
 					{
-						Ptr<const Layout> GeneratedLayout = InOptions.OverrideLayouts[LayoutIndex];
+						Ptr<const Layout> GeneratedLayout = InOptions.OverrideLayouts[LayoutIndex].Layout;
+						int32 FirstLODToIgnoreWarnings = InOptions.OverrideLayouts[LayoutIndex].FirstLODToIgnoreWarnings;
 						const void* Context = InOptions.OverrideContext.Get(InNode->GetMessageContext());
 
 						// In this case we need the layout block ids to use the ids in the parent layout, and not be prefixed with
 						// the current mesh id prefix. For this reason we need them to be absolute.
 						bool bUseAbsoluteBlockIds = true;
-						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds);
+						PrepareForLayout(GeneratedLayout, Cloned, LayoutIndex, Context, InOptions, bUseAbsoluteBlockIds, FirstLODToIgnoreWarnings);
 
-						OutResult.GeneratedLayouts.Add(GeneratedLayout);
+						OutResult.GeneratedLayouts.Add({ GeneratedLayout,FirstLODToIgnoreWarnings });
 					}
 				}
 			}

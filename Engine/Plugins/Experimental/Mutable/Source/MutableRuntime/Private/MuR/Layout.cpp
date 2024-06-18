@@ -46,7 +46,6 @@ namespace mu {
 		pResult->MaxSize = MaxSize;
 		pResult->Blocks = Blocks;
 		pResult->Strategy = Strategy;
-		pResult->FirstLODToIgnoreWarnings = FirstLODToIgnoreWarnings;
 		pResult->ReductionMethod = ReductionMethod;
 		return pResult;
 	}
@@ -60,7 +59,6 @@ namespace mu {
 			(Blocks == o.Blocks) &&
 			(Strategy == o.Strategy) &&
 			// maybe this is not needed
-			(FirstLODToIgnoreWarnings == o.FirstLODToIgnoreWarnings) &&
 			(ReductionMethod==o.ReductionMethod);
 	}
 
@@ -148,7 +146,6 @@ namespace mu {
 
 		arch << MaxSize;
 		arch << uint32(Strategy);
-		arch << FirstLODToIgnoreWarnings;
 		arch << uint32(ReductionMethod);
 	}
 
@@ -163,8 +160,6 @@ namespace mu {
 		uint32 Temp;
 		arch >> Temp;
 		Strategy = EPackStrategy(Temp);
-
-		arch >> FirstLODToIgnoreWarnings;
 
 		arch >> Temp;
 		ReductionMethod = EReductionMethod(Temp);
@@ -215,33 +210,6 @@ namespace mu {
 		return false;
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	void Layout::SetIgnoreLODWarnings(int32 LOD)
-	{
-		FirstLODToIgnoreWarnings = LOD;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	int32 Layout::GetIgnoreLODWarnings()
-	{
-		return FirstLODToIgnoreWarnings;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void Layout::SetBlockReductionMethod(EReductionMethod Method)
-	{
-		ReductionMethod = Method;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	EReductionMethod Layout::GetBlockReductionMethod() const
-	{
-		return ReductionMethod;
-	}
 
 }
 

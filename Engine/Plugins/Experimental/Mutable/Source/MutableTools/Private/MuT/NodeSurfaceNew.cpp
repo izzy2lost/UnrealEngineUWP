@@ -8,7 +8,6 @@
 #include "MuT/NodeColour.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodeMesh.h"
-#include "MuT/NodePatchImage.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeString.h"

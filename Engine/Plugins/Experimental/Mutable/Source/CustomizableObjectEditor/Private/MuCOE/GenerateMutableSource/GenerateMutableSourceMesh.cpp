@@ -3133,18 +3133,21 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 }
 
 /** Create a default layout. Used when no layout is found. */
-mu::NodeLayoutBlocksPtr CreateDefaultLayout()
+mu::Ptr<mu::NodeLayout> CreateDefaultLayout()
 {
 	constexpr int32 GridSize = 4;
 	
-	mu::NodeLayoutBlocksPtr LayoutNode = new mu::NodeLayoutBlocks();
-	LayoutNode->SetGridSize(GridSize, GridSize);
-	LayoutNode->SetMaxGridSize(GridSize, GridSize);
-	LayoutNode->SetLayoutPackingStrategy(mu::EPackStrategy::RESIZABLE_LAYOUT);
-	LayoutNode->SetBlockReductionMethod(mu::EReductionMethod::HALVE_REDUCTION);
-	LayoutNode->SetBlockCount(1);
-	LayoutNode->SetBlock(0, 0, 0, GridSize, GridSize);
-	LayoutNode->SetBlockOptions(0, 0, false, false);
+	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout();
+	LayoutNode->Layout->SetGridSize(GridSize, GridSize);
+	LayoutNode->Layout->SetMaxGridSize(GridSize, GridSize);
+	LayoutNode->Layout->SetLayoutPackingStrategy(mu::EPackStrategy::RESIZABLE_LAYOUT);
+	LayoutNode->Layout->ReductionMethod = mu::EReductionMethod::HALVE_REDUCTION;
+	LayoutNode->Layout->SetBlockCount(1);
+	LayoutNode->Layout->Blocks[0].Min = { 0, 0 };
+	LayoutNode->Layout->Blocks[0].Size = { GridSize, GridSize };
+	LayoutNode->Layout->Blocks[0].Priority = 0;
+	LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
+	LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
 
 	return LayoutNode;
 }
@@ -3376,7 +3379,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					{
 						if (const UEdGraphPin* ConnectedPin = FollowInputPin(*LayoutPin))
 						{
-							mu::NodeLayoutPtr LayoutNode = GenerateMutableSourceLayout(ConnectedPin, GenerationContext, bLinkedToExtendMaterial);
+							mu::Ptr<mu::NodeLayout> LayoutNode = GenerateMutableSourceLayout(ConnectedPin, GenerationContext, bLinkedToExtendMaterial);
 							MeshNode->SetLayout(LayoutIndex, LayoutNode);
 							bAtLeastOneLayout = true;
 						}
@@ -3387,7 +3390,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				{
 					MeshNode->SetLayoutCount(1);
 
-					mu::NodeLayoutBlocksPtr LayoutNode = CreateDefaultLayout();
+					mu::Ptr<mu::NodeLayout> LayoutNode = CreateDefaultLayout();
 					MeshNode->SetLayout(0, LayoutNode);
 					LayoutNode->SetMessageContext(Node); // We need it here because we create multiple nodes.
 				}
@@ -3460,12 +3463,12 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeStatic->LODs[LODIndex].Materials[SectionIndex].LayoutPinRef.Get()))
 				{
-					mu::NodeLayoutPtr LayoutNode = GenerateMutableSourceLayout(ConnectedPin, GenerationContext);
+					mu::Ptr<mu::NodeLayout> LayoutNode = GenerateMutableSourceLayout(ConnectedPin, GenerationContext);
 					MeshNode->SetLayout(0, LayoutNode);
 				}
 				else
 				{
-					mu::NodeLayoutBlocksPtr LayoutNode = CreateDefaultLayout();
+					mu::Ptr<mu::NodeLayout> LayoutNode = CreateDefaultLayout();
 					MeshNode->SetLayout(0, LayoutNode);
 					LayoutNode->SetMessageContext(Node);  // We need it here because we create multiple nodes.
 				}
@@ -4080,34 +4083,28 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 							// Generating node Layouts
 							for (int32 i = 0; i < Layouts.Num(); ++i)
 							{
-								mu::NodeLayoutBlocksPtr LayoutNode = new mu::NodeLayoutBlocks;
+								mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
 
-								LayoutNode->SetGridSize(Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
-								LayoutNode->SetMaxGridSize(Layouts[i]->GetMaxGridSize().X, Layouts[i]->GetMaxGridSize().Y);
-								LayoutNode->SetBlockCount(Layouts[i]->Blocks.Num() ? Layouts[i]->Blocks.Num() : 1);
+								LayoutNode->Layout->SetGridSize(Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
+								LayoutNode->Layout->SetMaxGridSize(Layouts[i]->GetMaxGridSize().X, Layouts[i]->GetMaxGridSize().Y);
+								LayoutNode->Layout->SetBlockCount(Layouts[i]->Blocks.Num() ? Layouts[i]->Blocks.Num() : 1);
 
 								mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(Layouts[i]->GetPackingStrategy());
-								LayoutNode->SetLayoutPackingStrategy(PackStrategy);
+								LayoutNode->Layout->SetLayoutPackingStrategy(PackStrategy);
 								
-								LayoutNode->SetBlockReductionMethod(Layouts[i]->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
+								LayoutNode->Layout->ReductionMethod = (Layouts[i]->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
 
 								if (bLinkedToExtendMaterial)
 								{
 									// Layout warnings can be safely ignored in this case. Vertices that do not belong to any layout block will be removed (Extend Materials only)
-									LayoutNode->SetIgnoreWarningsLOD(0);
+									LayoutNode->FirstLODToIgnoreWarnings = 0;
 								}
 
 								if (Layouts[i]->Blocks.Num())
 								{
 									for (int BlockIndex = 0; BlockIndex < Layouts[i]->Blocks.Num(); ++BlockIndex)
 									{
-										LayoutNode->SetBlock(BlockIndex,
-											Layouts[i]->Blocks[BlockIndex].Min.X,
-											Layouts[i]->Blocks[BlockIndex].Min.Y,
-											Layouts[i]->Blocks[BlockIndex].Max.X - Layouts[i]->Blocks[BlockIndex].Min.X,
-											Layouts[i]->Blocks[BlockIndex].Max.Y - Layouts[i]->Blocks[BlockIndex].Min.Y);
-
-										LayoutNode->SetBlockOptions(BlockIndex, Layouts[i]->Blocks[BlockIndex].Priority, Layouts[i]->Blocks[BlockIndex].bReduceBothAxes, Layouts[i]->Blocks[BlockIndex].bReduceByTwo);
+										LayoutNode->Layout->Blocks[BlockIndex] = ToMutable( Layouts[i]->Blocks[BlockIndex] );
 									}
 								}
 								else
@@ -4115,8 +4112,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 									FString msg = "Mesh Column [" + MutableColumnName + "] Layout doesn't has any block. A grid sized block will be used instead.";
 									GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
 
-									LayoutNode->SetBlock(0, 0, 0, Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
-									LayoutNode->SetBlockOptions(0, 0, false, false);
+									LayoutNode->Layout->Blocks[0].Min = { 0,0 };
+									LayoutNode->Layout->Blocks[0].Size = { uint16(Layouts[i]->GetGridSize().X), uint16(Layouts[i]->GetGridSize().Y)};
+									LayoutNode->Layout->Blocks[0].Priority = 0;
+									LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
+									LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
 								}
 
 								MeshTableNode->SetLayout(i, LayoutNode);

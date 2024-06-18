@@ -49,9 +49,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshTable::GetLayout( int i ) const
+	Ptr<NodeLayout> NodeMeshTable::GetLayout( int i ) const
 	{
-		NodeLayoutPtr pResult;
+		Ptr<NodeLayout> pResult;
 
 		if (i >= 0 && i < Layouts.Num())
 		{
@@ -63,7 +63,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshTable::SetLayout( int i, NodeLayoutPtr pLayout )
+	void NodeMeshTable::SetLayout( int i, Ptr<NodeLayout> pLayout )
 	{
 		check( i>=0 && i<GetLayoutCount() );
 		Layouts[i] = pLayout;

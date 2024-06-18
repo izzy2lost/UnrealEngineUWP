@@ -3,127 +3,28 @@
 #include "MuT/NodeLayout.h"
 
 #include "Math/IntPoint.h"
-#include "Math/UnrealMathSSE.h"
 #include "Misc/AssertionMacros.h"
 #include "MuR/ConvertData.h"
 #include "MuR/MeshBufferSet.h"
 #include "MuR/MeshPrivate.h"
 #include "MuR/MutableMath.h"
-#include "MuT/NodeLayoutPrivate.h"
 
 
 namespace mu
 {
 
-	static FNodeType s_nodeLayoutType = FNodeType(Node::EType::Layout, Node::GetStaticType() );
+	FNodeType NodeLayout::StaticType = FNodeType(Node::EType::Layout, Node::GetStaticType() );
 
 
-	//---------------------------------------------------------------------------------------------
-	const FNodeType* NodeLayout::GetType() const
+	NodeLayout::NodeLayout()
 	{
-		return GetStaticType();
+		Layout = new mu::Layout();
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	const FNodeType* NodeLayout::GetStaticType()
+	Ptr<NodeLayout> NodeLayout::GenerateLayoutBlocks(const Ptr<Mesh> pMesh, int32 layoutIndex, int32 gridSizeX, int32 gridSizeY)
 	{
-		return &s_nodeLayoutType;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	FNodeType NodeLayoutBlocks::Private::s_type = FNodeType(Node::EType::LayoutBlocks, NodeLayout::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-
-	MUTABLE_IMPLEMENT_NODE( NodeLayoutBlocks )
-
-
-	//---------------------------------------------------------------------------------------------
-	// Own Interface
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetGridSize( int32 x, int32 y )
-	{
-		m_pD->m_pLayout->SetGridSize( x, y );
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetMaxGridSize(int32 x, int32 y)
-	{
-		m_pD->m_pLayout->SetMaxGridSize(x, y);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::GetGridSize( int32* pX, int32* pY ) const
-	{
-		FIntPoint grid = m_pD->m_pLayout->GetGridSize();
-		if (pX) *pX = grid[0];
-		if (pY) *pY = grid[1];
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::GetMaxGridSize(int32* pX, int32* pY) const
-	{
-		m_pD->m_pLayout->GetMaxGridSize(pX, pY);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetBlockCount( int32 n )
-	{
-		m_pD->m_pLayout->SetBlockCount( n );
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	int32 NodeLayoutBlocks::GetBlockCount()
-	{
-		return m_pD->m_pLayout->GetBlockCount();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Ptr<const Layout> NodeLayoutBlocks::GetLayout() const
-	{
-		return m_pD->m_pLayout;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeLayoutBlocks::SetBlock( int32 index, int32 minx, int32 miny, int32 sizex, int32 sizey )
-	{
-		m_pD->m_pLayout->Blocks[index].Min = FImageSize( minx, miny );
-		m_pD->m_pLayout->Blocks[index].Size = FImageSize( sizex, sizey );
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetBlockOptions(int32 index, int32 priority, bool bReduceBothAxes, bool bReduceByTwo)
-	{
-		m_pD->m_pLayout->Blocks[index].Priority = priority;
-		m_pD->m_pLayout->Blocks[index].bReduceBothAxes = bReduceBothAxes;
-		m_pD->m_pLayout->Blocks[index].bReduceByTwo = bReduceByTwo;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetLayoutPackingStrategy(mu::EPackStrategy strategy)
-	{
-		m_pD->m_pLayout->SetLayoutPackingStrategy(strategy);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutBlocksPtr NodeLayoutBlocks::GenerateLayoutBlocks(const MeshPtr pMesh, int32 layoutIndex, int32 gridSizeX, int32 gridSizeY)
-	{
-		NodeLayoutBlocksPtr layout = nullptr;
+		Ptr<NodeLayout> LayoutNode = nullptr;
 
 		if (pMesh && layoutIndex >=0 && gridSizeX+gridSizeY>0)
 		{
@@ -173,10 +74,10 @@ namespace mu
 				UVs[v * 6 + 5][1] = uv_1[1];
 			}
 
-			layout = new NodeLayoutBlocks;
-			layout->SetGridSize(gridSizeX, gridSizeY);
-			layout->SetMaxGridSize(gridSizeX, gridSizeY);
-			layout->SetLayoutPackingStrategy(EPackStrategy::RESIZABLE_LAYOUT);
+			LayoutNode = new NodeLayout;
+			LayoutNode->Layout->SetGridSize(gridSizeX, gridSizeY);
+			LayoutNode->Layout->SetMaxGridSize(gridSizeX, gridSizeY);
+			LayoutNode->Layout->SetLayoutPackingStrategy(EPackStrategy::RESIZABLE_LAYOUT);
 			
 			TArray<box<FIntVector2>> blocks;
 			
@@ -283,7 +184,7 @@ namespace mu
 			
 			bool intersections = true;
 			
-			//Cheking if the blocks intersect with each other
+			// Check if the blocks intersect with each other
 			while (intersections)
 			{
 				intersections = false;
@@ -303,55 +204,24 @@ namespace mu
 				}
 			}
 			
-			int32 numBlocks = blocks.Num();
+			int32 NumBlocks = blocks.Num();
 			
 			//Generating layout blocks
-			if (numBlocks > 0)
+			if (NumBlocks > 0)
 			{
-				layout->SetBlockCount(numBlocks);
+				LayoutNode->Layout->SetBlockCount(NumBlocks);
 			
-				for (int32 i = 0; i < numBlocks; ++i)
+				for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 				{
-					int32 blockIndex = i;
-					int32 minX = blocks[i].min[0];
-					int32 minY = blocks[i].min[1];
-					int32 sizeX = blocks[i].size[0];
-					int32 sizeY = blocks[i].size[1];
-			
-					layout->SetBlock(blockIndex, minX, minY, sizeX, sizeY);
+					LayoutNode->Layout->Blocks[BlockIndex].Min = UE::Math::TIntVector2<uint16>(blocks[BlockIndex].min);
+					LayoutNode->Layout->Blocks[BlockIndex].Size = UE::Math::TIntVector2<uint16>(blocks[BlockIndex].size);
 				}
 			}
 		}
 
-		return layout;
+		return LayoutNode;
 	}
 
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetIgnoreWarningsLOD(int32 LOD)
-	{
-		m_pD->m_pLayout->SetIgnoreLODWarnings(LOD);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	int32 NodeLayoutBlocks::GetIgnoreWarningsLOD()
-	{
-		return m_pD->m_pLayout->GetIgnoreLODWarnings();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetBlockReductionMethod(EReductionMethod Method)
-	{
-		m_pD->m_pLayout->SetBlockReductionMethod(Method);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	EReductionMethod NodeLayoutBlocks::GetBlockReductionMethod()
-	{
-		return m_pD->m_pLayout->GetBlockReductionMethod();
-	}
 }
 
 

@@ -9,14 +9,6 @@
 #include "Templates/SharedPointer.h"
 
 
-//! This version number changes whenever there is a compatibility-breaking change in the Model
-//! data structures. Compiled models are not necessarily compatible when the runtime is updated,
-//! so this version number can be used externally to verify this. It is not used internally, and
-//! serializing models from different versions than this runtime will probably result in a crash.
-#define MUTABLE_COMPILED_MODEL_CODE_VERSION		uint32( 85 )
-#define MUTABLE_PARAMETERS_VERSION              uint32( 3 )
-
-
 namespace mu
 {
 	class InputArchive;

@@ -6,7 +6,6 @@
 #include "MuT/NodeSurfaceNew.h"
 
 #include "MuT/NodeMesh.h"
-#include "MuT/NodePatchMesh.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeString.h"

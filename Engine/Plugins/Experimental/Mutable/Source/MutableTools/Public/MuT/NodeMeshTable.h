@@ -30,7 +30,7 @@ namespace mu
 		bool bNoneOption = false;
 		FString DefaultRowName;
 
-		TArray<NodeLayoutPtr> Layouts;
+		TArray<Ptr<NodeLayout>> Layouts;
 
 	public:
 
@@ -53,8 +53,8 @@ namespace mu
 		void SetLayoutCount( int );
 
 		//! Get the node defining a layout of the meshes on this column.
-		NodeLayoutPtr GetLayout( int index ) const;
-		void SetLayout( int index, NodeLayoutPtr );
+		Ptr<NodeLayout> GetLayout( int index ) const;
+		void SetLayout( int index, Ptr<NodeLayout>);
 
 		//! Adds the "None" option to the parameter that represents this table column
 		void SetNoneOption(bool bAddOption);

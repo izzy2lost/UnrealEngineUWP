@@ -946,7 +946,7 @@ namespace mu
             {
                 Ptr<ASTOp> layoutOp;
 
-				Ptr<const Layout> pLayout = meshResults.GeneratedLayouts[LayoutIndex].get();
+				Ptr<const Layout> pLayout = meshResults.GeneratedLayouts[LayoutIndex].Layout;
                 if ( pLayout )
                 {
 					if (SharedMeshResults)
@@ -989,7 +989,7 @@ namespace mu
 									Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
 									op->Type = OP_TYPE::LA_CONSTANT;
 
-									Ptr<const Layout> pCloned = data.GeneratedLayouts[LayoutIndex];
+									Ptr<const Layout> pCloned = data.GeneratedLayouts[LayoutIndex].Layout;
 									op->SetValue(pCloned, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
 									layoutFragmentAd = op;
@@ -1210,7 +1210,7 @@ namespace mu
 						}
 						else
 						{
-							const Layout* pLayout = meshResults.GeneratedLayouts[LayoutIndex].get();
+							const Layout* pLayout = meshResults.GeneratedLayouts[LayoutIndex].Layout.get();
 							check(pLayout);
 
 							Ptr<ASTOpInstanceAdd> op = new ASTOpInstanceAdd();
@@ -1374,7 +1374,7 @@ namespace mu
 									{
 										if (LayoutIndex >= meshResults.extraMeshLayouts[editIndex].GeneratedLayouts.Num()
 											||
-											!meshResults.extraMeshLayouts[editIndex].GeneratedLayouts[LayoutIndex])
+											!meshResults.extraMeshLayouts[editIndex].GeneratedLayouts[LayoutIndex].Layout)
 										{
 											FString Msg = FString::Printf(TEXT("Trying to extend a layout that doesn't exist in object [%s]."),
 												*m_currentParents.Last().m_pObject->Name
@@ -1384,7 +1384,7 @@ namespace mu
 										}
 										else
 										{
-											Ptr<const Layout> pExtendLayout = meshResults.extraMeshLayouts[editIndex].GeneratedLayouts[LayoutIndex];
+											Ptr<const Layout> pExtendLayout = meshResults.extraMeshLayouts[editIndex].GeneratedLayouts[LayoutIndex].Layout;
 
 											// Size of a layout block in pixels
 											FIntPoint extlayout = pExtendLayout->GetGridSize();

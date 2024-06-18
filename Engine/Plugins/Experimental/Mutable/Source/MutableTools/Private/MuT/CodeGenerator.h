@@ -497,6 +497,19 @@ namespace mu
         //-----------------------------------------------------------------------------------------
         // Meshes
 
+		/** */
+		struct FGeneratedLayout
+		{
+			Ptr<const Layout> Layout;
+			int32 FirstLODToIgnoreWarnings=0;
+
+			FORCEINLINE bool operator==(const FGeneratedLayout& Other) const
+			{
+				return Layout == Other.Layout
+					&& FirstLODToIgnoreWarnings == Other.FirstLODToIgnoreWarnings;
+			}
+		};
+
 		/** Options that affect the generation of meshes. It is like list of what required data we want
 		* while parsing down the mesh node graph.
 		*/
@@ -517,7 +530,7 @@ namespace mu
 			* they are supposed to match some other set of layouts. If the array is empty, layouts
 			* are generated normally.
 			*/
-			TArray<Ptr<const Layout>> OverrideLayouts;			
+			TArray<FGeneratedLayout> OverrideLayouts;
 
 			/** Optional context to use instead of the node error context.
 			 * Be careful since it is not used everywhere. Check usages before assigning a value to it. */
@@ -553,14 +566,14 @@ namespace mu
 			Ptr<ASTOp> baseMeshOp;
 
 			/** Generated node layouts with their own block ids. */
-			TArray<Ptr<const Layout>> GeneratedLayouts;
+			TArray<FGeneratedLayout> GeneratedLayouts;
 
 			TArray<Ptr<ASTOp>> layoutOps;
 
 			struct FExtraLayouts
 			{
 				/** Source node layouts to use with these extra mesh. They don't have block ids. */
-				TArray<Ptr<const Layout>> GeneratedLayouts;
+				TArray<FGeneratedLayout> GeneratedLayouts;
 				Ptr<ASTOp> condition;
 				Ptr<ASTOp> meshFragment;
 			};
@@ -623,7 +636,8 @@ namespace mu
 			int32 currentLayoutChannel,
 			const void* errorContext,
 			const FMeshGenerationOptions& MeshOptions,
-			bool bUseAbsoluteBlockIds);
+			bool bUseAbsoluteBlockIds, 
+			int32 FirstLODToIgnoreWarnings);
 
 		//!
 		Ptr<const Layout> AddLayout(Ptr<const Layout> SourceLayout, uint32 MeshIDPrefix);

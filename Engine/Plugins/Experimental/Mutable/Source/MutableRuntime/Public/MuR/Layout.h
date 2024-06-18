@@ -106,18 +106,6 @@ namespace mu
 		//! Set the texture layout packing strategy
 		EPackStrategy GetLayoutPackingStrategy() const;
 
-		//! Set at which LOD the unassigned vertices warnings will star to be ignored
-		void SetIgnoreLODWarnings(int32 LOD);
-
-		//! Get the LOD where the unassigned vertices warnings starts to be ignored
-		int32 GetIgnoreLODWarnings();
-
-		//! Set the block reduction method a the Fixed_Layout strategy
-		void SetBlockReductionMethod(EReductionMethod Method);
-
-		//! Returns the block reduction method
-		EReductionMethod GetBlockReductionMethod() const;
-
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
@@ -191,8 +179,6 @@ namespace mu
 		//! Packing strategy
 		EPackStrategy Strategy = EPackStrategy::RESIZABLE_LAYOUT;
 		 
-		int32 FirstLODToIgnoreWarnings = 0;
-
 		EReductionMethod ReductionMethod = EReductionMethod::HALVE_REDUCTION;
 
 

@@ -595,7 +595,7 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 		AddChildFunc(Private->m_pColour.get(), FString::Printf(TEXT("COLOR")));
 	}
 
-	else if (ParentNode->GetType() == mu::NodeLayoutBlocks::GetStaticType())
+	else if (ParentNode->GetType() == mu::NodeLayout::GetStaticType())
 	{
 		// Nothing to show
 	}
