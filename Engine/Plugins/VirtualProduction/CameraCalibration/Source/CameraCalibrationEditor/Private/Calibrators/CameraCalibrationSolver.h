@@ -141,7 +141,7 @@ protected:
   * The implementation is largely based on the implementation of calibrateCamera from OpenCV: https://github.com/opencv/opencv
   */
 
-UCLASS()
+UCLASS(meta = (DisplayName="OpenCV Solver"))
 class ULensDistortionSolverOpenCV : public ULensDistortionSolver
 {
 	GENERATED_BODY()
